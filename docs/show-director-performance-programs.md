@@ -214,6 +214,81 @@ Output authority remains: safety blackout, explicit cue/transport or authored bl
 
 The planned sequence is: establish this shared foundation, author the laser-forward source shows, author the mixed movement/LED shows, author the impact/atmosphere shows, then perform final integration and visual validation. Each later conversion supplies its own scenes, transient choreography, palette hierarchy, recruitment order, budgets, negative-space rules, and blackout policy.
 
+## Authored rig-backed laser Performance Shows
+
+Patch 2 activates the three laser-forward source rigs as complete authored Performance Shows. Their original Rig Layout cards and identifiers remain unchanged. Selecting a Performance Show clones its canonical source rig into an independent transient working rig, then resolves the dedicated program through the existing musical clock, resolver, compiler, Beam Matrix, Canvas2D renderer, persistence, and safety-blackout path.
+
+### Small Club Performance
+
+**Source Rig Layout:** `small-club-rig`
+
+Small Club Performance is a compact mirrored club architecture. The lower club lasers form kick-driven tunnel walls and floor fans. The upper moving heads create snare crowns and secondary tunnel depth. Left-call and right-response banks alternate without replacing the active motif. LED bars, wash, and haze provide a low-priority texture layer, while the center strobe is a bounded impact only.
+
+The authored bank responsibilities are:
+
+- `lowerKick`: paired lower laser fans for kicks.
+- `upperSnare`: moving-head crown plus bounded center-strobe accent.
+- `leftCall` and `rightResponse`: side-specific call-and-response architecture.
+- `outerHero`: primary fan edges and compact tunnel walls.
+- `innerPrimary`: upper crown and secondary depth.
+- `texture` and `hatTexture`: LED, wash, haze, and high-frequency detail shed first under pressure.
+- `boundedImpact`: short-lived center-strobe events.
+
+The intro starts with a paired spear or narrow tunnel. Verse holds a mirrored local-fan identity. Build recruits upper and side fixtures. Pre-drop compresses to a narrow central aperture and permits only a final half-beat blackout. Drop 1 opens a compact fan, diamond, or lower-wing structure. Breakdown returns to sparse lavender or white spears. Drop 2 adds a second tunnel layer, diagonals, LED depth, wash, and haze without filling the protected center. Outro reduces the architecture to paired spears and a final slit.
+
+Ordinary scenes use cyan and violet or magenta with white reserved for crowns and bounded impacts. The declared program ceiling is 160 compiled beams, below the global 300-beam limit.
+
+### Festival Front Beams Performance
+
+**Source Rig Layout:** `festival-front-beams`
+
+Festival Front Beams Performance turns the four front-line beam fixtures into a wide audience-facing fan with explicit left and right hero edges. The two inner beams own the dominant primary fan, the moving heads own the upper snare crown and four-bar subdivisions, and the stage washes remain a shed-first texture layer.
+
+The authored bank responsibilities are:
+
+- `leftHeroEdge` and `rightHeroEdge`: wide outer fan anchors and impact edges.
+- `innerPrimary`: dominant front-facing fan body.
+- `lowerKick`: inner expansion rays dedicated to kick events.
+- `upperSnare`: moving-head crown dedicated to snare events.
+- `fourBarSubdivision`: moving-head diagonal and radial mutations.
+- `eightBarRecruitment`: outer hero edges and stage washes.
+- `texture`: low-priority stage wash support.
+- `boundedImpact`: short white or warm outer-edge accents.
+
+The intro uses sparse outer framing. Verse establishes a broad but restrained fan. Build recruits outer edges, washes, and the upper crown across macro eight-bar stages. Pre-drop collapses into a clean center aperture with a bounded final half-beat blackout. Drop 1 opens a large cyan-magenta festival fan with clear outer anchors. Breakdown uses sparse lavender or white spears. Drop 2 starts with inner, outer, crown, and wash layers already differentiated, then evolves into diagonal and radial structures rather than merely raising brightness. Outro narrows the fan and releases outer, inner, and crown banks cleanly.
+
+Cyan and magenta own the ordinary fan, violet supports the crown, and white is limited to snare or impact accents. The declared program ceiling is 220 compiled beams, and no scene may exceed the global 300-beam limit.
+
+### Dubstep Drop Lasers Performance
+
+**Source Rig Layout:** `dubstep-drop-lasers`
+
+Dubstep Drop Lasers Performance uses the gate lasers as the kick and outer-hero bank, the cross lasers as the snare and inner-primary bank, and the strobe, blinder, and simulated CO₂ fixtures only as bounded event layers. Every beat animates the current gate, cross, or diamond motif rather than selecting a random replacement.
+
+The authored bank responsibilities are:
+
+- `kick`: paired gate lasers with hard local fan openings.
+- `snare`: cross lasers plus bounded snare strobes.
+- `hatTexture` and `transientTexture`: high-frequency cross detail.
+- `downbeatImpact`: short warm-blinder accents.
+- `outerHero`: primary gate walls and hero fan edges.
+- `innerPrimary`: controlled cross and diamond architecture.
+- `fourBarMutation`: motif evolution that preserves gate identity.
+- `eightBarRecruitment`: secondary cross and bounded impact readiness.
+- `boundedImpact` and `co2Impact`: duration-limited strobe, blinder, and simulated CO₂ events.
+
+The intro uses ominous paired spears. Verse establishes restrained red gates and cyan crosses. Build recruits gate, cross, and snare layers while increasing spread. Pre-drop compresses to a violet or white slit and allows only a purposeful final half-beat blackout. Drop 1 makes kick gates and snare crosses visibly distinct on every beat. Breakdown remains visibly intentional with sparse lavender or white geometry. Drop 2 introduces radial gates, wider diagonal crosses, and a secondary layer while keeping impacts bounded. Outro releases from four lasers to the outer gate pair instead of freezing a full-rig frame.
+
+Red and cyan own the main body, magenta or violet supplies motif accents, orange is reserved for selected phrase or Drop 2 evolution, and white remains an impact color. The declared program ceiling is 220 compiled beams, below the global 300-beam limit.
+
+### Shared musical and visual rules
+
+All three programs respond deterministically to beat, kick, snare, available hat or transient events, downbeat, bar, four-bar, eight-bar, sixteen-bar or phrase, section, and repeated-drop occurrence. Fine Track Map sections that belong to the same macro role do not restart four- or eight-bar progression. Seeking and looping reconstruct the same program state from the playhead, section identity, seed, and lifecycle identities.
+
+Hero beams retain outer architecture and dominant anchors. Primary beams own the central motif. Secondary beams add depth. Texture is discarded first under budget pressure. Impact fixtures are short-lived and bounded. Source blooms remain fixture-local and deduplicated. Each program authors a central aperture rather than relying on accidental darkness, and fixture-keyed targets prevent shared global polygons or wireframe webs.
+
+Static Rig Layout preservation is contractual: the seven original template definitions, names, identifiers, fixture properties, and Rig Layout browser cards are not modified by program playback or registration. The new shows appear only in the Performance Shows category and use canonical preset selection and the existing performance controls.
+
 ## Persistence and migration
 
 Projects created before performance programs normalize to a disabled default state. Program definitions normalize to schema version 3, including bounded blackout windows, section energy envelopes, and bar-progression stages. A legacy built-in ID-only project hydrates a fresh cloned program from the current built-in registry. A missing or removed built-in ID is suppressed safely instead of appearing enabled without an executable program.

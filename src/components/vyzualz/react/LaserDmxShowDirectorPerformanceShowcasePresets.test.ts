@@ -242,6 +242,9 @@ describe('Show Director showcase performance shows', () => {
       'Prism Cathedral',
       'Cardinal Fan Reactor',
       'Cyan Mirror Cage',
+      'Small Club Performance',
+      'Festival Front Beams Performance',
+      'Dubstep Drop Lasers Performance',
     ])
     for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
       const rig = preset.createRig(deterministicIdFactory(`${preset.id}-metadata`))
@@ -356,7 +359,11 @@ describe('Show Director showcase performance shows', () => {
 
       const breakdown = resolvePreset(preset, 112.1)
       expect(breakdown.activeFixtureKeys.length).toBeLessThan(drop.activeFixtureKeys.length)
-      expect(breakdown.activeGroupKeys).not.toEqual(drop.activeGroupKeys)
+      if (breakdown.activeGroupKeys.length > 0 || drop.activeGroupKeys.length > 0) {
+        expect(breakdown.activeGroupKeys).not.toEqual(drop.activeGroupKeys)
+      } else {
+        expect(breakdown.activeFixtureKeys).not.toEqual(drop.activeFixtureKeys)
+      }
       expect(activeSignature(breakdown)).not.toBe(activeSignature(drop))
     })
 
@@ -402,12 +409,12 @@ describe('Show Director showcase performance shows', () => {
     })
   })
 
-  it('produces three structurally different drop programs', () => {
+  it('produces structurally different drop programs for every registered show', () => {
     const signatures = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => activeSignature(resolvePreset(preset, 88.1)))
-    expect(new Set(signatures).size).toBe(3)
+    expect(new Set(signatures).size).toBe(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length)
   })
 
-  it('keeps all three shows visible when Variation Amount is zero', () => {
+  it('keeps every registered show visible when Variation Amount is zero', () => {
     for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
       const program = preset.createProgram()
       const resolution = resolveLaserDmxShowDirectorPerformance({

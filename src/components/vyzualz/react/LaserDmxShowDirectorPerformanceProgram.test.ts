@@ -162,7 +162,7 @@ describe('Show Director performance-program foundation', () => {
     }
   })
 
-  it('keeps the three finished showcase programs available while reserving rig-backed foundation IDs', () => {
+  it('keeps all six finished programs available while reserving later rig-backed foundation IDs', () => {
     const entries = Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)
     const available = entries.filter(entry => entry.status === 'available')
     const foundations = entries.filter(entry => entry.status === 'foundation')
@@ -170,13 +170,19 @@ describe('Show Director performance-program foundation', () => {
       'Prism Cathedral',
       'Cardinal Fan Reactor',
       'Cyan Mirror Cage',
+      'Small Club Performance',
+      'Festival Front Beams Performance',
+      'Dubstep Drop Lasers Performance',
     ])
     expect(available.map(entry => entry.program?.id)).toEqual([
       'prism-cathedral',
       'cardinal-fan-reactor',
       'cyan-mirror-cage',
+      'small-club-rig-performance',
+      'festival-front-beams-performance',
+      'dubstep-drop-lasers-performance',
     ])
-    expect(foundations).toHaveLength(7)
+    expect(foundations).toHaveLength(4)
     expect(foundations.every(entry => entry.program === null)).toBe(true)
   })
 

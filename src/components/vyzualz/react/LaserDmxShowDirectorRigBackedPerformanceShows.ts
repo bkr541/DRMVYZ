@@ -9,6 +9,14 @@ import {
   createLaserDmxShowDirectorTemplateState,
   getLaserDmxShowDirectorTemplate,
 } from './laserDmxShowDirectorTemplates'
+import {
+  createDubstepDropLasersPerformanceProgram,
+  createFestivalFrontBeamsPerformanceProgram,
+  createSmallClubPerformanceProgram,
+  DUBSTEP_DROP_LASERS_PERFORMANCE_BANKS,
+  FESTIVAL_FRONT_BEAMS_PERFORMANCE_BANKS,
+  SMALL_CLUB_PERFORMANCE_BANKS,
+} from './LaserDmxShowDirectorRigBackedLaserPerformancePrograms'
 import type {
   LaserDmxShowDirectorAuthoredFixtureBankMetadata,
   LaserDmxShowDirectorAuthoredFixtureBankRole,
@@ -211,18 +219,24 @@ export function applyAuthoredFixtureBanks(
 
 const bank = defineAuthoredFixtureBank
 
+type RigBackedPerformanceDefinitionInput = Omit<
+  LaserDmxShowDirectorRigBackedPerformanceShowDefinition,
+  'schemaVersion' | 'status' | 'createCanonicalRig' | 'createProgram'
+> & { createProgram?: () => LaserDmxShowDirectorPerformanceProgram }
+
 function definition(
-  input: Omit<LaserDmxShowDirectorRigBackedPerformanceShowDefinition, 'schemaVersion' | 'status' | 'createCanonicalRig' | 'createProgram'>,
+  input: RigBackedPerformanceDefinitionInput,
 ): LaserDmxShowDirectorRigBackedPerformanceShowDefinition {
+  const createProgram = input.createProgram ?? null
   return Object.freeze({
     ...input,
     schemaVersion: LASER_DMX_RIG_BACKED_PERFORMANCE_SHOW_SCHEMA_VERSION,
-    status: 'foundation' as const,
+    status: createProgram ? 'available' as const : 'foundation' as const,
     createCanonicalRig: (createId?: () => string) => cloneCanonicalShowDirectorRigLayout(
       input.sourceRigLayoutId,
       createId ?? deterministicFixtureIdFactory(input.id),
     ),
-    createProgram: null,
+    createProgram,
   })
 }
 
@@ -231,30 +245,46 @@ export const LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS: Readonly<Reco
   LaserDmxShowDirectorRigBackedPerformanceShowDefinition
 >> = Object.freeze({
   'small-club-rig-performance': definition({
-    id: 'small-club-rig-performance', displayName: 'Small Club Rig Performance',
-    description: 'Authored full-song conversion foundation for the balanced Small Club Rig.',
-    sourceRigLayoutId: 'small-club-rig', performanceProgramId: 'small-club-rig-performance', version: 1,
+    id: 'small-club-rig-performance', displayName: 'Small Club Performance',
+    description: 'Compact authored club choreography with mirrored tunnel walls, lower kick fans, upper snare crowns, bounded impacts, and a protected central aperture.',
+    sourceRigLayoutId: 'small-club-rig', performanceProgramId: 'small-club-rig-performance', version: 2,
     supportedFixtureKinds: ['laser', 'movingHead', 'ledBar', 'strobe', 'parWash', 'haze'],
-    fixtureBanks: {
-      hero: bank('hero', ['club-laser-l', 'club-laser-r']), primary: bank('primary', ['front-led-bar-l', 'front-led-bar-r']),
-      movement: bank('movement', ['moving-head-l', 'moving-head-r']), impact: bank('impact', ['center-strobe']),
-      strobe: bank('strobe', ['center-strobe']), atmosphere: bank('atmosphere', ['soft-haze', 'back-wash']),
-      left: bank('left', ['front-led-bar-l', 'club-laser-l', 'moving-head-l']), right: bank('right', ['front-led-bar-r', 'club-laser-r', 'moving-head-r']),
-      center: bank('center', ['center-strobe', 'back-wash']), snare: bank('snare', ['center-strobe']), kick: bank('kick', ['club-laser-l', 'club-laser-r']),
+    fixtureBanks: SMALL_CLUB_PERFORMANCE_BANKS,
+    createProgram: createSmallClubPerformanceProgram,
+    visualValidation: {
+      requiredBankRoles: ['lowerKick', 'upperSnare', 'leftCall', 'rightResponse', 'outerHero', 'innerPrimary', 'texture', 'boundedImpact'],
+      negativeSpaceRules: ['Protect a narrow center aperture; no ordinary scene may continuously fill the center lane.'],
+      acceptanceNotes: ['Local fan origins remain distinguishable.', 'Drop 2 adds upper tunnel depth and diagonal layers rather than brightness alone.'],
+      budgets: definePerformanceBudgets({ maxBeamDemand: 160, maxActiveStrobes: 1, maxHazeAmount: 0.65 }),
     },
-    visualValidation: { requiredBankRoles: ['hero', 'primary', 'movement', 'impact', 'atmosphere'], negativeSpaceRules: ['Protect a readable center lane between the paired club lasers.'], acceptanceNotes: ['Lasers, LEDs, movement, wash, strobe, and haze must remain visually distinct.'], budgets: definePerformanceBudgets({ maxBeamDemand: 72, maxActiveStrobes: 1, maxHazeAmount: 0.65 }) },
   }),
   'festival-front-beams-performance': definition({
-    id: 'festival-front-beams-performance', displayName: 'Festival Front Beams Performance', description: 'Authored full-song conversion foundation for the symmetrical festival front line.', sourceRigLayoutId: 'festival-front-beams', performanceProgramId: 'festival-front-beams-performance', version: 1,
-    supportedFixtureKinds: ['laser', 'movingHead', 'parWash'], fixtureBanks: {
-      hero: bank('hero', ['front-beam-1', 'front-beam-4']), primary: bank('primary', ['front-beam-2', 'front-beam-3']), movement: bank('movement', ['sweep-head-1', 'sweep-head-2']), atmosphere: bank('atmosphere', ['festival-wash-l', 'festival-wash-r']), left: bank('left', ['front-beam-1', 'front-beam-2', 'sweep-head-1', 'festival-wash-l']), right: bank('right', ['front-beam-3', 'front-beam-4', 'sweep-head-2', 'festival-wash-r']), outer: bank('outer', ['front-beam-1', 'front-beam-4']), inner: bank('inner', ['front-beam-2', 'front-beam-3']), kick: bank('kick', ['front-beam-2', 'front-beam-3']), downbeat: bank('downbeat', ['front-beam-1', 'front-beam-4']),
-    }, visualValidation: { requiredBankRoles: ['hero', 'primary', 'movement', 'left', 'right'], negativeSpaceRules: ['Preserve a central audience-facing aperture between inner beams.'], acceptanceNotes: ['Front-line symmetry must remain legible under beam-budget pressure.'], budgets: definePerformanceBudgets({ maxBeamDemand: 112 }) },
+    id: 'festival-front-beams-performance', displayName: 'Festival Front Beams Performance',
+    description: 'Large authored festival fan choreography with outer hero edges, layered inner rays, eight-bar recruitment, clean stage-center framing, and a radial-diagonal second drop.',
+    sourceRigLayoutId: 'festival-front-beams', performanceProgramId: 'festival-front-beams-performance', version: 2,
+    supportedFixtureKinds: ['laser', 'movingHead', 'parWash'],
+    fixtureBanks: FESTIVAL_FRONT_BEAMS_PERFORMANCE_BANKS,
+    createProgram: createFestivalFrontBeamsPerformanceProgram,
+    visualValidation: {
+      requiredBankRoles: ['leftHeroEdge', 'rightHeroEdge', 'innerPrimary', 'lowerKick', 'upperSnare', 'fourBarSubdivision', 'eightBarRecruitment', 'texture', 'boundedImpact'],
+      negativeSpaceRules: ['Preserve a clean central audience-facing aperture between the inner fan banks.'],
+      acceptanceNotes: ['Outer edges retain hero priority under pressure.', 'Decorative wash and crown detail never overwhelm the primary fan architecture.'],
+      budgets: definePerformanceBudgets({ maxBeamDemand: 220 }),
+    },
   }),
   'dubstep-drop-lasers-performance': definition({
-    id: 'dubstep-drop-lasers-performance', displayName: 'Dubstep Drop Lasers Performance', description: 'Authored full-song conversion foundation for quarter-beat gates and bounded impact fixtures.', sourceRigLayoutId: 'dubstep-drop-lasers', performanceProgramId: 'dubstep-drop-lasers-performance', version: 1,
-    supportedFixtureKinds: ['laser', 'strobe', 'blinder', 'co2Jet'], fixtureBanks: {
-      hero: bank('hero', ['drop-gate-l', 'drop-gate-r']), primary: bank('primary', ['drop-cross-l', 'drop-cross-r']), impact: bank('impact', ['snare-strobe-l', 'snare-strobe-r', 'downbeat-blinder', 'co2-drop-l', 'co2-drop-r']), kick: bank('kick', ['drop-gate-l', 'drop-gate-r']), snare: bank('snare', ['snare-strobe-l', 'snare-strobe-r']), downbeat: bank('downbeat', ['downbeat-blinder']), strobe: bank('strobe', ['snare-strobe-l', 'snare-strobe-r']), blinder: bank('blinder', ['downbeat-blinder']), co2Impact: bank('co2Impact', ['co2-drop-l', 'co2-drop-r']), left: bank('left', ['drop-gate-l', 'drop-cross-l', 'snare-strobe-l', 'co2-drop-l']), right: bank('right', ['drop-gate-r', 'drop-cross-r', 'snare-strobe-r', 'co2-drop-r']),
-    }, visualValidation: { requiredBankRoles: ['hero', 'primary', 'kick', 'snare', 'blinder', 'co2Impact'], negativeSpaceRules: ['Impact layers must punctuate the gate architecture rather than white-out the full frame.'], acceptanceNotes: ['Strobe, blinder, and CO₂ actions must remain bounded.'], budgets: definePerformanceBudgets({ maxBeamDemand: 96, maxActiveStrobes: 2, maxActiveBlinders: 1, maxConcurrentCo2Bursts: 2 }) },
+    id: 'dubstep-drop-lasers-performance', displayName: 'Dubstep Drop Lasers Performance',
+    description: 'Aggressive authored dubstep choreography with kick-owned gates, snare-owned crosses and strobes, four-bar motif mutations, eight-bar recruitment, and bounded impact fixtures.',
+    sourceRigLayoutId: 'dubstep-drop-lasers', performanceProgramId: 'dubstep-drop-lasers-performance', version: 2,
+    supportedFixtureKinds: ['laser', 'strobe', 'blinder', 'co2Jet'],
+    fixtureBanks: DUBSTEP_DROP_LASERS_PERFORMANCE_BANKS,
+    createProgram: createDubstepDropLasersPerformanceProgram,
+    visualValidation: {
+      requiredBankRoles: ['kick', 'snare', 'hatTexture', 'downbeatImpact', 'outerHero', 'innerPrimary', 'fourBarMutation', 'eightBarRecruitment', 'boundedImpact'],
+      negativeSpaceRules: ['Gate and cross layers must form bounded local geometry instead of an all-over wireframe web.'],
+      acceptanceNotes: ['Kick and snare banks remain visually distinct.', 'Strobe, blinder, and simulated CO2 actions remain short-lived and palette accents stay subordinate.'],
+      budgets: definePerformanceBudgets({ maxBeamDemand: 220, maxActiveStrobes: 2, maxActiveBlinders: 1, maxConcurrentCo2Bursts: 2 }),
+    },
   }),
   'led-bar-grid-performance': definition({
     id: 'led-bar-grid-performance', displayName: 'LED Bar Grid Performance', description: 'Authored full-song conversion foundation for the LED bar and tube grid.', sourceRigLayoutId: 'led-bar-grid', performanceProgramId: 'led-bar-grid-performance', version: 1,
