@@ -394,10 +394,11 @@ export function applyShowDirectorPerformanceGlobalOverrides(
       ? beamMatrix.fog
       : {
           ...beamMatrix.fog,
-          enabled: beamMatrix.fog.enabled || haze > 0,
-          density: Math.max(beamMatrix.fog.density, haze * 0.62),
-          opacity: Math.max(beamMatrix.fog.opacity, haze * 0.52),
-          beamScatter: Math.max(beamMatrix.fog.beamScatter, haze * 0.78),
+          enabled: haze > 0.01,
+          density: haze * 0.62,
+          opacity: haze * 0.52,
+          beamScatter: haze * 0.78,
+          turbulence: Math.min(beamMatrix.fog.turbulence, 0.18),
         },
   }
 }
@@ -491,6 +492,7 @@ export function renderLaserDmx(
         sections: frame.trackSections,
         cueMarkers: useVisualStore.getState().cueMarkers.filter(marker => cueMarkerBelongsToTrack(marker, trackKey)),
         fixturePriorityById: performanceResolution?.fixturePriorityById,
+        fixturePriorityRoleById: performanceResolution?.fixturePriorityRoleById,
       })
     : state.laserDmxBeamMatrix
   if (performanceResolution) {

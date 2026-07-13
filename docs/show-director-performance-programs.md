@@ -194,3 +194,72 @@ This feature is a **2D visual performance system**. It does not model real-world
 These presets do **not** claim physical laser safety compliance. They do **not** provide compliant physical laser hardware output merely by being selected or rendered. Any future physical output requires independently engineered hardware, venue review, trained operators, jurisdiction-specific compliance, exclusion zones, interlocks, and appropriate safety certification.
 
 The current browser application remains virtual-first. Canvas2D display output and deterministic beam budgeting are visual/runtime safeguards, not a substitute for physical laser-safety engineering.
+
+## Final rendered visual hierarchy and validation
+
+The final Canvas2D finish carries semantic beam roles from the performance resolver through the Show Director compiler and Beam Matrix compiler into the renderer. The roles are not interchangeable brightness labels:
+
+- **Hero** beams own the main architecture, fan edges, and structural anchors. They receive the strongest saturated body, brightest controlled core, and highest ordinary beam priority.
+- **Primary** beams form the readable fan body and repeated architectural lines. They retain a saturated body and clear core without competing with hero beams.
+- **Secondary** beams add depth, diagonal banks, cage edges, and supporting geometry with narrower cores and lower glow.
+- **Texture** beams provide the quietest detail layer. They are the first visual layer removed under beam-budget pressure.
+- **Impact** beams are bounded transient accents with a whiter core and slightly stronger source bloom. Impact styling does not replace the surrounding bank colors and does not promote the entire frame to gray-white haze.
+
+The renderer uses three controlled line passes: a narrow screen-composited glow, a saturated source-over body, and a tinted bright core. Core white mixing is role dependent instead of universal. Fog and persistence are capped by the active performance scene, so dense frames retain ray separation rather than relying on wider blur. Performance haze may reduce an authored static fog level, but safety blackout and user blackout authority remain unchanged.
+
+Fixture origins use one deduplicated source bloom per fixture or co-located fixture bank. The bloom selects the strongest active role at that source, scales with beam intensity, fixture brightness, and global intensity, and remains below the renderer's bounded source radius. Multiple rays sharing one origin therefore read as attached to a small bright lens rather than accumulating into a large diffuse cloud.
+
+### Palette and negative-space rules
+
+Prism Cathedral uses cyan and magenta as the dominant pair, lavender as support, and white only for bounded crowns, spears, or impacts. Cardinal Fan Reactor keeps quadrant ownership: cyan or blue above, orange or red below, blue or violet left, magenta right, with one white impact ray per principal bank. Cyan Mirror Cage uses cyan and icy blue walls plus restrained lavender or white accents.
+
+Ordinary scenes prefer one or two dominant colors and one accent. Full multicolor allocation is reserved for evolved Drop 2 structures or bounded impact moments. The local target geometry from the first remediation patch remains authoritative after every visual-role mutation.
+
+Negative space is authored as structure:
+
+- Prism Cathedral protects a composed center around its X, diamond, crown, and lower-wing geometry.
+- Cardinal Fan Reactor protects a central aperture between top, bottom, left, and right local fan banks.
+- Cyan Mirror Cage protects a dark central corridor while upper, middle, and lower mirrored roles remain visible.
+
+### Deterministic rendered review
+
+Run:
+
+```bash
+npm run visual:show-director
+```
+
+The command bundles only the visual-review entry with the repository's existing esbuild dependency, launches the existing Playwright Chromium project, renders through the production Canvas2D fog and Beam Matrix functions, and writes uncommitted artifacts to:
+
+```text
+artifacts/show-director-visual-review/
+```
+
+Each preset receives ten 640×360 PNG frames plus entries in `report.json`:
+
+1. Intro
+2. Verse
+3. Build
+4. Pre-drop
+5. Drop 1 impact
+6. Drop 1 body
+7. Breakdown
+8. Drop 2 impact
+9. Drop 2 body
+10. Outro
+
+The deterministic synthetic track uses 120 BPM, 4/4 time, seed `0x5a17cafe`, and explicit section spans from 0 to 108 seconds. Every report entry records preset and frame IDs, time, section, macro bar, authored fixture count, active source count, compiled beam count, active motif, recruitment stage, geometry metrics, and rendered pixel metrics.
+
+Geometry assertions cover distinguishable origins, active source count, angular diversity, protected-zone occupancy, central aperture or corridor preservation, left/right symmetry, saturation, luminance, black-frame ratio, adjacent-beat difference, four-bar difference, Drop-to-Verse density, Drop 2 structural growth, dominant-color count, and hero-to-texture brightness ratio. Browser assertions additionally measure visible-pixel luminance, lit-pixel ratio, black-frame ratio, saturation, and high-luminance source-bloom occupancy.
+
+Generated PNGs and reports are review artifacts and are not production UI overlays. They are not committed unless a future repository-wide visual-baseline convention explicitly adopts them.
+
+### Built-in acceptance criteria
+
+**Prism Cathedral** must render mirrored cyan and magenta architecture, a readable X or diamond, lower wings, bright controlled origins, and a composed center. Its breakdown uses sparse white or lavender full-length spears.
+
+**Cardinal Fan Reactor** must render four identifiable local origins and fan banks around a clean aperture. Drop 1 owns strong quadrant colors. Drop 2 adds diagonal banks and radial density while preserving source and aperture clarity.
+
+**Cyan Mirror Cage** must render balanced mirrored cyan walls, inward arrowheads or X geometry, distinct upper, middle, and lower roles, and a protected dark corridor. White impacts may punctuate the frame but cannot erase the corridor.
+
+All three shows remain under the 300-beam hard limit. Hero and primary identity survive budget pressure, secondary structure follows, and texture or decorative detail is shed first.

@@ -3,6 +3,7 @@ import {
   normalizeLaserDmxShowDirectorState,
   type LaserDmxBeamMotion,
   type LaserDmxMatrixBeamAppearance,
+  type LaserDmxMatrixBeamVisualRole,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorState,
 } from './ReactTypes'
@@ -119,6 +120,7 @@ export interface LaserDmxShowDirectorPerformanceResolution {
   energyEnvelope?: LaserDmxShowDirectorSectionEnergyEnvelope | null
   energyMetrics?: LaserDmxShowDirectorResolvedEnergyMetrics
   fixturePriorityById: Record<string, number>
+  fixturePriorityRoleById?: Record<string, LaserDmxShowDirectorBeamPriorityRole>
   diagnostics: LaserDmxShowDirectorPerformanceCapabilityDiagnostics
   deterministicIdentity: string
 }
@@ -466,6 +468,7 @@ function applyFixtureOverrides(
     trigger: { ...fixture.trigger },
     component,
     runtimeBeamAppearance: fixture.runtimeBeamAppearance ? { ...fixture.runtimeBeamAppearance } : undefined,
+    runtimeBeamVisualRole: fixture.runtimeBeamVisualRole,
     runtimeBeamTravel: fixture.runtimeBeamTravel ? { ...fixture.runtimeBeamTravel } : undefined,
   }
   if (overrides.enabled != null) next.enabled = overrides.enabled
@@ -494,6 +497,7 @@ function applyFixtureOverrides(
   if (overrides.trigger) next.trigger = { ...next.trigger, ...overrides.trigger }
   if (overrides.component) next.component = { ...component, ...overrides.component }
   if (overrides.beamAppearance) next.runtimeBeamAppearance = applyBeamAppearanceOverrides(next.runtimeBeamAppearance, overrides.beamAppearance, mode, scalar)
+  if (overrides.beamVisualRole) next.runtimeBeamVisualRole = overrides.beamVisualRole as LaserDmxMatrixBeamVisualRole
   if (overrides.beamTravel) next.runtimeBeamTravel = { ...next.runtimeBeamTravel, ...overrides.beamTravel }
   if (overrides.participatingGroupSemanticKeys?.length) {
     const requestedKeys = overrides.participatingGroupSemanticKeys
@@ -1279,6 +1283,7 @@ function unchangedResolution(
     energyEnvelope: null,
     energyMetrics: measureLaserDmxShowDirectorEnergyMetrics(authored),
     fixturePriorityById: budget.priorityByFixtureId,
+    fixturePriorityRoleById: Object.fromEntries(budget.fixtures.map(item => [item.fixtureId, item.role])),
     diagnostics: {
       analysisReady: (input.context.intelligence.capabilities.beatGrid || input.context.bpm > 0)
         && (input.context.intelligence.capabilities.sections || input.context.resolvedSection !== null),
@@ -1388,6 +1393,7 @@ export function resolveLaserDmxShowDirectorPerformance(
       energyEnvelope,
       energyMetrics,
       fixturePriorityById: budget.priorityByFixtureId,
+      fixturePriorityRoleById: Object.fromEntries(budget.fixtures.map(item => [item.fixtureId, item.role])),
       diagnostics: buildDiagnostics(work, budget, selected.fallbackReason, null),
       deterministicIdentity,
     }

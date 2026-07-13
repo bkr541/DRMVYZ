@@ -794,7 +794,7 @@ export type LaserDmxShowDirectorMovingHeadPanTiltStyle = 'locked' | 'smoothSweep
 export type LaserDmxShowDirectorVideoWallSource = 'placeholder' | 'reactVisual' | 'media' | 'camera'
 export type LaserDmxShowDirectorMirrorAxis = 'horizontal' | 'vertical'
 
-export const LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS = 8
+export const LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS = 12
 
 export interface LaserDmxShowDirectorBeamTarget {
   id: string
@@ -897,6 +897,8 @@ export interface LaserDmxShowDirectorFixture {
   component: LaserDmxShowDirectorFixtureSpecificConfig
   /** Transient performance-program appearance override. Normalization intentionally omits this field. */
   runtimeBeamAppearance?: Partial<LaserDmxMatrixBeamAppearance>
+  /** Transient performance-program renderer role. Normalization intentionally omits this field. */
+  runtimeBeamVisualRole?: LaserDmxMatrixBeamVisualRole
   /** Transient performance-program travel override. Normalization intentionally omits this field. */
   runtimeBeamTravel?: Partial<LaserDmxBeamMotion>
 }
@@ -2001,6 +2003,8 @@ export interface LaserDmxMatrixBeamAppearance {
   geometry:      LaserDmxMatrixBeamGeometry
 }
 
+export type LaserDmxMatrixBeamVisualRole = 'hero' | 'primary' | 'secondary' | 'texture' | 'impact'
+
 export interface LaserDmxMatrixBeam {
   id:      string
   name:    string
@@ -2016,6 +2020,8 @@ export interface LaserDmxMatrixBeam {
   color:      LaserDmxMatrixBeamColor
   appearance: LaserDmxMatrixBeamAppearance
   motion:     LaserDmxBeamMotion
+  /** Optional transient visual hierarchy. Not required for persisted legacy beams. */
+  visualRole?: LaserDmxMatrixBeamVisualRole
 
   modulationRoutes: LaserDmxModulationRoute[]
 }

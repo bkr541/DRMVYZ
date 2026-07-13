@@ -44,6 +44,63 @@ import { computeLineGeometry, computeConeGeometry } from './LaserDmxBeamGeometry
 
 function clamp01(v: number): number { return v < 0 ? 0 : v > 1 ? 1 : v }
 
+export interface LaserDmxBeamVisualProfile {
+  glowWidth: number
+  glowAlpha: number
+  bodyWidth: number
+  bodyAlpha: number
+  coreWidth: number
+  coreAlpha: number
+  coreWhiteMix: number
+  coneAlpha: number
+  sourceRadius: number
+  sourceAlpha: number
+  headRadius: number
+}
+
+export const LASER_DMX_BEAM_VISUAL_PROFILES: Readonly<Record<CompiledLaserDmxMatrixBeam['visualRole'], LaserDmxBeamVisualProfile>> = Object.freeze({
+  hero: {
+    glowWidth: 4.8, glowAlpha: 0.13, bodyWidth: 1.72, bodyAlpha: 0.88,
+    coreWidth: 0.48, coreAlpha: 0.98, coreWhiteMix: 0.28, coneAlpha: 0.62,
+    sourceRadius: 3.2, sourceAlpha: 0.94, headRadius: 2.6,
+  },
+  primary: {
+    glowWidth: 4.1, glowAlpha: 0.1, bodyWidth: 1.5, bodyAlpha: 0.8,
+    coreWidth: 0.4, coreAlpha: 0.88, coreWhiteMix: 0.16, coneAlpha: 0.5,
+    sourceRadius: 2.7, sourceAlpha: 0.82, headRadius: 2.35,
+  },
+  secondary: {
+    glowWidth: 3.1, glowAlpha: 0.07, bodyWidth: 1.16, bodyAlpha: 0.62,
+    coreWidth: 0.3, coreAlpha: 0.68, coreWhiteMix: 0.08, coneAlpha: 0.34,
+    sourceRadius: 2.2, sourceAlpha: 0.68, headRadius: 2,
+  },
+  texture: {
+    glowWidth: 2.2, glowAlpha: 0.035, bodyWidth: 0.82, bodyAlpha: 0.4,
+    coreWidth: 0.2, coreAlpha: 0.42, coreWhiteMix: 0, coneAlpha: 0.2,
+    sourceRadius: 1.75, sourceAlpha: 0.48, headRadius: 1.65,
+  },
+  impact: {
+    glowWidth: 5.2, glowAlpha: 0.15, bodyWidth: 1.9, bodyAlpha: 0.9,
+    coreWidth: 0.58, coreAlpha: 1, coreWhiteMix: 0.58, coneAlpha: 0.68,
+    sourceRadius: 3.7, sourceAlpha: 1, headRadius: 3,
+  },
+})
+
+function profileFor(beam: CompiledLaserDmxMatrixBeam): LaserDmxBeamVisualProfile {
+  return LASER_DMX_BEAM_VISUAL_PROFILES[beam.visualRole] ?? LASER_DMX_BEAM_VISUAL_PROFILES.primary
+}
+
+function mixedCoreColor(beam: CompiledLaserDmxMatrixBeam, whiteMix: number, alpha: number): string {
+  const mix = clamp01(whiteMix)
+  const { r, g, b } = beam.rgba
+  const channel = (value: number) => Math.round(value + (255 - value) * mix)
+  return `rgba(${channel(r)},${channel(g)},${channel(b)},${clamp01(alpha).toFixed(3)})`
+}
+
+function focusScale(beam: CompiledLaserDmxMatrixBeam): number {
+  return 0.58 + clamp01(beam.focus) * 0.42
+}
+
 // ── Line beam rendering (3-pass batched) ──────────────────────────────────────
 
 /**
@@ -60,11 +117,12 @@ function drawLineGlow(
     beam.visibleTarget.x, beam.visibleTarget.y,
   )
   const alpha  = clamp01(intensity * beam.rgba.a)
-  const gAlpha = alpha * 0.18 * beam.glow
+  const profile = profileFor(beam)
+  const gAlpha = alpha * profile.glowAlpha * beam.glow
   if (gAlpha < 0.005) return
 
   ctx.globalAlpha = gAlpha
-  ctx.lineWidth   = beam.beamWidth * 7 * beam.glow
+  ctx.lineWidth   = Math.max(0.5, beam.beamWidth * profile.glowWidth * beam.glow / focusScale(beam))
   ctx.strokeStyle = beam.colorCss
   ctx.beginPath()
   ctx.moveTo(x1, y1)
@@ -84,11 +142,12 @@ function drawLineBody(
   )
   const alpha = clamp01(intensity * beam.rgba.a)
   if (alpha < 0.005) return
+  const profile = profileFor(beam)
 
-  ctx.globalAlpha = alpha * 0.70
-  ctx.lineWidth   = beam.beamWidth * 2
+  ctx.globalAlpha = alpha * profile.bodyAlpha
+  ctx.lineWidth   = Math.max(0.35, beam.beamWidth * profile.bodyWidth * focusScale(beam))
   ctx.shadowColor = beam.colorCss
-  ctx.shadowBlur  = 10 * beam.glow
+  ctx.shadowBlur  = 3.5 * beam.glow * (1.15 - clamp01(beam.focus) * 0.35)
   ctx.strokeStyle = beam.colorCss
   ctx.beginPath()
   ctx.moveTo(x1, y1)
@@ -109,10 +168,11 @@ function drawLineCore(
   )
   const alpha = clamp01(intensity * beam.rgba.a)
   if (alpha < 0.005) return
+  const profile = profileFor(beam)
 
   ctx.globalAlpha = 1
-  ctx.lineWidth   = Math.max(0.5, beam.beamWidth * 0.35)
-  ctx.strokeStyle = `rgba(255,255,255,${(alpha * 0.9).toFixed(3)})`
+  ctx.lineWidth   = Math.max(0.42, beam.beamWidth * profile.coreWidth * focusScale(beam))
+  ctx.strokeStyle = mixedCoreColor(beam, profile.coreWhiteMix, alpha * profile.coreAlpha)
   ctx.beginPath()
   ctx.moveTo(x1, y1)
   ctx.lineTo(x2, y2)
@@ -137,6 +197,7 @@ function drawVolumetricCone(
 
   const alpha = clamp01(intensity * beam.rgba.a)
   if (alpha < 0.005) return
+  const profile = profileFor(beam)
 
   const { quad, len } = geom
   if (len < 0.5) return
@@ -145,9 +206,9 @@ function drawVolumetricCone(
   const grad = ctx.createLinearGradient(vo.x, vo.y, vt.x, vt.y)
   const { r, g, b } = beam.rgba
   grad.addColorStop(0,    `rgba(${r},${g},${b},0)`)
-  grad.addColorStop(0.15, `rgba(${r},${g},${b},${(alpha * 0.6).toFixed(3)})`)
-  grad.addColorStop(0.5,  `rgba(${r},${g},${b},${(alpha * 0.4).toFixed(3)})`)
-  grad.addColorStop(1,    `rgba(${r},${g},${b},${(alpha * 0.15).toFixed(3)})`)
+  grad.addColorStop(0.15, `rgba(${r},${g},${b},${(alpha * profile.coneAlpha).toFixed(3)})`)
+  grad.addColorStop(0.5,  `rgba(${r},${g},${b},${(alpha * profile.coneAlpha * 0.62).toFixed(3)})`)
+  grad.addColorStop(1,    `rgba(${r},${g},${b},${(alpha * profile.coneAlpha * 0.2).toFixed(3)})`)
 
   // Outer body (gradient fill)
   ctx.globalCompositeOperation = 'screen'
@@ -167,9 +228,9 @@ function drawVolumetricCone(
   const { nx, ny } = geom
   const centreGrad = ctx.createLinearGradient(vo.x, vo.y, vt.x, vt.y)
   centreGrad.addColorStop(0,   `rgba(${r},${g},${b},0)`)
-  centreGrad.addColorStop(0.1, `rgba(${r},${g},${b},${(alpha * 0.9).toFixed(3)})`)
-  centreGrad.addColorStop(0.5, `rgba(${r},${g},${b},${(alpha * 0.5).toFixed(3)})`)
-  centreGrad.addColorStop(1,   `rgba(${r},${g},${b},${(alpha * 0.1).toFixed(3)})`)
+  centreGrad.addColorStop(0.1, mixedCoreColor(beam, profile.coreWhiteMix * 0.45, alpha * profile.coreAlpha * 0.9))
+  centreGrad.addColorStop(0.5, `rgba(${r},${g},${b},${(alpha * profile.coneAlpha * 0.7).toFixed(3)})`)
+  centreGrad.addColorStop(1,   `rgba(${r},${g},${b},${(alpha * profile.coneAlpha * 0.12).toFixed(3)})`)
 
   ctx.fillStyle = centreGrad
   ctx.beginPath()
@@ -184,7 +245,7 @@ function drawVolumetricCone(
   if (beam.glow > 0.05) {
     const haloGrad = ctx.createLinearGradient(vo.x, vo.y, vt.x, vt.y)
     haloGrad.addColorStop(0,   `rgba(${r},${g},${b},0)`)
-    haloGrad.addColorStop(0.2, `rgba(${r},${g},${b},${(alpha * beam.glow * 0.12).toFixed(3)})`)
+    haloGrad.addColorStop(0.2, `rgba(${r},${g},${b},${(alpha * beam.glow * profile.glowAlpha * 0.8).toFixed(3)})`)
     haloGrad.addColorStop(1,   `rgba(${r},${g},${b},0)`)
     const hW = geom.targetHalfWidth * 1.8
     ctx.fillStyle = haloGrad
@@ -215,16 +276,85 @@ function drawHeadGlow(
 
   const pt = beam.headAtOriginFrac ? beam.visibleOrigin : beam.visibleTarget
   const { r, g, b } = beam.rgba
-  const radius = beam.beamWidth * 3
+  const profile = profileFor(beam)
+  const radius = Math.max(1.5, beam.beamWidth * profile.headRadius)
 
   const grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius)
-  grad.addColorStop(0,   `rgba(255,255,255,${(alpha * 0.9).toFixed(3)})`)
-  grad.addColorStop(0.3, `rgba(${r},${g},${b},${(alpha * 0.8).toFixed(3)})`)
+  grad.addColorStop(0,   mixedCoreColor(beam, Math.max(0.35, profile.coreWhiteMix), alpha * profile.coreAlpha))
+  grad.addColorStop(0.3, `rgba(${r},${g},${b},${(alpha * profile.bodyAlpha).toFixed(3)})`)
   grad.addColorStop(1,   `rgba(${r},${g},${b},0)`)
 
   ctx.beginPath()
   ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2)
   ctx.fillStyle = grad
+  ctx.fill()
+}
+
+interface SourceBloomEntry {
+  beam: CompiledLaserDmxMatrixBeam
+  intensity: number
+}
+
+function sourceBloomKey(beam: CompiledLaserDmxMatrixBeam): string {
+  if (beam.groupId) return beam.groupId
+  return `${Math.round(beam.origin.x * 2) / 2}:${Math.round(beam.origin.y * 2) / 2}`
+}
+
+function roleWeight(role: CompiledLaserDmxMatrixBeam['visualRole']): number {
+  switch (role) {
+    case 'impact': return 5
+    case 'hero': return 4
+    case 'primary': return 3
+    case 'secondary': return 2
+    case 'texture': return 1
+  }
+}
+
+function collectSourceBlooms(
+  beams: CompiledLaserDmxMatrixBeam[],
+  intensityScale: number,
+): SourceBloomEntry[] {
+  const bySource = new Map<string, SourceBloomEntry>()
+  for (const beam of beams) {
+    if (!beam.strobeVisible) continue
+    const intensity = clamp01(beam.intensity * intensityScale * beam.rgba.a)
+    if (intensity < 0.01) continue
+    const key = sourceBloomKey(beam)
+    const previous = bySource.get(key)
+    if (!previous
+      || roleWeight(beam.visualRole) > roleWeight(previous.beam.visualRole)
+      || (roleWeight(beam.visualRole) === roleWeight(previous.beam.visualRole) && intensity > previous.intensity)) {
+      bySource.set(key, { beam, intensity })
+    } else if (intensity > previous.intensity) {
+      previous.intensity = intensity
+    }
+  }
+  return [...bySource.values()]
+}
+
+function drawSourceBloom(ctx: CanvasRenderingContext2D, entry: SourceBloomEntry): void {
+  const { beam, intensity } = entry
+  const profile = profileFor(beam)
+  const { x, y } = beam.origin
+  const { r, g, b } = beam.rgba
+  const tightness = focusScale(beam)
+  const haloRadius = Math.max(2.5, beam.beamWidth * profile.sourceRadius * (1.2 - tightness * 0.18))
+  const coreRadius = Math.max(0.65, Math.min(1.8, haloRadius * 0.24))
+  const alpha = clamp01(intensity * profile.sourceAlpha)
+
+  const halo = ctx.createRadialGradient(x, y, coreRadius * 0.4, x, y, haloRadius)
+  halo.addColorStop(0, mixedCoreColor(beam, Math.max(0.25, profile.coreWhiteMix), alpha))
+  halo.addColorStop(0.22, `rgba(${r},${g},${b},${(alpha * 0.72).toFixed(3)})`)
+  halo.addColorStop(0.58, `rgba(${r},${g},${b},${(alpha * 0.18).toFixed(3)})`)
+  halo.addColorStop(1, `rgba(${r},${g},${b},0)`)
+  ctx.fillStyle = halo
+  ctx.beginPath()
+  ctx.arc(x, y, haloRadius, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = mixedCoreColor(beam, Math.max(0.42, profile.coreWhiteMix), alpha)
+  ctx.beginPath()
+  ctx.arc(x, y, coreRadius, 0, Math.PI * 2)
   ctx.fill()
 }
 
@@ -344,9 +474,9 @@ export function renderLaserDmxBeamMatrix(
     }
     ctx.restore()
 
-    // Pass B: saturated beam body (screen composite)
+    // Pass B: saturated beam body. source-over preserves hue separation in dense scenes.
     ctx.save()
-    ctx.globalCompositeOperation = 'screen'
+    ctx.globalCompositeOperation = 'source-over'
     ctx.lineCap = 'round'
     for (const beam of lineBeams) {
       const eg = clamp01(beam.glow * glowScale)
@@ -364,7 +494,19 @@ export function renderLaserDmxBeamMatrix(
     ctx.restore()
   }
 
-  // ── Pass D: head glow at beam leading edge ────────────────────────────────
+  // ── Pass D: one tight source bloom per fixture origin ─────────────────────
+  // Multiple rays commonly share an origin. Deduplicating here prevents their
+  // halos from stacking into a large diffuse cloud while retaining a bright,
+  // readable attachment point for every active fixture bank.
+  const sourceBlooms = collectSourceBlooms(beams, intensityScale)
+  if (sourceBlooms.length > 0) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+    for (const entry of sourceBlooms) drawSourceBloom(ctx, entry)
+    ctx.restore()
+  }
+
+  // ── Pass E: head glow at beam leading edge ────────────────────────────────
   if (headGlowBeams.length > 0) {
     ctx.save()
     ctx.globalCompositeOperation = 'screen'

@@ -14,6 +14,7 @@ import type {
   LaserDmxMatrixBeam,
   LaserDmxMatrixBeamAppearance,
   LaserDmxMatrixBeamColor,
+  LaserDmxMatrixBeamVisualRole,
   LaserDmxMatrixGridAnchor,
   LaserDmxMatrixTarget,
   LaserDmxModulationRoute,
@@ -29,6 +30,7 @@ import type {
   LaserDmxShowDirectorTriggerConfig,
   ReactTrackSection,
 } from '../ReactTypes'
+import type { LaserDmxShowDirectorBeamPriorityRole } from '../LaserDmxShowDirectorPerformanceProgram'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { VzCueMarker } from '../../../../types/cue'
 
@@ -44,6 +46,8 @@ export interface CompileLaserDmxShowDirectorToBeamMatrixInput {
   cueMarkers?: readonly VzCueMarker[] | null
   /** Optional deterministic runtime priority. Omitted for authored/static compilation to preserve legacy ordering exactly. */
   fixturePriorityById?: Readonly<Record<string, number>> | null
+  /** Optional role map used only for transient Show Director visual hierarchy. */
+  fixturePriorityRoleById?: Readonly<Record<string, LaserDmxShowDirectorBeamPriorityRole>> | null
 }
 
 interface StagePoint01 {
@@ -66,6 +70,7 @@ interface FixtureCompileContext {
   hazeIntensity: number
   groupLabels: Map<string, string>
   hasRenderableFixture: boolean
+  fixturePriorityRoleById: Readonly<Record<string, LaserDmxShowDirectorBeamPriorityRole>>
 }
 
 const KIND_DEFAULT_COLORS: Record<LaserDmxShowDirectorFixtureKind, string> = {
@@ -779,8 +784,25 @@ function makeGroup(fixture: LaserDmxShowDirectorFixture, groupLabels: Map<string
   }
 }
 
+
+function visualRoleForFixture(
+  fixture: LaserDmxShowDirectorFixture,
+  priorityRole?: LaserDmxShowDirectorBeamPriorityRole,
+): LaserDmxMatrixBeamVisualRole {
+  if (fixture.runtimeBeamVisualRole) return fixture.runtimeBeamVisualRole
+  switch (priorityRole) {
+    case 'heroImpact': return 'hero'
+    case 'secondaryFan': return 'secondary'
+    case 'detailLattice':
+    case 'decorativeAccent': return 'texture'
+    case 'primaryArchitecture':
+    default: return 'primary'
+  }
+}
+
 function makeBeam(
   fixture: LaserDmxShowDirectorFixture,
+  priorityRole: LaserDmxShowDirectorBeamPriorityRole | undefined,
   suffix: string,
   sequenceIndex: number,
   origin: LaserDmxMatrixGridAnchor,
@@ -806,6 +828,7 @@ function makeBeam(
     color: fixture.kind === 'blinder' ? warmWhiteColor() : colorForFixture(fixture),
     appearance: defaultAppearance(fixture, appearancePatch),
     motion,
+    visualRole: visualRoleForFixture(fixture, priorityRole),
     modulationRoutes: routes,
   }
 }
@@ -862,6 +885,7 @@ function compileBeamFixture(
             : 'static'
     ctx.matrixBeams.push(makeBeam(
       fixture,
+      ctx.fixturePriorityRoleById[fixture.id],
       useEditableTargets ? `${fixture.kind}-target-${i + 1}` : `${fixture.kind}-${i + 1}`,
       ctx.outputBeamCount,
       origin,
@@ -904,6 +928,7 @@ function compileLedFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCom
     )
     ctx.matrixBeams.push(makeBeam(
       fixture,
+      ctx.fixturePriorityRoleById[fixture.id],
       `${tube ? 'tube' : 'bar'}-${i + 1}`,
       ctx.outputBeamCount,
       origin,
@@ -930,6 +955,7 @@ function compileStrobeFixture(fixture: LaserDmxShowDirectorFixture, ctx: Fixture
     const target = stageTargetFromAngle(point, angles[i], 0.12)
     ctx.matrixBeams.push(makeBeam(
       fixture,
+      ctx.fixturePriorityRoleById[fixture.id],
       `strobe-${i + 1}`,
       ctx.outputBeamCount,
       origin,
@@ -964,6 +990,7 @@ function compileBlinderFixture(fixture: LaserDmxShowDirectorFixture, ctx: Fixtur
     )
     ctx.matrixBeams.push(makeBeam(
       fixture,
+      ctx.fixturePriorityRoleById[fixture.id],
       `blinder-${i + 1}`,
       ctx.outputBeamCount,
       origin,
@@ -994,6 +1021,7 @@ function compileVideoWallFixture(fixture: LaserDmxShowDirectorFixture, ctx: Fixt
     const edge = edges[i]
     ctx.matrixBeams.push(makeBeam(
       fixture,
+      ctx.fixturePriorityRoleById[fixture.id],
       `video-wall-${i + 1}`,
       ctx.outputBeamCount,
       edge.origin,
@@ -1021,6 +1049,7 @@ function compileCo2Fixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCom
   if (ctx.outputBeamCount >= LASER_DMX_MATRIX_MAX_BEAMS) return
   ctx.matrixBeams.push(makeBeam(
     fixture,
+    ctx.fixturePriorityRoleById[fixture.id],
     'co2-plume',
     ctx.outputBeamCount,
     origin,
@@ -1210,6 +1239,7 @@ export function compileLaserDmxShowDirectorToBeamMatrix(
     hazeIntensity: 0,
     groupLabels: new Map((showDirector?.groups ?? []).map(group => [group.id, group.label])),
     hasRenderableFixture: false,
+    fixturePriorityRoleById: input.fixturePriorityRoleById ?? {},
   }
 
   for (const fixture of fixtures) {

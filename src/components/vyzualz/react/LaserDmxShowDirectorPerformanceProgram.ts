@@ -2,6 +2,7 @@ import {
   LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
   type LaserDmxBeamMotion,
   type LaserDmxMatrixBeamAppearance,
+  type LaserDmxMatrixBeamVisualRole,
   type LaserDmxShowDirectorBeamConfig,
   type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorFixtureSpecificConfig,
@@ -116,6 +117,7 @@ export interface LaserDmxShowDirectorFixtureRuntimeOverrides {
   mirrorAxis?: LaserDmxShowDirectorMirrorAxis | null
   trigger?: Partial<LaserDmxShowDirectorTriggerConfig>
   beamAppearance?: Partial<LaserDmxMatrixBeamAppearance>
+  beamVisualRole?: LaserDmxMatrixBeamVisualRole
   beamTravel?: Partial<LaserDmxBeamMotion>
   component?: Partial<LaserDmxShowDirectorFixtureSpecificConfig>
   participatingGroupSemanticKeys?: string[]
@@ -497,6 +499,7 @@ const MIRROR_AXES = new Set<LaserDmxShowDirectorMirrorAxis>(['horizontal', 'vert
 const PRIORITY_ROLES = new Set<LaserDmxShowDirectorBeamPriorityRole>([
   'heroImpact', 'primaryArchitecture', 'secondaryFan', 'detailLattice', 'decorativeAccent',
 ])
+const VISUAL_ROLES = new Set<LaserDmxMatrixBeamVisualRole>(['hero', 'primary', 'secondary', 'texture', 'impact'])
 const TRIGGER_MODES = new Set<LaserDmxShowDirectorTriggerConfig['mode']>([
   'alwaysOn', 'beat', 'bar', 'phrase', 'section', 'cuePoint', 'bassHit', 'snareTransient', 'energy', 'audioBand',
 ])
@@ -707,6 +710,7 @@ function normalizeFixtureOverrides(raw: unknown): LaserDmxShowDirectorFixtureRun
   if (raw.mirrorAxis === null || MIRROR_AXES.has(raw.mirrorAxis as LaserDmxShowDirectorMirrorAxis)) fixture.mirrorAxis = raw.mirrorAxis as LaserDmxShowDirectorMirrorAxis | null
   const trigger = normalizeTrigger(raw.trigger); if (trigger) fixture.trigger = trigger
   const beamAppearance = normalizeBeamAppearance(raw.beamAppearance); if (beamAppearance) fixture.beamAppearance = beamAppearance
+  if (VISUAL_ROLES.has(raw.beamVisualRole as LaserDmxMatrixBeamVisualRole)) fixture.beamVisualRole = raw.beamVisualRole as LaserDmxMatrixBeamVisualRole
   const beamTravel = normalizeBeamTravel(raw.beamTravel); if (beamTravel) fixture.beamTravel = beamTravel
   const component = normalizeComponent(raw.component); if (component) fixture.component = component
   const participatingGroupSemanticKeys = cleanStringArray(raw.participatingGroupSemanticKeys)

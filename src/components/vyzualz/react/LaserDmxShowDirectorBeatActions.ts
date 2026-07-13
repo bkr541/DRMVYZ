@@ -62,6 +62,7 @@ export function createBankHitMutation(
     glow?: number
     geometry?: 'line' | 'volumetricCone'
     travelMode?: 'static' | 'grow' | 'projectile' | 'scanner' | 'pulseTrain' | 'pingPong'
+    visualRole?: 'hero' | 'impact' | 'primary' | 'secondary' | 'texture'
   } = {},
 ): ThresholdMutation {
   return {
@@ -85,6 +86,7 @@ export function createBankHitMutation(
         retrigger: 'restart',
       },
       beamPriorityRole: 'heroImpact',
+      beamVisualRole: options.visualRole ?? 'hero',
     },
   }
 }
@@ -102,6 +104,7 @@ export function createBankDuckMutation(
       brightness: options.brightness ?? LASER_DMX_SHOW_DIRECTOR_BEAT_PERCEPTIBILITY.duckedBrightness,
       beamAppearance: { glow: options.glow ?? 0.54, width: 0.9 },
       beamPriorityRole: 'decorativeAccent',
+      beamVisualRole: 'texture',
     },
   }
 }
@@ -121,6 +124,7 @@ export function createDownbeatImpactMutations(
         width: 2.7,
         geometry: options.geometry ?? 'volumetricCone',
         travelMode: 'projectile',
+        visualRole: 'impact',
       }),
       beatDivision: 1,
       beatOffsets: [0],

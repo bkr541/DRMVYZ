@@ -71,6 +71,7 @@ import type {
   LaserDmxBeamTravelMode,
   LaserDmxLaunchSettings,
   LaserDmxBeamMatrixCue,
+  LaserDmxMatrixBeamVisualRole,
 } from '../ReactTypes'
 import { DEFAULT_BEAM_MOTION, DEFAULT_BEAM_SEQUENCE, DEFAULT_LAUNCH_SETTINGS, BEATS_PER_BAR } from '../ReactTypes'
 import {
@@ -128,6 +129,8 @@ export interface CompiledLaserDmxMatrixBeam {
   /** ≈1.0 ± deterministic noise from flickerAmount. */
   flickerMultiplier: number
   geometry: LaserDmxMatrixBeamGeometry
+  /** Transient Show Director visual hierarchy. Legacy beams default to primary. */
+  visualRole: LaserDmxMatrixBeamVisualRole
 
   // ── Motion / sequencer state ───────────────────────────────────────────────
   /** Active travel mode (defaults to 'static' for legacy beams). */
@@ -1069,6 +1072,7 @@ export function compileLaserDmxBeamMatrix(
       strobeVisible,
       flickerMultiplier: safeF(flickerMultiplier, 1),
       geometry:          app.geometry ?? 'line',
+      visualRole:        beam.visualRole ?? 'primary',
 
       motionMode,
       travelProgress:    safeF(travelProgress, 0),

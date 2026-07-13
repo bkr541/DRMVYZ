@@ -171,7 +171,7 @@ function localizeProgram(
 }
 
 function rayCount(originalTargets: readonly LaserDmxShowDirectorBeamTarget[], minimum = 3): number {
-  return Math.max(minimum, Math.min(8, originalTargets.length))
+  return Math.max(minimum, Math.min(12, originalTargets.length))
 }
 
 function averageTarget(targets: readonly LaserDmxShowDirectorBeamTarget[]): LaserDmxLocalGeometryPoint {

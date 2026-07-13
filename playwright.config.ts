@@ -29,21 +29,30 @@ export default defineConfig({
 
   use: {
     // The dev server must be running or the build must be served.
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:4173',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173',
     trace:   'on-first-retry',
-    video:   'retain-on-failure',
+    video: process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1' ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
 
-  // Launch a preview server from the production build before running tests.
-  webServer: {
+  // Normal E2E runs use the production preview server. The deterministic
+  // Show Director review injects an offline browser bundle and needs no server.
+  webServer: process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1' ? undefined : {
     command: 'npm run preview',
-    url:     'http://localhost:4173',
+    url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },
 
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+          ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } }
+          : {}),
+      },
+    },
   ],
 })
