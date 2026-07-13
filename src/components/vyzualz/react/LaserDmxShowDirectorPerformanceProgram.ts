@@ -8,6 +8,11 @@ import type {
   LaserDmxShowDirectorTriggerConfig,
   ReactSectionType,
 } from './ReactTypes'
+import {
+  createCardinalFanReactorProgram,
+  createCyanMirrorCageProgram,
+  createPrismCathedralProgram,
+} from './LaserDmxShowDirectorPerformanceShowcasePresets'
 
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION = 1
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION = 1
@@ -261,9 +266,24 @@ export const LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY: Readonly<Rec
   LaserDmxShowDirectorBuiltInPerformanceProgramId,
   LaserDmxShowDirectorBuiltInPerformanceRegistryEntry
 >> = Object.freeze({
-  'prism-cathedral': Object.freeze({ id: 'prism-cathedral', name: 'Prism Cathedral', status: 'foundation', program: null }),
-  'cardinal-fan-reactor': Object.freeze({ id: 'cardinal-fan-reactor', name: 'Cardinal Fan Reactor', status: 'foundation', program: null }),
-  'cyan-mirror-cage': Object.freeze({ id: 'cyan-mirror-cage', name: 'Cyan Mirror Cage', status: 'foundation', program: null }),
+  'prism-cathedral': Object.freeze({
+    id: 'prism-cathedral',
+    name: 'Prism Cathedral',
+    status: 'available',
+    program: createPrismCathedralProgram(),
+  }),
+  'cardinal-fan-reactor': Object.freeze({
+    id: 'cardinal-fan-reactor',
+    name: 'Cardinal Fan Reactor',
+    status: 'available',
+    program: createCardinalFanReactorProgram(),
+  }),
+  'cyan-mirror-cage': Object.freeze({
+    id: 'cyan-mirror-cage',
+    name: 'Cyan Mirror Cage',
+    status: 'available',
+    program: createCyanMirrorCageProgram(),
+  }),
 })
 
 export interface LaserDmxShowDirectorPerformanceState {

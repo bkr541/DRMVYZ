@@ -3,6 +3,7 @@ import {
   type LaserDmxShowDirectorState,
 } from './ReactTypes'
 import {
+  LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY,
   LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION,
   cloneLaserDmxShowDirectorPerformanceProgram,
   nextLaserDmxShowDirectorPerformanceInvalidationId,
@@ -12,6 +13,7 @@ import {
   type LaserDmxShowDirectorPerformanceSectionType,
   type LaserDmxShowDirectorPerformanceState,
 } from './LaserDmxShowDirectorPerformanceProgram'
+import { LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS } from './LaserDmxShowDirectorPerformanceShowcasePresets'
 
 export interface LaserDmxShowDirectorPerformancePresetDefinition {
   id: string
@@ -32,8 +34,8 @@ export interface LaserDmxShowDirectorPerformancePresetLoadResult {
   performance: LaserDmxShowDirectorPerformanceState
 }
 
-/** Patch 3 installs the three finished showcase definitions into this registry. */
-export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze([])
+/** Canonical full-song Show Director performance shows. */
+export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS
 
 const FAVORITES_STORAGE_KEY = 'drmvyz.showDirector.performanceFavorites.v1'
 
@@ -81,7 +83,12 @@ export function createLaserDmxShowDirectorPerformancePresetLoadResult(
     performance: {
       schemaVersion: LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION,
       activeProgramId: program.id,
-      activeBuiltInProgramId: null,
+      activeBuiltInProgramId: Object.prototype.hasOwnProperty.call(
+        LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY,
+        program.id,
+      )
+        ? program.id as keyof typeof LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY
+        : null,
       activeProgramDefinition: cloneLaserDmxShowDirectorPerformanceProgram(program),
       enabled: true,
       tuning: { ...program.tuning },

@@ -54,8 +54,13 @@ function syntheticPreset(): LaserDmxShowDirectorPerformancePresetDefinition {
 }
 
 describe('Show Director performance preset workflow', () => {
-  it('keeps the finished registry empty until Patch 3', () => {
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toEqual([])
+  it('publishes the three finished shows through the canonical registry', () => {
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.id)).toEqual([
+      'prism-cathedral',
+      'cardinal-fan-reactor',
+      'cyan-mirror-cage',
+    ])
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.fixtureCount)).toEqual([12, 16, 16])
   })
 
   it('loads rig and program atomically, preserves canvas preferences, and reloads the pristine built-in definition', () => {
