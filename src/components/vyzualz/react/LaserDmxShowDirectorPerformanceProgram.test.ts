@@ -162,7 +162,7 @@ describe('Show Director performance-program foundation', () => {
     }
   })
 
-  it('keeps all eight finished programs available while reserving later rig-backed foundation IDs', () => {
+  it('keeps all ten finished programs available in the canonical registry', () => {
     const entries = Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)
     const available = entries.filter(entry => entry.status === 'available')
     const foundations = entries.filter(entry => entry.status === 'foundation')
@@ -175,6 +175,8 @@ describe('Show Director performance-program foundation', () => {
       'Dubstep Drop Lasers Performance',
       'LED Bar Grid Performance',
       'Moving Head Sweep Performance',
+      'Strobe + Blinder Performance',
+      'Haze + CO2 Performance',
     ])
     expect(available.map(entry => entry.program?.id)).toEqual([
       'prism-cathedral',
@@ -185,9 +187,10 @@ describe('Show Director performance-program foundation', () => {
       'dubstep-drop-lasers-performance',
       'led-bar-grid-performance',
       'moving-head-sweep-performance',
+      'strobe-blinder-hits-performance',
+      'haze-co2-drops-performance',
     ])
-    expect(foundations).toHaveLength(2)
-    expect(foundations.every(entry => entry.program === null)).toBe(true)
+    expect(foundations).toHaveLength(0)
   })
 
   it('migrates existing state and round-trips performance state through persistence', () => {

@@ -23,6 +23,13 @@ import {
   LED_BAR_GRID_PERFORMANCE_BANKS,
   MOVING_HEAD_SWEEP_PERFORMANCE_BANKS,
 } from './LaserDmxShowDirectorRigBackedLedMovingHeadPerformancePrograms'
+import {
+  createHazeCo2PerformanceProgram,
+  createStrobeBlinderPerformanceProgram,
+  HAZE_CO2_PERFORMANCE_BANKS,
+  HAZE_CO2_PERFORMANCE_LIMITS,
+  STROBE_BLINDER_PERFORMANCE_BANKS,
+} from './LaserDmxShowDirectorRigBackedImpactAtmospherePerformancePrograms'
 import type {
   LaserDmxShowDirectorAuthoredFixtureBankMetadata,
   LaserDmxShowDirectorAuthoredFixtureBankRole,
@@ -235,7 +242,6 @@ export function applyAuthoredFixtureBanks(
   }
 }
 
-const bank = defineAuthoredFixtureBank
 
 type RigBackedPerformanceDefinitionInput = Omit<
   LaserDmxShowDirectorRigBackedPerformanceShowDefinition,
@@ -340,16 +346,36 @@ export const LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS: Readonly<Reco
     },
   }),
   'strobe-blinder-hits-performance': definition({
-    id: 'strobe-blinder-hits-performance', displayName: 'Strobe + Blinder Hits Performance', description: 'Authored full-song conversion foundation for a bounded impact-only fixture layer.', sourceRigLayoutId: 'strobe-blinder-hits', performanceProgramId: 'strobe-blinder-hits-performance', version: 1,
-    supportedFixtureKinds: ['strobe', 'blinder'], fixtureBanks: {
-      impact: bank('impact', ['transient-strobe-l', 'transient-strobe-r', 'bass-flash-center', 'blinder-l', 'blinder-c', 'blinder-r']), strobe: bank('strobe', ['transient-strobe-l', 'transient-strobe-r', 'bass-flash-center']), blinder: bank('blinder', ['blinder-l', 'blinder-c', 'blinder-r']), snare: bank('snare', ['transient-strobe-l', 'transient-strobe-r']), kick: bank('kick', ['bass-flash-center']), downbeat: bank('downbeat', ['blinder-l', 'blinder-c', 'blinder-r']), left: bank('left', ['transient-strobe-l', 'blinder-l']), right: bank('right', ['transient-strobe-r', 'blinder-r']), center: bank('center', ['bass-flash-center', 'blinder-c']),
-    }, visualValidation: { requiredBankRoles: ['impact', 'strobe', 'blinder', 'snare', 'downbeat'], negativeSpaceRules: ['The default body state must remain dark enough that impacts read as events.'], acceptanceNotes: ['No unbounded scene-level strobe or blinder activation.'], budgets: definePerformanceBudgets({ maxBeamDemand: 18, maxActiveStrobes: 3, maxActiveBlinders: 3 }) },
+    id: 'strobe-blinder-hits-performance', displayName: 'Strobe + Blinder Performance',
+    description: 'Transient-owned authored impact choreography with separate kick, snare, downbeat, build, breakdown, left, right, and bounded full-impact banks.',
+    sourceRigLayoutId: 'strobe-blinder-hits', performanceProgramId: 'strobe-blinder-hits-performance', version: 2,
+    supportedFixtureKinds: ['strobe', 'blinder'], fixtureBanks: STROBE_BLINDER_PERFORMANCE_BANKS,
+    createProgram: createStrobeBlinderPerformanceProgram,
+    visualValidation: {
+      requiredBankRoles: ['kick', 'snare', 'downbeat', 'left', 'right', 'impact', 'transient', 'center'],
+      negativeSpaceRules: ['The default scene body remains dark so every strobe and blinder reads as a bounded event instead of permanent full-frame white.'],
+      acceptanceNotes: [
+        'Kick and snare fixture ownership remains visibly distinct.',
+        'All strobe and blinder actions are deterministic, cooldown-aware, short-lived, and subordinate to final blackout authority.',
+      ],
+      budgets: definePerformanceBudgets({ maxBeamDemand: 24, maxActiveStrobes: 3, maxActiveBlinders: 3 }),
+    },
   }),
   'haze-co2-drops-performance': definition({
-    id: 'haze-co2-drops-performance', displayName: 'Haze + CO₂ Drops Performance', description: 'Authored full-song conversion foundation for atmosphere and bounded simulated CO₂ accents.', sourceRigLayoutId: 'haze-co2-drops', performanceProgramId: 'haze-co2-drops-performance', version: 1,
-    supportedFixtureKinds: ['haze', 'co2Jet'], fixtureBanks: {
-      atmosphere: bank('atmosphere', ['haze-base-l', 'haze-base-r']), impact: bank('impact', ['co2-jet-l', 'co2-jet-r', 'phrase-co2-center']), co2Impact: bank('co2Impact', ['co2-jet-l', 'co2-jet-r', 'phrase-co2-center']), left: bank('left', ['haze-base-l', 'co2-jet-l']), right: bank('right', ['haze-base-r', 'co2-jet-r']), center: bank('center', ['phrase-co2-center']), downbeat: bank('downbeat', ['co2-jet-l', 'co2-jet-r']), transient: bank('transient', ['phrase-co2-center']),
-    }, visualValidation: { requiredBankRoles: ['atmosphere', 'impact', 'co2Impact'], negativeSpaceRules: ['Atmosphere may reveal other beams but must not become opaque full-frame fog.'], acceptanceNotes: ['CO₂-style effects remain simulated, bounded, and non-physical.'], budgets: definePerformanceBudgets({ maxBeamDemand: 0, maxConcurrentCo2Bursts: 3, maxHazeAmount: 0.72 }) },
+    id: 'haze-co2-drops-performance', displayName: 'Haze + CO2 Performance',
+    description: 'Capped full-song atmosphere choreography with progressive haze, alternating virtual CO2-style impacts, an expanded second drop, and a clean outro release.',
+    sourceRigLayoutId: 'haze-co2-drops', performanceProgramId: 'haze-co2-drops-performance', version: 2,
+    supportedFixtureKinds: ['haze', 'co2Jet'], fixtureBanks: HAZE_CO2_PERFORMANCE_BANKS,
+    createProgram: createHazeCo2PerformanceProgram,
+    visualValidation: {
+      requiredBankRoles: ['atmosphere', 'left', 'right', 'downbeat', 'impact', 'co2Impact'],
+      negativeSpaceRules: ['Atmosphere reveals other virtual fixtures without becoming permanent gray output or obscuring protected negative space.'],
+      acceptanceNotes: [
+        'Haze follows a capped section envelope and recedes in pre-drop, breakdown, and outro states.',
+        'CO2-style plumes remain simulated, alternating, bounded, deterministic, and subordinate to final blackout authority.',
+      ],
+      budgets: definePerformanceBudgets({ maxBeamDemand: 3, maxConcurrentCo2Bursts: 3, maxHazeAmount: HAZE_CO2_PERFORMANCE_LIMITS.maximumHazeAmount }),
+    },
   }),
 })
 

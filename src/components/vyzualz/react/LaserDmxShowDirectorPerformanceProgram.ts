@@ -24,6 +24,10 @@ import {
   createLedBarGridPerformanceProgram,
   createMovingHeadSweepPerformanceProgram,
 } from './LaserDmxShowDirectorRigBackedLedMovingHeadPerformancePrograms'
+import {
+  createHazeCo2PerformanceProgram,
+  createStrobeBlinderPerformanceProgram,
+} from './LaserDmxShowDirectorRigBackedImpactAtmospherePerformancePrograms'
 
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION = 3
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION = 1
@@ -490,8 +494,8 @@ export const LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY: Readonly<Rec
   'dubstep-drop-lasers-performance': Object.freeze({ id: 'dubstep-drop-lasers-performance', name: 'Dubstep Drop Lasers Performance', status: 'available', program: createDubstepDropLasersPerformanceProgram() }),
   'led-bar-grid-performance': Object.freeze({ id: 'led-bar-grid-performance', name: 'LED Bar Grid Performance', status: 'available', program: createLedBarGridPerformanceProgram() }),
   'moving-head-sweep-performance': Object.freeze({ id: 'moving-head-sweep-performance', name: 'Moving Head Sweep Performance', status: 'available', program: createMovingHeadSweepPerformanceProgram() }),
-  'strobe-blinder-hits-performance': Object.freeze({ id: 'strobe-blinder-hits-performance', name: 'Strobe + Blinder Hits Performance', status: 'foundation', program: null }),
-  'haze-co2-drops-performance': Object.freeze({ id: 'haze-co2-drops-performance', name: 'Haze + CO₂ Drops Performance', status: 'foundation', program: null }),
+  'strobe-blinder-hits-performance': Object.freeze({ id: 'strobe-blinder-hits-performance', name: 'Strobe + Blinder Performance', status: 'available', program: createStrobeBlinderPerformanceProgram() }),
+  'haze-co2-drops-performance': Object.freeze({ id: 'haze-co2-drops-performance', name: 'Haze + CO2 Performance', status: 'available', program: createHazeCo2PerformanceProgram() }),
 })
 
 export interface LaserDmxShowDirectorPerformanceState {
@@ -556,7 +560,16 @@ function isSectionType(value: unknown): value is LaserDmxShowDirectorPerformance
 }
 
 function isBuiltInId(value: unknown): value is LaserDmxShowDirectorBuiltInPerformanceProgramId {
-  return value === 'prism-cathedral' || value === 'cardinal-fan-reactor' || value === 'cyan-mirror-cage'
+  return value === 'prism-cathedral'
+    || value === 'cardinal-fan-reactor'
+    || value === 'cyan-mirror-cage'
+    || value === 'small-club-rig-performance'
+    || value === 'festival-front-beams-performance'
+    || value === 'dubstep-drop-lasers-performance'
+    || value === 'led-bar-grid-performance'
+    || value === 'moving-head-sweep-performance'
+    || value === 'strobe-blinder-hits-performance'
+    || value === 'haze-co2-drops-performance'
 }
 
 export function normalizeLaserDmxShowDirectorPerformanceTuning(

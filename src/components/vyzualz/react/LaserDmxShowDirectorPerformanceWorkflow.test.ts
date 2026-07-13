@@ -54,7 +54,7 @@ function syntheticPreset(): LaserDmxShowDirectorPerformancePresetDefinition {
 }
 
 describe('Show Director performance preset workflow', () => {
-  it('publishes all eight finished shows through the canonical registry', () => {
+  it('publishes all ten finished shows through the canonical registry', () => {
     expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.id)).toEqual([
       'prism-cathedral',
       'cardinal-fan-reactor',
@@ -64,8 +64,10 @@ describe('Show Director performance preset workflow', () => {
       'dubstep-drop-lasers-performance',
       'led-bar-grid-performance',
       'moving-head-sweep-performance',
+      'strobe-blinder-hits-performance',
+      'haze-co2-drops-performance',
     ])
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.fixtureCount)).toEqual([12, 16, 16, 9, 8, 9, 10, 5])
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.fixtureCount)).toEqual([12, 16, 16, 9, 8, 9, 10, 5, 6, 5])
   })
 
   it('loads rig and program atomically, preserves canvas preferences, and reloads the pristine built-in definition', () => {

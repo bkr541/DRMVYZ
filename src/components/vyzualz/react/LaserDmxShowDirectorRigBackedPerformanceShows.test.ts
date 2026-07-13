@@ -95,12 +95,12 @@ function context(timeSec: number, seekIdentity = 'seek:initial', loopIdentity = 
 }
 
 describe('rig-backed Performance Show architecture foundation', () => {
-  it('registers five authored shows while keeping two later conversions hidden', () => {
+  it('registers all seven rig-backed authored shows without changing the static template catalog', () => {
     expect(Object.keys(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS)).toHaveLength(7)
-    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'available')).toHaveLength(5)
-    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'foundation')).toHaveLength(2)
-    expect(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS).toHaveLength(5)
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(8)
+    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'available')).toHaveLength(7)
+    expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'foundation')).toHaveLength(0)
+    expect(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS).toHaveLength(7)
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(10)
     expect(LASER_DMX_SHOW_DIRECTOR_TEMPLATES).toHaveLength(7)
   })
 
@@ -185,11 +185,12 @@ describe('rig-backed Performance Show architecture foundation', () => {
     expect(normalizeLaserDmxShowDirectorState(JSON.parse(JSON.stringify(custom)))).toEqual(custom)
   })
 
-  it('suppresses unknown or foundation-only Performance Program IDs safely', () => {
+  it('suppresses unknown IDs while loading the authored impact show normally', () => {
     const unknown = normalizeLaserDmxShowDirectorPerformanceState({ enabled: true, activeProgramId: 'unknown-program' })
-    const foundation = normalizeLaserDmxShowDirectorPerformanceState({ enabled: true, activeProgramId: 'strobe-blinder-hits-performance', activeBuiltInProgramId: 'strobe-blinder-hits-performance' })
+    const authored = normalizeLaserDmxShowDirectorPerformanceState({ enabled: true, activeProgramId: 'strobe-blinder-hits-performance', activeBuiltInProgramId: 'strobe-blinder-hits-performance' })
     expect(unknown).toMatchObject({ enabled: false, activeProgramDefinition: null, activeProgramId: null })
-    expect(foundation).toMatchObject({ enabled: false, activeProgramDefinition: null, activeProgramId: null })
+    expect(authored).toMatchObject({ enabled: true, activeProgramId: 'strobe-blinder-hits-performance', activeBuiltInProgramId: 'strobe-blinder-hits-performance' })
+    expect(authored.activeProgramDefinition?.id).toBe('strobe-blinder-hits-performance')
     expect(createDefaultLaserDmxShowDirectorPerformanceState().enabled).toBe(false)
   })
 
@@ -199,6 +200,7 @@ describe('rig-backed Performance Show architecture foundation', () => {
       'prism-cathedral', 'cardinal-fan-reactor', 'cyan-mirror-cage',
       'small-club-rig-performance', 'festival-front-beams-performance', 'dubstep-drop-lasers-performance',
       'led-bar-grid-performance', 'moving-head-sweep-performance',
+      'strobe-blinder-hits-performance', 'haze-co2-drops-performance',
     ])
     for (const entry of available) {
       const before = JSON.stringify(entry.program)
@@ -207,10 +209,13 @@ describe('rig-backed Performance Show architecture foundation', () => {
     }
   })
 
-  it('keeps foundation definitions out of registration until a program factory is authored', () => {
-    const definition = getRigBackedPerformanceShowDefinition('strobe-blinder-hits-performance')!
-    expect(createRigBackedPerformancePresetDefinition(definition)).toBeNull()
-    expect(definition.createProgram).toBeNull()
+  it('publishes the authored impact and atmosphere definitions through the existing preset path', () => {
+    for (const id of ['strobe-blinder-hits-performance', 'haze-co2-drops-performance'] as const) {
+      const definition = getRigBackedPerformanceShowDefinition(id)!
+      expect(definition.status).toBe('available')
+      expect(definition.createProgram!().id).toBe(id)
+      expect(createRigBackedPerformancePresetDefinition(definition)?.id).toBe(id)
+    }
   })
 
   it('preserves safety and authored blackout authority above performance overrides', () => {

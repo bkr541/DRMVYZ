@@ -178,19 +178,17 @@ A static Rig Layout remains an editable Show Director authoring preset. Loading 
 
 A rig-backed Performance Show is a separate authored show definition. It links a Performance Show identifier to one canonical built-in Rig Layout and one dedicated Performance Program identifier. The base rig is recreated through the existing Rig Layout factory, then normalized into an independent performance-owned instance. The performance runtime never mutates the source template, a saved static layout, or another loaded instance.
 
-The seven conversion definitions are registered in `LaserDmxShowDirectorRigBackedPerformanceShows.ts`. Five are complete and selectable:
+The seven conversion definitions are registered in `LaserDmxShowDirectorRigBackedPerformanceShows.ts`. All seven are complete, selectable, and backed by dedicated authored Performance Programs:
 
-1. Small Club Rig Performance
+1. Small Club Performance
 2. Festival Front Beams Performance
 3. Dubstep Drop Lasers Performance
 4. LED Bar Grid Performance
 5. Moving Head Sweep Performance
-The remaining two definitions stay at status `foundation` until their authored programs are supplied:
+6. Strobe + Blinder Performance
+7. Haze + CO2 Performance
 
-1. Strobe + Blinder Hits Performance
-2. Haze + CO₂ Drops Performance
-
-Foundation-only definitions are intentionally omitted from the Performance Shows browser. A definition becomes selectable only after it has an authored program factory and its status changes to `available`. This preserves canonical preset selection and avoids empty or duplicate cards.
+All seven use the existing Performance Shows browser, canonical preset selection, persistence, resolver, musical clock, seeking, looping, and final safety-blackout authority. Their original static Rig Layouts remain separate, editable presets.
 
 ### Canonical source-rig linkage
 
@@ -214,7 +212,7 @@ Output authority remains: safety blackout, explicit cue/transport or authored bl
 
 `LaserDmxShowDirectorRigPerformanceInspection.ts` produces development/test reports for all seven sources, including fixture IDs and semantic keys, fixture kinds, groups, beam/non-beam counts, supported authored properties, local targets, candidate authored banks, and unsupported-property warnings. It does not create a production overlay.
 
-The implemented sequence is: shared foundation, three laser-forward source shows, then the LED-grid and moving-head shows. The remaining sequence is to author the impact/atmosphere shows, then perform final integration and visual validation. Each conversion supplies its own scenes, transient choreography, palette hierarchy, recruitment order, budgets, negative-space rules, and blackout policy.
+The implemented sequence is: shared foundation, three laser-forward source shows, the LED-grid and moving-head shows, then the impact and atmosphere shows. Patch 5 remains the final integration, rendered-output validation, documentation audit, and regression pass. Each conversion supplies its own scenes, transient choreography, palette hierarchy, recruitment order, budgets, negative-space rules, and blackout policy.
 
 ## Authored rig-backed laser Performance Shows
 
@@ -339,6 +337,65 @@ Representative Drop 2 validation resolves 4 active moving heads, all 4 members o
 ### Supported-property and preservation boundaries
 
 Both programs are schema-version-3 authored programs with complete intro, verse, build, pre-drop, Drop 1, breakdown, Drop 2, and outro scenes. They respond at beat, rhythm-event, bar, four-bar, eight-bar, phrase, section, and repeated-drop timescales. Capability inspection must report no unsupported fixture-action warnings. Resolver diagnostics must report no incompatible writes. The original `LED Bar Grid` and `Moving Head Sweep` static Rig Layout templates remain byte-equivalent before and after performance registration, cloning, playback, seeking, and looping.
+
+## Authored impact and atmosphere Performance Shows
+
+Patch 4 activates the two remaining source rigs as complete authored Performance Shows. Both remain virtual DRMVYZ visualizations. They add no physical output path, fixture-control claim, new compositor, new timing engine, or renderer replacement.
+
+### Strobe + Blinder Performance
+
+**Source Rig Layout:** `strobe-blinder-hits`
+
+Strobe + Blinder Performance is a transient-owned impact show whose default scene body remains dark. Its authored banks are:
+
+- `kickStrobeBank`: center strobe only.
+- `snareStrobeBank`: paired left and right strobes.
+- `downbeatStrobeBank`: all three strobes for bounded structural accents.
+- `leftBlinderBank` and `rightBlinderBank`: alternating warm side impacts.
+- `fullImpactBlinderBank`: all three blinders for short section impacts.
+- `buildPulseBank`: paired side strobes recruited through the build.
+- `breakdownIsolationBank`: center strobe and center blinder for sparse punctuation.
+
+The intro uses isolated eight-beat ticks. Verse limits activity to restrained kick, snare, and occasional side-blinder accents. Build recruits side strobes first, then center and alternating blinder banks as build progress rises. Pre-drop uses an isolated center hold followed by a maximum half-beat authored blackout. Drop 1 separates kick, snare, downbeat, side-call, and selected strong-transient ownership. Breakdown returns to sparse center events. Drop 2 increases response frequency and bounded duration rather than leaving fixtures active. Outro falls back to an eight-beat center pulse and then disables all impact fixtures.
+
+Authored limits and validation metrics are:
+
+- Maximum strobe action: **96 ms**.
+- Maximum blinder action: **240 ms**.
+- Maximum full-frame white strobe duration: **96 ms**.
+- Maximum scheduled beat-envelope activation ratio: **0.24 of one beat**.
+- Kick bank: **1 center strobe**.
+- Snare bank: **2 side strobes**.
+- Downbeat bank: **3 strobes**, with side-blinder accents scheduled separately.
+- Drop entry: up to **6 active impact fixtures**, immediately bounded by action duration and response envelopes.
+- Breakdown representative body frame: **0 active impact fixtures**, with isolated events capped at one bank.
+- Maximum compiled impact representation: **24 Beam Matrix segments** under the existing compiler.
+
+Tests assert kick-to-snare bank difference, downbeat difference, build escalation, bounded pre-drop blackout, Drop 1 impact, sparse breakdown, faster Drop 2 recruitment, continuous-on prevention, full-frame luminance duration, static-rig immutability, deterministic seeking and looping, and final blackout authority.
+
+### Haze + CO2 Performance
+
+**Source Rig Layout:** `haze-co2-drops`
+
+Haze + CO2 Performance is an atmosphere-and-impact companion with two haze fixtures and three simulated CO2-style plume fixtures. Its authored banks are:
+
+- `baseHazeBank`: restrained intro, verse, breakdown, and release atmosphere.
+- `buildHazeBank`: progressively rising build atmosphere.
+- `dropHazeBank`: capped Drop 1 and Drop 2 atmosphere.
+- `leftCo2ImpactBank` and `rightCo2ImpactBank`: alternating virtual side plumes.
+- `downbeatCo2ImpactBank`: center plume for major downbeats and transitions.
+- `drop2ExpandedImpactBank`: all three virtual plumes for selected Drop 2 structure.
+- `outroReleaseBank`: both haze fixtures, explicitly released to zero.
+
+The global haze envelope is intentionally non-monotonic: intro **0.10**, verse **0.22**, build **0.40 plus up to 0.18 build-progress modulation**, pre-drop **0.08**, Drop 1 **0.48**, breakdown **0.14**, Drop 2 **0.58**, and outro **0.10** before the final release. Fixture haze intensity is capped at **0.62**. This keeps atmosphere supportive without turning the frame into permanent gray output or hiding fixture origins and protected negative space.
+
+Simulated CO2-style bursts are short and deterministic. Drop 1 alternates one left or right plume on an eight-beat cycle. Drop 2 retains that alternation and adds a selected sixteen-beat three-plume impact. The maximum authored burst is **650 ms**, and the maximum scheduled burst-envelope activation ratio is **0.32 of one beat**. No scene body continuously enables a plume. The expanded virtual impact compiles to at most **3 plume sources**.
+
+Tests assert haze occupancy and cap, build growth, pre-drop reduction, a breakdown-to-Drop 1 haze ratio below **0.35**, stronger capped Drop 2 atmosphere, alternating one-fixture left and right bursts, three-fixture Drop 2 recruitment, continuous-burst prevention, renderer fog contribution caps, clean outro release, static-rig immutability, deterministic seeking and looping, and final blackout authority.
+
+### Safety, persistence, and preservation boundaries
+
+Both programs use schema version 3 and the existing transient scheduler, Track Map section model, musical clock, performance resolver, compiler, persistence state, seek identity, loop identity, and lifecycle invalidation. Program blackout may add a bounded cut but cannot clear user, authored, or safety blackout. Registry hydration recognizes all ten built-in Performance Program identifiers, including the two Patch 4 programs. The original `Strobe + Blinder Hits` and `Haze + CO₂ Drops` static Rig Layout templates remain unchanged and independently selectable.
 
 ## Persistence and migration
 
