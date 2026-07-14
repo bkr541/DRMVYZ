@@ -5,6 +5,7 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
+import { buildSharedPerformanceContext, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
@@ -34,6 +35,21 @@ import {
   type CanvasParticleAudioFrame,
   type CanvasParticlePoint,
 } from './renderers/CanvasParticleAuraRenderer'
+import {
+  buildCanvasPreloadRequests,
+  CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
+  CANVAS_MEDIA_ROLES,
+  CANVAS_MEDIA_ROLE_LABELS,
+  CanvasOrchestrationStage,
+  CanvasPreloadManager,
+  getCanvasPerformancePreloadCandidates,
+  resolveCanvasMediaRoles,
+  resolveCanvasPerformanceFrame,
+  type CanvasCompositionPreference,
+  type CanvasLayerRole,
+  type CanvasMediaRole,
+  type CanvasResolvedPerformanceFrame,
+} from './canvasPerformance'
 import {
   CANVAS_PRESET_BY_ID,
   DEFAULT_CANVAS_PRESET_ID,
@@ -159,7 +175,21 @@ function makeCanvasMediaItemFromLibrary(
     mimeType: media.mimeType,
     meta: media.meta,
     source: 'library',
-    createdAt: typeof media.metadata.analyzedAt === 'string' ? media.metadata.analyzedAt : new Date(0).toISOString(),
+    createdAt: Number.isFinite(media.metadata.analyzedAt)
+      ? new Date(media.metadata.analyzedAt as number).toISOString()
+      : new Date(0).toISOString(),
+    width: media.metadata.width,
+    height: media.metadata.height,
+    durationSec: media.metadata.duration,
+    fps: media.metadata.fps,
+    hasAlpha: media.metadata.hasAlpha,
+    loopable: media.metadata.loopable,
+    bpm: media.metadata.bpm,
+    energy: media.metadata.energy,
+    tags: media.tags,
+    collectionIds: media.collectionIds,
+    libraryRole: media.mediaRole,
+    mediaRevision: media.revision,
     timing,
   }
 }
@@ -250,10 +280,27 @@ function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
 function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
+  const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
+  const toggleCanvasMediaPoolItem = useReactStore(s => s.toggleCanvasMediaPoolItem)
+  const setCanvasMediaRoles = useReactStore(s => s.setCanvasMediaRoles)
   const mediaItems = useCanvasRuntimeMediaItems()
   const manualMediaOverrideId = useReactStore(s => s.canvasEngineSettings.manualMediaOverrideId)
   const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
   const manualMediaOverrideActive = Boolean(manualMediaOverrideId && mediaItems.some(item => item.id === manualMediaOverrideId))
+  const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
+  const poolItems = orchestration.mediaPoolIds
+    .map(id => mediaItems.find(item => item.id === id) ?? null)
+    .filter((item): item is CanvasMediaItem => item !== null)
+  const roleResolution = activeItem ? resolveCanvasMediaRoles(activeItem, orchestration) : null
+  const explicitRoles = activeItem ? orchestration.mediaRolesById[activeItem.id] ?? [] : []
+
+  const toggleRole = (role: CanvasMediaRole) => {
+    if (!activeItem) return
+    const roles = explicitRoles.includes(role)
+      ? explicitRoles.filter(candidate => candidate !== role)
+      : [...explicitRoles, role]
+    setCanvasMediaRoles(activeItem.id, roles)
+  }
 
   return (
     <div className={`rv-canvas-library-shell${compact ? ' rv-canvas-library-shell--compact' : ''}`}>
@@ -273,6 +320,50 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
         capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
         getDisabledReason={getCanvasLibraryDisabledReason}
       />
+      <div className="rv-canvas-pool" aria-label="CANVAS performance media pool">
+        <div className="rv-canvas-pool__head">
+          <span>Performance Pool</span>
+          <strong>{poolItems.length}</strong>
+        </div>
+        {poolItems.length === 0 ? (
+          <p>Select media to build a deterministic multi-source pool.</p>
+        ) : (
+          <div className="rv-canvas-pool__chips">
+            {poolItems.map(item => (
+              <span key={item.id} className={`rv-canvas-pool-chip${item.id === activeCanvasMediaId ? ' rv-canvas-pool-chip--active' : ''}`}>
+                <button type="button" onClick={() => selectCanvasMediaItem(item.id)} title={item.name}>{item.name}</button>
+                <button type="button" onClick={() => toggleCanvasMediaPoolItem(item.id, false)} aria-label={`Remove ${item.name} from CANVAS performance pool`}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {activeItem && orchestration.mediaPoolIds.includes(activeItem.id) && (
+        <div className="rv-canvas-role-editor" aria-label={`Performance roles for ${activeItem.name}`}>
+          <div className="rv-canvas-pool__head">
+            <span>Roles · {activeItem.name}</span>
+            {explicitRoles.length === 0 && roleResolution && <em>Auto: {roleResolution.automatic.map(role => CANVAS_MEDIA_ROLE_LABELS[role]).join(', ')}</em>}
+          </div>
+          <div className="rv-canvas-role-grid">
+            {CANVAS_MEDIA_ROLES.map(role => {
+              const explicit = explicitRoles.includes(role)
+              const effective = roleResolution?.effective.includes(role) ?? false
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  className={`rv-canvas-role-chip${explicit ? ' rv-canvas-role-chip--active' : effective ? ' rv-canvas-role-chip--auto' : ''}`}
+                  onClick={() => toggleRole(role)}
+                  aria-pressed={explicit}
+                  title={explicit ? 'Assigned by user' : effective ? 'Assigned automatically' : 'Assign role'}
+                >
+                  {CANVAS_MEDIA_ROLE_LABELS[role]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <CanvasLegacySessionMedia compact={compact} />
     </div>
   )
@@ -1141,6 +1232,7 @@ export function CanvasEngineSurface({
   onLiveFps?: (fps: number) => void
 }) {
   const settings = useReactStore(s => s.canvasEngineSettings)
+  const orchestrationSettings = useReactStore(s => s.canvasOrchestrationSettings)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useCanvasRuntimeMediaItems()
   const restartRevision = useReactStore(s => s.canvasVideoRestartRevision)
@@ -1154,6 +1246,12 @@ export function CanvasEngineSurface({
   const outputCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const sourceEffectsCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const particleOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const orchestrationPreloadManagerRef = useRef<CanvasPreloadManager | null>(null)
+  if (!orchestrationPreloadManagerRef.current) orchestrationPreloadManagerRef.current = new CanvasPreloadManager()
+  const orchestrationPreloadManager = orchestrationPreloadManagerRef.current
+  const previousOrchestrationContextRef = useRef<SharedPerformanceContext | null>(null)
+  const previousOrchestrationFrameRef = useRef<CanvasResolvedPerformanceFrame | null>(null)
+  const [orchestrationFrame, setOrchestrationFrame] = useState<CanvasResolvedPerformanceFrame | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
   const [detectedBackgroundMode, setDetectedBackgroundMode] = useState<{
@@ -1192,12 +1290,76 @@ export function CanvasEngineSurface({
   getAudioTimeRef.current = getAudioTime
 
   useEffect(() => {
+    if (!orchestrationSettings.enabled) {
+      orchestrationPreloadManager.releaseAll()
+      previousOrchestrationContextRef.current = null
+      previousOrchestrationFrameRef.current = null
+      setOrchestrationFrame(null)
+      return
+    }
+
+    const trackIdentity = activeAudioTrackId ?? 'canvas:unloaded-track'
+    orchestrationPreloadManager.setScope(trackIdentity, orchestrationSettings.poolRevision)
+    previousOrchestrationContextRef.current = null
+    previousOrchestrationFrameRef.current = null
+
+    const resolveFrame = () => {
+      const audioTimeSec = resolveCanvasAudioTime(getAudioTimeRef.current)
+      const context = buildSharedPerformanceContext({
+        audioTimeSec,
+        frame: AudioFeatureBus.getFrame(),
+        analysis: trackAnalysisRef.current,
+        resolvedSections: trackSectionsRef.current,
+        trackIdentity,
+        trackChangeIdentity: `track:${trackIdentity}`,
+        previous: previousOrchestrationContextRef.current,
+      })
+      const nextFrame = resolveCanvasPerformanceFrame({
+        context,
+        settings: orchestrationSettings,
+        mediaItems,
+        previousFrame: previousOrchestrationFrameRef.current,
+        isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+      })
+      const activeMediaIds = nextFrame.layers
+        .map(layer => layer.sourceMediaId)
+        .filter((id): id is string => Boolean(id))
+      const candidateMediaIds = getCanvasPerformancePreloadCandidates(nextFrame, orchestrationSettings, mediaItems)
+      orchestrationPreloadManager.request(buildCanvasPreloadRequests({
+        mediaItems,
+        activeMediaIds,
+        candidateMediaIds,
+        trackIdentity,
+        poolRevision: orchestrationSettings.poolRevision,
+      }))
+      orchestrationPreloadManager.retainOnly([...activeMediaIds, ...candidateMediaIds])
+      previousOrchestrationContextRef.current = context
+      previousOrchestrationFrameRef.current = nextFrame
+      setOrchestrationFrame(nextFrame)
+    }
+
+    resolveFrame()
+    const intervalId = window.setInterval(resolveFrame, 80)
+    return () => window.clearInterval(intervalId)
+  }, [activeAudioTrackId, mediaItems, orchestrationPreloadManager, orchestrationSettings])
+
+  useEffect(() => () => orchestrationPreloadManager.dispose(), [orchestrationPreloadManager])
+
+  const orchestrationRenderable = Boolean(
+    orchestrationSettings.enabled
+      && orchestrationFrame?.orchestrationActive
+      && orchestrationFrame.readyMediaIds.length > 0,
+  )
+
+  useEffect(() => {
+    if (orchestrationRenderable) return
     const captureCanvas = outputCaptureCanvasRef.current
     onCanvasReady?.(captureCanvas)
     return () => onCanvasReady?.(null)
-  }, [onCanvasReady])
+  }, [onCanvasReady, orchestrationRenderable])
 
   useEffect(() => {
+    if (orchestrationRenderable) return
     const captureCanvas = outputCaptureCanvasRef.current
     const effectsCanvas = sourceEffectsCanvasRef.current
     if (!captureCanvas || !effectsCanvas) return
@@ -1357,7 +1519,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, isPaused, isPlaying, onLiveFps, particleSourceRef, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, isPaused, isPlaying, onLiveFps, orchestrationRenderable, particleSourceRef, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -1691,6 +1853,22 @@ export function CanvasEngineSurface({
       aria-hidden="true"
     />
   )
+
+  if (orchestrationRenderable && orchestrationFrame) {
+    return (
+      <CanvasOrchestrationStage
+        frame={orchestrationFrame}
+        preloadManager={orchestrationPreloadManager}
+        engineSettings={settings}
+        presetSettings={canvasPresetSettings}
+        isPlaying={isPlaying}
+        isPaused={isPaused}
+        motionIntensity={orchestrationSettings.motionIntensity}
+        onCanvasReady={onCanvasReady}
+        onLiveFps={onLiveFps}
+      />
+    )
+  }
 
   if (!activeItem) {
     const hasSelectableMedia = mediaItems.length > 0
@@ -2219,6 +2397,97 @@ function CanvasTimingControls() {
   )
 }
 
+const CANVAS_LAYER_ROLE_OPTIONS: Array<{ value: CanvasLayerRole; label: string }> = [
+  { value: 'background', label: 'Background' },
+  { value: 'hero', label: 'Hero' },
+  { value: 'texture', label: 'Texture' },
+  { value: 'foregroundAccent', label: 'Foreground Accent' },
+  { value: 'mask', label: 'Mask' },
+  { value: 'transition', label: 'Transition' },
+  { value: 'feedback', label: 'Feedback' },
+]
+
+function CanvasOrchestrationControls() {
+  const settings = useReactStore(s => s.canvasOrchestrationSettings)
+  const setSettings = useReactStore(s => s.setCanvasOrchestrationSettings)
+  const setCanvasLayerLock = useReactStore(s => s.setCanvasLayerLock)
+  const setCanvasMediaLock = useReactStore(s => s.setCanvasMediaLock)
+  const setCanvasOrchestrationLock = useReactStore(s => s.setCanvasOrchestrationLock)
+  const resetCanvasOrchestration = useReactStore(s => s.resetCanvasOrchestration)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const [lockLayerRole, setLockLayerRole] = useState<CanvasLayerRole>('hero')
+  const poolItems = settings.mediaPoolIds
+    .map(id => mediaItems.find(item => item.id === id) ?? null)
+    .filter((item): item is CanvasMediaItem => item !== null)
+  const lockedMediaId = settings.mediaLocksByLayer[lockLayerRole] ?? ''
+
+  return (
+    <Collapsible label="Performance Orchestration" defaultOpen>
+      <ToggleRow
+        label="Orchestration Enabled"
+        value={settings.enabled}
+        onChange={enabled => setSettings({ enabled })}
+        description="Uses the Shared Performance Core to arrange the selected pool. Existing presets and manual playback remain the fallback when disabled."
+      />
+      <div className="rv-canvas-orchestration-summary" role="status">
+        <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
+        <span>{settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label}</span>
+      </div>
+      {settings.enabled && poolItems.length === 0 && (
+        <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">Select media in the left SOURCE panel to build the performance pool.</div>
+      )}
+      <ToggleRow
+        label="Auto Role"
+        value={settings.autoRoleEnabled}
+        onChange={autoRoleEnabled => setSettings({ autoRoleEnabled })}
+        description="Derives conservative roles from type, alpha, duration, aspect, tags, and media-library organization when no explicit role exists."
+      />
+      <SelectRow
+        label="Composition"
+        value={settings.compositionPreference}
+        onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
+        options={[
+          { value: 'auto', label: 'Auto · Section Aware' },
+          ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
+        ]}
+      />
+      <SliderRow label="Layer Complexity" value={settings.complexity} onChange={complexity => setSettings({ complexity })} min={0} max={1} step={0.01} color="#61d6aa" />
+      <SliderRow label="Transition Density" value={settings.transitionDensity} onChange={transitionDensity => setSettings({ transitionDensity })} min={0} max={1} step={0.01} color="#4ac7db" />
+      <SliderRow label="Effect Intensity" value={settings.effectIntensity} onChange={effectIntensity => setSettings({ effectIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
+      <SliderRow label="Motion Intensity" value={settings.motionIntensity} onChange={motionIntensity => setSettings({ motionIntensity })} min={0} max={1} step={0.01} color="#d8b95a" />
+      <Collapsible label="Locks" defaultOpen={false}>
+        <ToggleRow
+          label="Lock Media Choices"
+          value={settings.globalLocks.media === true}
+          onChange={locked => setCanvasOrchestrationLock('media', locked)}
+          description="Keeps current deterministic choices while other orchestration continues."
+        />
+        <SelectRow
+          label="Layer"
+          value={lockLayerRole}
+          onChange={value => setLockLayerRole(value as CanvasLayerRole)}
+          options={CANVAS_LAYER_ROLE_OPTIONS}
+        />
+        <ToggleRow
+          label="Lock Layer State"
+          value={settings.layerLocks[lockLayerRole] === true}
+          onChange={locked => setCanvasLayerLock(lockLayerRole, locked)}
+        />
+        <SelectRow
+          label="Locked Media"
+          value={lockedMediaId}
+          onChange={value => setCanvasMediaLock(lockLayerRole, value || null)}
+          options={[
+            { value: '', label: 'Deterministic Auto' },
+            ...poolItems.map(item => ({ value: item.id, label: item.name })),
+          ]}
+        />
+      </Collapsible>
+      <button type="button" className="rv-reset-btn rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Orchestration</button>
+    </Collapsible>
+  )
+}
+
 function CanvasPresetControls() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -2355,6 +2624,8 @@ export function CanvasEngineFxPanel() {
         <div className="rv-canvas-panel-copy">Source selection lives in the left SOURCE panel so the center visualizer stays render-only.</div>
         <CanvasAutoSelectControl />
       </Collapsible>
+
+      <CanvasOrchestrationControls />
 
       <CanvasPresetControls />
 

@@ -102,6 +102,9 @@ function intelligenceFrame(
       rhythmEvents: true,
       beatGrid: true,
       sections: true,
+      trackEnergyCurve: DEFAULT_MI_FRAME.capabilities?.trackEnergyCurve ?? false,
+      stemCurves: DEFAULT_MI_FRAME.capabilities?.stemCurves ?? false,
+      lyrics: DEFAULT_MI_FRAME.capabilities?.lyrics ?? false,
     },
     confidence: {
       ...DEFAULT_MI_FRAME.confidence,

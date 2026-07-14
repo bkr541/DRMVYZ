@@ -154,6 +154,9 @@ function buildFallbackMusicFrame(frame: ReactFrameContext): MusicIntelligenceFra
       rhythmEvents: true,
       beatGrid: frame.bpm > 0,
       sections: Boolean(frame.trackSections?.length || frame.resolvedSection),
+      trackEnergyCurve: DEFAULT_MI_FRAME.capabilities?.trackEnergyCurve ?? false,
+      stemCurves: DEFAULT_MI_FRAME.capabilities?.stemCurves ?? false,
+      lyrics: DEFAULT_MI_FRAME.capabilities?.lyrics ?? false,
     },
     confidence: {
       ...DEFAULT_MI_FRAME.confidence,

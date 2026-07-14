@@ -95,6 +95,16 @@ import type {
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceShows'
 import {
+  DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
+  CANVAS_MEDIA_ROLES,
+  type CanvasLayerRole,
+  type CanvasMediaRole,
+  type CanvasOrchestrationLockKey,
+  type CanvasOrchestrationSettings,
+} from '../components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes'
+import { normalizeCanvasMediaRoleMap } from '../components/vyzualz/react/canvasPerformance/CanvasMediaRoles'
+import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
+import {
   DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   SOUND_DRAWING_GENERATOR_FAMILIES,
   type SoundDrawingGeneratorPreference,
@@ -1591,6 +1601,14 @@ interface ReactStoreState {
   canvasPresetSettings: CanvasPresetSettings
   canvasPresetOverride: CanvasPresetOverrideState | null
   canvasVideoRestartRevision: number
+  canvasOrchestrationSettings: CanvasOrchestrationSettings
+  setCanvasOrchestrationSettings: (patch: Partial<CanvasOrchestrationSettings>) => void
+  toggleCanvasMediaPoolItem: (mediaId: string, selected?: boolean) => void
+  setCanvasMediaRoles: (mediaId: string, roles: CanvasMediaRole[]) => void
+  setCanvasLayerLock: (role: CanvasLayerRole, locked: boolean) => void
+  setCanvasMediaLock: (role: CanvasLayerRole, mediaId: string | null) => void
+  setCanvasOrchestrationLock: (lock: CanvasOrchestrationLockKey, locked: boolean) => void
+  resetCanvasOrchestration: () => void
   setCanvasEngineSettings: (patch: Partial<CanvasEngineSettings>) => void
   resetCanvasEngineSettings: () => void
   setCanvasAutoSelectEnabled: (enabled: boolean) => void
@@ -2639,6 +2657,66 @@ function createCanvasEngineSettingsForPersistence(settings: CanvasEngineSettings
   return normalizeCanvasEngineSettings(settings)
 }
 
+const CANVAS_LAYER_ROLE_VALUES = new Set<CanvasLayerRole>([
+  'background', 'hero', 'texture', 'foregroundAccent', 'mask', 'transition', 'feedback',
+])
+const CANVAS_ORCHESTRATION_LOCK_VALUES = new Set<CanvasOrchestrationLockKey>([
+  'media', 'composition', 'layerRecruitment', 'transition', 'effectChain', 'motion', 'playback',
+])
+
+function normalizeCanvasBooleanRecord<T extends string>(
+  value: unknown,
+  allowed: ReadonlySet<T>,
+): Partial<Record<T, boolean>> {
+  if (!isRecord(value)) return {}
+  const normalized: Partial<Record<T, boolean>> = {}
+  for (const [key, enabled] of Object.entries(value)) {
+    if (allowed.has(key as T) && enabled === true) normalized[key as T] = true
+  }
+  return normalized
+}
+
+function normalizeCanvasMediaLocks(value: unknown): Partial<Record<CanvasLayerRole, string>> {
+  if (!isRecord(value)) return {}
+  const normalized: Partial<Record<CanvasLayerRole, string>> = {}
+  for (const [role, mediaId] of Object.entries(value)) {
+    if (CANVAS_LAYER_ROLE_VALUES.has(role as CanvasLayerRole) && typeof mediaId === 'string' && mediaId.trim()) {
+      normalized[role as CanvasLayerRole] = mediaId.trim()
+    }
+  }
+  return normalized
+}
+
+function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrchestrationSettings {
+  const source = isRecord(value) ? value : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS
+  const rawPoolIds = Array.isArray(source.mediaPoolIds)
+    ? source.mediaPoolIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+    : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.mediaPoolIds
+  const compositionPreference = source.compositionPreference === 'auto' || (
+    typeof source.compositionPreference === 'string' && source.compositionPreference in CANVAS_COMPOSITION_TEMPLATES
+  )
+    ? source.compositionPreference as CanvasOrchestrationSettings['compositionPreference']
+    : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.compositionPreference
+  return {
+    enabled: source.enabled === true,
+    autoRoleEnabled: source.autoRoleEnabled !== false,
+    mediaPoolIds: [...new Set(rawPoolIds)].slice(0, 128),
+    mediaRolesById: normalizeCanvasMediaRoleMap(source.mediaRolesById),
+    mediaLocksByLayer: normalizeCanvasMediaLocks(source.mediaLocksByLayer),
+    layerLocks: normalizeCanvasBooleanRecord(source.layerLocks, CANVAS_LAYER_ROLE_VALUES),
+    globalLocks: normalizeCanvasBooleanRecord(source.globalLocks, CANVAS_ORCHESTRATION_LOCK_VALUES),
+    complexity: clampCanvasNumber(source.complexity, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.complexity, 0, 1),
+    transitionDensity: clampCanvasNumber(source.transitionDensity, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.transitionDensity, 0, 1),
+    effectIntensity: clampCanvasNumber(source.effectIntensity, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.effectIntensity, 0, 1),
+    motionIntensity: clampCanvasNumber(source.motionIntensity, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.motionIntensity, 0, 1),
+    compositionPreference,
+    poolRevision: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(finiteCanvasNumber(source.poolRevision, 0)))),
+    programId: typeof source.programId === 'string' && source.programId.trim()
+      ? source.programId.trim().slice(0, 128)
+      : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
+  }
+}
+
 
 function normalizeCanvasPresetId(value: unknown): CanvasPresetId {
   return typeof value === 'string' && value in CANVAS_PRESET_BY_ID
@@ -3594,6 +3672,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     selectedCanvasPresetId:             s.selectedCanvasPresetId,
     canvasPresetSettings:               normalizeCanvasPresetSettings(s.canvasPresetSettings),
     canvasPresetOverride:               s.canvasPresetOverride,
+    canvasOrchestrationSettings:         normalizeCanvasOrchestrationSettings(s.canvasOrchestrationSettings),
     performancePads:                    s.performancePads,
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
@@ -3642,6 +3721,7 @@ export const REACT_PROJECT_STATE_KEYS = [
   'selectedCanvasPresetId',
   'canvasPresetSettings',
   'canvasPresetOverride',
+  'canvasOrchestrationSettings',
   'manualTrackSectionsByTrackId',
   'suppressedAutoSectionsByTrackId',
   'presetAutomationCuesByTrackId',
@@ -3703,6 +3783,9 @@ export function mergeReactStoreState(
     canvasPresetSettings: normalizeCanvasPresetSettings(
       persisted.canvasPresetSettings ?? currentState.canvasPresetSettings,
     ),
+    canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(
+      persisted.canvasOrchestrationSettings ?? currentState.canvasOrchestrationSettings,
+    ),
     soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
       persisted.soundDrawingPerformanceSettings ?? currentState.soundDrawingPerformanceSettings,
     ),
@@ -3759,6 +3842,7 @@ export function mergeReactStoreState(
     }),
     laserDmxBeamMatrixPresetDirty: dirty,
     canvasEngineSettings: createCanvasEngineSettingsForPersistence(merged.canvasEngineSettings),
+    canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(merged.canvasOrchestrationSettings),
     canvasPresetOverride: merged.canvasEngineSettings.autoSelectEnabled || merged.canvasPresetOverride?.source !== 'auto'
       ? merged.canvasPresetOverride
       : null,
@@ -3800,6 +3884,7 @@ export const useReactStore = create<ReactStoreState>()(
       canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
       canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
       canvasVideoRestartRevision: 0,
+      canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
       selectedSectionByTrackId: {},
@@ -3892,6 +3977,106 @@ export const useReactStore = create<ReactStoreState>()(
 
       setCinematicWorldsUiMode: (mode) => set({ cinematicWorldsUiMode: mode }),
 
+      setCanvasOrchestrationSettings: (patch) => set((state) => {
+        const poolChanged = Object.prototype.hasOwnProperty.call(patch, 'mediaPoolIds')
+          || Object.prototype.hasOwnProperty.call(patch, 'mediaRolesById')
+          || Object.prototype.hasOwnProperty.call(patch, 'mediaLocksByLayer')
+        return {
+          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+            ...state.canvasOrchestrationSettings,
+            ...patch,
+            poolRevision: poolChanged
+              ? state.canvasOrchestrationSettings.poolRevision + 1
+              : patch.poolRevision ?? state.canvasOrchestrationSettings.poolRevision,
+          }),
+        }
+      }),
+
+      toggleCanvasMediaPoolItem: (mediaId, selected) => set((state) => {
+        if (typeof mediaId !== 'string' || !mediaId.trim()) return {}
+        const id = mediaId.trim()
+        const current = state.canvasOrchestrationSettings.mediaPoolIds
+        const shouldInclude = selected ?? !current.includes(id)
+        const mediaPoolIds = shouldInclude
+          ? uniqueCanvasMediaIds([...current, id])
+          : current.filter(candidate => candidate !== id)
+        if (mediaPoolIds.length === current.length && mediaPoolIds.every((candidate, index) => candidate === current[index])) return {}
+        const { [id]: removedRoles, ...mediaRolesById } = state.canvasOrchestrationSettings.mediaRolesById
+        void removedRoles
+        const mediaLocksByLayer = Object.fromEntries(
+          Object.entries(state.canvasOrchestrationSettings.mediaLocksByLayer)
+            .filter(([, lockedId]) => shouldInclude || lockedId !== id),
+        )
+        return {
+          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+            ...state.canvasOrchestrationSettings,
+            mediaPoolIds,
+            mediaRolesById: shouldInclude ? state.canvasOrchestrationSettings.mediaRolesById : mediaRolesById,
+            mediaLocksByLayer,
+            poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+          }),
+        }
+      }),
+
+      setCanvasMediaRoles: (mediaId, roles) => set((state) => {
+        if (typeof mediaId !== 'string' || !mediaId.trim()) return {}
+        const id = mediaId.trim()
+        const validRoles = [...new Set(roles.filter((role): role is CanvasMediaRole => CANVAS_MEDIA_ROLES.includes(role)))]
+        return {
+          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+            ...state.canvasOrchestrationSettings,
+            mediaPoolIds: uniqueCanvasMediaIds([...state.canvasOrchestrationSettings.mediaPoolIds, id]),
+            mediaRolesById: {
+              ...state.canvasOrchestrationSettings.mediaRolesById,
+              [id]: validRoles,
+            },
+            poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+          }),
+        }
+      }),
+
+      setCanvasLayerLock: (role, locked) => set((state) => ({
+        canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+          ...state.canvasOrchestrationSettings,
+          layerLocks: {
+            ...state.canvasOrchestrationSettings.layerLocks,
+            [role]: locked,
+          },
+        }),
+      })),
+
+      setCanvasMediaLock: (role, mediaId) => set((state) => {
+        const nextLocks = { ...state.canvasOrchestrationSettings.mediaLocksByLayer }
+        if (typeof mediaId === 'string' && mediaId.trim()) nextLocks[role] = mediaId.trim()
+        else delete nextLocks[role]
+        return {
+          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+            ...state.canvasOrchestrationSettings,
+            mediaLocksByLayer: nextLocks,
+            poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+          }),
+        }
+      }),
+
+      setCanvasOrchestrationLock: (lock, locked) => set((state) => ({
+        canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+          ...state.canvasOrchestrationSettings,
+          globalLocks: {
+            ...state.canvasOrchestrationSettings.globalLocks,
+            [lock]: locked,
+          },
+        }),
+      })),
+
+      resetCanvasOrchestration: () => set((state) => ({
+        canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+          ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
+          mediaPoolIds: state.canvasOrchestrationSettings.mediaPoolIds,
+          mediaRolesById: state.canvasOrchestrationSettings.mediaRolesById,
+          poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+        }),
+      })),
+
       setCanvasEngineSettings: (patch) => set((state) => ({
         ...repairCanvasRuntimeState({
           ...state,
@@ -3916,6 +4101,7 @@ export const useReactStore = create<ReactStoreState>()(
           selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
           canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
           canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
         }
       }),
@@ -4072,7 +4258,7 @@ export const useReactStore = create<ReactStoreState>()(
         const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
         const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         if (options?.manual === false && manualMediaOverrideValid) return repairCanvasRuntimeState(state)
-        return repairCanvasRuntimeState({
+        const nextState = repairCanvasRuntimeState({
           ...state,
           selectedCanvasMediaId: id,
           activeCanvasMediaId: id,
@@ -4084,6 +4270,15 @@ export const useReactStore = create<ReactStoreState>()(
             rotation: 0,
           }),
         })
+        if (options?.manual === false || state.canvasOrchestrationSettings.mediaPoolIds.includes(id)) return nextState
+        return {
+          ...nextState,
+          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+            ...state.canvasOrchestrationSettings,
+            mediaPoolIds: uniqueCanvasMediaIds([...state.canvasOrchestrationSettings.mediaPoolIds, id]),
+            poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+          }),
+        }
       }),
 
       restartCanvasVideo: () => set((state) => ({
@@ -4137,11 +4332,33 @@ export const useReactStore = create<ReactStoreState>()(
               : state.canvasEngineSettings.manualMediaOverrideId,
           }),
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
+          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+            ...state.canvasOrchestrationSettings,
+            mediaPoolIds: state.canvasOrchestrationSettings.mediaPoolIds.filter(mediaId => mediaId !== id),
+            mediaRolesById: Object.fromEntries(
+              Object.entries(state.canvasOrchestrationSettings.mediaRolesById).filter(([mediaId]) => mediaId !== id),
+            ),
+            mediaLocksByLayer: Object.fromEntries(
+              Object.entries(state.canvasOrchestrationSettings.mediaLocksByLayer).filter(([, mediaId]) => mediaId !== id),
+            ),
+            poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+          }),
         })
       }),
 
       clearCanvasMediaItems: () => set((state) => {
+        const removedIds = new Set(state.canvasMediaItems.map(item => item.id))
         revokeCanvasMediaObjectUrls(state.canvasMediaItems)
+        const mediaPoolIds = state.canvasOrchestrationSettings.mediaPoolIds.filter(id => !removedIds.has(id))
+        const mediaRolesById = Object.fromEntries(
+          Object.entries(state.canvasOrchestrationSettings.mediaRolesById).filter(([id]) => !removedIds.has(id)),
+        )
+        const mediaLocksByLayer = Object.fromEntries(
+          Object.entries(state.canvasOrchestrationSettings.mediaLocksByLayer).filter(([, id]) => !removedIds.has(id)),
+        )
+        const orchestrationChanged = mediaPoolIds.length !== state.canvasOrchestrationSettings.mediaPoolIds.length
+          || Object.keys(mediaRolesById).length !== Object.keys(state.canvasOrchestrationSettings.mediaRolesById).length
+          || Object.keys(mediaLocksByLayer).length !== Object.keys(state.canvasOrchestrationSettings.mediaLocksByLayer).length
         return {
           canvasMediaItems: [],
           canvasMediaTimingById: {},
@@ -4154,6 +4371,15 @@ export const useReactStore = create<ReactStoreState>()(
             mediaIds: [],
             manualMediaOverrideId: null,
           }),
+          canvasOrchestrationSettings: orchestrationChanged
+            ? normalizeCanvasOrchestrationSettings({
+                ...state.canvasOrchestrationSettings,
+                mediaPoolIds,
+                mediaRolesById,
+                mediaLocksByLayer,
+                poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+              })
+            : state.canvasOrchestrationSettings,
         }
       }),
 
@@ -7019,6 +7245,7 @@ export const useReactStore = create<ReactStoreState>()(
               selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
               canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
               canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+              canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
               canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             }
           }
@@ -7093,6 +7320,7 @@ export const useReactStore = create<ReactStoreState>()(
             selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
             canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
             canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
             canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             manualTrackSectionsByTrackId: {},
             selectedSectionId: null,
@@ -7136,6 +7364,7 @@ export const useReactStore = create<ReactStoreState>()(
           selectedCanvasPresetId:       DEFAULT_CANVAS_PRESET_ID,
           canvasPresetSettings:         { ...DEFAULT_CANVAS_PRESET_SETTINGS },
           canvasPresetOverride:         DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+          canvasOrchestrationSettings:  normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
           canvasVideoRestartRevision:   get().canvasVideoRestartRevision + 1,
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
@@ -7178,7 +7407,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 44,
+      version: 45,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

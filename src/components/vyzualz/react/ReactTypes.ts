@@ -278,6 +278,18 @@ export interface CanvasMediaItem {
   source?: 'library' | 'legacySession'
   createdAt: string
   timing?: CanvasVideoTimingSettings
+  width?: number
+  height?: number
+  durationSec?: number
+  fps?: number
+  hasAlpha?: boolean
+  loopable?: boolean
+  bpm?: number
+  energy?: 'low' | 'medium' | 'high' | 'peak'
+  tags?: string[]
+  collectionIds?: string[]
+  libraryRole?: string | null
+  mediaRevision?: number
 }
 
 export interface CanvasEngineSettings {
