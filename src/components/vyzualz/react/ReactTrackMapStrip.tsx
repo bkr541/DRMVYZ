@@ -38,8 +38,15 @@ import { cueMarkerBelongsToTrack, type VzCueMarker } from '../../../types/cue'
 import type { WaveformCueCreateRequest } from '../../../features/timeline/waveformCuePoint'
 import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { CuePointContextMenu, type CuePointContextMenuTarget } from '../transport/CuePointContextMenu'
+import {
+  captureTrackSectionUndoSnapshot,
+  restoreTrackSectionUndoSnapshot,
+  type TrackSectionUndoSnapshot,
+} from '../../../features/trackIntelligence/trackSectionUndo'
 
 // ── Engine display labels ─────────────────────────────────────────────────────
+
+const MAX_TRACK_SECTION_UNDO_DEPTH = 50
 
 // ── Preset-cue helpers (exported for tests) ───────────────────────────────────
 
@@ -1371,6 +1378,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const [snapMode,       setSnapMode]       = useState<SectionBoundarySnapMode>('free')
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
   const [cueContextMenu, setCueContextMenu] = useState<CuePointContextMenuTarget | null>(null)
+  const [sectionUndoDepth, setSectionUndoDepth] = useState(0)
   const [drawTick,       setDrawTick]       = useState(0)
   const fallbackDurationSec = resolvePositiveDuration(audioDurationSec)
   // React state changes only for semantic viewport inputs (track, zoom, duration).
@@ -1399,12 +1407,48 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const energyCurveKeyRef           = useRef(energyCurveKey)
   const currentEffectiveBeatGridRef = useRef(currentEffectiveBeatGrid)
   const beatGridEnabledRef          = useRef(beatGridEnabled)
+  const sectionUndoByTrackRef       = useRef<Record<string, TrackSectionUndoSnapshot[]>>({})
 
   // Active track ID — used as the per-track sections key
   const activeTrackId = currentTrack?.id ?? null
 
+  const recordSectionUndoSnapshot = useCallback(() => {
+    if (!activeTrackId) return
+    const snapshot = captureTrackSectionUndoSnapshot(useReactStore.getState(), activeTrackId)
+    const existing = sectionUndoByTrackRef.current[activeTrackId] ?? []
+    const next = [...existing, snapshot].slice(-MAX_TRACK_SECTION_UNDO_DEPTH)
+    sectionUndoByTrackRef.current = {
+      ...sectionUndoByTrackRef.current,
+      [activeTrackId]: next,
+    }
+    setSectionUndoDepth(next.length)
+  }, [activeTrackId])
+
+  const handleUndoSectionEdit = useCallback(() => {
+    if (!activeTrackId) return
+    const existing = sectionUndoByTrackRef.current[activeTrackId] ?? []
+    const snapshot = existing[existing.length - 1]
+    if (!snapshot) return
+
+    const next = existing.slice(0, -1)
+    sectionUndoByTrackRef.current = {
+      ...sectionUndoByTrackRef.current,
+      [activeTrackId]: next,
+    }
+    useReactStore.setState(state => restoreTrackSectionUndoSnapshot(state, activeTrackId, snapshot))
+    setSectionUndoDepth(next.length)
+    setDragPreview(null)
+    setEditorMode(snapshot.selectedSectionId ? 'edit' : 'none')
+  }, [activeTrackId])
+
   useEffect(() => {
     setCueContextMenu(null)
+  }, [activeTrackId])
+
+  useEffect(() => {
+    setSectionUndoDepth(activeTrackId
+      ? (sectionUndoByTrackRef.current[activeTrackId]?.length ?? 0)
+      : 0)
   }, [activeTrackId])
 
   // Per-track selection and suppression for the active track only
@@ -1693,6 +1737,27 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   ) => {
     if (!activeTrackId) return
 
+    const primary = resolvedSections.find(s => s.id === sectionId)
+    const neighbor = sharedNeighborId
+      ? resolvedSections.find(s => s.id === sharedNeighborId) ?? null
+      : null
+    const primaryChanged = primary != null && (
+      edge === 'start'
+        ? Math.abs(primary.startSec - newTime) > 1e-6
+        : Math.abs(primary.endSec - newTime) > 1e-6
+    )
+    const neighborChanged = neighbor != null && newNeighborTime != null && (
+      edge === 'end'
+        ? Math.abs(neighbor.startSec - newNeighborTime) > 1e-6
+        : Math.abs(neighbor.endSec - newNeighborTime) > 1e-6
+    )
+    if (!primaryChanged && !neighborChanged) {
+      setDragPreview(null)
+      return
+    }
+
+    recordSectionUndoSnapshot()
+
     const applyEdit = (id: string, section: ReactTrackSection, patch: Partial<ReactTrackSection>) => {
       if (section.source === 'auto') {
         commitAutomaticSectionOverride(activeTrackId, section, patch)
@@ -1701,7 +1766,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       }
     }
 
-    const primary = resolvedSections.find(s => s.id === sectionId)
     if (primary) {
       const patch = edge === 'start' ? { startSec: newTime } : { endSec: newTime }
       applyEdit(sectionId, primary, patch)
@@ -1718,7 +1782,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     // Commit the shared neighbor's boundary in a separate but synchronous call.
     // Both commits happen in the same React event-handler tick so React 18 batches them.
     if (sharedNeighborId && newNeighborTime != null) {
-      const neighbor = resolvedSections.find(s => s.id === sharedNeighborId)
       if (neighbor) {
         // If we moved section.end, the neighbor's start moved; if section.start, neighbor.end moved.
         const neighborPatch = edge === 'end'
@@ -1738,7 +1801,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     // Clear the editor's drag-preview now that the commit has been issued.
     // The EditSectionForm effect will snap to the newly-committed section values.
     setDragPreview(null)
-  }, [activeTrackId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, trackCues, updatePresetAutomationCue])
+  }, [activeTrackId, resolvedSections, recordSectionUndoSnapshot, commitAutomaticSectionOverride, updateManualSection, trackCues, updatePresetAutomationCue])
 
   const commitBoundaryToolMove = useCallback((edge: SectionEdge, proposedTime: number) => {
     if (!selectedSectionId) return
@@ -1778,9 +1841,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   }, [currentTrack, reanalyzeTrack])
 
   const handleAdd = useCallback((section: ReactTrackSection) => {
-    if (activeTrackId) addManualSection(activeTrackId, section)
+    if (activeTrackId) {
+      recordSectionUndoSnapshot()
+      addManualSection(activeTrackId, section)
+    }
     setEditorMode('none')
-  }, [activeTrackId, addManualSection])
+  }, [activeTrackId, addManualSection, recordSectionUndoSnapshot])
 
   const handleCreateTrackMapCuePoint = useCallback((request: WaveformCueCreateRequest) => {
     if (!activeTrackId) return
@@ -1796,9 +1862,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
 
   const handleRemove = useCallback((id: string) => {
     if (!activeTrackId) return
+    recordSectionUndoSnapshot()
     removeManualSection(activeTrackId, id)
     removeCueForSection(id)
-  }, [activeTrackId, removeManualSection, removeCueForSection])
+  }, [activeTrackId, recordSectionUndoSnapshot, removeManualSection, removeCueForSection])
 
   // Opens the edit panel for the clicked section.
   const handleSelectSection = useCallback((id: string) => {
@@ -1828,6 +1895,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     if (!activeTrackId || !selectedSectionId) return
     const section = resolvedSections.find(s => s.id === selectedSectionId)
     if (!section) return
+    recordSectionUndoSnapshot()
     if (section.source === 'auto') {
       commitAutomaticSectionOverride(activeTrackId, section, patch)
     } else {
@@ -1849,30 +1917,33 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     }
     setEditorMode('none')
     setSelectedSectionIdForTrack(activeTrackId, null)
-  }, [activeTrackId, selectedSectionId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, trackCues, reactPresets, updatePresetAutomationCue, setSelectedSectionIdForTrack])
+  }, [activeTrackId, selectedSectionId, resolvedSections, recordSectionUndoSnapshot, commitAutomaticSectionOverride, updateManualSection, trackCues, reactPresets, updatePresetAutomationCue, setSelectedSectionIdForTrack])
 
   // Removes the user-edited-auto override AND any suppression, restoring the original.
   const handleRestoreSection = useCallback(() => {
     if (!activeTrackId || !selectedSectionId) return
+    recordSectionUndoSnapshot()
     restoreAutoSection(activeTrackId, selectedSectionId)
     // Keep the section selected — it now shows as 'auto' source in the editor.
-  }, [activeTrackId, selectedSectionId, restoreAutoSection])
+  }, [activeTrackId, selectedSectionId, recordSectionUndoSnapshot, restoreAutoSection])
 
   // Suppresses a pure auto section (hides it from the timeline) and removes its linked cue.
   const handleSuppressSection = useCallback(() => {
     if (!activeTrackId || !selectedSectionId) return
+    recordSectionUndoSnapshot()
     suppressAutoSection(activeTrackId, selectedSectionId)
     removeCueForSection(selectedSectionId)
     setEditorMode('none')
-  }, [activeTrackId, selectedSectionId, suppressAutoSection, removeCueForSection])
+  }, [activeTrackId, selectedSectionId, recordSectionUndoSnapshot, suppressAutoSection, removeCueForSection])
 
   // Permanently removes a user-created/manual section and its linked cue.
   const handleDeleteSection = useCallback(() => {
     if (!activeTrackId || !selectedSectionId) return
+    recordSectionUndoSnapshot()
     removeManualSection(activeTrackId, selectedSectionId)
     removeCueForSection(selectedSectionId)
     setEditorMode('none')
-  }, [activeTrackId, selectedSectionId, removeManualSection, removeCueForSection])
+  }, [activeTrackId, selectedSectionId, recordSectionUndoSnapshot, removeManualSection, removeCueForSection])
 
   // Creates, updates, or removes a preset automation cue linked to the selected section.
   const handleAssignPreset = useCallback((presetId: string | null) => {
@@ -1880,13 +1951,15 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     const section = resolvedSections.find(s => s.id === selectedSectionId)
     if (!section) return
     const cueId = buildPresetCueId(section.id)
+    const existing = trackCues.find(c => c.id === cueId)
+    if ((!presetId && !existing) || (presetId && existing?.presetId === presetId)) return
+    recordSectionUndoSnapshot()
     if (!presetId) {
       removePresetAutomationCue(activeTrackId, cueId)
       return
     }
     const preset = reactPresets.find(p => p.id === presetId)
     const label = buildPresetCueLabel(section.label, preset?.name ?? presetId)
-    const existing = trackCues.find(c => c.id === cueId)
     if (existing) {
       updatePresetAutomationCue(activeTrackId, cueId, { presetId, label, timeSec: section.startSec })
     } else {
@@ -1900,12 +1973,14 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
         sectionId:    section.id,
       })
     }
-  }, [activeTrackId, selectedSectionId, resolvedSections, reactPresets, trackCues, addPresetAutomationCue, updatePresetAutomationCue, removePresetAutomationCue])
+  }, [activeTrackId, selectedSectionId, resolvedSections, reactPresets, trackCues, recordSectionUndoSnapshot, addPresetAutomationCue, updatePresetAutomationCue, removePresetAutomationCue])
 
   // Clears all sections: removes manual ones and suppresses all auto ones.
   // Also removes any linked preset automation cues for every section cleared.
   const handleDeleteAllSections = useCallback(() => {
     if (!activeTrackId) return
+    if (manualTrackSections.length === 0 && autoSections.every(section => suppressedIds.includes(section.id))) return
+    recordSectionUndoSnapshot()
     for (const section of manualTrackSections) {
       removeManualSection(activeTrackId, section.id)
       removeCueForSection(section.id)
@@ -1917,7 +1992,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       }
     }
     setEditorMode('none')
-  }, [activeTrackId, manualTrackSections, autoSections, suppressedIds, removeManualSection, suppressAutoSection, removeCueForSection])
+  }, [activeTrackId, manualTrackSections, autoSections, suppressedIds, recordSectionUndoSnapshot, removeManualSection, suppressAutoSection, removeCueForSection])
 
   // ── BPM display logic ──────────────────────────────────────────────────────
   const isMicSource = source === 'microphone'
@@ -2155,12 +2230,20 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     </div>
                     <div className="rv-timeline-lane-tools">
                       <button
+                        type="button"
                         className="rv-timeline-tool-btn"
-                        onClick={handleReanalyze}
-                        title="Force fresh analysis"
-                        aria-label="Reanalyze track sections"
-                      >↺</button>
+                        onPointerDown={event => event.stopPropagation()}
+                        onClick={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          handleUndoSectionEdit()
+                        }}
+                        title="Undo most recent Track Section change"
+                        aria-label="Undo most recent Track Section change"
+                        disabled={sectionUndoDepth === 0}
+                      >↶</button>
                       <button
+                        type="button"
                         className="rv-timeline-tool-btn rv-timeline-tool-btn--danger"
                         onClick={handleDeleteAllSections}
                         title="Clear all sections"
@@ -2168,6 +2251,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                         disabled={resolvedSections.length === 0}
                       >✕</button>
                       <button
+                        type="button"
                         className="rv-timeline-tool-btn rv-timeline-tool-btn--accent"
                         onClick={() => {
                           if (editorMode === 'create') {

@@ -39,12 +39,16 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function authorityFor(section: ReactTrackSection): ReactTrackSectionAuthority {
+  // This explicit edit source must win over stale provenance from older persisted
+  // overrides. Previous builds created `user-edited-auto` sections while
+  // retaining `automatic` provenance, causing both the original and override
+  // to be filtered out and replaced by an Unclassified fallback segment.
+  if (section.source === 'user-edited-auto') return 'manual_replacement'
   if (section.provenance?.authority) return section.provenance.authority
   if (section.source === 'fallback') return 'fallback'
   if (section.source === 'imported') return 'imported'
   if (section.locked) return 'locked_user'
   if (section.source === 'user-created' || section.source === 'manual') return 'user_created'
-  if (section.source === 'user-edited-auto') return 'manual_replacement'
   return 'automatic'
 }
 

@@ -366,6 +366,34 @@ describe('commitAutomaticSectionOverride', () => {
     expect(sec.confidence).toBe(0.95)
     expect(sec.startSec).toBe(25)
     expect(sec.endSec).toBe(60)      // unchanged
+    expect(sec.provenance).toMatchObject({
+      authority: 'manual_replacement',
+      originalId: 'auto-2',
+    })
+  })
+
+  it('repairs stale automatic provenance when updating an existing override', () => {
+    const staleOverride = makeSection({
+      id: 'auto-stale',
+      source: 'user-edited-auto',
+      startSec: 0,
+      endSec: 30,
+      provenance: {
+        authority: 'automatic',
+        originalId: 'auto-stale',
+        analysisSource: 'analysis',
+      },
+    })
+    useReactStore.setState({
+      manualTrackSectionsByTrackId: { t1: [staleOverride] },
+    })
+
+    useReactStore.getState().commitAutomaticSectionOverride('t1', staleOverride, { endSec: 45 })
+
+    const [updated] = useReactStore.getState().getManualSectionsForTrack('t1')
+    expect(updated.endSec).toBe(45)
+    expect(updated.source).toBe('user-edited-auto')
+    expect(updated.provenance?.authority).toBe('manual_replacement')
   })
 
   it('does NOT mutate the original auto section object', () => {
@@ -422,5 +450,40 @@ describe('commitAutomaticSectionOverride', () => {
     expect(replacement?.startSec).toBe(25)  // override wins
     expect(replacement?.endSec).toBe(60)
     expect(resolved.filter(section => section.source === 'fallback')).toHaveLength(2)
+  })
+
+  it('keeps a legacy override visible when its persisted provenance still says automatic', () => {
+    const original = makeSection({
+      id: 'sec-legacy',
+      label: 'Drop',
+      type: 'drop',
+      source: 'auto',
+      startSec: 0,
+      endSec: 30,
+      provenance: { authority: 'automatic', originalId: 'sec-legacy', analysisSource: 'analysis' },
+    })
+    const legacyOverride = makeSection({
+      ...original,
+      source: 'user-edited-auto',
+      endSec: 45,
+      provenance: { authority: 'automatic', originalId: 'sec-legacy', analysisSource: 'analysis' },
+    })
+
+    const resolved = resolveTrackSections({
+      analyzedSections: [original],
+      manualSections: [legacyOverride],
+      durationSec: 45,
+    })
+
+    expect(resolved).toHaveLength(1)
+    expect(resolved[0]).toMatchObject({
+      id: 'sec-legacy',
+      label: 'Drop',
+      type: 'drop',
+      source: 'user-edited-auto',
+      startSec: 0,
+      endSec: 45,
+    })
+    expect(resolved[0].provenance?.authority).toBe('manual_replacement')
   })
 })

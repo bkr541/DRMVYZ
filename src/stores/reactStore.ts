@@ -4296,19 +4296,43 @@ export const useReactStore = create<ReactStoreState>()(
       commitAutomaticSectionOverride: (trackId, originalSection, patch) =>
         set((s) => {
           const existing = s.manualTrackSectionsByTrackId[trackId] ?? []
-          const overrideIdx = existing.findIndex(m => m.id === originalSection.id)
+          const originalId = originalSection.provenance?.originalId ?? originalSection.id
+          const overrideIdx = existing.findIndex(section =>
+            section.id === originalSection.id
+            || section.provenance?.originalId === originalId,
+          )
+          const replacementProvenance = {
+            ...originalSection.provenance,
+            authority: 'manual_replacement' as const,
+            originalId,
+          }
           let newSections: ReactTrackSection[]
           if (overrideIdx >= 0) {
-            // Update the existing user-edited-auto entry in place.
+            // Update the existing user-edited-auto entry in place and repair
+            // stale automatic provenance written by previous builds.
             newSections = existing.map((sec, i) =>
-              i === overrideIdx ? sanitizeLiveTrackSection({ ...sec, ...patch, source: 'user-edited-auto' as const }) : sec,
+              i === overrideIdx
+                ? sanitizeLiveTrackSection({
+                    ...sec,
+                    ...patch,
+                    source: 'user-edited-auto' as const,
+                    provenance: {
+                      ...replacementProvenance,
+                      ...sec.provenance,
+                      authority: 'manual_replacement' as const,
+                      originalId,
+                    },
+                  })
+                : sec,
             )
           } else {
-            // Create a fresh override that inherits all original metadata.
+            // Create a fresh override that inherits all original metadata while
+            // explicitly taking manual-replacement authority.
             const override = sanitizeLiveTrackSection({
               ...originalSection,
               ...patch,
               source: 'user-edited-auto',
+              provenance: replacementProvenance,
             })
             newSections = [...existing, override]
           }
