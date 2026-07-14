@@ -1,4 +1,13 @@
 import {
+  performanceDeterministicUnit,
+  resolveSharedPerformanceCadence,
+  resolveSharedPerformanceEventEnvelope,
+  resolveSharedPerformanceSignals,
+  selectSharedPerformanceScene,
+  selectSharedPerformanceWeightedVariation,
+  sharedPerformanceOccurrenceMatches,
+} from '../../../features/performanceCore'
+import {
   LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
   normalizeLaserDmxShowDirectorState,
   type LaserDmxBeamMotion,
@@ -174,19 +183,6 @@ function beatsUntilMacroSectionEnd(context: LaserDmxShowDirectorPerformanceTimin
   return Math.max(0, context.barsUntilMacroSectionEnd * Math.max(1, context.timeSignature))
 }
 
-function hashString(value: string): number {
-  let hash = 2166136261
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return hash >>> 0
-}
-
-function deterministicUnit(...parts: Array<string | number | null | undefined>): number {
-  return hashString(parts.map(part => part ?? '').join('|')) / 0xffffffff
-}
-
 function semanticFixtureKey(fixture: LaserDmxShowDirectorFixture): string {
   return fixture.semanticKey?.trim() || fixture.id
 }
@@ -196,12 +192,7 @@ function semanticGroupKey(group: LaserDmxShowDirectorState['groups'][number]): s
 }
 
 function occurrenceMatches(value: number, match: LaserDmxShowDirectorPerformanceScene['section']['occurrence']): boolean {
-  if (!match) return true
-  if (match.occurrences?.length && !match.occurrences.includes(value)) return false
-  if (match.minOccurrence != null && value < match.minOccurrence) return false
-  if (match.maxOccurrence != null && value > match.maxOccurrence) return false
-  if (match.every != null && match.every > 0 && value > 0 && (value - 1) % match.every !== 0) return false
-  return true
+  return sharedPerformanceOccurrenceMatches(value, match)
 }
 
 function sceneBarMatches(scene: LaserDmxShowDirectorPerformanceScene, context: LaserDmxShowDirectorPerformanceTimingContext): boolean {
@@ -329,8 +320,6 @@ function selectScene(work: ResolverWork): { scene: LaserDmxShowDirectorPerforman
     }
   }
   if (pool.length === 0) return { scene: null, fallbackReason, sectionType }
-  const highestPriority = Math.max(...pool.map(scene => finite(scene.priority, 0)))
-  const tied = pool.filter(scene => finite(scene.priority, 0) === highestPriority)
   const identity = [
     work.input.programSeed,
     program.id,
@@ -339,11 +328,12 @@ function selectScene(work: ResolverWork): { scene: LaserDmxShowDirectorPerforman
     effectiveSectionOccurrence(sectionType, work.input.context),
     effectiveDropOccurrence(sectionType, work.input.context),
   ].join('|')
-  const scene = [...tied].sort((a, b) => {
-    const scoreA = deterministicUnit(identity, a.id)
-    const scoreB = deterministicUnit(identity, b.id)
-    return scoreB - scoreA || a.id.localeCompare(b.id)
-  })[0] ?? null
+  const scene = selectSharedPerformanceScene(pool, work.input.context, {
+    id: candidate => candidate.id,
+    matches: () => true,
+    priority: candidate => finite(candidate.priority, 0),
+    deterministicScore: candidate => performanceDeterministicUnit(identity, candidate.id),
+  })
   return { scene, fallbackReason, sectionType }
 }
 
@@ -696,7 +686,7 @@ function mutationActive(
   // optional/probabilistic accents.
   if (mutation.probability == null) return true
   const probability = clamp01(finite(mutation.probability, 1) * clamp(work.input.tuning.variation, 0, 2))
-  return deterministicUnit(work.input.programSeed, mutation.seedOffset ?? 0, identity, mutation.id) <= probability
+  return performanceDeterministicUnit(work.input.programSeed, mutation.seedOffset ?? 0, identity, mutation.id) <= probability
 }
 
 function applyMutation(
@@ -717,13 +707,12 @@ function beatResponseStrength(
   if (!envelope) return beatPhase < 0.48 ? 1 : 0
   const holdUntil = clamp(finite(envelope.holdUntil, 0.18), 0, 1)
   const releaseUntil = clamp(Math.max(holdUntil, finite(envelope.releaseUntil, 0.82)), holdUntil, 1)
-  if (beatPhase <= holdUntil) return 1
-  if (beatPhase >= releaseUntil || releaseUntil - holdUntil <= EPSILON) return 0
-  const releaseProgress = curveProgress(
-    (beatPhase - holdUntil) / (releaseUntil - holdUntil),
-    envelope.curve ?? 'easeOut',
-  )
-  return clamp01(1 - releaseProgress)
+  return resolveSharedPerformanceEventEnvelope(beatPhase, {
+    attack: 0,
+    hold: holdUntil,
+    release: Math.max(0, releaseUntil - holdUntil),
+    curve: envelope.curve ?? 'easeOut',
+  })
 }
 
 function selectVariation(
@@ -742,23 +731,19 @@ function selectVariation(
     return true
   })
   if (!eligible.length) return null
-  const totalWeight = eligible.reduce((sum, variation) => sum + Math.max(EPSILON, finite(variation.weight, 1)), 0)
-  let cursor = deterministicUnit(
+  return selectSharedPerformanceWeightedVariation(eligible, [
     work.input.programSeed,
     scene.id,
     work.input.context.sectionIdentity,
     work.input.context.sectionOccurrence,
     work.input.context.performanceFourBarBlockIndex,
-  ) * totalWeight
-  for (const variation of eligible) {
-    cursor -= Math.max(EPSILON, finite(variation.weight, 1))
-    if (cursor <= EPSILON) return variation
-  }
-  return eligible[eligible.length - 1]
+  ])
 }
 
 function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: ResolverWork): { fourBarVariation: string | null; motifFamily: string | null; eightBarStage: number } {
   const context = work.input.context
+  const cadence = resolveSharedPerformanceCadence(context)
+  const signals = resolveSharedPerformanceSignals(context)
   const macroIdentity = context.resolvedMacroSection?.id ?? 'macro:none'
   const baseIdentity = `${context.sectionIdentity}|${macroIdentity}|${context.sectionOccurrence}`
 
@@ -786,7 +771,7 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
     }
   }
 
-  const eightBarStage = Math.max(1, context.performanceEightBarBlockIndex + 1)
+  const eightBarStage = cadence.eightBarRecruitmentStage
   const beforeRecruitment = new Map(work.runtime.fixtures.filter(fixture => fixture.enabled).map(fixture => [fixture.id, fixture]))
   for (const mutation of [...(scene.eightBarRecruitment ?? [])].sort((a, b) => a.stage - b.stage || a.id.localeCompare(b.id))) {
     const active = mutation.cumulative === false ? mutation.stage === eightBarStage : mutation.stage <= eightBarStage
@@ -798,7 +783,7 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
       fixtures: work.runtime.fixtures.map(fixture => {
         if (!fixture.enabled || !beforeRecruitment.has(fixture.id)) return fixture
         const semanticKey = semanticFixtureKey(fixture)
-        const direction = deterministicUnit(work.input.programSeed, macroIdentity, semanticKey, eightBarStage) >= 0.5 ? 1 : -1
+        const direction = performanceDeterministicUnit(work.input.programSeed, macroIdentity, semanticKey, eightBarStage) >= 0.5 ? 1 : -1
         const stagePressure = Math.min(1, eightBarStage / 4)
         return {
           ...fixture,
@@ -816,7 +801,7 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
     }
   }
 
-  const currentBar = Math.max(1, context.barWithinMacroSection + 1)
+  const currentBar = cadence.barStage
   const progression = [...(scene.barProgression ?? [])].sort((a, b) => a.stageBar - b.stageBar || a.id.localeCompare(b.id))
   if (progression.length) {
     const latestNonCumulative = [...progression].reverse().find(mutation => mutation.cumulative === false && mutation.stageBar <= currentBar)
@@ -842,7 +827,7 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
 
   let fourBarVariation: string | null = null
   let motifFamily: string | null = null
-  const fourBarBlockWithinMacro = context.performanceFourBarBlockIndex
+  const fourBarBlockWithinMacro = cadence.fourBarBlockIndex
   const fourBarMutations = scene.fourBarVariations ?? []
   for (let index = 0; index < fourBarMutations.length; index += 1) {
     const mutation = fourBarMutations[index]
@@ -874,10 +859,10 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
       applyMutation(mutation, work, `${baseIdentity}|beat|${beatStep}`, responseStrength)
     }
   }
-  if (context.kick) for (const mutation of scene.kickMutations ?? []) if (context.kickStrength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|kick|${context.beatIndex}`)
-  if (context.snare) for (const mutation of scene.snareMutations ?? []) if (context.snareStrength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|snare|${context.beatIndex}`)
-  if (context.hat) for (const mutation of scene.hatMutations ?? []) if (context.hatStrength >= finite(mutation.threshold, 0.35)) applyMutation(mutation, work, `${baseIdentity}|hat|${context.beatIndex}`)
-  for (const mutation of scene.transientMutations ?? []) if (context.transient >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|transient|${context.beatIndex}`)
+  if (signals.discrete.kick.active) for (const mutation of scene.kickMutations ?? []) if (signals.discrete.kick.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|kick|${context.beatIndex}`)
+  if (signals.discrete.snare.active) for (const mutation of scene.snareMutations ?? []) if (signals.discrete.snare.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|snare|${context.beatIndex}`)
+  if (signals.discrete.hat.active) for (const mutation of scene.hatMutations ?? []) if (signals.discrete.hat.strength >= finite(mutation.threshold, 0.35)) applyMutation(mutation, work, `${baseIdentity}|hat|${context.beatIndex}`)
+  for (const mutation of scene.transientMutations ?? []) if (signals.discrete.transient.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|transient|${context.beatIndex}`)
 
   return { fourBarVariation, motifFamily, eightBarStage }
 }
