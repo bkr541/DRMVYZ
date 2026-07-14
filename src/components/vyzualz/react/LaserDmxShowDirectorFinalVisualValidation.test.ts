@@ -39,8 +39,8 @@ const RIG_BACKED_IDS = [
 ] as const
 
 describe('Show Director final visual validation', () => {
-  it('covers all ten shows and all ten representative moments deterministically', () => {
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(10)
+  it('covers all fifteen shows and all ten representative moments deterministically', () => {
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(15)
     const reports: ShowDirectorVisualValidationResolution[] = []
     for (const show of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
       for (const frame of SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES) {
@@ -57,8 +57,8 @@ describe('Show Director final visual validation', () => {
         expect(repeated.effects.stateSignature).toBe(first.effects.stateSignature)
       }
     }
-    expect(reports).toHaveLength(100)
-    expect(new Set(reports.map(report => `${report.presetId}/${report.frame.id}`))).toHaveLength(100)
+    expect(reports).toHaveLength(150)
+    expect(new Set(reports.map(report => `${report.presetId}/${report.frame.id}`))).toHaveLength(150)
   })
 
   it('keeps the seven rig-backed shows linked to distinct static source layouts', () => {

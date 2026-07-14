@@ -43,10 +43,14 @@ import type {
 
 export const LASER_DMX_RIG_BACKED_PERFORMANCE_SHOW_SCHEMA_VERSION = 1
 
-export type LaserDmxShowDirectorRigBackedPerformanceShowId = Exclude<
-  LaserDmxShowDirectorBuiltInPerformanceProgramId,
-  'prism-cathedral' | 'cardinal-fan-reactor' | 'cyan-mirror-cage'
->
+export type LaserDmxShowDirectorRigBackedPerformanceShowId =
+  | 'small-club-rig-performance'
+  | 'festival-front-beams-performance'
+  | 'dubstep-drop-lasers-performance'
+  | 'led-bar-grid-performance'
+  | 'moving-head-sweep-performance'
+  | 'strobe-blinder-hits-performance'
+  | 'haze-co2-drops-performance'
 
 export type LaserDmxShowDirectorSourceRigLayoutId =
   | 'small-club-rig'

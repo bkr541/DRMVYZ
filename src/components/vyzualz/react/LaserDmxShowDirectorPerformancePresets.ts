@@ -14,6 +14,7 @@ import {
   type LaserDmxShowDirectorPerformanceState,
 } from './LaserDmxShowDirectorPerformanceProgram'
 import { LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS } from './LaserDmxShowDirectorPerformanceShowcasePresets'
+import { LASER_DMX_SHOW_DIRECTOR_VIDEO_INSPIRED_PERFORMANCE_PRESETS } from './LaserDmxShowDirectorVideoInspiredPerformancePresets'
 import {
   LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS,
   type LaserDmxShowDirectorRigBackedPerformanceShowDefinition,
@@ -74,6 +75,7 @@ export const LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS: readonly La
 /** Canonical full-song Show Director performance shows. Foundation-only rig-backed shows stay out of the browser. */
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze([
   ...LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS,
+  ...LASER_DMX_SHOW_DIRECTOR_VIDEO_INSPIRED_PERFORMANCE_PRESETS,
   ...LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS,
 ])
 

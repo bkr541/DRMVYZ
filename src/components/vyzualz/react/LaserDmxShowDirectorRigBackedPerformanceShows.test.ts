@@ -100,7 +100,7 @@ describe('rig-backed Performance Show architecture foundation', () => {
     expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'available')).toHaveLength(7)
     expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'foundation')).toHaveLength(0)
     expect(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS).toHaveLength(7)
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(10)
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(15)
     expect(LASER_DMX_SHOW_DIRECTOR_TEMPLATES).toHaveLength(7)
   })
 
@@ -201,6 +201,8 @@ describe('rig-backed Performance Show architecture foundation', () => {
       'small-club-rig-performance', 'festival-front-beams-performance', 'dubstep-drop-lasers-performance',
       'led-bar-grid-performance', 'moving-head-sweep-performance',
       'strobe-blinder-hits-performance', 'haze-co2-drops-performance',
+      'vocal-eclipse-exchange', 'emerald-tunnel-relay', 'white-vector-interlock',
+      'aurora-canopy-drift', 'chromatic-chapter-stage',
     ])
     for (const entry of available) {
       const before = JSON.stringify(entry.program)

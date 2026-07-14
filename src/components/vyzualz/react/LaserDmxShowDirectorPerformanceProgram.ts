@@ -1,4 +1,13 @@
 import {
+  LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION,
+  LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION,
+} from './LaserDmxShowDirectorPerformanceConstants'
+export {
+  LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION,
+  LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION,
+} from './LaserDmxShowDirectorPerformanceConstants'
+
+import {
   LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
   type LaserDmxBeamMotion,
   type LaserDmxMatrixBeamAppearance,
@@ -28,9 +37,14 @@ import {
   createHazeCo2PerformanceProgram,
   createStrobeBlinderPerformanceProgram,
 } from './LaserDmxShowDirectorRigBackedImpactAtmospherePerformancePrograms'
+import {
+  createAuroraCanopyDriftProgram,
+  createChromaticChapterStageProgram,
+  createEmeraldTunnelRelayProgram,
+  createVocalEclipseExchangeProgram,
+  createWhiteVectorInterlockProgram,
+} from './LaserDmxShowDirectorVideoInspiredPerformancePresets'
 
-export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION = 3
-export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_STATE_SCHEMA_VERSION = 1
 
 export type LaserDmxShowDirectorPerformanceSectionType = ReactSectionType
 export type LaserDmxShowDirectorPerformanceMutationMode = 'set' | 'add' | 'multiply' | 'toggle'
@@ -459,6 +473,11 @@ export type LaserDmxShowDirectorBuiltInPerformanceProgramId =
   | 'moving-head-sweep-performance'
   | 'strobe-blinder-hits-performance'
   | 'haze-co2-drops-performance'
+  | 'vocal-eclipse-exchange'
+  | 'emerald-tunnel-relay'
+  | 'white-vector-interlock'
+  | 'aurora-canopy-drift'
+  | 'chromatic-chapter-stage'
 
 export interface LaserDmxShowDirectorBuiltInPerformanceRegistryEntry {
   id: LaserDmxShowDirectorBuiltInPerformanceProgramId
@@ -496,6 +515,11 @@ export const LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY: Readonly<Rec
   'moving-head-sweep-performance': Object.freeze({ id: 'moving-head-sweep-performance', name: 'Moving Head Sweep Performance', status: 'available', program: createMovingHeadSweepPerformanceProgram() }),
   'strobe-blinder-hits-performance': Object.freeze({ id: 'strobe-blinder-hits-performance', name: 'Strobe + Blinder Performance', status: 'available', program: createStrobeBlinderPerformanceProgram() }),
   'haze-co2-drops-performance': Object.freeze({ id: 'haze-co2-drops-performance', name: 'Haze + CO2 Performance', status: 'available', program: createHazeCo2PerformanceProgram() }),
+  'vocal-eclipse-exchange': Object.freeze({ id: 'vocal-eclipse-exchange', name: 'Vocal Eclipse Exchange', status: 'available', program: createVocalEclipseExchangeProgram() }),
+  'emerald-tunnel-relay': Object.freeze({ id: 'emerald-tunnel-relay', name: 'Emerald Tunnel Relay', status: 'available', program: createEmeraldTunnelRelayProgram() }),
+  'white-vector-interlock': Object.freeze({ id: 'white-vector-interlock', name: 'White Vector Interlock', status: 'available', program: createWhiteVectorInterlockProgram() }),
+  'aurora-canopy-drift': Object.freeze({ id: 'aurora-canopy-drift', name: 'Aurora Canopy Drift', status: 'available', program: createAuroraCanopyDriftProgram() }),
+  'chromatic-chapter-stage': Object.freeze({ id: 'chromatic-chapter-stage', name: 'Chromatic Chapter Stage', status: 'available', program: createChromaticChapterStageProgram() }),
 })
 
 export interface LaserDmxShowDirectorPerformanceState {

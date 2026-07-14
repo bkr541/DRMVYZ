@@ -162,7 +162,7 @@ describe('Show Director performance-program foundation', () => {
     }
   })
 
-  it('keeps all ten finished programs available in the canonical registry', () => {
+  it('keeps all fifteen finished programs available in the canonical registry', () => {
     const entries = Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)
     const available = entries.filter(entry => entry.status === 'available')
     const foundations = entries.filter(entry => entry.status === 'foundation')
@@ -177,6 +177,11 @@ describe('Show Director performance-program foundation', () => {
       'Moving Head Sweep Performance',
       'Strobe + Blinder Performance',
       'Haze + CO2 Performance',
+      'Vocal Eclipse Exchange',
+      'Emerald Tunnel Relay',
+      'White Vector Interlock',
+      'Aurora Canopy Drift',
+      'Chromatic Chapter Stage',
     ])
     expect(available.map(entry => entry.program?.id)).toEqual([
       'prism-cathedral',
@@ -189,6 +194,11 @@ describe('Show Director performance-program foundation', () => {
       'moving-head-sweep-performance',
       'strobe-blinder-hits-performance',
       'haze-co2-drops-performance',
+      'vocal-eclipse-exchange',
+      'emerald-tunnel-relay',
+      'white-vector-interlock',
+      'aurora-canopy-drift',
+      'chromatic-chapter-stage',
     ])
     expect(foundations).toHaveLength(0)
   })

@@ -443,16 +443,16 @@ describe('Haze + CO2 Performance', () => {
 })
 
 describe('Patch 4 registration and regression boundaries', () => {
-  it('publishes both shows without changing the eight earlier Performance Programs', () => {
+  it('publishes both shows without changing the eight earlier Performance Programs as the catalog expands', () => {
     const entries = Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)
-    expect(entries.filter(entry => entry.status === 'available')).toHaveLength(10)
+    expect(entries.filter(entry => entry.status === 'available')).toHaveLength(15)
     expect(entries.filter(entry => entry.status === 'foundation')).toHaveLength(0)
     expect(entries.slice(0, 8).map(entry => entry.id)).toEqual([
       'prism-cathedral', 'cardinal-fan-reactor', 'cyan-mirror-cage',
       'small-club-rig-performance', 'festival-front-beams-performance', 'dubstep-drop-lasers-performance',
       'led-bar-grid-performance', 'moving-head-sweep-performance',
     ])
-    expect(entries.slice(8).map(entry => entry.name)).toEqual([
+    expect(entries.slice(8, 10).map(entry => entry.name)).toEqual([
       'Strobe + Blinder Performance',
       'Haze + CO2 Performance',
     ])

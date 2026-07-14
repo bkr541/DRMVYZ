@@ -54,11 +54,16 @@ function syntheticPreset(): LaserDmxShowDirectorPerformancePresetDefinition {
 }
 
 describe('Show Director performance preset workflow', () => {
-  it('publishes all ten finished shows through the canonical registry', () => {
+  it('publishes all fifteen finished shows through the canonical registry', () => {
     expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.id)).toEqual([
       'prism-cathedral',
       'cardinal-fan-reactor',
       'cyan-mirror-cage',
+      'vocal-eclipse-exchange',
+      'emerald-tunnel-relay',
+      'white-vector-interlock',
+      'aurora-canopy-drift',
+      'chromatic-chapter-stage',
       'small-club-rig-performance',
       'festival-front-beams-performance',
       'dubstep-drop-lasers-performance',
@@ -67,7 +72,7 @@ describe('Show Director performance preset workflow', () => {
       'strobe-blinder-hits-performance',
       'haze-co2-drops-performance',
     ])
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.fixtureCount)).toEqual([12, 16, 16, 9, 8, 9, 10, 5, 6, 5])
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.fixtureCount)).toEqual([12, 16, 16, 10, 13, 13, 15, 18, 9, 8, 9, 10, 5, 6, 5])
   })
 
   it('loads rig and program atomically, preserves canvas preferences, and reloads the pristine built-in definition', () => {
