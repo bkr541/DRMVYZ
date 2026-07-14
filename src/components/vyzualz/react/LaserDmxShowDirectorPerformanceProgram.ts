@@ -44,6 +44,7 @@ import {
   createVocalEclipseExchangeProgram,
   createWhiteVectorInterlockProgram,
 } from './LaserDmxShowDirectorVideoInspiredPerformancePresets'
+import { createPrismaticPulseMatrixProgram } from './LaserDmxShowDirectorPrismaticPulseMatrixPerformancePreset'
 
 
 export type LaserDmxShowDirectorPerformanceSectionType = ReactSectionType
@@ -478,6 +479,7 @@ export type LaserDmxShowDirectorBuiltInPerformanceProgramId =
   | 'white-vector-interlock'
   | 'aurora-canopy-drift'
   | 'chromatic-chapter-stage'
+  | 'prismatic-pulse-matrix'
 
 export interface LaserDmxShowDirectorBuiltInPerformanceRegistryEntry {
   id: LaserDmxShowDirectorBuiltInPerformanceProgramId
@@ -520,6 +522,7 @@ export const LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY: Readonly<Rec
   'white-vector-interlock': Object.freeze({ id: 'white-vector-interlock', name: 'White Vector Interlock', status: 'available', program: createWhiteVectorInterlockProgram() }),
   'aurora-canopy-drift': Object.freeze({ id: 'aurora-canopy-drift', name: 'Aurora Canopy Drift', status: 'available', program: createAuroraCanopyDriftProgram() }),
   'chromatic-chapter-stage': Object.freeze({ id: 'chromatic-chapter-stage', name: 'Chromatic Chapter Stage', status: 'available', program: createChromaticChapterStageProgram() }),
+  'prismatic-pulse-matrix': Object.freeze({ id: 'prismatic-pulse-matrix', name: 'Prismatic Pulse Matrix', status: 'available', program: createPrismaticPulseMatrixProgram() }),
 })
 
 export interface LaserDmxShowDirectorPerformanceState {

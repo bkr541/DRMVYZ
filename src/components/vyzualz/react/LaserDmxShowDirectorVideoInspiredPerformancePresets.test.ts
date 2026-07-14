@@ -25,6 +25,7 @@ const IDS = [
   'white-vector-interlock',
   'aurora-canopy-drift',
   'chromatic-chapter-stage',
+  'prismatic-pulse-matrix',
 ] as const
 
 const SECTIONS: ReactTrackSection[] = [
@@ -182,13 +183,14 @@ function geometrySignature(result: ReturnType<typeof resolve>): string {
 }
 
 describe('video-inspired Show Director performance presets', () => {
-  it('registers all five authored presets with stable rigs and complete full-song programs', () => {
+  it('registers all six authored presets with stable rigs and complete full-song programs', () => {
     expect(IDS.map(id => preset(id).name)).toEqual([
       'Vocal Eclipse Exchange',
       'Emerald Tunnel Relay',
       'White Vector Interlock',
       'Aurora Canopy Drift',
       'Chromatic Chapter Stage',
+      'Prismatic Pulse Matrix',
     ])
 
     for (const id of IDS) {
@@ -234,6 +236,22 @@ describe('video-inspired Show Director performance presets', () => {
       expect(geometrySignature(drop2)).not.toBe(geometrySignature(drop1))
       expect(activeKeys(drop2).length).toBeGreaterThanOrEqual(activeKeys(drop1).length)
     }
+  })
+
+  it('replaces geometry on nearly every beat of the Prismatic Pulse Matrix sixteen-beat drop phrase', () => {
+    const signatures = Array.from({ length: 16 }, (_, beatOffset) => geometrySignature(resolve(
+      'prismatic-pulse-matrix',
+      80 + beatOffset * 0.5 + 0.02,
+    )))
+    expect(new Set(signatures).size).toBeGreaterThanOrEqual(12)
+
+    const cyanDownbeat = resolve('prismatic-pulse-matrix', 80.02)
+    const sparseReset = resolve('prismatic-pulse-matrix', 83.02)
+    const whiteFan = resolve('prismatic-pulse-matrix', 86.02)
+    expect(activeKeys(cyanDownbeat).filter(key => key.includes('laser')).length).toBeGreaterThanOrEqual(4)
+    expect(geometrySignature(sparseReset)).not.toBe(geometrySignature(cyanDownbeat))
+    expect(sparseReset.showDirector.fixtures.find(fixture => fixture.semanticKey === 'matrix-laser-side-l')?.color).toBe('#ff243f')
+    expect(activeKeys(whiteFan).filter(key => key.includes('head')).length).toBeGreaterThanOrEqual(3)
   })
 
   it('uses mixed fixtures as scene language in Chromatic Chapter Stage', () => {

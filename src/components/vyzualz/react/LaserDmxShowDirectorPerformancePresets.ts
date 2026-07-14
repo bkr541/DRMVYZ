@@ -15,6 +15,7 @@ import {
 } from './LaserDmxShowDirectorPerformanceProgram'
 import { LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS } from './LaserDmxShowDirectorPerformanceShowcasePresets'
 import { LASER_DMX_SHOW_DIRECTOR_VIDEO_INSPIRED_PERFORMANCE_PRESETS } from './LaserDmxShowDirectorVideoInspiredPerformancePresets'
+import { LASER_DMX_SHOW_DIRECTOR_PRISMATIC_PULSE_MATRIX_PRESET } from './LaserDmxShowDirectorPrismaticPulseMatrixPerformancePreset'
 import {
   LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS,
   type LaserDmxShowDirectorRigBackedPerformanceShowDefinition,
@@ -76,6 +77,7 @@ export const LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS: readonly La
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze([
   ...LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS,
   ...LASER_DMX_SHOW_DIRECTOR_VIDEO_INSPIRED_PERFORMANCE_PRESETS,
+  LASER_DMX_SHOW_DIRECTOR_PRISMATIC_PULSE_MATRIX_PRESET,
   ...LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS,
 ])
 
