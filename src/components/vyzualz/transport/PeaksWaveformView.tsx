@@ -1,5 +1,4 @@
-import { useRef, useEffect, useState, useCallback, useLayoutEffect, type CSSProperties, type MouseEvent } from 'react'
-import { createPortal } from 'react-dom'
+import { useRef, useEffect, useState, useCallback, type MouseEvent } from 'react'
 import Peaks from 'peaks.js'
 import type { PeaksInstance } from 'peaks.js'
 import type { AudioEngine } from '../../../hooks/useAudioEngine'
@@ -10,11 +9,10 @@ import type { RgbWaveformAnalysis } from '../../../features/waveform/rgbWaveform
 import { computeWaveformViewport } from '../../../features/timeline/timelineViewport'
 import type { BeatMarkerMI } from '../../../features/musicIntelligence/types'
 import {
-  buildWaveformCueRequest,
-  formatCueBeatReference,
   waveformClientXToTime,
   type WaveformCueCreateRequest,
 } from '../../../features/timeline/waveformCuePoint'
+import { CuePointContextMenu, type CuePointContextMenuTarget } from './CuePointContextMenu'
 
 export interface PeaksWaveformViewProps {
   engine:         AudioEngine
@@ -56,39 +54,7 @@ export function syncCueMarkers(instance: PeaksInstance, markers: VzCueMarker[]):
 
 type WaveformViewport = { startSec: number; endSec: number }
 
-type WaveformContextMenuState = {
-  x: number
-  y: number
-  authoredTimeSec: number
-  beat: ReturnType<typeof buildWaveformCueRequest>['beat']
-  cueMarker: VzCueMarker | null
-  cueEditable: boolean
-}
-
-const WAVEFORM_CONTEXT_MENU_MARGIN = 12
 const WAVEFORM_CUE_HIT_TOLERANCE_PX = 14
-
-function formatWaveformCueTime(timeSec: number): string {
-  const totalMs = Math.max(0, Math.round(timeSec * 1000))
-  const minutes = Math.floor(totalMs / 60_000)
-  const seconds = Math.floor((totalMs % 60_000) / 1000)
-  const milliseconds = totalMs % 1000
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`
-}
-
-function clampWaveformContextMenu(
-  element: HTMLElement,
-  point: Pick<WaveformContextMenuState, 'x' | 'y'>,
-): { x: number; y: number } {
-  if (typeof window === 'undefined') return point
-  const rect = element.getBoundingClientRect()
-  const maxX = Math.max(WAVEFORM_CONTEXT_MENU_MARGIN, window.innerWidth - rect.width - WAVEFORM_CONTEXT_MENU_MARGIN)
-  const maxY = Math.max(WAVEFORM_CONTEXT_MENU_MARGIN, window.innerHeight - rect.height - WAVEFORM_CONTEXT_MENU_MARGIN)
-  return {
-    x: Math.round(Math.max(WAVEFORM_CONTEXT_MENU_MARGIN, Math.min(maxX, point.x))),
-    y: Math.round(Math.max(WAVEFORM_CONTEXT_MENU_MARGIN, Math.min(maxY, point.y))),
-  }
-}
 
 function contextTargetRect(
   clientY: number,
@@ -147,7 +113,6 @@ export function PeaksWaveformView({
   const waveformRootRef = useRef<HTMLDivElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
   const zoomviewRef = useRef<HTMLDivElement>(null)
-  const contextMenuRef = useRef<HTMLDivElement>(null)
   const peaksRef    = useRef<PeaksInstance | null>(null)
   const adapterRef  = useRef<PeaksAudioEngineAdapter | null>(null)
   const engineRef   = useRef<AudioEngine>(engine)
@@ -167,7 +132,7 @@ export function PeaksWaveformView({
 
   const [peaksReady, setPeaksReady] = useState(false)
   const [peaksError, setPeaksError] = useState(false)
-  const [contextMenu, setContextMenu] = useState<WaveformContextMenuState | null>(null)
+  const [contextMenu, setContextMenu] = useState<CuePointContextMenuTarget | null>(null)
 
   const destroyPeaks = useCallback(() => {
     initGenRef.current += 1
@@ -392,31 +357,6 @@ export function PeaksWaveformView({
     }
   }, [destroyPeaks])
 
-  useLayoutEffect(() => {
-    if (!contextMenu || !contextMenuRef.current) return
-    const next = clampWaveformContextMenu(contextMenuRef.current, contextMenu)
-    if (next.x === contextMenu.x && next.y === contextMenu.y) return
-    setContextMenu(current => current ? { ...current, ...next } : current)
-  }, [contextMenu])
-
-  useEffect(() => {
-    if (!contextMenu) return
-    const closeOnPointerDown = (event: globalThis.PointerEvent) => {
-      const target = event.target instanceof HTMLElement ? event.target : null
-      if (target?.closest('.vz-waveform-context-menu')) return
-      setContextMenu(null)
-    }
-    const closeOnKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setContextMenu(null)
-    }
-    window.addEventListener('pointerdown', closeOnPointerDown)
-    window.addEventListener('keydown', closeOnKeyDown)
-    return () => {
-      window.removeEventListener('pointerdown', closeOnPointerDown)
-      window.removeEventListener('keydown', closeOnKeyDown)
-    }
-  }, [contextMenu])
-
   const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
     const root = waveformRootRef.current
     const duration = engineRef.current.duration
@@ -438,121 +378,28 @@ export function PeaksWaveformView({
         ? { startSec: peaksStartSec ?? 0, endSec: peaksEndSec ?? duration }
         : computeWaveformViewport(duration, engineRef.current.getCurrentTime(), waveformZoomRef.current)
     const authoredTimeSec = waveformClientXToTime(event.clientX, target.rect, viewport, duration)
-    const request = buildWaveformCueRequest(authoredTimeSec, beatGrid, false)
     const cueMarker = findCueMarkerNearClientX(cueMarkersRef.current, event.clientX, target.rect, viewport)
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
       authoredTimeSec,
-      beat: request.beat,
       cueMarker,
       cueEditable: cueMarker ? editableCueMarkerIds.includes(cueMarker.id) : false,
     })
   }
 
-  const createCue = (snapToBeat: boolean) => {
-    if (!contextMenu || !onCreateCuePoint) return
-    onCreateCuePoint(buildWaveformCueRequest(contextMenu.authoredTimeSec, beatGrid, snapToBeat))
-    setContextMenu(null)
-  }
-
-  const jumpToCue = () => {
-    if (!contextMenu?.cueMarker) return
-    engineRef.current.seek(contextMenu.cueMarker.time)
-    setContextMenu(null)
-  }
-
-  const updateContextCue = (snapToBeat: boolean) => {
-    if (!contextMenu?.cueMarker || !contextMenu.cueEditable || !onUpdateCuePoint) return
-    const request = buildWaveformCueRequest(contextMenu.authoredTimeSec, beatGrid, snapToBeat)
-    onUpdateCuePoint(contextMenu.cueMarker.id, {
-      time: request.timeSec,
-      authoredTime: request.authoredTimeSec,
-      beatIndex: request.beat?.beatIndex,
-      barIndex: request.beat?.barIndex,
-      beatInBar: request.beat?.beatInBar,
-      beatTime: request.beat?.beatTimeSec,
-      beatOffsetSec: request.beat?.offsetSec,
-      snappedToBeat: request.snappedToBeat,
-    })
-    setContextMenu(null)
-  }
-
-  const renameContextCue = () => {
-    if (!contextMenu?.cueMarker || !contextMenu.cueEditable || !onUpdateCuePoint || typeof window === 'undefined') return
-    const nextLabel = window.prompt('Cue point name', contextMenu.cueMarker.label)?.trim()
-    if (!nextLabel || nextLabel === contextMenu.cueMarker.label) return
-    onUpdateCuePoint(contextMenu.cueMarker.id, { label: nextLabel.slice(0, 48) })
-    setContextMenu(null)
-  }
-
-  const deleteContextCue = () => {
-    if (!contextMenu?.cueMarker || !contextMenu.cueEditable || !onDeleteCuePoint) return
-    onDeleteCuePoint(contextMenu.cueMarker.id)
-    setContextMenu(null)
-  }
-
-  const contextMenuPortal = contextMenu && typeof document !== 'undefined' && createPortal((
-    <div
-      ref={contextMenuRef}
-      className="rv-show-director-context-menu vz-waveform-context-menu"
-      style={{ left: contextMenu.x, top: contextMenu.y } as CSSProperties}
-      role="menu"
-      aria-label="Waveform cue point menu"
-      onPointerDown={event => event.stopPropagation()}
-    >
-      <div className="vz-waveform-context-menu__meta">
-        <strong>{contextMenu.cueMarker?.label ?? formatWaveformCueTime(contextMenu.authoredTimeSec)}</strong>
-        <span>
-          {contextMenu.cueMarker
-            ? `${formatWaveformCueTime(contextMenu.cueMarker.time)} · ${formatCueBeatReference(contextMenu.beat) ?? 'No beat grid available'}`
-            : formatCueBeatReference(contextMenu.beat) ?? 'No beat grid available'}
-        </span>
-        {contextMenu.cueMarker && (
-          <em>{contextMenu.cueEditable ? 'Editable cue point' : `${contextMenu.cueMarker.source ?? 'Imported'} cue · read only`}</em>
-        )}
-      </div>
-      <span className="rv-show-director-context-menu__divider" role="separator" />
-      {contextMenu.cueMarker && (
-        <>
-          <button type="button" role="menuitem" onClick={jumpToCue}>Jump to Cue</button>
-          {contextMenu.cueEditable && onUpdateCuePoint && (
-            <>
-              <button type="button" role="menuitem" onClick={renameContextCue}>Rename Cue…</button>
-              <button type="button" role="menuitem" onClick={() => updateContextCue(false)}>Move Cue Here</button>
-              <button type="button" role="menuitem" disabled={!contextMenu.beat} onClick={() => updateContextCue(true)}>Snap Cue to Nearest Beat</button>
-            </>
-          )}
-          {contextMenu.cueEditable && onDeleteCuePoint && (
-            <button
-              type="button"
-              role="menuitem"
-              className="rv-show-director-context-menu__danger"
-              onClick={deleteContextCue}
-            >
-              Delete Cue Point
-            </button>
-          )}
-          {onCreateCuePoint && <span className="rv-show-director-context-menu__divider" role="separator" />}
-        </>
-      )}
-      {onCreateCuePoint && (
-        <>
-          <button type="button" role="menuitem" onClick={() => createCue(false)}>
-            {contextMenu.cueMarker ? 'Set New Cue Point Here' : 'Set Cue Point Here'}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={!contextMenu.beat}
-            onClick={() => createCue(true)}
-          >
-            {contextMenu.cueMarker ? 'Set New Cue on Nearest Beat' : 'Set Cue on Nearest Beat'}
-          </button>
-        </>
-      )}
-    </div>
-  ), document.body)
+  const contextMenuPortal = contextMenu ? (
+    <CuePointContextMenu
+      {...contextMenu}
+      beatGrid={beatGrid}
+      onClose={() => setContextMenu(null)}
+      onSeek={timeSec => engineRef.current.seek(timeSec)}
+      onCreateCuePoint={onCreateCuePoint}
+      onUpdateCuePoint={onUpdateCuePoint}
+      onDeleteCuePoint={onDeleteCuePoint}
+      ariaLabel="Waveform cue point menu"
+    />
+  ) : null
 
   if (appearance === 'deck') {
     return (
@@ -571,6 +418,7 @@ export function PeaksWaveformView({
             onSeek={engine.currentTrack ? engine.seek : undefined}
             zoom={waveformZoom}
             monochrome
+            showCueMarkerLines={false}
           />
         </div>
         {contextMenuPortal}

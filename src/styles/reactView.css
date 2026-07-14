@@ -10471,3 +10471,268 @@
   max-width: 70px;
   font-size: 7px;
 }
+
+/* ── Minimal Track Map sections and compact section editor ────────────────── */
+.rv-section-timeline {
+  height: 38px;
+  margin: 4px 10px 6px;
+}
+
+.rv-section-region,
+.rv-section-region--confidence-medium,
+.rv-section-region--confidence-low {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  opacity: 1;
+  box-shadow: none;
+  transition: filter 0.12s ease;
+}
+
+.rv-section-region:hover,
+.rv-section-region--selected,
+.rv-section-region--dragging {
+  box-shadow: none;
+  filter: brightness(1.14);
+}
+
+.rv-section-region:focus-visible,
+.rv-section-body:focus-visible {
+  box-shadow: 0 0 0 1px rgba(74, 199, 219, 0.56);
+}
+
+.rv-section-body {
+  inset: 0 2px;
+  overflow: visible;
+  border-radius: 0;
+}
+
+.rv-section-header {
+  top: 1px;
+  left: 2px;
+  right: 2px;
+  height: 18px;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.rv-section-label {
+  flex: 0 1 auto;
+  color: var(--section-color, #4ac7db);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 7px color-mix(in srgb, var(--section-color, #4ac7db) 24%, transparent);
+}
+
+.rv-section-color-bar {
+  position: absolute;
+  top: 25px;
+  left: 2px;
+  right: 2px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--section-color, #4ac7db);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--section-color, #4ac7db) 25%, transparent);
+  opacity: 0.9;
+  pointer-events: none;
+  transition: height 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rv-section-region--selected .rv-section-color-bar,
+.rv-section-region:hover .rv-section-color-bar {
+  height: 6px;
+  opacity: 1;
+  box-shadow: 0 0 9px color-mix(in srgb, var(--section-color, #4ac7db) 42%, transparent);
+}
+
+.rv-section-region--confidence-medium .rv-section-color-bar {
+  opacity: 0.72;
+}
+
+.rv-section-region--confidence-low .rv-section-color-bar {
+  opacity: 0.52;
+}
+
+.rv-section-preset-dot {
+  flex: 0 0 auto;
+  color: var(--section-color, #4ac7db);
+  font-size: 7px;
+  line-height: 1;
+}
+
+.rv-section-boundary,
+.rv-section-handle::before {
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.1s, width 0.1s;
+}
+
+.rv-section-timeline:hover .rv-section-boundary,
+.rv-section-region:hover .rv-section-handle::before,
+.rv-section-handle:focus-visible::before,
+.rv-section-handle--active::before {
+  opacity: 1;
+}
+
+.rv-section-region-remove {
+  top: 0;
+  right: 0;
+  color: rgba(232, 244, 248, 0.44);
+  background: rgba(6, 13, 20, 0.8);
+  opacity: 0;
+}
+
+.rv-section-region:hover .rv-section-region-remove,
+.rv-section-region-remove:focus-visible {
+  opacity: 1;
+}
+
+.rv-add-section-form--edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  padding: 9px 12px 10px;
+}
+
+.rv-section-editor-primary-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(110px, 0.72fr)
+    minmax(190px, 1.55fr)
+    minmax(150px, 0.9fr)
+    minmax(150px, 0.9fr)
+    minmax(150px, 1fr);
+  align-items: end;
+  gap: 8px 10px;
+  min-width: 0;
+}
+
+.rv-section-editor-secondary-grid {
+  display: grid;
+  grid-template-columns: minmax(390px, 1.65fr) minmax(250px, 1fr);
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rv-section-editor-secondary-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rv-add-section-form--edit .rv-form-row,
+.rv-add-section-form--edit .rv-form-group-sep {
+  min-width: 0;
+}
+
+.rv-add-section-form--edit .rv-form-select,
+.rv-add-section-form--edit .rv-form-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 28px;
+}
+
+.rv-add-section-form--edit .rv-form-input--num {
+  width: 100%;
+}
+
+.rv-add-section-form--edit .rv-form-time-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.rv-add-section-form--edit .rv-form-inline-control {
+  min-height: 28px;
+}
+
+.rv-add-section-form--edit .rv-form-range {
+  width: 100%;
+  min-width: 72px;
+}
+
+.rv-add-section-form--edit .rv-form-group-sep {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 8px 10px 9px;
+  border: 1px solid rgba(74, 199, 219, 0.12);
+  border-radius: 6px;
+  background: rgba(74, 199, 219, 0.025);
+}
+
+.rv-add-section-form--edit .rv-form-group-label {
+  color: rgba(232, 244, 248, 0.7);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.rv-add-section-form--edit .rv-boundary-action-grid {
+  grid-template-columns: minmax(42px, auto) repeat(3, minmax(64px, 1fr));
+}
+
+.rv-add-section-form--edit .rv-section-diagnostics {
+  margin: 0;
+}
+
+.rv-add-section-form--edit .rv-form-actions {
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: 0;
+}
+
+.rv-add-section-form--edit .rv-section-source-badge {
+  margin-right: auto;
+}
+
+.rv-track-map-strip--embedded .rv-timeline-detail-overview + .rv-timeline-editor-drawer .rv-add-section-form--edit {
+  gap: 8px;
+  padding: 9px 12px 10px;
+}
+
+.rv-track-map-strip--embedded .rv-timeline-detail-overview + .rv-timeline-editor-drawer .rv-add-section-form--edit .rv-form-group-sep {
+  flex: initial;
+}
+
+.rv-track-map-strip--embedded .rv-timeline-detail-overview + .rv-timeline-editor-drawer .rv-add-section-form--edit .rv-form-actions {
+  margin-left: 0;
+}
+
+@media (max-width: 1180px) {
+  .rv-section-editor-primary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .rv-form-row--section-label {
+    grid-column: span 2;
+  }
+
+  .rv-section-editor-secondary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .rv-section-editor-primary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rv-form-row--section-label {
+    grid-column: 1 / -1;
+  }
+
+  .rv-add-section-form--edit .rv-boundary-action-grid {
+    grid-template-columns: minmax(38px, auto) repeat(3, minmax(0, 1fr));
+  }
+}

@@ -19,6 +19,7 @@ import {
 import { guessNativeUsbRootFromFile, scanNativeRekordboxUsbRoot } from '../../../features/rekordboxImport/nativeBridge'
 import { PeaksWaveformView } from '../transport/PeaksWaveformView'
 import type { WaveformCueCreateRequest } from '../../../features/timeline/waveformCuePoint'
+import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { cueMarkerBelongsToTrack } from '../../../types/cue'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
@@ -510,30 +511,7 @@ export function VyzualzAudioDock({
   const handleCreateCuePoint = useCallback((request: WaveformCueCreateRequest) => {
     const activeTrack = engine.currentTrack
     if (!activeTrack) return
-
-    const activeManualLabels = new Set(cueMarkers
-      .filter(marker => marker.source !== 'rekordbox' && cueMarkerBelongsToTrack(marker, activeTrack.id))
-      .map(marker => marker.label.trim().toUpperCase()))
-    let cueNumber = 1
-    while (activeManualLabels.has(`CUE ${cueNumber}`)) cueNumber += 1
-    const beat = request.beat
-
-    addCueMarker({
-      label: `CUE ${cueNumber}`,
-      time: request.timeSec,
-      type: 'custom',
-      color: '#e2364f',
-      source: 'manual',
-      kind: 'memory_cue',
-      trackId: activeTrack.id,
-      authoredTime: request.authoredTimeSec,
-      beatIndex: beat?.beatIndex,
-      barIndex: beat?.barIndex,
-      beatInBar: beat?.beatInBar,
-      beatTime: beat?.beatTimeSec,
-      beatOffsetSec: beat?.offsetSec,
-      snappedToBeat: request.snappedToBeat,
-    })
+    addCueMarker(buildManualCueMarker(request, cueMarkers, activeTrack.id))
   }, [addCueMarker, cueMarkers, engine])
   const initial = track?.displayName?.[0]?.toUpperCase() ?? '♪'
   const title   = track?.displayName ?? 'No track loaded'

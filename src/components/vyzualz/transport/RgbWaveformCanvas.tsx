@@ -13,6 +13,8 @@ interface RgbWaveformCanvasProps {
   zoom?:          number
   /** Render a cyan, bar-based deck waveform instead of the RGB energy fill. */
   monochrome?:    boolean
+  /** Draw a full-height stem beneath each cue flag. Track Map markers are unaffected. */
+  showCueMarkerLines?: boolean
 }
 
 const PLAYHEAD_COLOR = '#4ac7db'
@@ -61,13 +63,14 @@ export function RgbWaveformCanvas({
   onSeek,
   zoom = 1,
   monochrome = false,
+  showCueMarkerLines = true,
 }: RgbWaveformCanvasProps) {
   const canvasRef  = useRef<HTMLCanvasElement>(null)
   const sizeRef    = useRef({ cssW: 0, cssH: 0, dpr: 1 })
   const buffersRef = useRef<DrawBuffers | null>(null)
 
-  const propsRef = useRef({ analysis, fallbackPeaks, duration, currentTime, markers, zoom, monochrome })
-  propsRef.current = { analysis, fallbackPeaks, duration, currentTime, markers, zoom, monochrome }
+  const propsRef = useRef({ analysis, fallbackPeaks, duration, currentTime, markers, zoom, monochrome, showCueMarkerLines })
+  propsRef.current = { analysis, fallbackPeaks, duration, currentTime, markers, zoom, monochrome, showCueMarkerLines }
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -89,6 +92,7 @@ export function RgbWaveformCanvas({
       markers: mks,
       zoom: zm,
       monochrome: mono,
+      showCueMarkerLines: cueMarkerLinesVisible,
     } = propsRef.current
     const safe = dur > 0 ? dur : 1
     const { start: winStart, end: winEnd } = getWindow(safe, ct, zm)
@@ -288,7 +292,7 @@ export function RgbWaveformCanvas({
       ctx.fillStyle = markerColor
       ctx.shadowColor = markerColor
       ctx.shadowBlur = 5
-      ctx.fillRect(mx - 1, 0, 2, cssH)
+      if (cueMarkerLinesVisible) ctx.fillRect(mx - 1, 0, 2, cssH)
       ctx.beginPath()
       ctx.moveTo(mx - 6, 0)
       ctx.lineTo(mx + 6, 0)
@@ -312,7 +316,7 @@ export function RgbWaveformCanvas({
     }
   }, [])
 
-  useEffect(() => { draw() }, [draw, analysis, currentTime, duration, zoom, markers, fallbackPeaks, monochrome])
+  useEffect(() => { draw() }, [draw, analysis, currentTime, duration, zoom, markers, fallbackPeaks, monochrome, showCueMarkerLines])
 
   // Sync canvas physical resolution to CSS layout size, accounting for DPR.
   useEffect(() => {

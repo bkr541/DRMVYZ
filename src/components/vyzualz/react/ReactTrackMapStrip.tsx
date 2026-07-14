@@ -35,6 +35,9 @@ import type {
 import { applyCanvasResolution, resolveCanvasResolution } from './rendering/canvasResolution'
 import { isSelectableReactEngineId, REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { cueMarkerBelongsToTrack, type VzCueMarker } from '../../../types/cue'
+import type { WaveformCueCreateRequest } from '../../../features/timeline/waveformCuePoint'
+import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
+import { CuePointContextMenu, type CuePointContextMenuTarget } from '../transport/CuePointContextMenu'
 
 // ── Engine display labels ─────────────────────────────────────────────────────
 
@@ -76,6 +79,7 @@ interface TimelineCueItem {
   kind: TimelineCueKind
   enabled: boolean
   title?: string
+  cueMarker?: VzCueMarker
 }
 
 // ── Section display metadata ───────────────────────────────────────────────────
@@ -598,144 +602,148 @@ export function EditSectionForm({
   }
 
   return (
-    <div className="rv-add-section-form">
-      <div className="rv-form-row">
-        <label className="rv-form-label" htmlFor={`${idPrefix}-type`}>Type</label>
-        <select
-          id={`${idPrefix}-type`}
-          className="rv-form-select"
-          value={type}
-          onChange={e => { markDirty('type'); setType(e.target.value as ReactSectionType) }}
-        >
-          {SECTION_ORDER.map(t => (
-            <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="rv-form-group-sep rv-boundary-tools">
-        <div className="rv-form-group-label">Boundary Tools</div>
+    <div className="rv-add-section-form rv-add-section-form--edit">
+      <div className="rv-section-editor-primary-grid">
         <div className="rv-form-row">
-          <label className="rv-form-label" htmlFor={`${idPrefix}-snap-mode`}>Snap</label>
+          <label className="rv-form-label" htmlFor={`${idPrefix}-type`}>Type</label>
           <select
-            id={`${idPrefix}-snap-mode`}
+            id={`${idPrefix}-type`}
             className="rv-form-select"
-            value={snapMode}
-            onChange={event => onSnapModeChange(event.target.value as SectionBoundarySnapMode)}
+            value={type}
+            onChange={e => { markDirty('type'); setType(e.target.value as ReactSectionType) }}
           >
-            <option value="beat">Beat</option>
-            <option value="downbeat">Downbeat</option>
-            <option value="bar">Bar</option>
-            <option value="four-bar">Four-bar</option>
-            <option value="free">Free</option>
+            {SECTION_ORDER.map(t => (
+              <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </option>
+            ))}
           </select>
         </div>
-        <div className="rv-boundary-action-grid">
-          <span className="rv-form-label">Start</span>
-          <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</button>
-          <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('start', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</button>
-          <button type="button" className="rv-form-cancel-btn" onClick={() => onSnapBoundary('start')} disabled={snapMode === 'free'}>Snap</button>
-          <span className="rv-form-label">End</span>
-          <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('end', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</button>
-          <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</button>
-          <button type="button" className="rv-form-cancel-btn" onClick={() => onSnapBoundary('end')} disabled={snapMode === 'free'}>Snap</button>
-        </div>
-      </div>
 
-      <div className="rv-form-row">
-        <label className="rv-form-label" htmlFor={`${idPrefix}-label`}>Label</label>
-        <input
-          id={`${idPrefix}-label`}
-          className="rv-form-input"
-          type="text"
-          placeholder={type}
-          value={label}
-          onChange={e => { markDirty('label'); setLabel(e.target.value) }}
-          maxLength={32}
-        />
-      </div>
-
-      <div className="rv-form-row">
-        <label className="rv-form-label" htmlFor={`${idPrefix}-start`}>Start (s)</label>
-        <div className="rv-form-time-row">
+        <div className="rv-form-row rv-form-row--section-label">
+          <label className="rv-form-label" htmlFor={`${idPrefix}-label`}>Label</label>
           <input
-            id={`${idPrefix}-start`}
-            className="rv-form-input rv-form-input--num"
-            type="number"
-            min={0}
-            max={durationSec}
-            step={0.01}
-            value={startSec.toFixed(3)}
-            onChange={e => { markDirty('startSec'); setStartSec(Math.max(0, parseFloat(e.target.value) || 0)) }}
+            id={`${idPrefix}-label`}
+            className="rv-form-input"
+            type="text"
+            placeholder={type}
+            value={label}
+            onChange={e => { markDirty('label'); setLabel(e.target.value) }}
+            maxLength={32}
           />
-          <span className="rv-form-time">{formatTimePrecise(startSec)}</span>
+        </div>
+
+        <div className="rv-form-row">
+          <label className="rv-form-label" htmlFor={`${idPrefix}-start`}>Start (s)</label>
+          <div className="rv-form-time-row">
+            <input
+              id={`${idPrefix}-start`}
+              className="rv-form-input rv-form-input--num"
+              type="number"
+              min={0}
+              max={durationSec}
+              step={0.01}
+              value={startSec.toFixed(3)}
+              onChange={e => { markDirty('startSec'); setStartSec(Math.max(0, parseFloat(e.target.value) || 0)) }}
+            />
+            <span className="rv-form-time">{formatTimePrecise(startSec)}</span>
+          </div>
+        </div>
+
+        <div className="rv-form-row">
+          <label className="rv-form-label" htmlFor={`${idPrefix}-end`}>End (s)</label>
+          <div className="rv-form-time-row">
+            <input
+              id={`${idPrefix}-end`}
+              className="rv-form-input rv-form-input--num"
+              type="number"
+              min={0}
+              max={durationSec}
+              step={0.01}
+              value={endSec.toFixed(3)}
+              onChange={e => { markDirty('endSec'); setEndSec(Math.max(0, parseFloat(e.target.value) || 0)) }}
+            />
+            <span className="rv-form-time">{formatTimePrecise(endSec)}</span>
+          </div>
+        </div>
+
+        <div className="rv-form-row">
+          <label className="rv-form-label" htmlFor={`${idPrefix}-intensity`}>Intensity</label>
+          <div className="rv-form-inline-control">
+            <input
+              id={`${idPrefix}-intensity`}
+              className="rv-form-range"
+              type="range"
+              min={0} max={1} step={0.01}
+              value={intensity}
+              onChange={e => { markDirty('intensity'); setIntensity(parseFloat(e.target.value)) }}
+            />
+            <span className="rv-form-val">{Math.round(intensity * 100)}%</span>
+          </div>
         </div>
       </div>
 
-      <div className="rv-form-row">
-        <label className="rv-form-label" htmlFor={`${idPrefix}-end`}>End (s)</label>
-        <div className="rv-form-time-row">
-          <input
-            id={`${idPrefix}-end`}
-            className="rv-form-input rv-form-input--num"
-            type="number"
-            min={0}
-            max={durationSec}
-            step={0.01}
-            value={endSec.toFixed(3)}
-            onChange={e => { markDirty('endSec'); setEndSec(Math.max(0, parseFloat(e.target.value) || 0)) }}
-          />
-          <span className="rv-form-time">{formatTimePrecise(endSec)}</span>
-        </div>
-      </div>
-
-      <div className="rv-form-row">
-        <label className="rv-form-label" htmlFor={`${idPrefix}-intensity`}>Intensity</label>
-        <div className="rv-form-inline-control">
-          <input
-            id={`${idPrefix}-intensity`}
-            className="rv-form-range"
-            type="range"
-            min={0} max={1} step={0.01}
-            value={intensity}
-            onChange={e => { markDirty('intensity'); setIntensity(parseFloat(e.target.value)) }}
-          />
-          <span className="rv-form-val">{Math.round(intensity * 100)}%</span>
-        </div>
-      </div>
-
-      {reactPresets && onAssignPreset && (
-        <div className="rv-form-group-sep">
-          <div className="rv-form-group-label">Visual Assignment</div>
+      <div className={`rv-section-editor-secondary-grid${reactPresets && onAssignPreset ? '' : ' rv-section-editor-secondary-grid--single'}`}>
+        <div className="rv-form-group-sep rv-boundary-tools">
+          <div className="rv-form-group-label">Boundary Tools</div>
           <div className="rv-form-row">
-            <label className="rv-form-label" htmlFor={`${idPrefix}-preset`}>Preset</label>
+            <label className="rv-form-label" htmlFor={`${idPrefix}-snap-mode`}>Snap</label>
             <select
-              id={`${idPrefix}-preset`}
+              id={`${idPrefix}-snap-mode`}
               className="rv-form-select"
-              value={assignedPresetId ?? ''}
-              onChange={e => onAssignPreset(e.target.value || null)}
+              value={snapMode}
+              onChange={event => onSnapModeChange(event.target.value as SectionBoundarySnapMode)}
             >
-              <option value="">No preset assignment</option>
-              {reactPresets.filter(p => isSelectableReactEngineId(p.engine)).map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
+              <option value="beat">Beat</option>
+              <option value="downbeat">Downbeat</option>
+              <option value="bar">Bar</option>
+              <option value="four-bar">Four-bar</option>
+              <option value="free">Free</option>
             </select>
           </div>
-          {assignedPresetId && (() => {
-            const preset = reactPresets.find(p => p.id === assignedPresetId)
-            return preset ? (
-              <div className="rv-form-row">
-                <label className="rv-form-label">Engine</label>
-                <span className="rv-form-val rv-form-val--readonly">
-                  {isSelectableReactEngineId(preset.engine) ? REACT_ENGINE_CATALOG[preset.engine].label : 'Unavailable engine'}
-                </span>
-              </div>
-            ) : null
-          })()}
+          <div className="rv-boundary-action-grid">
+            <span className="rv-form-label">Start</span>
+            <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</button>
+            <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('start', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</button>
+            <button type="button" className="rv-form-cancel-btn" onClick={() => onSnapBoundary('start')} disabled={snapMode === 'free'}>Snap</button>
+            <span className="rv-form-label">End</span>
+            <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('end', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</button>
+            <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</button>
+            <button type="button" className="rv-form-cancel-btn" onClick={() => onSnapBoundary('end')} disabled={snapMode === 'free'}>Snap</button>
+          </div>
         </div>
-      )}
+
+        {reactPresets && onAssignPreset && (
+          <div className="rv-form-group-sep rv-visual-assignment-tools">
+            <div className="rv-form-group-label">Visual Assignment</div>
+            <div className="rv-form-row">
+              <label className="rv-form-label" htmlFor={`${idPrefix}-preset`}>Preset</label>
+              <select
+                id={`${idPrefix}-preset`}
+                className="rv-form-select"
+                value={assignedPresetId ?? ''}
+                onChange={e => onAssignPreset(e.target.value || null)}
+              >
+                <option value="">No preset assignment</option>
+                {reactPresets.filter(p => isSelectableReactEngineId(p.engine)).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            {assignedPresetId && (() => {
+              const preset = reactPresets.find(p => p.id === assignedPresetId)
+              return preset ? (
+                <div className="rv-form-row">
+                  <label className="rv-form-label">Engine</label>
+                  <span className="rv-form-val rv-form-val--readonly">
+                    {isSelectableReactEngineId(preset.engine) ? REACT_ENGINE_CATALOG[preset.engine].label : 'Unavailable engine'}
+                  </span>
+                </div>
+              ) : null
+            })()}
+          </div>
+        )}
+      </div>
 
       {(isAuto || isEdited) && (
         <details className="rv-section-diagnostics">
@@ -1167,7 +1175,7 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
                 ? `rv-section-region--confidence-${confidenceDisplay.tier}`
                 : '',
             ].filter(Boolean).join(' ')}
-            title={confidenceDisplay.tooltip}
+            title={`${confidenceDisplay.tooltip}${barRange ? ` · Bars ${barRange}` : ''}`}
             style={{
               display: layout.visible ? undefined : 'none',
               left: `${layout.leftPct}%`,
@@ -1212,14 +1220,13 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(orig.id) }
               }}
             >
-              <div className="rv-section-body-tint" />
               <div className="rv-section-header">
                 <span className="rv-section-label">{section.label.toUpperCase()}</span>
-                {barRange && <span className="rv-section-barrange">{barRange}</span>}
                 {presetAssignedSectionIds?.has(orig.id) && (
                   <span className="rv-section-preset-dot" title="Preset assigned">●</span>
                 )}
               </div>
+              <span className="rv-section-color-bar" aria-hidden="true" />
               {onRemove && isUser && (
                 <button
                   className="rv-section-region-remove"
@@ -1347,11 +1354,14 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     removePresetAutomationCue:       s.removePresetAutomationCue,
   })))
 
-  const { waveformZoom, beatGridEnabled, cueMarkers } = useVisualStore(
+  const { waveformZoom, beatGridEnabled, cueMarkers, addCueMarker, removeCueMarker, updateCueMarker } = useVisualStore(
     useShallow(s => ({
       waveformZoom: s.waveformZoom,
       beatGridEnabled: s.beatGridEnabled,
       cueMarkers: s.cueMarkers,
+      addCueMarker: s.addCueMarker,
+      removeCueMarker: s.removeCueMarker,
+      updateCueMarker: s.updateCueMarker,
     }))
   )
 
@@ -1360,6 +1370,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const [dragPreview,    setDragPreview]    = useState<{ sectionId: string; start: number; end: number } | null>(null)
   const [snapMode,       setSnapMode]       = useState<SectionBoundarySnapMode>('free')
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
+  const [cueContextMenu, setCueContextMenu] = useState<CuePointContextMenuTarget | null>(null)
   const [drawTick,       setDrawTick]       = useState(0)
   const fallbackDurationSec = resolvePositiveDuration(audioDurationSec)
   // React state changes only for semantic viewport inputs (track, zoom, duration).
@@ -1392,6 +1403,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   // Active track ID — used as the per-track sections key
   const activeTrackId = currentTrack?.id ?? null
 
+  useEffect(() => {
+    setCueContextMenu(null)
+  }, [activeTrackId])
+
   // Per-track selection and suppression for the active track only
   const selectedSectionId = activeTrackId
     ? (selectedSectionByTrackId[activeTrackId] ?? null)
@@ -1416,10 +1431,18 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     () => new Set(trackCues.filter(c => c.sectionId != null).map(c => c.sectionId!)),
     [trackCues],
   )
+  const activeManualCueMarkers = useMemo(
+    () => cueMarkers.filter(cue => cueMarkerBelongsToTrack(cue, activeTrackId)),
+    [activeTrackId, cueMarkers],
+  )
   const activeCueMarkers = useMemo(() => [
-    ...cueMarkers.filter(cue => cueMarkerBelongsToTrack(cue, activeTrackId)),
+    ...activeManualCueMarkers,
     ...(currentTrack?.importedCueMarkers ?? []),
-  ].sort((a, b) => a.time - b.time), [activeTrackId, cueMarkers, currentTrack])
+  ].sort((a, b) => a.time - b.time), [activeManualCueMarkers, currentTrack])
+  const editableCueMarkerIds = useMemo(
+    () => new Set(activeManualCueMarkers.map(marker => marker.id)),
+    [activeManualCueMarkers],
+  )
 
   const timelineCueItems = useMemo<TimelineCueItem[]>(() => [
     ...trackCues.map(cue => {
@@ -1441,6 +1464,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       kind: 'cue' as const,
       enabled: true,
       title: buildTimelineCueTitle(cue),
+      cueMarker: cue,
     })),
     ...(currentAnalysis?.phrases ?? [])
       .filter(phrase => phrase.structurallyDetected && phrase.confidence >= 0.58 && ((phrase.lengthBars ?? phrase.phraseLength) >= 16 || phrase.source === 'section_boundary'))
@@ -1757,6 +1781,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     if (activeTrackId) addManualSection(activeTrackId, section)
     setEditorMode('none')
   }, [activeTrackId, addManualSection])
+
+  const handleCreateTrackMapCuePoint = useCallback((request: WaveformCueCreateRequest) => {
+    if (!activeTrackId) return
+    addCueMarker(buildManualCueMarker(request, cueMarkers, activeTrackId))
+  }, [activeTrackId, addCueMarker, cueMarkers])
 
   // Shared helper: removes the section-linked preset cue (no-op when none exists).
   // removePresetAutomationCue is already a safe no-op when the ID is absent.
@@ -2201,6 +2230,17 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                               '--cue-color': cue.color,
                             } as React.CSSProperties}
                             onClick={() => engine.seek(cue.timeSec)}
+                            onContextMenu={cue.cueMarker ? event => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              setCueContextMenu({
+                                x: event.clientX,
+                                y: event.clientY,
+                                authoredTimeSec: cue.cueMarker!.time,
+                                cueMarker: cue.cueMarker!,
+                                cueEditable: cue.cueMarker!.source !== 'rekordbox' && editableCueMarkerIds.has(cue.cueMarker!.id),
+                              })
+                            } : undefined}
                             title={'title' in cue ? cue.title : `${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
                           >
                             <span className="rv-timeline-cue-diamond" aria-hidden="true" />
@@ -2291,6 +2331,18 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
             )
           })()}
         </>
+      )}
+      {cueContextMenu && (
+        <CuePointContextMenu
+          {...cueContextMenu}
+          beatGrid={currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? null}
+          onClose={() => setCueContextMenu(null)}
+          onSeek={engine.seek}
+          onCreateCuePoint={activeTrackId ? handleCreateTrackMapCuePoint : undefined}
+          onUpdateCuePoint={activeTrackId ? updateCueMarker : undefined}
+          onDeleteCuePoint={activeTrackId ? removeCueMarker : undefined}
+          ariaLabel="Track Map cue point menu"
+        />
       )}
     </div>
   )

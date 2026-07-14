@@ -704,13 +704,19 @@ export function useAudioEngine(): AudioEngine {
 
   // ── Per-track analysis runtime update ────────────────────────────────────────
   const updateTrackRuntime = useCallback((trackId: string, patch: Partial<TrackAnalysisRuntime>) => {
-    const nextTracks = tracksRef.current.map(track =>
-      track.id === trackId
-        ? { ...track, analysisRuntime: { ...track.analysisRuntime, ...patch } }
-        : track,
-    )
-    tracksRef.current = nextTracks
-    setTracks(nextTracks)
+    // The analysis coordinator can publish its first `decoding` update
+    // synchronously from enqueue(). Compose against React's latest queued
+    // playlist state so that update cannot overwrite a track addition that was
+    // scheduled earlier in the same event.
+    setTracks(currentTracks => {
+      const nextTracks = currentTracks.map(track =>
+        track.id === trackId
+          ? { ...track, analysisRuntime: { ...track.analysisRuntime, ...patch } }
+          : track,
+      )
+      tracksRef.current = nextTracks
+      return nextTracks
+    })
   }, [])
 
   const bpmReanalysisRunnerRef = useRef<((
@@ -940,9 +946,15 @@ export function useAudioEngine(): AudioEngine {
   ensureContextRef.current = ensureContext
   dispatchRef.current.runtime = (trackId, patch) => updateTrackRuntime(trackId, patch)
   dispatchRef.current.duration = (trackId, dur) => {
-    const nextTracks = tracksRef.current.map(track => track.id === trackId ? { ...track, duration: dur } : track)
-    tracksRef.current = nextTracks
-    setTracks(nextTracks)
+    // Duration can resolve before React commits a just-added track. Use a
+    // functional update for the same reason as updateTrackRuntime above.
+    setTracks(currentTracks => {
+      const nextTracks = currentTracks.map(track =>
+        track.id === trackId ? { ...track, duration: dur } : track,
+      )
+      tracksRef.current = nextTracks
+      return nextTracks
+    })
   }
   dispatchRef.current.engine = (analysis, trackId) => {
     const track = tracksRef.current.find(candidate => candidate.id === trackId)
