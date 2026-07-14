@@ -21,6 +21,8 @@ import {
   isUnifiedSvgMediaItem,
   resolveUnifiedSvgSource,
 } from './svgSourceLifecycle'
+import { SOUND_DRAWING_PERFORMANCE_SHOWS } from './soundDrawing/SoundDrawingPerformanceShows'
+import type { SoundDrawingGeneratorPreference, SoundDrawingPerformanceLockKey } from './soundDrawing/SoundDrawingPerformanceTypes'
 import type {
   OscillatorSourceType,
   SvgRenderMode,
@@ -270,6 +272,10 @@ export function ReactEnginePanel() {
   const {
     activeReactEngineId,
     oscillatorSettings,  setOscillatorSettings,
+    soundDrawingPerformanceSettings,
+    setSoundDrawingPerformanceSettings,
+    setSoundDrawingPerformanceLock,
+    resetSoundDrawingPerformanceSettings,
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     selectSvgAsset,
@@ -284,6 +290,10 @@ export function ReactEnginePanel() {
     activeReactEngineId:        s.activeReactEngineId,
     oscillatorSettings:         s.oscillatorSettings,
     setOscillatorSettings:      s.setOscillatorSettings,
+    soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
+    setSoundDrawingPerformanceSettings: s.setSoundDrawingPerformanceSettings,
+    setSoundDrawingPerformanceLock: s.setSoundDrawingPerformanceLock,
+    resetSoundDrawingPerformanceSettings: s.resetSoundDrawingPerformanceSettings,
     oscillatorGlyphAssets:      s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:  s.oscillatorGlyphPointCache,
     selectSvgAsset:             s.selectSvgAsset,
@@ -337,6 +347,104 @@ export function ReactEnginePanel() {
       {/* ── Engine Mode: Oscilloscope ──────────────────────────────────── */}
       {activeReactEngineId === 'oscilloscope' && (
         <>
+          <CtrlSection label="Authored Performance" />
+          <SelectRow
+            label="Performance Show"
+            value={soundDrawingPerformanceSettings.selectedShowId}
+            onChange={value => setSoundDrawingPerformanceSettings({ selectedShowId: value as typeof soundDrawingPerformanceSettings.selectedShowId })}
+            options={SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => ({ value: show.id, label: show.name }))}
+          />
+          <ToggleRow
+            label="Auto Performance"
+            value={soundDrawingPerformanceSettings.autoPerformance}
+            onChange={value => setSoundDrawingPerformanceSettings({ autoPerformance: value })}
+          />
+          {soundDrawingPerformanceSettings.autoPerformance && (
+            <>
+              <SliderRow
+                label="Complexity"
+                value={soundDrawingPerformanceSettings.complexity}
+                onChange={value => setSoundDrawingPerformanceSettings({ complexity: value })}
+                min={0} max={1} step={0.01}
+                color="#61d6aa"
+              />
+              <SliderRow
+                label="Motion Intensity"
+                value={soundDrawingPerformanceSettings.motionIntensity}
+                onChange={value => setSoundDrawingPerformanceSettings({ motionIntensity: value })}
+                min={0} max={1} step={0.01}
+                color="#4ac7db"
+              />
+              <SliderRow
+                label="Reaction Intensity"
+                value={soundDrawingPerformanceSettings.reactionIntensity}
+                onChange={value => setSoundDrawingPerformanceSettings({ reactionIntensity: value })}
+                min={0} max={1} step={0.01}
+                color="#ff4fd8"
+              />
+              <SliderRow
+                label="Trail Intensity"
+                value={soundDrawingPerformanceSettings.trailIntensity}
+                onChange={value => setSoundDrawingPerformanceSettings({ trailIntensity: value })}
+                min={0} max={1} step={0.01}
+                color="#9ddcff"
+              />
+              <SelectRow
+                label="Generator Preference"
+                value={soundDrawingPerformanceSettings.generatorPreference}
+                onChange={value => setSoundDrawingPerformanceSettings({ generatorPreference: value as SoundDrawingGeneratorPreference })}
+                options={[
+                  { value: 'authored', label: 'Authored by Show' },
+                  { value: 'horizontalOscilloscope', label: 'Horizontal Oscilloscope' },
+                  { value: 'mirroredOscilloscope', label: 'Mirrored Oscilloscope' },
+                  { value: 'radialOscilloscope', label: 'Radial Oscilloscope' },
+                  { value: 'polarWaveform', label: 'Polar Waveform' },
+                  { value: 'lissajousFigure', label: 'Lissajous Figure' },
+                  { value: 'phaseScopeKnot', label: 'Phase-Scope Knot' },
+                  { value: 'harmonicRibbon', label: 'Harmonic Ribbon' },
+                  { value: 'spectralContour', label: 'Spectral Contour' },
+                  { value: 'circularBassMembrane', label: 'Circular Bass Membrane' },
+                  { value: 'kaleidoscopicTrace', label: 'Kaleidoscopic Trace' },
+                  { value: 'particleSpline', label: 'Particle Spline' },
+                  { value: 'vectorFieldStreamlines', label: 'Vector-Field Streamlines' },
+                  { value: 'audioReactiveAttractor', label: 'Audio-Reactive Attractor' },
+                  { value: 'tunnelTrace', label: 'Tunnel Trace' },
+                  { value: 'stackedWaveformBands', label: 'Stacked Waveform Bands' },
+                ]}
+              />
+              <Collapsible label="Parameter Locks" defaultOpen={false}>
+                {([
+                  ['generator', 'Generator'],
+                  ['layerRecruitment', 'Layer Recruitment'],
+                  ['topology', 'Topology & Symmetry'],
+                  ['trail', 'Trails'],
+                  ['feedback', 'Feedback'],
+                  ['transform', 'Transform'],
+                  ['camera', 'Camera'],
+                  ['color', 'Color Role'],
+                  ['reaction', 'Audio Reactions'],
+                ] as Array<[SoundDrawingPerformanceLockKey, string]>).map(([key, label]) => (
+                  <ToggleRow
+                    key={key}
+                    label={label}
+                    value={soundDrawingPerformanceSettings.locks[key]}
+                    onChange={value => setSoundDrawingPerformanceLock(key, value)}
+                  />
+                ))}
+              </Collapsible>
+              <button
+                type="button"
+                className="rv-reset-btn"
+                onClick={resetSoundDrawingPerformanceSettings}
+              >
+                Reset to Authored State
+              </button>
+            </>
+          )}
+          {!soundDrawingPerformanceSettings.autoPerformance && (
+            <div className="rv-ctrl-info">Manual Sound Drawing sources, presets, timeline layers, and clips remain authoritative while Auto Performance is off.</div>
+          )}
+
           <CtrlSection label="Engine Mode" />
 
           {glyphLostNotice && (

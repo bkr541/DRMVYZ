@@ -7,6 +7,7 @@ import { isSelectableReactEngineId } from './reactEngineCatalog'
 import type { ReactPerformanceActionEvent } from './ReactPerformanceActions'
 import type { TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
+import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS, type SoundDrawingPerformanceSettings } from './soundDrawing/SoundDrawingPerformanceTypes'
 import { resolveAuthoritativeFrameSection, type ReactFrameContext, type ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS, disposeReactEngineRenderer, renderReactEngine } from './renderers/ReactEngineRenderer'
 import { resolveCinematicPortalBackend } from './renderers/CinematicPortalRenderer'
@@ -46,6 +47,7 @@ interface Props {
   oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
   oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
   soundDrawingTrailResetRevision?: number
+  soundDrawingPerformanceSettings?: SoundDrawingPerformanceSettings
   performanceActionEvent?:      ReactPerformanceActionEvent | null
   performanceActionEvents?:     readonly ReactPerformanceActionEvent[]
   performanceActionToggleStates?: Readonly<Record<string, boolean>>
@@ -91,6 +93,7 @@ export function ReactPlaceholderCanvas({
   oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
   oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
   soundDrawingTrailResetRevision = 0,
+  soundDrawingPerformanceSettings = DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   performanceActionEvent     = null,
   performanceActionEvents    = [],
   performanceActionToggleStates = {},
@@ -135,6 +138,7 @@ export function ReactPlaceholderCanvas({
   const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
   const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
   const soundDrawingTrailResetRevisionRef = useRef(soundDrawingTrailResetRevision)
+  const soundDrawingPerformanceSettingsRef = useRef(soundDrawingPerformanceSettings)
   const performanceActionEventRef = useRef<ReactPerformanceActionEvent | null>(performanceActionEvent)
   const performanceActionEventsRef = useRef<readonly ReactPerformanceActionEvent[]>(performanceActionEvents)
   const performanceActionToggleStatesRef = useRef<Readonly<Record<string, boolean>>>(performanceActionToggleStates)
@@ -169,6 +173,7 @@ export function ReactPlaceholderCanvas({
   glyphPointCacheRef.current     = oscillatorGlyphPointCache
   textPointCacheRef.current      = oscillatorTextPointCache
   soundDrawingTrailResetRevisionRef.current = soundDrawingTrailResetRevision
+  soundDrawingPerformanceSettingsRef.current = soundDrawingPerformanceSettings
   performanceActionEventRef.current = performanceActionEvent
   performanceActionEventsRef.current = performanceActionEvents
   performanceActionToggleStatesRef.current = performanceActionToggleStates
@@ -535,6 +540,7 @@ export function ReactPlaceholderCanvas({
         oscillatorGlyphPointCache: glyphPointCacheRef.current,
         oscillatorTextPointCache:  textPointCacheRef.current,
         soundDrawingTrailResetRevision: soundDrawingTrailResetRevisionRef.current,
+        soundDrawingPerformanceSettings: soundDrawingPerformanceSettingsRef.current,
         performanceActionEvent:    performanceActionEventRef.current,
         performanceActionEvents:   performanceActionEventsRef.current,
         performanceActionToggleStates: performanceActionToggleStatesRef.current,

@@ -16,12 +16,16 @@ import { SoundDrawingLyricTextRuntime } from '../../../../features/lyrics/runtim
 import { getSvgVisualEntry } from './svgVisualCache'
 import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUtils'
 import { getSvgGlyphAssetId, resolveUnifiedSvgSource } from '../svgSourceLifecycle'
+import type { SharedPerformanceContext } from '../../../../features/performanceCore'
+import { resolveSoundDrawingPerformanceFrame } from '../soundDrawing/SoundDrawingPerformanceEngine'
+import type { SoundDrawingColorRole, SoundDrawingResolvedPerformanceFrame, SoundDrawingResolvedPerformanceLayer } from '../soundDrawing/SoundDrawingPerformanceTypes'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
 // SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
 // This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
 
 // ── Trail canvas pool (per ctx) ───────────────────────────────────────────────
 const trailMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
+const soundDrawingPerformanceContextMap = new WeakMap<CanvasRenderingContext2D, SharedPerformanceContext>()
 
 function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanvasElement {
   return getOrCreateOffscreen(trailMap, ctx, W, H)
@@ -186,6 +190,7 @@ export function disposeSoundDrawingRenderer(
   twistPhasePrevMap.delete(ctx)
   rotPhaseMap.delete(ctx)
   trailResetSeenMap.delete(ctx)
+  soundDrawingPerformanceContextMap.delete(ctx)
 }
 
 export function getSoundDrawingRuntimeCacheStats(): {
@@ -1775,6 +1780,187 @@ function renderSoundDrawingClips(
   ctx.drawImage(trailCanvas, 0, 0)
 }
 
+
+function paletteForPerformanceRole(preset: ReactPreset, colorRole: SoundDrawingColorRole): ReactPreset {
+  if (colorRole === 'primary') return preset
+  const palette = preset.palette
+  if (colorRole === 'secondary') {
+    return { ...preset, palette: { ...palette, primary: palette.secondary, secondary: palette.primary } }
+  }
+  if (colorRole === 'accent') {
+    return { ...preset, palette: { ...palette, primary: palette.accent, secondary: palette.highlight, accent: palette.secondary } }
+  }
+  return {
+    ...preset,
+    palette: {
+      ...palette,
+      primary: palette.highlight,
+      secondary: palette.accent,
+      accent: palette.primary,
+    },
+  }
+}
+
+function performanceLayerUsesPath(layer: SoundDrawingResolvedPerformanceLayer): boolean {
+  return layer.generator === 'circularBassMembrane'
+    || layer.generator === 'kaleidoscopicTrace'
+    || layer.generator === 'particleSpline'
+}
+
+function buildPerformanceOscillator(
+  base: OscillatorSettings,
+  layer: SoundDrawingResolvedPerformanceLayer,
+  motionIntensity: number,
+): OscillatorSettings {
+  const usesPath = performanceLayerUsesPath(layer)
+  return {
+    ...base,
+    sourceType: usesPath ? 'builtinShape' : 'classic',
+    classicMode: layer.classicMode,
+    builtinShape: layer.shape,
+    renderMode: layer.renderMode,
+    autoSectionMode: false,
+    autoRotate: usesPath && motionIntensity > 0.001,
+    rotationSpeed: clamp((0.025 + Math.abs(layer.rotation) / 720) * motionIntensity, 0, 0.3),
+    duplicateTraces: Math.round(clamp(layer.traceCount, 1, 6)),
+    pathScale: clamp(base.pathScale * (0.84 + layer.topologyVariant * 0.025), 0.2, 1.35),
+    audioDisplacement: clamp(layer.audioDisplacement, 0, 0.25),
+    highJitter: clamp(layer.jitter, 0, 0.25),
+    bassScale: clamp(base.bassScale + Math.max(0, layer.strokeWidth - 1) * 0.12, 0, 0.8),
+    beatBloom: clamp(base.beatBloom + layer.glow * 0.25, 0, 1),
+    midTwist: clamp(base.midTwist + Math.abs(layer.rotation) / 720, 0, 0.7),
+    mirrorX: layer.symmetry >= 2,
+    mirrorY: layer.symmetry >= 4,
+  }
+}
+
+function renderPerformanceLayer(
+  tctx: CanvasRenderingContext2D,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+  performance: SoundDrawingResolvedPerformanceFrame,
+  layer: SoundDrawingResolvedPerformanceLayer,
+  sectionType: ReactSectionType | null,
+): void {
+  if (!layer.enabled || layer.opacity <= 0.001) return
+  const { W, H, dpr } = frame
+  const camera = performance.global
+  const layerPreset = paletteForPerformanceRole(preset, layer.colorRole)
+  const effectiveOscillator = buildPerformanceOscillator(
+    params.oscillator,
+    layer,
+    params.soundDrawingPerformanceSettings.motionIntensity,
+  )
+  const effectiveParams: ReactRenderParams = {
+    ...params,
+    intensity: clamp(params.intensity * layer.opacity * (0.88 + layer.strokeWidth * 0.12), 0, 1.4),
+    motion: clamp(params.motion * params.soundDrawingPerformanceSettings.motionIntensity, 0, 1),
+    glow: clamp(params.glow * (0.45 + layer.glow * 0.75), 0, 1.3),
+    bassReactivity: clamp(params.bassReactivity * params.soundDrawingPerformanceSettings.reactionIntensity, 0, 1.2),
+    oscillator: effectiveOscillator,
+  }
+  const layerFrame: ReactFrameContext = layer.phaseOffset === 0
+    ? frame
+    : { ...frame, t: frame.t + layer.phaseOffset * 240, beatPhase: (frame.beatPhase + layer.phaseOffset + 1) % 1 }
+
+  tctx.save()
+  tctx.globalCompositeOperation = layer.blendMode
+  const cameraX = camera.cameraX * W
+  const cameraY = camera.cameraY * H
+  tctx.translate(W / 2 + cameraX, H / 2 + cameraY)
+  tctx.rotate((camera.cameraRotation * Math.PI) / 180)
+  tctx.scale(camera.cameraScale, camera.cameraScale)
+  tctx.translate(-W / 2, -H / 2)
+
+  const cx = W / 2 + layer.x * W * 0.5
+  const cy = H / 2 + layer.y * H * 0.5
+  tctx.translate(cx, cy)
+  tctx.rotate(((layer.rotation + layer.topologyVariant * 7.5) * Math.PI) / 180)
+  const topologyScale = 1 + Math.max(0, layer.symmetry - 1) * 0.015
+  tctx.scale(layer.scale * topologyScale, layer.scale * topologyScale)
+  tctx.translate(-W / 2, -H / 2)
+
+  if (performanceLayerUsesPath(layer)) {
+    drawPathScopeOnTrail(
+      tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams,
+      effectiveParams.intensity, sectionType, `performance:${performance.showId}:${layer.id}`,
+    )
+  } else {
+    switch (layer.classicMode) {
+      case 'lissajous':
+        drawLissajousOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+        break
+      case 'radialScope':
+        drawRadialScopeOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+        break
+      case 'spiralScope':
+        drawSpiralScopeOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+        break
+      default:
+        drawWaveformOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+        break
+    }
+  }
+  tctx.restore()
+}
+
+function renderAuthoredSoundDrawingPerformance(
+  ctx: CanvasRenderingContext2D,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+  sectionType: ReactSectionType | null,
+): boolean {
+  const previousContext = soundDrawingPerformanceContextMap.get(ctx) ?? null
+  const performance = resolveSoundDrawingPerformanceFrame({
+    frame,
+    settings: params.soundDrawingPerformanceSettings,
+    manualOscillator: params.oscillator,
+    previousContext,
+  })
+  if (!performance) {
+    soundDrawingPerformanceContextMap.delete(ctx)
+    return false
+  }
+  soundDrawingPerformanceContextMap.set(ctx, performance.context)
+
+  const { W, H } = frame
+  const trailCanvas = getTrail(ctx, W, H)
+  const tctx = trailCanvas.getContext('2d')
+  if (!tctx) return true
+  if (
+    performance.context.trackReplacementDetected
+    || performance.context.seekDetected
+    || performance.context.loopWrapDetected
+    || frame.timingDiscontinuity
+  ) {
+    tctx.clearRect(0, 0, W, H)
+  }
+
+  const authoredPersistence = clamp(
+    performance.global.trailPersistence + performance.global.feedbackAmount * 0.18,
+    0,
+    0.98,
+  )
+  const decayRate = clamp((1 - authoredPersistence) * 0.28 + params.trailDecay * 0.04, 0.02, 0.32)
+  fadeTrail(trailCanvas, preset.palette.background, decayRate)
+
+  for (const layer of performance.layers) {
+    renderPerformanceLayer(tctx, frame, preset, params, performance, layer, sectionType)
+  }
+
+  ctx.save()
+  // Always clear the presentation canvas completely. backgroundFade controls
+  // authored trace visibility, not whether stale pixels survive a seek/reset.
+  ctx.fillStyle = preset.palette.background
+  ctx.fillRect(0, 0, W, H)
+  ctx.globalAlpha = clamp(performance.global.backgroundFade, 0, 1)
+  ctx.drawImage(trailCanvas, 0, 0)
+  ctx.restore()
+  return true
+}
+
 export function renderSoundDrawing(
   ctx: CanvasRenderingContext2D,
   frame: ReactFrameContext,
@@ -1788,6 +1974,8 @@ export function renderSoundDrawing(
 
   const trailRevisionKey = `${params.soundDrawingTrailResetRevision ?? 0}:${_sdTrailResetRevision}`
   resetTrailForRevisionIfNeeded(ctx, W, H, preset.palette.background, trailRevisionKey)
+
+  if (renderAuthoredSoundDrawingPerformance(ctx, frame, preset, params, sectionType)) return
 
   // If clips are active for this frame, render through clip pipeline instead
   if (_sdClips.length > 0) {

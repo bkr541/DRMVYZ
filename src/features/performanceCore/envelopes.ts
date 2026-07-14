@@ -1,4 +1,12 @@
-export type SharedPerformanceEnvelopeCurve = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'step'
+export type SharedPerformanceEnvelopeCurve =
+  | 'linear'
+  | 'easeIn'
+  | 'easeOut'
+  | 'easeInOut'
+  | 'exponential'
+  | 'overshoot'
+  | 'step'
+  | 'stepped'
 
 export interface SharedPerformanceEventEnvelope {
   attack: number
@@ -29,7 +37,14 @@ export function curveSharedPerformanceProgress(
     case 'easeIn': return t * t
     case 'easeOut': return 1 - (1 - t) * (1 - t)
     case 'easeInOut': return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2
+    case 'exponential': return t <= 0 ? 0 : Math.min(1, 2 ** (10 * t - 10))
+    case 'overshoot': {
+      const c1 = 1.70158
+      const c3 = c1 + 1
+      return 1 + c3 * ((t - 1) ** 3) + c1 * ((t - 1) ** 2)
+    }
     case 'step': return t >= 1 ? 1 : 0
+    case 'stepped': return Math.floor(t * 4) / 4
     default: return t
   }
 }

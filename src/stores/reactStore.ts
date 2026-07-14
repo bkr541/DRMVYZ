@@ -93,6 +93,15 @@ import type {
   LaserDmxShowDirectorMirrorAxis,
 } from '../components/vyzualz/react/ReactTypes'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
+import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceShows'
+import {
+  DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+  SOUND_DRAWING_GENERATOR_FAMILIES,
+  type SoundDrawingGeneratorPreference,
+  type SoundDrawingPerformanceLockKey,
+  type SoundDrawingPerformanceSettings,
+  type SoundDrawingPerformanceShowId,
+} from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes'
 import {
   parseSvgToGlyphPoints,
   makeSvgGlyphAsset,
@@ -239,6 +248,41 @@ function normalizeOscillatorSettings(settings: OscillatorSettings): OscillatorSe
     lyricFallbackText: typeof normalized.lyricFallbackText === 'string'
       ? normalized.lyricFallbackText
       : '',
+  }
+}
+
+const SOUND_DRAWING_PERFORMANCE_SHOW_IDS = new Set<SoundDrawingPerformanceShowId>(
+  SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => show.id),
+)
+const SOUND_DRAWING_GENERATOR_PREFERENCES = new Set<SoundDrawingGeneratorPreference>([
+  'authored',
+  ...SOUND_DRAWING_GENERATOR_FAMILIES,
+])
+
+export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundDrawingPerformanceSettings {
+  const source = isRecord(value) ? value : {}
+  const selectedShowId = typeof source.selectedShowId === 'string'
+    && SOUND_DRAWING_PERFORMANCE_SHOW_IDS.has(source.selectedShowId as SoundDrawingPerformanceShowId)
+    ? source.selectedShowId as SoundDrawingPerformanceShowId
+    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId
+  const generatorPreference = typeof source.generatorPreference === 'string'
+    && SOUND_DRAWING_GENERATOR_PREFERENCES.has(source.generatorPreference as SoundDrawingGeneratorPreference)
+    ? source.generatorPreference as SoundDrawingGeneratorPreference
+    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference
+  const locksSource = isRecord(source.locks) ? source.locks : {}
+  const locks = Object.fromEntries(
+    (Object.keys(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks) as SoundDrawingPerformanceLockKey[])
+      .map(key => [key, locksSource[key] === true]),
+  ) as Record<SoundDrawingPerformanceLockKey, boolean>
+  return {
+    selectedShowId,
+    autoPerformance: source.autoPerformance === true,
+    complexity: Math.max(0, Math.min(1, finiteNumber(source.complexity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.complexity))),
+    motionIntensity: Math.max(0, Math.min(1, finiteNumber(source.motionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.motionIntensity))),
+    reactionIntensity: Math.max(0, Math.min(1, finiteNumber(source.reactionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.reactionIntensity))),
+    trailIntensity: Math.max(0, Math.min(1, finiteNumber(source.trailIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailIntensity))),
+    generatorPreference,
+    locks,
   }
 }
 
@@ -1679,6 +1723,10 @@ interface ReactStoreState {
 
   // Oscillator settings
   oscillatorSettings: OscillatorSettings
+  soundDrawingPerformanceSettings: SoundDrawingPerformanceSettings
+  setSoundDrawingPerformanceSettings: (patch: Partial<SoundDrawingPerformanceSettings>) => void
+  setSoundDrawingPerformanceLock: (key: SoundDrawingPerformanceLockKey, value: boolean) => void
+  resetSoundDrawingPerformanceSettings: () => void
   /** Transient revision used to clear the Sound Drawing trail canvas after semantic source changes. */
   soundDrawingTrailResetRevision: number
   requestSoundDrawingTrailReset: () => void
@@ -3381,6 +3429,9 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     canvasEngineSettings: normalizeCanvasEngineSettings(state.canvasEngineSettings),
     selectedCanvasPresetId: normalizeCanvasPresetId(state.selectedCanvasPresetId),
     canvasPresetSettings: normalizeCanvasPresetSettings(state.canvasPresetSettings),
+    soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
+      state.soundDrawingPerformanceSettings,
+    ),
     canvasPresetOverride: normalizeCanvasPresetOverride(
       state.canvasPresetOverride,
       normalizeCanvasPresetId(state.selectedCanvasPresetId),
@@ -3548,6 +3599,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
     oscillatorSettings:                 s.oscillatorSettings,
+    soundDrawingPerformanceSettings:     normalizeSoundDrawingPerformanceSettings(s.soundDrawingPerformanceSettings),
     oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
     laserDmxSettings:                   sanitizeLaserDmxSettingsForPersistence(s.laserDmxSettings),
     laserDmxWorkspaceMode:              coerceLaserDmxWorkspaceMode(s.laserDmxWorkspaceMode),
@@ -3594,6 +3646,7 @@ export const REACT_PROJECT_STATE_KEYS = [
   'suppressedAutoSectionsByTrackId',
   'presetAutomationCuesByTrackId',
   'oscillatorGlyphAssets',
+  'soundDrawingPerformanceSettings',
   'laserDmxSettings',
   'laserDmxBeamMatrix',
   'laserDmxShowDirector',
@@ -3649,6 +3702,9 @@ export function mergeReactStoreState(
     ),
     canvasPresetSettings: normalizeCanvasPresetSettings(
       persisted.canvasPresetSettings ?? currentState.canvasPresetSettings,
+    ),
+    soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
+      persisted.soundDrawingPerformanceSettings ?? currentState.soundDrawingPerformanceSettings,
     ),
     canvasPresetOverride: normalizeCanvasPresetOverride(
       persisted.canvasPresetOverride ?? currentState.canvasPresetOverride,
@@ -3754,6 +3810,7 @@ export const useReactStore = create<ReactStoreState>()(
       performancePads: DEFAULT_PERFORMANCE_PADS,
       activePadId: null,
       oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
+      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS),
       soundDrawingTrailResetRevision: 0,
       oscillatorGlyphAssets: [],
       oscillatorGlyphPointCache: {},
@@ -4391,6 +4448,36 @@ export const useReactStore = create<ReactStoreState>()(
             ),
           }
         }),
+
+      setSoundDrawingPerformanceSettings: (patch) =>
+        set(s => ({
+          soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
+            ...s.soundDrawingPerformanceSettings,
+            ...patch,
+            locks: patch.locks
+              ? { ...s.soundDrawingPerformanceSettings.locks, ...patch.locks }
+              : s.soundDrawingPerformanceSettings.locks,
+          }),
+          soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
+        })),
+
+      setSoundDrawingPerformanceLock: (key, value) =>
+        set(s => ({
+          soundDrawingPerformanceSettings: {
+            ...s.soundDrawingPerformanceSettings,
+            locks: { ...s.soundDrawingPerformanceSettings.locks, [key]: value },
+          },
+        })),
+
+      resetSoundDrawingPerformanceSettings: () =>
+        set(s => ({
+          soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
+            ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+            selectedShowId: s.soundDrawingPerformanceSettings.selectedShowId,
+            autoPerformance: s.soundDrawingPerformanceSettings.autoPerformance,
+          }),
+          soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
+        })),
 
       requestSoundDrawingTrailReset: () =>
         set(s => ({ soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 })),
