@@ -4,7 +4,7 @@
 // Pure class — no React dependencies; all React interaction goes through callbacks.
 
 import type { Track, TrackAnalysisRuntime } from '../../types'
-import type { AnalysisProgressInfo, TrackIntelligenceAnalysis } from '../musicIntelligence/types'
+import type { AnalysisProgressInfo, BpmReanalysisMode, TrackIntelligenceAnalysis } from '../musicIntelligence/types'
 import type { RekordboxAnalysisSeed } from '../rekordboxImport/types'
 import {
   CURRENT_ANALYSIS_VERSION,
@@ -56,7 +56,39 @@ function normalizeRemoteUrl(url: string): string {
 
 // ── Analysis key ──────────────────────────────────────────────────────────────
 
-type KeyableTrack = Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File }
+type KeyableTrack = Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File; importedAnalysisSeed?: RekordboxAnalysisSeed }
+
+function stableSerialize(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, child]) => `${JSON.stringify(key)}:${stableSerialize(child)}`)
+    .join(',')}}`
+}
+
+function fnv1a(value: string): string {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+export function computeImportedGridRevision(seed: RekordboxAnalysisSeed | undefined): string | null {
+  return seed ? fnv1a(stableSerialize(seed)) : null
+}
+
+export function computeAnalysisVariantKey(
+  baseKey: string,
+  input: { bpmOverride?: number | null; mode?: BpmReanalysisMode | null; gridRevision?: string | null },
+): string {
+  const bpm = input.bpmOverride != null && Number.isFinite(input.bpmOverride)
+    ? input.bpmOverride.toFixed(6)
+    : 'detected'
+  return `${baseKey}:variant:bpm=${bpm}:mode=${input.mode ?? 'full'}:grid=${input.gridRevision ?? 'none'}`
+}
 
 /**
  * Compute a stable, version-sensitive cache key for a track.
@@ -66,11 +98,11 @@ type KeyableTrack = Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File }
  * even after token refresh.
  */
 export function computeAnalysisKey(track: KeyableTrack): string {
-  if (track.sourceKind === 'file' && track.sourceFile) {
-    const f = track.sourceFile
-    return `f:${f.name}:${f.size}:${f.lastModified}:${CURRENT_ANALYSIS_VERSION}`
-  }
-  return `u:${normalizeRemoteUrl(track.url)}:${CURRENT_ANALYSIS_VERSION}`
+  const base = track.sourceKind === 'file' && track.sourceFile
+    ? `f:${track.sourceFile.name}:${track.sourceFile.size}:${track.sourceFile.lastModified}:${CURRENT_ANALYSIS_VERSION}`
+    : `u:${normalizeRemoteUrl(track.url)}:${CURRENT_ANALYSIS_VERSION}`
+  const importedGridRevision = computeImportedGridRevision(track.importedAnalysisSeed)
+  return importedGridRevision ? `${base}:imported-grid=${importedGridRevision}` : base
 }
 
 // ── Minimal LRU cache ─────────────────────────────────────────────────────────
@@ -174,9 +206,19 @@ export class TrackAnalysisCoordinator {
     this.queue = this.queue.filter(j => j.trackId !== track.id)
     this.cancelledIds.delete(track.id)
 
+    const committedOverride = track.analysisRuntime.bpmOverride != null
+      && !track.analysisRuntime.gridStale
+      && track.analysisRuntime.analysis?.bpmUsedForGrid === track.analysisRuntime.bpmOverride
+    const analysisKey = committedOverride
+      ? computeAnalysisVariantKey(track.analysisRuntime.analysisKey, {
+          bpmOverride: track.analysisRuntime.bpmOverride,
+          mode: track.analysisRuntime.analysis?.lastReanalysisMode === 'full' ? 'reanalyze' : 'resnap',
+          gridRevision: computeImportedGridRevision(track.importedAnalysisSeed),
+        })
+      : track.analysisRuntime.analysisKey
     const job: AnalysisJob = {
       trackId:     track.id,
-      analysisKey: track.analysisRuntime.analysisKey,
+      analysisKey,
       url:         track.url,
       sourceFile:  track.sourceFile,
       generation:  this.generation,

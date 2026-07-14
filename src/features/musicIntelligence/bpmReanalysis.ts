@@ -6,7 +6,7 @@
 import { analyzeStructuralRegions } from './sectionAnalysis'
 import { detectSemanticMoments } from './semanticAnalysis'
 import { generateMusicalHierarchy } from './musicalHierarchyAnalysis'
-import type { TrackIntelligenceAnalysis, TrackSectionMI } from './types'
+import type { BpmReanalysisMode, TrackIntelligenceAnalysis, TrackSectionMI } from './types'
 import { rebuildBpmDependentData } from '../../features/trackIntelligence/beatGridUtils'
 
 function isProtected(section: TrackSectionMI): boolean {
@@ -102,6 +102,7 @@ function assembleReanalysis(
   gridData: ReturnType<typeof rebuildBpmDependentData>,
   sections: TrackSectionMI[],
   structuralSegmentation: TrackIntelligenceAnalysis['structuralSegmentation'],
+  mode: BpmReanalysisMode,
 ): TrackIntelligenceAnalysis {
   const hierarchy = generateMusicalHierarchy({
     durationSec: analysis.durationMs / 1000,
@@ -130,7 +131,7 @@ function assembleReanalysis(
     detectedBpm: analysis.detectedBpm ?? analysis.bpm,
     bpmUsedForGrid: bpm,
     lastGridRebuiltAt: gridData.lastGridRebuiltAt,
-    lastReanalysisMode: 'grid_only',
+    lastReanalysisMode: mode === 'reanalyze' ? 'full' : 'grid_only',
     gridStale: false,
     analysisDiagnostics: analysis.analysisDiagnostics
       ? {
@@ -192,6 +193,7 @@ export function applyResnap(
     gridData,
     mergeProtectedSections(preserved, relabeled),
     structural.structuralSegmentation,
+    'resnap',
   )
 }
 
@@ -214,5 +216,6 @@ export function applyReanalyze(
     gridData,
     mergeProtectedSections(preserved, structural.sections),
     structural.structuralSegmentation,
+    'reanalyze',
   )
 }

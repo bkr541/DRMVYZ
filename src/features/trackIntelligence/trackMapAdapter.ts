@@ -1,6 +1,7 @@
 import type { TrackAnalysis, TrackSection } from './types'
 import type { TrackIntelligenceAnalysis } from '../musicIntelligence/types'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
+import { resolveAuthoritativeTimeline } from './authoritativeTimeline'
 
 /**
  * Converts a TrackAnalysis (mock/legacy) into the ReactTrackSection[] format
@@ -23,22 +24,40 @@ export function adaptTrackSections(analysis: TrackAnalysis): ReactTrackSection[]
  * ReactTrackSection[], tagged source: 'auto' for preservation logic.
  */
 export function adaptMIAnalysis(analysis: TrackIntelligenceAnalysis): ReactTrackSection[] {
-  return analysis.sections.map(sec => ({
-    id:         sec.id,
-    label:      sec.label,
-    type:       sec.type,
-    startSec:   sec.startSec,
-    endSec:     sec.endSec,
-    intensity:  sec.intensity,
-    confidence: sec.confidence,
-    boundaryConfidence: sec.boundaryConfidence,
-    labelConfidence: sec.labelConfidence,
-    gridConfidence: sec.gridConfidence,
-    analysisConfidence: sec.analysisConfidence,
-    dropConfidence: sec.dropConfidence,
-    interpretation: sec.interpretation,
-    source:     'auto' as const,
-  }))
+  return analysis.sections.map(sec => {
+    const authority = sec.source === 'rekordbox'
+      ? 'imported' as const
+      : sec.source === 'manual' || sec.locked
+        ? 'locked_user' as const
+        : 'automatic' as const
+    const source = authority === 'locked_user'
+      ? 'manual' as const
+      : authority === 'imported'
+        ? 'imported' as const
+        : 'auto' as const
+    return {
+      id:         sec.id,
+      label:      sec.label,
+      type:       sec.type,
+      startSec:   sec.startSec,
+      endSec:     sec.endSec,
+      intensity:  sec.intensity,
+      confidence: sec.confidence,
+      boundaryConfidence: sec.boundaryConfidence,
+      labelConfidence: sec.labelConfidence,
+      gridConfidence: sec.gridConfidence,
+      analysisConfidence: sec.analysisConfidence,
+      dropConfidence: sec.dropConfidence,
+      interpretation: sec.interpretation,
+      source,
+      locked: sec.locked,
+      provenance: {
+        authority,
+        originalId: sec.id,
+        analysisSource: sec.source,
+      },
+    }
+  })
 }
 
 /**
@@ -50,17 +69,10 @@ export function extractBpm(analysis: TrackAnalysis): number | null {
 }
 
 /**
- * Merges analyzed sections with per-track manual sections into a single
- * resolved timeline.
- *
- * Precedence:
- *  1. `user-edited-auto` manual sections replace the analyzed section with the same ID.
- *  2. `user-created` / `manual` sections are appended after any analyzed sections.
- *  3. Unchanged analyzed sections remain as-is.
- *  4. Sections whose IDs appear in `suppressedIds` are omitted entirely.
- *  5. All sections are sorted by startSec and clipped to durationSec.
- *
- * The original analysis is never mutated.
+ * Delegates every Track Map merge to the canonical authority resolver.
+ * Locked user work wins first, followed by user-created sections, manual
+ * replacements, imported authority, automatic analysis, and safe fallbacks.
+ * The original analysis and edit arrays are never mutated.
  */
 export function resolveTrackSections({
   analyzedSections,
@@ -74,29 +86,10 @@ export function resolveTrackSections({
   /** Auto section IDs that have been suppressed/hidden by the user. */
   suppressedIds?:   string[]
 }): ReactTrackSection[] {
-  // Build a lookup of user-edited-auto overrides by the original auto section ID
-  const editedById = new Map<string, ReactTrackSection>()
-  for (const s of manualSections) {
-    if (s.source === 'user-edited-auto') editedById.set(s.id, s)
-  }
-
-  const suppressedSet = new Set(suppressedIds)
-
-  // Apply overrides to analyzed sections, skipping suppressed IDs
-  const resolved: ReactTrackSection[] = [
-    ...analyzedSections
-      .filter(s => !suppressedSet.has(s.id))
-      .map(s => editedById.get(s.id) ?? s),
-    // Append user-created/manual sections (not overrides of existing auto sections)
-    ...manualSections.filter(s => s.source !== 'user-edited-auto'),
-  ]
-
-  resolved.sort((a, b) => a.startSec - b.startSec)
-
-  if (durationSec > 0) {
-    return resolved
-      .filter(s => s.startSec < durationSec)
-      .map(s => s.endSec > durationSec ? { ...s, endSec: durationSec } : s)
-  }
-  return resolved
+  return resolveAuthoritativeTimeline({
+    analyzedSections,
+    manualSections,
+    suppressedIds,
+    durationSec,
+  })
 }

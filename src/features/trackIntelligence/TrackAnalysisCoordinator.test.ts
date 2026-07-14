@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   TrackAnalysisCoordinator,
   computeAnalysisKey,
+  computeAnalysisVariantKey,
+  computeImportedGridRevision,
   CURRENT_ANALYSIS_VERSION,
   type CoordinatorDeps,
   type CoordinatorCallbacks,
@@ -135,6 +137,36 @@ describe('computeAnalysisKey', () => {
   it('embeds the current analysis version in all keys', () => {
     const track = makeTrack()
     expect(computeAnalysisKey(track)).toContain(CURRENT_ANALYSIS_VERSION)
+  })
+})
+
+describe('analysis cache variants', () => {
+  it('invalidates structural cache identity when BPM or reanalysis mode changes', () => {
+    const base = computeAnalysisKey(makeTrack())
+    const detected = computeAnalysisVariantKey(base, { bpmOverride: null, mode: 'reanalyze' })
+    const overridden = computeAnalysisVariantKey(base, { bpmOverride: 142, mode: 'reanalyze' })
+    const gridOnly = computeAnalysisVariantKey(base, { bpmOverride: 142, mode: 'resnap' })
+
+    expect(overridden).not.toBe(detected)
+    expect(gridOnly).not.toBe(overridden)
+    expect(overridden).toContain('bpm=142.000000')
+  })
+
+  it('includes imported authoritative grid revisions in base cache identity', () => {
+    const firstSeed = {
+      source: 'rekordbox_usb' as const,
+      bpm: 140,
+      beatGridOffsetSec: 0,
+      beatGrid: [{ timeSec: 0, confidence: 1, isDownbeat: true }],
+    }
+    const secondSeed = {
+      ...firstSeed,
+      beatGridOffsetSec: 0.125,
+    }
+
+    expect(computeImportedGridRevision(firstSeed)).not.toBe(computeImportedGridRevision(secondSeed))
+    expect(computeAnalysisKey(makeTrack({ importedAnalysisSeed: firstSeed })))
+      .not.toBe(computeAnalysisKey(makeTrack({ importedAnalysisSeed: secondSeed })))
   })
 })
 

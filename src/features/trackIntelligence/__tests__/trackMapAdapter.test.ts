@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { adaptTrackSections, extractBpm, resolveTrackSections } from '../trackMapAdapter'
+import { adaptMIAnalysis, adaptTrackSections, extractBpm, resolveTrackSections } from '../trackMapAdapter'
 import { generateMockTrackAnalysis } from '../mockTrackAnalysis'
 import type { TrackAnalysis } from '../types'
 import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
+import type { TrackIntelligenceAnalysis } from '../../musicIntelligence/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,30 @@ describe('adaptTrackSections', () => {
       sections: [], beatMarkers: [], analysisVersion: 'test',
     }
     expect(adaptTrackSections(analysis)).toEqual([])
+  })
+})
+
+
+describe('adaptMIAnalysis', () => {
+  it('keeps locked Rekordbox sections at imported authority instead of treating them as user locks', () => {
+    const analysis = {
+      sections: [{
+        id: 'imported-drop',
+        label: 'Drop',
+        type: 'drop',
+        startSec: 16,
+        endSec: 32,
+        intensity: 1,
+        confidence: 0.95,
+        source: 'rekordbox',
+        locked: true,
+      }],
+    } as TrackIntelligenceAnalysis
+
+    const [section] = adaptMIAnalysis(analysis)
+    expect(section.source).toBe('imported')
+    expect(section.provenance?.authority).toBe('imported')
+    expect(section.provenance?.analysisSource).toBe('rekordbox')
   })
 })
 
@@ -158,13 +183,14 @@ describe('resolveTrackSections', () => {
     expect(result[1].type).toBe('verse')
   })
 
-  it('user-created sections are appended after analyzed sections', () => {
+  it('user-created sections win their range and uncovered time receives a safe fallback', () => {
     const analyzed = [makeSection({ id: 'auto-1', type: 'intro', startSec: 0, endSec: 30, source: 'auto' })]
     const manual   = [makeSection({ id: 'usr-1',  type: 'build', startSec: 45, endSec: 60, source: 'user-created' })]
     const result = resolveTrackSections({ analyzedSections: analyzed, manualSections: manual, durationSec: 60 })
-    expect(result).toHaveLength(2)
+    expect(result).toHaveLength(3)
     expect(result[0].source).toBe('auto')
-    expect(result[1].source).toBe('user-created')
+    expect(result[1].provenance?.authority).toBe('fallback')
+    expect(result[2].source).toBe('user-created')
   })
 
   it('sections are sorted by startSec', () => {
@@ -183,16 +209,20 @@ describe('resolveTrackSections', () => {
     expect(result[0].endSec).toBe(180)
   })
 
-  it('excludes sections that start at or after durationSec', () => {
+  it('replaces out-of-range sections with a safe fallback timeline', () => {
     const analyzed = [makeSection({ id: 'a', startSec: 200, endSec: 240, source: 'auto' })]
     const result = resolveTrackSections({ analyzedSections: analyzed, manualSections: [], durationSec: 180 })
-    expect(result).toHaveLength(0)
+    expect(result).toHaveLength(1)
+    expect(result[0].provenance?.authority).toBe('fallback')
+    expect(result[0].endSec).toBe(180)
   })
 
-  it('returns all sections unsorted when durationSec is 0', () => {
+  it('infers duration from section data when durationSec is 0', () => {
     const analyzed = [makeSection({ id: 'a', startSec: 0, endSec: 30, source: 'auto' })]
     const result = resolveTrackSections({ analyzedSections: analyzed, manualSections: [], durationSec: 0 })
     expect(result).toHaveLength(1)
+    expect(result[0].startSec).toBe(0)
+    expect(result[0].endSec).toBe(30)
   })
 
   it('original analysis is never mutated', () => {
@@ -206,16 +236,18 @@ describe('resolveTrackSections', () => {
   it('manual-only sections work when no analyzed sections exist', () => {
     const manual = [makeSection({ id: 'm', type: 'build', source: 'user-created', startSec: 0, endSec: 30 })]
     const result = resolveTrackSections({ analyzedSections: [], manualSections: manual, durationSec: 60 })
-    expect(result).toHaveLength(1)
+    expect(result).toHaveLength(2)
     expect(result[0].id).toBe('m')
+    expect(result[1].provenance?.authority).toBe('fallback')
   })
 
   it('user-edited-auto sections are NOT appended as duplicates', () => {
     const analyzed = [makeSection({ id: 'a', source: 'auto' })]
     const manual   = [makeSection({ id: 'a', type: 'drop', source: 'user-edited-auto' })]
     const result = resolveTrackSections({ analyzedSections: analyzed, manualSections: manual, durationSec: 60 })
-    // Only one section: the override replaces the original, not appended
-    expect(result).toHaveLength(1)
+    // The replacement is singular; uncovered duration is represented only by a safe fallback.
+    expect(result).toHaveLength(2)
     expect(result[0].type).toBe('drop')
+    expect(result[1].provenance?.authority).toBe('fallback')
   })
 })

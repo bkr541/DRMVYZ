@@ -2358,6 +2358,30 @@ export interface ReactScene {
   params: Partial<ReactPresetParams>
 }
 
+export type ReactTrackSectionSource =
+  | 'manual'
+  | 'auto'
+  | 'mock'
+  | 'user-edited-auto'
+  | 'user-created'
+  | 'imported'
+  | 'fallback'
+
+export type ReactTrackSectionAuthority =
+  | 'locked_user'
+  | 'user_created'
+  | 'manual_replacement'
+  | 'imported'
+  | 'automatic'
+  | 'fallback'
+
+export interface ReactTrackSectionProvenance {
+  authority: ReactTrackSectionAuthority
+  originalId: string
+  analysisSource?: 'manual' | 'analysis' | 'inferred' | 'rekordbox'
+  splitIndex?: number
+}
+
 export interface ReactTrackSection {
   id: string
   label: string
@@ -2366,7 +2390,11 @@ export interface ReactTrackSection {
   endSec: number
   intensity: number
   engineId?: ReactEngineId
-  source?: 'manual' | 'auto' | 'mock' | 'user-edited-auto' | 'user-created'
+  source?: ReactTrackSectionSource
+  /** User/import locks survive automatic reanalysis and boundary rebuilding. */
+  locked?: boolean
+  /** Canonical authority/provenance retained after conflict resolution and splitting. */
+  provenance?: ReactTrackSectionProvenance
   confidence?: number
   /** Confidence that the section's start/end boundaries are musically placed. */
   boundaryConfidence?: number

@@ -8,6 +8,7 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
+import { resolveSectionAtTime } from '../../../../features/trackIntelligence/authoritativeTimeline'
 import { useReactStore } from '../../../../stores/reactStore'
 import { useVisualStore } from '../../../../stores/visualStore'
 import { cueMarkerBelongsToTrack } from '../../../../types/cue'
@@ -65,22 +66,45 @@ function resolveLaserDmxBeatGridOffset(frame: ReactFrameContext): number {
   return Number.isFinite(firstMarker) ? Math.max(0, firstMarker) : 0
 }
 
-function resolveLaserDmxFrameSection(frame: ReactFrameContext, timeSec: number): MusicIntelligenceFrame['section'] | null {
+function resolveLaserDmxFrameSection(
+  frame: ReactFrameContext,
+  source: MusicIntelligenceFrame,
+  timeSec: number,
+): MusicIntelligenceFrame['section'] | null {
   const resolved = frame.resolvedSection
-  if (resolved && resolved.type != null) {
+  if (resolved) {
     return {
-      type: resolved.type as ReactSectionType,
-      label: String(resolved.type),
+      type: resolved.type,
+      label: resolved.label ?? String(resolved.type),
       startSec: finiteNumber(resolved.startSec, 0),
       endSec: finiteNumber(resolved.endSec, Infinity),
       progress: clamp01(finiteNumber(resolved.progress, 0)),
       intensity: 1,
-      confidence: 1,
+      confidence: clamp01(finiteNumber(resolved.confidence, 1)),
       source: resolved.source ?? 'inferred',
     }
   }
-
-  const section = frame.trackSections?.find(item => item.startSec <= timeSec && timeSec < item.endSec)
+  const published = source.currentResolvedSection
+  if (published && timeSec >= published.startSec && timeSec <= published.endSec) {
+    return {
+      type: published.type,
+      label: published.label,
+      startSec: published.startSec,
+      endSec: published.endSec,
+      progress: published.progress,
+      intensity: published.intensity,
+      confidence: published.analysisConfidence ?? published.confidence ?? 0,
+      source: published.provenance?.authority === 'imported'
+        ? 'rekordbox'
+        : published.provenance?.authority === 'automatic'
+          ? 'analysis'
+          : published.provenance?.authority === 'fallback'
+            ? 'inferred'
+            : 'manual',
+    }
+  }
+  const timeline = source.resolvedSections?.length ? source.resolvedSections : frame.trackSections
+  const section = resolveSectionAtTime(timeline ?? [], timeSec)
   if (!section) return null
   const startSec = finiteNumber(section.startSec, 0)
   const endSec = finiteNumber(section.endSec, startSec)
@@ -91,12 +115,14 @@ function resolveLaserDmxFrameSection(frame: ReactFrameContext, timeSec: number):
     endSec,
     progress: endSec > startSec ? clamp01((timeSec - startSec) / (endSec - startSec)) : 0,
     intensity: clamp01(finiteNumber(section.intensity, 1)),
-    confidence: clamp01(finiteNumber(section.confidence, 1)),
-    source: section.source === 'user-created' || section.source === 'user-edited-auto'
-      ? 'manual'
-      : section.source === 'auto'
+    confidence: clamp01(finiteNumber(section.analysisConfidence ?? section.confidence, 1)),
+    source: section.provenance?.authority === 'imported' || section.source === 'imported'
+      ? 'rekordbox'
+      : section.provenance?.authority === 'automatic' || section.source === 'auto'
         ? 'analysis'
-        : 'inferred',
+        : section.provenance?.authority === 'fallback' || section.source === 'fallback'
+          ? 'inferred'
+          : 'manual',
   }
 }
 
@@ -104,7 +130,13 @@ function musicIntelligenceFrameMatchesTrack(
   candidate: MusicIntelligenceFrame | null | undefined,
   trackKey: string | null | undefined,
 ): candidate is MusicIntelligenceFrame {
-  if (!candidate || candidate.frameId <= 0) return false
+  if (!candidate) return false
+  const hasPublishedTrackState = Boolean(
+    candidate.analysisRevision
+    || candidate.timelineRevision
+    || candidate.resolvedSections?.length,
+  )
+  if (candidate.frameId <= 0 && !hasPublishedTrackState) return false
   if (!trackKey) return true
   const identities = [candidate.trackId, candidate.sourceId].filter((value): value is string => Boolean(value))
   return identities.length === 0 || identities.includes(trackKey)
@@ -153,7 +185,21 @@ export function resolveLaserDmxMusicIntelligenceFrame(
   const mid = clamp01(finiteNumber(frame.audio.mid, source.bands.mid))
   const high = clamp01(finiteNumber(frame.audio.high, source.bands.high))
   const volume = clamp01(finiteNumber(frame.audio.volume, source.bands.volume))
-  const activeSection = resolveLaserDmxFrameSection(frame, timeSec)
+  const authoritativeTimeline = source.resolvedSections?.length ? source.resolvedSections : frame.trackSections ?? []
+  const timelineSection = resolveSectionAtTime(authoritativeTimeline, timeSec)
+  const currentResolvedSection = timelineSection
+    ? {
+        ...timelineSection,
+        progress: timelineSection.endSec > timelineSection.startSec
+          ? clamp01((timeSec - timelineSection.startSec) / (timelineSection.endSec - timelineSection.startSec))
+          : 0,
+      }
+    : source.currentResolvedSection
+      && timeSec >= source.currentResolvedSection.startSec
+      && timeSec <= source.currentResolvedSection.endSec
+      ? source.currentResolvedSection
+      : null
+  const activeSection = resolveLaserDmxFrameSection(frame, { ...source, currentResolvedSection }, timeSec)
   const hasFallbackSignal = bpm > 0 || volume > 0 || bass > 0 || mid > 0 || high > 0 || activeSection != null
 
   return {
@@ -223,6 +269,15 @@ export function resolveLaserDmxMusicIntelligenceFrame(
       ...DEFAULT_MI_FRAME.semantics,
       ...source.semantics,
     },
+    resolvedSections: authoritativeTimeline,
+    currentResolvedSection,
+    phraseMarkers: source.phraseMarkers ?? frame.trackAnalysis?.phrases ?? [],
+    semanticMoments: source.semanticMoments ?? frame.trackAnalysis?.semanticMoments ?? [],
+    gridConfidence: source.gridConfidence ?? frame.trackAnalysis?.musicalGrid?.confidence ?? null,
+    analysisSource: source.analysisSource ?? 'none',
+    analysisCapabilities: source.analysisCapabilities,
+    analysisRevision: source.analysisRevision ?? null,
+    timelineRevision: source.timelineRevision ?? null,
     capabilities: {
       ...DEFAULT_MI_FRAME.capabilities!,
       ...source.capabilities,
@@ -422,6 +477,7 @@ export function renderLaserDmx(
   const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
   const busMi = AudioFeatureBus.getFrame()
   const mi = resolveLaserDmxMusicIntelligenceFrame(frame, busMi)
+  const authoritativeSections = mi.resolvedSections?.length ? mi.resolvedSections : frame.trackSections
   const trackKey = frame.trackKey ?? mi.trackId ?? mi.sourceId
   const beamMatrixAuthoringMode = state.laserDmxBeamMatrixAuthoringMode === 'showDirector'
     ? 'showDirector'
@@ -451,10 +507,10 @@ export function renderLaserDmx(
     audioTimeSec: timeSec,
     frame: mi,
     analysis: frame.trackAnalysis,
-    resolvedSections: frame.trackSections,
+    resolvedSections: authoritativeSections,
     durationSec: Math.max(
       finiteNumber(frame.trackAnalysis?.durationMs, 0) / 1000,
-      frame.trackSections?.reduce((maximum, section) => Math.max(maximum, finiteNumber(section.endSec, 0)), 0) ?? 0,
+      authoritativeSections?.reduce((maximum, section) => Math.max(maximum, finiteNumber(section.endSec, 0)), 0) ?? 0,
     ),
     trackIdentity: trackKey,
     seekIdentity: timingDiscontinuity ? `seek:${timeSec.toFixed(4)}` : previousPerformanceContext?.seekIdentity ?? 'seek:initial',
@@ -489,7 +545,7 @@ export function renderLaserDmx(
         showDirector: showDirectorRuntimeRig,
         beamMatrix: state.laserDmxBeamMatrix,
         analysis: frame.trackAnalysis,
-        sections: frame.trackSections,
+        sections: authoritativeSections,
         cueMarkers: useVisualStore.getState().cueMarkers.filter(marker => cueMarkerBelongsToTrack(marker, trackKey)),
         fixturePriorityById: performanceResolution?.fixturePriorityById,
         fixturePriorityRoleById: performanceResolution?.fixturePriorityRoleById,
@@ -516,7 +572,7 @@ export function renderLaserDmx(
     timingDiscontinuity,
     bpm: frame.bpm,
     analysis: frame.trackAnalysis,
-    sections: frame.trackSections,
+    sections: authoritativeSections,
     trackKey,
     presetKey: directorPresetKey,
     manualRequest: resolvedAuthoredSettings.runtime?.showDirectorManualRequest as { cueId: string; sequence: number } | undefined,

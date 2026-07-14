@@ -2,6 +2,8 @@ import { useId, useState, useRef, useEffect, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
+import { useReactStore } from '../../../stores/reactStore'
+import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useTapTempo } from '../hooks/useTapTempo'
 import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
 import { useRgbWaveformAnalysis } from '../hooks/useRgbWaveformAnalysis'
@@ -203,6 +205,8 @@ export function VyzualzAudioDock({
 
   const track    = engine.currentTrack
   const hasTrack = engine.tracks.length > 0
+  const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
+  const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
 
   const trackId = track?.id ?? null
   const { peaks } = useWaveformPeaks(
@@ -248,8 +252,12 @@ export function VyzualzAudioDock({
   const effectiveBpm         = engine.currentEffectiveBpm
   const isComplete           = engine.currentAnalysisStatus === 'complete' && engine.currentAnalysis != null
 
-  const autoSectionCount = (engine.currentAnalysis?.sections ?? [])
-    .filter(s => s.source !== 'manual' && !s.locked).length
+  const autoSectionCount = resolveTrackSections({
+    analyzedSections: engine.currentAnalysis ? adaptMIAnalysis(engine.currentAnalysis) : [],
+    manualSections: trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : [],
+    suppressedIds: trackId ? (suppressedAutoSectionsByTrackId[trackId] ?? []) : [],
+    durationSec: Math.max(engine.duration, (engine.currentAnalysis?.durationMs ?? 0) / 1000),
+  }).filter(section => section.provenance?.authority === 'automatic').length
 
   const showStaleBanner = (
     isComplete &&

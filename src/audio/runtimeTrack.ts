@@ -32,7 +32,7 @@ export function runtimeIdForAudioTrack(dbId: string): string {
 }
 
 function buildAnalysisRuntime(
-  source: Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File },
+  source: Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File; importedAnalysisSeed?: ImportedTrackIntelligence['analysisSeed'] },
   restored?: TrackAnalysisRuntime,
 ): TrackAnalysisRuntime {
   const restoredIsCurrent = Boolean(
@@ -62,7 +62,7 @@ export function createLocalRuntimeTrack(file: File, imported?: ImportedTrackInte
   const url = URL.createObjectURL(file)
   const importedMetadata = imported?.metadata
   const title = importedMetadata?.title?.trim() || getFilenameWithoutExtension(file.name)
-  const analysisRuntime = buildAnalysisRuntime({ sourceKind: 'file', url, sourceFile: file })
+  const analysisRuntime = buildAnalysisRuntime({ sourceKind: 'file', url, sourceFile: file, importedAnalysisSeed: imported?.analysisSeed })
   if (importedMetadata) {
     const seedKey = [
       importedMetadata.source,

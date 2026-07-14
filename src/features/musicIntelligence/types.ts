@@ -199,6 +199,30 @@ export interface MusicIntelligenceCapabilities {
   lyrics: boolean
 }
 
+export interface MIResolvedSection extends ReactTrackSection {
+  progress: number
+}
+
+export interface TrackAnalysisCapabilities {
+  reliableBeatGrid: boolean
+  reliableDownbeatGrid: boolean
+  barAwareSections: boolean
+  selfSimilarityAnalysis: boolean
+  semanticClassification: boolean
+  phraseHierarchy: boolean
+  semanticMoments: boolean
+  legacyFallbackOnly: boolean
+}
+
+export type ResolvedTimelineAnalysisSource =
+  | 'bar_self_similarity'
+  | 'time_domain_fallback'
+  | 'imported'
+  | 'manual'
+  | 'mixed'
+  | 'legacy_fallback'
+  | 'none'
+
 export interface MusicIntelligenceFrame {
   timeSec:    number        // current audio time in seconds
   frameId:    number        // monotonically increasing; 0 = not yet populated
@@ -215,6 +239,19 @@ export interface MusicIntelligenceFrame {
   semantics:  MISemantics
   /** Optional for analyses created before Patch 5; consumers must default false. */
   capabilities?: MusicIntelligenceCapabilities
+  /** Canonical authority-resolved section timeline shared by Track Map and engines. */
+  resolvedSections?: readonly ReactTrackSection[]
+  /** Current section derived from resolvedSections at timeSec. */
+  currentResolvedSection?: MIResolvedSection | null
+  phraseMarkers?: readonly PhraseMarker[]
+  semanticMoments?: readonly SemanticMomentMarker[]
+  gridConfidence?: MusicalGridConfidence | null
+  analysisSource?: ResolvedTimelineAnalysisSource
+  analysisCapabilities?: TrackAnalysisCapabilities
+  /** Changes only when the complete offline analysis snapshot changes. */
+  analysisRevision?: string | null
+  /** Deterministic revision of the resolved section timeline. */
+  timelineRevision?: string | null
   raw: {
     freqData:       Uint8Array<ArrayBuffer> | null
     timeDomainData: Uint8Array<ArrayBuffer> | null

@@ -4,6 +4,8 @@ import { useVisualStore } from '../../stores/visualStore'
 import { useMediaStore } from '../../stores/mediaStore'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
+import { useReactStore } from '../../stores/reactStore'
+import { adaptMIAnalysis, resolveTrackSections } from '../../features/trackIntelligence/trackMapAdapter'
 import { useWaveformPeaks } from './hooks/useWaveformPeaks'
 import { LyricCueTimeline } from '../../features/lyrics/editor/LyricCueTimeline'
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../../features/lyrics/runtime/lyricPlaybackResolver'
@@ -1009,6 +1011,9 @@ function TimelineLyricCueInspector({
     saveTimingChanges: state.saveTimingChanges,
   })))
 
+  const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
+  const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
+
   const cue = cues.find(item => item.id === cueId)
   if (!cue) return <div className="vz-ml-insp-empty">Lyric cue not found</div>
 
@@ -1021,11 +1026,18 @@ function TimelineLyricCueInspector({
   )
   const currentDisplayTimeMs = Math.round(timelineClock * 1000)
   const canonicalPlayheadMs = Math.max(0, toCanonicalLyricTimeMs(currentDisplayTimeMs, globalOffsetMs))
-  const sections = (engine.currentAnalysis?.sections ?? []).map(section => ({
-    id: section.id,
-    label: section.label,
-    type: timelineSectionType(section.type),
-  }))
+  const sections = resolveTrackSections({
+    analyzedSections: engine.currentAnalysis ? adaptMIAnalysis(engine.currentAnalysis) : [],
+    manualSections: engine.currentTrackId ? (manualTrackSectionsByTrackId[engine.currentTrackId] ?? []) : [],
+    suppressedIds: engine.currentTrackId ? (suppressedAutoSectionsByTrackId[engine.currentTrackId] ?? []) : [],
+    durationSec: Math.max(engine.duration, (engine.currentAnalysis?.durationMs ?? 0) / 1000),
+  })
+    .filter(section => section.provenance?.authority !== 'fallback')
+    .map(section => ({
+      id: section.id,
+      label: section.label,
+      type: timelineSectionType(section.type),
+    }))
 
   const replaceCues = (next: LyricCue[], selectedId: string | null) => {
     setCues(next.map(item => normalizeCue(item, durationMs)))

@@ -3,6 +3,7 @@ import type { ReactTrackSection, ReactSectionType, OscillatorSettings, Oscillato
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { ReactPerformanceActionEvent } from '../ReactPerformanceActions'
+import { resolveSectionAtTime as resolveCanonicalSectionAtTime } from '../../../../features/trackIntelligence/authoritativeTimeline'
 
 // ── React frame context ───────────────────────────────────────────────────────
 // A lighter version of VzFrameContext used by all React engine renderers.
@@ -57,13 +58,17 @@ export interface ReactFrameContext {
    * Optional so non-shader canvases don't need to supply it.
    */
   resolvedSection?: {
-    type:     string
+    id?: string
+    label?: string
+    type: ReactSectionType
     startSec: number
-    /** End time in seconds.  Infinity when no manual end was placed. */
-    endSec:   number
+    /** End time in seconds. */
+    endSec: number
     /** 0–1 normalised position within the section. -1 when unknown. */
     progress: number
-    /** Whether the active boundary came from manual editing, analysis, or inference. */
+    confidence?: number
+    provenance?: ReactTrackSection['provenance']
+    /** Backward-compatible source label for existing renderer contracts. */
     source?: MusicIntelligenceFrame['section']['source']
   } | null
   /** True on the first frame of each new resolved section. Optional for non-shader canvases. */
@@ -174,13 +179,74 @@ export function hexToRgba(hex: string, alpha = 1): string {
 // ── Section helpers ───────────────────────────────────────────────────────────
 
 export function resolveSectionAtTime(
-  sections: ReactTrackSection[],
+  sections: readonly ReactTrackSection[],
   audioTime: number,
 ): ReactTrackSection | null {
-  for (const s of sections) {
-    if (audioTime >= s.startSec && audioTime < s.endSec) return s
+  const section = resolveCanonicalSectionAtTime(sections, audioTime)
+  return section && audioTime < section.endSec ? section : null
+}
+
+function legacySectionSource(section: ReactTrackSection): MusicIntelligenceFrame['section']['source'] {
+  const authority = section.provenance?.authority
+  if (authority === 'imported' || section.source === 'imported') return 'rekordbox'
+  if (authority === 'automatic' || section.source === 'auto') return 'analysis'
+  if (authority === 'fallback' || section.source === 'fallback' || section.source === 'mock') return 'inferred'
+  return 'manual'
+}
+
+export function resolveAuthoritativeFrameSection({
+  musicIntelligence,
+  trackSections,
+  audioTime,
+}: {
+  musicIntelligence: MusicIntelligenceFrame | null | undefined
+  trackSections?: readonly ReactTrackSection[]
+  audioTime: number
+}): NonNullable<ReactFrameContext['resolvedSection']> | null {
+  const published = musicIntelligence?.currentResolvedSection ?? null
+  if (published && audioTime >= published.startSec && audioTime < published.endSec) {
+    return {
+      id: published.id,
+      label: published.label,
+      type: published.type,
+      startSec: published.startSec,
+      endSec: published.endSec,
+      progress: published.progress,
+      confidence: published.analysisConfidence ?? published.confidence,
+      provenance: published.provenance,
+      source: legacySectionSource(published),
+    }
   }
-  return null
+  const publishedTimeline = musicIntelligence?.resolvedSections ?? []
+  const section = resolveSectionAtTime(
+    publishedTimeline.length > 0 ? publishedTimeline : (trackSections ?? []),
+    audioTime,
+  )
+  if (section) {
+    const duration = section.endSec - section.startSec
+    return {
+      id: section.id,
+      label: section.label,
+      type: section.type,
+      startSec: section.startSec,
+      endSec: section.endSec,
+      progress: duration > 0 ? Math.max(0, Math.min(1, (audioTime - section.startSec) / duration)) : 0,
+      confidence: section.analysisConfidence ?? section.confidence,
+      provenance: section.provenance,
+      source: legacySectionSource(section),
+    }
+  }
+  const legacy = musicIntelligence?.section
+  if (!legacy?.type) return null
+  return {
+    type: legacy.type,
+    label: legacy.label,
+    startSec: legacy.startSec,
+    endSec: legacy.endSec,
+    progress: legacy.progress,
+    confidence: legacy.confidence,
+    source: legacy.source,
+  }
 }
 
 export function sectionIntensityMultiplier(type: ReactSectionType | null): number {

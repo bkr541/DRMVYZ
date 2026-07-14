@@ -825,14 +825,13 @@ function resolveCanvasAutoFeatures({
   activeAudioTrackId?: string | null
 }): CanvasAutoFeatureSnapshot {
   const frameMatchesTrack = isCanvasFrameForTrack(frame, activeAudioTrackId)
-  const analyzedSection = trackAnalysis ? findCanvasSectionAt(trackAnalysis.sections, audioTime) : null
+  const publishedSection = frameMatchesTrack ? frame.currentResolvedSection : null
   const authoredSection = findCanvasSectionAt(trackSections, audioTime)
   const hasAudioIntelligence = Boolean(
     activeAudioTrackId && (
       frameMatchesTrack ||
       trackAnalysis ||
-      authoredSection ||
-      analyzedSection
+      authoredSection
     ),
   )
   const hasLiveAudio = hasCanvasLiveAudioFeatures(frame)
@@ -844,13 +843,13 @@ function resolveCanvasAutoFeatures({
   const sourceLabel = getCanvasAutoSourceLabel(dataMode)
   const hasSmartData = dataMode !== 'fallback'
 
-  const sectionType = (frameMatchesTrack ? frame.section.type : null)
+  const sectionType = publishedSection?.type
     ?? authoredSection?.type
-    ?? analyzedSection?.type
+    ?? (frameMatchesTrack ? frame.section.type : null)
     ?? null
   const sectionIntensity = clampCanvasUnit(
-    frameMatchesTrack ? frame.section.intensity : undefined,
-    clampCanvasUnit(authoredSection?.intensity, clampCanvasUnit(analyzedSection?.intensity, 0)),
+    publishedSection?.intensity,
+    clampCanvasUnit(authoredSection?.intensity, frameMatchesTrack ? frame.section.intensity : 0),
   )
 
   const curveEnergy = Math.max(
@@ -1099,10 +1098,10 @@ function resolveCanvasTimingSection({
   audioTime: number
   activeAudioTrackId?: string | null
 }): ReactSectionType | null {
-  const frameSection = isCanvasFrameForTrack(frame, activeAudioTrackId) ? frame.section.type : null
+  const frameMatchesTrack = isCanvasFrameForTrack(frame, activeAudioTrackId)
+  const publishedSection = frameMatchesTrack ? frame.currentResolvedSection : null
   const authoredSection = findCanvasSectionAt(trackSections, audioTime)
-  const analyzedSection = trackAnalysis ? findCanvasSectionAt(trackAnalysis.sections, audioTime) : null
-  return frameSection ?? authoredSection?.type ?? analyzedSection?.type ?? null
+  return publishedSection?.type ?? authoredSection?.type ?? (frameMatchesTrack ? frame.section.type : null) ?? null
 }
 
 function formatCanvasTimingSeconds(value: number): string {
@@ -2063,6 +2062,8 @@ function CanvasAutoSelectControl() {
 function CanvasTimingControls() {
   const engine = useSharedAudio()
   const settings = useReactStore(s => s.canvasEngineSettings)
+  const manualTrackSectionsByTrackId = useReactStore(s => s.manualTrackSectionsByTrackId)
+  const suppressedAutoSectionsByTrackId = useReactStore(s => s.suppressedAutoSectionsByTrackId)
   const setCanvasEngineSettings = useReactStore(s => s.setCanvasEngineSettings)
   const setCanvasMediaTiming = useReactStore(s => s.setCanvasMediaTiming)
   const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
@@ -2073,14 +2074,22 @@ function CanvasTimingControls() {
   const timing = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
   const detectedSectionLabels = useMemo(() => {
     const labels = new Set<string>()
-    const sections = engine.currentAnalysis?.sections ?? []
+    const trackId = engine.currentTrackId
+    const analyzedSections = engine.currentAnalysis ? adaptMIAnalysis(engine.currentAnalysis) : []
+    const sections = resolveTrackSections({
+      analyzedSections,
+      manualSections: trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : [],
+      suppressedIds: trackId ? (suppressedAutoSectionsByTrackId[trackId] ?? []) : [],
+      durationSec: Math.max(engine.duration, engine.currentAnalysis?.durationMs ? engine.currentAnalysis.durationMs / 1000 : 0),
+    })
     sections.forEach(section => {
+      if (section.provenance?.authority === 'fallback') return
       const mapped = normalizeCanvasTimingSectionType(section.type)
       const option = CANVAS_SECTION_TRIGGER_OPTIONS.find(entry => entry.value === mapped)
       if (option) labels.add(option.label)
     })
     return Array.from(labels)
-  }, [engine.currentAnalysis])
+  }, [engine.currentAnalysis, engine.currentTrackId, engine.duration, manualTrackSectionsByTrackId, suppressedAutoSectionsByTrackId])
 
   const setTiming = (patch: Partial<CanvasVideoTimingSettings>) => {
     if (!activeItem || activeItem.type !== 'video') return

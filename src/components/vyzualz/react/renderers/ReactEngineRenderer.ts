@@ -31,7 +31,7 @@ export interface SectionResolution {
  * manual section covers the time.
  */
 export function resolveCurrentSection(
-  sections:  ReactTrackSection[],
+  sections:  readonly ReactTrackSection[],
   audioTime: number,
 ): SectionResolution {
   const sec = resolveSectionAtTime(sections, audioTime)
@@ -100,7 +100,7 @@ export function resolveReactAutomation(
 export function resolveEffectiveParams(
   preset:    ReactPreset,
   params:    ReactRenderParams,
-  sections:  ReactTrackSection[],
+  sections:  readonly ReactTrackSection[],
   audioTime: number,
 ): ReactRenderParams {
   const { type: sectionType, progress: sectionProgress } =
@@ -137,7 +137,7 @@ export function renderReactEngine(
   frame:          ReactFrameContext,
   preset:         ReactPreset,
   params:         ReactRenderParams,
-  trackSections:  ReactTrackSection[] = [],
+  trackSections:  readonly ReactTrackSection[] = [],
   options: ReactEngineRenderOptions = {},
 ): void {
   // A user pause is a true frame hold across every React engine. Do not clear
@@ -147,8 +147,14 @@ export function renderReactEngine(
     return
   }
 
-  const { type: sectionType } = resolveCurrentSection(trackSections, frame.audioTime)
-  const effectiveParams       = resolveEffectiveParams(preset, params, trackSections, frame.audioTime)
+  const authoritativeSections = frame.musicIntelligence?.resolvedSections?.length
+    ? frame.musicIntelligence.resolvedSections
+    : trackSections
+  const sectionResolution = frame.resolvedSection
+    ? { type: frame.resolvedSection.type, progress: frame.resolvedSection.progress }
+    : resolveCurrentSection(authoritativeSections, frame.audioTime)
+  const sectionType = sectionResolution.type
+  const effectiveParams = resolveEffectiveParams(preset, params, authoritativeSections, frame.audioTime)
 
   switch (preset.engine) {
     case 'shaderPads':

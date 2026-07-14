@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { AudioFeatureBus }        from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
-import type { ReactFrameContext }  from './renderers/reactRenderUtils'
+import { resolveAuthoritativeFrameSection, type ReactFrameContext } from './renderers/reactRenderUtils'
 import type { ReactTrackSection, ReactPerformancePadTransition } from './ReactTypes'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
 import { ShaderWebGLRuntime }      from './shaders/runtime/ShaderWebGLRuntime'
@@ -461,33 +461,18 @@ export function ReactShaderCanvas({
       const miFrame = AudioFeatureBus.getFrame()
       const hasMI   = miFrame.frameId > 0
 
-      // Resolve the current section from the merged track timeline; MI is a fallback only.
       const audioTimeSec = audioTimeRef.current
-      const sections = trackSectionsRef.current
-      const trackSection = sections.find(
-        s => s.startSec <= audioTimeSec && audioTimeSec < s.endSec,
-      ) ?? null
-
-      const resolvedSectionType  = trackSection?.type ?? miFrame.section?.type ?? null
-      const resolvedSectionStart = trackSection?.startSec ?? miFrame.section?.startSec ?? -1
-      const resolvedSectionEnd   = trackSection
-        ? trackSection.endSec
-        : (miFrame.section?.endSec ?? Infinity)
-      const resolvedSectionSource = trackSection
-        ? (trackSection.source === 'user-created' || trackSection.source === 'user-edited-auto'
-            ? 'manual'
-            : trackSection.source === 'auto' ? 'analysis' : 'inferred')
-        : miFrame.section?.source
-      const resolvedProgress = trackSection
-        ? (resolvedSectionEnd > resolvedSectionStart
-            ? Math.max(0, Math.min(1, (audioTimeSec - resolvedSectionStart) / (resolvedSectionEnd - resolvedSectionStart)))
-            : 0)
-        : (miFrame.section?.progress ?? -1)
-
-      const sectionChanged = resolvedSectionType !== lastSectionType ||
-        resolvedSectionStart !== lastSectionStart
+      const resolvedSection = resolveAuthoritativeFrameSection({
+        musicIntelligence: hasMI ? miFrame : null,
+        trackSections: trackSectionsRef.current,
+        audioTime: audioTimeSec,
+      })
+      const resolvedSectionType = resolvedSection?.type ?? null
+      const resolvedSectionStart = resolvedSection?.startSec ?? -1
+      const sectionChanged = resolvedSectionType !== lastSectionType
+        || resolvedSectionStart !== lastSectionStart
       if (sectionChanged) {
-        lastSectionType  = resolvedSectionType
+        lastSectionType = resolvedSectionType
         lastSectionStart = resolvedSectionStart
       }
 
@@ -535,16 +520,7 @@ export function ReactShaderCanvas({
         freqData,
         timeDomainData,
         musicIntelligence: hasMI ? miFrame : null,
-        // Pass manual-section-override-aware section (with progress) to the renderer.
-        resolvedSection: resolvedSectionType !== null
-          ? {
-              type:     resolvedSectionType,
-              startSec: resolvedSectionStart,
-              endSec:   resolvedSectionEnd,
-              progress: resolvedProgress,
-              source:   resolvedSectionSource,
-            }
-          : null,
+        resolvedSection,
         sectionChanged,
       }
 

@@ -395,7 +395,7 @@ function applyEnvelopeState(
 }
 
 function sectionType(frame: MusicIntelligenceFrame): ProductionCueSectionType {
-  const value = frame.section.type
+  const value = frame.currentResolvedSection?.type ?? frame.section.type
   return value === 'intro' || value === 'verse' || value === 'build' || value === 'preDrop'
     || value === 'drop' || value === 'breakdown' || value === 'bridge' || value === 'outro'
     ? value
@@ -418,7 +418,7 @@ function sectionLookId(
   if (looks.length === 0) return null
   const matching = looks.filter(look => `${look.name} ${look.description ?? ''}`.toLowerCase().includes(type.toLowerCase()))
   const candidates = matching.length > 0 ? matching : looks
-  return pickDeterministic(candidates, random01(choreography, input, `look:${type}:${input.musicIntelligence?.section.startSec ?? 0}`))?.id ?? null
+  return pickDeterministic(candidates, random01(choreography, input, `look:${type}:${input.musicIntelligence?.currentResolvedSection?.startSec ?? input.musicIntelligence?.section.startSec ?? 0}`))?.id ?? null
 }
 
 function applyAtmosphericImpact(

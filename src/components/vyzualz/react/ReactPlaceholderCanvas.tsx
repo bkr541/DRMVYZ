@@ -7,12 +7,11 @@ import { isSelectableReactEngineId } from './reactEngineCatalog'
 import type { ReactPerformanceActionEvent } from './ReactPerformanceActions'
 import type { TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
-import type { ReactRenderParams } from './renderers/reactRenderUtils'
+import { resolveAuthoritativeFrameSection, type ReactFrameContext, type ReactRenderParams } from './renderers/reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS, disposeReactEngineRenderer, renderReactEngine } from './renderers/ReactEngineRenderer'
 import { resolveCinematicPortalBackend } from './renderers/CinematicPortalRenderer'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
-import type { ReactFrameContext } from './renderers/reactRenderUtils'
 import { clearSoundDrawingRuntimeCaches, setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
 import { createLiveFpsReporter } from './fpsDiagnostics'
@@ -488,6 +487,12 @@ export function ReactPlaceholderCanvas({
         ? audioTimeRef.current
         : nowSec
 
+      const resolvedSection = resolveAuthoritativeFrameSection({
+        musicIntelligence: hasMI ? miFrame : null,
+        trackSections: trackSectionsRef.current,
+        audioTime: canonicalAudioTime,
+      })
+
       const rfCtx: ReactFrameContext = {
         W, H, dpr,
         t,
@@ -508,6 +513,7 @@ export function ReactPlaceholderCanvas({
         musicIntelligence: hasMI ? miFrame : null,
         trackAnalysis: trackAnalysisRef.current,
         trackSections: trackSectionsRef.current,
+        resolvedSection,
       }
 
       const transitionedControls = resolvePerformancePadTransition({
@@ -550,7 +556,7 @@ export function ReactPlaceholderCanvas({
         audioTime: audioTimeRef.current,
         durationSec: durationSecRef.current,
         audioEnergy: vol,
-        sectionType: rfCtx.musicIntelligence?.section?.type ?? null,
+        sectionType: rfCtx.resolvedSection?.type ?? null,
       })
       reportStable(preset)
       elapsedTimeSec += deltaTimeSec

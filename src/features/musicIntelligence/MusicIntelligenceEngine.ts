@@ -15,6 +15,8 @@ import { EnergyAnalyzer, type MeydaFeatureSnapshot } from './energyAnalysis'
 import { HarmonicAnalyzer } from './harmonicAnalysis'
 import { StemCurveInterpolator } from './stemAnalysis'
 import { SemanticAnalyzer } from './semanticAnalysis'
+import { adaptMIAnalysis } from '../trackIntelligence/trackMapAdapter'
+import { resolveAuthoritativeTimeline, resolveSectionAtTime, timelineRevision } from '../trackIntelligence/authoritativeTimeline'
 import { LyricPlaybackBus } from '../lyrics/runtime/LyricPlaybackBus'
 import {
   ActiveLyricTracker,
@@ -29,32 +31,11 @@ import type {
   MusicIntelligenceFrame,
   MILyrics,
   TrackIntelligenceAnalysis,
-  TrackSectionMI,
-  ReactSectionType,
+  MIResolvedSection,
+  ResolvedTimelineAnalysisSource,
+  TrackAnalysisCapabilities,
   ReactTrackSection,
 } from './types'
-
-// ── Section resolution helpers ────────────────────────────────────────────────
-
-function resolveManualSection(
-  sections: ReactTrackSection[],
-  audioTime: number,
-): ReactTrackSection | null {
-  for (const s of sections) {
-    if (audioTime >= s.startSec && audioTime < s.endSec) return s
-  }
-  return null
-}
-
-function resolveAnalysisSection(
-  sections: TrackSectionMI[],
-  audioTime: number,
-): TrackSectionMI | null {
-  for (const s of sections) {
-    if (audioTime >= s.startSec && audioTime < s.endSec) return s
-  }
-  return null
-}
 
 // ── Public input types ────────────────────────────────────────────────────────
 
@@ -107,7 +88,8 @@ export class MusicIntelligenceEngine {
   private bpmConfidence  = 0
   private beatGridOffset = 0
   private trackAnalysis: TrackIntelligenceAnalysis | null = null
-  private manualSections: ReactTrackSection[] = []
+  private resolvedSections: ReactTrackSection[] = []
+  private resolvedTimelineRevision: string | null = null
   private sourceId: string | null = null
   private trackId:  string | null = null
   private frameId   = 0
@@ -139,6 +121,123 @@ export class MusicIntelligenceEngine {
   }
   private readonly semanticAnalyzer = new SemanticAnalyzer()
 
+  private analysisCapabilities(): TrackAnalysisCapabilities {
+    const analysis = this.trackAnalysis
+    const reliableBeatGrid = Boolean(analysis && analysis.beatGrid.length > 0 && (analysis.beatPhaseConfidence ?? analysis.bpmConfidence ?? 0) >= 0.55)
+    const reliableDownbeatGrid = Boolean(analysis && analysis.downbeats.length > 0 && (analysis.downbeatPhaseConfidence ?? analysis.barGridConfidence ?? 0) >= 0.5)
+    const barAwareSections = this.resolvedSections.some(section => (
+      section.interpretation?.startBar != null
+      || section.interpretation?.endBar != null
+      || (section.gridConfidence ?? 0) > 0
+    ))
+    const selfSimilarityAnalysis = analysis?.structuralSegmentation?.source === 'bar_self_similarity'
+    const semanticClassification = this.resolvedSections.some(section => (
+      section.provenance?.authority !== 'fallback'
+      && section.type !== 'unknown'
+      && (section.labelConfidence ?? section.confidence ?? 0) > 0
+    ))
+    const phraseHierarchy = Boolean((analysis?.phrases.length ?? 0) > 0 || (analysis?.phraseHierarchy?.units.length ?? 0) > 0)
+    const semanticMoments = Boolean((analysis?.semanticMoments.length ?? 0) > 0)
+    const legacyFallbackOnly = this.resolvedSections.length > 0
+      && this.resolvedSections.every(section => section.provenance?.authority === 'fallback')
+    return {
+      reliableBeatGrid,
+      reliableDownbeatGrid,
+      barAwareSections,
+      selfSimilarityAnalysis,
+      semanticClassification,
+      phraseHierarchy,
+      semanticMoments,
+      legacyFallbackOnly,
+    }
+  }
+
+  private resolvedAnalysisSource(): ResolvedTimelineAnalysisSource {
+    if (this.resolvedSections.length === 0) return 'none'
+    const authorities = new Set(this.resolvedSections.map(section => section.provenance?.authority))
+    authorities.delete('fallback')
+    if (authorities.size > 1) return 'mixed'
+    if (authorities.has('locked_user') || authorities.has('user_created') || authorities.has('manual_replacement')) return 'manual'
+    if (authorities.has('imported')) return 'imported'
+    const structuralSource = this.trackAnalysis?.structuralSegmentation?.source
+    if (structuralSource) return structuralSource
+    if (authorities.has('automatic') || this.resolvedSections.some(section => section.provenance?.authority === 'fallback')) {
+      return 'legacy_fallback'
+    }
+    return 'none'
+  }
+
+  private currentSectionAt(audioTime: number): MIResolvedSection | null {
+    const section = resolveSectionAtTime(this.resolvedSections, audioTime)
+    if (!section) return null
+    const duration = section.endSec - section.startSec
+    return {
+      ...section,
+      progress: duration > 0 ? Math.max(0, Math.min(1, (audioTime - section.startSec) / duration)) : 0,
+    }
+  }
+
+  private legacySectionAt(audioTime: number): MusicIntelligenceFrame['section'] {
+    const current = this.currentSectionAt(audioTime)
+    if (!current) return { ...DEFAULT_MI_FRAME.section }
+    const authority = current.provenance?.authority
+    const source = authority === 'imported'
+      ? 'rekordbox' as const
+      : authority === 'automatic'
+        ? 'analysis' as const
+        : authority === 'fallback'
+          ? 'inferred' as const
+          : 'manual' as const
+    return {
+      type: current.type,
+      label: current.label,
+      startSec: current.startSec,
+      endSec: current.endSec,
+      progress: current.progress,
+      intensity: current.intensity,
+      confidence: current.analysisConfidence ?? current.confidence ?? 0,
+      source,
+    }
+  }
+
+  private analysisRevision(): string | null {
+    const analysis = this.trackAnalysis
+    if (!analysis) return null
+    return [
+      analysis.analysisVersion,
+      analysis.createdAt,
+      analysis.durationMs,
+      analysis.bpmUsedForGrid ?? analysis.bpm ?? 'none',
+      analysis.lastGridRebuiltAt ?? 'original',
+    ].join(':')
+  }
+
+  private analysisPublication(audioTime: number): Pick<MusicIntelligenceFrame,
+    | 'section'
+    | 'resolvedSections'
+    | 'currentResolvedSection'
+    | 'phraseMarkers'
+    | 'semanticMoments'
+    | 'gridConfidence'
+    | 'analysisSource'
+    | 'analysisCapabilities'
+    | 'analysisRevision'
+    | 'timelineRevision'
+  > {
+    return {
+      section: this.legacySectionAt(audioTime),
+      resolvedSections: this.resolvedSections,
+      currentResolvedSection: this.currentSectionAt(audioTime),
+      phraseMarkers: this.trackAnalysis?.phrases ?? [],
+      semanticMoments: this.trackAnalysis?.semanticMoments ?? [],
+      gridConfidence: this.trackAnalysis?.musicalGrid?.confidence ?? null,
+      analysisSource: this.resolvedAnalysisSource(),
+      analysisCapabilities: this.analysisCapabilities(),
+      analysisRevision: this.analysisRevision(),
+      timelineRevision: this.resolvedTimelineRevision,
+    }
+  }
+
   private capabilityState(preserveLiveState = true): MusicIntelligenceCapabilities {
     const currentFrame = AudioFeatureBus.getFrame()
     const sameSource = currentFrame.sourceId === this.sourceId && currentFrame.trackId === this.trackId
@@ -147,7 +246,7 @@ export class MusicIntelligenceEngine {
       liveBands: preserveLiveState && sameSource && current.liveBands,
       rhythmEvents: preserveLiveState && sameSource && current.rhythmEvents,
       beatGrid: this.bpm > 0,
-      sections: this.manualSections.length > 0 || Boolean(this.trackAnalysis?.sections.length),
+      sections: this.resolvedSections.some(section => section.provenance?.authority !== 'fallback'),
       trackEnergyCurve: Boolean(this.trackAnalysis?.energyCurves.shortTerm.length),
       stemCurves: this.trackAnalysis?.stemCurves != null,
       lyrics: this.lyricTracker.hasLyrics(),
@@ -251,36 +350,31 @@ export class MusicIntelligenceEngine {
     this.publishCapabilityState()
   }
 
-  setTrackAnalysis(analysis: TrackIntelligenceAnalysis | null): void {
+  private applyTrackAnalysis(analysis: TrackIntelligenceAnalysis | null): void {
     this.trackAnalysis = analysis
     if (analysis) {
-      // BPM may be null when detection failed — use 0 to signal unavailability.
       const analyzedBpm = analysis.bpm !== null && analysis.bpm > 0 ? analysis.bpm : 0
-      this.bpm            = analyzedBpm
-      this.bpmConfidence  = analysis.bpmConfidence ?? 0
-      // beatGridOffsetSec is null when bpm detection failed; fall back to 0.
+      this.bpm = analyzedBpm
+      this.bpmConfidence = analysis.bpmConfidence ?? 0
       this.beatGridOffset = analysis.beatGridOffsetSec ?? 0
       this.beatGrid.setBpm(this.bpm, this.bpmConfidence, this.beatGridOffset)
       this.beatGrid.setMarkers(analysis.beatGrid, analysis.downbeats)
       if (analysis.timeSignature) this.beatGrid.setTimeSignature(analysis.timeSignature)
-      // Wire stem curves
       this.stemInterpolator.setData(analysis.stemCurves)
-      // Track-analysis lyrics remain a compatibility fallback. Once the active
-      // lyric-document bridge is configured it owns the canonical lyric source.
       if (!this.managedLyricsConfigured) {
         if (analysis.lyrics) {
-          const lines = analysis.lyrics.lines.map(l => ({
-            text:       l.text,
-            startSec:   l.startMs / 1000,
-            endSec:     l.endMs   / 1000,
-            words:      l.words.map(w => ({
-              text:       w.text,
-              startSec:   w.startMs / 1000,
-              endSec:     w.endMs   / 1000,
-              confidence: w.confidence,
+          const lines = analysis.lyrics.lines.map(line => ({
+            text: line.text,
+            startSec: line.startMs / 1000,
+            endSec: line.endMs / 1000,
+            words: line.words.map(word => ({
+              text: word.text,
+              startSec: word.startMs / 1000,
+              endSec: word.endMs / 1000,
+              confidence: word.confidence,
             })),
-            confidence: l.confidence,
-            source:     'analysis',
+            confidence: line.confidence,
+            source: 'analysis',
           }))
           this.lyricTracker.setLines(lines, this.analysisLyricSourceIdentity())
         } else {
@@ -288,24 +382,79 @@ export class MusicIntelligenceEngine {
         }
       }
     } else {
-      // No analysis — reset BPM state so the previous track's values do not leak
-      // into the next track's rendering before its own analysis arrives.
       this.bpm = 0
       this.bpmConfidence = 0
       this.beatGridOffset = 0
       this.beatGrid.setBpm(0, 0, 0)
       this.beatGrid.setMarkers([], [])
       this.stemInterpolator.setData(null)
-      if (!this.managedLyricsConfigured) {
-        this.lyricTracker.setLines([], this.analysisLyricSourceIdentity())
-      }
+      if (!this.managedLyricsConfigured) this.lyricTracker.setLines([], this.analysisLyricSourceIdentity())
     }
-    this.publishCapabilityState()
   }
 
+  setAuthoritativeTrackState(input: {
+    analysis: TrackIntelligenceAnalysis | null
+    resolvedSections: readonly ReactTrackSection[]
+    trackId: string
+    sourceId?: string | null
+  }): boolean {
+    if (this.trackId !== null && input.trackId !== this.trackId) return false
+    if (input.sourceId !== undefined && this.sourceId !== null && input.sourceId !== this.sourceId) return false
+    this.applyTrackAnalysis(input.analysis)
+    this.resolvedSections = input.resolvedSections.map(section => ({ ...section }))
+    this.resolvedTimelineRevision = this.resolvedSections.length > 0
+      ? timelineRevision(this.resolvedSections)
+      : null
+    const currentTime = AudioFeatureBus.getFrame().timeSec
+    AudioFeatureBus.updatePartial({
+      sourceId: this.sourceId,
+      trackId: this.trackId,
+      capabilities: this.capabilityState(),
+      ...this.analysisPublication(currentTime),
+    })
+    return true
+  }
+
+  setTrackAnalysis(analysis: TrackIntelligenceAnalysis | null): void {
+    const resolvedSections = analysis
+      ? resolveAuthoritativeTimeline({
+          analyzedSections: adaptMIAnalysis(analysis),
+          durationSec: analysis.durationMs / 1000,
+        })
+      : []
+    this.applyTrackAnalysis(analysis)
+    this.resolvedSections = resolvedSections
+    this.resolvedTimelineRevision = resolvedSections.length > 0 ? timelineRevision(resolvedSections) : null
+    const currentTime = AudioFeatureBus.getFrame().timeSec
+    AudioFeatureBus.updatePartial({
+      sourceId: this.sourceId,
+      trackId: this.trackId,
+      capabilities: this.capabilityState(),
+      ...this.analysisPublication(currentTime),
+    })
+  }
+
+  /** Backward-compatible bridge for callers that still publish manual-only sections. */
   setManualSections(sections: ReactTrackSection[]): void {
-    this.manualSections = [...sections]
-    this.publishCapabilityState()
+    const analyzedSections = this.trackAnalysis ? adaptMIAnalysis(this.trackAnalysis) : []
+    const durationSec = this.trackAnalysis?.durationMs
+      ? this.trackAnalysis.durationMs / 1000
+      : Math.max(0, ...sections.map(section => section.endSec))
+    this.setResolvedTimeline(resolveAuthoritativeTimeline({ analyzedSections, manualSections: sections, durationSec }), this.trackId)
+  }
+
+  setResolvedTimeline(sections: readonly ReactTrackSection[], trackId: string | null = this.trackId): boolean {
+    if (trackId !== this.trackId) return false
+    this.resolvedSections = sections.map(section => ({ ...section }))
+    this.resolvedTimelineRevision = this.resolvedSections.length > 0 ? timelineRevision(this.resolvedSections) : null
+    const currentTime = AudioFeatureBus.getFrame().timeSec
+    AudioFeatureBus.updatePartial({
+      sourceId: this.sourceId,
+      trackId: this.trackId,
+      capabilities: this.capabilityState(),
+      ...this.analysisPublication(currentTime),
+    })
+    return true
   }
 
   setSourceId(sourceId: string | null, trackId: string | null = null): void {
@@ -318,7 +467,8 @@ export class MusicIntelligenceEngine {
     }
 
     this.trackAnalysis = null
-    this.manualSections = []
+    this.resolvedSections = []
+    this.resolvedTimelineRevision = null
     this.bpm = 0
     this.bpmConfidence = 0
     this.beatGridOffset = 0
@@ -392,13 +542,16 @@ export class MusicIntelligenceEngine {
       stemCurves: false,
       lyrics: false,
     }
+    const resolvedTime = Number.isFinite(audioTimeSec) ? audioTimeSec : 0
     AudioFeatureBus.updatePartial({
-      timeSec: Number.isFinite(audioTimeSec) ? audioTimeSec : 0,
+      timeSec: resolvedTime,
       lyrics: this.lyricFrameState(),
       capabilities: {
         ...capabilities,
+        sections: this.resolvedSections.some(section => section.provenance?.authority !== 'fallback'),
         lyrics: this.lyricTracker.hasLyrics(),
       },
+      ...this.analysisPublication(resolvedTime),
     })
     return playback
   }
@@ -450,43 +603,9 @@ export class MusicIntelligenceEngine {
     // ── Lyric tracker ────────────────────────────────────────────────────────
     this.updateLyricState(audioTime, 'continuous')
 
-    // ── Section resolution ────────────────────────────────────────────────
-    let sectionType:       ReactSectionType | null = null
-    let sectionLabel       = ''
-    let sectionStart       = 0
-    let sectionEnd         = 0
-    let sectionIntensity   = 0.5
-    let sectionConfidence  = 0
-    let sectionSource: 'manual' | 'analysis' | 'inferred' = 'inferred'
-    let sectionProgress    = 0
-
-    const manualSec = resolveManualSection(this.manualSections, audioTime)
-    if (manualSec) {
-      sectionType      = manualSec.type
-      sectionLabel     = manualSec.label
-      sectionStart     = manualSec.startSec
-      sectionEnd       = manualSec.endSec
-      sectionIntensity = manualSec.intensity
-      sectionConfidence = 1.0
-      sectionSource    = 'manual'
-    } else if (this.trackAnalysis && this.trackAnalysis.sections.length > 0) {
-      const sec = resolveAnalysisSection(this.trackAnalysis.sections, audioTime)
-      if (sec) {
-        sectionType      = sec.type
-        sectionLabel     = sec.label
-        sectionStart     = sec.startSec
-        sectionEnd       = sec.endSec
-        sectionIntensity = sec.intensity
-        sectionConfidence = sec.confidence
-        sectionSource    = 'analysis'
-      }
-    }
-
-    if (sectionEnd > sectionStart) {
-      sectionProgress = Math.max(0, Math.min(1,
-        (audioTime - sectionStart) / (sectionEnd - sectionStart),
-      ))
-    }
+    // ── Authoritative section resolution ───────────────────────────────────
+    const analysisPublication = this.analysisPublication(audioTime)
+    const sectionConfidence = analysisPublication.section.confidence
 
     // ── Assemble partial frame for semantic analysis ──────────────────────────
     const partialFrame: MusicIntelligenceFrame = {
@@ -544,16 +663,7 @@ export class MusicIntelligenceEngine {
         spectralRolloff:   energyResult.spectralRolloff,
         spectralFlatness:  energyResult.spectralFlatness,
       },
-      section: {
-        type:       sectionType,
-        label:      sectionLabel,
-        startSec:   sectionStart,
-        endSec:     sectionEnd,
-        progress:   sectionProgress,
-        intensity:  sectionIntensity,
-        confidence: sectionConfidence,
-        source:     sectionSource,
-      },
+      section: analysisPublication.section,
       harmonic: harmonicResult,
       stems:    stemValues,
       lyrics: this.lyricFrameState(),
@@ -562,11 +672,20 @@ export class MusicIntelligenceEngine {
         liveBands: true,
         rhythmEvents: true,
         beatGrid: beatState.bpm > 0,
-        sections: this.manualSections.length > 0 || Boolean(this.trackAnalysis?.sections.length),
+        sections: this.resolvedSections.some(section => section.provenance?.authority !== 'fallback'),
         trackEnergyCurve: Boolean(this.trackAnalysis?.energyCurves.shortTerm.length),
         stemCurves: this.trackAnalysis?.stemCurves != null,
         lyrics: this.lyricTracker.hasLyrics(),
       },
+      resolvedSections: analysisPublication.resolvedSections,
+      currentResolvedSection: analysisPublication.currentResolvedSection,
+      phraseMarkers: analysisPublication.phraseMarkers,
+      semanticMoments: analysisPublication.semanticMoments,
+      gridConfidence: analysisPublication.gridConfidence,
+      analysisSource: analysisPublication.analysisSource,
+      analysisCapabilities: analysisPublication.analysisCapabilities,
+      analysisRevision: analysisPublication.analysisRevision,
+      timelineRevision: analysisPublication.timelineRevision,
       raw: {
         freqData:       freqBuf,
         timeDomainData: timeBuf,

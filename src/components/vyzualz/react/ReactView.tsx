@@ -358,12 +358,12 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
   }, [engine.currentTrackId, engine.currentAnalysis, activeManualTrackSections, suppressedAutoSectionsByTrackId, audioDurationSec])
 
   useEffect(() => {
-    musicIntelligenceEngine.setManualSections(activeManualTrackSections)
-  }, [activeManualTrackSections])
+    musicIntelligenceEngine.setResolvedTimeline(resolvedTrackSections, engine.currentTrackId)
+  }, [engine.currentTrackId, resolvedTrackSections])
 
   useEffect(() => () => {
-    musicIntelligenceEngine.setManualSections([])
-  }, [])
+    musicIntelligenceEngine.setResolvedTimeline([], engine.currentTrackId)
+  }, [engine.currentTrackId])
 
   // Manual BPM overrides regenerate the Track Map grid. Show Director receives
   // that exact effective grid while still using the same audio-engine playhead.

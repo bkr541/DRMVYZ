@@ -16,7 +16,6 @@ import {
 import { buildEffectiveBeatGrid } from '../features/trackIntelligence/beatGridUtils'
 import { applyResnap, applyReanalyze } from '../features/musicIntelligence/bpmReanalysis'
 import type { BpmReanalysisMode, BpmReanalysisStatus } from '../features/musicIntelligence/types'
-import { TrackAnalysisCoordinator } from '../features/trackIntelligence/TrackAnalysisCoordinator'
 import { analyzeTrackBuffer } from '../features/musicIntelligence/offlineTrackAnalyzer'
 import { useTrackAnalysisStore } from '../features/musicIntelligence/trackAnalysisStorage'
 import {
@@ -29,6 +28,34 @@ import {
   type PreparedTrackInput,
 } from '../audio/runtimeTrack'
 import { upsertTrackAnalysisPayload } from '../lib/audioDb'
+import { useReactStore } from '../stores/reactStore'
+import { adaptMIAnalysis, resolveTrackSections } from '../features/trackIntelligence/trackMapAdapter'
+import {
+  TrackAnalysisCoordinator,
+  computeAnalysisVariantKey,
+  computeImportedGridRevision,
+} from '../features/trackIntelligence/TrackAnalysisCoordinator'
+
+function resolveAuthoritativeSectionsForTrack(
+  track: Track,
+  analysis: TrackIntelligenceAnalysis | null,
+) {
+  const state = useReactStore.getState()
+  const manualSections = state.manualTrackSectionsByTrackId[track.id] ?? []
+  const suppressedIds = state.suppressedAutoSectionsByTrackId[track.id] ?? []
+  const analyzedSections = analysis ? adaptMIAnalysis(analysis) : []
+  const durationSec = Math.max(track.duration, analysis?.durationMs ? analysis.durationMs / 1000 : 0)
+  return resolveTrackSections({ analyzedSections, manualSections, suppressedIds, durationSec })
+}
+
+function publishAuthoritativeTrackState(track: Track, analysis: TrackIntelligenceAnalysis | null): boolean {
+  return musicIntelligenceEngine.setAuthoritativeTrackState({
+    analysis,
+    resolvedSections: resolveAuthoritativeSectionsForTrack(track, analysis),
+    trackId: track.id,
+    sourceId: track.id,
+  })
+}
 
 // 60-second ring buffer
 class RingBuffer {
@@ -631,11 +658,10 @@ export function useAudioEngine(): AudioEngine {
       const track = tracksRef.current[currentIndex]
       if (track) {
         musicIntelligenceEngine.setSourceId(track.id, track.id)
-        if (track.analysisRuntime.status === 'complete' && track.analysisRuntime.analysis) {
-          musicIntelligenceEngine.setTrackAnalysis(track.analysisRuntime.analysis)
-        } else {
-          musicIntelligenceEngine.setTrackAnalysis(null)
-        }
+        publishAuthoritativeTrackState(
+          track,
+          track.analysisRuntime.status === 'complete' ? track.analysisRuntime.analysis : null,
+        )
       } else {
         musicIntelligenceEngine.setSourceId(null, null)
         musicIntelligenceEngine.setTrackAnalysis(null)
@@ -678,12 +704,19 @@ export function useAudioEngine(): AudioEngine {
 
   // ── Per-track analysis runtime update ────────────────────────────────────────
   const updateTrackRuntime = useCallback((trackId: string, patch: Partial<TrackAnalysisRuntime>) => {
-    setTracks(prev => prev.map(t =>
-      t.id === trackId
-        ? { ...t, analysisRuntime: { ...t.analysisRuntime, ...patch } }
-        : t,
-    ))
+    const nextTracks = tracksRef.current.map(track =>
+      track.id === trackId
+        ? { ...track, analysisRuntime: { ...track.analysisRuntime, ...patch } }
+        : track,
+    )
+    tracksRef.current = nextTracks
+    setTracks(nextTracks)
   }, [])
+
+  const bpmReanalysisRunnerRef = useRef<((
+    trackId: string,
+    request: { bpm: number; mode: BpmReanalysisMode },
+  ) => Promise<void>) | null>(null)
 
   const setBpmOverride = useCallback((trackId: string, bpm: number | null) => {
     if (bpm !== null) {
@@ -699,13 +732,26 @@ export function useAudioEngine(): AudioEngine {
         gridStale:         true,
       })
     } else {
-      // Override cleared — restore grid from original analysis; mark not stale.
+      const track = tracksRef.current.find(candidate => candidate.id === trackId)
+      const detectedBpm = track?.analysisRuntime.detectedBpm
+        ?? track?.analysisRuntime.analysis?.detectedBpm
+        ?? track?.analysisRuntime.analysis?.bpm
+        ?? null
+      const needsRestore = detectedBpm != null
+        && detectedBpm > 0
+        && track?.analysisRuntime.analysis?.bpmUsedForGrid != null
+        && Math.abs(track.analysisRuntime.analysis.bpmUsedForGrid - detectedBpm) > 0.0001
       updateTrackRuntime(trackId, {
-        bpmOverride:       null,
+        bpmOverride: null,
         bpmOverrideSource: null,
-        detectedBpm:       null,
-        gridStale:         false,
+        detectedBpm: null,
+        gridStale: needsRestore,
       })
+      if (needsRestore && detectedBpm != null) {
+        queueMicrotask(() => {
+          void bpmReanalysisRunnerRef.current?.(trackId, { bpm: detectedBpm, mode: 'reanalyze' })
+        })
+      }
     }
   }, [updateTrackRuntime])
 
@@ -732,68 +778,54 @@ export function useAudioEngine(): AudioEngine {
     trackId: string,
     { bpm, mode }: { bpm: number; mode: BpmReanalysisMode },
   ): Promise<void> => {
-    // Prevent triggering on every BPM arrow click — callers must debounce.
-    // Cancel any already in-flight request for this track.
-    const prev = bpmReanalysisTokens.current.get(trackId)
-    if (prev) prev.cancelled = true
+    const previous = bpmReanalysisTokens.current.get(trackId)
+    if (previous) previous.cancelled = true
     const token = { cancelled: false }
     bpmReanalysisTokens.current.set(trackId, token)
-
     updateTrackRuntime(trackId, { bpmReanalysisStatus: 'reanalyzing' })
 
     try {
-      // Yield so the 'reanalyzing' status renders before we block the thread.
-      await new Promise<void>(r => setTimeout(r, 0))
+      await new Promise<void>(resolve => setTimeout(resolve, 0))
+      if (token.cancelled) return
 
-      if (token.cancelled) {
-        updateTrackRuntime(trackId, { bpmReanalysisStatus: 'cancelled' })
-        return
-      }
-
-      const analysis = tracksRef.current.find(t => t.id === trackId)?.analysisRuntime.analysis
-      if (!analysis) throw new Error('no analysis available for reanalysis')
+      const sourceTrack = tracksRef.current.find(track => track.id === trackId)
+      const sourceAnalysis = sourceTrack?.analysisRuntime.analysis
+      if (!sourceTrack || !sourceAnalysis) throw new Error('no analysis available for reanalysis')
 
       const result = mode === 'resnap'
-        ? applyResnap(analysis, bpm)
-        : applyReanalyze(analysis, bpm)
+        ? applyResnap(sourceAnalysis, bpm)
+        : applyReanalyze(sourceAnalysis, bpm)
 
-      if (token.cancelled) {
-        updateTrackRuntime(trackId, { bpmReanalysisStatus: 'cancelled' })
-        return
+      const currentTrack = tracksRef.current.find(track => track.id === trackId)
+      if (token.cancelled || !currentTrack || currentTrack.analysisRuntime.analysis !== sourceAnalysis) return
+
+      const variantKey = computeAnalysisVariantKey(currentTrack.analysisRuntime.analysisKey, {
+        bpmOverride: bpm,
+        mode,
+        gridRevision: computeImportedGridRevision(currentTrack.importedAnalysisSeed),
+      })
+      try {
+        useTrackAnalysisStore.getState().saveTrackAnalysis(variantKey, result)
+      } catch (error) {
+        console.warn(`[BpmReanalysis] cache save failed for ${trackId}:`, error)
       }
 
-      // Save to persistent cache under the same key so it survives reload.
-      const analysisKey = tracksRef.current.find(t => t.id === trackId)?.analysisRuntime.analysisKey ?? ''
-      if (analysisKey) {
-        try {
-          useTrackAnalysisStore.getState().saveTrackAnalysis(analysisKey, result)
-        } catch (err) {
-          console.warn(`[BpmReanalysis] cache save failed for ${trackId}:`, err)
-        }
-      }
+      const commitTrack = tracksRef.current.find(track => track.id === trackId)
+      if (token.cancelled || !commitTrack || commitTrack.analysisRuntime.analysis !== sourceAnalysis) return
 
-      if (token.cancelled) {
-        // A newer request arrived while we were saving. Don't apply stale results.
-        updateTrackRuntime(trackId, { bpmReanalysisStatus: 'cancelled' })
-        return
+      if (dispatchRef.current.isActive(trackId)) {
+        publishAuthoritativeTrackState(commitTrack, result)
       }
-
-      // Commit to runtime and clear stale flag.
       updateTrackRuntime(trackId, {
-        analysis:            result,
-        gridStale:           false,
+        analysis: result,
+        effectiveBeatGrid: commitTrack.analysisRuntime.bpmOverride != null ? result.beatGrid : null,
+        gridStale: false,
         bpmReanalysisStatus: 'complete',
       })
-
-      // Refresh the live MI engine if this is the active track.
-      if (dispatchRef.current.isActive(trackId)) {
-        dispatchRef.current.engine(result, trackId)
-      }
-    } catch (err) {
+    } catch (error) {
       if (!token.cancelled) {
-        console.warn(`[BpmReanalysis] ${trackId} failed:`, err)
+        console.warn(`[BpmReanalysis] ${trackId} failed:`, error)
         updateTrackRuntime(trackId, { bpmReanalysisStatus: 'failed' })
-        // Leave the previous analysis and gridStale flag unchanged.
       }
     } finally {
       if (bpmReanalysisTokens.current.get(trackId) === token) {
@@ -801,6 +833,7 @@ export function useAudioEngine(): AudioEngine {
       }
     }
   }, [updateTrackRuntime])
+  bpmReanalysisRunnerRef.current = reanalyzeWithBpmOverride
 
   // ── Canonical active-track intelligence ────────────────────────────────────
   const currentTrack            = currentIndex >= 0 && currentIndex < tracks.length ? tracks[currentIndex] ?? null : null
@@ -828,11 +861,10 @@ export function useAudioEngine(): AudioEngine {
     // Immediately clear previous track state before the new one loads.
     musicIntelligenceEngine.setSourceId(track.id, track.id)
     coordinatorRef.current?.prioritize(track.id)
-    if (track.analysisRuntime.status === 'complete' && track.analysisRuntime.analysis) {
-      musicIntelligenceEngine.setTrackAnalysis(track.analysisRuntime.analysis)
-    } else {
-      musicIntelligenceEngine.setTrackAnalysis(null)
-    }
+    publishAuthoritativeTrackState(
+      track,
+      track.analysisRuntime.status === 'complete' ? track.analysisRuntime.analysis : null,
+    )
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, currentTrackId, currentAnalysisStatus])
 
@@ -906,17 +938,17 @@ export function useAudioEngine(): AudioEngine {
   tracksRef.current       = tracks
   currentIndexRef.current = currentIndex
   ensureContextRef.current = ensureContext
-  dispatchRef.current.runtime  = (trackId, patch) => {
-    setTracks(prev => prev.map(t =>
-      t.id === trackId ? { ...t, analysisRuntime: { ...t.analysisRuntime, ...patch } } : t
-    ))
-  }
+  dispatchRef.current.runtime = (trackId, patch) => updateTrackRuntime(trackId, patch)
   dispatchRef.current.duration = (trackId, dur) => {
-    setTracks(prev => prev.map(t => t.id === trackId ? { ...t, duration: dur } : t))
+    const nextTracks = tracksRef.current.map(track => track.id === trackId ? { ...track, duration: dur } : track)
+    tracksRef.current = nextTracks
+    setTracks(nextTracks)
   }
-  dispatchRef.current.engine   = (analysis, trackId) => {
+  dispatchRef.current.engine = (analysis, trackId) => {
+    const track = tracksRef.current.find(candidate => candidate.id === trackId)
+    if (!track || !dispatchRef.current.isActive(trackId)) return
     musicIntelligenceEngine.setSourceId(trackId, trackId)
-    musicIntelligenceEngine.setTrackAnalysis(analysis)
+    publishAuthoritativeTrackState(track, analysis)
   }
   dispatchRef.current.isActive = (trackId) =>
     tracksRef.current[currentIndexRef.current]?.id === trackId
@@ -1107,13 +1139,17 @@ export function useAudioEngine(): AudioEngine {
     currentEffectiveBpm = 120
     currentBpmSource    = 'live_analysis'
   } else if (source === 'file' && currentTrack) {
-    const { bpmOverride, bpmOverrideSource, analysis } = currentTrack.analysisRuntime
-    if (bpmOverride !== null && bpmOverrideSource !== null) {
+    const { bpmOverride, bpmOverrideSource, analysis, gridStale } = currentTrack.analysisRuntime
+    if (gridStale && analysis !== null) {
+      currentEffectiveBpm = analysis.bpmUsedForGrid ?? analysis.bpm
+      currentBpmSource = 'offline_analysis'
+      currentBpmConfidence = analysis.bpmConfidence
+    } else if (bpmOverride !== null && bpmOverrideSource !== null) {
       currentEffectiveBpm  = bpmOverride
       currentBpmSource     = bpmOverrideSource
       currentBpmConfidence = analysis?.bpmConfidence ?? null
     } else if (analysis !== null) {
-      currentEffectiveBpm  = analysis.bpm
+      currentEffectiveBpm  = analysis.bpmUsedForGrid ?? analysis.bpm
       currentBpmSource     = currentTrack.externalMetadata?.source?.startsWith('rekordbox') && currentTrack.externalMetadata.bpm != null
         ? 'rekordbox'
         : 'offline_analysis'
@@ -1146,6 +1182,10 @@ export function useAudioEngine(): AudioEngine {
     const analysis   = runtime.analysis
     const trackId    = currentTrack.id
     const hasOverride = runtime.bpmOverride !== null
+
+    // Keep the previous complete analysis snapshot live while BPM/grid work is pending.
+    // The reanalysis commit publishes grid, sections, phrases, and moments together.
+    if (runtime.gridStale) return
 
     if (currentEffectiveBpm === null || currentEffectiveBpm <= 0) {
       musicIntelligenceEngine.setBpm(0, 0)
@@ -1198,7 +1238,7 @@ export function useAudioEngine(): AudioEngine {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, currentEffectiveBpm, currentBpmConfidence, currentTrackId,
-      currentTrack?.analysisRuntime.bpmOverride, currentTrack?.duration,
+      currentTrack?.analysisRuntime.bpmOverride, currentTrack?.analysisRuntime.gridStale, currentTrack?.duration,
       currentAnalysisStatus])
 
   const currentKey = currentAnalysis?.harmonic.dominantKey
