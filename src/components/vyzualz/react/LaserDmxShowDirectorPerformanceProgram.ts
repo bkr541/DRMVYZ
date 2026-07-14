@@ -49,6 +49,10 @@ import {
   createCrimsonApexProtocolProgram,
   createSpectralRibbonSingularityProgram,
 } from './LaserDmxShowDirectorDualReferencePerformancePresets'
+import {
+  createScarletOrigamiLatticeProgram,
+  createVioletHourglassOrbitProgram,
+} from './LaserDmxShowDirectorFinalReferencePerformancePresets'
 
 
 export type LaserDmxShowDirectorPerformanceSectionType = ReactSectionType
@@ -486,6 +490,8 @@ export type LaserDmxShowDirectorBuiltInPerformanceProgramId =
   | 'prismatic-pulse-matrix'
   | 'spectral-ribbon-singularity'
   | 'crimson-apex-protocol'
+  | 'violet-hourglass-orbit'
+  | 'scarlet-origami-lattice'
 
 export interface LaserDmxShowDirectorBuiltInPerformanceRegistryEntry {
   id: LaserDmxShowDirectorBuiltInPerformanceProgramId
@@ -531,6 +537,8 @@ export const LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY: Readonly<Rec
   'prismatic-pulse-matrix': Object.freeze({ id: 'prismatic-pulse-matrix', name: 'Prismatic Pulse Matrix', status: 'available', program: createPrismaticPulseMatrixProgram() }),
   'spectral-ribbon-singularity': Object.freeze({ id: 'spectral-ribbon-singularity', name: 'Spectral Ribbon Singularity', status: 'available', program: createSpectralRibbonSingularityProgram() }),
   'crimson-apex-protocol': Object.freeze({ id: 'crimson-apex-protocol', name: 'Crimson Apex Protocol', status: 'available', program: createCrimsonApexProtocolProgram() }),
+  'violet-hourglass-orbit': Object.freeze({ id: 'violet-hourglass-orbit', name: 'Violet Hourglass Orbit', status: 'available', program: createVioletHourglassOrbitProgram() }),
+  'scarlet-origami-lattice': Object.freeze({ id: 'scarlet-origami-lattice', name: 'Scarlet Origami Lattice', status: 'available', program: createScarletOrigamiLatticeProgram() }),
 })
 
 export interface LaserDmxShowDirectorPerformanceState {

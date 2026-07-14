@@ -100,7 +100,7 @@ describe('rig-backed Performance Show architecture foundation', () => {
     expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'available')).toHaveLength(7)
     expect(Object.values(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS).filter(item => item.status === 'foundation')).toHaveLength(0)
     expect(LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS).toHaveLength(7)
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(18)
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(20)
     expect(LASER_DMX_SHOW_DIRECTOR_TEMPLATES).toHaveLength(7)
   })
 
@@ -204,6 +204,7 @@ describe('rig-backed Performance Show architecture foundation', () => {
       'vocal-eclipse-exchange', 'emerald-tunnel-relay', 'white-vector-interlock',
       'aurora-canopy-drift', 'chromatic-chapter-stage', 'prismatic-pulse-matrix',
       'spectral-ribbon-singularity', 'crimson-apex-protocol',
+      'violet-hourglass-orbit', 'scarlet-origami-lattice',
     ])
     for (const entry of available) {
       const before = JSON.stringify(entry.program)

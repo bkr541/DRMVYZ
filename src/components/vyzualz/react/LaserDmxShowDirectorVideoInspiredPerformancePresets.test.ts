@@ -28,6 +28,8 @@ const IDS = [
   'prismatic-pulse-matrix',
   'spectral-ribbon-singularity',
   'crimson-apex-protocol',
+  'violet-hourglass-orbit',
+  'scarlet-origami-lattice',
 ] as const
 
 const SECTIONS: ReactTrackSection[] = [
@@ -185,7 +187,7 @@ function geometrySignature(result: ReturnType<typeof resolve>): string {
 }
 
 describe('video-inspired Show Director performance presets', () => {
-  it('registers all eight reference-authored presets with stable rigs and complete full-song programs', () => {
+  it('registers all ten reference-authored presets with stable rigs and complete full-song programs', () => {
     expect(IDS.map(id => preset(id).name)).toEqual([
       'Vocal Eclipse Exchange',
       'Emerald Tunnel Relay',
@@ -195,6 +197,8 @@ describe('video-inspired Show Director performance presets', () => {
       'Prismatic Pulse Matrix',
       'Spectral Ribbon Singularity',
       'Crimson Apex Protocol',
+      'Violet Hourglass Orbit',
+      'Scarlet Origami Lattice',
     ])
 
     for (const id of IDS) {
@@ -286,6 +290,38 @@ describe('video-inspired Show Director performance presets', () => {
     expect(activeKeys(whiteEdge).filter(key => key.includes('apex-head')).length).toBeGreaterThanOrEqual(3)
     expect(sparseSpine.showDirector.fixtures.find(fixture => fixture.semanticKey === 'apex-laser-side-l')?.color).toBe('#78001f')
     expect(geometrySignature(sparseSpine)).not.toBe(geometrySignature(pyramid))
+  })
+
+  it('runs Violet Hourglass Orbit as a sixteen-beat center-point geometry relay with a sparse breath and red-white close', () => {
+    const signatures = Array.from({ length: 16 }, (_, beatOffset) => geometrySignature(resolve(
+      'violet-hourglass-orbit',
+      80 + beatOffset * 0.5 + 0.02,
+    )))
+    expect(new Set(signatures).size).toBeGreaterThanOrEqual(11)
+
+    const cyanStar = resolve('violet-hourglass-orbit', 80.02)
+    const sparseBeacon = resolve('violet-hourglass-orbit', 83.52)
+    const whiteWireFan = resolve('violet-hourglass-orbit', 84.02)
+    expect(activeKeys(cyanStar).filter(key => key.includes('hourglass')).length).toBeGreaterThanOrEqual(6)
+    expect(activeKeys(sparseBeacon)).toEqual(expect.arrayContaining(['hourglass-laser-center', 'hourglass-head-center']))
+    expect(activeKeys(whiteWireFan).filter(key => key.includes('hourglass-head')).length).toBeGreaterThanOrEqual(3)
+    expect(geometrySignature(cyanStar)).not.toBe(geometrySignature(sparseBeacon))
+  })
+
+  it('runs Scarlet Origami Lattice as a sixteen-beat red-fill and white-wire alternation', () => {
+    const signatures = Array.from({ length: 16 }, (_, beatOffset) => geometrySignature(resolve(
+      'scarlet-origami-lattice',
+      80 + beatOffset * 0.5 + 0.02,
+    )))
+    expect(new Set(signatures).size).toBeGreaterThanOrEqual(11)
+
+    const triFold = resolve('scarlet-origami-lattice', 81.02)
+    const whiteLattice = resolve('scarlet-origami-lattice', 83.52)
+    const redWireWeb = resolve('scarlet-origami-lattice', 84.02)
+    expect(triFold.showDirector.fixtures.find(fixture => fixture.semanticKey === 'origami-laser-center-l')?.color).toBe('#ff174d')
+    expect(activeKeys(whiteLattice).filter(key => key.includes('origami-head')).length).toBeGreaterThanOrEqual(3)
+    expect(redWireWeb.showDirector.fixtures.find(fixture => fixture.semanticKey === 'origami-laser-side-l')?.color).toBe('#d90838')
+    expect(geometrySignature(whiteLattice)).not.toBe(geometrySignature(redWireWeb))
   })
 
   it('uses mixed fixtures as scene language in Chromatic Chapter Stage', () => {

@@ -162,7 +162,7 @@ describe('Show Director performance-program foundation', () => {
     }
   })
 
-  it('keeps all eighteen finished programs available in the canonical registry', () => {
+  it('keeps all twenty finished programs available in the canonical registry', () => {
     const entries = Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)
     const available = entries.filter(entry => entry.status === 'available')
     const foundations = entries.filter(entry => entry.status === 'foundation')
@@ -185,6 +185,8 @@ describe('Show Director performance-program foundation', () => {
       'Prismatic Pulse Matrix',
       'Spectral Ribbon Singularity',
       'Crimson Apex Protocol',
+      'Violet Hourglass Orbit',
+      'Scarlet Origami Lattice',
     ])
     expect(available.map(entry => entry.program?.id)).toEqual([
       'prism-cathedral',
@@ -205,6 +207,8 @@ describe('Show Director performance-program foundation', () => {
       'prismatic-pulse-matrix',
       'spectral-ribbon-singularity',
       'crimson-apex-protocol',
+      'violet-hourglass-orbit',
+      'scarlet-origami-lattice',
     ])
     expect(foundations).toHaveLength(0)
   })
