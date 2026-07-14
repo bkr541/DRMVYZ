@@ -26,6 +26,8 @@ const IDS = [
   'aurora-canopy-drift',
   'chromatic-chapter-stage',
   'prismatic-pulse-matrix',
+  'spectral-ribbon-singularity',
+  'crimson-apex-protocol',
 ] as const
 
 const SECTIONS: ReactTrackSection[] = [
@@ -183,7 +185,7 @@ function geometrySignature(result: ReturnType<typeof resolve>): string {
 }
 
 describe('video-inspired Show Director performance presets', () => {
-  it('registers all six authored presets with stable rigs and complete full-song programs', () => {
+  it('registers all eight reference-authored presets with stable rigs and complete full-song programs', () => {
     expect(IDS.map(id => preset(id).name)).toEqual([
       'Vocal Eclipse Exchange',
       'Emerald Tunnel Relay',
@@ -191,6 +193,8 @@ describe('video-inspired Show Director performance presets', () => {
       'Aurora Canopy Drift',
       'Chromatic Chapter Stage',
       'Prismatic Pulse Matrix',
+      'Spectral Ribbon Singularity',
+      'Crimson Apex Protocol',
     ])
 
     for (const id of IDS) {
@@ -252,6 +256,36 @@ describe('video-inspired Show Director performance presets', () => {
     expect(geometrySignature(sparseReset)).not.toBe(geometrySignature(cyanDownbeat))
     expect(sparseReset.showDirector.fixtures.find(fixture => fixture.semanticKey === 'matrix-laser-side-l')?.color).toBe('#ff243f')
     expect(activeKeys(whiteFan).filter(key => key.includes('head')).length).toBeGreaterThanOrEqual(3)
+  })
+
+
+  it('alternates Spectral Ribbon Singularity between sparse beacon breaths and wide chromatic ribbon sculptures', () => {
+    const beacon = resolve('spectral-ribbon-singularity', 82.52)
+    const cyanSail = resolve('spectral-ribbon-singularity', 80.52)
+    const whiteRibbon = resolve('spectral-ribbon-singularity', 84.52)
+    const beaconKeys = activeKeys(beacon)
+    expect(beaconKeys).toEqual(expect.arrayContaining(['ribbon-laser-center', 'ribbon-head-center']))
+    expect(geometrySignature(beacon)).not.toBe(geometrySignature(cyanSail))
+    expect(beacon.showDirector.fixtures.find(fixture => fixture.semanticKey === 'ribbon-laser-center')?.brightness)
+      .toBeGreaterThan(beacon.showDirector.fixtures.find(fixture => fixture.semanticKey === 'ribbon-laser-top-l-outer')?.brightness ?? 0)
+    expect(activeKeys(whiteRibbon).filter(key => key.includes('ribbon-head')).length).toBeGreaterThanOrEqual(3)
+    expect(geometrySignature(cyanSail)).not.toBe(geometrySignature(whiteRibbon))
+  })
+
+  it('runs Crimson Apex Protocol as an eight-beat red-and-white architectural relay', () => {
+    const signatures = Array.from({ length: 8 }, (_, beatOffset) => geometrySignature(resolve(
+      'crimson-apex-protocol',
+      80 + beatOffset * 0.5 + 0.02,
+    )))
+    expect(new Set(signatures).size).toBeGreaterThanOrEqual(6)
+
+    const pyramid = resolve('crimson-apex-protocol', 80.02)
+    const whiteEdge = resolve('crimson-apex-protocol', 81.02)
+    const sparseSpine = resolve('crimson-apex-protocol', 83.02)
+    expect(pyramid.showDirector.fixtures.find(fixture => fixture.semanticKey === 'apex-laser-center-l')?.color).toBe('#ff174d')
+    expect(activeKeys(whiteEdge).filter(key => key.includes('apex-head')).length).toBeGreaterThanOrEqual(3)
+    expect(sparseSpine.showDirector.fixtures.find(fixture => fixture.semanticKey === 'apex-laser-side-l')?.color).toBe('#78001f')
+    expect(geometrySignature(sparseSpine)).not.toBe(geometrySignature(pyramid))
   })
 
   it('uses mixed fixtures as scene language in Chromatic Chapter Stage', () => {

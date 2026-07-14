@@ -162,7 +162,7 @@ describe('Show Director performance-program foundation', () => {
     }
   })
 
-  it('keeps all sixteen finished programs available in the canonical registry', () => {
+  it('keeps all eighteen finished programs available in the canonical registry', () => {
     const entries = Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)
     const available = entries.filter(entry => entry.status === 'available')
     const foundations = entries.filter(entry => entry.status === 'foundation')
@@ -183,6 +183,8 @@ describe('Show Director performance-program foundation', () => {
       'Aurora Canopy Drift',
       'Chromatic Chapter Stage',
       'Prismatic Pulse Matrix',
+      'Spectral Ribbon Singularity',
+      'Crimson Apex Protocol',
     ])
     expect(available.map(entry => entry.program?.id)).toEqual([
       'prism-cathedral',
@@ -201,6 +203,8 @@ describe('Show Director performance-program foundation', () => {
       'aurora-canopy-drift',
       'chromatic-chapter-stage',
       'prismatic-pulse-matrix',
+      'spectral-ribbon-singularity',
+      'crimson-apex-protocol',
     ])
     expect(foundations).toHaveLength(0)
   })

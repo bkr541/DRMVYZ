@@ -45,6 +45,10 @@ import {
   createWhiteVectorInterlockProgram,
 } from './LaserDmxShowDirectorVideoInspiredPerformancePresets'
 import { createPrismaticPulseMatrixProgram } from './LaserDmxShowDirectorPrismaticPulseMatrixPerformancePreset'
+import {
+  createCrimsonApexProtocolProgram,
+  createSpectralRibbonSingularityProgram,
+} from './LaserDmxShowDirectorDualReferencePerformancePresets'
 
 
 export type LaserDmxShowDirectorPerformanceSectionType = ReactSectionType
@@ -480,6 +484,8 @@ export type LaserDmxShowDirectorBuiltInPerformanceProgramId =
   | 'aurora-canopy-drift'
   | 'chromatic-chapter-stage'
   | 'prismatic-pulse-matrix'
+  | 'spectral-ribbon-singularity'
+  | 'crimson-apex-protocol'
 
 export interface LaserDmxShowDirectorBuiltInPerformanceRegistryEntry {
   id: LaserDmxShowDirectorBuiltInPerformanceProgramId
@@ -523,6 +529,8 @@ export const LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY: Readonly<Rec
   'aurora-canopy-drift': Object.freeze({ id: 'aurora-canopy-drift', name: 'Aurora Canopy Drift', status: 'available', program: createAuroraCanopyDriftProgram() }),
   'chromatic-chapter-stage': Object.freeze({ id: 'chromatic-chapter-stage', name: 'Chromatic Chapter Stage', status: 'available', program: createChromaticChapterStageProgram() }),
   'prismatic-pulse-matrix': Object.freeze({ id: 'prismatic-pulse-matrix', name: 'Prismatic Pulse Matrix', status: 'available', program: createPrismaticPulseMatrixProgram() }),
+  'spectral-ribbon-singularity': Object.freeze({ id: 'spectral-ribbon-singularity', name: 'Spectral Ribbon Singularity', status: 'available', program: createSpectralRibbonSingularityProgram() }),
+  'crimson-apex-protocol': Object.freeze({ id: 'crimson-apex-protocol', name: 'Crimson Apex Protocol', status: 'available', program: createCrimsonApexProtocolProgram() }),
 })
 
 export interface LaserDmxShowDirectorPerformanceState {
