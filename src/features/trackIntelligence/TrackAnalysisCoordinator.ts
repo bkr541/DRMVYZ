@@ -10,6 +10,7 @@ import {
   CURRENT_ANALYSIS_VERSION,
   isCurrentAnalysisVersion,
 } from '../musicIntelligence/analysisVersion'
+import { isUsableTrackAnalysis } from '../musicIntelligence/analysisValidation'
 
 // ── Schema version ────────────────────────────────────────────────────────────
 // Bump this string whenever the analysis schema changes incompatibly.
@@ -155,6 +156,7 @@ export interface CoordinatorDeps {
     buffer: AudioBuffer,
     seed?: RekordboxAnalysisSeed,
     onProgress?: (progress: AnalysisProgressInfo) => void,
+    signal?: AbortSignal,
   ) => Promise<TrackIntelligenceAnalysis>
   /** Look up a completed analysis in the persistent cache. Returns null on miss. */
   getCachedAnalysis: (key: string) => TrackIntelligenceAnalysis | null
@@ -332,7 +334,7 @@ export class TrackAnalysisCoordinator {
       } catch (err) {
         console.warn(`[TrackAnalysis] cache load failed — key=${analysisKey} trackId=${trackId}:`, err)
       }
-      if (cached && isCurrentAnalysisVersion(cached.analysisVersion)) {
+      if (cached && isUsableTrackAnalysis(cached) && isCurrentAnalysisVersion(cached.analysisVersion)) {
         if (this.isStale(trackId, generation)) return
 
         // Decode and cache the buffer so AudioEngine/Peaks can initialize.
@@ -351,7 +353,7 @@ export class TrackAnalysisCoordinator {
             try {
               buffer = await this.deps.decodeBuffer({ url: job.url, sourceFile: job.sourceFile, signal: ac.signal })
             } finally {
-              this.abortControllers.delete(trackId)
+              if (this.abortControllers.get(trackId) === ac) this.abortControllers.delete(trackId)
             }
             this.bufferCache.set(trackId, buffer)
           }
@@ -411,7 +413,7 @@ export class TrackAnalysisCoordinator {
             signal:     ac.signal,
           })
         } finally {
-          this.abortControllers.delete(trackId)
+          if (this.abortControllers.get(trackId) === ac) this.abortControllers.delete(trackId)
         }
         this.bufferCache.set(trackId, buffer)
       }
@@ -441,6 +443,8 @@ export class TrackAnalysisCoordinator {
     })
 
     let analysis: TrackIntelligenceAnalysis
+    const analysisController = new AbortController()
+    this.abortControllers.set(trackId, analysisController)
     try {
       analysis = await this.deps.analyze(buffer, job.analysisSeed, progress => {
         if (this.isStale(trackId, generation)) return
@@ -449,9 +453,10 @@ export class TrackAnalysisCoordinator {
           analysisStage: progress.stage,
           analysisProgress: progress.progress,
         })
-      })
+      }, analysisController.signal)
     } catch (err) {
       if (this.isStale(trackId, generation)) return
+      if (err instanceof Error && err.name === 'AbortError') return
       const msg = err instanceof Error ? err.message : String(err)
       console.warn(`[TrackAnalysis] ${trackId}: analysis failed — ${msg}`)
       this.callbacks.onRuntimeUpdate(trackId, {
@@ -460,6 +465,10 @@ export class TrackAnalysisCoordinator {
         analysisStage: null,
       })
       return
+    } finally {
+      if (this.abortControllers.get(trackId) === analysisController) {
+        this.abortControllers.delete(trackId)
+      }
     }
 
     // ── 4. Final stale check then commit ────────────────────────────────────

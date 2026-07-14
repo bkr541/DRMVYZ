@@ -8,6 +8,7 @@ import { analyzeStructuralRegions } from './sectionAnalysis'
 import { detectSemanticMoments } from './semanticAnalysis'
 import { generateMusicalHierarchy } from './musicalHierarchyAnalysis'
 import { CURRENT_ANALYSIS_VERSION } from './analysisVersion'
+import { ANALYSIS_TUNING } from './analysisTuning'
 import {
   aggregateBarFeatures,
   buildBeatMarkers as buildMusicalBeatMarkers,
@@ -56,6 +57,8 @@ export interface TrackAnalysisOptions {
   seed?: TrackAnalysisSeed
   /** Optional stage-level progress reporting owned by the shared coordinator. */
   onProgress?: (progress: AnalysisProgressInfo) => void
+  /** Cancels CPU analysis as well as decode when a track is removed or replaced. */
+  signal?: AbortSignal
 }
 
 
@@ -309,6 +312,54 @@ function seedGridSource(seed: TrackAnalysisSeed | undefined): MusicalGridSource 
   return 'automatic'
 }
 
+
+function analysisAbortError(): Error {
+  const error = new Error('Loaded-audio analysis was cancelled.')
+  error.name = 'AbortError'
+  return error
+}
+
+function throwIfAnalysisAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw analysisAbortError()
+}
+
+async function cooperativeAnalysisYield(signal: AbortSignal | undefined): Promise<void> {
+  await new Promise<void>(resolve => setTimeout(resolve, 0))
+  throwIfAnalysisAborted(signal)
+}
+
+async function mixDownToMono(
+  audioBuffer: AudioBuffer,
+  signal: AbortSignal | undefined,
+): Promise<{ samples: Float32Array; cooperativeYieldCount: number }> {
+  const length = Math.max(0, audioBuffer.length)
+  const channelCount = Math.max(0, audioBuffer.numberOfChannels)
+  if (length === 0 || channelCount === 0) {
+    return { samples: new Float32Array(0), cooperativeYieldCount: 0 }
+  }
+  if (channelCount === 1) {
+    return { samples: audioBuffer.getChannelData(0), cooperativeYieldCount: 0 }
+  }
+
+  const channels = Array.from({ length: channelCount }, (_, channel) => audioBuffer.getChannelData(channel))
+  const samples = new Float32Array(length)
+  const chunkSize = ANALYSIS_TUNING.performance.cooperativeYieldEveryMixSamples
+  let cooperativeYieldCount = 0
+  for (let start = 0; start < length; start += chunkSize) {
+    const end = Math.min(length, start + chunkSize)
+    for (let index = start; index < end; index++) {
+      let sum = 0
+      for (const channel of channels) sum += channel[index] ?? 0
+      samples[index] = sum / channelCount
+    }
+    if (end < length) {
+      cooperativeYieldCount++
+      await cooperativeAnalysisYield(signal)
+    }
+  }
+  return { samples, cooperativeYieldCount }
+}
+
 function progressReporter(options: TrackAnalysisOptions): (progress: AnalysisProgressInfo) => void {
   return progress => options.onProgress?.({
     ...progress,
@@ -330,6 +381,8 @@ export async function analyzeTrackBuffer(
     seed,
   } = options
   const report = progressReporter(options)
+  const signal = options.signal
+  throwIfAnalysisAborted(signal)
 
   const sampleRate  = audioBuffer.sampleRate
   const durationSec = Math.max(0, audioBuffer.duration)
@@ -340,14 +393,9 @@ export async function analyzeTrackBuffer(
   // buffer and performs one shared feature pass reused by every later stage.
   report({ stage: 'extracting_features', progress: 0.08 })
 
-  const monoData = new Float32Array(audioBuffer.length)
-  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const channelData = audioBuffer.getChannelData(channel)
-    for (let index = 0; index < monoData.length; index++) monoData[index] += channelData[index] ?? 0
-  }
-  if (audioBuffer.numberOfChannels > 1) {
-    for (let index = 0; index < monoData.length; index++) monoData[index] /= audioBuffer.numberOfChannels
-  }
+  const mixdown = await mixDownToMono(audioBuffer, signal)
+  const monoData = mixdown.samples
+  let cooperativeYieldCount = mixdown.cooperativeYieldCount
 
   const instantPoints:  FeatureCurvePoint[] = []
   const shortTermPts:   FeatureCurvePoint[] = []
@@ -380,6 +428,12 @@ export async function analyzeTrackBuffer(
     ? Math.floor((monoData.length - fftSize) / hopSize) + 1
     : 0
   const progressStride = Math.max(1, Math.floor(totalFrames / 4))
+  const featureCaptureStride = Math.max(1, Math.round(
+    ANALYSIS_TUNING.performance.featurePointIntervalSec * sampleRate / hopSize,
+  ))
+  const chromaCaptureStride = Math.max(1, Math.round(
+    ANALYSIS_TUNING.performance.chromaFrameIntervalSec * sampleRate / hopSize,
+  ))
 
   for (let frame = 0; frame < totalFrames; frame++) {
     const sampleOffset = frame * hopSize
@@ -404,19 +458,33 @@ export async function analyzeTrackBuffer(
 
     shortTermEma = EMA_ALPHA * energy + (1 - EMA_ALPHA) * shortTermEma
 
-    instantPoints.push({ timeSec, value: energy })
-    shortTermPts.push({ timeSec, value: shortTermEma })
-    bassPoints.push({ timeSec, value: bass })
-    midPoints.push({ timeSec, value: mid })
-    highPoints.push({ timeSec, value: high })
-    centroidPoints.push({ timeSec, value: centroid })
-    fluxPoints.push({ timeSec, value: flux })
-    complexityPts.push({ timeSec, value: complexity })
-    transientPts.push({ timeSec, value: transient })
-    lowOnsetPts.push({ timeSec, value: lowOnset })
-    midOnsetPts.push({ timeSec, value: midOnset })
-    highOnsetPts.push({ timeSec, value: highOnset })
-    rmsPoints.push({ timeSec, value: rms })
+    const captureFeaturePoint = frame % featureCaptureStride === 0 || frame === totalFrames - 1
+    if (captureFeaturePoint) {
+      instantPoints.push({ timeSec, value: energy })
+      shortTermPts.push({ timeSec, value: shortTermEma })
+      bassPoints.push({ timeSec, value: bass })
+      midPoints.push({ timeSec, value: mid })
+      highPoints.push({ timeSec, value: high })
+      centroidPoints.push({ timeSec, value: centroid })
+      fluxPoints.push({ timeSec, value: flux })
+      complexityPts.push({ timeSec, value: complexity })
+      transientPts.push({ timeSec, value: transient })
+      lowOnsetPts.push({ timeSec, value: lowOnset })
+      midOnsetPts.push({ timeSec, value: midOnset })
+      highOnsetPts.push({ timeSec, value: highOnset })
+      rmsPoints.push({ timeSec, value: rms })
+
+      const window = monoData.subarray(sampleOffset, sampleOffset + fftSize)
+      try {
+        const [pitch, clarity] = pitchDetector.findPitch(window, sampleRate)
+        pitchPoints.push({
+          timeSec,
+          value: clarity > 0.85 && pitch > 50 && pitch < 2000 ? pitch : 0,
+        })
+      } catch {
+        pitchPoints.push({ timeSec, value: 0 })
+      }
+    }
 
     const frameChroma = accumulateChroma(
       mags,
@@ -424,20 +492,9 @@ export async function analyzeTrackBuffer(
       sampleRate,
       fftSize,
       CHROMA_DECAY,
-      frame % 2 === 0,
+      frame % chromaCaptureStride === 0 || frame === totalFrames - 1,
     )
     if (frameChroma) chromaFrames.push({ timeSec, values: frameChroma })
-
-    const window = monoData.subarray(sampleOffset, sampleOffset + fftSize)
-    try {
-      const [pitch, clarity] = pitchDetector.findPitch(window, sampleRate)
-      pitchPoints.push({
-        timeSec,
-        value: clarity > 0.85 && pitch > 50 && pitch < 2000 ? pitch : 0,
-      })
-    } catch {
-      pitchPoints.push({ timeSec, value: 0 })
-    }
 
     prevMags = mags
     prevBass = bass
@@ -450,7 +507,13 @@ export async function analyzeTrackBuffer(
         progress: 0.08 + 0.30 * (frame / Math.max(1, totalFrames)),
       })
     }
+    if (frame > 0 && frame % ANALYSIS_TUNING.performance.cooperativeYieldEveryFrames === 0) {
+      cooperativeYieldCount++
+      await cooperativeAnalysisYield(signal)
+    }
   }
+
+  throwIfAnalysisAborted(signal)
 
   const normInstant  = normalizeCurve(instantPoints)
   const normBass     = normalizeCurve(bassPoints)
@@ -565,6 +628,7 @@ export async function analyzeTrackBuffer(
     })
   }
 
+  throwIfAnalysisAborted(signal)
   report({ stage: 'resolving_musical_grid', progress: 0.55 })
   const gridSource = seedGridSource(seed)
   const gridResolution = resolveMusicalGrid({
@@ -624,6 +688,7 @@ export async function analyzeTrackBuffer(
   // Structural analysis consumes the resolved grid-derived bar features.
   // Bar-aware self-similarity is primary; the deterministic time-domain detector
   // remains available only as an explicitly marked low-confidence fallback.
+  throwIfAnalysisAborted(signal)
   report({ stage: 'structural_analysis', progress: 0.76 })
   const structuralResult = analyzeStructuralRegions(
     { instant: normInstant, bass: normBass, mid: normMid, high: normHigh },
@@ -715,6 +780,10 @@ export async function analyzeTrackBuffer(
     analysisWarnings: typedWarnings,
     analysisDiagnostics: {
       featureFrameCount: totalFrames,
+      featureExtractionPassCount: 1,
+      retainedFeaturePointCount: instantPoints.length,
+      retainedChromaFrameCount: chromaFrames.length,
+      cooperativeYieldCount,
       beatCount: gridResolution.beatGrid.length,
       downbeatCount: gridResolution.downbeats.length,
       barCount: gridResolution.bars.length,
@@ -747,6 +816,7 @@ export async function analyzeTrackBuffer(
     lastReanalysisMode: 'full',
   }
 
+  throwIfAnalysisAborted(signal)
   const semanticMoments = detectSemanticMoments(partialAnalysis)
   const result = {
     ...partialAnalysis,

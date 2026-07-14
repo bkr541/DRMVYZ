@@ -809,7 +809,7 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
             beamSpread: clamp(fixture.beam.beamSpread + 4 + 12 * stagePressure, 0, 180),
           },
           runtimeBeamTravel: fixture.runtimeBeamTravel
-            ? { ...fixture.runtimeBeamTravel, direction: direction > 0 ? 'forward' : 'reverse' }
+            ? { ...fixture.runtimeBeamTravel, direction: 'forward' as const }
             : fixture.runtimeBeamTravel,
         }
       }),

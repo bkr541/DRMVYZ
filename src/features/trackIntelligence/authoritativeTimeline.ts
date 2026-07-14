@@ -155,7 +155,7 @@ export function resolveAuthoritativeTimeline(input: AuthoritativeTimelineInput):
     .filter(section => {
       const authority = authorityFor(section)
       const originalId = section.provenance?.originalId ?? section.id
-      if (authority === 'automatic' && suppressed.has(originalId)) return false
+      if ((authority === 'automatic' || authority === 'manual_replacement') && suppressed.has(originalId)) return false
       if (authority === 'automatic' && replacementIds.has(originalId)) return false
       return true
     })

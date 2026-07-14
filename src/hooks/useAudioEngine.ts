@@ -970,7 +970,7 @@ export function useAudioEngine(): AudioEngine {
           const ab = await resp.arrayBuffer()
           return ctx.decodeAudioData(ab)
         },
-        analyze: (buffer, seed, onProgress) => analyzeTrackBuffer(buffer, { seed, onProgress }),
+        analyze: (buffer, seed, onProgress, signal) => analyzeTrackBuffer(buffer, { seed, onProgress, signal }),
         getCachedAnalysis:  (key) => useTrackAnalysisStore.getState().getTrackAnalysis(key),
         saveCachedAnalysis: (key, analysis) =>
           useTrackAnalysisStore.getState().saveTrackAnalysis(key, analysis),

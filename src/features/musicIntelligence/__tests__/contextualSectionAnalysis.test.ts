@@ -330,4 +330,91 @@ describe('contextual section classification', () => {
       expect(first.sections[index]?.startSec).toBe(first.sections[index - 1]?.endSec)
     }
   })
+
+  it('does not pull a Build backward across a small production change in stable Verse material', () => {
+    const bars: BarMusicalFeatures[] = []
+    append(bars, VERSE, 8)
+    append(bars, { ...VERSE, energy: 0.51, transient: 0.46, flux: 0.38 }, 4)
+    appendBuild(bars, 8)
+    append(bars, DROP, 8)
+
+    const result = analyze(bars, [8, 12, 20])
+    const build = sectionOfType(result, 'build')
+
+    expect(build?.interpretation?.startBar).toBe(12)
+    expect(build?.interpretation?.durationBars).toBe(8)
+  })
+
+  it('accepts a real Drop without inventing a conventional Build', () => {
+    const bars: BarMusicalFeatures[] = []
+    append(bars, VERSE, 8)
+    append(bars, DROP, 8)
+
+    const result = analyze(bars, [8])
+    const drop = sectionOfType(result, 'drop')
+
+    expect(drop?.interpretation?.startBar).toBe(8)
+    expect(result.sections.some(section => section.type === 'build')).toBe(false)
+  })
+
+  it('keeps a one-bar fakeout distinct from the later stable Drop anchor', () => {
+    const bars: BarMusicalFeatures[] = []
+    append(bars, VERSE, 8)
+    appendBuild(bars, 4)
+    append(bars, { ...DROP, energy: 0.78, bass: 0.72, transient: 0.76 }, 1)
+    append(bars, PRE_DROP, 3)
+    append(bars, DROP, 8)
+
+    const result = analyze(bars, [8, 12, 13, 16])
+    const drops = result.sections.filter(section => section.type === 'drop')
+
+    expect(drops.some(section => section.interpretation?.startBar === 16)).toBe(true)
+    expect(drops.some(section => section.interpretation?.startBar === 12)).toBe(false)
+  })
+
+  it.each([
+    ['melodic dubstep', [QUIET, VERSE], 8, 8, true],
+    ['heavy dubstep', [VERSE], 8, 4, true],
+    ['hybrid trap', [VERSE], 8, 8, true],
+    ['drum and bass', [{ ...VERSE, transient: 0.72, highOnset: 0.78 }], 16, 8, true],
+    ['house', [{ ...VERSE, energy: 0.58, transient: 0.62 }], 16, 8, true],
+    ['hip-hop', [{ ...VERSE, energy: 0.52, transient: 0.32 }], 24, 0, false],
+    ['pop', [{ ...VERSE, harmonicChange: 0.32 }], 16, 4, true],
+    ['ambient/free-time intro', [{ ...QUIET, transient: 0.03, silence: 0.24 }], 16, 0, false],
+    ['sparse percussion', [{ ...VERSE, transient: 0.08, lowOnset: 0.05, highOnset: 0.04 }], 16, 0, false],
+  ] as const)('remains deterministic and gap-free for %s structure', (_genre, openingProfiles, stableBars, buildBars, includeDrop) => {
+    const bars: BarMusicalFeatures[] = []
+    for (const profile of openingProfiles) append(bars, profile, 4)
+    append(bars, openingProfiles[openingProfiles.length - 1]!, stableBars)
+    if (buildBars > 0) appendBuild(bars, buildBars)
+    if (includeDrop) append(bars, DROP, 8)
+    append(bars, QUIET, 8)
+
+    const cuts = [4, openingProfiles.length * 4, openingProfiles.length * 4 + stableBars]
+    if (buildBars > 0) cuts.push(openingProfiles.length * 4 + stableBars + buildBars)
+    const first = analyze(bars, cuts)
+    const second = analyze(bars, cuts)
+
+    expect(second).toEqual(first)
+    expect(first.sections[0]?.startSec).toBe(0)
+    expect(first.sections[first.sections.length - 1]?.endSec).toBe(bars.length * 2)
+    for (let index = 1; index < first.sections.length; index++) {
+      expect(first.sections[index]?.startSec).toBe(first.sections[index - 1]?.endSec)
+    }
+    if (!includeDrop) expect(first.sections.every(section => section.type !== 'drop')).toBe(true)
+  })
+
+  it('resolves a long release tail as an Outro rather than extending the Drop indefinitely', () => {
+    const bars: BarMusicalFeatures[] = []
+    append(bars, VERSE, 8)
+    appendBuild(bars, 8)
+    append(bars, DROP, 8)
+    append(bars, QUIET, 20)
+
+    const result = analyze(bars, [8, 16, 24, 32])
+
+    expect(result.sections[result.sections.length - 1]?.type).toBe('outro')
+    expect(result.sections[result.sections.length - 1]?.interpretation?.durationBars).toBeGreaterThanOrEqual(12)
+  })
+
 })

@@ -305,7 +305,8 @@ describe('resolveTrackSections — suppressedIds', () => {
       durationSec:      120,
       suppressedIds:    ['auto-a'],
     })
-    expect(resolved).toHaveLength(0)
+    expect(resolved).toHaveLength(1)
+    expect(resolved[0]).toMatchObject({ source: 'fallback', type: 'unknown', startSec: 0, endSec: 120 })
   })
 
   it('empty suppressedIds behaves the same as omitting the parameter', () => {
@@ -417,8 +418,9 @@ describe('commitAutomaticSectionOverride', () => {
       durationSec: 120,
     })
 
-    expect(resolved).toHaveLength(1)
-    expect(resolved[0].startSec).toBe(25)  // override wins
-    expect(resolved[0].source).toBe('user-edited-auto')
+    const replacement = resolved.find(section => section.source === 'user-edited-auto')
+    expect(replacement?.startSec).toBe(25)  // override wins
+    expect(replacement?.endSec).toBe(60)
+    expect(resolved.filter(section => section.source === 'fallback')).toHaveLength(2)
   })
 })

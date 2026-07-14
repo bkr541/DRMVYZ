@@ -17,6 +17,8 @@ import type {
   SemanticMomentMarker,
 } from './types'
 import { isCurrentAnalysisVersion } from './analysisVersion'
+import { ANALYSIS_TUNING } from './analysisTuning'
+import { isUsableTrackAnalysis } from './analysisValidation'
 
 /** The subset of TrackIntelligenceAnalysis fields that a grid rebuild may replace. */
 export interface AnalysisGridPatch {
@@ -35,11 +37,13 @@ export interface AnalysisGridPatch {
   gridStale:          false
 }
 
-const MAX_STORED_PHRASES = 192
-const MAX_STORED_SEMANTIC_MOMENTS = 128
-const MAX_STORED_BOUNDARY_ALTERNATIVES = 24
-const MAX_STORED_BOUNDARY_CANDIDATES = 256
-const MAX_STORED_HIERARCHY_UNITS = 1536
+const {
+  maxStoredPhrases: MAX_STORED_PHRASES,
+  maxStoredSemanticMoments: MAX_STORED_SEMANTIC_MOMENTS,
+  maxStoredBoundaryAlternatives: MAX_STORED_BOUNDARY_ALTERNATIVES,
+  maxStoredBoundaryCandidates: MAX_STORED_BOUNDARY_CANDIDATES,
+  maxStoredHierarchyUnits: MAX_STORED_HIERARCHY_UNITS,
+} = ANALYSIS_TUNING.persistence
 
 export function boundTrackAnalysisForStorage(analysis: TrackIntelligenceAnalysis): TrackIntelligenceAnalysis {
   const structural = analysis.structuralSegmentation
@@ -73,7 +77,8 @@ export function boundTrackAnalysisForStorage(analysis: TrackIntelligenceAnalysis
   }
 }
 
-function migrateAnalysisRecord(analysis: TrackIntelligenceAnalysis): TrackIntelligenceAnalysis {
+function migrateAnalysisRecord(analysis: unknown): TrackIntelligenceAnalysis | null {
+  if (!isUsableTrackAnalysis(analysis)) return null
   const phrases = (analysis.phrases ?? []).map((phrase, index) => ({
     ...phrase,
     id: phrase.id ?? `phrase-legacy-${index}-${Math.round(phrase.timeSec * 1000)}`,
@@ -129,12 +134,21 @@ interface TrackAnalysisStorageState {
 
 export function migrateTrackAnalysisStorageState(persisted: unknown): Partial<TrackAnalysisStorageState> {
   const state = (persisted ?? {}) as Partial<TrackAnalysisStorageState>
-  const analyses = Object.fromEntries(
-    Object.entries(state.analyses ?? {}).map(([trackId, analysis]) => [trackId, migrateAnalysisRecord(analysis)]),
-  )
+  const analyses: Record<string, TrackIntelligenceAnalysis> = {}
   const statuses = { ...(state.statuses ?? {}) }
-  for (const [trackId, analysis] of Object.entries(analyses)) {
-    if (!isCurrentAnalysisVersion(analysis.analysisVersion)) statuses[trackId] = 'stale'
+  for (const [trackId, rawAnalysis] of Object.entries(state.analyses ?? {})) {
+    try {
+      const analysis = migrateAnalysisRecord(rawAnalysis)
+      if (!analysis) {
+        statuses[trackId] = 'stale'
+        continue
+      }
+      analyses[trackId] = analysis
+      if (!isCurrentAnalysisVersion(analysis.analysisVersion)) statuses[trackId] = 'stale'
+    } catch {
+      // A corrupt cache entry is quarantined instead of aborting store hydration.
+      statuses[trackId] = 'stale'
+    }
   }
   return { ...state, analyses, statuses }
 }
@@ -148,7 +162,8 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
       statuses: {},
 
       getTrackAnalysis(trackId) {
-        return get().analyses[trackId] ?? null
+        const analysis = get().analyses[trackId]
+        return isUsableTrackAnalysis(analysis) ? analysis : null
       },
 
       saveTrackAnalysis(trackId, analysis) {
@@ -218,7 +233,7 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
     }),
     {
       name: 'drmvyz:track-analyses',
-      version: 5,
+      version: 6,
       migrate: migrateTrackAnalysisStorageState,
       // Only persist the data — actions are recreated each hydration.
       partialize: s => ({ analyses: s.analyses, statuses: s.statuses }),

@@ -16,13 +16,14 @@ import type {
 } from './types'
 import type { ReactSectionType } from '../../components/vyzualz/react/ReactTypes'
 import { classifyContextualSections } from './contextualSectionAnalysis'
+import { ANALYSIS_TUNING } from './analysisTuning'
 
 const EPS = 1e-9
-const MAX_SELF_SIMILARITY_BARS = 512
-const MAX_PERSISTED_CANDIDATES = 96
-const MAX_ALTERNATIVE_CANDIDATES = 32
-const DEFAULT_MAX_SEGMENTS = 20
-const GRID_CONFIDENCE_THRESHOLD = 0.35
+const MAX_SELF_SIMILARITY_BARS = ANALYSIS_TUNING.performance.maxSelfSimilarityBars
+const MAX_PERSISTED_CANDIDATES = ANALYSIS_TUNING.structural.maxPersistedCandidates
+const MAX_ALTERNATIVE_CANDIDATES = ANALYSIS_TUNING.structural.maxAlternativeCandidates
+const DEFAULT_MAX_SEGMENTS = ANALYSIS_TUNING.structural.defaultMaxSegments
+const GRID_CONFIDENCE_THRESHOLD = ANALYSIS_TUNING.structural.gridConfidenceThreshold
 const STRUCTURAL_DIMENSION = 28
 
 export interface SectionDetectionOptions {
@@ -380,12 +381,12 @@ function buildBoundaryCandidates(
     const evidence = strongestEvidenceInRange(localEvidence, barIndex - Math.max(0, stride - 1), barIndex + Math.max(0, stride - 1))
     const selfSimilarityNovelty = checkerboardNovelty[boundary] ?? 0
     const totalScore = clamp01(
-      evidence.acoustic * 0.28 +
-      evidence.rhythmic * 0.15 +
-      evidence.harmonic * 0.16 +
-      selfSimilarityNovelty * 0.25 +
-      evidence.energy * 0.09 +
-      evidence.silenceImpact * 0.07,
+      evidence.acoustic * ANALYSIS_TUNING.structural.boundaryWeights.acousticNovelty +
+      evidence.rhythmic * ANALYSIS_TUNING.structural.boundaryWeights.rhythmicNovelty +
+      evidence.harmonic * ANALYSIS_TUNING.structural.boundaryWeights.harmonicNovelty +
+      selfSimilarityNovelty * ANALYSIS_TUNING.structural.boundaryWeights.selfSimilarityNovelty +
+      evidence.energy * ANALYSIS_TUNING.structural.boundaryWeights.energyTransition +
+      evidence.silenceImpact * ANALYSIS_TUNING.structural.boundaryWeights.silenceOrImpact,
     )
     candidates.push({
       barIndex,
@@ -437,12 +438,12 @@ function intervalCohesion(prefix: Float32Array, dimension: number, start: number
 function phrasePriorScore(lengthBars: number): number {
   if (lengthBars <= 0) return 0
   let best = 0
-  for (const target of [4, 8, 16, 32]) {
-    const tolerance = Math.max(1, target * 0.22)
+  for (const target of ANALYSIS_TUNING.structural.phrasePrior.targetBars) {
+    const tolerance = Math.max(1, target * ANALYSIS_TUNING.structural.phrasePrior.toleranceRatio)
     best = Math.max(best, Math.exp(-Math.abs(lengthBars - target) / tolerance))
   }
-  if (lengthBars === 1) best = Math.max(best, 0.12)
-  if (lengthBars === 2) best = Math.max(best, 0.22)
+  if (lengthBars === 1) best = Math.max(best, ANALYSIS_TUNING.structural.phrasePrior.oneBarFloor)
+  if (lengthBars === 2) best = Math.max(best, ANALYSIS_TUNING.structural.phrasePrior.twoBarFloor)
   return clamp01(best)
 }
 
@@ -503,24 +504,43 @@ function selectBoundariesGlobal(
         const repeatAffinity = averageRange(returnAffinity, start, end)
         const adjacentSimilarity = end < dimension ? matrix[(end - 1) * dimension + end]! : 0
         const stableCutPenalty = endCandidate
-          ? adjacentSimilarity * (1 - endCandidate.selfSimilarityNovelty) * 0.52
+          ? adjacentSimilarity * (1 - endCandidate.selfSimilarityNovelty) * ANALYSIS_TUNING.structural.globalObjective.stableCutPenalty
           : 0
         const weakBoundaryPenalty = endCandidate
-          ? (1 - evidence) * 0.42 + Math.max(0, 0.22 - evidence) * 3.5
+          ? (1 - evidence) * ANALYSIS_TUNING.structural.globalObjective.weakBoundaryPenalty +
+            Math.max(0, ANALYSIS_TUNING.structural.globalObjective.weakBoundaryHardFloor - evidence) *
+              ANALYSIS_TUNING.structural.globalObjective.weakBoundaryHardScale
           : 0
         let shortPenalty = 0
-        if (lengthBars === 1) shortPenalty = Math.max(0, 1.65 - shortEvidence * 1.75)
-        else if (lengthBars === 2) shortPenalty = Math.max(0, 0.95 - shortEvidence * 1.05)
-        else if (lengthBars === 3) shortPenalty = 0.25
-        const longPenalty = lengthBars > 48 ? (lengthBars - 48) * 0.012 : 0
-        const boundaryReward = endCandidate ? evidence * 2.05 : 0
-        const phraseReward = phrase * (0.16 + evidence * 0.44)
+        if (lengthBars === 1) {
+          shortPenalty = Math.max(
+            0,
+            ANALYSIS_TUNING.structural.shortSectionPenalty.oneBarBase -
+              shortEvidence * ANALYSIS_TUNING.structural.shortSectionPenalty.oneBarEvidenceScale,
+          )
+        } else if (lengthBars === 2) {
+          shortPenalty = Math.max(
+            0,
+            ANALYSIS_TUNING.structural.shortSectionPenalty.twoBarBase -
+              shortEvidence * ANALYSIS_TUNING.structural.shortSectionPenalty.twoBarEvidenceScale,
+          )
+        } else if (lengthBars === 3) {
+          shortPenalty = ANALYSIS_TUNING.structural.shortSectionPenalty.threeBarPenalty
+        }
+        const longPenalty = lengthBars > ANALYSIS_TUNING.structural.globalObjective.longSectionBars
+          ? (lengthBars - ANALYSIS_TUNING.structural.globalObjective.longSectionBars) * ANALYSIS_TUNING.structural.globalObjective.longSectionPenaltyPerBar
+          : 0
+        const boundaryReward = endCandidate ? evidence * ANALYSIS_TUNING.structural.globalObjective.boundaryReward : 0
+        const phraseReward = phrase * (
+          ANALYSIS_TUNING.structural.phrasePrior.rewardBase +
+          evidence * ANALYSIS_TUNING.structural.phrasePrior.evidenceScale
+        )
         const segmentScore =
           boundaryReward +
-          (cohesion - 0.5) * 1.15 +
+          (cohesion - 0.5) * ANALYSIS_TUNING.structural.globalObjective.cohesionReward +
           phraseReward +
-          repeatAffinity * 0.24 -
-          0.34 -
+          repeatAffinity * ANALYSIS_TUNING.structural.globalObjective.repeatAffinityReward -
+          ANALYSIS_TUNING.structural.globalObjective.sectionCountPenalty -
           shortPenalty -
           longPenalty -
           weakBoundaryPenalty -

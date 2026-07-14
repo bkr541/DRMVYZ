@@ -383,6 +383,34 @@ describe('TrackAnalysisCoordinator — cancellation', () => {
     )
     expect(completeCalls).toHaveLength(0)
   })
+
+  it('aborts in-flight CPU analysis when cancelTrack is called', async () => {
+    let capturedSignal: AbortSignal | undefined
+    const analyze = vi.fn((_buffer, _seed, _progress, signal?: AbortSignal) => {
+      capturedSignal = signal
+      return new Promise<TrackIntelligenceAnalysis>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          const error = new Error('cancelled')
+          error.name = 'AbortError'
+          reject(error)
+        }, { once: true })
+      })
+    })
+    const { coordinator, cbs } = makeCoordinator({ analyze })
+
+    const track = makeTrack()
+    coordinator.enqueue(track, 'normal')
+    await new Promise(resolve => setTimeout(resolve, 10))
+    coordinator.cancelTrack(track.id)
+    await new Promise(resolve => setTimeout(resolve, 20))
+
+    expect(capturedSignal?.aborted).toBe(true)
+    const terminalCalls = (cbs.onRuntimeUpdate as ReturnType<typeof vi.fn>).mock.calls.filter(
+      call => call[1].status === 'complete' || call[1].status === 'failed',
+    )
+    expect(terminalCalls).toHaveLength(0)
+  })
+
 })
 
 // ── Invalidation ──────────────────────────────────────────────────────────────
@@ -619,4 +647,23 @@ describe('TrackAnalysisCoordinator — cache failure logging', () => {
 
     warnSpy.mockRestore()
   })
+})
+
+
+describe('TrackAnalysisCoordinator — cache validation', () => {
+
+  it('rejects a corrupt current-version cache entry and performs fresh analysis', async () => {
+    const corrupt = { ...makeAnalysis(), sections: null } as unknown as TrackIntelligenceAnalysis
+    const { coordinator, deps } = makeCoordinator({
+      getCachedAnalysis: vi.fn().mockReturnValue(corrupt),
+    })
+
+    coordinator.enqueue(makeTrack(), 'normal')
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(deps.decodeBuffer).toHaveBeenCalledTimes(1)
+    expect(deps.analyze).toHaveBeenCalledTimes(1)
+    expect(deps.saveCachedAnalysis).toHaveBeenCalledTimes(1)
+  })
+
 })

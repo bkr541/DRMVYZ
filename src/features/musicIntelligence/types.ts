@@ -402,6 +402,11 @@ export interface AnalysisWarning {
 
 export interface AnalysisDiagnostics {
   featureFrameCount: number
+  /** One shared FFT/feature pass should serve every downstream stage. */
+  featureExtractionPassCount?: number
+  retainedFeaturePointCount?: number
+  retainedChromaFrameCount?: number
+  cooperativeYieldCount?: number
   beatCount:         number
   downbeatCount:     number
   barCount:          number

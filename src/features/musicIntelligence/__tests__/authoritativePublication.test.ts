@@ -3,6 +3,7 @@ import { AudioFeatureBus } from '../AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from '../constants'
 import { MusicIntelligenceEngine } from '../MusicIntelligenceEngine'
 import type { TrackIntelligenceAnalysis } from '../types'
+import { CURRENT_ANALYSIS_VERSION } from '../analysisVersion'
 import type { ReactFrameContext } from '../../../components/vyzualz/react/renderers/reactRenderUtils'
 import { resolveAuthoritativeFrameSection } from '../../../components/vyzualz/react/renderers/reactRenderUtils'
 import { resolveLaserDmxMusicIntelligenceFrame } from '../../../components/vyzualz/react/renderers/LaserDmxRenderer'
@@ -24,7 +25,7 @@ const CURVE = [{ timeSec: 0, value: 0.5 }]
 function makeAnalysis(): TrackIntelligenceAnalysis {
   const beat = { timeSec: 0, confidence: 0.9, isDownbeat: true, beatIndex: 0, beatWithinBar: 0, barIndex: 0, gridSource: 'automatic' as const, gridConfidence: 0.9 }
   return {
-    analysisVersion: 'auto-5.0',
+    analysisVersion: CURRENT_ANALYSIS_VERSION,
     createdAt: '2026-07-13T00:00:00.000Z',
     durationMs: 40_000,
     bpm: 140,
@@ -153,7 +154,7 @@ describe('authoritative Music Intelligence publication', () => {
     expect(frame.resolvedSections).toEqual(timeline)
     expect(frame.phraseMarkers?.[0].id).toBe('phrase-0')
     expect(frame.semanticMoments?.[0].id).toBe('impact')
-    expect(frame.analysisRevision).toContain('auto-5.0')
+    expect(frame.analysisRevision).toContain(CURRENT_ANALYSIS_VERSION)
     expect(frame.timelineRevision).toMatch(/^timeline-/)
     expect(frame.analysisSource).toBe('manual')
     expect(frame.analysisCapabilities).toMatchObject({

@@ -68,6 +68,30 @@ describe('resolveAuthoritativeTimeline', () => {
     })
   })
 
+  it('keeps a suppressed automatic identity hidden even when a manual replacement exists', () => {
+    const result = resolveAuthoritativeTimeline({
+      durationSec: 24,
+      analyzedSections: [section({ id: 'auto-a', endSec: 24, type: 'verse' })],
+      manualSections: [section({
+        id: 'replacement-a',
+        type: 'build',
+        startSec: 4,
+        endSec: 20,
+        source: 'user-edited-auto',
+        provenance: { authority: 'manual_replacement', originalId: 'auto-a', analysisSource: 'manual' },
+      })],
+      suppressedIds: ['auto-a'],
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      type: 'unknown',
+      startSec: 0,
+      endSec: 24,
+      provenance: { authority: 'fallback' },
+    })
+  })
+
   it('lets manual replacements win by original automatic section identity', () => {
     const result = resolveAuthoritativeTimeline({
       durationSec: 24,

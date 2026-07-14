@@ -12,6 +12,7 @@ import type {
   StructuralRegion,
   TrackSectionMI,
 } from './types'
+import { ANALYSIS_TUNING } from './analysisTuning'
 import type {
   ReactDropAnchorDiagnostics,
   ReactSectionEnergyShape,
@@ -22,14 +23,14 @@ import type {
   ReactSectionType,
 } from '../../components/vyzualz/react/ReactTypes'
 
-export const CONTEXTUAL_SECTION_CLASSIFIER_VERSION = 'contextual-1'
+export const CONTEXTUAL_SECTION_CLASSIFIER_VERSION = ANALYSIS_TUNING.semantic.classifierVersion
 
 const EPS = 1e-9
-const DROP_THRESHOLD = 0.46
-const BUILD_THRESHOLD = 0.46
-const PRE_DROP_THRESHOLD = 0.48
-const FAMILY_THRESHOLD = 0.72
-const MAX_ALTERNATIVES = 3
+const DROP_THRESHOLD = ANALYSIS_TUNING.semantic.dropThreshold
+const BUILD_THRESHOLD = ANALYSIS_TUNING.semantic.buildThreshold
+const PRE_DROP_THRESHOLD = ANALYSIS_TUNING.semantic.preDropThreshold
+const FAMILY_THRESHOLD = ANALYSIS_TUNING.semantic.familyThreshold
+const MAX_ALTERNATIVES = ANALYSIS_TUNING.semantic.maxAlternatives
 
 export interface ContextualSectionClassificationInput {
   regions: StructuralRegion[]
@@ -824,7 +825,13 @@ function contextDistanceToDrop(drops: DropAnchor[], bar: number, direction: 'pre
 
 function normalizedAlternatives(
   scores: Partial<Record<ReactSectionType, number>>,
-): { type: ReactSectionType; alternatives: ReactSectionLabelAlternative[]; labelConfidence: number } {
+): {
+  type: ReactSectionType
+  alternatives: ReactSectionLabelAlternative[]
+  labelConfidence: number
+  rawPrimaryScore: number
+  rawScoreMargin: number
+} {
   const entries = (Object.entries(scores) as Array<[ReactSectionType, number]>)
     .map(([type, score]) => ({ type, score: clamp01(score) }))
     .sort((a, b) => b.score - a.score || a.type.localeCompare(b.type))
@@ -838,8 +845,29 @@ function normalizedAlternatives(
   const second = alternatives[1]?.confidence ?? 0
   const margin = Math.max(0, primary.confidence - second)
   const rawPrimary = entries[0]?.score ?? 0
+  const rawSecond = entries[1]?.score ?? 0
   const labelConfidence = rounded(0.24 + primary.confidence * 0.46 + margin * 0.22 + rawPrimary * 0.08)
-  return { type: primary.type, alternatives, labelConfidence }
+  return {
+    type: primary.type,
+    alternatives,
+    labelConfidence,
+    rawPrimaryScore: rawPrimary,
+    rawScoreMargin: Math.max(0, rawPrimary - rawSecond),
+  }
+}
+
+function alternativesWithUnknown(alternatives: ReactSectionLabelAlternative[]): ReactSectionLabelAlternative[] {
+  const withoutUnknown = alternatives.filter(alternative => alternative.type !== 'unknown')
+  const unknownWeight = Math.max(0.55, alternatives[0]?.confidence ?? 0.55)
+  const weighted = [
+    { type: 'unknown' as const, confidence: unknownWeight },
+    ...withoutUnknown.map(alternative => ({ ...alternative, confidence: alternative.confidence })),
+  ].slice(0, MAX_ALTERNATIVES)
+  const total = weighted.reduce((sum, alternative) => sum + alternative.confidence, 0) || 1
+  return weighted.map(alternative => ({
+    ...alternative,
+    confidence: rounded(alternative.confidence / total),
+  }))
 }
 
 function scoreSection(
@@ -908,6 +936,11 @@ function scoreSection(
   if (late > 0.65 && lowEnergy > 0.45) {
     scores.outro = clamp01((scores.outro ?? 0) + 0.22)
     scores.verse = Math.min(scores.verse ?? 0, 0.60)
+  }
+  if (!nextFeature && feature.position > 0.68 && lowEnergy > 0.35) {
+    scores.outro = clamp01((scores.outro ?? 0) + 0.24)
+    scores.verse = Math.min(scores.verse ?? 0, 0.54)
+    evidence.push('final low-energy release supports Outro over repeated Verse material')
   }
   if (early > 0.72 && lowEnergy > 0.45) {
     scores.intro = clamp01((scores.intro ?? 0) + 0.14)
@@ -1105,9 +1138,18 @@ export function classifyContextualSections(
     const next = features[index + 1] ?? null
     const scored = scoreSection(feature, forced, drops, previous, next)
     const resolved = normalizedAlternatives(scored.scores)
+    const remainsUnknown = !forced && resolved.type !== 'unknown' &&
+      resolved.rawPrimaryScore < ANALYSIS_TUNING.semantic.uncertainPrimaryScore &&
+      resolved.rawScoreMargin < ANALYSIS_TUNING.semantic.uncertainScoreMargin &&
+      resolved.labelConfidence < ANALYSIS_TUNING.semantic.uncertainLabelConfidence
+    if (remainsUnknown) {
+      scored.evidence.push('Competing semantic roles are too close and weak; the region remains Unknown instead of publishing a confident guess.')
+    }
     const labelConfidence = forced
       ? rounded(Math.max(resolved.labelConfidence, forced.confidence * 0.86 + 0.12))
-      : resolved.labelConfidence
+      : remainsUnknown
+        ? rounded(Math.min(resolved.labelConfidence, ANALYSIS_TUNING.semantic.uncertainLabelConfidence - 0.01))
+        : resolved.labelConfidence
     const boundaryConfidence = boundaryConfidenceForSpan(
       feature.startBar,
       feature.endBar,
@@ -1125,9 +1167,9 @@ export function classifyContextualSections(
       startBar: feature.startBar,
       endBar: feature.endBar,
       features: feature,
-      type: resolved.type,
+      type: remainsUnknown ? 'unknown' : resolved.type,
       labelConfidence,
-      alternatives: resolved.alternatives,
+      alternatives: remainsUnknown ? alternativesWithUnknown(resolved.alternatives) : resolved.alternatives,
       scores: scored.scores,
       evidence: scored.evidence,
       boundaryConfidence,

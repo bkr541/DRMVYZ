@@ -1,6 +1,6 @@
 # DRMVYZ Music Intelligence
 
-Layered real-time and offline analysis pipeline that turns raw audio into structured data the visual system can consume.
+Layered real-time and offline analysis pipeline that turns raw audio into structured data the visual system can consume. The complete loaded-track architecture, authority model, tuning, cache, and fallback contract is documented in [`loaded-audio-analysis.md`](./loaded-audio-analysis.md).
 
 ---
 
@@ -43,8 +43,10 @@ Internally delegates to:
 After assembly, publishes a `MusicIntelligenceFrame` to `AudioFeatureBus`.
 
 ```ts
-engine.setTrackAnalysis(analysis)   // wire offline sections, BPM, beat markers, stems, lyrics
-engine.setManualSections(sections)  // manual sections override analysis sections
+engine.setAuthoritativeTrackState({ analysis, resolvedSections, trackId, sourceId })
+                                  // atomically publish analysis + resolved timeline
+engine.setTrackAnalysis(analysis)  // compatibility path; resolves automatic sections only
+engine.setManualSections(sections) // compatibility input; authority resolution remains shared
 engine.setBpm(bpm, confidence)
 engine.reset()
 ```
@@ -78,13 +80,17 @@ interface MusicIntelligenceFrame {
   bands:      MIBands       // Layer 1
   rhythm:     MIRhythm      // Layers 2–3
   energy:     MIEnergy      // Layer 4
-  section:    MISection     // Layer 5
+  section:    MISection     // Layer 5, derived from currentResolvedSection
   harmonic:   MIHarmonic    // Layer 6
   stems:      MIStems       // Layer 7
   lyrics:     MILyrics      // Layer 7 lyrics
   semantics:  MISemantics   // Layer 8
   raw:        { freqData, timeDomainData }
   confidence: { overall, rhythm, harmonic, section }
+  resolvedSections: ReactTrackSection[]
+  currentResolvedSection: ReactTrackSection | null
+  timelineRevision: string | null
+  analysisRevision: string | null
 }
 ```
 
@@ -95,7 +101,7 @@ The frame is always fully populated (no optional sub-fields). Absent data gracef
 
 Offline analysis result — persisted to `localStorage` via `useTrackAnalysisStore`.
 
-Key fields: `bpm`, `bpmConfidence`, `sections[]`, `beatGrid[]`, `energyCurves`, `spectralCurves`, `stemCurves`, `harmonic.pitchCurve`, `harmonic.dominantKey/Mode`, `semanticMoments[]`, `lyrics`.
+Key fields: `bpm`, grid confidence, `beatGrid[]`, `downbeats[]`, `barMarkers[]`, `barFeatures[]`, structural segmentation diagnostics, `sections[]`, families/occurrences, phrase hierarchy, boundary alternatives, `energyCurves`, `spectralCurves`, harmonic data, `semanticMoments[]`, warnings, and bounded diagnostics. The final consumer timeline is `MusicIntelligenceFrame.resolvedSections`, not raw `analysis.sections`.
 
 ---
 
@@ -117,7 +123,7 @@ useTrackAnalysisStore.getState().saveTrackAnalysis(trackId, analysis)
 engine.setTrackAnalysis(analysis)
 ```
 
-Runs full FFT frame-by-frame over the entire audio buffer (async but CPU-bound). Produces feature curves, key detection, sections, beat grid, pitch curve, and semantic moments. Should be run in a Web Worker for tracks > 3 min to avoid blocking the main thread.
+Runs one shared FFT/transient pass over the decoded buffer, retains bounded feature and chroma cadences, then derives the musical grid, bar features, global segmentation, contextual labels, hierarchy, and semantic moments. The coordinator deduplicates work and passes one cancellation signal through decode and CPU analysis. The analyzer yields cooperatively during long passes; a future worker may wrap the same contract without creating a second analyzer.
 
 ---
 
@@ -166,7 +172,8 @@ Implementation: reads `AudioFeatureBus.getFrame()` in a `requestAnimationFrame` 
 
 ## Performance Notes
 
-- **Never call `analyzeTrackBuffer` on the main thread for long tracks.** It blocks for several seconds. Use `useTrackAnalysisStore` to persist results and only analyze once per track.
+- **Never call `analyzeTrackBuffer` independently from an engine or renderer.** Use `TrackAnalysisCoordinator`, which deduplicates, caches, cancels, and guards publication.
+- Feature snapshots, chroma frames, self-similarity, hierarchy metadata, and persisted diagnostics are bounded by `analysisTuning.ts`.
 - **Do not introduce React `useState` in render-loop consumers.** Use refs + direct DOM writes or the `AudioFeatureBus.subscribe()` API for non-React sinks.
 - The `ModulationRoute` system reads from the MI frame via `resolveSourceValue` in `applyModulatedEffects`. Legacy `AudioBand` sources (`bass`, `lowMid`, `mid`, `high`, `volume`, `beat`) use the raw `AudioBandValues` object for backward-compatible smoothing behavior.
 

@@ -49,4 +49,22 @@ describe('track analysis persistence migration', () => {
     expect(record?.phrases[0]?.id).toBeTruthy()
     expect(record?.semanticMoments[0]?.id).toBeTruthy()
   })
+
+  it('quarantines corrupt persisted analysis without aborting hydration', () => {
+    const migrated = migrateTrackAnalysisStorageState({
+      analyses: {
+        valid: analysis('auto-3.0'),
+        corrupt: { analysisVersion: 'auto-6.0', durationMs: 10_000, sections: null },
+        primitive: 'not-an-analysis',
+      },
+      statuses: { valid: 'complete', corrupt: 'complete', primitive: 'complete' },
+    })
+
+    expect(migrated.analyses?.valid).toBeTruthy()
+    expect(migrated.analyses?.corrupt).toBeUndefined()
+    expect(migrated.analyses?.primitive).toBeUndefined()
+    expect(migrated.statuses?.corrupt).toBe('stale')
+    expect(migrated.statuses?.primitive).toBe('stale')
+  })
+
 })

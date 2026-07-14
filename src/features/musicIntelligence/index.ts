@@ -45,6 +45,9 @@ export type {
 } from './types'
 
 export { DEFAULT_MI_FRAME } from './constants'
+export { ANALYSIS_TUNING } from './analysisTuning'
+export type { LoadedAudioAnalysisTuning } from './analysisTuning'
+export { isUsableTrackAnalysis } from './analysisValidation'
 
 export { AudioFeatureBus } from './AudioFeatureBus'
 
