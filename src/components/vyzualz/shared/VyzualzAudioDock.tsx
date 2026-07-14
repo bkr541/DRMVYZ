@@ -160,7 +160,7 @@ export function VyzualzAudioDock({
 }: VyzualzAudioDockProps) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
-    cuePoint, setCuePoint, beatGridEnabled, setBeatGridEnabled,
+    cuePoint, setCuePoint,
     waveformZoom, setWaveformZoom, cueMarkers, addCueMarker, removeCueMarker, updateCueMarker,
   } = useVisualStore(useShallow(s => ({
     presets:            s.presets,
@@ -170,8 +170,6 @@ export function VyzualzAudioDock({
     setPlaying:         s.setPlaying,
     cuePoint:           s.cuePoint,
     setCuePoint:        s.setCuePoint,
-    beatGridEnabled:    s.beatGridEnabled,
-    setBeatGridEnabled: s.setBeatGridEnabled,
     waveformZoom:       s.waveformZoom,
     setWaveformZoom:    s.setWaveformZoom,
     cueMarkers:         s.cueMarkers,
@@ -663,7 +661,7 @@ export function VyzualzAudioDock({
         </div>
       </div>
 
-      {/* ── RIGHT: BPM + TAP / CUE / SYNC / BEATGRID ────────────────── */}
+      {/* ── RIGHT: BPM + TAP / CUE / SYNC ───────────────────────────── */}
       <div className="vz-dock-right vz-dock-card">
         <div className="vz-dock-right-main">
         {/* Column wrapper so the stale banner sits below the BPM block */}
@@ -861,18 +859,6 @@ export function VyzualzAudioDock({
               <path d="M10.5 13.5l3-3M7.2 16.8l-1 1a3.4 3.4 0 0 1-4.8-4.8l3.2-3.2a3.4 3.4 0 0 1 4.8 0M16.8 7.2l1-1a3.4 3.4 0 0 1 4.8 4.8l-3.2 3.2a3.4 3.4 0 0 1-4.8 0"/>
             </svg>
             <span className="vz-dock-sync-master-label">SYNC</span>
-          </button>
-          <button
-            className={`vz-dock-beatgrid-btn${beatGridEnabled ? ' vz-dock-beatgrid-btn--on' : ''}`}
-            onClick={() => setBeatGridEnabled(!beatGridEnabled)}
-            title={beatGridEnabled ? 'Beat grid: ON' : 'Beat grid: OFF'}
-          >
-            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
-              <rect x="3" y="3" width="4" height="4" rx="0.7"/><rect x="10" y="3" width="4" height="4" rx="0.7"/><rect x="17" y="3" width="4" height="4" rx="0.7"/>
-              <rect x="3" y="10" width="4" height="4" rx="0.7"/><rect x="10" y="10" width="4" height="4" rx="0.7"/><rect x="17" y="10" width="4" height="4" rx="0.7"/>
-              <rect x="3" y="17" width="4" height="4" rx="0.7"/><rect x="10" y="17" width="4" height="4" rx="0.7"/><rect x="17" y="17" width="4" height="4" rx="0.7"/>
-            </svg>
-            <span>GRID</span>
           </button>
         </div>
       </div>

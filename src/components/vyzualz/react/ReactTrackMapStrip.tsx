@@ -1361,10 +1361,19 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     removePresetAutomationCue:       s.removePresetAutomationCue,
   })))
 
-  const { waveformZoom, beatGridEnabled, cueMarkers, addCueMarker, removeCueMarker, updateCueMarker } = useVisualStore(
+  const {
+    waveformZoom,
+    beatGridEnabled,
+    setBeatGridEnabled,
+    cueMarkers,
+    addCueMarker,
+    removeCueMarker,
+    updateCueMarker,
+  } = useVisualStore(
     useShallow(s => ({
       waveformZoom: s.waveformZoom,
       beatGridEnabled: s.beatGridEnabled,
+      setBeatGridEnabled: s.setBeatGridEnabled,
       cueMarkers: s.cueMarkers,
       addCueMarker: s.addCueMarker,
       removeCueMarker: s.removeCueMarker,
@@ -2190,12 +2199,20 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     <div className="rv-timeline-lane-content rv-beat-canvas-wrap">
                       <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
                     </div>
-                    <div
-                      className="rv-timeline-lane-tools rv-timeline-lane-state"
-                      title={`Beat Grid ${beatGridEnabled ? 'enabled' : 'disabled'}`}
-                      aria-label={`Beat Grid ${beatGridEnabled ? 'enabled' : 'disabled'}`}
-                    >
-                      {beatGridEnabled ? 'ON' : 'OFF'}
+                    <div className="rv-timeline-lane-tools">
+                      <button
+                        type="button"
+                        className={`rv-ctrl-toggle rv-timeline-beat-grid-toggle${beatGridEnabled ? ' rv-ctrl-toggle--on' : ''}`}
+                        onClick={event => {
+                          event.stopPropagation()
+                          setBeatGridEnabled(!beatGridEnabled)
+                        }}
+                        aria-pressed={beatGridEnabled}
+                        aria-label={`Turn Beat Grid ${beatGridEnabled ? 'off' : 'on'}`}
+                        title={`Beat Grid: ${beatGridEnabled ? 'On' : 'Off'}`}
+                      >
+                        {beatGridEnabled ? 'On' : 'Off'}
+                      </button>
                     </div>
                   </div>
 
