@@ -107,6 +107,26 @@ export const CANVAS_EFFECT_RECIPES: Readonly<Record<CanvasEffectRecipeId, Canvas
       }),
     ],
   },
+  phraseEcho: {
+    id: 'phraseEcho',
+    label: 'Phrase Echo',
+    sectionFilters: ['intro', 'verse', 'build', 'drop', 'breakdown', 'bridge', 'outro', 'unknown'],
+    intensityScale: 0.62,
+    effects: [
+      effect('phrase-echo-feedback', {
+        effect: 'feedback', amount: 0.16, safetyClamp: [0, 0.3],
+        modulationRoutes: [route({ id: 'phrase-progress-feedback', source: 'phraseProgress', target: 'amount', min: 0.08, max: 0.22, amount: 0.55, curve: 'easeInOut', smoothing: 0.4, safetyClamp: [0, 0.3] })],
+      }),
+      effect('phrase-echo-offset', {
+        effect: 'displacement', amount: 0.1, safetyClamp: [0, 0.24],
+        modulationRoutes: [route({ id: 'phrase-flux-offset', source: 'spectralFlux', target: 'offsetX', min: 0, max: 0.14, amount: 0.45, smoothing: 0.3, safetyClamp: [0, 0.24] })],
+      }),
+      effect('phrase-echo-glow', {
+        effect: 'glow', amount: 0.16, safetyClamp: [0, 0.34],
+        eventBindings: [event({ id: 'phrase-downbeat-glow', event: 'downbeat', target: 'amount', amount: 0.14, envelope: { attackBeats: 0, holdBeats: 0.08, releaseBeats: 0.8, curve: 'easeOut' } })],
+      }),
+    ],
+  },
   dropFracture: {
     id: 'dropFracture',
     label: 'Drop Fracture',

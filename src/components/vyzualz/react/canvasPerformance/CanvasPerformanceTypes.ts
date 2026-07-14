@@ -4,7 +4,17 @@ import type {
 } from '../../../../features/performanceCore'
 import type { CanvasFitMode, CanvasMediaItem } from '../ReactTypes'
 
-export const CANVAS_PERFORMANCE_PROGRAM_ID = 'canvas-orchestration-foundation-v1'
+export const CANVAS_PERFORMANCE_PROGRAM_ID = 'canvas-cinematic-bass-editor'
+
+export const CANVAS_PERFORMANCE_SHOW_IDS = [
+  'canvas-cinematic-bass-editor',
+  'canvas-glitch-collage-reactor',
+  'canvas-dreamstate-media-tunnel',
+  'canvas-impact-cut-system',
+  'canvas-layered-luma-journey',
+] as const
+
+export type CanvasPerformanceShowId = typeof CANVAS_PERFORMANCE_SHOW_IDS[number]
 export const MAX_CANVAS_PERFORMANCE_LAYERS = 7
 export const MAX_CANVAS_ACTIVE_VIDEO_DECODERS = 3
 export const MAX_CANVAS_MEDIA_HANDLES = 10
@@ -141,7 +151,7 @@ export type CanvasEffectId =
   | 'feedback'
   | 'vignette'
 
-export type CanvasEffectRecipeId = 'none' | 'bassImpact' | 'dreamBreakdown' | 'preDropVacuum' | 'dropFracture'
+export type CanvasEffectRecipeId = 'none' | 'bassImpact' | 'dreamBreakdown' | 'preDropVacuum' | 'dropFracture' | 'phraseEcho'
 export type CanvasEventKind = 'beat' | 'kick' | 'snare' | 'hat' | 'downbeat'
 export type CanvasModulationSource =
   | 'bass'
@@ -339,9 +349,10 @@ export interface CanvasOrchestrationSettings {
   transitionDensity: number
   effectIntensity: number
   motionIntensity: number
+  cutDensity: number
   compositionPreference: CanvasCompositionPreference
   poolRevision: number
-  programId: string
+  programId: CanvasPerformanceShowId
 }
 
 export const DEFAULT_CANVAS_ORCHESTRATION_SETTINGS: CanvasOrchestrationSettings = {
@@ -356,9 +367,20 @@ export const DEFAULT_CANVAS_ORCHESTRATION_SETTINGS: CanvasOrchestrationSettings 
   transitionDensity: 0.45,
   effectIntensity: 0.55,
   motionIntensity: 0.5,
+  cutDensity: 0.45,
   compositionPreference: 'auto',
   poolRevision: 0,
   programId: CANVAS_PERFORMANCE_PROGRAM_ID,
+}
+
+export interface CanvasLayerTreatment {
+  roles: readonly CanvasLayerRole[]
+  opacityMultiplier?: number
+  scaleMultiplier?: number
+  rotationOffset?: number
+  offsetX?: number
+  offsetY?: number
+  cropInset?: number
 }
 
 export type CanvasPerformanceAction =
@@ -369,11 +391,15 @@ export type CanvasPerformanceAction =
   | { type: 'retire'; roles: readonly CanvasLayerRole[] }
   | { type: 'frameHold'; enabled: boolean }
   | { type: 'playbackReset'; phraseAligned?: boolean; sectionAligned?: boolean }
+  | { type: 'layerTreatment'; treatment: CanvasLayerTreatment }
+  | { type: 'advanceMedia'; roles: readonly CanvasLayerRole[] }
+  | { type: 'effectBoost'; amount: number }
 
 export interface CanvasResolvedPerformanceFrame {
   programId: string
   frameIdentity: string
   sceneId: string
+  showLabel: string
   context: SharedPerformanceContext
   template: CanvasCompositionTemplate
   layers: readonly CanvasResolvedLayer[]
@@ -386,6 +412,9 @@ export interface CanvasResolvedPerformanceFrame {
   textureHandleCount: number
   feedbackPasses: number
   orchestrationActive: boolean
+  nextSectionType: string | null
+  anticipatoryStage: 'none' | 'preload' | 'contraction' | 'finalHold' | 'breakdownMigration' | 'phraseQueue'
+  diagnostics: readonly string[]
 }
 
 export interface CanvasMediaRoleResolution {

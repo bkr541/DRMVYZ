@@ -69,6 +69,25 @@ export const CANVAS_BASS_TRANSITIONS: readonly CanvasTransitionId[] = [
   'displacementBurst', 'feedbackSmear', 'rgbSplit', 'frameTear', 'sliceDisplacement', 'frameHoldRelease', 'strobeCut',
 ]
 
+export function resolveCanvasContextualTransitionIds(
+  context: SharedPerformanceContext,
+  authoredIds: readonly CanvasTransitionId[],
+): readonly CanvasTransitionId[] {
+  const contextual: readonly CanvasTransitionId[] = context.sectionType === 'preDrop'
+    ? ['feedbackSmear', 'maskExpansion', 'frameHoldRelease', 'hardCut']
+    : context.sectionType === 'drop'
+      ? ['hardCut', 'strobeCut', 'displacementBurst', 'sliceDisplacement', 'rgbSplit', 'zoomThrough', 'lumaDissolve', 'maskExpansion']
+      : context.sectionType === 'build'
+        ? ['lumaDissolve', 'additiveDissolve', 'push', 'slide', 'zoomThrough', 'maskExpansion', 'feedbackSmear']
+        : context.sectionType === 'breakdown' || context.sectionType === 'bridge'
+          ? ['lumaDissolve', 'additiveDissolve', 'crossfade', 'feedbackSmear', 'zoomThrough']
+          : context.sectionType === 'outro'
+            ? ['crossfade', 'lumaDissolve', 'alphaDissolve', 'dipToBlack']
+            : ['crossfade', 'lumaDissolve', 'additiveDissolve', 'alphaDissolve', 'slide']
+  const approved = authoredIds.filter(id => contextual.includes(id))
+  return approved.length > 0 ? approved : contextual
+}
+
 function chooseTransitionPool(context: SharedPerformanceContext): readonly CanvasTransitionId[] {
   if (context.sectionType === 'drop' || context.sectionType === 'preDrop') return CANVAS_BASS_TRANSITIONS
   if (context.sectionType === 'build' || context.energy >= 0.68) return CANVAS_SPATIAL_TRANSITIONS

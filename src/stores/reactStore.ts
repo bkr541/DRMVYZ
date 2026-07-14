@@ -97,6 +97,7 @@ import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../components/vyzualz/react/sou
 import {
   DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
   CANVAS_MEDIA_ROLES,
+  CANVAS_PERFORMANCE_SHOW_IDS,
   type CanvasLayerRole,
   type CanvasMediaRole,
   type CanvasOrchestrationLockKey,
@@ -2709,10 +2710,11 @@ function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrchestrati
     transitionDensity: clampCanvasNumber(source.transitionDensity, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.transitionDensity, 0, 1),
     effectIntensity: clampCanvasNumber(source.effectIntensity, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.effectIntensity, 0, 1),
     motionIntensity: clampCanvasNumber(source.motionIntensity, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.motionIntensity, 0, 1),
+    cutDensity: clampCanvasNumber(source.cutDensity, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.cutDensity, 0, 1),
     compositionPreference,
     poolRevision: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(finiteCanvasNumber(source.poolRevision, 0)))),
-    programId: typeof source.programId === 'string' && source.programId.trim()
-      ? source.programId.trim().slice(0, 128)
+    programId: typeof source.programId === 'string' && CANVAS_PERFORMANCE_SHOW_IDS.includes(source.programId as typeof CANVAS_PERFORMANCE_SHOW_IDS[number])
+      ? source.programId as typeof CANVAS_PERFORMANCE_SHOW_IDS[number]
       : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
   }
 }

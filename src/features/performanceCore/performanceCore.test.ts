@@ -206,6 +206,24 @@ describe('shared musical Performance Core', () => {
     expect(resolution.deterministicIdentity).toContain('generic-program|verse')
   })
 
+  it('matches section families and section occurrences before applying scene priority', () => {
+    const context = contextAt(25)
+    const program = {
+      id: 'family-occurrence-program',
+      scenes: [
+        { id: 'generic-drop', sectionTypes: ['drop'] as const, priority: 1, actions: ['generic'] },
+        { id: 'wrong-family', sectionTypes: ['drop'] as const, sectionFamilies: ['other-family'], priority: 100, actions: ['wrong-family'] },
+        { id: 'first-occurrence', sectionTypes: ['drop'] as const, occurrence: { occurrences: [1] }, priority: 90, actions: ['first'] },
+        { id: 'drop-family-two', sectionTypes: ['drop'] as const, sectionFamilies: ['drop-family'], occurrence: { occurrences: [2] }, priority: 20, actions: ['matched'] },
+      ],
+    }
+    const resolution = resolveSharedPerformanceProgram(program, context)
+    expect(context.sectionFamily).toBe('drop-family')
+    expect(context.sectionOccurrence).toBe(2)
+    expect(resolution.scene?.id).toBe('drop-family-two')
+    expect(resolution.intents.map(intent => intent.action)).toContain('matched')
+  })
+
   it('gives adapter-defined user locks precedence over performance actions', () => {
     const result = applySharedPerformanceActions(
       { locked: new Set(['brightness']), values: { brightness: 0.4, motion: 0.2 } },

@@ -427,8 +427,9 @@ export function CanvasOrchestrationStage({
     <div ref={shellRef} className="rv-canvas-engine-surface rv-canvas-orchestration-stage" role="region" aria-label="CANVAS orchestrated media surface">
       <canvas ref={canvasRef} className="rv-canvas-orchestration-canvas" />
       <div className="rv-canvas-orchestration-status" role="status">
-        <strong>{frame.template.label}</strong>
+        <strong>{frame.showLabel} · {frame.template.label}</strong>
         <span>{frame.layers.filter(layer => layer.enabled).length} layers · {frame.decoderCount} video decoders · {mediaSummary.length} sources</span>
+        {frame.anticipatoryStage !== 'none' && <span>Queued: {frame.anticipatoryStage}{frame.nextSectionType ? ` → ${frame.nextSectionType}` : ''}</span>}
         {frame.pendingMediaIds.length > 0 && <span>Preloading {frame.pendingMediaIds.length} upcoming source{frame.pendingMediaIds.length === 1 ? '' : 's'}</span>}
       </div>
     </div>

@@ -4,14 +4,14 @@ import {
   resolveSharedPerformanceProgram,
   selectPerformanceDeterministicIndex,
   type SharedPerformanceContext,
-  type SharedPerformanceProgram,
 } from '../../../../features/performanceCore'
 import type { CanvasMediaItem } from '../ReactTypes'
 import { getCanvasCompositionTemplate } from './CanvasCompositionTemplates'
 import { resolveCanvasEffectChain, resolveCanvasEffectRecipeForSection } from './CanvasEffectRecipes'
 import { canvasMediaSupportsAnyRole, resolveCanvasMediaRoles } from './CanvasMediaRoles'
 import { resolveCanvasPlayback } from './CanvasPlayback'
-import { resolveCanvasTransition } from './CanvasTransitions'
+import { resolveCanvasContextualTransitionIds, resolveCanvasTransition } from './CanvasTransitions'
+import { getCanvasPerformanceShow } from './CanvasPerformanceShows'
 import {
   CANVAS_PERFORMANCE_PROGRAM_ID,
   MAX_CANVAS_ACTIVE_VIDEO_DECODERS,
@@ -23,95 +23,135 @@ import {
   type CanvasCompositionTemplateId,
   type CanvasEffectRecipeId,
   type CanvasLayerRole,
+  type CanvasLayerTreatment,
   type CanvasMediaRole,
   type CanvasOrchestrationSettings,
-  type CanvasPerformanceAction,
   type CanvasResolvedLayer,
   type CanvasResolvedPerformanceFrame,
   type CanvasTransitionId,
 } from './CanvasPerformanceTypes'
 
-const CANVAS_FOUNDATION_PROGRAM: SharedPerformanceProgram<CanvasPerformanceAction> = {
-  id: CANVAS_PERFORMANCE_PROGRAM_ID,
-  fallbackOrder: ['verse', 'intro', 'breakdown', 'drop', 'unknown'],
-  scenes: [
-    {
-      id: 'intro-atmosphere',
-      sectionTypes: ['intro'],
-      actions: [
-        { type: 'composition', templateId: 'centerHeroAtmosphericBorder' },
-        { type: 'effectRecipe', recipeId: 'dreamBreakdown' },
-        { type: 'transition', transitionIds: ['crossfade', 'lumaDissolve', 'alphaDissolve'] },
-        { type: 'recruit', roles: ['background', 'hero'] },
-      ],
-      eightBarRecruitment: [[{ type: 'recruit', roles: ['texture'] }]],
-    },
-    {
-      id: 'verse-composite',
-      sectionTypes: ['verse', 'unknown'],
-      actions: [
-        { type: 'composition', templateId: 'heroPlusTexture' },
-        { type: 'effectRecipe', recipeId: 'none' },
-        { type: 'transition', transitionIds: ['crossfade', 'slide', 'additiveDissolve'] },
-        { type: 'recruit', roles: ['background', 'hero'] },
-      ],
-      eightBarRecruitment: [[{ type: 'recruit', roles: ['texture'] }]],
-    },
-    {
-      id: 'build-assembly',
-      sectionTypes: ['build'],
-      actions: [
-        { type: 'composition', templateId: 'splitScreen' },
-        { type: 'effectRecipe', recipeId: 'bassImpact' },
-        { type: 'transition', transitionIds: ['push', 'slide', 'zoomThrough', 'maskExpansion'] },
-        { type: 'recruit', roles: ['hero', 'foregroundAccent'] },
-      ],
-      sixteenBarEvolution: [[{ type: 'composition', templateId: 'maskedHeroReveal' }]],
-    },
-    {
-      id: 'predrop-vacuum',
-      sectionTypes: ['preDrop'],
-      actions: [
-        { type: 'composition', templateId: 'maskedHeroReveal' },
-        { type: 'effectRecipe', recipeId: 'preDropVacuum' },
-        { type: 'transition', transitionIds: ['frameHoldRelease', 'strobeCut', 'hardCut'] },
-        { type: 'frameHold', enabled: true },
-        { type: 'recruit', roles: ['hero', 'mask'] },
-      ],
-    },
-    {
-      id: 'drop-impact',
-      sectionTypes: ['drop'],
-      actions: [
-        { type: 'composition', templateId: 'videoWall' },
-        { type: 'effectRecipe', recipeId: 'dropFracture' },
-        { type: 'transition', transitionIds: ['displacementBurst', 'rgbSplit', 'sliceDisplacement', 'strobeCut'] },
-        { type: 'recruit', roles: ['background', 'hero', 'foregroundAccent'] },
-      ],
-      eightBarRecruitment: [[{ type: 'recruit', roles: ['texture'] }]],
-      sixteenBarEvolution: [[{ type: 'composition', templateId: 'fourPanelGrid' }]],
-    },
-    {
-      id: 'breakdown-drift',
-      sectionTypes: ['breakdown', 'bridge'],
-      actions: [
-        { type: 'composition', templateId: 'layeredLumaCollage' },
-        { type: 'effectRecipe', recipeId: 'dreamBreakdown' },
-        { type: 'transition', transitionIds: ['crossfade', 'lumaDissolve', 'zoomThrough'] },
-        { type: 'recruit', roles: ['background', 'hero', 'texture'] },
-      ],
-    },
-    {
-      id: 'outro-release',
-      sectionTypes: ['outro'],
-      actions: [
-        { type: 'composition', templateId: 'fullScreenHero' },
-        { type: 'effectRecipe', recipeId: 'dreamBreakdown' },
-        { type: 'transition', transitionIds: ['crossfade', 'dipToBlack'] },
-        { type: 'retire', roles: ['texture', 'foregroundAccent', 'feedback'] },
-      ],
-    },
-  ],
+type CanvasAnticipatoryStage = CanvasResolvedPerformanceFrame['anticipatoryStage']
+
+interface CanvasResolvedProgramState {
+  templateId: CanvasCompositionTemplateId
+  effectRecipeId: CanvasEffectRecipeId
+  transitionIds: readonly CanvasTransitionId[]
+  recruitedRoles: Set<CanvasLayerRole>
+  retiredRoles: Set<CanvasLayerRole>
+  treatments: CanvasLayerTreatment[]
+  advanceRoles: Set<CanvasLayerRole>
+  selectionIdentity: string
+  effectBoost: number
+  frameHold: boolean
+  sceneId: string
+  showLabel: string
+  lowConfidenceFallback: boolean
+  nextSectionType: string | null
+  anticipatoryStage: CanvasAnticipatoryStage
+  diagnostics: string[]
+}
+
+function nextSectionForContext(context: SharedPerformanceContext) {
+  const currentEnd = context.resolvedSection?.endSec ?? context.audioTimeSec
+  return context.sections
+    .filter(section => section.startSec >= currentEnd - 1e-4 && section.id !== context.sectionId)
+    .sort((a, b) => a.startSec - b.startSec || a.id.localeCompare(b.id))[0] ?? null
+}
+
+function resolveAnticipatoryStage(context: SharedPerformanceContext, nextType: string | null): CanvasAnticipatoryStage {
+  if (!nextType) return context.upcomingSemanticMoments.length > 0 && context.phraseProgress >= 0.82 ? 'phraseQueue' : 'none'
+  if (nextType === 'drop' && context.barsUntilSectionEnd <= 1.05) return 'finalHold'
+  if (nextType === 'preDrop' && context.barsUntilSectionEnd <= 2.05) return 'contraction'
+  if ((nextType === 'breakdown' || nextType === 'bridge') && context.barsUntilSectionEnd <= 2.05) return 'breakdownMigration'
+  if (context.barsUntilSectionEnd <= 4.05) return 'preload'
+  if (context.upcomingSemanticMoments.length > 0 && context.phraseProgress >= 0.82) return 'phraseQueue'
+  return 'none'
+}
+
+function treatmentForRole(treatments: readonly CanvasLayerTreatment[], role: CanvasLayerRole): CanvasLayerTreatment | null {
+  const applicable = treatments.filter(treatment => treatment.roles.includes(role))
+  if (!applicable.length) return null
+  return applicable.reduce<CanvasLayerTreatment>((combined, treatment) => ({
+    roles: [role],
+    opacityMultiplier: (combined.opacityMultiplier ?? 1) * (treatment.opacityMultiplier ?? 1),
+    scaleMultiplier: (combined.scaleMultiplier ?? 1) * (treatment.scaleMultiplier ?? 1),
+    rotationOffset: (combined.rotationOffset ?? 0) + (treatment.rotationOffset ?? 0),
+    offsetX: (combined.offsetX ?? 0) + (treatment.offsetX ?? 0),
+    offsetY: (combined.offsetY ?? 0) + (treatment.offsetY ?? 0),
+    cropInset: Math.min(0.18, (combined.cropInset ?? 0) + (treatment.cropInset ?? 0)),
+  }), { roles: [role] })
+}
+
+function continuousTreatmentForRole(
+  role: CanvasLayerRole,
+  context: SharedPerformanceContext,
+  settings: CanvasOrchestrationSettings,
+): CanvasLayerTreatment | null {
+  if (settings.globalLocks.motion) return null
+  const confidenceScale = context.sectionConfidence < 0.36 ? 0.35 : 1
+  const motion = Math.max(0, Math.min(1, settings.motionIntensity)) * confidenceScale
+  if (motion <= 0) return null
+  const energy = Math.max(0, Math.min(1, context.trackRelativeEnergy))
+  const phrase = Math.max(0, Math.min(1, context.phraseProgress))
+  const flux = Math.max(0, Math.min(1, context.spectralFlux))
+
+  if (role === 'hero') {
+    const tensionCrop = context.sectionType === 'build' || context.sectionType === 'preDrop'
+      ? Math.max(0, Math.min(0.055, context.tension * (0.018 + context.buildProgress * 0.032) * motion))
+      : 0
+    return {
+      roles: [role],
+      scaleMultiplier: 1 + Math.max(0, Math.min(1, context.bass)) * 0.014 * motion,
+      offsetX: (phrase - 0.5) * 0.018 * motion,
+      cropInset: tensionCrop,
+    }
+  }
+  if (role === 'texture') {
+    const opacityTarget = 0.82 + energy * 0.18
+    return {
+      roles: [role],
+      opacityMultiplier: 1 + (opacityTarget - 1) * motion,
+      offsetY: (flux - 0.5) * 0.014 * motion,
+      rotationOffset: (flux - 0.5) * 0.45 * motion,
+    }
+  }
+  if (role === 'foregroundAccent') {
+    const vocalVisibility = 0.8 + Math.max(0, Math.min(1, context.vocalEnergy)) * 0.2
+    return { roles: [role], opacityMultiplier: 1 + (vocalVisibility - 1) * motion }
+  }
+  if (role === 'background') {
+    const opacityTarget = 0.9 + energy * 0.1
+    return { roles: [role], opacityMultiplier: 1 + (opacityTarget - 1) * motion }
+  }
+  return null
+}
+
+function resolvedTreatmentForRole(
+  authored: readonly CanvasLayerTreatment[],
+  role: CanvasLayerRole,
+  context: SharedPerformanceContext,
+  settings: CanvasOrchestrationSettings,
+): CanvasLayerTreatment | null {
+  const continuous = continuousTreatmentForRole(role, context, settings)
+  return treatmentForRole(continuous ? [...authored, continuous] : authored, role)
+}
+
+function shouldApplyAdvanceIntent(
+  context: SharedPerformanceContext,
+  settings: CanvasOrchestrationSettings,
+  intent: { reason: string; identity: string },
+): boolean {
+  if (intent.reason === 'sectionEntry' || intent.reason === 'fourBarMotif' || intent.reason === 'eightBarRecruitment' || intent.reason === 'sixteenBarEvolution') return true
+  const eventMultiplier = intent.reason === 'downbeat' || intent.reason === 'semanticMoment' ? 1 : 0.72
+  return performanceDeterministicUnit(
+    context.trackIdentity,
+    settings.programId,
+    context.sectionIdentity,
+    context.beatIndex,
+    intent.identity,
+    'canvas-authored-cut-density',
+  ) < Math.max(0, Math.min(1, settings.cutDensity * eventMultiplier))
 }
 
 function uniqueMedia(items: readonly CanvasMediaItem[]): CanvasMediaItem[] {
@@ -120,8 +160,8 @@ function uniqueMedia(items: readonly CanvasMediaItem[]): CanvasMediaItem[] {
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id))
 }
 
-function sectionPreferredRoles(context: SharedPerformanceContext): CanvasMediaRole[] {
-  switch (context.sectionType) {
+function sectionPreferredRolesForType(sectionType: string | null | undefined): CanvasMediaRole[] {
+  switch (sectionType) {
     case 'drop': return ['dropAsset', 'hero', 'alternateHero']
     case 'build': return ['buildAsset', 'hero', 'alternateHero']
     case 'preDrop': return ['buildAsset', 'transition', 'hero']
@@ -131,6 +171,10 @@ function sectionPreferredRoles(context: SharedPerformanceContext): CanvasMediaRo
     case 'outro': return ['outroAsset', 'background', 'hero']
     default: return ['hero', 'background', 'alternateHero']
   }
+}
+
+function sectionPreferredRoles(context: SharedPerformanceContext): CanvasMediaRole[] {
+  return sectionPreferredRolesForType(context.sectionType)
 }
 
 function roleCandidates(
@@ -156,6 +200,7 @@ export function resolveCanvasDeterministicMedia({
   layerRole,
   previousMediaId = null,
   lockedMediaId = null,
+  selectionIdentity = '',
 }: {
   items: readonly CanvasMediaItem[]
   requiredRoles: readonly CanvasMediaRole[]
@@ -165,6 +210,7 @@ export function resolveCanvasDeterministicMedia({
   layerRole: CanvasLayerRole
   previousMediaId?: string | null
   lockedMediaId?: string | null
+  selectionIdentity?: string
 }): CanvasMediaItem | null {
   const pool = uniqueMedia(items)
   if (lockedMediaId) {
@@ -186,28 +232,30 @@ export function resolveCanvasDeterministicMedia({
     context.performanceFourBarBlockIndex,
     settings.poolRevision,
     layerRole,
+    selectionIdentity,
   )
   return candidates[index] ?? candidates[0] ?? null
 }
 
-function resolveTemplateFromProgram(
+export function resolveCanvasAuthoredProgramState(
   context: SharedPerformanceContext,
   settings: CanvasOrchestrationSettings,
-): {
-  templateId: CanvasCompositionTemplateId
-  effectRecipeId: CanvasEffectRecipeId
-  transitionIds: readonly CanvasTransitionId[]
-  recruitedRoles: Set<CanvasLayerRole>
-  retiredRoles: Set<CanvasLayerRole>
-  frameHold: boolean
-  sceneId: string
-} {
-  const resolution = resolveSharedPerformanceProgram(CANVAS_FOUNDATION_PROGRAM, context)
+): CanvasResolvedProgramState {
+  const show = getCanvasPerformanceShow(settings.programId)
+  const lowConfidenceFallback = !context.capabilities.sections || context.sectionConfidence < 0.36
+  const resolutionContext = lowConfidenceFallback
+    ? { ...context, sectionType: 'unknown' as const, macroSectionType: 'unknown' as const, sectionFamily: null }
+    : context
+  const resolution = resolveSharedPerformanceProgram(show.program, resolutionContext)
   let templateId: CanvasCompositionTemplateId = 'fullScreenHero'
   let effectRecipeId = resolveCanvasEffectRecipeForSection(context)
   let transitionIds: readonly CanvasTransitionId[] = ['crossfade']
   const recruitedRoles = new Set<CanvasLayerRole>(['hero'])
   const retiredRoles = new Set<CanvasLayerRole>()
+  const treatments: CanvasLayerTreatment[] = []
+  const advanceRoles = new Set<CanvasLayerRole>()
+  const selectionIdentities: string[] = []
+  let effectBoost = 0
   let frameHold = false
 
   for (const intent of resolution.intents) {
@@ -218,17 +266,64 @@ function resolveTemplateFromProgram(
     else if (action.type === 'recruit') action.roles.forEach(role => recruitedRoles.add(role))
     else if (action.type === 'retire') action.roles.forEach(role => retiredRoles.add(role))
     else if (action.type === 'frameHold') frameHold = action.enabled
+    else if (action.type === 'layerTreatment') treatments.push(action.treatment)
+    else if (action.type === 'effectBoost') effectBoost += action.amount
+    else if (action.type === 'advanceMedia' && shouldApplyAdvanceIntent(context, settings, intent)) {
+      action.roles.forEach(role => advanceRoles.add(role))
+      selectionIdentities.push(intent.identity)
+    }
   }
 
+  const nextSection = nextSectionForContext(context)
+  const nextSectionType = nextSection?.type ?? null
+  const anticipatoryStage = resolveAnticipatoryStage(context, nextSectionType)
+  if (anticipatoryStage === 'contraction') {
+    templateId = 'maskedHeroReveal'
+    effectRecipeId = 'preDropVacuum'
+    transitionIds = ['feedbackSmear', 'maskExpansion', 'frameHoldRelease']
+    retiredRoles.add('texture')
+    retiredRoles.add('foregroundAccent')
+    treatments.push({ roles: ['hero'], scaleMultiplier: 0.88, cropInset: 0.07 })
+  } else if (anticipatoryStage === 'finalHold') {
+    effectRecipeId = 'preDropVacuum'
+    transitionIds = ['frameHoldRelease', 'hardCut']
+    frameHold = true
+    retiredRoles.add('texture')
+    retiredRoles.add('foregroundAccent')
+    treatments.push({ roles: ['hero'], scaleMultiplier: 0.84, cropInset: 0.1 })
+  } else if (anticipatoryStage === 'breakdownMigration') {
+    effectRecipeId = 'dreamBreakdown'
+    transitionIds = ['lumaDissolve', 'additiveDissolve', 'crossfade']
+    treatments.push({ roles: ['hero'], scaleMultiplier: 0.96 })
+  } else if (anticipatoryStage === 'phraseQueue') {
+    transitionIds = resolveCanvasContextualTransitionIds(context, transitionIds)
+  }
+
+  if (context.sectionType === 'drop' && context.dropImpact > 0.1) frameHold = false
   if (settings.compositionPreference !== 'auto') templateId = settings.compositionPreference
+  transitionIds = resolveCanvasContextualTransitionIds(context, transitionIds)
+
+  const diagnostics: string[] = []
+  if (lowConfidenceFallback) diagnostics.push('low-confidence-safe-choreography')
+  if (anticipatoryStage !== 'none') diagnostics.push(`anticipatory:${anticipatoryStage}`)
+
   return {
     templateId,
     effectRecipeId,
     transitionIds,
     recruitedRoles,
     retiredRoles,
+    treatments,
+    advanceRoles,
+    selectionIdentity: selectionIdentities.sort().join('|'),
+    effectBoost: Math.max(0, Math.min(0.4, effectBoost)),
     frameHold,
-    sceneId: resolution.scene?.id ?? 'fallback',
+    sceneId: resolution.scene?.id ?? show.fallbackSceneId,
+    showLabel: show.label,
+    lowConfidenceFallback,
+    nextSectionType,
+    anticipatoryStage,
+    diagnostics,
   }
 }
 
@@ -271,6 +366,10 @@ function resolveSlotLayer({
   effectRecipeId,
   isMediaReady,
   frameHold,
+  treatment,
+  forceAdvance,
+  selectionIdentity,
+  effectBoost,
 }: {
   slot: CanvasCompositionSlot
   pool: readonly CanvasMediaItem[]
@@ -280,6 +379,10 @@ function resolveSlotLayer({
   effectRecipeId: CanvasEffectRecipeId
   isMediaReady?: (mediaId: string) => boolean
   frameHold: boolean
+  treatment: CanvasLayerTreatment | null
+  forceAdvance: boolean
+  selectionIdentity: string
+  effectBoost: number
 }): { layer: CanvasResolvedLayer; pendingMediaId: string | null; fallbackUsed: boolean } {
   const previousLayer = previousFrame?.layers.find(layer => layer.role === slot.role || layer.id === slot.id) ?? null
   const layerLocked = settings.layerLocks[slot.role] === true
@@ -293,7 +396,8 @@ function resolveSlotLayer({
     previousLayer?.sourceMediaId && pool.some(item => item.id === previousLayer.sourceMediaId),
   )
   const lockedChoiceChanged = Boolean(lockedMediaId && lockedMediaId !== previousLayer?.sourceMediaId)
-  const shouldReselect = !previousLayer?.source
+  const shouldReselect = forceAdvance
+    || !previousLayer?.source
     || !previousSourceStillAvailable
     || lockedChoiceChanged
     || timelineReset
@@ -325,7 +429,8 @@ function resolveSlotLayer({
       settings,
       context,
       layerRole: slot.role,
-      previousMediaId: quantizedSelectionBoundary && !timelineReset ? previousLayer?.sourceMediaId ?? null : null,
+      previousMediaId: (quantizedSelectionBoundary || forceAdvance) && !timelineReset ? previousLayer?.sourceMediaId ?? null : null,
+      selectionIdentity: forceAdvance ? selectionIdentity : '',
     })
   }
 
@@ -337,8 +442,20 @@ function resolveSlotLayer({
   if (frameHold && !settings.globalLocks.playback) resolvedPlayback.frameHold = true
   const effectChain = layerLocked || settings.globalLocks.effectChain
     ? previousLayer?.effectChain ?? []
-    : resolveCanvasEffectChain(effectRecipeId, context, settings.effectIntensity).slice(0, MAX_CANVAS_EFFECT_CHAIN_DEPTH)
+    : resolveCanvasEffectChain(effectRecipeId, context, Math.min(1, settings.effectIntensity + effectBoost)).slice(0, MAX_CANVAS_EFFECT_CHAIN_DEPTH)
   const lockedAppearance = layerLocked ? previousLayer : null
+  const treatmentEnabled = !lockedAppearance && !settings.globalLocks.motion && treatment !== null
+  const opacityMultiplier = treatmentEnabled ? treatment?.opacityMultiplier ?? 1 : 1
+  const scaleMultiplier = treatmentEnabled ? treatment?.scaleMultiplier ?? 1 : 1
+  const cropInset = treatmentEnabled ? Math.max(0, Math.min(0.22, treatment?.cropInset ?? 0)) : 0
+  const treatedCrop = cropInset > 0
+    ? {
+        x: Math.min(0.48, slot.crop.x + cropInset),
+        y: Math.min(0.48, slot.crop.y + cropInset),
+        width: Math.max(0.04, slot.crop.width - cropInset * 2),
+        height: Math.max(0.04, slot.crop.height - cropInset * 2),
+      }
+    : slot.crop
 
   return {
     layer: {
@@ -347,14 +464,14 @@ function resolveSlotLayer({
       sourceMediaId: source?.id ?? null,
       source,
       enabled: lockedAppearance?.enabled ?? (slot.enabled && Boolean(source)),
-      opacity: lockedAppearance?.opacity ?? slot.opacity,
+      opacity: lockedAppearance?.opacity ?? Math.max(0, Math.min(1, slot.opacity * opacityMultiplier)),
       blendMode: lockedAppearance?.blendMode ?? slot.blendMode,
-      x: lockedAppearance?.x ?? slot.x,
-      y: lockedAppearance?.y ?? slot.y,
-      scaleX: lockedAppearance?.scaleX ?? slot.scaleX,
-      scaleY: lockedAppearance?.scaleY ?? slot.scaleY,
-      rotation: lockedAppearance?.rotation ?? slot.rotation,
-      crop: lockedAppearance?.crop ?? slot.crop,
+      x: lockedAppearance?.x ?? slot.x + (treatmentEnabled ? treatment?.offsetX ?? 0 : 0),
+      y: lockedAppearance?.y ?? slot.y + (treatmentEnabled ? treatment?.offsetY ?? 0 : 0),
+      scaleX: lockedAppearance?.scaleX ?? slot.scaleX * scaleMultiplier,
+      scaleY: lockedAppearance?.scaleY ?? slot.scaleY * scaleMultiplier,
+      rotation: lockedAppearance?.rotation ?? slot.rotation + (treatmentEnabled ? treatment?.rotationOffset ?? 0 : 0),
+      crop: lockedAppearance?.crop ?? treatedCrop,
       aspectBehavior: lockedAppearance?.aspectBehavior ?? slot.aspectBehavior,
       zIndex: lockedAppearance?.zIndex ?? slot.zIndex,
       mirrorX: lockedAppearance?.mirrorX ?? slot.mirrorX ?? false,
@@ -432,7 +549,7 @@ export function resolveCanvasPerformanceFrame({
   isMediaReady?: (mediaId: string) => boolean
 }): CanvasResolvedPerformanceFrame {
   const selection = selectPool(mediaItems, settings)
-  const program = resolveTemplateFromProgram(context, settings)
+  const program = resolveCanvasAuthoredProgramState(context, settings)
   const templateId = settings.globalLocks.composition && previousFrame
     ? previousFrame.template.id
     : program.templateId
@@ -456,6 +573,10 @@ export function resolveCanvasPerformanceFrame({
       effectRecipeId: program.effectRecipeId,
       isMediaReady,
       frameHold: program.frameHold,
+      treatment: resolvedTreatmentForRole(program.treatments, slot.role, context, settings),
+      forceAdvance: program.advanceRoles.has(slot.role),
+      selectionIdentity: program.selectionIdentity,
+      effectBoost: program.effectBoost,
     })
     if (result.pendingMediaId) pendingMediaIds.add(result.pendingMediaId)
     fallbackUsed ||= result.fallbackUsed
@@ -478,8 +599,12 @@ export function resolveCanvasPerformanceFrame({
     layers.push(...retainedLockedLayers)
   }
 
+  const requestedVideoCount = new Set(
+    layers.filter(layer => layer.enabled && layer.source?.type === 'video').map(layer => layer.sourceMediaId),
+  ).size
   layers = enforceDecoderBounds(layers, selection.items)
   layers = attachMaskSources(layers)
+  const requestedLayerCount = layers.length
   layers = layers.slice(0, MAX_CANVAS_PERFORMANCE_LAYERS)
   const frameIdentity = frameIdentityFor(context, settings, template.id, layers)
   const transition = settings.globalLocks.transition
@@ -498,10 +623,21 @@ export function resolveCanvasPerformanceFrame({
   const decoderCount = new Set(layers.filter(layer => layer.enabled && layer.source?.type === 'video').map(layer => layer.sourceMediaId)).size
   const textureHandleCount = new Set(layers.filter(layer => layer.enabled).map(layer => layer.sourceMediaId).filter(Boolean)).size
 
+  const diagnostics = [...program.diagnostics]
+  if (selection.fallbackUsed) diagnostics.push('media-pool-fallback')
+  if (selection.items.length === 0) diagnostics.push('no-media-available')
+  else if (selection.items.length === 1) diagnostics.push('single-media-safe-mode')
+  if (selection.items.length > 0 && selection.items.every(item => item.type !== 'video')) diagnostics.push('image-only-safe-mode')
+  if (requestedVideoCount > MAX_CANVAS_ACTIVE_VIDEO_DECODERS) diagnostics.push('video-decoder-limit-applied')
+  if (requestedLayerCount > MAX_CANVAS_PERFORMANCE_LAYERS) diagnostics.push('layer-limit-applied')
+  if (template.slots.some(slot => slot.role === 'mask') && !layers.some(layer => layer.role === 'mask' && layer.enabled)) diagnostics.push('mask-fallback-compositing')
+  if (pendingMediaIds.size > 0) diagnostics.push('late-media-current-clip-retained')
+
   return {
     programId: settings.programId || CANVAS_PERFORMANCE_PROGRAM_ID,
     frameIdentity,
     sceneId: program.sceneId,
+    showLabel: program.showLabel,
     context,
     template,
     layers,
@@ -514,6 +650,9 @@ export function resolveCanvasPerformanceFrame({
     textureHandleCount: Math.min(MAX_CANVAS_MEDIA_HANDLES, textureHandleCount),
     feedbackPasses: Math.min(MAX_CANVAS_FEEDBACK_PASSES, template.feedbackPasses),
     orchestrationActive: settings.enabled && layers.some(layer => layer.enabled),
+    nextSectionType: program.nextSectionType,
+    anticipatoryStage: program.anticipatoryStage,
+    diagnostics: [...new Set(diagnostics)],
   }
 }
 
@@ -525,13 +664,14 @@ export function getCanvasPerformancePreloadCandidates(
   const active = new Set(frame.layers.map(layer => layer.sourceMediaId).filter((id): id is string => Boolean(id)))
   const pool = selectPool(mediaItems, settings).items
   const sectionRoles = sectionPreferredRoles(frame.context)
+  const upcomingRoles = sectionPreferredRolesForType(frame.nextSectionType)
   const pending = frame.pendingMediaIds.filter(id => !active.has(id))
   const pendingSet = new Set(pending)
   const ranked = pool
     .filter(item => !active.has(item.id) && !pendingSet.has(item.id))
     .map(item => ({
       id: item.id,
-      score: resolveCanvasMediaRoles(item, settings).effective.reduce((score, role) => score + (sectionRoles.includes(role) ? 3 : role === 'transition' || role === 'mask' ? 1 : 0), 0)
+      score: resolveCanvasMediaRoles(item, settings).effective.reduce((score, role) => score + (sectionRoles.includes(role) ? 3 : upcomingRoles.includes(role) ? 4 : role === 'transition' || role === 'mask' ? 1 : 0), 0)
         + performanceDeterministicUnit(frame.frameIdentity, item.id),
     }))
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))

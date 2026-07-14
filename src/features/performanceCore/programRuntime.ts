@@ -36,6 +36,7 @@ export interface SharedPerformanceProgramVariation<TAction> {
 export interface SharedPerformanceProgramScene<TAction> {
   id: string
   sectionTypes: readonly ReactSectionType[]
+  sectionFamilies?: readonly string[]
   occurrence?: { occurrences?: readonly number[]; minOccurrence?: number; maxOccurrence?: number; every?: number }
   dropOccurrence?: { occurrences?: readonly number[]; minOccurrence?: number; maxOccurrence?: number; every?: number }
   minConfidence?: number
@@ -80,6 +81,7 @@ function pushActions<TAction>(
 
 function sceneMatches<TAction>(scene: SharedPerformanceProgramScene<TAction>, context: SharedPerformanceContext, type: ReactSectionType): boolean {
   if (!scene.sectionTypes.includes(type)) return false
+  if (scene.sectionFamilies?.length && (!context.sectionFamily || !scene.sectionFamilies.includes(context.sectionFamily))) return false
   if (!sharedPerformanceOccurrenceMatches(context.sectionOccurrence, scene.occurrence)) return false
   if (!sharedPerformanceOccurrenceMatches(context.dropOccurrence, scene.dropOccurrence)) return false
   return scene.minConfidence == null || context.sectionConfidence >= scene.minConfidence

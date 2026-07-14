@@ -40,14 +40,17 @@ import {
   CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
   CANVAS_MEDIA_ROLES,
   CANVAS_MEDIA_ROLE_LABELS,
+  CANVAS_PERFORMANCE_SHOW_OPTIONS,
   CanvasOrchestrationStage,
   CanvasPreloadManager,
   getCanvasPerformancePreloadCandidates,
+  getCanvasPerformanceShow,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   type CanvasCompositionPreference,
   type CanvasLayerRole,
   type CanvasMediaRole,
+  type CanvasPerformanceShowId,
   type CanvasResolvedPerformanceFrame,
 } from './canvasPerformance'
 import {
@@ -2420,22 +2423,31 @@ function CanvasOrchestrationControls() {
     .map(id => mediaItems.find(item => item.id === id) ?? null)
     .filter((item): item is CanvasMediaItem => item !== null)
   const lockedMediaId = settings.mediaLocksByLayer[lockLayerRole] ?? ''
+  const selectedShow = getCanvasPerformanceShow(settings.programId)
 
   return (
     <Collapsible label="Performance Orchestration" defaultOpen>
       <ToggleRow
-        label="Orchestration Enabled"
+        label="Auto Performance"
         value={settings.enabled}
         onChange={enabled => setSettings({ enabled })}
         description="Uses the Shared Performance Core to arrange the selected pool. Existing presets and manual playback remain the fallback when disabled."
       />
       <div className="rv-canvas-orchestration-summary" role="status">
         <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
+        <span>{selectedShow.label}</span>
         <span>{settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label}</span>
       </div>
       {settings.enabled && poolItems.length === 0 && (
         <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">Select media in the left SOURCE panel to build the performance pool.</div>
       )}
+      <SelectRow
+        label="Performance Show"
+        value={settings.programId}
+        onChange={value => setSettings({ programId: value as CanvasPerformanceShowId })}
+        options={CANVAS_PERFORMANCE_SHOW_OPTIONS}
+        description={selectedShow.description}
+      />
       <ToggleRow
         label="Auto Role"
         value={settings.autoRoleEnabled}
@@ -2455,9 +2467,10 @@ function CanvasOrchestrationControls() {
       <SliderRow label="Transition Density" value={settings.transitionDensity} onChange={transitionDensity => setSettings({ transitionDensity })} min={0} max={1} step={0.01} color="#4ac7db" />
       <SliderRow label="Effect Intensity" value={settings.effectIntensity} onChange={effectIntensity => setSettings({ effectIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
       <SliderRow label="Motion Intensity" value={settings.motionIntensity} onChange={motionIntensity => setSettings({ motionIntensity })} min={0} max={1} step={0.01} color="#d8b95a" />
+      <SliderRow label="Cut Density" value={settings.cutDensity} onChange={cutDensity => setSettings({ cutDensity })} min={0} max={1} step={0.01} color="#f09c5a" />
       <Collapsible label="Locks" defaultOpen={false}>
         <ToggleRow
-          label="Lock Media Choices"
+          label="Media Lock"
           value={settings.globalLocks.media === true}
           onChange={locked => setCanvasOrchestrationLock('media', locked)}
           description="Keeps current deterministic choices while other orchestration continues."
@@ -2483,7 +2496,7 @@ function CanvasOrchestrationControls() {
           ]}
         />
       </Collapsible>
-      <button type="button" className="rv-reset-btn rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Orchestration</button>
+      <button type="button" className="rv-reset-btn rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</button>
     </Collapsible>
   )
 }

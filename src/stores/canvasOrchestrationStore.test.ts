@@ -65,11 +65,26 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     useReactStore.getState().setCanvasMediaRoles('hero-a', ['hero', 'dropAsset'])
     useReactStore.getState().setCanvasMediaLock('hero', 'hero-a')
     useReactStore.getState().setCanvasLayerLock('hero', true)
-    useReactStore.getState().setCanvasOrchestrationSettings({ enabled: true, complexity: 0.9 })
+    useReactStore.getState().setCanvasOrchestrationSettings({
+      enabled: true,
+      programId: 'canvas-dreamstate-media-tunnel',
+      complexity: 0.9,
+      transitionDensity: 0.63,
+      effectIntensity: 0.74,
+      motionIntensity: 0.58,
+      cutDensity: 0.67,
+      compositionPreference: 'echoTunnel',
+    })
 
     expect(useReactStore.getState().canvasOrchestrationSettings).toMatchObject({
       enabled: true,
+      programId: 'canvas-dreamstate-media-tunnel',
       complexity: 0.9,
+      transitionDensity: 0.63,
+      effectIntensity: 0.74,
+      motionIntensity: 0.58,
+      cutDensity: 0.67,
+      compositionPreference: 'echoTunnel',
       mediaRolesById: { 'hero-a': ['hero', 'dropAsset'] },
       mediaLocksByLayer: { hero: 'hero-a' },
       layerLocks: { hero: true },
