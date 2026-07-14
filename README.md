@@ -157,3 +157,7 @@ No backend · No paid APIs · No external audio processing libraries
 ## Browser Compatibility
 
 Tested in Chrome 120+ and Safari 17+. Firefox works but AudioWorklet/ScriptProcessor behavior may differ slightly. All core features work in any modern browser that supports Web Audio API.
+
+### Shared Performance authoring
+
+Architecture, precedence, deterministic transport behavior, validation, diagnostics, Sound Drawing roles, and CANVAS media/composition authoring are documented in [`docs/shared-performance-core.md`](docs/shared-performance-core.md).

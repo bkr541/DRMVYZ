@@ -2688,7 +2688,7 @@ function normalizeCanvasMediaLocks(value: unknown): Partial<Record<CanvasLayerRo
   return normalized
 }
 
-function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrchestrationSettings {
+export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrchestrationSettings {
   const source = isRecord(value) ? value : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS
   const rawPoolIds = Array.isArray(source.mediaPoolIds)
     ? source.mediaPoolIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)

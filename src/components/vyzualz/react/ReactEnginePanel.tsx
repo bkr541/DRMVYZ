@@ -23,6 +23,7 @@ import {
 } from './svgSourceLifecycle'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from './soundDrawing/SoundDrawingPerformanceShows'
 import type { SoundDrawingGeneratorPreference, SoundDrawingPerformanceLockKey } from './soundDrawing/SoundDrawingPerformanceTypes'
+import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import type {
   OscillatorSourceType,
   SvgRenderMode,
@@ -432,6 +433,7 @@ export function ReactEnginePanel() {
                   />
                 ))}
               </Collapsible>
+              <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />
               <button
                 type="button"
                 className="rv-reset-btn"

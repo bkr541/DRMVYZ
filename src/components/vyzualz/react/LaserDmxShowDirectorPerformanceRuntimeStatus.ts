@@ -1,5 +1,8 @@
 import { useSyncExternalStore } from 'react'
+import { createSharedPerformanceDiagnostics } from '../../../features/performanceCore'
 import type { LaserDmxShowDirectorPerformanceSectionType } from './LaserDmxShowDirectorPerformanceProgram'
+import type { LaserDmxShowDirectorPerformanceTimingContext } from './LaserDmxShowDirectorPerformanceContext'
+import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
 import {
   createRigBackedPerformanceEffectCountReport,
   type LaserDmxShowDirectorRigPerformanceEffectCountReport,
@@ -81,6 +84,7 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
   performanceShowName: string,
   resolution: LaserDmxShowDirectorPerformanceResolution,
   performanceShowId?: string | null,
+  context?: LaserDmxShowDirectorPerformanceTimingContext | null,
 ): void {
   const next: LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot = {
     active: resolution.activeSceneId !== null,
@@ -119,12 +123,35 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
       resolution.diagnostics.suppressionReason,
     ].join('|'),
   }
+  if (context) {
+    publishSharedPerformanceDiagnostics(createSharedPerformanceDiagnostics(context, {
+      engine: 'laserDmx',
+      performanceShow: performanceShowName,
+      scene: resolution.activeSceneLabel ?? resolution.activeSceneId,
+      motifOrComposition: resolution.fourBarVariation ?? resolution.activeVariation ?? resolution.activeMotifFamily ?? null,
+      activeLayers: resolution.activeGroupKeys,
+      activeEventEnvelopes: [
+        context.kick ? 'kick' : null,
+        context.snare ? 'snare' : null,
+        context.hat ? 'hat' : null,
+        context.downbeat && context.boundaries.beatBoundary ? 'downbeat' : null,
+      ].filter((value): value is string => Boolean(value)),
+      recentActions: [resolution.fourBarVariation, resolution.activeVariation, resolution.energyEnvelopeKey].filter((value): value is string => Boolean(value)),
+      continuousRoutes: resolution.energyEnvelopeKey ? [resolution.energyEnvelopeKey] : [],
+      fallbackState: resolution.diagnostics.suppressionReason ?? resolution.diagnostics.fallbackReason,
+      resourceLimitDecisions: [
+        resolution.estimatedBeamDemand > resolution.boundedBeamDemand ? `Beam demand clamped ${resolution.estimatedBeamDemand} → ${resolution.boundedBeamDemand}` : null,
+        resolution.diagnostics.beamBudgetWarning,
+      ].filter((value): value is string => Boolean(value)),
+    }))
+  }
   if (statusFingerprint(next) === statusFingerprint(snapshot)) return
   snapshot = Object.freeze(next)
   listeners.forEach(listener => listener())
 }
 
 export function clearLaserDmxShowDirectorPerformanceRuntimeStatus(): void {
+  clearSharedPerformanceDiagnostics('laserDmx')
   if (snapshot === EMPTY_SNAPSHOT || statusFingerprint(snapshot) === statusFingerprint(EMPTY_SNAPSHOT)) return
   snapshot = EMPTY_SNAPSHOT
   listeners.forEach(listener => listener())

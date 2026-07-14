@@ -557,6 +557,7 @@ export function renderLaserDmx(
       performanceState.activeProgramDefinition?.name ?? performanceState.activeProgramId ?? 'Performance Show',
       performanceResolution,
       performanceState.activeProgramId,
+      performanceContext,
     )
     performanceStatusCanvas.add(ctx)
   } else if (params.thumbnailLaserDmxSettings == null && performanceStatusCanvas.has(ctx)) {

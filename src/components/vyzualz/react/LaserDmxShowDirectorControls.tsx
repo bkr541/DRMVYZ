@@ -6,6 +6,7 @@ import { LaserDmxShowDirectorInspector } from './LaserDmxShowDirectorInspector'
 import type { LaserDmxShowDirectorSettings } from './ReactTypes'
 import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmxShowDirectorPerformanceProgram'
 import { useLaserDmxShowDirectorPerformanceRuntimeStatus } from './LaserDmxShowDirectorPerformanceRuntimeStatus'
+import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 
 const GRID_PRESETS = [
   { label: '10 × 6', value: '10x6', columns: 10, rows: 6 },
@@ -278,6 +279,7 @@ function PerformanceProgramControls() {
         {statusReason && <p className="rv-show-director-performance-status__notice">{statusReason}</p>}
         {status.beamBudgetWarning && <p className="rv-show-director-performance-status__warning">{status.beamBudgetWarning}</p>}
       </div>
+      <SharedPerformanceDiagnosticsPanel engine="laserDmx" label="Shared Core Diagnostics" />
     </Collapsible>
   )
 }

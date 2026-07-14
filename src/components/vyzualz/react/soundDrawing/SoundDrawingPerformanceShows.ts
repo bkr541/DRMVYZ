@@ -217,7 +217,9 @@ function radialPressureSystem(): SoundDrawingPerformanceShowDefinition {
     description: 'Concentric bass membranes, pressure rings, tunnel depth, and percussion-separated radial impacts.',
     program: {
       id: 'soundDrawing.radialPressureSystem',
+      metadata: { name: 'Radial Pressure System', description: 'Concentric bass membranes and percussion-separated radial impacts.', engine: 'soundDrawing', version: 1, authoringRevision: 'patch-5' },
       fallbackOrder: ['unknown'],
+      fallbackSceneId: 'rps-fallback',
       scenes: [
         scene('rps-intro', ['intro'], intro),
         scene('rps-verse', ['verse'], verse),
@@ -281,7 +283,9 @@ function harmonicRibbonReactor(): SoundDrawingPerformanceShowDefinition {
     description: 'Layered waveform bands and elastic ribbons that recruit harmonics as phrases accumulate.',
     program: {
       id: 'soundDrawing.harmonicRibbonReactor',
+      metadata: { name: 'Harmonic Ribbon Reactor', description: 'Ribbon architecture with phrase-scaled recruitment and clear percussion roles.', engine: 'soundDrawing', version: 1, authoringRevision: 'patch-5' },
       fallbackOrder: ['unknown'],
+      fallbackSceneId: 'hrr-fallback',
       scenes: [
         scene('hrr-intro', ['intro'], intro),
         scene('hrr-verse', ['verse'], verse),
@@ -345,7 +349,9 @@ function phaseKnotCathedral(): SoundDrawingPerformanceShowDefinition {
     description: 'Architectural Lissajous knots, kaleidoscopic cuts, and evolving attractor vaults.',
     program: {
       id: 'soundDrawing.phaseKnotCathedral',
+      metadata: { name: 'Phase-Knot Cathedral', description: 'Architectural phase knots with deterministic long-form evolution.', engine: 'soundDrawing', version: 1, authoringRevision: 'patch-5' },
       fallbackOrder: ['unknown'],
+      fallbackSceneId: 'pkc-fallback',
       scenes: [
         scene('pkc-intro', ['intro'], intro),
         scene('pkc-verse', ['verse'], verse),

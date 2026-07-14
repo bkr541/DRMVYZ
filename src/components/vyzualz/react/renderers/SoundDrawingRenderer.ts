@@ -16,9 +16,17 @@ import { SoundDrawingLyricTextRuntime } from '../../../../features/lyrics/runtim
 import { getSvgVisualEntry } from './svgVisualCache'
 import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUtils'
 import { getSvgGlyphAssetId, resolveUnifiedSvgSource } from '../svgSourceLifecycle'
-import type { SharedPerformanceContext } from '../../../../features/performanceCore'
+import { createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { resolveSoundDrawingPerformanceFrame } from '../soundDrawing/SoundDrawingPerformanceEngine'
-import type { SoundDrawingColorRole, SoundDrawingResolvedPerformanceFrame, SoundDrawingResolvedPerformanceLayer } from '../soundDrawing/SoundDrawingPerformanceTypes'
+import {
+  MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
+  MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES,
+  MAX_SOUND_DRAWING_PERFORMANCE_TRACES,
+  type SoundDrawingColorRole,
+  type SoundDrawingResolvedPerformanceFrame,
+  type SoundDrawingResolvedPerformanceLayer,
+} from '../soundDrawing/SoundDrawingPerformanceTypes'
+import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from '../SharedPerformanceDiagnosticsStore'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
 // SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
 // This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
@@ -26,6 +34,7 @@ import type { SoundDrawingColorRole, SoundDrawingResolvedPerformanceFrame, Sound
 // ── Trail canvas pool (per ctx) ───────────────────────────────────────────────
 const trailMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
 const soundDrawingPerformanceContextMap = new WeakMap<CanvasRenderingContext2D, SharedPerformanceContext>()
+const SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS = new Set(['beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'semanticMoment'])
 
 function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanvasElement {
   return getOrCreateOffscreen(trailMap, ctx, W, H)
@@ -191,6 +200,7 @@ export function disposeSoundDrawingRenderer(
   rotPhaseMap.delete(ctx)
   trailResetSeenMap.delete(ctx)
   soundDrawingPerformanceContextMap.delete(ctx)
+  clearSharedPerformanceDiagnostics('soundDrawing')
 }
 
 export function getSoundDrawingRuntimeCacheStats(): {
@@ -1921,9 +1931,31 @@ function renderAuthoredSoundDrawingPerformance(
   })
   if (!performance) {
     soundDrawingPerformanceContextMap.delete(ctx)
+    clearSharedPerformanceDiagnostics('soundDrawing')
     return false
   }
   soundDrawingPerformanceContextMap.set(ctx, performance.context)
+  const activeEventEnvelopes = performance.appliedActionReasons.filter(reason => SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS.has(reason))
+  const lockedParameters = Object.entries(params.soundDrawingPerformanceSettings?.locks ?? {})
+    .filter(([, locked]) => locked)
+    .map(([key]) => key)
+  const resourceLimitDecisions: string[] = []
+  if (performance.layers.length >= MAX_SOUND_DRAWING_PERFORMANCE_LAYERS) resourceLimitDecisions.push('Layer budget reached')
+  if (performance.layers.some(layer => layer.traceCount >= MAX_SOUND_DRAWING_PERFORMANCE_TRACES)) resourceLimitDecisions.push('Trace budget reached')
+  if (performance.layers.some(layer => layer.particleCount >= MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES)) resourceLimitDecisions.push('Particle budget reached')
+  publishSharedPerformanceDiagnostics(createSharedPerformanceDiagnostics(performance.context, {
+    engine: 'soundDrawing',
+    performanceShow: performance.showName,
+    scene: performance.sceneId,
+    motifOrComposition: `4-bar ${performance.context.performanceFourBarBlockIndex + 1}`,
+    activeLayers: performance.layers.filter(layer => layer.enabled).map(layer => `${layer.role}:${layer.generator}`),
+    activeEventEnvelopes,
+    recentActions: performance.appliedActionReasons,
+    continuousRoutes: performance.layers.flatMap(layer => layer.modulationRoutes.map(route => route.id)),
+    lockedParameters,
+    fallbackState: performance.fallbackUsed ? 'Safe authored fallback active' : null,
+    resourceLimitDecisions,
+  }))
 
   const { W, H } = frame
   const trailCanvas = getTrail(ctx, W, H)

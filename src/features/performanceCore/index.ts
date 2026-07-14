@@ -1,4 +1,6 @@
 export * from './context'
+export * from './authoring'
+export * from './diagnostics'
 export * from './determinism'
 export * from './envelopes'
 export * from './runtime'

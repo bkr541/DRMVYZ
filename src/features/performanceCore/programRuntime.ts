@@ -1,5 +1,11 @@
 import type { ReactSectionType } from '../musicIntelligence/types'
 import type { SharedPerformanceContext, SharedPerformanceSectionPhase } from './context'
+import type {
+  SharedPerformanceBarRange,
+  SharedPerformanceCapabilityRequirement,
+  SharedPerformanceConfidenceRequirement,
+  SharedPerformanceProgramMetadata,
+} from './authoring'
 import { selectSharedPerformanceWeightedVariation } from './runtime'
 import { resolveSharedPerformanceCadence, sharedPerformanceOccurrenceMatches } from './runtime'
 import { resolveSharedPerformanceSignals, type SharedPerformanceSignalFrame } from './signals'
@@ -41,6 +47,10 @@ export interface SharedPerformanceProgramScene<TAction> {
   dropOccurrence?: { occurrences?: readonly number[]; minOccurrence?: number; maxOccurrence?: number; every?: number }
   minConfidence?: number
   priority?: number
+  barRange?: SharedPerformanceBarRange
+  sectionPhases?: readonly SharedPerformanceSectionPhase[]
+  capabilityRequirements?: readonly SharedPerformanceCapabilityRequirement[]
+  confidenceRequirements?: readonly SharedPerformanceConfidenceRequirement[]
   actions?: readonly TAction[]
   entryActions?: readonly TAction[]
   bodyActions?: readonly TAction[]
@@ -54,8 +64,10 @@ export interface SharedPerformanceProgramScene<TAction> {
 
 export interface SharedPerformanceProgram<TAction> {
   id: string
+  metadata?: SharedPerformanceProgramMetadata
   scenes: readonly SharedPerformanceProgramScene<TAction>[]
   fallbackOrder?: readonly ReactSectionType[]
+  fallbackSceneId?: string
 }
 
 export interface SharedPerformanceProgramResolution<TAction> {
@@ -84,7 +96,13 @@ function sceneMatches<TAction>(scene: SharedPerformanceProgramScene<TAction>, co
   if (scene.sectionFamilies?.length && (!context.sectionFamily || !scene.sectionFamilies.includes(context.sectionFamily))) return false
   if (!sharedPerformanceOccurrenceMatches(context.sectionOccurrence, scene.occurrence)) return false
   if (!sharedPerformanceOccurrenceMatches(context.dropOccurrence, scene.dropOccurrence)) return false
-  return scene.minConfidence == null || context.sectionConfidence >= scene.minConfidence
+  if (scene.minConfidence != null && context.sectionConfidence < scene.minConfidence) return false
+  if (scene.sectionPhases?.length && !scene.sectionPhases.includes(context.macroSectionPhase)) return false
+  if (scene.barRange?.startBar != null && context.barWithinMacroSection < scene.barRange.startBar) return false
+  if (scene.barRange?.endBar != null && context.barWithinMacroSection > scene.barRange.endBar) return false
+  if (scene.capabilityRequirements?.some(requirement => !requirement.optional && !context.capabilities[requirement.capability])) return false
+  if (scene.confidenceRequirements?.some(requirement => context.confidence[requirement.confidence] < requirement.min)) return false
+  return true
 }
 
 /**
@@ -103,7 +121,11 @@ export function resolveSharedPerformanceProgram<TAction>(
       if (candidates.length) break
     }
   }
-  const scene = candidates.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.id.localeCompare(b.id))[0] ?? null
+  if (!candidates.length && program.fallbackSceneId) {
+    const fallbackScene = program.scenes.find(candidate => candidate.id === program.fallbackSceneId)
+    if (fallbackScene) candidates = [fallbackScene]
+  }
+  const scene = [...candidates].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.id.localeCompare(b.id))[0] ?? null
   const signals = resolveSharedPerformanceSignals(context)
   if (!scene) {
     return {

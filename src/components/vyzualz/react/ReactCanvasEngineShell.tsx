@@ -5,9 +5,11 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
-import { buildSharedPerformanceContext, type SharedPerformanceContext } from '../../../features/performanceCore'
+import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
+import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import {
   getCanvasMediaTransparencyKey,
@@ -1298,6 +1300,7 @@ export function CanvasEngineSurface({
       previousOrchestrationContextRef.current = null
       previousOrchestrationFrameRef.current = null
       setOrchestrationFrame(null)
+      clearSharedPerformanceDiagnostics('canvas')
       return
     }
 
@@ -1338,6 +1341,30 @@ export function CanvasEngineSurface({
       orchestrationPreloadManager.retainOnly([...activeMediaIds, ...candidateMediaIds])
       previousOrchestrationContextRef.current = context
       previousOrchestrationFrameRef.current = nextFrame
+      const lockedParameters = [
+        ...Object.entries(orchestrationSettings.globalLocks).filter(([, locked]) => locked).map(([key]) => key),
+        ...Object.entries(orchestrationSettings.layerLocks).filter(([, locked]) => locked).map(([key]) => `layer:${key}`),
+        ...Object.keys(orchestrationSettings.mediaLocksByLayer).map(key => `media:${key}`),
+      ]
+      const activeEvents = [
+        context.kick ? 'kick' : null,
+        context.snare ? 'snare' : null,
+        context.hat ? 'hat' : null,
+        context.downbeat && context.boundaries.beatBoundary ? 'downbeat' : null,
+      ].filter((value): value is string => Boolean(value))
+      publishSharedPerformanceDiagnostics(createSharedPerformanceDiagnostics(context, {
+        engine: 'canvas',
+        performanceShow: nextFrame.showLabel,
+        scene: nextFrame.sceneId,
+        motifOrComposition: nextFrame.template.label,
+        activeLayers: nextFrame.layers.filter(layer => layer.enabled).map(layer => `${layer.role}:${layer.source?.name ?? 'fallback'}`),
+        activeEventEnvelopes: activeEvents,
+        recentActions: [nextFrame.transition?.id, nextFrame.effectRecipeId, ...nextFrame.diagnostics].filter((value): value is string => Boolean(value)),
+        continuousRoutes: nextFrame.layers.flatMap(layer => layer.modulationRoutes.map(route => route.id)),
+        lockedParameters,
+        fallbackState: nextFrame.fallbackUsed ? nextFrame.diagnostics.join(', ') || 'Media fallback active' : null,
+        resourceLimitDecisions: nextFrame.diagnostics.filter(item => item.includes('limit') || item.includes('safe-mode') || item.includes('fallback-compositing')),
+      }))
       setOrchestrationFrame(nextFrame)
     }
 
@@ -1346,7 +1373,10 @@ export function CanvasEngineSurface({
     return () => window.clearInterval(intervalId)
   }, [activeAudioTrackId, mediaItems, orchestrationPreloadManager, orchestrationSettings])
 
-  useEffect(() => () => orchestrationPreloadManager.dispose(), [orchestrationPreloadManager])
+  useEffect(() => () => {
+    orchestrationPreloadManager.dispose()
+    clearSharedPerformanceDiagnostics('canvas')
+  }, [orchestrationPreloadManager])
 
   const orchestrationRenderable = Boolean(
     orchestrationSettings.enabled
@@ -2496,6 +2526,7 @@ function CanvasOrchestrationControls() {
           ]}
         />
       </Collapsible>
+      <SharedPerformanceDiagnosticsPanel engine="canvas" />
       <button type="button" className="rv-reset-btn rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</button>
     </Collapsible>
   )

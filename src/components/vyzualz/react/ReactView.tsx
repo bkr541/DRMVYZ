@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
 import { ReactPersistenceStatus } from './ReactPersistenceStatus'
+import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDiagnosticsStore'
 import { useReactStore } from '../../../stores/reactStore'
 import {
   ReactPresetsPanel,
@@ -255,6 +256,23 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
   // Engine swaps are semantic diagnostics boundaries. Clear immediately rather
   // than showing the previous renderer's FPS until the new renderer samples.
   useEffect(() => { setLiveFps(0) }, [activeReactEngineId])
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    void import('./PerformanceProgramDevelopmentValidation')
+      .then(module => module.runPerformanceProgramDevelopmentValidation())
+      .catch(error => console.warn('[Performance Programs] Development validation could not load.', error))
+  }, [])
+  useEffect(() => {
+    retainSharedPerformanceDiagnosticsEngine(
+      activeReactEngineId === 'laserDmx'
+        ? 'laserDmx'
+        : activeReactEngineId === 'oscilloscope'
+          ? 'soundDrawing'
+          : activeReactEngineId === 'canvas'
+            ? 'canvas'
+            : null,
+    )
+  }, [activeReactEngineId])
 
   const handleStartRecording = useCallback((canvas: HTMLCanvasElement) => {
     const audioStream = hasActiveProgramAudio ? getRecordingStream() : null

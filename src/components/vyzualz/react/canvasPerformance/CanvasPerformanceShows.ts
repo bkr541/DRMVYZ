@@ -265,7 +265,13 @@ function show(
     description,
     visualPhilosophy,
     fallbackSceneId,
-    program: { id, fallbackOrder: ['unknown', 'verse', 'intro', 'breakdown', 'drop'], scenes },
+    program: {
+      id,
+      metadata: { name: label, description, engine: 'canvas', version: 1, authoringRevision: 'patch-5' },
+      fallbackOrder: ['unknown', 'verse', 'intro', 'breakdown', 'drop'],
+      fallbackSceneId,
+      scenes,
+    },
   }
 }
 
