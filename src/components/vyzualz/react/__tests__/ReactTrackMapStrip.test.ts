@@ -18,6 +18,7 @@ import {
   buildPresetCueId,
   buildPresetCueLabel,
   buildTimelineCueTitle,
+  buildSectionConfidenceDisplayData,
 } from '../ReactTrackMapStrip'
 import { adaptMIAnalysis } from '../../../../features/trackIntelligence/trackMapAdapter'
 import type { TrackIntelligenceAnalysis, FeatureCurve, TrackAnalysisStatus, BeatMarkerMI } from '../../../../features/musicIntelligence/types'
@@ -1365,5 +1366,21 @@ describe('orphaned cue cleanup — rename (handleSaveSection label change)', () 
     const cues = useReactStore.getState().presetAutomationCuesByTrackId[TRACK_ID] ?? []
     const cueB = cues.find(c => c.sectionId === sB.id)!
     expect(cueB.label).toBe(buildPresetCueLabel('B', 'Beta'))
+  })
+})
+
+
+describe('section confidence display data', () => {
+  it('marks automatic sections low-confidence when any supporting confidence is weak', () => {
+    const display = buildSectionConfidenceDisplayData({
+      id: 'low-confidence', label: 'Maybe Drop', type: 'drop', startSec: 16, endSec: 32,
+      intensity: 0.9, source: 'auto', confidence: 0.7,
+      boundaryConfidence: 0.42, labelConfidence: 0.68, gridConfidence: 0.81,
+      interpretation: { analysisSource: 'bar_self_similarity' },
+    })
+
+    expect(display.tier).toBe('low')
+    expect(display.sourceLabel).toBe('Bar self-similarity')
+    expect(display.tooltip).toContain('boundary 42%')
   })
 })

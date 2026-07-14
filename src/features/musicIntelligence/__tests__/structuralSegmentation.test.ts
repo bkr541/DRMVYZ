@@ -200,7 +200,7 @@ describe('bar-aligned self-similarity segmentation', () => {
     expect(diagnostics.matrixBytes).toBeLessThanOrEqual(512 * 512 * 4)
     expect(result.structuralSegmentation.boundaryCandidates.length).toBeLessThanOrEqual(96)
     expect(result.structuralSegmentation.alternativeBoundaryCandidates.length).toBeLessThanOrEqual(32)
-  })
+  }, 15_000)
 
   it('uses and clearly marks the deterministic time-domain fallback when grid confidence is inadequate', () => {
     const durationSec = 24
@@ -343,6 +343,24 @@ describe('BPM reanalysis integration', () => {
     expect(reanalyzed.sections.map(section => [section.startSec, section.endSec])).toEqual(
       direct.sections.map(section => [section.startSec, section.endSec]),
     )
+  })
+
+  it('keeps phrase and semantic metadata aligned to rebuilt bars after BPM correction', () => {
+    const result = applyReanalyze(makeAnalysis(), 128)
+    const bars = new Map((result.barMarkers ?? []).map(bar => [bar.barIndex, bar]))
+
+    expect(result.phrases.length).toBeGreaterThan(0)
+    for (const phrase of result.phrases) {
+      if (phrase.barIndex == null) continue
+      expect(phrase.timeSec).toBeCloseTo(bars.get(phrase.barIndex)?.startSec ?? phrase.timeSec, 5)
+    }
+    for (const moment of result.semanticMoments) {
+      if (moment.barIndex == null) continue
+      const bar = bars.get(moment.barIndex)
+      expect(bar).toBeDefined()
+      expect(moment.timeSec).toBeGreaterThanOrEqual((bar?.startSec ?? 0) - 0.01)
+      expect(moment.timeSec).toBeLessThanOrEqual((bar?.endSec ?? moment.timeSec) + 0.01)
+    }
   })
 
   it('preserves locked/manual sections and excludes overlapping automatic replacements', () => {

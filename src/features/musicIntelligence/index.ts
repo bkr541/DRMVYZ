@@ -18,6 +18,12 @@ export type {
   TrackSectionMI,
   BeatMarkerMI,
   PhraseMarker,
+  PhraseMarkerSource,
+  MusicalHierarchyLevel,
+  MusicalHierarchyUnit,
+  MusicalHierarchyAnalysis,
+  SectionFamilyNode,
+  SectionOccurrenceNode,
   FeatureCurve,
   FeatureCurvePoint,
   StemFeatureCurve,
@@ -30,6 +36,7 @@ export type {
   VisualAutomationSuggestion,
   StructuralAnalysisSource,
   StructuralBoundaryCandidate,
+  BoundaryAlternative,
   StructuralRegionRelation,
   StructuralRegionDiagnostics,
   StructuralRegion,
@@ -107,6 +114,13 @@ export {
 } from './stemAnalysis'
 
 export { SemanticAnalyzer, detectSemanticMoments, suggestVisualAutomation } from './semanticAnalysis'
+
+export type { MusicalHierarchyInput, MusicalHierarchyResult } from './musicalHierarchyAnalysis'
+export {
+  attachSectionAnalysisMetadata,
+  buildBoundaryAlternatives,
+  generateMusicalHierarchy,
+} from './musicalHierarchyAnalysis'
 
 export type {
   ModulationSourceKey,

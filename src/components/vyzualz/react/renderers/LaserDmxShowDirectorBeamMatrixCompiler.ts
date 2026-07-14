@@ -577,8 +577,19 @@ function cueMarkerMatchesTrigger(marker: VzCueMarker, trigger: LaserDmxShowDirec
 }
 
 function semanticMomentMatchesTrigger(moment: TrackIntelligenceAnalysis['semanticMoments'][number], trigger: LaserDmxShowDirectorTriggerConfig): boolean {
-  const canonicalType = moment.type === 'high_impact' ? 'drop' : canonicalShowDirectorSectionType(moment.type)
-  return cueCandidateMatches(cueNeedles(trigger), moment.type, canonicalType, moment.label, moment.source)
+  const legacyAliases: Partial<Record<TrackIntelligenceAnalysis['semanticMoments'][number]['type'], string>> = {
+    drop_impact: 'drop',
+    major_impact: 'drop',
+    pre_drop_start: 'preDrop',
+    breakdown_entry: 'breakdown',
+    energy_release: 'release',
+    fakeout_candidate: 'fakeout',
+  }
+  const alias = legacyAliases[moment.type]
+  const canonicalType = moment.type === 'high_impact'
+    ? 'drop'
+    : canonicalShowDirectorSectionType(alias ?? moment.type)
+  return cueCandidateMatches(cueNeedles(trigger), moment.type, alias, canonicalType, moment.label, moment.source)
 }
 
 function cueGateDurationSec(fixture: LaserDmxShowDirectorFixture): number {

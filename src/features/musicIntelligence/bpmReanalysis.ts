@@ -5,6 +5,7 @@
 
 import { analyzeStructuralRegions } from './sectionAnalysis'
 import { detectSemanticMoments } from './semanticAnalysis'
+import { generateMusicalHierarchy } from './musicalHierarchyAnalysis'
 import type { TrackIntelligenceAnalysis, TrackSectionMI } from './types'
 import { rebuildBpmDependentData } from '../../features/trackIntelligence/beatGridUtils'
 
@@ -102,19 +103,30 @@ function assembleReanalysis(
   sections: TrackSectionMI[],
   structuralSegmentation: TrackIntelligenceAnalysis['structuralSegmentation'],
 ): TrackIntelligenceAnalysis {
+  const hierarchy = generateMusicalHierarchy({
+    durationSec: analysis.durationMs / 1000,
+    beatGrid: gridData.beatGrid,
+    barMarkers: gridData.barMarkers,
+    barFeatures: gridData.barFeatures,
+    musicalGrid: gridData.musicalGrid,
+    sections,
+    structuralSegmentation,
+  })
   const partial: TrackIntelligenceAnalysis = {
     ...analysis,
     beatGrid: gridData.beatGrid,
     downbeats: gridData.downbeats,
-    phrases: gridData.phrases,
+    phrases: hierarchy.phrases,
+    phraseHierarchy: hierarchy.phraseHierarchy,
     barMarkers: gridData.barMarkers,
     barFeatures: gridData.barFeatures,
     musicalGrid: gridData.musicalGrid,
     beatPhaseConfidence: gridData.musicalGrid.confidence.beatPhase,
     downbeatPhaseConfidence: gridData.musicalGrid.confidence.downbeatPhase,
     barGridConfidence: gridData.musicalGrid.confidence.barGrid,
-    sections,
+    sections: hierarchy.sections,
     structuralSegmentation,
+    boundaryAlternatives: hierarchy.boundaryAlternatives,
     detectedBpm: analysis.detectedBpm ?? analysis.bpm,
     bpmUsedForGrid: bpm,
     lastGridRebuiltAt: gridData.lastGridRebuiltAt,
@@ -127,7 +139,7 @@ function assembleReanalysis(
           downbeatCount: gridData.downbeats.length,
           barCount: gridData.barMarkers.length,
           barFeatureCount: gridData.barFeatures.length,
-          sectionCount: sections.length,
+          sectionCount: hierarchy.sections.length,
           usedFallback: structuralSegmentation?.diagnostics.usedFallback ?? true,
           gridSource: gridData.musicalGrid.source,
           fallbackReason: gridData.musicalGrid.fallbackReason,
@@ -142,12 +154,20 @@ function assembleReanalysis(
           detectedPreDropCount: structuralSegmentation?.contextualDiagnostics?.preDropCount,
           sectionFamilyCount: structuralSegmentation?.contextualDiagnostics?.familyCount,
           ambiguousSectionCount: structuralSegmentation?.contextualDiagnostics?.ambiguousSectionCount,
+          structuralPhraseCount: hierarchy.phrases.filter(phrase => phrase.structurallyDetected).length,
+          gridDerivedPhraseCount: hierarchy.phrases.filter(phrase => !phrase.structurallyDetected).length,
+          boundaryAlternativeCount: hierarchy.boundaryAlternatives.length,
+          hierarchyUnitCount: hierarchy.phraseHierarchy.units.length,
         }
       : analysis.analysisDiagnostics,
   }
+  const semanticMoments = detectSemanticMoments(partial)
   return {
     ...partial,
-    semanticMoments: detectSemanticMoments(partial),
+    semanticMoments,
+    analysisDiagnostics: partial.analysisDiagnostics
+      ? { ...partial.analysisDiagnostics, semanticMomentCount: semanticMoments.length }
+      : partial.analysisDiagnostics,
   }
 }
 

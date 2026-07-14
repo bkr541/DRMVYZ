@@ -385,18 +385,82 @@ export interface AnalysisDiagnostics {
   detectedPreDropCount?: number
   sectionFamilyCount?: number
   ambiguousSectionCount?: number
+  structuralPhraseCount?: number
+  gridDerivedPhraseCount?: number
+  semanticMomentCount?: number
+  boundaryAlternativeCount?: number
+  hierarchyUnitCount?: number
 }
 
+export type PhraseMarkerSource =
+  | 'section_boundary'
+  | 'structural_boundary'
+  | 'self_similarity'
+  | 'repeated_material'
+  | 'energy_transition'
+  | 'imported'
+  | 'grid_derived'
+
 export interface PhraseMarker {
+  id?:          string
   timeSec:      number
   phraseLength: 4 | 8 | 16 | 32
+  /** Alias retained for consumers that prefer explicit bar units. */
+  lengthBars?:  4 | 8 | 16 | 32
+  barIndex?:    number | null
   confidence:   number
+  source?:      PhraseMarkerSource
+  reason?:      string
+  relatedSectionId?: string | null
+  structurallyDetected?: boolean
+  supportingSignals?: string[]
+}
+
+export type MusicalHierarchyLevel = 'beat' | 'bar' | 'four_bar' | 'eight_bar' | 'sixteen_bar' | 'thirty_two_bar' | 'section'
+
+export interface MusicalHierarchyUnit {
+  id: string
+  level: MusicalHierarchyLevel
+  startSec: number
+  endSec: number
+  startBar: number | null
+  endBar: number | null
+  confidence: number
+  parentId?: string | null
+  relatedSectionId?: string | null
+  source: 'structural' | 'grid_derived' | 'section'
+}
+
+export interface SectionOccurrenceNode {
+  sectionId: string
+  familyId: string
+  occurrenceIndex: number
+  startSec: number
+  endSec: number
+  startBar: number | null
+  endBar: number | null
+  confidence: number
+  isVariation: boolean
+}
+
+export interface SectionFamilyNode {
+  familyId: string
+  sectionType: ReactSectionType
+  occurrenceSectionIds: string[]
+  confidence: number
+}
+
+export interface MusicalHierarchyAnalysis {
+  units: MusicalHierarchyUnit[]
+  sectionFamilies: SectionFamilyNode[]
+  sectionOccurrences: SectionOccurrenceNode[]
 }
 
 
 export type StructuralAnalysisSource = 'bar_self_similarity' | 'time_domain_fallback'
 
 export interface StructuralBoundaryCandidate {
+  id?: string
   barIndex: number | null
   timeSec: number
   totalScore: number
@@ -410,6 +474,19 @@ export interface StructuralBoundaryCandidate {
   candidateConfidence: number
   selected: boolean
   offGrid: boolean
+  reason?: string
+  supportingSignals?: string[]
+}
+
+export interface BoundaryAlternative {
+  id: string
+  timeSec: number
+  barIndex: number | null
+  confidence: number
+  rank: number
+  reason: string
+  supportingSignals: string[]
+  source: StructuralAnalysisSource
 }
 
 export interface StructuralRegionRelation {
@@ -522,12 +599,33 @@ export interface LyricLineMI {
 }
 
 export interface SemanticMomentMarker {
+  id?:         string
   timeSec:     number
+  barIndex?:   number | null
   durationSec?: number
-  type:        'build_start' | 'drop' | 'fakeout' | 'vocal_hook' | 'breakdown' | 'release' | 'high_impact' | 'calm_moment'
+  type:
+    | 'build_start'
+    | 'pre_drop_start'
+    | 'drop_impact'
+    | 'breakdown_entry'
+    | 'energy_release'
+    | 'fakeout_candidate'
+    | 'silence_or_stop'
+    | 'major_impact'
+    | 'section_entry'
+    | 'section_exit'
+    | 'drop'
+    | 'fakeout'
+    | 'vocal_hook'
+    | 'breakdown'
+    | 'release'
+    | 'high_impact'
+    | 'calm_moment'
   confidence:  number
   label?:      string
-  source?:     'heuristic' | 'model' | 'manual'
+  source?:     'section_context' | 'structural_analysis' | 'energy_curve' | 'bar_features' | 'heuristic' | 'model' | 'manual'
+  relatedSectionId?: string | null
+  supportingSignals?: string[]
 }
 
 export interface TrackIntelligenceAnalysis {
@@ -551,9 +649,13 @@ export interface TrackIntelligenceAnalysis {
   barFeatures?:     BarMusicalFeatures[]
   musicalGrid?:     MusicalGridInfo
   phrases:          PhraseMarker[]
+  /** Explicit beat/bar/phrase/section-family hierarchy for future performance programs. */
+  phraseHierarchy?: MusicalHierarchyAnalysis
   sections:         TrackSectionMI[]
   /** Neutral structural regions and boundary diagnostics produced before semantic labeling. */
   structuralSegmentation?: StructuralSegmentationAnalysis
+  /** Bounded, ranked unselected candidates exposed for Track Map editing. */
+  boundaryAlternatives?: BoundaryAlternative[]
   energyCurves: {
     instant:   FeatureCurve
     shortTerm: FeatureCurve

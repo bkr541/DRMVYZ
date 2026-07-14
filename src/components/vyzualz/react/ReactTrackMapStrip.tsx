@@ -9,10 +9,12 @@ import {
   computeMinDuration,
   computeKeyStep,
   pointerXToTime,
-  snapToNearestBeat,
+  snapBoundaryTime,
+  navigateBoundaryAlternative,
   findSharedBoundaryNeighbor,
-  clampEdge,
+  clampEdgeAgainstTimeline,
   type SectionEdge,
+  type SectionBoundarySnapMode,
   type SectionBoundaryDragState,
 } from '../../../features/trackIntelligence/sectionBoundaryDrag'
 import {
@@ -28,6 +30,7 @@ import type {
   BeatMarkerMI,
   FeatureCurve,
   TrackAnalysisStatus,
+  BoundaryAlternative,
 } from '../../../features/musicIntelligence/types'
 import { applyCanvasResolution, resolveCanvasResolution } from './rendering/canvasResolution'
 import { isSelectableReactEngineId, REACT_ENGINE_CATALOG } from './reactEngineCatalog'
@@ -61,6 +64,18 @@ export function buildTimelineCueTitle(
     parts.push(`${offsetMs >= 0 ? '+' : ''}${offsetMs} ms from beat`)
   }
   return parts.join(' · ')
+}
+
+type TimelineCueKind = 'preset' | 'cue' | 'phrase' | 'moment'
+
+interface TimelineCueItem {
+  id: string
+  timeSec: number
+  label: string
+  color: string
+  kind: TimelineCueKind
+  enabled: boolean
+  title?: string
 }
 
 // ── Section display metadata ───────────────────────────────────────────────────
@@ -159,6 +174,41 @@ export function buildBarRange(
   }
   if (endIdx < 0) return null
   return `${startIdx + 1}–${endIdx + 1}`
+}
+
+export interface SectionConfidenceDisplayData {
+  tier: 'high' | 'medium' | 'low'
+  boundary: number | null
+  label: number | null
+  grid: number | null
+  sourceLabel: string
+  tooltip: string
+}
+
+export function buildSectionConfidenceDisplayData(section: ReactTrackSection): SectionConfidenceDisplayData {
+  const boundary = section.boundaryConfidence ?? section.confidence ?? null
+  const label = section.labelConfidence ?? section.confidence ?? null
+  const grid = section.gridConfidence ?? null
+  const values = [boundary, label, grid].filter((value): value is number => value != null && Number.isFinite(value))
+  const minimum = values.length > 0 ? Math.min(...values) : 1
+  const tier = minimum < 0.48 ? 'low' : minimum < 0.72 ? 'medium' : 'high'
+  const source = section.interpretation?.analysisSource
+  const sourceLabel = source === 'bar_self_similarity'
+    ? 'Bar self-similarity'
+    : source === 'time_domain_fallback'
+      ? 'Time-domain fallback'
+      : section.source === 'auto' || section.source === 'user-edited-auto'
+        ? 'Automatic analysis'
+        : 'User authored'
+  const percent = (value: number | null) => value == null ? 'n/a' : `${Math.round(value * 100)}%`
+  return {
+    tier,
+    boundary,
+    label,
+    grid,
+    sourceLabel,
+    tooltip: `${sourceLabel} · boundary ${percent(boundary)} · label ${percent(label)} · grid ${percent(grid)}`,
+  }
 }
 
 // ── Canvas drawing ─────────────────────────────────────────────────────────────
@@ -445,6 +495,11 @@ interface EditSectionFormProps {
   assignedPresetId?: string | null
   /** Called when the user picks a preset or clears the assignment. */
   onAssignPreset?:   (presetId: string | null) => void
+  snapMode?: SectionBoundarySnapMode
+  onSnapModeChange?: (mode: SectionBoundarySnapMode) => void
+  boundaryAlternatives?: BoundaryAlternative[]
+  onNavigateAlternative?: (edge: SectionEdge, direction: 'previous' | 'next') => void
+  onSnapBoundary?: (edge: SectionEdge) => void
 }
 
 export function EditSectionForm({
@@ -460,6 +515,11 @@ export function EditSectionForm({
   reactPresets,
   assignedPresetId,
   onAssignPreset,
+  snapMode = 'free',
+  onSnapModeChange = () => undefined,
+  boundaryAlternatives = [],
+  onNavigateAlternative = () => undefined,
+  onSnapBoundary = () => undefined,
 }: EditSectionFormProps) {
   const idPrefix = useId()
   const [type,           setType]           = useState<ReactSectionType>(section.type)
@@ -521,6 +581,9 @@ export function EditSectionForm({
   const sourceBadgeText = isAuto   ? 'Analyzed'
                         : isEdited ? 'Analyzed · Modified'
                         : 'User Created'
+  const confidenceDisplay = buildSectionConfidenceDisplayData(section)
+  const interpretation = section.interpretation
+  const alternatives = interpretation?.alternativeLabels ?? []
 
   const handleSave = () => {
     if (!isValid) return
@@ -550,6 +613,35 @@ export function EditSectionForm({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="rv-form-group-sep rv-boundary-tools">
+        <div className="rv-form-group-label">Boundary Tools</div>
+        <div className="rv-form-row">
+          <label className="rv-form-label" htmlFor={`${idPrefix}-snap-mode`}>Snap</label>
+          <select
+            id={`${idPrefix}-snap-mode`}
+            className="rv-form-select"
+            value={snapMode}
+            onChange={event => onSnapModeChange(event.target.value as SectionBoundarySnapMode)}
+          >
+            <option value="beat">Beat</option>
+            <option value="downbeat">Downbeat</option>
+            <option value="bar">Bar</option>
+            <option value="four-bar">Four-bar</option>
+            <option value="free">Free</option>
+          </select>
+        </div>
+        <div className="rv-boundary-action-grid">
+          <span className="rv-form-label">Start</span>
+          <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</button>
+          <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('start', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</button>
+          <button type="button" className="rv-form-cancel-btn" onClick={() => onSnapBoundary('start')} disabled={snapMode === 'free'}>Snap</button>
+          <span className="rv-form-label">End</span>
+          <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('end', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</button>
+          <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</button>
+          <button type="button" className="rv-form-cancel-btn" onClick={() => onSnapBoundary('end')} disabled={snapMode === 'free'}>Snap</button>
+        </div>
       </div>
 
       <div className="rv-form-row">
@@ -643,6 +735,37 @@ export function EditSectionForm({
             ) : null
           })()}
         </div>
+      )}
+
+      {(isAuto || isEdited) && (
+        <details className="rv-section-diagnostics">
+          <summary>
+            Analysis Diagnostics
+            <span className={`rv-confidence-badge rv-confidence-badge--${confidenceDisplay.tier}`} title={confidenceDisplay.tooltip}>
+              {confidenceDisplay.tier}
+            </span>
+          </summary>
+          <div className="rv-section-diagnostics-grid">
+            <span>Source</span><strong>{confidenceDisplay.sourceLabel}</strong>
+            <span>Bars</span><strong>{interpretation?.startBar != null && interpretation?.endBar != null ? `${interpretation.startBar + 1}–${interpretation.endBar}` : 'Unavailable'}</strong>
+            <span>Duration</span><strong>{interpretation?.durationBars != null ? `${interpretation.durationBars} bars` : `${(section.endSec - section.startSec).toFixed(1)} s`}</strong>
+            <span>Boundary</span><strong>{confidenceDisplay.boundary == null ? 'n/a' : `${Math.round(confidenceDisplay.boundary * 100)}%`}</strong>
+            <span>Label</span><strong>{confidenceDisplay.label == null ? 'n/a' : `${Math.round(confidenceDisplay.label * 100)}%`}</strong>
+            <span>Grid</span><strong>{confidenceDisplay.grid == null ? 'n/a' : `${Math.round(confidenceDisplay.grid * 100)}%`}</strong>
+            <span>Family</span><strong>{interpretation?.familyId ? `${interpretation.familyId} · occurrence ${interpretation.occurrenceIndex ?? 1}` : 'No repeated family'}</strong>
+            <span>Fallback</span><strong>{interpretation?.fallbackStatus ?? 'none'}</strong>
+          </div>
+          {interpretation?.boundaryRefinementReason && <p>{interpretation.boundaryRefinementReason}</p>}
+          {interpretation?.startBoundaryReason && <p><b>Start:</b> {interpretation.startBoundaryReason}</p>}
+          {interpretation?.endBoundaryReason && <p><b>End:</b> {interpretation.endBoundaryReason}</p>}
+          {(interpretation?.classificationDiagnostics?.evidence?.length ?? 0) > 0 && (
+            <p><b>Why:</b> {interpretation!.classificationDiagnostics!.evidence.slice(0, 4).join(' ')}</p>
+          )}
+          {alternatives.length > 1 && (
+            <p><b>Alternative labels:</b> {alternatives.slice(1).map(alternative => `${alternative.type} ${Math.round(alternative.confidence * 100)}%`).join(' · ')}</p>
+          )}
+          <p><b>Boundary suggestions:</b> {boundaryAlternatives.length}</p>
+        </details>
       )}
 
       <div className="rv-form-actions">
@@ -798,6 +921,7 @@ interface SectionTimelineProps {
   viewportRef:   MutableRefObject<TimelineViewport>
   beatGrid?:      BeatMarkerMI[]
   effectiveBpm?:  number | null
+  snapMode:       SectionBoundarySnapMode
   selectedId:     string | null
   onSelect:       (id: string) => void
   onRemove?:      (id: string) => void
@@ -856,6 +980,7 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
   viewportRef,
   beatGrid,
   effectiveBpm,
+  snapMode,
   selectedId,
   onSelect,
   onRemove,
@@ -954,12 +1079,13 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
         activeViewport.endSec,
       )
       const grid     = beatGrid ?? []
-      const snapped  = snapToNearestBeat(rawTime, grid, e.altKey)
+      const snapped  = snapBoundaryTime(rawTime, grid, snapMode, e.altKey)
       const minDur   = computeMinDuration(effectiveBpm)
-      const clamped  = clampEdge(
+      const clamped  = clampEdgeAgainstTimeline(
         edge,
         snapped,
-        { startSec: d.originalStart, endSec: d.originalEnd },
+        { ...orig, startSec: d.originalStart, endSec: d.originalEnd },
+        sorted,
         minDur,
         durationSec,
       )
@@ -1001,8 +1127,10 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
       const curTime = edge === 'start' ? orig.startSec : orig.endSec
       const delta   = e.key === 'ArrowRight' ? step : -step
       const minDur  = computeMinDuration(effectiveBpm)
-      const clamped = clampEdge(edge, curTime + delta, orig, minDur, durationSec)
-      onCommitBoundary(orig.id, edge, clamped, null, null)
+      const snapped = snapBoundaryTime(curTime + delta, beatGrid ?? [], snapMode, e.altKey)
+      const clamped = clampEdgeAgainstTimeline(edge, snapped, orig, sorted, minDur, durationSec)
+      const neighbor = findSharedBoundaryNeighbor(sorted, orig.id, edge)
+      onCommitBoundary(orig.id, edge, clamped, neighbor?.id ?? null, neighbor ? clamped : null)
     }
 
   return (
@@ -1023,6 +1151,7 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
         const activeEdge = isDragging ? drag.edge : null
         const previewStart = isDragging ? drag.previewStart : section.startSec
         const previewEnd   = isDragging ? drag.previewEnd   : section.endSec
+        const confidenceDisplay = buildSectionConfidenceDisplayData(orig)
 
         return (
           <div
@@ -1034,7 +1163,11 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
               'rv-section-region',
               isSelected  ? 'rv-section-region--selected'  : '',
               isDragging  ? 'rv-section-region--dragging'  : '',
+              (src === 'auto' || src === 'user-edited-auto')
+                ? `rv-section-region--confidence-${confidenceDisplay.tier}`
+                : '',
             ].filter(Boolean).join(' ')}
+            title={confidenceDisplay.tooltip}
             style={{
               display: layout.visible ? undefined : 'none',
               left: `${layout.leftPct}%`,
@@ -1129,6 +1262,7 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
       {display.map((section, i) => {
         if (i === 0) return null
         const boundary = section.startSec
+        const boundaryConfidence = buildSectionConfidenceDisplayData(sorted[i]!).tier
         const ratio    = timeToViewportRatio(boundary, viewport)
         const visible  = ratio >= -0.0001 && ratio <= 1.0001
         return (
@@ -1136,7 +1270,7 @@ const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(
             key={`bd-${sorted[i].id}`}
             data-section-boundary
             data-boundary-time={boundary}
-            className="rv-section-boundary"
+            className={`rv-section-boundary rv-section-boundary--confidence-${boundaryConfidence}`}
             style={{ display: visible ? undefined : 'none', left: `${ratio * 100}%` }}
             aria-hidden="true"
           >
@@ -1224,6 +1358,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const [collapsed,      setCollapsed]      = useState(() => !embedded)
   const [editorMode,     setEditorMode]     = useState<SectionEditorMode>('none')
   const [dragPreview,    setDragPreview]    = useState<{ sectionId: string; start: number; end: number } | null>(null)
+  const [snapMode,       setSnapMode]       = useState<SectionBoundarySnapMode>('free')
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
   const [drawTick,       setDrawTick]       = useState(0)
   const fallbackDurationSec = resolvePositiveDuration(audioDurationSec)
@@ -1286,7 +1421,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     ...(currentTrack?.importedCueMarkers ?? []),
   ].sort((a, b) => a.time - b.time), [activeTrackId, cueMarkers, currentTrack])
 
-  const timelineCueItems = useMemo(() => [
+  const timelineCueItems = useMemo<TimelineCueItem[]>(() => [
     ...trackCues.map(cue => {
       const preset = reactPresets.find(candidate => candidate.id === cue.presetId)
       return {
@@ -1307,7 +1442,31 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       enabled: true,
       title: buildTimelineCueTitle(cue),
     })),
-  ].filter(cue => Number.isFinite(cue.timeSec)), [activeCueMarkers, reactPresets, trackCues])
+    ...(currentAnalysis?.phrases ?? [])
+      .filter(phrase => phrase.structurallyDetected && phrase.confidence >= 0.58 && ((phrase.lengthBars ?? phrase.phraseLength) >= 16 || phrase.source === 'section_boundary'))
+      .slice(0, 24)
+      .map(phrase => ({
+        id: `phrase:${phrase.id ?? Math.round(phrase.timeSec * 1000)}`,
+        timeSec: phrase.timeSec,
+        label: `${phrase.lengthBars ?? phrase.phraseLength}-bar phrase`,
+        color: '#5b8def',
+        kind: 'phrase' as const,
+        enabled: true,
+        title: `${phrase.reason ?? 'Structural phrase boundary'} · ${Math.round(phrase.confidence * 100)}% confidence`,
+      })),
+    ...(currentAnalysis?.semanticMoments ?? [])
+      .filter(moment => moment.confidence >= 0.62 && moment.type !== 'section_entry' && moment.type !== 'section_exit')
+      .slice(0, 24)
+      .map(moment => ({
+        id: `moment:${moment.id ?? `${moment.type}-${Math.round(moment.timeSec * 1000)}`}`,
+        timeSec: moment.timeSec,
+        label: moment.label ?? moment.type.replace(/_/g, ' '),
+        color: moment.type === 'drop_impact' || moment.type === 'major_impact' ? '#c0314a' : '#d8b95a',
+        kind: 'moment' as const,
+        enabled: true,
+        title: `${moment.label ?? moment.type.replace(/_/g, ' ')} · ${Math.round(moment.confidence * 100)}% confidence${moment.supportingSignals?.length ? ` · ${moment.supportingSignals.slice(0, 3).join(', ')}` : ''}`,
+      })),
+  ].filter(cue => Number.isFinite(cue.timeSec)), [activeCueMarkers, currentAnalysis?.phrases, currentAnalysis?.semanticMoments, reactPresets, trackCues])
 
   // Derived
   const hasTrack    = currentTrack != null
@@ -1356,6 +1515,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       setCollapsed(false)
       setEditorMode('none')
       setDragPreview(null)
+      setSnapMode('free')
       // Reset viewport to full track; the viewport sync effect will refine it
       const vp = { startSec: 0, endSec: durationSec }
       viewportRef.current = vp
@@ -1392,7 +1552,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     if (ruler) drawTimelineRuler(ruler, viewportRef.current)
     const cueLane = cueTimelineRef.current
     if (cueLane) applyTimelineCueViewport(cueLane, viewportRef.current)
-  }, [drawTick, collapsed, waveformZoom, durationSec, trackCues, activeCueMarkers])
+  }, [drawTick, collapsed, waveformZoom, durationSec, timelineCueItems])
 
   // Beat canvas — redraws when analysis, zoom, effective override, or collapse changes.
   // When a manual BPM override is active, currentEffectiveBeatGrid contains the
@@ -1556,6 +1716,35 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     setDragPreview(null)
   }, [activeTrackId, resolvedSections, commitAutomaticSectionOverride, updateManualSection, trackCues, updatePresetAutomationCue])
 
+  const commitBoundaryToolMove = useCallback((edge: SectionEdge, proposedTime: number) => {
+    if (!selectedSectionId) return
+    const section = resolvedSections.find(candidate => candidate.id === selectedSectionId)
+    if (!section) return
+    const minDuration = computeMinDuration(currentEffectiveBpm)
+    const clamped = clampEdgeAgainstTimeline(edge, proposedTime, section, resolvedSections, minDuration, durationSec)
+    const sorted = [...resolvedSections].sort((a, b) => a.startSec - b.startSec || a.endSec - b.endSec)
+    const neighbor = findSharedBoundaryNeighbor(sorted, section.id, edge)
+    handleCommitBoundary(section.id, edge, clamped, neighbor?.id ?? null, neighbor ? clamped : null)
+  }, [currentEffectiveBpm, durationSec, handleCommitBoundary, resolvedSections, selectedSectionId])
+
+  const handleNavigateBoundaryAlternative = useCallback((edge: SectionEdge, direction: 'previous' | 'next') => {
+    if (!selectedSectionId) return
+    const section = resolvedSections.find(candidate => candidate.id === selectedSectionId)
+    if (!section) return
+    const currentTime = edge === 'start' ? section.startSec : section.endSec
+    const alternative = navigateBoundaryAlternative(currentTime, currentAnalysis?.boundaryAlternatives ?? [], direction)
+    if (alternative) commitBoundaryToolMove(edge, alternative.timeSec)
+  }, [commitBoundaryToolMove, currentAnalysis?.boundaryAlternatives, resolvedSections, selectedSectionId])
+
+  const handleSnapSelectedBoundary = useCallback((edge: SectionEdge) => {
+    if (!selectedSectionId) return
+    const section = resolvedSections.find(candidate => candidate.id === selectedSectionId)
+    if (!section) return
+    const currentTime = edge === 'start' ? section.startSec : section.endSec
+    const grid = currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? []
+    commitBoundaryToolMove(edge, snapBoundaryTime(currentTime, grid, snapMode))
+  }, [commitBoundaryToolMove, currentAnalysis?.beatGrid, currentEffectiveBeatGrid, resolvedSections, selectedSectionId, snapMode])
+
   const handleRetry = useCallback(() => {
     if (currentTrack) retryAnalysis(currentTrack.id)
   }, [currentTrack, retryAnalysis])
@@ -1585,9 +1774,14 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   // Opens the edit panel for the clicked section.
   const handleSelectSection = useCallback((id: string) => {
     if (!activeTrackId) return
+    const section = resolvedSections.find(candidate => candidate.id === id)
+    const gridConfidence = currentAnalysis?.musicalGrid?.confidence.barGrid ?? currentAnalysis?.barGridConfidence ?? 0
+    const grid = currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? []
+    const automaticAuthority = section?.source === 'auto' || section?.source === 'user-edited-auto'
+    setSnapMode(automaticAuthority && gridConfidence >= 0.55 && grid.some(marker => marker.isDownbeat) ? 'downbeat' : 'free')
     setSelectedSectionIdForTrack(activeTrackId, id)
     setEditorMode('edit')
-  }, [activeTrackId, setSelectedSectionIdForTrack])
+  }, [activeTrackId, currentAnalysis?.barGridConfidence, currentAnalysis?.beatGrid, currentAnalysis?.musicalGrid?.confidence.barGrid, currentEffectiveBeatGrid, resolvedSections, setSelectedSectionIdForTrack])
 
   const closeSectionEditor = useCallback(() => {
     setEditorMode('none')
@@ -1835,6 +2029,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
             const selectedSectionPreset = selectedSectionPresetCue
               ? reactPresets.find(p => p.id === selectedSectionPresetCue.presetId) ?? null
               : null
+            const selectedSectionConfidence = selectedSection
+              ? buildSectionConfidenceDisplayData(selectedSection)
+              : null
 
             return (
               <>
@@ -1866,6 +2063,17 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                       {selectedSectionBars && <span>Bars {selectedSectionBars}</span>}
                       <span>{Math.round(selectedSection.intensity * 100)}%</span>
                       <span>{selectedSectionPreset?.name ?? 'No preset'}</span>
+                      {selectedSectionConfidence && (
+                        <span
+                          className={`rv-confidence-badge rv-confidence-badge--${selectedSectionConfidence.tier}`}
+                          title={selectedSectionConfidence.tooltip}
+                        >
+                          {selectedSectionConfidence.tier} confidence
+                        </span>
+                      )}
+                      {selectedSection.interpretation?.familyId && (
+                        <span>{selectedSection.interpretation.familyId} · occurrence {selectedSection.interpretation.occurrenceIndex ?? 1}</span>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -1902,6 +2110,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                           viewportRef={viewportRef}
                           beatGrid={currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? undefined}
                           effectiveBpm={currentEffectiveBpm}
+                          snapMode={snapMode}
                           selectedId={selectedSectionId}
                           onSelect={handleSelectSection}
                           onRemove={activeTrackId ? handleRemove : undefined}
@@ -2058,6 +2267,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                           durationSec={durationSec}
                           effectiveBpm={currentEffectiveBpm}
                           dragPreview={editorDragPreview}
+                          snapMode={snapMode}
+                          onSnapModeChange={setSnapMode}
+                          boundaryAlternatives={currentAnalysis?.boundaryAlternatives ?? []}
+                          onNavigateAlternative={handleNavigateBoundaryAlternative}
+                          onSnapBoundary={handleSnapSelectedBoundary}
                           onSave={handleSaveSection}
                           onCancel={closeSectionEditor}
                           onDelete={isUser ? handleDeleteSection : undefined}

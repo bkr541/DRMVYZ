@@ -2309,6 +2309,11 @@ export interface ReactSectionInterpretationMetadata {
   isVariation?: boolean
   alternativeLabels?: ReactSectionLabelAlternative[]
   boundaryRefinementReason?: string
+  analysisSource?: 'bar_self_similarity' | 'time_domain_fallback'
+  gridSource?: 'locked_user' | 'imported' | 'manual_correction' | 'automatic' | 'legacy_fallback'
+  fallbackStatus?: 'none' | 'grid_derived' | 'time_domain_fallback'
+  startBoundaryReason?: string
+  endBoundaryReason?: string
   classificationDiagnostics?: ReactSectionClassificationDiagnostics
 }
 

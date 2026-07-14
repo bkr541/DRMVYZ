@@ -3,13 +3,16 @@ import {
   computeMinDuration,
   pointerXToTime,
   snapToNearestBeat,
+  snapBoundaryTime,
+  navigateBoundaryAlternative,
+  clampEdgeAgainstTimeline,
   findSharedBoundaryNeighbor,
   clampEdge,
   computeKeyStep,
   ADJACENCY_TOLERANCE_SEC,
 } from '../sectionBoundaryDrag'
 import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
-import type { BeatMarkerMI } from '../../musicIntelligence/types'
+import type { BeatMarkerMI, BoundaryAlternative } from '../../musicIntelligence/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -276,5 +279,76 @@ describe('ADJACENCY_TOLERANCE_SEC', () => {
     expect(findSharedBoundaryNeighbor(sections, 'a', 'end', 0.05)).toBeNull()
     // With 0.2s tolerance: neighbors
     expect(findSharedBoundaryNeighbor(sections, 'a', 'end', 0.2)?.id).toBe('b')
+  })
+})
+
+
+// ── Patch 4: explicit snap modes and alternatives ─────────────────────────────
+
+describe('snapBoundaryTime', () => {
+  const grid: BeatMarkerMI[] = Array.from({ length: 20 }, (_, beatIndex) => ({
+    timeSec: beatIndex * 0.5,
+    confidence: 1,
+    isDownbeat: beatIndex % 4 === 0,
+    beatIndex,
+    beatWithinBar: beatIndex % 4,
+    barIndex: Math.floor(beatIndex / 4),
+  }))
+
+  it('snaps to the nearest beat', () => {
+    expect(snapBoundaryTime(1.14, grid, 'beat')).toBeCloseTo(1)
+  })
+
+  it('snaps to the nearest downbeat', () => {
+    expect(snapBoundaryTime(2.31, grid, 'downbeat')).toBeCloseTo(2)
+  })
+
+  it('snaps bar mode to the resolved bar grid', () => {
+    expect(snapBoundaryTime(3.71, grid, 'bar')).toBeCloseTo(4)
+  })
+
+  it('snaps to the nearest four-bar position', () => {
+    expect(snapBoundaryTime(6.9, grid, 'four-bar')).toBeCloseTo(8)
+  })
+
+  it('preserves the exact value in free mode or while Alt is held', () => {
+    expect(snapBoundaryTime(3.713, grid, 'free')).toBeCloseTo(3.713)
+    expect(snapBoundaryTime(3.713, grid, 'bar', true)).toBeCloseTo(3.713)
+  })
+})
+
+describe('navigateBoundaryAlternative', () => {
+  const alternatives: BoundaryAlternative[] = [
+    { id: 'a', timeSec: 8, barIndex: 4, confidence: 0.6, rank: 2, reason: 'A', supportingSignals: [], source: 'bar_self_similarity' },
+    { id: 'b', timeSec: 16, barIndex: 8, confidence: 0.8, rank: 1, reason: 'B', supportingSignals: [], source: 'bar_self_similarity' },
+    { id: 'c', timeSec: 24, barIndex: 12, confidence: 0.5, rank: 3, reason: 'C', supportingSignals: [], source: 'bar_self_similarity' },
+  ]
+
+  it('moves to the previous or next suggestion in timeline order', () => {
+    expect(navigateBoundaryAlternative(16, alternatives, 'previous')?.id).toBe('a')
+    expect(navigateBoundaryAlternative(16, alternatives, 'next')?.id).toBe('c')
+  })
+
+  it('returns null when no suggestion exists in that direction', () => {
+    expect(navigateBoundaryAlternative(8, alternatives, 'previous')).toBeNull()
+    expect(navigateBoundaryAlternative(24, alternatives, 'next')).toBeNull()
+  })
+})
+
+describe('clampEdgeAgainstTimeline', () => {
+  const sections = [
+    makeSection({ id: 'a', startSec: 0, endSec: 10 }),
+    makeSection({ id: 'b', startSec: 10, endSec: 20 }),
+    makeSection({ id: 'c', startSec: 20, endSec: 30 }),
+  ]
+
+  it('prevents snapped starts and ends from overlapping neighboring sections', () => {
+    expect(clampEdgeAgainstTimeline('start', 5, sections[1], sections, 1, 30)).toBe(10)
+    expect(clampEdgeAgainstTimeline('end', 25, sections[1], sections, 1, 30)).toBe(20)
+  })
+
+  it('still enforces a positive minimum section duration', () => {
+    expect(clampEdgeAgainstTimeline('start', 19.8, sections[1], sections, 1, 30)).toBe(19)
+    expect(clampEdgeAgainstTimeline('end', 10.2, sections[1], sections, 1, 30)).toBe(11)
   })
 })

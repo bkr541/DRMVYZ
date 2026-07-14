@@ -1,10 +1,11 @@
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
-import type { BeatMarkerMI } from '../musicIntelligence/types'
+import type { BeatMarkerMI, BoundaryAlternative } from '../musicIntelligence/types'
 
 /** How close two boundaries must be (in seconds) to be treated as shared. */
 export const ADJACENCY_TOLERANCE_SEC = 0.05
 
 export type SectionEdge = 'start' | 'end'
+export type SectionBoundarySnapMode = 'beat' | 'downbeat' | 'bar' | 'four-bar' | 'free'
 
 /**
  * Transient drag preview — held in component state during a boundary drag.
@@ -74,6 +75,52 @@ export function snapToNearestBeat(
   return nearest
 }
 
+function nearestMarkerTime(time: number, markers: BeatMarkerMI[]): number {
+  if (markers.length === 0) return time
+  let nearest = markers[0]!.timeSec
+  let minimumDistance = Math.abs(time - nearest)
+  for (const marker of markers) {
+    const distance = Math.abs(time - marker.timeSec)
+    if (distance < minimumDistance) {
+      nearest = marker.timeSec
+      minimumDistance = distance
+    }
+  }
+  return nearest
+}
+
+/** Applies an explicit Track Map snap mode. Alt temporarily preserves free movement. */
+export function snapBoundaryTime(
+  time: number,
+  beatGrid: BeatMarkerMI[],
+  mode: SectionBoundarySnapMode,
+  altKeyHeld = false,
+): number {
+  if (altKeyHeld || mode === 'free' || beatGrid.length === 0) return time
+  if (mode === 'beat') return nearestMarkerTime(time, beatGrid)
+  const downbeats = beatGrid.filter(marker => marker.isDownbeat)
+  if (mode === 'downbeat' || mode === 'bar') return nearestMarkerTime(time, downbeats)
+  const fourBarMarkers = downbeats.filter((marker, index) => (marker.barIndex ?? index) % 4 === 0)
+  return nearestMarkerTime(time, fourBarMarkers.length > 0 ? fourBarMarkers : downbeats)
+}
+
+export function navigateBoundaryAlternative(
+  currentTime: number,
+  alternatives: BoundaryAlternative[],
+  direction: 'previous' | 'next',
+): BoundaryAlternative | null {
+  const ordered = alternatives
+    .filter(candidate => Number.isFinite(candidate.timeSec))
+    .sort((a, b) => a.timeSec - b.timeSec || a.rank - b.rank)
+  if (direction === 'previous') {
+    for (let index = ordered.length - 1; index >= 0; index--) {
+      if (ordered[index]!.timeSec < currentTime - ADJACENCY_TOLERANCE_SEC) return ordered[index]!
+    }
+    return null
+  }
+  return ordered.find(candidate => candidate.timeSec > currentTime + ADJACENCY_TOLERANCE_SEC) ?? null
+}
+
 /**
  * Finds the adjacent section that shares the boundary being dragged.
  *
@@ -127,6 +174,30 @@ export function clampEdge(
     const minEnd = originalSection.startSec + minDuration
     return Math.max(minEnd, Math.min(trackDuration, rawTime))
   }
+}
+
+/** Adds neighbor constraints so snapping or suggestion jumps cannot create overlap. */
+export function clampEdgeAgainstTimeline(
+  edge: SectionEdge,
+  rawTime: number,
+  section: ReactTrackSection,
+  sections: ReactTrackSection[],
+  minDuration: number,
+  trackDuration: number,
+): number {
+  const sorted = [...sections].sort((a, b) => a.startSec - b.startSec || a.endSec - b.endSec)
+  const index = sorted.findIndex(candidate => candidate.id === section.id)
+  const previous = index > 0 ? sorted[index - 1] : null
+  const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null
+  const basic = clampEdge(edge, rawTime, section, minDuration, trackDuration)
+  if (edge === 'start') {
+    const maximumStart = section.endSec - minDuration
+    const minimumStart = previous ? Math.min(maximumStart, previous.endSec) : 0
+    return Math.max(minimumStart, basic)
+  }
+  const minimumEnd = section.startSec + minDuration
+  const maximumEnd = next ? Math.max(minimumEnd, next.startSec) : trackDuration
+  return Math.min(maximumEnd, basic)
 }
 
 /**

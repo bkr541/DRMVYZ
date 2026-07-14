@@ -10340,3 +10340,134 @@
 .rv-show-director-performance-status__warning {
   color: #ffb08f;
 }
+
+/* ── Track Map confidence and boundary analysis tools ─────────────────────── */
+.rv-section-region--confidence-medium {
+  border-style: dashed;
+}
+
+.rv-section-region--confidence-low {
+  border-style: dotted;
+  opacity: 0.82;
+}
+
+.rv-section-boundary--confidence-medium .rv-section-boundary-diamond {
+  background: rgba(232, 244, 248, 0.64);
+}
+
+.rv-section-boundary--confidence-low .rv-section-boundary-diamond {
+  background: transparent;
+  border: 1px solid rgba(232, 244, 248, 0.62);
+}
+
+.rv-boundary-tools {
+  display: grid;
+  gap: 6px;
+}
+
+.rv-boundary-action-grid {
+  display: grid;
+  grid-template-columns: minmax(38px, auto) repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 5px;
+}
+
+.rv-boundary-action-grid .rv-form-cancel-btn {
+  min-width: 0;
+  padding-inline: 6px;
+  white-space: nowrap;
+}
+
+.rv-section-diagnostics {
+  margin: 7px 0 2px;
+  padding: 7px 8px;
+  border: 1px solid rgba(74, 199, 219, 0.13);
+  border-radius: 5px;
+  background: rgba(74, 199, 219, 0.035);
+  color: rgba(232, 244, 248, 0.52);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.rv-section-diagnostics summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  color: rgba(232, 244, 248, 0.66);
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.rv-section-diagnostics-grid {
+  display: grid;
+  grid-template-columns: minmax(64px, auto) minmax(0, 1fr);
+  gap: 3px 8px;
+  margin-top: 7px;
+}
+
+.rv-section-diagnostics-grid span {
+  color: rgba(232, 244, 248, 0.36);
+}
+
+.rv-section-diagnostics-grid strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: rgba(232, 244, 248, 0.72);
+  font-weight: 600;
+}
+
+.rv-section-diagnostics p {
+  margin: 6px 0 0;
+  color: rgba(232, 244, 248, 0.46);
+}
+
+.rv-section-diagnostics b {
+  color: rgba(232, 244, 248, 0.7);
+}
+
+.rv-confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 16px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(97, 214, 170, 0.25);
+  color: rgba(97, 214, 170, 0.78);
+  font-size: 7.5px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rv-confidence-badge--medium {
+  border-color: rgba(216, 185, 90, 0.3);
+  color: rgba(216, 185, 90, 0.82);
+}
+
+.rv-confidence-badge--low {
+  border-color: rgba(192, 49, 74, 0.32);
+  color: rgba(236, 126, 143, 0.82);
+}
+
+.rv-timeline-cue--phrase,
+.rv-timeline-cue--moment {
+  min-width: 3px;
+  opacity: 0.76;
+}
+
+.rv-timeline-cue--phrase .rv-timeline-cue-diamond {
+  border-color: rgba(74, 199, 219, 0.72);
+  background: rgba(74, 199, 219, 0.2);
+}
+
+.rv-timeline-cue--moment .rv-timeline-cue-diamond {
+  border-color: rgba(97, 214, 170, 0.78);
+  background: rgba(97, 214, 170, 0.22);
+}
+
+.rv-timeline-cue--phrase .rv-timeline-cue-label,
+.rv-timeline-cue--moment .rv-timeline-cue-label {
+  max-width: 70px;
+  font-size: 7px;
+}

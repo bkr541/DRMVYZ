@@ -6,6 +6,7 @@ import { guess } from 'web-audio-beat-detector'
 import { PitchDetector } from 'pitchy'
 import { analyzeStructuralRegions } from './sectionAnalysis'
 import { detectSemanticMoments } from './semanticAnalysis'
+import { generateMusicalHierarchy } from './musicalHierarchyAnalysis'
 import { CURRENT_ANALYSIS_VERSION } from './analysisVersion'
 import {
   aggregateBarFeatures,
@@ -630,9 +631,20 @@ export async function analyzeTrackBuffer(
     durationSec,
     { minSegmentSec: minSectionSec, barFeatures, musicalGrid: gridResolution.info },
   )
-  const sections = seed?.sections?.length
+  const baseSections = seed?.sections?.length
     ? mergeSeededSections(seed.sections, structuralResult.sections, durationSec)
     : structuralResult.sections
+  const hierarchy = generateMusicalHierarchy({
+    durationSec,
+    beatGrid: gridResolution.beatGrid,
+    barMarkers: gridResolution.bars,
+    barFeatures,
+    musicalGrid: gridResolution.info,
+    sections: baseSections,
+    structuralSegmentation: structuralResult.structuralSegmentation,
+    importedPhrases: seed?.phrases,
+  })
+  const sections = hierarchy.sections
 
   const detectedKey = detectOfflineKey(chromaAcc)
   const seededKey = parseSeededKey(seed?.key ?? null)
@@ -669,9 +681,11 @@ export async function analyzeTrackBuffer(
     barMarkers: gridResolution.bars,
     barFeatures,
     musicalGrid: gridResolution.info,
-    phrases: seed?.phrases?.length ? seed.phrases : gridResolution.phrases,
+    phrases: hierarchy.phrases,
+    phraseHierarchy: hierarchy.phraseHierarchy,
     sections,
     structuralSegmentation: structuralResult.structuralSegmentation,
+    boundaryAlternatives: hierarchy.boundaryAlternatives,
     energyCurves: {
       instant: downsample(normInstant),
       shortTerm: downsample(normShort),
@@ -721,6 +735,10 @@ export async function analyzeTrackBuffer(
       detectedPreDropCount: structuralResult.structuralSegmentation.contextualDiagnostics?.preDropCount,
       sectionFamilyCount: structuralResult.structuralSegmentation.contextualDiagnostics?.familyCount,
       ambiguousSectionCount: structuralResult.structuralSegmentation.contextualDiagnostics?.ambiguousSectionCount,
+      structuralPhraseCount: hierarchy.phrases.filter(phrase => phrase.structurallyDetected).length,
+      gridDerivedPhraseCount: hierarchy.phrases.filter(phrase => !phrase.structurallyDetected).length,
+      boundaryAlternativeCount: hierarchy.boundaryAlternatives.length,
+      hierarchyUnitCount: hierarchy.phraseHierarchy.units.length,
     },
     detectedBpm: bpm,
     bpmUsedForGrid: bpm,
@@ -729,9 +747,13 @@ export async function analyzeTrackBuffer(
     lastReanalysisMode: 'full',
   }
 
+  const semanticMoments = detectSemanticMoments(partialAnalysis)
   const result = {
     ...partialAnalysis,
-    semanticMoments: detectSemanticMoments(partialAnalysis),
+    semanticMoments,
+    analysisDiagnostics: partialAnalysis.analysisDiagnostics
+      ? { ...partialAnalysis.analysisDiagnostics, semanticMomentCount: semanticMoments.length }
+      : partialAnalysis.analysisDiagnostics,
   }
   report({ stage: 'finalizing', progress: 1 })
   return result

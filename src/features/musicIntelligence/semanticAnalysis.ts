@@ -185,121 +185,247 @@ export function detectSemanticMoments(
   analysis: TrackIntelligenceAnalysis,
 ): SemanticMomentMarker[] {
   const moments: SemanticMomentMarker[] = []
-  const { sections, energyCurves, spectralCurves } = analysis
+  const sections = [...analysis.sections].sort((a, b) => a.startSec - b.startSec || a.endSec - b.endSec)
+  const bars = [...(analysis.barFeatures ?? [])].sort((a, b) => a.barIndex - b.barIndex)
   const durationSec = analysis.durationMs / 1000
 
-  // ── Build starts ──────────────────────────────────────────────────────────
-  for (const sec of sections) {
-    if (sec.type === 'build' || sec.type === 'preDrop') {
-      moments.push({
-        timeSec:    sec.startSec,
-        durationSec: sec.endSec - sec.startSec,
-        type:       'build_start',
-        confidence: sec.confidence,
-        label:      sec.label,
-        source:     'heuristic',
-      })
+  const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+  const sample = (curve: Array<{ timeSec: number; value: number }>, timeSec: number): number => {
+    if (curve.length === 0) return 0
+    if (timeSec <= curve[0]!.timeSec) return curve[0]!.value
+    if (timeSec >= curve[curve.length - 1]!.timeSec) return curve[curve.length - 1]!.value
+    let low = 0
+    let high = curve.length - 1
+    while (high - low > 1) {
+      const middle = (low + high) >> 1
+      if (curve[middle]!.timeSec <= timeSec) low = middle
+      else high = middle
     }
+    const a = curve[low]!
+    const b = curve[high]!
+    const ratio = (timeSec - a.timeSec) / Math.max(1e-6, b.timeSec - a.timeSec)
+    return a.value + ratio * (b.value - a.value)
+  }
+  const barAt = (timeSec: number): number | null => {
+    const feature = bars.find(bar => timeSec >= bar.startSec - 0.01 && timeSec < bar.endSec - 0.01)
+    if (feature) return feature.barIndex
+    let resolved: number | null = null
+    for (const marker of analysis.downbeats) {
+      if (marker.timeSec <= timeSec + 0.05) resolved = marker.barIndex ?? resolved
+      else break
+    }
+    return resolved
+  }
+  const add = (moment: SemanticMomentMarker) => {
+    if (!Number.isFinite(moment.timeSec) || moment.timeSec < 0 || moment.timeSec > durationSec + 0.05) return
+    moments.push({
+      ...moment,
+      id: moment.id ?? `moment-${moment.type}-${moment.relatedSectionId ?? 'track'}-${Math.round(moment.timeSec * 1000)}`,
+      barIndex: moment.barIndex ?? barAt(moment.timeSec),
+      confidence: Math.round(clamp01(moment.confidence) * 1000) / 1000,
+      supportingSignals: (moment.supportingSignals ?? []).filter(Boolean).slice(0, 6),
+    })
   }
 
-  // ── Drops ─────────────────────────────────────────────────────────────────
-  for (const sec of sections) {
-    if (sec.type === 'drop') {
-      moments.push({
-        timeSec:    sec.startSec,
-        durationSec: sec.endSec - sec.startSec,
-        type:       'drop',
-        confidence: sec.confidence * (0.7 + sec.intensity * 0.3),
-        label:      sec.label,
-        source:     'heuristic',
+  for (let index = 0; index < sections.length; index++) {
+    const section = sections[index]!
+    const previous = sections[index - 1]
+    const boundaryConfidence = section.boundaryConfidence ?? section.confidence
+    const labelConfidence = section.labelConfidence ?? section.confidence
+    const energyBefore = sample(analysis.energyCurves.shortTerm, Math.max(0, section.startSec - 1.5))
+    const energyAfter = sample(analysis.energyCurves.shortTerm, Math.min(durationSec, section.startSec + 1.5))
+    const bassBefore = sample(analysis.energyCurves.bass, Math.max(0, section.startSec - 1.5))
+    const bassAfter = sample(analysis.energyCurves.bass, Math.min(durationSec, section.startSec + 1.5))
+    const impactDelta = Math.max(0, energyAfter - energyBefore)
+    const bassDelta = Math.max(0, bassAfter - bassBefore)
+
+    add({
+      timeSec: section.startSec,
+      type: 'section_entry',
+      confidence: boundaryConfidence * 0.78 + labelConfidence * 0.22,
+      label: `${section.label} entry`,
+      source: 'section_context',
+      relatedSectionId: section.id,
+      supportingSignals: ['section boundary', section.interpretation?.startBoundaryReason ?? 'contextual classification'],
+    })
+
+    if (section.endSec < durationSec - 0.02) {
+      add({
+        timeSec: section.endSec,
+        type: 'section_exit',
+        confidence: boundaryConfidence,
+        label: `${section.label} exit`,
+        source: 'section_context',
+        relatedSectionId: section.id,
+        supportingSignals: ['section boundary', section.interpretation?.endBoundaryReason ?? 'contextual classification'],
       })
     }
-  }
 
-  // ── Breakdowns ────────────────────────────────────────────────────────────
-  for (const sec of sections) {
-    if (sec.type === 'breakdown') {
-      moments.push({
-        timeSec:    sec.startSec,
-        durationSec: sec.endSec - sec.startSec,
-        type:       'breakdown',
-        confidence: sec.confidence,
-        label:      sec.label,
-        source:     'heuristic',
+    if (section.type === 'build') {
+      add({
+        timeSec: section.startSec,
+        durationSec: section.endSec - section.startSec,
+        type: 'build_start',
+        confidence: labelConfidence * 0.7 + boundaryConfidence * 0.3,
+        label: 'Build start',
+        source: 'section_context',
+        relatedSectionId: section.id,
+        supportingSignals: ['build classification', 'rising transition context'],
       })
     }
-  }
 
-  // ── Fakeouts: build → non-drop ─────────────────────────────────────────────
-  for (let i = 1; i < sections.length; i++) {
-    const prev = sections[i - 1]
-    const curr = sections[i]
-    if ((prev.type === 'build' || prev.type === 'preDrop') &&
-        curr.type !== 'drop') {
-      moments.push({
-        timeSec:    curr.startSec,
-        type:       'fakeout',
-        confidence: 0.55,
-        label:      'Fakeout',
-        source:     'heuristic',
+    if (section.type === 'preDrop') {
+      add({
+        timeSec: section.startSec,
+        durationSec: section.endSec - section.startSec,
+        type: 'pre_drop_start',
+        confidence: labelConfidence * 0.72 + boundaryConfidence * 0.28,
+        label: 'Pre-Drop start',
+        source: 'section_context',
+        relatedSectionId: section.id,
+        supportingSignals: ['pre-drop classification', 'drop proximity'],
       })
     }
-  }
 
-  // ── High-impact moments: energy curve spikes ──────────────────────────────
-  const energyCurve = energyCurves.instant
-  if (energyCurve.length > 4) {
-    const vals   = energyCurve.map(p => p.value)
-    const mean   = vals.reduce((s, v) => s + v, 0) / vals.length
-    const thresh = mean * 1.5
+    if (section.type === 'drop') {
+      add({
+        timeSec: section.startSec,
+        durationSec: section.endSec - section.startSec,
+        type: 'drop_impact',
+        confidence: labelConfidence * 0.48 + boundaryConfidence * 0.22 + impactDelta * 0.17 + bassDelta * 0.13,
+        label: 'Drop impact',
+        source: 'section_context',
+        relatedSectionId: section.id,
+        supportingSignals: [
+          'drop classification',
+          impactDelta >= 0.1 ? 'energy jump' : '',
+          bassDelta >= 0.08 ? 'bass jump' : '',
+          section.dropConfidence != null ? 'contextual drop anchor' : '',
+        ],
+      })
+    }
 
-    let lastHiImpact = -30
-    for (let i = 1; i < energyCurve.length - 1; i++) {
-      const pt = energyCurve[i]
-      if (pt.value > thresh && pt.timeSec - lastHiImpact > 10) {
-        const isLocalPeak =
-          pt.value >= (energyCurve[i - 1]?.value ?? 0) &&
-          pt.value >= (energyCurve[i + 1]?.value ?? 0)
-        if (isLocalPeak) {
-          moments.push({
-            timeSec:    pt.timeSec,
-            type:       'high_impact',
-            confidence: Math.min(1, pt.value / thresh - 0.5),
-            label:      'High Impact',
-            source:     'heuristic',
-          })
-          lastHiImpact = pt.timeSec
-        }
+    if (section.type === 'breakdown') {
+      add({
+        timeSec: section.startSec,
+        durationSec: section.endSec - section.startSec,
+        type: 'breakdown_entry',
+        confidence: labelConfidence * 0.7 + boundaryConfidence * 0.3,
+        label: 'Breakdown entry',
+        source: 'section_context',
+        relatedSectionId: section.id,
+        supportingSignals: ['breakdown classification', energyAfter < energyBefore ? 'energy reduction' : 'contextual release'],
+      })
+      if (energyBefore - energyAfter >= 0.08 || previous?.type === 'drop') {
+        add({
+          timeSec: section.startSec,
+          type: 'energy_release',
+          confidence: boundaryConfidence * 0.42 + labelConfidence * 0.28 + Math.max(0, energyBefore - energyAfter) * 0.3,
+          label: 'Energy release',
+          source: 'energy_curve',
+          relatedSectionId: section.id,
+          supportingSignals: ['sustained energy reduction', previous?.type === 'drop' ? 'drop-to-breakdown transition' : 'section transition'],
+        })
       }
     }
+
+    if (previous && (previous.type === 'build' || previous.type === 'preDrop') && section.type !== 'drop') {
+      add({
+        timeSec: section.startSec,
+        type: 'fakeout_candidate',
+        confidence: (previous.labelConfidence ?? previous.confidence) * 0.46 + boundaryConfidence * 0.24 + Math.max(0, energyBefore - energyAfter) * 0.3,
+        label: 'Fakeout candidate',
+        source: 'section_context',
+        relatedSectionId: section.id,
+        supportingSignals: ['build or pre-drop resolves without a drop', energyAfter <= energyBefore ? 'withheld impact' : 'unexpected continuation'],
+      })
+    }
   }
 
-  // ── Calm moments: sustained low energy ───────────────────────────────────
-  let calmStart: number | null = null
-  const CALM_THRESH = 0.25, MIN_CALM_DUR = 8
-  for (let i = 0; i < energyCurve.length; i++) {
-    const pt = energyCurve[i]
-    if (pt.value < CALM_THRESH) {
-      if (calmStart === null) calmStart = pt.timeSec
+  // Silence/stop clusters are derived from bar-level evidence and collapsed to one moment.
+  let silenceStart: typeof bars[number] | null = null
+  let silenceEnd: typeof bars[number] | null = null
+  const flushSilence = () => {
+    if (!silenceStart || !silenceEnd) return
+    const duration = silenceEnd.endSec - silenceStart.startSec
+    add({
+      timeSec: silenceStart.startSec,
+      durationSec: duration,
+      type: 'silence_or_stop',
+      confidence: Math.max(silenceStart.silenceRatio, silenceEnd.silenceRatio),
+      label: 'Silence or stop',
+      source: 'bar_features',
+      relatedSectionId: sections.find(section => silenceStart!.startSec >= section.startSec && silenceStart!.startSec < section.endSec)?.id ?? null,
+      supportingSignals: ['high silence ratio', duration >= 1 ? 'sustained stop' : 'brief stop'],
+    })
+    silenceStart = null
+    silenceEnd = null
+  }
+  for (const bar of bars) {
+    if (bar.silenceRatio >= 0.72) {
+      silenceStart ??= bar
+      silenceEnd = bar
     } else {
-      if (calmStart !== null) {
-        const dur = (energyCurve[i - 1]?.timeSec ?? calmStart) - calmStart
-        if (dur > MIN_CALM_DUR) {
-          moments.push({
-            timeSec:    calmStart,
-            durationSec: dur,
-            type:       'calm_moment',
-            confidence: 0.6,
-            label:      'Calm Moment',
-            source:     'heuristic',
-          })
-        }
-        calmStart = null
-      }
+      flushSilence()
+    }
+  }
+  flushSilence()
+
+  const energyCurve = analysis.energyCurves.instant
+  if (energyCurve.length > 4) {
+    const values = energyCurve.map(point => point.value)
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+    const threshold = Math.max(0.45, mean * 1.45)
+    let lastImpact = -30
+    for (let index = 1; index < energyCurve.length - 1; index++) {
+      const point = energyCurve[index]!
+      if (point.value < threshold || point.timeSec - lastImpact < 8) continue
+      if (point.value < energyCurve[index - 1]!.value || point.value < energyCurve[index + 1]!.value) continue
+      add({
+        timeSec: point.timeSec,
+        type: 'major_impact',
+        confidence: clamp01(0.45 + (point.value - threshold) / Math.max(0.2, threshold)),
+        label: 'Major impact',
+        source: 'energy_curve',
+        relatedSectionId: sections.find(section => point.timeSec >= section.startSec && point.timeSec < section.endSec)?.id ?? null,
+        supportingSignals: ['local energy peak', 'global impact threshold'],
+      })
+      lastImpact = point.timeSec
     }
   }
 
-  return moments.sort((a, b) => a.timeSec - b.timeSec)
+  const group = (type: SemanticMomentMarker['type']) => (
+    type === 'drop_impact' || type === 'major_impact' ? 'impact' : type
+  )
+  const deduped: SemanticMomentMarker[] = []
+  for (const moment of moments.sort((a, b) => a.timeSec - b.timeSec || b.confidence - a.confidence)) {
+    const duplicateIndex = deduped.findIndex(existing => (
+      group(existing.type) === group(moment.type)
+      && Math.abs(existing.timeSec - moment.timeSec) <= 0.75
+      && (existing.relatedSectionId === moment.relatedSectionId || group(moment.type) === 'impact')
+    ))
+    if (duplicateIndex < 0) {
+      deduped.push(moment)
+      continue
+    }
+    const existing = deduped[duplicateIndex]!
+    if (group(moment.type) === 'impact' && (existing.type === 'drop_impact' || moment.type === 'drop_impact')) {
+      const preferred = existing.type === 'drop_impact' ? existing : moment
+      const secondary = existing.type === 'drop_impact' ? moment : existing
+      deduped[duplicateIndex] = {
+        ...preferred,
+        confidence: Math.max(preferred.confidence, secondary.confidence),
+        supportingSignals: [...new Set([
+          ...(preferred.supportingSignals ?? []),
+          ...(secondary.supportingSignals ?? []),
+        ])].slice(0, 6),
+      }
+    } else if (moment.confidence > existing.confidence) {
+      deduped[duplicateIndex] = moment
+    }
+  }
+
+  return deduped.sort((a, b) => a.timeSec - b.timeSec).slice(0, 128)
 }
 
 // ── Visual automation suggestions ────────────────────────────────────────────
