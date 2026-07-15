@@ -64,15 +64,18 @@ export interface LaserDmxSceneColor {
 export interface LaserDmxSceneCamera {
   id: 'frontLocked'
   locked: true
-  projection: 'orthographicDepth'
+  projection: 'lockedPerspectiveBlend'
   position: LaserDmxSceneVec3
   target: LaserDmxSceneVec3
   up: LaserDmxSceneVec3
   fieldOfViewDeg: number
   elevationDeg: number
-  nearClipZ: number
-  farClipZ: number
-  depthParallax: number
+  /** Camera-space clipping distances measured forward from the locked camera. */
+  nearClipDistance: number
+  farClipDistance: number
+  /** Restrained blend between orthographic framing and true perspective. */
+  perspectiveStrength: number
+  referenceAspectRatio: number
   controls: {
     pan: false
     orbit: false
@@ -314,15 +317,18 @@ export interface CreateLaserDmxSceneFrameInput {
 export const LASER_DMX_FRONT_LOCKED_CAMERA: Readonly<LaserDmxSceneCamera> = Object.freeze({
   id: 'frontLocked',
   locked: true,
-  projection: 'orthographicDepth',
-  position: Object.freeze({ x: 0.5, y: -0.12, z: 2.35 }),
+  projection: 'lockedPerspectiveBlend',
+  // A centered, narrow-field recording position. The small elevation is real
+  // camera geometry, not a per-point Y offset, and never changes at runtime.
+  position: Object.freeze({ x: 0.5, y: 0.44, z: 2.85 }),
   target: Object.freeze({ x: 0.5, y: 0.5, z: 0 }),
   up: Object.freeze({ x: 0, y: 1, z: 0 }),
-  fieldOfViewDeg: 38,
-  elevationDeg: 4,
-  nearClipZ: 0.96,
-  farClipZ: -0.96,
-  depthParallax: 0.012,
+  fieldOfViewDeg: 20,
+  elevationDeg: 1.2,
+  nearClipDistance: 1.35,
+  farClipDistance: 4.25,
+  perspectiveStrength: 0.22,
+  referenceAspectRatio: 16 / 9,
   controls: Object.freeze({
     pan: false,
     orbit: false,

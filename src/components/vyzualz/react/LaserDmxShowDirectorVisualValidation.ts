@@ -14,6 +14,11 @@ import { getRigBackedPerformanceShowDefinition } from './LaserDmxShowDirectorRig
 import { compileLaserDmxShowDirectorToBeamMatrix } from './renderers/LaserDmxShowDirectorBeamMatrixCompiler'
 import { applyShowDirectorPerformanceGlobalOverrides } from './renderers/LaserDmxRenderer'
 import {
+  createLaserDmxSceneFrame,
+  resolveLaserDmxSceneFrameOutput,
+  type LaserDmxSceneFrame,
+} from './renderers/laserDmx/LaserDmxSceneFrame'
+import {
   compileLaserDmxBeamMatrix,
   resetBeamMatrixCompilerState,
   type CompiledLaserDmxMatrixBeam,
@@ -353,6 +358,8 @@ export interface ShowDirectorVisualValidationResolution {
   effects: ShowDirectorVisualEffectMetrics
   output: ReturnType<typeof compileLaserDmxBeamMatrix>['output']
   fog: ReturnType<typeof compileLaserDmxBeamMatrix>['fog']
+  /** Production WebGL scene payload, resolved from the same deterministic show state. */
+  sceneFrame: LaserDmxSceneFrame
 }
 
 export function showDirectorVisualValidationRenderSettleMs(
@@ -481,9 +488,10 @@ export function resolveShowDirectorVisualValidationFrame(
     runtimeInvalidationId: `${preset.id}:visual-validation`,
     transportDiscontinuityIdentity: `visual:${definition.id}`,
   })
+  const baseBeamMatrix = createDefaultLaserDmxBeamMatrixSettings()
   const authoredMatrix = compileLaserDmxShowDirectorToBeamMatrix({
     showDirector: result.showDirector,
-    beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    beamMatrix: baseBeamMatrix,
     sections: SHOW_DIRECTOR_VISUAL_VALIDATION_SECTIONS,
     fixturePriorityById: result.fixturePriorityById,
     fixturePriorityRoleById: result.fixturePriorityRoleById,
@@ -491,6 +499,52 @@ export function resolveShowDirectorVisualValidationFrame(
   const matrix = applyShowDirectorPerformanceGlobalOverrides(authoredMatrix, result.requestedGlobalOutputOverrides)
   const compiled = primedBeamMatrixCompile(matrix, definition, size)
   const effects = measureShowDirectorFixtureEffects(preset.id, result.showDirector)
+  const webglShowDirector: LaserDmxShowDirectorState = {
+    ...result.showDirector,
+    settings: {
+      ...result.showDirector.settings,
+      rendererMode: 'webgl',
+      presentationMode: 'capture',
+      webglQuality: 'high',
+      webglAtmosphereQuality: 'high',
+      webglRenderScale: 1,
+    },
+  }
+  const unresolvedSceneFrame = createLaserDmxSceneFrame({
+    showDirector: webglShowDirector,
+    evaluatedBeamMatrix: baseBeamMatrix,
+    audioTimeSec: definition.timeSec,
+    deltaTimeSec: 1 / 60,
+    isPlaying: true,
+    timingDiscontinuity: true,
+    trackKey: SHOW_DIRECTOR_VISUAL_VALIDATION_TRACK.id,
+    historyIdentity: `${preset.id}:webgl-visual-validation`,
+    occurrenceSeed: context.deterministicVariationSeed,
+    bpm: SHOW_DIRECTOR_VISUAL_VALIDATION_TRACK.bpm,
+    beatIndex: context.absoluteBeat,
+    beatPhase: context.beatPhase,
+    beatHit: context.boundaries.beatBoundary,
+    downbeat: context.downbeat,
+    barIndex: context.absoluteBar,
+    phraseIndex: context.phraseIndex,
+    section: context.sectionType,
+    sectionProgress: context.sectionProgress,
+    energy: context.energy,
+    kickHit: context.kick,
+    kickStrength: context.kickStrength,
+    snareHit: context.snare,
+    snareStrength: context.snareStrength,
+    hatHit: context.hat,
+    hatStrength: context.hatStrength,
+    transient: context.transient,
+    fourBarBlockIndex: context.performanceFourBarBlockIndex,
+    eightBarBlockIndex: context.performanceEightBarBlockIndex,
+    sixteenBarBlockIndex: context.performanceSixteenBarBlockIndex,
+    devicePixelRatio: 1,
+    fixturePriorityById: result.fixturePriorityById,
+    fixturePriorityRoleById: result.fixturePriorityRoleById,
+  })
+  const sceneFrame = resolveLaserDmxSceneFrameOutput(unresolvedSceneFrame, matrix)
   return {
     presetId: preset.id,
     presetName: preset.name,
@@ -527,6 +581,7 @@ export function resolveShowDirectorVisualValidationFrame(
     effects,
     output: compiled.output,
     fog: compiled.fog,
+    sceneFrame,
   }
 }
 

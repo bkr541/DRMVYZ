@@ -34,9 +34,11 @@ The final renderer preserves these non-negotiable rules:
 
 ## Locked camera and invisible depth
 
-`frontLocked` is the sole camera definition. It uses a fixed orthographic-depth projection with restrained vertical depth parallax, fixed centered/elevated pose, fixed clipping bounds, and no runtime motion. Existing authored X/Y compositions therefore remain visually recognizable while fixtures and targets can occupy continuous Z positions.
+`frontLocked` is the sole camera definition. It is horizontally centered, slightly elevated, aimed at the center of the invisible lighting volume, and exposes no pan, orbit, roll, animation, cut, or preset-override path. The renderer now constructs a genuine view matrix plus matched perspective and orthographic projection matrices. A restrained perspective blend preserves the authored front-facing composition while producing meaningful depth-dependent scale and foreshortening.
 
-Depth is data, not geometry. The scene frame uses invisible air zones such as Camera-Facing Air, Front Air, Mid Air, Deep Air, Upper Air, and Lower Air. Explicit fixture or target depth takes precedence. Older two-dimensional shows receive deterministic inference from fixture kind, semantic role, target mode, and stable fixture identity. Crosses, mirrors, tunnels, cages, canopies, low rakes, and rear architecture therefore retain the same depth assignment after seeking, looping, or restarting.
+The authored Z = 0 plane remains the composition reference, so existing X/Y layouts stay close to their original positions. Aspect compensation preserves horizontal symmetry across 4:3, 16:9, and ultrawide outputs. Beam segments are clipped in camera space against real near and far distances before perspective division, preventing behind-camera geometry, non-finite coordinates, and giant inverted triangles. Beam origins and targets, apertures, fixture-aligned emissive surfaces, atmosphere beams, haze and CO2 sources, and projected glare directions all use the same camera path.
+
+Depth is data, not venue geometry. The scene frame uses invisible air zones such as Camera-Facing Air, Front Air, Mid Air, Deep Air, Upper Air, and Lower Air. Explicit fixture or target depth takes precedence. Older two-dimensional shows receive deterministic inference from fixture kind, semantic role, target mode, and stable fixture identity. Crosses, mirrors, tunnels, cages, canopies, low rakes, and rear architecture therefore retain the same depth assignment after seeking, looping, or restarting. No walls, floor, ceiling, audience, truss, stage shell, or visible camera editor is introduced.
 
 The 15 × 10 Beam Matrix remains a compatibility, snapping, cue-evaluation, legacy-output, and Canvas2D layer. It is not the authoritative geometry for the WebGL path.
 
@@ -101,7 +103,9 @@ Quality may change volumetric resolution, haze samples, bloom levels, glare deta
 
 ## Renderer selection and fallback
 
-The renderer preference is persisted as **Auto**, **WebGL2**, or **Canvas2D**. The safe decision order is:
+The renderer preference is persisted as **Auto**, **WebGL2**, or **Canvas2D**. New sessions and legacy sessions with no explicit renderer selection normalize to **Auto**, which prefers WebGL2. An explicit Canvas2D selection is preserved during migration. Presentation mode is normalized independently, so playback never rewrites a saved Edit, Hybrid, Live, or Capture preference merely to activate WebGL.
+
+The safe decision order is:
 
 1. Canvas2D when explicitly selected.
 2. WebGL2 when requested and successfully initialized.
@@ -137,7 +141,7 @@ Diagnostics are ephemeral. They are never serialized into projects, presets, or 
 
 Persisted high-level settings include renderer preference, WebGL quality, atmosphere quality, render scale, presentation mode, and authored visual controls. Framebuffers, textures, buffers, shader programs, GPU queries, temporal-history contents, per-frame timings, and fallback counters are runtime-only.
 
-Older saved shows continue to load through normalization. Missing scene, depth, camera, material, primitive, atmosphere, temporal, or post fields receive safe defaults. Existing fixture identifiers and Performance Program identities remain unchanged. Static source rigs are cloned before transient performance resolution, so loading or playing a show does not destructively migrate saved fixtures.
+Older saved shows continue to load through normalization. Show Director schema version 12 migrates a missing or obsolete renderer preference to Auto while preserving explicit WebGL2 and Canvas2D choices. Missing scene, depth, camera, material, primitive, atmosphere, temporal, or post fields receive safe defaults. Existing fixture identifiers and Performance Program identities remain unchanged. Static source rigs are cloned before transient performance resolution, so loading or playing a show does not destructively migrate saved fixtures.
 
 ## Debugging WebGL failures
 
@@ -148,6 +152,24 @@ Older saved shows continue to load through normalization. Missing scene, depth, 
 5. Treat shader compile/link failures as code defects. Do not hide them by disabling tests or swallowing the diagnostic.
 6. After repeated context loss, leave Canvas2D active for the session and investigate driver, memory, resize, or device-reset conditions before retrying.
 7. Reproduce track switches, engine switches, seek, loop, resize, Capture entry, and context restoration because each owns a specific reset boundary.
+
+## Actual WebGL visual regression
+
+Run the production WebGL pixel harness with:
+
+```bash
+npm run visual:show-director:webgl
+```
+
+The command bundles an offline production-renderer host, launches Chromium through a real WebGL2 context, requests Capture presentation mode, resolves deterministic Performance Show states, and renders through `LaserDmxWebGLRuntime`. Linux uses a headed Chromium session under Xvfb because current ANGLE/SwiftShader builds may not expose WebGL2 in native headless mode. Launch diagnostics record the WebGL version, vendor, renderer, shading-language version, texture limit, HDR/LDR strategy, quality, internal resolutions, active beams, active fixtures, bloom levels, atmosphere samples, and context-loss count.
+
+The portable regression profile renders 480 × 270 output at fixed Medium beam and atmosphere quality. Each case receives four stabilization frames after a temporal reset. Three representative cases also render a second reset-and-replay sequence for deterministic pixel comparison. The 12 cases cover Intro, Build, Drop 1, Breakdown, Drop 2, Outro, coherent fans, a mirrored cage, moving heads and washes, strobe and blinder impact, localized haze and CO2, LED bars and tubes, and a mixed festival rig.
+
+Validation combines screenshots, renderer diagnostics, non-black and black-floor thresholds, luminance and highlight bounds, washed-white limits, compact perceptual fingerprints, left/right energy symmetry, deterministic replay tolerance, fixture-kind coverage, and Live/Capture overlay isolation. Exact whole-frame hashes are intentionally avoided because WebGL output can vary slightly by GPU and driver.
+
+Unsupported WebGL2 is a failure by default and writes a capability report. A developer may explicitly request a supported skip for a known non-WebGL machine with `DRMVYZ_ALLOW_WEBGL_VISUAL_SKIP=1`; that skip is reported as skipped, never passed. Generated screenshots and JSON reports are written under `artifacts/show-director-webgl-visual-review/` and remain ignored by Git. To update expectations intentionally, review the generated images and diagnostics, document the renderer/environment used, then adjust the checked thresholds or representative states in the test. Do not commit transient output or blindly bless a black, fallback, or overlay-contaminated frame.
+
+The existing `npm run visual:show-director` command remains the separate Canvas2D compatibility review and cannot satisfy the WebGL regression requirement.
 
 ## Beam-budget guidelines
 

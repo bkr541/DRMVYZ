@@ -21,6 +21,22 @@ interface PixelMetrics {
   centerLitPixelRatio: number
 }
 
+const SHOW_DIRECTOR_VISUAL_REVIEW_PRESET_IDS = new Set([
+  'prism-cathedral',
+  'cardinal-fan-reactor',
+  'cyan-mirror-cage',
+  'small-club-rig-performance',
+  'festival-front-beams-performance',
+  'dubstep-drop-lasers-performance',
+  'led-bar-grid-performance',
+  'moving-head-sweep-performance',
+  'strobe-blinder-hits-performance',
+  'haze-co2-drops-performance',
+])
+const SHOW_DIRECTOR_VISUAL_REVIEW_PRESETS = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(
+  preset => SHOW_DIRECTOR_VISUAL_REVIEW_PRESET_IDS.has(preset.id),
+)
+
 interface ReviewFrameSummary {
   key: string
   canvasId: string
@@ -63,6 +79,8 @@ declare global {
       width: number
       height: number
       expectedFrameCount: number
+      performancePresetCount: number
+      validationFrameCount: number
       trackAssumptions: typeof SHOW_DIRECTOR_VISUAL_VALIDATION_TRACK
       frames: ReviewFrameSummary[]
     }
@@ -200,7 +218,7 @@ function renderFrame(resolution: ShowDirectorVisualValidationResolution): Review
 }
 
 const summaries: ReviewFrameSummary[] = []
-for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
+for (const preset of SHOW_DIRECTOR_VISUAL_REVIEW_PRESETS) {
   for (const frame of SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES) {
     summaries.push(renderFrame(resolveShowDirectorVisualValidationFrame(preset, frame)))
   }
@@ -209,7 +227,9 @@ window.__SHOW_DIRECTOR_VISUAL_REVIEW__ = {
   ready: true,
   width: SHOW_DIRECTOR_VISUAL_VALIDATION_SIZE.width,
   height: SHOW_DIRECTOR_VISUAL_VALIDATION_SIZE.height,
-  expectedFrameCount: LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length * SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES.length,
+  expectedFrameCount: SHOW_DIRECTOR_VISUAL_REVIEW_PRESETS.length * SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES.length,
+  performancePresetCount: SHOW_DIRECTOR_VISUAL_REVIEW_PRESETS.length,
+  validationFrameCount: SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES.length,
   trackAssumptions: SHOW_DIRECTOR_VISUAL_VALIDATION_TRACK,
   frames: summaries,
 }

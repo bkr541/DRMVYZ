@@ -85,6 +85,8 @@ interface VisualReviewReport {
   width: number
   height: number
   expectedFrameCount: number
+  performancePresetCount: number
+  validationFrameCount: number
   trackAssumptions: Record<string, unknown>
   frames: VisualReviewFrame[]
 }
@@ -173,7 +175,7 @@ function showCountSummary(frames: readonly VisualReviewFrame[]): VisualReviewSho
 test.describe('Show Director rendered visual review', () => {
   test.skip(!enabled, 'Run with npm run visual:show-director')
 
-  test('captures 100 representative frames and writes deterministic visual, state, and count reports', async ({ page }) => {
+  test('captures every representative frame and writes deterministic visual, state, and count reports', async ({ page }) => {
     test.setTimeout(120_000)
     await page.setContent(`<!doctype html><html lang="en"><head><meta charset="UTF-8"><style>
       :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#05070b;color:#e9faff}*{box-sizing:border-box}body{margin:0;padding:20px;background:#05070b}h1{margin:0 0 6px;font-size:22px}p{margin:0 0 18px;color:#99a9b8;font-size:13px}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(470px,1fr));gap:16px}article{border:1px solid #1b2b37;border-radius:10px;padding:10px;background:#080d13}header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}h2{margin:0;font-size:13px;font-weight:650}code{color:#7eeeff;font-size:10px}canvas{display:block;width:100%;height:auto;background:#000;border-radius:6px}
@@ -182,10 +184,12 @@ test.describe('Show Director rendered visual review', () => {
     await page.waitForFunction(() => document.documentElement.dataset.visualReviewReady === 'true')
     const report = await page.evaluate<VisualReviewReport | undefined>(() => window.__SHOW_DIRECTOR_VISUAL_REVIEW__)
     expect(report?.ready).toBe(true)
-    expect(report?.expectedFrameCount).toBe(100)
-    expect(report?.frames).toHaveLength(100)
-    expect(new Set(report!.frames.map(frame => frame.presetId)).size).toBe(10)
-    expect(new Set(report!.frames.map(frame => frame.key)).size).toBe(100)
+    expect(report?.performancePresetCount).toBeGreaterThan(0)
+    expect(report?.validationFrameCount).toBeGreaterThan(0)
+    expect(report?.expectedFrameCount).toBe(report!.performancePresetCount * report!.validationFrameCount)
+    expect(report?.frames).toHaveLength(report!.expectedFrameCount)
+    expect(new Set(report!.frames.map(frame => frame.presetId)).size).toBe(report!.performancePresetCount)
+    expect(new Set(report!.frames.map(frame => frame.key)).size).toBe(report!.expectedFrameCount)
     await mkdir(outputRoot, { recursive: true })
 
     for (const frame of report!.frames) {

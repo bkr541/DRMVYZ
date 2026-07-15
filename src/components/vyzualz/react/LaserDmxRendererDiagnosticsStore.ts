@@ -36,7 +36,7 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
 
 const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   activeRenderer: 'inactive',
-  requestedRenderer: 'canvas2d',
+  requestedRenderer: 'auto',
   presentationMode: 'edit',
   webgl2Available: null,
   floatTargetsAvailable: false,

@@ -35,16 +35,35 @@ export interface LaserDmxFrontLockedCameraLike {
   locked: true
   position: LaserDmxSpatialVec3
   target: LaserDmxSpatialVec3
-  nearClipZ: number
-  farClipZ: number
-  depthParallax: number
+  up: LaserDmxSpatialVec3
+  fieldOfViewDeg: number
+  nearClipDistance: number
+  farClipDistance: number
+  perspectiveStrength: number
+  referenceAspectRatio: number
 }
+
+export type LaserDmxMat4 = readonly [
+  number, number, number, number,
+  number, number, number, number,
+  number, number, number, number,
+  number, number, number, number,
+]
 
 export interface LaserDmxProjectedPoint {
   x: number
   y: number
   clipDepth: number
+  cameraDepth: number
+  perspectiveScale: number
   visible: boolean
+}
+
+export interface LaserDmxClippedSceneSegment {
+  origin: LaserDmxSpatialVec3
+  target: LaserDmxSpatialVec3
+  originT: number
+  targetT: number
 }
 
 export const LASER_DMX_SCENE_DEPTH_ZONES: readonly LaserDmxSceneDepthZone[] = Object.freeze([
@@ -275,18 +294,223 @@ export function resolveLaserDmxDepthRange(origin: LaserDmxSpatialVec3, target: L
   return { minZ: Math.min(origin.z, target.z), maxZ: Math.max(origin.z, target.z) }
 }
 
+function subtract(a: LaserDmxSpatialVec3, b: LaserDmxSpatialVec3): LaserDmxSpatialVec3 {
+  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }
+}
+
+function dot(a: LaserDmxSpatialVec3, b: LaserDmxSpatialVec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z
+}
+
+function cross(a: LaserDmxSpatialVec3, b: LaserDmxSpatialVec3): LaserDmxSpatialVec3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  }
+}
+
+function normalize(value: LaserDmxSpatialVec3, fallback: LaserDmxSpatialVec3): LaserDmxSpatialVec3 {
+  const length = Math.hypot(value.x, value.y, value.z)
+  if (!Number.isFinite(length) || length <= EPSILON) return fallback
+  return { x: value.x / length, y: value.y / length, z: value.z / length }
+}
+
+function multiplyMat4(a: LaserDmxMat4, b: LaserDmxMat4): LaserDmxMat4 {
+  const out = new Array<number>(16).fill(0)
+  for (let row = 0; row < 4; row += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      let value = 0
+      for (let index = 0; index < 4; index += 1) {
+        value += a[row * 4 + index] * b[index * 4 + column]
+      }
+      out[row * 4 + column] = value
+    }
+  }
+  return out as unknown as LaserDmxMat4
+}
+
+function transformMat4(matrix: LaserDmxMat4, point: LaserDmxSpatialVec3): [number, number, number, number] {
+  return [
+    matrix[0] * point.x + matrix[1] * point.y + matrix[2] * point.z + matrix[3],
+    matrix[4] * point.x + matrix[5] * point.y + matrix[6] * point.z + matrix[7],
+    matrix[8] * point.x + matrix[9] * point.y + matrix[10] * point.z + matrix[11],
+    matrix[12] * point.x + matrix[13] * point.y + matrix[14] * point.z + matrix[15],
+  ]
+}
+
+function cameraBasis(camera: LaserDmxFrontLockedCameraLike): {
+  forward: LaserDmxSpatialVec3
+  right: LaserDmxSpatialVec3
+  up: LaserDmxSpatialVec3
+} {
+  const forward = normalize(subtract(camera.target, camera.position), { x: 0, y: 0, z: -1 })
+  const right = normalize(cross(forward, camera.up), { x: 1, y: 0, z: 0 })
+  return {
+    forward,
+    right,
+    up: normalize(cross(right, forward), { x: 0, y: 1, z: 0 }),
+  }
+}
+
+export function createLaserDmxViewMatrix(camera: LaserDmxFrontLockedCameraLike): LaserDmxMat4 {
+  const basis = cameraBasis(camera)
+  return [
+    basis.right.x, basis.right.y, basis.right.z, -dot(basis.right, camera.position),
+    basis.up.x, basis.up.y, basis.up.z, -dot(basis.up, camera.position),
+    -basis.forward.x, -basis.forward.y, -basis.forward.z, dot(basis.forward, camera.position),
+    0, 0, 0, 1,
+  ]
+}
+
+function createAspectModelMatrix(aspectRatio: number): LaserDmxMat4 {
+  const aspect = clamp(aspectRatio, 0.5, 4)
+  return [
+    aspect, 0, 0, 0.5 * (1 - aspect),
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+  ]
+}
+
+function cameraFocusDepth(camera: LaserDmxFrontLockedCameraLike): number {
+  const view = createLaserDmxViewMatrix(camera)
+  const target = transformMat4(view, camera.target)
+  return Math.max(EPSILON, -target[2])
+}
+
+export function createLaserDmxPerspectiveProjectionMatrix(
+  camera: LaserDmxFrontLockedCameraLike,
+  aspectRatio = camera.referenceAspectRatio,
+): LaserDmxMat4 {
+  const aspect = clamp(aspectRatio, 0.5, 4)
+  const near = Math.max(EPSILON, Math.min(camera.nearClipDistance, camera.farClipDistance - EPSILON))
+  const far = Math.max(near + EPSILON, camera.farClipDistance)
+  const f = 1 / Math.tan(clamp(camera.fieldOfViewDeg, 5, 80) * Math.PI / 360)
+  return [
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) / (near - far), (2 * far * near) / (near - far),
+    0, 0, -1, 0,
+  ]
+}
+
+export function createLaserDmxOrthographicProjectionMatrix(
+  camera: LaserDmxFrontLockedCameraLike,
+  aspectRatio = camera.referenceAspectRatio,
+): LaserDmxMat4 {
+  const aspect = clamp(aspectRatio, 0.5, 4)
+  const near = Math.max(EPSILON, Math.min(camera.nearClipDistance, camera.farClipDistance - EPSILON))
+  const far = Math.max(near + EPSILON, camera.farClipDistance)
+  const halfHeight = Math.max(0.01, Math.tan(clamp(camera.fieldOfViewDeg, 5, 80) * Math.PI / 360) * cameraFocusDepth(camera))
+  const halfWidth = halfHeight * aspect
+  return [
+    1 / halfWidth, 0, 0, 0,
+    0, 1 / halfHeight, 0, 0,
+    0, 0, -2 / (far - near), -(far + near) / (far - near),
+    0, 0, 0, 1,
+  ]
+}
+
+export function laserDmxCameraDepth(
+  camera: LaserDmxFrontLockedCameraLike,
+  point: LaserDmxSpatialVec3,
+): number {
+  return dot(cameraBasis(camera).forward, subtract(point, camera.position))
+}
+
+function projectWithMatrix(matrix: LaserDmxMat4, point: LaserDmxSpatialVec3): { x: number; y: number; z: number; valid: boolean } {
+  const [x, y, z, w] = transformMat4(matrix, point)
+  if (!Number.isFinite(w) || Math.abs(w) <= EPSILON) return { x: 0, y: 0, z: 1, valid: false }
+  const invW = 1 / w
+  const projected = { x: x * invW, y: y * invW, z: z * invW, valid: true }
+  projected.valid = Number.isFinite(projected.x) && Number.isFinite(projected.y) && Number.isFinite(projected.z)
+  return projected
+}
+
 export function projectLaserDmxScenePoint(
   camera: LaserDmxFrontLockedCameraLike,
   point: LaserDmxSpatialVec3,
+  aspectRatio = camera.referenceAspectRatio,
 ): LaserDmxProjectedPoint {
-  const near = Math.max(camera.nearClipZ, camera.farClipZ + EPSILON)
-  const far = Math.min(camera.farClipZ, near - EPSILON)
-  const depthUnit = clamp((point.z - far) / (near - far), 0, 1)
+  const aspect = clamp(aspectRatio, 0.5, 4)
+  const model = createAspectModelMatrix(aspect)
+  const viewModel = multiplyMat4(createLaserDmxViewMatrix(camera), model)
+  const perspective = projectWithMatrix(
+    multiplyMat4(createLaserDmxPerspectiveProjectionMatrix(camera, aspect), viewModel),
+    point,
+  )
+  const orthographic = projectWithMatrix(
+    multiplyMat4(createLaserDmxOrthographicProjectionMatrix(camera, aspect), viewModel),
+    point,
+  )
+  const blend = clamp(camera.perspectiveStrength, 0, 1)
+  const cameraDepth = laserDmxCameraDepth(camera, point)
+  const focusDepth = cameraFocusDepth(camera)
+  const perspectiveScale = clamp((1 - blend) + blend * focusDepth / Math.max(EPSILON, cameraDepth), 0.5, 2)
+  const ndcX = orthographic.x + (perspective.x - orthographic.x) * blend
+  const ndcY = orthographic.y + (perspective.y - orthographic.y) * blend
+  const clipDepth = orthographic.z + (perspective.z - orthographic.z) * blend
+  const depthVisible = cameraDepth >= camera.nearClipDistance - EPSILON
+    && cameraDepth <= camera.farClipDistance + EPSILON
+  const valid = orthographic.valid && perspective.valid
+    && Number.isFinite(ndcX) && Number.isFinite(ndcY) && Number.isFinite(clipDepth)
   return {
-    x: point.x,
-    y: point.y + point.z * camera.depthParallax,
-    clipDepth: 1 - depthUnit * 2,
-    visible: point.z <= near + EPSILON && point.z >= far - EPSILON,
+    x: valid ? 0.5 + ndcX * 0.5 : 0.5,
+    y: valid ? 0.5 + ndcY * 0.5 : 0.5,
+    clipDepth: valid ? clamp(clipDepth, -1, 1) : 1,
+    cameraDepth,
+    perspectiveScale,
+    visible: valid && depthVisible,
+  }
+}
+
+function interpolatePoint(a: LaserDmxSpatialVec3, b: LaserDmxSpatialVec3, t: number): LaserDmxSpatialVec3 {
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+    z: a.z + (b.z - a.z) * t,
+  }
+}
+
+/** Clips a scene segment against the locked camera's true near and far planes. */
+export function clipLaserDmxSceneSegment(
+  camera: LaserDmxFrontLockedCameraLike,
+  origin: LaserDmxSpatialVec3,
+  target: LaserDmxSpatialVec3,
+): LaserDmxClippedSceneSegment | null {
+  const originDepth = laserDmxCameraDepth(camera, origin)
+  const targetDepth = laserDmxCameraDepth(camera, target)
+  if (!Number.isFinite(originDepth) || !Number.isFinite(targetDepth)) return null
+  const delta = targetDepth - originDepth
+  let originT = 0
+  let targetT = 1
+
+  const clipLower = (minimum: number): boolean => {
+    if (originDepth >= minimum && targetDepth >= minimum) return true
+    if (originDepth < minimum && targetDepth < minimum) return false
+    if (Math.abs(delta) <= EPSILON) return false
+    const t = clamp((minimum - originDepth) / delta, 0, 1)
+    if (originDepth < minimum) originT = Math.max(originT, t)
+    else targetT = Math.min(targetT, t)
+    return originT <= targetT + EPSILON
+  }
+  const clipUpper = (maximum: number): boolean => {
+    if (originDepth <= maximum && targetDepth <= maximum) return true
+    if (originDepth > maximum && targetDepth > maximum) return false
+    if (Math.abs(delta) <= EPSILON) return false
+    const t = clamp((maximum - originDepth) / delta, 0, 1)
+    if (originDepth > maximum) originT = Math.max(originT, t)
+    else targetT = Math.min(targetT, t)
+    return originT <= targetT + EPSILON
+  }
+
+  if (!clipLower(camera.nearClipDistance) || !clipUpper(camera.farClipDistance)) return null
+  return {
+    origin: interpolatePoint(origin, target, originT),
+    target: interpolatePoint(origin, target, targetT),
+    originT,
+    targetT,
   }
 }
 
@@ -295,7 +519,8 @@ export function laserDmxDepthSegmentVisible(
   minZ: number,
   maxZ: number,
 ): boolean {
-  return maxZ >= camera.farClipZ && minZ <= camera.nearClipZ
+  const center = { x: 0.5, y: 0.5 }
+  return clipLaserDmxSceneSegment(camera, { ...center, z: minZ }, { ...center, z: maxZ }) != null
 }
 
 export function laserDmxDepthSortValue(origin: LaserDmxSpatialVec3, target: LaserDmxSpatialVec3): number {

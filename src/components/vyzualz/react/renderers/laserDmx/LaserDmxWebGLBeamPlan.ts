@@ -10,7 +10,7 @@ import type {
   LaserDmxSceneVec3,
 } from './LaserDmxSceneFrame'
 import {
-  laserDmxDepthSegmentVisible,
+  clipLaserDmxSceneSegment,
   projectLaserDmxScenePoint,
   type LaserDmxProjectedPoint,
 } from './LaserDmxSpatialModel'
@@ -135,9 +135,21 @@ export function selectLaserDmxBeamsForQuality(
   return [...selected.values()].sort(stableBeamSort)
 }
 
-function projectedDirection(direction: LaserDmxSceneVec3, viewport: LaserDmxWebGLViewport): { x: number; y: number } {
-  const x = direction.x * Math.max(1, viewport.backingWidth)
-  const y = direction.y * Math.max(1, viewport.backingHeight)
+function projectedDirection(
+  frame: LaserDmxSceneFrame,
+  position: LaserDmxSceneVec3,
+  direction: LaserDmxSceneVec3,
+  viewport: LaserDmxWebGLViewport,
+): { x: number; y: number } {
+  const aspect = Math.max(0.5, viewport.backingWidth / Math.max(1, viewport.backingHeight))
+  const origin = projectLaserDmxScenePoint(frame.camera, position, aspect)
+  const target = projectLaserDmxScenePoint(frame.camera, {
+    x: position.x + direction.x * 0.08,
+    y: position.y + direction.y * 0.08,
+    z: position.z + direction.z * 0.08,
+  }, aspect)
+  const x = (target.x - origin.x) * Math.max(1, viewport.backingWidth)
+  const y = (target.y - origin.y) * Math.max(1, viewport.backingHeight)
   const length = Math.hypot(x, y)
   return length > 1e-5 ? { x: x / length, y: y / length } : { x: 1, y: 0 }
 }
@@ -188,6 +200,8 @@ function rotateProjectedTarget(
     x: origin.x + dx * cosine - dy * sine,
     y: origin.y + dx * sine + dy * cosine,
     clipDepth: target.clipDepth,
+    cameraDepth: target.cameraDepth,
+    perspectiveScale: target.perspectiveScale,
     visible: target.visible,
   }
 }
@@ -198,12 +212,16 @@ export function buildLaserDmxWebGLBeamRenderPlan(
   maxBeamOverride?: number,
 ): LaserDmxWebGLBeamRenderPlan {
   const policy = QUALITY_POLICIES[frame.quality.qualityTier]
-  const visible = frame.beams.filter(beam => (
-    beam.enabled
-    && beam.intensity > 0.001
-    && (beam.fixtureKind === 'laser' || beam.fixtureKind === 'movingHead' || beam.fixtureKind === 'parWash')
-    && laserDmxDepthSegmentVisible(frame.camera, beam.depthRange.minZ, beam.depthRange.maxZ)
-  ))
+  const aspect = Math.max(0.5, viewport.backingWidth / Math.max(1, viewport.backingHeight))
+  const clippedByBeamId = new Map<string, ReturnType<typeof clipLaserDmxSceneSegment>>()
+  const visible = frame.beams.filter(beam => {
+    if (!beam.enabled || beam.intensity <= 0.001) return false
+    if (beam.fixtureKind !== 'laser' && beam.fixtureKind !== 'movingHead' && beam.fixtureKind !== 'parWash') return false
+    const clipped = clipLaserDmxSceneSegment(frame.camera, beam.origin, beam.target)
+    if (!clipped) return false
+    clippedByBeamId.set(beam.id, clipped)
+    return true
+  })
   const selected = selectLaserDmxBeamsForQuality(visible, frame.quality.qualityTier, maxBeamOverride)
   const atmosphere = frame.atmosphere.enabled
     ? clamp01(frame.atmosphere.opacity * 0.48 + frame.atmosphere.beamScatter * 0.52)
@@ -216,22 +234,25 @@ export function buildLaserDmxWebGLBeamRenderPlan(
   const sourceInstability = new Map<string, ReturnType<typeof resolveLaserDmxBeamInstability>>()
 
   const beams = selected.map((beam): LaserDmxWebGLBeamInstance => {
-    const origin = projectLaserDmxScenePoint(frame.camera, beam.origin)
+    const clipped = clippedByBeamId.get(beam.id)!
+    const origin = projectLaserDmxScenePoint(frame.camera, clipped.origin, aspect)
     const instability = resolveLaserDmxBeamInstability(
       frame,
       beam,
       fixtureSemanticKeyById.get(beam.fixtureId) ?? beam.fixtureId,
     )
     if (!sourceInstability.has(beam.sourceId)) sourceInstability.set(beam.sourceId, instability)
-    const authoredTarget = projectLaserDmxScenePoint(frame.camera, beam.target)
+    const authoredTarget = projectLaserDmxScenePoint(frame.camera, clipped.target, aspect)
     const target = rotateProjectedTarget(origin, authoredTarget, instability.angularOffsetRad)
     const distanceFactor = clamp01(beam.length / 1.35)
     const focusTightening = 0.82 + clamp01(beam.focus) * 0.18
+    const depthScale = clamp((origin.perspectiveScale + authoredTarget.perspectiveScale) * 0.5, 0.82, 1.22)
     const baseWidth = clamp(
       (0.42 + beam.width * 0.58)
         * globalWidth
         * focusTightening
-        * instability.widthMultiplier,
+        * instability.widthMultiplier
+        * depthScale,
       0.35,
       9,
     )
@@ -299,8 +320,9 @@ export function buildLaserDmxWebGLBeamRenderPlan(
       return fixture.kind !== 'haze'
     })
     .sort((a, b) => a.sortDepth - b.sortDepth || a.id.localeCompare(b.id))
-    .map((emitter): LaserDmxWebGLApertureInstance => {
-      const projected = projectLaserDmxScenePoint(frame.camera, emitter.position)
+    .flatMap((emitter): LaserDmxWebGLApertureInstance[] => {
+      const projected = projectLaserDmxScenePoint(frame.camera, emitter.position, aspect)
+      if (!projected.visible) return []
       const energyRoot = Math.sqrt(Math.max(0, emitter.totalActiveEnergy))
       const instability = sourceInstability.get(emitter.id)
       const apertureMultiplier = instability?.apertureMultiplier ?? 1
@@ -318,8 +340,9 @@ export function buildLaserDmxWebGLBeamRenderPlan(
                 : fixture.kind === 'co2Jet'
                   ? 6
                   : 0
+      const depthScale = clamp(projected.perspectiveScale, 0.82, 1.22)
       const coreRadiusCssPx = shapeMode === 0
-        ? clamp((1.1 + emitter.apertureSize * 0.82 + emitter.peakRayIntensity * 1.15) * apertureMultiplier, 1.25, 6.5)
+        ? clamp((1.1 + emitter.apertureSize * 0.82 + emitter.peakRayIntensity * 1.15) * apertureMultiplier * depthScale, 1.25, 7.5)
         : shapeMode === 3 ? 7 : shapeMode === 4 ? 8 : shapeMode === 5 ? 10 : 3.4
       const ringRadiusCssPx = shapeMode === 0
         ? clamp(coreRadiusCssPx * (1.9 + Math.min(0.35, energyRoot * 0.08)), 2.5, 14)
@@ -328,7 +351,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         ? clamp(ringRadiusCssPx * (1.42 + Math.min(0.85, energyRoot * 0.16)), 4, 34)
         : shapeMode === 5 ? 26 : shapeMode === 4 ? 22 : shapeMode === 3 ? 18 : shapeMode === 1 || shapeMode === 2 ? 10 : 9
       const directionPhase = frame.timestamp * (fixture.component.ledDirection === 'rightToLeft' ? -1 : 1)
-      return {
+      return [{
         id: emitter.id,
         position: { x: projected.x, y: projected.y, z: projected.clipDepth },
         color: emitter.color,
@@ -344,7 +367,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         coreRadiusCssPx,
         ringRadiusCssPx,
         haloRadiusCssPx,
-        glareDirection: projectedDirection(emitter.glareDirection, viewport),
+        glareDirection: projectedDirection(frame, emitter.position, emitter.glareDirection, viewport),
         shapeMode,
         aspect: shapeMode === 1 ? 5.5 : shapeMode === 2 ? 4.4 : shapeMode === 3 ? 2.8 : shapeMode === 5 ? 1.78 : 1,
         segments: shapeMode === 1 || shapeMode === 2 ? fixture.component.ledCellCount : 1,
@@ -352,7 +375,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         softness: fixture.optics.opticalSoftness,
         phase: directionPhase + fixture.rotationDeg / 360,
         sortDepth: emitter.sortDepth,
-      }
+      }]
     })
 
   return {

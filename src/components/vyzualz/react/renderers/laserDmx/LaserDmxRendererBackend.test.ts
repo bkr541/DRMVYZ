@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeLaserDmxShowDirectorSettings } from '../../ReactTypes'
+import {
+  createDefaultLaserDmxShowDirectorState,
+  normalizeLaserDmxShowDirectorSettings,
+} from '../../ReactTypes'
 import {
   resolveLaserDmxAtmosphereRendererPath,
   resolveLaserDmxAuthoringOverlayVisibility,
@@ -21,17 +24,35 @@ describe('LaserDMX renderer backend selection', () => {
     expect(resolveLaserDmxAtmosphereRendererPath('webgl')).toBe('webglVolumetric')
   })
 
-  it('normalizes legacy projects to safe Edit and Canvas2D defaults', () => {
+  it('normalizes new and legacy sessions to safe Edit plus Auto/WebGL preference', () => {
     const settings = normalizeLaserDmxShowDirectorSettings({
       gridSize: { columns: 15, rows: 10 },
       showGrid: true,
     })
     expect(settings.presentationMode).toBe('edit')
-    expect(settings.rendererMode).toBe('canvas2d')
+    expect(settings.rendererMode).toBe('auto')
+    expect(createDefaultLaserDmxShowDirectorState().settings.rendererMode).toBe('auto')
     expect(settings.webglQuality).toBe('high')
     expect(settings.webglAtmosphereQuality).toBe('auto')
     expect(settings.webglRenderScale).toBe(1)
   })
+
+  it('preserves an explicit Canvas2D compatibility selection during migration', () => {
+    const settings = normalizeLaserDmxShowDirectorSettings({
+      gridSize: { columns: 15, rows: 10 },
+      presentationMode: 'hybrid',
+      rendererMode: 'canvas2d',
+    })
+    expect(settings.presentationMode).toBe('hybrid')
+    expect(settings.rendererMode).toBe('canvas2d')
+  })
+
+  it('treats missing or obsolete renderer values as Auto while keeping WebGL explicit', () => {
+    expect(normalizeLaserDmxShowDirectorSettings({ rendererMode: undefined }).rendererMode).toBe('auto')
+    expect(normalizeLaserDmxShowDirectorSettings({ rendererMode: 'legacy-default' }).rendererMode).toBe('auto')
+    expect(normalizeLaserDmxShowDirectorSettings({ rendererMode: 'webgl' }).rendererMode).toBe('webgl')
+  })
+
 })
 
 describe('LaserDMX presentation visibility', () => {

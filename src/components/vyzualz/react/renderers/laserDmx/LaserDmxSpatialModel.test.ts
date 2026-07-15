@@ -11,6 +11,11 @@ import {
 } from './LaserDmxSceneFrame'
 import {
   LASER_DMX_SCENE_DEPTH_ZONES,
+  clipLaserDmxSceneSegment,
+  createLaserDmxOrthographicProjectionMatrix,
+  createLaserDmxPerspectiveProjectionMatrix,
+  createLaserDmxViewMatrix,
+  laserDmxCameraDepth,
   projectLaserDmxScenePoint,
   resolveLaserDmxFixtureDepth,
   resolveLaserDmxTargetDepth,
@@ -44,7 +49,7 @@ describe('LaserDMX locked camera and invisible depth semantics', () => {
     expect(first.camera).toMatchObject({
       id: 'frontLocked',
       locked: true,
-      projection: 'orthographicDepth',
+      projection: 'lockedPerspectiveBlend',
       controls: {
         pan: false,
         orbit: false,
@@ -156,14 +161,67 @@ describe('LaserDMX locked camera and invisible depth semantics', () => {
     expect(leftProjection.y).toBeCloseTo(rightProjection.y, 10)
   })
 
-  it('allows shared screen coordinates on separate depth planes with restrained parallax', () => {
-    const point = { x: 0.5, y: 0.5 }
+  it('uses stable view and projection matrices with restrained depth-dependent foreshortening', () => {
+    const point = { x: 0.72, y: 0.58 }
     const front = projectLaserDmxScenePoint(LASER_DMX_FRONT_LOCKED_CAMERA, { ...point, z: 0.48 })
+    const focus = projectLaserDmxScenePoint(LASER_DMX_FRONT_LOCKED_CAMERA, { ...point, z: 0 })
     const rear = projectLaserDmxScenePoint(LASER_DMX_FRONT_LOCKED_CAMERA, { ...point, z: -0.52 })
 
-    expect(front.x).toBe(rear.x)
-    expect(Math.abs(front.y - rear.y)).toBeLessThanOrEqual(0.0121)
+    expect(createLaserDmxViewMatrix(LASER_DMX_FRONT_LOCKED_CAMERA)).toEqual(
+      createLaserDmxViewMatrix(LASER_DMX_FRONT_LOCKED_CAMERA),
+    )
+    expect(createLaserDmxPerspectiveProjectionMatrix(LASER_DMX_FRONT_LOCKED_CAMERA)).toEqual(
+      createLaserDmxPerspectiveProjectionMatrix(LASER_DMX_FRONT_LOCKED_CAMERA),
+    )
+    expect(createLaserDmxOrthographicProjectionMatrix(LASER_DMX_FRONT_LOCKED_CAMERA)).toEqual(
+      createLaserDmxOrthographicProjectionMatrix(LASER_DMX_FRONT_LOCKED_CAMERA),
+    )
+    expect(front.visible && focus.visible && rear.visible).toBe(true)
+    expect(front.perspectiveScale).toBeGreaterThan(focus.perspectiveScale)
+    expect(focus.perspectiveScale).toBeGreaterThan(rear.perspectiveScale)
+    expect(Math.abs(front.x - 0.5)).toBeGreaterThan(Math.abs(rear.x - 0.5))
+    expect(Math.abs(focus.x - point.x)).toBeLessThan(0.012)
+    expect(Math.abs(focus.y - point.y)).toBeLessThan(0.012)
+    expect(Math.abs(front.y - rear.y)).toBeLessThan(0.03)
     expect(front.clipDepth).not.toBe(rear.clipDepth)
+  })
+
+  it('preserves center and mirror symmetry across aspect ratios', () => {
+    for (const aspect of [4 / 3, 16 / 9, 21 / 9]) {
+      const center = projectLaserDmxScenePoint(LASER_DMX_FRONT_LOCKED_CAMERA, { x: 0.5, y: 0.5, z: 0 }, aspect)
+      const left = projectLaserDmxScenePoint(LASER_DMX_FRONT_LOCKED_CAMERA, { x: 0.2, y: 0.35, z: -0.2 }, aspect)
+      const right = projectLaserDmxScenePoint(LASER_DMX_FRONT_LOCKED_CAMERA, { x: 0.8, y: 0.35, z: -0.2 }, aspect)
+      expect(center.x).toBeCloseTo(0.5, 10)
+      expect(left.x + right.x).toBeCloseTo(1, 10)
+      expect(left.y).toBeCloseTo(right.y, 10)
+    }
+  })
+
+  it('clips segments against true near and far camera planes without invalid projections', () => {
+    const camera = LASER_DMX_FRONT_LOCKED_CAMERA
+    const forward = {
+      x: camera.target.x - camera.position.x,
+      y: camera.target.y - camera.position.y,
+      z: camera.target.z - camera.position.z,
+    }
+    const length = Math.hypot(forward.x, forward.y, forward.z)
+    const unit = { x: forward.x / length, y: forward.y / length, z: forward.z / length }
+    const atDepth = (depth: number) => ({
+      x: camera.position.x + unit.x * depth,
+      y: camera.position.y + unit.y * depth,
+      z: camera.position.z + unit.z * depth,
+    })
+    const clipped = clipLaserDmxSceneSegment(camera, atDepth(0.2), atDepth(8))
+    expect(clipped).not.toBeNull()
+    expect(laserDmxCameraDepth(camera, clipped!.origin)).toBeCloseTo(camera.nearClipDistance, 8)
+    expect(laserDmxCameraDepth(camera, clipped!.target)).toBeCloseTo(camera.farClipDistance, 8)
+    for (const point of [clipped!.origin, clipped!.target]) {
+      const projected = projectLaserDmxScenePoint(camera, point)
+      expect(projected.visible).toBe(true)
+      expect(Number.isFinite(projected.x) && Number.isFinite(projected.y)).toBe(true)
+    }
+    expect(clipLaserDmxSceneSegment(camera, atDepth(0.1), atDepth(0.5))).toBeNull()
+    expect(projectLaserDmxScenePoint(camera, { x: 0.5, y: 0.5, z: camera.position.z + 1 }).visible).toBe(false)
   })
 
   it('normalizes legacy projects and deterministically rebuilds depth after seek or loop', () => {

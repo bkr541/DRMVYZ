@@ -6,7 +6,7 @@ import type {
   LaserDmxSceneFrame,
   LaserDmxSceneVec3,
 } from './LaserDmxSceneFrame'
-import { laserDmxDepthSegmentVisible, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
+import { clipLaserDmxSceneSegment, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
 import { resolveLaserDmxAtmosphereFlutter } from './LaserDmxTemporalOptics'
 import type { LaserDmxWebGLViewport } from './LaserDmxWebGLBeamPlan'
 
@@ -198,8 +198,10 @@ function rearVeilWeight(sortDepth: number): number {
 function projectAtmosphereSource(
   frame: LaserDmxSceneFrame,
   source: LaserDmxSceneAtmosphereSource,
-): LaserDmxWebGLAtmosphereSourceInstance {
-  const projected = projectLaserDmxScenePoint(frame.camera, source.position)
+  aspectRatio: number,
+): LaserDmxWebGLAtmosphereSourceInstance | null {
+  const projected = projectLaserDmxScenePoint(frame.camera, source.position, aspectRatio)
+  if (!projected.visible) return null
   return {
     id: source.id,
     position: { x: projected.x, y: projected.y, z: projected.clipDepth },
@@ -219,20 +221,26 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
   const policy = resolveLaserDmxAtmosphereQualityPolicy(quality)
   const flutter = resolveLaserDmxAtmosphereFlutter(frame)
   const target = resolveLaserDmxAtmosphereTargetSize(viewport.backingWidth, viewport.backingHeight, quality)
-  const visible = frame.beams.filter(beam => (
-    beam.enabled
-    && beam.intensity > 0.001
-    && laserDmxDepthSegmentVisible(frame.camera, beam.depthRange.minZ, beam.depthRange.maxZ)
-  ))
+  const aspect = Math.max(0.5, viewport.backingWidth / Math.max(1, viewport.backingHeight))
+  const clippedByBeamId = new Map<string, ReturnType<typeof clipLaserDmxSceneSegment>>()
+  const visible = frame.beams.filter(beam => {
+    if (!beam.enabled || beam.intensity <= 0.001) return false
+    const clipped = clipLaserDmxSceneSegment(frame.camera, beam.origin, beam.target)
+    if (!clipped) return false
+    clippedByBeamId.set(beam.id, clipped)
+    return true
+  })
   const selected = selectAtmosphereBeams(visible, policy.maxBeamInstances)
   const atmosphereResponseByFixtureId = new Map(frame.fixtures.map(fixture => [fixture.id, fixture.optics.atmosphereResponse] as const))
   const beams = selected.map((beam): LaserDmxWebGLAtmosphereBeamInstance => {
-    const origin = projectLaserDmxScenePoint(frame.camera, beam.origin)
-    const targetPoint = projectLaserDmxScenePoint(frame.camera, beam.target)
+    const clipped = clippedByBeamId.get(beam.id)!
+    const origin = projectLaserDmxScenePoint(frame.camera, clipped.origin, aspect)
+    const targetPoint = projectLaserDmxScenePoint(frame.camera, clipped.target, aspect)
     const globalWidth = clamp(frame.output.globalBeamWidth, 0.1, 6)
     const base = clamp((1.2 + beam.width * 1.8) * globalWidth, 1.5, 18)
+    const depthScale = clamp((origin.perspectiveScale + targetPoint.perspectiveScale) * 0.5, 0.82, 1.22)
     const atmosphereWidth = clamp(
-      base * (1.6 + beam.scatterEnvelopeWidth * 1.2 + frame.atmosphere.diffusion * 1.4),
+      base * depthScale * (1.6 + beam.scatterEnvelopeWidth * 1.2 + frame.atmosphere.diffusion * 1.4),
       5,
       92,
     )
@@ -264,7 +272,8 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
     .filter(source => source.enabled && source.density > 0.001)
     .sort((a, b) => b.density - a.density || a.id.localeCompare(b.id))
     .slice(0, policy.maxHazeSources)
-    .map(source => projectAtmosphereSource(frame, source))
+    .map(source => projectAtmosphereSource(frame, source, aspect))
+    .filter((source): source is LaserDmxWebGLAtmosphereSourceInstance => source != null)
 
   const hasIllumination = beams.some(beam => beam.intensity > 0.001)
   const enabled = !frame.output.blackout

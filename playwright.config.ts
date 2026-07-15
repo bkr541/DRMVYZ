@@ -13,13 +13,17 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * CI: browsers are installed by the e2e job in .github/workflows/ci.yml.
  */
+const offlineVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1'
+  || process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
+const webglVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
+
 export default defineConfig({
   testDir: 'src/test/e2e',
   testMatch: '**/*.spec.ts',
 
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: offlineVisualReview ? 0 : process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
 
   reporter: [
@@ -31,13 +35,13 @@ export default defineConfig({
     // The dev server must be running or the build must be served.
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173',
     trace:   'on-first-retry',
-    video: process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1' ? 'off' : 'retain-on-failure',
+    video: offlineVisualReview ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
 
   // Normal E2E runs use the production preview server. The deterministic
   // Show Director review injects an offline browser bundle and needs no server.
-  webServer: process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1' ? undefined : {
+  webServer: offlineVisualReview ? undefined : {
     command: 'npm run preview',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
@@ -49,9 +53,20 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-          ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } }
-          : {}),
+        ...(webglVisualReview ? { headless: false } : {}),
+        launchOptions: {
+          ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+            ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+            : {}),
+          ...(webglVisualReview ? {
+            args: [
+              '--enable-webgl',
+              '--ignore-gpu-blocklist',
+              '--enable-unsafe-swiftshader',
+              '--use-angle=swiftshader',
+            ],
+          } : {}),
+        },
       },
     },
   ],

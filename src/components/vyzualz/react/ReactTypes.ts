@@ -741,7 +741,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 11
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 12
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -1027,7 +1027,7 @@ export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS: LaserDmxShowDirectorSetti
   highlightFixtures: true,
   zoom:              1,
   presentationMode:  'edit',
-  rendererMode:      'canvas2d',
+  rendererMode:      'auto',
   webglQuality:      'high',
   webglAtmosphereQuality: 'auto',
   webglRenderScale:  1,
@@ -1094,7 +1094,9 @@ function coerceShowDirectorPresentationMode(value: unknown): LaserDmxShowDirecto
 }
 
 function coerceShowDirectorRendererMode(value: unknown): LaserDmxShowDirectorRendererMode {
-  return value === 'webgl' || value === 'auto' ? value : 'canvas2d'
+  if (value === 'canvas2d' || value === 'webgl' || value === 'auto') return value
+  // Missing or invalid legacy values migrate to capability-aware WebGL-first Auto.
+  return 'auto'
 }
 
 function coerceShowDirectorWebGLQuality(value: unknown): LaserDmxShowDirectorWebGLQuality {

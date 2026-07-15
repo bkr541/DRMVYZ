@@ -35,7 +35,8 @@
     "clean:generated": "node scripts/clean-generated.mjs",
     "clean:all": "node scripts/clean-generated.mjs --dependencies",
     "test:e2e:shaders": "playwright test src/test/e2e/shaderCompilation.spec.ts --project=chromium",
-    "visual:show-director": "node scripts/generate-show-director-visual-review.mjs"
+    "visual:show-director": "node scripts/generate-show-director-visual-review.mjs",
+    "visual:show-director:webgl": "node scripts/generate-show-director-webgl-visual-review.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",
