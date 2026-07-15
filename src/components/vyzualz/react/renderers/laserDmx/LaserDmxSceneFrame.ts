@@ -15,6 +15,7 @@ import {
   estimateLaserDmxShowDirectorFixtureBeamDemand,
 } from '../../LaserDmxShowDirectorBeamBudget'
 import type { LaserDmxShowDirectorBeamPriorityRole } from '../../LaserDmxShowDirectorPerformanceProgram'
+import { resolveStrobeVisible } from '../LaserDmxModulationEngine'
 import {
   createLaserDmxFanRayParameters,
   LASER_DMX_PRIORITY_ROLE_TO_VISUAL_ROLE,
@@ -136,6 +137,7 @@ export interface LaserDmxSceneFixture extends LaserDmxSceneSpatialAssignment {
   rotationDeg: number
   color: LaserDmxSceneColor
   intensity: number
+  strobeRate: number
   enabled: boolean
   selected: boolean
 }
@@ -204,7 +206,7 @@ export interface LaserDmxSceneEmitter extends LaserDmxSceneSpatialAssignment {
 
 export interface LaserDmxSceneTransientEvent {
   id: string
-  kind: 'timingDiscontinuity' | 'blackout'
+  kind: 'timingDiscontinuity' | 'blackout' | 'strobe' | 'blinder'
   strength: number
 }
 
@@ -242,6 +244,7 @@ export interface LaserDmxSceneFrame {
     masterDimmer: number
     globalGlow: number
     globalBeamWidth: number
+    globalStrobeRate: number
   }
 }
 
@@ -601,6 +604,66 @@ function applyLaserDmxSourceEnergy(
   }
 }
 
+function createSceneTransientEvents(input: {
+  timestamp: number
+  timingDiscontinuity: boolean
+  blackout: boolean
+  fixtures: readonly LaserDmxSceneFixture[]
+  globalStrobeRate: number
+}): LaserDmxSceneTransientEvent[] {
+  const events: LaserDmxSceneTransientEvent[] = []
+  if (input.timingDiscontinuity) {
+    events.push({
+      id: `timing-${input.timestamp.toFixed(4)}`,
+      kind: 'timingDiscontinuity',
+      strength: 1,
+    })
+  }
+  if (input.blackout) {
+    events.push({ id: `blackout-${input.timestamp.toFixed(4)}`, kind: 'blackout', strength: 1 })
+    return events
+  }
+  const globalStrobeRate = clamp01(input.globalStrobeRate)
+  const effectiveStrobeRate = input.fixtures.reduce(
+    (maximum, fixture) => fixture.enabled && BEAM_FIXTURE_KINDS.has(fixture.kind)
+      ? Math.max(maximum, fixture.strobeRate)
+      : maximum,
+    globalStrobeRate,
+  )
+  const strobeStrength = effectiveStrobeRate > 0.001
+    && resolveStrobeVisible(effectiveStrobeRate, input.timestamp)
+    ? input.fixtures.reduce(
+        (maximum, fixture) => fixture.enabled
+          && BEAM_FIXTURE_KINDS.has(fixture.kind)
+          && (globalStrobeRate > 0.001 || fixture.strobeRate > 0.001)
+            ? Math.max(maximum, fixture.intensity)
+            : maximum,
+        0,
+      )
+    : 0
+  const blinderStrength = input.fixtures.reduce(
+    (maximum, fixture) => fixture.kind === 'blinder' && fixture.enabled
+      ? Math.max(maximum, fixture.intensity)
+      : maximum,
+    0,
+  )
+  if (strobeStrength > 0.001) {
+    events.push({
+      id: `strobe-${input.timestamp.toFixed(4)}`,
+      kind: 'strobe',
+      strength: clamp01(strobeStrength),
+    })
+  }
+  if (blinderStrength > 0.001) {
+    events.push({
+      id: `blinder-${input.timestamp.toFixed(4)}`,
+      kind: 'blinder',
+      strength: clamp01(blinderStrength),
+    })
+  }
+  return events
+}
+
 function depthBounds(fixtures: readonly LaserDmxSceneFixture[], targets: readonly LaserDmxSceneTarget[]): { minZ: number; maxZ: number } {
   const values = [...fixtures.map(fixture => fixture.position.z), ...targets.map(target => target.position.z)]
   if (values.length === 0) return { minZ: 0, maxZ: 0 }
@@ -674,6 +737,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       rotationDeg: finite(fixture.rotation, 0),
       color,
       intensity,
+      strobeRate: clamp01(fixture.component.strobeRate),
       enabled: fixtureEnabled,
       selected: selected.has(fixture.id),
       depthZone: fixtureDepth.zoneId,
@@ -796,11 +860,13 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
   }
 
   const energized = applyLaserDmxSourceEnergy(beams, emitters)
-  const transientEvents: LaserDmxSceneTransientEvent[] = []
-  if (input.timingDiscontinuity) {
-    transientEvents.push({ id: `timing-${input.audioTimeSec.toFixed(4)}`, kind: 'timingDiscontinuity', strength: 1 })
-  }
-  if (blackout) transientEvents.push({ id: `blackout-${input.audioTimeSec.toFixed(4)}`, kind: 'blackout', strength: 1 })
+  const transientEvents = createSceneTransientEvents({
+    timestamp: Math.max(0, finite(input.audioTimeSec, 0)),
+    timingDiscontinuity: input.timingDiscontinuity,
+    blackout,
+    fixtures,
+    globalStrobeRate: evaluated.output.globalStrobeRate,
+  })
 
   return {
     timestamp: Math.max(0, finite(input.audioTimeSec, 0)),
@@ -851,6 +917,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       masterDimmer,
       globalGlow: clamp01(evaluated.output.globalGlow),
       globalBeamWidth: clamp(evaluated.output.globalBeamWidth, 0.1, 6),
+      globalStrobeRate: clamp01(evaluated.output.globalStrobeRate),
     },
   }
 }
@@ -872,9 +939,14 @@ export function resolveLaserDmxSceneFrameOutput(
       ? Math.max(...matrixBeams.map(beam => clamp01(beam.appearance.dimmer)))
       : fixture.intensity
     const color = colorFromMatrix(matrixBeams.find(beam => beam.enabled)?.color, fixture.color)
+    const matrixStrobeRate = matrixBeams.reduce(
+      (maximum, beam) => Math.max(maximum, clamp01(beam.appearance.strobeRate)),
+      0,
+    )
     return {
       ...fixture,
       color,
+      strobeRate: Math.max(fixture.strobeRate, matrixStrobeRate),
       enabled: fixture.enabled && !blackout,
       intensity: fixture.enabled && !blackout ? clamp01(matrixIntensity * masterDimmer) : 0,
     }
@@ -942,8 +1014,13 @@ export function resolveLaserDmxSceneFrameOutput(
     }
   })
   const energized = applyLaserDmxSourceEnergy(beams, emitters)
-  const transientEvents = frame.transientEvents.filter(event => event.kind !== 'blackout')
-  if (blackout) transientEvents.push({ id: `blackout-${frame.timestamp.toFixed(4)}`, kind: 'blackout', strength: 1 })
+  const transientEvents = createSceneTransientEvents({
+    timestamp: frame.timestamp,
+    timingDiscontinuity: frame.transport.timingDiscontinuity,
+    blackout,
+    fixtures,
+    globalStrobeRate: evaluated.output.globalStrobeRate,
+  })
 
   return {
     ...frame,
@@ -971,6 +1048,7 @@ export function resolveLaserDmxSceneFrameOutput(
       masterDimmer,
       globalGlow: clamp01(evaluated.output.globalGlow),
       globalBeamWidth: clamp(evaluated.output.globalBeamWidth, 0.1, 6),
+      globalStrobeRate: clamp01(evaluated.output.globalStrobeRate),
     },
   }
 }

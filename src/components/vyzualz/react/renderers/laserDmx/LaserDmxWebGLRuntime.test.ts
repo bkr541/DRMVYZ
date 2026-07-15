@@ -38,12 +38,19 @@ describe('LaserDMX WebGL reusable resource ledger', () => {
     ledger.allocate('rear-light')
     ledger.allocate('front-light')
     ledger.allocate('atmosphere')
+    ledger.allocate('hdr-composite')
+    for (let index = 0; index < 4; index += 1) {
+      ledger.allocate(`bloom-${index}`)
+      ledger.allocate(`bloom-blur-${index}`)
+    }
     ledger.allocate('atmosphere')
-    expect(ledger.activeCount).toBe(4)
+    expect(ledger.activeCount).toBe(13)
 
     ledger.release('atmosphere')
-    expect(ledger.activeCount).toBe(3)
+    ledger.release('hdr-composite')
+    expect(ledger.activeCount).toBe(11)
     ledger.allocate('atmosphere')
+    ledger.allocate('hdr-composite')
     ledger.dispose()
 
     expect(ledger.disposed).toBe(true)

@@ -347,7 +347,144 @@ void main() {
   vec3 light = atmosphere.rgb;
   light += rear * (1.0 - veil * 0.78);
   light += front * (1.0 - veil * 0.12);
-  outColor = vec4(clamp(light, 0.0, 1.0), 1.0);
+  // Deliberately preserve values above display white for the photographic post stack.
+  outColor = vec4(max(light, vec3(0.0)), 1.0);
+}`
+
+export const BLOOM_DOWNSAMPLE_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uSourceTexture;
+uniform vec2 uSourceResolution;
+uniform vec2 uThresholdKnee;
+uniform float uFirstPass;
+out vec4 outColor;
+float luminance(vec3 color) {
+  return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+vec3 prefilter(vec3 color) {
+  if (uFirstPass < 0.5) return color;
+  float brightness = luminance(color);
+  float threshold = uThresholdKnee.x;
+  float knee = max(0.0001, uThresholdKnee.y);
+  float soft = clamp((brightness - threshold + knee) / (2.0 * knee), 0.0, 1.0);
+  soft = soft * soft * knee;
+  float contribution = max(brightness - threshold, soft) / max(brightness, 0.0001);
+  return color * max(contribution, 0.0);
+}
+void main() {
+  vec2 px = 1.0 / max(uSourceResolution, vec2(1.0));
+  vec3 color = texture(uSourceTexture, vUv).rgb * 0.24;
+  color += texture(uSourceTexture, vUv + vec2( px.x, 0.0)).rgb * 0.12;
+  color += texture(uSourceTexture, vUv + vec2(-px.x, 0.0)).rgb * 0.12;
+  color += texture(uSourceTexture, vUv + vec2(0.0,  px.y)).rgb * 0.12;
+  color += texture(uSourceTexture, vUv + vec2(0.0, -px.y)).rgb * 0.12;
+  color += texture(uSourceTexture, vUv + vec2( px.x,  px.y)).rgb * 0.07;
+  color += texture(uSourceTexture, vUv + vec2(-px.x,  px.y)).rgb * 0.07;
+  color += texture(uSourceTexture, vUv + vec2( px.x, -px.y)).rgb * 0.07;
+  color += texture(uSourceTexture, vUv + vec2(-px.x, -px.y)).rgb * 0.07;
+  outColor = vec4(prefilter(max(color, vec3(0.0))), 1.0);
+}`
+
+export const BLOOM_BLUR_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uSourceTexture;
+uniform vec2 uResolution;
+uniform vec2 uDirection;
+uniform float uRadius;
+out vec4 outColor;
+void main() {
+  vec2 stepUv = uDirection * uRadius / max(uResolution, vec2(1.0));
+  vec3 color = texture(uSourceTexture, vUv).rgb * 0.227027;
+  color += texture(uSourceTexture, vUv + stepUv * 1.384615).rgb * 0.316216;
+  color += texture(uSourceTexture, vUv - stepUv * 1.384615).rgb * 0.316216;
+  color += texture(uSourceTexture, vUv + stepUv * 3.230769).rgb * 0.070270;
+  color += texture(uSourceTexture, vUv - stepUv * 3.230769).rgb * 0.070270;
+  outColor = vec4(max(color, vec3(0.0)), 1.0);
+}`
+
+export const POST_COMPOSITE_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uSceneTexture;
+uniform sampler2D uBloom0;
+uniform sampler2D uBloom1;
+uniform sampler2D uBloom2;
+uniform sampler2D uBloom3;
+uniform vec2 uResolution;
+uniform vec4 uBloomWeights;
+uniform float uBloomStrength;
+uniform vec2 uExposureWashout;
+uniform vec4 uToneParams;
+uniform vec4 uOptics0;
+uniform vec4 uOptics1;
+out vec4 outColor;
+float luminance(vec3 color) {
+  return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+vec3 brightOnly(vec3 color, float threshold) {
+  float luma = luminance(color);
+  return color * smoothstep(threshold, threshold * 1.32 + 0.001, luma);
+}
+vec3 acesFitted(vec3 color) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((color * (a * color + b)) / (color * (c * color + d) + e), 0.0, 1.0);
+}
+void main() {
+  vec2 px = 1.0 / max(uResolution, vec2(1.0));
+  vec3 scene = max(texture(uSceneTexture, vUv).rgb, vec3(0.0));
+  float chromaticMask = smoothstep(uOptics1.x, uOptics1.x * 1.28 + 0.001, luminance(scene));
+  vec2 radial = vUv - 0.5;
+  radial = length(radial) > 0.0001 ? normalize(radial) : vec2(1.0, 0.0);
+  vec2 chromaticShift = radial * px * uOptics1.y * chromaticMask;
+  vec3 separated = vec3(
+    texture(uSceneTexture, clamp(vUv + chromaticShift, vec2(0.0), vec2(1.0))).r,
+    scene.g,
+    texture(uSceneTexture, clamp(vUv - chromaticShift, vec2(0.0), vec2(1.0))).b
+  );
+  scene = mix(scene, separated, chromaticMask);
+
+  vec3 bloom = texture(uBloom0, vUv).rgb * uBloomWeights.x;
+  bloom += texture(uBloom1, vUv).rgb * uBloomWeights.y;
+  bloom += texture(uBloom2, vUv).rgb * uBloomWeights.z;
+  bloom += texture(uBloom3, vUv).rgb * uBloomWeights.w;
+
+  float streakPx = uOptics0.z;
+  vec3 glare = vec3(0.0);
+  glare += brightOnly(texture(uSceneTexture, vUv + vec2(px.x * streakPx, 0.0)).rgb, uOptics0.x) * 0.22;
+  glare += brightOnly(texture(uSceneTexture, vUv - vec2(px.x * streakPx, 0.0)).rgb, uOptics0.x) * 0.22;
+  glare += brightOnly(texture(uSceneTexture, vUv + vec2(px.x * streakPx * 2.4, 0.0)).rgb, uOptics0.x) * 0.11;
+  glare += brightOnly(texture(uSceneTexture, vUv - vec2(px.x * streakPx * 2.4, 0.0)).rgb, uOptics0.x) * 0.11;
+  vec2 starStep = px * streakPx * 0.72;
+  vec3 star = brightOnly(texture(uSceneTexture, vUv + starStep).rgb, uOptics0.x);
+  star += brightOnly(texture(uSceneTexture, vUv - starStep).rgb, uOptics0.x);
+  star += brightOnly(texture(uSceneTexture, vUv + vec2(starStep.x, -starStep.y)).rgb, uOptics0.x);
+  star += brightOnly(texture(uSceneTexture, vUv + vec2(-starStep.x, starStep.y)).rgb, uOptics0.x);
+  glare = glare * uOptics0.y + star * uOptics0.w * 0.16;
+
+  float spectralMask = smoothstep(uOptics1.x * 1.18, uOptics1.x * 1.8 + 0.001, luminance(scene));
+  vec3 spectralEdge = vec3(separated.r, scene.g * 0.96, separated.b) - scene;
+  vec3 color = scene + bloom * uBloomStrength + glare;
+  color += spectralEdge * spectralMask * uOptics1.z;
+  color *= uExposureWashout.x;
+  float bloomLuma = luminance(bloom);
+  color += vec3(uExposureWashout.y * uExposureWashout.y * 0.008);
+  color += bloom * uExposureWashout.y * (0.08 + bloomLuma * 0.04);
+
+  float preToneLuma = luminance(color);
+  float hot = smoothstep(1.0, max(1.001, uToneParams.x), preToneLuma);
+  color = mix(color, vec3(preToneLuma), hot * uToneParams.z);
+  color = acesFitted(color);
+  float mappedLuma = luminance(color);
+  color = mix(vec3(mappedLuma), color, uToneParams.y);
+  color = max(color - vec3(uToneParams.w), vec3(0.0));
+  color = pow(clamp(color, 0.0, 1.0), vec3(1.0 / max(uOptics1.w, 1.0)));
+  outColor = vec4(color, 1.0);
 }`
 
 export interface LaserDmxWebGLShaderProgramSource {
@@ -364,5 +501,8 @@ export function getLaserDmxWebGLShaderProgramSources(): LaserDmxWebGLShaderProgr
     { label: 'atmospheric-scatter', vertSrc: ATMOSPHERE_VERTEX_SHADER, fragSrc: ATMOSPHERE_FRAGMENT_SHADER },
     { label: 'foreground-veil', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: FOREGROUND_FRAGMENT_SHADER },
     { label: 'atmosphere-composite', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: COMPOSITE_FRAGMENT_SHADER },
+    { label: 'bloom-downsample', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: BLOOM_DOWNSAMPLE_FRAGMENT_SHADER },
+    { label: 'bloom-blur', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: BLOOM_BLUR_FRAGMENT_SHADER },
+    { label: 'photographic-post', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: POST_COMPOSITE_FRAGMENT_SHADER },
   ]
 }

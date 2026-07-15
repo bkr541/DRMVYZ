@@ -186,4 +186,47 @@ describe('LaserDMX engine-neutral scene frame', () => {
     expect(frame.beams.some(beam => beam.fixtureId === 'budget-fan-34')).toBe(false)
   })
 
+  it('emits deterministic strobe and blinder transients for the photographic post stack', () => {
+    const showDirector = createDefaultLaserDmxShowDirectorState()
+    const strobe = createDefaultLaserDmxShowDirectorFixture('strobe', 'transient-strobe', 0)
+    strobe.brightness = 0.9
+    strobe.component.strobeRate = 1
+    const blinder = createDefaultLaserDmxShowDirectorFixture('blinder', 'transient-blinder', 1)
+    blinder.brightness = 0.8
+    showDirector.fixtures = [strobe, blinder]
+    const evaluated = createDefaultLaserDmxBeamMatrixSettings()
+    evaluated.output.globalStrobeRate = 0.25
+
+    const visible = createLaserDmxSceneFrame({
+      showDirector,
+      evaluatedBeamMatrix: evaluated,
+      audioTimeSec: 0,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'transient-track',
+      bpm: 142,
+    })
+    const hidden = createLaserDmxSceneFrame({
+      showDirector,
+      evaluatedBeamMatrix: evaluated,
+      audioTimeSec: 0.02,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'transient-track',
+      bpm: 142,
+    })
+
+    expect(visible.output.globalStrobeRate).toBe(0.25)
+    expect(visible.fixtures.find(fixture => fixture.kind === 'strobe')?.strobeRate).toBe(1)
+    expect(visible.transientEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'strobe', strength: 0.9 }),
+      expect.objectContaining({ kind: 'blinder', strength: 0.8 }),
+    ]))
+    expect(hidden.transientEvents.some(event => event.kind === 'strobe')).toBe(false)
+    expect(hidden.transientEvents.some(event => event.kind === 'blinder')).toBe(true)
+  })
+
+
 })
