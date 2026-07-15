@@ -741,7 +741,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 8
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 9
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -808,6 +808,24 @@ export type LaserDmxShowDirectorMirrorAxis = 'horizontal' | 'vertical'
 export type LaserDmxShowDirectorPresentationMode = 'edit' | 'hybrid' | 'live' | 'capture'
 export type LaserDmxShowDirectorRendererMode = 'canvas2d' | 'webgl' | 'auto'
 export type LaserDmxShowDirectorWebGLQuality = 'low' | 'medium' | 'high' | 'ultra' | 'auto'
+export type LaserDmxShowDirectorDepthLayer =
+  | 'auto'
+  | 'cameraFacingAir'
+  | 'frontAir'
+  | 'midAir'
+  | 'deepAir'
+  | 'upperAir'
+  | 'lowerAir'
+
+export const LASER_DMX_SHOW_DIRECTOR_DEPTH_LAYER_LABELS: Record<LaserDmxShowDirectorDepthLayer, string> = {
+  auto: 'Auto',
+  cameraFacingAir: 'Camera-Facing Air',
+  frontAir: 'Front Air',
+  midAir: 'Mid Air',
+  deepAir: 'Deep Air',
+  upperAir: 'Upper Air',
+  lowerAir: 'Lower Air',
+}
 
 export const LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS = 12
 
@@ -815,6 +833,10 @@ export interface LaserDmxShowDirectorBeamTarget {
   id: string
   x:  number
   y:  number
+  /** Optional continuous depth. Positive values are nearer the locked presentation camera. */
+  z?: number
+  /** Optional per-ray layer override. Most authored shows should leave this on auto. */
+  depthLayer?: LaserDmxShowDirectorDepthLayer
 }
 
 export interface LaserDmxShowDirectorGridSize {
@@ -852,6 +874,8 @@ export interface LaserDmxShowDirectorBeamConfig {
   targetX?:    number
   targetY?:    number
   targetZ?:    number
+  /** Coarse target depth override used by WebGL while the 2D editor remains unchanged. */
+  targetDepthLayer?: LaserDmxShowDirectorDepthLayer
   /** Optional editable endpoint handles. targetX/targetY mirror the primary target for legacy project compatibility. */
   targets?:    LaserDmxShowDirectorBeamTarget[]
 }
@@ -902,6 +926,8 @@ export interface LaserDmxShowDirectorFixture {
   x:         number
   y:         number
   z:         number
+  /** Coarse fixture depth override. Auto invokes deterministic spatial inference. */
+  depthLayer?: LaserDmxShowDirectorDepthLayer
   rotation:  number
   groupId:   string | null
   /** Shared ID for optional linked mirror pairs. Null/missing means this fixture is independent. */
@@ -1016,6 +1042,17 @@ function coerceShowDirectorRendererMode(value: unknown): LaserDmxShowDirectorRen
 
 function coerceShowDirectorWebGLQuality(value: unknown): LaserDmxShowDirectorWebGLQuality {
   return value === 'low' || value === 'medium' || value === 'ultra' || value === 'auto' ? value : 'high'
+}
+
+export function coerceLaserDmxShowDirectorDepthLayer(value: unknown): LaserDmxShowDirectorDepthLayer {
+  return value === 'cameraFacingAir'
+    || value === 'frontAir'
+    || value === 'midAir'
+    || value === 'deepAir'
+    || value === 'upperAir'
+    || value === 'lowerAir'
+    ? value
+    : 'auto'
 }
 
 function showDirectorString(value: unknown, fallback: string): string {
@@ -1180,6 +1217,7 @@ function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorF
     targetX:     Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns / 2),
     targetY:     Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.rows / 2),
     targetZ:     0,
+    targetDepthLayer: 'auto',
     targets:    [{
       id: 'target-1',
       x:  Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns / 2),
@@ -1264,6 +1302,7 @@ export function createDefaultLaserDmxShowDirectorFixture(
     x: column,
     y: row,
     z: 0,
+    depthLayer: 'auto',
     rotation: 0,
     groupId: null,
     linkedPairId: null,
@@ -1328,13 +1367,15 @@ export function normalizeLaserDmxShowDirectorGroup(raw: unknown, index = 0): Las
 
 function normalizeLaserDmxShowDirectorBeamTargets(
   raw: unknown,
-  primary: { x: number; y: number },
+  primary: { x: number; y: number; z?: number; depthLayer?: LaserDmxShowDirectorDepthLayer },
   fixtureId: string,
 ): LaserDmxShowDirectorBeamTarget[] {
   const primaryTarget: LaserDmxShowDirectorBeamTarget = {
     id: `${fixtureId}-target-1`,
     x:  showDirectorFinite(primary.x, 0),
     y:  showDirectorFinite(primary.y, 0),
+    ...(primary.z == null ? {} : { z: Math.max(-1, Math.min(1, showDirectorFinite(primary.z, 0))) }),
+    ...(primary.depthLayer == null ? {} : { depthLayer: coerceLaserDmxShowDirectorDepthLayer(primary.depthLayer) }),
   }
 
   if (!Array.isArray(raw)) return [primaryTarget]
@@ -1344,14 +1385,22 @@ function normalizeLaserDmxShowDirectorBeamTargets(
     .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
     .map((target, index): LaserDmxShowDirectorBeamTarget => ({
       id: showDirectorTargetId(target.id, `${fixtureId}-target-${index + 1}`),
-      x:  showDirectorFinite(target.x, index === 0 ? primaryTarget.x : primaryTarget.x),
-      y:  showDirectorFinite(target.y, index === 0 ? primaryTarget.y : primaryTarget.y),
+      x:  showDirectorFinite(target.x, primaryTarget.x),
+      y:  showDirectorFinite(target.y, primaryTarget.y),
+      ...(target.z == null ? {} : { z: Math.max(-1, Math.min(1, showDirectorFinite(target.z, primaryTarget.z ?? 0))) }),
+      ...(target.depthLayer == null ? {} : { depthLayer: coerceLaserDmxShowDirectorDepthLayer(target.depthLayer) }),
     }))
 
   if (targets.length === 0) return [primaryTarget]
 
   return [
-    { ...targets[0], x: primaryTarget.x, y: primaryTarget.y },
+    {
+      ...targets[0],
+      x: primaryTarget.x,
+      y: primaryTarget.y,
+      ...(primaryTarget.z == null ? {} : { z: primaryTarget.z }),
+      ...(primaryTarget.depthLayer == null ? {} : { depthLayer: primaryTarget.depthLayer }),
+    },
     ...targets.slice(1),
   ]
 }
@@ -1367,7 +1416,8 @@ function normalizeLaserDmxShowDirectorBeamConfig(raw: unknown, kind: LaserDmxSho
     targetMode:  coerceShowDirectorTargetMode(value.targetMode),
     targetX:     showDirectorFinite(value.targetX, fallback.targetX ?? 0),
     targetY:     showDirectorFinite(value.targetY, fallback.targetY ?? 0),
-    targetZ:     showDirectorFinite(value.targetZ, fallback.targetZ ?? 0),
+    targetZ:     Math.max(-1, Math.min(1, showDirectorFinite(value.targetZ, fallback.targetZ ?? 0))),
+    targetDepthLayer: coerceLaserDmxShowDirectorDepthLayer(value.targetDepthLayer),
   }
 }
 
@@ -1419,9 +1469,14 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
   const beamValue = showDirectorRecord(value.beam) ? value.beam : {}
   const normalizedBeam = normalizeLaserDmxShowDirectorBeamConfig(value.beam, kind)
   const defaultEndpoint = createDefaultLaserDmxShowDirectorBeamEndpoint(kind, x, y, rotation)
+  // targetZ existed as a legacy zero-valued field before depth layers. Treat
+  // zero as the 2D default; explicit Mid Air is available when zero depth is intended.
+  const hasAuthoredTargetZ = beamValue.targetZ != null && Math.abs(normalizedBeam.targetZ ?? 0) > 1e-6
   const primaryEndpoint = {
     x: beamValue.targetX == null ? defaultEndpoint.targetX : showDirectorFinite(normalizedBeam.targetX, defaultEndpoint.targetX),
     y: beamValue.targetY == null ? defaultEndpoint.targetY : showDirectorFinite(normalizedBeam.targetY, defaultEndpoint.targetY),
+    ...(hasAuthoredTargetZ ? { z: normalizedBeam.targetZ } : {}),
+    ...(beamValue.targetDepthLayer == null ? {} : { depthLayer: normalizedBeam.targetDepthLayer }),
   }
   const targets = normalizeLaserDmxShowDirectorBeamTargets(beamValue.targets, primaryEndpoint, id)
   return {
@@ -1433,7 +1488,8 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
     enabled:    showDirectorBoolean(value.enabled, fallback.enabled),
     x,
     y,
-    z:          showDirectorFinite(value.z, fallback.z),
+    z:          Math.max(-1, Math.min(1, showDirectorFinite(value.z, fallback.z))),
+    depthLayer: coerceLaserDmxShowDirectorDepthLayer(value.depthLayer),
     rotation,
     groupId:    typeof value.groupId === 'string' && value.groupId.trim().length > 0 ? value.groupId : null,
     linkedPairId: typeof value.linkedPairId === 'string' && value.linkedPairId.trim().length > 0 ? value.linkedPairId.trim() : null,
@@ -1471,9 +1527,12 @@ function clampLaserDmxShowDirectorFixtureToSettings(
       targetX: fixture.beam.targetX == null ? fixture.beam.targetX : clampShowDirectorGridCoordinate(fixture.beam.targetX, maxX),
       targetY: fixture.beam.targetY == null ? fixture.beam.targetY : clampShowDirectorGridCoordinate(fixture.beam.targetY, maxY),
       targets: (fixture.beam.targets ?? []).slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS).map((target, index) => ({
+        ...target,
         id: showDirectorTargetId(target.id, `${fixture.id}-target-${index + 1}`),
         x:  clampShowDirectorGridCoordinate(target.x, maxX),
         y:  clampShowDirectorGridCoordinate(target.y, maxY),
+        ...(target.z == null ? {} : { z: Math.max(-1, Math.min(1, showDirectorFinite(target.z, 0))) }),
+        ...(target.depthLayer == null ? {} : { depthLayer: coerceLaserDmxShowDirectorDepthLayer(target.depthLayer) }),
       })),
     },
   }

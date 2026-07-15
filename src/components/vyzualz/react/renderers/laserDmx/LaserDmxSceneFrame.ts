@@ -9,6 +9,19 @@ import type {
   LaserDmxShowDirectorState,
   ReactSectionType,
 } from '../../ReactTypes'
+import {
+  LASER_DMX_SCENE_DEPTH_ZONES,
+  laserDmxDepthSortValue,
+  normalizeLaserDmxDirection,
+  resolveLaserDmxDepthRange,
+  resolveLaserDmxFixtureDepth,
+  resolveLaserDmxFixtureOrientation,
+  resolveLaserDmxTargetDepth,
+  stableLaserDmxDepthOrder,
+  type LaserDmxDepthAssignmentSource,
+  type LaserDmxSceneDepthZone,
+  type LaserDmxSceneDepthZoneId,
+} from './LaserDmxSpatialModel'
 
 export interface LaserDmxSceneVec3 {
   x: number
@@ -24,12 +37,24 @@ export interface LaserDmxSceneColor {
 }
 
 export interface LaserDmxSceneCamera {
+  id: 'frontLocked'
   locked: true
-  projection: 'frontCenterElevated'
+  projection: 'orthographicDepth'
   position: LaserDmxSceneVec3
   target: LaserDmxSceneVec3
   up: LaserDmxSceneVec3
   fieldOfViewDeg: number
+  elevationDeg: number
+  nearClipZ: number
+  farClipZ: number
+  depthParallax: number
+  controls: {
+    pan: false
+    orbit: false
+    roll: false
+    animate: false
+    presetOverride: false
+  }
 }
 
 export interface LaserDmxSceneTransport {
@@ -58,16 +83,28 @@ export interface LaserDmxSceneAtmosphere {
   turbulence: number
 }
 
-export interface LaserDmxSceneFixture {
+export interface LaserDmxSceneSpatialAssignment {
+  depthZone: LaserDmxSceneDepthZoneId
+  depthSource: LaserDmxDepthAssignmentSource
+}
+
+export interface LaserDmxSceneFixture extends LaserDmxSceneSpatialAssignment {
   id: string
   semanticKey: string
   kind: LaserDmxShowDirectorFixtureKind
   position: LaserDmxSceneVec3
+  orientation: LaserDmxSceneVec3
   rotationDeg: number
   color: LaserDmxSceneColor
   intensity: number
   enabled: boolean
   selected: boolean
+}
+
+export interface LaserDmxSceneTarget extends LaserDmxSceneSpatialAssignment {
+  id: string
+  fixtureId: string
+  position: LaserDmxSceneVec3
 }
 
 export interface LaserDmxSceneBeam {
@@ -76,6 +113,12 @@ export interface LaserDmxSceneBeam {
   targetId: string
   origin: LaserDmxSceneVec3
   target: LaserDmxSceneVec3
+  direction: LaserDmxSceneVec3
+  length: number
+  startDepth: number
+  endDepth: number
+  depthRange: { minZ: number; maxZ: number }
+  sortDepth: number
   color: LaserDmxSceneColor
   intensity: number
   focus: number
@@ -84,10 +127,12 @@ export interface LaserDmxSceneBeam {
   enabled: boolean
 }
 
-export interface LaserDmxSceneEmitter {
+export interface LaserDmxSceneEmitter extends LaserDmxSceneSpatialAssignment {
   id: string
   fixtureId: string
   position: LaserDmxSceneVec3
+  orientation: LaserDmxSceneVec3
+  sortDepth: number
   color: LaserDmxSceneColor
   intensity: number
   apertureSize: number
@@ -105,6 +150,12 @@ export interface LaserDmxSceneQuality {
   qualityTier: 'low' | 'medium' | 'high' | 'ultra' | 'auto'
 }
 
+export interface LaserDmxSceneDepthOrdering {
+  bounds: { minZ: number; maxZ: number }
+  frontToBackBeamIds: string[]
+  backToFrontBeamIds: string[]
+}
+
 export interface LaserDmxSceneFrame {
   timestamp: number
   deltaTime: number
@@ -112,7 +163,10 @@ export interface LaserDmxSceneFrame {
   musicalState: LaserDmxSceneMusicalState
   camera: LaserDmxSceneCamera
   atmosphere: LaserDmxSceneAtmosphere
+  depthZones: readonly LaserDmxSceneDepthZone[]
+  depthOrdering: LaserDmxSceneDepthOrdering
   fixtures: LaserDmxSceneFixture[]
+  targets: LaserDmxSceneTarget[]
   beams: LaserDmxSceneBeam[]
   emitters: LaserDmxSceneEmitter[]
   transientEvents: LaserDmxSceneTransientEvent[]
@@ -143,6 +197,27 @@ export interface CreateLaserDmxSceneFrameInput {
   energy?: number
   devicePixelRatio?: number
 }
+
+export const LASER_DMX_FRONT_LOCKED_CAMERA: Readonly<LaserDmxSceneCamera> = Object.freeze({
+  id: 'frontLocked',
+  locked: true,
+  projection: 'orthographicDepth',
+  position: Object.freeze({ x: 0.5, y: -0.12, z: 2.35 }),
+  target: Object.freeze({ x: 0.5, y: 0.5, z: 0 }),
+  up: Object.freeze({ x: 0, y: 1, z: 0 }),
+  fieldOfViewDeg: 38,
+  elevationDeg: 4,
+  nearClipZ: 0.96,
+  farClipZ: -0.96,
+  depthParallax: 0.012,
+  controls: Object.freeze({
+    pan: false,
+    orbit: false,
+    roll: false,
+    animate: false,
+    presetOverride: false,
+  }),
+})
 
 const DEFAULT_KIND_COLORS: Record<LaserDmxShowDirectorFixtureKind, string> = {
   laser: '#4ac7db',
@@ -181,28 +256,14 @@ function finite(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
-function normalizedPosition(
-  fixture: Pick<LaserDmxShowDirectorFixture, 'x' | 'y' | 'z'>,
+function normalizedStagePoint(
+  point: Pick<LaserDmxShowDirectorFixture, 'x' | 'y'> | Pick<LaserDmxShowDirectorBeamTarget, 'x' | 'y'>,
   columns: number,
   rows: number,
-): LaserDmxSceneVec3 {
+): Pick<LaserDmxSceneVec3, 'x' | 'y'> {
   return {
-    x: clamp(finite(fixture.x, 0), 0, Math.max(1, columns - 1)) / Math.max(1, columns - 1),
-    y: clamp(finite(fixture.y, 0), 0, Math.max(1, rows - 1)) / Math.max(1, rows - 1),
-    z: clamp(finite(fixture.z, 0), -1, 1),
-  }
-}
-
-function normalizedTarget(
-  target: Pick<LaserDmxShowDirectorBeamTarget, 'x' | 'y'>,
-  targetZ: number | undefined,
-  columns: number,
-  rows: number,
-): LaserDmxSceneVec3 {
-  return {
-    x: clamp(finite(target.x, 0), 0, Math.max(1, columns - 1)) / Math.max(1, columns - 1),
-    y: clamp(finite(target.y, 0), 0, Math.max(1, rows - 1)) / Math.max(1, rows - 1),
-    z: clamp(finite(targetZ, 0), -1, 1),
+    x: clamp(finite(point.x, 0), 0, Math.max(1, columns - 1)) / Math.max(1, columns - 1),
+    y: clamp(finite(point.y, 0), 0, Math.max(1, rows - 1)) / Math.max(1, rows - 1),
   }
 }
 
@@ -216,7 +277,7 @@ function defaultTarget(fixture: LaserDmxShowDirectorFixture, columns: number, ro
   }
 }
 
-function targetsForFixture(
+function authoredTargetsForFixture(
   fixture: LaserDmxShowDirectorFixture,
   columns: number,
   rows: number,
@@ -226,6 +287,7 @@ function targetsForFixture(
     ? fixture.beam.targets
     : [fallback]
   const targets = raw.map((target, index) => ({
+    ...target,
     id: typeof target.id === 'string' && target.id.length > 0 ? target.id : `${fixture.id}-target-${index + 1}`,
     x: finite(target.x, fallback.x),
     y: finite(target.y, fallback.y),
@@ -236,6 +298,56 @@ function targetsForFixture(
     y: finite(fixture.beam?.targetY, targets[0]?.y ?? fallback.y),
   }
   return [primary, ...targets.slice(1)]
+}
+
+function generatedPatternTargets(
+  fixture: LaserDmxShowDirectorFixture,
+  columns: number,
+  rows: number,
+): LaserDmxShowDirectorBeamTarget[] {
+  const maxX = Math.max(1, columns - 1)
+  const maxY = Math.max(1, rows - 1)
+  const origin = normalizedStagePoint(fixture, columns, rows)
+  const angle = finite(fixture.rotation, 0) + finite(fixture.beam.beamAngle, 0)
+  const spread = clamp(finite(fixture.beam.beamSpread, fixture.kind === 'laser' ? 18 : 0), 0, 180)
+  const mode = fixture.beam.targetMode
+  const count = mode === 'fan'
+    ? clamp(Math.round(spread / 9), 3, 9)
+    : mode === 'cross' || mode === 'mirror'
+      ? 2
+      : 1
+
+  return Array.from({ length: count }, (_, index) => {
+    const t = count === 1 ? 0.5 : index / (count - 1)
+    const fanOffset = count === 1 ? 0 : (t - 0.5) * spread
+    const symmetricOffset = mode === 'cross' || mode === 'mirror'
+      ? (index === 0 ? -spread * 0.5 : spread * 0.5)
+      : fanOffset
+    const radians = (angle + symmetricOffset) * Math.PI / 180
+    const dx = Math.cos(radians) * 0.62
+    const dy = Math.sin(radians) * 0.62
+    let visibleScale = 1
+    if (dx > 0) visibleScale = Math.min(visibleScale, (1 - origin.x) / dx)
+    if (dx < 0) visibleScale = Math.min(visibleScale, (0 - origin.x) / dx)
+    if (dy > 0) visibleScale = Math.min(visibleScale, (1 - origin.y) / dy)
+    if (dy < 0) visibleScale = Math.min(visibleScale, (0 - origin.y) / dy)
+    return {
+      id: `${fixture.id}-${mode}-target-${index + 1}`,
+      x: (origin.x + dx * clamp(visibleScale, 0, 1)) * maxX,
+      y: (origin.y + dy * clamp(visibleScale, 0, 1)) * maxY,
+    }
+  })
+}
+
+function targetsForFixture(
+  fixture: LaserDmxShowDirectorFixture,
+  columns: number,
+  rows: number,
+): LaserDmxShowDirectorBeamTarget[] {
+  const authored = authoredTargetsForFixture(fixture, columns, rows)
+  const hasMultipleAuthoredTargets = authored.length > 1
+  if (fixture.beam.targetMode === 'fixed' || hasMultipleAuthoredTargets) return authored
+  return generatedPatternTargets(fixture, columns, rows)
 }
 
 function colorFromHex(value: string, fallback: string): LaserDmxSceneColor {
@@ -273,6 +385,15 @@ function roleForFixture(fixture: LaserDmxShowDirectorFixture): LaserDmxMatrixBea
   return fixture.runtimeBeamVisualRole ?? (fixture.kind === 'laser' ? 'primary' : 'secondary')
 }
 
+function depthBounds(fixtures: readonly LaserDmxSceneFixture[], targets: readonly LaserDmxSceneTarget[]): { minZ: number; maxZ: number } {
+  const values = [...fixtures.map(fixture => fixture.position.z), ...targets.map(target => target.position.z)]
+  if (values.length === 0) return { minZ: 0, maxZ: 0 }
+  return {
+    minZ: Math.min(...values),
+    maxZ: Math.max(...values),
+  }
+}
+
 export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): LaserDmxSceneFrame {
   const showDirector = input.showDirector
   const evaluated = input.evaluatedBeamMatrix
@@ -284,6 +405,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
   if (showDirector.selectedFixtureId) selected.add(showDirector.selectedFixtureId)
 
   const fixtures: LaserDmxSceneFixture[] = []
+  const targets: LaserDmxSceneTarget[] = []
   const beams: LaserDmxSceneBeam[] = []
   const emitters: LaserDmxSceneEmitter[] = []
 
@@ -293,25 +415,50 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       fixture.colorMode === 'fixtureDefault' ? fallbackColor : fixture.color,
       fallbackColor,
     )
-    // Keep the scene boundary authored and continuous. Matrix cue output is
-    // layered onto this frame only after the compatibility compiler and cue
-    // evaluator have completed, preserving production authority without
-    // quantizing fixture or target geometry.
+    // Geometry is captured before the Beam Matrix compatibility compiler. Grid
+    // dimensions define the authoring bounds only; fixture and target values are
+    // never rounded or converted into matrix cells on the WebGL path.
     const fixtureEnabled = fixture.enabled
     const intensity = fixtureEnabled ? clamp01(fixture.brightness) : 0
-    const position = normalizedPosition(fixture, columns, rows)
+    const xy = normalizedStagePoint(fixture, columns, rows)
+    const fixtureDepth = resolveLaserDmxFixtureDepth(fixture, xy.y)
+    const position: LaserDmxSceneVec3 = { ...xy, z: fixtureDepth.z }
     const color = authoredColor
+    const authoredTargets = targetsForFixture(fixture, columns, rows)
+    const resolvedTargets = authoredTargets.map((target, targetIndex) => {
+      const targetXy = normalizedStagePoint(target, columns, rows)
+      const targetDepth = resolveLaserDmxTargetDepth({
+        fixture,
+        target,
+        targetIndex,
+        origin: position,
+        normalizedTarget: targetXy,
+      })
+      const sceneTarget: LaserDmxSceneTarget = {
+        id: target.id,
+        fixtureId: fixture.id,
+        position: { ...targetXy, z: targetDepth.z },
+        depthZone: targetDepth.zoneId,
+        depthSource: targetDepth.source,
+      }
+      targets.push(sceneTarget)
+      return sceneTarget
+    })
+    const orientation = resolveLaserDmxFixtureOrientation(fixture, position, resolvedTargets[0]?.position)
 
     fixtures.push({
       id: fixture.id,
       semanticKey: fixture.semanticKey ?? fixture.id,
       kind: fixture.kind,
       position,
+      orientation,
       rotationDeg: finite(fixture.rotation, 0),
       color,
       intensity,
       enabled: fixtureEnabled,
       selected: selected.has(fixture.id),
+      depthZone: fixtureDepth.zoneId,
+      depthSource: fixtureDepth.source,
     })
 
     if (fixtureEnabled && intensity > 0.001 && BEAM_FIXTURE_KINDS.has(fixture.kind)) {
@@ -319,24 +466,39 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
         id: `${fixture.id}-emitter`,
         fixtureId: fixture.id,
         position,
+        orientation,
+        sortDepth: position.z,
         color,
         intensity,
         apertureSize: fixture.kind === 'laser' ? 1 : fixture.kind === 'movingHead' ? 1.4 : 1.8,
+        depthZone: fixtureDepth.zoneId,
+        depthSource: fixtureDepth.source,
       })
     }
 
     if (!fixture.beam?.beamEnabled || !BEAM_FIXTURE_KINDS.has(fixture.kind)) continue
-    const targets = targetsForFixture(fixture, columns, rows)
-    for (let index = 0; index < targets.length; index += 1) {
-      const target = targets[index]
+    for (let index = 0; index < resolvedTargets.length; index += 1) {
+      const target = resolvedTargets[index]
       const enabled = fixtureEnabled
       const beamIntensity = enabled ? clamp01(fixture.brightness) : 0
+      const direction = normalizeLaserDmxDirection(position, target.position)
+      const depthRange = resolveLaserDmxDepthRange(position, target.position)
       beams.push({
         id: `${fixture.id}-beam-${index + 1}`,
         fixtureId: fixture.id,
         targetId: target.id,
         origin: position,
-        target: normalizedTarget(target, fixture.beam.targetZ, columns, rows),
+        target: target.position,
+        direction,
+        length: Math.hypot(
+          target.position.x - position.x,
+          target.position.y - position.y,
+          target.position.z - position.z,
+        ),
+        startDepth: position.z,
+        endDepth: target.position.z,
+        depthRange,
+        sortDepth: laserDmxDepthSortValue(position, target.position),
         color,
         intensity: beamIntensity,
         focus: clamp01(fixture.beam.focus),
@@ -372,14 +534,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       sectionProgress: clamp01(finite(input.sectionProgress, 0)),
       energy: clamp01(finite(input.energy, 0)),
     },
-    camera: {
-      locked: true,
-      projection: 'frontCenterElevated',
-      position: { x: 0, y: 0.16, z: 2.35 },
-      target: { x: 0, y: 0, z: 0 },
-      up: { x: 0, y: 1, z: 0 },
-      fieldOfViewDeg: 42,
-    },
+    camera: LASER_DMX_FRONT_LOCKED_CAMERA,
     atmosphere: {
       enabled: evaluated.fog.enabled,
       density: clamp01(evaluated.fog.density),
@@ -387,7 +542,14 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       beamScatter: clamp01(evaluated.fog.beamScatter),
       turbulence: clamp01(evaluated.fog.turbulence),
     },
+    depthZones: LASER_DMX_SCENE_DEPTH_ZONES,
+    depthOrdering: {
+      bounds: depthBounds(fixtures, targets),
+      frontToBackBeamIds: stableLaserDmxDepthOrder(beams, 'frontToBack'),
+      backToFrontBeamIds: stableLaserDmxDepthOrder(beams, 'backToFront'),
+    },
     fixtures,
+    targets,
     beams,
     emitters,
     transientEvents,
@@ -468,6 +630,11 @@ export function resolveLaserDmxSceneFrameOutput(
       opacity: clamp01(evaluated.fog.opacity),
       beamScatter: clamp01(evaluated.fog.beamScatter),
       turbulence: clamp01(evaluated.fog.turbulence),
+    },
+    depthOrdering: {
+      ...frame.depthOrdering,
+      frontToBackBeamIds: stableLaserDmxDepthOrder(beams, 'frontToBack'),
+      backToFrontBeamIds: stableLaserDmxDepthOrder(beams, 'backToFront'),
     },
     fixtures,
     beams,

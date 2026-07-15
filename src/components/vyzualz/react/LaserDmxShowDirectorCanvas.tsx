@@ -164,8 +164,8 @@ function snapStagePoint(point: StagePoint, settings: LaserDmxShowDirectorSetting
   const { columns, rows } = coerceGridSize(settings)
   const maxX = Math.max(0, columns - 1)
   const maxY = Math.max(0, rows - 1)
-  const x = settings.snapEnabled ? Math.round(point.x) : roundTo(point.x, 1)
-  const y = settings.snapEnabled ? Math.round(point.y) : roundTo(point.y, 1)
+  const x = settings.snapEnabled ? Math.round(point.x) : roundTo(point.x, 3)
+  const y = settings.snapEnabled ? Math.round(point.y) : roundTo(point.y, 3)
   return {
     x: clamp(x, 0, maxX),
     y: clamp(y, 0, maxY),
@@ -263,6 +263,7 @@ function beamTargetsForFixture(fixture: LaserDmxShowDirectorFixture, settings: L
     .filter((target): target is LaserDmxShowDirectorBeamTarget => target != null && typeof target === 'object')
     .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
     .map((target, index) => ({
+      ...target,
       id: typeof target.id === 'string' && target.id.trim().length > 0 ? target.id : `${fixture.id}-target-${index + 1}`,
       ...snapStagePoint({
         x: finite(target.x, primary.x),

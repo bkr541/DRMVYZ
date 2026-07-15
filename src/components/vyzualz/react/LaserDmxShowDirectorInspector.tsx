@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import {
+  LASER_DMX_SHOW_DIRECTOR_DEPTH_LAYER_LABELS,
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
   LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
   type LaserDmxShowDirectorAudioBand,
@@ -9,6 +10,7 @@ import {
   type LaserDmxShowDirectorBeatDivision,
   type LaserDmxShowDirectorBeamTargetMode,
   type LaserDmxShowDirectorColorMode,
+  type LaserDmxShowDirectorDepthLayer,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorLedDirection,
@@ -48,6 +50,9 @@ const BEAM_TARGET_OPTIONS: Array<{ value: LaserDmxShowDirectorBeamTargetMode; la
   { value: 'mirror', label: 'Mirror' },
   { value: 'audioReactive', label: 'Audio reactive' },
 ]
+
+const DEPTH_LAYER_OPTIONS = (Object.entries(LASER_DMX_SHOW_DIRECTOR_DEPTH_LAYER_LABELS) as Array<[LaserDmxShowDirectorDepthLayer, string]>)
+  .map(([value, label]) => ({ value, label }))
 
 const TRIGGER_MODE_OPTIONS: Array<{ value: LaserDmxShowDirectorTriggerMode; label: string }> = [
   { value: 'alwaysOn', label: 'Always on' },
@@ -187,14 +192,14 @@ function defaultEndpointForFixture(fixture: LaserDmxShowDirectorFixture, maxX: n
   const rawX = clamp(finite(fixture.x, 0) + Math.cos(radians) * distance, 0, maxX)
   const rawY = clamp(finite(fixture.y, 0) + Math.sin(radians) * distance, 0, maxY)
   return {
-    x: snapEnabled ? Math.round(rawX) : Math.round(rawX * 10) / 10,
-    y: snapEnabled ? Math.round(rawY) : Math.round(rawY * 10) / 10,
+    x: snapEnabled ? Math.round(rawX) : Math.round(rawX * 1000) / 1000,
+    y: snapEnabled ? Math.round(rawY) : Math.round(rawY * 1000) / 1000,
   }
 }
 
 function snapEndpointPoint(point: { x: number; y: number }, maxX: number, maxY: number, snapEnabled: boolean): { x: number; y: number } {
-  const x = snapEnabled ? Math.round(point.x) : Math.round(point.x * 10) / 10
-  const y = snapEnabled ? Math.round(point.y) : Math.round(point.y * 10) / 10
+  const x = snapEnabled ? Math.round(point.x) : Math.round(point.x * 1000) / 1000
+  const y = snapEnabled ? Math.round(point.y) : Math.round(point.y * 1000) / 1000
   return {
     x: clamp(x, 0, maxX),
     y: clamp(y, 0, maxY),
@@ -217,6 +222,7 @@ function beamTargetsForFixture(
     .filter((target): target is LaserDmxShowDirectorBeamTarget => target != null && typeof target === 'object')
     .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
     .map((target, index) => ({
+      ...target,
       id: typeof target.id === 'string' && target.id.trim().length > 0 ? target.id : `${fixture.id}-target-${index + 1}`,
       ...snapEndpointPoint({ x: finite(target.x, primary.x), y: finite(target.y, primary.y) }, maxX, maxY, snapEnabled),
     }))
@@ -597,12 +603,21 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         </div>
 
         <CtrlSection label="Transform" />
+        <SelectRow
+          label="Depth layer"
+          value={fixture.depthLayer ?? 'auto'}
+          options={DEPTH_LAYER_OPTIONS}
+          onChange={depthLayer => update({ depthLayer: depthLayer as LaserDmxShowDirectorDepthLayer })}
+        />
         <div className="rv-show-director-field-grid">
-          <NumberInputRow label="Position X" value={fixture.x} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.1} onChange={x => update({ x: clamp(x, 0, gridBounds.maxX) })} />
-          <NumberInputRow label="Position Y" value={fixture.y} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.1} onChange={y => update({ y: clamp(y, 0, gridBounds.maxY) })} />
-          <NumberInputRow label="Height / Z" value={fixture.z} min={-10} max={10} step={0.1} onChange={z => update({ z: clamp(z, -10, 10) })} />
+          <NumberInputRow label="Position X" value={fixture.x} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.01} onChange={x => update({ x: clamp(x, 0, gridBounds.maxX) })} />
+          <NumberInputRow label="Position Y" value={fixture.y} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.01} onChange={y => update({ y: clamp(y, 0, gridBounds.maxY) })} />
+          <NumberInputRow label="Depth / Z" value={fixture.z} min={-1} max={1} step={0.01} onChange={z => update({ z: clamp(z, -1, 1) })} />
           <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => update({ rotation: clamp(rotation, -360, 360) })} />
         </div>
+        <p className="rv-show-director-trigger-hint">
+          Auto assigns an invisible air layer from the fixture role and beam pattern. The 2D editor stays front-facing; Z is an optional advanced override.
+        </p>
 
         <CtrlSection label="Light" />
         <ToggleRow label="Enabled / active" value={fixture.enabled} onChange={enabled => update({ enabled })} />
@@ -626,9 +641,15 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
             </div>
             <SliderRow label="Focus" value={fixture.beam.focus} min={0} max={1} step={0.01} onChange={focus => update({ beam: { focus: clamp(focus, 0, 1) } })} />
             <SelectRow label="Target mode" value={fixture.beam.targetMode} options={BEAM_TARGET_OPTIONS} onChange={targetMode => update({ beam: { targetMode: targetMode as LaserDmxShowDirectorBeamTargetMode } })} />
+            <SelectRow
+              label="Target depth"
+              value={fixture.beam.targetDepthLayer ?? 'auto'}
+              options={DEPTH_LAYER_OPTIONS}
+              onChange={targetDepthLayer => update({ beam: { targetDepthLayer: targetDepthLayer as LaserDmxShowDirectorDepthLayer } })}
+            />
             <div className="rv-show-director-field-grid">
-              <NumberInputRow label="Target X" value={defaultTargetX} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.1} onChange={targetX => updatePrimaryBeamTarget({ x: clamp(targetX, 0, gridBounds.maxX) })} />
-              <NumberInputRow label="Target Y" value={defaultTargetY} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.1} onChange={targetY => updatePrimaryBeamTarget({ y: clamp(targetY, 0, gridBounds.maxY) })} />
+              <NumberInputRow label="Target X" value={defaultTargetX} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.01} onChange={targetX => updatePrimaryBeamTarget({ x: clamp(targetX, 0, gridBounds.maxX) })} />
+              <NumberInputRow label="Target Y" value={defaultTargetY} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.01} onChange={targetY => updatePrimaryBeamTarget({ y: clamp(targetY, 0, gridBounds.maxY) })} />
             </div>
             {beamTargets.length > 1 && (
               <p className="rv-show-director-trigger-hint">

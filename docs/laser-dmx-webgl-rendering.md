@@ -23,3 +23,17 @@ The WebGL runtime owns its own offscreen WebGL2 canvas and composites the comple
 - **Capture** uses the same clean visualizer output boundary as Live and suppresses diagnostic authoring overlays.
 
 Legacy projects normalize to **Edit** plus **Canvas2D**. Users can explicitly select WebGL2 or Auto with Canvas2D fallback. WebGL quality and render scale use the shared canvas-resolution policy and are persisted as preferences; GPU handles and runtime resources are never persisted.
+
+## Patch 2 spatial foundation
+
+Patch 2 keeps the authored view front-facing while giving WebGL a continuous three-dimensional lighting volume. `frontLocked` is the only presentation camera. It uses an orthographic-depth projection with restrained vertical depth parallax, a fixed centered/elevated pose, fixed clipping bounds, and permanently disabled pan, orbit, roll, animation, and preset overrides. No camera control or camera preset is exposed in Show Director.
+
+Show Director fixtures and beam targets now normalize optional depth-layer metadata and continuous Z coordinates. Fan, cross, mirror, sweep, and audio-reactive ray patterns are expanded directly in the continuous scene frame instead of borrowing quantized matrix cells. The WebGL scene consumes continuous X/Y/Z geometry before Beam Matrix compilation; the 15 × 10 matrix remains a snapping, cue-evaluation, legacy-output, and Canvas2D compatibility layer. The editor stays a 2D authoring surface and offers only compact advanced fixture and target depth-layer selectors.
+
+The engine-neutral frame includes fixture orientation, target points, normalized beam direction, three-dimensional beam length, start/end depth, depth bounds, stable front-to-back/back-to-front ordering, and invisible reference zones: Camera-Facing Air, Front Air, Mid Air, Deep Air, Upper Air, and Lower Air. Every zone is data-only and explicitly non-visible. No wall, floor, ceiling, audience, truss, stage, or venue mesh is generated.
+
+Depth inference is deterministic. Semantic roles such as rear diamonds, ceiling canopies, low rakes, audience-facing rakes, mirrored corridors, cages, tunnels, and static fans select coherent air volumes. Fixture kinds provide stable fallbacks for moving heads, LED surfaces, strobes, blinders, washes, haze, CO2, and video walls. Cross and mirror targets alternate through stable depth planes using fixture identity rather than playback time, so seek, loop, occurrence, phrase, and section reconstruction cannot reshuffle depth.
+
+Legacy schema versions normalize to automatic depth. Existing zero-valued Z fields are treated as legacy two-dimensional defaults, preserving existing screen composition while allowing inference. Explicit nonzero Z coordinates and explicit depth layers take precedence; an explicit Mid Air layer represents an intentional zero-depth plane. Canvas2D and Beam Matrix output remain unchanged.
+
+Full volumetric haze, final laser materials, HDR accumulation, bloom and tone mapping, scanner persistence, optical instability, and broad Performance Show spatial rewrites remain deferred to later patches.

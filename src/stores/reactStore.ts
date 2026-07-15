@@ -980,9 +980,11 @@ function createLaserDmxShowDirectorDefaultEndpoint(
   const rotation = Number.isFinite(fixture.rotation) ? fixture.rotation : 0
   const beamAngle = Number.isFinite(fixture.beam.beamAngle) ? fixture.beam.beamAngle : 0
   const radians = (rotation + beamAngle) * Math.PI / 180
+  const targetX = clampShowDirectorGrid(fixture.x + Math.cos(radians) * distance, maxX)
+  const targetY = clampShowDirectorGrid(fixture.y + Math.sin(radians) * distance, maxY)
   return {
-    targetX: Math.round(clampShowDirectorGrid(fixture.x + Math.cos(radians) * distance, maxX)),
-    targetY: Math.round(clampShowDirectorGrid(fixture.y + Math.sin(radians) * distance, maxY)),
+    targetX: settings.snapEnabled ? Math.round(targetX) : targetX,
+    targetY: settings.snapEnabled ? Math.round(targetY) : targetY,
   }
 }
 
@@ -1000,6 +1002,7 @@ function clampLaserDmxShowDirectorBeamTargets(
   return sourceTargets
     .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
     .map((target, index) => ({
+      ...target,
       id: typeof target.id === 'string' && target.id.trim().length > 0 ? target.id : `${fixture.id}-target-${index + 1}`,
       x:  clampShowDirectorGrid(target.x, maxX),
       y:  clampShowDirectorGrid(target.y, maxY),
@@ -3527,6 +3530,14 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
         useSourceAs: existing.useSourceAs ?? 'primaryMotif',
         preserveIdentity: existing.preserveIdentity ?? true,
       }),
+    }
+  }
+  if (version < 47) {
+    // Backfill deterministic Show Director depth layers while preserving legacy
+    // X/Y composition and the existing Beam Matrix compatibility document.
+    state = {
+      ...state,
+      laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
     }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -7450,7 +7461,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 46,
+      version: 47,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

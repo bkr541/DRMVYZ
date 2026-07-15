@@ -2,6 +2,7 @@ import { resolveCanvasResolution, type CanvasResolution } from '../../rendering/
 import { ShaderWebGLRuntime } from '../../shaders/runtime/ShaderWebGLRuntime'
 import type { WebGLContextDisposalMode } from '../../shaders/runtime/WebGLContextLifecycle'
 import type { LaserDmxSceneFrame } from './LaserDmxSceneFrame'
+import { laserDmxDepthSegmentVisible, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
 
 export interface LaserDmxWebGLRenderResult {
   ok: boolean
@@ -53,7 +54,7 @@ uniform float uPointSize;
 out vec4 vColor;
 void main() {
   vec2 clip = vec2(aPosition.x * 2.0 - 1.0, 1.0 - aPosition.y * 2.0);
-  gl_Position = vec4(clip, clamp(aPosition.z * 0.1, -0.9, 0.9), 1.0);
+  gl_Position = vec4(clip, clamp(aPosition.z, -1.0, 1.0), 1.0);
   gl_PointSize = uPointSize;
   vColor = aColor;
 }`
@@ -259,7 +260,13 @@ export class LaserDmxWebGLRuntime {
   }
 
   private drawBeams(frame: LaserDmxSceneFrame): void {
-    const active = frame.beams.filter(beam => beam.enabled && beam.intensity > 0.001)
+    // Additive beams render back-to-front so intersections remain stable while
+    // carrying camera-space depth for later haze and material passes.
+    const active = frame.beams
+      .filter(beam => beam.enabled
+        && beam.intensity > 0.001
+        && laserDmxDepthSegmentVisible(frame.camera, beam.depthRange.minZ, beam.depthRange.maxZ))
+      .sort((a, b) => a.sortDepth - b.sortDepth || a.id.localeCompare(b.id))
     if (active.length === 0) return
     const positions = new Float32Array(active.length * 2 * 3)
     const colors = new Float32Array(active.length * 2 * 4)
@@ -267,7 +274,9 @@ export class LaserDmxWebGLRuntime {
     let c = 0
     for (const beam of active) {
       const intensity = Math.max(0, Math.min(2, beam.intensity * (0.55 + frame.output.globalGlow * 0.75)))
-      positions.set([beam.origin.x, beam.origin.y, beam.origin.z, beam.target.x, beam.target.y, beam.target.z], p)
+      const origin = projectLaserDmxScenePoint(frame.camera, beam.origin)
+      const target = projectLaserDmxScenePoint(frame.camera, beam.target)
+      positions.set([origin.x, origin.y, origin.clipDepth, target.x, target.y, target.clipDepth], p)
       p += 6
       const color = [beam.color.r * intensity, beam.color.g * intensity, beam.color.b * intensity, Math.min(1, 0.35 + intensity * 0.65)]
       colors.set(color, c)
@@ -278,7 +287,9 @@ export class LaserDmxWebGLRuntime {
   }
 
   private drawEmitters(frame: LaserDmxSceneFrame): void {
-    const active = frame.emitters.filter(emitter => emitter.intensity > 0.001)
+    const active = frame.emitters
+      .filter(emitter => emitter.intensity > 0.001 && projectLaserDmxScenePoint(frame.camera, emitter.position).visible)
+      .sort((a, b) => a.sortDepth - b.sortDepth || a.id.localeCompare(b.id))
     if (active.length === 0) return
     const positions = new Float32Array(active.length * 3)
     const colors = new Float32Array(active.length * 4)
@@ -286,7 +297,8 @@ export class LaserDmxWebGLRuntime {
     let c = 0
     for (const emitter of active) {
       const intensity = Math.max(0, Math.min(2.5, emitter.intensity * 1.4))
-      positions.set([emitter.position.x, emitter.position.y, emitter.position.z], p)
+      const projected = projectLaserDmxScenePoint(frame.camera, emitter.position)
+      positions.set([projected.x, projected.y, projected.clipDepth], p)
       p += 3
       colors.set([
         Math.min(2.5, emitter.color.r * intensity + intensity * 0.35),

@@ -14,6 +14,7 @@ describe('LaserDMX engine-neutral scene frame', () => {
     fixture.x = 4.25
     fixture.y = 2.75
     fixture.z = 0.35
+    fixture.beam.targetMode = 'fixed'
     fixture.beam.targetX = 10.6
     fixture.beam.targetY = 7.2
     fixture.beam.targetZ = -0.4
