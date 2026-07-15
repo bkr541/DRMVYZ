@@ -2,6 +2,7 @@ import { resolveCanvasResolution, type CanvasResolution } from '../../rendering/
 import { ShaderWebGLRuntime } from '../../shaders/runtime/ShaderWebGLRuntime'
 import type { WebGLContextDisposalMode } from '../../shaders/runtime/WebGLContextLifecycle'
 import type { LaserDmxSceneFrame } from './LaserDmxSceneFrame'
+import { resolveLaserDmxDepthTraversal } from './LaserDmxDepthCompositing'
 import {
   applyLaserDmxAdaptiveQualityToFrame,
   LaserDmxAdaptiveQualityController,
@@ -19,6 +20,7 @@ import {
 import {
   buildLaserDmxWebGLAtmosphereRenderPlan,
   type LaserDmxWebGLAtmosphereRenderPlan,
+  type LaserDmxWebGLAtmosphereBeamInstance,
   type LaserDmxWebGLAtmosphereSourceInstance,
 } from './LaserDmxWebGLAtmospherePlan'
 import {
@@ -40,6 +42,11 @@ export interface LaserDmxWebGLDiagnostics {
   diagnosticCode: LaserDmxHdrTargetStrategy['diagnosticCode']
   temporalHistoryActive: boolean
   temporalResolutionScale: number
+  laserHistoryInputCount: number
+  laserHistorySliceCount: number
+  depthMode: LaserDmxWebGLAtmosphereRenderPlan['depthMode']
+  depthSliceCount: number
+  depthBufferStatus: 'slice-accumulation' | 'binary-fallback'
   renderWidth: number
   renderHeight: number
   atmosphereWidth: number
@@ -256,7 +263,7 @@ interface RenderTarget {
   filter: number
 }
 
-const FRONT_DEPTH_SPLIT = 0.18
+const MAX_DEPTH_SLICES = 9
 const MAX_HAZE_SOURCES = 8
 
 function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
@@ -404,13 +411,14 @@ export class LaserDmxWebGLRuntime {
   private apertureInstanceBuffer: WebGLBuffer | null = null
   private atmosphereQuadBuffer: WebGLBuffer | null = null
   private atmosphereInstanceBuffer: WebGLBuffer | null = null
-  private rearTarget: RenderTarget
-  private frontTarget: RenderTarget
+  private sharpSliceTarget: RenderTarget
+  private laserSliceTarget: RenderTarget
   private atmosphereTarget: RenderTarget
-  private hdrCompositeTarget: RenderTarget
-  private readonly temporalTargets: [RenderTarget, RenderTarget]
-  private temporalReadIndex = 0
-  private temporalHistoryValid = false
+  private readonly compositeTargets: [RenderTarget, RenderTarget]
+  private readonly temporalSliceTargets: Array<[RenderTarget, RenderTarget]> = []
+  private readonly temporalReadIndices = new Array<number>(MAX_DEPTH_SLICES).fill(0)
+  private readonly temporalHistoryValid = new Array<boolean>(MAX_DEPTH_SLICES).fill(false)
+  private readonly continuousDepthAvailable: boolean
   private readonly bloomTargets: RenderTarget[] = []
   private readonly bloomBlurTargets: RenderTarget[] = []
   private targetStrategy: LaserDmxHdrTargetStrategy
@@ -443,9 +451,16 @@ export class LaserDmxWebGLRuntime {
   private foregroundSourcePositionUniform: WebGLUniformLocation | null = null
   private foregroundSourceDirectionUniform: WebGLUniformLocation | null = null
   private foregroundSourceColorUniform: WebGLUniformLocation | null = null
-  private compositeRearUniform: WebGLUniformLocation | null = null
-  private compositeFrontUniform: WebGLUniformLocation | null = null
+  private atmosphereDepthSliceUniform: WebGLUniformLocation | null = null
+  private atmosphereSourceDynamicsUniform: WebGLUniformLocation | null = null
+  private foregroundDepthSliceUniform: WebGLUniformLocation | null = null
+  private foregroundSourceDynamicsUniform: WebGLUniformLocation | null = null
+  private compositeAccumulatedUniform: WebGLUniformLocation | null = null
+  private compositeSharpUniform: WebGLUniformLocation | null = null
+  private compositeCurrentLaserUniform: WebGLUniformLocation | null = null
+  private compositeLaserHistoryUniform: WebGLUniformLocation | null = null
   private compositeAtmosphereUniform: WebGLUniformLocation | null = null
+  private compositeLayerExtinctionUniform: WebGLUniformLocation | null = null
   private temporalCurrentUniform: WebGLUniformLocation | null = null
   private temporalPreviousUniform: WebGLUniformLocation | null = null
   private temporalRetentionUniform: WebGLUniformLocation | null = null
@@ -475,13 +490,14 @@ export class LaserDmxWebGLRuntime {
   private beamGpuCapacityFloats = 0
   private apertureGpuCapacityFloats = 0
   private atmosphereGpuCapacityFloats = 0
-  private readonly rearBeamInstances: LaserDmxWebGLBeamInstance[] = []
-  private readonly frontBeamInstances: LaserDmxWebGLBeamInstance[] = []
-  private readonly rearApertureInstances: LaserDmxWebGLApertureInstance[] = []
-  private readonly frontApertureInstances: LaserDmxWebGLApertureInstance[] = []
+  private readonly sharpBeamSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxWebGLBeamInstance[])
+  private readonly laserBeamSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxWebGLBeamInstance[])
+  private readonly apertureSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxWebGLApertureInstance[])
+  private readonly atmosphereBeamSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxWebGLAtmosphereBeamInstance[])
   private sourcePositionData = new Float32Array(MAX_HAZE_SOURCES * 4)
   private sourceDirectionData = new Float32Array(MAX_HAZE_SOURCES * 4)
   private sourceColorData = new Float32Array(MAX_HAZE_SOURCES * 4)
+  private sourceDynamicsData = new Float32Array(MAX_HAZE_SOURCES * 4)
   private lastResolution: CanvasResolution | null = null
   private lastAtmospherePlan: LaserDmxWebGLAtmosphereRenderPlan | null = null
   private lastQualitySnapshot: LaserDmxAdaptiveQualitySnapshot | null = null
@@ -490,6 +506,9 @@ export class LaserDmxWebGLRuntime {
   private lastActiveBeamCount = 0
   private lastRequestedBeamCount = 0
   private lastActiveFixtureCount = 0
+  private lastLaserHistoryInputCount = 0
+  private lastLaserHistorySliceCount = 0
+  private lastTemporalResolutionScale = 0
   private disposed = false
 
   private constructor(
@@ -508,8 +527,9 @@ export class LaserDmxWebGLRuntime {
       devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
     })
     this.gpuTimer = new LaserDmxGpuTimer(this.gl)
-    this.rearTarget = emptyTarget(this.gl.NEAREST)
-    this.frontTarget = emptyTarget(this.gl.NEAREST)
+    this.continuousDepthAvailable = Number(this.gl.getParameter(this.gl.MAX_TEXTURE_IMAGE_UNITS)) >= 5
+    this.sharpSliceTarget = emptyTarget(this.gl.NEAREST)
+    this.laserSliceTarget = emptyTarget(this.gl.NEAREST)
     this.targetStrategy = resolveLaserDmxHdrTargetStrategy(probeLaserDmxWebGLPostCapabilities(this.gl))
     this.qualityController.updateCapabilities({
       hdrAvailable: this.targetStrategy.hdrEnabled,
@@ -519,8 +539,10 @@ export class LaserDmxWebGLRuntime {
     })
     const postFilter = this.targetStrategy.linearFiltering ? this.gl.LINEAR : this.gl.NEAREST
     this.atmosphereTarget = emptyTarget(postFilter)
-    this.hdrCompositeTarget = emptyTarget(postFilter)
-    this.temporalTargets = [emptyTarget(postFilter), emptyTarget(postFilter)]
+    this.compositeTargets = [emptyTarget(postFilter), emptyTarget(postFilter)]
+    for (let sliceIndex = 0; sliceIndex < MAX_DEPTH_SLICES; sliceIndex += 1) {
+      this.temporalSliceTargets.push([emptyTarget(postFilter), emptyTarget(postFilter)])
+    }
     for (let index = 0; index < 4; index += 1) {
       const filter = this.targetStrategy.linearFiltering ? this.gl.LINEAR : this.gl.NEAREST
       this.bloomTargets.push(emptyTarget(filter))
@@ -553,7 +575,12 @@ export class LaserDmxWebGLRuntime {
       atmosphereQuality: this.lastQualitySnapshot?.effectiveAtmosphere ?? null,
       diagnosticCode: plan?.targetStrategy.diagnosticCode ?? this.targetStrategy.diagnosticCode,
       temporalHistoryActive: this.lastTemporalPlan?.history.enabled ?? false,
-      temporalResolutionScale: this.lastTemporalPlan?.history.resolutionScale ?? 0,
+      temporalResolutionScale: this.lastTemporalResolutionScale,
+      laserHistoryInputCount: this.lastLaserHistoryInputCount,
+      laserHistorySliceCount: this.lastLaserHistorySliceCount,
+      depthMode: atmosphere?.depthMode ?? (this.continuousDepthAvailable ? 'continuous-slices' : 'binary-fallback'),
+      depthSliceCount: atmosphere?.sliceCount ?? 0,
+      depthBufferStatus: atmosphere?.depthMode === 'binary-fallback' ? 'binary-fallback' : 'slice-accumulation',
       renderWidth: resolution?.backingWidth ?? 0,
       renderHeight: resolution?.backingHeight ?? 0,
       atmosphereWidth: atmosphere?.targetWidth ?? 0,
@@ -619,31 +646,50 @@ export class LaserDmxWebGLRuntime {
       }
       const temporalPlan = this.temporalController.update(renderFrame)
       this.lastTemporalPlan = temporalPlan
-      const beamPlan = buildLaserDmxWebGLBeamRenderPlan(renderFrame, viewport)
-      const atmospherePlan = buildLaserDmxWebGLAtmosphereRenderPlan(renderFrame, viewport)
+      const beamPlan = buildLaserDmxWebGLBeamRenderPlan(
+        renderFrame,
+        viewport,
+        undefined,
+        this.continuousDepthAvailable,
+      )
+      const atmospherePlan = buildLaserDmxWebGLAtmosphereRenderPlan(
+        renderFrame,
+        viewport,
+        this.continuousDepthAvailable,
+      )
       this.lastAtmospherePlan = atmospherePlan
-      this.ensureRenderTarget(this.rearTarget, frameState.dims.W, frameState.dims.H, 'rear-light')
-      this.ensureRenderTarget(this.frontTarget, frameState.dims.W, frameState.dims.H, 'front-light')
+      const sliceCount = Math.min(MAX_DEPTH_SLICES, atmospherePlan.sliceCount)
+      this.ensureRenderTarget(this.sharpSliceTarget, frameState.dims.W, frameState.dims.H, 'sharp-slice')
+      this.ensureRenderTarget(this.laserSliceTarget, frameState.dims.W, frameState.dims.H, 'laser-slice')
       this.ensureRenderTarget(
         this.atmosphereTarget,
         atmospherePlan.targetWidth,
         atmospherePlan.targetHeight,
-        'atmosphere',
+        'atmosphere-slice',
       )
-      this.ensureRenderTarget(
-        this.hdrCompositeTarget,
+      this.ensureRenderTarget(this.compositeTargets[0], frameState.dims.W, frameState.dims.H, 'depth-composite-0')
+      this.ensureRenderTarget(this.compositeTargets[1], frameState.dims.W, frameState.dims.H, 'depth-composite-1')
+      if (temporalPlan.history.clearHistory) this.clearTemporalHistory()
+      this.partitionDepthInstances(beamPlan.beams, beamPlan.apertures, atmospherePlan.beams, sliceCount)
+      const activeLaserHistorySlices = Array.from({ length: sliceCount }, (_, sliceIndex) => (
+        this.laserBeamSlices[sliceIndex]!.length > 0 || this.temporalHistoryValid[sliceIndex] === true
+      ))
+      this.ensureTemporalTargets(
         frameState.dims.W,
         frameState.dims.H,
-        'hdr-composite',
+        temporalPlan,
+        sliceCount,
+        activeLaserHistorySlices,
       )
-      this.ensureTemporalTargets(frameState.dims.W, frameState.dims.H, temporalPlan)
-      if (temporalPlan.history.clearHistory) this.clearTemporalHistory()
 
-      const activeTargetStrategy = this.rearTarget.float
-        && this.frontTarget.float
-        && this.atmosphereTarget.float
-        && this.hdrCompositeTarget.float
-        && this.temporalTargets.every(target => target.float)
+      const activeTargets = [
+        this.sharpSliceTarget,
+        this.laserSliceTarget,
+        this.atmosphereTarget,
+        ...this.compositeTargets,
+        ...this.temporalSliceTargets.slice(0, sliceCount).flat().filter(target => target.texture != null),
+      ]
+      const activeTargetStrategy = activeTargets.every(target => target.float)
         ? this.targetStrategy
         : resolveLaserDmxHdrTargetStrategy({
             webgl2: true,
@@ -661,33 +707,59 @@ export class LaserDmxWebGLRuntime {
       this.lastPostPlan = postPlan
       this.ensurePostTargets(frameState.dims.W, frameState.dims.H, postPlan)
 
-      if (!renderFrame.output.blackout) {
-        this.partitionSharpInstances(beamPlan.beams, beamPlan.apertures)
-        this.renderAtmosphere(atmospherePlan, beamPlan.apertures, viewport)
-        this.renderSharpTarget(
-          this.rearTarget,
-          this.rearBeamInstances,
-          this.rearApertureInstances,
-          viewport,
+      let accumulatedIndex = 0
+      this.clearTarget(this.compositeTargets[accumulatedIndex])
+      // OpenGL clip depth is -1 at the camera-facing near plane and +1 at the far plane.
+      // Accumulate far to near so each nearer atmosphere slice attenuates only light already behind it.
+      for (const sliceIndex of resolveLaserDmxDepthTraversal(sliceCount)) {
+        if (!renderFrame.output.blackout) {
+          this.renderSharpTarget(
+            this.sharpSliceTarget,
+            this.sharpBeamSlices[sliceIndex]!,
+            this.apertureSlices[sliceIndex]!,
+            viewport,
+          )
+          this.renderSharpTarget(
+            this.laserSliceTarget,
+            this.laserBeamSlices[sliceIndex]!,
+            [],
+            viewport,
+          )
+          this.renderAtmosphereSlice(
+            atmospherePlan,
+            this.atmosphereBeamSlices[sliceIndex]!,
+            this.apertureSlices[sliceIndex]!,
+            sliceIndex,
+            viewport,
+          )
+        } else {
+          this.clearTarget(this.sharpSliceTarget)
+          this.clearTarget(this.laserSliceTarget)
+          this.clearTarget(this.atmosphereTarget)
+        }
+        const laserHistoryTarget = this.renderTemporalHistory(
+          temporalPlan,
+          this.laserSliceTarget,
+          sliceIndex,
         )
-        this.renderSharpTarget(
-          this.frontTarget,
-          this.frontBeamInstances,
-          this.frontApertureInstances,
-          viewport,
+        const nextAccumulatedIndex = accumulatedIndex === 0 ? 1 : 0
+        this.drawDepthLayerComposite(
+          this.compositeTargets[accumulatedIndex],
+          this.sharpSliceTarget,
+          this.laserSliceTarget,
+          laserHistoryTarget,
+          this.atmosphereTarget,
+          this.compositeTargets[nextAccumulatedIndex],
+          atmospherePlan.extinction,
         )
-      } else {
-        this.clearTarget(this.rearTarget)
-        this.clearTarget(this.frontTarget)
-        this.clearTarget(this.atmosphereTarget)
+        accumulatedIndex = nextAccumulatedIndex
       }
 
       const gl = this.gl
       gl.disable(gl.BLEND)
       gl.disable(gl.DEPTH_TEST)
-      this.drawComposite(this.hdrCompositeTarget)
-      const temporalSource = this.renderTemporalHistory(temporalPlan)
-      this.renderPhotographicPost(postPlan, temporalSource, temporalPlan.history.enabled)
+      const sceneTarget = this.compositeTargets[accumulatedIndex]
+      this.renderPhotographicPost(postPlan, sceneTarget)
       this.gpuTimer.end()
       this.runtime.endFrame()
 
@@ -711,6 +783,7 @@ export class LaserDmxWebGLRuntime {
       this.lastActiveBeamCount = beamPlan.beams.length
       this.lastRequestedBeamCount = atmospherePlan.requestedBeamCount
       this.lastActiveFixtureCount = renderFrame.fixtures.filter(fixture => fixture.enabled).length
+      this.lastLaserHistoryInputCount = beamPlan.laserHistoryBeamCount
       this.consecutiveRenderFailures = 0
       return {
         ok: true,
@@ -723,7 +796,12 @@ export class LaserDmxWebGLRuntime {
           atmosphereQuality: qualitySnapshot.effectiveAtmosphere,
           diagnosticCode: postPlan.targetStrategy.diagnosticCode,
           temporalHistoryActive: temporalPlan.history.enabled,
-          temporalResolutionScale: temporalPlan.history.resolutionScale,
+          temporalResolutionScale: this.lastTemporalResolutionScale,
+          laserHistoryInputCount: beamPlan.laserHistoryBeamCount,
+          laserHistorySliceCount: this.lastLaserHistorySliceCount,
+          depthMode: atmospherePlan.depthMode,
+          depthSliceCount: sliceCount,
+          depthBufferStatus: atmospherePlan.depthMode === 'binary-fallback' ? 'binary-fallback' : 'slice-accumulation',
           renderWidth: frameState.dims.W,
           renderHeight: frameState.dims.H,
           atmosphereWidth: atmospherePlan.targetWidth,
@@ -759,10 +837,10 @@ export class LaserDmxWebGLRuntime {
   reset(): void {
     if (this.disposed || this.contextLost) return
     try {
-      this.clearTarget(this.rearTarget)
-      this.clearTarget(this.frontTarget)
+      this.clearTarget(this.sharpSliceTarget)
+      this.clearTarget(this.laserSliceTarget)
       this.clearTarget(this.atmosphereTarget)
-      this.clearTarget(this.hdrCompositeTarget)
+      for (const target of this.compositeTargets) this.clearTarget(target)
       this.clearTemporalHistory()
       for (const target of this.bloomTargets) this.clearTarget(target)
       for (const target of this.bloomBlurTargets) this.clearTarget(target)
@@ -779,6 +857,9 @@ export class LaserDmxWebGLRuntime {
       this.lastActiveBeamCount = 0
       this.lastRequestedBeamCount = 0
       this.lastActiveFixtureCount = 0
+      this.lastLaserHistoryInputCount = 0
+      this.lastLaserHistorySliceCount = 0
+      this.lastTemporalResolutionScale = 0
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
       this.runtime.clearViewport(0, 0, 0, 1)
       this.runtime.endFrame()
@@ -798,6 +879,8 @@ export class LaserDmxWebGLRuntime {
     this.runtime.dispose(mode)
     this.lastResolution = null
     this.lastTemporalPlan = null
+    this.lastLaserHistorySliceCount = 0
+    this.lastTemporalResolutionScale = 0
     this.lastAtmospherePlan = null
     this.lastQualitySnapshot = null
   }
@@ -840,35 +923,42 @@ export class LaserDmxWebGLRuntime {
     const changed = this.runtime.resize(resolution)
     this.lastResolution = resolution
     if (changed) {
-      this.disposeRenderTarget(this.rearTarget, 'rear-light')
-      this.disposeRenderTarget(this.frontTarget, 'front-light')
+      this.disposeRenderTarget(this.sharpSliceTarget, 'sharp-slice')
+      this.disposeRenderTarget(this.laserSliceTarget, 'laser-slice')
       // Atmosphere and post targets also depend on independent quality scales.
-      this.disposeRenderTarget(this.atmosphereTarget, 'atmosphere')
-      this.disposeRenderTarget(this.hdrCompositeTarget, 'hdr-composite')
+      this.disposeRenderTarget(this.atmosphereTarget, 'atmosphere-slice')
+      this.disposeRenderTarget(this.compositeTargets[0], 'depth-composite-0')
+      this.disposeRenderTarget(this.compositeTargets[1], 'depth-composite-1')
       this.disposeTemporalTargets()
       this.disposePostTargets()
     }
   }
 
-  private partitionSharpInstances(
+  private partitionDepthInstances(
     beams: readonly LaserDmxWebGLBeamInstance[],
     apertures: readonly LaserDmxWebGLApertureInstance[],
+    atmosphereBeams: readonly LaserDmxWebGLAtmosphereBeamInstance[],
+    sliceCount: number,
   ): void {
-    this.rearBeamInstances.length = 0
-    this.frontBeamInstances.length = 0
-    this.rearApertureInstances.length = 0
-    this.frontApertureInstances.length = 0
+    for (let sliceIndex = 0; sliceIndex < MAX_DEPTH_SLICES; sliceIndex += 1) {
+      this.sharpBeamSlices[sliceIndex]!.length = 0
+      this.laserBeamSlices[sliceIndex]!.length = 0
+      this.apertureSlices[sliceIndex]!.length = 0
+      this.atmosphereBeamSlices[sliceIndex]!.length = 0
+    }
+    const boundedSlice = (value: number) => Math.max(0, Math.min(sliceCount - 1, Math.round(value)))
     for (const beam of beams) {
-      const target =
-        beam.sortDepth > FRONT_DEPTH_SPLIT ? this.frontBeamInstances : this.rearBeamInstances
+      const sliceIndex = boundedSlice(beam.depthSlice)
+      const target = beam.historyEligible
+        ? this.laserBeamSlices[sliceIndex]!
+        : this.sharpBeamSlices[sliceIndex]!
       target.push(beam)
     }
     for (const aperture of apertures) {
-      const target =
-        aperture.sortDepth > FRONT_DEPTH_SPLIT
-          ? this.frontApertureInstances
-          : this.rearApertureInstances
-      target.push(aperture)
+      this.apertureSlices[boundedSlice(aperture.depthSlice)]!.push(aperture)
+    }
+    for (const beam of atmosphereBeams) {
+      this.atmosphereBeamSlices[boundedSlice(beam.depthSlice)]!.push(beam)
     }
   }
 
@@ -897,9 +987,11 @@ export class LaserDmxWebGLRuntime {
     this.drawApertureInstances(apertures, viewport)
   }
 
-  private renderAtmosphere(
+  private renderAtmosphereSlice(
     plan: LaserDmxWebGLAtmosphereRenderPlan,
+    beams: readonly LaserDmxWebGLAtmosphereBeamInstance[],
     apertures: readonly LaserDmxWebGLApertureInstance[],
+    sliceIndex: number,
     fullViewport: {
       backingWidth: number
       backingHeight: number
@@ -925,11 +1017,10 @@ export class LaserDmxWebGLRuntime {
       cssWidth: fullViewport.cssWidth,
       cssHeight: fullViewport.cssHeight,
     }
-    this.drawAtmosphereInstances(plan, atmosphereViewport)
-    // Projector sources also illuminate nearby air, independent from the narrow
-    // sharp aperture pass rendered later at full resolution.
+    this.drawAtmosphereInstances(plan, beams, sliceIndex, atmosphereViewport)
+    // Current-frame fixture sources illuminate nearby air but never enter scanner history.
     this.drawApertureInstances(apertures, atmosphereViewport)
-    this.drawForegroundVeil(plan)
+    this.drawForegroundVeil(plan, sliceIndex)
   }
 
   private uploadDynamicInstanceData(
@@ -966,7 +1057,7 @@ export class LaserDmxWebGLRuntime {
       !this.beamInstanceBuffer
     )
       return
-    const required = beams.length * 23
+    const required = beams.length * 30
     this.beamInstanceData = ensureFloatCapacity(this.beamInstanceData, required)
     let offset = 0
     for (const beam of beams) {
@@ -994,11 +1085,18 @@ export class LaserDmxWebGLRuntime {
           beam.goboAmount,
           beam.materialMode,
           beam.softness,
+          beam.goboPattern,
+          beam.goboRotationRad,
+          beam.iris,
+          beam.frost,
           beam.prismAmount,
+          beam.prismFacetCount,
+          beam.prismRotationRad,
+          beam.phase,
         ],
         offset,
       )
-      offset += 23
+      offset += 30
     }
     const gl = this.gl
     gl.useProgram(this.beamProgram)
@@ -1035,7 +1133,7 @@ export class LaserDmxWebGLRuntime {
       !this.apertureInstanceBuffer
     )
       return
-    const required = apertures.length * 17
+    const required = apertures.length * 21
     this.apertureInstanceData = ensureFloatCapacity(this.apertureInstanceData, required)
     let offset = 0
     for (const aperture of apertures) {
@@ -1058,10 +1156,14 @@ export class LaserDmxWebGLRuntime {
           aperture.aspect,
           aperture.segments,
           aperture.phase,
+          aperture.rotationRad,
+          aperture.behaviorMode,
+          aperture.sourceVariant,
+          aperture.softness,
         ],
         offset,
       )
-      offset += 17
+      offset += 21
     }
     const gl = this.gl
     gl.useProgram(this.apertureProgram)
@@ -1084,6 +1186,8 @@ export class LaserDmxWebGLRuntime {
 
   private drawAtmosphereInstances(
     plan: LaserDmxWebGLAtmosphereRenderPlan,
+    beams: readonly LaserDmxWebGLAtmosphereBeamInstance[],
+    sliceIndex: number,
     viewport: {
       backingWidth: number
       backingHeight: number
@@ -1092,16 +1196,16 @@ export class LaserDmxWebGLRuntime {
     },
   ): void {
     if (
-      plan.beams.length === 0 ||
+      beams.length === 0 ||
       !this.atmosphereProgram ||
       !this.atmosphereVertexArray ||
       !this.atmosphereInstanceBuffer
     )
       return
-    const required = plan.beams.length * 18
+    const required = beams.length * 18
     this.atmosphereInstanceData = ensureFloatCapacity(this.atmosphereInstanceData, required)
     let offset = 0
-    for (const beam of plan.beams) {
+    for (const beam of beams) {
       this.atmosphereInstanceData.set(
         [
           beam.origin.x,
@@ -1118,9 +1222,9 @@ export class LaserDmxWebGLRuntime {
           beam.startWidthCssPx,
           beam.endWidthCssPx,
           beam.depthWeight,
-          beam.rearVeilWeight,
+          beam.extinctionWeight,
           beam.phase,
-          0,
+          beam.depthSlice,
           0,
         ],
         offset,
@@ -1142,18 +1246,18 @@ export class LaserDmxWebGLRuntime {
       viewport.backingWidth / Math.max(1, viewport.cssWidth),
       viewport.backingHeight / Math.max(1, viewport.cssHeight),
     )
-    this.applyAtmosphereUniforms(plan, 'scatter')
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, plan.beams.length)
+    this.applyAtmosphereUniforms(plan, 'scatter', sliceIndex)
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, beams.length)
     gl.bindVertexArray(null)
   }
 
-  private drawForegroundVeil(plan: LaserDmxWebGLAtmosphereRenderPlan): void {
+  private drawForegroundVeil(plan: LaserDmxWebGLAtmosphereRenderPlan, sliceIndex: number): void {
     if (plan.foregroundStrength <= 0.001 || !this.foregroundProgram || !this.fullscreenVertexArray)
       return
     const gl = this.gl
     gl.useProgram(this.foregroundProgram)
     gl.bindVertexArray(this.fullscreenVertexArray)
-    this.applyAtmosphereUniforms(plan, 'foreground')
+    this.applyAtmosphereUniforms(plan, 'foreground', sliceIndex)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
     gl.bindVertexArray(null)
   }
@@ -1161,9 +1265,12 @@ export class LaserDmxWebGLRuntime {
   private applyAtmosphereUniforms(
     plan: LaserDmxWebGLAtmosphereRenderPlan,
     pass: 'scatter' | 'foreground',
+    sliceIndex: number,
   ): void {
     const gl = this.gl
     this.writeSourceUniformData(plan.sources)
+    const sliceCenter = plan.sliceCenters[sliceIndex] ?? 0
+    const sliceHalfWidth = 1 / Math.max(1, plan.sliceCount)
     if (pass === 'scatter') {
       gl.uniform4f(
         this.atmosphereUniform,
@@ -1191,10 +1298,18 @@ export class LaserDmxWebGLRuntime {
         plan.deterministicTimeSec,
         plan.deterministicSeed,
       )
-      gl.uniform1i(this.atmosphereSourceCountUniform, plan.sources.length)
+      gl.uniform4f(
+        this.atmosphereDepthSliceUniform,
+        sliceCenter,
+        sliceHalfWidth,
+        plan.extinction,
+        sliceIndex,
+      )
+      gl.uniform1i(this.atmosphereSourceCountUniform, Math.min(MAX_HAZE_SOURCES, plan.sources.length))
       gl.uniform4fv(this.atmosphereSourcePositionUniform, this.sourcePositionData)
       gl.uniform4fv(this.atmosphereSourceDirectionUniform, this.sourceDirectionData)
       gl.uniform4fv(this.atmosphereSourceColorUniform, this.sourceColorData)
+      gl.uniform4fv(this.atmosphereSourceDynamicsUniform, this.sourceDynamicsData)
       return
     }
     gl.uniform4f(
@@ -1212,18 +1327,27 @@ export class LaserDmxWebGLRuntime {
       plan.dissipation,
     )
     gl.uniform2f(this.foregroundTimeSeedUniform, plan.deterministicTimeSec, plan.deterministicSeed)
+    gl.uniform4f(
+      this.foregroundDepthSliceUniform,
+      sliceCenter,
+      sliceHalfWidth,
+      plan.extinction,
+      sliceIndex,
+    )
     gl.uniform1f(this.foregroundStrengthUniform, plan.foregroundStrength)
     gl.uniform1i(this.foregroundNoiseOctavesUniform, plan.noiseOctaves)
-    gl.uniform1i(this.foregroundSourceCountUniform, plan.sources.length)
+    gl.uniform1i(this.foregroundSourceCountUniform, Math.min(MAX_HAZE_SOURCES, plan.sources.length))
     gl.uniform4fv(this.foregroundSourcePositionUniform, this.sourcePositionData)
     gl.uniform4fv(this.foregroundSourceDirectionUniform, this.sourceDirectionData)
     gl.uniform4fv(this.foregroundSourceColorUniform, this.sourceColorData)
+    gl.uniform4fv(this.foregroundSourceDynamicsUniform, this.sourceDynamicsData)
   }
 
   private writeSourceUniformData(sources: readonly LaserDmxWebGLAtmosphereSourceInstance[]): void {
     this.sourcePositionData.fill(0)
     this.sourceDirectionData.fill(0)
     this.sourceColorData.fill(0)
+    this.sourceDynamicsData.fill(0)
     for (let index = 0; index < Math.min(MAX_HAZE_SOURCES, sources.length); index += 1) {
       const source = sources[index]!
       const offset = index * 4
@@ -1232,26 +1356,39 @@ export class LaserDmxWebGLRuntime {
         offset,
       )
       this.sourceDirectionData.set(
-        [source.direction.x, source.direction.y, source.spread, 0],
+        [source.direction.x, source.direction.y, source.spread, source.kind === 'co2' ? 1 : 0],
         offset,
       )
       this.sourceColorData.set(
         [source.color.r, source.color.g, source.color.b, source.dissipation],
         offset,
       )
+      this.sourceDynamicsData.set(
+        [source.ageSec, source.lifetimeSec, source.expansion, source.turbulence],
+        offset,
+      )
     }
   }
 
-  private drawComposite(target: RenderTarget): void {
+  private drawDepthLayerComposite(
+    accumulated: RenderTarget,
+    sharp: RenderTarget,
+    currentLaser: RenderTarget,
+    laserHistory: RenderTarget,
+    atmosphere: RenderTarget,
+    target: RenderTarget,
+    layerExtinction: number,
+  ): void {
     if (
-      !this.compositeProgram ||
-      !this.fullscreenVertexArray ||
-      !target.framebuffer ||
-      !this.rearTarget.texture ||
-      !this.frontTarget.texture ||
-      !this.atmosphereTarget.texture
-    )
-      return
+      !this.compositeProgram
+      || !this.fullscreenVertexArray
+      || !target.framebuffer
+      || !accumulated.texture
+      || !sharp.texture
+      || !currentLaser.texture
+      || !laserHistory.texture
+      || !atmosphere.texture
+    ) return
     const gl = this.gl
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer)
     gl.viewport(0, 0, target.width, target.height)
@@ -1261,16 +1398,23 @@ export class LaserDmxWebGLRuntime {
     gl.useProgram(this.compositeProgram)
     gl.bindVertexArray(this.fullscreenVertexArray)
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, this.rearTarget.texture)
-    gl.uniform1i(this.compositeRearUniform, 0)
+    gl.bindTexture(gl.TEXTURE_2D, accumulated.texture)
+    gl.uniform1i(this.compositeAccumulatedUniform, 0)
     gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, this.frontTarget.texture)
-    gl.uniform1i(this.compositeFrontUniform, 1)
+    gl.bindTexture(gl.TEXTURE_2D, sharp.texture)
+    gl.uniform1i(this.compositeSharpUniform, 1)
     gl.activeTexture(gl.TEXTURE2)
-    gl.bindTexture(gl.TEXTURE_2D, this.atmosphereTarget.texture)
-    gl.uniform1i(this.compositeAtmosphereUniform, 2)
+    gl.bindTexture(gl.TEXTURE_2D, currentLaser.texture)
+    gl.uniform1i(this.compositeCurrentLaserUniform, 2)
+    gl.activeTexture(gl.TEXTURE3)
+    gl.bindTexture(gl.TEXTURE_2D, laserHistory.texture)
+    gl.uniform1i(this.compositeLaserHistoryUniform, 3)
+    gl.activeTexture(gl.TEXTURE4)
+    gl.bindTexture(gl.TEXTURE_2D, atmosphere.texture)
+    gl.uniform1i(this.compositeAtmosphereUniform, 4)
+    gl.uniform1f(this.compositeLayerExtinctionUniform, layerExtinction)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
-    for (let unit = 0; unit <= 2; unit += 1) {
+    for (let unit = 0; unit <= 4; unit += 1) {
       gl.activeTexture(gl.TEXTURE0 + unit)
       gl.bindTexture(gl.TEXTURE_2D, null)
     }
@@ -1282,47 +1426,92 @@ export class LaserDmxWebGLRuntime {
     width: number,
     height: number,
     plan: LaserDmxTemporalFramePlan,
+    sliceCount: number,
+    activeSlices: readonly boolean[],
   ): void {
-    const targetWidth = Math.max(32, Math.round(width * plan.history.resolutionScale))
-    const targetHeight = Math.max(18, Math.round(height * plan.history.resolutionScale))
-    const resized = this.temporalTargets.some(target => (
-      target.width !== targetWidth || target.height !== targetHeight
-    ))
-    this.ensureRenderTarget(this.temporalTargets[0], targetWidth, targetHeight, 'temporal-history-0')
-    this.ensureRenderTarget(this.temporalTargets[1], targetWidth, targetHeight, 'temporal-history-1')
-    if (resized) this.clearTemporalHistory()
+    const activeCount = plan.history.enabled
+      ? activeSlices.slice(0, sliceCount).filter(Boolean).length
+      : 0
+    // Keep the total history allocation no larger than one legacy full-resolution
+    // ping-pong pair. More depth slices trade trail resolution for bounded memory;
+    // the current laser core remains full resolution in a separate target.
+    const memoryBoundScale = activeCount > 0 ? 1 / Math.sqrt(activeCount) : 0
+    const effectiveScale = activeCount > 0
+      ? Math.min(plan.history.resolutionScale, memoryBoundScale)
+      : 0
+    this.lastTemporalResolutionScale = effectiveScale
+    this.lastLaserHistorySliceCount = activeCount
+    const targetWidth = effectiveScale > 0 ? Math.max(32, Math.round(width * effectiveScale)) : 0
+    const targetHeight = effectiveScale > 0 ? Math.max(18, Math.round(height * effectiveScale)) : 0
+    let resizedExistingTarget = false
+    for (let sliceIndex = 0; sliceIndex < MAX_DEPTH_SLICES; sliceIndex += 1) {
+      const pair = this.temporalSliceTargets[sliceIndex]!
+      const shouldAllocate = sliceIndex < sliceCount
+        && plan.history.enabled
+        && activeSlices[sliceIndex] === true
+      if (!shouldAllocate) {
+        this.disposeRenderTarget(pair[0], `temporal-history-${sliceIndex}-0`)
+        this.disposeRenderTarget(pair[1], `temporal-history-${sliceIndex}-1`)
+        this.temporalReadIndices[sliceIndex] = 0
+        this.temporalHistoryValid[sliceIndex] = false
+        continue
+      }
+      const hadTargets = pair.every(target => target.texture != null)
+      if (hadTargets && pair.some(target => target.width !== targetWidth || target.height !== targetHeight)) {
+        resizedExistingTarget = true
+      }
+      this.ensureRenderTarget(pair[0], targetWidth, targetHeight, `temporal-history-${sliceIndex}-0`)
+      this.ensureRenderTarget(pair[1], targetWidth, targetHeight, `temporal-history-${sliceIndex}-1`)
+      if (!hadTargets) {
+        this.clearTarget(pair[0])
+        this.clearTarget(pair[1])
+        this.temporalReadIndices[sliceIndex] = 0
+        this.temporalHistoryValid[sliceIndex] = false
+      }
+    }
+    if (resizedExistingTarget) this.clearTemporalHistory()
   }
 
   private clearTemporalHistory(): void {
-    this.clearTarget(this.temporalTargets[0])
-    this.clearTarget(this.temporalTargets[1])
-    this.temporalReadIndex = 0
-    this.temporalHistoryValid = false
+    for (let sliceIndex = 0; sliceIndex < MAX_DEPTH_SLICES; sliceIndex += 1) {
+      const pair = this.temporalSliceTargets[sliceIndex]!
+      this.clearTarget(pair[0])
+      this.clearTarget(pair[1])
+      this.temporalReadIndices[sliceIndex] = 0
+      this.temporalHistoryValid[sliceIndex] = false
+    }
   }
 
-  private renderTemporalHistory(plan: LaserDmxTemporalFramePlan): RenderTarget {
+  private renderTemporalHistory(
+    plan: LaserDmxTemporalFramePlan,
+    currentLaserTarget: RenderTarget,
+    sliceIndex: number,
+  ): RenderTarget {
     if (
       !this.temporalProgram
       || !this.fullscreenVertexArray
-      || !this.hdrCompositeTarget.texture
-    ) return this.hdrCompositeTarget
-    const readTarget = this.temporalTargets[this.temporalReadIndex]
-    const writeIndex = this.temporalReadIndex === 0 ? 1 : 0
-    const writeTarget = this.temporalTargets[writeIndex]
+      || !currentLaserTarget.texture
+    ) return currentLaserTarget
+    const pair = this.temporalSliceTargets[sliceIndex]
+    if (!pair) return currentLaserTarget
+    const readIndex = this.temporalReadIndices[sliceIndex] ?? 0
+    const readTarget = pair[readIndex]
+    const writeIndex = readIndex === 0 ? 1 : 0
+    const writeTarget = pair[writeIndex]
     if (!readTarget.texture || !writeTarget.framebuffer || !writeTarget.texture) {
-      return this.hdrCompositeTarget
+      return currentLaserTarget
     }
 
     const gl = this.gl
     gl.bindFramebuffer(gl.FRAMEBUFFER, writeTarget.framebuffer)
     gl.viewport(0, 0, writeTarget.width, writeTarget.height)
     gl.disable(gl.BLEND)
-    gl.clearColor(0, 0, 0, 1)
+    gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
     gl.useProgram(this.temporalProgram)
     gl.bindVertexArray(this.fullscreenVertexArray)
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, this.hdrCompositeTarget.texture)
+    gl.bindTexture(gl.TEXTURE_2D, currentLaserTarget.texture)
     gl.uniform1i(this.temporalCurrentUniform, 0)
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, readTarget.texture)
@@ -1330,7 +1519,7 @@ export class LaserDmxWebGLRuntime {
     gl.uniform1f(this.temporalRetentionUniform, plan.history.retention)
     gl.uniform1f(
       this.temporalHistoryAvailableUniform,
-      this.temporalHistoryValid && plan.history.enabled ? 1 : 0,
+      this.temporalHistoryValid[sliceIndex] && plan.history.enabled ? 1 : 0,
     )
     gl.drawArrays(gl.TRIANGLES, 0, 3)
     gl.activeTexture(gl.TEXTURE1)
@@ -1339,8 +1528,8 @@ export class LaserDmxWebGLRuntime {
     gl.bindTexture(gl.TEXTURE_2D, null)
     gl.bindVertexArray(null)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    this.temporalReadIndex = writeIndex
-    this.temporalHistoryValid = true
+    this.temporalReadIndices[sliceIndex] = writeIndex
+    this.temporalHistoryValid[sliceIndex] = plan.history.enabled
     return writeTarget
   }
 
@@ -1369,10 +1558,8 @@ export class LaserDmxWebGLRuntime {
 
   private renderPhotographicPost(
     plan: LaserDmxWebGLPostProcessPlan,
-    temporalTarget: RenderTarget,
-    temporalEnabled: boolean,
+    sceneTarget: RenderTarget,
   ): void {
-    const sceneTarget = this.hdrCompositeTarget
     if (
       !sceneTarget.texture ||
       !this.fullscreenVertexArray ||
@@ -1382,9 +1569,9 @@ export class LaserDmxWebGLRuntime {
     )
       return
 
-    let sourceTexture = temporalTarget.texture ?? sceneTarget.texture
-    let sourceWidth = temporalTarget.texture ? temporalTarget.width : sceneTarget.width
-    let sourceHeight = temporalTarget.texture ? temporalTarget.height : sceneTarget.height
+    let sourceTexture = sceneTarget.texture
+    let sourceWidth = sceneTarget.width
+    let sourceHeight = sceneTarget.height
     for (let index = 0; index < plan.bloom.levelCount; index += 1) {
       const target = this.bloomTargets[index]!
       const blurTarget = this.bloomBlurTargets[index]!
@@ -1407,7 +1594,7 @@ export class LaserDmxWebGLRuntime {
 
     const gl = this.gl
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    gl.viewport(0, 0, this.hdrCompositeTarget.width, this.hdrCompositeTarget.height)
+    gl.viewport(0, 0, sceneTarget.width, sceneTarget.height)
     gl.disable(gl.BLEND)
     gl.clearColor(0, 0, 0, 1)
     gl.clear(gl.COLOR_BUFFER_BIT)
@@ -1418,10 +1605,10 @@ export class LaserDmxWebGLRuntime {
     gl.bindTexture(gl.TEXTURE_2D, sceneTarget.texture)
     gl.uniform1i(this.postSceneUniform, 0)
     gl.activeTexture(gl.TEXTURE5)
-    gl.bindTexture(gl.TEXTURE_2D, temporalTarget.texture ?? sceneTarget.texture)
+    gl.bindTexture(gl.TEXTURE_2D, sceneTarget.texture)
     gl.uniform1i(this.postTemporalUniform, 5)
-    gl.uniform1f(this.postTemporalEnabledUniform, temporalEnabled ? 1 : 0)
-    const fallbackBloom = this.bloomTargets[0]?.texture ?? temporalTarget.texture ?? sceneTarget.texture
+    gl.uniform1f(this.postTemporalEnabledUniform, 0)
+    const fallbackBloom = this.bloomTargets[0]?.texture ?? sceneTarget.texture
     for (let index = 0; index < 4; index += 1) {
       gl.activeTexture(gl.TEXTURE1 + index)
       gl.bindTexture(gl.TEXTURE_2D, this.bloomTargets[index]?.texture ?? fallbackBloom)
@@ -1429,8 +1616,8 @@ export class LaserDmxWebGLRuntime {
     }
     gl.uniform2f(
       this.postResolutionUniform,
-      this.hdrCompositeTarget.width,
-      this.hdrCompositeTarget.height,
+      sceneTarget.width,
+      sceneTarget.height,
     )
     gl.uniform4f(
       this.postBloomWeightsUniform,
@@ -1531,10 +1718,13 @@ export class LaserDmxWebGLRuntime {
   }
 
   private disposeTemporalTargets(): void {
-    this.disposeRenderTarget(this.temporalTargets[0], 'temporal-history-0')
-    this.disposeRenderTarget(this.temporalTargets[1], 'temporal-history-1')
-    this.temporalReadIndex = 0
-    this.temporalHistoryValid = false
+    for (let sliceIndex = 0; sliceIndex < MAX_DEPTH_SLICES; sliceIndex += 1) {
+      const pair = this.temporalSliceTargets[sliceIndex]!
+      this.disposeRenderTarget(pair[0], `temporal-history-${sliceIndex}-0`)
+      this.disposeRenderTarget(pair[1], `temporal-history-${sliceIndex}-1`)
+      this.temporalReadIndices[sliceIndex] = 0
+      this.temporalHistoryValid[sliceIndex] = false
+    }
   }
 
   private disposePostTargets(): void {
@@ -1556,15 +1746,20 @@ export class LaserDmxWebGLRuntime {
     this.gpuTimer.reset()
     const postFilter = this.targetStrategy.linearFiltering ? this.gl.LINEAR : this.gl.NEAREST
     this.atmosphereTarget.filter = postFilter
-    this.hdrCompositeTarget.filter = postFilter
-    for (const target of this.temporalTargets) target.filter = postFilter
+    for (const target of this.compositeTargets) target.filter = postFilter
+    for (const pair of this.temporalSliceTargets) {
+      pair[0].filter = postFilter
+      pair[1].filter = postFilter
+    }
     for (const target of [...this.bloomTargets, ...this.bloomBlurTargets]) target.filter = postFilter
     this.exposureController.reset()
     this.temporalController.reset()
-    this.temporalHistoryValid = false
-    this.temporalReadIndex = 0
+    this.temporalHistoryValid.fill(false)
+    this.temporalReadIndices.fill(0)
     this.lastPostPlan = null
     this.lastTemporalPlan = null
+    this.lastLaserHistorySliceCount = 0
+    this.lastTemporalResolutionScale = 0
     this.lastAtmospherePlan = null
     this.lastCpuFrameMs = null
     this.consecutiveRenderFailures = 0
@@ -1620,14 +1815,15 @@ export class LaserDmxWebGLRuntime {
     gl.enableVertexAttribArray(0)
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.beamInstanceBuffer)
-    const beamStride = 23 * Float32Array.BYTES_PER_ELEMENT
+    const beamStride = 30 * Float32Array.BYTES_PER_ELEMENT
     enableInstancedAttribute(gl, 1, 3, beamStride, 0)
     enableInstancedAttribute(gl, 2, 3, beamStride, 3 * 4)
     enableInstancedAttribute(gl, 3, 4, beamStride, 6 * 4)
     enableInstancedAttribute(gl, 4, 4, beamStride, 10 * 4)
     enableInstancedAttribute(gl, 5, 4, beamStride, 14 * 4)
     enableInstancedAttribute(gl, 6, 4, beamStride, 18 * 4)
-    enableInstancedAttribute(gl, 7, 1, beamStride, 22 * 4)
+    enableInstancedAttribute(gl, 7, 4, beamStride, 22 * 4)
+    enableInstancedAttribute(gl, 8, 4, beamStride, 26 * 4)
     gl.bindVertexArray(null)
 
     gl.bindVertexArray(this.apertureVertexArray)
@@ -1636,12 +1832,13 @@ export class LaserDmxWebGLRuntime {
     gl.enableVertexAttribArray(0)
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.apertureInstanceBuffer)
-    const apertureStride = 17 * Float32Array.BYTES_PER_ELEMENT
+    const apertureStride = 21 * Float32Array.BYTES_PER_ELEMENT
     enableInstancedAttribute(gl, 1, 3, apertureStride, 0)
     enableInstancedAttribute(gl, 2, 4, apertureStride, 3 * 4)
     enableInstancedAttribute(gl, 3, 4, apertureStride, 7 * 4)
     enableInstancedAttribute(gl, 4, 2, apertureStride, 11 * 4)
     enableInstancedAttribute(gl, 5, 4, apertureStride, 13 * 4)
+    enableInstancedAttribute(gl, 6, 4, apertureStride, 17 * 4)
     gl.bindVertexArray(null)
 
     gl.bindVertexArray(this.atmosphereVertexArray)
@@ -1687,6 +1884,11 @@ export class LaserDmxWebGLRuntime {
       this.atmosphereProgram,
       'uSourceColorDissipation[0]',
     )
+    this.atmosphereDepthSliceUniform = gl.getUniformLocation(this.atmosphereProgram, 'uDepthSlice')
+    this.atmosphereSourceDynamicsUniform = gl.getUniformLocation(
+      this.atmosphereProgram,
+      'uSourceDynamics[0]',
+    )
     this.foregroundAtmosphereUniform = gl.getUniformLocation(this.foregroundProgram, 'uAtmosphere')
     this.foregroundDriftUniform = gl.getUniformLocation(this.foregroundProgram, 'uDrift')
     this.foregroundTimeSeedUniform = gl.getUniformLocation(this.foregroundProgram, 'uTimeSeed')
@@ -1714,12 +1916,17 @@ export class LaserDmxWebGLRuntime {
       this.foregroundProgram,
       'uSourceColorDissipation[0]',
     )
-    this.compositeRearUniform = gl.getUniformLocation(this.compositeProgram, 'uRearLightTexture')
-    this.compositeFrontUniform = gl.getUniformLocation(this.compositeProgram, 'uFrontLightTexture')
-    this.compositeAtmosphereUniform = gl.getUniformLocation(
-      this.compositeProgram,
-      'uAtmosphereTexture',
+    this.foregroundDepthSliceUniform = gl.getUniformLocation(this.foregroundProgram, 'uDepthSlice')
+    this.foregroundSourceDynamicsUniform = gl.getUniformLocation(
+      this.foregroundProgram,
+      'uSourceDynamics[0]',
     )
+    this.compositeAccumulatedUniform = gl.getUniformLocation(this.compositeProgram, 'uAccumulatedTexture')
+    this.compositeSharpUniform = gl.getUniformLocation(this.compositeProgram, 'uSharpLightTexture')
+    this.compositeCurrentLaserUniform = gl.getUniformLocation(this.compositeProgram, 'uCurrentLaserTexture')
+    this.compositeLaserHistoryUniform = gl.getUniformLocation(this.compositeProgram, 'uLaserHistoryTexture')
+    this.compositeAtmosphereUniform = gl.getUniformLocation(this.compositeProgram, 'uAtmosphereTexture')
+    this.compositeLayerExtinctionUniform = gl.getUniformLocation(this.compositeProgram, 'uLayerExtinction')
     this.temporalCurrentUniform = gl.getUniformLocation(this.temporalProgram, 'uCurrentTexture')
     this.temporalPreviousUniform = gl.getUniformLocation(this.temporalProgram, 'uPreviousTexture')
     this.temporalRetentionUniform = gl.getUniformLocation(this.temporalProgram, 'uRetention')
@@ -1849,10 +2056,11 @@ export class LaserDmxWebGLRuntime {
 
   private disposeGpuResources(): void {
     const gl = this.gl
-    this.disposeRenderTarget(this.rearTarget, 'rear-light')
-    this.disposeRenderTarget(this.frontTarget, 'front-light')
-    this.disposeRenderTarget(this.atmosphereTarget, 'atmosphere')
-    this.disposeRenderTarget(this.hdrCompositeTarget, 'hdr-composite')
+    this.disposeRenderTarget(this.sharpSliceTarget, 'sharp-slice')
+    this.disposeRenderTarget(this.laserSliceTarget, 'laser-slice')
+    this.disposeRenderTarget(this.atmosphereTarget, 'atmosphere-slice')
+    this.disposeRenderTarget(this.compositeTargets[0], 'depth-composite-0')
+    this.disposeRenderTarget(this.compositeTargets[1], 'depth-composite-1')
     this.disposeTemporalTargets()
     this.disposePostTargets()
     try {
@@ -1981,6 +2189,8 @@ export class LaserDmxWebGLRuntime {
     this.postBloomUniforms = []
     this.lastPostPlan = null
     this.lastTemporalPlan = null
+    this.lastLaserHistorySliceCount = 0
+    this.lastTemporalResolutionScale = 0
     this.ledger.release('gpu-core')
   }
 }

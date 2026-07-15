@@ -29,6 +29,11 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   hdrMode: 'rgba16f' | 'rgba8' | 'none'
   bloomLevels: number
   temporalHistoryActive: boolean
+  laserHistoryInputCount: number
+  laserHistorySliceCount: number
+  depthMode: 'continuous-slices' | 'binary-fallback' | 'none'
+  depthSliceCount: number
+  depthBufferStatus: 'slice-accumulation' | 'binary-fallback' | 'inactive'
   fallbackReason: string | null
   contextLossCount: number
   postProcessingStatus: 'inactive' | 'hdr' | 'ldr-fallback'
@@ -56,6 +61,11 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   hdrMode: 'none',
   bloomLevels: 0,
   temporalHistoryActive: false,
+  laserHistoryInputCount: 0,
+  laserHistorySliceCount: 0,
+  depthMode: 'none',
+  depthSliceCount: 0,
+  depthBufferStatus: 'inactive',
   fallbackReason: null,
   contextLossCount: 0,
   postProcessingStatus: 'inactive',
@@ -90,6 +100,11 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.hdrMode,
     value.bloomLevels,
     value.temporalHistoryActive,
+    value.laserHistoryInputCount,
+    value.laserHistorySliceCount,
+    value.depthMode,
+    value.depthSliceCount,
+    value.depthBufferStatus,
     value.fallbackReason,
     value.contextLossCount,
     value.postProcessingStatus,

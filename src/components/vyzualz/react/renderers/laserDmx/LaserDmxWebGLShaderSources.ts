@@ -7,7 +7,8 @@ layout(location = 3) in vec4 iColor;
 layout(location = 4) in vec4 iOptics;
 layout(location = 5) in vec4 iWidths;
 layout(location = 6) in vec4 iExtra;
-layout(location = 7) in float iPrismAmount;
+layout(location = 7) in vec4 iFixture;
+layout(location = 8) in vec4 iPrism;
 uniform vec2 uViewportPx;
 uniform vec2 uCssToBacking;
 out float vAcross;
@@ -16,7 +17,8 @@ out float vBodyRatio;
 flat out vec4 vColor;
 flat out vec4 vOptics;
 flat out vec4 vExtra;
-flat out float vPrismAmount;
+flat out vec4 vFixture;
+flat out vec4 vPrism;
 void main() {
   vec2 originPx = vec2(iOrigin.x * uViewportPx.x, iOrigin.y * uViewportPx.y);
   vec2 targetPx = vec2(iTarget.x * uViewportPx.x, iTarget.y * uViewportPx.y);
@@ -35,7 +37,8 @@ void main() {
   vColor = iColor;
   vOptics = iOptics;
   vExtra = iExtra;
-  vPrismAmount = iPrismAmount;
+  vFixture = iFixture;
+  vPrism = iPrism;
 }`
 
 export const BEAM_FRAGMENT_SHADER = `#version 300 es
@@ -46,8 +49,44 @@ in float vBodyRatio;
 flat in vec4 vColor;
 flat in vec4 vOptics;
 flat in vec4 vExtra;
-flat in float vPrismAmount;
+flat in vec4 vFixture;
+flat in vec4 vPrism;
 out vec4 outColor;
+const float PI = 3.14159265359;
+mat2 rotate2(float angle) {
+  float c = cos(angle);
+  float s = sin(angle);
+  return mat2(c, -s, s, c);
+}
+float sdStar(vec2 p, float points, float innerRadius) {
+  float angle = atan(p.y, p.x);
+  float radius = length(p);
+  float spoke = 0.5 + 0.5 * cos(angle * points);
+  float boundary = mix(innerRadius, 1.0, pow(spoke, 2.4));
+  return 1.0 - smoothstep(boundary - 0.08, boundary + 0.04, radius);
+}
+float goboMask(vec2 p, float pattern, float phase) {
+  if (pattern < 0.5) return 1.0;
+  float radius = length(p);
+  if (pattern < 1.5) return 1.0 - smoothstep(0.72, 0.88, radius);
+  if (pattern < 2.5) {
+    vec2 cells = abs(fract((p + 1.0) * 2.5) - 0.5);
+    return 1.0 - smoothstep(0.18, 0.28, length(cells));
+  }
+  if (pattern < 3.5) return 1.0 - smoothstep(0.2, 0.34, abs(sin((p.x + phase * 0.15) * 10.0)));
+  if (pattern < 4.5) {
+    float triangle = max(abs(p.x) * 0.86 + p.y * 0.5, -p.y);
+    return 1.0 - smoothstep(0.58, 0.72, triangle);
+  }
+  if (pattern < 5.5) return sdStar(p, 5.0, 0.38);
+  if (pattern < 6.5) {
+    float breakup = sin(p.x * 8.0 + phase * 2.0) * sin(p.y * 11.0 - phase * 1.3) + sin((p.x + p.y) * 15.0);
+    return smoothstep(-0.15, 0.42, breakup);
+  }
+  if (pattern < 7.5) return smoothstep(0.15, 0.8, abs(sin(atan(p.y, p.x) * 7.0 + phase))) * (1.0 - smoothstep(0.82, 0.94, radius));
+  vec2 grid = abs(sin((p + phase * 0.035) * 11.0));
+  return max(smoothstep(0.82, 0.96, grid.x), smoothstep(0.82, 0.96, grid.y));
+}
 void main() {
   float lateral = abs(vAcross);
   float intensity = vOptics.x;
@@ -69,29 +108,21 @@ void main() {
     energy += saturated * body * intensity * 0.92;
     energy += paleCore * core * coreIntensity * (0.52 + sourceLift * 0.16);
     energy += vec3(1.0) * hot * intensity * 1.12;
-    float prism = clamp(vPrismAmount, 0.0, 1.0);
-    vec3 spectral = vec3(
-      smoothstep(-0.25, 0.75, vAcross),
-      1.0 - smoothstep(0.2, 0.95, lateral),
-      smoothstep(-0.75, 0.25, -vAcross)
-    );
-    energy += spectral * body * intensity * prism * 0.16;
   } else {
-    float edge = materialMode < 1.5 ? mix(0.72, 0.35, softness) : mix(0.48, 0.18, softness);
+    float iris = clamp(vFixture.z, 0.05, 1.0);
+    float frost = clamp(vFixture.w, 0.0, 1.0);
+    float edge = materialMode < 1.5 ? mix(0.84, 0.3, softness) * iris : mix(0.64, 0.2, softness);
     float cone = 1.0 - smoothstep(edge, 1.0, lateral);
-    float center = exp(-lateral * lateral * mix(7.5, 2.4, softness));
-    float longitudinal = smoothstep(0.0, 0.05, vAlong) * (1.0 - smoothstep(0.94, 1.0, vAlong));
-    float gobo = materialMode < 1.5
-      ? mix(1.0, 0.62 + 0.38 * sin((vAlong * 18.0 + vExtra.y * 6.2831853) * 3.0), clamp(vExtra.y, 0.0, 1.0))
-      : 1.0;
+    float center = exp(-lateral * lateral * mix(8.6, 2.0, softness + frost * 0.5));
+    float longitudinal = smoothstep(0.0, 0.035, vAlong) * (1.0 - smoothstep(0.965, 1.0, vAlong));
+    vec2 projected = rotate2(vFixture.y) * vec2(vAcross / max(0.18, iris), (vAlong - 0.72) * 2.4);
+    float projectedMask = goboMask(projected, vFixture.x, vPrism.w * 6.2831853);
+    float gobo = materialMode < 1.5 ? mix(1.0, projectedMask, clamp(vExtra.y, 0.0, 1.0)) : 1.0;
     float field = cone * longitudinal * gobo;
-    energy = saturated * field * intensity * (materialMode < 1.5 ? 0.72 : 0.46);
-    energy += paleCore * center * field * coreIntensity * (materialMode < 1.5 ? 0.48 : 0.18);
-    energy += saturated * envelope * intensity * (materialMode < 1.5 ? 0.18 : 0.28);
-    if (materialMode < 1.5 && vPrismAmount > 0.001) {
-      float sideLobes = exp(-pow(lateral - 0.34, 2.0) * 72.0) + exp(-pow(lateral - 0.64, 2.0) * 92.0);
-      energy += mix(saturated, paleCore, 0.28) * sideLobes * longitudinal * intensity * vPrismAmount * 0.24;
-    }
+    energy = saturated * field * intensity * (materialMode < 1.5 ? 0.76 : 0.48);
+    energy += (materialMode < 1.5 ? paleCore : saturated)
+      * center * field * coreIntensity * (materialMode < 1.5 ? 0.54 : 0.1);
+    energy += saturated * envelope * intensity * (materialMode < 1.5 ? 0.16 + frost * 0.16 : 0.3);
   }
   outColor = vec4(energy * opacity, 1.0);
 }`
@@ -103,6 +134,7 @@ layout(location = 2) in vec4 iColor;
 layout(location = 3) in vec4 iRadii;
 layout(location = 4) in vec2 iGlareDirection;
 layout(location = 5) in vec4 iShape;
+layout(location = 6) in vec4 iBehavior;
 uniform vec2 uViewportPx;
 uniform vec2 uCssToBacking;
 out vec2 vLocal;
@@ -110,19 +142,25 @@ flat out vec4 vColor;
 flat out vec4 vRadii;
 flat out vec2 vGlareDirection;
 flat out vec4 vShape;
+flat out vec4 vBehavior;
 void main() {
   float backingScale = min(uCssToBacking.x, uCssToBacking.y);
   vec2 centerPx = vec2(iPosition.x * uViewportPx.x, iPosition.y * uViewportPx.y);
   float aspect = max(0.18, iShape.y);
-  vec2 extent = vec2(iRadii.z * aspect, iRadii.z) * backingScale;
-  vec2 positionPx = centerPx + aCorner * extent;
+  vec2 local = aCorner;
+  float c = cos(iBehavior.x);
+  float s = sin(iBehavior.x);
+  vec2 rotated = mat2(c, -s, s, c) * (local * vec2(aspect, 1.0));
+  vec2 extent = rotated * iRadii.z * backingScale;
+  vec2 positionPx = centerPx + extent;
   vec2 clip = vec2(positionPx.x / uViewportPx.x * 2.0 - 1.0, 1.0 - positionPx.y / uViewportPx.y * 2.0);
   gl_Position = vec4(clip, clamp(iPosition.z, -1.0, 1.0), 1.0);
-  vLocal = aCorner;
+  vLocal = local;
   vColor = iColor;
   vRadii = iRadii;
   vGlareDirection = iGlareDirection;
   vShape = iShape;
+  vBehavior = iBehavior;
 }`
 
 export const APERTURE_FRAGMENT_SHADER = `#version 300 es
@@ -132,6 +170,7 @@ flat in vec4 vColor;
 flat in vec4 vRadii;
 flat in vec2 vGlareDirection;
 flat in vec4 vShape;
+flat in vec4 vBehavior;
 out vec4 outColor;
 void main() {
   float shapeMode = vShape.x;
@@ -157,22 +196,39 @@ void main() {
     energy += mix(vColor.rgb, vec3(1.0), 0.48) * glare * intensity;
   } else if (shapeMode < 2.5) {
     float cells = max(1.0, vShape.z);
-    float cell = floor((vLocal.x * 0.5 + 0.5) * cells);
-    float pulse = 0.58 + 0.42 * sin((cell / cells + vShape.w) * 6.2831853);
-    float strip = 1.0 - smoothstep(0.56, 1.0, abs(vLocal.y));
+    float cellUv = (vLocal.x * 0.5 + 0.5) * cells;
+    float cell = floor(cellUv);
+    float localCell = fract(cellUv);
+    float behavior = vBehavior.y;
+    float chaseHead = fract(vShape.w * 0.32);
+    float chaseDistance = abs(fract(cell / cells - chaseHead + 0.5) - 0.5) * 2.0;
+    float chase = exp(-chaseDistance * chaseDistance * 28.0);
+    float segmented = 1.0 - smoothstep(0.42, 0.49, abs(localCell - 0.5));
+    float gradient = 0.45 + 0.55 * (vLocal.x * 0.5 + 0.5);
+    float pixel = behavior < 0.5 ? 1.0 : behavior < 1.5 ? segmented : behavior < 2.5 ? segmented * (0.22 + chase * 0.98) : segmented * gradient;
+    float strip = shapeMode < 1.5
+      ? 1.0 - smoothstep(0.56, 1.0, abs(vLocal.y))
+      : 1.0 - smoothstep(0.72, 1.0, length(vec2(max(abs(vLocal.x) - 0.82, 0.0), vLocal.y)));
     float edgeGlow = exp(-boxDistance * boxDistance * 2.8);
-    energy = vColor.rgb * intensity * (strip * (0.52 + pulse * 0.48) + edgeGlow * 0.18);
+    energy = vColor.rgb * intensity * (strip * pixel + edgeGlow * 0.14);
   } else if (shapeMode < 3.5) {
     float panel = 1.0 - smoothstep(0.72, 1.0, boxDistance);
-    energy = mix(vColor.rgb, vec3(1.0), 0.72) * panel * intensity * 1.25;
+    energy = mix(vColor.rgb, vec3(1.0), 0.78) * panel * intensity * 1.34;
   } else if (shapeMode < 4.5) {
     float warmCore = exp(-radius * radius * 3.1);
-    energy = mix(vColor.rgb, vec3(1.0, 0.78, 0.48), 0.28) * warmCore * intensity * 1.12;
-    energy += vColor.rgb * halo * intensity * 0.32;
+    energy = mix(vColor.rgb, vec3(1.0, 0.78, 0.48), 0.34) * warmCore * intensity * 1.18;
+    energy += vColor.rgb * halo * intensity * 0.38;
   } else if (shapeMode < 5.5) {
     float wall = 1.0 - smoothstep(0.72, 1.0, boxDistance);
-    float scan = 0.92 + 0.08 * sin((vLocal.y + vShape.w) * 48.0);
-    energy = vColor.rgb * wall * scan * intensity * 0.72;
+    float variant = vBehavior.z;
+    float scan = variant < 0.5
+      ? 0.86 + 0.14 * sin((vLocal.y + vShape.w) * 42.0)
+      : variant < 1.5
+        ? 0.55 + 0.45 * sin((vLocal.x * 2.0 + vLocal.y + vShape.w) * 9.0)
+        : variant < 2.5
+          ? 0.72 + 0.28 * sin((vLocal.x + vShape.w) * 24.0) * sin((vLocal.y - vShape.w) * 18.0)
+          : 0.68 + 0.32 * sin((length(vLocal) - vShape.w) * 22.0);
+    energy = vColor.rgb * wall * scan * intensity * 0.78;
   } else {
     float nozzle = exp(-radius * radius * 4.8);
     energy = mix(vColor.rgb, vec3(1.0), 0.6) * nozzle * intensity * 0.46;
@@ -270,28 +326,37 @@ uniform vec4 uAtmosphere;
 uniform vec4 uDrift;
 uniform vec4 uQuality;
 uniform vec2 uTimeSeed;
+uniform vec4 uDepthSlice;
 uniform int uSourceCount;
 uniform vec4 uSourcePositionDensity[MAX_HAZE_SOURCES];
 uniform vec4 uSourceDirectionSpread[MAX_HAZE_SOURCES];
 uniform vec4 uSourceColorDissipation[MAX_HAZE_SOURCES];
+uniform vec4 uSourceDynamics[MAX_HAZE_SOURCES];
 out vec4 outColor;
 ${ATMOSPHERE_NOISE_GLSL}
 float sourceDensity(vec2 uv, float depth, int index, out vec3 sourceColor) {
   vec4 positionDensity = uSourcePositionDensity[index];
   vec4 directionSpread = uSourceDirectionSpread[index];
   vec4 colorDissipation = uSourceColorDissipation[index];
+  vec4 dynamics = uSourceDynamics[index];
   vec2 direction = directionSpread.xy;
   float directionLength = length(direction);
   direction = directionLength > 0.0001 ? direction / directionLength : vec2(0.0, -1.0);
   vec2 delta = uv - positionDensity.xy;
   float along = max(0.0, dot(delta, direction));
   float lateral = length(delta - direction * dot(delta, direction));
-  float spread = max(0.025, directionSpread.z * (0.35 + along * 1.8));
+  float co2 = step(0.5, directionSpread.w);
+  float expansion = dynamics.z;
+  float turbulentWiden = 1.0 + dynamics.w * (0.18 + along * 1.8);
+  float spread = max(0.025, directionSpread.z * (0.35 + along * mix(1.8, 3.4, co2)) * turbulentWiden);
   float plume = exp(-lateral * lateral / (spread * spread));
-  plume *= exp(-along * (1.5 + colorDissipation.a * 2.2));
-  plume *= exp(-abs(depth - positionDensity.z) * (1.8 + colorDissipation.a * 1.4));
+  plume *= exp(-along * mix(1.5 + colorDissipation.a * 2.2, 2.8 + colorDissipation.a * 1.2, co2));
+  float depthPrecision = mix(1.8 + colorDissipation.a * 1.4, 4.2 + expansion * 2.8, co2);
+  plume *= exp(-abs(depth - positionDensity.z) * depthPrecision);
+  float lifecycle = co2 > 0.5 ? smoothstep(0.0, 0.08, dynamics.x / max(dynamics.y, 0.001)) * (1.0 - smoothstep(0.72, 1.0, dynamics.x / max(dynamics.y, 0.001))) : 1.0;
+  float turbulence = co2 * (valueNoise3(vec3(uv * 34.0, uTimeSeed.y * 9.0 + dynamics.x * 2.0)) - 0.5) * dynamics.w;
   sourceColor = colorDissipation.rgb;
-  return plume * positionDensity.w;
+  return plume * positionDensity.w * lifecycle * (1.0 + turbulence * 0.34);
 }
 void main() {
   float lateral = abs(vAcross);
@@ -308,7 +373,7 @@ void main() {
   for (int sampleIndex = 0; sampleIndex < 6; sampleIndex++) {
     if (sampleIndex >= sampleCount) break;
     float sampleT = (float(sampleIndex) + 0.5) / float(sampleCount) - 0.5;
-    float sampleDepth = vClipDepth + sampleT * (0.12 + uDrift.z * 0.12);
+    float sampleDepth = vClipDepth + sampleT * min(uDepthSlice.y, 0.14);
     vec2 warpedUv = vUv + driftDirection * time * (0.018 + sampleDepth * 0.006);
     vec3 p = vec3(warpedUv * uAtmosphere.w * 3.2, sampleDepth * 1.7 + uTimeSeed.y * 11.0 + vDepth.y * 0.7);
     float warp = valueNoise3(p * 0.72 + vec3(time * 0.02, -time * 0.015, 2.4)) - 0.5;
@@ -335,12 +400,12 @@ void main() {
   vec3 sourceTint = sourceWeightSum > 0.0001 ? sourceTintSum / sourceWeightSum : vColor.rgb;
   vec3 lightColor = mix(vColor.rgb, sourceTint, clamp(sourceWeightSum * 0.38, 0.0, 0.48));
   lightColor *= mix(vec3(1.0), normalize(max(lightColor, vec3(0.001))) * 0.82, absorption * 0.28);
-  float alongFade = smoothstep(0.0, 0.025, vAlong) * (1.0 - smoothstep(0.92, 1.0, vAlong));
+  float alongFade = smoothstep(0.0, 0.018, vAlong) * (1.0 - smoothstep(0.95, 1.0, vAlong));
   float scatter = density * beamEnvelope * alongFade * vScatter.x * vScatter.w;
   scatter *= uAtmosphere.y * uQuality.w * (0.72 + uDrift.z * 0.4);
   vec3 energy = lightColor * scatter * mix(1.25, 1.02, vDepth.x);
-  float localRearVeil = clamp(density * beamEnvelope * vDepth.x * uAtmosphere.y * 0.055, 0.0, 0.14);
-  outColor = vec4(energy, localRearVeil);
+  float extinction = 1.0 - exp(-density * beamEnvelope * vDepth.y * uDepthSlice.z * uAtmosphere.y * 0.34);
+  outColor = vec4(energy, clamp(extinction, 0.0, 0.72));
 }`
 
 export const FULLSCREEN_VERTEX_SHADER = `#version 300 es
@@ -358,62 +423,75 @@ in vec2 vUv;
 uniform vec4 uAtmosphere;
 uniform vec4 uDrift;
 uniform vec2 uTimeSeed;
+uniform vec4 uDepthSlice;
 uniform float uForegroundStrength;
 uniform int uNoiseOctaves;
 uniform int uSourceCount;
 uniform vec4 uSourcePositionDensity[MAX_HAZE_SOURCES];
 uniform vec4 uSourceDirectionSpread[MAX_HAZE_SOURCES];
 uniform vec4 uSourceColorDissipation[MAX_HAZE_SOURCES];
+uniform vec4 uSourceDynamics[MAX_HAZE_SOURCES];
 out vec4 outColor;
 ${ATMOSPHERE_NOISE_GLSL}
 float sourceVeil(vec2 uv, int index) {
   vec4 positionDensity = uSourcePositionDensity[index];
   vec4 directionSpread = uSourceDirectionSpread[index];
   vec4 colorDissipation = uSourceColorDissipation[index];
+  vec4 dynamics = uSourceDynamics[index];
   vec2 direction = directionSpread.xy;
   float directionLength = length(direction);
   direction = directionLength > 0.0001 ? direction / directionLength : vec2(0.0, -1.0);
   vec2 delta = uv - positionDensity.xy;
   float along = max(0.0, dot(delta, direction));
   float lateral = length(delta - direction * dot(delta, direction));
-  float spread = max(0.03, directionSpread.z * (0.45 + along * 1.6));
+  float co2 = step(0.5, directionSpread.w);
+  float spread = max(0.03, directionSpread.z * (0.45 + along * mix(1.6, 3.2, co2)) * (1.0 + dynamics.w * 0.35));
+  float depthMatch = exp(-abs(uDepthSlice.x - positionDensity.z) * mix(2.2, 6.0, co2));
+  float lifecycle = co2 > 0.5 ? 1.0 - smoothstep(0.68, 1.0, dynamics.x / max(dynamics.y, 0.001)) : 1.0;
   return exp(-lateral * lateral / (spread * spread))
     * exp(-along * (1.2 + colorDissipation.a * 1.8))
-    * positionDensity.w;
+    * positionDensity.w * depthMatch * lifecycle;
 }
 void main() {
   float angle = uDrift.y * 6.28318530718;
   vec2 driftDirection = vec2(cos(angle), sin(angle));
   float time = uTimeSeed.x * uDrift.x;
   vec2 uv = vUv + driftDirection * time * 0.014;
-  vec3 p = vec3(uv * uAtmosphere.w * 4.1, uTimeSeed.y * 13.0 + time * 0.018);
+  vec3 p = vec3(uv * uAtmosphere.w * 4.1, uDepthSlice.x * 2.0 + uTimeSeed.y * 13.0 + time * 0.018);
   float n = fbm3(p, clamp(uNoiseOctaves, 1, 4));
   float local = 0.0;
   for (int sourceIndex = 0; sourceIndex < MAX_HAZE_SOURCES; sourceIndex++) {
     if (sourceIndex >= uSourceCount) break;
     local += sourceVeil(uv, sourceIndex);
   }
-  float sparse = smoothstep(0.7, 0.94, n + local * 0.24 + uAtmosphere.x * 0.2);
-  float veil = sparse * uForegroundStrength * (0.45 + min(1.0, local) * 0.55);
-  outColor = vec4(0.0, 0.0, 0.0, veil);
+  float sparse = smoothstep(0.72, 0.95, n + local * 0.32 + uAtmosphere.x * 0.18);
+  float sliceScale = clamp(uDepthSlice.y * 2.6, 0.18, 0.72);
+  float veil = sparse * uForegroundStrength * sliceScale * (0.32 + min(1.0, local) * 0.68);
+  outColor = vec4(0.0, 0.0, 0.0, clamp(veil, 0.0, 0.42));
 }`
 
 export const COMPOSITE_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec2 vUv;
-uniform sampler2D uRearLightTexture;
-uniform sampler2D uFrontLightTexture;
+uniform sampler2D uAccumulatedTexture;
+uniform sampler2D uSharpLightTexture;
+uniform sampler2D uCurrentLaserTexture;
+uniform sampler2D uLaserHistoryTexture;
 uniform sampler2D uAtmosphereTexture;
+uniform float uLayerExtinction;
 out vec4 outColor;
 void main() {
+  vec3 behind = max(texture(uAccumulatedTexture, vUv).rgb, vec3(0.0));
+  vec3 sharp = max(texture(uSharpLightTexture, vUv).rgb, vec3(0.0));
+  vec3 currentLaser = max(texture(uCurrentLaserTexture, vUv).rgb, vec3(0.0));
+  vec3 retainedLaser = max(texture(uLaserHistoryTexture, vUv).rgb, vec3(0.0));
+  vec3 laser = max(currentLaser, retainedLaser);
   vec4 atmosphere = texture(uAtmosphereTexture, vUv);
-  vec3 rear = texture(uRearLightTexture, vUv).rgb;
-  vec3 front = texture(uFrontLightTexture, vUv).rgb;
-  float veil = clamp(atmosphere.a, 0.0, 0.82);
-  vec3 light = atmosphere.rgb;
-  light += rear * (1.0 - veil * 0.78);
-  light += front * (1.0 - veil * 0.12);
-  // Deliberately preserve values above display white for the photographic post stack.
+  float extinction = clamp(atmosphere.a * uLayerExtinction, 0.0, 0.88);
+  vec3 layerLight = sharp + laser;
+  vec3 light = behind * (1.0 - extinction);
+  light += layerLight * (1.0 - extinction * 0.1);
+  light += atmosphere.rgb;
   outColor = vec4(max(light, vec3(0.0)), 1.0);
 }`
 

@@ -28,7 +28,9 @@ export function LaserDmxRendererDiagnosticsPanel() {
             <div><dt>CPU Frame</dt><dd>{timing(diagnostics.cpuFrameMs)}</dd></div>
             <div><dt>GPU Frame</dt><dd>{timing(diagnostics.gpuFrameMs)}</dd></div>
             <div><dt>Post</dt><dd>{diagnostics.postProcessingStatus}{diagnostics.bloomLevels ? ` · ${diagnostics.bloomLevels} bloom levels` : ''}</dd></div>
-            <div><dt>History</dt><dd>{diagnostics.temporalHistoryActive ? 'Active' : 'Clear'}</dd></div>
+            <div><dt>Laser History</dt><dd>{diagnostics.temporalHistoryActive ? `Active · ${diagnostics.laserHistoryInputCount} inputs / ${diagnostics.laserHistorySliceCount} slices` : 'Clear'}</dd></div>
+            <div><dt>Depth</dt><dd>{diagnostics.depthMode === 'none' ? 'Canvas2D' : `${diagnostics.depthMode} · ${diagnostics.depthSliceCount} slices`}</dd></div>
+            <div><dt>Depth Buffer</dt><dd>{diagnostics.depthBufferStatus}</dd></div>
             <div><dt>Context Losses</dt><dd>{diagnostics.contextLossCount}</dd></div>
           </dl>
           {diagnostics.fallbackReason && (

@@ -9,7 +9,7 @@ LaserDMX Show Director renders one deterministic lighting scene through either t
 3. Show Director evaluates cues, fixture state, target motion, global output, fog, and blackout authority.
 4. `LaserDmxSceneFrame` captures continuous fixture and target coordinates, inferred or explicit depth, optical primitives, fixture material data, and presentation settings.
 5. The renderer boundary selects WebGL2 or Canvas2D using the saved renderer preference and current runtime capabilities.
-6. WebGL2 renders sharp light, fixture-specific optics, volumetric atmosphere, temporal history, HDR accumulation, bloom, exposure, tone mapping, and the final composite.
+6. WebGL2 depth-segments transparent light, updates laser-only scanner history, accumulates fixture-specific optics and atmosphere from far to near, then applies HDR bloom, exposure, tone mapping, and the final composite.
 7. Canvas2D compiles the same evaluated state through Beam Matrix for compatibility, thumbnails, and safe fallback output.
 8. The completed frame is written to the existing LaserDMX output canvas. Editor overlays are separate React authoring surfaces and are never sampled into Live or Capture output.
 
@@ -29,7 +29,7 @@ The final renderer preserves these non-negotiable rules:
 - Intersections brighten through additive energy accumulation.
 - Haze is visible mainly where lighting reaches it and cannot become a full-frame gray texture.
 - Bloom, glare, and chromatic separation are bounded and intensity gated.
-- Temporal persistence is brief, movement aware, and cleared on discontinuities.
+- Temporal persistence is brief, movement aware, laser-only, and cleared on discontinuities.
 - Live and Capture presentation modes mount no editor overlays.
 
 ## Locked camera and invisible depth
@@ -55,26 +55,26 @@ All rays from one fixture share one projector aperture. Apertures combine a tigh
 Fixture identity is preserved through dedicated materials and geometry:
 
 - **Lasers** use narrow coherent ribbons, projector apertures, controlled divergence, scanner persistence, and coherent fan/bank primitives.
-- **Moving heads** use lens apertures and bounded volumetric cones with focus, spread, rotation, and movement semantics.
-- **Wash and PAR fixtures** use broader soft cones and localized color fields rather than laser-like lines.
-- **Strobes** use short tube or bank geometry with transient-gated white energy and no long persistence.
-- **Blinders** use warm reflector apertures and broad audience-facing bursts.
-- **LED bars and tubes** use discrete cell emitters, strip glow, and fixture-aligned banks.
+- **Moving heads** use lens apertures and depth-segmented projected cones with zoom, iris, frost, hard/soft edge control, hot-center response, analytic gobo masks, authored gobo rotation, deterministic pan/tilt, and bounded 3/5-facet prism copies.
+- **Wash and PAR fixtures** use broader elliptical or conical fields, soft falloff, stable color mixing, and localized haze spill rather than laser-like white cores.
+- **Strobes** use short tube or bank geometry with transient-gated source flashes, atmosphere pulses, exposure impulses, and no long persistence.
+- **Blinders** use larger warm or authored-color reflector apertures, broad atmospheric lift, and a controlled exposure release.
+- **LED bars and tubes** preserve fixture orientation and physical thickness while supporting continuous, segmented-pixel, chase, and gradient behavior with bounded source bloom.
 - **Haze fixtures** contribute invisible local density sources that become visible only under illumination.
-- **CO2 fixtures** use short-lived localized plume volumes with bounded detail and dissipation.
-- **Video-wall-like fixtures** use planar luminous surfaces and restrained spill rather than beam ribbons.
+- **CO2 fixtures** use deterministic directional plumes with rapid expansion, turbulent widening, bounded lifetime, decay, local scatter, and partial depth extinction.
+- **Video-wall-like fixtures** use aspect-preserving emissive surfaces, bounded nearby haze spill, and safe procedural output whenever an authored live source is unavailable.
 
 Adding a future material requires a fixture-kind mapping, bounded instance data, a fallback representation, quality scaling rules, and regression coverage. Adding a future primitive requires deterministic geometry, stable identity, priority-aware ray selection, and a Canvas2D-compatible simplification.
 
 ## Atmosphere
 
-Atmosphere renders in a separate reduced-resolution graph while sharp light remains full resolution. Rear and front sharp-light targets are kept separate. Beam-aligned scattering uses deterministic layered noise, fixture-local haze density, continuous depth, and bounded sample counts. A sparse foreground veil can partially occlude rear light while preserving front beams and current sharp cores.
+Atmosphere renders in a separate reduced-resolution graph while sharp light remains full resolution. The old whole-beam rear/front classification has been replaced by bounded camera-depth slices. Long beams are split only where they cross slice boundaries, then sharp light, local scatter, and extinction are accumulated from far to near. Beam-aligned scattering uses deterministic layered noise, fixture-local haze and CO2 density, continuous projected depth, and bounded sample counts. A sparse foreground veil attenuates only light behind or within the affected depth range while preserving near beams and current sharp cores.
 
 Empty regions remain black because atmosphere is emitted only around active light transport or localized illuminated sources. A small bounded baseline density keeps legacy shows readable, but global fog controls, haze fixtures, blackout, master dimmer, and resolved fixture brightness remain authoritative.
 
 ## Temporal optics
 
-A bounded ping-pong history target sits after the current HDR scene composite and before bloom. Persistence depends on scanner movement, fixture role, pattern, musical state, and quality. Stationary beams remain clean. Current full-resolution light is composited over history so persistence cannot replace the sharp present frame.
+A bounded ping-pong history pair exists only for each history-active depth slice and receives current laser/scanner light before nonlaser fixtures, atmosphere, and final HDR post-processing are combined. Aggregate history resolution is capped to the memory footprint of one legacy full-resolution ping-pong pair, while the current laser core remains full resolution in its own target. Persistence depends on scanner movement, fixture role, pattern, musical state, and quality. Stationary beams remain clean. Moving-head washes, apertures, LEDs, video surfaces, haze, CO2, strobe/blinder exposure, and full-scene bloom never enter history, preventing fog trails, source blobs, and whole-frame afterimages.
 
 Temporal state clears on initial mount, track or preset replacement, rig or Performance Show change, seek, loop wrap, timing discontinuity, quality change, target resize, blackout, capture entry, context restoration, unmount, and disposal. Deterministic instability and haze flutter use stable hashes and canonical audio time. They never use wall-clock randomness.
 
@@ -99,7 +99,7 @@ Auto adaptation is deliberately slow and bounded:
 - Capability ceilings prevent an unsupported upshift.
 - Atmosphere scales before hero beam geometry. Ultra keeps the atmosphere at High by default.
 
-Quality may change volumetric resolution, haze samples, bloom levels, glare detail, temporal-history resolution, support-fixture ray density, CO2 detail, moving-head cone detail, and LED glow quality. It never changes camera state, musical counters, occurrence identity, authored targets, hero-beam priority, or deterministic seeking.
+Quality may change depth slice count (Low 3, Medium 5, High 7, Ultra 9), volumetric resolution, haze samples, bloom levels, glare detail, temporal-history resolution, support-fixture ray density, CO2 detail, moving-head cone detail, prism-copy ceiling, and LED glow quality. Sharp beam-core resolution remains full resolution. It never changes camera state, musical counters, occurrence identity, authored targets, hero-beam priority, or deterministic seeking. When the required multitexture capability is unavailable, WebGL uses a bounded two-layer compatibility mode rather than ordinary opaque depth testing.
 
 ## Renderer selection and fallback
 
@@ -133,7 +133,7 @@ An unavailable float target is not a total renderer failure. WebGL remains activ
 
 ## Diagnostics
 
-The existing Show Director control rail includes a collapsed **Renderer Diagnostics** section. It reports active/requested renderer, presentation mode, WebGL and float-target status, requested/effective quality, render and atmosphere resolutions, haze sample count, active/requested beams, active fixtures, CPU/GPU frame timing, HDR/LDR post state, bloom levels, temporal-history state, fallback reason, and context-loss count.
+The existing Show Director control rail includes a collapsed **Renderer Diagnostics** section. It reports active/requested renderer, presentation mode, WebGL and float-target status, requested/effective quality, render and atmosphere resolutions, haze sample count, active/requested beams, active fixtures, CPU/GPU frame timing, HDR/LDR post state, bloom levels, laser-history input and slice counts, active depth mode and slice count, slice-accumulation status, fallback reason, and context-loss count.
 
 Diagnostics are ephemeral. They are never serialized into projects, presets, or preferences and are cleared when rendering pauses, clears, disposes, or switches away. The diagnostics surface is outside the visualizer canvas, so it cannot contaminate Live or Capture output.
 
@@ -141,7 +141,7 @@ Diagnostics are ephemeral. They are never serialized into projects, presets, or 
 
 Persisted high-level settings include renderer preference, WebGL quality, atmosphere quality, render scale, presentation mode, and authored visual controls. Framebuffers, textures, buffers, shader programs, GPU queries, temporal-history contents, per-frame timings, and fallback counters are runtime-only.
 
-Older saved shows continue to load through normalization. Show Director schema version 12 migrates a missing or obsolete renderer preference to Auto while preserving explicit WebGL2 and Canvas2D choices. Missing scene, depth, camera, material, primitive, atmosphere, temporal, or post fields receive safe defaults. Existing fixture identifiers and Performance Program identities remain unchanged. Static source rigs are cloned before transient performance resolution, so loading or playing a show does not destructively migrate saved fixtures.
+Older saved shows continue to load through normalization. Show Director schema version 13 migrates a missing or obsolete renderer preference to Auto while preserving explicit WebGL2 and Canvas2D choices. Missing scene, depth, camera, material, primitive, atmosphere, temporal, or post fields receive safe defaults. Existing fixture identifiers and Performance Program identities remain unchanged. Static source rigs are cloned before transient performance resolution, so loading or playing a show does not destructively migrate saved fixtures.
 
 ## Debugging WebGL failures
 
@@ -163,7 +163,7 @@ npm run visual:show-director:webgl
 
 The command bundles an offline production-renderer host, launches Chromium through a real WebGL2 context, requests Capture presentation mode, resolves deterministic Performance Show states, and renders through `LaserDmxWebGLRuntime`. Linux uses a headed Chromium session under Xvfb because current ANGLE/SwiftShader builds may not expose WebGL2 in native headless mode. Launch diagnostics record the WebGL version, vendor, renderer, shading-language version, texture limit, HDR/LDR strategy, quality, internal resolutions, active beams, active fixtures, bloom levels, atmosphere samples, and context-loss count.
 
-The portable regression profile renders 480 × 270 output at fixed Medium beam and atmosphere quality. Each case receives four stabilization frames after a temporal reset. Three representative cases also render a second reset-and-replay sequence for deterministic pixel comparison. The 12 cases cover Intro, Build, Drop 1, Breakdown, Drop 2, Outro, coherent fans, a mirrored cage, moving heads and washes, strobe and blinder impact, localized haze and CO2, LED bars and tubes, and a mixed festival rig.
+The portable regression profile renders 480 × 270 output at fixed Medium beam and atmosphere quality. Each case receives four stabilization frames after a temporal reset. Three representative cases also render a second reset-and-replay sequence for deterministic pixel comparison. The 21 cases retain the original section and fixture coverage and add dedicated frames for a beam crossing several depths, foreground haze veiling rear light only, partial CO2 attenuation, laser scanner trails without wash/fog ghosting, moving-head gobo and prism projection, LED pixel chase, video-wall emissive output, and strobe/blinder distinction.
 
 Validation combines screenshots, renderer diagnostics, non-black and black-floor thresholds, luminance and highlight bounds, washed-white limits, compact perceptual fingerprints, left/right energy symmetry, deterministic replay tolerance, fixture-kind coverage, and Live/Capture overlay isolation. Exact whole-frame hashes are intentionally avoided because WebGL output can vary slightly by GPU and driver.
 

@@ -27,6 +27,11 @@ const snapshot = {
   hdrMode: 'rgba16f' as const,
   bloomLevels: 3,
   temporalHistoryActive: true,
+  laserHistoryInputCount: 64,
+  laserHistorySliceCount: 7,
+  depthMode: 'continuous-slices' as const,
+  depthSliceCount: 7,
+  depthBufferStatus: 'slice-accumulation' as const,
   fallbackReason: null,
   contextLossCount: 0,
   postProcessingStatus: 'hdr' as const,
@@ -37,6 +42,7 @@ describe('LaserDmxRendererDiagnosticsStore', () => {
     publishLaserDmxRendererDiagnostics(snapshot, 1_000)
     expect(getLaserDmxRendererDiagnostics().cpuFrameMs).toBe(10.5)
     expect(getLaserDmxRendererDiagnostics().gpuFrameMs).toBe(8.5)
+    expect(getLaserDmxRendererDiagnostics()).toMatchObject({ depthMode: 'continuous-slices', depthSliceCount: 7, laserHistoryInputCount: 64 })
     clearLaserDmxRendererDiagnostics()
     expect(getLaserDmxRendererDiagnostics().activeRenderer).toBe('inactive')
   })

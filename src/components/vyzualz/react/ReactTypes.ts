@@ -741,7 +741,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 12
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 13
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -804,6 +804,7 @@ export type LaserDmxShowDirectorTriggerQuantize = 'none' | 'beat' | 'bar' | 'phr
 export type LaserDmxShowDirectorLedDirection = 'leftToRight' | 'rightToLeft' | 'centerOut' | 'edgesIn' | 'chase'
 export type LaserDmxShowDirectorMovingHeadPanTiltStyle = 'locked' | 'smoothSweep' | 'snap' | 'figureEight' | 'audioReactive'
 export type LaserDmxShowDirectorVideoWallSource = 'placeholder' | 'reactVisual' | 'media' | 'camera'
+export type LaserDmxShowDirectorGoboPattern = 'open' | 'circle' | 'dots' | 'bars' | 'triangle' | 'star' | 'breakup' | 'radial' | 'grid'
 export type LaserDmxShowDirectorMirrorAxis = 'horizontal' | 'vertical'
 export type LaserDmxShowDirectorPresentationMode = 'edit' | 'hybrid' | 'live' | 'capture'
 export type LaserDmxShowDirectorRendererMode = 'canvas2d' | 'webgl' | 'auto'
@@ -945,6 +946,11 @@ export interface LaserDmxShowDirectorOpticsConfig {
   frost: number
   prismFacets: 1 | 3 | 5
   goboAmount: number
+  goboPattern: LaserDmxShowDirectorGoboPattern
+  /** Authored base rotation in degrees. Runtime motion remains transport deterministic. */
+  goboRotation: number
+  /** Authored prism orientation in degrees. */
+  prismRotation: number
 }
 
 export interface LaserDmxShowDirectorGroup {
@@ -1072,6 +1078,9 @@ export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_OPTICS: LaserDmxShowDirectorOpticsC
   frost: 0,
   prismFacets: 1,
   goboAmount: 0,
+  goboPattern: 'open',
+  goboRotation: 0,
+  prismRotation: 0,
 }
 
 function showDirectorRecord(value: unknown): value is Record<string, unknown> {
@@ -1260,6 +1269,19 @@ function coerceShowDirectorMovingHeadPanTiltStyle(value: unknown): LaserDmxShowD
 
 function coerceShowDirectorVideoWallSource(value: unknown): LaserDmxShowDirectorVideoWallSource {
   return value === 'reactVisual' || value === 'media' || value === 'camera' ? value : 'placeholder'
+}
+
+function coerceShowDirectorGoboPattern(value: unknown): LaserDmxShowDirectorGoboPattern {
+  return value === 'circle'
+    || value === 'dots'
+    || value === 'bars'
+    || value === 'triangle'
+    || value === 'star'
+    || value === 'breakup'
+    || value === 'radial'
+    || value === 'grid'
+    ? value
+    : 'open'
 }
 
 function coerceShowDirectorOpticalPrimitiveType(value: unknown): LaserDmxShowDirectorOpticalPrimitiveType {
@@ -1570,6 +1592,9 @@ function normalizeLaserDmxShowDirectorOpticsConfig(
     frost: showDirectorUnit(value.frost, fallback.frost),
     prismFacets: prism >= 5 ? 5 : prism >= 3 ? 3 : 1,
     goboAmount: showDirectorUnit(value.goboAmount, fallback.goboAmount),
+    goboPattern: coerceShowDirectorGoboPattern(value.goboPattern),
+    goboRotation: Math.max(-360, Math.min(360, showDirectorFinite(value.goboRotation, fallback.goboRotation))),
+    prismRotation: Math.max(-360, Math.min(360, showDirectorFinite(value.prismRotation, fallback.prismRotation))),
   }
 }
 

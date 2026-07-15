@@ -4,6 +4,7 @@ import path from 'node:path'
 
 interface WebGLVisualFrame {
   key: string
+  scenario: string
   canvasId: string
   presetId: string
   frameId: string
@@ -23,6 +24,11 @@ interface WebGLVisualFrame {
     activeFixtureCount: number
     bloomLevels: number
     contextLossCount: number
+    laserHistoryInputCount: number
+    laserHistorySliceCount: number
+    depthMode: string
+    depthSliceCount: number
+    depthBufferStatus: string
   }
   pixelMetrics: {
     deterministicReplayChecked: boolean
@@ -89,7 +95,7 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     expect(report?.rendererHost).toBe('production-laser-dmx-webgl-runtime')
     expect(report?.capability.available).toBe(true)
     expect(report?.capability.version).toContain('WebGL 2')
-    expect(report?.frames).toHaveLength(12)
+    expect(report?.frames).toHaveLength(21)
 
     const fingerprints = new Set<string>()
     for (const frame of report!.frames) {
@@ -103,6 +109,9 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
       expect(frame.diagnostics.activeFixtureCount, frame.key).toBeGreaterThan(0)
       expect(frame.diagnostics.contextLossCount, frame.key).toBe(0)
       expect(frame.diagnostics.bloomLevels, frame.key).toBeGreaterThan(0)
+      expect(frame.diagnostics.depthSliceCount, frame.key).toBeGreaterThanOrEqual(2)
+      expect(frame.diagnostics.laserHistorySliceCount, frame.key).toBeLessThanOrEqual(frame.diagnostics.depthSliceCount)
+      expect(['continuous-slices', 'binary-fallback'], frame.key).toContain(frame.diagnostics.depthMode)
       expect(frame.pixelMetrics.blackFrameRatio, frame.key).toBeGreaterThan(0.35)
       const requiresVisibleLight = frame.diagnostics.activeBeamCount > 0
         || frame.activeFixtureKinds.some(kind => ['movingHead', 'parWash', 'strobe', 'blinder', 'ledBar', 'ledTube'].includes(kind))
@@ -123,6 +132,26 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     }
     expect(fingerprints.size).toBeGreaterThanOrEqual(9)
     expect(report!.frames.filter(frame => frame.pixelMetrics.deterministicReplayChecked)).toHaveLength(3)
+
+    const requiredScenarios = [
+      'depth-crossing',
+      'foreground-haze-veil',
+      'co2-partial-attenuation',
+      'laser-only-history',
+      'moving-head-gobo',
+      'moving-head-prism',
+      'led-pixel-chase',
+      'video-wall-emissive',
+      'strobe-blinder-distinction',
+    ]
+    for (const scenario of requiredScenarios) {
+      expect(report!.frames.some(frame => frame.scenario === scenario), `Missing ${scenario} regression state`).toBe(true)
+    }
+    const laserHistory = report!.frames.find(frame => frame.scenario === 'laser-only-history')!
+    expect(laserHistory.diagnostics.laserHistoryInputCount).toBeGreaterThan(0)
+    expect(laserHistory.diagnostics.laserHistorySliceCount).toBeGreaterThan(0)
+    const videoWall = report!.frames.find(frame => frame.scenario === 'video-wall-emissive')!
+    expect(videoWall.activeFixtureKinds).toContain('videoWall')
 
     const mirror = report!.frames.find(frame => frame.key === 'cyan-mirror-cage/drop-1-body')!
     expect(mirror.pixelMetrics.leftRightDifference).toBeLessThan(0.3)

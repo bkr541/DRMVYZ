@@ -140,6 +140,7 @@ export interface LaserDmxSceneAtmosphere {
 
 export interface LaserDmxSceneAtmosphereSource extends LaserDmxSceneSpatialAssignment {
   id: string
+  kind: 'haze' | 'co2'
   fixtureId: string
   position: LaserDmxSceneVec3
   direction: LaserDmxSceneVec3
@@ -147,6 +148,10 @@ export interface LaserDmxSceneAtmosphereSource extends LaserDmxSceneSpatialAssig
   density: number
   spread: number
   dissipation: number
+  ageSec: number
+  lifetimeSec: number
+  expansion: number
+  turbulence: number
   enabled: boolean
 }
 
@@ -698,6 +703,7 @@ function createSceneTransientEvents(input: {
   timingDiscontinuity: boolean
   blackout: boolean
   fixtures: readonly LaserDmxSceneFixture[]
+  atmosphereSources: readonly LaserDmxSceneAtmosphereSource[]
   globalStrobeRate: number
 }): LaserDmxSceneTransientEvent[] {
   const events: LaserDmxSceneTransientEvent[] = []
@@ -736,9 +742,9 @@ function createSceneTransientEvents(input: {
       : maximum,
     0,
   )
-  const co2Strength = input.fixtures.reduce(
-    (maximum, fixture) => fixture.kind === 'co2Jet' && fixture.enabled
-      ? Math.max(maximum, fixture.intensity)
+  const co2Strength = input.atmosphereSources.reduce(
+    (maximum, source) => source.kind === 'co2' && source.enabled
+      ? Math.max(maximum, source.density)
       : maximum,
     0,
   )
@@ -853,6 +859,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       const hazeIntensity = clamp01(fixture.component.hazeIntensity)
       atmosphereSources.push({
         id: `${fixture.id}-haze-source`,
+        kind: 'haze',
         fixtureId: fixture.id,
         position,
         direction: orientation,
@@ -860,6 +867,10 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
         density: fixtureEnabled ? clamp01(fixture.brightness * hazeIntensity) : 0,
         spread: clamp(0.12 + hazeIntensity * 0.42, 0.08, 0.7),
         dissipation: clamp01(evaluated.fog.dissipation * (0.55 + (1 - hazeIntensity) * 0.45)),
+        ageSec: 0,
+        lifetimeSec: Number.POSITIVE_INFINITY,
+        expansion: 0,
+        turbulence: clamp01(evaluated.fog.turbulence),
         enabled: fixtureEnabled && hazeIntensity > 0.001,
         depthZone: fixtureDepth.zoneId,
         depthSource: fixtureDepth.source,
@@ -867,16 +878,28 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     }
     if (fixture.kind === 'co2Jet') {
       const burstDuration = clamp(fixture.component.co2BurstDurationMs / 1000, 0.05, 10)
+      const co2Seed = stableAtmosphereSeed(`${input.trackKey ?? 'track'}:${fixture.semanticKey ?? fixture.id}:${input.occurrenceSeed ?? 0}`)
+      const burstCycle = burstDuration + 0.18
+      const burstAge = ((Math.max(0, input.audioTimeSec) + co2Seed * burstCycle) % burstCycle)
+      const normalizedAge = clamp01(burstAge / burstDuration)
+      const attack = clamp01(burstAge / Math.min(0.12, burstDuration * 0.28))
+      const decay = Math.pow(1 - normalizedAge, 1.35)
+      const plumeEnvelope = attack * decay
       atmosphereSources.push({
         id: `${fixture.id}-co2-source`,
+        kind: 'co2',
         fixtureId: fixture.id,
         position,
-        direction: { x: 0, y: -1, z: -0.08 },
+        direction: orientation,
         color,
-        density: fixtureEnabled ? clamp01(fixture.brightness * (0.82 + Math.min(0.18, burstDuration * 0.08))) : 0,
-        spread: clamp(0.08 + burstDuration * 0.018, 0.08, 0.28),
-        dissipation: clamp01(0.18 + 1 / (1 + burstDuration) * 0.36),
-        enabled: fixtureEnabled && fixture.brightness > 0.001,
+        density: fixtureEnabled ? clamp01(fixture.brightness * plumeEnvelope) : 0,
+        spread: clamp(0.065 + normalizedAge * 0.24 + burstDuration * 0.012, 0.06, 0.36),
+        dissipation: clamp01(0.28 + normalizedAge * 0.5),
+        ageSec: burstAge,
+        lifetimeSec: burstDuration,
+        expansion: normalizedAge,
+        turbulence: clamp01(0.42 + normalizedAge * 0.46),
+        enabled: fixtureEnabled && fixture.brightness > 0.001 && burstAge <= burstDuration && plumeEnvelope > 0.001,
         depthZone: fixtureDepth.zoneId,
         depthSource: fixtureDepth.source,
       })
@@ -991,6 +1014,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     timingDiscontinuity: input.timingDiscontinuity,
     blackout,
     fixtures,
+    atmosphereSources,
     globalStrobeRate: evaluated.output.globalStrobeRate,
   })
 
@@ -1156,7 +1180,9 @@ export function resolveLaserDmxSceneFrameOutput(
       ...source,
       color: fixture?.color ?? source.color,
       density: fixture?.enabled ? clamp01((fixture.intensity ?? 0) * hazeRatio) : 0,
-      dissipation: clamp01(evaluated.fog.dissipation * (0.55 + (1 - hazeRatio) * 0.45)),
+      dissipation: source.kind === 'haze'
+        ? clamp01(evaluated.fog.dissipation * (0.55 + (1 - hazeRatio) * 0.45))
+        : source.dissipation,
       enabled: Boolean(fixture?.enabled && hazeRatio > 0.001),
     }
   })
@@ -1166,6 +1192,7 @@ export function resolveLaserDmxSceneFrameOutput(
     timingDiscontinuity: frame.transport.timingDiscontinuity,
     blackout,
     fixtures,
+    atmosphereSources,
     globalStrobeRate: evaluated.output.globalStrobeRate,
   })
 

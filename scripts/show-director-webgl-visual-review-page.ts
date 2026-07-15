@@ -32,8 +32,21 @@ interface WebGLPixelMetrics {
   fingerprint: string
 }
 
+type WebGLReviewScenario =
+  | 'baseline'
+  | 'depth-crossing'
+  | 'foreground-haze-veil'
+  | 'co2-partial-attenuation'
+  | 'laser-only-history'
+  | 'moving-head-gobo'
+  | 'moving-head-prism'
+  | 'led-pixel-chase'
+  | 'video-wall-emissive'
+  | 'strobe-blinder-distinction'
+
 interface WebGLReviewFrame {
   key: string
+  scenario: WebGLReviewScenario
   canvasId: string
   presetId: string
   presetName: string
@@ -71,7 +84,7 @@ const deterministicReplayKeys = new Set([
   'moving-head-sweep-performance/build',
 ])
 
-const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValidationFrameId }> = [
+const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValidationFrameId; scenario?: WebGLReviewScenario }> = [
   { presetId: 'prism-cathedral', frameId: 'intro' },
   { presetId: 'prism-cathedral', frameId: 'build' },
   { presetId: 'prism-cathedral', frameId: 'drop-1-body' },
@@ -84,6 +97,15 @@ const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValida
   { presetId: 'haze-co2-drops-performance', frameId: 'drop-2-impact' },
   { presetId: 'led-bar-grid-performance', frameId: 'drop-1-body' },
   { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body' },
+  { presetId: 'prism-cathedral', frameId: 'drop-1-body', scenario: 'depth-crossing' },
+  { presetId: 'haze-co2-drops-performance', frameId: 'breakdown', scenario: 'foreground-haze-veil' },
+  { presetId: 'haze-co2-drops-performance', frameId: 'drop-2-impact', scenario: 'co2-partial-attenuation' },
+  { presetId: 'prism-cathedral', frameId: 'build', scenario: 'laser-only-history' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'build', scenario: 'moving-head-gobo' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'drop-2-body', scenario: 'moving-head-prism' },
+  { presetId: 'led-bar-grid-performance', frameId: 'drop-1-body', scenario: 'led-pixel-chase' },
+  { presetId: 'festival-front-beams-performance', frameId: 'breakdown', scenario: 'video-wall-emissive' },
+  { presetId: 'strobe-blinder-hits-performance', frameId: 'drop-2-impact', scenario: 'strobe-blinder-distinction' },
 ]
 
 function capabilityReport(): WebGLCapabilityReport {
@@ -109,14 +131,153 @@ function capabilityReport(): WebGLCapabilityReport {
   }
 }
 
-function stableFrame(frame: LaserDmxSceneFrame, index: number): LaserDmxSceneFrame {
+function applyScenario(
+  frame: LaserDmxSceneFrame,
+  scenario: WebGLReviewScenario,
+  index: number,
+): LaserDmxSceneFrame {
+  if (scenario === 'baseline') return frame
+  if (scenario === 'depth-crossing') {
+    let changed = false
+    return {
+      ...frame,
+      beams: frame.beams.map(beam => {
+        if (changed || beam.fixtureKind !== 'laser') return beam
+        changed = true
+        return {
+          ...beam,
+          origin: { ...beam.origin, z: 0.72 },
+          target: { ...beam.target, z: -0.72 },
+          startDepth: 0.72,
+          endDepth: -0.72,
+          depthRange: { minZ: -0.72, maxZ: 0.72 },
+          sortDepth: 0,
+        }
+      }),
+    }
+  }
+  if (scenario === 'foreground-haze-veil') {
+    return {
+      ...frame,
+      atmosphere: { ...frame.atmosphere, foregroundVeil: 0.92, opacity: Math.max(0.72, frame.atmosphere.opacity) },
+      atmosphereSources: frame.atmosphereSources.map(source => source.kind === 'haze'
+        ? { ...source, position: { ...source.position, z: 0.62 }, density: Math.max(0.72, source.density), spread: Math.max(0.38, source.spread), enabled: true }
+        : source),
+    }
+  }
+  if (scenario === 'co2-partial-attenuation') {
+    return {
+      ...frame,
+      atmosphereSources: frame.atmosphereSources.map(source => source.kind === 'co2'
+        ? { ...source, position: { x: 0.5, y: 0.52, z: 0.05 }, density: 0.95, ageSec: 0.2, lifetimeSec: 0.8, expansion: 0.72, turbulence: 0.8, enabled: true }
+        : source),
+    }
+  }
+  if (scenario === 'laser-only-history') {
+    const sweep = (index - 1.5) * 0.055
+    return {
+      ...frame,
+      beams: frame.beams.map(beam => beam.fixtureKind === 'laser'
+        ? { ...beam, target: { ...beam.target, x: beam.target.x + sweep } }
+        : beam),
+    }
+  }
+  if (scenario === 'moving-head-gobo' || scenario === 'moving-head-prism') {
+    return {
+      ...frame,
+      fixtures: frame.fixtures.map(fixture => fixture.kind === 'movingHead'
+        ? {
+            ...fixture,
+            optics: {
+              ...fixture.optics,
+              goboAmount: scenario === 'moving-head-gobo' ? 0.96 : 0.38,
+              goboPattern: scenario === 'moving-head-gobo' ? 'star' : 'radial',
+              goboRotation: 38,
+              prismFacets: scenario === 'moving-head-prism' ? 5 : 1,
+              prismRotation: 24,
+              zoom: scenario === 'moving-head-prism' ? 0.5 : 0.34,
+              iris: 0.74,
+              frost: scenario === 'moving-head-gobo' ? 0.05 : 0.12,
+            },
+          }
+        : fixture),
+    }
+  }
+  if (scenario === 'led-pixel-chase') {
+    return {
+      ...frame,
+      fixtures: frame.fixtures.map(fixture => fixture.kind === 'ledBar' || fixture.kind === 'ledTube'
+        ? {
+            ...fixture,
+            rotationDeg: fixture.kind === 'ledTube' ? 90 : fixture.rotationDeg,
+            component: { ...fixture.component, ledCellCount: Math.max(12, fixture.component.ledCellCount), ledDirection: 'chase' },
+          }
+        : fixture),
+    }
+  }
+  if (scenario === 'video-wall-emissive') {
+    const fixtureTemplate = frame.fixtures[0]
+    const emitterTemplate = frame.emitters[0]
+    if (!fixtureTemplate || !emitterTemplate) return frame
+    const fixtureId = 'visual-regression-video-wall'
+    const position = { x: 0.5, y: 0.46, z: -0.18 }
+    return {
+      ...frame,
+      fixtures: [
+        ...frame.fixtures,
+        {
+          ...fixtureTemplate,
+          id: fixtureId,
+          semanticKey: fixtureId,
+          kind: 'videoWall',
+          position,
+          rotationDeg: -4,
+          intensity: 0.9,
+          component: { ...fixtureTemplate.component, videoWallBrightness: 0.92, videoWallSource: 'reactVisual' },
+          optics: { ...fixtureTemplate.optics, sourceIntensity: 0.88, opticalSoftness: 0.12 },
+        },
+      ],
+      emitters: [
+        ...frame.emitters,
+        {
+          ...emitterTemplate,
+          id: `${fixtureId}-emitter`,
+          fixtureId,
+          position,
+          sortDepth: -0.18,
+          intensity: 0.9,
+          activeRayCount: 1,
+          totalActiveEnergy: 0.9,
+          peakRayIntensity: 0.9,
+        },
+      ],
+    }
+  }
+  if (scenario === 'strobe-blinder-distinction') {
+    return {
+      ...frame,
+      fixtures: frame.fixtures.map(fixture => fixture.kind === 'strobe'
+        ? { ...fixture, color: { r: 1, g: 1, b: 1, a: 1 }, intensity: 1, strobeRate: 18 }
+        : fixture.kind === 'blinder'
+          ? { ...fixture, color: { r: 1, g: 0.58, b: 0.22, a: 1 }, intensity: 0.88 }
+          : fixture),
+    }
+  }
+  return frame
+}
+
+function stableFrame(
+  frame: LaserDmxSceneFrame,
+  index: number,
+  scenario: WebGLReviewScenario,
+): LaserDmxSceneFrame {
   const delta = 1 / 60
-  return {
+  const stable = {
     ...frame,
     timestamp: frame.timestamp + index * delta,
     deltaTime: delta,
-    quality: { ...frame.quality, qualityTier: 'medium', renderScale: 1 },
-    atmosphere: { ...frame.atmosphere, qualityTier: 'medium' },
+    quality: { ...frame.quality, qualityTier: 'medium' as const, renderScale: 1 },
+    atmosphere: { ...frame.atmosphere, qualityTier: 'medium' as const },
     transport: {
       ...frame.transport,
       audioTimeSec: frame.transport.audioTimeSec + index * delta,
@@ -124,6 +285,7 @@ function stableFrame(frame: LaserDmxSceneFrame, index: number): LaserDmxSceneFra
       timingDiscontinuity: index === 0,
     },
   }
+  return applyScenario(stable, scenario, index)
 }
 
 function fingerprint(data: Uint8ClampedArray, width: number, height: number): string {
@@ -224,11 +386,12 @@ function renderSequence(
   runtime: LaserDmxWebGLRuntime,
   context: CanvasRenderingContext2D,
   frame: LaserDmxSceneFrame,
+  scenario: WebGLReviewScenario,
 ): { image: ImageData; diagnostics: LaserDmxWebGLDiagnostics } {
   runtime.reset()
   let diagnostics: LaserDmxWebGLDiagnostics | undefined
   for (let index = 0; index < 4; index += 1) {
-    const result = runtime.render(stableFrame(frame, index))
+    const result = runtime.render(stableFrame(frame, index, scenario))
     if (!result.ok || !result.diagnostics) throw new Error(result.error ?? 'LaserDMX WebGL frame failed')
     diagnostics = result.diagnostics
   }
@@ -268,11 +431,14 @@ async function main(): Promise<void> {
       const frameDefinition = SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES.find(candidate => candidate.id === item.frameId)
       if (!preset || !frameDefinition) throw new Error(`Missing visual case ${item.presetId}/${item.frameId}`)
       const resolution = resolveShowDirectorVisualValidationFrame(preset, frameDefinition)
-      const key = `${item.presetId}/${item.frameId}`
-      const first = renderSequence(created.runtime, context, resolution.sceneFrame)
+      const scenario = item.scenario ?? 'baseline'
+      const key = scenario === 'baseline'
+        ? `${item.presetId}/${item.frameId}`
+        : `${item.presetId}/${item.frameId}/${scenario}`
+      const first = renderSequence(created.runtime, context, resolution.sceneFrame, scenario)
       const replayChecked = deterministicReplayKeys.has(key)
       const second = replayChecked
-        ? renderSequence(created.runtime, context, resolution.sceneFrame)
+        ? renderSequence(created.runtime, context, resolution.sceneFrame, scenario)
         : first
       const { canvas, canvasId } = makeCard(`${preset.name} · ${item.frameId}`, `${item.presetId}-${item.frameId}`)
       const snapshot = canvas.getContext('2d', { alpha: false })
@@ -280,6 +446,7 @@ async function main(): Promise<void> {
       snapshot.putImageData(first.image, 0, 0)
       summaries.push({
         key,
+        scenario,
         canvasId,
         presetId: item.presetId,
         presetName: preset.name,

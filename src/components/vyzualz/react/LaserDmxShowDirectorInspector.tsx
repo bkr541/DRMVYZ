@@ -13,6 +13,7 @@ import {
   type LaserDmxShowDirectorDepthLayer,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixtureKind,
+  type LaserDmxShowDirectorGoboPattern,
   type LaserDmxShowDirectorLedDirection,
   type LaserDmxShowDirectorMovingHeadPanTiltStyle,
   type LaserDmxShowDirectorOpticalPrimitiveType,
@@ -145,11 +146,29 @@ const MOVING_HEAD_STYLE_OPTIONS: Array<{ value: LaserDmxShowDirectorMovingHeadPa
   { value: 'audioReactive', label: 'Audio reactive' },
 ]
 
+const GOBO_PATTERN_OPTIONS: Array<{ value: LaserDmxShowDirectorGoboPattern; label: string }> = [
+  { value: 'open', label: 'Open' },
+  { value: 'circle', label: 'Circle' },
+  { value: 'dots', label: 'Dots' },
+  { value: 'bars', label: 'Bars' },
+  { value: 'triangle', label: 'Triangle' },
+  { value: 'star', label: 'Star' },
+  { value: 'breakup', label: 'Breakup' },
+  { value: 'radial', label: 'Radial' },
+  { value: 'grid', label: 'Grid' },
+]
+
+const PRISM_FACET_OPTIONS = [
+  { value: '1', label: 'Open / single image' },
+  { value: '3', label: '3-facet prism' },
+  { value: '5', label: '5-facet prism' },
+]
+
 const VIDEO_WALL_SOURCE_OPTIONS: Array<{ value: LaserDmxShowDirectorVideoWallSource; label: string }> = [
-  { value: 'placeholder', label: 'Source placeholder' },
-  { value: 'reactVisual', label: 'React visual placeholder' },
-  { value: 'media', label: 'Media placeholder' },
-  { value: 'camera', label: 'Camera placeholder' },
+  { value: 'placeholder', label: 'Procedural fallback' },
+  { value: 'reactVisual', label: 'React visual' },
+  { value: 'media', label: 'Media' },
+  { value: 'camera', label: 'Camera' },
 ]
 
 const BEAM_FIXTURE_KINDS = new Set<LaserDmxShowDirectorFixtureKind>([
@@ -706,7 +725,23 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
           </>
         )}
         {fixture.kind === 'movingHead' && (
-          <SliderRow label="Gobo texture" value={fixture.optics.goboAmount} min={0} max={1} step={0.01} onChange={goboAmount => update({ optics: { goboAmount: clamp(goboAmount, 0, 1) } })} />
+          <>
+            <SelectRow
+              label="Gobo pattern"
+              value={fixture.optics.goboPattern}
+              options={GOBO_PATTERN_OPTIONS}
+              onChange={goboPattern => update({ optics: { goboPattern: goboPattern as LaserDmxShowDirectorGoboPattern } })}
+              description="Projects a repository-owned analytic mask through the moving-head cone."
+            />
+            <SliderRow label="Gobo amount" value={fixture.optics.goboAmount} min={0} max={1} step={0.01} onChange={goboAmount => update({ optics: { goboAmount: clamp(goboAmount, 0, 1) } })} />
+            <div className="rv-show-director-field-grid">
+              <NumberInputRow label="Gobo rotation" value={fixture.optics.goboRotation} min={-360} max={360} step={1} unit="°" onChange={goboRotation => update({ optics: { goboRotation: clamp(goboRotation, -360, 360) } })} />
+              <SelectRow label="Prism" value={String(fixture.optics.prismFacets)} options={PRISM_FACET_OPTIONS} onChange={value => update({ optics: { prismFacets: value === '5' ? 5 : value === '3' ? 3 : 1 } })} />
+            </div>
+            {fixture.optics.prismFacets > 1 && (
+              <NumberInputRow label="Prism rotation" value={fixture.optics.prismRotation} min={-360} max={360} step={1} unit="°" onChange={prismRotation => update({ optics: { prismRotation: clamp(prismRotation, -360, 360) } })} />
+            )}
+          </>
         )}
 
         <CtrlSection label="Trigger / Timing" />
@@ -789,12 +824,11 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
             <CtrlSection label="Video Wall" />
             <SliderRow label="Wall brightness" value={fixture.component.videoWallBrightness} min={0} max={1} step={0.01} onChange={videoWallBrightness => update({ component: { videoWallBrightness: clamp(videoWallBrightness, 0, 1) } })} />
             <SelectRow
-              label="Source (coming soon)"
+              label="Source"
               value={fixture.component.videoWallSource}
               options={VIDEO_WALL_SOURCE_OPTIONS}
-              onChange={() => undefined}
-              disabled
-              description="Video Wall currently compiles as a layout placeholder panel. Media, camera, and React Visual routing are not wired yet."
+              onChange={videoWallSource => update({ component: { videoWallSource: videoWallSource as LaserDmxShowDirectorVideoWallSource } })}
+              description="WebGL preserves the authored surface aspect and uses a bounded procedural emissive fallback whenever the selected live source is unavailable."
             />
           </>
         )}

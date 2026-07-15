@@ -87,6 +87,35 @@ describe('LaserDMX WebGL beam render plan', () => {
       .toEqual(selected.map(beam => beam.id))
   })
 
+  it('splits one long beam continuously across depth slices without visible topology gaps', () => {
+    const frame = createResolvedFanFrame()
+    const source = frame.beams[0]!
+    const crossing = {
+      ...source,
+      id: 'depth-crossing-beam',
+      origin: { ...source.origin, z: 0.72 },
+      target: { ...source.target, z: -0.72 },
+      startDepth: 0.72,
+      endDepth: -0.72,
+      depthRange: { minZ: -0.72, maxZ: 0.72 },
+      sortDepth: 0,
+    }
+    const plan = buildLaserDmxWebGLBeamRenderPlan({ ...frame, beams: [crossing] }, {
+      backingWidth: 1280,
+      backingHeight: 720,
+      cssWidth: 1280,
+      cssHeight: 720,
+    })
+    const segments = plan.beams.filter(beam => beam.id.startsWith('depth-crossing-beam')).sort((a, b) => a.segmentT0 - b.segmentT0)
+    expect(segments.length).toBeGreaterThan(1)
+    expect(new Set(segments.map(segment => segment.depthSlice)).size).toBeGreaterThan(1)
+    expect(segments[0]?.segmentT0).toBe(0)
+    expect(segments[segments.length - 1]?.segmentT1).toBe(1)
+    for (let index = 1; index < segments.length; index += 1) {
+      expect(segments[index]!.segmentT0).toBeCloseTo(segments[index - 1]!.segmentT1, 6)
+    }
+  })
+
   it('keeps CSS-space beam widths stable across DPR and render-scale backing sizes', () => {
     const frame = createResolvedFanFrame()
     const oneX = buildLaserDmxWebGLBeamRenderPlan(frame, {

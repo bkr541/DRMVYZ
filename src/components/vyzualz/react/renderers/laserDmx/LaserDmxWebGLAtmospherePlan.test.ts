@@ -148,17 +148,18 @@ describe('LaserDMX WebGL atmosphere compilation', () => {
     const { frame } = createAtmosphereFrame({ fogEnabled: true })
     const template = frame.beams[0]!
     frame.beams = [
-      { ...template, id: 'front', sortDepth: 0.7, startDepth: 0.75, endDepth: 0.65, depthRange: { minZ: 0.65, maxZ: 0.75 } },
-      { ...template, id: 'middle', sortDepth: 0, startDepth: 0.1, endDepth: -0.1, depthRange: { minZ: -0.1, maxZ: 0.1 } },
-      { ...template, id: 'rear', sortDepth: -0.62, startDepth: -0.55, endDepth: -0.69, depthRange: { minZ: -0.69, maxZ: -0.55 } },
+      { ...template, id: 'front', origin: { ...template.origin, z: 0.65 }, target: { ...template.target, z: 0.55 } },
+      { ...template, id: 'middle', origin: { ...template.origin, z: 0.05 }, target: { ...template.target, z: -0.05 } },
+      { ...template, id: 'rear', origin: { ...template.origin, z: -0.55 }, target: { ...template.target, z: -0.65 } },
     ]
     const plan = buildLaserDmxWebGLAtmosphereRenderPlan(frame, VIEWPORT)
-    const front = plan.beams.find(beam => beam.id === 'front')!
-    const middle = plan.beams.find(beam => beam.id === 'middle')!
-    const rear = plan.beams.find(beam => beam.id === 'rear')!
+    const front = plan.beams.find(beam => beam.id.startsWith('front-atmosphere'))!
+    const middle = plan.beams.find(beam => beam.id.startsWith('middle-atmosphere'))!
+    const rear = plan.beams.find(beam => beam.id.startsWith('rear-atmosphere'))!
 
-    expect(middle.depthWeight).toBeGreaterThan(front.depthWeight)
-    expect(rear.rearVeilWeight).toBeGreaterThan(front.rearVeilWeight)
+    expect(new Set([front.depthSlice, middle.depthSlice, rear.depthSlice]).size).toBeGreaterThan(1)
+    expect(new Set([front.depthWeight, middle.depthWeight, rear.depthWeight]).size).toBeGreaterThan(1)
+    expect(rear.extinctionWeight).not.toBe(front.extinctionWeight)
     expect(frame.camera.locked).toBe(true)
     expect(frame.camera.controls).toMatchObject({ pan: false, orbit: false, roll: false, animate: false })
   })
@@ -189,11 +190,21 @@ describe('LaserDMX WebGL atmosphere compilation', () => {
     expect(resolveLaserDmxDeterministicAtmosphereTime(later)).toBe(43.125)
   })
 
+  it('falls back to the bounded legacy depth partition when continuous slicing is unavailable', () => {
+    const { frame } = createAtmosphereFrame({ fogEnabled: true, includeHaze: true })
+    const plan = buildLaserDmxWebGLAtmosphereRenderPlan(frame, VIEWPORT, false)
+
+    expect(plan.depthMode).toBe('binary-fallback')
+    expect(plan.sliceCount).toBe(2)
+    expect(plan.depthPolicy.plumePrecision).toBeLessThan(0.3)
+    expect(plan.beams.every(beam => beam.depthSlice === 0 || beam.depthSlice === 1)).toBe(true)
+  })
+
   it('declares beam-volume-only atmosphere and creates no room, wall, floor, ceiling, or venue geometry', () => {
     const { frame } = createAtmosphereFrame({ fogEnabled: true, includeHaze: true })
     const plan = buildLaserDmxWebGLAtmosphereRenderPlan(frame, VIEWPORT)
 
-    expect(plan.geometryMode).toBe('beamVolumesOnly')
+    expect(plan.geometryMode).toBe('depthSlicedBeamVolumes')
     expect(plan.createsVenueGeometry).toBe(false)
     expect(frame.depthZones.every(zone => zone.visible === false)).toBe(true)
   })
