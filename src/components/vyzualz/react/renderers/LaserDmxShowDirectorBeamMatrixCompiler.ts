@@ -33,6 +33,7 @@ import type {
 import type { LaserDmxShowDirectorBeamPriorityRole } from '../LaserDmxShowDirectorPerformanceProgram'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { VzCueMarker } from '../../../../types/cue'
+import { selectDeterministicLaserDmxRayIndices } from './laserDmx/LaserDmxBeamOptics'
 
 export interface CompileLaserDmxShowDirectorToBeamMatrixInput {
   showDirector: LaserDmxShowDirectorState
@@ -880,7 +881,9 @@ function compileBeamFixture(
           ? 2
           : 1
 
-  for (let i = 0; i < count && ctx.outputBeamCount < LASER_DMX_MATRIX_MAX_BEAMS; i++) {
+  const remainingCapacity = Math.max(0, LASER_DMX_MATRIX_MAX_BEAMS - ctx.outputBeamCount)
+  const rayIndices = selectDeterministicLaserDmxRayIndices(count, remainingCapacity)
+  for (const i of rayIndices) {
     const t = count === 1 ? 0.5 : i / (count - 1)
     const fanOffset = count === 1 ? 0 : (t - 0.5) * spread
     const mirrorSign = fixture.beam.targetMode === 'mirror' && i === 1 ? -1 : 1

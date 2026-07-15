@@ -112,4 +112,78 @@ describe('LaserDMX engine-neutral scene frame', () => {
     expect(showDirector).toEqual(before)
     expect(first).toEqual(second)
   })
+
+  it('generates complete optical beam data and keeps Canvas2D compilation compatible', () => {
+    const showDirector = createDefaultLaserDmxShowDirectorState()
+    const fixture = createDefaultLaserDmxShowDirectorFixture('laser', 'optical-laser', 0)
+    fixture.x = 2.375
+    fixture.y = 1.625
+    fixture.brightness = 0.94
+    fixture.beam.targetMode = 'fan'
+    fixture.beam.beamSpread = 45
+    fixture.beam.focus = 0.92
+    fixture.runtimeBeamAppearance = { width: 0.8, divergence: 0.16, glow: 0.78 }
+    showDirector.fixtures = [fixture]
+    showDirector.settings.rendererMode = 'canvas2d'
+    const base = createDefaultLaserDmxBeamMatrixSettings()
+
+    const before = structuredClone(showDirector)
+    const frame = createLaserDmxSceneFrame({
+      showDirector,
+      evaluatedBeamMatrix: base,
+      audioTimeSec: 1,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: null,
+      bpm: 150,
+    })
+    const matrix = compileLaserDmxShowDirectorToBeamMatrix({ showDirector, beamMatrix: base })
+
+    expect(frame.beams[0]).toMatchObject({
+      sourceId: 'optical-laser-emitter',
+      fixtureKind: 'laser',
+      visualRole: 'primary',
+      enabled: true,
+    })
+    expect(frame.beams[0]?.width).toBeGreaterThan(0)
+    expect(frame.beams[0]?.coreIntensity).toBeGreaterThan(0)
+    expect(frame.beams[0]?.scatterEnvelopeWidth).toBeGreaterThan(frame.beams[0]?.width ?? 0)
+    expect(frame.beams.every(beam => beam.pattern.rayCount === frame.beams.length)).toBe(true)
+    expect(matrix.beams).toHaveLength(frame.beams.length)
+    expect(showDirector).toEqual(before)
+  })
+
+  it('caps scene and compatibility output at the same deterministic beam budget', () => {
+    const showDirector = createDefaultLaserDmxShowDirectorState()
+    showDirector.fixtures = Array.from({ length: 40 }, (_, index) => {
+      const fixture = createDefaultLaserDmxShowDirectorFixture('laser', `budget-fan-${index}`, index)
+      fixture.enabled = true
+      fixture.brightness = 1
+      fixture.beam.targetMode = 'fan'
+      fixture.beam.beamSpread = 81
+      return fixture
+    })
+    const base = createDefaultLaserDmxBeamMatrixSettings()
+    const frame = createLaserDmxSceneFrame({
+      showDirector,
+      evaluatedBeamMatrix: base,
+      audioTimeSec: 4,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'budget-track',
+      bpm: 150,
+    })
+    const matrix = compileLaserDmxShowDirectorToBeamMatrix({ showDirector, beamMatrix: base })
+
+    expect(frame.beams).toHaveLength(300)
+    expect(matrix.beams).toHaveLength(300)
+    const partialScene = frame.beams.filter(beam => beam.fixtureId === 'budget-fan-33')
+    const partialMatrix = matrix.beams.filter(beam => beam.id.startsWith('sd-budget-fan-33-'))
+    expect(partialScene.map(beam => beam.pattern.rayIndex)).toEqual([0, 4, 8])
+    expect(partialMatrix.map(beam => beam.id.split('-').slice(-1)[0])).toEqual(['1', '5', '9'])
+    expect(frame.beams.some(beam => beam.fixtureId === 'budget-fan-34')).toBe(false)
+  })
+
 })

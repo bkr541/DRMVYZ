@@ -9,6 +9,23 @@ import type {
   LaserDmxShowDirectorState,
   ReactSectionType,
 } from '../../ReactTypes'
+import { LASER_DMX_MATRIX_MAX_BEAMS } from '../../ReactTypes'
+import {
+  createLaserDmxShowDirectorBeamBudgetReport,
+  estimateLaserDmxShowDirectorFixtureBeamDemand,
+} from '../../LaserDmxShowDirectorBeamBudget'
+import type { LaserDmxShowDirectorBeamPriorityRole } from '../../LaserDmxShowDirectorPerformanceProgram'
+import {
+  createLaserDmxFanRayParameters,
+  LASER_DMX_PRIORITY_ROLE_TO_VISUAL_ROLE,
+  LASER_DMX_VISUAL_ROLE_PRIORITY,
+  resolveLaserDmxBeamOpticalProfile,
+  resolveLaserDmxBeamStructure,
+  selectDeterministicLaserDmxRayIndices,
+  stableLaserDmxPhase,
+  type LaserDmxBeamStructure,
+  type LaserDmxFanSpacingCurve,
+} from './LaserDmxBeamOptics'
 import {
   LASER_DMX_SCENE_DEPTH_ZONES,
   laserDmxDepthSortValue,
@@ -107,10 +124,23 @@ export interface LaserDmxSceneTarget extends LaserDmxSceneSpatialAssignment {
   position: LaserDmxSceneVec3
 }
 
+export interface LaserDmxSceneBeamPattern {
+  structure: LaserDmxBeamStructure
+  spacingCurve: LaserDmxFanSpacingCurve
+  rayIndex: number
+  rayCount: number
+  spacingT: number
+  centerDirection: LaserDmxSceneVec3
+  sharedSourceEnergy: number
+  phase: number
+}
+
 export interface LaserDmxSceneBeam {
   id: string
   fixtureId: string
+  sourceId: string
   targetId: string
+  fixtureKind: LaserDmxShowDirectorFixtureKind
   origin: LaserDmxSceneVec3
   target: LaserDmxSceneVec3
   direction: LaserDmxSceneVec3
@@ -121,9 +151,16 @@ export interface LaserDmxSceneBeam {
   sortDepth: number
   color: LaserDmxSceneColor
   intensity: number
+  coreIntensity: number
   focus: number
   spreadDeg: number
+  width: number
+  divergence: number
+  scatterEnvelopeWidth: number
+  opacity: number
   visualRole: LaserDmxMatrixBeamVisualRole
+  priority: number
+  pattern: LaserDmxSceneBeamPattern
   enabled: boolean
 }
 
@@ -136,6 +173,11 @@ export interface LaserDmxSceneEmitter extends LaserDmxSceneSpatialAssignment {
   color: LaserDmxSceneColor
   intensity: number
   apertureSize: number
+  activeRayCount: number
+  totalActiveEnergy: number
+  peakRayIntensity: number
+  flareSize: number
+  glareDirection: LaserDmxSceneVec3
 }
 
 export interface LaserDmxSceneTransientEvent {
@@ -196,6 +238,8 @@ export interface CreateLaserDmxSceneFrameInput {
   sectionProgress?: number
   energy?: number
   devicePixelRatio?: number
+  fixturePriorityById?: Readonly<Record<string, number>> | null
+  fixturePriorityRoleById?: Readonly<Record<string, LaserDmxShowDirectorBeamPriorityRole>> | null
 }
 
 export const LASER_DMX_FRONT_LOCKED_CAMERA: Readonly<LaserDmxSceneCamera> = Object.freeze({
@@ -277,11 +321,18 @@ function defaultTarget(fixture: LaserDmxShowDirectorFixture, columns: number, ro
   }
 }
 
+interface LaserDmxSceneTargetSeed extends LaserDmxShowDirectorBeamTarget {
+  rayIndex: number
+  rayCount: number
+  spacingT: number
+  spacingCurve: LaserDmxFanSpacingCurve
+}
+
 function authoredTargetsForFixture(
   fixture: LaserDmxShowDirectorFixture,
   columns: number,
   rows: number,
-): LaserDmxShowDirectorBeamTarget[] {
+): LaserDmxSceneTargetSeed[] {
   const fallback = defaultTarget(fixture, columns, rows)
   const raw = Array.isArray(fixture.beam?.targets) && fixture.beam.targets.length > 0
     ? fixture.beam.targets
@@ -297,14 +348,21 @@ function authoredTargetsForFixture(
     x: finite(fixture.beam?.targetX, targets[0]?.x ?? fallback.x),
     y: finite(fixture.beam?.targetY, targets[0]?.y ?? fallback.y),
   }
-  return [primary, ...targets.slice(1)]
+  const resolved = [primary, ...targets.slice(1)]
+  return resolved.map((target, rayIndex) => ({
+    ...target,
+    rayIndex,
+    rayCount: resolved.length,
+    spacingT: resolved.length === 1 ? 0 : rayIndex / (resolved.length - 1) - 0.5,
+    spacingCurve: 'linear',
+  }))
 }
 
 function generatedPatternTargets(
   fixture: LaserDmxShowDirectorFixture,
   columns: number,
   rows: number,
-): LaserDmxShowDirectorBeamTarget[] {
+): LaserDmxSceneTargetSeed[] {
   const maxX = Math.max(1, columns - 1)
   const maxY = Math.max(1, rows - 1)
   const origin = normalizedStagePoint(fixture, columns, rows)
@@ -316,14 +374,11 @@ function generatedPatternTargets(
     : mode === 'cross' || mode === 'mirror'
       ? 2
       : 1
+  const spacingCurve: LaserDmxFanSpacingCurve = 'linear'
+  const rays = createLaserDmxFanRayParameters(count, spread, spacingCurve)
 
-  return Array.from({ length: count }, (_, index) => {
-    const t = count === 1 ? 0.5 : index / (count - 1)
-    const fanOffset = count === 1 ? 0 : (t - 0.5) * spread
-    const symmetricOffset = mode === 'cross' || mode === 'mirror'
-      ? (index === 0 ? -spread * 0.5 : spread * 0.5)
-      : fanOffset
-    const radians = (angle + symmetricOffset) * Math.PI / 180
+  return rays.map(ray => {
+    const radians = (angle + ray.offsetDeg) * Math.PI / 180
     const dx = Math.cos(radians) * 0.62
     const dy = Math.sin(radians) * 0.62
     let visibleScale = 1
@@ -332,9 +387,13 @@ function generatedPatternTargets(
     if (dy > 0) visibleScale = Math.min(visibleScale, (1 - origin.y) / dy)
     if (dy < 0) visibleScale = Math.min(visibleScale, (0 - origin.y) / dy)
     return {
-      id: `${fixture.id}-${mode}-target-${index + 1}`,
+      id: `${fixture.id}-${mode}-target-${ray.index + 1}`,
       x: (origin.x + dx * clamp(visibleScale, 0, 1)) * maxX,
       y: (origin.y + dy * clamp(visibleScale, 0, 1)) * maxY,
+      rayIndex: ray.index,
+      rayCount: count,
+      spacingT: ray.spacingT,
+      spacingCurve,
     }
   })
 }
@@ -343,11 +402,15 @@ function targetsForFixture(
   fixture: LaserDmxShowDirectorFixture,
   columns: number,
   rows: number,
-): LaserDmxShowDirectorBeamTarget[] {
+  allocatedDemand: number,
+): LaserDmxSceneTargetSeed[] {
   const authored = authoredTargetsForFixture(fixture, columns, rows)
   const hasMultipleAuthoredTargets = authored.length > 1
-  if (fixture.beam.targetMode === 'fixed' || hasMultipleAuthoredTargets) return authored
-  return generatedPatternTargets(fixture, columns, rows)
+  const candidates = fixture.beam.targetMode === 'fixed' || hasMultipleAuthoredTargets
+    ? authored
+    : generatedPatternTargets(fixture, columns, rows)
+  const selectedIndices = selectDeterministicLaserDmxRayIndices(candidates.length, allocatedDemand)
+  return selectedIndices.map(index => candidates[index]).filter((target): target is LaserDmxSceneTargetSeed => target != null)
 }
 
 function colorFromHex(value: string, fallback: string): LaserDmxSceneColor {
@@ -381,8 +444,98 @@ function matrixBeamsForFixture(settings: LaserDmxBeamMatrixSettings, fixtureId: 
   return settings.beams.filter(beam => beam.id.startsWith(prefix))
 }
 
-function roleForFixture(fixture: LaserDmxShowDirectorFixture): LaserDmxMatrixBeamVisualRole {
-  return fixture.runtimeBeamVisualRole ?? (fixture.kind === 'laser' ? 'primary' : 'secondary')
+function roleForFixture(
+  fixture: LaserDmxShowDirectorFixture,
+  priorityRoles: Readonly<Record<string, LaserDmxShowDirectorBeamPriorityRole>> | null | undefined,
+): LaserDmxMatrixBeamVisualRole {
+  return fixture.runtimeBeamVisualRole
+    ?? (priorityRoles?.[fixture.id] ? LASER_DMX_PRIORITY_ROLE_TO_VISUAL_ROLE[priorityRoles[fixture.id]] : null)
+    ?? (fixture.kind === 'laser' ? 'primary' : 'secondary')
+}
+
+function createFixtureBeamAllocations(input: CreateLaserDmxSceneFrameInput): Map<string, number> {
+  const fixtures = input.showDirector.fixtures
+  if (input.fixturePriorityById || input.fixturePriorityRoleById) {
+    const report = createLaserDmxShowDirectorBeamBudgetReport(
+      fixtures,
+      input.fixturePriorityRoleById ?? {},
+      LASER_DMX_MATRIX_MAX_BEAMS,
+    )
+    return new Map(report.fixtures.map(item => [item.fixtureId, item.allocatedDemand]))
+  }
+
+  // Static/authored compilation preserves the repository's legacy fixture order.
+  // Performance Shows supply priority maps and therefore use the role-aware path.
+  let remaining = LASER_DMX_MATRIX_MAX_BEAMS
+  return new Map(fixtures.map(fixture => {
+    const demand = estimateLaserDmxShowDirectorFixtureBeamDemand(fixture)
+    const allocated = Math.min(demand, remaining)
+    remaining -= allocated
+    return [fixture.id, allocated]
+  }))
+}
+
+function normalizedDirectionSum(directions: readonly LaserDmxSceneVec3[], fallback: LaserDmxSceneVec3): LaserDmxSceneVec3 {
+  if (directions.length === 0) return fallback
+  const sum = directions.reduce((acc, direction) => ({
+    x: acc.x + direction.x,
+    y: acc.y + direction.y,
+    z: acc.z + direction.z,
+  }), { x: 0, y: 0, z: 0 })
+  const length = Math.hypot(sum.x, sum.y, sum.z)
+  return length > 1e-6
+    ? { x: sum.x / length, y: sum.y / length, z: sum.z / length }
+    : fallback
+}
+
+function applyLaserDmxSourceEnergy(
+  beams: LaserDmxSceneBeam[],
+  emitters: LaserDmxSceneEmitter[],
+): { beams: LaserDmxSceneBeam[]; emitters: LaserDmxSceneEmitter[] } {
+  const activeBySource = new Map<string, LaserDmxSceneBeam[]>()
+  for (const beam of beams) {
+    if (!beam.enabled || beam.intensity <= 0.001) continue
+    const group = activeBySource.get(beam.sourceId) ?? []
+    group.push(beam)
+    activeBySource.set(beam.sourceId, group)
+  }
+
+  const sourceEnergy = new Map<string, number>()
+  for (const [sourceId, sourceBeams] of activeBySource) {
+    sourceEnergy.set(sourceId, sourceBeams.reduce((sum, beam) => sum + beam.intensity * Math.max(0.35, beam.opacity), 0))
+  }
+
+  return {
+    beams: beams.map(beam => ({
+      ...beam,
+      pattern: {
+        ...beam.pattern,
+        sharedSourceEnergy: sourceEnergy.get(beam.sourceId) ?? 0,
+      },
+    })),
+    emitters: emitters.map(emitter => {
+      const sourceBeams = activeBySource.get(emitter.id) ?? []
+      const totalActiveEnergy = sourceEnergy.get(emitter.id) ?? 0
+      const peakRayIntensity = sourceBeams.reduce((peak, beam) => Math.max(peak, beam.intensity), 0)
+      const glareDirection = normalizedDirectionSum(
+        sourceBeams.map(beam => beam.direction),
+        emitter.orientation,
+      )
+      const normalizedEnergy = sourceBeams.length > 0
+        ? clamp(totalActiveEnergy / Math.sqrt(sourceBeams.length), 0, 2.5)
+        : 0
+      return {
+        ...emitter,
+        orientation: glareDirection,
+        glareDirection,
+        activeRayCount: sourceBeams.length,
+        totalActiveEnergy,
+        peakRayIntensity,
+        intensity: normalizedEnergy,
+        flareSize: emitter.apertureSize * (0.72 + Math.sqrt(totalActiveEnergy) * 0.42),
+      }
+    }),
+  }
 }
 
 function depthBounds(fixtures: readonly LaserDmxSceneFixture[], targets: readonly LaserDmxSceneTarget[]): { minZ: number; maxZ: number } {
@@ -403,6 +556,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
   const blackout = evaluated.output.blackout === true
   const selected = new Set(showDirector.selectedFixtureIds)
   if (showDirector.selectedFixtureId) selected.add(showDirector.selectedFixtureId)
+  const allocations = createFixtureBeamAllocations(input)
 
   const fixtures: LaserDmxSceneFixture[] = []
   const targets: LaserDmxSceneTarget[] = []
@@ -424,27 +578,28 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     const fixtureDepth = resolveLaserDmxFixtureDepth(fixture, xy.y)
     const position: LaserDmxSceneVec3 = { ...xy, z: fixtureDepth.z }
     const color = authoredColor
-    const authoredTargets = targetsForFixture(fixture, columns, rows)
-    const resolvedTargets = authoredTargets.map((target, targetIndex) => {
-      const targetXy = normalizedStagePoint(target, columns, rows)
+    const allocatedDemand = allocations.get(fixture.id) ?? 0
+    const targetSeeds = targetsForFixture(fixture, columns, rows, allocatedDemand)
+    const resolvedTargets = targetSeeds.map(seed => {
+      const targetXy = normalizedStagePoint(seed, columns, rows)
       const targetDepth = resolveLaserDmxTargetDepth({
         fixture,
-        target,
-        targetIndex,
+        target: seed,
+        targetIndex: seed.rayIndex,
         origin: position,
         normalizedTarget: targetXy,
       })
       const sceneTarget: LaserDmxSceneTarget = {
-        id: target.id,
+        id: seed.id,
         fixtureId: fixture.id,
         position: { ...targetXy, z: targetDepth.z },
         depthZone: targetDepth.zoneId,
         depthSource: targetDepth.source,
       }
       targets.push(sceneTarget)
-      return sceneTarget
+      return { seed, sceneTarget }
     })
-    const orientation = resolveLaserDmxFixtureOrientation(fixture, position, resolvedTargets[0]?.position)
+    const orientation = resolveLaserDmxFixtureOrientation(fixture, position, resolvedTargets[0]?.sceneTarget.position)
 
     fixtures.push({
       id: fixture.id,
@@ -461,32 +616,66 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       depthSource: fixtureDepth.source,
     })
 
-    if (fixtureEnabled && intensity > 0.001 && BEAM_FIXTURE_KINDS.has(fixture.kind)) {
+    const sourceId = `${fixture.id}-emitter`
+    if (fixtureEnabled && BEAM_FIXTURE_KINDS.has(fixture.kind)) {
+      const apertureSize = fixture.kind === 'laser' ? 1 : fixture.kind === 'movingHead' ? 1.4 : 1.8
       emitters.push({
-        id: `${fixture.id}-emitter`,
+        id: sourceId,
         fixtureId: fixture.id,
         position,
         orientation,
         sortDepth: position.z,
         color,
-        intensity,
-        apertureSize: fixture.kind === 'laser' ? 1 : fixture.kind === 'movingHead' ? 1.4 : 1.8,
+        intensity: 0,
+        apertureSize,
+        activeRayCount: 0,
+        totalActiveEnergy: 0,
+        peakRayIntensity: 0,
+        flareSize: apertureSize,
+        glareDirection: orientation,
         depthZone: fixtureDepth.zoneId,
         depthSource: fixtureDepth.source,
       })
     }
 
-    if (!fixture.beam?.beamEnabled || !BEAM_FIXTURE_KINDS.has(fixture.kind)) continue
+    if (!fixture.beam?.beamEnabled || !BEAM_FIXTURE_KINDS.has(fixture.kind) || resolvedTargets.length === 0) continue
+    const visualRole = roleForFixture(fixture, input.fixturePriorityRoleById)
+    const priority = input.fixturePriorityById?.[fixture.id] ?? LASER_DMX_VISUAL_ROLE_PRIORITY[visualRole]
+    const directions = resolvedTargets.map(({ sceneTarget }) => normalizeLaserDmxDirection(position, sceneTarget.position))
+    const centerDirection = normalizedDirectionSum(directions, orientation)
+    const distinctDepthPlanes = new Set(resolvedTargets.map(({ sceneTarget }) => sceneTarget.position.z.toFixed(4))).size
+    const structure = resolveLaserDmxBeamStructure({
+      targetMode: fixture.beam.targetMode,
+      spreadDeg: fixture.beam.beamSpread,
+      rayCount: resolvedTargets.length,
+      distinctDepthPlanes,
+      semanticKey: fixture.semanticKey,
+    })
+    const appearance = fixture.runtimeBeamAppearance ?? {}
+
     for (let index = 0; index < resolvedTargets.length; index += 1) {
-      const target = resolvedTargets[index]
+      const { seed, sceneTarget: target } = resolvedTargets[index]
       const enabled = fixtureEnabled
       const beamIntensity = enabled ? clamp01(fixture.brightness) : 0
-      const direction = normalizeLaserDmxDirection(position, target.position)
+      const direction = directions[index] ?? centerDirection
       const depthRange = resolveLaserDmxDepthRange(position, target.position)
+      const optical = resolveLaserDmxBeamOpticalProfile({
+        fixtureKind: fixture.kind,
+        intensity: beamIntensity,
+        focus: clamp01(fixture.beam.focus),
+        spreadDeg: clamp(finite(fixture.beam.beamSpread, 0), 0, 180),
+        width: appearance.width,
+        divergence: appearance.divergence,
+        glow: appearance.glow,
+        opacity: color.a,
+        visualRole,
+      })
       beams.push({
-        id: `${fixture.id}-beam-${index + 1}`,
+        id: `${fixture.id}-beam-${seed.rayIndex + 1}`,
         fixtureId: fixture.id,
+        sourceId,
         targetId: target.id,
+        fixtureKind: fixture.kind,
         origin: position,
         target: target.position,
         direction,
@@ -501,14 +690,31 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
         sortDepth: laserDmxDepthSortValue(position, target.position),
         color,
         intensity: beamIntensity,
+        coreIntensity: optical.coreIntensity,
         focus: clamp01(fixture.beam.focus),
         spreadDeg: clamp(finite(fixture.beam.beamSpread, 0), 0, 180),
-        visualRole: roleForFixture(fixture),
+        width: optical.width,
+        divergence: optical.divergence,
+        scatterEnvelopeWidth: optical.scatterEnvelopeWidth,
+        opacity: optical.opacity,
+        visualRole,
+        priority,
+        pattern: {
+          structure,
+          spacingCurve: seed.spacingCurve,
+          rayIndex: seed.rayIndex,
+          rayCount: seed.rayCount,
+          spacingT: seed.spacingT,
+          centerDirection,
+          sharedSourceEnergy: 0,
+          phase: stableLaserDmxPhase(`${fixture.id}:${seed.rayIndex}:${seed.rayCount}`),
+        },
         enabled,
       })
     }
   }
 
+  const energized = applyLaserDmxSourceEnergy(beams, emitters)
   const transientEvents: LaserDmxSceneTransientEvent[] = []
   if (input.timingDiscontinuity) {
     transientEvents.push({ id: `timing-${input.audioTimeSec.toFixed(4)}`, kind: 'timingDiscontinuity', strength: 1 })
@@ -545,13 +751,13 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     depthZones: LASER_DMX_SCENE_DEPTH_ZONES,
     depthOrdering: {
       bounds: depthBounds(fixtures, targets),
-      frontToBackBeamIds: stableLaserDmxDepthOrder(beams, 'frontToBack'),
-      backToFrontBeamIds: stableLaserDmxDepthOrder(beams, 'backToFront'),
+      frontToBackBeamIds: stableLaserDmxDepthOrder(energized.beams, 'frontToBack'),
+      backToFrontBeamIds: stableLaserDmxDepthOrder(energized.beams, 'backToFront'),
     },
     fixtures,
     targets,
-    beams,
-    emitters,
+    beams: energized.beams,
+    emitters: energized.emitters,
     transientEvents,
     quality: {
       devicePixelRatio: clamp(finite(input.devicePixelRatio, 1), 0.5, 4),
@@ -601,13 +807,34 @@ export function resolveLaserDmxSceneFrameOutput(
     const matrixBeam = matrixBeams[index] ?? matrixBeams[0]
     const fixture = fixtureById.get(beam.fixtureId)
     const enabled = Boolean(fixture?.enabled && (matrixBeam?.enabled ?? beam.enabled) && (matrixBeam?.appearance.shutterOpen ?? true))
+    const intensity = enabled ? clamp01((matrixBeam?.appearance.dimmer ?? beam.intensity) * masterDimmer) : 0
+    const focus = clamp01(matrixBeam?.appearance.focus ?? beam.focus)
+    const visualRole = matrixBeam?.visualRole ?? beam.visualRole
+    const color = colorFromMatrix(matrixBeam?.color, fixture?.color ?? beam.color)
+    const optical = resolveLaserDmxBeamOpticalProfile({
+      fixtureKind: beam.fixtureKind,
+      intensity,
+      focus,
+      spreadDeg: beam.spreadDeg,
+      width: matrixBeam?.appearance.width ?? beam.width,
+      divergence: matrixBeam?.appearance.divergence ?? beam.divergence,
+      glow: matrixBeam?.appearance.glow ?? Math.min(1, beam.scatterEnvelopeWidth / 6),
+      opacity: color.a,
+      visualRole,
+    })
     return {
       ...beam,
       id: matrixBeam?.id ?? beam.id,
-      color: colorFromMatrix(matrixBeam?.color, fixture?.color ?? beam.color),
-      intensity: enabled ? clamp01((matrixBeam?.appearance.dimmer ?? beam.intensity) * masterDimmer) : 0,
-      focus: clamp01(matrixBeam?.appearance.focus ?? beam.focus),
-      visualRole: matrixBeam?.visualRole ?? beam.visualRole,
+      color,
+      intensity,
+      coreIntensity: optical.coreIntensity,
+      focus,
+      width: optical.width,
+      divergence: optical.divergence,
+      scatterEnvelopeWidth: optical.scatterEnvelopeWidth,
+      opacity: optical.opacity,
+      visualRole,
+      priority: LASER_DMX_VISUAL_ROLE_PRIORITY[visualRole],
       enabled,
     }
   })
@@ -616,9 +843,9 @@ export function resolveLaserDmxSceneFrameOutput(
     return {
       ...emitter,
       color: fixture?.color ?? emitter.color,
-      intensity: fixture?.intensity ?? 0,
     }
   })
+  const energized = applyLaserDmxSourceEnergy(beams, emitters)
   const transientEvents = frame.transientEvents.filter(event => event.kind !== 'blackout')
   if (blackout) transientEvents.push({ id: `blackout-${frame.timestamp.toFixed(4)}`, kind: 'blackout', strength: 1 })
 
@@ -633,12 +860,12 @@ export function resolveLaserDmxSceneFrameOutput(
     },
     depthOrdering: {
       ...frame.depthOrdering,
-      frontToBackBeamIds: stableLaserDmxDepthOrder(beams, 'frontToBack'),
-      backToFrontBeamIds: stableLaserDmxDepthOrder(beams, 'backToFront'),
+      frontToBackBeamIds: stableLaserDmxDepthOrder(energized.beams, 'frontToBack'),
+      backToFrontBeamIds: stableLaserDmxDepthOrder(energized.beams, 'backToFront'),
     },
     fixtures,
-    beams,
-    emitters,
+    beams: energized.beams,
+    emitters: energized.emitters,
     transientEvents,
     output: {
       blackout,

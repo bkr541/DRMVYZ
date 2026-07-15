@@ -2,7 +2,11 @@ import { resolveCanvasResolution, type CanvasResolution } from '../../rendering/
 import { ShaderWebGLRuntime } from '../../shaders/runtime/ShaderWebGLRuntime'
 import type { WebGLContextDisposalMode } from '../../shaders/runtime/WebGLContextLifecycle'
 import type { LaserDmxSceneFrame } from './LaserDmxSceneFrame'
-import { laserDmxDepthSegmentVisible, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
+import {
+  buildLaserDmxWebGLBeamRenderPlan,
+  type LaserDmxWebGLApertureInstance,
+  type LaserDmxWebGLBeamInstance,
+} from './LaserDmxWebGLBeamPlan'
 
 export interface LaserDmxWebGLRenderResult {
   ok: boolean
@@ -47,33 +51,137 @@ export class LaserDmxWebGLContextState {
   }
 }
 
-const VERTEX_SHADER = `#version 300 es
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec4 aColor;
-uniform float uPointSize;
-out vec4 vColor;
+const BEAM_VERTEX_SHADER = `#version 300 es
+layout(location = 0) in vec2 aCorner;
+layout(location = 1) in vec3 iOrigin;
+layout(location = 2) in vec3 iTarget;
+layout(location = 3) in vec4 iColor;
+layout(location = 4) in vec4 iOptics;
+layout(location = 5) in vec4 iWidths;
+layout(location = 6) in vec2 iExtra;
+uniform vec2 uViewportPx;
+uniform vec2 uCssToBacking;
+out float vAcross;
+out float vAlong;
+out float vBodyRatio;
+flat out vec4 vColor;
+flat out vec4 vOptics;
+flat out vec2 vExtra;
 void main() {
-  vec2 clip = vec2(aPosition.x * 2.0 - 1.0, 1.0 - aPosition.y * 2.0);
-  gl_Position = vec4(clip, clamp(aPosition.z, -1.0, 1.0), 1.0);
-  gl_PointSize = uPointSize;
-  vColor = aColor;
+  vec2 originPx = vec2(iOrigin.x * uViewportPx.x, iOrigin.y * uViewportPx.y);
+  vec2 targetPx = vec2(iTarget.x * uViewportPx.x, iTarget.y * uViewportPx.y);
+  vec2 delta = targetPx - originPx;
+  float segmentLength = max(length(delta), 0.0001);
+  vec2 normal = vec2(-delta.y, delta.x) / segmentLength;
+  float along = aCorner.x;
+  float envelopeCssPx = mix(iWidths.z, iWidths.w, along);
+  float backingScale = min(uCssToBacking.x, uCssToBacking.y);
+  vec2 positionPx = mix(originPx, targetPx, along) + normal * aCorner.y * envelopeCssPx * backingScale * 0.5;
+  vec2 clip = vec2(positionPx.x / uViewportPx.x * 2.0 - 1.0, 1.0 - positionPx.y / uViewportPx.y * 2.0);
+  gl_Position = vec4(clip, clamp(mix(iOrigin.z, iTarget.z, along), -1.0, 1.0), 1.0);
+  vAcross = aCorner.y;
+  vAlong = along;
+  vBodyRatio = mix(iWidths.x / max(iWidths.z, 0.001), iWidths.y / max(iWidths.w, 0.001), along);
+  vColor = iColor;
+  vOptics = iOptics;
+  vExtra = iExtra;
 }`
 
-const FRAGMENT_SHADER = `#version 300 es
+const BEAM_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
-in vec4 vColor;
-uniform bool uRoundPoint;
+in float vAcross;
+in float vAlong;
+in float vBodyRatio;
+flat in vec4 vColor;
+flat in vec4 vOptics;
+flat in vec2 vExtra;
 out vec4 outColor;
 void main() {
-  if (uRoundPoint) {
-    vec2 p = gl_PointCoord * 2.0 - 1.0;
-    float radius = length(p);
-    if (radius > 1.0) discard;
-    float falloff = smoothstep(1.0, 0.08, radius);
-    outColor = vec4(vColor.rgb * (1.0 + falloff * 0.8), vColor.a * falloff);
-    return;
-  }
-  outColor = vColor;
+  float lateral = abs(vAcross);
+  float intensity = vOptics.x;
+  float coreIntensity = vOptics.y;
+  float hotMix = vOptics.z;
+  float opacity = vOptics.w;
+  float envelope = exp(-lateral * lateral * 4.8) * vExtra.x;
+  float body = 1.0 - smoothstep(max(0.015, vBodyRatio * 0.58), max(0.025, vBodyRatio), lateral);
+  float core = 1.0 - smoothstep(max(0.006, vBodyRatio * 0.10), max(0.012, vBodyRatio * 0.28), lateral);
+  float hot = (1.0 - smoothstep(max(0.002, vBodyRatio * 0.018), max(0.006, vBodyRatio * 0.075), lateral)) * hotMix;
+  float sourceLift = 1.0 - smoothstep(0.0, 0.12, vAlong);
+  vec3 saturated = vColor.rgb;
+  vec3 paleCore = mix(saturated, vec3(1.0), 0.08 + hotMix * 0.46);
+  vec3 energy = saturated * envelope * intensity * 0.42;
+  energy += saturated * body * intensity * 0.92;
+  energy += paleCore * core * coreIntensity * (0.52 + sourceLift * 0.16);
+  energy += vec3(1.0) * hot * intensity * 1.12;
+  outColor = vec4(energy * opacity, 1.0);
+}`
+
+const APERTURE_VERTEX_SHADER = `#version 300 es
+layout(location = 0) in vec2 aCorner;
+layout(location = 1) in vec3 iPosition;
+layout(location = 2) in vec4 iColor;
+layout(location = 3) in vec4 iRadii;
+layout(location = 4) in vec2 iGlareDirection;
+uniform vec2 uViewportPx;
+uniform vec2 uCssToBacking;
+out vec2 vLocal;
+flat out vec4 vColor;
+flat out vec4 vRadii;
+flat out vec2 vGlareDirection;
+void main() {
+  float backingScale = min(uCssToBacking.x, uCssToBacking.y);
+  vec2 centerPx = vec2(iPosition.x * uViewportPx.x, iPosition.y * uViewportPx.y);
+  vec2 positionPx = centerPx + aCorner * iRadii.z * backingScale;
+  vec2 clip = vec2(positionPx.x / uViewportPx.x * 2.0 - 1.0, 1.0 - positionPx.y / uViewportPx.y * 2.0);
+  gl_Position = vec4(clip, clamp(iPosition.z, -1.0, 1.0), 1.0);
+  vLocal = aCorner;
+  vColor = iColor;
+  vRadii = iRadii;
+  vGlareDirection = iGlareDirection;
+}`
+
+const APERTURE_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vLocal;
+flat in vec4 vColor;
+flat in vec4 vRadii;
+flat in vec2 vGlareDirection;
+out vec4 outColor;
+void main() {
+  float radius = length(vLocal);
+  if (radius > 1.0) discard;
+  float coreRatio = clamp(vRadii.x / max(vRadii.z, 0.001), 0.02, 0.9);
+  float ringRatio = clamp(vRadii.y / max(vRadii.z, 0.001), coreRatio, 0.96);
+  float intensity = vRadii.w;
+  float core = exp(-pow(radius / max(coreRatio, 0.001), 2.0) * 3.6);
+  float ring = (1.0 - smoothstep(ringRatio * 0.72, ringRatio, radius)) * smoothstep(coreRatio * 0.88, coreRatio * 1.42, radius);
+  float halo = exp(-radius * radius * 4.2);
+  vec2 localDirection = radius > 0.0001 ? vLocal / radius : vec2(1.0, 0.0);
+  float glareAxis = abs(dot(localDirection, normalize(vGlareDirection)));
+  float glare = pow(glareAxis, 22.0) * exp(-radius * 5.8) * 0.12;
+  vec3 energy = vColor.rgb * halo * intensity * 0.18;
+  energy += vColor.rgb * ring * intensity * 0.34;
+  energy += mix(vColor.rgb, vec3(1.0), 0.7) * core * intensity * 0.92;
+  energy += mix(vColor.rgb, vec3(1.0), 0.48) * glare * intensity;
+  outColor = vec4(energy, 1.0);
+}`
+
+const COMPOSITE_VERTEX_SHADER = `#version 300 es
+out vec2 vUv;
+void main() {
+  vec2 position = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  vUv = position;
+  gl_Position = vec4(position * 2.0 - 1.0, 0.0, 1.0);
+}`
+
+const COMPOSITE_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uLightTexture;
+out vec4 outColor;
+void main() {
+  vec3 light = texture(uLightTexture, vUv).rgb;
+  outColor = vec4(clamp(light, 0.0, 1.0), 1.0);
 }`
 
 function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
@@ -89,9 +197,9 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
   return shader
 }
 
-function createProgram(gl: WebGL2RenderingContext): WebGLProgram {
-  const vertex = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER)
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER)
+function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram {
+  const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSource)
+  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource)
   const program = gl.createProgram()
   if (!program) {
     gl.deleteShader(vertex)
@@ -109,6 +217,18 @@ function createProgram(gl: WebGL2RenderingContext): WebGLProgram {
     throw new Error(message)
   }
   return program
+}
+
+function enableInstancedAttribute(
+  gl: WebGL2RenderingContext,
+  location: number,
+  size: number,
+  strideBytes: number,
+  offsetBytes: number,
+): void {
+  gl.enableVertexAttribArray(location)
+  gl.vertexAttribPointer(location, size, gl.FLOAT, false, strideBytes, offsetBytes)
+  gl.vertexAttribDivisor(location, 1)
 }
 
 export class LaserDmxWebGLRuntime {
@@ -143,12 +263,26 @@ export class LaserDmxWebGLRuntime {
   }
 
   private readonly gl: WebGL2RenderingContext
-  private program: WebGLProgram | null = null
-  private vertexArray: WebGLVertexArrayObject | null = null
-  private positionBuffer: WebGLBuffer | null = null
-  private colorBuffer: WebGLBuffer | null = null
-  private pointSizeUniform: WebGLUniformLocation | null = null
-  private roundPointUniform: WebGLUniformLocation | null = null
+  private beamProgram: WebGLProgram | null = null
+  private apertureProgram: WebGLProgram | null = null
+  private compositeProgram: WebGLProgram | null = null
+  private beamVertexArray: WebGLVertexArrayObject | null = null
+  private apertureVertexArray: WebGLVertexArrayObject | null = null
+  private compositeVertexArray: WebGLVertexArrayObject | null = null
+  private beamQuadBuffer: WebGLBuffer | null = null
+  private beamInstanceBuffer: WebGLBuffer | null = null
+  private apertureQuadBuffer: WebGLBuffer | null = null
+  private apertureInstanceBuffer: WebGLBuffer | null = null
+  private lightFramebuffer: WebGLFramebuffer | null = null
+  private lightTexture: WebGLTexture | null = null
+  private lightTargetWidth = 0
+  private lightTargetHeight = 0
+  private floatLightTarget = false
+  private beamViewportUniform: WebGLUniformLocation | null = null
+  private beamCssToBackingUniform: WebGLUniformLocation | null = null
+  private apertureViewportUniform: WebGLUniformLocation | null = null
+  private apertureCssToBackingUniform: WebGLUniformLocation | null = null
+  private compositeTextureUniform: WebGLUniformLocation | null = null
   private lastResolution: CanvasResolution | null = null
   private disposed = false
 
@@ -174,28 +308,44 @@ export class LaserDmxWebGLRuntime {
       if (this.lifecycle.consumeRestore()) this.rebuildGpuResources()
       this.resize(frame)
       const frameState = this.runtime.beginFrame()
-      if (!frameState || !this.program || !this.vertexArray) {
+      const resolution = this.lastResolution
+      if (!frameState || !resolution || !this.beamProgram || !this.apertureProgram || !this.compositeProgram) {
         return { ok: false, error: 'LaserDMX WebGL frame could not begin', recoverable: true }
+      }
+      this.ensureLightTarget(frameState.dims.W, frameState.dims.H)
+      if (!this.lightFramebuffer || !this.lightTexture) {
+        return { ok: false, error: 'LaserDMX light accumulation target unavailable', recoverable: true }
       }
 
       const gl = this.gl
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      const viewport = {
+        backingWidth: frameState.dims.W,
+        backingHeight: frameState.dims.H,
+        cssWidth: resolution.cssWidth,
+        cssHeight: resolution.cssHeight,
+      }
+      const plan = buildLaserDmxWebGLBeamRenderPlan(frame, viewport)
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.lightFramebuffer)
       gl.viewport(0, 0, frameState.dims.W, frameState.dims.H)
       gl.disable(gl.DEPTH_TEST)
       gl.disable(gl.CULL_FACE)
       gl.enable(gl.BLEND)
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
-      gl.clearColor(0, 0, 0, 1)
+      gl.blendFunc(gl.ONE, gl.ONE)
+      gl.clearColor(0, 0, 0, 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
 
       if (!frame.output.blackout) {
-        gl.useProgram(this.program)
-        gl.bindVertexArray(this.vertexArray)
-        this.drawBeams(frame)
-        this.drawEmitters(frame)
-        gl.bindVertexArray(null)
+        this.drawBeamInstances(plan.beams, viewport)
+        this.drawApertureInstances(plan.apertures, viewport)
       }
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      gl.viewport(0, 0, frameState.dims.W, frameState.dims.H)
       gl.disable(gl.BLEND)
+      gl.clearColor(0, 0, 0, 1)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+      this.drawComposite()
       this.runtime.endFrame()
 
       const outCanvas = this.outputContext.canvas
@@ -219,6 +369,13 @@ export class LaserDmxWebGLRuntime {
   reset(): void {
     if (this.disposed || this.contextLost) return
     try {
+      const gl = this.gl
+      if (this.lightFramebuffer) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.lightFramebuffer)
+        gl.clearColor(0, 0, 0, 0)
+        gl.clear(gl.COLOR_BUFFER_BIT)
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
       this.runtime.clearViewport(0, 0, 0, 1)
       this.runtime.endFrame()
     } catch {
@@ -237,8 +394,7 @@ export class LaserDmxWebGLRuntime {
 
   handleContextRestored(): void {
     if (this.disposed) return
-    // ShaderWebGLRuntime invokes this after the browser restores the same
-    // context. Resource recreation is deferred until the next render frame.
+    // Resource recreation is deferred until the first restored render frame.
   }
 
   private resize(frame: LaserDmxSceneFrame): void {
@@ -255,80 +411,91 @@ export class LaserDmxWebGLRuntime {
       previous: this.lastResolution,
     })
     if (!resolution.valid) return
-    this.runtime.resize(resolution)
+    const changed = this.runtime.resize(resolution)
     this.lastResolution = resolution
+    if (changed) this.disposeLightTarget()
   }
 
-  private drawBeams(frame: LaserDmxSceneFrame): void {
-    // Additive beams render back-to-front so intersections remain stable while
-    // carrying camera-space depth for later haze and material passes.
-    const active = frame.beams
-      .filter(beam => beam.enabled
-        && beam.intensity > 0.001
-        && laserDmxDepthSegmentVisible(frame.camera, beam.depthRange.minZ, beam.depthRange.maxZ))
-      .sort((a, b) => a.sortDepth - b.sortDepth || a.id.localeCompare(b.id))
-    if (active.length === 0) return
-    const positions = new Float32Array(active.length * 2 * 3)
-    const colors = new Float32Array(active.length * 2 * 4)
-    let p = 0
-    let c = 0
-    for (const beam of active) {
-      const intensity = Math.max(0, Math.min(2, beam.intensity * (0.55 + frame.output.globalGlow * 0.75)))
-      const origin = projectLaserDmxScenePoint(frame.camera, beam.origin)
-      const target = projectLaserDmxScenePoint(frame.camera, beam.target)
-      positions.set([origin.x, origin.y, origin.clipDepth, target.x, target.y, target.clipDepth], p)
-      p += 6
-      const color = [beam.color.r * intensity, beam.color.g * intensity, beam.color.b * intensity, Math.min(1, 0.35 + intensity * 0.65)]
-      colors.set(color, c)
-      colors.set(color, c + 4)
-      c += 8
+  private drawBeamInstances(beams: readonly LaserDmxWebGLBeamInstance[], viewport: {
+    backingWidth: number
+    backingHeight: number
+    cssWidth: number
+    cssHeight: number
+  }): void {
+    if (beams.length === 0 || !this.beamProgram || !this.beamVertexArray || !this.beamInstanceBuffer) return
+    const data = new Float32Array(beams.length * 20)
+    let offset = 0
+    for (const beam of beams) {
+      data.set([
+        beam.origin.x, beam.origin.y, beam.origin.z,
+        beam.target.x, beam.target.y, beam.target.z,
+        beam.color.r, beam.color.g, beam.color.b, beam.color.a,
+        beam.intensity, beam.coreIntensity, beam.whiteHotMix, beam.opacity,
+        beam.bodyStartWidthCssPx, beam.bodyEndWidthCssPx,
+        beam.envelopeStartWidthCssPx, beam.envelopeEndWidthCssPx,
+        beam.envelopeAlpha, beam.phase,
+      ], offset)
+      offset += 20
     }
-    this.uploadAndDraw(positions, colors, this.gl.LINES, active.length * 2, 1, false)
-  }
-
-  private drawEmitters(frame: LaserDmxSceneFrame): void {
-    const active = frame.emitters
-      .filter(emitter => emitter.intensity > 0.001 && projectLaserDmxScenePoint(frame.camera, emitter.position).visible)
-      .sort((a, b) => a.sortDepth - b.sortDepth || a.id.localeCompare(b.id))
-    if (active.length === 0) return
-    const positions = new Float32Array(active.length * 3)
-    const colors = new Float32Array(active.length * 4)
-    let p = 0
-    let c = 0
-    for (const emitter of active) {
-      const intensity = Math.max(0, Math.min(2.5, emitter.intensity * 1.4))
-      const projected = projectLaserDmxScenePoint(frame.camera, emitter.position)
-      positions.set([projected.x, projected.y, projected.clipDepth], p)
-      p += 3
-      colors.set([
-        Math.min(2.5, emitter.color.r * intensity + intensity * 0.35),
-        Math.min(2.5, emitter.color.g * intensity + intensity * 0.35),
-        Math.min(2.5, emitter.color.b * intensity + intensity * 0.35),
-        Math.min(1, 0.45 + intensity * 0.35),
-      ], c)
-      c += 4
-    }
-    const size = Math.max(3, 7 * frame.quality.devicePixelRatio)
-    this.uploadAndDraw(positions, colors, this.gl.POINTS, active.length, size, true)
-  }
-
-  private uploadAndDraw(
-    positions: Float32Array,
-    colors: Float32Array,
-    mode: number,
-    count: number,
-    pointSize: number,
-    roundPoint: boolean,
-  ): void {
     const gl = this.gl
-    if (!this.positionBuffer || !this.colorBuffer) return
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW)
-    if (this.pointSizeUniform) gl.uniform1f(this.pointSizeUniform, pointSize)
-    if (this.roundPointUniform) gl.uniform1i(this.roundPointUniform, roundPoint ? 1 : 0)
-    gl.drawArrays(mode, 0, count)
+    gl.useProgram(this.beamProgram)
+    gl.bindVertexArray(this.beamVertexArray)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.beamInstanceBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW)
+    gl.uniform2f(this.beamViewportUniform, viewport.backingWidth, viewport.backingHeight)
+    gl.uniform2f(
+      this.beamCssToBackingUniform,
+      viewport.backingWidth / Math.max(1, viewport.cssWidth),
+      viewport.backingHeight / Math.max(1, viewport.cssHeight),
+    )
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, beams.length)
+    gl.bindVertexArray(null)
+  }
+
+  private drawApertureInstances(apertures: readonly LaserDmxWebGLApertureInstance[], viewport: {
+    backingWidth: number
+    backingHeight: number
+    cssWidth: number
+    cssHeight: number
+  }): void {
+    if (apertures.length === 0 || !this.apertureProgram || !this.apertureVertexArray || !this.apertureInstanceBuffer) return
+    const data = new Float32Array(apertures.length * 13)
+    let offset = 0
+    for (const aperture of apertures) {
+      data.set([
+        aperture.position.x, aperture.position.y, aperture.position.z,
+        aperture.color.r, aperture.color.g, aperture.color.b, aperture.color.a,
+        aperture.coreRadiusCssPx, aperture.ringRadiusCssPx, aperture.haloRadiusCssPx, aperture.intensity,
+        aperture.glareDirection.x, aperture.glareDirection.y,
+      ], offset)
+      offset += 13
+    }
+    const gl = this.gl
+    gl.useProgram(this.apertureProgram)
+    gl.bindVertexArray(this.apertureVertexArray)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.apertureInstanceBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW)
+    gl.uniform2f(this.apertureViewportUniform, viewport.backingWidth, viewport.backingHeight)
+    gl.uniform2f(
+      this.apertureCssToBackingUniform,
+      viewport.backingWidth / Math.max(1, viewport.cssWidth),
+      viewport.backingHeight / Math.max(1, viewport.cssHeight),
+    )
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, apertures.length)
+    gl.bindVertexArray(null)
+  }
+
+  private drawComposite(): void {
+    if (!this.compositeProgram || !this.compositeVertexArray || !this.lightTexture) return
+    const gl = this.gl
+    gl.useProgram(this.compositeProgram)
+    gl.bindVertexArray(this.compositeVertexArray)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, this.lightTexture)
+    gl.uniform1i(this.compositeTextureUniform, 0)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    gl.bindVertexArray(null)
   }
 
   private rebuildGpuResources(): void {
@@ -338,36 +505,146 @@ export class LaserDmxWebGLRuntime {
 
   private createGpuResources(): void {
     const gl = this.gl
-    this.program = createProgram(gl)
-    this.vertexArray = gl.createVertexArray()
-    this.positionBuffer = gl.createBuffer()
-    this.colorBuffer = gl.createBuffer()
-    if (!this.vertexArray || !this.positionBuffer || !this.colorBuffer) {
+    this.beamProgram = createProgram(gl, BEAM_VERTEX_SHADER, BEAM_FRAGMENT_SHADER)
+    this.apertureProgram = createProgram(gl, APERTURE_VERTEX_SHADER, APERTURE_FRAGMENT_SHADER)
+    this.compositeProgram = createProgram(gl, COMPOSITE_VERTEX_SHADER, COMPOSITE_FRAGMENT_SHADER)
+    this.beamVertexArray = gl.createVertexArray()
+    this.apertureVertexArray = gl.createVertexArray()
+    this.compositeVertexArray = gl.createVertexArray()
+    this.beamQuadBuffer = gl.createBuffer()
+    this.beamInstanceBuffer = gl.createBuffer()
+    this.apertureQuadBuffer = gl.createBuffer()
+    this.apertureInstanceBuffer = gl.createBuffer()
+    if (
+      !this.beamVertexArray || !this.apertureVertexArray || !this.compositeVertexArray
+      || !this.beamQuadBuffer || !this.beamInstanceBuffer
+      || !this.apertureQuadBuffer || !this.apertureInstanceBuffer
+    ) {
       throw new Error('Unable to allocate LaserDMX WebGL buffers')
     }
-    gl.bindVertexArray(this.vertexArray)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer)
+
+    gl.bindVertexArray(this.beamVertexArray)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.beamQuadBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, -1, 0, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
     gl.enableVertexAttribArray(0)
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer)
-    gl.enableVertexAttribArray(1)
-    gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 0, 0)
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.beamInstanceBuffer)
+    const beamStride = 20 * Float32Array.BYTES_PER_ELEMENT
+    enableInstancedAttribute(gl, 1, 3, beamStride, 0)
+    enableInstancedAttribute(gl, 2, 3, beamStride, 3 * 4)
+    enableInstancedAttribute(gl, 3, 4, beamStride, 6 * 4)
+    enableInstancedAttribute(gl, 4, 4, beamStride, 10 * 4)
+    enableInstancedAttribute(gl, 5, 4, beamStride, 14 * 4)
+    enableInstancedAttribute(gl, 6, 2, beamStride, 18 * 4)
     gl.bindVertexArray(null)
-    this.pointSizeUniform = gl.getUniformLocation(this.program, 'uPointSize')
-    this.roundPointUniform = gl.getUniformLocation(this.program, 'uRoundPoint')
+
+    gl.bindVertexArray(this.apertureVertexArray)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.apertureQuadBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
+    gl.enableVertexAttribArray(0)
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.apertureInstanceBuffer)
+    const apertureStride = 13 * Float32Array.BYTES_PER_ELEMENT
+    enableInstancedAttribute(gl, 1, 3, apertureStride, 0)
+    enableInstancedAttribute(gl, 2, 4, apertureStride, 3 * 4)
+    enableInstancedAttribute(gl, 3, 4, apertureStride, 7 * 4)
+    enableInstancedAttribute(gl, 4, 2, apertureStride, 11 * 4)
+    gl.bindVertexArray(null)
+
+    this.beamViewportUniform = gl.getUniformLocation(this.beamProgram, 'uViewportPx')
+    this.beamCssToBackingUniform = gl.getUniformLocation(this.beamProgram, 'uCssToBacking')
+    this.apertureViewportUniform = gl.getUniformLocation(this.apertureProgram, 'uViewportPx')
+    this.apertureCssToBackingUniform = gl.getUniformLocation(this.apertureProgram, 'uCssToBacking')
+    this.compositeTextureUniform = gl.getUniformLocation(this.compositeProgram, 'uLightTexture')
+  }
+
+  private ensureLightTarget(width: number, height: number): void {
+    if (
+      this.lightFramebuffer && this.lightTexture
+      && this.lightTargetWidth === width && this.lightTargetHeight === height
+    ) return
+    this.disposeLightTarget()
+    const gl = this.gl
+    const framebuffer = gl.createFramebuffer()
+    const texture = gl.createTexture()
+    if (!framebuffer || !texture) throw new Error('Unable to allocate LaserDMX light target')
+    const canRenderFloat = gl.getExtension('EXT_color_buffer_float') != null
+
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      canRenderFloat ? gl.RGBA16F : gl.RGBA8,
+      width,
+      height,
+      0,
+      gl.RGBA,
+      canRenderFloat ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
+      null,
+    )
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0)
+    let complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE
+    if (!complete && canRenderFloat) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+      complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    if (!complete) {
+      gl.deleteFramebuffer(framebuffer)
+      gl.deleteTexture(texture)
+      throw new Error('LaserDMX light accumulation framebuffer is incomplete')
+    }
+    this.lightFramebuffer = framebuffer
+    this.lightTexture = texture
+    this.lightTargetWidth = width
+    this.lightTargetHeight = height
+    this.floatLightTarget = canRenderFloat
+  }
+
+  private disposeLightTarget(): void {
+    const gl = this.gl
+    try { if (this.lightFramebuffer) gl.deleteFramebuffer(this.lightFramebuffer) } catch { /* Context may be lost. */ }
+    try { if (this.lightTexture) gl.deleteTexture(this.lightTexture) } catch { /* Context may be lost. */ }
+    this.lightFramebuffer = null
+    this.lightTexture = null
+    this.lightTargetWidth = 0
+    this.lightTargetHeight = 0
+    this.floatLightTarget = false
   }
 
   private disposeGpuResources(): void {
     const gl = this.gl
-    try { if (this.positionBuffer) gl.deleteBuffer(this.positionBuffer) } catch { /* Context may be lost. */ }
-    try { if (this.colorBuffer) gl.deleteBuffer(this.colorBuffer) } catch { /* Context may be lost. */ }
-    try { if (this.vertexArray) gl.deleteVertexArray(this.vertexArray) } catch { /* Context may be lost. */ }
-    try { if (this.program) gl.deleteProgram(this.program) } catch { /* Context may be lost. */ }
-    this.positionBuffer = null
-    this.colorBuffer = null
-    this.vertexArray = null
-    this.program = null
-    this.pointSizeUniform = null
-    this.roundPointUniform = null
+    this.disposeLightTarget()
+    try { if (this.beamQuadBuffer) gl.deleteBuffer(this.beamQuadBuffer) } catch { /* Context may be lost. */ }
+    try { if (this.beamInstanceBuffer) gl.deleteBuffer(this.beamInstanceBuffer) } catch { /* Context may be lost. */ }
+    try { if (this.apertureQuadBuffer) gl.deleteBuffer(this.apertureQuadBuffer) } catch { /* Context may be lost. */ }
+    try { if (this.apertureInstanceBuffer) gl.deleteBuffer(this.apertureInstanceBuffer) } catch { /* Context may be lost. */ }
+    try { if (this.beamVertexArray) gl.deleteVertexArray(this.beamVertexArray) } catch { /* Context may be lost. */ }
+    try { if (this.apertureVertexArray) gl.deleteVertexArray(this.apertureVertexArray) } catch { /* Context may be lost. */ }
+    try { if (this.compositeVertexArray) gl.deleteVertexArray(this.compositeVertexArray) } catch { /* Context may be lost. */ }
+    try { if (this.beamProgram) gl.deleteProgram(this.beamProgram) } catch { /* Context may be lost. */ }
+    try { if (this.apertureProgram) gl.deleteProgram(this.apertureProgram) } catch { /* Context may be lost. */ }
+    try { if (this.compositeProgram) gl.deleteProgram(this.compositeProgram) } catch { /* Context may be lost. */ }
+    this.beamQuadBuffer = null
+    this.beamInstanceBuffer = null
+    this.apertureQuadBuffer = null
+    this.apertureInstanceBuffer = null
+    this.beamVertexArray = null
+    this.apertureVertexArray = null
+    this.compositeVertexArray = null
+    this.beamProgram = null
+    this.apertureProgram = null
+    this.compositeProgram = null
+    this.beamViewportUniform = null
+    this.beamCssToBackingUniform = null
+    this.apertureViewportUniform = null
+    this.apertureCssToBackingUniform = null
+    this.compositeTextureUniform = null
   }
 }

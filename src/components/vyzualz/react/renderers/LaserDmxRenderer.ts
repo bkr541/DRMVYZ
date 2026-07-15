@@ -589,6 +589,8 @@ export function renderLaserDmx(
         sectionProgress: performanceContext.sectionProgress,
         energy: performanceContext.energy,
         devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+        fixturePriorityById: performanceResolution?.fixturePriorityById,
+        fixturePriorityRoleById: performanceResolution?.fixturePriorityRoleById,
       })
     : null
   let renderBeamMatrix = beamMatrixAuthoringMode === 'showDirector'
