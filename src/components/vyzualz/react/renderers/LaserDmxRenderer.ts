@@ -509,13 +509,6 @@ export function renderLaserDmx(
   const beamMatrixAuthoringMode = state.laserDmxBeamMatrixAuthoringMode === 'showDirector'
     ? 'showDirector'
     : 'manual'
-  const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx))
-  if (!lifecycle.sync({
-    isPlaying: frame.isPlaying,
-    trackKey,
-    presetKey: `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}`,
-  })) return
-
   // The audio engine playhead is the only Show Director clock. Wall time is intentionally excluded.
   const timeSec = Math.max(0, frame.audioTime)
   const authoredSettings = params.thumbnailLaserDmxSettings ?? state.laserDmxSettings
@@ -526,8 +519,15 @@ export function renderLaserDmx(
       : params.performanceActionEvent ? [params.performanceActionEvent] : []
   const actionResult = applyLaserDmxPerformanceActions(authoredSettings, actionEvents)
   const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(actionResult.settings)
-  const timingDiscontinuity = consumeLaserDmxTimingDiscontinuity(ctx, frame.timingDiscontinuity)
   const performanceState = state.laserDmxShowDirectorPerformance
+  const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${performanceState.activeProgramId ?? 'show:none'}:${performanceState.runtimeInvalidationId}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
+  const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx))
+  if (!lifecycle.sync({
+    isPlaying: frame.isPlaying,
+    trackKey,
+    presetKey: directorPresetKey,
+  })) return
+  const timingDiscontinuity = consumeLaserDmxTimingDiscontinuity(ctx, frame.timingDiscontinuity)
   const previousPerformanceContext = performanceContextByCanvas.get(ctx) ?? null
   const loopWrapped = previousPerformanceContext != null && timeSec + 0.05 < previousPerformanceContext.audioTimeSec
   const performanceContext = buildLaserDmxShowDirectorPerformanceContext({
@@ -567,6 +567,7 @@ export function renderLaserDmx(
       })
     : null
   const showDirectorRuntimeRig = performanceResolution?.showDirector ?? state.laserDmxShowDirector
+  const historyIdentity = `${trackKey ?? 'track:none'}:${directorPresetKey}:${showDirectorRuntimeRig.sourceTemplateId ?? 'template:none'}`
   const sceneDeltaTimeSec = previousPerformanceContext && !loopWrapped
     ? Math.max(0, Math.min(0.1, timeSec - previousPerformanceContext.audioTimeSec))
     : 1 / 60
@@ -579,15 +580,30 @@ export function renderLaserDmx(
         audioTimeSec: timeSec,
         deltaTimeSec: sceneDeltaTimeSec,
         isPlaying: frame.isPlaying,
-        timingDiscontinuity,
+        timingDiscontinuity: timingDiscontinuity || loopWrapped,
         trackKey: trackKey ?? null,
+        historyIdentity,
+        occurrenceSeed: performanceContext.deterministicVariationSeed,
         bpm: frame.bpm,
         beatIndex: performanceContext.absoluteBeat,
+        beatPhase: performanceContext.beatPhase,
+        beatHit: performanceContext.boundaries.beatBoundary,
+        downbeat: performanceContext.downbeat,
         barIndex: performanceContext.absoluteBar,
         phraseIndex: performanceContext.phraseIndex,
         section: performanceContext.sectionType,
         sectionProgress: performanceContext.sectionProgress,
         energy: performanceContext.energy,
+        kickHit: performanceContext.kick,
+        kickStrength: performanceContext.kickStrength,
+        snareHit: performanceContext.snare,
+        snareStrength: performanceContext.snareStrength,
+        hatHit: performanceContext.hat,
+        hatStrength: performanceContext.hatStrength,
+        transient: performanceContext.transient,
+        fourBarBlockIndex: performanceContext.performanceFourBarBlockIndex,
+        eightBarBlockIndex: performanceContext.performanceEightBarBlockIndex,
+        sixteenBarBlockIndex: performanceContext.performanceSixteenBarBlockIndex,
         devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
         fixturePriorityById: performanceResolution?.fixturePriorityById,
         fixturePriorityRoleById: performanceResolution?.fixturePriorityRoleById,
@@ -617,7 +633,6 @@ export function renderLaserDmx(
     performanceStatusCanvas.delete(ctx)
     clearLaserDmxShowDirectorPerformanceRuntimeStatus()
   }
-  const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${performanceState.runtimeInvalidationId}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
   const director = evaluateShowDirector(getShowDirectorRuntime(ctx), {
     settings: resolvedAuthoredSettings,
     beamMatrix: renderBeamMatrix,

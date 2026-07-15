@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LaserDmxWebGLContextState, LaserDmxWebGLResourceLedger } from './LaserDmxWebGLRuntime'
+import { getLaserDmxWebGLShaderProgramSources } from './LaserDmxWebGLShaderSources'
 
 describe('LaserDMX WebGL context lifecycle state', () => {
   it('marks loss, schedules one deterministic resource recreation, and clears the request after consumption', () => {
@@ -39,16 +40,18 @@ describe('LaserDMX WebGL reusable resource ledger', () => {
     ledger.allocate('front-light')
     ledger.allocate('atmosphere')
     ledger.allocate('hdr-composite')
+    ledger.allocate('temporal-history-0')
+    ledger.allocate('temporal-history-1')
     for (let index = 0; index < 4; index += 1) {
       ledger.allocate(`bloom-${index}`)
       ledger.allocate(`bloom-blur-${index}`)
     }
     ledger.allocate('atmosphere')
-    expect(ledger.activeCount).toBe(13)
+    expect(ledger.activeCount).toBe(15)
 
     ledger.release('atmosphere')
     ledger.release('hdr-composite')
-    expect(ledger.activeCount).toBe(11)
+    expect(ledger.activeCount).toBe(13)
     ledger.allocate('atmosphere')
     ledger.allocate('hdr-composite')
     ledger.dispose()
@@ -57,5 +60,18 @@ describe('LaserDMX WebGL reusable resource ledger', () => {
     expect(ledger.activeCount).toBe(0)
     ledger.allocate('late-resource')
     expect(ledger.activeCount).toBe(0)
+  })
+})
+
+
+describe('LaserDMX WebGL temporal shader registration', () => {
+  it('registers bounded max-composited history in the production shader set', () => {
+    const temporal = getLaserDmxWebGLShaderProgramSources()
+      .find(program => program.label === 'temporal-history')
+
+    expect(temporal).toBeDefined()
+    expect(temporal?.fragSrc).toContain('clamp(uRetention, 0.0, 0.95)')
+    expect(temporal?.fragSrc).toContain('max(current, retained)')
+    expect(temporal?.fragSrc).not.toContain('current + retained')
   })
 })

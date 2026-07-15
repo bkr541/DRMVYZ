@@ -81,16 +81,33 @@ export interface LaserDmxSceneTransport {
   isPlaying: boolean
   timingDiscontinuity: boolean
   trackKey: string | null
+  /** Stable across a single track, preset, rig, and Performance Show identity. */
+  historyIdentity: string
+  /** Stable occurrence seed supplied by the authoritative performance timeline. */
+  occurrenceSeed: number
 }
 
 export interface LaserDmxSceneMusicalState {
   bpm: number
   beatIndex: number
+  beatPhase: number
+  beatHit: boolean
+  downbeat: boolean
   barIndex: number
   phraseIndex: number
   section: ReactSectionType | null
   sectionProgress: number
   energy: number
+  kickHit: boolean
+  kickStrength: number
+  snareHit: boolean
+  snareStrength: number
+  hatHit: boolean
+  hatStrength: number
+  transient: number
+  fourBarBlockIndex: number
+  eightBarBlockIndex: number
+  sixteenBarBlockIndex: number
 }
 
 export interface LaserDmxSceneAtmosphere {
@@ -245,6 +262,7 @@ export interface LaserDmxSceneFrame {
     globalGlow: number
     globalBeamWidth: number
     globalStrobeRate: number
+    beamPersistence: number
   }
 }
 
@@ -256,13 +274,28 @@ export interface CreateLaserDmxSceneFrameInput {
   isPlaying: boolean
   timingDiscontinuity: boolean
   trackKey: string | null
+  historyIdentity?: string
+  occurrenceSeed?: number
   bpm: number
   beatIndex?: number
+  beatPhase?: number
+  beatHit?: boolean
+  downbeat?: boolean
   barIndex?: number
   phraseIndex?: number
   section?: ReactSectionType | null
   sectionProgress?: number
   energy?: number
+  kickHit?: boolean
+  kickStrength?: number
+  snareHit?: boolean
+  snareStrength?: number
+  hatHit?: boolean
+  hatStrength?: number
+  transient?: number
+  fourBarBlockIndex?: number
+  eightBarBlockIndex?: number
+  sixteenBarBlockIndex?: number
   devicePixelRatio?: number
   fixturePriorityById?: Readonly<Record<string, number>> | null
   fixturePriorityRoleById?: Readonly<Record<string, LaserDmxShowDirectorBeamPriorityRole>> | null
@@ -877,15 +910,31 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       isPlaying: input.isPlaying,
       timingDiscontinuity: input.timingDiscontinuity,
       trackKey: input.trackKey,
+      historyIdentity: input.historyIdentity?.trim()
+        || `${input.trackKey ?? 'track:none'}:${showDirector.sourceTemplateId ?? 'rig'}:${showDirector.settings.rendererMode}`,
+      occurrenceSeed: Math.max(0, Math.floor(finite(input.occurrenceSeed, 0))),
     },
     musicalState: {
       bpm: Math.max(0, finite(input.bpm, 0)),
       beatIndex: Math.max(0, Math.floor(finite(input.beatIndex, 0))),
+      beatPhase: clamp01(finite(input.beatPhase, 0)),
+      beatHit: input.beatHit === true,
+      downbeat: input.downbeat === true,
       barIndex: Math.max(0, Math.floor(finite(input.barIndex, 0))),
       phraseIndex: Math.max(0, Math.floor(finite(input.phraseIndex, 0))),
       section: input.section ?? null,
       sectionProgress: clamp01(finite(input.sectionProgress, 0)),
       energy: clamp01(finite(input.energy, 0)),
+      kickHit: input.kickHit === true,
+      kickStrength: clamp01(finite(input.kickStrength, 0)),
+      snareHit: input.snareHit === true,
+      snareStrength: clamp01(finite(input.snareStrength, 0)),
+      hatHit: input.hatHit === true,
+      hatStrength: clamp01(finite(input.hatStrength, 0)),
+      transient: clamp01(finite(input.transient, 0)),
+      fourBarBlockIndex: Math.max(0, Math.floor(finite(input.fourBarBlockIndex, 0))),
+      eightBarBlockIndex: Math.max(0, Math.floor(finite(input.eightBarBlockIndex, 0))),
+      sixteenBarBlockIndex: Math.max(0, Math.floor(finite(input.sixteenBarBlockIndex, 0))),
     },
     camera: LASER_DMX_FRONT_LOCKED_CAMERA,
     atmosphere: sceneAtmosphereFromFog(
@@ -918,6 +967,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       globalGlow: clamp01(evaluated.output.globalGlow),
       globalBeamWidth: clamp(evaluated.output.globalBeamWidth, 0.1, 6),
       globalStrobeRate: clamp01(evaluated.output.globalStrobeRate),
+      beamPersistence: clamp01(evaluated.output.beamPersistence),
     },
   }
 }
@@ -1049,6 +1099,7 @@ export function resolveLaserDmxSceneFrameOutput(
       globalGlow: clamp01(evaluated.output.globalGlow),
       globalBeamWidth: clamp(evaluated.output.globalBeamWidth, 0.1, 6),
       globalStrobeRate: clamp01(evaluated.output.globalStrobeRate),
+      beamPersistence: clamp01(evaluated.output.beamPersistence),
     },
   }
 }

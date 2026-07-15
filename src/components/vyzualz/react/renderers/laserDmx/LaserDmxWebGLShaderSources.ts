@@ -351,6 +351,24 @@ void main() {
   outColor = vec4(max(light, vec3(0.0)), 1.0);
 }`
 
+export const TEMPORAL_HISTORY_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uCurrentTexture;
+uniform sampler2D uPreviousTexture;
+uniform float uRetention;
+uniform float uHistoryAvailable;
+out vec4 outColor;
+void main() {
+  vec3 current = max(texture(uCurrentTexture, vUv).rgb, vec3(0.0));
+  vec3 previous = max(texture(uPreviousTexture, vUv).rgb, vec3(0.0));
+  vec3 retained = previous * clamp(uRetention, 0.0, 0.95) * step(0.5, uHistoryAvailable);
+  // Max compositing preserves old scanner positions without repeatedly adding
+  // stationary light, so feedback cannot grow brighter on every frame.
+  vec3 history = max(current, retained);
+  outColor = vec4(history, 1.0);
+}`
+
 export const BLOOM_DOWNSAMPLE_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -408,6 +426,8 @@ export const POST_COMPOSITE_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec2 vUv;
 uniform sampler2D uSceneTexture;
+uniform sampler2D uTemporalTexture;
+uniform float uTemporalEnabled;
 uniform sampler2D uBloom0;
 uniform sampler2D uBloom1;
 uniform sampler2D uBloom2;
@@ -437,7 +457,9 @@ vec3 acesFitted(vec3 color) {
 }
 void main() {
   vec2 px = 1.0 / max(uResolution, vec2(1.0));
-  vec3 scene = max(texture(uSceneTexture, vUv).rgb, vec3(0.0));
+  vec3 currentScene = max(texture(uSceneTexture, vUv).rgb, vec3(0.0));
+  vec3 temporalScene = max(texture(uTemporalTexture, vUv).rgb, vec3(0.0));
+  vec3 scene = max(currentScene, temporalScene * step(0.5, uTemporalEnabled));
   float chromaticMask = smoothstep(uOptics1.x, uOptics1.x * 1.28 + 0.001, luminance(scene));
   vec2 radial = vUv - 0.5;
   radial = length(radial) > 0.0001 ? normalize(radial) : vec2(1.0, 0.0);
@@ -501,6 +523,7 @@ export function getLaserDmxWebGLShaderProgramSources(): LaserDmxWebGLShaderProgr
     { label: 'atmospheric-scatter', vertSrc: ATMOSPHERE_VERTEX_SHADER, fragSrc: ATMOSPHERE_FRAGMENT_SHADER },
     { label: 'foreground-veil', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: FOREGROUND_FRAGMENT_SHADER },
     { label: 'atmosphere-composite', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: COMPOSITE_FRAGMENT_SHADER },
+    { label: 'temporal-history', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: TEMPORAL_HISTORY_FRAGMENT_SHADER },
     { label: 'bloom-downsample', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: BLOOM_DOWNSAMPLE_FRAGMENT_SHADER },
     { label: 'bloom-blur', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: BLOOM_BLUR_FRAGMENT_SHADER },
     { label: 'photographic-post', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: POST_COMPOSITE_FRAGMENT_SHADER },

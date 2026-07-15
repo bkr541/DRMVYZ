@@ -9,7 +9,12 @@ import type {
   LaserDmxSceneFrame,
   LaserDmxSceneVec3,
 } from './LaserDmxSceneFrame'
-import { laserDmxDepthSegmentVisible, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
+import {
+  laserDmxDepthSegmentVisible,
+  projectLaserDmxScenePoint,
+  type LaserDmxProjectedPoint,
+} from './LaserDmxSpatialModel'
+import { resolveLaserDmxBeamInstability } from './LaserDmxTemporalOptics'
 
 export interface LaserDmxWebGLViewport {
   backingWidth: number
@@ -126,6 +131,24 @@ function projectedDirection(direction: LaserDmxSceneVec3, viewport: LaserDmxWebG
   return length > 1e-5 ? { x: x / length, y: y / length } : { x: 1, y: 0 }
 }
 
+function rotateProjectedTarget(
+  origin: LaserDmxProjectedPoint,
+  target: LaserDmxProjectedPoint,
+  angleRad: number,
+): LaserDmxProjectedPoint {
+  if (Math.abs(angleRad) < 1e-8) return target
+  const dx = target.x - origin.x
+  const dy = target.y - origin.y
+  const cosine = Math.cos(angleRad)
+  const sine = Math.sin(angleRad)
+  return {
+    x: origin.x + dx * cosine - dy * sine,
+    y: origin.y + dx * sine + dy * cosine,
+    clipDepth: target.clipDepth,
+    visible: target.visible,
+  }
+}
+
 export function buildLaserDmxWebGLBeamRenderPlan(
   frame: LaserDmxSceneFrame,
   viewport: LaserDmxWebGLViewport,
@@ -143,13 +166,29 @@ export function buildLaserDmxWebGLBeamRenderPlan(
     : 0
   const globalWidth = clamp(frame.output.globalBeamWidth, 0.1, 6)
   const glow = clamp01(frame.output.globalGlow)
+  const fixtureSemanticKeyById = new Map(frame.fixtures.map(fixture => [fixture.id, fixture.semanticKey]))
+  const sourceInstability = new Map<string, ReturnType<typeof resolveLaserDmxBeamInstability>>()
 
   const beams = selected.map((beam): LaserDmxWebGLBeamInstance => {
     const origin = projectLaserDmxScenePoint(frame.camera, beam.origin)
-    const target = projectLaserDmxScenePoint(frame.camera, beam.target)
+    const instability = resolveLaserDmxBeamInstability(
+      frame,
+      beam,
+      fixtureSemanticKeyById.get(beam.fixtureId) ?? beam.fixtureId,
+    )
+    if (!sourceInstability.has(beam.sourceId)) sourceInstability.set(beam.sourceId, instability)
+    const authoredTarget = projectLaserDmxScenePoint(frame.camera, beam.target)
+    const target = rotateProjectedTarget(origin, authoredTarget, instability.angularOffsetRad)
     const distanceFactor = clamp01(beam.length / 1.35)
     const focusTightening = 0.82 + clamp01(beam.focus) * 0.18
-    const baseWidth = clamp((0.42 + beam.width * 0.58) * globalWidth * focusTightening, 0.35, 9)
+    const baseWidth = clamp(
+      (0.42 + beam.width * 0.58)
+        * globalWidth
+        * focusTightening
+        * instability.widthMultiplier,
+      0.35,
+      9,
+    )
     const bodyStartWidthCssPx = baseWidth
     const bodyEndWidthCssPx = clamp(
       baseWidth * (1 + beam.divergence * 0.2 + distanceFactor * 0.07),
@@ -163,7 +202,11 @@ export function buildLaserDmxWebGLBeamRenderPlan(
       envelopeStartWidthCssPx,
       48,
     )
-    const intensity = clamp(beam.intensity * (0.72 + glow * 0.62), 0, 2.4)
+    const intensity = clamp(
+      beam.intensity * (0.72 + glow * 0.62) * instability.intensityMultiplier,
+      0,
+      2.4,
+    )
     return {
       id: beam.id,
       sourceId: beam.sourceId,
@@ -171,7 +214,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
       target: { x: target.x, y: target.y, z: target.clipDepth },
       color: beam.color,
       intensity,
-      coreIntensity: beam.coreIntensity,
+      coreIntensity: clamp01(beam.coreIntensity * instability.intensityMultiplier),
       whiteHotMix: resolveLaserDmxWhiteHotMix(beam.intensity, beam.coreIntensity),
       opacity: beam.opacity,
       bodyStartWidthCssPx,
@@ -183,7 +226,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         0.015,
         0.32,
       ),
-      phase: beam.pattern.phase,
+      phase: beam.pattern.phase + instability.phaseOffset,
       sortDepth: beam.sortDepth,
     }
   })
@@ -195,14 +238,24 @@ export function buildLaserDmxWebGLBeamRenderPlan(
     .map((emitter): LaserDmxWebGLApertureInstance => {
       const projected = projectLaserDmxScenePoint(frame.camera, emitter.position)
       const energyRoot = Math.sqrt(Math.max(0, emitter.totalActiveEnergy))
-      const coreRadiusCssPx = clamp(1.1 + emitter.apertureSize * 0.82 + emitter.peakRayIntensity * 1.15, 1.25, 6.5)
+      const instability = sourceInstability.get(emitter.id)
+      const apertureMultiplier = instability?.apertureMultiplier ?? 1
+      const coreRadiusCssPx = clamp(
+        (1.1 + emitter.apertureSize * 0.82 + emitter.peakRayIntensity * 1.15) * apertureMultiplier,
+        1.25,
+        6.5,
+      )
       const ringRadiusCssPx = clamp(coreRadiusCssPx * (1.9 + Math.min(0.35, energyRoot * 0.08)), 2.5, 14)
       const haloRadiusCssPx = clamp(ringRadiusCssPx * (1.42 + Math.min(0.85, energyRoot * 0.16)), 4, 34)
       return {
         id: emitter.id,
         position: { x: projected.x, y: projected.y, z: projected.clipDepth },
         color: emitter.color,
-        intensity: clamp(emitter.intensity * (0.88 + glow * 0.46), 0, 2.8),
+        intensity: clamp(
+          emitter.intensity * (0.88 + glow * 0.46) * apertureMultiplier,
+          0,
+          2.8,
+        ),
         totalActiveEnergy: emitter.totalActiveEnergy,
         coreRadiusCssPx,
         ringRadiusCssPx,

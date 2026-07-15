@@ -20,6 +20,10 @@ import {
   type LaserDmxWebGLApertureInstance,
   type LaserDmxWebGLBeamInstance,
 } from './LaserDmxWebGLBeamPlan'
+import {
+  LaserDmxTemporalOpticsController,
+  type LaserDmxTemporalFramePlan,
+} from './LaserDmxTemporalOptics'
 
 export interface LaserDmxWebGLDiagnostics {
   hdrMode: 'rgba16f' | 'rgba8'
@@ -27,6 +31,8 @@ export interface LaserDmxWebGLDiagnostics {
   bloomLevels: number
   quality: LaserDmxWebGLPostProcessPlan['quality'] | null
   diagnosticCode: LaserDmxHdrTargetStrategy['diagnosticCode']
+  temporalHistoryActive: boolean
+  temporalResolutionScale: number
 }
 
 export interface LaserDmxWebGLRenderResult {
@@ -120,6 +126,7 @@ import {
   COMPOSITE_FRAGMENT_SHADER,
   FOREGROUND_FRAGMENT_SHADER,
   POST_COMPOSITE_FRAGMENT_SHADER,
+  TEMPORAL_HISTORY_FRAGMENT_SHADER,
   FULLSCREEN_VERTEX_SHADER,
 } from './LaserDmxWebGLShaderSources'
 export { getLaserDmxWebGLShaderProgramSources } from './LaserDmxWebGLShaderSources'
@@ -246,6 +253,7 @@ export class LaserDmxWebGLRuntime {
   private atmosphereProgram: WebGLProgram | null = null
   private foregroundProgram: WebGLProgram | null = null
   private compositeProgram: WebGLProgram | null = null
+  private temporalProgram: WebGLProgram | null = null
   private bloomDownsampleProgram: WebGLProgram | null = null
   private bloomBlurProgram: WebGLProgram | null = null
   private postCompositeProgram: WebGLProgram | null = null
@@ -263,11 +271,16 @@ export class LaserDmxWebGLRuntime {
   private frontTarget: RenderTarget
   private atmosphereTarget: RenderTarget
   private hdrCompositeTarget: RenderTarget
+  private readonly temporalTargets: [RenderTarget, RenderTarget]
+  private temporalReadIndex = 0
+  private temporalHistoryValid = false
   private readonly bloomTargets: RenderTarget[] = []
   private readonly bloomBlurTargets: RenderTarget[] = []
   private targetStrategy: LaserDmxHdrTargetStrategy
   private readonly exposureController = new LaserDmxExposureController()
+  private readonly temporalController = new LaserDmxTemporalOpticsController()
   private lastPostPlan: LaserDmxWebGLPostProcessPlan | null = null
+  private lastTemporalPlan: LaserDmxTemporalFramePlan | null = null
   private beamViewportUniform: WebGLUniformLocation | null = null
   private beamCssToBackingUniform: WebGLUniformLocation | null = null
   private apertureViewportUniform: WebGLUniformLocation | null = null
@@ -294,6 +307,10 @@ export class LaserDmxWebGLRuntime {
   private compositeRearUniform: WebGLUniformLocation | null = null
   private compositeFrontUniform: WebGLUniformLocation | null = null
   private compositeAtmosphereUniform: WebGLUniformLocation | null = null
+  private temporalCurrentUniform: WebGLUniformLocation | null = null
+  private temporalPreviousUniform: WebGLUniformLocation | null = null
+  private temporalRetentionUniform: WebGLUniformLocation | null = null
+  private temporalHistoryAvailableUniform: WebGLUniformLocation | null = null
   private bloomSourceUniform: WebGLUniformLocation | null = null
   private bloomSourceResolutionUniform: WebGLUniformLocation | null = null
   private bloomThresholdKneeUniform: WebGLUniformLocation | null = null
@@ -303,6 +320,8 @@ export class LaserDmxWebGLRuntime {
   private blurDirectionUniform: WebGLUniformLocation | null = null
   private blurRadiusUniform: WebGLUniformLocation | null = null
   private postSceneUniform: WebGLUniformLocation | null = null
+  private postTemporalUniform: WebGLUniformLocation | null = null
+  private postTemporalEnabledUniform: WebGLUniformLocation | null = null
   private postBloomUniforms: Array<WebGLUniformLocation | null> = []
   private postResolutionUniform: WebGLUniformLocation | null = null
   private postBloomWeightsUniform: WebGLUniformLocation | null = null
@@ -337,6 +356,7 @@ export class LaserDmxWebGLRuntime {
     const postFilter = this.targetStrategy.linearFiltering ? this.gl.LINEAR : this.gl.NEAREST
     this.atmosphereTarget = emptyTarget(postFilter)
     this.hdrCompositeTarget = emptyTarget(postFilter)
+    this.temporalTargets = [emptyTarget(postFilter), emptyTarget(postFilter)]
     for (let index = 0; index < 4; index += 1) {
       const filter = this.targetStrategy.linearFiltering ? this.gl.LINEAR : this.gl.NEAREST
       this.bloomTargets.push(emptyTarget(filter))
@@ -357,6 +377,8 @@ export class LaserDmxWebGLRuntime {
       bloomLevels: plan?.bloom.levelCount ?? 0,
       quality: plan?.quality ?? null,
       diagnosticCode: plan?.targetStrategy.diagnosticCode ?? this.targetStrategy.diagnosticCode,
+      temporalHistoryActive: this.lastTemporalPlan?.history.enabled ?? false,
+      temporalResolutionScale: this.lastTemporalPlan?.history.resolutionScale ?? 0,
     }
   }
 
@@ -389,6 +411,8 @@ export class LaserDmxWebGLRuntime {
         cssWidth: resolution.cssWidth,
         cssHeight: resolution.cssHeight,
       }
+      const temporalPlan = this.temporalController.update(frame)
+      this.lastTemporalPlan = temporalPlan
       const beamPlan = buildLaserDmxWebGLBeamRenderPlan(frame, viewport)
       const atmospherePlan = buildLaserDmxWebGLAtmosphereRenderPlan(frame, viewport)
       this.ensureRenderTarget(this.rearTarget, frameState.dims.W, frameState.dims.H, 'rear-light')
@@ -405,11 +429,14 @@ export class LaserDmxWebGLRuntime {
         frameState.dims.H,
         'hdr-composite',
       )
+      this.ensureTemporalTargets(frameState.dims.W, frameState.dims.H, temporalPlan)
+      if (temporalPlan.history.clearHistory) this.clearTemporalHistory()
 
       const activeTargetStrategy = this.rearTarget.float
         && this.frontTarget.float
         && this.atmosphereTarget.float
         && this.hdrCompositeTarget.float
+        && this.temporalTargets.every(target => target.float)
         ? this.targetStrategy
         : resolveLaserDmxHdrTargetStrategy({
             webgl2: true,
@@ -452,7 +479,8 @@ export class LaserDmxWebGLRuntime {
       gl.disable(gl.BLEND)
       gl.disable(gl.DEPTH_TEST)
       this.drawComposite(this.hdrCompositeTarget)
-      this.renderPhotographicPost(postPlan)
+      const temporalSource = this.renderTemporalHistory(temporalPlan)
+      this.renderPhotographicPost(postPlan, temporalSource, temporalPlan.history.enabled)
       this.runtime.endFrame()
 
       const outCanvas = this.outputContext.canvas
@@ -472,6 +500,8 @@ export class LaserDmxWebGLRuntime {
           bloomLevels: postPlan.bloom.levelCount,
           quality: postPlan.quality,
           diagnosticCode: postPlan.targetStrategy.diagnosticCode,
+          temporalHistoryActive: temporalPlan.history.enabled,
+          temporalResolutionScale: temporalPlan.history.resolutionScale,
         },
       }
     } catch (error) {
@@ -490,10 +520,13 @@ export class LaserDmxWebGLRuntime {
       this.clearTarget(this.frontTarget)
       this.clearTarget(this.atmosphereTarget)
       this.clearTarget(this.hdrCompositeTarget)
+      this.clearTemporalHistory()
       for (const target of this.bloomTargets) this.clearTarget(target)
       for (const target of this.bloomBlurTargets) this.clearTarget(target)
       this.exposureController.reset()
+      this.temporalController.reset()
       this.lastPostPlan = null
+      this.lastTemporalPlan = null
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
       this.runtime.clearViewport(0, 0, 0, 1)
       this.runtime.endFrame()
@@ -506,10 +539,12 @@ export class LaserDmxWebGLRuntime {
     if (this.disposed) return
     this.disposed = true
     this.lifecycle.dispose()
+    this.temporalController.dispose()
     this.disposeGpuResources()
     this.ledger.dispose()
     this.runtime.dispose(mode)
     this.lastResolution = null
+    this.lastTemporalPlan = null
   }
 
   handleContextRestored(): void {
@@ -524,6 +559,7 @@ export class LaserDmxWebGLRuntime {
       this.atmosphereProgram &&
       this.foregroundProgram &&
       this.compositeProgram &&
+      this.temporalProgram &&
       this.bloomDownsampleProgram &&
       this.bloomBlurProgram &&
       this.postCompositeProgram,
@@ -554,6 +590,7 @@ export class LaserDmxWebGLRuntime {
       // Atmosphere and post targets also depend on independent quality scales.
       this.disposeRenderTarget(this.atmosphereTarget, 'atmosphere')
       this.disposeRenderTarget(this.hdrCompositeTarget, 'hdr-composite')
+      this.disposeTemporalTargets()
       this.disposePostTargets()
     }
   }
@@ -949,6 +986,72 @@ export class LaserDmxWebGLRuntime {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   }
 
+  private ensureTemporalTargets(
+    width: number,
+    height: number,
+    plan: LaserDmxTemporalFramePlan,
+  ): void {
+    const targetWidth = Math.max(32, Math.round(width * plan.history.resolutionScale))
+    const targetHeight = Math.max(18, Math.round(height * plan.history.resolutionScale))
+    const resized = this.temporalTargets.some(target => (
+      target.width !== targetWidth || target.height !== targetHeight
+    ))
+    this.ensureRenderTarget(this.temporalTargets[0], targetWidth, targetHeight, 'temporal-history-0')
+    this.ensureRenderTarget(this.temporalTargets[1], targetWidth, targetHeight, 'temporal-history-1')
+    if (resized) this.clearTemporalHistory()
+  }
+
+  private clearTemporalHistory(): void {
+    this.clearTarget(this.temporalTargets[0])
+    this.clearTarget(this.temporalTargets[1])
+    this.temporalReadIndex = 0
+    this.temporalHistoryValid = false
+  }
+
+  private renderTemporalHistory(plan: LaserDmxTemporalFramePlan): RenderTarget {
+    if (
+      !this.temporalProgram
+      || !this.fullscreenVertexArray
+      || !this.hdrCompositeTarget.texture
+    ) return this.hdrCompositeTarget
+    const readTarget = this.temporalTargets[this.temporalReadIndex]
+    const writeIndex = this.temporalReadIndex === 0 ? 1 : 0
+    const writeTarget = this.temporalTargets[writeIndex]
+    if (!readTarget.texture || !writeTarget.framebuffer || !writeTarget.texture) {
+      return this.hdrCompositeTarget
+    }
+
+    const gl = this.gl
+    gl.bindFramebuffer(gl.FRAMEBUFFER, writeTarget.framebuffer)
+    gl.viewport(0, 0, writeTarget.width, writeTarget.height)
+    gl.disable(gl.BLEND)
+    gl.clearColor(0, 0, 0, 1)
+    gl.clear(gl.COLOR_BUFFER_BIT)
+    gl.useProgram(this.temporalProgram)
+    gl.bindVertexArray(this.fullscreenVertexArray)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, this.hdrCompositeTarget.texture)
+    gl.uniform1i(this.temporalCurrentUniform, 0)
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, readTarget.texture)
+    gl.uniform1i(this.temporalPreviousUniform, 1)
+    gl.uniform1f(this.temporalRetentionUniform, plan.history.retention)
+    gl.uniform1f(
+      this.temporalHistoryAvailableUniform,
+      this.temporalHistoryValid && plan.history.enabled ? 1 : 0,
+    )
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    gl.bindVertexArray(null)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    this.temporalReadIndex = writeIndex
+    this.temporalHistoryValid = true
+    return writeTarget
+  }
+
   private ensurePostTargets(
     width: number,
     height: number,
@@ -972,9 +1075,14 @@ export class LaserDmxWebGLRuntime {
     }
   }
 
-  private renderPhotographicPost(plan: LaserDmxWebGLPostProcessPlan): void {
+  private renderPhotographicPost(
+    plan: LaserDmxWebGLPostProcessPlan,
+    temporalTarget: RenderTarget,
+    temporalEnabled: boolean,
+  ): void {
+    const sceneTarget = this.hdrCompositeTarget
     if (
-      !this.hdrCompositeTarget.texture ||
+      !sceneTarget.texture ||
       !this.fullscreenVertexArray ||
       !this.bloomDownsampleProgram ||
       !this.bloomBlurProgram ||
@@ -982,9 +1090,9 @@ export class LaserDmxWebGLRuntime {
     )
       return
 
-    let sourceTexture = this.hdrCompositeTarget.texture
-    let sourceWidth = this.hdrCompositeTarget.width
-    let sourceHeight = this.hdrCompositeTarget.height
+    let sourceTexture = temporalTarget.texture ?? sceneTarget.texture
+    let sourceWidth = temporalTarget.texture ? temporalTarget.width : sceneTarget.width
+    let sourceHeight = temporalTarget.texture ? temporalTarget.height : sceneTarget.height
     for (let index = 0; index < plan.bloom.levelCount; index += 1) {
       const target = this.bloomTargets[index]!
       const blurTarget = this.bloomBlurTargets[index]!
@@ -1015,9 +1123,13 @@ export class LaserDmxWebGLRuntime {
     gl.bindVertexArray(this.fullscreenVertexArray)
 
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, this.hdrCompositeTarget.texture)
+    gl.bindTexture(gl.TEXTURE_2D, sceneTarget.texture)
     gl.uniform1i(this.postSceneUniform, 0)
-    const fallbackBloom = this.bloomTargets[0]?.texture ?? this.hdrCompositeTarget.texture
+    gl.activeTexture(gl.TEXTURE5)
+    gl.bindTexture(gl.TEXTURE_2D, temporalTarget.texture ?? sceneTarget.texture)
+    gl.uniform1i(this.postTemporalUniform, 5)
+    gl.uniform1f(this.postTemporalEnabledUniform, temporalEnabled ? 1 : 0)
+    const fallbackBloom = this.bloomTargets[0]?.texture ?? temporalTarget.texture ?? sceneTarget.texture
     for (let index = 0; index < 4; index += 1) {
       gl.activeTexture(gl.TEXTURE1 + index)
       gl.bindTexture(gl.TEXTURE_2D, this.bloomTargets[index]?.texture ?? fallbackBloom)
@@ -1063,7 +1175,7 @@ export class LaserDmxWebGLRuntime {
       plan.toneMapping.gamma,
     )
     gl.drawArrays(gl.TRIANGLES, 0, 3)
-    for (let unit = 0; unit <= 4; unit += 1) {
+    for (let unit = 0; unit <= 5; unit += 1) {
       gl.activeTexture(gl.TEXTURE0 + unit)
       gl.bindTexture(gl.TEXTURE_2D, null)
     }
@@ -1126,6 +1238,13 @@ export class LaserDmxWebGLRuntime {
     gl.bindVertexArray(null)
   }
 
+  private disposeTemporalTargets(): void {
+    this.disposeRenderTarget(this.temporalTargets[0], 'temporal-history-0')
+    this.disposeRenderTarget(this.temporalTargets[1], 'temporal-history-1')
+    this.temporalReadIndex = 0
+    this.temporalHistoryValid = false
+  }
+
   private disposePostTargets(): void {
     for (let index = 0; index < this.bloomTargets.length; index += 1) {
       this.disposeRenderTarget(this.bloomTargets[index]!, `bloom-${index}`)
@@ -1139,9 +1258,14 @@ export class LaserDmxWebGLRuntime {
     const postFilter = this.targetStrategy.linearFiltering ? this.gl.LINEAR : this.gl.NEAREST
     this.atmosphereTarget.filter = postFilter
     this.hdrCompositeTarget.filter = postFilter
+    for (const target of this.temporalTargets) target.filter = postFilter
     for (const target of [...this.bloomTargets, ...this.bloomBlurTargets]) target.filter = postFilter
     this.exposureController.reset()
+    this.temporalController.reset()
+    this.temporalHistoryValid = false
+    this.temporalReadIndex = 0
     this.lastPostPlan = null
+    this.lastTemporalPlan = null
     this.createGpuResources()
   }
 
@@ -1152,6 +1276,7 @@ export class LaserDmxWebGLRuntime {
     this.atmosphereProgram = createProgram(gl, ATMOSPHERE_VERTEX_SHADER, ATMOSPHERE_FRAGMENT_SHADER)
     this.foregroundProgram = createProgram(gl, FULLSCREEN_VERTEX_SHADER, FOREGROUND_FRAGMENT_SHADER)
     this.compositeProgram = createProgram(gl, FULLSCREEN_VERTEX_SHADER, COMPOSITE_FRAGMENT_SHADER)
+    this.temporalProgram = createProgram(gl, FULLSCREEN_VERTEX_SHADER, TEMPORAL_HISTORY_FRAGMENT_SHADER)
     this.bloomDownsampleProgram = createProgram(
       gl,
       FULLSCREEN_VERTEX_SHADER,
@@ -1291,6 +1416,13 @@ export class LaserDmxWebGLRuntime {
       this.compositeProgram,
       'uAtmosphereTexture',
     )
+    this.temporalCurrentUniform = gl.getUniformLocation(this.temporalProgram, 'uCurrentTexture')
+    this.temporalPreviousUniform = gl.getUniformLocation(this.temporalProgram, 'uPreviousTexture')
+    this.temporalRetentionUniform = gl.getUniformLocation(this.temporalProgram, 'uRetention')
+    this.temporalHistoryAvailableUniform = gl.getUniformLocation(
+      this.temporalProgram,
+      'uHistoryAvailable',
+    )
     this.bloomSourceUniform = gl.getUniformLocation(this.bloomDownsampleProgram, 'uSourceTexture')
     this.bloomSourceResolutionUniform = gl.getUniformLocation(
       this.bloomDownsampleProgram,
@@ -1306,6 +1438,11 @@ export class LaserDmxWebGLRuntime {
     this.blurDirectionUniform = gl.getUniformLocation(this.bloomBlurProgram, 'uDirection')
     this.blurRadiusUniform = gl.getUniformLocation(this.bloomBlurProgram, 'uRadius')
     this.postSceneUniform = gl.getUniformLocation(this.postCompositeProgram, 'uSceneTexture')
+    this.postTemporalUniform = gl.getUniformLocation(this.postCompositeProgram, 'uTemporalTexture')
+    this.postTemporalEnabledUniform = gl.getUniformLocation(
+      this.postCompositeProgram,
+      'uTemporalEnabled',
+    )
     this.postBloomUniforms = Array.from({ length: 4 }, (_, index) =>
       gl.getUniformLocation(this.postCompositeProgram!, `uBloom${index}`),
     )
@@ -1412,6 +1549,7 @@ export class LaserDmxWebGLRuntime {
     this.disposeRenderTarget(this.frontTarget, 'front-light')
     this.disposeRenderTarget(this.atmosphereTarget, 'atmosphere')
     this.disposeRenderTarget(this.hdrCompositeTarget, 'hdr-composite')
+    this.disposeTemporalTargets()
     this.disposePostTargets()
     try {
       if (this.beamQuadBuffer) gl.deleteBuffer(this.beamQuadBuffer)
@@ -1489,6 +1627,11 @@ export class LaserDmxWebGLRuntime {
       /* Context may be lost. */
     }
     try {
+      if (this.temporalProgram) gl.deleteProgram(this.temporalProgram)
+    } catch {
+      /* Context may be lost. */
+    }
+    try {
       if (this.bloomDownsampleProgram) gl.deleteProgram(this.bloomDownsampleProgram)
     } catch {
       /* Context may be lost. */
@@ -1518,11 +1661,19 @@ export class LaserDmxWebGLRuntime {
     this.atmosphereProgram = null
     this.foregroundProgram = null
     this.compositeProgram = null
+    this.temporalProgram = null
     this.bloomDownsampleProgram = null
     this.bloomBlurProgram = null
     this.postCompositeProgram = null
+    this.temporalCurrentUniform = null
+    this.temporalPreviousUniform = null
+    this.temporalRetentionUniform = null
+    this.temporalHistoryAvailableUniform = null
+    this.postTemporalUniform = null
+    this.postTemporalEnabledUniform = null
     this.postBloomUniforms = []
     this.lastPostPlan = null
+    this.lastTemporalPlan = null
     this.ledger.release('gpu-core')
   }
 }

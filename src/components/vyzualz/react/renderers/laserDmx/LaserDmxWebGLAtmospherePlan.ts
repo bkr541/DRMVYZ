@@ -7,6 +7,7 @@ import type {
   LaserDmxSceneVec3,
 } from './LaserDmxSceneFrame'
 import { laserDmxDepthSegmentVisible, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
+import { resolveLaserDmxAtmosphereFlutter } from './LaserDmxTemporalOptics'
 import type { LaserDmxWebGLViewport } from './LaserDmxWebGLBeamPlan'
 
 export interface LaserDmxWebGLAtmosphereQualityPolicy {
@@ -216,6 +217,7 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
 ): LaserDmxWebGLAtmosphereRenderPlan {
   const quality = frame.atmosphere.qualityTier
   const policy = resolveLaserDmxAtmosphereQualityPolicy(quality)
+  const flutter = resolveLaserDmxAtmosphereFlutter(frame)
   const target = resolveLaserDmxAtmosphereTargetSize(viewport.backingWidth, viewport.backingHeight, quality)
   const visible = frame.beams.filter(beam => (
     beam.enabled
@@ -243,6 +245,7 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
         beam.intensity
           * beam.opacity
           * frame.atmosphere.beamScatter
+          * flutter.intensityMultiplier
           * depthScatterWeight(beam.sortDepth),
         0,
         2.5,
@@ -275,12 +278,12 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
     noiseOctaves: policy.noiseOctaves,
     deterministicTimeSec: resolveLaserDmxDeterministicAtmosphereTime(frame),
     deterministicSeed: frame.atmosphere.deterministicSeed,
-    baselineDensity: clamp(frame.atmosphere.baselineDensity, 0, 0.35),
+    baselineDensity: clamp(frame.atmosphere.baselineDensity * flutter.densityMultiplier, 0, 0.35),
     opacity: clamp01(frame.atmosphere.opacity),
     beamScatter: clamp01(frame.atmosphere.beamScatter),
     turbulence: clamp01(frame.atmosphere.turbulence),
     noiseScale: clamp(frame.atmosphere.noiseScale, 0.1, 4),
-    driftSpeed: clamp01(frame.atmosphere.driftSpeed),
+    driftSpeed: clamp01(frame.atmosphere.driftSpeed * flutter.driftMultiplier),
     driftDirection: clamp01(frame.atmosphere.driftDirection),
     diffusion: clamp01(frame.atmosphere.diffusion),
     dissipation: clamp01(frame.atmosphere.dissipation),
