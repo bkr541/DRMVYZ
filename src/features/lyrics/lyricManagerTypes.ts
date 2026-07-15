@@ -12,6 +12,7 @@ export interface LyricManagerTrack extends SavedAudioTrack {
   lyricVersionCount: number
   activeLyricDocumentId: string | null
   activeLyricDocumentName: string | null
+  needsReview?: boolean
   /** Hydrated full MI analysis, when available from track_analyses.analysis_payload. */
   analysisPayload?: TrackIntelligenceAnalysis | null
 }

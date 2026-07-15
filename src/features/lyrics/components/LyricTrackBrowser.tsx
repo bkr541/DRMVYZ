@@ -1,7 +1,44 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
 import { ContextActionMenu } from '../../../components/vyzualz/context-menu/ContextActionMenu'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
+
+
+export type LyricTrackFilter =
+  | 'all'
+  | 'has-versions'
+  | 'has-active'
+  | 'no-active'
+  | 'loaded'
+  | 'needs-review'
+
+const TRACK_FILTER_LABELS: Record<LyricTrackFilter, string> = {
+  all: 'All Tracks',
+  'has-versions': 'Has Lyric Versions',
+  'has-active': 'Has Active Lyrics',
+  'no-active': 'No Active Lyrics',
+  loaded: 'Loaded Track',
+  'needs-review': 'Tracks Needing Review',
+}
+
+export function filterLyricManagerTracks(
+  tracks: readonly LyricManagerTrack[],
+  filter: LyricTrackFilter,
+  loadedAudioTrackId: string | null,
+  search = '',
+): LyricManagerTrack[] {
+  const query = search.trim().toLocaleLowerCase()
+  return tracks.filter(track => {
+    const matchesSearch = !query || `${track.title} ${track.fileName} ${track.artist ?? ''}`.toLocaleLowerCase().includes(query)
+    if (!matchesSearch) return false
+    if (filter === 'has-versions') return track.lyricVersionCount > 0
+    if (filter === 'has-active') return Boolean(track.activeLyricDocumentId)
+    if (filter === 'no-active') return !track.activeLyricDocumentId
+    if (filter === 'loaded') return track.dbId === loadedAudioTrackId
+    if (filter === 'needs-review') return track.needsReview === true
+    return true
+  })
+}
 
 interface Props {
   tracks: LyricManagerTrack[]
@@ -76,6 +113,11 @@ export function LyricTrackBrowser({
   onRetry,
 }: Props) {
   const [menu, setMenu] = useState<TrackMenuState | null>(null)
+  const [filter, setFilter] = useState<LyricTrackFilter>('all')
+  const visibleTracks = useMemo(
+    () => filterLyricManagerTracks(tracks, filter, loadedAudioTrackId, search),
+    [filter, loadedAudioTrackId, search, tracks],
+  )
 
   const openMenu = (track: LyricManagerTrack, x: number, y: number) => {
     setMenu({ track, x, y })
@@ -90,7 +132,26 @@ export function LyricTrackBrowser({
         </div>
         <div className="lmv-track-browser-actions">
           <button className="lmv-icon-btn" onClick={onUpload} aria-label="Upload track" title="Upload track"><span className="lmv-sr-label">Upload Track</span>⇧</button>
-          <button className="lmv-icon-btn" type="button" aria-label="Filter tracks" title="Filter tracks">▽</button>
+          <details className="lmv-track-filter">
+            <summary className="lmv-icon-btn" aria-label={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`} title={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}>▽</summary>
+            <div className="lmv-track-filter-menu" role="menu" aria-label="Track Library filters">
+              {(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([id, label]) => (
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={filter === id}
+                  className={filter === id ? 'lmv-track-filter-option lmv-track-filter-option--active' : 'lmv-track-filter-option'}
+                  key={id}
+                  onClick={event => {
+                    setFilter(id)
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                  }}
+                >
+                  <span>{label}</span><em aria-hidden="true">{filter === id ? '✓' : ''}</em>
+                </button>
+              ))}
+            </div>
+          </details>
         </div>
       </div>
 
@@ -112,16 +173,18 @@ export function LyricTrackBrowser({
         </div>
       )}
 
-      {!error && !loading && tracks.length === 0 && (
+      {!error && !loading && visibleTracks.length === 0 && (
         <div className="lmv-track-state">
           {search.trim()
-            ? 'No stored tracks match that title or artist.'
-            : 'No stored audio tracks yet. Upload one to begin.'}
+            ? 'No stored tracks match the current search and filter.'
+            : filter !== 'all'
+              ? `No loaded tracks match “${TRACK_FILTER_LABELS[filter]}”.${hasMore ? ' Load more tracks to continue filtering.' : ''}`
+              : 'No stored audio tracks yet. Upload one to begin.'}
         </div>
       )}
 
       <div className="lmv-track-grid">
-        {tracks.map(track => {
+        {visibleTracks.map(track => {
           const selected = selectedTrackId === track.dbId
           const loaded = loadedAudioTrackId === track.dbId
           const playing = playingAudioTrackId === track.dbId
@@ -188,6 +251,7 @@ export function LyricTrackBrowser({
         })}
       </div>
 
+      <div className="lmv-track-filter-summary" aria-live="polite">{visibleTracks.length} shown · {TRACK_FILTER_LABELS[filter]}</div>
       {loading && <div className="lmv-track-state">Loading tracks…</div>}
       {!loading && hasMore && (
         <button className="lmv-btn lmv-btn--ghost lmv-load-more" onClick={onLoadMore}>Load More</button>

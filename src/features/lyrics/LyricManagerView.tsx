@@ -10,7 +10,7 @@ import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useReactStore } from '../../stores/reactStore'
 import { adaptMIAnalysis, resolveTrackSections } from '../trackIntelligence/trackMapAdapter'
-import type { LyricCue, LyricDocument, LyricSectionType } from '../../types/lyrics'
+import type { LyricCue, LyricDocument, LyricSectionType, LyricTranscriptionJob } from '../../types/lyrics'
 import type { Track } from '../../types'
 import type { TrackIntelligenceAnalysis, BeatMarkerMI } from '../musicIntelligence/types'
 import type { LyricBeatGridStatus } from './editor/LyricCueEditor'
@@ -37,6 +37,7 @@ import { ConfirmLyricDeleteDialog } from './components/ConfirmLyricDeleteDialog'
 import { ConfirmLyricActivationDialog } from './components/ConfirmLyricActivationDialog'
 import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
 import { LyricSignalPathStatus } from './components/LyricSignalPathStatus'
+import { LyricWorkflowStatus } from './components/LyricWorkflowStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
@@ -47,6 +48,9 @@ import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyric
 import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
 import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
 import type { LyricSnapMode } from './editor/lyricCueEditorModel'
+import { getRecentLyricTranscriptionJobs } from './services/lyricExtraction'
+import type { LyricValidationIssue } from './utils/lyricValidation'
+import { toEffectiveLyricTimeMs } from './runtime/lyricPlaybackResolver'
 import {
   cleanupObsoleteLyricRecoveries,
   createLyricRecoveryRecord,
@@ -161,6 +165,7 @@ function uploadedTrackToManager(track: SavedAudioTrack): LyricManagerTrack {
     lyricVersionCount: 0,
     activeLyricDocumentId: null,
     activeLyricDocumentName: null,
+    needsReview: false,
     analysisPayload: null,
   }
 }
@@ -274,58 +279,6 @@ function SelectedTrackHero({
   )
 }
 
-function ExtractionConsoleSummary({
-  selectedTrack,
-  documentCount,
-  cueCount,
-  documentsLoading,
-  activeTab,
-}: {
-  selectedTrack: LyricManagerTrack | null
-  documentCount: number
-  cueCount: number
-  documentsLoading: boolean
-  activeTab: WorkflowTab
-}) {
-  const steps = [
-    { label: selectedTrack ? 'Track selected' : 'Select a track', done: !!selectedTrack },
-    { label: documentsLoading ? 'Loading lyric versions' : documentCount > 0 ? 'Lyric versions loaded' : 'Create or import lyrics', done: documentCount > 0 },
-    { label: cueCount > 0 ? 'Timed cues available' : 'Add timed cues', done: cueCount > 0 },
-    { label: activeTab === 'ai' ? 'Groq extraction console open' : 'Review and save changes', done: cueCount > 0 },
-  ]
-
-  const [open, setOpen] = useState(true)
-  const bodyId = 'lmv-extraction-console-panel'
-
-  return (
-    <section className={`lmv-panel-card lmv-right-section lmv-extraction-console${open ? ' lmv-right-section--open' : ' lmv-right-section--closed'}`} aria-label="Lyric workflow console">
-      <button
-        type="button"
-        className="lmv-right-section-header"
-        onClick={() => setOpen(value => !value)}
-        aria-expanded={open}
-        aria-controls={bodyId}
-      >
-        <span className="lmv-right-section-title">Extraction Console</span>
-        <span className="lmv-right-section-arrow" aria-hidden="true">▾</span>
-      </button>
-      {open && (
-        <div id={bodyId} className="lmv-right-section-body">
-          <div className="lmv-console-steps">
-            {steps.map((step, index) => (
-              <div className="lmv-console-step" key={step.label}>
-                <span>{index + 1}</span>
-                <strong>{step.label}</strong>
-                <em className={step.done ? 'lmv-console-ok' : 'lmv-console-pending'}>{step.done ? '✓' : '○'}</em>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  )
-}
-
 function LyricTransportBar({
   selectedTrack,
   selectedTrackLoaded,
@@ -359,17 +312,13 @@ function LyricTransportBar({
   return (
     <footer className="lmv-transport-bar" aria-label="Lyric preview transport">
       <div className="lmv-transport-left">
-        <button className="lmv-transport-chip" type="button" disabled title="Loop boundaries are not defined for Lyric Manager preview." aria-label="Loop unavailable: no loop boundaries are defined">↻ Loop</button>
         <button className="lmv-transport-chip" type="button" onClick={onToggleSnap} aria-pressed={snapMode !== 'none'} title="Toggle the cue editor's canonical snap mode">⌕ Snap: {snapMode === 'none' ? 'Off' : snapMode}</button>
-        <button className="lmv-transport-chip" type="button" disabled title="No lyric comparison model is available for this document." aria-label="Compare unavailable: no comparison model is available">⇄ Compare: Off</button>
       </div>
 
       <div className="lmv-transport-center">
-        <button className="lmv-transport-icon" type="button" disabled title="Previous navigation is unavailable because no transport order is defined." aria-label="Previous unavailable">⏮</button>
-        <button className="lmv-transport-icon" type="button" disabled={!selectedTrackLoaded} onClick={onTogglePlayback}>
+        <button className="lmv-transport-icon" type="button" disabled={!selectedTrackLoaded} onClick={onTogglePlayback} aria-label={selectedTrackPlaying ? 'Pause lyric preview' : 'Play lyric preview'}>
           {selectedTrackPlaying ? 'Ⅱ' : '▶'}
         </button>
-        <button className="lmv-transport-icon" type="button" disabled title="Next navigation is unavailable because no transport order is defined." aria-label="Next unavailable">⏭</button>
         <div className="lmv-transport-time">
           <strong>{formatMsClock(safeCurrent)}</strong>
           <span>/ {selectedTrack ? formatDuration((safeDuration || (selectedTrack.durationSec ?? 0) * 1000) / 1000) : '0:00'}</span>
@@ -454,6 +403,7 @@ export function LyricManagerView({
     restoreRecoveredLyricDraft,
     runtimeLyricsStatus,
     runtimeAudioTrackId,
+    runtimeActiveDocumentId,
   } = useLyricsStore()
 
   const engine = useSharedAudio()
@@ -487,6 +437,9 @@ export function LyricManagerView({
   const [recoveryReviewing, setRecoveryReviewing] = useState(false)
   const [recoveryBusy, setRecoveryBusy] = useState(false)
   const [snapMode, setSnapMode] = useState<LyricSnapMode>('none')
+  const [navigationTarget, setNavigationTarget] = useState<{ cueId: string; wordId?: string | null; revision: number } | null>(null)
+  const [latestTranscriptionJob, setLatestTranscriptionJob] = useState<LyricTranscriptionJob | null>(null)
+  const [transcriptionJobLoading, setTranscriptionJobLoading] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadPurpose, setUploadPurpose] = useState<'canonical' | 'vocal_reference'>('canonical')
   const [uploadedVocalReferenceTrack, setUploadedVocalReferenceTrack] = useState<LyricManagerTrack | null>(null)
@@ -528,6 +481,7 @@ export function LyricManagerView({
   const documentListGenerationRef = useRef(new Map<string, number>())
   const canonicalReconcileSequenceRef = useRef(0)
   const audioRequestRef = useRef({ generation: 0, trackId: null as string | null, accountId: null as string | null })
+  const transcriptionJobRequestRef = useRef(0)
   const statusTimerRef = useRef<number | null>(null)
   const statusRequestRef = useRef(0)
   const recoveryReadGenerationRef = useRef(0)
@@ -841,6 +795,7 @@ export function LyricManagerView({
       })
     }
     setSelectedTrack(track)
+    setNavigationTarget(null)
     setDocuments([])
     setDocumentsLoading(false)
   }, [clearStatus])
@@ -912,6 +867,28 @@ export function LyricManagerView({
   useEffect(() => {
     void loadTracks(true)
   }, [debouncedSearch]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const request = ++transcriptionJobRequestRef.current
+    setLatestTranscriptionJob(null)
+    if (!selectedTrack) {
+      setTranscriptionJobLoading(false)
+      return
+    }
+    setTranscriptionJobLoading(true)
+    void getRecentLyricTranscriptionJobs(selectedTrack.dbId, 1)
+      .then(jobs => {
+        if (!mountedRef.current || request !== transcriptionJobRequestRef.current || selectedTrackIdRef.current !== selectedTrack.dbId) return
+        setLatestTranscriptionJob(jobs[0] ?? null)
+      })
+      .catch(() => {
+        if (!mountedRef.current || request !== transcriptionJobRequestRef.current) return
+        setLatestTranscriptionJob(null)
+      })
+      .finally(() => {
+        if (mountedRef.current && request === transcriptionJobRequestRef.current) setTranscriptionJobLoading(false)
+      })
+  }, [selectedTrack?.dbId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!supabaseConfigured) return
@@ -1443,7 +1420,19 @@ export function LyricManagerView({
   ])
 
   const handleCompletedDraftResolved = useCallback(async () => {
-    if (selectedTrack) await refreshDocuments(selectedTrack)
+    if (!selectedTrack) return
+    await refreshDocuments(selectedTrack)
+    const request = ++transcriptionJobRequestRef.current
+    setTranscriptionJobLoading(true)
+    try {
+      const jobs = await getRecentLyricTranscriptionJobs(selectedTrack.dbId, 1)
+      if (!mountedRef.current || request !== transcriptionJobRequestRef.current || selectedTrackIdRef.current !== selectedTrack.dbId) return
+      setLatestTranscriptionJob(jobs[0] ?? null)
+    } catch {
+      if (mountedRef.current && request === transcriptionJobRequestRef.current) setLatestTranscriptionJob(null)
+    } finally {
+      if (mountedRef.current && request === transcriptionJobRequestRef.current) setTranscriptionJobLoading(false)
+    }
   }, [refreshDocuments, selectedTrack])
 
   const handleOpenCompletedDraft = useCallback(
@@ -1596,6 +1585,44 @@ export function LyricManagerView({
     if (!selectedTrack) return false
     return handleLoadTrack(selectedTrack, false)
   }, [handleLoadTrack, selectedTrack])
+
+  const handleAnalyzeSelectedTrack = useCallback(async () => {
+    if (!selectedTrack) return
+    let loaded = selectedTrack.dbId === engineRef.current.currentAudioTrackId
+    if (!loaded) loaded = await handleLoadTrack(selectedTrack, false)
+    if (!loaded) return
+    const current = engineRef.current
+    const runtimeTrackId = current.currentTrackId
+    if (!runtimeTrackId) {
+      setError('The loaded track does not have a runtime identity for analysis.')
+      return
+    }
+    if (current.currentAnalysisStatus === 'queued' || current.currentAnalysisStatus === 'decoding' || current.currentAnalysisStatus === 'analyzing') {
+      showStatus('Track analysis is already running.')
+      return
+    }
+    if (current.currentAnalysisStatus === 'failed' || current.currentAnalysisStatus === 'not_analyzed') {
+      current.retryAnalysis(runtimeTrackId)
+      showStatus('Track analysis queued. Unsaved lyric edits remain open.')
+      return
+    }
+    current.reanalyzeTrack(runtimeTrackId)
+    showStatus('Fresh track analysis queued. Unsaved lyric edits remain open.')
+  }, [handleLoadTrack, selectedTrack, setError, showStatus])
+
+  const handleNavigateToValidationIssue = useCallback((issue: LyricValidationIssue) => {
+    if (!issue.cueId) return
+    const cue = storeCues.find(item => item.id === issue.cueId)
+    if (!cue) return
+    setActiveTab('manual')
+    selectCue(cue.id)
+    setNavigationTarget({ cueId: cue.id, wordId: issue.wordId, revision: Date.now() })
+    if (selectedTrack?.dbId === engineRef.current.currentAudioTrackId) {
+      const canonicalCenter = cue.endMs > cue.startMs ? cue.startMs + ((cue.endMs - cue.startMs) / 2) : cue.startMs
+      const effectiveCenter = Math.max(0, toEffectiveLyricTimeMs(canonicalCenter, globalOffsetMs))
+      engineRef.current.seek(effectiveCenter / 1000)
+    }
+  }, [globalOffsetMs, selectCue, selectedTrack?.dbId, storeCues])
 
   const handleTogglePlayback = useCallback(() => {
     if (!selectedTrack || engine.currentAudioTrackId !== selectedTrack.dbId) {
@@ -1873,6 +1900,18 @@ export function LyricManagerView({
     durationSec: editorDurationMs / 1000,
   })
   const sectionOptions = sectionOptionsFromTimeline(activeEditorSections)
+
+  useEffect(() => {
+    if (!selectedTrack || !selectedTrackLoaded || engine.currentAnalysisStatus !== 'complete' || !engine.currentAnalysis) return
+    const analysis = engine.currentAnalysis
+    setSelectedTrack(current => current?.dbId === selectedTrack.dbId && current.analysisPayload !== analysis
+      ? { ...current, analysisPayload: analysis }
+      : current)
+    setTracks(current => current.map(track => track.dbId === selectedTrack.dbId && track.analysisPayload !== analysis
+      ? { ...track, analysisPayload: analysis }
+      : track))
+  }, [engine.currentAnalysis, engine.currentAnalysisStatus, selectedTrack, selectedTrackLoaded])
+
   const hasMore = tracks.length < trackTotal
   const selectedTrackName = selectedTrack?.title ?? null
 
@@ -2093,6 +2132,12 @@ export function LyricManagerView({
                 onUpdateTitle={setDraftTitle}
                 onUpdateArtist={setDraftArtist}
                 onUpdateGlobalOffset={setGlobalOffsetMs}
+                defaultStyle={draftDefaultStyle}
+                defaultAnimation={draftDefaultAnimation}
+                defaultEffects={draftDefaultEffects}
+                onUpdateDefaultStyle={updateDraftDefaultStyle}
+                onUpdateDefaultAnimation={updateDraftDefaultAnimation}
+                onUpdateDefaultEffects={updateDraftDefaultEffects}
                 trackId={runtimeTrackId}
                 trackUrl={runtimeTrackUrl}
                 decodedBuffer={decodedBuffer}
@@ -2114,6 +2159,9 @@ export function LyricManagerView({
                 timelineSections={activeEditorSections}
                 snapMode={snapMode}
                 onSnapModeChange={setSnapMode}
+                onAnalyzeTrack={handleAnalyzeSelectedTrack}
+                analysisActionLabel={beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track'}
+                navigationTarget={navigationTarget}
               />
             ) : activeTab === 'json' ? (
               <JsonLyricImporter onImportToDraft={handleImportToDraft} />
@@ -2149,15 +2197,28 @@ export function LyricManagerView({
             cues={storeCues}
             document={editorDocument}
             selectedCue={selectedCue}
+            currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+            isPlaying={selectedTrackPlaying}
+            globalOffsetMs={globalOffsetMs}
+            onNavigateToIssue={handleNavigateToValidationIssue}
             onPreviewInVisualizer={handlePreviewInPerformanceView}
             previewDestination={returnView === 'react' ? 'React' : 'Visualizer'}
             extractionConsole={
-              <ExtractionConsoleSummary
+              <LyricWorkflowStatus
                 selectedTrack={selectedTrack}
-                documentCount={documents.length}
-                cueCount={storeCues.length}
-                documentsLoading={documentsLoading}
-                activeTab={activeTab}
+                loadedTrackMatches={selectedTrackLoaded}
+                activeVersion={activeVersionForSelectedTrack}
+                editorDocument={editorDocument}
+                cues={storeCues}
+                trackMapAvailable={Boolean(activeEditorAnalysis && (trustedBeatGridMs.length >= 2 || activeEditorSections.length > 0))}
+                trackMapRevision={activeEditorAnalysis?.analysisVersion ?? null}
+                saveStatus={activeWriteStatus}
+                saveRevision={lastCanonicalWrite?.sequence ?? null}
+                runtimeAudioTrackId={runtimeAudioTrackId}
+                runtimeActiveDocumentId={runtimeActiveDocumentId}
+                lyricsDisplayEnabled={lyricsDisplayEnabled}
+                latestJob={latestTranscriptionJob}
+                jobsLoading={transcriptionJobLoading || documentsLoading}
               />
             }
           />

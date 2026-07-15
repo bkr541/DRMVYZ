@@ -5,7 +5,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
-import { LyricTrackBrowser } from './LyricTrackBrowser'
+import { filterLyricManagerTracks, LyricTrackBrowser } from './LyricTrackBrowser'
 
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
@@ -126,7 +126,7 @@ describe('LyricTrackBrowser', () => {
     expect(container.textContent).toContain('No active version')
 
     await render({ tracks: [], search: 'missing' })
-    expect(container.textContent).toContain('No stored tracks match that title or artist.')
+    expect(container.textContent).toContain('No stored tracks match the current search and filter.')
 
     await render({ tracks: [], search: '', loading: true })
     expect(container.textContent).toContain('Loading tracks…')
@@ -177,6 +177,18 @@ describe('LyricTrackBrowser', () => {
     await act(async () => card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
     await act(async () => menuButton('AI Extract Lyrics').click())
     expect(onOpenAiExtract).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+  })
+
+  it('combines repository-native filters with search and loaded-track identity', () => {
+    const tracks = [
+      track({ dbId: 'active', title: 'Active Song', activeLyricDocumentId: 'doc-1', lyricVersionCount: 2 }),
+      track({ dbId: 'review', title: 'Review Song', activeLyricDocumentId: null, activeLyricDocumentName: null, lyricVersionCount: 1, needsReview: true }),
+      track({ dbId: 'empty', title: 'Empty Song', activeLyricDocumentId: null, activeLyricDocumentName: null, lyricVersionCount: 0 }),
+    ]
+    expect(filterLyricManagerTracks(tracks, 'has-active', null).map(item => item.dbId)).toEqual(['active'])
+    expect(filterLyricManagerTracks(tracks, 'needs-review', null).map(item => item.dbId)).toEqual(['review'])
+    expect(filterLyricManagerTracks(tracks, 'loaded', 'empty').map(item => item.dbId)).toEqual(['empty'])
+    expect(filterLyricManagerTracks(tracks, 'no-active', null, 'review').map(item => item.dbId)).toEqual(['review'])
   })
 
   it('renders selected, loaded, and playing as independent simultaneous states', async () => {

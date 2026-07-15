@@ -449,7 +449,14 @@ export function selectUsefulCues(
   options: { cueStyle?: LyricCueStyle; musicalStructure?: MusicalSegmentationStructure | null } = {},
 ): CanonicalCue[] {
   if (transcript.words.length > 0) {
-    return segmentTimedWords(transcript.words, options.cueStyle, options.musicalStructure ?? null).map((cue, index) => cueFromWords(cue.words, index))
+    return segmentTimedWords(transcript.words, options.cueStyle, options.musicalStructure ?? null).map((cue, index) => {
+      const grouped = cueFromWords(cue.words, index)
+      const providerWarnings = transcript.segments
+        .filter(segment => segment.startMs < grouped.endMs && segment.endMs > grouped.startMs)
+        .flatMap(segment => segment.warnings ?? [])
+      const warnings = [...new Set([...(grouped.warnings ?? []), ...providerWarnings])]
+      return warnings.length > 0 ? { ...grouped, warnings } : grouped
+    })
   }
   const valid = transcript.segments.filter(segment => segment.endMs > segment.startMs && cleanText(segment.text))
   return valid.map(segment => ({ ...segment, warnings: [...new Set([...(segment.warnings ?? []), 'provider_warning'])] }))

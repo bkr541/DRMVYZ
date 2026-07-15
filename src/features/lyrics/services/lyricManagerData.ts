@@ -64,6 +64,7 @@ export function mapAudioTrackForLyricManager(row: AudioTrack): LyricManagerTrack
     lyricVersionCount: 0,
     activeLyricDocumentId: null,
     activeLyricDocumentName: null,
+    needsReview: false,
     analysisPayload: null,
   }
 }
@@ -139,6 +140,7 @@ export async function loadLyricManagerTrackById(
     lyricVersionCount: versions.length,
     activeLyricDocumentId: active?.id ?? null,
     activeLyricDocumentName: active?.title ?? null,
+    needsReview: versions.some(version => !['reviewed', 'corrected'].includes((version.documentReviewStatus ?? '').toLowerCase())),
     analysisPayload: analysis,
   }
 }
@@ -184,6 +186,7 @@ export async function loadLyricManagerTrackPage(
         lyricVersionCount: trackVersions.length,
         activeLyricDocumentId: active?.id ?? null,
         activeLyricDocumentName: active?.title ?? null,
+        needsReview: trackVersions.some(version => !['reviewed', 'corrected'].includes((version.documentReviewStatus ?? '').toLowerCase())),
         analysisPayload: analysisByTrack.get(track.dbId) ?? null,
       }
     }),

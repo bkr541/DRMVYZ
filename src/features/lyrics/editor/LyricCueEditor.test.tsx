@@ -59,7 +59,7 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-async function renderEditor() {
+async function renderEditor(overrides: Partial<React.ComponentProps<typeof LyricCueEditor>> = {}) {
   await act(async () => {
     root.render(
       <LyricCueEditor
@@ -70,6 +70,7 @@ async function renderEditor() {
         currentTimeMs={500}
         onSeek={vi.fn()}
         beatGridMs={[0, 500, 1_000]}
+        {...overrides}
       />,
     )
   })
@@ -107,6 +108,33 @@ describe('LyricCueEditor selection synchronization', () => {
       zoom.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(useVisualStore.getState().waveformZoom).toBe(8)
+  })
+
+  it('offers an actionable analysis recovery and navigates to a validation target', async () => {
+    const analyze = vi.fn()
+    useLyricsStore.setState({
+      cues: [
+        CUES[0],
+        { ...CUES[1], words: [{ id: 'word-2', text: 'Second', startMs: 1_000, endMs: 2_000 }] },
+      ],
+      selectedCueId: 'cue-1',
+    })
+    await renderEditor({
+      beatGridMs: [],
+      beatGridStatus: 'temporary',
+      beatGridStatusMessage: 'Temporary grid in use.',
+      onAnalyzeTrack: analyze,
+      analysisActionLabel: 'Analyze Track',
+      navigationTarget: { cueId: 'cue-2', wordId: 'word-2', revision: 1 },
+    })
+
+    const analyzeButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent === 'Analyze Track')
+    expect(analyzeButton).toBeTruthy()
+    await act(async () => analyzeButton?.click())
+    expect(analyze).toHaveBeenCalledOnce()
+    expect(useLyricsStore.getState().selectedCueId).toBe('cue-2')
+    expect(container.querySelector('[data-word-id="word-2"]')?.className).toContain('lyric-word-editor__row--focused')
   })
 
   it('filters low-confidence and warning rows without changing canonical cues', async () => {

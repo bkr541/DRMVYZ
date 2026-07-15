@@ -52,6 +52,9 @@ interface Props {
   timelineSections?: ReactTrackSection[]
   snapMode?: LyricSnapMode
   onSnapModeChange?: (mode: LyricSnapMode) => void
+  onAnalyzeTrack?: () => void
+  analysisActionLabel?: string
+  navigationTarget?: { cueId: string; wordId?: string | null; revision: number } | null
 }
 
 function createCueId(prefix = 'cue'): string {
@@ -93,6 +96,9 @@ export function LyricCueEditor({
   timelineSections = [],
   snapMode: controlledSnapMode,
   onSnapModeChange,
+  onAnalyzeTrack,
+  analysisActionLabel = 'Analyze Track',
+  navigationTarget = null,
 }: Props) {
   const {
     cues,
@@ -158,6 +164,23 @@ export function LyricCueEditor({
   useEffect(() => {
     if (!canUseSnapMode(snapMode, { beatGridMs, wordBoundaryMs })) setSnapMode('none')
   }, [beatGridMs, setSnapMode, snapMode, wordBoundaryMs])
+
+  useEffect(() => {
+    if (!navigationTarget || !cues.some(cue => cue.id === navigationTarget.cueId)) return
+    setFilter('all')
+    selectCue(navigationTarget.cueId)
+    const frame = requestAnimationFrame(() => {
+      const row = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[data-cue-row-id]') ?? [])
+        .find(element => element.dataset.cueRowId === navigationTarget.cueId)
+      const behavior: ScrollBehavior = typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth'
+      row?.scrollIntoView?.({ block: 'center', behavior })
+      if (!navigationTarget.wordId) row?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [cues, navigationTarget, selectCue])
 
   const focusCue = useCallback((cueId: string | null) => {
     if (!cueId) return
@@ -356,7 +379,14 @@ export function LyricCueEditor({
         <span className={`lyric-cue-editor-toolbar__authority${overlaySource.authoritative ? ' lyric-cue-editor-toolbar__authority--trusted' : ''}`}>
           {overlaySource.authoritative ? 'Track Map overlays' : 'Fallback timeline'}
         </span>
-        {beatGridHint && <span className="lyric-cue-editor-toolbar__hint">{beatGridHint}</span>}
+        {beatGridHint && (
+          <span className="lyric-cue-editor-toolbar__hint">
+            <span>{beatGridHint}</span>
+            {onAnalyzeTrack && beatGridStatus !== 'analyzing' && (
+              <button type="button" className="lmv-inline-action" onClick={onAnalyzeTrack}>{analysisActionLabel}</button>
+            )}
+          </span>
+        )}
       </div>
 
       <LyricCueTimeline
@@ -456,6 +486,7 @@ export function LyricCueEditor({
             canMergePrevious={selectedIndex > 0}
             canMergeNext={selectedIndex >= 0 && selectedIndex < orderedCues.length - 1}
             onUpdateCue={commitCuePatch}
+            focusWordId={navigationTarget?.cueId === selectedCue.id ? navigationTarget.wordId : null}
           />
         ) : (
           <div className="lyric-cue-editor__empty-selection">Select a cue in the timeline or list to edit it.</div>

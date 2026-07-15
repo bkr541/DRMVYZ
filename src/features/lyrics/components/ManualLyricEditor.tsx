@@ -4,6 +4,8 @@ import type { LyricSectionOption } from '../editor/LyricCueInspector'
 import type { LyricSnapMode } from '../editor/lyricCueEditorModel'
 import type { TrackIntelligenceAnalysis } from '../../musicIntelligence/types'
 import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
+import type { LyricAnimation, LyricEffects, LyricStyle } from '../../../types/lyrics'
+import { LyricPresentationControls } from './LyricPresentationControls'
 
 interface Props {
   draftTitle: string
@@ -12,6 +14,12 @@ interface Props {
   onUpdateTitle: (value: string) => void
   onUpdateArtist: (value: string) => void
   onUpdateGlobalOffset: (value: number) => void
+  defaultStyle: Partial<LyricStyle>
+  defaultAnimation: Partial<LyricAnimation>
+  defaultEffects: Partial<LyricEffects>
+  onUpdateDefaultStyle: (patch: Partial<LyricStyle>) => void
+  onUpdateDefaultAnimation: (patch: Partial<LyricAnimation>) => void
+  onUpdateDefaultEffects: (patch: Partial<LyricEffects>) => void
   trackId: string | null
   trackUrl: string | null
   decodedBuffer?: AudioBuffer | null
@@ -27,6 +35,9 @@ interface Props {
   timelineSections?: ReactTrackSection[]
   snapMode: LyricSnapMode
   onSnapModeChange: (mode: LyricSnapMode) => void
+  onAnalyzeTrack?: () => void
+  analysisActionLabel?: string
+  navigationTarget?: { cueId: string; wordId?: string | null; revision: number } | null
 }
 
 export function ManualLyricEditor({
@@ -36,6 +47,12 @@ export function ManualLyricEditor({
   onUpdateTitle,
   onUpdateArtist,
   onUpdateGlobalOffset,
+  defaultStyle,
+  defaultAnimation,
+  defaultEffects,
+  onUpdateDefaultStyle,
+  onUpdateDefaultAnimation,
+  onUpdateDefaultEffects,
   trackId,
   trackUrl,
   decodedBuffer,
@@ -51,6 +68,9 @@ export function ManualLyricEditor({
   timelineSections,
   snapMode,
   onSnapModeChange,
+  onAnalyzeTrack,
+  analysisActionLabel,
+  navigationTarget,
 }: Props) {
   const [styleOpen, setStyleOpen] = useState(false)
 
@@ -105,7 +125,15 @@ export function ManualLyricEditor({
       </button>
       {styleOpen && (
         <div className="lmv-defaults-section">
-          <div className="lmv-defaults-hint">Document defaults remain available through the existing preview controls. Cue-specific style and animation metadata can be edited in the selected-cue inspector below.</div>
+          <div className="lmv-defaults-hint">These document defaults are inherited by every cue unless that cue defines an override.</div>
+          <LyricPresentationControls
+            style={defaultStyle}
+            animation={defaultAnimation}
+            effects={defaultEffects}
+            onStyleChange={onUpdateDefaultStyle}
+            onAnimationChange={onUpdateDefaultAnimation}
+            onEffectsChange={onUpdateDefaultEffects}
+          />
         </div>
       )}
 
@@ -127,6 +155,9 @@ export function ManualLyricEditor({
         timelineSections={timelineSections}
         snapMode={snapMode}
         onSnapModeChange={onSnapModeChange}
+        onAnalyzeTrack={onAnalyzeTrack}
+        analysisActionLabel={analysisActionLabel}
+        navigationTarget={navigationTarget}
       />
     </div>
   )

@@ -42,6 +42,8 @@ Desktop artifacts are written to `release/`. Cross-platform installers normally 
 
 For the complete locked-install, unit, production-build, Chromium smoke, and audit workflow, see [`docs/verification.md`](docs/verification.md).
 
+Lyric Manager identity, extraction, Cue Style, vocal-reference, waveform editing, review, and troubleshooting behavior is documented in [`docs/lyric-manager.md`](docs/lyric-manager.md).
+
 ---
 
 ## Audio Sources

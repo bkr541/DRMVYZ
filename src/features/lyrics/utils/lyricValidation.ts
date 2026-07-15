@@ -1,6 +1,30 @@
 import type { LyricCue } from '../../../types/lyrics'
 import { isValidLyricConfidence } from '../../../types/lyrics'
 
+export type LyricValidationSeverity = 'error' | 'warning'
+
+export interface LyricValidationIssue {
+  id: string
+  severity: LyricValidationSeverity
+  code:
+    | 'empty_text'
+    | 'invalid_start'
+    | 'invalid_end'
+    | 'invalid_bounds'
+    | 'invalid_confidence'
+    | 'cue_overlap'
+    | 'invalid_word_bounds'
+    | 'invalid_word_confidence'
+    | 'word_outside_cue'
+    | 'unknown_group_word'
+    | 'empty_document'
+  message: string
+  cueId: string | null
+  cueIndex: number | null
+  wordId: string | null
+  wordIndex: number | null
+}
+
 // ── Result shape ──────────────────────────────────────────────────────────────
 
 export interface LyricValidationResult {
@@ -13,29 +37,52 @@ export interface LyricValidationResult {
   totalDurationMs: number | null
   errors: string[]
   warnings: string[]
+  issues: LyricValidationIssue[]
 }
 
 // ── Formatter (shared with display) ──────────────────────────────────────────
 
 export function formatMsCompact(ms: number): string {
-  const s = Math.floor(ms / 1000)
+  const safe = Number.isFinite(ms) ? Math.max(0, Math.round(ms)) : 0
+  const s = Math.floor(safe / 1000)
   const m = Math.floor(s / 60)
   const sec = s % 60
-  return `${m}:${String(sec).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`
+  return `${m}:${String(sec).padStart(2, '0')}.${String(safe % 1000).padStart(3, '0')}`
+}
+
+function makeIssue(
+  severity: LyricValidationSeverity,
+  code: LyricValidationIssue['code'],
+  message: string,
+  cue: LyricCue | null,
+  cueIndex: number | null,
+  wordId: string | null = null,
+  wordIndex: number | null = null,
+): LyricValidationIssue {
+  return {
+    id: `${severity}:${code}:${cue?.id ?? 'document'}:${wordId ?? 'cue'}:${cueIndex ?? -1}:${wordIndex ?? -1}`,
+    severity,
+    code,
+    message,
+    cueId: cue?.id ?? null,
+    cueIndex,
+    wordId,
+    wordIndex,
+  }
 }
 
 // ── Main validator ────────────────────────────────────────────────────────────
 
 export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
-  const errors: string[] = []
-  const warnings: string[] = []
+  const issues: LyricValidationIssue[] = []
 
   if (cues.length === 0) {
+    const issue = makeIssue('warning', 'empty_document', 'No cues in document', null, null)
     return {
       valid: true,
       cueCount: 0, wordCount: 0, groupCount: 0,
       earliestStartMs: null, latestEndMs: null, totalDurationMs: null,
-      errors: [], warnings: ['No cues in document'],
+      errors: [], warnings: [issue.message], issues: [issue],
     }
   }
 
@@ -47,25 +94,31 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
     const idx = i + 1
 
     if (!cue.text || !cue.text.trim()) {
-      errors.push(`Cue ${idx}: text is empty`)
+      issues.push(makeIssue('error', 'empty_text', `Cue ${idx}: text is empty`, cue, i))
     }
-    if (!isFinite(cue.startMs) || cue.startMs < 0) {
-      errors.push(`Cue ${idx}: startMs is invalid (${cue.startMs})`)
+    if (!Number.isFinite(cue.startMs) || cue.startMs < 0) {
+      issues.push(makeIssue('error', 'invalid_start', `Cue ${idx}: startMs is invalid (${cue.startMs})`, cue, i))
     }
-    if (!isFinite(cue.endMs) || cue.endMs <= 0) {
-      errors.push(`Cue ${idx}: endMs is invalid (${cue.endMs})`)
+    if (!Number.isFinite(cue.endMs) || cue.endMs <= 0) {
+      issues.push(makeIssue('error', 'invalid_end', `Cue ${idx}: endMs is invalid (${cue.endMs})`, cue, i))
     }
-    if (isFinite(cue.startMs) && isFinite(cue.endMs) && cue.endMs <= cue.startMs) {
-      errors.push(`Cue ${idx}: endMs (${cue.endMs}) must be > startMs (${cue.startMs})`)
+    if (Number.isFinite(cue.startMs) && Number.isFinite(cue.endMs) && cue.endMs <= cue.startMs) {
+      issues.push(makeIssue('error', 'invalid_bounds', `Cue ${idx}: endMs (${cue.endMs}) must be > startMs (${cue.startMs})`, cue, i))
     }
     if (cue.confidence !== undefined && !isValidLyricConfidence(cue.confidence)) {
-      errors.push(`Cue ${idx}: confidence must be between 0 and 1`)
+      issues.push(makeIssue('error', 'invalid_confidence', `Cue ${idx}: confidence must be between 0 and 1`, cue, i))
     }
 
     if (i > 0) {
       const prev = cues[i - 1]
-      if (isFinite(prev.endMs) && isFinite(cue.startMs) && cue.startMs < prev.endMs) {
-        warnings.push(`Cue ${idx} overlaps cue ${i} (starts ${cue.startMs}ms, prev ends ${prev.endMs}ms)`)
+      if (Number.isFinite(prev.endMs) && Number.isFinite(cue.startMs) && cue.startMs < prev.endMs) {
+        issues.push(makeIssue(
+          'warning',
+          'cue_overlap',
+          `Cue ${idx} overlaps cue ${i} (starts ${cue.startMs}ms, prev ends ${prev.endMs}ms)`,
+          cue,
+          i,
+        ))
       }
     }
 
@@ -74,14 +127,14 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
       for (let wi = 0; wi < cue.words.length; wi++) {
         const word = cue.words[wi]
         if (word.endMs <= word.startMs) {
-          errors.push(`Cue ${idx}, word ${wi + 1}: endMs <= startMs`)
+          issues.push(makeIssue('error', 'invalid_word_bounds', `Cue ${idx}, word ${wi + 1}: endMs <= startMs`, cue, i, word.id, wi))
         }
         if (word.confidence !== undefined && !isValidLyricConfidence(word.confidence)) {
-          errors.push(`Cue ${idx}, word ${wi + 1}: confidence must be between 0 and 1`)
+          issues.push(makeIssue('error', 'invalid_word_confidence', `Cue ${idx}, word ${wi + 1}: confidence must be between 0 and 1`, cue, i, word.id, wi))
         }
-        if (isFinite(cue.startMs) && isFinite(cue.endMs)) {
+        if (Number.isFinite(cue.startMs) && Number.isFinite(cue.endMs)) {
           if (word.startMs < cue.startMs || word.endMs > cue.endMs) {
-            warnings.push(`Cue ${idx}, word ${wi + 1} timing outside cue range`)
+            issues.push(makeIssue('warning', 'word_outside_cue', `Cue ${idx}, word ${wi + 1} timing outside cue range`, cue, i, word.id, wi))
           }
         }
       }
@@ -94,7 +147,7 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
         if (wordIds.size > 0) {
           for (const wid of grp.wordIds) {
             if (!wordIds.has(wid)) {
-              warnings.push(`Cue ${idx}, group "${grp.id}" references unknown word "${wid}"`)
+              issues.push(makeIssue('warning', 'unknown_group_word', `Cue ${idx}, group "${grp.id}" references unknown word "${wid}"`, cue, i, wid))
             }
           }
         }
@@ -102,9 +155,11 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
     }
   }
 
-  const valid = cues.filter(c => isFinite(c.startMs) && isFinite(c.endMs))
-  const earliestStartMs = valid.length > 0 ? Math.min(...valid.map(c => c.startMs)) : null
-  const latestEndMs     = valid.length > 0 ? Math.max(...valid.map(c => c.endMs))   : null
+  const validCues = cues.filter(c => Number.isFinite(c.startMs) && Number.isFinite(c.endMs))
+  const earliestStartMs = validCues.length > 0 ? Math.min(...validCues.map(c => c.startMs)) : null
+  const latestEndMs = validCues.length > 0 ? Math.max(...validCues.map(c => c.endMs)) : null
+  const errors = issues.filter(issue => issue.severity === 'error').map(issue => issue.message)
+  const warnings = issues.filter(issue => issue.severity === 'warning').map(issue => issue.message)
 
   return {
     valid: errors.length === 0,
@@ -119,5 +174,6 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
         : null,
     errors,
     warnings,
+    issues,
   }
 }

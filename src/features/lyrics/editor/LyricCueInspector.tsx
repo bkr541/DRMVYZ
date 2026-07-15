@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   LyricAnimation,
   LyricCue,
@@ -11,6 +11,7 @@ import type {
   LyricWord,
 } from '../../../types/lyrics'
 import { getCueIssues, LOW_LYRIC_CONFIDENCE, validateWordTiming } from './lyricCueEditorModel'
+import { LyricPresentationControls } from '../components/LyricPresentationControls'
 
 export interface LyricSectionOption {
   id: string
@@ -42,6 +43,7 @@ interface Props {
   canMergePrevious: boolean
   canMergeNext: boolean
   onUpdateCue: (cueId: string, patch: Partial<Omit<LyricCue, 'id'>>) => void
+  focusWordId?: string | null
 }
 
 const SOURCES: LyricSource[] = ['manual', 'import', 'transcription', 'corrected', 'generated', 'unknown']
@@ -117,11 +119,14 @@ function JsonMetadataField({
 function WordTimingEditor({
   cue,
   onUpdateCue,
+  focusWordId,
 }: {
   cue: LyricCue
   onUpdateCue: Props['onUpdateCue']
+  focusWordId?: string | null
 }) {
   const words = cue.words ?? []
+  const rootRef = useRef<HTMLDivElement>(null)
   const { invalidWords } = validateWordTiming(cue)
   const invalidIds = useMemo(() => new Set(invalidWords.map(word => word.id)), [invalidWords])
 
@@ -140,12 +145,27 @@ function WordTimingEditor({
     commitWords(words.map(word => word.id === wordId ? { ...word, ...patch } : word))
   }
 
+  useEffect(() => {
+    if (!focusWordId) return
+    const frame = requestAnimationFrame(() => {
+      const row = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[data-word-id]') ?? [])
+        .find(element => element.dataset.wordId === focusWordId)
+      const behavior: ScrollBehavior = typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth'
+      row?.scrollIntoView?.({ block: 'nearest', behavior })
+      row?.querySelector<HTMLInputElement>('input')?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusWordId])
+
   if (!words.length) {
     return <div className="lyric-cue-inspector__empty-words">This cue has line timing only. Word timing is optional.</div>
   }
 
   return (
-    <div className="lyric-word-editor">
+    <div ref={rootRef} className="lyric-word-editor">
       <div className="lyric-word-editor__header">
         <strong>Word timing</strong>
         {invalidWords.length > 0 && (
@@ -165,7 +185,8 @@ function WordTimingEditor({
           return (
             <div
               key={word.id}
-              className={`lyric-word-editor__row${invalid ? ' lyric-word-editor__row--invalid' : ''}${lowConfidence ? ' lyric-word-editor__row--low-confidence' : ''}`}
+              data-word-id={word.id}
+              className={`lyric-word-editor__row${invalid ? ' lyric-word-editor__row--invalid' : ''}${lowConfidence ? ' lyric-word-editor__row--low-confidence' : ''}${focusWordId === word.id ? ' lyric-word-editor__row--focused' : ''}`}
             >
               <span className="lyric-word-editor__index">{index + 1}</span>
               <input
@@ -231,6 +252,7 @@ export function LyricCueInspector({
   canMergePrevious,
   canMergeNext,
   onUpdateCue,
+  focusWordId = null,
 }: Props) {
   const [text, setText] = useState(cue.text)
   const [start, setStart] = useState(String(cue.startMs))
@@ -397,15 +419,33 @@ export function LyricCueInspector({
         <button type="button" className="lmv-btn lyric-cue-inspector__delete" onClick={actions.delete}>Delete cue</button>
       </div>
 
+      <details className="lyric-cue-inspector__presentation">
+        <summary>Cue appearance overrides</summary>
+        <p>Only fields set here override the document defaults. Other renderer metadata is preserved.</p>
+        <LyricPresentationControls
+          style={cue.style ?? {}}
+          animation={cue.animation ?? {}}
+          effects={cue.effects ?? {}}
+          allowInherit
+          onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })}
+          onAnimationChange={patch => onUpdateCue(cue.id, { animation: { ...(cue.animation ?? {}), ...patch } })}
+          onEffectsChange={patch => onUpdateCue(cue.id, { effects: { ...(cue.effects ?? {}), ...patch } })}
+          onClearStyle={() => onUpdateCue(cue.id, { style: undefined })}
+          onClearAnimation={() => onUpdateCue(cue.id, { animation: undefined })}
+          onClearEffects={() => onUpdateCue(cue.id, { effects: undefined })}
+        />
+      </details>
+
       <details className="lyric-cue-inspector__metadata">
-        <summary>Style, animation, effects, and analysis metadata</summary>
+        <summary>Advanced metadata JSON</summary>
+        <p>Use this only for uncommon renderer fields or troubleshooting. Unknown fields are preserved.</p>
         <JsonMetadataField label="Style JSON" value={cue.style} onCommit={value => onUpdateCue(cue.id, { style: value as Partial<LyricStyle> })} />
         <JsonMetadataField label="Animation JSON" value={cue.animation} onCommit={value => onUpdateCue(cue.id, { animation: value as Partial<LyricAnimation> })} />
         <JsonMetadataField label="Effects JSON" value={cue.effects} onCommit={value => onUpdateCue(cue.id, { effects: value as Partial<LyricEffects> })} />
         <JsonMetadataField label="Analysis metadata JSON" value={cue.analysisMetadata} onCommit={value => onUpdateCue(cue.id, { analysisMetadata: value })} />
       </details>
 
-      <WordTimingEditor cue={cue} onUpdateCue={onUpdateCue} />
+      <WordTimingEditor cue={cue} onUpdateCue={onUpdateCue} focusWordId={focusWordId} />
     </section>
   )
 }
