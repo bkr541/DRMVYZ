@@ -51,6 +51,7 @@ export interface CanonicalWord {
   normalizedText: string
   originalTranscriptionText: string
   warnings?: string[]
+  analysisMetadata?: Record<string, unknown>
 }
 
 export interface CanonicalCue {

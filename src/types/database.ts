@@ -157,6 +157,31 @@ export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_a
   deletion_requested_at?: string | null
 }
 
+export interface AudioAnalysisSourceRow {
+  id: string
+  user_id: string
+  owner_audio_track_id: string
+  source_audio_track_id: string
+  source_type: 'vocal_reference'
+  timing_offset_ms: number
+  owner_duration_ms: number | null
+  source_duration_ms: number | null
+  source_metadata: Json
+  preparation_operation_id: string | null
+  preparation_metadata: Json
+  created_at: string
+  updated_at: string
+}
+
+export type AudioAnalysisSourceInsert = Pick<
+  AudioAnalysisSourceRow,
+  'user_id' | 'owner_audio_track_id' | 'source_audio_track_id'
+> & Partial<Omit<
+  AudioAnalysisSourceRow,
+  'id' | 'user_id' | 'owner_audio_track_id' | 'source_audio_track_id' | 'created_at' | 'updated_at'
+>>
+export type AudioAnalysisSourceUpdate = Partial<Omit<AudioAnalysisSourceRow, 'id' | 'user_id' | 'created_at'>>
+
 
 
 export interface AudioPreparationOperationRow {
@@ -791,12 +816,22 @@ export interface Database {
           { foreignKeyName: 'lyric_cues_lyric_document_id_fkey'; columns: ['lyric_document_id']; isOneToOne: false; referencedRelation: 'lyric_documents'; referencedColumns: ['id'] },
         ]
       }
+      audio_analysis_sources: {
+        Row: DBRec<AudioAnalysisSourceRow>
+        Insert: DBRec<AudioAnalysisSourceInsert>
+        Update: DBRec<AudioAnalysisSourceUpdate>
+        Relationships: [
+          { foreignKeyName: 'audio_analysis_sources_owner_audio_track_id_fkey'; columns: ['owner_audio_track_id']; isOneToOne: false; referencedRelation: 'audio_tracks'; referencedColumns: ['id'] },
+          { foreignKeyName: 'audio_analysis_sources_source_audio_track_id_fkey'; columns: ['source_audio_track_id']; isOneToOne: false; referencedRelation: 'audio_tracks'; referencedColumns: ['id'] },
+        ]
+      }
       lyric_transcription_jobs: {
         Row: DBRec<LyricTranscriptionJobRow>
         Insert: DBRec<LyricTranscriptionJobInsert>
         Update: DBRec<LyricTranscriptionJobUpdate>
         Relationships: [
           { foreignKeyName: 'lyric_transcription_jobs_audio_track_id_fkey'; columns: ['audio_track_id']; isOneToOne: false; referencedRelation: 'audio_tracks'; referencedColumns: ['id'] },
+          { foreignKeyName: 'lyric_transcription_jobs_analysis_source_id_fkey'; columns: ['analysis_source_id']; isOneToOne: false; referencedRelation: 'audio_analysis_sources'; referencedColumns: ['id'] },
           { foreignKeyName: 'lyric_transcription_jobs_lyric_document_id_fkey'; columns: ['lyric_document_id']; isOneToOne: false; referencedRelation: 'lyric_documents'; referencedColumns: ['id'] },
         ]
       }

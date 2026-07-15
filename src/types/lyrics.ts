@@ -282,6 +282,7 @@ export interface LyricWord {
   normalizedText?:             string
   originalTranscriptionText?:  string
   warnings?:                   LyricWarning[]
+  analysisMetadata?:           LyricAnalysisMetadata
 }
 
 export interface LyricGroup {
@@ -335,6 +336,7 @@ export interface LyricDocument {
 }
 
 export type LyricTranscriptionProviderName = 'groq' | 'openai' | 'custom'
+export type LyricExtractionSourceMode = 'full_mix' | 'vocal_reference'
 export type LyricTranscriptionJobStatus =
   | 'queued'
   | 'processing'
@@ -346,6 +348,9 @@ export interface LyricTranscriptionJob {
   id: string
   userId: string
   audioTrackId: string
+  analysisSourceId: string | null
+  sourceMode: LyricExtractionSourceMode
+  timingOffsetMs: number
   lyricDocumentId: string | null
   provider: LyricTranscriptionProviderName
   status: LyricTranscriptionJobStatus
@@ -364,6 +369,9 @@ export interface LyricTranscriptionJobRow {
   id: string
   user_id: string
   audio_track_id: string
+  analysis_source_id: string | null
+  source_mode: LyricExtractionSourceMode
+  timing_offset_ms: number
   lyric_document_id: string | null
   provider: LyricTranscriptionProviderName
   status: LyricTranscriptionJobStatus
@@ -380,10 +388,10 @@ export interface LyricTranscriptionJobRow {
 
 export type LyricTranscriptionJobInsert = Omit<
   LyricTranscriptionJobRow,
-  'id' | 'created_at' | 'updated_at' | 'started_at' | 'completed_at' | 'lyric_document_id' | 'error_code' | 'error_message'
+  'id' | 'created_at' | 'updated_at' | 'started_at' | 'completed_at' | 'lyric_document_id' | 'error_code' | 'error_message' | 'analysis_source_id' | 'source_mode' | 'timing_offset_ms'
 > & Partial<Pick<
   LyricTranscriptionJobRow,
-  'lyric_document_id' | 'error_code' | 'error_message' | 'started_at' | 'completed_at'
+  'lyric_document_id' | 'error_code' | 'error_message' | 'started_at' | 'completed_at' | 'analysis_source_id' | 'source_mode' | 'timing_offset_ms'
 >>
 export type LyricTranscriptionJobUpdate = Partial<Omit<LyricTranscriptionJobRow, 'id' | 'user_id' | 'audio_track_id' | 'created_at'>>
 

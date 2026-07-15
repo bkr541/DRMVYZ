@@ -48,6 +48,9 @@ function job(id: string, status: LyricTranscriptionJob['status'], createdAt: str
     id,
     userId: 'user-1',
     audioTrackId: 'track-1',
+    analysisSourceId: null,
+    sourceMode: 'full_mix',
+    timingOffsetMs: 0,
     lyricDocumentId: status === 'completed' ? `doc-${id}` : null,
     provider: 'groq',
     status,
@@ -72,6 +75,9 @@ function jobRow(
     id,
     user_id: 'user-1',
     audio_track_id: 'track-1',
+    analysis_source_id: null,
+    source_mode: 'full_mix',
+    timing_offset_ms: 0,
     lyric_document_id: status === 'completed' ? `doc-${id}` : null,
     provider: 'groq',
     status,
@@ -184,6 +190,7 @@ async function flush(): Promise<void> {
 async function renderExtractor(
   track: LyricManagerTrack | null = selectedTrack(),
   activeVersionId: string | null = null,
+  extraProps: Partial<React.ComponentProps<typeof AiLyricExtractor>> = {},
 ): Promise<void> {
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -195,6 +202,7 @@ async function renderExtractor(
       activeVersionId,
       onOpenCompletedDraft: vi.fn(),
       onActivateCompletedDraft: vi.fn(),
+      ...extraProps,
     }))
   })
   await flush()
@@ -525,6 +533,82 @@ describe('AI lyric extractor internet-required guard', () => {
       body: expect.objectContaining({ action: 'start', audioTrackId: 'track-1' }),
     })
     expect(container!.textContent).toContain('secure server fallback')
+  })
+})
+
+describe('AI lyric vocal-reference source selection', () => {
+  it('prepares the saved vocal track while sending the full mix as the lyric owner', async () => {
+    const vocalTrack: LyricManagerTrack = {
+      ...selectedTrack(),
+      id: 'audio-vocals-1',
+      dbId: 'vocals-1',
+      title: 'Reverie Vocals',
+      fileName: 'reverie-vocals.wav',
+      storagePath: 'user-1/reverie-vocals.wav',
+      mimeType: 'audio/wav',
+      channels: 1,
+    }
+    await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), vocalTrack] })
+
+    const modeSelect = container!.querySelector<HTMLSelectElement>('#lyric-extraction-source-mode')!
+    await act(async () => {
+      modeSelect.value = 'vocal_reference'
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    const sourceSelect = container!.querySelector<HTMLSelectElement>('#lyric-vocal-reference-track')!
+    await act(async () => {
+      sourceSelect.value = 'vocals-1'
+      sourceSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(container!.textContent).toContain('Lyrics belong to')
+    expect(container!.textContent).toContain('Reverie Vocals')
+    expect(container!.textContent).toContain('Compatible duration')
+
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    await flush()
+
+    expect(mocks.ensurePreparedTranscriptionAudio).toHaveBeenCalledWith(vocalTrack, expect.any(Object))
+    expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', {
+      body: expect.objectContaining({
+        action: 'start',
+        audioTrackId: 'track-1',
+        sourceMode: 'vocal_reference',
+        analysisSourceAudioTrackId: 'vocals-1',
+        timingOffsetMs: 0,
+      }),
+    })
+  })
+
+  it('requires confirmation for a significant but plausible duration mismatch', async () => {
+    const alternateVocal: LyricManagerTrack = {
+      ...selectedTrack(),
+      id: 'audio-vocals-alt',
+      dbId: 'vocals-alt',
+      title: 'Reverie Vocals Alt',
+      durationSec: 150,
+    }
+    await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), alternateVocal] })
+
+    const modeSelect = container!.querySelector<HTMLSelectElement>('#lyric-extraction-source-mode')!
+    await act(async () => {
+      modeSelect.value = 'vocal_reference'
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    const sourceSelect = container!.querySelector<HTMLSelectElement>('#lyric-vocal-reference-track')!
+    await act(async () => {
+      sourceSelect.value = 'vocals-alt'
+      sourceSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(container!.textContent).toContain('Significant mismatch')
+    expect(buttonByText('Start Automatic Extraction').disabled).toBe(true)
+
+    const confirmation = container!.querySelector<HTMLInputElement>('.lmv-checkbox-row input')!
+    await act(async () => {
+      confirmation.click()
+    })
+    expect(buttonByText('Start Automatic Extraction').disabled).toBe(false)
   })
 })
 

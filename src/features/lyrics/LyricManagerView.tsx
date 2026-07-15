@@ -481,6 +481,8 @@ export function LyricManagerView({
   const [recoveryBusy, setRecoveryBusy] = useState(false)
   const [snapMode, setSnapMode] = useState<LyricSnapMode>('none')
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploadPurpose, setUploadPurpose] = useState<'canonical' | 'vocal_reference'>('canonical')
+  const [uploadedVocalReferenceTrack, setUploadedVocalReferenceTrack] = useState<LyricManagerTrack | null>(null)
   const [linkRuntimeTrack, setLinkRuntimeTrack] = useState<Track | null>(null)
   const [linkCandidates, setLinkCandidates] = useState<SavedTrackLinkCandidate[]>([])
   const [linkSelectedTrackId, setLinkSelectedTrackId] = useState<string | null>(null)
@@ -524,6 +526,15 @@ export function LyricManagerView({
   const recoveryReadGenerationRef = useRef(0)
   const recoveryAutosaveTimerRef = useRef<number | null>(null)
   const recoveryMutationChainRef = useRef<Promise<void>>(Promise.resolve())
+
+  useEffect(() => {
+    setUploadedVocalReferenceTrack(null)
+  }, [selectedTrack?.dbId])
+
+  const resolveSavedTrackForAi = useCallback(async (audioTrackId: string): Promise<LyricManagerTrack | null> => {
+    const accountId = accountIdRef.current
+    return accountId ? loadLyricManagerTrackById(accountId, audioTrackId) : null
+  }, [])
 
   const queueRecoveryMutation = useCallback((mutation: () => Promise<void>): Promise<void> => {
     const next = recoveryMutationChainRef.current
@@ -1724,6 +1735,15 @@ export function LyricManagerView({
         mergeTracks(current, uploaded.map(uploadedTrackToManager)),
       )
       setTrackTotal((current) => current + uploaded.length)
+      setUploadOpen(false)
+      if (uploadPurpose === 'vocal_reference') {
+        setUploadedVocalReferenceTrack(managerTrack)
+        setUploadPurpose('canonical')
+        setActiveTab('ai')
+        showStatus(`“${managerTrack.title}” is selected as the vocal reference. Lyrics will remain attached to the full mix.`)
+        return
+      }
+      setUploadPurpose('canonical')
       requestTransition(
         `Save changes before selecting the newly uploaded track “${managerTrack.title}”?`,
         () => {
@@ -1735,7 +1755,7 @@ export function LyricManagerView({
         },
       )
     },
-    [prepareTrackDraft, requestTransition, selectTrackState, showStatus],
+    [prepareTrackDraft, requestTransition, selectTrackState, showStatus, uploadPurpose],
   )
 
   useEffect(() => {
@@ -1937,7 +1957,10 @@ export function LyricManagerView({
             onLoadMore={() => {
               void loadTracks(false)
             }}
-            onUpload={() => setUploadOpen(true)}
+            onUpload={() => {
+              setUploadPurpose('canonical')
+              setUploadOpen(true)
+            }}
             onRetry={() => {
               void loadTracks(true)
             }}
@@ -2080,6 +2103,13 @@ export function LyricManagerView({
                 onCompletedDraftResolved={handleCompletedDraftResolved}
                 onOpenCompletedDraft={handleOpenCompletedDraft}
                 onActivateCompletedDraft={handleActivateCompletedDraft}
+                availableTracks={tracks}
+                uploadedVocalReferenceTrack={uploadedVocalReferenceTrack}
+                onRequestVocalReferenceUpload={() => {
+                  setUploadPurpose('vocal_reference')
+                  setUploadOpen(true)
+                }}
+                onResolveSavedTrack={resolveSavedTrackForAi}
               />
             )}
           </div>
@@ -2223,7 +2253,10 @@ export function LyricManagerView({
         <MediaUploadModal
           audioOnly
           onAudioUploaded={handleUploaded}
-          onClose={() => setUploadOpen(false)}
+          onClose={() => {
+            setUploadOpen(false)
+            setUploadPurpose('canonical')
+          }}
         />
       )}
     </div>

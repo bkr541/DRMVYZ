@@ -12,6 +12,9 @@ const JOB_COLUMNS = [
   'id',
   'user_id',
   'audio_track_id',
+  'analysis_source_id',
+  'source_mode',
+  'timing_offset_ms',
   'lyric_document_id',
   'provider',
   'status',
@@ -36,6 +39,13 @@ export interface LyricExtractionOptions {
 }
 
 export type LyricTranscriptionOptions = Omit<LyricExtractionOptions, 'stylePreset'>
+
+export interface LyricTranscriptionSourceRequest {
+  sourceMode: 'full_mix' | 'vocal_reference'
+  analysisSourceAudioTrackId?: string | null
+  timingOffsetMs?: number
+  confirmSignificantMismatch?: boolean
+}
 
 export interface LyricWordResult {
   text: string
@@ -89,6 +99,9 @@ function mapJob(row: LyricTranscriptionJobRow): LyricTranscriptionJob {
     id: row.id,
     userId: row.user_id,
     audioTrackId: row.audio_track_id,
+    analysisSourceId: row.analysis_source_id ?? null,
+    sourceMode: row.source_mode ?? 'full_mix',
+    timingOffsetMs: Number.isFinite(row.timing_offset_ms) ? Math.round(row.timing_offset_ms) : 0,
     lyricDocumentId: row.lyric_document_id,
     provider: row.provider,
     status: row.status,
@@ -136,8 +149,18 @@ export async function startLyricTranscription(
   audioTrackId: string,
   options: LyricTranscriptionOptions = {},
   preparationOperationId?: string,
+  source: LyricTranscriptionSourceRequest = { sourceMode: 'full_mix' },
 ): Promise<StartLyricTranscriptionResult> {
-  const payload = await invokeJobAction({ action: 'start', audioTrackId, options, preparationOperationId })
+  const payload = await invokeJobAction({
+    action: 'start',
+    audioTrackId,
+    options,
+    preparationOperationId,
+    sourceMode: source.sourceMode,
+    analysisSourceAudioTrackId: source.analysisSourceAudioTrackId,
+    timingOffsetMs: source.timingOffsetMs,
+    confirmSignificantMismatch: source.confirmSignificantMismatch === true,
+  })
   if (!payload.job) throw new Error('The transcription service did not return a job.')
   return { job: mapJob(payload.job), duplicate: payload.duplicate === true }
 }

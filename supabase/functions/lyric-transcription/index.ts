@@ -12,6 +12,13 @@ import {
 } from '../_shared/lyricTranscriptionCore.ts'
 import { normalizeLyricCueStyle, segmentationProvenance, type MusicalSegmentationStructure } from '../_shared/lyricCueSegmentation.ts'
 import {
+  assessVocalReferenceCompatibility,
+  normalizeVocalReferenceOffsetMs,
+  shiftReconciledTranscriptToOwnerTimeline,
+  type LyricExtractionSourceMode,
+  type VocalReferenceCompatibility,
+} from '../_shared/vocalReference.ts'
+import {
   buildWavTranscriptionChunk,
   isRiffWave,
   planWavTranscriptionChunks,
@@ -46,7 +53,7 @@ const ACTIVE_STATUSES = ['queued', 'processing'] as const
 
 // Increment this whenever a behaviorally significant change is deployed so clients
 // can detect stale deployments from job.providerMetadata.fnVersion.
-const LYRIC_TRANSCRIPTION_FN_VERSION = '3.2.0'
+const LYRIC_TRANSCRIPTION_FN_VERSION = '4.0.0'
 const PREPARED_AUDIO_VERSION = 'browser-pcm16-v2'
 const MAX_PREPARED_AUDIO_CHUNKS = 64
 
@@ -60,6 +67,8 @@ interface AudioTrackRow {
   file_name: string
   storage_path: string | null
   duration_sec: number | null
+  sample_rate: number | null
+  channels: number | null
   file_size: number | null
   mime_type: string | null
   transcription_assets: unknown
@@ -92,10 +101,38 @@ interface PreparedAudioManifest {
   chunks: PreparedAudioChunk[]
 }
 
+interface AnalysisSourceRow {
+  id: string
+  user_id: string
+  owner_audio_track_id: string
+  source_audio_track_id: string
+  source_type: 'vocal_reference'
+  timing_offset_ms: number
+  owner_duration_ms: number | null
+  source_duration_ms: number | null
+  source_metadata: Record<string, unknown>
+  preparation_operation_id: string | null
+  preparation_metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+interface ResolvedAnalysisSource {
+  mode: LyricExtractionSourceMode
+  ownerTrack: AudioTrackRow
+  sourceTrack: AudioTrackRow
+  relationship: AnalysisSourceRow | null
+  timingOffsetMs: number
+  compatibility: VocalReferenceCompatibility | null
+}
+
 interface JobRow {
   id: string
   user_id: string
   audio_track_id: string
+  analysis_source_id: string | null
+  source_mode: LyricExtractionSourceMode
+  timing_offset_ms: number
   lyric_document_id: string | null
   provider: LyricTranscriptionProviderName
   status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
@@ -115,6 +152,10 @@ interface StartRequest {
   audioTrackId: string
   options?: Record<string, unknown>
   preparationOperationId?: string
+  sourceMode?: LyricExtractionSourceMode
+  analysisSourceAudioTrackId?: string
+  timingOffsetMs?: number
+  confirmSignificantMismatch?: boolean
 }
 
 interface JobRequest {
@@ -215,12 +256,36 @@ function safeOptions(value: unknown): Record<string, unknown> {
     : 'line+word'
   const threshold = finiteNumber(input.confidenceThreshold)
   const globalOffset = finiteNumber(input.globalOffsetMs)
+  const sourceMode: LyricExtractionSourceMode = input.sourceMode === 'vocal_reference' ? 'vocal_reference' : 'full_mix'
+  const sourceAudioTrackId = typeof input.analysisSourceAudioTrackId === 'string' && input.analysisSourceAudioTrackId.length <= 64
+    ? input.analysisSourceAudioTrackId
+    : null
+  const analysisSourceId = typeof input.analysisSourceId === 'string' && input.analysisSourceId.length <= 64
+    ? input.analysisSourceId
+    : null
+  const preparationOperationId = typeof input.preparationOperationId === 'string' && input.preparationOperationId.length <= 64
+    ? input.preparationOperationId
+    : null
+  const preparationAudioTrackId = typeof input.preparationAudioTrackId === 'string' && input.preparationAudioTrackId.length <= 64
+    ? input.preparationAudioTrackId
+    : null
+  const compatibilityStatus = typeof input.compatibilityStatus === 'string' && input.compatibilityStatus.length <= 64
+    ? input.compatibilityStatus
+    : null
   return {
     language,
     timingDetail,
     confidenceThreshold: threshold === null ? 0.6 : Math.max(0, Math.min(1, threshold)),
     globalOffsetMs: globalOffset === null ? 0 : Math.round(globalOffset),
     cueStyle: normalizeLyricCueStyle(input.cueStyle),
+    sourceMode,
+    analysisSourceAudioTrackId: sourceAudioTrackId,
+    analysisSourceId,
+    timingOffsetMs: sourceMode === 'vocal_reference' ? normalizeVocalReferenceOffsetMs(input.timingOffsetMs) : 0,
+    confirmSignificantMismatch: input.confirmSignificantMismatch === true,
+    compatibilityStatus,
+    preparationOperationId,
+    preparationAudioTrackId,
   }
 }
 
@@ -365,7 +430,7 @@ async function authenticatedClients(req: Request): Promise<{
 async function ownedTrack(adminClient: SupabaseClient, userId: string, audioTrackId: string): Promise<AudioTrackRow> {
   const { data, error } = await adminClient
     .from('audio_tracks')
-    .select('id,user_id,title,artist,file_name,storage_path,duration_sec,file_size,mime_type,transcription_assets,lifecycle_status')
+    .select('id,user_id,title,artist,file_name,storage_path,duration_sec,sample_rate,channels,file_size,mime_type,transcription_assets,lifecycle_status')
     .eq('id', audioTrackId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -381,6 +446,154 @@ function validateTrack(track: AudioTrackRow): void {
   if (track.file_size !== null && track.file_size > MAX_STORED_AUDIO_BYTES) {
     throw new TranscriptionError('unsupported_audio', 'This audio file is too large for the configured transcription workflow.')
   }
+}
+
+function preparedAudioSummary(track: AudioTrackRow, expectedOperationId?: string | null): Record<string, unknown> {
+  const manifest = preparedAudioManifest(track, groqSafeAudioBytes(), expectedOperationId)
+  if (!manifest) return {}
+  return {
+    version: manifest.version,
+    operationId: manifest.operationId ?? null,
+    preparedAt: manifest.preparedAt,
+    durationMs: manifest.durationMs,
+    sampleRate: manifest.sampleRate,
+    channels: manifest.channels,
+    chunkCount: manifest.chunks.length,
+  }
+}
+
+async function upsertVocalReference(
+  adminClient: SupabaseClient,
+  userId: string,
+  ownerTrack: AudioTrackRow,
+  sourceTrack: AudioTrackRow,
+  timingOffsetMs: number,
+  compatibility: VocalReferenceCompatibility,
+  preparationOperationId?: string | null,
+): Promise<AnalysisSourceRow> {
+  const payload = {
+    user_id: userId,
+    owner_audio_track_id: ownerTrack.id,
+    source_audio_track_id: sourceTrack.id,
+    source_type: 'vocal_reference',
+    timing_offset_ms: timingOffsetMs,
+    owner_duration_ms: ownerTrack.duration_sec && ownerTrack.duration_sec > 0 ? Math.round(ownerTrack.duration_sec * 1000) : null,
+    source_duration_ms: sourceTrack.duration_sec && sourceTrack.duration_sec > 0 ? Math.round(sourceTrack.duration_sec * 1000) : null,
+    source_metadata: {
+      title: sourceTrack.title,
+      artist: sourceTrack.artist,
+      fileName: sourceTrack.file_name,
+      mimeType: sourceTrack.mime_type,
+      sampleRate: sourceTrack.sample_rate,
+      channels: sourceTrack.channels,
+      compatibilityStatus: compatibility.status,
+      durationDifferenceMs: compatibility.durationDifferenceMs,
+      confirmationRequired: compatibility.requiresConfirmation,
+    },
+    preparation_operation_id: preparationOperationId ?? null,
+    preparation_metadata: preparedAudioSummary(sourceTrack, preparationOperationId),
+  }
+  const { data, error } = await adminClient
+    .from('audio_analysis_sources')
+    .upsert(payload, { onConflict: 'user_id,owner_audio_track_id,source_audio_track_id,source_type' })
+    .select('*')
+    .single()
+  if (error || !data) {
+    console.error('[lyric-transcription] analysis source save failed', error?.code)
+    throw new TranscriptionError('database_save_failure', 'The vocal reference relationship could not be saved.', 500)
+  }
+  return data as AnalysisSourceRow
+}
+
+async function resolveStartAnalysisSource(
+  adminClient: SupabaseClient,
+  userId: string,
+  ownerTrack: AudioTrackRow,
+  request: StartRequest,
+): Promise<ResolvedAnalysisSource> {
+  const mode: LyricExtractionSourceMode = request.sourceMode === 'vocal_reference' ? 'vocal_reference' : 'full_mix'
+  if (mode === 'full_mix') {
+    return {
+      mode,
+      ownerTrack,
+      sourceTrack: ownerTrack,
+      relationship: null,
+      timingOffsetMs: 0,
+      compatibility: null,
+    }
+  }
+
+  if (typeof request.analysisSourceAudioTrackId !== 'string' || !request.analysisSourceAudioTrackId) {
+    throw new TranscriptionError('invalid_request', 'Choose a saved vocal reference before starting extraction.')
+  }
+  if (request.analysisSourceAudioTrackId === ownerTrack.id) {
+    throw new TranscriptionError('invalid_request', 'The vocal reference must be a different saved track from the canonical full mix.')
+  }
+
+  const sourceTrack = await ownedTrack(adminClient, userId, request.analysisSourceAudioTrackId)
+  validateTrack(sourceTrack)
+  const timingOffsetMs = normalizeVocalReferenceOffsetMs(request.timingOffsetMs)
+  const compatibility = assessVocalReferenceCompatibility(ownerTrack.duration_sec, sourceTrack.duration_sec, timingOffsetMs)
+  if (compatibility.blocked) {
+    throw new TranscriptionError('analysis_source_arrangement_mismatch', compatibility.reason, 422)
+  }
+  if (compatibility.requiresConfirmation && request.confirmSignificantMismatch !== true) {
+    throw new TranscriptionError('analysis_source_confirmation_required', compatibility.reason, 409)
+  }
+
+  const relationship = await upsertVocalReference(
+    adminClient,
+    userId,
+    ownerTrack,
+    sourceTrack,
+    timingOffsetMs,
+    compatibility,
+    null,
+  )
+  return { mode, ownerTrack, sourceTrack, relationship, timingOffsetMs, compatibility }
+}
+
+async function resolveRetryAnalysisSource(
+  adminClient: SupabaseClient,
+  userId: string,
+  ownerTrack: AudioTrackRow,
+  job: JobRow,
+): Promise<ResolvedAnalysisSource> {
+  if (job.source_mode !== 'vocal_reference') {
+    return {
+      mode: 'full_mix',
+      ownerTrack,
+      sourceTrack: ownerTrack,
+      relationship: null,
+      timingOffsetMs: 0,
+      compatibility: null,
+    }
+  }
+  if (!job.analysis_source_id) {
+    throw new TranscriptionError('analysis_source_missing', 'The vocal reference used by this job is no longer available.', 409)
+  }
+  const { data, error } = await adminClient
+    .from('audio_analysis_sources')
+    .select('*')
+    .eq('id', job.analysis_source_id)
+    .eq('user_id', userId)
+    .eq('owner_audio_track_id', ownerTrack.id)
+    .eq('source_type', 'vocal_reference')
+    .maybeSingle()
+  if (error) throw new TranscriptionError('database_save_failure', 'The vocal reference could not be checked.', 500)
+  if (!data) throw new TranscriptionError('analysis_source_missing', 'The vocal reference used by this job is no longer available.', 409)
+
+  const relationship = data as AnalysisSourceRow
+  const sourceTrack = await ownedTrack(adminClient, userId, relationship.source_audio_track_id)
+  validateTrack(sourceTrack)
+  // Jobs retain the immutable offset that was selected when they were created.
+  // A later extraction may update the reusable relationship without changing
+  // the provenance or retry behavior of this historical job.
+  const timingOffsetMs = normalizeVocalReferenceOffsetMs(job.timing_offset_ms)
+  const compatibility = assessVocalReferenceCompatibility(ownerTrack.duration_sec, sourceTrack.duration_sec, timingOffsetMs)
+  if (compatibility.blocked) throw new TranscriptionError('analysis_source_arrangement_mismatch', compatibility.reason, 422)
+
+  return { mode: 'vocal_reference', ownerTrack, sourceTrack, relationship, timingOffsetMs, compatibility }
 }
 
 async function activeJob(adminClient: SupabaseClient, userId: string, audioTrackId: string): Promise<JobRow | null> {
@@ -400,31 +613,50 @@ async function activeJob(adminClient: SupabaseClient, userId: string, audioTrack
 async function createJob(
   adminClient: SupabaseClient,
   userId: string,
-  track: AudioTrackRow,
+  resolvedSource: ResolvedAnalysisSource,
   options: Record<string, unknown>,
   preparationOperationId?: string | null,
 ): Promise<{ job: JobRow; duplicate: boolean }> {
-  const existing = await activeJob(adminClient, userId, track.id)
+  const existing = await activeJob(adminClient, userId, resolvedSource.ownerTrack.id)
   if (existing) return { job: existing, duplicate: true }
 
   const provider = configuredProvider()
+  const requestOptions = {
+    ...options,
+    sourceMode: resolvedSource.mode,
+    analysisSourceAudioTrackId: resolvedSource.mode === 'vocal_reference' ? resolvedSource.sourceTrack.id : null,
+    analysisSourceId: resolvedSource.relationship?.id ?? null,
+    timingOffsetMs: resolvedSource.timingOffsetMs,
+    compatibilityStatus: resolvedSource.compatibility?.status ?? null,
+    significantMismatchConfirmed: resolvedSource.compatibility?.requiresConfirmation ? true : false,
+    preparationOperationId: preparationOperationId ?? null,
+    preparationAudioTrackId: resolvedSource.sourceTrack.id,
+  }
   const { data, error } = await adminClient
     .from('lyric_transcription_jobs')
     .insert({
       user_id: userId,
-      audio_track_id: track.id,
+      audio_track_id: resolvedSource.ownerTrack.id,
+      analysis_source_id: resolvedSource.relationship?.id ?? null,
+      source_mode: resolvedSource.mode,
+      timing_offset_ms: resolvedSource.timingOffsetMs,
       provider,
       status: 'queued',
       progress: 0,
-      request_options: preparationOperationId ? { ...options, preparationOperationId } : options,
-      provider_metadata: {},
+      request_options: requestOptions,
+      provider_metadata: {
+        sourceMode: resolvedSource.mode,
+        ownerAudioTrackId: resolvedSource.ownerTrack.id,
+        sourceAudioTrackId: resolvedSource.sourceTrack.id,
+        analysisSourceId: resolvedSource.relationship?.id ?? null,
+      },
     })
     .select('*')
     .single()
 
   if (error) {
     if (error.code === '23505') {
-      const raced = await activeJob(adminClient, userId, track.id)
+      const raced = await activeJob(adminClient, userId, resolvedSource.ownerTrack.id)
       if (raced) return { job: raced, duplicate: true }
     }
     throw new TranscriptionError('database_save_failure', 'The extraction job could not be created.', 500)
@@ -454,16 +686,33 @@ async function throwIfJobCancelled(adminClient: SupabaseClient, jobId: string): 
 async function jobWasCancelled(adminClient: SupabaseClient, jobId: string): Promise<boolean> {
   const { data } = await adminClient
     .from('lyric_transcription_jobs')
-    .select('status,audio_track_id')
+    .select('status,audio_track_id,analysis_source_id,source_mode')
     .eq('id', jobId)
     .maybeSingle()
-  if (!data || !ACTIVE_STATUSES.has(data.status as JobStatus)) return true
-  const { data: track } = await adminClient
+  if (!data || !ACTIVE_STATUSES.includes(data.status as typeof ACTIVE_STATUSES[number])) return true
+
+  const { data: ownerTrack } = await adminClient
     .from('audio_tracks')
     .select('lifecycle_status')
     .eq('id', data.audio_track_id)
     .maybeSingle()
-  return !track || track.lifecycle_status !== 'complete'
+  if (!ownerTrack || ownerTrack.lifecycle_status !== 'complete') return true
+  if (data.source_mode !== 'vocal_reference') return false
+  if (!data.analysis_source_id) return true
+
+  const { data: source } = await adminClient
+    .from('audio_analysis_sources')
+    .select('source_audio_track_id')
+    .eq('id', data.analysis_source_id)
+    .eq('owner_audio_track_id', data.audio_track_id)
+    .maybeSingle()
+  if (!source) return true
+  const { data: sourceTrack } = await adminClient
+    .from('audio_tracks')
+    .select('lifecycle_status')
+    .eq('id', source.source_audio_track_id)
+    .maybeSingle()
+  return !sourceTrack || sourceTrack.lifecycle_status !== 'complete'
 }
 
 interface PreparationOperationRow {
@@ -521,12 +770,19 @@ async function attachPreparationJob(
   if (operation.job_id && operation.job_id !== job.id) {
     const { data: priorJob, error: priorJobError } = await adminClient
       .from('lyric_transcription_jobs')
-      .select('status')
+      .select('status,request_options')
       .eq('id', operation.job_id)
       .eq('user_id', operation.user_id)
-      .eq('audio_track_id', operation.audio_track_id)
       .maybeSingle()
-    if (priorJobError || !priorJob || !['failed', 'cancelled'].includes(String(priorJob.status))) {
+    const priorPreparationTrackId = typeof priorJob?.request_options?.preparationAudioTrackId === 'string'
+      ? priorJob.request_options.preparationAudioTrackId
+      : null
+    if (
+      priorJobError
+      || !priorJob
+      || priorPreparationTrackId !== operation.audio_track_id
+      || !['failed', 'cancelled'].includes(String(priorJob.status))
+    ) {
       throw new TranscriptionError('prepared_audio_invalid', 'This preparation operation is already bound to another transcription job.', 409)
     }
   }
@@ -586,6 +842,21 @@ async function removePreparationPaths(
   }
 }
 
+async function clearAnalysisSourcePreparationReference(
+  adminClient: SupabaseClient,
+  userId: string,
+  sourceAudioTrackId: string,
+  operationId: string,
+): Promise<void> {
+  const { error } = await adminClient
+    .from('audio_analysis_sources')
+    .update({ preparation_operation_id: null, preparation_metadata: {} })
+    .eq('user_id', userId)
+    .eq('source_audio_track_id', sourceAudioTrackId)
+    .eq('preparation_operation_id', operationId)
+  if (error) console.error('[lyric-transcription] analysis source preparation cleanup failed', error.code)
+}
+
 async function cleanupUnattachedPreparationOperation(
   adminClient: SupabaseClient,
   operation: PreparationOperationRow,
@@ -620,6 +891,12 @@ async function cleanupUnattachedPreparationOperation(
       .eq('id', operation.audio_track_id)
       .eq('user_id', operation.user_id)
   }
+  await clearAnalysisSourcePreparationReference(
+    adminClient,
+    operation.user_id,
+    operation.audio_track_id,
+    operation.operation_id,
+  )
 }
 
 async function cleanupPreparationAfterCancellation(
@@ -631,12 +908,15 @@ async function cleanupPreparationAfterCancellation(
     ? job.request_options.preparationOperationId
     : null
   if (!operationId) return
+  const preparationAudioTrackId = typeof job.request_options.preparationAudioTrackId === 'string'
+    ? job.request_options.preparationAudioTrackId
+    : job.audio_track_id
   const { data } = await adminClient
     .from('audio_preparation_operations')
     .select('operation_id,user_id,audio_track_id,intended_chunk_count,intended_paths,cleanup_completed_indices,manifest_saved,job_id,status')
     .eq('operation_id', operationId)
     .eq('user_id', userId)
-    .eq('audio_track_id', job.audio_track_id)
+    .eq('audio_track_id', preparationAudioTrackId)
     .eq('job_id', job.id)
     .maybeSingle()
   const operation = data as PreparationOperationRow | null
@@ -660,15 +940,16 @@ async function cleanupPreparationAfterCancellation(
   const { data: trackData } = await adminClient
     .from('audio_tracks')
     .select('transcription_assets')
-    .eq('id', job.audio_track_id)
+    .eq('id', preparationAudioTrackId)
     .eq('user_id', userId)
     .maybeSingle()
   if (asRecord(trackData?.transcription_assets).operationId === operationId) {
     await adminClient.from('audio_tracks')
       .update({ transcription_assets: null })
-      .eq('id', job.audio_track_id)
+      .eq('id', preparationAudioTrackId)
       .eq('user_id', userId)
   }
+  await clearAnalysisSourcePreparationReference(adminClient, userId, preparationAudioTrackId, operationId)
 }
 
 async function reconcileCreatedPreparationJob(
@@ -1248,9 +1529,12 @@ async function processJob(
   adminClient: SupabaseClient,
   userClient: SupabaseClient,
   job: JobRow,
-  track: AudioTrackRow,
+  resolvedSource: ResolvedAnalysisSource,
 ): Promise<void> {
+  const ownerTrack = resolvedSource.ownerTrack
+  const track = resolvedSource.sourceTrack
   try {
+    validateTrack(ownerTrack)
     validateTrack(track)
     await updateJob(adminClient, job.id, {
       status: 'processing',
@@ -1440,9 +1724,26 @@ async function processJob(
     const confidenceThreshold = finiteNumber(job.request_options.confidenceThreshold) ?? 0.6
     const normalizedUnits = providerResult.transcripts.map(({ unit, transcript }) =>
       normalizeProviderTranscript(transcript, unit, confidenceThreshold))
-    const reconciled = reconcileTranscriptUnits(normalizedUnits)
+    const sourceTimelineTranscript = reconcileTranscriptUnits(normalizedUnits)
+    const shifted = resolvedSource.mode === 'vocal_reference'
+      ? shiftReconciledTranscriptToOwnerTimeline(
+          sourceTimelineTranscript,
+          resolvedSource.timingOffsetMs,
+          ownerTrack.duration_sec && ownerTrack.duration_sec > 0 ? ownerTrack.duration_sec * 1000 : null,
+        )
+      : {
+          transcript: sourceTimelineTranscript,
+          offsetMs: 0,
+          sourceDurationMs: sourceTimelineTranscript.durationMs,
+          ownerDurationMs: ownerTrack.duration_sec && ownerTrack.duration_sec > 0 ? Math.round(ownerTrack.duration_sec * 1000) : null,
+          clampedWordCount: 0,
+          clampedSegmentCount: 0,
+          rejectedWordCount: 0,
+          rejectedSegmentCount: 0,
+        }
+    const reconciled = shifted.transcript
     const cueStyle = normalizeLyricCueStyle(job.request_options.cueStyle)
-    const trackAnalysis = await authoritativeTrackAnalysis(adminClient, track.id)
+    const trackAnalysis = await authoritativeTrackAnalysis(adminClient, ownerTrack.id)
     const cues = selectUsefulCues(reconciled, { cueStyle, musicalStructure: trackAnalysis.structure })
     if (!cues.length) throw new TranscriptionError('normalization_failure', 'No reliably timed lyric cues were returned for this track.', 422)
 
@@ -1458,6 +1759,22 @@ async function processJob(
 
     const metadata = {
       extractionJobId: job.id,
+      lyricsOwnerAudioTrackId: ownerTrack.id,
+      transcriptionSourceMode: resolvedSource.mode,
+      analysisSourceId: resolvedSource.relationship?.id ?? null,
+      transcriptionSourceAudioTrackId: track.id,
+      transcriptionSourceTitle: track.title,
+      vocalReferenceOffsetMs: resolvedSource.timingOffsetMs,
+      vocalReferenceCompatibility: resolvedSource.compatibility?.status ?? null,
+      vocalReferenceDurationDifferenceMs: resolvedSource.compatibility?.durationDifferenceMs ?? null,
+      providerSourceDurationMs: shifted.sourceDurationMs,
+      ownerDurationMs: shifted.ownerDurationMs,
+      timestampClampSummary: {
+        clampedWords: shifted.clampedWordCount,
+        clampedSegments: shifted.clampedSegmentCount,
+        rejectedWords: shifted.rejectedWordCount,
+        rejectedSegments: shifted.rejectedSegmentCount,
+      },
       provider: actualProvider,
       requestedProvider: runtimeProvider,
       model: providerResult.model,
@@ -1472,10 +1789,10 @@ async function processJob(
       ...trackAnalysis.revision,
     }
     const documentPayload = {
-      audio_track_id: track.id,
+      audio_track_id: ownerTrack.id,
       visual_session_id: null,
-      title: `${track.title} AI Draft`,
-      artist: track.artist ?? '',
+      title: `${ownerTrack.title} AI Draft`,
+      artist: ownerTrack.artist ?? '',
       source_type: 'ai_transcription',
       source_format: 'json',
       raw_source_text: reconciled.rawText || null,
@@ -1494,8 +1811,22 @@ async function processJob(
       pipelineVersion: LYRIC_TRANSCRIPTION_FN_VERSION,
       preprocessingRuntime: processingMode === 'prepared-audio' ? 'browser-web-audio' : actualProvider === 'custom' ? 'custom-worker' : 'server',
       preparationVersion: prepared?.version ?? null,
+      sourceMode: resolvedSource.mode,
+      ownerAudioTrackId: ownerTrack.id,
+      sourceAudioTrackId: track.id,
+      analysisSourceId: resolvedSource.relationship?.id ?? null,
+      timingOffsetMs: resolvedSource.timingOffsetMs,
+      compatibilityStatus: resolvedSource.compatibility?.status ?? null,
+      durationDifferenceMs: resolvedSource.compatibility?.durationDifferenceMs ?? null,
       sourceFormat: track.mime_type ?? track.file_name.split('.').pop()?.toLowerCase() ?? null,
       preparedFormat: processingMode === 'prepared-audio' ? 'pcm16-wav' : null,
+      timestampsShiftedToOwnerTimeline: resolvedSource.mode === 'vocal_reference',
+      sourceProviderDurationMs: shifted.sourceDurationMs,
+      ownerDurationMs: shifted.ownerDurationMs,
+      clampedWordCount: shifted.clampedWordCount,
+      clampedSegmentCount: shifted.clampedSegmentCount,
+      rejectedWordCount: shifted.rejectedWordCount,
+      rejectedSegmentCount: shifted.rejectedSegmentCount,
       unitCount: providerResult.transcripts.length,
       usedSingleUnit: providerResult.transcripts.length === 1,
       durationMs: reconciled.durationMs,
@@ -1565,12 +1896,25 @@ Deno.serve(async (req: Request) => {
 
     if (body.action === 'start') {
       if (typeof body.audioTrackId !== 'string' || !body.audioTrackId) throw new TranscriptionError('invalid_request', 'Select a stored audio track first.')
-      const track = await ownedTrack(adminClient, userId, body.audioTrackId)
-      validateTrack(track)
-      const operation = await validatePreparationOperation(adminClient, userId, track, body.preparationOperationId)
-      const created = await createJob(adminClient, userId, track, safeOptions(body.options), body.preparationOperationId)
+      const ownerTrack = await ownedTrack(adminClient, userId, body.audioTrackId)
+      validateTrack(ownerTrack)
+      let resolvedSource = await resolveStartAnalysisSource(adminClient, userId, ownerTrack, body)
+      const operation = await validatePreparationOperation(adminClient, userId, resolvedSource.sourceTrack, body.preparationOperationId)
+      if (resolvedSource.mode === 'vocal_reference') {
+        const relationship = await upsertVocalReference(
+          adminClient,
+          userId,
+          resolvedSource.ownerTrack,
+          resolvedSource.sourceTrack,
+          resolvedSource.timingOffsetMs,
+          resolvedSource.compatibility!,
+          body.preparationOperationId,
+        )
+        resolvedSource = { ...resolvedSource, relationship }
+      }
+      const created = await createJob(adminClient, userId, resolvedSource, safeOptions(body.options), body.preparationOperationId)
       await reconcileCreatedPreparationJob(adminClient, operation, created)
-      if (!created.duplicate) runInBackground(processJob(adminClient, userClient, created.job, track))
+      if (!created.duplicate) runInBackground(processJob(adminClient, userClient, created.job, resolvedSource))
       return json({ job: publicJob(created.job), duplicate: created.duplicate }, created.duplicate ? 200 : 202)
     }
 
@@ -1596,12 +1940,25 @@ Deno.serve(async (req: Request) => {
       if (job.status !== 'failed' && job.status !== 'cancelled') {
         throw new TranscriptionError('invalid_request', 'Only a failed or cancelled transcription can be retried.', 409)
       }
-      const track = await ownedTrack(adminClient, userId, job.audio_track_id)
-      validateTrack(track)
-      const operation = await validatePreparationOperation(adminClient, userId, track, body.preparationOperationId)
-      const created = await createJob(adminClient, userId, track, safeOptions(job.request_options), body.preparationOperationId)
+      const ownerTrack = await ownedTrack(adminClient, userId, job.audio_track_id)
+      validateTrack(ownerTrack)
+      let resolvedSource = await resolveRetryAnalysisSource(adminClient, userId, ownerTrack, job)
+      const operation = await validatePreparationOperation(adminClient, userId, resolvedSource.sourceTrack, body.preparationOperationId)
+      if (resolvedSource.mode === 'vocal_reference') {
+        const relationship = await upsertVocalReference(
+          adminClient,
+          userId,
+          resolvedSource.ownerTrack,
+          resolvedSource.sourceTrack,
+          resolvedSource.timingOffsetMs,
+          resolvedSource.compatibility!,
+          body.preparationOperationId,
+        )
+        resolvedSource = { ...resolvedSource, relationship }
+      }
+      const created = await createJob(adminClient, userId, resolvedSource, safeOptions(job.request_options), body.preparationOperationId)
       await reconcileCreatedPreparationJob(adminClient, operation, created)
-      if (!created.duplicate) runInBackground(processJob(adminClient, userClient, created.job, track))
+      if (!created.duplicate) runInBackground(processJob(adminClient, userClient, created.job, resolvedSource))
       return json({ job: publicJob(created.job), duplicate: created.duplicate }, created.duplicate ? 200 : 202)
     }
 

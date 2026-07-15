@@ -3,6 +3,11 @@ import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../ty
 import { getFullLyricDocument, saveLyricDocumentAtomic } from '../../../lib/lyricsDb'
 import { createLyricCueInputFromCue } from '../../../types/lyrics'
 import { LYRIC_CUE_STYLE_LABELS, segmentTimedWords, segmentationProvenance, type LyricCueStyle } from '../../../../supabase/functions/_shared/lyricCueSegmentation'
+import {
+  assessVocalReferenceCompatibility,
+  normalizeVocalReferenceOffsetMs,
+  type LyricExtractionSourceMode,
+} from '../../../../supabase/functions/_shared/vocalReference'
 import { formatMs } from '../../../lib/lyricsImport'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 import {
@@ -14,6 +19,7 @@ import {
   retryLyricTranscription,
   startLyricTranscription,
   type LyricTranscriptionOptions,
+  type LyricTranscriptionSourceRequest,
 } from '../services/lyricExtraction'
 import { getLyricReviewStatistics } from '../utils/lyricReview'
 import {
@@ -43,6 +49,10 @@ interface Props {
   onCompletedDraftResolved?: (document: LyricDocument) => void | Promise<void>
   onOpenCompletedDraft: (documentId: string) => void | Promise<void>
   onActivateCompletedDraft: (documentId: string) => void | Promise<void>
+  availableTracks?: readonly LyricManagerTrack[]
+  uploadedVocalReferenceTrack?: LyricManagerTrack | null
+  onRequestVocalReferenceUpload?: () => void
+  onResolveSavedTrack?: (audioTrackId: string) => Promise<LyricManagerTrack | null>
 }
 
 function jobStatusLabel(job: LyricTranscriptionJob): string {
@@ -130,6 +140,22 @@ function isBrowserCodecFallbackError(error: unknown): boolean {
     && error.message.toLowerCase().includes('could not be decoded in the browser')
 }
 
+function formatTrackDuration(durationSec: number | null): string {
+  if (!durationSec || !Number.isFinite(durationSec)) return 'Duration unknown'
+  return `${Math.floor(durationSec / 60)}:${String(Math.round(durationSec % 60)).padStart(2, '0')}`
+}
+
+function formatDurationDifference(durationDifferenceMs: number | null): string {
+  if (durationDifferenceMs === null) return 'Unknown'
+  const sign = durationDifferenceMs > 0 ? '+' : durationDifferenceMs < 0 ? '−' : ''
+  return `${sign}${(Math.abs(durationDifferenceMs) / 1000).toFixed(2)} s`
+}
+
+function formatOffsetSeconds(offsetMs: number): string {
+  const value = offsetMs / 1000
+  return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+}
+
 export function chooseRecoveredJob(jobs: LyricTranscriptionJob[]): LyricTranscriptionJob | null {
   return jobs.find(isActiveLyricTranscriptionJob) ?? jobs[0] ?? null
 }
@@ -141,6 +167,10 @@ export function AiLyricExtractor({
   onCompletedDraftResolved,
   onOpenCompletedDraft,
   onActivateCompletedDraft,
+  availableTracks = [],
+  uploadedVocalReferenceTrack = null,
+  onRequestVocalReferenceUpload,
+  onResolveSavedTrack,
 }: Props) {
   const [job, setJob] = useState<LyricTranscriptionJob | null>(null)
   const [document, setDocument] = useState<LyricDocument | null>(null)
@@ -206,6 +236,65 @@ export function AiLyricExtractor({
   })
   const [reformatStyle, setReformatStyle] = useState<LyricCueStyle>('balanced')
   const [reformatPreview, setReformatPreview] = useState<LyricCue[] | null>(null)
+  const [extractionSourceMode, setExtractionSourceMode] = useState<LyricExtractionSourceMode>('full_mix')
+  const [vocalReferenceTrackId, setVocalReferenceTrackId] = useState<string | null>(null)
+  const [vocalReferenceOffsetMs, setVocalReferenceOffsetMs] = useState(0)
+  const [significantMismatchConfirmed, setSignificantMismatchConfirmed] = useState(false)
+  const [resolvedVocalReferenceTrack, setResolvedVocalReferenceTrack] = useState<LyricManagerTrack | null>(null)
+
+  const vocalReferenceCandidates = useMemo(() => {
+    const byId = new Map<string, LyricManagerTrack>()
+    for (const track of availableTracks) {
+      if (track.dbId !== selectedTrackId) byId.set(track.dbId, track)
+    }
+    if (uploadedVocalReferenceTrack && uploadedVocalReferenceTrack.dbId !== selectedTrackId) {
+      byId.set(uploadedVocalReferenceTrack.dbId, uploadedVocalReferenceTrack)
+    }
+    if (resolvedVocalReferenceTrack && resolvedVocalReferenceTrack.dbId !== selectedTrackId) {
+      byId.set(resolvedVocalReferenceTrack.dbId, resolvedVocalReferenceTrack)
+    }
+    return [...byId.values()].sort((a, b) => a.title.localeCompare(b.title))
+  }, [availableTracks, resolvedVocalReferenceTrack, selectedTrackId, uploadedVocalReferenceTrack])
+
+  const vocalReferenceTrack = useMemo(
+    () => vocalReferenceCandidates.find(track => track.dbId === vocalReferenceTrackId) ?? null,
+    [vocalReferenceCandidates, vocalReferenceTrackId],
+  )
+
+  const transcriptionTrack = extractionSourceMode === 'vocal_reference'
+    ? vocalReferenceTrack
+    : selectedTrack
+
+  const sourceCompatibility = useMemo(
+    () => assessVocalReferenceCompatibility(
+      selectedTrack?.durationSec ?? null,
+      vocalReferenceTrack?.durationSec ?? null,
+      vocalReferenceOffsetMs,
+    ),
+    [selectedTrack?.durationSec, vocalReferenceOffsetMs, vocalReferenceTrack?.durationSec],
+  )
+
+  const sourceRequest = useMemo((): LyricTranscriptionSourceRequest => (
+    extractionSourceMode === 'vocal_reference'
+      ? {
+          sourceMode: 'vocal_reference',
+          analysisSourceAudioTrackId: vocalReferenceTrack?.dbId ?? null,
+          timingOffsetMs: vocalReferenceOffsetMs,
+          confirmSignificantMismatch: significantMismatchConfirmed,
+        }
+      : {
+          sourceMode: 'full_mix',
+          analysisSourceAudioTrackId: null,
+          timingOffsetMs: 0,
+          confirmSignificantMismatch: false,
+        }
+  ), [extractionSourceMode, significantMismatchConfirmed, vocalReferenceOffsetMs, vocalReferenceTrack?.dbId])
+
+  const sourceSelectionInvalid = extractionSourceMode === 'vocal_reference' && (
+    !vocalReferenceTrack
+    || sourceCompatibility.blocked
+    || (sourceCompatibility.requiresConfirmation && !significantMismatchConfirmed)
+  )
 
   const loadPreview = useCallback(async (nextJob: LyricTranscriptionJob | null) => {
     const requestGeneration = ++previewRequestGenerationRef.current
@@ -241,6 +330,11 @@ export function AiLyricExtractor({
     setLocalPreparation(null)
     setActionBusy(false)
     setJobStalled(false)
+    setExtractionSourceMode('full_mix')
+    setVocalReferenceTrackId(null)
+    setVocalReferenceOffsetMs(0)
+    setSignificantMismatchConfirmed(false)
+    setResolvedVocalReferenceTrack(null)
     pollGenerationRef.current += 1
     if (pollTimerRef.current !== null) {
       window.clearTimeout(pollTimerRef.current)
@@ -256,6 +350,13 @@ export function AiLyricExtractor({
         if (cancelled) return
         const recovered = chooseRecoveredJob(jobs)
         setJob(recovered)
+        if (recovered?.sourceMode === 'vocal_reference') {
+          const sourceTrackId = metadataString(recovered.requestOptions, 'analysisSourceAudioTrackId')
+          setExtractionSourceMode('vocal_reference')
+          setVocalReferenceTrackId(sourceTrackId)
+          setVocalReferenceOffsetMs(recovered.timingOffsetMs)
+          setSignificantMismatchConfirmed(true)
+        }
         await loadPreview(recovered)
       })
       .catch(loadError => {
@@ -274,6 +375,28 @@ export function AiLyricExtractor({
       preparationAbortRef.current = null
     }
   }, [loadPreview, selectedTrackId])
+
+  useEffect(() => {
+    if (!uploadedVocalReferenceTrack || uploadedVocalReferenceTrack.dbId === selectedTrackId) return
+    setExtractionSourceMode('vocal_reference')
+    setVocalReferenceTrackId(uploadedVocalReferenceTrack.dbId)
+    setSignificantMismatchConfirmed(false)
+  }, [selectedTrackId, uploadedVocalReferenceTrack])
+
+  useEffect(() => {
+    setSignificantMismatchConfirmed(false)
+  }, [vocalReferenceOffsetMs, vocalReferenceTrackId])
+
+  useEffect(() => {
+    if (!vocalReferenceTrackId || vocalReferenceTrack || !onResolveSavedTrack) return
+    let cancelled = false
+    void onResolveSavedTrack(vocalReferenceTrackId)
+      .then(track => {
+        if (!cancelled && track && track.dbId !== selectedTrackId) setResolvedVocalReferenceTrack(track)
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [onResolveSavedTrack, selectedTrackId, vocalReferenceTrack, vocalReferenceTrackId])
 
   useEffect(() => {
     if (!activeJobId || !activeJobTrackId || !activeJobUserId) {
@@ -372,6 +495,21 @@ export function AiLyricExtractor({
 
   const handleStart = useCallback(async () => {
     if (!selectedTrack) return
+    if (!transcriptionTrack) {
+      setNotice(null)
+      setError('Choose a saved vocal-reference track before starting extraction.')
+      return
+    }
+    if (extractionSourceMode === 'vocal_reference' && sourceCompatibility.blocked) {
+      setNotice(null)
+      setError(sourceCompatibility.reason)
+      return
+    }
+    if (extractionSourceMode === 'vocal_reference' && sourceCompatibility.requiresConfirmation && !significantMismatchConfirmed) {
+      setNotice(null)
+      setError('Confirm the significant duration mismatch before starting extraction.')
+      return
+    }
     if (!browserReportsOnline()) {
       setBrowserOnline(false)
       setNotice(null)
@@ -387,7 +525,7 @@ export function AiLyricExtractor({
       let preparation = { prepared: false } as Awaited<ReturnType<typeof ensurePreparedTranscriptionAudio>>
       let usingServerFallback = false
       try {
-        preparation = await ensurePreparedTranscriptionAudio(selectedTrack, {
+        preparation = await ensurePreparedTranscriptionAudio(transcriptionTrack, {
           signal: owned.controller.signal,
           isCurrent: owned.isCurrent,
           onProgress: progress => { if (owned.isCurrent()) setLocalPreparation(progress) },
@@ -401,7 +539,7 @@ export function AiLyricExtractor({
       }
       if (!owned.isCurrent()) throw new DOMException('Audio preparation was cancelled.', 'AbortError')
 
-      const result = await startLyricTranscription(selectedTrack.dbId, options, preparationOperationId)
+      const result = await startLyricTranscription(selectedTrack.dbId, options, preparationOperationId, sourceRequest)
       if (!owned.isCurrent()) {
         void cancelLyricTranscription(result.job.id).catch(() => undefined)
         throw new DOMException('The transcription request no longer owns the selected track.', 'AbortError')
@@ -416,7 +554,7 @@ export function AiLyricExtractor({
         : usingServerFallback
           ? 'Browser audio preparation could not decode this file. Extraction queued through the secure server fallback if it is configured.'
           : preparation.prepared
-            ? 'Groq-ready audio prepared privately and extraction queued.'
+            ? `Groq-ready ${extractionSourceMode === 'vocal_reference' ? 'vocal-reference ' : ''}audio prepared privately and extraction queued.`
             : 'Extraction queued. You can leave Lyric Manager and return without losing the job.')
     } catch (startError) {
       const wasCancelled = startError instanceof DOMException && startError.name === 'AbortError'
@@ -466,7 +604,16 @@ export function AiLyricExtractor({
         setActionBusy(false)
       }
     }
-  }, [beginOwnedOperation, options, selectedTrack])
+  }, [
+    beginOwnedOperation,
+    extractionSourceMode,
+    options,
+    selectedTrack,
+    significantMismatchConfirmed,
+    sourceCompatibility,
+    sourceRequest,
+    transcriptionTrack,
+  ])
 
   const handleCancel = useCallback(async () => {
     preparationAbortRef.current?.abort()
@@ -509,9 +656,16 @@ export function AiLyricExtractor({
     setNotice(null)
     let preparationOperationId: string | undefined
     try {
-      if (selectedTrack) {
+      const retrySourceTrackId = metadataString(job.requestOptions, 'analysisSourceAudioTrackId')
+      const retryTrack = job.sourceMode === 'vocal_reference'
+        ? vocalReferenceCandidates.find(track => track.dbId === retrySourceTrackId) ?? null
+        : selectedTrack
+      if (job.sourceMode === 'vocal_reference' && !retryTrack) {
+        throw new Error('The saved vocal-reference track is missing or was deleted. Select a valid source and start a new extraction.')
+      }
+      if (retryTrack) {
         try {
-          const preparation = await ensurePreparedTranscriptionAudio(selectedTrack, {
+          const preparation = await ensurePreparedTranscriptionAudio(retryTrack, {
             signal: owned.controller.signal,
             isCurrent: owned.isCurrent,
             onProgress: progress => { if (owned.isCurrent()) setLocalPreparation(progress) },
@@ -574,7 +728,7 @@ export function AiLyricExtractor({
         setActionBusy(false)
       }
     }
-  }, [beginOwnedOperation, job, selectedTrack])
+  }, [beginOwnedOperation, job, selectedTrack, vocalReferenceCandidates])
 
   const previewReformat = useCallback(() => {
     if (!document) return
@@ -643,6 +797,21 @@ export function AiLyricExtractor({
 
   const fnVersion = typeof job?.providerMetadata.fnVersion === 'string'
     ? job.providerMetadata.fnVersion : null
+  const effectiveSourceMode = job?.sourceMode ?? extractionSourceMode
+  const jobSourceTrackId = metadataString(job?.requestOptions, 'analysisSourceAudioTrackId')
+  const effectiveSourceTrack = effectiveSourceMode === 'vocal_reference'
+    ? vocalReferenceCandidates.find(track => track.dbId === jobSourceTrackId) ?? vocalReferenceTrack
+    : selectedTrack
+  const effectiveSourceTitle = effectiveSourceTrack?.title
+    ?? metadataString(document?.metadata, 'transcriptionSourceTitle')
+    ?? (effectiveSourceMode === 'full_mix' ? selectedTrack.title : 'Source unavailable')
+  const effectiveTimingOffsetMs = job?.timingOffsetMs ?? vocalReferenceOffsetMs
+  const effectiveCompatibility = effectiveSourceMode === 'vocal_reference'
+    ? assessVocalReferenceCompatibility(selectedTrack.durationSec, effectiveSourceTrack?.durationSec ?? null, effectiveTimingOffsetMs)
+    : null
+  const persistedDurationDifferenceMs = metadataNumber(document?.metadata, 'vocalReferenceDurationDifferenceMs')
+  const effectiveDurationDifferenceMs = effectiveCompatibility?.durationDifferenceMs ?? persistedDurationDifferenceMs
+  const trackMapAvailable = Boolean(selectedTrack.analysisPayload)
 
   return (
     <div className="lmv-workflow-content">
@@ -672,6 +841,123 @@ export function AiLyricExtractor({
           ? 'Extraction creates a new inactive draft version. It will not overwrite or automatically replace the active lyrics.'
           : 'The first successful extraction will become active automatically. Later extractions remain inactive drafts until you choose to activate them.'}
       </div>
+
+      <div className="lmv-section-label" style={{ marginTop: 16 }}>EXTRACTION SOURCE</div>
+      <div className="lmv-grid2">
+        <div className="lmv-field">
+          <label className="lmv-field-label" htmlFor="lyric-extraction-source-mode">SOURCE MODE</label>
+          <select
+            id="lyric-extraction-source-mode"
+            className="lmv-select"
+            value={extractionSourceMode}
+            disabled={active}
+            onChange={event => {
+              const mode = event.target.value as LyricExtractionSourceMode
+              setExtractionSourceMode(mode)
+              setError(null)
+              setNotice(null)
+              setSignificantMismatchConfirmed(false)
+            }}
+          >
+            <option value="full_mix">Full Mix</option>
+            <option value="vocal_reference">Vocal Reference</option>
+          </select>
+        </div>
+        {extractionSourceMode === 'vocal_reference' && (
+          <div className="lmv-field">
+            <label className="lmv-field-label" htmlFor="lyric-vocal-reference-track">SAVED VOCAL TRACK</label>
+            <select
+              id="lyric-vocal-reference-track"
+              className="lmv-select"
+              value={vocalReferenceTrackId ?? ''}
+              disabled={active}
+              onChange={event => {
+                setVocalReferenceTrackId(event.target.value || null)
+                setError(null)
+                setNotice(null)
+              }}
+            >
+              <option value="">Choose a saved audio track…</option>
+              {vocalReferenceCandidates.map(track => (
+                <option key={track.dbId} value={track.dbId}>
+                  {track.title}{track.artist ? ` · ${track.artist}` : ''} · {formatTrackDuration(track.durationSec)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {extractionSourceMode === 'vocal_reference' && (
+          <div className="lmv-field">
+            <label className="lmv-field-label" htmlFor="lyric-vocal-reference-offset">VOCAL REFERENCE OFFSET (SECONDS)</label>
+            <input
+              id="lyric-vocal-reference-offset"
+              className="lmv-num"
+              type="number"
+              step={0.05}
+              value={formatOffsetSeconds(vocalReferenceOffsetMs)}
+              disabled={active}
+              onChange={event => {
+                const seconds = Number.parseFloat(event.target.value)
+                setVocalReferenceOffsetMs(normalizeVocalReferenceOffsetMs(Number.isFinite(seconds) ? seconds * 1000 : 0))
+              }}
+            />
+            <span className="lmv-parse-next-hint">
+              Positive means the vocal starts later on the full-mix timeline. Negative means it starts earlier.
+            </span>
+          </div>
+        )}
+        {extractionSourceMode === 'vocal_reference' && onRequestVocalReferenceUpload && (
+          <div className="lmv-field">
+            <label className="lmv-field-label">ADD VOCAL TRACK</label>
+            <button className="lmv-btn lmv-btn--ghost" type="button" disabled={active} onClick={onRequestVocalReferenceUpload}>
+              Upload through User Media
+            </button>
+            <span className="lmv-parse-next-hint">The upload is saved as normal audio and returned here as the transcription source.</span>
+          </div>
+        )}
+      </div>
+
+      {extractionSourceMode === 'vocal_reference' && (
+        <div className="lmv-validation-box" style={{ marginTop: 10 }}>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Lyrics belong to</span><span className="lmv-val-value">{selectedTrack.title}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Transcription source</span><span className="lmv-val-value">{vocalReferenceTrack?.title ?? 'Not selected'}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Compatibility</span><span className="lmv-val-value">{vocalReferenceTrack ? sourceCompatibility.label : 'Choose a source'}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Duration difference</span><span className="lmv-val-value">{vocalReferenceTrack ? formatDurationDifference(sourceCompatibility.durationDifferenceMs) : 'Unknown'}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Timing offset</span><span className="lmv-val-value">{formatOffsetSeconds(vocalReferenceOffsetMs)} s</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Cue Style</span><span className="lmv-val-value">{LYRIC_CUE_STYLE_LABELS[options.cueStyle ?? 'balanced']}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Track Map analysis</span><span className="lmv-val-value">{selectedTrack.analysisPayload ? 'Available from full mix' : 'Not available'}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Source format</span><span className="lmv-val-value">{vocalReferenceTrack ? `${vocalReferenceTrack.sampleRate ? `${vocalReferenceTrack.sampleRate} Hz` : 'sample rate unknown'} · ${vocalReferenceTrack.channels ? `${vocalReferenceTrack.channels} ch` : 'channels unknown'}` : 'Unknown'}</span></div>
+          {vocalReferenceTrack && vocalReferenceOffsetMs !== 0 && (
+            <div className="lmv-msg-list lmv-msg-list--warn" role="status">
+              <div className="lmv-msg-item">Source begins with an offset. Provider timestamps will be shifted once into the full-mix timeline.</div>
+            </div>
+          )}
+          {vocalReferenceTrack && (
+            <div className={`lmv-msg-list ${sourceCompatibility.blocked ? 'lmv-msg-list--error' : sourceCompatibility.status === 'significant_mismatch' ? 'lmv-msg-list--warn' : ''}`} role="status">
+              <div className="lmv-msg-item">{sourceCompatibility.reason}</div>
+            </div>
+          )}
+          {sourceCompatibility.requiresConfirmation && vocalReferenceTrack && (
+            <label className="lmv-checkbox-row">
+              <input
+                type="checkbox"
+                checked={significantMismatchConfirmed}
+                disabled={active}
+                onChange={event => setSignificantMismatchConfirmed(event.target.checked)}
+              />
+              <span>I reviewed the arrangement and confirm this vocal reference belongs to the selected full mix.</span>
+            </label>
+          )}
+        </div>
+      )}
+      {extractionSourceMode === 'full_mix' && (
+        <div className="lmv-validation-box" style={{ marginTop: 10 }}>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Lyrics belong to</span><span className="lmv-val-value">{selectedTrack.title}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Transcription source</span><span className="lmv-val-value">{selectedTrack.title}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Cue Style</span><span className="lmv-val-value">{LYRIC_CUE_STYLE_LABELS[options.cueStyle ?? 'balanced']}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Track Map analysis</span><span className="lmv-val-value">{selectedTrack.analysisPayload ? 'Available' : 'Not available'}</span></div>
+        </div>
+      )}
 
       <div className="lmv-section-label" style={{ marginTop: 16 }}>EXTRACTION SETTINGS</div>
       <div className="lmv-grid2">
@@ -722,7 +1008,7 @@ export function AiLyricExtractor({
       </div>
 
       {!active && (!job || job.status === 'completed') && (
-        <button className="lmv-btn lmv-btn--primary lmv-extract-btn" disabled={loading || actionBusy || !browserOnline} onClick={() => { void handleStart() }}>
+        <button className="lmv-btn lmv-btn--primary lmv-extract-btn" disabled={loading || actionBusy || !browserOnline || sourceSelectionInvalid} onClick={() => { void handleStart() }}>
           {actionBusy
             ? localPreparation ? LOCAL_PREPARATION_LABELS[localPreparation.stage] : 'Starting…'
             : job?.status === 'completed' ? 'Extract Another Draft Version' : 'Start Automatic Extraction'}
@@ -841,6 +1127,16 @@ export function AiLyricExtractor({
 
       {job?.status === 'completed' && document && (
         <>
+          <div className="lmv-section-label" style={{ marginTop: 18 }}>ALIGNMENT SUMMARY</div>
+          <div className="lmv-validation-box">
+            <div className="lmv-validation-row"><span className="lmv-val-label">Lyrics belong to</span><span className="lmv-val-value">{selectedTrack.title}</span></div>
+            <div className="lmv-validation-row"><span className="lmv-val-label">Transcription source</span><span className="lmv-val-value">{effectiveSourceTitle}</span></div>
+            <div className="lmv-validation-row"><span className="lmv-val-label">Duration difference</span><span className="lmv-val-value">{effectiveSourceMode === 'vocal_reference' ? formatDurationDifference(effectiveDurationDifferenceMs) : '0.00 s'}</span></div>
+            <div className="lmv-validation-row"><span className="lmv-val-label">Timing offset</span><span className="lmv-val-value">{formatOffsetSeconds(effectiveTimingOffsetMs)} s</span></div>
+            <div className="lmv-validation-row"><span className="lmv-val-label">Cue Style</span><span className="lmv-val-value">{LYRIC_CUE_STYLE_LABELS[(job.requestOptions.cueStyle as LyricCueStyle | undefined) ?? options.cueStyle ?? 'balanced']}</span></div>
+            <div className="lmv-validation-row"><span className="lmv-val-label">Track Map analysis</span><span className="lmv-val-value">{trackMapAvailable ? 'Available from full mix' : 'Not available'}</span></div>
+          </div>
+
           <div className="lmv-section-label" style={{ marginTop: 18 }}>REVIEW SUMMARY</div>
           <div className="lmv-validation-box">
             <div className="lmv-validation-row"><span className="lmv-val-label">Draft</span><span className="lmv-val-value">{document.title}</span></div>

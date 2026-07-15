@@ -81,8 +81,8 @@ describe('secure lyric transcription contracts', () => {
     expect(extractorSource).toContain('online')
     expect(extractorSource).toContain('offline')
     expect(extractorSource).toContain('Lyric extraction requires an internet connection. Connect to the internet and try again.')
-    expect(extractorSource).toContain('ensurePreparedTranscriptionAudio(selectedTrack')
-    expect(extractorSource).toContain('startLyricTranscription(selectedTrack.dbId, options, preparationOperationId)')
+    expect(extractorSource).toContain('ensurePreparedTranscriptionAudio(transcriptionTrack')
+    expect(extractorSource).toContain('startLyricTranscription(selectedTrack.dbId, options, preparationOperationId, sourceRequest)')
     expect(clientSource).not.toContain('api.groq.com')
     expect(extractorSource).not.toContain('GROQ_API_KEY')
   })
@@ -95,7 +95,8 @@ describe('secure lyric transcription contracts', () => {
   })
 
   it('uses audio_tracks.id and private storage access without exposing provider credentials', () => {
-    expect(clientSource).toContain("action: 'start', audioTrackId")
+    expect(clientSource).toContain("action: 'start',")
+    expect(clientSource).toContain('audioTrackId,')
     expect(edgeFunctionSource).toContain(".from('audio_tracks')")
     expect(edgeFunctionSource).toContain(".from(AUDIO_BUCKET)")
     expect(edgeFunctionSource).toContain('.download(track.storage_path!)')
