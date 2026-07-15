@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeLaserDmxShowDirectorSettings } from '../../ReactTypes'
 import {
+  resolveLaserDmxAtmosphereRendererPath,
   resolveLaserDmxAuthoringOverlayVisibility,
   resolveLaserDmxPresentationVisibility,
   resolveLaserDmxRendererBackend,
@@ -15,6 +16,11 @@ describe('LaserDMX renderer backend selection', () => {
     expect(resolveLaserDmxRendererBackend('webgl', { webgl2: true, runtimeFailed: true })).toBe('canvas2d')
   })
 
+  it('keeps flat fog on Canvas2D fallback and selects volumetric atmosphere only for WebGL', () => {
+    expect(resolveLaserDmxAtmosphereRendererPath('canvas2d')).toBe('canvas2dFogFallback')
+    expect(resolveLaserDmxAtmosphereRendererPath('webgl')).toBe('webglVolumetric')
+  })
+
   it('normalizes legacy projects to safe Edit and Canvas2D defaults', () => {
     const settings = normalizeLaserDmxShowDirectorSettings({
       gridSize: { columns: 15, rows: 10 },
@@ -23,6 +29,7 @@ describe('LaserDMX renderer backend selection', () => {
     expect(settings.presentationMode).toBe('edit')
     expect(settings.rendererMode).toBe('canvas2d')
     expect(settings.webglQuality).toBe('high')
+    expect(settings.webglAtmosphereQuality).toBe('auto')
     expect(settings.webglRenderScale).toBe(1)
   })
 })

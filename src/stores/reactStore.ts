@@ -903,6 +903,7 @@ const LASER_DMX_SHOW_DIRECTOR_GLOBAL_SETTING_KEYS = [
   'presentationMode',
   'rendererMode',
   'webglQuality',
+  'webglAtmosphereQuality',
   'webglRenderScale',
 ] as const
 
@@ -924,6 +925,7 @@ function preserveLaserDmxShowDirectorGlobalSettings(
       presentationMode: currentSettings.presentationMode,
       rendererMode: currentSettings.rendererMode,
       webglQuality: currentSettings.webglQuality,
+      webglAtmosphereQuality: currentSettings.webglAtmosphereQuality,
       webglRenderScale: currentSettings.webglRenderScale,
     },
   })

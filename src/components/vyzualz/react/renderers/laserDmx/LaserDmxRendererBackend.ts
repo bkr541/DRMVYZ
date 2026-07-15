@@ -4,6 +4,14 @@ import type {
 } from '../../ReactTypes'
 
 export type LaserDmxResolvedRendererBackend = 'webgl' | 'canvas2d'
+export type LaserDmxAtmosphereRendererPath = 'webglVolumetric' | 'canvas2dFogFallback'
+
+/** Keeps the legacy flat fog renderer isolated to compatibility/fallback output. */
+export function resolveLaserDmxAtmosphereRendererPath(
+  backend: LaserDmxResolvedRendererBackend,
+): LaserDmxAtmosphereRendererPath {
+  return backend === 'webgl' ? 'webglVolumetric' : 'canvas2dFogFallback'
+}
 
 export interface LaserDmxRendererCapabilities {
   webgl2: boolean

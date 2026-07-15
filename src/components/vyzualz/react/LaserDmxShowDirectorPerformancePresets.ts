@@ -109,6 +109,7 @@ function preserveCanvasPreferences(
       presentationMode: current.settings.presentationMode,
       rendererMode: current.settings.rendererMode,
       webglQuality: current.settings.webglQuality,
+      webglAtmosphereQuality: current.settings.webglAtmosphereQuality,
       webglRenderScale: current.settings.webglRenderScale,
     },
   }

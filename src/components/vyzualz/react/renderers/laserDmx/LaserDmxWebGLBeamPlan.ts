@@ -34,6 +34,7 @@ export interface LaserDmxWebGLBeamInstance {
   envelopeEndWidthCssPx: number
   envelopeAlpha: number
   phase: number
+  sortDepth: number
 }
 
 export interface LaserDmxWebGLApertureInstance {
@@ -46,6 +47,7 @@ export interface LaserDmxWebGLApertureInstance {
   ringRadiusCssPx: number
   haloRadiusCssPx: number
   glareDirection: { x: number; y: number }
+  sortDepth: number
 }
 
 export interface LaserDmxWebGLBeamRenderPlan {
@@ -182,6 +184,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         0.32,
       ),
       phase: beam.pattern.phase,
+      sortDepth: beam.sortDepth,
     }
   })
 
@@ -205,6 +208,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         ringRadiusCssPx,
         haloRadiusCssPx,
         glareDirection: projectedDirection(emitter.glareDirection, viewport),
+        sortDepth: emitter.sortDepth,
       }
     })
 

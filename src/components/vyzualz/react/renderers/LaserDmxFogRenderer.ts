@@ -1,5 +1,7 @@
 /**
- * Beam Matrix procedural fog renderer.
+ * Beam Matrix procedural fog renderer for Canvas2D compatibility/fallback only.
+ * The WebGL Show Director path owns its reduced-resolution beam-reactive
+ * atmosphere and must never call this module.
  *
  * Uses a dedicated low-resolution offscreen canvas (never the main output
  * canvas directly) to generate cloud-like volumetric fog:

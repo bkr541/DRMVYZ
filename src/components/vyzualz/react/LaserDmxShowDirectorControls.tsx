@@ -177,6 +177,20 @@ export function LaserDmxShowDirectorGlobalControls() {
             { value: 'auto', label: 'Auto' },
           ]}
         />
+        <SelectRow
+          label="Atmosphere Quality"
+          value={settings.webglAtmosphereQuality ?? 'auto'}
+          onChange={value => updateSettings({ webglAtmosphereQuality: value as LaserDmxShowDirectorWebGLQuality })}
+          disabled={settings.rendererMode === 'canvas2d'}
+          options={[
+            { value: 'low', label: 'Low' },
+            { value: 'medium', label: 'Medium' },
+            { value: 'high', label: 'High' },
+            { value: 'ultra', label: 'Ultra' },
+            { value: 'auto', label: 'Auto' },
+          ]}
+          description="Scales only volumetric haze; sharp beam cores remain at the WebGL render resolution."
+        />
         <SliderRow
           label="WebGL Render Scale"
           value={settings.webglRenderScale}

@@ -741,7 +741,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 9
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 10
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -855,6 +855,8 @@ export interface LaserDmxShowDirectorSettings {
   presentationMode:  LaserDmxShowDirectorPresentationMode
   rendererMode:      LaserDmxShowDirectorRendererMode
   webglQuality:      LaserDmxShowDirectorWebGLQuality
+  /** Atmosphere quality is independent from the full-resolution sharp-beam pass. */
+  webglAtmosphereQuality?: LaserDmxShowDirectorWebGLQuality
   webglRenderScale:  number
 }
 
@@ -987,6 +989,7 @@ export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS: LaserDmxShowDirectorSetti
   presentationMode:  'edit',
   rendererMode:      'canvas2d',
   webglQuality:      'high',
+  webglAtmosphereQuality: 'auto',
   webglRenderScale:  1,
 }
 
@@ -1349,6 +1352,7 @@ export function normalizeLaserDmxShowDirectorSettings(raw: unknown): LaserDmxSho
     presentationMode:  coerceShowDirectorPresentationMode(value.presentationMode),
     rendererMode:      coerceShowDirectorRendererMode(value.rendererMode),
     webglQuality:      coerceShowDirectorWebGLQuality(value.webglQuality),
+    webglAtmosphereQuality: coerceShowDirectorWebGLQuality(value.webglAtmosphereQuality ?? fallback.webglAtmosphereQuality),
     webglRenderScale:  Math.max(0.25, Math.min(1, showDirectorFinite(value.webglRenderScale, fallback.webglRenderScale))),
   }
 }

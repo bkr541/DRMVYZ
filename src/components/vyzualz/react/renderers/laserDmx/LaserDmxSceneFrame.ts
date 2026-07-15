@@ -95,9 +95,31 @@ export interface LaserDmxSceneMusicalState {
 export interface LaserDmxSceneAtmosphere {
   enabled: boolean
   density: number
+  baselineDensity: number
   opacity: number
   beamScatter: number
   turbulence: number
+  noiseScale: number
+  driftSpeed: number
+  driftDirection: number
+  diffusion: number
+  dissipation: number
+  colorAbsorption: number
+  foregroundVeil: number
+  qualityTier: LaserDmxSceneQuality['qualityTier']
+  deterministicSeed: number
+}
+
+export interface LaserDmxSceneAtmosphereSource extends LaserDmxSceneSpatialAssignment {
+  id: string
+  fixtureId: string
+  position: LaserDmxSceneVec3
+  direction: LaserDmxSceneVec3
+  color: LaserDmxSceneColor
+  density: number
+  spread: number
+  dissipation: number
+  enabled: boolean
 }
 
 export interface LaserDmxSceneSpatialAssignment {
@@ -211,6 +233,7 @@ export interface LaserDmxSceneFrame {
   targets: LaserDmxSceneTarget[]
   beams: LaserDmxSceneBeam[]
   emitters: LaserDmxSceneEmitter[]
+  atmosphereSources: LaserDmxSceneAtmosphereSource[]
   transientEvents: LaserDmxSceneTransientEvent[]
   quality: LaserDmxSceneQuality
   presentationMode: LaserDmxShowDirectorPresentationMode
@@ -298,6 +321,46 @@ function clamp01(value: number): number {
 
 function finite(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function stableAtmosphereSeed(value: string | null | undefined): number {
+  const text = value?.trim() || 'laser-dmx-atmosphere'
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0) / 4294967295
+}
+
+function sceneAtmosphereFromFog(
+  fog: LaserDmxBeamMatrixSettings['fog'],
+  qualityTier: LaserDmxSceneQuality['qualityTier'],
+  trackKey: string | null,
+  hasActiveBeams: boolean,
+): LaserDmxSceneAtmosphere {
+  const authored = fog.enabled
+  const density = clamp01(fog.density)
+  const baselineDensity = hasActiveBeams
+    ? clamp((authored ? 0.035 + density * 0.16 : 0.026), 0, 0.22)
+    : 0
+  return {
+    enabled: authored || baselineDensity > 0,
+    density,
+    baselineDensity,
+    opacity: authored ? clamp01(fog.opacity) : 0.2,
+    beamScatter: authored ? clamp(Math.max(0.16, fog.beamScatter), 0, 1) : 0.2,
+    turbulence: clamp01(fog.turbulence),
+    noiseScale: clamp(fog.noiseScale, 0.1, 4),
+    driftSpeed: clamp01(fog.driftSpeed),
+    driftDirection: clamp01(fog.driftDirection),
+    diffusion: clamp01(fog.diffusion),
+    dissipation: clamp01(fog.dissipation),
+    colorAbsorption: clamp01(fog.colorAbsorption),
+    foregroundVeil: authored ? clamp01(fog.diffusion * (0.35 + fog.opacity * 0.65)) : 0.08,
+    qualityTier,
+    deterministicSeed: stableAtmosphereSeed(trackKey),
+  }
 }
 
 function normalizedStagePoint(
@@ -562,6 +625,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
   const targets: LaserDmxSceneTarget[] = []
   const beams: LaserDmxSceneBeam[] = []
   const emitters: LaserDmxSceneEmitter[] = []
+  const atmosphereSources: LaserDmxSceneAtmosphereSource[] = []
 
   for (const fixture of showDirector.fixtures) {
     const fallbackColor = DEFAULT_KIND_COLORS[fixture.kind]
@@ -615,6 +679,23 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       depthZone: fixtureDepth.zoneId,
       depthSource: fixtureDepth.source,
     })
+
+    if (fixture.kind === 'haze') {
+      const hazeIntensity = clamp01(fixture.component.hazeIntensity)
+      atmosphereSources.push({
+        id: `${fixture.id}-haze-source`,
+        fixtureId: fixture.id,
+        position,
+        direction: orientation,
+        color,
+        density: fixtureEnabled ? clamp01(fixture.brightness * hazeIntensity) : 0,
+        spread: clamp(0.12 + hazeIntensity * 0.42, 0.08, 0.7),
+        dissipation: clamp01(evaluated.fog.dissipation * (0.55 + (1 - hazeIntensity) * 0.45)),
+        enabled: fixtureEnabled && hazeIntensity > 0.001,
+        depthZone: fixtureDepth.zoneId,
+        depthSource: fixtureDepth.source,
+      })
+    }
 
     const sourceId = `${fixture.id}-emitter`
     if (fixtureEnabled && BEAM_FIXTURE_KINDS.has(fixture.kind)) {
@@ -741,13 +822,12 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       energy: clamp01(finite(input.energy, 0)),
     },
     camera: LASER_DMX_FRONT_LOCKED_CAMERA,
-    atmosphere: {
-      enabled: evaluated.fog.enabled,
-      density: clamp01(evaluated.fog.density),
-      opacity: clamp01(evaluated.fog.opacity),
-      beamScatter: clamp01(evaluated.fog.beamScatter),
-      turbulence: clamp01(evaluated.fog.turbulence),
-    },
+    atmosphere: sceneAtmosphereFromFog(
+      evaluated.fog,
+      showDirector.settings.webglAtmosphereQuality ?? 'auto',
+      input.trackKey,
+      energized.beams.some(beam => beam.enabled && beam.intensity > 0.001),
+    ),
     depthZones: LASER_DMX_SCENE_DEPTH_ZONES,
     depthOrdering: {
       bounds: depthBounds(fixtures, targets),
@@ -758,6 +838,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     targets,
     beams: energized.beams,
     emitters: energized.emitters,
+    atmosphereSources,
     transientEvents,
     quality: {
       devicePixelRatio: clamp(finite(input.devicePixelRatio, 1), 0.5, 4),
@@ -845,6 +926,21 @@ export function resolveLaserDmxSceneFrameOutput(
       color: fixture?.color ?? emitter.color,
     }
   })
+  const originalFixtureById = new Map(frame.fixtures.map(fixture => [fixture.id, fixture]))
+  const atmosphereSources = frame.atmosphereSources.map(source => {
+    const originalFixture = originalFixtureById.get(source.fixtureId)
+    const fixture = fixtureById.get(source.fixtureId)
+    const hazeRatio = originalFixture && originalFixture.intensity > 0.001
+      ? clamp01(source.density / originalFixture.intensity)
+      : 0
+    return {
+      ...source,
+      color: fixture?.color ?? source.color,
+      density: fixture?.enabled ? clamp01((fixture.intensity ?? 0) * hazeRatio) : 0,
+      dissipation: clamp01(evaluated.fog.dissipation * (0.55 + (1 - hazeRatio) * 0.45)),
+      enabled: Boolean(fixture?.enabled && hazeRatio > 0.001),
+    }
+  })
   const energized = applyLaserDmxSourceEnergy(beams, emitters)
   const transientEvents = frame.transientEvents.filter(event => event.kind !== 'blackout')
   if (blackout) transientEvents.push({ id: `blackout-${frame.timestamp.toFixed(4)}`, kind: 'blackout', strength: 1 })
@@ -852,11 +948,13 @@ export function resolveLaserDmxSceneFrameOutput(
   return {
     ...frame,
     atmosphere: {
-      enabled: evaluated.fog.enabled,
-      density: clamp01(evaluated.fog.density),
-      opacity: clamp01(evaluated.fog.opacity),
-      beamScatter: clamp01(evaluated.fog.beamScatter),
-      turbulence: clamp01(evaluated.fog.turbulence),
+      ...sceneAtmosphereFromFog(
+        evaluated.fog,
+        frame.atmosphere.qualityTier,
+        frame.transport.trackKey,
+        energized.beams.some(beam => beam.enabled && beam.intensity > 0.001),
+      ),
+      deterministicSeed: frame.atmosphere.deterministicSeed,
     },
     depthOrdering: {
       ...frame.depthOrdering,
@@ -866,6 +964,7 @@ export function resolveLaserDmxSceneFrameOutput(
     fixtures,
     beams: energized.beams,
     emitters: energized.emitters,
+    atmosphereSources,
     transientEvents,
     output: {
       blackout,

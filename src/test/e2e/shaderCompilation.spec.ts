@@ -9,6 +9,7 @@
 import { expect, test } from '@playwright/test'
 import { shaderRegistry } from '../../components/vyzualz/react/shaders/registry'
 import { getShaderSourceUnits } from '../../components/vyzualz/react/shaders/registry/ShaderSourceValidator'
+import { getLaserDmxWebGLShaderProgramSources } from '../../components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLShaderSources'
 
 const systemChromium = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
 
@@ -23,23 +24,30 @@ test.use({
 })
 
 test('all registered Shader scenes compile and link in WebGL2', async ({ page }) => {
-  const sources = shaderRegistry.getAll().flatMap(scene =>
-    getShaderSourceUnits(scene)
-      .filter(unit => unit.stage === 'fragment')
-      .map(fragment => {
-        const vertex = getShaderSourceUnits(scene).find(unit =>
-          unit.stage === 'vertex' && unit.pass?.id === fragment.pass?.id,
-        ) ?? getShaderSourceUnits(scene).find(unit => unit.stage === 'vertex')!
+  const sources = [
+    ...shaderRegistry.getAll().flatMap(scene =>
+      getShaderSourceUnits(scene)
+        .filter(unit => unit.stage === 'fragment')
+        .map(fragment => {
+          const vertex = getShaderSourceUnits(scene).find(unit =>
+            unit.stage === 'vertex' && unit.pass?.id === fragment.pass?.id,
+          ) ?? getShaderSourceUnits(scene).find(unit => unit.stage === 'vertex')!
 
-        return {
-          sceneId: scene.id,
-          sceneName: scene.name,
-          label: fragment.label.replace(/\/frag$/, ''),
-          vertSrc: vertex.source,
-          fragSrc: fragment.source,
-        }
-      }),
-  )
+          return {
+            sceneId: scene.id,
+            sceneName: scene.name,
+            label: fragment.label.replace(/\/frag$/, ''),
+            vertSrc: vertex.source,
+            fragSrc: fragment.source,
+          }
+        }),
+    ),
+    ...getLaserDmxWebGLShaderProgramSources().map(program => ({
+      sceneId: 'laser-dmx-webgl',
+      sceneName: 'LaserDMX Show Director WebGL',
+      ...program,
+    })),
+  ]
 
   const result = await page.evaluate((programSources) => {
     const canvas = document.createElement('canvas')
