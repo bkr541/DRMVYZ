@@ -26,6 +26,7 @@ import {
 } from './ReactTypes'
 import { SHOW_DIRECTOR_FIXTURE_DRAG_TYPE } from './LaserDmxShowDirectorPalette'
 import { triggerPatchForRecipe, type LaserDmxShowDirectorTriggerRecipe } from './laserDmxShowDirectorTriggerRecipes'
+import { resolveLaserDmxPresentationVisibility } from './renderers/laserDmx/LaserDmxRendererBackend'
 
 interface LaserDmxShowDirectorCanvasProps {
   fixtures: LaserDmxShowDirectorFixture[]
@@ -722,6 +723,15 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
   }, [fixtures, selectedFixtureId, selectedFixtureIds])
   const selectedFixtureSet = useMemo(() => new Set(canvasSelectedFixtureIds), [canvasSelectedFixtureIds])
   const selectedFixtureCount = canvasSelectedFixtureIds.length
+  const presentationVisibility = useMemo(
+    () => resolveLaserDmxPresentationVisibility(settings.presentationMode),
+    [settings.presentationMode],
+  )
+  const editorFixtures = useMemo(() => (
+    presentationVisibility.showAllFixtures
+      ? fixtures
+      : fixtures.filter(fixture => selectedFixtureSet.has(fixture.id))
+  ), [fixtures, presentationVisibility.showAllFixtures, selectedFixtureSet])
   const groupsById = useMemo(() => new Map(groups.map(group => [group.id, group])), [groups])
   const contextFixture = contextMenu?.kind === 'fixture' ? fixtures.find(fixture => fixture.id === contextMenu.fixtureId) ?? null : null
   const contextGroup = contextFixture?.groupId ? groupsById.get(contextFixture.groupId) ?? null : null
@@ -1488,7 +1498,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
       >
         <div
           ref={stageRef}
-          className={`rv-show-director-canvas__stage${settings.showGrid ? '' : ' rv-show-director-canvas__stage--grid-hidden'}`}
+          className={`rv-show-director-canvas__stage${settings.showGrid && presentationVisibility.showGrid ? '' : ' rv-show-director-canvas__stage--grid-hidden'}`}
           style={{
             '--show-director-columns': columns,
             '--show-director-rows': rows,
@@ -1499,22 +1509,26 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
           onContextMenu={handleStageContextMenu}
           tabIndex={0}
         >
-          <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--vertical" aria-hidden="true" />
-          <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--horizontal" aria-hidden="true" />
+          {presentationVisibility.showAxes && (
+            <>
+              <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--vertical" aria-hidden="true" />
+              <div className="rv-show-director-stage-centerline rv-show-director-stage-centerline--horizontal" aria-hidden="true" />
+            </>
+          )}
 
-          {selectedFixtureCount > 1 && (
+          {presentationVisibility.showSelection && selectedFixtureCount > 1 && (
             <div className="rv-show-director-selection-badge" role="status">
               {selectedFixtureCount} selected
             </div>
           )}
 
-          {selectionRect && (
+          {presentationVisibility.showSelection && selectionRect && (
             <div className="rv-show-director-selection-rect" style={selectionRectStyle(selectionRect, settings)} aria-hidden="true" />
           )}
 
-          {settings.showBeams && fixtures.some(isEndpointEditableFixture) && (
+          {settings.showBeams && presentationVisibility.showBeamHandles && editorFixtures.some(isEndpointEditableFixture) && (
             <svg className="rv-show-director-beam-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              {fixtures.filter(isEndpointEditableFixture).map(fixture => {
+              {editorFixtures.filter(isEndpointEditableFixture).map(fixture => {
                 const isSelectedFixture = fixture.id === selectedFixtureId && selectedFixtureCount === 1
                 const isDraggingEndpoint = endpointDrag?.fixtureId === fixture.id
                 const origin = stagePointToPercent({ x: fixture.x, y: fixture.y }, settings)
@@ -1559,7 +1573,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
             </div>
           )}
 
-          {fixtures.map(fixture => {
+          {editorFixtures.map(fixture => {
             const label = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]
             const groupLabel = groupLabelForFixture(fixture, groupsById)
             const groupAccent = groupAccentForId(fixture.groupId)

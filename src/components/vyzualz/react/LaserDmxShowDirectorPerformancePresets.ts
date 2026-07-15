@@ -106,6 +106,10 @@ function preserveCanvasPreferences(
       showGrid: current.settings.showGrid,
       highlightFixtures: current.settings.highlightFixtures,
       zoom: current.settings.zoom,
+      presentationMode: current.settings.presentationMode,
+      rendererMode: current.settings.rendererMode,
+      webglQuality: current.settings.webglQuality,
+      webglRenderScale: current.settings.webglRenderScale,
     },
   }
 }

@@ -805,6 +805,9 @@ export type LaserDmxShowDirectorLedDirection = 'leftToRight' | 'rightToLeft' | '
 export type LaserDmxShowDirectorMovingHeadPanTiltStyle = 'locked' | 'smoothSweep' | 'snap' | 'figureEight' | 'audioReactive'
 export type LaserDmxShowDirectorVideoWallSource = 'placeholder' | 'reactVisual' | 'media' | 'camera'
 export type LaserDmxShowDirectorMirrorAxis = 'horizontal' | 'vertical'
+export type LaserDmxShowDirectorPresentationMode = 'edit' | 'hybrid' | 'live' | 'capture'
+export type LaserDmxShowDirectorRendererMode = 'canvas2d' | 'webgl' | 'auto'
+export type LaserDmxShowDirectorWebGLQuality = 'low' | 'medium' | 'high' | 'ultra' | 'auto'
 
 export const LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS = 12
 
@@ -827,6 +830,10 @@ export interface LaserDmxShowDirectorSettings {
   showGrid:          boolean
   highlightFixtures: boolean
   zoom:              number
+  presentationMode:  LaserDmxShowDirectorPresentationMode
+  rendererMode:      LaserDmxShowDirectorRendererMode
+  webglQuality:      LaserDmxShowDirectorWebGLQuality
+  webglRenderScale:  number
 }
 
 export type LaserDmxShowDirectorSettingsPatch = Partial<Omit<LaserDmxShowDirectorSettings, 'gridSize'>> & {
@@ -951,6 +958,10 @@ export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS: LaserDmxShowDirectorSetti
   showGrid:          true,
   highlightFixtures: true,
   zoom:              1,
+  presentationMode:  'edit',
+  rendererMode:      'canvas2d',
+  webglQuality:      'high',
+  webglRenderScale:  1,
 }
 
 export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_TRIGGER: LaserDmxShowDirectorTriggerConfig = {
@@ -993,6 +1004,18 @@ function showDirectorFinite(value: unknown, fallback: number): number {
 
 function showDirectorBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
+}
+
+function coerceShowDirectorPresentationMode(value: unknown): LaserDmxShowDirectorPresentationMode {
+  return value === 'hybrid' || value === 'live' || value === 'capture' ? value : 'edit'
+}
+
+function coerceShowDirectorRendererMode(value: unknown): LaserDmxShowDirectorRendererMode {
+  return value === 'webgl' || value === 'auto' ? value : 'canvas2d'
+}
+
+function coerceShowDirectorWebGLQuality(value: unknown): LaserDmxShowDirectorWebGLQuality {
+  return value === 'low' || value === 'medium' || value === 'ultra' || value === 'auto' ? value : 'high'
 }
 
 function showDirectorString(value: unknown, fallback: string): string {
@@ -1284,6 +1307,10 @@ export function normalizeLaserDmxShowDirectorSettings(raw: unknown): LaserDmxSho
     showGrid:          showDirectorBoolean(value.showGrid,          fallback.showGrid),
     highlightFixtures: showDirectorBoolean(value.highlightFixtures, fallback.highlightFixtures),
     zoom:              Math.max(0.25, Math.min(4, showDirectorFinite(value.zoom, fallback.zoom))),
+    presentationMode:  coerceShowDirectorPresentationMode(value.presentationMode),
+    rendererMode:      coerceShowDirectorRendererMode(value.rendererMode),
+    webglQuality:      coerceShowDirectorWebGLQuality(value.webglQuality),
+    webglRenderScale:  Math.max(0.25, Math.min(1, showDirectorFinite(value.webglRenderScale, fallback.webglRenderScale))),
   }
 }
 

@@ -3,7 +3,12 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { LaserDmxShowDirectorInspector } from './LaserDmxShowDirectorInspector'
-import type { LaserDmxShowDirectorSettings } from './ReactTypes'
+import type {
+  LaserDmxShowDirectorPresentationMode,
+  LaserDmxShowDirectorRendererMode,
+  LaserDmxShowDirectorSettings,
+  LaserDmxShowDirectorWebGLQuality,
+} from './ReactTypes'
 import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmxShowDirectorPerformanceProgram'
 import { useLaserDmxShowDirectorPerformanceRuntimeStatus } from './LaserDmxShowDirectorPerformanceRuntimeStatus'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
@@ -133,6 +138,54 @@ export function LaserDmxShowDirectorGlobalControls() {
           step={0.05}
         />
         <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSettings({ zoom: 1 })}>Fit Stage</button>
+      </Collapsible>
+
+      <Collapsible label="Presentation & Renderer" defaultOpen>
+        <SelectRow
+          label="Presentation Mode"
+          value={settings.presentationMode}
+          onChange={value => updateSettings({ presentationMode: value as LaserDmxShowDirectorPresentationMode })}
+          options={[
+            { value: 'edit', label: 'Edit' },
+            { value: 'hybrid', label: 'Hybrid' },
+            { value: 'live', label: 'Live' },
+            { value: 'capture', label: 'Capture' },
+          ]}
+          description="Live and Capture remove authoring graphics from the visualizer output."
+        />
+        <SelectRow
+          label="Lighting Renderer"
+          value={settings.rendererMode}
+          onChange={value => updateSettings({ rendererMode: value as LaserDmxShowDirectorRendererMode })}
+          options={[
+            { value: 'canvas2d', label: 'Canvas2D (Compatibility)' },
+            { value: 'webgl', label: 'WebGL2' },
+            { value: 'auto', label: 'Auto with Fallback' },
+          ]}
+          description="WebGL2 receives the resolved scene directly. Unsupported contexts fall back to Canvas2D."
+        />
+        <SelectRow
+          label="WebGL Quality"
+          value={settings.webglQuality}
+          onChange={value => updateSettings({ webglQuality: value as LaserDmxShowDirectorWebGLQuality })}
+          disabled={settings.rendererMode === 'canvas2d'}
+          options={[
+            { value: 'low', label: 'Low' },
+            { value: 'medium', label: 'Medium' },
+            { value: 'high', label: 'High' },
+            { value: 'ultra', label: 'Ultra' },
+            { value: 'auto', label: 'Auto' },
+          ]}
+        />
+        <SliderRow
+          label="WebGL Render Scale"
+          value={settings.webglRenderScale}
+          onChange={value => updateSettings({ webglRenderScale: roundTo(value, 2) })}
+          min={0.25}
+          max={1}
+          step={0.05}
+          disabled={settings.rendererMode === 'canvas2d'}
+        />
       </Collapsible>
 
       <Collapsible label="Layout" defaultOpen={false}>

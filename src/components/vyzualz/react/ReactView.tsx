@@ -24,6 +24,7 @@ import {
 } from './panels/ReactWorkspacePanels'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
 import { LaserDmxShowDirectorCanvas } from './LaserDmxShowDirectorCanvas'
+import { resolveLaserDmxAuthoringOverlayVisibility } from './renderers/laserDmx/LaserDmxRendererBackend'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { RailTabs } from '../layout/RailTabs'
@@ -406,7 +407,21 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const activeTrackId        = engine.currentTrack?.id ?? null
   const activeSdLayers       = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
   const activeSdClips        = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]   ?? []) : []
-  const showDirectorStageEditorVisible = activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector'
+  const laserDmxAuthoringOverlayVisibility = useMemo(
+    () => resolveLaserDmxAuthoringOverlayVisibility({
+      showDirectorModeActive: activeReactEngineId === 'laserDmx'
+        && laserDmxBeamMatrixAuthoringMode === 'showDirector',
+      beamMatrixEditorRequested: workspaceComposition.showLaserBeamEditor,
+      presentationMode: laserDmxShowDirector.settings.presentationMode,
+    }),
+    [
+      activeReactEngineId,
+      laserDmxBeamMatrixAuthoringMode,
+      laserDmxShowDirector.settings.presentationMode,
+      workspaceComposition.showLaserBeamEditor,
+    ],
+  )
+  const showDirectorStageEditorVisible = laserDmxAuthoringOverlayVisibility.showDirectorStageEditor
 
   return (
     <div className="rv-shell" data-stage-focus={stageFocus ? 'true' : undefined}>
@@ -577,7 +592,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 />
               </div>
             )}
-            {workspaceComposition.showLaserBeamEditor && !showDirectorStageEditorVisible && (
+            {laserDmxAuthoringOverlayVisibility.showBeamMatrixEditor && (
               <LaserDmxBeamMatrixEditorOverlay />
             )}
           </div>

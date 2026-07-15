@@ -83,7 +83,15 @@ describe('Show Director performance preset workflow', () => {
   it('loads rig and program atomically, preserves canvas preferences, and reloads the pristine built-in definition', () => {
     const initialRig = normalizeLaserDmxShowDirectorState({
       ...createDefaultLaserDmxShowDirectorState(),
-      settings: { ...createDefaultLaserDmxShowDirectorState().settings, showGrid: false, zoom: 1.65 },
+      settings: {
+        ...createDefaultLaserDmxShowDirectorState().settings,
+        showGrid: false,
+        zoom: 1.65,
+        presentationMode: 'capture',
+        rendererMode: 'webgl',
+        webglQuality: 'medium',
+        webglRenderScale: 0.75,
+      },
     })
     useReactStore.setState({
       activeReactEngineId: 'canvas',
@@ -104,6 +112,10 @@ describe('Show Director performance preset workflow', () => {
     expect(state.laserDmxShowDirector.fixtures[0]?.semanticKey).toBe('hero-laser')
     expect(state.laserDmxShowDirector.settings.showGrid).toBe(false)
     expect(state.laserDmxShowDirector.settings.zoom).toBe(1.65)
+    expect(state.laserDmxShowDirector.settings.presentationMode).toBe('capture')
+    expect(state.laserDmxShowDirector.settings.rendererMode).toBe('webgl')
+    expect(state.laserDmxShowDirector.settings.webglQuality).toBe('medium')
+    expect(state.laserDmxShowDirector.settings.webglRenderScale).toBe(0.75)
     expect(state.laserDmxShowDirectorPerformance).toMatchObject({
       activePresetId: 'synthetic-show', activeProgramId: 'synthetic-program', enabled: true, presetDirty: false,
     })

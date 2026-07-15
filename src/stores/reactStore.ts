@@ -900,6 +900,10 @@ const LASER_DMX_SHOW_DIRECTOR_GLOBAL_SETTING_KEYS = [
   'showBeams',
   'showGrid',
   'highlightFixtures',
+  'presentationMode',
+  'rendererMode',
+  'webglQuality',
+  'webglRenderScale',
 ] as const
 
 type LaserDmxShowDirectorGlobalSettingKey = typeof LASER_DMX_SHOW_DIRECTOR_GLOBAL_SETTING_KEYS[number]
@@ -917,6 +921,10 @@ function preserveLaserDmxShowDirectorGlobalSettings(
       showBeams: currentSettings.showBeams,
       showGrid: currentSettings.showGrid,
       highlightFixtures: currentSettings.highlightFixtures,
+      presentationMode: currentSettings.presentationMode,
+      rendererMode: currentSettings.rendererMode,
+      webglQuality: currentSettings.webglQuality,
+      webglRenderScale: currentSettings.webglRenderScale,
     },
   })
 }

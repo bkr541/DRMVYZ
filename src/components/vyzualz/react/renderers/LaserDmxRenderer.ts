@@ -31,6 +31,9 @@ import {
 import { createShowDirectorRuntime, evaluateShowDirector, resetShowDirectorRuntime, type ShowDirectorRuntime } from './LaserDmxShowDirector'
 import { productionOutputController } from '../output/ProductionOutput'
 import { applyLaserDmxPerformanceActions } from './LaserDmxPerformanceActionEngine'
+import { createLaserDmxSceneFrame, resolveLaserDmxSceneFrameOutput } from './laserDmx/LaserDmxSceneFrame'
+import { resolveLaserDmxRendererBackend } from './laserDmx/LaserDmxRendererBackend'
+import { LaserDmxWebGLRuntime } from './laserDmx/LaserDmxWebGLRuntime'
 
 /** Returns true when the LaserDMX renderer should draw. */
 export const LASER_DMX_VIRTUAL_CAPTURE_LAYERS = [
@@ -308,6 +311,8 @@ const pausedAudioTimeByContext = new WeakMap<CanvasRenderingContext2D, number>()
 const pendingPausedDiscontinuityByContext = new WeakSet<CanvasRenderingContext2D>()
 const performanceContextByCanvas = new WeakMap<CanvasRenderingContext2D, LaserDmxShowDirectorPerformanceTimingContext>()
 const performanceStatusCanvas = new WeakSet<CanvasRenderingContext2D>()
+const laserDmxWebGLRuntimeByContext = new WeakMap<CanvasRenderingContext2D, LaserDmxWebGLRuntime>()
+const laserDmxWebGLUnavailableContexts = new WeakSet<CanvasRenderingContext2D>()
 
 export interface LaserDmxRendererBoundaryOptions {
   /** Offscreen previews must never arm, submit to, stop, or disarm physical output. */
@@ -326,6 +331,25 @@ function getShowDirectorRuntime(ctx: CanvasRenderingContext2D): ShowDirectorRunt
   return created
 }
 
+function getLaserDmxWebGLRuntime(ctx: CanvasRenderingContext2D): LaserDmxWebGLRuntime | null {
+  const current = laserDmxWebGLRuntimeByContext.get(ctx)
+  if (current) return current
+  if (laserDmxWebGLUnavailableContexts.has(ctx)) return null
+  const created = LaserDmxWebGLRuntime.create(ctx)
+  if (!created) {
+    laserDmxWebGLUnavailableContexts.add(ctx)
+    return null
+  }
+  laserDmxWebGLRuntimeByContext.set(ctx, created)
+  return created
+}
+
+function disposeLaserDmxWebGLRuntime(ctx: CanvasRenderingContext2D): void {
+  const runtime = laserDmxWebGLRuntimeByContext.get(ctx)
+  runtime?.dispose('release-resources')
+  laserDmxWebGLRuntimeByContext.delete(ctx)
+}
+
 function resetLaserDmxTransientRuntimeState(): void {
   resetBeamMatrixCompilerState()
   resetFogState()
@@ -339,6 +363,7 @@ function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: C
     pausedAudioTimeByContext.delete(ctx)
     pendingPausedDiscontinuityByContext.delete(ctx)
     performanceContextByCanvas.delete(ctx)
+    laserDmxWebGLRuntimeByContext.get(ctx)?.reset()
     if (performanceStatusCanvas.has(ctx)) {
       performanceStatusCanvas.delete(ctx)
       clearLaserDmxShowDirectorPerformanceRuntimeStatus()
@@ -415,6 +440,8 @@ export function disposeLaserDmxRenderer(
   }
   disposeLaserDmxRendererLifecycle(ctx)
   resetLaserDmxRuntimeState(undefined, ctx)
+  disposeLaserDmxWebGLRuntime(ctx)
+  laserDmxWebGLUnavailableContexts.delete(ctx)
   showDirectorRuntimeByContext.delete(ctx)
 }
 
@@ -540,6 +567,30 @@ export function renderLaserDmx(
       })
     : null
   const showDirectorRuntimeRig = performanceResolution?.showDirector ?? state.laserDmxShowDirector
+  const sceneDeltaTimeSec = previousPerformanceContext && !loopWrapped
+    ? Math.max(0, Math.min(0.1, timeSec - previousPerformanceContext.audioTimeSec))
+    : 1 / 60
+  // Build the engine-neutral geometry frame from continuous Show Director
+  // coordinates before the compatibility compiler rounds fixtures into 15 × 10.
+  const unresolvedSceneFrame = beamMatrixAuthoringMode === 'showDirector'
+    ? createLaserDmxSceneFrame({
+        showDirector: showDirectorRuntimeRig,
+        evaluatedBeamMatrix: state.laserDmxBeamMatrix,
+        audioTimeSec: timeSec,
+        deltaTimeSec: sceneDeltaTimeSec,
+        isPlaying: frame.isPlaying,
+        timingDiscontinuity,
+        trackKey: trackKey ?? null,
+        bpm: frame.bpm,
+        beatIndex: performanceContext.absoluteBeat,
+        barIndex: performanceContext.absoluteBar,
+        phraseIndex: performanceContext.phraseIndex,
+        section: performanceContext.sectionType,
+        sectionProgress: performanceContext.sectionProgress,
+        energy: performanceContext.energy,
+        devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+      })
+    : null
   let renderBeamMatrix = beamMatrixAuthoringMode === 'showDirector'
     ? compileLaserDmxShowDirectorToBeamMatrix({
         showDirector: showDirectorRuntimeRig,
@@ -585,6 +636,29 @@ export function renderLaserDmx(
 
   if (affectProductionOutput) {
     productionOutputController.transportStopped('Beam Matrix has no patched production output frame')
+  }
+
+  const sceneFrame = unresolvedSceneFrame
+    ? resolveLaserDmxSceneFrameOutput(unresolvedSceneFrame, finalBeamMatrix)
+    : null
+  const requestedRenderer = showDirectorRuntimeRig.settings.rendererMode
+  if (sceneFrame && requestedRenderer !== 'canvas2d' && params.thumbnailLaserDmxSettings == null) {
+    const webglRuntime = getLaserDmxWebGLRuntime(ctx)
+    const backend = resolveLaserDmxRendererBackend(requestedRenderer, {
+      webgl2: webglRuntime != null,
+      contextLost: webglRuntime?.contextLost ?? false,
+    })
+    if (backend === 'webgl' && webglRuntime) {
+      const result = webglRuntime.render(sceneFrame)
+      if (result.ok) return
+      if (!result.recoverable) {
+        disposeLaserDmxWebGLRuntime(ctx)
+        laserDmxWebGLUnavailableContexts.add(ctx)
+      }
+    }
+  } else {
+    if (laserDmxWebGLRuntimeByContext.has(ctx)) disposeLaserDmxWebGLRuntime(ctx)
+    if (requestedRenderer === 'canvas2d') laserDmxWebGLUnavailableContexts.delete(ctx)
   }
 
   const compiled = compileLaserDmxBeamMatrix({
