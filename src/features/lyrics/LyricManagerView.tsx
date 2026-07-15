@@ -31,7 +31,9 @@ import { AiLyricExtractor } from './components/AiLyricExtractor'
 import { LyricPreviewPanel } from './components/LyricPreviewPanel'
 import { UnsavedLyricChangesDialog } from './components/UnsavedLyricChangesDialog'
 import { ConfirmLyricDeleteDialog } from './components/ConfirmLyricDeleteDialog'
+import { ConfirmLyricActivationDialog } from './components/ConfirmLyricActivationDialog'
 import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
+import { LyricSignalPathStatus } from './components/LyricSignalPathStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
@@ -181,7 +183,8 @@ function canonicalDocumentVersion(
 
 function SelectedTrackHero({
   track,
-  activeDocumentTitle,
+  openVersionTitle,
+  activeVersionTitle,
   selectedTrackLoaded,
   selectedTrackPlaying,
   loading,
@@ -189,7 +192,8 @@ function SelectedTrackHero({
   onTogglePlayback,
 }: {
   track: LyricManagerTrack | null
-  activeDocumentTitle: string | null
+  openVersionTitle: string | null
+  activeVersionTitle: string | null
   selectedTrackLoaded: boolean
   selectedTrackPlaying: boolean
   loading: boolean
@@ -223,9 +227,12 @@ function SelectedTrackHero({
           {!selectedTrackPlaying && selectedTrackLoaded && <span className="lmv-loaded-badge">Loaded</span>}
         </div>
         <p>{track.artist || 'Unknown artist'}</p>
-        {activeDocumentTitle && (
-          <span className="lmv-active-version-pill">Active version: {activeDocumentTitle}</span>
-        )}
+        <div className="lmv-version-status-row">
+          <span className="lmv-open-version-pill">Open version: {openVersionTitle ?? 'None'}</span>
+          <span className={`lmv-active-version-pill${activeVersionTitle ? '' : ' lmv-active-version-pill--empty'}`}>
+            {activeVersionTitle ? `Active version: ${activeVersionTitle}` : 'No active version'}
+          </span>
+        </div>
       </div>
 
       <div className="lmv-track-hero-stats" aria-label="Track details">
@@ -379,10 +386,10 @@ function LyricTransportBar({
 
 export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const {
-    lyricsEnabled,
-    setLyricsEnabled,
-    activeDocument,
-    activeDocumentId,
+    lyricsDisplayEnabled,
+    setLyricsDisplayEnabled,
+    editorDocument,
+    editorDocumentId,
     activeLogicalDocumentId,
     activeWriteStatus,
     activeEditVersion,
@@ -414,7 +421,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     updateDraftDefaultEffects,
     saveActiveLyricDocument,
     saveLyricDocumentMetadata,
-    setActiveDocument,
+    setEditorDocument,
     loadLyricDocument,
     setDraftSourceMeta,
     activateLyricDocument,
@@ -428,6 +435,8 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     markEditorDirty,
     preserveDraftForNextEditorExit,
     restoreRecoveredLyricDraft,
+    runtimeLyricsStatus,
+    runtimeAudioTrackId,
   } = useLyricsStore()
 
   const engine = useSharedAudio()
@@ -470,6 +479,13 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     null,
   )
   const [deleting, setDeleting] = useState(false)
+  const [activationTarget, setActivationTarget] = useState<{
+    id: string | null
+    title: string
+    saveCurrent: boolean
+    openAfter: boolean
+  } | null>(null)
+  const [activationBusy, setActivationBusy] = useState(false)
   const [trackDeleteTarget, setTrackDeleteTarget] = useState<LyricManagerTrack | null>(null)
   const [trackDeleting, setTrackDeleting] = useState(false)
   const [leftRailCollapsed, setLeftRailCollapsed] = useState(false)
@@ -622,10 +638,10 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       const recovery = createLyricRecoveryRecord({
         userId: accountId,
         trackId: state.activeAudioTrackId,
-        documentId: state.activeDocumentId,
+        documentId: state.editorDocumentId,
         logicalDocumentId,
       }, {
-        baseServerRevision: state.activeDocument?.revision ?? null,
+        baseServerRevision: state.editorDocument?.revision ?? null,
         cues: state.cues,
         title: state.draftTitle,
         artist: state.draftArtist,
@@ -656,7 +672,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       }
     }
   }, [
-    activeDocumentId,
+    editorDocumentId,
     activeEditVersion,
     activeLogicalDocumentId,
     draftActivateOnSave,
@@ -679,12 +695,12 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   useEffect(() => {
     const accountId = accountIdRef.current
     if (!accountId || isLoading || editorDirty) return
-    const trackId = activeDocument?.audioTrackId ?? selectedTrackIdRef.current
+    const trackId = editorDocument?.audioTrackId ?? selectedTrackIdRef.current
     const generation = ++recoveryReadGenerationRef.current
     const identity = {
       userId: accountId,
       trackId: trackId ?? null,
-      documentId: activeDocumentId,
+      documentId: editorDocumentId,
       logicalDocumentId: activeLogicalDocumentId,
     }
     void recoveryMutationChainRef.current
@@ -704,7 +720,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         ? `Lyric recovery could not be checked: ${loadError.message}`
         : 'Lyric recovery could not be checked.')
     })
-  }, [activeDocument, activeDocumentId, activeLogicalDocumentId, editorDirty, isLoading, setError])
+  }, [editorDocument, editorDocumentId, activeLogicalDocumentId, editorDirty, isLoading, setError])
 
   useEffect(() => {
     if (!lastCanonicalWrite || lastCanonicalWrite.accountId !== accountIdRef.current) return
@@ -794,11 +810,11 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     (
       track: LyricManagerTrack,
       dirty = false,
-      activateOnSave = track.activeLyricDocumentId === null,
+      activateOnSave = false,
     ) => {
       clearStatus()
       selectedDocumentIntentRef.current += 1
-      setActiveDocument(null, [], track.dbId)
+      setEditorDocument(null, [], track.dbId)
       useLyricsStore.setState({
         draftTitle: track.title,
         draftArtist: track.artist ?? '',
@@ -811,7 +827,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       })
       selectCue(null)
     },
-    [clearStatus, selectCue, setActiveDocument],
+    [clearStatus, selectCue, setEditorDocument],
   )
 
   const loadTracks = useCallback(
@@ -962,11 +978,14 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     [],
   )
 
-  const doSave = useCallback(async (): Promise<boolean> => {
+  const doSave = useCallback(async (makeActive?: boolean): Promise<boolean> => {
     setError(null)
-    const result = await saveActiveLyricDocument(storeCues)
+    const result = await saveActiveLyricDocument(
+      storeCues,
+      makeActive === undefined ? undefined : { makeActive },
+    )
     if (!result?.ok) return false
-    showStatus('Saved')
+    showStatus(makeActive ? 'Saved and made active' : 'Saved')
     if (selectedTrack) await refreshDocuments(selectedTrack)
     return true
   }, [
@@ -1010,7 +1029,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     const key = lyricRecoveryKey({
       userId: accountId,
       trackId: state.activeAudioTrackId,
-      documentId: state.activeDocumentId,
+      documentId: state.editorDocumentId,
       logicalDocumentId: state.activeLogicalDocumentId,
     })
     try {
@@ -1048,7 +1067,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
 
   const handleSelectDocument = useCallback(
     (document: LyricDocumentVersion) => {
-      if (document.id === activeDocumentId) return
+      if (document.id === editorDocumentId) return
       requestTransition(
         `Save changes before opening “${document.title}”?`,
         async () => {
@@ -1064,7 +1083,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         },
       )
     },
-    [activeDocumentId, clearStatus, loadLyricDocument, markEditorDirty, requestTransition, selectTrackState],
+    [editorDocumentId, clearStatus, loadLyricDocument, markEditorDirty, requestTransition, selectTrackState],
   )
 
   const handleNewDocument = useCallback(() => {
@@ -1112,7 +1131,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         async () => {
           selectedDocumentIntentRef.current += 1
           const full = await getFullLyricDocument(document.id)
-          setActiveDocument(null, full.cues, selectedTrack.dbId)
+          setEditorDocument(null, full.cues, selectedTrack.dbId)
           useLyricsStore.setState({
             draftTitle: `${document.title} Copy`,
             draftArtist: document.artist,
@@ -1135,12 +1154,12 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         },
       )
     },
-    [requestTransition, selectedTrack, setActiveDocument, showStatus],
+    [requestTransition, selectedTrack, setEditorDocument, showStatus],
   )
 
   const handleRenameDocument = useCallback(
     async (document: LyricDocumentVersion, title: string) => {
-      if (document.id === activeDocumentId && editorDirty) {
+      if (document.id === editorDocumentId && editorDirty) {
         setDraftTitle(title)
         showStatus('Rename staged with unsaved changes')
         return
@@ -1164,7 +1183,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       }
     },
     [
-      activeDocumentId,
+      editorDocumentId,
       editorDirty,
       refreshDocuments,
       saveLyricDocumentMetadata,
@@ -1175,31 +1194,45 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     ],
   )
 
+  const performVersionActivation = useCallback(async (documentId: string, openAfter: boolean) => {
+    clearStatus()
+    const result = await activateLyricDocument(documentId)
+    if (!result?.ok) return false
+    if (selectedTrack) await refreshDocuments(selectedTrack)
+    if (openAfter) {
+      selectedDocumentIntentRef.current += 1
+      await loadLyricDocument(documentId)
+      setActiveTab('manual')
+    }
+    showStatus('Active lyric version updated')
+    return true
+  }, [activateLyricDocument, clearStatus, loadLyricDocument, refreshDocuments, selectedTrack, showStatus])
+
   const handleActivateDocument = useCallback(
     (document: LyricDocumentVersion) => {
       requestTransition(
         `Save changes before activating “${document.title}”?`,
         async () => {
-          const result = await activateLyricDocument(document.id)
-          if (!result?.ok) return
-          if (selectedTrack) await refreshDocuments(selectedTrack)
-          showStatus('Active lyric version updated')
+          const currentActive = documents.find(candidate => candidate.isActive) ?? null
+          if (currentActive && currentActive.id !== document.id) {
+            setActivationTarget({ id: document.id, title: document.title, saveCurrent: false, openAfter: false })
+            return
+          }
+          await performVersionActivation(document.id, false)
         },
       )
     },
     [
-      activateLyricDocument,
-      refreshDocuments,
+      documents,
+      performVersionActivation,
       requestTransition,
-      selectedTrack,
-      showStatus,
     ],
   )
 
   const handleRequestDelete = useCallback(
     (document: LyricDocumentVersion) => {
       const openConfirmation = () => setDeleteTarget(document)
-      if (document.id === activeDocumentId) {
+      if (document.id === editorDocumentId) {
         requestTransition(
           `Save changes before deleting “${document.title}”?`,
           openConfirmation,
@@ -1208,14 +1241,14 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         openConfirmation()
       }
     },
-    [activeDocumentId, requestTransition],
+    [editorDocumentId, requestTransition],
   )
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      const deletingCurrent = deleteTarget.id === activeDocumentId
+      const deletingCurrent = deleteTarget.id === editorDocumentId
       abandonLyricDocument(deleteTarget.id)
       await deleteLyricDocument(deleteTarget.id)
       const accountId = accountIdRef.current
@@ -1242,7 +1275,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         const { data } = await supabase.auth.getUser()
         if (data.user)
           setLegacyDocuments(await getLegacyLyricDocumentVersions(data.user.id))
-        if (deletingCurrent) setActiveDocument(null, [])
+        if (deletingCurrent) setEditorDocument(null, [])
       }
       showStatus('Lyric version deleted')
     } catch (deleteError) {
@@ -1256,7 +1289,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     }
   }, [
     abandonLyricDocument,
-    activeDocumentId,
+    editorDocumentId,
     deleteTarget,
     loadLyricDocument,
     markEditorDirty,
@@ -1264,7 +1297,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     queueRecoveryMutation,
     refreshDocuments,
     selectedTrack,
-    setActiveDocument,
+    setEditorDocument,
     setError,
     showStatus,
   ])
@@ -1302,7 +1335,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       if (wasSelected) {
         selectTrackState(null)
         setDocuments([])
-        setActiveDocument(null, [])
+        setEditorDocument(null, [])
       }
       showStatus(cleanupPending
         ? 'Track removed. Storage cleanup is pending and will retry automatically.'
@@ -1321,11 +1354,15 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     removeSavedTrackByDbId,
     selectedTrack?.dbId,
     selectTrackState,
-    setActiveDocument,
+    setEditorDocument,
     setError,
     showStatus,
     trackDeleteTarget,
   ])
+
+  const handleCompletedDraftResolved = useCallback(async () => {
+    if (selectedTrack) await refreshDocuments(selectedTrack)
+  }, [refreshDocuments, selectedTrack])
 
   const handleOpenCompletedDraft = useCallback(
     (documentId: string) => {
@@ -1350,18 +1387,22 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       requestTransition(
         'Save changes before activating the extracted lyric version?',
         async () => {
-          clearStatus()
-          const result = await activateLyricDocument(documentId)
-          if (!result?.ok) return
-          if (selectedTrack) await refreshDocuments(selectedTrack)
-          selectedDocumentIntentRef.current += 1
-          await loadLyricDocument(documentId)
-          setActiveTab('manual')
-          showStatus('Extracted lyric version activated')
+          const target = documents.find(document => document.id === documentId)
+          const currentActive = documents.find(document => document.isActive) ?? null
+          if (currentActive && currentActive.id !== documentId) {
+            setActivationTarget({
+              id: documentId,
+              title: target?.title ?? 'Extracted lyric version',
+              saveCurrent: false,
+              openAfter: true,
+            })
+            return
+          }
+          await performVersionActivation(documentId, true)
         },
       )
     },
-    [activateLyricDocument, clearStatus, loadLyricDocument, refreshDocuments, requestTransition, selectedTrack, showStatus],
+    [documents, performVersionActivation, requestTransition],
   )
 
   const applyDraftCues = useCallback((next: typeof storeCues) => setCues(next), [setCues])
@@ -1522,7 +1563,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       return
     }
     preserveDraftForNextEditorExit()
-    setLyricsEnabled(true)
+    setLyricsDisplayEnabled(true)
     onBack()
   }, [
     editorDirty,
@@ -1531,7 +1572,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     onBack,
     preserveDraftForNextEditorExit,
     selectedTrack,
-    setLyricsEnabled,
+    setLyricsDisplayEnabled,
     showStatus,
   ])
 
@@ -1549,7 +1590,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         () => {
           selectTrackState(managerTrack)
           setDocuments([])
-          prepareTrackDraft(managerTrack, false, true)
+          prepareTrackDraft(managerTrack, false)
           setActiveTab('ai')
           showStatus('Track uploaded. Automatic lyric extraction is ready.')
         },
@@ -1585,12 +1626,19 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
       }
     }))
     if (selectedTrackIdRef.current === trackId) {
-      setDocuments(current => [next, ...current.filter(document => document.id !== next.id)])
+      setDocuments(current => [
+        next,
+        ...current
+          .filter(document => document.id !== next.id)
+          .map(document => next.isActive ? { ...document, isActive: false } : document),
+      ])
     }
   }, [documents, lastCanonicalWrite])
 
+  const activeVersionForSelectedTrack = documents.find(document => document.isActive) ?? null
   const selectedTrackLoaded = selectedTrack?.dbId === engine.currentAudioTrackId
   const selectedTrackPlaying = selectedTrackLoaded && engine.isPlaying
+  const deckHasPersistedIdentity = engine.currentTrack !== null && engine.currentAudioTrackId !== null
   const selectedCue = storeCues.find((cue) => cue.id === selectedCueId) ?? null
   const runtimeTrackId = selectedTrackLoaded ? engine.currentTrackId : null
   const runtimeTrackUrl = selectedTrackLoaded ? (engine.currentTrack?.url ?? null) : null
@@ -1651,20 +1699,20 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const selectedTrackName = selectedTrack?.title ?? null
 
   const editorPlaceholder = useMemo(() => {
-    if (!selectedTrack && !activeDocument)
+    if (!selectedTrack && !editorDocument)
       return 'Select a track to begin editing lyrics.'
-    if (selectedTrack && documents.length === 0 && !activeDocument)
+    if (selectedTrack && documents.length === 0 && !editorDocument)
       return 'This track has no lyrics yet.'
     return null
-  }, [activeDocument, documents.length, selectedTrack])
+  }, [editorDocument, documents.length, selectedTrack])
 
   return (
     <div className="lmv-root">
       <LyricManagerHeader
         isSaving={isSaving}
         saveStatus={activeWriteStatus}
-        lyricsEnabled={lyricsEnabled}
-        hasDocument={!!activeDocument}
+        lyricsDisplayEnabled={lyricsDisplayEnabled}
+        hasDocument={!!editorDocument}
         draftTitle={draftTitle}
         selectedTrackName={selectedTrackName}
         dirty={editorDirty}
@@ -1674,14 +1722,21 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
             onBack,
           )
         }
-        onToggleLyricsEnabled={() => setLyricsEnabled(!lyricsEnabled)}
+        onToggleLyricsDisplay={() => setLyricsDisplayEnabled(!lyricsDisplayEnabled)}
         onSave={() => {
           void doSave()
         }}
-        onSaveAndEnable={() => {
-          void doSave().then((saved) => {
-            if (saved) setLyricsEnabled(true)
-          })
+        onSaveAndMakeActive={() => {
+          if (activeVersionForSelectedTrack && activeVersionForSelectedTrack.id !== editorDocumentId) {
+            setActivationTarget({
+              id: editorDocumentId,
+              title: draftTitle || 'Untitled lyric version',
+              saveCurrent: true,
+              openAfter: false,
+            })
+            return
+          }
+          void doSave(true)
         }}
       />
 
@@ -1744,7 +1799,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
             documents={documents}
             legacyDocuments={legacyDocuments}
             loading={documentsLoading || isLoading}
-            activeDocumentId={activeDocumentId}
+            openDocumentId={editorDocumentId}
             hasSelectedTrack={!!selectedTrack}
             onSelectDocument={handleSelectDocument}
             onNewDocument={handleNewDocument}
@@ -1759,7 +1814,8 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         <main className="lmv-center" aria-label="Lyric editing workspace">
           <SelectedTrackHero
             track={selectedTrack}
-            activeDocumentTitle={activeDocument?.title ?? selectedTrack?.activeLyricDocumentName ?? null}
+            openVersionTitle={editorDocument?.title ?? null}
+            activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
             selectedTrackLoaded={selectedTrackLoaded}
             selectedTrackPlaying={selectedTrackPlaying}
             loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
@@ -1769,11 +1825,22 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
             onTogglePlayback={handleTogglePlayback}
           />
 
+          <LyricSignalPathStatus
+            selectedTrack={selectedTrack}
+            deckTrackPresent={engine.currentTrack !== null}
+            deckTrackLoaded={selectedTrackLoaded}
+            deckHasPersistedIdentity={deckHasPersistedIdentity}
+            activeVersion={activeVersionForSelectedTrack}
+            lyricsDisplayEnabled={lyricsDisplayEnabled}
+            runtimeStatus={runtimeLyricsStatus}
+            runtimeAudioTrackId={runtimeAudioTrackId}
+          />
+
           <div className="lmv-tab-bar" role="tablist" aria-label="Lyric workflow">
             {TAB_LABELS.map((tab) => {
               const disabled = tab.id === 'ai'
                 ? !selectedTrack
-                : (!selectedTrack && !activeDocument)
+                : (!selectedTrack && !editorDocument)
               return (
                 <button
                   key={tab.id}
@@ -1849,6 +1916,8 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
               <AiLyricExtractor
                 selectedTrack={selectedTrack}
                 existingDocumentCount={documents.length}
+                activeVersionId={activeVersionForSelectedTrack?.id ?? null}
+                onCompletedDraftResolved={handleCompletedDraftResolved}
                 onOpenCompletedDraft={handleOpenCompletedDraft}
                 onActivateCompletedDraft={handleActivateCompletedDraft}
               />
@@ -1866,7 +1935,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         >
           <LyricPreviewPanel
             cues={storeCues}
-            document={activeDocument}
+            document={editorDocument}
             selectedCue={selectedCue}
             onPreviewInVisualizer={handlePreviewInPerformanceView}
             previewDestination={returnView === 'react' ? 'React' : 'Visualizer'}
@@ -1900,7 +1969,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
 
       <LyricRecoveryDialog
         recovery={recoveryCandidate}
-        document={activeDocument}
+        document={editorDocument}
         canonicalCues={storeCues}
         reviewing={recoveryReviewing}
         busy={recoveryBusy}
@@ -1939,6 +2008,27 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => {
           void handleConfirmDelete()
+        }}
+      />
+
+      <ConfirmLyricActivationDialog
+        targetTitle={activationTarget?.title ?? null}
+        currentTitle={activeVersionForSelectedTrack?.title ?? null}
+        busy={activationBusy}
+        onCancel={() => setActivationTarget(null)}
+        onConfirm={() => {
+          const target = activationTarget
+          if (!target) return
+          setActivationBusy(true)
+          const action = target.saveCurrent
+            ? doSave(true)
+            : target.id
+              ? performVersionActivation(target.id, target.openAfter)
+              : Promise.resolve(false)
+          void action.finally(() => {
+            setActivationBusy(false)
+            setActivationTarget(null)
+          })
         }}
       />
 

@@ -533,11 +533,11 @@ export function SoundDrawingTimelineLane({
     lyricDocumentId,
     lyricLoading,
   } = useLyricsStore(useShallow(state => ({
-    lyricCues: state.cues,
-    lyricGlobalOffsetMs: state.globalOffsetMs,
-    lyricAudioTrackId: state.activeAudioTrackId,
-    lyricDocumentId: state.activeDocumentId,
-    lyricLoading: state.isLoading,
+    lyricCues: state.runtimeCues,
+    lyricGlobalOffsetMs: state.runtimeGlobalOffsetMs,
+    lyricAudioTrackId: state.runtimeAudioTrackId,
+    lyricDocumentId: state.runtimeActiveDocumentId,
+    lyricLoading: state.runtimeLyricsStatus === 'loading',
   })))
   const playbackDocumentId = useLyricPlaybackSelector(state => state.documentId)
   const activeLyricCueId = useLyricPlaybackSelector(state => state.activeCue?.id ?? null)

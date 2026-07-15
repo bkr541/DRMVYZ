@@ -4,18 +4,18 @@ import { useLyricsStore } from '../../stores/lyricsStore'
 import { musicIntelligenceEngine } from '../musicIntelligence/MusicIntelligenceEngine'
 
 interface ActiveTrackLyricsActions {
-  loadLyricsForAudioTrack(audioTrackId: string, force?: boolean): Promise<void>
-  clearLyrics(): void
+  resolveRuntimeLyricsForAudioTrack(audioTrackId: string, force?: boolean, preserveEditor?: boolean): Promise<void>
+  clearRuntimeLyrics(preserveEditor?: boolean): void
 }
 
 export interface ActiveTrackLyricsSynchronizer {
-  sync(audioTrackId: string | null, force?: boolean): void
+  sync(audioTrackId: string | null, force?: boolean, preserveEditor?: boolean): void
 }
 
 /**
- * Small stateful adapter shared by the React bridge and unit tests. It prevents
- * provider re-renders from reissuing the same lookup. The store independently
- * deduplicates too, which also protects React StrictMode remounts.
+ * Stateful adapter shared by the React bridge and unit tests. Runtime lyric
+ * resolution is keyed only by the persisted audio_tracks ID, never by a local
+ * blob URL, filename, or temporary playlist identity.
  */
 export function createActiveTrackLyricsSynchronizer(
   actions: ActiveTrackLyricsActions,
@@ -23,21 +23,13 @@ export function createActiveTrackLyricsSynchronizer(
   let lastAudioTrackId: string | null | undefined
 
   return {
-    sync(audioTrackId, force = false) {
+    sync(audioTrackId, force = false, preserveEditor = false) {
       if (!force && audioTrackId === lastAudioTrackId) return
-
-      // A provider mount with no active persisted track is not a track change.
-      // Leaving the store untouched protects an unsaved local Lyric Manager draft.
-      if (!force && lastAudioTrackId === undefined && audioTrackId === null) {
-        lastAudioTrackId = null
-        return
-      }
-
       lastAudioTrackId = audioTrackId
       if (audioTrackId) {
-        void actions.loadLyricsForAudioTrack(audioTrackId, force)
+        void actions.resolveRuntimeLyricsForAudioTrack(audioTrackId, force, preserveEditor)
       } else {
-        actions.clearLyrics()
+        actions.clearRuntimeLyrics(preserveEditor)
       }
     },
   }
@@ -52,36 +44,36 @@ export function ActiveTrackLyricsBridge() {
 
   if (!synchronizerRef.current) {
     synchronizerRef.current = createActiveTrackLyricsSynchronizer({
-      loadLyricsForAudioTrack: (audioTrackId, force) =>
-        useLyricsStore.getState().loadLyricsForAudioTrack(audioTrackId, force),
-      clearLyrics: () => useLyricsStore.getState().clearLyrics(),
+      resolveRuntimeLyricsForAudioTrack: (audioTrackId, force, preserveEditor) =>
+        useLyricsStore.getState().resolveRuntimeLyricsForAudioTrack(audioTrackId, force, preserveEditor),
+      clearRuntimeLyrics: (preserveEditor) => useLyricsStore.getState().clearRuntimeLyrics('idle', preserveEditor),
     })
   }
 
   useEffect(() => {
-    let previousCues = useLyricsStore.getState().cues
-    let previousDocumentId = useLyricsStore.getState().activeDocumentId
-    let previousAudioTrackId = useLyricsStore.getState().activeAudioTrackId
-    let previousOffsetMs = useLyricsStore.getState().globalOffsetMs
+    let previousCues = useLyricsStore.getState().runtimeCues
+    let previousDocumentId = useLyricsStore.getState().runtimeActiveDocumentId
+    let previousAudioTrackId = useLyricsStore.getState().runtimeAudioTrackId
+    let previousOffsetMs = useLyricsStore.getState().runtimeGlobalOffsetMs
 
     const syncPlaybackSource = (state: ReturnType<typeof useLyricsStore.getState>, force = false) => {
-      if (!force &&
-        state.cues === previousCues &&
-        state.activeDocumentId === previousDocumentId &&
-        state.activeAudioTrackId === previousAudioTrackId &&
-        state.globalOffsetMs === previousOffsetMs
+      if (!force
+        && state.runtimeCues === previousCues
+        && state.runtimeActiveDocumentId === previousDocumentId
+        && state.runtimeAudioTrackId === previousAudioTrackId
+        && state.runtimeGlobalOffsetMs === previousOffsetMs
       ) return
 
-      previousCues = state.cues
-      previousDocumentId = state.activeDocumentId
-      previousAudioTrackId = state.activeAudioTrackId
-      previousOffsetMs = state.globalOffsetMs
+      previousCues = state.runtimeCues
+      previousDocumentId = state.runtimeActiveDocumentId
+      previousAudioTrackId = state.runtimeAudioTrackId
+      previousOffsetMs = state.runtimeGlobalOffsetMs
 
       musicIntelligenceEngine.setActiveLyrics({
-        documentId: state.activeDocumentId,
-        sourceIdentity: `${state.activeAudioTrackId ?? 'unbound'}:${state.activeDocumentId ?? 'draft'}`,
-        cues: state.cues,
-        globalOffsetMs: state.globalOffsetMs,
+        documentId: state.runtimeActiveDocumentId,
+        sourceIdentity: `${state.runtimeAudioTrackId ?? 'unbound'}:${state.runtimeActiveDocumentId ?? 'none'}`,
+        cues: state.runtimeCues,
+        globalOffsetMs: state.runtimeGlobalOffsetMs,
       })
       musicIntelligenceEngine.resolveLyricsAt(getCurrentTime(), 'discontinuous')
     }
@@ -100,6 +92,7 @@ export function ActiveTrackLyricsBridge() {
     wasSuspendedRef.current = false
     if (force && useLyricsStore.getState().skipNextEditorResync) {
       useLyricsStore.setState({ skipNextEditorResync: false })
+      synchronizerRef.current?.sync(currentAudioTrackId, true, true)
       return
     }
     synchronizerRef.current?.sync(currentAudioTrackId, force)

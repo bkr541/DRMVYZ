@@ -91,9 +91,9 @@ describe('lyricsStore active audio-track synchronization', () => {
     await loadA
 
     const state = useLyricsStore.getState()
-    expect(state.activeAudioTrackId).toBe('track-b')
-    expect(state.activeDocument?.id).toBe(docB.id)
-    expect(state.cues).toEqual([cueB])
+    expect(state.runtimeAudioTrackId).toBe('track-b')
+    expect(state.runtimeActiveDocument?.id).toBe(docB.id)
+    expect(state.runtimeCues).toEqual([cueB])
     expect(selectActiveTrackHasLyricDocument(state)).toBe(true)
   })
 
@@ -105,11 +105,35 @@ describe('lyricsStore active audio-track synchronization', () => {
     await useLyricsStore.getState().loadLyricsForAudioTrack('track-without-lyrics')
 
     const state = useLyricsStore.getState()
-    expect(state.activeAudioTrackId).toBe('track-without-lyrics')
-    expect(state.activeDocument).toBeNull()
-    expect(state.cues).toEqual([])
+    expect(state.runtimeAudioTrackId).toBe('track-without-lyrics')
+    expect(state.runtimeActiveDocument).toBeNull()
+    expect(state.runtimeCues).toEqual([])
     expect(selectHasActiveLyricDocument(state)).toBe(false)
     expect(selectLyricsLoading(state)).toBe(false)
+  })
+
+
+  it('clears runtime lyrics for a local track without discarding the editor document', () => {
+    const editorDocument = { ...makeDocument('track-a', 'editor'), isActive: false }
+    const runtimeDocument = makeDocument('track-a', 'runtime')
+    useLyricsStore.getState().setEditorDocument(editorDocument, [makeCue('editor')])
+    useLyricsStore.setState({
+      runtimeAudioTrackId: 'track-a',
+      runtimeActiveDocumentId: runtimeDocument.id,
+      runtimeActiveDocument: runtimeDocument,
+      runtimeCues: [makeCue('runtime')],
+      runtimeLyricsStatus: 'active-version',
+    })
+
+    useLyricsStore.getState().clearRuntimeLyrics('unpersisted-track', true)
+
+    const state = useLyricsStore.getState()
+    expect(state.editorDocument?.id).toBe(editorDocument.id)
+    expect(state.cues).toEqual([makeCue('editor')])
+    expect(state.runtimeAudioTrackId).toBeNull()
+    expect(state.runtimeActiveDocument).toBeNull()
+    expect(state.runtimeCues).toEqual([])
+    expect(state.runtimeLyricsStatus).toBe('unpersisted-track')
   })
 
   it('does not issue a duplicate request for the same saved track', async () => {
@@ -148,9 +172,9 @@ describe('lyricsStore active audio-track synchronization', () => {
     await load
 
     const state = useLyricsStore.getState()
-    expect(state.activeAudioTrackId).toBeNull()
-    expect(state.activeDocument).toBeNull()
-    expect(state.cues).toEqual([])
+    expect(state.runtimeAudioTrackId).toBeNull()
+    expect(state.runtimeActiveDocument).toBeNull()
+    expect(state.runtimeCues).toEqual([])
     expect(state.isLoading).toBe(false)
   })
 })

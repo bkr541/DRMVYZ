@@ -217,7 +217,7 @@ export async function saveLyricDocumentAtomic(
       p_expected_revision: input.expectedRevision ?? null,
       p_document: documentPayload,
       p_cues: cuePayload,
-      p_activate: input.activate ?? true,
+      p_activate: input.activate ?? false,
     })
 
     if (error) {

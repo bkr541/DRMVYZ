@@ -34,6 +34,17 @@ import { createLyricCueInputFromCue, toCanonicalLyricMs } from '../types/lyrics'
 import type { LyricRecoveryRecord } from '../lib/lyricDraftRecovery'
 
 export type LyricWriteStatus = 'unsaved' | 'queued' | 'saving' | 'saved' | 'conflict' | 'failed'
+export type RuntimeLyricsStatus =
+  | 'idle'
+  | 'unpersisted-track'
+  | 'loading'
+  | 'no-active-version'
+  | 'active-version'
+  | 'error'
+
+export interface SaveEditorDocumentOptions {
+  makeActive?: boolean
+}
 
 export interface LyricWriteState {
   logicalDocumentId: string
@@ -56,7 +67,12 @@ export interface LyricCanonicalWrite {
 }
 
 export interface LyricsState {
+  /** Canonical global visualizer preference. `lyricsEnabled` is a temporary compatibility alias. */
+  lyricsDisplayEnabled: boolean
   lyricsEnabled:       boolean
+  /** Canonical editor selection. `activeDocument*` remain compatibility aliases during migration. */
+  editorDocumentId:    string | null
+  editorDocument:      LyricDocument | null
   activeDocumentId:    string | null
   activeDocument:      LyricDocument | null
   activeLogicalDocumentId: string
@@ -64,6 +80,13 @@ export interface LyricsState {
   /** audio_tracks ID whose automatic lyric lookup currently owns the active lyric state. */
   activeAudioTrackId:   string | null
   cues:                LyricCue[]
+  /** Runtime playback source, intentionally isolated from the document open in Lyric Manager. */
+  runtimeAudioTrackId: string | null
+  runtimeActiveDocumentId: string | null
+  runtimeActiveDocument: LyricDocument | null
+  runtimeCues: LyricCue[]
+  runtimeGlobalOffsetMs: number
+  runtimeLyricsStatus: RuntimeLyricsStatus
   isLoading:           boolean
   isSaving:            boolean
   activeWriteStatus:   LyricWriteStatus
@@ -94,7 +117,9 @@ export interface LyricsState {
   cueHistoryPast: LyricCue[][]
   cueHistoryFuture: LyricCue[][]
 
+  setLyricsDisplayEnabled(enabled: boolean): void
   setLyricsEnabled(enabled: boolean): void
+  setEditorDocument(document: LyricDocument | null, cues?: LyricCue[], activeAudioTrackId?: string | null): void
   setActiveDocument(document: LyricDocument | null, cues?: LyricCue[], activeAudioTrackId?: string | null): void
   setCues(cues: LyricCue[]): void
   updateCue(cueId: string, patch: Partial<Omit<LyricCue, 'id'>>): void
@@ -120,6 +145,7 @@ export interface LyricsState {
   markEditorDirty(dirty?: boolean): void
   preserveDraftForNextEditorExit(): void
   clearLyrics(): void
+  clearRuntimeLyrics(status?: RuntimeLyricsStatus, preserveEditor?: boolean): void
 
   selectCue(cueId: string | null): void
   updateCueTiming(cueId: string, patch: { startMs?: number; endMs?: number }): void
@@ -133,9 +159,10 @@ export interface LyricsState {
   resetCueHistory(): void
 
   loadLyricDocument(documentId: string): Promise<void>
+  resolveRuntimeLyricsForAudioTrack(audioTrackId: string, force?: boolean, preserveEditor?: boolean): Promise<void>
   loadLyricsForAudioTrack(audioTrackId: string, force?: boolean): Promise<void>
   loadLyricsForVisualSession(visualSessionId: string): Promise<void>
-  saveActiveLyricDocument(cues?: LyricCue[]): Promise<SaveLyricDocumentResult | null>
+  saveActiveLyricDocument(cues?: LyricCue[], options?: SaveEditorDocumentOptions): Promise<SaveLyricDocumentResult | null>
   replaceActiveCues(inputs: CreateLyricCueInput[]): Promise<SaveLyricDocumentResult | null>
   saveLyricDocumentMetadata(documentId: string, patch: UpdateLyricDocumentInput): Promise<SaveLyricDocumentResult | null>
   activateLyricDocument(documentId: string): Promise<ActivateLyricDocumentResult | null>
@@ -204,8 +231,8 @@ function logicalIdForDocument(document: LyricDocument | null, activeAudioTrackId
   return uniqueId('draft')
 }
 
-function accountScope(state: Pick<LyricsState, 'operationAccountId' | 'activeDocument'>): string | null {
-  return state.operationAccountId ?? state.activeDocument?.userId ?? null
+function accountScope(state: Pick<LyricsState, 'operationAccountId' | 'editorDocument'>): string | null {
+  return state.operationAccountId ?? state.editorDocument?.userId ?? null
 }
 
 function readAccountScope(state: Pick<LyricsState, 'operationAccountId'>): string | null {
@@ -232,7 +259,7 @@ function documentInputFromCanonical(
   }
 }
 
-function activeDocumentState(
+function editorDocumentState(
   document: LyricDocument | null,
   cues: LyricCue[] = [],
   activeAudioTrackId: string | null = document?.audioTrackId ?? null,
@@ -240,6 +267,8 @@ function activeDocumentState(
   logicalDocumentId = logicalIdForDocument(document, activeAudioTrackId),
 ): Partial<LyricsState> {
   return {
+    editorDocument:        document,
+    editorDocumentId:      document?.id ?? null,
     activeDocument:        document,
     activeDocumentId:      document?.id ?? null,
     activeLogicalDocumentId: logicalDocumentId,
@@ -260,10 +289,26 @@ function activeDocumentState(
     lastPersistenceFailure: null,
     lyricTimingDirty:      false,
     editorDirty:           false,
-    draftActivateOnSave:   document?.isActive ?? true,
+    draftActivateOnSave:   document?.isActive ?? false,
     selectedCueId:         selectedCueId && cues.some(cue => cue.id === selectedCueId) ? selectedCueId : null,
     cueHistoryPast:        [],
     cueHistoryFuture:      [],
+  }
+}
+
+function runtimeLyricsState(
+  audioTrackId: string | null,
+  document: LyricDocument | null = null,
+  cues: LyricCue[] = [],
+  status: RuntimeLyricsStatus = audioTrackId ? (document ? 'active-version' : 'no-active-version') : 'idle',
+): Partial<LyricsState> {
+  return {
+    runtimeAudioTrackId: audioTrackId,
+    runtimeActiveDocumentId: document?.id ?? null,
+    runtimeActiveDocument: document,
+    runtimeCues: cues,
+    runtimeGlobalOffsetMs: toCanonicalLyricMs(document?.globalOffsetMs ?? 0),
+    runtimeLyricsStatus: status,
   }
 }
 
@@ -282,7 +327,7 @@ function nextUnsavedState(state: LyricsState): Pick<LyricsState, 'activeEditVers
   const status: LyricWriteStatus = activeQueueBusy ? existing.status : 'unsaved'
   const writeState: LyricWriteState = {
     logicalDocumentId,
-    canonicalDocumentId: state.activeDocumentId,
+    canonicalDocumentId: state.editorDocumentId,
     status,
     pendingCount: existing?.pendingCount ?? 0,
     message: existing?.status === 'conflict' ? existing.message : null,
@@ -314,7 +359,7 @@ function commitCueCollection(
 }
 
 function buildDocumentInput(state: LyricsState): CreateLyricDocumentInput {
-  const current = state.activeDocument
+  const current = state.editorDocument
   const importedSource = state.draftSourceType !== null
   return {
     title: state.draftTitle,
@@ -603,16 +648,27 @@ function commitCanonicalResult(
       pendingCount: remaining,
     }
 
+    const updatesRuntime = result.document.isActive
+      && result.document.audioTrackId !== null
+      && state.runtimeAudioTrackId === result.document.audioTrackId
     const base: Partial<LyricsState> = {
       writeStates: { ...state.writeStates, [queue.logicalDocumentId]: queueState },
       lastCanonicalWrite: abandoned ? state.lastCanonicalWrite : commit,
+      ...(updatesRuntime
+        ? runtimeLyricsState(
+            result.document.audioTrackId ?? null,
+            result.document,
+            queue.canonicalCues,
+            'active-version',
+          )
+        : {}),
     }
     if (!sameAccount || abandoned) return base
 
     if (activationOwnsSelection) {
       return {
         ...base,
-        ...activeDocumentState(
+        ...editorDocumentState(
           result.document,
           queue.canonicalCues,
           result.document.audioTrackId ?? null,
@@ -631,7 +687,7 @@ function commitCanonicalResult(
     if ('cues' in result && !hasNewerLocalEdits) {
       return {
         ...base,
-        ...activeDocumentState(
+        ...editorDocumentState(
           result.document,
           result.cues,
           result.document.audioTrackId ?? null,
@@ -647,6 +703,8 @@ function commitCanonicalResult(
 
     return {
       ...base,
+      editorDocument: result.document,
+      editorDocumentId: result.document.id,
       activeDocument: result.document,
       activeDocumentId: result.document.id,
       activeAudioTrackId: result.document.audioTrackId ?? state.activeAudioTrackId,
@@ -771,13 +829,22 @@ function disposeAllQueues(): void {
 const initialLogicalDocumentId = uniqueId('draft')
 
 export const useLyricsStore = create<LyricsState>((set, get) => ({
+  lyricsDisplayEnabled: false,
   lyricsEnabled:       false,
+  editorDocumentId:    null,
+  editorDocument:      null,
   activeDocumentId:    null,
   activeDocument:      null,
   activeLogicalDocumentId: initialLogicalDocumentId,
   activeEditVersion:   0,
   activeAudioTrackId:   null,
   cues:                [],
+  runtimeAudioTrackId: null,
+  runtimeActiveDocumentId: null,
+  runtimeActiveDocument: null,
+  runtimeCues: [],
+  runtimeGlobalOffsetMs: 0,
+  runtimeLyricsStatus: 'idle',
   isLoading:           false,
   isSaving:            false,
   activeWriteStatus:   'saved',
@@ -803,14 +870,15 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   lyricTimingDirty:    false,
   editorSessionActive: false,
   editorDirty:         false,
-  draftActivateOnSave: true,
+  draftActivateOnSave: false,
   skipNextEditorResync: false,
   cueHistoryPast:      [],
   cueHistoryFuture:    [],
 
-  setLyricsEnabled: (enabled) => set({ lyricsEnabled: enabled }),
+  setLyricsDisplayEnabled: (enabled) => set({ lyricsDisplayEnabled: enabled, lyricsEnabled: enabled }),
+  setLyricsEnabled: (enabled) => set({ lyricsDisplayEnabled: enabled, lyricsEnabled: enabled }),
 
-  setActiveDocument: (document, cues = [], activeAudioTrackId) => {
+  setEditorDocument: (document, cues = [], activeAudioTrackId) => {
     invalidateRead('selectedDocument')
     invalidateRead('audioTrack')
     invalidateRead('visualSession')
@@ -821,7 +889,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const snapshot = canonicalSnapshotForRead(queue, document, cues)
     const queueState = get().writeStates[logicalDocumentId]
     set({
-      ...activeDocumentState(
+      ...editorDocumentState(
         snapshot.document,
         snapshot.cues,
         activeAudioTrackId !== undefined ? activeAudioTrackId : (snapshot.document?.audioTrackId ?? null),
@@ -832,6 +900,10 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       isSaving: queue.running || queue.jobs.length > 0,
       activeWriteStatus: queueState?.status ?? 'saved',
     })
+  },
+
+  setActiveDocument: (document, cues = [], activeAudioTrackId) => {
+    get().setEditorDocument(document, cues, activeAudioTrackId)
   },
 
   setCues: (cues) => set(state => commitCueCollection(state, cues)),
@@ -864,9 +936,10 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const state = get()
     const clearLoadedState = current !== null
       || accountId === null
-      || (state.activeDocument !== null && state.activeDocument.userId !== accountId)
+      || (state.editorDocument !== null && state.editorDocument.userId !== accountId)
     set({
-      ...(clearLoadedState ? activeDocumentState(null, [], null, null, uniqueId('draft')) : {}),
+      ...(clearLoadedState ? editorDocumentState(null, [], null, null, uniqueId('draft')) : {}),
+      ...(clearLoadedState ? runtimeLyricsState(null) : {}),
       operationAccountId: accountId,
       writeStates: {},
       isLoading: false,
@@ -893,7 +966,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         : {
             [state.activeLogicalDocumentId]: {
               logicalDocumentId: state.activeLogicalDocumentId,
-              canonicalDocumentId: state.activeDocumentId,
+              canonicalDocumentId: state.editorDocumentId,
               status,
               pendingCount: 0,
               message: failure?.message ?? null,
@@ -913,7 +986,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const state = get()
     const logicalId = state.activeLogicalDocumentId
     abandonedLogicalDocuments.add(logicalId)
-    if (state.activeDocumentId) abandonedCanonicalDocuments.add(state.activeDocumentId)
+    if (state.editorDocumentId) abandonedCanonicalDocuments.add(state.editorDocumentId)
     const queue = writeQueues.get(queueKey(accountScope(state), logicalId))
     if (queue) disposeQueue(queue)
     set(current => {
@@ -965,13 +1038,17 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     abandonedCanonicalDocuments.clear()
     const logicalDocumentId = uniqueId('draft')
     set({
+      lyricsDisplayEnabled: false,
       lyricsEnabled: false,
+      editorDocumentId: null,
+      editorDocument: null,
       activeDocumentId: null,
       activeDocument: null,
       activeLogicalDocumentId: logicalDocumentId,
       activeEditVersion: 0,
       activeAudioTrackId: null,
       cues: [],
+      ...runtimeLyricsState(null),
       isLoading: false,
       isSaving: false,
       activeWriteStatus: 'saved',
@@ -992,11 +1069,22 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       selectedCueId: null,
       lyricTimingDirty: false,
       editorDirty: false,
-      draftActivateOnSave: true,
+      draftActivateOnSave: false,
       skipNextEditorResync: false,
       cueHistoryPast: [],
       cueHistoryFuture: [],
     })
+  },
+
+  clearRuntimeLyrics: (status = 'idle', preserveEditor = false) => {
+    invalidateRead('audioTrack')
+    set(state => ({
+      ...runtimeLyricsState(null, null, [], status),
+      ...(!preserveEditor && !state.editorSessionActive && !state.editorDirty
+        ? editorDocumentState(null, [], null, null, uniqueId('draft'))
+        : {}),
+      isLoading: false,
+    }))
   },
 
   selectCue: (cueId) => set({ selectedCueId: cueId }),
@@ -1080,7 +1168,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       const queue = ensureQueue(state, logicalDocumentId, document, cues)
       const snapshot = canonicalSnapshotForRead(queue, document, cues)
       set({
-        ...activeDocumentState(snapshot.document, snapshot.cues, snapshot.document?.audioTrackId ?? null, null, logicalDocumentId),
+        ...editorDocumentState(snapshot.document, snapshot.cues, snapshot.document?.audioTrackId ?? null, null, logicalDocumentId),
         isLoading: false,
         activeWriteStatus: state.writeStates[logicalDocumentId]?.status ?? 'saved',
       })
@@ -1094,44 +1182,64 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     }
   },
 
-  loadLyricsForAudioTrack: async (audioTrackId, force = false) => {
+  resolveRuntimeLyricsForAudioTrack: async (audioTrackId, force = false, preserveEditor = false) => {
     const current = get()
-    if (!force && current.activeAudioTrackId === audioTrackId && current.error === null) return
-    if (current.editorDirty) return
+    if (!force
+      && current.runtimeAudioTrackId === audioTrackId
+      && current.runtimeLyricsStatus !== 'error'
+      && current.runtimeLyricsStatus !== 'idle') return
     const accountId = readAccountScope(current)
     const owner = beginRead('audioTrack', accountId, audioTrackId)
-    invalidateRead('selectedDocument')
-    const logicalDocumentId = uniqueId('track-read')
-    set({
-      ...activeDocumentState(null, [], audioTrackId, null, logicalDocumentId),
+    set(state => ({
+      ...runtimeLyricsState(audioTrackId, null, [], supabaseConfigured ? 'loading' : 'no-active-version'),
+      ...(!preserveEditor && !state.editorSessionActive && !state.editorDirty
+        ? editorDocumentState(null, [], audioTrackId, null, uniqueId('track-read'))
+        : {}),
       isLoading: supabaseConfigured,
       error: null,
-      activeWriteStatus: 'saved',
-    })
+    }))
     if (!supabaseConfigured) return
     try {
       const document = await getActiveLyricDocumentForAudioTrack(audioTrackId)
-      let cues: LyricCue[] = []
-      if (document) cues = await getLyricCuesForDocument(document.id)
+      const cues = document ? await getLyricCuesForDocument(document.id) : []
       const state = get()
       if (!ownsRead('audioTrack', owner, readAccountScope(state), audioTrackId)) return
-      if (state.activeAudioTrackId !== audioTrackId || state.editorDirty) return
-      const nextLogicalId = document ? `document:${document.id}` : logicalDocumentId
-      const queue = ensureQueue(state, nextLogicalId, document, cues)
-      const snapshot = canonicalSnapshotForRead(queue, document, cues)
-      set({
-        ...activeDocumentState(snapshot.document, snapshot.cues, audioTrackId, null, nextLogicalId),
+      if (state.runtimeAudioTrackId !== audioTrackId) return
+      set(currentState => ({
+        ...runtimeLyricsState(
+          audioTrackId,
+          document,
+          cues,
+          document ? 'active-version' : 'no-active-version',
+        ),
+        ...(!preserveEditor && !currentState.editorSessionActive && !currentState.editorDirty
+          ? editorDocumentState(
+              document,
+              cues,
+              audioTrackId,
+              null,
+              document ? `document:${document.id}` : uniqueId('track-read'),
+            )
+          : {}),
         isLoading: false,
-        activeWriteStatus: state.writeStates[nextLogicalId]?.status ?? 'saved',
-      })
+        error: null,
+      }))
     } catch (error) {
       const state = get()
       if (!ownsRead('audioTrack', owner, readAccountScope(state), audioTrackId)) return
-      set({ error: error instanceof Error ? error.message : 'Failed to load lyrics for audio track', isLoading: false })
+      set({
+        ...runtimeLyricsState(audioTrackId, null, [], 'error'),
+        error: error instanceof Error ? error.message : 'Failed to load lyrics for audio track',
+        isLoading: false,
+      })
     } finally {
       const state = get()
       if (ownsRead('audioTrack', owner, readAccountScope(state), audioTrackId)) set({ isLoading: false })
     }
+  },
+
+  loadLyricsForAudioTrack: async (audioTrackId, force = false) => {
+    await get().resolveRuntimeLyricsForAudioTrack(audioTrackId, force)
   },
 
   loadLyricsForVisualSession: async (visualSessionId) => {
@@ -1149,7 +1257,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       const queue = ensureQueue(state, logicalDocumentId, document, cues)
       const snapshot = canonicalSnapshotForRead(queue, document, cues)
       set({
-        ...activeDocumentState(snapshot.document, snapshot.cues, snapshot.document?.audioTrackId ?? null, null, logicalDocumentId),
+        ...editorDocumentState(snapshot.document, snapshot.cues, snapshot.document?.audioTrackId ?? null, null, logicalDocumentId),
         isLoading: false,
         activeWriteStatus: state.writeStates[logicalDocumentId]?.status ?? 'saved',
       })
@@ -1163,14 +1271,14 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     }
   },
 
-  saveActiveLyricDocument: async (cues) => {
+  saveActiveLyricDocument: async (cues, options) => {
     if (!supabaseConfigured) {
       set({ error: 'Supabase is not configured.' })
       return null
     }
     const state = get()
     const logicalDocumentId = state.activeLogicalDocumentId
-    const queue = ensureQueue(state, logicalDocumentId, state.activeDocument, state.cues)
+    const queue = ensureQueue(state, logicalDocumentId, state.editorDocument, state.cues)
     const cueSnapshot = [...(cues ?? state.cues)]
     return new Promise<SaveLyricDocumentResult | null>(resolve => {
       const job: AtomicJob = {
@@ -1182,7 +1290,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         selectedCueId: state.selectedCueId,
         document: buildDocumentInput(state),
         cues: cueSnapshot,
-        activate: state.draftActivateOnSave,
+        activate: options?.makeActive ?? state.editorDocument?.isActive ?? false,
         resolve: result => resolve(result as SaveLyricDocumentResult | null),
       }
       void enqueueWrite(set, get, queue, job)
@@ -1191,12 +1299,12 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 
   replaceActiveCues: async (inputs) => {
     const state = get()
-    if (!state.activeDocumentId) {
+    if (!state.editorDocumentId) {
       set({ error: 'Save the lyric document first before replacing cues.' })
       return null
     }
     const cues = inputs.map((input, index) => normalizeCue({
-      id: input.lyricDocumentId && input.lyricDocumentId !== state.activeDocumentId
+      id: input.lyricDocumentId && input.lyricDocumentId !== state.editorDocumentId
         ? input.lyricDocumentId
         : uniqueId(`replacement-cue-${index}`),
       startMs: input.startMs,
@@ -1216,7 +1324,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       analysisMetadata: input.analysisMetadata,
       originalTranscriptionText: input.originalTranscriptionText,
     }))
-    const queue = ensureQueue(state, state.activeLogicalDocumentId, state.activeDocument, state.cues)
+    const queue = ensureQueue(state, state.activeLogicalDocumentId, state.editorDocument, state.cues)
     return new Promise<SaveLyricDocumentResult | null>(resolve => {
       const job: AtomicJob = {
         kind: 'atomic',
@@ -1227,7 +1335,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         selectedCueId: state.selectedCueId,
         document: buildDocumentInput(state),
         cues,
-        activate: state.activeDocument?.isActive ?? true,
+        activate: state.editorDocument?.isActive ?? false,
         resolve: result => resolve(result as SaveLyricDocumentResult | null),
       }
       void enqueueWrite(set, get, queue, job)
@@ -1237,14 +1345,14 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   saveLyricDocumentMetadata: async (documentId, patch) => {
     if (!supabaseConfigured) return null
     const state = get()
-    const logicalDocumentId = state.activeDocumentId === documentId
+    const logicalDocumentId = state.editorDocumentId === documentId
       ? state.activeLogicalDocumentId
       : `document:${documentId}`
     const queue = ensureQueue(
       state,
       logicalDocumentId,
-      state.activeDocumentId === documentId ? state.activeDocument : null,
-      state.activeDocumentId === documentId ? state.cues : [],
+      state.editorDocumentId === documentId ? state.editorDocument : null,
+      state.editorDocumentId === documentId ? state.cues : [],
     )
     return new Promise<SaveLyricDocumentResult | null>(resolve => {
       const job: MetadataJob = {
@@ -1268,14 +1376,14 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       return null
     }
     const state = get()
-    const logicalDocumentId = state.activeDocumentId === documentId
+    const logicalDocumentId = state.editorDocumentId === documentId
       ? state.activeLogicalDocumentId
       : `document:${documentId}`
     const queue = ensureQueue(
       state,
       logicalDocumentId,
-      state.activeDocumentId === documentId ? state.activeDocument : null,
-      state.activeDocumentId === documentId ? state.cues : [],
+      state.editorDocumentId === documentId ? state.editorDocument : null,
+      state.editorDocumentId === documentId ? state.cues : [],
     )
     return new Promise<ActivateLyricDocumentResult | null>(resolve => {
       const job: ActivateJob = {
@@ -1295,7 +1403,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 
   saveTimingChanges: async () => {
     const state = get()
-    if (!state.activeDocumentId || !supabaseConfigured || !state.lyricTimingDirty) return null
+    if (!state.editorDocumentId || !supabaseConfigured || !state.lyricTimingDirty) return null
     return get().saveActiveLyricDocument(state.cues)
   },
 
@@ -1324,6 +1432,8 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     queue.canonicalDocument = document
     queue.canonicalCues = [...cues]
     set(current => ({
+      editorDocument: document,
+      editorDocumentId: document.id,
       activeDocument: document,
       activeDocumentId: document.id,
       lastPersistenceFailure: null,
@@ -1338,12 +1448,12 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const state = get()
     if (state.operationAccountId !== recovery.userId) return
     if ((state.activeAudioTrackId ?? null) !== recovery.trackId) return
-    if (recovery.documentId && state.activeDocumentId !== recovery.documentId) return
+    if (recovery.documentId && state.editorDocumentId !== recovery.documentId) return
     const logicalDocumentId = state.activeLogicalDocumentId
     const existing = state.writeStates[logicalDocumentId]
     const writeState: LyricWriteState = {
       logicalDocumentId,
-      canonicalDocumentId: state.activeDocumentId,
+      canonicalDocumentId: state.editorDocumentId,
       status: existing?.status === 'queued' || existing?.status === 'saving' ? existing.status : 'unsaved',
       pendingCount: existing?.pendingCount ?? 0,
       message: null,
@@ -1378,9 +1488,11 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
 }))
 
 export const selectLyricsLoading = (state: LyricsState): boolean => state.isLoading
-export const selectActiveLyricsAudioTrackId = (state: LyricsState): string | null => state.activeAudioTrackId
-export const selectHasActiveLyricDocument = (state: LyricsState): boolean => state.activeDocument !== null
+export const selectActiveLyricsAudioTrackId = (state: LyricsState): string | null => state.runtimeAudioTrackId
+export const selectHasActiveLyricDocument = (state: LyricsState): boolean => state.runtimeActiveDocument !== null
 export const selectActiveTrackHasLyricDocument = (state: LyricsState): boolean =>
-  state.activeAudioTrackId !== null
-  && state.activeDocument !== null
-  && state.activeDocument.audioTrackId === state.activeAudioTrackId
+  state.runtimeAudioTrackId !== null
+  && state.runtimeActiveDocument !== null
+  && state.runtimeActiveDocument.audioTrackId === state.runtimeAudioTrackId
+export const selectEditorDocument = (state: LyricsState): LyricDocument | null => state.editorDocument
+export const selectRuntimeActiveDocument = (state: LyricsState): LyricDocument | null => state.runtimeActiveDocument

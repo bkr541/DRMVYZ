@@ -254,7 +254,7 @@
   background: rgba(255,255,255,0.04);
   border-color: rgba(255,255,255,0.07);
 }
-.lmv-doc-card--active {
+.lmv-doc-card--open {
   background: rgba(74,199,219,0.07);
   border-color: rgba(74,199,219,0.25);
 }
@@ -1866,7 +1866,7 @@
   border-color: rgba(126,218,232,0.08);
 }
 
-.lmv-doc-card--active {
+.lmv-doc-card--open {
   border-color: rgba(74,199,219,0.48);
   background: rgba(74,199,219,0.1);
   box-shadow: inset 3px 0 0 #20d7ef;
@@ -2546,4 +2546,88 @@
   border-color: rgba(74,199,219,0.55);
   background: rgba(74,199,219,0.12);
   color: #e8f4f8;
+}
+
+/* Runtime lyric identity and activation signal path ------------------------- */
+.lmv-version-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.lmv-open-version-pill,
+.lmv-open-badge {
+  border: 1px solid rgba(232,244,248,0.18);
+  background: rgba(232,244,248,0.06);
+  color: rgba(232,244,248,0.72);
+}
+
+.lmv-version-status-row .lmv-active-version-pill { margin-top: 0; }
+
+.lmv-open-version-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.lmv-open-badge {
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.lmv-active-version-pill--empty {
+  border-color: rgba(224,90,90,0.24);
+  background: rgba(224,90,90,0.08);
+  color: rgba(244,176,176,0.82);
+}
+
+.lmv-signal-path {
+  margin: 0 18px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(126,218,232,0.14);
+  border-radius: 8px;
+  background: rgba(8,16,20,0.68);
+}
+
+.lmv-signal-path-summary {
+  margin-bottom: 8px;
+  color: rgba(126,218,232,0.88);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.lmv-signal-path-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.lmv-signal-path-grid div { min-width: 0; }
+.lmv-signal-path-grid dt {
+  color: rgba(196,207,211,0.46);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.lmv-signal-path-grid dd {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: rgba(232,244,248,0.8);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .lmv-signal-path-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

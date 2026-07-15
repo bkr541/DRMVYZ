@@ -127,7 +127,7 @@ describe('persisted-track lyric workflow integration', () => {
       cues: extractedCues,
       draftActivateOnSave: true,
     })
-    const saved = await useLyricsStore.getState().saveActiveLyricDocument(extractedCues)
+    const saved = await useLyricsStore.getState().saveActiveLyricDocument(extractedCues, { makeActive: true })
     expect(saved?.ok).toBe(true)
     expect(backend.saveLyricDocumentAtomic).toHaveBeenCalledWith(expect.objectContaining({
       document: expect.objectContaining({ audioTrackId: 'track-pop' }),
@@ -137,18 +137,18 @@ describe('persisted-track lyric workflow integration', () => {
     useLyricsStore.getState().clearLyrics()
     await useLyricsStore.getState().loadLyricsForAudioTrack('track-pop')
     const reloaded = useLyricsStore.getState()
-    expect(reloaded.activeDocument?.audioTrackId).toBe('track-pop')
-    expect(reloaded.cues).toHaveLength(2)
-    expect(reloaded.cues.map(cue => ({ startMs: cue.startMs, endMs: cue.endMs, text: cue.text }))).toEqual(
+    expect(reloaded.runtimeActiveDocument?.audioTrackId).toBe('track-pop')
+    expect(reloaded.runtimeCues).toHaveLength(2)
+    expect(reloaded.runtimeCues.map(cue => ({ startMs: cue.startMs, endMs: cue.endMs, text: cue.text }))).toEqual(
       extractedCues.map(cue => ({ startMs: cue.startMs, endMs: cue.endMs, text: cue.text })),
     )
 
     const tracker = new ActiveLyricTracker()
     tracker.setLyrics({
-      cues: reloaded.cues,
-      documentId: reloaded.activeDocumentId,
-      sourceIdentity: `track-pop:${reloaded.activeDocumentId}`,
-      globalOffsetMs: reloaded.globalOffsetMs,
+      cues: reloaded.runtimeCues,
+      documentId: reloaded.runtimeActiveDocumentId,
+      sourceIdentity: `track-pop:${reloaded.runtimeActiveDocumentId}`,
+      globalOffsetMs: reloaded.runtimeGlobalOffsetMs,
     })
 
     const first = tracker.update(0.4, 'discontinuous')
@@ -168,18 +168,18 @@ describe('persisted-track lyric workflow integration', () => {
     expect(seekBackward.activeWord).toBe('Got')
 
     tracker.setLyrics({
-      cues: reloaded.cues,
-      documentId: reloaded.activeDocumentId,
-      sourceIdentity: `track-pop:${reloaded.activeDocumentId}`,
+      cues: reloaded.runtimeCues,
+      documentId: reloaded.runtimeActiveDocumentId,
+      sourceIdentity: `track-pop:${reloaded.runtimeActiveDocumentId}`,
       globalOffsetMs: 500,
     })
     expect(tracker.update(0.499, 'discontinuous').activeLine).toBeNull()
     expect(tracker.update(0.5, 'continuous').activeLine).toBe('Got that drink')
 
     tracker.setLyrics({
-      cues: reloaded.cues,
-      documentId: reloaded.activeDocumentId,
-      sourceIdentity: `track-pop:${reloaded.activeDocumentId}`,
+      cues: reloaded.runtimeCues,
+      documentId: reloaded.runtimeActiveDocumentId,
+      sourceIdentity: `track-pop:${reloaded.runtimeActiveDocumentId}`,
       globalOffsetMs: -500,
     })
     expect(tracker.update(0.5, 'discontinuous').activeLine).toBe('Tear the club up')
@@ -190,13 +190,13 @@ describe('persisted-track lyric workflow integration', () => {
     backend.cuesByDocument.set('document-track-a', extractedCues)
 
     await useLyricsStore.getState().loadLyricsForAudioTrack('track-a')
-    expect(useLyricsStore.getState().cues).toHaveLength(2)
+    expect(useLyricsStore.getState().runtimeCues).toHaveLength(2)
 
     await useLyricsStore.getState().loadLyricsForAudioTrack('track-without-lyrics')
     expect(useLyricsStore.getState()).toMatchObject({
-      activeAudioTrackId: 'track-without-lyrics',
-      activeDocument: null,
-      cues: [],
+      runtimeAudioTrackId: 'track-without-lyrics',
+      runtimeActiveDocument: null,
+      runtimeCues: [],
     })
   })
 })

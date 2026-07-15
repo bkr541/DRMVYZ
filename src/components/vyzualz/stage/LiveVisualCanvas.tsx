@@ -937,8 +937,8 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
 
   useEffect(() => {
     const sync = (s: ReturnType<typeof useLyricsStore.getState>) => {
-      lyricsEnabledRef.current = s.lyricsEnabled
-      lyricsDocRef.current     = s.activeDocument
+      lyricsEnabledRef.current = s.lyricsDisplayEnabled
+      lyricsDocRef.current     = s.runtimeActiveDocument
       requestRedrawRef.current()
     }
     sync(useLyricsStore.getState())

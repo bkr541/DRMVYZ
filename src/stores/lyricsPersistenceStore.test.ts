@@ -69,13 +69,31 @@ describe('lyricsStore transactional save behavior', () => {
       expect.objectContaining({
         documentId: null,
         expectedRevision: null,
-        activate: true,
+        activate: false,
         cues: [],
         document: expect.objectContaining({ audioTrackId: 'track-1' }),
       }),
     )
     expect(useLyricsStore.getState().cues).toEqual([])
     expect(useLyricsStore.getState().activeDocument?.revision).toBe(1)
+  })
+
+  it('preserves activation when ordinary Save updates the currently active version', async () => {
+    const current = document(2)
+    const saved = document(3)
+    useLyricsStore.getState().setEditorDocument(current, [])
+    lyricDbMocks.saveLyricDocumentAtomic.mockResolvedValue({
+      ok: true,
+      kind: 'success',
+      document: saved,
+      cues: [],
+    })
+
+    await useLyricsStore.getState().saveActiveLyricDocument([])
+
+    expect(lyricDbMocks.saveLyricDocumentAtomic).toHaveBeenCalledWith(
+      expect.objectContaining({ activate: true }),
+    )
   })
 
   it('passes the loaded revision and exposes a typed conflict for future UI handling', async () => {
@@ -142,19 +160,38 @@ describe('lyricsStore transactional save behavior', () => {
     )
   })
 
-  it('can force-refresh the active track after the editor releases a protected draft', async () => {
+  it('resolves runtime lyrics without replacing the protected editor document', async () => {
     const current = document(3)
     const refreshed = document(4)
-    useLyricsStore.getState().setActiveDocument(current, [])
+    useLyricsStore.getState().setEditorDocument(current, [])
+    useLyricsStore.getState().beginEditorSession()
     lyricDbMocks.getActiveLyricDocumentForAudioTrack.mockResolvedValue(refreshed)
     lyricDbMocks.getLyricCuesForDocument.mockResolvedValue([])
 
-    await useLyricsStore.getState().loadLyricsForAudioTrack('track-1')
-    expect(lyricDbMocks.getActiveLyricDocumentForAudioTrack).not.toHaveBeenCalled()
+    await useLyricsStore.getState().resolveRuntimeLyricsForAudioTrack('track-1')
 
-    await useLyricsStore.getState().loadLyricsForAudioTrack('track-1', true)
     expect(lyricDbMocks.getActiveLyricDocumentForAudioTrack).toHaveBeenCalledWith('track-1')
-    expect(useLyricsStore.getState().activeDocument?.revision).toBe(4)
+    expect(useLyricsStore.getState().editorDocument?.revision).toBe(3)
+    expect(useLyricsStore.getState().runtimeActiveDocument?.revision).toBe(4)
+    useLyricsStore.getState().endEditorSession()
+  })
+
+  it('supports an explicit Save + Make Active transaction without changing ordinary Save semantics', async () => {
+    const inactive = { ...document(2), isActive: false }
+    const activated = { ...document(3), isActive: true }
+    useLyricsStore.getState().setEditorDocument(inactive, [])
+    lyricDbMocks.saveLyricDocumentAtomic.mockResolvedValue({
+      ok: true,
+      kind: 'success',
+      document: activated,
+      cues: [],
+    })
+
+    await useLyricsStore.getState().saveActiveLyricDocument([], { makeActive: true })
+
+    expect(lyricDbMocks.saveLyricDocumentAtomic).toHaveBeenCalledWith(
+      expect.objectContaining({ activate: true }),
+    )
   })
 
 })

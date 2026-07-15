@@ -7,7 +7,7 @@ interface Props {
   documents: LyricDocumentVersion[]
   legacyDocuments?: LyricDocumentVersion[]
   loading: boolean
-  activeDocumentId: string | null
+  openDocumentId: string | null
   hasSelectedTrack: boolean
   onSelectDocument: (doc: LyricDocumentVersion) => void
   onNewDocument: () => void
@@ -64,7 +64,7 @@ function matchesFilter(doc: LyricDocumentVersion, filter: DocFilter, search: str
 
 function DocumentCard({
   doc,
-  activeDocumentId,
+  openDocumentId,
   legacy = false,
   renaming,
   onStartRename,
@@ -76,7 +76,7 @@ function DocumentCard({
   onDeleteDocument,
 }: {
   doc: LyricDocumentVersion
-  activeDocumentId: string | null
+  openDocumentId: string | null
   legacy?: boolean
   renaming: boolean
   onStartRename: () => void
@@ -94,7 +94,7 @@ function DocumentCard({
   }, [doc.title, renaming])
 
   return (
-    <div className={`lmv-doc-card${doc.id === activeDocumentId ? ' lmv-doc-card--active' : ''}`}>
+    <div className={`lmv-doc-card${doc.id === openDocumentId ? ' lmv-doc-card--open' : ''}`}>
       {renaming ? (
         <div className="lmv-doc-rename-row">
           <input
@@ -122,6 +122,7 @@ function DocumentCard({
         <span className={`lmv-source-badge lmv-source-badge--${doc.sourceType}`}>
           {SOURCE_LABELS[doc.sourceType] ?? doc.sourceType}
         </span>
+        {doc.id === openDocumentId && <span className="lmv-open-badge">Open</span>}
         {doc.isActive && <span className="lmv-active-badge">Active</span>}
         {legacy && <span className="lmv-legacy-badge">Unattached</span>}
         <span>{doc.cueCount} cues</span>
@@ -146,7 +147,7 @@ export function LyricDocumentSidebar({
   documents,
   legacyDocuments = [],
   loading,
-  activeDocumentId,
+  openDocumentId,
   hasSelectedTrack,
   onSelectDocument,
   onNewDocument,
@@ -168,7 +169,7 @@ export function LyricDocumentSidebar({
       key={doc.id}
       doc={doc}
       legacy={legacy}
-      activeDocumentId={activeDocumentId}
+      openDocumentId={openDocumentId}
       renaming={renamingId === doc.id}
       onStartRename={() => setRenamingId(doc.id)}
       onCancelRename={() => setRenamingId(null)}

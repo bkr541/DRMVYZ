@@ -181,7 +181,10 @@ async function flush(): Promise<void> {
   })
 }
 
-async function renderExtractor(track: LyricManagerTrack | null = selectedTrack()): Promise<void> {
+async function renderExtractor(
+  track: LyricManagerTrack | null = selectedTrack(),
+  activeVersionId: string | null = null,
+): Promise<void> {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -189,6 +192,7 @@ async function renderExtractor(track: LyricManagerTrack | null = selectedTrack()
     root!.render(React.createElement(AiLyricExtractor, {
       selectedTrack: track,
       existingDocumentCount: 0,
+      activeVersionId,
       onOpenCompletedDraft: vi.fn(),
       onActivateCompletedDraft: vi.fn(),
     }))
@@ -201,6 +205,7 @@ async function rerenderExtractor(track: LyricManagerTrack | null): Promise<void>
     root!.render(React.createElement(AiLyricExtractor, {
       selectedTrack: track,
       existingDocumentCount: 0,
+      activeVersionId: null,
       onOpenCompletedDraft: vi.fn(),
       onActivateCompletedDraft: vi.fn(),
     }))
@@ -389,6 +394,31 @@ describe('AI lyric extractor refresh recovery', () => {
     expect(container!.textContent).toContain('Direct mode')
     expect(container!.textContent).toContain('Warning: chunk boundary uncertain')
     expect(container!.textContent).toContain('Recovered AI Draft')
+  })
+
+
+  it('shows first extraction activation truthfully and keeps later results as activatable drafts', async () => {
+    recentRows = [jobRow('completed', 'completed', { lyric_document_id: 'doc-completed' })]
+    mocks.getFullLyricDocument.mockResolvedValueOnce({
+      document: { ...lyricDocument(), isActive: true },
+      cues: [cue()],
+    })
+
+    await renderExtractor()
+
+    expect(container!.textContent).toContain('Active automatically')
+    expect([...container!.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Activate This Version')).toBe(false)
+
+    await act(async () => root?.unmount())
+    root = null
+    container!.remove()
+    container = null
+    mocks.getFullLyricDocument.mockResolvedValueOnce({ document: lyricDocument(), cues: [cue()] })
+    await renderExtractor(selectedTrack(), 'doc-existing-active')
+
+    expect(container!.textContent).toContain('new inactive draft version')
+    expect(container!.textContent).toContain('Inactive draft')
+    expect([...container!.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Activate This Version')).toBe(true)
   })
 
   it('continues polling active jobs and opens the completed draft when the server finishes', async () => {

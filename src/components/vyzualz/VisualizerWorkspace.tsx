@@ -433,7 +433,7 @@ export function VisualizerWorkspace({
   const [shouldShowLyricPreviewToast] = useState(showLyricPreviewToastOnMount)
   useEffect(() => {
     if (!shouldShowLyricPreviewToast) return
-    const { lyricsEnabled: enabled, cues } = useLyricsStore.getState()
+    const { lyricsDisplayEnabled: enabled, runtimeCues: cues } = useLyricsStore.getState()
     if (enabled && cues.length > 0) {
       showSourceToast(`Previewing ${cues.length} lyric cue${cues.length !== 1 ? 's' : ''} in Visualizer`)
     }

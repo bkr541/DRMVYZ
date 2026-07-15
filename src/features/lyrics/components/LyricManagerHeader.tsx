@@ -4,29 +4,29 @@ import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 interface Props {
   isSaving: boolean
   saveStatus: LyricWriteStatus
-  lyricsEnabled: boolean
+  lyricsDisplayEnabled: boolean
   hasDocument: boolean
   draftTitle: string
   selectedTrackName: string | null
   dirty: boolean
   onBack: () => void
-  onToggleLyricsEnabled: () => void
+  onToggleLyricsDisplay: () => void
   onSave: () => void
-  onSaveAndEnable: () => void
+  onSaveAndMakeActive: () => void
 }
 
 export function LyricManagerHeader({
   isSaving,
   saveStatus,
-  lyricsEnabled,
+  lyricsDisplayEnabled,
   hasDocument,
   draftTitle,
   selectedTrackName,
   dirty,
   onBack,
-  onToggleLyricsEnabled,
+  onToggleLyricsDisplay,
   onSave,
-  onSaveAndEnable,
+  onSaveAndMakeActive,
 }: Props) {
   const saveStatusLabel = saveStatus === 'conflict'
     ? 'Conflict'
@@ -58,16 +58,16 @@ export function LyricManagerHeader({
       </div>
 
       <div className="lmv-header-right">
-        <label className="lmv-toggle-row" title="Enable lyrics in visualizer">
-          <span className="lmv-toggle-label">Lyrics</span>
+        <label className="lmv-toggle-row" title="Show or hide active lyrics in the visualizer">
+          <span className="lmv-toggle-label">Show Lyrics</span>
           <div
-            className={`lmv-toggle-track${lyricsEnabled ? ' lmv-toggle-track--on' : ''}`}
-            onClick={onToggleLyricsEnabled}
+            className={`lmv-toggle-track${lyricsDisplayEnabled ? ' lmv-toggle-track--on' : ''}`}
+            onClick={onToggleLyricsDisplay}
             role="switch"
-            aria-checked={lyricsEnabled}
+            aria-checked={lyricsDisplayEnabled}
             tabIndex={0}
             onKeyDown={event => {
-              if (event.key === 'Enter' || event.key === ' ') onToggleLyricsEnabled()
+              if (event.key === 'Enter' || event.key === ' ') onToggleLyricsDisplay()
             }}
           >
             <div className="lmv-toggle-thumb" />
@@ -85,11 +85,11 @@ export function LyricManagerHeader({
 
         <button
           className="lmv-btn lmv-btn--primary"
-          onClick={onSaveAndEnable}
+          onClick={onSaveAndMakeActive}
           disabled={isSaving || (!dirty && !hasDocument)}
-          title="Save and enable lyrics in visualizer"
+          title="Save this version and make it the active runtime version"
         >
-          {isSaving ? 'Saving…' : 'Save + Enable'}
+          {isSaving ? 'Saving…' : 'Save + Make Active'}
         </button>
 
         <VyzualzHeaderActions />

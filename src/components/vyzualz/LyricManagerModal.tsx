@@ -70,8 +70,8 @@ function SliderRow({
 
 export function LyricManagerModal({ onClose }: { onClose: () => void }) {
   const {
-    lyricsEnabled,    setLyricsEnabled,
-    activeDocument,   setActiveDocument,
+    lyricsDisplayEnabled, setLyricsDisplayEnabled,
+    editorDocument,
     cues,             setCues,
     isLoading,        isSaving,
     error,            setError,
@@ -100,7 +100,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (cues.length > 0 && pendingCues === null) {
       setPendingCues(cues.map((cue, index) =>
-        createLyricCueInputFromCue(cue, activeDocument?.id ?? '', index),
+        createLyricCueInputFromCue(cue, editorDocument?.id ?? '', index),
       ))
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -110,7 +110,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
     try {
       const parsed = parseLyricCueJson(jsonInput)
       const inputs: CreateLyricCueInput[] = parsed.map((cue, index) =>
-        createLyricCueInputFromCue(cue, activeDocument?.id ?? '', index),
+        createLyricCueInputFromCue(cue, editorDocument?.id ?? '', index),
       )
       setPendingCues(inputs)
       // Update store preview immediately
@@ -119,7 +119,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
     } catch (err) {
       setImportError(err instanceof LyricParseError ? err.message : 'Parse error — check your JSON')
     }
-  }, [jsonInput, activeDocument?.id, setCues])
+  }, [jsonInput, editorDocument?.id, setCues])
 
   const handleSave = useCallback(async () => {
     setError(null)
@@ -196,10 +196,10 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
                 />
               </Field>
 
-              {activeDocument && (
+              {editorDocument && (
                 <div className="lmm-doc-info">
-                  <strong>Active:</strong> {activeDocument.title || '(Untitled)'}<br/>
-                  <strong>ID:</strong> {activeDocument.id.slice(0, 8)}…<br/>
+                  <strong>Open:</strong> {editorDocument.title || '(Untitled)'}<br/>
+                  <strong>ID:</strong> {editorDocument.id.slice(0, 8)}…<br/>
                   <strong>Cues:</strong> {cues.length}
                   <span style={{ marginLeft: 12 }}>
                     <button className="lmm-link-btn" onClick={() => {
@@ -494,11 +494,11 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
             <label className="lmm-toggle">
               <input
                 type="checkbox"
-                checked={lyricsEnabled}
-                onChange={e => setLyricsEnabled(e.target.checked)}
+                checked={lyricsDisplayEnabled}
+                onChange={e => setLyricsDisplayEnabled(e.target.checked)}
               />
               <span className="lmm-toggle-track"><span className="lmm-toggle-thumb" /></span>
-              <span className="lmm-toggle-label">Lyrics Enabled</span>
+              <span className="lmm-toggle-label">Show Lyrics</span>
             </label>
 
             <button

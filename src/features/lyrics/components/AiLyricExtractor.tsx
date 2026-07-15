@@ -30,6 +30,8 @@ const TIMING_OPTS = [
 interface Props {
   selectedTrack: LyricManagerTrack | null
   existingDocumentCount: number
+  activeVersionId: string | null
+  onCompletedDraftResolved?: (document: LyricDocument) => void | Promise<void>
   onOpenCompletedDraft: (documentId: string) => void | Promise<void>
   onActivateCompletedDraft: (documentId: string) => void | Promise<void>
 }
@@ -126,6 +128,8 @@ export function chooseRecoveredJob(jobs: LyricTranscriptionJob[]): LyricTranscri
 export function AiLyricExtractor({
   selectedTrack,
   existingDocumentCount,
+  activeVersionId,
+  onCompletedDraftResolved,
   onOpenCompletedDraft,
   onActivateCompletedDraft,
 }: Props) {
@@ -208,7 +212,8 @@ export function AiLyricExtractor({
     previewDocumentId.current = nextJob.lyricDocumentId
     setDocument(full.document)
     setCues(full.cues)
-  }, [])
+    void Promise.resolve(onCompletedDraftResolved?.(full.document)).catch(() => undefined)
+  }, [onCompletedDraftResolved])
 
   useEffect(() => {
     let cancelled = false
@@ -617,11 +622,11 @@ export function AiLyricExtractor({
           <span>{existingDocumentCount} lyric version{existingDocumentCount === 1 ? '' : 's'}</span>
         </div>
       </div>
-      {existingDocumentCount > 0 && (
-        <div className="lmv-parse-next-hint">
-          Extraction creates a new inactive draft version. It will not overwrite or automatically replace the active lyrics.
-        </div>
-      )}
+      <div className="lmv-parse-next-hint">
+        {activeVersionId
+          ? 'Extraction creates a new inactive draft version. It will not overwrite or automatically replace the active lyrics.'
+          : 'The first successful extraction will become active automatically. Later extractions remain inactive drafts until you choose to activate them.'}
+      </div>
 
       <div className="lmv-section-label" style={{ marginTop: 16 }}>EXTRACTION SETTINGS</div>
       <div className="lmv-grid2">
@@ -776,6 +781,7 @@ export function AiLyricExtractor({
             <div className="lmv-validation-row"><span className="lmv-val-label">Unreviewed</span><span className="lmv-val-value">{review.unreviewed}</span></div>
             <div className="lmv-validation-row"><span className="lmv-val-label">Low confidence</span><span className="lmv-val-value">{review.lowConfidence}</span></div>
             <div className="lmv-validation-row"><span className="lmv-val-label">Warnings</span><span className="lmv-val-value">{review.withWarnings}</span></div>
+            <div className="lmv-validation-row"><span className="lmv-val-label">Runtime status</span><span className="lmv-val-value">{document.isActive ? 'Active automatically' : 'Inactive draft'}</span></div>
           </div>
 
           {(providerWarnings.length > 0) && (
@@ -797,7 +803,9 @@ export function AiLyricExtractor({
 
           <div className="lmv-import-actions">
             <button className="lmv-btn lmv-btn--primary" onClick={() => { void onOpenCompletedDraft(document.id) }}>Open in Cue Editor</button>
-            <button className="lmv-btn lmv-btn--ghost" onClick={() => { void onActivateCompletedDraft(document.id) }}>Activate This Version</button>
+            {!document.isActive && (
+              <button className="lmv-btn lmv-btn--ghost" onClick={() => { void onActivateCompletedDraft(document.id) }}>Activate This Version</button>
+            )}
           </div>
         </>
       )}

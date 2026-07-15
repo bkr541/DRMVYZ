@@ -375,7 +375,7 @@ describe('LyricManagerView track-first workflow', () => {
 
     expect(mocks.loadTrackPage).toHaveBeenCalledWith('user-1', expect.objectContaining({ offset: 0, limit: 18 }))
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
     expect(mocks.getVersions).toHaveBeenCalledWith(['track-a'])
     expect(mocks.getLyricDocumentById).toHaveBeenCalledWith('doc-a1')
@@ -387,7 +387,9 @@ describe('LyricManagerView track-first workflow', () => {
 
     const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement
     await act(async () => alternate.click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a2'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
+    expect(container.textContent).toContain('Open version: Alternate Lyrics')
+    expect(container.textContent).toContain('Active version: Approved Lyrics')
   })
 
   it('handles a track with no lyrics and saves a new document with the selected audio_tracks ID', async () => {
@@ -415,7 +417,7 @@ describe('LyricManagerView track-first workflow', () => {
   it('duplicates a version as a dirty draft and activates another version transactionally', async () => {
     await render()
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
     await act(async () => buttonWithText('Duplicate', documentCard('Approved Lyrics')).click())
     await waitFor(() => expect(mocks.getFullLyricDocument).toHaveBeenCalledWith('doc-a1'))
@@ -434,14 +436,16 @@ describe('LyricManagerView track-first workflow', () => {
     expect(duplicateInput.activate).toBe(false)
 
     await act(async () => buttonWithText('Make Active', documentCard('Alternate Lyrics')).click())
+    expect(mocks.activateLyricDocument).not.toHaveBeenCalled()
+    await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
     await waitFor(() => expect(mocks.activateLyricDocument).toHaveBeenCalledWith('doc-a2', 1))
-    expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a2')
+    expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2')
   })
 
   it('guards track changes, document changes, and leaving with Save, Discard, and Cancel choices', async () => {
     const onBack = await render()
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
     await act(async () => useLyricsStore.getState().markEditorDirty(true))
     await act(async () => trackCard('From Grace').click())
@@ -454,13 +458,13 @@ describe('LyricManagerView track-first workflow', () => {
     await waitFor(() => expect(trackCard('From Grace').getAttribute('aria-pressed')).toBe('true'))
 
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
     await act(async () => useLyricsStore.getState().markEditorDirty(true))
     const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement
     await act(async () => alternate.click())
     const saveDialog = container.querySelector('.lmv-dialog') as HTMLElement
     await act(async () => buttonWithText('Save', saveDialog).click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a2'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
     expect(mocks.saveLyricDocumentAtomic).toHaveBeenCalled()
 
     await act(async () => useLyricsStore.getState().markEditorDirty(true))
@@ -522,11 +526,11 @@ describe('LyricManagerView track-first workflow', () => {
 
     const newest = documentById.get('doc-a2')!
     secondTrackAResponse.resolve([newest])
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a2'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
     firstTrackAResponse.resolve([documentById.get('doc-a1')!])
     await flush()
 
-    expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a2')
+    expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2')
     expect(container.textContent).toContain('Alternate Lyrics')
     expect(container.textContent).not.toContain('Approved Lyrics')
   })
@@ -563,7 +567,7 @@ describe('LyricManagerView track-first workflow', () => {
 
     await render()
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
     await act(async () => buttonWithText('Load deck').click())
     await waitFor(() => expect(buttonWithText('Loading…')).toBeTruthy())
 
@@ -590,7 +594,7 @@ describe('LyricManagerView track-first workflow', () => {
 
     await render()
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
     await act(async () => buttonWithText('Load deck').click())
     await act(async () => trackCard('From Grace').click())
     await waitFor(() => expect(buttonWithText('Load deck')).toBeTruthy())
@@ -609,7 +613,7 @@ describe('LyricManagerView track-first workflow', () => {
 
     await render()
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
     await act(async () => buttonWithText('Load deck').click())
     await act(async () => root.unmount())
 
@@ -624,7 +628,7 @@ describe('LyricManagerView track-first workflow', () => {
   it('uses truthful timestamp and transport semantics while Snap controls the editor state', async () => {
     await render()
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
     const heroStats = container.querySelector('.lmv-track-hero-stats')?.textContent ?? ''
     expect(heroStats).toContain('Added')
@@ -653,7 +657,7 @@ describe('LyricManagerView track-first workflow', () => {
   it('autosaves dirty lyric edits to the user-scoped recovery repository', async () => {
     await render()
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
     vi.useFakeTimers()
     await act(async () => useLyricsStore.getState().setDraftTitle('Recovered local title'))
@@ -745,7 +749,7 @@ describe('LyricManagerView track-first workflow', () => {
   it('clears recovery only after a successful canonical save and preserves it after failure', async () => {
     await render()
     await act(async () => trackCard('Reverie').click())
-    await waitFor(() => expect(useLyricsStore.getState().activeDocumentId).toBe('doc-a1'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
     vi.useFakeTimers()
     await act(async () => useLyricsStore.getState().setDraftTitle('Recovery before failed save'))
