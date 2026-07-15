@@ -8,6 +8,7 @@ import {
   resolveAppViewNavigation,
 } from './appView'
 import type { AppView, PerformanceAppView } from './appView'
+import type { LyricManagerNavigationIntent } from '../../features/lyrics/lyricNavigation'
 
 const VisualizerWorkspace = lazy(() =>
   import('./VisualizerWorkspace').then(module => ({ default: module.VisualizerWorkspace })),
@@ -77,6 +78,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
       ? initialAppView
       : DEFAULT_PERFORMANCE_VIEW)
   const [pendingAppView, setPendingAppView] = useState<AppView | null>(null)
+  const [lyricNavigationIntent, setLyricNavigationIntent] = useState<LyricManagerNavigationIntent | null>(null)
   // True only immediately after a 'lyrics' → 'visualizer' transition. VyzualzView
   // never unmounts, so it recomputes this fresh on every transition rather than
   // relying on VisualizerWorkspace (which fully unmounts/remounts on navigation)
@@ -104,12 +106,18 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     if (next) commitAppViewChange(next)
   }, [commitAppViewChange])
 
+  const openLyricManager = useCallback((intent: LyricManagerNavigationIntent) => {
+    setLyricNavigationIntent(intent)
+    requestAppViewChange('lyrics')
+  }, [requestAppViewChange])
+
   if (appView === 'visualizer') {
     return (
       <Suspense fallback={<WorkspaceLoading label="Visualizer" standalone />}>
         <VisualizerWorkspace
           onAppViewChange={requestAppViewChange}
           showLyricPreviewToastOnMount={lyricPreviewPending}
+          onOpenLyricManager={openLyricManager}
         />
       </Suspense>
     )
@@ -121,7 +129,10 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <Suspense fallback={<WorkspaceLoading label="React View" />}>
-              <ReactView onOpenMediaManager={() => requestAppViewChange('media')} />
+              <ReactView
+                onOpenMediaManager={() => requestAppViewChange('media')}
+                onOpenLyricManager={openLyricManager}
+              />
             </Suspense>
           </div>
         </main>
@@ -136,6 +147,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
           <MediaManagerView
             returnView={originatingPerformanceView}
             onBack={() => requestAppViewChange(originatingPerformanceView)}
+            onOpenLyricManager={openLyricManager}
           />
         </Suspense>
       </ManagedWorkspaceShell>
@@ -149,6 +161,10 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
           <LyricManagerView
             returnView={originatingPerformanceView}
             onBack={() => requestAppViewChange(originatingPerformanceView)}
+            navigationIntent={lyricNavigationIntent}
+            onNavigationIntentConsumed={(intentId) => {
+              setLyricNavigationIntent(current => current?.id === intentId ? null : current)
+            }}
           />
         </Suspense>
       </ManagedWorkspaceShell>

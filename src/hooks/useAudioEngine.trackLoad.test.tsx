@@ -42,7 +42,48 @@ vi.mock('../features/trackIntelligence/TrackAnalysisCoordinator', async () => {
   }
 })
 
+
+vi.mock('../audio/routing', () => ({
+  buildMonitoringChain: () => {
+    const node = new FakeAudioNode()
+    return { input: node, output: node, cleanup: vi.fn() }
+  },
+}))
+
+vi.mock('meyda', () => ({
+  default: {
+    createMeydaAnalyzer: () => ({ start: vi.fn(), stop: vi.fn() }),
+  },
+}))
+
 import { useAudioEngine, type AudioEngine } from './useAudioEngine'
+
+class FakeAudioNode {
+  gain = { value: 0, setTargetAtTime: vi.fn() }
+  fftSize = 0
+  smoothingTimeConstant = 0
+
+  connect(): this { return this }
+  disconnect(): void {}
+}
+
+class FakeAudioContext {
+  state: AudioContextState = 'running'
+  sampleRate = 48_000
+  currentTime = 0
+  destination = new FakeAudioNode()
+  audioWorklet = { addModule: vi.fn().mockRejectedValue(new Error('worklet unavailable in test')) }
+
+  createGain(): GainNode { return new FakeAudioNode() as unknown as GainNode }
+  createAnalyser(): AnalyserNode { return new FakeAudioNode() as unknown as AnalyserNode }
+  createChannelSplitter(): ChannelSplitterNode { return new FakeAudioNode() as unknown as ChannelSplitterNode }
+  createMediaElementSource(): MediaElementAudioSourceNode {
+    return new FakeAudioNode() as unknown as MediaElementAudioSourceNode
+  }
+  resume(): Promise<void> { this.state = 'running'; return Promise.resolve() }
+}
+
+const fakeAudioInstances: FakeAudio[] = []
 
 class FakeAudio {
   crossOrigin = ''
@@ -51,12 +92,14 @@ class FakeAudio {
   duration = 0
   loop = false
   src = ''
+  readonly playMock = vi.fn(() => Promise.resolve())
 
+  constructor() { fakeAudioInstances.push(this) }
   addEventListener(): void {}
   removeEventListener(): void {}
   load(): void {}
   pause(): void {}
-  play(): Promise<void> { return Promise.resolve() }
+  play(): Promise<void> { return this.playMock() }
 }
 
 describe('useAudioEngine track loading', () => {
@@ -64,15 +107,19 @@ describe('useAudioEngine track loading', () => {
   let host: HTMLDivElement | null = null
   let engine: AudioEngine | null = null
   let originalAudio: typeof Audio
+  let originalAudioContext: typeof AudioContext
   let originalCreateObjectUrl: typeof URL.createObjectURL | undefined
   let originalRevokeObjectUrl: typeof URL.revokeObjectURL | undefined
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     originalAudio = globalThis.Audio
+    originalAudioContext = globalThis.AudioContext
     originalCreateObjectUrl = URL.createObjectURL
     originalRevokeObjectUrl = URL.revokeObjectURL
+    fakeAudioInstances.length = 0
     globalThis.Audio = FakeAudio as unknown as typeof Audio
+    globalThis.AudioContext = FakeAudioContext as unknown as typeof AudioContext
     URL.createObjectURL = vi.fn(() => 'blob:track-load-regression')
     URL.revokeObjectURL = vi.fn()
 
@@ -97,6 +144,7 @@ describe('useAudioEngine track loading', () => {
     host = null
     engine = null
     globalThis.Audio = originalAudio
+    globalThis.AudioContext = originalAudioContext
     if (originalCreateObjectUrl) URL.createObjectURL = originalCreateObjectUrl
     else delete (URL as Partial<typeof URL>).createObjectURL
     if (originalRevokeObjectUrl) URL.revokeObjectURL = originalRevokeObjectUrl
@@ -116,5 +164,26 @@ describe('useAudioEngine track loading', () => {
     expect(engine?.tracks[0]?.name).toBe('test-track.wav')
     expect(engine?.tracks[0]?.analysisRuntime.status).toBe('decoding')
     expect(engine?.currentIndex).toBe(0)
+  })
+
+
+  it('can replace a remote track and play it in the same tick', async () => {
+    act(() => {
+      engine?.replaceTrackUrls([{
+        name: 'reverie.wav',
+        title: 'Reverie',
+        url: 'https://signed.test/reverie.wav',
+        dbId: 'track-a',
+        storagePath: 'user/track-a/reverie.wav',
+      }])
+      engine?.play()
+    })
+
+    await act(async () => { await Promise.resolve() })
+
+    expect(fakeAudioInstances[0]?.src).toBe('https://signed.test/reverie.wav')
+    expect(fakeAudioInstances[0]?.playMock).toHaveBeenCalledOnce()
+    expect(engine?.currentAudioTrackId).toBe('track-a')
+    expect(engine?.isPlaying).toBe(true)
   })
 })

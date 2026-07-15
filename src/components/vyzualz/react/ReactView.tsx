@@ -118,9 +118,10 @@ const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] 
 
 export interface ReactViewProps {
   onOpenMediaManager?: () => void
+  onOpenLyricManager?: (intent: import('../../../features/lyrics/lyricNavigation').LyricManagerNavigationIntent) => void
 }
 
-export function ReactView({ onOpenMediaManager }: ReactViewProps) {
+export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewProps) {
   const audioSourceId = useId()
   const engine   = useSharedAudio()
   const analyser = engine.analyserMaster
@@ -469,6 +470,7 @@ export function ReactView({ onOpenMediaManager }: ReactViewProps) {
                       activeMediaId={activeMediaId}
                       onSelect={handleSelectMedia}
                       onOpenMediaManager={onOpenMediaManager}
+                      onOpenLyricManager={onOpenLyricManager}
                       title="Sound Drawing SVG Media"
                       getDisabledReason={getMediaDisabledReason}
                     />

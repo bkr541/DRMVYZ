@@ -52,21 +52,23 @@ vi.mock('./react/ReactView', () => ({
 }))
 
 vi.mock('../../features/media/MediaManagerView', () => ({
-  MediaManagerView: ({ onBack, returnView }: { onBack: () => void; returnView: PerformanceAppView }) => (
+  MediaManagerView: ({ onBack, returnView, onOpenLyricManager }: { onBack: () => void; returnView: PerformanceAppView; onOpenLyricManager: (intent: { id: string; targetAudioTrackId: string; workflow: 'ai-extract' }) => void }) => (
     <div data-testid="media-manager" data-return-view={returnView}>
       Media Manager
       <button onClick={onBack}>Back</button>
       <button onClick={onBack}>Preview</button>
+      <button onClick={() => onOpenLyricManager({ id: 'intent-1', targetAudioTrackId: 'track-a', workflow: 'ai-extract' })}>Open Track Lyrics</button>
     </div>
   ),
 }))
 
 vi.mock('../../features/lyrics/LyricManagerView', () => ({
-  LyricManagerView: ({ onBack, returnView }: { onBack: () => void; returnView: PerformanceAppView }) => (
-    <div data-testid="lyric-manager" data-return-view={returnView}>
+  LyricManagerView: ({ onBack, returnView, navigationIntent, onNavigationIntentConsumed }: { onBack: () => void; returnView: PerformanceAppView; navigationIntent?: { id: string; targetAudioTrackId: string; workflow: string } | null; onNavigationIntentConsumed?: (id: string) => void }) => (
+    <div data-testid="lyric-manager" data-return-view={returnView} data-target-track={navigationIntent?.targetAudioTrackId ?? ''} data-workflow={navigationIntent?.workflow ?? ''}>
       Lyric Manager
       <button onClick={onBack}>Back</button>
       <button onClick={onBack}>Preview</button>
+      {navigationIntent && <button onClick={() => onNavigationIntentConsumed?.(navigationIntent.id)}>Consume Intent</button>}
     </div>
   ),
 }))
@@ -219,4 +221,18 @@ describe('Vyzualz application-view lifecycle isolation', () => {
     expect(lifecycle.mounts).toBe(2)
     expect(lifecycle.unmounts).toBe(1)
   })
+
+  it('passes a one-time typed lyric navigation intent from Media Manager into Lyric Manager', async () => {
+    await renderView('react')
+    await clickLabel('Media Manager')
+    await clickLabel('Open Track Lyrics')
+
+    const manager = container?.querySelector('[data-testid="lyric-manager"]')
+    expect(manager?.getAttribute('data-target-track')).toBe('track-a')
+    expect(manager?.getAttribute('data-workflow')).toBe('ai-extract')
+
+    await clickLabel('Consume Intent')
+    expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-target-track')).toBe('')
+  })
+
 })

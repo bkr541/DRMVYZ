@@ -40,6 +40,8 @@ const mocks = vi.hoisted(() => {
     updateLyricDocument: vi.fn(),
     getSignedUrl: vi.fn(),
     removeSavedTrackByDbId: vi.fn(),
+    listTrackAnalysisPayloads: vi.fn(),
+    loadTrackById: vi.fn(),
   }
 })
 
@@ -63,12 +65,17 @@ vi.mock('../../lib/lyricsDb', () => ({
 
 vi.mock('./services/lyricManagerData', () => ({
   loadLyricManagerTrackPage: mocks.loadTrackPage,
+  loadLyricManagerTrackById: mocks.loadTrackById,
   getLyricDocumentVersionsForTracks: mocks.getVersions,
   getLegacyLyricDocumentVersions: mocks.getLegacyVersions,
 }))
 
 vi.mock('../../context/AudioEngineContext', () => ({
   useSharedAudio: () => mocks.engine,
+}))
+
+vi.mock('../../lib/audioDb', () => ({
+  listTrackAnalysisPayloads: mocks.listTrackAnalysisPayloads,
 }))
 
 vi.mock('../../stores/audioStore', () => {
@@ -92,6 +99,7 @@ vi.mock('../../components/vyzualz/MediaUploadModal', () => ({
 
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { LyricManagerView } from './LyricManagerView'
+import { clearSavedTrackSignedUrlCache } from '../../audio/savedTrackLoader'
 import {
   createLyricRecoveryRecord,
   createMemoryLyricRecoveryRepository,
@@ -199,6 +207,8 @@ function indexDocuments() {
 beforeEach(() => {
   vi.useRealTimers()
   vi.clearAllMocks()
+  clearSavedTrackSignedUrlCache()
+  mocks.listTrackAnalysisPayloads.mockResolvedValue({ rows: [], error: null })
   mocks.engine.duration = 0
   mocks.engine.currentTime = 0
   mocks.engine.currentAudioTrackId = null
@@ -228,6 +238,7 @@ beforeEach(() => {
   mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
   mocks.removeSavedTrackByDbId.mockResolvedValue(true)
   mocks.loadTrackPage.mockResolvedValue({ tracks: [trackA, trackB], total: 2 })
+  mocks.loadTrackById.mockImplementation(async (_userId: string, id: string) => [trackA, trackB].find(item => item.dbId === id) ?? null)
   mocks.getLegacyVersions.mockResolvedValue([])
   mocks.getLyricDocumentByClientLogicalId.mockResolvedValue(null)
   mocks.getVersions.mockImplementation(async (ids: string[]) =>
@@ -781,6 +792,29 @@ describe('LyricManagerView track-first workflow', () => {
       await act(async () => { await Promise.resolve() })
     }
     expect(await recoveryRepository.listByUser('user-1')).toEqual([])
+  })
+
+
+  it('consumes an AI-extract navigation intent by selecting the saved track and opening its workflow', async () => {
+    const onNavigationIntentConsumed = vi.fn()
+    await act(async () => root.render(
+      <LyricManagerView
+        onBack={vi.fn()}
+        navigationIntent={{
+          id: 'intent-ai-track-a',
+          targetAudioTrackId: 'track-a',
+          workflow: 'ai-extract',
+        }}
+        onNavigationIntentConsumed={onNavigationIntentConsumed}
+      />,
+    ))
+
+    await waitFor(() => expect(trackCard('Reverie').getAttribute('aria-pressed')).toBe('true'))
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    const aiTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find(button => button.textContent?.includes('AI Extract'))
+    expect(aiTab?.getAttribute('aria-selected')).toBe('true')
+    expect(onNavigationIntentConsumed).toHaveBeenCalledWith('intent-ai-track-a')
   })
 
 })

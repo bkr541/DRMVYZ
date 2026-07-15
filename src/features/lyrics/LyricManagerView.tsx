@@ -9,7 +9,7 @@ import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import type { LyricCue, LyricDocument, LyricSectionType } from '../../types/lyrics'
-import { DEFAULT_TRACK_ANALYSIS_RUNTIME } from '../../types'
+import type { Track } from '../../types'
 import type { TrackIntelligenceAnalysis, BeatMarkerMI } from '../musicIntelligence/types'
 import type { LyricBeatGridStatus } from './editor/LyricCueEditor'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
@@ -20,6 +20,7 @@ import type {
 import {
   getLegacyLyricDocumentVersions,
   getLyricDocumentVersionsForTracks,
+  loadLyricManagerTrackById,
   loadLyricManagerTrackPage,
 } from './services/lyricManagerData'
 import { LyricManagerHeader } from './components/LyricManagerHeader'
@@ -37,8 +38,11 @@ import { LyricSignalPathStatus } from './components/LyricSignalPathStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
-import type { RuntimeTrackUrlInput } from '../../audio/runtimeTrack'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
+import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
+import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
+import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
+import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
 import type { LyricSnapMode } from './editor/lyricCueEditorModel'
 import {
   cleanupObsoleteLyricRecoveries,
@@ -56,6 +60,8 @@ type WorkflowTab = 'manual' | 'json' | 'ai'
 interface Props {
   onBack: () => void
   returnView?: PerformanceAppView
+  navigationIntent?: LyricManagerNavigationIntent | null
+  onNavigationIntentConsumed?: (intentId: string) => void
 }
 
 const PAGE_SIZE = 18
@@ -223,8 +229,9 @@ function SelectedTrackHero({
         <div className="lmv-track-title-row">
           <h2>{track.title || track.fileName}</h2>
           <span className="lmv-favorite-star" aria-hidden="true">☆</span>
+          <span className="lmv-selected-badge">Selected</span>
+          {selectedTrackLoaded && <span className="lmv-loaded-badge">Loaded</span>}
           {selectedTrackPlaying && <span className="lmv-playing-badge">Playing</span>}
-          {!selectedTrackPlaying && selectedTrackLoaded && <span className="lmv-loaded-badge">Loaded</span>}
         </div>
         <p>{track.artist || 'Unknown artist'}</p>
         <div className="lmv-version-status-row">
@@ -384,7 +391,12 @@ function LyricTransportBar({
   )
 }
 
-export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
+export function LyricManagerView({
+  onBack,
+  returnView = 'visualizer',
+  navigationIntent = null,
+  onNavigationIntentConsumed,
+}: Props) {
   const {
     lyricsDisplayEnabled,
     setLyricsDisplayEnabled,
@@ -447,6 +459,8 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
 
   const [currentAudioTimeMs, setCurrentAudioTimeMs] = useState<number | null>(null)
   const [tracks, setTracks] = useState<LyricManagerTrack[]>([])
+  const tracksRef = useRef<LyricManagerTrack[]>([])
+  tracksRef.current = tracks
   const [trackTotal, setTrackTotal] = useState(0)
   const [trackSearch, setTrackSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -467,6 +481,12 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const [recoveryBusy, setRecoveryBusy] = useState(false)
   const [snapMode, setSnapMode] = useState<LyricSnapMode>('none')
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [linkRuntimeTrack, setLinkRuntimeTrack] = useState<Track | null>(null)
+  const [linkCandidates, setLinkCandidates] = useState<SavedTrackLinkCandidate[]>([])
+  const [linkSelectedTrackId, setLinkSelectedTrackId] = useState<string | null>(null)
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkConfirming, setLinkConfirming] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
   const [audioPreviewStates, setAudioPreviewStates] = useState<Record<string, {
     status: 'idle' | 'loading' | 'ready' | 'error'
     error: string | null
@@ -494,6 +514,7 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
   const accountIdRef = useRef<string | null>(null)
   const selectedTrackIdRef = useRef<string | null>(null)
   const selectedDocumentIntentRef = useRef(0)
+  const handledNavigationIntentRef = useRef<string | null>(null)
   const trackListGenerationRef = useRef(0)
   const documentListGenerationRef = useRef(new Map<string, number>())
   const canonicalReconcileSequenceRef = useRef(0)
@@ -1041,28 +1062,71 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     }
   }, [queueRecoveryMutation, setError])
 
+  const openTrackWorkflow = useCallback((
+    track: LyricManagerTrack,
+    workflow: LyricManagerWorkflow,
+  ) => {
+    requestTransition(
+      `Save changes before opening “${track.title}”?`,
+      async () => {
+        markEditorDirty(false)
+        selectTrackState(track)
+        prepareTrackDraft(track, false)
+        const workflowIntent = selectedDocumentIntentRef.current
+        const nextDocuments = await refreshDocuments(track, false)
+        if (selectedTrackIdRef.current !== track.dbId
+          || selectedDocumentIntentRef.current !== workflowIntent) return
+
+        if (workflow === 'active-lyrics') {
+          const active = nextDocuments.find(document => document.isActive) ?? null
+          if (active) {
+            selectedDocumentIntentRef.current += 1
+            await loadLyricDocument(active.id)
+            setActiveTab('manual')
+          } else {
+            prepareTrackDraft(track, false)
+            setActiveTab('manual')
+            showStatus('This saved track has no active lyric version.')
+          }
+          return
+        }
+
+        if (workflow === 'ai-extract') {
+          const preferred = nextDocuments.find(document => document.isActive) ?? nextDocuments[0] ?? null
+          if (preferred) {
+            selectedDocumentIntentRef.current += 1
+            await loadLyricDocument(preferred.id)
+          }
+          setActiveTab('ai')
+          return
+        }
+
+        const preferred = nextDocuments.find(document => document.isActive) ?? nextDocuments[0] ?? null
+        if (preferred) {
+          selectedDocumentIntentRef.current += 1
+          await loadLyricDocument(preferred.id)
+        } else {
+          prepareTrackDraft(track, false)
+        }
+        setActiveTab('manual')
+      },
+    )
+  }, [
+    loadLyricDocument,
+    markEditorDirty,
+    prepareTrackDraft,
+    refreshDocuments,
+    requestTransition,
+    selectTrackState,
+    showStatus,
+  ])
+
   const handleSelectTrack = useCallback(
     (track: LyricManagerTrack) => {
       if (selectedTrack?.dbId === track.dbId) return
-      requestTransition(
-        `Save changes before selecting “${track.title}”?`,
-        async () => {
-          markEditorDirty(false)
-          selectTrackState(track)
-          prepareTrackDraft(track, false)
-          setActiveTab('manual')
-          await refreshDocuments(track, true)
-        },
-      )
+      openTrackWorkflow(track, 'timeline')
     },
-    [
-      markEditorDirty,
-      prepareTrackDraft,
-      refreshDocuments,
-      requestTransition,
-      selectedTrack?.dbId,
-      selectTrackState,
-    ],
+    [openTrackWorkflow, selectedTrack?.dbId],
   )
 
   const handleSelectDocument = useCallback(
@@ -1442,14 +1506,15 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     ],
   )
 
-  const handleLoadSelectedTrack = useCallback(async () => {
-    const requestedTrack = selectedTrack
-    if (!requestedTrack?.storagePath) return
+  const handleLoadTrack = useCallback(async (
+    requestedTrack: LyricManagerTrack,
+    autoplay = false,
+  ) => {
     const { data } = await supabase.auth.getUser()
     const requestedAccountId = data.user?.id ?? null
     if (!requestedAccountId || accountIdRef.current !== requestedAccountId) {
-      setError('Sign in to load the selected track preview.')
-      return
+      setError('Sign in to load this saved track.')
+      return false
     }
 
     const generation = audioRequestRef.current.generation + 1
@@ -1464,68 +1529,42 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     }))
 
     try {
-      const url = await getSignedUrl(requestedTrack.storagePath)
-      const { data: currentAuth } = await supabase.auth.getUser()
-      const stillOwned = mountedRef.current
+      const stillOwned = () => mountedRef.current
         && audioRequestRef.current.generation === generation
         && audioRequestRef.current.trackId === requestedTrack.dbId
         && audioRequestRef.current.accountId === requestedAccountId
-        && selectedTrackIdRef.current === requestedTrack.dbId
         && accountIdRef.current === requestedAccountId
+      await loadSavedTrackIntoEngine(
+        engineRef.current,
+        requestedTrack,
+        { getSignedUrl },
+        { autoplay, shouldCommit: stillOwned },
+      )
+      const { data: currentAuth } = await supabase.auth.getUser()
+      const currentRequestStillOwned = stillOwned()
         && currentAuth.user?.id === requestedAccountId
-      if (!stillOwned) return
-      if (!url) throw new Error('Unable to create a signed preview URL for this track.')
-
-      const hydratedAnalysisRuntime = requestedTrack.analysisPayload
-        ? {
-            ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
-            status:          'complete' as const,
-            analysis:        requestedTrack.analysisPayload,
-            analysisVersion: requestedTrack.analysisPayload.analysisVersion,
-            error:           null,
-          }
-        : null
-      const trackEntry: RuntimeTrackUrlInput = {
-        name: requestedTrack.fileName || requestedTrack.title,
-        title: requestedTrack.title,
-        artist: requestedTrack.artist,
-        url,
-        dbId: requestedTrack.dbId,
-        storagePath: requestedTrack.storagePath,
-        duration: requestedTrack.durationSec,
-        persistedMetadata: {
-          bpm: requestedTrack.bpm,
-          musicalKey: requestedTrack.musicalKey,
-          genre: requestedTrack.genre,
-          sampleRate: requestedTrack.sampleRate,
-          channels: requestedTrack.channels,
-        },
-        ...(hydratedAnalysisRuntime ? { analysisRuntime: hydratedAnalysisRuntime } : {}),
-      }
-      if (engine.tracks.length > 0) engine.replaceTrackUrls([trackEntry])
-      else engine.addTrackUrls([trackEntry])
-      if (engine.source !== 'file') engine.setSource('file')
+      if (!currentRequestStillOwned) return false
       setAudioPreviewStates(current => ({
         ...current,
         [requestedTrack.dbId]: { status: 'ready', error: null },
       }))
-      showStatus('Track loaded to the audio deck without starting playback')
+      showStatus(autoplay ? 'Track loaded and playback started' : 'Track loaded without starting playback')
+      return true
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load track preview.'
+      if (loadError instanceof SavedTrackLoadCancelledError) return false
+      const message = loadError instanceof Error ? loadError.message : 'Failed to load saved track.'
       const stillOwned = mountedRef.current
         && audioRequestRef.current.generation === generation
-        && selectedTrackIdRef.current === requestedTrack.dbId
         && accountIdRef.current === requestedAccountId
-      if (!stillOwned) return
+      if (!stillOwned) return false
       setAudioPreviewStates(current => ({
         ...current,
         [requestedTrack.dbId]: { status: 'error', error: message },
       }))
       setError(message)
+      return false
     } finally {
-      if (mountedRef.current
-        && audioRequestRef.current.generation === generation
-        && selectedTrackIdRef.current === requestedTrack.dbId) {
+      if (mountedRef.current && audioRequestRef.current.generation === generation) {
         setAudioPreviewStates(current => {
           const state = current[requestedTrack.dbId]
           if (!state || state.status !== 'loading') return current
@@ -1533,7 +1572,12 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         })
       }
     }
-  }, [engine, getSignedUrl, selectedTrack, setError, showStatus])
+  }, [getSignedUrl, setError, showStatus])
+
+  const handleLoadSelectedTrack = useCallback(async () => {
+    if (!selectedTrack) return false
+    return handleLoadTrack(selectedTrack, false)
+  }, [handleLoadTrack, selectedTrack])
 
   const handleTogglePlayback = useCallback(() => {
     if (!selectedTrack || engine.currentAudioTrackId !== selectedTrack.dbId) {
@@ -1543,6 +1587,101 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
     if (engine.isPlaying) engine.pause()
     else engine.play()
   }, [engine, selectedTrack, showStatus])
+
+  const handleOpenActiveLyrics = useCallback((track: LyricManagerTrack) => {
+    openTrackWorkflow(track, 'active-lyrics')
+  }, [openTrackWorkflow])
+
+  const handleOpenAiExtract = useCallback((track: LyricManagerTrack) => {
+    openTrackWorkflow(track, 'ai-extract')
+  }, [openTrackWorkflow])
+
+  const handleMakeOpenVersionActive = useCallback((track: LyricManagerTrack) => {
+    if (selectedTrackIdRef.current !== track.dbId || !editorDocumentId) return
+    const openVersion = documents.find(document => document.id === editorDocumentId) ?? null
+    if (!openVersion || openVersion.isActive) return
+    handleActivateDocument(openVersion)
+  }, [documents, editorDocumentId, handleActivateDocument])
+
+  const handleOpenLinkSavedTrack = useCallback(async () => {
+    const runtimeTrack = engineRef.current.currentTrack
+    if (!runtimeTrack || runtimeTrack.dbId) return
+    setLinkRuntimeTrack(runtimeTrack)
+    setLinkCandidates([])
+    setLinkSelectedTrackId(null)
+    setLinkError(null)
+    setLinkLoading(true)
+    try {
+      const { data } = await supabase.auth.getUser()
+      const accountId = data.user?.id ?? null
+      if (!accountId || accountIdRef.current !== accountId) throw new Error('Sign in to search saved User Media tracks.')
+      const candidates = await findSavedTrackLinkCandidates(accountId, runtimeTrack)
+      if (!mountedRef.current || engineRef.current.currentTrack?.id !== runtimeTrack.id) return
+      setLinkCandidates(candidates)
+      setLinkSelectedTrackId(candidates.length === 1 ? candidates[0].track.dbId : null)
+    } catch (linkSearchError) {
+      if (mountedRef.current) {
+        setLinkError(linkSearchError instanceof Error ? linkSearchError.message : 'Saved track candidates could not be loaded.')
+      }
+    } finally {
+      if (mountedRef.current) setLinkLoading(false)
+    }
+  }, [])
+
+  const handleConfirmLinkSavedTrack = useCallback(async () => {
+    if (!linkRuntimeTrack || !linkSelectedTrackId) return
+    setLinkConfirming(true)
+    setLinkError(null)
+    try {
+      const { data } = await supabase.auth.getUser()
+      const accountId = data.user?.id ?? null
+      if (!accountId || accountIdRef.current !== accountId) throw new Error('Sign in to link this track.')
+      const freshTrack = await loadLyricManagerTrackById(accountId, linkSelectedTrackId)
+      if (!freshTrack) throw new Error('That saved track was deleted or is no longer accessible.')
+      await loadSavedTrackIntoEngine(engineRef.current, freshTrack, { getSignedUrl })
+      if (!mountedRef.current) return
+      setTracks(current => mergeTracks(current, [freshTrack]))
+      setLinkRuntimeTrack(null)
+      setLinkCandidates([])
+      setLinkSelectedTrackId(null)
+      showStatus('Saved track confirmed and reloaded with its canonical identity.')
+      openTrackWorkflow(freshTrack, freshTrack.activeLyricDocumentId ? 'active-lyrics' : 'timeline')
+    } catch (linkError) {
+      if (mountedRef.current) {
+        setLinkError(linkError instanceof Error ? linkError.message : 'The saved track could not be linked.')
+      }
+    } finally {
+      if (mountedRef.current) setLinkConfirming(false)
+    }
+  }, [getSignedUrl, linkRuntimeTrack, linkSelectedTrackId, openTrackWorkflow, showStatus])
+
+  useEffect(() => {
+    if (!navigationIntent || handledNavigationIntentRef.current === navigationIntent.id) return
+    handledNavigationIntentRef.current = navigationIntent.id
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getUser()
+        const accountId = data.user?.id ?? null
+        if (!accountId) throw new Error('Sign in to open this saved track in Lyric Manager.')
+        const existing = tracksRef.current.find(track => track.dbId === navigationIntent.targetAudioTrackId) ?? null
+        const target = existing ?? await loadLyricManagerTrackById(accountId, navigationIntent.targetAudioTrackId)
+        if (cancelled || !mountedRef.current) return
+        if (!target) throw new Error('That saved track is no longer available.')
+        if (!existing) setTracks(current => mergeTracks(current, [target]))
+        openTrackWorkflow(target, navigationIntent.workflow)
+      } catch (navigationError) {
+        if (!cancelled && mountedRef.current) {
+          setError(navigationError instanceof Error ? navigationError.message : 'Lyric Manager navigation failed.')
+        }
+      } finally {
+        if (!cancelled) onNavigationIntentConsumed?.(navigationIntent.id)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [navigationIntent, onNavigationIntentConsumed, openTrackWorkflow, setError])
 
   const handlePreviewInPerformanceView = useCallback(() => {
     const timedCues = storeCues.filter((cue) => cue.endMs > cue.startMs)
@@ -1785,6 +1924,15 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
             hasMore={hasMore}
             onSearchChange={setTrackSearch}
             onSelectTrack={handleSelectTrack}
+            onLoadTrack={(track, autoplay) => { void handleLoadTrack(track, autoplay) }}
+            onOpenActiveLyrics={handleOpenActiveLyrics}
+            onOpenAiExtract={handleOpenAiExtract}
+            onMakeOpenVersionActive={handleMakeOpenVersionActive}
+            canMakeOpenVersionActive={(track) => (
+              selectedTrack?.dbId === track.dbId
+              && !!editorDocumentId
+              && documents.some(document => document.id === editorDocumentId && !document.isActive)
+            )}
             onDeleteTrack={handleRequestDeleteTrack}
             onLoadMore={() => {
               void loadTracks(false)
@@ -1824,6 +1972,18 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
             }}
             onTogglePlayback={handleTogglePlayback}
           />
+
+          {engine.currentTrack && !engine.currentAudioTrackId && (
+            <section className="lmv-local-track-link" aria-label="Local track identity">
+              <div>
+                <strong>Local deck file has no saved track identity</strong>
+                <span>Link it explicitly to a saved User Media track so runtime lyrics can resolve safely.</span>
+              </div>
+              <button type="button" className="lmv-btn lmv-btn--ghost" onClick={() => { void handleOpenLinkSavedTrack() }}>
+                Link to Saved Track
+              </button>
+            </section>
+          )}
 
           <LyricSignalPathStatus
             selectedTrack={selectedTrack}
@@ -2038,6 +2198,24 @@ export function LyricManagerView({ onBack, returnView = 'visualizer' }: Props) {
         onCancel={() => setTrackDeleteTarget(null)}
         onConfirm={() => {
           void handleConfirmDeleteTrack()
+        }}
+      />
+
+      <LinkSavedTrackDialog
+        runtimeTrack={linkRuntimeTrack}
+        candidates={linkCandidates}
+        selectedTrackId={linkSelectedTrackId}
+        loading={linkLoading}
+        confirming={linkConfirming}
+        error={linkError}
+        onSelect={setLinkSelectedTrackId}
+        onConfirm={() => { void handleConfirmLinkSavedTrack() }}
+        onCancel={() => {
+          if (linkConfirming) return
+          setLinkRuntimeTrack(null)
+          setLinkCandidates([])
+          setLinkSelectedTrackId(null)
+          setLinkError(null)
         }}
       />
 

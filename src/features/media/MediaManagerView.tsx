@@ -4,13 +4,15 @@ import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import { APP_VIEW_LABELS } from '../../components/vyzualz/appView'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
+import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
 
 interface MediaManagerViewProps {
   onBack: () => void
   returnView: PerformanceAppView
+  onOpenLyricManager: (intent: LyricManagerNavigationIntent) => void
 }
 
-export function MediaManagerView({ onBack, returnView }: MediaManagerViewProps) {
+export function MediaManagerView({ onBack, returnView, onOpenLyricManager }: MediaManagerViewProps) {
   const mediaCount = useMediaStore(state => state.items.length)
   const collectionCount = useMediaStore(state => state.collections.length)
   const trackCount = useAudioStore(state => state.savedTracks.length)
@@ -57,6 +59,7 @@ export function MediaManagerView({ onBack, returnView }: MediaManagerViewProps) 
           context="manager"
           title="Media Library"
           capabilities={MEDIA_MANAGER_CAPABILITIES}
+          onOpenLyricManager={onOpenLyricManager}
         />
       </section>
     </main>

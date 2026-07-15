@@ -57,7 +57,7 @@ export async function listAudioTracksPage(
     .range(offset, offset + limit - 1)
 
   if (search) {
-    query = query.or(`title.ilike.%${search}%,artist.ilike.%${search}%`)
+    query = query.or(`title.ilike.%${search}%,artist.ilike.%${search}%,file_name.ilike.%${search}%`)
   }
 
   const { data, count, error } = await query

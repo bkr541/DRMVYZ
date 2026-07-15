@@ -108,6 +108,41 @@ export async function getLegacyLyricDocumentVersions(userId: string): Promise<Ly
   return ((data as LyricDocumentSummaryRow[] | null) ?? []).map(mapLyricDocumentVersion)
 }
 
+
+export async function loadLyricManagerTrackById(
+  userId: string,
+  audioTrackId: string,
+): Promise<LyricManagerTrack | null> {
+  const { data, error } = await db
+    .from('audio_tracks')
+    .select('*')
+    .eq('id', audioTrackId)
+    .eq('user_id', userId)
+    .eq('lifecycle_status', 'complete')
+    .maybeSingle()
+
+  if (error) throw new Error(`Failed to fetch saved track: ${error.message}`)
+  if (!data) return null
+
+  const track = mapAudioTrackForLyricManager(data as AudioTrack)
+  const [versions, analysesResult] = await Promise.all([
+    getLyricDocumentVersionsForTracks([audioTrackId]),
+    listTrackAnalysisPayloads([audioTrackId]),
+  ])
+  const active = versions.find(version => version.isActive) ?? null
+  const analysis = analysesResult.error
+    ? null
+    : normalizeTrackAnalysisPayload(analysesResult.rows[0]?.analysis_payload)
+
+  return {
+    ...track,
+    lyricVersionCount: versions.length,
+    activeLyricDocumentId: active?.id ?? null,
+    activeLyricDocumentName: active?.title ?? null,
+    analysisPayload: analysis,
+  }
+}
+
 export async function loadLyricManagerTrackPage(
   userId: string,
   options: { offset?: number; limit?: number; search?: string } = {},

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
+import { ContextActionMenu } from '../../../components/vyzualz/context-menu/ContextActionMenu'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 
 interface Props {
@@ -12,10 +14,21 @@ interface Props {
   hasMore: boolean
   onSearchChange: (value: string) => void
   onSelectTrack: (track: LyricManagerTrack) => void
+  onLoadTrack: (track: LyricManagerTrack, autoplay: boolean) => void
+  onOpenActiveLyrics: (track: LyricManagerTrack) => void
+  onOpenAiExtract: (track: LyricManagerTrack) => void
+  onMakeOpenVersionActive: (track: LyricManagerTrack) => void
+  canMakeOpenVersionActive: (track: LyricManagerTrack) => boolean
   onDeleteTrack: (track: LyricManagerTrack) => void
   onLoadMore: () => void
   onUpload: () => void
   onRetry: () => void
+}
+
+interface TrackMenuState {
+  track: LyricManagerTrack
+  x: number
+  y: number
 }
 
 function formatDuration(seconds: number | null): string {
@@ -52,17 +65,28 @@ export function LyricTrackBrowser({
   hasMore,
   onSearchChange,
   onSelectTrack,
+  onLoadTrack,
+  onOpenActiveLyrics,
+  onOpenAiExtract,
+  onMakeOpenVersionActive,
+  canMakeOpenVersionActive,
   onDeleteTrack,
   onLoadMore,
   onUpload,
   onRetry,
 }: Props) {
+  const [menu, setMenu] = useState<TrackMenuState | null>(null)
+
+  const openMenu = (track: LyricManagerTrack, x: number, y: number) => {
+    setMenu({ track, x, y })
+  }
+
   return (
     <section className="lmv-track-browser" aria-label="Stored audio tracks">
       <div className="lmv-track-browser-head">
         <div>
           <div className="lmv-track-browser-title">TRACK LIBRARY</div>
-          <div className="lmv-track-browser-subtitle">Select or upload a track.</div>
+          <div className="lmv-track-browser-subtitle">Select, double-click to load, or right-click for actions.</div>
         </div>
         <div className="lmv-track-browser-actions">
           <button className="lmv-icon-btn" onClick={onUpload} aria-label="Upload track" title="Upload track"><span className="lmv-sr-label">Upload Track</span>⇧</button>
@@ -107,13 +131,29 @@ export function LyricTrackBrowser({
                 type="button"
                 className={`lmv-track-card${selected ? ' lmv-track-card--selected' : ''}`}
                 onClick={() => onSelectTrack(track)}
+                onDoubleClick={() => onLoadTrack(track, false)}
+                onContextMenu={event => {
+                  event.preventDefault()
+                  openMenu(track, event.clientX, event.clientY)
+                }}
+                onKeyDown={event => {
+                  if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+                  event.preventDefault()
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  openMenu(track, rect.left + 24, rect.top + 24)
+                }}
                 aria-pressed={selected}
+                aria-haspopup="menu"
               >
                 <span className="lmv-track-card-art" aria-hidden="true">{trackInitials(track)}</span>
                 <span className="lmv-track-card-main">
                   <span className="lmv-track-card-topline">
                     <span className="lmv-track-title">{track.title || track.fileName}</span>
-                    {playing ? <span className="lmv-playing-badge">Playing</span> : loaded ? <span className="lmv-loaded-badge">Loaded</span> : null}
+                    <span className="lmv-track-state-badges">
+                      {selected && <span className="lmv-selected-badge">Selected</span>}
+                      {loaded && <span className="lmv-loaded-badge">Loaded</span>}
+                      {playing && <span className="lmv-playing-badge">Playing</span>}
+                    </span>
                   </span>
                   <span className="lmv-track-artist">{track.artist || 'Unknown artist'}</span>
                   <span className="lmv-track-meta">
@@ -151,6 +191,41 @@ export function LyricTrackBrowser({
       {loading && <div className="lmv-track-state">Loading tracks…</div>}
       {!loading && hasMore && (
         <button className="lmv-btn lmv-btn--ghost lmv-load-more" onClick={onLoadMore}>Load More</button>
+      )}
+
+      {menu && (
+        <ContextActionMenu
+          x={menu.x}
+          y={menu.y}
+          ariaLabel={`Actions for ${menu.track.title || menu.track.fileName}`}
+          header={{
+            title: menu.track.title || menu.track.fileName,
+            subtitle: menu.track.artist || 'Unknown artist',
+          }}
+          onClose={() => setMenu(null)}
+          items={[
+            { id: 'load', label: 'Load Track', onSelect: () => onLoadTrack(menu.track, false) },
+            { id: 'load-play', label: 'Load and Play', onSelect: () => onLoadTrack(menu.track, true) },
+            {
+              id: 'open-active',
+              label: 'Open Active Lyrics',
+              onSelect: () => onOpenActiveLyrics(menu.track),
+            },
+            { id: 'extract', label: 'AI Extract Lyrics', onSelect: () => onOpenAiExtract(menu.track) },
+            ...(canMakeOpenVersionActive(menu.track) ? [{
+              id: 'make-active',
+              label: 'Make Active Version',
+              onSelect: () => onMakeOpenVersionActive(menu.track),
+            }] : []),
+            {
+              id: 'delete',
+              label: 'Delete Track',
+              dividerBefore: true,
+              danger: true,
+              onSelect: () => onDeleteTrack(menu.track),
+            },
+          ]}
+        />
       )}
     </section>
   )

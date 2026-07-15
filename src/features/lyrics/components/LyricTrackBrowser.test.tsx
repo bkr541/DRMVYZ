@@ -46,6 +46,11 @@ const baseProps = {
   hasMore: false,
   onSearchChange: vi.fn(),
   onSelectTrack: vi.fn(),
+  onLoadTrack: vi.fn(),
+  onOpenActiveLyrics: vi.fn(),
+  onOpenAiExtract: vi.fn(),
+  onMakeOpenVersionActive: vi.fn(),
+  canMakeOpenVersionActive: vi.fn(() => false),
   onDeleteTrack: vi.fn(),
   onLoadMore: vi.fn(),
   onUpload: vi.fn(),
@@ -85,6 +90,7 @@ describe('LyricTrackBrowser', () => {
     const card = container.querySelector('.lmv-track-card') as HTMLButtonElement
     await act(async () => card.click())
     expect(onSelectTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+    expect(baseProps.onLoadTrack).not.toHaveBeenCalled()
   })
 
   it('forwards title-or-artist search and incremental loading actions', async () => {
@@ -131,4 +137,57 @@ describe('LyricTrackBrowser', () => {
     await act(async () => ([...container.querySelectorAll('button')].find(button => button.textContent === 'Retry') as HTMLButtonElement).click())
     expect(onRetry).toHaveBeenCalledOnce()
   })
+
+  it('double-click loads the saved track without automatically playing', async () => {
+    const onLoadTrack = vi.fn()
+    const onSelectTrack = vi.fn()
+    await render({ onLoadTrack, onSelectTrack })
+
+    const card = container.querySelector('.lmv-track-card') as HTMLButtonElement
+    await act(async () => card.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
+
+    expect(onLoadTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }), false)
+  })
+
+  it('offers load, load-and-play, active lyric, and AI actions from the accessible context menu', async () => {
+    const onLoadTrack = vi.fn()
+    const onOpenActiveLyrics = vi.fn()
+    const onOpenAiExtract = vi.fn()
+    await render({ onLoadTrack, onOpenActiveLyrics, onOpenAiExtract })
+
+    const card = container.querySelector('.lmv-track-card') as HTMLButtonElement
+    await act(async () => card.dispatchEvent(new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 40,
+      clientY: 60,
+    })))
+    expect(document.querySelector('[role="menu"]')).not.toBeNull()
+    expect((document.activeElement as HTMLElement)?.textContent).toBe('Load Track')
+
+    const menuButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+      .find(button => button.textContent === label)!
+    await act(async () => menuButton('Load and Play').click())
+    expect(onLoadTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }), true)
+
+    await act(async () => card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+    await act(async () => menuButton('Open Active Lyrics').click())
+    expect(onOpenActiveLyrics).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+
+    await act(async () => card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+    await act(async () => menuButton('AI Extract Lyrics').click())
+    expect(onOpenAiExtract).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+  })
+
+  it('renders selected, loaded, and playing as independent simultaneous states', async () => {
+    await render({
+      selectedTrackId: 'track-a',
+      loadedAudioTrackId: 'track-a',
+      playingAudioTrackId: 'track-a',
+    })
+
+    const badges = [...container.querySelectorAll('.lmv-track-state-badges span')].map(node => node.textContent)
+    expect(badges).toEqual(['Selected', 'Loaded', 'Playing'])
+  })
+
 })

@@ -29,6 +29,10 @@ import { CollectionEditorModal } from './CollectionEditorModal'
 import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import type { MediaLibraryCapability, MediaLibraryContext } from './mediaLibraryCapabilities'
+import { loadSavedTrackIntoEngine } from '../../../audio/savedTrackLoader'
+import { ContextActionMenu } from '../context-menu/ContextActionMenu'
+import { createLyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
+import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 
 type MediaLibraryFilter = 'all' | 'tracks' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode = 'grid' | 'list'
@@ -320,36 +324,58 @@ function AudioTrackRow({
   onLoad,
   onRemove,
   loading,
+  loaded,
+  playing,
+  loadError,
   canLoad,
+  canOpenLyrics,
   canRemove, canEdit, canPreview, onEdit, onPreview,
+  onOpenTimeline,
+  onOpenActiveLyrics,
+  onOpenAiExtract,
 }: {
   track: SavedAudioTrack
   onLoad: () => void
   onRemove?: () => void
   loading: boolean
+  loaded: boolean
+  playing: boolean
+  loadError?: string | null
   canLoad: boolean
+  canOpenLyrics: boolean
   canRemove: boolean
   canEdit: boolean
   canPreview: boolean
   onEdit?: () => void
   onPreview?: () => void
+  onOpenTimeline?: () => void
+  onOpenActiveLyrics?: () => void
+  onOpenAiExtract?: () => void
 }) {
+  const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
   const meta: string[] = []
   if (track.durationSec) meta.push(fmtDur(track.durationSec))
   if (track.bpm)         meta.push(`${track.bpm} BPM`)
   if (track.musicalKey)  meta.push(track.musicalKey)
 
   return (
-    <div className="vz-track-row">
+    <div className={`vz-track-row${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}`}>
       <div className="vz-track-row-icon">
         <MusicNote01Icon size={14} color="currentColor" />
       </div>
       <div className="vz-track-row-info">
-        <div className="vz-track-row-title">{track.title}</div>
+        <div className="vz-track-row-title-line">
+          <span className="vz-track-row-title">{track.title}</span>
+          <span className="vz-track-row-state-badges">
+            {loaded && <span className="lmv-loaded-badge">Loaded</span>}
+            {playing && <span className="lmv-playing-badge">Playing</span>}
+          </span>
+        </div>
         <div className="vz-track-row-meta">
           {track.artist && <span className="vz-track-row-artist">{track.artist}</span>}
           {meta.length > 0 && <span>{meta.join(' · ')}</span>}
         </div>
+        {loadError && <div className="vz-track-row-error" role="alert">{loadError}</div>}
       </div>
       <div className="vz-track-row-actions">
         {canPreview && onPreview && <button type="button" className="vz-track-load-btn" onClick={onPreview}>Preview</button>}
@@ -359,9 +385,22 @@ function AudioTrackRow({
             className="vz-track-load-btn"
             onClick={onLoad}
             disabled={loading}
-            title="Load this track into the player"
+            title="Load this saved track without starting playback"
           >
-            {loading ? '…' : 'Load Track'}
+            {loading ? 'Loading…' : loaded ? 'Reload' : 'Load Track'}
+          </button>
+        )}
+        {canOpenLyrics && (
+          <button
+            type="button"
+            className="vz-track-load-btn"
+            aria-haspopup="menu"
+            onClick={event => {
+              const rect = event.currentTarget.getBoundingClientRect()
+              setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
+            }}
+          >
+            Lyrics ▾
           </button>
         )}
         {canRemove && onRemove && (
@@ -381,6 +420,20 @@ function AudioTrackRow({
           </button>
         )}
       </div>
+      {lyricsMenu && (
+        <ContextActionMenu
+          x={lyricsMenu.x}
+          y={lyricsMenu.y}
+          ariaLabel={`Lyric actions for ${track.title}`}
+          header={{ title: track.title, subtitle: track.artist || 'Unknown artist' }}
+          onClose={() => setLyricsMenu(null)}
+          items={[
+            { id: 'timeline', label: 'Open in Lyric Manager', onSelect: () => onOpenTimeline?.() },
+            { id: 'active', label: 'Open Active Lyrics', onSelect: () => onOpenActiveLyrics?.() },
+            { id: 'extract', label: 'AI Extract Lyrics', onSelect: () => onOpenAiExtract?.() },
+          ]}
+        />
+      )}
     </div>
   )
 }
@@ -630,6 +683,7 @@ export interface MediaLibraryBrowserProps {
   activeMediaId: string | null
   onSelect?: (id: string) => void
   onOpenMediaManager?: () => void
+  onOpenLyricManager?: (intent: LyricManagerNavigationIntent) => void
   context?: MediaLibraryContext
   title?: string
   capabilities: readonly MediaLibraryCapability[]
@@ -640,6 +694,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeMediaId,
   onSelect,
   onOpenMediaManager,
+  onOpenLyricManager,
   context = 'visualizer',
   title = 'Media Library',
   capabilities,
@@ -687,6 +742,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const { savedTracks, loading: tracksLoading, loadSavedTracks, removeSavedTrack, getSignedUrl } = useAudioStore()
   const engine = useSharedAudio()
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null)
+  const [trackLoadErrors, setTrackLoadErrors] = useState<Record<string, string | null>>({})
 
   const [libraryFilter, setMediaLibraryFilter] = useState<MediaLibraryFilter>('all')
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
@@ -717,6 +773,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const isCanvasMode = context === 'canvas'
   const canSelect = capabilitySet.has('select') && onSelect !== undefined
   const canLoadTrack = capabilitySet.has('load-track')
+  const canOpenLyrics = capabilitySet.has('lyrics') && onOpenLyricManager !== undefined
   const canPreview = capabilitySet.has('preview')
   const canFavorite = capabilitySet.has('favorite')
   const canUpload = (isManager || isCanvasMode) && capabilitySet.has('upload')
@@ -846,32 +903,13 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   }
 
   const handleLoadTrack = useCallback(async (track: SavedAudioTrack) => {
-    if (!track.storagePath) return
     setLoadingTrackId(track.id)
+    setTrackLoadErrors(current => ({ ...current, [track.dbId]: null }))
     try {
-      const url = await getSignedUrl(track.storagePath)
-      if (!url) return
-      const trackEntry = {
-        name:        track.fileName || track.title,
-        title:       track.title,
-        artist:      track.artist,
-        url,
-        dbId:        track.dbId,
-        storagePath: track.storagePath,
-        duration:    track.durationSec,
-        persistedMetadata: {
-          bpm:        track.bpm,
-          musicalKey: track.musicalKey,
-          genre:      track.genre,
-          sampleRate: track.sampleRate,
-          channels:   track.channels,
-        },
-      }
-      if (engine.tracks.length > 0) engine.replaceTrackUrls([trackEntry])
-      else engine.addTrackUrls([trackEntry])
-      if (engine.source !== 'file') engine.setSource('file')
-    } catch (e) {
-      console.error('[MediaLibraryBrowser] loadTrack:', e)
+      await loadSavedTrackIntoEngine(engine, track, { getSignedUrl })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The saved track could not be loaded.'
+      setTrackLoadErrors(current => ({ ...current, [track.dbId]: message }))
     } finally {
       setLoadingTrackId(null)
     }
@@ -1013,12 +1051,19 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             onLoad={() => handleLoadTrack(t)}
             onRemove={canRemove ? () => { void handleRemoveTrack(t) } : undefined}
             loading={loadingTrackId === t.id}
+            loaded={engine.currentAudioTrackId === t.dbId}
+            playing={engine.currentAudioTrackId === t.dbId && engine.isPlaying}
+            loadError={trackLoadErrors[t.dbId]}
             canLoad={canLoadTrack}
+            canOpenLyrics={canOpenLyrics}
             canRemove={canRemove}
             canEdit={canEdit}
             canPreview={isManager && canPreview}
             onEdit={canEdit ? () => setEditTrack(t) : undefined}
             onPreview={isManager && canPreview ? () => setPreviewTrack(t) : undefined}
+            onOpenTimeline={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'timeline')) : undefined}
+            onOpenActiveLyrics={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'active-lyrics')) : undefined}
+            onOpenAiExtract={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'ai-extract')) : undefined}
           />
         ))}
       </div>

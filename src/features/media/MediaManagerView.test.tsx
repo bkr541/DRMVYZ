@@ -50,7 +50,7 @@ describe('MediaManagerView', () => {
     root = createRoot(container)
 
     act(() => {
-      root?.render(<MediaManagerView returnView="react" onBack={vi.fn()} />)
+      root?.render(<MediaManagerView returnView="react" onBack={vi.fn()} onOpenLyricManager={vi.fn()} />)
     })
 
     expect(container.querySelector('#media-manager-title')?.textContent).toBe('Media Manager')
@@ -74,7 +74,7 @@ describe('MediaManagerView', () => {
     root = createRoot(container)
 
     act(() => {
-      root?.render(<MediaManagerView returnView="visualizer" onBack={onBack} />)
+      root?.render(<MediaManagerView returnView="visualizer" onBack={onBack} onOpenLyricManager={vi.fn()} />)
     })
 
     const backButton = container.querySelector<HTMLButtonElement>('[aria-label="Return to Visualizer"]')

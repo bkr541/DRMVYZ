@@ -252,11 +252,13 @@ function readLS<T>(key: string, fallback: T): T {
 export interface VisualizerWorkspaceProps {
   onAppViewChange: (view: AppView) => void
   showLyricPreviewToastOnMount?: boolean
+  onOpenLyricManager?: (intent: import('../../features/lyrics/lyricNavigation').LyricManagerNavigationIntent) => void
 }
 
 export function VisualizerWorkspace({
   onAppViewChange,
   showLyricPreviewToastOnMount = false,
+  onOpenLyricManager,
 }: VisualizerWorkspaceProps) {
   const engine = useSharedAudio()
   const analyser = engine.analyserMaster
@@ -608,6 +610,7 @@ export function VisualizerWorkspace({
                   activeMediaId={activeMediaId}
                   onSelect={setActiveMedia}
                   onOpenMediaManager={() => onAppViewChange('media')}
+                  onOpenLyricManager={onOpenLyricManager}
                 />
               </VyzualzErrorBoundary>
             )}

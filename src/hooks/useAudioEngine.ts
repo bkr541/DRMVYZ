@@ -650,12 +650,13 @@ export function useAudioEngine(): AudioEngine {
     disconnectSource()
     if (masterGainRef.current) masterGainRef.current.gain.value = 1
     if (s === 'file') {
-      if (currentIndex >= 0) connectFileSource()
+      const activeIndex = currentIndexRef.current
+      if (activeIndex >= 0) connectFileSource()
       // Re-apply the active track's analysis when switching back to file.
       // This handles the case where mic/demo was active and we return to the
       // same file track (currentIndex unchanged, so the track-change effect
       // does not refire, but MI state was cleared on mic/demo entry).
-      const track = tracksRef.current[currentIndex]
+      const track = tracksRef.current[activeIndex]
       if (track) {
         musicIntelligenceEngine.setSourceId(track.id, track.id)
         publishAuthoritativeTrackState(
@@ -682,7 +683,7 @@ export function useAudioEngine(): AudioEngine {
     }
     setSourceState(s)
     setIsPlaying(s === 'demo')
-  }, [disconnectSource, connectFileSource, connectMicSource, connectDemoSource, currentIndex, demoSilent])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [disconnectSource, connectFileSource, connectMicSource, connectDemoSource, demoSilent])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Track load ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1052,10 +1053,14 @@ export function useAudioEngine(): AudioEngine {
 
   const addTrackUrls = useCallback((tracks: RuntimeTrackUrlInput[]) => {
     const newTracks = tracks.map(createRemoteRuntimeTrack)
-    setTracks(prev => {
-      if (prev.length === 0) setCurrentIndex(0)
-      return [...prev, ...newTracks]
-    })
+    const previousTracks = tracksRef.current
+    const nextTracks = [...previousTracks, ...newTracks]
+    tracksRef.current = nextTracks
+    if (previousTracks.length === 0 && newTracks.length > 0) {
+      currentIndexRef.current = 0
+      setCurrentIndex(0)
+    }
+    setTracks(nextTracks)
     newTracks
       .filter(t => !(t.analysisRuntime.status === 'complete' && t.analysisRuntime.analysis))
       .forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
@@ -1066,12 +1071,13 @@ export function useAudioEngine(): AudioEngine {
     musicIntelligenceEngine.setSourceId(null, null)
     musicIntelligenceEngine.setTrackAnalysis(null)
     const newTracks = tracks.map(createRemoteRuntimeTrack)
-    setTracks(prev => {
-      // Only revoke blob: URLs — signed Supabase URLs should not be revoked
-      prev.forEach(t => { if (t.url.startsWith('blob:')) URL.revokeObjectURL(t.url) })
-      setCurrentIndex(newTracks.length > 0 ? 0 : -1)
-      return newTracks
-    })
+    // Only revoke blob: URLs — signed Supabase URLs should not be revoked.
+    tracksRef.current.forEach(t => { if (t.url.startsWith('blob:')) URL.revokeObjectURL(t.url) })
+    tracksRef.current = newTracks
+    const nextIndex = newTracks.length > 0 ? 0 : -1
+    currentIndexRef.current = nextIndex
+    setCurrentIndex(nextIndex)
+    setTracks(newTracks)
     newTracks
       .filter(t => !(t.analysisRuntime.status === 'complete' && t.analysisRuntime.analysis))
       .forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
@@ -1106,12 +1112,20 @@ export function useAudioEngine(): AudioEngine {
 
   const play = useCallback(() => {
     const el = audioRef.current
-    if (!el || currentIndex < 0) return
+    const track = tracksRef.current[currentIndexRef.current]
+    if (!el || !track) return
+    // URL loaders update the authoritative refs before React commits their
+    // playlist state. Point the media element at that track immediately so a
+    // same-tick Load and Play action cannot observe a stale index/source.
+    if (el.src !== track.url) {
+      el.src = track.url
+      el.load()
+    }
     connectFileSource()
     const ctx = ensureContext()
     if (ctx.state === 'suspended') ctx.resume()
     el.play().then(() => setIsPlaying(true)).catch(() => { /**/ })
-  }, [currentIndex, connectFileSource, ensureContext])
+  }, [connectFileSource, ensureContext])
 
   const pause  = useCallback(() => { audioRef.current?.pause(); setIsPlaying(false) }, [])
   const stop   = useCallback(() => {

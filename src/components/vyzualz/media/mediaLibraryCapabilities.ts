@@ -3,6 +3,7 @@ export type MediaLibraryContext = 'visualizer' | 'react' | 'canvas' | 'manager'
 export type MediaLibraryCapability =
   | 'select'
   | 'load-track'
+  | 'lyrics'
   | 'preview'
   | 'favorite'
   | 'upload'
@@ -20,6 +21,7 @@ export type MediaLibraryCapability =
 export const MEDIA_DECK_CAPABILITIES = [
   'select',
   'load-track',
+  'lyrics',
   'preview',
   'favorite',
   'collections',
@@ -30,6 +32,7 @@ export const MEDIA_DECK_CAPABILITIES = [
  * visual-media, and saved-audio services. */
 export const MEDIA_MANAGER_CAPABILITIES = [
   'load-track',
+  'lyrics',
   'preview',
   'favorite',
   'upload',

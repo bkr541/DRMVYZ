@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   mediaState: {} as Record<string, unknown>,
   audioState: {} as Record<string, unknown>,
   engine: {} as Record<string, unknown>,
+  listTrackAnalysisPayloads: vi.fn(),
 }))
 
 vi.mock('../../../stores/mediaStore', () => ({
@@ -23,6 +24,10 @@ vi.mock('../../../stores/audioStore', () => ({
 
 vi.mock('../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => mocks.engine,
+}))
+
+vi.mock('../../../lib/audioDb', () => ({
+  listTrackAnalysisPayloads: mocks.listTrackAnalysisPayloads,
 }))
 
 vi.mock('../MediaUploadModal', () => ({
@@ -52,6 +57,7 @@ vi.mock('./MediaStatusBar', () => ({
 }))
 
 import { MediaLibraryBrowser, computeVirtualMediaWindow } from './MediaLibraryBrowser'
+import { clearSavedTrackSignedUrlCache } from '../../../audio/savedTrackLoader'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES, MEDIA_DECK_CAPABILITIES, MEDIA_MANAGER_CAPABILITIES } from './mediaLibraryCapabilities'
 
 let container: HTMLDivElement | null = null
@@ -96,6 +102,8 @@ const track: SavedAudioTrack = {
 }
 
 function resetMocks() {
+  clearSavedTrackSignedUrlCache()
+  mocks.listTrackAnalysisPayloads.mockResolvedValue({ rows: [], error: null })
   mocks.mediaState = {
     items: [visual],
     addFilesToUploadQueue: vi.fn().mockReturnValue(1),
@@ -125,8 +133,12 @@ function resetMocks() {
     source: 'none',
     addTrackUrls: vi.fn(),
     replaceTrackUrls: vi.fn(),
-    setSource: vi.fn(),
+    setSource: vi.fn().mockResolvedValue(undefined),
     removeTrack: vi.fn(),
+    play: vi.fn(),
+    currentAudioTrackId: null,
+    currentTrack: null,
+    isPlaying: false,
   }
 }
 
@@ -279,6 +291,9 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(dropEvent.defaultPrevented).toBe(false)
     expect(mocks.mediaState.addFilesToUploadQueue).not.toHaveBeenCalled()
     expect(mocks.mediaState.openImportMediaModal).not.toHaveBeenCalled()
+    expect(findButton('Tracks')).toBeNull()
+    expect(CANVAS_MEDIA_LIBRARY_CAPABILITIES).not.toContain('load-track')
+    expect(CANVAS_MEDIA_LIBRARY_CAPABILITIES).not.toContain('lyrics')
   })
 
   it('retains upload, edit, delete, and drop workflows in Media Manager', async () => {
@@ -369,4 +384,34 @@ describe('MediaLibraryBrowser virtualization', () => {
     expect(windowed.endIndex - windowed.startIndex).toBeLessThanOrEqual(24)
     expect(windowed.startIndex).toBeGreaterThan(0)
   })
+
+  it('opens saved audio directly in the requested Lyric Manager workflow', async () => {
+    const onOpenLyricManager = vi.fn()
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'visualizer',
+      capabilities: MEDIA_DECK_CAPABILITIES,
+      onOpenLyricManager,
+    })
+
+    act(() => findButton('Tracks')?.click())
+    await act(async () => findButton('Lyrics ▾')?.click())
+    const menuItem = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+      .find(button => button.textContent === label)!
+
+    await act(async () => menuItem('Open in Lyric Manager').click())
+    expect(onOpenLyricManager).toHaveBeenLastCalledWith(expect.objectContaining({
+      targetAudioTrackId: 'track-1',
+      workflow: 'timeline',
+    }))
+
+    await act(async () => findButton('Lyrics ▾')?.click())
+    await act(async () => menuItem('AI Extract Lyrics').click())
+    expect(onOpenLyricManager).toHaveBeenLastCalledWith(expect.objectContaining({
+      targetAudioTrackId: 'track-1',
+      workflow: 'ai-extract',
+    }))
+  })
+
 })

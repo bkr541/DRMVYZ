@@ -2,12 +2,14 @@ import { memo } from 'react'
 import { MediaLibraryBrowser } from './MediaLibraryBrowser'
 import { MEDIA_DECK_CAPABILITIES } from './mediaLibraryCapabilities'
 import type { UploadedMedia } from '../../../stores/mediaStore'
+import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 
 export interface MediaDeckPanelProps {
   activeMediaId: string | null
   onSelect: (id: string) => void
   mode?: 'visualizer' | 'react'
   onOpenMediaManager?: () => void
+  onOpenLyricManager?: (intent: LyricManagerNavigationIntent) => void
   title?: string
   getDisabledReason?: (media: UploadedMedia) => string | null
 }
@@ -23,6 +25,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({
   onSelect,
   mode = 'visualizer',
   onOpenMediaManager,
+  onOpenLyricManager,
   title = 'Media Deck',
   getDisabledReason,
 }: MediaDeckPanelProps) {
@@ -34,6 +37,7 @@ export const MediaDeckPanel = memo(function MediaDeckPanel({
       title={title}
       capabilities={MEDIA_DECK_CAPABILITIES}
       onOpenMediaManager={onOpenMediaManager}
+      onOpenLyricManager={onOpenLyricManager}
       getDisabledReason={getDisabledReason}
     />
   )
