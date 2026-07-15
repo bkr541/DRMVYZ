@@ -12,6 +12,7 @@ import type {
 import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmxShowDirectorPerformanceProgram'
 import { useLaserDmxShowDirectorPerformanceRuntimeStatus } from './LaserDmxShowDirectorPerformanceRuntimeStatus'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
+import { LaserDmxRendererDiagnosticsPanel } from './LaserDmxRendererDiagnosticsPanel'
 
 const GRID_PRESETS = [
   { label: '10 × 6', value: '10x6', columns: 10, rows: 6 },
@@ -201,6 +202,8 @@ export function LaserDmxShowDirectorGlobalControls() {
           disabled={settings.rendererMode === 'canvas2d'}
         />
       </Collapsible>
+
+      <LaserDmxRendererDiagnosticsPanel />
 
       <Collapsible label="Layout" defaultOpen={false}>
         <div className="rv-show-director-design-actions" aria-label="Show Director layout actions">

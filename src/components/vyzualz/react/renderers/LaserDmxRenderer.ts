@@ -32,8 +32,16 @@ import { createShowDirectorRuntime, evaluateShowDirector, resetShowDirectorRunti
 import { productionOutputController } from '../output/ProductionOutput'
 import { applyLaserDmxPerformanceActions } from './LaserDmxPerformanceActionEngine'
 import { createLaserDmxSceneFrame, resolveLaserDmxSceneFrameOutput } from './laserDmx/LaserDmxSceneFrame'
-import { resolveLaserDmxRendererBackend } from './laserDmx/LaserDmxRendererBackend'
+import {
+  laserDmxRendererFallbackReason,
+  resolveLaserDmxRendererBackendDecision,
+  type LaserDmxRendererFallbackCode,
+} from './laserDmx/LaserDmxRendererBackend'
 import { LaserDmxWebGLRuntime } from './laserDmx/LaserDmxWebGLRuntime'
+import {
+  clearLaserDmxRendererDiagnostics,
+  publishLaserDmxRendererDiagnostics,
+} from '../LaserDmxRendererDiagnosticsStore'
 
 /** Returns true when the LaserDMX renderer should draw. */
 export const LASER_DMX_VIRTUAL_CAPTURE_LAYERS = [
@@ -313,6 +321,8 @@ const performanceContextByCanvas = new WeakMap<CanvasRenderingContext2D, LaserDm
 const performanceStatusCanvas = new WeakSet<CanvasRenderingContext2D>()
 const laserDmxWebGLRuntimeByContext = new WeakMap<CanvasRenderingContext2D, LaserDmxWebGLRuntime>()
 const laserDmxWebGLUnavailableContexts = new WeakSet<CanvasRenderingContext2D>()
+const laserDmxWebGLFailureCodeByContext = new WeakMap<CanvasRenderingContext2D, LaserDmxRendererFallbackCode>()
+const laserDmxWebGLContextLossCountByContext = new WeakMap<CanvasRenderingContext2D, number>()
 
 export interface LaserDmxRendererBoundaryOptions {
   /** Offscreen previews must never arm, submit to, stop, or disarm physical output. */
@@ -335,13 +345,15 @@ function getLaserDmxWebGLRuntime(ctx: CanvasRenderingContext2D): LaserDmxWebGLRu
   const current = laserDmxWebGLRuntimeByContext.get(ctx)
   if (current) return current
   if (laserDmxWebGLUnavailableContexts.has(ctx)) return null
-  const created = LaserDmxWebGLRuntime.create(ctx)
-  if (!created) {
+  const created = LaserDmxWebGLRuntime.createWithDiagnostics(ctx)
+  if (!created.runtime) {
     laserDmxWebGLUnavailableContexts.add(ctx)
+    laserDmxWebGLFailureCodeByContext.set(ctx, created.failureCode ?? 'runtime-render-failed')
     return null
   }
-  laserDmxWebGLRuntimeByContext.set(ctx, created)
-  return created
+  laserDmxWebGLFailureCodeByContext.delete(ctx)
+  laserDmxWebGLRuntimeByContext.set(ctx, created.runtime)
+  return created.runtime
 }
 
 function disposeLaserDmxWebGLRuntime(ctx: CanvasRenderingContext2D): void {
@@ -395,6 +407,7 @@ export function clearLaserDmxVisualState(
     productionOutputController.transportStopped('LaserDMX rendering stopped')
   }
   resetLaserDmxRuntimeState(undefined, ctx)
+  if (options.affectProductionOutput !== false) clearLaserDmxRendererDiagnostics()
 }
 
 /**
@@ -416,6 +429,7 @@ export function pauseLaserDmxRenderer(
   getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx)).pause()
   if (options.affectProductionOutput !== false) {
     productionOutputController.transportStopped('LaserDMX playback paused')
+    clearLaserDmxRendererDiagnostics()
   }
 }
 
@@ -442,7 +456,10 @@ export function disposeLaserDmxRenderer(
   resetLaserDmxRuntimeState(undefined, ctx)
   disposeLaserDmxWebGLRuntime(ctx)
   laserDmxWebGLUnavailableContexts.delete(ctx)
+  laserDmxWebGLFailureCodeByContext.delete(ctx)
+  laserDmxWebGLContextLossCountByContext.delete(ctx)
   showDirectorRuntimeByContext.delete(ctx)
+  if (options.affectProductionOutput !== false) clearLaserDmxRendererDiagnostics()
 }
 
 export function enforceLaserDmxFinalBlackoutAuthority<T extends { output: { blackout: boolean } }>(
@@ -659,23 +676,93 @@ export function renderLaserDmx(
     ? resolveLaserDmxSceneFrameOutput(unresolvedSceneFrame, finalBeamMatrix)
     : null
   const requestedRenderer = showDirectorRuntimeRig.settings.rendererMode
+  let fallbackCode: LaserDmxRendererFallbackCode | null = requestedRenderer === 'canvas2d'
+    ? 'forced-canvas2d'
+    : null
+  let fallbackReason = fallbackCode ? laserDmxRendererFallbackReason(fallbackCode) : null
+  let webgl2Available: boolean | null = null
+  let contextLossCount = 0
+
   if (sceneFrame && requestedRenderer !== 'canvas2d' && params.thumbnailLaserDmxSettings == null) {
     const webglRuntime = getLaserDmxWebGLRuntime(ctx)
-    const backend = resolveLaserDmxRendererBackend(requestedRenderer, {
-      webgl2: webglRuntime != null,
-      contextLost: webglRuntime?.contextLost ?? false,
+    const rememberedFailure = laserDmxWebGLFailureCodeByContext.get(ctx)
+    const rememberedContextLossCount = laserDmxWebGLContextLossCountByContext.get(ctx) ?? 0
+    webgl2Available = webglRuntime != null || (rememberedFailure != null && rememberedFailure !== 'webgl2-unavailable')
+    contextLossCount = Math.max(webglRuntime?.contextLossCount ?? 0, rememberedContextLossCount)
+    if (webglRuntime) laserDmxWebGLContextLossCountByContext.set(ctx, contextLossCount)
+    const decision = resolveLaserDmxRendererBackendDecision(requestedRenderer, {
+      webgl2: webglRuntime != null || (rememberedFailure != null && rememberedFailure !== 'webgl2-unavailable'),
+      contextLost: webglRuntime?.contextLost ?? rememberedFailure === 'context-lost',
+      repeatedContextLoss: webglRuntime?.repeatedContextLoss ?? rememberedFailure === 'repeated-context-loss',
+      runtimeFailed: webglRuntime == null && rememberedFailure != null
+        && rememberedFailure !== 'webgl2-unavailable'
+        && rememberedFailure !== 'context-lost'
+        && rememberedFailure !== 'repeated-context-loss',
+      failureCode: rememberedFailure && rememberedFailure !== 'webgl2-unavailable'
+        && rememberedFailure !== 'context-lost'
+        && rememberedFailure !== 'repeated-context-loss'
+        && rememberedFailure !== 'forced-canvas2d'
+        ? rememberedFailure
+        : undefined,
     })
-    if (backend === 'webgl' && webglRuntime) {
+    fallbackCode = decision.fallbackCode
+    fallbackReason = decision.fallbackReason
+
+    if (webglRuntime?.repeatedContextLoss) {
+      fallbackCode = 'repeated-context-loss'
+      fallbackReason = laserDmxRendererFallbackReason(fallbackCode)
+      laserDmxWebGLFailureCodeByContext.set(ctx, fallbackCode)
+      disposeLaserDmxWebGLRuntime(ctx)
+      laserDmxWebGLUnavailableContexts.add(ctx)
+    } else if (decision.backend === 'webgl' && webglRuntime) {
       const result = webglRuntime.render(sceneFrame)
-      if (result.ok) return
+      if (result.ok && result.diagnostics) {
+        const diagnostics = result.diagnostics
+        publishLaserDmxRendererDiagnostics({
+          activeRenderer: 'webgl',
+          requestedRenderer,
+          presentationMode: sceneFrame.presentationMode,
+          webgl2Available: true,
+          floatTargetsAvailable: diagnostics.hdrMode === 'rgba16f',
+          requestedQuality: sceneFrame.quality.qualityTier,
+          effectiveQuality: diagnostics.quality,
+          atmosphereQuality: diagnostics.atmosphereQuality,
+          renderWidth: diagnostics.renderWidth,
+          renderHeight: diagnostics.renderHeight,
+          atmosphereWidth: diagnostics.atmosphereWidth,
+          atmosphereHeight: diagnostics.atmosphereHeight,
+          atmosphereSampleCount: diagnostics.atmosphereSampleCount,
+          activeBeamCount: diagnostics.activeBeamCount,
+          requestedBeamCount: diagnostics.requestedBeamCount,
+          activeFixtureCount: diagnostics.activeFixtureCount,
+          cpuFrameMs: diagnostics.cpuFrameMs,
+          gpuFrameMs: diagnostics.gpuFrameMs,
+          hdrMode: diagnostics.hdrMode,
+          bloomLevels: diagnostics.bloomLevels,
+          temporalHistoryActive: diagnostics.temporalHistoryActive,
+          fallbackReason: diagnostics.degraded ? 'RGBA16F targets are unavailable; the WebGL LDR post path is active.' : null,
+          contextLossCount: diagnostics.contextLossCount,
+          postProcessingStatus: diagnostics.hdrMode === 'rgba16f' ? 'hdr' : 'ldr-fallback',
+        })
+        return
+      }
+      fallbackCode = result.failureCode ?? 'runtime-render-failed'
+      fallbackReason = laserDmxRendererFallbackReason(fallbackCode)
+      contextLossCount = webglRuntime.contextLossCount
+      laserDmxWebGLContextLossCountByContext.set(ctx, contextLossCount)
       if (!result.recoverable) {
         disposeLaserDmxWebGLRuntime(ctx)
         laserDmxWebGLUnavailableContexts.add(ctx)
+        laserDmxWebGLFailureCodeByContext.set(ctx, fallbackCode)
       }
     }
   } else {
     if (laserDmxWebGLRuntimeByContext.has(ctx)) disposeLaserDmxWebGLRuntime(ctx)
-    if (requestedRenderer === 'canvas2d') laserDmxWebGLUnavailableContexts.delete(ctx)
+    if (requestedRenderer === 'canvas2d') {
+      laserDmxWebGLUnavailableContexts.delete(ctx)
+      laserDmxWebGLFailureCodeByContext.delete(ctx)
+      laserDmxWebGLContextLossCountByContext.delete(ctx)
+    }
   }
 
   const compiled = compileLaserDmxBeamMatrix({
@@ -686,6 +773,34 @@ export function renderLaserDmx(
     canvasHeight: H,
     personalization,
   })
+  if (params.thumbnailLaserDmxSettings == null && sceneFrame) {
+    publishLaserDmxRendererDiagnostics({
+      activeRenderer: 'canvas2d',
+      requestedRenderer,
+      presentationMode: sceneFrame.presentationMode,
+      webgl2Available,
+      floatTargetsAvailable: false,
+      requestedQuality: sceneFrame.quality.qualityTier,
+      effectiveQuality: null,
+      atmosphereQuality: null,
+      renderWidth: Math.max(0, Math.round(W)),
+      renderHeight: Math.max(0, Math.round(H)),
+      atmosphereWidth: 0,
+      atmosphereHeight: 0,
+      atmosphereSampleCount: 0,
+      activeBeamCount: compiled.beams.length,
+      requestedBeamCount: compiled.beams.length,
+      activeFixtureCount: sceneFrame.fixtures.filter(fixture => fixture.enabled).length,
+      cpuFrameMs: null,
+      gpuFrameMs: null,
+      hdrMode: 'none',
+      bloomLevels: 0,
+      temporalHistoryActive: false,
+      fallbackReason: fallbackCode === 'forced-canvas2d' ? null : fallbackReason,
+      contextLossCount,
+      postProcessingStatus: 'inactive',
+    })
+  }
   const out = compiled.output
   const fadeAlpha = clamp01(out.backgroundFade) * (0.3 + 0.7 * clamp01(1 - out.beamPersistence))
   ctx.globalCompositeOperation = 'source-over'

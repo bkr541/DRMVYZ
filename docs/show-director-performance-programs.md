@@ -1,6 +1,6 @@
 # Show Director Performance Programs
 
-Show Director Performance Programs are deterministic, full-song choreography layers for the existing LaserDMX **2D Canvas2D** renderer. They do not replace Beam Matrix, create a second renderer, or introduce a separate audio-analysis engine.
+Show Director Performance Programs are deterministic, full-song choreography layers for the LaserDMX engine-neutral lighting scene. They do not replace Beam Matrix, create a second renderer, or introduce a separate audio-analysis engine. The production WebGL2 renderer and Canvas2D compatibility renderer consume the same evaluated program state.
 
 ## Architecture and authority
 
@@ -13,7 +13,7 @@ Each render frame builds a transient runtime rig from the authored rig plus the 
 
 The runtime path is:
 
-`Track analysis / manual Track Map sections -> Music Intelligence -> AudioFeatureBus -> performance context -> performance resolver -> Show Director compiler -> Beam Matrix compiler -> Canvas2D renderer`
+`Track analysis / manual Track Map sections -> Music Intelligence -> AudioFeatureBus -> performance context -> performance resolver -> Show Director compiler -> engine-neutral scene frame -> WebGL2 renderer or Beam Matrix / Canvas2D compatibility renderer`
 
 The effective precedence is:
 
@@ -38,7 +38,7 @@ Beat mutations use canonical beat position and Music Intelligence events. Bar mu
 
 Fine Track Map boundaries do not automatically restart the performance phrase clock. A verse split into 5-, 6-, and 7-bar analyzed segments can therefore reach its second eight-bar recruitment stage and later four-bar variations. A true macro-role change, such as verse to build, build to pre-drop, drop to breakdown, or an explicitly numbered Drop 1 to Drop 2 change, starts a new macro clock.
 
-Forward frame gaps still report any crossed absolute and performance four-, eight-, and sixteen-bar boundaries. An explicit seek, backward transport movement, loop wrap, track replacement, analysis replacement, preset reload, or seed/invalidation change reconstructs all block indexes from the target playhead instead of replaying missed mutations. Pausing does not advance choreography, and the Canvas2D renderer owns no independent animation loop.
+Forward frame gaps still report any crossed absolute and performance four-, eight-, and sixteen-bar boundaries. An explicit seek, backward transport movement, loop wrap, track replacement, analysis replacement, preset reload, or seed/invalidation change reconstructs all block indexes from the target playhead instead of replaying missed mutations. Pausing does not advance choreography, and neither renderer owns an independent animation loop.
 
 ## Fine sections, macro sections, and boundary classification
 
@@ -78,7 +78,7 @@ A four-bar block ordinarily owns one motif family. Beat and bar mutations change
 
 Eight-bar stages are indexed from the macro-section anchor. Recruitment mutations remain cumulative unless the authored stage opts out. Whenever a scene has recruitment stages, fixtures already active at the boundary also evolve deterministically through rotation, angle, spread, and travel direction changes. This prevents a new bank from appearing as an unchanged extra layer while the original architecture freezes.
 
-Patch 1 fixture-local target geometry remains authoritative. The continuity resolver does not replace fixture-keyed target arrays with shared global targets, so projector origins, deliberate negative space, and the Cyan Mirror Cage center corridor survive phrase evolution, seeking, and looping.
+Fixture-local target geometry remains authoritative. The continuity resolver does not replace fixture-keyed target arrays with shared global targets, so projector origins, deliberate negative space, and the Cyan Mirror Cage center corridor survive phrase evolution, seeking, and looping.
 
 ## Section energy envelopes and full-song arc
 
@@ -90,7 +90,7 @@ The built-in arc follows these deterministic rules:
 - Verses remain visibly alive on every beat and retain authored negative space.
 - Builds use one-based macro-section bar progression. Successive bars recruit groups, widen fans, increase endpoint motion and brightness, and reduce negative space. The final build beat contracts and freezes the composition for tension.
 - Pre-drops narrow to a small spear or aperture allocation and may use only their authored bounded blackout window.
-- Drop entry activates the primary bank immediately, adds a white impact layer, and then resolves into the existing Patch 3 beat-bank and four-/eight-bar drop-body choreography.
+- Drop entry activates the primary bank immediately, adds a white impact layer, and then resolves into the existing beat-bank and four-/eight-bar drop-body choreography.
 - Breakdowns substantially reduce fixture count and movement but must retain visible authored beams unless `allowZeroBeamOutput` is explicitly set.
 - Drop 2 preserves each show identity while adding fixture families and structural layers. The same 300-beam hard limit remains authoritative.
 - Outros use non-cumulative bar snapshots to remove groups progressively, return to a simplified opening identity, and fade the final half beat without leaving stale runtime beams.
@@ -212,11 +212,11 @@ Output authority remains: safety blackout, explicit cue/transport or authored bl
 
 `LaserDmxShowDirectorRigPerformanceInspection.ts` produces development/test reports for all seven sources, including fixture IDs and semantic keys, fixture kinds, groups, beam/non-beam counts, supported authored properties, local targets, candidate authored banks, and unsupported-property warnings. It does not create a production overlay.
 
-The implemented sequence is: shared foundation, three laser-forward source shows, the LED-grid and moving-head shows, then the impact and atmosphere shows. Patch 5 remains the final integration, rendered-output validation, documentation audit, and regression pass. Each conversion supplies its own scenes, transient choreography, palette hierarchy, recruitment order, budgets, negative-space rules, and blackout policy.
+The implemented sequence is: shared foundation, three laser-forward source shows, the LED-grid and moving-head shows, then the impact and atmosphere shows. Each conversion supplies its own scenes, transient choreography, palette hierarchy, recruitment order, budgets, negative-space rules, and blackout policy.
 
 ## Authored rig-backed laser Performance Shows
 
-Patch 2 activates the three laser-forward source rigs as complete authored Performance Shows. Their original Rig Layout cards and identifiers remain unchanged. Selecting a Performance Show clones its canonical source rig into an independent transient working rig, then resolves the dedicated program through the existing musical clock, resolver, compiler, Beam Matrix, Canvas2D renderer, persistence, and safety-blackout path.
+The three laser-forward source rigs are active as complete authored Performance Shows. Their original Rig Layout cards and identifiers remain unchanged. Selecting a Performance Show clones its canonical source rig into an independent transient working rig, then resolves the dedicated program through the existing musical clock, resolver, compiler, engine-neutral scene frame, WebGL2 or Canvas2D renderer, persistence, and safety-blackout path.
 
 ### Small Club Performance
 
@@ -291,7 +291,7 @@ Static Rig Layout preservation is contractual: the seven original template defin
 
 ## Authored LED-grid and moving-head Performance Shows
 
-Patch 3 activates the two non-laser architectural source rigs as complete authored Performance Shows. They use the same macro musical clock, section occurrence model, resolver, persistence, seeking, looping, and safety-blackout authority as the laser shows, but their actions remain fixture-native. LED fixtures are not converted into laser rays, and moving heads are not given simulated capabilities beyond the existing target, spread, focus, rotation, color, brightness, and movement-style fields.
+The two non-laser architectural source rigs are active as complete authored Performance Shows. They use the same macro musical clock, section occurrence model, resolver, persistence, seeking, looping, and safety-blackout authority as the laser shows, but their actions remain fixture-native. LED fixtures are not converted into laser rays, and moving heads are not given simulated capabilities beyond the existing target, spread, focus, rotation, color, brightness, and movement-style fields.
 
 ### LED Bar Grid Performance
 
@@ -340,7 +340,7 @@ Both programs are schema-version-3 authored programs with complete intro, verse,
 
 ## Authored impact and atmosphere Performance Shows
 
-Patch 4 activates the two remaining source rigs as complete authored Performance Shows. Both remain virtual DRMVYZ visualizations. They add no physical output path, fixture-control claim, new compositor, new timing engine, or renderer replacement.
+The two impact and atmosphere source rigs are active as complete authored Performance Shows. Both remain virtual DRMVYZ visualizations. They add no physical output path, fixture-control claim, new compositor, new timing engine, or renderer replacement.
 
 ### Strobe + Blinder Performance
 
@@ -395,7 +395,7 @@ Tests assert haze occupancy and cap, build growth, pre-drop reduction, a breakdo
 
 ### Safety, persistence, and preservation boundaries
 
-Both programs use schema version 3 and the existing transient scheduler, Track Map section model, musical clock, performance resolver, compiler, persistence state, seek identity, loop identity, and lifecycle invalidation. Program blackout may add a bounded cut but cannot clear user, authored, or safety blackout. Registry hydration recognizes all ten built-in Performance Program identifiers, including the two Patch 4 programs. The original `Strobe + Blinder Hits` and `Haze + CO₂ Drops` static Rig Layout templates remain unchanged and independently selectable.
+Both programs use schema version 3 and the existing transient scheduler, Track Map section model, musical clock, performance resolver, compiler, persistence state, seek identity, loop identity, and lifecycle invalidation. Program blackout may add a bounded cut but cannot clear user, authored, or safety blackout. Registry hydration recognizes all ten built-in Performance Program identifiers, including the impact and atmosphere programs. The original `Strobe + Blinder Hits` and `Haze + CO₂ Drops` static Rig Layout templates remain unchanged and independently selectable.
 
 ## Persistence and migration
 
@@ -418,11 +418,11 @@ This feature is a **2D visual performance system**. It does not model real-world
 
 These presets do **not** claim physical laser safety compliance. They do **not** provide compliant physical laser hardware output merely by being selected or rendered. Any future physical output requires independently engineered hardware, venue review, trained operators, jurisdiction-specific compliance, exclusion zones, interlocks, and appropriate safety certification.
 
-The current browser application remains virtual-first. Canvas2D display output and deterministic beam budgeting are visual/runtime safeguards, not a substitute for physical laser-safety engineering.
+The application remains virtual-first. WebGL2 or Canvas2D display output and deterministic beam budgeting are visual/runtime safeguards, not a substitute for physical laser-safety engineering.
 
 ## Final rendered visual hierarchy and validation
 
-Patch 5 closes the rig-backed conversion sequence with one deterministic acceptance path for all ten built-in Performance Shows. It audits authored state, transient runtime state, the Show Director compiler, Beam Matrix compilation, the production Canvas2D beam and fog renderers, persistence boundaries, and static source-rig immutability. Fixture-state tests remain useful, but they are not accepted as a substitute for rendered inspection.
+The final rig-backed conversion has one deterministic acceptance path for all ten built-in Performance Shows. It audits authored state, transient runtime state, the Show Director compiler, Beam Matrix compilation, the production WebGL2 light pipeline and Canvas2D compatibility beam/fog renderers, persistence boundaries, and static source-rig immutability. Fixture-state tests remain useful, but they are not accepted as a substitute for rendered inspection.
 
 ### Canonical ten-show library
 
@@ -445,7 +445,7 @@ The seven source Rig Layout cards remain in `Rig Layouts`, retain their original
 
 ### Render hierarchy, palette, and negative space
 
-Semantic beam roles survive the resolver, Show Director compiler, Beam Matrix compiler, and Canvas2D renderer:
+Semantic beam roles survive the resolver, Show Director compiler, engine-neutral scene frame, WebGL2 renderer, Beam Matrix compiler, and Canvas2D compatibility renderer:
 
 - **Hero** owns outer architecture, dominant fan edges, and major anchors.
 - **Primary** owns the readable motif body.
@@ -468,7 +468,7 @@ Mixed-fixture programs use only properties already supported by their fixture ki
 - Strobes and blinders are scheduler-owned transient actions. Strobes are capped at 100 ms in the dedicated show, blinders at 250 ms, and neither is continuously enabled as a scene body state.
 - Haze is capped below 0.65 in validation, with authored fixture haze capped at 0.62. Simulated CO2-style bursts are capped at 700 ms in validation and three simultaneous virtual plume sources.
 
-These are virtual Canvas2D performance visualizations. They do not add or imply physical lighting, laser, DMX, or atmospheric-effect control.
+These are virtual performance visualizations with WebGL2 production output and Canvas2D compatibility output. They do not add or imply physical lighting, laser, DMX, or atmospheric-effect control.
 
 ### Deterministic 100-frame review
 

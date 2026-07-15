@@ -1,15 +1,15 @@
 # LaserDMX WebGL temporal optics
 
-Patch 6 adds bounded scanner history and deterministic optical motion after the HDR light composite and before bloom and tone mapping. The pass is private to the LaserDMX WebGL runtime. It does not sample Canvas2D output, alter the authoritative Show Director choreography, add beams, or create a second animation clock.
+The WebGL renderer adds bounded scanner history and deterministic optical motion after the HDR light composite and before bloom and tone mapping. The pass is private to the LaserDMX WebGL runtime. It does not sample Canvas2D output, alter the authoritative Show Director choreography, add beams, or create a second animation clock.
 
 ## Render path
 
-1. The current rear light, front light, and depth-aware atmosphere passes composite into the full-resolution HDR scene from Patch 5.
+1. The current rear light, front light, and depth-aware atmosphere passes composite into the full-resolution HDR scene from the HDR composite.
 2. `LaserDmxTemporalOpticsController` compares the current beam directions and targets with the prior canonical scene frame.
 3. A quality-scaled ping-pong target stores a bounded maximum of the current HDR contribution and the previous contribution multiplied by a motion-sensitive retention factor.
 4. Bloom is extracted from the temporally accumulated light, allowing prior scanner positions to produce restrained photographic bloom.
 5. The final post pass combines the untouched full-resolution current scene with the temporal target using maximum compositing. Current beam cores therefore stay sharp while prior positions remain visible only where history is enabled.
-6. Tone mapping, exposure response, glare, and restrained chromatic optics continue through the Patch 5 photographic pass.
+6. Tone mapping, exposure response, glare, and restrained chromatic optics continue through the photographic post pass.
 
 The temporal shader never adds the entire previous frame to the current frame. It uses bounded decay and maximum compositing, with retention capped below one, so stationary bright pixels cannot grow brighter every frame and history cannot accumulate indefinitely.
 
@@ -92,6 +92,6 @@ Temporal quality is independent from the full-resolution beam-core pass:
 
 The pass adds two reusable color targets and one full-screen shader invocation per frame. It does not increase the authored 300-beam budget. Current beam geometry remains full resolution, and only the history buffer scales. Targets are allocated lazily, reused, released on resize, recreated after context restoration, and explicitly disposed.
 
-## Patch 7 boundary
+## Fixture-optics integration
 
-Patch 7 remains responsible for distinct fixture-specific materials and geometry, including moving-head lenses, LED cells, strobe tubes, blinder reflectors, PAR wash optics, and other nonlaser fixture identities. Patch 6 provides the temporal and deterministic motion foundation those materials may consume without implementing them early.
+Fixture-specific materials consume the same deterministic temporal signals without changing the history ownership rules. Moving-head lenses, LED cells, strobe tubes, blinder reflectors, PAR washes, and other nonlaser fixtures remain optically distinct; only suitable scanning light contributes persistence.

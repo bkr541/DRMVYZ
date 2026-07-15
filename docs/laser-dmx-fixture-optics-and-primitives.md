@@ -1,6 +1,6 @@
 # LaserDMX Fixture Optics and Professional Primitives
 
-Patch 7 adds fixture-specific WebGL presentation and a high-level optical composition layer without changing the locked front-center camera or introducing venue geometry.
+The WebGL renderer provides fixture-specific presentation and a high-level optical composition layer without changing the locked front-center camera or introducing venue geometry.
 
 ## Fixture optical models
 

@@ -94,3 +94,30 @@ describe('LaserDMX presentation visibility', () => {
     })
   })
 })
+
+// Final production-hardening decisions remain explicit so diagnostics can
+// explain why Canvas2D is active without leaking shader internals.
+describe('LaserDMX renderer fallback decisions', () => {
+  it('prioritizes repeated context loss and preserves a user-readable reason', async () => {
+    const { resolveLaserDmxRendererBackendDecision } = await import('./LaserDmxRendererBackend')
+    const decision = resolveLaserDmxRendererBackendDecision('auto', {
+      webgl2: true,
+      contextLost: true,
+      repeatedContextLoss: true,
+    })
+    expect(decision.backend).toBe('canvas2d')
+    expect(decision.fallbackCode).toBe('repeated-context-loss')
+    expect(decision.fallbackReason).toContain('repeatedly')
+  })
+
+  it('reports resource-allocation fallback distinctly from WebGL absence', async () => {
+    const { classifyLaserDmxWebGLFailure, resolveLaserDmxRendererBackendDecision } = await import('./LaserDmxRendererBackend')
+    const failureCode = classifyLaserDmxWebGLFailure('Unable to allocate LaserDMX atmosphere target')
+    expect(failureCode).toBe('gpu-resource-allocation-failed')
+    expect(resolveLaserDmxRendererBackendDecision('webgl', {
+      webgl2: true,
+      runtimeFailed: true,
+      failureCode,
+    }).fallbackCode).toBe('gpu-resource-allocation-failed')
+  })
+})

@@ -1,86 +1,156 @@
-# LaserDMX Show Director WebGL rendering program
+# LaserDMX Show Director rendering architecture
 
-## Patch 1 foundation
+LaserDMX Show Director renders one deterministic lighting scene through either the production WebGL2 pipeline or the Canvas2D compatibility pipeline. Both paths consume the same authored fixtures, Music Intelligence timing, Track Map sections, Performance Program state, blackout authority, and beam-budget decisions. The renderer does not create a second choreography clock and does not alter a show's deterministic identity.
 
-Patch 1 introduces a renderer-neutral boundary without changing Show Director's authoritative choreography or production-output safety rules.
+## Final runtime path
 
-The runtime order is now:
+1. Track Map and Music Intelligence resolve the current section, beat, bar, phrase, occurrence, energy, and transient state.
+2. The active Performance Program resolves a transient Show Director rig without mutating the saved source rig.
+3. Show Director evaluates cues, fixture state, target motion, global output, fog, and blackout authority.
+4. `LaserDmxSceneFrame` captures continuous fixture and target coordinates, inferred or explicit depth, optical primitives, fixture material data, and presentation settings.
+5. The renderer boundary selects WebGL2 or Canvas2D using the saved renderer preference and current runtime capabilities.
+6. WebGL2 renders sharp light, fixture-specific optics, volumetric atmosphere, temporal history, HDR accumulation, bloom, exposure, tone mapping, and the final composite.
+7. Canvas2D compiles the same evaluated state through Beam Matrix for compatibility, thumbnails, and safe fallback output.
+8. The completed frame is written to the existing LaserDMX output canvas. Editor overlays are separate React authoring surfaces and are never sampled into Live or Capture output.
 
-1. Music Intelligence and Track Map timing build the deterministic performance context.
-2. The active Performance Program resolves a transient Show Director rig.
-3. `LaserDmxSceneFrame` captures continuous Show Director fixture, target, and depth values before the compatibility compiler rounds them into the 15 × 10 Beam Matrix.
-4. The existing Show Director and production cue runtime still evaluates through Beam Matrix so cue precedence, seek/loop reconstruction, beam budgets, blackout authority, and production behavior remain unchanged.
-5. Evaluated dimmer, color, fog, and blackout state is layered back onto the scene frame without replacing its continuous geometry.
-6. The dedicated LaserDMX WebGL2 runtime may render that frame directly. Canvas2D remains the compatibility and failure fallback.
+The parent React canvas owns the only `requestAnimationFrame` loop. WebGL resources are private to the LaserDMX runtime and are released on unmount, engine switch, renderer replacement, or terminal failure.
 
-The WebGL runtime owns its own offscreen WebGL2 canvas and composites the completed GPU frame into the existing live output canvas. It never samples, screenshots, or uploads the Canvas2D Beam Matrix result as a texture. The initial pass intentionally renders only diagnostic direct-data beams and emitter points. Volumetric haze, HDR accumulation, bloom, tone mapping, scanner persistence, optical instability, and fixture-specific materials remain deferred.
+## Visual invariants
 
-## Presentation modes
+The final renderer preserves these non-negotiable rules:
 
-- **Edit** keeps the complete Show Director authoring overlay.
-- **Hybrid** keeps the live renderer visible and limits authoring graphics to selected fixtures and targets.
-- **Live** mounts no Show Director authoring overlay.
-- **Capture** uses the same clean visualizer output boundary as Live and suppresses diagnostic authoring overlays.
+- The presentation camera is locked front-center and slightly elevated.
+- Camera pan, orbit, roll, animation, presets, and user manipulation do not exist.
+- No audience, room, wall, floor, ceiling, stage, truss, venue shell, or visible depth plane is generated.
+- The background remains black except where authored light or illuminated atmosphere contributes energy.
+- Primary beam cores remain sharp at full render resolution.
+- White-hot centers are intensity gated rather than painted onto every beam.
+- Projector apertures group rays by source so coherent banks have identifiable origins.
+- Intersections brighten through additive energy accumulation.
+- Haze is visible mainly where lighting reaches it and cannot become a full-frame gray texture.
+- Bloom, glare, and chromatic separation are bounded and intensity gated.
+- Temporal persistence is brief, movement aware, and cleared on discontinuities.
+- Live and Capture presentation modes mount no editor overlays.
 
-Legacy projects normalize to **Edit** plus **Canvas2D**. Users can explicitly select WebGL2 or Auto with Canvas2D fallback. WebGL quality and render scale use the shared canvas-resolution policy and are persisted as preferences; GPU handles and runtime resources are never persisted.
+## Locked camera and invisible depth
 
-## Patch 2 spatial foundation
+`frontLocked` is the sole camera definition. It uses a fixed orthographic-depth projection with restrained vertical depth parallax, fixed centered/elevated pose, fixed clipping bounds, and no runtime motion. Existing authored X/Y compositions therefore remain visually recognizable while fixtures and targets can occupy continuous Z positions.
 
-Patch 2 keeps the authored view front-facing while giving WebGL a continuous three-dimensional lighting volume. `frontLocked` is the only presentation camera. It uses an orthographic-depth projection with restrained vertical depth parallax, a fixed centered/elevated pose, fixed clipping bounds, and permanently disabled pan, orbit, roll, animation, and preset overrides. No camera control or camera preset is exposed in Show Director.
+Depth is data, not geometry. The scene frame uses invisible air zones such as Camera-Facing Air, Front Air, Mid Air, Deep Air, Upper Air, and Lower Air. Explicit fixture or target depth takes precedence. Older two-dimensional shows receive deterministic inference from fixture kind, semantic role, target mode, and stable fixture identity. Crosses, mirrors, tunnels, cages, canopies, low rakes, and rear architecture therefore retain the same depth assignment after seeking, looping, or restarting.
 
-Show Director fixtures and beam targets now normalize optional depth-layer metadata and continuous Z coordinates. Fan, cross, mirror, sweep, and audio-reactive ray patterns are expanded directly in the continuous scene frame instead of borrowing quantized matrix cells. The WebGL scene consumes continuous X/Y/Z geometry before Beam Matrix compilation; the 15 × 10 matrix remains a snapping, cue-evaluation, legacy-output, and Canvas2D compatibility layer. The editor stays a 2D authoring surface and offers only compact advanced fixture and target depth-layer selectors.
+The 15 × 10 Beam Matrix remains a compatibility, snapping, cue-evaluation, legacy-output, and Canvas2D layer. It is not the authoritative geometry for the WebGL path.
 
-The engine-neutral frame includes fixture orientation, target points, normalized beam direction, three-dimensional beam length, start/end depth, depth bounds, stable front-to-back/back-to-front ordering, and invisible reference zones: Camera-Facing Air, Front Air, Mid Air, Deep Air, Upper Air, and Lower Air. Every zone is data-only and explicitly non-visible. No wall, floor, ceiling, audience, truss, stage, or venue mesh is generated.
+## Sharp beams and source apertures
 
-Depth inference is deterministic. Semantic roles such as rear diamonds, ceiling canopies, low rakes, audience-facing rakes, mirrored corridors, cages, tunnels, and static fans select coherent air volumes. Fixture kinds provide stable fallbacks for moving heads, LED surfaces, strobes, blinders, washes, haze, CO2, and video walls. Cross and mirror targets alternate through stable depth planes using fixture identity rather than playback time, so seek, loop, occurrence, phrase, and section reconstruction cannot reshuffle depth.
+Active beams are rendered as instanced camera-facing ribbons generated from continuous projected origins and targets. The material separates a soft preliminary envelope, saturated body, narrow pale core, and intensity-gated hot center. Width is expressed in CSS-pixel space and converted to backing pixels so device-pixel ratio and quality scaling do not inflate the visual design.
 
-Legacy schema versions normalize to automatic depth. Existing zero-valued Z fields are treated as legacy two-dimensional defaults, preserving existing screen composition while allowing inference. Explicit nonzero Z coordinates and explicit depth layers take precedence; an explicit Mid Air layer represents an intentional zero-depth plane. Canvas2D and Beam Matrix output remain unchanged.
+Beam material data includes source identity, fixture kind, divergence, scatter width, opacity, core energy, visual priority, deterministic phase, ray index/count, spacing curve, fan or bank structure, and shared source energy. Named primitives such as fans, sheets, banks, tunnels, canopies, cages, and geometric planes compile to deterministic ray sets. Partial beam-budget allocation preserves outer structure and central hero rays instead of truncating one side of a fan.
 
-Full volumetric haze, final laser materials, HDR accumulation, bloom and tone mapping, scanner persistence, optical instability, and broad Performance Show spatial rewrites remain deferred to later patches.
+All rays from one fixture share one projector aperture. Apertures combine a tight center, saturated ring, soft halo, and restrained directional glare based on the fixture's total emitted energy. Additive targets allow same-color and mixed-color intersections to intensify naturally before tone mapping.
 
-## Patch 3 high-fidelity laser pass
+## Fixture-specific optical models
 
-Patch 3 replaces the diagnostic `gl.LINES` output with a batched optical renderer. Every active beam is represented by one instanced, camera-facing ribbon whose quad is generated from the continuous projected origin and target in the vertex shader. The fragment shader resolves four optical regions inside that ribbon: a dim atmospheric envelope, saturated color body, narrow pale core, and an intensity-gated white-hot center. Widths are authored in CSS-pixel space and converted to backing pixels in the shader, so device-pixel ratio, WebGL quality, and render scale do not make beams visibly inflate or collapse.
+Fixture identity is preserved through dedicated materials and geometry:
 
-The scene frame now carries source identity, fixture kind, authored/evaluated width, divergence, scatter-envelope width, opacity, core intensity, visual priority, deterministic phase, ray index/count, spacing curve, fan/bank structure, center direction, and shared source energy. Generated fans use deterministic symmetric spacing. Narrow fan, wide fan, parallel bank, mirrored fan, cross bank, and layered fan semantics can pass through the renderer without changing the locked front-center camera or quantizing continuous coordinates.
+- **Lasers** use narrow coherent ribbons, projector apertures, controlled divergence, scanner persistence, and coherent fan/bank primitives.
+- **Moving heads** use lens apertures and bounded volumetric cones with focus, spread, rotation, and movement semantics.
+- **Wash and PAR fixtures** use broader soft cones and localized color fields rather than laser-like lines.
+- **Strobes** use short tube or bank geometry with transient-gated white energy and no long persistence.
+- **Blinders** use warm reflector apertures and broad audience-facing bursts.
+- **LED bars and tubes** use discrete cell emitters, strip glow, and fixture-aligned banks.
+- **Haze fixtures** contribute invisible local density sources that become visible only under illumination.
+- **CO2 fixtures** use short-lived localized plume volumes with bounded detail and dissipation.
+- **Video-wall-like fixtures** use planar luminous surfaces and restrained spill rather than beam ribbons.
 
-Beam and aperture energy accumulates additively into one offscreen light target. The runtime prefers an `RGBA16F` framebuffer when `EXT_color_buffer_float` is available and falls back to `RGBA8` safely. Intersections brighten naturally through accumulated energy rather than per-crossing sprites. Same-color overlaps gain the pale core contribution; mixed bright colors accumulate toward white when the display target clamps the light buffer. Final exposure, bloom, and tone mapping remain intentionally absent.
+Adding a future material requires a fixture-kind mapping, bounded instance data, a fallback representation, quality scaling rules, and regression coverage. Adding a future primitive requires deterministic geometry, stable identity, priority-aware ray selection, and a Canvas2D-compatible simplification.
 
-All rays from one fixture share one instanced projector aperture. Active beam energy is grouped by source and converted into a tight center, saturated ring, soft halo, and a restrained directional-glare placeholder. Aperture size and intensity therefore respond to total emitted energy instead of drawing one unrelated dot per beam.
+## Atmosphere
 
-The existing 300-beam authority remains intact. Scene generation and the Beam Matrix compatibility compiler now share deterministic ray-index selection at the partial-allocation edge, preserving fan edges and center rather than chopping one side. Performance priority still protects hero impacts and primary architecture before secondary fans, lattice detail, and decorative accents. WebGL quality first reduces envelope complexity, then deterministically thins support rays while retaining hero/primary beams and source identity. Canvas2D receives the same bounded beam list and otherwise remains unchanged.
+Atmosphere renders in a separate reduced-resolution graph while sharp light remains full resolution. Rear and front sharp-light targets are kept separate. Beam-aligned scattering uses deterministic layered noise, fixture-local haze density, continuous depth, and bounded sample counts. A sparse foreground veil can partially occlude rear light while preserving front beams and current sharp cores.
 
-Patch 4 adds depth-aware volumetric haze and light transport through the invisible air zones. Scanner history, final HDR bloom/exposure/tone mapping, chromatic glare, optical instability, nonlaser fixture materials, and broad Performance Show migrations remain deferred to their later patches.
+Empty regions remain black because atmosphere is emitted only around active light transport or localized illuminated sources. A small bounded baseline density keeps legacy shows readable, but global fog controls, haze fixtures, blackout, master dimmer, and resolved fixture brightness remain authoritative.
 
-## Patch 4 depth-aware atmosphere
+## Temporal optics
 
-Patch 4 replaces the WebGL path's flat fog concept with a separate reduced-resolution atmosphere graph. The sharp laser renderer remains full resolution and is split into rear and front light targets. A beam-aligned 2.5D scatter pass renders broad atmospheric ribbons through deterministic layered 3D noise, an optional sparse foreground veil contributes alpha only where coherent haze pockets exist, and a final composite applies stronger veiling to rear light than to front light. Empty pixels remain black because neither scatter nor veil is emitted without illuminated air. No room, wall, floor, ceiling, audience, truss, stage, or visible depth plane is created.
+A bounded ping-pong history target sits after the current HDR scene composite and before bloom. Persistence depends on scanner movement, fixture role, pattern, musical state, and quality. Stationary beams remain clean. Current full-resolution light is composited over history so persistence cannot replace the sharp present frame.
 
-The atmosphere compiler consumes the continuous Z model from Patch 2. Mid-air beams receive the strongest volume lift, front beams retain dominance through the separate sharp target, and rear beams receive softer scatter plus greater foreground occlusion. Beam intersections and neighboring rays naturally brighten the atmosphere through additive accumulation. Projector apertures are also rendered into the atmospheric target at reduced resolution so active sources light nearby haze without softening their full-resolution aperture identity.
+Temporal state clears on initial mount, track or preset replacement, rig or Performance Show change, seek, loop wrap, timing discontinuity, quality change, target resize, blackout, capture entry, context restoration, unmount, and disposal. Deterministic instability and haze flutter use stable hashes and canonical audio time. They never use wall-clock randomness.
 
-A subtle baseline density is compiled whenever active beams exist, even when authored fog is disabled, so legacy rigs remain readable without adding a haze fixture to every preset. Show Director haze fixtures become bounded local density sources with position, depth, direction, spread, dissipation, color, enabled state, and brightness-derived density. Master dimmer, blackout, cue resolution, and transient Performance Program fixture modulation are reapplied to those sources when the final scene output is resolved. Authored Beam Matrix fog controls continue to govern global density, opacity, scatter, turbulence, noise scale, drift, diffusion, dissipation, and color absorption.
+## HDR and photographic post-processing
 
-Atmosphere quality is persisted independently from sharp-beam quality. Low uses quarter resolution, two density samples, simplified noise, and minimal foreground haze. Medium uses half resolution and three samples. High uses roughly two-thirds resolution and five samples. Ultra uses a bounded 0.78 scale and six samples. Auto uses a balanced half-resolution policy. Every tier caps atmosphere beams and haze sources independently while the primary laser geometry remains at the normal WebGL backing resolution.
+The renderer prefers `RGBA16F` accumulation when supported and safely uses an `RGBA8` LDR path otherwise. The post graph performs controlled multi-scale bloom, exposure response, tone mapping, high-intensity glare, and restrained chromatic optics. Colored beam bodies remain saturated while only suitable highlights approach white. Exposure and bloom thresholds preserve black negative space in dim scenes and allow high-energy sections to feel materially larger.
 
-Atmospheric time comes only from canonical transport time plus a stable track-derived seed. It does not use a free-running frame accumulator, so pausing freezes the density field and returning to the same seek or loop position recreates the same large and medium haze structures. GPU programs, instance buffers, three reusable framebuffer targets, and uniform arrays are retained across frames, resized only when required, recreated after context restoration, and explicitly disposed. Float light targets are used only when the required renderability and filtering support is present; otherwise the runtime falls back to RGBA8 targets before falling back to Canvas2D.
+The post path is private to LaserDMX. It does not share mutable targets or exposure state with Cinematic Worlds, Shader Pads, or Canvas2D.
 
-The legacy `LaserDmxFogRenderer` remains the Canvas2D compatibility renderer only. The WebGL branch never uploads or samples its flat fog texture. Patch 5 remains responsible for HDR light accumulation, bloom, exposure, and tone mapping around the new sharp and atmospheric targets.
+## Quality modes
 
-## Patch 5 HDR photographic response
+User-facing quality modes are **Auto**, **Low**, **Medium**, **High**, and **Ultra**.
 
-Patch 5 turns the Patch 4 sharp-light and atmosphere graph into a photographic concert-light pipeline. LaserDMX now probes `RGBA16F` framebuffer renderability, accumulates unclamped rear light, front light, haze illumination, apertures, and intersections into floating-point targets when supported, and exposes a nonintrusive `hdr-rgba16f` or `ldr-rgba8-fallback` diagnostic. It never requests `RGBA32F`, and Canvas2D remains the renderer-boundary fallback rather than becoming part of the WebGL post graph.
+Explicit levels remain fixed until the user changes them. Auto begins from a capability ceiling derived from HDR availability, maximum texture/renderbuffer sizes, and device-pixel ratio. It measures nonblocking GPU timing when `EXT_disjoint_timer_query_webgl2` is available and otherwise uses CPU render timing.
 
-A one-to-four-level quality-scaled bloom pyramid extracts only highlights above a soft threshold, downsamples and blurs the extracted signal, then recombines it with the untouched full-resolution sharp scene. A bounded deterministic exposure controller responds quickly to transport-phased strobe visibility and blinder intensity, releases gradually, resets across timing discontinuities, and recovers rapidly from blackouts without ordinary beat-level pumping. The final pass applies restrained high-threshold glare, near-subpixel chromatic separation, minimal spectral edging, ACES-fitted tone mapping, controlled saturation, highlight desaturation, black clipping, and display gamma. Edit mode sharply attenuates optical glare so authoring interaction remains readable.
+Auto adaptation is deliberately slow and bounded:
 
-All HDR, bloom, blur, and final-post resources are LaserDMX-owned, reusable, resize-aware, context-restorable, and explicitly disposable. Detailed target, quality, exposure, optics, fallback, and lifecycle notes are in [LaserDMX WebGL HDR and Photographic Post-Processing](./laser-dmx-webgl-hdr-post-processing.md). Patch 6 adds bounded scanner persistence, deterministic optical instability, music-aware source and haze motion, and explicit temporal reset handling. Distinct fixture-specific optical materials and geometry remain Patch 7 work.
+- An exponential moving average ignores invalid and extreme timing samples.
+- Multiple slow evaluation windows are required before a downshift.
+- More sustained headroom and a longer cooldown are required before an upshift.
+- Allocation pressure may trigger one immediate downshift before fallback.
+- Capability ceilings prevent an unsupported upshift.
+- Atmosphere scales before hero beam geometry. Ultra keeps the atmosphere at High by default.
 
+Quality may change volumetric resolution, haze samples, bloom levels, glare detail, temporal-history resolution, support-fixture ray density, CO2 detail, moving-head cone detail, and LED glow quality. It never changes camera state, musical counters, occurrence identity, authored targets, hero-beam priority, or deterministic seeking.
 
-## Patch 6 temporal optics
+## Renderer selection and fallback
 
-Patch 6 adds a LaserDMX-owned temporal history stage between the full-resolution HDR composite and the Patch 5 bloom and tone-mapping stack. A bounded ping-pong target records current light plus decayed prior scanner positions using maximum compositing, so feedback cannot grow brighter indefinitely. The current HDR scene remains a separate full-resolution input to the final pass. Stationary beam bodies and cores therefore remain clean and sharp while moving laser rays can expose restrained prior positions.
+The renderer preference is persisted as **Auto**, **WebGL2**, or **Canvas2D**. The safe decision order is:
 
-Persistence is motion-sensitive. Target speed, angular speed, fixture kind, fan or bank structure, visual role, authored persistence, energy, section, beat, kick, hat, snare, strobe state, and WebGL quality contribute through narrow role-specific relationships. Blackouts and dark strobe phases clear history. Snare and visible strobe events segment it. Low through Ultra quality scale only the history targets and deterministic instability layers, not the authoritative beam budget or current sharp pass.
+1. Canvas2D when explicitly selected.
+2. WebGL2 when requested and successfully initialized.
+3. Canvas2D when WebGL2 is unavailable.
+4. Canvas2D during a temporary context loss, with WebGL restoration allowed.
+5. Canvas2D locked for the current renderer session after repeated context loss.
+6. Auto quality downshift after a GPU allocation failure, then Canvas2D if allocation still fails.
+7. Canvas2D after shader compile/link failure or repeated runtime render failure.
 
-Tiny angular vibration, intensity flutter, width movement, aperture breathing, ray phase offsets, and slow haze flutter use stable hashes of track identity, preset/show/rig history identity, occurrence seed, fixture semantic group, ray identity, and canonical audio time. Mirrored semantic groups share a normalized seed and opposite mirror signs. No wall time or nondeterministic random source is used, so seek, loop, restart, and repeated sections reproduce the same optical state.
+A WebGL failure cannot blank the React view. The current evaluated scene is rendered immediately through Canvas2D. Terminal failures dispose GPU resources and stop repeated retry loops. Selecting Canvas2D explicitly clears the session failure latch so a later deliberate WebGL or Auto selection can retry initialization.
 
-Temporal state clears on initial mount, renderer reset, context restoration, track or preset identity change, Beam Matrix preset change, rig or Performance Show change, runtime invalidation, seek, loop wrap, quality change, capture entry, blackout, target resize, unmount, and disposal. A simple pause holds the visual frame because transport time does not advance; a seek during pause is retained and clears on resume. Full implementation and quality details are in [LaserDMX WebGL Temporal Optics](./laser-dmx-temporal-optics.md). Patch 7 remains responsible for fixture-specific materials and geometry.
+An unavailable float target is not a total renderer failure. WebGL remains active through the LDR post-processing path and diagnostics report the degraded target strategy.
+
+## Lifecycle and performance rules
+
+- The React live canvas is the sole animation-loop owner.
+- LaserDMX holds the completed frame during pause and performs no independent clock advancement.
+- Track replacement, preset replacement, seek, loop, and context restoration reset transient renderer state without mutating saved choreography.
+- Engine switch and unmount dispose buffers, textures, framebuffers, programs, queries, history, and event listeners.
+- Render targets resize only after the shared resolution policy reports a meaningful backing-size change.
+- Instance buffers grow by capacity and use `bufferSubData` per frame rather than being recreated continuously.
+- GPU timing permits only one nonblocking query in flight.
+- Renderer diagnostics are throttled before reaching React state.
+- Thumbnails remain on the compatibility path and never create their own animation loop or production-output side effects.
+
+## Diagnostics
+
+The existing Show Director control rail includes a collapsed **Renderer Diagnostics** section. It reports active/requested renderer, presentation mode, WebGL and float-target status, requested/effective quality, render and atmosphere resolutions, haze sample count, active/requested beams, active fixtures, CPU/GPU frame timing, HDR/LDR post state, bloom levels, temporal-history state, fallback reason, and context-loss count.
+
+Diagnostics are ephemeral. They are never serialized into projects, presets, or preferences and are cleared when rendering pauses, clears, disposes, or switches away. The diagnostics surface is outside the visualizer canvas, so it cannot contaminate Live or Capture output.
+
+## Persistence and compatibility
+
+Persisted high-level settings include renderer preference, WebGL quality, atmosphere quality, render scale, presentation mode, and authored visual controls. Framebuffers, textures, buffers, shader programs, GPU queries, temporal-history contents, per-frame timings, and fallback counters are runtime-only.
+
+Older saved shows continue to load through normalization. Missing scene, depth, camera, material, primitive, atmosphere, temporal, or post fields receive safe defaults. Existing fixture identifiers and Performance Program identities remain unchanged. Static source rigs are cloned before transient performance resolution, so loading or playing a show does not destructively migrate saved fixtures.
+
+## Debugging WebGL failures
+
+1. Open **Renderer Diagnostics** and record the active renderer, fallback reason, context-loss count, target format, quality, and internal resolutions.
+2. Switch to Canvas2D to confirm choreography and authored state remain valid.
+3. Reduce quality or select Auto when allocation pressure is reported.
+4. Check browser or Electron GPU capability, WebGL2 availability, and `EXT_color_buffer_float` support.
+5. Treat shader compile/link failures as code defects. Do not hide them by disabling tests or swallowing the diagnostic.
+6. After repeated context loss, leave Canvas2D active for the session and investigate driver, memory, resize, or device-reset conditions before retrying.
+7. Reproduce track switches, engine switches, seek, loop, resize, Capture entry, and context restoration because each owns a specific reset boundary.
+
+## Beam-budget guidelines
+
+The authoritative maximum remains bounded. Allocate in this order: hero impacts and primary architecture, structural secondary banks, texture and support fixtures, then decorative accents. Reduce atmosphere detail and low-priority ray density before deleting hero beams. Keep negative space intentional, use source-coherent primitives instead of random endpoint networks, and validate representative Intro, Verse, Build, Pre-drop, Drop 1, Breakdown, Drop 2, and Outro states.
+
+The renderer is a virtual performance visualization. It does not model real-world optical power, audience scanning, venue exclusion zones, physical interlocks, regulatory compliance, or certified laser/DMX hardware output.

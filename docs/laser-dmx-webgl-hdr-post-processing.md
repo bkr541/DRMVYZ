@@ -1,6 +1,6 @@
 # LaserDMX WebGL HDR and Photographic Post-Processing
 
-Patch 5 adds a LaserDMX-owned photographic light-response stage after the sharp beam and depth-aware atmosphere passes. It does not share mutable post-processing state with Cinematic Worlds, Shader Pads, or the Canvas2D fallback renderer.
+LaserDMX owns a photographic light-response stage after the sharp beam and depth-aware atmosphere passes. It does not share mutable post-processing state with Cinematic Worlds, Shader Pads, or the Canvas2D fallback renderer.
 
 ## Render path
 
@@ -43,8 +43,8 @@ Glare is sampled only from highlights above a high luminance threshold. High and
 
 All HDR, composite, bloom, blur, shader, buffer, and vertex-array resources belong to the LaserDMX WebGL runtime. Resize releases dimension-dependent targets. Reset clears post targets and exposure history. Context restoration reprobes HDR support, restores filtering policy, recreates shaders and buffers once, and lazily reallocates targets on the next frame. Disposal releases every named resource and makes later allocations terminal through the existing resource ledger.
 
-## Patch 6 integration and Patch 7 boundary
+## Temporal and fixture-optics integration
 
-Patch 6 inserts a bounded temporal target between the HDR scene composite and this bloom stack. Bloom receives the accumulated scanner positions, while the final post shader combines that history with the untouched full-resolution current scene so current cores stay crisp. Temporal targets use the same HDR capability strategy and lifecycle ownership as the Patch 5 post resources.
+A bounded temporal target sits between the HDR scene composite and this bloom stack. Bloom receives the accumulated scanner positions, while the final post shader combines that history with the untouched full-resolution current scene so current cores stay crisp. Temporal targets use the same HDR capability strategy and lifecycle ownership as the photographic post resources.
 
-Scanner persistence, deterministic beam and haze instability, music-aware source modulation, and temporal reset rules are documented in [LaserDMX WebGL Temporal Optics](./laser-dmx-temporal-optics.md). Distinct moving-head lenses, LED cells, strobe tube geometry, blinder reflector behavior, PAR wash optics, and other fixture identities remain Patch 7 work.
+Scanner persistence, deterministic beam and haze instability, music-aware source modulation, and temporal reset rules are documented in [LaserDMX WebGL Temporal Optics](./laser-dmx-temporal-optics.md). Distinct moving-head lenses, LED cells, strobe tube geometry, blinder reflector behavior, PAR wash optics, and other fixture identities are supplied by the fixture-optics pass.

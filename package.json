@@ -13,7 +13,7 @@
     "desktop:dist:win": "npm run build && electron-builder --win --publish never",
     "desktop:dist:linux": "npm run build && electron-builder --linux --publish never",
     "build": "tsc && vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:native": "node --test native/**/*.test.cjs",

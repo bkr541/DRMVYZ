@@ -7,6 +7,8 @@ describe('LaserDMX WebGL context lifecycle state', () => {
     const state = new LaserDmxWebGLContextState()
     expect(state.generation).toBe(0)
     state.markLost()
+    state.markLost()
+    expect(state.lossCount).toBe(1)
     expect(state.contextLost).toBe(true)
     expect(state.restorePending).toBe(false)
 
@@ -16,10 +18,14 @@ describe('LaserDMX WebGL context lifecycle state', () => {
     expect(state.generation).toBe(1)
     expect(state.consumeRestore()).toBe(true)
     expect(state.consumeRestore()).toBe(false)
+    state.markLost()
+    expect(state.lossCount).toBe(2)
   })
 
   it('makes disposal terminal and prevents later restoration work', () => {
     const state = new LaserDmxWebGLContextState()
+    state.markRestored()
+    expect(state.generation).toBe(0)
     state.markLost()
     state.dispose()
     state.markRestored()

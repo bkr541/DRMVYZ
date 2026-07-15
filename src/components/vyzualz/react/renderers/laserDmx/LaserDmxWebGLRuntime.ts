@@ -3,6 +3,12 @@ import { ShaderWebGLRuntime } from '../../shaders/runtime/ShaderWebGLRuntime'
 import type { WebGLContextDisposalMode } from '../../shaders/runtime/WebGLContextLifecycle'
 import type { LaserDmxSceneFrame } from './LaserDmxSceneFrame'
 import {
+  applyLaserDmxAdaptiveQualityToFrame,
+  LaserDmxAdaptiveQualityController,
+  type LaserDmxAdaptiveQualitySnapshot,
+} from './LaserDmxAdaptiveQuality'
+import { classifyLaserDmxWebGLFailure, type LaserDmxRendererFallbackCode } from './LaserDmxRendererBackend'
+import {
   LaserDmxExposureController,
   probeLaserDmxWebGLPostCapabilities,
   resolveLaserDmxHdrTargetStrategy,
@@ -30,16 +36,36 @@ export interface LaserDmxWebGLDiagnostics {
   degraded: boolean
   bloomLevels: number
   quality: LaserDmxWebGLPostProcessPlan['quality'] | null
+  atmosphereQuality: LaserDmxAdaptiveQualitySnapshot['effectiveAtmosphere'] | null
   diagnosticCode: LaserDmxHdrTargetStrategy['diagnosticCode']
   temporalHistoryActive: boolean
   temporalResolutionScale: number
+  renderWidth: number
+  renderHeight: number
+  atmosphereWidth: number
+  atmosphereHeight: number
+  atmosphereSampleCount: number
+  activeBeamCount: number
+  requestedBeamCount: number
+  activeFixtureCount: number
+  cpuFrameMs: number | null
+  gpuFrameMs: number | null
+  contextLossCount: number
+  qualityAdjustmentReason: LaserDmxAdaptiveQualitySnapshot['lastChangeReason'] | null
 }
 
 export interface LaserDmxWebGLRenderResult {
   ok: boolean
   error: string | null
   recoverable?: boolean
+  failureCode?: LaserDmxRendererFallbackCode
   diagnostics?: LaserDmxWebGLDiagnostics
+}
+
+export interface LaserDmxWebGLCreateResult {
+  runtime: LaserDmxWebGLRuntime | null
+  error: string | null
+  failureCode: LaserDmxRendererFallbackCode | null
 }
 
 export class LaserDmxWebGLContextState {
@@ -47,6 +73,7 @@ export class LaserDmxWebGLContextState {
   private _restorePending = false
   private _disposed = false
   private _generation = 0
+  private _lossCount = 0
 
   get contextLost(): boolean {
     return this._contextLost
@@ -60,15 +87,19 @@ export class LaserDmxWebGLContextState {
   get generation(): number {
     return this._generation
   }
+  get lossCount(): number {
+    return this._lossCount
+  }
 
   markLost(): void {
-    if (this._disposed) return
+    if (this._disposed || this._contextLost) return
     this._contextLost = true
     this._restorePending = false
+    this._lossCount += 1
   }
 
   markRestored(): void {
-    if (this._disposed) return
+    if (this._disposed || !this._contextLost) return
     this._contextLost = false
     this._restorePending = true
     this._generation += 1
@@ -111,6 +142,91 @@ export class LaserDmxWebGLResourceLedger {
   dispose(): void {
     this.active.clear()
     this._disposed = true
+  }
+}
+
+interface LaserDmxTimerQueryExtension {
+  TIME_ELAPSED_EXT: number
+  GPU_DISJOINT_EXT: number
+}
+
+/** Optional GPU timing with one in-flight query and no blocking readback. */
+class LaserDmxGpuTimer {
+  private readonly extension: LaserDmxTimerQueryExtension | null
+  private pending: WebGLQuery | null = null
+  private active = false
+  private _lastFrameMs: number | null = null
+  private disabled = false
+
+  constructor(private readonly gl: WebGL2RenderingContext) {
+    this.extension = gl.getExtension('EXT_disjoint_timer_query_webgl2') as LaserDmxTimerQueryExtension | null
+  }
+
+  get lastFrameMs(): number | null {
+    return this._lastFrameMs
+  }
+
+  poll(): void {
+    if (!this.extension || !this.pending || this.disabled) return
+    try {
+      const available = this.gl.getQueryParameter(this.pending, this.gl.QUERY_RESULT_AVAILABLE) === true
+      const disjoint = this.gl.getParameter(this.extension.GPU_DISJOINT_EXT) === true
+      if (!available) return
+      if (!disjoint) {
+        const elapsedNs = Number(this.gl.getQueryParameter(this.pending, this.gl.QUERY_RESULT))
+        this._lastFrameMs = Number.isFinite(elapsedNs) ? elapsedNs / 1_000_000 : null
+      }
+      this.gl.deleteQuery(this.pending)
+      this.pending = null
+    } catch {
+      this.disable()
+    }
+  }
+
+  begin(): void {
+    if (!this.extension || this.pending || this.active || this.disabled || this.gl.isContextLost()) return
+    try {
+      const query = this.gl.createQuery()
+      if (!query) return
+      this.pending = query
+      this.gl.beginQuery(this.extension.TIME_ELAPSED_EXT, query)
+      this.active = true
+    } catch {
+      this.disable()
+    }
+  }
+
+  end(): void {
+    if (!this.extension || !this.active || this.disabled) return
+    try {
+      this.gl.endQuery(this.extension.TIME_ELAPSED_EXT)
+    } catch {
+      this.disable()
+    } finally {
+      this.active = false
+    }
+  }
+
+  reset(): void {
+    if (this.active && this.extension) {
+      try { this.gl.endQuery(this.extension.TIME_ELAPSED_EXT) } catch { /* context may be lost */ }
+    }
+    if (this.pending) {
+      try { this.gl.deleteQuery(this.pending) } catch { /* context may be lost */ }
+    }
+    this.active = false
+    this.pending = null
+    this._lastFrameMs = null
+  }
+
+  dispose(): void {
+    this.reset()
+    this.disabled = true
+  }
+
+  private disable(): void {
+    this.reset()
+    this.disabled = true
   }
 }
 
@@ -217,7 +333,17 @@ function ensureFloatCapacity(
 
 export class LaserDmxWebGLRuntime {
   static create(outputContext: CanvasRenderingContext2D): LaserDmxWebGLRuntime | null {
-    if (typeof document === 'undefined') return null
+    return LaserDmxWebGLRuntime.createWithDiagnostics(outputContext).runtime
+  }
+
+  static createWithDiagnostics(outputContext: CanvasRenderingContext2D): LaserDmxWebGLCreateResult {
+    if (typeof document === 'undefined') {
+      return {
+        runtime: null,
+        error: 'WebGL2 unavailable outside a browser document',
+        failureCode: 'webgl2-unavailable',
+      }
+    }
     const canvas = document.createElement('canvas')
     const lifecycle = new LaserDmxWebGLContextState()
     let owner: LaserDmxWebGLRuntime | null = null
@@ -236,13 +362,24 @@ export class LaserDmxWebGLRuntime {
         owner?.handleContextRestored()
       },
     })
-    if (!result.runtime) return null
+    if (!result.runtime) {
+      return {
+        runtime: null,
+        error: result.error,
+        failureCode: 'webgl2-unavailable',
+      }
+    }
     try {
       owner = new LaserDmxWebGLRuntime(outputContext, canvas, result.runtime, lifecycle)
-      return owner
-    } catch {
+      return { runtime: owner, error: null, failureCode: null }
+    } catch (error) {
       result.runtime.dispose('release-resources')
-      return null
+      const message = error instanceof Error ? error.message : String(error)
+      return {
+        runtime: null,
+        error: message,
+        failureCode: classifyLaserDmxWebGLFailure(message),
+      }
     }
   }
 
@@ -279,6 +416,8 @@ export class LaserDmxWebGLRuntime {
   private targetStrategy: LaserDmxHdrTargetStrategy
   private readonly exposureController = new LaserDmxExposureController()
   private readonly temporalController = new LaserDmxTemporalOpticsController()
+  private readonly qualityController: LaserDmxAdaptiveQualityController
+  private readonly gpuTimer: LaserDmxGpuTimer
   private lastPostPlan: LaserDmxWebGLPostProcessPlan | null = null
   private lastTemporalPlan: LaserDmxTemporalFramePlan | null = null
   private beamViewportUniform: WebGLUniformLocation | null = null
@@ -333,6 +472,9 @@ export class LaserDmxWebGLRuntime {
   private beamInstanceData = new Float32Array(0)
   private apertureInstanceData = new Float32Array(0)
   private atmosphereInstanceData = new Float32Array(0)
+  private beamGpuCapacityFloats = 0
+  private apertureGpuCapacityFloats = 0
+  private atmosphereGpuCapacityFloats = 0
   private readonly rearBeamInstances: LaserDmxWebGLBeamInstance[] = []
   private readonly frontBeamInstances: LaserDmxWebGLBeamInstance[] = []
   private readonly rearApertureInstances: LaserDmxWebGLApertureInstance[] = []
@@ -341,6 +483,13 @@ export class LaserDmxWebGLRuntime {
   private sourceDirectionData = new Float32Array(MAX_HAZE_SOURCES * 4)
   private sourceColorData = new Float32Array(MAX_HAZE_SOURCES * 4)
   private lastResolution: CanvasResolution | null = null
+  private lastAtmospherePlan: LaserDmxWebGLAtmosphereRenderPlan | null = null
+  private lastQualitySnapshot: LaserDmxAdaptiveQualitySnapshot | null = null
+  private lastCpuFrameMs: number | null = null
+  private consecutiveRenderFailures = 0
+  private lastActiveBeamCount = 0
+  private lastRequestedBeamCount = 0
+  private lastActiveFixtureCount = 0
   private disposed = false
 
   private constructor(
@@ -350,9 +499,24 @@ export class LaserDmxWebGLRuntime {
     private readonly lifecycle: LaserDmxWebGLContextState,
   ) {
     this.gl = runtime.gl
+    const maxTextureSize = Number(this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE)) || 0
+    const maxRenderbufferSize = Number(this.gl.getParameter(this.gl.MAX_RENDERBUFFER_SIZE)) || 0
+    this.qualityController = new LaserDmxAdaptiveQualityController({
+      hdrAvailable: false,
+      maxTextureSize,
+      maxRenderbufferSize,
+      devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+    })
+    this.gpuTimer = new LaserDmxGpuTimer(this.gl)
     this.rearTarget = emptyTarget(this.gl.NEAREST)
     this.frontTarget = emptyTarget(this.gl.NEAREST)
     this.targetStrategy = resolveLaserDmxHdrTargetStrategy(probeLaserDmxWebGLPostCapabilities(this.gl))
+    this.qualityController.updateCapabilities({
+      hdrAvailable: this.targetStrategy.hdrEnabled,
+      maxTextureSize,
+      maxRenderbufferSize,
+      devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+    })
     const postFilter = this.targetStrategy.linearFiltering ? this.gl.LINEAR : this.gl.NEAREST
     this.atmosphereTarget = emptyTarget(postFilter)
     this.hdrCompositeTarget = emptyTarget(postFilter)
@@ -369,32 +533,72 @@ export class LaserDmxWebGLRuntime {
     return this.lifecycle.contextLost || this.runtime.contextLost
   }
 
+  get contextLossCount(): number {
+    return this.lifecycle.lossCount
+  }
+
+  get repeatedContextLoss(): boolean {
+    return this.contextLossCount >= 2
+  }
+
   get diagnostics(): LaserDmxWebGLDiagnostics {
     const plan = this.lastPostPlan
+    const atmosphere = this.lastAtmospherePlan
+    const resolution = this.lastResolution
     return {
       hdrMode: plan?.targetStrategy.targetFormat ?? this.targetStrategy.targetFormat,
       degraded: plan?.degraded ?? !this.targetStrategy.hdrEnabled,
       bloomLevels: plan?.bloom.levelCount ?? 0,
       quality: plan?.quality ?? null,
+      atmosphereQuality: this.lastQualitySnapshot?.effectiveAtmosphere ?? null,
       diagnosticCode: plan?.targetStrategy.diagnosticCode ?? this.targetStrategy.diagnosticCode,
       temporalHistoryActive: this.lastTemporalPlan?.history.enabled ?? false,
       temporalResolutionScale: this.lastTemporalPlan?.history.resolutionScale ?? 0,
+      renderWidth: resolution?.backingWidth ?? 0,
+      renderHeight: resolution?.backingHeight ?? 0,
+      atmosphereWidth: atmosphere?.targetWidth ?? 0,
+      atmosphereHeight: atmosphere?.targetHeight ?? 0,
+      atmosphereSampleCount: atmosphere?.sampleCount ?? 0,
+      activeBeamCount: this.lastActiveBeamCount,
+      requestedBeamCount: this.lastRequestedBeamCount,
+      activeFixtureCount: this.lastActiveFixtureCount,
+      cpuFrameMs: this.lastCpuFrameMs,
+      gpuFrameMs: this.gpuTimer.lastFrameMs,
+      contextLossCount: this.contextLossCount,
+      qualityAdjustmentReason: this.lastQualitySnapshot?.lastChangeReason ?? null,
     }
   }
 
   render(frame: LaserDmxSceneFrame): LaserDmxWebGLRenderResult {
-    if (this.disposed || this.lifecycle.disposed)
-      return { ok: false, error: 'LaserDMX WebGL runtime is disposed' }
-    if (this.contextLost)
+    if (this.disposed || this.lifecycle.disposed) {
+      return {
+        ok: false,
+        error: 'LaserDMX WebGL runtime is disposed',
+        recoverable: false,
+        failureCode: 'runtime-render-failed',
+      }
+    }
+    if (this.contextLost) {
       return {
         ok: false,
         error: 'LaserDMX WebGL context lost',
-        recoverable: true,
+        recoverable: !this.repeatedContextLoss,
+        failureCode: this.repeatedContextLoss ? 'repeated-context-loss' : 'context-lost',
       }
+    }
+
+    const startMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    this.gpuTimer.poll()
+    const qualitySnapshot = this.qualityController.resolve(
+      frame.quality.qualityTier,
+      frame.atmosphere.qualityTier,
+    )
+    this.lastQualitySnapshot = qualitySnapshot
+    const renderFrame = applyLaserDmxAdaptiveQualityToFrame(frame, qualitySnapshot)
 
     try {
       if (this.lifecycle.consumeRestore()) this.rebuildGpuResources()
-      this.resize(frame)
+      this.resize(renderFrame)
       const frameState = this.runtime.beginFrame()
       const resolution = this.lastResolution
       if (!frameState || !resolution || !this.resourcesReady()) {
@@ -402,19 +606,22 @@ export class LaserDmxWebGLRuntime {
           ok: false,
           error: 'LaserDMX WebGL frame could not begin',
           recoverable: true,
+          failureCode: 'runtime-render-failed',
         }
       }
 
+      this.gpuTimer.begin()
       const viewport = {
         backingWidth: frameState.dims.W,
         backingHeight: frameState.dims.H,
         cssWidth: resolution.cssWidth,
         cssHeight: resolution.cssHeight,
       }
-      const temporalPlan = this.temporalController.update(frame)
+      const temporalPlan = this.temporalController.update(renderFrame)
       this.lastTemporalPlan = temporalPlan
-      const beamPlan = buildLaserDmxWebGLBeamRenderPlan(frame, viewport)
-      const atmospherePlan = buildLaserDmxWebGLAtmosphereRenderPlan(frame, viewport)
+      const beamPlan = buildLaserDmxWebGLBeamRenderPlan(renderFrame, viewport)
+      const atmospherePlan = buildLaserDmxWebGLAtmosphereRenderPlan(renderFrame, viewport)
+      this.lastAtmospherePlan = atmospherePlan
       this.ensureRenderTarget(this.rearTarget, frameState.dims.W, frameState.dims.H, 'rear-light')
       this.ensureRenderTarget(this.frontTarget, frameState.dims.W, frameState.dims.H, 'front-light')
       this.ensureRenderTarget(
@@ -444,9 +651,9 @@ export class LaserDmxWebGLRuntime {
             rgba16fRenderable: false,
             floatLinearFiltering: true,
           })
-      const exposure = this.exposureController.update(frame)
+      const exposure = this.exposureController.update(renderFrame)
       const postPlan = resolveLaserDmxWebGLPostProcessPlan(
-        frame,
+        renderFrame,
         activeTargetStrategy,
         exposure.state,
         exposure.response,
@@ -454,7 +661,7 @@ export class LaserDmxWebGLRuntime {
       this.lastPostPlan = postPlan
       this.ensurePostTargets(frameState.dims.W, frameState.dims.H, postPlan)
 
-      if (!frame.output.blackout) {
+      if (!renderFrame.output.blackout) {
         this.partitionSharpInstances(beamPlan.beams, beamPlan.apertures)
         this.renderAtmosphere(atmospherePlan, beamPlan.apertures, viewport)
         this.renderSharpTarget(
@@ -481,6 +688,7 @@ export class LaserDmxWebGLRuntime {
       this.drawComposite(this.hdrCompositeTarget)
       const temporalSource = this.renderTemporalHistory(temporalPlan)
       this.renderPhotographicPost(postPlan, temporalSource, temporalPlan.history.enabled)
+      this.gpuTimer.end()
       this.runtime.endFrame()
 
       const outCanvas = this.outputContext.canvas
@@ -491,6 +699,19 @@ export class LaserDmxWebGLRuntime {
       this.outputContext.clearRect(0, 0, outCanvas.width, outCanvas.height)
       this.outputContext.drawImage(this.canvas, 0, 0, outCanvas.width, outCanvas.height)
       this.outputContext.restore()
+
+      const endMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      this.lastCpuFrameMs = Math.max(0, endMs - startMs)
+      this.gpuTimer.poll()
+      this.qualityController.sample(
+        this.gpuTimer.lastFrameMs ?? this.lastCpuFrameMs,
+        endMs,
+        frame.quality.qualityTier,
+      )
+      this.lastActiveBeamCount = beamPlan.beams.length
+      this.lastRequestedBeamCount = atmospherePlan.requestedBeamCount
+      this.lastActiveFixtureCount = renderFrame.fixtures.filter(fixture => fixture.enabled).length
+      this.consecutiveRenderFailures = 0
       return {
         ok: true,
         error: null,
@@ -499,16 +720,38 @@ export class LaserDmxWebGLRuntime {
           degraded: postPlan.degraded,
           bloomLevels: postPlan.bloom.levelCount,
           quality: postPlan.quality,
+          atmosphereQuality: qualitySnapshot.effectiveAtmosphere,
           diagnosticCode: postPlan.targetStrategy.diagnosticCode,
           temporalHistoryActive: temporalPlan.history.enabled,
           temporalResolutionScale: temporalPlan.history.resolutionScale,
+          renderWidth: frameState.dims.W,
+          renderHeight: frameState.dims.H,
+          atmosphereWidth: atmospherePlan.targetWidth,
+          atmosphereHeight: atmospherePlan.targetHeight,
+          atmosphereSampleCount: atmospherePlan.sampleCount,
+          activeBeamCount: this.lastActiveBeamCount,
+          requestedBeamCount: this.lastRequestedBeamCount,
+          activeFixtureCount: this.lastActiveFixtureCount,
+          cpuFrameMs: this.lastCpuFrameMs,
+          gpuFrameMs: this.gpuTimer.lastFrameMs,
+          contextLossCount: this.contextLossCount,
+          qualityAdjustmentReason: qualitySnapshot.lastChangeReason,
         },
       }
     } catch (error) {
+      this.gpuTimer.end()
+      const message = error instanceof Error ? error.message : String(error)
+      const failureCode = classifyLaserDmxWebGLFailure(message)
+      this.consecutiveRenderFailures += 1
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      const downshifted = failureCode === 'gpu-resource-allocation-failed'
+        && frame.quality.qualityTier === 'auto'
+        && this.qualityController.emergencyDownshift(nowMs)
       return {
         ok: false,
-        error: error instanceof Error ? error.message : String(error),
-        recoverable: true,
+        error: message,
+        recoverable: downshifted || (failureCode === 'runtime-render-failed' && this.consecutiveRenderFailures < 3),
+        failureCode,
       }
     }
   }
@@ -527,6 +770,15 @@ export class LaserDmxWebGLRuntime {
       this.temporalController.reset()
       this.lastPostPlan = null
       this.lastTemporalPlan = null
+      this.lastAtmospherePlan = null
+      this.lastQualitySnapshot = null
+      this.lastCpuFrameMs = null
+      this.consecutiveRenderFailures = 0
+      this.gpuTimer.reset()
+      this.qualityController.resetTimings()
+      this.lastActiveBeamCount = 0
+      this.lastRequestedBeamCount = 0
+      this.lastActiveFixtureCount = 0
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
       this.runtime.clearViewport(0, 0, 0, 1)
       this.runtime.endFrame()
@@ -540,11 +792,14 @@ export class LaserDmxWebGLRuntime {
     this.disposed = true
     this.lifecycle.dispose()
     this.temporalController.dispose()
+    this.gpuTimer.dispose()
     this.disposeGpuResources()
     this.ledger.dispose()
     this.runtime.dispose(mode)
     this.lastResolution = null
     this.lastTemporalPlan = null
+    this.lastAtmospherePlan = null
+    this.lastQualitySnapshot = null
   }
 
   handleContextRestored(): void {
@@ -677,6 +932,24 @@ export class LaserDmxWebGLRuntime {
     this.drawForegroundVeil(plan)
   }
 
+  private uploadDynamicInstanceData(
+    buffer: WebGLBuffer,
+    data: Float32Array<ArrayBuffer>,
+    requiredFloats: number,
+    capacityFloats: number,
+  ): number {
+    const gl = this.gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    if (capacityFloats < requiredFloats) {
+      let nextCapacity = Math.max(64, capacityFloats || 64)
+      while (nextCapacity < requiredFloats) nextCapacity *= 2
+      gl.bufferData(gl.ARRAY_BUFFER, nextCapacity * Float32Array.BYTES_PER_ELEMENT, gl.DYNAMIC_DRAW)
+      capacityFloats = nextCapacity
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.subarray(0, requiredFloats))
+    return capacityFloats
+  }
+
   private drawBeamInstances(
     beams: readonly LaserDmxWebGLBeamInstance[],
     viewport: {
@@ -730,8 +1003,12 @@ export class LaserDmxWebGLRuntime {
     const gl = this.gl
     gl.useProgram(this.beamProgram)
     gl.bindVertexArray(this.beamVertexArray)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.beamInstanceBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, this.beamInstanceData, gl.DYNAMIC_DRAW)
+    this.beamGpuCapacityFloats = this.uploadDynamicInstanceData(
+      this.beamInstanceBuffer,
+      this.beamInstanceData,
+      required,
+      this.beamGpuCapacityFloats,
+    )
     gl.uniform2f(this.beamViewportUniform, viewport.backingWidth, viewport.backingHeight)
     gl.uniform2f(
       this.beamCssToBackingUniform,
@@ -789,8 +1066,12 @@ export class LaserDmxWebGLRuntime {
     const gl = this.gl
     gl.useProgram(this.apertureProgram)
     gl.bindVertexArray(this.apertureVertexArray)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.apertureInstanceBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, this.apertureInstanceData, gl.DYNAMIC_DRAW)
+    this.apertureGpuCapacityFloats = this.uploadDynamicInstanceData(
+      this.apertureInstanceBuffer,
+      this.apertureInstanceData,
+      required,
+      this.apertureGpuCapacityFloats,
+    )
     gl.uniform2f(this.apertureViewportUniform, viewport.backingWidth, viewport.backingHeight)
     gl.uniform2f(
       this.apertureCssToBackingUniform,
@@ -849,8 +1130,12 @@ export class LaserDmxWebGLRuntime {
     const gl = this.gl
     gl.useProgram(this.atmosphereProgram)
     gl.bindVertexArray(this.atmosphereVertexArray)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.atmosphereInstanceBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, this.atmosphereInstanceData, gl.DYNAMIC_DRAW)
+    this.atmosphereGpuCapacityFloats = this.uploadDynamicInstanceData(
+      this.atmosphereInstanceBuffer,
+      this.atmosphereInstanceData,
+      required,
+      this.atmosphereGpuCapacityFloats,
+    )
     gl.uniform2f(this.atmosphereViewportUniform, viewport.backingWidth, viewport.backingHeight)
     gl.uniform2f(
       this.atmosphereCssToBackingUniform,
@@ -1262,6 +1547,13 @@ export class LaserDmxWebGLRuntime {
   private rebuildGpuResources(): void {
     this.disposeGpuResources()
     this.targetStrategy = resolveLaserDmxHdrTargetStrategy(probeLaserDmxWebGLPostCapabilities(this.gl))
+    this.qualityController.updateCapabilities({
+      hdrAvailable: this.targetStrategy.hdrEnabled,
+      maxTextureSize: Number(this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE)) || 0,
+      maxRenderbufferSize: Number(this.gl.getParameter(this.gl.MAX_RENDERBUFFER_SIZE)) || 0,
+      devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+    })
+    this.gpuTimer.reset()
     const postFilter = this.targetStrategy.linearFiltering ? this.gl.LINEAR : this.gl.NEAREST
     this.atmosphereTarget.filter = postFilter
     this.hdrCompositeTarget.filter = postFilter
@@ -1273,6 +1565,9 @@ export class LaserDmxWebGLRuntime {
     this.temporalReadIndex = 0
     this.lastPostPlan = null
     this.lastTemporalPlan = null
+    this.lastAtmospherePlan = null
+    this.lastCpuFrameMs = null
+    this.consecutiveRenderFailures = 0
     this.createGpuResources()
   }
 
@@ -1655,6 +1950,9 @@ export class LaserDmxWebGLRuntime {
     } catch {
       /* Context may be lost. */
     }
+    this.beamGpuCapacityFloats = 0
+    this.apertureGpuCapacityFloats = 0
+    this.atmosphereGpuCapacityFloats = 0
     this.beamQuadBuffer = null
     this.beamInstanceBuffer = null
     this.apertureQuadBuffer = null
