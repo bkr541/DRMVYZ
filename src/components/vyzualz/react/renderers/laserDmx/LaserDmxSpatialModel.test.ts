@@ -263,7 +263,7 @@ describe('LaserDMX locked camera and invisible depth semantics', () => {
     expect(legacy.fixtures[0]?.depthLayer).toBe('auto')
     expect(before.fixtures[0]?.position.x * 14).toBeCloseTo(3.25, 8)
     expect(legacy.fixtures[0]?.beam.targets?.[0]?.id).toBe('legacy-target')
-    expect(before.targets).toHaveLength(3)
+    expect(before.targets).toHaveLength(5)
     expect(afterSeek.fixtures.map(item => [item.depthZone, item.position.z])).toEqual(before.fixtures.map(item => [item.depthZone, item.position.z]))
     expect(afterSeek.targets.map(item => [item.depthZone, item.position.z])).toEqual(before.targets.map(item => [item.depthZone, item.position.z]))
     expect(afterLoop.depthOrdering).toEqual(before.depthOrdering)

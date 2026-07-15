@@ -204,6 +204,7 @@ describe('LaserDMX fixture-specific WebGL optics', () => {
 
   it('degrades named primitives and strobes safely through the Canvas2D compiler', () => {
     const showDirector = createDefaultLaserDmxShowDirectorState()
+    showDirector.settings.webglQuality = 'medium'
     const laser = createDefaultLaserDmxShowDirectorFixture('laser', 'fallback-laser', 0)
     laser.optics = { ...laser.optics, primitiveType: 'layeredFan', rayCount: 7, fanWidth: 64 }
     const strobe = createDefaultLaserDmxShowDirectorFixture('strobe', 'fallback-strobe', 1)

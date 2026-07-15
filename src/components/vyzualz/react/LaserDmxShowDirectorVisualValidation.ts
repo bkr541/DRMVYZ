@@ -5,6 +5,7 @@ import {
   type LaserDmxMatrixBeamVisualRole,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorState,
+  type LaserDmxShowDirectorWebGLQuality,
   type ReactTrackSection,
 } from './ReactTypes'
 import { buildLaserDmxShowDirectorPerformanceContext } from './LaserDmxShowDirectorPerformanceContext'
@@ -461,6 +462,7 @@ export function resolveShowDirectorVisualValidationFrame(
   preset: LaserDmxShowDirectorPerformancePresetDefinition,
   definition: ShowDirectorVisualValidationFrameDefinition,
   size = SHOW_DIRECTOR_VISUAL_VALIDATION_SIZE,
+  webglQuality: LaserDmxShowDirectorWebGLQuality = 'high',
 ): ShowDirectorVisualValidationResolution {
   const frame = createShowDirectorVisualValidationFrame(definition)
   const program = preset.createProgram()
@@ -505,8 +507,8 @@ export function resolveShowDirectorVisualValidationFrame(
       ...result.showDirector.settings,
       rendererMode: 'webgl',
       presentationMode: 'capture',
-      webglQuality: 'high',
-      webglAtmosphereQuality: 'high',
+      webglQuality,
+      webglAtmosphereQuality: webglQuality,
       webglRenderScale: 1,
     },
   }

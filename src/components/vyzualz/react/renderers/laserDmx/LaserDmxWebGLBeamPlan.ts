@@ -6,6 +6,7 @@ import type {
 import {
   LASER_DMX_VISUAL_ROLE_PRIORITY,
   resolveLaserDmxWhiteHotMix,
+  selectDeterministicLaserDmxRayIndices,
 } from './LaserDmxBeamOptics'
 import type {
   LaserDmxSceneAtmosphereSource,
@@ -164,9 +165,54 @@ function stableBeamSort(a: LaserDmxSceneBeam, b: LaserDmxSceneBeam): number {
     || a.id.localeCompare(b.id)
 }
 
+interface LaserDmxSourceDensityLimits {
+  hero: number
+  primary: number
+  impact: number
+  secondary: number
+  texture: number
+}
+
+const SOURCE_DENSITY_LIMITS: Readonly<Record<LaserDmxShowDirectorWebGLQuality, LaserDmxSourceDensityLimits>> = Object.freeze({
+  low: { hero: 8, primary: 8, impact: 6, secondary: 6, texture: 4 },
+  medium: { hero: 12, primary: 12, impact: 8, secondary: 8, texture: 6 },
+  high: { hero: 16, primary: 16, impact: 10, secondary: 10, texture: 8 },
+  ultra: { hero: 24, primary: 20, impact: 12, secondary: 12, texture: 10 },
+  auto: { hero: 16, primary: 16, impact: 10, secondary: 10, texture: 8 },
+})
+
+function sourceDensityLimit(beam: LaserDmxSceneBeam, quality: LaserDmxShowDirectorWebGLQuality): number {
+  return SOURCE_DENSITY_LIMITS[quality][beam.visualRole]
+}
+
+function stableSourceGroups(beams: readonly LaserDmxSceneBeam[]): LaserDmxSceneBeam[][] {
+  const grouped = new Map<string, LaserDmxSceneBeam[]>()
+  for (const beam of beams) {
+    const group = grouped.get(beam.sourceId) ?? []
+    group.push(beam)
+    grouped.set(beam.sourceId, group)
+  }
+  return [...grouped.values()]
+    .map(group => group.sort((a, b) => a.pattern.rayIndex - b.pattern.rayIndex || stableBeamSort(a, b)))
+    .sort((a, b) => stableBeamSort([...a].sort(stableBeamSort)[0]!, [...b].sort(stableBeamSort)[0]!))
+}
+
+function thinSourceForQuality(
+  source: readonly LaserDmxSceneBeam[],
+  quality: LaserDmxShowDirectorWebGLQuality,
+): LaserDmxSceneBeam[] {
+  if (source.length === 0) return []
+  const limit = Math.min(source.length, sourceDensityLimit(source[0]!, quality))
+  if (source.length <= limit) return [...source].sort(stableBeamSort)
+  const selectedIndices = new Set(selectDeterministicLaserDmxRayIndices(source.length, limit))
+  return source.filter((_, index) => selectedIndices.has(index)).sort(stableBeamSort)
+}
+
 /**
- * Quality degradation keeps hero/primary geometry and at least one ray from
- * every represented source before thinning secondary/texture support rays.
+ * Quality degradation first thins each source deterministically, preserving fan
+ * edges and center. The global budget is then filled round-robin within stable
+ * priority order so mirrored banks remain balanced. Texture and support density
+ * fall before hero/primary structure, and no ray flickers randomly frame to frame.
  */
 export function selectLaserDmxBeamsForQuality(
   beams: readonly LaserDmxSceneBeam[],
@@ -174,24 +220,52 @@ export function selectLaserDmxBeamsForQuality(
   maxOverride?: number,
 ): LaserDmxSceneBeam[] {
   const limit = Math.max(0, Math.min(300, Math.round(maxOverride ?? QUALITY_POLICIES[quality].maxBeamInstances)))
-  const ordered = [...beams].sort(stableBeamSort)
-  if (ordered.length <= limit) return ordered
   if (limit === 0) return []
+  const sources = stableSourceGroups(beams).map(source => thinSourceForQuality(source, quality))
+  const densityBoundedCount = sources.reduce((sum, source) => sum + source.length, 0)
+  if (densityBoundedCount <= limit) return sources.flat().sort(stableBeamSort)
 
-  const selected = new Map<string, LaserDmxSceneBeam>()
-  const firstBySource = new Map<string, LaserDmxSceneBeam>()
-  for (const beam of ordered) {
-    if (!firstBySource.has(beam.sourceId)) firstBySource.set(beam.sourceId, beam)
+  const sourcePriority = (source: readonly LaserDmxSceneBeam[]) => {
+    const representative = [...source].sort(stableBeamSort)[0]!
+    return {
+      priority: representative.priority,
+      role: LASER_DMX_VISUAL_ROLE_PRIORITY[representative.visualRole],
+    }
   }
-  for (const beam of [...firstBySource.values()].sort(stableBeamSort)) {
-    if (selected.size >= limit) break
-    selected.set(beam.id, beam)
+  const priorityGroups = new Map<string, LaserDmxSceneBeam[][]>()
+  for (const source of sources) {
+    const priority = sourcePriority(source)
+    const key = `${priority.priority}:${priority.role}`
+    const group = priorityGroups.get(key) ?? []
+    group.push(source)
+    priorityGroups.set(key, group)
   }
-  for (const beam of ordered) {
-    if (selected.size >= limit) break
-    selected.set(beam.id, beam)
+  const orderedGroups = [...priorityGroups.entries()]
+    .sort(([a], [b]) => {
+      const [ap, ar] = a.split(':').map(Number)
+      const [bp, br] = b.split(':').map(Number)
+      return ap - bp || ar - br
+    })
+    .map(([, group]) => group)
+
+  const selected: LaserDmxSceneBeam[] = []
+  for (const group of orderedGroups) {
+    let depth = 0
+    let progress = true
+    while (selected.length < limit && progress) {
+      progress = false
+      for (const source of group) {
+        const beam = source[depth]
+        if (!beam) continue
+        selected.push(beam)
+        progress = true
+        if (selected.length >= limit) break
+      }
+      depth += 1
+    }
+    if (selected.length >= limit) break
   }
-  return [...selected.values()].sort(stableBeamSort)
+  return selected.sort(stableBeamSort)
 }
 
 function projectedDirection(

@@ -560,7 +560,7 @@ export class LaserDmxWebGLRuntime {
   }
 
   get repeatedContextLoss(): boolean {
-    return this.contextLossCount >= 2
+    return this.contextLossCount >= 3
   }
 
   get diagnostics(): LaserDmxWebGLDiagnostics {

@@ -847,7 +847,7 @@ export const LASER_DMX_SHOW_DIRECTOR_DEPTH_LAYER_LABELS: Record<LaserDmxShowDire
   lowerAir: 'Lower Air',
 }
 
-export const LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS = 12
+export const LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS = 24
 
 export interface LaserDmxShowDirectorBeamTarget {
   id: string

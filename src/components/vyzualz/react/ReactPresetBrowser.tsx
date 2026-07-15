@@ -1,3 +1,4 @@
+import type React from 'react'
 import type { ReactPreset } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { useEffectiveReactPresets } from '../../../features/personalization/useEffectiveReactPresets'
@@ -27,6 +28,7 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
               key={preset.id}
               type="button"
               className={`rv-preset-card rv-preset-card--with-thumb${isActive ? ' rv-preset-card--active' : ''}`}
+              style={{ '--accent': preset.palette.primary } as React.CSSProperties}
               aria-pressed={isActive}
               aria-current={isActive ? 'true' : undefined}
               onClick={() => onSelect(preset.id)}

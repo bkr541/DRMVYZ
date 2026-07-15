@@ -35,6 +35,7 @@ describe('MediaDeckPanel performance adapter', () => {
     expect(MEDIA_DECK_CAPABILITIES).toEqual([
       'select',
       'load-track',
+      'lyrics',
       'preview',
       'favorite',
       'collections',

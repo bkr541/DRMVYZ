@@ -35,6 +35,13 @@ const snapshot = {
   fallbackReason: null,
   contextLossCount: 0,
   postProcessingStatus: 'hdr' as const,
+  lastWebGLFailure: null,
+  failureClassification: null,
+  retryCount: 0,
+  nextAutomaticRetryMs: null,
+  lastSuccessfulInitializationMs: 900,
+  manualRetryAvailable: false,
+  finalFallbackReason: null,
 }
 
 describe('LaserDmxRendererDiagnosticsStore', () => {

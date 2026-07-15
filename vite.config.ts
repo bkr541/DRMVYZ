@@ -24,7 +24,7 @@ export default defineConfig({
 
     // E2E specs are Playwright-only, and native/**/*.test.cjs specs run under
     // Node's built-in test runner (npm run test:native) — Vitest must not collect either.
-    exclude: ['**/node_modules/**', 'src/test/e2e/**', 'native/**'],
+    exclude: ['**/node_modules/**', 'src/test/e2e/**', 'native/**', 'supabase/functions/**'],
 
     coverage: {
       provider: 'v8',

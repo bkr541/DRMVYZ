@@ -44,6 +44,20 @@ interface WebGLVisualFrame {
   }
   activeFixtureKinds: string[]
   overlayElementCount: number
+  qualityMetrics: {
+    requestedBeamCount: number
+    selectedBeamCount: number
+    requestedMaxSourceRayCount: number
+    selectedMaxSourceRayCount: number
+    requestedHeroRayCount: number
+    selectedHeroRayCount: number
+    requestedSupportRayCount: number
+    selectedSupportRayCount: number
+    requestedTextureRayCount: number
+    selectedTextureRayCount: number
+    selectedLeftRayCount: number
+    selectedRightRayCount: number
+  }
 }
 
 interface WebGLVisualReport {
@@ -60,6 +74,16 @@ interface WebGLVisualReport {
   }
   rendererHost: string
   frames: WebGLVisualFrame[]
+  recovery: {
+    automaticCooldownValidated: boolean
+    manualRetryClearedFailure: boolean
+    permanentFallbackValidated: boolean
+    contextLossExtensionSupported: boolean
+    contextLossObserved: boolean
+    contextRestoreObserved: boolean
+    postRestoreRenderSucceeded: boolean
+    supportedSkipReason: string | null
+  } | null
 }
 
 declare global {
@@ -95,7 +119,7 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     expect(report?.rendererHost).toBe('production-laser-dmx-webgl-runtime')
     expect(report?.capability.available).toBe(true)
     expect(report?.capability.version).toContain('WebGL 2')
-    expect(report?.frames).toHaveLength(21)
+    expect(report?.frames).toHaveLength(26)
 
     const fingerprints = new Set<string>()
     for (const frame of report!.frames) {
@@ -128,7 +152,7 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
       fingerprints.add(frame.pixelMetrics.fingerprint)
       const directory = path.join(outputRoot, frame.presetId)
       await mkdir(directory, { recursive: true })
-      await page.locator(`#${frame.canvasId}`).screenshot({ path: path.join(directory, `${frame.frameId}.png`) })
+      await page.locator(`#${frame.canvasId}`).screenshot({ path: path.join(directory, `${frame.frameId}-${frame.scenario}.png`) })
     }
     expect(fingerprints.size).toBeGreaterThanOrEqual(9)
     expect(report!.frames.filter(frame => frame.pixelMetrics.deterministicReplayChecked)).toHaveLength(3)
@@ -143,6 +167,11 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
       'led-pixel-chase',
       'video-wall-emissive',
       'strobe-blinder-distinction',
+      'high-hero-fan',
+      'ultra-hero-fan',
+      'budget-hero-preservation',
+      'auto-support-degradation',
+      'high-mirror-corridor',
     ]
     for (const scenario of requiredScenarios) {
       expect(report!.frames.some(frame => frame.scenario === scenario), `Missing ${scenario} regression state`).toBe(true)
@@ -153,8 +182,43 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     const videoWall = report!.frames.find(frame => frame.scenario === 'video-wall-emissive')!
     expect(videoWall.activeFixtureKinds).toContain('videoWall')
 
+    const highHero = report!.frames.find(frame => frame.scenario === 'high-hero-fan')!
+    expect(highHero.qualityMetrics.requestedMaxSourceRayCount).toBeGreaterThanOrEqual(16)
+    expect(highHero.qualityMetrics.selectedMaxSourceRayCount).toBeGreaterThanOrEqual(16)
+    const ultraHero = report!.frames.find(frame => frame.scenario === 'ultra-hero-fan')!
+    expect(ultraHero.qualityMetrics.requestedMaxSourceRayCount).toBeGreaterThanOrEqual(20)
+    expect(ultraHero.qualityMetrics.selectedMaxSourceRayCount).toBeGreaterThanOrEqual(20)
+
+    const budget = report!.frames.find(frame => frame.scenario === 'budget-hero-preservation')!
+    expect(budget.qualityMetrics.requestedBeamCount).toBeGreaterThan(300)
+    expect(budget.qualityMetrics.selectedBeamCount).toBeLessThanOrEqual(300)
+    expect(budget.qualityMetrics.selectedBeamCount).toBeLessThan(budget.qualityMetrics.requestedBeamCount)
+    expect(budget.qualityMetrics.selectedHeroRayCount).toBe(budget.qualityMetrics.requestedHeroRayCount)
+    expect(budget.qualityMetrics.selectedTextureRayCount).toBeLessThan(budget.qualityMetrics.requestedTextureRayCount)
+
+    const auto = report!.frames.find(frame => frame.scenario === 'auto-support-degradation')!
+    expect(auto.qualityMetrics.requestedBeamCount).toBeGreaterThan(auto.qualityMetrics.selectedBeamCount)
+    expect(auto.qualityMetrics.selectedHeroRayCount).toBe(auto.qualityMetrics.requestedHeroRayCount)
+    expect(auto.qualityMetrics.selectedTextureRayCount).toBeLessThan(auto.qualityMetrics.requestedTextureRayCount)
+    expect(auto.qualityMetrics.selectedSupportRayCount).toBeLessThanOrEqual(auto.qualityMetrics.requestedSupportRayCount)
+
+    expect(report!.recovery?.automaticCooldownValidated).toBe(true)
+    expect(report!.recovery?.manualRetryClearedFailure).toBe(true)
+    expect(report!.recovery?.permanentFallbackValidated).toBe(true)
+    if (report!.recovery?.contextLossExtensionSupported) {
+      expect(report!.recovery.contextLossObserved).toBe(true)
+      expect(report!.recovery.contextRestoreObserved).toBe(true)
+      expect(report!.recovery.postRestoreRenderSucceeded).toBe(true)
+    } else {
+      expect(report!.recovery?.supportedSkipReason).toBeTruthy()
+    }
+
     const mirror = report!.frames.find(frame => frame.key === 'cyan-mirror-cage/drop-1-body')!
     expect(mirror.pixelMetrics.leftRightDifference).toBeLessThan(0.3)
+    const highMirror = report!.frames.find(frame => frame.scenario === 'high-mirror-corridor')!
+    expect(highMirror.qualityMetrics.selectedMaxSourceRayCount).toBeGreaterThanOrEqual(12)
+    expect(Math.abs(highMirror.qualityMetrics.selectedLeftRayCount - highMirror.qualityMetrics.selectedRightRayCount)).toBeLessThanOrEqual(2)
+    expect(highMirror.pixelMetrics.leftRightDifference).toBeLessThan(0.6)
 
     const hazeCo2 = report!.frames.find(frame => frame.key === 'haze-co2-drops-performance/drop-2-impact')!
     expect(hazeCo2.activeFixtureKinds).toEqual(expect.arrayContaining(['haze', 'co2Jet']))

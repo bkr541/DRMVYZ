@@ -35,6 +35,10 @@ import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntell
 import type { VzCueMarker } from '../../../../types/cue'
 import { selectDeterministicLaserDmxRayIndices } from './laserDmx/LaserDmxBeamOptics'
 import { buildLaserDmxOpticalPrimitivePlan } from './laserDmx/LaserDmxOpticalPrimitives'
+import {
+  createLaserDmxShowDirectorBeamBudgetReport,
+  estimateLaserDmxShowDirectorFixtureBeamDemand,
+} from '../LaserDmxShowDirectorBeamBudget'
 
 export interface CompileLaserDmxShowDirectorToBeamMatrixInput {
   showDirector: LaserDmxShowDirectorState
@@ -73,6 +77,8 @@ interface FixtureCompileContext {
   groupLabels: Map<string, string>
   hasRenderableFixture: boolean
   fixturePriorityRoleById: Readonly<Record<string, LaserDmxShowDirectorBeamPriorityRole>>
+  fixtureBeamAllocationById: Readonly<Record<string, number>>
+  fixtureBeamRequestedById: Readonly<Record<string, number>>
 }
 
 const KIND_DEFAULT_COLORS: Record<LaserDmxShowDirectorFixtureKind, string> = {
@@ -873,11 +879,19 @@ function compileBeamFixture(
   const editableTargets = editableTargetsForFixture(fixture, ctx.gridColumns, ctx.gridRows)
   const explicitPrimitive = fixture.optics?.primitiveType != null && fixture.optics.primitiveType !== 'auto'
   const remainingCapacity = Math.max(0, LASER_DMX_MATRIX_MAX_BEAMS - ctx.outputBeamCount)
+  const fixtureAllocation = Math.max(0, Math.min(
+    remainingCapacity,
+    Math.round(ctx.fixtureBeamAllocationById[fixture.id] ?? remainingCapacity),
+  ))
+  if (fixtureAllocation <= 0) return
+  const fixtureRequested = Math.max(fixtureAllocation, Math.round(
+    ctx.fixtureBeamRequestedById[fixture.id] ?? fixtureAllocation,
+  ))
   const primitivePlan = explicitPrimitive
     ? buildLaserDmxOpticalPrimitivePlan({
         fixture,
         origin: point,
-        allocatedRayCount: fixture.optics.rayCount,
+        allocatedRayCount: fixtureRequested,
         audioTimeSec: 0,
         beatIndex: 0,
         phraseIndex: 0,
@@ -890,14 +904,14 @@ function compileBeamFixture(
     : useEditableTargets
       ? Math.min(editableTargets.length, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
       : fixture.beam.targetMode === 'fan'
-        ? clamp(Math.round(spread / 9), 3, 9)
+        ? clamp(fixtureRequested, 1, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
         : fixture.beam.targetMode === 'cross'
           ? 2
           : fixture.beam.targetMode === 'mirror'
             ? 2
             : 1
 
-  const rayIndices = selectDeterministicLaserDmxRayIndices(count, remainingCapacity)
+  const rayIndices = selectDeterministicLaserDmxRayIndices(count, fixtureAllocation)
   for (const i of rayIndices) {
     const t = count === 1 ? 0.5 : i / (count - 1)
     const fanOffset = count === 1 ? 0 : (t - 0.5) * spread
@@ -1191,6 +1205,8 @@ function compileFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompil
   ctx.groups.push(makeGroup(fixture, ctx.groupLabels))
   compileTriggerGateCues(fixture, ctx)
   ctx.hasRenderableFixture = true
+  const beamStart = ctx.matrixBeams.length
+  const outputStart = ctx.outputBeamCount
 
   switch (fixture.kind) {
     case 'laser':
@@ -1230,6 +1246,21 @@ function compileFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompil
     default:
       break
   }
+
+  const produced = ctx.matrixBeams.length - beamStart
+  const allocated = Math.max(0, Math.min(
+    produced,
+    Math.round(ctx.fixtureBeamAllocationById[fixture.id] ?? produced),
+  ))
+  if (allocated < produced) {
+    const candidates = ctx.matrixBeams.slice(beamStart)
+    const selected = selectDeterministicLaserDmxRayIndices(candidates.length, allocated)
+      .map(index => candidates[index])
+      .filter((beam): beam is LaserDmxMatrixBeam => beam != null)
+      .map((beam, index) => ({ ...beam, sequenceIndex: outputStart + index }))
+    ctx.matrixBeams.splice(beamStart, produced, ...selected)
+    ctx.outputBeamCount = outputStart + selected.length
+  }
 }
 
 function compileGlobalRoutes(base: LaserDmxBeamMatrixSettings): LaserDmxModulationRoute[] {
@@ -1259,6 +1290,32 @@ export function compileLaserDmxShowDirectorToBeamMatrix(
         || a.id.localeCompare(b.id)
       ))
     : authoredFixtures
+  const quality = showDirector.settings.webglQuality
+  const budgetFixtures = input.fixturePriorityById || input.fixturePriorityRoleById
+    ? createLaserDmxShowDirectorBeamBudgetReport(
+        authoredFixtures,
+        input.fixturePriorityRoleById ?? {},
+        LASER_DMX_MATRIX_MAX_BEAMS,
+        quality,
+      ).fixtures
+    : (() => {
+        let remaining = LASER_DMX_MATRIX_MAX_BEAMS
+        return authoredFixtures.map(fixture => {
+          const estimatedDemand = estimateLaserDmxShowDirectorFixtureBeamDemand(fixture, { quality })
+          const allocatedDemand = Math.min(estimatedDemand, remaining)
+          remaining -= allocatedDemand
+          return {
+            fixtureId: fixture.id,
+            semanticKey: fixture.semanticKey ?? fixture.id,
+            role: input.fixturePriorityRoleById?.[fixture.id] ?? 'primaryArchitecture' as const,
+            priority: input.fixturePriorityById?.[fixture.id] ?? Number.MAX_SAFE_INTEGER,
+            estimatedDemand,
+            allocatedDemand,
+          }
+        })
+      })()
+  const allocationEntries = budgetFixtures.map(item => [item.fixtureId, item.allocatedDemand] as const)
+  const requestedEntries = budgetFixtures.map(item => [item.fixtureId, item.estimatedDemand] as const)
   const ctx: FixtureCompileContext = {
     gridColumns,
     gridRows,
@@ -1274,6 +1331,8 @@ export function compileLaserDmxShowDirectorToBeamMatrix(
     groupLabels: new Map((showDirector?.groups ?? []).map(group => [group.id, group.label])),
     hasRenderableFixture: false,
     fixturePriorityRoleById: input.fixturePriorityRoleById ?? {},
+    fixtureBeamAllocationById: Object.fromEntries(allocationEntries),
+    fixtureBeamRequestedById: Object.fromEntries(requestedEntries),
   }
 
   for (const fixture of fixtures) {

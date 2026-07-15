@@ -39,6 +39,6 @@ describe('listAudioTracksPage', () => {
     expect(mocks.eq).toHaveBeenCalledWith('lifecycle_status', 'complete')
     expect(mocks.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(mocks.range).toHaveBeenCalledWith(18, 35)
-    expect(mocks.or).toHaveBeenCalledWith('title.ilike.%From Grace%,artist.ilike.%From Grace%')
+    expect(mocks.or).toHaveBeenCalledWith('title.ilike.%From Grace%,artist.ilike.%From Grace%,file_name.ilike.%From Grace%')
   })
 })

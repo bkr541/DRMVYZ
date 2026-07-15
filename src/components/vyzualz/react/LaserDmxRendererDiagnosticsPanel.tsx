@@ -1,12 +1,26 @@
 import { Collapsible } from './ReactControlRows'
-import { useLaserDmxRendererDiagnostics } from './LaserDmxRendererDiagnosticsStore'
+import {
+  requestLaserDmxWebGLRetry,
+  useLaserDmxRendererDiagnostics,
+} from './LaserDmxRendererDiagnosticsStore'
 
 function timing(value: number | null): string {
   return value == null ? 'Unavailable' : `${value.toFixed(1)} ms`
 }
 
+function timestamp(value: number | null): string {
+  return value == null ? 'None' : new Date(value).toLocaleTimeString()
+}
+
+function retryTime(value: number | null): string {
+  if (value == null) return 'None scheduled'
+  const remainingMs = Math.max(0, value - Date.now())
+  return remainingMs > 0 ? `in ${(remainingMs / 1_000).toFixed(1)} s` : 'pending'
+}
+
 export function LaserDmxRendererDiagnosticsPanel() {
   const diagnostics = useLaserDmxRendererDiagnostics()
+  const showManualRetry = diagnostics.presentationMode !== 'capture' && diagnostics.manualRetryAvailable
   return (
     <Collapsible label="Renderer Diagnostics" defaultOpen={false}>
       {diagnostics.activeRenderer === 'inactive' ? (
@@ -32,9 +46,26 @@ export function LaserDmxRendererDiagnosticsPanel() {
             <div><dt>Depth</dt><dd>{diagnostics.depthMode === 'none' ? 'Canvas2D' : `${diagnostics.depthMode} · ${diagnostics.depthSliceCount} slices`}</dd></div>
             <div><dt>Depth Buffer</dt><dd>{diagnostics.depthBufferStatus}</dd></div>
             <div><dt>Context Losses</dt><dd>{diagnostics.contextLossCount}</dd></div>
+            <div><dt>Failure Class</dt><dd>{diagnostics.failureClassification ?? 'None'}</dd></div>
+            <div><dt>Retry Count</dt><dd>{diagnostics.retryCount}</dd></div>
+            <div><dt>Automatic Retry</dt><dd>{retryTime(diagnostics.nextAutomaticRetryMs)}</dd></div>
+            <div><dt>Last WebGL Start</dt><dd>{timestamp(diagnostics.lastSuccessfulInitializationMs)}</dd></div>
           </dl>
-          {diagnostics.fallbackReason && (
+          {diagnostics.lastWebGLFailure && (
+            <p className="rv-show-director-performance-status__warning">Last WebGL failure: {diagnostics.lastWebGLFailure}</p>
+          )}
+          {diagnostics.finalFallbackReason && (
+            <p className="rv-show-director-performance-status__warning">Final fallback: {diagnostics.finalFallbackReason}</p>
+          )}
+          {!diagnostics.finalFallbackReason && diagnostics.fallbackReason && (
             <p className="rv-show-director-performance-status__warning">Fallback: {diagnostics.fallbackReason}</p>
+          )}
+          {showManualRetry && (
+            <div className="rv-bm-button-row rv-bm-button-row--spaced-sm">
+              <button type="button" className="rv-glyph-upload-btn" onClick={() => requestLaserDmxWebGLRetry()}>
+                Retry WebGL
+              </button>
+            </div>
           )}
         </div>
       )}

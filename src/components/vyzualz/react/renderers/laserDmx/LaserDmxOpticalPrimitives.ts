@@ -3,6 +3,7 @@ import type {
   LaserDmxShowDirectorOpticalPrimitiveType,
   LaserDmxShowDirectorDepthLayer,
 } from '../../ReactTypes'
+import { LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS } from '../../ReactTypes'
 import { createLaserDmxFanRayParameters, type LaserDmxFanSpacingCurve } from './LaserDmxBeamOptics'
 
 export interface LaserDmxPrimitivePoint {
@@ -128,11 +129,20 @@ function depthSequence(originZ: number): readonly number[] {
   return [DEPTH_BY_LAYER.midAir, DEPTH_BY_LAYER.frontAir, DEPTH_BY_LAYER.deepAir]
 }
 
+const QUALITY_SCALABLE_PROFESSIONAL_PRIMITIVES = new Set<LaserDmxShowDirectorOpticalPrimitiveType>([
+  'fan', 'layeredFan', 'parallelBank', 'sheet', 'tunnel', 'mirroredCorridor',
+  'canopy', 'audienceRake', 'apertureBurst',
+])
+
 function rayCount(input: BuildLaserDmxPrimitivePlanInput, minimum = 1): number {
-  const requested = input.fixture.optics.primitiveType === 'auto'
+  // The role-aware scene budget is authoritative for scalable professional
+  // structures. Authored rayCount remains the baseline request, while High and
+  // Ultra may allocate additional coherent samples without changing fan width.
+  const qualityScalable = QUALITY_SCALABLE_PROFESSIONAL_PRIMITIVES.has(input.fixture.optics.primitiveType)
+  const requested = input.fixture.optics.primitiveType === 'auto' || qualityScalable
     ? input.allocatedRayCount
     : Math.min(input.allocatedRayCount, input.fixture.optics.rayCount)
-  return Math.max(minimum, Math.min(12, Math.round(requested)))
+  return Math.max(minimum, Math.min(LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS, Math.round(requested)))
 }
 
 function fanPoints(input: BuildLaserDmxPrimitivePlanInput, layered: boolean): LaserDmxPrimitivePoint[] {
@@ -141,9 +151,21 @@ function fanPoints(input: BuildLaserDmxPrimitivePlanInput, layered: boolean): La
   const angle = input.fixture.rotation + input.fixture.beam.beamAngle
   const curve: LaserDmxFanSpacingCurve = count >= 7 ? 'centerWeighted' : 'linear'
   const depths = depthSequence(input.origin.z)
-  return createLaserDmxFanRayParameters(count, width, curve).map(ray => (
-    visibleRayEnd(input.origin, angle + ray.offsetDeg, 0.78, layered ? depths[ray.index % depths.length] : input.origin.z)
-  ))
+  const expandedLayer = layered && count > Math.max(1, Math.round(input.fixture.optics.rayCount))
+  return createLaserDmxFanRayParameters(count, width, curve).map(ray => {
+    // Quality-expanded layered fans use a center-symmetric depth cadence. A
+    // mirrored source therefore receives the same front/mid/rear sequence when
+    // its angular ordering reverses, preserving left/right bank balance.
+    const depthIndex = expandedLayer
+      ? Math.min(ray.index, count - 1 - ray.index) % depths.length
+      : ray.index % depths.length
+    return visibleRayEnd(
+      input.origin,
+      angle + ray.offsetDeg,
+      0.78,
+      layered ? depths[depthIndex] : input.origin.z,
+    )
+  })
 }
 
 function parallelBankPoints(input: BuildLaserDmxPrimitivePlanInput): LaserDmxPrimitivePoint[] {

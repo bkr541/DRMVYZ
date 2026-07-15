@@ -12,7 +12,7 @@ import type {
   LaserDmxShowDirectorState,
   ReactSectionType,
 } from '../../ReactTypes'
-import { LASER_DMX_MATRIX_MAX_BEAMS } from '../../ReactTypes'
+import { LASER_DMX_MATRIX_MAX_BEAMS, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS } from '../../ReactTypes'
 import {
   createLaserDmxShowDirectorBeamBudgetReport,
   estimateLaserDmxShowDirectorFixtureBeamDemand,
@@ -482,6 +482,7 @@ function legacyPatternTargets(
   fixture: LaserDmxShowDirectorFixture,
   columns: number,
   rows: number,
+  requestedDemand: number,
 ): LaserDmxSceneTargetSeed[] {
   const maxX = Math.max(1, columns - 1)
   const maxY = Math.max(1, rows - 1)
@@ -490,7 +491,7 @@ function legacyPatternTargets(
   const spread = clamp(finite(fixture.beam.beamSpread, fixture.kind === 'laser' ? 18 : 0), 0, 180)
   const mode = fixture.beam.targetMode
   const count = mode === 'fan'
-    ? clamp(Math.round(spread / 9), 3, 9)
+    ? clamp(requestedDemand, 1, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
     : mode === 'cross' || mode === 'mirror'
       ? 2
       : 1
@@ -568,7 +569,7 @@ function targetsForFixture(
     ? generatedPatternTargets(fixture, columns, rows, requestedDemand, input)
     : fixture.beam.targetMode === 'fixed' || hasMultipleAuthoredTargets
       ? authored
-      : legacyPatternTargets(fixture, columns, rows)
+      : legacyPatternTargets(fixture, columns, rows, requestedDemand)
   const selectedIndices = selectDeterministicLaserDmxRayIndices(candidates.length, allocatedDemand)
   return selectedIndices.map(index => candidates[index]).filter((target): target is LaserDmxSceneTargetSeed => target != null)
 }
@@ -620,6 +621,7 @@ function createFixtureBeamAllocations(input: CreateLaserDmxSceneFrameInput): Map
       fixtures,
       input.fixturePriorityRoleById ?? {},
       LASER_DMX_MATRIX_MAX_BEAMS,
+      input.showDirector.settings.webglQuality,
     )
     return new Map(report.fixtures.map(item => [item.fixtureId, item.allocatedDemand]))
   }
@@ -628,7 +630,10 @@ function createFixtureBeamAllocations(input: CreateLaserDmxSceneFrameInput): Map
   // Performance Shows supply priority maps and therefore use the role-aware path.
   let remaining = LASER_DMX_MATRIX_MAX_BEAMS
   return new Map(fixtures.map(fixture => {
-    const demand = estimateLaserDmxShowDirectorFixtureBeamDemand(fixture)
+    const demand = estimateLaserDmxShowDirectorFixtureBeamDemand(fixture, {
+      quality: input.showDirector.settings.webglQuality,
+      role: input.fixturePriorityRoleById?.[fixture.id],
+    })
     const allocated = Math.min(demand, remaining)
     remaining -= allocated
     return [fixture.id, allocated]
@@ -681,9 +686,15 @@ function applyLaserDmxSourceEnergy(
         sourceBeams.map(beam => beam.direction),
         emitter.orientation,
       )
-      const normalizedEnergy = sourceBeams.length > 0
-        ? clamp(totalActiveEnergy / Math.sqrt(sourceBeams.length), 0, 2.5)
-        : 0
+      const averageRayEnergy = sourceBeams.length > 0 ? totalActiveEnergy / sourceBeams.length : 0
+      // Dense professional fans should read as a coherent aperture, not as a
+      // source whose flare grows without bound with every added ray. A small,
+      // capped density lift keeps 16-24 ray banks present while preserving HDR
+      // headroom and the authored per-ray beam energy.
+      const densityLift = sourceBeams.length > 1
+        ? 1 + Math.min(0.28, Math.log2(sourceBeams.length) * 0.055)
+        : 1
+      const normalizedEnergy = clamp(Math.max(averageRayEnergy, peakRayIntensity * 0.72) * densityLift, 0, 2.5)
       return {
         ...emitter,
         orientation: glareDirection,
@@ -692,7 +703,7 @@ function applyLaserDmxSourceEnergy(
         totalActiveEnergy,
         peakRayIntensity,
         intensity: normalizedEnergy,
-        flareSize: emitter.apertureSize * (0.72 + Math.sqrt(totalActiveEnergy) * 0.42),
+        flareSize: emitter.apertureSize * (0.72 + Math.sqrt(normalizedEnergy) * 0.48),
       }
     }),
   }
@@ -814,7 +825,10 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     const position: LaserDmxSceneVec3 = { ...xy, z: fixtureDepth.z }
     const color = authoredColor
     const allocatedDemand = allocations.get(fixture.id) ?? 0
-    const requestedDemand = estimateLaserDmxShowDirectorFixtureBeamDemand(fixture)
+    const requestedDemand = estimateLaserDmxShowDirectorFixtureBeamDemand(fixture, {
+      quality: showDirector.settings.webglQuality,
+      role: input.fixturePriorityRoleById?.[fixture.id],
+    })
     const targetSeeds = targetsForFixture(fixture, columns, rows, allocatedDemand, requestedDemand, input)
     const resolvedTargets = targetSeeds.map(seed => {
       const targetXy = normalizedStagePoint(seed, columns, rows)

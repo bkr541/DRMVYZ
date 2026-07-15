@@ -158,7 +158,7 @@ describe('resolveAuthoritativeTimeline', () => {
 
     expect(result.map(item => [item.startSec, item.endSec, item.type, item.provenance?.authority])).toEqual([
       [0, 8, 'drop', 'imported'],
-      [8, 16, 'build', 'locked_user'],
+      [8, 16, 'build', 'manual_replacement'],
       [16, 24, 'drop', 'imported'],
     ])
     expect(result.some(item => item.provenance?.authority === 'automatic')).toBe(false)

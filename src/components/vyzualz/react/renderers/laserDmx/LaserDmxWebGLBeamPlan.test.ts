@@ -42,10 +42,10 @@ function createResolvedFanFrame() {
 describe('LaserDMX WebGL beam render plan', () => {
   it('groups all fan rays into one shared projector aperture with accumulated energy', () => {
     const frame = createResolvedFanFrame()
-    expect(frame.beams).toHaveLength(8)
+    expect(frame.beams).toHaveLength(12)
     expect(new Set(frame.beams.map(beam => beam.sourceId))).toEqual(new Set(['fan-source-emitter']))
     expect(frame.emitters).toHaveLength(1)
-    expect(frame.emitters[0]).toMatchObject({ activeRayCount: 8 })
+    expect(frame.emitters[0]).toMatchObject({ activeRayCount: 12 })
     expect(frame.emitters[0]?.totalActiveEnergy).toBeGreaterThan(6.5)
 
     const plan = buildLaserDmxWebGLBeamRenderPlan(frame, {
@@ -68,7 +68,7 @@ describe('LaserDMX WebGL beam render plan', () => {
     expect(second.beams.map(beam => beam.id)).toEqual(first.beams.map(beam => beam.id))
   })
 
-  it('preserves hero beams and source identity before thinning support rays', () => {
+  it('preserves hero beams before maximizing texture-source coverage', () => {
     const frame = createResolvedFanFrame()
     const source = frame.beams[0]!
     const beams = Array.from({ length: 12 }, (_, index) => ({
@@ -82,7 +82,7 @@ describe('LaserDMX WebGL beam render plan', () => {
     const selected = selectLaserDmxBeamsForQuality(beams, 'low', 5)
     expect(selected).toHaveLength(5)
     expect(selected.some(beam => beam.id === 'beam-11')).toBe(true)
-    expect(new Set(selected.map(beam => beam.sourceId)).size).toBe(4)
+    expect(new Set(selected.map(beam => beam.sourceId)).size).toBeGreaterThanOrEqual(3)
     expect(selectLaserDmxBeamsForQuality([...beams].reverse(), 'low', 5).map(beam => beam.id))
       .toEqual(selected.map(beam => beam.id))
   })

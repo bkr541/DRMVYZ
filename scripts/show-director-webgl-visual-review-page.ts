@@ -8,7 +8,16 @@ import {
   LaserDmxWebGLRuntime,
   type LaserDmxWebGLDiagnostics,
 } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLRuntime'
-import type { LaserDmxSceneFrame } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxSceneFrame'
+import type { LaserDmxSceneBeam, LaserDmxSceneFrame } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxSceneFrame'
+import { selectLaserDmxBeamsForQuality } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLBeamPlan'
+import {
+  beginAutomaticLaserDmxWebGLRetry,
+  beginManualLaserDmxWebGLRetry,
+  canAutomaticallyRetryLaserDmxWebGL,
+  createLaserDmxWebGLRecoveryState,
+  recordLaserDmxWebGLFailure,
+} from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLRecovery'
+import type { LaserDmxShowDirectorWebGLQuality } from '../src/components/vyzualz/react/ReactTypes'
 
 interface WebGLCapabilityReport {
   available: boolean
@@ -43,6 +52,37 @@ type WebGLReviewScenario =
   | 'led-pixel-chase'
   | 'video-wall-emissive'
   | 'strobe-blinder-distinction'
+  | 'high-hero-fan'
+  | 'ultra-hero-fan'
+  | 'budget-hero-preservation'
+  | 'auto-support-degradation'
+  | 'high-mirror-corridor'
+
+interface WebGLQualityMetrics {
+  requestedBeamCount: number
+  selectedBeamCount: number
+  requestedMaxSourceRayCount: number
+  selectedMaxSourceRayCount: number
+  requestedHeroRayCount: number
+  selectedHeroRayCount: number
+  requestedSupportRayCount: number
+  selectedSupportRayCount: number
+  requestedTextureRayCount: number
+  selectedTextureRayCount: number
+  selectedLeftRayCount: number
+  selectedRightRayCount: number
+}
+
+interface WebGLRecoveryReport {
+  automaticCooldownValidated: boolean
+  manualRetryClearedFailure: boolean
+  permanentFallbackValidated: boolean
+  contextLossExtensionSupported: boolean
+  contextLossObserved: boolean
+  contextRestoreObserved: boolean
+  postRestoreRenderSucceeded: boolean
+  supportedSkipReason: string | null
+}
 
 interface WebGLReviewFrame {
   key: string
@@ -58,6 +98,7 @@ interface WebGLReviewFrame {
   pixelMetrics: WebGLPixelMetrics
   activeFixtureKinds: string[]
   overlayElementCount: number
+  qualityMetrics: WebGLQualityMetrics
 }
 
 interface WebGLReviewReport {
@@ -69,6 +110,7 @@ interface WebGLReviewReport {
   height: number
   rendererHost: 'production-laser-dmx-webgl-runtime'
   frames: WebGLReviewFrame[]
+  recovery: WebGLRecoveryReport | null
 }
 
 declare global {
@@ -84,7 +126,7 @@ const deterministicReplayKeys = new Set([
   'moving-head-sweep-performance/build',
 ])
 
-const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValidationFrameId; scenario?: WebGLReviewScenario }> = [
+const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValidationFrameId; scenario?: WebGLReviewScenario; quality?: LaserDmxShowDirectorWebGLQuality }> = [
   { presetId: 'prism-cathedral', frameId: 'intro' },
   { presetId: 'prism-cathedral', frameId: 'build' },
   { presetId: 'prism-cathedral', frameId: 'drop-1-body' },
@@ -106,6 +148,11 @@ const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValida
   { presetId: 'led-bar-grid-performance', frameId: 'drop-1-body', scenario: 'led-pixel-chase' },
   { presetId: 'festival-front-beams-performance', frameId: 'breakdown', scenario: 'video-wall-emissive' },
   { presetId: 'strobe-blinder-hits-performance', frameId: 'drop-2-impact', scenario: 'strobe-blinder-distinction' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'high-hero-fan', quality: 'high' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'ultra-hero-fan', quality: 'ultra' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'budget-hero-preservation', quality: 'high' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'auto-support-degradation', quality: 'auto' },
+  { presetId: 'cyan-mirror-cage', frameId: 'drop-1-body', scenario: 'high-mirror-corridor', quality: 'high' },
 ]
 
 function capabilityReport(): WebGLCapabilityReport {
@@ -177,6 +224,20 @@ function applyScenario(
     const sweep = (index - 1.5) * 0.055
     return {
       ...frame,
+      musicalState: {
+        ...frame.musicalState,
+        energy: Math.max(0.72, frame.musicalState.energy),
+        snareHit: false,
+        snareStrength: 0,
+      },
+      output: {
+        ...frame.output,
+        blackout: false,
+        globalStrobeRate: 0,
+        beamPersistence: Math.max(0.32, frame.output.beamPersistence),
+      },
+      fixtures: frame.fixtures.map(fixture => ({ ...fixture, strobeRate: 0 })),
+      transientEvents: frame.transientEvents.filter(event => event.kind !== 'strobe'),
       beams: frame.beams.map(beam => beam.fixtureKind === 'laser'
         ? { ...beam, target: { ...beam.target, x: beam.target.x + sweep } }
         : beam),
@@ -263,6 +324,53 @@ function applyScenario(
           : fixture),
     }
   }
+  if (scenario === 'budget-hero-preservation' || scenario === 'auto-support-degradation') {
+    const template = frame.beams.find(beam => beam.fixtureKind === 'laser')
+    if (!template) return frame
+    const makeGroup = (
+      prefix: string,
+      groupCount: number,
+      raysPerGroup: number,
+      visualRole: LaserDmxSceneBeam['visualRole'],
+      priority: number,
+    ): LaserDmxSceneBeam[] => Array.from({ length: groupCount * raysPerGroup }, (_, beamIndex) => {
+      const groupIndex = Math.floor(beamIndex / raysPerGroup)
+      const rayIndex = beamIndex % raysPerGroup
+      const centered = raysPerGroup <= 1 ? 0 : rayIndex / (raysPerGroup - 1) - 0.5
+      return {
+        ...template,
+        id: `${prefix}-${groupIndex}-${rayIndex}`,
+        sourceId: `${prefix}-source-${groupIndex}`,
+        visualRole,
+        priority,
+        intensity: Math.min(template.intensity, visualRole === 'texture' ? 0.07 : 0.12),
+        coreIntensity: Math.min(template.coreIntensity, visualRole === 'texture' ? 0.16 : 0.24),
+        opacity: Math.min(template.opacity, visualRole === 'texture' ? 0.22 : 0.32),
+        scatterEnvelopeWidth: Math.min(template.scatterEnvelopeWidth, 0.008),
+        target: {
+          ...template.target,
+          // Budget-stress embellishments intentionally overlap. The test still
+          // requests more than 300 rays without turning black-floor validation
+          // into an artificial full-frame wall of haze.
+          x: Math.max(0.02, Math.min(0.98, template.target.x + centered * 0.09 + ((groupIndex % 5) - 2) * 0.006)),
+          y: Math.max(0.02, Math.min(0.98, template.target.y + ((groupIndex % 3) - 1) * 0.009)),
+        },
+        pattern: {
+          ...template.pattern,
+          rayIndex,
+          rayCount: raysPerGroup,
+          spacingT: centered,
+        },
+      }
+    })
+    const synthetic = scenario === 'budget-hero-preservation'
+      ? makeGroup('budget-texture', 30, 12, 'texture', 4)
+      : [
+          ...makeGroup('auto-support', 18, 16, 'secondary', 3),
+          ...makeGroup('auto-texture', 24, 16, 'texture', 4),
+        ]
+    return { ...frame, beams: [...frame.beams, ...synthetic] }
+  }
   return frame
 }
 
@@ -272,12 +380,19 @@ function stableFrame(
   scenario: WebGLReviewScenario,
 ): LaserDmxSceneFrame {
   const delta = 1 / 60
+  const qualityTier: LaserDmxShowDirectorWebGLQuality = scenario === 'ultra-hero-fan'
+    ? 'ultra'
+    : scenario === 'high-hero-fan' || scenario === 'budget-hero-preservation' || scenario === 'high-mirror-corridor'
+      ? 'high'
+      : scenario === 'auto-support-degradation'
+        ? 'auto'
+        : 'medium'
   const stable = {
     ...frame,
     timestamp: frame.timestamp + index * delta,
     deltaTime: delta,
-    quality: { ...frame.quality, qualityTier: 'medium' as const, renderScale: 1 },
-    atmosphere: { ...frame.atmosphere, qualityTier: 'medium' as const },
+    quality: { ...frame.quality, qualityTier, renderScale: 1 },
+    atmosphere: { ...frame.atmosphere, qualityTier },
     transport: {
       ...frame.transport,
       audioTimeSec: frame.transport.audioTimeSec + index * delta,
@@ -366,6 +481,105 @@ function measurePixels(
   }
 }
 
+function rayRoleCounts(beams: readonly LaserDmxSceneBeam[]) {
+  return beams.reduce((counts, beam) => {
+    if (beam.visualRole === 'hero' || beam.visualRole === 'primary') counts.hero += 1
+    else if (beam.visualRole === 'texture') counts.texture += 1
+    else counts.support += 1
+    return counts
+  }, { hero: 0, support: 0, texture: 0 })
+}
+
+function maxSourceRayCount(beams: readonly LaserDmxSceneBeam[]): number {
+  const counts = new Map<string, number>()
+  for (const beam of beams) counts.set(beam.sourceId, (counts.get(beam.sourceId) ?? 0) + 1)
+  return Math.max(0, ...counts.values())
+}
+
+function qualityMetrics(frame: LaserDmxSceneFrame): WebGLQualityMetrics {
+  const selected = selectLaserDmxBeamsForQuality(frame.beams, frame.quality.qualityTier)
+  const requestedRoles = rayRoleCounts(frame.beams)
+  const selectedRoles = rayRoleCounts(selected)
+  return {
+    requestedBeamCount: frame.beams.length,
+    selectedBeamCount: selected.length,
+    requestedMaxSourceRayCount: maxSourceRayCount(frame.beams),
+    selectedMaxSourceRayCount: maxSourceRayCount(selected),
+    requestedHeroRayCount: requestedRoles.hero,
+    selectedHeroRayCount: selectedRoles.hero,
+    requestedSupportRayCount: requestedRoles.support,
+    selectedSupportRayCount: selectedRoles.support,
+    requestedTextureRayCount: requestedRoles.texture,
+    selectedTextureRayCount: selectedRoles.texture,
+    selectedLeftRayCount: selected.filter(beam => beam.origin.x < 0.5).length,
+    selectedRightRayCount: selected.filter(beam => beam.origin.x > 0.5).length,
+  }
+}
+
+function waitForCondition(predicate: () => boolean, timeoutMs: number): Promise<boolean> {
+  const started = performance.now()
+  return new Promise(resolve => {
+    const check = () => {
+      if (predicate()) resolve(true)
+      else if (performance.now() - started >= timeoutMs) resolve(false)
+      else requestAnimationFrame(check)
+    }
+    check()
+  })
+}
+
+async function validateRecovery(
+  runtime: LaserDmxWebGLRuntime,
+  frame: LaserDmxSceneFrame,
+): Promise<WebGLRecoveryReport> {
+  const initialFailure = recordLaserDmxWebGLFailure(createLaserDmxWebGLRecoveryState(), {
+    code: 'gpu-resource-allocation-failed',
+    nowMs: 1_000,
+  })
+  const automaticCooldownValidated = !canAutomaticallyRetryLaserDmxWebGL(initialFailure, initialFailure.nextRetryAtMs! - 1)
+    && canAutomaticallyRetryLaserDmxWebGL(initialFailure, initialFailure.nextRetryAtMs!)
+    && beginAutomaticLaserDmxWebGLRetry(initialFailure).retryCount === 1
+  const manualRetryClearedFailure = beginManualLaserDmxWebGLRetry(initialFailure).failureCode == null
+  const permanentFailure = recordLaserDmxWebGLFailure(createLaserDmxWebGLRecoveryState(), {
+    code: 'webgl2-unavailable',
+    nowMs: 1_000,
+  })
+  const permanentFallbackValidated = permanentFailure.nextRetryAtMs == null
+    && permanentFailure.finalFallbackReason != null
+
+  const gl = (runtime as unknown as { gl: WebGL2RenderingContext }).gl
+  const extension = gl.getExtension('WEBGL_lose_context')
+  if (!extension) {
+    return {
+      automaticCooldownValidated,
+      manualRetryClearedFailure,
+      permanentFallbackValidated,
+      contextLossExtensionSupported: false,
+      contextLossObserved: false,
+      contextRestoreObserved: false,
+      postRestoreRenderSucceeded: false,
+      supportedSkipReason: 'WEBGL_lose_context is unavailable in this browser/GPU environment.',
+    }
+  }
+
+  extension.loseContext()
+  const contextLossObserved = await waitForCondition(() => runtime.contextLost, 2_000)
+  const lostRender = runtime.render(stableFrame(frame, 0, 'high-hero-fan'))
+  extension.restoreContext()
+  const contextRestoreObserved = await waitForCondition(() => !runtime.contextLost, 3_000)
+  const restoredRender = runtime.render(stableFrame(frame, 1, 'high-hero-fan'))
+  return {
+    automaticCooldownValidated,
+    manualRetryClearedFailure,
+    permanentFallbackValidated,
+    contextLossExtensionSupported: true,
+    contextLossObserved: contextLossObserved && !lostRender.ok && lostRender.failureCode === 'context-lost',
+    contextRestoreObserved,
+    postRestoreRenderSucceeded: restoredRender.ok,
+    supportedSkipReason: null,
+  }
+}
+
 function makeCard(titleText: string, key: string): { canvas: HTMLCanvasElement; canvasId: string } {
   const grid = document.getElementById('review-grid')
   if (!grid) throw new Error('Missing review grid')
@@ -419,6 +633,7 @@ async function main(): Promise<void> {
       height: output.height,
       rendererHost: 'production-laser-dmx-webgl-runtime',
       frames: [],
+      recovery: null,
     }
     document.documentElement.dataset.webglVisualReviewReady = 'true'
     return
@@ -430,17 +645,18 @@ async function main(): Promise<void> {
       const preset = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(candidate => candidate.id === item.presetId)
       const frameDefinition = SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES.find(candidate => candidate.id === item.frameId)
       if (!preset || !frameDefinition) throw new Error(`Missing visual case ${item.presetId}/${item.frameId}`)
-      const resolution = resolveShowDirectorVisualValidationFrame(preset, frameDefinition)
+      const resolution = resolveShowDirectorVisualValidationFrame(preset, frameDefinition, undefined, item.quality ?? 'medium')
       const scenario = item.scenario ?? 'baseline'
       const key = scenario === 'baseline'
         ? `${item.presetId}/${item.frameId}`
         : `${item.presetId}/${item.frameId}/${scenario}`
+      const scenarioFrame = stableFrame(resolution.sceneFrame, 3, scenario)
       const first = renderSequence(created.runtime, context, resolution.sceneFrame, scenario)
       const replayChecked = deterministicReplayKeys.has(key)
       const second = replayChecked
         ? renderSequence(created.runtime, context, resolution.sceneFrame, scenario)
         : first
-      const { canvas, canvasId } = makeCard(`${preset.name} · ${item.frameId}`, `${item.presetId}-${item.frameId}`)
+      const { canvas, canvasId } = makeCard(`${preset.name} · ${item.frameId} · ${scenario}`, `${item.presetId}-${item.frameId}-${scenario}`)
       const snapshot = canvas.getContext('2d', { alpha: false })
       if (!snapshot) throw new Error('Snapshot context unavailable')
       snapshot.putImageData(first.image, 0, 0)
@@ -456,10 +672,15 @@ async function main(): Promise<void> {
         requestedRenderer: 'webgl',
         diagnostics: first.diagnostics,
         pixelMetrics: measurePixels(first.image, second.image, replayChecked),
-        activeFixtureKinds: [...new Set(resolution.sceneFrame.fixtures.filter(fixture => fixture.enabled).map(fixture => fixture.kind))].sort(),
+        activeFixtureKinds: [...new Set(scenarioFrame.fixtures.filter(fixture => fixture.enabled).map(fixture => fixture.kind))].sort(),
         overlayElementCount: document.querySelectorAll('[data-laser-dmx-authoring-overlay], .laser-dmx-stage-grid, .laser-dmx-beam-handle').length,
+        qualityMetrics: qualityMetrics(scenarioFrame),
       })
     }
+    const recoveryPreset = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'festival-front-beams-performance')!
+    const recoveryDefinition = SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES.find(candidate => candidate.id === 'drop-2-body')!
+    const recoveryResolution = resolveShowDirectorVisualValidationFrame(recoveryPreset, recoveryDefinition, undefined, 'high')
+    const recovery = await validateRecovery(created.runtime, recoveryResolution.sceneFrame)
     window.__SHOW_DIRECTOR_WEBGL_VISUAL_REVIEW__ = {
       ready: true,
       status: 'pass',
@@ -469,6 +690,7 @@ async function main(): Promise<void> {
       height: output.height,
       rendererHost: 'production-laser-dmx-webgl-runtime',
       frames: summaries,
+      recovery,
     }
   } catch (error) {
     window.__SHOW_DIRECTOR_WEBGL_VISUAL_REVIEW__ = {
@@ -480,6 +702,7 @@ async function main(): Promise<void> {
       height: output.height,
       rendererHost: 'production-laser-dmx-webgl-runtime',
       frames: summaries,
+      recovery: null,
     }
   } finally {
     created.runtime.dispose()

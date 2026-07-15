@@ -156,12 +156,15 @@ describe('LaserDMX engine-neutral scene frame', () => {
 
   it('caps scene and compatibility output at the same deterministic beam budget', () => {
     const showDirector = createDefaultLaserDmxShowDirectorState()
+    showDirector.settings.webglQuality = 'ultra'
     showDirector.fixtures = Array.from({ length: 40 }, (_, index) => {
       const fixture = createDefaultLaserDmxShowDirectorFixture('laser', `budget-fan-${index}`, index)
       fixture.enabled = true
       fixture.brightness = 1
       fixture.beam.targetMode = 'fan'
       fixture.beam.beamSpread = 81
+      fixture.optics.primitiveType = 'fan'
+      fixture.optics.rayCount = 24
       return fixture
     })
     const base = createDefaultLaserDmxBeamMatrixSettings()
@@ -179,11 +182,16 @@ describe('LaserDMX engine-neutral scene frame', () => {
 
     expect(frame.beams).toHaveLength(300)
     expect(matrix.beams).toHaveLength(300)
-    const partialScene = frame.beams.filter(beam => beam.fixtureId === 'budget-fan-33')
-    const partialMatrix = matrix.beams.filter(beam => beam.id.startsWith('sd-budget-fan-33-'))
-    expect(partialScene.map(beam => beam.pattern.rayIndex)).toEqual([0, 4, 8])
-    expect(partialMatrix.map(beam => beam.id.split('-').slice(-1)[0])).toEqual(['1', '5', '9'])
-    expect(frame.beams.some(beam => beam.fixtureId === 'budget-fan-34')).toBe(false)
+    const sceneCounts = showDirector.fixtures.map(fixture => (
+      frame.beams.filter(beam => beam.fixtureId === fixture.id).length
+    ))
+    const matrixCounts = showDirector.fixtures.map(fixture => (
+      matrix.beams.filter(beam => beam.id.startsWith(`sd-${fixture.id}-`)).length
+    ))
+    expect(matrixCounts).toEqual(sceneCounts)
+    expect(sceneCounts.reduce((sum, count) => sum + count, 0)).toBe(300)
+    expect(sceneCounts.every(count => count >= 0 && count <= 20)).toBe(true)
+    expect(sceneCounts.filter(count => count > 0)).toHaveLength(15)
   })
 
   it('emits deterministic strobe and blinder transients for the photographic post stack', () => {

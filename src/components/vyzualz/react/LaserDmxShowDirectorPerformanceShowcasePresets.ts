@@ -1720,7 +1720,8 @@ export const PRISM_CATHEDRAL_PERFORMANCE_PRESET: LaserDmxShowDirectorPerformance
   supportedSectionRoles: [...ALL_SECTIONS],
   musicIntelligenceCapabilities: [...MUSIC_CAPABILITIES],
   fixtureCount: PRISM_FIXTURES.length,
-  approximatePeakBeamDemand: PRISM_FIXTURES.length * 12,
+  // Auto/High can now expand the hero cathedral banks beyond the legacy 12-ray ceiling.
+  approximatePeakBeamDemand: PRISM_FIXTURES.length * 14,
   createRig: createPrismCathedralRig,
   createProgram: createPrismCathedralProgram,
 })
@@ -1734,7 +1735,8 @@ export const CARDINAL_FAN_REACTOR_PERFORMANCE_PRESET: LaserDmxShowDirectorPerfor
   supportedSectionRoles: [...ALL_SECTIONS],
   musicIntelligenceCapabilities: [...MUSIC_CAPABILITIES],
   fixtureCount: CARDINAL_FIXTURES.length,
-  approximatePeakBeamDemand: CARDINAL_FIXTURES.length * 12,
+  // Auto/High may recruit denser axis banks while preserving the 300-beam ceiling.
+  approximatePeakBeamDemand: CARDINAL_FIXTURES.length * 13,
   createRig: createCardinalFanReactorRig,
   createProgram: createCardinalFanReactorProgram,
 })

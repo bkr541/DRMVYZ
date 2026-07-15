@@ -99,7 +99,7 @@ Auto adaptation is deliberately slow and bounded:
 - Capability ceilings prevent an unsupported upshift.
 - Atmosphere scales before hero beam geometry. Ultra keeps the atmosphere at High by default.
 
-Quality may change depth slice count (Low 3, Medium 5, High 7, Ultra 9), volumetric resolution, haze samples, bloom levels, glare detail, temporal-history resolution, support-fixture ray density, CO2 detail, moving-head cone detail, prism-copy ceiling, and LED glow quality. Sharp beam-core resolution remains full resolution. It never changes camera state, musical counters, occurrence identity, authored targets, hero-beam priority, or deterministic seeking. When the required multitexture capability is unavailable, WebGL uses a bounded two-layer compatibility mode rather than ordinary opaque depth testing.
+Quality may change depth slice count (Low 3, Medium 5, High 7, Ultra 9), volumetric resolution, haze samples, bloom levels, glare detail, temporal-history resolution, source ray density, CO2 detail, moving-head cone detail, prism-copy ceiling, and LED glow quality. Professional laser fan ceilings are Low 8, Medium 12, High 16, and Ultra 24 for hero sources, with lower role-specific ceilings for primary, support, texture, and decorative sources. Sharp beam-core resolution remains full resolution. It never changes camera state, musical counters, occurrence identity, authored targets, hero-beam priority, or deterministic seeking. When the required multitexture capability is unavailable, WebGL uses a bounded two-layer compatibility mode rather than ordinary opaque depth testing.
 
 ## Renderer selection and fallback
 
@@ -115,7 +115,7 @@ The safe decision order is:
 6. Auto quality downshift after a GPU allocation failure, then Canvas2D if allocation still fails.
 7. Canvas2D after shader compile/link failure or repeated runtime render failure.
 
-A WebGL failure cannot blank the React view. The current evaluated scene is rendered immediately through Canvas2D. Terminal failures dispose GPU resources and stop repeated retry loops. Selecting Canvas2D explicitly clears the session failure latch so a later deliberate WebGL or Auto selection can retry initialization.
+A WebGL failure cannot blank the React view. The current evaluated scene is rendered immediately through Canvas2D. Transient failures use bounded 1 s, 3 s, and 8 s automatic retry cooldowns, capped at three attempts. WebGL2 absence, shader failure, repeated context loss, and explicit Canvas2D selection are session-stable failures and do not loop. A freshly created runtime clears retry state only after its first successful production render. Outside Capture mode, Renderer Diagnostics exposes a manual Retry WebGL action for retryable transient failures.
 
 An unavailable float target is not a total renderer failure. WebGL remains active through the LDR post-processing path and diagnostics report the degraded target strategy.
 
@@ -133,7 +133,7 @@ An unavailable float target is not a total renderer failure. WebGL remains activ
 
 ## Diagnostics
 
-The existing Show Director control rail includes a collapsed **Renderer Diagnostics** section. It reports active/requested renderer, presentation mode, WebGL and float-target status, requested/effective quality, render and atmosphere resolutions, haze sample count, active/requested beams, active fixtures, CPU/GPU frame timing, HDR/LDR post state, bloom levels, laser-history input and slice counts, active depth mode and slice count, slice-accumulation status, fallback reason, and context-loss count.
+The existing Show Director control rail includes a collapsed **Renderer Diagnostics** section. It reports active/requested renderer, presentation mode, WebGL and float-target status, requested/effective quality, render and atmosphere resolutions, haze sample count, active/requested beams, active fixtures, CPU/GPU frame timing, HDR/LDR post state, bloom levels, laser-history input and slice counts, active depth mode and slice count, slice-accumulation status, last failure, failure classification, retry count, next automatic retry, manual retry availability, last successful initialization, final fallback reason, and context-loss count.
 
 Diagnostics are ephemeral. They are never serialized into projects, presets, or preferences and are cleared when rendering pauses, clears, disposes, or switches away. The diagnostics surface is outside the visualizer canvas, so it cannot contaminate Live or Capture output.
 
@@ -163,7 +163,7 @@ npm run visual:show-director:webgl
 
 The command bundles an offline production-renderer host, launches Chromium through a real WebGL2 context, requests Capture presentation mode, resolves deterministic Performance Show states, and renders through `LaserDmxWebGLRuntime`. Linux uses a headed Chromium session under Xvfb because current ANGLE/SwiftShader builds may not expose WebGL2 in native headless mode. Launch diagnostics record the WebGL version, vendor, renderer, shading-language version, texture limit, HDR/LDR strategy, quality, internal resolutions, active beams, active fixtures, bloom levels, atmosphere samples, and context-loss count.
 
-The portable regression profile renders 480 × 270 output at fixed Medium beam and atmosphere quality. Each case receives four stabilization frames after a temporal reset. Three representative cases also render a second reset-and-replay sequence for deterministic pixel comparison. The 21 cases retain the original section and fixture coverage and add dedicated frames for a beam crossing several depths, foreground haze veiling rear light only, partial CO2 attenuation, laser scanner trails without wash/fog ghosting, moving-head gobo and prism projection, LED pixel chase, video-wall emissive output, and strobe/blinder distinction.
+The portable regression profile renders 480 × 270 output across fixed Medium baselines plus dedicated High, Ultra, and Auto pressure scenarios. Each case receives four stabilization frames after a temporal reset. Representative cases also render a second reset-and-replay sequence for deterministic pixel comparison. The 26 cases cover section and fixture states plus continuous depth, foreground haze veiling, partial CO2 attenuation, laser-only scanner trails, moving-head gobo and prism projection, LED pixel chase, video-wall emissive output, strobe/blinder distinction, 16-ray High hero fans, 24-ray Ultra hero fans, support-first Auto degradation, bounded retry, and actual context loss/restoration.
 
 Validation combines screenshots, renderer diagnostics, non-black and black-floor thresholds, luminance and highlight bounds, washed-white limits, compact perceptual fingerprints, left/right energy symmetry, deterministic replay tolerance, fixture-kind coverage, and Live/Capture overlay isolation. Exact whole-frame hashes are intentionally avoided because WebGL output can vary slightly by GPU and driver.
 
@@ -173,6 +173,6 @@ The existing `npm run visual:show-director` command remains the separate Canvas2
 
 ## Beam-budget guidelines
 
-The authoritative maximum remains bounded. Allocate in this order: hero impacts and primary architecture, structural secondary banks, texture and support fixtures, then decorative accents. Reduce atmosphere detail and low-priority ray density before deleting hero beams. Keep negative space intentional, use source-coherent primitives instead of random endpoint networks, and validate representative Intro, Verse, Build, Pre-drop, Drop 1, Breakdown, Drop 2, and Outro states.
+The authoritative maximum remains 300 beams. Allocate in this order: hero impacts, primary architecture, structural secondary banks, decorative accents, then detail lattices and texture rays. Within one role, use deterministic round-robin allocation so mirrored sources remain balanced. Reduce atmosphere detail and low-priority ray density before deleting hero beams. Keep negative space intentional, use source-coherent primitives instead of random endpoint networks, and validate representative Intro, Verse, Build, Pre-drop, Drop 1, Breakdown, Drop 2, and Outro states.
 
 The renderer is a virtual performance visualization. It does not model real-world optical power, audience scanning, venue exclusion zones, physical interlocks, regulatory compliance, or certified laser/DMX hardware output.

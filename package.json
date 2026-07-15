@@ -36,7 +36,12 @@
     "clean:all": "node scripts/clean-generated.mjs --dependencies",
     "test:e2e:shaders": "playwright test src/test/e2e/shaderCompilation.spec.ts --project=chromium",
     "visual:show-director": "node scripts/generate-show-director-visual-review.mjs",
-    "visual:show-director:webgl": "node scripts/generate-show-director-webgl-visual-review.mjs"
+    "visual:show-director:webgl": "node scripts/generate-show-director-webgl-visual-review.mjs",
+    "test:node": "vitest run --config vitest.node.config.ts",
+    "test:dom": "vitest run --config vitest.dom.config.ts",
+    "test:webgl": "npm run visual:show-director:webgl",
+    "test:electron": "npm run test:native",
+    "test:edge": "deno test --allow-env supabase/functions/_shared/*.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",

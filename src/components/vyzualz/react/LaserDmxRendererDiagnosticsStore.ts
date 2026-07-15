@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import type { LaserDmxWebGLFailureClassification } from './renderers/laserDmx/LaserDmxWebGLRecovery'
 import type {
   LaserDmxShowDirectorPresentationMode,
   LaserDmxShowDirectorRendererMode,
@@ -37,6 +38,13 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   fallbackReason: string | null
   contextLossCount: number
   postProcessingStatus: 'inactive' | 'hdr' | 'ldr-fallback'
+  lastWebGLFailure: string | null
+  failureClassification: LaserDmxWebGLFailureClassification | null
+  retryCount: number
+  nextAutomaticRetryMs: number | null
+  lastSuccessfulInitializationMs: number | null
+  manualRetryAvailable: boolean
+  finalFallbackReason: string | null
 }
 
 const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
@@ -69,9 +77,17 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   fallbackReason: null,
   contextLossCount: 0,
   postProcessingStatus: 'inactive',
+  lastWebGLFailure: null,
+  failureClassification: null,
+  retryCount: 0,
+  nextAutomaticRetryMs: null,
+  lastSuccessfulInitializationMs: null,
+  manualRetryAvailable: false,
+  finalFallbackReason: null,
 })
 
 let snapshot = EMPTY_SNAPSHOT
+let manualRetryRequestSequence = 0
 let lastPublishMs = Number.NEGATIVE_INFINITY
 const listeners = new Set<() => void>()
 
@@ -108,6 +124,13 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.fallbackReason,
     value.contextLossCount,
     value.postProcessingStatus,
+    value.lastWebGLFailure,
+    value.failureClassification,
+    value.retryCount,
+    value.nextAutomaticRetryMs,
+    value.lastSuccessfulInitializationMs,
+    value.manualRetryAvailable,
+    value.finalFallbackReason,
   ].join('|')
 }
 
@@ -150,4 +173,14 @@ export function useLaserDmxRendererDiagnostics(): LaserDmxRendererDiagnosticsSna
     getLaserDmxRendererDiagnostics,
     () => EMPTY_SNAPSHOT,
   )
+}
+
+
+export function requestLaserDmxWebGLRetry(): number {
+  manualRetryRequestSequence += 1
+  return manualRetryRequestSequence
+}
+
+export function getLaserDmxWebGLRetryRequestSequence(): number {
+  return manualRetryRequestSequence
 }

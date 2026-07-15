@@ -40,8 +40,19 @@ import {
 import { LaserDmxWebGLRuntime } from './laserDmx/LaserDmxWebGLRuntime'
 import {
   clearLaserDmxRendererDiagnostics,
+  getLaserDmxWebGLRetryRequestSequence,
   publishLaserDmxRendererDiagnostics,
 } from '../LaserDmxRendererDiagnosticsStore'
+import {
+  beginAutomaticLaserDmxWebGLRetry,
+  beginManualLaserDmxWebGLRetry,
+  canAutomaticallyRetryLaserDmxWebGL,
+  canManuallyRetryLaserDmxWebGL,
+  createLaserDmxWebGLRecoveryState,
+  recordLaserDmxWebGLFailure,
+  recordLaserDmxWebGLInitializationSuccess,
+  type LaserDmxWebGLRecoveryState,
+} from './laserDmx/LaserDmxWebGLRecovery'
 
 /** Returns true when the LaserDMX renderer should draw. */
 export const LASER_DMX_VIRTUAL_CAPTURE_LAYERS = [
@@ -320,9 +331,9 @@ const pendingPausedDiscontinuityByContext = new WeakSet<CanvasRenderingContext2D
 const performanceContextByCanvas = new WeakMap<CanvasRenderingContext2D, LaserDmxShowDirectorPerformanceTimingContext>()
 const performanceStatusCanvas = new WeakSet<CanvasRenderingContext2D>()
 const laserDmxWebGLRuntimeByContext = new WeakMap<CanvasRenderingContext2D, LaserDmxWebGLRuntime>()
-const laserDmxWebGLUnavailableContexts = new WeakSet<CanvasRenderingContext2D>()
-const laserDmxWebGLFailureCodeByContext = new WeakMap<CanvasRenderingContext2D, LaserDmxRendererFallbackCode>()
-const laserDmxWebGLContextLossCountByContext = new WeakMap<CanvasRenderingContext2D, number>()
+const laserDmxWebGLRecoveryByContext = new WeakMap<CanvasRenderingContext2D, LaserDmxWebGLRecoveryState>()
+const laserDmxWebGLManualRetrySequenceByContext = new WeakMap<CanvasRenderingContext2D, number>()
+const laserDmxWebGLInitializationPendingByContext = new WeakMap<CanvasRenderingContext2D, number>()
 
 export interface LaserDmxRendererBoundaryOptions {
   /** Offscreen previews must never arm, submit to, stop, or disarm physical output. */
@@ -341,18 +352,65 @@ function getShowDirectorRuntime(ctx: CanvasRenderingContext2D): ShowDirectorRunt
   return created
 }
 
-function getLaserDmxWebGLRuntime(ctx: CanvasRenderingContext2D): LaserDmxWebGLRuntime | null {
+function getLaserDmxWebGLRecoveryState(ctx: CanvasRenderingContext2D): LaserDmxWebGLRecoveryState {
+  return laserDmxWebGLRecoveryByContext.get(ctx) ?? createLaserDmxWebGLRecoveryState()
+}
+
+function setLaserDmxWebGLRecoveryState(
+  ctx: CanvasRenderingContext2D,
+  state: LaserDmxWebGLRecoveryState,
+): LaserDmxWebGLRecoveryState {
+  laserDmxWebGLRecoveryByContext.set(ctx, state)
+  return state
+}
+
+function laserDmxWebGLRecoveryDiagnostics(state: LaserDmxWebGLRecoveryState) {
+  return {
+    lastWebGLFailure: state.failureReason,
+    failureClassification: state.failureClassification,
+    retryCount: state.retryCount,
+    nextAutomaticRetryMs: state.nextRetryAtMs,
+    lastSuccessfulInitializationMs: state.lastSuccessfulInitializationMs,
+    manualRetryAvailable: canManuallyRetryLaserDmxWebGL(state),
+    finalFallbackReason: state.finalFallbackReason,
+  }
+}
+
+function getLaserDmxWebGLRuntime(
+  ctx: CanvasRenderingContext2D,
+  nowMs: number,
+  manualRetrySequence: number,
+): LaserDmxWebGLRuntime | null {
+  let state = getLaserDmxWebGLRecoveryState(ctx)
+  const consumedManualSequence = laserDmxWebGLManualRetrySequenceByContext.get(ctx) ?? 0
+  const manualRetryRequested = manualRetrySequence > consumedManualSequence
+  if (manualRetryRequested) {
+    laserDmxWebGLManualRetrySequenceByContext.set(ctx, manualRetrySequence)
+    disposeLaserDmxWebGLRuntime(ctx)
+    state = setLaserDmxWebGLRecoveryState(ctx, beginManualLaserDmxWebGLRetry(state))
+  }
+
   const current = laserDmxWebGLRuntimeByContext.get(ctx)
   if (current) return current
-  if (laserDmxWebGLUnavailableContexts.has(ctx)) return null
+  if (state.failureCode && !manualRetryRequested) {
+    if (!canAutomaticallyRetryLaserDmxWebGL(state, nowMs)) return null
+    state = setLaserDmxWebGLRecoveryState(ctx, beginAutomaticLaserDmxWebGLRetry(state))
+  }
+
   const created = LaserDmxWebGLRuntime.createWithDiagnostics(ctx)
   if (!created.runtime) {
-    laserDmxWebGLUnavailableContexts.add(ctx)
-    laserDmxWebGLFailureCodeByContext.set(ctx, created.failureCode ?? 'runtime-render-failed')
+    setLaserDmxWebGLRecoveryState(ctx, recordLaserDmxWebGLFailure(state, {
+      code: created.failureCode ?? 'runtime-render-failed',
+      reason: created.error,
+      nowMs,
+    }))
     return null
   }
-  laserDmxWebGLFailureCodeByContext.delete(ctx)
   laserDmxWebGLRuntimeByContext.set(ctx, created.runtime)
+  // Do not clear retry history until the freshly-created runtime completes an
+  // actual production render. Otherwise a create-success/render-failure cycle
+  // could reset the retry counter and retry forever at the first cooldown.
+  laserDmxWebGLInitializationPendingByContext.set(ctx, nowMs)
   return created.runtime
 }
 
@@ -360,6 +418,7 @@ function disposeLaserDmxWebGLRuntime(ctx: CanvasRenderingContext2D): void {
   const runtime = laserDmxWebGLRuntimeByContext.get(ctx)
   runtime?.dispose('release-resources')
   laserDmxWebGLRuntimeByContext.delete(ctx)
+  laserDmxWebGLInitializationPendingByContext.delete(ctx)
 }
 
 function resetLaserDmxTransientRuntimeState(): void {
@@ -455,9 +514,8 @@ export function disposeLaserDmxRenderer(
   disposeLaserDmxRendererLifecycle(ctx)
   resetLaserDmxRuntimeState(undefined, ctx)
   disposeLaserDmxWebGLRuntime(ctx)
-  laserDmxWebGLUnavailableContexts.delete(ctx)
-  laserDmxWebGLFailureCodeByContext.delete(ctx)
-  laserDmxWebGLContextLossCountByContext.delete(ctx)
+  laserDmxWebGLRecoveryByContext.delete(ctx)
+  laserDmxWebGLManualRetrySequenceByContext.delete(ctx)
   showDirectorRuntimeByContext.delete(ctx)
   if (options.affectProductionOutput !== false) clearLaserDmxRendererDiagnostics()
 }
@@ -682,16 +740,18 @@ export function renderLaserDmx(
   let fallbackReason = fallbackCode ? laserDmxRendererFallbackReason(fallbackCode) : null
   let webgl2Available: boolean | null = null
   let contextLossCount = 0
+  let webglRecoveryState = getLaserDmxWebGLRecoveryState(ctx)
 
   if (sceneFrame && requestedRenderer !== 'canvas2d' && params.thumbnailLaserDmxSettings == null) {
-    const webglRuntime = getLaserDmxWebGLRuntime(ctx)
-    const rememberedFailure = laserDmxWebGLFailureCodeByContext.get(ctx)
-    const rememberedContextLossCount = laserDmxWebGLContextLossCountByContext.get(ctx) ?? 0
-    webgl2Available = webglRuntime != null || (rememberedFailure != null && rememberedFailure !== 'webgl2-unavailable')
-    contextLossCount = Math.max(webglRuntime?.contextLossCount ?? 0, rememberedContextLossCount)
-    if (webglRuntime) laserDmxWebGLContextLossCountByContext.set(ctx, contextLossCount)
+    const nowMs = Date.now()
+    const webglRuntime = getLaserDmxWebGLRuntime(ctx, nowMs, getLaserDmxWebGLRetryRequestSequence())
+    let recoveryState = getLaserDmxWebGLRecoveryState(ctx)
+    webglRecoveryState = recoveryState
+    const rememberedFailure = recoveryState.failureCode
+    webgl2Available = webglRuntime != null || rememberedFailure !== 'webgl2-unavailable'
+    contextLossCount = Math.max(webglRuntime?.contextLossCount ?? 0, recoveryState.contextLossCount)
     const decision = resolveLaserDmxRendererBackendDecision(requestedRenderer, {
-      webgl2: webglRuntime != null || (rememberedFailure != null && rememberedFailure !== 'webgl2-unavailable'),
+      webgl2: webgl2Available,
       contextLost: webglRuntime?.contextLost ?? rememberedFailure === 'context-lost',
       repeatedContextLoss: webglRuntime?.repeatedContextLoss ?? rememberedFailure === 'repeated-context-loss',
       runtimeFailed: webglRuntime == null && rememberedFailure != null
@@ -711,13 +771,26 @@ export function renderLaserDmx(
     if (webglRuntime?.repeatedContextLoss) {
       fallbackCode = 'repeated-context-loss'
       fallbackReason = laserDmxRendererFallbackReason(fallbackCode)
-      laserDmxWebGLFailureCodeByContext.set(ctx, fallbackCode)
+      recoveryState = setLaserDmxWebGLRecoveryState(ctx, recordLaserDmxWebGLFailure(recoveryState, {
+        code: fallbackCode,
+        nowMs,
+        contextLossCount: webglRuntime.contextLossCount,
+      }))
+      contextLossCount = recoveryState.contextLossCount
       disposeLaserDmxWebGLRuntime(ctx)
-      laserDmxWebGLUnavailableContexts.add(ctx)
     } else if (decision.backend === 'webgl' && webglRuntime) {
       const result = webglRuntime.render(sceneFrame)
       if (result.ok && result.diagnostics) {
         const diagnostics = result.diagnostics
+        const pendingInitialization = laserDmxWebGLInitializationPendingByContext.get(ctx)
+        if (recoveryState.failureCode || pendingInitialization != null) {
+          recoveryState = setLaserDmxWebGLRecoveryState(ctx, recordLaserDmxWebGLInitializationSuccess(
+            recoveryState,
+            nowMs,
+            diagnostics.contextLossCount,
+          ))
+          laserDmxWebGLInitializationPendingByContext.delete(ctx)
+        }
         publishLaserDmxRendererDiagnostics({
           activeRenderer: 'webgl',
           requestedRenderer,
@@ -748,27 +821,34 @@ export function renderLaserDmx(
           fallbackReason: diagnostics.degraded ? 'RGBA16F targets are unavailable; the WebGL LDR post path is active.' : null,
           contextLossCount: diagnostics.contextLossCount,
           postProcessingStatus: diagnostics.hdrMode === 'rgba16f' ? 'hdr' : 'ldr-fallback',
+          ...laserDmxWebGLRecoveryDiagnostics(recoveryState),
         })
         return
       }
       fallbackCode = result.failureCode ?? 'runtime-render-failed'
       fallbackReason = laserDmxRendererFallbackReason(fallbackCode)
-      contextLossCount = webglRuntime.contextLossCount
-      laserDmxWebGLContextLossCountByContext.set(ctx, contextLossCount)
-      if (!result.recoverable) {
-        disposeLaserDmxWebGLRuntime(ctx)
-        laserDmxWebGLUnavailableContexts.add(ctx)
-        laserDmxWebGLFailureCodeByContext.set(ctx, fallbackCode)
-      }
+      recoveryState = setLaserDmxWebGLRecoveryState(ctx, recordLaserDmxWebGLFailure(recoveryState, {
+        code: fallbackCode,
+        reason: result.error,
+        nowMs,
+        contextLossCount: webglRuntime.contextLossCount,
+      }))
+      contextLossCount = recoveryState.contextLossCount
+      // A lost context owns browser restoration events and remains mounted.
+      // Other failures release stale GPU resources and wait on the bounded
+      // recovery policy while Canvas2D keeps output stable.
+      if (fallbackCode !== 'context-lost') disposeLaserDmxWebGLRuntime(ctx)
     }
   } else {
     if (laserDmxWebGLRuntimeByContext.has(ctx)) disposeLaserDmxWebGLRuntime(ctx)
     if (requestedRenderer === 'canvas2d') {
-      laserDmxWebGLUnavailableContexts.delete(ctx)
-      laserDmxWebGLFailureCodeByContext.delete(ctx)
-      laserDmxWebGLContextLossCountByContext.delete(ctx)
+      laserDmxWebGLRecoveryByContext.delete(ctx)
+      laserDmxWebGLManualRetrySequenceByContext.delete(ctx)
+      laserDmxWebGLInitializationPendingByContext.delete(ctx)
     }
   }
+
+  webglRecoveryState = getLaserDmxWebGLRecoveryState(ctx)
 
   const compiled = compileLaserDmxBeamMatrix({
     settings: finalBeamMatrix,
@@ -809,6 +889,7 @@ export function renderLaserDmx(
       fallbackReason: fallbackCode === 'forced-canvas2d' ? null : fallbackReason,
       contextLossCount,
       postProcessingStatus: 'inactive',
+      ...laserDmxWebGLRecoveryDiagnostics(webglRecoveryState),
     })
   }
   const out = compiled.output

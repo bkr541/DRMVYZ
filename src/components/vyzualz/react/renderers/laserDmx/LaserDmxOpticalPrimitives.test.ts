@@ -36,6 +36,29 @@ describe('LaserDMX professional optical primitives', () => {
     expect(new Set(result.rays.map(ray => `${ray.target.x.toFixed(4)}:${ray.target.y.toFixed(4)}`)).size).toBe(9)
   })
 
+  it('supports deterministic 16-ray High and 24-ray Ultra professional hero fans', () => {
+    const fixture = createDefaultLaserDmxShowDirectorFixture('laser', 'professional-hero-fan', 0)
+    fixture.optics = { ...fixture.optics, primitiveType: 'fan', rayCount: 24, fanWidth: 120 }
+    const build = (allocatedRayCount: number) => buildLaserDmxOpticalPrimitivePlan({
+      fixture,
+      origin: { x: 0.5, y: 0.15, z: 0 },
+      allocatedRayCount,
+      audioTimeSec: 9,
+      beatIndex: 32,
+      phraseIndex: 2,
+      occurrenceSeed: 11,
+    })
+    const high = build(16)
+    const ultra = build(24)
+    expect(high.rays).toHaveLength(16)
+    expect(ultra.rays).toHaveLength(24)
+    expect(build(24)).toEqual(ultra)
+    expect(high.rays[0]?.spacingT).toBe(-0.5)
+    expect(high.rays[high.rays.length - 1]?.spacingT).toBe(0.5)
+    expect(ultra.rays[0]?.spacingT).toBe(-0.5)
+    expect(ultra.rays[ultra.rays.length - 1]?.spacingT).toBe(0.5)
+  })
+
   it('assigns multiple deterministic depth planes to layered professional structures', () => {
     for (const primitive of ['layeredFan', 'tunnel', 'mirroredCorridor', 'rotatingLattice'] as const) {
       const first = plan(primitive)

@@ -39,14 +39,17 @@ const RIG_BACKED_IDS = [
 ] as const
 
 describe('Show Director final visual validation', () => {
-  it('covers all twenty shows and all ten representative moments deterministically', () => {
+  it('registers all twenty shows and ten representative moments', () => {
     expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS).toHaveLength(20)
-    const reports: ShowDirectorVisualValidationResolution[] = []
-    for (const show of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
-      for (const frame of SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES) {
+    expect(SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES).toHaveLength(10)
+  })
+
+  it.each(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS)(
+    '$id renders all representative moments deterministically without exceeding the beam budget',
+    show => {
+      const reports = SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES.map(frame => {
         const first = resolveShowDirectorVisualValidationFrame(show, frame)
         const repeated = resolveShowDirectorVisualValidationFrame(show, frame)
-        reports.push(first)
         expect(first.performanceProgramId).toBe(show.id)
         expect(first.compiledBeamCount).toBeLessThanOrEqual(300)
         expect(first.authoredBeamCount).toBeLessThanOrEqual(300)
@@ -55,11 +58,12 @@ describe('Show Director final visual validation', () => {
         expect(repeated.visibleBeamCount).toBe(first.visibleBeamCount)
         expect(repeated.metrics.geometrySignature).toBe(first.metrics.geometrySignature)
         expect(repeated.effects.stateSignature).toBe(first.effects.stateSignature)
-      }
-    }
-    expect(reports).toHaveLength(200)
-    expect(new Set(reports.map(report => `${report.presetId}/${report.frame.id}`))).toHaveLength(200)
-  })
+        return first
+      })
+      expect(reports).toHaveLength(10)
+      expect(new Set(reports.map(report => `${report.presetId}/${report.frame.id}`))).toHaveLength(10)
+    },
+  )
 
   it('keeps the seven rig-backed shows linked to distinct static source layouts', () => {
     const sourceLayouts = RIG_BACKED_IDS.map(id => preset(id).sourceRigLayoutId)

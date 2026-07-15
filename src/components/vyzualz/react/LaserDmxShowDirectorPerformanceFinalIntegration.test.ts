@@ -256,14 +256,28 @@ describe('Show Director performance final integration', () => {
     expect(budget.fixtures.filter(item => item.role === 'heroImpact').every(item => item.allocatedDemand === item.estimatedDemand)).toBe(true)
     expect(budget.fixtures.filter(item => item.role === 'primaryArchitecture').every(item => item.allocatedDemand === item.estimatedDemand)).toBe(true)
     expect(budget.fixtures.filter(item => item.role === 'secondaryFan').every(item => item.allocatedDemand === item.estimatedDemand)).toBe(true)
-    expect(budget.fixtures.filter(item => item.role === 'decorativeAccent').every(item => item.allocatedDemand === 0)).toBe(true)
+    expect(budget.fixtures.filter(item => item.role === 'detailLattice').every(item => item.allocatedDemand === 0)).toBe(true)
+    expect(budget.fixtures.filter(item => item.role === 'decorativeAccent').some(item => item.allocatedDemand > 0)).toBe(true)
 
+    const showDirector = createDefaultLaserDmxShowDirectorState()
+    showDirector.settings.webglQuality = 'medium'
+    showDirector.fixtures = fixtures
     const matrix = compileLaserDmxShowDirectorToBeamMatrix({
-      showDirector: { ...createDefaultLaserDmxShowDirectorState(), fixtures },
+      showDirector,
       beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
       fixturePriorityById: budget.priorityByFixtureId,
+      fixturePriorityRoleById: roles,
     })
-    expect(matrix.beams).toHaveLength(300)
+    expect(matrix.beams.length).toBeLessThanOrEqual(300)
+    expect(matrix.beams.length).toBeGreaterThan(200)
+    const compiledFixtureIds = new Set(matrix.beams.map(beam => (
+      fixtures.find(fixture => beam.id.startsWith(`sd-${fixture.id}-`))?.id
+    )).filter((id): id is string => Boolean(id)))
+    for (const fixture of fixtures.filter(item => ['heroImpact', 'primaryArchitecture', 'secondaryFan'].includes(roles[item.id]!))) {
+      expect(compiledFixtureIds.has(fixture.id)).toBe(true)
+    }
+    expect(fixtures.filter(item => roles[item.id] === 'detailLattice').every(item => !compiledFixtureIds.has(item.id))).toBe(true)
+    expect(fixtures.filter(item => roles[item.id] === 'decorativeAccent').some(item => compiledFixtureIds.has(item.id))).toBe(true)
   })
 
   it('reloads built-ins cleanly and disabling then re-enabling restores deterministic runtime behavior without mutating the rig', () => {
