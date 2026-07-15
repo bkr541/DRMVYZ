@@ -14,6 +14,7 @@ import {
   type LaserDmxShowDirectorPerformanceState,
 } from './LaserDmxShowDirectorPerformanceProgram'
 import { LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS } from './LaserDmxShowDirectorPerformanceShowcasePresets'
+import { migrateLaserDmxShowDirectorToProfessionalOptics } from './LaserDmxShowDirectorProfessionalOpticsMigration'
 import { LASER_DMX_SHOW_DIRECTOR_VIDEO_INSPIRED_PERFORMANCE_PRESETS } from './LaserDmxShowDirectorVideoInspiredPerformancePresets'
 import { LASER_DMX_SHOW_DIRECTOR_PRISMATIC_PULSE_MATRIX_PRESET } from './LaserDmxShowDirectorPrismaticPulseMatrixPerformancePreset'
 import { LASER_DMX_SHOW_DIRECTOR_DUAL_REFERENCE_PERFORMANCE_PRESETS } from './LaserDmxShowDirectorDualReferencePerformancePresets'
@@ -76,14 +77,21 @@ export const LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS: readonly La
 )
 
 /** Canonical full-song Show Director performance shows. Foundation-only rig-backed shows stay out of the browser. */
-export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze([
+const RAW_LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = [
   ...LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS,
   ...LASER_DMX_SHOW_DIRECTOR_VIDEO_INSPIRED_PERFORMANCE_PRESETS,
   LASER_DMX_SHOW_DIRECTOR_PRISMATIC_PULSE_MATRIX_PRESET,
   ...LASER_DMX_SHOW_DIRECTOR_DUAL_REFERENCE_PERFORMANCE_PRESETS,
   ...LASER_DMX_SHOW_DIRECTOR_FINAL_REFERENCE_PERFORMANCE_PRESETS,
   ...LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS,
-])
+]
+
+export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze(
+  RAW_LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => ({
+    ...preset,
+    createRig: (createId: () => string) => migrateLaserDmxShowDirectorToProfessionalOptics(preset.id, preset.createRig(createId)),
+  })),
+)
 
 const FAVORITES_STORAGE_KEY = 'drmvyz.showDirector.performanceFavorites.v1'
 

@@ -741,7 +741,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 10
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 11
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -808,6 +808,25 @@ export type LaserDmxShowDirectorMirrorAxis = 'horizontal' | 'vertical'
 export type LaserDmxShowDirectorPresentationMode = 'edit' | 'hybrid' | 'live' | 'capture'
 export type LaserDmxShowDirectorRendererMode = 'canvas2d' | 'webgl' | 'auto'
 export type LaserDmxShowDirectorWebGLQuality = 'low' | 'medium' | 'high' | 'ultra' | 'auto'
+export type LaserDmxShowDirectorOpticalPrimitiveType =
+  | 'auto'
+  | 'fan'
+  | 'layeredFan'
+  | 'parallelBank'
+  | 'crossBank'
+  | 'sheet'
+  | 'tunnel'
+  | 'canopy'
+  | 'audienceRake'
+  | 'diamondPlane'
+  | 'mirroredCorridor'
+  | 'rotatingLattice'
+  | 'apertureBurst'
+  | 'scannerWave'
+  | 'washCone'
+  | 'blinderBank'
+  | 'strobeField'
+  | 'co2Burst'
 export type LaserDmxShowDirectorDepthLayer =
   | 'auto'
   | 'cameraFacingAir'
@@ -909,6 +928,25 @@ export interface LaserDmxShowDirectorFixtureSpecificConfig {
   videoWallSource:     LaserDmxShowDirectorVideoWallSource
 }
 
+/**
+ * High-level optical intent shared by WebGL and Canvas fallback compilation.
+ * The inspector intentionally exposes only this compact surface instead of raw
+ * shader uniforms or fixture-console jargon.
+ */
+export interface LaserDmxShowDirectorOpticsConfig {
+  primitiveType: LaserDmxShowDirectorOpticalPrimitiveType
+  rayCount: number
+  fanWidth: number
+  opticalSoftness: number
+  sourceIntensity: number
+  atmosphereResponse: number
+  zoom: number
+  iris: number
+  frost: number
+  prismFacets: 1 | 3 | 5
+  goboAmount: number
+}
+
 export interface LaserDmxShowDirectorGroup {
   schemaVersion?: number
   id:    string
@@ -942,6 +980,7 @@ export interface LaserDmxShowDirectorFixture {
   beam:      LaserDmxShowDirectorBeamConfig
   trigger:   LaserDmxShowDirectorTriggerConfig
   component: LaserDmxShowDirectorFixtureSpecificConfig
+  optics: LaserDmxShowDirectorOpticsConfig
   /** Transient performance-program appearance override. Normalization intentionally omits this field. */
   runtimeBeamAppearance?: Partial<LaserDmxMatrixBeamAppearance>
   /** Transient performance-program renderer role. Normalization intentionally omits this field. */
@@ -950,10 +989,11 @@ export interface LaserDmxShowDirectorFixture {
   runtimeBeamTravel?: Partial<LaserDmxBeamMotion>
 }
 
-export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger' | 'component'>> & {
+export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger' | 'component' | 'optics'>> & {
   beam?:      Partial<LaserDmxShowDirectorBeamConfig>
   trigger?:   Partial<LaserDmxShowDirectorTriggerConfig>
   component?: Partial<LaserDmxShowDirectorFixtureSpecificConfig>
+  optics?:    Partial<LaserDmxShowDirectorOpticsConfig>
 }
 
 export interface LaserDmxShowDirectorState {
@@ -1018,6 +1058,20 @@ export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_COMPONENT: LaserDmxShowDirectorFixt
   co2BurstDurationMs:  350,
   videoWallBrightness: 0.85,
   videoWallSource:     'placeholder',
+}
+
+export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_OPTICS: LaserDmxShowDirectorOpticsConfig = {
+  primitiveType: 'auto',
+  rayCount: 7,
+  fanWidth: 52,
+  opticalSoftness: 0.18,
+  sourceIntensity: 0.86,
+  atmosphereResponse: 0.78,
+  zoom: 0.45,
+  iris: 1,
+  frost: 0,
+  prismFacets: 1,
+  goboAmount: 0,
 }
 
 function showDirectorRecord(value: unknown): value is Record<string, unknown> {
@@ -1206,6 +1260,28 @@ function coerceShowDirectorVideoWallSource(value: unknown): LaserDmxShowDirector
   return value === 'reactVisual' || value === 'media' || value === 'camera' ? value : 'placeholder'
 }
 
+function coerceShowDirectorOpticalPrimitiveType(value: unknown): LaserDmxShowDirectorOpticalPrimitiveType {
+  return value === 'fan'
+    || value === 'layeredFan'
+    || value === 'parallelBank'
+    || value === 'crossBank'
+    || value === 'sheet'
+    || value === 'tunnel'
+    || value === 'canopy'
+    || value === 'audienceRake'
+    || value === 'diamondPlane'
+    || value === 'mirroredCorridor'
+    || value === 'rotatingLattice'
+    || value === 'apertureBurst'
+    || value === 'scannerWave'
+    || value === 'washCone'
+    || value === 'blinderBank'
+    || value === 'strobeField'
+    || value === 'co2Burst'
+    ? value
+    : 'auto'
+}
+
 function coerceShowDirectorMirrorAxis(value: unknown): LaserDmxShowDirectorMirrorAxis | null {
   return value === 'vertical' || value === 'horizontal' ? value : null
 }
@@ -1316,6 +1392,16 @@ export function createDefaultLaserDmxShowDirectorFixture(
     beam: { ...beam, ...defaultEndpoint },
     trigger: createDefaultLaserDmxShowDirectorTriggerConfig(kind),
     component: { ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_COMPONENT },
+    optics: {
+      ...DEFAULT_LASER_DMX_SHOW_DIRECTOR_OPTICS,
+      primitiveType: 'auto',
+      rayCount: kind === 'laser' ? 7 : 1,
+      fanWidth: beam.beamSpread,
+      opticalSoftness: kind === 'laser' ? 0.08 : kind === 'movingHead' ? 0.34 : kind === 'parWash' ? 0.72 : 0.28,
+      sourceIntensity: kind === 'blinder' || kind === 'strobe' ? 1 : 0.86,
+      atmosphereResponse: kind === 'laser' ? 0.86 : kind === 'movingHead' || kind === 'parWash' ? 0.92 : 0.68,
+      zoom: kind === 'movingHead' ? 0.42 : kind === 'parWash' ? 0.78 : 0.28,
+    },
   }
 }
 
@@ -1462,6 +1548,29 @@ function normalizeLaserDmxShowDirectorComponentConfig(raw: unknown): LaserDmxSho
   }
 }
 
+function normalizeLaserDmxShowDirectorOpticsConfig(
+  raw: unknown,
+  kind: LaserDmxShowDirectorFixtureKind,
+  beam: LaserDmxShowDirectorBeamConfig,
+): LaserDmxShowDirectorOpticsConfig {
+  const fallback = createDefaultLaserDmxShowDirectorFixture(kind, 'optics-fallback', 0).optics
+  const value = showDirectorRecord(raw) ? raw : {}
+  const prism = showDirectorPositiveInt(value.prismFacets, fallback.prismFacets, 1, 5)
+  return {
+    primitiveType: coerceShowDirectorOpticalPrimitiveType(value.primitiveType),
+    rayCount: showDirectorPositiveInt(value.rayCount, fallback.rayCount, 1, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS),
+    fanWidth: Math.max(0, Math.min(180, showDirectorFinite(value.fanWidth, beam.beamSpread || fallback.fanWidth))),
+    opticalSoftness: showDirectorUnit(value.opticalSoftness, fallback.opticalSoftness),
+    sourceIntensity: showDirectorUnit(value.sourceIntensity, fallback.sourceIntensity),
+    atmosphereResponse: showDirectorUnit(value.atmosphereResponse, fallback.atmosphereResponse),
+    zoom: showDirectorUnit(value.zoom, fallback.zoom),
+    iris: showDirectorUnit(value.iris, fallback.iris),
+    frost: showDirectorUnit(value.frost, fallback.frost),
+    prismFacets: prism >= 5 ? 5 : prism >= 3 ? 3 : 1,
+    goboAmount: showDirectorUnit(value.goboAmount, fallback.goboAmount),
+  }
+}
+
 export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): LaserDmxShowDirectorFixture {
   const value = showDirectorRecord(raw) ? raw : {}
   const kind = isLaserDmxShowDirectorFixtureKind(value.kind) ? value.kind : 'laser'
@@ -1509,6 +1618,7 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
     },
     trigger:    normalizeLaserDmxShowDirectorTriggerConfig(value.trigger, kind),
     component:  normalizeLaserDmxShowDirectorComponentConfig(value.component),
+    optics:     normalizeLaserDmxShowDirectorOpticsConfig(value.optics, kind, normalizedBeam),
   }
 }
 

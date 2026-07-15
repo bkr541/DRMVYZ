@@ -34,6 +34,7 @@ import type { LaserDmxShowDirectorBeamPriorityRole } from '../LaserDmxShowDirect
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { VzCueMarker } from '../../../../types/cue'
 import { selectDeterministicLaserDmxRayIndices } from './laserDmx/LaserDmxBeamOptics'
+import { buildLaserDmxOpticalPrimitivePlan } from './laserDmx/LaserDmxOpticalPrimitives'
 
 export interface CompileLaserDmxShowDirectorToBeamMatrixInput {
   showDirector: LaserDmxShowDirectorState
@@ -870,29 +871,46 @@ function compileBeamFixture(
   const isMovingHead = fixture.kind === 'movingHead'
   const movingHeadPanTiltStyle = isMovingHead ? fixture.component.movingHeadPanTiltStyle : null
   const editableTargets = editableTargetsForFixture(fixture, ctx.gridColumns, ctx.gridRows)
-  const useEditableTargets = fixture.beam.targetMode === 'fixed' || editableTargets.length > 1
-  const count = useEditableTargets
-    ? Math.min(editableTargets.length, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
-    : fixture.beam.targetMode === 'fan'
-      ? clamp(Math.round(spread / 9), 3, 9)
-      : fixture.beam.targetMode === 'cross'
-        ? 2
-        : fixture.beam.targetMode === 'mirror'
-          ? 2
-          : 1
-
+  const explicitPrimitive = fixture.optics?.primitiveType != null && fixture.optics.primitiveType !== 'auto'
   const remainingCapacity = Math.max(0, LASER_DMX_MATRIX_MAX_BEAMS - ctx.outputBeamCount)
+  const primitivePlan = explicitPrimitive
+    ? buildLaserDmxOpticalPrimitivePlan({
+        fixture,
+        origin: point,
+        allocatedRayCount: fixture.optics.rayCount,
+        audioTimeSec: 0,
+        beatIndex: 0,
+        phraseIndex: 0,
+        occurrenceSeed: 0,
+      })
+    : null
+  const useEditableTargets = !primitivePlan && (fixture.beam.targetMode === 'fixed' || editableTargets.length > 1)
+  const count = primitivePlan
+    ? primitivePlan.rays.length
+    : useEditableTargets
+      ? Math.min(editableTargets.length, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
+      : fixture.beam.targetMode === 'fan'
+        ? clamp(Math.round(spread / 9), 3, 9)
+        : fixture.beam.targetMode === 'cross'
+          ? 2
+          : fixture.beam.targetMode === 'mirror'
+            ? 2
+            : 1
+
   const rayIndices = selectDeterministicLaserDmxRayIndices(count, remainingCapacity)
   for (const i of rayIndices) {
     const t = count === 1 ? 0.5 : i / (count - 1)
     const fanOffset = count === 1 ? 0 : (t - 0.5) * spread
     const mirrorSign = fixture.beam.targetMode === 'mirror' && i === 1 ? -1 : 1
     const crossOffset = fixture.beam.targetMode === 'cross' ? (i === 0 ? -spread * 0.5 : spread * 0.5) : fanOffset
-    const target = useEditableTargets
-      ? gridTargetFromEditableTarget(fixture, editableTargets[i] ?? editableTargets[0], ctx.gridColumns, ctx.gridRows)
-      : fixture.beam.targetMode === 'fixed'
-        ? gridTargetFromFixtureTarget(fixture, ctx.gridColumns, ctx.gridRows)
-        : stageTargetFromAngle(point, angle + crossOffset * mirrorSign, options.length ?? 0.62)
+    const primitiveTarget = primitivePlan?.rays[i]?.target
+    const target = primitiveTarget
+      ? { kind: 'stage' as const, x: primitiveTarget.x, y: primitiveTarget.y, z: primitiveTarget.z }
+      : useEditableTargets
+        ? gridTargetFromEditableTarget(fixture, editableTargets[i] ?? editableTargets[0], ctx.gridColumns, ctx.gridRows)
+        : fixture.beam.targetMode === 'fixed'
+          ? gridTargetFromFixtureTarget(fixture, ctx.gridColumns, ctx.gridRows)
+          : stageTargetFromAngle(point, angle + crossOffset * mirrorSign, options.length ?? 0.62)
     const motionMode: LaserDmxMatrixBeam['motion']['mode'] = fixture.beam.targetMode === 'sweep'
       ? 'scanner'
       : movingHeadPanTiltStyle === 'snap'
@@ -905,7 +923,7 @@ function compileBeamFixture(
     ctx.matrixBeams.push(makeBeam(
       fixture,
       ctx.fixturePriorityRoleById[fixture.id],
-      useEditableTargets ? `${fixture.kind}-target-${i + 1}` : `${fixture.kind}-${i + 1}`,
+      primitivePlan ? `${primitivePlan.primitiveType}-${i + 1}` : useEditableTargets ? `${fixture.kind}-target-${i + 1}` : `${fixture.kind}-${i + 1}`,
       ctx.outputBeamCount,
       origin,
       target,
@@ -966,32 +984,29 @@ function compileLedFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCom
 }
 
 function compileStrobeFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
-  if (!fixture.beam.beamEnabled) return
+  if (!fixture.beam.beamEnabled || ctx.outputBeamCount >= LASER_DMX_MATRIX_MAX_BEAMS) return
   const point = stagePointForFixture(fixture, ctx.gridColumns, ctx.gridRows)
   const origin = gridAnchorFromStagePoint(point)
-  const angles = [0, 90, 180, 270]
-  for (let i = 0; i < angles.length && ctx.outputBeamCount < LASER_DMX_MATRIX_MAX_BEAMS; i++) {
-    const target = stageTargetFromAngle(point, angles[i], 0.12)
-    ctx.matrixBeams.push(makeBeam(
-      fixture,
-      ctx.fixturePriorityRoleById[fixture.id],
-      `strobe-${i + 1}`,
-      ctx.outputBeamCount,
-      origin,
-      target,
-      {
-        width: 5,
-        divergence: 0.08,
-        focus: 0.9,
-        strobeRate: clamp01(finite(fixture.component.strobeRate, 8) / 30),
-        glow: 1,
-        geometry: 'line',
-      },
-      { mode: 'static', headGlow: 0.8 },
-      triggerDimmerRoutes(fixture, `strobe-${i + 1}`),
-    ))
-    ctx.outputBeamCount++
-  }
+  const target = stageTargetFromAngle(point, finite(fixture.rotation, 0) + 90, 0.18)
+  ctx.matrixBeams.push(makeBeam(
+    fixture,
+    ctx.fixturePriorityRoleById[fixture.id],
+    'strobe-field',
+    ctx.outputBeamCount,
+    origin,
+    target,
+    {
+      width: 8,
+      divergence: 0.42,
+      focus: 0.42,
+      strobeRate: clamp01(finite(fixture.component.strobeRate, 8) / 30),
+      glow: 1,
+      geometry: 'volumetricCone',
+    },
+    { mode: 'static', headGlow: 1 },
+    triggerDimmerRoutes(fixture, 'strobe-field'),
+  ))
+  ctx.outputBeamCount++
 }
 
 function compileBlinderFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {

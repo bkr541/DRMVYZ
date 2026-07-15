@@ -6,7 +6,8 @@ layout(location = 2) in vec3 iTarget;
 layout(location = 3) in vec4 iColor;
 layout(location = 4) in vec4 iOptics;
 layout(location = 5) in vec4 iWidths;
-layout(location = 6) in vec2 iExtra;
+layout(location = 6) in vec4 iExtra;
+layout(location = 7) in float iPrismAmount;
 uniform vec2 uViewportPx;
 uniform vec2 uCssToBacking;
 out float vAcross;
@@ -14,7 +15,8 @@ out float vAlong;
 out float vBodyRatio;
 flat out vec4 vColor;
 flat out vec4 vOptics;
-flat out vec2 vExtra;
+flat out vec4 vExtra;
+flat out float vPrismAmount;
 void main() {
   vec2 originPx = vec2(iOrigin.x * uViewportPx.x, iOrigin.y * uViewportPx.y);
   vec2 targetPx = vec2(iTarget.x * uViewportPx.x, iTarget.y * uViewportPx.y);
@@ -33,6 +35,7 @@ void main() {
   vColor = iColor;
   vOptics = iOptics;
   vExtra = iExtra;
+  vPrismAmount = iPrismAmount;
 }`
 
 export const BEAM_FRAGMENT_SHADER = `#version 300 es
@@ -42,7 +45,8 @@ in float vAlong;
 in float vBodyRatio;
 flat in vec4 vColor;
 flat in vec4 vOptics;
-flat in vec2 vExtra;
+flat in vec4 vExtra;
+flat in float vPrismAmount;
 out vec4 outColor;
 void main() {
   float lateral = abs(vAcross);
@@ -50,6 +54,8 @@ void main() {
   float coreIntensity = vOptics.y;
   float hotMix = vOptics.z;
   float opacity = vOptics.w;
+  float materialMode = vExtra.z;
+  float softness = clamp(vExtra.w, 0.0, 1.0);
   float envelope = exp(-lateral * lateral * 4.8) * vExtra.x;
   float body = 1.0 - smoothstep(max(0.015, vBodyRatio * 0.58), max(0.025, vBodyRatio), lateral);
   float core = 1.0 - smoothstep(max(0.006, vBodyRatio * 0.10), max(0.012, vBodyRatio * 0.28), lateral);
@@ -57,10 +63,36 @@ void main() {
   float sourceLift = 1.0 - smoothstep(0.0, 0.12, vAlong);
   vec3 saturated = vColor.rgb;
   vec3 paleCore = mix(saturated, vec3(1.0), 0.08 + hotMix * 0.46);
-  vec3 energy = saturated * envelope * intensity * 0.42;
-  energy += saturated * body * intensity * 0.92;
-  energy += paleCore * core * coreIntensity * (0.52 + sourceLift * 0.16);
-  energy += vec3(1.0) * hot * intensity * 1.12;
+  vec3 energy;
+  if (materialMode < 0.5) {
+    energy = saturated * envelope * intensity * 0.42;
+    energy += saturated * body * intensity * 0.92;
+    energy += paleCore * core * coreIntensity * (0.52 + sourceLift * 0.16);
+    energy += vec3(1.0) * hot * intensity * 1.12;
+    float prism = clamp(vPrismAmount, 0.0, 1.0);
+    vec3 spectral = vec3(
+      smoothstep(-0.25, 0.75, vAcross),
+      1.0 - smoothstep(0.2, 0.95, lateral),
+      smoothstep(-0.75, 0.25, -vAcross)
+    );
+    energy += spectral * body * intensity * prism * 0.16;
+  } else {
+    float edge = materialMode < 1.5 ? mix(0.72, 0.35, softness) : mix(0.48, 0.18, softness);
+    float cone = 1.0 - smoothstep(edge, 1.0, lateral);
+    float center = exp(-lateral * lateral * mix(7.5, 2.4, softness));
+    float longitudinal = smoothstep(0.0, 0.05, vAlong) * (1.0 - smoothstep(0.94, 1.0, vAlong));
+    float gobo = materialMode < 1.5
+      ? mix(1.0, 0.62 + 0.38 * sin((vAlong * 18.0 + vExtra.y * 6.2831853) * 3.0), clamp(vExtra.y, 0.0, 1.0))
+      : 1.0;
+    float field = cone * longitudinal * gobo;
+    energy = saturated * field * intensity * (materialMode < 1.5 ? 0.72 : 0.46);
+    energy += paleCore * center * field * coreIntensity * (materialMode < 1.5 ? 0.48 : 0.18);
+    energy += saturated * envelope * intensity * (materialMode < 1.5 ? 0.18 : 0.28);
+    if (materialMode < 1.5 && vPrismAmount > 0.001) {
+      float sideLobes = exp(-pow(lateral - 0.34, 2.0) * 72.0) + exp(-pow(lateral - 0.64, 2.0) * 92.0);
+      energy += mix(saturated, paleCore, 0.28) * sideLobes * longitudinal * intensity * vPrismAmount * 0.24;
+    }
+  }
   outColor = vec4(energy * opacity, 1.0);
 }`
 
@@ -70,22 +102,27 @@ layout(location = 1) in vec3 iPosition;
 layout(location = 2) in vec4 iColor;
 layout(location = 3) in vec4 iRadii;
 layout(location = 4) in vec2 iGlareDirection;
+layout(location = 5) in vec4 iShape;
 uniform vec2 uViewportPx;
 uniform vec2 uCssToBacking;
 out vec2 vLocal;
 flat out vec4 vColor;
 flat out vec4 vRadii;
 flat out vec2 vGlareDirection;
+flat out vec4 vShape;
 void main() {
   float backingScale = min(uCssToBacking.x, uCssToBacking.y);
   vec2 centerPx = vec2(iPosition.x * uViewportPx.x, iPosition.y * uViewportPx.y);
-  vec2 positionPx = centerPx + aCorner * iRadii.z * backingScale;
+  float aspect = max(0.18, iShape.y);
+  vec2 extent = vec2(iRadii.z * aspect, iRadii.z) * backingScale;
+  vec2 positionPx = centerPx + aCorner * extent;
   vec2 clip = vec2(positionPx.x / uViewportPx.x * 2.0 - 1.0, 1.0 - positionPx.y / uViewportPx.y * 2.0);
   gl_Position = vec4(clip, clamp(iPosition.z, -1.0, 1.0), 1.0);
   vLocal = aCorner;
   vColor = iColor;
   vRadii = iRadii;
   vGlareDirection = iGlareDirection;
+  vShape = iShape;
 }`
 
 export const APERTURE_FRAGMENT_SHADER = `#version 300 es
@@ -94,10 +131,15 @@ in vec2 vLocal;
 flat in vec4 vColor;
 flat in vec4 vRadii;
 flat in vec2 vGlareDirection;
+flat in vec4 vShape;
 out vec4 outColor;
 void main() {
+  float shapeMode = vShape.x;
   float radius = length(vLocal);
-  if (radius > 1.0) discard;
+  float boxDistance = max(abs(vLocal.x), abs(vLocal.y));
+  bool rectangular = (shapeMode >= 0.5 && shapeMode < 3.5) || (shapeMode > 4.5 && shapeMode < 5.5);
+  if (rectangular && boxDistance > 1.0) discard;
+  if (!rectangular && radius > 1.0) discard;
   float coreRatio = clamp(vRadii.x / max(vRadii.z, 0.001), 0.02, 0.9);
   float ringRatio = clamp(vRadii.y / max(vRadii.z, 0.001), coreRatio, 0.96);
   float intensity = vRadii.w;
@@ -107,10 +149,34 @@ void main() {
   vec2 localDirection = radius > 0.0001 ? vLocal / radius : vec2(1.0, 0.0);
   float glareAxis = abs(dot(localDirection, normalize(vGlareDirection)));
   float glare = pow(glareAxis, 22.0) * exp(-radius * 5.8) * 0.12;
-  vec3 energy = vColor.rgb * halo * intensity * 0.18;
-  energy += vColor.rgb * ring * intensity * 0.34;
-  energy += mix(vColor.rgb, vec3(1.0), 0.7) * core * intensity * 0.92;
-  energy += mix(vColor.rgb, vec3(1.0), 0.48) * glare * intensity;
+  vec3 energy;
+  if (shapeMode < 0.5) {
+    energy = vColor.rgb * halo * intensity * 0.18;
+    energy += vColor.rgb * ring * intensity * 0.34;
+    energy += mix(vColor.rgb, vec3(1.0), 0.7) * core * intensity * 0.92;
+    energy += mix(vColor.rgb, vec3(1.0), 0.48) * glare * intensity;
+  } else if (shapeMode < 2.5) {
+    float cells = max(1.0, vShape.z);
+    float cell = floor((vLocal.x * 0.5 + 0.5) * cells);
+    float pulse = 0.58 + 0.42 * sin((cell / cells + vShape.w) * 6.2831853);
+    float strip = 1.0 - smoothstep(0.56, 1.0, abs(vLocal.y));
+    float edgeGlow = exp(-boxDistance * boxDistance * 2.8);
+    energy = vColor.rgb * intensity * (strip * (0.52 + pulse * 0.48) + edgeGlow * 0.18);
+  } else if (shapeMode < 3.5) {
+    float panel = 1.0 - smoothstep(0.72, 1.0, boxDistance);
+    energy = mix(vColor.rgb, vec3(1.0), 0.72) * panel * intensity * 1.25;
+  } else if (shapeMode < 4.5) {
+    float warmCore = exp(-radius * radius * 3.1);
+    energy = mix(vColor.rgb, vec3(1.0, 0.78, 0.48), 0.28) * warmCore * intensity * 1.12;
+    energy += vColor.rgb * halo * intensity * 0.32;
+  } else if (shapeMode < 5.5) {
+    float wall = 1.0 - smoothstep(0.72, 1.0, boxDistance);
+    float scan = 0.92 + 0.08 * sin((vLocal.y + vShape.w) * 48.0);
+    energy = vColor.rgb * wall * scan * intensity * 0.72;
+  } else {
+    float nozzle = exp(-radius * radius * 4.8);
+    energy = mix(vColor.rgb, vec3(1.0), 0.6) * nozzle * intensity * 0.46;
+  }
   outColor = vec4(energy, 0.0);
 }`
 
@@ -247,8 +313,8 @@ void main() {
     vec3 p = vec3(warpedUv * uAtmosphere.w * 3.2, sampleDepth * 1.7 + uTimeSeed.y * 11.0 + vDepth.y * 0.7);
     float warp = valueNoise3(p * 0.72 + vec3(time * 0.02, -time * 0.015, 2.4)) - 0.5;
     p.xy += warp * uAtmosphere.z * 0.75;
-    float coherent = fbm3(p + vec3(time * 0.018, time * 0.011, 0.0), octaves);
-    float pocket = smoothstep(0.22, 0.86, coherent + uAtmosphere.x * 0.58);
+    float coherentNoise = fbm3(p + vec3(time * 0.018, time * 0.011, 0.0), octaves);
+    float pocket = smoothstep(0.22, 0.86, coherentNoise + uAtmosphere.x * 0.58);
     float localDensity = uAtmosphere.x;
     vec3 localTint = vec3(0.0);
     float localWeight = 0.0;

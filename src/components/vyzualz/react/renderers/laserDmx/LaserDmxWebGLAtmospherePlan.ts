@@ -225,6 +225,7 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
     && laserDmxDepthSegmentVisible(frame.camera, beam.depthRange.minZ, beam.depthRange.maxZ)
   ))
   const selected = selectAtmosphereBeams(visible, policy.maxBeamInstances)
+  const atmosphereResponseByFixtureId = new Map(frame.fixtures.map(fixture => [fixture.id, fixture.optics.atmosphereResponse] as const))
   const beams = selected.map((beam): LaserDmxWebGLAtmosphereBeamInstance => {
     const origin = projectLaserDmxScenePoint(frame.camera, beam.origin)
     const targetPoint = projectLaserDmxScenePoint(frame.camera, beam.target)
@@ -245,6 +246,7 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
         beam.intensity
           * beam.opacity
           * frame.atmosphere.beamScatter
+          * (0.2 + (atmosphereResponseByFixtureId.get(beam.fixtureId) ?? 0.78) * 0.8)
           * flutter.intensityMultiplier
           * depthScatterWeight(beam.sortDepth),
         0,

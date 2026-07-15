@@ -15,6 +15,7 @@ import {
   type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorLedDirection,
   type LaserDmxShowDirectorMovingHeadPanTiltStyle,
+  type LaserDmxShowDirectorOpticalPrimitiveType,
   type LaserDmxShowDirectorSectionType,
   type LaserDmxShowDirectorTriggerMode,
   type LaserDmxShowDirectorVideoWallSource,
@@ -40,6 +41,27 @@ const COLOR_MODE_OPTIONS: Array<{ value: LaserDmxShowDirectorColorMode; label: s
   { value: 'palette', label: 'React palette' },
   { value: 'music', label: 'Music reactive' },
   { value: 'fixtureDefault', label: 'Fixture default' },
+]
+
+const OPTICAL_PRIMITIVE_OPTIONS: Array<{ value: LaserDmxShowDirectorOpticalPrimitiveType; label: string }> = [
+  { value: 'auto', label: 'Auto / authored endpoints' },
+  { value: 'fan', label: 'Fan' },
+  { value: 'layeredFan', label: 'Layered fan' },
+  { value: 'parallelBank', label: 'Parallel bank' },
+  { value: 'crossBank', label: 'Cross bank' },
+  { value: 'sheet', label: 'Sheet' },
+  { value: 'tunnel', label: 'Tunnel' },
+  { value: 'canopy', label: 'Upper-air canopy' },
+  { value: 'audienceRake', label: 'Front-air rake' },
+  { value: 'diamondPlane', label: 'Diamond plane' },
+  { value: 'mirroredCorridor', label: 'Mirrored corridor' },
+  { value: 'rotatingLattice', label: 'Rotating lattice' },
+  { value: 'apertureBurst', label: 'Aperture burst' },
+  { value: 'scannerWave', label: 'Scanner wave' },
+  { value: 'washCone', label: 'Wash cone' },
+  { value: 'blinderBank', label: 'Blinder bank' },
+  { value: 'strobeField', label: 'Strobe field' },
+  { value: 'co2Burst', label: 'CO₂ burst' },
 ]
 
 const BEAM_TARGET_OPTIONS: Array<{ value: LaserDmxShowDirectorBeamTargetMode; label: string }> = [
@@ -657,6 +679,34 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
               </p>
             )}
           </>
+        )}
+
+        <CtrlSection label="Optics / Structure" />
+        <SelectRow
+          label="Primitive"
+          value={fixture.optics.primitiveType}
+          options={OPTICAL_PRIMITIVE_OPTIONS}
+          onChange={primitiveType => update({ optics: { primitiveType: primitiveType as LaserDmxShowDirectorOpticalPrimitiveType } })}
+          description="Auto preserves authored endpoints. A named primitive rebuilds them as one coherent professional lighting structure."
+        />
+        {(supportsBeam || fixture.kind === 'strobe' || fixture.kind === 'blinder' || fixture.kind === 'co2Jet') && (
+          <div className="rv-show-director-field-grid">
+            <NumberInputRow label="Ray count" value={fixture.optics.rayCount} min={1} max={12} step={1} onChange={rayCount => update({ optics: { rayCount: clamp(Math.round(rayCount), 1, 12) } })} />
+            <NumberInputRow label="Fan width" value={fixture.optics.fanWidth} min={0} max={180} step={1} unit="°" onChange={fanWidth => update({ optics: { fanWidth: clamp(fanWidth, 0, 180) } })} />
+          </div>
+        )}
+        <SliderRow label="Optical softness" value={fixture.optics.opticalSoftness} min={0} max={1} step={0.01} onChange={opticalSoftness => update({ optics: { opticalSoftness: clamp(opticalSoftness, 0, 1) } })} />
+        <SliderRow label="Source intensity" value={fixture.optics.sourceIntensity} min={0} max={1} step={0.01} onChange={sourceIntensity => update({ optics: { sourceIntensity: clamp(sourceIntensity, 0, 1) } })} />
+        <SliderRow label="Atmosphere response" value={fixture.optics.atmosphereResponse} min={0} max={1} step={0.01} onChange={atmosphereResponse => update({ optics: { atmosphereResponse: clamp(atmosphereResponse, 0, 1) } })} />
+        {(fixture.kind === 'movingHead' || fixture.kind === 'parWash') && (
+          <>
+            <SliderRow label="Zoom" value={fixture.optics.zoom} min={0} max={1} step={0.01} onChange={zoom => update({ optics: { zoom: clamp(zoom, 0, 1) } })} />
+            <SliderRow label="Iris" value={fixture.optics.iris} min={0} max={1} step={0.01} onChange={iris => update({ optics: { iris: clamp(iris, 0, 1) } })} />
+            <SliderRow label="Frost" value={fixture.optics.frost} min={0} max={1} step={0.01} onChange={frost => update({ optics: { frost: clamp(frost, 0, 1) } })} />
+          </>
+        )}
+        {fixture.kind === 'movingHead' && (
+          <SliderRow label="Gobo texture" value={fixture.optics.goboAmount} min={0} max={1} step={0.01} onChange={goboAmount => update({ optics: { goboAmount: clamp(goboAmount, 0, 1) } })} />
         )}
 
         <CtrlSection label="Trigger / Timing" />

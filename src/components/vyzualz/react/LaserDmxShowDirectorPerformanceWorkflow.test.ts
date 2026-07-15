@@ -126,6 +126,15 @@ describe('Show Director performance preset workflow', () => {
     expect(state.laserDmxShowDirectorPerformance.presetDirty).toBe(true)
     expect(state.laserDmxShowDirector.fixtures[0]?.brightness).toBe(0.2)
 
+    state.updateLaserDmxShowDirectorFixture(fixtureId, { optics: { primitiveType: 'layeredFan', opticalSoftness: 0.22 } })
+    state.updateLaserDmxShowDirectorFixture(fixtureId, { optics: { rayCount: 9 } })
+    state = useReactStore.getState()
+    expect(state.laserDmxShowDirector.fixtures[0]?.optics).toMatchObject({
+      primitiveType: 'layeredFan',
+      opticalSoftness: 0.22,
+      rayCount: 9,
+    })
+
     expect(state.applyLaserDmxShowDirectorPerformancePreset(preset)).toBe(true)
     state = useReactStore.getState()
     expect(state.laserDmxShowDirector.fixtures[0]?.brightness).toBe(0.7)

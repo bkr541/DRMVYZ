@@ -693,7 +693,7 @@ export class LaserDmxWebGLRuntime {
       !this.beamInstanceBuffer
     )
       return
-    const required = beams.length * 20
+    const required = beams.length * 23
     this.beamInstanceData = ensureFloatCapacity(this.beamInstanceData, required)
     let offset = 0
     for (const beam of beams) {
@@ -718,11 +718,14 @@ export class LaserDmxWebGLRuntime {
           beam.envelopeStartWidthCssPx,
           beam.envelopeEndWidthCssPx,
           beam.envelopeAlpha,
-          beam.phase,
+          beam.goboAmount,
+          beam.materialMode,
+          beam.softness,
+          beam.prismAmount,
         ],
         offset,
       )
-      offset += 20
+      offset += 23
     }
     const gl = this.gl
     gl.useProgram(this.beamProgram)
@@ -755,7 +758,7 @@ export class LaserDmxWebGLRuntime {
       !this.apertureInstanceBuffer
     )
       return
-    const required = apertures.length * 13
+    const required = apertures.length * 17
     this.apertureInstanceData = ensureFloatCapacity(this.apertureInstanceData, required)
     let offset = 0
     for (const aperture of apertures) {
@@ -774,10 +777,14 @@ export class LaserDmxWebGLRuntime {
           aperture.intensity,
           aperture.glareDirection.x,
           aperture.glareDirection.y,
+          aperture.shapeMode,
+          aperture.aspect,
+          aperture.segments,
+          aperture.phase,
         ],
         offset,
       )
-      offset += 13
+      offset += 17
     }
     const gl = this.gl
     gl.useProgram(this.apertureProgram)
@@ -1318,13 +1325,14 @@ export class LaserDmxWebGLRuntime {
     gl.enableVertexAttribArray(0)
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.beamInstanceBuffer)
-    const beamStride = 20 * Float32Array.BYTES_PER_ELEMENT
+    const beamStride = 23 * Float32Array.BYTES_PER_ELEMENT
     enableInstancedAttribute(gl, 1, 3, beamStride, 0)
     enableInstancedAttribute(gl, 2, 3, beamStride, 3 * 4)
     enableInstancedAttribute(gl, 3, 4, beamStride, 6 * 4)
     enableInstancedAttribute(gl, 4, 4, beamStride, 10 * 4)
     enableInstancedAttribute(gl, 5, 4, beamStride, 14 * 4)
-    enableInstancedAttribute(gl, 6, 2, beamStride, 18 * 4)
+    enableInstancedAttribute(gl, 6, 4, beamStride, 18 * 4)
+    enableInstancedAttribute(gl, 7, 1, beamStride, 22 * 4)
     gl.bindVertexArray(null)
 
     gl.bindVertexArray(this.apertureVertexArray)
@@ -1333,11 +1341,12 @@ export class LaserDmxWebGLRuntime {
     gl.enableVertexAttribArray(0)
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.apertureInstanceBuffer)
-    const apertureStride = 13 * Float32Array.BYTES_PER_ELEMENT
+    const apertureStride = 17 * Float32Array.BYTES_PER_ELEMENT
     enableInstancedAttribute(gl, 1, 3, apertureStride, 0)
     enableInstancedAttribute(gl, 2, 4, apertureStride, 3 * 4)
     enableInstancedAttribute(gl, 3, 4, apertureStride, 7 * 4)
     enableInstancedAttribute(gl, 4, 2, apertureStride, 11 * 4)
+    enableInstancedAttribute(gl, 5, 4, apertureStride, 13 * 4)
     gl.bindVertexArray(null)
 
     gl.bindVertexArray(this.atmosphereVertexArray)

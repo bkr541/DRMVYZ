@@ -52,6 +52,9 @@ export function estimateLaserDmxShowDirectorFixtureBeamDemand(fixture: LaserDmxS
     case 'movingHead':
     case 'parWash': {
       if (!beamEnabled) return 0
+      if (fixture.optics.primitiveType !== 'auto') {
+        return positiveInt(fixture.optics.rayCount, 7, 1, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
+      }
       const targets = Array.isArray(fixture.beam.targets)
         ? fixture.beam.targets.slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
         : []
@@ -70,7 +73,7 @@ export function estimateLaserDmxShowDirectorFixtureBeamDemand(fixture: LaserDmxS
       return beamEnabled ? Math.min(positiveInt(fixture.component.ledCellCount, 8, 1, 64), 12) : 0
     case 'strobe':
     case 'blinder':
-      return beamEnabled ? 4 : 0
+      return beamEnabled ? Math.min(4, positiveInt(fixture.optics.rayCount, 4, 1, 4)) : 0
     case 'videoWall':
       return 4
     case 'co2Jet':

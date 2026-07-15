@@ -162,32 +162,59 @@ export function resolveLaserDmxBeamOpticalProfile(input: {
   divergence?: number
   glow?: number
   opacity?: number
+  opticalSoftness?: number
+  zoom?: number
+  iris?: number
+  frost?: number
   visualRole: LaserDmxMatrixBeamVisualRole
 }): LaserDmxBeamOpticalProfile {
   const isLaser = input.fixtureKind === 'laser'
+  const isMovingHead = input.fixtureKind === 'movingHead'
+  const isWash = input.fixtureKind === 'parWash'
   const focus = clamp01(input.focus)
   const spread = clamp(input.spreadDeg, 0, 180)
   const authoredWidth = clamp(input.width ?? 1, 0.1, 8)
-  const divergence = clamp01(input.divergence ?? spread / 180)
+  const softness = clamp01(input.opticalSoftness ?? (isLaser ? 0.08 : isWash ? 0.72 : 0.34))
+  const zoom = clamp01(input.zoom ?? (isMovingHead ? 0.45 : isWash ? 0.78 : 0.2))
+  const iris = clamp01(input.iris ?? 1)
+  const frost = clamp01(input.frost ?? 0)
+  const fixtureDivergence = isLaser
+    ? spread / 320
+    : isMovingHead
+      ? 0.12 + zoom * 0.5
+      : isWash
+        ? 0.32 + zoom * 0.58
+        : spread / 180
+  const divergence = clamp01(input.divergence ?? fixtureDivergence)
   const glow = clamp01(input.glow ?? 0.72)
   const roleWidth = input.visualRole === 'hero' || input.visualRole === 'impact'
     ? 1.08
     : input.visualRole === 'texture'
       ? 0.82
       : 1
-  const materialWidth = isLaser ? 1 : 1.35
-  const width = clamp(authoredWidth * roleWidth * materialWidth, 0.1, 8)
+  const materialWidth = isLaser ? 0.72 : isMovingHead ? 1.85 : isWash ? 3.1 : 1.35
+  const apertureShape = clamp(0.24 + iris * 0.76, 0.2, 1)
+  const width = clamp(authoredWidth * roleWidth * materialWidth * apertureShape * (1 + frost * 0.42), 0.1, 8)
   const scatterEnvelopeWidth = clamp(
-    (isLaser ? 2.25 : 2.8) + glow * 2.4 + divergence * 2.2 + (1 - focus) * 1.2,
+    (isLaser ? 1.85 : isMovingHead ? 3.8 : isWash ? 5.2 : 2.8)
+      + glow * 2.4
+      + divergence * 3.4
+      + softness * 2.8
+      + frost * 2.2
+      + (1 - focus) * 1.2,
     1.6,
-    8,
+    12,
   )
   return {
     width,
     divergence,
     scatterEnvelopeWidth,
-    opacity: clamp01(input.opacity ?? (0.54 + glow * 0.34)),
-    coreIntensity: resolveLaserDmxCoreIntensity(input.intensity, focus, input.visualRole),
+    opacity: clamp01(input.opacity ?? (isWash ? 0.42 + glow * 0.22 : 0.54 + glow * 0.34)),
+    coreIntensity: resolveLaserDmxCoreIntensity(
+      input.intensity,
+      isLaser ? focus : focus * (1 - softness * 0.42),
+      input.visualRole,
+    ) * (isLaser ? 1 : isWash ? 0.38 : 0.68),
   }
 }
 
