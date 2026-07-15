@@ -10,6 +10,7 @@ import {
   type ProviderWord,
   type TranscriptionUnitPlan,
 } from '../_shared/lyricTranscriptionCore.ts'
+import { normalizeLyricCueStyle, segmentationProvenance, type MusicalSegmentationStructure } from '../_shared/lyricCueSegmentation.ts'
 import {
   buildWavTranscriptionChunk,
   isRiffWave,
@@ -45,7 +46,7 @@ const ACTIVE_STATUSES = ['queued', 'processing'] as const
 
 // Increment this whenever a behaviorally significant change is deployed so clients
 // can detect stale deployments from job.providerMetadata.fnVersion.
-const LYRIC_TRANSCRIPTION_FN_VERSION = '3.1.0'
+const LYRIC_TRANSCRIPTION_FN_VERSION = '3.2.0'
 const PREPARED_AUDIO_VERSION = 'browser-pcm16-v2'
 const MAX_PREPARED_AUDIO_CHUNKS = 64
 
@@ -219,6 +220,7 @@ function safeOptions(value: unknown): Record<string, unknown> {
     timingDetail,
     confidenceThreshold: threshold === null ? 0.6 : Math.max(0, Math.min(1, threshold)),
     globalOffsetMs: globalOffset === null ? 0 : Math.round(globalOffset),
+    cueStyle: normalizeLyricCueStyle(input.cueStyle),
   }
 }
 
@@ -1233,6 +1235,15 @@ function databaseCue(cue: ReturnType<typeof selectUsefulCues>[number], index: nu
   }
 }
 
+async function authoritativeTrackAnalysis(adminClient: SupabaseClient, trackId: string): Promise<{ structure: MusicalSegmentationStructure | null; revision: Record<string, unknown> }> {
+  const { data, error } = await adminClient.from('track_analyses').select('analysis_payload,analysis_version,updated_at').eq('track_id', trackId).maybeSingle()
+  if (error || !data || !isRecord(data.analysis_payload)) return { structure: null, revision: {} }
+  return {
+    structure: data.analysis_payload as MusicalSegmentationStructure,
+    revision: { trackAnalysisVersion: data.analysis_version ?? (data.analysis_payload as Record<string, unknown>).analysisVersion ?? null, trackAnalysisUpdatedAt: data.updated_at ?? null },
+  }
+}
+
 async function processJob(
   adminClient: SupabaseClient,
   userClient: SupabaseClient,
@@ -1430,7 +1441,9 @@ async function processJob(
     const normalizedUnits = providerResult.transcripts.map(({ unit, transcript }) =>
       normalizeProviderTranscript(transcript, unit, confidenceThreshold))
     const reconciled = reconcileTranscriptUnits(normalizedUnits)
-    const cues = selectUsefulCues(reconciled)
+    const cueStyle = normalizeLyricCueStyle(job.request_options.cueStyle)
+    const trackAnalysis = await authoritativeTrackAnalysis(adminClient, track.id)
+    const cues = selectUsefulCues(reconciled, { cueStyle, musicalStructure: trackAnalysis.structure })
     if (!cues.length) throw new TranscriptionError('normalization_failure', 'No reliably timed lyric cues were returned for this track.', 422)
 
     const dbCues = cues
@@ -1455,6 +1468,8 @@ async function processJob(
       reviewStatus: 'unreviewed',
       generatedAt: new Date().toISOString(),
       cueCount: dbCues.length,
+      ...segmentationProvenance(cueStyle, trackAnalysis.structure),
+      ...trackAnalysis.revision,
     }
     const documentPayload = {
       audio_track_id: track.id,
@@ -1485,6 +1500,8 @@ async function processJob(
       usedSingleUnit: providerResult.transcripts.length === 1,
       durationMs: reconciled.durationMs,
       warnings: reconciled.warnings,
+      cueSegmentationStyle: cueStyle,
+      segmentationAlgorithmVersion: segmentationProvenance(cueStyle, trackAnalysis.structure).segmentationAlgorithmVersion,
       ...boundedProviderMetadata(providerResult.rawPayload),
     }
 

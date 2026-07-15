@@ -1,3 +1,4 @@
+import { segmentTimedWords, type LyricCueStyle, type MusicalSegmentationStructure } from './lyricCueSegmentation.ts'
 export const FIVE_MINUTES_MS = 5 * 60 * 1000
 export const DEFAULT_LONG_UNIT_MS = 4 * 60 * 1000
 export const DEFAULT_OVERLAP_MS = 4_000
@@ -442,19 +443,13 @@ export function groupWordsIntoReadableCues(
   return groups.map((group, index) => cueFromWords(group, index))
 }
 
-export function selectUsefulCues(transcript: ReconciledTranscript): CanonicalCue[] {
-  if (transcript.segments.length > 0) {
-    const valid = transcript.segments.filter(segment => segment.endMs > segment.startMs && cleanText(segment.text))
-    const monotonic = valid.every((segment, index) => index === 0 || segment.startMs >= valid[index - 1].startMs)
-    const readable = valid.every(segment => segment.endMs - segment.startMs <= 12_000 && segment.text.length <= 160)
-    const boundariesAreCertain = !transcript.warnings.includes('chunk_boundary_uncertain')
-    if (valid.length > 0 && monotonic && readable && boundariesAreCertain) return valid
-    if (transcript.words.length === 0 && valid.length > 0) {
-      return valid.map(segment => ({
-        ...segment,
-        warnings: [...new Set([...(segment.warnings ?? []), 'provider_warning'])],
-      }))
-    }
+export function selectUsefulCues(
+  transcript: ReconciledTranscript,
+  options: { cueStyle?: LyricCueStyle; musicalStructure?: MusicalSegmentationStructure | null } = {},
+): CanonicalCue[] {
+  if (transcript.words.length > 0) {
+    return segmentTimedWords(transcript.words, options.cueStyle, options.musicalStructure ?? null).map((cue, index) => cueFromWords(cue.words, index))
   }
-  return groupWordsIntoReadableCues(transcript.words)
+  const valid = transcript.segments.filter(segment => segment.endMs > segment.startMs && cleanText(segment.text))
+  return valid.map(segment => ({ ...segment, warnings: [...new Set([...(segment.warnings ?? []), 'provider_warning'])] }))
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../../../lib/supabase'
+import type { LyricCueStyle } from '../../../../supabase/functions/_shared/lyricCueSegmentation'
 import type {
   LyricTranscriptionJob,
   LyricTranscriptionJobRow,
@@ -31,6 +32,7 @@ export interface LyricExtractionOptions {
   stylePreset?: string
   confidenceThreshold?: number
   globalOffsetMs?: number
+  cueStyle?: LyricCueStyle
 }
 
 export type LyricTranscriptionOptions = Omit<LyricExtractionOptions, 'stylePreset'>

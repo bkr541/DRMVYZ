@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../types/lyrics'
-import { getFullLyricDocument } from '../../../lib/lyricsDb'
+import { getFullLyricDocument, saveLyricDocumentAtomic } from '../../../lib/lyricsDb'
+import { createLyricCueInputFromCue } from '../../../types/lyrics'
+import { LYRIC_CUE_STYLE_LABELS, segmentTimedWords, segmentationProvenance, type LyricCueStyle } from '../../../../supabase/functions/_shared/lyricCueSegmentation'
 import { formatMs } from '../../../lib/lyricsImport'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 import {
@@ -20,6 +22,13 @@ import {
   type LocalAudioPreparationProgress,
 } from '../services/localAudioPreparation'
 import { getAudioPreparationOperation } from '../../../lib/audioPreparationDb'
+
+const CUE_STYLE_OPTIONS: Array<{ value: LyricCueStyle; description: string }> = [
+  { value: 'hip-hop', description: 'Short rhythmic phrases' },
+  { value: 'balanced', description: 'General-purpose lyric phrasing' },
+  { value: 'melodic', description: 'Longer sung phrases' },
+  { value: 'vocal-chops', description: 'Short repeated words and samples' },
+]
 
 const TIMING_OPTS = [
   { value: 'line', label: 'Line-level' },
@@ -193,7 +202,10 @@ export function AiLyricExtractor({
     timingDetail: 'line+word',
     confidenceThreshold: 0.6,
     globalOffsetMs: 0,
+    cueStyle: 'balanced',
   })
+  const [reformatStyle, setReformatStyle] = useState<LyricCueStyle>('balanced')
+  const [reformatPreview, setReformatPreview] = useState<LyricCue[] | null>(null)
 
   const loadPreview = useCallback(async (nextJob: LyricTranscriptionJob | null) => {
     const requestGeneration = ++previewRequestGenerationRef.current
@@ -564,6 +576,39 @@ export function AiLyricExtractor({
     }
   }, [beginOwnedOperation, job, selectedTrack])
 
+  const previewReformat = useCallback(() => {
+    if (!document) return
+    const words = cues.flatMap(cue => cue.words ?? [])
+    const segmented = segmentTimedWords(words, reformatStyle, selectedTrack?.analysisPayload ?? null).map((cue, index): LyricCue => ({
+      id: `reformat-preview-${index}`, startMs: cue.startMs, endMs: cue.endMs, text: cue.text, words: cue.words,
+      source: 'transcription', reviewStatus: 'unreviewed', analysisMetadata: { boundaryReason: cue.boundaryReason },
+      ...(cue.sectionId ? { sectionId: cue.sectionId } : {}),
+    }))
+    setReformatPreview(segmented)
+  }, [cues, document, reformatStyle, selectedTrack?.analysisPayload])
+
+  const saveReformat = useCallback(async () => {
+    if (!document || !selectedTrack || !reformatPreview?.length) return
+    setActionBusy(true); setError(null)
+    try {
+      const label = LYRIC_CUE_STYLE_LABELS[reformatStyle].replace(' / Rap', '')
+      const result = await saveLyricDocumentAtomic({
+        activate: false,
+        document: {
+          title: `${selectedTrack.title} AI Draft · ${label}`, artist: document.artist, audioTrackId: selectedTrack.dbId, visualSessionId: document.visualSessionId ?? null,
+          sourceType: document.sourceType, sourceFormat: document.sourceFormat, rawSourceText: document.rawSourceText ?? null,
+          defaultStyle: document.defaultStyle, defaultAnimation: document.defaultAnimation, defaultEffects: document.defaultEffects, globalOffsetMs: document.globalOffsetMs,
+          metadata: { ...document.metadata, ...segmentationProvenance(reformatStyle, selectedTrack.analysisPayload ?? null, document.id), trackAnalysisVersion: selectedTrack.analysisPayload?.analysisVersion ?? null, trackAnalysisUpdatedAt: selectedTrack.analysisPayload?.lastGridRebuiltAt ?? selectedTrack.analysisPayload?.createdAt ?? null },
+        },
+        cues: reformatPreview.map((cue, index) => createLyricCueInputFromCue(cue, '', index)),
+      })
+      if (!result.ok) throw new Error(result.message)
+      setNotice(`Saved ${result.cues.length} cues as a new inactive lyric version.`); setReformatPreview(null)
+      await onCompletedDraftResolved?.(result.document)
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Failed to save reformatted cues.') }
+    finally { setActionBusy(false) }
+  }, [document, onCompletedDraftResolved, reformatPreview, reformatStyle, selectedTrack])
+
   if (!selectedTrack) {
     return (
       <div className="lmv-workflow-content">
@@ -652,6 +697,13 @@ export function AiLyricExtractor({
           </select>
         </div>
         <div className="lmv-field">
+          <label className="lmv-field-label" htmlFor="lyric-extraction-cue-style">CUE STYLE</label>
+          <select id="lyric-extraction-cue-style" className="lmv-select" value={options.cueStyle ?? 'balanced'} disabled={active}
+            onChange={event => setOptions(current => ({ ...current, cueStyle: event.target.value as LyricCueStyle }))}>
+            {CUE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{LYRIC_CUE_STYLE_LABELS[option.value]} · {option.description}</option>)}
+          </select>
+        </div>
+        <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-offset">GLOBAL OFFSET MS</label>
           <input id="lyric-extraction-offset" className="lmv-num" type="number" step={50} value={options.globalOffsetMs ?? 0}
             disabled={active}
@@ -678,6 +730,21 @@ export function AiLyricExtractor({
       )}
       {!browserOnline && (
         <div className="lmv-ai-offline-hint" role="status" aria-live="polite">{OFFLINE_LYRIC_EXTRACTION_MESSAGE}</div>
+      )}
+
+      {document && cues.some(cue => (cue.words?.length ?? 0) > 0) && (
+        <div className="lmv-job-card">
+          <div className="lmv-section-label">REFORMAT CUES</div>
+          <div className="lmv-grid2">
+            <select className="lmv-select" value={reformatStyle} onChange={event => { setReformatStyle(event.target.value as LyricCueStyle); setReformatPreview(null) }}>
+              {CUE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{LYRIC_CUE_STYLE_LABELS[option.value]}</option>)}
+            </select>
+            <button className="lmv-btn" onClick={previewReformat}>Preview Reformat</button>
+          </div>
+          {reformatPreview && <div className="lmv-parse-next-hint">Current: {cues.length} cues · Proposed: {reformatPreview.length} cues
+            <div><button className="lmv-btn lmv-btn--primary" disabled={actionBusy} onClick={() => void saveReformat()}>Save New Inactive Version</button> <button className="lmv-btn" onClick={() => setReformatPreview(null)}>Cancel</button></div>
+          </div>}
+        </div>
       )}
 
       {localPreparation && (
