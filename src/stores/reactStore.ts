@@ -269,6 +269,9 @@ const SOUND_DRAWING_GENERATOR_PREFERENCES = new Set<SoundDrawingGeneratorPrefere
   'authored',
   ...SOUND_DRAWING_GENERATOR_FAMILIES,
 ])
+const SOUND_DRAWING_PERFORMANCE_SOURCES = new Set(['generatedVisual', 'activeText', 'activeSvg', 'activeUserSource'])
+const SOUND_DRAWING_SOURCE_TREATMENTS = new Set(['preserveIdentity', 'controlledReactive', 'liquidContour', 'abstractDeformation'])
+const SOUND_DRAWING_SOURCE_POLICIES = new Set(['primaryMotif', 'supportingLayer', 'both'])
 
 export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundDrawingPerformanceSettings {
   const source = isRecord(value) ? value : {}
@@ -293,6 +296,21 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
     reactionIntensity: Math.max(0, Math.min(1, finiteNumber(source.reactionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.reactionIntensity))),
     trailIntensity: Math.max(0, Math.min(1, finiteNumber(source.trailIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailIntensity))),
     generatorPreference,
+    performanceSource: typeof source.performanceSource === 'string' && SOUND_DRAWING_PERFORMANCE_SOURCES.has(source.performanceSource)
+      ? source.performanceSource as SoundDrawingPerformanceSettings['performanceSource']
+      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource,
+    sourceTreatment: typeof source.sourceTreatment === 'string' && SOUND_DRAWING_SOURCE_TREATMENTS.has(source.sourceTreatment)
+      ? source.sourceTreatment as SoundDrawingPerformanceSettings['sourceTreatment']
+      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment,
+    useSourceAs: typeof source.useSourceAs === 'string' && SOUND_DRAWING_SOURCE_POLICIES.has(source.useSourceAs)
+      ? source.useSourceAs as SoundDrawingPerformanceSettings['useSourceAs']
+      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs,
+    preserveIdentity: source.preserveIdentity !== false,
+    contourReactivity: Math.max(0, Math.min(1, finiteNumber(source.contourReactivity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity))),
+    wholeObjectMotion: Math.max(0, Math.min(1, finiteNumber(source.wholeObjectMotion, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion))),
+    echoStrength: Math.max(0, Math.min(1, finiteNumber(source.echoStrength, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength))),
+    sourceTrailStrength: Math.max(0, Math.min(1, finiteNumber(source.sourceTrailStrength, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength))),
+    supportingVisualReactivity: Math.max(0, Math.min(1, finiteNumber(source.supportingVisualReactivity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity))),
     locks,
   }
 }
@@ -3486,6 +3504,21 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ...state,
       laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
       laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
+    }
+  }
+  if (version < 46) {
+    const existing = isRecord(state.soundDrawingPerformanceSettings)
+      ? state.soundDrawingPerformanceSettings
+      : {}
+    state = {
+      ...state,
+      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
+        ...existing,
+        performanceSource: existing.performanceSource ?? 'activeUserSource',
+        sourceTreatment: existing.sourceTreatment ?? 'preserveIdentity',
+        useSourceAs: existing.useSourceAs ?? 'primaryMotif',
+        preserveIdentity: existing.preserveIdentity ?? true,
+      }),
     }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -7409,7 +7442,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 45,
+      version: 46,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

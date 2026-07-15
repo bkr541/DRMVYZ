@@ -11,6 +11,7 @@ import {
 import type { OscillatorSettings } from '../ReactTypes'
 import type { ReactFrameContext } from '../renderers/reactRenderUtils'
 import { SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID } from './SoundDrawingPerformanceShows'
+import { resolveSoundDrawingPerformanceSources } from './SoundDrawingSourceResolver'
 import {
   DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES,
@@ -29,6 +30,7 @@ import {
   type SoundDrawingPerformanceLayerBlueprint,
   type SoundDrawingPerformanceLockKey,
   type SoundDrawingPerformanceSettings,
+  type SoundDrawingPerformanceTemporalState,
   type SoundDrawingResolvedPerformanceFrame,
   type SoundDrawingResolvedPerformanceLayer,
 } from './SoundDrawingPerformanceTypes'
@@ -38,6 +40,7 @@ export interface ResolveSoundDrawingPerformanceInput {
   settings?: SoundDrawingPerformanceSettings
   manualOscillator: OscillatorSettings
   previousContext?: SharedPerformanceContext | null
+  temporalState?: SoundDrawingPerformanceTemporalState
 }
 
 interface MutablePerformanceState {
@@ -72,6 +75,15 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
   const selectedShowId = source.selectedShowId in SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID
     ? source.selectedShowId
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId
+  const performanceSource = ['generatedVisual', 'activeText', 'activeSvg', 'activeUserSource'].includes(source.performanceSource)
+    ? source.performanceSource
+    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource
+  const sourceTreatment = ['preserveIdentity', 'controlledReactive', 'liquidContour', 'abstractDeformation'].includes(source.sourceTreatment)
+    ? source.sourceTreatment
+    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment
+  const useSourceAs = ['primaryMotif', 'supportingLayer', 'both'].includes(source.useSourceAs)
+    ? source.useSourceAs
+    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs
   return {
     selectedShowId,
     autoPerformance: source.autoPerformance === true,
@@ -80,6 +92,15 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     reactionIntensity: clamp01(source.reactionIntensity),
     trailIntensity: clamp01(source.trailIntensity),
     generatorPreference: source.generatorPreference ?? 'authored',
+    performanceSource,
+    sourceTreatment,
+    useSourceAs,
+    preserveIdentity: source.preserveIdentity !== false,
+    contourReactivity: clamp01(source.contourReactivity ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity),
+    wholeObjectMotion: clamp01(source.wholeObjectMotion ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion),
+    echoStrength: clamp01(source.echoStrength ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength),
+    sourceTrailStrength: clamp01(source.sourceTrailStrength ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength),
+    supportingVisualReactivity: clamp01(source.supportingVisualReactivity ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity),
     locks: {
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks,
       ...(source.locks ?? {}),
@@ -236,6 +257,31 @@ function normalizeLayer(layer: SoundDrawingPerformanceLayerBlueprint): SoundDraw
     audioDisplacement: clamp(layer.audioDisplacement ?? 0.14, 0, 0.25),
     jitter: clamp(layer.jitter ?? 0.04, 0, 0.25),
     particleCount: Math.round(clamp(layer.particleCount ?? 0, 0, MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES)),
+    source: layer.source?.kind === 'generated'
+      ? { kind: 'generated', generator: layer.source.generator, identity: 'identity' in layer.source && typeof layer.source.identity === 'string' ? layer.source.identity : `generated:${layer.id}:${layer.source.generator}` }
+      : layer.source?.kind === 'text'
+        ? { kind: 'text', identity: 'identity' in layer.source && typeof layer.source.identity === 'string' ? layer.source.identity : `text:${layer.id}`, textId: layer.source.textId, preserveReadability: layer.source.preserveReadability }
+        : layer.source?.kind === 'svg' && layer.source.svgId
+          ? { kind: 'svg', identity: 'identity' in layer.source && typeof layer.source.identity === 'string' ? layer.source.identity : `svg:${layer.source.svgId}`, svgId: layer.source.svgId, renderMode: layer.source.renderMode, preserveIdentity: layer.source.preserveIdentity }
+          : layer.source?.kind === 'active-user-source'
+            ? { kind: 'active-user-source', identity: 'identity' in layer.source && typeof layer.source.identity === 'string' ? layer.source.identity : `active:${layer.id}` }
+            : { kind: 'generated', generator, identity: `generated:${layer.id}:${generator}` },
+    identityProfile: layer.identityProfile ?? 'abstract',
+    treatment: layer.treatment ?? 'abstractDeformation',
+    preserveIdentity: layer.preserveIdentity === true,
+    contourBudget: clamp(layer.contourBudget ?? 0.25, 0, 0.25),
+    requestedContourDeformation: clamp(layer.requestedContourDeformation ?? ((layer.audioDisplacement ?? 0.14) + (layer.jitter ?? 0.04)), 0, 1),
+    appliedContourDeformation: clamp(layer.appliedContourDeformation ?? ((layer.audioDisplacement ?? 0.14) + (layer.jitter ?? 0.04)), 0, 1),
+    readabilityClamped: layer.readabilityClamped === true,
+    contourScale: clamp01(layer.contourScale ?? 1),
+    allowCharacterDeformation: layer.allowCharacterDeformation !== false,
+    allowTextWaveform: layer.allowTextWaveform !== false,
+    wholeObjectMotion: clamp01(layer.wholeObjectMotion ?? 1),
+    contourReactivity: clamp01(layer.contourReactivity ?? 1),
+    echoStrength: clamp01(layer.echoStrength ?? 0),
+    sourceTrailStrength: clamp01(layer.sourceTrailStrength ?? 0.5),
+    supportingVisualReactivity: clamp01(layer.supportingVisualReactivity ?? 1),
+    sourceFailure: layer.sourceFailure ?? null,
     modulationRoutes: (layer.modulationRoutes ?? []).slice(0, 8),
     eventBindings: (layer.eventBindings ?? []).slice(0, 8),
   }
@@ -414,19 +460,26 @@ function applyAction(
   }
 }
 
-function modulationSourceValue(context: SharedPerformanceContext, route: SoundDrawingModulationRoute): number {
-  const value = context[route.source]
-  const normalized = clamp01(typeof value === 'number' ? value : 0)
-  const smoothed = route.smoothing && route.smoothing > 0
-    ? normalized * (1 - clamp01(route.smoothing)) + context.trackRelativeEnergy * clamp01(route.smoothing)
-    : normalized
-  // Attack/release are deterministic response-shape controls rather than
-  // frame-history filters. This keeps route output identical after seek/loop.
-  const attack = Math.max(0, finite(route.attack))
-  const release = Math.max(0, finite(route.release))
-  const attacked = attack > 0 ? 1 - Math.exp(-smoothed / Math.max(0.001, attack)) : smoothed
-  const released = release > 0 ? Math.pow(clamp01(attacked), 1 + release * 2) : attacked
-  const shaped = curveSharedPerformanceProgress(released, route.curve ?? 'linear')
+function modulationSourceValue(
+  context: SharedPerformanceContext,
+  route: SoundDrawingModulationRoute,
+  frame: ReactFrameContext,
+  temporalState?: SoundDrawingPerformanceTemporalState,
+  stateIdentity?: string,
+): number {
+  const normalized = clamp01(typeof context[route.source] === 'number' ? context[route.source] : 0)
+  const target = curveSharedPerformanceProgress(normalized, route.curve ?? 'linear')
+  let shaped = target
+  const stateKey = stateIdentity ?? `${route.target}:${route.id}`
+  if (temporalState && ((route.smoothing ?? 0) > 0 || (route.attack ?? 0) > 0 || (route.release ?? 0) > 0)) {
+    const previous = temporalState.routeValues.get(stateKey) ?? target
+    const rising = target > previous
+    const seconds = Math.max(0.001, rising ? finite(route.attack, route.smoothing ?? 0.08) : finite(route.release, route.smoothing ?? 0.12))
+    const dt = clamp(frame.deltaTimeSec ?? 1 / 60, 1 / 240, 0.25)
+    const alpha = seconds <= 0 ? 1 : 1 - Math.exp(-dt / seconds)
+    shaped = previous + (target - previous) * alpha
+    temporalState.routeValues.set(stateKey, shaped)
+  }
   return route.min + (route.max - route.min) * shaped * finite(route.amount, 1)
 }
 
@@ -435,11 +488,13 @@ function applyModulationRoute(
   route: SoundDrawingModulationRoute,
   context: SharedPerformanceContext,
   settings: SoundDrawingPerformanceSettings,
+  frame: ReactFrameContext,
+  temporalState?: SoundDrawingPerformanceTemporalState,
 ): SoundDrawingResolvedPerformanceLayer {
   if (route.lockKey && settings.locks[route.lockKey]) return layer
   if (route.sectionFilter?.length && !route.sectionFilter.includes(context.macroSectionType ?? context.sectionType ?? 'unknown')) return layer
   if (route.minConfidence != null && context.confidence.overall < route.minConfidence) return layer
-  const value = modulationSourceValue(context, route)
+  const value = modulationSourceValue(context, route, frame, temporalState, `${layer.id}:${route.id}`)
   const current = targetValue(layer, route.target)
   const unclamped = current + value * settings.reactionIntensity
   const [min, max] = route.clamp ?? [-Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]
@@ -450,10 +505,12 @@ function applyContinuousModulation(
   state: MutablePerformanceState,
   context: SharedPerformanceContext,
   settings: SoundDrawingPerformanceSettings,
+  frame: ReactFrameContext,
+  temporalState?: SoundDrawingPerformanceTemporalState,
 ): void {
   state.layers = state.layers.map(layer => {
     let next = layer
-    for (const route of layer.modulationRoutes) next = applyModulationRoute(next, route, context, settings)
+    for (const route of layer.modulationRoutes) next = applyModulationRoute(next, route, context, settings, frame, temporalState)
     return next
   })
 }
@@ -524,6 +581,16 @@ function applyUserLocks(
       audioDisplacement: oscillator.audioDisplacement,
     })
   }
+  if (settings.locks.scale) next = patchLayer(next, { scale: clamp(oscillator.pathScale, 0.1, 2) })
+  if (settings.locks.rotation) next = patchLayer(next, { rotation: 0 })
+  if (settings.locks.glow) next = patchLayer(next, { glow: clamp01(oscillator.beatBloom) })
+  if (settings.locks.contourReactivity) {
+    next = patchLayer(next, {
+      audioDisplacement: oscillator.audioDisplacement,
+      jitter: oscillator.highJitter,
+    })
+  }
+  if (settings.locks.echoBehavior) next = patchLayer(next, { traceCount: oscillator.duplicateTraces })
   state.layers[index] = next
   if (settings.locks.trail) state.global.trailPersistence = 1 - clamp01(oscillator.autoSectionMode ? 0.08 : 0.2)
   if (settings.locks.feedback) state.global.feedbackAmount = 0
@@ -585,7 +652,10 @@ function enforceSafetyBounds(state: MutablePerformanceState): void {
       return normalizeLayer({
         ...layer,
         generator,
-        traceCount: Math.min(layer.traceCount, MAX_SOUND_DRAWING_PERFORMANCE_TRACES),
+        traceCount: Math.min(
+          layer.traceCount,
+          layer.source.kind === 'text' || layer.source.kind === 'svg' ? 3 : MAX_SOUND_DRAWING_PERFORMANCE_TRACES,
+        ),
         particleCount: Math.min(layer.particleCount, MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES),
         feedbackAmount: MAX_SOUND_DRAWING_PERFORMANCE_FEEDBACK_PASSES > 0 ? layer.feedbackAmount : 0,
       })
@@ -605,7 +675,8 @@ function resolveState(
   resolution: SharedPerformanceProgramResolution<SoundDrawingPerformanceAction>,
   context: SharedPerformanceContext,
   settings: SoundDrawingPerformanceSettings,
-  manualOscillator: OscillatorSettings,
+  frame: ReactFrameContext,
+  temporalState?: SoundDrawingPerformanceTemporalState,
 ): MutablePerformanceState {
   const state: MutablePerformanceState = { layers: [], global: { ...DEFAULT_GLOBAL } }
   // Establish the authored scene/cadence first, then continuous routes, then
@@ -613,15 +684,13 @@ function resolveState(
   for (const intent of resolution.intents) {
     if (intent.action.type !== 'pulse') applyAction(state, intent.action, context, settings)
   }
-  applyContinuousModulation(state, context, settings)
+  applyContinuousModulation(state, context, settings, frame, temporalState)
   for (const intent of resolution.intents) {
     if (intent.action.type === 'pulse') applyAction(state, intent.action, context, settings)
   }
   applyLayerEventBindings(state, context, settings)
   applyGeneratorPreference(state, settings)
   applyUserIntensityControls(state, settings)
-  applyUserLocks(state, settings, manualOscillator)
-  enforceSafetyBounds(state)
   return state
 }
 
@@ -639,17 +708,61 @@ export function resolveSoundDrawingPerformanceFrame(
   const show = SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID[settings.selectedShowId]
   const context = buildSoundDrawingPerformanceContext(input.frame, input.previousContext ?? null)
   const resolution = resolveSharedPerformanceProgram(show.program, context)
-  const state = resolveState(resolution, context, settings, input.manualOscillator)
+  const temporalIdentity = [
+    context.trackChangeIdentity,
+    context.timingDiscontinuityIdentity,
+    input.manualOscillator.sourceType,
+    input.manualOscillator.builtinShape,
+    input.manualOscillator.selectedSvgId ?? 'no-svg',
+    input.manualOscillator.svgRenderMode,
+    input.manualOscillator.selectedGlyphId ?? 'no-glyph',
+    input.manualOscillator.textFontId ?? 'canvas-font',
+    input.manualOscillator.text,
+  ].join(':')
+  if (input.temporalState && (
+    input.temporalState.identity !== temporalIdentity
+    || context.seekDetected
+    || context.loopWrapDetected
+    || context.trackReplacementDetected
+  )) {
+    input.temporalState.identity = temporalIdentity
+    input.temporalState.routeValues.clear()
+  }
+  const state = resolveState(resolution, context, settings, input.frame, input.temporalState)
+  const sourceResolution = resolveSoundDrawingPerformanceSources({
+    showId: show.id,
+    layers: state.layers,
+    oscillator: input.manualOscillator,
+    settings,
+    context,
+  })
+  state.layers = sourceResolution.layers
+  applyUserLocks(state, settings, input.manualOscillator)
+  enforceSafetyBounds(state)
   const sceneId = resolution.scene?.id ?? `${show.id}-none`
+  const finalSourceLayer = state.layers.find(layer => layer.source.kind !== 'generated')
+  const finalSupportingGeneratedLayers = state.layers
+    .filter(layer => layer.source.kind === 'generated' && layer.role !== 'primaryMotif')
+    .map(layer => layer.id)
   return {
     showId: show.id,
     showName: show.name,
     sceneId,
     context,
+    ...sourceResolution,
+    activeSourceKind: finalSourceLayer?.source.kind ?? sourceResolution.activeSourceKind,
+    activeIdentityProfile: finalSourceLayer?.identityProfile ?? sourceResolution.activeIdentityProfile,
+    activeTreatment: finalSourceLayer?.treatment ?? sourceResolution.activeTreatment,
+    preserveIdentity: finalSourceLayer?.preserveIdentity ?? sourceResolution.preserveIdentity,
+    contourBudget: finalSourceLayer?.contourBudget ?? sourceResolution.contourBudget,
+    requestedContourDeformation: finalSourceLayer?.requestedContourDeformation ?? sourceResolution.requestedContourDeformation,
+    appliedContourDeformation: finalSourceLayer?.appliedContourDeformation ?? sourceResolution.appliedContourDeformation,
+    readabilityClampApplied: finalSourceLayer?.readabilityClamped ?? sourceResolution.readabilityClampApplied,
+    supportingGeneratedLayers: finalSupportingGeneratedLayers,
     layers: state.layers,
     global: state.global,
-    fallbackUsed: resolution.scene == null || sceneId.includes('fallback') || context.sectionConfidence < 0.3,
-    deterministicIdentity: resolution.deterministicIdentity,
+    fallbackUsed: resolution.scene == null || sceneId.includes('fallback') || context.sectionConfidence < 0.3 || sourceResolution.sourceFallbackState != null,
+    deterministicIdentity: `${resolution.deterministicIdentity}:${sourceResolution.activeSourceKind}:${sourceResolution.activeTreatment}`,
     appliedActionReasons: resolution.intents.map(intent => intent.reason),
   }
 }

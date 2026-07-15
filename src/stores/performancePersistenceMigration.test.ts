@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_CANVAS_ORCHESTRATION_SETTINGS } from '../components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes'
 import {
+  migrateReactStore,
   normalizeCanvasOrchestrationSettings,
   normalizeSoundDrawingPerformanceSettings,
 } from './reactStore'
@@ -16,7 +17,16 @@ describe('performance settings persistence migration', () => {
       reactionIntensity: Number.NaN,
       trailIntensity: 0.42,
       generatorPreference: 'retired-generator',
-      locks: { generator: true, transform: true, unknown: true },
+      performanceSource: 'retired-source',
+      sourceTreatment: 'retired-treatment',
+      useSourceAs: 'retired-policy',
+      preserveIdentity: false,
+      contourReactivity: 3,
+      wholeObjectMotion: -1,
+      echoStrength: Number.POSITIVE_INFINITY,
+      sourceTrailStrength: 0.31,
+      supportingVisualReactivity: Number.NaN,
+      locks: { generator: true, transform: true, sourceSelection: true, contourReactivity: true, unknown: true },
       runtimeFrame: { stale: true },
       activeEnvelopes: ['stale'],
     })
@@ -27,10 +37,47 @@ describe('performance settings persistence migration', () => {
     expect(normalized.motionIntensity).toBe(0)
     expect(normalized.reactionIntensity).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.reactionIntensity)
     expect(normalized.trailIntensity).toBe(0.42)
+    expect(normalized.performanceSource).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource)
+    expect(normalized.sourceTreatment).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment)
+    expect(normalized.useSourceAs).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs)
+    expect(normalized.preserveIdentity).toBe(false)
+    expect(normalized.contourReactivity).toBe(1)
+    expect(normalized.wholeObjectMotion).toBe(0)
+    expect(normalized.echoStrength).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength)
+    expect(normalized.sourceTrailStrength).toBe(0.31)
+    expect(normalized.supportingVisualReactivity).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity)
     expect(normalized.locks.generator).toBe(true)
     expect(normalized.locks.transform).toBe(true)
+    expect(normalized.locks.sourceSelection).toBe(true)
+    expect(normalized.locks.contourReactivity).toBe(true)
+    expect(normalized.locks).not.toHaveProperty('unknown')
     expect(normalized).not.toHaveProperty('runtimeFrame')
     expect(normalized).not.toHaveProperty('activeEnvelopes')
+  })
+
+  it('migrates pre-source-integration Sound Drawing settings to identity-safe defaults', () => {
+    const migrated = migrateReactStore({
+      soundDrawingPerformanceSettings: {
+        selectedShowId: 'harmonicRibbonReactor',
+        autoPerformance: true,
+        complexity: 0.8,
+        motionIntensity: 0.7,
+        reactionIntensity: 0.9,
+        trailIntensity: 0.6,
+        generatorPreference: 'authored',
+        locks: { generator: true },
+        runtimeFrame: { stale: true },
+      },
+    }, 45)
+
+    const settings = migrated.soundDrawingPerformanceSettings as typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
+    expect(settings.performanceSource).toBe('activeUserSource')
+    expect(settings.sourceTreatment).toBe('preserveIdentity')
+    expect(settings.useSourceAs).toBe('primaryMotif')
+    expect(settings.preserveIdentity).toBe(true)
+    expect(settings.locks.generator).toBe(true)
+    expect(settings.locks.sourceSelection).toBe(false)
+    expect(settings).not.toHaveProperty('runtimeFrame')
   })
 
   it('bounds CANVAS pools and controls, removes unknown locks, and falls back from retired shows', () => {

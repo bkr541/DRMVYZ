@@ -22,7 +22,14 @@ import {
   resolveUnifiedSvgSource,
 } from './svgSourceLifecycle'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from './soundDrawing/SoundDrawingPerformanceShows'
-import type { SoundDrawingGeneratorPreference, SoundDrawingPerformanceLockKey } from './soundDrawing/SoundDrawingPerformanceTypes'
+import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './soundDrawing/SoundDrawingPerformanceTypes'
+import type {
+  SoundDrawingGeneratorPreference,
+  SoundDrawingPerformanceLockKey,
+  SoundDrawingPerformanceSourceSelection,
+  SoundDrawingSourceTreatment,
+  SoundDrawingSourceUsePolicy,
+} from './soundDrawing/SoundDrawingPerformanceTypes'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import type {
   OscillatorSourceType,
@@ -362,6 +369,103 @@ export function ReactEnginePanel() {
           />
           {soundDrawingPerformanceSettings.autoPerformance && (
             <>
+              <CtrlSection label="Performance Source" />
+              <SelectRow
+                label="Performance Source"
+                value={soundDrawingPerformanceSettings.performanceSource}
+                onChange={value => setSoundDrawingPerformanceSettings({ performanceSource: value as SoundDrawingPerformanceSourceSelection })}
+                options={[
+                  { value: 'generatedVisual', label: 'Generated Visual' },
+                  { value: 'activeText', label: 'Active Text' },
+                  { value: 'activeSvg', label: 'Active SVG' },
+                  { value: 'activeUserSource', label: 'Active User Source' },
+                ]}
+              />
+              <SelectRow
+                label="Source Treatment"
+                value={soundDrawingPerformanceSettings.sourceTreatment}
+                onChange={value => setSoundDrawingPerformanceSettings({ sourceTreatment: value as SoundDrawingSourceTreatment })}
+                options={[
+                  { value: 'preserveIdentity', label: 'Preserve Identity' },
+                  { value: 'controlledReactive', label: 'Controlled Reactive' },
+                  { value: 'liquidContour', label: 'Liquid Contour' },
+                  { value: 'abstractDeformation', label: 'Abstract Deformation' },
+                ]}
+              />
+              <SelectRow
+                label="Use Source As"
+                value={soundDrawingPerformanceSettings.useSourceAs}
+                onChange={value => setSoundDrawingPerformanceSettings({ useSourceAs: value as SoundDrawingSourceUsePolicy })}
+                options={[
+                  { value: 'primaryMotif', label: 'Primary Motif' },
+                  { value: 'supportingLayer', label: 'Supporting Layer' },
+                  { value: 'both', label: 'Both' },
+                ]}
+              />
+              <ToggleRow
+                label={osc.sourceType === 'text' ? 'Preserve Readability' : 'Preserve Identity'}
+                value={soundDrawingPerformanceSettings.preserveIdentity}
+                onChange={value => setSoundDrawingPerformanceSettings({ preserveIdentity: value })}
+              />
+              {soundDrawingPerformanceSettings.sourceTreatment !== 'preserveIdentity' && (
+                <SliderRow
+                  label="Contour Reactivity"
+                  value={soundDrawingPerformanceSettings.contourReactivity}
+                  onChange={value => setSoundDrawingPerformanceSettings({ contourReactivity: value })}
+                  min={0} max={1} step={0.01}
+                  color="#b84fc9"
+                />
+              )}
+              <SliderRow
+                label="Whole-Object Motion"
+                value={soundDrawingPerformanceSettings.wholeObjectMotion}
+                onChange={value => setSoundDrawingPerformanceSettings({ wholeObjectMotion: value })}
+                min={0} max={1} step={0.01}
+                color="#4ac7db"
+              />
+              <SliderRow
+                label="Echo Strength"
+                value={soundDrawingPerformanceSettings.echoStrength}
+                onChange={value => setSoundDrawingPerformanceSettings({ echoStrength: value })}
+                min={0} max={1} step={0.01}
+                color="#9ddcff"
+              />
+              <SliderRow
+                label="Source Trail Strength"
+                value={soundDrawingPerformanceSettings.sourceTrailStrength}
+                onChange={value => setSoundDrawingPerformanceSettings({ sourceTrailStrength: value })}
+                min={0} max={1} step={0.01}
+                color="#9ddcff"
+              />
+              <SliderRow
+                label="Supporting Visual Reactivity"
+                value={soundDrawingPerformanceSettings.supportingVisualReactivity}
+                onChange={value => setSoundDrawingPerformanceSettings({ supportingVisualReactivity: value })}
+                min={0} max={1} step={0.01}
+                color="#61d6aa"
+              />
+              <ToggleRow
+                label="Source Lock"
+                value={soundDrawingPerformanceSettings.locks.sourceSelection}
+                onChange={value => setSoundDrawingPerformanceLock('sourceSelection', value)}
+              />
+              <button
+                type="button"
+                className="rv-reset-btn"
+                onClick={() => setSoundDrawingPerformanceSettings({
+                  sourceTreatment: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment,
+                  useSourceAs: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs,
+                  preserveIdentity: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.preserveIdentity,
+                  contourReactivity: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity,
+                  wholeObjectMotion: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion,
+                  echoStrength: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength,
+                  sourceTrailStrength: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength,
+                  supportingVisualReactivity: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity,
+                })}
+              >
+                Reset Source Treatment
+              </button>
+              <CtrlSection label="Show Choreography" />
               <SliderRow
                 label="Complexity"
                 value={soundDrawingPerformanceSettings.complexity}
@@ -424,6 +528,15 @@ export function ReactEnginePanel() {
                   ['camera', 'Camera'],
                   ['color', 'Color Role'],
                   ['reaction', 'Audio Reactions'],
+                  ['sourceTreatment', 'Source Treatment'],
+                  ['preserveIdentity', 'Identity Protection'],
+                  ['wholeObjectMotion', 'Whole-Object Motion'],
+                  ['contourReactivity', 'Contour Reactivity'],
+                  ['rotation', 'Rotation'],
+                  ['scale', 'Scale'],
+                  ['glow', 'Glow'],
+                  ['echoBehavior', 'Echo Behavior'],
+                  ['trailBehavior', 'Source Trail Behavior'],
                 ] as Array<[SoundDrawingPerformanceLockKey, string]>).map(([key, label]) => (
                   <ToggleRow
                     key={key}

@@ -6,6 +6,8 @@ export const MAX_SOUND_DRAWING_PERFORMANCE_TRACES = 6
 export const MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES = 384
 export const MAX_SOUND_DRAWING_PERFORMANCE_FEEDBACK_PASSES = 1
 export const MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES = 12
+export const MAX_SOUND_DRAWING_TEXT_DUPLICATES = 3
+export const MAX_SOUND_DRAWING_SVG_DUPLICATES = 3
 
 export type SoundDrawingPerformanceShowId =
   | 'radialPressureSystem'
@@ -41,6 +43,39 @@ export type SoundDrawingBlendMode = 'screen' | 'lighter' | 'source-over'
 export type SoundDrawingColorRole = 'primary' | 'secondary' | 'accent' | 'inverted'
 export type SoundDrawingGeneratorPreference = 'authored' | SoundDrawingGeneratorFamily
 
+export type SoundDrawingPerformanceSourceSelection =
+  | 'generatedVisual'
+  | 'activeText'
+  | 'activeSvg'
+  | 'activeUserSource'
+
+export type SoundDrawingSourceTreatment =
+  | 'preserveIdentity'
+  | 'controlledReactive'
+  | 'liquidContour'
+  | 'abstractDeformation'
+
+export type SoundDrawingSourceUsePolicy = 'primaryMotif' | 'supportingLayer' | 'both'
+
+export type SoundDrawingIdentityProfile =
+  | 'abstract'
+  | 'readableText'
+  | 'logo'
+  | 'illustration'
+  | 'originalArtwork'
+
+export type SoundDrawingPerformanceSource =
+  | { kind: 'generated'; generator: SoundDrawingGeneratorFamily }
+  | { kind: 'text'; textId?: string; preserveReadability: boolean }
+  | { kind: 'svg'; svgId?: string; renderMode: 'original-artwork' | 'traced-path'; preserveIdentity: boolean }
+  | { kind: 'active-user-source' }
+
+export type SoundDrawingResolvedPerformanceSource =
+  | { kind: 'generated'; identity: string; generator: SoundDrawingGeneratorFamily }
+  | { kind: 'text'; identity: string; textId?: string; preserveReadability: boolean }
+  | { kind: 'svg'; identity: string; svgId: string; renderMode: 'original-artwork' | 'traced-path'; preserveIdentity: boolean }
+  | { kind: 'active-user-source'; identity: string }
+
 export const SOUND_DRAWING_GENERATOR_FAMILIES: readonly SoundDrawingGeneratorFamily[] = [
   'horizontalOscilloscope',
   'mirroredOscilloscope',
@@ -69,6 +104,16 @@ export type SoundDrawingPerformanceLockKey =
   | 'camera'
   | 'color'
   | 'reaction'
+  | 'sourceSelection'
+  | 'sourceTreatment'
+  | 'preserveIdentity'
+  | 'wholeObjectMotion'
+  | 'contourReactivity'
+  | 'rotation'
+  | 'scale'
+  | 'glow'
+  | 'echoBehavior'
+  | 'trailBehavior'
 
 export type SoundDrawingModulationSource =
   | 'bass'
@@ -160,6 +205,10 @@ export interface SoundDrawingPerformanceLayerBlueprint {
   role: SoundDrawingLayerRole
   enabled?: boolean
   generator: SoundDrawingGeneratorFamily
+  source?: SoundDrawingPerformanceSource
+  identityProfile?: SoundDrawingIdentityProfile
+  treatment?: SoundDrawingSourceTreatment
+  preserveIdentity?: boolean
   blendMode?: SoundDrawingBlendMode
   opacity?: number
   strokeWidth?: number
@@ -181,6 +230,19 @@ export interface SoundDrawingPerformanceLayerBlueprint {
   audioDisplacement?: number
   jitter?: number
   particleCount?: number
+  contourBudget?: number
+  requestedContourDeformation?: number
+  appliedContourDeformation?: number
+  readabilityClamped?: boolean
+  contourScale?: number
+  allowCharacterDeformation?: boolean
+  allowTextWaveform?: boolean
+  wholeObjectMotion?: number
+  contourReactivity?: number
+  echoStrength?: number
+  sourceTrailStrength?: number
+  supportingVisualReactivity?: number
+  sourceFailure?: string | null
   modulationRoutes?: readonly SoundDrawingModulationRoute[]
   eventBindings?: readonly SoundDrawingEventBinding[]
 }
@@ -238,16 +300,27 @@ export interface SoundDrawingPerformanceSettings {
   reactionIntensity: number
   trailIntensity: number
   generatorPreference: SoundDrawingGeneratorPreference
+  performanceSource: SoundDrawingPerformanceSourceSelection
+  sourceTreatment: SoundDrawingSourceTreatment
+  useSourceAs: SoundDrawingSourceUsePolicy
+  preserveIdentity: boolean
+  contourReactivity: number
+  wholeObjectMotion: number
+  echoStrength: number
+  sourceTrailStrength: number
+  supportingVisualReactivity: number
   locks: Record<SoundDrawingPerformanceLockKey, boolean>
 }
 
 export interface SoundDrawingResolvedPerformanceLayer extends Required<Omit<SoundDrawingPerformanceLayerBlueprint,
-  'modulationRoutes' | 'eventBindings' | 'classicMode' | 'shape' | 'renderMode'>> {
+  'source' | 'modulationRoutes' | 'eventBindings' | 'classicMode' | 'shape' | 'renderMode' | 'sourceFailure'>> {
+  source: SoundDrawingResolvedPerformanceSource
   modulationRoutes: readonly SoundDrawingModulationRoute[]
   eventBindings: readonly SoundDrawingEventBinding[]
   classicMode: ClassicScopeMode
   shape: BuiltinOscillatorShape
   renderMode: OscillatorRenderMode
+  sourceFailure: string | null
 }
 
 export interface SoundDrawingResolvedPerformanceFrame {
@@ -260,6 +333,17 @@ export interface SoundDrawingResolvedPerformanceFrame {
   fallbackUsed: boolean
   deterministicIdentity: string
   appliedActionReasons: readonly string[]
+  activeSourceKind: SoundDrawingResolvedPerformanceSource['kind']
+  activeIdentityProfile: SoundDrawingIdentityProfile
+  activeTreatment: SoundDrawingSourceTreatment
+  preserveIdentity: boolean
+  sourceRole: SoundDrawingSourceUsePolicy | 'generatedOnly'
+  contourBudget: number
+  requestedContourDeformation: number
+  appliedContourDeformation: number
+  readabilityClampApplied: boolean
+  supportingGeneratedLayers: readonly string[]
+  sourceFallbackState: string | null
 }
 
 export interface SoundDrawingPerformanceShowDefinition {
@@ -267,6 +351,11 @@ export interface SoundDrawingPerformanceShowDefinition {
   name: string
   description: string
   program: import('../../../../features/performanceCore').SharedPerformanceProgram<SoundDrawingPerformanceAction>
+}
+
+export interface SoundDrawingPerformanceTemporalState {
+  identity: string
+  routeValues: Map<string, number>
 }
 
 export const DEFAULT_SOUND_DRAWING_PERFORMANCE_LOCKS: Record<SoundDrawingPerformanceLockKey, boolean> = {
@@ -279,6 +368,16 @@ export const DEFAULT_SOUND_DRAWING_PERFORMANCE_LOCKS: Record<SoundDrawingPerform
   camera: false,
   color: false,
   reaction: false,
+  sourceSelection: false,
+  sourceTreatment: false,
+  preserveIdentity: false,
+  wholeObjectMotion: false,
+  contourReactivity: false,
+  rotation: false,
+  scale: false,
+  glow: false,
+  echoBehavior: false,
+  trailBehavior: false,
 }
 
 export const DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS: SoundDrawingPerformanceSettings = {
@@ -289,5 +388,14 @@ export const DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS: SoundDrawingPerformance
   reactionIntensity: 0.8,
   trailIntensity: 0.55,
   generatorPreference: 'authored',
+  performanceSource: 'activeUserSource',
+  sourceTreatment: 'preserveIdentity',
+  useSourceAs: 'primaryMotif',
+  preserveIdentity: true,
+  contourReactivity: 0.35,
+  wholeObjectMotion: 0.65,
+  echoStrength: 0.28,
+  sourceTrailStrength: 0.28,
+  supportingVisualReactivity: 0.72,
   locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_LOCKS },
 }

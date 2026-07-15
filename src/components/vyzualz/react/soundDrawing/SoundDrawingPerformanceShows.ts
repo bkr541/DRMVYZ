@@ -217,7 +217,7 @@ function radialPressureSystem(): SoundDrawingPerformanceShowDefinition {
     description: 'Concentric bass membranes, pressure rings, tunnel depth, and percussion-separated radial impacts.',
     program: {
       id: 'soundDrawing.radialPressureSystem',
-      metadata: { name: 'Radial Pressure System', description: 'Concentric bass membranes and percussion-separated radial impacts.', engine: 'soundDrawing', version: 1, authoringRevision: 'patch-5' },
+      metadata: { name: 'Radial Pressure System', description: 'Concentric bass membranes and percussion-separated radial impacts.', engine: 'soundDrawing', version: 1, authoringRevision: 'first-class-source-integration' },
       fallbackOrder: ['unknown'],
       fallbackSceneId: 'rps-fallback',
       scenes: [
@@ -283,7 +283,7 @@ function harmonicRibbonReactor(): SoundDrawingPerformanceShowDefinition {
     description: 'Layered waveform bands and elastic ribbons that recruit harmonics as phrases accumulate.',
     program: {
       id: 'soundDrawing.harmonicRibbonReactor',
-      metadata: { name: 'Harmonic Ribbon Reactor', description: 'Ribbon architecture with phrase-scaled recruitment and clear percussion roles.', engine: 'soundDrawing', version: 1, authoringRevision: 'patch-5' },
+      metadata: { name: 'Harmonic Ribbon Reactor', description: 'Ribbon architecture with phrase-scaled recruitment and clear percussion roles.', engine: 'soundDrawing', version: 1, authoringRevision: 'first-class-source-integration' },
       fallbackOrder: ['unknown'],
       fallbackSceneId: 'hrr-fallback',
       scenes: [
@@ -349,7 +349,7 @@ function phaseKnotCathedral(): SoundDrawingPerformanceShowDefinition {
     description: 'Architectural Lissajous knots, kaleidoscopic cuts, and evolving attractor vaults.',
     program: {
       id: 'soundDrawing.phaseKnotCathedral',
-      metadata: { name: 'Phase-Knot Cathedral', description: 'Architectural phase knots with deterministic long-form evolution.', engine: 'soundDrawing', version: 1, authoringRevision: 'patch-5' },
+      metadata: { name: 'Phase-Knot Cathedral', description: 'Architectural phase knots with deterministic long-form evolution.', engine: 'soundDrawing', version: 1, authoringRevision: 'first-class-source-integration' },
       fallbackOrder: ['unknown'],
       fallbackSceneId: 'pkc-fallback',
       scenes: [

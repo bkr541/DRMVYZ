@@ -25,6 +25,9 @@ import {
   type SoundDrawingColorRole,
   type SoundDrawingResolvedPerformanceFrame,
   type SoundDrawingResolvedPerformanceLayer,
+  type SoundDrawingPerformanceTemporalState,
+  type SoundDrawingIdentityProfile,
+  type SoundDrawingSourceTreatment,
 } from '../soundDrawing/SoundDrawingPerformanceTypes'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from '../SharedPerformanceDiagnosticsStore'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
@@ -34,6 +37,7 @@ import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics 
 // ── Trail canvas pool (per ctx) ───────────────────────────────────────────────
 const trailMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
 const soundDrawingPerformanceContextMap = new WeakMap<CanvasRenderingContext2D, SharedPerformanceContext>()
+const soundDrawingPerformanceTemporalStateMap = new WeakMap<CanvasRenderingContext2D, SoundDrawingPerformanceTemporalState>()
 const SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS = new Set(['beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'semanticMoment'])
 
 function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanvasElement {
@@ -427,8 +431,8 @@ function renderOriginalArtwork(
 
   // High jitter: deterministic XY noise driven by high-freq energy
   const jitterAmt = clamp(high * osc.highJitter, 0, 0.25)
-  const jx = (seededRandom(Math.floor(t / 3) * 17 + 37) - 0.5) * 2 * jitterAmt * Math.min(W, H) * 0.15
-  const jy = (seededRandom(Math.floor(t / 3) * 29 + 83) - 0.5) * 2 * jitterAmt * Math.min(W, H) * 0.15
+  const jx = sampleCoherentSoundDrawingNoise(37, t, 5) * jitterAmt * Math.min(W, H) * 0.15
+  const jy = sampleCoherentSoundDrawingNoise(83, t, 4.5) * jitterAmt * Math.min(W, H) * 0.15
 
   // Audio displacement: XY position offset from time-domain waveform
   const dispAmt = clamp(osc.audioDisplacement * (1 + bass * 0.3), 0, 0.25)
@@ -1122,6 +1126,63 @@ function drawSpiralScopeOnTrail(
   tctx.restore()
 }
 
+interface SoundDrawingPerformanceSourceRuntimePolicy {
+  sourceKind: SoundDrawingResolvedPerformanceLayer['source']['kind']
+  identityProfile: SoundDrawingIdentityProfile
+  treatment: SoundDrawingSourceTreatment
+  preserveIdentity: boolean
+  contourBudget: number
+  contourScale: number
+  allowCharacterDeformation: boolean
+  allowTextWaveform: boolean
+}
+
+type PerformanceAwareOscillator = OscillatorSettings & {
+  __soundDrawingPerformanceSource?: SoundDrawingPerformanceSourceRuntimePolicy
+}
+
+function getPerformanceSourcePolicy(oscillator: OscillatorSettings): SoundDrawingPerformanceSourceRuntimePolicy | null {
+  return (oscillator as PerformanceAwareOscillator).__soundDrawingPerformanceSource ?? null
+}
+
+export function shouldApplyGenericSoundDrawingPathDisplacement(
+  sourceType: OscillatorSettings['sourceType'],
+  _textWaveformMode: OscillatorSettings['textWaveformMode'],
+  preserveIdentity = false,
+  contourScale = 1,
+): boolean {
+  if (preserveIdentity || contourScale <= 0.000001) return false
+  if (sourceType === 'text') return false
+  return sourceType !== 'classic'
+}
+
+export function computeRuntimeSoundDrawingContourScale(input: {
+  budget: number
+  waveform: number
+  twist: number
+  jitter: number
+  character: number
+}): number {
+  const requested = Math.max(0,
+    Math.abs(input.waveform)
+      + Math.abs(input.twist)
+      + Math.abs(input.jitter)
+      + Math.abs(input.character),
+  )
+  if (requested <= 0) return 1
+  return clamp(Math.max(0, input.budget) / requested, 0, 1)
+}
+
+export function sampleCoherentSoundDrawingNoise(seed: number, timeMs: number, rateHz = 6): number {
+  const position = Math.max(0, timeMs) * 0.001 * Math.max(0.05, rateHz)
+  const lower = Math.floor(position)
+  const mix = position - lower
+  const smooth = mix * mix * (3 - 2 * mix)
+  const a = seededRandom(seed + lower * 101.3) * 2 - 1
+  const b = seededRandom(seed + (lower + 1) * 101.3) * 2 - 1
+  return a + (b - a) * smooth
+}
+
 // ── Path / glyph scope mode ───────────────────────────────────────────────────
 
 function resolveLyricDrivenOscillator(
@@ -1169,6 +1230,11 @@ function drawPathScopeOnTrail(
   if (!lyricDriven.visible) return
   const osc = lyricDriven.oscillator
   const effectiveParams = osc === params.oscillator ? params : { ...params, oscillator: osc }
+  const sourcePolicy = getPerformanceSourcePolicy(osc)
+  const contourScale = sourcePolicy?.contourScale ?? 1
+  const contourAllowed = sourcePolicy?.treatment !== 'preserveIdentity'
+    && sourcePolicy?.identityProfile !== 'originalArtwork'
+    && contourScale > 0.000001
   const { audio, timeDomainData, beatHit, t } = frame
 
   const basePoints = getOscillatorPathPoints(effectiveParams)
@@ -1212,9 +1278,32 @@ function drawPathScopeOnTrail(
     { ...effectiveParams, oscillator: effectiveOsc },
     beatEnvelope,
   )
-  const am = twistSign === -1
-    ? { ...amRaw, midTwistAmount: -amRaw.midTwistAmount }
+  const textWaveContourRequested = effectiveOsc.sourceType === 'text'
+    && effectiveOsc.textWaveformMode !== 'off'
+    && (sourcePolicy?.allowTextWaveform ?? true)
+    && contourAllowed
+  const runtimeContourScale = sourcePolicy && sourcePolicy.sourceKind !== 'generated' && contourAllowed
+    ? computeRuntimeSoundDrawingContourScale({
+        budget: sourcePolicy.contourBudget,
+        waveform: textWaveContourRequested
+          ? effectiveOsc.textWaveformAmount * (1 + bass * 0.35)
+          : effectiveOsc.sourceType === 'text' ? 0 : amRaw.displacementAmount,
+        twist: Math.abs(amRaw.midTwistAmount) * 0.08,
+        jitter: amRaw.highJitterAmount,
+        character: sourcePolicy.allowCharacterDeformation ? 0.04 : 0,
+      })
+    : 1
+  const amBudgeted = runtimeContourScale < 0.999999
+    ? {
+        ...amRaw,
+        midTwistAmount: amRaw.midTwistAmount * runtimeContourScale,
+        highJitterAmount: amRaw.highJitterAmount * runtimeContourScale,
+        displacementAmount: amRaw.displacementAmount * runtimeContourScale,
+      }
     : amRaw
+  const am = twistSign === -1
+    ? { ...amBudgeted, midTwistAmount: -amBudgeted.midTwistAmount }
+    : amBudgeted
 
   const numTraces = clamp(effectiveOsc.duplicateTraces, 1, 6)
   const close     = shouldClose(effectiveParams)
@@ -1291,6 +1380,7 @@ function drawPathScopeOnTrail(
       const ay = Math.abs(p.y); if (ay > maxAbsY) maxAbsY = ay
     }
     baseScale = computeTextFitScale(W, H, maxAbsX, maxAbsY, effectiveOsc.pathScale, fontSizeMul)
+    baseScale *= am.bassPulse * (1 + bloomFactor * 0.24)
   } else {
     baseScale = computePathBaseScale(W, H, effectiveOsc.pathScale, am.bassPulse, bloomFactor)
   }
@@ -1317,7 +1407,9 @@ function drawPathScopeOnTrail(
   // charCenters is non-null only when text points carry characterIndex metadata.
   // Legacy cached text (no characterIndex) falls back to the old global behavior.
   const hasCharGroups = isTextSource && basePoints.some(p => p.characterIndex != null)
-  const charCenters   = hasCharGroups ? computeCharCenters(basePoints) : null
+  const charCenters = hasCharGroups && (sourcePolicy?.allowCharacterDeformation ?? true) && contourAllowed
+    ? computeCharCenters(basePoints)
+    : null
 
   // Precompute per-character reaction weights for this frame (constant across traces).
   // Each entry scales bassPulse-delta, midTwistAmount, and bloomFactor independently
@@ -1350,7 +1442,10 @@ function drawPathScopeOnTrail(
 
   // Text-specific waveform: build per-point local progress metadata once,
   // reuse across all trace passes.  null when mode is 'off' or source is not text.
-  const isTextWaveActive = effectiveOsc.sourceType === 'text' && effectiveOsc.textWaveformMode !== 'off'
+  const isTextWaveActive = effectiveOsc.sourceType === 'text'
+    && effectiveOsc.textWaveformMode !== 'off'
+    && (sourcePolicy?.allowTextWaveform ?? true)
+    && contourAllowed
   const textWaveMeta     = isTextWaveActive
     ? buildTextWaveformMeta(basePoints, sourceGroups, effectiveOsc.text)
     : null
@@ -1400,13 +1495,13 @@ function drawPathScopeOnTrail(
                   asgn.source, bass, mid, high, am.beatPulse,
                   asgn.phaseOffset, asgn.invert,
                 )
-                applyCustomTargetDelta(asgn.target, sig, asgn.amount, acc)
+                applyCustomTargetDelta(asgn.target, sig, asgn.amount * runtimeContourScale, acc)
               }
               px = cc.cx + acc.dOffX + acc.ldx
               py = cc.cy + acc.dOffY + acc.ldy
               if (acc.jitter > 0) {
-                const jSeed = i * 31.71 + Math.floor(t / 4) + p.characterIndex * 999
-                const jrand = (seededRandom(jSeed) - 0.5) * 2
+                const jSeed = i * 31.71 + p.characterIndex * 999
+                const jrand = sampleCoherentSoundDrawingNoise(jSeed, t, 5.5)
                 const nx = p.normalX ?? Math.cos(p.progress * Math.PI * 2)
                 const ny = p.normalY ?? Math.sin(p.progress * Math.PI * 2)
                 px += nx * jrand * acc.jitter
@@ -1417,8 +1512,8 @@ function drawPathScopeOnTrail(
             // Automatic modes (uniform / alternating / frequencySplit / ripple):
             // Bass/bloom and mid-twist scaled by the per-mode weight for this char.
             const w             = charWeightsMap.get(p.characterIndex) ?? { bassScale: 1, midScale: 1, bloomScale: 1 }
-            const charBassScale = 1 + (am.bassPulse - 1) * w.bassScale
-            const charBloom     = bloomFactor * w.bloomScale
+            const charBassScale = 1 + (am.bassPulse - 1) * w.bassScale * runtimeContourScale
+            const charBloom     = bloomFactor * w.bloomScale * runtimeContourScale
             const charScale     = charBassScale * (1 + charBloom * 0.4)
             const charMidTwist  = am.midTwistAmount * w.midScale
 
@@ -1443,7 +1538,7 @@ function drawPathScopeOnTrail(
         }
       } else {
         // Non-text or legacy text (no characterIndex): global mid-twist around word origin
-        if (am.midTwistAmount !== 0) {
+        if (contourAllowed && am.midTwistAmount !== 0) {
           const twAngle = p.progress * Math.PI * 2 * am.midTwistAmount
           const cosTw   = Math.cos(twAngle)
           const sinTw   = Math.sin(twAngle)
@@ -1464,7 +1559,7 @@ function drawPathScopeOnTrail(
           i,
           textWaveMeta,
           effectiveOsc.textWaveformMode,
-          effectiveOsc.textWaveformAmount,
+          effectiveOsc.textWaveformAmount * runtimeContourScale,
           effectiveOsc.textWaveformCycles,
           textWaveScrollPhase,
           timeDomainData,
@@ -1472,7 +1567,12 @@ function drawPathScopeOnTrail(
         )
         px = r.px
         py = r.py
-      } else {
+      } else if (shouldApplyGenericSoundDrawingPathDisplacement(
+        effectiveOsc.sourceType,
+        effectiveOsc.textWaveformMode,
+        sourcePolicy?.treatment === 'preserveIdentity' || sourcePolicy?.identityProfile === 'originalArtwork',
+        contourScale,
+      )) {
         const tdIdx   = Math.floor(i * tdLen / resolution)
         const td      = getTimeDomainNorm(timeDomainData, tdIdx)
         const dispAmt = td * am.displacementAmount
@@ -1507,9 +1607,9 @@ function drawPathScopeOnTrail(
       }
 
       // Deterministic high-freq jitter (no Math.random per frame)
-      if (am.highJitterAmount > 0) {
-        const jSeed = i * 17.37 + Math.floor(t / 4)
-        const jrand = (seededRandom(jSeed) - 0.5) * 2
+      if (contourAllowed && am.highJitterAmount > 0) {
+        const jSeed = i * 17.37 + (p.pathIndex ?? 0) * 503
+        const jrand = sampleCoherentSoundDrawingNoise(jSeed, t, 7)
         const nx    = p.normalX ?? Math.cos(p.progress * Math.PI * 2)
         const ny    = p.normalY ?? Math.sin(p.progress * Math.PI * 2)
         px += nx * jrand * am.highJitterAmount
@@ -1812,6 +1912,9 @@ function paletteForPerformanceRole(preset: ReactPreset, colorRole: SoundDrawingC
 }
 
 function performanceLayerUsesPath(layer: SoundDrawingResolvedPerformanceLayer): boolean {
+  if (layer.source.kind === 'text') return true
+  if (layer.source.kind === 'svg') return layer.source.renderMode === 'traced-path'
+  if (layer.source.kind === 'active-user-source') return true
   return layer.generator === 'circularBassMembrane'
     || layer.generator === 'kaleidoscopicTrace'
     || layer.generator === 'particleSpline'
@@ -1823,24 +1926,93 @@ function buildPerformanceOscillator(
   motionIntensity: number,
 ): OscillatorSettings {
   const usesPath = performanceLayerUsesPath(layer)
-  return {
+  const isProtectedSource = layer.source.kind === 'text' || layer.source.kind === 'svg' || layer.source.kind === 'active-user-source'
+  const sourceType = layer.source.kind === 'text'
+    ? 'text'
+    : layer.source.kind === 'svg'
+      ? 'svg'
+      : layer.source.kind === 'active-user-source'
+        ? base.sourceType
+        : usesPath ? 'builtinShape' : 'classic'
+  const result: PerformanceAwareOscillator = {
     ...base,
-    sourceType: usesPath ? 'builtinShape' : 'classic',
+    sourceType,
+    selectedSvgId: layer.source.kind === 'svg' ? layer.source.svgId : base.selectedSvgId,
+    svgRenderMode: layer.source.kind === 'svg'
+      ? (layer.source.renderMode === 'original-artwork' ? 'originalArtwork' : 'reactivePath')
+      : base.svgRenderMode,
     classicMode: layer.classicMode,
     builtinShape: layer.shape,
     renderMode: layer.renderMode,
     autoSectionMode: false,
-    autoRotate: usesPath && motionIntensity > 0.001,
-    rotationSpeed: clamp((0.025 + Math.abs(layer.rotation) / 720) * motionIntensity, 0, 0.3),
-    duplicateTraces: Math.round(clamp(layer.traceCount, 1, 6)),
+    autoRotate: isProtectedSource
+      ? motionIntensity * layer.wholeObjectMotion > 0.001 && Math.abs(layer.rotation) > 0.01
+      : usesPath && motionIntensity > 0.001,
+    rotationSpeed: clamp((0.018 + Math.abs(layer.rotation) / 900) * motionIntensity * layer.wholeObjectMotion, 0, 0.22),
+    duplicateTraces: isProtectedSource
+      ? Math.round(clamp(1 + layer.echoStrength * 2, 1, 3))
+      : Math.round(clamp(layer.traceCount, 1, 6)),
     pathScale: clamp(base.pathScale * (0.84 + layer.topologyVariant * 0.025), 0.2, 1.35),
     audioDisplacement: clamp(layer.audioDisplacement, 0, 0.25),
     highJitter: clamp(layer.jitter, 0, 0.25),
-    bassScale: clamp(base.bassScale + Math.max(0, layer.strokeWidth - 1) * 0.12, 0, 0.8),
-    beatBloom: clamp(base.beatBloom + layer.glow * 0.25, 0, 1),
-    midTwist: clamp(base.midTwist + Math.abs(layer.rotation) / 720, 0, 0.7),
-    mirrorX: layer.symmetry >= 2,
-    mirrorY: layer.symmetry >= 4,
+    bassScale: clamp((isProtectedSource ? 0.08 : base.bassScale) + Math.max(0, layer.strokeWidth - 1) * 0.12, 0, 0.8),
+    beatBloom: clamp((isProtectedSource ? 0.18 : base.beatBloom) + layer.glow * 0.25, 0, 1),
+    midTwist: layer.treatment === 'preserveIdentity'
+      ? 0
+      : clamp(base.midTwist * layer.contourScale + Math.abs(layer.rotation) / 1100, 0, 0.7),
+    textWaveformAmount: clamp(base.textWaveformAmount * layer.contourScale, 0, 0.25),
+    textWaveformMode: layer.allowTextWaveform ? base.textWaveformMode : 'off',
+    textLetterReactionMode: layer.allowCharacterDeformation ? base.textLetterReactionMode : 'uniform',
+    mirrorX: isProtectedSource ? false : layer.symmetry >= 2,
+    mirrorY: isProtectedSource ? false : layer.symmetry >= 4,
+    __soundDrawingPerformanceSource: {
+      sourceKind: layer.source.kind,
+      identityProfile: layer.identityProfile,
+      treatment: layer.treatment,
+      preserveIdentity: layer.preserveIdentity,
+      contourBudget: layer.contourBudget,
+      contourScale: layer.contourScale,
+      allowCharacterDeformation: layer.allowCharacterDeformation,
+      allowTextWaveform: layer.allowTextWaveform,
+    },
+  }
+  return result
+}
+
+function drawOriginalArtworkPerformanceLayer(
+  ctx: CanvasRenderingContext2D,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+  layer: SoundDrawingResolvedPerformanceLayer,
+  mediaId: string,
+): void {
+  const entry = getSvgVisualEntry(mediaId)
+  if (!entry?.loaded || !entry.image) return
+  const img = entry.image
+  const imgW = entry.width || img.naturalWidth || 512
+  const imgH = entry.height || img.naturalHeight || 512
+  const maxSide = Math.min(frame.W, frame.H) * Math.max(0.05, params.oscillator.pathScale)
+  const ratio = Math.min(maxSide / imgW, maxSide / imgH)
+  const bassPulse = 1 + frame.audio.bass * params.bassReactivity * 0.08
+  const beatPulse = frame.beatHit ? 1.06 : 1
+  const drawW = imgW * ratio * bassPulse * beatPulse
+  const drawH = imgH * ratio * bassPulse * beatPulse
+  const copies = Math.round(clamp(1 + layer.echoStrength * 2, 1, 3))
+
+  for (let copy = copies - 1; copy >= 0; copy--) {
+    const echo = copy / Math.max(1, copies - 1)
+    const offset = echo * layer.echoStrength * Math.min(frame.W, frame.H) * 0.025
+    ctx.save()
+    ctx.translate(frame.W / 2 + offset, frame.H / 2)
+    ctx.globalAlpha = clamp(params.intensity * (copy === 0 ? 1 : 0.28 * layer.echoStrength), 0, 1)
+    ctx.globalCompositeOperation = copy === 0 ? 'source-over' : 'screen'
+    if (copy === 0 && params.glow > 0.05) {
+      ctx.shadowColor = preset.palette.primary
+      ctx.shadowBlur = Math.round((6 + frame.audio.bass * 10) * params.glow)
+    }
+    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
+    ctx.restore()
   }
 }
 
@@ -1874,6 +2046,12 @@ function renderPerformanceLayer(
     ? frame
     : { ...frame, t: frame.t + layer.phaseOffset * 240, beatPhase: (frame.beatPhase + layer.phaseOffset + 1) % 1 }
 
+  if (
+    layer.source.kind === 'svg'
+    && layer.source.renderMode === 'traced-path'
+    && !hasSvgGlyphPoints(effectiveOscillator, effectiveParams)
+  ) return
+
   tctx.save()
   tctx.globalCompositeOperation = layer.blendMode
   const cameraX = camera.cameraX * W
@@ -1891,7 +2069,9 @@ function renderPerformanceLayer(
   tctx.scale(layer.scale * topologyScale, layer.scale * topologyScale)
   tctx.translate(-W / 2, -H / 2)
 
-  if (performanceLayerUsesPath(layer)) {
+  if (layer.source.kind === 'svg' && layer.source.renderMode === 'original-artwork') {
+    drawOriginalArtworkPerformanceLayer(tctx, layerFrame, layerPreset, effectiveParams, layer, layer.source.svgId)
+  } else if (performanceLayerUsesPath(layer)) {
     drawPathScopeOnTrail(
       tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams,
       effectiveParams.intensity, sectionType, `performance:${performance.showId}:${layer.id}`,
@@ -1923,23 +2103,59 @@ function renderAuthoredSoundDrawingPerformance(
   sectionType: ReactSectionType | null,
 ): boolean {
   const previousContext = soundDrawingPerformanceContextMap.get(ctx) ?? null
+  let temporalState = soundDrawingPerformanceTemporalStateMap.get(ctx)
+  if (!temporalState) {
+    temporalState = { identity: '', routeValues: new Map() }
+    soundDrawingPerformanceTemporalStateMap.set(ctx, temporalState)
+  }
   const performance = resolveSoundDrawingPerformanceFrame({
     frame,
     settings: params.soundDrawingPerformanceSettings,
     manualOscillator: params.oscillator,
     previousContext,
+    temporalState,
   })
   if (!performance) {
     soundDrawingPerformanceContextMap.delete(ctx)
+    soundDrawingPerformanceTemporalStateMap.delete(ctx)
     clearSharedPerformanceDiagnostics('soundDrawing')
     return false
   }
   soundDrawingPerformanceContextMap.set(ctx, performance.context)
+  if (
+    performance.context.trackReplacementDetected
+    || performance.context.seekDetected
+    || performance.context.loopWrapDetected
+    || frame.timingDiscontinuity
+  ) {
+    temporalState.routeValues.clear()
+  }
   const activeEventEnvelopes = performance.appliedActionReasons.filter(reason => SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS.has(reason))
   const lockedParameters = Object.entries(params.soundDrawingPerformanceSettings?.locks ?? {})
     .filter(([, locked]) => locked)
     .map(([key]) => key)
   const resourceLimitDecisions: string[] = []
+  const sourceFailureDecisions: string[] = []
+  for (const layer of performance.layers) {
+    if (
+      layer.source.kind === 'text'
+      && (params.oscillator.textSource ?? 'static') === 'static'
+      && !params.oscillator.text.trim()
+    ) {
+      sourceFailureDecisions.push('Active text source is empty')
+    }
+    if (layer.source.kind === 'svg' && layer.source.renderMode === 'original-artwork') {
+      const entry = getSvgVisualEntry(layer.source.svgId)
+      if (entry?.error) sourceFailureDecisions.push(`SVG artwork failed: ${entry.error}`)
+      else if (!entry?.loaded) sourceFailureDecisions.push('SVG artwork is not available in the render cache')
+    }
+    if (layer.source.kind === 'svg' && layer.source.renderMode === 'traced-path') {
+      const sourceOscillator = buildPerformanceOscillator(params.oscillator, layer, params.soundDrawingPerformanceSettings.motionIntensity)
+      if (!hasSvgGlyphPoints(sourceOscillator, { ...params, oscillator: sourceOscillator })) {
+        sourceFailureDecisions.push('SVG traced path is unavailable; generated supporting layers remain active')
+      }
+    }
+  }
   if (performance.layers.length >= MAX_SOUND_DRAWING_PERFORMANCE_LAYERS) resourceLimitDecisions.push('Layer budget reached')
   if (performance.layers.some(layer => layer.traceCount >= MAX_SOUND_DRAWING_PERFORMANCE_TRACES)) resourceLimitDecisions.push('Trace budget reached')
   if (performance.layers.some(layer => layer.particleCount >= MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES)) resourceLimitDecisions.push('Particle budget reached')
@@ -1948,13 +2164,20 @@ function renderAuthoredSoundDrawingPerformance(
     performanceShow: performance.showName,
     scene: performance.sceneId,
     motifOrComposition: `4-bar ${performance.context.performanceFourBarBlockIndex + 1}`,
-    activeLayers: performance.layers.filter(layer => layer.enabled).map(layer => `${layer.role}:${layer.generator}`),
+    activeLayers: performance.layers.filter(layer => layer.enabled).map(layer => `${layer.role}:${layer.source.kind}:${layer.source.kind === 'generated' ? layer.generator : layer.identityProfile}`),
     activeEventEnvelopes,
     recentActions: performance.appliedActionReasons,
     continuousRoutes: performance.layers.flatMap(layer => layer.modulationRoutes.map(route => route.id)),
     lockedParameters,
-    fallbackState: performance.fallbackUsed ? 'Safe authored fallback active' : null,
-    resourceLimitDecisions,
+    fallbackState: performance.sourceFallbackState ?? sourceFailureDecisions[0] ?? (performance.fallbackUsed ? 'Safe authored fallback active' : null),
+    resourceLimitDecisions: [
+      ...resourceLimitDecisions,
+      ...sourceFailureDecisions,
+      `Source ${performance.activeSourceKind} / ${performance.activeIdentityProfile} / ${performance.activeTreatment}`,
+      `Contour ${performance.appliedContourDeformation.toFixed(4)} of ${performance.contourBudget.toFixed(4)} (requested ${performance.requestedContourDeformation.toFixed(4)})`,
+      ...(performance.readabilityClampApplied ? ['Readability clamp applied'] : []),
+      ...performance.supportingGeneratedLayers.map(id => `Supporting layer ${id}`),
+    ],
   }))
 
   const { W, H } = frame
@@ -1970,8 +2193,11 @@ function renderAuthoredSoundDrawingPerformance(
     tctx.clearRect(0, 0, W, H)
   }
 
+  const activeSourceTrail = performance.layers.find(layer => layer.source.kind !== 'generated')?.sourceTrailStrength ?? 0.5
   const authoredPersistence = clamp(
-    performance.global.trailPersistence + performance.global.feedbackAmount * 0.18,
+    performance.global.trailPersistence * 0.78
+      + activeSourceTrail * 0.16
+      + performance.global.feedbackAmount * 0.12,
     0,
     0.98,
   )
