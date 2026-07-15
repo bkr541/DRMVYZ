@@ -8,6 +8,8 @@ import {
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { useSharedAudio } from '../../context/AudioEngineContext'
+import { useReactStore } from '../../stores/reactStore'
+import { adaptMIAnalysis, resolveTrackSections } from '../trackIntelligence/trackMapAdapter'
 import type { LyricCue, LyricDocument, LyricSectionType } from '../../types/lyrics'
 import type { Track } from '../../types'
 import type { TrackIntelligenceAnalysis, BeatMarkerMI } from '../musicIntelligence/types'
@@ -39,6 +41,7 @@ import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
+import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
 import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
@@ -142,11 +145,13 @@ function generateBeatGridFromBpm(
   return grid.length >= 2 ? grid : []
 }
 
-function sectionOptionsFromAnalysis(analysis: TrackIntelligenceAnalysis | null | undefined) {
-  return (analysis?.sections ?? []).map((section) => ({
+function sectionOptionsFromTimeline(sections: readonly ReactTrackSection[]) {
+  return sections.map((section) => ({
     id: section.id,
     label: section.label,
     type: toLyricSectionType(section.type),
+    startSec: section.startSec,
+    endSec: section.endSec,
   }))
 }
 
@@ -456,6 +461,8 @@ export function LyricManagerView({
   engineRef.current = engine
   const getSignedUrl = useAudioStore((state) => state.getSignedUrl)
   const removeSavedTrackByDbId = useAudioStore((state) => state.removeSavedTrackByDbId)
+  const manualTrackSectionsByTrackId = useReactStore((state) => state.manualTrackSectionsByTrackId)
+  const suppressedAutoSectionsByTrackId = useReactStore((state) => state.suppressedAutoSectionsByTrackId)
 
   const [currentAudioTimeMs, setCurrentAudioTimeMs] = useState<number | null>(null)
   const [tracks, setTracks] = useState<LyricManagerTrack[]>([])
@@ -1797,6 +1804,12 @@ export function LyricManagerView({
   const activeVersionForSelectedTrack = documents.find(document => document.isActive) ?? null
   const selectedTrackLoaded = selectedTrack?.dbId === engine.currentAudioTrackId
   const selectedTrackPlaying = selectedTrackLoaded && engine.isPlaying
+  const getCurrentAudioTimeMs = useCallback(
+    () => selectedTrackLoaded && engine.duration > 0
+      ? Math.round(engine.getCurrentTime() * 1000)
+      : null,
+    [engine, selectedTrackLoaded],
+  )
   const deckHasPersistedIdentity = engine.currentTrack !== null && engine.currentAudioTrackId !== null
   const selectedCue = storeCues.find((cue) => cue.id === selectedCueId) ?? null
   const runtimeTrackId = selectedTrackLoaded ? engine.currentTrackId : null
@@ -1853,7 +1866,13 @@ export function LyricManagerView({
           : beatGridStatus === 'failed'
             ? 'Beat grid analysis failed. You can still use 10 ms/frame snapping, or re-load/reanalyze this track.'
             : 'No BPM or beat grid is available for this track yet.'
-  const sectionOptions = sectionOptionsFromAnalysis(activeEditorAnalysis)
+  const activeEditorSections = resolveTrackSections({
+    analyzedSections: activeEditorAnalysis ? adaptMIAnalysis(activeEditorAnalysis) : [],
+    manualSections: runtimeTrackId ? (manualTrackSectionsByTrackId[runtimeTrackId] ?? []) : [],
+    suppressedIds: runtimeTrackId ? (suppressedAutoSectionsByTrackId[runtimeTrackId] ?? []) : [],
+    durationSec: editorDurationMs / 1000,
+  })
+  const sectionOptions = sectionOptionsFromTimeline(activeEditorSections)
   const hasMore = tracks.length < trackTotal
   const selectedTrackName = selectedTrack?.title ?? null
 
@@ -2079,6 +2098,7 @@ export function LyricManagerView({
                 decodedBuffer={decodedBuffer}
                 durationMs={editorDurationMs}
                 currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+                getCurrentAudioTimeMs={getCurrentAudioTimeMs}
                 onSeek={(timeMs) => {
                   if (!selectedTrackLoaded) {
                     showStatus('Load the selected track to the deck before seeking.')
@@ -2090,6 +2110,8 @@ export function LyricManagerView({
                 beatGridStatus={beatGridStatus}
                 beatGridStatusMessage={beatGridStatusMessage}
                 sections={sectionOptions}
+                analysis={activeEditorAnalysis}
+                timelineSections={activeEditorSections}
                 snapMode={snapMode}
                 onSnapModeChange={setSnapMode}
               />

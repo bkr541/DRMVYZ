@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { LyricCueEditor, type LyricBeatGridStatus } from '../editor/LyricCueEditor'
 import type { LyricSectionOption } from '../editor/LyricCueInspector'
 import type { LyricSnapMode } from '../editor/lyricCueEditorModel'
+import type { TrackIntelligenceAnalysis } from '../../musicIntelligence/types'
+import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
 
 interface Props {
   draftTitle: string
@@ -15,11 +17,14 @@ interface Props {
   decodedBuffer?: AudioBuffer | null
   durationMs: number
   currentAudioTimeMs: number | null
+  getCurrentAudioTimeMs?: () => number | null
   onSeek: (timeMs: number) => void
   beatGridMs?: number[]
   beatGridStatus?: LyricBeatGridStatus
   beatGridStatusMessage?: string | null
   sections?: LyricSectionOption[]
+  analysis?: TrackIntelligenceAnalysis | null
+  timelineSections?: ReactTrackSection[]
   snapMode: LyricSnapMode
   onSnapModeChange: (mode: LyricSnapMode) => void
 }
@@ -36,11 +41,14 @@ export function ManualLyricEditor({
   decodedBuffer,
   durationMs,
   currentAudioTimeMs,
+  getCurrentAudioTimeMs,
   onSeek,
   beatGridMs,
   beatGridStatus,
   beatGridStatusMessage,
   sections,
+  analysis,
+  timelineSections,
   snapMode,
   onSnapModeChange,
 }: Props) {
@@ -108,12 +116,15 @@ export function ManualLyricEditor({
         decodedBuffer={decodedBuffer}
         durationMs={durationMs}
         currentTimeMs={currentAudioTimeMs}
+        getCurrentTimeMs={getCurrentAudioTimeMs}
         globalOffsetMs={globalOffsetMs}
         onSeek={onSeek}
         beatGridMs={beatGridMs}
         beatGridStatus={beatGridStatus}
         beatGridStatusMessage={beatGridStatusMessage}
         sections={sections}
+        analysis={analysis}
+        timelineSections={timelineSections}
         snapMode={snapMode}
         onSnapModeChange={onSnapModeChange}
       />

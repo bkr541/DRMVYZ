@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react'
 import type { VzCueMarker } from '../../../types/cue'
 import type { RgbWaveformAnalysis } from '../../../features/waveform/rgbWaveformTypes'
 import { resolveRgbWaveformColor } from '../../../features/waveform/rgbWaveformColor'
+import { clientXToTimelineTime, computeWaveformViewport } from '../../../features/timeline/timelineViewport'
 
 interface RgbWaveformCanvasProps {
   analysis?:      RgbWaveformAnalysis | null
@@ -20,17 +21,6 @@ interface RgbWaveformCanvasProps {
 const PLAYHEAD_COLOR = '#4ac7db'
 const PAD            = 12
 const N_GRAD_STOPS   = 48  // horizontal gradient color samples
-
-function getWindow(duration: number, currentTime: number, zoom: number) {
-  const safe = duration > 0 ? duration : 1
-  const win  = safe / zoom
-  if (zoom <= 1) return { start: 0, end: safe }
-  let start = currentTime - win / 2
-  let end   = start + win
-  if (start < 0)    { start = 0;    end = win }
-  if (end   > safe) { end   = safe; start = safe - win }
-  return { start, end }
-}
 
 // Per-frame draw buffers — allocated once per canvas size change to avoid GC pressure.
 interface DrawBuffers {
@@ -95,7 +85,7 @@ export function RgbWaveformCanvas({
       showCueMarkerLines: cueMarkerLinesVisible,
     } = propsRef.current
     const safe = dur > 0 ? dur : 1
-    const { start: winStart, end: winEnd } = getWindow(safe, ct, zm)
+    const { startSec: winStart, endSec: winEnd } = computeWaveformViewport(safe, ct, zm)
     const winLen = Math.max(0.001, winEnd - winStart)
 
     ctx.fillStyle = 'rgba(10,13,18,0.96)'
@@ -342,9 +332,8 @@ export function RgbWaveformCanvas({
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
-    const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    const { start, end } = getWindow(dur, ct, zm)
-    onSeek(Math.max(0, Math.min(dur, start + frac * (end - start))))
+    const viewport = computeWaveformViewport(dur, ct, zm)
+    onSeek(clientXToTimelineTime(e.clientX, rect, viewport, dur))
   }, [onSeek])
 
   return (

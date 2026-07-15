@@ -197,3 +197,45 @@ export function intersectTimeRange(
     visibleEnd:   Math.min(range.endSec, vp.endSec),
   }
 }
+
+/** Maps an absolute time in seconds to a CSS-pixel position in the viewport. */
+export function timeToPixel(
+  timeSec: number,
+  viewport: TimelineViewport,
+  widthPx: number,
+): number {
+  if (!Number.isFinite(widthPx) || widthPx <= 0) return 0
+  return timeToViewportRatio(timeSec, viewport) * widthPx
+}
+
+/** Maps a CSS-pixel position back to an absolute time in seconds. */
+export function pixelToTime(
+  pixelX: number,
+  viewport: TimelineViewport,
+  widthPx: number,
+): number {
+  if (!Number.isFinite(widthPx) || widthPx <= 0) return viewport.startSec
+  return viewportRatioToTime(resolveFiniteTime(pixelX) / widthPx, viewport)
+}
+
+/**
+ * Converts a pointer clientX to timeline time and clamps it to both the visible
+ * viewport and the track duration. Shared by Audio Dock and lyric authoring.
+ */
+export function clientXToTimelineTime(
+  clientX: number,
+  rect: Pick<DOMRect, 'left' | 'width'>,
+  viewport: TimelineViewport,
+  durationSec: number,
+): number {
+  const safeDuration = resolvePositiveDuration(durationSec, MIN_VIEWPORT_SEC)
+  const ratio = rect.width > 0
+    ? Math.max(0, Math.min(1, (resolveFiniteTime(clientX) - rect.left) / rect.width))
+    : 0
+  return Math.max(0, Math.min(safeDuration, viewportRatioToTime(ratio, viewport)))
+}
+
+/** Returns true when a time is inside the viewport, including either edge. */
+export function isTimeVisible(timeSec: number, viewport: TimelineViewport): boolean {
+  return Number.isFinite(timeSec) && timeSec >= viewport.startSec && timeSec <= viewport.endSec
+}

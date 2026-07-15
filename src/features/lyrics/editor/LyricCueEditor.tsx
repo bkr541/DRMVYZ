@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useLyricsStore } from '../../../stores/lyricsStore'
-import type { LyricCue } from '../../../types/lyrics'
+import { useVisualStore } from '../../../stores/visualStore'
+import type { LyricCue, LyricWord } from '../../../types/lyrics'
+import type { TrackIntelligenceAnalysis } from '../../musicIntelligence/types'
+import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
 import { useWaveformPeaks } from '../../../components/vyzualz/hooks/useWaveformPeaks'
 import {
   addCueAtPlayhead,
@@ -21,7 +24,12 @@ import {
   type LyricSnapMode,
 } from './lyricCueEditorModel'
 import { LyricCueInspector, type LyricSectionOption } from './LyricCueInspector'
-import { LyricCueTimeline } from './LyricCueTimeline'
+import { LyricCueTimeline, type LyricCueContextAction } from './LyricCueTimeline'
+import {
+  buildTimelineOverlaySource,
+  DEFAULT_TIMELINE_OVERLAY_VISIBILITY,
+  type TimelineOverlayVisibility,
+} from '../../timeline/timelineOverlays'
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
 
 export type LyricCueFilter = 'all' | 'unreviewed' | 'low-confidence' | 'warnings' | 'empty-text'
@@ -33,12 +41,15 @@ interface Props {
   decodedBuffer?: AudioBuffer | null
   durationMs: number
   currentTimeMs: number | null
+  getCurrentTimeMs?: () => number | null
   globalOffsetMs?: number
   onSeek: (timeMs: number) => void
   beatGridMs?: number[]
   beatGridStatus?: LyricBeatGridStatus
   beatGridStatusMessage?: string | null
   sections?: LyricSectionOption[]
+  analysis?: TrackIntelligenceAnalysis | null
+  timelineSections?: ReactTrackSection[]
   snapMode?: LyricSnapMode
   onSnapModeChange?: (mode: LyricSnapMode) => void
 }
@@ -71,12 +82,15 @@ export function LyricCueEditor({
   decodedBuffer,
   durationMs,
   currentTimeMs,
+  getCurrentTimeMs,
   globalOffsetMs = 0,
   onSeek,
   beatGridMs = [],
   beatGridStatus = 'missing',
   beatGridStatusMessage = null,
   sections = [],
+  analysis = null,
+  timelineSections = [],
   snapMode: controlledSnapMode,
   onSnapModeChange,
 }: Props) {
@@ -105,7 +119,8 @@ export function LyricCueEditor({
     undoCueEdit: state.undoCueEdit,
     redoCueEdit: state.redoCueEdit,
   })))
-  const [zoom, setZoom] = useState(1)
+  const waveformZoom = useVisualStore(state => state.waveformZoom)
+  const setWaveformZoom = useVisualStore(state => state.setWaveformZoom)
   const [localSnapMode, setLocalSnapMode] = useState<LyricSnapMode>('none')
   const snapMode = controlledSnapMode ?? localSnapMode
   const setSnapMode = useCallback((mode: LyricSnapMode) => {
@@ -113,6 +128,7 @@ export function LyricCueEditor({
     onSnapModeChange?.(mode)
   }, [controlledSnapMode, onSnapModeChange])
   const [filter, setFilter] = useState<LyricCueFilter>('all')
+  const [overlayVisibility, setOverlayVisibility] = useState<TimelineOverlayVisibility>(DEFAULT_TIMELINE_OVERLAY_VISIBILITY)
   const rootRef = useRef<HTMLDivElement>(null)
   const selectedCue = cues.find(cue => cue.id === selectedCueId) ?? null
   const canonicalPlayheadMs = currentTimeMs === null
@@ -122,6 +138,10 @@ export function LyricCueEditor({
   const selectedIndex = selectedCue ? orderedCues.findIndex(cue => cue.id === selectedCue.id) : -1
   const wordBoundaryMs = useMemo(() => cueWordBoundaries(selectedCue), [selectedCue])
   const { peaks, loading } = useWaveformPeaks(trackId, decodedBuffer, trackUrl)
+  const overlaySource = useMemo(
+    () => buildTimelineOverlaySource(analysis, timelineSections),
+    [analysis, timelineSections],
+  )
   const snapContext = useMemo(() => ({
     mode: snapMode,
     beatGridMs,
@@ -167,6 +187,12 @@ export function LyricCueEditor({
     replaceCues([...cues, cue], cue.id)
   }, [canonicalPlayheadMs, cues, durationMs, replaceCues])
 
+  const addAtTimelineTime = useCallback((displayedTimeMs: number) => {
+    const canonicalTimeMs = Math.max(0, toCanonicalLyricTimeMs(displayedTimeMs, globalOffsetMs))
+    const cue = addCueAtPlayhead(createCueId(), canonicalTimeMs, durationMs)
+    replaceCues([...cues, cue], cue.id)
+  }, [cues, durationMs, globalOffsetMs, replaceCues])
+
   const duplicateSelected = useCallback(() => {
     if (!selectedCue) return
     const copy = duplicateCue(selectedCue, createCueId(), durationMs)
@@ -198,6 +224,50 @@ export function LyricCueEditor({
     focusCue(fallback)
   }, [deleteCue, focusCue, orderedCues, selectCue, selectedCue, selectedIndex])
 
+
+  const handleCueContextAction = useCallback((cueId: string, action: LyricCueContextAction, displayedTimeMs: number) => {
+    const cue = orderedCues.find(item => item.id === cueId)
+    if (!cue) return
+    const index = orderedCues.findIndex(item => item.id === cueId)
+    if (action === 'delete') {
+      const fallback = orderedCues[index + 1]?.id ?? orderedCues[index - 1]?.id ?? null
+      deleteCue(cueId)
+      selectCue(fallback)
+      return
+    }
+    if (action === 'mark-reviewed') {
+      updateCue(cueId, { reviewStatus: 'reviewed' })
+      return
+    }
+    if (action === 'duplicate') {
+      const copy = duplicateCue(cue, createCueId(), durationMs)
+      replaceCues([...cues, copy], copy.id)
+      return
+    }
+    if (action === 'split') {
+      const canonicalTimeMs = Math.max(0, toCanonicalLyricTimeMs(displayedTimeMs, globalOffsetMs))
+      const split = splitCue(cue, canonicalTimeMs, createCueId(), createCueId())
+      if (split) replaceCues(cues.flatMap(item => item.id === cueId ? split : [item]), split[1].id)
+      return
+    }
+    const adjacent = action === 'merge-previous' ? orderedCues[index - 1] : orderedCues[index + 1]
+    if (!adjacent) return
+    const first = action === 'merge-previous' ? adjacent : cue
+    const second = action === 'merge-previous' ? cue : adjacent
+    const merged = mergeCues(first, second, cue.id)
+    replaceCues(cues.filter(item => item.id !== first.id && item.id !== second.id).concat(merged), merged.id)
+  }, [cues, deleteCue, durationMs, globalOffsetMs, orderedCues, replaceCues, selectCue, updateCue])
+
+  const commitWords = useCallback((cueId: string, words: LyricWord[]) => {
+    const cue = cues.find(item => item.id === cueId)
+    if (!cue) return
+    const wordIds = new Set(words.map(word => word.id))
+    const groups = cue.groups
+      ?.map(group => ({ ...group, wordIds: group.wordIds.filter(wordId => wordIds.has(wordId)) }))
+      .filter(group => group.wordIds.length > 0)
+    updateCue(cueId, { words, groups: groups?.length ? groups : undefined })
+  }, [cues, updateCue])
+
   const actions = selectedCue ? {
     setStartToPlayhead: () => {
       if (canonicalPlayheadMs === null) return
@@ -224,6 +294,11 @@ export function LyricCueEditor({
 
   const cueIssues = useMemo(() => new Map(cues.map(cue => [cue.id, getCueIssues(cue, cues, durationMs)])), [cues, durationMs])
   const filteredCues = orderedCues.filter(cue => cueMatchesFilter(cue, filter, cueIssues.get(cue.id) ?? []))
+  const inactiveCueIds = useMemo(() => new Set(
+    orderedCues
+      .filter(cue => !cueMatchesFilter(cue, filter, cueIssues.get(cue.id) ?? []))
+      .map(cue => cue.id),
+  ), [cueIssues, filter, orderedCues])
   const beatGridHint = beatGridStatus === 'trusted'
     ? null
     : beatGridStatusMessage ?? (beatGridMs.length >= 2
@@ -260,9 +335,27 @@ export function LyricCueEditor({
           </select>
         </label>
         <label className="lyric-cue-editor-toolbar__zoom">
-          <span>Zoom {zoom.toFixed(2)}×</span>
-          <input type="range" min={0.25} max={8} step={0.25} value={zoom} onChange={event => setZoom(Number(event.target.value))} aria-label="Lyric timeline zoom" />
+          <span>Zoom {waveformZoom.toFixed(2)}×</span>
+          <input type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
         </label>
+        <details className="lyric-cue-editor-overlays">
+          <summary>Overlays</summary>
+          <div>
+            {(Object.keys(overlayVisibility) as Array<keyof TimelineOverlayVisibility>).map(key => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={overlayVisibility[key]}
+                  onChange={event => setOverlayVisibility(current => ({ ...current, [key]: event.target.checked }))}
+                />
+                {key.replace(/([A-Z])/g, ' $1')}
+              </label>
+            ))}
+          </div>
+        </details>
+        <span className={`lyric-cue-editor-toolbar__authority${overlaySource.authoritative ? ' lyric-cue-editor-toolbar__authority--trusted' : ''}`}>
+          {overlaySource.authoritative ? 'Track Map overlays' : 'Fallback timeline'}
+        </span>
         {beatGridHint && <span className="lyric-cue-editor-toolbar__hint">{beatGridHint}</span>}
       </div>
 
@@ -270,15 +363,22 @@ export function LyricCueEditor({
         cues={orderedCues}
         selectedCueId={selectedCueId}
         currentTimeMs={currentTimeMs}
+        getCurrentTimeMs={getCurrentTimeMs}
         durationMs={durationMs}
+        zoom={waveformZoom}
         globalOffsetMs={globalOffsetMs}
-        pxPerSecond={80 * zoom}
         waveformPeaks={peaks}
         waveformLoading={loading}
         snapContext={snapContext}
+        overlaySource={overlaySource}
+        overlayVisibility={overlayVisibility}
+        inactiveCueIds={inactiveCueIds}
         onSelectCue={selectCue}
         onSeek={onSeek}
+        onAddCueAt={addAtTimelineTime}
         onCommitCue={(cueId, bounds) => setCueBounds(cueId, bounds.startMs, bounds.endMs)}
+        onCommitWords={commitWords}
+        onCueContextAction={handleCueContextAction}
         onDeleteCue={cueId => {
           const deletedIndex = orderedCues.findIndex(cue => cue.id === cueId)
           const fallback = orderedCues[deletedIndex + 1]?.id ?? orderedCues[deletedIndex - 1]?.id ?? null

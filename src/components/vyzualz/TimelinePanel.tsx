@@ -1749,8 +1749,9 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
                     className="vz-ml-waveform-canvas"
                     peaks={waveformPeaks}
                     loading={waveformLoading}
-                    audioDurationMs={Math.round(engine.duration * 1000)}
-                    currentTimeMs={Math.round(timelineClock * 1000)}
+                    durationSec={Math.max(0.001, engine.duration)}
+                    currentTimeSec={timelineClock}
+                    viewport={{ startSec: 0, endSec: Math.max(0.001, engine.duration) }}
                   />
                   <span className="vz-ml-audio-name">
                     {(engine.tracks[engine.currentIndex])?.displayName ?? 'Audio Track'}
@@ -1839,7 +1840,7 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
                 selectedCueId={selected?.kind === 'lyric' ? selected.id : null}
                 currentTimeMs={Math.round(timelineClock * 1000)}
                 durationMs={Math.round(totalDuration * 1000)}
-                pxPerSecond={pxPerSec}
+                zoom={1}
                 globalOffsetMs={globalOffsetMs}
                 snapContext={{ mode: 'none' }}
                 onSelectCue={(cueId) => {

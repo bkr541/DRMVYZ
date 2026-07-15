@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { useWaveformPeaks } from '../useWaveformPeaks'
+import { clearWaveformPeaksCache, useWaveformPeaks, WAVEFORM_PEAK_COUNT } from '../useWaveformPeaks'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -58,6 +58,7 @@ function renderHook(props: TestProps) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  clearWaveformPeaksCache()
   result    = { peaks: null, loading: false }
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -110,7 +111,7 @@ describe('useWaveformPeaks — buffer fast path', () => {
     })
 
     expect(result.peaks).not.toBeNull()
-    expect(result.peaks!.length).toBe(1000)
+    expect(result.peaks!.length).toBe(WAVEFORM_PEAK_COUNT)
     expect(result.loading).toBe(false)
   })
 })
@@ -271,5 +272,30 @@ describe('useWaveformPeaks — buffer arrival while fetch in flight', () => {
     expect(result.loading).toBe(false)
     // No additional fetch call (old fetch was abandoned via cancelled flag)
     expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+
+describe('useWaveformPeaks — shared URL cache', () => {
+  it('deduplicates concurrent fetch and decode work for the same canonical track', async () => {
+    const fakeBuffer = makeFakeBuffer()
+    const fetchSpy = vi.fn().mockResolvedValue({
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+    })
+    const decodeAudioData = vi.fn().mockResolvedValue(fakeBuffer)
+    vi.stubGlobal('fetch', fetchSpy)
+    vi.stubGlobal('OfflineAudioContext', vi.fn(() => ({ decodeAudioData })))
+
+    function DualConsumer() {
+      useWaveformPeaks('shared-track', undefined, 'https://example.test/shared.mp3')
+      useWaveformPeaks('shared-track', undefined, 'https://example.test/shared.mp3')
+      return null
+    }
+
+    await act(async () => { root.render(React.createElement(DualConsumer)) })
+    await act(async () => {})
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(decodeAudioData).toHaveBeenCalledTimes(1)
   })
 })

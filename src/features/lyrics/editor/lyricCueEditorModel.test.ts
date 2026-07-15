@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { LyricCue } from '../../../types/lyrics'
 import {
   addCueAtPlayhead,
+  assignCueOverlapLanes,
   duplicateCue,
   findCueOverlaps,
   getCueIssues,
@@ -11,6 +12,7 @@ import {
   normalizeCueBounds,
   resizeCueEnd,
   resizeCueStart,
+  resizeLyricWordBoundary,
   snapTimeMs,
   splitCue,
   validateWordTiming,
@@ -142,4 +144,49 @@ describe('lyric cue timing model', () => {
       expect.arrayContaining(['word_outside_cue', 'invalid_word_timing']),
     )
   })
+
+  it('assigns deterministic minimum overlap lanes', () => {
+    const cues = [
+      cue('late', 1_500, 2_500),
+      cue('lead', 0, 2_000),
+      cue('double', 500, 1_000),
+      cue('tail', 2_500, 3_000),
+    ]
+    const first = assignCueOverlapLanes(cues)
+    const second = assignCueOverlapLanes([...cues].reverse())
+    expect(first.laneCount).toBe(2)
+    expect(first).toEqual(second)
+    expect(new Map(first.assignments.map(item => [item.cueId, item.lane]))).toEqual(new Map([
+      ['lead', 0],
+      ['double', 1],
+      ['late', 1],
+      ['tail', 0],
+    ]))
+  })
+
+  it('keeps intentional doubles visible without destructive overlap warnings', () => {
+    const lead = cue('lead', 0, 2_000)
+    const double = { ...cue('double', 500, 1_500), analysisMetadata: { vocalRole: 'double' } }
+    expect(getCueIssues(lead, [lead, double], 3_000).map(issue => issue.code)).not.toContain('overlap')
+    expect(getCueIssues(double, [lead, double], 3_000).map(issue => issue.code)).not.toContain('overlap')
+  })
+
+  it('resizes word boundaries without reordering, inverting, or escaping the cue', () => {
+    const current: LyricCue = {
+      ...cue('words', 1_000, 3_000),
+      words: [
+        { id: 'one', text: 'can’t', startMs: 1_000, endMs: 1_500 },
+        { id: 'two', text: 'stop,', startMs: 1_500, endMs: 2_200 },
+        { id: 'three', text: 'now', startMs: 2_200, endMs: 3_000 },
+      ],
+    }
+    const start = resizeLyricWordBoundary(current, 'two', 'start', 900)
+    expect(start.map(word => word.text)).toEqual(['can’t', 'stop,', 'now'])
+    expect(start[1].startMs).toBe(1_500)
+
+    const end = resizeLyricWordBoundary({ ...current, words: start }, 'two', 'end', 3_500)
+    expect(end[1].endMs).toBe(2_200)
+    expect(end[1].endMs).toBeGreaterThan(end[1].startMs)
+  })
+
 })

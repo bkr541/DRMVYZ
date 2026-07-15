@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
+  clientXToTimelineTime,
   computeWaveformViewport,
   normalizeViewport,
   timeToViewportRatio,
   viewportRatioToTime,
   zoomViewportAroundTime,
   panViewport,
+  pixelToTime,
+  timeToPixel,
   intersectTimeRange,
   computeViewportRangeLayout,
   isFinitePositiveDuration,
@@ -344,5 +347,28 @@ describe('computeViewportRangeLayout', () => {
       expect(Number.isFinite(layout.leftPct)).toBe(true)
       expect(Number.isFinite(layout.widthPct)).toBe(true)
     }
+  })
+})
+
+
+// ── shared pixel geometry ────────────────────────────────────────────────────
+
+describe('shared pixel geometry', () => {
+  const viewport: TimelineViewport = { startSec: 30, endSec: 90 }
+
+  it('round-trips time through pixels at different widths', () => {
+    for (const width of [320, 800, 1_440]) {
+      for (const timeSec of [30, 42.5, 60, 89.75, 90]) {
+        expect(pixelToTime(timeToPixel(timeSec, viewport, width), viewport, width)).toBeCloseTo(timeSec, 8)
+      }
+    }
+  })
+
+  it('maps and clamps pointer positions through the same viewport', () => {
+    const rect = { left: 100, width: 400 } as DOMRect
+    expect(clientXToTimelineTime(100, rect, viewport, 120)).toBe(30)
+    expect(clientXToTimelineTime(300, rect, viewport, 120)).toBe(60)
+    expect(clientXToTimelineTime(600, rect, viewport, 120)).toBe(90)
+    expect(clientXToTimelineTime(-100, rect, viewport, 120)).toBe(30)
   })
 })

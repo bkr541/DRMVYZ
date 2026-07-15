@@ -16,6 +16,8 @@ export interface LyricSectionOption {
   id: string
   label: string
   type: LyricSectionType
+  startSec?: number
+  endSec?: number
 }
 
 export interface LyricCueActionHandlers {

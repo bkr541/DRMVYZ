@@ -256,7 +256,14 @@ export function getCueIssues(
   }
 
   for (const relatedCueId of findCueOverlaps(cues).get(cue.id) ?? []) {
-    issues.push({ code: 'overlap', cueId: cue.id, relatedCueId, message: 'Cue overlaps another cue.' })
+    const relatedCue = cues.find(candidate => candidate.id === relatedCueId)
+    if (isIntentionalCueOverlap(cue) || (relatedCue && isIntentionalCueOverlap(relatedCue))) continue
+    issues.push({
+      code: 'overlap',
+      cueId: cue.id,
+      relatedCueId,
+      message: 'Cue overlaps another cue without an intentional-overlap marker.',
+    })
   }
 
   const { invalidWords } = validateWordTiming(cue)
@@ -394,4 +401,77 @@ export function addCueAtPlayhead(
 
 export function sortLyricCues(cues: readonly LyricCue[]): LyricCue[] {
   return [...cues].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs || a.id.localeCompare(b.id))
+}
+
+
+export interface CueLaneAssignment {
+  cueId: string
+  lane: number
+}
+
+export interface CueLaneLayout {
+  assignments: CueLaneAssignment[]
+  laneCount: number
+}
+
+/**
+ * Greedy interval partitioning yields the minimum lane count for interval cues.
+ * Stable sort keys make the layout deterministic across renders and saves.
+ */
+export function assignCueOverlapLanes(cues: readonly LyricCue[]): CueLaneLayout {
+  const ordered = sortLyricCues(cues)
+  const laneEndMs: number[] = []
+  const assignments: CueLaneAssignment[] = []
+  for (const cue of ordered) {
+    let lane = laneEndMs.findIndex(endMs => endMs <= cue.startMs)
+    if (lane < 0) {
+      lane = laneEndMs.length
+      laneEndMs.push(cue.endMs)
+    } else {
+      laneEndMs[lane] = cue.endMs
+    }
+    assignments.push({ cueId: cue.id, lane })
+  }
+  return { assignments, laneCount: laneEndMs.length }
+}
+
+export function isIntentionalCueOverlap(
+  cue: Pick<LyricCue, 'analysisMetadata' | 'warnings'>,
+): boolean {
+  return cue.analysisMetadata?.intentionalOverlap === true
+    || cue.analysisMetadata?.vocalRole === 'adlib'
+    || cue.analysisMetadata?.vocalRole === 'double'
+    || cue.analysisMetadata?.allowOverlap === true
+}
+
+export type LyricWordBoundaryEdge = 'start' | 'end'
+
+/**
+ * Resizes one word edge without changing word order or allowing inverted timing.
+ * Adjacent words act as hard guards and every word remains inside its parent cue.
+ */
+export function resizeLyricWordBoundary(
+  cue: Pick<LyricCue, 'startMs' | 'endMs' | 'words'>,
+  wordId: string,
+  edge: LyricWordBoundaryEdge,
+  targetMs: number,
+): LyricWord[] {
+  const words = (cue.words ?? []).map(word => ({ ...word }))
+  const index = words.findIndex(word => word.id === wordId)
+  if (index < 0) return words
+  const word = words[index]
+  const previous = words[index - 1]
+  const next = words[index + 1]
+  const target = finiteInteger(targetMs, edge === 'start' ? word.startMs : word.endMs)
+
+  if (edge === 'start') {
+    const min = Math.max(cue.startMs, previous?.endMs ?? cue.startMs)
+    const max = word.endMs - MIN_LYRIC_CUE_DURATION_MS
+    word.startMs = Math.max(min, Math.min(max, target))
+  } else {
+    const min = word.startMs + MIN_LYRIC_CUE_DURATION_MS
+    const max = Math.min(cue.endMs, next?.startMs ?? cue.endMs)
+    word.endMs = Math.max(min, Math.min(max, target))
+  }
+  return words
 }

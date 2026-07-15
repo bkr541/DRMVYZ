@@ -2702,3 +2702,225 @@
   margin-top: 2px;
   accent-color: #4ac7db;
 }
+
+/* Patch 5: shared waveform lyric authoring -------------------------------- */
+.lyric-cue-editor-overlays {
+  position: relative;
+  color: rgba(196,207,211,0.62);
+  font-size: 9px;
+}
+.lyric-cue-editor-overlays > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 5px 8px;
+  border: 1px solid rgba(126,218,232,0.16);
+  border-radius: 5px;
+  background: rgba(8,15,18,0.72);
+}
+.lyric-cue-editor-overlays > div {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 5px);
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(90px, 1fr));
+  gap: 5px 9px;
+  min-width: 230px;
+  padding: 9px;
+  border: 1px solid rgba(126,218,232,0.2);
+  border-radius: 6px;
+  background: #0b1418;
+  box-shadow: 0 14px 36px rgba(0,0,0,0.45);
+}
+.lyric-cue-editor-overlays label { text-transform: capitalize; }
+.lyric-cue-editor-toolbar__authority {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(216,185,90,0.08);
+  color: rgba(216,185,90,0.78);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.lyric-cue-editor-toolbar__authority--trusted {
+  background: rgba(97,214,170,0.08);
+  color: rgba(143,243,204,0.82);
+}
+
+.lyric-cue-timeline__inner {
+  min-width: 100%;
+  touch-action: none;
+  background:
+    linear-gradient(to bottom, rgba(74,199,219,0.075) 0 22px, transparent 22px),
+    linear-gradient(to bottom, transparent 103px, rgba(255,255,255,0.035) 104px, transparent 105px),
+    repeating-linear-gradient(to right, transparent 0, transparent calc(12.5% - 1px), rgba(126,218,232,0.035) 12.5%);
+}
+.lyric-cue-timeline__ruler { z-index: 10; }
+.lyric-cue-timeline__tick { transform: translateX(3px); }
+.lyric-waveform-canvas { inset: 42px 0 auto; height: 62px; }
+
+.lyric-timeline-section {
+  position: absolute;
+  z-index: 1;
+  top: 24px;
+  height: 17px;
+  min-width: 1px;
+  overflow: hidden;
+  border-inline: 1px solid rgba(126,218,232,0.16);
+  background: rgba(74,199,219,0.055);
+  pointer-events: none;
+}
+.lyric-timeline-section span {
+  display: block;
+  overflow: hidden;
+  padding: 3px 5px 0;
+  color: rgba(183,223,231,0.48);
+  font-size: 7px;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.lyric-timeline-marker {
+  position: absolute;
+  z-index: 2;
+  top: 24px;
+  bottom: 0;
+  width: 1px;
+  background: rgba(183,223,231,0.08);
+  pointer-events: none;
+}
+.lyric-timeline-marker span {
+  position: absolute;
+  top: 18px;
+  left: 3px;
+  color: rgba(196,207,211,0.4);
+  font-size: 7px;
+  white-space: nowrap;
+}
+.lyric-timeline-marker--beat { background: rgba(183,223,231,0.055); }
+.lyric-timeline-marker--downbeat { background: rgba(74,199,219,0.18); }
+.lyric-timeline-marker--bar { width: 2px; background: rgba(74,199,219,0.23); }
+.lyric-timeline-marker--four_bar { width: 2px; background: rgba(216,185,90,0.34); }
+.lyric-timeline-marker--eight_bar { width: 2px; background: rgba(207,125,231,0.4); }
+.lyric-timeline-marker--sixteen_bar { width: 2px; background: rgba(224,90,90,0.5); }
+.lyric-timeline-marker--phrase { width: 2px; background: rgba(97,214,170,0.44); }
+
+.lyric-cue-timeline__playhead {
+  left: 0;
+  will-change: transform;
+}
+
+.lyric-word-timing-lane {
+  position: absolute;
+  z-index: 5;
+  inset: 108px 0 auto;
+  height: 27px;
+  border-block: 1px solid rgba(154,178,188,0.08);
+  background: rgba(8,15,18,0.72);
+  pointer-events: none;
+}
+.lyric-word-timing-lane__label {
+  position: absolute;
+  z-index: 2;
+  left: 4px;
+  top: 4px;
+  color: rgba(196,207,211,0.3);
+  font-size: 7px;
+  letter-spacing: 0.12em;
+}
+.lyric-word-segment {
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  height: 20px;
+  min-width: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  border: 1px solid rgba(97,214,170,0.42);
+  border-radius: 3px;
+  background: rgba(41,118,92,0.72);
+  color: #e9fff6;
+  font-size: 8px;
+  pointer-events: auto;
+}
+.lyric-word-segment > span {
+  overflow: hidden;
+  padding-inline: 5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lyric-word-segment--low-confidence {
+  border-color: rgba(216,185,90,0.7);
+  background: rgba(126,102,39,0.72);
+}
+.lyric-word-segment--invalid {
+  border-color: #e05a5a;
+  background: rgba(111,38,47,0.82);
+}
+.lyric-word-handle {
+  position: absolute;
+  z-index: 2;
+  top: -1px;
+  bottom: -1px;
+  width: 7px;
+  border: 0;
+  background: rgba(255,255,255,0.28);
+  cursor: ew-resize;
+  padding: 0;
+}
+.lyric-word-handle--start { left: -1px; border-radius: 3px 0 0 3px; }
+.lyric-word-handle--end { right: -1px; border-radius: 0 3px 3px 0; }
+.lyric-word-handle:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+
+.lyric-cue-block {
+  height: 24px;
+  min-height: 24px;
+  padding-inline: 10px;
+  border-radius: 5px;
+  background: rgba(10,174,202,0.68);
+}
+.lyric-cue-block__number {
+  flex: 0 0 auto;
+  min-width: 13px;
+  color: rgba(237,249,251,0.64);
+  font-size: 7px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.lyric-cue-block--low-confidence {
+  background: rgba(128,104,36,0.76);
+  border-color: rgba(216,185,90,0.82);
+}
+.lyric-cue-block--inactive { opacity: 0.28; filter: saturate(0.55); }
+.lyric-cue-block--stacked { box-shadow: 0 4px 0 rgba(74,199,219,0.2), 0 7px 0 rgba(74,199,219,0.1); }
+.lyric-cue-block--active { background: rgba(47,159,119,0.95); }
+.lyric-cue-block--warning { border-style: dashed; }
+.lyric-cue-handle { width: 9px; }
+
+.lyric-cue-context-menu {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  min-width: 160px;
+  overflow: hidden;
+  border: 1px solid rgba(126,218,232,0.22);
+  border-radius: 6px;
+  background: #0b1418;
+  box-shadow: 0 18px 48px rgba(0,0,0,0.55);
+}
+.lyric-cue-context-menu button {
+  border: 0;
+  border-bottom: 1px solid rgba(154,178,188,0.08);
+  padding: 7px 10px;
+  background: transparent;
+  color: rgba(237,249,251,0.84);
+  font-size: 9px;
+  text-align: left;
+  cursor: pointer;
+}
+.lyric-cue-context-menu button:hover,
+.lyric-cue-context-menu button:focus-visible { background: rgba(74,199,219,0.12); outline: none; }
+.lyric-cue-context-menu button:last-child { color: #ff9c9c; }

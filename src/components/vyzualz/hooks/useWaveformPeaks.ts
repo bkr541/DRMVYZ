@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 
 const peaksCache = new Map<string, number[]>()
+const pendingPeaks = new Map<string, Promise<number[]>>()
 
-function downsample(buffer: AudioBuffer, numPeaks: number): number[] {
-  const channel   = buffer.getChannelData(0)
-  const blockSize = Math.max(1, Math.floor(channel.length / numPeaks))
+export const WAVEFORM_PEAK_COUNT = 2_000
+
+export function downsampleWaveform(buffer: AudioBuffer, numPeaks = WAVEFORM_PEAK_COUNT): number[] {
+  const channel = buffer.getChannelData(0)
+  const safePeakCount = Math.max(1, Math.round(numPeaks))
+  const blockSize = Math.max(1, Math.floor(channel.length / safePeakCount))
   const peaks: number[] = []
-  for (let i = 0; i < numPeaks; i++) {
+  for (let i = 0; i < safePeakCount; i++) {
     const start = i * blockSize
     let max = 0
     for (let j = start; j < start + blockSize && j < channel.length; j++) {
@@ -18,70 +22,100 @@ function downsample(buffer: AudioBuffer, numPeaks: number): number[] {
   return peaks
 }
 
+async function loadPeaksFromUrl(cacheKey: string, trackUrl: string): Promise<number[]> {
+  const existing = pendingPeaks.get(cacheKey)
+  if (existing) return existing
+
+  const request = (async () => {
+    const response = await fetch(trackUrl)
+    if (response.ok === false) throw new Error(`Waveform request failed (${response.status})`)
+    const arrayBuffer = await response.arrayBuffer()
+    const context = new OfflineAudioContext(1, 1, 44_100)
+    const decoded = await context.decodeAudioData(arrayBuffer)
+    const computed = downsampleWaveform(decoded)
+    peaksCache.set(cacheKey, computed)
+    return computed
+  })().finally(() => {
+    if (pendingPeaks.get(cacheKey) === request) pendingPeaks.delete(cacheKey)
+  })
+
+  pendingPeaks.set(cacheKey, request)
+  return request
+}
+
+/** Test and lifecycle hook for explicit cache invalidation after canonical media deletion. */
+export function clearWaveformPeaksCache(cacheKey?: string): void {
+  if (cacheKey) {
+    peaksCache.delete(cacheKey)
+    pendingPeaks.delete(cacheKey)
+    return
+  }
+  peaksCache.clear()
+  pendingPeaks.clear()
+}
+
+export function getCachedWaveformPeaks(cacheKey: string): number[] | null {
+  return peaksCache.get(cacheKey) ?? null
+}
+
 /**
- * Generates downsampled waveform peaks for the RGB fallback canvas.
- *
- * When the AudioEngine already has a decoded buffer for the track, peaks are
- * computed synchronously from it — no fetch or decodeAudioData call.  The
- * URL-based path is a fallback for the case where the engine buffer is not yet
- * available.  Keying effects on trackId (not URL) ensures stale async results
- * from a previous track are cancelled when the track changes.
+ * Generates downsampled waveform peaks shared by Audio Dock and Lyric Manager.
+ * The decoded AudioEngine buffer always wins. URL work is a deduplicated fallback
+ * and stale results cannot replace a newly selected track.
  */
 export function useWaveformPeaks(
   trackId:     string | null,
   audioBuffer: AudioBuffer | null | undefined,
   trackUrl:    string | null,
 ): { peaks: number[] | null; loading: boolean } {
-  // trackId is the preferred cache key; fall back to URL when trackId is absent.
   const cacheKey = trackId ?? trackUrl
-
-  const [peaks,   setPeaks]   = useState<number[] | null>(
+  const [peaks, setPeaks] = useState<number[] | null>(
     cacheKey ? (peaksCache.get(cacheKey) ?? null) : null,
   )
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!cacheKey) { setPeaks(null); return }
+    let cancelled = false
+
+    if (!cacheKey) {
+      setPeaks(null)
+      setLoading(false)
+      return () => { cancelled = true }
+    }
 
     const cached = peaksCache.get(cacheKey)
-    if (cached) { setPeaks(cached); return }
+    if (cached) {
+      setPeaks(cached)
+      setLoading(false)
+      return () => { cancelled = true }
+    }
 
-    // Fast path: engine already decoded the buffer — no network round-trip needed.
-    // setLoading(false) clears any stale loading state from a prior URL fetch that
-    // was cancelled when the buffer arrived for the same track.
     if (audioBuffer) {
-      const computed = downsample(audioBuffer, 1000)
+      const computed = downsampleWaveform(audioBuffer)
       peaksCache.set(cacheKey, computed)
       setPeaks(computed)
       setLoading(false)
-      return
+      return () => { cancelled = true }
     }
 
-    // URL fallback: used when the engine has not yet decoded the buffer.
-    if (!trackUrl) { setPeaks(null); return }
+    if (!trackUrl) {
+      setPeaks(null)
+      setLoading(false)
+      return () => { cancelled = true }
+    }
 
-    let cancelled = false
-    setLoading(true)
     setPeaks(null)
-
-    ;(async () => {
-      try {
-        const resp        = await fetch(trackUrl)
-        if (cancelled) return
-        const arrayBuffer = await resp.arrayBuffer()
-        if (cancelled) return
-        const ctx         = new OfflineAudioContext(1, 1, 44100)
-        const decoded     = await ctx.decodeAudioData(arrayBuffer)
-        if (cancelled) return
-        const computed    = downsample(decoded, 1000)
-        peaksCache.set(cacheKey, computed)
+    setLoading(true)
+    void loadPeaksFromUrl(cacheKey, trackUrl)
+      .then(computed => {
         if (!cancelled) setPeaks(computed)
-      } catch {
+      })
+      .catch(() => {
         // waveform unavailable — canvas shows placeholder
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false)
-      }
-    })()
+      })
 
     return () => { cancelled = true }
   }, [cacheKey, audioBuffer, trackUrl])

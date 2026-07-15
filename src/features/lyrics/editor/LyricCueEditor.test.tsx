@@ -9,7 +9,7 @@ import type { LyricCue } from '../../../types/lyrics'
 vi.mock('../../../components/vyzualz/hooks/useWaveformPeaks', () => ({
   useWaveformPeaks: () => ({ peaks: [0.1, 0.4, 0.8, 0.2], loading: false, error: null }),
 }))
-vi.mock('../../../lib/supabase', () => ({ supabaseConfigured: false }))
+vi.mock('../../../lib/supabase', () => ({ supabaseConfigured: false, supabase: null }))
 vi.mock('../../../lib/lyricsDb', () => ({
   activateLyricDocument: vi.fn(),
   getLyricDocumentById: vi.fn(),
@@ -20,6 +20,7 @@ vi.mock('../../../lib/lyricsDb', () => ({
 }))
 
 import { useLyricsStore } from '../../../stores/lyricsStore'
+import { useVisualStore } from '../../../stores/visualStore'
 import { LyricCueEditor } from './LyricCueEditor'
 
 const CUES: LyricCue[] = [
@@ -40,6 +41,8 @@ beforeEach(() => {
     unobserve() {}
     disconnect() {}
   })
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => null)
+  useVisualStore.setState({ waveformZoom: 1 })
   useLyricsStore.getState().clearLyrics()
   useLyricsStore.setState({
     cues: CUES,
@@ -53,6 +56,7 @@ afterEach(async () => {
   await act(async () => { root.unmount() })
   container.remove()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 async function renderEditor() {
@@ -89,6 +93,20 @@ describe('LyricCueEditor selection synchronization', () => {
     await act(async () => { firstRow.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
     expect(useLyricsStore.getState().selectedCueId).toBe('cue-1')
     expect(firstBlock.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('uses the shared Audio Dock waveform zoom state', async () => {
+    useVisualStore.getState().setWaveformZoom(4)
+    await renderEditor()
+    const zoom = container.querySelector<HTMLInputElement>('input[aria-label="Shared waveform zoom"]')!
+    expect(zoom.value).toBe('4')
+
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      valueSetter?.call(zoom, '8')
+      zoom.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(useVisualStore.getState().waveformZoom).toBe(8)
   })
 
   it('filters low-confidence and warning rows without changing canonical cues', async () => {
