@@ -1,6 +1,8 @@
 import { createCinematicWorldConfig } from './CinematicWorldConfig'
 import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
+import { PIX_GRID_PRESETS } from './pixGrid/PixGridPresets'
+import type { PixGridPresetSettings } from './pixGrid/PixGridTypes'
 import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
 import type {
   ProductionChoreographySettings,
@@ -24,7 +26,7 @@ import type {
   ProductionTarget,
 } from './LaserDmxProductionRig'
 
-export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'canvas' | 'laserDmx'
+export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'oscilloscope' | 'canvas' | 'laserDmx' | 'pixGrid'
 
 // ── Oscillator path/glyph types ───────────────────────────────────────────────
 
@@ -2675,6 +2677,8 @@ export interface ReactPreset {
   productionPreset?: ProductionPresetMetadata
   /** Normalized Cinematic Worlds configuration. Present on cinematicPortal presets after migration. */
   cinematicConfig?: CinematicWorldConfig
+  /** PixGrid-only compact matrix and baseline-art settings. */
+  pixGridSettings?: PixGridPresetSettings
 }
 
 export function resolveReactPresetLaserDmxWorkspace(
@@ -3665,6 +3669,8 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
   },
 
   // ── LaserDMX Beam Matrix launcher ─────────────────────────────────────────
+  ...PIX_GRID_PRESETS,
+
   {
     id: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
     name: 'Beam Matrix',

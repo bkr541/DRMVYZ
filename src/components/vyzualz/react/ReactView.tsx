@@ -13,6 +13,7 @@ import {
 } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from './ReactCanvasEngineShell'
+import { PixGridSurface } from './pixGrid/PixGridSurface'
 import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { ReactPerformancePads } from './ReactPerformancePads'
@@ -165,6 +166,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrix,
     laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector,
+    pixGridState,
     selectSvgAsset,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
@@ -198,6 +200,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrix:             s.laserDmxBeamMatrix,
     laserDmxBeamMatrixAuthoringMode: s.laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector:           s.laserDmxShowDirector,
+    pixGridState:                    s.pixGridState,
     selectSvgAsset:                  s.selectSvgAsset,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
@@ -539,6 +542,23 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 trackSections={resolvedTrackSections}
                 getAudioTime={engine.getCurrentTime}
                 activeAudioTrackId={engine.currentTrackId}
+                onCanvasReady={setOutputCanvas}
+                onLiveFps={setLiveFps}
+              />
+            ) : activeReactEngineId === 'pixGrid' ? (
+              <PixGridSurface
+                key="react-live-pixGrid"
+                analyser={analyser}
+                activePreset={renderPreset}
+                pixGridState={pixGridState}
+                intensity={reactIntensity}
+                motion={reactMotion}
+                glow={reactGlow}
+                bassReactivity={reactBassReactivity}
+                isPlaying={engine.isPlaying}
+                isPaused={transportPaused}
+                trackSections={resolvedTrackSections}
+                getAudioTime={engine.getCurrentTime}
                 onCanvasReady={setOutputCanvas}
                 onLiveFps={setLiveFps}
               />

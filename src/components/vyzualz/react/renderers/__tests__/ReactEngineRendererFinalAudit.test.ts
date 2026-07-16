@@ -14,6 +14,8 @@ const rendererMocks = vi.hoisted(() => ({
   clearLaserDmxVisualState: vi.fn(),
   disposeLaserDmxRenderer: vi.fn(),
   pauseLaserDmxRenderer: vi.fn(),
+  renderPixGridBaseline: vi.fn(),
+  disposePixGridBaselineRenderer: vi.fn(),
 }))
 
 vi.mock('../CinematicPortalRenderer', () => ({
@@ -29,6 +31,11 @@ vi.mock('../LaserDmxRenderer', () => ({
   clearLaserDmxVisualState: rendererMocks.clearLaserDmxVisualState,
   disposeLaserDmxRenderer: rendererMocks.disposeLaserDmxRenderer,
   pauseLaserDmxRenderer: rendererMocks.pauseLaserDmxRenderer,
+}))
+vi.mock('../pixGrid/PixGridBaselineRenderer', () => ({
+  renderPixGridBaseline: rendererMocks.renderPixGridBaseline,
+  disposePixGridBaselineRenderer: rendererMocks.disposePixGridBaselineRenderer,
+  createPixGridStateForPreset: vi.fn(() => ({})),
 }))
 
 const frame: ReactFrameContext = {
@@ -86,6 +93,7 @@ describe('React engine renderer final audit', () => {
       'cinematicPortal',
       'laserDmx',
       'oscilloscope',
+      'pixGrid',
       'shaderPads',
     ].sort())
 
@@ -98,8 +106,10 @@ describe('React engine renderer final audit', () => {
     expect(rendererMocks.renderCinematicPortal).toHaveBeenCalledTimes(1)
     expect(rendererMocks.renderSoundDrawing).toHaveBeenCalledTimes(1)
     expect(rendererMocks.renderLaserDmx).toHaveBeenCalledTimes(1)
+    expect(rendererMocks.renderPixGridBaseline).toHaveBeenCalledTimes(1)
     expect(rendererMocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'release-resources')
     expect(rendererMocks.disposeSoundDrawingRenderer).toHaveBeenCalledTimes(1)
+    expect(rendererMocks.disposePixGridBaselineRenderer).toHaveBeenCalledTimes(1)
     expect(rendererMocks.disposeLaserDmxRenderer).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ affectProductionOutput: true }),

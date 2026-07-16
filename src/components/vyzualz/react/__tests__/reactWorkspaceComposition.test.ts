@@ -17,6 +17,7 @@ describe('React workspace composition', () => {
       'oscilloscope',
       'canvas',
       'laserDmx',
+      'pixGrid',
     ]
 
     for (const engine of engines) {
@@ -29,7 +30,7 @@ describe('React workspace composition', () => {
     expect(resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false).showSoundDrawingTimeline)
       .toBe(true)
 
-    for (const engine of ['shaderPads', 'cinematicPortal', 'canvas', 'laserDmx'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
       expect(resolveReactWorkspaceComposition(engine, 'beamMatrix', false).showSoundDrawingTimeline)
         .toBe(false)
     }
@@ -49,7 +50,7 @@ describe('React workspace composition', () => {
     expect(getReactPresetTabLabel(canvas)).toBe('PRESETS')
     expect(canvas.showPerformancePads).toBe(true)
 
-    for (const engine of ['cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx'] as ReactEngineId[]) {
+    for (const engine of ['cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
       const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
       expect(composition.presetSurface).toBe('enginePresets')
       expect(getReactPresetTabLabel(composition)).toBe('PRESETS')
@@ -91,10 +92,14 @@ describe('React workspace composition', () => {
     const canvas = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
     expect(getReactLeftTabs(canvas)).toEqual(['workspace'])
     expect(getReactLeftTabLabel('workspace', canvas)).toBe('SOURCE')
+
+    const pixGrid = resolveReactWorkspaceComposition('pixGrid', 'beamMatrix', false)
+    expect(getReactLeftTabs(pixGrid)).toEqual(['workspace'])
+    expect(getReactLeftTabLabel('workspace', pixGrid)).toBe('SETUP')
   })
 
   it('never advertises unfinished or unrelated contextual destinations', () => {
-    for (const engine of ['shaderPads', 'cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')

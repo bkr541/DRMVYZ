@@ -29,6 +29,7 @@ export function resolveReactWorkspaceComposition(
   const isCinematic = engineId === 'cinematicPortal'
   const isLaser = engineId === 'laserDmx'
   const isCanvas = engineId === 'canvas'
+  const isPixGrid = engineId === 'pixGrid'
   void laserWorkspaceMode
 
   let leftTabs: ReactLeftTab[] = ['workspace']
@@ -48,6 +49,9 @@ export function resolveReactWorkspaceComposition(
   } else if (isCanvas) {
     leftTabs = ['workspace']
     workspaceTabLabel = 'SOURCE'
+  } else if (isPixGrid) {
+    leftTabs = ['workspace']
+    workspaceTabLabel = 'SETUP'
   }
 
   return {

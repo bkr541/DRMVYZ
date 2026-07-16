@@ -14,6 +14,7 @@ export const REACT_ENGINE_IDS: ReactEngineId[] = [
   'oscilloscope',
   'canvas',
   'laserDmx',
+  'pixGrid',
 ]
 
 export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry> = {
@@ -51,6 +52,13 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     shortLabel: 'Laser',
     icon: '✦',
     description: 'DMX Beam Matrix control with production-ready cues, fog, and audio-reactive laser looks.',
+  },
+  pixGrid: {
+    id: 'pixGrid',
+    label: 'PixGrid',
+    shortLabel: 'PixGrid',
+    icon: '▦',
+    description: 'Programmable LED-cell artwork, animation, and full-song pixel choreography.',
   },
 }
 

@@ -10909,3 +10909,31 @@
   color: rgba(97, 214, 170, 0.6);
   font-size: 8px;
 }
+
+/* ── PixGrid foundation ───────────────────────────────────────────────────── */
+.rv-pix-grid-surface {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+}
+
+.rv-pix-grid-surface[data-authoring='true'] {
+  outline: 1px solid color-mix(in srgb, var(--accent, #4ac7db) 72%, transparent);
+  outline-offset: -1px;
+}
+
+.rv-pix-grid-engine-panel .rv-engine-status-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 11px;
+}
+
+.rv-pix-grid-engine-panel .rv-engine-status-grid span {
+  color: var(--text-muted, #87939b);
+}

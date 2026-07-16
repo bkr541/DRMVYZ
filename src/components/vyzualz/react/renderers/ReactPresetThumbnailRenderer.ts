@@ -152,6 +152,7 @@ export function fingerprintReactPresetThumbnail(preset: ReactPreset): string {
     laserDmxSettings: preset.laserDmxSettings ?? null,
     productionPreset: preset.productionPreset ?? null,
     cinematicConfig: preset.cinematicConfig ?? null,
+    pixGridSettings: preset.pixGridSettings ?? null,
     sectionMappings: preset.sectionMappings,
     scenes: preset.scenes,
   })
@@ -630,6 +631,7 @@ function resolveThumbnailFrameBudget(preset: ReactPreset): number {
     case 'shaderPads': return 1
     case 'oscilloscope': return 2
     case 'laserDmx': return 5
+    case 'pixGrid': return 3
     case 'cinematicPortal':
       if (preset.cinematicConfig?.worldMode === 'reactiveConstellation') return 10
       return 7

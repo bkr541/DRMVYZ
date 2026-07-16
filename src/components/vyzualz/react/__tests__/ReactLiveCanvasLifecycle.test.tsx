@@ -56,10 +56,10 @@ let host: HTMLDivElement | null = null
 let nextRafId = 1
 let rafCallbacks = new Map<number, FrameRequestCallback>()
 
-type LiveCanvasEngineId = Exclude<ReactEngineId, 'shaderPads' | 'canvas'>
+type LiveCanvasEngineId = Exclude<ReactEngineId, 'shaderPads' | 'canvas' | 'pixGrid'>
 
 const LIVE_CANVAS_ENGINE_IDS = REACT_ENGINE_IDS.filter((engine): engine is LiveCanvasEngineId => (
-  engine !== 'shaderPads' && engine !== 'canvas'
+  engine !== 'shaderPads' && engine !== 'canvas' && engine !== 'pixGrid'
 ))
 
 function findPreset(engine: LiveCanvasEngineId): ReactPreset {

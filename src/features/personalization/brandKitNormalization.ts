@@ -27,7 +27,7 @@ import {
 import { normalizeHexColor } from './paletteColorSpace'
 
 const ENGINE_TARGETS = new Set<BrandKitEngineTarget>([
-  'shaderPads', 'cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'reactiveConstellation',
+  'shaderPads', 'cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid', 'reactiveConstellation',
 ])
 const RETIRED_NEON_LATTICE_ENGINE_ID = 'neonLattice'
 

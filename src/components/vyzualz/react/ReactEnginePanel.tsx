@@ -1,6 +1,7 @@
 import React, { useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
+import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -348,6 +349,9 @@ export function ReactEnginePanel() {
 
       {/* ── Engine Mode: CANVAS ──────────────────────────────────────── */}
       {activeReactEngineId === 'canvas' && <CanvasEnginePanel />}
+
+      {/* ── Engine Mode: PixGrid ──────────────────────────────────────── */}
+      {activeReactEngineId === 'pixGrid' && <PixGridEnginePanel />}
 
       {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}
       {activeReactEngineId === 'laserDmx' && <LaserDmxEnginePanel />}

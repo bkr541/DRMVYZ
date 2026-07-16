@@ -5,6 +5,7 @@ import { disposeCinematicPortalRenderer, renderCinematicPortal } from './Cinemat
 import { disposeSoundDrawingRenderer, renderSoundDrawing } from './SoundDrawingRenderer'
 import { renderLaserDmx, clearLaserDmxVisualState, disposeLaserDmxRenderer, pauseLaserDmxRenderer } from './LaserDmxRenderer'
 import type { WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
+import { createPixGridStateForPreset, disposePixGridBaselineRenderer, renderPixGridBaseline } from './pixGrid/PixGridBaselineRenderer'
 
 export type { ReactFrameContext, ReactRenderParams }
 export { DEFAULT_REACT_RENDER_PARAMS }
@@ -179,6 +180,24 @@ export function renderReactEngine(
       ctx.fillStyle = preset.palette.background
       ctx.fillRect(0, 0, frame.W, frame.H)
       break
+    case 'pixGrid':
+      renderPixGridBaseline(ctx, {
+        width: frame.W,
+        height: frame.H,
+        audioTime: frame.audioTime,
+        bass: frame.audio.bass,
+        mid: frame.audio.mid,
+        high: frame.audio.high,
+        volume: frame.audio.volume,
+        beatHit: frame.beatHit,
+        beatPhase: frame.beatPhase,
+        isPlaying: frame.isPlaying !== false,
+        motion: effectiveParams.motion,
+        intensity: effectiveParams.intensity,
+        glow: effectiveParams.glow,
+        bassReactivity: effectiveParams.bassReactivity,
+      }, preset, createPixGridStateForPreset(preset))
+      break
     case 'laserDmx':
       // Level-1 gate: skip compilation entirely when not playing.
       // clearLaserDmxVisualState wipes trail persistence and resets compiler dt.
@@ -235,6 +254,9 @@ export function disposeReactEngineRenderer(
       break
     case 'canvas':
       // CANVAS renders a React shell, not the live canvas renderer yet.
+      break
+    case 'pixGrid':
+      disposePixGridBaselineRenderer()
       break
   }
 }

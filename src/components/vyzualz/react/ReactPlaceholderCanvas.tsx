@@ -26,12 +26,13 @@ const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   oscilloscope:    'Sound Drawing',
   canvas:          'CANVAS',
   laserDmx:        'LaserDMX',
+  pixGrid:         'PixGrid',
 }
 
 interface Props {
   analyser:           AnalyserNode | null
   /** Stable ownership boundary for the mounted live renderer. */
-  engine:             Exclude<ReactEngineId, 'shaderPads' | 'canvas'>
+  engine:             Exclude<ReactEngineId, 'shaderPads' | 'canvas' | 'pixGrid'>
   activePreset:       ReactPreset | null
   intensity:          number
   motion:             number

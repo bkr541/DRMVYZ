@@ -185,6 +185,10 @@ import {
   isCurrentSvgVisualGeneration,
 } from '../components/vyzualz/react/renderers/svgVisualCache'
 import { sanitizeReactPresetFavorites } from '../components/vyzualz/react/reactPresetLibraryState'
+import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
+import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from '../components/vyzualz/react/pixGrid/PixGridState'
+import type { PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
+import { normalizePixGridPresetSettings, normalizePixGridState } from '../components/vyzualz/react/pixGrid/PixGridValidation'
 import { isSelectableReactEngineId, REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
 import {
   getMediaIdFromSvgGlyphId,
@@ -1528,9 +1532,19 @@ function buildPresetPatchForState(
   const geometryChanged = [...TEXT_GEOMETRY_SETTING_KEYS].some(
     key => patch.oscillatorSettings[key] !== state.oscillatorSettings[key],
   )
-  if (!geometryChanged) return patch
+  const pixGridPatch = preset.engine === 'pixGrid'
+    ? {
+        pixGridState: applyPixGridPresetSettings(
+          state.pixGridState,
+          preset.id,
+          preset.pixGridSettings,
+        ),
+      }
+    : {}
+  if (!geometryChanged) return { ...patch, ...pixGridPatch }
   return {
     ...patch,
+    ...pixGridPatch,
     oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
       state.oscillatorFontAssets,
       patch.oscillatorSettings,
@@ -1618,6 +1632,12 @@ interface ReactStoreState {
   activeReactPresetId: string | null
   activeReactEngineId: ReactEngineId
   reactPresets: ReactPreset[]
+
+  // PixGrid compact, serializable authoring/runtime configuration.
+  pixGridState: PixGridState
+  setPixGridState: (patch: Partial<PixGridState>) => void
+  resetPixGridState: () => void
+  setPixGridAuthoringOverlayVisible: (visible: boolean) => void
 
   // Cinematic Worlds live authoring state. Preset definitions remain immutable baselines.
   cinematicConfigsByPresetId: Record<string, CinematicWorldConfig>
@@ -2993,9 +3013,14 @@ export function normalizeCinematicPresetConfiguration(preset: ReactPreset): Reac
 
 export function normalizeReactPresetWorkspaceConfiguration(preset: ReactPreset): ReactPreset {
   const workspace = resolveReactPresetLaserDmxWorkspace(preset)
-  return workspace == null || preset.laserDmxWorkspace === workspace
+  const workspaceNormalized = workspace == null || preset.laserDmxWorkspace === workspace
     ? preset
     : { ...preset, laserDmxWorkspace: workspace }
+  if (workspaceNormalized.engine !== 'pixGrid') return workspaceNormalized
+  return {
+    ...workspaceNormalized,
+    pixGridSettings: normalizePixGridPresetSettings(workspaceNormalized.pixGridSettings) ?? { pattern: 'bassBeacon' },
+  }
 }
 
 export function normalizeCinematicPresetCollection(presets: ReactPreset[]): ReactPreset[] {
@@ -3543,6 +3568,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
     }
   }
+  if (version < 48) {
+    state = {
+      ...state,
+      pixGridState: normalizePixGridState(state.pixGridState),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -3573,6 +3604,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     ),
     laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
     laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
+    pixGridState: normalizePixGridState(state.pixGridState),
   }
   // Imported/current-version snapshots do not necessarily pass through a
   // numbered migration, so keep the retirement boundary defensive.
@@ -3719,6 +3751,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     activeReactPresetId:                repairedSelection.activeReactPresetId,
     activeReactEngineId:                repairedSelection.activeReactEngineId,
     reactPresets:                       s.reactPresets,
+    pixGridState:                       normalizePixGridState(s.pixGridState),
     cinematicConfigsByPresetId:         s.cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
@@ -3768,6 +3801,7 @@ export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
  */
 export const REACT_PROJECT_STATE_KEYS = [
   'reactPresets',
+  'pixGridState',
   'cinematicConfigsByPresetId',
   'cinematicSeedLocksByPresetId',
   'cinematicWorldsUiMode',
@@ -3831,6 +3865,7 @@ export function mergeReactStoreState(
     cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode,
+    pixGridState: normalizePixGridState(persisted.pixGridState ?? currentState.pixGridState),
     canvasEngineSettings: normalizeCanvasEngineSettings(
       persisted.canvasEngineSettings ?? currentState.canvasEngineSettings,
     ),
@@ -3889,10 +3924,17 @@ export function mergeReactStoreState(
         merged.activeLaserDmxBeamMatrixPresetId,
       )
     : merged.laserDmxBeamMatrixPresetDirty
+  const activePixGridPreset = repairedSelection.activeReactEngineId === 'pixGrid'
+    ? reactPresets.find(preset => preset.id === repairedSelection.activeReactPresetId && preset.engine === 'pixGrid') ?? null
+    : null
+  const pixGridState = activePixGridPreset && merged.pixGridState.selectedPresetId !== activePixGridPreset.id
+    ? applyPixGridPresetSettings(merged.pixGridState, activePixGridPreset.id, activePixGridPreset.pixGridSettings)
+    : normalizePixGridState(merged.pixGridState)
 
   return {
     ...merged,
     ...repairedSelection,
+    pixGridState,
     oscillatorSettings: normalizeOscillatorSettings({
       ...DEFAULT_OSCILLATOR_SETTINGS,
       ...merged.oscillatorSettings,
@@ -3929,6 +3971,7 @@ export const useReactStore = create<ReactStoreState>()(
       activeReactPresetId: INITIAL_PRESET_ID,
       activeReactEngineId: INITIAL_ENGINE_ID,
       reactPresets: DEFAULT_REACT_PRESETS,
+      pixGridState: createDefaultPixGridState(),
       cinematicConfigsByPresetId: {},
       cinematicSeedLocksByPresetId: {},
       cinematicWorldsUiMode: 'simple',
@@ -3991,6 +4034,24 @@ export const useReactStore = create<ReactStoreState>()(
       reactFogDensity:      0.5,
       reactParticleDensity: 0.5,
       performancePadTransition: null,
+
+      setPixGridState: (patch) => set((state) => ({
+        pixGridState: normalizePixGridState({
+          ...state.pixGridState,
+          ...patch,
+        }),
+      })),
+
+      resetPixGridState: () => set((state) => ({
+        pixGridState: resetPixGridStatePreservingSelection(state.pixGridState),
+      })),
+
+      setPixGridAuthoringOverlayVisible: (visible) => set((state) => ({
+        pixGridState: normalizePixGridState({
+          ...state.pixGridState,
+          authoringOverlayVisible: visible,
+        }),
+      })),
 
       setCinematicConfigForPreset: (presetId, config) =>
         set((state) => {
@@ -7291,6 +7352,13 @@ export const useReactStore = create<ReactStoreState>()(
             }
           }
 
+          if (s.activeReactEngineId === 'pixGrid') {
+            return {
+              ...sharedDefaults,
+              pixGridState: resetPixGridStatePreservingSelection(s.pixGridState),
+            }
+          }
+
           if (s.activeReactEngineId === 'canvas') {
             revokeCanvasMediaObjectUrls(s.canvasMediaItems)
             return {
@@ -7368,6 +7436,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             ...repairedSelection,
             reactPresets: DEFAULT_REACT_PRESETS,
+            pixGridState: createDefaultPixGridState(),
             cinematicConfigsByPresetId: {},
             cinematicSeedLocksByPresetId: {},
             canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
@@ -7411,6 +7480,7 @@ export const useReactStore = create<ReactStoreState>()(
           activeReactPresetId:          INITIAL_PRESET_ID,
           activeReactEngineId:          INITIAL_ENGINE_ID,
           reactPresets:                 DEFAULT_REACT_PRESETS,
+          pixGridState:                 createDefaultPixGridState(),
           cinematicConfigsByPresetId:   {},
           cinematicSeedLocksByPresetId: {},
           cinematicWorldsUiMode:        'simple',
@@ -7465,7 +7535,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 47,
+      version: 48,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
