@@ -124,6 +124,7 @@ export function createPixGridGroup(input: {
     smartRuleId: input.source === 'manualSelection' ? null : input.source,
     enabled: true,
     visible: true,
+    contentVisible: true,
     priority: clampInt(input.priority ?? 0, -100, 100),
     overlapBehavior: 'stack',
     reactions: [],

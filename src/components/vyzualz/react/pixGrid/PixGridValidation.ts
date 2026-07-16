@@ -65,6 +65,7 @@ const ANIMATION_MODES = new Set<PixGridAnimationMode>([
   'audioAmplitudeScale', 'beatStepMovement',
 ])
 const ANIMATION_BOUNDARIES = new Set<PixGridAnimationBoundary>(['wrap', 'clamp', 'bounce'])
+const ANIMATION_CLOCKS = new Set(['time', 'beat', 'bar', 'cue'] as const)
 const AUDIO_SOURCES = new Set<PixGridAudioSource>(['sub', 'bass', 'lowMid', 'mid', 'high', 'air', 'volume', 'energy', 'trackRelativeEnergy', 'spectralFlux', 'tension', 'complexity', 'buildProgress', 'sectionProgress', 'phraseProgress', 'vocalEnergy', 'beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'barEntry', 'fourBarBoundary', 'eightBarBoundary', 'sixteenBarBoundary', 'sectionEntry', 'sectionExit', 'dropImpact', 'semanticMoment'])
 const STOPPED_BEHAVIORS = new Set(['baseline', 'blackout'])
 const GROUP_SOURCES = new Set<PixGridGroupSource>(['manualSelection', 'layerAlpha', 'foregroundBackground', 'colorRange', 'luminanceRange', 'connectedRegion', 'border', 'center', 'leftRight', 'topBottom', 'quadrant', 'horizontalBands', 'verticalBands', 'alternatingRows', 'alternatingColumns', 'checkerboard', 'diagonalBands', 'radialRings', 'deterministicClusters', 'svgMetadata'])
@@ -119,7 +120,8 @@ function normalizeAnimation(value: unknown): PixGridLayerAnimation | null {
   if (!isRecord(value) || !ANIMATION_MODES.has(value.mode as PixGridAnimationMode)) return null
   return {
     mode: value.mode as PixGridAnimationMode,
-    speed: clamp(value.speed, 0, 20, 1),
+    speed: clamp(value.speed, -20, 20, 1),
+    ...(ANIMATION_CLOCKS.has(value.clock as 'time' | 'beat' | 'bar' | 'cue') ? { clock: value.clock as 'time' | 'beat' | 'bar' | 'cue' } : {}),
     amount: clamp(value.amount, -4, 4, 0),
     phase: clamp(value.phase, -1000, 1000, 0),
     boundary: ANIMATION_BOUNDARIES.has(value.boundary as PixGridAnimationBoundary)
@@ -387,6 +389,7 @@ function normalizeGroups(value: unknown, width: number, height: number): PixGrid
       smartRuleId: nullableId(raw.smartRuleId),
       enabled: raw.enabled !== false,
       visible: raw.visible !== false,
+      contentVisible: raw.contentVisible !== false,
       priority: Math.max(-100, Math.min(100, Math.round(finite(raw.priority, index)))),
       overlapBehavior: GROUP_OVERLAP.has(raw.overlapBehavior as PixGridGroupOverlapBehavior) ? raw.overlapBehavior as PixGridGroupOverlapBehavior : 'stack',
       reactions,

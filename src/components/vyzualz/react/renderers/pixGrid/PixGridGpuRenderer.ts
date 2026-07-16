@@ -9,6 +9,7 @@ import type { PixGridBaselineRenderFrame } from './PixGridBaselineRenderer'
 import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation'
 import { PixGridReactionRuntime } from '../../pixGrid/PixGridAudioRouting'
 import { PixGridGpuMaskAtlas } from './PixGridGpuMasks'
+import type { PixGridResolvedTransition } from '../../pixGrid/PixGridActionCues'
 import {
   PIX_GRID_FULLSCREEN_VERTEX_SHADER,
   PIX_GRID_LOGICAL_FRAGMENT_SHADER,
@@ -33,6 +34,7 @@ interface PixGridGpuRenderInput {
   presentationHeight: number
   blackout?: boolean
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null
+  transition?: PixGridResolvedTransition | null
 }
 
 interface SavedWebGLState {
@@ -353,6 +355,7 @@ export class PixGridGpuRenderer {
       this.logicalPixels ?? undefined,
       input.preparedAsset,
       this.reactionRuntime,
+      input.transition,
     )
     this.logicalPixels = logical.pixels
     const gl = this.gl

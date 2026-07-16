@@ -6,6 +6,7 @@ import type { PixGridAudioFrame, PixGridState } from '../../pixGrid/PixGridTypes
 import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation'
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 import type { PixGridReactionRuntime } from '../../pixGrid/PixGridAudioRouting'
+import type { PixGridResolvedTransition } from '../../pixGrid/PixGridActionCues'
 
 export interface PixGridBaselineRenderFrame extends PixGridAudioFrame {
   width: number
@@ -52,9 +53,10 @@ export function renderPixGridBaseline(
   rawState: PixGridState,
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
   reactionRuntime?: PixGridReactionRuntime,
+  transition?: PixGridResolvedTransition | null,
 ): void {
   const state = normalizePixGridState(rawState)
-  const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset, reactionRuntime)
+  const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset, reactionRuntime, transition)
   const W = Math.max(1, frame.width)
   const H = Math.max(1, frame.height)
   const matrixAspect = state.matrixWidth / state.matrixHeight
@@ -134,6 +136,7 @@ export function renderPixGridCanvasFallback(
   rawState: PixGridState,
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
   reactionRuntime?: PixGridReactionRuntime,
+  transition?: PixGridResolvedTransition | null,
 ): Readonly<{ logicalWidth: number; logicalHeight: number }> {
   const requested = normalizePixGridState(rawState)
   const state = requested.quality === 'draft'
@@ -144,7 +147,7 @@ export function renderPixGridCanvasFallback(
   if (logicalCanvas.width !== state.matrixWidth) logicalCanvas.width = state.matrixWidth
   if (logicalCanvas.height !== state.matrixHeight) logicalCanvas.height = state.matrixHeight
 
-  const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset, reactionRuntime)
+  const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset, reactionRuntime, transition)
   const image = logicalContext.createImageData(state.matrixWidth, state.matrixHeight)
   const intensity = clamp01(frame.intensity * state.globalIntensity * state.cellBrightness)
   for (let offset = 0; offset < logical.pixels.length; offset += 4) {

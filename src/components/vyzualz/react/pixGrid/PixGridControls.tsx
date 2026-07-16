@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
+import { useSharedAudio } from '../../../../context/AudioEngineContext'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { DEFAULT_PIX_GRID_CONVERSION_SETTINGS } from './PixGridDefaults'
 import { SharedPerformanceDiagnosticsPanel } from '../SharedPerformanceDiagnosticsPanel'
 import { PIX_GRID_PERFORMANCE_PROGRAMS, PIX_GRID_PRESET_ID_BY_PROGRAM } from './PixGridPerformancePrograms'
 import { usePixGridPerformanceRuntimeStatus } from './PixGridPerformanceStatus'
+import { usePixGridCueRuntimeStatus } from './PixGridCueStatus'
+import { nextPixGridCueOrder, normalizePixGridActionCue, snapPixGridCueTime } from './PixGridActionCues'
 import type {
   PixGridBackgroundHandling,
   PixGridBackgroundMode,
@@ -66,11 +69,15 @@ const PREP_BACKGROUND_OPTIONS = [
 ]
 
 export function PixGridControls() {
+  const engine = useSharedAudio()
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
+  const pixGridActionCuesByTrackId = useReactStore(store => store.pixGridActionCuesByTrackId)
+  const addPixGridActionCue = useReactStore(store => store.addPixGridActionCue)
   const selectReactPreset = useReactStore(store => store.selectReactPreset)
   const setOverlay = useReactStore(store => store.setPixGridAuthoringOverlayVisible)
   const performanceStatus = usePixGridPerformanceRuntimeStatus()
+  const cueStatus = usePixGridCueRuntimeStatus()
   const selectedMedia = useMediaStore(store => state.conversion.selectedMediaId
     ? store.items.find(item => item.id === state.conversion.selectedMediaId) ?? null
     : null)
@@ -92,6 +99,39 @@ export function PixGridControls() {
   const commitPrepBackgroundColor = (value: string) => {
     if (/^#[0-9a-f]{6}$/i.test(value)) updateConversion({ backgroundColor: value })
     else setPrepBackgroundDraft(state.conversion.backgroundColor)
+  }
+
+  const clearManualOverride = () => {
+    setState({
+      performance: { ...state.performance, lockedRoutes: [] },
+      layers: state.layers.map(layer => layer.locked ? { ...layer, locked: false } : layer),
+    })
+    const trackId = engine.currentTrackId
+    if (!trackId || cueStatus.manualOverrideRoutes.length === 0) return
+    const authoredTime = Math.max(0, engine.getCurrentTime())
+    const timeSec = snapPixGridCueTime(authoredTime, 'beat', engine.currentEffectiveBeatGrid)
+    const cues = pixGridActionCuesByTrackId[trackId] ?? []
+    const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `pixgrid-clear-override-${Date.now()}`
+    const cue = normalizePixGridActionCue({
+      version: 1,
+      id,
+      timeSec,
+      label: 'Clear Manual Override',
+      enabled: true,
+      engineId: 'pixGrid',
+      action: { type: 'clearManualOverride' },
+      quantization: 'beat',
+      transition: 'cut',
+      transitionDurationSec: 0,
+      oneShotDurationSec: 0.25,
+      loopBehavior: 'retrigger',
+      order: nextPixGridCueOrder(cues, timeSec),
+      provenance: { kind: 'manual' },
+      color: '#4ac7db',
+    }, cues.length)
+    if (cue) addPixGridActionCue(trackId, cue)
   }
 
   const resetConversion = () => updateConversion({
@@ -128,17 +168,16 @@ export function PixGridControls() {
         <strong>{performanceStatus.sceneId ?? 'Awaiting playback'}</strong>
         <span>{performanceStatus.section} · {performanceStatus.sectionPhase} · variation {performanceStatus.variationId ?? 'base'}</span>
         <span>4 / 8 / 16 stage: {performanceStatus.fourBarStage} / {performanceStatus.eightBarStage} / {performanceStatus.sixteenBarStage}</span>
-        <span>Override: {performanceStatus.manualOverrideRoutes.length ? `${performanceStatus.manualOverrideRoutes.length} locked route${performanceStatus.manualOverrideRoutes.length === 1 ? '' : 's'}` : 'Auto'}</span>
+        <span>Override: {[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length ? `${[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length} locked route${[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length === 1 ? '' : 's'}` : 'Auto'}</span>
+        <span>Cue: {cueStatus.mostRecentCueLabel ?? 'None'}{cueStatus.activeOneShotCueIds.length ? ` · ${cueStatus.activeOneShotCueIds.length} active` : ''}</span>
+        <span>Transition: {cueStatus.transition ? `${cueStatus.transition.type} · ${Math.round(cueStatus.transition.progress * 100)}%` : 'Idle'}</span>
       </div>
-      {performanceStatus.manualOverrideRoutes.length > 0 && (
+      {(performanceStatus.manualOverrideRoutes.length > 0 || cueStatus.manualOverrideRoutes.length > 0) && (
         <div className="rv-ctrl-action-row">
           <button
             type="button"
             className="rv-reset-btn"
-            onClick={() => setState({
-              performance: { ...state.performance, lockedRoutes: [] },
-              layers: state.layers.map(layer => layer.locked ? { ...layer, locked: false } : layer),
-            })}
+            onClick={clearManualOverride}
           >
             Clear Override
           </button>

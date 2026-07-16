@@ -190,6 +190,12 @@ import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from
 import type { PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import { normalizePixGridPresetSettings, normalizePixGridState } from '../components/vyzualz/react/pixGrid/PixGridValidation'
 import { MAX_PIX_GRID_HISTORY } from '../components/vyzualz/react/pixGrid/PixGridLimits'
+import {
+  normalizePixGridActionCue,
+  normalizePixGridActionCueMap,
+  sortPixGridActionCues,
+  type PixGridActionCue,
+} from '../components/vyzualz/react/pixGrid/PixGridActionCues'
 import { isSelectableReactEngineId, REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
 import {
   getMediaIdFromSvgGlyphId,
@@ -1731,6 +1737,9 @@ interface ReactStoreState {
   // `presetId` is the authoritative assignment; no Engine ID is stored here.
   presetAutomationCuesByTrackId: Record<string, ReactPresetAutomationCue[]>
 
+  // Engine-scoped PixGrid action cues. Preset changes remain in presetAutomationCuesByTrackId.
+  pixGridActionCuesByTrackId: Record<string, PixGridActionCue[]>
+
   // Global performance controls
   reactIntensity:       number
   reactMotion:          number
@@ -1804,6 +1813,14 @@ interface ReactStoreState {
   removePresetAutomationCue: (trackId: string, id: string) => void
   /** Removes all cues for the given track. */
   clearPresetAutomationCuesForTrack: (trackId: string) => void
+
+  /** Returns normalized PixGrid action cues in deterministic execution order. */
+  getPixGridActionCuesForTrack: (trackId: string) => PixGridActionCue[]
+  addPixGridActionCue: (trackId: string, cue: PixGridActionCue) => void
+  updatePixGridActionCue: (trackId: string, id: string, patch: Partial<PixGridActionCue>) => void
+  duplicatePixGridActionCue: (trackId: string, id: string) => string | null
+  removePixGridActionCue: (trackId: string, id: string) => void
+  clearPixGridActionCuesForTrack: (trackId: string) => void
 
   /**
    * Commits a boundary drag edit for an automatically analyzed section.
@@ -3615,6 +3632,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       pixGridState: normalizePixGridState(state.pixGridState),
     }
   }
+  if (version < 50) {
+    state = {
+      ...state,
+      pixGridActionCuesByTrackId: normalizePixGridActionCueMap(state.pixGridActionCuesByTrackId),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -3646,6 +3669,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
     laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
     pixGridState: normalizePixGridState(state.pixGridState),
+    pixGridActionCuesByTrackId: normalizePixGridActionCueMap(state.pixGridActionCuesByTrackId),
   }
   // Imported/current-version snapshots do not necessarily pass through a
   // numbered migration, so keep the retirement boundary defensive.
@@ -3808,6 +3832,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
+    pixGridActionCuesByTrackId:          normalizePixGridActionCueMap(s.pixGridActionCuesByTrackId),
     oscillatorSettings:                 s.oscillatorSettings,
     soundDrawingPerformanceSettings:     normalizeSoundDrawingPerformanceSettings(s.soundDrawingPerformanceSettings),
     oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
@@ -3857,6 +3882,7 @@ export const REACT_PROJECT_STATE_KEYS = [
   'manualTrackSectionsByTrackId',
   'suppressedAutoSectionsByTrackId',
   'presetAutomationCuesByTrackId',
+  'pixGridActionCuesByTrackId',
   'oscillatorGlyphAssets',
   'soundDrawingPerformanceSettings',
   'laserDmxSettings',
@@ -3907,6 +3933,9 @@ export function mergeReactStoreState(
     cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode,
     pixGridState: normalizePixGridState(persisted.pixGridState ?? currentState.pixGridState),
+    pixGridActionCuesByTrackId: normalizePixGridActionCueMap(
+      persisted.pixGridActionCuesByTrackId ?? currentState.pixGridActionCuesByTrackId,
+    ),
     canvasEngineSettings: normalizeCanvasEngineSettings(
       persisted.canvasEngineSettings ?? currentState.canvasEngineSettings,
     ),
@@ -4040,6 +4069,7 @@ export const useReactStore = create<ReactStoreState>()(
       selectedSectionByTrackId: {},
       suppressedAutoSectionsByTrackId: {},
       presetAutomationCuesByTrackId: {},
+      pixGridActionCuesByTrackId: {},
       soundDrawingLayersByTrackId: {},
       soundDrawingClipsByTrackId:  {},
       performancePads: DEFAULT_PERFORMANCE_PADS,
@@ -7239,6 +7269,96 @@ export const useReactStore = create<ReactStoreState>()(
           return { presetAutomationCuesByTrackId: rest }
         }),
 
+      // ── PixGrid action cues ───────────────────────────────────────────────────
+
+      getPixGridActionCuesForTrack: (trackId) =>
+        sortPixGridActionCues(get().pixGridActionCuesByTrackId[trackId] ?? []),
+
+      addPixGridActionCue: (trackId, cue) =>
+        set((s) => {
+          const existing = s.pixGridActionCuesByTrackId[trackId] ?? []
+          if (existing.some(candidate => candidate.id === cue.id)) return {}
+          const normalized = normalizePixGridActionCue(cue, existing.length)
+          if (!normalized) return {}
+          return {
+            pixGridActionCuesByTrackId: {
+              ...s.pixGridActionCuesByTrackId,
+              [trackId]: sortPixGridActionCues([...existing, normalized]),
+            },
+          }
+        }),
+
+      updatePixGridActionCue: (trackId, id, patch) =>
+        set((s) => {
+          const existing = s.pixGridActionCuesByTrackId[trackId] ?? []
+          const index = existing.findIndex(cue => cue.id === id)
+          if (index < 0) return {}
+          const normalized = normalizePixGridActionCue({
+            ...existing[index],
+            ...patch,
+            id,
+            engineId: 'pixGrid',
+          }, existing[index].order)
+          if (!normalized) return {}
+          const next = existing.slice()
+          next[index] = normalized
+          return {
+            pixGridActionCuesByTrackId: {
+              ...s.pixGridActionCuesByTrackId,
+              [trackId]: sortPixGridActionCues(next),
+            },
+          }
+        }),
+
+      duplicatePixGridActionCue: (trackId, id) => {
+        let duplicatedId: string | null = null
+        set((s) => {
+          const existing = s.pixGridActionCuesByTrackId[trackId] ?? []
+          const source = existing.find(cue => cue.id === id)
+          if (!source) return {}
+          duplicatedId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `pixgrid-cue-${Date.now()}-${existing.length}`
+          const duplicated = normalizePixGridActionCue({
+            ...source,
+            id: duplicatedId,
+            label: `${source.label} Copy`,
+            order: Math.max(...existing.map(cue => cue.order), -1) + 1,
+          }, existing.length)
+          if (!duplicated) {
+            duplicatedId = null
+            return {}
+          }
+          return {
+            pixGridActionCuesByTrackId: {
+              ...s.pixGridActionCuesByTrackId,
+              [trackId]: sortPixGridActionCues([...existing, duplicated]),
+            },
+          }
+        })
+        return duplicatedId
+      },
+
+      removePixGridActionCue: (trackId, id) =>
+        set((s) => {
+          const existing = s.pixGridActionCuesByTrackId[trackId] ?? []
+          const next = existing.filter(cue => cue.id !== id)
+          if (next.length === existing.length) return {}
+          const { [trackId]: _removed, ...rest } = s.pixGridActionCuesByTrackId
+          return {
+            pixGridActionCuesByTrackId: next.length > 0
+              ? { ...s.pixGridActionCuesByTrackId, [trackId]: next }
+              : rest,
+          }
+        }),
+
+      clearPixGridActionCuesForTrack: (trackId) =>
+        set((s) => {
+          if (!(trackId in s.pixGridActionCuesByTrackId)) return {}
+          const { [trackId]: _removed, ...rest } = s.pixGridActionCuesByTrackId
+          return { pixGridActionCuesByTrackId: rest }
+        }),
+
       // ── Sound Drawing layers ─────────────────────────────────────────────────
 
       getSoundDrawingLayersForTrack: (trackId) =>
@@ -7589,6 +7709,7 @@ export const useReactStore = create<ReactStoreState>()(
             selectedSectionByTrackId: {},
             suppressedAutoSectionsByTrackId: {},
             presetAutomationCuesByTrackId: {},
+            pixGridActionCuesByTrackId: {},
             soundDrawingLayersByTrackId: {},
             soundDrawingClipsByTrackId: {},
             performancePads: DEFAULT_PERFORMANCE_PADS,
@@ -7637,6 +7758,7 @@ export const useReactStore = create<ReactStoreState>()(
           selectedSectionByTrackId:     {},
           suppressedAutoSectionsByTrackId: {},
           presetAutomationCuesByTrackId: {},
+          pixGridActionCuesByTrackId: {},
           soundDrawingLayersByTrackId:  {},
           soundDrawingClipsByTrackId:   {},
           performancePads:           DEFAULT_PERFORMANCE_PADS,
@@ -7673,7 +7795,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 49,
+      version: 50,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

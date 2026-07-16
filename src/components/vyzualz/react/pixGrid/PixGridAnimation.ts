@@ -15,6 +15,8 @@ export interface PixGridResolvedLayerAnimation {
   paletteOffset: number
   revealRow: number
   revealColumn: number
+  revealRowFrom: 'start' | 'end' | 'center'
+  revealColumnFrom: 'start' | 'end' | 'center'
   checkerAlternate: boolean
   frameIndex: number
 }
@@ -56,8 +58,18 @@ function audioValue(frame: PixGridAudioFrame, source: PixGridLayerAnimation['aud
   return clamp01(frame.bass)
 }
 
+function animationClockValue(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): number {
+  switch (animation.clock ?? 'time') {
+    case 'beat': return (frame.beatIndex ?? 0) + clamp01(frame.beatPhase)
+    case 'bar': return (frame.barIndex ?? 0) + ((frame.beatIndex ?? 0) % 4 + clamp01(frame.beatPhase)) / 4
+    case 'cue': return 0
+    case 'time':
+    default: return frame.audioTime
+  }
+}
+
 function animationTime(frame: PixGridAudioFrame, animation: PixGridLayerAnimation, motionMultiplier: number): number {
-  return frame.audioTime * Math.max(0, animation.speed) * Math.max(0, motionMultiplier) + animation.phase
+  return animationClockValue(frame, animation) * animation.speed * Math.max(0, motionMultiplier) + animation.phase
 }
 
 export function resolvePixGridLayerAnimation(
@@ -76,6 +88,8 @@ export function resolvePixGridLayerAnimation(
     paletteOffset: 0,
     revealRow: 1,
     revealColumn: 1,
+    revealRowFrom: 'start',
+    revealColumnFrom: 'start',
     checkerAlternate: false,
     frameIndex: 0,
   }
@@ -125,10 +139,16 @@ export function resolvePixGridLayerAnimation(
         break
       }
       case 'revealRow':
-        resolved.revealRow = animation.boundary === 'bounce' ? triangle(time) : clamp01(fract(time) / Math.max(0.01, amount || 1))
+        resolved.revealRowFrom = animation.revealFrom ?? 'start'
+        resolved.revealRow = animation.clock === 'cue'
+          ? clamp01(time)
+          : animation.boundary === 'bounce' ? triangle(time) : clamp01(fract(time) / Math.max(0.01, amount || 1))
         break
       case 'revealColumn':
-        resolved.revealColumn = animation.boundary === 'bounce' ? triangle(time) : clamp01(fract(time) / Math.max(0.01, amount || 1))
+        resolved.revealColumnFrom = animation.revealFrom ?? 'start'
+        resolved.revealColumn = animation.clock === 'cue'
+          ? clamp01(time)
+          : animation.boundary === 'bounce' ? triangle(time) : clamp01(fract(time) / Math.max(0.01, amount || 1))
         break
       case 'checkerAlternate':
         resolved.checkerAlternate = Math.floor(time) % 2 !== 0

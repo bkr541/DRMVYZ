@@ -170,6 +170,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector,
     pixGridState,
+    pixGridActionCuesByTrackId,
     setPixGridState,
     applyPixGridAuthoringState,
     selectSvgAsset,
@@ -206,6 +207,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrixAuthoringMode: s.laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector:           s.laserDmxShowDirector,
     pixGridState:                    s.pixGridState,
+    pixGridActionCuesByTrackId:       s.pixGridActionCuesByTrackId,
     setPixGridState:                  s.setPixGridState,
     applyPixGridAuthoringState:       s.applyPixGridAuthoringState,
     selectSvgAsset:                  s.selectSvgAsset,
@@ -386,6 +388,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     currentTimeSec: engine.currentTime,
     durationSec:    audioDurationSec,
   })
+
+  const activePixGridActionCues = useMemo(() => {
+    const trackId = engine.currentTrackId
+    return trackId ? (pixGridActionCuesByTrackId[trackId] ?? []) : []
+  }, [engine.currentTrackId, pixGridActionCuesByTrackId])
 
   const activeManualTrackSections = useMemo(() => {
     const trackId = engine.currentTrackId
@@ -572,6 +579,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 analyser={analyser}
                 activePreset={renderPreset}
                 pixGridState={pixGridState}
+                pixGridActionCues={activePixGridActionCues}
                 intensity={reactIntensity}
                 motion={reactMotion}
                 glow={reactGlow}

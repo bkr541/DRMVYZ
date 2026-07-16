@@ -26,11 +26,19 @@ import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntell
 import { resolvePixGridPerformanceFrame } from './PixGridPerformanceRuntime'
 import { clearPixGridPerformanceRuntimeStatus, publishPixGridPerformanceRuntimeStatus } from './PixGridPerformanceStatus'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from '../SharedPerformanceDiagnosticsStore'
+import {
+  PixGridCueExecutionRuntime,
+  resolvePixGridActionCueFrame,
+  type PixGridActionCue,
+  type PixGridResolvedTransition,
+} from './PixGridActionCues'
+import { clearPixGridCueRuntimeStatus, publishPixGridCueRuntimeStatus } from './PixGridCueStatus'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
   activePreset: ReactPreset | null
   pixGridState: PixGridState
+  pixGridActionCues?: readonly PixGridActionCue[]
   intensity: number
   motion: number
   glow: number
@@ -218,6 +226,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let previousPerformanceContext: SharedPerformanceContext | null = null
     let lastAudioTime = 0
     const fallbackReactionRuntime = new PixGridReactionRuntime()
+    const cueExecutionRuntime = new PixGridCueExecutionRuntime()
     let animationFrame = 0
     let gpuRenderer: PixGridGpuRenderer | null = null
     let activePath: PixGridRendererDiagnostics['path'] = 'canvas2d-fallback'
@@ -250,6 +259,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       state: PixGridState
       blackout: boolean
       preset: ReactPreset
+      transition: PixGridResolvedTransition | null
     } | null => {
       const current = propsRef.current
       const activePreset = current.activePreset
@@ -276,25 +286,36 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         ? { ...current.pixGridState, selectedSceneId }
         : current.pixGridState
       const performance = resolvePixGridPerformanceFrame(mappedState, context, activePreset.id)
-      const state = performance.state
+      const cueFrame = resolvePixGridActionCueFrame(
+        performance.state,
+        current.pixGridActionCues ?? [],
+        audioTime,
+        { trackId: current.trackIdentity ?? null, runtime: cueExecutionRuntime },
+      )
+      const state = cueFrame.state
       publishPixGridPerformanceRuntimeStatus(performance.snapshot)
+      publishPixGridCueRuntimeStatus(cueFrame.snapshot)
       publishSharedPerformanceDiagnostics(createSharedPerformanceDiagnostics(context, {
         engine: 'pixGrid',
-        active: performance.snapshot.active,
+        active: performance.snapshot.active || cueFrame.snapshot.active,
         performanceShow: performance.snapshot.programName,
-        scene: performance.snapshot.sceneId,
+        scene: state.selectedSceneId ?? performance.snapshot.sceneId,
         motifOrComposition: performance.snapshot.variationId,
         activeLayers: state.layers.filter(layer => layer.visible).map(layer => layer.id),
         activeEventEnvelopes: performance.snapshot.recentActionReasons.filter(reason => ['beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'semanticMoment'].includes(reason)),
-        recentActions: performance.snapshot.recentActionTypes,
+        recentActions: [
+          ...performance.snapshot.recentActionTypes,
+          ...cueFrame.snapshot.activeCueIds.map(id => `cue:${id}`),
+        ].slice(-16),
         continuousRoutes: state.groups.filter(group => group.enabled).map(group => group.id),
-        lockedParameters: performance.snapshot.manualOverrideRoutes,
+        lockedParameters: [...new Set([...performance.snapshot.manualOverrideRoutes, ...cueFrame.snapshot.manualOverrideRoutes])],
         fallbackState: performance.snapshot.fallbackState,
         resourceLimitDecisions: performance.actionLimitDecisions,
       }))
       return {
         preset: activePreset,
         state,
+        transition: cueFrame.transition as PixGridResolvedTransition | null,
         blackout: !shouldAnimate && state.stoppedBehavior === 'blackout',
         frame: {
           width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
@@ -323,6 +344,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         fallbackState,
         preparedAssetRef.current,
         fallbackReactionRuntime,
+        input.transition,
       )
       publishDiagnostics({
         path: 'canvas2d-fallback',
@@ -377,6 +399,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           presentationHeight: gpuCanvas.height,
           blackout: input.blackout,
           preparedAsset: preparedAssetRef.current,
+          transition: input.transition,
         })
         if (rendered) {
           const gpuDiagnostics = gpuRenderer.diagnostics
@@ -476,6 +499,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       requestRenderRef.current = () => {}
       retryGpuRef.current = () => {}
       clearPixGridPerformanceRuntimeStatus()
+      clearPixGridCueRuntimeStatus()
       clearSharedPerformanceDiagnostics('pixGrid')
     })
     const ownership = acquireReactLiveEngineOwnership('pixGrid', () => lifecycle.dispose())
@@ -503,6 +527,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     props.isPlaying,
     props.motion,
     props.pixGridState,
+    props.pixGridActionCues,
     props.trackSections,
     props.trackAnalysis,
     props.trackIdentity,

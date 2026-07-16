@@ -11322,3 +11322,106 @@
   border-radius: 2px;
   box-shadow: 0 0 8px currentColor;
 }
+
+/* PixGrid Track Map action cues share the native cue lane without creating a
+   second timeline. The double-diamond marker remains compact at high density. */
+.rv-timeline-cue--pixgrid {
+  border-style: solid;
+  border-left-width: 2px;
+  cursor: ew-resize;
+}
+
+.rv-timeline-cue--pixgrid .rv-timeline-cue-diamond {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.rv-timeline-cue--pixgrid .rv-timeline-cue-diamond::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border: 1px solid rgba(5, 10, 16, 0.72);
+}
+
+.rv-timeline-editor-drawer--pixgrid {
+  max-height: min(52vh, 440px);
+  overflow: auto;
+}
+
+.rv-pix-grid-cue-editor {
+  padding: 10px 12px 12px;
+}
+
+.rv-pix-grid-cue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
+}
+
+.rv-pix-grid-cue-grid--action {
+  padding: 8px;
+  border: 1px solid rgba(74, 199, 219, 0.14);
+  border-radius: 5px;
+  background: rgba(4, 10, 16, 0.48);
+}
+
+.rv-pix-grid-cue-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: rgba(199, 222, 230, 0.66);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rv-pix-grid-cue-field input,
+.rv-pix-grid-cue-field select {
+  width: 100%;
+  min-width: 0;
+  height: 27px;
+  padding: 0 7px;
+  border: 1px solid rgba(74, 199, 219, 0.18);
+  border-radius: 4px;
+  background: rgba(4, 10, 16, 0.9);
+  color: rgba(235, 247, 250, 0.84);
+  font-size: 9px;
+  text-transform: none;
+}
+
+.rv-pix-grid-cue-field input[type='color'] {
+  padding: 3px;
+}
+
+.rv-pix-grid-cue-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 27px;
+  color: rgba(220, 238, 243, 0.74);
+  font-size: 9px;
+}
+
+.rv-pix-grid-cue-action-heading {
+  margin: 10px 0 5px;
+  color: rgba(74, 199, 219, 0.84);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-pix-grid-cue-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: rgba(199, 222, 230, 0.58);
+  font-size: 9px;
+}
+
+.rv-pix-grid-cue-actions {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto auto;
+  gap: 6px;
+  margin-top: 10px;
+}

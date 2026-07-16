@@ -4,6 +4,14 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
 import { useVisualStore } from '../../../stores/visualStore'
 import type { ReactPreset, ReactSectionType, ReactTrackSection } from './ReactTypes'
+import { PixGridTrackMapCueEditor } from './pixGrid/PixGridTrackMapCueEditor'
+import {
+  defaultPixGridCueAction,
+  nextPixGridCueOrder,
+  normalizePixGridActionCue,
+  snapPixGridCueTime,
+  type PixGridActionCue,
+} from './pixGrid/PixGridActionCues'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import {
   computeMinDuration,
@@ -76,7 +84,7 @@ export function buildTimelineCueTitle(
   return parts.join(' · ')
 }
 
-type TimelineCueKind = 'preset' | 'cue' | 'phrase' | 'moment'
+type TimelineCueKind = 'preset' | 'pixgrid' | 'cue' | 'phrase' | 'moment'
 
 interface TimelineCueItem {
   id: string
@@ -87,6 +95,7 @@ interface TimelineCueItem {
   enabled: boolean
   title?: string
   cueMarker?: VzCueMarker
+  pixGridCue?: PixGridActionCue
 }
 
 // ── Section display metadata ───────────────────────────────────────────────────
@@ -1343,6 +1352,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     addPresetAutomationCue,
     updatePresetAutomationCue,
     removePresetAutomationCue,
+    pixGridState,
+    pixGridActionCuesByTrackId,
+    addPixGridActionCue,
+    updatePixGridActionCue,
+    duplicatePixGridActionCue,
+    removePixGridActionCue,
   } = useReactStore(useShallow(s => ({
     manualTrackSectionsByTrackId:    s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
@@ -1359,6 +1374,12 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     addPresetAutomationCue:          s.addPresetAutomationCue,
     updatePresetAutomationCue:       s.updatePresetAutomationCue,
     removePresetAutomationCue:       s.removePresetAutomationCue,
+    pixGridState:                    s.pixGridState,
+    pixGridActionCuesByTrackId:      s.pixGridActionCuesByTrackId,
+    addPixGridActionCue:             s.addPixGridActionCue,
+    updatePixGridActionCue:          s.updatePixGridActionCue,
+    duplicatePixGridActionCue:       s.duplicatePixGridActionCue,
+    removePixGridActionCue:          s.removePixGridActionCue,
   })))
 
   const {
@@ -1387,6 +1408,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const [snapMode,       setSnapMode]       = useState<SectionBoundarySnapMode>('free')
   const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
   const [cueContextMenu, setCueContextMenu] = useState<CuePointContextMenuTarget | null>(null)
+  const [pixGridCueEditor, setPixGridCueEditor] = useState<{ cue: PixGridActionCue; isNew: boolean } | null>(null)
   const [sectionUndoDepth, setSectionUndoDepth] = useState(0)
   const [drawTick,       setDrawTick]       = useState(0)
   const fallbackDurationSec = resolvePositiveDuration(audioDurationSec)
@@ -1452,6 +1474,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
 
   useEffect(() => {
     setCueContextMenu(null)
+    setPixGridCueEditor(null)
   }, [activeTrackId])
 
   useEffect(() => {
@@ -1479,6 +1502,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const trackCues = useMemo(
     () => activeTrackId ? (presetAutomationCuesByTrackId[activeTrackId] ?? []) : [],
     [activeTrackId, presetAutomationCuesByTrackId],
+  )
+  const trackPixGridCues = useMemo(
+    () => activeTrackId ? (pixGridActionCuesByTrackId[activeTrackId] ?? []) : [],
+    [activeTrackId, pixGridActionCuesByTrackId],
   )
   const assignedSectionIds = useMemo(
     () => new Set(trackCues.filter(c => c.sectionId != null).map(c => c.sectionId!)),
@@ -1509,6 +1536,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
         enabled: cue.enabled,
       }
     }),
+    ...trackPixGridCues.map(cue => ({
+      id: `pixgrid:${cue.id}`,
+      timeSec: cue.timeSec,
+      label: cue.label,
+      color: cue.color ?? '#4ac7db',
+      kind: 'pixgrid' as const,
+      enabled: cue.enabled,
+      title: `${cue.label} · PixGrid ${cue.action.type.replace(/([A-Z])/g, ' $1').toLowerCase()} · ${formatTimePrecise(cue.timeSec)}`,
+      pixGridCue: cue,
+    })),
     ...activeCueMarkers.map(cue => ({
       id: `${cue.source === 'rekordbox' ? 'rekordbox' : 'transport'}:${cue.id}`,
       timeSec: cue.time,
@@ -1543,7 +1580,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
         enabled: true,
         title: `${moment.label ?? moment.type.replace(/_/g, ' ')} · ${Math.round(moment.confidence * 100)}% confidence${moment.supportingSignals?.length ? ` · ${moment.supportingSignals.slice(0, 3).join(', ')}` : ''}`,
       })),
-  ].filter(cue => Number.isFinite(cue.timeSec)), [activeCueMarkers, currentAnalysis?.phrases, currentAnalysis?.semanticMoments, reactPresets, trackCues])
+  ].filter(cue => Number.isFinite(cue.timeSec)), [activeCueMarkers, currentAnalysis?.phrases, currentAnalysis?.semanticMoments, reactPresets, trackCues, trackPixGridCues])
 
   // Derived
   const hasTrack    = currentTrack != null
@@ -2003,6 +2040,107 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     setEditorMode('none')
   }, [activeTrackId, manualTrackSections, autoSections, suppressedIds, recordSectionUndoSnapshot, removeManualSection, suppressAutoSection, removeCueForSection])
 
+  const openNewPixGridCue = useCallback((authoredTimeSec: number) => {
+    if (!activeTrackId) return
+    const beatGrid = currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? null
+    const timeSec = snapPixGridCueTime(authoredTimeSec, 'beat', beatGrid)
+    const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `pixgrid-cue-${Date.now()}-${trackPixGridCues.length}`
+    const baseAction = defaultPixGridCueAction('selectScene')
+    const action = baseAction.type === 'selectScene'
+      ? { ...baseAction, sceneId: pixGridState.selectedSceneId ?? pixGridState.scenes[0]?.id ?? baseAction.sceneId }
+      : baseAction
+    const cue = normalizePixGridActionCue({
+      version: 1,
+      id,
+      timeSec,
+      label: 'PixGrid Action',
+      enabled: true,
+      engineId: 'pixGrid',
+      action,
+      quantization: 'beat',
+      transition: 'cut',
+      transitionDurationSec: 0,
+      oneShotDurationSec: 0.5,
+      loopBehavior: 'retrigger',
+      order: nextPixGridCueOrder(trackPixGridCues, timeSec),
+      provenance: { kind: 'manual' },
+      color: '#4ac7db',
+    }, trackPixGridCues.length)
+    if (cue) setPixGridCueEditor({ cue, isNew: true })
+  }, [activeTrackId, currentAnalysis?.beatGrid, currentEffectiveBeatGrid, pixGridState.scenes, pixGridState.selectedSceneId, trackPixGridCues])
+
+  const handleSavePixGridCue = useCallback((cue: PixGridActionCue) => {
+    if (!activeTrackId) return
+    const beatGrid = currentEffectiveBeatGrid ?? currentAnalysis?.beatGrid ?? null
+    const normalized = normalizePixGridActionCue({
+      ...cue,
+      timeSec: snapPixGridCueTime(cue.timeSec, cue.quantization, beatGrid),
+    }, cue.order)
+    if (!normalized) return
+    if (pixGridCueEditor?.isNew) addPixGridActionCue(activeTrackId, normalized)
+    else updatePixGridActionCue(activeTrackId, normalized.id, normalized)
+    setPixGridCueEditor(null)
+  }, [activeTrackId, addPixGridActionCue, currentAnalysis?.beatGrid, currentEffectiveBeatGrid, pixGridCueEditor?.isNew, updatePixGridActionCue])
+
+  const handleDuplicatePixGridCue = useCallback(() => {
+    if (!activeTrackId || !pixGridCueEditor) return
+    const id = duplicatePixGridActionCue(activeTrackId, pixGridCueEditor.cue.id)
+    if (!id) return
+    const duplicate = useReactStore.getState().pixGridActionCuesByTrackId[activeTrackId]?.find(cue => cue.id === id)
+    setPixGridCueEditor(duplicate ? { cue: duplicate, isNew: false } : null)
+  }, [activeTrackId, duplicatePixGridActionCue, pixGridCueEditor])
+
+  const handleDeletePixGridCue = useCallback(() => {
+    if (!activeTrackId || !pixGridCueEditor) return
+    removePixGridActionCue(activeTrackId, pixGridCueEditor.cue.id)
+    setPixGridCueEditor(null)
+  }, [activeTrackId, pixGridCueEditor, removePixGridActionCue])
+
+  const handlePixGridCuePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>, cue: PixGridActionCue) => {
+    if (!activeTrackId || event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    const lane = cueTimelineRef.current
+    const marker = event.currentTarget
+    if (!lane) return
+    const rect = lane.getBoundingClientRect()
+    let moved = false
+    let previewTime = cue.timeSec
+    marker.setPointerCapture?.(event.pointerId)
+
+    const move = (pointerEvent: PointerEvent) => {
+      if (Math.abs(pointerEvent.clientX - event.clientX) > 2) moved = true
+      const authored = pointerXToTime(pointerEvent.clientX, rect.left, rect.width, viewportRef.current.startSec, viewportRef.current.endSec)
+      previewTime = snapPixGridCueTime(
+        authored,
+        cue.quantization,
+        currentEffectiveBeatGridRef.current ?? currentAnalysisRef.current?.beatGrid ?? null,
+      )
+      const layout = computeTimelineCueLayout(previewTime, viewportRef.current)
+      marker.style.left = `${layout.leftPct}%`
+      marker.dataset.cueTime = String(previewTime)
+      marker.title = `${cue.label} · ${formatTimePrecise(previewTime)}`
+    }
+    const finish = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+      if (moved) {
+        updatePixGridActionCue(activeTrackId, cue.id, { timeSec: previewTime })
+        setPixGridCueEditor(current => current?.cue.id === cue.id
+          ? { ...current, cue: { ...current.cue, timeSec: previewTime } }
+          : current)
+      } else {
+        engine.seek(cue.timeSec)
+      }
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', finish, { once: true })
+    window.addEventListener('pointercancel', finish, { once: true })
+  }, [activeTrackId, engine, updatePixGridActionCue])
+
   // ── BPM display logic ──────────────────────────────────────────────────────
   const isMicSource = source === 'microphone'
   const hasOverride = currentBpmSource === 'manual_override'
@@ -2315,7 +2453,23 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     role="group"
                     aria-label="Cues and Presets"
                   >
-                    <div ref={cueTimelineRef} className="rv-timeline-lane-content rv-timeline-cue-lane">
+                    <div
+                      ref={cueTimelineRef}
+                      className="rv-timeline-lane-content rv-timeline-cue-lane"
+                      onContextMenu={event => {
+                        if (!activeTrackId || (event.target as HTMLElement).closest('[data-timeline-cue]')) return
+                        event.preventDefault()
+                        const rect = event.currentTarget.getBoundingClientRect()
+                        openNewPixGridCue(pointerXToTime(
+                          event.clientX,
+                          rect.left,
+                          rect.width,
+                          viewportRef.current.startSec,
+                          viewportRef.current.endSec,
+                        ))
+                      }}
+                      title="Right-click empty space to add a PixGrid action cue"
+                    >
                       {timelineCueItems.map(cue => {
                         const layout = computeTimelineCueLayout(cue.timeSec, viewportRef.current)
                         return (
@@ -2330,19 +2484,33 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                               left: `${layout.leftPct}%`,
                               '--cue-color': cue.color,
                             } as React.CSSProperties}
-                            onClick={() => engine.seek(cue.timeSec)}
-                            onContextMenu={cue.cueMarker ? event => {
+                            onPointerDown={cue.pixGridCue ? event => handlePixGridCuePointerDown(event, cue.pixGridCue!) : undefined}
+                            onClick={cue.pixGridCue ? undefined : () => engine.seek(cue.timeSec)}
+                            onDoubleClick={cue.pixGridCue ? event => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              setPixGridCueEditor({ cue: cue.pixGridCue!, isNew: false })
+                            } : undefined}
+                            onContextMenu={event => {
+                              if (cue.pixGridCue) {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                setPixGridCueEditor({ cue: cue.pixGridCue, isNew: false })
+                                return
+                              }
+                              if (!cue.cueMarker) return
                               event.preventDefault()
                               event.stopPropagation()
                               setCueContextMenu({
                                 x: event.clientX,
                                 y: event.clientY,
-                                authoredTimeSec: cue.cueMarker!.time,
-                                cueMarker: cue.cueMarker!,
-                                cueEditable: cue.cueMarker!.source !== 'rekordbox' && editableCueMarkerIds.has(cue.cueMarker!.id),
+                                authoredTimeSec: cue.cueMarker.time,
+                                cueMarker: cue.cueMarker,
+                                cueEditable: cue.cueMarker.source !== 'rekordbox' && editableCueMarkerIds.has(cue.cueMarker.id),
                               })
-                            } : undefined}
-                            title={'title' in cue ? cue.title : `${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
+                            }}
+                            aria-label={`${cue.label}, ${cue.kind === 'pixgrid' ? 'PixGrid action cue' : `${cue.kind} cue`}, ${formatTimePrecise(cue.timeSec)}${cue.enabled ? '' : ', disabled'}`}
+                            title={cue.title ?? `${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
                           >
                             <span className="rv-timeline-cue-diamond" aria-hidden="true" />
                             <span className="rv-timeline-cue-label">{cue.label}</span>
@@ -2358,7 +2526,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                       title={`${timelineCueItems.length} cue or preset marker${timelineCueItems.length === 1 ? '' : 's'}`}
                       aria-label={`${timelineCueItems.length} cue or preset marker${timelineCueItems.length === 1 ? '' : 's'}`}
                     >
-                      {timelineCueItems.length}
+                      {trackPixGridCues.length > 0 ? `P${trackPixGridCues.length} · ${timelineCueItems.length}` : timelineCueItems.length}
                     </div>
                   </div>
 
@@ -2381,7 +2549,21 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                 </div>
                 )}
 
-                {(editorMode === 'create' || (editorMode === 'edit' && selectedSection)) && (
+                {pixGridCueEditor && (
+                  <div className="rv-timeline-editor-drawer rv-timeline-editor-drawer--pixgrid">
+                    <PixGridTrackMapCueEditor
+                      cue={pixGridCueEditor.cue}
+                      state={pixGridState}
+                      isNew={pixGridCueEditor.isNew}
+                      onSave={handleSavePixGridCue}
+                      onCancel={() => setPixGridCueEditor(null)}
+                      onDelete={pixGridCueEditor.isNew ? undefined : handleDeletePixGridCue}
+                      onDuplicate={pixGridCueEditor.isNew ? undefined : handleDuplicatePixGridCue}
+                    />
+                  </div>
+                )}
+
+                {!pixGridCueEditor && (editorMode === 'create' || (editorMode === 'edit' && selectedSection)) && (
                   <div className="rv-timeline-editor-drawer">
                     {editorMode === 'create' && (
                       <>

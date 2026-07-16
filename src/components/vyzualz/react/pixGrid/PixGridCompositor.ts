@@ -19,6 +19,8 @@ import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { unpackPixGridOverride } from './PixGridAuthoring'
 import { pixGridReactionSourceValue, PixGridReactionRuntime } from './PixGridAudioRouting'
 import { applyPixGridGroupReactions, resolvePixGridLayerReactionFrame } from './PixGridReactions'
+import { compilePixGridGroupMask, pixGridMaskHasCell } from './PixGridGroups'
+import type { PixGridResolvedTransition } from './PixGridActionCues'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -161,6 +163,14 @@ function localCoordinates(
   return [u, v]
 }
 
+
+function revealContains(value: number, progress: number, from: 'start' | 'end' | 'center'): boolean {
+  const amount = clamp01(progress)
+  if (from === 'end') return value >= 1 - amount
+  if (from === 'center') return Math.abs(value - 0.5) <= amount * 0.5
+  return value <= amount
+}
+
 function renderLayer(
   pixels: Uint8Array,
   width: number,
@@ -194,7 +204,7 @@ function renderLayer(
         animation.rotation,
       )
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
-      if (v > animation.revealRow || u > animation.revealColumn) continue
+      if (!revealContains(v, animation.revealRow, animation.revealRowFrom) || !revealContains(u, animation.revealColumn, animation.revealColumnFrom)) continue
       if (animation.checkerAlternate && (Math.floor(u * asset.nativeSize.width) + Math.floor(v * asset.nativeSize.height)) % 2 !== 0) continue
 
       const sample = samplePixGridBuiltInAsset(layer.assetId, u, v, animation.frameIndex, layer.seed)
@@ -232,6 +242,8 @@ function renderPreparedAssetLayer(
       const outputU = (x + 0.5) / width
       const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
+      if (!revealContains(v, animation.revealRow, animation.revealRowFrom) || !revealContains(u, animation.revealColumn, animation.revealColumnFrom)) continue
+      if (animation.checkerAlternate && (Math.floor(u * preparedAsset.width) + Math.floor(v * preparedAsset.height)) % 2 !== 0) continue
       const sx = Math.max(0, Math.min(preparedAsset.width - 1, Math.floor(u * preparedAsset.width)))
       const sy = Math.max(0, Math.min(preparedAsset.height - 1, Math.floor(v * preparedAsset.height)))
       const sourceOffset = (sy * preparedAsset.width + sx) * 4
@@ -259,7 +271,7 @@ function preparedAssetFor(
   return source.get(mediaId) ?? null
 }
 
-export function composePixGridLogicalFrame(
+function composePixGridBaseFrame(
   preset: ReactPreset,
   rawState: PixGridState,
   frame: PixGridAudioFrame,
@@ -344,5 +356,98 @@ export function composePixGridLogicalFrame(
     )
   }
 
+  for (const group of state.groups) {
+    if (group.contentVisible !== false) continue
+    const mask = compilePixGridGroupMask(group, width, height)
+    for (let index = 0; index < width * height; index += 1) {
+      if (!pixGridMaskHasCell(mask.bits, index)) continue
+      const offset = index * 4
+      pixels[offset] = 0
+      pixels[offset + 1] = 0
+      pixels[offset + 2] = 0
+      pixels[offset + 3] = 0
+    }
+  }
+
   return { width, height, pixels, visibleLayerCount: visibleLayers.length }
+}
+
+function transitionNoise(x: number, y: number, seed: number): number {
+  let value = Math.imul((x + 1) ^ seed, 0x45d9f3b) ^ Math.imul((y + 1) ^ (seed >>> 1), 0x27d4eb2d)
+  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b)
+  value ^= value >>> 16
+  return (value >>> 0) / 0xffffffff
+}
+
+function transitionMix(type: PixGridResolvedTransition['type'], x: number, y: number, width: number, height: number, progress: number, seed: number): number {
+  const u = (x + 0.5) / Math.max(1, width)
+  const v = (y + 0.5) / Math.max(1, height)
+  switch (type) {
+    case 'crossfade':
+    case 'paletteFade': return progress
+    case 'rowWipe': return v <= progress ? 1 : 0
+    case 'columnWipe': return u <= progress ? 1 : 0
+    case 'checkerWipe': {
+      const checker = ((x + y) & 1) * 0.12
+      return v <= Math.max(0, progress - checker) ? 1 : 0
+    }
+    case 'pixelDissolve': return transitionNoise(x, y, seed) <= progress ? 1 : 0
+    case 'radialReveal': return Math.hypot(u - 0.5, v - 0.5) / Math.SQRT1_2 <= progress ? 1 : 0
+    case 'powerOn': {
+      const scan = Math.abs(v - 0.5) * 2
+      return scan <= progress ? Math.min(1, progress * 1.4) : 0
+    }
+    case 'powerOff': {
+      const scan = Math.abs(v - 0.5) * 2
+      return scan >= 1 - progress ? 1 : 0
+    }
+    case 'cut':
+    default: return 1
+  }
+}
+
+function applyLogicalTransition(
+  target: Uint8Array,
+  source: Uint8Array,
+  width: number,
+  height: number,
+  transition: PixGridResolvedTransition,
+): void {
+  const progress = clamp01(transition.progress)
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const mix = transitionMix(transition.type, x, y, width, height, progress, transition.seed)
+      if (mix >= 1) continue
+      const offset = (y * width + x) * 4
+      if (mix <= 0) {
+        target[offset] = source[offset]
+        target[offset + 1] = source[offset + 1]
+        target[offset + 2] = source[offset + 2]
+        target[offset + 3] = source[offset + 3]
+        continue
+      }
+      target[offset] = Math.round(source[offset] + (target[offset] - source[offset]) * mix)
+      target[offset + 1] = Math.round(source[offset + 1] + (target[offset + 1] - source[offset + 1]) * mix)
+      target[offset + 2] = Math.round(source[offset + 2] + (target[offset + 2] - source[offset + 2]) * mix)
+      target[offset + 3] = Math.round(source[offset + 3] + (target[offset + 3] - source[offset + 3]) * mix)
+    }
+  }
+}
+
+export function composePixGridLogicalFrame(
+  preset: ReactPreset,
+  rawState: PixGridState,
+  frame: PixGridAudioFrame,
+  reusable?: Uint8Array,
+  preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
+  reactionRuntime?: PixGridReactionRuntime,
+  transition?: PixGridResolvedTransition | null,
+): PixGridLogicalFrame {
+  const target = composePixGridBaseFrame(preset, rawState, frame, reusable, preparedAsset, reactionRuntime)
+  if (!transition || transition.type === 'cut' || transition.progress >= 1) return target
+  const source = composePixGridBaseFrame(preset, transition.fromState, frame, undefined, preparedAsset)
+  if (source.width === target.width && source.height === target.height) {
+    applyLogicalTransition(target.pixels, source.pixels, target.width, target.height, transition)
+  }
+  return target
 }

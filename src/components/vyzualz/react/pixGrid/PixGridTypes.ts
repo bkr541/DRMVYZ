@@ -1,4 +1,4 @@
-export const PIX_GRID_STATE_VERSION = 7 as const
+export const PIX_GRID_STATE_VERSION = 8 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
@@ -109,11 +109,14 @@ export interface PixGridBuiltInAssetManifestEntry {
 
 export interface PixGridLayerAnimation {
   mode: PixGridAnimationMode
+  /** Selects the authoritative musical clock used by frame sequences and motion. */
+  clock?: 'time' | 'beat' | 'bar' | 'cue'
   speed: number
   amount: number
   phase: number
   boundary: PixGridAnimationBoundary
   axis?: 'x' | 'y'
+  revealFrom?: 'start' | 'end' | 'center'
   stepped?: boolean
   audioSource?: PixGridAudioSource
 }
@@ -228,6 +231,8 @@ export interface PixGridGroup {
   smartRuleId: string | null
   enabled: boolean
   visible: boolean
+  /** Runtime content visibility. Unlike visible, this affects the rendered group mask. */
+  contentVisible?: boolean
   priority: number
   overlapBehavior: PixGridGroupOverlapBehavior
   reactions: PixGridReactionAssignment[]
