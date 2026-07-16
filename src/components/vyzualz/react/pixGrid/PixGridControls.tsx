@@ -211,7 +211,7 @@ export function PixGridControls() {
         label="Edit PixGrid"
         value={state.authoringOverlayVisible}
         onChange={setOverlay}
-        description="Toggles the authoring state. The full overlay editor arrives in Patch 5."
+        description="Opens the interactive PixGrid authoring overlay over the live center output."
       />
     </div>
   )

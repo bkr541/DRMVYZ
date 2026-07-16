@@ -1,8 +1,8 @@
-export const PIX_GRID_STATE_VERSION = 4 as const
+export const PIX_GRID_STATE_VERSION = 5 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
-export type PixGridEditorTool = 'select' | 'pencil' | 'eraser' | 'fill' | 'group'
+export type PixGridEditorTool = 'select' | 'pan' | 'pencil' | 'eraser' | 'fill' | 'eyedropper' | 'rectangle' | 'line' | 'marquee' | 'move'
 export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade'
 export type PixGridBlendMode = 'normal' | 'add' | 'multiply'
 export type PixGridStoppedBehavior = 'baseline' | 'blackout'
@@ -48,7 +48,35 @@ export type PixGridBuiltInAssetId =
   | 'pix-pixel-burst'
   | 'pix-geometric-tunnel'
 
-export type PixGridPixelOverride = readonly [x: number, y: number, color: string, brightness: number]
+export type PixGridPixelOverrideMode = 0 | 1
+/** Compact sparse tuple. Mode 0 forces the cell off; mode 1 paints color at opacity. Legacy v4 tuples are accepted by normalization. */
+export type PixGridPixelOverride = readonly [x: number, y: number, mode: PixGridPixelOverrideMode, color: string, opacity: number] | readonly [x: number, y: number, color: string, opacity: number]
+
+export interface PixGridCellRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface PixGridScene {
+  id: string
+  name: string
+  layerIds: string[]
+  pixelOverrides: PixGridPixelOverride[]
+}
+
+export interface PixGridEditorSettings {
+  guidesVisible: boolean
+  zoom: number
+  panX: number
+  panY: number
+  paintColor: string
+  paintOpacity: number
+  eraserMode: 'off' | 'restore'
+  selectedLayerId: string | null
+  selection: PixGridCellRect | null
+}
 
 export interface PixGridBuiltInAssetManifestEntry {
   id: PixGridBuiltInAssetId
@@ -86,6 +114,9 @@ export interface PixGridLayer {
   id: string
   name: string
   assetId: PixGridBuiltInAssetId
+  /** Media layers keep their library reference without embedding blobs. */
+  mediaId?: string | null
+  locked?: boolean
   visible: boolean
   opacity: number
   position: { x: number; y: number }
@@ -200,6 +231,8 @@ export interface PixGridState {
   selectedSceneId: string | null
   authoringOverlayVisible: boolean
   editorTool: PixGridEditorTool
+  editor: PixGridEditorSettings
+  scenes: PixGridScene[]
   layers: PixGridLayer[]
   groups: PixGridGroup[]
   pixelOverrides: PixGridPixelOverride[]

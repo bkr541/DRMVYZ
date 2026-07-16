@@ -260,7 +260,14 @@ describe('PixGrid finished presets', () => {
     const state = stateForPreset(0)
     const energy = (layerId: string, inactive: PixGridAudioFrame, active: PixGridAudioFrame) => {
       const source = preset.pixGridSettings!.layers!.find(layer => layer.id === layerId)!
-      const isolated = normalizePixGridState({ ...state, selectedSceneId: 'test-isolated-scene', layers: [cloneLayer(source)] })
+      const isolatedLayer = cloneLayer(source, { densityRank: 0 })
+      const isolated = normalizePixGridState({
+        ...state,
+        selectedSceneId: 'test-isolated-scene',
+        layers: [isolatedLayer],
+        scenes: [{ id: 'test-isolated-scene', name: 'Isolated', layerIds: [isolatedLayer.id], pixelOverrides: [] }],
+        pixelOverrides: [],
+      })
       const sum = (frame: PixGridAudioFrame) => composePixGridLogicalFrame(preset, isolated, frame).pixels
         .reduce((total, value) => total + value, 0)
       return [sum(inactive), sum(active)] as const

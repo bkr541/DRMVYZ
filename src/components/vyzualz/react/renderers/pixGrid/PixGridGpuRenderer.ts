@@ -30,7 +30,7 @@ interface PixGridGpuRenderInput {
   presentationWidth: number
   presentationHeight: number
   blackout?: boolean
-  preparedAsset?: PixGridPreparedAsset | null
+  preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null
 }
 
 interface SavedWebGLState {

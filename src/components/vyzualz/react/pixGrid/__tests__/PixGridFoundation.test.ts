@@ -78,7 +78,7 @@ describe('PixGrid engine foundation', () => {
     expect(normalized.backgroundColor).toBe('#030608')
     expect(normalized.layers[0]).toMatchObject({ opacity: 1, blendMode: 'normal' })
     expect(normalized.groups[0].cellRuns[0]).toEqual([143, 0, 256])
-    expect(normalized.pixelOverrides).toEqual([[255, 0, '#123456', 0.4]])
+    expect(normalized.pixelOverrides).toEqual([[255, 0, 1, '#123456', 0.4]])
     expect(normalized.performance.lockedRoutes).toEqual(['bass'])
     expect(() => JSON.stringify(normalized)).not.toThrow()
   })

@@ -16,6 +16,7 @@ import type {
 import { normalizePixGridState } from './PixGridValidation'
 import { MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
 import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
+import { unpackPixGridOverride } from './PixGridAuthoring'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -214,12 +215,60 @@ function renderLayer(
   }
 }
 
+function renderPreparedAssetLayer(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  layer: PixGridLayer,
+  preparedAsset: PixGridPreparedAsset,
+  frame: PixGridAudioFrame,
+  scene: PixGridSceneSettings,
+): void {
+  const animation = resolvePixGridLayerAnimation(layer, PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)!, frame, scene.motionMultiplier)
+  const audioScale = effectiveScale(layer, frame)
+  const scaleX = animation.scaleX * audioScale
+  const scaleY = animation.scaleY * audioScale
+  const opacity = clamp01(animation.opacity * effectiveOpacity(layer, scene, frame))
+  if (opacity <= 0) return
+  for (let y = 0; y < height; y += 1) {
+    const outputV = (y + 0.5) / height
+    for (let x = 0; x < width; x += 1) {
+      const outputU = (x + 0.5) / width
+      const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
+      if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
+      const sx = Math.max(0, Math.min(preparedAsset.width - 1, Math.floor(u * preparedAsset.width)))
+      const sy = Math.max(0, Math.min(preparedAsset.height - 1, Math.floor(v * preparedAsset.height)))
+      const sourceOffset = (sy * preparedAsset.width + sx) * 4
+      const alpha = preparedAsset.pixels[sourceOffset + 3] / 255 * opacity
+      if (alpha <= 0) continue
+      blendPixel(pixels, (y * width + x) * 4, [
+        preparedAsset.pixels[sourceOffset],
+        preparedAsset.pixels[sourceOffset + 1],
+        preparedAsset.pixels[sourceOffset + 2],
+      ], alpha, layer.blendMode)
+    }
+  }
+}
+
+function isPreparedAsset(source: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset>): source is PixGridPreparedAsset {
+  return 'mediaId' in source
+}
+
+function preparedAssetFor(
+  source: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null | undefined,
+  mediaId: string,
+): PixGridPreparedAsset | null {
+  if (!source) return null
+  if (isPreparedAsset(source)) return source.mediaId === mediaId ? source : null
+  return source.get(mediaId) ?? null
+}
+
 export function composePixGridLogicalFrame(
   preset: ReactPreset,
   rawState: PixGridState,
   frame: PixGridAudioFrame,
   reusable?: Uint8Array,
-  preparedAsset?: PixGridPreparedAsset | null,
+  preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
 ): PixGridLogicalFrame {
   const state = normalizePixGridState(rawState)
   const width = state.matrixWidth
@@ -229,16 +278,26 @@ export function composePixGridLogicalFrame(
   pixels.fill(0)
   const scene = sceneFor(preset, state)
   const hidden = new Set(scene.hiddenLayerIds ?? [])
+  const activeScene = state.scenes.find(candidate => candidate.id === state.selectedSceneId) ?? state.scenes[0]
+  const orderedLayerIds = activeScene?.layerIds ?? state.layers.map(layer => layer.id)
+  const activeLayerIds = new Set(orderedLayerIds)
+  const layerOrder = new Map(orderedLayerIds.map((id, index) => [id, index]))
   const visibleLayers = state.layers
-    .filter(layer => layer.visible && !hidden.has(layer.id) && layer.densityRank <= scene.density)
-    .sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id))
+    .filter(layer => activeLayerIds.has(layer.id) && layer.visible && !hidden.has(layer.id) && layer.densityRank <= scene.density)
+    .sort((a, b) => (layerOrder.get(a.id) ?? a.zIndex) - (layerOrder.get(b.id) ?? b.zIndex) || a.id.localeCompare(b.id))
     .slice(0, MAX_PIX_GRID_VISIBLE_LAYERS)
 
-  for (const layer of visibleLayers) renderLayer(pixels, width, height, layer, preset.palette, frame, scene)
+  for (const layer of visibleLayers) {
+    const mediaAsset = layer.mediaId ? preparedAssetFor(preparedAsset, layer.mediaId) : null
+    if (mediaAsset) renderPreparedAssetLayer(pixels, width, height, layer, mediaAsset, frame, scene)
+    else if (!layer.mediaId) renderLayer(pixels, width, height, layer, preset.palette, frame, scene)
+  }
 
   if (
     state.conversion.selectedMediaId
-    && preparedAsset?.mediaId === state.conversion.selectedMediaId
+    && preparedAsset != null
+    && isPreparedAsset(preparedAsset)
+    && preparedAsset.mediaId === state.conversion.selectedMediaId
     && preparedAsset.width === width
     && preparedAsset.height === height
   ) {
@@ -255,13 +314,18 @@ export function composePixGridLogicalFrame(
     }
   }
 
-  for (const [x, y, color, brightness] of state.pixelOverrides) {
+  const overrides = activeScene?.pixelOverrides ?? state.pixelOverrides
+  for (const override of overrides) {
+    const [x, y, mode, color, opacity] = unpackPixGridOverride(override)
     const offset = (y * width + x) * 4
-    const [r, g, b] = hexToRgb(color)
-    pixels[offset] = Math.round(r * clamp01(brightness))
-    pixels[offset + 1] = Math.round(g * clamp01(brightness))
-    pixels[offset + 2] = Math.round(b * clamp01(brightness))
-    pixels[offset + 3] = 255
+    if (mode === 0) {
+      pixels[offset] = 0
+      pixels[offset + 1] = 0
+      pixels[offset + 2] = 0
+      pixels[offset + 3] = 0
+      continue
+    }
+    blendPixel(pixels, offset, hexToRgb(color), opacity, 'normal')
   }
 
   return { width, height, pixels, visibleLayerCount: visibleLayers.length }

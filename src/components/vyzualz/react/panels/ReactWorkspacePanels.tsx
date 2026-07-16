@@ -8,6 +8,7 @@ import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ReactRecordingPanel } from '../ReactRecordingPanel'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
+import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
 
 type DesignSurface = 'engine' | 'selection'
 type ReactivitySurface = 'routing' | 'analysis'
@@ -47,11 +48,24 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
   const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
   const laserDmxBeamMatrixAuthoringMode = useReactStore(state => state.laserDmxBeamMatrixAuthoringMode)
   const showDirectorDesign = activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector'
+  const pixGridDesign = activeReactEngineId === 'pixGrid'
   const [surface, setSurface] = useState<DesignSurface>(hasSelection ? 'selection' : 'engine')
 
   useEffect(() => {
     setSurface(hasSelection ? 'selection' : 'engine')
   }, [hasSelection])
+
+  if (pixGridDesign) {
+    return (
+      <div className="rv-workspace-panel">
+        <div className="rv-workspace-panel-body">
+          <div className="rv-inspector rv-inspector-scroll">
+            <PixGridDesignPanel />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (showDirectorDesign) {
     return (

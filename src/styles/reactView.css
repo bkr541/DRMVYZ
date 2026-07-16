@@ -11037,3 +11037,251 @@
   bottom: 50px;
   border-color: rgba(74, 199, 219, 0.3);
 }
+
+/* ── PixGrid Patch 5 authoring ───────────────────────────────────────────── */
+.rv-pix-grid-editor-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.rv-pix-grid-editor-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.rv-pix-grid-editor-toolbar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  max-width: calc(100% - 24px);
+  padding: 5px;
+  border: 1px solid rgba(74, 199, 219, 0.28);
+  border-radius: 8px;
+  background: rgba(4, 8, 11, 0.9);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35);
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.rv-pix-grid-editor-toolbar button,
+.rv-pix-grid-history-row button,
+.rv-pix-grid-browser-actions button,
+.rv-pix-grid-layer-list button,
+.rv-pix-grid-built-in-grid button,
+.rv-pix-grid-edit-toggle {
+  min-height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(232, 244, 248, 0.72);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.rv-pix-grid-editor-toolbar button {
+  padding: 0 7px;
+  letter-spacing: 0.035em;
+}
+
+.rv-pix-grid-editor-toolbar button:hover,
+.rv-pix-grid-editor-toolbar button.is-active,
+.rv-pix-grid-edit-toggle.is-active {
+  border-color: rgba(74, 199, 219, 0.58);
+  background: rgba(74, 199, 219, 0.16);
+  color: #eaffff;
+}
+
+.rv-pix-grid-editor-zoom {
+  align-self: center;
+  min-width: 42px;
+  color: rgba(74, 199, 219, 0.85);
+  font-size: 9px;
+  text-align: center;
+}
+
+.rv-pix-grid-edit-toggle {
+  width: 100%;
+  min-height: 34px;
+  margin-bottom: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-pix-grid-browser-section {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 14px;
+}
+
+.rv-pix-grid-browser-section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(232, 244, 248, 0.72);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.rv-pix-grid-browser-section > header span {
+  color: rgba(74, 199, 219, 0.68);
+}
+
+.rv-pix-grid-scene-list,
+.rv-pix-grid-layer-list {
+  display: grid;
+  gap: 4px;
+}
+
+.rv-pix-grid-scene-list > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(232, 244, 248, 0.72);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-pix-grid-scene-list > button.is-active,
+.rv-pix-grid-layer-list > div.is-active {
+  border-color: rgba(74, 199, 219, 0.45);
+  background: rgba(74, 199, 219, 0.09);
+}
+
+.rv-pix-grid-scene-list small,
+.rv-pix-grid-layer-list small,
+.rv-pix-grid-built-in-grid small {
+  color: rgba(232, 244, 248, 0.42);
+  font-size: 8px;
+}
+
+.rv-pix-grid-inline-field {
+  display: grid;
+  gap: 4px;
+  color: rgba(232, 244, 248, 0.5);
+  font-size: 9px;
+}
+
+.rv-pix-grid-inline-field input {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.24);
+  color: rgba(232, 244, 248, 0.86);
+}
+
+.rv-pix-grid-browser-actions,
+.rv-pix-grid-history-row {
+  display: flex;
+  gap: 5px;
+}
+
+.rv-pix-grid-browser-actions button,
+.rv-pix-grid-history-row button {
+  flex: 1;
+  padding: 0 7px;
+}
+
+.rv-pix-grid-layer-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(6, 25px);
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.rv-pix-grid-layer-list .rv-pix-grid-layer-main {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  min-width: 0;
+  padding: 0 6px;
+  text-align: left;
+}
+
+.rv-pix-grid-layer-main span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-pix-grid-layer-list > div > button:not(.rv-pix-grid-layer-main) {
+  padding: 0;
+}
+
+.rv-pix-grid-layer-list p {
+  margin: 4px 0;
+  color: rgba(232, 244, 248, 0.42);
+  font-size: 10px;
+}
+
+.rv-pix-grid-built-in-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.rv-pix-grid-built-in-grid button {
+  display: grid;
+  gap: 3px;
+  min-height: 48px;
+  padding: 7px;
+  text-align: left;
+}
+
+.rv-pix-grid-history-row {
+  align-items: center;
+  margin: 0 0 10px;
+}
+
+.rv-pix-grid-history-row span {
+  min-width: 42px;
+  color: rgba(232, 244, 248, 0.42);
+  font-size: 9px;
+  text-align: right;
+}
+
+.rv-pix-grid-design-subtabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 8px;
+  background: var(--panel-bg, #090d10);
+}
+
+.rv-pix-grid-design-subtabs button {
+  padding-inline: 3px;
+  font-size: 8px;
+}
+
+.rv-pix-grid-editor-toolbar button:disabled,
+.rv-pix-grid-history-row button:disabled,
+.rv-pix-grid-browser-actions button:disabled,
+.rv-pix-grid-layer-list button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}

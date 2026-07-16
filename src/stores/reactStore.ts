@@ -189,6 +189,7 @@ import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/P
 import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from '../components/vyzualz/react/pixGrid/PixGridState'
 import type { PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import { normalizePixGridPresetSettings, normalizePixGridState } from '../components/vyzualz/react/pixGrid/PixGridValidation'
+import { MAX_PIX_GRID_HISTORY } from '../components/vyzualz/react/pixGrid/PixGridLimits'
 import { isSelectableReactEngineId, REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
 import {
   getMediaIdFromSvgGlyphId,
@@ -1353,6 +1354,29 @@ function buildLaserDmxShowDirectorHistoryPatch(
 }
 
 
+function pixGridSnapshotsEqual(a: PixGridState, b: PixGridState): boolean {
+  return JSON.stringify(normalizePixGridState(a)) === JSON.stringify(normalizePixGridState(b))
+}
+
+function trimPixGridHistory(stack: PixGridState[]): PixGridState[] {
+  return stack.slice(Math.max(0, stack.length - MAX_PIX_GRID_HISTORY))
+}
+
+function buildPixGridHistoryPatch(
+  storeState: Pick<ReactStoreState, 'pixGridState' | 'pixGridUndoStack' | 'pixGridRedoStack' | 'pixGridHistoryTransaction'>,
+  nextState: PixGridState,
+) {
+  const current = normalizePixGridState(storeState.pixGridState)
+  const next = normalizePixGridState(nextState)
+  if (pixGridSnapshotsEqual(current, next)) return {}
+  if (storeState.pixGridHistoryTransaction) return { pixGridState: next }
+  return {
+    pixGridState: next,
+    pixGridUndoStack: trimPixGridHistory([...storeState.pixGridUndoStack, current]),
+    pixGridRedoStack: [],
+  }
+}
+
 // ── Beam Matrix local helpers ─────────────────────────────────────────────────
 
 function clampCol(v: number): number { return Math.max(1, Math.min(LASER_DMX_MATRIX_COLUMNS, Math.round(v))) }
@@ -1638,6 +1662,15 @@ interface ReactStoreState {
   setPixGridState: (patch: Partial<PixGridState>) => void
   resetPixGridState: () => void
   setPixGridAuthoringOverlayVisible: (visible: boolean) => void
+  pixGridUndoStack: PixGridState[]
+  pixGridRedoStack: PixGridState[]
+  pixGridHistoryTransaction: PixGridState | null
+  applyPixGridAuthoringState: (nextState: PixGridState) => void
+  beginPixGridHistoryTransaction: () => void
+  commitPixGridHistoryTransaction: () => void
+  cancelPixGridHistoryTransaction: () => void
+  undoPixGridEdit: () => void
+  redoPixGridEdit: () => void
 
   // Cinematic Worlds live authoring state. Preset definitions remain immutable baselines.
   cinematicConfigsByPresetId: Record<string, CinematicWorldConfig>
@@ -3574,6 +3607,14 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       pixGridState: normalizePixGridState(state.pixGridState),
     }
   }
+  if (version < 49) {
+    // Patch 5 promotes presets into editable scenes and migrates legacy sparse
+    // overrides into compact mode/color/opacity tuples.
+    state = {
+      ...state,
+      pixGridState: normalizePixGridState(state.pixGridState),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -3927,10 +3968,7 @@ export function mergeReactStoreState(
   const activePixGridPreset = repairedSelection.activeReactEngineId === 'pixGrid'
     ? reactPresets.find(preset => preset.id === repairedSelection.activeReactPresetId && preset.engine === 'pixGrid') ?? null
     : null
-  const persistedPixGridVersion = typeof persisted.pixGridState === 'object' && persisted.pixGridState !== null
-    ? (persisted.pixGridState as { version?: unknown }).version
-    : null
-  const needsPixGridArtworkMigration = persistedPixGridVersion !== 4 || merged.pixGridState.layers.length === 0
+  const needsPixGridArtworkMigration = merged.pixGridState.layers.length === 0
   const pixGridState = activePixGridPreset && (
     merged.pixGridState.selectedPresetId !== activePixGridPreset.id || needsPixGridArtworkMigration
   )
@@ -3959,6 +3997,9 @@ export function mergeReactStoreState(
     laserDmxShowDirectorUndoStack: [],
     laserDmxShowDirectorRedoStack: [],
     laserDmxShowDirectorHistoryTransaction: null,
+    pixGridUndoStack: [],
+    pixGridRedoStack: [],
+    pixGridHistoryTransaction: null,
     performanceActionEvent: null,
     performanceActionEvents: [],
     performanceActionSeq: currentState.performanceActionSeq,
@@ -3978,6 +4019,9 @@ export const useReactStore = create<ReactStoreState>()(
       activeReactEngineId: INITIAL_ENGINE_ID,
       reactPresets: DEFAULT_REACT_PRESETS,
       pixGridState: createDefaultPixGridState(),
+      pixGridUndoStack: [],
+      pixGridRedoStack: [],
+      pixGridHistoryTransaction: null,
       cinematicConfigsByPresetId: {},
       cinematicSeedLocksByPresetId: {},
       cinematicWorldsUiMode: 'simple',
@@ -4041,12 +4085,15 @@ export const useReactStore = create<ReactStoreState>()(
       reactParticleDensity: 0.5,
       performancePadTransition: null,
 
-      setPixGridState: (patch) => set((state) => ({
-        pixGridState: normalizePixGridState({
-          ...state.pixGridState,
-          ...patch,
-        }),
-      })),
+      setPixGridState: (patch) => set((state) => {
+        const merged: PixGridState = { ...state.pixGridState, ...patch }
+        if (Object.prototype.hasOwnProperty.call(patch, 'pixelOverrides')) {
+          merged.scenes = state.pixGridState.scenes.map(scene => scene.id === state.pixGridState.selectedSceneId
+            ? { ...scene, pixelOverrides: patch.pixelOverrides ?? [] }
+            : scene)
+        }
+        return { pixGridState: normalizePixGridState(merged) }
+      }),
 
       resetPixGridState: () => set((state) => ({
         pixGridState: resetPixGridStatePreservingSelection(state.pixGridState),
@@ -4058,6 +4105,64 @@ export const useReactStore = create<ReactStoreState>()(
           authoringOverlayVisible: visible,
         }),
       })),
+
+      applyPixGridAuthoringState: (nextState) => set(state => buildPixGridHistoryPatch(state, nextState)),
+
+      beginPixGridHistoryTransaction: () => set(state => state.pixGridHistoryTransaction
+        ? {}
+        : { pixGridHistoryTransaction: normalizePixGridState(state.pixGridState) }),
+
+      commitPixGridHistoryTransaction: () => set(state => {
+        const base = state.pixGridHistoryTransaction
+        if (!base) return {}
+        const current = normalizePixGridState(state.pixGridState)
+        if (pixGridSnapshotsEqual(base, current)) return { pixGridHistoryTransaction: null }
+        return {
+          pixGridUndoStack: trimPixGridHistory([...state.pixGridUndoStack, base]),
+          pixGridRedoStack: [],
+          pixGridHistoryTransaction: null,
+        }
+      }),
+
+      cancelPixGridHistoryTransaction: () => set(state => state.pixGridHistoryTransaction
+        ? { pixGridState: normalizePixGridState(state.pixGridHistoryTransaction), pixGridHistoryTransaction: null }
+        : {}),
+
+      undoPixGridEdit: () => set(state => {
+        const previous = state.pixGridUndoStack[state.pixGridUndoStack.length - 1]
+        if (!previous) return {}
+        const current = normalizePixGridState(state.pixGridState)
+        const restored = normalizePixGridState({
+          ...previous,
+          authoringOverlayVisible: current.authoringOverlayVisible,
+          editorTool: current.editorTool,
+          editor: { ...previous.editor, zoom: current.editor.zoom, panX: current.editor.panX, panY: current.editor.panY },
+        })
+        return {
+          pixGridState: restored,
+          pixGridUndoStack: state.pixGridUndoStack.slice(0, -1),
+          pixGridRedoStack: trimPixGridHistory([...state.pixGridRedoStack, current]),
+          pixGridHistoryTransaction: null,
+        }
+      }),
+
+      redoPixGridEdit: () => set(state => {
+        const next = state.pixGridRedoStack[state.pixGridRedoStack.length - 1]
+        if (!next) return {}
+        const current = normalizePixGridState(state.pixGridState)
+        const restored = normalizePixGridState({
+          ...next,
+          authoringOverlayVisible: current.authoringOverlayVisible,
+          editorTool: current.editorTool,
+          editor: { ...next.editor, zoom: current.editor.zoom, panX: current.editor.panX, panY: current.editor.panY },
+        })
+        return {
+          pixGridState: restored,
+          pixGridUndoStack: trimPixGridHistory([...state.pixGridUndoStack, current]),
+          pixGridRedoStack: state.pixGridRedoStack.slice(0, -1),
+          pixGridHistoryTransaction: null,
+        }
+      }),
 
       setCinematicConfigForPreset: (presetId, config) =>
         set((state) => {
@@ -4535,17 +4640,28 @@ export const useReactStore = create<ReactStoreState>()(
 
       selectReactEngine: (engineId) =>
         set((s) => {
+          const pixGridCleanup = engineId === 'pixGrid'
+            ? {}
+            : {
+                pixGridState: normalizePixGridState({
+                  ...s.pixGridState,
+                  authoringOverlayVisible: false,
+                }),
+                pixGridHistoryTransaction: null,
+              }
+
           if (!isSelectableReactEngineId(engineId)) {
             const fallback = s.reactPresets.find(
               preset => preset.id === INITIAL_PRESET_ID && isSelectableReactEngineId(preset.engine),
             )
             return fallback
-              ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null }
+              ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null, ...pixGridCleanup }
               : {
                   activeReactEngineId: INITIAL_ENGINE_ID,
                   activeReactPresetId: INITIAL_PRESET_ID,
                   performancePadTransition: null,
                   ...clearPerformanceActionPatch(),
+                  ...pixGridCleanup,
                 }
           }
 
@@ -4556,6 +4672,7 @@ export const useReactStore = create<ReactStoreState>()(
               activeReactPresetId: null,
               performancePadTransition: null,
               ...clearPerformanceActionPatch(),
+              ...pixGridCleanup,
             }
           }
 
@@ -4565,24 +4682,25 @@ export const useReactStore = create<ReactStoreState>()(
               )
             : null
           if (current?.engine === engineId) {
-            return { activeReactEngineId: engineId, performancePadTransition: null }
+            return { activeReactEngineId: engineId, performancePadTransition: null, ...pixGridCleanup }
           }
 
           const preset = s.reactPresets.find(
             candidate => candidate.engine === engineId && isSelectableReactEngineId(candidate.engine),
           )
-          if (preset) return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
+          if (preset) return { ...buildPresetPatchForState(preset, s), performancePadTransition: null, ...pixGridCleanup }
 
           const fallback = s.reactPresets.find(
             candidate => candidate.id === INITIAL_PRESET_ID && isSelectableReactEngineId(candidate.engine),
           )
           return fallback
-            ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null }
+            ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null, ...pixGridCleanup }
             : {
                 activeReactEngineId: INITIAL_ENGINE_ID,
                 activeReactPresetId: INITIAL_PRESET_ID,
                 performancePadTransition: null,
                 ...clearPerformanceActionPatch(),
+                ...pixGridCleanup,
               }
         }),
 
@@ -4590,11 +4708,19 @@ export const useReactStore = create<ReactStoreState>()(
         set((s) => {
           const safePresetId = replaceLockedLaserDmxPresetId(id) ?? id
           const preset = s.reactPresets.find((p) => p.id === safePresetId && isSelectableReactEngineId(p.engine))
-          if (!preset) {
-            const fallback = s.reactPresets.find(candidate => candidate.id === INITIAL_PRESET_ID && isSelectableReactEngineId(candidate.engine))
-            return fallback ? { ...buildPresetPatchForState(fallback, s), performancePadTransition: null } : {}
-          }
-          return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
+          const selected = preset
+            ?? s.reactPresets.find(candidate => candidate.id === INITIAL_PRESET_ID && isSelectableReactEngineId(candidate.engine))
+          if (!selected) return {}
+          const pixGridCleanup = selected.engine === 'pixGrid'
+            ? {}
+            : {
+                pixGridState: normalizePixGridState({
+                  ...s.pixGridState,
+                  authoringOverlayVisible: false,
+                }),
+                pixGridHistoryTransaction: null,
+              }
+          return { ...buildPresetPatchForState(selected, s), performancePadTransition: null, ...pixGridCleanup }
         }),
 
       updateReactPresetParams: (id, patch) =>
@@ -7443,6 +7569,9 @@ export const useReactStore = create<ReactStoreState>()(
             ...repairedSelection,
             reactPresets: DEFAULT_REACT_PRESETS,
             pixGridState: createDefaultPixGridState(),
+            pixGridUndoStack: [],
+            pixGridRedoStack: [],
+            pixGridHistoryTransaction: null,
             cinematicConfigsByPresetId: {},
             cinematicSeedLocksByPresetId: {},
             canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
@@ -7487,6 +7616,9 @@ export const useReactStore = create<ReactStoreState>()(
           activeReactEngineId:          INITIAL_ENGINE_ID,
           reactPresets:                 DEFAULT_REACT_PRESETS,
           pixGridState:                 createDefaultPixGridState(),
+          pixGridUndoStack:             [],
+          pixGridRedoStack:             [],
+          pixGridHistoryTransaction:    null,
           cinematicConfigsByPresetId:   {},
           cinematicSeedLocksByPresetId: {},
           cinematicWorldsUiMode:        'simple',
@@ -7541,7 +7673,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 48,
+      version: 49,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

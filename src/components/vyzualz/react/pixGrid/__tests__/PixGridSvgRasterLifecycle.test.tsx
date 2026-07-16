@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { UploadedMedia } from '../../../../../stores/mediaStore'
 import { DEFAULT_PIX_GRID_CONVERSION_SETTINGS } from '../PixGridDefaults'

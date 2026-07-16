@@ -29,12 +29,12 @@ describe('PixGrid persistence and selection invariants', () => {
     useReactStore.getState().setPixGridState({
       quality: 'low',
       globalIntensity: 0.61,
-      pixelOverrides: [[2, 3, '#abcdef', 0.7]],
+      pixelOverrides: [[2, 3, 1, '#abcdef', 0.7]],
     })
     const persisted = reactStorePartialize(useReactStore.getState())
     expect(persisted.pixGridState).toMatchObject({
       quality: 'low', matrixWidth: 96, matrixHeight: 54, globalIntensity: 0.61,
-      pixelOverrides: [[2, 3, '#abcdef', 0.7]],
+      pixelOverrides: [[2, 3, 1, '#abcdef', 0.7]],
     })
     expect(persisted.pixGridState).not.toHaveProperty('framebuffer')
     expect(persisted.pixGridState).not.toHaveProperty('canvas')
@@ -57,5 +57,57 @@ describe('PixGrid persistence and selection invariants', () => {
       matrixWidth: 160,
       matrixHeight: 90,
     })
+  })
+})
+
+describe('PixGrid bounded authoring history', () => {
+  beforeEach(() => useReactStore.getState().resetReactView())
+
+  it('coalesces a pixel stroke into one undo entry and restores it with redo', async () => {
+    const { applyPixGridOverride } = await import('../components/vyzualz/react/pixGrid/PixGridAuthoring')
+    const store = useReactStore.getState()
+    store.beginPixGridHistoryTransaction()
+    useReactStore.getState().applyPixGridAuthoringState(
+      applyPixGridOverride(useReactStore.getState().pixGridState, 1, 1, { kind: 'paint', color: '#ffffff', opacity: 1 }),
+    )
+    useReactStore.getState().applyPixGridAuthoringState(
+      applyPixGridOverride(useReactStore.getState().pixGridState, 2, 1, { kind: 'paint', color: '#ffffff', opacity: 1 }),
+    )
+    useReactStore.getState().commitPixGridHistoryTransaction()
+
+    expect(useReactStore.getState().pixGridUndoStack).toHaveLength(1)
+    expect(useReactStore.getState().pixGridState.pixelOverrides).toHaveLength(2)
+    useReactStore.getState().undoPixGridEdit()
+    expect(useReactStore.getState().pixGridState.pixelOverrides).toEqual([])
+    expect(useReactStore.getState().pixGridRedoStack).toHaveLength(1)
+    useReactStore.getState().redoPixGridEdit()
+    expect(useReactStore.getState().pixGridState.pixelOverrides).toHaveLength(2)
+  })
+
+  it('clears redo after a new edit and closes the overlay on engine switching', async () => {
+    const { applyPixGridOverride } = await import('../components/vyzualz/react/pixGrid/PixGridAuthoring')
+    useReactStore.getState().setPixGridAuthoringOverlayVisible(true)
+    useReactStore.getState().applyPixGridAuthoringState(
+      applyPixGridOverride(useReactStore.getState().pixGridState, 3, 3, { kind: 'off' }),
+    )
+    useReactStore.getState().undoPixGridEdit()
+    expect(useReactStore.getState().pixGridRedoStack).toHaveLength(1)
+
+    useReactStore.getState().applyPixGridAuthoringState(
+      applyPixGridOverride(useReactStore.getState().pixGridState, 4, 4, { kind: 'off' }),
+    )
+    expect(useReactStore.getState().pixGridRedoStack).toEqual([])
+
+    useReactStore.getState().selectReactEngine('canvas')
+    expect(useReactStore.getState().pixGridState.authoringOverlayVisible).toBe(false)
+    expect(useReactStore.getState().pixGridHistoryTransaction).toBeNull()
+
+    useReactStore.getState().selectReactEngine('pixGrid')
+    useReactStore.getState().setPixGridAuthoringOverlayVisible(true)
+    const nonPixGridPreset = useReactStore.getState().reactPresets.find(preset => preset.engine !== 'pixGrid')
+    expect(nonPixGridPreset).toBeDefined()
+    useReactStore.getState().selectReactPreset(nonPixGridPreset!.id)
+    expect(useReactStore.getState().pixGridState.authoringOverlayVisible).toBe(false)
+    expect(useReactStore.getState().pixGridHistoryTransaction).toBeNull()
   })
 })

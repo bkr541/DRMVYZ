@@ -4,6 +4,7 @@ import type {
   PixGridQualityTier,
   PixGridRuntimeDiagnosticsSettings,
   PixGridState,
+  PixGridScene,
 } from './PixGridTypes'
 import { PIX_GRID_STATE_VERSION, type PixGridLayer } from './PixGridTypes'
 import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
@@ -59,9 +60,11 @@ export function resolvePixGridMatrixDimensions(quality: PixGridQualityTier): Rea
   return PIX_GRID_MATRIX_DIMENSIONS[quality]
 }
 
-function cloneLayer(layer: PixGridLayer): PixGridLayer {
+export function clonePixGridLayer(layer: PixGridLayer): PixGridLayer {
   return {
     ...layer,
+    mediaId: layer.mediaId ?? null,
+    locked: layer.locked === true,
     position: { ...layer.position },
     scale: { ...layer.scale },
     paletteMap: { ...layer.paletteMap },
@@ -70,10 +73,23 @@ function cloneLayer(layer: PixGridLayer): PixGridLayer {
   }
 }
 
+function pixGridSceneNameFromId(id: string, index: number): string {
+  const parts = id.split('-')
+  const suffix = parts[parts.length - 1]
+  return suffix ? suffix.replace(/^./, value => value.toUpperCase()) : `Scene ${index + 1}`
+}
+
 export function createDefaultPixGridState(): PixGridState {
   const dimensions = resolvePixGridMatrixDimensions(DEFAULT_PIX_GRID_QUALITY)
-  const defaultLayers = PIX_GRID_PRESET_BY_ID.get(DEFAULT_PIX_GRID_PRESET_ID)?.pixGridSettings?.layers
-    ?.map(cloneLayer) ?? []
+  const defaultSettings = PIX_GRID_PRESET_BY_ID.get(DEFAULT_PIX_GRID_PRESET_ID)?.pixGridSettings
+  const defaultLayers = defaultSettings?.layers?.map(clonePixGridLayer) ?? []
+  const sceneIds = Object.keys(defaultSettings?.sceneSettings ?? {})
+  const defaultScenes: PixGridScene[] = (sceneIds.length > 0 ? sceneIds : [DEFAULT_PIX_GRID_SCENE_ID]).map((id, index) => ({
+    id,
+    name: pixGridSceneNameFromId(id, index),
+    layerIds: defaultLayers.map(layer => layer.id),
+    pixelOverrides: [],
+  }))
   return {
     version: PIX_GRID_STATE_VERSION,
     quality: DEFAULT_PIX_GRID_QUALITY,
@@ -94,6 +110,18 @@ export function createDefaultPixGridState(): PixGridState {
     selectedSceneId: DEFAULT_PIX_GRID_SCENE_ID,
     authoringOverlayVisible: false,
     editorTool: 'select',
+    editor: {
+      guidesVisible: true,
+      zoom: 1,
+      panX: 0,
+      panY: 0,
+      paintColor: '#ffffff',
+      paintOpacity: 1,
+      eraserMode: 'off',
+      selectedLayerId: defaultLayers[0]?.id ?? null,
+      selection: null,
+    },
+    scenes: defaultScenes,
     layers: defaultLayers,
     groups: [],
     pixelOverrides: [],

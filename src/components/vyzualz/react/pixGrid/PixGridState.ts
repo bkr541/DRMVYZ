@@ -1,6 +1,13 @@
 import { createDefaultPixGridState } from './PixGridDefaults'
 import type { PixGridPresetSettings, PixGridState } from './PixGridTypes'
+import { clonePixGridLayer } from './PixGridDefaults'
 import { normalizePixGridState } from './PixGridValidation'
+
+function pixGridSceneNameFromId(id: string, index: number): string {
+  const parts = id.split('-')
+  const suffix = parts[parts.length - 1]
+  return suffix ? suffix.replace(/^./, value => value.toUpperCase()) : `Scene ${index + 1}`
+}
 
 export function applyPixGridPresetSettings(
   currentState: PixGridState,
@@ -14,6 +21,15 @@ export function applyPixGridPresetSettings(
       selectedPresetId: presetId,
     })
   }
+  const presetLayers = settings.layers?.map(clonePixGridLayer) ?? safeCurrent.layers
+  const sceneIds = Object.keys(settings.sceneSettings ?? {})
+  const selectedSceneId = settings.selectedSceneId ?? sceneIds[0] ?? safeCurrent.selectedSceneId ?? 'pix-grid-scene-1'
+  const scenes = (sceneIds.length > 0 ? sceneIds : [selectedSceneId]).map((id, index) => ({
+    id,
+    name: pixGridSceneNameFromId(id, index),
+    layerIds: presetLayers.map(layer => layer.id),
+    pixelOverrides: [],
+  }))
   return normalizePixGridState({
     ...safeCurrent,
     quality: settings.quality ?? safeCurrent.quality,
@@ -28,8 +44,11 @@ export function applyPixGridPresetSettings(
     diffusion: settings.diffusion ?? safeCurrent.diffusion,
     rgbSubpixelMode: settings.rgbSubpixelMode ?? safeCurrent.rgbSubpixelMode,
     selectedPresetId: presetId,
-    selectedSceneId: settings.selectedSceneId ?? safeCurrent.selectedSceneId,
-    layers: settings.layers ?? safeCurrent.layers,
+    selectedSceneId,
+    layers: presetLayers,
+    scenes,
+    pixelOverrides: [],
+    editor: { ...safeCurrent.editor, selectedLayerId: presetLayers[0]?.id ?? null, selection: null },
   })
 }
 

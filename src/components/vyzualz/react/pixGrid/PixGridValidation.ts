@@ -10,6 +10,8 @@ import {
   MAX_PIX_GRID_ANIMATIONS_PER_LAYER,
   MAX_PIX_GRID_LAYERS,
   MAX_PIX_GRID_VISIBLE_LAYERS,
+  MAX_PIX_GRID_SCENES,
+  MAX_PIX_GRID_PIXEL_OVERRIDES,
 } from './PixGridLimits'
 import {
   PIX_GRID_STATE_VERSION,
@@ -28,13 +30,15 @@ import {
   type PixGridPresetSettings,
   type PixGridQualityTier,
   type PixGridSceneSettings,
+  type PixGridScene,
+  type PixGridCellRect,
   type PixGridState,
 } from './PixGridTypes'
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
 const QUALITY_TIERS = new Set<PixGridQualityTier>(['draft', 'low', 'high', 'ultra'])
 const BACKGROUND_MODES = new Set<PixGridBackgroundMode>(['preset', 'black', 'custom'])
-const EDITOR_TOOLS = new Set<PixGridEditorTool>(['select', 'pencil', 'eraser', 'fill', 'group'])
+const EDITOR_TOOLS = new Set<PixGridEditorTool>(['select', 'pan', 'pencil', 'eraser', 'fill', 'eyedropper', 'rectangle', 'line', 'marquee', 'move'])
 const BLEND_MODES = new Set<PixGridBlendMode>(['normal', 'add', 'multiply'])
 const CLIP_MODES = new Set<PixGridClipMode>(['clip', 'wrap'])
 const PALETTE_ROLES = new Set<PixGridPaletteRole>(['primary', 'secondary', 'accent', 'highlight', 'background'])
@@ -48,7 +52,6 @@ const AUDIO_SOURCES = new Set<PixGridAudioSource>(['bass', 'mid', 'high', 'volum
 const STOPPED_BEHAVIORS = new Set(['baseline', 'blackout'])
 const MAX_GROUPS = 256
 const MAX_CELL_RUNS_PER_GROUP = 4096
-const MAX_PIXEL_OVERRIDES = 50_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -151,6 +154,8 @@ export function normalizePixGridLayers(value: unknown, fallback: PixGridLayer[])
       id,
       name: text(raw.name, template?.name ?? `Layer ${index + 1}`),
       assetId: candidateAssetId,
+      mediaId: nullableId(raw.mediaId),
+      locked: raw.locked === true,
       visible,
       opacity: clamp(raw.opacity, 0, 1, template?.opacity ?? 1),
       position: {
@@ -259,16 +264,67 @@ function normalizeGroups(value: unknown, width: number, height: number): PixGrid
   })
 }
 
-function normalizePixelOverrides(value: unknown, width: number, height: number): PixGridPixelOverride[] {
+export function normalizePixGridPixelOverrides(value: unknown, width: number, height: number): PixGridPixelOverride[] {
   if (!Array.isArray(value)) return []
   const deduped = new Map<string, PixGridPixelOverride>()
-  for (const raw of value.slice(0, MAX_PIXEL_OVERRIDES)) {
+  for (const raw of value.slice(0, MAX_PIX_GRID_PIXEL_OVERRIDES)) {
     if (!Array.isArray(raw) || raw.length < 4) continue
     const x = Math.max(0, Math.min(width - 1, Math.round(finite(raw[0], 0))))
     const y = Math.max(0, Math.min(height - 1, Math.round(finite(raw[1], 0))))
-    deduped.set(`${x}:${y}`, [x, y, normalizePixGridColor(raw[2], '#ffffff'), clamp(raw[3], 0, 1, 1)])
+    const legacy = typeof raw[2] === 'string'
+    const mode = legacy ? 1 : raw[2] === 0 ? 0 : 1
+    const color = normalizePixGridColor(legacy ? raw[2] : raw[3], '#ffffff')
+    const opacity = clamp(legacy ? raw[3] : raw[4], 0, 1, 1)
+    deduped.set(`${x}:${y}`, [x, y, mode, color, opacity])
   }
-  return [...deduped.values()]
+  return [...deduped.values()].sort((a, b) => a[1] - b[1] || a[0] - b[0])
+}
+
+function normalizeSelection(value: unknown, width: number, height: number): PixGridCellRect | null {
+  if (!isRecord(value)) return null
+  const x = Math.max(0, Math.min(width - 1, Math.round(finite(value.x, 0))))
+  const y = Math.max(0, Math.min(height - 1, Math.round(finite(value.y, 0))))
+  const selectionWidth = Math.max(1, Math.min(width - x, Math.round(finite(value.width, 1))))
+  const selectionHeight = Math.max(1, Math.min(height - y, Math.round(finite(value.height, 1))))
+  return { x, y, width: selectionWidth, height: selectionHeight }
+}
+
+function normalizeScenes(
+  value: unknown,
+  layers: PixGridLayer[],
+  width: number,
+  height: number,
+  fallbackSceneId: string,
+  legacyOverrides: unknown,
+): PixGridScene[] {
+  const layerIds = new Set(layers.map(layer => layer.id))
+  const input = Array.isArray(value) ? value : []
+  const seen = new Set<string>()
+  const scenes = input.slice(0, MAX_PIX_GRID_SCENES).flatMap((raw, index) => {
+    if (!isRecord(raw)) return []
+    const baseId = text(raw.id, index === 0 ? fallbackSceneId : `pix-grid-scene-${index + 1}`, 128)
+    const id = seen.has(baseId) ? `${baseId}-${index + 1}` : baseId
+    seen.add(id)
+    const validLayerIds = Array.isArray(raw.layerIds)
+      ? raw.layerIds.filter((item): item is string => typeof item === 'string' && layerIds.has(item))
+      : layers.map(layer => layer.id)
+    const requestedLayerIds = Array.isArray(raw.layerIds) && raw.layerIds.length > 0 && validLayerIds.length === 0
+      ? layers.map(layer => layer.id)
+      : validLayerIds
+    return [{
+      id,
+      name: text(raw.name, `Scene ${index + 1}`),
+      layerIds: [...new Set(requestedLayerIds)].slice(0, MAX_PIX_GRID_LAYERS),
+      pixelOverrides: normalizePixGridPixelOverrides(raw.pixelOverrides, width, height),
+    }]
+  })
+  if (scenes.length > 0) return scenes
+  return [{
+    id: fallbackSceneId,
+    name: 'Scene 1',
+    layerIds: layers.map(layer => layer.id),
+    pixelOverrides: normalizePixGridPixelOverrides(legacyOverrides, width, height),
+  }]
 }
 
 export function normalizePixGridState(value: unknown): PixGridState {
@@ -286,6 +342,18 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const performance = isRecord(input.performance) ? input.performance : {}
   const conversion = isRecord(input.conversion) ? input.conversion : {}
   const diagnostics = isRecord(input.diagnostics) ? input.diagnostics : {}
+  const editor = isRecord(input.editor) ? input.editor : {}
+  const fallbackSceneId = nullableId(input.selectedSceneId) ?? defaults.selectedSceneId ?? 'pix-grid-scene-1'
+  const sceneSource = Array.isArray(input.scenes)
+    ? input.scenes
+    : input.pixelOverrides === undefined
+      ? defaults.scenes
+      : undefined
+  const scenes = normalizeScenes(sceneSource, layers, dimensions.width, dimensions.height, fallbackSceneId, input.pixelOverrides)
+  const selectedSceneId = scenes.some(scene => scene.id === fallbackSceneId) ? fallbackSceneId : scenes[0].id
+  const activeScene = scenes.find(scene => scene.id === selectedSceneId) ?? scenes[0]
+  const selectedLayerId = nullableId(editor.selectedLayerId)
+  const safeSelectedLayerId = selectedLayerId && activeScene.layerIds.includes(selectedLayerId) ? selectedLayerId : activeScene.layerIds[0] ?? null
 
   return {
     version: PIX_GRID_STATE_VERSION,
@@ -306,12 +374,24 @@ export function normalizePixGridState(value: unknown): PixGridState {
       ? input.stoppedBehavior as PixGridState['stoppedBehavior']
       : defaults.stoppedBehavior,
     selectedPresetId: nullableId(input.selectedPresetId) ?? defaults.selectedPresetId,
-    selectedSceneId: nullableId(input.selectedSceneId) ?? defaults.selectedSceneId,
+    selectedSceneId,
     authoringOverlayVisible: input.authoringOverlayVisible === true,
     editorTool,
+    editor: {
+      guidesVisible: editor.guidesVisible !== false,
+      zoom: clamp(editor.zoom, 0.25, 16, 1),
+      panX: clamp(editor.panX, -4, 4, 0),
+      panY: clamp(editor.panY, -4, 4, 0),
+      paintColor: normalizePixGridColor(editor.paintColor, '#ffffff'),
+      paintOpacity: clamp(editor.paintOpacity, 0, 1, 1),
+      eraserMode: editor.eraserMode === 'restore' ? 'restore' : 'off',
+      selectedLayerId: safeSelectedLayerId,
+      selection: normalizeSelection(editor.selection, dimensions.width, dimensions.height),
+    },
+    scenes,
     layers,
     groups: normalizeGroups(input.groups, dimensions.width, dimensions.height),
-    pixelOverrides: normalizePixelOverrides(input.pixelOverrides, dimensions.width, dimensions.height),
+    pixelOverrides: activeScene.pixelOverrides,
     performance: {
       enabled: performance.enabled === true,
       sharedPerformanceProgramId: nullableId(performance.sharedPerformanceProgramId),

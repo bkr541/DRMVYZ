@@ -7,6 +7,7 @@ import { useRecorder } from '../../../hooks/useRecorder'
 import { ReactPersistenceStatus } from './ReactPersistenceStatus'
 import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDiagnosticsStore'
 import { useReactStore } from '../../../stores/reactStore'
+import { useMediaStore } from '../../../stores/mediaStore'
 import {
   ReactPresetsPanel,
   ReactEnginePanel,
@@ -14,6 +15,8 @@ import {
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from './ReactCanvasEngineShell'
 import { PixGridSurface } from './pixGrid/PixGridSurface'
+import { PixGridEditorOverlay, shouldShowPixGridEditorOverlay } from './pixGrid/PixGridEditorOverlay'
+import { addPixGridMediaLayer } from './pixGrid/PixGridAuthoring'
 import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { ReactPerformancePads } from './ReactPerformancePads'
@@ -168,6 +171,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxShowDirector,
     pixGridState,
     setPixGridState,
+    applyPixGridAuthoringState,
     selectSvgAsset,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
@@ -203,6 +207,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxShowDirector:           s.laserDmxShowDirector,
     pixGridState:                    s.pixGridState,
     setPixGridState:                  s.setPixGridState,
+    applyPixGridAuthoringState:       s.applyPixGridAuthoringState,
     selectSvgAsset:                  s.selectSvgAsset,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
@@ -251,11 +256,16 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   )
   const handleSelectMedia = useCallback((mediaId: string) => {
     if (mediaSourceCapability === 'pixGridStill') {
-      setPixGridState({ conversion: { ...pixGridState.conversion, selectedMediaId: mediaId } })
+      if (pixGridState.authoringOverlayVisible) {
+        const media = useMediaStore.getState().items.find(item => item.id === mediaId)
+        applyPixGridAuthoringState(addPixGridMediaLayer(pixGridState, mediaId, media?.title ?? media?.name ?? 'Media Artwork'))
+      } else {
+        setPixGridState({ conversion: { ...pixGridState.conversion, selectedMediaId: mediaId } })
+      }
       return
     }
     void selectSvgAsset(mediaId)
-  }, [mediaSourceCapability, pixGridState.conversion, selectSvgAsset, setPixGridState])
+  }, [applyPixGridAuthoringState, mediaSourceCapability, pixGridState, selectSvgAsset, setPixGridState])
 
   // Recording — useRecorder lives at view level so active recordings survive tab switches
   const recorder = useRecorder()
@@ -267,6 +277,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Engine swaps are semantic diagnostics boundaries. Clear immediately rather
   // than showing the previous renderer's FPS until the new renderer samples.
   useEffect(() => { setLiveFps(0) }, [activeReactEngineId])
+  useEffect(() => {
+    if (activeReactEngineId !== 'pixGrid' && pixGridState.authoringOverlayVisible) {
+      setPixGridState({ authoringOverlayVisible: false })
+    }
+  }, [activeReactEngineId, pixGridState.authoringOverlayVisible, setPixGridState])
   useEffect(() => {
     if (!import.meta.env.DEV) return
     void import('./PerformanceProgramDevelopmentValidation')
@@ -607,6 +622,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 soundDrawingClips={activeSdClips}
                 activeAudioTrackId={engine.currentAudioTrackId}
               />
+            )}
+            {shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
+              <PixGridEditorOverlay />
             )}
             {showDirectorStageEditorVisible && (
               <div className="rv-show-director-stage-overlay" aria-label="Show Director center visualizer editor">

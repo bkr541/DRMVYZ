@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactPreset, ReactTrackSection } from '../ReactTypes'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { createLiveFpsReporter } from '../fpsDiagnostics'
@@ -93,70 +93,84 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const requestRenderRef = useRef<(force?: boolean) => void>(() => {})
   const retryGpuRef = useRef<() => void>(() => {})
   const [diagnostics, setDiagnostics] = useState<PixGridRendererDiagnostics>(EMPTY_DIAGNOSTICS)
-  const [preparedAsset, setPreparedAsset] = useState<PixGridPreparedAsset | null>(null)
+  const activeScene = props.pixGridState.scenes.find(scene => scene.id === props.pixGridState.selectedSceneId)
+    ?? props.pixGridState.scenes[0]
+  const mediaIds = useMemo(() => {
+    const activeLayerIds = new Set(activeScene?.layerIds ?? [])
+    const ids = props.pixGridState.layers.flatMap(layer => activeLayerIds.has(layer.id) && layer.mediaId ? [layer.mediaId] : [])
+    if (props.pixGridState.conversion.selectedMediaId) ids.push(props.pixGridState.conversion.selectedMediaId)
+    return [...new Set(ids)]
+  }, [activeScene?.layerIds, props.pixGridState.conversion.selectedMediaId, props.pixGridState.layers])
+  const mediaKey = mediaIds.join('|')
+  const mediaItems = useMediaStore(state => state.items)
+  const ensureMediaSigned = useMediaStore(state => state.ensureMediaSigned)
+  const [preparedAssets, setPreparedAssets] = useState<ReadonlyMap<string, PixGridPreparedAsset>>(new Map())
   const [mediaPreparationStatus, setMediaPreparationStatus] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle')
   const [mediaPreparationMessage, setMediaPreparationMessage] = useState<string | null>(null)
-  const preparedAssetRef = useRef<PixGridPreparedAsset | null>(null)
+  const preparedAssetRef = useRef<ReadonlyMap<string, PixGridPreparedAsset>>(new Map())
+  preparedAssetRef.current = preparedAssets
   const selectedMediaId = props.pixGridState.conversion.selectedMediaId
-  const selectedMedia = useMediaStore(state => selectedMediaId
-    ? state.items.find(item => item.id === selectedMediaId) ?? null
-    : null)
-  const ensureMediaSigned = useMediaStore(state => state.ensureMediaSigned)
+  const selectedMedia = selectedMediaId ? mediaItems.find(item => item.id === selectedMediaId) ?? null : null
   propsRef.current = props
-  preparedAssetRef.current = preparedAsset
   const hasActivePreset = props.activePreset != null
 
   useEffect(() => {
-    if (!selectedMediaId || !props.activePreset) {
-      setPreparedAsset(null)
+    if (mediaIds.length === 0 || !props.activePreset) {
+      setPreparedAssets(new Map())
       setMediaPreparationStatus('idle')
       setMediaPreparationMessage(null)
       requestRenderRef.current(true)
       return
     }
-    if (!selectedMedia) {
-      setPreparedAsset(null)
+    const requestedItems = mediaIds.map(id => mediaItems.find(item => item.id === id) ?? null)
+    const missingId = mediaIds.find((_, index) => !requestedItems[index])
+    if (missingId) {
+      setPreparedAssets(new Map())
       setMediaPreparationStatus('missing')
-      setMediaPreparationMessage('The selected Media Library item is missing. PixGrid will recover automatically if it returns.')
+      setMediaPreparationMessage('The selected Media Library item is missing or a referenced layer is temporarily unavailable. The project reference is preserved and will recover automatically.')
       requestRenderRef.current(true)
       return
     }
-    const capability = inspectPixGridMediaCapability(selectedMedia)
-    if (!capability.supported) {
-      setPreparedAsset(null)
+    const unsupported = requestedItems.find(item => item && !inspectPixGridMediaCapability(item).supported)
+    if (unsupported) {
+      setPreparedAssets(new Map())
       setMediaPreparationStatus('error')
-      setMediaPreparationMessage(capability.reason)
+      setMediaPreparationMessage(inspectPixGridMediaCapability(unsupported).reason)
       requestRenderRef.current(true)
       return
     }
 
     const controller = new AbortController()
     let active = true
-    setPreparedAsset(null)
     setMediaPreparationStatus('loading')
-    setMediaPreparationMessage('Preparing media for the PixGrid logical matrix…')
+    setMediaPreparationMessage(`Preparing ${mediaIds.length} PixGrid media layer${mediaIds.length === 1 ? '' : 's'}…`)
     void (async () => {
       try {
-        await ensureMediaSigned([selectedMediaId], 'visible')
+        await ensureMediaSigned(mediaIds, 'visible')
         if (!active) return
-        const currentMedia = useMediaStore.getState().items.find(item => item.id === selectedMediaId) ?? selectedMedia
-        pixGridPreparedAssetCache.invalidateMedia(currentMedia.id, resolvePixGridMediaRevision(currentMedia))
-        const next = await preparePixGridMediaAsset({
-          media: currentMedia,
-          width: props.pixGridState.matrixWidth,
-          height: props.pixGridState.matrixHeight,
-          settings: props.pixGridState.conversion,
-          palette: props.activePreset!.palette,
-          signal: controller.signal,
-        })
+        const currentItems = useMediaStore.getState().items
+        const entries = await Promise.all(mediaIds.map(async mediaId => {
+          const media = currentItems.find(item => item.id === mediaId) ?? requestedItems.find(item => item?.id === mediaId)
+          if (!media) throw new Error('A PixGrid media layer is temporarily unavailable.')
+          pixGridPreparedAssetCache.invalidateMedia(media.id, resolvePixGridMediaRevision(media))
+          const prepared = await preparePixGridMediaAsset({
+            media,
+            width: props.pixGridState.matrixWidth,
+            height: props.pixGridState.matrixHeight,
+            settings: props.pixGridState.conversion,
+            palette: props.activePreset!.palette,
+            signal: controller.signal,
+          })
+          return [mediaId, prepared] as const
+        }))
         if (!active) return
-        setPreparedAsset(next)
+        setPreparedAssets(new Map(entries))
         setMediaPreparationStatus('ready')
         setMediaPreparationMessage(null)
         requestRenderRef.current(true)
       } catch (error) {
         if (!active || controller.signal.aborted) return
-        setPreparedAsset(null)
+        setPreparedAssets(new Map())
         setMediaPreparationStatus('error')
         setMediaPreparationMessage(error instanceof Error ? error.message : 'PixGrid could not prepare the selected media.')
         requestRenderRef.current(true)
@@ -168,12 +182,13 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     }
   }, [
     ensureMediaSigned,
+    mediaIds,
+    mediaItems,
+    mediaKey,
     props.activePreset,
     props.pixGridState.conversion,
     props.pixGridState.matrixHeight,
     props.pixGridState.matrixWidth,
-    selectedMedia,
-    selectedMediaId,
   ])
 
   useEffect(() => {
@@ -496,7 +511,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     props.motion,
     props.pixGridState,
     props.trackSections,
-    preparedAsset,
+    preparedAssets,
   ])
 
   const fallbackActive = diagnostics.path === 'canvas2d-fallback'

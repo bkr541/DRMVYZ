@@ -49,7 +49,7 @@ export function renderPixGridBaseline(
   frame: PixGridBaselineRenderFrame,
   preset: ReactPreset,
   rawState: PixGridState,
-  preparedAsset?: PixGridPreparedAsset | null,
+  preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
 ): void {
   const state = normalizePixGridState(rawState)
   const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset)
@@ -130,7 +130,7 @@ export function renderPixGridCanvasFallback(
   frame: PixGridBaselineRenderFrame,
   preset: ReactPreset,
   rawState: PixGridState,
-  preparedAsset?: PixGridPreparedAsset | null,
+  preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
 ): Readonly<{ logicalWidth: number; logicalHeight: number }> {
   const requested = normalizePixGridState(rawState)
   const state = requested.quality === 'draft'
