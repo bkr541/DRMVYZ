@@ -147,14 +147,14 @@ describe('PixGrid smart groups and compiled masks', () => {
     expect(movedB).toEqual(movedA)
   })
 
-  it('normalizes legacy and hostile persisted group data into Patch 6 bounds', () => {
+  it('normalizes legacy and hostile persisted group data into current bounds', () => {
     const normalized = normalizePixGridState({
       ...createDefaultPixGridState(),
       version: 5,
       groups: [{ id: 'legacy', name: 'Legacy', layerId: null, cellRuns: [[0, 0, 9999]], smartRuleId: null, reactions: [{ id: 'r', source: 'bogus', target: 'bogus', amount: 99 }] }],
       editor: { selectedGroupId: 'legacy', previewReactionAssignmentId: 'r' },
     })
-    expect(normalized.version).toBe(6)
+    expect(normalized.version).toBe(7)
     expect(normalized.groups[0].cellRuns[0][2]).toBe(normalized.matrixWidth)
     expect(normalized.groups[0].reactions[0]).toMatchObject({ source: 'bass', target: 'brightness', amount: 4 })
     expect(normalized.editor.selectedGroupId).toBe('legacy')

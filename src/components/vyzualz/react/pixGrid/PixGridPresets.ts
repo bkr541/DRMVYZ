@@ -1,5 +1,5 @@
 import type { ReactPreset, ReactSectionMapping, ReactSectionType } from '../ReactTypes'
-import type { PixGridLayer, PixGridPresetSettings, PixGridSceneSettings } from './PixGridTypes'
+import type { PixGridGroup, PixGridLayer, PixGridPresetSettings, PixGridSceneSettings } from './PixGridTypes'
 
 export const PIX_GRID_PRESET_IDS = [
   'pix-grid-bass-beacon',
@@ -65,6 +65,44 @@ function layer(
     ...overrides,
   }
 }
+
+function performanceGroup(id: string, name: string, layerIds: string[], displayColor: string): PixGridGroup {
+  return {
+    id,
+    name,
+    source: 'layerAlpha',
+    mask: { kind: 'layerAlpha', threshold: 0.04, foreground: true },
+    cellRuns: [],
+    layerId: layerIds[0] ?? null,
+    layerScope: layerIds,
+    smartRuleId: 'layerAlpha',
+    enabled: true,
+    visible: true,
+    priority: 0,
+    overlapBehavior: 'stack',
+    reactions: [],
+    displayColor,
+  }
+}
+
+const BASS_BEACON_GROUPS: PixGridGroup[] = [
+  performanceGroup('bass-body-group', 'BASS Body', ['bass-word', 'bass-rings'], '#36d9ff'),
+  performanceGroup('bass-kick-group', 'Kick Body', ['bass-burst', 'bass-rings'], '#39e69b'),
+  performanceGroup('bass-snare-group', 'Snare Outline', ['bass-outline', 'bass-side-chevrons-left', 'bass-side-chevrons-right'], '#f2feff'),
+  performanceGroup('bass-hat-group', 'Hat Accents', ['bass-sparkles'], '#d8b95a'),
+]
+
+const GEOMETRIC_REACTOR_GROUPS: PixGridGroup[] = [
+  performanceGroup('reactor-low-group', 'Low Geometry', ['reactor-rings', 'reactor-diamond'], '#a969ff'),
+  performanceGroup('reactor-mid-group', 'Mid Geometry', ['reactor-tunnel', 'reactor-chevrons'], '#30d7ff'),
+  performanceGroup('reactor-high-group', 'High Geometry', ['reactor-cross', 'reactor-orbits', 'reactor-checker'], '#f2c45c'),
+]
+
+const PIXEL_PARADE_GROUPS: PixGridGroup[] = [
+  performanceGroup('parade-foreground-group', 'Foreground Cast', ['parade-star-left', 'parade-pal', 'parade-orbit'], '#ff6d7f'),
+  performanceGroup('parade-background-group', 'Background Lanes', ['parade-stars', 'parade-wave-top', 'parade-wave-bottom'], '#43d9ff'),
+  performanceGroup('parade-impact-group', 'Impact Crew', ['parade-eq', 'parade-burst'], '#ffd35c'),
+]
 
 function sceneSettings(prefix: string, custom: Partial<Record<ReactSectionType, Partial<PixGridSceneSettings>>> = {}): Record<string, PixGridSceneSettings> {
   const base: Partial<Record<ReactSectionType, PixGridSceneSettings>> = {
@@ -242,7 +280,8 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       pattern: 'bassBeacon', quality: 'high', backgroundMode: 'preset', backgroundColor: '#020608',
       backgroundBrightness: 0.12, cellGap: 0.18, cellRoundness: 0.2, cellBrightness: 0.9,
       globalIntensity: 0.92, glowAmount: 0.42, diffusion: 0.14, rgbSubpixelMode: false,
-      selectedSceneId: 'pix-grid-bass-beacon-intro', layers: BASS_BEACON_LAYERS,
+      selectedSceneId: 'pix-grid-bass-beacon-intro', layers: BASS_BEACON_LAYERS, groups: BASS_BEACON_GROUPS,
+      performanceProgramId: 'pix-grid-bass-beacon-performance',
       sceneSettings: sceneSettings('pix-grid-bass-beacon', {
         breakdown: { hiddenLayerIds: ['bass-burst', 'bass-sparkles'], layerOpacity: { 'bass-word': 0.78 } },
         outro: { hiddenLayerIds: ['bass-burst', 'bass-sparkles', 'bass-side-chevrons-left', 'bass-side-chevrons-right'] },
@@ -261,7 +300,8 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       pattern: 'geometricReactor', quality: 'high', backgroundMode: 'preset', backgroundColor: '#05030b',
       backgroundBrightness: 0.1, cellGap: 0.12, cellRoundness: 0.08, cellBrightness: 0.92,
       globalIntensity: 0.94, glowAmount: 0.3, diffusion: 0.08, rgbSubpixelMode: false,
-      selectedSceneId: 'pix-grid-geometric-reactor-intro', layers: GEOMETRIC_REACTOR_LAYERS,
+      selectedSceneId: 'pix-grid-geometric-reactor-intro', layers: GEOMETRIC_REACTOR_LAYERS, groups: GEOMETRIC_REACTOR_GROUPS,
+      performanceProgramId: 'pix-grid-geometric-reactor-performance',
       sceneSettings: sceneSettings('pix-grid-geometric-reactor', {
         intro: { hiddenLayerIds: ['reactor-cross', 'reactor-orbits', 'reactor-checker'] },
         breakdown: { hiddenLayerIds: ['reactor-checker', 'reactor-chevrons', 'reactor-cross'], layerOpacity: { 'reactor-tunnel': 0.42 } },
@@ -281,7 +321,8 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       pattern: 'pixelParade', quality: 'high', backgroundMode: 'preset', backgroundColor: '#070508',
       backgroundBrightness: 0.14, cellGap: 0.22, cellRoundness: 0.28, cellBrightness: 0.88,
       globalIntensity: 0.9, glowAmount: 0.24, diffusion: 0.18, rgbSubpixelMode: false,
-      selectedSceneId: 'pix-grid-pixel-parade-intro', layers: PIXEL_PARADE_LAYERS,
+      selectedSceneId: 'pix-grid-pixel-parade-intro', layers: PIXEL_PARADE_LAYERS, groups: PIXEL_PARADE_GROUPS,
+      performanceProgramId: 'pix-grid-pixel-parade-performance',
       sceneSettings: sceneSettings('pix-grid-pixel-parade', {
         intro: { hiddenLayerIds: ['parade-eq', 'parade-burst', 'parade-orbit'] },
         verse: { hiddenLayerIds: ['parade-burst'] },

@@ -20,8 +20,12 @@ import type {
 import { pixGridPreparedAssetCache, preparePixGridMediaAsset, type PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { inspectPixGridMediaCapability, resolvePixGridMediaRevision } from './PixGridMediaCapabilities'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
-import { buildSharedPerformanceContext, type SharedPerformanceContext } from '../../../../features/performanceCore'
+import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { createPixGridAudioFrame, PixGridReactionRuntime } from './PixGridAudioRouting'
+import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
+import { resolvePixGridPerformanceFrame } from './PixGridPerformanceRuntime'
+import { clearPixGridPerformanceRuntimeStatus, publishPixGridPerformanceRuntimeStatus } from './PixGridPerformanceStatus'
+import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from '../SharedPerformanceDiagnosticsStore'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -34,6 +38,9 @@ export interface PixGridSurfaceProps {
   isPlaying: boolean
   isPaused?: boolean
   trackSections?: readonly ReactTrackSection[]
+  trackAnalysis?: TrackIntelligenceAnalysis | null
+  trackIdentity?: string | null
+  durationSec?: number
   getAudioTime: () => number
   effectiveBpm?: number
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
@@ -255,17 +262,36 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const context = buildSharedPerformanceContext({
         audioTimeSec: audioTime,
         frame: intelligenceFrame,
+        analysis: current.trackAnalysis ?? null,
         resolvedSections: current.trackSections ?? intelligenceFrame.resolvedSections ?? null,
-        trackIdentity: intelligenceFrame.trackId ?? intelligenceFrame.sourceId,
+        durationSec: current.durationSec,
+        trackIdentity: current.trackIdentity ?? intelligenceFrame.trackId ?? intelligenceFrame.sourceId,
         previous: previousPerformanceContext,
       })
       previousPerformanceContext = context
       lastAudioTime = audioTime
       const audioFrame = createPixGridAudioFrame(context, { isPlaying: shouldAnimate, deltaTimeSec })
       const selectedSceneId = resolveSectionScene(activePreset, current.trackSections ?? intelligenceFrame.resolvedSections ?? [], audioTime)
-      const state = selectedSceneId
+      const mappedState = selectedSceneId
         ? { ...current.pixGridState, selectedSceneId }
         : current.pixGridState
+      const performance = resolvePixGridPerformanceFrame(mappedState, context, activePreset.id)
+      const state = performance.state
+      publishPixGridPerformanceRuntimeStatus(performance.snapshot)
+      publishSharedPerformanceDiagnostics(createSharedPerformanceDiagnostics(context, {
+        engine: 'pixGrid',
+        active: performance.snapshot.active,
+        performanceShow: performance.snapshot.programName,
+        scene: performance.snapshot.sceneId,
+        motifOrComposition: performance.snapshot.variationId,
+        activeLayers: state.layers.filter(layer => layer.visible).map(layer => layer.id),
+        activeEventEnvelopes: performance.snapshot.recentActionReasons.filter(reason => ['beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'semanticMoment'].includes(reason)),
+        recentActions: performance.snapshot.recentActionTypes,
+        continuousRoutes: state.groups.filter(group => group.enabled).map(group => group.id),
+        lockedParameters: performance.snapshot.manualOverrideRoutes,
+        fallbackState: performance.snapshot.fallbackState,
+        resourceLimitDecisions: performance.actionLimitDecisions,
+      }))
       return {
         preset: activePreset,
         state,
@@ -449,6 +475,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       propsRef.current.onDiagnostics?.({ ...lastDiagnostics, fps: 0 })
       requestRenderRef.current = () => {}
       retryGpuRef.current = () => {}
+      clearPixGridPerformanceRuntimeStatus()
+      clearSharedPerformanceDiagnostics('pixGrid')
     })
     const ownership = acquireReactLiveEngineOwnership('pixGrid', () => lifecycle.dispose())
 
@@ -476,6 +504,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     props.motion,
     props.pixGridState,
     props.trackSections,
+    props.trackAnalysis,
+    props.trackIdentity,
+    props.durationSec,
     preparedAssets,
   ])
 

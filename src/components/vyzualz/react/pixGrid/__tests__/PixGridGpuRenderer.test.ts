@@ -115,13 +115,13 @@ describe('PixGridGpuRenderer', () => {
     expect(renderer.render(renderInput('high'))).toBe(true)
     expect(renderer.render(renderInput('high'))).toBe(true)
     expect(renderer.diagnostics.logicalAllocationCount).toBe(1)
-    expect(gl.texImage2D).toHaveBeenCalledTimes(2)
+    expect(gl.texImage2D).toHaveBeenCalledTimes(3)
     expect(gl.texParameteri).toHaveBeenCalledWith(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     expect(gl.texParameteri).toHaveBeenCalledWith(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 
     expect(renderer.render(renderInput('ultra'))).toBe(true)
     expect(renderer.diagnostics.logicalAllocationCount).toBe(2)
-    expect(gl.texImage2D).toHaveBeenCalledTimes(4)
+    expect(gl.texImage2D).toHaveBeenCalledTimes(6)
   })
 
   it('disposes every owned GPU resource idempotently', () => {
@@ -135,7 +135,7 @@ describe('PixGridGpuRenderer', () => {
     expect(gl.deleteProgram).toHaveBeenCalledTimes(2)
     expect(gl.deleteVertexArray).toHaveBeenCalledTimes(1)
     expect(gl.deleteFramebuffer).toHaveBeenCalledTimes(1)
-    expect(gl.deleteTexture).toHaveBeenCalledTimes(2)
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(3)
     expect(canvas.removeEventListener).toHaveBeenCalledTimes(2)
   })
 

@@ -21,8 +21,9 @@ export const DEFAULT_PIX_GRID_PRESET_ID = 'pix-grid-bass-beacon'
 export const DEFAULT_PIX_GRID_SCENE_ID = 'pix-grid-bass-beacon-intro'
 
 export const DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS: PixGridPerformanceSettings = {
-  enabled: false,
-  sharedPerformanceProgramId: null,
+  enabled: true,
+  intensity: 0.85,
+  sharedPerformanceProgramId: 'pix-grid-bass-beacon-performance',
   seed: 1,
   lockedRoutes: [],
 }
@@ -83,6 +84,7 @@ export function createDefaultPixGridState(): PixGridState {
   const dimensions = resolvePixGridMatrixDimensions(DEFAULT_PIX_GRID_QUALITY)
   const defaultSettings = PIX_GRID_PRESET_BY_ID.get(DEFAULT_PIX_GRID_PRESET_ID)?.pixGridSettings
   const defaultLayers = defaultSettings?.layers?.map(clonePixGridLayer) ?? []
+  const defaultGroups = defaultSettings?.groups?.map(group => ({ ...group, cellRuns: [...group.cellRuns], layerScope: group.layerScope ? [...group.layerScope] : null, reactions: group.reactions.map(reaction => ({ ...reaction, clamp: [...reaction.clamp] as [number, number] })), mask: group.mask.kind === 'runs' ? { kind: 'runs' as const, runs: [...group.mask.runs] } : { ...group.mask } })) ?? []
   const sceneIds = Object.keys(defaultSettings?.sceneSettings ?? {})
   const defaultScenes: PixGridScene[] = (sceneIds.length > 0 ? sceneIds : [DEFAULT_PIX_GRID_SCENE_ID]).map((id, index) => ({
     id,
@@ -125,9 +127,12 @@ export function createDefaultPixGridState(): PixGridState {
     },
     scenes: defaultScenes,
     layers: defaultLayers,
-    groups: [],
+    groups: defaultGroups,
     pixelOverrides: [],
-    performance: { ...DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS },
+    performance: {
+      ...DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS,
+      sharedPerformanceProgramId: defaultSettings?.performanceProgramId ?? DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId,
+    },
     conversion: { ...DEFAULT_PIX_GRID_CONVERSION_SETTINGS },
     diagnostics: { ...DEFAULT_PIX_GRID_DIAGNOSTICS_SETTINGS },
   }

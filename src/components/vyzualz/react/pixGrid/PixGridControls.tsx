@@ -3,12 +3,16 @@ import { useReactStore } from '../../../../stores/reactStore'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { DEFAULT_PIX_GRID_CONVERSION_SETTINGS } from './PixGridDefaults'
+import { SharedPerformanceDiagnosticsPanel } from '../SharedPerformanceDiagnosticsPanel'
+import { PIX_GRID_PERFORMANCE_PROGRAMS, PIX_GRID_PRESET_ID_BY_PROGRAM } from './PixGridPerformancePrograms'
+import { usePixGridPerformanceRuntimeStatus } from './PixGridPerformanceStatus'
 import type {
   PixGridBackgroundHandling,
   PixGridBackgroundMode,
   PixGridColorMode,
   PixGridDitherMode,
   PixGridFitMode,
+  PixGridPerformanceProgramId,
   PixGridQualityTier,
   PixGridSamplingMode,
 } from './PixGridTypes'
@@ -50,6 +54,11 @@ const DITHER_OPTIONS = [
   { value: 'atkinson', label: 'Atkinson Error Diffusion' },
 ]
 
+const PERFORMANCE_PROGRAM_OPTIONS = PIX_GRID_PERFORMANCE_PROGRAMS.map(program => ({
+  value: program.id,
+  label: program.metadata?.name ?? program.id,
+}))
+
 const PREP_BACKGROUND_OPTIONS = [
   { value: 'transparent', label: 'Preserve Transparency' },
   { value: 'solid', label: 'Composite on Solid' },
@@ -59,7 +68,9 @@ const PREP_BACKGROUND_OPTIONS = [
 export function PixGridControls() {
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
+  const selectReactPreset = useReactStore(store => store.selectReactPreset)
   const setOverlay = useReactStore(store => store.setPixGridAuthoringOverlayVisible)
+  const performanceStatus = usePixGridPerformanceRuntimeStatus()
   const selectedMedia = useMediaStore(store => state.conversion.selectedMediaId
     ? store.items.find(item => item.id === state.conversion.selectedMediaId) ?? null
     : null)
@@ -90,6 +101,51 @@ export function PixGridControls() {
 
   return (
     <div className="rv-pix-grid-controls">
+      <CtrlSection label="PERFORMANCE" />
+      <ToggleRow
+        label="Auto Performance"
+        value={state.performance.enabled}
+        onChange={enabled => setState({ performance: { ...state.performance, enabled } })}
+        description="Runs the selected PixGrid program through the engine-neutral Shared Performance Core."
+      />
+      <SliderRow
+        label="Performance Intensity"
+        value={state.performance.intensity}
+        onChange={intensity => setState({ performance: { ...state.performance, intensity } })}
+      />
+      <SelectRow
+        label="Program"
+        value={state.performance.sharedPerformanceProgramId ?? PERFORMANCE_PROGRAM_OPTIONS[0]?.value ?? ''}
+        options={PERFORMANCE_PROGRAM_OPTIONS}
+        onChange={value => {
+          const programId = value as PixGridPerformanceProgramId
+          const presetId = PIX_GRID_PRESET_ID_BY_PROGRAM[programId]
+          if (presetId) selectReactPreset(presetId)
+          else setState({ performance: { ...state.performance, sharedPerformanceProgramId: programId } })
+        }}
+      />
+      <div className="rv-ctrl-info" data-testid="pix-grid-performance-status">
+        <strong>{performanceStatus.sceneId ?? 'Awaiting playback'}</strong>
+        <span>{performanceStatus.section} · {performanceStatus.sectionPhase} · variation {performanceStatus.variationId ?? 'base'}</span>
+        <span>4 / 8 / 16 stage: {performanceStatus.fourBarStage} / {performanceStatus.eightBarStage} / {performanceStatus.sixteenBarStage}</span>
+        <span>Override: {performanceStatus.manualOverrideRoutes.length ? `${performanceStatus.manualOverrideRoutes.length} locked route${performanceStatus.manualOverrideRoutes.length === 1 ? '' : 's'}` : 'Auto'}</span>
+      </div>
+      {performanceStatus.manualOverrideRoutes.length > 0 && (
+        <div className="rv-ctrl-action-row">
+          <button
+            type="button"
+            className="rv-reset-btn"
+            onClick={() => setState({
+              performance: { ...state.performance, lockedRoutes: [] },
+              layers: state.layers.map(layer => layer.locked ? { ...layer, locked: false } : layer),
+            })}
+          >
+            Clear Override
+          </button>
+        </div>
+      )}
+      <SharedPerformanceDiagnosticsPanel engine="pixGrid" label="PixGrid Diagnostics" />
+
       <CtrlSection label="LED MATRIX" />
       <SelectRow
         label="Quality"

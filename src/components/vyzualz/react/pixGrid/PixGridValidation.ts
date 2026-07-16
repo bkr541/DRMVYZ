@@ -6,6 +6,7 @@ import {
   resolvePixGridMatrixDimensions,
 } from './PixGridDefaults'
 import { hasPixGridBuiltInAsset } from './PixGridArtwork'
+import { PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID } from './PixGridPerformancePrograms'
 import {
   MAX_PIX_GRID_ANIMATIONS_PER_LAYER,
   MAX_PIX_GRID_LAYERS,
@@ -41,6 +42,7 @@ import {
   type PixGridLayer,
   type PixGridLayerAnimation,
   type PixGridPaletteRole,
+  type PixGridPerformanceProgramId,
   type PixGridPixelOverride,
   type PixGridPresetSettings,
   type PixGridQualityTier,
@@ -74,6 +76,7 @@ const REACTION_QUANTIZATION = new Set<PixGridReactionQuantization>(['none', 'bea
 const REACTION_RETRIGGER = new Set<PixGridReactionRetrigger>(['restart', 'extend', 'ignoreWhileActive'])
 const REACTION_BLEND = new Set<PixGridReactionBlend>(['add', 'multiply', 'replace', 'max'])
 const REACTION_FALLBACK = new Set<PixGridReactionCapabilityFallback>(['disable', 'zero', 'energy', 'beat'])
+const PERFORMANCE_PROGRAM_IDS = new Set<PixGridPerformanceProgramId>(['pix-grid-bass-beacon-performance', 'pix-grid-geometric-reactor-performance', 'pix-grid-pixel-parade-performance'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -245,6 +248,10 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
     ? undefined
     : value.backgroundMode as PixGridBackgroundMode
   const layers = value.layers == null ? undefined : normalizePixGridLayers(value.layers, [])
+  const groups = value.groups == null ? undefined : normalizeGroups(value.groups, 160, 90)
+  const performanceProgramId = PERFORMANCE_PROGRAM_IDS.has(value.performanceProgramId as PixGridPerformanceProgramId)
+    ? value.performanceProgramId as PixGridPerformanceProgramId
+    : undefined
   const sceneSettings = normalizeSceneSettings(value.sceneSettings)
   return {
     pattern,
@@ -261,6 +268,8 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
     ...(value.rgbSubpixelMode != null ? { rgbSubpixelMode: value.rgbSubpixelMode === true } : {}),
     ...(value.selectedSceneId !== undefined ? { selectedSceneId: nullableId(value.selectedSceneId) } : {}),
     ...(layers ? { layers } : {}),
+    ...(groups ? { groups } : {}),
+    ...(performanceProgramId ? { performanceProgramId } : {}),
     ...(sceneSettings ? { sceneSettings } : {}),
   }
 }
@@ -466,6 +475,10 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const diagnostics = isRecord(input.diagnostics) ? input.diagnostics : {}
   const editor = isRecord(input.editor) ? input.editor : {}
   const fallbackSceneId = nullableId(input.selectedSceneId) ?? defaults.selectedSceneId ?? 'pix-grid-scene-1'
+  const selectedPresetId = nullableId(input.selectedPresetId) ?? defaults.selectedPresetId
+  const defaultPerformanceProgramId = selectedPresetId
+    ? PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID[selectedPresetId] ?? DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId
+    : DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId
   const sceneSource = Array.isArray(input.scenes)
     ? input.scenes
     : input.pixelOverrides === undefined
@@ -502,7 +515,7 @@ export function normalizePixGridState(value: unknown): PixGridState {
     stoppedBehavior: STOPPED_BEHAVIORS.has(input.stoppedBehavior as string)
       ? input.stoppedBehavior as PixGridState['stoppedBehavior']
       : defaults.stoppedBehavior,
-    selectedPresetId: nullableId(input.selectedPresetId) ?? defaults.selectedPresetId,
+    selectedPresetId,
     selectedSceneId,
     authoringOverlayVisible: input.authoringOverlayVisible === true,
     editorTool,
@@ -524,8 +537,11 @@ export function normalizePixGridState(value: unknown): PixGridState {
     groups,
     pixelOverrides: activeScene.pixelOverrides,
     performance: {
-      enabled: performance.enabled === true,
-      sharedPerformanceProgramId: nullableId(performance.sharedPerformanceProgramId),
+      enabled: performance.enabled !== false,
+      intensity: clamp(performance.intensity, 0, 1, DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.intensity),
+      sharedPerformanceProgramId: PERFORMANCE_PROGRAM_IDS.has(performance.sharedPerformanceProgramId as PixGridPerformanceProgramId)
+        ? performance.sharedPerformanceProgramId as PixGridPerformanceProgramId
+        : defaultPerformanceProgramId,
       seed: Math.max(0, Math.min(2_147_483_647, Math.round(finite(performance.seed, DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.seed)))),
       lockedRoutes: Array.isArray(performance.lockedRoutes)
         ? [...new Set(performance.lockedRoutes.filter((route): route is string => typeof route === 'string' && Boolean(route.trim())).map(route => route.trim().slice(0, 128)))].slice(0, 128)

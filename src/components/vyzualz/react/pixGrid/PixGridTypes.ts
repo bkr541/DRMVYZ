@@ -1,9 +1,13 @@
-export const PIX_GRID_STATE_VERSION = 6 as const
+export const PIX_GRID_STATE_VERSION = 7 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
 export type PixGridEditorTool = 'select' | 'pan' | 'pencil' | 'eraser' | 'fill' | 'eyedropper' | 'rectangle' | 'line' | 'marquee' | 'move'
 export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade'
+export type PixGridPerformanceProgramId =
+  | 'pix-grid-bass-beacon-performance'
+  | 'pix-grid-geometric-reactor-performance'
+  | 'pix-grid-pixel-parade-performance'
 export type PixGridBlendMode = 'normal' | 'add' | 'multiply'
 export type PixGridStoppedBehavior = 'baseline' | 'blackout'
 export type PixGridRendererPath = 'webgl2' | 'canvas2d-fallback'
@@ -232,7 +236,8 @@ export interface PixGridGroup {
 
 export interface PixGridPerformanceSettings {
   enabled: boolean
-  sharedPerformanceProgramId: string | null
+  intensity: number
+  sharedPerformanceProgramId: PixGridPerformanceProgramId | null
   seed: number
   lockedRoutes: string[]
 }
@@ -287,6 +292,8 @@ export interface PixGridPresetSettings {
   rgbSubpixelMode?: boolean
   selectedSceneId?: string | null
   layers?: PixGridLayer[]
+  groups?: PixGridGroup[]
+  performanceProgramId?: PixGridPerformanceProgramId
   sceneSettings?: Record<string, PixGridSceneSettings>
 }
 
