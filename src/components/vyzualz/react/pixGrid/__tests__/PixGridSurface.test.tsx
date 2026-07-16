@@ -174,6 +174,23 @@ describe('PixGridSurface lifecycle', () => {
     expect(webglAttempts).toBe(2)
   })
 
+  it('handles a missing Media Library item without breaking rendering and recovers when cleared', () => {
+    const base = createDefaultPixGridState()
+    renderSurface({
+      isPlaying: false,
+      state: {
+        ...base,
+        conversion: { ...base.conversion, selectedMediaId: 'missing-media-id' },
+      },
+    })
+    expect(host.querySelector('[data-pix-grid-media-status="missing"]')).not.toBeNull()
+    expect(host.textContent).toContain('selected Media Library item is missing')
+
+    renderSurface({ isPlaying: false, state: base })
+    expect(host.querySelector('[data-pix-grid-media-status="idle"]')).not.toBeNull()
+    expect(host.textContent).not.toContain('selected Media Library item is missing')
+  })
+
   it('promotes Draft fallback rendering to 96 × 54 logical readability', () => {
     const onDiagnostics = vi.fn<(diagnostics: PixGridRendererDiagnostics) => void>()
     renderSurface({

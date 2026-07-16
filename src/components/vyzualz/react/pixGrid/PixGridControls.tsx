@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
+import { useMediaStore } from '../../../../stores/mediaStore'
 import { CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
-import type { PixGridBackgroundMode, PixGridQualityTier } from './PixGridTypes'
+import { DEFAULT_PIX_GRID_CONVERSION_SETTINGS } from './PixGridDefaults'
+import type {
+  PixGridBackgroundHandling,
+  PixGridBackgroundMode,
+  PixGridColorMode,
+  PixGridDitherMode,
+  PixGridFitMode,
+  PixGridQualityTier,
+  PixGridSamplingMode,
+} from './PixGridTypes'
 
 const QUALITY_OPTIONS = [
   { value: 'draft', label: 'Draft · 64 × 36' },
@@ -16,18 +26,67 @@ const BACKGROUND_OPTIONS = [
   { value: 'custom', label: 'Custom Color' },
 ]
 
+const FIT_OPTIONS = [
+  { value: 'contain', label: 'Contain' },
+  { value: 'cover', label: 'Cover / Crop' },
+  { value: 'stretch', label: 'Stretch' },
+]
+
+const SAMPLING_OPTIONS = [
+  { value: 'crisp', label: 'Crisp Pixel Prep' },
+  { value: 'smooth', label: 'Smooth Downsample' },
+]
+
+const COLOR_MODE_OPTIONS = [
+  { value: 'original', label: 'Original Colors' },
+  { value: 'hybrid', label: 'Hybrid · Original + Brand' },
+  { value: 'brand', label: 'Brand Palette' },
+  { value: 'preset', label: 'Custom / Preset Palette' },
+]
+
+const DITHER_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: 'ordered-bayer', label: 'Ordered Bayer' },
+  { value: 'atkinson', label: 'Atkinson Error Diffusion' },
+]
+
+const PREP_BACKGROUND_OPTIONS = [
+  { value: 'transparent', label: 'Preserve Transparency' },
+  { value: 'solid', label: 'Composite on Solid' },
+  { value: 'remove-dark', label: 'Remove Near-Black' },
+]
+
 export function PixGridControls() {
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
   const setOverlay = useReactStore(store => store.setPixGridAuthoringOverlayVisible)
+  const selectedMedia = useMediaStore(store => state.conversion.selectedMediaId
+    ? store.items.find(item => item.id === state.conversion.selectedMediaId) ?? null
+    : null)
   const [backgroundDraft, setBackgroundDraft] = useState(state.backgroundColor)
+  const [prepBackgroundDraft, setPrepBackgroundDraft] = useState(state.conversion.backgroundColor)
 
   useEffect(() => setBackgroundDraft(state.backgroundColor), [state.backgroundColor])
+  useEffect(() => setPrepBackgroundDraft(state.conversion.backgroundColor), [state.conversion.backgroundColor])
+
+  const updateConversion = (patch: Partial<typeof state.conversion>) => {
+    setState({ conversion: { ...state.conversion, ...patch } })
+  }
 
   const commitBackgroundColor = (value: string) => {
     if (/^#[0-9a-f]{6}$/i.test(value)) setState({ backgroundColor: value })
     else setBackgroundDraft(state.backgroundColor)
   }
+
+  const commitPrepBackgroundColor = (value: string) => {
+    if (/^#[0-9a-f]{6}$/i.test(value)) updateConversion({ backgroundColor: value })
+    else setPrepBackgroundDraft(state.conversion.backgroundColor)
+  }
+
+  const resetConversion = () => updateConversion({
+    ...DEFAULT_PIX_GRID_CONVERSION_SETTINGS,
+    selectedMediaId: state.conversion.selectedMediaId,
+  })
 
   return (
     <div className="rv-pix-grid-controls">
@@ -49,6 +108,73 @@ export function PixGridControls() {
         onChange={value => setState({ rgbSubpixelMode: value })}
         description="Previews red, green, and blue emitter stripes inside each logical LED cell."
       />
+
+      <CtrlSection label="USER ARTWORK" />
+      <div className="rv-ctrl-info rv-pix-grid-selected-media">
+        <strong>{selectedMedia?.title ?? selectedMedia?.name ?? (state.conversion.selectedMediaId ? 'Missing media item' : 'No media selected')}</strong>
+        <span>{state.conversion.selectedMediaId ? 'Use the MEDIA tab to replace the source.' : 'Choose a compatible still image or SVG from the MEDIA tab.'}</span>
+      </div>
+      <SelectRow
+        label="Fit"
+        value={state.conversion.fitMode}
+        options={FIT_OPTIONS}
+        onChange={value => updateConversion({ fitMode: value as PixGridFitMode })}
+      />
+      <SliderRow label="Position X" value={state.conversion.positionX} onChange={value => updateConversion({ positionX: value })} />
+      <SliderRow label="Position Y" value={state.conversion.positionY} onChange={value => updateConversion({ positionY: value })} />
+      <SliderRow label="Scale" value={state.conversion.scale} min={0.1} max={4} step={0.01} onChange={value => updateConversion({ scale: value })} />
+      <SelectRow
+        label="Pixel Preparation"
+        value={state.conversion.sampling}
+        options={SAMPLING_OPTIONS}
+        onChange={value => updateConversion({ sampling: value as PixGridSamplingMode })}
+      />
+      <SelectRow
+        label="Color Mode"
+        value={state.conversion.colorMode}
+        options={COLOR_MODE_OPTIONS}
+        onChange={value => updateConversion({ colorMode: value as PixGridColorMode })}
+      />
+      <SliderRow label="Palette Size" value={state.conversion.paletteSize} min={2} max={64} step={1} onChange={value => updateConversion({ paletteSize: Math.round(value) })} />
+      <SelectRow
+        label="Dither"
+        value={state.conversion.ditherMode}
+        options={DITHER_OPTIONS}
+        onChange={value => updateConversion({ ditherMode: value as PixGridDitherMode })}
+      />
+      <SliderRow label="Alpha Threshold" value={state.conversion.alphaThreshold} onChange={value => updateConversion({ alphaThreshold: value })} />
+      <ToggleRow label="Preserve Alpha" value={state.conversion.preserveAlpha} onChange={value => updateConversion({ preserveAlpha: value })} />
+      <SliderRow label="Contrast" value={state.conversion.contrast} min={0.25} max={2} step={0.01} onChange={value => updateConversion({ contrast: value })} />
+      <SliderRow label="Brightness" value={state.conversion.brightness} min={0.25} max={2} step={0.01} onChange={value => updateConversion({ brightness: value })} />
+      <SliderRow label="Saturation" value={state.conversion.saturation} max={2} step={0.01} onChange={value => updateConversion({ saturation: value })} />
+      <SliderRow label="Edge Enhancement" value={state.conversion.edgeEnhancement} onChange={value => updateConversion({ edgeEnhancement: value })} />
+      <SelectRow
+        label="Artwork Background"
+        value={state.conversion.backgroundHandling}
+        options={PREP_BACKGROUND_OPTIONS}
+        onChange={value => updateConversion({ backgroundHandling: value as PixGridBackgroundHandling })}
+      />
+      {state.conversion.backgroundHandling === 'solid' && (
+        <TextInputRow
+          label="Artwork Background Color"
+          value={prepBackgroundDraft}
+          maxLength={7}
+          placeholder="#000000"
+          onChange={setPrepBackgroundDraft}
+          onBlur={commitPrepBackgroundColor}
+        />
+      )}
+      {state.conversion.colorMode !== 'original' && (
+        <SliderRow label="Brand Strength" value={state.conversion.brandStrength} onChange={value => updateConversion({ brandStrength: value })} />
+      )}
+      <ToggleRow label="Preserve Black" value={state.conversion.preserveBlack} onChange={value => updateConversion({ preserveBlack: value })} />
+      <ToggleRow label="Preserve White" value={state.conversion.preserveWhite} onChange={value => updateConversion({ preserveWhite: value })} />
+      <div className="rv-ctrl-action-row">
+        <button type="button" className="rv-reset-btn" onClick={resetConversion}>Reset Conversion</button>
+        {state.conversion.selectedMediaId && (
+          <button type="button" className="rv-reset-btn" onClick={() => updateConversion({ selectedMediaId: null })}>Clear Media</button>
+        )}
+      </div>
 
       <CtrlSection label="BACKGROUND" />
       <SelectRow

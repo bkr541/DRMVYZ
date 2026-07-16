@@ -6,6 +6,7 @@ import type {
 import { composePixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 import type { PixGridBaselineRenderFrame } from './PixGridBaselineRenderer'
+import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation'
 import {
   PIX_GRID_FULLSCREEN_VERTEX_SHADER,
   PIX_GRID_LOGICAL_FRAGMENT_SHADER,
@@ -29,6 +30,7 @@ interface PixGridGpuRenderInput {
   presentationWidth: number
   presentationHeight: number
   blackout?: boolean
+  preparedAsset?: PixGridPreparedAsset | null
 }
 
 interface SavedWebGLState {
@@ -335,7 +337,13 @@ export class PixGridGpuRenderer {
   }
 
   private updateOverrideTexture(input: PixGridGpuRenderInput, state: PixGridState): void {
-    const logical = composePixGridLogicalFrame(input.preset, state, input.frame, this.logicalPixels ?? undefined)
+    const logical = composePixGridLogicalFrame(
+      input.preset,
+      state,
+      input.frame,
+      this.logicalPixels ?? undefined,
+      input.preparedAsset,
+    )
     this.logicalPixels = logical.pixels
     const gl = this.gl
     gl.activeTexture(gl.TEXTURE1)

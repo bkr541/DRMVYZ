@@ -1,4 +1,4 @@
-export type MediaLibraryContext = 'visualizer' | 'react' | 'canvas' | 'manager'
+export type MediaLibraryContext = 'visualizer' | 'react' | 'canvas' | 'pixGrid' | 'manager'
 
 export type MediaLibraryCapability =
   | 'select'
@@ -46,6 +46,16 @@ export const MEDIA_MANAGER_CAPABILITIES = [
 /** CANVAS selects saved visual media through the shared library.
  * Uploading and all management actions remain exclusive to Media Manager. */
 export const CANVAS_MEDIA_LIBRARY_CAPABILITIES = [
+  'select',
+  'preview',
+  'favorite',
+  'collections',
+  'drag-media',
+] as const satisfies readonly MediaLibraryCapability[]
+
+
+/** PixGrid selects compatible still images and SVGs through the shared library. */
+export const PIX_GRID_MEDIA_LIBRARY_CAPABILITIES = [
   'select',
   'preview',
   'favorite',

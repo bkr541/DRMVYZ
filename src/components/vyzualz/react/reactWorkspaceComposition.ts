@@ -50,7 +50,7 @@ export function resolveReactWorkspaceComposition(
     leftTabs = ['workspace']
     workspaceTabLabel = 'SOURCE'
   } else if (isPixGrid) {
-    leftTabs = ['workspace']
+    leftTabs = ['workspace', 'media']
     workspaceTabLabel = 'SETUP'
   }
 

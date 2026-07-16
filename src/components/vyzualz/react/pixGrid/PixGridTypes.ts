@@ -1,4 +1,4 @@
-export const PIX_GRID_STATE_VERSION = 3 as const
+export const PIX_GRID_STATE_VERSION = 4 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
@@ -127,11 +127,33 @@ export interface PixGridPerformanceSettings {
   lockedRoutes: string[]
 }
 
+export type PixGridFitMode = 'contain' | 'cover' | 'stretch'
+export type PixGridSamplingMode = 'crisp' | 'smooth'
+export type PixGridColorMode = 'original' | 'hybrid' | 'brand' | 'preset'
+export type PixGridDitherMode = 'none' | 'ordered-bayer' | 'atkinson'
+export type PixGridBackgroundHandling = 'transparent' | 'solid' | 'remove-dark'
+
 export interface PixGridConversionSettings {
-  fitMode: 'contain' | 'cover' | 'stretch'
-  quantizationColors: number
-  ditherMode: 'none'
+  selectedMediaId: string | null
+  fitMode: PixGridFitMode
+  positionX: number
+  positionY: number
+  scale: number
+  sampling: PixGridSamplingMode
+  colorMode: PixGridColorMode
+  paletteSize: number
+  ditherMode: PixGridDitherMode
+  alphaThreshold: number
   preserveAlpha: boolean
+  contrast: number
+  brightness: number
+  saturation: number
+  edgeEnhancement: number
+  backgroundHandling: PixGridBackgroundHandling
+  backgroundColor: string
+  brandStrength: number
+  preserveBlack: boolean
+  preserveWhite: boolean
 }
 
 export interface PixGridRuntimeDiagnosticsSettings {

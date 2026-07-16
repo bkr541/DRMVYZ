@@ -217,6 +217,14 @@ const CANVAS_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'svg',         label: 'SVG'         },
 ]
 
+const PIX_GRID_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
+  { key: 'all',         label: 'All Visuals' },
+  { key: 'collections', label: 'Collections' },
+  { key: 'favorites',   label: 'Favorites'   },
+  { key: 'images',      label: 'Still Images' },
+  { key: 'svg',         label: 'SVG'         },
+]
+
 
 const MANAGER_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'all',         label: 'All Visuals' },
@@ -771,6 +779,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const capabilitySet = useMemo(() => new Set<MediaLibraryCapability>(capabilities), [capabilities])
   const isManager = context === 'manager'
   const isCanvasMode = context === 'canvas'
+  const isPixGridMode = context === 'pixGrid'
   const canSelect = capabilitySet.has('select') && onSelect !== undefined
   const canLoadTrack = capabilitySet.has('load-track')
   const canOpenLyrics = capabilitySet.has('lyrics') && onOpenLyricManager !== undefined
@@ -784,11 +793,19 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const isReactMode = context === 'react'
   const availableFilters = useMemo(() => {
-    const source = context === 'manager' ? MANAGER_FILTERS : isCanvasMode ? CANVAS_FILTERS : isReactMode ? REACT_FILTERS : VISUALIZER_FILTERS
+    const source = context === 'manager'
+      ? MANAGER_FILTERS
+      : isCanvasMode
+        ? CANVAS_FILTERS
+        : isPixGridMode
+          ? PIX_GRID_FILTERS
+          : isReactMode
+            ? REACT_FILTERS
+            : VISUALIZER_FILTERS
     return canBrowseCollections
       ? source
       : source.filter(filter => filter.key !== 'collections')
-  }, [canBrowseCollections, context, isCanvasMode, isReactMode])
+  }, [canBrowseCollections, context, isCanvasMode, isPixGridMode, isReactMode])
 
   const loadCollectionsRef = useRef(loadCollections)
   useEffect(() => { loadCollectionsRef.current = loadCollections }, [loadCollections])

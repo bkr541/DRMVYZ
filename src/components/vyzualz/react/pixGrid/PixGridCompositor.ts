@@ -15,6 +15,7 @@ import type {
 } from './PixGridTypes'
 import { normalizePixGridState } from './PixGridValidation'
 import { MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
+import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -218,6 +219,7 @@ export function composePixGridLogicalFrame(
   rawState: PixGridState,
   frame: PixGridAudioFrame,
   reusable?: Uint8Array,
+  preparedAsset?: PixGridPreparedAsset | null,
 ): PixGridLogicalFrame {
   const state = normalizePixGridState(rawState)
   const width = state.matrixWidth
@@ -233,6 +235,25 @@ export function composePixGridLogicalFrame(
     .slice(0, MAX_PIX_GRID_VISIBLE_LAYERS)
 
   for (const layer of visibleLayers) renderLayer(pixels, width, height, layer, preset.palette, frame, scene)
+
+  if (
+    state.conversion.selectedMediaId
+    && preparedAsset?.mediaId === state.conversion.selectedMediaId
+    && preparedAsset.width === width
+    && preparedAsset.height === height
+  ) {
+    for (let offset = 0; offset < preparedAsset.pixels.length; offset += 4) {
+      const alpha = preparedAsset.pixels[offset + 3] / 255
+      if (alpha <= 0) continue
+      blendPixel(
+        pixels,
+        offset,
+        [preparedAsset.pixels[offset], preparedAsset.pixels[offset + 1], preparedAsset.pixels[offset + 2]],
+        alpha,
+        'normal',
+      )
+    }
+  }
 
   for (const [x, y, color, brightness] of state.pixelOverrides) {
     const offset = (y * width + x) * 4

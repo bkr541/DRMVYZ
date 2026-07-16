@@ -3,6 +3,7 @@ import { composePixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
 import { createDefaultPixGridState } from '../../pixGrid/PixGridDefaults'
 import { applyPixGridPresetSettings } from '../../pixGrid/PixGridState'
 import type { PixGridAudioFrame, PixGridState } from '../../pixGrid/PixGridTypes'
+import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation'
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 
 export interface PixGridBaselineRenderFrame extends PixGridAudioFrame {
@@ -48,9 +49,10 @@ export function renderPixGridBaseline(
   frame: PixGridBaselineRenderFrame,
   preset: ReactPreset,
   rawState: PixGridState,
+  preparedAsset?: PixGridPreparedAsset | null,
 ): void {
   const state = normalizePixGridState(rawState)
-  const logical = composePixGridLogicalFrame(preset, state, frame)
+  const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset)
   const W = Math.max(1, frame.width)
   const H = Math.max(1, frame.height)
   const matrixAspect = state.matrixWidth / state.matrixHeight
@@ -128,6 +130,7 @@ export function renderPixGridCanvasFallback(
   frame: PixGridBaselineRenderFrame,
   preset: ReactPreset,
   rawState: PixGridState,
+  preparedAsset?: PixGridPreparedAsset | null,
 ): Readonly<{ logicalWidth: number; logicalHeight: number }> {
   const requested = normalizePixGridState(rawState)
   const state = requested.quality === 'draft'
@@ -138,7 +141,7 @@ export function renderPixGridCanvasFallback(
   if (logicalCanvas.width !== state.matrixWidth) logicalCanvas.width = state.matrixWidth
   if (logicalCanvas.height !== state.matrixHeight) logicalCanvas.height = state.matrixHeight
 
-  const logical = composePixGridLogicalFrame(preset, state, frame)
+  const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset)
   const image = logicalContext.createImageData(state.matrixWidth, state.matrixHeight)
   const intensity = clamp01(frame.intensity * state.globalIntensity * state.cellBrightness)
   for (let offset = 0; offset < logical.pixels.length; offset += 4) {

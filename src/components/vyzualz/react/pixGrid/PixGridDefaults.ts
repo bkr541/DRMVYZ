@@ -27,10 +27,26 @@ export const DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS: PixGridPerformanceSettings =
 }
 
 export const DEFAULT_PIX_GRID_CONVERSION_SETTINGS: PixGridConversionSettings = {
+  selectedMediaId: null,
   fitMode: 'contain',
-  quantizationColors: 16,
+  positionX: 0.5,
+  positionY: 0.5,
+  scale: 1,
+  sampling: 'crisp',
+  colorMode: 'original',
+  paletteSize: 16,
   ditherMode: 'none',
+  alphaThreshold: 0.04,
   preserveAlpha: true,
+  contrast: 1,
+  brightness: 1,
+  saturation: 1,
+  edgeEnhancement: 0,
+  backgroundHandling: 'transparent',
+  backgroundColor: '#000000',
+  brandStrength: 0.8,
+  preserveBlack: true,
+  preserveWhite: true,
 }
 
 export const DEFAULT_PIX_GRID_DIAGNOSTICS_SETTINGS: PixGridRuntimeDiagnosticsSettings = {

@@ -3930,7 +3930,7 @@ export function mergeReactStoreState(
   const persistedPixGridVersion = typeof persisted.pixGridState === 'object' && persisted.pixGridState !== null
     ? (persisted.pixGridState as { version?: unknown }).version
     : null
-  const needsPixGridArtworkMigration = persistedPixGridVersion !== 3 || merged.pixGridState.layers.length === 0
+  const needsPixGridArtworkMigration = persistedPixGridVersion !== 4 || merged.pixGridState.layers.length === 0
   const pixGridState = activePixGridPreset && (
     merged.pixGridState.selectedPresetId !== activePixGridPreset.id || needsPixGridArtworkMigration
   )

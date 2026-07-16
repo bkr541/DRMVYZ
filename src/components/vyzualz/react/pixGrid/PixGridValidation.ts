@@ -321,10 +321,37 @@ export function normalizePixGridState(value: unknown): PixGridState {
         : [],
     },
     conversion: {
-      fitMode: conversion.fitMode === 'cover' || conversion.fitMode === 'stretch' ? conversion.fitMode : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.fitMode,
-      quantizationColors: Math.max(2, Math.min(256, Math.round(finite(conversion.quantizationColors, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.quantizationColors)))),
-      ditherMode: 'none',
+      selectedMediaId: nullableId(conversion.selectedMediaId),
+      fitMode: conversion.fitMode === 'cover' || conversion.fitMode === 'stretch'
+        ? conversion.fitMode
+        : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.fitMode,
+      positionX: clamp(conversion.positionX, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.positionX),
+      positionY: clamp(conversion.positionY, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.positionY),
+      scale: clamp(conversion.scale, 0.1, 4, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.scale),
+      sampling: conversion.sampling === 'smooth' ? 'smooth' : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.sampling,
+      colorMode: conversion.colorMode === 'hybrid' || conversion.colorMode === 'brand' || conversion.colorMode === 'preset'
+        ? conversion.colorMode
+        : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.colorMode,
+      paletteSize: Math.max(2, Math.min(64, Math.round(finite(
+        conversion.paletteSize ?? conversion.quantizationColors,
+        DEFAULT_PIX_GRID_CONVERSION_SETTINGS.paletteSize,
+      )))),
+      ditherMode: conversion.ditherMode === 'ordered-bayer' || conversion.ditherMode === 'atkinson'
+        ? conversion.ditherMode
+        : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.ditherMode,
+      alphaThreshold: clamp(conversion.alphaThreshold, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.alphaThreshold),
       preserveAlpha: conversion.preserveAlpha !== false,
+      contrast: clamp(conversion.contrast, 0.25, 2, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.contrast),
+      brightness: clamp(conversion.brightness, 0.25, 2, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.brightness),
+      saturation: clamp(conversion.saturation, 0, 2, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.saturation),
+      edgeEnhancement: clamp(conversion.edgeEnhancement, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.edgeEnhancement),
+      backgroundHandling: conversion.backgroundHandling === 'solid' || conversion.backgroundHandling === 'remove-dark'
+        ? conversion.backgroundHandling
+        : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.backgroundHandling,
+      backgroundColor: normalizePixGridColor(conversion.backgroundColor, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.backgroundColor),
+      brandStrength: clamp(conversion.brandStrength, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.brandStrength),
+      preserveBlack: conversion.preserveBlack !== false,
+      preserveWhite: conversion.preserveWhite !== false,
     },
     diagnostics: {
       showFps: diagnostics.showFps === true,

@@ -11000,3 +11000,40 @@
   font: inherit;
   cursor: pointer;
 }
+
+/* ── PixGrid image/SVG conversion controls ──────────────────────────────── */
+.rv-pix-grid-selected-media {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.rv-pix-grid-selected-media strong {
+  overflow: hidden;
+  color: var(--text-primary, #e8f4f8);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-pix-grid-selected-media span {
+  color: var(--text-muted, rgba(232, 244, 248, 0.6));
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.rv-ctrl-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.rv-pix-grid-diagnostic--media {
+  bottom: 50px;
+  border-color: rgba(74, 199, 219, 0.3);
+}

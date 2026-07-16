@@ -94,7 +94,7 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', canvas)).toBe('SOURCE')
 
     const pixGrid = resolveReactWorkspaceComposition('pixGrid', 'beamMatrix', false)
-    expect(getReactLeftTabs(pixGrid)).toEqual(['workspace'])
+    expect(getReactLeftTabs(pixGrid)).toEqual(['workspace', 'media'])
     expect(getReactLeftTabLabel('workspace', pixGrid)).toBe('SETUP')
   })
 
@@ -103,7 +103,7 @@ describe('React workspace composition', () => {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')
-      if (engine !== 'oscilloscope') expect(tabs).not.toContain('media')
+      if (engine !== 'oscilloscope' && engine !== 'pixGrid') expect(tabs).not.toContain('media')
     }
   })
 })

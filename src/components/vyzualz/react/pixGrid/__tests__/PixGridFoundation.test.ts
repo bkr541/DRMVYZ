@@ -83,9 +83,9 @@ describe('PixGrid engine foundation', () => {
     expect(() => JSON.stringify(normalized)).not.toThrow()
   })
 
-  it('uses the native setup, presets, Track Map, and Performance Pads composition', () => {
+  it('uses the native setup, Media Library, presets, Track Map, and Performance Pads composition', () => {
     const composition = resolveReactWorkspaceComposition('pixGrid', 'beamMatrix', false)
-    expect(composition.leftTabs).toEqual(['workspace'])
+    expect(composition.leftTabs).toEqual(['workspace', 'media'])
     expect(composition.workspaceTabLabel).toBe('SETUP')
     expect(composition.presetSurface).toBe('enginePresets')
     expect(composition.showTrackMap).toBe(true)

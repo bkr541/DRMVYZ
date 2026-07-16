@@ -48,6 +48,7 @@ describe('React media-source capabilities', () => {
     expect(getReactMediaSourceCapability('shaderPads')).toBeNull()
     expect(getReactMediaSourceCapability('laserDmx')).toBeNull()
     expect(getReactMediaSourceCapability('canvas')).toBeNull()
+    expect(getReactMediaSourceCapability('pixGrid')).toBe('pixGridStill')
   })
 
   it('routes Sound Drawing media selection into renderer-owned oscillator state', async () => {
@@ -56,6 +57,15 @@ describe('React media-source capabilities', () => {
     expect(settings.sourceType).toBe('svg')
     expect(settings.selectedSvgId).toBe(svgMedia.id)
     expect(getReactMediaSourceId('soundDrawingSvg', settings)).toBe(svgMedia.id)
+  })
+
+
+  it('routes PixGrid source identity through compact conversion state', () => {
+    const state = useReactStore.getState().pixGridState
+    const pixGrid = { ...state, conversion: { ...state.conversion, selectedMediaId: pngMedia.id } }
+    expect(getReactMediaSourceId('pixGridStill', useReactStore.getState().oscillatorSettings, pixGrid)).toBe(pngMedia.id)
+    expect(getReactMediaDisabledReason('pixGridStill', pngMedia)).toBeNull()
+    expect(getReactMediaDisabledReason('pixGridStill', { ...pngMedia, type: 'video', mimeType: 'video/mp4' })).toContain('not video')
   })
 
   it('disables incompatible media instead of presenting a false selection', () => {

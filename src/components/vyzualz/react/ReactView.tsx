@@ -167,6 +167,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector,
     pixGridState,
+    setPixGridState,
     selectSvgAsset,
   } = useReactStore(useShallow(s => ({
     reactPresets:           s.reactPresets,
@@ -201,6 +202,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrixAuthoringMode: s.laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector:           s.laserDmxShowDirector,
     pixGridState:                    s.pixGridState,
+    setPixGridState:                  s.setPixGridState,
     selectSvgAsset:                  s.selectSvgAsset,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
@@ -241,15 +243,19 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
-  const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings)
+  const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings, pixGridState)
   const getMediaDisabledReason = useCallback(
     (media: Parameters<typeof getReactMediaDisabledReason>[1]) =>
       getReactMediaDisabledReason(mediaSourceCapability, media),
     [mediaSourceCapability],
   )
   const handleSelectMedia = useCallback((mediaId: string) => {
+    if (mediaSourceCapability === 'pixGridStill') {
+      setPixGridState({ conversion: { ...pixGridState.conversion, selectedMediaId: mediaId } })
+      return
+    }
     void selectSvgAsset(mediaId)
-  }, [selectSvgAsset])
+  }, [mediaSourceCapability, pixGridState.conversion, selectSvgAsset, setPixGridState])
 
   // Recording — useRecorder lives at view level so active recordings survive tab switches
   const recorder = useRecorder()
@@ -484,12 +490,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   {leftTab === 'workspace' && <ReactEnginePanel />}
                   {leftTab === 'media' && (
                     <MediaDeckPanel
-                      mode="react"
+                      mode={mediaSourceCapability === 'pixGridStill' ? 'pixGrid' : 'react'}
                       activeMediaId={activeMediaId}
                       onSelect={handleSelectMedia}
                       onOpenMediaManager={onOpenMediaManager}
                       onOpenLyricManager={onOpenLyricManager}
-                      title="Sound Drawing SVG Media"
+                      title={mediaSourceCapability === 'pixGridStill' ? 'PixGrid Image & SVG Media' : 'Sound Drawing SVG Media'}
                       getDisabledReason={getMediaDisabledReason}
                     />
                   )}

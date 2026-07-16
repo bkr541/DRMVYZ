@@ -14,6 +14,7 @@ export const PALETTE_NATIVE_REACT_ENGINES: ReadonlySet<ReactEngineId> = new Set(
   'cinematicPortal',
   'laserDmx',
   'shaderPads',
+  'pixGrid',
 ])
 const PALETTE_KEYS: ReadonlyArray<keyof ReactPalette> = [
   'primary', 'secondary', 'accent', 'background', 'highlight', 'text',

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactPreset, ReactTrackSection } from '../ReactTypes'
+import { useMediaStore } from '../../../../stores/mediaStore'
 import { createLiveFpsReporter } from '../fpsDiagnostics'
 import { acquireReactLiveEngineOwnership } from '../renderers/ReactLiveEngineOwnership'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from '../rendering/canvasResolution'
@@ -16,6 +17,8 @@ import type {
   PixGridRendererDiagnostics,
   PixGridState,
 } from './PixGridTypes'
+import { pixGridPreparedAssetCache, preparePixGridMediaAsset, type PixGridPreparedAsset } from './PixGridAssetPreparation'
+import { inspectPixGridMediaCapability, resolvePixGridMediaRevision } from './PixGridMediaCapabilities'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -90,8 +93,88 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const requestRenderRef = useRef<(force?: boolean) => void>(() => {})
   const retryGpuRef = useRef<() => void>(() => {})
   const [diagnostics, setDiagnostics] = useState<PixGridRendererDiagnostics>(EMPTY_DIAGNOSTICS)
+  const [preparedAsset, setPreparedAsset] = useState<PixGridPreparedAsset | null>(null)
+  const [mediaPreparationStatus, setMediaPreparationStatus] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle')
+  const [mediaPreparationMessage, setMediaPreparationMessage] = useState<string | null>(null)
+  const preparedAssetRef = useRef<PixGridPreparedAsset | null>(null)
+  const selectedMediaId = props.pixGridState.conversion.selectedMediaId
+  const selectedMedia = useMediaStore(state => selectedMediaId
+    ? state.items.find(item => item.id === selectedMediaId) ?? null
+    : null)
+  const ensureMediaSigned = useMediaStore(state => state.ensureMediaSigned)
   propsRef.current = props
+  preparedAssetRef.current = preparedAsset
   const hasActivePreset = props.activePreset != null
+
+  useEffect(() => {
+    if (!selectedMediaId || !props.activePreset) {
+      setPreparedAsset(null)
+      setMediaPreparationStatus('idle')
+      setMediaPreparationMessage(null)
+      requestRenderRef.current(true)
+      return
+    }
+    if (!selectedMedia) {
+      setPreparedAsset(null)
+      setMediaPreparationStatus('missing')
+      setMediaPreparationMessage('The selected Media Library item is missing. PixGrid will recover automatically if it returns.')
+      requestRenderRef.current(true)
+      return
+    }
+    const capability = inspectPixGridMediaCapability(selectedMedia)
+    if (!capability.supported) {
+      setPreparedAsset(null)
+      setMediaPreparationStatus('error')
+      setMediaPreparationMessage(capability.reason)
+      requestRenderRef.current(true)
+      return
+    }
+
+    const controller = new AbortController()
+    let active = true
+    setPreparedAsset(null)
+    setMediaPreparationStatus('loading')
+    setMediaPreparationMessage('Preparing media for the PixGrid logical matrix…')
+    void (async () => {
+      try {
+        await ensureMediaSigned([selectedMediaId], 'visible')
+        if (!active) return
+        const currentMedia = useMediaStore.getState().items.find(item => item.id === selectedMediaId) ?? selectedMedia
+        pixGridPreparedAssetCache.invalidateMedia(currentMedia.id, resolvePixGridMediaRevision(currentMedia))
+        const next = await preparePixGridMediaAsset({
+          media: currentMedia,
+          width: props.pixGridState.matrixWidth,
+          height: props.pixGridState.matrixHeight,
+          settings: props.pixGridState.conversion,
+          palette: props.activePreset!.palette,
+          signal: controller.signal,
+        })
+        if (!active) return
+        setPreparedAsset(next)
+        setMediaPreparationStatus('ready')
+        setMediaPreparationMessage(null)
+        requestRenderRef.current(true)
+      } catch (error) {
+        if (!active || controller.signal.aborted) return
+        setPreparedAsset(null)
+        setMediaPreparationStatus('error')
+        setMediaPreparationMessage(error instanceof Error ? error.message : 'PixGrid could not prepare the selected media.')
+        requestRenderRef.current(true)
+      }
+    })()
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [
+    ensureMediaSigned,
+    props.activePreset,
+    props.pixGridState.conversion,
+    props.pixGridState.matrixHeight,
+    props.pixGridState.matrixWidth,
+    selectedMedia,
+    selectedMediaId,
+  ])
 
   useEffect(() => {
     const gpuCanvas = gpuCanvasRef.current
@@ -236,6 +319,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         frame,
         input.preset,
         fallbackState,
+        preparedAssetRef.current,
       )
       publishDiagnostics({
         path: 'canvas2d-fallback',
@@ -286,6 +370,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           presentationWidth: gpuCanvas.width,
           presentationHeight: gpuCanvas.height,
           blackout: input.blackout,
+          preparedAsset: preparedAssetRef.current,
         })
         if (rendered) {
           const gpuDiagnostics = gpuRenderer.diagnostics
@@ -411,6 +496,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     props.motion,
     props.pixGridState,
     props.trackSections,
+    preparedAsset,
   ])
 
   const fallbackActive = diagnostics.path === 'canvas2d-fallback'
@@ -425,6 +511,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       data-pix-grid-context={diagnostics.contextState}
       data-pix-grid-presentation={`${diagnostics.presentationWidth}x${diagnostics.presentationHeight}`}
       data-pix-grid-resources={diagnostics.approximateGpuResourceCount}
+      data-pix-grid-media-status={mediaPreparationStatus}
+      data-pix-grid-media-revision={selectedMedia ? resolvePixGridMediaRevision(selectedMedia) : undefined}
     >
       <canvas
         ref={gpuCanvasRef}
@@ -436,6 +524,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         className="rv-preview-canvas rv-pix-grid-surface rv-pix-grid-surface--fallback"
         hidden={!fallbackActive}
       />
+      {selectedMediaId && mediaPreparationMessage && (
+        <div className="rv-pix-grid-diagnostic rv-pix-grid-diagnostic--media" role="status" aria-live="polite">
+          <span>{mediaPreparationMessage}</span>
+        </div>
+      )}
       {fallbackActive && diagnostics.fallbackReason && (
         <div className="rv-pix-grid-diagnostic" role="status" aria-live="polite">
           <span>{diagnostics.fallbackReason}</span>
