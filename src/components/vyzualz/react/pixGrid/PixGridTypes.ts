@@ -1,4 +1,4 @@
-export const PIX_GRID_STATE_VERSION = 2 as const
+export const PIX_GRID_STATE_VERSION = 3 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
@@ -8,20 +8,108 @@ export type PixGridBlendMode = 'normal' | 'add' | 'multiply'
 export type PixGridStoppedBehavior = 'baseline' | 'blackout'
 export type PixGridRendererPath = 'webgl2' | 'canvas2d-fallback'
 export type PixGridContextState = 'ready' | 'lost' | 'restoring' | 'unavailable'
+export type PixGridAssetCategory = 'typography' | 'symbol' | 'pattern' | 'geometry' | 'character' | 'motion'
+export type PixGridAssetKind = 'static' | 'procedural' | 'frameBased'
+export type PixGridPaletteRole = 'primary' | 'secondary' | 'accent' | 'highlight' | 'background'
+export type PixGridClipMode = 'clip' | 'wrap'
+export type PixGridAnimationBoundary = 'wrap' | 'clamp' | 'bounce'
+export type PixGridAudioSource = 'bass' | 'mid' | 'high' | 'volume' | 'kick' | 'snare' | 'hat'
+export type PixGridAnimationMode =
+  | 'static'
+  | 'pulse'
+  | 'bounce'
+  | 'horizontalScroll'
+  | 'verticalScroll'
+  | 'pingPong'
+  | 'rotate'
+  | 'paletteCycle'
+  | 'blink'
+  | 'revealRow'
+  | 'revealColumn'
+  | 'checkerAlternate'
+  | 'frameCycle'
+  | 'audioAmplitudeScale'
+  | 'beatStepMovement'
 
-export type PixGridPixelOverride = readonly [
-  x: number,
-  y: number,
-  color: string,
-  brightness: number,
-]
+export type PixGridBuiltInAssetId =
+  | 'pix-bass-word'
+  | 'pix-five-point-star'
+  | 'pix-multi-star-field'
+  | 'pix-equalizer-bars'
+  | 'pix-concentric-rings'
+  | 'pix-checkerboard'
+  | 'pix-diagonal-chevrons'
+  | 'pix-cross'
+  | 'pix-diamond'
+  | 'pix-spiral'
+  | 'pix-wave-line'
+  | 'pix-mascot-face'
+  | 'pix-orbiting-dots'
+  | 'pix-pixel-burst'
+  | 'pix-geometric-tunnel'
+
+export type PixGridPixelOverride = readonly [x: number, y: number, color: string, brightness: number]
+
+export interface PixGridBuiltInAssetManifestEntry {
+  id: PixGridBuiltInAssetId
+  name: string
+  category: PixGridAssetCategory
+  nativeSize: Readonly<{ width: number; height: number }>
+  aspectRatio: number
+  kind: PixGridAssetKind
+  defaultPaletteRoles: readonly PixGridPaletteRole[]
+  defaultGroups?: readonly string[]
+  animationCapabilities: readonly PixGridAnimationMode[]
+  frameCount?: number
+}
+
+export interface PixGridLayerAnimation {
+  mode: PixGridAnimationMode
+  speed: number
+  amount: number
+  phase: number
+  boundary: PixGridAnimationBoundary
+  axis?: 'x' | 'y'
+  stepped?: boolean
+  audioSource?: PixGridAudioSource
+}
+
+export interface PixGridLayerAudioReactivity {
+  brightnessSource?: PixGridAudioSource
+  brightnessAmount?: number
+  scaleSource?: PixGridAudioSource
+  scaleAmount?: number
+  beatImpact?: number
+}
 
 export interface PixGridLayer {
   id: string
   name: string
+  assetId: PixGridBuiltInAssetId
   visible: boolean
   opacity: number
+  position: { x: number; y: number }
+  scale: { x: number; y: number }
+  rotation: number
+  flipX: boolean
+  flipY: boolean
   blendMode: PixGridBlendMode
+  paletteMap: Partial<Record<PixGridPaletteRole, PixGridPaletteRole>>
+  zIndex: number
+  clipMode: PixGridClipMode
+  maskAssetId: PixGridBuiltInAssetId | null
+  animations: PixGridLayerAnimation[]
+  audioReactivity?: PixGridLayerAudioReactivity
+  densityRank: number
+  seed: number
+}
+
+export interface PixGridSceneSettings {
+  density: number
+  motionMultiplier: number
+  paletteOffset: number
+  hiddenLayerIds?: string[]
+  layerOpacity?: Record<string, number>
 }
 
 export interface PixGridGroup {
@@ -66,6 +154,8 @@ export interface PixGridPresetSettings {
   diffusion?: number
   rgbSubpixelMode?: boolean
   selectedSceneId?: string | null
+  layers?: PixGridLayer[]
+  sceneSettings?: Record<string, PixGridSceneSettings>
 }
 
 export interface PixGridState {
@@ -103,7 +193,11 @@ export interface PixGridAudioFrame {
   high: number
   volume: number
   beatHit: boolean
+  kickHit?: boolean
+  snareHit?: boolean
+  hatHit?: boolean
   beatPhase: number
+  beatIndex?: number
   isPlaying: boolean
 }
 

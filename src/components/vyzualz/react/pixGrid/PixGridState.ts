@@ -29,6 +29,7 @@ export function applyPixGridPresetSettings(
     rgbSubpixelMode: settings.rgbSubpixelMode ?? safeCurrent.rgbSubpixelMode,
     selectedPresetId: presetId,
     selectedSceneId: settings.selectedSceneId ?? safeCurrent.selectedSceneId,
+    layers: settings.layers ?? safeCurrent.layers,
   })
 }
 

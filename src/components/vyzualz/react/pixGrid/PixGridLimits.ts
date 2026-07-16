@@ -1,0 +1,3 @@
+export const MAX_PIX_GRID_LAYERS = 12
+export const MAX_PIX_GRID_VISIBLE_LAYERS = 10
+export const MAX_PIX_GRID_ANIMATIONS_PER_LAYER = 4

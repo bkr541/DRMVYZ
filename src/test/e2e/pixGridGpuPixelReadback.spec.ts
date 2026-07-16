@@ -81,6 +81,19 @@ test('PixGrid renders deterministic two-pass WebGL pixels with transparent logic
     gl.bindTexture(gl.TEXTURE_2D, overrideTexture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    const compositedPixels = new Uint8Array(logicalWidth * logicalHeight * 4)
+    for (let y = 0; y < logicalHeight; y += 1) {
+      for (let x = 0; x < logicalWidth; x += 1) {
+        if (x !== 8 && y !== 4) continue
+        const offset = (y * logicalWidth + x) * 4
+        compositedPixels[offset] = 38
+        compositedPixels[offset + 1] = 222
+        compositedPixels[offset + 2] = 255
+        compositedPixels[offset + 3] = 255
+      }
+    }
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
@@ -90,7 +103,7 @@ test('PixGrid renders deterministic two-pass WebGL pixels with transparent logic
       0,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
-      new Uint8Array(logicalWidth * logicalHeight * 4),
+      compositedPixels,
     )
 
     const framebuffer = gl.createFramebuffer()!
@@ -105,18 +118,6 @@ test('PixGrid renders deterministic two-pass WebGL pixels with transparent logic
       gl.clear(gl.COLOR_BUFFER_BIT)
       gl.useProgram(logicalProgram)
       gl.uniform2f(uniform(logicalProgram, 'uLogicalSize'), logicalWidth, logicalHeight)
-      gl.uniform1i(uniform(logicalProgram, 'uPattern'), 0)
-      gl.uniform3f(uniform(logicalProgram, 'uPrimary'), 0.15, 0.85, 1)
-      gl.uniform3f(uniform(logicalProgram, 'uSecondary'), 0.18, 0.95, 0.55)
-      gl.uniform3f(uniform(logicalProgram, 'uAccent'), 1, 0.75, 0.2)
-      gl.uniform1f(uniform(logicalProgram, 'uTime'), 0)
-      gl.uniform1f(uniform(logicalProgram, 'uBass'), 0.8)
-      gl.uniform1f(uniform(logicalProgram, 'uMid'), 0.2)
-      gl.uniform1f(uniform(logicalProgram, 'uHigh'), 0.15)
-      gl.uniform1f(uniform(logicalProgram, 'uBeat'), 1)
-      gl.uniform1f(uniform(logicalProgram, 'uBeatPhase'), 0)
-      gl.uniform1f(uniform(logicalProgram, 'uMotion'), 0.7)
-      gl.uniform1f(uniform(logicalProgram, 'uBassReactivity'), 0.9)
       gl.uniform1i(uniform(logicalProgram, 'uBlackout'), 0)
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, overrideTexture)
@@ -154,18 +155,6 @@ test('PixGrid renders deterministic two-pass WebGL pixels with transparent logic
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
     gl.uniform2f(uniform(logicalProgram, 'uLogicalSize'), logicalWidth, logicalHeight)
-    gl.uniform1i(uniform(logicalProgram, 'uPattern'), 0)
-    gl.uniform3f(uniform(logicalProgram, 'uPrimary'), 0.15, 0.85, 1)
-    gl.uniform3f(uniform(logicalProgram, 'uSecondary'), 0.18, 0.95, 0.55)
-    gl.uniform3f(uniform(logicalProgram, 'uAccent'), 1, 0.75, 0.2)
-    gl.uniform1f(uniform(logicalProgram, 'uTime'), 0)
-    gl.uniform1f(uniform(logicalProgram, 'uBass'), 0.8)
-    gl.uniform1f(uniform(logicalProgram, 'uMid'), 0.2)
-    gl.uniform1f(uniform(logicalProgram, 'uHigh'), 0.15)
-    gl.uniform1f(uniform(logicalProgram, 'uBeat'), 1)
-    gl.uniform1f(uniform(logicalProgram, 'uBeatPhase'), 0)
-    gl.uniform1f(uniform(logicalProgram, 'uMotion'), 0.7)
-    gl.uniform1f(uniform(logicalProgram, 'uBassReactivity'), 0.9)
     gl.uniform1i(uniform(logicalProgram, 'uBlackout'), 0)
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, overrideTexture)

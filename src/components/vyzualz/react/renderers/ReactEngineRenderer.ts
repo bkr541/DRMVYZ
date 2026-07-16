@@ -180,7 +180,11 @@ export function renderReactEngine(
       ctx.fillStyle = preset.palette.background
       ctx.fillRect(0, 0, frame.W, frame.H)
       break
-    case 'pixGrid':
+    case 'pixGrid': {
+      const basePixGridState = createPixGridStateForPreset(preset)
+      const mappedSceneId = sectionType
+        ? preset.sectionMappings.find(mapping => mapping.sectionType === sectionType)?.sceneId
+        : null
       renderPixGridBaseline(ctx, {
         width: frame.W,
         height: frame.H,
@@ -190,14 +194,21 @@ export function renderReactEngine(
         high: frame.audio.high,
         volume: frame.audio.volume,
         beatHit: frame.beatHit,
+        kickHit: frame.musicIntelligence?.rhythm.kickHit ?? frame.beatHit,
+        snareHit: frame.musicIntelligence?.rhythm.snareHit
+          ?? (frame.beatHit && Math.floor(frame.audioTime * frame.bpm / 60) % 4 % 2 === 1),
+        hatHit: frame.musicIntelligence?.rhythm.hatHit
+          ?? (frame.audio.high > 0.45 && frame.beatPhase < 0.12),
         beatPhase: frame.beatPhase,
+        beatIndex: Math.max(0, Math.floor(frame.audioTime * frame.bpm / 60)),
         isPlaying: frame.isPlaying !== false,
         motion: effectiveParams.motion,
         intensity: effectiveParams.intensity,
         glow: effectiveParams.glow,
         bassReactivity: effectiveParams.bassReactivity,
-      }, preset, createPixGridStateForPreset(preset))
+      }, preset, mappedSceneId ? { ...basePixGridState, selectedSceneId: mappedSceneId } : basePixGridState)
       break
+    }
     case 'laserDmx':
       // Level-1 gate: skip compilation entirely when not playing.
       // clearLaserDmxVisualState wipes trail persistence and resets compiler dt.

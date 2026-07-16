@@ -3,6 +3,7 @@ import type {
   PixGridRendererDiagnostics,
   PixGridState,
 } from '../../pixGrid/PixGridTypes'
+import { composePixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 import type { PixGridBaselineRenderFrame } from './PixGridBaselineRenderer'
 import {
@@ -68,12 +69,6 @@ function resolveBackgroundColor(preset: ReactPreset, state: PixGridState): reado
   const rgb = hexToUnitRgb(source)
   const brightness = state.backgroundBrightness
   return [rgb[0] * brightness, rgb[1] * brightness, rgb[2] * brightness]
-}
-
-function resolvePatternIndex(preset: ReactPreset): number {
-  if (preset.pixGridSettings?.pattern === 'geometricReactor') return 1
-  if (preset.pixGridSettings?.pattern === 'pixelParade') return 2
-  return 0
 }
 
 function compileShader(gl: WebGL2RenderingContext, type: number, source: string, label: string): WebGLShader {
@@ -164,7 +159,7 @@ export class PixGridGpuRenderer {
   private logicalWidth = 0
   private logicalHeight = 0
   private logicalAllocationCount = 0
-  private overrideSignature = ''
+  private logicalPixels: Uint8Array | null = null
   private contextState: PixGridRendererDiagnostics['contextState'] = 'ready'
   private disposed = false
 
@@ -241,7 +236,7 @@ export class PixGridGpuRenderer {
     const saved = this.captureState()
     try {
       this.ensureLogicalTarget(state.matrixWidth, state.matrixHeight)
-      this.updateOverrideTexture(state)
+      this.updateOverrideTexture(input, state)
       gl.disable(gl.BLEND)
       gl.disable(gl.DEPTH_TEST)
       gl.disable(gl.CULL_FACE)
@@ -295,8 +290,7 @@ export class PixGridGpuRenderer {
     }
 
     this.logicalUniforms = new Map([
-      'uLogicalSize', 'uPattern', 'uPrimary', 'uSecondary', 'uAccent', 'uTime', 'uBass', 'uMid',
-      'uHigh', 'uBeat', 'uBeatPhase', 'uMotion', 'uBassReactivity', 'uBlackout', 'uOverrideTexture',
+      'uLogicalSize', 'uBlackout', 'uOverrideTexture',
     ].map(name => [name, requireUniform(this.gl, this.logicalProgram!, name)]))
     this.presentationUniforms = new Map([
       'uLogicalTexture', 'uLogicalSize', 'uPresentationSize', 'uBackground', 'uGap', 'uRoundness',
@@ -305,7 +299,7 @@ export class PixGridGpuRenderer {
 
     this.logicalWidth = 0
     this.logicalHeight = 0
-    this.overrideSignature = ''
+    this.logicalPixels = null
   }
 
   private ensureLogicalTarget(width: number, height: number): void {
@@ -337,21 +331,12 @@ export class PixGridGpuRenderer {
     this.logicalWidth = width
     this.logicalHeight = height
     this.logicalAllocationCount += 1
-    this.overrideSignature = ''
+    this.logicalPixels = null
   }
 
-  private updateOverrideTexture(state: PixGridState): void {
-    const signature = `${state.matrixWidth}x${state.matrixHeight}:${JSON.stringify(state.pixelOverrides)}`
-    if (signature === this.overrideSignature) return
-    const pixels = new Uint8Array(state.matrixWidth * state.matrixHeight * 4)
-    for (const [x, y, color, brightness] of state.pixelOverrides) {
-      const offset = (y * state.matrixWidth + x) * 4
-      const rgb = hexToUnitRgb(color)
-      pixels[offset] = Math.round(rgb[0] * clamp01(brightness) * 255)
-      pixels[offset + 1] = Math.round(rgb[1] * clamp01(brightness) * 255)
-      pixels[offset + 2] = Math.round(rgb[2] * clamp01(brightness) * 255)
-      pixels[offset + 3] = 255
-    }
+  private updateOverrideTexture(input: PixGridGpuRenderInput, state: PixGridState): void {
+    const logical = composePixGridLogicalFrame(input.preset, state, input.frame, this.logicalPixels ?? undefined)
+    this.logicalPixels = logical.pixels
     const gl = this.gl
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, this.overrideTexture)
@@ -365,30 +350,13 @@ export class PixGridGpuRenderer {
       state.matrixHeight,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
-      pixels,
+      logical.pixels,
     )
-    this.overrideSignature = signature
   }
 
   private applyLogicalUniforms(input: PixGridGpuRenderInput, state: PixGridState): void {
     const gl = this.gl
-    const frame = input.frame
-    const primary = hexToUnitRgb(input.preset.palette.primary)
-    const secondary = hexToUnitRgb(input.preset.palette.secondary)
-    const accent = hexToUnitRgb(input.preset.palette.accent)
     gl.uniform2f(this.logicalUniform('uLogicalSize'), state.matrixWidth, state.matrixHeight)
-    gl.uniform1i(this.logicalUniform('uPattern'), resolvePatternIndex(input.preset))
-    gl.uniform3f(this.logicalUniform('uPrimary'), primary[0], primary[1], primary[2])
-    gl.uniform3f(this.logicalUniform('uSecondary'), secondary[0], secondary[1], secondary[2])
-    gl.uniform3f(this.logicalUniform('uAccent'), accent[0], accent[1], accent[2])
-    gl.uniform1f(this.logicalUniform('uTime'), frame.audioTime)
-    gl.uniform1f(this.logicalUniform('uBass'), frame.bass)
-    gl.uniform1f(this.logicalUniform('uMid'), frame.mid)
-    gl.uniform1f(this.logicalUniform('uHigh'), frame.high)
-    gl.uniform1f(this.logicalUniform('uBeat'), frame.beatHit ? 1 : Math.max(0, 1 - frame.beatPhase * 3.2))
-    gl.uniform1f(this.logicalUniform('uBeatPhase'), frame.beatPhase)
-    gl.uniform1f(this.logicalUniform('uMotion'), frame.motion)
-    gl.uniform1f(this.logicalUniform('uBassReactivity'), frame.bassReactivity)
     gl.uniform1i(this.logicalUniform('uBlackout'), input.blackout ? 1 : 0)
   }
 
@@ -501,6 +469,6 @@ export class PixGridGpuRenderer {
     this.presentationUniforms.clear()
     this.logicalWidth = 0
     this.logicalHeight = 0
-    this.overrideSignature = ''
+    this.logicalPixels = null
   }
 }

@@ -29,6 +29,7 @@ export interface PixGridSurfaceProps {
   isPaused?: boolean
   trackSections?: readonly ReactTrackSection[]
   getAudioTime: () => number
+  effectiveBpm?: number
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
   onDiagnostics?: (diagnostics: PixGridRendererDiagnostics) => void
@@ -114,7 +115,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let resolution: CanvasResolution | null = null
     let frequencyData: Uint8Array<ArrayBuffer> | null = null
     let lastBass = 0
+    let lastMid = 0
+    let lastHigh = 0
     let beatLatch = false
+    let snareLatch = false
+    let hatLatch = false
     let animationFrame = 0
     let gpuRenderer: PixGridGpuRenderer | null = null
     let activePath: PixGridRendererDiagnostics['path'] = 'canvas2d-fallback'
@@ -170,12 +175,23 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         ? averageRange(frequencyData, Math.floor(bins * 0.45), bins)
         : 0
       const beatHit = shouldAnimate && bass > 0.58 && bass > lastBass + 0.055 && !beatLatch
+      const snareHit = shouldAnimate && mid > 0.46 && mid > lastMid + 0.045 && !snareLatch
+      const hatHit = shouldAnimate && high > 0.3 && high > lastHigh + 0.035 && !hatLatch
       beatLatch = shouldAnimate && bass > 0.46
+      snareLatch = shouldAnimate && mid > 0.36
+      hatLatch = shouldAnimate && high > 0.23
       if (!shouldAnimate || bass < 0.34) beatLatch = false
+      if (!shouldAnimate || mid < 0.28) snareLatch = false
+      if (!shouldAnimate || high < 0.17) hatLatch = false
       lastBass = bass
+      lastMid = mid
+      lastHigh = high
       const sampledAudioTime = shouldAnimate ? current.getAudioTime() : 0
       const audioTime = Number.isFinite(sampledAudioTime) ? sampledAudioTime : 0
-      const beatPhase = ((audioTime * 2) % 1 + 1) % 1
+      const effectiveBpm = Number.isFinite(current.effectiveBpm) ? Math.max(1, current.effectiveBpm!) : 120
+      const musicalBeat = audioTime * effectiveBpm / 60
+      const beatPhase = ((musicalBeat % 1) + 1) % 1
+      const beatIndex = Math.max(0, Math.floor(musicalBeat))
       const selectedSceneId = resolveSectionScene(activePreset, current.trackSections ?? [], audioTime)
       const state = selectedSceneId
         ? { ...current.pixGridState, selectedSceneId }
@@ -193,7 +209,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           high,
           volume: Math.max(bass, mid, high),
           beatHit,
+          kickHit: beatHit,
+          snareHit,
+          hatHit,
           beatPhase,
+          beatIndex,
           isPlaying: shouldAnimate,
           motion: current.motion,
           intensity: current.intensity,

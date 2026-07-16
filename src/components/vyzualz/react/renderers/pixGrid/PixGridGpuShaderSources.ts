@@ -14,86 +14,16 @@ precision highp float;
 precision highp int;
 
 uniform vec2 uLogicalSize;
-uniform int uPattern;
-uniform vec3 uPrimary;
-uniform vec3 uSecondary;
-uniform vec3 uAccent;
-uniform float uTime;
-uniform float uBass;
-uniform float uMid;
-uniform float uHigh;
-uniform float uBeat;
-uniform float uBeatPhase;
-uniform float uMotion;
-uniform float uBassReactivity;
 uniform bool uBlackout;
 uniform sampler2D uOverrideTexture;
 out vec4 outColor;
 
-float saturate(float value) { return clamp(value, 0.0, 1.0); }
-
 void main() {
   ivec2 framebufferCell = ivec2(gl_FragCoord.xy);
   ivec2 cell = ivec2(framebufferCell.x, int(uLogicalSize.y) - 1 - framebufferCell.y);
-  vec2 uv = (vec2(cell) + 0.5) / uLogicalSize;
-  vec4 overridePixel = texelFetch(uOverrideTexture, cell, 0);
-  if (uBlackout) {
-    outColor = vec4(0.0);
-    return;
-  }
-
-  float nx = uv.x * 2.0 - 1.0;
-  float ny = uv.y * 2.0 - 1.0;
-  float aspectX = nx * (uLogicalSize.x / uLogicalSize.y) / (16.0 / 9.0);
-  float time = uTime * max(0.08, uMotion);
-  float beatPulse = max(uBeat, max(0.0, 1.0 - uBeatPhase * 3.2));
-  float value = 0.0;
-  float colorMix = 0.0;
-  float accent = 0.0;
-
-  if (uPattern == 1) {
-    float angle = time * 0.8;
-    float c = cos(angle);
-    float s = sin(angle);
-    float rx = aspectX * c - ny * s;
-    float ry = aspectX * s + ny * c;
-    float diamond = abs(rx) + abs(ry);
-    float rings = 0.5 + 0.5 * cos((diamond * 13.0 - time * 4.2) * 3.14159265);
-    float diagonals = max(0.0, 1.0 - min(abs(rx - ry), abs(rx + ry)) * 18.0);
-    float core = max(0.0, 1.0 - length(vec2(aspectX, ny)) * (5.5 - uBass * 1.8));
-    value = saturate(rings * (0.52 + uMid * 0.08) + diagonals * 0.45 + core * (0.65 + uBass * 0.6) + beatPulse * core * 0.6);
-    colorMix = saturate((atan(ny, aspectX) / 3.14159265 + 1.0) * 0.5 + rings * 0.18);
-    accent = saturate(core + diagonals * beatPulse);
-  } else if (uPattern == 2) {
-    float lane = floor(uv.y * 7.0);
-    float direction = mod(lane, 2.0) < 1.0 ? 1.0 : -1.0;
-    float march = mod(float(cell.x) + direction * time * (12.0 + uHigh * 12.0) + lane * 9.0, 26.0);
-    float body = march < 8.0 ? 1.0 : march < 10.0 ? 0.5 : 0.0;
-    float stepLight = mod(float(cell.x) + lane * 3.0 + floor(time * 6.0), 11.0) < 1.0 ? 0.65 : 0.0;
-    float lanePulse = 0.45 + 0.55 * sin((lane + 1.0) * 1.7 + time * 2.3);
-    value = saturate(body * (0.52 + lanePulse * 0.35 + uMid * 0.06) + stepLight + beatPulse * body * 0.45);
-    colorMix = mod(lane, 4.0) / 3.0;
-    accent = saturate(((lane == 2.0 || lane == 5.0) ? body : 0.0) + beatPulse * stepLight);
-  } else {
-    float radius = length(vec2(aspectX, ny));
-    float theta = atan(ny, aspectX);
-    float pulseRadius = 0.16 + uBass * uBassReactivity * 0.28 + beatPulse * 0.08;
-    float ringDistance = abs(radius - pulseRadius - (0.5 + 0.5 * sin(time * 2.4)) * 0.16);
-    float ring = max(0.0, 1.0 - ringDistance * 24.0);
-    float beacon = max(0.0, 1.0 - radius * (4.3 - uBass * 1.4));
-    float spokes = pow(max(0.0, cos(theta * 8.0 + time * 2.2)), 9.0) * max(0.0, 1.0 - radius * 1.35);
-    value = saturate(beacon * (0.7 + uBass * 0.8) + ring * (0.76 + uMid * 0.08) + spokes * (0.28 + beatPulse * 0.5));
-    colorMix = saturate(radius * 0.7 + 0.25 * sin(theta * 4.0 + time));
-    accent = saturate(beacon * beatPulse + ring * uHigh * 0.7);
-  }
-
-  vec3 baseColor = mix(uPrimary, uSecondary, colorMix);
-  vec3 logicalColor = mix(baseColor, uAccent, accent * 0.72) * value;
-  float alpha = value <= 0.025 ? 0.0 : smoothstep(0.025, 0.12, value);
-  if (overridePixel.a > 0.0) {
-    logicalColor = overridePixel.rgb;
-    alpha = 1.0;
-  }
+  vec4 compositedPixel = texelFetch(uOverrideTexture, cell, 0);
+  vec3 logicalColor = uBlackout ? vec3(0.0) : compositedPixel.rgb;
+  float alpha = uBlackout ? 0.0 : compositedPixel.a;
   outColor = vec4(logicalColor, alpha);
 }
 `

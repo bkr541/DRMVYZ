@@ -34,7 +34,7 @@ const PREVIEW_START_TIME_SEC = 31.5
 const PREVIEW_SECONDS = 2.4
 const MAX_CONCURRENT_WEBGL_THUMBNAILS = 1
 const MAX_THUMBNAIL_CACHE_ENTRIES = 256
-const THUMBNAIL_FINGERPRINT_VERSION = 6
+const THUMBNAIL_FINGERPRINT_VERSION = 7
 const THUMBNAIL_QUALITY_MODE = 'low-cost-v1'
 const MIN_THUMBNAIL_DIMENSION = 16
 const MAX_THUMBNAIL_DIMENSION = 1024
@@ -598,6 +598,12 @@ function createLowCostThumbnailPreset(preset: ReactPreset): ReactPreset {
     thumbnailPreset = {
       ...thumbnailPreset,
       cinematicConfig: { ...preset.cinematicConfig, qualityTier: 'low' },
+    }
+  }
+  if (preset.pixGridSettings) {
+    thumbnailPreset = {
+      ...thumbnailPreset,
+      pixGridSettings: { ...preset.pixGridSettings, quality: 'low' },
     }
   }
   if (preset.laserDmxSettings) {

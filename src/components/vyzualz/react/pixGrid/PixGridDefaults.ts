@@ -5,7 +5,8 @@ import type {
   PixGridRuntimeDiagnosticsSettings,
   PixGridState,
 } from './PixGridTypes'
-import { PIX_GRID_STATE_VERSION } from './PixGridTypes'
+import { PIX_GRID_STATE_VERSION, type PixGridLayer } from './PixGridTypes'
+import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 
 export const PIX_GRID_MATRIX_DIMENSIONS: Readonly<Record<PixGridQualityTier, Readonly<{ width: number; height: number }>>> = {
   draft: { width: 64, height: 36 },
@@ -42,8 +43,21 @@ export function resolvePixGridMatrixDimensions(quality: PixGridQualityTier): Rea
   return PIX_GRID_MATRIX_DIMENSIONS[quality]
 }
 
+function cloneLayer(layer: PixGridLayer): PixGridLayer {
+  return {
+    ...layer,
+    position: { ...layer.position },
+    scale: { ...layer.scale },
+    paletteMap: { ...layer.paletteMap },
+    animations: layer.animations.map(animation => ({ ...animation })),
+    ...(layer.audioReactivity ? { audioReactivity: { ...layer.audioReactivity } } : {}),
+  }
+}
+
 export function createDefaultPixGridState(): PixGridState {
   const dimensions = resolvePixGridMatrixDimensions(DEFAULT_PIX_GRID_QUALITY)
+  const defaultLayers = PIX_GRID_PRESET_BY_ID.get(DEFAULT_PIX_GRID_PRESET_ID)?.pixGridSettings?.layers
+    ?.map(cloneLayer) ?? []
   return {
     version: PIX_GRID_STATE_VERSION,
     quality: DEFAULT_PIX_GRID_QUALITY,
@@ -64,9 +78,7 @@ export function createDefaultPixGridState(): PixGridState {
     selectedSceneId: DEFAULT_PIX_GRID_SCENE_ID,
     authoringOverlayVisible: false,
     editorTool: 'select',
-    layers: [
-      { id: 'pix-grid-layer-base', name: 'Base Artwork', visible: true, opacity: 1, blendMode: 'normal' },
-    ],
+    layers: defaultLayers,
     groups: [],
     pixelOverrides: [],
     performance: { ...DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS },

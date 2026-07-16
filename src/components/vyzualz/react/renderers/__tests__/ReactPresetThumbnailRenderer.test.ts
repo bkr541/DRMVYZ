@@ -164,6 +164,19 @@ describe('React preset thumbnail renderer scheduling', () => {
     expect(fingerprintReactPresetThumbnail(structuredClone(source))).toBe(baseline)
   })
 
+  it('isolates PixGrid thumbnail quality and selects the representative drop mapping', async () => {
+    const source = preset('pix-grid-bass-beacon')
+    const before = structuredClone(source)
+
+    await expect(renderReactPresetThumbnail(source, { width: 240, height: 135 }))
+      .resolves.toBe('data:image/png;base64,exact-preview')
+
+    expect(mocks.renderReactEngine).toHaveBeenCalledTimes(getReactPresetThumbnailFrameBudgetForTests(source))
+    expect(mocks.renderReactEngine.mock.calls.every(call => call[2].pixGridSettings?.quality === 'low')).toBe(true)
+    expect(mocks.renderReactEngine.mock.calls.every(call => call[4]?.[0]?.type === 'drop')).toBe(true)
+    expect(source).toEqual(before)
+  })
+
   it('uses a bounded engine-aware warm-up and low-cost thumbnail quality without mutating the live preset', async () => {
     const source = preset('preset-cyan-reverie')
     const originalQuality = source.cinematicConfig?.qualityTier
