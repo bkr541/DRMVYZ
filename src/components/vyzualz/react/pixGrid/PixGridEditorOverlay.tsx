@@ -14,6 +14,7 @@ import {
   type PixGridCellPoint,
 } from './PixGridAuthoring'
 import type { PixGridEditorTool, PixGridState } from './PixGridTypes'
+import { activePixGridGroups, compilePixGridGroupMask } from './PixGridGroups'
 
 interface PointerOperation {
   pointerId: number
@@ -164,6 +165,27 @@ export function PixGridEditorOverlay() {
           context.lineTo(output.left + output.width, py)
         }
         context.stroke()
+      }
+
+      const visibleGroups = activePixGridGroups(current.groups).filter(group => group.visible)
+      if (visibleGroups.length > 0) {
+        const cellWidth = output.width / current.matrixWidth
+        const cellHeight = output.height / current.matrixHeight
+        context.save()
+        for (const group of visibleGroups) {
+          const compiled = compilePixGridGroupMask(group, current.matrixWidth, current.matrixHeight)
+          context.fillStyle = group.displayColor ?? '#4ac7db'
+          context.globalAlpha = group.id === current.editor.selectedGroupId ? 0.3 : 0.16
+          for (const [row, startColumn, length] of compiled.runs) {
+            context.fillRect(
+              output.left + startColumn * cellWidth,
+              output.top + row * cellHeight,
+              length * cellWidth,
+              cellHeight,
+            )
+          }
+        }
+        context.restore()
       }
 
       if (current.editor.selection) {

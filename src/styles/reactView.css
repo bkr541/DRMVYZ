@@ -11285,3 +11285,40 @@
   opacity: 0.35;
   cursor: not-allowed;
 }
+
+.rv-pix-grid-group-list {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 12px;
+}
+
+.rv-pix-grid-group-list > button {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  color: inherit;
+  text-align: left;
+}
+
+.rv-pix-grid-group-list > button.is-active {
+  border-color: rgba(74, 199, 219, 0.58);
+  background: rgba(74, 199, 219, 0.1);
+}
+
+.rv-pix-grid-group-list small {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.rv-pix-grid-group-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  box-shadow: 0 0 8px currentColor;
+}

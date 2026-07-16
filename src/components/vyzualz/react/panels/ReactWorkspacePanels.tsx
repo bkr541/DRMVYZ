@@ -9,6 +9,7 @@ import { ReactRecordingPanel } from '../ReactRecordingPanel'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
 import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
+import { PixGridGroupReactionPanel } from '../pixGrid/PixGridGroupReactionPanel'
 
 type DesignSurface = 'engine' | 'selection'
 type ReactivitySurface = 'routing' | 'analysis'
@@ -100,7 +101,12 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
 }
 
 export function ReactReactivityWorkspacePanel() {
+  const pixGridActive = useReactStore(state => state.activeReactEngineId === 'pixGrid')
   const [surface, setSurface] = useState<ReactivitySurface>('routing')
+
+  if (pixGridActive) {
+    return <div className="rv-workspace-panel"><div className="rv-workspace-panel-body"><div className="rv-inspector rv-inspector-scroll"><PixGridGroupReactionPanel /></div></div></div>
+  }
 
   return (
     <div className="rv-workspace-panel">

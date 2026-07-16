@@ -1,4 +1,4 @@
-export const PIX_GRID_STATE_VERSION = 5 as const
+export const PIX_GRID_STATE_VERSION = 6 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
@@ -13,7 +13,17 @@ export type PixGridAssetKind = 'static' | 'procedural' | 'frameBased'
 export type PixGridPaletteRole = 'primary' | 'secondary' | 'accent' | 'highlight' | 'background'
 export type PixGridClipMode = 'clip' | 'wrap'
 export type PixGridAnimationBoundary = 'wrap' | 'clamp' | 'bounce'
-export type PixGridAudioSource = 'bass' | 'mid' | 'high' | 'volume' | 'kick' | 'snare' | 'hat'
+export type PixGridContinuousAudioSource =
+  | 'sub' | 'bass' | 'lowMid' | 'mid' | 'high' | 'air' | 'volume'
+  | 'energy' | 'trackRelativeEnergy' | 'spectralFlux' | 'tension' | 'complexity'
+  | 'buildProgress' | 'sectionProgress' | 'phraseProgress' | 'vocalEnergy'
+export type PixGridDiscreteAudioSource =
+  | 'beat' | 'downbeat' | 'kick' | 'snare' | 'hat' | 'transient'
+  | 'barEntry' | 'fourBarBoundary' | 'eightBarBoundary' | 'sixteenBarBoundary'
+  | 'sectionEntry' | 'sectionExit' | 'dropImpact' | 'semanticMoment'
+export type PixGridReactionSource = PixGridContinuousAudioSource | PixGridDiscreteAudioSource
+/** Backward-compatible layer animation source union. */
+export type PixGridAudioSource = PixGridReactionSource
 export type PixGridAnimationMode =
   | 'static'
   | 'pulse'
@@ -75,6 +85,8 @@ export interface PixGridEditorSettings {
   paintOpacity: number
   eraserMode: 'off' | 'restore'
   selectedLayerId: string | null
+  selectedGroupId: string | null
+  previewReactionAssignmentId: string | null
   selection: PixGridCellRect | null
 }
 
@@ -143,12 +155,79 @@ export interface PixGridSceneSettings {
   layerOpacity?: Record<string, number>
 }
 
+export type PixGridCellRun = readonly [row: number, startColumn: number, length: number]
+export type PixGridGroupSource =
+  | 'manualSelection' | 'layerAlpha' | 'foregroundBackground' | 'colorRange' | 'luminanceRange'
+  | 'connectedRegion' | 'border' | 'center' | 'leftRight' | 'topBottom' | 'quadrant'
+  | 'horizontalBands' | 'verticalBands' | 'alternatingRows' | 'alternatingColumns'
+  | 'checkerboard' | 'diagonalBands' | 'radialRings' | 'deterministicClusters' | 'svgMetadata'
+export type PixGridGeometricGroupPattern =
+  | 'border' | 'center' | 'left' | 'right' | 'top' | 'bottom'
+  | 'quadrantTopLeft' | 'quadrantTopRight' | 'quadrantBottomLeft' | 'quadrantBottomRight'
+  | 'horizontalBands' | 'verticalBands' | 'alternatingRowsA' | 'alternatingRowsB'
+  | 'alternatingColumnsA' | 'alternatingColumnsB' | 'checkerboardA' | 'checkerboardB'
+  | 'diagonalBands' | 'radialRings' | 'deterministicClusters'
+export type PixGridGroupOverlapBehavior = 'stack' | 'exclusive' | 'replace'
+export type PixGridReactionTarget =
+  | 'brightness' | 'paletteRole' | 'color' | 'opacity' | 'scale' | 'positionX' | 'positionY'
+  | 'reveal' | 'hide' | 'blink' | 'outlineFlash' | 'sparkle' | 'pixelDisplacement'
+  | 'frameAdvance' | 'animationSpeed' | 'directionReverse' | 'dissolveThreshold'
+  | 'invert' | 'posterize'
+export type PixGridReactionRetrigger = 'restart' | 'extend' | 'ignoreWhileActive'
+export type PixGridReactionBlend = 'add' | 'multiply' | 'replace' | 'max'
+export type PixGridReactionCapabilityFallback = 'disable' | 'zero' | 'energy' | 'beat'
+export type PixGridReactionQuantization = 'none' | 'beat' | 'bar' | 'fourBars' | 'eightBars' | 'sixteenBars'
+
+export interface PixGridReactionAssignment {
+  id: string
+  name: string
+  enabled: boolean
+  source: PixGridReactionSource
+  target: PixGridReactionTarget
+  amount: number
+  invert: boolean
+  threshold: number
+  attack: number
+  hold: number
+  release: number
+  smoothing: number
+  quantization: PixGridReactionQuantization
+  retrigger: PixGridReactionRetrigger
+  minimumConfidence: number
+  capabilityFallback: PixGridReactionCapabilityFallback
+  clamp: readonly [number, number]
+  blend: PixGridReactionBlend
+  paletteRole?: PixGridPaletteRole
+  color?: string
+  seedOffset?: number
+}
+
+export type PixGridGroupMaskDefinition =
+  | { kind: 'runs'; runs: PixGridCellRun[] }
+  | { kind: 'geometric'; pattern: PixGridGeometricGroupPattern; count?: number; index?: number; thickness?: number; seed?: number }
+  | { kind: 'layerAlpha'; threshold: number; foreground: boolean }
+  | { kind: 'colorRange'; color: string; tolerance: number }
+  | { kind: 'luminanceRange'; min: number; max: number }
+  | { kind: 'connectedRegion'; seedX: number; seedY: number; tolerance: number; alphaThreshold: number; maxCells: number }
+  | { kind: 'svgMetadata'; elementId?: string; fillColor?: string }
+
 export interface PixGridGroup {
   id: string
   name: string
+  source: PixGridGroupSource
+  mask: PixGridGroupMaskDefinition
+  /** Materialized compact row runs retained for manual and prepared smart groups. */
+  cellRuns: PixGridCellRun[]
+  /** Backward-compatible single-layer scope. */
   layerId: string | null
-  cellRuns: Array<readonly [row: number, startColumn: number, length: number]>
+  layerScope: string[] | null
   smartRuleId: string | null
+  enabled: boolean
+  visible: boolean
+  priority: number
+  overlapBehavior: PixGridGroupOverlapBehavior
+  reactions: PixGridReactionAssignment[]
+  displayColor: string | null
 }
 
 export interface PixGridPerformanceSettings {
@@ -248,12 +327,41 @@ export interface PixGridAudioFrame {
   high: number
   volume: number
   beatHit: boolean
+  beatPhase: number
+  isPlaying: boolean
+  sub?: number
+  lowMid?: number
+  air?: number
+  energy?: number
+  trackRelativeEnergy?: number
+  spectralFlux?: number
+  tension?: number
+  complexity?: number
+  buildProgress?: number
+  sectionProgress?: number
+  phraseProgress?: number
+  vocalEnergy?: number
+  downbeatHit?: boolean
   kickHit?: boolean
   snareHit?: boolean
   hatHit?: boolean
-  beatPhase: number
+  transientHit?: boolean
+  barEntry?: boolean
+  fourBarBoundary?: boolean
+  eightBarBoundary?: boolean
+  sixteenBarBoundary?: boolean
+  sectionEntry?: boolean
+  sectionExit?: boolean
+  dropImpactHit?: boolean
+  semanticMomentHit?: boolean
   beatIndex?: number
-  isPlaying: boolean
+  barIndex?: number
+  sectionOccurrence?: number
+  deltaTimeSec?: number
+  timingDiscontinuity?: boolean
+  trackIdentity?: string | null
+  capabilities?: Partial<Record<PixGridReactionSource, boolean>>
+  confidence?: Partial<Record<PixGridReactionSource, number>>
 }
 
 export interface PixGridRendererDiagnostics {
@@ -268,4 +376,7 @@ export interface PixGridRendererDiagnostics {
   contextState: PixGridContextState
   fallbackReason: string | null
   approximateGpuResourceCount: number
+  activeGroupMaskCount?: number
+  groupMaskUploadCount?: number
+  groupMaskApproximateBytes?: number
 }

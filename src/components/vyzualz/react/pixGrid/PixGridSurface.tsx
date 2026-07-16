@@ -19,6 +19,9 @@ import type {
 } from './PixGridTypes'
 import { pixGridPreparedAssetCache, preparePixGridMediaAsset, type PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { inspectPixGridMediaCapability, resolvePixGridMediaRevision } from './PixGridMediaCapabilities'
+import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
+import { buildSharedPerformanceContext, type SharedPerformanceContext } from '../../../../features/performanceCore'
+import { createPixGridAudioFrame, PixGridReactionRuntime } from './PixGridAudioRouting'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -44,13 +47,7 @@ function canvasQuality(quality: PixGridQualityTier): 'low' | 'medium' | 'high' |
   return quality
 }
 
-function averageRange(data: Uint8Array<ArrayBuffer>, start: number, end: number): number {
-  const safeStart = Math.max(0, Math.min(data.length, start))
-  const safeEnd = Math.max(safeStart + 1, Math.min(data.length, end))
-  let sum = 0
-  for (let i = safeStart; i < safeEnd; i += 1) sum += data[i]
-  return sum / ((safeEnd - safeStart) * 255)
-}
+
 
 function resolveSectionScene(preset: ReactPreset, sections: readonly ReactTrackSection[], audioTime: number): string | null {
   const section = sections.find(candidate => audioTime >= candidate.startSec && audioTime < candidate.endSec)
@@ -211,13 +208,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     }
 
     let resolution: CanvasResolution | null = null
-    let frequencyData: Uint8Array<ArrayBuffer> | null = null
-    let lastBass = 0
-    let lastMid = 0
-    let lastHigh = 0
-    let beatLatch = false
-    let snareLatch = false
-    let hatLatch = false
+    let previousPerformanceContext: SharedPerformanceContext | null = null
+    let lastAudioTime = 0
+    const fallbackReactionRuntime = new PixGridReactionRuntime()
     let animationFrame = 0
     let gpuRenderer: PixGridGpuRenderer | null = null
     let activePath: PixGridRendererDiagnostics['path'] = 'canvas2d-fallback'
@@ -254,43 +247,22 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const current = propsRef.current
       const activePreset = current.activePreset
       if (!activePreset) return null
-      const shouldAnimate = current.isPlaying
-      const analyser = shouldAnimate ? current.analyser : null
-      if (analyser) {
-        if (!frequencyData || frequencyData.length !== analyser.frequencyBinCount) {
-          frequencyData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
-        }
-        analyser.getByteFrequencyData(frequencyData)
-      }
-      const bins = frequencyData?.length ?? 0
-      const bass = analyser && frequencyData
-        ? averageRange(frequencyData, 0, Math.max(1, Math.floor(bins * 0.12)))
-        : 0
-      const mid = analyser && frequencyData
-        ? averageRange(frequencyData, Math.floor(bins * 0.12), Math.floor(bins * 0.45))
-        : 0
-      const high = analyser && frequencyData
-        ? averageRange(frequencyData, Math.floor(bins * 0.45), bins)
-        : 0
-      const beatHit = shouldAnimate && bass > 0.58 && bass > lastBass + 0.055 && !beatLatch
-      const snareHit = shouldAnimate && mid > 0.46 && mid > lastMid + 0.045 && !snareLatch
-      const hatHit = shouldAnimate && high > 0.3 && high > lastHigh + 0.035 && !hatLatch
-      beatLatch = shouldAnimate && bass > 0.46
-      snareLatch = shouldAnimate && mid > 0.36
-      hatLatch = shouldAnimate && high > 0.23
-      if (!shouldAnimate || bass < 0.34) beatLatch = false
-      if (!shouldAnimate || mid < 0.28) snareLatch = false
-      if (!shouldAnimate || high < 0.17) hatLatch = false
-      lastBass = bass
-      lastMid = mid
-      lastHigh = high
-      const sampledAudioTime = shouldAnimate ? current.getAudioTime() : 0
-      const audioTime = Number.isFinite(sampledAudioTime) ? sampledAudioTime : 0
-      const effectiveBpm = Number.isFinite(current.effectiveBpm) ? Math.max(1, current.effectiveBpm!) : 120
-      const musicalBeat = audioTime * effectiveBpm / 60
-      const beatPhase = ((musicalBeat % 1) + 1) % 1
-      const beatIndex = Math.max(0, Math.floor(musicalBeat))
-      const selectedSceneId = resolveSectionScene(activePreset, current.trackSections ?? [], audioTime)
+      const shouldAnimate = current.isPlaying && !current.isPaused
+      const intelligenceFrame = AudioFeatureBus.getFrame()
+      const sampledAudioTime = shouldAnimate ? current.getAudioTime() : lastAudioTime
+      const audioTime = Number.isFinite(sampledAudioTime) ? Math.max(0, sampledAudioTime) : lastAudioTime
+      const deltaTimeSec = shouldAnimate ? Math.max(0, Math.min(0.25, audioTime - lastAudioTime)) : 0
+      const context = buildSharedPerformanceContext({
+        audioTimeSec: audioTime,
+        frame: intelligenceFrame,
+        resolvedSections: current.trackSections ?? intelligenceFrame.resolvedSections ?? null,
+        trackIdentity: intelligenceFrame.trackId ?? intelligenceFrame.sourceId,
+        previous: previousPerformanceContext,
+      })
+      previousPerformanceContext = context
+      lastAudioTime = audioTime
+      const audioFrame = createPixGridAudioFrame(context, { isPlaying: shouldAnimate, deltaTimeSec })
+      const selectedSceneId = resolveSectionScene(activePreset, current.trackSections ?? intelligenceFrame.resolvedSections ?? [], audioTime)
       const state = selectedSceneId
         ? { ...current.pixGridState, selectedSceneId }
         : current.pixGridState
@@ -301,18 +273,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         frame: {
           width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
           height: activePath === 'webgl2' ? gpuCanvas.height : fallbackCanvas.height,
-          audioTime,
-          bass,
-          mid,
-          high,
-          volume: Math.max(bass, mid, high),
-          beatHit,
-          kickHit: beatHit,
-          snareHit,
-          hatHit,
-          beatPhase,
-          beatIndex,
-          isPlaying: shouldAnimate,
+          ...audioFrame,
           motion: current.motion,
           intensity: current.intensity,
           glow: current.glow,
@@ -335,6 +296,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         input.preset,
         fallbackState,
         preparedAssetRef.current,
+        fallbackReactionRuntime,
       )
       publishDiagnostics({
         path: 'canvas2d-fallback',
@@ -348,6 +310,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         contextState: gpuRenderer?.diagnostics.contextState ?? 'unavailable',
         fallbackReason,
         approximateGpuResourceCount: gpuRenderer?.diagnostics.approximateGpuResourceCount ?? 0,
+        activeGroupMaskCount: input.state.groups.filter(group => group.enabled).length,
+        groupMaskUploadCount: gpuRenderer?.diagnostics.groupMaskUploadCount ?? 0,
+        groupMaskApproximateBytes: gpuRenderer?.diagnostics.groupMaskApproximateBytes ?? 0,
       })
     }
 

@@ -1,6 +1,7 @@
 import type { ReactPalette } from '../ReactTypes'
 import type { UploadedMedia } from '../../../../stores/mediaStore'
 import type { PixGridConversionSettings } from './PixGridTypes'
+import { extractPixGridSvgGroupCandidates, type PixGridSvgGroupCandidate } from './PixGridGroups'
 import {
   inspectPixGridMediaCapability,
   resolvePixGridMediaRevision,
@@ -15,6 +16,7 @@ export interface PixGridPreparedAsset {
   height: number
   pixels: Uint8Array
   approximateBytes: number
+  svgGroupCandidates?: readonly PixGridSvgGroupCandidate[]
 }
 
 export interface PixGridFitRect {
@@ -418,6 +420,9 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput): 
   if (capability.kind === 'webp' && await isAnimatedPixGridWebP(blob)) {
     throw new Error('Animated WebP is not supported in PixGrid Patch 4.')
   }
+  const svgGroupCandidates = capability.kind === 'svg'
+    ? extractPixGridSvgGroupCandidates(await blob.text())
+    : []
   const decoded = await decodeBitmap(blob)
   const bitmap = decoded.source
   try {
@@ -460,7 +465,8 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput): 
       width: input.width,
       height: input.height,
       pixels,
-      approximateBytes: pixels.byteLength,
+      approximateBytes: pixels.byteLength + svgGroupCandidates.length * 160,
+      ...(svgGroupCandidates.length > 0 ? { svgGroupCandidates } : {}),
     }
     pixGridPreparedAssetCache.set(prepared)
     return prepared
@@ -486,6 +492,20 @@ export class PixGridPreparedAssetCache {
     if (!entry) return null
     this.entries.delete(key)
     this.entries.set(key, entry)
+    return entry
+  }
+
+
+  findLatestMedia(mediaId: string, width?: number, height?: number): PixGridPreparedAsset | null {
+    const matches = [...this.entries.values()].filter(entry => (
+      entry.mediaId === mediaId
+      && (width == null || entry.width === width)
+      && (height == null || entry.height === height)
+    ))
+    const entry = matches[matches.length - 1] ?? null
+    if (!entry) return null
+    this.entries.delete(entry.key)
+    this.entries.set(entry.key, entry)
     return entry
   }
 

@@ -119,6 +119,8 @@ export function createDefaultPixGridState(): PixGridState {
       paintOpacity: 1,
       eraserMode: 'off',
       selectedLayerId: defaultLayers[0]?.id ?? null,
+      selectedGroupId: null,
+      previewReactionAssignmentId: null,
       selection: null,
     },
     scenes: defaultScenes,

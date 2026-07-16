@@ -7,6 +7,8 @@ import { composePixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 import type { PixGridBaselineRenderFrame } from './PixGridBaselineRenderer'
 import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation'
+import { PixGridReactionRuntime } from '../../pixGrid/PixGridAudioRouting'
+import { PixGridGpuMaskAtlas } from './PixGridGpuMasks'
 import {
   PIX_GRID_FULLSCREEN_VERTEX_SHADER,
   PIX_GRID_LOGICAL_FRAGMENT_SHADER,
@@ -162,6 +164,8 @@ export class PixGridGpuRenderer {
   private logicalHeight = 0
   private logicalAllocationCount = 0
   private logicalPixels: Uint8Array | null = null
+  private readonly reactionRuntime = new PixGridReactionRuntime()
+  private maskAtlas: PixGridGpuMaskAtlas | null = null
   private contextState: PixGridRendererDiagnostics['contextState'] = 'ready'
   private disposed = false
 
@@ -224,6 +228,9 @@ export class PixGridGpuRenderer {
       contextState: this.contextState,
       fallbackReason: null,
       approximateGpuResourceCount: this.approximateResourceCount(),
+      activeGroupMaskCount: this.maskAtlas?.diagnostics.groupCount ?? 0,
+      groupMaskUploadCount: this.maskAtlas?.diagnostics.uploadCount ?? 0,
+      groupMaskApproximateBytes: this.maskAtlas?.diagnostics.approximateBytes ?? 0,
     }
   }
 
@@ -238,6 +245,7 @@ export class PixGridGpuRenderer {
     const saved = this.captureState()
     try {
       this.ensureLogicalTarget(state.matrixWidth, state.matrixHeight)
+      this.maskAtlas?.update(state.groups, state.matrixWidth, state.matrixHeight)
       this.updateOverrideTexture(input, state)
       gl.disable(gl.BLEND)
       gl.disable(gl.DEPTH_TEST)
@@ -287,6 +295,7 @@ export class PixGridGpuRenderer {
     this.logicalFramebuffer = this.gl.createFramebuffer()
     this.logicalTexture = this.gl.createTexture()
     this.overrideTexture = this.gl.createTexture()
+    this.maskAtlas = new PixGridGpuMaskAtlas(this.gl)
     if (!this.vertexArray || !this.logicalFramebuffer || !this.logicalTexture || !this.overrideTexture) {
       throw new Error('Unable to allocate PixGrid GPU resources')
     }
@@ -343,6 +352,7 @@ export class PixGridGpuRenderer {
       input.frame,
       this.logicalPixels ?? undefined,
       input.preparedAsset,
+      this.reactionRuntime,
     )
     this.logicalPixels = logical.pixels
     const gl = this.gl
@@ -455,10 +465,14 @@ export class PixGridGpuRenderer {
       this.logicalFramebuffer,
       this.logicalTexture,
       this.overrideTexture,
+      this.maskAtlas?.diagnostics.allocated ? this.maskAtlas : null,
     ].filter(Boolean).length
   }
 
   private releaseResourceReferences(deleteResources: boolean): void {
+    this.maskAtlas?.dispose(deleteResources)
+    this.maskAtlas = null
+    this.reactionRuntime.reset()
     if (deleteResources) {
       if (this.logicalProgram) this.gl.deleteProgram(this.logicalProgram)
       if (this.presentationProgram) this.gl.deleteProgram(this.presentationProgram)

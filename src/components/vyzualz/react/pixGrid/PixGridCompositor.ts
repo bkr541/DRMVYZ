@@ -17,6 +17,8 @@ import { normalizePixGridState } from './PixGridValidation'
 import { MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
 import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { unpackPixGridOverride } from './PixGridAuthoring'
+import { pixGridReactionSourceValue, PixGridReactionRuntime } from './PixGridAudioRouting'
+import { applyPixGridGroupReactions, resolvePixGridLayerReactionFrame } from './PixGridReactions'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -63,13 +65,7 @@ function resolveColor(palette: ReactPalette, role: PixGridPaletteRole): readonly
 }
 
 function audioValue(frame: PixGridAudioFrame, source: PixGridAudioSource): number {
-  if (source === 'kick') return (frame.kickHit ?? frame.beatHit) ? 1 : 0
-  if (source === 'snare') return frame.snareHit ? 1 : 0
-  if (source === 'hat') return frame.hatHit ? 1 : 0
-  if (source === 'mid') return clamp01(frame.mid)
-  if (source === 'high') return clamp01(frame.high)
-  if (source === 'volume') return clamp01(frame.volume)
-  return clamp01(frame.bass)
+  return clamp01(pixGridReactionSourceValue(frame, source))
 }
 
 function sceneFor(preset: ReactPreset, state: PixGridState): PixGridSceneSettings {
@@ -269,6 +265,7 @@ export function composePixGridLogicalFrame(
   frame: PixGridAudioFrame,
   reusable?: Uint8Array,
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
+  reactionRuntime?: PixGridReactionRuntime,
 ): PixGridLogicalFrame {
   const state = normalizePixGridState(rawState)
   const width = state.matrixWidth
@@ -287,10 +284,15 @@ export function composePixGridLogicalFrame(
     .sort((a, b) => (layerOrder.get(a.id) ?? a.zIndex) - (layerOrder.get(b.id) ?? b.zIndex) || a.id.localeCompare(b.id))
     .slice(0, MAX_PIX_GRID_VISIBLE_LAYERS)
 
+  const hasReactions = state.groups.some(group => group.enabled && group.reactions.some(assignment => assignment.enabled))
+  const runtime = reactionRuntime ?? (hasReactions ? new PixGridReactionRuntime() : undefined)
   for (const layer of visibleLayers) {
+    const layerFrame = runtime
+      ? resolvePixGridLayerReactionFrame(layer, state.groups, frame, runtime, state.editor.previewReactionAssignmentId)
+      : frame
     const mediaAsset = layer.mediaId ? preparedAssetFor(preparedAsset, layer.mediaId) : null
-    if (mediaAsset) renderPreparedAssetLayer(pixels, width, height, layer, mediaAsset, frame, scene)
-    else if (!layer.mediaId) renderLayer(pixels, width, height, layer, preset.palette, frame, scene)
+    if (mediaAsset) renderPreparedAssetLayer(pixels, width, height, layer, mediaAsset, layerFrame, scene)
+    else if (!layer.mediaId) renderLayer(pixels, width, height, layer, preset.palette, layerFrame, scene)
   }
 
   if (
@@ -326,6 +328,20 @@ export function composePixGridLogicalFrame(
       continue
     }
     blendPixel(pixels, offset, hexToRgb(color), opacity, 'normal')
+  }
+
+  if (runtime && hasReactions) {
+    applyPixGridGroupReactions(
+      pixels,
+      width,
+      height,
+      state.groups,
+      frame,
+      runtime,
+      preset.palette,
+      state.editor.previewReactionAssignmentId,
+      new Set(visibleLayers.map(layer => layer.id)),
+    )
   }
 
   return { width, height, pixels, visibleLayerCount: visibleLayers.length }

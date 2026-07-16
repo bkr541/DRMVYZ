@@ -12,6 +12,9 @@ import {
   MAX_PIX_GRID_VISIBLE_LAYERS,
   MAX_PIX_GRID_SCENES,
   MAX_PIX_GRID_PIXEL_OVERRIDES,
+  MAX_PIX_GRID_GROUPS,
+  MAX_PIX_GRID_CELL_RUNS_PER_GROUP,
+  MAX_PIX_GRID_REACTIONS_PER_GROUP,
 } from './PixGridLimits'
 import {
   PIX_GRID_STATE_VERSION,
@@ -23,6 +26,18 @@ import {
   type PixGridClipMode,
   type PixGridEditorTool,
   type PixGridGroup,
+  type PixGridCellRun,
+  type PixGridGroupMaskDefinition,
+  type PixGridGroupSource,
+  type PixGridGeometricGroupPattern,
+  type PixGridGroupOverlapBehavior,
+  type PixGridReactionAssignment,
+  type PixGridReactionSource,
+  type PixGridReactionTarget,
+  type PixGridReactionQuantization,
+  type PixGridReactionRetrigger,
+  type PixGridReactionBlend,
+  type PixGridReactionCapabilityFallback,
   type PixGridLayer,
   type PixGridLayerAnimation,
   type PixGridPaletteRole,
@@ -48,10 +63,17 @@ const ANIMATION_MODES = new Set<PixGridAnimationMode>([
   'audioAmplitudeScale', 'beatStepMovement',
 ])
 const ANIMATION_BOUNDARIES = new Set<PixGridAnimationBoundary>(['wrap', 'clamp', 'bounce'])
-const AUDIO_SOURCES = new Set<PixGridAudioSource>(['bass', 'mid', 'high', 'volume', 'kick', 'snare', 'hat'])
+const AUDIO_SOURCES = new Set<PixGridAudioSource>(['sub', 'bass', 'lowMid', 'mid', 'high', 'air', 'volume', 'energy', 'trackRelativeEnergy', 'spectralFlux', 'tension', 'complexity', 'buildProgress', 'sectionProgress', 'phraseProgress', 'vocalEnergy', 'beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'barEntry', 'fourBarBoundary', 'eightBarBoundary', 'sixteenBarBoundary', 'sectionEntry', 'sectionExit', 'dropImpact', 'semanticMoment'])
 const STOPPED_BEHAVIORS = new Set(['baseline', 'blackout'])
-const MAX_GROUPS = 256
-const MAX_CELL_RUNS_PER_GROUP = 4096
+const GROUP_SOURCES = new Set<PixGridGroupSource>(['manualSelection', 'layerAlpha', 'foregroundBackground', 'colorRange', 'luminanceRange', 'connectedRegion', 'border', 'center', 'leftRight', 'topBottom', 'quadrant', 'horizontalBands', 'verticalBands', 'alternatingRows', 'alternatingColumns', 'checkerboard', 'diagonalBands', 'radialRings', 'deterministicClusters', 'svgMetadata'])
+const GROUP_OVERLAP = new Set<PixGridGroupOverlapBehavior>(['stack', 'exclusive', 'replace'])
+const GEOMETRIC_PATTERNS = new Set<PixGridGeometricGroupPattern>(['border', 'center', 'left', 'right', 'top', 'bottom', 'quadrantTopLeft', 'quadrantTopRight', 'quadrantBottomLeft', 'quadrantBottomRight', 'horizontalBands', 'verticalBands', 'alternatingRowsA', 'alternatingRowsB', 'alternatingColumnsA', 'alternatingColumnsB', 'checkerboardA', 'checkerboardB', 'diagonalBands', 'radialRings', 'deterministicClusters'])
+const REACTION_SOURCES = new Set<PixGridReactionSource>(['sub', 'bass', 'lowMid', 'mid', 'high', 'air', 'volume', 'energy', 'trackRelativeEnergy', 'spectralFlux', 'tension', 'complexity', 'buildProgress', 'sectionProgress', 'phraseProgress', 'vocalEnergy', 'beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'barEntry', 'fourBarBoundary', 'eightBarBoundary', 'sixteenBarBoundary', 'sectionEntry', 'sectionExit', 'dropImpact', 'semanticMoment'])
+const REACTION_TARGETS = new Set<PixGridReactionTarget>(['brightness', 'paletteRole', 'color', 'opacity', 'scale', 'positionX', 'positionY', 'reveal', 'hide', 'blink', 'outlineFlash', 'sparkle', 'pixelDisplacement', 'frameAdvance', 'animationSpeed', 'directionReverse', 'dissolveThreshold', 'invert', 'posterize'])
+const REACTION_QUANTIZATION = new Set<PixGridReactionQuantization>(['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'])
+const REACTION_RETRIGGER = new Set<PixGridReactionRetrigger>(['restart', 'extend', 'ignoreWhileActive'])
+const REACTION_BLEND = new Set<PixGridReactionBlend>(['add', 'multiply', 'replace', 'max'])
+const REACTION_FALLBACK = new Set<PixGridReactionCapabilityFallback>(['disable', 'zero', 'energy', 'beat'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -243,24 +265,124 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
   }
 }
 
+function normalizeCellRuns(value: unknown, width: number, height: number): PixGridCellRun[] {
+  if (!Array.isArray(value)) return []
+  return value.slice(0, MAX_PIX_GRID_CELL_RUNS_PER_GROUP).flatMap(run => {
+    if (!Array.isArray(run) || run.length < 3) return []
+    const row = Math.max(0, Math.min(height - 1, Math.round(finite(run[0], 0))))
+    const start = Math.max(0, Math.min(width - 1, Math.round(finite(run[1], 0))))
+    const length = Math.max(1, Math.min(width - start, Math.round(finite(run[2], 1))))
+    return [[row, start, length] as const]
+  })
+}
+
+function normalizeGroupMask(value: unknown, runs: PixGridCellRun[], width: number, height: number): PixGridGroupMaskDefinition {
+  if (!isRecord(value)) return { kind: 'runs', runs }
+  if (value.kind === 'geometric' && GEOMETRIC_PATTERNS.has(value.pattern as PixGridGeometricGroupPattern)) {
+    return {
+      kind: 'geometric',
+      pattern: value.pattern as PixGridGeometricGroupPattern,
+      ...(value.count != null ? { count: Math.max(1, Math.min(32, Math.round(finite(value.count, 4)))) } : {}),
+      ...(value.index != null ? { index: Math.max(-128, Math.min(128, Math.round(finite(value.index, 0)))) } : {}),
+      ...(value.thickness != null ? { thickness: clamp(value.thickness, 0.01, 0.49, 0.12) } : {}),
+      ...(value.seed != null ? { seed: Math.max(0, Math.min(2_147_483_647, Math.round(finite(value.seed, 1)))) } : {}),
+    }
+  }
+  if (value.kind === 'layerAlpha') return { kind: 'layerAlpha', threshold: clamp(value.threshold, 0, 1, 0.05), foreground: value.foreground !== false }
+  if (value.kind === 'colorRange') return { kind: 'colorRange', color: normalizePixGridColor(value.color, '#ffffff'), tolerance: clamp(value.tolerance, 0, 1, 0.12) }
+  if (value.kind === 'luminanceRange') {
+    const min = clamp(value.min, 0, 1, 0)
+    return { kind: 'luminanceRange', min, max: Math.max(min, clamp(value.max, 0, 1, 1)) }
+  }
+  if (value.kind === 'connectedRegion') return {
+    kind: 'connectedRegion',
+    seedX: Math.max(0, Math.min(width - 1, Math.round(finite(value.seedX, 0)))),
+    seedY: Math.max(0, Math.min(height - 1, Math.round(finite(value.seedY, 0)))),
+    tolerance: clamp(value.tolerance, 0, 1, 0.18),
+    alphaThreshold: clamp(value.alphaThreshold, 0, 1, 0.05),
+    maxCells: Math.max(1, Math.min(width * height, Math.round(finite(value.maxCells, width * height)))),
+  }
+  if (value.kind === 'svgMetadata') return {
+    kind: 'svgMetadata',
+    ...(nullableId(value.elementId) ? { elementId: nullableId(value.elementId)! } : {}),
+    ...(typeof value.fillColor === 'string' ? { fillColor: normalizePixGridColor(value.fillColor, '#ffffff') } : {}),
+  }
+  const maskRuns = value.kind === 'runs' ? normalizeCellRuns(value.runs, width, height) : runs
+  return { kind: 'runs', runs: maskRuns.length > 0 ? maskRuns : runs }
+}
+
+function normalizeReaction(value: unknown, index: number): PixGridReactionAssignment | null {
+  if (!isRecord(value)) return null
+  const source = REACTION_SOURCES.has(value.source as PixGridReactionSource) ? value.source as PixGridReactionSource : 'bass'
+  const target = REACTION_TARGETS.has(value.target as PixGridReactionTarget) ? value.target as PixGridReactionTarget : 'brightness'
+  const rawClamp = Array.isArray(value.clamp) ? value.clamp : [0, 1]
+  const clampMin = clamp(rawClamp[0], -4, 4, 0)
+  const clampMax = clamp(rawClamp[1], -4, 4, 1)
+  return {
+    id: text(value.id, `pix-grid-reaction-${index + 1}`, 128),
+    name: text(value.name, `Reaction ${index + 1}`),
+    enabled: value.enabled !== false,
+    source,
+    target,
+    amount: clamp(value.amount, -4, 4, 0.75),
+    invert: value.invert === true,
+    threshold: clamp(value.threshold, 0, 1, 0),
+    attack: clamp(value.attack, 0, 10, 0.03),
+    hold: clamp(value.hold, 0, 10, 0.04),
+    release: clamp(value.release, 0, 20, 0.18),
+    smoothing: clamp(value.smoothing, 0, 10, 0.08),
+    quantization: REACTION_QUANTIZATION.has(value.quantization as PixGridReactionQuantization) ? value.quantization as PixGridReactionQuantization : 'none',
+    retrigger: REACTION_RETRIGGER.has(value.retrigger as PixGridReactionRetrigger) ? value.retrigger as PixGridReactionRetrigger : 'restart',
+    minimumConfidence: clamp(value.minimumConfidence, 0, 1, 0),
+    capabilityFallback: REACTION_FALLBACK.has(value.capabilityFallback as PixGridReactionCapabilityFallback) ? value.capabilityFallback as PixGridReactionCapabilityFallback : 'energy',
+    clamp: [Math.min(clampMin, clampMax), Math.max(clampMin, clampMax)],
+    blend: REACTION_BLEND.has(value.blend as PixGridReactionBlend) ? value.blend as PixGridReactionBlend : 'add',
+    ...(PALETTE_ROLES.has(value.paletteRole as PixGridPaletteRole) ? { paletteRole: value.paletteRole as PixGridPaletteRole } : {}),
+    ...(typeof value.color === 'string' ? { color: normalizePixGridColor(value.color, '#ffffff') } : {}),
+    ...(value.seedOffset != null ? { seedOffset: Math.max(-1_000_000, Math.min(1_000_000, Math.round(finite(value.seedOffset, 0)))) } : {}),
+  }
+}
+
 function normalizeGroups(value: unknown, width: number, height: number): PixGridGroup[] {
   if (!Array.isArray(value)) return []
   const seen = new Set<string>()
-  return value.slice(0, MAX_GROUPS).flatMap((raw, index) => {
+  return value.slice(0, MAX_PIX_GRID_GROUPS).flatMap((raw, index) => {
     if (!isRecord(raw)) return []
     const baseId = text(raw.id, `pix-grid-group-${index + 1}`, 128)
     const id = seen.has(baseId) ? `${baseId}-${index + 1}` : baseId
     seen.add(id)
-    const runs = Array.isArray(raw.cellRuns)
-      ? raw.cellRuns.slice(0, MAX_CELL_RUNS_PER_GROUP).flatMap(run => {
-          if (!Array.isArray(run) || run.length < 3) return []
-          const row = Math.max(0, Math.min(height - 1, Math.round(finite(run[0], 0))))
-          const start = Math.max(0, Math.min(width - 1, Math.round(finite(run[1], 0))))
-          const length = Math.max(1, Math.min(width - start, Math.round(finite(run[2], 1))))
-          return [[row, start, length] as const]
+    const legacyRuns = normalizeCellRuns(raw.cellRuns, width, height)
+    const mask = normalizeGroupMask(raw.mask, legacyRuns, width, height)
+    const cellRuns = mask.kind === 'runs' ? mask.runs : legacyRuns
+    const layerId = nullableId(raw.layerId)
+    const layerScope = Array.isArray(raw.layerScope)
+      ? [...new Set(raw.layerScope.map(nullableId).filter((item): item is string => item != null))].slice(0, MAX_PIX_GRID_LAYERS)
+      : layerId ? [layerId] : null
+    const source = GROUP_SOURCES.has(raw.source as PixGridGroupSource)
+      ? raw.source as PixGridGroupSource
+      : raw.smartRuleId ? 'manualSelection' : 'manualSelection'
+    const reactions = Array.isArray(raw.reactions)
+      ? raw.reactions.slice(0, MAX_PIX_GRID_REACTIONS_PER_GROUP).flatMap((reaction, reactionIndex) => {
+          const normalized = normalizeReaction(reaction, reactionIndex)
+          return normalized ? [normalized] : []
         })
       : []
-    return [{ id, name: text(raw.name, `Group ${index + 1}`), layerId: nullableId(raw.layerId), cellRuns: runs, smartRuleId: nullableId(raw.smartRuleId) }]
+    return [{
+      id,
+      name: text(raw.name, `Group ${index + 1}`),
+      source,
+      mask,
+      layerId,
+      layerScope,
+      cellRuns,
+      smartRuleId: nullableId(raw.smartRuleId),
+      enabled: raw.enabled !== false,
+      visible: raw.visible !== false,
+      priority: Math.max(-100, Math.min(100, Math.round(finite(raw.priority, index)))),
+      overlapBehavior: GROUP_OVERLAP.has(raw.overlapBehavior as PixGridGroupOverlapBehavior) ? raw.overlapBehavior as PixGridGroupOverlapBehavior : 'stack',
+      reactions,
+      displayColor: raw.displayColor == null ? null : normalizePixGridColor(raw.displayColor, '#4ac7db'),
+    }]
   })
 }
 
@@ -354,6 +476,13 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const activeScene = scenes.find(scene => scene.id === selectedSceneId) ?? scenes[0]
   const selectedLayerId = nullableId(editor.selectedLayerId)
   const safeSelectedLayerId = selectedLayerId && activeScene.layerIds.includes(selectedLayerId) ? selectedLayerId : activeScene.layerIds[0] ?? null
+  const groups = normalizeGroups(input.groups, dimensions.width, dimensions.height)
+  const selectedGroupId = nullableId(editor.selectedGroupId)
+  const safeSelectedGroupId = selectedGroupId && groups.some(group => group.id === selectedGroupId) ? selectedGroupId : groups[0]?.id ?? null
+  const previewReactionAssignmentId = nullableId(editor.previewReactionAssignmentId)
+  const safePreviewReactionAssignmentId = previewReactionAssignmentId && groups.some(group => group.reactions.some(reaction => reaction.id === previewReactionAssignmentId))
+    ? previewReactionAssignmentId
+    : null
 
   return {
     version: PIX_GRID_STATE_VERSION,
@@ -386,11 +515,13 @@ export function normalizePixGridState(value: unknown): PixGridState {
       paintOpacity: clamp(editor.paintOpacity, 0, 1, 1),
       eraserMode: editor.eraserMode === 'restore' ? 'restore' : 'off',
       selectedLayerId: safeSelectedLayerId,
+      selectedGroupId: safeSelectedGroupId,
+      previewReactionAssignmentId: safePreviewReactionAssignmentId,
       selection: normalizeSelection(editor.selection, dimensions.width, dimensions.height),
     },
     scenes,
     layers,
-    groups: normalizeGroups(input.groups, dimensions.width, dimensions.height),
+    groups,
     pixelOverrides: activeScene.pixelOverrides,
     performance: {
       enabled: performance.enabled === true,
