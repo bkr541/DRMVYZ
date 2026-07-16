@@ -209,3 +209,95 @@ export function renderPixGridBaseline(
 export function disposePixGridBaselineRenderer(): void {
   RGB_CACHE.clear()
 }
+
+export interface PixGridCanvasFallbackTarget {
+  canvas: HTMLCanvasElement
+  context: CanvasRenderingContext2D
+}
+
+function mixRgbValues(a: string, b: string, amount: number): Rgb {
+  const ar = hexToRgb(a)
+  const br = hexToRgb(b)
+  const t = clamp01(amount)
+  return {
+    r: Math.round(ar.r + (br.r - ar.r) * t),
+    g: Math.round(ar.g + (br.g - ar.g) * t),
+    b: Math.round(ar.b + (br.b - ar.b) * t),
+  }
+}
+
+/**
+ * Safe fallback path. It builds one logical ImageData buffer, then scales that
+ * buffer with image smoothing disabled. There is no DOM node or draw call per
+ * cell, and Draft is promoted to Low so fallback readability is at least 96×54.
+ */
+export function renderPixGridCanvasFallback(
+  output: CanvasRenderingContext2D,
+  logicalTarget: PixGridCanvasFallbackTarget,
+  frame: PixGridBaselineRenderFrame,
+  preset: ReactPreset,
+  rawState: PixGridState,
+): Readonly<{ logicalWidth: number; logicalHeight: number }> {
+  const requested = normalizePixGridState(rawState)
+  const state = requested.quality === 'draft'
+    ? normalizePixGridState({ ...requested, quality: 'low' })
+    : requested
+  const logicalCanvas = logicalTarget.canvas
+  const logicalContext = logicalTarget.context
+  if (logicalCanvas.width !== state.matrixWidth) logicalCanvas.width = state.matrixWidth
+  if (logicalCanvas.height !== state.matrixHeight) logicalCanvas.height = state.matrixHeight
+
+  const image = logicalContext.createImageData(state.matrixWidth, state.matrixHeight)
+  const pattern = resolvePattern(preset)
+  const intensity = clamp01(frame.intensity * state.globalIntensity * state.cellBrightness)
+  const overrides = new Map(state.pixelOverrides.map(override => [`${override[0]}:${override[1]}`, override] as const))
+
+  for (let y = 0; y < state.matrixHeight; y += 1) {
+    for (let x = 0; x < state.matrixWidth; x += 1) {
+      const override = overrides.get(`${x}:${y}`)
+      const sample = patternValue(pattern, x, y, state, frame)
+      const value = override ? override[3] : sample.value
+      const offset = (y * state.matrixWidth + x) * 4
+      if (!override && value <= 0.025) continue
+      const base = override
+        ? hexToRgb(override[2])
+        : mixRgbValues(preset.palette.primary, preset.palette.secondary, sample.colorMix)
+      const color = sample.accent > 0.55 && !override
+        ? mixRgbValues(`#${base.r.toString(16).padStart(2, '0')}${base.g.toString(16).padStart(2, '0')}${base.b.toString(16).padStart(2, '0')}`, preset.palette.accent, sample.accent * 0.72)
+        : base
+      const brightness = clamp01(value * intensity)
+      image.data[offset] = Math.round(color.r * brightness)
+      image.data[offset + 1] = Math.round(color.g * brightness)
+      image.data[offset + 2] = Math.round(color.b * brightness)
+      image.data[offset + 3] = Math.round(clamp01(0.1 + value * 0.9) * 255)
+    }
+  }
+  logicalContext.putImageData(image, 0, 0)
+
+  const W = Math.max(1, frame.width)
+  const H = Math.max(1, frame.height)
+  const matrixAspect = state.matrixWidth / state.matrixHeight
+  const outputAspect = W / H
+  const drawWidth = outputAspect > matrixAspect ? H * matrixAspect : W
+  const drawHeight = outputAspect > matrixAspect ? H : W / matrixAspect
+  const offsetX = (W - drawWidth) * 0.5
+  const offsetY = (H - drawHeight) * 0.5
+  output.save()
+  output.imageSmoothingEnabled = false
+  output.globalCompositeOperation = 'source-over'
+  output.globalAlpha = 1
+  output.clearRect(0, 0, W, H)
+  output.fillStyle = resolveBackground(preset, state)
+  output.globalAlpha = state.backgroundBrightness
+  output.fillRect(0, 0, W, H)
+  output.globalAlpha = 1
+  output.drawImage(logicalCanvas, offsetX, offsetY, drawWidth, drawHeight)
+  if (state.diagnostics.showMatrixBounds) {
+    output.strokeStyle = preset.palette.highlight
+    output.globalAlpha = 0.7
+    output.lineWidth = 1
+    output.strokeRect(offsetX + 0.5, offsetY + 0.5, drawWidth - 1, drawHeight - 1)
+  }
+  output.restore()
+  return { logicalWidth: state.matrixWidth, logicalHeight: state.matrixHeight }
+}

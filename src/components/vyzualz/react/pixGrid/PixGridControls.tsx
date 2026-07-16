@@ -31,17 +31,24 @@ export function PixGridControls() {
 
   return (
     <div className="rv-pix-grid-controls">
-      <CtrlSection label="MATRIX" />
+      <CtrlSection label="LED MATRIX" />
       <SelectRow
         label="Quality"
         value={state.quality}
         options={QUALITY_OPTIONS}
         onChange={value => setState({ quality: value as PixGridQualityTier })}
       />
-      <SliderRow label="Global Brightness" value={state.globalIntensity} onChange={value => setState({ globalIntensity: value })} />
       <SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setState({ cellGap: value })} />
       <SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setState({ cellRoundness: value })} />
+      <SliderRow label="Cell Brightness" value={state.cellBrightness} onChange={value => setState({ cellBrightness: value })} />
       <SliderRow label="Glow" value={state.glowAmount} onChange={value => setState({ glowAmount: value })} />
+      <SliderRow label="Diffusion" value={state.diffusion} onChange={value => setState({ diffusion: value })} />
+      <ToggleRow
+        label="RGB Subpixel Mode"
+        value={state.rgbSubpixelMode}
+        onChange={value => setState({ rgbSubpixelMode: value })}
+        description="Previews red, green, and blue emitter stripes inside each logical LED cell."
+      />
 
       <CtrlSection label="BACKGROUND" />
       <SelectRow
@@ -60,6 +67,18 @@ export function PixGridControls() {
           onBlur={commitBackgroundColor}
         />
       )}
+      <SliderRow
+        label="Background Brightness"
+        value={state.backgroundBrightness}
+        onChange={value => setState({ backgroundBrightness: value })}
+      />
+
+      <CtrlSection label="OUTPUT" />
+      <SliderRow
+        label="Global PixGrid Intensity"
+        value={state.globalIntensity}
+        onChange={value => setState({ globalIntensity: value })}
+      />
 
       <CtrlSection label="AUTHORING" />
       <ToggleRow

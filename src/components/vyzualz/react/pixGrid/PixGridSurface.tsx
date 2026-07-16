@@ -1,11 +1,21 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactPreset, ReactTrackSection } from '../ReactTypes'
 import { createLiveFpsReporter } from '../fpsDiagnostics'
 import { acquireReactLiveEngineOwnership } from '../renderers/ReactLiveEngineOwnership'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from '../rendering/canvasResolution'
-import { disposePixGridBaselineRenderer, renderPixGridBaseline } from '../renderers/pixGrid/PixGridBaselineRenderer'
+import {
+  disposePixGridBaselineRenderer,
+  renderPixGridCanvasFallback,
+  type PixGridBaselineRenderFrame,
+} from '../renderers/pixGrid/PixGridBaselineRenderer'
+import { PixGridGpuRenderer } from '../renderers/pixGrid/PixGridGpuRenderer'
+import { resolvePixGridFallbackResolution } from '../renderers/pixGrid/PixGridRenderMath'
 import { createPixGridRendererLifecycle } from '../renderers/pixGrid/PixGridRendererLifecycle'
-import type { PixGridQualityTier, PixGridState } from './PixGridTypes'
+import type {
+  PixGridQualityTier,
+  PixGridRendererDiagnostics,
+  PixGridState,
+} from './PixGridTypes'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -21,6 +31,7 @@ export interface PixGridSurfaceProps {
   getAudioTime: () => number
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
+  onDiagnostics?: (diagnostics: PixGridRendererDiagnostics) => void
 }
 
 function canvasQuality(quality: PixGridQualityTier): 'low' | 'medium' | 'high' | 'ultra' {
@@ -43,21 +54,58 @@ function resolveSectionScene(preset: ReactPreset, sections: readonly ReactTrackS
   return preset.sectionMappings.find(mapping => mapping.sectionType === section.type)?.sceneId ?? null
 }
 
+const EMPTY_DIAGNOSTICS: PixGridRendererDiagnostics = {
+  path: 'canvas2d-fallback',
+  logicalWidth: 96,
+  logicalHeight: 54,
+  presentationWidth: 0,
+  presentationHeight: 0,
+  fps: 0,
+  logicalFramebufferAllocated: false,
+  logicalAllocationCount: 0,
+  contextState: 'unavailable',
+  fallbackReason: null,
+  approximateGpuResourceCount: 0,
+}
+
+function diagnosticsEqual(a: PixGridRendererDiagnostics, b: PixGridRendererDiagnostics): boolean {
+  return a.path === b.path
+    && a.logicalWidth === b.logicalWidth
+    && a.logicalHeight === b.logicalHeight
+    && a.presentationWidth === b.presentationWidth
+    && a.presentationHeight === b.presentationHeight
+    && a.fps === b.fps
+    && a.logicalFramebufferAllocated === b.logicalFramebufferAllocated
+    && a.logicalAllocationCount === b.logicalAllocationCount
+    && a.contextState === b.contextState
+    && a.fallbackReason === b.fallbackReason
+    && a.approximateGpuResourceCount === b.approximateGpuResourceCount
+}
+
 export function PixGridSurface(props: PixGridSurfaceProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const gpuCanvasRef = useRef<HTMLCanvasElement>(null)
+  const fallbackCanvasRef = useRef<HTMLCanvasElement>(null)
   const propsRef = useRef(props)
+  const requestRenderRef = useRef<(force?: boolean) => void>(() => {})
+  const retryGpuRef = useRef<() => void>(() => {})
+  const [diagnostics, setDiagnostics] = useState<PixGridRendererDiagnostics>(EMPTY_DIAGNOSTICS)
   propsRef.current = props
+  const hasActivePreset = props.activePreset != null
 
   useEffect(() => {
-    const canvas = canvasRef.current
+    const gpuCanvas = gpuCanvasRef.current
+    const fallbackCanvas = fallbackCanvasRef.current
     const preset = propsRef.current.activePreset
-    if (!canvas || !preset) {
+    if (!gpuCanvas || !fallbackCanvas || !preset) {
       propsRef.current.onCanvasReady?.(null)
       propsRef.current.onLiveFps?.(0)
       return
     }
-    const ctx = canvas.getContext('2d', { alpha: false })
-    if (!ctx) {
+
+    const fallbackContext = fallbackCanvas.getContext('2d', { alpha: false })
+    const logicalCanvas = document.createElement('canvas')
+    const logicalContext = logicalCanvas.getContext('2d', { alpha: true })
+    if (!fallbackContext || !logicalContext) {
       propsRef.current.onCanvasReady?.(null)
       propsRef.current.onLiveFps?.(0)
       return
@@ -67,20 +115,231 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let frequencyData: Uint8Array<ArrayBuffer> | null = null
     let lastBass = 0
     let beatLatch = false
-    let renderedStoppedFrame = false
+    let animationFrame = 0
+    let gpuRenderer: PixGridGpuRenderer | null = null
+    let activePath: PixGridRendererDiagnostics['path'] = 'canvas2d-fallback'
+    let fallbackReason: string | null = null
+    let forcedRender = false
     let frameCount = 0
     let fpsWindowStarted = performance.now()
-    const fpsReporter = createLiveFpsReporter(() => propsRef.current.onLiveFps)
-    const lifecycle = createPixGridRendererLifecycle(() => {
-      disposePixGridBaselineRenderer()
-      propsRef.current.onCanvasReady?.(null)
-      fpsReporter.unavailable()
-    })
+    let lastFps = 0
+    let lastDiagnostics = EMPTY_DIAGNOSTICS
+    let mounted = true
 
-    const ownership = acquireReactLiveEngineOwnership('pixGrid', () => lifecycle.dispose())
+    const fpsReporter = createLiveFpsReporter(() => propsRef.current.onLiveFps)
+
+    const publishDiagnostics = (next: PixGridRendererDiagnostics) => {
+      lastDiagnostics = next
+      propsRef.current.onDiagnostics?.(next)
+      if (mounted) setDiagnostics(previous => diagnosticsEqual(previous, next) ? previous : next)
+    }
+
+    const activatePath = (path: PixGridRendererDiagnostics['path'], reason: string | null) => {
+      activePath = path
+      fallbackReason = reason
+      gpuCanvas.hidden = path !== 'webgl2'
+      fallbackCanvas.hidden = path !== 'canvas2d-fallback'
+      propsRef.current.onCanvasReady?.(path === 'webgl2' ? gpuCanvas : fallbackCanvas)
+    }
+
+    const currentFrameInput = (): {
+      frame: PixGridBaselineRenderFrame
+      state: PixGridState
+      blackout: boolean
+      preset: ReactPreset
+    } | null => {
+      const current = propsRef.current
+      const activePreset = current.activePreset
+      if (!activePreset) return null
+      const shouldAnimate = current.isPlaying
+      const analyser = shouldAnimate ? current.analyser : null
+      if (analyser) {
+        if (!frequencyData || frequencyData.length !== analyser.frequencyBinCount) {
+          frequencyData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
+        }
+        analyser.getByteFrequencyData(frequencyData)
+      }
+      const bins = frequencyData?.length ?? 0
+      const bass = analyser && frequencyData
+        ? averageRange(frequencyData, 0, Math.max(1, Math.floor(bins * 0.12)))
+        : 0
+      const mid = analyser && frequencyData
+        ? averageRange(frequencyData, Math.floor(bins * 0.12), Math.floor(bins * 0.45))
+        : 0
+      const high = analyser && frequencyData
+        ? averageRange(frequencyData, Math.floor(bins * 0.45), bins)
+        : 0
+      const beatHit = shouldAnimate && bass > 0.58 && bass > lastBass + 0.055 && !beatLatch
+      beatLatch = shouldAnimate && bass > 0.46
+      if (!shouldAnimate || bass < 0.34) beatLatch = false
+      lastBass = bass
+      const sampledAudioTime = shouldAnimate ? current.getAudioTime() : 0
+      const audioTime = Number.isFinite(sampledAudioTime) ? sampledAudioTime : 0
+      const beatPhase = ((audioTime * 2) % 1 + 1) % 1
+      const selectedSceneId = resolveSectionScene(activePreset, current.trackSections ?? [], audioTime)
+      const state = selectedSceneId
+        ? { ...current.pixGridState, selectedSceneId }
+        : current.pixGridState
+      return {
+        preset: activePreset,
+        state,
+        blackout: !shouldAnimate && state.stoppedBehavior === 'blackout',
+        frame: {
+          width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
+          height: activePath === 'webgl2' ? gpuCanvas.height : fallbackCanvas.height,
+          audioTime,
+          bass,
+          mid,
+          high,
+          volume: Math.max(bass, mid, high),
+          beatHit,
+          beatPhase,
+          isPlaying: shouldAnimate,
+          motion: current.motion,
+          intensity: current.intensity,
+          glow: current.glow,
+          bassReactivity: current.bassReactivity,
+        },
+      }
+    }
+
+    const renderFallback = (input: NonNullable<ReturnType<typeof currentFrameInput>>) => {
+      const frame = input.blackout
+        ? { ...input.frame, intensity: 0 }
+        : input.frame
+      const fallbackState = input.blackout
+        ? { ...input.state, backgroundMode: 'black' as const, backgroundBrightness: 0 }
+        : input.state
+      const fallbackLogical = renderPixGridCanvasFallback(
+        fallbackContext,
+        { canvas: logicalCanvas, context: logicalContext },
+        frame,
+        input.preset,
+        fallbackState,
+      )
+      publishDiagnostics({
+        path: 'canvas2d-fallback',
+        logicalWidth: fallbackLogical.logicalWidth,
+        logicalHeight: fallbackLogical.logicalHeight,
+        presentationWidth: fallbackCanvas.width,
+        presentationHeight: fallbackCanvas.height,
+        fps: lastFps,
+        logicalFramebufferAllocated: false,
+        logicalAllocationCount: 0,
+        contextState: gpuRenderer?.diagnostics.contextState ?? 'unavailable',
+        fallbackReason,
+        approximateGpuResourceCount: gpuRenderer?.diagnostics.approximateGpuResourceCount ?? 0,
+      })
+    }
+
+    const requestRender = (force = false) => {
+      forcedRender = forcedRender || force
+      if (animationFrame || lifecycle.disposed || !ownership.isCurrent()) return
+      if (propsRef.current.isPaused && !forcedRender) return
+      animationFrame = requestAnimationFrame(render)
+      lifecycle.setAnimationFrame(animationFrame)
+    }
+
+    const render = (now: number) => {
+      animationFrame = 0
+      if (lifecycle.disposed || !ownership.isCurrent()) return
+      const force = forcedRender
+      forcedRender = false
+      const current = propsRef.current
+      if (current.isPaused && !force) {
+        lastFps = 0
+        fpsReporter.unavailable()
+        publishDiagnostics({ ...lastDiagnostics, fps: 0 })
+        return
+      }
+
+      const input = currentFrameInput()
+      if (!input) return
+      let rendered = false
+      if (activePath === 'webgl2' && gpuRenderer?.isReady) {
+        rendered = gpuRenderer.render({
+          frame: input.frame,
+          preset: input.preset,
+          state: input.blackout
+            ? { ...input.state, backgroundMode: 'black', backgroundBrightness: 0 }
+            : input.state,
+          presentationWidth: gpuCanvas.width,
+          presentationHeight: gpuCanvas.height,
+          blackout: input.blackout,
+        })
+        if (rendered) {
+          const gpuDiagnostics = gpuRenderer.diagnostics
+          publishDiagnostics({ ...gpuDiagnostics, fps: lastFps })
+        }
+      }
+      if (!rendered) {
+        if (activePath !== 'canvas2d-fallback') {
+          activatePath('canvas2d-fallback', fallbackReason ?? 'The PixGrid GPU renderer is temporarily unavailable.')
+        }
+        renderFallback(input)
+      }
+
+      frameCount += 1
+      const elapsed = now - fpsWindowStarted
+      if (elapsed >= 1000) {
+        lastFps = current.isPlaying ? Math.round(frameCount * 1000 / elapsed) : 0
+        fpsReporter.report(lastFps)
+        frameCount = 0
+        fpsWindowStarted = now
+        publishDiagnostics({ ...lastDiagnostics, fps: lastFps })
+      }
+      if (current.isPlaying && !current.isPaused) requestRender()
+      else fpsReporter.unavailable()
+    }
+
+    const createGpuRenderer = () => {
+      gpuRenderer?.dispose()
+      gpuRenderer = null
+      const result = PixGridGpuRenderer.create(gpuCanvas, {
+        onContextLost: () => {
+          activatePath('canvas2d-fallback', 'PixGrid WebGL context was lost. Canvas2D fallback is active while recovery is attempted.')
+          requestRender(true)
+        },
+        onContextRestored: () => {
+          activatePath('webgl2', null)
+          requestRender(true)
+        },
+        onContextRestoreFailed: reason => {
+          activatePath('canvas2d-fallback', `PixGrid context restoration failed: ${reason}`)
+          requestRender(true)
+        },
+      })
+      if (result.renderer) {
+        gpuRenderer = result.renderer
+        activatePath('webgl2', null)
+        publishDiagnostics({
+          ...result.renderer.diagnostics,
+          presentationWidth: gpuCanvas.width,
+          presentationHeight: gpuCanvas.height,
+          fps: lastFps,
+        })
+      } else {
+        activatePath('canvas2d-fallback', result.error)
+        const fallbackResolution = resolvePixGridFallbackResolution(propsRef.current.pixGridState.quality)
+        publishDiagnostics({
+          path: 'canvas2d-fallback',
+          logicalWidth: fallbackResolution.width,
+          logicalHeight: fallbackResolution.height,
+          presentationWidth: fallbackCanvas.width,
+          presentationHeight: fallbackCanvas.height,
+          fps: lastFps,
+          logicalFramebufferAllocated: false,
+          logicalAllocationCount: 0,
+          contextState: 'unavailable',
+          fallbackReason: result.error,
+          approximateGpuResourceCount: 0,
+        })
+      }
+      requestRender()
+    }
 
     const resize = () => {
-      const bounds = canvas.getBoundingClientRect()
+      const bounds = gpuCanvas.getBoundingClientRect()
       const next = resolveCanvasResolution({
         cssWidth: bounds.width,
         cssHeight: bounds.height,
@@ -89,91 +348,41 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previous: resolution,
       })
       if (!next.valid) return
-      applyCanvasResolution(canvas, next)
+      applyCanvasResolution(gpuCanvas, next)
+      applyCanvasResolution(fallbackCanvas, next)
       resolution = next
-      renderedStoppedFrame = false
+      requestRender()
     }
 
+    const lifecycle = createPixGridRendererLifecycle(() => {
+      mounted = false
+      gpuRenderer?.dispose()
+      gpuRenderer = null
+      disposePixGridBaselineRenderer()
+      propsRef.current.onCanvasReady?.(null)
+      fpsReporter.unavailable()
+      propsRef.current.onDiagnostics?.({ ...lastDiagnostics, fps: 0 })
+      requestRenderRef.current = () => {}
+      retryGpuRef.current = () => {}
+    })
+    const ownership = acquireReactLiveEngineOwnership('pixGrid', () => lifecycle.dispose())
+
+    requestRenderRef.current = requestRender
+    retryGpuRef.current = createGpuRenderer
     const observer = new ResizeObserver(resize)
     lifecycle.setResizeObserver(observer)
-    observer.observe(canvas)
+    observer.observe(gpuCanvas)
     resize()
-    propsRef.current.onCanvasReady?.(canvas)
+    createGpuRenderer()
     ownership.markStable()
 
-    const render = (now: number) => {
-      if (lifecycle.disposed || !ownership.isCurrent()) return
-      const current = propsRef.current
-      const activePreset = current.activePreset
-      if (!activePreset) return
-
-      if (current.isPaused) {
-        fpsReporter.unavailable()
-        return
-      }
-
-      const shouldAnimate = current.isPlaying
-      if (!shouldAnimate && renderedStoppedFrame) {
-        fpsReporter.unavailable()
-        return
-      }
-
-      const analyser = current.analyser
-      if (analyser) {
-        if (!frequencyData || frequencyData.length !== analyser.frequencyBinCount) {
-          frequencyData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
-        }
-        analyser.getByteFrequencyData(frequencyData)
-      }
-      const bins = frequencyData?.length ?? 0
-      const bass = frequencyData ? averageRange(frequencyData, 0, Math.max(1, Math.floor(bins * 0.12))) : 0
-      const mid = frequencyData ? averageRange(frequencyData, Math.floor(bins * 0.12), Math.floor(bins * 0.45)) : 0
-      const high = frequencyData ? averageRange(frequencyData, Math.floor(bins * 0.45), bins) : 0
-      const beatHit = shouldAnimate && bass > 0.58 && bass > lastBass + 0.055 && !beatLatch
-      beatLatch = bass > 0.46
-      if (bass < 0.34) beatLatch = false
-      lastBass = bass
-      const sampledAudioTime = current.getAudioTime()
-      const audioTime = Number.isFinite(sampledAudioTime) ? sampledAudioTime : 0
-      const beatPhase = ((audioTime * 2) % 1 + 1) % 1
-      const selectedSceneId = resolveSectionScene(activePreset, current.trackSections ?? [], audioTime)
-      const state = selectedSceneId
-        ? { ...current.pixGridState, selectedSceneId }
-        : current.pixGridState
-
-      renderPixGridBaseline(ctx, {
-        width: canvas.width,
-        height: canvas.height,
-        audioTime,
-        bass,
-        mid,
-        high,
-        volume: Math.max(bass, mid, high),
-        beatHit,
-        beatPhase,
-        isPlaying: shouldAnimate,
-        motion: current.motion,
-        intensity: current.intensity,
-        glow: current.glow,
-        bassReactivity: current.bassReactivity,
-      }, activePreset, state)
-
-      renderedStoppedFrame = !shouldAnimate
-      frameCount += 1
-      const elapsed = now - fpsWindowStarted
-      if (elapsed >= 1000) {
-        fpsReporter.report(frameCount * 1000 / elapsed)
-        frameCount = 0
-        fpsWindowStarted = now
-      }
-      if (shouldAnimate) lifecycle.setAnimationFrame(requestAnimationFrame(render))
-      else fpsReporter.unavailable()
-    }
-
-    lifecycle.setAnimationFrame(requestAnimationFrame(render))
     return () => ownership.retire('unmount')
+  }, [hasActivePreset])
+
+  useEffect(() => {
+    requestRenderRef.current()
   }, [
-    props.activePreset?.id,
+    props.activePreset,
     props.bassReactivity,
     props.glow,
     props.intensity,
@@ -181,16 +390,38 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     props.isPlaying,
     props.motion,
     props.pixGridState,
+    props.trackSections,
   ])
 
+  const fallbackActive = diagnostics.path === 'canvas2d-fallback'
   return (
-    <canvas
-      ref={canvasRef}
-      className="rv-preview-canvas rv-pix-grid-surface"
+    <div
+      className="rv-pix-grid-surface-host"
       role="img"
       aria-label={props.activePreset ? `PixGrid visualization: ${props.activePreset.name}` : 'PixGrid visualization'}
       data-authoring={props.pixGridState.authoringOverlayVisible ? 'true' : undefined}
       data-pix-grid-matrix={`${props.pixGridState.matrixWidth}x${props.pixGridState.matrixHeight}`}
-    />
+      data-pix-grid-renderer={diagnostics.path}
+      data-pix-grid-context={diagnostics.contextState}
+      data-pix-grid-presentation={`${diagnostics.presentationWidth}x${diagnostics.presentationHeight}`}
+      data-pix-grid-resources={diagnostics.approximateGpuResourceCount}
+    >
+      <canvas
+        ref={gpuCanvasRef}
+        className="rv-preview-canvas rv-pix-grid-surface rv-pix-grid-surface--gpu"
+        hidden={fallbackActive}
+      />
+      <canvas
+        ref={fallbackCanvasRef}
+        className="rv-preview-canvas rv-pix-grid-surface rv-pix-grid-surface--fallback"
+        hidden={!fallbackActive}
+      />
+      {fallbackActive && diagnostics.fallbackReason && (
+        <div className="rv-pix-grid-diagnostic" role="status" aria-live="polite">
+          <span>{diagnostics.fallbackReason}</span>
+          <button type="button" onClick={() => retryGpuRef.current()}>Retry GPU</button>
+        </div>
+      )}
+    </div>
   )
 }

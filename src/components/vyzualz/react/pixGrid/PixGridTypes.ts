@@ -1,10 +1,13 @@
-export const PIX_GRID_STATE_VERSION = 1 as const
+export const PIX_GRID_STATE_VERSION = 2 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
 export type PixGridEditorTool = 'select' | 'pencil' | 'eraser' | 'fill' | 'group'
 export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade'
 export type PixGridBlendMode = 'normal' | 'add' | 'multiply'
+export type PixGridStoppedBehavior = 'baseline' | 'blackout'
+export type PixGridRendererPath = 'webgl2' | 'canvas2d-fallback'
+export type PixGridContextState = 'ready' | 'lost' | 'restoring' | 'unavailable'
 
 export type PixGridPixelOverride = readonly [
   x: number,
@@ -54,11 +57,14 @@ export interface PixGridPresetSettings {
   quality?: PixGridQualityTier
   backgroundMode?: PixGridBackgroundMode
   backgroundColor?: string
+  backgroundBrightness?: number
   cellGap?: number
   cellRoundness?: number
   cellBrightness?: number
   globalIntensity?: number
   glowAmount?: number
+  diffusion?: number
+  rgbSubpixelMode?: boolean
   selectedSceneId?: string | null
 }
 
@@ -69,11 +75,15 @@ export interface PixGridState {
   matrixHeight: number
   backgroundMode: PixGridBackgroundMode
   backgroundColor: string
+  backgroundBrightness: number
   cellGap: number
   cellRoundness: number
   cellBrightness: number
   globalIntensity: number
   glowAmount: number
+  diffusion: number
+  rgbSubpixelMode: boolean
+  stoppedBehavior: PixGridStoppedBehavior
   selectedPresetId: string | null
   selectedSceneId: string | null
   authoringOverlayVisible: boolean
@@ -95,4 +105,18 @@ export interface PixGridAudioFrame {
   beatHit: boolean
   beatPhase: number
   isPlaying: boolean
+}
+
+export interface PixGridRendererDiagnostics {
+  path: PixGridRendererPath
+  logicalWidth: number
+  logicalHeight: number
+  presentationWidth: number
+  presentationHeight: number
+  fps: number
+  logicalFramebufferAllocated: boolean
+  logicalAllocationCount: number
+  contextState: PixGridContextState
+  fallbackReason: string | null
+  approximateGpuResourceCount: number
 }

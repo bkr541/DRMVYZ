@@ -63,7 +63,8 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
     { intensity: 0.86, motion: 0.62, glow: 0.72, bassReactivity: 0.95 },
     {
       pattern: 'bassBeacon', quality: 'high', backgroundMode: 'preset', backgroundColor: '#020608',
-      cellGap: 0.18, cellRoundness: 0.2, cellBrightness: 0.86, globalIntensity: 0.9, glowAmount: 0.42,
+      backgroundBrightness: 0.16, cellGap: 0.18, cellRoundness: 0.2, cellBrightness: 0.86,
+      globalIntensity: 0.9, glowAmount: 0.42, diffusion: 0.14, rgbSubpixelMode: false,
       selectedSceneId: 'pix-grid-bass-beacon-intro',
     },
   ),
@@ -79,7 +80,8 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
     { intensity: 0.9, motion: 0.82, glow: 0.68, bassReactivity: 0.8 },
     {
       pattern: 'geometricReactor', quality: 'high', backgroundMode: 'preset', backgroundColor: '#05030b',
-      cellGap: 0.12, cellRoundness: 0.08, cellBrightness: 0.9, globalIntensity: 0.92, glowAmount: 0.3,
+      backgroundBrightness: 0.14, cellGap: 0.12, cellRoundness: 0.08, cellBrightness: 0.9,
+      globalIntensity: 0.92, glowAmount: 0.3, diffusion: 0.08, rgbSubpixelMode: false,
       selectedSceneId: 'pix-grid-geometric-reactor-intro',
     },
   ),
@@ -95,7 +97,8 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
     { intensity: 0.82, motion: 0.9, glow: 0.54, bassReactivity: 0.72 },
     {
       pattern: 'pixelParade', quality: 'high', backgroundMode: 'preset', backgroundColor: '#070508',
-      cellGap: 0.22, cellRoundness: 0.28, cellBrightness: 0.84, globalIntensity: 0.86, glowAmount: 0.24,
+      backgroundBrightness: 0.18, cellGap: 0.22, cellRoundness: 0.28, cellBrightness: 0.84,
+      globalIntensity: 0.86, glowAmount: 0.24, diffusion: 0.18, rgbSubpixelMode: false,
       selectedSceneId: 'pix-grid-pixel-parade-intro',
     },
   ),

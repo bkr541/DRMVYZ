@@ -54,6 +54,10 @@ describe('PixGrid engine foundation', () => {
       cellRoundness: -1,
       globalIntensity: Number.NaN,
       glowAmount: 7,
+      backgroundBrightness: 9,
+      diffusion: -1,
+      rgbSubpixelMode: true,
+      stoppedBehavior: 'random',
       backgroundColor: 'not-a-color',
       layers: [{ id: '', name: '', visible: 'yes', opacity: 4, blendMode: 'invalid' }],
       groups: [{ id: 'group', cellRuns: [[999, -5, 9999]] }],
@@ -67,6 +71,10 @@ describe('PixGrid engine foundation', () => {
     expect(normalized.cellRoundness).toBe(0)
     expect(normalized.globalIntensity).toBe(createDefaultPixGridState().globalIntensity)
     expect(normalized.glowAmount).toBe(1)
+    expect(normalized.backgroundBrightness).toBe(1)
+    expect(normalized.diffusion).toBe(0)
+    expect(normalized.rgbSubpixelMode).toBe(true)
+    expect(normalized.stoppedBehavior).toBe('baseline')
     expect(normalized.backgroundColor).toBe('#030608')
     expect(normalized.layers[0]).toMatchObject({ opacity: 1, blendMode: 'normal' })
     expect(normalized.groups[0].cellRuns[0]).toEqual([143, 0, 256])

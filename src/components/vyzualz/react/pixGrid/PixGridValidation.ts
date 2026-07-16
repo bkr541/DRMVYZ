@@ -23,6 +23,7 @@ const QUALITY_TIERS = new Set<PixGridQualityTier>(['draft', 'low', 'high', 'ultr
 const BACKGROUND_MODES = new Set<PixGridBackgroundMode>(['preset', 'black', 'custom'])
 const EDITOR_TOOLS = new Set<PixGridEditorTool>(['select', 'pencil', 'eraser', 'fill', 'group'])
 const BLEND_MODES = new Set<PixGridBlendMode>(['normal', 'add', 'multiply'])
+const STOPPED_BEHAVIORS = new Set(['baseline', 'blackout'])
 const MAX_LAYERS = 64
 const MAX_GROUPS = 256
 const MAX_CELL_RUNS_PER_GROUP = 4096
@@ -72,11 +73,14 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
     ...(quality ? { quality } : {}),
     ...(backgroundMode ? { backgroundMode } : {}),
     ...(value.backgroundColor != null ? { backgroundColor: normalizePixGridColor(value.backgroundColor, '#030608') } : {}),
+    ...(value.backgroundBrightness != null ? { backgroundBrightness: clamp(value.backgroundBrightness, 0, 1, 0.18) } : {}),
     ...(value.cellGap != null ? { cellGap: clamp(value.cellGap, 0, 0.45, 0.16) } : {}),
     ...(value.cellRoundness != null ? { cellRoundness: clamp(value.cellRoundness, 0, 0.5, 0.18) } : {}),
     ...(value.cellBrightness != null ? { cellBrightness: clamp(value.cellBrightness, 0, 1, 0.82) } : {}),
     ...(value.globalIntensity != null ? { globalIntensity: clamp(value.globalIntensity, 0, 1, 0.88) } : {}),
     ...(value.glowAmount != null ? { glowAmount: clamp(value.glowAmount, 0, 1, 0.34) } : {}),
+    ...(value.diffusion != null ? { diffusion: clamp(value.diffusion, 0, 1, 0.12) } : {}),
+    ...(value.rgbSubpixelMode != null ? { rgbSubpixelMode: value.rgbSubpixelMode === true } : {}),
     ...(value.selectedSceneId !== undefined ? { selectedSceneId: nullableId(value.selectedSceneId) } : {}),
   }
 }
@@ -166,11 +170,17 @@ export function normalizePixGridState(value: unknown): PixGridState {
     matrixHeight: dimensions.height,
     backgroundMode,
     backgroundColor: normalizePixGridColor(input.backgroundColor, defaults.backgroundColor),
+    backgroundBrightness: clamp(input.backgroundBrightness, 0, 1, defaults.backgroundBrightness),
     cellGap: clamp(input.cellGap, 0, 0.45, defaults.cellGap),
     cellRoundness: clamp(input.cellRoundness, 0, 0.5, defaults.cellRoundness),
     cellBrightness: clamp(input.cellBrightness, 0, 1, defaults.cellBrightness),
     globalIntensity: clamp(input.globalIntensity, 0, 1, defaults.globalIntensity),
     glowAmount: clamp(input.glowAmount, 0, 1, defaults.glowAmount),
+    diffusion: clamp(input.diffusion, 0, 1, defaults.diffusion),
+    rgbSubpixelMode: input.rgbSubpixelMode === true,
+    stoppedBehavior: STOPPED_BEHAVIORS.has(input.stoppedBehavior as string)
+      ? input.stoppedBehavior as PixGridState['stoppedBehavior']
+      : defaults.stoppedBehavior,
     selectedPresetId: nullableId(input.selectedPresetId) ?? defaults.selectedPresetId,
     selectedSceneId: nullableId(input.selectedSceneId) ?? defaults.selectedSceneId,
     authoringOverlayVisible: input.authoringOverlayVisible === true,
