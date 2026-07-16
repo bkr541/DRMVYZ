@@ -186,11 +186,17 @@ export function PixGridControls() {
       <SharedPerformanceDiagnosticsPanel engine="pixGrid" label="PixGrid Diagnostics" />
 
       <CtrlSection label="LED MATRIX" />
+      <ToggleRow
+        label="Adaptive Quality"
+        value={state.qualityMode === 'adaptive'}
+        onChange={enabled => setState({ qualityMode: enabled ? 'adaptive' : 'fixed' })}
+        description="Protects live frame rate by reducing secondary LED effects first and only then lowering the runtime matrix, never below 96 × 54."
+      />
       <SelectRow
-        label="Quality"
+        label={state.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'}
         value={state.quality}
         options={QUALITY_OPTIONS}
-        onChange={value => setState({ quality: value as PixGridQualityTier })}
+        onChange={value => setState({ quality: value as PixGridQualityTier, qualityMode: 'fixed' })}
       />
       <SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setState({ cellGap: value })} />
       <SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setState({ cellRoundness: value })} />

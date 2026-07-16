@@ -318,6 +318,10 @@ export class PixGridGpuRenderer {
   private ensureLogicalTarget(width: number, height: number): void {
     if (width === this.logicalWidth && height === this.logicalHeight) return
     const gl = this.gl
+    const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
+    if (width > maxTextureSize || height > maxTextureSize) {
+      throw new Error(`PixGrid logical matrix ${width} × ${height} exceeds the GPU texture limit ${maxTextureSize}.`)
+    }
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.logicalTexture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)

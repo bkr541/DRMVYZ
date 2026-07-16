@@ -120,7 +120,7 @@ export function renderPixGridBaseline(
 }
 
 export function disposePixGridBaselineRenderer(): void {
-  // Patch 3 compositor owns only frame-local typed arrays.
+  // The fallback compositor owns only frame-local typed arrays.
 }
 
 export interface PixGridCanvasFallbackTarget {

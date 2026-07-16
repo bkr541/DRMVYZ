@@ -45,6 +45,7 @@ import {
   type PixGridPerformanceProgramId,
   type PixGridPixelOverride,
   type PixGridPresetSettings,
+  type PixGridQualityMode,
   type PixGridQualityTier,
   type PixGridSceneSettings,
   type PixGridScene,
@@ -54,6 +55,7 @@ import {
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
 const QUALITY_TIERS = new Set<PixGridQualityTier>(['draft', 'low', 'high', 'ultra'])
+const QUALITY_MODES = new Set<PixGridQualityMode>(['adaptive', 'fixed'])
 const BACKGROUND_MODES = new Set<PixGridBackgroundMode>(['preset', 'black', 'custom'])
 const EDITOR_TOOLS = new Set<PixGridEditorTool>(['select', 'pan', 'pencil', 'eraser', 'fill', 'eyedropper', 'rectangle', 'line', 'marquee', 'move'])
 const BLEND_MODES = new Set<PixGridBlendMode>(['normal', 'add', 'multiply'])
@@ -492,7 +494,7 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const activeScene = scenes.find(scene => scene.id === selectedSceneId) ?? scenes[0]
   const selectedLayerId = nullableId(editor.selectedLayerId)
   const safeSelectedLayerId = selectedLayerId && activeScene.layerIds.includes(selectedLayerId) ? selectedLayerId : activeScene.layerIds[0] ?? null
-  const groups = normalizeGroups(input.groups, dimensions.width, dimensions.height)
+  const groups = normalizeGroups(input.groups === undefined ? defaults.groups : input.groups, dimensions.width, dimensions.height)
   const selectedGroupId = nullableId(editor.selectedGroupId)
   const safeSelectedGroupId = selectedGroupId && groups.some(group => group.id === selectedGroupId) ? selectedGroupId : groups[0]?.id ?? null
   const previewReactionAssignmentId = nullableId(editor.previewReactionAssignmentId)
@@ -503,6 +505,9 @@ export function normalizePixGridState(value: unknown): PixGridState {
   return {
     version: PIX_GRID_STATE_VERSION,
     quality,
+    qualityMode: QUALITY_MODES.has(input.qualityMode as PixGridQualityMode)
+      ? input.qualityMode as PixGridQualityMode
+      : defaults.qualityMode,
     matrixWidth: dimensions.width,
     matrixHeight: dimensions.height,
     backgroundMode,

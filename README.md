@@ -44,6 +44,8 @@ For the complete locked-install, unit, production-build, Chromium smoke, and aud
 
 Lyric Manager identity, extraction, Cue Style, vocal-reference, waveform editing, review, and troubleshooting behavior is documented in [`docs/lyric-manager.md`](docs/lyric-manager.md).
 
+PixGrid architecture, media support, quality tiers, editor workflow, smart groups, choreography, Track Map cues, recovery, and deferred features are documented in [`docs/pixgrid.md`](docs/pixgrid.md).
+
 ---
 
 ## Audio Sources

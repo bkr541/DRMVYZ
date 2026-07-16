@@ -33,7 +33,7 @@ function createFakeWebGL2() {
     COLOR_BUFFER_BIT: 19, TRIANGLES: 20, BLEND: 21, DEPTH_TEST: 22,
     CULL_FACE: 23, SCISSOR_TEST: 24, TEXTURE0: 100, TEXTURE1: 101,
     ACTIVE_TEXTURE: 25, TEXTURE_BINDING_2D: 26, FRAMEBUFFER_BINDING: 27,
-    CURRENT_PROGRAM: 28, VERTEX_ARRAY_BINDING: 29, VIEWPORT: 30, COLOR_CLEAR_VALUE: 31,
+    CURRENT_PROGRAM: 28, VERTEX_ARRAY_BINDING: 29, VIEWPORT: 30, COLOR_CLEAR_VALUE: 31, MAX_TEXTURE_SIZE: 32,
     createShader: vi.fn(object), shaderSource: vi.fn(), compileShader: vi.fn(),
     getShaderParameter: vi.fn(() => true), getShaderInfoLog: vi.fn(() => ''), deleteShader: vi.fn(),
     createProgram: vi.fn(object), attachShader: vi.fn(), linkProgram: vi.fn(),
@@ -63,6 +63,7 @@ function createFakeWebGL2() {
       if (parameter === 30) return viewport
       if (parameter === 18) return 4
       if (parameter === 31) return new Float32Array([0, 0, 0, 0])
+      if (parameter === 32) return 4096
       return null
     }),
   }

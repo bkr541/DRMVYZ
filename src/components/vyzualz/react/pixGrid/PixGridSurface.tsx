@@ -33,6 +33,12 @@ import {
   type PixGridResolvedTransition,
 } from './PixGridActionCues'
 import { clearPixGridCueRuntimeStatus, publishPixGridCueRuntimeStatus } from './PixGridCueStatus'
+import { resolvePixGridMatrixDimensions } from './PixGridDefaults'
+import {
+  PixGridAdaptiveQualityController,
+  resolvePixGridAdaptiveQualityProfile,
+  type PixGridAdaptiveQualityProfile,
+} from './PixGridAdaptiveQuality'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -96,6 +102,12 @@ function diagnosticsEqual(a: PixGridRendererDiagnostics, b: PixGridRendererDiagn
     && a.contextState === b.contextState
     && a.fallbackReason === b.fallbackReason
     && a.approximateGpuResourceCount === b.approximateGpuResourceCount
+    && a.requestedQuality === b.requestedQuality
+    && a.effectiveQuality === b.effectiveQuality
+    && a.adaptiveStage === b.adaptiveStage
+    && a.adaptiveReason === b.adaptiveReason
+    && a.preparedMediaCacheEntries === b.preparedMediaCacheEntries
+    && a.preparedMediaCacheBytes === b.preparedMediaCacheBytes
 }
 
 export function PixGridSurface(props: PixGridSurfaceProps) {
@@ -104,6 +116,13 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const propsRef = useRef(props)
   const requestRenderRef = useRef<(force?: boolean) => void>(() => {})
   const retryGpuRef = useRef<() => void>(() => {})
+  const resizeRef = useRef<() => void>(() => {})
+  const adaptiveControllerRef = useRef(new PixGridAdaptiveQualityController())
+  const initialProfile = resolvePixGridAdaptiveQualityProfile(props.pixGridState.quality, props.pixGridState.qualityMode, 0)
+  const adaptiveProfileRef = useRef<PixGridAdaptiveQualityProfile>(initialProfile)
+  const runtimeQualityRef = useRef<PixGridQualityTier>(initialProfile.logicalQuality)
+  const [runtimeQuality, setRuntimeQuality] = useState<PixGridQualityTier>(initialProfile.logicalQuality)
+  const runtimeDimensions = resolvePixGridMatrixDimensions(runtimeQuality)
   const [diagnostics, setDiagnostics] = useState<PixGridRendererDiagnostics>(EMPTY_DIAGNOSTICS)
   const activeScene = props.pixGridState.scenes.find(scene => scene.id === props.pixGridState.selectedSceneId)
     ?? props.pixGridState.scenes[0]
@@ -125,6 +144,16 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const selectedMedia = selectedMediaId ? mediaItems.find(item => item.id === selectedMediaId) ?? null : null
   propsRef.current = props
   const hasActivePreset = props.activePreset != null
+
+  useEffect(() => {
+    adaptiveControllerRef.current.reset()
+    const profile = resolvePixGridAdaptiveQualityProfile(props.pixGridState.quality, props.pixGridState.qualityMode, 0)
+    adaptiveProfileRef.current = profile
+    runtimeQualityRef.current = profile.logicalQuality
+    setRuntimeQuality(profile.logicalQuality)
+    resizeRef.current()
+    requestRenderRef.current(true)
+  }, [props.pixGridState.quality, props.pixGridState.qualityMode])
 
   useEffect(() => {
     if (mediaIds.length === 0 || !props.activePreset) {
@@ -167,8 +196,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           pixGridPreparedAssetCache.invalidateMedia(media.id, resolvePixGridMediaRevision(media))
           const prepared = await preparePixGridMediaAsset({
             media,
-            width: props.pixGridState.matrixWidth,
-            height: props.pixGridState.matrixHeight,
+            width: runtimeDimensions.width,
+            height: runtimeDimensions.height,
             settings: props.pixGridState.conversion,
             palette: props.activePreset!.palette,
             signal: controller.signal,
@@ -199,8 +228,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     mediaKey,
     props.activePreset,
     props.pixGridState.conversion,
-    props.pixGridState.matrixHeight,
-    props.pixGridState.matrixWidth,
+    runtimeDimensions.height,
+    runtimeDimensions.width,
   ])
 
   useEffect(() => {
@@ -237,13 +266,26 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let lastFps = 0
     let lastDiagnostics = EMPTY_DIAGNOSTICS
     let mounted = true
+    let gpuRetryAttempts = 0
+    let gpuRetryTimer: ReturnType<typeof setTimeout> | null = null
+    let createGpuRenderer: () => void = () => {}
 
     const fpsReporter = createLiveFpsReporter(() => propsRef.current.onLiveFps)
 
     const publishDiagnostics = (next: PixGridRendererDiagnostics) => {
-      lastDiagnostics = next
-      propsRef.current.onDiagnostics?.(next)
-      if (mounted) setDiagnostics(previous => diagnosticsEqual(previous, next) ? previous : next)
+      const profile = adaptiveProfileRef.current
+      const enriched: PixGridRendererDiagnostics = {
+        ...next,
+        requestedQuality: propsRef.current.pixGridState.quality,
+        effectiveQuality: profile.logicalQuality,
+        adaptiveStage: profile.stage,
+        adaptiveReason: profile.reason,
+        preparedMediaCacheEntries: pixGridPreparedAssetCache.size,
+        preparedMediaCacheBytes: pixGridPreparedAssetCache.approximateBytes,
+      }
+      lastDiagnostics = enriched
+      propsRef.current.onDiagnostics?.(enriched)
+      if (mounted) setDiagnostics(previous => diagnosticsEqual(previous, enriched) ? previous : enriched)
     }
 
     const activatePath = (path: PixGridRendererDiagnostics['path'], reason: string | null) => {
@@ -252,6 +294,22 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       gpuCanvas.hidden = path !== 'webgl2'
       fallbackCanvas.hidden = path !== 'canvas2d-fallback'
       propsRef.current.onCanvasReady?.(path === 'webgl2' ? gpuCanvas : fallbackCanvas)
+    }
+
+    const clearGpuRetry = () => {
+      if (gpuRetryTimer != null) clearTimeout(gpuRetryTimer)
+      gpuRetryTimer = null
+    }
+
+    const scheduleGpuRetry = () => {
+      if (gpuRetryTimer != null || !mounted) return
+      const delays = [1_000, 2_000, 5_000, 10_000, 20_000, 30_000] as const
+      const delay = delays[Math.min(gpuRetryAttempts, delays.length - 1)]
+      gpuRetryAttempts += 1
+      gpuRetryTimer = setTimeout(() => {
+        gpuRetryTimer = null
+        if (mounted) createGpuRenderer()
+      }, delay)
     }
 
     const currentFrameInput = (): {
@@ -281,10 +339,23 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       previousPerformanceContext = context
       lastAudioTime = audioTime
       const audioFrame = createPixGridAudioFrame(context, { isPlaying: shouldAnimate, deltaTimeSec })
+      const qualityProfile = adaptiveProfileRef.current
+      const runtimeState: PixGridState = {
+        ...current.pixGridState,
+        matrixWidth: qualityProfile.logicalWidth,
+        matrixHeight: qualityProfile.logicalHeight,
+        glowAmount: current.pixGridState.glowAmount * qualityProfile.glowScale,
+        diffusion: current.pixGridState.diffusion * qualityProfile.diffusionScale,
+        rgbSubpixelMode: current.pixGridState.rgbSubpixelMode && qualityProfile.rgbSubpixelEnabled,
+        diagnostics: {
+          ...current.pixGridState.diagnostics,
+          showMatrixBounds: current.pixGridState.diagnostics.showMatrixBounds && qualityProfile.diagnosticsEnabled,
+        },
+      }
       const selectedSceneId = resolveSectionScene(activePreset, current.trackSections ?? intelligenceFrame.resolvedSections ?? [], audioTime)
       const mappedState = selectedSceneId
-        ? { ...current.pixGridState, selectedSceneId }
-        : current.pixGridState
+        ? { ...runtimeState, selectedSceneId }
+        : runtimeState
       const performance = resolvePixGridPerformanceFrame(mappedState, context, activePreset.id)
       const cueFrame = resolvePixGridActionCueFrame(
         performance.state,
@@ -389,28 +460,42 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       if (!input) return
       let rendered = false
       if (activePath === 'webgl2' && gpuRenderer?.isReady) {
-        rendered = gpuRenderer.render({
-          frame: input.frame,
-          preset: input.preset,
-          state: input.blackout
-            ? { ...input.state, backgroundMode: 'black', backgroundBrightness: 0 }
-            : input.state,
-          presentationWidth: gpuCanvas.width,
-          presentationHeight: gpuCanvas.height,
-          blackout: input.blackout,
-          preparedAsset: preparedAssetRef.current,
-          transition: input.transition,
-        })
-        if (rendered) {
-          const gpuDiagnostics = gpuRenderer.diagnostics
-          publishDiagnostics({ ...gpuDiagnostics, fps: lastFps })
+        try {
+          rendered = gpuRenderer.render({
+            frame: input.frame,
+            preset: input.preset,
+            state: input.blackout
+              ? { ...input.state, backgroundMode: 'black', backgroundBrightness: 0 }
+              : input.state,
+            presentationWidth: gpuCanvas.width,
+            presentationHeight: gpuCanvas.height,
+            blackout: input.blackout,
+            preparedAsset: preparedAssetRef.current,
+            transition: input.transition,
+          })
+          if (rendered) {
+            const gpuDiagnostics = gpuRenderer.diagnostics
+            publishDiagnostics({ ...gpuDiagnostics, fps: lastFps })
+          }
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error)
+          gpuRenderer.dispose()
+          gpuRenderer = null
+          activatePath('canvas2d-fallback', `PixGrid GPU rendering failed temporarily: ${reason}`)
+          scheduleGpuRetry()
         }
       }
       if (!rendered) {
         if (activePath !== 'canvas2d-fallback') {
           activatePath('canvas2d-fallback', fallbackReason ?? 'The PixGrid GPU renderer is temporarily unavailable.')
         }
-        renderFallback(input)
+        try {
+          renderFallback(input)
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error)
+          fallbackReason = `PixGrid transition allocation failed; rendering the stable frame instead: ${reason}`
+          renderFallback({ ...input, transition: null })
+        }
       }
 
       frameCount += 1
@@ -420,30 +505,54 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         fpsReporter.report(lastFps)
         frameCount = 0
         fpsWindowStarted = now
+        if (current.isPlaying && !current.isPaused) {
+          const previousProfile = adaptiveProfileRef.current
+          const nextProfile = adaptiveControllerRef.current.sample({
+            fps: lastFps,
+            nowMs: now,
+            requestedQuality: current.pixGridState.quality,
+            mode: current.pixGridState.qualityMode,
+          })
+          if (nextProfile.stage !== previousProfile.stage || nextProfile.logicalQuality !== previousProfile.logicalQuality) {
+            adaptiveProfileRef.current = nextProfile
+            if (nextProfile.logicalQuality !== runtimeQualityRef.current) {
+              runtimeQualityRef.current = nextProfile.logicalQuality
+              setRuntimeQuality(nextProfile.logicalQuality)
+              resizeRef.current()
+            }
+            requestRender(true)
+          }
+        }
         publishDiagnostics({ ...lastDiagnostics, fps: lastFps })
       }
       if (current.isPlaying && !current.isPaused) requestRender()
       else fpsReporter.unavailable()
     }
 
-    const createGpuRenderer = () => {
+    createGpuRenderer = () => {
       gpuRenderer?.dispose()
       gpuRenderer = null
       const result = PixGridGpuRenderer.create(gpuCanvas, {
         onContextLost: () => {
           activatePath('canvas2d-fallback', 'PixGrid WebGL context was lost. Canvas2D fallback is active while recovery is attempted.')
+          scheduleGpuRetry()
           requestRender(true)
         },
         onContextRestored: () => {
+          clearGpuRetry()
+          gpuRetryAttempts = 0
           activatePath('webgl2', null)
           requestRender(true)
         },
         onContextRestoreFailed: reason => {
           activatePath('canvas2d-fallback', `PixGrid context restoration failed: ${reason}`)
+          scheduleGpuRetry()
           requestRender(true)
         },
       })
       if (result.renderer) {
+        clearGpuRetry()
+        gpuRetryAttempts = 0
         gpuRenderer = result.renderer
         activatePath('webgl2', null)
         publishDiagnostics({
@@ -454,7 +563,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         })
       } else {
         activatePath('canvas2d-fallback', result.error)
-        const fallbackResolution = resolvePixGridFallbackResolution(propsRef.current.pixGridState.quality)
+        const fallbackResolution = resolvePixGridFallbackResolution(runtimeQualityRef.current)
         publishDiagnostics({
           path: 'canvas2d-fallback',
           logicalWidth: fallbackResolution.width,
@@ -468,6 +577,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           fallbackReason: result.error,
           approximateGpuResourceCount: 0,
         })
+        scheduleGpuRetry()
       }
       requestRender()
     }
@@ -478,7 +588,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         cssWidth: bounds.width,
         cssHeight: bounds.height,
         devicePixelRatio: window.devicePixelRatio,
-        quality: canvasQuality(propsRef.current.pixGridState.quality),
+        quality: canvasQuality(runtimeQualityRef.current),
         previous: resolution,
       })
       if (!next.valid) return
@@ -490,6 +600,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
     const lifecycle = createPixGridRendererLifecycle(() => {
       mounted = false
+      clearGpuRetry()
       gpuRenderer?.dispose()
       gpuRenderer = null
       disposePixGridBaselineRenderer()
@@ -498,6 +609,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       propsRef.current.onDiagnostics?.({ ...lastDiagnostics, fps: 0 })
       requestRenderRef.current = () => {}
       retryGpuRef.current = () => {}
+      resizeRef.current = () => {}
       clearPixGridPerformanceRuntimeStatus()
       clearPixGridCueRuntimeStatus()
       clearSharedPerformanceDiagnostics('pixGrid')
@@ -505,7 +617,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     const ownership = acquireReactLiveEngineOwnership('pixGrid', () => lifecycle.dispose())
 
     requestRenderRef.current = requestRender
-    retryGpuRef.current = createGpuRenderer
+    retryGpuRef.current = () => {
+      clearGpuRetry()
+      gpuRetryAttempts = 0
+      createGpuRenderer()
+    }
+    resizeRef.current = resize
     const observer = new ResizeObserver(resize)
     lifecycle.setResizeObserver(observer)
     observer.observe(gpuCanvas)
@@ -543,6 +660,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       aria-label={props.activePreset ? `PixGrid visualization: ${props.activePreset.name}` : 'PixGrid visualization'}
       data-authoring={props.pixGridState.authoringOverlayVisible ? 'true' : undefined}
       data-pix-grid-matrix={`${props.pixGridState.matrixWidth}x${props.pixGridState.matrixHeight}`}
+      data-pix-grid-runtime-matrix={`${diagnostics.logicalWidth}x${diagnostics.logicalHeight}`}
+      data-pix-grid-quality={`${diagnostics.requestedQuality ?? props.pixGridState.quality}:${diagnostics.effectiveQuality ?? runtimeQuality}`}
+      data-pix-grid-adaptive-stage={diagnostics.adaptiveStage ?? 0}
       data-pix-grid-renderer={diagnostics.path}
       data-pix-grid-context={diagnostics.contextState}
       data-pix-grid-presentation={`${diagnostics.presentationWidth}x${diagnostics.presentationHeight}`}

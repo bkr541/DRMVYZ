@@ -6,9 +6,9 @@ export interface PixGridRendererLifecycle {
 }
 
 /**
- * Small ownership boundary shared by the Canvas2D baseline and the WebGL
- * replacement planned for Patch 2. It deliberately owns only transient
- * browser resources and never enters persisted PixGrid state.
+ * Small ownership boundary shared by the Canvas2D fallback and WebGL renderer.
+ * It deliberately owns only transient browser resources and never enters
+ * persisted PixGrid state.
  */
 export function createPixGridRendererLifecycle(onDispose?: () => void): PixGridRendererLifecycle {
   let animationFrame = 0

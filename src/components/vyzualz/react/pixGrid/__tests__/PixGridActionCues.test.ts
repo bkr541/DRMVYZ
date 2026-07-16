@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { BeatMarkerMI } from '../../../../../features/musicIntelligence/types'
 import { createDefaultPixGridState } from '../PixGridDefaults'
+import { MAX_PIX_GRID_ACTION_CUES_PER_TRACK, MAX_PIX_GRID_ACTION_CUE_TRACKS } from '../PixGridLimits'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
 import { resolvePixGridLayerAnimation } from '../PixGridAnimation'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
@@ -74,6 +75,19 @@ describe('PixGrid action cue model', () => {
     expect(normalized.timeSec).toBe(0)
     expect(normalized.action).toMatchObject({ type: 'setAnimationSpeed', speed: -20 })
     expect(normalizePixGridActionCueMap({ track: [normalized, normalized] }).track).toHaveLength(1)
+  })
+
+  it('bounds persisted track buckets and cue lists deterministically', () => {
+    const oversizedTrack = Array.from({ length: MAX_PIX_GRID_ACTION_CUES_PER_TRACK + 5 }, (_, index) => cue(`cue-${index}`, index, { type: 'clearScreen' }))
+    const oversizedMap = Object.fromEntries(Array.from({ length: MAX_PIX_GRID_ACTION_CUE_TRACKS + 5 }, (_, index) => [
+      `track-${index.toString().padStart(4, '0')}`,
+      index === 0 ? oversizedTrack : [cue(`track-cue-${index}`, index, { type: 'restoreScene' })],
+    ]))
+    const normalized = normalizePixGridActionCueMap(oversizedMap)
+
+    expect(Object.keys(normalized)).toHaveLength(MAX_PIX_GRID_ACTION_CUE_TRACKS)
+    expect(normalized['track-0000']).toHaveLength(MAX_PIX_GRID_ACTION_CUES_PER_TRACK)
+    expect(normalized[`track-${MAX_PIX_GRID_ACTION_CUE_TRACKS.toString().padStart(4, '0')}`]).toBeUndefined()
   })
 
   it('snaps to the authoritative Beat Grid without creating a second grid', () => {

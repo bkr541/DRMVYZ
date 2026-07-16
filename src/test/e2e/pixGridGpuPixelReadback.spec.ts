@@ -132,7 +132,7 @@ test('PixGrid renders deterministic two-pass WebGL pixels with transparent logic
       gl.uniform1i(uniform(presentationProgram, 'uLogicalTexture'), 0)
       gl.uniform2f(uniform(presentationProgram, 'uLogicalSize'), logicalWidth, logicalHeight)
       gl.uniform2f(uniform(presentationProgram, 'uPresentationSize'), canvas.width, canvas.height)
-      gl.uniform3f(uniform(presentationProgram, 'uBackground'), 0.001, 0.002, 0.003)
+      gl.uniform3f(uniform(presentationProgram, 'uBackground'), 0, 0, 0)
       gl.uniform1f(uniform(presentationProgram, 'uGap'), 0.22)
       gl.uniform1f(uniform(presentationProgram, 'uRoundness'), 0.25)
       gl.uniform1f(uniform(presentationProgram, 'uCellBrightness'), 0.9)
@@ -171,17 +171,27 @@ test('PixGrid renders deterministic two-pass WebGL pixels with transparent logic
       const offset = (y * canvas.width + x) * 4
       return first[offset] + first[offset + 1] + first[offset + 2]
     }
+    const rgb = (x: number, y: number) => {
+      const offset = (y * canvas.width + x) * 4
+      return [first[offset], first[offset + 1], first[offset + 2]] as const
+    }
     const cellWidth = canvas.width / logicalWidth
     const cellHeight = canvas.height / logicalHeight
-    const centerLuminance = luminance(Math.floor(8.5 * cellWidth), Math.floor(4.5 * cellHeight))
+    const centerX = Math.floor(8.5 * cellWidth)
+    const centerY = Math.floor(4.5 * cellHeight)
+    const centerLuminance = luminance(centerX, centerY)
+    const centerRgb = rgb(centerX, centerY)
     const gapLuminance = luminance(Math.floor(9 * cellWidth), Math.floor(4.5 * cellHeight))
+    const inactiveRgb = rgb(Math.floor(0.5 * cellWidth), Math.floor(0.5 * cellHeight))
     const alphas = Array.from({ length: logicalWidth * logicalHeight }, (_, index) => logicalPixels[index * 4 + 3])
 
     return {
       webgl2: true as const,
       deterministicDifference: difference,
       centerLuminance,
+      centerRgb,
       gapLuminance,
+      inactiveRgb,
       transparentLogicalTexels: alphas.filter(alpha => alpha === 0).length,
       activeLogicalTexels: alphas.filter(alpha => alpha > 0).length,
     }
@@ -197,4 +207,7 @@ test('PixGrid renders deterministic two-pass WebGL pixels with transparent logic
   expect(result.activeLogicalTexels).toBeGreaterThan(0)
   expect(result.transparentLogicalTexels).toBeGreaterThan(0)
   expect(result.centerLuminance).toBeGreaterThan(result.gapLuminance)
+  expect(Math.max(...result.inactiveRgb)).toBe(0)
+  expect(result.centerRgb[1]).toBeGreaterThan(result.centerRgb[0])
+  expect(result.centerRgb[2]).toBeGreaterThan(result.centerRgb[0])
 })

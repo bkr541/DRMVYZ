@@ -97,7 +97,9 @@ void main() {
   }
 
   float contentAlpha = logical.a;
-  vec3 inactiveCell = uBackground * (0.42 + cellMask * 0.18) + vec3(0.0025) * cellMask;
+  // Off emitters remain truly off. A black background therefore produces exact
+  // black cells and gaps instead of a gray matrix veil.
+  vec3 inactiveCell = uBackground * (0.42 + cellMask * 0.18);
   vec3 linearEmitter = toLinear(emitter)
     * uCellBrightness
     * uGlobalIntensity
@@ -106,7 +108,10 @@ void main() {
   vec3 linearColor = toLinear(inactiveCell);
   linearColor += linearEmitter * cellMask;
   linearColor += linearEmitter * glowMask * (0.2 + 0.55 * uGlow);
-  linearColor = linearColor / (vec3(1.0) + linearColor * 0.42);
+  // Compress all channels by the same scalar so cyan, emerald, red, and other
+  // saturated emitters retain hue instead of whitening at high intensity.
+  float peak = max(linearColor.r, max(linearColor.g, linearColor.b));
+  linearColor *= 1.0 / (1.0 + peak * 0.42);
   vec3 color = toSrgb(linearColor);
 
   if (uShowBounds) {

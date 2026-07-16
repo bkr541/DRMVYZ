@@ -31,7 +31,7 @@ export function inspectPixGridMediaCapability(media: UploadedMedia): PixGridMedi
   if (media.lifecycleStatus === 'deletion_pending' || media.lifecycleStatus === 'deletion_failed') {
     return { supported: false, kind: null, reason: 'This media item is being removed and is not available to PixGrid.' }
   }
-  if (media.type === 'video') return { supported: false, kind: null, reason: 'PixGrid Patch 4 accepts still images and SVGs, not video.' }
+  if (media.type === 'video') return { supported: false, kind: null, reason: 'PixGrid accepts still images and SVGs, not video.' }
 
   const mime = media.mimeType?.toLowerCase().split(';')[0].trim() ?? ''
   const extension = mediaExtension(media)
@@ -42,7 +42,7 @@ export function inspectPixGridMediaCapability(media: UploadedMedia): PixGridMedi
           : EXTENSION_KIND[extension] ?? null
 
   if (extension === 'gif' || mime === 'image/gif') {
-    return { supported: false, kind: null, reason: 'Animated GIF and GIF decoding are planned for a later PixGrid patch.' }
+    return { supported: false, kind: null, reason: 'Animated GIF import is deferred beyond the PixGrid MVP.' }
   }
   if (!kind) {
     return { supported: false, kind: null, reason: 'PixGrid supports PNG, JPEG/JPG, static WebP, and SVG media.' }
@@ -52,7 +52,7 @@ export function inspectPixGridMediaCapability(media: UploadedMedia): PixGridMedi
       || Number(metadataFlag(media.metadata, 'frameCount') ?? 1) > 1
       || Number(metadataFlag(media.metadata, 'durationSec') ?? 0) > 0
     if (animated) {
-      return { supported: false, kind: null, reason: 'Animated WebP is not supported in PixGrid Patch 4.' }
+      return { supported: false, kind: null, reason: 'Animated WebP is not supported by PixGrid.' }
     }
   }
   if (!media.url && !media.proxyUrl && !media.storagePath) {

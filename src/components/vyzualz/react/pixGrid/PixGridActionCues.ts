@@ -11,6 +11,10 @@ import type {
   PixGridPaletteRole,
   PixGridState,
 } from './PixGridTypes'
+import {
+  MAX_PIX_GRID_ACTION_CUES_PER_TRACK,
+  MAX_PIX_GRID_ACTION_CUE_TRACKS,
+} from './PixGridLimits'
 
 export const PIX_GRID_ACTION_CUE_ENGINE_ID = 'pixGrid' as const
 export const PIX_GRID_ACTION_CUE_VERSION = 1 as const
@@ -331,10 +335,10 @@ export function sortPixGridActionCues(cues: readonly PixGridActionCue[]): PixGri
 export function normalizePixGridActionCueMap(value: unknown): Record<string, PixGridActionCue[]> {
   if (!isRecord(value)) return {}
   const result: Record<string, PixGridActionCue[]> = {}
-  for (const [trackId, bucket] of Object.entries(value)) {
+  for (const [trackId, bucket] of Object.entries(value).slice(0, MAX_PIX_GRID_ACTION_CUE_TRACKS)) {
     if (!Array.isArray(bucket)) continue
     const seen = new Set<string>()
-    const normalized = bucket.slice(0, 4096).flatMap((cue, index) => {
+    const normalized = bucket.slice(0, MAX_PIX_GRID_ACTION_CUES_PER_TRACK).flatMap((cue, index) => {
       const safe = normalizePixGridActionCue(cue, index)
       if (!safe || seen.has(safe.id)) return []
       seen.add(safe.id)

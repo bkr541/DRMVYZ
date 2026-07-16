@@ -3,6 +3,7 @@ import {
   MAX_PIX_GRID_CELL_RUNS_PER_GROUP,
   MAX_PIX_GRID_CONNECTED_REGION_CELLS,
   MAX_PIX_GRID_GROUPS,
+  MAX_PIX_GRID_SVG_SOURCE_CHARACTERS,
 } from './PixGridLimits'
 import type {
   PixGridCellRect,
@@ -566,7 +567,7 @@ function normalizeSvgFill(value: string | null): string | null {
 }
 
 export function extractPixGridSvgGroupCandidates(svgText: string): PixGridSvgGroupCandidate[] {
-  if (typeof DOMParser === 'undefined' || svgText.length > 2_000_000) return []
+  if (typeof DOMParser === 'undefined' || svgText.length > MAX_PIX_GRID_SVG_SOURCE_CHARACTERS) return []
   const document = new DOMParser().parseFromString(svgText, 'image/svg+xml')
   if (document.querySelector('parsererror, script, foreignObject, iframe, object, embed')) return []
   for (const element of Array.from(document.querySelectorAll('*'))) {

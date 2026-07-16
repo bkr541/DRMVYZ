@@ -84,7 +84,19 @@ export function createDefaultPixGridState(): PixGridState {
   const dimensions = resolvePixGridMatrixDimensions(DEFAULT_PIX_GRID_QUALITY)
   const defaultSettings = PIX_GRID_PRESET_BY_ID.get(DEFAULT_PIX_GRID_PRESET_ID)?.pixGridSettings
   const defaultLayers = defaultSettings?.layers?.map(clonePixGridLayer) ?? []
-  const defaultGroups = defaultSettings?.groups?.map(group => ({ ...group, cellRuns: [...group.cellRuns], layerScope: group.layerScope ? [...group.layerScope] : null, reactions: group.reactions.map(reaction => ({ ...reaction, clamp: [...reaction.clamp] as [number, number] })), mask: group.mask.kind === 'runs' ? { kind: 'runs' as const, runs: [...group.mask.runs] } : { ...group.mask } })) ?? []
+  const defaultGroups = defaultSettings?.groups?.map(group => ({
+    ...group,
+    contentVisible: group.contentVisible !== false,
+    cellRuns: [...group.cellRuns],
+    layerScope: group.layerScope ? [...group.layerScope] : null,
+    reactions: group.reactions.map(reaction => ({
+      ...reaction,
+      clamp: [...reaction.clamp] as [number, number],
+    })),
+    mask: group.mask.kind === 'runs'
+      ? { kind: 'runs' as const, runs: [...group.mask.runs] }
+      : { ...group.mask },
+  })) ?? []
   const sceneIds = Object.keys(defaultSettings?.sceneSettings ?? {})
   const defaultScenes: PixGridScene[] = (sceneIds.length > 0 ? sceneIds : [DEFAULT_PIX_GRID_SCENE_ID]).map((id, index) => ({
     id,
@@ -95,6 +107,7 @@ export function createDefaultPixGridState(): PixGridState {
   return {
     version: PIX_GRID_STATE_VERSION,
     quality: DEFAULT_PIX_GRID_QUALITY,
+    qualityMode: 'adaptive',
     matrixWidth: dimensions.width,
     matrixHeight: dimensions.height,
     backgroundMode: 'preset',
@@ -121,7 +134,7 @@ export function createDefaultPixGridState(): PixGridState {
       paintOpacity: 1,
       eraserMode: 'off',
       selectedLayerId: defaultLayers[0]?.id ?? null,
-      selectedGroupId: null,
+      selectedGroupId: defaultGroups[0]?.id ?? null,
       previewReactionAssignmentId: null,
       selection: null,
     },

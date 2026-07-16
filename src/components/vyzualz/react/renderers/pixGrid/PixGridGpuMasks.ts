@@ -54,7 +54,12 @@ export class PixGridGpuMaskAtlas {
     const atlas = buildPixGridMaskAtlas(groups, width, height)
     this.groupCount = atlas.groupCount
     this.approximateBytes = atlas.groupCount > 0 ? atlas.pixels.byteLength : 0
-    if (atlas.groupCount === 0) return
+    if (atlas.groupCount === 0) {
+      if (this.texture) this.gl.deleteTexture(this.texture)
+      this.texture = null
+      this.signature = ''
+      return
+    }
     if (atlas.signature === this.signature && this.texture) return
     if (!this.texture) {
       this.texture = this.gl.createTexture()

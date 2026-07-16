@@ -7,6 +7,10 @@ import {
   resolvePixGridMediaRevision,
   resolvePixGridMediaSourceUrl,
 } from './PixGridMediaCapabilities'
+import {
+  MAX_PIX_GRID_MEDIA_SOURCE_BYTES,
+  MAX_PIX_GRID_SVG_SOURCE_CHARACTERS,
+} from './PixGridLimits'
 
 export interface PixGridPreparedAsset {
   key: string
@@ -417,10 +421,13 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput): 
   const response = await fetch(sourceUrl, { signal: input.signal, cache: 'force-cache' })
   if (!response.ok) throw new Error(`PixGrid could not load the media asset (${response.status}).`)
   const blob = await response.blob()
-  if (capability.kind === 'webp' && await isAnimatedPixGridWebP(blob)) {
-    throw new Error('Animated WebP is not supported in PixGrid Patch 4.')
+  if (blob.size > MAX_PIX_GRID_MEDIA_SOURCE_BYTES) {
+    throw new Error('This media asset is too large for bounded PixGrid preparation.')
   }
-  const svgGroupCandidates = capability.kind === 'svg'
+  if (capability.kind === 'webp' && await isAnimatedPixGridWebP(blob)) {
+    throw new Error('Animated WebP is not supported by PixGrid.')
+  }
+  const svgGroupCandidates = capability.kind === 'svg' && blob.size <= MAX_PIX_GRID_SVG_SOURCE_CHARACTERS
     ? extractPixGridSvgGroupCandidates(await blob.text())
     : []
   const decoded = await decodeBitmap(blob)

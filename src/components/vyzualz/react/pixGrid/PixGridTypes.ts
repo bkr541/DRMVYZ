@@ -1,6 +1,7 @@
-export const PIX_GRID_STATE_VERSION = 8 as const
+export const PIX_GRID_STATE_VERSION = 9 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
+export type PixGridQualityMode = 'adaptive' | 'fixed'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
 export type PixGridEditorTool = 'select' | 'pan' | 'pencil' | 'eraser' | 'fill' | 'eyedropper' | 'rectangle' | 'line' | 'marquee' | 'move'
 export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade'
@@ -305,6 +306,7 @@ export interface PixGridPresetSettings {
 export interface PixGridState {
   version: typeof PIX_GRID_STATE_VERSION
   quality: PixGridQualityTier
+  qualityMode: PixGridQualityMode
   matrixWidth: number
   matrixHeight: number
   backgroundMode: PixGridBackgroundMode
@@ -388,6 +390,12 @@ export interface PixGridRendererDiagnostics {
   contextState: PixGridContextState
   fallbackReason: string | null
   approximateGpuResourceCount: number
+  requestedQuality?: PixGridQualityTier
+  effectiveQuality?: PixGridQualityTier
+  adaptiveStage?: number
+  adaptiveReason?: string
+  preparedMediaCacheEntries?: number
+  preparedMediaCacheBytes?: number
   activeGroupMaskCount?: number
   groupMaskUploadCount?: number
   groupMaskApproximateBytes?: number

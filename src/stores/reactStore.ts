@@ -189,7 +189,11 @@ import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/P
 import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from '../components/vyzualz/react/pixGrid/PixGridState'
 import type { PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import { normalizePixGridPresetSettings, normalizePixGridState } from '../components/vyzualz/react/pixGrid/PixGridValidation'
-import { MAX_PIX_GRID_HISTORY } from '../components/vyzualz/react/pixGrid/PixGridLimits'
+import {
+  MAX_PIX_GRID_ACTION_CUES_PER_TRACK,
+  MAX_PIX_GRID_ACTION_CUE_TRACKS,
+  MAX_PIX_GRID_HISTORY,
+} from '../components/vyzualz/react/pixGrid/PixGridLimits'
 import {
   normalizePixGridActionCue,
   normalizePixGridActionCueMap,
@@ -3636,6 +3640,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     state = {
       ...state,
       pixGridActionCuesByTrackId: normalizePixGridActionCueMap(state.pixGridActionCuesByTrackId),
+    }
+  }
+  if (version < 51) {
+    state = {
+      ...state,
+      pixGridState: normalizePixGridState(state.pixGridState),
     }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -7277,6 +7287,8 @@ export const useReactStore = create<ReactStoreState>()(
       addPixGridActionCue: (trackId, cue) =>
         set((s) => {
           const existing = s.pixGridActionCuesByTrackId[trackId] ?? []
+          if (existing.length >= MAX_PIX_GRID_ACTION_CUES_PER_TRACK) return {}
+          if (!(trackId in s.pixGridActionCuesByTrackId) && Object.keys(s.pixGridActionCuesByTrackId).length >= MAX_PIX_GRID_ACTION_CUE_TRACKS) return {}
           if (existing.some(candidate => candidate.id === cue.id)) return {}
           const normalized = normalizePixGridActionCue(cue, existing.length)
           if (!normalized) return {}
@@ -7314,6 +7326,7 @@ export const useReactStore = create<ReactStoreState>()(
         let duplicatedId: string | null = null
         set((s) => {
           const existing = s.pixGridActionCuesByTrackId[trackId] ?? []
+          if (existing.length >= MAX_PIX_GRID_ACTION_CUES_PER_TRACK) return {}
           const source = existing.find(cue => cue.id === id)
           if (!source) return {}
           duplicatedId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -7795,7 +7808,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 50,
+      version: 51,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
