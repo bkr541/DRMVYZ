@@ -1113,6 +1113,26 @@ function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
     ? normalizeDegrees(180 - effectiveAngle)
     : normalizeDegrees(-effectiveAngle)
   const mirroredBeamAngle = normalizeDegrees(mirroredEffectiveAngle - mirroredRotation)
+  const mirroredScanner = fixture.scanner
+    ? {
+      ...fixture.scanner,
+      direction: fixture.scanner.direction,
+      reversePath: !fixture.scanner.reversePath,
+      path: {
+        ...fixture.scanner.path,
+        points: fixture.scanner.path.points.map(point => ({
+          ...point,
+          x: axis === 'horizontal' ? maxX - clampShowDirectorGrid(point.x, maxX) : clampShowDirectorGrid(point.x, maxX),
+          y: axis === 'vertical' ? maxY - clampShowDirectorGrid(point.y, maxY) : clampShowDirectorGrid(point.y, maxY),
+        })),
+      },
+      migration: {
+        ...fixture.scanner.migration,
+        sourceTargetIds: [...fixture.scanner.migration.sourceTargetIds],
+        warnings: [...fixture.scanner.migration.warnings],
+      },
+    }
+    : undefined
 
   return normalizeLaserDmxShowDirectorFixture({
     ...fixture,
@@ -1126,6 +1146,7 @@ function mirrorLaserDmxShowDirectorFixtureAcrossGrid(
       targetY: mirroredPrimaryTarget ? mirroredPrimaryTarget.y : (axis === 'vertical' ? mirroredTargetY : fixture.beam.targetY),
       targets: mirroredTargets,
     },
+    ...(mirroredScanner ? { scanner: mirroredScanner } : {}),
   }, index)
 }
 
@@ -1187,6 +1208,25 @@ function createOffsetLaserDmxShowDirectorFixtureCopy(
     x: Math.max(0, Math.min(maxX, target.x + offset)),
     y: Math.max(0, Math.min(maxY, target.y + offset)),
   }))
+  const offsetScanner = source.scanner
+    ? {
+      ...source.scanner,
+      path: {
+        ...source.scanner.path,
+        points: source.scanner.path.points.map((point, pointIndex) => ({
+          ...point,
+          id: `${id}-scan-point-${pointIndex + 1}`,
+          x: Math.max(0, Math.min(maxX, point.x + offset)),
+          y: Math.max(0, Math.min(maxY, point.y + offset)),
+        })),
+      },
+      migration: {
+        ...source.scanner.migration,
+        sourceTargetIds: [...source.scanner.migration.sourceTargetIds],
+        warnings: [...source.scanner.migration.warnings],
+      },
+    }
+    : undefined
 
   return normalizeLaserDmxShowDirectorFixture({
     ...source,
@@ -1203,6 +1243,7 @@ function createOffsetLaserDmxShowDirectorFixtureCopy(
       targetY: offsetTargets[0]?.y ?? (source.beam.targetY == null ? source.beam.targetY : Math.max(0, Math.min(maxY, source.beam.targetY + offset))),
       targets: offsetTargets,
     },
+    ...(offsetScanner ? { scanner: offsetScanner } : {}),
   }, index)
 }
 

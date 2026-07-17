@@ -16,6 +16,7 @@ import {
   type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorFixtureSpecificConfig,
   type LaserDmxShowDirectorMirrorAxis,
+  type LaserDmxShowDirectorScannerRuntimeOverrides,
   type LaserDmxShowDirectorTriggerConfig,
   type ReactSectionType,
 } from './ReactTypes'
@@ -147,6 +148,10 @@ export interface LaserDmxShowDirectorBeamFixtureAction extends LaserDmxShowDirec
   beamTravel?: Partial<LaserDmxBeamMotion>
 }
 
+export interface LaserDmxShowDirectorScannerFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase, LaserDmxShowDirectorScannerRuntimeOverrides {
+  kind: 'scanner'
+}
+
 export interface LaserDmxShowDirectorMovingHeadFixtureAction extends LaserDmxShowDirectorMixedFixtureActionBase {
   kind: 'movingHead'
   targetMode?: LaserDmxShowDirectorBeamConfig['targetMode']
@@ -194,6 +199,7 @@ export interface LaserDmxShowDirectorCo2FixtureAction extends LaserDmxShowDirect
 }
 
 export type LaserDmxShowDirectorMixedFixtureAction =
+  | LaserDmxShowDirectorScannerFixtureAction
   | LaserDmxShowDirectorBeamFixtureAction
   | LaserDmxShowDirectorMovingHeadFixtureAction
   | LaserDmxShowDirectorLedFixtureAction
@@ -246,6 +252,7 @@ export interface LaserDmxShowDirectorFixtureRuntimeOverrides {
   component?: Partial<LaserDmxShowDirectorFixtureSpecificConfig>
   participatingGroupSemanticKeys?: string[]
   beamPriorityRole?: LaserDmxShowDirectorBeamPriorityRole
+  scanner?: LaserDmxShowDirectorScannerRuntimeOverrides
 }
 
 export interface LaserDmxShowDirectorGroupRuntimeOverrides {
@@ -858,16 +865,46 @@ function normalizeComponent(raw: unknown): Partial<LaserDmxShowDirectorFixtureSp
   return Object.keys(component).length ? component : undefined
 }
 
+function normalizeScannerOverrides(raw: unknown): LaserDmxShowDirectorScannerRuntimeOverrides | undefined {
+  if (!isRecord(raw)) return undefined
+  const scanner: LaserDmxShowDirectorScannerRuntimeOverrides = {}
+  const patternTypes = new Set(['holdBeam', 'lineSweep', 'fanSweep', 'circle', 'arc', 'triangle', 'polygon', 'wave', 'tunnel', 'mirroredCorridor', 'gridScan', 'customPath', 'diffractionLine', 'diffractionGrid', 'diffractionBurst'])
+  const directions = new Set(['forward', 'reverse', 'alternating'])
+  const opticalModes = new Set(['normal', 'prism', 'lineDiffraction', 'gridDiffraction', 'burstDiffraction'])
+  const boundaries = new Set(['immediate', 'beat', 'bar', 'phrase', 'section'])
+  if (patternTypes.has(String(raw.patternType))) scanner.patternType = raw.patternType as LaserDmxShowDirectorScannerRuntimeOverrides['patternType']
+  const scanRatePps = optionalFinite(raw.scanRatePps, 10, 100_000); if (scanRatePps != null) scanner.scanRatePps = scanRatePps
+  const durationBeats = optionalFinite(raw.durationBeats, 0.0625, 128); if (durationBeats != null) scanner.durationBeats = durationBeats
+  if (directions.has(String(raw.direction))) scanner.direction = raw.direction as LaserDmxShowDirectorScannerRuntimeOverrides['direction']
+  if (typeof raw.reversePath === 'boolean') scanner.reversePath = raw.reversePath
+  const phase = optionalFinite(raw.phase, 0, 1); if (phase != null) scanner.phase = phase
+  const fanWidth = optionalFinite(raw.fanWidth, 0, 180); if (fanWidth != null) scanner.fanWidth = fanWidth
+  const radius = optionalFinite(raw.radius, 0, 1); if (radius != null) scanner.radius = radius
+  const size = optionalFinite(raw.size, 0, 1); if (size != null) scanner.size = size
+  if (['auto', 'cameraFacingAir', 'frontAir', 'midAir', 'deepAir', 'upperAir', 'lowerAir'].includes(String(raw.depthLayer))) scanner.depthLayer = raw.depthLayer as LaserDmxShowDirectorScannerRuntimeOverrides['depthLayer']
+  if (typeof raw.retraceBlanking === 'boolean') scanner.retraceBlanking = raw.retraceBlanking
+  if (opticalModes.has(String(raw.opticalMode))) scanner.opticalMode = raw.opticalMode as LaserDmxShowDirectorScannerRuntimeOverrides['opticalMode']
+  const opticalCopyCount = optionalFinite(raw.opticalCopyCount, 1, 25); if (opticalCopyCount != null) scanner.opticalCopyCount = Math.round(opticalCopyCount)
+  if (typeof raw.shutterClosed === 'boolean') scanner.shutterClosed = raw.shutterClosed
+  if (typeof raw.heldBeam === 'boolean') scanner.heldBeam = raw.heldBeam
+  const pathResetToken = optionalFinite(raw.pathResetToken, 0, Number.MAX_SAFE_INTEGER); if (pathResetToken != null) scanner.pathResetToken = Math.round(pathResetToken)
+  if (boundaries.has(String(raw.switchBoundary))) scanner.switchBoundary = raw.switchBoundary as LaserDmxShowDirectorScannerRuntimeOverrides['switchBoundary']
+  return Object.keys(scanner).length ? scanner : undefined
+}
+
 function normalizeMixedFixtureAction(raw: unknown, index: number): LaserDmxShowDirectorMixedFixtureAction | null {
   if (!isRecord(raw)) return null
   const id = cleanString(raw.id, `fixture-action-${index + 1}`, 96)
   const kind = cleanString(raw.kind, '', 32)
-  if (!id || !['beam', 'movingHead', 'led', 'strobe', 'blinder', 'wash', 'haze', 'co2'].includes(kind)) return null
+  if (!id || !['scanner', 'beam', 'movingHead', 'led', 'strobe', 'blinder', 'wash', 'haze', 'co2'].includes(kind)) return null
   const common = {
     id,
     ...(typeof raw.enabled === 'boolean' ? { enabled: raw.enabled } : {}),
     ...(optionalFinite(raw.brightness, 0, 2) != null ? { brightness: optionalFinite(raw.brightness, 0, 2) } : {}),
     ...(cleanString(raw.color, '', 64) ? { color: cleanString(raw.color, '', 64) } : {}),
+  }
+  if (kind === 'scanner') {
+    return { ...common, kind, ...normalizeScannerOverrides(raw) }
   }
   if (kind === 'beam') {
     return {
@@ -920,6 +957,7 @@ function normalizeFixtureOverrides(raw: unknown): LaserDmxShowDirectorFixtureRun
   const participatingGroupSemanticKeys = cleanStringArray(raw.participatingGroupSemanticKeys)
   if (participatingGroupSemanticKeys.length) fixture.participatingGroupSemanticKeys = participatingGroupSemanticKeys
   if (PRIORITY_ROLES.has(raw.beamPriorityRole as LaserDmxShowDirectorBeamPriorityRole)) fixture.beamPriorityRole = raw.beamPriorityRole as LaserDmxShowDirectorBeamPriorityRole
+  const scanner = normalizeScannerOverrides(raw.scanner); if (scanner) fixture.scanner = scanner
   return Object.keys(fixture).length ? fixture : undefined
 }
 

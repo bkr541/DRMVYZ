@@ -460,6 +460,7 @@ function applyFixtureOverrides(
     beam,
     trigger: { ...fixture.trigger },
     component,
+    runtimeScanner: fixture.runtimeScanner ? { ...fixture.runtimeScanner } : undefined,
     runtimeBeamAppearance: fixture.runtimeBeamAppearance ? { ...fixture.runtimeBeamAppearance } : undefined,
     runtimeBeamVisualRole: fixture.runtimeBeamVisualRole,
     runtimeBeamTravel: fixture.runtimeBeamTravel ? { ...fixture.runtimeBeamTravel } : undefined,
@@ -489,6 +490,7 @@ function applyFixtureOverrides(
   if (overrides.mirrorAxis !== undefined) next.mirrorAxis = overrides.mirrorAxis
   if (overrides.trigger) next.trigger = { ...next.trigger, ...overrides.trigger }
   if (overrides.component) next.component = { ...component, ...overrides.component }
+  if (overrides.scanner) next.runtimeScanner = { ...next.runtimeScanner, ...overrides.scanner }
   if (overrides.beamAppearance) next.runtimeBeamAppearance = applyBeamAppearanceOverrides(next.runtimeBeamAppearance, overrides.beamAppearance, mode, scalar)
   if (overrides.beamVisualRole) next.runtimeBeamVisualRole = overrides.beamVisualRole as LaserDmxMatrixBeamVisualRole
   if (overrides.beamTravel) next.runtimeBeamTravel = { ...next.runtimeBeamTravel, ...overrides.beamTravel }
@@ -603,6 +605,7 @@ function mixedFixtureActionSupportsFixture(
   fixture: LaserDmxShowDirectorFixture,
 ): boolean {
   switch (action.kind) {
+    case 'scanner': return fixture.kind === 'laser'
     case 'beam': return fixture.kind === 'laser' || fixture.kind === 'movingHead'
     case 'movingHead': return fixture.kind === 'movingHead'
     case 'led': return fixture.kind === 'ledBar' || fixture.kind === 'ledTube'
@@ -623,6 +626,12 @@ function mixedFixtureActionOverrides(
     ...(action.color ? { color: action.color } : {}),
   }
   switch (action.kind) {
+    case 'scanner': return { ...common, scanner: {
+      patternType: action.patternType, scanRatePps: action.scanRatePps, durationBeats: action.durationBeats, direction: action.direction,
+      reversePath: action.reversePath, phase: action.phase, fanWidth: action.fanWidth, radius: action.radius, size: action.size,
+      depthLayer: action.depthLayer, retraceBlanking: action.retraceBlanking, opticalMode: action.opticalMode, opticalCopyCount: action.opticalCopyCount,
+      shutterClosed: action.shutterClosed, heldBeam: action.heldBeam, pathResetToken: action.pathResetToken, switchBoundary: action.switchBoundary,
+    } }
     case 'beam': return { ...common, targetMode: action.targetMode, targetPoints: action.targetPoints, targetPosition: action.targetPosition, fanSpread: action.fanSpread, focus: action.focus, beamVisualRole: action.beamVisualRole, beamPriorityRole: action.beamPriorityRole, beamAppearance: action.beamAppearance, beamTravel: action.beamTravel }
     case 'movingHead': return { ...common, targetMode: action.targetMode, targetPoints: action.targetPoints, fanSpread: action.fanSpread, focus: action.focus, rotation: action.rotation, component: action.movementStyle ? { movingHeadPanTiltStyle: action.movementStyle } : undefined }
     case 'led': return { ...common, component: action.direction ? { ledDirection: action.direction } : undefined }

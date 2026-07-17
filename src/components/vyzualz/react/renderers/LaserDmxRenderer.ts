@@ -81,14 +81,22 @@ function laserDmxScannerRendererDiagnostics(frame: LaserDmxSceneFrame) {
   const diagnostics = frame.scannerDiagnostics
   return {
     scannerHeadCount: diagnostics.scannerHeadCount,
+    selectedScannerHeadId: diagnostics.selectedScannerHeadId,
+    activeScannerPattern: diagnostics.activePattern,
+    scannerPointCount: diagnostics.pointCount,
+    visibleScannerSegmentCount: diagnostics.visibleSegmentCount,
+    blankedScannerSegmentCount: diagnostics.blankedSegmentCount,
     orderedPathCount: diagnostics.orderedPathCount,
     exposureSampleCount: diagnostics.exposureSampleCount,
     legacyConvertedPathCount: diagnostics.legacyConvertedPathCount,
     explicitOpticalCopyCount: diagnostics.explicitOpticalCopyCount,
+    scannerApertureCount: diagnostics.apertureCount,
+    scannerDwellTotalMicros: diagnostics.dwellTotalMicros,
     currentScanRatePps: diagnostics.currentScanRatePps,
     blankedScannerSampleCount: diagnostics.blankedSampleCount,
     scannerValidationErrorCount: diagnostics.pathValidationErrorCount,
     scannerCompatibilityMode: diagnostics.compatibilityMode,
+    scannerMigrationStatus: diagnostics.migrationStatus,
   }
 }
 

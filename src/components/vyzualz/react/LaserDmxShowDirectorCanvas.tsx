@@ -25,6 +25,7 @@ import {
   type LaserDmxShowDirectorSettings,
 } from './ReactTypes'
 import { SHOW_DIRECTOR_FIXTURE_DRAG_TYPE } from './LaserDmxShowDirectorPalette'
+import { scannerPointsToBeamTargets, updateLaserDmxScannerPoint } from './laserDmxScannerAuthoring'
 import { triggerPatchForRecipe, type LaserDmxShowDirectorTriggerRecipe } from './laserDmxShowDirectorTriggerRecipes'
 import { resolveLaserDmxPresentationVisibility } from './renderers/laserDmx/LaserDmxRendererBackend'
 
@@ -258,7 +259,9 @@ function endpointForFixture(fixture: LaserDmxShowDirectorFixture, settings: Lase
 
 function beamTargetsForFixture(fixture: LaserDmxShowDirectorFixture, settings: LaserDmxShowDirectorSettings): LaserDmxShowDirectorBeamTarget[] {
   const primary = endpointForFixture(fixture, settings)
-  const rawTargets = Array.isArray(fixture.beam?.targets) ? fixture.beam.targets : []
+  const rawTargets = fixture.kind === 'laser' && fixture.scanner?.path.points.length
+    ? scannerPointsToBeamTargets(fixture.scanner)
+    : Array.isArray(fixture.beam?.targets) ? fixture.beam.targets : []
   const targets = rawTargets
     .filter((target): target is LaserDmxShowDirectorBeamTarget => target != null && typeof target === 'object')
     .slice(0, LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS)
@@ -455,6 +458,24 @@ function cloneFixturePatchAtPoint(
     },
     trigger: { ...source.trigger, sectionTypes: [...source.trigger.sectionTypes], cuePointIds: [...source.trigger.cuePointIds] },
     component: { ...source.component },
+    ...(source.scanner ? {
+      scanner: {
+        ...source.scanner,
+        path: {
+          ...source.scanner.path,
+          points: source.scanner.path.points.map((point, index) => ({
+            ...point,
+            id: `${source.id}-paste-scan-point-${index + 1}`,
+            ...snapStagePoint({ x: point.x + deltaX, y: point.y + deltaY }, settings),
+          })),
+        },
+        migration: {
+          ...source.scanner.migration,
+          sourceTargetIds: [...source.scanner.migration.sourceTargetIds],
+          warnings: [...source.scanner.migration.warnings],
+        },
+      },
+    } : {}),
   }
 }
 
@@ -793,6 +814,21 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
     const nextTargets = replaceBeamTarget(targets, selectedTargetId, point, currentSettings)
     const primary = nextTargets[0] ?? snapStagePoint(point, currentSettings)
     setSelectedEndpointId(selectedTargetId)
+    if (fixture.kind === 'laser' && fixture.scanner) {
+      const nextScanner = updateLaserDmxScannerPoint(fixture.scanner, selectedTargetId, snapStagePoint(point, currentSettings))
+      const scannerTargets = scannerPointsToBeamTargets(nextScanner)
+      const scannerPrimary = scannerTargets[0] ?? primary
+      updateFixture(fixtureId, {
+        scanner: nextScanner,
+        beam: {
+          targetMode: 'fixed',
+          targetX: scannerPrimary.x,
+          targetY: scannerPrimary.y,
+          targets: scannerTargets,
+        },
+      })
+      return
+    }
     updateFixture(fixtureId, {
       beam: {
         targetMode: 'fixed',
@@ -1537,6 +1573,68 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
                 const selectedTargetId = isSelectedFixture
                   ? selectedEndpointId ?? targets[0]?.id ?? null
                   : null
+                if (fixture.kind === 'laser' && fixture.scanner?.path.points.length) {
+                  const scannerPoints = fixture.scanner.path.points
+                  const segments = scannerPoints.flatMap((point, pointIndex) => {
+                    const nextIndex = pointIndex + 1 < scannerPoints.length
+                      ? pointIndex + 1
+                      : fixture.scanner?.path.closed && scannerPoints.length > 1 ? 0 : -1
+                    if (nextIndex < 0) return []
+                    const next = scannerPoints[nextIndex]!
+                    const from = stagePointToPercent(point, settings)
+                    const to = stagePointToPercent(next, settings)
+                    const blanked = point.blanked || next.blanked
+                    return [(
+                      <g
+                        key={`${fixture.id}-scanner-segment-${pointIndex}-${nextIndex}`}
+                        className={`rv-show-director-scanner-overlay__segment${blanked ? ' rv-show-director-scanner-overlay__segment--blanked' : ''}`}
+                        style={{ '--show-director-beam-color': fixture.color } as CSSProperties}
+                      >
+                        <line className="rv-show-director-scanner-overlay__glow" x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+                        <line className="rv-show-director-scanner-overlay__core" x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+                        {isSelectedFixture && (
+                          <text
+                            className="rv-show-director-scanner-overlay__direction"
+                            x={(from.x + to.x) / 2}
+                            y={(from.y + to.y) / 2 - 0.7}
+                          >
+                            {blanked ? '×' : fixture.scanner?.direction === 'alternating' ? '↔' : fixture.scanner?.direction === 'reverse' || fixture.scanner?.reversePath ? '‹' : '›'}
+                          </text>
+                        )}
+                      </g>
+                    )]
+                  })
+                  const handles = scannerPoints.map((point, pointIndex) => {
+                    const endpoint = stagePointToPercent(point, settings)
+                    const isSelectedTarget = isSelectedFixture && (selectedTargetId === point.id || (!selectedTargetId && pointIndex === 0))
+                    return (
+                      <g key={`${fixture.id}-${point.id}`} className="rv-show-director-scanner-overlay__point">
+                        <circle
+                          className={`rv-show-director-beam-overlay__endpoint${pointIndex === 0 ? ' rv-show-director-beam-overlay__endpoint--primary' : ''}${point.blanked ? ' rv-show-director-scanner-overlay__point--blanked' : ''}`}
+                          cx={endpoint.x}
+                          cy={endpoint.y}
+                          r={isSelectedTarget ? 1.34 : isSelectedFixture ? 1.08 : 0.72}
+                          onPointerDown={isSelectedFixture ? event => handleEndpointPointerDown(event, fixture, point.id) : undefined}
+                          onPointerUp={isSelectedFixture ? handleEndpointPointerRelease : undefined}
+                          onPointerCancel={isSelectedFixture ? handleEndpointPointerRelease : undefined}
+                          onLostPointerCapture={isSelectedFixture ? handleEndpointPointerRelease : undefined}
+                        />
+                        {isSelectedFixture && <text className="rv-show-director-scanner-overlay__order" x={endpoint.x + 1.2} y={endpoint.y - 1.2}>{pointIndex + 1}</text>}
+                        {isSelectedFixture && (point.depthLayer || point.dwellMicros > 24) && <text className="rv-show-director-scanner-overlay__badge" x={endpoint.x + 1.2} y={endpoint.y + 2.2}>{point.depthLayer ?? `${point.dwellMicros}µs`}</text>}
+                      </g>
+                    )
+                  })
+                  const previewIndex = Math.min(scannerPoints.length - 1, Math.floor(fixture.scanner.phase * scannerPoints.length))
+                  const preview = scannerPoints[previewIndex]
+                  const previewPercent = preview ? stagePointToPercent(preview, settings) : null
+                  return (
+                    <g key={`${fixture.id}-authored-scanner-path`} className="rv-show-director-scanner-overlay">
+                      {segments}
+                      {handles}
+                      {isSelectedFixture && previewPercent && <circle className="rv-show-director-scanner-overlay__preview" cx={previewPercent.x} cy={previewPercent.y} r={1.65} />}
+                    </g>
+                  )
+                }
                 return targets.map((target, targetIndex) => {
                   const endpoint = stagePointToPercent(target, settings)
                   const isPrimaryTarget = targetIndex === 0
@@ -1607,7 +1705,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
                 aria-pressed={isSelected}
                 aria-label={`${fixture.label}, ${label}, ${fixture.enabled ? 'enabled' : 'disabled'}. Drag to move on the stage grid.`}
               >
-                {settings.showBeams && fixture.enabled && fixture.beam.beamEnabled && (
+                {settings.showBeams && fixture.enabled && fixture.beam.beamEnabled && !fixture.scanner && (
                   <span className={`rv-show-director-fixture__beam rv-show-director-fixture__beam--${fixture.kind}`} style={beamStyle(fixture)} aria-hidden="true" />
                 )}
                 <span className="rv-show-director-fixture__body" aria-hidden="true">

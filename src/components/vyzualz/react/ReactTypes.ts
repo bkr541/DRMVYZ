@@ -743,7 +743,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 14
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 15
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -839,6 +839,120 @@ export type LaserDmxShowDirectorDepthLayer =
   | 'deepAir'
   | 'upperAir'
   | 'lowerAir'
+
+
+export type LaserDmxShowDirectorScannerPatternType =
+  | 'holdBeam'
+  | 'lineSweep'
+  | 'fanSweep'
+  | 'circle'
+  | 'arc'
+  | 'triangle'
+  | 'polygon'
+  | 'wave'
+  | 'tunnel'
+  | 'mirroredCorridor'
+  | 'gridScan'
+  | 'customPath'
+  | 'diffractionLine'
+  | 'diffractionGrid'
+  | 'diffractionBurst'
+export type LaserDmxShowDirectorScannerRepeatMode = 'loop' | 'pingPong' | 'once'
+export type LaserDmxShowDirectorScannerDirection = 'forward' | 'reverse' | 'alternating'
+export type LaserDmxShowDirectorScannerInterpolation = 'linear' | 'arc' | 'bezier'
+export type LaserDmxShowDirectorScannerOpticalMode = 'normal' | 'prism' | 'lineDiffraction' | 'gridDiffraction' | 'burstDiffraction'
+export type LaserDmxShowDirectorScannerMigrationStatus = 'native' | 'legacy' | 'previewed' | 'migrated'
+export type LaserDmxShowDirectorScannerSwitchBoundary = 'immediate' | 'beat' | 'bar' | 'phrase' | 'section'
+
+export interface LaserDmxShowDirectorScannerPathPoint {
+  id: string
+  x: number
+  y: number
+  z?: number
+  depthLayer?: LaserDmxShowDirectorDepthLayer
+  blanked: boolean
+  dwellMicros: number
+  cornerDwellMicros?: number
+  intensity?: number
+  color?: string
+}
+
+export interface LaserDmxShowDirectorScannerPathConfig {
+  points: LaserDmxShowDirectorScannerPathPoint[]
+  closed: boolean
+  repeatMode: LaserDmxShowDirectorScannerRepeatMode
+  interpolation: LaserDmxShowDirectorScannerInterpolation
+  retraceBlanking: boolean
+  blankingDelayMicros: number
+  pointDwellMicros: number
+  cornerDwellMicros: number
+}
+
+export interface LaserDmxShowDirectorScannerOpticsConfig {
+  mode: LaserDmxShowDirectorScannerOpticalMode
+  copyCount: number
+  spreadDeg: number
+  apertureCount: number
+}
+
+export interface LaserDmxShowDirectorScannerAdvancedConfig {
+  maximumVelocity: number
+  maximumAcceleration: number
+  shutterExposureSeconds: number
+  calibrationProfileId: string
+}
+
+export interface LaserDmxShowDirectorScannerMigrationMetadata {
+  status: LaserDmxShowDirectorScannerMigrationStatus
+  version: number
+  sourceTargetIds: string[]
+  ambiguous: boolean
+  warnings: string[]
+  backupTargets?: LaserDmxShowDirectorBeamTarget[]
+}
+
+export interface LaserDmxShowDirectorScannerConfig {
+  schemaVersion: 1
+  enabled: boolean
+  patternType: LaserDmxShowDirectorScannerPatternType
+  scanRatePps: number
+  durationBeats: number
+  direction: LaserDmxShowDirectorScannerDirection
+  reversePath: boolean
+  phase: number
+  size: number
+  fanWidth: number
+  radius: number
+  depthLayer: LaserDmxShowDirectorDepthLayer
+  switchBoundary: LaserDmxShowDirectorScannerSwitchBoundary
+  shutterClosed: boolean
+  pathResetToken: number
+  path: LaserDmxShowDirectorScannerPathConfig
+  optics: LaserDmxShowDirectorScannerOpticsConfig
+  advanced: LaserDmxShowDirectorScannerAdvancedConfig
+  migration: LaserDmxShowDirectorScannerMigrationMetadata
+}
+
+/** Transient high-level scanner controls reconstructed by the authoritative performance timeline. */
+export interface LaserDmxShowDirectorScannerRuntimeOverrides {
+  patternType?: LaserDmxShowDirectorScannerPatternType
+  scanRatePps?: number
+  durationBeats?: number
+  direction?: LaserDmxShowDirectorScannerDirection
+  reversePath?: boolean
+  phase?: number
+  fanWidth?: number
+  radius?: number
+  size?: number
+  depthLayer?: LaserDmxShowDirectorDepthLayer
+  retraceBlanking?: boolean
+  opticalMode?: LaserDmxShowDirectorScannerOpticalMode
+  opticalCopyCount?: number
+  shutterClosed?: boolean
+  heldBeam?: boolean
+  pathResetToken?: number
+  switchBoundary?: LaserDmxShowDirectorScannerSwitchBoundary
+}
 
 export const LASER_DMX_SHOW_DIRECTOR_DEPTH_LAYER_LABELS: Record<LaserDmxShowDirectorDepthLayer, string> = {
   auto: 'Auto',
@@ -1000,6 +1114,10 @@ export interface LaserDmxShowDirectorFixture {
   trigger:   LaserDmxShowDirectorTriggerConfig
   component: LaserDmxShowDirectorFixtureSpecificConfig
   optics: LaserDmxShowDirectorOpticsConfig
+  /** Optional persistent physical scanner authoring. Missing means legacy targets remain readable and previewable. */
+  scanner?: LaserDmxShowDirectorScannerConfig
+  /** Transient high-level scanner override. Normalization intentionally omits this field. */
+  runtimeScanner?: LaserDmxShowDirectorScannerRuntimeOverrides
   /** Transient performance-program appearance override. Normalization intentionally omits this field. */
   runtimeBeamAppearance?: Partial<LaserDmxMatrixBeamAppearance>
   /** Transient performance-program renderer role. Normalization intentionally omits this field. */
@@ -1008,11 +1126,12 @@ export interface LaserDmxShowDirectorFixture {
   runtimeBeamTravel?: Partial<LaserDmxBeamMotion>
 }
 
-export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger' | 'component' | 'optics'>> & {
+export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger' | 'component' | 'optics' | 'scanner' | 'runtimeScanner'>> & {
   beam?:      Partial<LaserDmxShowDirectorBeamConfig>
   trigger?:   Partial<LaserDmxShowDirectorTriggerConfig>
   component?: Partial<LaserDmxShowDirectorFixtureSpecificConfig>
   optics?:    Partial<LaserDmxShowDirectorOpticsConfig>
+  scanner?:   LaserDmxShowDirectorScannerConfig
 }
 
 export interface LaserDmxShowDirectorState {
@@ -1625,6 +1744,128 @@ function normalizeLaserDmxShowDirectorOpticsConfig(
   }
 }
 
+
+function coerceShowDirectorScannerPatternType(value: unknown): LaserDmxShowDirectorScannerPatternType {
+  return value === 'lineSweep' || value === 'fanSweep' || value === 'circle' || value === 'arc'
+    || value === 'triangle' || value === 'polygon' || value === 'wave' || value === 'tunnel'
+    || value === 'mirroredCorridor' || value === 'gridScan' || value === 'customPath'
+    || value === 'diffractionLine' || value === 'diffractionGrid' || value === 'diffractionBurst'
+    ? value
+    : 'holdBeam'
+}
+
+function coerceShowDirectorScannerRepeatMode(value: unknown): LaserDmxShowDirectorScannerRepeatMode {
+  return value === 'pingPong' || value === 'once' ? value : 'loop'
+}
+
+function coerceShowDirectorScannerDirection(value: unknown): LaserDmxShowDirectorScannerDirection {
+  return value === 'reverse' || value === 'alternating' ? value : 'forward'
+}
+
+function coerceShowDirectorScannerInterpolation(value: unknown): LaserDmxShowDirectorScannerInterpolation {
+  return value === 'arc' || value === 'bezier' ? value : 'linear'
+}
+
+function coerceShowDirectorScannerOpticalMode(value: unknown): LaserDmxShowDirectorScannerOpticalMode {
+  return value === 'prism' || value === 'lineDiffraction' || value === 'gridDiffraction' || value === 'burstDiffraction'
+    ? value
+    : 'normal'
+}
+
+function coerceShowDirectorScannerSwitchBoundary(value: unknown): LaserDmxShowDirectorScannerSwitchBoundary {
+  return value === 'beat' || value === 'bar' || value === 'phrase' || value === 'section' ? value : 'immediate'
+}
+
+function normalizeLaserDmxShowDirectorScannerConfig(raw: unknown, fixtureId: string): LaserDmxShowDirectorScannerConfig | undefined {
+  if (!showDirectorRecord(raw)) return undefined
+  const rawPath = showDirectorRecord(raw.path) ? raw.path : {}
+  const rawOptics = showDirectorRecord(raw.optics) ? raw.optics : {}
+  const rawAdvanced = showDirectorRecord(raw.advanced) ? raw.advanced : {}
+  const rawMigration = showDirectorRecord(raw.migration) ? raw.migration : {}
+  const points = Array.isArray(rawPath.points)
+    ? rawPath.points.slice(0, 256).flatMap((candidate, index): LaserDmxShowDirectorScannerPathPoint[] => {
+      if (!showDirectorRecord(candidate)) return []
+      return [{
+        id: showDirectorTargetId(candidate.id, `${fixtureId}-scan-point-${index + 1}`),
+        x: showDirectorFinite(candidate.x, 0),
+        y: showDirectorFinite(candidate.y, 0),
+        ...(candidate.z == null ? {} : { z: Math.max(-1, Math.min(1, showDirectorFinite(candidate.z, 0))) }),
+        ...(candidate.depthLayer == null ? {} : { depthLayer: coerceLaserDmxShowDirectorDepthLayer(candidate.depthLayer) }),
+        blanked: showDirectorBoolean(candidate.blanked, false),
+        dwellMicros: Math.max(0, Math.min(1_000_000, showDirectorFinite(candidate.dwellMicros, 0))),
+        ...(candidate.cornerDwellMicros == null ? {} : { cornerDwellMicros: Math.max(0, Math.min(1_000_000, showDirectorFinite(candidate.cornerDwellMicros, 64))) }),
+        ...(candidate.intensity == null ? {} : { intensity: showDirectorUnit(candidate.intensity, 1) }),
+        ...(typeof candidate.color === 'string' && candidate.color.trim() ? { color: candidate.color.trim() } : {}),
+      }]
+    })
+    : []
+  const status: LaserDmxShowDirectorScannerMigrationStatus = rawMigration.status === 'legacy'
+    || rawMigration.status === 'previewed'
+    || rawMigration.status === 'migrated'
+    ? rawMigration.status
+    : 'native'
+  const backupPrimaryCandidate = Array.isArray(rawMigration.backupTargets) && showDirectorRecord(rawMigration.backupTargets[0])
+    ? rawMigration.backupTargets[0]
+    : null
+  const backupTargets = Array.isArray(rawMigration.backupTargets)
+    ? normalizeLaserDmxShowDirectorBeamTargets(rawMigration.backupTargets, {
+      x: showDirectorFinite(backupPrimaryCandidate?.x, 0),
+      y: showDirectorFinite(backupPrimaryCandidate?.y, 0),
+      ...(backupPrimaryCandidate?.z == null ? {} : { z: showDirectorFinite(backupPrimaryCandidate.z, 0) }),
+      ...(backupPrimaryCandidate?.depthLayer == null ? {} : { depthLayer: coerceLaserDmxShowDirectorDepthLayer(backupPrimaryCandidate.depthLayer) }),
+    }, `${fixtureId}-scanner-backup`)
+    : undefined
+  return {
+    schemaVersion: 1,
+    enabled: showDirectorBoolean(raw.enabled, true),
+    patternType: coerceShowDirectorScannerPatternType(raw.patternType),
+    scanRatePps: Math.max(10, Math.min(100_000, showDirectorFinite(raw.scanRatePps, 24_000))),
+    durationBeats: Math.max(0.0625, Math.min(128, showDirectorFinite(raw.durationBeats, 1))),
+    direction: coerceShowDirectorScannerDirection(raw.direction),
+    reversePath: showDirectorBoolean(raw.reversePath, false),
+    phase: showDirectorUnit(raw.phase, 0),
+    size: showDirectorUnit(raw.size, 0.5),
+    fanWidth: Math.max(0, Math.min(180, showDirectorFinite(raw.fanWidth, 52))),
+    radius: showDirectorUnit(raw.radius, 0.24),
+    depthLayer: coerceLaserDmxShowDirectorDepthLayer(raw.depthLayer),
+    switchBoundary: coerceShowDirectorScannerSwitchBoundary(raw.switchBoundary),
+    shutterClosed: showDirectorBoolean(raw.shutterClosed, false),
+    pathResetToken: Math.max(0, Math.round(showDirectorFinite(raw.pathResetToken, 0))),
+    path: {
+      points,
+      closed: showDirectorBoolean(rawPath.closed, false),
+      repeatMode: coerceShowDirectorScannerRepeatMode(rawPath.repeatMode),
+      interpolation: coerceShowDirectorScannerInterpolation(rawPath.interpolation),
+      retraceBlanking: showDirectorBoolean(rawPath.retraceBlanking, true),
+      blankingDelayMicros: Math.max(0, Math.min(100_000, showDirectorFinite(rawPath.blankingDelayMicros, 18))),
+      pointDwellMicros: Math.max(0, Math.min(1_000_000, showDirectorFinite(rawPath.pointDwellMicros, 24))),
+      cornerDwellMicros: Math.max(0, Math.min(1_000_000, showDirectorFinite(rawPath.cornerDwellMicros, 64))),
+    },
+    optics: {
+      mode: coerceShowDirectorScannerOpticalMode(rawOptics.mode),
+      copyCount: showDirectorPositiveInt(rawOptics.copyCount, 1, 1, 25),
+      spreadDeg: Math.max(0, Math.min(90, showDirectorFinite(rawOptics.spreadDeg, 8))),
+      apertureCount: showDirectorPositiveInt(rawOptics.apertureCount, 1, 1, 8),
+    },
+    advanced: {
+      maximumVelocity: Math.max(1, Math.min(100_000, showDirectorFinite(rawAdvanced.maximumVelocity, 18_000))),
+      maximumAcceleration: Math.max(1, Math.min(10_000_000, showDirectorFinite(rawAdvanced.maximumAcceleration, 1_200_000))),
+      shutterExposureSeconds: Math.max(1 / 240, Math.min(1 / 12, showDirectorFinite(rawAdvanced.shutterExposureSeconds, 1 / 60))),
+      calibrationProfileId: typeof rawAdvanced.calibrationProfileId === 'string' && rawAdvanced.calibrationProfileId.trim()
+        ? rawAdvanced.calibrationProfileId.trim().slice(0, 96)
+        : 'default',
+    },
+    migration: {
+      status,
+      version: Math.max(0, Math.round(showDirectorFinite(rawMigration.version, status === 'native' ? 0 : 1))),
+      sourceTargetIds: showDirectorStringArray(rawMigration.sourceTargetIds).slice(0, 256),
+      ambiguous: showDirectorBoolean(rawMigration.ambiguous, false),
+      warnings: showDirectorStringArray(rawMigration.warnings).slice(0, 64),
+      ...(backupTargets?.length ? { backupTargets } : {}),
+    },
+  }
+}
+
 export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): LaserDmxShowDirectorFixture {
   const value = showDirectorRecord(raw) ? raw : {}
   const kind = isLaserDmxShowDirectorFixtureKind(value.kind) ? value.kind : 'laser'
@@ -1673,6 +1914,9 @@ export function normalizeLaserDmxShowDirectorFixture(raw: unknown, index = 0): L
     trigger:    normalizeLaserDmxShowDirectorTriggerConfig(value.trigger, kind),
     component:  normalizeLaserDmxShowDirectorComponentConfig(value.component),
     optics:     normalizeLaserDmxShowDirectorOpticsConfig(value.optics, kind, normalizedBeam),
+    ...(kind === 'laser' && value.scanner != null
+      ? { scanner: normalizeLaserDmxShowDirectorScannerConfig(value.scanner, id) }
+      : {}),
   }
 }
 

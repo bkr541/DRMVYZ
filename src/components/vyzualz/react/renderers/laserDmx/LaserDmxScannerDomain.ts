@@ -1,6 +1,8 @@
 import type {
   LaserDmxShowDirectorFixture,
   LaserDmxShowDirectorOpticalPrimitiveType,
+  LaserDmxShowDirectorScannerConfig,
+  LaserDmxShowDirectorScannerPatternType,
   LaserDmxShowDirectorWebGLQuality,
 } from '../../ReactTypes'
 import { createLaserDmxOpticalCopies } from './LaserDmxFixtureOptics'
@@ -43,6 +45,7 @@ export interface LaserDmxScannerHead {
   id: string
   fixtureId: string
   apertureIndex: number
+  physicalApertureCount?: number
   scanRatePps: number
   maximumAngularVelocity: number
   maximumAngularAcceleration: number
@@ -65,6 +68,7 @@ export interface LaserDmxScanPoint {
   position: LaserDmxScannerVec3
   blanked: boolean
   dwellMicros: number
+  cornerDwellMicros?: number
   intensity: number
   color: LaserDmxScannerColorChannels
   cornerBehavior?: LaserDmxScanCornerBehavior
@@ -86,6 +90,8 @@ export interface LaserDmxScanPath {
   compatibilityMode: Exclude<LaserDmxScannerCompatibilityMode, 'inactive'>
   validationErrors: string[]
   migrationWarnings: string[]
+  authoringPatternType?: LaserDmxShowDirectorScannerPatternType
+  migrationStatus?: LaserDmxShowDirectorScannerConfig['migration']['status']
 }
 
 export interface LaserDmxScannerOpticalCopy {
@@ -122,20 +128,47 @@ export interface LaserDmxExposureSample extends LaserDmxScannerInstantaneousRay 
 
 export interface LaserDmxScannerDiagnostics {
   scannerHeadCount: number
+  selectedScannerHeadId: string | null
   orderedPathCount: number
+  activePattern: LaserDmxShowDirectorScannerPatternType | null
+  pointCount: number
+  visibleSegmentCount: number
+  blankedSegmentCount: number
   exposureSampleCount: number
   legacyConvertedPathCount: number
   explicitOpticalCopyCount: number
+  apertureCount: number
   currentScanRatePps: number
+  dwellTotalMicros: number
   blankedSampleCount: number
   pathValidationErrorCount: number
   compatibilityMode: LaserDmxScannerCompatibilityMode
+  migrationStatus: 'native' | 'legacy' | 'migrated' | 'mixed' | 'inactive'
   migrationWarnings: string[]
 }
 
 export interface LaserDmxLegacyScannerTarget {
   id: string
   position: LaserDmxScannerVec3
+}
+
+export interface CreateLaserDmxAuthoredScannerPlanInput {
+  fixture: LaserDmxShowDirectorFixture
+  scanner: LaserDmxShowDirectorScannerConfig
+  origin: LaserDmxScannerVec3
+  points: ReadonlyArray<{
+    id: string
+    position: LaserDmxScannerVec3
+    blanked: boolean
+    dwellMicros: number
+    cornerDwellMicros?: number
+    intensity?: number
+    color?: LaserDmxScannerColorChannels
+    sourceTargetId?: string
+  }>
+  primitiveType: Exclude<LaserDmxShowDirectorOpticalPrimitiveType, 'auto'>
+  color: LaserDmxScannerColorChannels
+  occurrenceSeed: number
 }
 
 export interface CreateLaserDmxLegacyScannerPlanInput {
@@ -479,6 +512,7 @@ export function createDefaultLaserDmxScannerHead(
     id: `${fixtureId}-scanner-${apertureIndex + 1}`,
     fixtureId,
     apertureIndex,
+    physicalApertureCount: 1,
     scanRatePps: DEFAULT_SCANNER_RATE_PPS,
     maximumAngularVelocity: DEFAULT_MAXIMUM_ANGULAR_VELOCITY,
     maximumAngularAcceleration: DEFAULT_MAXIMUM_ANGULAR_ACCELERATION,
@@ -501,6 +535,7 @@ export function createLaserDmxLegacyScannerPlan(input: CreateLaserDmxLegacyScann
     input.shutterExposureSeconds,
     stablePhase(`${input.fixture.semanticKey ?? input.fixture.id}:${input.occurrenceSeed}`),
   )
+  head.physicalApertureCount = Math.max(1, input.fixture.optics.apertureCount ?? 1)
   const conversionKind = classifyLegacyConversion(input.fixture, input.primitiveType, input.targets.length)
   const orderedTargets = orderedTargetsForConversion(conversionKind, input.fixture, input.origin, input.targets)
   const behavior = defaultPathBehavior(conversionKind)
@@ -531,6 +566,15 @@ export function createLaserDmxLegacyScannerPlan(input: CreateLaserDmxLegacyScann
     compatibilityMode: 'legacy-converted',
     validationErrors: [],
     migrationWarnings,
+    authoringPatternType: conversionKind === 'held' ? 'holdBeam'
+      : conversionKind === 'fan' ? 'fanSweep'
+        : conversionKind === 'circle' ? 'circle'
+          : conversionKind === 'polygon' ? 'polygon'
+            : conversionKind === 'wave' ? 'wave'
+              : conversionKind === 'corridor' ? 'mirroredCorridor'
+                : conversionKind === 'lattice' ? 'gridScan'
+                  : 'customPath',
+    migrationStatus: 'legacy',
   }
   path.validationErrors = validateLaserDmxScanPath(path)
 
@@ -622,6 +666,93 @@ export function createLaserDmxLegacyScannerPlan(input: CreateLaserDmxLegacyScann
   return { heads: [head], paths: [path], opticalCopies }
 }
 
+
+export function createLaserDmxAuthoredScannerPlan(input: CreateLaserDmxAuthoredScannerPlanInput): LaserDmxLegacyScannerPlan {
+  if (input.fixture.kind !== 'laser' || !input.fixture.beam.beamEnabled || !input.scanner.enabled || input.points.length === 0) {
+    return { heads: [], paths: [], opticalCopies: [] }
+  }
+  const opticalMode = input.scanner.optics.mode
+  const fixtureForOptics: LaserDmxShowDirectorFixture = {
+    ...input.fixture,
+    optics: {
+      ...input.fixture.optics,
+      prismFacets: opticalMode === 'prism' ? (input.scanner.optics.copyCount >= 5 ? 5 : input.scanner.optics.copyCount >= 3 ? 3 : 1) : 1,
+      diffractionMode: opticalMode === 'lineDiffraction'
+        ? 'line'
+        : opticalMode === 'gridDiffraction'
+          ? 'grid'
+          : opticalMode === 'burstDiffraction'
+            ? 'burst'
+            : 'none',
+      diffractionCopies: opticalMode === 'normal' || opticalMode === 'prism' ? 1 : Math.max(1, input.scanner.optics.copyCount),
+      apertureCount: Math.max(1, input.scanner.optics.apertureCount),
+      fanWidth: Math.max(0, input.scanner.optics.spreadDeg || input.scanner.fanWidth),
+    },
+  }
+  const opticalSeedPlan = createLaserDmxLegacyScannerPlan({
+    fixture: fixtureForOptics,
+    origin: input.origin,
+    targets: input.points.map(point => ({ id: point.id, position: { ...point.position } })),
+    primitiveType: input.primitiveType,
+    color: input.color,
+    shutterExposureSeconds: input.scanner.advanced.shutterExposureSeconds,
+    occurrenceSeed: input.occurrenceSeed,
+  })
+  const head = opticalSeedPlan.heads[0] ?? createDefaultLaserDmxScannerHead(
+    input.fixture.id,
+    0,
+    input.scanner.advanced.shutterExposureSeconds,
+    input.scanner.phase,
+  )
+  head.physicalApertureCount = Math.max(1, input.scanner.optics.apertureCount)
+  head.scanRatePps = clamp(input.scanner.scanRatePps, 10, 100_000)
+  head.maximumAngularVelocity = clamp(input.scanner.advanced.maximumVelocity, 1, 100_000)
+  head.maximumAngularAcceleration = clamp(input.scanner.advanced.maximumAcceleration, 1, 10_000_000)
+  head.pointDwellMicros = clamp(input.scanner.path.pointDwellMicros, 0, 1_000_000)
+  head.cornerDwellMicros = clamp(input.scanner.path.cornerDwellMicros, 0, 1_000_000)
+  head.blankingDelayMicros = clamp(input.scanner.path.blankingDelayMicros, 0, 100_000)
+  head.retraceBlanking = input.scanner.path.retraceBlanking
+  head.shutterExposureSeconds = clamp(input.scanner.advanced.shutterExposureSeconds, 1 / 240, 1 / 12)
+  head.scanPhase = clamp01(input.scanner.phase + stablePhase(`${input.fixture.id}:${input.scanner.pathResetToken}`))
+
+  const authoredPoints = input.points.map((point): LaserDmxScanPoint => ({
+    id: point.id,
+    position: { ...point.position },
+    blanked: input.scanner.shutterClosed || point.blanked,
+    dwellMicros: Math.max(0, point.dwellMicros),
+    ...(point.cornerDwellMicros == null ? {} : { cornerDwellMicros: Math.max(0, point.cornerDwellMicros) }),
+    intensity: input.scanner.shutterClosed ? 0 : clamp01(point.intensity ?? input.fixture.brightness),
+    color: point.color ? { ...point.color } : { ...input.color },
+    cornerBehavior: (point.cornerDwellMicros ?? input.scanner.path.cornerDwellMicros) > 0 ? 'dwell' : 'continuous',
+    sourceTargetId: point.sourceTargetId,
+  }))
+  const points = input.scanner.patternType === 'holdBeam'
+    ? authoredPoints.filter(point => !point.blanked).slice(0, 1)
+    : input.scanner.reversePath
+      ? [...authoredPoints].reverse()
+      : authoredPoints
+  const path: LaserDmxScanPath = {
+    schemaVersion: LASER_DMX_SCANNER_DOMAIN_VERSION,
+    id: `${input.fixture.id}-authored-scan-path`,
+    fixtureId: input.fixture.id,
+    scannerHeadId: head.id,
+    points,
+    closed: input.scanner.patternType === 'holdBeam' ? false : input.scanner.path.closed,
+    interpolation: input.scanner.path.interpolation,
+    repeatMode: input.scanner.patternType === 'holdBeam' ? 'loop' : input.scanner.path.repeatMode,
+    scanDirection: input.scanner.direction,
+    durationBeats: input.scanner.durationBeats,
+    conversionKind: 'native',
+    compatibilityMode: 'native',
+    validationErrors: [],
+    migrationWarnings: [...input.scanner.migration.warnings],
+    authoringPatternType: input.scanner.patternType,
+    migrationStatus: input.scanner.migration.status,
+  }
+  path.validationErrors = validateLaserDmxScanPath(path)
+  return { heads: [head], paths: [path], opticalCopies: opticalSeedPlan.opticalCopies }
+}
+
 function cornerAngleDegrees(points: readonly LaserDmxScanPoint[], index: number, closed: boolean): number {
   if (points.length < 3) return 0
   const previous = points[index - 1] ?? (closed ? points[points.length - 1] : null)
@@ -648,8 +779,9 @@ function pointDwellSeconds(
   if (!point) return 0
   const base = Math.max(0, point.dwellMicros || head.pointDwellMicros)
   const cornerAngle = cornerAngleDegrees(path.points, pointIndex, path.closed)
+  const cornerDwellMicros = point.cornerDwellMicros ?? head.cornerDwellMicros
   const cornerDwell = point.cornerBehavior === 'dwell' || cornerAngle < 145
-    ? head.cornerDwellMicros * clamp01((145 - cornerAngle) / 120)
+    ? cornerDwellMicros * clamp01((145 - cornerAngle) / 120)
     : 0
   return (base + cornerDwell) / 1_000_000
 }
@@ -1021,6 +1153,7 @@ export function createLaserDmxScannerDiagnostics(input: {
   opticalCopies: readonly LaserDmxScannerOpticalCopy[]
   exposureSamples: readonly LaserDmxExposureSample[]
   blankedSampleCount: number
+  selectedFixtureIds?: ReadonlySet<string>
 }): LaserDmxScannerDiagnostics {
   const compatibilityModes = new Set(input.paths.map(path => path.compatibilityMode))
   const compatibilityMode: LaserDmxScannerCompatibilityMode = input.heads.length === 0
@@ -1030,18 +1163,61 @@ export function createLaserDmxScannerDiagnostics(input: {
       : compatibilityModes.has('native')
         ? 'native'
         : 'legacy-converted'
+  const migrationStatuses = new Set(
+    input.paths.map(path => path.migrationStatus ?? (path.compatibilityMode === 'native' ? 'native' : 'legacy')),
+  )
+  const migrationStatus: LaserDmxScannerDiagnostics['migrationStatus'] = input.paths.length === 0
+    ? 'inactive'
+    : migrationStatuses.size > 1
+      ? 'mixed'
+      : migrationStatuses.has('migrated')
+        ? 'migrated'
+        : migrationStatuses.has('legacy') || migrationStatuses.has('previewed')
+          ? 'legacy'
+          : 'native'
+  const selectedHead = input.selectedFixtureIds
+    ? input.heads.find(head => input.selectedFixtureIds?.has(head.fixtureId)) ?? null
+    : null
+  const activePath = selectedHead
+    ? input.paths.find(path => path.scannerHeadId === selectedHead.id) ?? null
+    : input.paths[0] ?? null
+  let visibleSegmentCount = 0
+  let blankedSegmentCount = 0
+  for (const path of input.paths) {
+    const segmentCount = Math.max(0, path.points.length - 1) + (path.closed && path.points.length > 1 ? 1 : 0)
+    const blanked = path.points.slice(1).filter((point, index) => point.blanked || path.points[index]?.blanked).length
+      + (path.closed && path.points.length > 1 && (path.points[0]?.blanked || path.points[path.points.length - 1]?.blanked) ? 1 : 0)
+    blankedSegmentCount += blanked
+    visibleSegmentCount += Math.max(0, segmentCount - blanked)
+  }
   return {
     scannerHeadCount: input.heads.length,
+    selectedScannerHeadId: selectedHead?.id ?? null,
     orderedPathCount: input.paths.length,
+    activePattern: activePath?.authoringPatternType ?? null,
+    pointCount: input.paths.reduce((sum, path) => sum + path.points.length, 0),
+    visibleSegmentCount,
+    blankedSegmentCount,
     exposureSampleCount: input.exposureSamples.length,
     legacyConvertedPathCount: input.paths.filter(path => path.compatibilityMode === 'legacy-converted').length,
     explicitOpticalCopyCount: input.opticalCopies.length,
+    apertureCount: input.heads.reduce((sum, head) => sum + Math.max(1, head.physicalApertureCount ?? 1), 0),
     currentScanRatePps: input.heads.length > 0
       ? Math.round(input.heads.reduce((sum, head) => sum + head.scanRatePps, 0) / input.heads.length)
       : 0,
+    dwellTotalMicros: input.paths.reduce((sum, path) => {
+      const head = input.heads.find(candidate => candidate.id === path.scannerHeadId)
+      return sum + path.points.reduce(
+        (pointSum, point) => pointSum
+          + (point.dwellMicros || head?.pointDwellMicros || 0)
+          + (point.cornerDwellMicros ?? head?.cornerDwellMicros ?? 0),
+        0,
+      )
+    }, 0),
     blankedSampleCount: input.blankedSampleCount,
     pathValidationErrorCount: input.paths.reduce((sum, path) => sum + path.validationErrors.length, 0),
     compatibilityMode,
+    migrationStatus,
     migrationWarnings: input.paths.flatMap(path => path.migrationWarnings),
   }
 }

@@ -18,11 +18,33 @@ import {
   type LaserDmxShowDirectorMovingHeadPanTiltStyle,
   type LaserDmxShowDirectorOpticalPrimitiveType,
   type LaserDmxShowDirectorSectionType,
+  type LaserDmxShowDirectorScannerConfig,
+  type LaserDmxShowDirectorScannerDirection,
+  type LaserDmxShowDirectorScannerInterpolation,
+  type LaserDmxShowDirectorScannerOpticalMode,
+  type LaserDmxShowDirectorScannerPatternType,
+  type LaserDmxShowDirectorScannerRepeatMode,
   type LaserDmxShowDirectorTriggerMode,
   type LaserDmxShowDirectorVideoWallSource,
 } from './ReactTypes'
 import { CtrlSection, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
 import { LaserDmxShowDirectorFixtureIcon } from './LaserDmxShowDirectorFixtureIcon'
+import {
+  LASER_DMX_SCANNER_PATTERN_OPTIONS,
+  applyLaserDmxScannerRuntimeOverrides,
+  createLaserDmxScannerDiagnosticsSummary,
+  createLaserDmxScannerPattern,
+  insertLaserDmxScannerPoint,
+  previewLaserDmxLegacyScannerMigration,
+  removeLaserDmxScannerPoint,
+  reorderLaserDmxScannerPoint,
+  reverseLaserDmxScannerPath,
+  scannerPointsToBeamTargets,
+  updateLaserDmxScannerPoint,
+  updateLaserDmxScannerPatternGeometry,
+  validateLaserDmxScannerConfig,
+  type LaserDmxScannerMigrationPreview,
+} from './laserDmxScannerAuthoring'
 import {
   RECOMMENDED_TRIGGER_RECIPE_BY_KIND,
   TRIGGER_RECIPE_HINTS,
@@ -35,6 +57,55 @@ import {
 
 interface LaserDmxShowDirectorInspectorProps {
   fixture: LaserDmxShowDirectorFixture | null
+}
+
+function ScannerMigrationPreviewDiagram({
+  preview,
+  columns,
+  rows,
+}: {
+  preview: LaserDmxScannerMigrationPreview
+  columns: number
+  rows: number
+}) {
+  const points = preview.scanner.path.points
+  const maxX = Math.max(1, columns - 1)
+  const maxY = Math.max(1, rows - 1)
+  const segments = points.flatMap((point, index) => {
+    const nextIndex = index + 1 < points.length
+      ? index + 1
+      : preview.scanner.path.closed && points.length > 1 ? 0 : -1
+    if (nextIndex < 0) return []
+    const next = points[nextIndex]!
+    const blanked = point.blanked || next.blanked
+    return [(
+      <line
+        key={`${point.id}-${next.id}`}
+        className={`rv-show-director-scanner-migration-preview__segment${blanked ? ' rv-show-director-scanner-migration-preview__segment--blanked' : ''}`}
+        x1={point.x}
+        y1={point.y}
+        x2={next.x}
+        y2={next.y}
+      />
+    )]
+  })
+  return (
+    <svg
+      className="rv-show-director-scanner-migration-preview"
+      viewBox={`-0.5 -0.5 ${maxX + 1} ${maxY + 1}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={`Migration preview with ${preview.visibleSegmentCount} visible and ${preview.blankedSegmentCount} blanked segments`}
+    >
+      {segments}
+      {points.map((point, index) => (
+        <g key={point.id}>
+          <circle className={point.blanked ? 'rv-show-director-scanner-migration-preview__point rv-show-director-scanner-migration-preview__point--blanked' : 'rv-show-director-scanner-migration-preview__point'} cx={point.x} cy={point.y} r={0.18} />
+          <text className="rv-show-director-scanner-migration-preview__order" x={point.x + 0.22} y={point.y - 0.18}>{index + 1}</text>
+        </g>
+      ))}
+    </svg>
+  )
 }
 
 const COLOR_MODE_OPTIONS: Array<{ value: LaserDmxShowDirectorColorMode; label: string }> = [
@@ -63,6 +134,32 @@ const OPTICAL_PRIMITIVE_OPTIONS: Array<{ value: LaserDmxShowDirectorOpticalPrimi
   { value: 'blinderBank', label: 'Blinder bank' },
   { value: 'strobeField', label: 'Strobe field' },
   { value: 'co2Burst', label: 'CO₂ burst' },
+]
+
+const SCANNER_DIRECTION_OPTIONS: Array<{ value: LaserDmxShowDirectorScannerDirection; label: string }> = [
+  { value: 'forward', label: 'Forward' },
+  { value: 'reverse', label: 'Reverse' },
+  { value: 'alternating', label: 'Alternating' },
+]
+
+const SCANNER_REPEAT_OPTIONS: Array<{ value: LaserDmxShowDirectorScannerRepeatMode; label: string }> = [
+  { value: 'loop', label: 'Loop' },
+  { value: 'pingPong', label: 'Ping-pong' },
+  { value: 'once', label: 'Once' },
+]
+
+const SCANNER_INTERPOLATION_OPTIONS: Array<{ value: LaserDmxShowDirectorScannerInterpolation; label: string }> = [
+  { value: 'linear', label: 'Linear' },
+  { value: 'arc', label: 'Arc' },
+  { value: 'bezier', label: 'Bezier' },
+]
+
+const SCANNER_OPTICAL_MODE_OPTIONS: Array<{ value: LaserDmxShowDirectorScannerOpticalMode; label: string }> = [
+  { value: 'normal', label: 'Normal scanner' },
+  { value: 'prism', label: 'Prism' },
+  { value: 'lineDiffraction', label: 'Line diffraction' },
+  { value: 'gridDiffraction', label: 'Grid diffraction' },
+  { value: 'burstDiffraction', label: 'Burst diffraction' },
 ]
 
 const BEAM_TARGET_OPTIONS: Array<{ value: LaserDmxShowDirectorBeamTargetMode; label: string }> = [
@@ -357,9 +454,11 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
   const [draftLabel, setDraftLabel] = useState('')
   const [draftGroupLabel, setDraftGroupLabel] = useState('')
   const [inspectorMode, setInspectorMode] = useState<LaserDmxShowDirectorInspectorMode>(() => readShowDirectorInspectorModePreference())
+  const [scannerMigrationPreview, setScannerMigrationPreview] = useState<LaserDmxScannerMigrationPreview | null>(null)
 
   useEffect(() => {
     setDraftLabel(fixture?.label ?? '')
+    setScannerMigrationPreview(null)
   }, [fixture?.id, fixture?.label])
 
   useEffect(() => {
@@ -524,6 +623,50 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
   const fixtureIndex = fixtures.findIndex(item => item.id === fixture.id)
   const defaultFixtureLabel = `${typeLabel} ${Math.max(1, fixtureIndex + 1)}`
   const update = (patch: Parameters<typeof updateFixture>[1]) => updateFixture(fixture.id, patch)
+  const scanner = fixture.kind === 'laser'
+    ? applyLaserDmxScannerRuntimeOverrides(
+      fixture.scanner ?? createLaserDmxScannerPattern(fixture, 'holdBeam', settings.gridSize),
+      undefined,
+    )
+    : null
+  const commitScanner = (nextScanner: LaserDmxShowDirectorScannerConfig) => {
+    const targets = scannerPointsToBeamTargets(nextScanner)
+    const primary = targets[0]
+    update({
+      scanner: nextScanner,
+      beam: {
+        targets,
+        ...(primary ? { targetX: primary.x, targetY: primary.y, targetZ: primary.z } : {}),
+      },
+    })
+  }
+  const changeScannerPattern = (patternType: LaserDmxShowDirectorScannerPatternType) => {
+    const next = createLaserDmxScannerPattern(fixture, patternType, settings.gridSize)
+    if (fixture.scanner) {
+      next.scanRatePps = fixture.scanner.scanRatePps
+      next.durationBeats = fixture.scanner.durationBeats
+      next.phase = fixture.scanner.phase
+      next.depthLayer = fixture.scanner.depthLayer
+      next.advanced = { ...fixture.scanner.advanced }
+    }
+    commitScanner(next)
+  }
+  const patchScanner = (patch: Partial<LaserDmxShowDirectorScannerConfig>) => {
+    if (!scanner) return
+    commitScanner({ ...scanner, ...patch })
+  }
+  const patchScannerPath = (patch: Partial<LaserDmxShowDirectorScannerConfig['path']>) => {
+    if (!scanner) return
+    commitScanner({ ...scanner, path: { ...scanner.path, ...patch } })
+  }
+  const patchScannerOptics = (patch: Partial<LaserDmxShowDirectorScannerConfig['optics']>) => {
+    if (!scanner) return
+    commitScanner({ ...scanner, optics: { ...scanner.optics, ...patch } })
+  }
+  const patchScannerAdvanced = (patch: Partial<LaserDmxShowDirectorScannerConfig['advanced']>) => {
+    if (!scanner) return
+    commitScanner({ ...scanner, advanced: { ...scanner.advanced, ...patch } })
+  }
   const updatePrimaryBeamTarget = (point: Partial<Pick<LaserDmxShowDirectorBeamTarget, 'x' | 'y'>>) => {
     const nextPrimary = snapEndpointPoint({
       x: point.x ?? primaryBeamTarget.x,
@@ -561,6 +704,10 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
       },
     })
   }
+
+  const scannerIssues = scanner ? validateLaserDmxScannerConfig(fixture, scanner, settings.gridSize) : []
+  const scannerDiagnostics = scanner ? createLaserDmxScannerDiagnosticsSummary(fixture, scanner, settings.gridSize) : null
+  const scannerWarningsVisible = settings.presentationMode === 'edit' || settings.presentationMode === 'hybrid'
 
   return (
     <aside className="rv-show-director-panel rv-show-director-inspector" aria-label="Show Director fixture inspector">
@@ -601,6 +748,34 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
             <p className="rv-show-director-trigger-hint">
               Right-click the fixture on the grid and choose Set Endpoint to aim it visually. Switch to Advanced for exact X/Y numbers.
             </p>
+
+            {fixture.kind === 'laser' && scanner && (
+              <>
+                <CtrlSection label="Scanner" />
+                <SelectRow label="Pattern" value={scanner.patternType} options={LASER_DMX_SCANNER_PATTERN_OPTIONS} onChange={value => changeScannerPattern(value as LaserDmxShowDirectorScannerPatternType)} />
+                <div className="rv-show-director-field-grid">
+                  <NumberInputRow label="Scan rate" value={scanner.scanRatePps} min={10} max={100000} step={100} unit="pps" onChange={scanRatePps => patchScanner({ scanRatePps })} />
+                  <NumberInputRow label="Duration" value={scanner.durationBeats} min={0.0625} max={128} step={0.25} unit="beats" onChange={durationBeats => patchScanner({ durationBeats })} />
+                </div>
+                <SelectRow label="Direction" value={scanner.direction} options={SCANNER_DIRECTION_OPTIONS} onChange={direction => patchScanner({ direction: direction as LaserDmxShowDirectorScannerDirection })} />
+                {!fixture.scanner && scannerWarningsVisible && (
+                  <button type="button" className="rv-glyph-upload-btn" onClick={() => setScannerMigrationPreview(previewLaserDmxLegacyScannerMigration(fixture, settings.gridSize))}>Preview Legacy Conversion</button>
+                )}
+                {scannerMigrationPreview && !fixture.scanner && scannerWarningsVisible && (
+                  <div className="rv-show-director-trigger-notes" role="status">
+                    <span>{scannerMigrationPreview.classification} · {Math.round(scannerMigrationPreview.confidence * 100)}% confidence</span>
+                    <ScannerMigrationPreviewDiagram preview={scannerMigrationPreview} columns={settings.gridSize.columns} rows={settings.gridSize.rows} />
+                    <span>{scannerMigrationPreview.visibleSegmentCount} visible · {scannerMigrationPreview.blankedSegmentCount} blanked segments</span>
+                    {scannerMigrationPreview.ambiguous && <span>Review required: conversion is ambiguous.</span>}
+                    {scannerMigrationPreview.warnings.map(warning => <span key={warning}>{warning}</span>)}
+                    <button type="button" className="rv-glyph-upload-btn" onClick={() => {
+                      commitScanner({ ...scannerMigrationPreview.scanner, migration: { ...scannerMigrationPreview.scanner.migration, status: 'migrated' } })
+                      setScannerMigrationPreview(null)
+                    }}>Apply Conversion</button>
+                  </div>
+                )}
+              </>
+            )}
 
             <CtrlSection label="Trigger Recipe" />
             <SelectRow
@@ -696,6 +871,129 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
               <p className="rv-show-director-trigger-hint">
                 {beamTargets.length} beam endpoints are active. Target X/Y edits the primary ray; drag the endpoint dots on the canvas to shape the rest.
               </p>
+            )}
+          </>
+        )}
+
+        {fixture.kind === 'laser' && scanner && (
+          <>
+            <CtrlSection label="Scanner Pattern" />
+            <SelectRow
+              label="Pattern type"
+              value={scanner.patternType}
+              options={LASER_DMX_SCANNER_PATTERN_OPTIONS}
+              onChange={value => changeScannerPattern(value as LaserDmxShowDirectorScannerPatternType)}
+              description="Normal scanner patterns are one ordered beam path. Permanent copies require explicit optics or multiple apertures."
+            />
+            <div className="rv-show-director-field-grid">
+              <NumberInputRow label="Scan rate" value={scanner.scanRatePps} min={10} max={100000} step={100} unit="pps" onChange={scanRatePps => patchScanner({ scanRatePps })} />
+              <NumberInputRow label="Duration" value={scanner.durationBeats} min={0.0625} max={128} step={0.25} unit="beats" onChange={durationBeats => patchScanner({ durationBeats })} />
+            </div>
+            <SelectRow label="Direction" value={scanner.direction} options={SCANNER_DIRECTION_OPTIONS} onChange={direction => patchScanner({ direction: direction as LaserDmxShowDirectorScannerDirection })} />
+            <div className="rv-show-director-field-grid">
+              <NumberInputRow label="Phase" value={scanner.phase} min={0} max={1} step={0.01} onChange={phase => patchScanner({ phase: clamp(phase, 0, 1) })} />
+              <NumberInputRow label="Pattern size" value={scanner.size} min={0} max={1} step={0.01} onChange={size => scanner && commitScanner(updateLaserDmxScannerPatternGeometry(scanner, fixture, settings.gridSize, { size: clamp(size, 0, 1) }))} />
+              <NumberInputRow label="Fan width" value={scanner.fanWidth} min={0} max={180} step={1} unit="°" onChange={fanWidth => scanner && commitScanner(updateLaserDmxScannerPatternGeometry(scanner, fixture, settings.gridSize, { fanWidth }))} />
+              <NumberInputRow label="Radius" value={scanner.radius} min={0} max={1} step={0.01} onChange={radius => scanner && commitScanner(updateLaserDmxScannerPatternGeometry(scanner, fixture, settings.gridSize, { radius: clamp(radius, 0, 1) }))} />
+            </div>
+            <SelectRow label="Depth layer" value={scanner.depthLayer} options={DEPTH_LAYER_OPTIONS} onChange={depthLayer => patchScanner({ depthLayer: depthLayer as LaserDmxShowDirectorDepthLayer })} />
+            <ToggleRow label="Scanner shutter closed" value={scanner.shutterClosed} onChange={shutterClosed => patchScanner({ shutterClosed })} />
+
+            {showAdvanced && (
+              <>
+                <CtrlSection label="Scanner Path" />
+                <div className="rv-show-director-field-grid">
+                  <SelectRow label="Playback" value={scanner.path.repeatMode} options={SCANNER_REPEAT_OPTIONS} onChange={repeatMode => patchScannerPath({ repeatMode: repeatMode as LaserDmxShowDirectorScannerRepeatMode })} />
+                  <SelectRow label="Interpolation" value={scanner.path.interpolation} options={SCANNER_INTERPOLATION_OPTIONS} onChange={interpolation => patchScannerPath({ interpolation: interpolation as LaserDmxShowDirectorScannerInterpolation })} />
+                </div>
+                <ToggleRow label="Closed path" value={scanner.path.closed} onChange={closed => patchScannerPath({ closed })} />
+                <ToggleRow label="Blank retrace" value={scanner.path.retraceBlanking} onChange={retraceBlanking => patchScannerPath({ retraceBlanking })} />
+                <div className="rv-show-director-field-grid">
+                  <NumberInputRow label="Point dwell" value={scanner.path.pointDwellMicros} min={0} max={1000000} step={1} unit="µs" onChange={pointDwellMicros => patchScannerPath({ pointDwellMicros })} />
+                  <NumberInputRow label="Corner dwell" value={scanner.path.cornerDwellMicros} min={0} max={1000000} step={1} unit="µs" onChange={cornerDwellMicros => patchScannerPath({ cornerDwellMicros })} />
+                  <NumberInputRow label="Blanking delay" value={scanner.path.blankingDelayMicros} min={0} max={100000} step={1} unit="µs" onChange={blankingDelayMicros => patchScannerPath({ blankingDelayMicros })} />
+                </div>
+                <div className="rv-show-director-inspector__actions">
+                  <button type="button" className="rv-glyph-upload-btn" onClick={() => commitScanner(reverseLaserDmxScannerPath(scanner))}>Reverse Path</button>
+                  <button type="button" className="rv-glyph-upload-btn" onClick={() => commitScanner(insertLaserDmxScannerPoint(scanner, fixture.id))}>Add Point</button>
+                  <button type="button" className="rv-glyph-upload-btn" onClick={() => patchScanner({ pathResetToken: scanner.pathResetToken + 1 })}>Reset Path</button>
+                </div>
+                <div className="rv-show-director-scanner-points" aria-label="Ordered scanner path points">
+                  {scanner.path.points.map((point, index) => (
+                    <div className="rv-show-director-scanner-point" key={point.id}>
+                      <strong>#{index + 1}</strong>
+                      <input aria-label={`Point ${index + 1} X`} type="number" value={point.x} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.01} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { x: clamp(finite(event.target.value, point.x), 0, gridBounds.maxX) }))} />
+                      <input aria-label={`Point ${index + 1} Y`} type="number" value={point.y} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.01} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { y: clamp(finite(event.target.value, point.y), 0, gridBounds.maxY) }))} />
+                      <label><input type="checkbox" checked={point.blanked} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { blanked: event.target.checked }))} /> Blank</label>
+                      <button type="button" onClick={() => commitScanner(reorderLaserDmxScannerPoint(scanner, point.id, -1))} disabled={index === 0} aria-label={`Move point ${index + 1} earlier`}>↑</button>
+                      <button type="button" onClick={() => commitScanner(reorderLaserDmxScannerPoint(scanner, point.id, 1))} disabled={index === scanner.path.points.length - 1} aria-label={`Move point ${index + 1} later`}>↓</button>
+                      <button type="button" onClick={() => commitScanner(removeLaserDmxScannerPoint(scanner, point.id))} disabled={scanner.path.points.length <= 1} aria-label={`Remove point ${index + 1}`}>×</button>
+                      <div className="rv-show-director-scanner-point__overrides">
+                        <label>Dwell <input aria-label={`Point ${index + 1} dwell`} type="number" value={point.dwellMicros} min={0} max={1000000} step={1} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { dwellMicros: clamp(finite(event.target.value, point.dwellMicros), 0, 1000000) }))} /></label>
+                        <label>Corner <input aria-label={`Point ${index + 1} corner dwell`} type="number" value={point.cornerDwellMicros ?? scanner.path.cornerDwellMicros} min={0} max={1000000} step={1} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { cornerDwellMicros: clamp(finite(event.target.value, scanner.path.cornerDwellMicros), 0, 1000000) }))} /></label>
+                        <label>Depth <select aria-label={`Point ${index + 1} depth layer`} value={point.depthLayer ?? scanner.depthLayer} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { depthLayer: event.target.value as LaserDmxShowDirectorDepthLayer }))}>{DEPTH_LAYER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <CtrlSection label="Scanner Optics" />
+                <SelectRow label="Optical mode" value={scanner.optics.mode} options={SCANNER_OPTICAL_MODE_OPTIONS} onChange={mode => patchScannerOptics({ mode: mode as LaserDmxShowDirectorScannerOpticalMode })} />
+                <div className="rv-show-director-field-grid">
+                  <NumberInputRow label="Optical copies" value={scanner.optics.copyCount} min={1} max={25} step={1} onChange={copyCount => patchScannerOptics({ copyCount: Math.round(copyCount) })} />
+                  <NumberInputRow label="Optical spread" value={scanner.optics.spreadDeg} min={0} max={90} step={1} unit="°" onChange={spreadDeg => patchScannerOptics({ spreadDeg })} />
+                  <NumberInputRow label="Apertures" value={scanner.optics.apertureCount} min={1} max={8} step={1} onChange={apertureCount => patchScannerOptics({ apertureCount: Math.round(apertureCount) })} />
+                </div>
+
+                <CtrlSection label="Scanner Advanced" />
+                <div className="rv-show-director-field-grid">
+                  <NumberInputRow label="Max velocity" value={scanner.advanced.maximumVelocity} min={1} max={100000} step={100} onChange={maximumVelocity => patchScannerAdvanced({ maximumVelocity })} />
+                  <NumberInputRow label="Max acceleration" value={scanner.advanced.maximumAcceleration} min={1} max={10000000} step={1000} onChange={maximumAcceleration => patchScannerAdvanced({ maximumAcceleration })} />
+                  <NumberInputRow label="Exposure" value={scanner.advanced.shutterExposureSeconds * 1000} min={4.1667} max={83.333} step={0.1} unit="ms" onChange={milliseconds => patchScannerAdvanced({ shutterExposureSeconds: milliseconds / 1000 })} />
+                </div>
+                <TextInputRow label="Calibration profile" value={scanner.advanced.calibrationProfileId} maxLength={96} onChange={calibrationProfileId => patchScannerAdvanced({ calibrationProfileId })} />
+              </>
+            )}
+
+            {scannerWarningsVisible && scannerDiagnostics && (
+              <>
+                <CtrlSection label="Scanner Diagnostics" />
+                <div className="rv-show-director-readout-grid">
+                  <div><span>Pattern</span><strong>{scannerDiagnostics.activePattern}</strong></div>
+                  <div><span>Points</span><strong>{scannerDiagnostics.pointCount}</strong></div>
+                  <div><span>Visible</span><strong>{scannerDiagnostics.visibleSegmentCount}</strong></div>
+                  <div><span>Blanked</span><strong>{scannerDiagnostics.blankedSegmentCount}</strong></div>
+                  <div><span>Dwell</span><strong>{scannerDiagnostics.dwellTotalMicros} µs</strong></div>
+                  <div><span>Optical copies</span><strong>{scannerDiagnostics.opticalCopyCount}</strong></div>
+                  <div><span>Apertures</span><strong>{scannerDiagnostics.apertureCount}</strong></div>
+                  <div><span>Compatibility</span><strong>{scannerDiagnostics.compatibilityMode}</strong></div>
+                </div>
+                {scannerIssues.length > 0 && <div className="rv-show-director-trigger-notes" role="status">{scannerIssues.map(issue => <span key={`${issue.code}:${issue.pointId ?? ''}`}>{issue.severity.toUpperCase()}: {issue.message}</span>)}</div>}
+              </>
+            )}
+
+            {!fixture.scanner && scannerWarningsVisible && (
+              <>
+                <CtrlSection label="Legacy Migration" />
+                <p className="rv-show-director-trigger-hint">This fixture still uses target endpoints. Previewing does not modify the project; applying is one history transaction and retains a target backup.</p>
+                <div className="rv-show-director-inspector__actions">
+                  <button type="button" className="rv-glyph-upload-btn" onClick={() => setScannerMigrationPreview(previewLaserDmxLegacyScannerMigration(fixture, settings.gridSize))}>Preview Conversion</button>
+                  {scannerMigrationPreview && <button type="button" className="rv-glyph-upload-btn" onClick={() => {
+                    const migrated = { ...scannerMigrationPreview.scanner, migration: { ...scannerMigrationPreview.scanner.migration, status: 'migrated' as const } }
+                    commitScanner(migrated)
+                    setScannerMigrationPreview(null)
+                  }}>Apply Conversion</button>}
+                </div>
+                {scannerMigrationPreview && (
+                  <div className="rv-show-director-trigger-notes" role="status">
+                    <span>{scannerMigrationPreview.classification} · {Math.round(scannerMigrationPreview.confidence * 100)}% confidence</span>
+                    <ScannerMigrationPreviewDiagram preview={scannerMigrationPreview} columns={settings.gridSize.columns} rows={settings.gridSize.rows} />
+                    <span>{scannerMigrationPreview.visibleSegmentCount} visible · {scannerMigrationPreview.blankedSegmentCount} blanked segments</span>
+                    {scannerMigrationPreview.ambiguous && <span>Review required: conversion is ambiguous.</span>}
+                    {scannerMigrationPreview.warnings.map(warning => <span key={warning}>{warning}</span>)}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

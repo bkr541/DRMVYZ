@@ -18,6 +18,7 @@ import {
   estimateLaserDmxShowDirectorFixtureBeamDemand,
 } from '../../LaserDmxShowDirectorBeamBudget'
 import type { LaserDmxShowDirectorBeamPriorityRole } from '../../LaserDmxShowDirectorPerformanceProgram'
+import { applyLaserDmxScannerRuntimeOverrides } from '../../laserDmxScannerAuthoring'
 import { resolveStrobeVisible } from '../LaserDmxModulationEngine'
 import {
   createLaserDmxFanRayParameters,
@@ -53,6 +54,7 @@ import {
   resolveLaserDmxFixtureCalibration,
 } from './LaserDmxColorScience'
 import {
+  createLaserDmxAuthoredScannerPlan,
   createLaserDmxLegacyScannerPlan,
   createLaserDmxScannerDiagnostics,
   solveLaserDmxScannerExposure,
@@ -874,12 +876,44 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       targets.push(sceneTarget)
       return { seed, sceneTarget }
     })
+    const authoredScanner = fixture.kind === 'laser' && fixture.scanner
+      ? applyLaserDmxScannerRuntimeOverrides(fixture.scanner, fixture.runtimeScanner, {
+        fixture,
+        bounds: { columns, rows },
+      })
+      : null
+    const authoredScannerTargets = authoredScanner?.path.points.map((point, pointIndex) => {
+      const targetXy = normalizedStagePoint(point, columns, rows)
+      const targetDepth = resolveLaserDmxTargetDepth({
+        fixture,
+        target: {
+          id: point.id,
+          x: point.x,
+          y: point.y,
+          ...(point.z == null ? {} : { z: point.z }),
+          depthLayer: point.depthLayer ?? authoredScanner.depthLayer,
+        },
+        targetIndex: pointIndex,
+        origin: position,
+        normalizedTarget: targetXy,
+      })
+      return {
+        id: point.id,
+        position: { ...targetXy, z: targetDepth.z },
+        blanked: point.blanked,
+        dwellMicros: point.dwellMicros,
+        cornerDwellMicros: point.cornerDwellMicros,
+        intensity: point.intensity,
+        color: point.color ? colorFromHex(point.color, fixture.color) : color,
+        sourceTargetId: point.id,
+      }
+    }) ?? []
     const authoredScannerDemand = clamp(
       Math.max(fixture.beam.targets?.length ?? 0, fixture.optics.rayCount, 1),
       1,
       LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
     )
-    const scannerTargetSeeds = fixture.kind === 'laser'
+    const scannerTargetSeeds = fixture.kind === 'laser' && !authoredScanner
       ? targetsForFixture(fixture, columns, rows, authoredScannerDemand, authoredScannerDemand, input)
       : []
     const scannerTargets = scannerTargetSeeds.map(seed => {
@@ -896,16 +930,28 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
         position: { ...targetXy, z: targetDepth.z },
       }
     })
-    if (fixture.kind === 'laser' && fixtureEnabled && fixture.beam.beamEnabled && scannerTargets.length > 0) {
-      const scannerPlan = createLaserDmxLegacyScannerPlan({
-        fixture,
-        origin: position,
-        targets: scannerTargets,
-        primitiveType: resolveLaserDmxOpticalPrimitiveType(fixture),
-        color,
-        shutterExposureSeconds: (1 / 60) * (0.35 + clamp01(evaluated.output.beamPersistence) * 0.9),
-        occurrenceSeed: Math.max(0, Math.floor(finite(input.occurrenceSeed, 0))),
-      })
+    if (fixture.kind === 'laser' && fixtureEnabled && fixture.beam.beamEnabled) {
+      const scannerPlan = authoredScanner && authoredScannerTargets.length > 0
+        ? createLaserDmxAuthoredScannerPlan({
+          fixture,
+          scanner: authoredScanner,
+          origin: position,
+          points: authoredScannerTargets,
+          primitiveType: resolveLaserDmxOpticalPrimitiveType(fixture),
+          color,
+          occurrenceSeed: Math.max(0, Math.floor(finite(input.occurrenceSeed, 0))),
+        })
+        : scannerTargets.length > 0
+          ? createLaserDmxLegacyScannerPlan({
+            fixture,
+            origin: position,
+            targets: scannerTargets,
+            primitiveType: resolveLaserDmxOpticalPrimitiveType(fixture),
+            color,
+            shutterExposureSeconds: (1 / 60) * (0.35 + clamp01(evaluated.output.beamPersistence) * 0.9),
+            occurrenceSeed: Math.max(0, Math.floor(finite(input.occurrenceSeed, 0))),
+          })
+          : { heads: [], paths: [], opticalCopies: [] }
       scannerHeads.push(...scannerPlan.heads)
       scanPaths.push(...scannerPlan.paths)
       opticalCopies.push(...scannerPlan.opticalCopies)
@@ -1099,6 +1145,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     opticalCopies,
     exposureSamples: scannerExposure.exposureSamples,
     blankedSampleCount: scannerExposure.blankedSampleCount,
+    selectedFixtureIds: selected,
   })
   const transientEvents = createSceneTransientEvents({
     timestamp: Math.max(0, finite(input.audioTimeSec, 0)),
