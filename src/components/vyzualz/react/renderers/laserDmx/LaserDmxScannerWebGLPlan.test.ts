@@ -127,7 +127,7 @@ function radialDistance(pointA: { x: number; y: number }, pointB: { x: number; y
 }
 
 describe('LaserDMX scanner-sample WebGL planning', () => {
-  it('traces a circle sequentially without projector-to-perimeter spokes', () => {
+  it('renders sequential circle exposure as projector-origin aerial rays', () => {
     const frame = createBaseFrame()
     const center = { x: 0.5, y: 0.58 }
     const radius = 0.22
@@ -146,12 +146,13 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
       positions.map((position, index) => sample(frame, position, 7.98 + index * 0.001, index)),
     ))
 
-    expect(planned.segments).toHaveLength(11)
-    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) > 0.1)).toBe(true)
-    expect(planned.segments.every(segment => radialDistance(segment.origin, segment.target) < 0.2)).toBe(true)
+    expect(planned.segments).toHaveLength(12)
+    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
+    expect(planned.segments.map(segment => ({ x: segment.target.x, y: segment.target.y }))).toEqual(positions)
+    expect(planned.segments.every(segment => radialDistance(segment.origin, segment.target) > 0.1)).toBe(true)
   })
 
-  it('renders triangle and polygon samples as ordered perimeter edges', () => {
+  it('keeps triangle and polygon aim order while rendering physical aerial rays', () => {
     const frame = createBaseFrame()
     const vertices = [
       { x: 0.5, y: 0.2 },
@@ -169,14 +170,9 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
       vertices.map((position, index) => sample(frame, position, 8 + index * 0.001, index % 3)),
     ))
 
-    expect(planned.segments.map(segment => [
-      { x: segment.origin.x, y: segment.origin.y },
-      { x: segment.target.x, y: segment.target.y },
-    ])).toEqual([
-      [vertices[0], vertices[1]],
-      [vertices[1], vertices[2]],
-      [vertices[2], vertices[3]],
-    ])
+    expect(planned.segments).toHaveLength(4)
+    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
+    expect(planned.segments.map(segment => ({ x: segment.target.x, y: segment.target.y }))).toEqual(vertices)
     expect(planned.validation.suppressedLegacyBeamIds.length).toBe(frame.beams.filter(beam => beam.fixtureKind === 'laser').length)
     expect(planned.validation.duplicateFixtureIds).toEqual([])
   })
@@ -197,9 +193,9 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
       positions.map((position, index) => sample(frame, position, 4 + index * 0.002, index)),
     ))
 
-    expect(planned.segments).toHaveLength(8)
-    expect(planned.segments.every((segment, index) => segment.origin.x === positions[index]!.x)).toBe(true)
-    expect(planned.segments.every((segment, index) => segment.target.x === positions[index + 1]!.x)).toBe(true)
+    expect(planned.segments).toHaveLength(9)
+    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
+    expect(planned.segments.every((segment, index) => segment.target.x === positions[index]!.x)).toBe(true)
   })
 
   it('breaks disconnected shapes at zero-energy blank markers', () => {
@@ -220,12 +216,13 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
     ]
     const planned = buildLaserDmxScannerExposurePlan(withScanner(frame, path, samples))
 
-    expect(planned.segments).toHaveLength(2)
+    expect(planned.segments).toHaveLength(4)
     expect(planned.validation.blankedBreakCount).toBeGreaterThan(0)
-    expect(planned.segments.some(segment => radialDistance(segment.origin, segment.target) > 0.3)).toBe(false)
+    expect(planned.segments.some(segment => radialDistance(segment.target, { x: 0.75, y: 0.75 }) < 1e-6)).toBe(false)
+    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
   })
 
-  it('converts repeated point dwell into a bounded analytic point capsule', () => {
+  it('merges repeated point dwell into one brighter projector-origin ray', () => {
     const frame = createBaseFrame()
     const path = customPath(frame, [point('held', 0.5, 0.65)], { conversionKind: 'held' })
     const planned = buildLaserDmxScannerExposurePlan(withScanner(frame, path, [
@@ -235,8 +232,9 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
 
     expect(planned.segments).toHaveLength(1)
     expect(planned.segments[0]?.pointDwell).toBe(true)
-    expect(radialDistance(planned.segments[0]!.origin, planned.segments[0]!.target)).toBeGreaterThan(0)
-    expect(radialDistance(planned.segments[0]!.origin, planned.segments[0]!.target)).toBeLessThan(0.002)
+    expect(radialDistance(planned.segments[0]!.origin, frame.fixtures[0]!.position)).toBeLessThan(1e-6)
+    expect(radialDistance(planned.segments[0]!.target, { x: 0.5, y: 0.65 })).toBeLessThan(1e-6)
+    expect(planned.segments[0]?.exposureContribution).toBeCloseTo(1, 6)
   })
 
   it('keeps multiple scanner heads and optical copies explicitly separate', () => {
@@ -289,7 +287,8 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
 
     expect(aggregated).toHaveLength(3)
     expect(new Set(aggregated.map(segment => segment.opticalCopyIndex))).toEqual(new Set([0, 1]))
-    expect(aggregated.every(segment => radialDistance(segment.origin, segment.target) < 0.3)).toBe(true)
+    expect(aggregated.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
+    expect(aggregated.every(segment => radialDistance(segment.origin, segment.target) > 0.1)).toBe(true)
   })
 
   it('bounds quality work while preserving deterministic first and last samples', () => {
@@ -309,7 +308,8 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
     expect(low.segments.length).toBeLessThan(ultra.segments.length)
     expect(low.segments).toHaveLength(120)
     expect(ultra.segments).toHaveLength(860)
-    expect(low.segments[0]?.origin.x).toBeCloseTo(positions[0]!.x, 6)
+    expect(low.segments[0]?.origin.x).toBeCloseTo(createBaseFrame('low').fixtures[0]!.position.x, 6)
+    expect(low.segments[0]?.target.x).toBeCloseTo(positions[0]!.x, 6)
     expect(low.segments[low.segments.length - 1]?.target.x).toBeCloseTo(positions[positions.length - 1]!.x, 6)
   })
 
