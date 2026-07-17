@@ -38,7 +38,10 @@ function asset(
 }
 
 export const PIX_GRID_BUILT_IN_ASSETS: readonly PixGridBuiltInAssetManifestEntry[] = [
-  asset('pix-bass-word', 'BASS', 'typography', 20, 7, 'static', ['primary', 'highlight'], COMMON_STATIC, { defaultGroups: ['body', 'outline'] }),
+  asset('pix-bass-word', 'BASS', 'typography', 23, 7, 'static', ['primary', 'highlight'], COMMON_STATIC, { defaultGroups: ['body', 'outline'] }),
+  asset('pix-bass-letter-b', 'BASS Letter B', 'typography', 5, 7, 'static', ['primary', 'highlight'], COMMON_STATIC, { defaultGroups: ['letter-body'] }),
+  asset('pix-bass-letter-a', 'BASS Letter A', 'typography', 5, 7, 'static', ['primary', 'highlight'], COMMON_STATIC, { defaultGroups: ['letter-body'] }),
+  asset('pix-bass-letter-s', 'BASS Letter S', 'typography', 5, 7, 'static', ['primary', 'highlight'], COMMON_STATIC, { defaultGroups: ['letter-body'] }),
   asset('pix-five-point-star', 'Five-Point Star', 'symbol', 15, 15, 'procedural', ['primary', 'highlight'], COMMON_PROCEDURAL),
   asset('pix-multi-star-field', 'Multi-Star Field', 'pattern', 32, 18, 'procedural', ['primary', 'secondary', 'accent'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 16, defaultGroups: ['large-stars', 'sparkles'] }),
   asset('pix-equalizer-bars', 'Equalizer Bars', 'motion', 24, 12, 'procedural', ['primary', 'secondary', 'accent'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 14 }),
@@ -58,13 +61,43 @@ export const PIX_GRID_BUILT_IN_ASSETS: readonly PixGridBuiltInAssetManifestEntry
 export const PIX_GRID_BUILT_IN_ASSET_BY_ID = new Map(PIX_GRID_BUILT_IN_ASSETS.map(item => [item.id, item]))
 
 const BASS_BITMAP = [
-  '11110111101111011110',
-  '10010100001000010001',
-  '11110111101111011110',
-  '10010100000001000001',
-  '10010100000001000001',
-  '10010100001001010001',
-  '11110111101110011110',
+  '11110001110001111001111',
+  '10001010001010000010000',
+  '11110010001011110011110',
+  '10001011111000001000001',
+  '10001010001000001000001',
+  '10001010001010001010001',
+  '11110010001011110011110',
+] as const
+
+const BASS_LETTER_B_BITMAP = [
+  '11110',
+  '10001',
+  '11110',
+  '10001',
+  '10001',
+  '10001',
+  '11110',
+] as const
+
+const BASS_LETTER_A_BITMAP = [
+  '01110',
+  '10001',
+  '10001',
+  '11111',
+  '10001',
+  '10001',
+  '10001',
+] as const
+
+const BASS_LETTER_S_BITMAP = [
+  '01111',
+  '10000',
+  '11110',
+  '00001',
+  '00001',
+  '10001',
+  '11110',
 ] as const
 
 const FACE_BITMAPS = [
@@ -134,6 +167,12 @@ export function samplePixGridBuiltInAsset(
   switch (assetId) {
     case 'pix-bass-word':
       return bitmapSample(BASS_BITMAP, u, v, ['primary', 'highlight'])
+    case 'pix-bass-letter-b':
+      return bitmapSample(BASS_LETTER_B_BITMAP, u, v, ['primary', 'highlight'])
+    case 'pix-bass-letter-a':
+      return bitmapSample(BASS_LETTER_A_BITMAP, u, v, ['primary', 'highlight'])
+    case 'pix-bass-letter-s':
+      return bitmapSample(BASS_LETTER_S_BITMAP, u, v, ['primary', 'highlight'])
     case 'pix-five-point-star': {
       const points = 5
       const sector = Math.PI / points

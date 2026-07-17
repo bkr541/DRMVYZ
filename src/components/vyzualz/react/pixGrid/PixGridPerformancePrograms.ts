@@ -79,7 +79,10 @@ function sceneFor(
   return scene ? [scene.sceneId] : undefined;
 }
 
-function completeSectionPlan(plan: PixGridSectionPlan): PixGridSectionPlan {
+function completeSectionPlan(
+  plan: PixGridSectionPlan,
+  program: Pick<PixGridPerformanceProgram, 'continuousRoutes' | 'eventRoutes'>,
+): PixGridSectionPlan {
   const section = plan.sectionTypes[0] ?? "unknown";
   const density =
     densityFor(plan.actions) ??
@@ -94,23 +97,10 @@ function completeSectionPlan(plan: PixGridSectionPlan): PixGridSectionPlan {
   return {
     ...plan,
     scenePreference: plan.scenePreference ?? sceneFor(plan.actions),
-    continuousRouteIds: plan.continuousRouteIds ?? [
-      "bass-foundation",
-      "energy-hero",
-      "detail-highs",
-      "vocal-focus",
-    ],
-    eventRouteIds: plan.eventRouteIds ?? [
-      "kick-impact",
-      "snare-outline",
-      "hat-detail",
-      "bar-motif",
-      "phrase-recruit",
-      "section-entry-route",
-      "drop-impact-route",
-      "semantic-accent",
-      "track-map-handoff",
-    ],
+    continuousRouteIds:
+      plan.continuousRouteIds ?? program.continuousRoutes.map((route) => route.id),
+    eventRouteIds:
+      plan.eventRouteIds ?? program.eventRoutes.map((route) => route.id),
     motionState: plan.motionState ?? {
       amount:
         section === "drop"
@@ -162,7 +152,9 @@ function defineProgram(
 ): PixGridPerformanceProgram {
   return {
     ...program,
-    sectionPlans: program.sectionPlans.map(completeSectionPlan),
+    sectionPlans: program.sectionPlans.map((plan) =>
+      completeSectionPlan(plan, program),
+    ),
   };
 }
 
@@ -348,6 +340,177 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
   >;
 }
 
+function bassBeaconRoutes() {
+  const shared = sharedRoutes('bass')
+  return {
+    continuousRoutes: [
+      ...shared.continuousRoutes,
+      {
+        id: 'bass-sub-pressure',
+        target: { bankId: 'bass-impact-bank' },
+        source: 'sub',
+        operation: 'brightness',
+        amount: 0.28,
+        curve: 'logarithmic',
+        blend: 'add',
+        capabilityFallback: 'energy',
+        priority: -205,
+      },
+      {
+        id: 'bass-tension-outline',
+        target: { bankId: 'bass-snare-bank' },
+        source: 'tension',
+        operation: 'outlineIntensity',
+        amount: 0.34,
+        curve: 'exponential',
+        blend: 'max',
+        capabilityFallback: 'energy',
+        priority: -200,
+      },
+      {
+        id: 'bass-build-row-recruitment',
+        target: { bankId: 'bass-row-bank' },
+        source: 'buildProgress',
+        operation: 'rowRecruitment',
+        amount: 1,
+        curve: 'easeInOut',
+        blend: 'replace',
+        clamp: [0, 1],
+        conditions: { sectionTypes: ['build', 'preDrop'] },
+        priority: -195,
+      },
+      {
+        id: 'bass-phrase-highlight-travel',
+        target: { bankId: 'bass-highlight-bank' },
+        source: 'phraseProgress',
+        operation: 'columnRecruitment',
+        amount: 1,
+        curve: 'linear',
+        blend: 'replace',
+        clamp: [0, 1],
+        priority: -190,
+      },
+      {
+        id: 'bass-air-detail',
+        target: { bankId: 'bass-hat-bank' },
+        source: 'air',
+        operation: 'sparkleDensity',
+        amount: 0.26,
+        curve: 'exponential',
+        blend: 'max',
+        capabilityFallback: 'midHighActivity',
+        priority: -185,
+      },
+    ],
+    eventRoutes: [
+      ...shared.eventRoutes,
+      {
+        id: 'bass-downbeat-hero',
+        target: { bankId: 'bass-hero-bank' },
+        event: 'downbeat',
+        operation: 'brightness',
+        amount: 0.42,
+        envelope: { attack: 0, hold: 0.045, release: 0.24, curve: 'overshoot' },
+        capabilityFallback: 'beat',
+        blend: 'add',
+        paletteRole: 'highlight',
+        priority: -128,
+      },
+      {
+        id: 'bass-four-bar-letter-motif',
+        target: { bankId: 'bass-letter-bank' },
+        event: 'fourBarBoundary',
+        operation: 'paletteRole',
+        amount: 0.86,
+        envelope: { attack: 0, hold: 0.1, release: 0.42, curve: 'easeOut' },
+        quantization: 'fourBars',
+        capabilityFallback: 'beat',
+        blend: 'max',
+        paletteRole: 'secondary',
+        priority: -118,
+      },
+      {
+        id: 'bass-eight-bar-accent-recruitment',
+        target: { bankId: 'bass-side-bank' },
+        event: 'eightBarBoundary',
+        operation: 'reveal',
+        amount: 1,
+        envelope: { attack: 0, hold: 0.16, release: 0.5, curve: 'easeOut' },
+        quantization: 'eightBars',
+        capabilityFallback: 'beat',
+        blend: 'max',
+        priority: -108,
+      },
+      {
+        id: 'bass-sixteen-bar-layout-evolution',
+        target: { bankId: 'bass-letter-bank' },
+        event: 'sixteenBarBoundary',
+        operation: 'maskExpansion',
+        amount: 0.16,
+        envelope: { attack: 0.02, hold: 0.14, release: 0.54, curve: 'easeInOut' },
+        quantization: 'sixteenBars',
+        capabilityFallback: 'beat',
+        blend: 'max',
+        priority: -98,
+      },
+    ],
+  } satisfies Pick<PixGridPerformanceProgram, 'continuousRoutes' | 'eventRoutes'>
+}
+
+function geometricReactorRoutes() {
+  const shared = sharedRoutes('reactor')
+  return {
+    continuousRoutes: [
+      ...shared.continuousRoutes,
+      { id: 'reactor-sub-core', target: { bankId: 'reactor-core-bank' }, source: 'sub', operation: 'brightness', amount: 0.42, curve: 'logarithmic', blend: 'add', capabilityFallback: 'energy', priority: -208 },
+      { id: 'reactor-bass-inner-ring', target: { bankId: 'reactor-inner-ring-bank' }, source: 'bass', operation: 'scale', amount: 0.09, curve: 'easeOut', blend: 'add', clamp: [0, 0.2], capabilityFallback: 'energy', priority: -204 },
+      { id: 'reactor-low-mid-outer-motion', target: { bankId: 'reactor-outer-ring-bank' }, source: 'lowMid', operation: 'pixelDisplacement', amount: 0.08, curve: 'easeInOut', blend: 'add', clamp: [-0.14, 0.14], capabilityFallback: 'energy', priority: -200 },
+      { id: 'reactor-mid-chevron-motion', target: { bankId: 'reactor-chevron-bank' }, source: 'mid', operation: 'positionX', amount: 0.04, polarity: 'bipolar', curve: 'easeInOut', blend: 'add', clamp: [-0.08, 0.08], capabilityFallback: 'energy', priority: -196 },
+      { id: 'reactor-high-node-density', target: { bankId: 'reactor-node-bank' }, source: 'high', operation: 'sparkleDensity', amount: 0.38, curve: 'exponential', blend: 'max', capabilityFallback: 'midHighActivity', priority: -192 },
+      { id: 'reactor-air-cross-detail', target: { bankId: 'reactor-cross-bank' }, source: 'air', operation: 'brightness', amount: 0.28, curve: 'exponential', blend: 'add', capabilityFallback: 'midHighActivity', priority: -188 },
+      { id: 'reactor-flux-ripple', target: { bankId: 'reactor-mid-band-bank' }, source: 'spectralFlux', operation: 'pixelDisplacement', amount: 0.09, curve: 'exponential', blend: 'add', clamp: [-0.15, 0.15], capabilityFallback: 'transient', priority: -184 },
+      { id: 'reactor-complexity-checker', target: { bankId: 'reactor-checker-bank' }, source: 'complexity', operation: 'checkerAlternation', amount: 1, curve: 'stepped', blend: 'replace', capabilityFallback: 'energy', priority: -180 },
+      { id: 'reactor-tension-convergence', target: { bankId: 'reactor-outer-ring-bank' }, source: 'tension', operation: 'maskContraction', amount: 0.14, curve: 'exponential', blend: 'max', capabilityFallback: 'energy', priority: -176 },
+      { id: 'reactor-build-recruitment', target: { bankId: 'reactor-recruitment-bank' }, source: 'buildProgress', operation: 'rowRecruitment', amount: 1, curve: 'easeInOut', blend: 'replace', clamp: [0, 1], conditions: { sectionTypes: ['build', 'preDrop'] }, priority: -172 },
+      { id: 'reactor-phrase-phase', target: { bankId: 'reactor-chevron-bank' }, source: 'phraseProgress', operation: 'columnRecruitment', amount: 1, curve: 'linear', blend: 'replace', clamp: [0, 1], priority: -168 },
+    ],
+    eventRoutes: [
+      ...shared.eventRoutes,
+      { id: 'reactor-downbeat-ring', target: { bankId: 'reactor-inner-ring-bank' }, event: 'downbeat', operation: 'maskContraction', amount: 0.18, envelope: { attack: 0, hold: 0.04, release: 0.2, curve: 'easeOut' }, capabilityFallback: 'beat', blend: 'max', priority: -128 },
+      { id: 'reactor-four-bar-direction', target: { bankId: 'reactor-chevron-bank' }, event: 'fourBarBoundary', operation: 'directionReverse', amount: 1, envelope: { attack: 0, hold: 0.08, release: 0.16, curve: 'step' }, quantization: 'fourBars', capabilityFallback: 'beat', blend: 'replace', priority: -118 },
+      { id: 'reactor-eight-bar-geometry', target: { bankId: 'reactor-recruitment-bank' }, event: 'eightBarBoundary', operation: 'maskExpansion', amount: 0.18, envelope: { attack: 0.02, hold: 0.14, release: 0.48, curve: 'easeInOut' }, quantization: 'eightBars', capabilityFallback: 'beat', blend: 'max', priority: -108 },
+      { id: 'reactor-sixteen-bar-structure', target: { bankId: 'reactor-impact-bank' }, event: 'sixteenBarBoundary', operation: 'discreteRotation', amount: 1, envelope: { attack: 0, hold: 0.12, release: 0.42, curve: 'stepped' }, quantization: 'sixteenBars', capabilityFallback: 'beat', blend: 'replace', priority: -98 },
+    ],
+  } satisfies Pick<PixGridPerformanceProgram, 'continuousRoutes' | 'eventRoutes'>
+}
+
+function pixelParadeRoutes() {
+  const shared = sharedRoutes('parade')
+  return {
+    continuousRoutes: [
+      ...shared.continuousRoutes,
+      { id: 'parade-bass-hero-bounce', target: { bankId: 'parade-hero-bank' }, source: 'bass', operation: 'positionY', amount: 0.04, polarity: 'bipolar', curve: 'smoothstep', blend: 'add', clamp: [-0.07, 0.07], capabilityFallback: 'energy', priority: -208 },
+      { id: 'parade-low-mid-travel', target: { bankId: 'parade-travel-bank' }, source: 'lowMid', operation: 'positionX', amount: 0.045, curve: 'easeInOut', blend: 'add', clamp: [-0.08, 0.08], capabilityFallback: 'energy', priority: -204 },
+      { id: 'parade-mid-support-motion', target: { bankId: 'parade-primary-bank' }, source: 'mid', operation: 'positionY', amount: 0.035, polarity: 'bipolar', curve: 'easeInOut', blend: 'add', clamp: [-0.06, 0.06], capabilityFallback: 'energy', priority: -200 },
+      { id: 'parade-high-star-detail', target: { bankId: 'parade-star-bank' }, source: 'high', operation: 'sparkleDensity', amount: 0.4, curve: 'exponential', blend: 'max', capabilityFallback: 'midHighActivity', priority: -196 },
+      { id: 'parade-complexity-pattern', target: { bankId: 'parade-background-bank' }, source: 'complexity', operation: 'checkerAlternation', amount: 1, curve: 'stepped', blend: 'replace', capabilityFallback: 'energy', priority: -192 },
+      { id: 'parade-tension-spacing', target: { bankId: 'parade-cast-bank' }, source: 'tension', operation: 'maskContraction', amount: 0.12, curve: 'exponential', blend: 'max', capabilityFallback: 'energy', priority: -188 },
+      { id: 'parade-build-cast-recruitment', target: { bankId: 'parade-recruitment-bank' }, source: 'buildProgress', operation: 'columnRecruitment', amount: 1, curve: 'easeInOut', blend: 'replace', clamp: [0, 1], conditions: { sectionTypes: ['build', 'preDrop'] }, priority: -184 },
+      { id: 'parade-phrase-staging', target: { bankId: 'parade-cast-bank' }, source: 'phraseProgress', operation: 'columnRecruitment', amount: 1, curve: 'linear', blend: 'replace', clamp: [0, 1], priority: -180 },
+      { id: 'parade-section-motion-arc', target: { bankId: 'parade-background-bank' }, source: 'sectionProgress', operation: 'rowRecruitment', amount: 1, curve: 'easeInOut', blend: 'replace', clamp: [0, 1], priority: -176 },
+      { id: 'parade-vocal-hero-focus', target: { bankId: 'parade-hero-bank' }, source: 'vocalEnergy', operation: 'outlineIntensity', amount: 0.44, curve: 'easeInOut', blend: 'max', minimumConfidence: 0.35, capabilityFallback: 'energy', priority: -172 },
+    ],
+    eventRoutes: [
+      ...shared.eventRoutes,
+      { id: 'parade-downbeat-step', target: { bankId: 'parade-cast-bank' }, event: 'downbeat', operation: 'positionX', amount: 0.035, envelope: { attack: 0, hold: 0.04, release: 0.2, curve: 'overshoot' }, capabilityFallback: 'beat', blend: 'add', priority: -128 },
+      { id: 'parade-four-bar-call-response', target: { bankId: 'parade-prop-bank' }, event: 'fourBarBoundary', operation: 'directionReverse', amount: 1, envelope: { attack: 0, hold: 0.08, release: 0.16, curve: 'step' }, quantization: 'fourBars', capabilityFallback: 'beat', blend: 'replace', priority: -118 },
+      { id: 'parade-eight-bar-participants', target: { bankId: 'parade-recruitment-bank' }, event: 'eightBarBoundary', operation: 'reveal', amount: 1, envelope: { attack: 0, hold: 0.18, release: 0.52, curve: 'easeOut' }, quantization: 'eightBars', capabilityFallback: 'beat', blend: 'max', priority: -108 },
+      { id: 'parade-sixteen-bar-cast', target: { bankId: 'parade-alternate-bank' }, event: 'sixteenBarBoundary', operation: 'maskExpansion', amount: 0.2, envelope: { attack: 0.02, hold: 0.16, release: 0.56, curve: 'easeInOut' }, quantization: 'sixteenBars', capabilityFallback: 'beat', blend: 'max', priority: -98 },
+      { id: 'parade-semantic-hero-action', target: { bankId: 'parade-hero-bank' }, event: 'semanticMoment', operation: 'scale', amount: 0.12, envelope: { attack: 0.02, hold: 0.12, release: 0.44, curve: 'overshoot' }, capabilityFallback: 'disable', blend: 'max', priority: -88 },
+    ],
+  } satisfies Pick<PixGridPerformanceProgram, 'continuousRoutes' | 'eventRoutes'>
+}
+
 const COMMON_ARCS = [
   {
     id: "density-arc",
@@ -489,303 +652,107 @@ const COMMON_ARCS = [
 const BASS_ARCHITECTURE = {
   visualRoles: VISUAL_ROLES,
   bindings: [
-    {
-      id: "bass-hero-binding",
-      target: { kind: "layer", id: "bass-word" },
-      roles: ["hero", "primary", "bass", "typography"],
-    },
-    {
-      id: "bass-outline-binding",
-      target: { kind: "layer", id: "bass-outline" },
-      roles: ["outline", "secondary", "percussion"],
-    },
-    {
-      id: "bass-impact-binding",
-      target: { kind: "layer", id: "bass-burst" },
-      roles: ["impact", "transition"],
-    },
-    {
-      id: "bass-sparkle-binding",
-      target: { kind: "layer", id: "bass-sparkles" },
-      roles: ["sparkle", "accent", "atmosphere"],
-    },
-    {
-      id: "bass-body-group-binding",
-      target: { kind: "group", id: "bass-body-group" },
-      roles: ["hero", "bass"],
-    },
-    {
-      id: "bass-kick-binding",
-      target: { kind: "group", id: "bass-kick-group" },
-      roles: ["bass", "impact", "percussion"],
-    },
-    {
-      id: "bass-snare-binding",
-      target: { kind: "group", id: "bass-snare-group" },
-      roles: ["percussion", "outline", "accent"],
-    },
-    {
-      id: "bass-hat-binding",
-      target: { kind: "group", id: "bass-hat-group" },
-      roles: ["percussion", "sparkle"],
-    },
+    { id: 'bass-hero-binding', target: { kind: 'layer', id: 'bass-word' }, roles: ['hero', 'primary', 'bass', 'typography'] },
+    { id: 'bass-outline-binding', target: { kind: 'group', id: 'bass-snare-group' }, roles: ['outline', 'secondary', 'percussion'] },
+    { id: 'bass-impact-binding', target: { kind: 'group', id: 'bass-kick-group' }, roles: ['impact', 'bass', 'transition'] },
+    { id: 'bass-sparkle-binding', target: { kind: 'group', id: 'bass-hat-group' }, roles: ['sparkle', 'accent', 'atmosphere', 'percussion'] },
+    { id: 'bass-body-group-binding', target: { kind: 'group', id: 'bass-body-group' }, roles: ['hero', 'primary', 'bass', 'typography'] },
+    { id: 'bass-letter-b-binding', target: { kind: 'group', id: 'bass-letter-b-group' }, roles: ['accent', 'typography'] },
+    { id: 'bass-letter-a-binding', target: { kind: 'group', id: 'bass-letter-a-group' }, roles: ['accent', 'vocalFocus', 'typography'] },
+    { id: 'bass-letter-s-left-binding', target: { kind: 'group', id: 'bass-letter-s-left-group' }, roles: ['accent', 'typography'] },
+    { id: 'bass-letter-s-right-binding', target: { kind: 'group', id: 'bass-letter-s-right-group' }, roles: ['accent', 'typography'] },
+    { id: 'bass-highlight-binding', target: { kind: 'group', id: 'bass-highlight-travel-group' }, roles: ['accent', 'transition', 'typography'] },
+    { id: 'bass-side-binding', target: { kind: 'group', id: 'bass-side-accent-group' }, roles: ['secondary', 'percussion', 'transition'] },
+    { id: 'bass-row-binding', target: { kind: 'group', id: 'bass-row-recruitment-group' }, roles: ['transition', 'typography'] },
   ],
   banks: [
-    {
-      id: "bass-hero-bank",
-      roles: ["hero"],
-      members: [{ kind: "group", id: "bass-body-group" }],
-    },
-    {
-      id: "bass-bass-bank",
-      roles: ["bass"],
-      members: [
-        { kind: "group", id: "bass-kick-group" },
-        { kind: "group", id: "bass-body-group" },
-      ],
-    },
-    {
-      id: "bass-snare-bank",
-      roles: ["percussion"],
-      members: [{ kind: "group", id: "bass-snare-group" }],
-    },
-    {
-      id: "bass-hat-bank",
-      roles: ["sparkle"],
-      members: [{ kind: "group", id: "bass-hat-group" }],
-    },
-    {
-      id: "bass-accent-bank",
-      roles: ["accent"],
-      members: [
-        { kind: "group", id: "bass-snare-group" },
-        { kind: "group", id: "bass-hat-group" },
-      ],
-    },
-    {
-      id: "bass-recruitment-bank",
-      members: [
-        { kind: "group", id: "bass-body-group" },
-        { kind: "group", id: "bass-hat-group" },
-      ],
-    },
-    {
-      id: "bass-transition-bank",
-      roles: ["transition"],
-      members: [{ kind: "group", id: "bass-body-group" }],
-    },
-    {
-      id: "bass-impact-bank",
-      roles: ["impact"],
-      members: [{ kind: "group", id: "bass-kick-group" }],
-    },
+    { id: 'bass-hero-bank', roles: ['hero'], members: [{ kind: 'group', id: 'bass-body-group' }] },
+    { id: 'bass-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'bass-kick-group' }, { kind: 'group', id: 'bass-body-group' }] },
+    { id: 'bass-snare-bank', roles: ['percussion', 'outline'], members: [{ kind: 'group', id: 'bass-snare-group' }, { kind: 'group', id: 'bass-side-accent-group' }] },
+    { id: 'bass-hat-bank', roles: ['sparkle'], members: [{ kind: 'group', id: 'bass-hat-group' }] },
+    { id: 'bass-accent-bank', roles: ['accent'], members: [{ kind: 'group', id: 'bass-highlight-travel-group' }, { kind: 'group', id: 'bass-side-accent-group' }] },
+    { id: 'bass-letter-bank', roles: ['typography'], members: [{ kind: 'group', id: 'bass-letter-b-group' }, { kind: 'group', id: 'bass-letter-a-group' }, { kind: 'group', id: 'bass-letter-s-left-group' }, { kind: 'group', id: 'bass-letter-s-right-group' }] },
+    { id: 'bass-highlight-bank', roles: ['accent'], members: [{ kind: 'group', id: 'bass-highlight-travel-group' }] },
+    { id: 'bass-side-bank', roles: ['secondary'], members: [{ kind: 'group', id: 'bass-side-accent-group' }] },
+    { id: 'bass-row-bank', roles: ['transition'], members: [{ kind: 'group', id: 'bass-row-recruitment-group' }] },
+    { id: 'bass-recruitment-bank', members: [{ kind: 'group', id: 'bass-row-recruitment-group' }, { kind: 'group', id: 'bass-side-accent-group' }, { kind: 'group', id: 'bass-hat-group' }] },
+    { id: 'bass-transition-bank', roles: ['transition'], members: [{ kind: 'group', id: 'bass-row-recruitment-group' }, { kind: 'group', id: 'bass-body-group' }] },
+    { id: 'bass-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'bass-kick-group' }] },
   ],
-  ...sharedRoutes("bass"),
+  ...bassBeaconRoutes(),
   musicalArcs: COMMON_ARCS,
-} satisfies Pick<
-  PixGridPerformanceProgram,
-  | "visualRoles"
-  | "bindings"
-  | "banks"
-  | "continuousRoutes"
-  | "eventRoutes"
-  | "musicalArcs"
->;
+} satisfies Pick<PixGridPerformanceProgram, 'visualRoles' | 'bindings' | 'banks' | 'continuousRoutes' | 'eventRoutes' | 'musicalArcs'>;
 
 const REACTOR_ARCHITECTURE = {
   visualRoles: VISUAL_ROLES,
   bindings: [
-    {
-      id: "reactor-hero-binding",
-      target: { kind: "layer", id: "reactor-tunnel" },
-      roles: ["hero", "primary", "environment"],
-    },
-    {
-      id: "reactor-secondary-binding",
-      target: { kind: "layer", id: "reactor-chevrons" },
-      roles: ["secondary", "accent", "transition"],
-    },
-    {
-      id: "reactor-outline-binding",
-      target: { kind: "layer", id: "reactor-cross" },
-      roles: ["outline", "impact"],
-    },
-    {
-      id: "reactor-atmosphere-binding",
-      target: { kind: "layer", id: "reactor-orbits" },
-      roles: ["atmosphere", "sparkle"],
-    },
-    {
-      id: "reactor-checker-binding",
-      target: { kind: "layer", id: "reactor-checker" },
-      roles: ["background", "percussion"],
-    },
-    {
-      id: "reactor-low-binding",
-      target: { kind: "group", id: "reactor-low-group" },
-      roles: ["bass", "impact"],
-    },
-    {
-      id: "reactor-mid-binding",
-      target: { kind: "group", id: "reactor-mid-group" },
-      roles: ["percussion", "secondary"],
-    },
-    {
-      id: "reactor-high-binding",
-      target: { kind: "group", id: "reactor-high-group" },
-      roles: ["percussion", "sparkle", "accent"],
-    },
+    { id: 'reactor-core-binding', target: { kind: 'group', id: 'reactor-core-group' }, roles: ['hero', 'primary', 'bass', 'impact'] },
+    { id: 'reactor-inner-ring-binding', target: { kind: 'group', id: 'reactor-inner-ring-group' }, roles: ['primary', 'bass'] },
+    { id: 'reactor-outer-ring-binding', target: { kind: 'group', id: 'reactor-outer-ring-group' }, roles: ['hero', 'environment', 'transition'] },
+    { id: 'reactor-chevron-binding', target: { kind: 'group', id: 'reactor-chevron-group' }, roles: ['secondary', 'accent'] },
+    { id: 'reactor-mid-band-binding', target: { kind: 'group', id: 'reactor-mid-band-group' }, roles: ['secondary', 'environment'] },
+    { id: 'reactor-node-binding', target: { kind: 'group', id: 'reactor-node-group' }, roles: ['sparkle', 'atmosphere', 'percussion'] },
+    { id: 'reactor-cross-binding', target: { kind: 'group', id: 'reactor-cross-group' }, roles: ['outline', 'accent', 'percussion'] },
+    { id: 'reactor-checker-binding', target: { kind: 'group', id: 'reactor-checker-group' }, roles: ['background', 'environment'] },
+    { id: 'reactor-impact-binding', target: { kind: 'group', id: 'reactor-impact-group' }, roles: ['impact', 'transition'] },
+    { id: 'reactor-recruitment-binding', target: { kind: 'group', id: 'reactor-recruitment-group' }, roles: ['transition', 'background'] },
   ],
   banks: [
-    {
-      id: "reactor-hero-bank",
-      roles: ["hero"],
-      members: [{ kind: "group", id: "reactor-mid-group" }],
-    },
-    {
-      id: "reactor-bass-bank",
-      roles: ["bass"],
-      members: [{ kind: "group", id: "reactor-low-group" }],
-    },
-    {
-      id: "reactor-snare-bank",
-      roles: ["percussion"],
-      members: [{ kind: "group", id: "reactor-mid-group" }],
-    },
-    {
-      id: "reactor-hat-bank",
-      roles: ["sparkle"],
-      members: [{ kind: "group", id: "reactor-high-group" }],
-    },
-    {
-      id: "reactor-accent-bank",
-      roles: ["accent"],
-      members: [{ kind: "group", id: "reactor-high-group" }],
-    },
-    {
-      id: "reactor-recruitment-bank",
-      members: [
-        { kind: "group", id: "reactor-mid-group" },
-        { kind: "group", id: "reactor-high-group" },
-      ],
-    },
-    {
-      id: "reactor-transition-bank",
-      roles: ["transition"],
-      members: [{ kind: "group", id: "reactor-mid-group" }],
-    },
-    {
-      id: "reactor-impact-bank",
-      roles: ["impact"],
-      members: [{ kind: "group", id: "reactor-low-group" }],
-    },
+    { id: 'reactor-hero-bank', roles: ['hero'], members: [{ kind: 'group', id: 'reactor-core-group' }, { kind: 'group', id: 'reactor-outer-ring-group' }] },
+    { id: 'reactor-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'reactor-core-group' }, { kind: 'group', id: 'reactor-inner-ring-group' }] },
+    { id: 'reactor-snare-bank', roles: ['percussion'], members: [{ kind: 'group', id: 'reactor-cross-group' }] },
+    { id: 'reactor-hat-bank', roles: ['sparkle'], members: [{ kind: 'group', id: 'reactor-node-group' }] },
+    { id: 'reactor-accent-bank', roles: ['accent'], members: [{ kind: 'group', id: 'reactor-cross-group' }, { kind: 'group', id: 'reactor-chevron-group' }] },
+    { id: 'reactor-core-bank', members: [{ kind: 'group', id: 'reactor-core-group' }] },
+    { id: 'reactor-inner-ring-bank', members: [{ kind: 'group', id: 'reactor-inner-ring-group' }] },
+    { id: 'reactor-outer-ring-bank', members: [{ kind: 'group', id: 'reactor-outer-ring-group' }] },
+    { id: 'reactor-chevron-bank', members: [{ kind: 'group', id: 'reactor-chevron-group' }] },
+    { id: 'reactor-mid-band-bank', members: [{ kind: 'group', id: 'reactor-mid-band-group' }] },
+    { id: 'reactor-node-bank', members: [{ kind: 'group', id: 'reactor-node-group' }] },
+    { id: 'reactor-cross-bank', members: [{ kind: 'group', id: 'reactor-cross-group' }] },
+    { id: 'reactor-checker-bank', members: [{ kind: 'group', id: 'reactor-checker-group' }] },
+    { id: 'reactor-recruitment-bank', members: [{ kind: 'group', id: 'reactor-recruitment-group' }] },
+    { id: 'reactor-transition-bank', roles: ['transition'], members: [{ kind: 'group', id: 'reactor-outer-ring-group' }, { kind: 'group', id: 'reactor-chevron-group' }] },
+    { id: 'reactor-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'reactor-impact-group' }, { kind: 'group', id: 'reactor-core-group' }] },
   ],
-  ...sharedRoutes("reactor"),
+  ...geometricReactorRoutes(),
   musicalArcs: COMMON_ARCS,
-} satisfies Pick<
-  PixGridPerformanceProgram,
-  | "visualRoles"
-  | "bindings"
-  | "banks"
-  | "continuousRoutes"
-  | "eventRoutes"
-  | "musicalArcs"
->;
+} satisfies Pick<PixGridPerformanceProgram, 'visualRoles' | 'bindings' | 'banks' | 'continuousRoutes' | 'eventRoutes' | 'musicalArcs'>;
 
 const PARADE_ARCHITECTURE = {
   visualRoles: VISUAL_ROLES,
   bindings: [
-    {
-      id: "parade-character-binding",
-      target: { kind: "layer", id: "parade-pal" },
-      roles: ["hero", "character", "primary", "vocalFocus"],
-    },
-    {
-      id: "parade-eq-binding",
-      target: { kind: "layer", id: "parade-eq" },
-      roles: ["bass", "percussion", "secondary"],
-    },
-    {
-      id: "parade-orbit-binding",
-      target: { kind: "layer", id: "parade-orbit" },
-      roles: ["accent", "sparkle", "atmosphere"],
-    },
-    {
-      id: "parade-impact-binding",
-      target: { kind: "layer", id: "parade-burst" },
-      roles: ["impact", "transition"],
-    },
-    {
-      id: "parade-background-binding",
-      target: { kind: "group", id: "parade-background-group" },
-      roles: ["background", "environment"],
-    },
-    {
-      id: "parade-foreground-binding",
-      target: { kind: "group", id: "parade-foreground-group" },
-      roles: ["hero", "accent", "percussion"],
-    },
-    {
-      id: "parade-impact-group-binding",
-      target: { kind: "group", id: "parade-impact-group" },
-      roles: ["impact", "bass"],
-    },
+    { id: 'parade-hero-binding', target: { kind: 'group', id: 'parade-hero-group' }, roles: ['hero', 'character', 'primary', 'vocalFocus'] },
+    { id: 'parade-primary-binding', target: { kind: 'group', id: 'parade-foreground-group' }, roles: ['primary', 'character', 'percussion'] },
+    { id: 'parade-secondary-binding', target: { kind: 'group', id: 'parade-secondary-group' }, roles: ['secondary', 'character', 'accent'] },
+    { id: 'parade-ground-binding', target: { kind: 'group', id: 'parade-ground-group' }, roles: ['environment', 'bass'] },
+    { id: 'parade-background-binding', target: { kind: 'group', id: 'parade-background-group' }, roles: ['background', 'environment'] },
+    { id: 'parade-star-binding', target: { kind: 'group', id: 'parade-star-group' }, roles: ['sparkle', 'atmosphere', 'percussion'] },
+    { id: 'parade-prop-binding', target: { kind: 'group', id: 'parade-prop-group' }, roles: ['accent', 'percussion'] },
+    { id: 'parade-impact-binding', target: { kind: 'group', id: 'parade-impact-group' }, roles: ['impact', 'bass', 'transition'] },
+    { id: 'parade-recruitment-binding', target: { kind: 'group', id: 'parade-recruitment-group' }, roles: ['transition', 'character'] },
+    { id: 'parade-alternate-binding', target: { kind: 'group', id: 'parade-alternate-layout-group' }, roles: ['transition', 'environment'] },
   ],
   banks: [
-    {
-      id: "parade-hero-bank",
-      roles: ["hero"],
-      members: [{ kind: "group", id: "parade-foreground-group" }],
-    },
-    {
-      id: "parade-bass-bank",
-      roles: ["bass"],
-      members: [{ kind: "group", id: "parade-impact-group" }],
-    },
-    {
-      id: "parade-snare-bank",
-      roles: ["percussion"],
-      members: [{ kind: "group", id: "parade-foreground-group" }],
-    },
-    {
-      id: "parade-hat-bank",
-      roles: ["sparkle"],
-      members: [{ kind: "group", id: "parade-foreground-group" }],
-    },
-    {
-      id: "parade-accent-bank",
-      roles: ["accent"],
-      members: [{ kind: "group", id: "parade-foreground-group" }],
-    },
-    {
-      id: "parade-recruitment-bank",
-      members: [
-        { kind: "group", id: "parade-background-group" },
-        { kind: "group", id: "parade-foreground-group" },
-      ],
-    },
-    {
-      id: "parade-transition-bank",
-      roles: ["transition"],
-      members: [{ kind: "group", id: "parade-foreground-group" }],
-    },
-    {
-      id: "parade-impact-bank",
-      roles: ["impact"],
-      members: [{ kind: "group", id: "parade-impact-group" }],
-    },
+    { id: 'parade-hero-bank', roles: ['hero'], members: [{ kind: 'group', id: 'parade-hero-group' }] },
+    { id: 'parade-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'parade-impact-group' }, { kind: 'group', id: 'parade-ground-group' }] },
+    { id: 'parade-snare-bank', roles: ['percussion'], members: [{ kind: 'group', id: 'parade-prop-group' }] },
+    { id: 'parade-hat-bank', roles: ['sparkle'], members: [{ kind: 'group', id: 'parade-star-group' }] },
+    { id: 'parade-accent-bank', roles: ['accent'], members: [{ kind: 'group', id: 'parade-prop-group' }, { kind: 'group', id: 'parade-secondary-group' }] },
+    { id: 'parade-primary-bank', members: [{ kind: 'group', id: 'parade-foreground-group' }] },
+    { id: 'parade-travel-bank', members: [{ kind: 'group', id: 'parade-secondary-group' }, { kind: 'group', id: 'parade-ground-group' }] },
+    { id: 'parade-star-bank', members: [{ kind: 'group', id: 'parade-star-group' }] },
+    { id: 'parade-background-bank', members: [{ kind: 'group', id: 'parade-background-group' }] },
+    { id: 'parade-cast-bank', members: [{ kind: 'group', id: 'parade-hero-group' }, { kind: 'group', id: 'parade-foreground-group' }, { kind: 'group', id: 'parade-secondary-group' }] },
+    { id: 'parade-prop-bank', members: [{ kind: 'group', id: 'parade-prop-group' }] },
+    { id: 'parade-recruitment-bank', members: [{ kind: 'group', id: 'parade-recruitment-group' }] },
+    { id: 'parade-alternate-bank', members: [{ kind: 'group', id: 'parade-alternate-layout-group' }] },
+    { id: 'parade-transition-bank', roles: ['transition'], members: [{ kind: 'group', id: 'parade-alternate-layout-group' }, { kind: 'group', id: 'parade-hero-group' }] },
+    { id: 'parade-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'parade-impact-group' }] },
   ],
-  ...sharedRoutes("parade"),
+  ...pixelParadeRoutes(),
   musicalArcs: COMMON_ARCS,
-} satisfies Pick<
-  PixGridPerformanceProgram,
-  | "visualRoles"
-  | "bindings"
-  | "banks"
-  | "continuousRoutes"
-  | "eventRoutes"
-  | "musicalArcs"
->;
+} satisfies Pick<PixGridPerformanceProgram, 'visualRoles' | 'bindings' | 'banks' | 'continuousRoutes' | 'eventRoutes' | 'musicalArcs'>;
 
 const intro = (
   sceneId: string,
@@ -866,7 +833,7 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
         { type: "setLayerOpacity", layerId: "bass-word", opacity: 0.34 },
         { type: "setLayerActive", layerId: "bass-outline", active: true },
         { type: "setLayerOpacity", layerId: "bass-outline", opacity: 0.22 },
-        { type: "setLayerActive", layerId: "bass-burst", active: false },
+        { type: "setLayerOpacity", layerId: "bass-rings", opacity: 0.18 },
         { type: "setLayerActive", layerId: "bass-sparkles", active: false },
         { type: "setBackgroundState", state: "dim", brightness: 0.06 },
       ]),
@@ -912,7 +879,7 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
           groupId: "bass-hat-group",
           brightness: 0.28,
         },
-        { type: "setLayerActive", layerId: "bass-burst", active: false },
+        { type: "setLayerOpacity", layerId: "bass-rings", opacity: 0.24 },
       ]),
       fourBarActions: [
         [{ type: "shiftGroup", groupId: "bass-snare-group", x: -0.012 }],
@@ -1073,7 +1040,7 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
         ],
       ],
       eightBarRecruitment: [
-        [{ type: "recruitLayer", layerId: "bass-burst", opacity: 0.42 }],
+        [{ type: "recruitLayer", layerId: "bass-rings", opacity: 0.42 }],
         [
           { type: "recruitLayer", layerId: "bass-sparkles", opacity: 0.62 },
           {
@@ -1113,7 +1080,7 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
       priority: 45,
       actions: drop("pix-grid-bass-beacon-drop", [
         { type: "setPaletteRole", target: "all", role: "secondary" },
-        { type: "recruitLayer", layerId: "bass-burst", opacity: 0.62 },
+        { type: "recruitLayer", layerId: "bass-rings", opacity: 0.62 },
         { type: "recruitLayer", layerId: "bass-sparkles", opacity: 0.72 },
         {
           type: "setGroupBrightness",
@@ -1198,7 +1165,7 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
           groupId: "bass-body-group",
           brightness: 0.48,
         },
-        { type: "setLayerActive", layerId: "bass-burst", active: false },
+        { type: "setLayerActive", layerId: "bass-rings", active: false },
         { type: "setLayerActive", layerId: "bass-sparkles", active: false },
         { type: "changeAnimationSpeed", target: "all", multiplier: 0.42 },
         { type: "setPaletteRole", target: "all", role: "highlight" },
@@ -1215,7 +1182,7 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
           groupId: "bass-body-group",
           brightness: 0.42,
         },
-        { type: "setLayerActive", layerId: "bass-burst", active: false },
+        { type: "setLayerActive", layerId: "bass-rings", active: false },
         { type: "setLayerActive", layerId: "bass-sparkles", active: false },
       ]),
       exitActions: [{ type: "clear" }],
@@ -1260,17 +1227,17 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       actions: intro("pix-grid-geometric-reactor-intro", [
         {
           type: "setGroupBrightness",
-          groupId: "reactor-low-group",
+          groupId: "reactor-core-group",
           brightness: 0.46,
         },
         {
           type: "setGroupBrightness",
-          groupId: "reactor-mid-group",
+          groupId: "reactor-chevron-group",
           brightness: 0.36,
         },
         {
           type: "setGroupActive",
-          groupId: "reactor-high-group",
+          groupId: "reactor-node-group",
           active: false,
         },
         { type: "changeAnimationSpeed", target: "all", multiplier: 0.58 },
@@ -1279,13 +1246,13 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
         [
           {
             type: "reverseDirection",
-            target: { groupId: "reactor-low-group" },
+            target: { groupId: "reactor-core-group" },
           },
         ],
         [
           {
             type: "setPaletteRole",
-            target: { groupId: "reactor-mid-group" },
+            target: { groupId: "reactor-chevron-group" },
             role: "secondary",
           },
         ],
@@ -1298,17 +1265,17 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       actions: verse("pix-grid-geometric-reactor-verse", [
         {
           type: "setGroupBrightness",
-          groupId: "reactor-low-group",
+          groupId: "reactor-core-group",
           brightness: 0.72,
         },
         {
           type: "setGroupBrightness",
-          groupId: "reactor-mid-group",
+          groupId: "reactor-chevron-group",
           brightness: 0.62,
         },
         {
           type: "setGroupBrightness",
-          groupId: "reactor-high-group",
+          groupId: "reactor-node-group",
           brightness: 0.32,
         },
       ]),
@@ -1316,28 +1283,28 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
         [
           {
             type: "reverseDirection",
-            target: { groupId: "reactor-low-group" },
+            target: { groupId: "reactor-core-group" },
           },
         ],
-        [{ type: "shiftGroup", groupId: "reactor-mid-group", x: 0.014 }],
-        [{ type: "shiftGroup", groupId: "reactor-mid-group", x: -0.014 }],
+        [{ type: "shiftGroup", groupId: "reactor-chevron-group", x: 0.014 }],
+        [{ type: "shiftGroup", groupId: "reactor-chevron-group", x: -0.014 }],
         [
           {
             type: "triggerFrame",
-            target: { groupId: "reactor-high-group" },
+            target: { groupId: "reactor-node-group" },
             step: 0.16,
           },
         ],
       ],
       eventActions: {
         kick: [
-          { type: "flashGroup", groupId: "reactor-low-group", amount: 0.42 },
+          { type: "flashGroup", groupId: "reactor-core-group", amount: 0.42 },
         ],
         snare: [
-          { type: "flashGroup", groupId: "reactor-mid-group", amount: 0.38 },
+          { type: "flashGroup", groupId: "reactor-chevron-group", amount: 0.38 },
         ],
         hat: [
-          { type: "flashGroup", groupId: "reactor-high-group", amount: 0.2 },
+          { type: "flashGroup", groupId: "reactor-node-group", amount: 0.2 },
         ],
       },
     },
@@ -1359,14 +1326,14 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
         [
           {
             type: "setPaletteRole",
-            target: { groupId: "reactor-low-group" },
+            target: { groupId: "reactor-core-group" },
             role: "primary",
           },
         ],
         [
           {
             type: "setPaletteRole",
-            target: { groupId: "reactor-mid-group" },
+            target: { groupId: "reactor-chevron-group" },
             role: "secondary",
           },
         ],
@@ -1385,17 +1352,17 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       actions: drop("pix-grid-geometric-reactor-drop", [
         {
           type: "setGroupBrightness",
-          groupId: "reactor-low-group",
+          groupId: "reactor-core-group",
           brightness: 0.95,
         },
         {
           type: "setGroupBrightness",
-          groupId: "reactor-mid-group",
+          groupId: "reactor-chevron-group",
           brightness: 0.9,
         },
         {
           type: "setGroupBrightness",
-          groupId: "reactor-high-group",
+          groupId: "reactor-node-group",
           brightness: 0.72,
         },
       ]),
@@ -1403,29 +1370,29 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       bodyActions: [
         {
           type: "setGroupBrightness",
-          groupId: "reactor-mid-group",
+          groupId: "reactor-chevron-group",
           brightness: 0.9,
         },
       ],
       exitActions: [
-        { type: "dissolveGroup", groupId: "reactor-high-group", amount: 0.3 },
+        { type: "dissolveGroup", groupId: "reactor-node-group", amount: 0.3 },
       ],
       fourBarActions: [
         [
           {
             type: "reverseDirection",
-            target: { groupId: "reactor-low-group" },
+            target: { groupId: "reactor-core-group" },
           },
         ],
         [
           {
             type: "setPaletteRole",
-            target: { groupId: "reactor-mid-group" },
+            target: { groupId: "reactor-chevron-group" },
             role: "accent",
           },
         ],
-        [{ type: "shiftGroup", groupId: "reactor-high-group", y: -0.018 }],
-        [{ type: "shiftGroup", groupId: "reactor-high-group", y: 0.018 }],
+        [{ type: "shiftGroup", groupId: "reactor-node-group", y: -0.018 }],
+        [{ type: "shiftGroup", groupId: "reactor-node-group", y: 0.018 }],
       ],
       eightBarRecruitment: [
         [{ type: "recruitLayer", layerId: "reactor-checker", opacity: 0.3 }],
@@ -1445,13 +1412,13 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       ],
       eventActions: {
         kick: [
-          { type: "flashGroup", groupId: "reactor-low-group", amount: 0.64 },
+          { type: "flashGroup", groupId: "reactor-core-group", amount: 0.64 },
         ],
         snare: [
-          { type: "flashGroup", groupId: "reactor-mid-group", amount: 0.58 },
+          { type: "flashGroup", groupId: "reactor-chevron-group", amount: 0.58 },
         ],
         hat: [
-          { type: "flashGroup", groupId: "reactor-high-group", amount: 0.3 },
+          { type: "flashGroup", groupId: "reactor-node-group", amount: 0.3 },
         ],
         semanticMoment: [{ type: "reverseDirection", target: "all" }],
       },
@@ -1465,37 +1432,37 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
         { type: "setPaletteRole", target: "all", role: "secondary" },
         { type: "recruitLayer", layerId: "reactor-checker", opacity: 0.38 },
         { type: "recruitLayer", layerId: "reactor-orbits", opacity: 0.94 },
-        { type: "shiftGroup", groupId: "reactor-mid-group", y: -0.02 },
+        { type: "shiftGroup", groupId: "reactor-chevron-group", y: -0.02 },
       ]),
       entryActions: [{ type: "triggerFrame", target: "all", step: 0.4 }],
       bodyActions: [
         {
           type: "setGroupBrightness",
-          groupId: "reactor-high-group",
+          groupId: "reactor-node-group",
           brightness: 0.88,
         },
       ],
       exitActions: [
-        { type: "dissolveGroup", groupId: "reactor-mid-group", amount: 0.22 },
+        { type: "dissolveGroup", groupId: "reactor-chevron-group", amount: 0.22 },
       ],
       fourBarActions: [
         [
           {
             type: "reverseDirection",
-            target: { groupId: "reactor-mid-group" },
+            target: { groupId: "reactor-chevron-group" },
           },
         ],
         [
           {
             type: "setPaletteRole",
-            target: { groupId: "reactor-low-group" },
+            target: { groupId: "reactor-core-group" },
             role: "accent",
           },
         ],
         [
           {
             type: "changeAnimationSpeed",
-            target: { groupId: "reactor-high-group" },
+            target: { groupId: "reactor-node-group" },
             multiplier: 1.35,
           },
         ],
@@ -1505,7 +1472,7 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
         [
           {
             type: "setGroupBrightness",
-            groupId: "reactor-high-group",
+            groupId: "reactor-node-group",
             brightness: 0.84,
           },
         ],
@@ -1528,13 +1495,13 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       ],
       eventActions: {
         kick: [
-          { type: "flashGroup", groupId: "reactor-low-group", amount: 0.72 },
+          { type: "flashGroup", groupId: "reactor-core-group", amount: 0.72 },
         ],
         snare: [
-          { type: "flashGroup", groupId: "reactor-mid-group", amount: 0.66 },
+          { type: "flashGroup", groupId: "reactor-chevron-group", amount: 0.66 },
         ],
         hat: [
-          { type: "flashGroup", groupId: "reactor-high-group", amount: 0.36 },
+          { type: "flashGroup", groupId: "reactor-node-group", amount: 0.36 },
         ],
       },
     },
@@ -1545,17 +1512,17 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       actions: breakdown("pix-grid-geometric-reactor-breakdown", [
         {
           type: "setGroupBrightness",
-          groupId: "reactor-low-group",
+          groupId: "reactor-core-group",
           brightness: 0.52,
         },
         {
           type: "setGroupBrightness",
-          groupId: "reactor-mid-group",
+          groupId: "reactor-chevron-group",
           brightness: 0.3,
         },
         {
           type: "setGroupActive",
-          groupId: "reactor-high-group",
+          groupId: "reactor-node-group",
           active: false,
         },
         { type: "changeAnimationSpeed", target: "all", multiplier: 0.38 },
@@ -1574,7 +1541,7 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
         },
         {
           type: "setGroupActive",
-          groupId: "reactor-high-group",
+          groupId: "reactor-node-group",
           active: false,
         },
         { type: "changeAnimationSpeed", target: "all", multiplier: 0.28 },
@@ -1588,13 +1555,13 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       actions: verse("pix-grid-geometric-reactor-verse", [
         {
           type: "setGroupBrightness",
-          groupId: "reactor-low-group",
+          groupId: "reactor-core-group",
           brightness: 0.68,
         },
       ]),
       eventActions: {
         beat: [
-          { type: "flashGroup", groupId: "reactor-low-group", amount: 0.2 },
+          { type: "flashGroup", groupId: "reactor-core-group", amount: 0.2 },
         ],
       },
     },

@@ -368,11 +368,20 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
       : (value.backgroundMode as PixGridBackgroundMode)
   const layers = value.layers == null ? undefined : normalizePixGridLayers(value.layers, [])
   const groups = value.groups == null ? undefined : normalizeGroups(value.groups, 160, 90)
+  const audioAssignments = Array.isArray(value.audioAssignments)
+    ? value.audioAssignments.slice(0, MAX_PIX_GRID_AUDIO_ASSIGNMENTS).flatMap((assignment, assignmentIndex) => {
+        const normalized = normalizePixGridReactionAssignment(assignment, assignmentIndex, 'output')
+        return normalized ? [normalized] : []
+      })
+    : undefined
   const performanceProgramId = PERFORMANCE_PROGRAM_IDS.has(value.performanceProgramId as PixGridPerformanceProgramId)
     ? (value.performanceProgramId as PixGridPerformanceProgramId)
     : undefined
   const sceneSettings = normalizeSceneSettings(value.sceneSettings)
   return {
+    ...(value.authoredConfigurationVersion != null
+      ? { authoredConfigurationVersion: Math.max(1, Math.min(1_000, Math.round(finite(value.authoredConfigurationVersion, 1)))) }
+      : {}),
     pattern,
     ...(quality ? { quality } : {}),
     ...(backgroundMode ? { backgroundMode } : {}),
@@ -388,6 +397,7 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
     ...(value.selectedSceneId !== undefined ? { selectedSceneId: nullableId(value.selectedSceneId) } : {}),
     ...(layers ? { layers } : {}),
     ...(groups ? { groups } : {}),
+    ...(audioAssignments ? { audioAssignments } : {}),
     ...(performanceProgramId ? { performanceProgramId } : {}),
     ...(sceneSettings ? { sceneSettings } : {}),
   }

@@ -57,6 +57,9 @@ export type PixGridAnimationMode =
 
 export type PixGridBuiltInAssetId =
   | 'pix-bass-word'
+  | 'pix-bass-letter-b'
+  | 'pix-bass-letter-a'
+  | 'pix-bass-letter-s'
   | 'pix-five-point-star'
   | 'pix-multi-star-field'
   | 'pix-equalizer-bars'
@@ -332,6 +335,8 @@ export interface PixGridRuntimeDiagnosticsSettings {
 }
 
 export interface PixGridPresetSettings {
+  /** Version of the authored first-party preset configuration. */
+  authoredConfigurationVersion?: number
   pattern: PixGridPatternId
   quality?: PixGridQualityTier
   backgroundMode?: PixGridBackgroundMode
@@ -347,6 +352,8 @@ export interface PixGridPresetSettings {
   selectedSceneId?: string | null
   layers?: PixGridLayer[]
   groups?: PixGridGroup[]
+  /** Editable authored routes that are not owned by a specific smart group. */
+  audioAssignments?: PixGridReactionAssignment[]
   performanceProgramId?: PixGridPerformanceProgramId
   sceneSettings?: Record<string, PixGridSceneSettings>
 }

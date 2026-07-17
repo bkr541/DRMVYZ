@@ -105,7 +105,7 @@ function alphaBounds(pixels: Uint8Array, width: number, height: number) {
 describe('PixGrid built-in artwork manifest', () => {
   it('contains a typed, unique, internally generated starter library', () => {
     const ids = PIX_GRID_BUILT_IN_ASSETS.map(asset => asset.id)
-    expect(PIX_GRID_BUILT_IN_ASSETS).toHaveLength(15)
+    expect(PIX_GRID_BUILT_IN_ASSETS).toHaveLength(18)
     expect(new Set(ids).size).toBe(ids.length)
     expect(PIX_GRID_BUILT_IN_ASSET_BY_ID.size).toBe(ids.length)
 
@@ -274,7 +274,7 @@ describe('PixGrid finished presets', () => {
     }
 
     const quiet = { ...FRAME, beatHit: false, kickHit: false, snareHit: false, hatHit: false }
-    const [kickQuiet, kickActive] = energy('bass-burst', quiet, { ...quiet, kickHit: true })
+    const [kickQuiet, kickActive] = energy('bass-word', quiet, { ...quiet, kickHit: true })
     const [snareQuiet, snareActive] = energy('bass-outline', quiet, { ...quiet, snareHit: true })
     const [hatQuiet, hatActive] = energy('bass-sparkles', quiet, { ...quiet, hatHit: true })
 

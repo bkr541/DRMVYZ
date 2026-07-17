@@ -613,7 +613,7 @@ describe("PixGrid native Performance Program architecture", () => {
       BASS_BEACON_PERFORMANCE_PROGRAM,
       missing,
     );
-    expect(compiled.missingBindings).toContain("bank:bass-snare-bank");
+    expect(compiled.missingBindings).not.toContain("bank:bass-snare-bank");
     expect(
       compiled.missingBindings.some((binding) =>
         binding.endsWith("action:group:bass-snare-group"),
@@ -630,9 +630,10 @@ describe("PixGrid native Performance Program architecture", () => {
     ).toBe(false);
     expect(
       compiled.assignments.some((assignment) =>
-        assignment.id.includes("snare-outline"),
+        assignment.id.includes("snare-outline") &&
+        assignment.targetId === "bass-side-accent-group",
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       compiled.assignments.some(
         (assignment) =>

@@ -1,5 +1,13 @@
 import type { ReactPreset, ReactSectionMapping, ReactSectionType } from '../ReactTypes'
-import type { PixGridGroup, PixGridLayer, PixGridPresetSettings, PixGridSceneSettings } from './PixGridTypes'
+import {
+  BASS_BEACON_AUDIO_ASSIGNMENTS,
+  BASS_BEACON_GROUPS,
+  GEOMETRIC_REACTOR_AUDIO_ASSIGNMENTS,
+  GEOMETRIC_REACTOR_GROUPS,
+  PIXEL_PARADE_AUDIO_ASSIGNMENTS,
+  PIXEL_PARADE_GROUPS,
+} from './PixGridAuthoredPresetAssignments'
+import type { PixGridLayer, PixGridPresetSettings, PixGridSceneSettings } from './PixGridTypes'
 
 export const PIX_GRID_PRESET_IDS = [
   'pix-grid-bass-beacon',
@@ -8,6 +16,8 @@ export const PIX_GRID_PRESET_IDS = [
 ] as const
 
 export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
+
+export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 4 as const
 
 const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'drop', 'breakdown', 'outro']
 
@@ -66,52 +76,17 @@ function layer(
   }
 }
 
-function performanceGroup(id: string, name: string, layerIds: string[], displayColor: string): PixGridGroup {
-  return {
-    id,
-    name,
-    source: 'layerAlpha',
-    mask: { kind: 'layerAlpha', threshold: 0.04, foreground: true },
-    cellRuns: [],
-    layerId: layerIds[0] ?? null,
-    layerScope: layerIds,
-    smartRuleId: 'layerAlpha',
-    enabled: true,
-    visible: true,
-    priority: 0,
-    overlapBehavior: 'stack',
-    reactions: [],
-    displayColor,
-  }
-}
-
-const BASS_BEACON_GROUPS: PixGridGroup[] = [
-  performanceGroup('bass-body-group', 'BASS Body', ['bass-word', 'bass-rings'], '#36d9ff'),
-  performanceGroup('bass-kick-group', 'Kick Body', ['bass-burst', 'bass-rings'], '#39e69b'),
-  performanceGroup('bass-snare-group', 'Snare Outline', ['bass-outline', 'bass-side-chevrons-left', 'bass-side-chevrons-right'], '#f2feff'),
-  performanceGroup('bass-hat-group', 'Hat Accents', ['bass-sparkles'], '#d8b95a'),
-]
-
-const GEOMETRIC_REACTOR_GROUPS: PixGridGroup[] = [
-  performanceGroup('reactor-low-group', 'Low Geometry', ['reactor-rings', 'reactor-diamond'], '#a969ff'),
-  performanceGroup('reactor-mid-group', 'Mid Geometry', ['reactor-tunnel', 'reactor-chevrons'], '#30d7ff'),
-  performanceGroup('reactor-high-group', 'High Geometry', ['reactor-cross', 'reactor-orbits', 'reactor-checker'], '#f2c45c'),
-]
-
-const PIXEL_PARADE_GROUPS: PixGridGroup[] = [
-  performanceGroup('parade-foreground-group', 'Foreground Cast', ['parade-star-left', 'parade-pal', 'parade-orbit'], '#ff6d7f'),
-  performanceGroup('parade-background-group', 'Background Lanes', ['parade-stars', 'parade-wave-top', 'parade-wave-bottom'], '#43d9ff'),
-  performanceGroup('parade-impact-group', 'Impact Crew', ['parade-eq', 'parade-burst'], '#ffd35c'),
-]
-
-function sceneSettings(prefix: string, custom: Partial<Record<ReactSectionType, Partial<PixGridSceneSettings>>> = {}): Record<string, PixGridSceneSettings> {
+function sceneSettings(
+  prefix: string,
+  custom: Partial<Record<ReactSectionType, Partial<PixGridSceneSettings>>> = {},
+): Record<string, PixGridSceneSettings> {
   const base: Partial<Record<ReactSectionType, PixGridSceneSettings>> = {
-    intro: { density: 0.38, motionMultiplier: 0.45, paletteOffset: 0 },
-    verse: { density: 0.58, motionMultiplier: 0.75, paletteOffset: 0 },
-    build: { density: 0.82, motionMultiplier: 1.15, paletteOffset: 1 },
-    drop: { density: 1, motionMultiplier: 1.55, paletteOffset: 0 },
-    breakdown: { density: 0.46, motionMultiplier: 0.35, paletteOffset: 2 },
-    outro: { density: 0.28, motionMultiplier: 0.24, paletteOffset: 0 },
+    intro: { density: 0.34, motionMultiplier: 0.42, paletteOffset: 0 },
+    verse: { density: 0.58, motionMultiplier: 0.72, paletteOffset: 0 },
+    build: { density: 0.82, motionMultiplier: 1.12, paletteOffset: 1 },
+    drop: { density: 1, motionMultiplier: 1.5, paletteOffset: 0 },
+    breakdown: { density: 0.44, motionMultiplier: 0.34, paletteOffset: 2 },
+    outro: { density: 0.26, motionMultiplier: 0.22, paletteOffset: 0 },
   }
   return Object.fromEntries(SECTION_TYPES.map(type => [
     `${prefix}-${type}`,
@@ -120,127 +95,253 @@ function sceneSettings(prefix: string, custom: Partial<Record<ReactSectionType, 
 }
 
 const BASS_BEACON_LAYERS: PixGridLayer[] = [
-  layer('bass-rings', 'Bass Pressure Rings', 'pix-concentric-rings', {
-    opacity: 0.55, scale: { x: 0.42, y: 0.74 }, blendMode: 'add', zIndex: 1, densityRank: 0.2,
+  layer('bass-rings', 'Sub Pressure Rings', 'pix-concentric-rings', {
+    opacity: 0.3,
+    scale: { x: 0.42, y: 0.74 },
+    blendMode: 'add',
+    zIndex: 1,
+    densityRank: 0.22,
     paletteMap: { primary: 'secondary', secondary: 'primary' },
-    animations: [animation('pulse', 0.32, 0.12), animation('audioAmplitudeScale', 1, 0.28, { audioSource: 'bass' })],
-    audioReactivity: { brightnessSource: 'bass', brightnessAmount: 0.7, beatImpact: 0.28 },
+    animations: [animation('pulse', 0.28, 0.08), animation('rotate', 0.05, 0.25)],
+    seed: 101,
   }),
-  layer('bass-burst', 'Kick Burst', 'pix-pixel-burst', {
-    opacity: 0.32, scale: { x: 0.52, y: 0.92 }, blendMode: 'add', zIndex: 2, densityRank: 0.72,
-    paletteMap: { accent: 'secondary', highlight: 'highlight' },
-    animations: [animation('rotate', 0.1, 0.25), animation('audioAmplitudeScale', 1, 0.24, { audioSource: 'kick' })],
-    audioReactivity: { brightnessSource: 'kick', brightnessAmount: 0.9, beatImpact: 0.9 },
-  }),
-  layer('bass-outline', 'Snare Outline', 'pix-bass-word', {
-    opacity: 0.42, scale: { x: 0.67, y: 0.36 }, blendMode: 'add', zIndex: 3, densityRank: 0.38,
+  layer('bass-outline', 'Typography Outline', 'pix-bass-word', {
+    opacity: 0.24,
+    scale: { x: 0.68, y: 0.37 },
+    blendMode: 'add',
+    zIndex: 3,
+    densityRank: 0.28,
     paletteMap: { primary: 'highlight', highlight: 'accent' },
-    animations: [animation('pulse', 0.5, 0.025, { phase: 0.25 })],
-    audioReactivity: { brightnessSource: 'snare', brightnessAmount: 0.94 },
+    animations: [animation('pulse', 0.36, 0.018, { phase: 0.25 })],
+    seed: 307,
   }),
-  layer('bass-word', 'BASS Body', 'pix-bass-word', {
-    scale: { x: 0.61, y: 0.31 }, zIndex: 4, densityRank: 0,
+  layer('bass-word', 'BASS Hero Body', 'pix-bass-word', {
+    scale: { x: 0.61, y: 0.31 },
+    zIndex: 4,
+    densityRank: 0,
     paletteMap: { primary: 'primary', highlight: 'highlight' },
-    animations: [animation('audioAmplitudeScale', 1, 0.11, { audioSource: 'bass' })],
-    audioReactivity: { brightnessSource: 'bass', brightnessAmount: 0.36, scaleSource: 'bass', scaleAmount: 0.08, beatImpact: 0.2 },
+    animations: [animation('pulse', 0.18, 0.012)],
+    seed: 401,
   }),
-  layer('bass-side-chevrons-left', 'Left Impact Chevrons', 'pix-diagonal-chevrons', {
-    position: { x: 0.12, y: 0.5 }, scale: { x: 0.18, y: 0.58 }, rotation: 90,
-    opacity: 0.55, blendMode: 'add', zIndex: 5, densityRank: 0.5,
-    animations: [animation('pingPong', 0.7, 0.045, { axis: 'x', boundary: 'clamp' })],
-    audioReactivity: { brightnessSource: 'snare', brightnessAmount: 0.8 },
+  layer('bass-letter-b', 'Letter B Highlight', 'pix-bass-letter-b', {
+    position: { x: 0.262, y: 0.5 },
+    scale: { x: 0.133, y: 0.31 },
+    opacity: 0.2,
+    blendMode: 'add',
+    zIndex: 5,
+    densityRank: 0.5,
+    paletteMap: { primary: 'secondary', highlight: 'highlight' },
+    animations: [animation('pulse', 0.22, 0.018, { phase: 0 })],
+    seed: 503,
   }),
-  layer('bass-side-chevrons-right', 'Right Impact Chevrons', 'pix-diagonal-chevrons', {
-    position: { x: 0.88, y: 0.5 }, scale: { x: 0.18, y: 0.58 }, rotation: -90, flipX: true,
-    opacity: 0.55, blendMode: 'add', zIndex: 5, densityRank: 0.5,
-    animations: [animation('pingPong', 0.7, 0.045, { axis: 'x', boundary: 'clamp', phase: 0.5 })],
-    audioReactivity: { brightnessSource: 'snare', brightnessAmount: 0.8 },
+  layer('bass-letter-a', 'Letter A Highlight', 'pix-bass-letter-a', {
+    position: { x: 0.421, y: 0.5 },
+    scale: { x: 0.133, y: 0.31 },
+    opacity: 0.2,
+    blendMode: 'add',
+    zIndex: 5,
+    densityRank: 0.56,
+    paletteMap: { primary: 'accent', highlight: 'highlight' },
+    animations: [animation('pulse', 0.22, 0.018, { phase: 0.25 })],
+    seed: 509,
   }),
-  layer('bass-sparkles', 'Hat Sparkles', 'pix-multi-star-field', {
-    opacity: 0.46, scale: { x: 1, y: 1 }, blendMode: 'add', zIndex: 6, densityRank: 0.68, seed: 731,
-    animations: [animation('frameCycle', 7, 1), animation('checkerAlternate', 4, 1)],
-    audioReactivity: { brightnessSource: 'hat', brightnessAmount: 0.96 },
+  layer('bass-letter-s-left', 'First S Highlight', 'pix-bass-letter-s', {
+    position: { x: 0.579, y: 0.5 },
+    scale: { x: 0.133, y: 0.31 },
+    opacity: 0.2,
+    blendMode: 'add',
+    zIndex: 5,
+    densityRank: 0.62,
+    paletteMap: { primary: 'secondary', highlight: 'highlight' },
+    animations: [animation('pulse', 0.22, 0.018, { phase: 0.5 })],
+    seed: 521,
+  }),
+  layer('bass-letter-s-right', 'Final S Highlight', 'pix-bass-letter-s', {
+    position: { x: 0.738, y: 0.5 },
+    scale: { x: 0.133, y: 0.31 },
+    opacity: 0.2,
+    blendMode: 'add',
+    zIndex: 5,
+    densityRank: 0.68,
+    paletteMap: { primary: 'accent', highlight: 'highlight' },
+    animations: [animation('pulse', 0.22, 0.018, { phase: 0.75 })],
+    seed: 523,
+  }),
+  layer('bass-side-chevrons-left', 'Left Snare Accents', 'pix-diagonal-chevrons', {
+    position: { x: 0.115, y: 0.5 },
+    scale: { x: 0.16, y: 0.54 },
+    rotation: 90,
+    opacity: 0.34,
+    blendMode: 'add',
+    zIndex: 6,
+    densityRank: 0.58,
+    animations: [animation('pingPong', 0.48, 0.03, { axis: 'x', boundary: 'clamp' })],
+    seed: 601,
+  }),
+  layer('bass-side-chevrons-right', 'Right Snare Accents', 'pix-diagonal-chevrons', {
+    position: { x: 0.885, y: 0.5 },
+    scale: { x: 0.16, y: 0.54 },
+    rotation: -90,
+    flipX: true,
+    opacity: 0.34,
+    blendMode: 'add',
+    zIndex: 6,
+    densityRank: 0.58,
+    animations: [animation('pingPong', 0.48, 0.03, { axis: 'x', boundary: 'clamp', phase: 0.5 })],
+    seed: 607,
+  }),
+  layer('bass-sparkles', 'Air and Hat Details', 'pix-multi-star-field', {
+    opacity: 0.26,
+    scale: { x: 1, y: 1 },
+    blendMode: 'add',
+    zIndex: 7,
+    densityRank: 0.74,
+    seed: 731,
+    animations: [animation('frameCycle', 4.5, 1), animation('checkerAlternate', 2, 1)],
   }),
 ]
 
 const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
-  layer('reactor-checker', 'Reactor Floor', 'pix-checkerboard', {
-    opacity: 0.2, scale: { x: 1, y: 1 }, blendMode: 'multiply', zIndex: 0, densityRank: 0.55,
-    animations: [animation('checkerAlternate', 1.5, 1), animation('paletteCycle', 0.18, 1)],
-    audioReactivity: { brightnessSource: 'high', brightnessAmount: 0.55 },
+  layer('reactor-checker', 'Checker Background Field', 'pix-checkerboard', {
+    opacity: 0.13,
+    scale: { x: 1, y: 1 },
+    blendMode: 'multiply',
+    zIndex: 0,
+    densityRank: 0.62,
+    animations: [animation('checkerAlternate', 0.9, 1), animation('paletteCycle', 0.1, 1)],
+    seed: 811,
   }),
-  layer('reactor-tunnel', 'Geometric Tunnel', 'pix-geometric-tunnel', {
-    opacity: 0.72, scale: { x: 0.96, y: 0.96 }, blendMode: 'add', zIndex: 1, densityRank: 0.1,
-    animations: [animation('frameCycle', 2.2, 1), animation('audioAmplitudeScale', 1, 0.12, { audioSource: 'bass' })],
-    audioReactivity: { brightnessSource: 'mid', brightnessAmount: 0.55 },
+  layer('reactor-tunnel', 'Outer Tunnel Structure', 'pix-geometric-tunnel', {
+    opacity: 0.58,
+    scale: { x: 0.94, y: 0.94 },
+    blendMode: 'add',
+    zIndex: 1,
+    densityRank: 0.08,
+    animations: [animation('frameCycle', 1.7, 1), animation('pulse', 0.16, 0.025)],
+    seed: 821,
   }),
-  layer('reactor-rings', 'Reactor Rings', 'pix-concentric-rings', {
-    opacity: 0.68, scale: { x: 0.42, y: 0.76 }, blendMode: 'add', zIndex: 2, densityRank: 0.25,
-    animations: [animation('rotate', 0.18, 0.5), animation('paletteCycle', 0.3, 1)],
-    audioReactivity: { brightnessSource: 'bass', brightnessAmount: 0.65, scaleSource: 'bass', scaleAmount: 0.14 },
+  layer('reactor-rings', 'Inner Reactor Rings', 'pix-concentric-rings', {
+    opacity: 0.62,
+    scale: { x: 0.42, y: 0.76 },
+    blendMode: 'add',
+    zIndex: 2,
+    densityRank: 0.22,
+    animations: [animation('rotate', 0.14, 0.5), animation('paletteCycle', 0.2, 1)],
+    seed: 823,
   }),
-  layer('reactor-chevrons', 'Midband Chevrons', 'pix-diagonal-chevrons', {
-    opacity: 0.74, scale: { x: 0.78, y: 0.52 }, blendMode: 'add', zIndex: 3, densityRank: 0.48,
-    animations: [animation('horizontalScroll', 0.12, 0.12), animation('paletteCycle', 0.22, 1)],
-    audioReactivity: { brightnessSource: 'mid', brightnessAmount: 0.82 },
+  layer('reactor-chevrons', 'Mid-Band Chevrons', 'pix-diagonal-chevrons', {
+    opacity: 0.58,
+    scale: { x: 0.78, y: 0.52 },
+    blendMode: 'add',
+    zIndex: 3,
+    densityRank: 0.46,
+    animations: [animation('horizontalScroll', 0.09, 0.1), animation('paletteCycle', 0.15, 1)],
+    seed: 827,
   }),
-  layer('reactor-diamond', 'Central Diamond', 'pix-diamond', {
-    scale: { x: 0.3, y: 0.54 }, blendMode: 'add', zIndex: 4, densityRank: 0,
-    animations: [animation('rotate', 0.28, -0.5, { stepped: true }), animation('audioAmplitudeScale', 1, 0.22, { audioSource: 'bass' })],
-    audioReactivity: { brightnessSource: 'bass', brightnessAmount: 0.5, beatImpact: 0.35 },
+  layer('reactor-diamond', 'Center Core', 'pix-diamond', {
+    scale: { x: 0.3, y: 0.54 },
+    blendMode: 'add',
+    zIndex: 4,
+    densityRank: 0,
+    animations: [animation('rotate', 0.2, -0.5, { stepped: true }), animation('pulse', 0.2, 0.025)],
+    seed: 829,
   }),
-  layer('reactor-cross', 'High-Frequency Cross', 'pix-cross', {
-    opacity: 0.7, scale: { x: 0.18, y: 0.32 }, blendMode: 'add', zIndex: 5, densityRank: 0.72,
-    animations: [animation('blink', 4, 0.32), animation('rotate', 0.5, 0.25, { stepped: true })],
-    audioReactivity: { brightnessSource: 'high', brightnessAmount: 0.92 },
+  layer('reactor-cross', 'Cross Impact Accents', 'pix-cross', {
+    opacity: 0.5,
+    scale: { x: 0.18, y: 0.32 },
+    blendMode: 'add',
+    zIndex: 5,
+    densityRank: 0.72,
+    animations: [animation('blink', 2.4, 0.22), animation('rotate', 0.34, 0.25, { stepped: true })],
+    seed: 839,
   }),
-  layer('reactor-orbits', 'Orbiting Nodes', 'pix-orbiting-dots', {
-    opacity: 0.82, scale: { x: 0.54, y: 0.96 }, blendMode: 'add', zIndex: 6, densityRank: 0.82,
-    animations: [animation('frameCycle', 3.6, 1), animation('rotate', 0.12, 0.5)],
-    audioReactivity: { brightnessSource: 'high', brightnessAmount: 0.55 },
+  layer('reactor-orbits', 'High-Frequency Nodes', 'pix-orbiting-dots', {
+    opacity: 0.68,
+    scale: { x: 0.54, y: 0.96 },
+    blendMode: 'add',
+    zIndex: 6,
+    densityRank: 0.82,
+    animations: [animation('frameCycle', 2.8, 1), animation('rotate', 0.09, 0.5)],
+    seed: 853,
   }),
 ]
 
 const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
-  layer('parade-stars', 'Parade Sky', 'pix-multi-star-field', {
-    opacity: 0.38, scale: { x: 1, y: 1 }, blendMode: 'add', zIndex: 0, densityRank: 0.32, seed: 212,
-    animations: [animation('frameCycle', 5, 1), animation('horizontalScroll', 0.035, -0.08)],
-    audioReactivity: { brightnessSource: 'high', brightnessAmount: 0.7 },
+  layer('parade-stars', 'Parade Sky and Particles', 'pix-multi-star-field', {
+    opacity: 0.28,
+    scale: { x: 1, y: 1 },
+    blendMode: 'add',
+    zIndex: 0,
+    densityRank: 0.34,
+    seed: 212,
+    animations: [animation('frameCycle', 3.8, 1), animation('horizontalScroll', 0.025, 0.08)],
   }),
-  layer('parade-wave-top', 'Top Parade Lane', 'pix-wave-line', {
-    position: { x: 0.5, y: 0.2 }, scale: { x: 1, y: 0.22 }, opacity: 0.62, blendMode: 'add', zIndex: 1, densityRank: 0.45,
-    animations: [animation('frameCycle', 4, 1), animation('horizontalScroll', 0.08, 0.08)],
-    audioReactivity: { brightnessSource: 'high', brightnessAmount: 0.62 },
+  layer('parade-wave-top', 'Upper Parade Lane', 'pix-wave-line', {
+    position: { x: 0.5, y: 0.24 },
+    scale: { x: 0.94, y: 0.18 },
+    opacity: 0.44,
+    blendMode: 'add',
+    zIndex: 1,
+    densityRank: 0.2,
+    animations: [animation('horizontalScroll', 0.08, 0.12), animation('frameCycle', 1.6, 1)],
+    seed: 907,
   }),
-  layer('parade-wave-bottom', 'Bottom Parade Lane', 'pix-wave-line', {
-    position: { x: 0.5, y: 0.82 }, scale: { x: 1, y: 0.22 }, opacity: 0.62, blendMode: 'add', zIndex: 1, densityRank: 0.45, flipX: true,
-    animations: [animation('frameCycle', 4, 1, { phase: 0.5 }), animation('horizontalScroll', 0.08, -0.08)],
-    audioReactivity: { brightnessSource: 'high', brightnessAmount: 0.62 },
+  layer('parade-wave-bottom', 'Ground and Baseline', 'pix-wave-line', {
+    position: { x: 0.5, y: 0.78 },
+    scale: { x: 1, y: 0.2 },
+    opacity: 0.5,
+    blendMode: 'add',
+    zIndex: 2,
+    densityRank: 0.12,
+    flipY: true,
+    animations: [animation('horizontalScroll', -0.07, 0.12), animation('frameCycle', 1.4, 1, { phase: 0.5 })],
+    seed: 911,
   }),
-  layer('parade-star-left', 'Lead Star', 'pix-five-point-star', {
-    position: { x: 0.2, y: 0.52 }, scale: { x: 0.2, y: 0.36 }, blendMode: 'add', zIndex: 3, densityRank: 0,
-    animations: [animation('beatStepMovement', 1.8, 0.08, { axis: 'x', boundary: 'bounce' }), animation('pulse', 0.7, 0.08)],
-    audioReactivity: { brightnessSource: 'bass', brightnessAmount: 0.42, beatImpact: 0.28 },
+  layer('parade-star-left', 'Primary Star Participant', 'pix-five-point-star', {
+    position: { x: 0.22, y: 0.55 },
+    scale: { x: 0.18, y: 0.32 },
+    blendMode: 'add',
+    zIndex: 3,
+    densityRank: 0.08,
+    animations: [animation('bounce', 1.05, 0.05), animation('rotate', 0.08, 0.25)],
+    seed: 919,
   }),
-  layer('parade-pal', 'Pixel Pal', 'pix-mascot-face', {
-    position: { x: 0.5, y: 0.56 }, scale: { x: 0.26, y: 0.38 }, zIndex: 4, densityRank: 0.18,
-    animations: [animation('frameCycle', 2.4, 1), animation('bounce', 0.8, 0.055, { axis: 'y', boundary: 'clamp' })],
-    audioReactivity: { brightnessSource: 'mid', brightnessAmount: 0.38, scaleSource: 'bass', scaleAmount: 0.06 },
+  layer('parade-pal', 'Hero Pixel Pal', 'pix-mascot-face', {
+    position: { x: 0.47, y: 0.54 },
+    scale: { x: 0.24, y: 0.36 },
+    zIndex: 4,
+    densityRank: 0,
+    animations: [animation('frameCycle', 2.2, 1), animation('bounce', 1.1, 0.045)],
+    seed: 929,
   }),
-  layer('parade-orbit', 'Orbit Crew', 'pix-orbiting-dots', {
-    position: { x: 0.78, y: 0.5 }, scale: { x: 0.25, y: 0.44 }, opacity: 0.85, blendMode: 'add', zIndex: 5, densityRank: 0.56,
-    animations: [animation('frameCycle', 4, 1), animation('beatStepMovement', 1.5, -0.05, { axis: 'x', boundary: 'bounce' })],
-    audioReactivity: { brightnessSource: 'high', brightnessAmount: 0.65 },
+  layer('parade-orbit', 'Secondary Orbit Participant', 'pix-orbiting-dots', {
+    position: { x: 0.73, y: 0.53 },
+    scale: { x: 0.22, y: 0.4 },
+    opacity: 0.72,
+    blendMode: 'add',
+    zIndex: 5,
+    densityRank: 0.58,
+    animations: [animation('frameCycle', 2.6, 1), animation('pingPong', 0.34, 0.035, { axis: 'y', boundary: 'bounce' })],
+    seed: 937,
   }),
-  layer('parade-eq', 'Parade Equalizer', 'pix-equalizer-bars', {
-    position: { x: 0.5, y: 0.88 }, scale: { x: 0.72, y: 0.18 }, opacity: 0.72, blendMode: 'add', zIndex: 6, densityRank: 0.72,
-    animations: [animation('frameCycle', 6, 1), animation('paletteCycle', 0.5, 1)],
-    audioReactivity: { brightnessSource: 'volume', brightnessAmount: 0.8, scaleSource: 'bass', scaleAmount: 0.08 },
+  layer('parade-eq', 'Equalizer Float and Props', 'pix-equalizer-bars', {
+    position: { x: 0.5, y: 0.82 },
+    scale: { x: 0.62, y: 0.2 },
+    opacity: 0.58,
+    blendMode: 'add',
+    zIndex: 6,
+    densityRank: 0.7,
+    animations: [animation('frameCycle', 2.8, 1), animation('horizontalScroll', 0.035, 0.05)],
+    seed: 941,
   }),
-  layer('parade-burst', 'Drop Confetti Burst', 'pix-pixel-burst', {
-    opacity: 0.44, scale: { x: 0.82, y: 1.3 }, blendMode: 'add', zIndex: 7, densityRank: 0.9,
-    animations: [animation('rotate', 0.12, 0.5), animation('frameCycle', 3, 1)],
-    audioReactivity: { brightnessSource: 'bass', brightnessAmount: 0.7, beatImpact: 0.65 },
+  layer('parade-burst', 'Bounded Parade Impact', 'pix-pixel-burst', {
+    opacity: 0.24,
+    scale: { x: 0.78, y: 1.2 },
+    blendMode: 'add',
+    zIndex: 7,
+    densityRank: 0.9,
+    animations: [animation('rotate', 0.08, 0.5), animation('frameCycle', 2.2, 1)],
+    seed: 947,
   }),
 ]
 
@@ -262,7 +363,10 @@ function preset(
     palette,
     params,
     renderSettings: { trailDecay: 0, fogDensity: 0, particleDensity: 0 },
-    pixGridSettings,
+    pixGridSettings: {
+      authoredConfigurationVersion: PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION,
+      ...pixGridSettings,
+    },
     scenes: createScenes(prefix, sceneValues.intensity, sceneValues.motion, sceneValues.glow),
     sectionMappings: createMappings(prefix),
   }
@@ -272,66 +376,188 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
   preset(
     'pix-grid-bass-beacon',
     'Bass Beacon',
-    'Bold BASS typography, pressure rings, kick expansion, snare-side impacts, and deterministic hat sparkles.',
+    'Crisp BASS typography with masked letter banks, phrase-travel highlights, bounded percussion impacts, and full-song row recruitment.',
     'pix-grid-bass-beacon',
     { primary: '#36d9ff', secondary: '#39e69b', accent: '#d8b95a', background: '#020608', highlight: '#f2feff', text: '#e8f4f8' },
     { intensity: 0.86, motion: 0.62, glow: 0.72, bassReactivity: 0.95 },
     {
-      pattern: 'bassBeacon', quality: 'high', backgroundMode: 'preset', backgroundColor: '#020608',
-      backgroundBrightness: 0.12, cellGap: 0.18, cellRoundness: 0.2, cellBrightness: 0.9,
-      globalIntensity: 0.92, glowAmount: 0.42, diffusion: 0.14, rgbSubpixelMode: false,
-      selectedSceneId: 'pix-grid-bass-beacon-intro', layers: BASS_BEACON_LAYERS, groups: BASS_BEACON_GROUPS,
+      pattern: 'bassBeacon',
+      quality: 'high',
+      backgroundMode: 'preset',
+      backgroundColor: '#020608',
+      backgroundBrightness: 0.08,
+      cellGap: 0.18,
+      cellRoundness: 0.2,
+      cellBrightness: 0.9,
+      globalIntensity: 0.9,
+      glowAmount: 0.36,
+      diffusion: 0.12,
+      rgbSubpixelMode: false,
+      selectedSceneId: 'pix-grid-bass-beacon-intro',
+      layers: BASS_BEACON_LAYERS,
+      groups: BASS_BEACON_GROUPS,
+      audioAssignments: BASS_BEACON_AUDIO_ASSIGNMENTS,
       performanceProgramId: 'pix-grid-bass-beacon-performance',
       sceneSettings: sceneSettings('pix-grid-bass-beacon', {
-        breakdown: { hiddenLayerIds: ['bass-burst', 'bass-sparkles'], layerOpacity: { 'bass-word': 0.78 } },
-        outro: { hiddenLayerIds: ['bass-burst', 'bass-sparkles', 'bass-side-chevrons-left', 'bass-side-chevrons-right'] },
+        intro: {
+          density: 0.34,
+          hiddenLayerIds: ['bass-sparkles', 'bass-letter-s-left', 'bass-letter-s-right'],
+          layerOpacity: { 'bass-word': 0.44, 'bass-outline': 0.36, 'bass-letter-b': 0.16, 'bass-letter-a': 0.1 },
+        },
+        verse: {
+          density: 0.62,
+          layerOpacity: { 'bass-word': 0.78, 'bass-outline': 0.28 },
+        },
+        build: {
+          density: 0.86,
+          layerOpacity: { 'bass-word': 0.88, 'bass-outline': 0.34 },
+        },
+        drop: {
+          density: 1,
+          layerOpacity: { 'bass-word': 1, 'bass-outline': 0.3, 'bass-rings': 0.38 },
+        },
+        breakdown: {
+          density: 0.48,
+          hiddenLayerIds: ['bass-rings', 'bass-sparkles', 'bass-side-chevrons-left', 'bass-side-chevrons-right'],
+          layerOpacity: { 'bass-word': 0.62, 'bass-outline': 0.42, 'bass-letter-a': 0.24 },
+        },
+        outro: {
+          density: 0.34,
+          hiddenLayerIds: ['bass-rings', 'bass-sparkles', 'bass-side-chevrons-left', 'bass-side-chevrons-right'],
+          layerOpacity: { 'bass-word': 0.55, 'bass-outline': 0.2 },
+        },
       }),
     },
-    { intensity: [0.5, 0.68, 0.84, 1, 0.56, 0.38], motion: [0.28, 0.5, 0.76, 0.94, 0.3, 0.18], glow: [0.42, 0.58, 0.7, 0.86, 0.48, 0.32] },
+    {
+      intensity: [0.48, 0.68, 0.84, 1, 0.54, 0.34],
+      motion: [0.24, 0.46, 0.74, 0.92, 0.26, 0.14],
+      glow: [0.36, 0.54, 0.68, 0.82, 0.44, 0.28],
+    },
   ),
   preset(
     'pix-grid-geometric-reactor',
     'Geometric Reactor',
-    'A designed hierarchy of tunnel rails, rings, chevrons, diamonds, crosses, and orbiting reactor nodes.',
+    'A coherent frequency-owned reactor with core, rings, tunnel, chevrons, nodes, cross impacts, and staged geometry recruitment.',
     'pix-grid-geometric-reactor',
     { primary: '#a969ff', secondary: '#30d7ff', accent: '#f2c45c', background: '#05030b', highlight: '#fff3c7', text: '#f7efff' },
     { intensity: 0.9, motion: 0.82, glow: 0.68, bassReactivity: 0.8 },
     {
-      pattern: 'geometricReactor', quality: 'high', backgroundMode: 'preset', backgroundColor: '#05030b',
-      backgroundBrightness: 0.1, cellGap: 0.12, cellRoundness: 0.08, cellBrightness: 0.92,
-      globalIntensity: 0.94, glowAmount: 0.3, diffusion: 0.08, rgbSubpixelMode: false,
-      selectedSceneId: 'pix-grid-geometric-reactor-intro', layers: GEOMETRIC_REACTOR_LAYERS, groups: GEOMETRIC_REACTOR_GROUPS,
+      pattern: 'geometricReactor',
+      quality: 'high',
+      backgroundMode: 'preset',
+      backgroundColor: '#05030b',
+      backgroundBrightness: 0.08,
+      cellGap: 0.12,
+      cellRoundness: 0.08,
+      cellBrightness: 0.92,
+      globalIntensity: 0.92,
+      glowAmount: 0.28,
+      diffusion: 0.08,
+      rgbSubpixelMode: false,
+      selectedSceneId: 'pix-grid-geometric-reactor-intro',
+      layers: GEOMETRIC_REACTOR_LAYERS,
+      groups: GEOMETRIC_REACTOR_GROUPS,
+      audioAssignments: GEOMETRIC_REACTOR_AUDIO_ASSIGNMENTS,
       performanceProgramId: 'pix-grid-geometric-reactor-performance',
       sceneSettings: sceneSettings('pix-grid-geometric-reactor', {
-        intro: { hiddenLayerIds: ['reactor-cross', 'reactor-orbits', 'reactor-checker'] },
-        breakdown: { hiddenLayerIds: ['reactor-checker', 'reactor-chevrons', 'reactor-cross'], layerOpacity: { 'reactor-tunnel': 0.42 } },
-        outro: { hiddenLayerIds: ['reactor-checker', 'reactor-chevrons', 'reactor-cross', 'reactor-orbits'] },
+        intro: {
+          density: 0.32,
+          hiddenLayerIds: ['reactor-cross', 'reactor-orbits', 'reactor-checker', 'reactor-chevrons'],
+          layerOpacity: { 'reactor-tunnel': 0.38, 'reactor-rings': 0.46, 'reactor-diamond': 0.7 },
+        },
+        verse: {
+          density: 0.62,
+          hiddenLayerIds: ['reactor-cross'],
+          layerOpacity: { 'reactor-checker': 0.08, 'reactor-orbits': 0.42 },
+        },
+        build: {
+          density: 0.86,
+          layerOpacity: { 'reactor-checker': 0.1, 'reactor-cross': 0.38 },
+        },
+        drop: {
+          density: 1,
+          layerOpacity: { 'reactor-checker': 0.14, 'reactor-cross': 0.52, 'reactor-orbits': 0.7 },
+        },
+        breakdown: {
+          density: 0.46,
+          hiddenLayerIds: ['reactor-checker', 'reactor-chevrons', 'reactor-cross', 'reactor-orbits'],
+          layerOpacity: { 'reactor-tunnel': 0.3, 'reactor-rings': 0.4, 'reactor-diamond': 0.72 },
+        },
+        outro: {
+          density: 0.3,
+          hiddenLayerIds: ['reactor-checker', 'reactor-chevrons', 'reactor-cross', 'reactor-orbits'],
+          layerOpacity: { 'reactor-tunnel': 0.24, 'reactor-rings': 0.3 },
+        },
       }),
     },
-    { intensity: [0.48, 0.7, 0.88, 1, 0.52, 0.34], motion: [0.32, 0.64, 0.9, 1, 0.26, 0.14], glow: [0.38, 0.56, 0.7, 0.82, 0.42, 0.28] },
+    {
+      intensity: [0.46, 0.68, 0.86, 1, 0.5, 0.3],
+      motion: [0.28, 0.6, 0.88, 1, 0.22, 0.12],
+      glow: [0.34, 0.52, 0.68, 0.8, 0.38, 0.24],
+    },
   ),
   preset(
     'pix-grid-pixel-parade',
     'Pixel Parade',
-    'An original star, Pixel Pal, orbit crew, wave lanes, equalizer float, and drop-confetti parade.',
+    'A directed procession with a vocal-focused hero, participant banks, musical lanes, props, percussion accents, and evolving cast recruitment.',
     'pix-grid-pixel-parade',
     { primary: '#ff6d7f', secondary: '#ffd35c', accent: '#43d9ff', background: '#070508', highlight: '#67e3aa', text: '#fff4ef' },
     { intensity: 0.82, motion: 0.9, glow: 0.54, bassReactivity: 0.72 },
     {
-      pattern: 'pixelParade', quality: 'high', backgroundMode: 'preset', backgroundColor: '#070508',
-      backgroundBrightness: 0.14, cellGap: 0.22, cellRoundness: 0.28, cellBrightness: 0.88,
-      globalIntensity: 0.9, glowAmount: 0.24, diffusion: 0.18, rgbSubpixelMode: false,
-      selectedSceneId: 'pix-grid-pixel-parade-intro', layers: PIXEL_PARADE_LAYERS, groups: PIXEL_PARADE_GROUPS,
+      pattern: 'pixelParade',
+      quality: 'high',
+      backgroundMode: 'preset',
+      backgroundColor: '#070508',
+      backgroundBrightness: 0.1,
+      cellGap: 0.22,
+      cellRoundness: 0.28,
+      cellBrightness: 0.88,
+      globalIntensity: 0.88,
+      glowAmount: 0.22,
+      diffusion: 0.16,
+      rgbSubpixelMode: false,
+      selectedSceneId: 'pix-grid-pixel-parade-intro',
+      layers: PIXEL_PARADE_LAYERS,
+      groups: PIXEL_PARADE_GROUPS,
+      audioAssignments: PIXEL_PARADE_AUDIO_ASSIGNMENTS,
       performanceProgramId: 'pix-grid-pixel-parade-performance',
       sceneSettings: sceneSettings('pix-grid-pixel-parade', {
-        intro: { hiddenLayerIds: ['parade-eq', 'parade-burst', 'parade-orbit'] },
-        verse: { hiddenLayerIds: ['parade-burst'] },
-        build: { hiddenLayerIds: ['parade-burst'], layerOpacity: { 'parade-eq': 0.92 } },
-        breakdown: { hiddenLayerIds: ['parade-eq', 'parade-burst', 'parade-orbit', 'parade-wave-bottom'], layerOpacity: { 'parade-pal': 0.72 } },
-        outro: { hiddenLayerIds: ['parade-eq', 'parade-burst', 'parade-orbit', 'parade-wave-bottom', 'parade-stars'] },
+        intro: {
+          density: 0.34,
+          hiddenLayerIds: ['parade-eq', 'parade-burst', 'parade-orbit', 'parade-star-left', 'parade-wave-bottom'],
+          layerOpacity: { 'parade-pal': 0.72, 'parade-wave-top': 0.32, 'parade-stars': 0.16 },
+        },
+        verse: {
+          density: 0.62,
+          hiddenLayerIds: ['parade-burst', 'parade-eq'],
+          layerOpacity: { 'parade-orbit': 0.44, 'parade-stars': 0.22 },
+        },
+        build: {
+          density: 0.86,
+          hiddenLayerIds: ['parade-burst'],
+          layerOpacity: { 'parade-eq': 0.5, 'parade-orbit': 0.62 },
+        },
+        drop: {
+          density: 1,
+          layerOpacity: { 'parade-burst': 0.26, 'parade-eq': 0.62, 'parade-orbit': 0.74 },
+        },
+        breakdown: {
+          density: 0.46,
+          hiddenLayerIds: ['parade-eq', 'parade-burst', 'parade-orbit', 'parade-wave-bottom', 'parade-star-left'],
+          layerOpacity: { 'parade-pal': 0.76, 'parade-wave-top': 0.24, 'parade-stars': 0.16 },
+        },
+        outro: {
+          density: 0.3,
+          hiddenLayerIds: ['parade-eq', 'parade-burst', 'parade-orbit', 'parade-wave-bottom', 'parade-stars'],
+          layerOpacity: { 'parade-pal': 0.58, 'parade-star-left': 0.34, 'parade-wave-top': 0.2 },
+        },
       }),
     },
-    { intensity: [0.44, 0.66, 0.82, 0.98, 0.5, 0.3], motion: [0.35, 0.7, 0.92, 1, 0.32, 0.18], glow: [0.3, 0.46, 0.62, 0.74, 0.38, 0.24] },
+    {
+      intensity: [0.42, 0.64, 0.82, 0.98, 0.48, 0.28],
+      motion: [0.3, 0.66, 0.9, 1, 0.28, 0.14],
+      glow: [0.28, 0.44, 0.6, 0.72, 0.34, 0.2],
+    },
   ),
 ]
 

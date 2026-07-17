@@ -524,7 +524,7 @@ export class PixGridReactionRuntime {
         }
         normalized = state.quantizedValue
       }
-      if (!frame.isPlaying && !preview) {
+      if (!frame.isPlaying && !preview && state.smoothing.initialized) {
         return { value: state.lastValue, active: Math.abs(state.lastValue) > 1e-5, supported, confidence: sourceConfidence, usingFallback, blockedByCondition: false, blockedByConfidence: false, compiled }
       }
       normalized = smoothSharedPerformanceModulation(

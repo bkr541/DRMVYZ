@@ -98,7 +98,7 @@ export function resolvePixGridAuthoredAssignmentState(
       && (compiled.target.runtimeHandler === 'postProcess' || compiled.target.runtimeHandler === 'pixel')
     if (pixelMaskScope || outputPostProcess || compiled.target.runtimeHandler === 'transition') continue
     const resolved = runtime.resolveCompiled(compiled, frame, false, { activeLayerIds, activeGroupIds })
-    if (!resolved.supported || resolved.blockedByCondition || resolved.blockedByConfidence) continue
+    if (!resolved.supported || resolved.blockedByCondition || resolved.blockedByConfidence || !resolved.active) continue
     const strength = compiled.amount * resolved.value
     switch (compiled.targetScope) {
       case 'output':

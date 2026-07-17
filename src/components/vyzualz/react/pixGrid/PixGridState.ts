@@ -24,6 +24,13 @@ export function applyPixGridPresetSettings(
   }
   const presetLayers = settings.layers?.map(clonePixGridLayer) ?? safeCurrent.layers
   const presetGroups = settings.groups?.map(group => ({ ...group, cellRuns: [...group.cellRuns], layerScope: group.layerScope ? [...group.layerScope] : null, reactions: group.reactions.map(reaction => ({ ...reaction, clamp: [...reaction.clamp] as [number, number] })), mask: group.mask.kind === 'runs' ? { kind: 'runs' as const, runs: [...group.mask.runs] } : { ...group.mask } })) ?? safeCurrent.groups
+  const presetAssignments = settings.audioAssignments?.map(reaction => ({
+    ...reaction,
+    clamp: [...reaction.clamp] as [number, number],
+    ...(reaction.inputRange ? { inputRange: [...reaction.inputRange] as [number, number] } : {}),
+    ...(reaction.outputRange ? { outputRange: [...reaction.outputRange] as [number, number] } : {}),
+    ...(reaction.conditions ? { conditions: { ...reaction.conditions } } : {}),
+  })) ?? []
   const sceneIds = Object.keys(settings.sceneSettings ?? {})
   const selectedSceneId = settings.selectedSceneId ?? sceneIds[0] ?? safeCurrent.selectedSceneId ?? 'pix-grid-scene-1'
   const scenes = (sceneIds.length > 0 ? sceneIds : [selectedSceneId]).map((id, index) => ({
@@ -49,6 +56,7 @@ export function applyPixGridPresetSettings(
     selectedSceneId,
     layers: presetLayers,
     groups: presetGroups,
+    audioAssignments: presetAssignments,
     performance: {
       ...safeCurrent.performance,
       enabled: settings.performanceProgramId ? true : safeCurrent.performance.enabled,

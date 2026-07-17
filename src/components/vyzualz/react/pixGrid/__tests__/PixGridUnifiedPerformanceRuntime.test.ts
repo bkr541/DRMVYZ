@@ -519,7 +519,7 @@ describe('PixGrid unified composition and reconstruction', () => {
     const continuous = { ...createDefaultPixGridReactionAssignment(), id: 'bass-route', source: 'bass' as const }
     const discrete = { ...createDefaultPixGridReactionAssignment(), id: 'kick-route', source: 'kick' as const }
     const routed = group('routed', [[0, 1, 1]], [continuous, discrete])
-    const state = { ...authored, groups: [emptyEnabled, routed] }
+    const state = { ...authored, groups: [emptyEnabled, routed], audioAssignments: [] }
     const context = contextAt(10)
     const resolved = new PixGridUnifiedPerformanceRuntime().resolve({
       authoredState: state,

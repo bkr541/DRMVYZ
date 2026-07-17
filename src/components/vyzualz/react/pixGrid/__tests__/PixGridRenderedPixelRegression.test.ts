@@ -132,7 +132,7 @@ function mediaState(preset: ReactPreset, mediaId: string): PixGridState {
   })
 }
 
-function performanceState(preset: ReactPreset, timeSec: number): PixGridState {
+function performanceFrame(preset: ReactPreset, timeSec: number) {
   const beatIndex = Math.floor(timeSec * 2)
   const frame = {
     ...DEFAULT_MI_FRAME,
@@ -156,7 +156,7 @@ function performanceState(preset: ReactPreset, timeSec: number): PixGridState {
     trackChangeIdentity: 'pixel-regression-track',
     previous: null,
   })
-  return resolvePixGridPerformanceFrame(stateFor(preset, 'drop'), context, preset.id).state
+  return resolvePixGridPerformanceFrame(stateFor(preset, 'drop'), context, preset.id)
 }
 
 describe('PixGrid rendered-pixel regression matrix', () => {
@@ -235,11 +235,11 @@ describe('PixGrid rendered-pixel regression matrix', () => {
   })
 
   it('renders four-bar choreography evolution as a changed framebuffer', () => {
-    const earlyState = performanceState(geometricReactor, 34)
-    const evolvedState = performanceState(geometricReactor, 58)
+    const earlyPerformance = performanceFrame(geometricReactor, 34)
+    const evolvedPerformance = performanceFrame(geometricReactor, 58)
     const stableClock = audioFrame(40, { beatIndex: 80, barIndex: 20 })
-    const early = composePixGridLogicalFrame(geometricReactor, earlyState, stableClock)
-    const evolved = composePixGridLogicalFrame(geometricReactor, evolvedState, stableClock)
+    const early = composePixGridLogicalFrame(geometricReactor, earlyPerformance.state, stableClock, undefined, undefined, undefined, undefined, earlyPerformance.groupEffects)
+    const evolved = composePixGridLogicalFrame(geometricReactor, evolvedPerformance.state, stableClock, undefined, undefined, undefined, undefined, evolvedPerformance.groupEffects)
 
     expectReadableFrame(early)
     expectReadableFrame(evolved)
