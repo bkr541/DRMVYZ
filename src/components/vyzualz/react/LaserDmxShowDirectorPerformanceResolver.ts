@@ -48,6 +48,13 @@ import type {
   LaserDmxShowDirectorPerformanceTransitionCurve,
 } from './LaserDmxShowDirectorPerformanceProgram'
 import type { LaserDmxShowDirectorPerformanceTimingContext } from './LaserDmxShowDirectorPerformanceContext'
+import {
+  createLegacyLaserProgrammingAdapter,
+  resolveLaserShowProgramming,
+  sanitizeTransientLaserProgrammingPayload,
+  type LaserProgrammingRuntimeDiagnostics,
+  type LaserStablePatternFrame,
+} from './LaserDmxShowDirectorProgramming'
 
 const EPSILON = 1e-6
 const DEFAULT_BLACKOUT_POLICY: LaserDmxShowDirectorPerformanceBlackoutPolicy = Object.freeze({
@@ -92,6 +99,7 @@ export interface LaserDmxShowDirectorPerformanceCapabilityDiagnostics {
   missingGroupKeys: string[]
   malformedMutationIds: string[]
   unsupportedFixtureActionIds?: string[]
+  suppressedAudioGeometryMappings?: string[]
   fallbackReason: string | null
   suppressionReason: string | null
   beamBudgetWarning: string | null
@@ -132,6 +140,12 @@ export interface LaserDmxShowDirectorPerformanceResolution {
   energyMetrics?: LaserDmxShowDirectorResolvedEnergyMetrics
   fixturePriorityById: Record<string, number>
   fixturePriorityRoleById?: Record<string, LaserDmxShowDirectorBeamPriorityRole>
+  activePrimaryCueId?: string | null
+  activeAccentCueIds?: string[]
+  activeMacroId?: string | null
+  activeMacroName?: string | null
+  stablePatternFrame?: LaserStablePatternFrame | null
+  programmingDiagnostics?: LaserProgrammingRuntimeDiagnostics | null
   diagnostics: LaserDmxShowDirectorPerformanceCapabilityDiagnostics
   deterministicIdentity: string
 }
@@ -147,6 +161,12 @@ interface ResolverWork {
   missingGroupKeys: Set<string>
   malformedMutationIds: Set<string>
   unsupportedFixtureActionIds: Set<string>
+  suppressedAudioGeometryMappings: Set<string>
+  deferredTransientLayers: Array<{
+    payload: LaserDmxShowDirectorPerformanceMutationPayload
+    mode: LaserDmxShowDirectorPerformanceMutationMode
+    responseStrength: number
+  }>
   programmedBlackout: {
     kind: LaserDmxShowDirectorProgrammedBlackoutKind
     windowId: string
@@ -648,16 +668,30 @@ function applyPayload(
   work: ResolverWork,
   mode: LaserDmxShowDirectorPerformanceMutationMode = 'set',
   responseStrength = 1,
+  programmingLayer: 'primary' | 'structural' | 'transient' | 'accent' = 'structural',
 ): void {
-  if (!conditionsPass(payload.conditions, work)) return
-  const address = payload.address
+  const sanitized = sanitizeTransientLaserProgrammingPayload(payload, programmingLayer)
+  sanitized.suppressed.forEach(item => work.suppressedAudioGeometryMappings.add(item))
+  const safePayload = sanitized.payload
+  if (!conditionsPass(safePayload.conditions, work)) return
+  if (programmingLayer === 'transient') {
+    // Keep compatibility choreography in its original authored order so scene
+    // transitions blend the accent instead of letting it jump around the cue.
+    // Native macro documents replay the bounded scalar layer after the stable
+    // frame is established; provisional legacy macros preserve it directly.
+    const programmingSource = work.input.program?.laserProgramming?.compatibility.source ?? 'legacy-adapter'
+    if (programmingSource !== 'legacy-adapter') {
+      work.deferredTransientLayers.push({ payload: safePayload, mode, responseStrength })
+    }
+  }
+  const address = safePayload.address
   let fixtures = work.runtime.fixtures.map(fixture => addressMatchesFixture(fixture, address, work)
-    ? payload.fixture
-      ? applyFixtureOverrides(fixture, payload.fixture, mode, work.input.tuning.intensity * responseStrength, work)
+    ? safePayload.fixture
+      ? applyFixtureOverrides(fixture, safePayload.fixture, mode, work.input.tuning.intensity * responseStrength, work)
       : fixture
     : fixture)
 
-  for (const action of payload.fixtureActions ?? []) {
+  for (const action of safePayload.fixtureActions ?? []) {
     let applied = false
     fixtures = fixtures.map(fixture => {
       if (!addressMatchesFixture(fixture, address, work) || !mixedFixtureActionSupportsFixture(action, fixture)) return fixture
@@ -667,15 +701,15 @@ function applyPayload(
     if (!applied) work.unsupportedFixtureActionIds.add(action.id)
   }
 
-  if (payload.group) {
+  if (safePayload.group) {
     const addressedGroupIds = new Set(work.runtime.fixtures
       .filter(fixture => addressMatchesFixture(fixture, address, work))
       .flatMap(fixture => fixture.groupId ? [fixture.groupId] : []))
-    fixtures = fixtures.map(fixture => applyGroupOverrides(fixture, payload.group as LaserDmxShowDirectorGroupRuntimeOverrides, addressedGroupIds))
+    fixtures = fixtures.map(fixture => applyGroupOverrides(fixture, safePayload.group as LaserDmxShowDirectorGroupRuntimeOverrides, addressedGroupIds))
   }
   work.runtime = { ...work.runtime, fixtures }
-  if (payload.global) work.global = mergeGlobal(work.global, payload.global, mode)
-  for (const modulation of payload.modulations ?? []) {
+  if (safePayload.global) work.global = mergeGlobal(work.global, safePayload.global, mode)
+  for (const modulation of safePayload.modulations ?? []) {
     applyModulation(modulation, work, work.runtime.fixtures, address, responseStrength)
   }
 }
@@ -703,9 +737,10 @@ function applyMutation(
   work: ResolverWork,
   identity: string,
   responseStrength = 1,
+  programmingLayer: 'structural' | 'transient' = 'structural',
 ): void {
   if (!mutationActive(mutation, work, identity) || responseStrength <= EPSILON) return
-  applyPayload(mutation, work, 'set', responseStrength)
+  applyPayload(mutation, work, 'set', responseStrength, programmingLayer)
 }
 
 function beatResponseStrength(
@@ -865,13 +900,13 @@ function applyCadence(scene: LaserDmxShowDirectorPerformanceScene, work: Resolve
     const cycleLength = Math.max(1, positiveInt(mutation.beatCycleLength, inferredCycle))
     const responseStrength = beatResponseStrength(mutation, context.beatPhase)
     if (offsets.some(offset => beatStep % cycleLength === offset % cycleLength)) {
-      applyMutation(mutation, work, `${baseIdentity}|beat|${beatStep}`, responseStrength)
+      applyMutation(mutation, work, `${baseIdentity}|beat|${beatStep}`, responseStrength, 'transient')
     }
   }
-  if (signals.discrete.kick.active) for (const mutation of scene.kickMutations ?? []) if (signals.discrete.kick.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|kick|${context.beatIndex}`)
-  if (signals.discrete.snare.active) for (const mutation of scene.snareMutations ?? []) if (signals.discrete.snare.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|snare|${context.beatIndex}`)
-  if (signals.discrete.hat.active) for (const mutation of scene.hatMutations ?? []) if (signals.discrete.hat.strength >= finite(mutation.threshold, 0.35)) applyMutation(mutation, work, `${baseIdentity}|hat|${context.beatIndex}`)
-  for (const mutation of scene.transientMutations ?? []) if (signals.discrete.transient.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|transient|${context.beatIndex}`)
+  if (signals.discrete.kick.active) for (const mutation of scene.kickMutations ?? []) if (signals.discrete.kick.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|kick|${context.beatIndex}`, 1, 'transient')
+  if (signals.discrete.snare.active) for (const mutation of scene.snareMutations ?? []) if (signals.discrete.snare.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|snare|${context.beatIndex}`, 1, 'transient')
+  if (signals.discrete.hat.active) for (const mutation of scene.hatMutations ?? []) if (signals.discrete.hat.strength >= finite(mutation.threshold, 0.35)) applyMutation(mutation, work, `${baseIdentity}|hat|${context.beatIndex}`, 1, 'transient')
+  for (const mutation of scene.transientMutations ?? []) if (signals.discrete.transient.strength >= finite(mutation.threshold, 0.45)) applyMutation(mutation, work, `${baseIdentity}|transient|${context.beatIndex}`, 1, 'transient')
 
   return { fourBarVariation, motifFamily, eightBarStage }
 }
@@ -996,6 +1031,8 @@ function resolveSceneStateWithoutTransitions(
     missingGroupKeys: new Set(),
     malformedMutationIds: new Set(),
     unsupportedFixtureActionIds: new Set(),
+    suppressedAudioGeometryMappings: new Set(),
+    deferredTransientLayers: [],
     programmedBlackout: null,
     visibleOutputRecovered: false,
   }
@@ -1009,6 +1046,7 @@ function resolveSceneStateWithoutTransitions(
   neighbor.missingFixtureKeys.forEach(value => work.missingFixtureKeys.add(value))
   neighbor.missingGroupKeys.forEach(value => work.missingGroupKeys.add(value))
   neighbor.unsupportedFixtureActionIds.forEach(value => work.unsupportedFixtureActionIds.add(value))
+  neighbor.suppressedAudioGeometryMappings.forEach(value => work.suppressedAudioGeometryMappings.add(value))
   neighbor.malformedMutationIds.forEach(value => work.malformedMutationIds.add(value))
   return { state: neighbor.runtime, global: neighbor.global }
 }
@@ -1289,6 +1327,7 @@ function buildDiagnostics(
     missingGroupKeys: [...work.missingGroupKeys].sort(),
     malformedMutationIds: [...work.malformedMutationIds].sort(),
     unsupportedFixtureActionIds: [...work.unsupportedFixtureActionIds].sort(),
+    suppressedAudioGeometryMappings: [...work.suppressedAudioGeometryMappings].sort(),
     fallbackReason,
     suppressionReason,
     beamBudgetWarning: budget.overBudget
@@ -1330,6 +1369,12 @@ function unchangedResolution(
     energyMetrics: measureLaserDmxShowDirectorEnergyMetrics(authored),
     fixturePriorityById: budget.priorityByFixtureId,
     fixturePriorityRoleById: Object.fromEntries(budget.fixtures.map(item => [item.fixtureId, item.role])),
+    activePrimaryCueId: null,
+    activeAccentCueIds: [],
+    activeMacroId: null,
+    activeMacroName: null,
+    stablePatternFrame: null,
+    programmingDiagnostics: null,
     diagnostics: {
       analysisReady: (input.context.intelligence.capabilities.beatGrid || input.context.bpm > 0)
         && (input.context.intelligence.capabilities.sections || input.context.resolvedSection !== null),
@@ -1341,6 +1386,7 @@ function unchangedResolution(
       missingGroupKeys: [],
       malformedMutationIds: [],
       unsupportedFixtureActionIds: [],
+      suppressedAudioGeometryMappings: [],
       fallbackReason: null,
       suppressionReason,
       beamBudgetWarning: budget.overBudget ? `Requested ${budget.estimatedDemand} beams; bounded to ${budget.boundedDemand}.` : null,
@@ -1388,17 +1434,37 @@ export function resolveLaserDmxShowDirectorPerformance(
       missingGroupKeys: new Set(),
       malformedMutationIds: new Set(),
       unsupportedFixtureActionIds: new Set(),
+      suppressedAudioGeometryMappings: new Set(),
+      deferredTransientLayers: [],
       programmedBlackout: null,
       visibleOutputRecovered: false,
     }
     const selected = selectScene(work)
     if (!selected.scene) return unchangedResolution(input, authored, selected.fallbackReason ?? `No scene matched ${selected.sectionType}.`)
 
-    applyPayload(selected.scene, work)
+    applyPayload(selected.scene, work, 'set', 1, 'primary')
     const variation = selectVariation(selected.scene.variations, selected.scene, work)
     if (variation) applyPayload(variation, work)
     const cadence = applyCadence(selected.scene, work)
     applyTransitions(selected.scene, work)
+    const programmingDocument = input.program.laserProgramming
+      ?? createLegacyLaserProgrammingAdapter(input.program, authored)
+    const programming = resolveLaserShowProgramming({
+      document: programmingDocument,
+      program: input.program,
+      selectedScene: selected.scene,
+      authoredRig: authored,
+      runtimeRig: work.runtime,
+      context: input.context,
+      programSeed: input.programSeed,
+    })
+    work.runtime = programming.showDirector
+    for (const layer of work.deferredTransientLayers) {
+      applyPayload(layer.payload, work, layer.mode, layer.responseStrength, 'accent')
+    }
+    // Apply the authored energy ceiling after safe accent modulation. This
+    // preserves the legacy choreography envelope while topology and direction
+    // remain owned by the stable macro frame.
     const energyEnvelope = applyEnergyEnvelope(selected.scene, work)
     ensureVisibleOutput(selected.scene, work)
     resolveProgrammedBlackoutWindow(selected.scene, work)
@@ -1442,6 +1508,12 @@ export function resolveLaserDmxShowDirectorPerformance(
       energyMetrics,
       fixturePriorityById: budget.priorityByFixtureId,
       fixturePriorityRoleById: Object.fromEntries(budget.fixtures.map(item => [item.fixtureId, item.role])),
+      activePrimaryCueId: programming.cue?.id ?? null,
+      activeAccentCueIds: programming.activeAccentCueIds,
+      activeMacroId: programming.macro?.id ?? null,
+      activeMacroName: programming.macro?.name ?? null,
+      stablePatternFrame: programming.frame,
+      programmingDiagnostics: programming.diagnostics,
       diagnostics: buildDiagnostics(work, budget, selected.fallbackReason, null),
       deterministicIdentity,
     }

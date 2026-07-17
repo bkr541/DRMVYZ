@@ -1,4 +1,5 @@
 import type { SharedPerformanceProgramValidationIssue } from '../../../features/performanceCore'
+import { validateLaserShowProgrammingDocument } from './LaserDmxShowDirectorProgramming'
 import {
   LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY,
   normalizeLaserDmxShowDirectorPerformanceProgram,
@@ -146,7 +147,20 @@ export function validateLaserDmxShowDirectorPerformancePrograms(): SharedPerform
     }
     if (!entry.program) continue
     const program = entry.program
-    if (!normalizeLaserDmxShowDirectorPerformanceProgram(program)) issues.push(issue('error', 'invalid-program-definition', 'LaserDMX program cannot be normalized safely.', entry.id))
+    const normalizedProgram = normalizeLaserDmxShowDirectorPerformanceProgram(program)
+    if (!normalizedProgram) issues.push(issue('error', 'invalid-program-definition', 'LaserDMX program cannot be normalized safely.', entry.id))
+    if (normalizedProgram?.laserProgramming) {
+      for (const programmingIssue of validateLaserShowProgrammingDocument(normalizedProgram.laserProgramming)) {
+        issues.push(issue(
+          programmingIssue.severity,
+          `laser-programming-${programmingIssue.code}`,
+          programmingIssue.message,
+          program.id,
+          undefined,
+          programmingIssue.sourceId,
+        ))
+      }
+    }
     if (program.id !== entry.id) issues.push(issue('error', 'registry-program-id-mismatch', `Registry ID “${entry.id}” does not match program ID “${program.id}”.`, entry.id))
     const sceneIds = new Set<string>()
     for (const scene of program.scenes) {

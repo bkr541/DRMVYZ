@@ -55,6 +55,10 @@ import {
   createVioletHourglassOrbitProgram,
 } from './LaserDmxShowDirectorFinalReferencePerformancePresets'
 import { migrateLaserDmxBuiltInPerformanceProgramToPhysicalScannerContent } from './LaserDmxShowDirectorPhysicalContentMigration'
+import {
+  normalizeLaserShowProgrammingDocument,
+  type LaserShowProgrammingDocument,
+} from './LaserDmxShowDirectorProgramming'
 
 
 export type LaserDmxShowDirectorPerformanceSectionType = ReactSectionType
@@ -474,6 +478,11 @@ export interface LaserDmxShowDirectorPerformanceProgram {
   fixtureBanks?: Record<string, LaserDmxShowDirectorAuthoredFixtureBankMetadata>
   energyEnvelopes?: Partial<Record<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey, LaserDmxShowDirectorSectionEnergyEnvelope>>
   blackoutPolicy?: LaserDmxShowDirectorPerformanceBlackoutPolicy
+  /**
+   * Versioned DMX-style show-programming layer. Legacy programs receive a
+   * non-destructive provisional macro/cue adapter during normalization.
+   */
+  laserProgramming?: LaserShowProgrammingDocument
   fallbackOrder?: LaserDmxShowDirectorPerformanceSectionType[]
   tuning: LaserDmxShowDirectorPerformanceProgramTuning
   diagnostics?: LaserDmxShowDirectorPerformanceRuntimeDiagnosticsMetadata
@@ -1244,6 +1253,7 @@ export function normalizeLaserDmxShowDirectorPerformanceProgram(
   if (!id || !name || !Array.isArray(raw.scenes)) return null
   const scenes = raw.scenes.map(normalizeScene).filter((scene): scene is LaserDmxShowDirectorPerformanceScene => scene !== null)
   if (scenes.length === 0) return null
+  const fallbackProgram = { id, name, scenes }
   return {
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PROGRAM_SCHEMA_VERSION,
     id,
@@ -1275,6 +1285,7 @@ export function normalizeLaserDmxShowDirectorPerformanceProgram(
       })) as Partial<Record<LaserDmxShowDirectorPerformanceEnergyEnvelopeKey, LaserDmxShowDirectorSectionEnergyEnvelope>>
       : undefined,
     blackoutPolicy: normalizeBlackoutPolicy(raw.blackoutPolicy),
+    laserProgramming: normalizeLaserShowProgrammingDocument(raw.laserProgramming, fallbackProgram) ?? undefined,
     fallbackOrder: Array.isArray(raw.fallbackOrder)
       ? Array.from(new Set(raw.fallbackOrder.filter(isSectionType)))
       : undefined,

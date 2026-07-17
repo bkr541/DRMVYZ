@@ -236,6 +236,7 @@ function PerformanceProgramControls() {
     setAudioIntelligenceEnabled,
     setFallbackBehavior,
     setSeed,
+    presentationMode,
   } = useReactStore(useShallow(state => ({
     performance: state.laserDmxShowDirectorPerformance,
     setEnabled: state.setLaserDmxShowDirectorPerformanceEnabled,
@@ -243,6 +244,7 @@ function PerformanceProgramControls() {
     setAudioIntelligenceEnabled: state.setLaserDmxShowDirectorPerformanceAudioIntelligenceEnabled,
     setFallbackBehavior: state.setLaserDmxShowDirectorPerformanceFallbackBehavior,
     setSeed: state.setLaserDmxShowDirectorPerformanceSeed,
+    presentationMode: state.laserDmxShowDirector.settings.presentationMode,
   })))
   const status = useLaserDmxShowDirectorPerformanceRuntimeStatus()
   const program = performance.activeProgramDefinition
@@ -340,6 +342,22 @@ function PerformanceProgramControls() {
             </>
           )}
           <div><dt>Analysis</dt><dd>{status.analysisStatus === 'ready' ? 'Ready' : status.analysisStatus === 'partial' ? 'Partial' : 'Fallback'}</dd></div>
+          {presentationMode !== 'capture' && (
+            <>
+              <div><dt>Primary Cue</dt><dd>{status.activePrimaryCueId ?? 'Inactive'}</dd></div>
+              <div><dt>Accent Cues</dt><dd>{status.activeAccentCueIds.length ? status.activeAccentCueIds.join(', ') : 'None'}</dd></div>
+              <div><dt>Macro</dt><dd>{status.activeMacroName ?? status.activeMacroId ?? 'Compatibility path'}</dd></div>
+              <div><dt>Cue Start / Remaining</dt><dd>{status.cueStartBeat.toFixed(2)} / {status.cueRemainingBeats.toFixed(2)} beats</dd></div>
+              <div><dt>Pattern Frame</dt><dd>{status.stablePatternFrameId ?? 'Inactive'}</dd></div>
+              <div><dt>Frame Revision</dt><dd>{status.patternFrameRevisionCount}</dd></div>
+              <div><dt>Transition</dt><dd>{status.macroTransitionState}</dd></div>
+              <div><dt>Relationships</dt><dd>{status.fixtureGroupRelationships.length ? status.fixtureGroupRelationships.join(', ') : 'Explicitly independent'}</dd></div>
+              <div><dt>Audio Modulation</dt><dd>{Object.entries(status.audioModulationValues).map(([key, value]) => `${key} ${value.toFixed(2)}`).join(', ') || 'None'}</dd></div>
+              <div><dt>Geometry Rebuilds</dt><dd>{status.geometryRebuildCount}</dd></div>
+              <div><dt>Topology Changes</dt><dd>{status.unexpectedTopologyChanges}</dd></div>
+              <div><dt>Compatibility</dt><dd>{status.programmingCompatibilitySource}</dd></div>
+            </>
+          )}
         </dl>
         {status.missingCapabilities.length > 0 && (
           <p className="rv-show-director-performance-status__notice">
@@ -348,6 +366,14 @@ function PerformanceProgramControls() {
         )}
         {statusReason && <p className="rv-show-director-performance-status__notice">{statusReason}</p>}
         {status.beamBudgetWarning && <p className="rv-show-director-performance-status__warning">{status.beamBudgetWarning}</p>}
+        {presentationMode !== 'capture' && status.suppressedAudioGeometryMappings.length > 0 && (
+          <p className="rv-show-director-performance-status__warning">
+            Blocked audio geometry mappings: {status.suppressedAudioGeometryMappings.join(', ')}
+          </p>
+        )}
+        {presentationMode !== 'capture' && status.programmingWarnings.map((warning, index) => (
+          <p key={`${warning}-${index}`} className="rv-show-director-performance-status__warning">{warning}</p>
+        ))}
       </div>
       <SharedPerformanceDiagnosticsPanel engine="laserDmx" label="Shared Core Diagnostics" />
     </Collapsible>

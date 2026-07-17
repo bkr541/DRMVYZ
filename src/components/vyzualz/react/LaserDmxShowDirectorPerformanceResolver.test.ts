@@ -187,10 +187,11 @@ describe('Show Director deterministic performance resolver', () => {
     expect(resolve(10.1)).toEqual(resolve(10.1))
   })
 
-  it('makes beat, kick, snare, and other transient layers visible', () => {
+  it('keeps transient scalar accents visible while blocking beat-driven direction changes', () => {
     const beatOpen = resolve(2.1)
     const beatClosed = resolve(2.4)
-    expect(fixtureByKey(beatOpen, 'hero-left').rotation).not.toBe(fixtureByKey(beatClosed, 'hero-left').rotation)
+    expect(fixtureByKey(beatOpen, 'hero-left').rotation).toBe(fixtureByKey(beatClosed, 'hero-left').rotation)
+    expect(beatOpen.diagnostics.suppressedAudioGeometryMappings).toContain('fixture.rotation')
     expect(fixtureByKey(resolve(2.1, { kick: true }), 'hero-left').runtimeBeamAppearance?.width).toBe(3)
     expect(fixtureByKey(resolve(2.1, { snare: true }), 'hero-left').color).toBe('#ffffff')
     expect(fixtureByKey(resolve(2.1, { transient: 1 }), 'hero-left').beam.focus).toBe(0.25)
@@ -332,7 +333,7 @@ describe('Show Director deterministic performance resolver', () => {
       id: 'beat-cycle', label: 'Beat Cycle', enabled: true, section: { types: ['drop'] },
       beatMutations: [{
         id: 'beats-zero-and-three', beatDivision: 1, beatOffsets: [0, 3], beatCycleLength: 4,
-        address: { fixtureSemanticKeys: ['hero-left'] }, fixture: { rotation: 99 },
+        address: { fixtureSemanticKeys: ['hero-left'] }, fixture: { brightness: 0.99 },
       }],
     }]
     const resolveBeat = (timeSec: number) => resolveLaserDmxShowDirectorPerformance({
@@ -340,9 +341,9 @@ describe('Show Director deterministic performance resolver', () => {
       programSeed: 77, enabled: true, audioIntelligenceEnabled: true, fallbackBehavior: 'basicTiming',
       runtimeInvalidationId: 'runtime:beat-cycle',
     })
-    expect(fixtureByKey(resolveBeat(0.1), 'hero-left').rotation).toBe(99)
-    expect(fixtureByKey(resolveBeat(0.6), 'hero-left').rotation).toBe(10)
-    expect(fixtureByKey(resolveBeat(1.6), 'hero-left').rotation).toBe(99)
+    expect(fixtureByKey(resolveBeat(0.1), 'hero-left').brightness).toBe(0.99)
+    expect(fixtureByKey(resolveBeat(0.6), 'hero-left').brightness).not.toBe(0.99)
+    expect(fixtureByKey(resolveBeat(1.6), 'hero-left').brightness).toBe(0.99)
   })
 
   it('applies participating semantic group overrides and reports missing requested groups', () => {

@@ -3689,6 +3689,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       pixGridState: normalizePixGridState(state.pixGridState),
     }
   }
+  if (version < 52) {
+    // Backfill the versioned LaserDMX macro/cue programming document through
+    // the non-destructive legacy adapter while preserving authored scene data.
+    state = {
+      ...state,
+      laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
+      laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -7849,7 +7858,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 51,
+      version: 52,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

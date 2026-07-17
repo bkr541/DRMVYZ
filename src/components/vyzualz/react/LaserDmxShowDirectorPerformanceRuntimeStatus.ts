@@ -30,6 +30,22 @@ export interface LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot {
   missingCapabilities: string[]
   fallbackOrSuppressionReason: string | null
   beamBudgetWarning: string | null
+  activePrimaryCueId: string | null
+  activeAccentCueIds: string[]
+  cueStartBeat: number
+  cueRemainingBeats: number
+  activeMacroId: string | null
+  activeMacroName: string | null
+  fixtureGroupRelationships: string[]
+  stablePatternFrameId: string | null
+  patternFrameRevisionCount: number
+  macroTransitionState: string
+  audioModulationValues: Record<string, number>
+  geometryRebuildCount: number
+  unexpectedTopologyChanges: number
+  suppressedAudioGeometryMappings: string[]
+  programmingWarnings: string[]
+  programmingCompatibilitySource: string
   boundaryIdentity: string
 }
 
@@ -51,6 +67,22 @@ const EMPTY_SNAPSHOT: LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot = Obj
   missingCapabilities: [],
   fallbackOrSuppressionReason: null,
   beamBudgetWarning: null,
+  activePrimaryCueId: null,
+  activeAccentCueIds: [],
+  cueStartBeat: 0,
+  cueRemainingBeats: 0,
+  activeMacroId: null,
+  activeMacroName: null,
+  fixtureGroupRelationships: [],
+  stablePatternFrameId: null,
+  patternFrameRevisionCount: 0,
+  macroTransitionState: 'inactive',
+  audioModulationValues: {},
+  geometryRebuildCount: 0,
+  unexpectedTopologyChanges: 0,
+  suppressedAudioGeometryMappings: [],
+  programmingWarnings: [],
+  programmingCompatibilitySource: 'inactive',
   boundaryIdentity: 'inactive',
 })
 
@@ -76,6 +108,22 @@ function statusFingerprint(value: LaserDmxShowDirectorPerformanceRuntimeStatusSn
     value.missingCapabilities.join(','),
     value.fallbackOrSuppressionReason,
     value.beamBudgetWarning,
+    value.activePrimaryCueId,
+    value.activeAccentCueIds.join(','),
+    value.cueStartBeat,
+    value.cueRemainingBeats,
+    value.activeMacroId,
+    value.activeMacroName,
+    value.fixtureGroupRelationships.join(','),
+    value.stablePatternFrameId,
+    value.patternFrameRevisionCount,
+    value.macroTransitionState,
+    JSON.stringify(value.audioModulationValues),
+    value.geometryRebuildCount,
+    value.unexpectedTopologyChanges,
+    value.suppressedAudioGeometryMappings.join(','),
+    value.programmingWarnings.join(','),
+    value.programmingCompatibilitySource,
     value.boundaryIdentity,
   ].join('|')
 }
@@ -106,6 +154,22 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
     missingCapabilities: [...resolution.diagnostics.missingCapabilities],
     fallbackOrSuppressionReason: resolution.diagnostics.suppressionReason ?? resolution.diagnostics.fallbackReason,
     beamBudgetWarning: resolution.diagnostics.beamBudgetWarning,
+    activePrimaryCueId: resolution.activePrimaryCueId ?? null,
+    activeAccentCueIds: [...(resolution.activeAccentCueIds ?? [])],
+    cueStartBeat: resolution.programmingDiagnostics?.cueStartBeat ?? 0,
+    cueRemainingBeats: resolution.programmingDiagnostics?.cueRemainingBeats ?? 0,
+    activeMacroId: resolution.activeMacroId ?? null,
+    activeMacroName: resolution.activeMacroName ?? null,
+    fixtureGroupRelationships: [...(resolution.programmingDiagnostics?.fixtureGroupRelationships ?? [])],
+    stablePatternFrameId: resolution.stablePatternFrame?.id ?? resolution.programmingDiagnostics?.stablePatternFrameId ?? null,
+    patternFrameRevisionCount: resolution.programmingDiagnostics?.patternFrameRevisionCount ?? 0,
+    macroTransitionState: resolution.programmingDiagnostics?.transitionState ?? 'inactive',
+    audioModulationValues: { ...(resolution.programmingDiagnostics?.audioModulationValues ?? {}) },
+    geometryRebuildCount: resolution.programmingDiagnostics?.geometryRebuildCount ?? 0,
+    unexpectedTopologyChanges: resolution.programmingDiagnostics?.unexpectedTopologyChanges ?? 0,
+    suppressedAudioGeometryMappings: [...(resolution.diagnostics.suppressedAudioGeometryMappings ?? [])],
+    programmingWarnings: (resolution.programmingDiagnostics?.warnings ?? []).map(warning => warning.message),
+    programmingCompatibilitySource: resolution.programmingDiagnostics?.compatibilitySource ?? 'inactive',
     boundaryIdentity: [
       resolution.currentSection,
       resolution.currentSectionOccurrence,
@@ -121,6 +185,14 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
       resolution.diagnostics.missingCapabilities.join(','),
       resolution.diagnostics.fallbackReason,
       resolution.diagnostics.suppressionReason,
+      resolution.activePrimaryCueId,
+      resolution.activeAccentCueIds?.join(','),
+      resolution.activeMacroId,
+      resolution.stablePatternFrame?.id,
+      resolution.programmingDiagnostics?.patternFrameRevisionCount,
+      resolution.programmingDiagnostics?.transitionState,
+      resolution.programmingDiagnostics?.unexpectedTopologyChanges,
+      resolution.diagnostics.suppressedAudioGeometryMappings?.join(','),
     ].join('|'),
   }
   if (context) {

@@ -571,3 +571,7 @@ The final regression contract is:
 ## Physical scanner built-in content migration (Patch 5)
 
 All first-party Show Director Performance Shows and Rig Layout presets now pass through the native physical-content migration described in `LASER_DMX_PHYSICAL_SCANNER_PATCH_5.md`. Built-in lasers use ordered scanner paths, semantic hero/support/texture banks, section-aware scanner choreography, and physical simultaneous-output budgeting. Legacy saved projects remain supported through the existing preview and migration tools.
+
+## Professional laser cue layer
+
+LaserDMX Performance Programs now normalize a versioned effect-macro and cue-stack document above the existing physical scanner runtime. Legacy shows are adapted non-destructively, transient audio geometry changes are blocked, and authoring diagnostics expose active cue, macro, stable frame, relationships, transition state, and compatibility warnings. See `LASER_DMX_SHOW_PROGRAMMING_ARCHITECTURE.md` for the complete Patch 1 contract and Patch 2 boundary.
