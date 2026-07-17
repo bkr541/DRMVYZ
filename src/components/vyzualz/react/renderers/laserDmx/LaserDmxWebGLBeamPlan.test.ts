@@ -100,7 +100,15 @@ describe('LaserDMX WebGL beam render plan', () => {
       depthRange: { minZ: -0.72, maxZ: 0.72 },
       sortDepth: 0,
     }
-    const plan = buildLaserDmxWebGLBeamRenderPlan({ ...frame, beams: [crossing] }, {
+    const plan = buildLaserDmxWebGLBeamRenderPlan({
+      ...frame,
+      scannerHeads: [],
+      scanPaths: [],
+      scannerInstantaneousRays: [],
+      exposureSamples: [],
+      opticalCopies: [],
+      beams: [crossing],
+    }, {
       backingWidth: 1280,
       backingHeight: 720,
       cssWidth: 1280,

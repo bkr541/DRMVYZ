@@ -103,7 +103,9 @@ describe('LaserDMX fixture-specific WebGL optics', () => {
       cssHeight: 540,
     })
     expect(new Set(plan.beams.map(beam => beam.materialMode))).toEqual(new Set([0, 1, 2]))
-    expect(plan.beams.find(beam => beam.id.startsWith('fixture-laser'))).toMatchObject({ goboAmount: 0, prismAmount: 0.5 })
+    const laserBeams = plan.beams.filter(beam => beam.id.startsWith('fixture-laser'))
+    expect(laserBeams.find(beam => beam.prismAmount === 0)).toMatchObject({ goboAmount: 0, prismFacetCount: 1 })
+    expect(laserBeams.some(beam => beam.prismAmount === 1 && beam.prismFacetCount === 2)).toBe(true)
     expect(plan.beams.find(beam => beam.id.startsWith('fixture-movingHead'))).toMatchObject({
       goboAmount: 0.75,
       goboPattern: 5,

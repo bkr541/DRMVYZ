@@ -15,6 +15,7 @@ export type LaserDmxTemporalClearReason =
   | 'identityChange'
   | 'qualityChange'
   | 'captureEntry'
+  | 'scannerTopologyChange'
   | 'blackout'
   | 'strobeDarkPhase'
   | 'manualReset'
@@ -82,11 +83,11 @@ export interface LaserDmxTemporalBeamSnapshot {
 }
 
 const QUALITY_POLICIES: Readonly<Record<LaserDmxShowDirectorWebGLQuality, LaserDmxTemporalQualityPolicy>> = Object.freeze({
-  low: { resolutionScale: 0.46, maximumRetention: 0.68, temporalStrength: 0.72, instabilityLayers: 1 },
-  medium: { resolutionScale: 0.66, maximumRetention: 0.78, temporalStrength: 0.88, instabilityLayers: 2 },
-  high: { resolutionScale: 0.84, maximumRetention: 0.86, temporalStrength: 1, instabilityLayers: 3 },
-  ultra: { resolutionScale: 1, maximumRetention: 0.9, temporalStrength: 1.04, instabilityLayers: 4 },
-  auto: { resolutionScale: 0.76, maximumRetention: 0.82, temporalStrength: 0.94, instabilityLayers: 3 },
+  low: { resolutionScale: 0.46, maximumRetention: 0.26, temporalStrength: 0.56, instabilityLayers: 1 },
+  medium: { resolutionScale: 0.66, maximumRetention: 0.32, temporalStrength: 0.68, instabilityLayers: 2 },
+  high: { resolutionScale: 0.84, maximumRetention: 0.38, temporalStrength: 0.78, instabilityLayers: 3 },
+  ultra: { resolutionScale: 1, maximumRetention: 0.42, temporalStrength: 0.84, instabilityLayers: 4 },
+  auto: { resolutionScale: 0.76, maximumRetention: 0.35, temporalStrength: 0.74, instabilityLayers: 3 },
 })
 
 function finite(value: unknown, fallback = 0): number {
@@ -375,6 +376,31 @@ export function measureLaserDmxTemporalMotion(
     peak = Math.max(peak, normalizedMotion)
   }
 
+  const visibleScannerSamples = frame.exposureSamples.filter(sample => !sample.blanked && sample.intensity > 0.001)
+  if (visibleScannerSamples.length > 0) {
+    const byHead = new Map<string, typeof visibleScannerSamples>()
+    for (const sample of visibleScannerSamples) {
+      const group = byHead.get(sample.scannerHeadId) ?? []
+      group.push(sample)
+      byHead.set(sample.scannerHeadId, group)
+    }
+    for (const [headId, headSamples] of byHead) {
+      const averageVelocity = headSamples.reduce((sum, sample) => sum + clamp01(sample.velocityRatio), 0) / headSamples.length
+      const normalizedMotion = clamp01(averageVelocity * 0.72)
+      const persistenceWeight = 0.58
+      samples.push({
+        beamId: `scanner:${headId}`,
+        angularSpeed: averageVelocity,
+        targetSpeed: averageVelocity,
+        normalizedMotion,
+        persistenceWeight,
+      })
+      weightedTotal += normalizedMotion * persistenceWeight
+      totalWeight += persistenceWeight
+      peak = Math.max(peak, normalizedMotion)
+    }
+  }
+
   const average = totalWeight > 0 ? weightedTotal / totalWeight : 0
   return {
     score: clamp01(peak * 0.68 + average * 0.32),
@@ -401,12 +427,13 @@ export function resolveLaserDmxTemporalHistoryPlan(
   const authoredPersistence = clamp01(frame.output.beamPersistence)
   const energy = clamp01(frame.musicalState.energy)
   const sectionWeight = sectionPersistenceWeight(frame.musicalState.section)
-  const beatLift = beatEnvelope(frame) * 0.025
-  const kickLift = frame.musicalState.kickStrength * 0.045
-  const hatLift = frame.musicalState.hatStrength * Math.min(0.035, motion.average * 0.08)
+  const beatLift = beatEnvelope(frame) * 0.008
+  const kickLift = frame.musicalState.kickStrength * 0.012
+  const hatLift = frame.musicalState.hatStrength * Math.min(0.008, motion.average * 0.02)
   const snareSegmentation = frame.musicalState.snareHit ? 0.64 : 1
   const strobeSegmentation = strobeRate > 0.001 ? (input.strobeVisible ? 0.34 : 0) : 1
-  const baseRetention = (0.1 + authoredPersistence * 0.72)
+  const sensorPersistence = frame.presentationMode === 'capture' ? 0.72 : 1
+  const baseRetention = (0.018 + authoredPersistence * 0.24)
     * movement
     * sectionWeight
     * policy.temporalStrength
@@ -415,7 +442,8 @@ export function resolveLaserDmxTemporalHistoryPlan(
     : clamp(
         (baseRetention + movement * (energy * 0.035 + beatLift + kickLift + hatLift))
           * snareSegmentation
-          * strobeSegmentation,
+          * strobeSegmentation
+          * sensorPersistence,
         0,
         policy.maximumRetention,
       )
@@ -432,11 +460,19 @@ export function resolveLaserDmxTemporalHistoryPlan(
   }
 }
 
+function scannerTopologyIdentity(frame: LaserDmxSceneFrame): string {
+  return frame.scanPaths
+    .map(path => `${path.id}:${path.scannerHeadId}:${path.closed ? 1 : 0}:${path.points.map(point => `${point.position.x.toFixed(5)},${point.position.y.toFixed(5)},${point.position.z.toFixed(5)},${point.blanked ? 1 : 0}`).join(';')}`)
+    .sort()
+    .join('|')
+}
+
 export class LaserDmxTemporalOpticsController {
   private previousBeams = new Map<string, LaserDmxTemporalBeamSnapshot>()
   private lastHistoryIdentity: string | null = null
   private lastQuality: LaserDmxShowDirectorWebGLQuality | null = null
   private lastPresentationMode: LaserDmxSceneFrame['presentationMode'] | null = null
+  private lastScannerTopologyIdentity: string | null = null
   private disposed = false
 
   get isDisposed(): boolean {
@@ -460,12 +496,14 @@ export class LaserDmxTemporalOpticsController {
       }
     }
 
+    const topologyIdentity = scannerTopologyIdentity(frame)
     const strobeVisible = frame.transientEvents.some(event => event.kind === 'strobe' && event.strength > 0.001)
     const strobeDarkPhase = resolveEffectiveStrobeRate(frame) > 0.001 && !strobeVisible
     let clearReason: LaserDmxTemporalClearReason | null = null
     if (this.lastHistoryIdentity == null) clearReason = 'initialMount'
     else if (frame.transport.timingDiscontinuity) clearReason = 'timingDiscontinuity'
     else if (frame.transport.historyIdentity !== this.lastHistoryIdentity) clearReason = 'identityChange'
+    else if (topologyIdentity !== this.lastScannerTopologyIdentity) clearReason = 'scannerTopologyChange'
     else if (frame.quality.qualityTier !== this.lastQuality) clearReason = 'qualityChange'
     else if (frame.presentationMode === 'capture' && this.lastPresentationMode !== 'capture') clearReason = 'captureEntry'
     if (frame.output.blackout) clearReason = 'blackout'
@@ -500,6 +538,7 @@ export class LaserDmxTemporalOpticsController {
     this.lastHistoryIdentity = frame.transport.historyIdentity
     this.lastQuality = frame.quality.qualityTier
     this.lastPresentationMode = frame.presentationMode
+    this.lastScannerTopologyIdentity = topologyIdentity
     return { history, motion }
   }
 
@@ -509,6 +548,7 @@ export class LaserDmxTemporalOpticsController {
     this.lastHistoryIdentity = null
     this.lastQuality = null
     this.lastPresentationMode = null
+    this.lastScannerTopologyIdentity = null
   }
 
   dispose(): void {

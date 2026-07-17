@@ -166,6 +166,19 @@ describe('LaserDMX deterministic temporal optics', () => {
       .toBe('captureEntry')
   })
 
+  it('clears history when an ordered scanner path is edited', () => {
+    const controller = new LaserDmxTemporalOpticsController()
+    const frame = createFrame()
+    controller.update(frame)
+    const edited = structuredClone(frame)
+    edited.transport.audioTimeSec += edited.transport.deltaTimeSec
+    const firstPoint = edited.scanPaths[0]?.points[0]
+    if (!firstPoint) throw new Error('Expected a scanner path for topology reset testing')
+    firstPoint.position.x += 0.04
+
+    expect(controller.update(edited).history.clearReason).toBe('scannerTopologyChange')
+  })
+
   it('clears on blackout and dark strobe phases while segmenting visible strobe history', () => {
     const blackoutController = new LaserDmxTemporalOpticsController()
     blackoutController.update(createFrame())

@@ -814,12 +814,14 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
     const sampleCount = QUALITY_EXPOSURE_SAMPLES[input.quality]
     const exposureSeconds = clamp(head.shutterExposureSeconds, 1 / 240, 1 / 12)
     const directSamples: Array<{ evaluation: LaserDmxScannerEvaluation; sampleTime: number; rawWeight: number }> = []
+    const blankedSamples: Array<{ evaluation: LaserDmxScannerEvaluation; sampleTime: number }> = []
     for (let index = 0; index < sampleCount; index += 1) {
       const sampleTime = input.audioTimeSec - exposureSeconds + (index + 0.5) / sampleCount * exposureSeconds
       const evaluation = evaluateTimeline(head, path, Math.max(0, sampleTime), input.bpm)
       if (!evaluation) continue
       if (evaluation.blanked) {
         blankedSampleCount += 1
+        blankedSamples.push({ evaluation, sampleTime: Math.max(0, sampleTime) })
         continue
       }
       const velocityWeight = lerp(1.65, 0.52, evaluation.velocityRatio)
@@ -827,6 +829,40 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
     }
     const totalRawWeight = directSamples.reduce((sum, sample) => sum + sample.rawWeight, 0) || 1
     const copies = copiesByHead.get(head.id) ?? []
+    for (const sample of blankedSamples) {
+      exposureSamples.push({
+        scannerHeadId: head.id,
+        fixtureId: head.fixtureId,
+        origin: { ...origin },
+        targetOrDirection: { ...sample.evaluation.target },
+        sampleTime: sample.sampleTime,
+        exposureWeight: 0,
+        intensity: 0,
+        color: { ...sample.evaluation.color },
+        blanked: true,
+        opticalCopyIndex: 0,
+        pathId: sample.evaluation.pathId,
+        pointIndex: sample.evaluation.pointIndex,
+        velocityRatio: sample.evaluation.velocityRatio,
+      })
+      for (const copy of copies) {
+        exposureSamples.push({
+          scannerHeadId: head.id,
+          fixtureId: head.fixtureId,
+          origin: { ...origin },
+          targetOrDirection: rotateTargetAroundOrigin(origin, sample.evaluation.target, copy.rotationDeg),
+          sampleTime: sample.sampleTime,
+          exposureWeight: 0,
+          intensity: 0,
+          color: { ...sample.evaluation.color },
+          blanked: true,
+          opticalCopyIndex: copy.opticalCopyIndex,
+          pathId: sample.evaluation.pathId,
+          pointIndex: sample.evaluation.pointIndex,
+          velocityRatio: sample.evaluation.velocityRatio,
+        })
+      }
+    }
     for (const sample of directSamples) {
       const directWeight = sample.rawWeight / totalRawWeight
       exposureSamples.push({

@@ -152,6 +152,11 @@ describe('LaserDMX WebGL atmosphere compilation', () => {
       { ...template, id: 'middle', origin: { ...template.origin, z: 0.05 }, target: { ...template.target, z: -0.05 } },
       { ...template, id: 'rear', origin: { ...template.origin, z: -0.55 }, target: { ...template.target, z: -0.65 } },
     ]
+    frame.scannerHeads = []
+    frame.scanPaths = []
+    frame.scannerInstantaneousRays = []
+    frame.exposureSamples = []
+    frame.opticalCopies = []
     const plan = buildLaserDmxWebGLAtmosphereRenderPlan(frame, VIEWPORT)
     const front = plan.beams.find(beam => beam.id.startsWith('front-atmosphere'))!
     const middle = plan.beams.find(beam => beam.id.startsWith('middle-atmosphere'))!

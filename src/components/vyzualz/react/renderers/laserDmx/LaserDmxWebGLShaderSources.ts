@@ -14,31 +14,44 @@ uniform vec2 uCssToBacking;
 out float vAcross;
 out float vAlong;
 out float vBodyRatio;
+out vec2 vCapsuleCoordPx;
 flat out vec4 vColor;
 flat out vec4 vOptics;
 flat out vec4 vExtra;
 flat out vec4 vFixture;
 flat out vec4 vPrism;
+flat out vec4 vCoverage;
 void main() {
   vec2 originPx = vec2(iOrigin.x * uViewportPx.x, iOrigin.y * uViewportPx.y);
   vec2 targetPx = vec2(iTarget.x * uViewportPx.x, iTarget.y * uViewportPx.y);
   vec2 delta = targetPx - originPx;
   float segmentLength = max(length(delta), 0.0001);
-  vec2 normal = vec2(-delta.y, delta.x) / segmentLength;
+  vec2 tangent = segmentLength > 0.001 ? delta / segmentLength : vec2(1.0, 0.0);
+  vec2 normal = vec2(-tangent.y, tangent.x);
   float along = aCorner.x;
-  float envelopeCssPx = mix(iWidths.z, iWidths.w, along);
   float backingScale = min(uCssToBacking.x, uCssToBacking.y);
-  vec2 positionPx = mix(originPx, targetPx, along) + normal * aCorner.y * envelopeCssPx * backingScale * 0.5;
+  float envelopeCssPx = mix(iWidths.z, iWidths.w, along);
+  float envelopeHalfPx = max(0.75, envelopeCssPx * backingScale * 0.5);
+  float capOffset = along < 0.5 ? -envelopeHalfPx : envelopeHalfPx;
+  vec2 centerPx = mix(originPx, targetPx, along) + tangent * capOffset;
+  vec2 positionPx = centerPx + normal * aCorner.y * envelopeHalfPx;
   vec2 clip = vec2(positionPx.x / uViewportPx.x * 2.0 - 1.0, 1.0 - positionPx.y / uViewportPx.y * 2.0);
   gl_Position = vec4(clip, clamp(mix(iOrigin.z, iTarget.z, along), -1.0, 1.0), 1.0);
   vAcross = aCorner.y;
   vAlong = along;
   vBodyRatio = mix(iWidths.x / max(iWidths.z, 0.001), iWidths.y / max(iWidths.w, 0.001), along);
+  vCapsuleCoordPx = vec2(along < 0.5 ? -envelopeHalfPx : segmentLength + envelopeHalfPx, aCorner.y * envelopeHalfPx);
   vColor = iColor;
   vOptics = iOptics;
   vExtra = iExtra;
   vFixture = iFixture;
   vPrism = iPrism;
+  vCoverage = vec4(
+    segmentLength,
+    max(0.28, iWidths.x * backingScale * 0.5),
+    max(0.28, iWidths.y * backingScale * 0.5),
+    backingScale
+  );
 }`
 
 export const BEAM_FRAGMENT_SHADER = `#version 300 es
@@ -46,11 +59,13 @@ precision highp float;
 in float vAcross;
 in float vAlong;
 in float vBodyRatio;
+in vec2 vCapsuleCoordPx;
 flat in vec4 vColor;
 flat in vec4 vOptics;
 flat in vec4 vExtra;
 flat in vec4 vFixture;
 flat in vec4 vPrism;
+flat in vec4 vCoverage;
 out vec4 outColor;
 const float PI = 3.14159265359;
 mat2 rotate2(float angle) {
@@ -87,6 +102,15 @@ float goboMask(vec2 p, float pattern, float phase) {
   vec2 grid = abs(sin((p + phase * 0.035) * 11.0));
   return max(smoothstep(0.82, 0.96, grid.x), smoothstep(0.82, 0.96, grid.y));
 }
+float capsuleDistance(vec2 localPx, float segmentLength) {
+  float closestX = clamp(localPx.x, 0.0, segmentLength);
+  return length(vec2(localPx.x - closestX, localPx.y));
+}
+float analyticCoverage(float distancePx, float radiusPx, float minimumCoverage) {
+  float aa = max(0.55, fwidth(distancePx));
+  float coverageRadius = max(radiusPx, aa * minimumCoverage);
+  return 1.0 - smoothstep(coverageRadius - aa, coverageRadius + aa, distancePx);
+}
 void main() {
   float lateral = abs(vAcross);
   float intensity = vOptics.x;
@@ -95,20 +119,30 @@ void main() {
   float opacity = vOptics.w;
   float materialMode = vExtra.z;
   float softness = clamp(vExtra.w, 0.0, 1.0);
-  float envelope = exp(-lateral * lateral * 4.8) * vExtra.x;
-  float body = 1.0 - smoothstep(max(0.015, vBodyRatio * 0.58), max(0.025, vBodyRatio), lateral);
-  float core = 1.0 - smoothstep(max(0.006, vBodyRatio * 0.10), max(0.012, vBodyRatio * 0.28), lateral);
-  float hot = (1.0 - smoothstep(max(0.002, vBodyRatio * 0.018), max(0.006, vBodyRatio * 0.075), lateral)) * hotMix;
-  float sourceLift = 1.0 - smoothstep(0.0, 0.12, vAlong);
   vec3 saturated = vColor.rgb;
   vec3 paleCore = mix(saturated, vec3(1.0), 0.08 + hotMix * 0.46);
   vec3 energy;
   if (materialMode < 0.5) {
-    energy = saturated * envelope * intensity * 0.42;
-    energy += saturated * body * intensity * 0.92;
-    energy += paleCore * core * coreIntensity * (0.52 + sourceLift * 0.16);
-    energy += vec3(1.0) * hot * intensity * 1.12;
+    float segmentLength = max(0.0001, vCoverage.x);
+    float closestX = clamp(vCapsuleCoordPx.x, 0.0, segmentLength);
+    float alongT = clamp(closestX / segmentLength, 0.0, 1.0);
+    float bodyRadius = mix(vCoverage.y, vCoverage.z, alongT);
+    float distancePx = capsuleDistance(vCapsuleCoordPx, segmentLength);
+    float body = analyticCoverage(distancePx, bodyRadius, 0.68);
+    float core = analyticCoverage(distancePx, max(0.22, bodyRadius * 0.28), 0.5);
+    float hot = analyticCoverage(distancePx, max(0.14, bodyRadius * 0.1), 0.42) * hotMix;
+    float envelopeRadius = max(bodyRadius * 2.2, bodyRadius / max(vBodyRatio, 0.02));
+    float envelope = exp(-pow(distancePx / max(0.75, envelopeRadius), 2.0) * 3.2) * vExtra.x;
+    float endpointFade = smoothstep(-0.5, 0.5, vCapsuleCoordPx.x + bodyRadius)
+      * (1.0 - smoothstep(segmentLength - bodyRadius, segmentLength + bodyRadius + 0.5, vCapsuleCoordPx.x));
+    float sourceLift = 1.0 - smoothstep(0.0, max(1.0, segmentLength * 0.12), closestX);
+    energy = saturated * envelope * intensity * 0.34;
+    energy += saturated * body * intensity * 0.94;
+    energy += paleCore * core * coreIntensity * (0.58 + sourceLift * 0.08);
+    energy += vec3(1.0) * hot * intensity * 0.96;
+    energy *= endpointFade;
   } else {
+    float envelope = exp(-lateral * lateral * 4.8) * vExtra.x;
     float iris = clamp(vFixture.z, 0.05, 1.0);
     float frost = clamp(vFixture.w, 0.0, 1.0);
     float edge = materialMode < 1.5 ? mix(0.84, 0.3, softness) * iris : mix(0.64, 0.2, softness);
@@ -506,7 +540,7 @@ out vec4 outColor;
 void main() {
   vec3 current = max(texture(uCurrentTexture, vUv).rgb, vec3(0.0));
   vec3 previous = max(texture(uPreviousTexture, vUv).rgb, vec3(0.0));
-  vec3 retained = previous * clamp(uRetention, 0.0, 0.95) * step(0.5, uHistoryAvailable);
+  vec3 retained = previous * clamp(uRetention, 0.0, 0.45) * step(0.5, uHistoryAvailable);
   // Max compositing preserves old scanner positions without repeatedly adding
   // stationary light, so feedback cannot grow brighter on every frame.
   vec3 history = max(current, retained);

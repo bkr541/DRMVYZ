@@ -44,6 +44,11 @@ export interface LaserDmxWebGLDiagnostics {
   temporalResolutionScale: number
   laserHistoryInputCount: number
   laserHistorySliceCount: number
+  laserInputMode: 'scanner-samples' | 'legacy-only' | 'mixed'
+  scannerExposureSampleCount: number
+  scannerSegmentCount: number
+  suppressedLegacyBeamCount: number
+  duplicateLaserInputCount: number
   depthMode: LaserDmxWebGLAtmosphereRenderPlan['depthMode']
   depthSliceCount: number
   depthBufferStatus: 'slice-accumulation' | 'binary-fallback'
@@ -508,6 +513,11 @@ export class LaserDmxWebGLRuntime {
   private lastActiveFixtureCount = 0
   private lastLaserHistoryInputCount = 0
   private lastLaserHistorySliceCount = 0
+  private lastLaserInputMode: LaserDmxWebGLDiagnostics['laserInputMode'] = 'legacy-only'
+  private lastScannerExposureSampleCount = 0
+  private lastScannerSegmentCount = 0
+  private lastSuppressedLegacyBeamCount = 0
+  private lastDuplicateLaserInputCount = 0
   private lastTemporalResolutionScale = 0
   private disposed = false
 
@@ -578,6 +588,11 @@ export class LaserDmxWebGLRuntime {
       temporalResolutionScale: this.lastTemporalResolutionScale,
       laserHistoryInputCount: this.lastLaserHistoryInputCount,
       laserHistorySliceCount: this.lastLaserHistorySliceCount,
+      laserInputMode: this.lastLaserInputMode,
+      scannerExposureSampleCount: this.lastScannerExposureSampleCount,
+      scannerSegmentCount: this.lastScannerSegmentCount,
+      suppressedLegacyBeamCount: this.lastSuppressedLegacyBeamCount,
+      duplicateLaserInputCount: this.lastDuplicateLaserInputCount,
       depthMode: atmosphere?.depthMode ?? (this.continuousDepthAvailable ? 'continuous-slices' : 'binary-fallback'),
       depthSliceCount: atmosphere?.sliceCount ?? 0,
       depthBufferStatus: atmosphere?.depthMode === 'binary-fallback' ? 'binary-fallback' : 'slice-accumulation',
@@ -784,6 +799,11 @@ export class LaserDmxWebGLRuntime {
       this.lastRequestedBeamCount = atmospherePlan.requestedBeamCount
       this.lastActiveFixtureCount = renderFrame.fixtures.filter(fixture => fixture.enabled).length
       this.lastLaserHistoryInputCount = beamPlan.laserHistoryBeamCount
+      this.lastLaserInputMode = beamPlan.laserInputMode
+      this.lastScannerExposureSampleCount = beamPlan.scannerInputValidation.visibleScannerSampleCount
+      this.lastScannerSegmentCount = beamPlan.scannerSegmentCount
+      this.lastSuppressedLegacyBeamCount = beamPlan.scannerInputValidation.suppressedLegacyBeamIds.length
+      this.lastDuplicateLaserInputCount = beamPlan.scannerInputValidation.duplicateFixtureIds.length
       this.consecutiveRenderFailures = 0
       return {
         ok: true,
@@ -799,6 +819,11 @@ export class LaserDmxWebGLRuntime {
           temporalResolutionScale: this.lastTemporalResolutionScale,
           laserHistoryInputCount: beamPlan.laserHistoryBeamCount,
           laserHistorySliceCount: this.lastLaserHistorySliceCount,
+          laserInputMode: beamPlan.laserInputMode,
+          scannerExposureSampleCount: beamPlan.scannerInputValidation.visibleScannerSampleCount,
+          scannerSegmentCount: beamPlan.scannerSegmentCount,
+          suppressedLegacyBeamCount: beamPlan.scannerInputValidation.suppressedLegacyBeamIds.length,
+          duplicateLaserInputCount: beamPlan.scannerInputValidation.duplicateFixtureIds.length,
           depthMode: atmospherePlan.depthMode,
           depthSliceCount: sliceCount,
           depthBufferStatus: atmospherePlan.depthMode === 'binary-fallback' ? 'binary-fallback' : 'slice-accumulation',

@@ -253,7 +253,7 @@ describe('LaserDMX physical scanner domain', () => {
     expect(migrated.paths[0]?.points.some(candidate => candidate.blanked)).toBe(true)
   })
 
-  it('removes blanked samples from exposure output while reporting them', () => {
+  it('retains zero-energy blank markers so renderers can break retrace topology', () => {
     const scanner = head({ shutterExposureSeconds: 1 / 12, scanRatePps: 100 })
     const scanPath = path([
       point('a', 0.2, 0.2),
@@ -265,7 +265,9 @@ describe('LaserDMX physical scanner domain', () => {
       originByFixtureId: new Map([['laser', ORIGIN]]), audioTimeSec: 0.05, bpm: 150, quality: 'ultra',
     })
     expect(solved.blankedSampleCount).toBeGreaterThan(0)
-    expect(solved.exposureSamples.every(sample => sample.blanked === false)).toBe(true)
+    const blanked = solved.exposureSamples.filter(sample => sample.blanked)
+    expect(blanked.length).toBeGreaterThan(0)
+    expect(blanked.every(sample => sample.exposureWeight === 0 && sample.intensity === 0)).toBe(true)
   })
 
   it('concentrates held-point exposure and spreads fast scan exposure across space', () => {

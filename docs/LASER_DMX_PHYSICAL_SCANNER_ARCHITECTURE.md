@@ -2,7 +2,7 @@
 
 ## Status
 
-Patch 1 introduces the CPU-side physical scanner domain and keeps the existing WebGL and Canvas2D beam renderers active as compatibility output. Patch 2 is responsible for consuming scanner exposure samples in the WebGL laser renderer.
+Patch 1 introduced the CPU-side physical scanner domain. Patch 2 makes scanner exposure samples authoritative for normal WebGL scanner fixtures while retaining legacy beam data for Canvas2D compatibility, non-scanning lasers, nonlaser fixtures, and diagnostics.
 
 ## Physical contract
 
@@ -25,7 +25,7 @@ Nonlaser fixtures do not enter the scanner solver. Moving heads, washes, strobes
 - `legacyCompatibilityBeamIds`: old beam instances still consumed by Patch 1 renderers
 - `scannerDiagnostics`: migration, validation, sampling, blanking, and compatibility status
 
-The legacy `beams` list remains authoritative for current WebGL and Canvas2D drawing during Patch 1. The new scanner fields do not alter Beam Matrix or production DMX compilation.
+The legacy `beams` list remains available to Canvas2D and production compatibility paths. In WebGL, a fixture with a valid ordered scanner path is rendered only from `exposureSamples`; its overlapping legacy laser beams are suppressed and validated. The scanner fields do not alter Beam Matrix or production DMX compilation.
 
 ## Legacy conversion rules
 
@@ -74,7 +74,7 @@ For each scanner head, the solver evaluates a bounded set of samples over the vi
 - Ultra: 28 samples per head
 - Auto: 12 samples per head
 
-Blanked and retrace samples are excluded from `exposureSamples` and counted in diagnostics. Dwell and low-velocity samples receive greater exposure weight. Held points therefore accumulate at one location, while fast spans distribute their energy across the path. Quality changes only the sampling density, not the authored path or musical phase.
+Blanked and retrace positions are retained in `exposureSamples` as zero-energy topology markers and counted in diagnostics. WebGL consumes them only to break visible segment continuity. Dwell and low-velocity samples receive greater exposure weight. Held points therefore accumulate at one location, while fast spans distribute their energy across the path. Quality changes only the sampling density, not the authored path or musical phase.
 
 Prism copies are emitted after the base scan evaluation and retain an explicit `opticalCopyIndex`. The base instantaneous ray remains singular.
 
@@ -94,6 +94,6 @@ Renderer Diagnostics now reports:
 
 Diagnostics remain hidden with the rest of the renderer diagnostics in Capture presentation mode.
 
-## Patch 2 boundary
+## Patch 2 implementation
 
-Patch 2 must replace laser beam instance generation with scanner exposure-sample consumption and add the analytic laser shader integration. It must not recreate scanner timing or migration logic in the GPU layer. Patch 2 should preserve the current fixed camera, continuous depth, HDR, bloom, temporal optics, atmosphere, recovery, adaptive quality, and Canvas2D fallback behavior while switching the WebGL laser source of truth from `legacyCompatibilityBeamIds` to `exposureSamples`.
+Patch 2 converts ordered shutter samples into target-to-target WebGL segments, uses analytic screen-space capsule coverage for sharp laser cores, hands scanner-derived segments to atmosphere, normalizes radiance by exposure density rather than sample count, and limits temporal history to restrained laser-only sensor persistence. The existing fixed camera, clipping, continuous depth, HDR, bloom, recovery, adaptive quality, production output, and Canvas2D fallback remain intact. See `LASER_DMX_PHYSICAL_SCANNER_PATCH_2.md` for the detailed rendering contract and regressions.

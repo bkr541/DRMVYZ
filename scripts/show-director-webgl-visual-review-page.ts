@@ -34,6 +34,8 @@ interface WebGLPixelMetrics {
   meanSaturation: number
   blackFrameRatio: number
   litPixelRatio: number
+  connectedLitPixelRatio: number
+  isolatedLitPixelRatio: number
   highlightPixelRatio: number
   washedBrightPixelRatio: number
   leftRightDifference: number
@@ -433,9 +435,10 @@ function measurePixels(
   let lit = 0
   let highlight = 0
   let washed = 0
+  const pixels = width * height
+  const litMask = new Uint8Array(pixels)
   const columnEnergy = new Array<number>(width).fill(0)
   let replayDifference = 0
-  const pixels = width * height
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const offset = (y * width + x) * 4
@@ -448,7 +451,10 @@ function measurePixels(
       luminanceSum += luminance
       saturationSum += max > 0 ? (max - min) / max : 0
       if (luminance < 0.006) black += 1
-      if (luminance > 0.02) lit += 1
+      if (luminance > 0.02) {
+        lit += 1
+        litMask[y * width + x] = 1
+      }
       if (luminance > 0.82) highlight += 1
       if (r > 0.78 && g > 0.78 && b > 0.78) washed += 1
       replayDifference += (
@@ -457,6 +463,29 @@ function measurePixels(
         + Math.abs(data[offset + 2]! - second.data[offset + 2]!)
       ) / (255 * 3)
       columnEnergy[x] += luminance
+    }
+  }
+  let connectedLit = 0
+  let isolatedLit = 0
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x
+      if (litMask[index] === 0) continue
+      let connected = false
+      for (let oy = -1; oy <= 1 && !connected; oy += 1) {
+        for (let ox = -1; ox <= 1; ox += 1) {
+          if (ox === 0 && oy === 0) continue
+          const nx = x + ox
+          const ny = y + oy
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue
+          if (litMask[ny * width + nx] === 1) {
+            connected = true
+            break
+          }
+        }
+      }
+      if (connected) connectedLit += 1
+      else isolatedLit += 1
     }
   }
   let mirroredDifference = 0
@@ -473,6 +502,8 @@ function measurePixels(
     meanSaturation: saturationSum / pixels,
     blackFrameRatio: black / pixels,
     litPixelRatio: lit / pixels,
+    connectedLitPixelRatio: connectedLit / Math.max(1, lit),
+    isolatedLitPixelRatio: isolatedLit / Math.max(1, lit),
     highlightPixelRatio: highlight / pixels,
     washedBrightPixelRatio: washed / pixels,
     leftRightDifference: mirroredDifference / Math.max(1, mirroredWeight),

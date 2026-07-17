@@ -16,6 +16,11 @@ import {
 import { clipLaserDmxSceneSegment, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
 import { resolveLaserDmxAtmosphereFlutter } from './LaserDmxTemporalOptics'
 import type { LaserDmxWebGLViewport } from './LaserDmxWebGLBeamPlan'
+import {
+  aggregateLaserDmxScannerExposureSegments,
+  buildLaserDmxScannerExposurePlan,
+  resolveLaserDmxScannerExposureDensity,
+} from './LaserDmxScannerWebGLPlan'
 
 export interface LaserDmxWebGLAtmosphereQualityPolicy {
   resolutionScale: number
@@ -270,6 +275,8 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
   continuousDepthAvailable = true,
 ): LaserDmxWebGLAtmosphereRenderPlan {
   const quality = frame.atmosphere.qualityTier
+  const scannerPlan = buildLaserDmxScannerExposurePlan(frame)
+  const scannerFixtureIds = new Set(scannerPlan.validation.authoritativeFixtureIds)
   const policy = resolveLaserDmxAtmosphereQualityPolicy(quality)
   const depthPolicy = resolveLaserDmxDepthQualityPolicy(quality, continuousDepthAvailable)
   const flutter = resolveLaserDmxAtmosphereFlutter(frame)
@@ -278,6 +285,7 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
   const clippedByBeamId = new Map<string, ReturnType<typeof clipLaserDmxSceneSegment>>()
   const visible = frame.beams.filter(beam => {
     if (!beam.enabled || beam.intensity <= 0.001) return false
+    if (beam.fixtureKind === 'laser' && scannerFixtureIds.has(beam.fixtureId)) return false
     const clipped = clipLaserDmxSceneSegment(frame.camera, beam.origin, beam.target)
     if (!clipped) return false
     clippedByBeamId.set(beam.id, clipped)
@@ -337,6 +345,71 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
     }
   }
 
+  const scannerAtmosphereLimit = Math.max(0, policy.maxBeamInstances - selected.length)
+  const selectedScannerSegments = aggregateLaserDmxScannerExposureSegments(
+    scannerPlan.segments,
+    scannerAtmosphereLimit,
+  )
+  scannerAtmosphere: for (const scannerSegment of selectedScannerSegments) {
+    const fixture = frame.fixtures.find(candidate => candidate.id === scannerSegment.fixtureId)
+    if (!fixture?.enabled || fixture.intensity <= 0.001) continue
+    const clipped = clipLaserDmxSceneSegment(frame.camera, scannerSegment.origin, scannerSegment.target)
+    if (!clipped) continue
+    const origin = projectLaserDmxScenePoint(frame.camera, clipped.origin, aspect)
+    const targetPoint = projectLaserDmxScenePoint(frame.camera, clipped.target, aspect)
+    if (!origin.visible && !targetPoint.visible) continue
+    const globalWidth = clamp(frame.output.globalBeamWidth, 0.1, 6)
+    const depthScale = clamp((origin.perspectiveScale + targetPoint.perspectiveScale) * 0.5, 0.82, 1.22)
+    const atmosphereWidth = clamp(
+      (3.2 + globalWidth * 1.4 + frame.atmosphere.diffusion * 4.8) * depthScale,
+      4,
+      34,
+    )
+    const exposureDensity = resolveLaserDmxScannerExposureDensity(frame, scannerSegment)
+    const scannerIntensity = clamp(
+      exposureDensity
+        * fixture.optics.sourceIntensity
+        * frame.atmosphere.beamScatter
+        * (0.16 + fixture.optics.atmosphereResponse * 0.5)
+        * flutter.intensityMultiplier,
+      0,
+      1.25,
+    )
+    const depthSegments = splitLaserDmxDepthInterval(origin.clipDepth, targetPoint.clipDepth, depthPolicy)
+    for (let index = 0; index < depthSegments.length; index += 1) {
+      if (beams.length >= policy.maxRenderedSegments) break scannerAtmosphere
+      const segment = depthSegments[index]!
+      const seam = 0.0012
+      const t0 = clamp(segment.t0 - (index > 0 ? seam : 0), 0, 1)
+      const t1 = clamp(segment.t1 + (index < depthSegments.length - 1 ? seam : 0), 0, 1)
+      const depthWeight = depthScatterWeight(segment.centerDepth)
+      beams.push({
+        id: `${scannerSegment.id}-atmosphere-d${index + 1}`,
+        sourceId: `${scannerSegment.fixtureId}:scanner:${scannerSegment.scannerHeadId}:copy-${scannerSegment.opticalCopyIndex}`,
+        origin: {
+          x: lerp(origin.x, targetPoint.x, t0),
+          y: lerp(origin.y, targetPoint.y, t0),
+          z: lerp(origin.clipDepth, targetPoint.clipDepth, t0),
+        },
+        target: {
+          x: lerp(origin.x, targetPoint.x, t1),
+          y: lerp(origin.y, targetPoint.y, t1),
+          z: lerp(origin.clipDepth, targetPoint.clipDepth, t1),
+        },
+        color: scannerSegment.color,
+        intensity: scannerIntensity * depthWeight,
+        startWidthCssPx: atmosphereWidth,
+        endWidthCssPx: atmosphereWidth * 1.08,
+        depthWeight,
+        extinctionWeight: clamp01(0.3 + (1 - segment.centerDepth) * 0.26),
+        phase: scannerSegment.sampleTimeEnd * 0.017 + scannerSegment.opticalCopyIndex * 0.13,
+        depthSlice: segment.sliceIndex,
+        segmentT0: segment.t0,
+        segmentT1: segment.t1,
+      })
+    }
+  }
+
   const sources = frame.atmosphereSources
     .filter(source => source.enabled && source.density > 0.001)
     .sort((a, b) => b.density - a.density || a.id.localeCompare(b.id))
@@ -382,9 +455,11 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
     sliceCenters,
     beams,
     sources,
-    requestedBeamCount: visible.length,
+    requestedBeamCount: visible.length + scannerPlan.segments.length,
     renderedSegmentCount: beams.length,
-    degraded: selected.length < visible.length || beams.length >= policy.maxRenderedSegments,
+    degraded: selected.length < visible.length
+      || selectedScannerSegments.length < scannerPlan.segments.length
+      || beams.length >= policy.maxRenderedSegments,
     geometryMode: 'depthSlicedBeamVolumes',
     createsVenueGeometry: false,
   }

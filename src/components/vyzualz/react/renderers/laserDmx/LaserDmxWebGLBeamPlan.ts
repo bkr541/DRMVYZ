@@ -28,6 +28,11 @@ import {
   type LaserDmxProjectedPoint,
 } from './LaserDmxSpatialModel'
 import { resolveLaserDmxBeamInstability } from './LaserDmxTemporalOptics'
+import {
+  buildLaserDmxScannerExposurePlan,
+  resolveLaserDmxScannerExposureDensity,
+  type LaserDmxScannerWebGLInputValidation,
+} from './LaserDmxScannerWebGLPlan'
 
 export interface LaserDmxWebGLViewport {
   backingWidth: number
@@ -104,6 +109,9 @@ export interface LaserDmxWebGLBeamRenderPlan {
   laserHistoryBeamCount: number
   depthPolicy: LaserDmxDepthQualityPolicy
   degraded: boolean
+  laserInputMode: 'scanner-samples' | 'legacy-only' | 'mixed'
+  scannerSegmentCount: number
+  scannerInputValidation: LaserDmxScannerWebGLInputValidation
 }
 
 interface LaserDmxWebGLQualityPolicy {
@@ -113,15 +121,44 @@ interface LaserDmxWebGLQualityPolicy {
   maxPrismCopies: number
 }
 
-const QUALITY_POLICIES: Readonly<Record<LaserDmxShowDirectorWebGLQuality, LaserDmxWebGLQualityPolicy>> = Object.freeze({
-  low: { maxBeamInstances: 220, maxRenderedSegments: 360, envelopeComplexity: 0.46, maxPrismCopies: 3 },
-  medium: { maxBeamInstances: 260, maxRenderedSegments: 620, envelopeComplexity: 0.68, maxPrismCopies: 3 },
-  high: { maxBeamInstances: 300, maxRenderedSegments: 920, envelopeComplexity: 0.9, maxPrismCopies: 5 },
-  ultra: { maxBeamInstances: 300, maxRenderedSegments: 1200, envelopeComplexity: 1, maxPrismCopies: 5 },
-  auto: { maxBeamInstances: 280, maxRenderedSegments: 680, envelopeComplexity: 0.82, maxPrismCopies: 3 },
+const QUALITY_POLICIES: Readonly<
+  Record<LaserDmxShowDirectorWebGLQuality, LaserDmxWebGLQualityPolicy>
+> = Object.freeze({
+  low: {
+    maxBeamInstances: 220,
+    maxRenderedSegments: 360,
+    envelopeComplexity: 0.46,
+    maxPrismCopies: 3,
+  },
+  medium: {
+    maxBeamInstances: 260,
+    maxRenderedSegments: 620,
+    envelopeComplexity: 0.68,
+    maxPrismCopies: 3,
+  },
+  high: {
+    maxBeamInstances: 300,
+    maxRenderedSegments: 920,
+    envelopeComplexity: 0.9,
+    maxPrismCopies: 5,
+  },
+  ultra: {
+    maxBeamInstances: 300,
+    maxRenderedSegments: 1200,
+    envelopeComplexity: 1,
+    maxPrismCopies: 5,
+  },
+  auto: {
+    maxBeamInstances: 280,
+    maxRenderedSegments: 680,
+    envelopeComplexity: 0.82,
+    maxPrismCopies: 3,
+  },
 })
 
-const GOBO_PATTERN_INDEX: Readonly<Record<LaserDmxShowDirectorGoboPattern, number>> = Object.freeze({
+const GOBO_PATTERN_INDEX: Readonly<
+  Record<LaserDmxShowDirectorGoboPattern, number>
+> = Object.freeze({
   open: 0,
   circle: 1,
   dots: 2,
@@ -133,7 +170,9 @@ const GOBO_PATTERN_INDEX: Readonly<Record<LaserDmxShowDirectorGoboPattern, numbe
   grid: 8,
 })
 
-const VIDEO_SOURCE_INDEX: Readonly<Record<LaserDmxShowDirectorVideoWallSource, 0 | 1 | 2 | 3>> = Object.freeze({
+const VIDEO_SOURCE_INDEX: Readonly<
+  Record<LaserDmxShowDirectorVideoWallSource, 0 | 1 | 2 | 3>
+> = Object.freeze({
   placeholder: 0,
   reactVisual: 1,
   media: 2,
@@ -152,17 +191,24 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
 
-function lerpVec3(a: LaserDmxSceneVec3, b: LaserDmxSceneVec3, t: number): LaserDmxSceneVec3 {
+function lerpVec3(
+  a: LaserDmxSceneVec3,
+  b: LaserDmxSceneVec3,
+  t: number,
+): LaserDmxSceneVec3 {
   return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), z: lerp(a.z, b.z, t) }
 }
 
 function stableBeamSort(a: LaserDmxSceneBeam, b: LaserDmxSceneBeam): number {
-  return (a.priority - b.priority)
-    || (LASER_DMX_VISUAL_ROLE_PRIORITY[a.visualRole] - LASER_DMX_VISUAL_ROLE_PRIORITY[b.visualRole])
-    || (a.sortDepth - b.sortDepth)
-    || a.sourceId.localeCompare(b.sourceId)
-    || (a.pattern.rayIndex - b.pattern.rayIndex)
-    || a.id.localeCompare(b.id)
+  return (
+    a.priority - b.priority ||
+    LASER_DMX_VISUAL_ROLE_PRIORITY[a.visualRole] -
+      LASER_DMX_VISUAL_ROLE_PRIORITY[b.visualRole] ||
+    a.sortDepth - b.sortDepth ||
+    a.sourceId.localeCompare(b.sourceId) ||
+    a.pattern.rayIndex - b.pattern.rayIndex ||
+    a.id.localeCompare(b.id)
+  )
 }
 
 interface LaserDmxSourceDensityLimits {
@@ -173,7 +219,9 @@ interface LaserDmxSourceDensityLimits {
   texture: number
 }
 
-const SOURCE_DENSITY_LIMITS: Readonly<Record<LaserDmxShowDirectorWebGLQuality, LaserDmxSourceDensityLimits>> = Object.freeze({
+const SOURCE_DENSITY_LIMITS: Readonly<
+  Record<LaserDmxShowDirectorWebGLQuality, LaserDmxSourceDensityLimits>
+> = Object.freeze({
   low: { hero: 8, primary: 8, impact: 6, secondary: 6, texture: 4 },
   medium: { hero: 12, primary: 12, impact: 8, secondary: 8, texture: 6 },
   high: { hero: 16, primary: 16, impact: 10, secondary: 10, texture: 8 },
@@ -181,11 +229,16 @@ const SOURCE_DENSITY_LIMITS: Readonly<Record<LaserDmxShowDirectorWebGLQuality, L
   auto: { hero: 16, primary: 16, impact: 10, secondary: 10, texture: 8 },
 })
 
-function sourceDensityLimit(beam: LaserDmxSceneBeam, quality: LaserDmxShowDirectorWebGLQuality): number {
+function sourceDensityLimit(
+  beam: LaserDmxSceneBeam,
+  quality: LaserDmxShowDirectorWebGLQuality,
+): number {
   return SOURCE_DENSITY_LIMITS[quality][beam.visualRole]
 }
 
-function stableSourceGroups(beams: readonly LaserDmxSceneBeam[]): LaserDmxSceneBeam[][] {
+function stableSourceGroups(
+  beams: readonly LaserDmxSceneBeam[],
+): LaserDmxSceneBeam[][] {
   const grouped = new Map<string, LaserDmxSceneBeam[]>()
   for (const beam of beams) {
     const group = grouped.get(beam.sourceId) ?? []
@@ -193,8 +246,18 @@ function stableSourceGroups(beams: readonly LaserDmxSceneBeam[]): LaserDmxSceneB
     grouped.set(beam.sourceId, group)
   }
   return [...grouped.values()]
-    .map(group => group.sort((a, b) => a.pattern.rayIndex - b.pattern.rayIndex || stableBeamSort(a, b)))
-    .sort((a, b) => stableBeamSort([...a].sort(stableBeamSort)[0]!, [...b].sort(stableBeamSort)[0]!))
+    .map((group) =>
+      group.sort(
+        (a, b) =>
+          a.pattern.rayIndex - b.pattern.rayIndex || stableBeamSort(a, b),
+      ),
+    )
+    .sort((a, b) =>
+      stableBeamSort(
+        [...a].sort(stableBeamSort)[0]!,
+        [...b].sort(stableBeamSort)[0]!,
+      ),
+    )
 }
 
 function thinSourceForQuality(
@@ -204,8 +267,12 @@ function thinSourceForQuality(
   if (source.length === 0) return []
   const limit = Math.min(source.length, sourceDensityLimit(source[0]!, quality))
   if (source.length <= limit) return [...source].sort(stableBeamSort)
-  const selectedIndices = new Set(selectDeterministicLaserDmxRayIndices(source.length, limit))
-  return source.filter((_, index) => selectedIndices.has(index)).sort(stableBeamSort)
+  const selectedIndices = new Set(
+    selectDeterministicLaserDmxRayIndices(source.length, limit),
+  )
+  return source
+    .filter((_, index) => selectedIndices.has(index))
+    .sort(stableBeamSort)
 }
 
 /**
@@ -219,10 +286,21 @@ export function selectLaserDmxBeamsForQuality(
   quality: LaserDmxShowDirectorWebGLQuality,
   maxOverride?: number,
 ): LaserDmxSceneBeam[] {
-  const limit = Math.max(0, Math.min(300, Math.round(maxOverride ?? QUALITY_POLICIES[quality].maxBeamInstances)))
+  const limit = Math.max(
+    0,
+    Math.min(
+      300,
+      Math.round(maxOverride ?? QUALITY_POLICIES[quality].maxBeamInstances),
+    ),
+  )
   if (limit === 0) return []
-  const sources = stableSourceGroups(beams).map(source => thinSourceForQuality(source, quality))
-  const densityBoundedCount = sources.reduce((sum, source) => sum + source.length, 0)
+  const sources = stableSourceGroups(beams).map((source) =>
+    thinSourceForQuality(source, quality),
+  )
+  const densityBoundedCount = sources.reduce(
+    (sum, source) => sum + source.length,
+    0,
+  )
   if (densityBoundedCount <= limit) return sources.flat().sort(stableBeamSort)
 
   const sourcePriority = (source: readonly LaserDmxSceneBeam[]) => {
@@ -274,13 +352,20 @@ function projectedDirection(
   direction: LaserDmxSceneVec3,
   viewport: LaserDmxWebGLViewport,
 ): { x: number; y: number } {
-  const aspect = Math.max(0.5, viewport.backingWidth / Math.max(1, viewport.backingHeight))
+  const aspect = Math.max(
+    0.5,
+    viewport.backingWidth / Math.max(1, viewport.backingHeight),
+  )
   const origin = projectLaserDmxScenePoint(frame.camera, position, aspect)
-  const target = projectLaserDmxScenePoint(frame.camera, {
-    x: position.x + direction.x * 0.08,
-    y: position.y + direction.y * 0.08,
-    z: position.z + direction.z * 0.08,
-  }, aspect)
+  const target = projectLaserDmxScenePoint(
+    frame.camera,
+    {
+      x: position.x + direction.x * 0.08,
+      y: position.y + direction.y * 0.08,
+      z: position.z + direction.z * 0.08,
+    },
+    aspect,
+  )
   const x = (target.x - origin.x) * Math.max(1, viewport.backingWidth)
   const y = (target.y - origin.y) * Math.max(1, viewport.backingHeight)
   const length = Math.hypot(x, y)
@@ -299,7 +384,10 @@ function pointToSegmentDistance(
   const py = point.y - start.y
   const pz = (point.z - start.z) * 0.45
   const lengthSquared = dx * dx + dy * dy + dz * dz
-  const t = lengthSquared > 1e-8 ? clamp((px * dx + py * dy + pz * dz) / lengthSquared, 0, 1) : 0
+  const t =
+    lengthSquared > 1e-8
+      ? clamp((px * dx + py * dy + pz * dz) / lengthSquared, 0, 1)
+      : 0
   return Math.hypot(
     point.x - (start.x + dx * t),
     point.y - (start.y + dy * t),
@@ -318,16 +406,30 @@ function resolveCo2SegmentOcclusion(input: {
 }): number {
   const midpoint = lerpVec3(input.segmentOrigin, input.segmentTarget, 0.5)
   return input.co2Sources.reduce((maximum, source) => {
-    if (!source.enabled || source.kind !== 'co2' || source.density <= 0.001) return maximum
+    if (!source.enabled || source.kind !== 'co2' || source.density <= 0.001)
+      return maximum
     const plumeLength = 0.08 + source.expansion * 0.46
     const plumeTarget = {
       x: source.position.x + source.direction.x * plumeLength,
       y: source.position.y + source.direction.y * plumeLength,
       z: source.position.z + source.direction.z * plumeLength,
     }
-    const radius = Math.max(0.035, source.spread * (0.72 + source.expansion * 0.8))
-    const radialProximity = 1 - clamp(pointToSegmentDistance(midpoint, source.position, plumeTarget) / radius, 0, 1)
-    const projectedSource = projectLaserDmxScenePoint(input.frame.camera, source.position, input.aspect)
+    const radius = Math.max(
+      0.035,
+      source.spread * (0.72 + source.expansion * 0.8),
+    )
+    const radialProximity =
+      1 -
+      clamp(
+        pointToSegmentDistance(midpoint, source.position, plumeTarget) / radius,
+        0,
+        1,
+      )
+    const projectedSource = projectLaserDmxScenePoint(
+      input.frame.camera,
+      source.position,
+      input.aspect,
+    )
     const attenuation = resolveLaserDmxPartialPlumeAttenuation({
       segmentDepth: input.segmentDepth,
       plumeDepth: projectedSource.clipDepth,
@@ -359,18 +461,37 @@ function rotateProjectedTarget(
   }
 }
 
-function prismOffsets(facets: number, maxCopies: number, spreadRad: number, rotationRad: number): number[] {
-  const count = Math.max(1, Math.min(maxCopies, facets >= 5 ? 5 : facets >= 3 ? 3 : 1))
+function prismOffsets(
+  facets: number,
+  maxCopies: number,
+  spreadRad: number,
+  rotationRad: number,
+): number[] {
+  const count = Math.max(
+    1,
+    Math.min(maxCopies, facets >= 5 ? 5 : facets >= 3 ? 3 : 1),
+  )
   if (count === 1) return [0]
   return Array.from({ length: count }, (_, index) => {
     const centered = index - (count - 1) * 0.5
-    return centered * spreadRad + Math.sin(rotationRad + index * 2.399963) * spreadRad * 0.14
+    return (
+      centered * spreadRad +
+      Math.sin(rotationRad + index * 2.399963) * spreadRad * 0.14
+    )
   })
 }
 
-function ledBehaviorMode(direction: LaserDmxSceneFrame['fixtures'][number]['component']['ledDirection'], cells: number): 0 | 1 | 2 | 3 {
+function ledBehaviorMode(
+  direction: LaserDmxSceneFrame['fixtures'][number]['component']['ledDirection'],
+  cells: number,
+): 0 | 1 | 2 | 3 {
   if (cells <= 1) return 0
-  if (direction === 'chase' || direction === 'leftToRight' || direction === 'rightToLeft') return 2
+  if (
+    direction === 'chase' ||
+    direction === 'leftToRight' ||
+    direction === 'rightToLeft'
+  )
+    return 2
   if (direction === 'centerOut' || direction === 'edgesIn') return 3
   return 1
 }
@@ -382,69 +503,156 @@ export function buildLaserDmxWebGLBeamRenderPlan(
   continuousDepthAvailable = true,
 ): LaserDmxWebGLBeamRenderPlan {
   const policy = QUALITY_POLICIES[frame.quality.qualityTier]
-  const depthPolicy = resolveLaserDmxDepthQualityPolicy(frame.quality.qualityTier, continuousDepthAvailable)
-  const aspect = Math.max(0.5, viewport.backingWidth / Math.max(1, viewport.backingHeight))
-  const clippedByBeamId = new Map<string, ReturnType<typeof clipLaserDmxSceneSegment>>()
-  const visible = frame.beams.filter(beam => {
+  const scannerPlan = buildLaserDmxScannerExposurePlan(frame)
+  const scannerFixtureIds = new Set(
+    scannerPlan.validation.authoritativeFixtureIds,
+  )
+  const depthPolicy = resolveLaserDmxDepthQualityPolicy(
+    frame.quality.qualityTier,
+    continuousDepthAvailable,
+  )
+  const aspect = Math.max(
+    0.5,
+    viewport.backingWidth / Math.max(1, viewport.backingHeight),
+  )
+  const clippedByBeamId = new Map<
+    string,
+    ReturnType<typeof clipLaserDmxSceneSegment>
+  >()
+  const visible = frame.beams.filter((beam) => {
     if (!beam.enabled || beam.intensity <= 0.001) return false
-    if (beam.fixtureKind !== 'laser' && beam.fixtureKind !== 'movingHead' && beam.fixtureKind !== 'parWash') return false
-    const clipped = clipLaserDmxSceneSegment(frame.camera, beam.origin, beam.target)
+    if (
+      beam.fixtureKind !== 'laser' &&
+      beam.fixtureKind !== 'movingHead' &&
+      beam.fixtureKind !== 'parWash'
+    )
+      return false
+    if (beam.fixtureKind === 'laser' && scannerFixtureIds.has(beam.fixtureId))
+      return false
+    const clipped = clipLaserDmxSceneSegment(
+      frame.camera,
+      beam.origin,
+      beam.target,
+    )
     if (!clipped) return false
     clippedByBeamId.set(beam.id, clipped)
     return true
   })
-  const selected = selectLaserDmxBeamsForQuality(visible, frame.quality.qualityTier, maxBeamOverride)
+  const selected = selectLaserDmxBeamsForQuality(
+    visible,
+    frame.quality.qualityTier,
+    maxBeamOverride,
+  )
   const atmosphere = frame.atmosphere.enabled
-    ? clamp01(frame.atmosphere.opacity * 0.48 + frame.atmosphere.beamScatter * 0.52)
+    ? clamp01(
+        frame.atmosphere.opacity * 0.48 + frame.atmosphere.beamScatter * 0.52,
+      )
     : 0
   const globalWidth = clamp(frame.output.globalBeamWidth, 0.1, 6)
   const glow = clamp01(frame.output.globalGlow)
-  const fixtureById = new Map(frame.fixtures.map(fixture => [fixture.id, fixture]))
-  const co2Sources = frame.atmosphereSources.filter(source => source.kind === 'co2')
-  const fixtureSemanticKeyById = new Map(frame.fixtures.map(fixture => [fixture.id, fixture.semanticKey]))
-  const sourceInstability = new Map<string, ReturnType<typeof resolveLaserDmxBeamInstability>>()
+  const fixtureById = new Map(
+    frame.fixtures.map((fixture) => [fixture.id, fixture]),
+  )
+  const co2Sources = frame.atmosphereSources.filter(
+    (source) => source.kind === 'co2',
+  )
+  const fixtureSemanticKeyById = new Map(
+    frame.fixtures.map((fixture) => [fixture.id, fixture.semanticKey]),
+  )
+  const sourceInstability = new Map<
+    string,
+    ReturnType<typeof resolveLaserDmxBeamInstability>
+  >()
   const beams: LaserDmxWebGLBeamInstance[] = []
 
   outer: for (const beam of selected) {
     const clipped = clippedByBeamId.get(beam.id)!
-    const projectedOrigin = projectLaserDmxScenePoint(frame.camera, clipped.origin, aspect)
+    const projectedOrigin = projectLaserDmxScenePoint(
+      frame.camera,
+      clipped.origin,
+      aspect,
+    )
     const instability = resolveLaserDmxBeamInstability(
       frame,
       beam,
       fixtureSemanticKeyById.get(beam.fixtureId) ?? beam.fixtureId,
     )
-    if (!sourceInstability.has(beam.sourceId)) sourceInstability.set(beam.sourceId, instability)
-    const authoredTarget = projectLaserDmxScenePoint(frame.camera, clipped.target, aspect)
-    const unstableTarget = rotateProjectedTarget(projectedOrigin, authoredTarget, instability.angularOffsetRad)
+    if (!sourceInstability.has(beam.sourceId))
+      sourceInstability.set(beam.sourceId, instability)
+    const authoredTarget = projectLaserDmxScenePoint(
+      frame.camera,
+      clipped.target,
+      aspect,
+    )
+    const unstableTarget = rotateProjectedTarget(
+      projectedOrigin,
+      authoredTarget,
+      instability.angularOffsetRad,
+    )
     const distanceFactor = clamp01(beam.length / 1.35)
     const focusTightening = 0.82 + clamp01(beam.focus) * 0.18
-    const depthScale = clamp((projectedOrigin.perspectiveScale + authoredTarget.perspectiveScale) * 0.5, 0.82, 1.22)
+    const depthScale = clamp(
+      (projectedOrigin.perspectiveScale + authoredTarget.perspectiveScale) *
+        0.5,
+      0.82,
+      1.22,
+    )
     const fixture = fixtureById.get(beam.fixtureId)
-    const materialMode = beam.fixtureKind === 'laser' ? 0 : beam.fixtureKind === 'movingHead' ? 1 : 2
-    const zoom = fixture?.optics.zoom ?? (materialMode === 1 ? 0.45 : materialMode === 2 ? 0.78 : 0.2)
+    const materialMode =
+      beam.fixtureKind === 'laser'
+        ? 0
+        : beam.fixtureKind === 'movingHead'
+          ? 1
+          : 2
+    const zoom =
+      fixture?.optics.zoom ??
+      (materialMode === 1 ? 0.45 : materialMode === 2 ? 0.78 : 0.2)
     const iris = fixture?.optics.iris ?? 1
     const frost = fixture?.optics.frost ?? 0
-    const coneScale = materialMode === 1 ? (0.58 + zoom * 1.18) * (0.3 + iris * 0.7) : materialMode === 2 ? 1.25 + zoom * 0.95 : 1
+    const coneScale =
+      materialMode === 1
+        ? (0.58 + zoom * 1.18) * (0.3 + iris * 0.7)
+        : materialMode === 2
+          ? 1.25 + zoom * 0.95
+          : 1
     const baseWidth = clamp(
-      (0.42 + beam.width * 0.58)
-        * globalWidth
-        * focusTightening
-        * instability.widthMultiplier
-        * depthScale
-        * coneScale,
+      (0.42 + beam.width * 0.58) *
+        globalWidth *
+        focusTightening *
+        instability.widthMultiplier *
+        depthScale *
+        coneScale,
       0.35,
       materialMode === 2 ? 24 : materialMode === 1 ? 16 : 9,
     )
-    const bodyStartWidth = baseWidth * (materialMode === 1 ? 0.42 : materialMode === 2 ? 0.58 : 1)
+    const bodyStartWidth =
+      baseWidth * (materialMode === 1 ? 0.42 : materialMode === 2 ? 0.58 : 1)
     const bodyEndWidth = clamp(
-      baseWidth * (1 + beam.divergence * (materialMode === 0 ? 0.2 : materialMode === 1 ? 1.45 : 2.1) + distanceFactor * 0.07),
+      baseWidth *
+        (1 +
+          beam.divergence *
+            (materialMode === 0 ? 0.2 : materialMode === 1 ? 1.45 : 2.1) +
+          distanceFactor * 0.07),
       bodyStartWidth,
-      materialMode === 2 ? baseWidth * 3.4 : materialMode === 1 ? baseWidth * 2.8 : baseWidth * 1.38,
+      materialMode === 2
+        ? baseWidth * 3.4
+        : materialMode === 1
+          ? baseWidth * 2.8
+          : baseWidth * 1.38,
     )
     const scatterBase = baseWidth * beam.scatterEnvelopeWidth
-    const envelopeStartWidth = clamp(scatterBase * (0.42 + atmosphere * 0.12 + frost * 0.3), baseWidth * 1.45, 64)
+    const envelopeStartWidth = clamp(
+      scatterBase * (0.42 + atmosphere * 0.12 + frost * 0.3),
+      baseWidth * 1.45,
+      64,
+    )
     const envelopeEndWidth = clamp(
-      scatterBase * (0.66 + beam.divergence * 0.72 + distanceFactor * 0.28 + atmosphere * 0.24 + frost * 0.7),
+      scatterBase *
+        (0.66 +
+          beam.divergence * 0.72 +
+          distanceFactor * 0.28 +
+          atmosphere * 0.24 +
+          frost * 0.7),
       envelopeStartWidth,
       materialMode === 2 ? 120 : 72,
     )
@@ -453,22 +661,48 @@ export function buildLaserDmxWebGLBeamRenderPlan(
       0,
       2.4,
     )
-    const goboRotationRad = ((fixture?.optics.goboRotation ?? 0) * Math.PI / 180)
-      + frame.transport.audioTimeSec * (fixture?.component.movingHeadPanTiltStyle === 'snap' ? 0 : 0.24)
-    const prismRotationRad = ((fixture?.optics.prismRotation ?? 0) * Math.PI / 180) + frame.transport.audioTimeSec * 0.16
+    const goboRotationRad =
+      ((fixture?.optics.goboRotation ?? 0) * Math.PI) / 180 +
+      frame.transport.audioTimeSec *
+        (fixture?.component.movingHeadPanTiltStyle === 'snap' ? 0 : 0.24)
+    const prismRotationRad =
+      ((fixture?.optics.prismRotation ?? 0) * Math.PI) / 180 +
+      frame.transport.audioTimeSec * 0.16
     const prismFacets = fixture?.optics.prismFacets ?? 1
-    const offsets = prismOffsets(prismFacets, policy.maxPrismCopies, materialMode === 0 ? 0.012 : 0.035 + zoom * 0.028, prismRotationRad)
+    const offsets = prismOffsets(
+      prismFacets,
+      policy.maxPrismCopies,
+      materialMode === 0 ? 0.012 : 0.035 + zoom * 0.028,
+      prismRotationRad,
+    )
 
     for (let copyIndex = 0; copyIndex < offsets.length; copyIndex += 1) {
-      const copyTarget = rotateProjectedTarget(projectedOrigin, unstableTarget, offsets[copyIndex]!)
-      const copyEnergy = offsets.length === 1 ? 1 : 0.72 / Math.sqrt(offsets.length)
-      const segments = splitLaserDmxDepthInterval(projectedOrigin.clipDepth, copyTarget.clipDepth, depthPolicy)
-      for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
+      const copyTarget = rotateProjectedTarget(
+        projectedOrigin,
+        unstableTarget,
+        offsets[copyIndex]!,
+      )
+      const copyEnergy =
+        offsets.length === 1 ? 1 : 0.72 / Math.sqrt(offsets.length)
+      const segments = splitLaserDmxDepthInterval(
+        projectedOrigin.clipDepth,
+        copyTarget.clipDepth,
+        depthPolicy,
+      )
+      for (
+        let segmentIndex = 0;
+        segmentIndex < segments.length;
+        segmentIndex += 1
+      ) {
         if (beams.length >= policy.maxRenderedSegments) break outer
         const segment = segments[segmentIndex]!
         const seam = 0.0008
         const t0 = clamp(segment.t0 - (segmentIndex > 0 ? seam : 0), 0, 1)
-        const t1 = clamp(segment.t1 + (segmentIndex < segments.length - 1 ? seam : 0), 0, 1)
+        const t1 = clamp(
+          segment.t1 + (segmentIndex < segments.length - 1 ? seam : 0),
+          0,
+          1,
+        )
         const worldOrigin = lerpVec3(clipped.origin, clipped.target, t0)
         const worldTarget = lerpVec3(clipped.origin, clipped.target, t1)
         const co2Occlusion = resolveCo2SegmentOcclusion({
@@ -499,23 +733,38 @@ export function buildLaserDmxWebGLBeamRenderPlan(
           target: segmentTarget,
           color: beam.color,
           intensity: authoredIntensity * copyEnergy * transmission,
-          coreIntensity: clamp01(beam.coreIntensity * instability.intensityMultiplier * transmission),
-          whiteHotMix: resolveLaserDmxWhiteHotMix(beam.intensity, beam.coreIntensity),
+          coreIntensity: clamp01(
+            beam.coreIntensity * instability.intensityMultiplier * transmission,
+          ),
+          whiteHotMix: resolveLaserDmxWhiteHotMix(
+            beam.intensity,
+            beam.coreIntensity,
+          ),
           opacity: beam.opacity,
           bodyStartWidthCssPx: lerp(bodyStartWidth, bodyEndWidth, t0),
           bodyEndWidthCssPx: lerp(bodyStartWidth, bodyEndWidth, t1),
-          envelopeStartWidthCssPx: lerp(envelopeStartWidth, envelopeEndWidth, t0),
+          envelopeStartWidthCssPx: lerp(
+            envelopeStartWidth,
+            envelopeEndWidth,
+            t0,
+          ),
           envelopeEndWidthCssPx: lerp(envelopeStartWidth, envelopeEndWidth, t1),
           envelopeAlpha: clamp(
-            (0.055 + atmosphere * 0.17 + glow * 0.08 + frost * 0.08) * beam.opacity * policy.envelopeComplexity,
+            (0.055 + atmosphere * 0.17 + glow * 0.08 + frost * 0.08) *
+              beam.opacity *
+              policy.envelopeComplexity,
             0.015,
             0.38,
           ),
           phase: beam.pattern.phase + instability.phaseOffset,
           materialMode,
-          softness: fixture?.optics.opticalSoftness ?? (materialMode === 0 ? 0.08 : materialMode === 1 ? 0.34 : 0.72),
-          goboAmount: materialMode === 1 ? fixture?.optics.goboAmount ?? 0 : 0,
-          goboPattern: GOBO_PATTERN_INDEX[fixture?.optics.goboPattern ?? 'open'],
+          softness:
+            fixture?.optics.opticalSoftness ??
+            (materialMode === 0 ? 0.08 : materialMode === 1 ? 0.34 : 0.72),
+          goboAmount:
+            materialMode === 1 ? (fixture?.optics.goboAmount ?? 0) : 0,
+          goboPattern:
+            GOBO_PATTERN_INDEX[fixture?.optics.goboPattern ?? 'open'],
           goboRotationRad,
           iris,
           frost,
@@ -533,97 +782,440 @@ export function buildLaserDmxWebGLBeamRenderPlan(
     }
   }
 
-  const activeSourceIds = new Set(beams.map(beam => beam.sourceId))
-  const strobeActive = frame.transientEvents.some(event => event.kind === 'strobe' && event.strength > 0.001)
+  const templateBeamByFixtureId = new Map<string, LaserDmxSceneBeam>()
+  for (const beam of frame.beams) {
+    if (beam.fixtureKind !== 'laser') continue
+    const current = templateBeamByFixtureId.get(beam.fixtureId)
+    if (
+      !current ||
+      beam.intensity > current.intensity ||
+      (beam.intensity === current.intensity &&
+        beam.id.localeCompare(current.id) < 0)
+    ) {
+      templateBeamByFixtureId.set(beam.fixtureId, beam)
+    }
+  }
+  const emitterByFixtureId = new Map(
+    frame.emitters.map((emitter) => [emitter.fixtureId, emitter]),
+  )
+  scannerSegments: for (const scannerSegment of scannerPlan.segments) {
+    if (beams.length >= policy.maxRenderedSegments) break
+    const fixture = fixtureById.get(scannerSegment.fixtureId)
+    if (
+      !fixture?.enabled ||
+      fixture.kind !== 'laser' ||
+      fixture.intensity <= 0.001
+    )
+      continue
+    const clipped = clipLaserDmxSceneSegment(
+      frame.camera,
+      scannerSegment.origin,
+      scannerSegment.target,
+    )
+    if (!clipped) continue
+    const projectedOrigin = projectLaserDmxScenePoint(
+      frame.camera,
+      clipped.origin,
+      aspect,
+    )
+    const projectedTarget = projectLaserDmxScenePoint(
+      frame.camera,
+      clipped.target,
+      aspect,
+    )
+    if (!projectedOrigin.visible && !projectedTarget.visible) continue
+    const template = templateBeamByFixtureId.get(scannerSegment.fixtureId)
+    const sourceId =
+      emitterByFixtureId.get(scannerSegment.fixtureId)?.id ??
+      template?.sourceId ??
+      `${scannerSegment.fixtureId}-emitter`
+    const instability = template
+      ? resolveLaserDmxBeamInstability(
+          frame,
+          template,
+          fixtureSemanticKeyById.get(scannerSegment.fixtureId) ??
+            scannerSegment.fixtureId,
+        )
+      : {
+          intensityMultiplier: 1,
+          widthMultiplier: 1,
+          angularOffsetRad: 0,
+          phaseOffset: 0,
+          apertureMultiplier: 1,
+        }
+    if (!sourceInstability.has(sourceId))
+      sourceInstability.set(sourceId, instability)
+    const exposureDensity = resolveLaserDmxScannerExposureDensity(
+      frame,
+      scannerSegment,
+    )
+    const opticalPower = clamp(fixture.optics.sourceIntensity, 0, 2)
+    const authoredIntensity = clamp(
+      exposureDensity *
+        opticalPower *
+        (0.76 + glow * 0.44) *
+        instability.intensityMultiplier,
+      0,
+      2.2,
+    )
+    if (authoredIntensity <= 0.0005) continue
+    const depthScale = clamp(
+      (projectedOrigin.perspectiveScale + projectedTarget.perspectiveScale) *
+        0.5,
+      0.82,
+      1.22,
+    )
+    const focus = template?.focus ?? 0.92
+    const templateWidth = template?.width ?? 0.72
+    const baseWidth = clamp(
+      (0.32 + templateWidth * 0.42) *
+        globalWidth *
+        (0.84 + focus * 0.16) *
+        depthScale *
+        instability.widthMultiplier,
+      0.34,
+      2.6,
+    )
+    const bodyStartWidth = baseWidth
+    const bodyEndWidth = clamp(
+      baseWidth * (1 + (template?.divergence ?? 0.08) * 0.12),
+      baseWidth,
+      baseWidth * 1.18,
+    )
+    const atmosphereEnvelope = clamp(
+      baseWidth *
+        (3.2 +
+          atmosphere * 2.2 +
+          (template?.scatterEnvelopeWidth ?? 1.8) * 0.34),
+      baseWidth * 2.4,
+      16,
+    )
+    const segments = splitLaserDmxDepthInterval(
+      projectedOrigin.clipDepth,
+      projectedTarget.clipDepth,
+      depthPolicy,
+    )
+    for (
+      let segmentIndex = 0;
+      segmentIndex < segments.length;
+      segmentIndex += 1
+    ) {
+      if (beams.length >= policy.maxRenderedSegments) break scannerSegments
+      const segment = segments[segmentIndex]!
+      const seam = 0.0008
+      const t0 = clamp(segment.t0 - (segmentIndex > 0 ? seam : 0), 0, 1)
+      const t1 = clamp(
+        segment.t1 + (segmentIndex < segments.length - 1 ? seam : 0),
+        0,
+        1,
+      )
+      const worldOrigin = lerpVec3(clipped.origin, clipped.target, t0)
+      const worldTarget = lerpVec3(clipped.origin, clipped.target, t1)
+      const co2Occlusion = resolveCo2SegmentOcclusion({
+        segmentOrigin: worldOrigin,
+        segmentTarget: worldTarget,
+        segmentDepth: segment.centerDepth,
+        co2Sources,
+        frame,
+        aspect,
+        depthPolicy,
+      })
+      const transmission = 1 - co2Occlusion
+      beams.push({
+        id: `${scannerSegment.id}-d${segmentIndex + 1}`,
+        sourceId,
+        fixtureKind: 'laser',
+        origin: {
+          x: lerp(projectedOrigin.x, projectedTarget.x, t0),
+          y: lerp(projectedOrigin.y, projectedTarget.y, t0),
+          z: lerp(projectedOrigin.clipDepth, projectedTarget.clipDepth, t0),
+        },
+        target: {
+          x: lerp(projectedOrigin.x, projectedTarget.x, t1),
+          y: lerp(projectedOrigin.y, projectedTarget.y, t1),
+          z: lerp(projectedOrigin.clipDepth, projectedTarget.clipDepth, t1),
+        },
+        color: scannerSegment.color,
+        intensity: authoredIntensity * transmission,
+        coreIntensity: clamp01(
+          (0.72 + scannerSegment.intensity * 0.28) * transmission,
+        ),
+        whiteHotMix: resolveLaserDmxWhiteHotMix(scannerSegment.intensity, 0.82),
+        opacity: clamp01(scannerSegment.color.a),
+        bodyStartWidthCssPx: lerp(bodyStartWidth, bodyEndWidth, t0),
+        bodyEndWidthCssPx: lerp(bodyStartWidth, bodyEndWidth, t1),
+        envelopeStartWidthCssPx: atmosphereEnvelope,
+        envelopeEndWidthCssPx: atmosphereEnvelope * 1.04,
+        envelopeAlpha: clamp(
+          (0.018 + atmosphere * 0.075 + glow * 0.025) *
+            policy.envelopeComplexity *
+            (scannerSegment.pointDwell ? 0.72 : 1),
+          0.008,
+          0.16,
+        ),
+        phase:
+          (template?.pattern.phase ?? 0) +
+          instability.phaseOffset +
+          scannerSegment.sampleTimeEnd * 0.01,
+        materialMode: 0,
+        softness: clamp(fixture.optics.opticalSoftness, 0, 0.42),
+        goboAmount: 0,
+        goboPattern: 0,
+        goboRotationRad: 0,
+        iris: 1,
+        frost: 0,
+        prismAmount: scannerSegment.opticalCopyIndex > 0 ? 1 : 0,
+        prismFacetCount: scannerSegment.opticalCopyIndex > 0 ? 2 : 1,
+        prismRotationRad: 0,
+        co2Occlusion,
+        sortDepth: segment.centerDepth,
+        depthSlice: segment.sliceIndex,
+        segmentT0: segment.t0,
+        segmentT1: segment.t1,
+        historyEligible: true,
+      })
+    }
+  }
+
+  const activeSourceIds = new Set(beams.map((beam) => beam.sourceId))
+  const scannerExposureEnergyByFixtureId = new Map<string, number>()
+  for (const sample of frame.exposureSamples) {
+    if (sample.blanked || sample.intensity <= 0 || sample.exposureWeight <= 0)
+      continue
+    scannerExposureEnergyByFixtureId.set(
+      sample.fixtureId,
+      (scannerExposureEnergyByFixtureId.get(sample.fixtureId) ?? 0) +
+        sample.exposureWeight * sample.intensity,
+    )
+  }
+  const scannerHeadCountByFixtureId = new Map<string, number>()
+  for (const head of frame.scannerHeads)
+    scannerHeadCountByFixtureId.set(
+      head.fixtureId,
+      (scannerHeadCountByFixtureId.get(head.fixtureId) ?? 0) + 1,
+    )
+  const strobeActive = frame.transientEvents.some(
+    (event) => event.kind === 'strobe' && event.strength > 0.001,
+  )
+  const renderedLegacyLaserFixtureIds = new Set(
+    selected
+      .filter((beam) => beam.fixtureKind === 'laser')
+      .map((beam) => beam.fixtureId),
+  )
+  const duplicateFixtureIds = scannerPlan.validation.authoritativeFixtureIds
+    .filter((fixtureId) => renderedLegacyLaserFixtureIds.has(fixtureId))
+    .sort()
+  const scannerInputValidation: LaserDmxScannerWebGLInputValidation = {
+    ...scannerPlan.validation,
+    duplicateFixtureIds,
+  }
+  const scannerSegmentIds = new Set(
+    scannerPlan.segments.map((segment) => segment.id),
+  )
+  const renderedScannerSegmentIds = new Set(
+    beams
+      .map((beam) => beam.id.replace(/-d\d+$/, ''))
+      .filter((id) => scannerSegmentIds.has(id)),
+  )
+
   const apertures = frame.emitters
-    .filter(emitter => {
+    .filter((emitter) => {
       const fixture = fixtureById.get(emitter.fixtureId)
       if (!fixture?.enabled || fixture.intensity <= 0.001) return false
-      if (fixture.kind === 'laser' || fixture.kind === 'movingHead' || fixture.kind === 'parWash') {
-        return emitter.activeRayCount > 0 && emitter.intensity > 0.001 && activeSourceIds.has(emitter.id)
+      if (
+        fixture.kind === 'laser' ||
+        fixture.kind === 'movingHead' ||
+        fixture.kind === 'parWash'
+      ) {
+        const scannerEnergy =
+          scannerExposureEnergyByFixtureId.get(emitter.fixtureId) ?? 0
+        return (
+          (scannerEnergy > 0.001 || emitter.activeRayCount > 0) &&
+          emitter.intensity > 0.001 &&
+          activeSourceIds.has(emitter.id)
+        )
       }
       if (fixture.kind === 'strobe') return strobeActive
       return fixture.kind !== 'haze'
     })
     .sort((a, b) => a.sortDepth - b.sortDepth || a.id.localeCompare(b.id))
     .flatMap((emitter): LaserDmxWebGLApertureInstance[] => {
-      const projected = projectLaserDmxScenePoint(frame.camera, emitter.position, aspect)
+      const projected = projectLaserDmxScenePoint(
+        frame.camera,
+        emitter.position,
+        aspect,
+      )
       if (!projected.visible) return []
-      const energyRoot = Math.sqrt(Math.max(0, emitter.totalActiveEnergy))
+      const scannerEnergy = scannerExposureEnergyByFixtureId.get(
+        emitter.fixtureId,
+      )
+      const physicalApertures = Math.max(
+        1,
+        scannerHeadCountByFixtureId.get(emitter.fixtureId) ?? 1,
+      )
+      const visibleApertureEnergy =
+        scannerEnergy == null
+          ? emitter.totalActiveEnergy
+          : clamp(
+              scannerEnergy *
+                fixtureById.get(emitter.fixtureId)!.optics.sourceIntensity,
+              0,
+              Math.max(2.8, physicalApertures * 2.8),
+            )
+      const energyRoot = Math.sqrt(Math.max(0, visibleApertureEnergy))
       const instability = sourceInstability.get(emitter.id)
       const apertureMultiplier = instability?.apertureMultiplier ?? 1
       const fixture = fixtureById.get(emitter.fixtureId)!
-      const shapeMode: LaserDmxWebGLApertureInstance['shapeMode'] = fixture.kind === 'ledBar'
-        ? 1
-        : fixture.kind === 'ledTube'
-          ? 2
-          : fixture.kind === 'strobe'
-            ? 3
-            : fixture.kind === 'blinder'
-              ? 4
-              : fixture.kind === 'videoWall'
-                ? 5
-                : fixture.kind === 'co2Jet'
-                  ? 6
-                  : 0
+      const shapeMode: LaserDmxWebGLApertureInstance['shapeMode'] =
+        fixture.kind === 'ledBar'
+          ? 1
+          : fixture.kind === 'ledTube'
+            ? 2
+            : fixture.kind === 'strobe'
+              ? 3
+              : fixture.kind === 'blinder'
+                ? 4
+                : fixture.kind === 'videoWall'
+                  ? 5
+                  : fixture.kind === 'co2Jet'
+                    ? 6
+                    : 0
       const depthScale = clamp(projected.perspectiveScale, 0.82, 1.22)
-      const coreRadiusCssPx = shapeMode === 0
-        ? clamp((1.1 + emitter.apertureSize * 0.82 + emitter.peakRayIntensity * 1.15) * apertureMultiplier * depthScale, 1.25, 7.5)
-        : shapeMode === 3 ? 7 : shapeMode === 4 ? 8 : shapeMode === 5 ? 10 : 3.4
-      const ringRadiusCssPx = shapeMode === 0
-        ? clamp(coreRadiusCssPx * (1.9 + Math.min(0.35, energyRoot * 0.08)), 2.5, 14)
-        : coreRadiusCssPx * 1.35
-      const haloRadiusCssPx = shapeMode === 0
-        ? clamp(ringRadiusCssPx * (1.42 + Math.min(0.85, energyRoot * 0.16)), 4, 34)
-        : shapeMode === 5 ? 26 : shapeMode === 4 ? 22 : shapeMode === 3 ? 18 : shapeMode === 1 || shapeMode === 2 ? 10 : 9
-      const directionSign = fixture.component.ledDirection === 'rightToLeft' ? -1 : 1
+      const coreRadiusCssPx =
+        shapeMode === 0
+          ? clamp(
+              (1.1 +
+                emitter.apertureSize * 0.82 +
+                emitter.peakRayIntensity * 1.15) *
+                apertureMultiplier *
+                depthScale,
+              1.25,
+              7.5,
+            )
+          : shapeMode === 3
+            ? 7
+            : shapeMode === 4
+              ? 8
+              : shapeMode === 5
+                ? 10
+                : 3.4
+      const ringRadiusCssPx =
+        shapeMode === 0
+          ? clamp(
+              coreRadiusCssPx * (1.9 + Math.min(0.35, energyRoot * 0.08)),
+              2.5,
+              14,
+            )
+          : coreRadiusCssPx * 1.35
+      const haloRadiusCssPx =
+        shapeMode === 0
+          ? clamp(
+              ringRadiusCssPx * (1.42 + Math.min(0.85, energyRoot * 0.16)),
+              4,
+              34,
+            )
+          : shapeMode === 5
+            ? 26
+            : shapeMode === 4
+              ? 22
+              : shapeMode === 3
+                ? 18
+                : shapeMode === 1 || shapeMode === 2
+                  ? 10
+                  : 9
+      const directionSign =
+        fixture.component.ledDirection === 'rightToLeft' ? -1 : 1
       const directionPhase = frame.transport.audioTimeSec * directionSign
-      const behaviorMode = shapeMode === 1 || shapeMode === 2
-        ? ledBehaviorMode(fixture.component.ledDirection, fixture.component.ledCellCount)
-        : 0
-      return [{
-        id: emitter.id,
-        position: { x: projected.x, y: projected.y, z: projected.clipDepth },
-        color: emitter.color,
-        intensity: clamp(
-          (shapeMode === 0 ? emitter.intensity : fixture.intensity)
-            * fixture.optics.sourceIntensity
-            * (0.88 + glow * 0.46)
-            * apertureMultiplier
-            * (shapeMode === 5 ? fixture.component.videoWallBrightness : 1),
-          0,
-          shapeMode === 4 ? 4.2 : shapeMode === 3 ? 3.6 : 2.8,
-        ),
-        totalActiveEnergy: emitter.totalActiveEnergy,
-        coreRadiusCssPx,
-        ringRadiusCssPx,
-        haloRadiusCssPx,
-        glareDirection: projectedDirection(frame, emitter.position, emitter.glareDirection, viewport),
-        shapeMode,
-        aspect: shapeMode === 1 ? 5.5 : shapeMode === 2 ? 4.4 : shapeMode === 3 ? 2.8 : shapeMode === 5 ? 1.78 : 1,
-        segments: shapeMode === 1 || shapeMode === 2 ? fixture.component.ledCellCount : 1,
-        chase: behaviorMode === 2 ? 1 : 0,
-        softness: fixture.optics.opticalSoftness,
-        phase: directionPhase + fixture.rotationDeg / 360,
-        rotationRad: fixture.rotationDeg * Math.PI / 180,
-        behaviorMode,
-        sourceVariant: shapeMode === 5 ? VIDEO_SOURCE_INDEX[fixture.component.videoWallSource] : 0,
-        sortDepth: projected.clipDepth,
-        depthSlice: resolveLaserDmxDepthSliceIndex(projected.clipDepth, depthPolicy.sliceCount),
-      }]
+      const behaviorMode =
+        shapeMode === 1 || shapeMode === 2
+          ? ledBehaviorMode(
+              fixture.component.ledDirection,
+              fixture.component.ledCellCount,
+            )
+          : 0
+      return [
+        {
+          id: emitter.id,
+          position: { x: projected.x, y: projected.y, z: projected.clipDepth },
+          color: emitter.color,
+          intensity: clamp(
+            (shapeMode === 0
+              ? emitter.intensity *
+                (scannerEnergy == null
+                  ? 1
+                  : clamp(0.4 + scannerEnergy * 0.6, 0.35, 1.15))
+              : fixture.intensity) *
+              fixture.optics.sourceIntensity *
+              (0.88 + glow * 0.46) *
+              apertureMultiplier *
+              (shapeMode === 5 ? fixture.component.videoWallBrightness : 1),
+            0,
+            shapeMode === 4 ? 4.2 : shapeMode === 3 ? 3.6 : 2.8,
+          ),
+          totalActiveEnergy: visibleApertureEnergy,
+          coreRadiusCssPx,
+          ringRadiusCssPx,
+          haloRadiusCssPx,
+          glareDirection: projectedDirection(
+            frame,
+            emitter.position,
+            emitter.glareDirection,
+            viewport,
+          ),
+          shapeMode,
+          aspect:
+            shapeMode === 1
+              ? 5.5
+              : shapeMode === 2
+                ? 4.4
+                : shapeMode === 3
+                  ? 2.8
+                  : shapeMode === 5
+                    ? 1.78
+                    : 1,
+          segments:
+            shapeMode === 1 || shapeMode === 2
+              ? fixture.component.ledCellCount
+              : 1,
+          chase: behaviorMode === 2 ? 1 : 0,
+          softness: fixture.optics.opticalSoftness,
+          phase: directionPhase + fixture.rotationDeg / 360,
+          rotationRad: (fixture.rotationDeg * Math.PI) / 180,
+          behaviorMode,
+          sourceVariant:
+            shapeMode === 5
+              ? VIDEO_SOURCE_INDEX[fixture.component.videoWallSource]
+              : 0,
+          sortDepth: projected.clipDepth,
+          depthSlice: resolveLaserDmxDepthSliceIndex(
+            projected.clipDepth,
+            depthPolicy.sliceCount,
+          ),
+        },
+      ]
     })
 
   return {
     beams,
     apertures,
     envelopeComplexity: policy.envelopeComplexity,
-    requestedBeamCount: visible.length,
-    renderedBeamCount: selected.length,
+    requestedBeamCount: visible.length + scannerPlan.segments.length,
+    renderedBeamCount: selected.length + renderedScannerSegmentIds.size,
     renderedSegmentCount: beams.length,
-    laserHistoryBeamCount: beams.filter(beam => beam.historyEligible).length,
+    laserHistoryBeamCount: beams.filter((beam) => beam.historyEligible).length,
     depthPolicy,
-    degraded: selected.length < visible.length
-      || beams.length >= policy.maxRenderedSegments
-      || policy.envelopeComplexity < 0.99,
+    degraded:
+      selected.length < visible.length ||
+      scannerPlan.segments.length > renderedScannerSegmentIds.size ||
+      beams.length >= policy.maxRenderedSegments ||
+      policy.envelopeComplexity < 0.99,
+    laserInputMode:
+      scannerPlan.validation.authoritativeFixtureIds.length === 0
+        ? 'legacy-only'
+        : visible.some((beam) => beam.fixtureKind === 'laser')
+          ? 'mixed'
+          : 'scanner-samples',
+    scannerSegmentCount: scannerPlan.segments.length,
+    scannerInputValidation,
   }
 }

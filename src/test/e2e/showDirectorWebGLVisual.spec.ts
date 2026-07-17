@@ -26,6 +26,11 @@ interface WebGLVisualFrame {
     contextLossCount: number
     laserHistoryInputCount: number
     laserHistorySliceCount: number
+    laserInputMode: 'scanner-samples' | 'legacy-only' | 'mixed'
+    scannerExposureSampleCount: number
+    scannerSegmentCount: number
+    suppressedLegacyBeamCount: number
+    duplicateLaserInputCount: number
     depthMode: string
     depthSliceCount: number
     depthBufferStatus: string
@@ -36,6 +41,8 @@ interface WebGLVisualFrame {
     meanSaturation: number
     blackFrameRatio: number
     litPixelRatio: number
+    connectedLitPixelRatio: number
+    isolatedLitPixelRatio: number
     highlightPixelRatio: number
     washedBrightPixelRatio: number
     leftRightDifference: number
@@ -135,13 +142,22 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
       expect(frame.diagnostics.bloomLevels, frame.key).toBeGreaterThan(0)
       expect(frame.diagnostics.depthSliceCount, frame.key).toBeGreaterThanOrEqual(2)
       expect(frame.diagnostics.laserHistorySliceCount, frame.key).toBeLessThanOrEqual(frame.diagnostics.depthSliceCount)
+      expect(frame.diagnostics.duplicateLaserInputCount, frame.key).toBe(0)
+      expect(['scanner-samples', 'legacy-only', 'mixed'], frame.key).toContain(frame.diagnostics.laserInputMode)
+      if (frame.activeFixtureKinds.includes('laser') && frame.diagnostics.scannerExposureSampleCount > 0) {
+        expect(frame.diagnostics.laserInputMode, frame.key).not.toBe('legacy-only')
+        expect(frame.diagnostics.scannerSegmentCount, frame.key).toBeGreaterThan(0)
+        expect(frame.diagnostics.suppressedLegacyBeamCount, frame.key).toBeGreaterThan(0)
+      }
       expect(['continuous-slices', 'binary-fallback'], frame.key).toContain(frame.diagnostics.depthMode)
       expect(frame.pixelMetrics.blackFrameRatio, frame.key).toBeGreaterThan(0.35)
       const requiresVisibleLight = frame.diagnostics.activeBeamCount > 0
         || frame.activeFixtureKinds.some(kind => ['movingHead', 'parWash', 'strobe', 'blinder', 'ledBar', 'ledTube'].includes(kind))
       if (requiresVisibleLight) {
         expect(frame.pixelMetrics.blackFrameRatio, frame.key).toBeLessThan(0.99995)
-        expect(frame.pixelMetrics.litPixelRatio, frame.key).toBeGreaterThan(0.00005)
+        expect(frame.pixelMetrics.litPixelRatio, frame.key).toBeGreaterThan(0.00075)
+        expect(frame.pixelMetrics.connectedLitPixelRatio, frame.key).toBeGreaterThan(0.65)
+        expect(frame.pixelMetrics.isolatedLitPixelRatio, frame.key).toBeLessThan(0.25)
       }
       expect(frame.pixelMetrics.meanLuminance, frame.key).toBeLessThan(0.42)
       expect(frame.pixelMetrics.highlightPixelRatio, frame.key).toBeLessThan(0.22)

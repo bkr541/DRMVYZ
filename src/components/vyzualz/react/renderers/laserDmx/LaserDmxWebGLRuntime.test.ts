@@ -77,7 +77,7 @@ describe('LaserDMX WebGL temporal shader registration', () => {
       .find(program => program.label === 'temporal-history')
 
     expect(temporal).toBeDefined()
-    expect(temporal?.fragSrc).toContain('clamp(uRetention, 0.0, 0.95)')
+    expect(temporal?.fragSrc).toContain('clamp(uRetention, 0.0, 0.45)')
     expect(temporal?.fragSrc).toContain('max(current, retained)')
     expect(temporal?.fragSrc).not.toContain('current + retained')
   })
@@ -92,6 +92,17 @@ describe('LaserDMX WebGL depth and fixture shader registration', () => {
     expect(composite?.fragSrc).toContain('vec3 layerLight = sharp + laser')
     expect(composite?.fragSrc).toContain('behind * (1.0 - extinction)')
     expect(composite?.fragSrc).toContain('light += atmosphere.rgb')
+  })
+
+  it('uses analytic capsule coverage for continuous subpixel laser cores', () => {
+    const beam = getLaserDmxWebGLShaderProgramSources()
+      .find(program => program.label === 'sharp-beam')
+
+    expect(beam?.vertSrc).toContain('vCapsuleCoordPx')
+    expect(beam?.fragSrc).toContain('capsuleDistance')
+    expect(beam?.fragSrc).toContain('analyticCoverage')
+    expect(beam?.fragSrc).toContain('fwidth')
+    expect(beam?.fragSrc).not.toContain('discard')
   })
 
   it('registers laser-only history and depth-layer accumulation inputs', () => {
