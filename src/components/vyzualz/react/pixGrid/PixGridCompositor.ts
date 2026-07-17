@@ -1,9 +1,6 @@
 import type { ReactPalette, ReactPreset } from '../ReactTypes'
 import { resolvePixGridLayerAnimation } from './PixGridAnimation'
-import {
-  PIX_GRID_BUILT_IN_ASSET_BY_ID,
-  samplePixGridBuiltInAsset,
-} from './PixGridArtwork'
+import { PIX_GRID_BUILT_IN_ASSET_BY_ID, samplePixGridBuiltInAsset } from './PixGridArtwork'
 import type {
   PixGridAudioFrame,
   PixGridAudioSource,
@@ -19,8 +16,10 @@ import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { unpackPixGridOverride } from './PixGridAuthoring'
 import { pixGridReactionSourceValue, PixGridReactionRuntime } from './PixGridAudioRouting'
 import { applyPixGridGroupReactions, resolvePixGridLayerReactionFrame } from './PixGridReactions'
-import { compilePixGridGroupMask, pixGridMaskHasCell } from './PixGridGroups'
+import { pixGridMaskHasCell } from './PixGridGroups'
+import { applyPixGridGroupFrameEffects, type PixGridGroupFrameEffect } from './PixGridFrameEffects'
 import type { PixGridResolvedTransition } from './PixGridActionCues'
+import { PixGridFrameGroupCompiler } from './PixGridGroupCompiler'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -39,11 +38,7 @@ function fract(value: number): number {
 
 function hexToRgb(hex: string): readonly [number, number, number] {
   const safe = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#ffffff'
-  return [
-    Number.parseInt(safe.slice(1, 3), 16),
-    Number.parseInt(safe.slice(3, 5), 16),
-    Number.parseInt(safe.slice(5, 7), 16),
-  ]
+  return [Number.parseInt(safe.slice(1, 3), 16), Number.parseInt(safe.slice(3, 5), 16), Number.parseInt(safe.slice(5, 7), 16)]
 }
 
 function roleOrder(role: PixGridPaletteRole): number {
@@ -71,9 +66,13 @@ function audioValue(frame: PixGridAudioFrame, source: PixGridAudioSource): numbe
 }
 
 function sceneFor(preset: ReactPreset, state: PixGridState): PixGridSceneSettings {
-  const fallback: PixGridSceneSettings = { density: 1, motionMultiplier: 1, paletteOffset: 0 }
+  const fallback: PixGridSceneSettings = {
+    density: 1,
+    motionMultiplier: 1,
+    paletteOffset: 0,
+  }
   const sceneId = state.selectedSceneId
-  return sceneId ? preset.pixGridSettings?.sceneSettings?.[sceneId] ?? fallback : fallback
+  return sceneId ? (preset.pixGridSettings?.sceneSettings?.[sceneId] ?? fallback) : fallback
 }
 
 function effectiveOpacity(layer: PixGridLayer, scene: PixGridSceneSettings, frame: PixGridAudioFrame): number {
@@ -147,7 +146,7 @@ function localCoordinates(
 ): readonly [number, number] {
   const dx = outputU - positionX
   const dy = outputV - positionY
-  const radians = -rotationDegrees * Math.PI / 180
+  const radians = (-rotationDegrees * Math.PI) / 180
   const cosine = Math.cos(radians)
   const sine = Math.sin(radians)
   const rotatedX = dx * cosine - dy * sine
@@ -162,7 +161,6 @@ function localCoordinates(
   if (layer.flipY) v = 1 - v
   return [u, v]
 }
-
 
 function revealContains(value: number, progress: number, from: 'start' | 'end' | 'center'): boolean {
   const amount = clamp01(progress)
@@ -179,6 +177,7 @@ function renderLayer(
   palette: ReactPalette,
   frame: PixGridAudioFrame,
   scene: PixGridSceneSettings,
+  groupCompiler?: PixGridFrameGroupCompiler,
 ): void {
   const asset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)
   if (!asset) return
@@ -193,19 +192,15 @@ function renderLayer(
     const outputV = (y + 0.5) / height
     for (let x = 0; x < width; x += 1) {
       const outputU = (x + 0.5) / width
-      const [u, v] = localCoordinates(
-        outputU,
-        outputV,
-        layer,
-        animation.positionX,
-        animation.positionY,
-        scaleX,
-        scaleY,
-        animation.rotation,
-      )
+      const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
-      if (!revealContains(v, animation.revealRow, animation.revealRowFrom) || !revealContains(u, animation.revealColumn, animation.revealColumnFrom)) continue
-      if (animation.checkerAlternate && (Math.floor(u * asset.nativeSize.width) + Math.floor(v * asset.nativeSize.height)) % 2 !== 0) continue
+      if (
+        !revealContains(v, animation.revealRow, animation.revealRowFrom) ||
+        !revealContains(u, animation.revealColumn, animation.revealColumnFrom)
+      )
+        continue
+      if (animation.checkerAlternate && (Math.floor(u * asset.nativeSize.width) + Math.floor(v * asset.nativeSize.height)) % 2 !== 0)
+        continue
 
       const sample = samplePixGridBuiltInAsset(layer.assetId, u, v, animation.frameIndex, layer.seed)
       if (sample.alpha <= 0) continue
@@ -216,7 +211,9 @@ function renderLayer(
       if (alpha <= 0) continue
       const role = resolveRole(layer, sample.role, scene.paletteOffset + animation.paletteOffset)
       const color = resolveColor(palette, role)
-      blendPixel(pixels, (y * width + x) * 4, color, alpha, layer.blendMode)
+      const index = y * width + x
+      groupCompiler?.recordPixel(layer.id, index, color, alpha)
+      blendPixel(pixels, index * 4, color, alpha, layer.blendMode)
     }
   }
 }
@@ -229,6 +226,7 @@ function renderPreparedAssetLayer(
   preparedAsset: PixGridPreparedAsset,
   frame: PixGridAudioFrame,
   scene: PixGridSceneSettings,
+  groupCompiler?: PixGridFrameGroupCompiler,
 ): void {
   const animation = resolvePixGridLayerAnimation(layer, PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)!, frame, scene.motionMultiplier)
   const audioScale = effectiveScale(layer, frame)
@@ -242,18 +240,25 @@ function renderPreparedAssetLayer(
       const outputU = (x + 0.5) / width
       const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
-      if (!revealContains(v, animation.revealRow, animation.revealRowFrom) || !revealContains(u, animation.revealColumn, animation.revealColumnFrom)) continue
+      if (
+        !revealContains(v, animation.revealRow, animation.revealRowFrom) ||
+        !revealContains(u, animation.revealColumn, animation.revealColumnFrom)
+      )
+        continue
       if (animation.checkerAlternate && (Math.floor(u * preparedAsset.width) + Math.floor(v * preparedAsset.height)) % 2 !== 0) continue
       const sx = Math.max(0, Math.min(preparedAsset.width - 1, Math.floor(u * preparedAsset.width)))
       const sy = Math.max(0, Math.min(preparedAsset.height - 1, Math.floor(v * preparedAsset.height)))
       const sourceOffset = (sy * preparedAsset.width + sx) * 4
-      const alpha = preparedAsset.pixels[sourceOffset + 3] / 255 * opacity
+      const alpha = (preparedAsset.pixels[sourceOffset + 3] / 255) * opacity
       if (alpha <= 0) continue
-      blendPixel(pixels, (y * width + x) * 4, [
+      const color = [
         preparedAsset.pixels[sourceOffset],
         preparedAsset.pixels[sourceOffset + 1],
         preparedAsset.pixels[sourceOffset + 2],
-      ], alpha, layer.blendMode)
+      ] as const
+      const index = y * width + x
+      groupCompiler?.recordPixel(layer.id, index, color, alpha)
+      blendPixel(pixels, index * 4, color, alpha, layer.blendMode)
     }
   }
 }
@@ -278,6 +283,8 @@ function composePixGridBaseFrame(
   reusable?: Uint8Array,
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
   reactionRuntime?: PixGridReactionRuntime,
+  groupEffects: readonly PixGridGroupFrameEffect[] = [],
+  groupCompiler?: PixGridFrameGroupCompiler,
 ): PixGridLogicalFrame {
   const state = normalizePixGridState(rawState)
   const width = state.matrixWidth
@@ -287,44 +294,43 @@ function composePixGridBaseFrame(
   pixels.fill(0)
   const scene = sceneFor(preset, state)
   const hidden = new Set(scene.hiddenLayerIds ?? [])
-  const activeScene = state.scenes.find(candidate => candidate.id === state.selectedSceneId) ?? state.scenes[0]
-  const orderedLayerIds = activeScene?.layerIds ?? state.layers.map(layer => layer.id)
+  const activeScene = state.scenes.find((candidate) => candidate.id === state.selectedSceneId) ?? state.scenes[0]
+  const orderedLayerIds = activeScene?.layerIds ?? state.layers.map((layer) => layer.id)
   const activeLayerIds = new Set(orderedLayerIds)
   const layerOrder = new Map(orderedLayerIds.map((id, index) => [id, index]))
   const visibleLayers = state.layers
-    .filter(layer => activeLayerIds.has(layer.id) && layer.visible && !hidden.has(layer.id) && layer.densityRank <= scene.density)
+    .filter((layer) => activeLayerIds.has(layer.id) && layer.visible && !hidden.has(layer.id) && layer.densityRank <= scene.density)
     .sort((a, b) => (layerOrder.get(a.id) ?? a.zIndex) - (layerOrder.get(b.id) ?? b.zIndex) || a.id.localeCompare(b.id))
     .slice(0, MAX_PIX_GRID_VISIBLE_LAYERS)
+  const compiler = groupCompiler ?? new PixGridFrameGroupCompiler()
+  const visibleLayerIds = new Set(visibleLayers.map((layer) => layer.id))
+  compiler.beginFrame(state.groups, width, height, visibleLayerIds)
 
-  const hasReactions = state.groups.some(group => group.enabled && group.reactions.some(assignment => assignment.enabled))
+  const hasReactions = state.groups.some((group) => group.enabled && group.reactions.some((assignment) => assignment.enabled))
   const runtime = reactionRuntime ?? (hasReactions ? new PixGridReactionRuntime() : undefined)
   for (const layer of visibleLayers) {
     const layerFrame = runtime
       ? resolvePixGridLayerReactionFrame(layer, state.groups, frame, runtime, state.editor.previewReactionAssignmentId)
       : frame
     const mediaAsset = layer.mediaId ? preparedAssetFor(preparedAsset, layer.mediaId) : null
-    if (mediaAsset) renderPreparedAssetLayer(pixels, width, height, layer, mediaAsset, layerFrame, scene)
-    else if (!layer.mediaId) renderLayer(pixels, width, height, layer, preset.palette, layerFrame, scene)
+    if (mediaAsset) renderPreparedAssetLayer(pixels, width, height, layer, mediaAsset, layerFrame, scene, compiler)
+    else if (!layer.mediaId) renderLayer(pixels, width, height, layer, preset.palette, layerFrame, scene, compiler)
   }
 
   if (
-    state.conversion.selectedMediaId
-    && preparedAsset != null
-    && isPreparedAsset(preparedAsset)
-    && preparedAsset.mediaId === state.conversion.selectedMediaId
-    && preparedAsset.width === width
-    && preparedAsset.height === height
+    state.conversion.selectedMediaId &&
+    preparedAsset != null &&
+    isPreparedAsset(preparedAsset) &&
+    preparedAsset.mediaId === state.conversion.selectedMediaId &&
+    preparedAsset.width === width &&
+    preparedAsset.height === height
   ) {
     for (let offset = 0; offset < preparedAsset.pixels.length; offset += 4) {
       const alpha = preparedAsset.pixels[offset + 3] / 255
       if (alpha <= 0) continue
-      blendPixel(
-        pixels,
-        offset,
-        [preparedAsset.pixels[offset], preparedAsset.pixels[offset + 1], preparedAsset.pixels[offset + 2]],
-        alpha,
-        'normal',
-      )
+      const color = [preparedAsset.pixels[offset], preparedAsset.pixels[offset + 1], preparedAsset.pixels[offset + 2]] as const
+      compiler.recordPixel(null, offset / 4, color, alpha)
+      blendPixel(pixels, offset, color, alpha, 'normal')
     }
   }
 
@@ -339,8 +345,14 @@ function composePixGridBaseFrame(
       pixels[offset + 3] = 0
       continue
     }
-    blendPixel(pixels, offset, hexToRgb(color), opacity, 'normal')
+    const overrideColor = hexToRgb(color)
+    compiler.recordPixel(null, y * width + x, overrideColor, opacity)
+    blendPixel(pixels, offset, overrideColor, opacity, 'normal')
   }
+
+  const persistentEffects = groupEffects.filter((effect) => effect.stage === 'persistent')
+  const finalEffects = groupEffects.filter((effect) => effect.stage !== 'persistent')
+  applyPixGridGroupFrameEffects(pixels, width, height, state.groups, persistentEffects, preset.palette, frame, visibleLayerIds, compiler)
 
   if (runtime && hasReactions) {
     applyPixGridGroupReactions(
@@ -352,13 +364,15 @@ function composePixGridBaseFrame(
       runtime,
       preset.palette,
       state.editor.previewReactionAssignmentId,
-      new Set(visibleLayers.map(layer => layer.id)),
+      visibleLayerIds,
+      compiler,
     )
   }
+  applyPixGridGroupFrameEffects(pixels, width, height, state.groups, finalEffects, preset.palette, frame, visibleLayerIds, compiler)
 
   for (const group of state.groups) {
     if (group.contentVisible !== false) continue
-    const mask = compilePixGridGroupMask(group, width, height)
+    const mask = compiler.compile(group)
     for (let index = 0; index < width * height; index += 1) {
       if (!pixGridMaskHasCell(mask.bits, index)) continue
       const offset = index * 4
@@ -379,20 +393,33 @@ function transitionNoise(x: number, y: number, seed: number): number {
   return (value >>> 0) / 0xffffffff
 }
 
-function transitionMix(type: PixGridResolvedTransition['type'], x: number, y: number, width: number, height: number, progress: number, seed: number): number {
+function transitionMix(
+  type: PixGridResolvedTransition['type'],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  progress: number,
+  seed: number,
+): number {
   const u = (x + 0.5) / Math.max(1, width)
   const v = (y + 0.5) / Math.max(1, height)
   switch (type) {
     case 'crossfade':
-    case 'paletteFade': return progress
-    case 'rowWipe': return v <= progress ? 1 : 0
-    case 'columnWipe': return u <= progress ? 1 : 0
+    case 'paletteFade':
+      return progress
+    case 'rowWipe':
+      return v <= progress ? 1 : 0
+    case 'columnWipe':
+      return u <= progress ? 1 : 0
     case 'checkerWipe': {
       const checker = ((x + y) & 1) * 0.12
       return v <= Math.max(0, progress - checker) ? 1 : 0
     }
-    case 'pixelDissolve': return transitionNoise(x, y, seed) <= progress ? 1 : 0
-    case 'radialReveal': return Math.hypot(u - 0.5, v - 0.5) / Math.SQRT1_2 <= progress ? 1 : 0
+    case 'pixelDissolve':
+      return transitionNoise(x, y, seed) <= progress ? 1 : 0
+    case 'radialReveal':
+      return Math.hypot(u - 0.5, v - 0.5) / Math.SQRT1_2 <= progress ? 1 : 0
     case 'powerOn': {
       const scan = Math.abs(v - 0.5) * 2
       return scan <= progress ? Math.min(1, progress * 1.4) : 0
@@ -402,7 +429,8 @@ function transitionMix(type: PixGridResolvedTransition['type'], x: number, y: nu
       return scan >= 1 - progress ? 1 : 0
     }
     case 'cut':
-    default: return 1
+    default:
+      return 1
   }
 }
 
@@ -442,10 +470,21 @@ export function composePixGridLogicalFrame(
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
   reactionRuntime?: PixGridReactionRuntime,
   transition?: PixGridResolvedTransition | null,
+  groupEffects: readonly PixGridGroupFrameEffect[] = [],
+  groupCompiler?: PixGridFrameGroupCompiler,
 ): PixGridLogicalFrame {
-  const target = composePixGridBaseFrame(preset, rawState, frame, reusable, preparedAsset, reactionRuntime)
+  const target = composePixGridBaseFrame(preset, rawState, frame, reusable, preparedAsset, reactionRuntime, groupEffects, groupCompiler)
   if (!transition || transition.type === 'cut' || transition.progress >= 1) return target
-  const source = composePixGridBaseFrame(preset, transition.fromState, frame, undefined, preparedAsset)
+  const source = composePixGridBaseFrame(
+    preset,
+    transition.fromState,
+    frame,
+    undefined,
+    preparedAsset,
+    undefined,
+    [],
+    new PixGridFrameGroupCompiler(),
+  )
   if (source.width === target.width && source.height === target.height) {
     applyLogicalTransition(target.pixels, source.pixels, target.width, target.height, transition)
   }

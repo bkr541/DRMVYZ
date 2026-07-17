@@ -182,6 +182,7 @@ export type PixGridReactionTarget =
   | 'frameAdvance' | 'animationSpeed' | 'directionReverse' | 'dissolveThreshold'
   | 'invert' | 'posterize'
 export type PixGridReactionRetrigger = 'restart' | 'extend' | 'ignoreWhileActive'
+export type PixGridReactionDecayCurve = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'exponential' | 'overshoot' | 'step' | 'stepped'
 export type PixGridReactionBlend = 'add' | 'multiply' | 'replace' | 'max'
 export type PixGridReactionCapabilityFallback = 'disable' | 'zero' | 'energy' | 'beat'
 export type PixGridReactionQuantization = 'none' | 'beat' | 'bar' | 'fourBars' | 'eightBars' | 'sixteenBars'
@@ -195,12 +196,17 @@ export interface PixGridReactionAssignment {
   amount: number
   invert: boolean
   threshold: number
+  /** Optional off-threshold distance used to prevent gate chatter. */
+  hysteresis?: number
   attack: number
   hold: number
   release: number
+  decayCurve?: PixGridReactionDecayCurve
   smoothing: number
   quantization: PixGridReactionQuantization
   retrigger: PixGridReactionRetrigger
+  maximumStacking?: number
+  eventPriority?: number
   minimumConfidence: number
   capabilityFallback: PixGridReactionCapabilityFallback
   clamp: readonly [number, number]
@@ -396,7 +402,16 @@ export interface PixGridRendererDiagnostics {
   adaptiveReason?: string
   preparedMediaCacheEntries?: number
   preparedMediaCacheBytes?: number
+  enabledGroupCount?: number
   activeGroupMaskCount?: number
+  activeContinuousAssignmentCount?: number
+  activeDiscreteAssignmentCount?: number
+  activeEventEnvelopeCount?: number
+  activePerformanceActionCount?: number
+  activeCueActionCount?: number
+  activeTransitionCount?: number
+  manualOverrideCount?: number
+  degradedSignalCount?: number
   groupMaskUploadCount?: number
   groupMaskApproximateBytes?: number
 }

@@ -39,6 +39,7 @@ import {
   type PixGridReactionRetrigger,
   type PixGridReactionBlend,
   type PixGridReactionCapabilityFallback,
+  type PixGridReactionDecayCurve,
   type PixGridLayer,
   type PixGridLayerAnimation,
   type PixGridPaletteRole,
@@ -57,29 +58,191 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/i
 const QUALITY_TIERS = new Set<PixGridQualityTier>(['draft', 'low', 'high', 'ultra'])
 const QUALITY_MODES = new Set<PixGridQualityMode>(['adaptive', 'fixed'])
 const BACKGROUND_MODES = new Set<PixGridBackgroundMode>(['preset', 'black', 'custom'])
-const EDITOR_TOOLS = new Set<PixGridEditorTool>(['select', 'pan', 'pencil', 'eraser', 'fill', 'eyedropper', 'rectangle', 'line', 'marquee', 'move'])
+const EDITOR_TOOLS = new Set<PixGridEditorTool>([
+  'select',
+  'pan',
+  'pencil',
+  'eraser',
+  'fill',
+  'eyedropper',
+  'rectangle',
+  'line',
+  'marquee',
+  'move',
+])
 const BLEND_MODES = new Set<PixGridBlendMode>(['normal', 'add', 'multiply'])
 const CLIP_MODES = new Set<PixGridClipMode>(['clip', 'wrap'])
 const PALETTE_ROLES = new Set<PixGridPaletteRole>(['primary', 'secondary', 'accent', 'highlight', 'background'])
 const ANIMATION_MODES = new Set<PixGridAnimationMode>([
-  'static', 'pulse', 'bounce', 'horizontalScroll', 'verticalScroll', 'pingPong', 'rotate',
-  'paletteCycle', 'blink', 'revealRow', 'revealColumn', 'checkerAlternate', 'frameCycle',
-  'audioAmplitudeScale', 'beatStepMovement',
+  'static',
+  'pulse',
+  'bounce',
+  'horizontalScroll',
+  'verticalScroll',
+  'pingPong',
+  'rotate',
+  'paletteCycle',
+  'blink',
+  'revealRow',
+  'revealColumn',
+  'checkerAlternate',
+  'frameCycle',
+  'audioAmplitudeScale',
+  'beatStepMovement',
 ])
 const ANIMATION_BOUNDARIES = new Set<PixGridAnimationBoundary>(['wrap', 'clamp', 'bounce'])
 const ANIMATION_CLOCKS = new Set(['time', 'beat', 'bar', 'cue'] as const)
-const AUDIO_SOURCES = new Set<PixGridAudioSource>(['sub', 'bass', 'lowMid', 'mid', 'high', 'air', 'volume', 'energy', 'trackRelativeEnergy', 'spectralFlux', 'tension', 'complexity', 'buildProgress', 'sectionProgress', 'phraseProgress', 'vocalEnergy', 'beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'barEntry', 'fourBarBoundary', 'eightBarBoundary', 'sixteenBarBoundary', 'sectionEntry', 'sectionExit', 'dropImpact', 'semanticMoment'])
+const AUDIO_SOURCES = new Set<PixGridAudioSource>([
+  'sub',
+  'bass',
+  'lowMid',
+  'mid',
+  'high',
+  'air',
+  'volume',
+  'energy',
+  'trackRelativeEnergy',
+  'spectralFlux',
+  'tension',
+  'complexity',
+  'buildProgress',
+  'sectionProgress',
+  'phraseProgress',
+  'vocalEnergy',
+  'beat',
+  'downbeat',
+  'kick',
+  'snare',
+  'hat',
+  'transient',
+  'barEntry',
+  'fourBarBoundary',
+  'eightBarBoundary',
+  'sixteenBarBoundary',
+  'sectionEntry',
+  'sectionExit',
+  'dropImpact',
+  'semanticMoment',
+])
 const STOPPED_BEHAVIORS = new Set(['baseline', 'blackout'])
-const GROUP_SOURCES = new Set<PixGridGroupSource>(['manualSelection', 'layerAlpha', 'foregroundBackground', 'colorRange', 'luminanceRange', 'connectedRegion', 'border', 'center', 'leftRight', 'topBottom', 'quadrant', 'horizontalBands', 'verticalBands', 'alternatingRows', 'alternatingColumns', 'checkerboard', 'diagonalBands', 'radialRings', 'deterministicClusters', 'svgMetadata'])
+const GROUP_SOURCES = new Set<PixGridGroupSource>([
+  'manualSelection',
+  'layerAlpha',
+  'foregroundBackground',
+  'colorRange',
+  'luminanceRange',
+  'connectedRegion',
+  'border',
+  'center',
+  'leftRight',
+  'topBottom',
+  'quadrant',
+  'horizontalBands',
+  'verticalBands',
+  'alternatingRows',
+  'alternatingColumns',
+  'checkerboard',
+  'diagonalBands',
+  'radialRings',
+  'deterministicClusters',
+  'svgMetadata',
+])
 const GROUP_OVERLAP = new Set<PixGridGroupOverlapBehavior>(['stack', 'exclusive', 'replace'])
-const GEOMETRIC_PATTERNS = new Set<PixGridGeometricGroupPattern>(['border', 'center', 'left', 'right', 'top', 'bottom', 'quadrantTopLeft', 'quadrantTopRight', 'quadrantBottomLeft', 'quadrantBottomRight', 'horizontalBands', 'verticalBands', 'alternatingRowsA', 'alternatingRowsB', 'alternatingColumnsA', 'alternatingColumnsB', 'checkerboardA', 'checkerboardB', 'diagonalBands', 'radialRings', 'deterministicClusters'])
-const REACTION_SOURCES = new Set<PixGridReactionSource>(['sub', 'bass', 'lowMid', 'mid', 'high', 'air', 'volume', 'energy', 'trackRelativeEnergy', 'spectralFlux', 'tension', 'complexity', 'buildProgress', 'sectionProgress', 'phraseProgress', 'vocalEnergy', 'beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'barEntry', 'fourBarBoundary', 'eightBarBoundary', 'sixteenBarBoundary', 'sectionEntry', 'sectionExit', 'dropImpact', 'semanticMoment'])
-const REACTION_TARGETS = new Set<PixGridReactionTarget>(['brightness', 'paletteRole', 'color', 'opacity', 'scale', 'positionX', 'positionY', 'reveal', 'hide', 'blink', 'outlineFlash', 'sparkle', 'pixelDisplacement', 'frameAdvance', 'animationSpeed', 'directionReverse', 'dissolveThreshold', 'invert', 'posterize'])
+const GEOMETRIC_PATTERNS = new Set<PixGridGeometricGroupPattern>([
+  'border',
+  'center',
+  'left',
+  'right',
+  'top',
+  'bottom',
+  'quadrantTopLeft',
+  'quadrantTopRight',
+  'quadrantBottomLeft',
+  'quadrantBottomRight',
+  'horizontalBands',
+  'verticalBands',
+  'alternatingRowsA',
+  'alternatingRowsB',
+  'alternatingColumnsA',
+  'alternatingColumnsB',
+  'checkerboardA',
+  'checkerboardB',
+  'diagonalBands',
+  'radialRings',
+  'deterministicClusters',
+])
+const REACTION_SOURCES = new Set<PixGridReactionSource>([
+  'sub',
+  'bass',
+  'lowMid',
+  'mid',
+  'high',
+  'air',
+  'volume',
+  'energy',
+  'trackRelativeEnergy',
+  'spectralFlux',
+  'tension',
+  'complexity',
+  'buildProgress',
+  'sectionProgress',
+  'phraseProgress',
+  'vocalEnergy',
+  'beat',
+  'downbeat',
+  'kick',
+  'snare',
+  'hat',
+  'transient',
+  'barEntry',
+  'fourBarBoundary',
+  'eightBarBoundary',
+  'sixteenBarBoundary',
+  'sectionEntry',
+  'sectionExit',
+  'dropImpact',
+  'semanticMoment',
+])
+const REACTION_TARGETS = new Set<PixGridReactionTarget>([
+  'brightness',
+  'paletteRole',
+  'color',
+  'opacity',
+  'scale',
+  'positionX',
+  'positionY',
+  'reveal',
+  'hide',
+  'blink',
+  'outlineFlash',
+  'sparkle',
+  'pixelDisplacement',
+  'frameAdvance',
+  'animationSpeed',
+  'directionReverse',
+  'dissolveThreshold',
+  'invert',
+  'posterize',
+])
 const REACTION_QUANTIZATION = new Set<PixGridReactionQuantization>(['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'])
 const REACTION_RETRIGGER = new Set<PixGridReactionRetrigger>(['restart', 'extend', 'ignoreWhileActive'])
 const REACTION_BLEND = new Set<PixGridReactionBlend>(['add', 'multiply', 'replace', 'max'])
 const REACTION_FALLBACK = new Set<PixGridReactionCapabilityFallback>(['disable', 'zero', 'energy', 'beat'])
-const PERFORMANCE_PROGRAM_IDS = new Set<PixGridPerformanceProgramId>(['pix-grid-bass-beacon-performance', 'pix-grid-geometric-reactor-performance', 'pix-grid-pixel-parade-performance'])
+const REACTION_DECAY_CURVES = new Set<PixGridReactionDecayCurve>([
+  'linear',
+  'easeIn',
+  'easeOut',
+  'easeInOut',
+  'exponential',
+  'overshoot',
+  'step',
+  'stepped',
+])
+const PERFORMANCE_PROGRAM_IDS = new Set<PixGridPerformanceProgramId>([
+  'pix-grid-bass-beacon-performance',
+  'pix-grid-geometric-reactor-performance',
+  'pix-grid-pixel-parade-performance',
+])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -106,7 +269,7 @@ export function normalizePixGridColor(value: unknown, fallback: string): string 
 }
 
 export function normalizePixGridQuality(value: unknown, fallback: PixGridQualityTier = 'high'): PixGridQualityTier {
-  return QUALITY_TIERS.has(value as PixGridQualityTier) ? value as PixGridQualityTier : fallback
+  return QUALITY_TIERS.has(value as PixGridQualityTier) ? (value as PixGridQualityTier) : fallback
 }
 
 function normalizePaletteMap(value: unknown): PixGridLayer['paletteMap'] {
@@ -123,17 +286,15 @@ function normalizeAnimation(value: unknown): PixGridLayerAnimation | null {
   return {
     mode: value.mode as PixGridAnimationMode,
     speed: clamp(value.speed, -20, 20, 1),
-    ...(ANIMATION_CLOCKS.has(value.clock as 'time' | 'beat' | 'bar' | 'cue') ? { clock: value.clock as 'time' | 'beat' | 'bar' | 'cue' } : {}),
+    ...(ANIMATION_CLOCKS.has(value.clock as 'time' | 'beat' | 'bar' | 'cue')
+      ? { clock: value.clock as 'time' | 'beat' | 'bar' | 'cue' }
+      : {}),
     amount: clamp(value.amount, -4, 4, 0),
     phase: clamp(value.phase, -1000, 1000, 0),
-    boundary: ANIMATION_BOUNDARIES.has(value.boundary as PixGridAnimationBoundary)
-      ? value.boundary as PixGridAnimationBoundary
-      : 'wrap',
+    boundary: ANIMATION_BOUNDARIES.has(value.boundary as PixGridAnimationBoundary) ? (value.boundary as PixGridAnimationBoundary) : 'wrap',
     ...(value.axis === 'x' || value.axis === 'y' ? { axis: value.axis } : {}),
     ...(value.stepped != null ? { stepped: value.stepped === true } : {}),
-    ...(AUDIO_SOURCES.has(value.audioSource as PixGridAudioSource)
-      ? { audioSource: value.audioSource as PixGridAudioSource }
-      : {}),
+    ...(AUDIO_SOURCES.has(value.audioSource as PixGridAudioSource) ? { audioSource: value.audioSource as PixGridAudioSource } : {}),
   }
 }
 
@@ -148,99 +309,118 @@ export function normalizePixGridLayers(value: unknown, fallback: PixGridLayer[])
   return value.slice(0, MAX_PIX_GRID_LAYERS).flatMap((raw, index) => {
     if (!isRecord(raw)) return []
     const template = fallbackLayer(index, fallback)
-    const candidateAssetId = typeof raw.assetId === 'string' && hasPixGridBuiltInAsset(raw.assetId)
-      ? raw.assetId
-      : template?.assetId ?? 'pix-bass-word'
+    const candidateAssetId =
+      typeof raw.assetId === 'string' && hasPixGridBuiltInAsset(raw.assetId) ? raw.assetId : (template?.assetId ?? 'pix-bass-word')
     const baseId = text(raw.id, template?.id ?? `pix-grid-layer-${index + 1}`, 128)
     const id = seen.has(baseId) ? `${baseId}-${index + 1}` : baseId
     seen.add(id)
     const requestedVisible = raw.visible == null ? template?.visible !== false : raw.visible !== false
     const visible = requestedVisible && visibleCount < MAX_PIX_GRID_VISIBLE_LAYERS
     if (visible) visibleCount += 1
-    const position = isRecord(raw.position) ? raw.position : template?.position ?? {}
-    const scale = isRecord(raw.scale) ? raw.scale : template?.scale ?? {}
+    const position = isRecord(raw.position) ? raw.position : (template?.position ?? {})
+    const scale = isRecord(raw.scale) ? raw.scale : (template?.scale ?? {})
     const reactive = isRecord(raw.audioReactivity) ? raw.audioReactivity : template?.audioReactivity
     const animations = Array.isArray(raw.animations)
-      ? raw.animations.slice(0, MAX_PIX_GRID_ANIMATIONS_PER_LAYER).flatMap(item => {
+      ? raw.animations.slice(0, MAX_PIX_GRID_ANIMATIONS_PER_LAYER).flatMap((item) => {
           const normalized = normalizeAnimation(item)
           return normalized ? [normalized] : []
         })
-      : template?.animations.map(item => ({ ...item })) ?? []
+      : (template?.animations.map((item) => ({ ...item })) ?? [])
     const blendMode = BLEND_MODES.has(raw.blendMode as PixGridBlendMode)
-      ? raw.blendMode as PixGridBlendMode
+      ? (raw.blendMode as PixGridBlendMode)
       : raw.blendMode == null
-        ? template?.blendMode ?? 'normal'
+        ? (template?.blendMode ?? 'normal')
         : 'normal'
-    const clipMode = CLIP_MODES.has(raw.clipMode as PixGridClipMode)
-      ? raw.clipMode as PixGridClipMode
-      : template?.clipMode ?? 'clip'
-    const maskAssetId = typeof raw.maskAssetId === 'string' && hasPixGridBuiltInAsset(raw.maskAssetId)
-      ? raw.maskAssetId
-      : raw.maskAssetId == null
-        ? template?.maskAssetId ?? null
-        : null
-    return [{
-      id,
-      name: text(raw.name, template?.name ?? `Layer ${index + 1}`),
-      assetId: candidateAssetId,
-      mediaId: nullableId(raw.mediaId),
-      locked: raw.locked === true,
-      visible,
-      opacity: clamp(raw.opacity, 0, 1, template?.opacity ?? 1),
-      position: {
-        x: clamp(position.x, 0, 1, template?.position.x ?? 0.5),
-        y: clamp(position.y, 0, 1, template?.position.y ?? 0.5),
-      },
-      scale: {
-        x: clamp(scale.x, 0.01, 2, template?.scale.x ?? 0.5),
-        y: clamp(scale.y, 0.01, 2, template?.scale.y ?? 0.5),
-      },
-      rotation: clamp(raw.rotation, -3600, 3600, template?.rotation ?? 0),
-      flipX: raw.flipX == null ? template?.flipX ?? false : raw.flipX === true,
-      flipY: raw.flipY == null ? template?.flipY ?? false : raw.flipY === true,
-      blendMode,
-      paletteMap: normalizePaletteMap(raw.paletteMap ?? template?.paletteMap),
-      zIndex: Math.round(clamp(raw.zIndex, -100, 100, template?.zIndex ?? index)),
-      clipMode,
-      maskAssetId,
-      animations,
-      ...(reactive ? {
-        audioReactivity: {
-          ...(AUDIO_SOURCES.has(reactive.brightnessSource as PixGridAudioSource)
-            ? { brightnessSource: reactive.brightnessSource as PixGridAudioSource }
-            : {}),
-          ...(reactive.brightnessAmount != null ? { brightnessAmount: clamp(reactive.brightnessAmount, 0, 2, 0) } : {}),
-          ...(AUDIO_SOURCES.has(reactive.scaleSource as PixGridAudioSource)
-            ? { scaleSource: reactive.scaleSource as PixGridAudioSource }
-            : {}),
-          ...(reactive.scaleAmount != null ? { scaleAmount: clamp(reactive.scaleAmount, -0.9, 2, 0) } : {}),
-          ...(reactive.beatImpact != null ? { beatImpact: clamp(reactive.beatImpact, 0, 2, 0) } : {}),
+    const clipMode = CLIP_MODES.has(raw.clipMode as PixGridClipMode) ? (raw.clipMode as PixGridClipMode) : (template?.clipMode ?? 'clip')
+    const maskAssetId =
+      typeof raw.maskAssetId === 'string' && hasPixGridBuiltInAsset(raw.maskAssetId)
+        ? raw.maskAssetId
+        : raw.maskAssetId == null
+          ? (template?.maskAssetId ?? null)
+          : null
+    return [
+      {
+        id,
+        name: text(raw.name, template?.name ?? `Layer ${index + 1}`),
+        assetId: candidateAssetId,
+        mediaId: nullableId(raw.mediaId),
+        locked: raw.locked === true,
+        visible,
+        opacity: clamp(raw.opacity, 0, 1, template?.opacity ?? 1),
+        position: {
+          x: clamp(position.x, 0, 1, template?.position.x ?? 0.5),
+          y: clamp(position.y, 0, 1, template?.position.y ?? 0.5),
         },
-      } : {}),
-      densityRank: clamp(raw.densityRank, 0, 1, template?.densityRank ?? 0),
-      seed: Math.max(0, Math.min(2_147_483_647, Math.round(finite(raw.seed, template?.seed ?? index + 1)))),
-    }]
+        scale: {
+          x: clamp(scale.x, 0.01, 2, template?.scale.x ?? 0.5),
+          y: clamp(scale.y, 0.01, 2, template?.scale.y ?? 0.5),
+        },
+        rotation: clamp(raw.rotation, -3600, 3600, template?.rotation ?? 0),
+        flipX: raw.flipX == null ? (template?.flipX ?? false) : raw.flipX === true,
+        flipY: raw.flipY == null ? (template?.flipY ?? false) : raw.flipY === true,
+        blendMode,
+        paletteMap: normalizePaletteMap(raw.paletteMap ?? template?.paletteMap),
+        zIndex: Math.round(clamp(raw.zIndex, -100, 100, template?.zIndex ?? index)),
+        clipMode,
+        maskAssetId,
+        animations,
+        ...(reactive
+          ? {
+              audioReactivity: {
+                ...(AUDIO_SOURCES.has(reactive.brightnessSource as PixGridAudioSource)
+                  ? { brightnessSource: reactive.brightnessSource as PixGridAudioSource }
+                  : {}),
+                ...(reactive.brightnessAmount != null ? { brightnessAmount: clamp(reactive.brightnessAmount, 0, 2, 0) } : {}),
+                ...(AUDIO_SOURCES.has(reactive.scaleSource as PixGridAudioSource)
+                  ? { scaleSource: reactive.scaleSource as PixGridAudioSource }
+                  : {}),
+                ...(reactive.scaleAmount != null ? { scaleAmount: clamp(reactive.scaleAmount, -0.9, 2, 0) } : {}),
+                ...(reactive.beatImpact != null ? { beatImpact: clamp(reactive.beatImpact, 0, 2, 0) } : {}),
+              },
+            }
+          : {}),
+        densityRank: clamp(raw.densityRank, 0, 1, template?.densityRank ?? 0),
+        seed: Math.max(0, Math.min(2_147_483_647, Math.round(finite(raw.seed, template?.seed ?? index + 1)))),
+      },
+    ]
   })
 }
 
 function normalizeSceneSettings(value: unknown): Record<string, PixGridSceneSettings> | undefined {
   if (!isRecord(value)) return undefined
-  const entries = Object.entries(value).slice(0, 64).flatMap(([sceneId, raw]) => {
-    if (!isRecord(raw)) return []
-    const hiddenLayerIds = Array.isArray(raw.hiddenLayerIds)
-      ? [...new Set(raw.hiddenLayerIds.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).map(item => item.trim().slice(0, 128)))].slice(0, MAX_PIX_GRID_LAYERS)
-      : undefined
-    const layerOpacity = isRecord(raw.layerOpacity)
-      ? Object.fromEntries(Object.entries(raw.layerOpacity).slice(0, MAX_PIX_GRID_LAYERS).map(([id, opacity]) => [id.slice(0, 128), clamp(opacity, 0, 1, 1)]))
-      : undefined
-    return [[sceneId.slice(0, 128), {
-      density: clamp(raw.density, 0, 1, 1),
-      motionMultiplier: clamp(raw.motionMultiplier, 0, 4, 1),
-      paletteOffset: Math.round(clamp(raw.paletteOffset, -20, 20, 0)),
-      ...(hiddenLayerIds ? { hiddenLayerIds } : {}),
-      ...(layerOpacity ? { layerOpacity } : {}),
-    } satisfies PixGridSceneSettings] as const]
-  })
+  const entries = Object.entries(value)
+    .slice(0, 64)
+    .flatMap(([sceneId, raw]) => {
+      if (!isRecord(raw)) return []
+      const hiddenLayerIds = Array.isArray(raw.hiddenLayerIds)
+        ? [
+            ...new Set(
+              raw.hiddenLayerIds
+                .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+                .map((item) => item.trim().slice(0, 128)),
+            ),
+          ].slice(0, MAX_PIX_GRID_LAYERS)
+        : undefined
+      const layerOpacity = isRecord(raw.layerOpacity)
+        ? Object.fromEntries(
+            Object.entries(raw.layerOpacity)
+              .slice(0, MAX_PIX_GRID_LAYERS)
+              .map(([id, opacity]) => [id.slice(0, 128), clamp(opacity, 0, 1, 1)]),
+          )
+        : undefined
+      return [
+        [
+          sceneId.slice(0, 128),
+          {
+            density: clamp(raw.density, 0, 1, 1),
+            motionMultiplier: clamp(raw.motionMultiplier, 0, 4, 1),
+            paletteOffset: Math.round(clamp(raw.paletteOffset, -20, 20, 0)),
+            ...(hiddenLayerIds ? { hiddenLayerIds } : {}),
+            ...(layerOpacity ? { layerOpacity } : {}),
+          } satisfies PixGridSceneSettings,
+        ] as const,
+      ]
+    })
   return Object.fromEntries(entries)
 }
 
@@ -248,13 +428,14 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
   if (!isRecord(value)) return undefined
   const pattern = value.pattern === 'geometricReactor' || value.pattern === 'pixelParade' ? value.pattern : 'bassBeacon'
   const quality = value.quality == null ? undefined : normalizePixGridQuality(value.quality)
-  const backgroundMode = value.backgroundMode == null || !BACKGROUND_MODES.has(value.backgroundMode as PixGridBackgroundMode)
-    ? undefined
-    : value.backgroundMode as PixGridBackgroundMode
+  const backgroundMode =
+    value.backgroundMode == null || !BACKGROUND_MODES.has(value.backgroundMode as PixGridBackgroundMode)
+      ? undefined
+      : (value.backgroundMode as PixGridBackgroundMode)
   const layers = value.layers == null ? undefined : normalizePixGridLayers(value.layers, [])
   const groups = value.groups == null ? undefined : normalizeGroups(value.groups, 160, 90)
   const performanceProgramId = PERFORMANCE_PROGRAM_IDS.has(value.performanceProgramId as PixGridPerformanceProgramId)
-    ? value.performanceProgramId as PixGridPerformanceProgramId
+    ? (value.performanceProgramId as PixGridPerformanceProgramId)
     : undefined
   const sceneSettings = normalizeSceneSettings(value.sceneSettings)
   return {
@@ -280,7 +461,7 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
 
 function normalizeCellRuns(value: unknown, width: number, height: number): PixGridCellRun[] {
   if (!Array.isArray(value)) return []
-  return value.slice(0, MAX_PIX_GRID_CELL_RUNS_PER_GROUP).flatMap(run => {
+  return value.slice(0, MAX_PIX_GRID_CELL_RUNS_PER_GROUP).flatMap((run) => {
     if (!Array.isArray(run) || run.length < 3) return []
     const row = Math.max(0, Math.min(height - 1, Math.round(finite(run[0], 0))))
     const start = Math.max(0, Math.min(width - 1, Math.round(finite(run[1], 0))))
@@ -301,33 +482,37 @@ function normalizeGroupMask(value: unknown, runs: PixGridCellRun[], width: numbe
       ...(value.seed != null ? { seed: Math.max(0, Math.min(2_147_483_647, Math.round(finite(value.seed, 1)))) } : {}),
     }
   }
-  if (value.kind === 'layerAlpha') return { kind: 'layerAlpha', threshold: clamp(value.threshold, 0, 1, 0.05), foreground: value.foreground !== false }
-  if (value.kind === 'colorRange') return { kind: 'colorRange', color: normalizePixGridColor(value.color, '#ffffff'), tolerance: clamp(value.tolerance, 0, 1, 0.12) }
+  if (value.kind === 'layerAlpha')
+    return { kind: 'layerAlpha', threshold: clamp(value.threshold, 0, 1, 0.05), foreground: value.foreground !== false }
+  if (value.kind === 'colorRange')
+    return { kind: 'colorRange', color: normalizePixGridColor(value.color, '#ffffff'), tolerance: clamp(value.tolerance, 0, 1, 0.12) }
   if (value.kind === 'luminanceRange') {
     const min = clamp(value.min, 0, 1, 0)
     return { kind: 'luminanceRange', min, max: Math.max(min, clamp(value.max, 0, 1, 1)) }
   }
-  if (value.kind === 'connectedRegion') return {
-    kind: 'connectedRegion',
-    seedX: Math.max(0, Math.min(width - 1, Math.round(finite(value.seedX, 0)))),
-    seedY: Math.max(0, Math.min(height - 1, Math.round(finite(value.seedY, 0)))),
-    tolerance: clamp(value.tolerance, 0, 1, 0.18),
-    alphaThreshold: clamp(value.alphaThreshold, 0, 1, 0.05),
-    maxCells: Math.max(1, Math.min(width * height, Math.round(finite(value.maxCells, width * height)))),
-  }
-  if (value.kind === 'svgMetadata') return {
-    kind: 'svgMetadata',
-    ...(nullableId(value.elementId) ? { elementId: nullableId(value.elementId)! } : {}),
-    ...(typeof value.fillColor === 'string' ? { fillColor: normalizePixGridColor(value.fillColor, '#ffffff') } : {}),
-  }
+  if (value.kind === 'connectedRegion')
+    return {
+      kind: 'connectedRegion',
+      seedX: Math.max(0, Math.min(width - 1, Math.round(finite(value.seedX, 0)))),
+      seedY: Math.max(0, Math.min(height - 1, Math.round(finite(value.seedY, 0)))),
+      tolerance: clamp(value.tolerance, 0, 1, 0.18),
+      alphaThreshold: clamp(value.alphaThreshold, 0, 1, 0.05),
+      maxCells: Math.max(1, Math.min(width * height, Math.round(finite(value.maxCells, width * height)))),
+    }
+  if (value.kind === 'svgMetadata')
+    return {
+      kind: 'svgMetadata',
+      ...(nullableId(value.elementId) ? { elementId: nullableId(value.elementId)! } : {}),
+      ...(typeof value.fillColor === 'string' ? { fillColor: normalizePixGridColor(value.fillColor, '#ffffff') } : {}),
+    }
   const maskRuns = value.kind === 'runs' ? normalizeCellRuns(value.runs, width, height) : runs
   return { kind: 'runs', runs: maskRuns.length > 0 ? maskRuns : runs }
 }
 
 function normalizeReaction(value: unknown, index: number): PixGridReactionAssignment | null {
   if (!isRecord(value)) return null
-  const source = REACTION_SOURCES.has(value.source as PixGridReactionSource) ? value.source as PixGridReactionSource : 'bass'
-  const target = REACTION_TARGETS.has(value.target as PixGridReactionTarget) ? value.target as PixGridReactionTarget : 'brightness'
+  const source = REACTION_SOURCES.has(value.source as PixGridReactionSource) ? (value.source as PixGridReactionSource) : 'bass'
+  const target = REACTION_TARGETS.has(value.target as PixGridReactionTarget) ? (value.target as PixGridReactionTarget) : 'brightness'
   const rawClamp = Array.isArray(value.clamp) ? value.clamp : [0, 1]
   const clampMin = clamp(rawClamp[0], -4, 4, 0)
   const clampMax = clamp(rawClamp[1], -4, 4, 1)
@@ -340,16 +525,32 @@ function normalizeReaction(value: unknown, index: number): PixGridReactionAssign
     amount: clamp(value.amount, -4, 4, 0.75),
     invert: value.invert === true,
     threshold: clamp(value.threshold, 0, 1, 0),
+    ...(value.hysteresis != null ? { hysteresis: clamp(value.hysteresis, 0, 0.5, 0) } : {}),
     attack: clamp(value.attack, 0, 10, 0.03),
     hold: clamp(value.hold, 0, 10, 0.04),
     release: clamp(value.release, 0, 20, 0.18),
+    ...(value.decayCurve != null
+      ? {
+          decayCurve: REACTION_DECAY_CURVES.has(value.decayCurve as PixGridReactionDecayCurve)
+            ? (value.decayCurve as PixGridReactionDecayCurve)
+            : 'easeOut',
+        }
+      : {}),
     smoothing: clamp(value.smoothing, 0, 10, 0.08),
-    quantization: REACTION_QUANTIZATION.has(value.quantization as PixGridReactionQuantization) ? value.quantization as PixGridReactionQuantization : 'none',
-    retrigger: REACTION_RETRIGGER.has(value.retrigger as PixGridReactionRetrigger) ? value.retrigger as PixGridReactionRetrigger : 'restart',
+    quantization: REACTION_QUANTIZATION.has(value.quantization as PixGridReactionQuantization)
+      ? (value.quantization as PixGridReactionQuantization)
+      : 'none',
+    retrigger: REACTION_RETRIGGER.has(value.retrigger as PixGridReactionRetrigger)
+      ? (value.retrigger as PixGridReactionRetrigger)
+      : 'restart',
+    ...(value.maximumStacking != null ? { maximumStacking: Math.max(1, Math.min(8, Math.round(finite(value.maximumStacking, 1)))) } : {}),
+    ...(value.eventPriority != null ? { eventPriority: Math.max(-1000, Math.min(1000, Math.round(finite(value.eventPriority, 0)))) } : {}),
     minimumConfidence: clamp(value.minimumConfidence, 0, 1, 0),
-    capabilityFallback: REACTION_FALLBACK.has(value.capabilityFallback as PixGridReactionCapabilityFallback) ? value.capabilityFallback as PixGridReactionCapabilityFallback : 'energy',
+    capabilityFallback: REACTION_FALLBACK.has(value.capabilityFallback as PixGridReactionCapabilityFallback)
+      ? (value.capabilityFallback as PixGridReactionCapabilityFallback)
+      : 'energy',
     clamp: [Math.min(clampMin, clampMax), Math.max(clampMin, clampMax)],
-    blend: REACTION_BLEND.has(value.blend as PixGridReactionBlend) ? value.blend as PixGridReactionBlend : 'add',
+    blend: REACTION_BLEND.has(value.blend as PixGridReactionBlend) ? (value.blend as PixGridReactionBlend) : 'add',
     ...(PALETTE_ROLES.has(value.paletteRole as PixGridPaletteRole) ? { paletteRole: value.paletteRole as PixGridPaletteRole } : {}),
     ...(typeof value.color === 'string' ? { color: normalizePixGridColor(value.color, '#ffffff') } : {}),
     ...(value.seedOffset != null ? { seedOffset: Math.max(-1_000_000, Math.min(1_000_000, Math.round(finite(value.seedOffset, 0)))) } : {}),
@@ -370,33 +571,41 @@ function normalizeGroups(value: unknown, width: number, height: number): PixGrid
     const layerId = nullableId(raw.layerId)
     const layerScope = Array.isArray(raw.layerScope)
       ? [...new Set(raw.layerScope.map(nullableId).filter((item): item is string => item != null))].slice(0, MAX_PIX_GRID_LAYERS)
-      : layerId ? [layerId] : null
+      : layerId
+        ? [layerId]
+        : null
     const source = GROUP_SOURCES.has(raw.source as PixGridGroupSource)
-      ? raw.source as PixGridGroupSource
-      : raw.smartRuleId ? 'manualSelection' : 'manualSelection'
+      ? (raw.source as PixGridGroupSource)
+      : raw.smartRuleId
+        ? 'manualSelection'
+        : 'manualSelection'
     const reactions = Array.isArray(raw.reactions)
       ? raw.reactions.slice(0, MAX_PIX_GRID_REACTIONS_PER_GROUP).flatMap((reaction, reactionIndex) => {
           const normalized = normalizeReaction(reaction, reactionIndex)
           return normalized ? [normalized] : []
         })
       : []
-    return [{
-      id,
-      name: text(raw.name, `Group ${index + 1}`),
-      source,
-      mask,
-      layerId,
-      layerScope,
-      cellRuns,
-      smartRuleId: nullableId(raw.smartRuleId),
-      enabled: raw.enabled !== false,
-      visible: raw.visible !== false,
-      contentVisible: raw.contentVisible !== false,
-      priority: Math.max(-100, Math.min(100, Math.round(finite(raw.priority, index)))),
-      overlapBehavior: GROUP_OVERLAP.has(raw.overlapBehavior as PixGridGroupOverlapBehavior) ? raw.overlapBehavior as PixGridGroupOverlapBehavior : 'stack',
-      reactions,
-      displayColor: raw.displayColor == null ? null : normalizePixGridColor(raw.displayColor, '#4ac7db'),
-    }]
+    return [
+      {
+        id,
+        name: text(raw.name, `Group ${index + 1}`),
+        source,
+        mask,
+        layerId,
+        layerScope,
+        cellRuns,
+        smartRuleId: nullableId(raw.smartRuleId),
+        enabled: raw.enabled !== false,
+        visible: raw.visible !== false,
+        contentVisible: raw.contentVisible !== false,
+        priority: Math.max(-100, Math.min(100, Math.round(finite(raw.priority, index)))),
+        overlapBehavior: GROUP_OVERLAP.has(raw.overlapBehavior as PixGridGroupOverlapBehavior)
+          ? (raw.overlapBehavior as PixGridGroupOverlapBehavior)
+          : 'stack',
+        reactions,
+        displayColor: raw.displayColor == null ? null : normalizePixGridColor(raw.displayColor, '#4ac7db'),
+      },
+    ]
   })
 }
 
@@ -433,7 +642,7 @@ function normalizeScenes(
   fallbackSceneId: string,
   legacyOverrides: unknown,
 ): PixGridScene[] {
-  const layerIds = new Set(layers.map(layer => layer.id))
+  const layerIds = new Set(layers.map((layer) => layer.id))
   const input = Array.isArray(value) ? value : []
   const seen = new Set<string>()
   const scenes = input.slice(0, MAX_PIX_GRID_SCENES).flatMap((raw, index) => {
@@ -443,24 +652,27 @@ function normalizeScenes(
     seen.add(id)
     const validLayerIds = Array.isArray(raw.layerIds)
       ? raw.layerIds.filter((item): item is string => typeof item === 'string' && layerIds.has(item))
-      : layers.map(layer => layer.id)
-    const requestedLayerIds = Array.isArray(raw.layerIds) && raw.layerIds.length > 0 && validLayerIds.length === 0
-      ? layers.map(layer => layer.id)
-      : validLayerIds
-    return [{
-      id,
-      name: text(raw.name, `Scene ${index + 1}`),
-      layerIds: [...new Set(requestedLayerIds)].slice(0, MAX_PIX_GRID_LAYERS),
-      pixelOverrides: normalizePixGridPixelOverrides(raw.pixelOverrides, width, height),
-    }]
+      : layers.map((layer) => layer.id)
+    const requestedLayerIds =
+      Array.isArray(raw.layerIds) && raw.layerIds.length > 0 && validLayerIds.length === 0 ? layers.map((layer) => layer.id) : validLayerIds
+    return [
+      {
+        id,
+        name: text(raw.name, `Scene ${index + 1}`),
+        layerIds: [...new Set(requestedLayerIds)].slice(0, MAX_PIX_GRID_LAYERS),
+        pixelOverrides: normalizePixGridPixelOverrides(raw.pixelOverrides, width, height),
+      },
+    ]
   })
   if (scenes.length > 0) return scenes
-  return [{
-    id: fallbackSceneId,
-    name: 'Scene 1',
-    layerIds: layers.map(layer => layer.id),
-    pixelOverrides: normalizePixGridPixelOverrides(legacyOverrides, width, height),
-  }]
+  return [
+    {
+      id: fallbackSceneId,
+      name: 'Scene 1',
+      layerIds: layers.map((layer) => layer.id),
+      pixelOverrides: normalizePixGridPixelOverrides(legacyOverrides, width, height),
+    },
+  ]
 }
 
 export function normalizePixGridState(value: unknown): PixGridState {
@@ -469,11 +681,9 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const quality = normalizePixGridQuality(input.quality, defaults.quality)
   const dimensions = resolvePixGridMatrixDimensions(quality)
   const backgroundMode = BACKGROUND_MODES.has(input.backgroundMode as PixGridBackgroundMode)
-    ? input.backgroundMode as PixGridBackgroundMode
+    ? (input.backgroundMode as PixGridBackgroundMode)
     : defaults.backgroundMode
-  const editorTool = EDITOR_TOOLS.has(input.editorTool as PixGridEditorTool)
-    ? input.editorTool as PixGridEditorTool
-    : defaults.editorTool
+  const editorTool = EDITOR_TOOLS.has(input.editorTool as PixGridEditorTool) ? (input.editorTool as PixGridEditorTool) : defaults.editorTool
   const layers = normalizePixGridLayers(input.layers, defaults.layers)
   const performance = isRecord(input.performance) ? input.performance : {}
   const conversion = isRecord(input.conversion) ? input.conversion : {}
@@ -482,31 +692,30 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const fallbackSceneId = nullableId(input.selectedSceneId) ?? defaults.selectedSceneId ?? 'pix-grid-scene-1'
   const selectedPresetId = nullableId(input.selectedPresetId) ?? defaults.selectedPresetId
   const defaultPerformanceProgramId = selectedPresetId
-    ? PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID[selectedPresetId] ?? DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId
+    ? (PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID[selectedPresetId] ?? DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId)
     : DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId
-  const sceneSource = Array.isArray(input.scenes)
-    ? input.scenes
-    : input.pixelOverrides === undefined
-      ? defaults.scenes
-      : undefined
+  const sceneSource = Array.isArray(input.scenes) ? input.scenes : input.pixelOverrides === undefined ? defaults.scenes : undefined
   const scenes = normalizeScenes(sceneSource, layers, dimensions.width, dimensions.height, fallbackSceneId, input.pixelOverrides)
-  const selectedSceneId = scenes.some(scene => scene.id === fallbackSceneId) ? fallbackSceneId : scenes[0].id
-  const activeScene = scenes.find(scene => scene.id === selectedSceneId) ?? scenes[0]
+  const selectedSceneId = scenes.some((scene) => scene.id === fallbackSceneId) ? fallbackSceneId : scenes[0].id
+  const activeScene = scenes.find((scene) => scene.id === selectedSceneId) ?? scenes[0]
   const selectedLayerId = nullableId(editor.selectedLayerId)
-  const safeSelectedLayerId = selectedLayerId && activeScene.layerIds.includes(selectedLayerId) ? selectedLayerId : activeScene.layerIds[0] ?? null
+  const safeSelectedLayerId =
+    selectedLayerId && activeScene.layerIds.includes(selectedLayerId) ? selectedLayerId : (activeScene.layerIds[0] ?? null)
   const groups = normalizeGroups(input.groups === undefined ? defaults.groups : input.groups, dimensions.width, dimensions.height)
   const selectedGroupId = nullableId(editor.selectedGroupId)
-  const safeSelectedGroupId = selectedGroupId && groups.some(group => group.id === selectedGroupId) ? selectedGroupId : groups[0]?.id ?? null
+  const safeSelectedGroupId =
+    selectedGroupId && groups.some((group) => group.id === selectedGroupId) ? selectedGroupId : (groups[0]?.id ?? null)
   const previewReactionAssignmentId = nullableId(editor.previewReactionAssignmentId)
-  const safePreviewReactionAssignmentId = previewReactionAssignmentId && groups.some(group => group.reactions.some(reaction => reaction.id === previewReactionAssignmentId))
-    ? previewReactionAssignmentId
-    : null
+  const safePreviewReactionAssignmentId =
+    previewReactionAssignmentId && groups.some((group) => group.reactions.some((reaction) => reaction.id === previewReactionAssignmentId))
+      ? previewReactionAssignmentId
+      : null
 
   return {
     version: PIX_GRID_STATE_VERSION,
     quality,
     qualityMode: QUALITY_MODES.has(input.qualityMode as PixGridQualityMode)
-      ? input.qualityMode as PixGridQualityMode
+      ? (input.qualityMode as PixGridQualityMode)
       : defaults.qualityMode,
     matrixWidth: dimensions.width,
     matrixHeight: dimensions.height,
@@ -521,7 +730,7 @@ export function normalizePixGridState(value: unknown): PixGridState {
     diffusion: clamp(input.diffusion, 0, 1, defaults.diffusion),
     rgbSubpixelMode: input.rgbSubpixelMode === true,
     stoppedBehavior: STOPPED_BEHAVIORS.has(input.stoppedBehavior as string)
-      ? input.stoppedBehavior as PixGridState['stoppedBehavior']
+      ? (input.stoppedBehavior as PixGridState['stoppedBehavior'])
       : defaults.stoppedBehavior,
     selectedPresetId,
     selectedSceneId,
@@ -548,41 +757,54 @@ export function normalizePixGridState(value: unknown): PixGridState {
       enabled: performance.enabled !== false,
       intensity: clamp(performance.intensity, 0, 1, DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.intensity),
       sharedPerformanceProgramId: PERFORMANCE_PROGRAM_IDS.has(performance.sharedPerformanceProgramId as PixGridPerformanceProgramId)
-        ? performance.sharedPerformanceProgramId as PixGridPerformanceProgramId
+        ? (performance.sharedPerformanceProgramId as PixGridPerformanceProgramId)
         : defaultPerformanceProgramId,
       seed: Math.max(0, Math.min(2_147_483_647, Math.round(finite(performance.seed, DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.seed)))),
       lockedRoutes: Array.isArray(performance.lockedRoutes)
-        ? [...new Set(performance.lockedRoutes.filter((route): route is string => typeof route === 'string' && Boolean(route.trim())).map(route => route.trim().slice(0, 128)))].slice(0, 128)
+        ? [
+            ...new Set(
+              performance.lockedRoutes
+                .filter((route): route is string => typeof route === 'string' && Boolean(route.trim()))
+                .map((route) => route.trim().slice(0, 128)),
+            ),
+          ].slice(0, 128)
         : [],
     },
     conversion: {
       selectedMediaId: nullableId(conversion.selectedMediaId),
-      fitMode: conversion.fitMode === 'cover' || conversion.fitMode === 'stretch'
-        ? conversion.fitMode
-        : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.fitMode,
+      fitMode:
+        conversion.fitMode === 'cover' || conversion.fitMode === 'stretch'
+          ? conversion.fitMode
+          : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.fitMode,
       positionX: clamp(conversion.positionX, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.positionX),
       positionY: clamp(conversion.positionY, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.positionY),
       scale: clamp(conversion.scale, 0.1, 4, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.scale),
       sampling: conversion.sampling === 'smooth' ? 'smooth' : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.sampling,
-      colorMode: conversion.colorMode === 'hybrid' || conversion.colorMode === 'brand' || conversion.colorMode === 'preset'
-        ? conversion.colorMode
-        : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.colorMode,
-      paletteSize: Math.max(2, Math.min(64, Math.round(finite(
-        conversion.paletteSize ?? conversion.quantizationColors,
-        DEFAULT_PIX_GRID_CONVERSION_SETTINGS.paletteSize,
-      )))),
-      ditherMode: conversion.ditherMode === 'ordered-bayer' || conversion.ditherMode === 'atkinson'
-        ? conversion.ditherMode
-        : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.ditherMode,
+      colorMode:
+        conversion.colorMode === 'hybrid' || conversion.colorMode === 'brand' || conversion.colorMode === 'preset'
+          ? conversion.colorMode
+          : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.colorMode,
+      paletteSize: Math.max(
+        2,
+        Math.min(
+          64,
+          Math.round(finite(conversion.paletteSize ?? conversion.quantizationColors, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.paletteSize)),
+        ),
+      ),
+      ditherMode:
+        conversion.ditherMode === 'ordered-bayer' || conversion.ditherMode === 'atkinson'
+          ? conversion.ditherMode
+          : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.ditherMode,
       alphaThreshold: clamp(conversion.alphaThreshold, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.alphaThreshold),
       preserveAlpha: conversion.preserveAlpha !== false,
       contrast: clamp(conversion.contrast, 0.25, 2, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.contrast),
       brightness: clamp(conversion.brightness, 0.25, 2, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.brightness),
       saturation: clamp(conversion.saturation, 0, 2, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.saturation),
       edgeEnhancement: clamp(conversion.edgeEnhancement, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.edgeEnhancement),
-      backgroundHandling: conversion.backgroundHandling === 'solid' || conversion.backgroundHandling === 'remove-dark'
-        ? conversion.backgroundHandling
-        : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.backgroundHandling,
+      backgroundHandling:
+        conversion.backgroundHandling === 'solid' || conversion.backgroundHandling === 'remove-dark'
+          ? conversion.backgroundHandling
+          : DEFAULT_PIX_GRID_CONVERSION_SETTINGS.backgroundHandling,
       backgroundColor: normalizePixGridColor(conversion.backgroundColor, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.backgroundColor),
       brandStrength: clamp(conversion.brandStrength, 0, 1, DEFAULT_PIX_GRID_CONVERSION_SETTINGS.brandStrength),
       preserveBlack: conversion.preserveBlack !== false,

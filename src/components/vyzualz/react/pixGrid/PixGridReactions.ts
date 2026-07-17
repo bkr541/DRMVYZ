@@ -1,14 +1,9 @@
 import type { ReactPalette } from '../ReactTypes'
+import type { PixGridCompiledGroupMaskResolver } from './PixGridGroupCompiler'
 import { MAX_PIX_GRID_ACTIVE_REACTIONS } from './PixGridLimits'
-import { PixGridReactionRuntime } from './PixGridAudioRouting'
+import { isPixGridContinuousReactionSource, PixGridReactionRuntime } from './PixGridAudioRouting'
 import { activePixGridGroups, compilePixGridGroupMask, pixGridMaskHasCell, pixGridSetMaskCell } from './PixGridGroups'
-import type {
-  PixGridAudioFrame,
-  PixGridGroup,
-  PixGridLayer,
-  PixGridPaletteRole,
-  PixGridReactionAssignment,
-} from './PixGridTypes'
+import type { PixGridAudioFrame, PixGridGroup, PixGridLayer, PixGridPaletteRole, PixGridReactionAssignment } from './PixGridTypes'
 
 function clamp(value: number, min = 0, max = 1): number {
   return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min))
@@ -27,7 +22,10 @@ function randomUnit(value: string): number {
   return hash(value) / 0xffffffff
 }
 
-function hexRgb(value: string | undefined, fallback: readonly [number, number, number] = [255, 255, 255]): readonly [number, number, number] {
+function hexRgb(
+  value: string | undefined,
+  fallback: readonly [number, number, number] = [255, 255, 255],
+): readonly [number, number, number] {
   if (!value || !/^#[0-9a-f]{6}$/i.test(value)) return fallback
   return [Number.parseInt(value.slice(1, 3), 16), Number.parseInt(value.slice(3, 5), 16), Number.parseInt(value.slice(5, 7), 16)]
 }
@@ -39,26 +37,38 @@ function paletteColor(palette: ReactPalette, role: PixGridPaletteRole | undefine
 
 function blendScalar(base: number, value: number, assignment: PixGridReactionAssignment): number {
   switch (assignment.blend) {
-    case 'replace': return value
-    case 'multiply': return base * value
-    case 'max': return Math.max(base, value)
-    default: return base + value
+    case 'replace':
+      return value
+    case 'multiply':
+      return base * value
+    case 'max':
+      return Math.max(base, value)
+    default:
+      return base + value
   }
 }
 
 function isBorder(bits: Uint32Array, index: number, x: number, y: number, width: number, height: number): boolean {
   if (!pixGridMaskHasCell(bits, index)) return false
   if (x === 0 || y === 0 || x === width - 1 || y === height - 1) return true
-  return !pixGridMaskHasCell(bits, index - 1)
-    || !pixGridMaskHasCell(bits, index + 1)
-    || !pixGridMaskHasCell(bits, index - width)
-    || !pixGridMaskHasCell(bits, index + width)
+  return (
+    !pixGridMaskHasCell(bits, index - 1) ||
+    !pixGridMaskHasCell(bits, index + 1) ||
+    !pixGridMaskHasCell(bits, index - width) ||
+    !pixGridMaskHasCell(bits, index + width)
+  )
 }
 
 function stableSeed(frame: PixGridAudioFrame, group: PixGridGroup, assignment: PixGridReactionAssignment, index: number): string {
   return [
-    frame.trackIdentity ?? 'none', frame.sectionOccurrence ?? 0, frame.barIndex ?? 0, frame.beatIndex ?? 0,
-    group.id, assignment.id, assignment.seedOffset ?? 0, index,
+    frame.trackIdentity ?? 'none',
+    frame.sectionOccurrence ?? 0,
+    frame.barIndex ?? 0,
+    frame.beatIndex ?? 0,
+    group.id,
+    assignment.id,
+    assignment.seedOffset ?? 0,
+    index,
   ].join(':')
 }
 
@@ -124,14 +134,21 @@ function applyPixelReaction(
   claimed: Uint32Array,
   claim: boolean,
 ): void {
-  if (assignment.target === 'scale' || assignment.target === 'positionX' || assignment.target === 'positionY' || assignment.target === 'pixelDisplacement') {
+  if (
+    assignment.target === 'scale' ||
+    assignment.target === 'positionX' ||
+    assignment.target === 'positionY' ||
+    assignment.target === 'pixelDisplacement'
+  ) {
     transformMaskedPixels(pixels, width, height, bits, assignment, strength, frame, group)
-    if (claim) for (let index = 0; index < width * height; index += 1) if (pixGridMaskHasCell(bits, index)) pixGridSetMaskCell(claimed, index)
+    if (claim)
+      for (let index = 0; index < width * height; index += 1) if (pixGridMaskHasCell(bits, index)) pixGridSetMaskCell(claimed, index)
     return
   }
-  const tint = assignment.target === 'paletteRole'
-    ? paletteColor(palette, assignment.paletteRole)
-    : hexRgb(assignment.color, paletteColor(palette, assignment.paletteRole))
+  const tint =
+    assignment.target === 'paletteRole'
+      ? paletteColor(palette, assignment.paletteRole)
+      : hexRgb(assignment.color, paletteColor(palette, assignment.paletteRole))
   const absoluteStrength = Math.abs(strength)
   for (let index = 0; index < width * height; index += 1) {
     if (!pixGridMaskHasCell(bits, index) || pixGridMaskHasCell(claimed, index)) continue
@@ -148,7 +165,9 @@ function applyPixelReaction(
         pixels[offset + 2] = Math.min(255, Math.round(pixels[offset + 2] * factor))
         break
       }
-      case 'opacity': pixels[offset + 3] = Math.round(clamp(blendScalar(alpha, strength, assignment)) * 255); break
+      case 'opacity':
+        pixels[offset + 3] = Math.round(clamp(blendScalar(alpha, strength, assignment)) * 255)
+        break
       case 'color':
       case 'paletteRole': {
         const mix = clamp(absoluteStrength)
@@ -157,9 +176,15 @@ function applyPixelReaction(
         pixels[offset + 2] = Math.round(pixels[offset + 2] + (tint[2] - pixels[offset + 2]) * mix)
         break
       }
-      case 'reveal': if ((y + 0.5) / height > clamp(absoluteStrength)) pixels[offset + 3] = 0; break
-      case 'hide': pixels[offset + 3] = Math.round(alpha * (1 - clamp(absoluteStrength)) * 255); break
-      case 'blink': if (absoluteStrength < 0.5) pixels[offset + 3] = 0; break
+      case 'reveal':
+        if ((y + 0.5) / height > clamp(absoluteStrength)) pixels[offset + 3] = 0
+        break
+      case 'hide':
+        pixels[offset + 3] = Math.round(alpha * (1 - clamp(absoluteStrength)) * 255)
+        break
+      case 'blink':
+        if (absoluteStrength < 0.5) pixels[offset + 3] = 0
+        break
       case 'outlineFlash': {
         if (!isBorder(bits, index, x, y, width, height)) break
         pixels[offset] = Math.round(pixels[offset] + (tint[0] - pixels[offset]) * clamp(absoluteStrength))
@@ -197,7 +222,8 @@ function applyPixelReaction(
         pixels[offset + 2] = Math.round(pixels[offset + 2] / step) * step
         break
       }
-      default: break
+      default:
+        break
     }
   }
 }
@@ -209,7 +235,7 @@ function isPixGridPixelReactionTarget(target: PixGridReactionAssignment['target'
 function groupAppliesToActiveLayers(group: PixGridGroup, activeLayerIds?: ReadonlySet<string>): boolean {
   if (!activeLayerIds) return true
   const scope = group.layerScope?.length ? group.layerScope : group.layerId ? [group.layerId] : []
-  return scope.length === 0 || scope.some(layerId => activeLayerIds.has(layerId))
+  return scope.length === 0 || scope.some((layerId) => activeLayerIds.has(layerId))
 }
 
 export function applyPixGridGroupReactions(
@@ -222,16 +248,21 @@ export function applyPixGridGroupReactions(
   palette: ReactPalette,
   previewReactionAssignmentId: string | null = null,
   activeLayerIds?: ReadonlySet<string>,
+  maskResolver?: PixGridCompiledGroupMaskResolver,
 ): void {
-  const claimed = new Uint32Array(Math.ceil(width * height / 32))
+  const claimed = new Uint32Array(Math.ceil((width * height) / 32))
   let activeReactionCount = 0
   for (const group of activePixGridGroups(groups)) {
     if (activeReactionCount >= MAX_PIX_GRID_ACTIVE_REACTIONS) break
     if (!groupAppliesToActiveLayers(group, activeLayerIds)) continue
-    const compiled = compilePixGridGroupMask(group, width, height)
+    const compiled = maskResolver?.compile(group) ?? compilePixGridGroupMask(group, width, height)
     if (compiled.cellCount === 0) continue
     const claim = group.overlapBehavior === 'exclusive' || group.overlapBehavior === 'replace'
-    for (const assignment of group.reactions) {
+    const assignments = [...group.reactions].sort((a, b) => {
+      const sourceOrder = Number(!isPixGridContinuousReactionSource(a.source)) - Number(!isPixGridContinuousReactionSource(b.source))
+      return sourceOrder || (a.eventPriority ?? 0) - (b.eventPriority ?? 0) || a.id.localeCompare(b.id)
+    })
+    for (const assignment of assignments) {
       if (activeReactionCount >= MAX_PIX_GRID_ACTIVE_REACTIONS) break
       if (!assignment.enabled || !isPixGridPixelReactionTarget(assignment.target)) continue
       activeReactionCount += 1
@@ -258,9 +289,14 @@ export function resolvePixGridLayerReactionFrame(
     const hasScope = Boolean(group.layerId) || Boolean(group.layerScope?.length)
     const scoped = !hasScope || group.layerId === layer.id || group.layerScope?.includes(layer.id)
     if (!scoped) continue
-    for (const assignment of group.reactions) {
+    const assignments = [...group.reactions].sort((a, b) => {
+      const sourceOrder = Number(!isPixGridContinuousReactionSource(a.source)) - Number(!isPixGridContinuousReactionSource(b.source))
+      return sourceOrder || (a.eventPriority ?? 0) - (b.eventPriority ?? 0) || a.id.localeCompare(b.id)
+    })
+    for (const assignment of assignments) {
       if (!assignment.enabled || count >= MAX_PIX_GRID_ACTIVE_REACTIONS) continue
-      if (assignment.target !== 'animationSpeed' && assignment.target !== 'directionReverse' && assignment.target !== 'frameAdvance') continue
+      if (assignment.target !== 'animationSpeed' && assignment.target !== 'directionReverse' && assignment.target !== 'frameAdvance')
+        continue
       count += 1
       const resolved = runtime.resolve(assignment, frame, assignment.id === previewReactionAssignmentId)
       if (!resolved.active) continue
@@ -271,5 +307,8 @@ export function resolvePixGridLayerReactionFrame(
     }
   }
   if (speed === 1 && direction === 1 && frameAdvance === 0) return frame
-  return { ...frame, audioTime: frame.audioTime * speed * direction + frameAdvance }
+  return {
+    ...frame,
+    audioTime: frame.audioTime * speed * direction + frameAdvance,
+  }
 }

@@ -1,11 +1,12 @@
 import {
+  resolveSharedPerformanceEventEnvelope,
   resolveSharedPerformanceProgram,
   type SharedPerformanceActionIntent,
   type SharedPerformanceActionReason,
   type SharedPerformanceContext,
 } from '../../../../features/performanceCore'
 import { clonePixGridLayer } from './PixGridDefaults'
-import { normalizePixGridState } from './PixGridValidation'
+import type { PixGridGroupFrameEffect } from './PixGridFrameEffects'
 import {
   PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID,
   PIX_GRID_PERFORMANCE_PROGRAM_BY_ID,
@@ -15,15 +16,21 @@ import type {
   PixGridPerformanceRuntimeSnapshot,
   PixGridResolvedPerformanceFrame,
 } from './PixGridPerformanceTypes'
+import type { PixGridResolvedTransition } from './PixGridActionCues'
 import type {
-  PixGridGroup,
   PixGridLayer,
   PixGridPaletteRole,
   PixGridPerformanceProgramId,
   PixGridState,
 } from './PixGridTypes'
+import { normalizePixGridState } from './PixGridValidation'
 
 export const MAX_PIX_GRID_PERFORMANCE_ACTIONS = 96
+const MAX_ACTIVE_PROGRAM_EVENTS = 32
+
+const EVENT_REASONS = new Set<SharedPerformanceActionReason>([
+  'beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'semanticMoment',
+])
 
 export function limitPixGridPerformanceIntents(
   intents: readonly SharedPerformanceActionIntent<PixGridPerformanceAction>[],
@@ -64,16 +71,9 @@ function cloneState(state: PixGridState): PixGridState {
   }
 }
 
-function groupFor(state: PixGridState, groupId: string): PixGridGroup | null {
-  return state.groups.find(group => group.id === groupId) ?? null
-}
-
-function targetLayerIds(state: PixGridState, target: 'all' | { layerId: string } | { groupId: string }): string[] {
+function explicitLayerTargetIds(state: PixGridState, target: 'all' | { layerId: string } | { groupId: string }): string[] {
   if (target === 'all') return state.layers.map(layer => layer.id)
-  if ('layerId' in target) return [target.layerId]
-  const group = groupFor(state, target.groupId)
-  if (!group) return []
-  return group.layerScope?.length ? [...group.layerScope] : group.layerId ? [group.layerId] : []
+  return 'layerId' in target ? [target.layerId] : []
 }
 
 function actionRoute(action: PixGridPerformanceAction): string {
@@ -162,130 +162,238 @@ function scaleTowardAuthored(value: number, neutral: number, intensity: number):
   return neutral + (value - neutral) * intensity
 }
 
-function applyAction(
-  current: PixGridState,
-  base: PixGridState,
+function isGroupScopedAction(action: PixGridPerformanceAction): boolean {
+  if (action.type === 'setGroupActive' || action.type === 'setGroupBrightness' || action.type === 'flashGroup' || action.type === 'dissolveGroup' || action.type === 'shiftGroup') return true
+  return (action.type === 'setPaletteRole' || action.type === 'revealRows' || action.type === 'revealColumns'
+    || action.type === 'changeAnimationSpeed' || action.type === 'reverseDirection' || action.type === 'triggerFrame')
+    && action.target !== 'all' && 'groupId' in action.target
+}
+
+function groupIdForTarget(target: 'all' | { layerId: string } | { groupId: string }): string | null {
+  return target !== 'all' && 'groupId' in target ? target.groupId : null
+}
+
+function groupEffectForAction(
   action: PixGridPerformanceAction,
   reason: SharedPerformanceActionReason,
   intensity: number,
-): { state: PixGridState; transition?: PixGridPerformanceRuntimeSnapshot['transition'] } {
-  if (isLocked(current, action)) return { state: current }
+  identity: string,
+  context: SharedPerformanceContext,
+): PixGridGroupFrameEffect | null {
+  if (!isGroupScopedAction(action)) return null
+  const stage: PixGridGroupFrameEffect['stage'] = EVENT_REASONS.has(reason) ? 'event' : 'persistent'
+  const base = {
+    id: `performance:${identity}:${action.type}`,
+    source: 'performance' as const,
+    stage,
+    priority: stage === 'event' ? 420 : 220,
+  }
+  switch (action.type) {
+    case 'setGroupActive': return { ...base, groupId: action.groupId, kind: 'visibility', amount: action.active ? 1 : 0, blend: 'replace' }
+    case 'setGroupBrightness': return { ...base, groupId: action.groupId, kind: 'brightness', amount: clamp(scaleTowardAuthored(action.brightness, 1, intensity), 0, 4), blend: 'multiply' }
+    case 'flashGroup': return { ...base, groupId: action.groupId, kind: 'flash', amount: clamp(action.amount * intensity, 0, 2), paletteRole: action.paletteRole }
+    case 'dissolveGroup': return { ...base, groupId: action.groupId, kind: 'dissolve', amount: clamp(action.amount * intensity), seed: context.deterministicVariationSeed }
+    case 'shiftGroup': return { ...base, groupId: action.groupId, kind: 'shift', amount: 1, x: (action.x ?? 0) * intensity, y: (action.y ?? 0) * intensity }
+    case 'setPaletteRole': return { ...base, groupId: groupIdForTarget(action.target) ?? '', kind: 'color', amount: clamp(intensity), paletteRole: action.role }
+    case 'revealRows': return { ...base, groupId: groupIdForTarget(action.target) ?? '', kind: 'revealRows', amount: clamp(scaleTowardAuthored(action.progress, 1, intensity)), from: action.from === 'bottom' ? 'end' : action.from === 'center' ? 'center' : 'start' }
+    case 'revealColumns': return { ...base, groupId: groupIdForTarget(action.target) ?? '', kind: 'revealColumns', amount: clamp(scaleTowardAuthored(action.progress, 1, intensity)), from: action.from === 'right' ? 'end' : action.from === 'center' ? 'center' : 'start' }
+    case 'changeAnimationSpeed': return { ...base, groupId: groupIdForTarget(action.target) ?? '', kind: 'shift', amount: 1, x: Math.sin(context.absoluteBeat * action.multiplier) * 0.02 * intensity }
+    case 'reverseDirection': return { ...base, groupId: groupIdForTarget(action.target) ?? '', kind: 'shift', amount: 1, x: -0.02 * intensity }
+    case 'triggerFrame': return { ...base, groupId: groupIdForTarget(action.target) ?? '', kind: 'shift', amount: 1, x: (action.step ?? 0.1) * intensity }
+    default: return null
+  }
+}
+
+function applyStateAction(
+  current: PixGridState,
+  base: PixGridState,
+  action: PixGridPerformanceAction,
+  intensity: number,
+): PixGridState {
+  if (isLocked(current, action) || isGroupScopedAction(action)) return current
   const strength = clamp(intensity)
   switch (action.type) {
-    case 'setScene':
-      return current.scenes.some(scene => scene.id === action.sceneId)
-        ? { state: { ...current, selectedSceneId: action.sceneId } }
-        : { state: current }
-    case 'setLayerActive':
-      return { state: updateLayers(current, [action.layerId], layer => ({ ...layer, visible: action.active })) }
-    case 'setGroupActive': {
-      const group = groupFor(current, action.groupId)
-      const layerIds = group ? targetLayerIds(current, { groupId: group.id }) : []
-      const withGroup = { ...current, groups: current.groups.map(item => item.id === action.groupId ? { ...item, enabled: action.active } : item) }
-      return { state: updateLayers(withGroup, layerIds, layer => ({ ...layer, visible: action.active })) }
-    }
+    case 'setScene': return current.scenes.some(scene => scene.id === action.sceneId) ? { ...current, selectedSceneId: action.sceneId } : current
+    case 'setLayerActive': return updateLayers(current, [action.layerId], layer => ({ ...layer, visible: action.active }))
     case 'setLayerOpacity': {
       const opacity = clamp(action.opacity)
-      return { state: updateLayers(current, [action.layerId], layer => ({
+      return updateLayers(current, [action.layerId], layer => ({
         ...layer,
         opacity: action.mode === 'blend'
           ? clamp(layer.opacity + (opacity - layer.opacity) * strength)
           : clamp(scaleTowardAuthored(opacity, layer.opacity, strength)),
-      })) }
-    }
-    case 'setGroupBrightness': {
-      const ids = targetLayerIds(current, { groupId: action.groupId })
-      const brightness = clamp(scaleTowardAuthored(action.brightness, 1, strength), 0, 2)
-      return { state: updateLayers(current, ids, layer => ({ ...layer, opacity: clamp(layer.opacity * brightness) })) }
-    }
-    case 'setPaletteRole':
-      return { state: updateLayers(current, targetLayerIds(current, action.target), layer => applyPalette(layer, action.from, action.role)) }
-    case 'flashGroup': {
-      const ids = targetLayerIds(current, { groupId: action.groupId })
-      const eventScale = reason === 'kick' || reason === 'snare' || reason === 'semanticMoment' ? 1 : 0.72
-      const amount = clamp(action.amount * strength * eventScale, 0, 1.5)
-      let state = updateLayers(current, ids, layer => ({
-        ...layer,
-        opacity: clamp(layer.opacity + amount * 0.38),
-        paletteMap: action.paletteRole ? { ...layer.paletteMap, highlight: action.paletteRole } : layer.paletteMap,
       }))
-      state = { ...state, glowAmount: clamp(state.glowAmount + amount * 0.16), globalIntensity: clamp(state.globalIntensity + amount * 0.08) }
-      return { state }
     }
-    case 'revealRows':
-      return { state: updateLayers(current, targetLayerIds(current, action.target), layer => revealLayer(layer, 'y', scaleTowardAuthored(action.progress, 1, strength), action.from ?? 'center')) }
-    case 'revealColumns':
-      return { state: updateLayers(current, targetLayerIds(current, action.target), layer => revealLayer(layer, 'x', scaleTowardAuthored(action.progress, 1, strength), action.from ?? 'center')) }
-    case 'dissolveGroup': {
-      const ids = targetLayerIds(current, { groupId: action.groupId })
-      const remaining = 1 - clamp(action.amount) * strength
-      return { state: updateLayers(current, ids, layer => ({ ...layer, opacity: clamp(layer.opacity * remaining) })) }
-    }
-    case 'shiftGroup': {
-      const ids = targetLayerIds(current, { groupId: action.groupId })
-      return { state: updateLayers(current, ids, layer => ({
-        ...layer,
-        position: {
-          x: clamp(layer.position.x + (action.x ?? 0) * strength, -1, 2),
-          y: clamp(layer.position.y + (action.y ?? 0) * strength, -1, 2),
-        },
-      })) }
-    }
-    case 'recruitLayer':
-      return { state: updateLayers(current, [action.layerId], layer => ({ ...layer, visible: true, opacity: action.opacity == null ? layer.opacity : clamp(scaleTowardAuthored(action.opacity, layer.opacity, strength)) })) }
-    case 'changeAnimation':
-      return { state: updateLayers(current, [action.layerId], layer => ({
-        ...layer,
-        animations: [{
-          mode: action.animation,
-          speed: action.speed ?? layer.animations[0]?.speed ?? 1,
-          amount: action.amount ?? layer.animations[0]?.amount ?? 1,
-          phase: layer.animations[0]?.phase ?? 0,
-          boundary: layer.animations[0]?.boundary ?? 'wrap',
-        }, ...layer.animations.slice(1)],
-      })) }
+    case 'setPaletteRole': return updateLayers(current, explicitLayerTargetIds(current, action.target), layer => applyPalette(layer, action.from, action.role))
+    case 'revealRows': return updateLayers(current, explicitLayerTargetIds(current, action.target), layer => revealLayer(layer, 'y', scaleTowardAuthored(action.progress, 1, strength), action.from ?? 'center'))
+    case 'revealColumns': return updateLayers(current, explicitLayerTargetIds(current, action.target), layer => revealLayer(layer, 'x', scaleTowardAuthored(action.progress, 1, strength), action.from ?? 'center'))
+    case 'recruitLayer': return updateLayers(current, [action.layerId], layer => ({ ...layer, visible: true, opacity: action.opacity == null ? layer.opacity : clamp(scaleTowardAuthored(action.opacity, layer.opacity, strength)) }))
+    case 'changeAnimation': return updateLayers(current, [action.layerId], layer => ({
+      ...layer,
+      animations: [{
+        mode: action.animation,
+        speed: action.speed ?? layer.animations[0]?.speed ?? 1,
+        amount: action.amount ?? layer.animations[0]?.amount ?? 1,
+        phase: layer.animations[0]?.phase ?? 0,
+        boundary: layer.animations[0]?.boundary ?? 'wrap',
+      }, ...layer.animations.slice(1)],
+    }))
     case 'changeAnimationSpeed': {
       const multiplier = Math.max(0, scaleTowardAuthored(action.multiplier, 1, strength))
-      return { state: updateLayers(current, targetLayerIds(current, action.target), layer => ({
-        ...layer,
-        animations: layer.animations.map(animation => ({ ...animation, speed: animation.speed * multiplier })),
-      })) }
+      return updateLayers(current, explicitLayerTargetIds(current, action.target), layer => ({ ...layer, animations: layer.animations.map(animation => ({ ...animation, speed: animation.speed * multiplier })) }))
     }
-    case 'reverseDirection':
-      return { state: updateLayers(current, targetLayerIds(current, action.target), layer => ({
-        ...layer,
-        animations: layer.animations.map(animation => ({ ...animation, speed: -animation.speed, amount: -animation.amount })),
-      })) }
+    case 'reverseDirection': return updateLayers(current, explicitLayerTargetIds(current, action.target), layer => ({ ...layer, animations: layer.animations.map(animation => ({ ...animation, speed: -animation.speed, amount: -animation.amount })) }))
     case 'triggerFrame': {
       const step = (action.step ?? 0.1) * strength
-      return { state: updateLayers(current, targetLayerIds(current, action.target), layer => ({
-        ...layer,
-        animations: layer.animations.map(animation => ({ ...animation, phase: animation.phase + step })),
-      })) }
+      return updateLayers(current, explicitLayerTargetIds(current, action.target), layer => ({ ...layer, animations: layer.animations.map(animation => ({ ...animation, phase: animation.phase + step })) }))
     }
-    case 'freeze':
-      return { state: action.active ? updateLayers(current, current.layers.map(layer => layer.id), layer => ({
-        ...layer,
-        animations: layer.animations.map(animation => ({ ...animation, speed: 0 })),
-      })) : current }
-    case 'clear':
-      return { state: { ...current, layers: current.layers.map(layer => ({ ...layer, visible: false })), backgroundMode: 'black', backgroundBrightness: 0 } }
-    case 'restore':
-      return { state: cloneState(base) }
-    case 'setTransition':
-      return { state: current, transition: action.transition }
+    case 'freeze': return action.active ? updateLayers(current, current.layers.map(layer => layer.id), layer => ({ ...layer, animations: layer.animations.map(animation => ({ ...animation, speed: 0 })) })) : current
+    case 'clear': return { ...current, layers: current.layers.map(layer => ({ ...layer, visible: false })), backgroundMode: 'black', backgroundBrightness: 0 }
+    case 'restore': return cloneState(base)
     case 'setDensity': {
       const density = clamp(scaleTowardAuthored(action.density, 1, strength))
-      return { state: { ...current, layers: current.layers.map(layer => ({ ...layer, visible: layer.visible && layer.densityRank <= density })) } }
+      return { ...current, layers: current.layers.map(layer => ({ ...layer, visible: layer.visible && layer.densityRank <= density })) }
     }
     case 'setBackgroundState': {
       const brightness = action.brightness ?? (action.state === 'black' ? 0 : action.state === 'dim' ? 0.06 : action.state === 'lifted' ? 0.2 : current.backgroundBrightness)
-      return { state: {
+      return {
         ...current,
         backgroundMode: action.state === 'black' ? 'black' : current.backgroundMode,
         backgroundBrightness: clamp(scaleTowardAuthored(brightness, current.backgroundBrightness, strength)),
-      } }
+      }
     }
+    case 'setTransition':
+    case 'setGroupActive':
+    case 'setGroupBrightness':
+    case 'flashGroup':
+    case 'dissolveGroup':
+    case 'shiftGroup': return current
+  }
+}
+
+interface ProgramEventRecord {
+  id: string
+  route: string
+  startSec: number
+  attack: number
+  hold: number
+  release: number
+  effect: PixGridGroupFrameEffect
+}
+
+function eventEnvelope(reason: SharedPerformanceActionReason): Pick<ProgramEventRecord, 'attack' | 'hold' | 'release'> {
+  switch (reason) {
+    case 'hat': return { attack: 0.005, hold: 0.015, release: 0.08 }
+    case 'kick': return { attack: 0.008, hold: 0.035, release: 0.18 }
+    case 'snare': return { attack: 0.008, hold: 0.05, release: 0.24 }
+    case 'semanticMoment': return { attack: 0.02, hold: 0.1, release: 0.45 }
+    default: return { attack: 0.005, hold: 0.025, release: 0.12 }
+  }
+}
+
+function transitionType(type: Extract<PixGridPerformanceAction, { type: 'setTransition' }>): PixGridResolvedTransition['type'] {
+  switch (type.transition) {
+    case 'fade': return 'crossfade'
+    case 'wipeRows': return 'rowWipe'
+    case 'wipeColumns': return 'columnWipe'
+    case 'dissolve': return 'pixelDissolve'
+    default: return 'cut'
+  }
+}
+
+function reasonStartSec(reason: SharedPerformanceActionReason, context: SharedPerformanceContext): number {
+  if (reason === 'sectionEntry' || reason === 'sectionBody' || reason === 'sectionExit' || reason === 'scene') {
+    return context.resolvedMacroSection?.startSec ?? context.resolvedSection?.startSec ?? context.audioTimeSec
+  }
+  const beatDuration = context.bpm > 0 ? 60 / context.bpm : 0.5
+  const blockBars = reason === 'sixteenBarEvolution' ? 16 : reason === 'eightBarRecruitment' ? 8 : 4
+  if (reason === 'fourBarMotif' || reason === 'eightBarRecruitment' || reason === 'sixteenBarEvolution' || reason === 'barStage') {
+    const blockBeats = blockBars * Math.max(1, context.timeSignature)
+    return Math.max(0, context.audioTimeSec - (context.absoluteBeat % blockBeats) * beatDuration)
+  }
+  return Math.max(0, context.audioTimeSec - context.beatPhase * beatDuration)
+}
+
+export class PixGridPerformanceExecutionRuntime {
+  private events: ProgramEventRecord[] = []
+  private transition: { identity: string; value: PixGridResolvedTransition } | null = null
+  private trackIdentity: string | null = null
+  private lastAudioTime = 0
+
+  reset(): void {
+    this.events = []
+    this.transition = null
+    this.trackIdentity = null
+    this.lastAudioTime = 0
+  }
+
+  synchronize(context: SharedPerformanceContext): void {
+    const trackChanged = this.trackIdentity !== null && this.trackIdentity !== context.trackIdentity
+    if (trackChanged || context.trackReplacementDetected) this.reset()
+    if (context.loopWrapDetected) {
+      this.events = []
+      this.transition = null
+    } else if (context.seekDetected || context.audioTimeSec + 0.001 < this.lastAudioTime) {
+      this.events = this.events.filter(event => event.startSec <= context.audioTimeSec + 0.001)
+      if (this.transition && this.transition.value.startedAtSec > context.audioTimeSec + 0.001) this.transition = null
+    }
+    this.trackIdentity = context.trackIdentity
+    this.lastAudioTime = context.audioTimeSec
+  }
+
+  triggerEvent(effect: PixGridGroupFrameEffect, intent: SharedPerformanceActionIntent<PixGridPerformanceAction>, context: SharedPerformanceContext): void {
+    const triggerIdentity = `${intent.identity}:${intent.reason}:${context.beatIndex}:${context.sectionOccurrence}`
+    if (this.events.some(event => event.id === triggerIdentity && event.route === actionRoute(intent.action))) return
+    const envelope = eventEnvelope(intent.reason)
+    this.events.push({ id: triggerIdentity, route: actionRoute(intent.action), startSec: context.audioTimeSec, effect, ...envelope })
+    if (this.events.length > MAX_ACTIVE_PROGRAM_EVENTS) this.events.splice(0, this.events.length - MAX_ACTIVE_PROGRAM_EVENTS)
+  }
+
+  activeEventEffects(audioTimeSec: number): { effects: PixGridGroupFrameEffect[]; ids: string[] } {
+    const effects: PixGridGroupFrameEffect[] = []
+    const ids: string[] = []
+    this.events = this.events.filter(event => {
+      if (event.startSec > audioTimeSec + 0.001) return true
+      const elapsed = Math.max(0, audioTimeSec - event.startSec)
+      const value = resolveSharedPerformanceEventEnvelope(elapsed, { attack: event.attack, hold: event.hold, release: event.release, curve: 'easeOut' })
+      if (value <= 0 && elapsed > event.attack + event.hold + event.release) return false
+      if (value > 0) {
+        effects.push({ ...event.effect, id: `${event.effect.id}:${event.id}`, amount: event.effect.amount * value })
+        ids.push(event.id)
+      }
+      return true
+    })
+    return { effects, ids }
+  }
+
+  resolveTransition(
+    intent: SharedPerformanceActionIntent<PixGridPerformanceAction>,
+    action: Extract<PixGridPerformanceAction, { type: 'setTransition' }>,
+    context: SharedPerformanceContext,
+    fromState: PixGridState,
+  ): PixGridResolvedTransition | null {
+    const type = transitionType(action)
+    if (type === 'cut') return null
+    const durationSec = Math.max(0.02, (action.durationBeats ?? 1) * (context.bpm > 0 ? 60 / context.bpm : 0.5))
+    const identity = `${intent.identity}:${action.transition}:${durationSec.toFixed(4)}`
+    if (!this.transition || this.transition.identity !== identity) {
+      const startedAtSec = reasonStartSec(intent.reason, context)
+      this.transition = {
+        identity,
+        value: {
+          cueId: `performance:${identity}`,
+          type,
+          progress: 0,
+          startedAtSec,
+          durationSec,
+          seed: context.deterministicVariationSeed,
+          fromState: cloneState(fromState),
+        },
+      }
+    }
+    const progress = clamp((context.audioTimeSec - this.transition.value.startedAtSec) / this.transition.value.durationSec)
+    if (progress >= 1) return null
+    return { ...this.transition.value, progress }
   }
 }
 
@@ -308,6 +416,8 @@ function inactiveSnapshot(state: PixGridState, context: SharedPerformanceContext
     manualOverrideRoutes: manualOverrideRoutes(state),
     fallbackState,
     transition: null,
+    activeEventEnvelopes: [],
+    activeGroupEffects: [],
     deterministicIdentity: `${context.runtimeIdentity}:pix-grid-inactive`,
   }
 }
@@ -316,8 +426,11 @@ export function resolvePixGridPerformanceFrame(
   rawState: PixGridState,
   context: SharedPerformanceContext,
   presetId: string | null | undefined,
+  options: { runtime?: PixGridPerformanceExecutionRuntime } = {},
 ): PixGridResolvedPerformanceFrame {
   const base = normalizePixGridState(rawState)
+  const runtime = options.runtime ?? new PixGridPerformanceExecutionRuntime()
+  runtime.synchronize(context)
   const attachedProgramId = presetId ? PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID[presetId] : null
   const configuredId = attachedProgramId ?? base.performance.sharedPerformanceProgramId
   const program = configuredId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(configuredId) : null
@@ -326,37 +439,47 @@ export function resolvePixGridPerformanceFrame(
       state: base,
       snapshot: inactiveSnapshot(base, context, program ? null : 'No PixGrid performance program is selected.'),
       appliedActions: [],
+      groupEffects: [],
+      transition: null,
       actionLimitDecisions: [],
     }
   }
 
   const shouldUseSafeFallback = !context.capabilities.sections || context.sectionConfidence < 0.35
-  const resolutionContext: SharedPerformanceContext = shouldUseSafeFallback
-    ? {
-        ...context,
-        sectionType: 'unknown',
-        macroSectionType: 'unknown',
-        sectionFamily: null,
-        deterministicVariationSeed: context.deterministicVariationSeed ^ base.performance.seed,
-      }
-    : {
-        ...context,
-        deterministicVariationSeed: context.deterministicVariationSeed ^ base.performance.seed,
-      }
+  const resolutionContext: SharedPerformanceContext = {
+    ...context,
+    ...(shouldUseSafeFallback ? { sectionType: 'unknown' as const, macroSectionType: 'unknown' as const, sectionFamily: null } : {}),
+    deterministicVariationSeed: context.deterministicVariationSeed ^ base.performance.seed,
+  }
   const resolution = resolveSharedPerformanceProgram(program, resolutionContext)
   const limited = limitPixGridPerformanceIntents(resolution.intents)
   let state = cloneState(base)
-  let transition: PixGridPerformanceRuntimeSnapshot['transition'] = null
+  let transition: PixGridResolvedTransition | null = null
+  let transitionLabel: PixGridPerformanceRuntimeSnapshot['transition'] = null
   const appliedActions: PixGridPerformanceAction[] = []
+  const groupEffects: PixGridGroupFrameEffect[] = []
+
   for (const intent of limited.intents) {
     if (isLocked(state, intent.action)) continue
-    const result = applyAction(state, base, intent.action, intent.reason, base.performance.intensity)
-    state = result.state
-    if (result.transition) transition = result.transition
+    if (intent.action.type === 'setTransition') {
+      transitionLabel = intent.action.transition
+      transition = runtime.resolveTransition(intent, intent.action, context, base) ?? transition
+      appliedActions.push(intent.action)
+      continue
+    }
+    const groupEffect = groupEffectForAction(intent.action, intent.reason, base.performance.intensity, intent.identity, context)
+    if (groupEffect) {
+      if (EVENT_REASONS.has(intent.reason)) runtime.triggerEvent(groupEffect, intent, context)
+      else groupEffects.push(groupEffect)
+    } else {
+      state = applyStateAction(state, base, intent.action, base.performance.intensity)
+    }
     appliedActions.push(intent.action)
   }
-  state = normalizePixGridState(state)
 
+  const activeEvents = runtime.activeEventEffects(context.audioTimeSec)
+  groupEffects.push(...activeEvents.effects)
+  state = normalizePixGridState(state)
   const fallbackState = !context.capabilities.sections
     ? 'Section analysis unavailable; Shared Performance BPM/grid fallback is active.'
     : context.sectionConfidence < 0.35
@@ -368,6 +491,8 @@ export function resolvePixGridPerformanceFrame(
   return {
     state,
     appliedActions,
+    groupEffects,
+    transition,
     actionLimitDecisions: limited.decisions,
     snapshot: {
       active: resolution.scene != null,
@@ -386,7 +511,9 @@ export function resolvePixGridPerformanceFrame(
       recentActionTypes: appliedActions.map(action => action.type).slice(-12),
       manualOverrideRoutes: manualOverrideRoutes(base),
       fallbackState,
-      transition,
+      transition: transitionLabel,
+      activeEventEnvelopes: activeEvents.ids,
+      activeGroupEffects: groupEffects.map(effect => `${effect.groupId}:${effect.kind}`),
       deterministicIdentity: resolution.deterministicIdentity,
     },
   }

@@ -1,8 +1,5 @@
 import type { ReactPreset } from '../../ReactTypes'
-import type {
-  PixGridRendererDiagnostics,
-  PixGridState,
-} from '../../pixGrid/PixGridTypes'
+import type { PixGridRendererDiagnostics, PixGridState } from '../../pixGrid/PixGridTypes'
 import { composePixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 import type { PixGridBaselineRenderFrame } from './PixGridBaselineRenderer'
@@ -10,6 +7,8 @@ import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation
 import { PixGridReactionRuntime } from '../../pixGrid/PixGridAudioRouting'
 import { PixGridGpuMaskAtlas } from './PixGridGpuMasks'
 import type { PixGridResolvedTransition } from '../../pixGrid/PixGridActionCues'
+import type { PixGridGroupFrameEffect } from '../../pixGrid/PixGridFrameEffects'
+import { PixGridFrameGroupCompiler } from '../../pixGrid/PixGridGroupCompiler'
 import {
   PIX_GRID_FULLSCREEN_VERTEX_SHADER,
   PIX_GRID_LOGICAL_FRAGMENT_SHADER,
@@ -22,9 +21,7 @@ export interface PixGridGpuRendererCallbacks {
   onContextRestoreFailed?: (reason: string) => void
 }
 
-export type PixGridGpuRendererCreateResult =
-  | { renderer: PixGridGpuRenderer; error: null }
-  | { renderer: null; error: string }
+export type PixGridGpuRendererCreateResult = { renderer: PixGridGpuRenderer; error: null } | { renderer: null; error: string }
 
 interface PixGridGpuRenderInput {
   frame: PixGridBaselineRenderFrame
@@ -35,6 +32,8 @@ interface PixGridGpuRenderInput {
   blackout?: boolean
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null
   transition?: PixGridResolvedTransition | null
+  groupEffects?: readonly PixGridGroupFrameEffect[]
+  reactionRuntime?: PixGridReactionRuntime
 }
 
 interface SavedWebGLState {
@@ -67,11 +66,8 @@ function hexToUnitRgb(value: string): readonly [number, number, number] {
 }
 
 function resolveBackgroundColor(preset: ReactPreset, state: PixGridState): readonly [number, number, number] {
-  const source = state.backgroundMode === 'black'
-    ? '#000000'
-    : state.backgroundMode === 'custom'
-      ? state.backgroundColor
-      : preset.palette.background
+  const source =
+    state.backgroundMode === 'black' ? '#000000' : state.backgroundMode === 'custom' ? state.backgroundColor : preset.palette.background
   const rgb = hexToUnitRgb(source)
   const brightness = state.backgroundBrightness
   return [rgb[0] * brightness, rgb[1] * brightness, rgb[2] * brightness]
@@ -90,11 +86,7 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string,
   return shader
 }
 
-function createProgram(
-  gl: WebGL2RenderingContext,
-  fragmentSource: string,
-  label: string,
-): WebGLProgram {
+function createProgram(gl: WebGL2RenderingContext, fragmentSource: string, label: string): WebGLProgram {
   const vertex = compileShader(gl, gl.VERTEX_SHADER, PIX_GRID_FULLSCREEN_VERTEX_SHADER, `${label} vertex`)
   const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource, `${label} fragment`)
   const program = gl.createProgram()
@@ -123,10 +115,7 @@ function requireUniform(gl: WebGL2RenderingContext, program: WebGLProgram, name:
 }
 
 export class PixGridGpuRenderer {
-  static create(
-    canvas: HTMLCanvasElement,
-    callbacks: PixGridGpuRendererCallbacks = {},
-  ): PixGridGpuRendererCreateResult {
+  static create(canvas: HTMLCanvasElement, callbacks: PixGridGpuRendererCallbacks = {}): PixGridGpuRendererCreateResult {
     const gl = canvas.getContext('webgl2', {
       alpha: false,
       antialias: false,
@@ -167,6 +156,7 @@ export class PixGridGpuRenderer {
   private logicalAllocationCount = 0
   private logicalPixels: Uint8Array | null = null
   private readonly reactionRuntime = new PixGridReactionRuntime()
+  private readonly groupCompiler = new PixGridFrameGroupCompiler()
   private maskAtlas: PixGridGpuMaskAtlas | null = null
   private contextState: PixGridRendererDiagnostics['contextState'] = 'ready'
   private disposed = false
@@ -192,11 +182,7 @@ export class PixGridGpuRenderer {
     }
   }
 
-  private constructor(
-    canvas: HTMLCanvasElement,
-    gl: WebGL2RenderingContext,
-    callbacks: PixGridGpuRendererCallbacks,
-  ) {
+  private constructor(canvas: HTMLCanvasElement, gl: WebGL2RenderingContext, callbacks: PixGridGpuRendererCallbacks) {
     this.canvas = canvas
     this.gl = gl
     this.callbacks = callbacks
@@ -215,6 +201,10 @@ export class PixGridGpuRenderer {
 
   get isReady(): boolean {
     return !this.disposed && this.contextState === 'ready'
+  }
+
+  get compiledGroupIds(): readonly string[] {
+    return this.groupCompiler.compiledGroupIds
   }
 
   get diagnostics(): PixGridRendererDiagnostics {
@@ -247,8 +237,8 @@ export class PixGridGpuRenderer {
     const saved = this.captureState()
     try {
       this.ensureLogicalTarget(state.matrixWidth, state.matrixHeight)
-      this.maskAtlas?.update(state.groups, state.matrixWidth, state.matrixHeight)
       this.updateOverrideTexture(input, state)
+      this.maskAtlas?.update(state.groups, state.matrixWidth, state.matrixHeight, this.groupCompiler)
       gl.disable(gl.BLEND)
       gl.disable(gl.DEPTH_TEST)
       gl.disable(gl.CULL_FACE)
@@ -302,13 +292,25 @@ export class PixGridGpuRenderer {
       throw new Error('Unable to allocate PixGrid GPU resources')
     }
 
-    this.logicalUniforms = new Map([
-      'uLogicalSize', 'uBlackout', 'uOverrideTexture',
-    ].map(name => [name, requireUniform(this.gl, this.logicalProgram!, name)]))
-    this.presentationUniforms = new Map([
-      'uLogicalTexture', 'uLogicalSize', 'uPresentationSize', 'uBackground', 'uGap', 'uRoundness',
-      'uCellBrightness', 'uGlow', 'uDiffusion', 'uGlobalIntensity', 'uRgbSubpixel', 'uShowBounds',
-    ].map(name => [name, requireUniform(this.gl, this.presentationProgram!, name)]))
+    this.logicalUniforms = new Map(
+      ['uLogicalSize', 'uBlackout', 'uOverrideTexture'].map((name) => [name, requireUniform(this.gl, this.logicalProgram!, name)]),
+    )
+    this.presentationUniforms = new Map(
+      [
+        'uLogicalTexture',
+        'uLogicalSize',
+        'uPresentationSize',
+        'uBackground',
+        'uGap',
+        'uRoundness',
+        'uCellBrightness',
+        'uGlow',
+        'uDiffusion',
+        'uGlobalIntensity',
+        'uRgbSubpixel',
+        'uShowBounds',
+      ].map((name) => [name, requireUniform(this.gl, this.presentationProgram!, name)]),
+    )
 
     this.logicalWidth = 0
     this.logicalHeight = 0
@@ -358,25 +360,17 @@ export class PixGridGpuRenderer {
       input.frame,
       this.logicalPixels ?? undefined,
       input.preparedAsset,
-      this.reactionRuntime,
+      input.reactionRuntime ?? this.reactionRuntime,
       input.transition,
+      input.groupEffects ?? [],
+      this.groupCompiler,
     )
     this.logicalPixels = logical.pixels
     const gl = this.gl
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, this.overrideTexture)
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-    gl.texSubImage2D(
-      gl.TEXTURE_2D,
-      0,
-      0,
-      0,
-      state.matrixWidth,
-      state.matrixHeight,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      logical.pixels,
-    )
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, state.matrixWidth, state.matrixHeight, gl.RGBA, gl.UNSIGNED_BYTE, logical.pixels)
   }
 
   private applyLogicalUniforms(input: PixGridGpuRenderInput, state: PixGridState): void {
@@ -480,6 +474,7 @@ export class PixGridGpuRenderer {
     this.maskAtlas?.dispose(deleteResources)
     this.maskAtlas = null
     this.reactionRuntime.reset()
+    this.groupCompiler.reset()
     if (deleteResources) {
       if (this.logicalProgram) this.gl.deleteProgram(this.logicalProgram)
       if (this.presentationProgram) this.gl.deleteProgram(this.presentationProgram)

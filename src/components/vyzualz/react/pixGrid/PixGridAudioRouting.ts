@@ -18,9 +18,16 @@ const CONTINUOUS_SOURCES = new Set<PixGridReactionSource>([
   'spectralFlux', 'tension', 'complexity', 'buildProgress', 'sectionProgress', 'phraseProgress', 'vocalEnergy',
 ])
 
+
+export function isPixGridContinuousReactionSource(source: PixGridReactionSource): source is PixGridContinuousAudioSource {
+  return CONTINUOUS_SOURCES.has(source)
+}
+
 interface PixGridAssignmentRuntimeState {
   triggerTimeSec: number | null
   triggerIdentity: string | null
+  triggerTimes: number[]
+  gateActive: boolean
   quantizedValue: number
   quantizedInitialized: boolean
   smoothing: SharedPerformanceSmoothingState
@@ -233,22 +240,35 @@ export interface PixGridResolvedReactionValue {
 
 export class PixGridReactionRuntime {
   private readonly states = new Map<string, PixGridAssignmentRuntimeState>()
-  private runtimeIdentity = ''
+  private trackIdentity: string | null = null
+  private lastAudioTime = 0
 
   reset(): void {
     this.states.clear()
-    this.runtimeIdentity = ''
+    this.trackIdentity = null
+    this.lastAudioTime = 0
   }
 
   resolve(assignment: PixGridReactionAssignment, frame: PixGridAudioFrame, preview = false): PixGridResolvedReactionValue {
-    const identity = `${frame.trackIdentity ?? 'none'}:${frame.timingDiscontinuity ? frame.audioTime.toFixed(3) : 'continuous'}`
-    if (frame.timingDiscontinuity || (this.runtimeIdentity && frame.trackIdentity && !this.runtimeIdentity.startsWith(frame.trackIdentity))) this.states.clear()
-    this.runtimeIdentity = identity
+    const trackChanged = this.trackIdentity !== null && this.trackIdentity !== frame.trackIdentity
+    if (trackChanged) this.states.clear()
+    if (frame.timingDiscontinuity || frame.audioTime + 0.001 < this.lastAudioTime) {
+      for (const runtimeState of this.states.values()) {
+        runtimeState.triggerTimes = runtimeState.triggerTimes.filter(time => time <= frame.audioTime + 0.001)
+        runtimeState.triggerTimeSec = runtimeState.triggerTimes[runtimeState.triggerTimes.length - 1] ?? null
+        runtimeState.triggerIdentity = null
+        runtimeState.smoothing.initialized = false
+      }
+    }
+    this.trackIdentity = frame.trackIdentity ?? null
+    this.lastAudioTime = frame.audioTime
     let state = this.states.get(assignment.id)
     if (!state) {
       state = {
         triggerTimeSec: null,
         triggerIdentity: null,
+        triggerTimes: [],
+        gateActive: false,
         quantizedValue: 0,
         quantizedInitialized: false,
         smoothing: { value: 0, initialized: false },
@@ -277,16 +297,32 @@ export class PixGridReactionRuntime {
         || (assignment.retrigger === 'extend' && fired)
         || (assignment.retrigger === 'ignoreWhileActive' && !activeEnvelope)
       if (fired && nextIdentity !== state.triggerIdentity && mayRetrigger) {
+        if (assignment.retrigger === 'restart') state.triggerTimes = []
+        state.triggerTimes.push(frame.audioTime)
+        const maximumStacking = Math.max(1, Math.min(8, Math.round(assignment.maximumStacking ?? 1)))
+        if (state.triggerTimes.length > maximumStacking) state.triggerTimes.splice(0, state.triggerTimes.length - maximumStacking)
         state.triggerTimeSec = frame.audioTime
         state.triggerIdentity = nextIdentity
       }
-      raw = state.triggerTimeSec == null ? 0 : resolveSharedPerformanceEventEnvelope(
-        Math.max(0, frame.audioTime - state.triggerTimeSec),
-        { attack: assignment.attack, hold: assignment.hold, release: assignment.release, curve: 'easeOut' },
-      )
+      let envelopeValue = 0
+      state.triggerTimes = state.triggerTimes.filter(triggerTime => {
+        if (triggerTime > frame.audioTime + 0.001) return true
+        const elapsed = Math.max(0, frame.audioTime - triggerTime)
+        const value = resolveSharedPerformanceEventEnvelope(
+          elapsed,
+          { attack: assignment.attack, hold: assignment.hold, release: assignment.release, curve: assignment.decayCurve ?? 'easeOut' },
+        )
+        envelopeValue = assignment.blend === 'add' ? envelopeValue + value : Math.max(envelopeValue, value)
+        return elapsed <= envelopeDuration + 1e-4
+      })
+      state.triggerTimeSec = state.triggerTimes[state.triggerTimes.length - 1] ?? null
+      raw = clamp(envelopeValue)
     } else {
       raw = clamp(raw)
-      raw = assignment.threshold >= 1 ? 0 : clamp((raw - assignment.threshold) / Math.max(0.0001, 1 - assignment.threshold))
+      const hysteresis = clamp(assignment.hysteresis ?? 0, 0, 0.5)
+      if (state.gateActive) state.gateActive = raw >= Math.max(0, assignment.threshold - hysteresis)
+      else state.gateActive = raw > assignment.threshold
+      raw = !state.gateActive || assignment.threshold >= 1 ? 0 : clamp((raw - assignment.threshold) / Math.max(0.0001, 1 - assignment.threshold))
       if (assignment.quantization !== 'none') {
         if (!state.quantizedInitialized || quantizationBoundary(frame, assignment)) {
           state.quantizedValue = raw

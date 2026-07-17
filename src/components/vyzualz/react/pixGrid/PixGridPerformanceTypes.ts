@@ -1,4 +1,6 @@
 import type { SharedPerformanceActionReason, SharedPerformanceProgram } from '../../../../features/performanceCore'
+import type { PixGridGroupFrameEffect } from './PixGridFrameEffects'
+import type { PixGridResolvedTransition } from './PixGridActionCues'
 import type {
   PixGridAnimationMode,
   PixGridPaletteRole,
@@ -55,6 +57,8 @@ export interface PixGridPerformanceRuntimeSnapshot {
   manualOverrideRoutes: readonly string[]
   fallbackState: string | null
   transition: PixGridPerformanceTransition | null
+  activeEventEnvelopes: readonly string[]
+  activeGroupEffects: readonly string[]
   deterministicIdentity: string
 }
 
@@ -62,5 +66,7 @@ export interface PixGridResolvedPerformanceFrame {
   state: PixGridState
   snapshot: PixGridPerformanceRuntimeSnapshot
   appliedActions: readonly PixGridPerformanceAction[]
+  groupEffects: readonly PixGridGroupFrameEffect[]
+  transition: PixGridResolvedTransition | null
   actionLimitDecisions: readonly string[]
 }

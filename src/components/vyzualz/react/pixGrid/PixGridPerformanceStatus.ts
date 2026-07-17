@@ -19,6 +19,8 @@ const EMPTY: PixGridPerformanceRuntimeSnapshot = Object.freeze({
   manualOverrideRoutes: Object.freeze([]),
   fallbackState: null,
   transition: null,
+  activeEventEnvelopes: Object.freeze([]),
+  activeGroupEffects: Object.freeze([]),
   deterministicIdentity: 'inactive',
 })
 
@@ -32,6 +34,8 @@ export function publishPixGridPerformanceRuntimeStatus(next: PixGridPerformanceR
     recentActionReasons: Object.freeze([...next.recentActionReasons]),
     recentActionTypes: Object.freeze([...next.recentActionTypes]),
     manualOverrideRoutes: Object.freeze([...next.manualOverrideRoutes]),
+    activeEventEnvelopes: Object.freeze([...next.activeEventEnvelopes]),
+    activeGroupEffects: Object.freeze([...next.activeGroupEffects]),
   })
   listeners.forEach(listener => listener())
 }

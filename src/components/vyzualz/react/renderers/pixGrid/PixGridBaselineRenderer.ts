@@ -7,6 +7,8 @@ import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 import type { PixGridReactionRuntime } from '../../pixGrid/PixGridAudioRouting'
 import type { PixGridResolvedTransition } from '../../pixGrid/PixGridActionCues'
+import type { PixGridGroupFrameEffect } from '../../pixGrid/PixGridFrameEffects'
+import type { PixGridFrameGroupCompiler } from '../../pixGrid/PixGridGroupCompiler'
 
 export interface PixGridBaselineRenderFrame extends PixGridAudioFrame {
   width: number
@@ -27,14 +29,7 @@ function resolveBackground(preset: ReactPreset, state: PixGridState): string {
   return preset.palette.background
 }
 
-function roundedCellPath(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-): void {
+function roundedCellPath(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
   if (radius <= 0 || typeof ctx.roundRect !== 'function') {
     ctx.rect(x, y, width, height)
     return
@@ -54,9 +49,21 @@ export function renderPixGridBaseline(
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
   reactionRuntime?: PixGridReactionRuntime,
   transition?: PixGridResolvedTransition | null,
+  groupEffects: readonly PixGridGroupFrameEffect[] = [],
+  groupCompiler?: PixGridFrameGroupCompiler,
 ): void {
   const state = normalizePixGridState(rawState)
-  const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset, reactionRuntime, transition)
+  const logical = composePixGridLogicalFrame(
+    preset,
+    state,
+    frame,
+    undefined,
+    preparedAsset,
+    reactionRuntime,
+    transition,
+    groupEffects,
+    groupCompiler,
+  )
   const W = Math.max(1, frame.width)
   const H = Math.max(1, frame.height)
   const matrixAspect = state.matrixWidth / state.matrixHeight
@@ -137,17 +144,27 @@ export function renderPixGridCanvasFallback(
   preparedAsset?: PixGridPreparedAsset | ReadonlyMap<string, PixGridPreparedAsset> | null,
   reactionRuntime?: PixGridReactionRuntime,
   transition?: PixGridResolvedTransition | null,
+  groupEffects: readonly PixGridGroupFrameEffect[] = [],
+  groupCompiler?: PixGridFrameGroupCompiler,
 ): Readonly<{ logicalWidth: number; logicalHeight: number }> {
   const requested = normalizePixGridState(rawState)
-  const state = requested.quality === 'draft'
-    ? normalizePixGridState({ ...requested, quality: 'low' })
-    : requested
+  const state = requested.quality === 'draft' ? normalizePixGridState({ ...requested, quality: 'low' }) : requested
   const logicalCanvas = logicalTarget.canvas
   const logicalContext = logicalTarget.context
   if (logicalCanvas.width !== state.matrixWidth) logicalCanvas.width = state.matrixWidth
   if (logicalCanvas.height !== state.matrixHeight) logicalCanvas.height = state.matrixHeight
 
-  const logical = composePixGridLogicalFrame(preset, state, frame, undefined, preparedAsset, reactionRuntime, transition)
+  const logical = composePixGridLogicalFrame(
+    preset,
+    state,
+    frame,
+    undefined,
+    preparedAsset,
+    reactionRuntime,
+    transition,
+    groupEffects,
+    groupCompiler,
+  )
   const image = logicalContext.createImageData(state.matrixWidth, state.matrixHeight)
   const intensity = clamp01(frame.intensity * state.globalIntensity * state.cellBrightness)
   for (let offset = 0; offset < logical.pixels.length; offset += 4) {

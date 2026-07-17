@@ -1,11 +1,12 @@
 import type { BeatMarkerMI } from '../../../../features/musicIntelligence/types'
+import { resolveSharedPerformanceEventEnvelope } from '../../../../features/performanceCore'
+import type { PixGridGroupFrameEffect } from './PixGridFrameEffects'
 import { clonePixGridLayer } from './PixGridDefaults'
 import { normalizePixGridColor, normalizePixGridState } from './PixGridValidation'
 import type {
   PixGridAnimationBoundary,
   PixGridAnimationMode,
   PixGridColorMode,
-  PixGridGroup,
   PixGridLayer,
   PixGridLayerAnimation,
   PixGridPaletteRole,
@@ -134,6 +135,7 @@ export interface PixGridResolvedCueFrame {
   state: PixGridState
   snapshot: PixGridCueRuntimeSnapshot
   transition: PixGridResolvedTransition | null
+  groupEffects: readonly PixGridGroupFrameEffect[]
 }
 
 const ACTION_TYPES = new Set<PixGridActionCueAction['type']>([
@@ -406,11 +408,7 @@ function cloneState(state: PixGridState): PixGridState {
 
 function layerIdsForTarget(state: PixGridState, target: PixGridCueTarget): string[] {
   if (target === 'all') return state.layers.map(layer => layer.id)
-  if ('layerId' in target) return [target.layerId]
-  const group = state.groups.find(candidate => candidate.id === target.groupId)
-  if (!group) return []
-  if (group.layerScope?.length) return [...group.layerScope]
-  return group.layerId ? [group.layerId] : state.layers.map(layer => layer.id)
+  return 'layerId' in target ? [target.layerId] : []
 }
 
 function updateLayers(state: PixGridState, target: PixGridCueTarget, updater: (layer: PixGridLayer, authored: PixGridLayer | undefined) => PixGridLayer, authoredState = state): PixGridState {
@@ -422,10 +420,6 @@ function updateLayers(state: PixGridState, target: PixGridCueTarget, updater: (l
       ? updater(layer, authoredState.layers.find(candidate => candidate.id === layer.id))
       : layer),
   }
-}
-
-function updateGroup(state: PixGridState, groupId: string, updater: (group: PixGridGroup) => PixGridGroup): PixGridState {
-  return { ...state, groups: state.groups.map(group => group.id === groupId ? updater(group) : group) }
 }
 
 function replaceAnimation(layer: PixGridLayer, animation: PixGridLayerAnimation): PixGridLayer {
@@ -481,15 +475,9 @@ function applyCueAction(
     case 'setLayerVisible':
       return updateLayers(current, { layerId: action.layerId }, layer => ({ ...layer, visible: action.visible }))
     case 'setGroupVisible':
-      return updateGroup(current, action.groupId, group => ({ ...group, contentVisible: action.visible }))
-    case 'flashGroup': {
-      const amount = Math.max(0, 1 - elapsed / Math.max(0.02, cue.oneShotDurationSec)) * action.amount
-      return updateLayers(current, { groupId: action.groupId }, layer => ({
-        ...layer,
-        opacity: Math.max(0, Math.min(1, layer.opacity + amount * 0.45)),
-        paletteMap: action.paletteRole ? { ...layer.paletteMap, highlight: action.paletteRole } : layer.paletteMap,
-      }))
-    }
+      return current
+    case 'flashGroup':
+      return current
     case 'revealRows': {
       const progress = revealProgress(elapsed, cue.oneShotDurationSec)
       return updateLayers(current, action.target, layer => ({
@@ -504,10 +492,8 @@ function applyCueAction(
         animations: [{ mode: 'revealColumn', speed: 0, amount: 1, phase: progress, boundary: 'clamp', clock: 'cue', revealFrom: action.from === 'right' ? 'end' : action.from === 'center' ? 'center' : 'start' }, ...layer.animations.slice(1)],
       }))
     }
-    case 'dissolveGroup': {
-      const amount = revealProgress(elapsed, cue.oneShotDurationSec) * action.amount
-      return updateLayers(current, { groupId: action.groupId }, layer => ({ ...layer, opacity: Math.max(0, Math.min(1, layer.opacity * (1 - amount))) }))
-    }
+    case 'dissolveGroup':
+      return current
     case 'setPaletteMode':
       return { ...current, conversion: { ...current.conversion, colorMode: action.mode } }
     case 'setBackground':
@@ -584,6 +570,52 @@ function applyCueAction(
   }
 }
 
+
+function cueGroupEffects(cue: PixGridActionCue, audioTime: number): PixGridGroupFrameEffect[] {
+  const action = cue.action
+  const elapsed = Math.max(0, audioTime - cue.timeSec)
+  const base = {
+    source: 'cue' as const,
+    priority: action.type === 'applyManualOverride' ? 620 : 520,
+  }
+  const targetGroupId = 'target' in action && action.target !== 'all' && 'groupId' in action.target
+    ? action.target.groupId
+    : null
+  switch (action.type) {
+    case 'setGroupVisible':
+      return [{ ...base, id: `cue:${cue.id}:visibility`, groupId: action.groupId, kind: 'visibility', stage: 'persistent', amount: action.visible ? 1 : 0, blend: 'replace' }]
+    case 'flashGroup': {
+      const duration = Math.max(0.02, cue.oneShotDurationSec)
+      const envelope = resolveSharedPerformanceEventEnvelope(elapsed, {
+        attack: Math.min(0.02, duration * 0.1),
+        hold: duration * 0.2,
+        release: duration * 0.7,
+        curve: 'easeOut',
+      })
+      return envelope > 0 ? [{ ...base, id: `cue:${cue.id}:flash`, groupId: action.groupId, kind: 'flash', stage: 'event', amount: action.amount * envelope, paletteRole: action.paletteRole }] : []
+    }
+    case 'dissolveGroup':
+      return [{ ...base, id: `cue:${cue.id}:dissolve`, groupId: action.groupId, kind: 'dissolve', stage: 'event', amount: revealProgress(elapsed, cue.oneShotDurationSec) * action.amount, seed: stableHash(cue.id) }]
+    case 'revealRows':
+      return targetGroupId ? [{ ...base, id: `cue:${cue.id}:rows`, groupId: targetGroupId, kind: 'revealRows', stage: 'event', amount: revealProgress(elapsed, cue.oneShotDurationSec), from: action.from === 'bottom' ? 'end' : action.from === 'center' ? 'center' : 'start' }] : []
+    case 'revealColumns':
+      return targetGroupId ? [{ ...base, id: `cue:${cue.id}:columns`, groupId: targetGroupId, kind: 'revealColumns', stage: 'event', amount: revealProgress(elapsed, cue.oneShotDurationSec), from: action.from === 'right' ? 'end' : action.from === 'center' ? 'center' : 'start' }] : []
+    case 'moveTarget':
+      return targetGroupId ? [{ ...base, id: `cue:${cue.id}:move`, groupId: targetGroupId, kind: 'shift', stage: 'persistent', amount: 1, x: action.x ?? 0, y: action.y ?? 0 }] : []
+    case 'applyManualOverride': {
+      if (!targetGroupId || elapsed > action.durationSec) return []
+      const effects: PixGridGroupFrameEffect[] = []
+      if (action.patch.visible != null) effects.push({ ...base, id: `cue:${cue.id}:manual-visible`, groupId: targetGroupId, kind: 'visibility', stage: 'manual', amount: action.patch.visible ? 1 : 0, blend: 'replace' })
+      if (action.patch.opacity != null) effects.push({ ...base, id: `cue:${cue.id}:manual-opacity`, groupId: targetGroupId, kind: 'opacity', stage: 'manual', amount: action.patch.opacity, blend: 'replace' })
+      if (action.patch.paletteRole) effects.push({ ...base, id: `cue:${cue.id}:manual-color`, groupId: targetGroupId, kind: 'color', stage: 'manual', amount: 1, paletteRole: action.patch.paletteRole })
+      if (action.patch.positionX != null || action.patch.positionY != null) effects.push({ ...base, id: `cue:${cue.id}:manual-move`, groupId: targetGroupId, kind: 'shift', stage: 'manual', amount: 1, x: action.patch.positionX ?? 0, y: action.patch.positionY ?? 0 })
+      return effects
+    }
+    default:
+      return []
+  }
+}
+
 function isOneShot(action: PixGridActionCueAction): boolean {
   return action.type === 'flashGroup' || action.type === 'revealRows' || action.type === 'revealColumns' || action.type === 'dissolveGroup'
 }
@@ -639,6 +671,7 @@ export function resolvePixGridActionCueFrame(
   const activeCueIds: string[] = []
   const activeOneShotCueIds: string[] = []
   let appliedCues: PixGridActionCue[] = []
+  let groupEffects: PixGridGroupFrameEffect[] = []
 
   const replayAppliedCues = () => {
     let replayed = cloneState(authored)
@@ -660,9 +693,11 @@ export function resolvePixGridActionCueFrame(
       ))
       appliedCues.push(cue)
       state = replayAppliedCues()
+      groupEffects = appliedCues.flatMap(applied => cueGroupEffects(applied, audioTime))
     } else {
       state = applyCueAction(state, authored, cue, audioTime)
       appliedCues.push(cue)
+      groupEffects.push(...cueGroupEffects(cue, audioTime))
     }
     activeCueIds.push(cue.id)
     if (oneShot) activeOneShotCueIds.push(cue.id)
@@ -699,6 +734,7 @@ export function resolvePixGridActionCueFrame(
   return {
     state,
     transition,
+    groupEffects,
     snapshot: {
       trackId,
       active: cues.length > 0,
