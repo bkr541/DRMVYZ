@@ -9,6 +9,19 @@ import {
   type LaserDmxWebGLDiagnostics,
 } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLRuntime'
 import type { LaserDmxSceneBeam, LaserDmxSceneFrame } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxSceneFrame'
+import {
+  createLaserDmxScannerDiagnostics,
+  solveLaserDmxScannerExposure,
+  type LaserDmxScanPoint,
+  type LaserDmxScannerOpticalCopy,
+} from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxScannerDomain'
+import { createLaserDmxOpticalCopies, type LaserDmxOpticalDistribution } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxFixtureOptics'
+import { auditLaserDmxPhysicalRealism, type LaserDmxPhysicalRealismMetrics } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxPhysicalRealismAudit'
+import {
+  LASER_DMX_WEBGL_REFERENCE_METRIC_ENVELOPE,
+  missingLaserDmxWebGLReferenceScenes,
+  type LaserDmxWebGLReferenceSceneId,
+} from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLVisualReferenceManifest'
 import { selectLaserDmxBeamsForQuality } from '../src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLBeamPlan'
 import {
   beginAutomaticLaserDmxWebGLRetry,
@@ -51,6 +64,11 @@ type WebGLReviewScenario =
   | 'laser-only-history'
   | 'moving-head-gobo'
   | 'moving-head-prism'
+  | 'moving-head-zoom'
+  | 'moving-head-iris'
+  | 'moving-head-frost'
+  | 'moving-head-focus'
+  | 'moving-head-gobo-rotation'
   | 'led-pixel-chase'
   | 'video-wall-emissive'
   | 'strobe-blinder-distinction'
@@ -59,6 +77,15 @@ type WebGLReviewScenario =
   | 'budget-hero-preservation'
   | 'auto-support-degradation'
   | 'high-mirror-corridor'
+  | 'reference-held-beam'
+  | 'reference-line-sweep'
+  | 'reference-circle'
+  | 'reference-triangle'
+  | 'reference-polygon'
+  | 'reference-wave'
+  | 'reference-diffraction-grid'
+  | 'reference-diffraction-burst'
+  | 'reference-multiple-apertures'
 
 interface WebGLQualityMetrics {
   requestedBeamCount: number
@@ -73,6 +100,25 @@ interface WebGLQualityMetrics {
   selectedTextureRayCount: number
   selectedLeftRayCount: number
   selectedRightRayCount: number
+}
+
+interface WebGLPhysicalMetrics extends LaserDmxPhysicalRealismMetrics {
+  blackFloorRatio: number
+  hazeOccupancyRatio: number
+  coreToEnvelopeRatio: number
+  sourceApertureBrightness: number
+  pathContinuityRatio: number
+  scannerProgressionRatio: number
+  radialSpokeViolationCount: number
+  targetNetworkCageViolationCount: number
+  symmetryDifference: number
+  colorSaturation: number
+  linearLightEnergyRatio: number
+  exposureRecoveryChecked: boolean
+  co2LifetimePassed: boolean
+  fixtureRoleSignature: string
+  editorOverlayCount: number
+  canvas2dFallbackDetected: boolean
 }
 
 interface WebGLRecoveryReport {
@@ -97,7 +143,11 @@ interface WebGLReviewFrame {
   presentationMode: string
   requestedRenderer: string
   diagnostics: LaserDmxWebGLDiagnostics
+  referenceSceneIds: LaserDmxWebGLReferenceSceneId[]
+  validationStatus: 'passed' | 'failed'
+  validationFailures: string[]
   pixelMetrics: WebGLPixelMetrics
+  physicalMetrics: WebGLPhysicalMetrics
   activeFixtureKinds: string[]
   overlayElementCount: number
   qualityMetrics: WebGLQualityMetrics
@@ -112,6 +162,7 @@ interface WebGLReviewReport {
   height: number
   rendererHost: 'production-laser-dmx-webgl-runtime'
   frames: WebGLReviewFrame[]
+  missingReferenceSceneIds: LaserDmxWebGLReferenceSceneId[]
   recovery: WebGLRecoveryReport | null
 }
 
@@ -162,6 +213,23 @@ const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValida
   { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'budget-hero-preservation', quality: 'high' },
   { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'auto-support-degradation', quality: 'auto' },
   { presetId: 'cyan-mirror-cage', frameId: 'drop-1-body', scenario: 'high-mirror-corridor', quality: 'high' },
+  { presetId: 'prism-cathedral', frameId: 'verse' },
+  { presetId: 'aurora-canopy-drift', frameId: 'drop-1-body' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'reference-held-beam', quality: 'high' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'reference-line-sweep', quality: 'high' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'reference-circle', quality: 'high' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'reference-triangle', quality: 'high' },
+  { presetId: 'white-vector-interlock', frameId: 'drop-1-body', scenario: 'reference-polygon', quality: 'high' },
+  { presetId: 'cyan-mirror-cage', frameId: 'drop-2-body', scenario: 'reference-wave', quality: 'high' },
+  { presetId: 'prism-cathedral', frameId: 'drop-1-body', scenario: 'reference-diffraction-grid', quality: 'high' },
+  { presetId: 'prism-cathedral', frameId: 'drop-1-body', scenario: 'reference-diffraction-burst', quality: 'high' },
+  { presetId: 'festival-front-beams-performance', frameId: 'drop-2-body', scenario: 'reference-multiple-apertures', quality: 'high' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'drop-1-body', scenario: 'moving-head-zoom' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'drop-1-body', scenario: 'moving-head-iris' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'drop-1-body', scenario: 'moving-head-frost' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'drop-1-body', scenario: 'moving-head-focus' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'drop-1-body', scenario: 'moving-head-gobo-rotation' },
+  { presetId: 'led-bar-grid-performance', frameId: 'verse' },
 ]
 
 function capabilityReport(): WebGLCapabilityReport {
@@ -187,12 +255,263 @@ function capabilityReport(): WebGLCapabilityReport {
   }
 }
 
+
+function scannerReferencePoints(
+  scenario: WebGLReviewScenario,
+  color: LaserDmxScanPoint['color'],
+): { points: LaserDmxScanPoint[]; closed: boolean; pattern: NonNullable<LaserDmxSceneFrame['scanPaths'][number]['authoringPatternType']> } | null {
+  const make = (index: number, x: number, y: number, z = 0): LaserDmxScanPoint => ({
+    id: `reference-point-${index + 1}`,
+    position: { x, y, z },
+    blanked: false,
+    dwellMicros: scenario === 'reference-held-beam' ? 1_200 : 28,
+    cornerDwellMicros: 72,
+    intensity: 1,
+    color: { ...color },
+    cornerBehavior: 'dwell',
+  })
+  if (scenario === 'reference-held-beam') {
+    return { points: [make(0, 0.5, 0.42, -0.08)], closed: false, pattern: 'holdBeam' }
+  }
+  if (scenario === 'reference-line-sweep') {
+    return { points: [make(0, 0.16, 0.58), make(1, 0.84, 0.36)], closed: false, pattern: 'lineSweep' }
+  }
+  if (scenario === 'reference-circle') {
+    return {
+      points: Array.from({ length: 24 }, (_, index) => {
+        const angle = index / 24 * Math.PI * 2
+        return make(index, 0.5 + Math.cos(angle) * 0.24, 0.48 + Math.sin(angle) * 0.24, -0.04)
+      }),
+      closed: true,
+      pattern: 'circle',
+    }
+  }
+  if (scenario === 'reference-triangle') {
+    return {
+      points: [make(0, 0.5, 0.2), make(1, 0.22, 0.72), make(2, 0.78, 0.72)],
+      closed: true,
+      pattern: 'triangle',
+    }
+  }
+  if (scenario === 'reference-polygon') {
+    return {
+      points: Array.from({ length: 6 }, (_, index) => {
+        const angle = -Math.PI / 2 + index / 6 * Math.PI * 2
+        return make(index, 0.5 + Math.cos(angle) * 0.25, 0.48 + Math.sin(angle) * 0.25)
+      }),
+      closed: true,
+      pattern: 'polygon',
+    }
+  }
+  if (scenario === 'reference-wave') {
+    return {
+      points: Array.from({ length: 20 }, (_, index) => {
+        const t = index / 19
+        return make(index, 0.12 + t * 0.76, 0.5 + Math.sin(t * Math.PI * 3) * 0.18, -0.12 + t * 0.2)
+      }),
+      closed: false,
+      pattern: 'wave',
+    }
+  }
+  return null
+}
+
+function opticalReferencePlan(
+  scenario: WebGLReviewScenario,
+  headId: string,
+  fixtureId: string,
+): { direct: ReturnType<typeof createLaserDmxOpticalCopies>[number]; copies: LaserDmxScannerOpticalCopy[]; apertureCount: number } | null {
+  let distribution: LaserDmxOpticalDistribution | null = null
+  let copyCount = 1
+  let spreadDeg = 0
+  if (scenario === 'reference-diffraction-grid') {
+    distribution = 'grid'
+    copyCount = 9
+    spreadDeg = 15
+  } else if (scenario === 'reference-diffraction-burst') {
+    distribution = 'burst'
+    copyCount = 9
+    spreadDeg = 13
+  } else if (scenario === 'reference-multiple-apertures') {
+    distribution = 'multiAperture'
+    copyCount = 3
+  }
+  if (!distribution) return null
+  const descriptors = createLaserDmxOpticalCopies({
+    distribution,
+    copyCount,
+    spreadDeg,
+    totalEnergy: 1,
+    apertureSpacing: 0.026,
+  })
+  const direct = descriptors[0]!
+  return {
+    direct,
+    apertureCount: distribution === 'multiAperture' ? copyCount : 1,
+    copies: descriptors.slice(1).map((descriptor, index) => ({
+      id: `${headId}-reference-copy-${index + 1}`,
+      fixtureId,
+      scannerHeadId: headId,
+      opticalCopyIndex: index + 1,
+      kind: distribution === 'multiAperture' ? 'multiEmitter' : 'diffraction',
+      rotationDeg: descriptor.angularOffsetDeg.yaw,
+      pitchDeg: descriptor.angularOffsetDeg.pitch,
+      originOffset: { ...descriptor.originOffset },
+      spectralChannel: descriptor.spectralChannel,
+      intensityScale: descriptor.intensityScale,
+    })),
+  }
+}
+
+function applyReferenceScannerScenario(frame: LaserDmxSceneFrame, scenario: WebGLReviewScenario): LaserDmxSceneFrame | null {
+  const sourceHead = frame.scannerHeads[0]
+  const sourcePath = sourceHead ? frame.scanPaths.find(path => path.scannerHeadId === sourceHead.id) : null
+  const fixture = sourceHead ? frame.fixtures.find(candidate => candidate.id === sourceHead.fixtureId) : null
+  if (!sourceHead || !sourcePath || !fixture) return null
+  const color = frame.exposureSamples.find(sample => sample.scannerHeadId === sourceHead.id)?.color ?? fixture.color
+  const pathReference = scannerReferencePoints(scenario, color)
+  const opticalReference = opticalReferencePlan(scenario, sourceHead.id, sourceHead.fixtureId)
+  if (!pathReference && !opticalReference) return null
+
+  const head = {
+    ...sourceHead,
+    physicalApertureCount: opticalReference?.apertureCount ?? 1,
+    directIntensityScale: opticalReference?.direct.intensityScale ?? 1,
+    directRotationDeg: opticalReference?.direct.angularOffsetDeg.yaw ?? 0,
+    directPitchDeg: opticalReference?.direct.angularOffsetDeg.pitch ?? 0,
+    directOriginOffset: opticalReference ? { ...opticalReference.direct.originOffset } : { x: 0, y: 0, z: 0 },
+    directSpectralChannel: opticalReference?.direct.spectralChannel ?? 'full',
+    retraceBlanking: true,
+  }
+  const path = pathReference
+    ? {
+        ...sourcePath,
+        points: pathReference.points,
+        closed: pathReference.closed,
+        interpolation: pathReference.pattern === 'circle' ? 'arc' as const : pathReference.pattern === 'wave' ? 'bezier' as const : 'linear' as const,
+        repeatMode: pathReference.closed || pathReference.pattern === 'holdBeam' ? 'loop' as const : 'pingPong' as const,
+        conversionKind: 'native' as const,
+        compatibilityMode: 'native' as const,
+        validationErrors: [],
+        migrationWarnings: [],
+        authoringPatternType: pathReference.pattern,
+        migrationStatus: 'native' as const,
+      }
+    : { ...sourcePath, compatibilityMode: 'native' as const, migrationStatus: 'native' as const }
+  const opticalCopies = opticalReference?.copies ?? []
+  const solved = solveLaserDmxScannerExposure({
+    heads: [head],
+    paths: [path],
+    opticalCopies,
+    originByFixtureId: new Map([[fixture.id, fixture.position]]),
+    audioTimeSec: frame.transport.audioTimeSec,
+    bpm: frame.musicalState.bpm,
+    quality: frame.quality.qualityTier,
+  })
+  return {
+    ...frame,
+    scannerHeads: [head],
+    scanPaths: [path],
+    opticalCopies,
+    scannerInstantaneousRays: solved.instantaneousRays,
+    exposureSamples: solved.exposureSamples,
+    scannerDiagnostics: createLaserDmxScannerDiagnostics({
+      heads: [head],
+      paths: [path],
+      opticalCopies,
+      exposureSamples: solved.exposureSamples,
+      blankedSampleCount: solved.blankedSampleCount,
+    }),
+  }
+}
+
+function referenceSceneIdsForCase(
+  presetId: string,
+  frameId: ShowDirectorVisualValidationFrameId,
+  scenario: WebGLReviewScenario,
+): LaserDmxWebGLReferenceSceneId[] {
+  const scenes = new Set<LaserDmxWebGLReferenceSceneId>()
+  const musicalByFrame: Partial<Record<ShowDirectorVisualValidationFrameId, LaserDmxWebGLReferenceSceneId>> = {
+    intro: 'musical-intro',
+    verse: 'musical-verse',
+    build: 'musical-build',
+    'pre-drop': 'musical-pre-drop',
+    'drop-1-impact': 'musical-drop-1',
+    'drop-1-body': 'musical-drop-1',
+    breakdown: 'musical-breakdown',
+    'drop-2-impact': 'musical-drop-2',
+    'drop-2-body': 'musical-drop-2',
+    outro: 'musical-outro',
+  }
+  if (scenario === 'baseline') {
+    const musical = musicalByFrame[frameId]
+    if (musical) scenes.add(musical)
+  }
+  const scenarioScenes: Partial<Record<WebGLReviewScenario, LaserDmxWebGLReferenceSceneId[]>> = {
+    'reference-held-beam': ['laser-held-beam'],
+    'reference-line-sweep': ['laser-line-sweep'],
+    'reference-circle': ['laser-sequential-circle'],
+    'reference-triangle': ['laser-triangle-perimeter'],
+    'reference-polygon': ['laser-polygon-perimeter'],
+    'reference-wave': ['laser-progressive-wave'],
+    'reference-diffraction-grid': ['laser-grid-diffraction'],
+    'reference-diffraction-burst': ['laser-burst-diffraction'],
+    'reference-multiple-apertures': ['laser-multiple-physical-apertures'],
+    'high-hero-fan': ['laser-fan-sweep', 'laser-front-air-rake'],
+    'ultra-hero-fan': ['laser-fan-sweep'],
+    'high-mirror-corridor': ['laser-mirrored-fan', 'laser-corridor', 'laser-multiple-scanner-heads'],
+    'moving-head-gobo': ['nonlaser-moving-head-cone', 'nonlaser-gobo-projection'],
+    'moving-head-prism': ['nonlaser-moving-head-prism'],
+    'moving-head-zoom': ['nonlaser-zoom'],
+    'moving-head-iris': ['nonlaser-iris'],
+    'moving-head-frost': ['nonlaser-frost'],
+    'moving-head-focus': ['nonlaser-focus'],
+    'moving-head-gobo-rotation': ['nonlaser-gobo-rotation'],
+    'led-pixel-chase': ['nonlaser-led-pixel-chase'],
+    'foreground-haze-veil': ['nonlaser-haze-source'],
+    'co2-partial-attenuation': ['nonlaser-co2-burst'],
+    'strobe-blinder-distinction': ['nonlaser-strobe-pulse', 'nonlaser-blinder-impact'],
+    'video-wall-emissive': ['nonlaser-video-surface-fallback'],
+  }
+  for (const scene of scenarioScenes[scenario] ?? []) scenes.add(scene)
+  if (presetId === 'prism-cathedral') {
+    scenes.add('laser-prism-copies')
+    scenes.add('laser-line-diffraction')
+  }
+  if (presetId === 'cardinal-fan-reactor') scenes.add('laser-fan-sweep')
+  if (presetId === 'cyan-mirror-cage') {
+    scenes.add('laser-sequential-arc')
+    scenes.add('laser-mirrored-fan')
+    scenes.add('laser-corridor')
+    scenes.add('laser-multiple-scanner-heads')
+  }
+  if (presetId === 'emerald-tunnel-relay') scenes.add('laser-tunnel')
+  if (presetId === 'aurora-canopy-drift') {
+    scenes.add('laser-sequential-arc')
+    scenes.add('laser-upper-air-canopy')
+  }
+  if (presetId === 'moving-head-sweep-performance' && scenario === 'baseline') {
+    scenes.add('nonlaser-moving-head-cone')
+    scenes.add('nonlaser-wash-field')
+    scenes.add('nonlaser-par-field')
+  }
+  if (presetId === 'festival-front-beams-performance') scenes.add('nonlaser-par-field')
+  if (presetId === 'led-bar-grid-performance' && frameId === 'verse') scenes.add('nonlaser-led-tube')
+  if (presetId === 'haze-co2-drops-performance') {
+    scenes.add('nonlaser-haze-source')
+    if (frameId.includes('drop')) scenes.add('nonlaser-co2-burst')
+  }
+  return [...scenes]
+}
+
 function applyScenario(
   frame: LaserDmxSceneFrame,
   scenario: WebGLReviewScenario,
   index: number,
 ): LaserDmxSceneFrame {
   if (scenario === 'baseline') return frame
+  const referenceFrame = applyReferenceScannerScenario(frame, scenario)
+  if (referenceFrame) return referenceFrame
   if (scenario === 'depth-crossing') {
     let changed = false
     return {
@@ -252,7 +571,7 @@ function applyScenario(
         : beam),
     }
   }
-  if (scenario === 'moving-head-gobo' || scenario === 'moving-head-prism') {
+  if (scenario.startsWith('moving-head-')) {
     return {
       ...frame,
       fixtures: frame.fixtures.map(fixture => fixture.kind === 'movingHead'
@@ -260,17 +579,20 @@ function applyScenario(
             ...fixture,
             optics: {
               ...fixture.optics,
-              goboAmount: scenario === 'moving-head-gobo' ? 0.96 : 0.38,
-              goboPattern: scenario === 'moving-head-gobo' ? 'star' : 'radial',
-              goboRotation: 38,
+              goboAmount: scenario === 'moving-head-gobo' || scenario === 'moving-head-gobo-rotation' ? 0.96 : 0.38,
+              goboPattern: scenario === 'moving-head-gobo' || scenario === 'moving-head-gobo-rotation' ? 'star' : 'radial',
+              goboRotation: scenario === 'moving-head-gobo-rotation' ? index * 46 : 38,
               prismFacets: scenario === 'moving-head-prism' ? 5 : 1,
               prismRotation: 24,
-              zoom: scenario === 'moving-head-prism' ? 0.5 : 0.34,
-              iris: 0.74,
-              frost: scenario === 'moving-head-gobo' ? 0.05 : 0.12,
+              zoom: scenario === 'moving-head-zoom' ? 0.92 : scenario === 'moving-head-prism' ? 0.5 : 0.34,
+              iris: scenario === 'moving-head-iris' ? 0.2 : 0.74,
+              frost: scenario === 'moving-head-frost' ? 0.88 : scenario === 'moving-head-gobo' ? 0.05 : 0.12,
             },
           }
         : fixture),
+      beams: frame.beams.map(beam => beam.fixtureKind === 'movingHead' && scenario === 'moving-head-focus'
+        ? { ...beam, focus: 0.96, width: Math.max(0.002, beam.width * 0.45), scatterEnvelopeWidth: beam.scatterEnvelopeWidth * 0.35 }
+        : beam),
     }
   }
   if (scenario === 'led-pixel-chase') {
@@ -554,6 +876,60 @@ function qualityMetrics(frame: LaserDmxSceneFrame): WebGLQualityMetrics {
   }
 }
 
+
+function validateReferenceFrame(
+  frame: LaserDmxSceneFrame,
+  diagnostics: LaserDmxWebGLDiagnostics,
+  pixelMetrics: WebGLPixelMetrics,
+  overlayElementCount: number,
+): { status: 'passed' | 'failed'; failures: string[]; physicalMetrics: WebGLPhysicalMetrics } {
+  const audit = auditLaserDmxPhysicalRealism(frame, { editorOverlayElementCount: overlayElementCount })
+  const failures = audit.issues.map(issue => `${issue.code}: ${issue.detail}`)
+  const envelope = LASER_DMX_WEBGL_REFERENCE_METRIC_ENVELOPE
+  const requiresVisibleLight = diagnostics.activeBeamCount > 0
+    || frame.fixtures.some(fixture => fixture.enabled && ['movingHead', 'parWash', 'strobe', 'blinder', 'ledBar', 'ledTube', 'videoWall'].includes(fixture.kind))
+  if (pixelMetrics.blackFrameRatio < envelope.minimumBlackFloorRatio) failures.push('black-floor ratio is below the approved void-background envelope')
+  if (requiresVisibleLight && pixelMetrics.blackFrameRatio >= envelope.maximumBlackFloorRatio) failures.push('reference scene is effectively black')
+  if (requiresVisibleLight && pixelMetrics.litPixelRatio < envelope.minimumLitPixelRatio) failures.push('lit-pixel ratio is below the meaningful-output floor')
+  if (requiresVisibleLight && pixelMetrics.connectedLitPixelRatio < envelope.minimumConnectedLitRatio) failures.push('path continuity is below the approved connected-light envelope')
+  if (pixelMetrics.highlightPixelRatio > envelope.maximumHighlightRatio) failures.push('highlight ratio exceeds the approved exposure envelope')
+  if (pixelMetrics.washedBrightPixelRatio > envelope.maximumWashedBrightRatio) failures.push('washed-bright ratio exceeds the approved black-floor envelope')
+  if (pixelMetrics.meanSaturation > envelope.maximumColorSaturation) failures.push('mean color saturation exceeds the calibrated color envelope')
+  if (pixelMetrics.deterministicReplayChecked && pixelMetrics.deterministicMeanAbsoluteDifference >= 0.02) failures.push('deterministic replay exceeded the approved perceptual difference')
+  if (diagnostics.duplicateLaserInputCount > 0) failures.push('scanner and legacy laser inputs were rendered together')
+  if (diagnostics.laserInputMode === 'legacy-only' && frame.scannerHeads.length > 0) failures.push('authoritative scanner scene fell back to legacy-only laser input')
+
+  const uniqueScannerPoints = new Set(frame.exposureSamples.filter(sample => !sample.blanked && sample.exposureWeight > 0)
+    .map(sample => `${sample.scannerHeadId}:${sample.pointIndex}`)).size
+  const authoredPointCount = Math.max(1, frame.scanPaths.reduce((sum, path) => sum + path.points.length, 0))
+  const sourceApertureBrightness = frame.emitters.length === 0
+    ? 0
+    : frame.emitters.reduce((sum, emitter) => sum + emitter.peakRayIntensity, 0) / frame.emitters.length
+  const radialSpokeViolationCount = audit.issues.filter(issue => issue.code === 'scanner-simultaneous-ray-count').length
+  const targetNetworkCageViolationCount = audit.metrics.duplicateLegacyFixtureCount
+    + audit.issues.filter(issue => issue.code === 'invalid-ordered-path').length
+  const physicalMetrics: WebGLPhysicalMetrics = {
+    ...audit.metrics,
+    blackFloorRatio: pixelMetrics.blackFrameRatio,
+    hazeOccupancyRatio: frame.atmosphere.enabled ? pixelMetrics.litPixelRatio : 0,
+    coreToEnvelopeRatio: pixelMetrics.litPixelRatio > 0 ? pixelMetrics.highlightPixelRatio / pixelMetrics.litPixelRatio : 0,
+    sourceApertureBrightness,
+    pathContinuityRatio: pixelMetrics.connectedLitPixelRatio,
+    scannerProgressionRatio: Math.min(1, uniqueScannerPoints / authoredPointCount),
+    radialSpokeViolationCount,
+    targetNetworkCageViolationCount,
+    symmetryDifference: pixelMetrics.leftRightDifference,
+    colorSaturation: pixelMetrics.meanSaturation,
+    linearLightEnergyRatio: audit.metrics.maximumOpticalEnergy,
+    exposureRecoveryChecked: pixelMetrics.deterministicReplayChecked,
+    co2LifetimePassed: audit.metrics.expiredCo2SourceCount === 0,
+    fixtureRoleSignature: [...new Set(frame.fixtures.filter(fixture => fixture.enabled).map(fixture => fixture.kind))].sort().join('|'),
+    editorOverlayCount: overlayElementCount,
+    canvas2dFallbackDetected: false,
+  }
+  return { status: failures.length === 0 ? 'passed' : 'failed', failures, physicalMetrics }
+}
+
 function waitForCondition(predicate: () => boolean, timeoutMs: number): Promise<boolean> {
   const started = performance.now()
   return new Promise(resolve => {
@@ -671,6 +1047,7 @@ async function main(): Promise<void> {
       height: output.height,
       rendererHost: 'production-laser-dmx-webgl-runtime',
       frames: [],
+      missingReferenceSceneIds: missingLaserDmxWebGLReferenceScenes([]),
       recovery: null,
     }
     document.documentElement.dataset.webglVisualReviewReady = 'true'
@@ -698,6 +1075,9 @@ async function main(): Promise<void> {
       const snapshot = canvas.getContext('2d', { alpha: false })
       if (!snapshot) throw new Error('Snapshot context unavailable')
       snapshot.putImageData(first.image, 0, 0)
+      const pixelMetrics = measurePixels(first.image, second.image, replayChecked)
+      const overlayElementCount = document.querySelectorAll('[data-laser-dmx-authoring-overlay], .laser-dmx-stage-grid, .laser-dmx-beam-handle').length
+      const validation = validateReferenceFrame(scenarioFrame, first.diagnostics, pixelMetrics, overlayElementCount)
       summaries.push({
         key,
         scenario,
@@ -709,9 +1089,13 @@ async function main(): Promise<void> {
         presentationMode: resolution.sceneFrame.presentationMode,
         requestedRenderer: 'webgl',
         diagnostics: first.diagnostics,
-        pixelMetrics: measurePixels(first.image, second.image, replayChecked),
+        referenceSceneIds: referenceSceneIdsForCase(item.presetId, item.frameId, scenario),
+        validationStatus: validation.status,
+        validationFailures: validation.failures,
+        pixelMetrics,
+        physicalMetrics: validation.physicalMetrics,
         activeFixtureKinds: [...new Set(scenarioFrame.fixtures.filter(fixture => fixture.enabled).map(fixture => fixture.kind))].sort(),
-        overlayElementCount: document.querySelectorAll('[data-laser-dmx-authoring-overlay], .laser-dmx-stage-grid, .laser-dmx-beam-handle').length,
+        overlayElementCount,
         qualityMetrics: qualityMetrics(scenarioFrame),
       })
     }
@@ -719,15 +1103,22 @@ async function main(): Promise<void> {
     const recoveryDefinition = SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES.find(candidate => candidate.id === 'drop-2-body')!
     const recoveryResolution = resolveShowDirectorVisualValidationFrame(recoveryPreset, recoveryDefinition, undefined, 'high')
     const recovery = await validateRecovery(created.runtime, recoveryResolution.sceneFrame)
+    const missingReferenceSceneIds = missingLaserDmxWebGLReferenceScenes(summaries.flatMap(frame => frame.referenceSceneIds))
+    const failedFrames = summaries.filter(frame => frame.validationStatus === 'failed')
     window.__SHOW_DIRECTOR_WEBGL_VISUAL_REVIEW__ = {
       ready: true,
-      status: 'pass',
-      reason: null,
+      status: missingReferenceSceneIds.length === 0 && failedFrames.length === 0 ? 'pass' : 'failure',
+      reason: missingReferenceSceneIds.length > 0
+        ? `Missing required reference scenes: ${missingReferenceSceneIds.join(', ')}`
+        : failedFrames.length > 0
+          ? `${failedFrames.length} reference frames failed physical/perceptual validation.`
+          : null,
       capability,
       width: output.width,
       height: output.height,
       rendererHost: 'production-laser-dmx-webgl-runtime',
       frames: summaries,
+      missingReferenceSceneIds,
       recovery,
     }
   } catch (error) {
@@ -740,6 +1131,7 @@ async function main(): Promise<void> {
       height: output.height,
       rendererHost: 'production-laser-dmx-webgl-runtime',
       frames: summaries,
+      missingReferenceSceneIds: missingLaserDmxWebGLReferenceScenes(summaries.flatMap(frame => frame.referenceSceneIds)),
       recovery: null,
     }
   } finally {

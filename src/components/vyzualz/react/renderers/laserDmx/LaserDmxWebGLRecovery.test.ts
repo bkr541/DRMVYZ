@@ -6,7 +6,9 @@ import {
   canManuallyRetryLaserDmxWebGL,
   createLaserDmxWebGLRecoveryState,
   LASER_DMX_WEBGL_AUTOMATIC_RETRY_BACKOFF_MS,
+  LASER_DMX_WEBGL_MANUAL_RETRY_COOLDOWN_MS,
   LASER_DMX_WEBGL_MAX_AUTOMATIC_RETRIES,
+  laserDmxWebGLManualRetryAvailableAtMs,
   recordLaserDmxWebGLFailure,
   recordLaserDmxWebGLInitializationSuccess,
 } from './LaserDmxWebGLRecovery'
@@ -32,16 +34,24 @@ describe('LaserDMX bounded WebGL recovery', () => {
     expect(state.nextRetryAtMs).toBeNull()
     expect(state.finalFallbackReason).toContain('retry limit reached')
     expect(canAutomaticallyRetryLaserDmxWebGL(state, Number.MAX_SAFE_INTEGER)).toBe(false)
-    expect(canManuallyRetryLaserDmxWebGL(state)).toBe(true)
+    expect(canManuallyRetryLaserDmxWebGL(state, state.failureTimestampMs! + LASER_DMX_WEBGL_MANUAL_RETRY_COOLDOWN_MS - 1)).toBe(false)
+    expect(canManuallyRetryLaserDmxWebGL(state, state.failureTimestampMs! + LASER_DMX_WEBGL_MANUAL_RETRY_COOLDOWN_MS)).toBe(true)
   })
 
-  it('does not automatically retry session-stable capability and shader failures', () => {
+  it('keeps automatic retry bounded while allowing deliberate recovery from session-stable GPU failures', () => {
     for (const code of ['webgl2-unavailable', 'shader-compile-failed', 'repeated-context-loss'] as const) {
       const state = recordLaserDmxWebGLFailure(createLaserDmxWebGLRecoveryState(), { code, nowMs: 500 })
       expect(state.failureClassification, code).toBe('session-stable')
       expect(state.nextRetryAtMs, code).toBeNull()
       expect(state.finalFallbackReason, code).toBeTruthy()
-      expect(canManuallyRetryLaserDmxWebGL(state), code).toBe(false)
+      const availableAtMs = laserDmxWebGLManualRetryAvailableAtMs(state)
+      if (code === 'webgl2-unavailable') {
+        expect(availableAtMs, code).toBeNull()
+        expect(canManuallyRetryLaserDmxWebGL(state, Number.MAX_SAFE_INTEGER), code).toBe(false)
+      } else {
+        expect(availableAtMs, code).toBe(500 + LASER_DMX_WEBGL_MANUAL_RETRY_COOLDOWN_MS)
+        expect(canManuallyRetryLaserDmxWebGL(state, availableAtMs!), code).toBe(true)
+      }
     }
   })
 

@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react'
+import type { LaserDmxRendererFallbackCode } from './renderers/laserDmx/LaserDmxRendererBackend'
 import type { LaserDmxWebGLFailureClassification } from './renderers/laserDmx/LaserDmxWebGLRecovery'
 import type { LaserDmxScannerCompatibilityMode } from './renderers/laserDmx/LaserDmxScannerDomain'
 import type {
   LaserDmxShowDirectorPresentationMode,
+  LaserDmxShowDirectorScannerPatternType,
   LaserDmxShowDirectorRendererMode,
   LaserDmxShowDirectorWebGLQuality,
 } from './ReactTypes'
@@ -27,14 +29,22 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   requestedBeamCount: number
   activeFixtureCount: number
   scannerHeadCount: number
+  selectedScannerHeadId: string | null
+  activeScannerPattern: LaserDmxShowDirectorScannerPatternType | null
+  scannerPointCount: number
+  visibleScannerSegmentCount: number
+  blankedScannerSegmentCount: number
   orderedPathCount: number
   exposureSampleCount: number
   legacyConvertedPathCount: number
   explicitOpticalCopyCount: number
+  scannerApertureCount: number
+  scannerDwellTotalMicros: number
   currentScanRatePps: number
   blankedScannerSampleCount: number
   scannerValidationErrorCount: number
   scannerCompatibilityMode: LaserDmxScannerCompatibilityMode
+  scannerMigrationStatus: 'native' | 'legacy' | 'migrated' | 'mixed' | 'inactive'
   cpuFrameMs: number | null
   gpuFrameMs: number | null
   hdrMode: 'rgba16f' | 'rgba8' | 'none'
@@ -45,7 +55,9 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   depthMode: 'continuous-slices' | 'binary-fallback' | 'none'
   depthSliceCount: number
   depthBufferStatus: 'slice-accumulation' | 'binary-fallback' | 'inactive'
+  fallbackCode: LaserDmxRendererFallbackCode | null
   fallbackReason: string | null
+  qualityAdjustmentReason: string | null
   contextLossCount: number
   postProcessingStatus: 'inactive' | 'hdr' | 'ldr-fallback'
   lastWebGLFailure: string | null
@@ -54,6 +66,7 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   nextAutomaticRetryMs: number | null
   lastSuccessfulInitializationMs: number | null
   manualRetryAvailable: boolean
+  manualRetryAvailableAtMs: number | null
   finalFallbackReason: string | null
 }
 
@@ -75,14 +88,22 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   requestedBeamCount: 0,
   activeFixtureCount: 0,
   scannerHeadCount: 0,
+  selectedScannerHeadId: null,
+  activeScannerPattern: null,
+  scannerPointCount: 0,
+  visibleScannerSegmentCount: 0,
+  blankedScannerSegmentCount: 0,
   orderedPathCount: 0,
   exposureSampleCount: 0,
   legacyConvertedPathCount: 0,
   explicitOpticalCopyCount: 0,
+  scannerApertureCount: 0,
+  scannerDwellTotalMicros: 0,
   currentScanRatePps: 0,
   blankedScannerSampleCount: 0,
   scannerValidationErrorCount: 0,
   scannerCompatibilityMode: 'inactive',
+  scannerMigrationStatus: 'inactive',
   cpuFrameMs: null,
   gpuFrameMs: null,
   hdrMode: 'none',
@@ -93,7 +114,9 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   depthMode: 'none',
   depthSliceCount: 0,
   depthBufferStatus: 'inactive',
+  fallbackCode: null,
   fallbackReason: null,
+  qualityAdjustmentReason: null,
   contextLossCount: 0,
   postProcessingStatus: 'inactive',
   lastWebGLFailure: null,
@@ -102,6 +125,7 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   nextAutomaticRetryMs: null,
   lastSuccessfulInitializationMs: null,
   manualRetryAvailable: false,
+  manualRetryAvailableAtMs: null,
   finalFallbackReason: null,
 })
 
@@ -133,14 +157,22 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.requestedBeamCount,
     value.activeFixtureCount,
     value.scannerHeadCount,
+    value.selectedScannerHeadId,
+    value.activeScannerPattern,
+    value.scannerPointCount,
+    value.visibleScannerSegmentCount,
+    value.blankedScannerSegmentCount,
     value.orderedPathCount,
     value.exposureSampleCount,
     value.legacyConvertedPathCount,
     value.explicitOpticalCopyCount,
+    value.scannerApertureCount,
+    value.scannerDwellTotalMicros,
     value.currentScanRatePps,
     value.blankedScannerSampleCount,
     value.scannerValidationErrorCount,
     value.scannerCompatibilityMode,
+    value.scannerMigrationStatus,
     value.hdrMode,
     value.bloomLevels,
     value.temporalHistoryActive,
@@ -149,7 +181,9 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.depthMode,
     value.depthSliceCount,
     value.depthBufferStatus,
+    value.fallbackCode,
     value.fallbackReason,
+    value.qualityAdjustmentReason,
     value.contextLossCount,
     value.postProcessingStatus,
     value.lastWebGLFailure,
@@ -158,6 +192,7 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.nextAutomaticRetryMs,
     value.lastSuccessfulInitializationMs,
     value.manualRetryAvailable,
+    value.manualRetryAvailableAtMs,
     value.finalFallbackReason,
   ].join('|')
 }

@@ -23,14 +23,22 @@ const snapshot = {
   requestedBeamCount: 140,
   activeFixtureCount: 24,
   scannerHeadCount: 6,
+  selectedScannerHeadId: 'scanner-1',
+  activeScannerPattern: 'fanSweep' as const,
+  scannerPointCount: 24,
+  visibleScannerSegmentCount: 18,
+  blankedScannerSegmentCount: 2,
   orderedPathCount: 6,
   exposureSampleCount: 96,
   legacyConvertedPathCount: 6,
   explicitOpticalCopyCount: 2,
+  scannerApertureCount: 6,
+  scannerDwellTotalMicros: 640,
   currentScanRatePps: 24000,
   blankedScannerSampleCount: 4,
   scannerValidationErrorCount: 0,
   scannerCompatibilityMode: 'legacy-converted' as const,
+  scannerMigrationStatus: 'migrated' as const,
   cpuFrameMs: 10.26,
   gpuFrameMs: 8.74,
   hdrMode: 'rgba16f' as const,
@@ -41,7 +49,9 @@ const snapshot = {
   depthMode: 'continuous-slices' as const,
   depthSliceCount: 7,
   depthBufferStatus: 'slice-accumulation' as const,
+  fallbackCode: null,
   fallbackReason: null,
+  qualityAdjustmentReason: 'stable',
   contextLossCount: 0,
   postProcessingStatus: 'hdr' as const,
   lastWebGLFailure: null,
@@ -50,6 +60,7 @@ const snapshot = {
   nextAutomaticRetryMs: null,
   lastSuccessfulInitializationMs: 900,
   manualRetryAvailable: false,
+  manualRetryAvailableAtMs: null,
   finalFallbackReason: null,
 }
 
@@ -58,7 +69,14 @@ describe('LaserDmxRendererDiagnosticsStore', () => {
     publishLaserDmxRendererDiagnostics(snapshot, 1_000)
     expect(getLaserDmxRendererDiagnostics().cpuFrameMs).toBe(10.5)
     expect(getLaserDmxRendererDiagnostics().gpuFrameMs).toBe(8.5)
-    expect(getLaserDmxRendererDiagnostics()).toMatchObject({ depthMode: 'continuous-slices', depthSliceCount: 7, laserHistoryInputCount: 64 })
+    expect(getLaserDmxRendererDiagnostics()).toMatchObject({
+      depthMode: 'continuous-slices',
+      depthSliceCount: 7,
+      laserHistoryInputCount: 64,
+      activeScannerPattern: 'fanSweep',
+      scannerDwellTotalMicros: 640,
+      qualityAdjustmentReason: 'stable',
+    })
     clearLaserDmxRendererDiagnostics()
     expect(getLaserDmxRendererDiagnostics().activeRenderer).toBe('inactive')
   })

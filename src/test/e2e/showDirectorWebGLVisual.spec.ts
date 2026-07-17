@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS, type LaserDmxWebGLReferenceSceneId } from '../../components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLVisualReferenceManifest'
 
 interface WebGLVisualFrame {
   key: string
@@ -35,6 +36,9 @@ interface WebGLVisualFrame {
     depthSliceCount: number
     depthBufferStatus: string
   }
+  referenceSceneIds: LaserDmxWebGLReferenceSceneId[]
+  validationStatus: 'passed' | 'failed'
+  validationFailures: string[]
   pixelMetrics: {
     deterministicReplayChecked: boolean
     meanLuminance: number
@@ -48,6 +52,24 @@ interface WebGLVisualFrame {
     leftRightDifference: number
     deterministicMeanAbsoluteDifference: number
     fingerprint: string
+  }
+  physicalMetrics: {
+    blackFloorRatio: number
+    hazeOccupancyRatio: number
+    coreToEnvelopeRatio: number
+    sourceApertureBrightness: number
+    pathContinuityRatio: number
+    scannerProgressionRatio: number
+    blankingViolationCount: number
+    radialSpokeViolationCount: number
+    targetNetworkCageViolationCount: number
+    symmetryDifference: number
+    colorSaturation: number
+    linearLightEnergyRatio: number
+    expiredCo2SourceCount: number
+    fixtureRoleSignature: string
+    editorOverlayCount: number
+    canvas2dFallbackDetected: boolean
   }
   activeFixtureKinds: string[]
   overlayElementCount: number
@@ -81,6 +103,7 @@ interface WebGLVisualReport {
   }
   rendererHost: string
   frames: WebGLVisualFrame[]
+  missingReferenceSceneIds: LaserDmxWebGLReferenceSceneId[]
   recovery: {
     automaticCooldownValidated: boolean
     manualRetryClearedFailure: boolean
@@ -126,10 +149,22 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     expect(report?.rendererHost).toBe('production-laser-dmx-webgl-runtime')
     expect(report?.capability.available).toBe(true)
     expect(report?.capability.version).toContain('WebGL 2')
-    expect(report?.frames).toHaveLength(32)
+    expect(report?.frames).toHaveLength(49)
+    expect(report?.missingReferenceSceneIds).toEqual([])
+    expect(new Set(report!.frames.flatMap(frame => frame.referenceSceneIds))).toEqual(new Set(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS))
 
     const fingerprints = new Set<string>()
     for (const frame of report!.frames) {
+      expect(frame.validationStatus, `${frame.key}: ${frame.validationFailures.join('; ')}`).toBe('passed')
+      expect(frame.validationFailures, frame.key).toEqual([])
+      expect(frame.referenceSceneIds.length, frame.key).toBeGreaterThan(0)
+      expect(frame.physicalMetrics.blankingViolationCount, frame.key).toBe(0)
+      expect(frame.physicalMetrics.radialSpokeViolationCount, frame.key).toBe(0)
+      expect(frame.physicalMetrics.targetNetworkCageViolationCount, frame.key).toBe(0)
+      expect(frame.physicalMetrics.expiredCo2SourceCount, frame.key).toBe(0)
+      expect(frame.physicalMetrics.editorOverlayCount, frame.key).toBe(0)
+      expect(frame.physicalMetrics.canvas2dFallbackDetected, frame.key).toBe(false)
+      expect(frame.physicalMetrics.linearLightEnergyRatio, frame.key).toBeLessThanOrEqual(1.000001)
       expect(frame.requestedRenderer, frame.key).toBe('webgl')
       expect(frame.presentationMode, frame.key).toBe('capture')
       expect(frame.overlayElementCount, frame.key).toBe(0)
@@ -166,9 +201,18 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
         expect(frame.pixelMetrics.deterministicMeanAbsoluteDifference, frame.key).toBeLessThan(0.02)
       }
       fingerprints.add(frame.pixelMetrics.fingerprint)
+    }
+    const canvasPngs = await page.evaluate((canvasIds: string[]) => Object.fromEntries(canvasIds.map(canvasId => {
+      const canvas = document.getElementById(canvasId)
+      if (!(canvas instanceof HTMLCanvasElement)) throw new Error(`Missing reference canvas ${canvasId}`)
+      return [canvasId, canvas.toDataURL('image/png')]
+    })), report!.frames.map(frame => frame.canvasId))
+    for (const frame of report!.frames) {
+      const dataUrl = canvasPngs[frame.canvasId]
+      if (!dataUrl) throw new Error(`Missing PNG data for ${frame.key}`)
       const directory = path.join(outputRoot, frame.presetId)
       await mkdir(directory, { recursive: true })
-      await page.locator(`#${frame.canvasId}`).screenshot({ path: path.join(directory, `${frame.frameId}-${frame.scenario}.png`) })
+      await writeFile(path.join(directory, `${frame.frameId}-${frame.scenario}.png`), Buffer.from(dataUrl.split(',')[1]!, 'base64'))
     }
     expect(fingerprints.size).toBeGreaterThanOrEqual(9)
     expect(report!.frames.filter(frame => frame.pixelMetrics.deterministicReplayChecked)).toHaveLength(4)
@@ -259,7 +303,11 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
 
     await writeFile(
       path.join(outputRoot, 'report.json'),
-      `${JSON.stringify({ generatedBy: 'npm run visual:show-director:webgl', ...report }, null, 2)}\n`,
+      `${JSON.stringify({
+        generatedBy: 'npm run visual:show-director:webgl',
+        runId: process.env.DRMVYZ_WEBGL_VISUAL_RUN_ID ?? null,
+        ...report,
+      }, null, 2)}\n`,
       'utf8',
     )
   })

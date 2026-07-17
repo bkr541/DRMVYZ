@@ -15,7 +15,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "node scripts/run-vitest-partitions.mjs",
     "test:native": "node --test native/**/*.test.cjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -37,11 +37,13 @@
     "test:e2e:shaders": "playwright test src/test/e2e/shaderCompilation.spec.ts --project=chromium",
     "visual:show-director": "node scripts/generate-show-director-visual-review.mjs",
     "visual:show-director:webgl": "node scripts/generate-show-director-webgl-visual-review.mjs",
-    "test:node": "vitest run --config vitest.node.config.ts",
-    "test:dom": "vitest run --config vitest.dom.config.ts",
+    "test:node": "node scripts/run-vitest-partitions.mjs --node",
+    "test:dom": "node scripts/run-vitest-partitions.mjs --dom",
     "test:webgl": "npm run visual:show-director:webgl",
     "test:electron": "npm run test:native",
-    "test:edge": "deno test --allow-env supabase/functions/_shared/*.test.ts"
+    "test:edge": "deno test --allow-env supabase/functions/_shared/*.test.ts",
+    "test:laser-dmx:physical": "vitest run src/components/vyzualz/react/renderers/laserDmx/LaserDmxScannerDomain.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxScannerWebGLPlan.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxAdaptiveQuality.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLRecovery.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLRuntime.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxPhysicalRealismAudit.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLVisualReferenceManifest.test.ts src/components/vyzualz/react/LaserDmxShowDirectorPhysicalContentMigration.test.ts src/components/vyzualz/react/LaserDmxShowDirectorFinalVisualValidation.test.ts",
+    "verify:laser-dmx:physical": "npm run typecheck && npm run test:laser-dmx:physical && npm run test:webgl"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",

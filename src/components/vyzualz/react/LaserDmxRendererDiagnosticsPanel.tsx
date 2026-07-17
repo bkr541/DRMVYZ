@@ -34,6 +34,7 @@ export function LaserDmxRendererDiagnosticsPanel() {
             <div><dt>WebGL2</dt><dd>{diagnostics.webgl2Available == null ? 'Not probed' : diagnostics.webgl2Available ? 'Available' : 'Unavailable'}</dd></div>
             <div><dt>Float Targets</dt><dd>{diagnostics.floatTargetsAvailable ? 'RGBA16F' : 'RGBA8 / none'}</dd></div>
             <div><dt>Quality</dt><dd>{diagnostics.requestedQuality}{diagnostics.effectiveQuality ? ` → ${diagnostics.effectiveQuality}` : ''}</dd></div>
+            <div><dt>Quality Decision</dt><dd>{diagnostics.qualityAdjustmentReason ?? 'Stable'}</dd></div>
             <div><dt>Atmosphere</dt><dd>{diagnostics.atmosphereQuality ?? 'Canvas2D'}{diagnostics.atmosphereSampleCount ? ` · ${diagnostics.atmosphereSampleCount} samples` : ''}</dd></div>
             <div><dt>Resolution</dt><dd>{diagnostics.renderWidth} × {diagnostics.renderHeight}</dd></div>
             <div><dt>Atmosphere Buffer</dt><dd>{diagnostics.atmosphereWidth} × {diagnostics.atmosphereHeight}</dd></div>
@@ -42,14 +43,21 @@ export function LaserDmxRendererDiagnosticsPanel() {
             {diagnostics.presentationMode !== 'capture' && (
               <>
                 <div><dt>Scanner Heads</dt><dd>{diagnostics.scannerHeadCount}</dd></div>
+                <div><dt>Selected Head</dt><dd>{diagnostics.selectedScannerHeadId ?? 'None'}</dd></div>
+                <div><dt>Pattern</dt><dd>{diagnostics.activeScannerPattern ?? 'Inactive'}</dd></div>
+                <div><dt>Path Points</dt><dd>{diagnostics.scannerPointCount}</dd></div>
+                <div><dt>Path Segments</dt><dd>{diagnostics.visibleScannerSegmentCount} visible / {diagnostics.blankedScannerSegmentCount} blanked</dd></div>
                 <div><dt>Ordered Paths</dt><dd>{diagnostics.orderedPathCount}</dd></div>
                 <div><dt>Exposure Samples</dt><dd>{diagnostics.exposureSampleCount}</dd></div>
                 <div><dt>Legacy Paths</dt><dd>{diagnostics.legacyConvertedPathCount}</dd></div>
                 <div><dt>Optical Copies</dt><dd>{diagnostics.explicitOpticalCopyCount}</dd></div>
+                <div><dt>Apertures</dt><dd>{diagnostics.scannerApertureCount}</dd></div>
+                <div><dt>Dwell</dt><dd>{diagnostics.scannerDwellTotalMicros.toLocaleString()} μs</dd></div>
                 <div><dt>Scan Rate</dt><dd>{diagnostics.currentScanRatePps ? `${diagnostics.currentScanRatePps.toLocaleString()} pps` : 'Inactive'}</dd></div>
                 <div><dt>Blanked Samples</dt><dd>{diagnostics.blankedScannerSampleCount}</dd></div>
                 <div><dt>Path Errors</dt><dd>{diagnostics.scannerValidationErrorCount}</dd></div>
                 <div><dt>Scanner Mode</dt><dd>{diagnostics.scannerCompatibilityMode}</dd></div>
+                <div><dt>Migration</dt><dd>{diagnostics.scannerMigrationStatus}</dd></div>
               </>
             )}
             <div><dt>CPU Frame</dt><dd>{timing(diagnostics.cpuFrameMs)}</dd></div>
@@ -62,8 +70,12 @@ export function LaserDmxRendererDiagnosticsPanel() {
             <div><dt>Failure Class</dt><dd>{diagnostics.failureClassification ?? 'None'}</dd></div>
             <div><dt>Retry Count</dt><dd>{diagnostics.retryCount}</dd></div>
             <div><dt>Automatic Retry</dt><dd>{retryTime(diagnostics.nextAutomaticRetryMs)}</dd></div>
+            <div><dt>Manual Retry</dt><dd>{diagnostics.manualRetryAvailable ? 'Available' : retryTime(diagnostics.manualRetryAvailableAtMs)}</dd></div>
             <div><dt>Last WebGL Start</dt><dd>{timestamp(diagnostics.lastSuccessfulInitializationMs)}</dd></div>
           </dl>
+          {diagnostics.fallbackCode && (
+            <p className="rv-show-director-performance-status__warning">Fallback code: {diagnostics.fallbackCode}</p>
+          )}
           {diagnostics.lastWebGLFailure && (
             <p className="rv-show-director-performance-status__warning">Last WebGL failure: {diagnostics.lastWebGLFailure}</p>
           )}

@@ -26,6 +26,7 @@ export interface LaserDmxWebGLFailureInput {
 
 export const LASER_DMX_WEBGL_AUTOMATIC_RETRY_BACKOFF_MS = Object.freeze([1_000, 3_000, 8_000])
 export const LASER_DMX_WEBGL_MAX_AUTOMATIC_RETRIES = LASER_DMX_WEBGL_AUTOMATIC_RETRY_BACKOFF_MS.length
+export const LASER_DMX_WEBGL_MANUAL_RETRY_COOLDOWN_MS = 1_000
 
 export function createLaserDmxWebGLRecoveryState(): LaserDmxWebGLRecoveryState {
   return {
@@ -138,6 +139,18 @@ export function recordLaserDmxWebGLInitializationSuccess(
   }
 }
 
-export function canManuallyRetryLaserDmxWebGL(state: LaserDmxWebGLRecoveryState): boolean {
-  return state.failureCode != null && state.failureClassification === 'transient'
+export function laserDmxWebGLManualRetryAvailableAtMs(
+  state: LaserDmxWebGLRecoveryState,
+): number | null {
+  if (state.failureCode == null || state.failureTimestampMs == null) return null
+  if (state.failureCode === 'webgl2-unavailable' || state.failureCode === 'forced-canvas2d') return null
+  return state.failureTimestampMs + LASER_DMX_WEBGL_MANUAL_RETRY_COOLDOWN_MS
+}
+
+export function canManuallyRetryLaserDmxWebGL(
+  state: LaserDmxWebGLRecoveryState,
+  nowMs = Date.now(),
+): boolean {
+  const availableAtMs = laserDmxWebGLManualRetryAvailableAtMs(state)
+  return availableAtMs != null && nowMs >= availableAtMs
 }

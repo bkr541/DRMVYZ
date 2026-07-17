@@ -52,6 +52,7 @@ import {
   beginManualLaserDmxWebGLRetry,
   canAutomaticallyRetryLaserDmxWebGL,
   canManuallyRetryLaserDmxWebGL,
+  laserDmxWebGLManualRetryAvailableAtMs,
   createLaserDmxWebGLRecoveryState,
   recordLaserDmxWebGLFailure,
   recordLaserDmxWebGLInitializationSuccess,
@@ -391,14 +392,15 @@ function setLaserDmxWebGLRecoveryState(
   return state
 }
 
-function laserDmxWebGLRecoveryDiagnostics(state: LaserDmxWebGLRecoveryState) {
+function laserDmxWebGLRecoveryDiagnostics(state: LaserDmxWebGLRecoveryState, nowMs: number) {
   return {
     lastWebGLFailure: state.failureReason,
     failureClassification: state.failureClassification,
     retryCount: state.retryCount,
     nextAutomaticRetryMs: state.nextRetryAtMs,
     lastSuccessfulInitializationMs: state.lastSuccessfulInitializationMs,
-    manualRetryAvailable: canManuallyRetryLaserDmxWebGL(state),
+    manualRetryAvailable: canManuallyRetryLaserDmxWebGL(state, nowMs),
+    manualRetryAvailableAtMs: laserDmxWebGLManualRetryAvailableAtMs(state),
     finalFallbackReason: state.finalFallbackReason,
   }
 }
@@ -410,9 +412,10 @@ function getLaserDmxWebGLRuntime(
 ): LaserDmxWebGLRuntime | null {
   let state = getLaserDmxWebGLRecoveryState(ctx)
   const consumedManualSequence = laserDmxWebGLManualRetrySequenceByContext.get(ctx) ?? 0
-  const manualRetryRequested = manualRetrySequence > consumedManualSequence
+  const manualRetrySignaled = manualRetrySequence > consumedManualSequence
+  if (manualRetrySignaled) laserDmxWebGLManualRetrySequenceByContext.set(ctx, manualRetrySequence)
+  const manualRetryRequested = manualRetrySignaled && canManuallyRetryLaserDmxWebGL(state, nowMs)
   if (manualRetryRequested) {
-    laserDmxWebGLManualRetrySequenceByContext.set(ctx, manualRetrySequence)
     disposeLaserDmxWebGLRuntime(ctx)
     state = setLaserDmxWebGLRecoveryState(ctx, beginManualLaserDmxWebGLRetry(state))
   }
@@ -768,9 +771,10 @@ export function renderLaserDmx(
   let webgl2Available: boolean | null = null
   let contextLossCount = 0
   let webglRecoveryState = getLaserDmxWebGLRecoveryState(ctx)
+  const rendererNowMs = Date.now()
 
   if (sceneFrame && requestedRenderer !== 'canvas2d' && params.thumbnailLaserDmxSettings == null) {
-    const nowMs = Date.now()
+    const nowMs = rendererNowMs
     const webglRuntime = getLaserDmxWebGLRuntime(ctx, nowMs, getLaserDmxWebGLRetryRequestSequence())
     let recoveryState = getLaserDmxWebGLRecoveryState(ctx)
     webglRecoveryState = recoveryState
@@ -846,10 +850,12 @@ export function renderLaserDmx(
           depthMode: diagnostics.depthMode,
           depthSliceCount: diagnostics.depthSliceCount,
           depthBufferStatus: diagnostics.depthBufferStatus,
+          fallbackCode: diagnostics.degraded ? 'gpu-resource-allocation-failed' : null,
           fallbackReason: diagnostics.degraded ? 'RGBA16F targets are unavailable; the WebGL LDR post path is active.' : null,
+          qualityAdjustmentReason: diagnostics.qualityAdjustmentReason,
           contextLossCount: diagnostics.contextLossCount,
           postProcessingStatus: diagnostics.hdrMode === 'rgba16f' ? 'hdr' : 'ldr-fallback',
-          ...laserDmxWebGLRecoveryDiagnostics(recoveryState),
+          ...laserDmxWebGLRecoveryDiagnostics(recoveryState, nowMs),
         })
         return
       }
@@ -915,10 +921,12 @@ export function renderLaserDmx(
       depthMode: 'none',
       depthSliceCount: 0,
       depthBufferStatus: 'inactive',
+      fallbackCode,
       fallbackReason: fallbackCode === 'forced-canvas2d' ? null : fallbackReason,
+      qualityAdjustmentReason: null,
       contextLossCount,
       postProcessingStatus: 'inactive',
-      ...laserDmxWebGLRecoveryDiagnostics(webglRecoveryState),
+      ...laserDmxWebGLRecoveryDiagnostics(webglRecoveryState, rendererNowMs),
     })
   }
   const out = compiled.output

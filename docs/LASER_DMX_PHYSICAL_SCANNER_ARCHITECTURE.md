@@ -2,7 +2,7 @@
 
 ## Status
 
-Patch 1 introduced the CPU-side physical scanner domain. Patch 2 makes scanner exposure samples authoritative for normal WebGL scanner fixtures while retaining legacy beam data for Canvas2D compatibility, non-scanning lasers, nonlaser fixtures, and diagnostics.
+Patches 1 through 6 complete the physical scanner program. Scanner exposure samples are authoritative for normal WebGL scanner fixtures, while bounded compatibility data remains for Canvas2D, saved-project migration, non-scanning lasers, nonlaser fixtures, production output, and diagnostics.
 
 ## Physical contract
 
@@ -94,6 +94,6 @@ Renderer Diagnostics now reports:
 
 Diagnostics remain hidden with the rest of the renderer diagnostics in Capture presentation mode.
 
-## Patch 2 implementation
+## Completed implementation
 
-Patch 2 converts ordered shutter samples into target-to-target WebGL segments, uses analytic screen-space capsule coverage for sharp laser cores, hands scanner-derived segments to atmosphere, normalizes radiance by exposure density rather than sample count, and limits temporal history to restrained laser-only sensor persistence. The existing fixed camera, clipping, continuous depth, HDR, bloom, recovery, adaptive quality, production output, and Canvas2D fallback remain intact. See `LASER_DMX_PHYSICAL_SCANNER_PATCH_2.md` for the detailed rendering contract and regressions.
+Patch 2 converts ordered shutter samples into target-to-target WebGL segments, uses analytic screen-space capsule coverage for sharp laser cores, hands scanner-derived segments to atmosphere, normalizes radiance by exposure density rather than sample count, and limits temporal history to restrained laser-only sensor persistence. Patches 3 through 5 add calibrated optics, dedicated nonlaser models, scanner authoring/migration, and complete first-party content migration. Patch 6 adds final physical-scene auditing, the 44-scene WebGL reference manifest, expanded diagnostics, bounded recovery controls, lifecycle resets, process-clean visual validation, and production documentation. See `LASER_DMX_PHYSICAL_SCANNER_PATCH_6.md` for the final acceptance and regression workflow.

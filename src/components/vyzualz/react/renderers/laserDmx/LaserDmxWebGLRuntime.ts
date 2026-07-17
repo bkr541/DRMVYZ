@@ -906,6 +906,14 @@ export class LaserDmxWebGLRuntime {
     }
   }
 
+  private clearLaserInputDiagnostics(): void {
+    this.lastLaserInputMode = 'legacy-only'
+    this.lastScannerExposureSampleCount = 0
+    this.lastScannerSegmentCount = 0
+    this.lastSuppressedLegacyBeamCount = 0
+    this.lastDuplicateLaserInputCount = 0
+  }
+
   reset(): void {
     if (this.disposed || this.contextLost) return
     try {
@@ -931,6 +939,7 @@ export class LaserDmxWebGLRuntime {
       this.lastActiveFixtureCount = 0
       this.lastLaserHistoryInputCount = 0
       this.lastLaserHistorySliceCount = 0
+      this.clearLaserInputDiagnostics()
       this.lastTemporalResolutionScale = 0
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
       this.runtime.clearViewport(0, 0, 0, 1)
@@ -952,6 +961,7 @@ export class LaserDmxWebGLRuntime {
     this.lastResolution = null
     this.lastTemporalPlan = null
     this.lastLaserHistorySliceCount = 0
+    this.clearLaserInputDiagnostics()
     this.lastTemporalResolutionScale = 0
     this.lastAtmospherePlan = null
     this.lastQualitySnapshot = null
@@ -2111,6 +2121,7 @@ export class LaserDmxWebGLRuntime {
     this.lastPostPlan = null
     this.lastTemporalPlan = null
     this.lastLaserHistorySliceCount = 0
+    this.clearLaserInputDiagnostics()
     this.lastTemporalResolutionScale = 0
     this.lastAtmospherePlan = null
     this.lastCpuFrameMs = null
@@ -2569,6 +2580,7 @@ export class LaserDmxWebGLRuntime {
     this.lastPostPlan = null
     this.lastTemporalPlan = null
     this.lastLaserHistorySliceCount = 0
+    this.clearLaserInputDiagnostics()
     this.lastTemporalResolutionScale = 0
     this.ledger.release('gpu-core')
   }
