@@ -5,7 +5,15 @@ import {
   type PixGridActionCue,
   type PixGridResolvedTransition,
 } from './PixGridActionCues'
-import { isPixGridContinuousReactionSource } from './PixGridAudioRouting'
+import {
+  evaluatePixGridCompiledConditions,
+  PixGridAssignmentCompiler,
+} from './PixGridAssignmentCompiler'
+import {
+  isPixGridContinuousReactionSource,
+  pixGridReactionSourceValue,
+} from './PixGridAudioRouting'
+import { PIX_GRID_AUDIO_INTELLIGENCE_SOURCES } from './PixGridAudioIntelligenceRegistry'
 import type { PixGridGroupFrameEffect } from './PixGridFrameEffects'
 import { sortPixGridGroupFrameEffects } from './PixGridFrameEffects'
 import { compilePixGridGroupMask } from './PixGridGroups'
@@ -13,7 +21,13 @@ import {
   PixGridPerformanceExecutionRuntime,
   resolvePixGridPerformanceFrame,
 } from './PixGridPerformanceRuntime'
-import type { PixGridAudioFrame, PixGridState } from './PixGridTypes'
+import type {
+  PixGridAudioFrame,
+  PixGridReactionAssignment,
+  PixGridReactionSource,
+  PixGridReactionTargetScope,
+  PixGridState,
+} from './PixGridTypes'
 
 export const PIX_GRID_RUNTIME_COMPOSITION_ORDER = Object.freeze([
   'authored-state',
@@ -38,6 +52,17 @@ export function selectPixGridTransition(
 export interface PixGridUnifiedRuntimeDiagnostics {
   enabledGroups: readonly string[]
   compiledMaskGroups: readonly string[]
+  availableSources: readonly PixGridReactionSource[]
+  unavailableSources: readonly PixGridReactionSource[]
+  degradedSources: readonly PixGridReactionSource[]
+  activeCompiledAssignments: readonly string[]
+  disabledAssignments: readonly string[]
+  assignmentsBlockedByConditions: readonly string[]
+  assignmentsBlockedByConfidence: readonly string[]
+  assignmentsUsingFallback: readonly string[]
+  continuousSourceValues: Readonly<Partial<Record<PixGridReactionSource, number>>>
+  recentDiscreteTriggers: readonly PixGridReactionSource[]
+  compilationWarnings: readonly string[]
   activeContinuousAssignments: readonly string[]
   activeDiscreteAssignments: readonly string[]
   activeEventEnvelopes: readonly string[]
@@ -47,6 +72,8 @@ export interface PixGridUnifiedRuntimeDiagnostics {
   activeTransitions: readonly string[]
   manualOverrides: readonly string[]
   degradedSignals: readonly string[]
+  compilerGeneration: number
+  cachedAssignmentCount: number
 }
 
 export interface PixGridUnifiedFrame {
@@ -58,13 +85,46 @@ export interface PixGridUnifiedFrame {
   diagnostics: PixGridUnifiedRuntimeDiagnostics
 }
 
+interface DiagnosticRoute {
+  assignment: PixGridReactionAssignment
+  routeId: string
+  displayId: string
+  scope: PixGridReactionTargetScope
+}
+
+function assignmentRoutes(state: PixGridState): DiagnosticRoute[] {
+  const routes: DiagnosticRoute[] = state.audioAssignments.map(assignment => ({
+    assignment,
+    routeId: `audio:${assignment.id}`,
+    displayId: `audio:${assignment.id}`,
+    scope: assignment.targetScope ?? 'output',
+  }))
+  for (const group of state.groups) {
+    for (const assignment of group.reactions) {
+      routes.push({
+        assignment,
+        routeId: `group:${group.id}:${assignment.id}`,
+        displayId: `${group.id}:${assignment.id}`,
+        scope: assignment.targetScope ?? 'group',
+      })
+    }
+  }
+  return routes
+}
+
+function addUnique<T>(array: T[], value: T): void {
+  if (!array.includes(value)) array.push(value)
+}
+
 export class PixGridUnifiedPerformanceRuntime {
   private readonly performanceRuntime = new PixGridPerformanceExecutionRuntime()
   private readonly cueRuntime = new PixGridCueExecutionRuntime()
+  private readonly assignmentCompiler = new PixGridAssignmentCompiler()
 
   reset(trackId: string | null = null): void {
     this.performanceRuntime.reset()
     this.cueRuntime.reset(trackId)
+    this.assignmentCompiler.clear()
   }
 
   resolve(input: {
@@ -92,25 +152,79 @@ export class PixGridUnifiedPerformanceRuntime {
       ...cues.groupEffects,
     ])
 
-    // Transition ownership is explicit and stable: an active Track Map cue
-    // (including manual cue actions), then Performance Program, then cut.
     const transition = selectPixGridTransition(cues.transition, performance.transition)
     const enabledGroups = cues.state.groups.filter(group => group.enabled)
     const compiledMaskGroups = enabledGroups
       .filter(group => compilePixGridGroupMask(group, cues.state.matrixWidth, cues.state.matrixHeight).cellCount > 0)
       .map(group => group.id)
+    const activeLayerIds = new Set(cues.state.layers.filter(layer => layer.visible).map(layer => layer.id))
+    const activeGroupIds = new Set(enabledGroups.map(group => group.id))
+
+    const availableSources: PixGridReactionSource[] = []
+    const unavailableSources: PixGridReactionSource[] = []
+    const degradedSources: PixGridReactionSource[] = []
+    const recentDiscreteTriggers: PixGridReactionSource[] = []
+    const continuousSourceValues: Partial<Record<PixGridReactionSource, number>> = {}
+    const cueTriggered = cues.snapshot.activeCueIds.length > 0
+    for (const definition of PIX_GRID_AUDIO_INTELLIGENCE_SOURCES) {
+      const available = definition.id === 'trackMapCueEvent'
+        ? cueTriggered
+        : input.audioFrame.capabilities?.[definition.id] !== false
+      const confidence = definition.id === 'trackMapCueEvent'
+        ? (cueTriggered ? 1 : 0)
+        : input.audioFrame.confidence?.[definition.id] ?? (available ? 1 : 0)
+      const value = definition.id === 'trackMapCueEvent'
+        ? (cueTriggered ? 1 : 0)
+        : pixGridReactionSourceValue(input.audioFrame, definition.id)
+      addUnique(available ? availableSources : unavailableSources, definition.id)
+      if (!available || confidence < 0.35) addUnique(degradedSources, definition.id)
+      if (isPixGridContinuousReactionSource(definition.id)) continuousSourceValues[definition.id] = value
+      else if (value > 0) addUnique(recentDiscreteTriggers, definition.id)
+    }
+
+    const activeCompiledAssignments: string[] = []
+    const disabledAssignments: string[] = []
+    const blockedByConditions: string[] = []
+    const blockedByConfidence: string[] = []
+    const assignmentsUsingFallback: string[] = []
+    const compilationWarnings: string[] = []
     const continuousAssignments: string[] = []
     const discreteAssignments: string[] = []
     const degradedSignals: string[] = []
-    for (const group of enabledGroups) {
-      for (const assignment of group.reactions) {
-        if (!assignment.enabled) continue
-        const route = `${group.id}:${assignment.id}`
-        if (isPixGridContinuousReactionSource(assignment.source)) continuousAssignments.push(route)
-        else discreteAssignments.push(route)
-        if (input.audioFrame.capabilities?.[assignment.source] === false) degradedSignals.push(route)
-        else if ((input.audioFrame.confidence?.[assignment.source] ?? 1) < assignment.minimumConfidence) degradedSignals.push(route)
+
+    for (const route of assignmentRoutes(cues.state)) {
+      const capabilities = route.assignment.source === 'trackMapCueEvent'
+        ? { ...input.audioFrame.capabilities, trackMapCueEvent: cueTriggered }
+        : input.audioFrame.capabilities
+      const compiled = this.assignmentCompiler.compile(route.assignment, capabilities, route.scope, route.routeId)
+      for (const warning of compiled.warnings) addUnique(compilationWarnings, `${route.routeId}: ${warning}`)
+      if (!compiled.enabled) {
+        addUnique(disabledAssignments, route.routeId)
+        continue
       }
+      if (!evaluatePixGridCompiledConditions(compiled, input.audioFrame, { activeLayerIds, activeGroupIds })) {
+        addUnique(blockedByConditions, route.routeId)
+        continue
+      }
+      const available = route.assignment.source === 'trackMapCueEvent'
+        ? cueTriggered
+        : input.audioFrame.capabilities?.[route.assignment.source] !== false
+      const confidence = route.assignment.source === 'trackMapCueEvent'
+        ? (cueTriggered ? 1 : 0)
+        : input.audioFrame.confidence?.[route.assignment.source] ?? (available ? 1 : 0)
+      const needsFallback = !available || confidence < compiled.minimumConfidence
+      if (needsFallback && compiled.capabilityFallback === 'disable') {
+        addUnique(blockedByConfidence, route.routeId)
+        addUnique(degradedSignals, route.routeId)
+        continue
+      }
+      if (needsFallback) {
+        addUnique(assignmentsUsingFallback, route.routeId)
+        addUnique(degradedSignals, route.routeId)
+      }
+      addUnique(activeCompiledAssignments, route.routeId)
+      if (isPixGridContinuousReactionSource(route.assignment.source)) addUnique(continuousAssignments, route.displayId)
+      else addUnique(discreteAssignments, route.displayId)
     }
 
     return {
@@ -122,6 +236,17 @@ export class PixGridUnifiedPerformanceRuntime {
       diagnostics: {
         enabledGroups: enabledGroups.map(group => group.id),
         compiledMaskGroups,
+        availableSources,
+        unavailableSources,
+        degradedSources,
+        activeCompiledAssignments,
+        disabledAssignments,
+        assignmentsBlockedByConditions: blockedByConditions,
+        assignmentsBlockedByConfidence: blockedByConfidence,
+        assignmentsUsingFallback,
+        continuousSourceValues,
+        recentDiscreteTriggers,
+        compilationWarnings,
         activeContinuousAssignments: continuousAssignments,
         activeDiscreteAssignments: discreteAssignments,
         activeEventEnvelopes: performance.snapshot.activeEventEnvelopes,
@@ -131,6 +256,8 @@ export class PixGridUnifiedPerformanceRuntime {
         activeTransitions: transition ? [`${transition.cueId}:${transition.type}`] : [],
         manualOverrides: cues.snapshot.manualOverrideRoutes,
         degradedSignals: [...new Set(degradedSignals)],
+        compilerGeneration: this.assignmentCompiler.compilationCount,
+        cachedAssignmentCount: this.assignmentCompiler.cachedAssignmentCount,
       },
     }
   }

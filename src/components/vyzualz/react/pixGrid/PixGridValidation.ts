@@ -7,6 +7,8 @@ import {
 } from './PixGridDefaults'
 import { hasPixGridBuiltInAsset } from './PixGridArtwork'
 import { PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID } from './PixGridPerformancePrograms'
+import { PIX_GRID_AUDIO_INTELLIGENCE_SOURCES, getPixGridAudioIntelligenceSource } from './PixGridAudioIntelligenceRegistry'
+import { PIX_GRID_ASSIGNMENT_TARGET_BY_ID, PIX_GRID_ASSIGNMENT_TARGETS } from './PixGridAssignmentCompiler'
 import {
   MAX_PIX_GRID_ANIMATIONS_PER_LAYER,
   MAX_PIX_GRID_LAYERS,
@@ -16,6 +18,7 @@ import {
   MAX_PIX_GRID_GROUPS,
   MAX_PIX_GRID_CELL_RUNS_PER_GROUP,
   MAX_PIX_GRID_REACTIONS_PER_GROUP,
+  MAX_PIX_GRID_AUDIO_ASSIGNMENTS,
 } from './PixGridLimits'
 import {
   PIX_GRID_STATE_VERSION,
@@ -40,6 +43,11 @@ import {
   type PixGridReactionBlend,
   type PixGridReactionCapabilityFallback,
   type PixGridReactionDecayCurve,
+  type PixGridReactionCurve,
+  type PixGridReactionPolarity,
+  type PixGridReactionTargetScope,
+  type PixGridReactionConditions,
+  type PixGridPhraseSegment,
   type PixGridLayer,
   type PixGridLayerAnimation,
   type PixGridPaletteRole,
@@ -92,38 +100,7 @@ const ANIMATION_MODES = new Set<PixGridAnimationMode>([
 ])
 const ANIMATION_BOUNDARIES = new Set<PixGridAnimationBoundary>(['wrap', 'clamp', 'bounce'])
 const ANIMATION_CLOCKS = new Set(['time', 'beat', 'bar', 'cue'] as const)
-const AUDIO_SOURCES = new Set<PixGridAudioSource>([
-  'sub',
-  'bass',
-  'lowMid',
-  'mid',
-  'high',
-  'air',
-  'volume',
-  'energy',
-  'trackRelativeEnergy',
-  'spectralFlux',
-  'tension',
-  'complexity',
-  'buildProgress',
-  'sectionProgress',
-  'phraseProgress',
-  'vocalEnergy',
-  'beat',
-  'downbeat',
-  'kick',
-  'snare',
-  'hat',
-  'transient',
-  'barEntry',
-  'fourBarBoundary',
-  'eightBarBoundary',
-  'sixteenBarBoundary',
-  'sectionEntry',
-  'sectionExit',
-  'dropImpact',
-  'semanticMoment',
-])
+const AUDIO_SOURCES = new Set<PixGridAudioSource>(PIX_GRID_AUDIO_INTELLIGENCE_SOURCES.map(source => source.id))
 const STOPPED_BEHAVIORS = new Set(['baseline', 'blackout'])
 const GROUP_SOURCES = new Set<PixGridGroupSource>([
   'manualSelection',
@@ -171,63 +148,12 @@ const GEOMETRIC_PATTERNS = new Set<PixGridGeometricGroupPattern>([
   'radialRings',
   'deterministicClusters',
 ])
-const REACTION_SOURCES = new Set<PixGridReactionSource>([
-  'sub',
-  'bass',
-  'lowMid',
-  'mid',
-  'high',
-  'air',
-  'volume',
-  'energy',
-  'trackRelativeEnergy',
-  'spectralFlux',
-  'tension',
-  'complexity',
-  'buildProgress',
-  'sectionProgress',
-  'phraseProgress',
-  'vocalEnergy',
-  'beat',
-  'downbeat',
-  'kick',
-  'snare',
-  'hat',
-  'transient',
-  'barEntry',
-  'fourBarBoundary',
-  'eightBarBoundary',
-  'sixteenBarBoundary',
-  'sectionEntry',
-  'sectionExit',
-  'dropImpact',
-  'semanticMoment',
-])
-const REACTION_TARGETS = new Set<PixGridReactionTarget>([
-  'brightness',
-  'paletteRole',
-  'color',
-  'opacity',
-  'scale',
-  'positionX',
-  'positionY',
-  'reveal',
-  'hide',
-  'blink',
-  'outlineFlash',
-  'sparkle',
-  'pixelDisplacement',
-  'frameAdvance',
-  'animationSpeed',
-  'directionReverse',
-  'dissolveThreshold',
-  'invert',
-  'posterize',
-])
+const REACTION_SOURCES = new Set<PixGridReactionSource>(PIX_GRID_AUDIO_INTELLIGENCE_SOURCES.map(source => source.id))
+const REACTION_TARGETS = new Set<PixGridReactionTarget>(PIX_GRID_ASSIGNMENT_TARGETS.map(target => target.id))
 const REACTION_QUANTIZATION = new Set<PixGridReactionQuantization>(['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'])
 const REACTION_RETRIGGER = new Set<PixGridReactionRetrigger>(['restart', 'extend', 'ignoreWhileActive'])
 const REACTION_BLEND = new Set<PixGridReactionBlend>(['add', 'multiply', 'replace', 'max'])
-const REACTION_FALLBACK = new Set<PixGridReactionCapabilityFallback>(['disable', 'zero', 'energy', 'beat'])
+const REACTION_FALLBACK = new Set<PixGridReactionCapabilityFallback>(['disable', 'zero', 'energy', 'beat', 'midHighActivity', 'transient'])
 const REACTION_DECAY_CURVES = new Set<PixGridReactionDecayCurve>([
   'linear',
   'easeIn',
@@ -238,6 +164,14 @@ const REACTION_DECAY_CURVES = new Set<PixGridReactionDecayCurve>([
   'step',
   'stepped',
 ])
+const REACTION_CURVES = new Set<PixGridReactionCurve>([
+  'linear', 'easeIn', 'easeOut', 'easeInOut', 'exponential', 'logarithmic', 'smoothstep', 'stepped', 'gate', 'inverse',
+])
+const REACTION_POLARITIES = new Set<PixGridReactionPolarity>(['positive', 'negative', 'bipolar'])
+const REACTION_TARGET_SCOPES = new Set<PixGridReactionTargetScope>(['output', 'scene', 'layer', 'group', 'pixels', 'background', 'transition', 'animation', 'palette'])
+const PHRASE_SEGMENTS = new Set<PixGridPhraseSegment>(['entry', 'early', 'middle', 'late', 'exit'])
+const SECTION_TYPES = new Set(['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown'] as const)
+const SECTION_PHASES = new Set(['entry', 'body', 'exit'] as const)
 const PERFORMANCE_PROGRAM_IDS = new Set<PixGridPerformanceProgramId>([
   'pix-grid-bass-beacon-performance',
   'pix-grid-geometric-reactor-performance',
@@ -509,47 +443,110 @@ function normalizeGroupMask(value: unknown, runs: PixGridCellRun[], width: numbe
   return { kind: 'runs', runs: maskRuns.length > 0 ? maskRuns : runs }
 }
 
-function normalizeReaction(value: unknown, index: number): PixGridReactionAssignment | null {
+function normalizeRange(value: unknown, fallback: readonly [number, number], min: number, max: number): readonly [number, number] {
+  const raw = Array.isArray(value) ? value : fallback
+  const first = clamp(raw[0], min, max, fallback[0])
+  const second = clamp(raw[1], min, max, fallback[1])
+  return [Math.min(first, second), Math.max(first, second)]
+}
+
+function normalizeStringList<T extends string>(value: unknown, allowed: ReadonlySet<T>, max = 32): T[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const result = [...new Set(value.filter((item): item is T => allowed.has(item as T)))].slice(0, max)
+  return result.length ? result : undefined
+}
+
+function normalizeOccurrenceList(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const result = [...new Set(value.map(item => Math.max(0, Math.min(999, Math.round(finite(item, 0))))))].sort((a, b) => a - b).slice(0, 64)
+  return result.length ? result : undefined
+}
+
+function normalizeReactionConditions(value: unknown): PixGridReactionConditions | undefined {
+  if (!isRecord(value)) return undefined
+  const includeSectionTypes = normalizeStringList(value.includeSectionTypes, SECTION_TYPES)
+  const excludeSectionTypes = normalizeStringList(value.excludeSectionTypes, SECTION_TYPES)
+  const sectionPhases = normalizeStringList(value.sectionPhases, SECTION_PHASES)
+  const sectionOccurrences = normalizeOccurrenceList(value.sectionOccurrences)
+  const dropOccurrences = normalizeOccurrenceList(value.dropOccurrences)
+  const phraseSegments = normalizeStringList(value.phraseSegments, PHRASE_SEGMENTS)
+  const activeLayerId = nullableId(value.activeLayerId)
+  const activeGroupId = nullableId(value.activeGroupId)
+  const result: PixGridReactionConditions = {
+    ...(includeSectionTypes ? { includeSectionTypes } : {}),
+    ...(excludeSectionTypes ? { excludeSectionTypes } : {}),
+    ...(sectionPhases ? { sectionPhases } : {}),
+    ...(sectionOccurrences ? { sectionOccurrences } : {}),
+    ...(dropOccurrences ? { dropOccurrences } : {}),
+    ...(phraseSegments ? { phraseSegments } : {}),
+    ...(value.minimumEnergy != null ? { minimumEnergy: clamp(value.minimumEnergy, 0, 1, 0) } : {}),
+    ...(value.maximumEnergy != null ? { maximumEnergy: clamp(value.maximumEnergy, 0, 1, 1) } : {}),
+    ...(value.autoPerformanceOnly === true ? { autoPerformanceOnly: true } : {}),
+    ...(activeLayerId ? { activeLayerId } : {}),
+    ...(activeGroupId ? { activeGroupId } : {}),
+  }
+  return Object.keys(result).length ? result : undefined
+}
+
+export function normalizePixGridReactionAssignment(
+  value: unknown,
+  index: number,
+  defaultScope: PixGridReactionTargetScope = 'group',
+): PixGridReactionAssignment | null {
   if (!isRecord(value)) return null
   const source = REACTION_SOURCES.has(value.source as PixGridReactionSource) ? (value.source as PixGridReactionSource) : 'bass'
+  const sourceDefinition = getPixGridAudioIntelligenceSource(source)
   const target = REACTION_TARGETS.has(value.target as PixGridReactionTarget) ? (value.target as PixGridReactionTarget) : 'brightness'
-  const rawClamp = Array.isArray(value.clamp) ? value.clamp : [0, 1]
-  const clampMin = clamp(rawClamp[0], -4, 4, 0)
-  const clampMax = clamp(rawClamp[1], -4, 4, 1)
+  const targetDefinition = PIX_GRID_ASSIGNMENT_TARGET_BY_ID.get(target)!
+  const requestedScope = REACTION_TARGET_SCOPES.has(value.targetScope as PixGridReactionTargetScope)
+    ? (value.targetScope as PixGridReactionTargetScope)
+    : defaultScope
+  const targetScope = targetDefinition.scopes.includes(requestedScope) ? requestedScope : targetDefinition.scopes[0]
+  const rawClamp = normalizeRange(value.clamp, targetDefinition.boundedRange, -16, 16)
+  const polarity = REACTION_POLARITIES.has(value.polarity as PixGridReactionPolarity)
+    ? (value.polarity as PixGridReactionPolarity)
+    : value.invert === true ? 'negative' : 'positive'
+  const conditions = normalizeReactionConditions(value.conditions)
   return {
     id: text(value.id, `pix-grid-reaction-${index + 1}`, 128),
     name: text(value.name, `Reaction ${index + 1}`),
     enabled: value.enabled !== false,
     source,
     target,
+    targetScope,
+    targetId: nullableId(value.targetId),
     amount: clamp(value.amount, -4, 4, 0.75),
-    invert: value.invert === true,
+    polarity,
+    invert: polarity === 'negative',
+    inputRange: normalizeRange(value.inputRange, sourceDefinition.valueRange, -4, 4),
+    outputRange: normalizeRange(value.outputRange, [0, 1], -8, 8),
+    // Missing curves are v1-v9 assignments. Keep their linear response instead
+    // of silently changing saved-project output during v10 migration.
+    curve: REACTION_CURVES.has(value.curve as PixGridReactionCurve) ? (value.curve as PixGridReactionCurve) : 'linear',
     threshold: clamp(value.threshold, 0, 1, 0),
     ...(value.hysteresis != null ? { hysteresis: clamp(value.hysteresis, 0, 0.5, 0) } : {}),
-    attack: clamp(value.attack, 0, 10, 0.03),
-    hold: clamp(value.hold, 0, 10, 0.04),
-    release: clamp(value.release, 0, 20, 0.18),
-    ...(value.decayCurve != null
-      ? {
-          decayCurve: REACTION_DECAY_CURVES.has(value.decayCurve as PixGridReactionDecayCurve)
-            ? (value.decayCurve as PixGridReactionDecayCurve)
-            : 'easeOut',
-        }
-      : {}),
-    smoothing: clamp(value.smoothing, 0, 10, 0.08),
+    attack: clamp(value.attack, 0, 10, sourceDefinition.recommendedSmoothing.attack),
+    hold: clamp(value.hold, 0, 10, sourceDefinition.recommendedSmoothing.hold),
+    release: clamp(value.release, 0, 20, sourceDefinition.recommendedSmoothing.release),
+    decayCurve: REACTION_DECAY_CURVES.has(value.decayCurve as PixGridReactionDecayCurve)
+      ? (value.decayCurve as PixGridReactionDecayCurve)
+      : 'easeOut',
+    smoothing: clamp(value.smoothing, 0, 10, sourceDefinition.recommendedSmoothing.smoothing),
     quantization: REACTION_QUANTIZATION.has(value.quantization as PixGridReactionQuantization)
       ? (value.quantization as PixGridReactionQuantization)
       : 'none',
     retrigger: REACTION_RETRIGGER.has(value.retrigger as PixGridReactionRetrigger)
       ? (value.retrigger as PixGridReactionRetrigger)
       : 'restart',
-    ...(value.maximumStacking != null ? { maximumStacking: Math.max(1, Math.min(8, Math.round(finite(value.maximumStacking, 1)))) } : {}),
-    ...(value.eventPriority != null ? { eventPriority: Math.max(-1000, Math.min(1000, Math.round(finite(value.eventPriority, 0)))) } : {}),
+    maximumStacking: Math.max(1, Math.min(8, Math.round(finite(value.maximumStacking, 1)))),
+    eventPriority: Math.max(-1000, Math.min(1000, Math.round(finite(value.eventPriority, 0)))),
     minimumConfidence: clamp(value.minimumConfidence, 0, 1, 0),
     capabilityFallback: REACTION_FALLBACK.has(value.capabilityFallback as PixGridReactionCapabilityFallback)
       ? (value.capabilityFallback as PixGridReactionCapabilityFallback)
-      : 'energy',
-    clamp: [Math.min(clampMin, clampMax), Math.max(clampMin, clampMax)],
+      : sourceDefinition.capabilityFallback,
+    ...(conditions ? { conditions } : {}),
+    priority: Math.max(-1000, Math.min(1000, Math.round(finite(value.priority, 0)))),
+    clamp: rawClamp,
     blend: REACTION_BLEND.has(value.blend as PixGridReactionBlend) ? (value.blend as PixGridReactionBlend) : 'add',
     ...(PALETTE_ROLES.has(value.paletteRole as PixGridPaletteRole) ? { paletteRole: value.paletteRole as PixGridPaletteRole } : {}),
     ...(typeof value.color === 'string' ? { color: normalizePixGridColor(value.color, '#ffffff') } : {}),
@@ -581,7 +578,7 @@ function normalizeGroups(value: unknown, width: number, height: number): PixGrid
         : 'manualSelection'
     const reactions = Array.isArray(raw.reactions)
       ? raw.reactions.slice(0, MAX_PIX_GRID_REACTIONS_PER_GROUP).flatMap((reaction, reactionIndex) => {
-          const normalized = normalizeReaction(reaction, reactionIndex)
+          const normalized = normalizePixGridReactionAssignment(reaction, reactionIndex, 'group')
           return normalized ? [normalized] : []
         })
       : []
@@ -710,6 +707,12 @@ export function normalizePixGridState(value: unknown): PixGridState {
     previewReactionAssignmentId && groups.some((group) => group.reactions.some((reaction) => reaction.id === previewReactionAssignmentId))
       ? previewReactionAssignmentId
       : null
+  const audioAssignments = (Array.isArray(input.audioAssignments) ? input.audioAssignments : defaults.audioAssignments)
+    .slice(0, MAX_PIX_GRID_AUDIO_ASSIGNMENTS)
+    .flatMap((assignment, assignmentIndex) => {
+      const normalized = normalizePixGridReactionAssignment(assignment, assignmentIndex, 'output')
+      return normalized ? [normalized] : []
+    })
 
   return {
     version: PIX_GRID_STATE_VERSION,
@@ -752,6 +755,7 @@ export function normalizePixGridState(value: unknown): PixGridState {
     scenes,
     layers,
     groups,
+    audioAssignments,
     pixelOverrides: activeScene.pixelOverrides,
     performance: {
       enabled: performance.enabled !== false,

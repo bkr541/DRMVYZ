@@ -3,7 +3,6 @@ import { resolvePixGridLayerAnimation } from './PixGridAnimation'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID, samplePixGridBuiltInAsset } from './PixGridArtwork'
 import type {
   PixGridAudioFrame,
-  PixGridAudioSource,
   PixGridBlendMode,
   PixGridLayer,
   PixGridPaletteRole,
@@ -14,12 +13,17 @@ import { normalizePixGridState } from './PixGridValidation'
 import { MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
 import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { unpackPixGridOverride } from './PixGridAuthoring'
-import { pixGridReactionSourceValue, PixGridReactionRuntime } from './PixGridAudioRouting'
+import { PixGridReactionRuntime, resolveLegacyPixGridLayerAudioReactivity } from './PixGridAudioRouting'
 import { applyPixGridGroupReactions, resolvePixGridLayerReactionFrame } from './PixGridReactions'
 import { pixGridMaskHasCell } from './PixGridGroups'
 import { applyPixGridGroupFrameEffects, type PixGridGroupFrameEffect } from './PixGridFrameEffects'
 import type { PixGridResolvedTransition } from './PixGridActionCues'
 import { PixGridFrameGroupCompiler } from './PixGridGroupCompiler'
+import {
+  applyPixGridOutputAssignments,
+  resolvePixGridAuthoredAssignmentState,
+  resolvePixGridTransitionAssignment,
+} from './PixGridAssignmentApplication'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -61,10 +65,6 @@ function resolveColor(palette: ReactPalette, role: PixGridPaletteRole): readonly
   return hexToRgb(palette[role])
 }
 
-function audioValue(frame: PixGridAudioFrame, source: PixGridAudioSource): number {
-  return clamp01(pixGridReactionSourceValue(frame, source))
-}
-
 function sceneFor(preset: ReactPreset, state: PixGridState): PixGridSceneSettings {
   const fallback: PixGridSceneSettings = {
     density: 1,
@@ -79,8 +79,8 @@ function effectiveOpacity(layer: PixGridLayer, scene: PixGridSceneSettings, fram
   let opacity = scene.layerOpacity?.[layer.id] ?? layer.opacity
   const reactive = layer.audioReactivity
   if (reactive?.brightnessSource && reactive.brightnessAmount != null) {
-    const level = audioValue(frame, reactive.brightnessSource)
-    opacity *= clamp01(1 - reactive.brightnessAmount + level * reactive.brightnessAmount * 1.35)
+    const response = resolveLegacyPixGridLayerAudioReactivity(frame, reactive.brightnessSource, reactive.brightnessAmount)
+    opacity *= clamp01(1 - reactive.brightnessAmount + response * 1.35)
   }
   if (reactive?.beatImpact) {
     const beat = frame.beatHit ? 1 : Math.max(0, 1 - frame.beatPhase * 4)
@@ -92,7 +92,7 @@ function effectiveOpacity(layer: PixGridLayer, scene: PixGridSceneSettings, fram
 function effectiveScale(layer: PixGridLayer, frame: PixGridAudioFrame): number {
   const reactive = layer.audioReactivity
   if (!reactive?.scaleSource || reactive.scaleAmount == null) return 1
-  return 1 + audioValue(frame, reactive.scaleSource) * reactive.scaleAmount
+  return 1 + resolveLegacyPixGridLayerAudioReactivity(frame, reactive.scaleSource, reactive.scaleAmount)
 }
 
 function blendPixel(
@@ -286,7 +286,10 @@ function composePixGridBaseFrame(
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
 ): PixGridLogicalFrame {
-  const state = normalizePixGridState(rawState)
+  const normalizedState = normalizePixGridState(rawState)
+  const state = reactionRuntime
+    ? resolvePixGridAuthoredAssignmentState(normalizedState, frame, reactionRuntime)
+    : normalizedState
   const width = state.matrixWidth
   const height = state.matrixHeight
   const required = width * height * 4
@@ -306,8 +309,9 @@ function composePixGridBaseFrame(
   const visibleLayerIds = new Set(visibleLayers.map((layer) => layer.id))
   compiler.beginFrame(state.groups, width, height, visibleLayerIds)
 
-  const hasReactions = state.groups.some((group) => group.enabled && group.reactions.some((assignment) => assignment.enabled))
-  const runtime = reactionRuntime ?? (hasReactions ? new PixGridReactionRuntime() : undefined)
+  const hasReactions = state.audioAssignments.some(assignment => assignment.enabled)
+    || state.groups.some((group) => group.enabled && group.reactions.some((assignment) => assignment.enabled))
+  const runtime = reactionRuntime
   for (const layer of visibleLayers) {
     const layerFrame = runtime
       ? resolvePixGridLayerReactionFrame(layer, state.groups, frame, runtime, state.editor.previewReactionAssignmentId)
@@ -366,6 +370,7 @@ function composePixGridBaseFrame(
       state.editor.previewReactionAssignmentId,
       visibleLayerIds,
       compiler,
+      state.audioAssignments,
     )
   }
   applyPixGridGroupFrameEffects(pixels, width, height, state.groups, finalEffects, preset.palette, frame, visibleLayerIds, compiler)
@@ -381,6 +386,10 @@ function composePixGridBaseFrame(
       pixels[offset + 2] = 0
       pixels[offset + 3] = 0
     }
+  }
+
+  if (runtime && state.audioAssignments.length > 0) {
+    applyPixGridOutputAssignments(pixels, state, frame, runtime, preset.palette)
   }
 
   return { width, height, pixels, visibleLayerCount: visibleLayers.length }
@@ -473,20 +482,31 @@ export function composePixGridLogicalFrame(
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
 ): PixGridLogicalFrame {
-  const target = composePixGridBaseFrame(preset, rawState, frame, reusable, preparedAsset, reactionRuntime, groupEffects, groupCompiler)
-  if (!transition || transition.type === 'cut' || transition.progress >= 1) return target
+  const normalizedTargetState = normalizePixGridState(rawState)
+  const normalizedSourceState = transition ? normalizePixGridState(transition.fromState) : null
+  const hasAssignments = normalizedTargetState.audioAssignments.some(assignment => assignment.enabled)
+    || normalizedTargetState.groups.some(group => group.enabled && group.reactions.some(assignment => assignment.enabled))
+    || Boolean(normalizedSourceState?.audioAssignments.some(assignment => assignment.enabled))
+    || Boolean(normalizedSourceState?.groups.some(group => group.enabled && group.reactions.some(assignment => assignment.enabled)))
+  const runtime = reactionRuntime ?? (hasAssignments ? new PixGridReactionRuntime() : undefined)
+  runtime?.beginFrame(frame)
+  const effectiveTransition = runtime
+    ? resolvePixGridTransitionAssignment(transition, normalizedTargetState, frame, runtime)
+    : transition
+  const target = composePixGridBaseFrame(preset, normalizedTargetState, frame, reusable, preparedAsset, runtime, groupEffects, groupCompiler)
+  if (!effectiveTransition || effectiveTransition.type === 'cut' || effectiveTransition.progress >= 1) return target
   const source = composePixGridBaseFrame(
     preset,
-    transition.fromState,
+    effectiveTransition.fromState,
     frame,
     undefined,
     preparedAsset,
-    undefined,
+    runtime,
     [],
     new PixGridFrameGroupCompiler(),
   )
   if (source.width === target.width && source.height === target.height) {
-    applyLogicalTransition(target.pixels, source.pixels, target.width, target.height, transition)
+    applyLogicalTransition(target.pixels, source.pixels, target.width, target.height, effectiveTransition)
   }
   return target
 }

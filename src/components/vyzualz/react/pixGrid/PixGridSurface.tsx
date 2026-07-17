@@ -364,7 +364,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       })
       previousPerformanceContext = context
       lastAudioTime = audioTime
-      const audioFrame = createPixGridAudioFrame(context, { isPlaying: shouldAnimate, deltaTimeSec })
+      const audioFrame = createPixGridAudioFrame(context, {
+        isPlaying: shouldAnimate,
+        deltaTimeSec,
+        autoPerformanceEnabled: current.pixGridState.performance.enabled,
+      })
       const qualityProfile = adaptiveProfileRef.current
       const runtimeState: PixGridState = {
         ...current.pixGridState,
@@ -396,6 +400,18 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       latestRuntimeDiagnostics = resolvedRuntime.diagnostics
       const performance = resolvedRuntime.performance
       const cueFrame = resolvedRuntime.cues
+      const activeCueIdentity = cueFrame.snapshot.activeCueIds.join('|')
+      const routedAudioFrame = activeCueIdentity
+        ? {
+            ...audioFrame,
+            trackMapCueEvent: true,
+            trackMapCueIdentity: `track-map:${activeCueIdentity}`,
+            sourceValues: { ...audioFrame.sourceValues, trackMapCueEvent: 1 },
+            capabilities: { ...audioFrame.capabilities, trackMapCueEvent: true },
+            confidence: { ...audioFrame.confidence, trackMapCueEvent: 1 },
+            eventIdentities: { ...audioFrame.eventIdentities, trackMapCueEvent: `track-map:${activeCueIdentity}` },
+          }
+        : audioFrame
       publishPixGridPerformanceRuntimeStatus(performance.snapshot)
       publishPixGridCueRuntimeStatus(cueFrame.snapshot)
       publishSharedPerformanceDiagnostics(
@@ -432,7 +448,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         frame: {
           width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
           height: activePath === 'webgl2' ? gpuCanvas.height : fallbackCanvas.height,
-          ...audioFrame,
+          ...routedAudioFrame,
           motion: current.motion,
           intensity: current.intensity,
           glow: current.glow,

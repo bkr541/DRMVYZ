@@ -1,4 +1,6 @@
-export const PIX_GRID_STATE_VERSION = 9 as const
+import type { ReactSectionType } from '../ReactTypes'
+
+export const PIX_GRID_STATE_VERSION = 10 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
@@ -20,13 +22,20 @@ export type PixGridClipMode = 'clip' | 'wrap'
 export type PixGridAnimationBoundary = 'wrap' | 'clamp' | 'bounce'
 export type PixGridContinuousAudioSource =
   | 'sub' | 'bass' | 'lowMid' | 'mid' | 'high' | 'air' | 'volume'
-  | 'energy' | 'trackRelativeEnergy' | 'spectralFlux' | 'tension' | 'complexity'
-  | 'buildProgress' | 'sectionProgress' | 'phraseProgress' | 'vocalEnergy'
+  | 'energy' | 'trackRelativeEnergy' | 'spectralFlux' | 'spectralBrightness'
+  | 'tension' | 'complexity' | 'buildProgress' | 'sectionProgress' | 'phraseProgress'
+  | 'barProgress' | 'beatPhase' | 'sectionRelativeEnergy' | 'sectionConfidence' | 'phraseConfidence'
+  | 'vocalEnergy' | 'vocalActivity' | 'drumActivity' | 'bassStemActivity' | 'melodyActivity'
+  | 'semanticMomentStrength'
 export type PixGridDiscreteAudioSource =
   | 'beat' | 'downbeat' | 'kick' | 'snare' | 'hat' | 'transient'
-  | 'barEntry' | 'fourBarBoundary' | 'eightBarBoundary' | 'sixteenBarBoundary'
-  | 'sectionEntry' | 'sectionExit' | 'dropImpact' | 'semanticMoment'
+  | 'barEntry' | 'fourBarBoundary' | 'eightBarBoundary' | 'sixteenBarBoundary' | 'phraseEntry'
+  | 'sectionEntry' | 'sectionExit' | 'dropImpact' | 'dropOccurrenceChange'
+  | 'semanticMoment' | 'trackMapCueEvent'
 export type PixGridReactionSource = PixGridContinuousAudioSource | PixGridDiscreteAudioSource
+export type PixGridAudioSourceCategory =
+  | 'frequency' | 'level' | 'development' | 'progress' | 'confidence' | 'stem' | 'semantic' | 'rhythm' | 'boundary' | 'cue'
+export type PixGridAudioSourceKind = 'continuousNormalized' | 'continuousSigned' | 'progress' | 'discreteEvent' | 'musicalBoundary' | 'sectionEvent' | 'semanticEvent'
 /** Backward-compatible layer animation source union. */
 export type PixGridAudioSource = PixGridReactionSource
 export type PixGridAnimationMode =
@@ -176,16 +185,41 @@ export type PixGridGeometricGroupPattern =
   | 'alternatingColumnsA' | 'alternatingColumnsB' | 'checkerboardA' | 'checkerboardB'
   | 'diagonalBands' | 'radialRings' | 'deterministicClusters'
 export type PixGridGroupOverlapBehavior = 'stack' | 'exclusive' | 'replace'
+export type PixGridReactionTargetScope =
+  | 'output' | 'scene' | 'layer' | 'group' | 'pixels' | 'background' | 'transition' | 'animation' | 'palette'
 export type PixGridReactionTarget =
-  | 'brightness' | 'paletteRole' | 'color' | 'opacity' | 'scale' | 'positionX' | 'positionY'
-  | 'reveal' | 'hide' | 'blink' | 'outlineFlash' | 'sparkle' | 'pixelDisplacement'
-  | 'frameAdvance' | 'animationSpeed' | 'directionReverse' | 'dissolveThreshold'
-  | 'invert' | 'posterize'
+  | 'brightness' | 'opacity' | 'globalIntensity' | 'glow' | 'contrast' | 'saturation' | 'threshold'
+  | 'paletteRole' | 'paletteIndex' | 'paletteCycle' | 'hueOffset' | 'invert' | 'posterize'
+  | 'highlightColor' | 'backgroundColor' | 'backgroundIntensity' | 'color'
+  | 'positionX' | 'positionY' | 'scale' | 'discreteRotation' | 'direction'
+  | 'animationSpeed' | 'frameIndex' | 'frameAdvance' | 'bounceAmount' | 'scrollRate' | 'pixelDisplacement'
+  | 'reveal' | 'hide' | 'blink' | 'dissolveThreshold' | 'sparkle' | 'sparkleDensity'
+  | 'outlineFlash' | 'outlineIntensity' | 'checkerAlternation' | 'rowRecruitment' | 'columnRecruitment'
+  | 'pixelScatter' | 'maskExpansion' | 'maskContraction'
+  | 'layerRecruitment' | 'groupRecruitment' | 'density' | 'freeze' | 'reverse'
+  | 'directionReverse' | 'sceneEmphasis' | 'transitionStrength'
 export type PixGridReactionRetrigger = 'restart' | 'extend' | 'ignoreWhileActive'
 export type PixGridReactionDecayCurve = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'exponential' | 'overshoot' | 'step' | 'stepped'
+export type PixGridReactionCurve = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'exponential' | 'logarithmic' | 'smoothstep' | 'stepped' | 'gate' | 'inverse'
+export type PixGridReactionPolarity = 'positive' | 'negative' | 'bipolar'
 export type PixGridReactionBlend = 'add' | 'multiply' | 'replace' | 'max'
-export type PixGridReactionCapabilityFallback = 'disable' | 'zero' | 'energy' | 'beat'
+export type PixGridReactionCapabilityFallback = 'disable' | 'zero' | 'energy' | 'beat' | 'midHighActivity' | 'transient'
 export type PixGridReactionQuantization = 'none' | 'beat' | 'bar' | 'fourBars' | 'eightBars' | 'sixteenBars'
+export type PixGridPhraseSegment = 'entry' | 'early' | 'middle' | 'late' | 'exit'
+
+export interface PixGridReactionConditions {
+  includeSectionTypes?: ReactSectionType[]
+  excludeSectionTypes?: ReactSectionType[]
+  sectionPhases?: Array<'entry' | 'body' | 'exit'>
+  sectionOccurrences?: number[]
+  dropOccurrences?: number[]
+  phraseSegments?: PixGridPhraseSegment[]
+  minimumEnergy?: number
+  maximumEnergy?: number
+  autoPerformanceOnly?: boolean
+  activeLayerId?: string | null
+  activeGroupId?: string | null
+}
 
 export interface PixGridReactionAssignment {
   id: string
@@ -193,8 +227,14 @@ export interface PixGridReactionAssignment {
   enabled: boolean
   source: PixGridReactionSource
   target: PixGridReactionTarget
+  targetScope?: PixGridReactionTargetScope
+  targetId?: string | null
   amount: number
+  polarity?: PixGridReactionPolarity
   invert: boolean
+  inputRange?: readonly [number, number]
+  outputRange?: readonly [number, number]
+  curve?: PixGridReactionCurve
   threshold: number
   /** Optional off-threshold distance used to prevent gate chatter. */
   hysteresis?: number
@@ -209,6 +249,8 @@ export interface PixGridReactionAssignment {
   eventPriority?: number
   minimumConfidence: number
   capabilityFallback: PixGridReactionCapabilityFallback
+  conditions?: PixGridReactionConditions
+  priority?: number
   clamp: readonly [number, number]
   blend: PixGridReactionBlend
   paletteRole?: PixGridPaletteRole
@@ -334,6 +376,8 @@ export interface PixGridState {
   scenes: PixGridScene[]
   layers: PixGridLayer[]
   groups: PixGridGroup[]
+  /** Versioned authored routes outside a specific group. Group-local routes remain on PixGridGroup.reactions. */
+  audioAssignments: PixGridReactionAssignment[]
   pixelOverrides: PixGridPixelOverride[]
   performance: PixGridPerformanceSettings
   conversion: PixGridConversionSettings
@@ -355,12 +399,22 @@ export interface PixGridAudioFrame {
   energy?: number
   trackRelativeEnergy?: number
   spectralFlux?: number
+  spectralBrightness?: number
   tension?: number
   complexity?: number
   buildProgress?: number
   sectionProgress?: number
   phraseProgress?: number
+  barProgress?: number
+  sectionRelativeEnergy?: number
+  sectionConfidence?: number
+  phraseConfidence?: number
   vocalEnergy?: number
+  vocalActivity?: number
+  drumActivity?: number
+  bassStemActivity?: number
+  melodyActivity?: number
+  semanticMomentStrength?: number
   downbeatHit?: boolean
   kickHit?: boolean
   snareHit?: boolean
@@ -370,19 +424,32 @@ export interface PixGridAudioFrame {
   fourBarBoundary?: boolean
   eightBarBoundary?: boolean
   sixteenBarBoundary?: boolean
+  phraseEntry?: boolean
   sectionEntry?: boolean
   sectionExit?: boolean
   dropImpactHit?: boolean
+  dropOccurrenceChange?: boolean
   semanticMomentHit?: boolean
+  trackMapCueEvent?: boolean
+  trackMapCueIdentity?: string | null
   beatIndex?: number
   barIndex?: number
+  phraseIndex?: number
   sectionOccurrence?: number
+  dropOccurrence?: number
+  sectionType?: ReactSectionType | null
+  sectionPhase?: 'none' | 'entry' | 'body' | 'exit'
+  phraseSegment?: PixGridPhraseSegment
+  autoPerformanceEnabled?: boolean
   deltaTimeSec?: number
   timingDiscontinuity?: boolean
   trackIdentity?: string | null
+  sourceValues?: Partial<Record<PixGridReactionSource, number>>
   capabilities?: Partial<Record<PixGridReactionSource, boolean>>
   confidence?: Partial<Record<PixGridReactionSource, number>>
+  eventIdentities?: Partial<Record<PixGridDiscreteAudioSource, string>>
 }
+
 
 export interface PixGridRendererDiagnostics {
   path: PixGridRendererPath

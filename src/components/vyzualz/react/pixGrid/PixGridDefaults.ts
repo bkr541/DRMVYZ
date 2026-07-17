@@ -92,6 +92,19 @@ export function createDefaultPixGridState(): PixGridState {
     reactions: group.reactions.map(reaction => ({
       ...reaction,
       clamp: [...reaction.clamp] as [number, number],
+      ...(reaction.inputRange ? { inputRange: [...reaction.inputRange] as [number, number] } : {}),
+      ...(reaction.outputRange ? { outputRange: [...reaction.outputRange] as [number, number] } : {}),
+      ...(reaction.conditions ? {
+        conditions: {
+          ...reaction.conditions,
+          ...(reaction.conditions.includeSectionTypes ? { includeSectionTypes: [...reaction.conditions.includeSectionTypes] } : {}),
+          ...(reaction.conditions.excludeSectionTypes ? { excludeSectionTypes: [...reaction.conditions.excludeSectionTypes] } : {}),
+          ...(reaction.conditions.sectionPhases ? { sectionPhases: [...reaction.conditions.sectionPhases] } : {}),
+          ...(reaction.conditions.sectionOccurrences ? { sectionOccurrences: [...reaction.conditions.sectionOccurrences] } : {}),
+          ...(reaction.conditions.dropOccurrences ? { dropOccurrences: [...reaction.conditions.dropOccurrences] } : {}),
+          ...(reaction.conditions.phraseSegments ? { phraseSegments: [...reaction.conditions.phraseSegments] } : {}),
+        },
+      } : {}),
     })),
     mask: group.mask.kind === 'runs'
       ? { kind: 'runs' as const, runs: [...group.mask.runs] }
@@ -141,6 +154,7 @@ export function createDefaultPixGridState(): PixGridState {
     scenes: defaultScenes,
     layers: defaultLayers,
     groups: defaultGroups,
+    audioAssignments: [],
     pixelOverrides: [],
     performance: {
       ...DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS,
