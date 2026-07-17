@@ -57,7 +57,7 @@ describe('LaserDMX WebGL beam render plan', () => {
     expect(plan.apertures).toHaveLength(1)
     expect(plan.apertures[0]?.id).toBe('fan-source-emitter')
     expect(plan.apertures[0]?.haloRadiusCssPx).toBeGreaterThan(plan.apertures[0]?.ringRadiusCssPx ?? 0)
-    expect(plan.beams.every(beam => beam.whiteHotMix > 0)).toBe(true)
+    expect(plan.beams.every(beam => beam.whiteHotMix >= 0 && beam.whiteHotMix <= 0.82)).toBe(true)
   })
 
   it('keeps deterministic ordering independent of incoming array order', () => {
@@ -141,4 +141,32 @@ describe('LaserDMX WebGL beam render plan', () => {
     expect(twoX.beams[0]?.bodyStartWidthCssPx).toBeCloseTo(oneX.beams[0]?.bodyStartWidthCssPx ?? 0, 8)
     expect(twoX.beams[0]?.envelopeEndWidthCssPx).toBeCloseTo(oneX.beams[0]?.envelopeEndWidthCssPx ?? 0, 8)
   })
+  it('excludes every nonlaser fixture from the sharp scanner persistence material', () => {
+    const showDirector = createDefaultLaserDmxShowDirectorState()
+    showDirector.fixtures = ['laser', 'movingHead', 'parWash', 'ledBar', 'ledTube', 'strobe', 'blinder', 'videoWall'].map((kind, index) => {
+      const fixture = createDefaultLaserDmxShowDirectorFixture(kind as Parameters<typeof createDefaultLaserDmxShowDirectorFixture>[0], `fixture-${kind}`, index)
+      fixture.brightness = 1
+      fixture.beam.beamEnabled = true
+      if (kind === 'laser') {
+        fixture.x = 7.125
+        fixture.y = 2.375
+        fixture.beam.targetMode = 'fan'
+        fixture.beam.beamSpread = 72
+        fixture.beam.focus = 0.96
+      }
+      return fixture
+    })
+    const frame = createLaserDmxSceneFrame({
+      showDirector,
+      evaluatedBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+      audioTimeSec: 1, deltaTimeSec: 1 / 60, isPlaying: true, timingDiscontinuity: false,
+      trackKey: 'laser-only-sharp-pass', bpm: 150, beatHit: true, downbeat: true,
+    })
+    const plan = buildLaserDmxWebGLBeamRenderPlan(frame, { backingWidth: 1280, backingHeight: 720, cssWidth: 1280, cssHeight: 720 })
+
+    expect(plan.beams.length).toBeGreaterThan(0)
+    expect(plan.beams.every(beam => beam.fixtureKind === 'laser' && beam.materialMode === 0)).toBe(true)
+    expect(plan.apertures.every(aperture => aperture.fixtureKind === 'laser' && aperture.shapeMode === 0)).toBe(true)
+  })
+
 })

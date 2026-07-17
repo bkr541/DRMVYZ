@@ -11,6 +11,7 @@ import {
   resolveLaserDmxAtmosphereQualityPolicy,
   resolveLaserDmxAtmosphereTargetSize,
   resolveLaserDmxDeterministicAtmosphereTime,
+  resolveLaserDmxViewSensitiveScatter,
 } from './LaserDmxWebGLAtmospherePlan'
 
 const VIEWPORT = {
@@ -213,4 +214,17 @@ describe('LaserDMX WebGL atmosphere compilation', () => {
     expect(plan.createsVenueGeometry).toBe(false)
     expect(frame.depthZones.every(zone => zone.visible === false)).toBe(true)
   })
+  it('uses a bounded view-sensitive phase response instead of uniform ribbon brightness', () => {
+    const origin = { x: 0, y: 0, z: 0 }
+    const camera = { x: 0, y: 0, z: 3 }
+    const towardCamera = resolveLaserDmxViewSensitiveScatter(origin, { x: 0, y: 0, z: 1 }, camera)
+    const sideView = resolveLaserDmxViewSensitiveScatter(origin, { x: 1, y: 0, z: 1 }, camera)
+    const awayFromCamera = resolveLaserDmxViewSensitiveScatter(origin, { x: 0, y: 0, z: -1 }, camera)
+
+    expect(towardCamera).toBeGreaterThan(sideView)
+    expect(sideView).toBeGreaterThan(awayFromCamera)
+    expect(awayFromCamera).toBeGreaterThanOrEqual(0.34)
+    expect(towardCamera).toBeLessThanOrEqual(2.35)
+  })
+
 })

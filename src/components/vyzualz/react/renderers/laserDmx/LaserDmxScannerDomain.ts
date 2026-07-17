@@ -3,6 +3,7 @@ import type {
   LaserDmxShowDirectorOpticalPrimitiveType,
   LaserDmxShowDirectorWebGLQuality,
 } from '../../ReactTypes'
+import { createLaserDmxOpticalCopies } from './LaserDmxFixtureOptics'
 
 export const LASER_DMX_SCANNER_DOMAIN_VERSION = 1
 
@@ -51,6 +52,12 @@ export interface LaserDmxScannerHead {
   retraceBlanking: boolean
   shutterExposureSeconds: number
   scanPhase: number
+  /** Energy and transform assigned to the direct optical output. Defaults preserve Patch 1 projects. */
+  directIntensityScale?: number
+  directRotationDeg?: number
+  directPitchDeg?: number
+  directOriginOffset?: LaserDmxScannerVec3
+  directSpectralChannel?: 'full' | 'red' | 'green' | 'blue'
 }
 
 export interface LaserDmxScanPoint {
@@ -88,6 +95,9 @@ export interface LaserDmxScannerOpticalCopy {
   opticalCopyIndex: number
   kind: 'prism' | 'diffraction' | 'beamSplitter' | 'multiEmitter'
   rotationDeg: number
+  pitchDeg?: number
+  originOffset?: LaserDmxScannerVec3
+  spectralChannel?: 'full' | 'red' | 'green' | 'blue'
   intensityScale: number
 }
 
@@ -524,21 +534,90 @@ export function createLaserDmxLegacyScannerPlan(input: CreateLaserDmxLegacyScann
   }
   path.validationErrors = validateLaserDmxScanPath(path)
 
+  const diffractionMode = input.fixture.optics.diffractionMode ?? 'none'
   const prismFacets = Math.max(1, Math.round(input.fixture.optics.prismFacets))
-  const copyCount = prismFacets > 1 ? prismFacets - 1 : 0
-  const opticalCopies = Array.from({ length: copyCount }, (_, index): LaserDmxScannerOpticalCopy => {
-    const centered = index - (copyCount - 1) / 2
-    const nonZeroCentered = centered >= 0 ? centered + 0.5 : centered - 0.5
+  const distribution = diffractionMode !== 'none'
+    ? diffractionMode
+    : prismFacets > 1
+      ? 'prism'
+      : 'prism'
+  const outputCount = diffractionMode !== 'none'
+    ? Math.max(1, input.fixture.optics.diffractionCopies ?? 1)
+    : prismFacets
+  const spreadDeg = diffractionMode === 'line'
+    ? clamp(input.fixture.optics.fanWidth * 0.22, 2, 24)
+    : diffractionMode === 'grid'
+      ? clamp(input.fixture.optics.fanWidth * 0.18, 2, 18)
+      : diffractionMode === 'burst'
+        ? clamp(input.fixture.optics.fanWidth * 0.24, 3, 28)
+        : prismFacets > 1
+          ? 5.5
+          : 0
+  const opticalDescriptors = createLaserDmxOpticalCopies({
+    distribution,
+    copyCount: outputCount,
+    spreadDeg,
+    totalEnergy: 1,
+    spectralSeparationDeg: input.fixture.optics.spectralSeparation ?? 0,
+  })
+  const apertureDescriptors = createLaserDmxOpticalCopies({
+    distribution: 'multiAperture',
+    copyCount: Math.max(1, input.fixture.optics.apertureCount ?? 1),
+    spreadDeg: 0,
+    totalEnergy: 1,
+    apertureSpacing: input.fixture.optics.apertureSpacing ?? 0.012,
+  })
+  const orientationRad = input.fixture.optics.prismRotation * Math.PI / 180
+  const combinedDescriptors = opticalDescriptors.flatMap(optical => apertureDescriptors.map(aperture => {
+    const yaw = optical.angularOffsetDeg.yaw * Math.cos(orientationRad) - optical.angularOffsetDeg.pitch * Math.sin(orientationRad)
+    const pitch = optical.angularOffsetDeg.yaw * Math.sin(orientationRad) + optical.angularOffsetDeg.pitch * Math.cos(orientationRad)
     return {
-      id: `${head.id}-prism-copy-${index + 1}`,
+      yaw,
+      pitch,
+      originOffset: aperture.originOffset,
+      spectralChannel: optical.spectralChannel,
+      intensityScale: optical.intensityScale * aperture.intensityScale,
+    }
+  }))
+  const directDescriptorIndex = combinedDescriptors.reduce((bestIndex, descriptor, index, all) => {
+    const score = Math.abs(descriptor.yaw) + Math.abs(descriptor.pitch)
+      + Math.hypot(descriptor.originOffset.x, descriptor.originOffset.y, descriptor.originOffset.z) * 10
+      + (descriptor.spectralChannel === 'full' || descriptor.spectralChannel === 'green' ? 0 : 0.01)
+    const best = all[bestIndex]!
+    const bestScore = Math.abs(best.yaw) + Math.abs(best.pitch)
+      + Math.hypot(best.originOffset.x, best.originOffset.y, best.originOffset.z) * 10
+      + (best.spectralChannel === 'full' || best.spectralChannel === 'green' ? 0 : 0.01)
+    return score < bestScore ? index : bestIndex
+  }, 0)
+  const directDescriptor = combinedDescriptors[directDescriptorIndex]
+  if (directDescriptor) {
+    head.directIntensityScale = directDescriptor.intensityScale
+    head.directRotationDeg = directDescriptor.yaw
+    head.directPitchDeg = directDescriptor.pitch
+    head.directOriginOffset = { ...directDescriptor.originOffset }
+    head.directSpectralChannel = directDescriptor.spectralChannel
+  }
+  const copyKind: LaserDmxScannerOpticalCopy['kind'] = (input.fixture.optics.apertureCount ?? 1) > 1
+    ? 'multiEmitter'
+    : diffractionMode !== 'none'
+      ? 'diffraction'
+      : prismFacets > 1
+        ? 'prism'
+        : 'beamSplitter'
+  const opticalCopies = combinedDescriptors
+    .filter((_, index) => index !== directDescriptorIndex)
+    .map((descriptor, index): LaserDmxScannerOpticalCopy => ({
+      id: `${head.id}-${copyKind}-copy-${index + 1}`,
       fixtureId: input.fixture.id,
       scannerHeadId: head.id,
       opticalCopyIndex: index + 1,
-      kind: 'prism',
-      rotationDeg: input.fixture.optics.prismRotation + nonZeroCentered * 5.5,
-      intensityScale: clamp(0.78 / Math.max(1, Math.sqrt(prismFacets)), 0.24, 0.62),
-    }
-  })
+      kind: copyKind,
+      rotationDeg: descriptor.yaw,
+      pitchDeg: descriptor.pitch,
+      originOffset: { ...descriptor.originOffset },
+      spectralChannel: descriptor.spectralChannel,
+      intensityScale: descriptor.intensityScale,
+    }))
 
   return { heads: [head], paths: [path], opticalCopies }
 }
@@ -752,20 +831,48 @@ function evaluateTimeline(
   }
 }
 
-function rotateTargetAroundOrigin(
+function resolveOpticalRay(
   origin: LaserDmxScannerVec3,
   target: LaserDmxScannerVec3,
-  rotationDeg: number,
-): LaserDmxScannerVec3 {
-  if (Math.abs(rotationDeg) < 1e-7) return { ...target }
-  const radians = rotationDeg * Math.PI / 180
-  const dx = target.x - origin.x
-  const dy = target.y - origin.y
-  return {
-    x: origin.x + dx * Math.cos(radians) - dy * Math.sin(radians),
-    y: origin.y + dx * Math.sin(radians) + dy * Math.cos(radians),
-    z: target.z,
+  rotationDeg = 0,
+  pitchDeg = 0,
+  originOffset: LaserDmxScannerVec3 = { x: 0, y: 0, z: 0 },
+): { origin: LaserDmxScannerVec3; target: LaserDmxScannerVec3 } {
+  const shiftedOrigin = {
+    x: origin.x + originOffset.x,
+    y: origin.y + originOffset.y,
+    z: origin.z + originOffset.z,
   }
+  const shiftedTarget = {
+    x: target.x + originOffset.x,
+    y: target.y + originOffset.y,
+    z: target.z + originOffset.z,
+  }
+  const yaw = rotationDeg * Math.PI / 180
+  const pitch = pitchDeg * Math.PI / 180
+  const dx = shiftedTarget.x - shiftedOrigin.x
+  const dy = shiftedTarget.y - shiftedOrigin.y
+  const dz = shiftedTarget.z - shiftedOrigin.z
+  const yawX = dx * Math.cos(yaw) - dy * Math.sin(yaw)
+  const yawY = dx * Math.sin(yaw) + dy * Math.cos(yaw)
+  return {
+    origin: shiftedOrigin,
+    target: {
+      x: shiftedOrigin.x + yawX,
+      y: shiftedOrigin.y + yawY * Math.cos(pitch) - dz * Math.sin(pitch),
+      z: shiftedOrigin.z + yawY * Math.sin(pitch) + dz * Math.cos(pitch),
+    },
+  }
+}
+
+function resolveSpectralColor(
+  color: LaserDmxScannerColorChannels,
+  channel: 'full' | 'red' | 'green' | 'blue' = 'full',
+): LaserDmxScannerColorChannels {
+  if (channel === 'red') return { r: color.r, g: 0, b: 0, a: color.a }
+  if (channel === 'green') return { r: 0, g: color.g, b: 0, a: color.a }
+  if (channel === 'blue') return { r: 0, g: 0, b: color.b, a: color.a }
+  return { ...color }
 }
 
 export function evaluateLaserDmxScannerAtTime(
@@ -791,24 +898,59 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
 
   for (const head of input.heads) {
     const path = pathByHead.get(head.id)
-    const origin = input.originByFixtureId.get(head.fixtureId)
-    if (!path || !origin || path.validationErrors.length > 0) continue
+    const baseOrigin = input.originByFixtureId.get(head.fixtureId)
+    if (!path || !baseOrigin || path.validationErrors.length > 0) continue
+    const copies = copiesByHead.get(head.id) ?? []
+    const directScale = clamp01(head.directIntensityScale ?? 1)
+    const directRay = (target: LaserDmxScannerVec3) => resolveOpticalRay(
+      baseOrigin,
+      target,
+      head.directRotationDeg ?? 0,
+      head.directPitchDeg ?? 0,
+      head.directOriginOffset,
+    )
+    const copyRay = (target: LaserDmxScannerVec3, copy: LaserDmxScannerOpticalCopy) => resolveOpticalRay(
+      baseOrigin,
+      target,
+      copy.rotationDeg,
+      copy.pitchDeg ?? 0,
+      copy.originOffset,
+    )
+
     const current = evaluateTimeline(head, path, input.audioTimeSec, input.bpm)
     if (current) {
+      const resolved = directRay(current.target)
       instantaneousRays.push({
         scannerHeadId: head.id,
         fixtureId: head.fixtureId,
-        origin: { ...origin },
-        targetOrDirection: { ...current.target },
+        origin: resolved.origin,
+        targetOrDirection: resolved.target,
         sampleTime: input.audioTimeSec,
-        intensity: clamp01(current.intensity),
-        color: { ...current.color },
+        intensity: clamp01(current.intensity * directScale),
+        color: resolveSpectralColor(current.color, head.directSpectralChannel),
         blanked: current.blanked,
         opticalCopyIndex: 0,
         pathId: current.pathId,
         pointIndex: current.pointIndex,
         velocityRatio: current.velocityRatio,
       })
+      for (const copy of copies) {
+        const copied = copyRay(current.target, copy)
+        instantaneousRays.push({
+          scannerHeadId: head.id,
+          fixtureId: head.fixtureId,
+          origin: copied.origin,
+          targetOrDirection: copied.target,
+          sampleTime: input.audioTimeSec,
+          intensity: clamp01(current.intensity * copy.intensityScale),
+          color: resolveSpectralColor(current.color, copy.spectralChannel),
+          blanked: current.blanked,
+          opticalCopyIndex: copy.opticalCopyIndex,
+          pathId: current.pathId,
+          pointIndex: current.pointIndex,
+          velocityRatio: current.velocityRatio,
+        })
+      }
     }
 
     const sampleCount = QUALITY_EXPOSURE_SAMPLES[input.quality]
@@ -828,80 +970,48 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
       directSamples.push({ evaluation, sampleTime: Math.max(0, sampleTime), rawWeight: velocityWeight })
     }
     const totalRawWeight = directSamples.reduce((sum, sample) => sum + sample.rawWeight, 0) || 1
-    const copies = copiesByHead.get(head.id) ?? []
+
+    const appendSample = (
+      sample: { evaluation: LaserDmxScannerEvaluation; sampleTime: number },
+      exposureWeight: number,
+      opticalCopyIndex: number,
+      intensityScale: number,
+      spectralChannel: 'full' | 'red' | 'green' | 'blue' | undefined,
+      resolved: { origin: LaserDmxScannerVec3; target: LaserDmxScannerVec3 },
+      blanked: boolean,
+    ) => exposureSamples.push({
+      scannerHeadId: head.id,
+      fixtureId: head.fixtureId,
+      origin: resolved.origin,
+      targetOrDirection: resolved.target,
+      sampleTime: sample.sampleTime,
+      exposureWeight: blanked ? 0 : exposureWeight,
+      intensity: blanked ? 0 : clamp01(sample.evaluation.intensity * intensityScale),
+      color: resolveSpectralColor(sample.evaluation.color, spectralChannel),
+      blanked,
+      opticalCopyIndex,
+      pathId: sample.evaluation.pathId,
+      pointIndex: sample.evaluation.pointIndex,
+      velocityRatio: sample.evaluation.velocityRatio,
+    })
+
     for (const sample of blankedSamples) {
-      exposureSamples.push({
-        scannerHeadId: head.id,
-        fixtureId: head.fixtureId,
-        origin: { ...origin },
-        targetOrDirection: { ...sample.evaluation.target },
-        sampleTime: sample.sampleTime,
-        exposureWeight: 0,
-        intensity: 0,
-        color: { ...sample.evaluation.color },
-        blanked: true,
-        opticalCopyIndex: 0,
-        pathId: sample.evaluation.pathId,
-        pointIndex: sample.evaluation.pointIndex,
-        velocityRatio: sample.evaluation.velocityRatio,
-      })
+      appendSample(sample, 0, 0, directScale, head.directSpectralChannel, directRay(sample.evaluation.target), true)
       for (const copy of copies) {
-        exposureSamples.push({
-          scannerHeadId: head.id,
-          fixtureId: head.fixtureId,
-          origin: { ...origin },
-          targetOrDirection: rotateTargetAroundOrigin(origin, sample.evaluation.target, copy.rotationDeg),
-          sampleTime: sample.sampleTime,
-          exposureWeight: 0,
-          intensity: 0,
-          color: { ...sample.evaluation.color },
-          blanked: true,
-          opticalCopyIndex: copy.opticalCopyIndex,
-          pathId: sample.evaluation.pathId,
-          pointIndex: sample.evaluation.pointIndex,
-          velocityRatio: sample.evaluation.velocityRatio,
-        })
+        appendSample(sample, 0, copy.opticalCopyIndex, copy.intensityScale, copy.spectralChannel, copyRay(sample.evaluation.target, copy), true)
       }
     }
     for (const sample of directSamples) {
-      const directWeight = sample.rawWeight / totalRawWeight
-      exposureSamples.push({
-        scannerHeadId: head.id,
-        fixtureId: head.fixtureId,
-        origin: { ...origin },
-        targetOrDirection: { ...sample.evaluation.target },
-        sampleTime: sample.sampleTime,
-        exposureWeight: directWeight,
-        intensity: clamp01(sample.evaluation.intensity),
-        color: { ...sample.evaluation.color },
-        blanked: false,
-        opticalCopyIndex: 0,
-        pathId: sample.evaluation.pathId,
-        pointIndex: sample.evaluation.pointIndex,
-        velocityRatio: sample.evaluation.velocityRatio,
-      })
+      const exposureWeight = sample.rawWeight / totalRawWeight
+      appendSample(sample, exposureWeight, 0, directScale, head.directSpectralChannel, directRay(sample.evaluation.target), false)
       for (const copy of copies) {
-        exposureSamples.push({
-          scannerHeadId: head.id,
-          fixtureId: head.fixtureId,
-          origin: { ...origin },
-          targetOrDirection: rotateTargetAroundOrigin(origin, sample.evaluation.target, copy.rotationDeg),
-          sampleTime: sample.sampleTime,
-          exposureWeight: directWeight,
-          intensity: clamp01(sample.evaluation.intensity * copy.intensityScale),
-          color: { ...sample.evaluation.color },
-          blanked: false,
-          opticalCopyIndex: copy.opticalCopyIndex,
-          pathId: sample.evaluation.pathId,
-          pointIndex: sample.evaluation.pointIndex,
-          velocityRatio: sample.evaluation.velocityRatio,
-        })
+        appendSample(sample, exposureWeight, copy.opticalCopyIndex, copy.intensityScale, copy.spectralChannel, copyRay(sample.evaluation.target, copy), false)
       }
     }
   }
 
   exposureSamples.sort((a, b) => a.sampleTime - b.sampleTime || a.scannerHeadId.localeCompare(b.scannerHeadId) || a.opticalCopyIndex - b.opticalCopyIndex)
-  instantaneousRays.sort((a, b) => a.scannerHeadId.localeCompare(b.scannerHeadId))
+  instantaneousRays.sort((a, b) => a.scannerHeadId.localeCompare(b.scannerHeadId) || a.opticalCopyIndex - b.opticalCopyIndex)
   return { instantaneousRays, exposureSamples, blankedSampleCount }
 }
 

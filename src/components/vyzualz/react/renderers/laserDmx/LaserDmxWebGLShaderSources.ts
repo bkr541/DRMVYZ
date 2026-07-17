@@ -56,52 +56,13 @@ void main() {
 
 export const BEAM_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
-in float vAcross;
-in float vAlong;
 in float vBodyRatio;
 in vec2 vCapsuleCoordPx;
 flat in vec4 vColor;
 flat in vec4 vOptics;
 flat in vec4 vExtra;
-flat in vec4 vFixture;
-flat in vec4 vPrism;
 flat in vec4 vCoverage;
 out vec4 outColor;
-const float PI = 3.14159265359;
-mat2 rotate2(float angle) {
-  float c = cos(angle);
-  float s = sin(angle);
-  return mat2(c, -s, s, c);
-}
-float sdStar(vec2 p, float points, float innerRadius) {
-  float angle = atan(p.y, p.x);
-  float radius = length(p);
-  float spoke = 0.5 + 0.5 * cos(angle * points);
-  float boundary = mix(innerRadius, 1.0, pow(spoke, 2.4));
-  return 1.0 - smoothstep(boundary - 0.08, boundary + 0.04, radius);
-}
-float goboMask(vec2 p, float pattern, float phase) {
-  if (pattern < 0.5) return 1.0;
-  float radius = length(p);
-  if (pattern < 1.5) return 1.0 - smoothstep(0.72, 0.88, radius);
-  if (pattern < 2.5) {
-    vec2 cells = abs(fract((p + 1.0) * 2.5) - 0.5);
-    return 1.0 - smoothstep(0.18, 0.28, length(cells));
-  }
-  if (pattern < 3.5) return 1.0 - smoothstep(0.2, 0.34, abs(sin((p.x + phase * 0.15) * 10.0)));
-  if (pattern < 4.5) {
-    float triangle = max(abs(p.x) * 0.86 + p.y * 0.5, -p.y);
-    return 1.0 - smoothstep(0.58, 0.72, triangle);
-  }
-  if (pattern < 5.5) return sdStar(p, 5.0, 0.38);
-  if (pattern < 6.5) {
-    float breakup = sin(p.x * 8.0 + phase * 2.0) * sin(p.y * 11.0 - phase * 1.3) + sin((p.x + p.y) * 15.0);
-    return smoothstep(-0.15, 0.42, breakup);
-  }
-  if (pattern < 7.5) return smoothstep(0.15, 0.8, abs(sin(atan(p.y, p.x) * 7.0 + phase))) * (1.0 - smoothstep(0.82, 0.94, radius));
-  vec2 grid = abs(sin((p + phase * 0.035) * 11.0));
-  return max(smoothstep(0.82, 0.96, grid.x), smoothstep(0.82, 0.96, grid.y));
-}
 float capsuleDistance(vec2 localPx, float segmentLength) {
   float closestX = clamp(localPx.x, 0.0, segmentLength);
   return length(vec2(localPx.x - closestX, localPx.y));
@@ -112,53 +73,30 @@ float analyticCoverage(float distancePx, float radiusPx, float minimumCoverage) 
   return 1.0 - smoothstep(coverageRadius - aa, coverageRadius + aa, distancePx);
 }
 void main() {
-  float lateral = abs(vAcross);
   float intensity = vOptics.x;
   float coreIntensity = vOptics.y;
-  float hotMix = vOptics.z;
+  float hotMix = clamp(vOptics.z, 0.0, 0.82);
   float opacity = vOptics.w;
-  float materialMode = vExtra.z;
-  float softness = clamp(vExtra.w, 0.0, 1.0);
-  vec3 saturated = vColor.rgb;
-  vec3 paleCore = mix(saturated, vec3(1.0), 0.08 + hotMix * 0.46);
-  vec3 energy;
-  if (materialMode < 0.5) {
-    float segmentLength = max(0.0001, vCoverage.x);
-    float closestX = clamp(vCapsuleCoordPx.x, 0.0, segmentLength);
-    float alongT = clamp(closestX / segmentLength, 0.0, 1.0);
-    float bodyRadius = mix(vCoverage.y, vCoverage.z, alongT);
-    float distancePx = capsuleDistance(vCapsuleCoordPx, segmentLength);
-    float body = analyticCoverage(distancePx, bodyRadius, 0.68);
-    float core = analyticCoverage(distancePx, max(0.22, bodyRadius * 0.28), 0.5);
-    float hot = analyticCoverage(distancePx, max(0.14, bodyRadius * 0.1), 0.42) * hotMix;
-    float envelopeRadius = max(bodyRadius * 2.2, bodyRadius / max(vBodyRatio, 0.02));
-    float envelope = exp(-pow(distancePx / max(0.75, envelopeRadius), 2.0) * 3.2) * vExtra.x;
-    float endpointFade = smoothstep(-0.5, 0.5, vCapsuleCoordPx.x + bodyRadius)
-      * (1.0 - smoothstep(segmentLength - bodyRadius, segmentLength + bodyRadius + 0.5, vCapsuleCoordPx.x));
-    float sourceLift = 1.0 - smoothstep(0.0, max(1.0, segmentLength * 0.12), closestX);
-    energy = saturated * envelope * intensity * 0.34;
-    energy += saturated * body * intensity * 0.94;
-    energy += paleCore * core * coreIntensity * (0.58 + sourceLift * 0.08);
-    energy += vec3(1.0) * hot * intensity * 0.96;
-    energy *= endpointFade;
-  } else {
-    float envelope = exp(-lateral * lateral * 4.8) * vExtra.x;
-    float iris = clamp(vFixture.z, 0.05, 1.0);
-    float frost = clamp(vFixture.w, 0.0, 1.0);
-    float edge = materialMode < 1.5 ? mix(0.84, 0.3, softness) * iris : mix(0.64, 0.2, softness);
-    float cone = 1.0 - smoothstep(edge, 1.0, lateral);
-    float center = exp(-lateral * lateral * mix(8.6, 2.0, softness + frost * 0.5));
-    float longitudinal = smoothstep(0.0, 0.035, vAlong) * (1.0 - smoothstep(0.965, 1.0, vAlong));
-    vec2 projected = rotate2(vFixture.y) * vec2(vAcross / max(0.18, iris), (vAlong - 0.72) * 2.4);
-    float projectedMask = goboMask(projected, vFixture.x, vPrism.w * 6.2831853);
-    float gobo = materialMode < 1.5 ? mix(1.0, projectedMask, clamp(vExtra.y, 0.0, 1.0)) : 1.0;
-    float field = cone * longitudinal * gobo;
-    energy = saturated * field * intensity * (materialMode < 1.5 ? 0.76 : 0.48);
-    energy += (materialMode < 1.5 ? paleCore : saturated)
-      * center * field * coreIntensity * (materialMode < 1.5 ? 0.54 : 0.1);
-    energy += saturated * envelope * intensity * (materialMode < 1.5 ? 0.16 + frost * 0.16 : 0.3);
-  }
-  outColor = vec4(energy * opacity, 1.0);
+  float segmentLength = max(0.0001, vCoverage.x);
+  float closestX = clamp(vCapsuleCoordPx.x, 0.0, segmentLength);
+  float alongT = clamp(closestX / segmentLength, 0.0, 1.0);
+  float bodyRadius = mix(vCoverage.y, vCoverage.z, alongT);
+  float distancePx = capsuleDistance(vCapsuleCoordPx, segmentLength);
+  float body = analyticCoverage(distancePx, bodyRadius, 0.68);
+  float core = analyticCoverage(distancePx, max(0.22, bodyRadius * 0.28), 0.5);
+  float hot = analyticCoverage(distancePx, max(0.14, bodyRadius * 0.1), 0.42) * hotMix;
+  float envelopeRadius = max(bodyRadius * 2.2, bodyRadius / max(vBodyRatio, 0.02));
+  float envelope = exp(-pow(distancePx / max(0.75, envelopeRadius), 2.0) * 3.2) * vExtra.x;
+  float endpointFade = smoothstep(-0.5, 0.5, vCapsuleCoordPx.x + bodyRadius)
+    * (1.0 - smoothstep(segmentLength - bodyRadius, segmentLength + bodyRadius + 0.5, vCapsuleCoordPx.x));
+  float sourceLift = 1.0 - smoothstep(0.0, max(1.0, segmentLength * 0.12), closestX);
+  vec3 paleCore = mix(vColor.rgb, vec3(max(max(vColor.r, vColor.g), vColor.b) * 1.08 + 0.08), hotMix);
+  vec3 energy = vColor.rgb * envelope * intensity * 0.34;
+  energy += vColor.rgb * body * intensity * 0.94;
+  energy += paleCore * core * coreIntensity * (0.58 + sourceLift * 0.08);
+  energy += vec3(1.0) * hot * intensity * 0.72;
+  energy *= endpointFade;
+  outColor = vec4(max(energy, vec3(0.0)) * opacity, 1.0);
 }`
 
 export const APERTURE_VERTEX_SHADER = `#version 300 es
@@ -203,71 +141,170 @@ in vec2 vLocal;
 flat in vec4 vColor;
 flat in vec4 vRadii;
 flat in vec2 vGlareDirection;
+out vec4 outColor;
+void main() {
+  float radius = length(vLocal);
+  if (radius > 1.0) discard;
+  float coreRatio = clamp(vRadii.x / max(vRadii.z, 0.001), 0.02, 0.9);
+  float ringRatio = clamp(vRadii.y / max(vRadii.z, 0.001), coreRatio, 0.96);
+  float intensity = vRadii.w;
+  float core = exp(-pow(radius / max(coreRatio, 0.001), 2.0) * 3.8);
+  float ring = (1.0 - smoothstep(ringRatio * 0.72, ringRatio, radius)) * smoothstep(coreRatio * 0.88, coreRatio * 1.42, radius);
+  float halo = exp(-radius * radius * 4.6);
+  vec2 localDirection = radius > 0.0001 ? vLocal / radius : vec2(1.0, 0.0);
+  float glareAxis = abs(dot(localDirection, normalize(vGlareDirection)));
+  float glare = pow(glareAxis, 24.0) * exp(-radius * 6.2) * smoothstep(1.5, 3.2, intensity) * 0.1;
+  float peak = max(max(vColor.r, vColor.g), vColor.b);
+  vec3 pale = mix(vColor.rgb, vec3(peak * 1.08 + 0.08), clamp((intensity - 1.0) / 2.0, 0.0, 0.72));
+  vec3 energy = vColor.rgb * halo * intensity * 0.16;
+  energy += vColor.rgb * ring * intensity * 0.32;
+  energy += pale * core * intensity * 0.9;
+  energy += pale * glare * intensity;
+  outColor = vec4(max(energy, vec3(0.0)), 0.0);
+}`
+
+export const MOVING_HEAD_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in float vAcross;
+in float vAlong;
+flat in vec4 vColor;
+flat in vec4 vOptics;
+flat in vec4 vExtra;
+flat in vec4 vFixture;
+out vec4 outColor;
+const float PI = 3.14159265359;
+mat2 rotate2(float angle) { float c = cos(angle); float s = sin(angle); return mat2(c, -s, s, c); }
+float sdStar(vec2 p, float points, float innerRadius) {
+  float angle = atan(p.y, p.x); float radius = length(p);
+  float spoke = 0.5 + 0.5 * cos(angle * points);
+  float boundary = mix(innerRadius, 1.0, pow(spoke, 2.4));
+  return 1.0 - smoothstep(boundary - 0.08, boundary + 0.04, radius);
+}
+float goboMask(vec2 p, float pattern, float phase) {
+  if (pattern < 0.5) return 1.0;
+  float radius = length(p);
+  if (pattern < 1.5) return 1.0 - smoothstep(0.72, 0.88, radius);
+  if (pattern < 2.5) { vec2 cells = abs(fract((p + 1.0) * 2.5) - 0.5); return 1.0 - smoothstep(0.18, 0.28, length(cells)); }
+  if (pattern < 3.5) return 1.0 - smoothstep(0.2, 0.34, abs(sin((p.x + phase * 0.15) * 10.0)));
+  if (pattern < 4.5) { float triangle = max(abs(p.x) * 0.86 + p.y * 0.5, -p.y); return 1.0 - smoothstep(0.58, 0.72, triangle); }
+  if (pattern < 5.5) return sdStar(p, 5.0, 0.38);
+  if (pattern < 6.5) { float breakup = sin(p.x * 8.0 + phase * 2.0) * sin(p.y * 11.0 - phase * 1.3) + sin((p.x + p.y) * 15.0); return smoothstep(-0.15, 0.42, breakup); }
+  if (pattern < 7.5) return smoothstep(0.15, 0.8, abs(sin(atan(p.y, p.x) * 7.0 + phase))) * (1.0 - smoothstep(0.82, 0.94, radius));
+  vec2 grid = abs(sin((p + phase * 0.035) * 11.0));
+  return max(smoothstep(0.82, 0.96, grid.x), smoothstep(0.82, 0.96, grid.y));
+}
+void main() {
+  float lateral = abs(vAcross);
+  float intensity = vOptics.x;
+  float hotspot = clamp(vOptics.y, 0.0, 1.0);
+  float edgeSoftness = clamp(vOptics.z, 0.02, 0.98);
+  float focus = clamp(vOptics.w, 0.0, 1.0);
+  float goboAmount = clamp(vExtra.x, 0.0, 1.0);
+  float frost = clamp(vExtra.y, 0.0, 1.0);
+  float iris = clamp(vFixture.z, 0.05, 1.0);
+  float edge = mix(0.92, 0.38, edgeSoftness) * iris;
+  float cone = 1.0 - smoothstep(edge, 1.0, lateral);
+  float sourceGate = smoothstep(0.0, 0.025, vAlong);
+  float targetGate = 1.0 - smoothstep(0.94, 1.0, vAlong);
+  vec2 projected = rotate2(vFixture.y) * vec2(vAcross / max(0.16, iris), (vAlong - 0.78) * mix(3.0, 1.5, frost));
+  float gobo = mix(1.0, goboMask(projected, vFixture.x, vFixture.y), goboAmount * smoothstep(0.35, 0.9, vAlong));
+  float hotspotField = exp(-lateral * lateral * mix(3.2, 11.0, hotspot * focus));
+  float field = cone * sourceGate * targetGate * gobo;
+  vec3 energy = vColor.rgb * field * intensity * 0.72;
+  energy += vColor.rgb * hotspotField * field * intensity * 0.42;
+  energy += vColor.rgb * exp(-lateral * lateral * 2.2) * frost * intensity * 0.18;
+  outColor = vec4(max(energy, vec3(0.0)), 0.0);
+}`
+
+export const WASH_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in float vAcross;
+in float vAlong;
+flat in vec4 vColor;
+flat in vec4 vOptics;
+flat in vec4 vExtra;
+out vec4 outColor;
+void main() {
+  float lateral = abs(vAcross);
+  float intensity = vOptics.x;
+  float edgeSoftness = clamp(vOptics.z, 0.35, 1.0);
+  float frost = clamp(vExtra.y, 0.0, 1.0);
+  float cone = 1.0 - smoothstep(mix(0.72, 0.28, edgeSoftness), 1.0, lateral);
+  float longitudinal = smoothstep(0.0, 0.04, vAlong) * (1.0 - smoothstep(0.92, 1.0, vAlong));
+  float center = exp(-lateral * lateral * mix(1.8, 0.8, frost));
+  vec3 energy = vColor.rgb * cone * longitudinal * intensity * 0.46;
+  energy += vColor.rgb * center * longitudinal * intensity * 0.24;
+  outColor = vec4(max(energy, vec3(0.0)), 0.0);
+}`
+
+export const LED_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vLocal;
+flat in vec4 vColor;
+flat in vec4 vRadii;
 flat in vec4 vShape;
 flat in vec4 vBehavior;
 out vec4 outColor;
 void main() {
-  float shapeMode = vShape.x;
-  float radius = length(vLocal);
   float boxDistance = max(abs(vLocal.x), abs(vLocal.y));
-  bool rectangular = (shapeMode >= 0.5 && shapeMode < 3.5) || (shapeMode > 4.5 && shapeMode < 5.5);
-  if (rectangular && boxDistance > 1.0) discard;
-  if (!rectangular && radius > 1.0) discard;
-  float coreRatio = clamp(vRadii.x / max(vRadii.z, 0.001), 0.02, 0.9);
-  float ringRatio = clamp(vRadii.y / max(vRadii.z, 0.001), coreRatio, 0.96);
-  float intensity = vRadii.w;
-  float core = exp(-pow(radius / max(coreRatio, 0.001), 2.0) * 3.6);
-  float ring = (1.0 - smoothstep(ringRatio * 0.72, ringRatio, radius)) * smoothstep(coreRatio * 0.88, coreRatio * 1.42, radius);
-  float halo = exp(-radius * radius * 4.2);
-  vec2 localDirection = radius > 0.0001 ? vLocal / radius : vec2(1.0, 0.0);
-  float glareAxis = abs(dot(localDirection, normalize(vGlareDirection)));
-  float glare = pow(glareAxis, 22.0) * exp(-radius * 5.8) * 0.12;
-  vec3 energy;
-  if (shapeMode < 0.5) {
-    energy = vColor.rgb * halo * intensity * 0.18;
-    energy += vColor.rgb * ring * intensity * 0.34;
-    energy += mix(vColor.rgb, vec3(1.0), 0.7) * core * intensity * 0.92;
-    energy += mix(vColor.rgb, vec3(1.0), 0.48) * glare * intensity;
-  } else if (shapeMode < 2.5) {
-    float cells = max(1.0, vShape.z);
-    float cellUv = (vLocal.x * 0.5 + 0.5) * cells;
-    float cell = floor(cellUv);
-    float localCell = fract(cellUv);
-    float behavior = vBehavior.y;
-    float chaseHead = fract(vShape.w * 0.32);
-    float chaseDistance = abs(fract(cell / cells - chaseHead + 0.5) - 0.5) * 2.0;
-    float chase = exp(-chaseDistance * chaseDistance * 28.0);
-    float segmented = 1.0 - smoothstep(0.42, 0.49, abs(localCell - 0.5));
-    float gradient = 0.45 + 0.55 * (vLocal.x * 0.5 + 0.5);
-    float pixel = behavior < 0.5 ? 1.0 : behavior < 1.5 ? segmented : behavior < 2.5 ? segmented * (0.22 + chase * 0.98) : segmented * gradient;
-    float strip = shapeMode < 1.5
-      ? 1.0 - smoothstep(0.56, 1.0, abs(vLocal.y))
-      : 1.0 - smoothstep(0.72, 1.0, length(vec2(max(abs(vLocal.x) - 0.82, 0.0), vLocal.y)));
-    float edgeGlow = exp(-boxDistance * boxDistance * 2.8);
-    energy = vColor.rgb * intensity * (strip * pixel + edgeGlow * 0.14);
-  } else if (shapeMode < 3.5) {
-    float panel = 1.0 - smoothstep(0.72, 1.0, boxDistance);
-    energy = mix(vColor.rgb, vec3(1.0), 0.78) * panel * intensity * 1.34;
-  } else if (shapeMode < 4.5) {
-    float warmCore = exp(-radius * radius * 3.1);
-    energy = mix(vColor.rgb, vec3(1.0, 0.78, 0.48), 0.34) * warmCore * intensity * 1.18;
-    energy += vColor.rgb * halo * intensity * 0.38;
-  } else if (shapeMode < 5.5) {
-    float wall = 1.0 - smoothstep(0.72, 1.0, boxDistance);
-    float variant = vBehavior.z;
-    float scan = variant < 0.5
-      ? 0.86 + 0.14 * sin((vLocal.y + vShape.w) * 42.0)
-      : variant < 1.5
-        ? 0.55 + 0.45 * sin((vLocal.x * 2.0 + vLocal.y + vShape.w) * 9.0)
-        : variant < 2.5
-          ? 0.72 + 0.28 * sin((vLocal.x + vShape.w) * 24.0) * sin((vLocal.y - vShape.w) * 18.0)
-          : 0.68 + 0.32 * sin((length(vLocal) - vShape.w) * 22.0);
-    energy = vColor.rgb * wall * scan * intensity * 0.78;
-  } else {
-    float nozzle = exp(-radius * radius * 4.8);
-    energy = mix(vColor.rgb, vec3(1.0), 0.6) * nozzle * intensity * 0.46;
-  }
-  outColor = vec4(energy, 0.0);
+  if (boxDistance > 1.0) discard;
+  float cells = max(1.0, vShape.z);
+  float cellUv = (vLocal.x * 0.5 + 0.5) * cells;
+  float localCell = fract(cellUv);
+  float segmented = 1.0 - smoothstep(0.42, 0.49, abs(localCell - 0.5));
+  float chaseHead = fract(vShape.w * 0.32);
+  float chaseDistance = abs(fract(floor(cellUv) / cells - chaseHead + 0.5) - 0.5) * 2.0;
+  float chase = exp(-chaseDistance * chaseDistance * 28.0);
+  float behavior = vBehavior.y;
+  float gradient = 0.45 + 0.55 * (vLocal.x * 0.5 + 0.5);
+  float pixel = behavior < 0.5 ? 1.0 : behavior < 1.5 ? segmented : behavior < 2.5 ? segmented * (0.2 + chase) : segmented * gradient;
+  float strip = 1.0 - smoothstep(0.58, 1.0, abs(vLocal.y));
+  float localBloom = exp(-boxDistance * boxDistance * 2.8);
+  vec3 energy = vColor.rgb * vRadii.w * (strip * pixel + localBloom * 0.12);
+  outColor = vec4(max(energy, vec3(0.0)), 0.0);
+}`
+
+export const FLASH_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vLocal;
+flat in vec4 vColor;
+flat in vec4 vRadii;
+flat in vec4 vShape;
+out vec4 outColor;
+void main() {
+  float radius = length(vLocal);
+  if (radius > 1.0) discard;
+  float warmth = clamp(vShape.x, 0.0, 1.0);
+  float source = exp(-radius * radius * mix(5.8, 3.0, warmth));
+  float atmospherePulse = exp(-radius * radius * 1.4) * vShape.y;
+  vec3 authored = mix(vColor.rgb, vec3(1.0, 0.72, 0.38), warmth * 0.42);
+  vec3 energy = authored * source * vRadii.w * 1.18 + authored * atmospherePulse * vRadii.w * 0.2;
+  outColor = vec4(max(energy, vec3(0.0)), 0.0);
+}`
+
+export const VIDEO_SURFACE_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 vLocal;
+flat in vec4 vColor;
+flat in vec4 vRadii;
+flat in vec4 vShape;
+flat in vec4 vBehavior;
+out vec4 outColor;
+void main() {
+  float boxDistance = max(abs(vLocal.x), abs(vLocal.y));
+  if (boxDistance > 1.0) discard;
+  float panel = 1.0 - smoothstep(0.76, 1.0, boxDistance);
+  float variant = vBehavior.z;
+  float phase = vShape.w;
+  float imageSignal = variant < 0.5
+    ? 0.82 + 0.18 * sin((vLocal.y + phase) * 42.0)
+    : variant < 1.5
+      ? 0.55 + 0.45 * sin((vLocal.x * 2.0 + vLocal.y + phase) * 9.0)
+      : variant < 2.5
+        ? 0.72 + 0.28 * sin((vLocal.x + phase) * 24.0) * sin((vLocal.y - phase) * 18.0)
+        : 0.68 + 0.32 * sin((length(vLocal) - phase) * 22.0);
+  vec3 energy = vColor.rgb * panel * imageSignal * vRadii.w * 0.74;
+  outColor = vec4(max(energy, vec3(0.0)), 0.0);
 }`
 
 export const ATMOSPHERE_VERTEX_SHADER = `#version 300 es
@@ -436,6 +473,7 @@ void main() {
   lightColor *= mix(vec3(1.0), normalize(max(lightColor, vec3(0.001))) * 0.82, absorption * 0.28);
   float alongFade = smoothstep(0.0, 0.018, vAlong) * (1.0 - smoothstep(0.95, 1.0, vAlong));
   float scatter = density * beamEnvelope * alongFade * vScatter.x * vScatter.w;
+  scatter *= clamp(vDepth.z, 0.3, 2.4) * clamp(vDepth.w, 0.55, 1.15);
   scatter *= uAtmosphere.y * uQuality.w * (0.72 + uDrift.z * 0.4);
   vec3 energy = lightColor * scatter * mix(1.25, 1.02, vDepth.x);
   float extinction = 1.0 - exp(-density * beamEnvelope * vDepth.y * uDepthSlice.z * uAtmosphere.y * 0.34);
@@ -638,17 +676,6 @@ void main() {
   vec3 currentScene = max(texture(uSceneTexture, vUv).rgb, vec3(0.0));
   vec3 temporalScene = max(texture(uTemporalTexture, vUv).rgb, vec3(0.0));
   vec3 scene = max(currentScene, temporalScene * step(0.5, uTemporalEnabled));
-  float chromaticMask = smoothstep(uOptics1.x, uOptics1.x * 1.28 + 0.001, luminance(scene));
-  vec2 radial = vUv - 0.5;
-  radial = length(radial) > 0.0001 ? normalize(radial) : vec2(1.0, 0.0);
-  vec2 chromaticShift = radial * px * uOptics1.y * chromaticMask;
-  vec3 separated = vec3(
-    texture(uSceneTexture, clamp(vUv + chromaticShift, vec2(0.0), vec2(1.0))).r,
-    scene.g,
-    texture(uSceneTexture, clamp(vUv - chromaticShift, vec2(0.0), vec2(1.0))).b
-  );
-  scene = mix(scene, separated, chromaticMask);
-
   vec3 bloom = texture(uBloom0, vUv).rgb * uBloomWeights.x;
   bloom += texture(uBloom1, vUv).rgb * uBloomWeights.y;
   bloom += texture(uBloom2, vUv).rgb * uBloomWeights.z;
@@ -667,10 +694,10 @@ void main() {
   star += brightOnly(texture(uSceneTexture, vUv + vec2(-starStep.x, starStep.y)).rgb, uOptics0.x);
   glare = glare * uOptics0.y + star * uOptics0.w * 0.16;
 
-  float spectralMask = smoothstep(uOptics1.x * 1.18, uOptics1.x * 1.8 + 0.001, luminance(scene));
-  vec3 spectralEdge = vec3(separated.r, scene.g * 0.96, separated.b) - scene;
+  // Prism, diffraction, and restrained spectral separation are generated at
+  // fixture level before this pass. The photographic pass never offsets full
+  // screen color channels.
   vec3 color = scene + bloom * uBloomStrength + glare;
-  color += spectralEdge * spectralMask * uOptics1.z;
   color *= uExposureWashout.x;
   float bloomLuma = luminance(bloom);
   color += vec3(uExposureWashout.y * uExposureWashout.y * 0.008);
@@ -698,6 +725,11 @@ export function getLaserDmxWebGLShaderProgramSources(): LaserDmxWebGLShaderProgr
   return [
     { label: 'sharp-beam', vertSrc: BEAM_VERTEX_SHADER, fragSrc: BEAM_FRAGMENT_SHADER },
     { label: 'projector-aperture', vertSrc: APERTURE_VERTEX_SHADER, fragSrc: APERTURE_FRAGMENT_SHADER },
+    { label: 'moving-head-cone', vertSrc: BEAM_VERTEX_SHADER, fragSrc: MOVING_HEAD_FRAGMENT_SHADER },
+    { label: 'wash-field', vertSrc: BEAM_VERTEX_SHADER, fragSrc: WASH_FRAGMENT_SHADER },
+    { label: 'led-emitter', vertSrc: APERTURE_VERTEX_SHADER, fragSrc: LED_FRAGMENT_SHADER },
+    { label: 'strobe-blinder-source', vertSrc: APERTURE_VERTEX_SHADER, fragSrc: FLASH_FRAGMENT_SHADER },
+    { label: 'video-surface', vertSrc: APERTURE_VERTEX_SHADER, fragSrc: VIDEO_SURFACE_FRAGMENT_SHADER },
     { label: 'atmospheric-scatter', vertSrc: ATMOSPHERE_VERTEX_SHADER, fragSrc: ATMOSPHERE_FRAGMENT_SHADER },
     { label: 'foreground-veil', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: FOREGROUND_FRAGMENT_SHADER },
     { label: 'atmosphere-composite', vertSrc: FULLSCREEN_VERTEX_SHADER, fragSrc: COMPOSITE_FRAGMENT_SHADER },

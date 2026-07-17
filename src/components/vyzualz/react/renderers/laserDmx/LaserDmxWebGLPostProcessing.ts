@@ -128,8 +128,8 @@ const QUALITY_POLICIES: Readonly<Record<Exclude<LaserDmxShowDirectorWebGLQuality
     glareStrength: 0.14,
     glareStreakPx: 3.1,
     glareStarStrength: 0.055,
-    chromaticAmountPx: 0.42,
-    spectralEdgeStrength: 0.035,
+    chromaticAmountPx: 0,
+    spectralEdgeStrength: 0,
   }),
   ultra: Object.freeze({
     levelCount: 4,
@@ -140,8 +140,8 @@ const QUALITY_POLICIES: Readonly<Record<Exclude<LaserDmxShowDirectorWebGLQuality
     glareStrength: 0.18,
     glareStreakPx: 4,
     glareStarStrength: 0.08,
-    chromaticAmountPx: 0.62,
-    spectralEdgeStrength: 0.05,
+    chromaticAmountPx: 0,
+    spectralEdgeStrength: 0,
   }),
 })
 
@@ -344,11 +344,11 @@ export function resolveLaserDmxWebGLPostProcessPlan(
     0,
     0.42,
   )
-  const chromaticAmountPx = clamp(
-    policy.chromaticAmountPx * (0.3 + opticalFlash * 0.9) * editAttenuation,
-    0,
-    0.85,
-  )
+  // Patch 3 moves spectral separation into explicit fixture optics. Fullscreen
+  // channel offsets are intentionally disabled so they cannot impersonate a
+  // prism or diffraction grating. Keep the fields for serialized diagnostic
+  // compatibility with the previous post-processing plan.
+  const chromaticAmountPx = 0
 
   return {
     quality,

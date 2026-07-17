@@ -31,9 +31,9 @@ describe('LaserDMX beam optics', () => {
     const medium = resolveLaserDmxWhiteHotMix(0.78, 0.8)
     const hot = resolveLaserDmxWhiteHotMix(1, 1)
     expect(dim).toBe(0)
-    expect(medium).toBeGreaterThan(dim)
+    expect(medium).toBe(0)
     expect(hot).toBeGreaterThan(medium)
-    expect(hot).toBeCloseTo(1, 8)
+    expect(hot).toBeLessThanOrEqual(0.82)
   })
 
   it('classifies coherent fan, bank, mirror, cross, and layered structures', () => {

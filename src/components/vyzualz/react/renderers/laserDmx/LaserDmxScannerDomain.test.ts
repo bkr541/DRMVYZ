@@ -187,7 +187,7 @@ describe('LaserDMX physical scanner domain', () => {
     expect(diffracted.opticalCopies).toHaveLength(2)
   })
 
-  it('creates one instantaneous physical ray per scanner head while exposure integrates the path', () => {
+  it('creates one instantaneous physical ray per normal scanner head while exposure integrates the path', () => {
     const migrated = planFor(fixture('single-head', 'Wide Fan'), targets([[0.2, 0.8], [0.5, 0.9], [0.8, 0.8]]), 'fan')
     const solved = solveLaserDmxScannerExposure({
       ...migrated,
@@ -339,7 +339,7 @@ describe('LaserDMX physical scanner domain', () => {
     expect(late?.target.x).toBeCloseTo(0.9, 4)
   })
 
-  it('adds explicit prism copies without multiplying scanner heads or instantaneous base rays', () => {
+  it('adds explicit prism copies without multiplying scanner heads and exposes every instantaneous optical output', () => {
     const source = fixture('prism', 'Prism Fan')
     source.optics.prismFacets = 5
     const migrated = planFor(source, targets([[0.2, 0.8], [0.8, 0.8]]), 'fan')
@@ -352,7 +352,7 @@ describe('LaserDMX physical scanner domain', () => {
     })
     expect(migrated.heads).toHaveLength(1)
     expect(migrated.opticalCopies).toHaveLength(4)
-    expect(solved.instantaneousRays).toHaveLength(1)
+    expect(solved.instantaneousRays).toHaveLength(5)
     expect(new Set(solved.exposureSamples.map(sample => sample.opticalCopyIndex))).toEqual(new Set([0, 1, 2, 3, 4]))
   })
 
@@ -417,4 +417,72 @@ describe('LaserDMX physical scanner domain', () => {
     expect(reset.exposureSamples).toEqual(baseline.exposureSamples)
     expect(reset.scanPaths).toEqual(baseline.scanPaths)
   })
+  it.each([
+    ['line', 5],
+    ['grid', 9],
+    ['burst', 7],
+  ] as const)('compiles %s diffraction into explicit energy-conserving scanner outputs', (mode, outputCount) => {
+    const source = fixture(`diffraction-${mode}`, `${mode} diffraction`)
+    source.optics.diffractionMode = mode
+    source.optics.diffractionCopies = outputCount
+    source.optics.fanWidth = 54
+    const migrated = planFor(source, targets([[0.5, 0.85]]), 'parallelBank')
+    const totalScale = (migrated.heads[0]?.directIntensityScale ?? 0)
+      + migrated.opticalCopies.reduce((sum, copy) => sum + copy.intensityScale, 0)
+    const solved = solveLaserDmxScannerExposure({
+      ...migrated,
+      originByFixtureId: new Map([[source.id, ORIGIN]]),
+      audioTimeSec: 1,
+      bpm: 150,
+      quality: 'low',
+    })
+
+    expect(migrated.opticalCopies).toHaveLength(outputCount - 1)
+    expect(migrated.opticalCopies.every(copy => copy.kind === 'diffraction')).toBe(true)
+    expect(totalScale).toBeCloseTo(1, 6)
+    expect(solved.instantaneousRays).toHaveLength(outputCount)
+    expect(new Set(solved.instantaneousRays.map(ray => `${ray.targetOrDirection.x.toFixed(5)}:${ray.targetOrDirection.y.toFixed(5)}:${ray.targetOrDirection.z.toFixed(5)}`)).size)
+      .toBe(outputCount)
+  })
+
+  it('separates RGB at fixture level and preserves bounded optical power', () => {
+    const source = fixture('spectral', 'Restrained RGB')
+    source.optics.diffractionMode = 'line'
+    source.optics.diffractionCopies = 2
+    source.optics.spectralSeparation = 0.25
+    const migrated = planFor(source, targets([[0.5, 0.85]]), 'parallelBank')
+    const solved = solveLaserDmxScannerExposure({
+      ...migrated,
+      originByFixtureId: new Map([[source.id, ORIGIN]]),
+      audioTimeSec: 1,
+      bpm: 150,
+      quality: 'low',
+    })
+    const totalIntensity = solved.instantaneousRays.reduce((sum, ray) => sum + ray.intensity, 0)
+    const channelSignatures = new Set(solved.instantaneousRays.map(ray => `${ray.color.r > 0 ? 'r' : ''}${ray.color.g > 0 ? 'g' : ''}${ray.color.b > 0 ? 'b' : ''}`))
+
+    expect(solved.instantaneousRays).toHaveLength(6)
+    expect(channelSignatures).toEqual(new Set(['r', 'g', 'b']))
+    expect(totalIntensity).toBeCloseTo(1, 6)
+  })
+
+  it('uses distinct emitter origins for multiple physical apertures', () => {
+    const source = fixture('multi-aperture', 'Three Apertures')
+    source.optics.apertureCount = 3
+    source.optics.apertureSpacing = 0.025
+    const migrated = planFor(source, targets([[0.5, 0.85]]), 'parallelBank')
+    const solved = solveLaserDmxScannerExposure({
+      ...migrated,
+      originByFixtureId: new Map([[source.id, ORIGIN]]),
+      audioTimeSec: 1,
+      bpm: 150,
+      quality: 'low',
+    })
+
+    expect(migrated.opticalCopies).toHaveLength(2)
+    expect(migrated.opticalCopies.every(copy => copy.kind === 'multiEmitter')).toBe(true)
+    expect(new Set(solved.instantaneousRays.map(ray => ray.origin.x.toFixed(5))).size).toBe(3)
+    expect(solved.instantaneousRays.reduce((sum, ray) => sum + ray.intensity, 0)).toBeCloseTo(1, 6)
+  })
+
 })

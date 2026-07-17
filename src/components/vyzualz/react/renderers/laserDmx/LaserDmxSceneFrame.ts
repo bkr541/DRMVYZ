@@ -48,6 +48,11 @@ import {
   resolveLaserDmxOpticalPrimitiveType,
 } from './LaserDmxOpticalPrimitives'
 import {
+  calibrateLaserDmxChannels,
+  parseLaserDmxSrgbHex,
+  resolveLaserDmxFixtureCalibration,
+} from './LaserDmxColorScience'
+import {
   createLaserDmxLegacyScannerPlan,
   createLaserDmxScannerDiagnostics,
   solveLaserDmxScannerExposure,
@@ -593,25 +598,22 @@ function targetsForFixture(
 }
 
 function colorFromHex(value: string, fallback: string): LaserDmxSceneColor {
-  const match = /^#?([0-9a-f]{6})$/i.exec(value.trim()) ?? /^#?([0-9a-f]{6})$/i.exec(fallback)
-  const hex = match?.[1] ?? '4ac7db'
-  return {
-    r: parseInt(hex.slice(0, 2), 16) / 255,
-    g: parseInt(hex.slice(2, 4), 16) / 255,
-    b: parseInt(hex.slice(4, 6), 16) / 255,
-    a: 1,
-  }
+  return parseLaserDmxSrgbHex(value, fallback)
 }
 
-function colorFromMatrix(color: LaserDmxMatrixBeamColor | undefined, fallback: LaserDmxSceneColor): LaserDmxSceneColor {
+function colorFromMatrix(
+  color: LaserDmxMatrixBeamColor | undefined,
+  fallback: LaserDmxSceneColor,
+  fixtureKind: LaserDmxShowDirectorFixtureKind,
+): LaserDmxSceneColor {
   if (!color) return fallback
-  const white = clamp01(finite(color.white, 0) / 255)
-  return {
-    r: clamp01(finite(color.red, fallback.r * 255) / 255 + white),
-    g: clamp01(finite(color.green, fallback.g * 255) / 255 + white),
-    b: clamp01(finite(color.blue, fallback.b * 255) / 255 + white),
-    a: clamp01(finite(color.alpha, fallback.a)),
-  }
+  const calibrated = calibrateLaserDmxChannels({
+    red: finite(color.red, 0),
+    green: finite(color.green, 0),
+    blue: finite(color.blue, 0),
+    white: finite(color.white, 0),
+  }, resolveLaserDmxFixtureCalibration(fixtureKind))
+  return { ...calibrated, a: clamp01(finite(color.alpha, fallback.a)) }
 }
 
 function safeIdPart(value: string): string {
@@ -1203,7 +1205,7 @@ export function resolveLaserDmxSceneFrameOutput(
     const matrixIntensity = matrixBeams.length > 0
       ? Math.max(...matrixBeams.map(beam => clamp01(beam.appearance.dimmer)))
       : fixture.intensity
-    const color = colorFromMatrix(matrixBeams.find(beam => beam.enabled)?.color, fixture.color)
+    const color = colorFromMatrix(matrixBeams.find(beam => beam.enabled)?.color, fixture.color, fixture.kind)
     const matrixStrobeRate = matrixBeams.reduce(
       (maximum, beam) => Math.max(maximum, clamp01(beam.appearance.strobeRate)),
       0,
@@ -1229,7 +1231,7 @@ export function resolveLaserDmxSceneFrameOutput(
     const intensity = enabled ? clamp01((matrixBeam?.appearance.dimmer ?? beam.intensity) * masterDimmer) : 0
     const focus = clamp01(matrixBeam?.appearance.focus ?? beam.focus)
     const visualRole = matrixBeam?.visualRole ?? beam.visualRole
-    const color = colorFromMatrix(matrixBeam?.color, fixture?.color ?? beam.color)
+    const color = colorFromMatrix(matrixBeam?.color, fixture?.color ?? beam.color, beam.fixtureKind)
     const optical = resolveLaserDmxBeamOpticalProfile({
       fixtureKind: beam.fixtureKind,
       intensity,

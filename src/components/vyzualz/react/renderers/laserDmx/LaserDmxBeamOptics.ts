@@ -1,3 +1,4 @@
+import { resolveLaserDmxHighlightWhitening } from './LaserDmxColorScience'
 import type {
   LaserDmxMatrixBeamVisualRole,
   LaserDmxShowDirectorBeamTargetMode,
@@ -138,8 +139,7 @@ export function resolveLaserDmxBeamStructure(input: {
 }
 
 export function resolveLaserDmxWhiteHotMix(intensity: number, coreIntensity: number): number {
-  const energy = clamp01(intensity) * (0.55 + clamp01(coreIntensity) * 0.45)
-  return smoothstep(0.68, 0.96, energy)
+  return resolveLaserDmxHighlightWhitening(intensity, coreIntensity)
 }
 
 export function resolveLaserDmxCoreIntensity(intensity: number, focus: number, visualRole: LaserDmxMatrixBeamVisualRole): number {

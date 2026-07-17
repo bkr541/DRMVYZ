@@ -9,6 +9,7 @@ import {
 import { compileLaserDmxShowDirectorToBeamMatrix } from '../LaserDmxShowDirectorBeamMatrixCompiler'
 import { resolveLaserDmxBeamOpticalProfile } from './LaserDmxBeamOptics'
 import { createLaserDmxSceneFrame } from './LaserDmxSceneFrame'
+import { buildLaserDmxDedicatedFixtureRenderPlan } from './LaserDmxDedicatedFixturePlan'
 import { buildLaserDmxWebGLBeamRenderPlan } from './LaserDmxWebGLBeamPlan'
 
 const KINDS: readonly LaserDmxShowDirectorFixtureKind[] = [
@@ -94,50 +95,49 @@ describe('LaserDMX fixture-specific WebGL optics', () => {
     expect(wash.scatterEnvelopeWidth).toBeGreaterThan(laser.scatterEnvelopeWidth)
   })
 
-  it('compiles line-capable fixtures to separate shader materials and physical sources to distinct aperture shapes', () => {
+  it('routes lasers and every nonlaser fixture through genuinely separated render plans', () => {
     const frame = createFixtureScene()
-    const plan = buildLaserDmxWebGLBeamRenderPlan(frame, {
-      backingWidth: 1920,
-      backingHeight: 1080,
-      cssWidth: 960,
-      cssHeight: 540,
-    })
-    expect(new Set(plan.beams.map(beam => beam.materialMode))).toEqual(new Set([0, 1, 2]))
-    const laserBeams = plan.beams.filter(beam => beam.id.startsWith('fixture-laser'))
-    expect(laserBeams.find(beam => beam.prismAmount === 0)).toMatchObject({ goboAmount: 0, prismFacetCount: 1 })
-    expect(laserBeams.some(beam => beam.prismAmount === 1 && beam.prismFacetCount === 2)).toBe(true)
-    expect(plan.beams.find(beam => beam.id.startsWith('fixture-movingHead'))).toMatchObject({
-      goboAmount: 0.75,
-      goboPattern: 5,
-      iris: 0.72,
-      frost: 0.09,
-      prismAmount: 1,
-      prismFacetCount: 5,
-    })
-    expect(plan.beams.filter(beam => beam.historyEligible).every(beam => beam.fixtureKind === 'laser')).toBe(true)
-    expect(plan.beams.some(beam => beam.fixtureKind === 'movingHead' && beam.historyEligible)).toBe(false)
-    expect(plan.laserHistoryBeamCount).toBe(plan.beams.filter(beam => beam.fixtureKind === 'laser').length)
-    expect(new Set(plan.apertures.map(aperture => aperture.shapeMode))).toEqual(new Set([0, 1, 2, 3, 4, 5, 6]))
-    expect(plan.apertures.find(aperture => aperture.id.startsWith('fixture-ledBar'))).toMatchObject({ behaviorMode: 2, segments: 16 })
-    expect(plan.apertures.find(aperture => aperture.id.startsWith('fixture-ledTube'))?.rotationRad).toBeCloseTo(Math.PI / 2, 6)
-    expect(plan.apertures.find(aperture => aperture.id.startsWith('fixture-videoWall'))).toMatchObject({ shapeMode: 5, sourceVariant: 2 })
-    expect(plan.beams.some(beam => beam.id.startsWith('fixture-strobe'))).toBe(false)
-    expect(plan.beams.some(beam => beam.id.startsWith('fixture-ledBar'))).toBe(false)
+    const viewport = { backingWidth: 1920, backingHeight: 1080, cssWidth: 960, cssHeight: 540 }
+    const laserPlan = buildLaserDmxWebGLBeamRenderPlan(frame, viewport)
+    const fixturePlan = buildLaserDmxDedicatedFixtureRenderPlan(frame, viewport)
+
+    expect(new Set(laserPlan.beams.map(beam => beam.materialMode))).toEqual(new Set([0]))
+    expect(laserPlan.beams.every(beam => beam.fixtureKind === 'laser')).toBe(true)
+    expect(laserPlan.beams.filter(beam => beam.historyEligible).every(beam => beam.fixtureKind === 'laser')).toBe(true)
+    expect(laserPlan.laserHistoryBeamCount).toBe(laserPlan.beams.length)
+    expect(laserPlan.apertures.every(aperture => aperture.fixtureKind === 'laser' && aperture.shapeMode === 0)).toBe(true)
+
+    expect(fixturePlan.movingHeads).toHaveLength(5)
+    expect(fixturePlan.movingHeads.every(head => head.goboPattern === 5 && head.goboAmount === 0.75)).toBe(true)
+    expect(fixturePlan.movingHeads.every(head => head.iris === 0.72 && head.frost === 0.09)).toBe(true)
+    expect(fixturePlan.washes).toHaveLength(1)
+    expect(fixturePlan.leds.find(led => led.id.startsWith('fixture-ledBar'))).toMatchObject({ behavior: 2, segments: 16 })
+    expect(fixturePlan.leds.find(led => led.id.startsWith('fixture-ledTube'))?.rotationRad).toBeCloseTo(Math.PI / 2, 6)
+    expect(fixturePlan.videoSurfaces.find(surface => surface.id.startsWith('fixture-videoWall'))).toMatchObject({ sourceVariant: 2 })
+    expect(fixturePlan.flashes.some(flash => flash.kind === 'strobe')).toBe(true)
+    expect(fixturePlan.flashes.some(flash => flash.kind === 'blinder')).toBe(true)
+    expect(fixturePlan.universalRibbonFixtureCount).toBe(0)
   })
 
-  it('degrades prism copies and depth work predictably without changing sharp-core quality semantics', () => {
+  it('quality-scales moving-head prism work without changing sharp laser core semantics', () => {
     const frame = createFixtureScene()
     const viewport = { backingWidth: 1280, backingHeight: 720, cssWidth: 1280, cssHeight: 720 }
-    const ultra = buildLaserDmxWebGLBeamRenderPlan(frame, viewport)
-    const low = buildLaserDmxWebGLBeamRenderPlan({
+    const ultraLaser = buildLaserDmxWebGLBeamRenderPlan(frame, viewport)
+    const ultraFixtures = buildLaserDmxDedicatedFixtureRenderPlan(frame, viewport)
+    const lowFrame = {
       ...frame,
-      quality: { ...frame.quality, qualityTier: 'low' },
-      atmosphere: { ...frame.atmosphere, qualityTier: 'low' },
-    }, viewport)
-    expect(ultra.depthPolicy.sliceCount).toBeGreaterThan(low.depthPolicy.sliceCount)
-    expect(Math.max(...ultra.beams.filter(beam => beam.fixtureKind === 'movingHead').map(beam => beam.prismFacetCount))).toBe(5)
-    expect(Math.max(...low.beams.filter(beam => beam.fixtureKind === 'movingHead').map(beam => beam.prismFacetCount))).toBeLessThanOrEqual(3)
-    expect(low.beams.every(beam => beam.coreIntensity >= 0 && beam.coreIntensity <= 1)).toBe(true)
+      quality: { ...frame.quality, qualityTier: 'low' as const },
+      atmosphere: { ...frame.atmosphere, qualityTier: 'low' as const },
+    }
+    const lowLaser = buildLaserDmxWebGLBeamRenderPlan(lowFrame, viewport)
+    const lowFixtures = buildLaserDmxDedicatedFixtureRenderPlan(lowFrame, viewport)
+
+    expect(ultraLaser.depthPolicy.sliceCount).toBeGreaterThan(lowLaser.depthPolicy.sliceCount)
+    expect(ultraFixtures.movingHeads).toHaveLength(5)
+    expect(lowFixtures.movingHeads).toHaveLength(3)
+    expect(lowLaser.beams.every(beam => beam.coreIntensity >= 0 && beam.coreIntensity <= 1)).toBe(true)
+    expect(lowFixtures.movingHeads.reduce((sum, head) => sum + head.intensity, 0))
+      .toBeCloseTo(ultraFixtures.movingHeads.reduce((sum, head) => sum + head.intensity, 0), 5)
   })
 
   it('emits deterministic CO₂ atmosphere, transient events, and partial beam occlusion', () => {

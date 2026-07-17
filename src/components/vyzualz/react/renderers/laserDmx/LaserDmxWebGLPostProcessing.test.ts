@@ -172,7 +172,7 @@ describe('LaserDMX WebGL photographic post-processing', () => {
     expect(plan.toneMapping.highlightDesaturation).toBeLessThan(0.25)
   })
 
-  it('thresholds chromatic optics by quality and attenuates glare in Edit mode', () => {
+  it('keeps fixture optics out of fullscreen post and attenuates glare in Edit mode', () => {
     const low = resolveLaserDmxWebGLPostProcessPlan(
       createPostFrame({ quality: 'low', strobe: true }),
       HDR_STRATEGY,
@@ -191,10 +191,10 @@ describe('LaserDMX WebGL photographic post-processing', () => {
 
     expect(low.optics.chromaticAmountPx).toBe(0)
     expect(live.optics.chromaticThreshold).toBeGreaterThan(2)
-    expect(live.optics.chromaticAmountPx).toBeGreaterThan(0)
-    expect(live.optics.chromaticAmountPx).toBeLessThan(1)
+    expect(live.optics.chromaticAmountPx).toBe(0)
+    expect(live.optics.spectralEdgeStrength).toBe(0)
     expect(edit.optics.glareStrength).toBeLessThan(live.optics.glareStrength)
-    expect(edit.optics.chromaticAmountPx).toBeLessThan(live.optics.chromaticAmountPx)
+    expect(edit.optics.chromaticAmountPx).toBe(0)
   })
 
   it('reports the lower-dynamic-range plan through diagnostics-compatible configuration', () => {

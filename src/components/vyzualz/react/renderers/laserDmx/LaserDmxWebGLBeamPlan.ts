@@ -1,8 +1,4 @@
-import type {
-  LaserDmxShowDirectorGoboPattern,
-  LaserDmxShowDirectorVideoWallSource,
-  LaserDmxShowDirectorWebGLQuality,
-} from '../../ReactTypes'
+import type { LaserDmxShowDirectorWebGLQuality } from '../../ReactTypes'
 import {
   LASER_DMX_VISUAL_ROLE_PRIORITY,
   resolveLaserDmxWhiteHotMix,
@@ -78,6 +74,8 @@ export interface LaserDmxWebGLBeamInstance {
 
 export interface LaserDmxWebGLApertureInstance {
   id: string
+  fixtureId: string
+  fixtureKind: 'laser'
   position: LaserDmxSceneVec3
   color: LaserDmxSceneColor
   intensity: number
@@ -154,29 +152,6 @@ const QUALITY_POLICIES: Readonly<
     envelopeComplexity: 0.82,
     maxPrismCopies: 3,
   },
-})
-
-const GOBO_PATTERN_INDEX: Readonly<
-  Record<LaserDmxShowDirectorGoboPattern, number>
-> = Object.freeze({
-  open: 0,
-  circle: 1,
-  dots: 2,
-  bars: 3,
-  triangle: 4,
-  star: 5,
-  breakup: 6,
-  radial: 7,
-  grid: 8,
-})
-
-const VIDEO_SOURCE_INDEX: Readonly<
-  Record<LaserDmxShowDirectorVideoWallSource, 0 | 1 | 2 | 3>
-> = Object.freeze({
-  placeholder: 0,
-  reactVisual: 1,
-  media: 2,
-  camera: 3,
 })
 
 function clamp(value: number, min: number, max: number): number {
@@ -461,41 +436,6 @@ function rotateProjectedTarget(
   }
 }
 
-function prismOffsets(
-  facets: number,
-  maxCopies: number,
-  spreadRad: number,
-  rotationRad: number,
-): number[] {
-  const count = Math.max(
-    1,
-    Math.min(maxCopies, facets >= 5 ? 5 : facets >= 3 ? 3 : 1),
-  )
-  if (count === 1) return [0]
-  return Array.from({ length: count }, (_, index) => {
-    const centered = index - (count - 1) * 0.5
-    return (
-      centered * spreadRad +
-      Math.sin(rotationRad + index * 2.399963) * spreadRad * 0.14
-    )
-  })
-}
-
-function ledBehaviorMode(
-  direction: LaserDmxSceneFrame['fixtures'][number]['component']['ledDirection'],
-  cells: number,
-): 0 | 1 | 2 | 3 {
-  if (cells <= 1) return 0
-  if (
-    direction === 'chase' ||
-    direction === 'leftToRight' ||
-    direction === 'rightToLeft'
-  )
-    return 2
-  if (direction === 'centerOut' || direction === 'edgesIn') return 3
-  return 1
-}
-
 export function buildLaserDmxWebGLBeamRenderPlan(
   frame: LaserDmxSceneFrame,
   viewport: LaserDmxWebGLViewport,
@@ -520,13 +460,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
     ReturnType<typeof clipLaserDmxSceneSegment>
   >()
   const visible = frame.beams.filter((beam) => {
-    if (!beam.enabled || beam.intensity <= 0.001) return false
-    if (
-      beam.fixtureKind !== 'laser' &&
-      beam.fixtureKind !== 'movingHead' &&
-      beam.fixtureKind !== 'parWash'
-    )
-      return false
+    if (!beam.enabled || beam.intensity <= 0.001 || beam.fixtureKind !== 'laser') return false
     if (beam.fixtureKind === 'laser' && scannerFixtureIds.has(beam.fixtureId))
       return false
     const clipped = clipLaserDmxSceneSegment(
@@ -598,47 +532,23 @@ export function buildLaserDmxWebGLBeamRenderPlan(
       1.22,
     )
     const fixture = fixtureById.get(beam.fixtureId)
-    const materialMode =
-      beam.fixtureKind === 'laser'
-        ? 0
-        : beam.fixtureKind === 'movingHead'
-          ? 1
-          : 2
-    const zoom =
-      fixture?.optics.zoom ??
-      (materialMode === 1 ? 0.45 : materialMode === 2 ? 0.78 : 0.2)
+    const materialMode: 0 = 0
     const iris = fixture?.optics.iris ?? 1
     const frost = fixture?.optics.frost ?? 0
-    const coneScale =
-      materialMode === 1
-        ? (0.58 + zoom * 1.18) * (0.3 + iris * 0.7)
-        : materialMode === 2
-          ? 1.25 + zoom * 0.95
-          : 1
     const baseWidth = clamp(
       (0.42 + beam.width * 0.58) *
         globalWidth *
         focusTightening *
         instability.widthMultiplier *
-        depthScale *
-        coneScale,
+        depthScale,
       0.35,
-      materialMode === 2 ? 24 : materialMode === 1 ? 16 : 9,
+      9,
     )
-    const bodyStartWidth =
-      baseWidth * (materialMode === 1 ? 0.42 : materialMode === 2 ? 0.58 : 1)
+    const bodyStartWidth = baseWidth
     const bodyEndWidth = clamp(
-      baseWidth *
-        (1 +
-          beam.divergence *
-            (materialMode === 0 ? 0.2 : materialMode === 1 ? 1.45 : 2.1) +
-          distanceFactor * 0.07),
+      baseWidth * (1 + beam.divergence * 0.2 + distanceFactor * 0.07),
       bodyStartWidth,
-      materialMode === 2
-        ? baseWidth * 3.4
-        : materialMode === 1
-          ? baseWidth * 2.8
-          : baseWidth * 1.38,
+      baseWidth * 1.38,
     )
     const scatterBase = baseWidth * beam.scatterEnvelopeWidth
     const envelopeStartWidth = clamp(
@@ -654,27 +564,19 @@ export function buildLaserDmxWebGLBeamRenderPlan(
           atmosphere * 0.24 +
           frost * 0.7),
       envelopeStartWidth,
-      materialMode === 2 ? 120 : 72,
+      72,
     )
     const authoredIntensity = clamp(
       beam.intensity * (0.72 + glow * 0.62) * instability.intensityMultiplier,
       0,
       2.4,
     )
-    const goboRotationRad =
-      ((fixture?.optics.goboRotation ?? 0) * Math.PI) / 180 +
-      frame.transport.audioTimeSec *
-        (fixture?.component.movingHeadPanTiltStyle === 'snap' ? 0 : 0.24)
-    const prismRotationRad =
-      ((fixture?.optics.prismRotation ?? 0) * Math.PI) / 180 +
-      frame.transport.audioTimeSec * 0.16
-    const prismFacets = fixture?.optics.prismFacets ?? 1
-    const offsets = prismOffsets(
-      prismFacets,
-      policy.maxPrismCopies,
-      materialMode === 0 ? 0.012 : 0.035 + zoom * 0.028,
-      prismRotationRad,
-    )
+    // Prism, diffraction, spectral separation, and multi-aperture copies are
+    // explicit scanner-domain rays. The sharp pass never invents screen-space copies.
+    const offsets = [0]
+    const goboRotationRad = 0
+    const prismRotationRad = 0
+    const prismFacets = 1
 
     for (let copyIndex = 0; copyIndex < offsets.length; copyIndex += 1) {
       const copyTarget = rotateProjectedTarget(
@@ -682,8 +584,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         unstableTarget,
         offsets[copyIndex]!,
       )
-      const copyEnergy =
-        offsets.length === 1 ? 1 : 0.72 / Math.sqrt(offsets.length)
+      const copyEnergy = 1
       const segments = splitLaserDmxDepthInterval(
         projectedOrigin.clipDepth,
         copyTarget.clipDepth,
@@ -758,13 +659,9 @@ export function buildLaserDmxWebGLBeamRenderPlan(
           ),
           phase: beam.pattern.phase + instability.phaseOffset,
           materialMode,
-          softness:
-            fixture?.optics.opticalSoftness ??
-            (materialMode === 0 ? 0.08 : materialMode === 1 ? 0.34 : 0.72),
-          goboAmount:
-            materialMode === 1 ? (fixture?.optics.goboAmount ?? 0) : 0,
-          goboPattern:
-            GOBO_PATTERN_INDEX[fixture?.optics.goboPattern ?? 'open'],
+          softness: fixture?.optics.opticalSoftness ?? 0.08,
+          goboAmount: 0,
+          goboPattern: 0,
           goboRotationRad,
           iris,
           frost,
@@ -1021,178 +918,79 @@ export function buildLaserDmxWebGLBeamRenderPlan(
   const apertures = frame.emitters
     .filter((emitter) => {
       const fixture = fixtureById.get(emitter.fixtureId)
-      if (!fixture?.enabled || fixture.intensity <= 0.001) return false
-      if (
-        fixture.kind === 'laser' ||
-        fixture.kind === 'movingHead' ||
-        fixture.kind === 'parWash'
-      ) {
-        const scannerEnergy =
-          scannerExposureEnergyByFixtureId.get(emitter.fixtureId) ?? 0
-        return (
-          (scannerEnergy > 0.001 || emitter.activeRayCount > 0) &&
-          emitter.intensity > 0.001 &&
-          activeSourceIds.has(emitter.id)
-        )
-      }
-      if (fixture.kind === 'strobe') return strobeActive
-      return fixture.kind !== 'haze'
+      if (!fixture?.enabled || fixture.intensity <= 0.001 || fixture.kind !== 'laser') return false
+      const scannerEnergy = scannerExposureEnergyByFixtureId.get(emitter.fixtureId) ?? 0
+      return (scannerEnergy > 0.001 || emitter.activeRayCount > 0)
+        && emitter.intensity > 0.001
+        && activeSourceIds.has(emitter.id)
     })
     .sort((a, b) => a.sortDepth - b.sortDepth || a.id.localeCompare(b.id))
     .flatMap((emitter): LaserDmxWebGLApertureInstance[] => {
-      const projected = projectLaserDmxScenePoint(
-        frame.camera,
-        emitter.position,
-        aspect,
-      )
+      const projected = projectLaserDmxScenePoint(frame.camera, emitter.position, aspect)
       if (!projected.visible) return []
-      const scannerEnergy = scannerExposureEnergyByFixtureId.get(
-        emitter.fixtureId,
-      )
-      const physicalApertures = Math.max(
-        1,
-        scannerHeadCountByFixtureId.get(emitter.fixtureId) ?? 1,
-      )
-      const visibleApertureEnergy =
-        scannerEnergy == null
-          ? emitter.totalActiveEnergy
-          : clamp(
-              scannerEnergy *
-                fixtureById.get(emitter.fixtureId)!.optics.sourceIntensity,
-              0,
-              Math.max(2.8, physicalApertures * 2.8),
-            )
+      const scannerEnergy = scannerExposureEnergyByFixtureId.get(emitter.fixtureId)
+      const physicalApertures = Math.max(1, scannerHeadCountByFixtureId.get(emitter.fixtureId) ?? 1)
+      const fixture = fixtureById.get(emitter.fixtureId)!
+      const visibleApertureEnergy = scannerEnergy == null
+        ? emitter.totalActiveEnergy
+        : clamp(
+            scannerEnergy * fixture.optics.sourceIntensity,
+            0,
+            Math.max(2.8, physicalApertures * 2.8),
+          )
       const energyRoot = Math.sqrt(Math.max(0, visibleApertureEnergy))
       const instability = sourceInstability.get(emitter.id)
       const apertureMultiplier = instability?.apertureMultiplier ?? 1
-      const fixture = fixtureById.get(emitter.fixtureId)!
-      const shapeMode: LaserDmxWebGLApertureInstance['shapeMode'] =
-        fixture.kind === 'ledBar'
-          ? 1
-          : fixture.kind === 'ledTube'
-            ? 2
-            : fixture.kind === 'strobe'
-              ? 3
-              : fixture.kind === 'blinder'
-                ? 4
-                : fixture.kind === 'videoWall'
-                  ? 5
-                  : fixture.kind === 'co2Jet'
-                    ? 6
-                    : 0
       const depthScale = clamp(projected.perspectiveScale, 0.82, 1.22)
-      const coreRadiusCssPx =
-        shapeMode === 0
-          ? clamp(
-              (1.1 +
-                emitter.apertureSize * 0.82 +
-                emitter.peakRayIntensity * 1.15) *
-                apertureMultiplier *
-                depthScale,
-              1.25,
-              7.5,
-            )
-          : shapeMode === 3
-            ? 7
-            : shapeMode === 4
-              ? 8
-              : shapeMode === 5
-                ? 10
-                : 3.4
-      const ringRadiusCssPx =
-        shapeMode === 0
-          ? clamp(
-              coreRadiusCssPx * (1.9 + Math.min(0.35, energyRoot * 0.08)),
-              2.5,
-              14,
-            )
-          : coreRadiusCssPx * 1.35
-      const haloRadiusCssPx =
-        shapeMode === 0
-          ? clamp(
-              ringRadiusCssPx * (1.42 + Math.min(0.85, energyRoot * 0.16)),
-              4,
-              34,
-            )
-          : shapeMode === 5
-            ? 26
-            : shapeMode === 4
-              ? 22
-              : shapeMode === 3
-                ? 18
-                : shapeMode === 1 || shapeMode === 2
-                  ? 10
-                  : 9
-      const directionSign =
-        fixture.component.ledDirection === 'rightToLeft' ? -1 : 1
-      const directionPhase = frame.transport.audioTimeSec * directionSign
-      const behaviorMode =
-        shapeMode === 1 || shapeMode === 2
-          ? ledBehaviorMode(
-              fixture.component.ledDirection,
-              fixture.component.ledCellCount,
-            )
-          : 0
-      return [
-        {
-          id: emitter.id,
-          position: { x: projected.x, y: projected.y, z: projected.clipDepth },
-          color: emitter.color,
-          intensity: clamp(
-            (shapeMode === 0
-              ? emitter.intensity *
-                (scannerEnergy == null
-                  ? 1
-                  : clamp(0.4 + scannerEnergy * 0.6, 0.35, 1.15))
-              : fixture.intensity) *
-              fixture.optics.sourceIntensity *
-              (0.88 + glow * 0.46) *
-              apertureMultiplier *
-              (shapeMode === 5 ? fixture.component.videoWallBrightness : 1),
-            0,
-            shapeMode === 4 ? 4.2 : shapeMode === 3 ? 3.6 : 2.8,
-          ),
-          totalActiveEnergy: visibleApertureEnergy,
-          coreRadiusCssPx,
-          ringRadiusCssPx,
-          haloRadiusCssPx,
-          glareDirection: projectedDirection(
-            frame,
-            emitter.position,
-            emitter.glareDirection,
-            viewport,
-          ),
-          shapeMode,
-          aspect:
-            shapeMode === 1
-              ? 5.5
-              : shapeMode === 2
-                ? 4.4
-                : shapeMode === 3
-                  ? 2.8
-                  : shapeMode === 5
-                    ? 1.78
-                    : 1,
-          segments:
-            shapeMode === 1 || shapeMode === 2
-              ? fixture.component.ledCellCount
-              : 1,
-          chase: behaviorMode === 2 ? 1 : 0,
-          softness: fixture.optics.opticalSoftness,
-          phase: directionPhase + fixture.rotationDeg / 360,
-          rotationRad: (fixture.rotationDeg * Math.PI) / 180,
-          behaviorMode,
-          sourceVariant:
-            shapeMode === 5
-              ? VIDEO_SOURCE_INDEX[fixture.component.videoWallSource]
-              : 0,
-          sortDepth: projected.clipDepth,
-          depthSlice: resolveLaserDmxDepthSliceIndex(
-            projected.clipDepth,
-            depthPolicy.sliceCount,
-          ),
-        },
-      ]
+      const coreRadiusCssPx = clamp(
+        (1.1 + emitter.apertureSize * 0.82 + emitter.peakRayIntensity * 1.15)
+          * apertureMultiplier
+          * depthScale,
+        1.25,
+        7.5,
+      )
+      const ringRadiusCssPx = clamp(
+        coreRadiusCssPx * (1.9 + Math.min(0.35, energyRoot * 0.08)),
+        2.5,
+        14,
+      )
+      const haloRadiusCssPx = clamp(
+        ringRadiusCssPx * (1.42 + Math.min(0.85, energyRoot * 0.16)),
+        4,
+        34,
+      )
+      return [{
+        id: emitter.id,
+        fixtureId: emitter.fixtureId,
+        fixtureKind: 'laser',
+        position: { x: projected.x, y: projected.y, z: projected.clipDepth },
+        color: emitter.color,
+        intensity: clamp(
+          emitter.intensity
+            * (scannerEnergy == null ? 1 : clamp(0.4 + scannerEnergy * 0.6, 0.35, 1.15))
+            * fixture.optics.sourceIntensity
+            * (0.88 + glow * 0.46)
+            * apertureMultiplier,
+          0,
+          2.8,
+        ),
+        totalActiveEnergy: visibleApertureEnergy,
+        coreRadiusCssPx,
+        ringRadiusCssPx,
+        haloRadiusCssPx,
+        glareDirection: projectedDirection(frame, emitter.position, emitter.glareDirection, viewport),
+        shapeMode: 0,
+        aspect: 1,
+        segments: 1,
+        chase: 0,
+        softness: fixture.optics.opticalSoftness,
+        phase: frame.transport.audioTimeSec + fixture.rotationDeg / 360,
+        rotationRad: fixture.rotationDeg * Math.PI / 180,
+        behaviorMode: 0,
+        sourceVariant: 0,
+        sortDepth: projected.clipDepth,
+        depthSlice: resolveLaserDmxDepthSliceIndex(projected.clipDepth, depthPolicy.sliceCount),
+      }]
     })
 
   return {

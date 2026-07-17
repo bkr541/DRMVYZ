@@ -108,9 +108,11 @@ describe('LaserDMX WebGL depth and fixture shader registration', () => {
   it('registers laser-only history and depth-layer accumulation inputs', () => {
     const programs = getLaserDmxWebGLShaderProgramSources()
     const beam = programs.find(program => program.label === 'sharp-beam')
+    const movingHead = programs.find(program => program.label === 'moving-head-cone')
     const composite = programs.find(program => program.label === 'atmosphere-composite')
 
-    expect(beam?.fragSrc).toContain('goboMask')
+    expect(beam?.fragSrc).not.toContain('goboMask')
+    expect(movingHead?.fragSrc).toContain('goboMask')
     expect(beam?.vertSrc).toContain('iPrism')
     expect(composite?.fragSrc).toContain('uCurrentLaserTexture')
     expect(composite?.fragSrc).toContain('uLaserHistoryTexture')
@@ -118,4 +120,34 @@ describe('LaserDMX WebGL depth and fixture shader registration', () => {
     expect(composite?.fragSrc).toContain('uLayerExtinction')
     expect(composite?.fragSrc).not.toContain('uFinalComposite')
   })
+
+  it('registers genuinely separated fixture shaders and removes fullscreen spectral tricks', () => {
+    const programs = getLaserDmxWebGLShaderProgramSources()
+    const labels = new Set(programs.map(program => program.label))
+    expect(labels).toEqual(new Set([
+      'sharp-beam', 'projector-aperture', 'moving-head-cone', 'wash-field',
+      'led-emitter', 'strobe-blinder-source', 'video-surface',
+      'atmospheric-scatter', 'foreground-veil', 'atmosphere-composite',
+      'temporal-history', 'bloom-downsample', 'bloom-blur', 'photographic-post',
+    ]))
+
+    const beam = programs.find(program => program.label === 'sharp-beam')!
+    const movingHead = programs.find(program => program.label === 'moving-head-cone')!
+    const wash = programs.find(program => program.label === 'wash-field')!
+    const led = programs.find(program => program.label === 'led-emitter')!
+    const flash = programs.find(program => program.label === 'strobe-blinder-source')!
+    const video = programs.find(program => program.label === 'video-surface')!
+    const post = programs.find(program => program.label === 'photographic-post')!
+
+    expect(beam.fragSrc).not.toContain('materialMode')
+    expect(movingHead.fragSrc).toContain('goboMask')
+    expect(wash.fragSrc).toContain('edgeSoftness')
+    expect(led.fragSrc).toContain('segmented')
+    expect(flash.fragSrc).toContain('atmospherePulse')
+    expect(video.fragSrc).toContain('imageSignal')
+    expect(new Set([movingHead.fragSrc, wash.fragSrc, led.fragSrc, flash.fragSrc, video.fragSrc]).size).toBe(5)
+    expect(post.fragSrc).not.toContain('chromaticShift')
+    expect(post.fragSrc).not.toContain('spectralEdge')
+  })
+
 })

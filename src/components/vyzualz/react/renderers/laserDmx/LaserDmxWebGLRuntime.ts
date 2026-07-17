@@ -29,6 +29,14 @@ import {
   type LaserDmxWebGLBeamInstance,
 } from './LaserDmxWebGLBeamPlan'
 import {
+  buildLaserDmxDedicatedFixtureRenderPlan,
+  type LaserDmxFlashFixtureInstance,
+  type LaserDmxLedFixtureInstance,
+  type LaserDmxMovingHeadConeInstance,
+  type LaserDmxVideoSurfaceInstance,
+  type LaserDmxWashFieldInstance,
+} from './LaserDmxDedicatedFixturePlan'
+import {
   LaserDmxTemporalOpticsController,
   type LaserDmxTemporalFramePlan,
 } from './LaserDmxTemporalOptics'
@@ -253,7 +261,12 @@ import {
   BEAM_VERTEX_SHADER,
   COMPOSITE_FRAGMENT_SHADER,
   FOREGROUND_FRAGMENT_SHADER,
+  FLASH_FRAGMENT_SHADER,
+  LED_FRAGMENT_SHADER,
+  MOVING_HEAD_FRAGMENT_SHADER,
   POST_COMPOSITE_FRAGMENT_SHADER,
+  VIDEO_SURFACE_FRAGMENT_SHADER,
+  WASH_FRAGMENT_SHADER,
   TEMPORAL_HISTORY_FRAGMENT_SHADER,
   FULLSCREEN_VERTEX_SHADER,
 } from './LaserDmxWebGLShaderSources'
@@ -399,6 +412,11 @@ export class LaserDmxWebGLRuntime {
   private readonly ledger = new LaserDmxWebGLResourceLedger()
   private beamProgram: WebGLProgram | null = null
   private apertureProgram: WebGLProgram | null = null
+  private movingHeadProgram: WebGLProgram | null = null
+  private washProgram: WebGLProgram | null = null
+  private ledProgram: WebGLProgram | null = null
+  private flashProgram: WebGLProgram | null = null
+  private videoProgram: WebGLProgram | null = null
   private atmosphereProgram: WebGLProgram | null = null
   private foregroundProgram: WebGLProgram | null = null
   private compositeProgram: WebGLProgram | null = null
@@ -437,6 +455,16 @@ export class LaserDmxWebGLRuntime {
   private beamCssToBackingUniform: WebGLUniformLocation | null = null
   private apertureViewportUniform: WebGLUniformLocation | null = null
   private apertureCssToBackingUniform: WebGLUniformLocation | null = null
+  private movingHeadViewportUniform: WebGLUniformLocation | null = null
+  private movingHeadCssToBackingUniform: WebGLUniformLocation | null = null
+  private washViewportUniform: WebGLUniformLocation | null = null
+  private washCssToBackingUniform: WebGLUniformLocation | null = null
+  private ledViewportUniform: WebGLUniformLocation | null = null
+  private ledCssToBackingUniform: WebGLUniformLocation | null = null
+  private flashViewportUniform: WebGLUniformLocation | null = null
+  private flashCssToBackingUniform: WebGLUniformLocation | null = null
+  private videoViewportUniform: WebGLUniformLocation | null = null
+  private videoCssToBackingUniform: WebGLUniformLocation | null = null
   private atmosphereViewportUniform: WebGLUniformLocation | null = null
   private atmosphereCssToBackingUniform: WebGLUniformLocation | null = null
   private atmosphereUniform: WebGLUniformLocation | null = null
@@ -499,6 +527,11 @@ export class LaserDmxWebGLRuntime {
   private readonly laserBeamSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxWebGLBeamInstance[])
   private readonly apertureSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxWebGLApertureInstance[])
   private readonly atmosphereBeamSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxWebGLAtmosphereBeamInstance[])
+  private readonly movingHeadSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxMovingHeadConeInstance[])
+  private readonly washSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxWashFieldInstance[])
+  private readonly ledSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxLedFixtureInstance[])
+  private readonly flashSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxFlashFixtureInstance[])
+  private readonly videoSlices = Array.from({ length: MAX_DEPTH_SLICES }, () => [] as LaserDmxVideoSurfaceInstance[])
   private sourcePositionData = new Float32Array(MAX_HAZE_SOURCES * 4)
   private sourceDirectionData = new Float32Array(MAX_HAZE_SOURCES * 4)
   private sourceColorData = new Float32Array(MAX_HAZE_SOURCES * 4)
@@ -667,6 +700,11 @@ export class LaserDmxWebGLRuntime {
         undefined,
         this.continuousDepthAvailable,
       )
+      const fixturePlan = buildLaserDmxDedicatedFixtureRenderPlan(
+        renderFrame,
+        viewport,
+        this.continuousDepthAvailable,
+      )
       const atmospherePlan = buildLaserDmxWebGLAtmosphereRenderPlan(
         renderFrame,
         viewport,
@@ -685,7 +723,7 @@ export class LaserDmxWebGLRuntime {
       this.ensureRenderTarget(this.compositeTargets[0], frameState.dims.W, frameState.dims.H, 'depth-composite-0')
       this.ensureRenderTarget(this.compositeTargets[1], frameState.dims.W, frameState.dims.H, 'depth-composite-1')
       if (temporalPlan.history.clearHistory) this.clearTemporalHistory()
-      this.partitionDepthInstances(beamPlan.beams, beamPlan.apertures, atmospherePlan.beams, sliceCount)
+      this.partitionDepthInstances(beamPlan.beams, beamPlan.apertures, atmospherePlan.beams, fixturePlan, sliceCount)
       const activeLaserHistorySlices = Array.from({ length: sliceCount }, (_, sliceIndex) => (
         this.laserBeamSlices[sliceIndex]!.length > 0 || this.temporalHistoryValid[sliceIndex] === true
       ))
@@ -732,6 +770,15 @@ export class LaserDmxWebGLRuntime {
             this.sharpSliceTarget,
             this.sharpBeamSlices[sliceIndex]!,
             this.apertureSlices[sliceIndex]!,
+            viewport,
+          )
+          this.renderDedicatedFixtureTarget(
+            this.sharpSliceTarget,
+            this.movingHeadSlices[sliceIndex]!,
+            this.washSlices[sliceIndex]!,
+            this.ledSlices[sliceIndex]!,
+            this.flashSlices[sliceIndex]!,
+            this.videoSlices[sliceIndex]!,
             viewport,
           )
           this.renderSharpTarget(
@@ -919,6 +966,11 @@ export class LaserDmxWebGLRuntime {
     return Boolean(
       this.beamProgram &&
       this.apertureProgram &&
+      this.movingHeadProgram &&
+      this.washProgram &&
+      this.ledProgram &&
+      this.flashProgram &&
+      this.videoProgram &&
       this.atmosphereProgram &&
       this.foregroundProgram &&
       this.compositeProgram &&
@@ -963,6 +1015,7 @@ export class LaserDmxWebGLRuntime {
     beams: readonly LaserDmxWebGLBeamInstance[],
     apertures: readonly LaserDmxWebGLApertureInstance[],
     atmosphereBeams: readonly LaserDmxWebGLAtmosphereBeamInstance[],
+    fixturePlan: ReturnType<typeof buildLaserDmxDedicatedFixtureRenderPlan>,
     sliceCount: number,
   ): void {
     for (let sliceIndex = 0; sliceIndex < MAX_DEPTH_SLICES; sliceIndex += 1) {
@@ -970,6 +1023,11 @@ export class LaserDmxWebGLRuntime {
       this.laserBeamSlices[sliceIndex]!.length = 0
       this.apertureSlices[sliceIndex]!.length = 0
       this.atmosphereBeamSlices[sliceIndex]!.length = 0
+      this.movingHeadSlices[sliceIndex]!.length = 0
+      this.washSlices[sliceIndex]!.length = 0
+      this.ledSlices[sliceIndex]!.length = 0
+      this.flashSlices[sliceIndex]!.length = 0
+      this.videoSlices[sliceIndex]!.length = 0
     }
     const boundedSlice = (value: number) => Math.max(0, Math.min(sliceCount - 1, Math.round(value)))
     for (const beam of beams) {
@@ -985,6 +1043,11 @@ export class LaserDmxWebGLRuntime {
     for (const beam of atmosphereBeams) {
       this.atmosphereBeamSlices[boundedSlice(beam.depthSlice)]!.push(beam)
     }
+    for (const item of fixturePlan.movingHeads) this.movingHeadSlices[boundedSlice(item.depthSlice)]!.push(item)
+    for (const item of fixturePlan.washes) this.washSlices[boundedSlice(item.depthSlice)]!.push(item)
+    for (const item of fixturePlan.leds) this.ledSlices[boundedSlice(item.depthSlice)]!.push(item)
+    for (const item of fixturePlan.flashes) this.flashSlices[boundedSlice(item.depthSlice)]!.push(item)
+    for (const item of fixturePlan.videoSurfaces) this.videoSlices[boundedSlice(item.depthSlice)]!.push(item)
   }
 
   private renderSharpTarget(
@@ -1010,6 +1073,270 @@ export class LaserDmxWebGLRuntime {
     gl.clear(gl.COLOR_BUFFER_BIT)
     this.drawBeamInstances(beams, viewport)
     this.drawApertureInstances(apertures, viewport)
+  }
+
+  private renderDedicatedFixtureTarget(
+    target: RenderTarget,
+    movingHeads: readonly LaserDmxMovingHeadConeInstance[],
+    washes: readonly LaserDmxWashFieldInstance[],
+    leds: readonly LaserDmxLedFixtureInstance[],
+    flashes: readonly LaserDmxFlashFixtureInstance[],
+    videos: readonly LaserDmxVideoSurfaceInstance[],
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    if (!target.framebuffer) return
+    const gl = this.gl
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer)
+    gl.viewport(0, 0, target.width, target.height)
+    gl.disable(gl.DEPTH_TEST)
+    gl.disable(gl.CULL_FACE)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.ONE, gl.ONE)
+    this.drawMovingHeadInstances(movingHeads, viewport)
+    this.drawWashInstances(washes, viewport)
+    this.drawLedInstances(leds, viewport)
+    this.drawFlashInstances(flashes, viewport)
+    this.drawVideoInstances(videos, viewport)
+  }
+
+  private applyFixtureViewportUniforms(
+    viewportUniform: WebGLUniformLocation | null,
+    cssToBackingUniform: WebGLUniformLocation | null,
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    const gl = this.gl
+    gl.uniform2f(viewportUniform, viewport.backingWidth, viewport.backingHeight)
+    gl.uniform2f(
+      cssToBackingUniform,
+      viewport.backingWidth / Math.max(1, viewport.cssWidth),
+      viewport.backingHeight / Math.max(1, viewport.cssHeight),
+    )
+  }
+
+  private drawDedicatedBeamInstances(
+    program: WebGLProgram | null,
+    viewportUniform: WebGLUniformLocation | null,
+    cssToBackingUniform: WebGLUniformLocation | null,
+    instanceCount: number,
+    write: (data: Float32Array<ArrayBuffer>, offset: number, index: number) => void,
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    if (instanceCount === 0 || !program || !this.beamVertexArray || !this.beamInstanceBuffer) return
+    const required = instanceCount * 30
+    this.beamInstanceData = ensureFloatCapacity(this.beamInstanceData, required)
+    for (let index = 0; index < instanceCount; index += 1) write(this.beamInstanceData, index * 30, index)
+    const gl = this.gl
+    gl.useProgram(program)
+    gl.bindVertexArray(this.beamVertexArray)
+    this.beamGpuCapacityFloats = this.uploadDynamicInstanceData(
+      this.beamInstanceBuffer,
+      this.beamInstanceData,
+      required,
+      this.beamGpuCapacityFloats,
+    )
+    this.applyFixtureViewportUniforms(viewportUniform, cssToBackingUniform, viewport)
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount)
+    gl.bindVertexArray(null)
+  }
+
+  private drawMovingHeadInstances(
+    instances: readonly LaserDmxMovingHeadConeInstance[],
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    this.drawDedicatedBeamInstances(
+      this.movingHeadProgram,
+      this.movingHeadViewportUniform,
+      this.movingHeadCssToBackingUniform,
+      instances.length,
+      (data, offset, index) => {
+        const item = instances[index]!
+        data.set([
+          item.origin.x, item.origin.y, item.origin.z,
+          item.target.x, item.target.y, item.target.z,
+          item.color.r, item.color.g, item.color.b, item.color.a,
+          item.intensity, item.hotspot, item.edgeSoftness, item.focus,
+          item.sourceWidthCssPx, item.fieldWidthCssPx,
+          item.sourceWidthCssPx, item.fieldWidthCssPx,
+          item.goboAmount, item.frost, 0, item.edgeSoftness,
+          item.goboPattern, item.goboRotationRad, item.iris, item.zoom,
+          item.prismCopyIndex, item.prismCopyCount, 0, 0,
+        ], offset)
+      },
+      viewport,
+    )
+  }
+
+  private drawWashInstances(
+    instances: readonly LaserDmxWashFieldInstance[],
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    this.drawDedicatedBeamInstances(
+      this.washProgram,
+      this.washViewportUniform,
+      this.washCssToBackingUniform,
+      instances.length,
+      (data, offset, index) => {
+        const item = instances[index]!
+        data.set([
+          item.origin.x, item.origin.y, item.origin.z,
+          item.target.x, item.target.y, item.target.z,
+          item.color.r, item.color.g, item.color.b, item.color.a,
+          item.intensity, 0, item.edgeSoftness, 0,
+          item.sourceWidthCssPx, item.fieldWidthCssPx,
+          item.sourceWidthCssPx, item.fieldWidthCssPx,
+          0, item.frost, item.ellipticity, item.edgeSoftness,
+          0, 0, 1, item.zoom,
+          0, 0, 0, 0,
+        ], offset)
+      },
+      viewport,
+    )
+  }
+
+  private drawDedicatedApertureInstances(
+    program: WebGLProgram | null,
+    viewportUniform: WebGLUniformLocation | null,
+    cssToBackingUniform: WebGLUniformLocation | null,
+    instanceCount: number,
+    write: (data: Float32Array<ArrayBuffer>, offset: number, index: number) => void,
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    if (instanceCount === 0 || !program || !this.apertureVertexArray || !this.apertureInstanceBuffer) return
+    const required = instanceCount * 21
+    this.apertureInstanceData = ensureFloatCapacity(this.apertureInstanceData, required)
+    for (let index = 0; index < instanceCount; index += 1) write(this.apertureInstanceData, index * 21, index)
+    const gl = this.gl
+    gl.useProgram(program)
+    gl.bindVertexArray(this.apertureVertexArray)
+    this.apertureGpuCapacityFloats = this.uploadDynamicInstanceData(
+      this.apertureInstanceBuffer,
+      this.apertureInstanceData,
+      required,
+      this.apertureGpuCapacityFloats,
+    )
+    this.applyFixtureViewportUniforms(viewportUniform, cssToBackingUniform, viewport)
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount)
+    gl.bindVertexArray(null)
+  }
+
+  private drawLedInstances(
+    instances: readonly LaserDmxLedFixtureInstance[],
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    this.drawDedicatedApertureInstances(
+      this.ledProgram,
+      this.ledViewportUniform,
+      this.ledCssToBackingUniform,
+      instances.length,
+      (data, offset, index) => {
+        const item = instances[index]!
+        data.set([
+          item.position.x, item.position.y, item.position.z,
+          item.color.r, item.color.g, item.color.b, item.color.a,
+          item.halfHeightCssPx * 0.24, item.halfHeightCssPx * 0.58,
+          item.halfHeightCssPx, item.intensity,
+          0, 1,
+          0, item.aspect, item.segments, item.phase,
+          item.rotationRad, item.behavior, 0, item.gradient,
+        ], offset)
+      },
+      viewport,
+    )
+  }
+
+  private drawFlashInstances(
+    instances: readonly LaserDmxFlashFixtureInstance[],
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    this.drawDedicatedApertureInstances(
+      this.flashProgram,
+      this.flashViewportUniform,
+      this.flashCssToBackingUniform,
+      instances.length,
+      (data, offset, index) => {
+        const item = instances[index]!
+        data.set([
+          item.position.x, item.position.y, item.position.z,
+          item.color.r, item.color.g, item.color.b, item.color.a,
+          item.radiusCssPx * 0.2, item.radiusCssPx * 0.54,
+          item.radiusCssPx, item.intensity,
+          0, 1,
+          item.warmth, item.aspect, 1, item.atmosphereLift,
+          item.rotationRad, item.kind === 'strobe' ? 0 : 1, 0, 0,
+        ], offset)
+      },
+      viewport,
+    )
+  }
+
+  private drawVideoInstances(
+    instances: readonly LaserDmxVideoSurfaceInstance[],
+    viewport: {
+      backingWidth: number
+      backingHeight: number
+      cssWidth: number
+      cssHeight: number
+    },
+  ): void {
+    this.drawDedicatedApertureInstances(
+      this.videoProgram,
+      this.videoViewportUniform,
+      this.videoCssToBackingUniform,
+      instances.length,
+      (data, offset, index) => {
+        const item = instances[index]!
+        data.set([
+          item.position.x, item.position.y, item.position.z,
+          item.color.r, item.color.g, item.color.b, item.color.a,
+          item.halfHeightCssPx * 0.18, item.halfHeightCssPx * 0.54,
+          item.halfHeightCssPx, item.intensity,
+          0, 1,
+          0, item.aspect, 1, item.phase,
+          item.rotationRad, 0, item.sourceVariant, 0,
+        ], offset)
+      },
+      viewport,
+    )
   }
 
   private renderAtmosphereSlice(
@@ -1249,8 +1576,8 @@ export class LaserDmxWebGLRuntime {
           beam.depthWeight,
           beam.extinctionWeight,
           beam.phase,
-          beam.depthSlice,
-          0,
+          beam.viewPhase,
+          beam.wavelengthResponse,
         ],
         offset,
       )
@@ -1795,6 +2122,11 @@ export class LaserDmxWebGLRuntime {
     const gl = this.gl
     this.beamProgram = createProgram(gl, BEAM_VERTEX_SHADER, BEAM_FRAGMENT_SHADER)
     this.apertureProgram = createProgram(gl, APERTURE_VERTEX_SHADER, APERTURE_FRAGMENT_SHADER)
+    this.movingHeadProgram = createProgram(gl, BEAM_VERTEX_SHADER, MOVING_HEAD_FRAGMENT_SHADER)
+    this.washProgram = createProgram(gl, BEAM_VERTEX_SHADER, WASH_FRAGMENT_SHADER)
+    this.ledProgram = createProgram(gl, APERTURE_VERTEX_SHADER, LED_FRAGMENT_SHADER)
+    this.flashProgram = createProgram(gl, APERTURE_VERTEX_SHADER, FLASH_FRAGMENT_SHADER)
+    this.videoProgram = createProgram(gl, APERTURE_VERTEX_SHADER, VIDEO_SURFACE_FRAGMENT_SHADER)
     this.atmosphereProgram = createProgram(gl, ATMOSPHERE_VERTEX_SHADER, ATMOSPHERE_FRAGMENT_SHADER)
     this.foregroundProgram = createProgram(gl, FULLSCREEN_VERTEX_SHADER, FOREGROUND_FRAGMENT_SHADER)
     this.compositeProgram = createProgram(gl, FULLSCREEN_VERTEX_SHADER, COMPOSITE_FRAGMENT_SHADER)
@@ -1884,6 +2216,16 @@ export class LaserDmxWebGLRuntime {
     this.beamCssToBackingUniform = gl.getUniformLocation(this.beamProgram, 'uCssToBacking')
     this.apertureViewportUniform = gl.getUniformLocation(this.apertureProgram, 'uViewportPx')
     this.apertureCssToBackingUniform = gl.getUniformLocation(this.apertureProgram, 'uCssToBacking')
+    this.movingHeadViewportUniform = gl.getUniformLocation(this.movingHeadProgram, 'uViewportPx')
+    this.movingHeadCssToBackingUniform = gl.getUniformLocation(this.movingHeadProgram, 'uCssToBacking')
+    this.washViewportUniform = gl.getUniformLocation(this.washProgram, 'uViewportPx')
+    this.washCssToBackingUniform = gl.getUniformLocation(this.washProgram, 'uCssToBacking')
+    this.ledViewportUniform = gl.getUniformLocation(this.ledProgram, 'uViewportPx')
+    this.ledCssToBackingUniform = gl.getUniformLocation(this.ledProgram, 'uCssToBacking')
+    this.flashViewportUniform = gl.getUniformLocation(this.flashProgram, 'uViewportPx')
+    this.flashCssToBackingUniform = gl.getUniformLocation(this.flashProgram, 'uCssToBacking')
+    this.videoViewportUniform = gl.getUniformLocation(this.videoProgram, 'uViewportPx')
+    this.videoCssToBackingUniform = gl.getUniformLocation(this.videoProgram, 'uCssToBacking')
     this.atmosphereViewportUniform = gl.getUniformLocation(this.atmosphereProgram, 'uViewportPx')
     this.atmosphereCssToBackingUniform = gl.getUniformLocation(
       this.atmosphereProgram,
@@ -2148,6 +2490,13 @@ export class LaserDmxWebGLRuntime {
     } catch {
       /* Context may be lost. */
     }
+    for (const program of [this.movingHeadProgram, this.washProgram, this.ledProgram, this.flashProgram, this.videoProgram]) {
+      try {
+        if (program) gl.deleteProgram(program)
+      } catch {
+        /* Context may be lost. */
+      }
+    }
     try {
       if (this.atmosphereProgram) gl.deleteProgram(this.atmosphereProgram)
     } catch {
@@ -2198,6 +2547,11 @@ export class LaserDmxWebGLRuntime {
     this.fullscreenVertexArray = null
     this.beamProgram = null
     this.apertureProgram = null
+    this.movingHeadProgram = null
+    this.washProgram = null
+    this.ledProgram = null
+    this.flashProgram = null
+    this.videoProgram = null
     this.atmosphereProgram = null
     this.foregroundProgram = null
     this.compositeProgram = null

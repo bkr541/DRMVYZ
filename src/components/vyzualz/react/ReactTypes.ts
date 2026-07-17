@@ -743,7 +743,7 @@ export interface LaserDmxBeamMatrixPresetSummary {
 // This is the safe authoring model for the future drag/drop 2D stage builder.
 // It compiles into Beam Matrix through LaserDmxShowDirectorBeamMatrixCompiler when selected as the preview source.
 
-export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 13
+export const LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION = 14
 
 export type LaserDmxShowDirectorFixtureKind =
   | 'laser'
@@ -807,6 +807,7 @@ export type LaserDmxShowDirectorLedDirection = 'leftToRight' | 'rightToLeft' | '
 export type LaserDmxShowDirectorMovingHeadPanTiltStyle = 'locked' | 'smoothSweep' | 'snap' | 'figureEight' | 'audioReactive'
 export type LaserDmxShowDirectorVideoWallSource = 'placeholder' | 'reactVisual' | 'media' | 'camera'
 export type LaserDmxShowDirectorGoboPattern = 'open' | 'circle' | 'dots' | 'bars' | 'triangle' | 'star' | 'breakup' | 'radial' | 'grid'
+export type LaserDmxShowDirectorDiffractionMode = 'none' | 'line' | 'grid' | 'burst'
 export type LaserDmxShowDirectorMirrorAxis = 'horizontal' | 'vertical'
 export type LaserDmxShowDirectorPresentationMode = 'edit' | 'hybrid' | 'live' | 'capture'
 export type LaserDmxShowDirectorRendererMode = 'canvas2d' | 'webgl' | 'auto'
@@ -953,6 +954,16 @@ export interface LaserDmxShowDirectorOpticsConfig {
   goboRotation: number
   /** Authored prism orientation in degrees. */
   prismRotation: number
+  /** Explicit fixture-level diffraction. This remains off for normal single-beam scanners. */
+  diffractionMode: LaserDmxShowDirectorDiffractionMode
+  /** Total physical optical outputs, including the direct output. */
+  diffractionCopies: number
+  /** Restrained fixture-level RGB angular separation in degrees. */
+  spectralSeparation: number
+  /** Number of distinct emitter origins. */
+  apertureCount: number
+  /** Normalized physical spacing between multiple apertures. */
+  apertureSpacing: number
 }
 
 export interface LaserDmxShowDirectorGroup {
@@ -1083,6 +1094,11 @@ export const DEFAULT_LASER_DMX_SHOW_DIRECTOR_OPTICS: LaserDmxShowDirectorOpticsC
   goboPattern: 'open',
   goboRotation: 0,
   prismRotation: 0,
+  diffractionMode: 'none',
+  diffractionCopies: 1,
+  spectralSeparation: 0,
+  apertureCount: 1,
+  apertureSpacing: 0.012,
 }
 
 function showDirectorRecord(value: unknown): value is Record<string, unknown> {
@@ -1284,6 +1300,10 @@ function coerceShowDirectorGoboPattern(value: unknown): LaserDmxShowDirectorGobo
     || value === 'grid'
     ? value
     : 'open'
+}
+
+function coerceShowDirectorDiffractionMode(value: unknown): LaserDmxShowDirectorDiffractionMode {
+  return value === 'line' || value === 'grid' || value === 'burst' ? value : 'none'
 }
 
 function coerceShowDirectorOpticalPrimitiveType(value: unknown): LaserDmxShowDirectorOpticalPrimitiveType {
@@ -1597,6 +1617,11 @@ function normalizeLaserDmxShowDirectorOpticsConfig(
     goboPattern: coerceShowDirectorGoboPattern(value.goboPattern),
     goboRotation: Math.max(-360, Math.min(360, showDirectorFinite(value.goboRotation, fallback.goboRotation))),
     prismRotation: Math.max(-360, Math.min(360, showDirectorFinite(value.prismRotation, fallback.prismRotation))),
+    diffractionMode: coerceShowDirectorDiffractionMode(value.diffractionMode),
+    diffractionCopies: showDirectorPositiveInt(value.diffractionCopies, fallback.diffractionCopies, 1, 25),
+    spectralSeparation: Math.max(0, Math.min(1.2, showDirectorFinite(value.spectralSeparation, fallback.spectralSeparation))),
+    apertureCount: showDirectorPositiveInt(value.apertureCount, fallback.apertureCount, 1, 8),
+    apertureSpacing: Math.max(0, Math.min(0.08, showDirectorFinite(value.apertureSpacing, fallback.apertureSpacing))),
   }
 }
 

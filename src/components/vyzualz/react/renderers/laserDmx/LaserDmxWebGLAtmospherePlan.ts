@@ -16,6 +16,7 @@ import {
 import { clipLaserDmxSceneSegment, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
 import { resolveLaserDmxAtmosphereFlutter } from './LaserDmxTemporalOptics'
 import type { LaserDmxWebGLViewport } from './LaserDmxWebGLBeamPlan'
+import { wavelengthScatterResponse } from './LaserDmxColorScience'
 import {
   aggregateLaserDmxScannerExposureSegments,
   buildLaserDmxScannerExposurePlan,
@@ -48,6 +49,8 @@ export interface LaserDmxWebGLAtmosphereBeamInstance {
   depthSlice: number
   segmentT0: number
   segmentT1: number
+  viewPhase: number
+  wavelengthResponse: number
 }
 
 export interface LaserDmxWebGLAtmosphereSourceInstance {
@@ -221,6 +224,56 @@ function selectAtmosphereBeams(
   return selected.sort(stableBeamSort)
 }
 
+
+function normalizeVector(value: LaserDmxSceneVec3): LaserDmxSceneVec3 {
+  const length = Math.hypot(value.x, value.y, value.z)
+  return length > 1e-8 ? { x: value.x / length, y: value.y / length, z: value.z / length } : { x: 0, y: 0, z: 1 }
+}
+
+/** Bounded Henyey-Greenstein approximation normalized for concert haze. */
+export function resolveLaserDmxViewSensitiveScatter(
+  beamOrigin: LaserDmxSceneVec3,
+  beamTarget: LaserDmxSceneVec3,
+  cameraPosition: LaserDmxSceneVec3,
+  anisotropy = 0.58,
+): number {
+  const direction = normalizeVector({
+    x: beamTarget.x - beamOrigin.x,
+    y: beamTarget.y - beamOrigin.y,
+    z: beamTarget.z - beamOrigin.z,
+  })
+  const midpoint = {
+    x: (beamOrigin.x + beamTarget.x) * 0.5,
+    y: (beamOrigin.y + beamTarget.y) * 0.5,
+    z: (beamOrigin.z + beamTarget.z) * 0.5,
+  }
+  const toCamera = normalizeVector({
+    x: cameraPosition.x - midpoint.x,
+    y: cameraPosition.y - midpoint.y,
+    z: cameraPosition.z - midpoint.z,
+  })
+  const cosine = clamp(direction.x * toCamera.x + direction.y * toCamera.y + direction.z * toCamera.z, -1, 1)
+  const g = clamp(anisotropy, 0, 0.82)
+  const denominator = Math.pow(Math.max(0.06, 1 + g * g - 2 * g * cosine), 1.5)
+  const phase = (1 - g * g) / denominator
+  return clamp(phase * 0.34, 0.34, 2.35)
+}
+
+function localAtmosphereDensity(frame: LaserDmxSceneFrame, midpoint: LaserDmxSceneVec3): number {
+  let density = frame.atmosphere.baselineDensity
+  for (const source of frame.atmosphereSources) {
+    if (!source.enabled || source.density <= 0.001) continue
+    const distance = Math.hypot(
+      midpoint.x - source.position.x,
+      midpoint.y - source.position.y,
+      midpoint.z - source.position.z,
+    )
+    const radius = Math.max(0.04, source.spread * (source.kind === 'co2' ? 0.7 + source.expansion : 1))
+    density += source.density * Math.exp(-(distance * distance) / (radius * radius))
+  }
+  return clamp(density, 0, 1.6)
+}
+
 function depthScatterWeight(depth: number): number {
   const midLift = 1 - Math.min(1, Math.abs(depth) / 0.95)
   const rearLift = clamp01((-depth + 0.15) / 1.15)
@@ -284,8 +337,8 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
   const aspect = Math.max(0.5, viewport.backingWidth / Math.max(1, viewport.backingHeight))
   const clippedByBeamId = new Map<string, ReturnType<typeof clipLaserDmxSceneSegment>>()
   const visible = frame.beams.filter(beam => {
-    if (!beam.enabled || beam.intensity <= 0.001) return false
-    if (beam.fixtureKind === 'laser' && scannerFixtureIds.has(beam.fixtureId)) return false
+    if (!beam.enabled || beam.intensity <= 0.001 || beam.fixtureKind !== 'laser') return false
+    if (scannerFixtureIds.has(beam.fixtureId)) return false
     const clipped = clipLaserDmxSceneSegment(frame.camera, beam.origin, beam.target)
     if (!clipped) return false
     clippedByBeamId.set(beam.id, clipped)
@@ -317,6 +370,13 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
       const t0 = clamp(segment.t0 - (index > 0 ? seam : 0), 0, 1)
       const t1 = clamp(segment.t1 + (index < segments.length - 1 ? seam : 0), 0, 1)
       const depthWeight = depthScatterWeight(segment.centerDepth)
+      const worldMidpoint = {
+        x: lerp(clipped.origin.x, clipped.target.x, (t0 + t1) * 0.5),
+        y: lerp(clipped.origin.y, clipped.target.y, (t0 + t1) * 0.5),
+        z: lerp(clipped.origin.z, clipped.target.z, (t0 + t1) * 0.5),
+      }
+      const viewPhase = resolveLaserDmxViewSensitiveScatter(clipped.origin, clipped.target, frame.camera.position)
+      const densityResponse = 0.35 + localAtmosphereDensity(frame, worldMidpoint) * 0.65
       beams.push({
         id: `${beam.id}-atmosphere-d${index + 1}`,
         sourceId: beam.sourceId,
@@ -329,7 +389,10 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
             * frame.atmosphere.beamScatter
             * (0.2 + (atmosphereResponseByFixtureId.get(beam.fixtureId) ?? 0.78) * 0.8)
             * flutter.intensityMultiplier
-            * depthWeight,
+            * depthWeight
+            * viewPhase
+            * densityResponse
+            * wavelengthScatterResponse(beam.color),
           0,
           2.5,
         ),
@@ -341,6 +404,8 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
         depthSlice: segment.sliceIndex,
         segmentT0: segment.t0,
         segmentT1: segment.t1,
+        viewPhase,
+        wavelengthResponse: wavelengthScatterResponse(beam.color),
       })
     }
   }
@@ -383,6 +448,13 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
       const t0 = clamp(segment.t0 - (index > 0 ? seam : 0), 0, 1)
       const t1 = clamp(segment.t1 + (index < depthSegments.length - 1 ? seam : 0), 0, 1)
       const depthWeight = depthScatterWeight(segment.centerDepth)
+      const worldMidpoint = {
+        x: lerp(clipped.origin.x, clipped.target.x, (t0 + t1) * 0.5),
+        y: lerp(clipped.origin.y, clipped.target.y, (t0 + t1) * 0.5),
+        z: lerp(clipped.origin.z, clipped.target.z, (t0 + t1) * 0.5),
+      }
+      const viewPhase = resolveLaserDmxViewSensitiveScatter(clipped.origin, clipped.target, frame.camera.position)
+      const densityResponse = 0.35 + localAtmosphereDensity(frame, worldMidpoint) * 0.65
       beams.push({
         id: `${scannerSegment.id}-atmosphere-d${index + 1}`,
         sourceId: `${scannerSegment.fixtureId}:scanner:${scannerSegment.scannerHeadId}:copy-${scannerSegment.opticalCopyIndex}`,
@@ -397,7 +469,7 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
           z: lerp(origin.clipDepth, targetPoint.clipDepth, t1),
         },
         color: scannerSegment.color,
-        intensity: scannerIntensity * depthWeight,
+        intensity: scannerIntensity * depthWeight * viewPhase * densityResponse * wavelengthScatterResponse(scannerSegment.color),
         startWidthCssPx: atmosphereWidth,
         endWidthCssPx: atmosphereWidth * 1.08,
         depthWeight,
@@ -406,6 +478,8 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
         depthSlice: segment.sliceIndex,
         segmentT0: segment.t0,
         segmentT1: segment.t1,
+        viewPhase,
+        wavelengthResponse: wavelengthScatterResponse(scannerSegment.color),
       })
     }
   }
