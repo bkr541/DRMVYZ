@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { LaserDmxWebGLFailureClassification } from './renderers/laserDmx/LaserDmxWebGLRecovery'
+import type { LaserDmxScannerCompatibilityMode } from './renderers/laserDmx/LaserDmxScannerDomain'
 import type {
   LaserDmxShowDirectorPresentationMode,
   LaserDmxShowDirectorRendererMode,
@@ -25,6 +26,15 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   activeBeamCount: number
   requestedBeamCount: number
   activeFixtureCount: number
+  scannerHeadCount: number
+  orderedPathCount: number
+  exposureSampleCount: number
+  legacyConvertedPathCount: number
+  explicitOpticalCopyCount: number
+  currentScanRatePps: number
+  blankedScannerSampleCount: number
+  scannerValidationErrorCount: number
+  scannerCompatibilityMode: LaserDmxScannerCompatibilityMode
   cpuFrameMs: number | null
   gpuFrameMs: number | null
   hdrMode: 'rgba16f' | 'rgba8' | 'none'
@@ -64,6 +74,15 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   activeBeamCount: 0,
   requestedBeamCount: 0,
   activeFixtureCount: 0,
+  scannerHeadCount: 0,
+  orderedPathCount: 0,
+  exposureSampleCount: 0,
+  legacyConvertedPathCount: 0,
+  explicitOpticalCopyCount: 0,
+  currentScanRatePps: 0,
+  blankedScannerSampleCount: 0,
+  scannerValidationErrorCount: 0,
+  scannerCompatibilityMode: 'inactive',
   cpuFrameMs: null,
   gpuFrameMs: null,
   hdrMode: 'none',
@@ -113,6 +132,15 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.activeBeamCount,
     value.requestedBeamCount,
     value.activeFixtureCount,
+    value.scannerHeadCount,
+    value.orderedPathCount,
+    value.exposureSampleCount,
+    value.legacyConvertedPathCount,
+    value.explicitOpticalCopyCount,
+    value.currentScanRatePps,
+    value.blankedScannerSampleCount,
+    value.scannerValidationErrorCount,
+    value.scannerCompatibilityMode,
     value.hdrMode,
     value.bloomLevels,
     value.temporalHistoryActive,

@@ -31,7 +31,11 @@ import {
 import { createShowDirectorRuntime, evaluateShowDirector, resetShowDirectorRuntime, type ShowDirectorRuntime } from './LaserDmxShowDirector'
 import { productionOutputController } from '../output/ProductionOutput'
 import { applyLaserDmxPerformanceActions } from './LaserDmxPerformanceActionEngine'
-import { createLaserDmxSceneFrame, resolveLaserDmxSceneFrameOutput } from './laserDmx/LaserDmxSceneFrame'
+import {
+  createLaserDmxSceneFrame,
+  resolveLaserDmxSceneFrameOutput,
+  type LaserDmxSceneFrame,
+} from './laserDmx/LaserDmxSceneFrame'
 import {
   laserDmxRendererFallbackReason,
   resolveLaserDmxRendererBackendDecision,
@@ -71,6 +75,21 @@ function finiteNumber(value: unknown, fallback = 0): number {
 function positiveNumber(value: unknown, fallback = 0): number {
   const candidate = finiteNumber(value, fallback)
   return candidate > 0 ? candidate : fallback
+}
+
+function laserDmxScannerRendererDiagnostics(frame: LaserDmxSceneFrame) {
+  const diagnostics = frame.scannerDiagnostics
+  return {
+    scannerHeadCount: diagnostics.scannerHeadCount,
+    orderedPathCount: diagnostics.orderedPathCount,
+    exposureSampleCount: diagnostics.exposureSampleCount,
+    legacyConvertedPathCount: diagnostics.legacyConvertedPathCount,
+    explicitOpticalCopyCount: diagnostics.explicitOpticalCopyCount,
+    currentScanRatePps: diagnostics.currentScanRatePps,
+    blankedScannerSampleCount: diagnostics.blankedSampleCount,
+    scannerValidationErrorCount: diagnostics.pathValidationErrorCount,
+    scannerCompatibilityMode: diagnostics.compatibilityMode,
+  }
 }
 
 function resolveLaserDmxFrameBpm(frame: ReactFrameContext, busFrame: MusicIntelligenceFrame): number {
@@ -808,6 +827,7 @@ export function renderLaserDmx(
           activeBeamCount: diagnostics.activeBeamCount,
           requestedBeamCount: diagnostics.requestedBeamCount,
           activeFixtureCount: diagnostics.activeFixtureCount,
+          ...laserDmxScannerRendererDiagnostics(sceneFrame),
           cpuFrameMs: diagnostics.cpuFrameMs,
           gpuFrameMs: diagnostics.gpuFrameMs,
           hdrMode: diagnostics.hdrMode,
@@ -876,6 +896,7 @@ export function renderLaserDmx(
       activeBeamCount: compiled.beams.length,
       requestedBeamCount: compiled.beams.length,
       activeFixtureCount: sceneFrame.fixtures.filter(fixture => fixture.enabled).length,
+      ...laserDmxScannerRendererDiagnostics(sceneFrame),
       cpuFrameMs: null,
       gpuFrameMs: null,
       hdrMode: 'none',

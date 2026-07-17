@@ -47,6 +47,17 @@ import {
   buildLaserDmxOpticalPrimitivePlan,
   resolveLaserDmxOpticalPrimitiveType,
 } from './LaserDmxOpticalPrimitives'
+import {
+  createLaserDmxLegacyScannerPlan,
+  createLaserDmxScannerDiagnostics,
+  solveLaserDmxScannerExposure,
+  type LaserDmxExposureSample,
+  type LaserDmxScanPath,
+  type LaserDmxScannerDiagnostics,
+  type LaserDmxScannerHead,
+  type LaserDmxScannerInstantaneousRay,
+  type LaserDmxScannerOpticalCopy,
+} from './LaserDmxScannerDomain'
 
 export interface LaserDmxSceneVec3 {
   x: number
@@ -268,6 +279,13 @@ export interface LaserDmxSceneFrame {
   depthOrdering: LaserDmxSceneDepthOrdering
   fixtures: LaserDmxSceneFixture[]
   targets: LaserDmxSceneTarget[]
+  scannerHeads: LaserDmxScannerHead[]
+  scanPaths: LaserDmxScanPath[]
+  scannerInstantaneousRays: LaserDmxScannerInstantaneousRay[]
+  exposureSamples: LaserDmxExposureSample[]
+  opticalCopies: LaserDmxScannerOpticalCopy[]
+  legacyCompatibilityBeamIds: string[]
+  scannerDiagnostics: LaserDmxScannerDiagnostics
   beams: LaserDmxSceneBeam[]
   emitters: LaserDmxSceneEmitter[]
   atmosphereSources: LaserDmxSceneAtmosphereSource[]
@@ -805,6 +823,10 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
 
   const fixtures: LaserDmxSceneFixture[] = []
   const targets: LaserDmxSceneTarget[] = []
+  const scannerHeads: LaserDmxScannerHead[] = []
+  const scanPaths: LaserDmxScanPath[] = []
+  const opticalCopies: LaserDmxScannerOpticalCopy[] = []
+  const scannerOriginByFixtureId = new Map<string, LaserDmxSceneVec3>()
   const beams: LaserDmxSceneBeam[] = []
   const emitters: LaserDmxSceneEmitter[] = []
   const atmosphereSources: LaserDmxSceneAtmosphereSource[] = []
@@ -824,6 +846,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     const fixtureDepth = resolveLaserDmxFixtureDepth(fixture, xy.y)
     const position: LaserDmxSceneVec3 = { ...xy, z: fixtureDepth.z }
     const color = authoredColor
+    if (fixture.kind === 'laser') scannerOriginByFixtureId.set(fixture.id, position)
     const allocatedDemand = allocations.get(fixture.id) ?? 0
     const requestedDemand = estimateLaserDmxShowDirectorFixtureBeamDemand(fixture, {
       quality: showDirector.settings.webglQuality,
@@ -849,6 +872,42 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       targets.push(sceneTarget)
       return { seed, sceneTarget }
     })
+    const authoredScannerDemand = clamp(
+      Math.max(fixture.beam.targets?.length ?? 0, fixture.optics.rayCount, 1),
+      1,
+      LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
+    )
+    const scannerTargetSeeds = fixture.kind === 'laser'
+      ? targetsForFixture(fixture, columns, rows, authoredScannerDemand, authoredScannerDemand, input)
+      : []
+    const scannerTargets = scannerTargetSeeds.map(seed => {
+      const targetXy = normalizedStagePoint(seed, columns, rows)
+      const targetDepth = resolveLaserDmxTargetDepth({
+        fixture,
+        target: seed,
+        targetIndex: seed.rayIndex,
+        origin: position,
+        normalizedTarget: targetXy,
+      })
+      return {
+        id: seed.id,
+        position: { ...targetXy, z: targetDepth.z },
+      }
+    })
+    if (fixture.kind === 'laser' && fixtureEnabled && fixture.beam.beamEnabled && scannerTargets.length > 0) {
+      const scannerPlan = createLaserDmxLegacyScannerPlan({
+        fixture,
+        origin: position,
+        targets: scannerTargets,
+        primitiveType: resolveLaserDmxOpticalPrimitiveType(fixture),
+        color,
+        shutterExposureSeconds: (1 / 60) * (0.35 + clamp01(evaluated.output.beamPersistence) * 0.9),
+        occurrenceSeed: Math.max(0, Math.floor(finite(input.occurrenceSeed, 0))),
+      })
+      scannerHeads.push(...scannerPlan.heads)
+      scanPaths.push(...scannerPlan.paths)
+      opticalCopies.push(...scannerPlan.opticalCopies)
+    }
     const orientation = resolveLaserDmxFixtureOrientation(fixture, position, resolvedTargets[0]?.sceneTarget.position)
 
     fixtures.push({
@@ -1023,6 +1082,22 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
   }
 
   const energized = applyLaserDmxSourceEnergy(beams, emitters)
+  const scannerExposure = solveLaserDmxScannerExposure({
+    heads: scannerHeads,
+    paths: scanPaths,
+    opticalCopies,
+    originByFixtureId: scannerOriginByFixtureId,
+    audioTimeSec: Math.max(0, finite(input.audioTimeSec, 0)),
+    bpm: Math.max(0, finite(input.bpm, 0)),
+    quality: showDirector.settings.webglQuality,
+  })
+  const scannerDiagnostics = createLaserDmxScannerDiagnostics({
+    heads: scannerHeads,
+    paths: scanPaths,
+    opticalCopies,
+    exposureSamples: scannerExposure.exposureSamples,
+    blankedSampleCount: scannerExposure.blankedSampleCount,
+  })
   const transientEvents = createSceneTransientEvents({
     timestamp: Math.max(0, finite(input.audioTimeSec, 0)),
     timingDiscontinuity: input.timingDiscontinuity,
@@ -1082,6 +1157,15 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     },
     fixtures,
     targets,
+    scannerHeads,
+    scanPaths,
+    scannerInstantaneousRays: scannerExposure.instantaneousRays,
+    exposureSamples: scannerExposure.exposureSamples,
+    opticalCopies,
+    legacyCompatibilityBeamIds: energized.beams
+      .filter(beam => beam.fixtureKind === 'laser')
+      .map(beam => beam.id),
+    scannerDiagnostics,
     beams: energized.beams,
     emitters: energized.emitters,
     atmosphereSources,
@@ -1133,6 +1217,7 @@ export function resolveLaserDmxSceneFrameOutput(
     }
   })
   const fixtureById = new Map(fixtures.map(fixture => [fixture.id, fixture]))
+  const originalFixtureById = new Map(frame.fixtures.map(fixture => [fixture.id, fixture]))
   const beamIndexByFixture = new Map<string, number>()
   const beams = frame.beams.map(beam => {
     const matrixBeams = matrixByFixture.get(beam.fixtureId) ?? []
@@ -1183,7 +1268,23 @@ export function resolveLaserDmxSceneFrameOutput(
       color: fixture?.color ?? emitter.color,
     }
   })
-  const originalFixtureById = new Map(frame.fixtures.map(fixture => [fixture.id, fixture]))
+  const resolveScannerOutput = <T extends LaserDmxScannerInstantaneousRay | LaserDmxExposureSample>(sample: T): T => {
+    const fixture = fixtureById.get(sample.fixtureId)
+    const originalFixture = originalFixtureById.get(sample.fixtureId)
+    const intensityRatio = originalFixture && originalFixture.intensity > 0.001
+      ? clamp01((fixture?.intensity ?? 0) / originalFixture.intensity)
+      : 0
+    return {
+      ...sample,
+      color: fixture?.color ?? sample.color,
+      intensity: fixture?.enabled && !sample.blanked
+        ? clamp01(sample.intensity * intensityRatio)
+        : 0,
+      blanked: sample.blanked || !fixture?.enabled,
+    }
+  }
+  const scannerInstantaneousRays = frame.scannerInstantaneousRays.map(resolveScannerOutput)
+  const exposureSamples = frame.exposureSamples.map(resolveScannerOutput)
   const atmosphereSources = frame.atmosphereSources.map(source => {
     const originalFixture = originalFixtureById.get(source.fixtureId)
     const fixture = fixtureById.get(source.fixtureId)
@@ -1227,6 +1328,8 @@ export function resolveLaserDmxSceneFrameOutput(
       backToFrontBeamIds: stableLaserDmxDepthOrder(energized.beams, 'backToFront'),
     },
     fixtures,
+    scannerInstantaneousRays,
+    exposureSamples,
     beams: energized.beams,
     emitters: energized.emitters,
     atmosphereSources,

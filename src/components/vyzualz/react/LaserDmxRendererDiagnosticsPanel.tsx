@@ -39,6 +39,19 @@ export function LaserDmxRendererDiagnosticsPanel() {
             <div><dt>Atmosphere Buffer</dt><dd>{diagnostics.atmosphereWidth} × {diagnostics.atmosphereHeight}</dd></div>
             <div><dt>Beams</dt><dd>{diagnostics.activeBeamCount}{diagnostics.requestedBeamCount !== diagnostics.activeBeamCount ? ` / ${diagnostics.requestedBeamCount}` : ''}</dd></div>
             <div><dt>Fixtures</dt><dd>{diagnostics.activeFixtureCount}</dd></div>
+            {diagnostics.presentationMode !== 'capture' && (
+              <>
+                <div><dt>Scanner Heads</dt><dd>{diagnostics.scannerHeadCount}</dd></div>
+                <div><dt>Ordered Paths</dt><dd>{diagnostics.orderedPathCount}</dd></div>
+                <div><dt>Exposure Samples</dt><dd>{diagnostics.exposureSampleCount}</dd></div>
+                <div><dt>Legacy Paths</dt><dd>{diagnostics.legacyConvertedPathCount}</dd></div>
+                <div><dt>Optical Copies</dt><dd>{diagnostics.explicitOpticalCopyCount}</dd></div>
+                <div><dt>Scan Rate</dt><dd>{diagnostics.currentScanRatePps ? `${diagnostics.currentScanRatePps.toLocaleString()} pps` : 'Inactive'}</dd></div>
+                <div><dt>Blanked Samples</dt><dd>{diagnostics.blankedScannerSampleCount}</dd></div>
+                <div><dt>Path Errors</dt><dd>{diagnostics.scannerValidationErrorCount}</dd></div>
+                <div><dt>Scanner Mode</dt><dd>{diagnostics.scannerCompatibilityMode}</dd></div>
+              </>
+            )}
             <div><dt>CPU Frame</dt><dd>{timing(diagnostics.cpuFrameMs)}</dd></div>
             <div><dt>GPU Frame</dt><dd>{timing(diagnostics.gpuFrameMs)}</dd></div>
             <div><dt>Post</dt><dd>{diagnostics.postProcessingStatus}{diagnostics.bloomLevels ? ` · ${diagnostics.bloomLevels} bloom levels` : ''}</dd></div>
