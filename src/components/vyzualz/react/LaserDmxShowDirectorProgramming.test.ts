@@ -180,6 +180,39 @@ function fixture(result: ReturnType<typeof resolveDocument>, semanticKey: string
   return result.showDirector.fixtures.find(item => item.semanticKey === semanticKey)!
 }
 
+function mixedFixtureRig(): LaserDmxShowDirectorState {
+  const base = rig()
+  const extras = [
+    createDefaultLaserDmxShowDirectorFixture('movingHead', 'moving-head-a', 2),
+    createDefaultLaserDmxShowDirectorFixture('strobe', 'strobe-a', 3),
+    createDefaultLaserDmxShowDirectorFixture('blinder', 'blinder-a', 4),
+    createDefaultLaserDmxShowDirectorFixture('ledBar', 'led-a', 5),
+    createDefaultLaserDmxShowDirectorFixture('haze', 'haze-a', 6),
+    createDefaultLaserDmxShowDirectorFixture('co2Jet', 'co2-a', 7),
+  ].map(item => ({ ...item, semanticKey: item.id, groupId: 'laser-bank', brightness: 0.8 }))
+  return normalizeLaserDmxShowDirectorState({ ...base, fixtures: [...base.fixtures, ...extras] })
+}
+
+function resolveMixedFixtureFamily(family: LaserShowProgrammingDocument['macros'][number]['family']) {
+  const authoredRig = mixedFixtureRig()
+  const document = createLegacyLaserProgrammingAdapter(program(), authoredRig)
+  const macro = document.macros[0]
+  macro.family = family
+  macro.fixtureGroupAssignments[0].address = {
+    fixtureSemanticKeys: authoredRig.fixtures.map(item => item.semanticKey).filter((key): key is string => Boolean(key)),
+  }
+  const baseProgram = { ...program(), laserProgramming: document }
+  return resolveLaserShowProgramming({
+    document,
+    program: baseProgram,
+    selectedScene: baseProgram.scenes[0],
+    authoredRig,
+    runtimeRig: authoredRig,
+    context: contextAt(0),
+    programSeed: 42,
+  })
+}
+
 describe('LaserDMX show programming architecture', () => {
   it('creates versioned macros and cue stacks without deleting the legacy source', () => {
     const document = adapterDocument()
@@ -374,4 +407,87 @@ describe('LaserDMX show programming architecture', () => {
       expect(result.showDirector.settings.showGrid).toBe(rig(presentationMode).settings.showGrid)
     }
   })
+
+  it('attaches one authoritative macro scan plan per controlled fixture', () => {
+    const result = resolveDocument(withRelationship('mirrored'), 2)
+    const plans = result.showDirector.fixtures.map(item => item.runtimeScanner?.macroPlan)
+    expect(plans.every(Boolean)).toBe(true)
+    expect(result.showDirector.fixtures.every(item => item.runtimeScanner?.authoritativeSource === 'macro')).toBe(true)
+    expect(new Set(plans.map(plan => plan?.topologyCacheKey)).size).toBe(1)
+    expect(plans[0]?.relationshipMode).toBe('mirrored')
+    expect(plans[0]?.fixtureMemberCount).toBe(2)
+  })
+
+  it('uses the topology cache without keying it to raw audio values', () => {
+    const document = adapterDocument()
+    document.macros[0].id = 'cache-audio-independent'
+    document.macros[0].pattern.topologyId = 'cache-audio-independent-topology'
+    document.cueStacks[0].cues[0].macroId = document.macros[0].id
+    const baseProgram = { ...program(), laserProgramming: document }
+    const resolveWithContext = (energy: number) => resolveLaserShowProgramming({
+      document,
+      program: baseProgram,
+      selectedScene: baseProgram.scenes[0],
+      authoredRig: rig(),
+      runtimeRig: rig(),
+      context: { ...contextAt(1), energy, trackRelativeEnergy: energy },
+      programSeed: 42,
+    })
+    const cold = resolveWithContext(0.1)
+    const hot = resolveWithContext(0.95)
+    expect(cold.frame?.topologyCacheKey).toBe(hot.frame?.topologyCacheKey)
+    expect(cold.frame?.raySlots).toEqual(hot.frame?.raySlots)
+    expect(hot.frame?.patternFrameCacheHit).toBe(true)
+    expect(hot.diagnostics.topologyChangesPerCue).toBe(0)
+  })
+
+  it('keeps opposed groups locked to one cue with deterministic opposite directions', () => {
+    const result = resolveDocument(withRelationship('opposed'), 2)
+    const [left, right] = result.showDirector.fixtures.map(item => item.runtimeScanner?.macroPlan)
+    expect(left?.cueFrameId).toBe(right?.cueFrameId)
+    expect(left?.scanRatePps).toBe(right?.scanRatePps)
+    expect(left?.fanSpreadDeg).toBe(right?.fanSpreadDeg)
+    expect(left?.direction).not.toBe(right?.direction)
+    expect(result.diagnostics.fixtureGroupSynchronizationStatus).toBe('synchronized')
+  })
+
+  it('drives nonlaser fixtures from authored macro events instead of raw energy', () => {
+    const strobe = resolveMixedFixtureFamily('strobeAccent')
+    expect(fixture(strobe, 'strobe-a').brightness).toBeGreaterThan(0)
+    expect(fixture(strobe, 'strobe-a').component.strobeRate).toBeGreaterThan(0)
+    expect(fixture(strobe, 'co2-a').brightness).toBe(0)
+
+    const blinder = resolveMixedFixtureFamily('blinderImpact')
+    expect(fixture(blinder, 'blinder-a').brightness).toBeGreaterThan(0)
+    expect(fixture(blinder, 'strobe-a').brightness).toBe(0)
+
+    const co2 = resolveMixedFixtureFamily('co2Impact')
+    expect(fixture(co2, 'co2-a').brightness).toBeGreaterThan(0)
+    expect(fixture(co2, 'co2-a').component.co2BurstDurationMs).toBeGreaterThanOrEqual(80)
+    expect(fixture(co2, 'co2-a').component.co2BurstDurationMs).toBeLessThanOrEqual(1_500)
+
+    const mixedA = resolveMixedFixtureFamily('mixedFixtureScene')
+    const mixedB = resolveMixedFixtureFamily('mixedFixtureScene')
+    expect(fixture(mixedA, 'led-a').rotation).toBe(fixture(mixedB, 'led-a').rotation)
+    expect(fixture(mixedA, 'haze-a').component.hazeIntensity).toBeGreaterThanOrEqual(0)
+    expect(fixture(mixedA, 'moving-head-a').optics.goboRotation % 15).toBe(0)
+  })
+
+  it('quantizes direction automation and shutters the scanner during a safe swap', () => {
+    const document = adapterDocument()
+    document.cueStacks[0].cues[0].duration = { kind: 'explicitBeats', beats: 8 }
+    document.macros[0].automation = [{
+      id: 'quantized-reverse', parameter: 'direction', from: 0, to: 1, startProgress: 0, endProgress: 1, curve: 'linear',
+    }]
+    document.macros[0].transitionIn = {
+      type: 'shutterOutIn', durationBeats: 2, blankDisconnectedTravel: true, shutterDuringSwap: true,
+    }
+    const sameBeatA = resolveDocument(document, 0.1)
+    const sameBeatB = resolveDocument(document, 0.2)
+    const swap = resolveDocument(document, 0.5)
+    expect(sameBeatA.frame?.direction).toBe(sameBeatB.frame?.direction)
+    expect(swap.frame?.shutterClosed).toBe(true)
+    expect(swap.showDirector.fixtures.every(item => item.runtimeScanner?.macroPlan?.clearTemporalHistory)).toBe(true)
+  })
+
 })

@@ -933,6 +933,98 @@ export interface LaserDmxShowDirectorScannerConfig {
   migration: LaserDmxShowDirectorScannerMigrationMetadata
 }
 
+export type LaserDmxShowDirectorMacroEffectFamily =
+  | 'heldBeam'
+  | 'steppedFan'
+  | 'smoothFanSweep'
+  | 'parallelSheet'
+  | 'mirroredFan'
+  | 'opposedFans'
+  | 'crossingFans'
+  | 'xFan'
+  | 'centerOutFan'
+  | 'outsideInFan'
+  | 'tunnel'
+  | 'corridor'
+  | 'upperAirCanopy'
+  | 'frontAirRake'
+  | 'sequentialCircle'
+  | 'arcSweep'
+  | 'polygonOutline'
+  | 'progressiveWave'
+  | 'gridScan'
+  | 'lineDiffraction'
+  | 'gridDiffraction'
+  | 'burstDiffraction'
+  | 'movingHeadPositionLook'
+  | 'movingHeadSweep'
+  | 'movingHeadGoboLook'
+  | 'washScene'
+  | 'strobeAccent'
+  | 'blinderImpact'
+  | 'ledChase'
+  | 'co2Impact'
+  | 'mixedFixtureScene'
+
+export type LaserDmxShowDirectorMacroSpacingCurve =
+  | 'linear'
+  | 'centerWeighted'
+  | 'edgeWeighted'
+  | 'symmetricEase'
+  | 'custom'
+
+export interface LaserDmxShowDirectorMacroScanPlan {
+  schemaVersion: 1
+  authoritative: true
+  cueFrameId: string
+  cueId: string
+  macroId: string
+  topologyId: string
+  topologyRevision: number
+  topologyCacheKey: string
+  family: LaserDmxShowDirectorMacroEffectFamily
+  assignmentId: string
+  relationshipId?: string
+  relationshipMode?: string
+  fixtureMemberIndex: number
+  fixtureMemberCount: number
+  raySlots: number[]
+  pathPointCount: number
+  spacingCurve: LaserDmxShowDirectorMacroSpacingCurve
+  traversal: 'sequential' | 'pingPong' | 'simultaneousOpticalCopies'
+  centerX: number
+  centerY: number
+  depth: number
+  width: number
+  height: number
+  radius: number
+  rotationDeg: number
+  fanSpreadDeg: number
+  scanRatePps: number
+  direction: LaserDmxShowDirectorScannerDirection
+  phase: number
+  pointDwellMicros: number
+  cornerDwellMicros: number
+  edgeDwellMicros: number
+  blankingDelayMicros: number
+  retraceBlanking: boolean
+  blankBetweenSlots: boolean
+  repeatMode: LaserDmxShowDirectorScannerRepeatMode
+  interpolation: LaserDmxShowDirectorScannerInterpolation
+  totalDutyCycle: number
+  intensity: number
+  colorBlend: number
+  opticalMode: LaserDmxShowDirectorScannerOpticalMode
+  opticalCopyCount: number
+  opticalCopySpreadDeg: number
+  apertureCount: number
+  transitionType: string
+  transitionProgress: number
+  shutterClosed: boolean
+  clearTemporalHistory: boolean
+  preservePhase: boolean
+}
+
 /** Transient high-level scanner controls reconstructed by the authoritative performance timeline. */
 export interface LaserDmxShowDirectorScannerRuntimeOverrides {
   patternType?: LaserDmxShowDirectorScannerPatternType
@@ -952,6 +1044,8 @@ export interface LaserDmxShowDirectorScannerRuntimeOverrides {
   heldBeam?: boolean
   pathResetToken?: number
   switchBoundary?: LaserDmxShowDirectorScannerSwitchBoundary
+  authoritativeSource?: 'macro' | 'authored' | 'legacy'
+  macroPlan?: LaserDmxShowDirectorMacroScanPlan
 }
 
 export const LASER_DMX_SHOW_DIRECTOR_DEPTH_LAYER_LABELS: Record<LaserDmxShowDirectorDepthLayer, string> = {

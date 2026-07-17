@@ -73,6 +73,8 @@ export interface LaserDmxScanPoint {
   color: LaserDmxScannerColorChannels
   cornerBehavior?: LaserDmxScanCornerBehavior
   sourceTargetId?: string
+  /** Stable programmed slot used to aggregate exposure without changing topology. */
+  intendedRaySlotId?: string
 }
 
 export interface LaserDmxScanPath {
@@ -92,6 +94,15 @@ export interface LaserDmxScanPath {
   migrationWarnings: string[]
   authoringPatternType?: LaserDmxShowDirectorScannerPatternType
   migrationStatus?: LaserDmxShowDirectorScannerConfig['migration']['status']
+  macroControlled?: boolean
+  cueFrameId?: string
+  topologyId?: string
+  topologyRevision?: number
+  topologyCacheKey?: string
+  exposureAggregation?: 'none' | 'intendedSlots'
+  intendedRaySlots?: Array<{ id: string; target: LaserDmxScannerVec3 }>
+  totalDutyCycle?: number
+  clearTemporalHistory?: boolean
 }
 
 export interface LaserDmxScannerOpticalCopy {
@@ -120,10 +131,28 @@ export interface LaserDmxScannerInstantaneousRay {
   pathId: string
   pointIndex: number
   velocityRatio: number
+  intendedRaySlotId?: string
+  cueFrameId?: string
 }
 
 export interface LaserDmxExposureSample extends LaserDmxScannerInstantaneousRay {
   exposureWeight: number
+  /** Number of raw samples represented by this sample after aggregation. */
+  sampleCount?: number
+}
+
+export interface LaserDmxExposureAggregationDiagnostics {
+  rawSampleCount: number
+  aggregatedRayCount: number
+  visibleSlotCount: number
+  blankedSampleCount: number
+  energyBeforeAggregation: number
+  energyAfterAggregation: number
+}
+
+export interface LaserDmxExposureAggregationResult {
+  exposureSamples: LaserDmxExposureSample[]
+  diagnostics: LaserDmxExposureAggregationDiagnostics
 }
 
 export interface LaserDmxScannerDiagnostics {
@@ -145,6 +174,12 @@ export interface LaserDmxScannerDiagnostics {
   compatibilityMode: LaserDmxScannerCompatibilityMode
   migrationStatus: 'native' | 'legacy' | 'migrated' | 'mixed' | 'inactive'
   migrationWarnings: string[]
+  rawExposureSampleCount: number
+  aggregatedRayCount: number
+  energyBeforeAggregation: number
+  energyAfterAggregation: number
+  macroControlledPathCount: number
+  duplicateRenderingFixtureIds: string[]
 }
 
 export interface LaserDmxLegacyScannerTarget {
@@ -239,6 +274,7 @@ interface LaserDmxScannerEvaluation {
   pathId: string
   pointIndex: number
   velocityRatio: number
+  intendedRaySlotId?: string
 }
 
 const QUALITY_EXPOSURE_SAMPLES: Readonly<Record<LaserDmxShowDirectorWebGLQuality, number>> = Object.freeze({
@@ -946,10 +982,22 @@ function evaluateTimeline(
   if (!event) return null
   const duration = Math.max(1e-9, event.endSec - event.startSec)
   const progress = event.kind === 'dwell' ? 0 : clamp01((localTime - event.startSec) / duration)
+  const target = event.kind === 'dwell'
+    ? { ...event.to.position }
+    : interpolate(event.from.position, event.to.position, progress, path.interpolation)
+  const directSlotId = event.kind === 'dwell'
+    ? event.to.intendedRaySlotId
+    : event.from.intendedRaySlotId === event.to.intendedRaySlotId
+      ? event.from.intendedRaySlotId
+      : undefined
+  const intendedRaySlotId = directSlotId ?? (path.exposureAggregation === 'intendedSlots'
+    ? path.intendedRaySlots?.reduce<{ id: string; distance: number } | null>((nearest, slot) => {
+      const slotDistance = distance(target, slot.target)
+      return !nearest || slotDistance < nearest.distance ? { id: slot.id, distance: slotDistance } : nearest
+    }, null)?.id
+    : undefined)
   return {
-    target: event.kind === 'dwell'
-      ? { ...event.to.position }
-      : interpolate(event.from.position, event.to.position, progress, path.interpolation),
+    target,
     color: event.kind === 'dwell'
       ? { ...event.to.color }
       : interpolateColor(event.from.color, event.to.color, progress),
@@ -960,6 +1008,7 @@ function evaluateTimeline(
     pathId: path.id,
     pointIndex: event.kind === 'dwell' ? event.toIndex : event.fromIndex,
     velocityRatio: event.velocityRatio,
+    intendedRaySlotId,
   }
 }
 
@@ -1065,6 +1114,8 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
         pathId: current.pathId,
         pointIndex: current.pointIndex,
         velocityRatio: current.velocityRatio,
+        intendedRaySlotId: current.intendedRaySlotId,
+        cueFrameId: path.cueFrameId,
       })
       for (const copy of copies) {
         const copied = copyRay(current.target, copy)
@@ -1081,11 +1132,18 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
           pathId: current.pathId,
           pointIndex: current.pointIndex,
           velocityRatio: current.velocityRatio,
+          intendedRaySlotId: current.intendedRaySlotId,
+          cueFrameId: path.cueFrameId,
         })
       }
     }
 
-    const sampleCount = QUALITY_EXPOSURE_SAMPLES[input.quality]
+    const intendedSlotCount = path.exposureAggregation === 'intendedSlots'
+      ? Math.max(1, path.intendedRaySlots?.length ?? 1)
+      : 0
+    const sampleCount = intendedSlotCount > 0
+      ? Math.max(QUALITY_EXPOSURE_SAMPLES[input.quality], Math.min(64, intendedSlotCount * 4))
+      : QUALITY_EXPOSURE_SAMPLES[input.quality]
     const exposureSeconds = clamp(head.shutterExposureSeconds, 1 / 240, 1 / 12)
     const directSamples: Array<{ evaluation: LaserDmxScannerEvaluation; sampleTime: number; rawWeight: number }> = []
     const blankedSamples: Array<{ evaluation: LaserDmxScannerEvaluation; sampleTime: number }> = []
@@ -1125,6 +1183,9 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
       pathId: sample.evaluation.pathId,
       pointIndex: sample.evaluation.pointIndex,
       velocityRatio: sample.evaluation.velocityRatio,
+      intendedRaySlotId: sample.evaluation.intendedRaySlotId,
+      cueFrameId: path.cueFrameId,
+      sampleCount: 1,
     })
 
     for (const sample of blankedSamples) {
@@ -1147,6 +1208,126 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
   return { instantaneousRays, exposureSamples, blankedSampleCount }
 }
 
+function exposureEnergy(sample: LaserDmxExposureSample): number {
+  return sample.blanked ? 0 : clamp01(sample.exposureWeight) * clamp01(sample.intensity)
+}
+
+function weightedMean(values: readonly number[], weights: readonly number[]): number {
+  const total = weights.reduce((sum, weight) => sum + weight, 0)
+  if (total <= 1e-12) return values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length)
+  return values.reduce((sum, value, index) => sum + value * (weights[index] ?? 0), 0) / total
+}
+
+/**
+ * Collapses raw shutter samples into stable programmed ray slots. The grouping
+ * key deliberately excludes frame rate, quality, and audio feature values.
+ */
+export function aggregateLaserDmxScannerExposureSamples(input: {
+  samples: readonly LaserDmxExposureSample[]
+  paths: readonly LaserDmxScanPath[]
+}): LaserDmxExposureAggregationResult {
+  const pathById = new Map(input.paths.map(path => [path.id, path]))
+  const passthrough: LaserDmxExposureSample[] = []
+  const grouped = new Map<string, LaserDmxExposureSample[]>()
+  let blankedSampleCount = 0
+
+  for (const sample of input.samples) {
+    const path = pathById.get(sample.pathId)
+    if (sample.blanked) blankedSampleCount += 1
+    if (!path || path.exposureAggregation !== 'intendedSlots') {
+      passthrough.push({ ...sample })
+      continue
+    }
+    const slot = sample.intendedRaySlotId ?? `blank:${sample.pointIndex}`
+    const key = [
+      sample.scannerHeadId,
+      sample.fixtureId,
+      sample.opticalCopyIndex,
+      sample.pathId,
+      sample.cueFrameId ?? path.cueFrameId ?? 'cue:none',
+      slot,
+      sample.blanked ? 'blanked' : 'visible',
+    ].join('|')
+    const bucket = grouped.get(key) ?? []
+    bucket.push(sample)
+    grouped.set(key, bucket)
+  }
+
+  const aggregated: LaserDmxExposureSample[] = []
+  for (const samples of grouped.values()) {
+    const first = samples[0]
+    if (!first) continue
+    const path = pathById.get(first.pathId)
+    const isBlanked = samples.every(sample => sample.blanked)
+    if (isBlanked) {
+      aggregated.push({
+        ...first,
+        blanked: true,
+        intensity: 0,
+        exposureWeight: 0,
+        sampleCount: samples.reduce((sum, sample) => sum + (sample.sampleCount ?? 1), 0),
+      })
+      continue
+    }
+    const weights = samples.map(sample => Math.max(1e-12, exposureEnergy(sample)))
+    const rawEnergy = samples.reduce((sum, sample) => sum + exposureEnergy(sample), 0)
+    const dutyCycle = clamp(path?.totalDutyCycle ?? 1, 0, 1)
+    const boundedEnergy = clamp(rawEnergy * dutyCycle, 0, 1)
+    const meanIntensity = clamp01(weightedMean(samples.map(sample => sample.intensity), weights))
+    const intensity = Math.max(meanIntensity, boundedEnergy > 0 ? 1e-6 : 0)
+    const exposureWeight = intensity > 0 ? clamp01(boundedEnergy / intensity) : 0
+    aggregated.push({
+      ...first,
+      origin: {
+        x: weightedMean(samples.map(sample => sample.origin.x), weights),
+        y: weightedMean(samples.map(sample => sample.origin.y), weights),
+        z: weightedMean(samples.map(sample => sample.origin.z), weights),
+      },
+      targetOrDirection: {
+        x: weightedMean(samples.map(sample => sample.targetOrDirection.x), weights),
+        y: weightedMean(samples.map(sample => sample.targetOrDirection.y), weights),
+        z: weightedMean(samples.map(sample => sample.targetOrDirection.z), weights),
+      },
+      sampleTime: weightedMean(samples.map(sample => sample.sampleTime), weights),
+      color: {
+        r: clamp01(weightedMean(samples.map(sample => sample.color.r), weights)),
+        g: clamp01(weightedMean(samples.map(sample => sample.color.g), weights)),
+        b: clamp01(weightedMean(samples.map(sample => sample.color.b), weights)),
+        a: clamp01(weightedMean(samples.map(sample => sample.color.a), weights)),
+      },
+      intensity,
+      exposureWeight,
+      blanked: false,
+      velocityRatio: clamp01(weightedMean(samples.map(sample => sample.velocityRatio), weights)),
+      sampleCount: samples.reduce((sum, sample) => sum + (sample.sampleCount ?? 1), 0),
+    })
+  }
+
+  const exposureSamples = [...passthrough, ...aggregated].sort(
+    (a, b) => a.sampleTime - b.sampleTime
+      || a.scannerHeadId.localeCompare(b.scannerHeadId)
+      || a.opticalCopyIndex - b.opticalCopyIndex
+      || (a.intendedRaySlotId ?? '').localeCompare(b.intendedRaySlotId ?? ''),
+  )
+  const energyBeforeAggregation = input.samples.reduce((sum, sample) => sum + exposureEnergy(sample), 0)
+  const energyAfterAggregation = exposureSamples.reduce((sum, sample) => sum + exposureEnergy(sample), 0)
+  return {
+    exposureSamples,
+    diagnostics: {
+      rawSampleCount: input.samples.length,
+      aggregatedRayCount: exposureSamples.filter(sample => !sample.blanked && exposureEnergy(sample) > 0).length,
+      visibleSlotCount: new Set(exposureSamples.filter(sample => !sample.blanked).map(sample => [
+        sample.scannerHeadId,
+        sample.opticalCopyIndex,
+        sample.intendedRaySlotId ?? `sample:${sample.pointIndex}`,
+      ].join('|'))).size,
+      blankedSampleCount,
+      energyBeforeAggregation,
+      energyAfterAggregation,
+    },
+  }
+}
+
 export function createLaserDmxScannerDiagnostics(input: {
   heads: readonly LaserDmxScannerHead[]
   paths: readonly LaserDmxScanPath[]
@@ -1154,6 +1335,7 @@ export function createLaserDmxScannerDiagnostics(input: {
   exposureSamples: readonly LaserDmxExposureSample[]
   blankedSampleCount: number
   selectedFixtureIds?: ReadonlySet<string>
+  exposureAggregation?: LaserDmxExposureAggregationDiagnostics
 }): LaserDmxScannerDiagnostics {
   const compatibilityModes = new Set(input.paths.map(path => path.compatibilityMode))
   const compatibilityMode: LaserDmxScannerCompatibilityMode = input.heads.length === 0
@@ -1181,6 +1363,20 @@ export function createLaserDmxScannerDiagnostics(input: {
   const activePath = selectedHead
     ? input.paths.find(path => path.scannerHeadId === selectedHead.id) ?? null
     : input.paths[0] ?? null
+  const pathSourcesByFixture = new Map<string, Set<string>>()
+  const pathIdsByHead = new Map<string, Set<string>>()
+  for (const path of input.paths) {
+    const sources = pathSourcesByFixture.get(path.fixtureId) ?? new Set<string>()
+    sources.add(path.macroControlled ? 'macro' : path.compatibilityMode === 'legacy-converted' ? 'legacy' : 'authored')
+    pathSourcesByFixture.set(path.fixtureId, sources)
+    const headPaths = pathIdsByHead.get(path.scannerHeadId) ?? new Set<string>()
+    headPaths.add(path.id)
+    pathIdsByHead.set(path.scannerHeadId, headPaths)
+  }
+  const duplicateRenderingFixtureIds = [...pathSourcesByFixture.entries()]
+    .filter(([fixtureId, sources]) => sources.size > 1
+      || input.paths.some(path => path.fixtureId === fixtureId && (pathIdsByHead.get(path.scannerHeadId)?.size ?? 0) > 1))
+    .map(([fixtureId]) => fixtureId)
   let visibleSegmentCount = 0
   let blankedSegmentCount = 0
   for (const path of input.paths) {
@@ -1219,5 +1415,13 @@ export function createLaserDmxScannerDiagnostics(input: {
     compatibilityMode,
     migrationStatus,
     migrationWarnings: input.paths.flatMap(path => path.migrationWarnings),
+    rawExposureSampleCount: input.exposureAggregation?.rawSampleCount ?? input.exposureSamples.length,
+    aggregatedRayCount: input.exposureAggregation?.aggregatedRayCount ?? input.exposureSamples.filter(sample => !sample.blanked).length,
+    energyBeforeAggregation: input.exposureAggregation?.energyBeforeAggregation
+      ?? input.exposureSamples.reduce((sum, sample) => sum + exposureEnergy(sample), 0),
+    energyAfterAggregation: input.exposureAggregation?.energyAfterAggregation
+      ?? input.exposureSamples.reduce((sum, sample) => sum + exposureEnergy(sample), 0),
+    macroControlledPathCount: input.paths.filter(path => path.macroControlled).length,
+    duplicateRenderingFixtureIds,
   }
 }

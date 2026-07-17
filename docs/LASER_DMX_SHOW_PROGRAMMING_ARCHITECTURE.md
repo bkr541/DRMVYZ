@@ -2,7 +2,7 @@
 
 ## Status
 
-Corrective Patch 1 adds the authoritative professional show-programming layer above the existing physical scanner system. It does not replace ordered scan paths, scanner kinematics, blanking, exposure sampling, WebGL rendering, Canvas2D fallback, production output, or recovery behavior.
+Corrective Patches 1 and 2 provide the authoritative professional show-programming layer and its native physical-scanner execution path. It does not replace ordered scan paths, scanner kinematics, blanking, exposure sampling, WebGL rendering, Canvas2D fallback, production output, or recovery behavior.
 
 The runtime order is now:
 
@@ -10,13 +10,15 @@ The runtime order is now:
 performance scene and cue stack
   -> effect macro
   -> stable pattern frame
-  -> existing scanner runtime overrides
+  -> macro-aware scan planner
+  -> ordered scanner path
   -> physical scanner solver
-  -> exposure samples
+  -> raw exposure samples
+  -> intended-slot aggregation
   -> WebGL or Canvas2D output
 ```
 
-Patch 1 deliberately keeps the existing scanner planner as the final geometry authority. Corrective Patch 2 will make scanner-path planning consume stable pattern frames natively.
+Corrective Patch 2 makes the stable pattern frame authoritative for macro-controlled fixtures. Authored and legacy scanner conversion remain available only for fixtures that have not been migrated to the macro route.
 
 ## Versioned persistence
 
@@ -174,15 +176,10 @@ Linked mirror pairs are inferred only when exactly two fixtures share a pair ID 
 
 Focused tests cover adapter creation, persistence round trips, stable topology, deterministic ray slots, quantized starts, cue duration, authored repeat cycles, transition state, cue-relative automation, seek and loop reconstruction, mirrored and opposed banks, phase offset, chase, center-out behavior, accent layering, audio geometry suppression, integrated resolver behavior, validation warnings, and Live/Capture state preservation.
 
-## Deferred to Corrective Patch 2
+## Corrective Patch 2 implementation
 
-Corrective Patch 2 should:
+Corrective Patch 2 adds native macro-aware scan planning, intended-slot exposure aggregation, fixture-group execution, bounded music modulation, transition-aware history clearing, nonlaser cue-stack execution, and the associated diagnostics and WebGL regression states. See `LASER_DMX_SHOW_PROGRAMMING_CORRECTIVE_PATCH_2.md` for the implementation contract and validation surface.
 
-- replace compatibility scanner override projection with a macro-aware scan planner
-- compile stable ray slots into native ordered paths
-- perform transition-safe path handoff and disconnected-travel blanking in the planner
-- route moving-head, wash, LED, haze, and optical automation through dedicated runtime plans
-- measure actual topology revisions and geometry rebuilds across the planner boundary
-- add authoring controls for macros, cue stacks, relationships, and automation
+## Deferred to Corrective Patch 3
 
-Complete first-party preset and Performance Show re-authoring remains deferred to Corrective Patch 3.
+Complete first-party preset and Performance Show re-authoring, compatibility retirement, and the final reference-based acceptance audit remain deferred to Corrective Patch 3.

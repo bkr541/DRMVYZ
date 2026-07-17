@@ -42,6 +42,13 @@ export interface LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot {
   macroTransitionState: string
   audioModulationValues: Record<string, number>
   geometryRebuildCount: number
+  patternFrameCacheHits: number
+  patternFrameCacheMisses: number
+  raySlotCount: number
+  topologyChangesPerCue: number
+  fixtureGroupSynchronizationStatus: string
+  conflictingOverrides: string[]
+  audioModulationBoundaries: string[]
   unexpectedTopologyChanges: number
   suppressedAudioGeometryMappings: string[]
   programmingWarnings: string[]
@@ -79,6 +86,13 @@ const EMPTY_SNAPSHOT: LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot = Obj
   macroTransitionState: 'inactive',
   audioModulationValues: {},
   geometryRebuildCount: 0,
+  patternFrameCacheHits: 0,
+  patternFrameCacheMisses: 0,
+  raySlotCount: 0,
+  topologyChangesPerCue: 0,
+  fixtureGroupSynchronizationStatus: 'inactive',
+  conflictingOverrides: [],
+  audioModulationBoundaries: [],
   unexpectedTopologyChanges: 0,
   suppressedAudioGeometryMappings: [],
   programmingWarnings: [],
@@ -120,6 +134,13 @@ function statusFingerprint(value: LaserDmxShowDirectorPerformanceRuntimeStatusSn
     value.macroTransitionState,
     JSON.stringify(value.audioModulationValues),
     value.geometryRebuildCount,
+    value.patternFrameCacheHits,
+    value.patternFrameCacheMisses,
+    value.raySlotCount,
+    value.topologyChangesPerCue,
+    value.fixtureGroupSynchronizationStatus,
+    value.conflictingOverrides.join(','),
+    value.audioModulationBoundaries.join(','),
     value.unexpectedTopologyChanges,
     value.suppressedAudioGeometryMappings.join(','),
     value.programmingWarnings.join(','),
@@ -166,6 +187,13 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
     macroTransitionState: resolution.programmingDiagnostics?.transitionState ?? 'inactive',
     audioModulationValues: { ...(resolution.programmingDiagnostics?.audioModulationValues ?? {}) },
     geometryRebuildCount: resolution.programmingDiagnostics?.geometryRebuildCount ?? 0,
+    patternFrameCacheHits: resolution.programmingDiagnostics?.patternFrameCacheHits ?? 0,
+    patternFrameCacheMisses: resolution.programmingDiagnostics?.patternFrameCacheMisses ?? 0,
+    raySlotCount: resolution.programmingDiagnostics?.raySlotCount ?? 0,
+    topologyChangesPerCue: resolution.programmingDiagnostics?.topologyChangesPerCue ?? 0,
+    fixtureGroupSynchronizationStatus: resolution.programmingDiagnostics?.fixtureGroupSynchronizationStatus ?? 'inactive',
+    conflictingOverrides: [...(resolution.programmingDiagnostics?.conflictingOverrides ?? [])],
+    audioModulationBoundaries: [...(resolution.programmingDiagnostics?.audioModulationBoundaries ?? [])],
     unexpectedTopologyChanges: resolution.programmingDiagnostics?.unexpectedTopologyChanges ?? 0,
     suppressedAudioGeometryMappings: [...(resolution.diagnostics.suppressedAudioGeometryMappings ?? [])],
     programmingWarnings: (resolution.programmingDiagnostics?.warnings ?? []).map(warning => warning.message),

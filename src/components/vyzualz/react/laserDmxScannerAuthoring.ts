@@ -505,9 +505,10 @@ export function applyLaserDmxScannerRuntimeOverrides(
   context?: { fixture: LaserDmxShowDirectorFixture; bounds: ScannerGridBounds },
 ): LaserDmxShowDirectorScannerConfig {
   if (!overrides) return cloneLaserDmxScannerConfig(scanner)
+  const macroAuthoritative = overrides.authoritativeSource === 'macro' && overrides.macroPlan?.authoritative === true
   const requestedPattern = overrides.patternType ?? scanner.patternType
   const patternChanged = requestedPattern !== scanner.patternType
-  let next = patternChanged && context && requestedPattern !== 'customPath'
+  let next = !macroAuthoritative && patternChanged && context && requestedPattern !== 'customPath'
     ? (() => {
       const generated = createLaserDmxScannerPattern(context.fixture, requestedPattern, context.bounds)
       return {
@@ -536,14 +537,14 @@ export function applyLaserDmxScannerRuntimeOverrides(
   if (overrides.radius != null) next.radius = clamp01(overrides.radius)
   if (overrides.size != null) next.size = clamp01(overrides.size)
   if (overrides.depthLayer) next.depthLayer = overrides.depthLayer
-  if (context && requestedPattern !== 'customPath' && (patternChanged || overrides.fanWidth != null || overrides.radius != null || overrides.size != null)) {
+  if (!macroAuthoritative && context && requestedPattern !== 'customPath' && (patternChanged || overrides.fanWidth != null || overrides.radius != null || overrides.size != null)) {
     next.path.points = patternPoints(context.fixture, requestedPattern, context.bounds, next)
   }
   if (overrides.retraceBlanking != null) next.path.retraceBlanking = overrides.retraceBlanking
   if (overrides.opticalMode) next.optics.mode = overrides.opticalMode
   if (overrides.opticalCopyCount != null) next.optics.copyCount = Math.round(clamp(overrides.opticalCopyCount, 1, 25))
   if (overrides.shutterClosed != null) next.shutterClosed = overrides.shutterClosed
-  if (overrides.heldBeam) {
+  if (!macroAuthoritative && overrides.heldBeam) {
     next.patternType = 'holdBeam'
     if (context) next.path = createLaserDmxScannerPattern(context.fixture, 'holdBeam', context.bounds).path
   }

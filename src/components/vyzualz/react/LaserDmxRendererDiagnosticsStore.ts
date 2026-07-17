@@ -36,6 +36,12 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   blankedScannerSegmentCount: number
   orderedPathCount: number
   exposureSampleCount: number
+  rawExposureSampleCount: number
+  aggregatedRayCount: number
+  scannerEnergyBeforeAggregation: number
+  scannerEnergyAfterAggregation: number
+  macroControlledPathCount: number
+  duplicateRenderingFixtureIds: string[]
   legacyConvertedPathCount: number
   explicitOpticalCopyCount: number
   scannerApertureCount: number
@@ -95,6 +101,12 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   blankedScannerSegmentCount: 0,
   orderedPathCount: 0,
   exposureSampleCount: 0,
+  rawExposureSampleCount: 0,
+  aggregatedRayCount: 0,
+  scannerEnergyBeforeAggregation: 0,
+  scannerEnergyAfterAggregation: 0,
+  macroControlledPathCount: 0,
+  duplicateRenderingFixtureIds: [],
   legacyConvertedPathCount: 0,
   explicitOpticalCopyCount: 0,
   scannerApertureCount: 0,
@@ -164,6 +176,12 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.blankedScannerSegmentCount,
     value.orderedPathCount,
     value.exposureSampleCount,
+    value.rawExposureSampleCount,
+    value.aggregatedRayCount,
+    value.scannerEnergyBeforeAggregation,
+    value.scannerEnergyAfterAggregation,
+    value.macroControlledPathCount,
+    value.duplicateRenderingFixtureIds.join(','),
     value.legacyConvertedPathCount,
     value.explicitOpticalCopyCount,
     value.scannerApertureCount,
@@ -202,7 +220,9 @@ export function publishLaserDmxRendererDiagnostics(
   nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now(),
 ): void {
   const normalized = Object.freeze({
+    ...EMPTY_SNAPSHOT,
     ...next,
+    duplicateRenderingFixtureIds: [...(next.duplicateRenderingFixtureIds ?? [])],
     cpuFrameMs: roundedTiming(next.cpuFrameMs),
     gpuFrameMs: roundedTiming(next.gpuFrameMs),
   })

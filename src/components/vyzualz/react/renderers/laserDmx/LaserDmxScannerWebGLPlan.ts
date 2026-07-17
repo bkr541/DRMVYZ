@@ -15,6 +15,8 @@ export interface LaserDmxScannerExposureSegment {
   fixtureId: string;
   pathId: string;
   opticalCopyIndex: number;
+  intendedRaySlotId?: string;
+  rawSampleCount: number;
   origin: LaserDmxSceneVec3;
   target: LaserDmxSceneVec3;
   color: LaserDmxSceneColor;
@@ -35,6 +37,11 @@ export interface LaserDmxScannerWebGLInputValidation {
   duplicateFixtureIds: string[];
   blankedBreakCount: number;
   invalidSampleCount: number;
+  rawExposureSampleCount: number;
+  aggregatedRayCount: number;
+  energyBeforeAggregation: number;
+  energyAfterAggregation: number;
+  filledWedgeRiskCount: number;
 }
 
 export interface LaserDmxScannerExposurePlan {
@@ -84,7 +91,7 @@ function finiteSample(sample: LaserDmxExposureSample): boolean {
 }
 
 function groupKey(sample: LaserDmxExposureSample): string {
-  return `${sample.scannerHeadId}:${sample.pathId}:${sample.opticalCopyIndex}`;
+  return `${sample.scannerHeadId}:${sample.pathId}:${sample.opticalCopyIndex}:${sample.intendedRaySlotId ?? 'unassigned'}`;
 }
 
 function stableSampleSort(
@@ -154,11 +161,13 @@ function buildGroupSegments(
     }
 
     segments.push({
-      id: `${current.scannerHeadId}:${current.pathId}:copy-${current.opticalCopyIndex}:sample-${segmentOrdinal}`,
+      id: `${current.scannerHeadId}:${current.pathId}:copy-${current.opticalCopyIndex}:${current.intendedRaySlotId ?? `sample-${segmentOrdinal}`}`,
       scannerHeadId: current.scannerHeadId,
       fixtureId: current.fixtureId,
       pathId: current.pathId,
       opticalCopyIndex: current.opticalCopyIndex,
+      intendedRaySlotId: current.intendedRaySlotId,
+      rawSampleCount: Math.max(1, current.sampleCount ?? 1),
       origin: { ...current.origin },
       target: { ...current.targetOrDirection },
       color: { ...current.color },
@@ -244,7 +253,17 @@ export function buildLaserDmxScannerExposurePlan(
   // The final WebGL beam planner rechecks the rendered legacy set after
   // suppression. At this stage every overlapping legacy ray is declaratively
   // suppressed, so any non-empty duplicate list later is a planner regression.
-  const duplicateFixtureIds: string[] = [];
+  const duplicateFixtureIds = [...frame.scannerDiagnostics.duplicateRenderingFixtureIds];
+  const filledWedgeRiskCount = segments.filter((segment) => {
+    const matching = segments.filter((candidate) => candidate.scannerHeadId === segment.scannerHeadId
+      && candidate.pathId === segment.pathId
+      && candidate.opticalCopyIndex === segment.opticalCopyIndex);
+    if (matching.length < 3) return false;
+    const nearest = matching
+      .filter((candidate) => candidate.id !== segment.id)
+      .reduce((minimum, candidate) => Math.min(minimum, distance(candidate.target, segment.target)), Number.POSITIVE_INFINITY);
+    return nearest < 0.00025 && segment.rawSampleCount > 1;
+  }).length;
 
   return {
     segments,
@@ -260,6 +279,11 @@ export function buildLaserDmxScannerExposurePlan(
       duplicateFixtureIds,
       blankedBreakCount,
       invalidSampleCount: invalidSamples.length,
+      rawExposureSampleCount: frame.exposureAggregation.rawSampleCount,
+      aggregatedRayCount: frame.exposureAggregation.aggregatedRayCount,
+      energyBeforeAggregation: frame.exposureAggregation.energyBeforeAggregation,
+      energyAfterAggregation: frame.exposureAggregation.energyAfterAggregation,
+      filledWedgeRiskCount,
     },
   };
 }
@@ -275,20 +299,10 @@ export function resolveLaserDmxScannerExposureDensity(
   frame: LaserDmxSceneFrame,
   segment: LaserDmxScannerExposureSegment,
 ): number {
-  const visibleGroupSampleCount = frame.exposureSamples.filter((sample) =>
-    sample.scannerHeadId === segment.scannerHeadId
-    && sample.pathId === segment.pathId
-    && sample.opticalCopyIndex === segment.opticalCopyIndex
-    && !sample.blanked
-    && sample.intensity > 0
-    && sample.exposureWeight > 0,
-  ).length;
-
-  // Exposure sample count is a quality/integration detail, not an authored
-  // dimmer. Compensate for the normalized shutter weights so increasing
-  // sample quality does not make every individual aerial ray disappear.
-  const qualityNormalizedExposure = segment.exposureContribution
-    * Math.max(1, visibleGroupSampleCount);
+  // Aggregation already sums raw shutter samples into a programmed slot.
+  // Multiplying by sample count here would make brightness frame-rate and
+  // quality dependent, recreating the filled-wedge failure mode.
+  const qualityNormalizedExposure = segment.exposureContribution;
   const motionResponse = 0.68 + (1 - clamp01(segment.velocityRatio)) * 0.18;
   const dwellResponse = segment.pointDwell ? 1.22 : 1;
   return clamp(

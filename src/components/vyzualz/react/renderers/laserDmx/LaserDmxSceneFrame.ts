@@ -54,17 +54,20 @@ import {
   resolveLaserDmxFixtureCalibration,
 } from './LaserDmxColorScience'
 import {
+  aggregateLaserDmxScannerExposureSamples,
   createLaserDmxAuthoredScannerPlan,
   createLaserDmxLegacyScannerPlan,
   createLaserDmxScannerDiagnostics,
   solveLaserDmxScannerExposure,
   type LaserDmxExposureSample,
+  type LaserDmxExposureAggregationDiagnostics,
   type LaserDmxScanPath,
   type LaserDmxScannerDiagnostics,
   type LaserDmxScannerHead,
   type LaserDmxScannerInstantaneousRay,
   type LaserDmxScannerOpticalCopy,
 } from './LaserDmxScannerDomain'
+import { createLaserDmxMacroScannerPlan } from './LaserDmxMacroScannerPlanner'
 
 export interface LaserDmxSceneVec3 {
   x: number
@@ -290,6 +293,7 @@ export interface LaserDmxSceneFrame {
   scanPaths: LaserDmxScanPath[]
   scannerInstantaneousRays: LaserDmxScannerInstantaneousRay[]
   exposureSamples: LaserDmxExposureSample[]
+  exposureAggregation: LaserDmxExposureAggregationDiagnostics
   opticalCopies: LaserDmxScannerOpticalCopy[]
   legacyCompatibilityBeamIds: string[]
   scannerDiagnostics: LaserDmxScannerDiagnostics
@@ -876,7 +880,12 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       targets.push(sceneTarget)
       return { seed, sceneTarget }
     })
-    const authoredScanner = fixture.kind === 'laser' && fixture.scanner
+    const macroPlan = fixture.kind === 'laser'
+      && fixture.runtimeScanner?.authoritativeSource === 'macro'
+      && fixture.runtimeScanner.macroPlan?.authoritative
+      ? fixture.runtimeScanner.macroPlan
+      : null
+    const authoredScanner = fixture.kind === 'laser' && fixture.scanner && !macroPlan
       ? applyLaserDmxScannerRuntimeOverrides(fixture.scanner, fixture.runtimeScanner, {
         fixture,
         bounds: { columns, rows },
@@ -913,7 +922,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       1,
       LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
     )
-    const scannerTargetSeeds = fixture.kind === 'laser' && !authoredScanner
+    const scannerTargetSeeds = fixture.kind === 'laser' && !authoredScanner && !macroPlan
       ? targetsForFixture(fixture, columns, rows, authoredScannerDemand, authoredScannerDemand, input)
       : []
     const scannerTargets = scannerTargetSeeds.map(seed => {
@@ -931,7 +940,15 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       }
     })
     if (fixture.kind === 'laser' && fixtureEnabled && fixture.beam.beamEnabled) {
-      const scannerPlan = authoredScanner && authoredScannerTargets.length > 0
+      const scannerPlan = macroPlan
+        ? createLaserDmxMacroScannerPlan({
+          fixture,
+          macro: macroPlan,
+          origin: position,
+          primitiveType: resolveLaserDmxOpticalPrimitiveType(fixture),
+          color,
+        })
+        : authoredScanner && authoredScannerTargets.length > 0
         ? createLaserDmxAuthoredScannerPlan({
           fixture,
           scanner: authoredScanner,
@@ -1139,17 +1156,24 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     bpm: Math.max(0, finite(input.bpm, 0)),
     quality: showDirector.settings.webglQuality,
   })
+  const exposureAggregation = aggregateLaserDmxScannerExposureSamples({
+    samples: scannerExposure.exposureSamples,
+    paths: scanPaths,
+  })
   const scannerDiagnostics = createLaserDmxScannerDiagnostics({
     heads: scannerHeads,
     paths: scanPaths,
     opticalCopies,
-    exposureSamples: scannerExposure.exposureSamples,
+    exposureSamples: exposureAggregation.exposureSamples,
     blankedSampleCount: scannerExposure.blankedSampleCount,
     selectedFixtureIds: selected,
+    exposureAggregation: exposureAggregation.diagnostics,
   })
+  const scannerHistoryReset = scanPaths.some(path => path.clearTemporalHistory)
+  const timingDiscontinuity = input.timingDiscontinuity || scannerHistoryReset
   const transientEvents = createSceneTransientEvents({
     timestamp: Math.max(0, finite(input.audioTimeSec, 0)),
-    timingDiscontinuity: input.timingDiscontinuity,
+    timingDiscontinuity,
     blackout,
     fixtures,
     atmosphereSources,
@@ -1163,7 +1187,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       audioTimeSec: Math.max(0, finite(input.audioTimeSec, 0)),
       deltaTimeSec: clamp(finite(input.deltaTimeSec, 1 / 60), 0, 0.1),
       isPlaying: input.isPlaying,
-      timingDiscontinuity: input.timingDiscontinuity,
+      timingDiscontinuity,
       trackKey: input.trackKey,
       historyIdentity: input.historyIdentity?.trim()
         || `${input.trackKey ?? 'track:none'}:${showDirector.sourceTemplateId ?? 'rig'}:${showDirector.settings.rendererMode}`,
@@ -1209,7 +1233,8 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     scannerHeads,
     scanPaths,
     scannerInstantaneousRays: scannerExposure.instantaneousRays,
-    exposureSamples: scannerExposure.exposureSamples,
+    exposureSamples: exposureAggregation.exposureSamples,
+    exposureAggregation: exposureAggregation.diagnostics,
     opticalCopies,
     legacyCompatibilityBeamIds: energized.beams
       .filter(beam => beam.fixtureKind === 'laser')

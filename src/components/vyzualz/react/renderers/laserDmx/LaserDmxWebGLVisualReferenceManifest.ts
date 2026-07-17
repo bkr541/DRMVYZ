@@ -39,6 +39,23 @@ export const LASER_DMX_WEBGL_REFERENCE_SCENES = Object.freeze({
     'nonlaser-co2-burst',
     'nonlaser-video-surface-fallback',
   ]),
+  programming: Object.freeze([
+    'programming-stable-8-ray-fan',
+    'programming-stable-12-ray-fan',
+    'programming-mirrored-12-ray-fans',
+    'programming-smooth-opening-fan',
+    'programming-smooth-closing-fan',
+    'programming-parallel-sheet',
+    'programming-tunnel',
+    'programming-circle',
+    'programming-wave',
+    'programming-cue-transition',
+    'programming-bank-handoff',
+    'programming-strobe-accent',
+    'programming-blinder-impact',
+    'programming-led-chase',
+    'programming-co2-event',
+  ]),
   musical: Object.freeze([
     'musical-intro',
     'musical-verse',
@@ -54,11 +71,13 @@ export const LASER_DMX_WEBGL_REFERENCE_SCENES = Object.freeze({
 export type LaserDmxWebGLReferenceSceneId =
   | typeof LASER_DMX_WEBGL_REFERENCE_SCENES.laser[number]
   | typeof LASER_DMX_WEBGL_REFERENCE_SCENES.nonlaser[number]
+  | typeof LASER_DMX_WEBGL_REFERENCE_SCENES.programming[number]
   | typeof LASER_DMX_WEBGL_REFERENCE_SCENES.musical[number]
 
 export const LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS: readonly LaserDmxWebGLReferenceSceneId[] = Object.freeze([
   ...LASER_DMX_WEBGL_REFERENCE_SCENES.laser,
   ...LASER_DMX_WEBGL_REFERENCE_SCENES.nonlaser,
+  ...LASER_DMX_WEBGL_REFERENCE_SCENES.programming,
   ...LASER_DMX_WEBGL_REFERENCE_SCENES.musical,
 ])
 

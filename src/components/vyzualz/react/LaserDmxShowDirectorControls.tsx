@@ -354,6 +354,11 @@ function PerformanceProgramControls() {
               <div><dt>Relationships</dt><dd>{status.fixtureGroupRelationships.length ? status.fixtureGroupRelationships.join(', ') : 'Explicitly independent'}</dd></div>
               <div><dt>Audio Modulation</dt><dd>{Object.entries(status.audioModulationValues).map(([key, value]) => `${key} ${value.toFixed(2)}`).join(', ') || 'None'}</dd></div>
               <div><dt>Geometry Rebuilds</dt><dd>{status.geometryRebuildCount}</dd></div>
+              <div><dt>Pattern Cache</dt><dd>{status.patternFrameCacheHits} hits / {status.patternFrameCacheMisses} misses</dd></div>
+              <div><dt>Ray Slots</dt><dd>{status.raySlotCount}</dd></div>
+              <div><dt>Group Sync</dt><dd>{status.fixtureGroupSynchronizationStatus}</dd></div>
+              <div><dt>Topology / Cue</dt><dd>{status.topologyChangesPerCue}</dd></div>
+              <div><dt>Modulation Bounds</dt><dd>{status.audioModulationBoundaries.join(', ') || 'None'}</dd></div>
               <div><dt>Topology Changes</dt><dd>{status.unexpectedTopologyChanges}</dd></div>
               <div><dt>Compatibility</dt><dd>{status.programmingCompatibilitySource}</dd></div>
             </>
@@ -369,6 +374,11 @@ function PerformanceProgramControls() {
         {presentationMode !== 'capture' && status.suppressedAudioGeometryMappings.length > 0 && (
           <p className="rv-show-director-performance-status__warning">
             Blocked audio geometry mappings: {status.suppressedAudioGeometryMappings.join(', ')}
+          </p>
+        )}
+        {presentationMode !== 'capture' && status.conflictingOverrides.length > 0 && (
+          <p className="rv-show-director-performance-status__warning">
+            Macro authority replaced conflicting overrides: {status.conflictingOverrides.join(', ')}
           </p>
         )}
         {presentationMode !== 'capture' && status.programmingWarnings.map((warning, index) => (

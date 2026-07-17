@@ -49,6 +49,9 @@ export function LaserDmxRendererDiagnosticsPanel() {
                 <div><dt>Path Segments</dt><dd>{diagnostics.visibleScannerSegmentCount} visible / {diagnostics.blankedScannerSegmentCount} blanked</dd></div>
                 <div><dt>Ordered Paths</dt><dd>{diagnostics.orderedPathCount}</dd></div>
                 <div><dt>Exposure Samples</dt><dd>{diagnostics.exposureSampleCount}</dd></div>
+                <div><dt>Raw / Aggregated</dt><dd>{diagnostics.rawExposureSampleCount} / {diagnostics.aggregatedRayCount}</dd></div>
+                <div><dt>Exposure Energy</dt><dd>{diagnostics.scannerEnergyBeforeAggregation.toFixed(3)} → {diagnostics.scannerEnergyAfterAggregation.toFixed(3)}</dd></div>
+                <div><dt>Macro Paths</dt><dd>{diagnostics.macroControlledPathCount}</dd></div>
                 <div><dt>Legacy Paths</dt><dd>{diagnostics.legacyConvertedPathCount}</dd></div>
                 <div><dt>Optical Copies</dt><dd>{diagnostics.explicitOpticalCopyCount}</dd></div>
                 <div><dt>Apertures</dt><dd>{diagnostics.scannerApertureCount}</dd></div>
@@ -58,6 +61,7 @@ export function LaserDmxRendererDiagnosticsPanel() {
                 <div><dt>Path Errors</dt><dd>{diagnostics.scannerValidationErrorCount}</dd></div>
                 <div><dt>Scanner Mode</dt><dd>{diagnostics.scannerCompatibilityMode}</dd></div>
                 <div><dt>Migration</dt><dd>{diagnostics.scannerMigrationStatus}</dd></div>
+                <div><dt>Duplicate Paths</dt><dd>{diagnostics.duplicateRenderingFixtureIds.length ? diagnostics.duplicateRenderingFixtureIds.join(', ') : 'None'}</dd></div>
               </>
             )}
             <div><dt>CPU Frame</dt><dd>{timing(diagnostics.cpuFrameMs)}</dd></div>

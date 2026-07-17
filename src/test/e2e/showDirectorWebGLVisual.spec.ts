@@ -130,7 +130,7 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
   test.skip(!enabled, 'Run with npm run visual:show-director:webgl')
 
   test('renders deterministic production WebGL pixels with diagnostics and clean Capture output', async ({ page }) => {
-    test.setTimeout(180_000)
+    test.setTimeout(300_000)
     await page.setContent(`<!doctype html><html lang="en"><head><meta charset="UTF-8"><style>
       :root{color-scheme:dark;background:#05070b;color:#e9faff;font-family:Inter,system-ui,sans-serif}body{margin:0;padding:16px}main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}article{padding:8px;background:#080d13;border:1px solid #1b2b37;border-radius:8px}h2{font-size:12px;margin:0 0 6px}canvas{display:block;width:100%;height:auto;background:#000}
     </style></head><body><h1>LaserDMX WebGL2 Visual Regression</h1><main id="review-grid"></main></body></html>`)
@@ -149,7 +149,7 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     expect(report?.rendererHost).toBe('production-laser-dmx-webgl-runtime')
     expect(report?.capability.available).toBe(true)
     expect(report?.capability.version).toContain('WebGL 2')
-    expect(report?.frames).toHaveLength(49)
+    expect(report?.frames).toHaveLength(64)
     expect(report?.missingReferenceSceneIds).toEqual([])
     expect(new Set(report!.frames.flatMap(frame => frame.referenceSceneIds))).toEqual(new Set(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS))
 
@@ -232,6 +232,21 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
       'budget-hero-preservation',
       'auto-support-degradation',
       'high-mirror-corridor',
+      'programming-stable-8-ray-fan',
+      'programming-stable-12-ray-fan',
+      'programming-mirrored-12-ray-fans',
+      'programming-smooth-opening-fan',
+      'programming-smooth-closing-fan',
+      'programming-parallel-sheet',
+      'programming-tunnel',
+      'programming-circle',
+      'programming-wave',
+      'programming-cue-transition',
+      'programming-bank-handoff',
+      'programming-strobe-accent',
+      'programming-blinder-impact',
+      'programming-led-chase',
+      'programming-co2-event',
     ]
     for (const scenario of requiredScenarios) {
       expect(report!.frames.some(frame => frame.scenario === scenario), `Missing ${scenario} regression state`).toBe(true)

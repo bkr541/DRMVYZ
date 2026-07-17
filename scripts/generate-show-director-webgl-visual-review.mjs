@@ -77,7 +77,7 @@ async function run(command, args, timeoutMs = 240_000, env = baseEnv) {
   if (status.code !== 0) throw new Error(`${command} exited with status ${status.code ?? status.signal ?? 'unknown'}`)
 }
 
-function waitForFinalVisualReport(logPath, timeoutMs = 240_000) {
+function waitForFinalVisualReport(logPath, timeoutMs = 360_000) {
   const reportPath = path.join(output, 'report.json')
   const startedAt = Date.now()
   const sleepState = new Int32Array(new SharedArrayBuffer(4))
