@@ -452,12 +452,14 @@ export function createStrobeBlinderPerformanceProgram(): LaserDmxShowDirectorPer
 // Haze + CO2 Performance ----------------------------------------------------
 
 const ALL_HAZE = ['haze-base-l', 'haze-base-r'] as const
+const ALL_PLUME_WASHES = ['plume-wash-l', 'plume-wash-c', 'plume-wash-r'] as const
 const ALL_CO2 = ['co2-jet-l', 'co2-jet-r', 'phrase-co2-center'] as const
 
 export const HAZE_CO2_PERFORMANCE_BANKS = Object.freeze({
   baseHazeBank: bank('atmosphere', ALL_HAZE, 'Base haze bank', 'The restrained full-song atmosphere bed.'),
   buildHazeBank: bank('atmosphere', ALL_HAZE, 'Build haze bank', 'Progressively rising build atmosphere, capped below permanent gray-cloud output.'),
   dropHazeBank: bank('atmosphere', ALL_HAZE, 'Drop haze bank', 'Drop atmosphere that reveals virtual beams without obscuring fixture origins or negative space.'),
+  plumeIlluminationBank: bank('sectionColorBed', ALL_PLUME_WASHES, 'Plume illumination bank', 'Three bounded PAR uplights that reveal haze and CO₂ without imitating laser geometry.'),
   leftCo2ImpactBank: bank('left', ['co2-jet-l'], 'Left CO2-impact bank', 'Left virtual plume for alternating downbeat impacts.'),
   rightCo2ImpactBank: bank('right', ['co2-jet-r'], 'Right CO2-impact bank', 'Right virtual plume for alternating downbeat impacts.'),
   downbeatCo2ImpactBank: bank('downbeat', ['phrase-co2-center'], 'Downbeat CO2-impact bank', 'Center virtual plume reserved for major downbeats and section transitions.'),
@@ -626,11 +628,12 @@ export function createHazeCo2PerformanceProgram(): LaserDmxShowDirectorPerforman
     tuning: { intensity: 1, variation: 1, audioIntelligenceResponse: 1, transitionScale: 1 },
     diagnostics: {
       authoringVersion: 'rig-performance-04-impact-atmosphere',
-      expectedFixtureSemanticKeys: [...ALL_HAZE, ...ALL_CO2],
+      expectedFixtureSemanticKeys: [...ALL_HAZE, ...ALL_PLUME_WASHES, ...ALL_CO2],
       notes: [
         `Maximum authored haze amount: ${HAZE_CO2_PERFORMANCE_LIMITS.maximumHazeAmount}.`,
         `Maximum authored virtual CO2-style burst: ${HAZE_CO2_PERFORMANCE_LIMITS.maximumCo2BurstDurationMs} ms.`,
         'Atmosphere recedes in the pre-drop and breakdown instead of becoming permanent gray output.',
+        'Three section-controlled PAR uplights reveal haze and virtual CO₂ without projecting fake laser geometry.',
         'All plume behavior is virtual DRMVYZ visualization and remains subordinate to final blackout authority.',
         'Four-bar atmosphere motifs, eight-bar capped recruitment, and sixteen-bar evolution remain below the authored haze and burst limits.',
       ],

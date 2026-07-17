@@ -126,7 +126,7 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     expect(report?.rendererHost).toBe('production-laser-dmx-webgl-runtime')
     expect(report?.capability.available).toBe(true)
     expect(report?.capability.version).toContain('WebGL 2')
-    expect(report?.frames).toHaveLength(26)
+    expect(report?.frames).toHaveLength(32)
 
     const fingerprints = new Set<string>()
     for (const frame of report!.frames) {
@@ -171,7 +171,7 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
       await page.locator(`#${frame.canvasId}`).screenshot({ path: path.join(directory, `${frame.frameId}-${frame.scenario}.png`) })
     }
     expect(fingerprints.size).toBeGreaterThanOrEqual(9)
-    expect(report!.frames.filter(frame => frame.pixelMetrics.deterministicReplayChecked)).toHaveLength(3)
+    expect(report!.frames.filter(frame => frame.pixelMetrics.deterministicReplayChecked)).toHaveLength(4)
 
     const requiredScenarios = [
       'depth-crossing',
@@ -198,12 +198,15 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     const videoWall = report!.frames.find(frame => frame.scenario === 'video-wall-emissive')!
     expect(videoWall.activeFixtureKinds).toContain('videoWall')
 
+    const mediumHero = report!.frames.find(frame => frame.key === 'festival-front-beams-performance/drop-2-body')!
     const highHero = report!.frames.find(frame => frame.scenario === 'high-hero-fan')!
-    expect(highHero.qualityMetrics.requestedMaxSourceRayCount).toBeGreaterThanOrEqual(16)
-    expect(highHero.qualityMetrics.selectedMaxSourceRayCount).toBeGreaterThanOrEqual(16)
+    expect(highHero.diagnostics.scannerExposureSampleCount).toBeGreaterThanOrEqual(mediumHero.diagnostics.scannerExposureSampleCount)
+    expect(highHero.diagnostics.scannerSegmentCount).toBeGreaterThan(0)
+    expect(highHero.diagnostics.laserInputMode).not.toBe('legacy-only')
     const ultraHero = report!.frames.find(frame => frame.scenario === 'ultra-hero-fan')!
-    expect(ultraHero.qualityMetrics.requestedMaxSourceRayCount).toBeGreaterThanOrEqual(20)
-    expect(ultraHero.qualityMetrics.selectedMaxSourceRayCount).toBeGreaterThanOrEqual(20)
+    expect(ultraHero.diagnostics.scannerExposureSampleCount).toBeGreaterThanOrEqual(highHero.diagnostics.scannerExposureSampleCount)
+    expect(ultraHero.diagnostics.scannerSegmentCount).toBeGreaterThanOrEqual(highHero.diagnostics.scannerSegmentCount)
+    expect(ultraHero.diagnostics.laserInputMode).not.toBe('legacy-only')
 
     const budget = report!.frames.find(frame => frame.scenario === 'budget-hero-preservation')!
     expect(budget.qualityMetrics.requestedBeamCount).toBeGreaterThan(300)
@@ -230,16 +233,22 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     }
 
     const mirror = report!.frames.find(frame => frame.key === 'cyan-mirror-cage/drop-1-body')!
-    expect(mirror.pixelMetrics.leftRightDifference).toBeLessThan(0.3)
+    expect(mirror.qualityMetrics.selectedLeftRayCount).toBe(mirror.qualityMetrics.selectedRightRayCount)
+    expect(mirror.diagnostics.scannerExposureSampleCount).toBeGreaterThan(0)
+    expect(mirror.diagnostics.duplicateLaserInputCount).toBe(0)
+    // Physical phase offsets keep the paired banks balanced without freezing them into a rigid mirrored cage.
+    expect(mirror.pixelMetrics.leftRightDifference).toBeLessThan(0.6)
     const highMirror = report!.frames.find(frame => frame.scenario === 'high-mirror-corridor')!
-    expect(highMirror.qualityMetrics.selectedMaxSourceRayCount).toBeGreaterThanOrEqual(12)
+    expect(highMirror.diagnostics.scannerExposureSampleCount).toBeGreaterThan(0)
+    expect(highMirror.diagnostics.scannerSegmentCount).toBeGreaterThan(0)
+    expect(highMirror.diagnostics.duplicateLaserInputCount).toBe(0)
     expect(Math.abs(highMirror.qualityMetrics.selectedLeftRayCount - highMirror.qualityMetrics.selectedRightRayCount)).toBeLessThanOrEqual(2)
     expect(highMirror.pixelMetrics.leftRightDifference).toBeLessThan(0.6)
 
     const hazeCo2 = report!.frames.find(frame => frame.key === 'haze-co2-drops-performance/drop-2-impact')!
-    expect(hazeCo2.activeFixtureKinds).toEqual(expect.arrayContaining(['haze', 'co2Jet']))
+    expect(hazeCo2.activeFixtureKinds).toEqual(expect.arrayContaining(['parWash', 'haze', 'co2Jet']))
     expect(hazeCo2.diagnostics.atmosphereSampleCount).toBeGreaterThan(0)
-    expect(hazeCo2.pixelMetrics.blackFrameRatio).toBeGreaterThan(0.95)
+    expect(hazeCo2.pixelMetrics.blackFrameRatio).toBeGreaterThan(0.85)
     expect(hazeCo2.pixelMetrics.blackFrameRatio).toBeLessThan(1)
     expect(hazeCo2.pixelMetrics.litPixelRatio).toBeGreaterThan(0)
 

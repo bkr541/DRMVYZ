@@ -77,6 +77,17 @@ function roleLimit(policy: LaserDmxFanDensityPolicy, role: LaserDmxShowDirectorB
   }
 }
 
+function physicalScannerOutputDemand(fixture: LaserDmxShowDirectorFixture): number | null {
+  const scanner = fixture.kind === 'laser' ? fixture.scanner : null
+  if (!scanner?.enabled || (scanner.migration.status !== 'native' && scanner.migration.status !== 'migrated')) return null
+  const runtimeMode = fixture.runtimeScanner?.opticalMode ?? scanner.optics.mode
+  const requestedCopies = runtimeMode === 'normal'
+    ? 1
+    : fixture.runtimeScanner?.opticalCopyCount ?? scanner.optics.copyCount
+  const apertureCount = positiveInt(scanner.optics.apertureCount, 1, 1, 8)
+  return positiveInt(requestedCopies, 1, 1, 25) * apertureCount
+}
+
 function professionalFanCandidate(fixture: LaserDmxShowDirectorFixture): boolean {
   if (fixture.kind !== 'laser' || fixture.beam?.beamEnabled === false) return false
   const primitive = fixture.optics.primitiveType
@@ -136,6 +147,8 @@ export function estimateLaserDmxShowDirectorFixtureBeamDemand(
   const beamEnabled = fixture.beam?.beamEnabled !== false
   const quality = options.quality ?? 'medium'
   const role = resolveLaserDmxShowDirectorBeamPriorityRole(fixture, options.role)
+  const scannerDemand = physicalScannerOutputDemand(fixture)
+  if (scannerDemand != null) return scannerDemand
   let baseDemand = 0
   switch (fixture.kind) {
     case 'laser':

@@ -377,11 +377,12 @@ Tests assert kick-to-snare bank difference, downbeat difference, build escalatio
 
 **Source Rig Layout:** `haze-co2-drops`
 
-Haze + CO2 Performance is an atmosphere-and-impact companion with two haze fixtures and three simulated CO2-style plume fixtures. Its authored banks are:
+Haze + CO2 Performance is an atmosphere-and-impact companion with two haze fixtures, three bounded PAR plume uplights, and three simulated CO2-style plume fixtures. Its authored banks are:
 
 - `baseHazeBank`: restrained intro, verse, breakdown, and release atmosphere.
 - `buildHazeBank`: progressively rising build atmosphere.
 - `dropHazeBank`: capped Drop 1 and Drop 2 atmosphere.
+- `plumeIlluminationBank`: three section-controlled PAR uplights that reveal haze and virtual CO2 without imitating laser geometry.
 - `leftCo2ImpactBank` and `rightCo2ImpactBank`: alternating virtual side plumes.
 - `downbeatCo2ImpactBank`: center plume for major downbeats and transitions.
 - `drop2ExpandedImpactBank`: all three virtual plumes for selected Drop 2 structure.
@@ -389,13 +390,13 @@ Haze + CO2 Performance is an atmosphere-and-impact companion with two haze fixtu
 
 The global haze envelope is intentionally non-monotonic: intro **0.10**, verse **0.22**, build **0.40 plus up to 0.18 build-progress modulation**, pre-drop **0.08**, Drop 1 **0.48**, breakdown **0.14**, Drop 2 **0.58**, and outro **0.10** before the final release. Fixture haze intensity is capped at **0.62**. This keeps atmosphere supportive without turning the frame into permanent gray output or hiding fixture origins and protected negative space.
 
-Simulated CO2-style bursts are short and deterministic. Drop 1 alternates one left or right plume on an eight-beat cycle. Drop 2 retains that alternation and adds a selected sixteen-beat three-plume impact. The maximum authored burst is **650 ms**, and the maximum scheduled burst-envelope activation ratio is **0.32 of one beat**. No scene body continuously enables a plume. The expanded virtual impact compiles to at most **3 plume sources**.
+Simulated CO2-style bursts are short and deterministic. Drop 1 alternates one left or right plume on an eight-beat cycle. Drop 2 retains that alternation and adds a selected sixteen-beat three-plume impact. The maximum authored burst is **650 ms**, and the maximum scheduled burst-envelope activation ratio is **0.32 of one beat**. No scene body continuously enables a plume. The expanded virtual impact compiles to at most **3 plume sources**. The plume uplights are section beds, not transient lasers, and remain subordinate to the black floor.
 
 Tests assert haze occupancy and cap, build growth, pre-drop reduction, a breakdown-to-Drop 1 haze ratio below **0.35**, stronger capped Drop 2 atmosphere, alternating one-fixture left and right bursts, three-fixture Drop 2 recruitment, continuous-burst prevention, renderer fog contribution caps, clean outro release, static-rig immutability, deterministic seeking and looping, and final blackout authority.
 
 ### Safety, persistence, and preservation boundaries
 
-Both programs use schema version 3 and the existing transient scheduler, Track Map section model, musical clock, performance resolver, compiler, persistence state, seek identity, loop identity, and lifecycle invalidation. Program blackout may add a bounded cut but cannot clear user, authored, or safety blackout. Registry hydration recognizes all ten built-in Performance Program identifiers, including the impact and atmosphere programs. The original `Strobe + Blinder Hits` and `Haze + CO₂ Drops` static Rig Layout templates remain unchanged and independently selectable.
+Both programs use schema version 3 and the existing transient scheduler, Track Map section model, musical clock, performance resolver, compiler, persistence state, seek identity, loop identity, and lifecycle invalidation. Program blackout may add a bounded cut but cannot clear user, authored, or safety blackout. Registry hydration recognizes all ten built-in Performance Program identifiers, including the impact and atmosphere programs. The original `Strobe + Blinder Hits` static Rig Layout remains independently selectable. `Haze + CO₂ Drops` remains independently selectable and now includes three bounded plume uplights so its atmosphere has a physically meaningful light source.
 
 ## Persistence and migration
 
@@ -548,7 +549,7 @@ A bounded Drop 1 or Drop 2 white impact may use a slightly higher bright-pixel a
 
 **Strobe + Blinder Performance** renders no continuous activation, separate kick, snare, downbeat, and side ownership, short full-frame impacts, a sparse breakdown, explicit four-bar call/response, reachable eight-bar bank expansion, bounded sixteen-bar evolution, and a larger but still capped Drop 2.
 
-**Haze + CO2 Performance** renders restrained atmosphere, progressive build haze, bounded drop-support plumes, reduced breakdown haze, explicit four-bar plume motifs, reachable eight-bar atmosphere expansion, capped sixteen-bar evolution, stronger Drop 2 support, and a clean zero-haze outro release.
+**Haze + CO2 Performance** renders restrained atmosphere, progressive build haze, three bounded plume uplights, bounded drop-support plumes, reduced breakdown haze, explicit four-bar plume motifs, reachable eight-bar atmosphere expansion, capped sixteen-bar evolution, stronger Drop 2 support, and a clean zero-haze outro release.
 
 ### Persistence, seeking, looping, and regression contract
 
@@ -566,3 +567,7 @@ The final regression contract is:
 8. Beam hierarchy, negative space, mixed-fixture property boundaries, bounded effects, and the 300-beam ceiling remain enforced.
 9. Safety blackout remains dominant.
 10. The three original showcase Performance Shows remain regression protected by the same 100-frame rendered review.
+
+## Physical scanner built-in content migration (Patch 5)
+
+All first-party Show Director Performance Shows and Rig Layout presets now pass through the native physical-content migration described in `LASER_DMX_PHYSICAL_SCANNER_PATCH_5.md`. Built-in lasers use ordered scanner paths, semantic hero/support/texture banks, section-aware scanner choreography, and physical simultaneous-output budgeting. Legacy saved projects remain supported through the existing preview and migration tools.

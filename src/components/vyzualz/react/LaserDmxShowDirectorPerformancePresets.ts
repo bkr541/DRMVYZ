@@ -15,6 +15,10 @@ import {
 } from './LaserDmxShowDirectorPerformanceProgram'
 import { LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS } from './LaserDmxShowDirectorPerformanceShowcasePresets'
 import { migrateLaserDmxShowDirectorToProfessionalOptics } from './LaserDmxShowDirectorProfessionalOpticsMigration'
+import {
+  migrateLaserDmxBuiltInPerformanceProgramToPhysicalScannerContent,
+  migrateLaserDmxBuiltInRigToPhysicalScannerContent,
+} from './LaserDmxShowDirectorPhysicalContentMigration'
 import { LASER_DMX_SHOW_DIRECTOR_VIDEO_INSPIRED_PERFORMANCE_PRESETS } from './LaserDmxShowDirectorVideoInspiredPerformancePresets'
 import { LASER_DMX_SHOW_DIRECTOR_PRISMATIC_PULSE_MATRIX_PRESET } from './LaserDmxShowDirectorPrismaticPulseMatrixPerformancePreset'
 import { LASER_DMX_SHOW_DIRECTOR_DUAL_REFERENCE_PERFORMANCE_PRESETS } from './LaserDmxShowDirectorDualReferencePerformancePresets'
@@ -89,7 +93,14 @@ const RAW_LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDire
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze(
   RAW_LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => ({
     ...preset,
-    createRig: (createId: () => string) => migrateLaserDmxShowDirectorToProfessionalOptics(preset.id, preset.createRig(createId)),
+    createRig: (createId: () => string) => migrateLaserDmxBuiltInRigToPhysicalScannerContent(
+      preset.id,
+      migrateLaserDmxShowDirectorToProfessionalOptics(preset.id, preset.createRig(createId)),
+    ),
+    createProgram: () => migrateLaserDmxBuiltInPerformanceProgramToPhysicalScannerContent(
+      preset.id,
+      preset.createProgram(),
+    ),
   })),
 )
 

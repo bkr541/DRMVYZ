@@ -77,7 +77,7 @@ describe('Show Director performance preset workflow', () => {
       'strobe-blinder-hits-performance',
       'haze-co2-drops-performance',
     ])
-    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.fixtureCount)).toEqual([12, 16, 16, 10, 13, 13, 15, 18, 19, 22, 19, 22, 19, 9, 8, 9, 10, 5, 6, 5])
+    expect(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => preset.fixtureCount)).toEqual([12, 16, 16, 10, 13, 13, 15, 18, 19, 22, 19, 22, 19, 9, 8, 9, 10, 5, 6, 8])
   })
 
   it('loads rig and program atomically, preserves canvas preferences, and reloads the pristine built-in definition', () => {

@@ -367,18 +367,19 @@ export const LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS: Readonly<Reco
   }),
   'haze-co2-drops-performance': definition({
     id: 'haze-co2-drops-performance', displayName: 'Haze + CO2 Performance',
-    description: 'Capped full-song atmosphere choreography with progressive haze, alternating virtual CO2-style impacts, an expanded second drop, and a clean outro release.',
+    description: 'Capped full-song atmosphere choreography with progressive haze, bounded plume uplights, alternating virtual CO2-style impacts, an expanded second drop, and a clean outro release.',
     sourceRigLayoutId: 'haze-co2-drops', performanceProgramId: 'haze-co2-drops-performance', version: 2,
-    supportedFixtureKinds: ['haze', 'co2Jet'], fixtureBanks: HAZE_CO2_PERFORMANCE_BANKS,
+    supportedFixtureKinds: ['parWash', 'haze', 'co2Jet'], fixtureBanks: HAZE_CO2_PERFORMANCE_BANKS,
     createProgram: createHazeCo2PerformanceProgram,
     visualValidation: {
-      requiredBankRoles: ['atmosphere', 'left', 'right', 'downbeat', 'impact', 'co2Impact'],
+      requiredBankRoles: ['atmosphere', 'sectionColorBed', 'left', 'right', 'downbeat', 'impact', 'co2Impact'],
       negativeSpaceRules: ['Atmosphere reveals other virtual fixtures without becoming permanent gray output or obscuring protected negative space.'],
       acceptanceNotes: [
         'Haze follows a capped section envelope and recedes in pre-drop, breakdown, and outro states.',
         'CO2-style plumes remain simulated, alternating, bounded, deterministic, and subordinate to final blackout authority.',
+        'Three PAR uplights provide the explicit light interaction required to make haze and plumes visible.',
       ],
-      budgets: definePerformanceBudgets({ maxBeamDemand: 3, maxConcurrentCo2Bursts: 3, maxHazeAmount: HAZE_CO2_PERFORMANCE_LIMITS.maximumHazeAmount }),
+      budgets: definePerformanceBudgets({ maxBeamDemand: 6, maxConcurrentCo2Bursts: 3, maxHazeAmount: HAZE_CO2_PERFORMANCE_LIMITS.maximumHazeAmount }),
     },
   }),
 })

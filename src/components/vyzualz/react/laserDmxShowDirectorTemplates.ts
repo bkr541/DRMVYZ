@@ -11,6 +11,7 @@ import {
   type LaserDmxShowDirectorSettingsPatch,
   type LaserDmxShowDirectorState,
 } from './ReactTypes'
+import { migrateLaserDmxBuiltInRigToPhysicalScannerContent } from './LaserDmxShowDirectorPhysicalContentMigration'
 
 export type LaserDmxShowDirectorTemplateCategory = 'club' | 'festival' | 'drop' | 'led' | 'hits' | 'movement' | 'atmosphere'
 
@@ -175,13 +176,16 @@ export const LASER_DMX_SHOW_DIRECTOR_TEMPLATES = [
   {
     id: 'haze-co2-drops',
     name: 'Haze + CO₂ Drops',
-    description: 'Atmosphere-first layer with always-on haze and cue/section-gated CO₂ jets for phrase impacts.',
+    description: 'Atmosphere-first layer with restrained haze, three plume uplights, and cue/section-gated CO₂ jets for phrase impacts.',
     category: 'atmosphere',
     tags: ['haze', 'co2', 'atmosphere'],
     settings: grid(15, 10),
     fixtures: [
       fx('haze', 'Haze Base L', 1, 2, { color: '#9ddfff', brightness: 0.42, trigger: { mode: 'alwaysOn', fadeInMs: 1200, fadeOutMs: 1600 }, component: { hazeIntensity: 0.44 } }),
       fx('haze', 'Haze Base R', 13, 2, { color: '#a7ffe9', brightness: 0.42, trigger: { mode: 'alwaysOn', fadeInMs: 1200, fadeOutMs: 1600 }, component: { hazeIntensity: 0.44 } }),
+      fx('parWash', 'Plume Wash L', 3, 8, { color: CO2_BLUE, brightness: 0.52, beam: { targetMode: 'fixed', beamSpread: 34, focus: 0.56, targetX: 3, targetY: 2 }, trigger: { mode: 'section', sectionTypes: ['build', 'drop', 'breakdown'], fadeInMs: 180, fadeOutMs: 340 } }),
+      fx('parWash', 'Plume Wash C', 7, 8, { color: '#f7fbff', brightness: 0.46, beam: { targetMode: 'fixed', beamSpread: 38, focus: 0.52, targetX: 7, targetY: 2 }, trigger: { mode: 'section', sectionTypes: ['build', 'drop', 'breakdown'], fadeInMs: 180, fadeOutMs: 340 } }),
+      fx('parWash', 'Plume Wash R', 11, 8, { color: CO2_BLUE, brightness: 0.52, beam: { targetMode: 'fixed', beamSpread: 34, focus: 0.56, targetX: 11, targetY: 2 }, trigger: { mode: 'section', sectionTypes: ['build', 'drop', 'breakdown'], fadeInMs: 180, fadeOutMs: 340 } }),
       fx('co2Jet', 'CO₂ Jet L', 3, 9, { color: CO2_BLUE, trigger: { mode: 'cuePoint', cuePointIds: ['drop', 'impact'], fadeOutMs: 500 }, component: { co2BurstDurationMs: 800 } }),
       fx('co2Jet', 'CO₂ Jet R', 11, 9, { color: CO2_BLUE, trigger: { mode: 'cuePoint', cuePointIds: ['drop', 'impact'], fadeOutMs: 500 }, component: { co2BurstDurationMs: 800 } }),
       fx('co2Jet', 'Phrase CO₂ Center', 7, 9, { color: '#ffffff', trigger: { mode: 'phrase', phraseLengthBars: 8, fadeOutMs: 420 }, component: { co2BurstDurationMs: 500 } }),
@@ -224,13 +228,13 @@ export function createLaserDmxShowDirectorStateFromTemplate(
     })
     : []
 
-  return normalizeLaserDmxShowDirectorState({
+  return migrateLaserDmxBuiltInRigToPhysicalScannerContent(template.id, normalizeLaserDmxShowDirectorState({
     schemaVersion: LASER_DMX_SHOW_DIRECTOR_SCHEMA_VERSION,
     sourceTemplateId: template.id,
     fixtures,
     selectedFixtureId: fixtures[0]?.id ?? null,
     settings,
-  })
+  }))
 }
 
 export function createLaserDmxShowDirectorTemplateState(

@@ -126,6 +126,7 @@ const deterministicReplayKeys = new Set([
   'prism-cathedral/drop-1-body',
   'cyan-mirror-cage/drop-1-body',
   'moving-head-sweep-performance/build',
+  'cardinal-fan-reactor/drop-2-body',
 ])
 
 const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValidationFrameId; scenario?: WebGLReviewScenario; quality?: LaserDmxShowDirectorWebGLQuality }> = [
@@ -136,6 +137,12 @@ const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValida
   { presetId: 'prism-cathedral', frameId: 'drop-2-body' },
   { presetId: 'prism-cathedral', frameId: 'outro' },
   { presetId: 'cyan-mirror-cage', frameId: 'drop-1-body' },
+  { presetId: 'cardinal-fan-reactor', frameId: 'pre-drop' },
+  { presetId: 'cardinal-fan-reactor', frameId: 'drop-2-body' },
+  { presetId: 'cyan-mirror-cage', frameId: 'pre-drop' },
+  { presetId: 'dubstep-drop-lasers-performance', frameId: 'drop-1-body' },
+  { presetId: 'emerald-tunnel-relay', frameId: 'drop-2-body' },
+  { presetId: 'prismatic-pulse-matrix', frameId: 'drop-2-body' },
   { presetId: 'moving-head-sweep-performance', frameId: 'build' },
   { presetId: 'strobe-blinder-hits-performance', frameId: 'drop-2-impact' },
   { presetId: 'haze-co2-drops-performance', frameId: 'drop-2-impact' },
