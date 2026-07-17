@@ -103,6 +103,13 @@ function snapTime(
   return best
 }
 
+export function shouldShowSoundDrawingLyricReferenceLane(
+  lyricsBelongToLoadedTrack: boolean,
+  cueCount: number,
+): boolean {
+  return lyricsBelongToLoadedTrack && cueCount > 0
+}
+
 // ── Layer editor sub-component ────────────────────────────────────────────────
 
 interface LayerEditorProps {
@@ -531,13 +538,11 @@ export function SoundDrawingTimelineLane({
     lyricGlobalOffsetMs,
     lyricAudioTrackId,
     lyricDocumentId,
-    lyricLoading,
   } = useLyricsStore(useShallow(state => ({
     lyricCues: state.runtimeCues,
     lyricGlobalOffsetMs: state.runtimeGlobalOffsetMs,
     lyricAudioTrackId: state.runtimeAudioTrackId,
     lyricDocumentId: state.runtimeActiveDocumentId,
-    lyricLoading: state.runtimeLyricsStatus === 'loading',
   })))
   const playbackDocumentId = useLyricPlaybackSelector(state => state.documentId)
   const activeLyricCueId = useLyricPlaybackSelector(state => state.activeCue?.id ?? null)
@@ -621,6 +626,10 @@ export function SoundDrawingTimelineLane({
     playbackDocumentId === lyricDocumentId,
   )
   const referenceLyricCues = lyricsBelongToLoadedTrack ? lyricCues : []
+  const showLyricReferenceLane = shouldShowSoundDrawingLyricReferenceLane(
+    lyricsBelongToLoadedTrack,
+    referenceLyricCues.length,
+  )
   const sortedClips = [...clips].sort((a, b) =>
     a.startSec !== b.startSec ? a.startSec - b.startSec : a.zIndex - b.zIndex
   )
@@ -895,45 +904,38 @@ export function SoundDrawingTimelineLane({
             {/* Playhead */}
             <div ref={playheadRef} className="rv-sd-playhead" style={{ display: 'none' }} />
 
-            {/* Read-only canonical lyric reference lane. Cue text remains in lyric tables. */}
-            <div className="rv-sd-lyric-reference-row" aria-label="Active track lyric cue reference">
-              <div className="rv-sd-lyric-reference-label">
-                Lyrics <span>read-only · edit in Lyric Manager</span>
-              </div>
-              {referenceLyricCues.map(cue => {
-                const startSec = Math.max(0, toEffectiveLyricTimeMs(cue.startMs, lyricGlobalOffsetMs) / 1000)
-                const endSec = Math.max(startSec, toEffectiveLyricTimeMs(cue.endMs, lyricGlobalOffsetMs) / 1000)
-                const layout = computeViewportRangeLayout({ startSec, endSec }, viewportRef.current)
-                return (
-                  <button
-                    key={cue.id}
-                    type="button"
-                    data-sd-lyric-cue
-                    data-start-sec={startSec}
-                    data-end-sec={endSec}
-                    className={`rv-sd-lyric-cue${cue.id === activeLyricCueId ? ' rv-sd-lyric-cue--active' : ''}`}
-                    style={{
-                      display: layout.visible ? undefined : 'none',
-                      left: `${layout.leftPct}%`,
-                      width: `${Math.max(0.5, layout.widthPct)}%`,
-                    }}
-                    title={`${cue.text} · click to seek`}
-                    onClick={() => engine.seek(startSec)}
-                  >
-                    {cue.text}
-                  </button>
-                )
-              })}
-              {referenceLyricCues.length === 0 && (
-                <div className="rv-sd-lyric-reference-empty">
-                  {lyricLoading
-                    ? 'Loading lyrics…'
-                    : engine.currentAudioTrackId
-                      ? 'No active lyric document for this loaded track'
-                      : 'Load a persisted track to reference lyrics'}
+            {/* Only mount the lyric lane when the loaded audio owns real cue data. */}
+            {showLyricReferenceLane && (
+              <div className="rv-sd-lyric-reference-row" aria-label="Active track lyric cue reference">
+                <div className="rv-sd-lyric-reference-label">
+                  Lyrics <span>read-only · edit in Lyric Manager</span>
                 </div>
-              )}
-            </div>
+                {referenceLyricCues.map(cue => {
+                  const startSec = Math.max(0, toEffectiveLyricTimeMs(cue.startMs, lyricGlobalOffsetMs) / 1000)
+                  const endSec = Math.max(startSec, toEffectiveLyricTimeMs(cue.endMs, lyricGlobalOffsetMs) / 1000)
+                  const layout = computeViewportRangeLayout({ startSec, endSec }, viewportRef.current)
+                  return (
+                    <button
+                      key={cue.id}
+                      type="button"
+                      data-sd-lyric-cue
+                      data-start-sec={startSec}
+                      data-end-sec={endSec}
+                      className={`rv-sd-lyric-cue${cue.id === activeLyricCueId ? ' rv-sd-lyric-cue--active' : ''}`}
+                      style={{
+                        display: layout.visible ? undefined : 'none',
+                        left: `${layout.leftPct}%`,
+                        width: `${Math.max(0.5, layout.widthPct)}%`,
+                      }}
+                      title={`${cue.text} · click to seek`}
+                      onClick={() => engine.seek(startSec)}
+                    >
+                      {cue.text}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
             {/* Clip rows */}
             {Array.from({ length: rowCount }, (_, rowIdx) => (

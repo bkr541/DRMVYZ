@@ -117,6 +117,8 @@ const IDLE_COMPILE_STATUS: ShaderCompileStatus = { state: 'idle' }
 export const RETIRED_SHADER_SCENE_IDS = new Set<string>([
   'shader-spectrum-cathedral',
   'shader-dreamstate-mycelium',
+  'shader-feedback-kaleidoscope',
+  'shader-riddim-railgun-sequencer',
 ])
 
 export function migrateRetiredShaderSceneId(id: string | null): string | null {

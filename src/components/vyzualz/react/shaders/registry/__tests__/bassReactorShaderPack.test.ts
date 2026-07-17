@@ -6,7 +6,6 @@ import {
   REACTOR,
   WOBBLE_GLYPH_FORGE,
   MELODIC_RIFT_BLOOM,
-  RIDDIM_RAILGUN_SEQUENCER,
 } from '../../scenes'
 
 const PACK = [
@@ -15,7 +14,6 @@ const PACK = [
   REACTOR,
   WOBBLE_GLYPH_FORGE,
   MELODIC_RIFT_BLOOM,
-  RIDDIM_RAILGUN_SEQUENCER,
 ]
 
 function allFragmentSource(scene: (typeof PACK)[number]): string {
@@ -23,14 +21,13 @@ function allFragmentSource(scene: (typeof PACK)[number]): string {
 }
 
 describe('bass-reactor shader pack', () => {
-  it('ships six stable, distinct, valid production scenes', () => {
+  it('ships five stable, distinct, valid production scenes', () => {
     expect(PACK.map(scene => scene.id)).toEqual([
       'shader-bass-cathedral',
       'shader-laser-lattice-overdrive',
       'shader-reactor',
       'shader-wobble-glyph-forge',
       'shader-melodic-rift-bloom',
-      'shader-riddim-railgun-sequencer',
     ])
     expect(new Set(PACK.map(scene => scene.id)).size).toBe(PACK.length)
     for (const scene of PACK) {

@@ -19,27 +19,23 @@ export * from './reactorMigration'
 
 import { PRISM_TUNNEL } from './prismTunnel'
 import { LIQUID_METABALLS } from './liquidMetaballs'
-import { FEEDBACK_KALEIDOSCOPE } from './feedbackKaleidoscope'
 import { BRAND_ECHO_SIGNAL } from './brandEchoSignal'
 import { BASS_CATHEDRAL } from './bassCathedral'
 import { LASER_LATTICE_OVERDRIVE } from './laserLatticeOverdrive'
 import { WOBBLE_GLYPH_FORGE } from './wobbleGlyphForge'
 import { MELODIC_RIFT_BLOOM } from './melodicRiftBloom'
-import { RIDDIM_RAILGUN_SEQUENCER } from './riddimRailgunSequencer'
 import { REACTOR } from './reactor'
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 
 export const PRODUCTION_SCENES: ShaderDefinition[] = [
   PRISM_TUNNEL,
   LIQUID_METABALLS,
-  FEEDBACK_KALEIDOSCOPE,
   BRAND_ECHO_SIGNAL,
   REACTOR,
   BASS_CATHEDRAL,
   LASER_LATTICE_OVERDRIVE,
   WOBBLE_GLYPH_FORGE,
   MELODIC_RIFT_BLOOM,
-  RIDDIM_RAILGUN_SEQUENCER,
 ]
 
 export const DEFAULT_SHADER_SCENE_ID = PRISM_TUNNEL.id

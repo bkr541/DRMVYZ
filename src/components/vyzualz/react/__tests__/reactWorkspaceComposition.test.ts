@@ -83,6 +83,7 @@ describe('React workspace composition', () => {
     const cinematic = resolveReactWorkspaceComposition('cinematicPortal', 'beamMatrix', false)
     expect(getReactLeftTabs(cinematic)).toEqual(['workspace'])
     expect(getReactDefaultLeftTab(cinematic)).toBe('workspace')
+    expect(getReactLeftTabLabel('workspace', cinematic)).toBe('SOURCE')
     expect(isReactLeftTabAvailable('media', cinematic)).toBe(false)
 
     const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)

@@ -333,18 +333,16 @@ describe('I — development scene', () => {
     expect(def.params.map(p => p.id)).toEqual(['color', 'brightness'])
   })
 
-  it('registers and validates the ten production scenes', () => {
+  it('registers and validates the eight available production scenes', () => {
     expect(PRODUCTION_SCENES.map(scene => scene.id)).toEqual([
       'shader-neon-tunnel',
       'shader-liquid-metaballs',
-      'shader-feedback-kaleidoscope',
       'shader-brand-echo-signal',
       'shader-reactor',
       'shader-bass-cathedral',
       'shader-laser-lattice-overdrive',
       'shader-wobble-glyph-forge',
       'shader-melodic-rift-bloom',
-      'shader-riddim-railgun-sequencer',
     ])
     for (const scene of PRODUCTION_SCENES) {
       expect(shaderRegistry.has(scene.id)).toBe(true)
@@ -367,6 +365,8 @@ describe('I — development scene', () => {
     ))).toBe(true)
     expect(shaderRegistry.has('shader-spectrum-cathedral')).toBe(false)
     expect(shaderRegistry.has('shader-dreamstate-mycelium')).toBe(false)
+    expect(shaderRegistry.has('shader-feedback-kaleidoscope')).toBe(false)
+    expect(shaderRegistry.has('shader-riddim-railgun-sequencer')).toBe(false)
   })
 })
 

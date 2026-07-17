@@ -13,7 +13,6 @@ import {
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import {
   ReactPresetCard,
-  resolvePresetCardNavigationIndex,
   type ReactPresetCardChip,
 } from './ReactPresetCard'
 import {
@@ -268,79 +267,6 @@ function CinematicWorldPresetCards({
   )
 }
 
-function handleCinematicWorldKeyDown(event: React.KeyboardEvent<HTMLButtonElement>): void {
-  const group = event.currentTarget.closest<HTMLElement>('[data-cinematic-world-grid]')
-  if (!group) return
-  const options = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-cinematic-world-option]'))
-  const currentIndex = options.indexOf(event.currentTarget)
-  const nextIndex = resolvePresetCardNavigationIndex(currentIndex, event.key, options.length)
-  if (nextIndex == null || nextIndex === currentIndex) return
-  event.preventDefault()
-  options[nextIndex]?.focus()
-  options[nextIndex]?.click()
-}
-
-function CinematicWorldSelector({
-  groups,
-  activeWorldMode,
-  activePresetId,
-  onSelect,
-}: {
-  groups: CinematicWorldPresetGroup[]
-  activeWorldMode: CinematicWorldMode | null
-  activePresetId: string | null
-  onSelect: (presetId: string) => void
-}) {
-  return (
-    <section className="rv-cinematic-world-browser rv-preset-group" aria-labelledby="cinematic-world-browser-heading">
-      <div className="rv-preset-group-hdr rv-cinematic-world-browser-heading">
-        <span className="rv-preset-group-hdr-icon" aria-hidden="true">◇</span>
-        <span className="rv-preset-group-hdr-label" id="cinematic-world-browser-heading">Worlds</span>
-        <span className="rv-preset-group-hdr-count">{groups.length}</span>
-      </div>
-      <div className="rv-cinematic-world-categories" role="radiogroup" aria-label="Cinematic worlds" data-cinematic-world-grid>
-        {CINEMATIC_CATEGORY_ORDER.map(category => {
-          const categoryGroups = groups.filter(group => group.world.category === category)
-          if (categoryGroups.length === 0) return null
-          return (
-            <section className="rv-cinematic-world-category" key={category} aria-labelledby={`cinematic-world-category-${category}`}>
-              <h3 id={`cinematic-world-category-${category}`}>{category}</h3>
-              <div className="rv-cinematic-world-group-list">
-                {categoryGroups.map(group => {
-                  const isActive = group.world.id === activeWorldMode
-                  const activePresetInWorld = group.presets.find(preset => preset.id === activePresetId)
-                  const targetPreset = activePresetInWorld ?? group.presets[0]
-                  return (
-                    <button
-                      id={`cinematic-world-group-${group.world.id}`}
-                      key={group.world.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={isActive}
-                      tabIndex={isActive ? 0 : -1}
-                      aria-label={`${group.world.label}, ${group.presets.length} presets`}
-                      className={`rv-preset-group-hdr rv-cinematic-world-group${isActive ? ' is-active' : ''}`}
-                      title={group.world.description}
-                      data-cinematic-world-option
-                      onKeyDown={handleCinematicWorldKeyDown}
-                      onClick={() => targetPreset && !isActive && onSelect(targetPreset.id)}
-                    >
-                      <span className="rv-preset-group-hdr-icon" aria-hidden="true">◈</span>
-                      <span className="rv-preset-group-hdr-label">{group.world.label}</span>
-                      <span className="rv-preset-group-hdr-count">{group.presets.length}</span>
-                      <span className="rv-preset-group-hdr-chevron" aria-hidden="true">›</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
 function CinematicCurrentPresetBrowser({
   presets,
   activeWorldMode,
@@ -349,21 +275,15 @@ function CinematicCurrentPresetBrowser({
   const groups = useMemo(() => getCinematicWorldPresetGroups(presets), [presets])
   const activeGroup = groups.find(group => group.world.id === activeWorldMode) ?? groups[0]
 
+  if (!activeGroup) return null
+
   return (
-    <div className="rv-cinematic-preset-browser">
-      <CinematicWorldSelector
-        groups={groups}
-        activeWorldMode={activeWorldMode}
-        activePresetId={props.activePresetId}
-        onSelect={props.onSelect}
-      />
-      {activeGroup && (
-        <CinematicWorldPresetCards
-          group={activeGroup}
-          props={props}
-          headingId={`cinematic-active-world-${activeGroup.world.id}`}
-        />
-      )}
+    <div
+      className="rv-preset-group-cards rv-preset-group-cards--current rv-cinematic-preset-browser"
+      data-preset-grid
+      aria-label={`${activeGroup.world.label} presets`}
+    >
+      {activeGroup.presets.map(preset => renderPresetCard(preset, props))}
     </div>
   )
 }
@@ -787,7 +707,7 @@ export function ReactPresetsPanel() {
       <p className="rv-presets-hint">
         {libraryView === 'current'
           ? activeReactEngineId === 'cinematicPortal' && activeWorld
-            ? 'Choose a World, then load one of its grouped Cinematic presets.'
+            ? `Load an ${activeWorld} preset, or choose another World from the left SOURCE panel.`
             : activeReactEngineId === 'canvas'
               ? 'CANVAS presets transform active uploaded media. Auto Select can choose presets from Audio Intelligence.'
               : activeReactEngineId === 'laserDmx'
@@ -799,13 +719,6 @@ export function ReactPresetsPanel() {
             ? 'Star presets from any engine to keep them together here.'
             : 'Selecting another engine’s preset switches that engine and loads the look.'}
       </p>
-
-      {activeWorld && active?.engine === activeReactEngineId && (
-        <div className="rv-cinematic-current-world" aria-live="polite">
-          Current world: <strong>{activeWorld}</strong>
-          {activeReactPresetId && modifiedIds.has(activeReactPresetId) ? ' · Modified from preset' : ''}
-        </div>
-      )}
 
       {isCanvasCurrentLibrary ? (
         <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} />

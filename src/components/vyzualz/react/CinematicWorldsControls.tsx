@@ -379,7 +379,7 @@ export function CinematicWorldsDesignControls() {
     <div className="rv-cinematic-controls" data-world={config.worldMode}>
       <CinematicModeSwitch />
       <WorldStatus presetName={preset.name} worldMode={config.worldMode} modified={modified} />
-      <div className="rv-ctrl-info">Choose Worlds and presets from the PRESETS tab. Design controls below edit the active look.</div>
+      <div className="rv-ctrl-info">Choose a World from the left SOURCE panel and load its looks from PRESETS. Design controls below edit the active look.</div>
 
       <ReactiveConstellationProfileControls config={config} onChange={save} />
 

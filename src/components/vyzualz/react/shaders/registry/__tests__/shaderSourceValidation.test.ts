@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { shaderRegistry } from '../index'
+import { RIDDIM_RAILGUN_SEQUENCER } from '../../scenes'
 import {
   extractUniformDeclarations,
   getShaderSourceUnits,
@@ -17,12 +18,11 @@ describe('registered Shader scene GLSL regression coverage', () => {
     },
   )
 
-  it('includes Riddim Railgun Sequencer and avoids GLSL-reserved identifiers', () => {
-    const railgun = shaderRegistry.get('shader-riddim-railgun-sequencer')
-    expect(railgun?.name).toBe('Riddim Railgun Sequencer')
-    expect(railgun?.fragSrc).toContain('float activeRailMask')
-    expect(railgun?.fragSrc).not.toMatch(/\bfloat\s+active\b/)
-    expect(validateShaderDefinitionSources(railgun!)).toEqual([])
+  it('keeps the retired Riddim Railgun source valid without exposing it as a preset', () => {
+    expect(shaderRegistry.has(RIDDIM_RAILGUN_SEQUENCER.id)).toBe(false)
+    expect(RIDDIM_RAILGUN_SEQUENCER.fragSrc).toContain('float activeRailMask')
+    expect(RIDDIM_RAILGUN_SEQUENCER.fragSrc).not.toMatch(/\bfloat\s+active\b/)
+    expect(validateShaderDefinitionSources(RIDDIM_RAILGUN_SEQUENCER)).toEqual([])
   })
 
   it('detects reserved identifiers instead of merely checking non-empty source', () => {

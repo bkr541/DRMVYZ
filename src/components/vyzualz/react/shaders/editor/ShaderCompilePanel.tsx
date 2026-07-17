@@ -43,16 +43,34 @@ export interface ShaderCompilePanelProps {
 export function ShaderCompilePanel({ status, definition }: ShaderCompilePanelProps) {
   const errors   = status.errorLog   ? parseLog(status.errorLog,   'error')   : []
   const warnings = status.warningLog ? parseLog(status.warningLog, 'warning') : []
+  const statusLabel = status.state === 'idle'
+    ? 'Not compiled'
+    : status.state === 'compiling'
+      ? 'Compiling…'
+      : status.state === 'ok'
+        ? 'Compiled OK'
+        : 'Compile failed'
+  const lastOkLabel = status.lastOkAt
+    ? new Date(status.lastOkAt).toLocaleTimeString()
+    : 'Unavailable'
 
   return (
     <div className="rv-shader-compile-panel">
-      {/* Status header */}
-      <div className={`rv-shader-compile-status rv-shader-compile-status--${status.state}`}>
-        {status.state === 'idle'      && 'Not compiled'}
-        {status.state === 'compiling' && 'Compiling…'}
-        {status.state === 'ok'        && `Compiled OK${status.lastOkAt ? ` — ${new Date(status.lastOkAt).toLocaleTimeString()}` : ''}`}
-        {status.state === 'error'     && `Compile failed${definition ? ` — showing last valid: ${definition.name}` : ''}`}
-      </div>
+      <dl className="rv-show-director-performance-status__grid rv-shader-compile-grid">
+        <div>
+          <dt>Compile</dt>
+          <dd className={`rv-shader-compile-status rv-shader-compile-status--${status.state}`}>{statusLabel}</dd>
+        </div>
+        <div><dt>Last OK</dt><dd>{lastOkLabel}</dd></div>
+        <div><dt>Errors</dt><dd>{errors.length}</dd></div>
+        <div><dt>Warnings</dt><dd>{warnings.length}</dd></div>
+      </dl>
+
+      {status.state === 'error' && definition && (
+        <p className="rv-show-director-performance-status__notice rv-shader-compile-fallback">
+          Showing the last valid render for {definition.name}.
+        </p>
+      )}
 
       {/* Warning list */}
       {warnings.length > 0 && (
@@ -81,7 +99,9 @@ export function ShaderCompilePanel({ status, definition }: ShaderCompilePanelPro
       )}
 
       {status.state === 'ok' && errors.length === 0 && warnings.length === 0 && (
-        <div className="rv-shader-compile-clean">No errors or warnings.</div>
+        <p className="rv-show-director-performance-status__notice rv-shader-compile-clean">
+          No errors or warnings.
+        </p>
       )}
     </div>
   )

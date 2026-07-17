@@ -1,9 +1,9 @@
-import React, { useSyncExternalStore } from 'react'
+import React, { useMemo, useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { useShallow } from 'zustand/react/shallow'
-import { useReactStore } from '../../../stores/reactStore'
+import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
@@ -32,6 +32,9 @@ import type {
   SoundDrawingSourceUsePolicy,
 } from './soundDrawing/SoundDrawingPerformanceTypes'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
+import { CINEMATIC_WORLD_UI, type CinematicWorldUiDefinition } from './CinematicWorldsUi'
+import type { CinematicWorldMode } from './CinematicWorldConfig'
+import { resolvePresetCardNavigationIndex } from './ReactPresetCard'
 import type {
   OscillatorSourceType,
   SvgRenderMode,
@@ -44,6 +47,7 @@ import type {
   OscillatorGlyphPoint,
   SoundDrawingTextSource,
   SoundDrawingLyricGapBehavior,
+  ReactPreset,
 } from './ReactTypes'
 
 // ── Oscillator status card ────────────────────────────────────────────────────
@@ -134,6 +138,146 @@ function SoundDrawingSourceGrid({
           <span className="rv-sound-source-card-label">{option.label}</span>
         </button>
       ))}
+    </div>
+  )
+}
+
+const CINEMATIC_WORLD_CATEGORY_ORDER = ['Cosmic', 'Architectural', 'Organic', 'Mechanical', 'Storm', 'Legacy'] as const
+
+function CinematicWorldIcon({ mode }: { mode: CinematicWorldMode }) {
+  if (mode === 'eventHorizon') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="5" />
+        <ellipse cx="16" cy="16" rx="13" ry="7" transform="rotate(-18 16 16)" />
+      </svg>
+    )
+  }
+  if (mode === 'mirrorDimension') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M7 5h8v22H7zM17 5h8v22h-8zM15 9l2 2M15 16l2 2M15 23l2 2" />
+      </svg>
+    )
+  }
+  if (mode === 'reactiveConstellation') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="7" cy="21" r="2" /><circle cx="15" cy="8" r="2" /><circle cx="25" cy="18" r="2" /><circle cx="19" cy="26" r="2" />
+        <path d="m8 19 6-9m3-1 7 8m-1 3-3 4M9 22l8 3" />
+      </svg>
+    )
+  }
+  if (mode === 'infiniteCorridor') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M4 5h24v22H4zM9 9h14v14H9zM13 13h6v6h-6z" />
+      </svg>
+    )
+  }
+  if (mode === 'fractureRift') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="m18 3-6 10 5 2-7 14 13-16-6-2z" />
+      </svg>
+    )
+  }
+  if (mode === 'ancientMachine') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="9" /><circle cx="16" cy="16" r="3" />
+        <path d="M16 3v4M16 25v4M3 16h4M25 16h4M7 7l3 3M22 22l3 3M25 7l-3 3M10 22l-3 3" />
+      </svg>
+    )
+  }
+  if (mode === 'stormGateway') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M5 12c3-7 19-7 22 0M4 18c4 6 20 6 24 0M11 15h10M18 8l-5 9h5l-4 8" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="11" /><path d="M8 16h16M16 8v16" />
+    </svg>
+  )
+}
+
+function handleCinematicWorldKeyDown(event: React.KeyboardEvent<HTMLButtonElement>): void {
+  const grid = event.currentTarget.closest<HTMLElement>('[data-cinematic-world-grid]')
+  if (!grid) return
+  const options = Array.from(grid.querySelectorAll<HTMLButtonElement>('[data-cinematic-world-option]'))
+  const currentIndex = options.indexOf(event.currentTarget)
+  const nextIndex = resolvePresetCardNavigationIndex(currentIndex, event.key, options.length, 2)
+  if (nextIndex == null || nextIndex === currentIndex) return
+  event.preventDefault()
+  options[nextIndex]?.focus()
+  options[nextIndex]?.click()
+}
+
+function CinematicWorldSourceGrid({
+  groups,
+  activeWorldMode,
+  activePresetId,
+  onSelect,
+}: {
+  groups: Array<{ world: CinematicWorldUiDefinition; presets: ReactPreset[] }>
+  activeWorldMode: CinematicWorldMode | null
+  activePresetId: string | null
+  onSelect: (presetId: string) => void
+}) {
+  const hasActiveWorld = groups.some(group => group.world.id === activeWorldMode)
+  let optionIndex = 0
+
+  return (
+    <div
+      className="rv-sound-source-grid rv-cinematic-world-source-grid"
+      role="radiogroup"
+      aria-label="Cinematic worlds"
+      data-cinematic-world-grid
+    >
+      {CINEMATIC_WORLD_CATEGORY_ORDER.map(category => {
+        const categoryGroups = groups.filter(group => group.world.category === category)
+        if (categoryGroups.length === 0) return null
+        return (
+          <React.Fragment key={category}>
+            <div className="rv-cinematic-world-source-category" role="presentation">{category}</div>
+            {categoryGroups.map(group => {
+              const currentOptionIndex = optionIndex++
+              const isActive = group.world.id === activeWorldMode
+              const activePresetInWorld = group.presets.find(preset => preset.id === activePresetId)
+              const targetPreset = activePresetInWorld ?? group.presets[0]
+              return (
+                <button
+                  id={`cinematic-world-group-${group.world.id}`}
+                  key={group.world.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  tabIndex={isActive || (!hasActiveWorld && currentOptionIndex === 0) ? 0 : -1}
+                  aria-label={`${group.world.label}, ${group.presets.length} presets`}
+                  className={`rv-sound-source-card rv-cinematic-world-source-card${isActive ? ' is-active' : ''}`}
+                  title={group.world.description}
+                  data-cinematic-world-option
+                  onKeyDown={handleCinematicWorldKeyDown}
+                  onClick={() => {
+                    if (targetPreset && !isActive) onSelect(targetPreset.id)
+                  }}
+                >
+                  <span className="rv-sound-source-card-icon">
+                    <CinematicWorldIcon mode={group.world.id} />
+                  </span>
+                  <span className="rv-sound-source-card-label">{group.world.label}</span>
+                  <span className="rv-cinematic-world-source-count">
+                    {group.presets.length} preset{group.presets.length === 1 ? '' : 's'}
+                  </span>
+                </button>
+              )
+            })}
+          </React.Fragment>
+        )
+      })}
     </div>
   )
 }
@@ -280,6 +424,10 @@ export function ReactEnginePanel() {
   const engine = useSharedAudio()
   const {
     activeReactEngineId,
+    reactPresets,
+    activeReactPresetId,
+    cinematicConfigsByPresetId,
+    selectReactPreset,
     oscillatorSettings,  setOscillatorSettings,
     soundDrawingPerformanceSettings,
     setSoundDrawingPerformanceSettings,
@@ -297,6 +445,10 @@ export function ReactEnginePanel() {
     clearGlyphLostNotice,
   } = useReactStore(useShallow(s => ({
     activeReactEngineId:        s.activeReactEngineId,
+    reactPresets:               s.reactPresets,
+    activeReactPresetId:        s.activeReactPresetId,
+    cinematicConfigsByPresetId: s.cinematicConfigsByPresetId,
+    selectReactPreset:          s.selectReactPreset,
     oscillatorSettings:         s.oscillatorSettings,
     setOscillatorSettings:      s.setOscillatorSettings,
     soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
@@ -317,6 +469,25 @@ export function ReactEnginePanel() {
 
   const osc = oscillatorSettings
   const set = setOscillatorSettings
+  const cinematicWorldGroups = useMemo(
+    () => CINEMATIC_WORLD_UI.map(world => ({
+      world,
+      presets: reactPresets.filter(preset => (
+        preset.engine === 'cinematicPortal' &&
+        (preset.cinematicConfig?.worldMode ?? 'legacyPortal') === world.id
+      )),
+    })).filter(group => group.presets.length > 0),
+    [reactPresets],
+  )
+  const activeCinematicPreset = useMemo(
+    () => reactPresets.find(preset => (
+      preset.id === activeReactPresetId && preset.engine === 'cinematicPortal'
+    )) ?? null,
+    [activeReactPresetId, reactPresets],
+  )
+  const activeCinematicWorldMode = activeCinematicPreset
+    ? resolveCinematicConfigForPreset(activeCinematicPreset, cinematicConfigsByPresetId)?.worldMode ?? null
+    : null
   const activeLyricCue = useLyricPlaybackSelector(state => state.activeCue)
   const activeLyricWord = useLyricPlaybackSelector(state => state.activeWord)
   const activeLyricDocumentId = useLyricPlaybackSelector(state => state.documentId)
@@ -337,6 +508,19 @@ export function ReactEnginePanel() {
 
   return (
     <div className="rv-ctrl-group">
+      {/* Cinematic Worlds source selection lives in the left rail. */}
+      {activeReactEngineId === 'cinematicPortal' && (
+        <>
+          <CtrlSection label="Worlds" />
+          <CinematicWorldSourceGrid
+            groups={cinematicWorldGroups}
+            activeWorldMode={activeCinematicWorldMode}
+            activePresetId={activeReactPresetId}
+            onSelect={selectReactPreset}
+          />
+        </>
+      )}
+
       {/* ── Engine Mode: GLSL Shader ──────────────────────────────────── */}
       {activeReactEngineId === 'shaderPads' && (
         <Collapsible label="Shader Scenes" defaultOpen>

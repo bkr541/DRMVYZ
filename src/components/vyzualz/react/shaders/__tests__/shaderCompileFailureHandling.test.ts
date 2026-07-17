@@ -9,7 +9,7 @@ afterEach(() => {
 
 describe('Shader scene compile failure handling', () => {
   it('logs scene identity, stage, and compiler error without replacing the active valid graph', () => {
-    const requested = shaderRegistry.get('shader-riddim-railgun-sequencer')!
+    const requested = shaderRegistry.get('shader-bass-cathedral')!
     const currentGraph = { shaderId: 'shader-neon-tunnel', passes: [], isSinglePass: true } satisfies CompiledGraph
     const currentDef = shaderRegistry.get('shader-neon-tunnel')!
     const compileError: RenderGraphError = {

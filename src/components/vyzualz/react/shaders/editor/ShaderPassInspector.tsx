@@ -1,5 +1,5 @@
 import React from 'react'
-import type { ShaderDefinition, ShaderPassDef } from '../registry/shaderRegistryTypes'
+import type { QualityTier, ShaderDefinition, ShaderPassDef } from '../registry/shaderRegistryTypes'
 import type { PerformanceMetrics } from '../performance/shaderPerformanceTypes'
 
 // ── Pass compile state ────────────────────────────────────────────────────────
@@ -21,18 +21,30 @@ export interface ShaderPassInspectorProps {
   definition:  ShaderDefinition | null
   metrics?:    PerformanceMetrics | null
   passData?:   PassInspectorData[]
+  qualityTier?: QualityTier | null
 }
 
 function passCompileLabel(state: PassCompileState): string {
   switch (state) {
     case 'ok':      return '✓ OK'
-    case 'error':   return '✗ Error'
+    case 'error':   return '✕ Error'
     case 'pending': return '… Pending'
     case 'unknown': return '— Unknown'
   }
 }
 
-export function ShaderPassInspector({ definition, metrics, passData = [] }: ShaderPassInspectorProps) {
+function displayInputs(pass: ShaderPassDef): string {
+  return pass.inputs.length > 0
+    ? pass.inputs.map(input => typeof input === 'string' ? input : `${input.source} → ${input.uniformName}`).join(', ')
+    : 'None'
+}
+
+export function ShaderPassInspector({
+  definition,
+  metrics,
+  passData = [],
+  qualityTier,
+}: ShaderPassInspectorProps) {
   if (!definition) {
     return (
       <div className="rv-ctrl-group">
@@ -50,105 +62,54 @@ export function ShaderPassInspector({ definition, metrics, passData = [] }: Shad
         inputs:   (definition.textureInputs ?? []).map(t => t.name),
         output:   'screen',
       }]
+  const metricFps = metrics?.totalMs ? 1000 / metrics.totalMs : null
 
   return (
     <div className="rv-shader-pass-inspector">
-      {/* Scene summary */}
-      <div className="rv-shader-pass-summary">
-        <span className="rv-ctrl-label">Scene</span>
-        <span className="rv-shader-pass-val">{definition.name}</span>
-        <span className="rv-ctrl-label">Passes</span>
-        <span className="rv-shader-pass-val">{passes.length}</span>
+      <dl className="rv-show-director-performance-status__grid rv-shader-diagnostics-grid">
+        <div><dt>Scene</dt><dd title={definition.name}>{definition.name}</dd></div>
+        <div><dt>Passes</dt><dd>{passes.length}</dd></div>
         {metrics && (
           <>
-            <span className="rv-ctrl-label">Frame (ms)</span>
-            <span className="rv-shader-pass-val">{metrics.totalMs.toFixed(1)}</span>
-            {metrics.gpuMs !== null && (
-              <>
-                <span className="rv-ctrl-label">GPU (ms)</span>
-                <span className="rv-shader-pass-val">{metrics.gpuMs.toFixed(2)}</span>
-              </>
-            )}
-            <span className="rv-ctrl-label">Texture mem</span>
-            <span className="rv-shader-pass-val">{metrics.textureMb.toFixed(2)} MiB</span>
-            <span className="rv-ctrl-label">Resolution</span>
-            <span className="rv-shader-pass-val">{metrics.internalW} × {metrics.internalH}</span>
+            <div><dt>Frame</dt><dd>{metrics.totalMs.toFixed(1)} ms</dd></div>
+            <div><dt>FPS</dt><dd>{metricFps?.toFixed(1) ?? 'Unavailable'}</dd></div>
+            <div><dt>GPU</dt><dd>{metrics.gpuMs == null ? 'Unavailable' : `${metrics.gpuMs.toFixed(2)} ms`}</dd></div>
+            <div><dt>CPU</dt><dd>{metrics.cpuPrepMs.toFixed(2)} ms</dd></div>
+            <div><dt>Texture Memory</dt><dd>{metrics.textureMb.toFixed(2)} MiB</dd></div>
+            <div><dt>Resolution</dt><dd>{metrics.internalW} × {metrics.internalH}</dd></div>
           </>
         )}
-      </div>
+        <div><dt>Quality</dt><dd>{qualityTier ?? definition.quality?.recommendedTier ?? 'medium'}</dd></div>
+        <div><dt>Float Target</dt><dd>{definition.quality?.requiresFloatTarget ? 'Required' : 'Optional'}</dd></div>
+      </dl>
 
-      {/* Per-pass table */}
       <div className="rv-shader-pass-list">
-        <div className="rv-shader-pass-list-header">Passes</div>
+        <div className="rv-shader-pass-list-header">
+          <span>Render Passes</span>
+          <span>{passes.length}</span>
+        </div>
         {passes.map((pass, idx) => {
           const data = passData.find(d => d.passId === pass.id)
+          const compileState = data?.compileState ?? 'unknown'
           return (
-            <div key={pass.id} className="rv-shader-pass-row">
-              <div className="rv-shader-pass-row-order">{idx + 1}</div>
-              <div className="rv-shader-pass-row-id" title={pass.id}>{pass.id}</div>
-
-              {/* Inputs */}
-              <div className="rv-shader-pass-row-section">
-                <span className="rv-ctrl-label">In</span>
-                <span className="rv-shader-pass-val">
-                  {pass.inputs.length > 0 ? pass.inputs.join(', ') : '—'}
+            <div key={pass.id} className="rv-shader-pass-card">
+              <div className="rv-shader-pass-card-header">
+                <span className="rv-shader-pass-row-order">{idx + 1}</span>
+                <strong className="rv-shader-pass-row-id" title={pass.id}>{pass.id}</strong>
+                <span className={`rv-shader-pass-state rv-shader-pass-state--${compileState}`}>
+                  {passCompileLabel(compileState)}
                 </span>
               </div>
-
-              {/* Output */}
-              <div className="rv-shader-pass-row-section">
-                <span className="rv-ctrl-label">Out</span>
-                <span className="rv-shader-pass-val">
-                  {pass.output === null ? 'screen' : pass.output}
-                </span>
-              </div>
-
-              {/* Resolution scale */}
-              {pass.resolutionScale !== undefined && pass.resolutionScale !== 1 && (
-                <div className="rv-shader-pass-row-section">
-                  <span className="rv-ctrl-label">Scale</span>
-                  <span className="rv-shader-pass-val">×{pass.resolutionScale}</span>
-                </div>
-              )}
-
-              {/* Blend mode */}
-              {pass.blendMode && pass.blendMode !== 'none' && (
-                <div className="rv-shader-pass-row-section">
-                  <span className="rv-ctrl-label">Blend</span>
-                  <span className="rv-shader-pass-val">{pass.blendMode}</span>
-                </div>
-              )}
-
-              {/* Persistence flags */}
-              {(pass.persistent || pass.pingPong) && (
-                <div className="rv-shader-pass-row-section">
-                  <span className="rv-ctrl-label">Mode</span>
-                  <span className="rv-shader-pass-val">
-                    {pass.pingPong ? 'ping-pong' : 'persistent'}
-                  </span>
-                </div>
-              )}
-
-              {/* Texture dimensions */}
-              {data?.textureW && data?.textureH && (
-                <div className="rv-shader-pass-row-section">
-                  <span className="rv-ctrl-label">Dim</span>
-                  <span className="rv-shader-pass-val">{data.textureW}×{data.textureH}</span>
-                </div>
-              )}
-
-              {/* GPU timing */}
-              {data?.gpuMs !== undefined && data.gpuMs !== null && (
-                <div className="rv-shader-pass-row-section">
-                  <span className="rv-ctrl-label">GPU</span>
-                  <span className="rv-shader-pass-val">{data.gpuMs.toFixed(2)} ms</span>
-                </div>
-              )}
-
-              {/* Compile state */}
-              <div className={`rv-shader-pass-state rv-shader-pass-state--${data?.compileState ?? 'unknown'}`}>
-                {passCompileLabel(data?.compileState ?? 'unknown')}
-              </div>
+              <dl className="rv-show-director-performance-status__grid rv-shader-pass-card-grid">
+                <div><dt>Input</dt><dd title={displayInputs(pass)}>{displayInputs(pass)}</dd></div>
+                <div><dt>Output</dt><dd>{pass.output === null ? 'screen' : pass.output}</dd></div>
+                <div><dt>Scale</dt><dd>×{pass.resolutionScale ?? 1}</dd></div>
+                <div><dt>Blend</dt><dd>{pass.blendMode ?? 'none'}</dd></div>
+                <div><dt>Mode</dt><dd>{pass.pingPong ? 'ping-pong' : pass.persistent ? 'persistent' : 'standard'}</dd></div>
+                <div><dt>Dimensions</dt><dd>{data?.textureW && data?.textureH ? `${data.textureW} × ${data.textureH}` : 'Runtime pending'}</dd></div>
+                {data?.gpuMs != null && <div><dt>GPU</dt><dd>{data.gpuMs.toFixed(2)} ms</dd></div>}
+                {data?.cpuMs != null && <div><dt>CPU</dt><dd>{data.cpuMs.toFixed(2)} ms</dd></div>}
+              </dl>
             </div>
           )
         })}

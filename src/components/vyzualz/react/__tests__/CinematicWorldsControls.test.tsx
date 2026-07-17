@@ -11,11 +11,25 @@ import {
   CinematicWorldsFxControls,
   CinematicWorldsModulationControls,
 } from '../CinematicWorldsControls'
+import { ReactEnginePanel } from '../ReactEnginePanel'
 import { ReactPresetsPanel, getCinematicWorldPresetGroups } from '../ReactPresetsPanel'
 import { ReactFxPanel } from '../ReactFxPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import { resolveReactiveConstellationSettings } from '../CinematicWorldSettings'
 import { applyReactiveConstellationVisualDnaProfile } from '../ReactiveConstellationVisualDna'
+
+vi.mock('../../../../context/AudioEngineContext', () => ({
+  useSharedAudio: () => ({ currentAudioTrackId: null }),
+}))
+
+vi.mock('../../../../features/lyrics/runtime/useLyricPlayback', () => ({
+  useLyricPlaybackSelector: (selector: (state: Record<string, unknown>) => unknown) => selector({
+    activeCue: null,
+    activeWord: null,
+    documentId: null,
+    sourceIdentity: null,
+  }),
+}))
 
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
@@ -73,7 +87,7 @@ describe('Cinematic Worlds engine controls', () => {
     expect(container.querySelector('[id^="cinematic-world-"]')).toBeNull()
     expect(container.querySelector('#cinematic-preset-select')).toBeNull()
     expect(container.querySelector('#cinematic-camera-rig')).not.toBeNull()
-    expect(container.textContent).toContain('Choose Worlds and presets from the PRESETS tab')
+    expect(container.textContent).toContain('Choose a World from the left SOURCE panel')
   })
 
   it('responds to right-rail simple and advanced mode changes without duplicating the mode switch', async () => {
@@ -274,12 +288,12 @@ describe('Cinematic Worlds audio mappings', () => {
 })
 
 describe('Cinematic Worlds preset semantics', () => {
-  it('renders every World group in PRESETS and communicates selected and modified state', async () => {
+  it('renders every World group in the left SOURCE panel and starts PRESETS with the active World cards', async () => {
     const preset = presetFor('ancientMachine')
     const base = resolveCinematicConfigForPreset(preset, {})!
     useReactStore.getState().selectReactPreset(preset.id)
     useReactStore.getState().setCinematicConfigForPreset(preset.id, { ...base, seed: base.seed + 1 })
-    await render(<ReactPresetsPanel />)
+    await render(<><ReactEnginePanel /><ReactPresetsPanel /></>)
 
     const visibleGroups = getCinematicWorldPresetGroups(useReactStore.getState().reactPresets)
     expect(container.querySelectorAll('[id^="cinematic-world-group-"]')).toHaveLength(visibleGroups.length)
@@ -291,20 +305,22 @@ describe('Cinematic Worlds preset semantics', () => {
     expect(selectedWorld.classList.contains('is-active')).toBe(true)
     const selectedPreset = container.querySelector('button[aria-current="true"]') as HTMLButtonElement
     expect(selectedPreset.textContent).toContain('Modified')
-    expect(container.textContent).toContain('Current world:')
     expect(container.textContent).toContain('Ancient Machine')
+    expect(container.querySelector('.rv-cinematic-current-world')).toBeNull()
+    expect(container.querySelector('.rv-cinematic-preset-browser.rv-preset-group-cards')).not.toBeNull()
+    expect(container.querySelector('.rv-cinematic-preset-browser .rv-cinematic-preset-world-heading')).toBeNull()
     expect(container.querySelector('#cinematic-preset-select')).toBeNull()
   })
 
   it('supports keyboard navigation between World groups through the canonical preset path', async () => {
     useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
-    await render(<ReactPresetsPanel />)
+    await render(<><ReactEnginePanel /><ReactPresetsPanel /></>)
 
     const worldOptions = [...container.querySelectorAll<HTMLButtonElement>('[data-cinematic-world-option]')]
     const eventHorizonGroup = worldOptions[0]
     const nextWorldId = worldOptions[1].id.replace('cinematic-world-group-', '')
     eventHorizonGroup.focus()
-    await act(async () => eventHorizonGroup.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
+    await act(async () => eventHorizonGroup.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
 
     const selectedGroup = container.querySelector(`#cinematic-world-group-${nextWorldId}`) as HTMLButtonElement
     expect((document.activeElement as HTMLElement | null)?.id).toBe(selectedGroup.id)
@@ -318,7 +334,7 @@ describe('Cinematic Worlds preset semantics', () => {
   it('uses preset selection as the single World selection path and reaches renderer state', async () => {
     const eventHorizon = presetFor('eventHorizon')
     useReactStore.getState().selectReactPreset(eventHorizon.id)
-    await render(<ReactPresetsPanel />)
+    await render(<><ReactEnginePanel /><ReactPresetsPanel /></>)
 
     const corridorGroup = container.querySelector('#cinematic-world-group-infiniteCorridor') as HTMLButtonElement
     await act(async () => corridorGroup.click())

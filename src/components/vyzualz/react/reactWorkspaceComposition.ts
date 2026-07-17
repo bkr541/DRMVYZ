@@ -36,10 +36,10 @@ export function resolveReactWorkspaceComposition(
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
   if (isCinematic) {
-    // Cinematic Worlds owns worlds and presets in the right rail and does not
-    // consume a generic media source. Keep a truthful setup surface instead of
-    // a selectable deck that cannot reach the renderer.
+    // Cinematic Worlds chooses its World in the left source rail while preset
+    // cards remain in the right rail. It does not consume generic media.
     leftTabs = ['workspace']
+    workspaceTabLabel = 'SOURCE'
   } else if (isSoundDrawing) {
     leftTabs = ['workspace', 'media', 'fonts']
     workspaceTabLabel = 'SOURCE'

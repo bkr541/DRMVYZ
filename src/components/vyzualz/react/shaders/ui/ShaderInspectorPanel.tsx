@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import { useCallback } from 'react'
 import { useShallow }            from 'zustand/react/shallow'
 import { useShaderPanelStore }      from './shaderPanelStore'
 import { useShaderLibraryStore }    from '../library/ShaderLibraryStore'
@@ -8,6 +8,7 @@ import { ShaderPassInspector }      from '../editor/ShaderPassInspector'
 import type { PassInspectorData }   from '../editor/ShaderPassInspector'
 import { ShaderCodeEditor }         from '../editor/ShaderCodeEditor'
 import type { ShaderDefinition }    from '../registry/shaderRegistryTypes'
+import { Collapsible }              from '../../ReactControlRows'
 
 // ── ShaderInspectorPanel ──────────────────────────────────────────────────────
 
@@ -90,56 +91,42 @@ export function ShaderInspectorPanel() {
     )
   }
 
-  const metricFps = performanceMetrics?.totalMs ? (1000 / performanceMetrics.totalMs) : null
-  const metricGpu = performanceMetrics?.gpuMs ?? null
-  const metricCpu = performanceMetrics?.cpuPrepMs ?? null
-
   return (
-    <div className="rv-ctrl-group rv-shader-pass-inspector">
-      {/* Scene header */}
-      <div className="rv-ctrl-section-label" style={{ marginBottom: 4 }}>
-        {def.name}
-        <span style={{ marginLeft: 6, opacity: 0.5, fontSize: '0.75em', textTransform: 'uppercase' }}>
-          {def.category}
-        </span>
-      </div>
-      {def.description && (
-        <div className="rv-ctrl-info" style={{ marginBottom: 8 }}>{def.description}</div>
-      )}
-
-      {/* Compile status */}
-      <ShaderCompilePanel status={compileStatus} definition={def} />
-
-      {/* Pass inspector — fed with live dimensions from the active render graph */}
-      <ShaderPassInspector
-        definition={def}
-        metrics={performanceMetrics}
-        passData={livePassData}
-      />
-
-      {/* Performance summary */}
-      {(metricFps !== null || metricGpu !== null || metricCpu !== null) && (
-        <div className="rv-shader-pass-row" style={{ marginTop: 6, fontSize: '0.8em', opacity: 0.7 }}>
-          {metricFps !== null && <span>FPS {metricFps.toFixed(1)}</span>}
-          {metricGpu !== null && <span style={{ marginLeft: 8 }}>GPU {metricGpu.toFixed(1)}ms</span>}
-          {metricCpu !== null && <span style={{ marginLeft: 8 }}>CPU {metricCpu.toFixed(1)}ms</span>}
-          {effectiveQualityTier && (
-            <span style={{ marginLeft: 8, textTransform: 'uppercase' }}>Q:{effectiveQualityTier}</span>
+    <div className="rv-ctrl-group rv-shader-inspector">
+      <Collapsible label="Renderer Diagnostics" defaultOpen>
+        <div className="rv-show-director-performance-status rv-shader-diagnostics" data-shader-diagnostics>
+          <div className="rv-show-director-performance-status__title rv-shader-diagnostics__title">
+            <span>{def.name}</span>
+            <span>{def.category}</span>
+          </div>
+          {def.description && (
+            <p className="rv-show-director-performance-status__notice">{def.description}</p>
           )}
-        </div>
-      )}
 
-      {/* Code editor — user scenes are editable; bundled scenes show source read-only */}
+          <ShaderCompilePanel status={compileStatus} definition={def} />
+
+          <ShaderPassInspector
+            definition={def}
+            metrics={performanceMetrics}
+            passData={livePassData}
+            qualityTier={effectiveQualityTier}
+          />
+        </div>
+      </Collapsible>
+
+      {/* User scenes are editable; bundled scenes keep their source read-only. */}
       {(userSceneEntry || def.fragSrc) && (
-        <ShaderCodeEditor
-          definition={def}
-          isUserScene={!!userSceneEntry}
-          onCompile={handleCompile}
-          onSave={handleSave}
-          onResetPreview={handleResetPreview}
-          runtimeError={compileError}
-          lastSuccessAt={compileStatus.state === 'ok' ? compileStatus.lastOkAt : null}
-        />
+        <Collapsible label="Shader Code" defaultOpen={false}>
+          <ShaderCodeEditor
+            definition={def}
+            isUserScene={!!userSceneEntry}
+            onCompile={handleCompile}
+            onSave={handleSave}
+            onResetPreview={handleResetPreview}
+            runtimeError={compileError}
+            lastSuccessAt={compileStatus.state === 'ok' ? compileStatus.lastOkAt : null}
+          />
+        </Collapsible>
       )}
     </div>
   )
