@@ -165,12 +165,21 @@ export function PixGridControls() {
         }}
       />
       <div className="rv-ctrl-info" data-testid="pix-grid-performance-status">
-        <strong>{performanceStatus.sceneId ?? 'Awaiting playback'}</strong>
-        <span>{performanceStatus.section} · {performanceStatus.sectionPhase} · variation {performanceStatus.variationId ?? 'base'}</span>
-        <span>4 / 8 / 16 stage: {performanceStatus.fourBarStage} / {performanceStatus.eightBarStage} / {performanceStatus.sixteenBarStage}</span>
+        <strong>{performanceStatus.programName ?? 'Awaiting playback'}</strong>
+        <span>Plan: {performanceStatus.activeSectionPlanId ?? performanceStatus.sceneId ?? 'None'} · {performanceStatus.sectionPhase}</span>
+        <span>Section: {performanceStatus.section} #{performanceStatus.sectionOccurrence} · drop #{performanceStatus.dropOccurrence || '—'} · variation {performanceStatus.variationId ?? 'base'}</span>
+        <span>Roles: {performanceStatus.activeVisualRoles.join(', ') || 'None'} · banks {performanceStatus.resolvedBanks.length}</span>
+        <span>Routes: {performanceStatus.activeContinuousRoutes.length} continuous · {performanceStatus.activeEventRoutes.length} event</span>
+        <span>4-bar: {performanceStatus.currentFourBarMotif ?? `stage ${performanceStatus.fourBarStage}`} · 8-bar: {performanceStatus.currentEightBarRecruitment ?? `stage ${performanceStatus.eightBarStage}`}</span>
+        <span>16-bar: {performanceStatus.currentSixteenBarEvolution ?? `stage ${performanceStatus.sixteenBarStage}`}</span>
+        <span>Arcs D/P/M/N: {Math.round(performanceStatus.arcState.density * 100)} / {Math.round(performanceStatus.arcState.paletteIntensity * 100)} / {Math.round(performanceStatus.arcState.motion * 100)} / {Math.round(performanceStatus.arcState.negativeSpace * 100)}%</span>
         <span>Override: {[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length ? `${[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length} locked route${[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length === 1 ? '' : 's'}` : 'Auto'}</span>
         <span>Cue: {cueStatus.mostRecentCueLabel ?? 'None'}{cueStatus.activeOneShotCueIds.length ? ` · ${cueStatus.activeOneShotCueIds.length} active` : ''}</span>
-        <span>Transition: {cueStatus.transition ? `${cueStatus.transition.type} · ${Math.round(cueStatus.transition.progress * 100)}%` : 'Idle'}</span>
+        <span>Transition: {cueStatus.transition ? `${cueStatus.transition.type} · ${Math.round(cueStatus.transition.progress * 100)}%` : performanceStatus.transition ?? 'Idle'}</span>
+        {(performanceStatus.missingBindings.length > 0 || performanceStatus.degradedBindings.length > 0) && (
+          <span>Bindings: {performanceStatus.missingBindings.length} missing · {performanceStatus.degradedBindings.length} degraded</span>
+        )}
+        <span>Precedence: {performanceStatus.manualOverridePrecedence}</span>
       </div>
       {(performanceStatus.manualOverrideRoutes.length > 0 || cueStatus.manualOverrideRoutes.length > 0) && (
         <div className="rv-ctrl-action-row">
