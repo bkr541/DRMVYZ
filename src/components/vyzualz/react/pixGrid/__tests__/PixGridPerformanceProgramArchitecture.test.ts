@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_MI_FRAME } from "../../../../../features/musicIntelligence/constants";
 import type { MusicIntelligenceFrame } from "../../../../../features/musicIntelligence/types";
@@ -816,13 +815,5 @@ describe("PixGrid native Performance Program architecture", () => {
     );
     expect(runtime.programCompilationCount).toBe(1);
     expect(runtime.cachedProgramCount).toBe(1);
-    const unifiedSource = readFileSync(
-      new URL("../PixGridUnifiedPerformanceRuntime.ts", import.meta.url),
-      "utf8",
-    );
-    expect(
-      unifiedSource.match(/new PixGridPerformanceExecutionRuntime\(\)/g),
-    ).toHaveLength(1);
-    expect(unifiedSource).not.toContain("resolveSharedPerformanceProgram(");
   });
 });

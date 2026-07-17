@@ -52,6 +52,8 @@ import {
   type PixGridLayerAnimation,
   type PixGridPaletteRole,
   type PixGridPerformanceProgramId,
+  type PixGridPerformanceProgramOverrides,
+  type PixGridProgramTransitionOverride,
   type PixGridPixelOverride,
   type PixGridPresetSettings,
   type PixGridQualityMode,
@@ -184,6 +186,68 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function finite(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+const PROGRAM_TRANSITIONS = new Set<PixGridProgramTransitionOverride>([
+  'cut', 'crossfade', 'rowWipe', 'columnWipe', 'checkerWipe',
+  'pixelDissolve', 'radialReveal', 'paletteFade', 'powerOn', 'powerOff',
+])
+
+function normalizeProgramOverrides(value: unknown): PixGridPerformanceProgramOverrides {
+  if (!isRecord(value)) return { routes: {}, sections: {} }
+  const routes: PixGridPerformanceProgramOverrides['routes'] = {}
+  if (isRecord(value.routes)) {
+    for (const [routeId, raw] of Object.entries(value.routes).slice(0, 256)) {
+      if (!routeId.trim() || !isRecord(raw)) continue
+      routes[routeId.trim().slice(0, 128)] = {
+        ...(typeof raw.enabled === 'boolean' ? { enabled: raw.enabled } : {}),
+        ...(REACTION_SOURCES.has(raw.source as PixGridReactionSource) ? { source: raw.source as PixGridReactionSource } : {}),
+        ...(REACTION_TARGETS.has(raw.operation as PixGridReactionTarget) ? { operation: raw.operation as PixGridReactionTarget } : {}),
+        ...(raw.amount != null ? { amount: clamp(raw.amount, -4, 4, 0) } : {}),
+        ...(raw.priority != null ? { priority: Math.round(clamp(raw.priority, -1000, 1000, 0)) } : {}),
+        ...(REACTION_TARGET_SCOPES.has(raw.targetScope as PixGridReactionTargetScope) ? { targetScope: raw.targetScope as PixGridReactionTargetScope } : {}),
+        ...('targetId' in raw ? { targetId: nullableId(raw.targetId) } : {}),
+        ...(Array.isArray(raw.inputRange) ? { inputRange: normalizeRange(raw.inputRange, [0, 1], -4, 4) } : {}),
+        ...(Array.isArray(raw.outputRange) ? { outputRange: normalizeRange(raw.outputRange, [0, 1], -8, 8) } : {}),
+        ...(REACTION_POLARITIES.has(raw.polarity as PixGridReactionPolarity) ? { polarity: raw.polarity as PixGridReactionPolarity } : {}),
+        ...(REACTION_CURVES.has(raw.curve as PixGridReactionCurve) ? { curve: raw.curve as PixGridReactionCurve } : {}),
+        ...(raw.smoothing != null ? { smoothing: clamp(raw.smoothing, 0, 10, 0) } : {}),
+        ...(raw.threshold != null ? { threshold: clamp(raw.threshold, 0, 1, 0) } : {}),
+        ...(raw.hysteresis != null ? { hysteresis: clamp(raw.hysteresis, 0, 0.5, 0) } : {}),
+        ...(raw.attack != null ? { attack: clamp(raw.attack, 0, 10, 0) } : {}),
+        ...(raw.hold != null ? { hold: clamp(raw.hold, 0, 10, 0) } : {}),
+        ...(raw.release != null ? { release: clamp(raw.release, 0, 20, 0) } : {}),
+        ...(REACTION_DECAY_CURVES.has(raw.decayCurve as PixGridReactionDecayCurve) ? { decayCurve: raw.decayCurve as PixGridReactionDecayCurve } : {}),
+        ...(REACTION_QUANTIZATION.has(raw.quantization as PixGridReactionQuantization) ? { quantization: raw.quantization as PixGridReactionQuantization } : {}),
+        ...(REACTION_RETRIGGER.has(raw.retrigger as PixGridReactionRetrigger) ? { retrigger: raw.retrigger as PixGridReactionRetrigger } : {}),
+        ...(raw.minimumConfidence != null ? { minimumConfidence: clamp(raw.minimumConfidence, 0, 1, 0) } : {}),
+        ...(REACTION_FALLBACK.has(raw.capabilityFallback as PixGridReactionCapabilityFallback) ? { capabilityFallback: raw.capabilityFallback as PixGridReactionCapabilityFallback } : {}),
+        ...(REACTION_BLEND.has(raw.blend as PixGridReactionBlend) ? { blend: raw.blend as PixGridReactionBlend } : {}),
+        ...(Array.isArray(raw.sectionTypes) ? { sectionTypes: raw.sectionTypes.filter(value => SECTION_TYPES.has(value as never)).slice(0, 16) as PixGridPerformanceProgramOverrides['routes'][string]['sectionTypes'] } : {}),
+        ...(Array.isArray(raw.sectionOccurrences) ? { sectionOccurrences: raw.sectionOccurrences.map(value => Math.max(1, Math.round(finite(value, 1)))).slice(0, 32) } : {}),
+        ...(Array.isArray(raw.dropOccurrences) ? { dropOccurrences: raw.dropOccurrences.map(value => Math.max(1, Math.round(finite(value, 1)))).slice(0, 32) } : {}),
+      }
+    }
+  }
+  const sections: PixGridPerformanceProgramOverrides['sections'] = {}
+  if (isRecord(value.sections)) {
+    for (const [sectionId, raw] of Object.entries(value.sections).slice(0, 128)) {
+      if (!sectionId.trim() || !isRecord(raw)) continue
+      sections[sectionId.trim().slice(0, 128)] = {
+        ...(typeof raw.enabled === 'boolean' ? { enabled: raw.enabled } : {}),
+        ...(raw.density != null ? { density: clamp(raw.density, 0, 1, 0.6) } : {}),
+        ...(raw.motion != null ? { motion: clamp(raw.motion, 0, 2, 0.8) } : {}),
+        ...(raw.paletteIntensity != null ? { paletteIntensity: clamp(raw.paletteIntensity, 0, 1, 0.7) } : {}),
+        ...(raw.negativeSpace != null ? { negativeSpace: clamp(raw.negativeSpace, 0, 1, 0.35) } : {}),
+        ...(typeof raw.fourBarEnabled === 'boolean' ? { fourBarEnabled: raw.fourBarEnabled } : {}),
+        ...(typeof raw.eightBarEnabled === 'boolean' ? { eightBarEnabled: raw.eightBarEnabled } : {}),
+        ...(typeof raw.sixteenBarEnabled === 'boolean' ? { sixteenBarEnabled: raw.sixteenBarEnabled } : {}),
+        ...(PROGRAM_TRANSITIONS.has(raw.transitionIn as PixGridProgramTransitionOverride) ? { transitionIn: raw.transitionIn as PixGridProgramTransitionOverride } : {}),
+        ...(PROGRAM_TRANSITIONS.has(raw.transitionOut as PixGridProgramTransitionOverride) ? { transitionOut: raw.transitionOut as PixGridProgramTransitionOverride } : {}),
+      }
+    }
+  }
+  return { routes, sections }
 }
 
 function clamp(value: unknown, min: number, max: number, fallback: number): number {
@@ -783,6 +847,7 @@ export function normalizePixGridState(value: unknown): PixGridState {
             ),
           ].slice(0, 128)
         : [],
+      programOverrides: normalizeProgramOverrides(performance.programOverrides),
     },
     conversion: {
       selectedMediaId: nullableId(conversion.selectedMediaId),

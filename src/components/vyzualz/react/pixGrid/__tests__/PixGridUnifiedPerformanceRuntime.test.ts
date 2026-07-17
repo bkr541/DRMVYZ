@@ -534,6 +534,53 @@ describe('PixGrid unified composition and reconstruction', () => {
     expect(resolved.diagnostics.activeDiscreteAssignments).toEqual(['routed:kick-route'])
   })
 
+  it('reports missing targets and exact fallback or confidence-blocked sources', () => {
+    const base = stateForPreset()
+    const missingTarget = {
+      ...createDefaultPixGridReactionAssignment(),
+      id: 'missing-layer',
+      source: 'bass' as const,
+      targetScope: 'layer' as const,
+      targetId: 'deleted-layer',
+    }
+    const fallbackRoute = {
+      ...createDefaultPixGridReactionAssignment(),
+      id: 'vocal-fallback',
+      source: 'vocalActivity' as const,
+      capabilityFallback: 'energy' as const,
+    }
+    const confidenceBlocked = {
+      ...createDefaultPixGridReactionAssignment(),
+      id: 'tension-confidence',
+      source: 'tension' as const,
+      minimumConfidence: 0.9,
+      capabilityFallback: 'disable' as const,
+    }
+    const state = { ...base, groups: [], audioAssignments: [missingTarget, fallbackRoute, confidenceBlocked] }
+    const context = contextAt(10)
+    const audioFrame = createSilentPixGridAudioFrame({
+      audioTime: 10,
+      isPlaying: true,
+      energy: 0.75,
+      capabilities: { vocalActivity: false, tension: true },
+      confidence: { vocalActivity: 0, tension: 0.2 },
+    })
+    const resolved = new PixGridUnifiedPerformanceRuntime().resolve({
+      authoredState: state,
+      context,
+      audioFrame,
+      presetId: null,
+      cues: [],
+    })
+
+    expect(resolved.diagnostics.missingTargets).toEqual(['audio:missing-layer'])
+    expect(resolved.diagnostics.activeCompiledAssignments).not.toContain('audio:missing-layer')
+    expect(resolved.diagnostics.assignmentsUsingFallback).toContain('audio:vocal-fallback')
+    expect(resolved.diagnostics.fallbackSources).toContain('vocalActivity')
+    expect(resolved.diagnostics.assignmentsBlockedByConfidence).toContain('audio:tension-confidence')
+    expect(resolved.diagnostics.confidenceBlockedSources).toContain('tension')
+  })
+
   it('migrates legacy assignments into bounded unified envelope fields', () => {
     const base = createDefaultPixGridState()
     const legacy = group(

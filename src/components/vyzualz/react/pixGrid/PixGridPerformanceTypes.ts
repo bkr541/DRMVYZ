@@ -116,8 +116,16 @@ export interface PixGridContinuousRoutePlan {
   source: PixGridReactionSource
   operation: PixGridReactionTarget
   amount: number
+  inputRange?: readonly [number, number]
+  outputRange?: readonly [number, number]
   curve?: PixGridReactionCurve
   polarity?: PixGridReactionPolarity
+  threshold?: number
+  hysteresis?: number
+  attack?: number
+  hold?: number
+  release?: number
+  smoothing?: number
   blend?: PixGridReactionBlend
   intensityScale?: number
   minimumConfidence?: number
@@ -144,6 +152,11 @@ export interface PixGridEventRoutePlan {
   operation: PixGridReactionTarget
   envelope: PixGridEventEnvelopePlan
   amount: number
+  inputRange?: readonly [number, number]
+  outputRange?: readonly [number, number]
+  threshold?: number
+  hysteresis?: number
+  smoothing?: number
   quantization?: PixGridReactionQuantization
   retrigger?: PixGridReactionRetrigger
   maximumStacking?: number

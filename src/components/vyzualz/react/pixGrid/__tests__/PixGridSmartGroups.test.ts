@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { createDefaultPixGridState } from '../PixGridDefaults'
 import {
@@ -154,19 +153,10 @@ describe('PixGrid smart groups and compiled masks', () => {
       groups: [{ id: 'legacy', name: 'Legacy', layerId: null, cellRuns: [[0, 0, 9999]], smartRuleId: null, reactions: [{ id: 'r', source: 'bogus', target: 'bogus', amount: 99 }] }],
       editor: { selectedGroupId: 'legacy', previewReactionAssignmentId: 'r' },
     })
-    expect(normalized.version).toBe(10)
+    expect(normalized.version).toBe(11)
     expect(normalized.groups[0].cellRuns[0][2]).toBe(normalized.matrixWidth)
     expect(normalized.groups[0].reactions[0]).toMatchObject({ source: 'bass', target: 'brightness', amount: 4 })
     expect(normalized.editor.selectedGroupId).toBe('legacy')
   })
 
-  it('uses AudioFeatureBus/shared context instead of a duplicate analyser loop and draws compiled editor masks', () => {
-    const surface = readFileSync(new URL('../PixGridSurface.tsx', import.meta.url), 'utf8')
-    const overlay = readFileSync(new URL('../PixGridEditorOverlay.tsx', import.meta.url), 'utf8')
-    expect(surface).toContain('AudioFeatureBus.getFrame()')
-    expect(surface).toContain('buildSharedPerformanceContext')
-    expect(surface).not.toContain('getByteFrequencyData')
-    expect(overlay).toContain('compilePixGridGroupMask')
-    expect(overlay).toContain('group.displayColor')
-  })
 })

@@ -9,7 +9,7 @@ import { ReactRecordingPanel } from '../ReactRecordingPanel'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
 import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
-import { PixGridGroupReactionPanel } from '../pixGrid/PixGridGroupReactionPanel'
+import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pixGrid/PixGridReactivityWorkspace'
 
 type DesignSurface = 'engine' | 'selection'
 type ReactivitySurface = 'routing' | 'analysis'
@@ -103,9 +103,25 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
 export function ReactReactivityWorkspacePanel() {
   const pixGridActive = useReactStore(state => state.activeReactEngineId === 'pixGrid')
   const [surface, setSurface] = useState<ReactivitySurface>('routing')
+  const [pixGridSurface, setPixGridSurface] = useState<PixGridReactivitySurface>('routing')
 
   if (pixGridActive) {
-    return <div className="rv-workspace-panel"><div className="rv-workspace-panel-body"><div className="rv-inspector rv-inspector-scroll"><PixGridGroupReactionPanel /></div></div></div>
+    return (
+      <div className="rv-workspace-panel">
+        <PanelSubtabs
+          value={pixGridSurface}
+          onChange={value => setPixGridSurface(value)}
+          ariaLabel="PixGrid reactivity surfaces"
+          options={[
+            { id: 'routing', label: 'ROUTING' },
+            { id: 'events', label: 'EVENTS' },
+            { id: 'choreography', label: 'CHOREOGRAPHY' },
+            { id: 'analysis', label: 'ANALYSIS' },
+          ]}
+        />
+        <div className="rv-workspace-panel-body"><div className="rv-inspector rv-inspector-scroll"><PixGridReactivityWorkspace surface={pixGridSurface} /></div></div>
+      </div>
+    )
   }
 
   return (

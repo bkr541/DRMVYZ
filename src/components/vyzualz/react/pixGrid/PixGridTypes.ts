@@ -1,6 +1,6 @@
 import type { ReactSectionType } from '../ReactTypes'
 
-export const PIX_GRID_STATE_VERSION = 10 as const
+export const PIX_GRID_STATE_VERSION = 11 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
@@ -291,12 +291,64 @@ export interface PixGridGroup {
   displayColor: string | null
 }
 
+export type PixGridProgramTransitionOverride =
+  | 'cut' | 'crossfade' | 'rowWipe' | 'columnWipe' | 'checkerWipe'
+  | 'pixelDissolve' | 'radialReveal' | 'paletteFade' | 'powerOn' | 'powerOff'
+
+export interface PixGridProgramRouteOverride {
+  enabled?: boolean
+  source?: PixGridReactionSource
+  operation?: PixGridReactionTarget
+  amount?: number
+  priority?: number
+  targetScope?: PixGridReactionTargetScope
+  targetId?: string | null
+  inputRange?: readonly [number, number]
+  outputRange?: readonly [number, number]
+  polarity?: PixGridReactionPolarity
+  curve?: PixGridReactionCurve
+  smoothing?: number
+  threshold?: number
+  hysteresis?: number
+  attack?: number
+  hold?: number
+  release?: number
+  decayCurve?: PixGridReactionDecayCurve
+  quantization?: PixGridReactionQuantization
+  retrigger?: PixGridReactionRetrigger
+  minimumConfidence?: number
+  capabilityFallback?: PixGridReactionCapabilityFallback
+  blend?: PixGridReactionBlend
+  sectionTypes?: ReactSectionType[]
+  sectionOccurrences?: number[]
+  dropOccurrences?: number[]
+}
+
+export interface PixGridProgramSectionOverride {
+  enabled?: boolean
+  density?: number
+  motion?: number
+  paletteIntensity?: number
+  negativeSpace?: number
+  fourBarEnabled?: boolean
+  eightBarEnabled?: boolean
+  sixteenBarEnabled?: boolean
+  transitionIn?: PixGridProgramTransitionOverride
+  transitionOut?: PixGridProgramTransitionOverride
+}
+
+export interface PixGridPerformanceProgramOverrides {
+  routes: Record<string, PixGridProgramRouteOverride>
+  sections: Record<string, PixGridProgramSectionOverride>
+}
+
 export interface PixGridPerformanceSettings {
   enabled: boolean
   intensity: number
   sharedPerformanceProgramId: PixGridPerformanceProgramId | null
   seed: number
   lockedRoutes: string[]
+  programOverrides: PixGridPerformanceProgramOverrides
 }
 
 export type PixGridFitMode = 'contain' | 'cover' | 'stretch'
@@ -486,6 +538,12 @@ export interface PixGridRendererDiagnostics {
   activeTransitionCount?: number
   manualOverrideCount?: number
   degradedSignalCount?: number
+  totalGroupCount?: number
+  programGeneratedRouteCount?: number
+  userAuthoredRouteCount?: number
+  missingTargetCount?: number
+  assignmentCompilerWarningCount?: number
+  rendererWarningCount?: number
   groupMaskUploadCount?: number
   groupMaskApproximateBytes?: number
 }

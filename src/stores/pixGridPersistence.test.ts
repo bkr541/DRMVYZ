@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { PIX_GRID_PRESET_IDS } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
+import type { PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import {
   mergeReactStoreState,
   migrateReactStore,
@@ -38,6 +39,52 @@ describe('PixGrid persistence and selection invariants', () => {
     })
     expect(persisted.pixGridState).not.toHaveProperty('framebuffer')
     expect(persisted.pixGridState).not.toHaveProperty('canvas')
+  })
+
+
+  it('persists bounded program overrides and keeps performance resets undoable', () => {
+    const base = useReactStore.getState().pixGridState
+    const edited: PixGridState = {
+      ...base,
+      performance: {
+        ...base.performance,
+        programOverrides: {
+          routes: {
+            'bass-foundation': {
+              enabled: true,
+              source: 'tension' as const,
+              operation: 'contrast' as const,
+              amount: 1.25,
+              targetScope: 'group' as const,
+              targetId: base.groups[0]!.id,
+              sectionTypes: ['drop'],
+              dropOccurrences: [2],
+            },
+          },
+          sections: {
+            'bass-drop-one': {
+              density: 0.72,
+              fourBarEnabled: false,
+              transitionIn: 'pixelDissolve',
+            },
+          },
+        },
+      },
+    }
+    useReactStore.getState().applyPixGridAuthoringState(edited)
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted.pixGridState.performance.programOverrides).toEqual(edited.performance.programOverrides)
+
+    useReactStore.getState().applyPixGridAuthoringState({
+      ...useReactStore.getState().pixGridState,
+      performance: {
+        ...useReactStore.getState().pixGridState.performance,
+        programOverrides: { routes: {}, sections: {} },
+      },
+    })
+    expect(useReactStore.getState().pixGridState.performance.programOverrides).toEqual({ routes: {}, sections: {} })
+    useReactStore.getState().undoPixGridEdit()
+    expect(useReactStore.getState().pixGridState.performance.programOverrides.routes['bass-foundation']).toMatchObject({ source: 'tension', operation: 'contrast', amount: 1.25, targetScope: 'group', targetId: base.groups[0]!.id })
   })
 
   it('selecting PixGrid and its presets keeps engine, preset, and state synchronized', () => {

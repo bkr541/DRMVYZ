@@ -375,16 +375,16 @@ function assignmentForContinuous(
       (occurrenceVariant?.amountScale ?? 1),
     polarity: route.polarity ?? "positive",
     invert: route.polarity === "negative",
-    inputRange: [0, 1],
-    outputRange: [0, 1],
+    inputRange: route.inputRange ?? [0, 1],
+    outputRange: route.outputRange ?? [0, 1],
     curve: route.curve ?? "linear",
-    threshold: 0,
-    hysteresis: 0,
-    attack: 0.03,
-    hold: 0,
-    release: 0.12,
+    threshold: route.threshold ?? 0,
+    hysteresis: route.hysteresis ?? 0,
+    attack: route.attack ?? 0.03,
+    hold: route.hold ?? 0,
+    release: route.release ?? 0.12,
     decayCurve: "easeOut",
-    smoothing: 0.08,
+    smoothing: route.smoothing ?? 0.08,
     quantization: "none",
     retrigger: "restart",
     maximumStacking: 1,
@@ -426,11 +426,11 @@ function assignmentForEvent(
     amount: route.amount * (route.intensityScale ?? 1) * intensity,
     polarity: "positive",
     invert: false,
-    inputRange: [0, 1],
-    outputRange: [0, 1],
+    inputRange: route.inputRange ?? [0, 1],
+    outputRange: route.outputRange ?? [0, 1],
     curve: "gate",
-    threshold: 0.01,
-    hysteresis: 0,
+    threshold: route.threshold ?? 0.01,
+    hysteresis: route.hysteresis ?? 0,
     attack: route.envelope.attack,
     hold: route.envelope.hold,
     release: route.envelope.release,
@@ -438,7 +438,7 @@ function assignmentForEvent(
       route.envelope.curve === "step"
         ? "step"
         : (route.envelope.curve ?? "easeOut"),
-    smoothing: 0,
+    smoothing: route.smoothing ?? 0,
     quantization: route.quantization ?? "none",
     retrigger: route.retrigger ?? "restart",
     maximumStacking: route.maximumStacking ?? 1,
@@ -824,6 +824,118 @@ function sharedScene(
   };
 }
 
+function overriddenRouteTarget(
+  original: PixGridProgramRouteTarget,
+  override: PixGridState['performance']['programOverrides']['routes'][string] | undefined,
+): PixGridProgramRouteTarget {
+  const scope = override?.targetScope
+  if (!scope) return original
+  if (scope === 'output' || scope === 'background' || scope === 'transition' || scope === 'palette') return { scope }
+  if (scope === 'scene' || scope === 'layer' || scope === 'group') return { target: { kind: scope, id: override.targetId ?? '' } }
+  return original
+}
+
+function effectivePixGridProgram(
+  program: PixGridPerformanceProgram,
+  state: PixGridState,
+): PixGridPerformanceProgram {
+  const overrides = state.performance.programOverrides
+  const continuousRoutes = program.continuousRoutes.flatMap((route) => {
+    const override = overrides.routes[route.id]
+    if (override?.enabled === false) return []
+    return [{
+      ...route,
+      target: overriddenRouteTarget(route.target, override),
+      ...(override?.source ? { source: override.source } : {}),
+      ...(override?.operation ? { operation: override.operation } : {}),
+      ...(override?.amount != null ? { amount: override.amount } : {}),
+      ...(override?.priority != null ? { priority: override.priority } : {}),
+      ...(override?.inputRange ? { inputRange: override.inputRange } : {}),
+      ...(override?.outputRange ? { outputRange: override.outputRange } : {}),
+      ...(override?.polarity ? { polarity: override.polarity } : {}),
+      ...(override?.curve ? { curve: override.curve } : {}),
+      ...(override?.smoothing != null ? { smoothing: override.smoothing } : {}),
+      ...(override?.threshold != null ? { threshold: override.threshold } : {}),
+      ...(override?.hysteresis != null ? { hysteresis: override.hysteresis } : {}),
+      ...(override?.attack != null ? { attack: override.attack } : {}),
+      ...(override?.hold != null ? { hold: override.hold } : {}),
+      ...(override?.release != null ? { release: override.release } : {}),
+      ...(override?.minimumConfidence != null ? { minimumConfidence: override.minimumConfidence } : {}),
+      ...(override?.capabilityFallback ? { capabilityFallback: override.capabilityFallback } : {}),
+      ...(override?.blend ? { blend: override.blend } : {}),
+      ...(override?.sectionTypes || override?.sectionOccurrences || override?.dropOccurrences
+        ? { conditions: {
+            ...(route.conditions ?? {}),
+            ...(override.sectionTypes ? { sectionTypes: override.sectionTypes } : {}),
+            ...(override.sectionOccurrences ? { sectionOccurrences: override.sectionOccurrences } : {}),
+            ...(override.dropOccurrences ? { dropOccurrences: override.dropOccurrences } : {}),
+          } }
+        : {}),
+    }]
+  })
+  const eventRoutes = program.eventRoutes.flatMap((route) => {
+    const override = overrides.routes[route.id]
+    if (override?.enabled === false) return []
+    return [{
+      ...route,
+      target: overriddenRouteTarget(route.target, override),
+      ...(override?.source ? { event: override.source } : {}),
+      ...(override?.operation ? { operation: override.operation } : {}),
+      ...(override?.amount != null ? { amount: override.amount } : {}),
+      ...(override?.priority != null ? { priority: override.priority } : {}),
+      ...(override?.inputRange ? { inputRange: override.inputRange } : {}),
+      ...(override?.outputRange ? { outputRange: override.outputRange } : {}),
+      ...(override?.threshold != null ? { threshold: override.threshold } : {}),
+      ...(override?.hysteresis != null ? { hysteresis: override.hysteresis } : {}),
+      ...(override?.smoothing != null ? { smoothing: override.smoothing } : {}),
+      ...(override?.attack != null || override?.hold != null || override?.release != null || override?.decayCurve
+        ? { envelope: {
+            ...route.envelope,
+            ...(override.attack != null ? { attack: override.attack } : {}),
+            ...(override.hold != null ? { hold: override.hold } : {}),
+            ...(override.release != null ? { release: override.release } : {}),
+            ...(override.decayCurve ? { curve: override.decayCurve } : {}),
+          } }
+        : {}),
+      ...(override?.quantization ? { quantization: override.quantization } : {}),
+      ...(override?.retrigger ? { retrigger: override.retrigger } : {}),
+      ...(override?.minimumConfidence != null ? { minimumConfidence: override.minimumConfidence } : {}),
+      ...(override?.capabilityFallback ? { capabilityFallback: override.capabilityFallback } : {}),
+      ...(override?.blend ? { blend: override.blend } : {}),
+      ...(override?.sectionTypes || override?.sectionOccurrences || override?.dropOccurrences
+        ? { conditions: {
+            ...(route.conditions ?? {}),
+            ...(override.sectionTypes ? { sectionTypes: override.sectionTypes } : {}),
+            ...(override.sectionOccurrences ? { sectionOccurrences: override.sectionOccurrences } : {}),
+            ...(override.dropOccurrences ? { dropOccurrences: override.dropOccurrences } : {}),
+          } }
+        : {}),
+    }]
+  })
+  const sectionPlans = program.sectionPlans.flatMap((plan) => {
+    const override = overrides.sections[plan.id]
+    if (override?.enabled === false) return []
+    return [{
+      ...plan,
+      ...(override?.density != null ? { densityState: { ...(plan.densityState ?? { value: override.density }), value: override.density } } : {}),
+      ...(override?.motion != null ? { motionState: { ...(plan.motionState ?? { amount: override.motion }), amount: override.motion } } : {}),
+      ...(override?.paletteIntensity != null ? { paletteState: { ...(plan.paletteState ?? { intensity: override.paletteIntensity }), intensity: override.paletteIntensity } } : {}),
+      ...(override?.negativeSpace != null ? { negativeSpaceTarget: override.negativeSpace } : {}),
+      ...(override?.fourBarEnabled === false ? { fourBarActions: [] } : {}),
+      ...(override?.eightBarEnabled === false ? { eightBarRecruitment: [] } : {}),
+      ...(override?.sixteenBarEnabled === false ? { sixteenBarEvolution: [] } : {}),
+      ...(override?.transitionIn ? { transitionIn: { ...(plan.transitionIn ?? {}), type: override.transitionIn } } : {}),
+      ...(override?.transitionOut ? { transitionOut: { ...(plan.transitionOut ?? {}), type: override.transitionOut } } : {}),
+    }]
+  })
+  return {
+    ...program,
+    continuousRoutes,
+    eventRoutes,
+    sectionPlans: sectionPlans.length ? sectionPlans : program.sectionPlans,
+  }
+}
+
 function programSignature(
   state: PixGridState,
   capabilities: Partial<Record<PixGridReactionSource, boolean>>,
@@ -837,6 +949,7 @@ function programSignature(
       group.layerId,
       group.layerScope,
     ]),
+    programOverrides: state.performance.programOverrides,
     capabilities: Object.keys(capabilities)
       .sort()
       .map((key) => [
@@ -1242,20 +1355,20 @@ export class PixGridPerformanceProgramCompiler {
     const rawSignature = programSignature(state, capabilities);
     const signature = `${stableHash(rawSignature).toString(16)}:${rawSignature.length}`;
     const cached = this.cache.get(program.id);
-    if (cached?.program === program && cached.signature === signature)
-      return cached;
+    if (cached?.signature === signature) return cached;
 
     const validationIssues = validatePixGridPerformanceProgram(program);
+    const effectiveProgram = effectivePixGridProgram(program, state);
     const missingBindings: string[] = [];
     const degradedBindings: string[] = [];
     const resolvedBindings: PixGridProgramRoleBinding[] = [];
-    for (const binding of program.bindings) {
+    for (const binding of effectiveProgram.bindings) {
       const resolved = resolveBinding(binding, state);
       if (resolved.missing) missingBindings.push(resolved.missing);
       if (resolved.degraded) degradedBindings.push(binding.id);
       if (resolved.binding) resolvedBindings.push(resolved.binding);
     }
-    const resolvedBanks = program.banks.map((bank) => resolveBank(bank, state));
+    const resolvedBanks = effectiveProgram.banks.map((bank) => resolveBank(bank, state));
     for (const bank of resolvedBanks) {
       if (!bank.targets.length) missingBindings.push(`bank:${bank.id}`);
       else if (bank.degraded) degradedBindings.push(`bank:${bank.id}`);
@@ -1263,7 +1376,7 @@ export class PixGridPerformanceProgramCompiler {
 
     const resolvedScenes = new Map<string, string | null>();
     const resolvedRecruitment = new Map<string, ResolvedSectionRecruitment>();
-    for (const plan of program.sectionPlans) {
+    for (const plan of effectiveProgram.sectionPlans) {
       resolvedScenes.set(
         plan.id,
         resolveScenePreference(plan, state, missingBindings, degradedBindings),
@@ -1282,7 +1395,7 @@ export class PixGridPerformanceProgramCompiler {
 
     const assignments: PixGridReactionAssignment[] = [];
     const compilationWarnings: string[] = [];
-    for (const plan of program.sectionPlans) {
+    for (const plan of effectiveProgram.sectionPlans) {
       const intensity = clamp(
         plan.intensityRange
           ? (plan.intensityRange[0] + plan.intensityRange[1]) * 0.5
@@ -1292,12 +1405,12 @@ export class PixGridPerformanceProgramCompiler {
       );
       const continuousIds = new Set(
         plan.continuousRouteIds ??
-          program.continuousRoutes.map((route) => route.id),
+          effectiveProgram.continuousRoutes.map((route) => route.id),
       );
       const eventIds = new Set(
-        plan.eventRouteIds ?? program.eventRoutes.map((route) => route.id),
+        plan.eventRouteIds ?? effectiveProgram.eventRoutes.map((route) => route.id),
       );
-      for (const route of program.continuousRoutes) {
+      for (const route of effectiveProgram.continuousRoutes) {
         if (!continuousIds.has(route.id)) continue;
         const targets = targetsForRoute(
           route.target,
@@ -1328,7 +1441,7 @@ export class PixGridPerformanceProgramCompiler {
             );
         }
       }
-      for (const route of program.eventRoutes) {
+      for (const route of effectiveProgram.eventRoutes) {
         if (!eventIds.has(route.id)) continue;
         const targets = targetsForRoute(
           route.target,
@@ -1364,9 +1477,9 @@ export class PixGridPerformanceProgramCompiler {
     }
 
     const sharedProgram: SharedPerformanceProgram<PixGridPerformanceAction> = {
-      id: program.id,
-      metadata: program.metadata,
-      scenes: program.sectionPlans.map((plan) =>
+      id: effectiveProgram.id,
+      metadata: effectiveProgram.metadata,
+      scenes: effectiveProgram.sectionPlans.map((plan) =>
         sharedScene(
           plan,
           state,
@@ -1378,11 +1491,11 @@ export class PixGridPerformanceProgramCompiler {
           },
         ),
       ),
-      fallbackOrder: program.fallbackOrder,
-      fallbackSceneId: program.fallbackSectionPlanId,
+      fallbackOrder: effectiveProgram.fallbackOrder,
+      fallbackSceneId: effectiveProgram.fallbackSectionPlanId,
     };
     const compiled: PixGridCompiledPerformanceProgram = Object.freeze({
-      program,
+      program: effectiveProgram,
       sharedProgram,
       assignments: Object.freeze(uniqueAssignments),
       resolvedBindings: Object.freeze(resolvedBindings),

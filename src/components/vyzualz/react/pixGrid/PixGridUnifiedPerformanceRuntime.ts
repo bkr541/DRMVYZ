@@ -60,6 +60,9 @@ export interface PixGridUnifiedRuntimeDiagnostics {
   assignmentsBlockedByConditions: readonly string[];
   assignmentsBlockedByConfidence: readonly string[];
   assignmentsUsingFallback: readonly string[];
+  fallbackSources: readonly PixGridReactionSource[];
+  confidenceBlockedSources: readonly PixGridReactionSource[];
+  missingTargets: readonly string[];
   continuousSourceValues: Readonly<
     Partial<Record<PixGridReactionSource, number>>
   >;
@@ -77,6 +80,13 @@ export interface PixGridUnifiedRuntimeDiagnostics {
   activeProgramMotif: string | null;
   activeProgramRecruitment: string | null;
   activeProgramEvolution: string | null;
+  fourBarStage: number;
+  eightBarStage: number;
+  sixteenBarStage: number;
+  sectionName: string;
+  sectionPhase: string;
+  sectionOccurrence: number;
+  dropOccurrence: number;
   programBindingWarnings: readonly string[];
   manualOverridePrecedence: string;
   programCompilerGeneration: number;
@@ -104,6 +114,7 @@ interface DiagnosticRoute {
   routeId: string;
   displayId: string;
   scope: PixGridReactionTargetScope;
+  targetId: string | null;
 }
 
 function assignmentRoutes(state: PixGridState): DiagnosticRoute[] {
@@ -113,6 +124,7 @@ function assignmentRoutes(state: PixGridState): DiagnosticRoute[] {
       routeId: `audio:${assignment.id}`,
       displayId: `audio:${assignment.id}`,
       scope: assignment.targetScope ?? "output",
+      targetId: assignment.targetId?.trim() || null,
     }),
   );
   for (const group of state.groups) {
@@ -122,6 +134,7 @@ function assignmentRoutes(state: PixGridState): DiagnosticRoute[] {
         routeId: `group:${group.id}:${assignment.id}`,
         displayId: `${group.id}:${assignment.id}`,
         scope: assignment.targetScope ?? "group",
+        targetId: assignment.targetId?.trim() || group.id,
       });
     }
   }
@@ -130,6 +143,22 @@ function assignmentRoutes(state: PixGridState): DiagnosticRoute[] {
 
 function addUnique<T>(array: T[], value: T): void {
   if (!array.includes(value)) array.push(value);
+}
+
+function routeTargetExists(route: DiagnosticRoute, state: PixGridState): boolean {
+  if (!route.targetId) return true;
+  switch (route.scope) {
+    case "scene":
+      return state.scenes.some((scene) => scene.id === route.targetId);
+    case "layer":
+    case "animation":
+      return state.layers.some((layer) => layer.id === route.targetId);
+    case "group":
+    case "pixels":
+      return state.groups.some((group) => group.id === route.targetId);
+    default:
+      return true;
+  }
 }
 
 export class PixGridUnifiedPerformanceRuntime {
@@ -239,6 +268,9 @@ export class PixGridUnifiedPerformanceRuntime {
     const blockedByConditions: string[] = [];
     const blockedByConfidence: string[] = [];
     const assignmentsUsingFallback: string[] = [];
+    const fallbackSources: PixGridReactionSource[] = [];
+    const confidenceBlockedSources: PixGridReactionSource[] = [];
+    const missingTargets: string[] = [];
     const compilationWarnings: string[] = [];
     const continuousAssignments: string[] = [];
     const discreteAssignments: string[] = [];
@@ -259,6 +291,11 @@ export class PixGridUnifiedPerformanceRuntime {
         addUnique(compilationWarnings, `${route.routeId}: ${warning}`);
       if (!compiled.enabled) {
         addUnique(disabledAssignments, route.routeId);
+        continue;
+      }
+      if (!routeTargetExists(route, cues.state)) {
+        addUnique(missingTargets, route.routeId);
+        addUnique(compilationWarnings, `${route.routeId}: missing target ${route.targetId}`);
         continue;
       }
       if (
@@ -285,11 +322,13 @@ export class PixGridUnifiedPerformanceRuntime {
         !available || confidence < compiled.minimumConfidence;
       if (needsFallback && compiled.capabilityFallback === "disable") {
         addUnique(blockedByConfidence, route.routeId);
+        addUnique(confidenceBlockedSources, route.assignment.source);
         addUnique(degradedSignals, route.routeId);
         continue;
       }
       if (needsFallback) {
         addUnique(assignmentsUsingFallback, route.routeId);
+        addUnique(fallbackSources, route.assignment.source);
         addUnique(degradedSignals, route.routeId);
       }
       addUnique(activeCompiledAssignments, route.routeId);
@@ -315,6 +354,9 @@ export class PixGridUnifiedPerformanceRuntime {
         assignmentsBlockedByConditions: blockedByConditions,
         assignmentsBlockedByConfidence: blockedByConfidence,
         assignmentsUsingFallback,
+        fallbackSources,
+        confidenceBlockedSources,
+        missingTargets,
         continuousSourceValues,
         recentDiscreteTriggers,
         compilationWarnings,
@@ -332,6 +374,13 @@ export class PixGridUnifiedPerformanceRuntime {
         activeProgramRecruitment:
           performance.snapshot.currentEightBarRecruitment,
         activeProgramEvolution: performance.snapshot.currentSixteenBarEvolution,
+        fourBarStage: performance.snapshot.fourBarStage,
+        eightBarStage: performance.snapshot.eightBarStage,
+        sixteenBarStage: performance.snapshot.sixteenBarStage,
+        sectionName: performance.snapshot.section,
+        sectionPhase: performance.snapshot.sectionPhase,
+        sectionOccurrence: performance.snapshot.sectionOccurrence,
+        dropOccurrence: performance.snapshot.dropOccurrence,
         programBindingWarnings: [
           ...performance.snapshot.missingBindings,
           ...performance.snapshot.degradedBindings,

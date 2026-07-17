@@ -26,6 +26,7 @@ export const DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS: PixGridPerformanceSettings =
   sharedPerformanceProgramId: 'pix-grid-bass-beacon-performance',
   seed: 1,
   lockedRoutes: [],
+  programOverrides: { routes: {}, sections: {} },
 }
 
 export const DEFAULT_PIX_GRID_CONVERSION_SETTINGS: PixGridConversionSettings = {

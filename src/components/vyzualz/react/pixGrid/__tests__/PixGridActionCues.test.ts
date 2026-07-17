@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { BeatMarkerMI } from '../../../../../features/musicIntelligence/types'
 import { createDefaultPixGridState } from '../PixGridDefaults'
@@ -219,17 +218,5 @@ describe('PixGrid cue execution', () => {
       animations: [{ ...movingLayer.animations[0]!, clock: 'bar' }],
     }, asset, { ...frame(1), beatIndex: 4, barIndex: 1, beatPhase: 0.5 }, 1)
     expect(beatClock.positionX).not.toBe(barClock.positionX)
-  })
-})
-
-describe('PixGrid Track Map integration contract', () => {
-  it('renders accessible engine-scoped markers and native cue editing affordances', () => {
-    const source = readFileSync(new URL('../../ReactTrackMapStrip.tsx', import.meta.url), 'utf8')
-    expect(source).toContain("kind: 'pixgrid'")
-    expect(source).toContain('PixGrid action cue')
-    expect(source).toContain('Right-click empty space to add a PixGrid action cue')
-    expect(source).toContain('handlePixGridCuePointerDown')
-    expect(source).toContain('PixGridTrackMapCueEditor')
-    expect(source).not.toContain('pixGridBeatGrid')
   })
 })

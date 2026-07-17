@@ -964,7 +964,7 @@ export function resolvePixGridPerformanceFrame(
     resolutionContext,
   );
   const activePlan = resolvePixGridActiveSectionPlan(
-    program,
+    compiledProgram.program,
     resolution.scene?.id,
   );
   const planAssignmentPrefix = activePlan ? `program:${activePlan.id}:` : "";

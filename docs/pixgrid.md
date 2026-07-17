@@ -87,3 +87,46 @@ PixGrid coverage includes state migration, normalization, media conversion, SVG 
 - Image sequences
 - Dedicated Visual Manager
 - Expanded built-in asset packs
+
+## Advanced Audio Intelligence workspace
+
+When PixGrid is active, the Reactivity workspace is PixGrid-native and contains four subtabs. It does not create a second window or make the center visualizer interactive. The center remains render-only unless **Edit PixGrid** is explicitly enabled.
+
+### Routing
+
+**Routing** exposes continuous assignments from the shipped preset and from the user. Sources are grouped by Frequency, Energy, Musical Development, Progress, Stem and Vocal, and Optional Analysis rather than flattened into one list. Each route shows its origin, target role/bank/scope, enable state, and modification state. Users can add, duplicate, disable, delete, reset, and safely preview routes; edit source, target scope, target, operation, amount, ranges, polarity, curve, smoothing, threshold, hysteresis, confidence, fallback, section/occurrence conditions, priority, and blend; and open a selected smart group in the PixGrid editor with its mask overlay.
+
+Shipped routes are immutable baselines. Edits are stored as compact program overrides, compiled only when the performance configuration changes, and removed by **Reset Route**. User routes remain normal authored assignments. Preset resets clear only performance overrides and locks, preserving imported media and unrelated scene work.
+
+### Events
+
+**Events** exposes beat, downbeat, kick, snare, hat, transient, bar, four/eight/sixteen-bar, phrase, section, drop-impact, semantic, and Track Map event sources. Event routes include attack, hold, release, decay curve, quantization, retrigger behavior, confidence, capability fallback, conditions, priority, and blend. **Test Trigger** creates a short editor-only preview source identity. It never persists a Track Map cue or changes the authoritative timeline.
+
+### Choreography
+
+**Choreography** presents the active PixGrid Performance Program through native controls and compact inspectors rather than raw JSON. It exposes Auto Performance, intensity, section plans, entry/body/exit action counts, visual roles, role bindings, banks, continuous and event route banks, four-bar motifs, eight-bar recruitment, sixteen-bar evolution, occurrence rules, transitions, density, palette, motion, negative-space targets, capability fallback information, and live runtime stages. Shipped structures can be inspected and enabled, disabled, or adjusted through bounded overrides. **Clear Override** releases temporary layer/route locks; **Reset Performance Configuration** removes program overrides without touching media or scene artwork.
+
+Track Map cue state is shown separately from preset defaults, user changes, and manual locks. Runtime precedence remains Shared Performance Program, replayed Track Map cue state, continuous routes, event envelopes, temporary manual overrides, then transition resolution. Same-time cue ordering continues to use Track Map's normalized order.
+
+### Analysis
+
+**Analysis** displays only authoritative PixGrid input and runtime status. It shows frequency bands, volume and energy, track-relative energy, spectral flux, tension, complexity, musical progress, beat/bar phase, available stem or vocal activity, event status, 4/8/16-bar stage, section phase and occurrences, semantic status, route capability/confidence state, compiler warnings, mask counts, active routes/envelopes/actions/transitions, renderer path, logical resolution, and FPS.
+
+Each signal is marked Available, Unavailable, Degraded, Using Fallback, or Blocked by Confidence. Missing analysis is displayed as unavailable; the interface does not synthesize diagnostic values.
+
+## Preset defaults and precedence
+
+PixGrid keeps four kinds of state visibly distinct:
+
+1. **Shipped preset defaults** are the authored baseline program and route banks.
+2. **User modifications** are persisted assignments or compact per-route/per-section program overrides.
+3. **Temporary live overrides** are layer/route locks and preview triggers.
+4. **Track Map cue state** is reconstructed from authoritative track time and never merged into preset defaults.
+
+Reset actions use the existing PixGrid authoring history path where practical. Imported media references, conversion settings, and unrelated sparse pixel edits are not destroyed by a performance reset.
+
+## Advanced routing limits and troubleshooting
+
+Program override normalization is bounded to 256 routes and 128 section plans. Assignment, group, event-envelope, action, transition, history, diagnostics, media-cache, framebuffer, and GPU resource limits remain enforced by their owning runtime. Compilers cache normalized signatures; they are not recreated in the animation hot loop. Group masks use deterministic cache keys and are rebuilt only when dimensions, mask input, or source revision changes.
+
+If a route is silent, inspect **Analysis** in this order: source availability, confidence, fallback state, section/occurrence conditions, target existence, group mask compilation, active cue/manual override state, then renderer status. A missing optional source can use its configured fallback; a route configured with **Disable** remains blocked rather than inventing data. Corrupt persisted overrides are normalized or discarded on load. Missing/deleted media, invalid SVG, missing groups/layers, empty analysis, stopped playback, WebGL context loss, and failed transition allocation retain the existing bounded fallback and recovery paths.

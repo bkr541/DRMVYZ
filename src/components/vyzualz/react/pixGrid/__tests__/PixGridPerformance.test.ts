@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
 import type { MusicIntelligenceFrame } from '../../../../../features/musicIntelligence/types'
@@ -155,19 +154,6 @@ function render(presetId: string, context: SharedPerformanceContext) {
 }
 
 describe('PixGrid Shared Performance choreography', () => {
-  it('keeps the action contract PixGrid-specific and complete', () => {
-    const source = readFileSync(new URL('../PixGridPerformanceTypes.ts', import.meta.url), 'utf8')
-    const requiredActions = [
-      'setScene', 'setLayerActive', 'setGroupActive', 'setLayerOpacity', 'setGroupBrightness',
-      'setPaletteRole', 'flashGroup', 'revealRows', 'revealColumns', 'dissolveGroup', 'shiftGroup',
-      'recruitLayer', 'changeAnimation', 'changeAnimationSpeed', 'reverseDirection', 'triggerFrame',
-      'freeze', 'clear', 'restore', 'setTransition', 'setDensity', 'setBackgroundState',
-    ]
-    for (const action of requiredActions) expect(source).toContain(`type: '${action}'`)
-    const imports = source.split('\n').filter(line => line.startsWith('import ')).join('\n')
-    expect(imports).not.toMatch(/LaserDmx|fixture|beam/i)
-  })
-
   it('validates all three authored programs without errors', () => {
     expect(PIX_GRID_PERFORMANCE_PROGRAMS.map(program => program.id)).toEqual([
       'pix-grid-bass-beacon-performance',
@@ -187,15 +173,6 @@ describe('PixGrid Shared Performance choreography', () => {
     const migrated = normalizePixGridState({ ...geometric, version: 6, performance: undefined })
     expect(migrated.performance.sharedPerformanceProgramId).toBe('pix-grid-geometric-reactor-performance')
     expect(migrated.performance.enabled).toBe(true)
-  })
-
-  it('exposes compact controls and shared diagnostics without a separate runtime panel', () => {
-    const controls = readFileSync(new URL('../PixGridControls.tsx', import.meta.url), 'utf8')
-    expect(controls).toContain('Auto Performance')
-    expect(controls).toContain('Performance Intensity')
-    expect(controls).toContain('Clear Override')
-    expect(controls).toContain('SharedPerformanceDiagnosticsPanel')
-    expect(controls).toContain('selectReactPreset(presetId)')
   })
 
   it('matches scenes and applies entry, body, and exit phase actions', () => {

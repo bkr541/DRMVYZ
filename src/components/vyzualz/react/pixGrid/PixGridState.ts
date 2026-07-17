@@ -61,6 +61,8 @@ export function applyPixGridPresetSettings(
       ...safeCurrent.performance,
       enabled: settings.performanceProgramId ? true : safeCurrent.performance.enabled,
       sharedPerformanceProgramId: settings.performanceProgramId ?? safeCurrent.performance.sharedPerformanceProgramId,
+      programOverrides: { routes: {}, sections: {} },
+      lockedRoutes: [],
     },
     scenes,
     pixelOverrides: [],
