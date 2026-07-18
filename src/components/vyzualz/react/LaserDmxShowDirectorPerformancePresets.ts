@@ -9,10 +9,12 @@ import {
   nextLaserDmxShowDirectorPerformanceInvalidationId,
   normalizeLaserDmxShowDirectorPerformanceProgram,
   normalizeLaserDmxShowDirectorPerformanceState,
+  type LaserDmxShowDirectorBuiltInPerformanceProgramId,
   type LaserDmxShowDirectorPerformanceProgram,
   type LaserDmxShowDirectorPerformanceSectionType,
   type LaserDmxShowDirectorPerformanceState,
 } from './LaserDmxShowDirectorPerformanceProgram'
+import { authorLaserDmxBuiltInPerformanceProgram } from './LaserDmxShowDirectorFirstPartyAuthoring'
 import { LASER_DMX_SHOW_DIRECTOR_SHOWCASE_PRESETS } from './LaserDmxShowDirectorPerformanceShowcasePresets'
 import { migrateLaserDmxShowDirectorToProfessionalOptics } from './LaserDmxShowDirectorProfessionalOpticsMigration'
 import {
@@ -90,6 +92,23 @@ const RAW_LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDire
   ...LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_PRESETS,
 ]
 
+function createFirstPartyProgramFactory(
+  preset: LaserDmxShowDirectorPerformancePresetDefinition,
+): () => LaserDmxShowDirectorPerformanceProgram {
+  let cached: LaserDmxShowDirectorPerformanceProgram | null = null
+  return () => {
+    if (cached) return cached
+    cached = authorLaserDmxBuiltInPerformanceProgram(
+      preset.id as LaserDmxShowDirectorBuiltInPerformanceProgramId,
+      migrateLaserDmxBuiltInPerformanceProgramToPhysicalScannerContent(
+        preset.id,
+        preset.createProgram(),
+      ),
+    )
+    return cached
+  }
+}
+
 export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowDirectorPerformancePresetDefinition[] = Object.freeze(
   RAW_LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => ({
     ...preset,
@@ -97,10 +116,7 @@ export const LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS: readonly LaserDmxShowD
       preset.id,
       migrateLaserDmxShowDirectorToProfessionalOptics(preset.id, preset.createRig(createId)),
     ),
-    createProgram: () => migrateLaserDmxBuiltInPerformanceProgramToPhysicalScannerContent(
-      preset.id,
-      preset.createProgram(),
-    ),
+    createProgram: createFirstPartyProgramFactory(preset),
   })),
 )
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS } from './LaserDmxShowDirectorPerformancePresets'
 import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES, createLaserDmxShowDirectorTemplateState } from './laserDmxShowDirectorTemplates'
 import {
-  LASER_DMX_PHYSICAL_CONTENT_AUTHORING_VERSION,
   auditLaserDmxBuiltInPhysicalContent,
 } from './LaserDmxShowDirectorPhysicalContentMigration'
+import { validateLaserShowProgrammingDocument } from './LaserDmxShowDirectorProgramming'
 import {
   SHOW_DIRECTOR_VISUAL_VALIDATION_FRAMES,
   resolveShowDirectorVisualValidationFrame,
@@ -71,35 +71,36 @@ describe('LaserDMX Patch 5 physical built-in content migration', () => {
     }
   })
 
-  it('adds section and cadence scanner development while retaining the original programs', () => {
+  it('uses native macros as first-party authority while retaining the physical rig migration', () => {
     for (const preset of LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS) {
       const program = preset.createProgram()
-      expect(program.diagnostics?.authoringVersion, preset.id).toBe(LASER_DMX_PHYSICAL_CONTENT_AUTHORING_VERSION)
-      expect(program.scenes.length, preset.id).toBeGreaterThanOrEqual(8)
+      expect(program.diagnostics?.authoringVersion, preset.id).toBe('professional-cue-authoring-v1')
+      expect(program.laserProgramming?.compatibility.source, preset.id).toBe('native')
+      expect(validateLaserShowProgrammingDocument(program.laserProgramming!), preset.id).toEqual([])
+      expect(program.laserProgramming?.macros.some(macro => macro.compatibility?.provisional), preset.id).toBe(false)
       for (const scene of program.scenes) {
-        expect(scene.sectionBodyMutations?.some(mutation => mutation.id.includes('physical-')), `${preset.id}:${scene.id}`).toBe(true)
-        if (preset.createRig(ids(`${preset.id}-probe`)).fixtures.some(fixture => fixture.kind === 'laser')) {
-          expect(scene.sectionBodyMutations?.some(mutation => mutation.id.includes('physical-scanner-body')), `${preset.id}:${scene.id}`).toBe(true)
-          expect(scene.barMutations?.some(mutation => mutation.id.includes('physical-scanner-bar-handoff')), `${preset.id}:${scene.id}`).toBe(true)
-          expect(scene.barMutations?.some(mutation => mutation.id.includes('physical-scanner-four-bar')), `${preset.id}:${scene.id}`).toBe(true)
-          expect(scene.eightBarRecruitment?.some(mutation => mutation.id.includes('physical-scanner-eight-bar')), `${preset.id}:${scene.id}`).toBe(true)
-          expect(scene.sixteenBarEvolution?.some(mutation => mutation.id.includes('physical-scanner-sixteen-bar')), `${preset.id}:${scene.id}`).toBe(true)
-          const roleScannerMutations = (scene.sectionBodyMutations ?? []).filter(mutation => (
-            mutation.id.includes('physical-scanner-hero')
-            || mutation.id.includes('physical-scanner-support')
-            || mutation.id.includes('physical-scanner-texture')
-          ))
-          expect(roleScannerMutations.length, `${preset.id}:${scene.id}:role scanner hierarchy`).toBeGreaterThanOrEqual(2)
-          expect(roleScannerMutations.every(mutation => (mutation.address?.bankRoles?.length ?? 0) > 0), `${preset.id}:${scene.id}:semantic scanner banks`).toBe(true)
+        const payloads = [
+          scene,
+          ...(scene.variations ?? []),
+          ...(scene.beatMutations ?? []),
+          ...(scene.kickMutations ?? []),
+          ...(scene.snareMutations ?? []),
+          ...(scene.hatMutations ?? []),
+          ...(scene.transientMutations ?? []),
+          ...(scene.barMutations ?? []),
+          ...(scene.barProgression ?? []),
+          ...(scene.fourBarVariations ?? []),
+          ...(scene.eightBarRecruitment ?? []),
+          ...(scene.sixteenBarEvolution ?? []),
+          ...(scene.sectionEntryMutations ?? []),
+          ...(scene.sectionBodyMutations ?? []),
+          ...(scene.sectionExitMutations ?? []),
+        ]
+        for (const payload of payloads) {
+          expect(payload.fixture?.scanner, `${preset.id}:${scene.id}:legacy scanner override`).toBeUndefined()
+          expect(payload.fixture?.targetPoints, `${preset.id}:${scene.id}:legacy target topology`).toBeUndefined()
+          expect(payload.fixtureActions?.some(action => action.kind === 'scanner' || action.kind === 'beam'), `${preset.id}:${scene.id}:legacy scanner action`).not.toBe(true)
         }
-      }
-      if (preset.createRig(ids(`${preset.id}-section-profile`)).fixtures.some(fixture => fixture.kind === 'laser')) {
-        const scannerProfiles = program.scenes.flatMap(scene => (scene.sectionBodyMutations ?? [])
-          .filter(mutation => mutation.id.includes('physical-scanner-body'))
-          .flatMap(mutation => mutation.fixtureActions ?? [])
-          .filter(action => action.kind === 'scanner')
-          .map(action => JSON.stringify({ patternType: action.patternType, scanRatePps: action.scanRatePps, durationBeats: action.durationBeats, fanWidth: action.fanWidth, depthLayer: action.depthLayer, opticalMode: action.opticalMode, opticalCopyCount: action.opticalCopyCount })))
-        expect(new Set(scannerProfiles).size, `${preset.id}:authored section scanner profiles`).toBeGreaterThanOrEqual(6)
       }
     }
   })

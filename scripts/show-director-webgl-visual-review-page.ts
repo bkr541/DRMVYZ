@@ -91,14 +91,22 @@ type WebGLReviewScenario =
   | 'programming-stable-8-ray-fan'
   | 'programming-stable-12-ray-fan'
   | 'programming-mirrored-12-ray-fans'
+  | 'programming-opposed-fan-banks'
+  | 'programming-crossing-fan'
   | 'programming-smooth-opening-fan'
   | 'programming-smooth-closing-fan'
   | 'programming-parallel-sheet'
   | 'programming-tunnel'
+  | 'programming-corridor'
   | 'programming-circle'
   | 'programming-wave'
   | 'programming-cue-transition'
   | 'programming-bank-handoff'
+  | 'programming-call-response'
+  | 'programming-moving-head-position'
+  | 'programming-moving-head-gobo'
+  | 'programming-wash-scene'
+  | 'programming-cue-blackout'
   | 'programming-strobe-accent'
   | 'programming-blinder-impact'
   | 'programming-led-chase'
@@ -138,6 +146,19 @@ interface WebGLPhysicalMetrics extends LaserDmxPhysicalRealismMetrics {
   canvas2dFallbackDetected: boolean
 }
 
+
+interface WebGLTemporalMetrics {
+  frameCount: number
+  cueIdentityStable: boolean
+  topologyStable: boolean
+  colorSceneStable: boolean
+  fixtureBankPhaseDrift: number
+  meanAdjacentPixelDifference: number
+  maximumAdjacentPixelDifference: number
+  sampleCountRange: number
+  blackoutFrameCount: number
+}
+
 interface WebGLRecoveryReport {
   automaticCooldownValidated: boolean
   manualRetryClearedFailure: boolean
@@ -168,6 +189,7 @@ interface WebGLReviewFrame {
   activeFixtureKinds: string[]
   overlayElementCount: number
   qualityMetrics: WebGLQualityMetrics
+  temporalMetrics: WebGLTemporalMetrics
 }
 
 interface WebGLReviewReport {
@@ -258,6 +280,14 @@ const cases: ReadonlyArray<{ presetId: string; frameId: ShowDirectorVisualValida
   { presetId: 'cyan-mirror-cage', frameId: 'drop-2-body', scenario: 'programming-wave', quality: 'high' },
   { presetId: 'festival-front-beams-performance', frameId: 'pre-drop', scenario: 'programming-cue-transition', quality: 'high' },
   { presetId: 'cyan-mirror-cage', frameId: 'pre-drop', scenario: 'programming-bank-handoff', quality: 'high' },
+  { presetId: 'cardinal-fan-reactor', frameId: 'drop-2-body', scenario: 'programming-opposed-fan-banks', quality: 'high' },
+  { presetId: 'cyan-mirror-cage', frameId: 'drop-2-body', scenario: 'programming-crossing-fan', quality: 'high' },
+  { presetId: 'emerald-tunnel-relay', frameId: 'drop-2-body', scenario: 'programming-corridor', quality: 'high' },
+  { presetId: 'vocal-eclipse-exchange', frameId: 'drop-1-body', scenario: 'programming-call-response', quality: 'high' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'verse', scenario: 'programming-moving-head-position' },
+  { presetId: 'moving-head-sweep-performance', frameId: 'breakdown', scenario: 'programming-moving-head-gobo' },
+  { presetId: 'festival-front-beams-performance', frameId: 'verse', scenario: 'programming-wash-scene' },
+  { presetId: 'festival-front-beams-performance', frameId: 'pre-drop', scenario: 'programming-cue-blackout', quality: 'high' },
   { presetId: 'strobe-blinder-hits-performance', frameId: 'drop-2-impact', scenario: 'programming-strobe-accent' },
   { presetId: 'strobe-blinder-hits-performance', frameId: 'drop-2-impact', scenario: 'programming-blinder-impact' },
   { presetId: 'led-bar-grid-performance', frameId: 'drop-1-body', scenario: 'programming-led-chase' },
@@ -461,14 +491,18 @@ const PROGRAMMING_SCANNER_SCENARIOS = new Set<WebGLReviewScenario>([
   'programming-stable-8-ray-fan',
   'programming-stable-12-ray-fan',
   'programming-mirrored-12-ray-fans',
+  'programming-opposed-fan-banks',
+  'programming-crossing-fan',
   'programming-smooth-opening-fan',
   'programming-smooth-closing-fan',
   'programming-parallel-sheet',
   'programming-tunnel',
+  'programming-corridor',
   'programming-circle',
   'programming-wave',
   'programming-cue-transition',
   'programming-bank-handoff',
+  'programming-call-response',
 ])
 
 function applyProgrammingScannerScenario(
@@ -479,8 +513,12 @@ function applyProgrammingScannerScenario(
   const laserFixtures = frame.fixtures.filter(fixture => fixture.enabled && fixture.kind === 'laser')
   if (laserFixtures.length === 0) return null
   const fixtureLimit = scenario === 'programming-mirrored-12-ray-fans'
+    || scenario === 'programming-opposed-fan-banks'
+    || scenario === 'programming-crossing-fan'
     || scenario === 'programming-tunnel'
+    || scenario === 'programming-corridor'
     || scenario === 'programming-bank-handoff'
+    || scenario === 'programming-call-response'
     ? 2
     : scenario === 'programming-parallel-sheet'
       ? Math.min(6, laserFixtures.length)
@@ -518,7 +556,7 @@ function applyProgrammingScannerScenario(
     head.id = `${fixture.id}:${scenario}:head`
     head.apertureIndex = 0
     head.physicalApertureCount = 1
-    head.scanPhase = scenario === 'programming-bank-handoff' ? fixtureIndex * 0.5 : fixtureIndex * 0.125
+    head.scanPhase = scenario === 'programming-bank-handoff' || scenario === 'programming-call-response' ? fixtureIndex * 0.5 : fixtureIndex * 0.125
     head.scanRatePps = 48_000
     head.maximumAngularVelocity = 48_000
     head.maximumAngularAcceleration = 2_000_000
@@ -569,6 +607,12 @@ function applyProgrammingScannerScenario(
     if (scenario === 'programming-stable-8-ray-fan') appendSteppedFan(8)
     else if (scenario === 'programming-stable-12-ray-fan') appendSteppedFan(12)
     else if (scenario === 'programming-mirrored-12-ray-fans') appendSteppedFan(12, 0.68, fixtureIndex % 2 === 1)
+    else if (scenario === 'programming-opposed-fan-banks') appendSteppedFan(8, 0.7, fixtureIndex % 2 === 1)
+    else if (scenario === 'programming-crossing-fan') appendSteppedFan(8, 0.62, fixtureIndex % 2 === 0)
+    else if (scenario === 'programming-call-response') {
+      appendSteppedFan(8, 0.58, fixtureIndex % 2 === 1)
+      if (fixtureIndex === 1) for (const point of points) if (!point.blanked) point.intensity *= 0.28
+    }
     else if (scenario === 'programming-smooth-opening-fan' || scenario === 'programming-smooth-closing-fan') {
       const opening = scenario === 'programming-smooth-opening-fan'
       const left = opening ? 0.16 : 0.32
@@ -590,7 +634,7 @@ function applyProgrammingScannerScenario(
       point.dwellMicros = 1_600
       points.push(point)
       intendedRaySlots.push({ id: slotId, target: { ...point.position } })
-    } else if (scenario === 'programming-tunnel') {
+    } else if (scenario === 'programming-tunnel' || scenario === 'programming-corridor') {
       pattern = 'mirroredCorridor'
       interpolation = 'bezier'
       const side = fixtureIndex % 2 === 0 ? -1 : 1
@@ -598,8 +642,8 @@ function applyProgrammingScannerScenario(
         const t = slotIndex / 9
         const slotId = `slot-${slotIndex + 1}`
         const target = {
-          x: 0.5 + side * (0.34 - t * 0.24),
-          y: 0.3 + Math.sin(t * Math.PI * 2) * 0.08,
+          x: 0.5 + side * ((scenario === 'programming-corridor' ? 0.42 : 0.34) - t * (scenario === 'programming-corridor' ? 0.12 : 0.24)),
+          y: 0.3 + Math.sin(t * Math.PI * 2) * (scenario === 'programming-corridor' ? 0.035 : 0.08),
           z: -0.75 + t * 1.25,
         }
         points.push(makePoint(fixture, `${scenario}:${fixture.id}:${slotId}`, target.x, target.y, target.z, slotId))
@@ -656,7 +700,7 @@ function applyProgrammingScannerScenario(
       closed,
       interpolation,
       repeatMode,
-      scanDirection: fixtureIndex % 2 === 1 && scenario === 'programming-mirrored-12-ray-fans' ? 'reverse' : 'forward',
+      scanDirection: fixtureIndex % 2 === 1 && (scenario === 'programming-mirrored-12-ray-fans' || scenario === 'programming-opposed-fan-banks' || scenario === 'programming-crossing-fan' || scenario === 'programming-call-response') ? 'reverse' : 'forward',
       conversionKind: 'native',
       compatibilityMode: 'native',
       validationErrors: [],
@@ -745,6 +789,10 @@ function referenceSceneIdsForCase(
     'ultra-hero-fan': ['laser-fan-sweep'],
     'high-mirror-corridor': ['laser-mirrored-fan', 'laser-corridor', 'laser-multiple-scanner-heads'],
     'moving-head-gobo': ['nonlaser-moving-head-cone', 'nonlaser-gobo-projection'],
+    'programming-moving-head-position': ['programming-moving-head-position'],
+    'programming-moving-head-gobo': ['programming-moving-head-gobo'],
+    'programming-wash-scene': ['programming-wash-scene'],
+    'programming-cue-blackout': ['programming-cue-blackout'],
     'moving-head-prism': ['nonlaser-moving-head-prism'],
     'moving-head-zoom': ['nonlaser-zoom'],
     'moving-head-iris': ['nonlaser-iris'],
@@ -759,14 +807,18 @@ function referenceSceneIdsForCase(
     'programming-stable-8-ray-fan': ['programming-stable-8-ray-fan'],
     'programming-stable-12-ray-fan': ['programming-stable-12-ray-fan'],
     'programming-mirrored-12-ray-fans': ['programming-mirrored-12-ray-fans'],
+    'programming-opposed-fan-banks': ['programming-opposed-fan-banks'],
+    'programming-crossing-fan': ['programming-crossing-fan'],
     'programming-smooth-opening-fan': ['programming-smooth-opening-fan'],
     'programming-smooth-closing-fan': ['programming-smooth-closing-fan'],
     'programming-parallel-sheet': ['programming-parallel-sheet'],
     'programming-tunnel': ['programming-tunnel'],
+    'programming-corridor': ['programming-corridor'],
     'programming-circle': ['programming-circle'],
     'programming-wave': ['programming-wave'],
     'programming-cue-transition': ['programming-cue-transition'],
     'programming-bank-handoff': ['programming-bank-handoff'],
+    'programming-call-response': ['programming-call-response'],
     'programming-strobe-accent': ['programming-strobe-accent'],
     'programming-blinder-impact': ['programming-blinder-impact'],
     'programming-led-chase': ['programming-led-chase'],
@@ -1331,22 +1383,67 @@ function makeCard(titleText: string, key: string): { canvas: HTMLCanvasElement; 
   return { canvas, canvasId }
 }
 
+function imageDifference(left: ImageData, right: ImageData): number {
+  let total = 0
+  const pixels = Math.max(1, left.data.length / 4)
+  for (let index = 0; index < left.data.length; index += 4) {
+    total += Math.abs(left.data[index] - right.data[index])
+      + Math.abs(left.data[index + 1] - right.data[index + 1])
+      + Math.abs(left.data[index + 2] - right.data[index + 2])
+  }
+  return total / (pixels * 3 * 255)
+}
+
 function renderSequence(
   runtime: LaserDmxWebGLRuntime,
   context: CanvasRenderingContext2D,
   frame: LaserDmxSceneFrame,
   scenario: WebGLReviewScenario,
-): { image: ImageData; diagnostics: LaserDmxWebGLDiagnostics } {
+): { image: ImageData; diagnostics: LaserDmxWebGLDiagnostics; temporalMetrics: WebGLTemporalMetrics } {
   runtime.reset()
   let diagnostics: LaserDmxWebGLDiagnostics | undefined
+  const images: ImageData[] = []
+  const structuralFrames: LaserDmxSceneFrame[] = []
   for (let index = 0; index < 4; index += 1) {
-    const result = runtime.render(stableFrame(frame, index, scenario))
+    const structuralFrame = stableFrame(frame, index, scenario)
+    const result = runtime.render(structuralFrame)
     if (!result.ok || !result.diagnostics) throw new Error(result.error ?? 'LaserDMX WebGL frame failed')
     diagnostics = result.diagnostics
+    structuralFrames.push(structuralFrame)
+    images.push(context.getImageData(0, 0, context.canvas.width, context.canvas.height))
+  }
+  const adjacentDifferences = images.slice(1).map((image, index) => imageDifference(images[index], image))
+  const topologySignatures = structuralFrames.map(item => item.scanPaths.map(path => `${path.fixtureId}:${path.topologyId}:${path.points.map(point => point.id).join(',')}`).sort().join('|'))
+  const cueSignatures = structuralFrames.map(item => item.scanPaths.map(path => path.cueFrameId ?? 'cue:none').sort().join('|'))
+  const colorSignatures = structuralFrames.map(item => item.fixtures.filter(fixture => fixture.enabled).map(fixture => `${fixture.id}:${fixture.color.r.toFixed(4)}:${fixture.color.g.toFixed(4)}:${fixture.color.b.toFixed(4)}`).sort().join('|'))
+  const phaseDeltas = structuralFrames.map(item => item.scannerHeads.map(head => head.scanPhase).sort((a, b) => a - b))
+  let fixtureBankPhaseDrift = 0
+  for (let frameIndex = 1; frameIndex < phaseDeltas.length; frameIndex += 1) {
+    const previous = phaseDeltas[frameIndex - 1]
+    const current = phaseDeltas[frameIndex]
+    const count = Math.min(previous.length, current.length)
+    for (let index = 1; index < count; index += 1) {
+      const previousGap = previous[index] - previous[index - 1]
+      const currentGap = current[index] - current[index - 1]
+      fixtureBankPhaseDrift = Math.max(fixtureBankPhaseDrift, Math.abs(previousGap - currentGap))
+    }
+  }
+  const sampleCounts = structuralFrames.map(item => item.exposureSamples.filter(sample => !sample.blanked && sample.exposureWeight > 0).length)
+  const temporalMetrics: WebGLTemporalMetrics = {
+    frameCount: structuralFrames.length,
+    cueIdentityStable: new Set(cueSignatures).size === 1,
+    topologyStable: new Set(topologySignatures).size === 1,
+    colorSceneStable: new Set(colorSignatures).size === 1,
+    fixtureBankPhaseDrift,
+    meanAdjacentPixelDifference: adjacentDifferences.reduce((sum, value) => sum + value, 0) / Math.max(1, adjacentDifferences.length),
+    maximumAdjacentPixelDifference: Math.max(0, ...adjacentDifferences),
+    sampleCountRange: Math.max(0, ...sampleCounts) - Math.min(...sampleCounts),
+    blackoutFrameCount: images.filter(image => measurePixels(image, image, false).blackFrameRatio >= 0.99995).length,
   }
   return {
-    image: context.getImageData(0, 0, context.canvas.width, context.canvas.height),
+    image: images[images.length - 1],
     diagnostics: diagnostics!,
+    temporalMetrics,
   }
 }
 
@@ -1399,6 +1496,13 @@ async function main(): Promise<void> {
       const pixelMetrics = measurePixels(first.image, second.image, replayChecked)
       const overlayElementCount = document.querySelectorAll('[data-laser-dmx-authoring-overlay], .laser-dmx-stage-grid, .laser-dmx-beam-handle').length
       const validation = validateReferenceFrame(scenarioFrame, first.diagnostics, pixelMetrics, overlayElementCount)
+      if (scenario.startsWith('programming-')) {
+        if (!first.temporalMetrics.cueIdentityStable) validation.failures.push('cue identity changed inside the four-frame temporal window')
+        if (!first.temporalMetrics.topologyStable) validation.failures.push('scanner topology changed inside the active cue')
+        if (!first.temporalMetrics.colorSceneStable) validation.failures.push('color scene changed without an authored cue boundary')
+        if (first.temporalMetrics.fixtureBankPhaseDrift > 1e-6) validation.failures.push('fixture-bank phase relationship drifted across frames')
+        validation.status = validation.failures.length === 0 ? 'passed' : 'failed'
+      }
       summaries.push({
         key,
         scenario,
@@ -1418,6 +1522,7 @@ async function main(): Promise<void> {
         activeFixtureKinds: [...new Set(scenarioFrame.fixtures.filter(fixture => fixture.enabled).map(fixture => fixture.kind))].sort(),
         overlayElementCount,
         qualityMetrics: qualityMetrics(scenarioFrame),
+        temporalMetrics: first.temporalMetrics,
       })
     }
     const recoveryPreset = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'festival-front-beams-performance')!

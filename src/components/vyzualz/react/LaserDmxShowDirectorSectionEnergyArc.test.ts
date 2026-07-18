@@ -108,14 +108,30 @@ function ids(prefix: string): () => string {
   return () => `${prefix}-${++index}`
 }
 
+const ENERGY_ARC_ASSET_CACHE = new Map<string, {
+  program: ReturnType<LaserDmxShowDirectorPerformancePresetDefinition['createProgram']>
+  rig: ReturnType<LaserDmxShowDirectorPerformancePresetDefinition['createRig']>
+}>()
+
+function energyArcAssets(preset: LaserDmxShowDirectorPerformancePresetDefinition) {
+  const cached = ENERGY_ARC_ASSET_CACHE.get(preset.id)
+  if (cached) return cached
+  const created = {
+    program: preset.createProgram(),
+    rig: preset.createRig(ids(`${preset.id}-energy`)),
+  }
+  ENERGY_ARC_ASSET_CACHE.set(preset.id, created)
+  return created
+}
+
 function resolvePreset(
   preset: LaserDmxShowDirectorPerformancePresetDefinition,
   timeSec: number,
   options: { previous?: LaserDmxShowDirectorPerformanceTimingContext | null; seek?: string; loop?: string } = {},
 ) {
-  const program = preset.createProgram()
+  const { program, rig } = energyArcAssets(preset)
   return resolveLaserDmxShowDirectorPerformance({
-    authoredShowDirector: preset.createRig(ids(`${preset.id}-energy`)),
+    authoredShowDirector: rig,
     program,
     context: contextAt(timeSec, options),
     tuning: program.tuning,

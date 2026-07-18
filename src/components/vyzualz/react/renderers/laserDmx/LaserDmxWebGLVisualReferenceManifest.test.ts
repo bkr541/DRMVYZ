@@ -7,8 +7,8 @@ import {
 
 describe('LaserDMX WebGL physical reference manifest', () => {
   it('keeps every required physical and musical reference scene unique', () => {
-    expect(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS).toHaveLength(59)
-    expect(new Set(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS)).toHaveLength(59)
+    expect(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS).toHaveLength(67)
+    expect(new Set(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS)).toHaveLength(67)
   })
 
   it('reports supported-platform coverage gaps explicitly', () => {

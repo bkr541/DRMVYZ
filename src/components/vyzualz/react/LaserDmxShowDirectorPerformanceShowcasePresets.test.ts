@@ -17,8 +17,6 @@ import {
 } from './LaserDmxShowDirectorPerformancePresets'
 import { createDefaultLaserDmxShowDirectorPerformanceState } from './LaserDmxShowDirectorPerformanceProgram'
 import { compileLaserDmxShowDirectorToBeamMatrix } from './renderers/LaserDmxShowDirectorBeamMatrixCompiler'
-import { createCyanMirrorCageCorridor } from './LaserDmxShowDirectorPerformanceShowcaseGeometry'
-import { rayViolatesNegativeSpace, targetAnglesFromOrigin, unwrapOrderedAngles } from './LaserDmxShowDirectorLocalGeometry'
 
 const SECTIONS: ReactTrackSection[] = [
   { id: 'intro', label: 'Intro', type: 'intro', startSec: 0, endSec: 16, intensity: 0.28, source: 'auto', confidence: 1 },
@@ -205,30 +203,6 @@ function compileBeamCount(result: LaserDmxShowDirectorPerformanceResolution): nu
 function meanActiveSpread(result: LaserDmxShowDirectorPerformanceResolution): number {
   const active = result.showDirector.fixtures.filter(fixture => fixture.enabled)
   return active.reduce((sum, fixture) => sum + fixture.beam.beamSpread, 0) / Math.max(1, active.length)
-}
-
-function fixtureTargetSignature(fixture: LaserDmxShowDirectorFixture): string {
-  return JSON.stringify((fixture.beam.targets ?? []).map(target => [
-    Number(target.x.toFixed(4)),
-    Number(target.y.toFixed(4)),
-  ]))
-}
-
-function meanTarget(fixture: LaserDmxShowDirectorFixture): { x: number; y: number } {
-  const targets = fixture.beam.targets ?? []
-  const sum = targets.reduce((accumulator, target) => ({
-    x: accumulator.x + target.x,
-    y: accumulator.y + target.y,
-  }), { x: 0, y: 0 })
-  return targets.length > 0
-    ? { x: sum.x / targets.length, y: sum.y / targets.length }
-    : { x: fixture.beam.targetX ?? fixture.x, y: fixture.beam.targetY ?? fixture.y }
-}
-
-function fixtureAngularSpread(fixture: LaserDmxShowDirectorFixture): number {
-  const targets = fixture.beam.targets ?? []
-  const angles = unwrapOrderedAngles(targetAnglesFromOrigin({ x: fixture.x, y: fixture.y }, targets))
-  return angles.length < 2 ? 0 : Math.abs(angles[angles.length - 1] - angles[0])
 }
 
 function programPayloads(program: ReturnType<LaserDmxShowDirectorPerformancePresetDefinition['createProgram']>) {
@@ -509,136 +483,76 @@ describe('Show Director showcase performance shows', () => {
       }
     }
     expect([...sources]).toEqual(expect.arrayContaining([
-      'hat', 'isChordChange', 'isVocalHook', 'melodyHeight', 'trackEnergy',
-      'isFakeout', 'isAggressive', 'spectralFlux', 'spectralCentroid',
-      'isDark', 'isAtmospheric', 'spectralFlatness', 'spectralRolloff', 'tension',
+      'hat', 'isChordChange', 'trackEnergy', 'isFakeout', 'isAggressive',
+      'spectralCentroid', 'isDark', 'isAtmospheric', 'spectralRolloff', 'tension',
+      'buildProgress', 'dropImpact', 'transient', 'vocalEnergy',
     ]))
   })
 
 
-  describe('fixture-local geometry remediation', () => {
-    it('authors fixture-keyed targets instead of shared complete polygons', () => {
+  describe('native professional programming', () => {
+    it('removes legacy fixture geometry payloads from first-party shows', () => {
       for (const preset of SHOWCASE_PERFORMANCE_PRESETS) {
-        const payloads = programPayloads(preset.createProgram())
-          .filter(payload => payload.fixture?.targetPointsByFixtureSemanticKey)
-        expect(payloads.length, preset.id).toBeGreaterThan(20)
-        for (const payload of payloads) {
-          const map = payload.fixture!.targetPointsByFixtureSemanticKey!
-          const signatures = Object.values(map).map(targets => JSON.stringify(targets.map(target => [target.x, target.y])))
+        const program = preset.createProgram()
+        expect(program.laserProgramming?.compatibility.source, preset.id).toBe('native')
+        expect(program.diagnostics?.authoringVersion, preset.id).toBe('professional-cue-authoring-v1')
+        expect(program.laserProgramming?.macros.length, preset.id).toBeGreaterThanOrEqual(28)
+        expect(program.laserProgramming?.groupRelationships.length, preset.id).toBe(program.laserProgramming?.macros.length)
+
+        for (const payload of programPayloads(program)) {
           expect(payload.fixture?.targetPoints, `${preset.id}:${payload.id}`).toBeUndefined()
-          expect(Object.keys(map).length, `${preset.id}:${payload.id}`).toBeGreaterThan(0)
-          if (signatures.length >= 4) {
-            expect(new Set(signatures).size, `${preset.id}:${payload.id}`).toBeGreaterThanOrEqual(Math.ceil(signatures.length / 2))
-          }
+          expect(payload.fixture?.targetPointsByFixtureSemanticKey, `${preset.id}:${payload.id}`).toBeUndefined()
+          expect(payload.fixtureActions?.some(action => action.kind === 'scanner' || action.kind === 'beam') ?? false, `${preset.id}:${payload.id}`).toBe(false)
+          expect(payload.modulations?.some(modulation => /(target|rayCount|copyCount|pattern|path|geometry|rotation|fanSpread)/i.test(modulation.target)) ?? false, `${preset.id}:${payload.id}`).toBe(false)
         }
       }
     })
 
-    it('keeps Cardinal top, bottom, left, and right banks in separate readable sectors', () => {
-      const preset = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cardinal-fan-reactor')!
-      const result = resolvePreset(preset, 136.1)
-      const top = fixtureByKey(result, 'cardinal-top-primary')!
-      const bottom = fixtureByKey(result, 'cardinal-bottom-primary')!
-      const left = fixtureByKey(result, 'cardinal-left-primary')!
-      const right = fixtureByKey(result, 'cardinal-right-primary')!
+    it('authors Cardinal as stable wide and opposed fan cue families', () => {
+      const program = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cardinal-fan-reactor')!.createProgram()
+      const document = program.laserProgramming!
+      const topologyIds = document.macros.map(macro => macro.pattern.topologyId)
+      expect(topologyIds).toContain('cardinal-fan-reactor:wide-stepped-fan:topology')
+      expect(topologyIds).toContain('cardinal-fan-reactor:opposed-fans:topology')
+      expect(document.groupRelationships.some(relationship => relationship.mode === 'opposed')).toBe(true)
+      expect(document.groupRelationships.every(relationship => relationship.sharedSpeed && relationship.sharedSpread && relationship.sharedIntensity)).toBe(true)
 
-      expect(meanTarget(top).y).toBeGreaterThan(top.y)
-      expect(meanTarget(bottom).y).toBeLessThan(bottom.y)
-      expect(meanTarget(left).x).toBeGreaterThan(left.x)
-      expect(meanTarget(right).x).toBeLessThan(right.x)
-      expect(new Set([top, bottom, left, right].map(fixtureTargetSignature)).size).toBe(4)
-      for (const fixture of [top, bottom, left, right]) {
-        expect(fixture.beam.targets?.length ?? 0).toBeGreaterThanOrEqual(3)
-        expect(fixtureAngularSpread(fixture)).toBeGreaterThanOrEqual(8)
-      }
-
-      const primaryBanks = [top, bottom, left, right]
-      let unrelatedCrossBankConnections = 0
-      for (let leftIndex = 0; leftIndex < primaryBanks.length; leftIndex++) {
-        const leftTargets = new Set((primaryBanks[leftIndex].beam.targets ?? []).map(target => `${target.x.toFixed(4)}:${target.y.toFixed(4)}`))
-        for (let rightIndex = leftIndex + 1; rightIndex < primaryBanks.length; rightIndex++) {
-          unrelatedCrossBankConnections += (primaryBanks[rightIndex].beam.targets ?? [])
-            .filter(target => leftTargets.has(`${target.x.toFixed(4)}:${target.y.toFixed(4)}`)).length
-        }
-      }
-      expect(unrelatedCrossBankConnections).toBeLessThanOrEqual(4)
-
-      const activeTargetFixtures = result.showDirector.fixtures.filter(fixture => fixture.enabled && (fixture.beam.targets?.length ?? 0) > 0)
-      const signatureCounts = new Map<string, number>()
-      for (const fixture of activeTargetFixtures) {
-        const signature = fixtureTargetSignature(fixture)
-        signatureCounts.set(signature, (signatureCounts.get(signature) ?? 0) + 1)
-      }
-      expect(Math.max(...signatureCounts.values())).toBeLessThanOrEqual(2)
-      const compiled = compileLaserDmxShowDirectorToBeamMatrix({
-        showDirector: result.showDirector,
-        beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
-        sections: SECTIONS,
-        fixturePriorityById: result.fixturePriorityById,
-      })
-      expect(new Set(compiled.beams.map(beam => JSON.stringify(beam.origin))).size).toBeGreaterThanOrEqual(8)
+      const dropCues = document.cueStacks[0].cues.filter(cue => cue.sceneIds?.some(sceneId => sceneId.includes('drop-1')))
+      expect(new Set(dropCues.filter(cue => !cue.blackout).map(cue => cue.startOffsetBeats))).toEqual(new Set([0, 16, 32, 48]))
+      expect(dropCues.filter(cue => !cue.blackout).every(cue => cue.duration.kind === 'fourBars')).toBe(true)
     })
 
-    it('retains separate Prism Cathedral architectural roles without knotting lower wings into the upper X', () => {
-      const preset = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'prism-cathedral')!
-      const result = resolvePreset(preset, 136.1)
-      const upperInnerLeft = fixtureByKey(result, 'prism-upper-inner-left')!
-      const upperInnerRight = fixtureByKey(result, 'prism-upper-inner-right')!
-      const lowerOuterLeft = fixtureByKey(result, 'prism-lower-outer-left')!
-      const lowerOuterRight = fixtureByKey(result, 'prism-lower-outer-right')!
-      const middleLeft = fixtureByKey(result, 'prism-middle-side-left')!
-      const centerLeft = fixtureByKey(result, 'prism-center-accent-left')!
-
-      expect(meanTarget(upperInnerLeft).x).toBeGreaterThan(9)
-      expect(meanTarget(upperInnerRight).x).toBeLessThan(9)
-      expect(meanTarget(lowerOuterLeft).x).toBeLessThan(9)
-      expect(meanTarget(lowerOuterRight).x).toBeGreaterThan(9)
-      expect(new Set([
-        fixtureTargetSignature(upperInnerLeft),
-        fixtureTargetSignature(lowerOuterLeft),
-        fixtureTargetSignature(middleLeft),
-        fixtureTargetSignature(centerLeft),
-      ]).size).toBe(4)
-      expect(centerLeft.beam.targets?.length ?? 0).toBeLessThanOrEqual(4)
+    it('keeps Prism Cathedral architectural identities discrete across sections', () => {
+      const program = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'prism-cathedral')!.createProgram()
+      const document = program.laserProgramming!
+      const topologyIds = new Set(document.macros.map(macro => macro.pattern.topologyId))
+      expect([...topologyIds]).toEqual(expect.arrayContaining([
+        'prism-cathedral:arc-scan:topology',
+        'prism-cathedral:upper-canopy:topology',
+        'prism-cathedral:corridor:topology',
+        'prism-cathedral:circle-scan:topology',
+      ]))
+      expect(document.macros.every(macro => macro.pattern.topologyId.length > 0)).toBe(true)
+      expect(document.macros.every(macro => macro.compatibility?.provisional === false)).toBe(true)
     })
 
-    it('keeps ordinary Cyan Mirror Cage beams out of the authored central corridor', () => {
+    it('keeps Cyan mirrored and crossing banks deterministic after seeking', () => {
       const preset = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cyan-mirror-cage')!
-      let ordinaryBeamCount = 0
-      let violatingBeamCount = 0
-      for (const timeSec of [4.1, 20.1, 56.1, 76.1, 88.1, 116.1, 136.1, 164.1]) {
-        const result = resolvePreset(preset, timeSec)
-        const corridor = createCyanMirrorCageCorridor(result.activeSceneId ?? '')
-        for (const fixture of result.showDirector.fixtures) {
-          if (!fixture.enabled || fixture.semanticKey?.includes('corner')) continue
-          for (const target of fixture.beam.targets ?? []) {
-            ordinaryBeamCount++
-            if (rayViolatesNegativeSpace({ x: fixture.x, y: fixture.y }, target, [corridor])) violatingBeamCount++
-          }
-        }
-      }
-      expect(ordinaryBeamCount).toBeGreaterThan(40)
-      expect(violatingBeamCount / ordinaryBeamCount).toBeLessThanOrEqual(0.02)
-    })
+      const program = preset.createProgram()
+      const document = program.laserProgramming!
+      const topologyIds = new Set(document.macros.map(macro => macro.pattern.topologyId))
+      expect(topologyIds).toContain('cyan-mirror-cage:mirrored-fans:topology')
+      expect(topologyIds).toContain('cyan-mirror-cage:crossing-fans:topology')
+      expect(document.groupRelationships.some(relationship => relationship.mode === 'mirrored')).toBe(true)
+      expect(document.groupRelationships.some(relationship => relationship.mode === 'alternating')).toBe(true)
 
-    it('keeps mirrored Cyan cage sides balanced and reconstructs identical local targets after seeking', () => {
-      const preset = SHOWCASE_PERFORMANCE_PRESETS.find(candidate => candidate.id === 'cyan-mirror-cage')!
       const direct = resolvePreset(preset, 136.1)
-      const sought = resolvePreset(preset, 136.1, { previous: contextAt(164.1), seekIdentity: 'local-geometry-seek' })
-      expect(sought.showDirector.fixtures.map(fixtureTargetSignature)).toEqual(direct.showDirector.fixtures.map(fixtureTargetSignature))
-
-      for (const [leftKey, rightKey] of [
-        ['cage-upper-left-outer', 'cage-upper-right-outer'],
-        ['cage-upper-left-inner', 'cage-upper-right-inner'],
-        ['cage-middle-left-outer', 'cage-middle-right-outer'],
-        ['cage-lower-left-outer', 'cage-lower-right-outer'],
-      ] as const) {
-        const left = fixtureByKey(direct, leftKey)!
-        const right = fixtureByKey(direct, rightKey)!
-        expect(left.beam.targets?.length).toBe(right.beam.targets?.length)
-        expect(meanTarget(left).x + meanTarget(right).x).toBeCloseTo(18, 0)
-        expect(meanTarget(left).y).toBeCloseTo(meanTarget(right).y, 0)
-      }
+      const sought = resolvePreset(preset, 136.1, { previous: contextAt(164.1), seekIdentity: 'native-programming-seek' })
+      expect(sought.activeSceneId).toBe(direct.activeSceneId)
+      expect(sought.activePrimaryCueId).toBe(direct.activePrimaryCueId)
+      expect(sought.activeMacroId).toBe(direct.activeMacroId)
+      expect(sought.stablePatternFrame).toEqual(direct.stablePatternFrame)
+      expect(activeSignature(sought)).toEqual(activeSignature(direct))
     })
   })
 

@@ -179,8 +179,7 @@ await mkdir(runtimeOutput, { recursive: true })
 let xvfb = null
 
 try {
-  await run(process.execPath, [
-    esbuildCli,
+  await run(esbuildCli, [
     'scripts/show-director-webgl-visual-review-page.ts',
     '--bundle',
     '--format=iife',

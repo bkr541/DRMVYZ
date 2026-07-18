@@ -43,7 +43,9 @@
     "test:electron": "npm run test:native",
     "test:edge": "deno test --allow-env supabase/functions/_shared/*.test.ts",
     "test:laser-dmx:physical": "vitest run src/components/vyzualz/react/renderers/laserDmx/LaserDmxScannerDomain.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxScannerWebGLPlan.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxAdaptiveQuality.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLRecovery.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLRuntime.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxPhysicalRealismAudit.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLVisualReferenceManifest.test.ts src/components/vyzualz/react/LaserDmxShowDirectorPhysicalContentMigration.test.ts src/components/vyzualz/react/LaserDmxShowDirectorFinalVisualValidation.test.ts",
-    "verify:laser-dmx:physical": "npm run typecheck && npm run test:laser-dmx:physical && npm run test:webgl"
+    "verify:laser-dmx:physical": "npm run typecheck && npm run test:laser-dmx:physical && npm run test:webgl",
+    "test:laser-dmx:programming": "vitest run src/components/vyzualz/react/LaserDmxShowDirectorProgramming.test.ts src/components/vyzualz/react/LaserDmxShowDirectorFirstPartyAuthoring.test.ts src/components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLVisualReferenceManifest.test.ts",
+    "verify:laser-dmx:programming": "npm run typecheck && npm run test:laser-dmx:programming && npm run test:webgl"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",

@@ -149,7 +149,7 @@ test.describe('LaserDMX actual WebGL2 visual regression', () => {
     expect(report?.rendererHost).toBe('production-laser-dmx-webgl-runtime')
     expect(report?.capability.available).toBe(true)
     expect(report?.capability.version).toContain('WebGL 2')
-    expect(report?.frames).toHaveLength(64)
+    expect(report?.frames).toHaveLength(72)
     expect(report?.missingReferenceSceneIds).toEqual([])
     expect(new Set(report!.frames.flatMap(frame => frame.referenceSceneIds))).toEqual(new Set(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS))
 

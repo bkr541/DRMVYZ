@@ -16,6 +16,7 @@ import { ShaderSectionChoreography } from '../transitions/ShaderSectionChoreogra
 import { ShaderDefinitionValidator }  from '../registry/ShaderDefinitionValidator'
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 import type { ShaderTexSourceSelection } from '../textures/shaderTextureInputTypes'
+import { useReactStore } from '../../../../../stores/reactStore'
 
 // ── Minimal mock GL ───────────────────────────────────────────────────────────
 
@@ -543,8 +544,7 @@ describe('H: ShaderDefinitionValidator — production scenes', () => {
 // ── I: selectReactEngine — shaderPads branch ─────────────────────────────────
 
 describe('I: selectReactEngine — shaderPads branch', () => {
-  it('I1: selecting shaderPads sets activeReactEngineId correctly', async () => {
-    const { useReactStore } = await import('../../../../../stores/reactStore')
+  it('I1: selecting shaderPads sets activeReactEngineId correctly', () => {
     useReactStore.getState().selectReactEngine('shaderPads')
     const state = useReactStore.getState()
     expect(state.activeReactEngineId).toBe('shaderPads')

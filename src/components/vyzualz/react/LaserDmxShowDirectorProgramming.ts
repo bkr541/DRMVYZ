@@ -1458,7 +1458,8 @@ function applyMacroFrameToRig(
   const selectedAssignmentIds = cue.fixtureGroupAssignmentIds?.length ? new Set(cue.fixtureGroupAssignmentIds) : null
   const assignments = macro.fixtureGroupAssignments.filter(assignment => !selectedAssignmentIds || selectedAssignmentIds.has(assignment.id))
   const beatImpact = Math.max(0, 1 - context.beatPhase * 4)
-  const accentActive = activeAccentCueIds.length > 0
+  const activeAccentIds = new Set(activeAccentCueIds)
+  const activeAccentDefinitions = cue.accents.filter(accent => activeAccentIds.has(accent.id))
   const preserveLegacyScalarChoreography = document.compatibility.source === 'legacy-adapter'
     && macro.compatibility?.provisional === true
   const scalarIntensity = document.compatibility.source === 'legacy-adapter' ? 1 : frame.intensity
@@ -1468,6 +1469,11 @@ function applyMacroFrameToRig(
       const assignment = assignments.find(candidate => addressMatches(fixture, candidate.address, rig))
       if (!assignment) return fixture
       const intensityScale = assignment.intensityScale ?? 1
+      const assignmentAccentDefinitions = activeAccentDefinitions.filter(accent => (
+        !accent.fixtureGroupAssignmentIds?.length || accent.fixtureGroupAssignmentIds.includes(assignment.id)
+      ))
+      const assignmentAccentActive = assignmentAccentDefinitions.length > 0
+      const assignmentAccentIntensity = assignmentAccentDefinitions.reduce((maximum, accent) => Math.max(maximum, accent.intensity), 0)
       const isMovingHead = fixture.kind === 'movingHead'
       const isWash = fixture.kind === 'parWash'
       const isHaze = fixture.kind === 'haze'
@@ -1487,21 +1493,26 @@ function applyMacroFrameToRig(
       const eventEnabled = preservesLegacyEventEnvelope
         ? true
         : isStrobe
-          ? macro.family === 'strobeAccent' || frame.transitionState === 'strobeTransition' || accentActive
+          ? macro.family === 'strobeAccent' || frame.transitionState === 'strobeTransition' || assignmentAccentActive
           : isBlinder
-            ? macro.family === 'blinderImpact' || frame.transitionState === 'blinderImpact' || accentActive
+            ? macro.family === 'blinderImpact' || frame.transitionState === 'blinderImpact' || assignmentAccentActive
             : isCo2
-              ? macro.family === 'co2Impact'
+              ? macro.family === 'co2Impact' || assignmentAccentActive
               : true
       const eventEnvelope = preservesLegacyEventEnvelope
         ? 1
         : isStrobe
-          ? Math.max(beatImpact, context.transient, context.dropImpact)
+          ? Math.max(beatImpact, context.transient, context.dropImpact, assignmentAccentIntensity)
           : isBlinder
-            ? Math.max(0, 1 - context.beatPhase * 2.5, context.transient, context.dropImpact)
+            ? Math.max(0, 1 - context.beatPhase * 2.5, context.transient, context.dropImpact, assignmentAccentIntensity)
             : isCo2
-              ? Math.max(0, 1 - context.beatPhase * 3, context.transient, context.dropImpact)
+              ? Math.max(0, 1 - context.beatPhase * 3, context.transient, context.dropImpact, assignmentAccentIntensity)
               : 1
+      const authoredColors = macro.color.colors
+      const authoredColorIndex = authoredColors.length
+        ? Math.abs(assignment.colorIndex ?? (macro.color.alternateByGroup ? stableHash(fixture.id) : 0)) % authoredColors.length
+        : -1
+      const authoredColor = authoredColorIndex >= 0 ? authoredColors[authoredColorIndex] : fixture.color
       const scanner = fixture.kind === 'laser' ? {
         ...fixture.runtimeScanner,
         patternType: macro.pattern.scannerPatternType,
@@ -1532,6 +1543,7 @@ function applyMacroFrameToRig(
       } : fixture.runtimeScanner
       return {
         ...fixture,
+        color: preserveLegacyScalarChoreography ? fixture.color : authoredColor,
         brightness: Math.max(0, Math.min(1,
           fixture.brightness
           * scalarIntensity
@@ -1643,8 +1655,9 @@ export function validateLaserShowProgrammingDocument(document: LaserShowProgramm
     for (const assignment of macro.fixtureGroupAssignments) {
       if (assignment.relationshipId && !relationships.has(assignment.relationshipId)) issues.push({ code: 'group-relationship-missing', severity: 'warning', message: `${macro.name} references a missing fixture relationship.`, sourceId: assignment.id })
     }
-    if (macro.fixtureGroupAssignments.length > 1 && macro.fixtureGroupAssignments.some(assignment => !assignment.relationshipId)) {
-      issues.push({ code: 'independent-fixture-direction', severity: 'warning', message: `${macro.name} has multiple fixture assignments without an explicit relationship.`, sourceId: macro.id })
+    const laserAssignments = macro.fixtureGroupAssignments.filter(assignment => assignment.address.fixtureKinds?.includes('laser'))
+    if (laserAssignments.length > 1 && laserAssignments.some(assignment => !assignment.relationshipId)) {
+      issues.push({ code: 'independent-fixture-direction', severity: 'warning', message: `${macro.name} has multiple laser assignments without an explicit relationship.`, sourceId: macro.id })
     }
     if ((macro.transitionIn.type === 'opticalModeSwap' || macro.transitionOut.type === 'opticalModeSwap')
       && (!macro.transitionIn.blankDisconnectedTravel || !macro.transitionOut.blankDisconnectedTravel)) {

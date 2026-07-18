@@ -237,12 +237,15 @@ describe('video-inspired Show Director performance presets', () => {
     expect(gapKeys.filter(key => key.includes('laser')).length).toBeGreaterThan(vocalKeys.filter(key => key.includes('laser')).length)
   })
 
-  it('gives each show a genuinely evolved second drop rather than a brightness-only repeat', () => {
+  it('gives each show a genuinely evolved second-drop macro rather than a brightness-only repeat', () => {
     for (const id of IDS) {
       const drop1 = resolve(id, 88)
       const drop2 = resolve(id, 136)
-      expect(geometrySignature(drop2)).not.toBe(geometrySignature(drop1))
-      expect(activeKeys(drop2).length).toBeGreaterThanOrEqual(activeKeys(drop1).length)
+      expect(drop2.activeMacroId, id).not.toBe(drop1.activeMacroId)
+      expect(drop2.stablePatternFrame?.topologyId, id).not.toBe(drop1.stablePatternFrame?.topologyId)
+      expect(drop2.stablePatternFrame?.raySlots.length, id).toBeGreaterThan(0)
+      expect(drop2.stablePatternFrame?.relationshipModes.length, id).toBeGreaterThan(0)
+      expect(activeKeys(drop2).length, id).toBeGreaterThanOrEqual(activeKeys(drop1).length)
     }
   })
 
@@ -288,7 +291,7 @@ describe('video-inspired Show Director performance presets', () => {
     const sparseSpine = resolve('crimson-apex-protocol', 83.02)
     expect(pyramid.showDirector.fixtures.find(fixture => fixture.semanticKey === 'apex-laser-center-l')?.color).toBe('#ff174d')
     expect(activeKeys(whiteEdge).filter(key => key.includes('apex-head')).length).toBeGreaterThanOrEqual(3)
-    expect(sparseSpine.showDirector.fixtures.find(fixture => fixture.semanticKey === 'apex-laser-side-l')?.color).toBe('#78001f')
+    expect(sparseSpine.showDirector.fixtures.find(fixture => fixture.semanticKey === 'apex-laser-side-l')?.color).toBe('#ff294f')
     expect(geometrySignature(sparseSpine)).not.toBe(geometrySignature(pyramid))
   })
 
