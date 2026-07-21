@@ -60,6 +60,8 @@ The shared routing layer is infrastructure, not a second authoring authority. En
 
 Simulation-based visuals may opt into `src/features/visualSimulation/`. The module provides a bounded fixed-step clock, deterministic random/noise utilities, structural signatures, lifecycle coordination, generic quality budgets, and small reusable math helpers. It is not a top-level engine, rendered overlay, React provider, Zustand store, or global mutable singleton. See `docs/visual-simulation.md`.
 
+Living Ribbon's final Sound Drawing ownership, bounded reconstruction, quality hysteresis, recovery path, and measured limits are documented in `docs/living-ribbon-production-validation.md`.
+
 Each renderer owns its simulation domain, typed arrays, clock, lifecycle controller, preview/thumbnail mode, and disposal. Engine-specific physics, rendering, target names, choreography, graph generation, visual roles, UI, and persistence remain inside the engine or visual domain. Per-frame simulation state must not live in Zustand.
 
 ## Resolution and precedence

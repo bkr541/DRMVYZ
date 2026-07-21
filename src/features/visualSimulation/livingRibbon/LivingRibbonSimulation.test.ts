@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  LIVING_RIBBON_DEFAULT_WARM_START_DURATION_SEC,
+  LIVING_RIBBON_DEFAULT_WARM_START_STEPS,
   LIVING_RIBBON_FIXED_TIMESTEP_SEC,
+  LIVING_RIBBON_MAX_REMEMBERED_IMPULSES,
+  LIVING_RIBBON_MAX_SUBSTEPS,
+  LIVING_RIBBON_RECONSTRUCTION_TOLERANCE,
   LivingRibbonSimulation,
   livingRibbonStructuralSignature,
   type LivingRibbonConfigureInput,
@@ -238,17 +243,41 @@ describe('LivingRibbonSimulation', () => {
   it('synchronizes timing discontinuities, seeks, and loop wraps without runaway catch-up', () => {
     const simulation = configured()
     run(simulation, 10)
-    const held = Array.from(simulation.getRenderView().positions)
     simulation.synchronizeTiming(8, 'discontinuity-1')
-    expect(Array.from(simulation.getRenderView().previousPositions)).toEqual(held)
+    const reconstructedAtEight = snapshot(simulation)
+    const referenceAtEight = configured()
+    referenceAtEight.reconstructAtTime(8, 'reference')
+    expect(reconstructedAtEight.positions).toEqual(snapshot(referenceAtEight).positions)
+    expect(reconstructedAtEight.previous).toEqual(reconstructedAtEight.positions)
     expect(simulation.update({ deltaTimeSec: 30 })).toBe(8)
 
     simulation.seek(2, 'seek-1')
-    const afterSeek = Array.from(simulation.getRenderView().positions)
     simulation.loopWrap(0, 'loop-1')
+    const afterFirstLoop = snapshot(simulation)
     simulation.loopWrap(0, 'loop-1')
-    expect(Array.from(simulation.getRenderView().positions)).toEqual(afterSeek)
+    expect(snapshot(simulation)).toEqual(afterFirstLoop)
     expect(simulation.update({ deltaTimeSec: LIVING_RIBBON_FIXED_TIMESTEP_SEC })).toBe(1)
+  })
+
+  it('reconstructs the same target state after divergent forward and backward histories', () => {
+    const first = configured()
+    const second = configured()
+    first.releaseBurst({ identity: 'future-release', strength: 1.4 })
+    run(first, 360)
+    second.collapseImpulse({ identity: 'different-history', strength: 1.2 })
+    run(second, 30)
+
+    first.backwardSeek(42.5, 'seek-target-a')
+    second.seek(42.5, 'seek-target-b')
+    const firstView = first.getRenderView()
+    const secondView = second.getRenderView()
+    let maximumDifference = 0
+    for (let index = 0; index < firstView.positions.length; index += 1) {
+      maximumDifference = Math.max(maximumDifference, Math.abs(firstView.positions[index] - secondView.positions[index]))
+    }
+    expect(maximumDifference).toBeLessThanOrEqual(LIVING_RIBBON_RECONSTRUCTION_TOLERANCE)
+    expect(first.getDiagnostics().rememberedImpulseCount).toBe(0)
+    expect(second.getDiagnostics().rememberedImpulseCount).toBe(0)
   })
 
   it('rebuilds deterministically on track replacement and clears incompatible impulse state', () => {
@@ -266,6 +295,62 @@ describe('LivingRibbonSimulation', () => {
     const simulation = configured()
     expect(simulation.warmStart(10, 12)).toBe(12)
     expect(simulation.getRenderView().simulationTimeSec).toBeCloseTo(12 * LIVING_RIBBON_FIXED_TIMESTEP_SEC, 8)
+    simulation.reconstructAtTime(100)
+    expect(simulation.getDiagnostics()).toMatchObject({
+      lastReconstructionSteps: LIVING_RIBBON_DEFAULT_WARM_START_STEPS,
+      lastReconstructionDurationSec: LIVING_RIBBON_DEFAULT_WARM_START_DURATION_SEC,
+    })
+  })
+
+  it('bounds remembered event identities and repairs finite-value corruption locally', () => {
+    const simulation = configured()
+    for (let index = 0; index < LIVING_RIBBON_MAX_REMEMBERED_IMPULSES + 80; index += 1) {
+      simulation.radialImpact({ identity: `impact-${index}`, strength: 0.05 })
+    }
+    expect(simulation.getDiagnostics().rememberedImpulseCount).toBe(LIVING_RIBBON_MAX_REMEMBERED_IMPULSES)
+
+    const internals = simulation as unknown as {
+      positions: Float32Array
+      velocities: Float32Array
+      interpolationAlpha: number
+    }
+    internals.positions[3] = Number.NaN
+    internals.velocities[4] = Number.POSITIVE_INFINITY
+    internals.interpolationAlpha = Number.NaN
+    const recovery = simulation.validateAndRepairState('localized-repair')
+    expect(recovery).toMatchObject({ repaired: true, deterministicReset: false })
+    expectFinite(simulation.getRenderView().positions)
+    expectFinite(simulation.getRenderView().velocities)
+    expect(simulation.getRenderView().interpolationAlpha).toBe(1)
+  })
+
+  it('runs a deterministic bounded stress sequence and releases all arrays', () => {
+    const first = configured({ structural: { ...STRUCTURAL, pointCount: 10_000, qualityTier: 'high' } })
+    const second = configured({ structural: { ...STRUCTURAL, pointCount: 10_000, qualityTier: 'high' } })
+    let maximumObservedSubsteps = 0
+    for (let frameIndex = 0; frameIndex < 1_200; frameIndex += 1) {
+      if (frameIndex % 30 === 0) {
+        const impulse = { identity: `stress-${frameIndex}`, strength: 0.5 + (frameIndex % 120) / 240 }
+        first.lateralShock(impulse)
+        second.lateralShock(impulse)
+      }
+      const delta = frameIndex % 97 === 0 ? 3 : 1 / 60
+      maximumObservedSubsteps = Math.max(
+        maximumObservedSubsteps,
+        first.update({ deltaTimeSec: delta }),
+        second.update({ deltaTimeSec: delta }),
+      )
+    }
+    expect(maximumObservedSubsteps).toBeLessThanOrEqual(LIVING_RIBBON_MAX_SUBSTEPS)
+    expect(snapshot(first)).toEqual(snapshot(second))
+    expect(first.getDiagnostics()).toMatchObject({
+      pointCapacity: 256,
+      maximumRememberedImpulses: LIVING_RIBBON_MAX_REMEMBERED_IMPULSES,
+      maximumSubsteps: LIVING_RIBBON_MAX_SUBSTEPS,
+    })
+    expectFinite(first.getRenderView().positions)
+    first.dispose()
+    expect(first.getDiagnostics()).toMatchObject({ pointCapacity: 0, rememberedImpulseCount: 0, disposed: true })
   })
 
   it('applies quality and runtime-mode point-count limits', () => {

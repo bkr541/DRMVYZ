@@ -155,6 +155,11 @@ const DEFAULT_MAX_ROUTE_STATES = 128
 const DEFAULT_MAX_EVENT_BINDINGS = 128
 const DEFAULT_MAX_ACTIVE_EVENT_STATES = 64
 const DEFAULT_MAX_REMEMBERED_EVENT_IDENTITIES = 256
+export const SHARED_BEHAVIOR_MAX_ROUTE_STATES = 1024
+export const SHARED_BEHAVIOR_MAX_EVENT_BINDINGS = 1024
+export const SHARED_BEHAVIOR_MAX_ACTIVE_EVENT_STATES = 512
+export const SHARED_BEHAVIOR_MAX_REMEMBERED_EVENT_IDENTITIES = 2048
+const MAX_DIAGNOSTIC_COUNTER = 1_000_000
 
 function finite(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
@@ -171,9 +176,9 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, finite(value)))
 }
 
-function boundedInteger(value: unknown, fallback: number, minimum = 1): number {
+function boundedInteger(value: unknown, fallback: number, maximum: number, minimum = 1): number {
   const candidate = Math.floor(finite(value, fallback))
-  return Math.max(minimum, candidate)
+  return Math.min(maximum, Math.max(minimum, candidate))
 }
 
 function mapRouteValue<TSource, TTarget, TCapabilityKey, TConfidenceKey>(
@@ -234,12 +239,25 @@ export class SharedBehaviorRoutingRuntime<
     private readonly adapter: SharedBehaviorRoutingAdapter<TContext, TContinuousSource, TEventSource, TCapabilityKey, TConfidenceKey>,
     options: SharedBehaviorRoutingOptions = {},
   ) {
-    this.maxRouteStates = boundedInteger(options.maxRouteStates, DEFAULT_MAX_ROUTE_STATES)
-    this.maxEventBindings = boundedInteger(options.maxEventBindings, DEFAULT_MAX_EVENT_BINDINGS)
-    this.maxActiveEventStates = boundedInteger(options.maxActiveEventStates, DEFAULT_MAX_ACTIVE_EVENT_STATES)
+    this.maxRouteStates = boundedInteger(
+      options.maxRouteStates,
+      DEFAULT_MAX_ROUTE_STATES,
+      SHARED_BEHAVIOR_MAX_ROUTE_STATES,
+    )
+    this.maxEventBindings = boundedInteger(
+      options.maxEventBindings,
+      DEFAULT_MAX_EVENT_BINDINGS,
+      SHARED_BEHAVIOR_MAX_EVENT_BINDINGS,
+    )
+    this.maxActiveEventStates = boundedInteger(
+      options.maxActiveEventStates,
+      DEFAULT_MAX_ACTIVE_EVENT_STATES,
+      SHARED_BEHAVIOR_MAX_ACTIVE_EVENT_STATES,
+    )
     this.maxRememberedEventIdentities = boundedInteger(
       options.maxRememberedEventIdentities,
       DEFAULT_MAX_REMEMBERED_EVENT_IDENTITIES,
+      SHARED_BEHAVIOR_MAX_REMEMBERED_EVENT_IDENTITIES,
     )
   }
 
@@ -381,7 +399,7 @@ export class SharedBehaviorRoutingRuntime<
 
   synchronize(_reason: SharedBehaviorSynchronizationReason = 'manual'): void {
     this.reset()
-    this.synchronizationCount += 1
+    this.synchronizationCount = Math.min(MAX_DIAGNOSTIC_COUNTER, this.synchronizationCount + 1)
   }
 
   getStats(): SharedBehaviorRoutingStats {
@@ -440,8 +458,8 @@ export class SharedBehaviorRoutingRuntime<
       && transport.synchronizationIdentity === this.lastSynchronizationIdentity
     if (repeatedIdentity) return null
     if (transport.trackReplacementDetected) return 'trackReplacement'
-    if (transport.seekDetected) return 'seek'
     if (transport.backwardSeekDetected) return 'backwardSeek'
+    if (transport.seekDetected) return 'seek'
     if (transport.loopWrapDetected) return 'loopWrap'
     if (transport.timingDiscontinuity) return 'timingDiscontinuity'
     if (

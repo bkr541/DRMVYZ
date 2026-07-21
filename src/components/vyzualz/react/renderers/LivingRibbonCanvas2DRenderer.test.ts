@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { LivingRibbonSimulation } from '../../../../features/visualSimulation'
 import type { ReactPreset } from '../ReactTypes'
 import type {
   SoundDrawingResolvedPerformanceFrame,
@@ -8,6 +9,9 @@ import type { ReactFrameContext } from './reactRenderUtils'
 import {
   disposeLivingRibbonCanvasRuntimes,
   getLivingRibbonCanvasDiagnosticsForTests,
+  LIVING_RIBBON_AUTO_STEP_DOWN_FRAMES,
+  LIVING_RIBBON_MAX_FAILURE_RECORDS,
+  LIVING_RIBBON_MAX_RECENT_IMPULSES,
   prepareLivingRibbonCanvasFrame,
   renderLivingRibbonCanvasLayer,
   resetLivingRibbonCanvasRuntimes,
@@ -238,8 +242,8 @@ describe('Living Ribbon Canvas2D renderer ownership and quality', () => {
     expect(resolveLivingRibbonCanvasQualityBudget('high', 'live')).toMatchObject({ resolved: 'high', pointCount: 160 })
     expect(resolveLivingRibbonCanvasQualityBudget('auto', 'live')).toMatchObject({ resolved: 'medium', pointCount: 96 })
     expect(resolveLivingRibbonCanvasQualityBudget('auto', 'thumbnail')).toMatchObject({ resolved: 'low', pointCount: 48 })
-    expect(resolveLivingRibbonCanvasQualityBudget('high', 'preview')).toMatchObject({ resolved: 'high', pointCount: 160, sparkCount: 7 })
-    expect(resolveLivingRibbonCanvasQualityBudget('high', 'thumbnail')).toMatchObject({ resolved: 'high', pointCount: 160, sparkCount: 7 })
+    expect(resolveLivingRibbonCanvasQualityBudget('high', 'preview')).toMatchObject({ resolved: 'high', pointCount: 128, sparkCount: 7 })
+    expect(resolveLivingRibbonCanvasQualityBudget('high', 'thumbnail')).toMatchObject({ resolved: 'high', pointCount: 64, sparkCount: 3 })
     for (const tier of ['auto', 'low', 'medium', 'high'] as const) {
       const budget = resolveLivingRibbonCanvasQualityBudget(tier, 'preview')
       expect(budget.pointCount).toBeGreaterThanOrEqual(8)
@@ -248,6 +252,33 @@ describe('Living Ribbon Canvas2D renderer ownership and quality', () => {
       expect(budget.glowPasses).toBeLessThanOrEqual(3)
       expect(budget.sparkCount).toBeLessThanOrEqual(8)
     }
+  })
+
+  it('changes Auto quality only after sustained frame pressure and uses hysteresis to recover', () => {
+    const owner = createMockContext()
+    const resolved = performance()
+    const prepare = (deltaTimeSec: number) => prepareLivingRibbonCanvasFrame({
+      ownerContext: owner,
+      frame: frame({ deltaTimeSec }),
+      performance: resolved,
+      quality: 'auto',
+      mode: 'live',
+    })
+
+    prepare(1 / 60)
+    prepare(1 / 15)
+    expect(getLivingRibbonCanvasDiagnosticsForTests(owner).autoQuality.resolvedQuality).toBe('medium')
+    for (let index = 0; index < LIVING_RIBBON_AUTO_STEP_DOWN_FRAMES + 60; index += 1) prepare(1 / 15)
+    const degraded = getLivingRibbonCanvasDiagnosticsForTests(owner)
+    expect(degraded.autoQuality.resolvedQuality).toBe('low')
+    expect(degraded.runtimes[0].pointCount).toBe(48)
+
+    for (let index = 0; index < 320; index += 1) prepare(1 / 120)
+    const recovered = getLivingRibbonCanvasDiagnosticsForTests(owner)
+    expect(recovered.autoQuality.resolvedQuality).toBe('medium')
+    expect(recovered.autoQuality.transitionCount).toBe(2)
+    expect(recovered.runtimes[0].pointCount).toBe(96)
+    disposeLivingRibbonCanvasRuntimes(owner)
   })
 
   it('dispatches only enabled generated Living Ribbon layers to the dedicated renderer', () => {
@@ -488,6 +519,78 @@ describe('Living Ribbon Canvas2D renderer ownership and quality', () => {
     expect(getLivingRibbonCanvasDiagnosticsForTests(owner).runtimeCount).toBe(0)
   })
 
+  it('reconstructs an identical renderer state when seeking to the same target after divergent history', () => {
+    const owner = createMockContext()
+    const target = createMockContext()
+    const resolved = performance()
+    prepareLivingRibbonCanvasFrame({ ownerContext: owner, frame: frame(), performance: resolved, quality: 'medium', mode: 'live' })
+    renderLivingRibbonCanvasLayer({ ownerContext: owner, targetContext: target, frame: frame(), preset: PRESET, performance: resolved, layer: resolved.layers[0], intensity: 1, glow: 1 })
+
+    prepareLivingRibbonCanvasFrame({
+      ownerContext: owner,
+      frame: frame({ audioTime: 24 }),
+      performance: performance({}, { seekDetected: true, seekIdentity: 'target-first' }),
+      quality: 'medium',
+      mode: 'live',
+    })
+    const firstTarget = getLivingRibbonCanvasDiagnosticsForTests(owner).runtimes[0]
+
+    for (let index = 0; index < 30; index += 1) {
+      renderLivingRibbonCanvasLayer({
+        ownerContext: owner,
+        targetContext: target,
+        frame: frame({ audioTime: 25 + index / 60 }),
+        preset: PRESET,
+        performance: performance({ layers: [livingLayer({
+          livingRibbonImpulses: [{ kind: 'releaseBurst', identity: `future-${index}`, strength: 0.7 }],
+        })] }),
+        layer: livingLayer({ livingRibbonImpulses: [{ kind: 'releaseBurst', identity: `future-${index}`, strength: 0.7 }] }),
+        intensity: 1,
+        glow: 1,
+      })
+    }
+    prepareLivingRibbonCanvasFrame({
+      ownerContext: owner,
+      frame: frame({ audioTime: 24 }),
+      performance: performance({}, { seekDetected: true, seekIdentity: 'target-second' }),
+      quality: 'medium',
+      mode: 'live',
+    })
+    const secondTarget = getLivingRibbonCanvasDiagnosticsForTests(owner).runtimes[0]
+    expect(secondTarget.stateFingerprint).toBe(firstTarget.stateFingerprint)
+    expect(secondTarget.rememberedImpulseCount).toBe(0)
+    disposeLivingRibbonCanvasRuntimes(owner)
+  })
+
+  it('repairs non-finite simulation values without discarding the renderer runtime', () => {
+    const owner = createMockContext()
+    const target = createMockContext()
+    let captured: LivingRibbonSimulation | null = null
+    setLivingRibbonSimulationFactoryForTests(() => {
+      captured = new LivingRibbonSimulation()
+      return captured
+    })
+    const resolved = performance()
+    prepareLivingRibbonCanvasFrame({ ownerContext: owner, frame: frame(), performance: resolved, quality: 'medium', mode: 'live' })
+    const internals = captured as unknown as { positions: Float32Array; velocities: Float32Array }
+    internals.positions[0] = Number.NaN
+    internals.velocities[1] = Number.POSITIVE_INFINITY
+    const rendered = renderLivingRibbonCanvasLayer({
+      ownerContext: owner,
+      targetContext: target,
+      frame: frame(),
+      preset: PRESET,
+      performance: resolved,
+      layer: resolved.layers[0],
+      intensity: 1,
+      glow: 1,
+    })
+    expect(rendered.rendered).toBe(true)
+    expect(getLivingRibbonCanvasDiagnosticsForTests(owner)).toMatchObject({ runtimeCount: 1, failureCount: 0 })
+    expect(getLivingRibbonCanvasDiagnosticsForTests(owner).finiteRecoveryCount).toBeGreaterThan(0)
+    disposeLivingRibbonCanvasRuntimes(owner)
+  })
+
   it('holds pause state and resumes without a giant physics step', () => {
     const owner = createMockContext()
     const target = createMockContext()
@@ -513,7 +616,8 @@ describe('Living Ribbon Canvas2D renderer ownership and quality', () => {
   it('reports runtime creation failures so the caller can render its safe fallback', () => {
     const owner = createMockContext()
     const target = createMockContext()
-    setLivingRibbonSimulationFactoryForTests(() => { throw new Error('factory exploded') })
+    const factory = vi.fn(() => { throw new Error('factory exploded') })
+    setLivingRibbonSimulationFactoryForTests(factory)
     const resolved = performance()
     const prepared = prepareLivingRibbonCanvasFrame({ ownerContext: owner, frame: frame(), performance: resolved, quality: 'medium', mode: 'live' })
     expect(prepared.diagnostics[0]).toContain('factory exploded')
@@ -530,6 +634,30 @@ describe('Living Ribbon Canvas2D renderer ownership and quality', () => {
     expect(result.rendered).toBe(false)
     expect(result.fallbackReason).toContain('factory exploded')
     expect(getLivingRibbonCanvasDiagnosticsForTests(owner)).toMatchObject({ runtimeCount: 0, failureCount: 1 })
+    prepareLivingRibbonCanvasFrame({ ownerContext: owner, frame: frame(), performance: resolved, quality: 'medium', mode: 'live' })
+    expect(factory).toHaveBeenCalledTimes(1)
+    expect(getLivingRibbonCanvasDiagnosticsForTests(owner).failureCount).toBeLessThanOrEqual(LIVING_RIBBON_MAX_FAILURE_RECORDS)
     disposeLivingRibbonCanvasRuntimes(owner)
+  })
+
+  it('keeps thumbnail work isolated, bounded, deterministic, and disposable', () => {
+    const fingerprints: string[] = []
+    for (let index = 0; index < 20; index += 1) {
+      const thumbnail = createMockContext()
+      prepareLivingRibbonCanvasFrame({
+        ownerContext: thumbnail,
+        frame: frame({ audioTime: 12 }),
+        performance: performance(),
+        quality: 'high',
+        mode: 'thumbnail',
+      })
+      const diagnostics = getLivingRibbonCanvasDiagnosticsForTests(thumbnail)
+      expect(diagnostics.runtimes[0]).toMatchObject({ pointCapacity: 64, sparkCapacity: 3 })
+      expect(diagnostics.runtimes[0].recentImpulses.length).toBeLessThanOrEqual(LIVING_RIBBON_MAX_RECENT_IMPULSES)
+      fingerprints.push(diagnostics.runtimes[0].stateFingerprint)
+      disposeLivingRibbonCanvasRuntimes(thumbnail)
+      expect(getLivingRibbonCanvasDiagnosticsForTests(thumbnail).runtimeCount).toBe(0)
+    }
+    expect(new Set(fingerprints).size).toBe(1)
   })
 })

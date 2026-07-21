@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SHARED_BEHAVIOR_MAX_ACTIVE_EVENT_STATES,
+  SHARED_BEHAVIOR_MAX_EVENT_BINDINGS,
+  SHARED_BEHAVIOR_MAX_ROUTE_STATES,
   SharedBehaviorRoutingRuntime,
   type SharedBehaviorContinuousRoute,
   type SharedBehaviorEventBinding,
@@ -251,6 +254,39 @@ describe('SharedBehaviorRoutingRuntime', () => {
     runtime.update({ context: repeated, deltaSec: 0 }, sink)
     runtime.update({ context: repeated, deltaSec: 0 }, sink)
     expect(runtime.getStats().synchronizationCount).toBe(1)
+  })
+
+  it('caps caller-provided route and event budgets at the production hard limits', () => {
+    const { runtime, sink } = createHarness({
+      maxRouteStates: Number.MAX_SAFE_INTEGER,
+      maxEventBindings: Number.MAX_SAFE_INTEGER,
+      maxActiveEventStates: Number.MAX_SAFE_INTEGER,
+      maxRememberedEventIdentities: Number.MAX_SAFE_INTEGER,
+    })
+    const routes = Array.from({ length: SHARED_BEHAVIOR_MAX_ROUTE_STATES + 100 }, (_, index) => route({
+      id: `route-${index}`,
+      source: `energy-${index}`,
+      target: `motion-${index}`,
+      attackSec: 0,
+      releaseSec: 0,
+    }))
+    const bindings = Array.from({ length: SHARED_BEHAVIOR_MAX_EVENT_BINDINGS + 100 }, (_, index) => binding({
+      id: `binding-${index}`,
+      source: `event-${index}`,
+      target: `impulse-${index}`,
+      attackSec: 0,
+      holdSec: 10,
+      releaseSec: 0,
+    }))
+    const continuous = Object.fromEntries(routes.map(definition => [definition.source, 1]))
+    const events = Object.fromEntries(bindings.map(definition => [
+      definition.source,
+      { active: true, strength: 1, identity: `identity-${definition.id}` },
+    ]))
+    runtime.configure(routes, bindings)
+    runtime.update({ context: context({ continuous, events }), deltaSec: 0 }, sink)
+    expect(runtime.getStats().routeStateCount).toBe(SHARED_BEHAVIOR_MAX_ROUTE_STATES)
+    expect(runtime.getStats().activeEventStateCount).toBe(SHARED_BEHAVIOR_MAX_ACTIVE_EVENT_STATES)
   })
 
 })

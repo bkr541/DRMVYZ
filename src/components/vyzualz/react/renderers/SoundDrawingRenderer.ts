@@ -59,7 +59,6 @@ import {
   prepareLivingRibbonCanvasFrame,
   renderLivingRibbonCanvasLayer,
   resetLivingRibbonCanvasRuntimes,
-  resolveLivingRibbonCanvasQualityBudget,
   usesLivingRibbonCanvasRenderer,
 } from './LivingRibbonCanvas2DRenderer'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
@@ -2443,13 +2442,7 @@ function renderAuthoredSoundDrawingPerformance(
   const livingRibbonActive = performance.layers.some(
     (layer) => layer.enabled && layer.source.kind === 'generated' && layer.generator === 'livingRibbon',
   )
-  const livingRibbonBudget = resolveLivingRibbonCanvasQualityBudget(
-    ribbonSettings.quality,
-    runtimeMode,
-    ribbonSettings.pointDensity,
-    ribbonSettings.sparkAmount,
-  )
-  const livingRibbonTrailDetail = livingRibbonBudget.trailDetail
+  const livingRibbonTrailDetail = preparation.qualityBudget.trailDetail
   const decayRate = clamp(
     ((1 - authoredPersistence) * 0.28 + params.trailDecay * 0.04) / (livingRibbonActive ? livingRibbonTrailDetail : 1),
     0.02,
@@ -2534,7 +2527,7 @@ function renderAuthoredSoundDrawingPerformance(
     : null
   if (livingRibbonActive) {
     resourceLimitDecisions.push(
-      `Living Ribbon quality ${livingRibbonBudget.requested} → ${livingRibbonBudget.resolved} (${livingRibbonBudget.pointCount} points, ${runtimeMode})`,
+      `Living Ribbon quality ${preparation.qualityBudget.requested} → ${preparation.qualityBudget.resolved} (${preparation.qualityBudget.pointCount} points, ${runtimeMode})`,
     )
   }
   if (publishesProductionDiagnostics) {
@@ -2599,7 +2592,7 @@ function renderAuthoredSoundDrawingPerformance(
               },
               {
                 label: 'Ribbon Quality',
-                value: `${livingRibbonBudget.requested} → ${livingRibbonBudget.resolved}`,
+                value: `${preparation.qualityBudget.requested} → ${preparation.qualityBudget.resolved}`,
               },
               {
                 label: 'Ribbon Structure',

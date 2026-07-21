@@ -251,7 +251,21 @@ beforeEach(() => {
     createElement: vi.fn(() => offscreenCanvas),
   })
   mocks.resolvePerformanceFrame.mockReturnValue(resolvedPerformance())
-  mocks.prepareLivingRibbon.mockReturnValue({ activeRuntimeKeys: new Set(['livingRibbonSystem:living-primary']), clearTrail: false, diagnostics: [] })
+  mocks.prepareLivingRibbon.mockReturnValue({
+    activeRuntimeKeys: new Set(['livingRibbonSystem:living-primary']),
+    clearTrail: false,
+    diagnostics: [],
+    qualityBudget: {
+      requested: 'auto',
+      resolved: 'medium',
+      pointCount: 96,
+      splineSubdivisions: 2,
+      glowPasses: 2,
+      sparkCount: 4,
+      accentStride: 3,
+      trailDetail: 0.72,
+    },
+  })
   mocks.renderLivingRibbon.mockReturnValue({
     rendered: false,
     fallbackReason: 'Living Ribbon rendering failed: invalid simulation output',

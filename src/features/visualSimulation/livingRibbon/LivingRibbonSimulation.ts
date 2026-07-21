@@ -20,10 +20,15 @@ import { createVisualSimulationStructuralSignature } from '../signature'
 export const LIVING_RIBBON_FIXED_TIMESTEP_SEC = 1 / 120
 export const LIVING_RIBBON_MAX_SUBSTEPS = 8
 export const LIVING_RIBBON_MAX_FRAME_DELTA_SEC = 0.1
+export const LIVING_RIBBON_DEFAULT_WARM_START_DURATION_SEC = 0.25
+export const LIVING_RIBBON_DEFAULT_WARM_START_STEPS = 30
+export const LIVING_RIBBON_RECONSTRUCTION_TOLERANCE = 1e-6
+export const LIVING_RIBBON_MAX_REMEMBERED_IMPULSES = 256
 const LIVING_RIBBON_MAX_ACCUMULATOR_SEC = LIVING_RIBBON_FIXED_TIMESTEP_SEC * LIVING_RIBBON_MAX_SUBSTEPS
 const MIN_POINT_COUNT = 8
 const MAX_IMPULSE_STRENGTH = 4
-const MAX_REMEMBERED_IMPULSES = 256
+const MAX_DIAGNOSTIC_COUNTER = 1_000_000
+const MAX_VELOCITY = 8
 const EPSILON = 1e-6
 
 export type LivingRibbonInitializationMode = 'line' | 'arc' | 'wave' | 'spiral'
@@ -74,6 +79,26 @@ export interface LivingRibbonLocalizedImpulseInput extends LivingRibbonImpulseIn
   /** Normalized position along the ribbon, from 0 at the first point to 1 at the last. */
   location: number
   radius?: number
+}
+
+export interface LivingRibbonRecoveryResult {
+  repaired: boolean
+  deterministicReset: boolean
+  issueCount: number
+  reason: string | null
+}
+
+export interface LivingRibbonSimulationDiagnostics {
+  pointCapacity: number
+  rememberedImpulseCount: number
+  maximumRememberedImpulses: number
+  maximumSubsteps: number
+  reconstructionCount: number
+  lastReconstructionSteps: number
+  lastReconstructionDurationSec: number
+  finiteRepairCount: number
+  deterministicResetCount: number
+  disposed: boolean
 }
 
 export interface LivingRibbonRenderView {
@@ -247,6 +272,11 @@ export class LivingRibbonSimulation {
   private structuralSignature = ''
   private structureRevision = 0
   private restSpacing = 1
+  private reconstructionCount = 0
+  private lastReconstructionSteps = 0
+  private lastReconstructionDurationSec = 0
+  private finiteRepairCount = 0
+  private deterministicResetCount = 0
   private disposed = false
   private readonly clock = new FixedStepSimulationClock({
     fixedTimestepSec: LIVING_RIBBON_FIXED_TIMESTEP_SEC,
@@ -318,6 +348,7 @@ export class LivingRibbonSimulation {
   }
 
   deterministicReset(seed = this.structural?.baseSeed ?? 0, identity?: string | number | null): void {
+    this.deterministicResetCount = incrementBounded(this.deterministicResetCount)
     this.lifecycle.reset({ seed, identity })
   }
 
@@ -358,15 +389,145 @@ export class LivingRibbonSimulation {
     this.lifecycle.replaceTrack(0, identity)
   }
 
-  warmStart(durationSec = 0.15, maximumSteps = 24): number {
+  warmStart(
+    durationSec = LIVING_RIBBON_DEFAULT_WARM_START_DURATION_SEC,
+    maximumSteps = LIVING_RIBBON_DEFAULT_WARM_START_STEPS,
+  ): number {
     if (!this.structural || this.clock.isPaused() || this.clock.isFrozen()) return 0
-    const requested = Math.max(0, Math.floor(durationSec / LIVING_RIBBON_FIXED_TIMESTEP_SEC))
-    const bounded = Math.min(Math.max(0, Math.floor(maximumSteps)), requested)
-    let completed = 0
-    for (let index = 0; index < bounded; index += 1) {
-      completed += this.update({ deltaTimeSec: LIVING_RIBBON_FIXED_TIMESTEP_SEC })
-    }
+    const requested = Math.max(0, Math.floor(finiteSimulationNumber(durationSec) / LIVING_RIBBON_FIXED_TIMESTEP_SEC))
+    return this.advanceDeterministicSteps(Math.min(Math.max(0, Math.floor(maximumSteps)), requested))
+  }
+
+  /**
+   * Reconstructs a stable state around an authoritative track position without
+   * replaying the song from zero. The bounded pre-roll uses the absolute target
+   * time for deterministic noise and never depends on wall-clock time.
+   */
+  reconstructAtTime(
+    timeSec: number,
+    identity?: string | number | null,
+    durationSec = LIVING_RIBBON_DEFAULT_WARM_START_DURATION_SEC,
+    maximumSteps = LIVING_RIBBON_DEFAULT_WARM_START_STEPS,
+  ): number {
+    if (!this.structural || this.disposed) return 0
+    const targetTimeSec = Math.max(0, finiteSimulationNumber(timeSec))
+    const boundedDurationSec = Math.min(targetTimeSec, Math.max(0, finiteSimulationNumber(durationSec)))
+    const requestedSteps = Math.floor(boundedDurationSec / LIVING_RIBBON_FIXED_TIMESTEP_SEC)
+    const boundedSteps = Math.min(Math.max(0, Math.floor(maximumSteps)), requestedSteps)
+    const startTimeSec = Math.max(0, targetTimeSec - boundedSteps * LIVING_RIBBON_FIXED_TIMESTEP_SEC)
+    this.initializeGeometry(this.structural.baseSeed, identity)
+    this.clearRememberedImpulses()
+    this.clock.synchronize('manual', startTimeSec)
+    const completed = this.reconstructDeterministicSteps(startTimeSec, boundedSteps)
+    this.clock.synchronize('manual', targetTimeSec)
+    this.previousPositions.set(this.positions)
+    this.interpolationAlpha = 1
+    this.reconstructionCount = incrementBounded(this.reconstructionCount)
+    this.lastReconstructionSteps = completed
+    this.lastReconstructionDurationSec = completed * LIVING_RIBBON_FIXED_TIMESTEP_SEC
+    this.updateRenderView()
     return completed
+  }
+
+  validateAndRepairState(identity: string | number = 'finite-recovery'): LivingRibbonRecoveryResult {
+    const structural = this.structural
+    if (!structural || this.disposed) {
+      return { repaired: false, deterministicReset: false, issueCount: 0, reason: 'runtime unavailable' }
+    }
+    const expectedVectorLength = structural.pointCount * 3
+    const expectedScalarLength = structural.pointCount
+    const invalidCapacity =
+      this.positions.length !== expectedVectorLength ||
+      this.previousPositions.length !== expectedVectorLength ||
+      this.velocities.length !== expectedVectorLength ||
+      this.forces.length !== expectedVectorLength ||
+      this.anchors.length !== expectedVectorLength ||
+      this.phases.length !== expectedScalarLength * 2 ||
+      this.widths.length !== expectedScalarLength ||
+      this.heat.length !== expectedScalarLength ||
+      this.speedMagnitudes.length !== expectedScalarLength
+    if (invalidCapacity) {
+      const targetTimeSec = this.clock.getSimulationTimeSec()
+      this.deterministicResetCount = incrementBounded(this.deterministicResetCount)
+      this.rebuild(structural, this.controls, this.runtimeMode)
+      this.reconstructAtTime(targetTimeSec, identity)
+      return { repaired: true, deterministicReset: true, issueCount: 1, reason: 'invalid typed-array capacity' }
+    }
+
+    let issueCount = 0
+    const maximumDisplacement = structural.boundarySize * 1.5
+    for (let index = 0; index < structural.pointCount; index += 1) {
+      const offset = index * 3
+      const px = this.positions[offset]
+      const py = this.positions[offset + 1]
+      const pz = this.positions[offset + 2]
+      const vx = this.velocities[offset]
+      const vy = this.velocities[offset + 1]
+      const vz = this.velocities[offset + 2]
+      const anchorX = finiteSimulationNumber(this.anchors[offset])
+      const anchorY = finiteSimulationNumber(this.anchors[offset + 1])
+      const anchorZ = finiteSimulationNumber(this.anchors[offset + 2])
+      const velocity = Math.hypot(vx, vy, vz)
+      const displacement = Math.hypot(px - anchorX, py - anchorY, pz - anchorZ)
+      const invalidPoint =
+        !Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz) ||
+        !Number.isFinite(vx) || !Number.isFinite(vy) || !Number.isFinite(vz) ||
+        !Number.isFinite(velocity) || velocity > MAX_VELOCITY * 1.05 ||
+        !Number.isFinite(displacement) || displacement > maximumDisplacement ||
+        !Number.isFinite(this.previousPositions[offset]) ||
+        !Number.isFinite(this.previousPositions[offset + 1]) ||
+        !Number.isFinite(this.previousPositions[offset + 2]) ||
+        !Number.isFinite(this.widths[index]) ||
+        !Number.isFinite(this.heat[index]) ||
+        !Number.isFinite(this.speedMagnitudes[index])
+      if (!invalidPoint) continue
+      issueCount += 1
+      this.positions[offset] = anchorX
+      this.positions[offset + 1] = anchorY
+      this.positions[offset + 2] = anchorZ
+      this.previousPositions[offset] = anchorX
+      this.previousPositions[offset + 1] = anchorY
+      this.previousPositions[offset + 2] = anchorZ
+      this.velocities[offset] = 0
+      this.velocities[offset + 1] = 0
+      this.velocities[offset + 2] = 0
+      this.forces[offset] = 0
+      this.forces[offset + 1] = 0
+      this.forces[offset + 2] = 0
+      this.widths[index] = 0.25 + this.controls.widthTarget * 0.75
+      this.heat[index] = 0
+      this.speedMagnitudes[index] = 0
+    }
+    if (!Number.isFinite(this.interpolationAlpha) || this.interpolationAlpha < 0 || this.interpolationAlpha > 1) {
+      this.interpolationAlpha = 1
+      issueCount += 1
+    }
+    if (issueCount === 0) return { repaired: false, deterministicReset: false, issueCount: 0, reason: null }
+
+    this.finiteRepairCount = incrementBounded(this.finiteRepairCount, issueCount)
+    const resetThreshold = Math.max(4, Math.floor(structural.pointCount / 3))
+    if (issueCount > resetThreshold) {
+      this.deterministicResetCount = incrementBounded(this.deterministicResetCount)
+      this.reconstructAtTime(this.clock.getSimulationTimeSec(), identity)
+      return { repaired: true, deterministicReset: true, issueCount, reason: 'widespread invalid simulation state' }
+    }
+    this.updateRenderView()
+    return { repaired: true, deterministicReset: false, issueCount, reason: 'localized finite-value repair' }
+  }
+
+  getDiagnostics(): Readonly<LivingRibbonSimulationDiagnostics> {
+    return {
+      pointCapacity: this.positions.length / 3,
+      rememberedImpulseCount: this.rememberedImpulseIdentities.size,
+      maximumRememberedImpulses: LIVING_RIBBON_MAX_REMEMBERED_IMPULSES,
+      maximumSubsteps: LIVING_RIBBON_MAX_SUBSTEPS,
+      reconstructionCount: this.reconstructionCount,
+      lastReconstructionSteps: this.lastReconstructionSteps,
+      lastReconstructionDurationSec: this.lastReconstructionDurationSec,
+      finiteRepairCount: this.finiteRepairCount,
+      deterministicResetCount: this.deterministicResetCount,
+      disposed: this.disposed,
+    }
   }
 
   radialImpact(input: LivingRibbonImpulseInput): boolean {
@@ -668,7 +829,7 @@ export class LivingRibbonSimulation {
 
     const dampingRate = 0.8 + this.controls.damping * 11
     const damping = Math.exp(-dampingRate * dt)
-    const maximumVelocity = Math.min(8, 2 + this.controls.drive * 5 + this.controls.releaseAmount * 3)
+    const maximumVelocity = Math.min(MAX_VELOCITY, 2 + this.controls.drive * 5 + this.controls.releaseAmount * 3)
     const maximumDisplacement = structural.boundarySize * (0.8 + this.controls.spread * 0.45)
     const widthTarget = 0.15 + this.controls.widthTarget * 1.85
     const widthResponse = 1 - Math.exp(-dt * 7)
@@ -676,6 +837,17 @@ export class LivingRibbonSimulation {
 
     for (let index = 0; index < count; index += 1) {
       const offset = index * 3
+      const rawValuesInvalid =
+        !Number.isFinite(this.positions[offset]) ||
+        !Number.isFinite(this.positions[offset + 1]) ||
+        !Number.isFinite(this.positions[offset + 2]) ||
+        !Number.isFinite(this.velocities[offset]) ||
+        !Number.isFinite(this.velocities[offset + 1]) ||
+        !Number.isFinite(this.velocities[offset + 2]) ||
+        !Number.isFinite(this.forces[offset]) ||
+        !Number.isFinite(this.forces[offset + 1]) ||
+        !Number.isFinite(this.forces[offset + 2])
+      if (rawValuesInvalid) this.finiteRepairCount = incrementBounded(this.finiteRepairCount)
       let vx = (finiteSimulationNumber(this.velocities[offset]) + finiteSimulationNumber(this.forces[offset]) * dt) * damping
       let vy = (finiteSimulationNumber(this.velocities[offset + 1]) + finiteSimulationNumber(this.forces[offset + 1]) * dt) * damping
       let vz = (finiteSimulationNumber(this.velocities[offset + 2]) + finiteSimulationNumber(this.forces[offset + 2]) * dt) * damping
@@ -698,6 +870,7 @@ export class LivingRibbonSimulation {
       const dz = z - anchorZ
       const displacement = Math.hypot(dx, dy, dz)
       if (!Number.isFinite(displacement) || !Number.isFinite(speed)) {
+        this.finiteRepairCount = incrementBounded(this.finiteRepairCount)
         x = anchorX
         y = anchorY
         z = anchorZ
@@ -777,12 +950,13 @@ export class LivingRibbonSimulation {
   }
 
   private clampVelocity(offset: number): void {
-    const maximum = 8
+    const maximum = MAX_VELOCITY
     const x = finiteSimulationNumber(this.velocities[offset])
     const y = finiteSimulationNumber(this.velocities[offset + 1])
     const z = finiteSimulationNumber(this.velocities[offset + 2])
     const length = Math.hypot(x, y, z)
     if (!Number.isFinite(length)) {
+      this.finiteRepairCount = incrementBounded(this.finiteRepairCount)
       this.velocities[offset] = 0
       this.velocities[offset + 1] = 0
       this.velocities[offset + 2] = 0
@@ -798,13 +972,13 @@ export class LivingRibbonSimulation {
 
   private rememberImpulse(identity: string): void {
     if (this.rememberedImpulseIdentities.has(identity)) return
-    if (this.rememberedImpulseOrder.length < MAX_REMEMBERED_IMPULSES) {
+    if (this.rememberedImpulseOrder.length < LIVING_RIBBON_MAX_REMEMBERED_IMPULSES) {
       this.rememberedImpulseOrder.push(identity)
     } else {
       const replaced = this.rememberedImpulseOrder[this.rememberedImpulseCursor]
       if (replaced != null) this.rememberedImpulseIdentities.delete(replaced)
       this.rememberedImpulseOrder[this.rememberedImpulseCursor] = identity
-      this.rememberedImpulseCursor = (this.rememberedImpulseCursor + 1) % MAX_REMEMBERED_IMPULSES
+      this.rememberedImpulseCursor = (this.rememberedImpulseCursor + 1) % LIVING_RIBBON_MAX_REMEMBERED_IMPULSES
     }
     this.rememberedImpulseIdentities.add(identity)
   }
@@ -822,14 +996,7 @@ export class LivingRibbonSimulation {
     if (repeatedIdentity) return
     this.lastTimingIdentity = input.identity
     this.lastTimingReason = input.reason
-    this.clock.synchronize(input.reason, input.timeSec)
-    this.previousPositions.set(this.positions)
-    this.interpolationAlpha = 1
-    this.clearRememberedImpulses()
-    if (input.reason === 'trackReplacement' && this.structural) {
-      this.initializeGeometry(this.structural.baseSeed, input.identity)
-    }
-    this.updateRenderView()
+    this.reconstructAtTime(input.timeSec ?? this.clock.getSimulationTimeSec(), input.identity)
   }
 
   private releaseResources(): void {
@@ -847,7 +1014,36 @@ export class LivingRibbonSimulation {
     this.clearRememberedImpulses()
     this.structuralSignature = ''
     this.interpolationAlpha = 1
+    this.lastReconstructionSteps = 0
+    this.lastReconstructionDurationSec = 0
     this.updateRenderView()
+  }
+
+  private advanceDeterministicSteps(stepCount: number): number {
+    const boundedSteps = Math.max(0, Math.floor(finiteSimulationNumber(stepCount)))
+    if (boundedSteps === 0) return 0
+    let completed = 0
+    for (let index = 0; index < boundedSteps; index += 1) {
+      const frame = this.clock.advance(LIVING_RIBBON_FIXED_TIMESTEP_SEC, (dt, simulationTimeSec) => {
+        this.integrateStep(dt, simulationTimeSec)
+      })
+      completed += frame.steps
+    }
+    this.interpolationAlpha = 1
+    this.updateRenderView()
+    return completed
+  }
+
+  private reconstructDeterministicSteps(startTimeSec: number, stepCount: number): number {
+    const boundedSteps = Math.min(
+      LIVING_RIBBON_DEFAULT_WARM_START_STEPS,
+      Math.max(0, Math.floor(finiteSimulationNumber(stepCount))),
+    )
+    for (let index = 0; index < boundedSteps; index += 1) {
+      const simulationTimeSec = startTimeSec + (index + 1) * LIVING_RIBBON_FIXED_TIMESTEP_SEC
+      this.integrateStep(LIVING_RIBBON_FIXED_TIMESTEP_SEC, simulationTimeSec)
+    }
+    return boundedSteps
   }
 
   private updateRenderView(): void {
@@ -884,6 +1080,10 @@ export class LivingRibbonSimulation {
     mutable.simulationTimeSec = this.clock.getSimulationTimeSec()
     mutable.runtimeMode = this.runtimeMode
   }
+}
+
+function incrementBounded(value: number, increment = 1): number {
+  return Math.min(MAX_DIAGNOSTIC_COUNTER, Math.max(0, value + Math.max(0, increment)))
 }
 
 export function livingRibbonStructuralSignature(
