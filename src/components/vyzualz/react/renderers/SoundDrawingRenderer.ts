@@ -18,6 +18,7 @@ import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUt
 import { getSvgGlyphAssetId, resolveUnifiedSvgSource } from '../svgSourceLifecycle'
 import { createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { resolveSoundDrawingPerformanceFrame } from '../soundDrawing/SoundDrawingPerformanceEngine'
+import { disposeSoundDrawingBehaviorRuntime } from '../soundDrawing/SoundDrawingBehaviorRuntime'
 import {
   MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
   MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES,
@@ -204,6 +205,9 @@ export function disposeSoundDrawingRenderer(
   rotPhaseMap.delete(ctx)
   trailResetSeenMap.delete(ctx)
   soundDrawingPerformanceContextMap.delete(ctx)
+  const temporalState = soundDrawingPerformanceTemporalStateMap.get(ctx)
+  if (temporalState) disposeSoundDrawingBehaviorRuntime(temporalState)
+  soundDrawingPerformanceTemporalStateMap.delete(ctx)
   clearSharedPerformanceDiagnostics('soundDrawing')
 }
 
@@ -2105,7 +2109,7 @@ function renderAuthoredSoundDrawingPerformance(
   const previousContext = soundDrawingPerformanceContextMap.get(ctx) ?? null
   let temporalState = soundDrawingPerformanceTemporalStateMap.get(ctx)
   if (!temporalState) {
-    temporalState = { identity: '', routeValues: new Map() }
+    temporalState = { identity: '' }
     soundDrawingPerformanceTemporalStateMap.set(ctx, temporalState)
   }
   const performance = resolveSoundDrawingPerformanceFrame({
@@ -2117,19 +2121,12 @@ function renderAuthoredSoundDrawingPerformance(
   })
   if (!performance) {
     soundDrawingPerformanceContextMap.delete(ctx)
+    disposeSoundDrawingBehaviorRuntime(temporalState)
     soundDrawingPerformanceTemporalStateMap.delete(ctx)
     clearSharedPerformanceDiagnostics('soundDrawing')
     return false
   }
   soundDrawingPerformanceContextMap.set(ctx, performance.context)
-  if (
-    performance.context.trackReplacementDetected
-    || performance.context.seekDetected
-    || performance.context.loopWrapDetected
-    || frame.timingDiscontinuity
-  ) {
-    temporalState.routeValues.clear()
-  }
   const activeEventEnvelopes = performance.appliedActionReasons.filter(reason => SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS.has(reason))
   const lockedParameters = Object.entries(params.soundDrawingPerformanceSettings?.locks ?? {})
     .filter(([, locked]) => locked)

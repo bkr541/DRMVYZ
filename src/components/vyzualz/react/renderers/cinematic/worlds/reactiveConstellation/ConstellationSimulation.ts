@@ -4,6 +4,12 @@ import {
   type ConstellationGraph,
 } from './ConstellationGraphBuilder'
 import { clamp, hashSeed, seededUnit } from './ConstellationMath'
+import {
+  FixedStepSimulationClock,
+  VisualSimulationLifecycleController,
+  createVisualSimulationStructuralSignature,
+  type VisualSimulationTimingSynchronization,
+} from '../../../../../../../features/visualSimulation'
 
 export const CONSTELLATION_FIXED_TIMESTEP_SEC = 1 / 120
 export const CONSTELLATION_MAX_SUBSTEPS = 8
@@ -16,6 +22,31 @@ export interface ConstellationSimulationConfigureInput {
   seed: number
   nodeCount: number
   settings: ReactiveConstellationSettings
+}
+
+
+interface ConstellationStructuralConfig {
+  seed: number
+  nodeCount: number
+  topologyStyle: ReactiveConstellationSettings['topologyStyle']
+  polyhedronStyle: ReactiveConstellationSettings['polyhedronStyle']
+  neighborCount: number
+  networkSpread: number
+  depthSpread: number
+  nodeScaleVariation: number
+}
+
+function structuralConfig(input: ConstellationSimulationConfigureInput): ConstellationStructuralConfig {
+  return {
+    seed: Math.trunc(input.seed),
+    nodeCount: Math.max(1, Math.floor(input.nodeCount)),
+    topologyStyle: input.settings.topologyStyle,
+    polyhedronStyle: input.settings.polyhedronStyle,
+    neighborCount: input.settings.neighborCount,
+    networkSpread: input.settings.networkSpread,
+    depthSpread: input.settings.depthSpread,
+    nodeScaleVariation: input.settings.nodeScaleVariation,
+  }
 }
 
 export interface ConstellationSimulationUpdateInput {
@@ -65,16 +96,7 @@ export interface ConstellationSimulationStateView {
 }
 
 export function constellationStructuralSignature(input: ConstellationSimulationConfigureInput): string {
-  return JSON.stringify({
-    seed: Math.trunc(input.seed),
-    nodeCount: Math.max(1, Math.floor(input.nodeCount)),
-    topologyStyle: input.settings.topologyStyle,
-    polyhedronStyle: input.settings.polyhedronStyle,
-    neighborCount: input.settings.neighborCount,
-    networkSpread: input.settings.networkSpread,
-    depthSpread: input.settings.depthSpread,
-    nodeScaleVariation: input.settings.nodeScaleVariation,
-  })
+  return createVisualSimulationStructuralSignature(structuralConfig(input))
 }
 
 function finite(value: number | undefined, fallback = 0): number {
@@ -125,13 +147,35 @@ export class ConstellationSimulation {
   private meanExpansionProgress = 0
   private meanExpansionVelocity = 0
   private lastBurstSequence: number | null = null
-  private accumulatorSec = 0
-  private simulationTimeSec = 0
+  private readonly clock = new FixedStepSimulationClock({
+    fixedTimestepSec: CONSTELLATION_FIXED_TIMESTEP_SEC,
+    maxFrameDeltaSec: CONSTELLATION_MAX_FRAME_DELTA_SEC,
+    maxSubsteps: CONSTELLATION_MAX_SUBSTEPS,
+    maxAccumulatorSec: CONSTELLATION_MAX_ACCUMULATOR_SEC,
+  })
+  private readonly lifecycle: VisualSimulationLifecycleController<ConstellationStructuralConfig, ReactiveConstellationSettings>
+  private playbackPaused = false
   private interpolationAlpha = 1
   private structureRevision = 0
   private activeSeed = 0
   private randomState = 0
-  private frozen = false
+  constructor() {
+    this.lifecycle = new VisualSimulationLifecycleController({
+      rebuild: (structural, parameters) => {
+        this.settings = parameters
+        this.rebuild(structural.seed, structural.nodeCount)
+      },
+      updateParameters: parameters => {
+        this.settings = parameters
+      },
+      reset: () => this.resetExpansionState(),
+      synchronizeTiming: input => this.synchronizeTimingState(input),
+      pause: () => this.clock.pause(),
+      resume: () => this.clock.resume(),
+      releaseResources: () => this.releaseResources(),
+    })
+  }
+
   private readonly stateView: ConstellationSimulationStateView = {
     graph: EMPTY_GRAPH,
     positions: this.positions,
@@ -156,27 +200,34 @@ export class ConstellationSimulation {
   }
 
   configure(input: ConstellationSimulationConfigureInput): ConstellationSimulationConfigureResult {
-    const signature = constellationStructuralSignature(input)
-    this.settings = input.settings
-    if (signature === this.requestedStructuralSignature && this.graph.nodes.length > 0) {
-      return { rebuilt: false, structureRevision: this.structureRevision }
-    }
-    this.requestedStructuralSignature = signature
-    this.rebuild(Math.trunc(input.seed), Math.max(1, Math.floor(input.nodeCount)))
-    return { rebuilt: true, structureRevision: this.structureRevision }
+    const result = this.lifecycle.configure({
+      structural: structuralConfig(input),
+      parameters: input.settings,
+      mode: 'live',
+    })
+    this.requestedStructuralSignature = result.structuralSignature
+    return { rebuilt: result.rebuilt, structureRevision: this.structureRevision }
   }
 
   update(input: ConstellationSimulationUpdateInput): number {
     if (input.timingDiscontinuity) {
-      this.accumulatorSec = 0
-      if (input.isPlaying) {
-        this.previousPositions.set(this.positions)
-        this.interpolationAlpha = 1
+      this.lifecycle.synchronizeTiming({ reason: 'timingDiscontinuity' })
+      this.updateStateView()
+      return 0
+    }
+    if (!input.isPlaying) {
+      if (!this.playbackPaused) {
+        this.lifecycle.pause()
+        this.playbackPaused = true
       }
       this.updateStateView()
       return 0
     }
-    if (!input.isPlaying || this.frozen || !this.settings || this.graph.nodes.length === 0) {
+    if (this.playbackPaused) {
+      this.lifecycle.resume()
+      this.playbackPaused = false
+    }
+    if (this.clock.isFrozen() || !this.settings || this.graph.nodes.length === 0) {
       this.updateStateView()
       return 0
     }
@@ -195,23 +246,14 @@ export class ConstellationSimulation {
       return 0
     }
 
-    this.accumulatorSec = Math.min(CONSTELLATION_MAX_ACCUMULATOR_SEC, this.accumulatorSec + delta)
     const motionScale = clamp(finite(input.motionScale, 1), 0, 2)
     const impact = clamp(finite(input.impact), 0, 2)
-    let steps = 0
-    while (this.accumulatorSec >= CONSTELLATION_FIXED_TIMESTEP_SEC && steps < CONSTELLATION_MAX_SUBSTEPS) {
-      this.integrateStep(CONSTELLATION_FIXED_TIMESTEP_SEC, motionScale, impact, input)
-      this.accumulatorSec -= CONSTELLATION_FIXED_TIMESTEP_SEC
-      steps += 1
-    }
-    if (steps >= CONSTELLATION_MAX_SUBSTEPS && this.accumulatorSec >= CONSTELLATION_FIXED_TIMESTEP_SEC) {
-      this.accumulatorSec = 0
-    }
-    this.interpolationAlpha = steps > 0
-      ? clamp(this.accumulatorSec / CONSTELLATION_FIXED_TIMESTEP_SEC, 0, 1)
-      : 1
+    const frame = this.clock.advance(delta, (dt, simulationTimeSec) => {
+      this.integrateStep(dt, motionScale, impact, input, simulationTimeSec - dt)
+    })
+    this.interpolationAlpha = frame.steps > 0 ? frame.interpolationAlpha : 1
     this.updateStateView()
-    return steps
+    return frame.steps
   }
 
   applyRadialBurst(strength = this.settings?.burstStrength ?? 1, sequence?: number): boolean {
@@ -275,20 +317,23 @@ export class ConstellationSimulation {
   }
 
   freeze(): void {
-    this.frozen = true
+    this.clock.freeze()
   }
 
   unfreeze(): void {
-    this.frozen = false
-    this.accumulatorSec = 0
+    this.clock.unfreeze()
     this.updateStateView()
   }
 
   isFrozen(): boolean {
-    return this.frozen
+    return this.clock.isFrozen()
   }
 
   resetExpansion(): void {
+    this.lifecycle.reset({ seed: this.activeSeed, identity: 'expansion-reset' })
+  }
+
+  private resetExpansionState(): void {
     if (!this.settings) return
     const initialExpansion = clamp(this.settings.initialExpansion, 0.01, 1)
     for (let index = 0; index < this.graph.nodes.length; index += 1) {
@@ -308,8 +353,7 @@ export class ConstellationSimulation {
     this.angularVelocities.fill(0)
     this.scaleVariations.set(this.baseScaleVariations)
     this.forces.fill(0)
-    this.accumulatorSec = 0
-    this.simulationTimeSec = 0
+    this.clock.synchronize('manual', 0)
     this.expansionElapsedSec = 0
     this.lastBurstSequence = null
     this.interpolationAlpha = 1
@@ -329,8 +373,7 @@ export class ConstellationSimulation {
     this.expansionProgress.fill(target)
     this.expansionVelocity.fill(0)
     this.expansionLaunched.fill(1)
-    this.accumulatorSec = 0
-    this.simulationTimeSec = 0
+    this.clock.synchronize('manual', 0)
     this.expansionElapsedSec = Math.max(0, this.settings?.radialStaggerSec ?? 0)
     this.lastBurstSequence = null
     this.interpolationAlpha = 1
@@ -339,10 +382,23 @@ export class ConstellationSimulation {
   }
 
   synchronizeTiming(): void {
-    this.accumulatorSec = 0
-    this.previousPositions.set(this.positions)
-    this.interpolationAlpha = 1
-    this.updateStateView()
+    this.lifecycle.synchronizeTiming({ reason: 'timingDiscontinuity' })
+  }
+
+  seek(timeSec?: number, identity?: string | number | null): void {
+    this.lifecycle.seek(timeSec, identity)
+  }
+
+  loopWrap(timeSec?: number, identity?: string | number | null): void {
+    this.lifecycle.loopWrap(timeSec, identity)
+  }
+
+  replaceTrack(identity?: string | number | null): void {
+    this.lifecycle.replaceTrack(0, identity)
+  }
+
+  dispose(): void {
+    this.lifecycle.dispose()
   }
 
   getState(): ConstellationSimulationStateView {
@@ -400,12 +456,43 @@ export class ConstellationSimulation {
       this.radialStagger[index] = seededUnit(hashSeed(this.activeSeed, index + 0x7a31))
     }
 
-    this.accumulatorSec = 0
-    this.simulationTimeSec = 0
+    this.clock.synchronize('manual', 0)
     this.expansionElapsedSec = 0
     this.lastBurstSequence = null
     this.interpolationAlpha = 1
     this.structureRevision += 1
+    this.updateExpansionMeans()
+    this.updateStateView()
+  }
+
+  private synchronizeTimingState(input: VisualSimulationTimingSynchronization): void {
+    this.clock.synchronize(input.reason, input.timeSec)
+    this.previousPositions.set(this.positions)
+    this.interpolationAlpha = 1
+    this.updateStateView()
+  }
+
+  private releaseResources(): void {
+    this.clock.dispose()
+    this.settings = null
+    this.requestedStructuralSignature = ''
+    this.graph = EMPTY_GRAPH
+    this.positions = new Float32Array(0)
+    this.previousPositions = new Float32Array(0)
+    this.anchors = new Float32Array(0)
+    this.velocities = new Float32Array(0)
+    this.rotations = new Float32Array(0)
+    this.initialRotations = new Float32Array(0)
+    this.angularVelocities = new Float32Array(0)
+    this.scaleVariations = new Float32Array(0)
+    this.baseScaleVariations = new Float32Array(0)
+    this.forces = new Float32Array(0)
+    this.driftPhases = new Float32Array(0)
+    this.expansionProgress = new Float32Array(0)
+    this.expansionVelocity = new Float32Array(0)
+    this.radialStagger = new Float32Array(0)
+    this.expansionLaunched = new Uint8Array(0)
+    this.interpolationAlpha = 1
     this.updateExpansionMeans()
     this.updateStateView()
   }
@@ -415,6 +502,7 @@ export class ConstellationSimulation {
     motionScale: number,
     impact: number,
     runtime: ConstellationSimulationUpdateInput,
+    simulationTimeSec: number,
   ): void {
     const settings = this.settings
     if (!settings) return
@@ -437,7 +525,7 @@ export class ConstellationSimulation {
     const turbulenceCoefficient = settings.turbulence * (0.15 + motionScale * 0.85)
     const orbitCoefficient = settings.orbitAmount * (0.3 + motionScale * 0.7)
     const impactCoefficient = impact * settings.burstStrength * 1.2
-    const time = this.simulationTimeSec
+    const time = simulationTimeSec
 
     for (const edge of this.graph.edges) {
       const aOffset = edge.a * 3
@@ -594,7 +682,6 @@ export class ConstellationSimulation {
       )
     }
 
-    this.simulationTimeSec += dt
     this.expansionElapsedSec += dt
     this.updateExpansionMeans()
   }
@@ -716,7 +803,7 @@ export class ConstellationSimulation {
     this.stateView.expansionElapsedSec = this.expansionElapsedSec
     this.stateView.lastBurstSequence = this.lastBurstSequence
     this.stateView.interpolationAlpha = this.interpolationAlpha
-    this.stateView.simulationTimeSec = this.simulationTimeSec
+    this.stateView.simulationTimeSec = this.clock.getSimulationTimeSec()
     this.stateView.structureRevision = this.structureRevision
     this.stateView.activeSeed = this.activeSeed
     this.stateView.randomState = this.randomState

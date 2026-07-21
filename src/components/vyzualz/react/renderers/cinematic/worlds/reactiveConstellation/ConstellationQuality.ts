@@ -1,5 +1,6 @@
 import type { CinematicQualityTier } from '../../../../CinematicWorldConfig'
 import type { ReactiveConstellationChoreographyProfile } from '../../../../CinematicWorldSettings'
+import { clampVisualSimulationResourceBudget } from '../../../../../../../features/visualSimulation'
 
 export interface ConstellationQualityBudget {
   nodeCountCap: number
@@ -82,7 +83,11 @@ export function constellationQualityBudget(
 
 export function clampConstellationNodeCount(requested: number, budget: ConstellationQualityBudget): number {
   const finite = Number.isFinite(requested) ? requested : 12
-  return Math.max(8, Math.min(budget.nodeCountCap, Math.floor(finite)))
+  const sharedCap = clampVisualSimulationResourceBudget(
+    { simulationPointCount: budget.nodeCountCap },
+    'high',
+  ).simulationPointCount
+  return Math.max(8, Math.min(budget.nodeCountCap, sharedCap, Math.floor(finite)))
 }
 
 export function clampConstellationEdgeCount(requested: number, budget: ConstellationQualityBudget): number {

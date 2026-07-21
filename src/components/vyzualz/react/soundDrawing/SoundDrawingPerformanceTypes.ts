@@ -129,6 +129,8 @@ export type SoundDrawingModulationSource =
   | 'phraseProgress'
   | 'vocalEnergy'
 
+export type SoundDrawingModulationCapability = keyof SharedPerformanceContext['capabilities']
+
 export type SoundDrawingModulationTarget =
   | 'opacity'
   | 'strokeWidth'
@@ -187,6 +189,7 @@ export interface SoundDrawingModulationRoute {
   release?: number
   sectionFilter?: readonly string[]
   minConfidence?: number
+  capability?: SoundDrawingModulationCapability
   clamp?: readonly [number, number]
   lockKey?: SoundDrawingPerformanceLockKey
 }
@@ -355,7 +358,6 @@ export interface SoundDrawingPerformanceShowDefinition {
 
 export interface SoundDrawingPerformanceTemporalState {
   identity: string
-  routeValues: Map<string, number>
 }
 
 export const DEFAULT_SOUND_DRAWING_PERFORMANCE_LOCKS: Record<SoundDrawingPerformanceLockKey, boolean> = {

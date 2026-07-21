@@ -4,6 +4,7 @@ import type { MusicIntelligenceFrame } from '../../../../features/musicIntellige
 import { DEFAULT_OSCILLATOR_SETTINGS, type OscillatorSettings, type ReactTrackSection } from '../ReactTypes'
 import type { ReactFrameContext } from '../renderers/reactRenderUtils'
 import { computeRuntimeSoundDrawingContourScale, sampleCoherentSoundDrawingNoise, shouldApplyGenericSoundDrawingPathDisplacement } from '../renderers/SoundDrawingRenderer'
+import { getSoundDrawingBehaviorRuntimeStats } from './SoundDrawingBehaviorRuntime'
 import { resolveSoundDrawingPerformanceFrame } from './SoundDrawingPerformanceEngine'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from './SoundDrawingPerformanceShows'
 import { computeCombinedContourBudget } from './SoundDrawingSourceResolver'
@@ -429,11 +430,11 @@ describe('first-class Sound Drawing text and SVG performance sources', () => {
   })
 
   it('retains true temporal attack and release state and resets it for track and source identities', () => {
-    const temporal: SoundDrawingPerformanceTemporalState = { identity: '', routeValues: new Map() }
+    const temporal: SoundDrawingPerformanceTemporalState = { identity: '' }
     const low = resolve(31, DEFAULT_OSCILLATOR_SETTINGS, { performanceSource: 'generatedVisual' }, { bass: 0 }, null, temporal)
     const attacked = resolve(31.016, DEFAULT_OSCILLATOR_SETTINGS, { performanceSource: 'generatedVisual' }, { bass: 1 }, low.context, temporal)
     const immediate = resolve(31.016, DEFAULT_OSCILLATOR_SETTINGS, { performanceSource: 'generatedVisual' }, { bass: 1 })
-    expect(temporal.routeValues.size).toBeGreaterThan(0)
+    expect(getSoundDrawingBehaviorRuntimeStats(temporal)?.routeStateCount).toBeGreaterThan(0)
     expect(attacked.layers[0].scale).toBeLessThan(immediate.layers[0].scale)
 
     const released = resolve(31.032, DEFAULT_OSCILLATOR_SETTINGS, { performanceSource: 'generatedVisual' }, { bass: 0 }, attacked.context, temporal)

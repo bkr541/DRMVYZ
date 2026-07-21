@@ -71,6 +71,8 @@ export interface SharedBehaviorEventSample {
   strength: number
   /** Stable identity for this exact musical event. Active samples without an identity are ignored. */
   identity: string | number | null
+  /** Optional authoritative onset time used when an event is first observed after its exact boundary. */
+  startedAtSec?: number
 }
 
 export type SharedBehaviorSynchronizationReason =
@@ -340,7 +342,7 @@ export class SharedBehaviorRoutingRuntime<
         bindingId: binding.id,
         target: binding.target,
         identity,
-        startedAtSec: nowSec,
+        startedAtSec: Math.min(nowSec, Math.max(0, finite(sample.startedAtSec, nowSec))),
         strength: clamp01(sample.strength),
         amount: finite(binding.amount, 1),
         envelope: { attack: attackSec, hold: holdSec, release: releaseSec, curve: binding.curve ?? 'easeOut' },
@@ -433,6 +435,10 @@ export class SharedBehaviorRoutingRuntime<
 
   private resolveSynchronizationReason(transport: SharedBehaviorTransportState | null): SharedBehaviorSynchronizationReason | null {
     if (!transport) return null
+    const repeatedIdentity = transport.synchronizationIdentity !== undefined
+      && this.lastSynchronizationIdentity !== undefined
+      && transport.synchronizationIdentity === this.lastSynchronizationIdentity
+    if (repeatedIdentity) return null
     if (transport.trackReplacementDetected) return 'trackReplacement'
     if (transport.seekDetected) return 'seek'
     if (transport.backwardSeekDetected) return 'backwardSeek'

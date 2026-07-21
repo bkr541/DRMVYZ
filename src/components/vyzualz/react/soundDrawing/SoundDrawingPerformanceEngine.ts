@@ -2,7 +2,6 @@ import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constan
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
 import {
   buildSharedPerformanceContext,
-  curveSharedPerformanceProgress,
   resolveSharedPerformanceEventEnvelope,
   resolveSharedPerformanceProgram,
   type SharedPerformanceContext,
@@ -12,6 +11,13 @@ import type { OscillatorSettings } from '../ReactTypes'
 import type { ReactFrameContext } from '../renderers/reactRenderUtils'
 import { SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID } from './SoundDrawingPerformanceShows'
 import { resolveSoundDrawingPerformanceSources } from './SoundDrawingSourceResolver'
+import {
+  applySoundDrawingBehaviorRouting,
+  synchronizeSoundDrawingBehaviorRuntime,
+  type SoundDrawingBehaviorEventDefinition,
+  type SoundDrawingBehaviorRouteDefinition,
+  type SoundDrawingBehaviorTarget,
+} from './SoundDrawingBehaviorRuntime'
 import {
   DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES,
@@ -310,44 +316,6 @@ function patchLayer(layer: SoundDrawingResolvedPerformanceLayer, patch: Partial<
   return normalizeLayer({ ...layer, ...patch, id: layer.id, role: layer.role, generator: patch.generator ?? layer.generator })
 }
 
-function eventSignal(context: SharedPerformanceContext, event: SoundDrawingEventKind): { ageBeats: number; strength: number } {
-  const beatPhase = clamp(context.beatPhase, 0, 0.999999)
-  const rhythm = context.intelligence.rhythm
-  const useGridFallback = !context.capabilities.rhythmEvents || context.confidence.rhythm < 0.25
-  switch (event) {
-    case 'beat':
-      return rhythm.beatHit || (useGridFallback && context.boundaries.beatBoundary)
-        ? { ageBeats: beatPhase, strength: Math.max(0.35, context.transient, context.energy * 0.5) }
-        : { ageBeats: Number.POSITIVE_INFINITY, strength: 0 }
-    case 'downbeat':
-      return rhythm.downbeatHit || (useGridFallback && context.downbeat && context.boundaries.beatBoundary)
-        ? { ageBeats: beatPhase, strength: Math.max(0.65, context.energy) }
-        : { ageBeats: Number.POSITIVE_INFINITY, strength: 0 }
-    case 'kick': {
-      const fallback = useGridFallback && context.beatWithinBar % 2 === 0
-        ? Math.max(0.25, context.bass * 0.8)
-        : 0
-      return context.kick || fallback > 0
-        ? { ageBeats: beatPhase, strength: Math.max(context.kickStrength, fallback) }
-        : { ageBeats: Number.POSITIVE_INFINITY, strength: 0 }
-    }
-    case 'snare': {
-      const fallback = useGridFallback && context.beatWithinBar % 2 === 1
-        ? Math.max(0.22, context.mid * 0.65, context.spectralFlux * 0.5)
-        : 0
-      return context.snare || fallback > 0
-        ? { ageBeats: beatPhase, strength: Math.max(context.snareStrength, fallback) }
-        : { ageBeats: Number.POSITIVE_INFINITY, strength: 0 }
-    }
-    case 'hat': {
-      if (!context.hat && !useGridFallback) return { ageBeats: Number.POSITIVE_INFINITY, strength: 0 }
-      const subdivision = context.absoluteBeat * 4
-      const ageBeats = (subdivision - Math.floor(subdivision)) / 4
-      return { ageBeats, strength: Math.max(context.hatStrength, context.high * 0.65) }
-    }
-  }
-}
-
 export function soundDrawingTimingUnitToBeats(unit: SoundDrawingPerformanceEnvelope['attack'], timeSignature = 4): number {
   switch (unit) {
     case '1/32beat': return 1 / 32
@@ -403,30 +371,25 @@ function setTargetValue(
   return patchLayer(layer, { [target]: value })
 }
 
-function applyPulse(
+function applyBehaviorTargetDelta(
   state: MutablePerformanceState,
-  role: SoundDrawingResolvedPerformanceLayer['role'],
-  event: SoundDrawingEventKind,
-  target: SoundDrawingEventBinding['target'],
-  amount: number,
-  envelope: SoundDrawingPerformanceEnvelope,
-  context: SharedPerformanceContext,
+  target: SoundDrawingBehaviorTarget,
+  delta: number,
   settings: SoundDrawingPerformanceSettings,
 ): void {
-  const layer = findLayer(state, role)
+  if (target.lockKey && settings.locks[target.lockKey]) return
+  const layer = state.layers.find(candidate => candidate.id === target.layerId)
   if (!layer) return
-  const signal = eventSignal(context, event)
-  if (!Number.isFinite(signal.ageBeats) || signal.strength <= 0) return
-  const envelopeValue = resolveSoundDrawingMusicalEnvelope(signal.ageBeats, envelope, context.timeSignature)
-  const value = targetValue(layer, target) + amount * envelopeValue * signal.strength * settings.reactionIntensity
+  const current = targetValue(layer, target.target)
+  const [minimum, maximum] = target.clamp ?? [-Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]
   const index = state.layers.indexOf(layer)
-  state.layers[index] = setTargetValue(layer, target, value)
+  state.layers[index] = setTargetValue(layer, target.target, clamp(current + delta * settings.reactionIntensity, minimum, maximum))
 }
 
 function applyAction(
   state: MutablePerformanceState,
   action: SoundDrawingPerformanceAction,
-  context: SharedPerformanceContext,
+  _context: SharedPerformanceContext,
   settings: SoundDrawingPerformanceSettings,
 ): void {
   const lockKey = actionLockKey(action)
@@ -452,7 +415,8 @@ function applyAction(
       state.layers = state.layers.filter(layer => layer.role !== action.role)
       break
     case 'pulse':
-      applyPulse(state, action.role, action.event, action.target, action.amount, action.envelope, context, settings)
+      // Pulse actions are resolved by the shared behavior-routing runtime after
+      // authored scene/cadence state and continuous modulation are established.
       break
     case 'global':
       state.global = { ...state.global, ...action.patch }
@@ -460,75 +424,47 @@ function applyAction(
   }
 }
 
-function modulationSourceValue(
-  context: SharedPerformanceContext,
-  route: SoundDrawingModulationRoute,
-  frame: ReactFrameContext,
-  temporalState?: SoundDrawingPerformanceTemporalState,
-  stateIdentity?: string,
-): number {
-  const normalized = clamp01(typeof context[route.source] === 'number' ? context[route.source] : 0)
-  const target = curveSharedPerformanceProgress(normalized, route.curve ?? 'linear')
-  let shaped = target
-  const stateKey = stateIdentity ?? `${route.target}:${route.id}`
-  if (temporalState && ((route.smoothing ?? 0) > 0 || (route.attack ?? 0) > 0 || (route.release ?? 0) > 0)) {
-    const previous = temporalState.routeValues.get(stateKey) ?? target
-    const rising = target > previous
-    const seconds = Math.max(0.001, rising ? finite(route.attack, route.smoothing ?? 0.08) : finite(route.release, route.smoothing ?? 0.12))
-    const dt = clamp(frame.deltaTimeSec ?? 1 / 60, 1 / 240, 0.25)
-    const alpha = seconds <= 0 ? 1 : 1 - Math.exp(-dt / seconds)
-    shaped = previous + (target - previous) * alpha
-    temporalState.routeValues.set(stateKey, shaped)
-  }
-  return route.min + (route.max - route.min) * shaped * finite(route.amount, 1)
-}
-
-function applyModulationRoute(
-  layer: SoundDrawingResolvedPerformanceLayer,
-  route: SoundDrawingModulationRoute,
-  context: SharedPerformanceContext,
-  settings: SoundDrawingPerformanceSettings,
-  frame: ReactFrameContext,
-  temporalState?: SoundDrawingPerformanceTemporalState,
-): SoundDrawingResolvedPerformanceLayer {
-  if (route.lockKey && settings.locks[route.lockKey]) return layer
-  if (route.sectionFilter?.length && !route.sectionFilter.includes(context.macroSectionType ?? context.sectionType ?? 'unknown')) return layer
-  if (route.minConfidence != null && context.confidence.overall < route.minConfidence) return layer
-  const value = modulationSourceValue(context, route, frame, temporalState, `${layer.id}:${route.id}`)
-  const current = targetValue(layer, route.target)
-  const unclamped = current + value * settings.reactionIntensity
-  const [min, max] = route.clamp ?? [-Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]
-  return setTargetValue(layer, route.target, clamp(unclamped, min, max))
-}
-
-function applyContinuousModulation(
+function collectBehaviorDefinitions(
   state: MutablePerformanceState,
-  context: SharedPerformanceContext,
-  settings: SoundDrawingPerformanceSettings,
-  frame: ReactFrameContext,
-  temporalState?: SoundDrawingPerformanceTemporalState,
-): void {
-  state.layers = state.layers.map(layer => {
-    let next = layer
-    for (const route of layer.modulationRoutes) next = applyModulationRoute(next, route, context, settings, frame, temporalState)
-    return next
-  })
-}
+  resolution: SharedPerformanceProgramResolution<SoundDrawingPerformanceAction>,
+): { routes: SoundDrawingBehaviorRouteDefinition[]; events: SoundDrawingBehaviorEventDefinition[] } {
+  const routes: SoundDrawingBehaviorRouteDefinition[] = []
+  const events: SoundDrawingBehaviorEventDefinition[] = []
 
-function applyLayerEventBindings(
-  state: MutablePerformanceState,
-  context: SharedPerformanceContext,
-  settings: SoundDrawingPerformanceSettings,
-): void {
-  let applied = 0
-  for (const layer of state.layers) {
-    for (const binding of layer.eventBindings) {
-      if (applied >= MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES) return
-      if (binding.lockKey && settings.locks[binding.lockKey]) continue
-      applyPulse(state, layer.role, binding.event, binding.target, binding.amount, binding.envelope, context, settings)
-      applied += 1
+  // Program event actions previously resolved before per-layer bindings, so
+  // retain that insertion and budget order in the shared runtime.
+  const eventActions = resolution.scene?.eventActions ?? {}
+  for (const [event, actions] of Object.entries(eventActions)) {
+    for (let index = 0; index < (actions?.length ?? 0); index += 1) {
+      const action = actions?.[index]
+      if (!action || action.type !== 'pulse') continue
+      const layer = findLayer(state, action.role)
+      if (!layer) continue
+      events.push({
+        id: `${resolution.scene?.id ?? 'none'}:program:${event}:${index}:${action.role}:${action.target}`,
+        layerId: layer.id,
+        binding: {
+          id: `${resolution.scene?.id ?? 'none'}:${event}:${index}`,
+          event: action.event,
+          target: action.target,
+          amount: action.amount,
+          envelope: action.envelope,
+          lockKey: action.lockKey,
+        },
+      })
     }
   }
+
+  let layerBindingCount = 0
+  for (const layer of state.layers) {
+    for (const route of layer.modulationRoutes) routes.push({ layerId: layer.id, route })
+    for (const binding of layer.eventBindings) {
+      if (layerBindingCount >= MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES) break
+      events.push({ id: `${layer.id}:${binding.id}`, layerId: layer.id, binding })
+      layerBindingCount += 1
+    }
+  }
+  return { routes, events }
 }
 
 function manualGenerator(oscillator: OscillatorSettings): SoundDrawingGeneratorFamily {
@@ -676,19 +612,28 @@ function resolveState(
   context: SharedPerformanceContext,
   settings: SoundDrawingPerformanceSettings,
   frame: ReactFrameContext,
-  temporalState?: SoundDrawingPerformanceTemporalState,
+  temporalState: SoundDrawingPerformanceTemporalState,
 ): MutablePerformanceState {
   const state: MutablePerformanceState = { layers: [], global: { ...DEFAULT_GLOBAL } }
-  // Establish the authored scene/cadence first, then continuous routes, then
-  // all transient event envelopes. This preserves the documented precedence.
+  // Establish authored scene/cadence first. The shared routing adapter then
+  // applies continuous modulation and persistent transient envelopes in that
+  // exact order before user intensity, locks, and safety clamps.
   for (const intent of resolution.intents) {
     if (intent.action.type !== 'pulse') applyAction(state, intent.action, context, settings)
   }
-  applyContinuousModulation(state, context, settings, frame, temporalState)
-  for (const intent of resolution.intents) {
-    if (intent.action.type === 'pulse') applyAction(state, intent.action, context, settings)
-  }
-  applyLayerEventBindings(state, context, settings)
+  const definitions = collectBehaviorDefinitions(state, resolution)
+  // State-aware sinks preserve Sound Drawing target semantics while the
+  // shared runtime owns only smoothing and transient timing state.
+  applySoundDrawingBehaviorRouting({
+    temporalState,
+    context,
+    frame,
+    settings,
+    routes: definitions.routes,
+    events: definitions.events,
+    applyContinuous: (target, value) => applyBehaviorTargetDelta(state, target, value, settings),
+    applyEvent: (target, value) => applyBehaviorTargetDelta(state, target, value, settings),
+  })
   applyGeneratorPreference(state, settings)
   applyUserIntensityControls(state, settings)
   return state
@@ -719,16 +664,12 @@ export function resolveSoundDrawingPerformanceFrame(
     input.manualOscillator.textFontId ?? 'canvas-font',
     input.manualOscillator.text,
   ].join(':')
-  if (input.temporalState && (
-    input.temporalState.identity !== temporalIdentity
-    || context.seekDetected
-    || context.loopWrapDetected
-    || context.trackReplacementDetected
-  )) {
-    input.temporalState.identity = temporalIdentity
-    input.temporalState.routeValues.clear()
+  const temporalState = input.temporalState ?? { identity: temporalIdentity }
+  if (temporalState.identity !== temporalIdentity) {
+    if (!context.trackReplacementDetected) synchronizeSoundDrawingBehaviorRuntime(temporalState, 'sourceReplacement')
+    temporalState.identity = temporalIdentity
   }
-  const state = resolveState(resolution, context, settings, input.frame, input.temporalState)
+  const state = resolveState(resolution, context, settings, input.frame, temporalState)
   const sourceResolution = resolveSoundDrawingPerformanceSources({
     showId: show.id,
     layers: state.layers,

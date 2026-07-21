@@ -571,4 +571,37 @@ describe('ConstellationSimulation', () => {
     expect(after.expansionVelocity).toBe(references.expansionVelocity)
     expect(after.radialStagger).toBe(references.radialStagger)
   })
+  it('synchronizes seek and loop wrap without stepping or sharing renderer state', () => {
+    const first = configured({ driftAmount: 0.6, turbulence: 0.4 })
+    const second = configured({ driftAmount: 0.6, turbulence: 0.4 })
+    runFrames(first, 20, 1 / 60, 0.2)
+    const held = Array.from(first.getState().positions)
+    first.seek(2, 'seek-a')
+    expect(Array.from(first.getState().positions)).toEqual(held)
+    expect(Array.from(first.getState().previousPositions)).toEqual(held)
+    expect(first.getState().simulationTimeSec).toBe(2)
+    first.loopWrap(0, 'loop-a')
+    expect(first.getState().simulationTimeSec).toBe(0)
+    expect(Array.from(second.getState().positions)).not.toEqual(held)
+    expect(second.getState().simulationTimeSec).toBe(0)
+  })
+
+  it('resumes after pause without consuming suspension-sized catch-up time', () => {
+    const simulation = configured()
+    runFrames(simulation, 10, 1 / 60)
+    const beforePause = simulation.getState().simulationTimeSec
+    simulation.update({ deltaTimeSec: 30, isPlaying: false })
+    expect(simulation.update({ deltaTimeSec: CONSTELLATION_FIXED_TIMESTEP_SEC, isPlaying: true })).toBe(1)
+    expect(simulation.getState().simulationTimeSec - beforePause).toBeCloseTo(CONSTELLATION_FIXED_TIMESTEP_SEC, 8)
+  })
+
+  it('releases simulation-owned arrays on disposal', () => {
+    const simulation = configured()
+    simulation.dispose()
+    const state = simulation.getState()
+    expect(state.graph.nodes).toHaveLength(0)
+    expect(state.positions).toHaveLength(0)
+    expect(state.velocities).toHaveLength(0)
+  })
+
 })

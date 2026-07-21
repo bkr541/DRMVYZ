@@ -219,6 +219,21 @@ describe('Sound Drawing authored Performance Engine', () => {
     })).toBeNull()
   })
 
+  it('uses the fallback Music Intelligence frame without reading the AudioFeatureBus', () => {
+    const frame = frameAt(31)
+    frame.musicIntelligence = null
+    const context = buildSoundDrawingPerformanceContext(frame)
+    expect(context.trackIdentity).toBe('track-a')
+    expect(context.audioTimeSec).toBe(31)
+    expect(context.bass).toBeGreaterThanOrEqual(0)
+    const result = resolveSoundDrawingPerformanceFrame({
+      frame,
+      settings: settings(),
+      manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
+    })
+    expect(result).not.toBeNull()
+  })
+
   it('separates kick, snare, hat, and downbeat responsibilities by layer role', () => {
     const baseline = resolved(29.01)
     const kick = resolved(29.01, { events: ['kick'] })

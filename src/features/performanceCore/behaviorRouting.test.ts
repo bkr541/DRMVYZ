@@ -10,7 +10,7 @@ import {
 interface TestContext {
   timeSec: number
   continuous: Record<string, number>
-  events: Record<string, { active: boolean; strength: number; identity: string | number | null }>
+  events: Record<string, { active: boolean; strength: number; identity: string | number | null; startedAtSec?: number }>
   section: string | null
   capabilities: Record<string, boolean>
   confidence: Record<string, number>
@@ -231,4 +231,26 @@ describe('SharedBehaviorRoutingRuntime', () => {
     expect(continuous.get('motion')).toBe(0.5)
     expect(runtime.getStats().synchronizationCount).toBe(2)
   })
+  it('uses an authoritative event onset when the boundary is observed late', () => {
+    const { runtime, events, sink } = createHarness()
+    runtime.configure([], [binding({ attackSec: 0.1, holdSec: 0.1, releaseSec: 0.2 })])
+    runtime.update({ context: context({
+      timeSec: 0.15,
+      events: { kick: { active: true, strength: 1, identity: 'late-kick', startedAtSec: 0 } },
+    }), deltaSec: 0.15 }, sink)
+    expect(events).toHaveLength(1)
+    expect(events[0].value).toBeCloseTo(1)
+  })
+
+  it('suppresses repeated synchronization flags with the same identity', () => {
+    const { runtime, sink } = createHarness()
+    runtime.configure([route()], [])
+    const repeated = context({
+      transport: { loopWrapDetected: true, synchronizationIdentity: 'loop-a' },
+    })
+    runtime.update({ context: repeated, deltaSec: 0 }, sink)
+    runtime.update({ context: repeated, deltaSec: 0 }, sink)
+    expect(runtime.getStats().synchronizationCount).toBe(1)
+  })
+
 })

@@ -674,8 +674,12 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
 
   private applyPendingReset(): void {
     if (!this.pendingReset) return
+    const reason = this.pendingReset
     // Lifecycle resets must be observable immediately even while transport is
     // paused. Deferring here leaves stale topology/trails visible until play.
+    if (reason === 'trackReplacement') this.simulation.replaceTrack(this.lastTrackIdentity)
+    else if (reason === 'seek') this.simulation.seek()
+    else if (reason === 'timingDiscontinuity') this.simulation.synchronizeTiming()
     this.simulation.resetExpansion()
     this.resetBurstTracking()
     this.trails.reset()
@@ -761,6 +765,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.curtainInstanceCount = 0
     this.diagnostic = null
     this.performanceActions.reset()
+    this.simulation.dispose()
     this.trails.dispose()
   }
 

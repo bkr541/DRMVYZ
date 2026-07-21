@@ -88,3 +88,11 @@ Keep these outside the shared module:
 - engine-specific persistence
 
 Simulation state is volatile renderer state. It must not be persisted and must not be updated per frame through Zustand. A renderer owns exactly the runtime instances and buffers it creates, and it disposes them when its surface, preview, thumbnail, context, or engine lifecycle ends.
+
+## Current engine-domain adoption
+
+Reactive Constellation keeps its graph topology, prominence rules, forces, choreography, quality tiers, and rendering local. Its simulation now uses the shared 1/120 fixed-step clock, lifecycle synchronization, structural signature, and generic point-budget clamp without changing its authored defaults or persisted settings.
+
+`visualSimulation/livingRibbon/` is a renderer-independent physics domain. It owns bounded typed arrays for positions, previous positions, velocities, forces, anchors, stable phases, widths, heat, and speed. It accepts normalized physical controls and deterministic physical impulses only. It deliberately has no knowledge of Music Intelligence, Shared Performance Context, Sound Drawing route names, sections, phrases, or musical event names. A later Sound Drawing renderer adapter may translate authored behavior into these controls and impulses.
+
+Living Ribbon structural changes rebuild deterministically through the lifecycle signature. Ordinary control edits update parameters without replacing arrays. Pause, resume, seek, backward seek, timing discontinuity, loop wrap, track replacement, warm start, and disposal all synchronize through the shared lifecycle and fixed-step clock. No Living Ribbon renderer, UI, React state, Zustand arrays, WebGL code, or persisted simulation state is introduced by this domain.
