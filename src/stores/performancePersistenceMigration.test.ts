@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_CANVAS_ORCHESTRATION_SETTINGS } from '../components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes'
 import {
+  mergeReactStoreState,
   migrateReactStore,
   normalizeCanvasOrchestrationSettings,
   normalizeSoundDrawingPerformanceSettings,
+  reactStorePartialize,
+  useReactStore,
 } from './reactStore'
 
 describe('performance settings persistence migration', () => {
@@ -52,6 +55,7 @@ describe('performance settings persistence migration', () => {
     expect(normalized.locks.transform).toBe(true)
     expect(normalized.locks.sourceSelection).toBe(true)
     expect(normalized.locks.contourReactivity).toBe(true)
+    expect(normalized.livingRibbon).toEqual(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.livingRibbon)
     expect(normalized.locks).not.toHaveProperty('unknown')
     expect(normalized).not.toHaveProperty('runtimeFrame')
     expect(normalized).not.toHaveProperty('activeEnvelopes')
@@ -104,6 +108,102 @@ describe('performance settings persistence migration', () => {
     expect(legacy).toMatchObject({
       selectedShowId: 'harmonicRibbonReactor',
       generatorPreference: 'harmonicRibbon',
+    })
+  })
+
+
+  it('normalizes missing, invalid, and out-of-range Living Ribbon settings safely', () => {
+    const missing = normalizeSoundDrawingPerformanceSettings({
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+      livingRibbon: undefined,
+    })
+    expect(missing.livingRibbon).toEqual(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.livingRibbon)
+
+    const normalized = normalizeSoundDrawingPerformanceSettings({
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+      livingRibbon: {
+        quality: 'cinema',
+        pointDensity: 4,
+        tension: -2,
+        turbulence: Number.NaN,
+        bodyWidth: Number.POSITIVE_INFINITY,
+        trailPersistence: 0.31,
+        bloom: 7,
+        sparkAmount: -1,
+        centerAttraction: 0.44,
+        audioReactionDepth: Number.NaN,
+      },
+      locks: { ribbonStructure: true, ribbonMovement: true, ribbonReaction: true, obsoleteRibbonLock: true },
+    })
+    expect(normalized.livingRibbon).toEqual({
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.livingRibbon,
+      pointDensity: 1,
+      tension: 0,
+      trailPersistence: 0.31,
+      bloom: 1,
+      sparkAmount: 0,
+      centerAttraction: 0.44,
+    })
+    expect(normalized.locks.ribbonStructure).toBe(true)
+    expect(normalized.locks.ribbonMovement).toBe(true)
+    expect(normalized.locks.ribbonReaction).toBe(true)
+    expect(normalized.locks).not.toHaveProperty('obsoleteRibbonLock')
+  })
+
+  it('migrates old projects and round-trips nested Living Ribbon settings through project persistence', () => {
+    const { livingRibbon: _legacyMissingRibbon, ...legacySettings } = DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
+    const migrated = migrateReactStore({
+      soundDrawingPerformanceSettings: {
+        ...legacySettings,
+        selectedShowId: 'livingRibbonSystem',
+        generatorPreference: 'livingRibbon',
+        quality: 'high',
+      },
+    }, 52)
+    const migratedSettings = migrated.soundDrawingPerformanceSettings as typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
+    expect(migratedSettings.livingRibbon.quality).toBe('high')
+    expect(migratedSettings.livingRibbon.pointDensity).toBe(
+      DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.livingRibbon.pointDensity,
+    )
+
+    const current = useReactStore.getState()
+    const custom = normalizeSoundDrawingPerformanceSettings({
+      ...current.soundDrawingPerformanceSettings,
+      selectedShowId: 'livingRibbonSystem',
+      livingRibbon: {
+        ...current.soundDrawingPerformanceSettings.livingRibbon,
+        quality: 'low',
+        pointDensity: 0.23,
+        tension: 0.84,
+        audioReactionDepth: 0.46,
+      },
+      locks: { ...current.soundDrawingPerformanceSettings.locks, ribbonMovement: true },
+    })
+    const persisted = reactStorePartialize({ ...current, soundDrawingPerformanceSettings: custom })
+    expect(persisted).not.toHaveProperty('soundDrawingRibbonResetRevision')
+    const merged = mergeReactStoreState(persisted, current)
+    expect(merged.soundDrawingPerformanceSettings).toEqual(custom)
+  })
+
+  it('resets the live ribbon runtime through a transient command while preserving user settings', () => {
+    const before = useReactStore.getState()
+    const custom = normalizeSoundDrawingPerformanceSettings({
+      ...before.soundDrawingPerformanceSettings,
+      selectedShowId: 'livingRibbonSystem',
+      livingRibbon: {
+        ...before.soundDrawingPerformanceSettings.livingRibbon,
+        bodyWidth: 0.27,
+        trailPersistence: 0.88,
+      },
+    })
+    useReactStore.setState({ soundDrawingPerformanceSettings: custom })
+    const revision = useReactStore.getState().soundDrawingRibbonResetRevision
+    useReactStore.getState().requestSoundDrawingRibbonReset()
+    expect(useReactStore.getState().soundDrawingRibbonResetRevision).toBe(revision + 1)
+    expect(useReactStore.getState().soundDrawingPerformanceSettings).toEqual(custom)
+    useReactStore.setState({
+      soundDrawingPerformanceSettings: before.soundDrawingPerformanceSettings,
+      soundDrawingRibbonResetRevision: before.soundDrawingRibbonResetRevision,
     })
   })
 

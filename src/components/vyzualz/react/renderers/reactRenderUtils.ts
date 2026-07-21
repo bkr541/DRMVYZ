@@ -1,9 +1,20 @@
 import type { VzFrameContext } from '../../effects/types'
-import type { ReactTrackSection, ReactSectionType, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, LaserDmxSettings } from '../ReactTypes'
+import type {
+  ReactTrackSection,
+  ReactSectionType,
+  OscillatorSettings,
+  OscillatorFontAsset,
+  OscillatorGlyphAsset,
+  OscillatorGlyphPoint,
+  LaserDmxSettings,
+} from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { ReactPerformanceActionEvent } from '../ReactPerformanceActions'
-import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS, type SoundDrawingPerformanceSettings } from '../soundDrawing/SoundDrawingPerformanceTypes'
+import {
+  DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+  type SoundDrawingPerformanceSettings,
+} from '../soundDrawing/SoundDrawingPerformanceTypes'
 import type { VisualSimulationRuntimeMode } from '../../../../features/visualSimulation'
 import { resolveSectionAtTime as resolveCanonicalSectionAtTime } from '../../../../features/trackIntelligence/authoritativeTimeline'
 
@@ -96,6 +107,8 @@ export interface ReactRenderParams {
   oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
   /** Incremented by the store when source/font/artwork changes should clear the persistent trail canvas. */
   soundDrawingTrailResetRevision?: number
+  /** Incremented for a renderer-owned deterministic Living Ribbon reset. */
+  soundDrawingRibbonResetRevision?: number
   /** Persisted authored Sound Drawing performance controls. */
   soundDrawingPerformanceSettings: SoundDrawingPerformanceSettings
   /** Volatile renderer ownership mode; thumbnails and previews receive isolated budgets. */
@@ -124,6 +137,7 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
   oscillatorGlyphPointCache: {},
   oscillatorTextPointCache:  {},
   soundDrawingTrailResetRevision: 0,
+  soundDrawingRibbonResetRevision: 0,
   soundDrawingPerformanceSettings: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   soundDrawingRuntimeMode: 'live',
 }
@@ -132,7 +146,9 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
 
 export function reactFrameFromVz(vz: VzFrameContext): ReactFrameContext {
   return {
-    W: vz.W, H: vz.H, dpr: vz.dpr,
+    W: vz.W,
+    H: vz.H,
+    dpr: vz.dpr,
     t:         vz.time,
     elapsedTimeSec: vz.time / 60,
     deltaTimeSec:   1 / 60,
@@ -259,13 +275,20 @@ export function resolveAuthoritativeFrameSection({
 
 export function sectionIntensityMultiplier(type: ReactSectionType | null): number {
   switch (type) {
-    case 'intro':     return 0.35
-    case 'verse':     return 0.60
-    case 'build':     return 0.78
-    case 'drop':      return 1.00
-    case 'breakdown': return 0.50
-    case 'outro':     return 0.28
-    default:          return 0.65
+    case 'intro':
+      return 0.35
+    case 'verse':
+      return 0.6
+    case 'build':
+      return 0.78
+    case 'drop':
+      return 1.0
+    case 'breakdown':
+      return 0.5
+    case 'outro':
+      return 0.28
+    default:
+      return 0.65
   }
 }
 
@@ -290,8 +313,12 @@ export function getAudioEnergy(audio: ReactFrameContext['audio']): number {
 
 export function drawGlowCircle(
   ctx: CanvasRenderingContext2D,
-  x: number, y: number, r: number,
-  color: string, glowRadius: number, alpha: number,
+  x: number,
+  y: number,
+  r: number,
+  color: string,
+  glowRadius: number,
+  alpha: number,
 ): void {
   if (r <= 0 || alpha <= 0) return
   ctx.save()
@@ -335,10 +362,17 @@ export function drawAdditiveLine(
 export function getOrCreateOffscreen(
   map: WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>,
   ctx: CanvasRenderingContext2D,
-  W: number, H: number,
+  W: number,
+  H: number,
 ): HTMLCanvasElement {
   let c = map.get(ctx)
-  if (!c) { c = document.createElement('canvas'); map.set(ctx, c) }
-  if (c.width !== W || c.height !== H) { c.width = W; c.height = H }
+  if (!c) {
+    c = document.createElement('canvas')
+    map.set(ctx, c)
+  }
+  if (c.width !== W || c.height !== H) {
+    c.width = W
+    c.height = H
+  }
   return c
 }

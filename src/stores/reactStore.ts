@@ -106,11 +106,13 @@ import {
 import { normalizeCanvasMediaRoleMap } from '../components/vyzualz/react/canvasPerformance/CanvasMediaRoles'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
 import {
+  DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS,
   DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   SOUND_DRAWING_GENERATOR_FAMILIES,
   type SoundDrawingGeneratorPreference,
   type SoundDrawingPerformanceLockKey,
   type SoundDrawingPerformanceSettings,
+  type SoundDrawingPerformanceSettingsPatch,
   type SoundDrawingPerformanceShowId,
 } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes'
 import {
@@ -291,45 +293,146 @@ const SOUND_DRAWING_SOURCE_POLICIES = new Set(['primaryMotif', 'supportingLayer'
 
 export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundDrawingPerformanceSettings {
   const source = isRecord(value) ? value : {}
-  const selectedShowId = typeof source.selectedShowId === 'string'
-    && SOUND_DRAWING_PERFORMANCE_SHOW_IDS.has(source.selectedShowId as SoundDrawingPerformanceShowId)
-    ? source.selectedShowId as SoundDrawingPerformanceShowId
+  const selectedShowId =
+    typeof source.selectedShowId === 'string' &&
+    SOUND_DRAWING_PERFORMANCE_SHOW_IDS.has(source.selectedShowId as SoundDrawingPerformanceShowId)
+      ? (source.selectedShowId as SoundDrawingPerformanceShowId)
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId
-  const generatorPreference = typeof source.generatorPreference === 'string'
-    && SOUND_DRAWING_GENERATOR_PREFERENCES.has(source.generatorPreference as SoundDrawingGeneratorPreference)
-    ? source.generatorPreference as SoundDrawingGeneratorPreference
+  const generatorPreference =
+    typeof source.generatorPreference === 'string' &&
+    SOUND_DRAWING_GENERATOR_PREFERENCES.has(source.generatorPreference as SoundDrawingGeneratorPreference)
+      ? (source.generatorPreference as SoundDrawingGeneratorPreference)
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference
+  const ribbonSource = isRecord(source.livingRibbon) ? source.livingRibbon : {}
+  const legacyQuality =
+    typeof source.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(source.quality)
+      ? (source.quality as SoundDrawingPerformanceSettings['quality'])
+      : DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.quality
+  const livingRibbon = {
+    quality:
+      typeof ribbonSource.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(ribbonSource.quality)
+        ? (ribbonSource.quality as SoundDrawingPerformanceSettings['livingRibbon']['quality'])
+        : legacyQuality,
+    pointDensity: Math.max(
+      0,
+      Math.min(1, finiteNumber(ribbonSource.pointDensity, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.pointDensity)),
+    ),
+    tension: Math.max(
+      0,
+      Math.min(1, finiteNumber(ribbonSource.tension, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.tension)),
+    ),
+    turbulence: Math.max(
+      0,
+      Math.min(1, finiteNumber(ribbonSource.turbulence, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.turbulence)),
+    ),
+    bodyWidth: Math.max(
+      0,
+      Math.min(1, finiteNumber(ribbonSource.bodyWidth, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.bodyWidth)),
+    ),
+    trailPersistence: Math.max(
+      0,
+      Math.min(
+        1,
+        finiteNumber(ribbonSource.trailPersistence, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.trailPersistence),
+      ),
+    ),
+    bloom: Math.max(
+      0,
+      Math.min(1, finiteNumber(ribbonSource.bloom, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.bloom)),
+    ),
+    sparkAmount: Math.max(
+      0,
+      Math.min(1, finiteNumber(ribbonSource.sparkAmount, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.sparkAmount)),
+    ),
+    centerAttraction: Math.max(
+      0,
+      Math.min(
+        1,
+        finiteNumber(ribbonSource.centerAttraction, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.centerAttraction),
+      ),
+    ),
+    audioReactionDepth: Math.max(
+      0,
+      Math.min(
+        1,
+        finiteNumber(ribbonSource.audioReactionDepth, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.audioReactionDepth),
+      ),
+    ),
+  }
   const locksSource = isRecord(source.locks) ? source.locks : {}
   const locks = Object.fromEntries(
-    (Object.keys(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks) as SoundDrawingPerformanceLockKey[])
-      .map(key => [key, locksSource[key] === true]),
+    (Object.keys(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks) as SoundDrawingPerformanceLockKey[]).map((key) => [
+      key,
+      locksSource[key] === true,
+    ]),
   ) as Record<SoundDrawingPerformanceLockKey, boolean>
   return {
     selectedShowId,
     autoPerformance: source.autoPerformance === true,
-    complexity: Math.max(0, Math.min(1, finiteNumber(source.complexity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.complexity))),
-    motionIntensity: Math.max(0, Math.min(1, finiteNumber(source.motionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.motionIntensity))),
-    reactionIntensity: Math.max(0, Math.min(1, finiteNumber(source.reactionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.reactionIntensity))),
-    trailIntensity: Math.max(0, Math.min(1, finiteNumber(source.trailIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailIntensity))),
+    complexity: Math.max(
+      0,
+      Math.min(1, finiteNumber(source.complexity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.complexity)),
+    ),
+    motionIntensity: Math.max(
+      0,
+      Math.min(1, finiteNumber(source.motionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.motionIntensity)),
+    ),
+    reactionIntensity: Math.max(
+      0,
+      Math.min(1, finiteNumber(source.reactionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.reactionIntensity)),
+    ),
+    trailIntensity: Math.max(
+      0,
+      Math.min(1, finiteNumber(source.trailIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailIntensity)),
+    ),
     generatorPreference,
-    quality: typeof source.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(source.quality)
-      ? source.quality as SoundDrawingPerformanceSettings['quality']
+    quality:
+      typeof source.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(source.quality)
+        ? (source.quality as SoundDrawingPerformanceSettings['quality'])
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
-    performanceSource: typeof source.performanceSource === 'string' && SOUND_DRAWING_PERFORMANCE_SOURCES.has(source.performanceSource)
-      ? source.performanceSource as SoundDrawingPerformanceSettings['performanceSource']
+    livingRibbon,
+    performanceSource:
+      typeof source.performanceSource === 'string' && SOUND_DRAWING_PERFORMANCE_SOURCES.has(source.performanceSource)
+        ? (source.performanceSource as SoundDrawingPerformanceSettings['performanceSource'])
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource,
-    sourceTreatment: typeof source.sourceTreatment === 'string' && SOUND_DRAWING_SOURCE_TREATMENTS.has(source.sourceTreatment)
-      ? source.sourceTreatment as SoundDrawingPerformanceSettings['sourceTreatment']
+    sourceTreatment:
+      typeof source.sourceTreatment === 'string' && SOUND_DRAWING_SOURCE_TREATMENTS.has(source.sourceTreatment)
+        ? (source.sourceTreatment as SoundDrawingPerformanceSettings['sourceTreatment'])
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment,
-    useSourceAs: typeof source.useSourceAs === 'string' && SOUND_DRAWING_SOURCE_POLICIES.has(source.useSourceAs)
-      ? source.useSourceAs as SoundDrawingPerformanceSettings['useSourceAs']
+    useSourceAs:
+      typeof source.useSourceAs === 'string' && SOUND_DRAWING_SOURCE_POLICIES.has(source.useSourceAs)
+        ? (source.useSourceAs as SoundDrawingPerformanceSettings['useSourceAs'])
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs,
     preserveIdentity: source.preserveIdentity !== false,
-    contourReactivity: Math.max(0, Math.min(1, finiteNumber(source.contourReactivity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity))),
-    wholeObjectMotion: Math.max(0, Math.min(1, finiteNumber(source.wholeObjectMotion, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion))),
-    echoStrength: Math.max(0, Math.min(1, finiteNumber(source.echoStrength, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength))),
-    sourceTrailStrength: Math.max(0, Math.min(1, finiteNumber(source.sourceTrailStrength, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength))),
-    supportingVisualReactivity: Math.max(0, Math.min(1, finiteNumber(source.supportingVisualReactivity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity))),
+    contourReactivity: Math.max(
+      0,
+      Math.min(1, finiteNumber(source.contourReactivity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity)),
+    ),
+    wholeObjectMotion: Math.max(
+      0,
+      Math.min(1, finiteNumber(source.wholeObjectMotion, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion)),
+    ),
+    echoStrength: Math.max(
+      0,
+      Math.min(1, finiteNumber(source.echoStrength, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength)),
+    ),
+    sourceTrailStrength: Math.max(
+      0,
+      Math.min(
+        1,
+        finiteNumber(source.sourceTrailStrength, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength),
+      ),
+    ),
+    supportingVisualReactivity: Math.max(
+      0,
+      Math.min(
+        1,
+        finiteNumber(
+          source.supportingVisualReactivity,
+          DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity,
+        ),
+      ),
+    ),
     locks,
   }
 }
@@ -1894,12 +1997,15 @@ interface ReactStoreState {
   // Oscillator settings
   oscillatorSettings: OscillatorSettings
   soundDrawingPerformanceSettings: SoundDrawingPerformanceSettings
-  setSoundDrawingPerformanceSettings: (patch: Partial<SoundDrawingPerformanceSettings>) => void
+  setSoundDrawingPerformanceSettings: (patch: SoundDrawingPerformanceSettingsPatch) => void
   setSoundDrawingPerformanceLock: (key: SoundDrawingPerformanceLockKey, value: boolean) => void
   resetSoundDrawingPerformanceSettings: () => void
   /** Transient revision used to clear the Sound Drawing trail canvas after semantic source changes. */
   soundDrawingTrailResetRevision: number
   requestSoundDrawingTrailReset: () => void
+  /** Transient command revision for deterministic Living Ribbon simulation reset. */
+  soundDrawingRibbonResetRevision: number
+  requestSoundDrawingRibbonReset: () => void
   setOscillatorSettings: (patch: Partial<OscillatorSettings>) => void
   resetOscillatorSettings: () => void
 
@@ -3702,6 +3808,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
     }
   }
+  if (version < 53) {
+    state = {
+      ...state,
+      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(state.soundDrawingPerformanceSettings),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -4140,6 +4252,7 @@ export const useReactStore = create<ReactStoreState>()(
       activePadId: null,
       oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
       soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS),
+      soundDrawingRibbonResetRevision: 0,
       soundDrawingTrailResetRevision: 0,
       oscillatorGlyphAssets: [],
       oscillatorGlyphPointCache: {},
@@ -5027,6 +5140,9 @@ export const useReactStore = create<ReactStoreState>()(
             locks: patch.locks
               ? { ...s.soundDrawingPerformanceSettings.locks, ...patch.locks }
               : s.soundDrawingPerformanceSettings.locks,
+            livingRibbon: patch.livingRibbon
+              ? { ...s.soundDrawingPerformanceSettings.livingRibbon, ...patch.livingRibbon }
+              : s.soundDrawingPerformanceSettings.livingRibbon,
           }),
           soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
         })),
@@ -5051,6 +5167,9 @@ export const useReactStore = create<ReactStoreState>()(
 
       requestSoundDrawingTrailReset: () =>
         set(s => ({ soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 })),
+
+      requestSoundDrawingRibbonReset: () =>
+        set(s => ({ soundDrawingRibbonResetRevision: s.soundDrawingRibbonResetRevision + 1 })),
 
       setOscillatorSettings: (patch) =>
         set((s) => {
@@ -7831,6 +7950,9 @@ export const useReactStore = create<ReactStoreState>()(
           performancePads:           DEFAULT_PERFORMANCE_PADS,
           activePadId:               null,
           oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
+          soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS),
+          soundDrawingTrailResetRevision: get().soundDrawingTrailResetRevision + 1,
+          soundDrawingRibbonResetRevision: get().soundDrawingRibbonResetRevision + 1,
           oscillatorGlyphPointCache: {},
           oscillatorTextPointCache:  {},
           glyphLostNotice:           null,
@@ -7862,7 +7984,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 52,
+      version: 53,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

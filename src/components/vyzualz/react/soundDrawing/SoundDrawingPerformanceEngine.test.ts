@@ -14,6 +14,7 @@ import {
   MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES,
   MAX_SOUND_DRAWING_PERFORMANCE_TRACES,
   type SoundDrawingPerformanceSettings,
+  type SoundDrawingPerformanceSettingsPatch,
   type SoundDrawingResolvedPerformanceFrame,
 } from './SoundDrawingPerformanceTypes'
 
@@ -150,7 +151,7 @@ function frameAt(
   }
 }
 
-function settings(patch: Partial<SoundDrawingPerformanceSettings> = {}): SoundDrawingPerformanceSettings {
+function settings(patch: SoundDrawingPerformanceSettingsPatch = {}): SoundDrawingPerformanceSettings {
   return {
     ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
     autoPerformance: true,
@@ -159,6 +160,10 @@ function settings(patch: Partial<SoundDrawingPerformanceSettings> = {}): SoundDr
     reactionIntensity: 1,
     trailIntensity: 1,
     ...patch,
+    livingRibbon: {
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.livingRibbon,
+      ...(patch.livingRibbon ?? {}),
+    },
     locks: {
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks,
       ...(patch.locks ?? {}),
@@ -169,7 +174,7 @@ function settings(patch: Partial<SoundDrawingPerformanceSettings> = {}): SoundDr
 function resolved(
   timeSec: number,
   options: Parameters<typeof frameAt>[1] = {},
-  settingPatch: Partial<SoundDrawingPerformanceSettings> = {},
+  settingPatch: SoundDrawingPerformanceSettingsPatch = {},
   previousContext: SoundDrawingResolvedPerformanceFrame['context'] | null = null,
 ): SoundDrawingResolvedPerformanceFrame {
   const result = resolveSoundDrawingPerformanceFrame({
@@ -186,6 +191,29 @@ function role(frame: SoundDrawingResolvedPerformanceFrame, name: SoundDrawingRes
   const found = frame.layers.find(layer => layer.role === name)
   expect(found).toBeDefined()
   return found!
+}
+
+
+function livingResolved(
+  timeSec: number,
+  options: Parameters<typeof frameAt>[1] = {},
+  settingPatch: SoundDrawingPerformanceSettingsPatch = {},
+  previousContext: SoundDrawingResolvedPerformanceFrame['context'] | null = null,
+): SoundDrawingResolvedPerformanceFrame {
+  return resolved(
+    timeSec,
+    options,
+    {
+      selectedShowId: 'livingRibbonSystem',
+      performanceSource: 'generatedVisual',
+      ...settingPatch,
+    },
+    previousContext,
+  )
+}
+
+function ribbon(frame: SoundDrawingResolvedPerformanceFrame) {
+  return role(frame, 'primaryMotif')
 }
 
 describe('Sound Drawing authored Performance Engine', () => {
@@ -353,6 +381,155 @@ describe('Sound Drawing authored Performance Engine', () => {
     expect(fallback.fallbackUsed).toBe(true)
     expect(fallback.sceneId).toContain('fallback')
     expect(fallback.layers.filter(layer => layer.enabled)).toHaveLength(1)
+  })
+
+
+  it('authors distinct Living Ribbon choreography across the complete song arc', () => {
+    const intro = ribbon(livingResolved(2))
+    const verse = ribbon(livingResolved(10))
+    const build = ribbon(livingResolved(20))
+    const preDrop = ribbon(livingResolved(25))
+    const drop = ribbon(livingResolved(31))
+    const breakdown = ribbon(livingResolved(72))
+    const drop2 = ribbon(livingResolved(87))
+    const outro = ribbon(livingResolved(132))
+
+    expect(intro.livingRibbonControls.turbulence).toBeLessThan(verse.livingRibbonControls.turbulence)
+    expect(intro.particleCount).toBeLessThan(verse.particleCount)
+    expect(build.livingRibbonControls.tension).toBeGreaterThan(verse.livingRibbonControls.tension)
+    expect(build.livingRibbonControls.collapseAmount).toBeGreaterThan(verse.livingRibbonControls.collapseAmount)
+    expect(preDrop.livingRibbonControls.spread).toBeLessThan(build.livingRibbonControls.spread)
+    expect(preDrop.livingRibbonControls.centerAttraction).toBeGreaterThan(build.livingRibbonControls.centerAttraction)
+    expect(drop.livingRibbonControls.releaseAmount).toBeGreaterThan(0)
+    expect(drop.livingRibbonControls.spread).toBeGreaterThan(preDrop.livingRibbonControls.spread)
+    expect(breakdown.livingRibbonControls.drive).toBeLessThan(drop.livingRibbonControls.drive)
+    expect(breakdown.trailPersistence).toBeGreaterThan(drop.trailPersistence)
+    expect(drop2.livingRibbonControls.directionalDrift).not.toBe(drop.livingRibbonControls.directionalDrift)
+    expect(drop2.livingRibbonControls.twist).not.toBe(drop.livingRibbonControls.twist)
+    expect(outro.livingRibbonControls.collapseAmount).toBeGreaterThan(breakdown.livingRibbonControls.collapseAmount)
+    expect(outro.livingRibbonControls.drive).toBeLessThan(breakdown.livingRibbonControls.drive)
+  })
+
+  it('keeps Living Ribbon visible and reactive through low-confidence and missing-section fallbacks', () => {
+    const lowConfidenceSections = SECTIONS.map(section => ({ ...section, confidence: 0.08 }))
+    const fallback = livingResolved(31.01, { confidence: 0.08, sections: lowConfidenceSections, events: ['kick'] })
+    expect(fallback.fallbackUsed).toBe(true)
+    expect(fallback.sceneId).toBe('lrs-fallback')
+    expect(ribbon(fallback).opacity).toBeGreaterThan(0)
+    expect(ribbon(fallback).livingRibbonControls.drive).toBeGreaterThan(0)
+    expect(ribbon(fallback).livingRibbonImpulses.some(impulse => impulse.kind === 'radialImpact')).toBe(true)
+
+    const missingSections = livingResolved(31.01, { sections: [], events: ['downbeat'] })
+    expect(missingSections.fallbackUsed).toBe(true)
+    expect(ribbon(missingSections).livingRibbonImpulses.length).toBeGreaterThan(0)
+  })
+
+  it('uses vocal capability gates to center and calm the ribbon without requiring vocal data', () => {
+    const noVocalFrame = frameAt(10)
+    noVocalFrame.musicIntelligence = {
+      ...noVocalFrame.musicIntelligence!,
+      stems: { ...noVocalFrame.musicIntelligence!.stems, vocalEnergy: 0 },
+      capabilities: {
+        liveBands: true,
+        rhythmEvents: true,
+        beatGrid: true,
+        sections: true,
+        trackEnergyCurve: false,
+        stemCurves: false,
+        lyrics: false,
+      },
+    }
+    const noVocal = resolveSoundDrawingPerformanceFrame({
+      frame: noVocalFrame,
+      settings: settings({ selectedShowId: 'livingRibbonSystem', performanceSource: 'generatedVisual' }),
+      manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
+    }) as SoundDrawingResolvedPerformanceFrame
+
+    const vocalFrame = frameAt(10)
+    vocalFrame.musicIntelligence = {
+      ...vocalFrame.musicIntelligence!,
+      stems: { ...vocalFrame.musicIntelligence!.stems, vocalEnergy: 0 },
+      lyrics: { ...vocalFrame.musicIntelligence!.lyrics, vocalActivity: 0.95 },
+      capabilities: {
+        liveBands: true,
+        rhythmEvents: true,
+        beatGrid: true,
+        sections: true,
+        trackEnergyCurve: false,
+        stemCurves: false,
+        lyrics: true,
+      },
+    }
+    const vocal = resolveSoundDrawingPerformanceFrame({
+      frame: vocalFrame,
+      settings: settings({ selectedShowId: 'livingRibbonSystem', performanceSource: 'generatedVisual' }),
+      manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
+    }) as SoundDrawingResolvedPerformanceFrame
+
+    expect(ribbon(noVocal).generator).toBe('livingRibbon')
+    expect(ribbon(vocal).livingRibbonControls.centerAttraction).toBeGreaterThan(
+      ribbon(noVocal).livingRibbonControls.centerAttraction,
+    )
+    expect(ribbon(vocal).livingRibbonControls.turbulence).toBeLessThan(ribbon(noVocal).livingRibbonControls.turbulence)
+    expect(ribbon(vocal).livingRibbonControls.damping).toBeGreaterThan(ribbon(noVocal).livingRibbonControls.damping)
+  })
+
+  it('translates rhythm and structure into deterministic bounded physical impulses', () => {
+    const kick = ribbon(livingResolved(29.01, { events: ['kick'] }))
+    const snareLeft = ribbon(livingResolved(29.01, { events: ['snare'] }))
+    const snareRight = ribbon(livingResolved(30.01, { events: ['snare'] }))
+    const hat = ribbon(livingResolved(29.01, { events: ['hat'] }))
+    const downbeat = ribbon(livingResolved(28.01, { events: ['downbeat'] }))
+
+    expect(kick.livingRibbonImpulses.map(impulse => impulse.kind)).toEqual(
+      expect.arrayContaining(['radialImpact', 'localizedImpulse']),
+    )
+    expect(hat.livingRibbonImpulses.some(impulse => impulse.kind === 'fineRipple')).toBe(true)
+    const left = snareLeft.livingRibbonImpulses.find(impulse => impulse.kind === 'lateralShock')!
+    const right = snareRight.livingRibbonImpulses.find(impulse => impulse.kind === 'lateralShock')!
+    expect(Math.sign(left.direction?.[0] ?? 0)).toBe(-Math.sign(right.direction?.[0] ?? 0))
+    const kickImpact = kick.livingRibbonImpulses.find(impulse => impulse.kind === 'radialImpact')!
+    const downbeatImpact = downbeat.livingRibbonImpulses.find(impulse => impulse.kind === 'radialImpact')!
+    expect(downbeatImpact.strength).toBeGreaterThan(kickImpact.strength)
+    for (const impulse of [...kick.livingRibbonImpulses, ...snareLeft.livingRibbonImpulses, ...hat.livingRibbonImpulses]) {
+      expect(impulse.strength).toBeGreaterThanOrEqual(0)
+      expect(impulse.strength).toBeLessThanOrEqual(1.5)
+    }
+  })
+
+  it('scales Living Ribbon reactions and restores coarse user locks after every authored route and event', () => {
+    const full = ribbon(livingResolved(29.01, { events: ['kick'] }, { livingRibbon: { audioReactionDepth: 1 } }))
+    const restrained = ribbon(livingResolved(29.01, { events: ['kick'] }, { livingRibbon: { audioReactionDepth: 0.25 } }))
+    expect(restrained.livingRibbonImpulses[0].strength).toBeLessThan(full.livingRibbonImpulses[0].strength)
+
+    const locked = ribbon(livingResolved(31.01, { events: ['kick', 'snare', 'downbeat'] }, {
+      livingRibbon: {
+        tension: 0.21,
+        turbulence: 0.17,
+        bodyWidth: 0.33,
+        trailPersistence: 0.41,
+        bloom: 0.37,
+        sparkAmount: 0.15,
+        centerAttraction: 0.77,
+        audioReactionDepth: 0.55,
+      },
+      locks: {
+        ribbonMovement: true,
+        ribbonWidth: true,
+        ribbonTrail: true,
+        ribbonGlow: true,
+        ribbonReaction: true,
+      },
+    }))
+    expect(locked.livingRibbonControls).toMatchObject({
+      turbulence: 0.17,
+      tension: 0.21,
+      widthTarget: 0.33,
+      centerAttraction: 0.77,
+    })
+    expect(locked.trailPersistence).toBe(0.41)
+    expect(locked.glow).toBe(0.37)
+    expect(locked.livingRibbonImpulses).toHaveLength(0)
   })
 
   it('detects track replacement and resolves the replacement from a clean deterministic state', () => {

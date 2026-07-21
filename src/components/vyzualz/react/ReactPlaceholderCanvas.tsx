@@ -2,14 +2,36 @@ import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { LyricPlaybackBus } from '../../../features/lyrics/runtime/LyricPlaybackBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
-import type { ReactEngineId, ReactPreset, ReactTrackSection, OscillatorSettings, OscillatorFontAsset, OscillatorGlyphAsset, OscillatorGlyphPoint, SoundDrawingLayer, SoundDrawingClip, ReactPerformancePadTransition } from './ReactTypes'
+import type {
+  ReactEngineId,
+  ReactPreset,
+  ReactTrackSection,
+  OscillatorSettings,
+  OscillatorFontAsset,
+  OscillatorGlyphAsset,
+  OscillatorGlyphPoint,
+  SoundDrawingLayer,
+  SoundDrawingClip,
+  ReactPerformancePadTransition,
+} from './ReactTypes'
 import { isSelectableReactEngineId } from './reactEngineCatalog'
 import type { ReactPerformanceActionEvent } from './ReactPerformanceActions'
 import type { TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
-import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS, type SoundDrawingPerformanceSettings } from './soundDrawing/SoundDrawingPerformanceTypes'
-import { resolveAuthoritativeFrameSection, type ReactFrameContext, type ReactRenderParams } from './renderers/reactRenderUtils'
-import { DEFAULT_REACT_RENDER_PARAMS, disposeReactEngineRenderer, renderReactEngine } from './renderers/ReactEngineRenderer'
+import {
+  DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+  type SoundDrawingPerformanceSettings,
+} from './soundDrawing/SoundDrawingPerformanceTypes'
+import {
+  resolveAuthoritativeFrameSection,
+  type ReactFrameContext,
+  type ReactRenderParams,
+} from './renderers/reactRenderUtils'
+import {
+  DEFAULT_REACT_RENDER_PARAMS,
+  disposeReactEngineRenderer,
+  renderReactEngine,
+} from './renderers/ReactEngineRenderer'
 import { resolveCinematicPortalBackend } from './renderers/CinematicPortalRenderer'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
@@ -48,6 +70,7 @@ interface Props {
   oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
   oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
   soundDrawingTrailResetRevision?: number
+  soundDrawingRibbonResetRevision?: number
   soundDrawingPerformanceSettings?: SoundDrawingPerformanceSettings
   performanceActionEvent?:      ReactPerformanceActionEvent | null
   performanceActionEvents?:     readonly ReactPerformanceActionEvent[]
@@ -94,6 +117,7 @@ export function ReactPlaceholderCanvas({
   oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
   oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
   soundDrawingTrailResetRevision = 0,
+  soundDrawingRibbonResetRevision = 0,
   soundDrawingPerformanceSettings = DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   performanceActionEvent     = null,
   performanceActionEvents    = [],
@@ -112,7 +136,8 @@ export function ReactPlaceholderCanvas({
   brandOverlay               = null,
   durationSec                = 0,
 }: Props) {
-  const canvasLabel = activePreset && isSelectableReactEngineId(activePreset.engine)
+  const canvasLabel =
+    activePreset && isSelectableReactEngineId(activePreset.engine)
     ? `${ENGINE_ACCESSIBLE_LABELS[activePreset.engine]} visualization: ${activePreset.name}`
     : 'React visualization preview'
   const canvasRef      = useRef<HTMLCanvasElement>(null)
@@ -139,6 +164,7 @@ export function ReactPlaceholderCanvas({
   const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
   const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
   const soundDrawingTrailResetRevisionRef = useRef(soundDrawingTrailResetRevision)
+  const soundDrawingRibbonResetRevisionRef = useRef(soundDrawingRibbonResetRevision)
   const soundDrawingPerformanceSettingsRef = useRef(soundDrawingPerformanceSettings)
   const performanceActionEventRef = useRef<ReactPerformanceActionEvent | null>(performanceActionEvent)
   const performanceActionEventsRef = useRef<readonly ReactPerformanceActionEvent[]>(performanceActionEvents)
@@ -174,6 +200,7 @@ export function ReactPlaceholderCanvas({
   glyphPointCacheRef.current     = oscillatorGlyphPointCache
   textPointCacheRef.current      = oscillatorTextPointCache
   soundDrawingTrailResetRevisionRef.current = soundDrawingTrailResetRevision
+  soundDrawingRibbonResetRevisionRef.current = soundDrawingRibbonResetRevision
   soundDrawingPerformanceSettingsRef.current = soundDrawingPerformanceSettings
   performanceActionEventRef.current = performanceActionEvent
   performanceActionEventsRef.current = performanceActionEvents
@@ -250,9 +277,21 @@ export function ReactPlaceholderCanvas({
       } catch (error) {
         if (import.meta.env.DEV) console.error('[ReactPlaceholderCanvas] renderer disposal failed:', error)
       }
-      try { clearSoundDrawingRuntimeCaches() } catch { /* Continue deterministic cleanup. */ }
-      try { onCanvasReadyRef.current?.(null) } catch { /* Parent teardown must not retain renderer ownership. */ }
-      try { fpsReporter?.unavailable() } catch { /* Diagnostic callbacks are non-critical. */ }
+      try {
+        clearSoundDrawingRuntimeCaches()
+      } catch {
+        /* Continue deterministic cleanup. */
+      }
+      try {
+        onCanvasReadyRef.current?.(null)
+      } catch {
+        /* Parent teardown must not retain renderer ownership. */
+      }
+      try {
+        fpsReporter?.unavailable()
+      } catch {
+        /* Diagnostic callbacks are non-critical. */
+      }
     }
     const ownership = acquireReactLiveEngineOwnership(ownedEngine, retireOwnedResources)
 
@@ -305,8 +344,8 @@ export function ReactPlaceholderCanvas({
     let lastExpectedWebglEngine: 'cinematic-worlds' | null | undefined
 
     function reportStable(preset: ReactPreset | null): void {
-      const expectedWebglEngine = preset?.engine === 'cinematicPortal'
-        && resolveCinematicPortalBackend(preset) === 'webgl2'
+      const expectedWebglEngine =
+        preset?.engine === 'cinematicPortal' && resolveCinematicPortalBackend(preset) === 'webgl2'
         ? 'cinematic-worlds'
         : null
       if (!stableReported) {
@@ -335,8 +374,12 @@ export function ReactPlaceholderCanvas({
 
     function frame(now: number) {
       if (disposed || !ownership.isCurrent() || !canvas || !ctx) return
-      const W = canvas.width, H = canvas.height
-      if (!W || !H) { scheduleNextFrame(); return }
+      const W = canvas.width,
+        H = canvas.height
+      if (!W || !H) {
+        scheduleNextFrame()
+        return
+      }
 
       // Preserve the completed frame during pause, but render one fresh frame
       // when lyrics, project controls, fonts, or the loaded track change.
@@ -381,9 +424,7 @@ export function ReactPlaceholderCanvas({
         return
       }
 
-      const deltaTimeSec = previousFrameMs == null
-        ? 1 / 60
-        : Math.min(0.1, Math.max(0, (now - previousFrameMs) / 1000))
+      const deltaTimeSec = previousFrameMs == null ? 1 / 60 : Math.min(0.1, Math.max(0, (now - previousFrameMs) / 1000))
       previousFrameMs = now
       const frameElapsedTimeSec = elapsedTimeSec
 
@@ -392,17 +433,32 @@ export function ReactPlaceholderCanvas({
       const buf = freqBufRef.current
       const tBuf = timeBufRef.current
 
-      let bass = 0.05, mid = 0.05, high = 0.05, vol = 0.05
+      let bass = 0.05,
+        mid = 0.05,
+        high = 0.05,
+        vol = 0.05
       if (an && buf) {
         an.getByteFrequencyData(buf)
         if (tBuf) an.getByteTimeDomainData(tBuf)
         const binCount  = buf.length
         const bassBins  = Math.floor(binCount * 0.08)
-        const midBins   = Math.floor(binCount * 0.30)
-        let bSum = 0, mSum = 0, hSum = 0, vSum = 0
-        for (let i = 0;        i < bassBins; i++) { bSum += buf[i]; vSum += buf[i] }
-        for (let i = bassBins; i < midBins;  i++) { mSum += buf[i]; vSum += buf[i] }
-        for (let i = midBins;  i < binCount; i++) { hSum += buf[i]; vSum += buf[i] }
+        const midBins = Math.floor(binCount * 0.3)
+        let bSum = 0,
+          mSum = 0,
+          hSum = 0,
+          vSum = 0
+        for (let i = 0; i < bassBins; i++) {
+          bSum += buf[i]
+          vSum += buf[i]
+        }
+        for (let i = bassBins; i < midBins; i++) {
+          mSum += buf[i]
+          vSum += buf[i]
+        }
+        for (let i = midBins; i < binCount; i++) {
+          hSum += buf[i]
+          vSum += buf[i]
+        }
         bass = bSum / bassBins / 255
         mid  = mSum / (midBins - bassBins) / 255
         high = hSum / (binCount - midBins)  / 255
@@ -448,18 +504,14 @@ export function ReactPlaceholderCanvas({
         // When MI BPM is zero (track analysis not yet available), use effectiveBpm
         // or 0 to signal "BPM unknown" — never substitute a hardcoded fallback.
         const miBpm = miFrame.rhythm.bpm
-        activeBpm   = (effectiveBpmRef.current ?? 0) > 0
-          ? effectiveBpmRef.current!
-          : miBpm > 0 ? miBpm : 0
+        activeBpm = (effectiveBpmRef.current ?? 0) > 0 ? effectiveBpmRef.current! : miBpm > 0 ? miBpm : 0
       } else {
         beatHit          = bass > 0.55 && bass > prevBass + 0.08
         prevBass         = bass * 0.8
         // Advance beat phase using effectiveBpm when known, local fallback otherwise.
         // The local fallback rate keeps the visual beat phase animating smoothly but
         // is never surfaced as a track BPM value.
-        const phaseBpm   = (effectiveBpmRef.current ?? 0) > 0
-          ? effectiveBpmRef.current!
-          : FALLBACK_BPM_LOCAL
+        const phaseBpm = (effectiveBpmRef.current ?? 0) > 0 ? effectiveBpmRef.current! : FALLBACK_BPM_LOCAL
         activeBeatPhase  = beatPhase = (beatPhase + 16 / (60000 / phaseBpm)) % 1
         // Pass effectiveBpm when available, otherwise 0 to signal "unknown BPM".
         activeBpm        = (effectiveBpmRef.current ?? 0) > 0 ? effectiveBpmRef.current! : 0
@@ -479,9 +531,9 @@ export function ReactPlaceholderCanvas({
 
       const canonicalAudioTime = Number.isFinite(audioTimeRef.current) ? Math.max(0, audioTimeRef.current) : 0
       const audioDeltaSec = previousAudioTimeSec == null ? 0 : canonicalAudioTime - previousAudioTimeSec
-      const timingDiscontinuity = previousAudioTimeSec != null && (
-        audioDeltaSec < -0.001 || audioDeltaSec > Math.max(0.2, deltaTimeSec * 4 + 0.05)
-      )
+      const timingDiscontinuity =
+        previousAudioTimeSec != null &&
+        (audioDeltaSec < -0.001 || audioDeltaSec > Math.max(0.2, deltaTimeSec * 4 + 0.05))
       previousAudioTimeSec = canonicalAudioTime
 
       const t = tRef.current
@@ -489,9 +541,7 @@ export function ReactPlaceholderCanvas({
       // Seconds-based time for strobe, envelopes, and time-accurate effects.
       // Prefer audioTime when valid; fall back to wall clock.
       const nowSec = performance.now() / 1000
-      const timeSec = Number.isFinite(audioTimeRef.current) && audioTimeRef.current > 0
-        ? audioTimeRef.current
-        : nowSec
+      const timeSec = Number.isFinite(audioTimeRef.current) && audioTimeRef.current > 0 ? audioTimeRef.current : nowSec
 
       const resolvedSection = resolveAuthoritativeFrameSection({
         musicIntelligence: hasMI ? miFrame : null,
@@ -500,7 +550,9 @@ export function ReactPlaceholderCanvas({
       })
 
       const rfCtx: ReactFrameContext = {
-        W, H, dpr,
+        W,
+        H,
+        dpr,
         t,
         elapsedTimeSec: frameElapsedTimeSec,
         deltaTimeSec,
@@ -522,7 +574,8 @@ export function ReactPlaceholderCanvas({
         resolvedSection,
       }
 
-      const transitionedControls = resolvePerformancePadTransition({
+      const transitionedControls = resolvePerformancePadTransition(
+        {
         intensity:       intensityRef.current,
         motion:          motionRef.current,
         glow:            glowRef.current,
@@ -530,7 +583,10 @@ export function ReactPlaceholderCanvas({
         trailDecay:      trailDecayRef.current,
         fogDensity:      fogDensityRef.current,
         particleDensity: particleDensityRef.current,
-      }, performancePadTransitionRef.current, now)
+        },
+        performancePadTransitionRef.current,
+        now,
+      )
 
       const renderParams: ReactRenderParams = {
         ...DEFAULT_REACT_RENDER_PARAMS,
@@ -541,15 +597,14 @@ export function ReactPlaceholderCanvas({
         oscillatorGlyphPointCache: glyphPointCacheRef.current,
         oscillatorTextPointCache:  textPointCacheRef.current,
         soundDrawingTrailResetRevision: soundDrawingTrailResetRevisionRef.current,
+        soundDrawingRibbonResetRevision: soundDrawingRibbonResetRevisionRef.current,
         soundDrawingPerformanceSettings: soundDrawingPerformanceSettingsRef.current,
         performanceActionEvent:    performanceActionEventRef.current,
         performanceActionEvents:   performanceActionEventsRef.current,
         performanceActionToggleStates: performanceActionToggleStatesRef.current,
       }
 
-      const lyricPlayback = isPlayingRef.current || isPausedRef.current
-        ? LyricPlaybackBus.getState()
-        : undefined
+      const lyricPlayback = isPlayingRef.current || isPausedRef.current ? LyricPlaybackBus.getState() : undefined
       setSoundDrawingClipsForFrame(
         sdLayersRef.current,
         sdClipsRef.current,

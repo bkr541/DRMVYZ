@@ -8,21 +8,11 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
 import type { UploadedMedia } from '../../../stores/mediaStore'
-import {
-  SliderRow, SelectRow, ToggleRow, TextInputRow,
-  CtrlSection, Collapsible,
-} from './ReactControlRows'
-import {
-  getSvgVisualCacheVersion,
-  getSvgVisualEntry,
-  subscribeSvgVisualCache,
-} from './renderers/svgVisualCache'
-import {
-  buildUnifiedSvgStatus,
-  isUnifiedSvgMediaItem,
-  resolveUnifiedSvgSource,
-} from './svgSourceLifecycle'
+import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
+import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
+import { buildUnifiedSvgStatus, isUnifiedSvgMediaItem, resolveUnifiedSvgSource } from './svgSourceLifecycle'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from './soundDrawing/SoundDrawingPerformanceShows'
+import { shouldShowLivingRibbonControls } from './soundDrawing/SoundDrawingControlVisibility'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './soundDrawing/SoundDrawingPerformanceTypes'
 import type {
   SoundDrawingGeneratorPreference,
@@ -123,7 +113,7 @@ function SoundDrawingSourceGrid({
 }) {
   return (
     <div className="rv-sound-source-grid" role="radiogroup" aria-label="Sound Drawing source">
-      {SOUND_DRAWING_SOURCE_OPTIONS.map(option => (
+      {SOUND_DRAWING_SOURCE_OPTIONS.map((option) => (
         <button
           key={option.value}
           type="button"
@@ -163,7 +153,10 @@ function CinematicWorldIcon({ mode }: { mode: CinematicWorldMode }) {
   if (mode === 'reactiveConstellation') {
     return (
       <svg viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="7" cy="21" r="2" /><circle cx="15" cy="8" r="2" /><circle cx="25" cy="18" r="2" /><circle cx="19" cy="26" r="2" />
+        <circle cx="7" cy="21" r="2" />
+        <circle cx="15" cy="8" r="2" />
+        <circle cx="25" cy="18" r="2" />
+        <circle cx="19" cy="26" r="2" />
         <path d="m8 19 6-9m3-1 7 8m-1 3-3 4M9 22l8 3" />
       </svg>
     )
@@ -185,7 +178,8 @@ function CinematicWorldIcon({ mode }: { mode: CinematicWorldMode }) {
   if (mode === 'ancientMachine') {
     return (
       <svg viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="16" cy="16" r="9" /><circle cx="16" cy="16" r="3" />
+        <circle cx="16" cy="16" r="9" />
+        <circle cx="16" cy="16" r="3" />
         <path d="M16 3v4M16 25v4M3 16h4M25 16h4M7 7l3 3M22 22l3 3M25 7l-3 3M10 22l-3 3" />
       </svg>
     )
@@ -199,7 +193,8 @@ function CinematicWorldIcon({ mode }: { mode: CinematicWorldMode }) {
   }
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="11" /><path d="M8 16h16M16 8v16" />
+      <circle cx="16" cy="16" r="11" />
+      <path d="M8 16h16M16 8v16" />
     </svg>
   )
 }
@@ -227,7 +222,7 @@ function CinematicWorldSourceGrid({
   activePresetId: string | null
   onSelect: (presetId: string) => void
 }) {
-  const hasActiveWorld = groups.some(group => group.world.id === activeWorldMode)
+  const hasActiveWorld = groups.some((group) => group.world.id === activeWorldMode)
   let optionIndex = 0
 
   return (
@@ -237,16 +232,18 @@ function CinematicWorldSourceGrid({
       aria-label="Cinematic worlds"
       data-cinematic-world-grid
     >
-      {CINEMATIC_WORLD_CATEGORY_ORDER.map(category => {
-        const categoryGroups = groups.filter(group => group.world.category === category)
+      {CINEMATIC_WORLD_CATEGORY_ORDER.map((category) => {
+        const categoryGroups = groups.filter((group) => group.world.category === category)
         if (categoryGroups.length === 0) return null
         return (
           <React.Fragment key={category}>
-            <div className="rv-cinematic-world-source-category" role="presentation">{category}</div>
-            {categoryGroups.map(group => {
+            <div className="rv-cinematic-world-source-category" role="presentation">
+              {category}
+            </div>
+            {categoryGroups.map((group) => {
               const currentOptionIndex = optionIndex++
               const isActive = group.world.id === activeWorldMode
-              const activePresetInWorld = group.presets.find(preset => preset.id === activePresetId)
+              const activePresetInWorld = group.presets.find((preset) => preset.id === activePresetId)
               const targetPreset = activePresetInWorld ?? group.presets[0]
               return (
                 <button
@@ -270,7 +267,8 @@ function CinematicWorldSourceGrid({
                   </span>
                   <span className="rv-sound-source-card-label">{group.world.label}</span>
                   <span className="rv-cinematic-world-source-count">
-                    {group.presets.length} preset{group.presets.length === 1 ? '' : 's'}
+                    {group.presets.length} preset
+                    {group.presets.length === 1 ? '' : 's'}
                   </span>
                 </button>
               )
@@ -304,26 +302,24 @@ function OscillatorStatusCard({
   glyphCache: Record<string, OscillatorGlyphPoint[]>
   allMediaItems: UploadedMedia[]
 }) {
-  useSyncExternalStore(
-    subscribeSvgVisualCache,
-    getSvgVisualCacheVersion,
-    getSvgVisualCacheVersion,
-  )
+  useSyncExternalStore(subscribeSvgVisualCache, getSvgVisualCacheVersion, getSvgVisualCacheVersion)
 
   const isClassic = osc.sourceType === 'classic'
   const svgSource = resolveUnifiedSvgSource(osc)
   const svgEntry = svgSource?.mediaId ? getSvgVisualEntry(svgSource.mediaId) : null
   const svgStatus = buildUnifiedSvgStatus(osc, glyphAssets, glyphCache, allMediaItems, svgEntry)
-  const selectedGlyph = (osc.sourceType === 'svgGlyph' && !svgStatus && osc.selectedGlyphId)
-    ? glyphAssets.find(asset => asset.id === osc.selectedGlyphId)
+  const selectedGlyph =
+    osc.sourceType === 'svgGlyph' && !svgStatus && osc.selectedGlyphId
+      ? glyphAssets.find((asset) => asset.id === osc.selectedGlyphId)
     : undefined
-  const selectedFont = osc.textFontId ? fontAssets.find(font => font.id === osc.textFontId) : undefined
+  const selectedFont = osc.textFontId ? fontAssets.find((font) => font.id === osc.textFontId) : undefined
 
   let activeName: string | null = null
   if (osc.sourceType === 'builtinShape') {
     activeName = osc.builtinShape.charAt(0).toUpperCase() + osc.builtinShape.slice(1)
   } else if (osc.sourceType === 'text') {
-    activeName = osc.textSource === 'activeLyricLine'
+    activeName =
+      osc.textSource === 'activeLyricLine'
       ? 'Active lyric line'
       : osc.textSource === 'activeLyricWord'
         ? 'Active lyric word'
@@ -339,24 +335,20 @@ function OscillatorStatusCard({
 
   return (
     <div className="rv-osc-status-card">
-      <StatusKV
-        label="Source"
-        value={<span className="rv-osc-status-val--source">{sourceLabel}</span>}
-      />
+      <StatusKV label="Source" value={<span className="rv-osc-status-val--source">{sourceLabel}</span>} />
       {!isClassic && activeName && (
-        <StatusKV
-          label={activeLabel}
-          value={<span className="rv-osc-status-val--highlight">{activeName}</span>}
-        />
+        <StatusKV label={activeLabel} value={<span className="rv-osc-status-val--highlight">{activeName}</span>} />
       )}
 
       {svgStatus ? (
         <>
           <StatusKV
             label="Render As"
-            value={svgStatus.renderMode === 'auto' && svgStatus.resolvedMode
+            value={
+              svgStatus.renderMode === 'auto' && svgStatus.resolvedMode
               ? `${svgStatus.renderModeLabel} · ${svgStatus.resolvedMode === 'reactivePath' ? 'Reactive Path' : 'Original Artwork'}`
-              : svgStatus.renderModeLabel}
+                : svgStatus.renderModeLabel
+            }
           />
           {svgStatus.resolvedMode === 'reactivePath' && (
             <>
@@ -366,21 +358,22 @@ function OscillatorStatusCard({
             </>
           )}
           {svgStatus.resolvedMode === 'originalArtwork' && (
-            <StatusKV label="Artwork" value={svgStatus.loaded ? 'Ready' : svgStatus.loading ? 'Loading…' : 'Not cached'} />
+            <StatusKV
+              label="Artwork"
+              value={svgStatus.loaded ? 'Ready' : svgStatus.loading ? 'Loading…' : 'Not cached'}
+            />
           )}
           <StatusKV label="React Palette" value={osc.svgUseReactPalette ? 'On' : 'Original colors'} />
           {svgStatus.loading && <div className="rv-ctrl-info">Loading SVG caches…</div>}
-          {!svgStatus.mediaId && (
-            <div className="rv-osc-status-warn">No SVG selected — choose one below</div>
-          )}
-          {svgStatus.error && (
-            <div className="rv-osc-status-warn">Load error: {svgStatus.error}</div>
-          )}
+          {!svgStatus.mediaId && <div className="rv-osc-status-warn">No SVG selected — choose one below</div>}
+          {svgStatus.error && <div className="rv-osc-status-warn">Load error: {svgStatus.error}</div>}
           {svgStatus.uploadedAt && (
             <StatusKV
               label="Uploaded"
               value={new Date(svgStatus.uploadedAt).toLocaleDateString(undefined, {
-                year: 'numeric', month: 'short', day: 'numeric',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
               })}
             />
           )}
@@ -407,7 +400,10 @@ function OscillatorStatusCard({
             selectedFont.parseError ? (
               <div className="rv-osc-status-warn">{selectedFont.parseError}</div>
             ) : (
-              <StatusKV label="Font" value={<span className="rv-osc-status-val--highlight">{selectedFont.name}</span>} />
+              <StatusKV
+                label="Font"
+                value={<span className="rv-osc-status-val--highlight">{selectedFont.name}</span>}
+              />
             )
           ) : (
             <StatusKV label="Engine" value="Canvas fallback" />
@@ -428,11 +424,13 @@ export function ReactEnginePanel() {
     activeReactPresetId,
     cinematicConfigsByPresetId,
     selectReactPreset,
-    oscillatorSettings,  setOscillatorSettings,
+    oscillatorSettings,
+    setOscillatorSettings,
     soundDrawingPerformanceSettings,
     setSoundDrawingPerformanceSettings,
     setSoundDrawingPerformanceLock,
     resetSoundDrawingPerformanceSettings,
+    requestSoundDrawingRibbonReset,
     oscillatorGlyphAssets,
     oscillatorGlyphPointCache,
     selectSvgAsset,
@@ -443,7 +441,8 @@ export function ReactEnginePanel() {
     fontSelectPending,
     glyphLostNotice,
     clearGlyphLostNotice,
-  } = useReactStore(useShallow(s => ({
+  } = useReactStore(
+    useShallow((s) => ({
     activeReactEngineId:        s.activeReactEngineId,
     reactPresets:               s.reactPresets,
     activeReactPresetId:        s.activeReactPresetId,
@@ -455,6 +454,7 @@ export function ReactEnginePanel() {
     setSoundDrawingPerformanceSettings: s.setSoundDrawingPerformanceSettings,
     setSoundDrawingPerformanceLock: s.setSoundDrawingPerformanceLock,
     resetSoundDrawingPerformanceSettings: s.resetSoundDrawingPerformanceSettings,
+      requestSoundDrawingRibbonReset: s.requestSoundDrawingRibbonReset,
     oscillatorGlyphAssets:      s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:  s.oscillatorGlyphPointCache,
     selectSvgAsset:             s.selectSvgAsset,
@@ -465,33 +465,37 @@ export function ReactEnginePanel() {
     fontSelectPending:          s.fontSelectPending,
     glyphLostNotice:            s.glyphLostNotice,
     clearGlyphLostNotice:       s.clearGlyphLostNotice,
-  })))
+    })),
+  )
 
   const osc = oscillatorSettings
   const set = setOscillatorSettings
+  const showLivingRibbonControls = shouldShowLivingRibbonControls(soundDrawingPerformanceSettings)
+  const ribbon = soundDrawingPerformanceSettings.livingRibbon
+  const setRibbon = (patch: Partial<typeof ribbon>) => setSoundDrawingPerformanceSettings({ livingRibbon: patch })
   const cinematicWorldGroups = useMemo(
-    () => CINEMATIC_WORLD_UI.map(world => ({
+    () =>
+      CINEMATIC_WORLD_UI.map((world) => ({
       world,
-      presets: reactPresets.filter(preset => (
-        preset.engine === 'cinematicPortal' &&
-        (preset.cinematicConfig?.worldMode ?? 'legacyPortal') === world.id
-      )),
-    })).filter(group => group.presets.length > 0),
+        presets: reactPresets.filter(
+          (preset) =>
+            preset.engine === 'cinematicPortal' && (preset.cinematicConfig?.worldMode ?? 'legacyPortal') === world.id,
+        ),
+      })).filter((group) => group.presets.length > 0),
     [reactPresets],
   )
   const activeCinematicPreset = useMemo(
-    () => reactPresets.find(preset => (
-      preset.id === activeReactPresetId && preset.engine === 'cinematicPortal'
-    )) ?? null,
+    () =>
+      reactPresets.find((preset) => preset.id === activeReactPresetId && preset.engine === 'cinematicPortal') ?? null,
     [activeReactPresetId, reactPresets],
   )
   const activeCinematicWorldMode = activeCinematicPreset
-    ? resolveCinematicConfigForPreset(activeCinematicPreset, cinematicConfigsByPresetId)?.worldMode ?? null
+    ? (resolveCinematicConfigForPreset(activeCinematicPreset, cinematicConfigsByPresetId)?.worldMode ?? null)
     : null
-  const activeLyricCue = useLyricPlaybackSelector(state => state.activeCue)
-  const activeLyricWord = useLyricPlaybackSelector(state => state.activeWord)
-  const activeLyricDocumentId = useLyricPlaybackSelector(state => state.documentId)
-  const activeLyricSourceIdentity = useLyricPlaybackSelector(state => state.sourceIdentity)
+  const activeLyricCue = useLyricPlaybackSelector((state) => state.activeCue)
+  const activeLyricWord = useLyricPlaybackSelector((state) => state.activeWord)
+  const activeLyricDocumentId = useLyricPlaybackSelector((state) => state.documentId)
+  const activeLyricSourceIdentity = useLyricPlaybackSelector((state) => state.sourceIdentity)
   const lyricsBelongToLoadedTrack = Boolean(
     engine.currentAudioTrackId &&
     activeLyricSourceIdentity?.startsWith(`${engine.currentAudioTrackId}:`) &&
@@ -501,7 +505,7 @@ export function ReactEnginePanel() {
   // SVG Visual rehydration is handled by useSvgVisualRehydration in ReactView —
   // that hook always runs regardless of which panel tab is active.
 
-  const allMediaItems = useMediaStore(state => state.items)
+  const allMediaItems = useMediaStore((state) => state.items)
   const svgMediaItems = allMediaItems.filter(isUnifiedSvgMediaItem)
   const activeSvgSource = resolveUnifiedSvgSource(osc)
   const selectedSvgMediaId = activeSvgSource?.mediaId ?? null
@@ -525,8 +529,8 @@ export function ReactEnginePanel() {
       {activeReactEngineId === 'shaderPads' && (
         <Collapsible label="Shader Scenes" defaultOpen>
           <div className="rv-ctrl-info">
-            Shader uses Scenes rather than React presets. Choose and manage the
-            active scene from the SCENES tab in the right rail.
+            Shader uses Scenes rather than React presets. Choose and manage the active scene from the SCENES tab in the
+            right rail.
           </div>
         </Collapsible>
       )}
@@ -547,13 +551,20 @@ export function ReactEnginePanel() {
           <SelectRow
             label="Performance Show"
             value={soundDrawingPerformanceSettings.selectedShowId}
-            onChange={value => setSoundDrawingPerformanceSettings({ selectedShowId: value as typeof soundDrawingPerformanceSettings.selectedShowId })}
-            options={SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => ({ value: show.id, label: show.name }))}
+            onChange={(value) =>
+              setSoundDrawingPerformanceSettings({
+                selectedShowId: value as typeof soundDrawingPerformanceSettings.selectedShowId,
+              })
+            }
+            options={SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
+              value: show.id,
+              label: show.name,
+            }))}
           />
           <ToggleRow
             label="Auto Performance"
             value={soundDrawingPerformanceSettings.autoPerformance}
-            onChange={value => setSoundDrawingPerformanceSettings({ autoPerformance: value })}
+            onChange={(value) => setSoundDrawingPerformanceSettings({ autoPerformance: value })}
           />
           {soundDrawingPerformanceSettings.autoPerformance && (
             <>
@@ -561,7 +572,11 @@ export function ReactEnginePanel() {
               <SelectRow
                 label="Performance Source"
                 value={soundDrawingPerformanceSettings.performanceSource}
-                onChange={value => setSoundDrawingPerformanceSettings({ performanceSource: value as SoundDrawingPerformanceSourceSelection })}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    performanceSource: value as SoundDrawingPerformanceSourceSelection,
+                  })
+                }
                 options={[
                   { value: 'generatedVisual', label: 'Generated Visual' },
                   { value: 'activeText', label: 'Active Text' },
@@ -572,18 +587,29 @@ export function ReactEnginePanel() {
               <SelectRow
                 label="Source Treatment"
                 value={soundDrawingPerformanceSettings.sourceTreatment}
-                onChange={value => setSoundDrawingPerformanceSettings({ sourceTreatment: value as SoundDrawingSourceTreatment })}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    sourceTreatment: value as SoundDrawingSourceTreatment,
+                  })
+                }
                 options={[
                   { value: 'preserveIdentity', label: 'Preserve Identity' },
                   { value: 'controlledReactive', label: 'Controlled Reactive' },
                   { value: 'liquidContour', label: 'Liquid Contour' },
-                  { value: 'abstractDeformation', label: 'Abstract Deformation' },
+                  {
+                    value: 'abstractDeformation',
+                    label: 'Abstract Deformation',
+                  },
                 ]}
               />
               <SelectRow
                 label="Use Source As"
                 value={soundDrawingPerformanceSettings.useSourceAs}
-                onChange={value => setSoundDrawingPerformanceSettings({ useSourceAs: value as SoundDrawingSourceUsePolicy })}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    useSourceAs: value as SoundDrawingSourceUsePolicy,
+                  })
+                }
                 options={[
                   { value: 'primaryMotif', label: 'Primary Motif' },
                   { value: 'supportingLayer', label: 'Supporting Layer' },
@@ -593,54 +619,85 @@ export function ReactEnginePanel() {
               <ToggleRow
                 label={osc.sourceType === 'text' ? 'Preserve Readability' : 'Preserve Identity'}
                 value={soundDrawingPerformanceSettings.preserveIdentity}
-                onChange={value => setSoundDrawingPerformanceSettings({ preserveIdentity: value })}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    preserveIdentity: value,
+                  })
+                }
               />
               {soundDrawingPerformanceSettings.sourceTreatment !== 'preserveIdentity' && (
                 <SliderRow
                   label="Contour Reactivity"
                   value={soundDrawingPerformanceSettings.contourReactivity}
-                  onChange={value => setSoundDrawingPerformanceSettings({ contourReactivity: value })}
-                  min={0} max={1} step={0.01}
+                  onChange={(value) =>
+                    setSoundDrawingPerformanceSettings({
+                      contourReactivity: value,
+                    })
+                  }
+                  min={0}
+                  max={1}
+                  step={0.01}
                   color="#b84fc9"
                 />
               )}
               <SliderRow
                 label="Whole-Object Motion"
                 value={soundDrawingPerformanceSettings.wholeObjectMotion}
-                onChange={value => setSoundDrawingPerformanceSettings({ wholeObjectMotion: value })}
-                min={0} max={1} step={0.01}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    wholeObjectMotion: value,
+                  })
+                }
+                min={0}
+                max={1}
+                step={0.01}
                 color="#4ac7db"
               />
               <SliderRow
                 label="Echo Strength"
                 value={soundDrawingPerformanceSettings.echoStrength}
-                onChange={value => setSoundDrawingPerformanceSettings({ echoStrength: value })}
-                min={0} max={1} step={0.01}
+                onChange={(value) => setSoundDrawingPerformanceSettings({ echoStrength: value })}
+                min={0}
+                max={1}
+                step={0.01}
                 color="#9ddcff"
               />
               <SliderRow
                 label="Source Trail Strength"
                 value={soundDrawingPerformanceSettings.sourceTrailStrength}
-                onChange={value => setSoundDrawingPerformanceSettings({ sourceTrailStrength: value })}
-                min={0} max={1} step={0.01}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    sourceTrailStrength: value,
+                  })
+                }
+                min={0}
+                max={1}
+                step={0.01}
                 color="#9ddcff"
               />
               <SliderRow
                 label="Supporting Visual Reactivity"
                 value={soundDrawingPerformanceSettings.supportingVisualReactivity}
-                onChange={value => setSoundDrawingPerformanceSettings({ supportingVisualReactivity: value })}
-                min={0} max={1} step={0.01}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    supportingVisualReactivity: value,
+                  })
+                }
+                min={0}
+                max={1}
+                step={0.01}
                 color="#61d6aa"
               />
               <ToggleRow
                 label="Source Lock"
                 value={soundDrawingPerformanceSettings.locks.sourceSelection}
-                onChange={value => setSoundDrawingPerformanceLock('sourceSelection', value)}
+                onChange={(value) => setSoundDrawingPerformanceLock('sourceSelection', value)}
               />
               <button
                 type="button"
                 className="rv-reset-btn"
-                onClick={() => setSoundDrawingPerformanceSettings({
+                onClick={() =>
+                  setSoundDrawingPerformanceSettings({
                   sourceTreatment: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment,
                   useSourceAs: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs,
                   preserveIdentity: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.preserveIdentity,
@@ -649,7 +706,8 @@ export function ReactEnginePanel() {
                   echoStrength: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength,
                   sourceTrailStrength: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength,
                   supportingVisualReactivity: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity,
-                })}
+                  })
+                }
               >
                 Reset Source Treatment
               </button>
@@ -657,39 +715,61 @@ export function ReactEnginePanel() {
               <SliderRow
                 label="Complexity"
                 value={soundDrawingPerformanceSettings.complexity}
-                onChange={value => setSoundDrawingPerformanceSettings({ complexity: value })}
-                min={0} max={1} step={0.01}
+                onChange={(value) => setSoundDrawingPerformanceSettings({ complexity: value })}
+                min={0}
+                max={1}
+                step={0.01}
                 color="#61d6aa"
               />
               <SliderRow
                 label="Motion Intensity"
                 value={soundDrawingPerformanceSettings.motionIntensity}
-                onChange={value => setSoundDrawingPerformanceSettings({ motionIntensity: value })}
-                min={0} max={1} step={0.01}
+                onChange={(value) => setSoundDrawingPerformanceSettings({ motionIntensity: value })}
+                min={0}
+                max={1}
+                step={0.01}
                 color="#4ac7db"
               />
               <SliderRow
                 label="Reaction Intensity"
                 value={soundDrawingPerformanceSettings.reactionIntensity}
-                onChange={value => setSoundDrawingPerformanceSettings({ reactionIntensity: value })}
-                min={0} max={1} step={0.01}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    reactionIntensity: value,
+                  })
+                }
+                min={0}
+                max={1}
+                step={0.01}
                 color="#ff4fd8"
               />
               <SliderRow
                 label="Trail Intensity"
                 value={soundDrawingPerformanceSettings.trailIntensity}
-                onChange={value => setSoundDrawingPerformanceSettings({ trailIntensity: value })}
-                min={0} max={1} step={0.01}
+                onChange={(value) => setSoundDrawingPerformanceSettings({ trailIntensity: value })}
+                min={0}
+                max={1}
+                step={0.01}
                 color="#9ddcff"
               />
               <SelectRow
                 label="Generator Preference"
                 value={soundDrawingPerformanceSettings.generatorPreference}
-                onChange={value => setSoundDrawingPerformanceSettings({ generatorPreference: value as SoundDrawingGeneratorPreference })}
+                onChange={(value) =>
+                  setSoundDrawingPerformanceSettings({
+                    generatorPreference: value as SoundDrawingGeneratorPreference,
+                  })
+                }
                 options={[
                   { value: 'authored', label: 'Authored by Show' },
-                  { value: 'horizontalOscilloscope', label: 'Horizontal Oscilloscope' },
-                  { value: 'mirroredOscilloscope', label: 'Mirrored Oscilloscope' },
+                  {
+                    value: 'horizontalOscilloscope',
+                    label: 'Horizontal Oscilloscope',
+                  },
+                  {
+                    value: 'mirroredOscilloscope',
+                    label: 'Mirrored Oscilloscope',
+                  },
                   { value: 'radialOscilloscope', label: 'Radial Oscilloscope' },
                   { value: 'polarWaveform', label: 'Polar Waveform' },
                   { value: 'lissajousFigure', label: 'Lissajous Figure' },
@@ -697,17 +777,132 @@ export function ReactEnginePanel() {
                   { value: 'harmonicRibbon', label: 'Harmonic Ribbon' },
                   { value: 'livingRibbon', label: 'Living Ribbon' },
                   { value: 'spectralContour', label: 'Spectral Contour' },
-                  { value: 'circularBassMembrane', label: 'Circular Bass Membrane' },
+                  {
+                    value: 'circularBassMembrane',
+                    label: 'Circular Bass Membrane',
+                  },
                   { value: 'kaleidoscopicTrace', label: 'Kaleidoscopic Trace' },
                   { value: 'particleSpline', label: 'Particle Spline' },
-                  { value: 'vectorFieldStreamlines', label: 'Vector-Field Streamlines' },
-                  { value: 'audioReactiveAttractor', label: 'Audio-Reactive Attractor' },
+                  {
+                    value: 'vectorFieldStreamlines',
+                    label: 'Vector-Field Streamlines',
+                  },
+                  {
+                    value: 'audioReactiveAttractor',
+                    label: 'Audio-Reactive Attractor',
+                  },
                   { value: 'tunnelTrace', label: 'Tunnel Trace' },
-                  { value: 'stackedWaveformBands', label: 'Stacked Waveform Bands' },
+                  {
+                    value: 'stackedWaveformBands',
+                    label: 'Stacked Waveform Bands',
+                  },
                 ]}
               />
+              {showLivingRibbonControls && (
+                <>
+                  <CtrlSection label="Living Ribbon" />
+                  <Collapsible label="Living Ribbon Controls" defaultOpen>
+                    <SelectRow
+                      label="Ribbon Quality"
+                      value={ribbon.quality}
+                      onChange={(value) => setRibbon({ quality: value as typeof ribbon.quality })}
+                      options={[
+                        { value: 'auto', label: 'Auto' },
+                        { value: 'low', label: 'Low' },
+                        { value: 'medium', label: 'Medium' },
+                        { value: 'high', label: 'High' },
+                ]}
+              />
+                    <SliderRow
+                      label="Point Density"
+                      value={ribbon.pointDensity}
+                      onChange={(value) => setRibbon({ pointDensity: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#4ac7db"
+                    />
+                    <SliderRow
+                      label="Tension"
+                      value={ribbon.tension}
+                      onChange={(value) => setRibbon({ tension: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#61d6aa"
+                    />
+                    <SliderRow
+                      label="Turbulence"
+                      value={ribbon.turbulence}
+                      onChange={(value) => setRibbon({ turbulence: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#ff4fd8"
+                    />
+                    <SliderRow
+                      label="Body Width"
+                      value={ribbon.bodyWidth}
+                      onChange={(value) => setRibbon({ bodyWidth: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#4ac7db"
+                    />
+                    <SliderRow
+                      label="Trail Persistence"
+                      value={ribbon.trailPersistence}
+                      onChange={(value) => setRibbon({ trailPersistence: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#9ddcff"
+                    />
+                    <SliderRow
+                      label="Bloom"
+                      value={ribbon.bloom}
+                      onChange={(value) => setRibbon({ bloom: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#b84fc9"
+                    />
+                    <SliderRow
+                      label="Spark Amount"
+                      value={ribbon.sparkAmount}
+                      onChange={(value) => setRibbon({ sparkAmount: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#ffd166"
+                    />
+                    <SliderRow
+                      label="Center Attraction"
+                      value={ribbon.centerAttraction}
+                      onChange={(value) => setRibbon({ centerAttraction: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#61d6aa"
+                    />
+                    <SliderRow
+                      label="Audio Reaction Depth"
+                      value={ribbon.audioReactionDepth}
+                      onChange={(value) => setRibbon({ audioReactionDepth: value })}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      color="#ff4fd8"
+                    />
+                    <button type="button" className="rv-reset-btn" onClick={requestSoundDrawingRibbonReset}>
+                      Reset Ribbon Simulation
+                    </button>
+                  </Collapsible>
+                </>
+              )}
               <Collapsible label="Parameter Locks" defaultOpen={false}>
-                {([
+                {(
+                  [
                   ['generator', 'Generator'],
                   ['layerRecruitment', 'Layer Recruitment'],
                   ['topology', 'Topology & Symmetry'],
@@ -726,27 +921,33 @@ export function ReactEnginePanel() {
                   ['glow', 'Glow'],
                   ['echoBehavior', 'Echo Behavior'],
                   ['trailBehavior', 'Source Trail Behavior'],
-                ] as Array<[SoundDrawingPerformanceLockKey, string]>).map(([key, label]) => (
+                    ['ribbonStructure', 'Ribbon Structure & Quality'],
+                    ['ribbonMovement', 'Ribbon Movement'],
+                    ['ribbonWidth', 'Ribbon Width'],
+                    ['ribbonTrail', 'Ribbon Trails'],
+                    ['ribbonGlow', 'Ribbon Glow'],
+                    ['ribbonReaction', 'Ribbon Audio Reaction'],
+                  ] as Array<[SoundDrawingPerformanceLockKey, string]>
+                ).map(([key, label]) => (
                   <ToggleRow
                     key={key}
                     label={label}
                     value={soundDrawingPerformanceSettings.locks[key]}
-                    onChange={value => setSoundDrawingPerformanceLock(key, value)}
+                    onChange={(value) => setSoundDrawingPerformanceLock(key, value)}
                   />
                 ))}
               </Collapsible>
               <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />
-              <button
-                type="button"
-                className="rv-reset-btn"
-                onClick={resetSoundDrawingPerformanceSettings}
-              >
+              <button type="button" className="rv-reset-btn" onClick={resetSoundDrawingPerformanceSettings}>
                 Reset to Authored State
               </button>
             </>
           )}
           {!soundDrawingPerformanceSettings.autoPerformance && (
-            <div className="rv-ctrl-info">Manual Sound Drawing sources, presets, timeline layers, and clips remain authoritative while Auto Performance is off.</div>
+            <div className="rv-ctrl-info">
+              Manual Sound Drawing sources, presets, timeline layers, and clips remain authoritative while Auto
+              Performance is off.
+            </div>
           )}
 
           <CtrlSection label="Engine Mode" />
@@ -754,8 +955,7 @@ export function ReactEnginePanel() {
           {glyphLostNotice && (
             <div className="rv-glyph-lost-notice">
               <span>
-                <strong>"{glyphLostNotice}"</strong> was removed from your library.
-                Select a new source below.
+                <strong>"{glyphLostNotice}"</strong> was removed from your library. Select a new source below.
               </span>
               <button
                 type="button"
@@ -777,10 +977,8 @@ export function ReactEnginePanel() {
           />
 
           <SoundDrawingSourceGrid
-            value={osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual'
-              ? 'svg'
-              : osc.sourceType}
-            onChange={sourceType => set({ sourceType })}
+            value={osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual' ? 'svg' : osc.sourceType}
+            onChange={(sourceType) => set({ sourceType })}
           />
 
           {/* Classic Scope mode */}
@@ -789,13 +987,13 @@ export function ReactEnginePanel() {
               <ToggleRow
                 label="Auto Section Mode"
                 value={osc.autoSectionMode}
-                onChange={v => set({ autoSectionMode: v })}
+                onChange={(v) => set({ autoSectionMode: v })}
               />
               {!osc.autoSectionMode && (
                 <SelectRow
                   label="Classic Mode"
                   value={osc.classicMode === 'sectionAuto' ? 'waveform' : osc.classicMode}
-                  onChange={v => set({ classicMode: v as ClassicScopeMode })}
+                  onChange={(v) => set({ classicMode: v as ClassicScopeMode })}
                   options={[
                     { value: 'waveform',    label: 'Waveform' },
                     { value: 'lissajous',   label: 'Lissajous' },
@@ -812,7 +1010,7 @@ export function ReactEnginePanel() {
             <SelectRow
               label="Shape"
               value={osc.builtinShape}
-              onChange={v => set({ builtinShape: v as BuiltinOscillatorShape })}
+              onChange={(v) => set({ builtinShape: v as BuiltinOscillatorShape })}
               options={[
                 { value: 'circle',   label: 'Circle' },
                 { value: 'square',   label: 'Square' },
@@ -832,7 +1030,7 @@ export function ReactEnginePanel() {
               <SelectRow
                 label="Text Source"
                 value={osc.textSource ?? 'static'}
-                onChange={value => set({ textSource: value as SoundDrawingTextSource })}
+                onChange={(value) => set({ textSource: value as SoundDrawingTextSource })}
                 options={[
                   { value: 'static', label: 'Static Text' },
                   { value: 'activeLyricLine', label: 'Active Lyric Line' },
@@ -843,7 +1041,7 @@ export function ReactEnginePanel() {
                 <TextInputRow
                   label="Static Text"
                   value={osc.text}
-                  onChange={v => set({ text: v })}
+                  onChange={(v) => set({ text: v })}
                   maxLength={128}
                   placeholder="DRMVYZ"
                 />
@@ -855,21 +1053,30 @@ export function ReactEnginePanel() {
                         <strong>Active lyrics linked</strong>
                         <span>{activeLyricSourceIdentity ?? activeLyricDocumentId}</span>
                         <span>Line: {activeLyricCue?.text ?? 'No lyric at the current playhead'}</span>
-                        {(osc.textSource === 'activeLyricWord') && (
-                          <span>Word: {activeLyricWord?.text ?? (activeLyricCue ? 'Line fallback or timed-word gap' : 'None')}</span>
+                        {osc.textSource === 'activeLyricWord' && (
+                          <span>
+                            Word:{' '}
+                            {activeLyricWord?.text ?? (activeLyricCue ? 'Line fallback or timed-word gap' : 'None')}
+                          </span>
                         )}
                       </>
                     ) : (
                       <>
                         <strong>No active lyric document</strong>
-                        <span>Load a persisted track with an active lyric version, or create one in Lyric Manager.</span>
+                        <span>
+                          Load a persisted track with an active lyric version, or create one in Lyric Manager.
+                        </span>
                       </>
                     )}
                   </div>
                   <SelectRow
                     label="When No Lyric Is Active"
                     value={osc.lyricGapBehavior ?? 'hide'}
-                    onChange={value => set({ lyricGapBehavior: value as SoundDrawingLyricGapBehavior })}
+                    onChange={(value) =>
+                      set({
+                        lyricGapBehavior: value as SoundDrawingLyricGapBehavior,
+                      })
+                    }
                     options={[
                       { value: 'hide', label: 'Hide Text' },
                       { value: 'keepPrevious', label: 'Keep Previous Lyric' },
@@ -880,27 +1087,26 @@ export function ReactEnginePanel() {
                     <TextInputRow
                       label="Fallback Text"
                       value={osc.lyricFallbackText ?? ''}
-                      onChange={value => set({ lyricFallbackText: value })}
+                      onChange={(value) => set({ lyricFallbackText: value })}
                       maxLength={128}
                       placeholder="Instrumental"
                     />
                   )}
                 </>
               )}
-              <ToggleRow
-                label="Auto Rotate"
-                value={osc.autoRotate === true}
-                onChange={v => set({ autoRotate: v })}
-              />
+              <ToggleRow label="Auto Rotate" value={osc.autoRotate === true} onChange={(v) => set({ autoRotate: v })} />
               {oscillatorFontAssets.length > 0 && (
                 <SelectRow
                   label="Font"
                   value={osc.textFontId ?? ''}
-                  onChange={v => selectOscillatorFont(v || null)}
+                  onChange={(v) => selectOscillatorFont(v || null)}
                   disabled={fontUploadPending || !!fontSelectPending || !!fontRemovePending}
                   options={[
                     { value: '', label: '— canvas fallback —' },
-                    ...oscillatorFontAssets.map((f: OscillatorFontAsset) => ({ value: f.id, label: f.name })),
+                    ...oscillatorFontAssets.map((f: OscillatorFontAsset) => ({
+                      value: f.id,
+                      label: f.name,
+                    })),
                   ]}
                 />
               )}
@@ -908,40 +1114,49 @@ export function ReactEnginePanel() {
                 <SliderRow
                   label="Font Size"
                   value={osc.textFontSize}
-                  onChange={v => set({ textFontSize: Math.round(v) })}
-                  min={48} max={320} step={8}
+                  onChange={(v) => set({ textFontSize: Math.round(v) })}
+                  min={48}
+                  max={320}
+                  step={8}
                   color="#61d6aa"
                 />
               )}
               <SliderRow
                 label="Spacing"
                 value={osc.textLetterSpacing}
-                onChange={v => set({ textLetterSpacing: Math.round(v) })}
-                min={-20} max={80} step={1}
+                onChange={(v) => set({ textLetterSpacing: Math.round(v) })}
+                min={-20}
+                max={80}
+                step={1}
                 color="#d8b95a"
               />
             </>
           )}
 
           {/* Unified SVG picker (source type 'svg', or legacy svgGlyph/svgVisual) */}
-          {(osc.sourceType === 'svg' || osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual') && (
-            svgMediaItems.length === 0 ? (
+          {(osc.sourceType === 'svg' || osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual') &&
+            (svgMediaItems.length === 0 ? (
               <div className="rv-ctrl-info">No SVG files yet — import from the Media tab.</div>
             ) : (
               <>
                 <SelectRow
                   label="SVG File"
                   value={selectedSvgMediaId ?? ''}
-                  onChange={v => { if (v) selectSvgAsset(v) }}
+                  onChange={(v) => {
+                    if (v) selectSvgAsset(v)
+                  }}
                   options={[
                     ...(selectedSvgMediaId ? [] : [{ value: '', label: '— select SVG —' }]),
-                    ...svgMediaItems.map(m => ({ value: m.id, label: m.title ?? m.name })),
+                    ...svgMediaItems.map((m) => ({
+                      value: m.id,
+                      label: m.title ?? m.name,
+                    })),
                   ]}
                 />
                 <SelectRow
                   label="Render As"
                   value={osc.svgRenderMode ?? 'auto'}
-                  onChange={v => set({ svgRenderMode: v as SvgRenderMode })}
+                  onChange={(v) => set({ svgRenderMode: v as SvgRenderMode })}
                   options={[
                     { value: 'auto',            label: 'Auto (Recommended)' },
                     { value: 'reactivePath',    label: 'Reactive Path' },
@@ -951,37 +1166,37 @@ export function ReactEnginePanel() {
                 <ToggleRow
                   label="React Palette"
                   value={osc.svgUseReactPalette !== false}
-                  onChange={v => set({ svgUseReactPalette: v })}
+                  onChange={(v) => set({ svgUseReactPalette: v })}
                 />
                 <ToggleRow
                   label="Auto Rotate"
                   value={osc.autoRotate !== false}
-                  onChange={v => set({ autoRotate: v })}
+                  onChange={(v) => set({ autoRotate: v })}
                 />
                 {(osc.svgRenderMode === 'auto' || osc.svgRenderMode === 'reactivePath') && (
                   <div className="rv-ctrl-info" style={{ marginTop: 2 }}>
-                    Reactive Path deforms the SVG outline with audio. Original Artwork renders it at full fidelity with whole-object reactions.
+                    Reactive Path deforms the SVG outline with audio. Original Artwork renders it at full fidelity with
+                    whole-object reactions.
                   </div>
                 )}
               </>
-            )
-          )}
+            ))}
 
           {/* ── Source: path resolution (non-classic; hide for pure originalArtwork modes) ── */}
-          {osc.sourceType !== 'classic' &&
-           activeSvgSource?.renderMode !== 'originalArtwork' && (
+          {osc.sourceType !== 'classic' && activeSvgSource?.renderMode !== 'originalArtwork' && (
             <>
               <CtrlSection label="Source" />
               <SliderRow
                 label="Resolution"
                 value={osc.pathResolution}
-                onChange={v => set({ pathResolution: Math.round(v) })}
-                min={64} max={2048} step={64}
+                onChange={(v) => set({ pathResolution: Math.round(v) })}
+                min={64}
+                max={2048}
+                step={64}
                 color="#4ac7db"
               />
             </>
           )}
-
         </>
       )}
     </div>

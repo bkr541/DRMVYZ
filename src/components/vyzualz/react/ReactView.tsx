@@ -8,10 +8,7 @@ import { ReactPersistenceStatus } from './ReactPersistenceStatus'
 import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDiagnosticsStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
-import {
-  ReactPresetsPanel,
-  ReactEnginePanel,
-} from './panels/ReactRightPanels'
+import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from './ReactCanvasEngineShell'
 import { PixGridSurface } from './pixGrid/PixGridSurface'
@@ -43,11 +40,7 @@ import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
 import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
 import { resolveReactInspectorSelection } from './reactInspectorSelection'
-import {
-  readReactRightPanel,
-  writeReactRightPanel,
-  type ReactRightPanel,
-} from './reactRightPanelPersistence'
+import { readReactRightPanel, writeReactRightPanel, type ReactRightPanel } from './reactRightPanelPersistence'
 import {
   getReactDefaultLeftTab,
   getReactLeftTabLabel,
@@ -72,19 +65,29 @@ import '../../../styles/reactView.css'
 // Keep them outside the initial React-view graph and load them only when their
 // engine/workspace is actually visible.
 const ReactShaderCanvas = lazy(() =>
-  import('./ReactShaderCanvas').then(module => ({ default: module.ReactShaderCanvas })),
+  import('./ReactShaderCanvas').then((module) => ({
+    default: module.ReactShaderCanvas,
+  })),
 )
 const ReactTrackMapStrip = lazy(() =>
-  import('./ReactTrackMapStrip').then(module => ({ default: module.ReactTrackMapStrip })),
+  import('./ReactTrackMapStrip').then((module) => ({
+    default: module.ReactTrackMapStrip,
+  })),
 )
 const SoundDrawingTimelineLane = lazy(() =>
-  import('./SoundDrawingTimelineLane').then(module => ({ default: module.SoundDrawingTimelineLane })),
+  import('./SoundDrawingTimelineLane').then((module) => ({
+    default: module.SoundDrawingTimelineLane,
+  })),
 )
 const LaserDmxLayersPanel = lazy(() =>
-  import('./LaserDmxLayersPanel').then(module => ({ default: module.LaserDmxLayersPanel })),
+  import('./LaserDmxLayersPanel').then((module) => ({
+    default: module.LaserDmxLayersPanel,
+  })),
 )
 const ShaderLibraryPanel = lazy(() =>
-  import('./shaders/ui/ShaderLibraryPanel').then(module => ({ default: module.ShaderLibraryPanel })),
+  import('./shaders/ui/ShaderLibraryPanel').then((module) => ({
+    default: module.ShaderLibraryPanel,
+  })),
 )
 
 function LazyWorkspaceFallback({ label }: { label: string }) {
@@ -157,6 +160,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     oscillatorGlyphPointCache,
     oscillatorTextPointCache,
     soundDrawingTrailResetRevision,
+    soundDrawingRibbonResetRevision,
     soundDrawingPerformanceSettings,
     performanceActionEvent,
     performanceActionEvents,
@@ -174,7 +178,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setPixGridState,
     applyPixGridAuthoringState,
     selectSvgAsset,
-  } = useReactStore(useShallow(s => ({
+  } = useReactStore(
+    useShallow((s) => ({
     reactPresets:           s.reactPresets,
     cinematicConfigsByPresetId: s.cinematicConfigsByPresetId,
     activeReactPresetId:    s.activeReactPresetId,
@@ -194,6 +199,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
     oscillatorTextPointCache:       s.oscillatorTextPointCache,
     soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision,
+      soundDrawingRibbonResetRevision: s.soundDrawingRibbonResetRevision,
     soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
     performanceActionEvent:         s.performanceActionEvent,
     performanceActionEvents:        s.performanceActionEvents,
@@ -211,21 +217,19 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setPixGridState:                  s.setPixGridState,
     applyPixGridAuthoringState:       s.applyPixGridAuthoringState,
     selectSvgAsset:                  s.selectSvgAsset,
-  })))
-  const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
-  const activeBrandKit = useBrandKitStore(s => s.activeKit)
+    })),
+  )
+  const activeShaderId = useShaderPanelStore((s) => s.activeShaderId)
+  const activeBrandKit = useBrandKitStore((s) => s.activeKit)
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
   const workspaceComposition = useMemo(
-    () => resolveReactWorkspaceComposition(
-      activeReactEngineId,
-      laserDmxWorkspaceMode,
-      beamEditorVisible,
-    ),
+    () => resolveReactWorkspaceComposition(activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible),
     [activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible],
   )
   const leftTabs = useMemo<RailTabOption<ReactLeftTab>[]>(
-    () => getReactLeftTabs(workspaceComposition).map(id => ({
+    () =>
+      getReactLeftTabs(workspaceComposition).map((id) => ({
       id,
       label: getReactLeftTabLabel(id, workspaceComposition),
     })),
@@ -245,9 +249,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     leftTab: preferredLeftTab,
     setLeftTab,
   } = useReactWorkspacePreferences()
-  const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition)
-    ? preferredLeftTab
-    : defaultLeftTab
+  const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
   const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings, pixGridState)
@@ -256,18 +258,28 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       getReactMediaDisabledReason(mediaSourceCapability, media),
     [mediaSourceCapability],
   )
-  const handleSelectMedia = useCallback((mediaId: string) => {
+  const handleSelectMedia = useCallback(
+    (mediaId: string) => {
     if (mediaSourceCapability === 'pixGridStill') {
       if (pixGridState.authoringOverlayVisible) {
-        const media = useMediaStore.getState().items.find(item => item.id === mediaId)
-        applyPixGridAuthoringState(addPixGridMediaLayer(pixGridState, mediaId, media?.title ?? media?.name ?? 'Media Artwork'))
+          const media = useMediaStore.getState().items.find((item) => item.id === mediaId)
+          applyPixGridAuthoringState(
+            addPixGridMediaLayer(pixGridState, mediaId, media?.title ?? media?.name ?? 'Media Artwork'),
+          )
       } else {
-        setPixGridState({ conversion: { ...pixGridState.conversion, selectedMediaId: mediaId } })
+          setPixGridState({
+            conversion: {
+              ...pixGridState.conversion,
+              selectedMediaId: mediaId,
+            },
+          })
       }
       return
     }
     void selectSvgAsset(mediaId)
-  }, [applyPixGridAuthoringState, mediaSourceCapability, pixGridState, selectSvgAsset, setPixGridState])
+    },
+    [applyPixGridAuthoringState, mediaSourceCapability, pixGridState, selectSvgAsset, setPixGridState],
+  )
 
   // Recording — useRecorder lives at view level so active recordings survive tab switches
   const recorder = useRecorder()
@@ -278,7 +290,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
 
   // Engine swaps are semantic diagnostics boundaries. Clear immediately rather
   // than showing the previous renderer's FPS until the new renderer samples.
-  useEffect(() => { setLiveFps(0) }, [activeReactEngineId])
+  useEffect(() => {
+    setLiveFps(0)
+  }, [activeReactEngineId])
   useEffect(() => {
     if (activeReactEngineId !== 'pixGrid' && pixGridState.authoringOverlayVisible) {
       setPixGridState({ authoringOverlayVisible: false })
@@ -287,8 +301,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   useEffect(() => {
     if (!import.meta.env.DEV) return
     void import('./PerformanceProgramDevelopmentValidation')
-      .then(module => module.runPerformanceProgramDevelopmentValidation())
-      .catch(error => console.warn('[Performance Programs] Development validation could not load.', error))
+      .then((module) => module.runPerformanceProgramDevelopmentValidation())
+      .catch((error) => console.warn('[Performance Programs] Development validation could not load.', error))
   }, [])
   useEffect(() => {
     retainSharedPerformanceDiagnosticsEngine(
@@ -302,16 +316,17 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     )
   }, [activeReactEngineId])
 
-  const handleStartRecording = useCallback((canvas: HTMLCanvasElement) => {
+  const handleStartRecording = useCallback(
+    (canvas: HTMLCanvasElement) => {
     const audioStream = hasActiveProgramAudio ? getRecordingStream() : null
     startVideoRecording(canvas, audioStream)
-  }, [getRecordingStream, hasActiveProgramAudio, startVideoRecording])
+    },
+    [getRecordingStream, hasActiveProgramAudio, startVideoRecording],
+  )
 
   // Right tab — persisted to localStorage after runtime validation.
   // PRESETS is the default and is always a valid right-rail destination.
-  const [activeRightPanel, setActiveRightPanel] = useState<ReactRightPanel>(
-    readReactRightPanel,
-  )
+  const [activeRightPanel, setActiveRightPanel] = useState<ReactRightPanel>(readReactRightPanel)
   useEffect(() => {
     writeReactRightPanel(activeRightPanel)
   }, [activeRightPanel])
@@ -320,33 +335,27 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Keep preset resolution separate from Inspector enablement so INSP only opens
   // for a concrete source, scene, fixture, beam, group, or future selected object.
   const selectedPresetForEngine = useMemo(
-    () => reactPresets.find(
-      p => p.id === activeReactPresetId && p.engine === activeReactEngineId,
-    ) ?? null,
+    () => reactPresets.find((p) => p.id === activeReactPresetId && p.engine === activeReactEngineId) ?? null,
     [activeReactEngineId, activeReactPresetId, reactPresets],
   )
 
   const inspectableSelection = useMemo(
-    () => resolveReactInspectorSelection({
+    () =>
+      resolveReactInspectorSelection({
       activeReactEngineId,
       activeShaderId,
       oscillatorSettings,
         laserDmxWorkspaceMode,
       laserDmxBeamMatrix,
     }),
-    [
-      activeReactEngineId,
-      activeShaderId,
-      oscillatorSettings,
-        laserDmxWorkspaceMode,
-      laserDmxBeamMatrix,
-    ],
+    [activeReactEngineId, activeShaderId, oscillatorSettings, laserDmxWorkspaceMode, laserDmxBeamMatrix],
   )
 
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
-    () => REACT_RIGHT_BASE_TABS.map(tab => tab.id === 'presets'
-      ? { ...tab, label: getReactPresetTabLabel(workspaceComposition) }
-      : tab),
+    () =>
+      REACT_RIGHT_BASE_TABS.map((tab) =>
+        tab.id === 'presets' ? { ...tab, label: getReactPresetTabLabel(workspaceComposition) } : tab,
+      ),
     [workspaceComposition],
   )
 
@@ -371,9 +380,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
 
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
-  const activePreset = activeReactEngineId === 'shaderPads' || activeReactEngineId === 'canvas'
+  const activePreset =
+    activeReactEngineId === 'shaderPads' || activeReactEngineId === 'canvas'
     ? null
-    : (selectedPresetForEngine ?? reactPresets.find(p => p.engine === activeReactEngineId) ?? null)
+      : (selectedPresetForEngine ?? reactPresets.find((p) => p.engine === activeReactEngineId) ?? null)
 
   const renderPreset = useMemo(
     () => resolveBrandedReactPreset(activePreset, cinematicConfigsByPresetId, activeBrandKit),
@@ -407,16 +417,30 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     const analysis = engine.currentAnalysis
     const analyzedSections = analysis ? adaptMIAnalysis(analysis) : []
     const suppressedIds  = trackId ? (suppressedAutoSectionsByTrackId[trackId]  ?? []) : []
-    return resolveTrackSections({ analyzedSections, manualSections: activeManualTrackSections, durationSec: audioDurationSec, suppressedIds })
-  }, [engine.currentTrackId, engine.currentAnalysis, activeManualTrackSections, suppressedAutoSectionsByTrackId, audioDurationSec])
+    return resolveTrackSections({
+      analyzedSections,
+      manualSections: activeManualTrackSections,
+      durationSec: audioDurationSec,
+      suppressedIds,
+    })
+  }, [
+    engine.currentTrackId,
+    engine.currentAnalysis,
+    activeManualTrackSections,
+    suppressedAutoSectionsByTrackId,
+    audioDurationSec,
+  ])
 
   useEffect(() => {
     musicIntelligenceEngine.setResolvedTimeline(resolvedTrackSections, engine.currentTrackId)
   }, [engine.currentTrackId, resolvedTrackSections])
 
-  useEffect(() => () => {
+  useEffect(
+    () => () => {
     musicIntelligenceEngine.setResolvedTimeline([], engine.currentTrackId)
-  }, [engine.currentTrackId])
+    },
+    [engine.currentTrackId],
+  )
 
   // Manual BPM overrides regenerate the Track Map grid. Show Director receives
   // that exact effective grid while still using the same audio-engine playhead.
@@ -430,7 +454,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       bpmUsedForGrid: bpm,
       beatGridOffsetSec: beatGrid[0]?.timeSec ?? analysis.beatGridOffsetSec,
       beatGrid,
-      downbeats: beatGrid.filter(marker => marker.isDownbeat),
+      downbeats: beatGrid.filter((marker) => marker.isDownbeat),
     }
   }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
 
@@ -439,9 +463,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const activeSdLayers       = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
   const activeSdClips        = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]   ?? []) : []
   const laserDmxAuthoringOverlayVisibility = useMemo(
-    () => resolveLaserDmxAuthoringOverlayVisibility({
-      showDirectorModeActive: activeReactEngineId === 'laserDmx'
-        && laserDmxBeamMatrixAuthoringMode === 'showDirector',
+    () =>
+      resolveLaserDmxAuthoringOverlayVisibility({
+        showDirectorModeActive:
+          activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector',
       beamMatrixEditorRequested: workspaceComposition.showLaserBeamEditor,
       presentationMode: laserDmxShowDirector.settings.presentationMode,
     }),
@@ -465,12 +490,14 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         <div className="vz-header-sep" />
 
         <div className="vz-input-group">
-          <label className="vz-input-label" htmlFor={audioSourceId}>Input</label>
+          <label className="vz-input-label" htmlFor={audioSourceId}>
+            Input
+          </label>
           <select
             id={audioSourceId}
             className="az-select"
             value={engine.source}
-            onChange={e => engine.setSource(e.target.value as typeof engine.source)}
+            onChange={(e) => engine.setSource(e.target.value as typeof engine.source)}
           >
             <option value="file">Track Input</option>
             <option value="microphone">Microphone</option>
@@ -493,10 +520,13 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           side="left"
           label="React left rail"
           collapsed={leftCollapsed}
-          onToggleCollapsed={() => setLeftCollapsed(v => !v)}
+          onToggleCollapsed={() => setLeftCollapsed((v) => !v)}
         >
           <div className="rv-left-workspace-shell">
-            <section className="rv-context-workspace" aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}>
+            <section
+              className="rv-context-workspace"
+              aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}
+            >
               <header className="rv-context-workspace-header">
                 <ReactEngineBrowser />
               </header>
@@ -517,7 +547,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                       onSelect={handleSelectMedia}
                       onOpenMediaManager={onOpenMediaManager}
                       onOpenLyricManager={onOpenLyricManager}
-                      title={mediaSourceCapability === 'pixGridStill' ? 'PixGrid Image & SVG Media' : 'Sound Drawing SVG Media'}
+                      title={
+                        mediaSourceCapability === 'pixGridStill'
+                          ? 'PixGrid Image & SVG Media'
+                          : 'Sound Drawing SVG Media'
+                      }
                       getDisabledReason={getMediaDisabledReason}
                     />
                   )}
@@ -615,6 +649,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 oscillatorGlyphPointCache={oscillatorGlyphPointCache}
                 oscillatorTextPointCache={oscillatorTextPointCache}
                 soundDrawingTrailResetRevision={soundDrawingTrailResetRevision}
+                soundDrawingRibbonResetRevision={soundDrawingRibbonResetRevision}
                 soundDrawingPerformanceSettings={soundDrawingPerformanceSettings}
                 performanceActionEvent={performanceActionEvent}
                 performanceActionEvents={performanceActionEvents}
@@ -648,9 +683,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 />
               </div>
             )}
-            {laserDmxAuthoringOverlayVisibility.showBeamMatrixEditor && (
-              <LaserDmxBeamMatrixEditorOverlay />
-            )}
+            {laserDmxAuthoringOverlayVisibility.showBeamMatrixEditor && <LaserDmxBeamMatrixEditorOverlay />}
           </div>
           {(workspaceComposition.showTrackMap || workspaceComposition.showPerformancePads) && (
             <section
@@ -663,10 +696,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   type="button"
                   className="rv-lower-workspace-row-toggle"
                   aria-expanded={!lowerWorkspaceCollapsed}
-                  aria-label={lowerWorkspaceCollapsed
+                  aria-label={
+                    lowerWorkspaceCollapsed
                     ? 'Expand Track Map and Performance Pads'
-                    : 'Collapse Track Map and Performance Pads'}
-                  onClick={() => setLowerWorkspaceCollapsed(value => !value)}
+                      : 'Collapse Track Map and Performance Pads'
+                  }
+                  onClick={() => setLowerWorkspaceCollapsed((value) => !value)}
                 />
                 <div className="rv-lower-workspace-tabs" role="tablist" aria-label="Timeline surfaces">
                   {workspaceComposition.showTrackMap && (
@@ -704,7 +739,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                     className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}
                     aria-label={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
                     aria-pressed={stageFocus}
-                    onClick={() => setStageFocus(value => !value)}
+                    onClick={() => setStageFocus((value) => !value)}
                     title={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
                   >
                     <StageFocusIcon />
@@ -751,7 +786,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           side="right"
           label="React right rail"
           collapsed={rightCollapsed}
-          onToggleCollapsed={() => setRightCollapsed(v => !v)}
+          onToggleCollapsed={() => setRightCollapsed((v) => !v)}
         >
           <RailTabs
             tabs={rightTabs}
@@ -760,15 +795,14 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             ariaLabel="React right workspace panels"
           />
           <div className="vz-panel-body">
-            {activeRightPanel === 'presets' && (
-              workspaceComposition.presetSurface === 'shaderScenes'
-                ? (
+            {activeRightPanel === 'presets' &&
+              (workspaceComposition.presetSurface === 'shaderScenes' ? (
                   <Suspense fallback={<LazyWorkspaceFallback label="Shader scenes" />}>
                     <ShaderLibraryPanel />
                   </Suspense>
-                )
-                : <ReactPresetsPanel />
-            )}
+              ) : (
+                <ReactPresetsPanel />
+              ))}
             {activeRightPanel === 'design' && (
               <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
             )}
@@ -790,7 +824,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       <VyzualzAudioDock
         compact={stageFocus}
         expandable
-        unifiedTimeline={workspaceComposition.showTrackMap && lowerSurface === 'trackMap' && !lowerWorkspaceCollapsed && !stageFocus}
+        unifiedTimeline={
+          workspaceComposition.showTrackMap && lowerSurface === 'trackMap' && !lowerWorkspaceCollapsed && !stageFocus
+        }
         waveformAppearance="deck"
       />
     </div>

@@ -13,6 +13,7 @@ import {
   type SoundDrawingEventKind,
   type SoundDrawingEventTarget,
   type SoundDrawingModulationCapability,
+  type SoundDrawingModulationConfidence,
   type SoundDrawingModulationRoute,
   type SoundDrawingModulationSource,
   type SoundDrawingModulationTarget,
@@ -29,6 +30,10 @@ export interface SoundDrawingBehaviorTarget {
   target: SoundDrawingBehaviorTargetName
   clamp?: readonly [number, number]
   lockKey?: SoundDrawingPerformanceLockKey
+  direction?: readonly [number, number, number]
+  alternateDirection?: boolean
+  location?: number
+  radius?: number
 }
 
 export interface SoundDrawingBehaviorRouteDefinition {
@@ -64,7 +69,7 @@ type Runtime = SharedBehaviorRoutingRuntime<
   SoundDrawingEventKind,
   SoundDrawingBehaviorTarget,
   SoundDrawingModulationCapability,
-  'overall'
+  SoundDrawingModulationConfidence
 >
 
 const runtimeByTemporalState = new WeakMap<SoundDrawingPerformanceTemporalState, Runtime>()
@@ -78,8 +83,24 @@ function clamp01(value: unknown): number {
 }
 
 function eventIdentity(context: SharedPerformanceContext, event: SoundDrawingEventKind): string {
-  if (event === 'hat') return `${event}:${Math.max(0, Math.floor(context.absoluteBeat * 4))}`
-  return `${event}:${Math.max(0, context.beatIndex)}`
+  switch (event) {
+    case 'hat':
+      return `${event}:${Math.max(0, Math.floor(context.absoluteBeat * 4))}`
+    case 'fourBarBoundary':
+      return `${event}:${context.sectionIdentity}:${context.sectionOccurrence}:${context.performanceFourBarBlockIndex}`
+    case 'eightBarBoundary':
+      return `${event}:${context.sectionIdentity}:${context.sectionOccurrence}:${context.performanceEightBarBlockIndex}`
+    case 'sixteenBarBoundary':
+      return `${event}:${context.sectionIdentity}:${context.sectionOccurrence}:${context.performanceSixteenBarBlockIndex}`
+    case 'sectionEntry':
+      return `${event}:${context.sectionIdentity}:${context.sectionOccurrence}`
+    case 'sectionExit':
+      return `${event}:${context.boundaries.previousSectionId ?? context.sectionIdentity}`
+    case 'dropImpact':
+      return `${event}:${context.dropOccurrence}:${context.beatIndex}`
+    default:
+      return `${event}:${Math.max(0, context.beatIndex)}`
+  }
 }
 
 function eventSample(context: SharedPerformanceContext, event: SoundDrawingEventKind): SharedBehaviorEventSample {
@@ -100,17 +121,16 @@ function eventSample(context: SharedPerformanceContext, event: SoundDrawingEvent
       strength = active ? Math.max(0.65, context.energy) : 0
       break
     case 'kick': {
-      const fallback = useGridFallback && context.beatWithinBar % 2 === 0
-        ? Math.max(0.25, context.bass * 0.8)
-        : 0
+      const fallback = useGridFallback && context.beatWithinBar % 2 === 0 ? Math.max(0.25, context.bass * 0.8) : 0
       active = context.kick || fallback > 0
       strength = active ? Math.max(context.kickStrength, fallback) : 0
       break
     }
     case 'snare': {
-      const fallback = useGridFallback && context.beatWithinBar % 2 === 1
-        ? Math.max(0.22, context.mid * 0.65, context.spectralFlux * 0.5)
-        : 0
+      const fallback =
+        useGridFallback && context.beatWithinBar % 2 === 1
+          ? Math.max(0.22, context.mid * 0.65, context.spectralFlux * 0.5)
+          : 0
       active = context.snare || fallback > 0
       strength = active ? Math.max(context.snareStrength, fallback) : 0
       break
@@ -119,6 +139,36 @@ function eventSample(context: SharedPerformanceContext, event: SoundDrawingEvent
       active = context.hat || useGridFallback
       ageBeats = (context.absoluteBeat * 4 - Math.floor(context.absoluteBeat * 4)) / 4
       strength = active ? Math.max(context.hatStrength, context.high * 0.65) : 0
+      break
+    case 'fourBarBoundary':
+      active = context.boundaries.performanceFourBarBoundary
+      strength = active ? 0.48 : 0
+      ageBeats = 0
+      break
+    case 'eightBarBoundary':
+      active = context.boundaries.performanceEightBarBoundary
+      strength = active ? 0.62 : 0
+      ageBeats = 0
+      break
+    case 'sixteenBarBoundary':
+      active = context.boundaries.performanceSixteenBarBoundary
+      strength = active ? 0.78 : 0
+      ageBeats = 0
+      break
+    case 'sectionEntry':
+      active = context.boundaries.sectionEntry || context.boundaries.macroSectionEntry
+      strength = active ? Math.max(0.55, context.sectionConfidence) : 0
+      ageBeats = 0
+      break
+    case 'sectionExit':
+      active = context.boundaries.sectionExit || context.boundaries.macroSectionExit
+      strength = active ? Math.max(0.45, context.sectionConfidence) : 0
+      ageBeats = 0
+      break
+    case 'dropImpact':
+      active = context.dropImpact > 0.05 && (context.boundaries.sectionEntry || context.intelligence.rhythm.downbeatHit)
+      strength = active ? Math.max(context.dropImpact, 0.72) : 0
+      ageBeats = beatPhase
       break
   }
 
@@ -131,7 +181,10 @@ function eventSample(context: SharedPerformanceContext, event: SoundDrawingEvent
   }
 }
 
-function transportState(value: SoundDrawingBehaviorContext, output: SharedBehaviorTransportState): SharedBehaviorTransportState {
+function transportState(
+  value: SoundDrawingBehaviorContext,
+  output: SharedBehaviorTransportState,
+): SharedBehaviorTransportState {
   const context = value.context
   output.trackReplacementDetected = context.trackReplacementDetected
   output.seekDetected = context.seekDetected
@@ -157,21 +210,24 @@ function createRuntime(): Runtime {
     SoundDrawingEventKind,
     SoundDrawingBehaviorTarget,
     SoundDrawingModulationCapability,
-    'overall'
-  >({
-    timeSec: value => value.context.audioTimeSec,
-    resolveContinuous: (value, source) => clamp01(value.context[source]),
-    resolveEvent: (value, source) => eventSample(value.context, source),
-    section: value => value.context.macroSectionType ?? value.context.sectionType ?? 'unknown',
-    capability: (value, key) => Boolean(value.context.capabilities[key]),
-    confidence: value => value.context.confidence.overall,
-    transport: transportState,
-  }, {
-    maxRouteStates: 64,
-    maxEventBindings: MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES * 2,
-    maxActiveEventStates: MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES * 2,
-    maxRememberedEventIdentities: 128,
-  })
+    SoundDrawingModulationConfidence
+  >(
+    {
+      timeSec: (value) => value.context.audioTimeSec,
+      resolveContinuous: (value, source) => clamp01(value.context[source]),
+      resolveEvent: (value, source) => eventSample(value.context, source),
+      section: (value) => value.context.macroSectionType ?? value.context.sectionType ?? 'unknown',
+      capability: (value, key) => Boolean(value.context.capabilities[key]),
+      confidence: (value, key) => value.context.confidence[key],
+      transport: transportState,
+    },
+    {
+      maxRouteStates: 64,
+      maxEventBindings: MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES * 2,
+      maxActiveEventStates: MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES * 2,
+      maxRememberedEventIdentities: 128,
+    },
+  )
 }
 
 function runtimeFor(temporalState: SoundDrawingPerformanceTemporalState): Runtime {
@@ -189,16 +245,26 @@ function secondsPerBeat(context: SharedPerformanceContext): number {
 
 function timingUnitToBeats(unit: SoundDrawingEventBinding['envelope']['attack'], timeSignature: number): number {
   switch (unit) {
-    case '1/32beat': return 1 / 32
-    case '1/16beat': return 1 / 16
-    case '1/8beat': return 1 / 8
-    case '1/4beat': return 1 / 4
-    case '1/2beat': return 1 / 2
-    case '1beat': return 1
-    case '2beats': return 2
-    case '1bar': return Math.max(1, timeSignature)
-    case '2bars': return Math.max(1, timeSignature) * 2
-    case '4bars': return Math.max(1, timeSignature) * 4
+    case '1/32beat':
+      return 1 / 32
+    case '1/16beat':
+      return 1 / 16
+    case '1/8beat':
+      return 1 / 8
+    case '1/4beat':
+      return 1 / 4
+    case '1/2beat':
+      return 1 / 2
+    case '1beat':
+      return 1
+    case '2beats':
+      return 2
+    case '1bar':
+      return Math.max(1, timeSignature)
+    case '2bars':
+      return Math.max(1, timeSignature) * 2
+    case '4bars':
+      return Math.max(1, timeSignature) * 4
   }
 }
 
@@ -208,7 +274,7 @@ export function applySoundDrawingBehaviorRouting(input: ApplySoundDrawingBehavio
     SoundDrawingModulationSource,
     SoundDrawingBehaviorTarget,
     SoundDrawingModulationCapability,
-    'overall'
+    SoundDrawingModulationConfidence
   >[] = []
   for (const definition of input.routes) {
     const route = definition.route
@@ -217,7 +283,9 @@ export function applySoundDrawingBehaviorRouting(input: ApplySoundDrawingBehavio
     continuous.push({
       id: `${definition.layerId}:${route.id}`,
       source: route.source,
-      enabled: !(route.lockKey && input.settings.locks[route.lockKey]),
+      enabled:
+        !(route.lockKey && input.settings.locks[route.lockKey]) &&
+        (route.capabilityAny == null || route.capabilityAny.some((key) => input.context.capabilities[key])),
       target: { layerId: definition.layerId, target: route.target, clamp: route.clamp, lockKey: route.lockKey },
       inputRange: { min: 0, max: 1 },
       // Sound Drawing amount scales the authored span, not the minimum.
@@ -227,7 +295,8 @@ export function applySoundDrawingBehaviorRouting(input: ApplySoundDrawingBehavio
       attackSec: usesSmoothing ? Math.max(0, finite(route.attack, route.smoothing ?? 0.08)) : 0,
       releaseSec: usesSmoothing ? Math.max(0, finite(route.release, route.smoothing ?? 0.12)) : 0,
       sectionFilters: route.sectionFilter,
-      confidenceRequirement: route.minConfidence == null ? undefined : { key: 'overall', min: route.minConfidence },
+      confidenceRequirement:
+        route.minConfidence == null ? undefined : { key: route.confidenceKey ?? 'overall', min: route.minConfidence },
       capabilityRequirement: route.capability == null ? undefined : { key: route.capability },
     })
   }
@@ -237,7 +306,7 @@ export function applySoundDrawingBehaviorRouting(input: ApplySoundDrawingBehavio
     SoundDrawingEventKind,
     SoundDrawingBehaviorTarget,
     SoundDrawingModulationCapability,
-    'overall'
+    SoundDrawingModulationConfidence
   >[] = []
   for (const definition of input.events) {
     const binding = definition.binding
@@ -245,12 +314,26 @@ export function applySoundDrawingBehaviorRouting(input: ApplySoundDrawingBehavio
       id: definition.id,
       source: binding.event,
       enabled: !(binding.lockKey && input.settings.locks[binding.lockKey]),
-      target: { layerId: definition.layerId, target: binding.target, lockKey: binding.lockKey },
+      target: {
+        layerId: definition.layerId,
+        target: binding.target,
+        lockKey: binding.lockKey,
+        direction: binding.direction,
+        alternateDirection: binding.alternateDirection,
+        location: binding.location,
+        radius: binding.radius,
+      },
       amount: finite(binding.amount, 1),
       attackSec: timingUnitToBeats(binding.envelope.attack, input.context.timeSignature) * secondsForBeat,
       holdSec: timingUnitToBeats(binding.envelope.hold, input.context.timeSignature) * secondsForBeat,
       releaseSec: timingUnitToBeats(binding.envelope.release, input.context.timeSignature) * secondsForBeat,
       curve: binding.envelope.curve,
+      sectionFilters: binding.sectionFilter,
+      confidenceRequirement:
+        binding.minConfidence == null
+          ? undefined
+          : { key: binding.confidenceKey ?? 'overall', min: binding.minConfidence },
+      capabilityRequirement: binding.capability == null ? undefined : { key: binding.capability },
     })
   }
 
@@ -259,10 +342,13 @@ export function applySoundDrawingBehaviorRouting(input: ApplySoundDrawingBehavio
     applyContinuous: input.applyContinuous,
     applyEvent: input.applyEvent,
   }
-  runtime.update({
-    context: { context: input.context, frame: input.frame },
-    deltaSec: Math.max(1 / 240, Math.min(0.25, finite(input.frame.deltaTimeSec, 1 / 60))),
-  }, sink)
+  runtime.update(
+    {
+      context: { context: input.context, frame: input.frame },
+      deltaSec: Math.max(1 / 240, Math.min(0.25, finite(input.frame.deltaTimeSec, 1 / 60))),
+    },
+    sink,
+  )
 }
 
 export function synchronizeSoundDrawingBehaviorRuntime(

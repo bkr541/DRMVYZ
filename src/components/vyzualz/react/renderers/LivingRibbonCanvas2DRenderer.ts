@@ -1,7 +1,6 @@
 import {
   LivingRibbonSimulation,
   hashVisualSimulationString,
-  visualSimulationDeterministicSigned,
   visualSimulationDeterministicUnit,
   type LivingRibbonRenderView,
   type LivingRibbonRuntimeControls,
@@ -10,6 +9,7 @@ import {
 } from '../../../../features/visualSimulation'
 import type { ReactPreset } from '../ReactTypes'
 import type {
+  SoundDrawingLivingRibbonPhysicalControls,
   SoundDrawingResolvedPerformanceFrame,
   SoundDrawingResolvedPerformanceLayer,
   SoundDrawingVisualQuality,
@@ -33,7 +33,9 @@ export interface LivingRibbonCanvasQualityBudget {
   trailDetail: number
 }
 
-const QUALITY_BUDGETS: Readonly<Record<Exclude<VisualSimulationQualityTier, 'auto'>, Omit<LivingRibbonCanvasQualityBudget, 'requested' | 'resolved'>>> = {
+const QUALITY_BUDGETS: Readonly<
+  Record<Exclude<VisualSimulationQualityTier, 'auto'>, Omit<LivingRibbonCanvasQualityBudget, 'requested' | 'resolved'>>
+> = {
   low: {
     pointCount: 48,
     splineSubdivisions: 1,
@@ -63,24 +65,33 @@ const QUALITY_BUDGETS: Readonly<Record<Exclude<VisualSimulationQualityTier, 'aut
 export function resolveLivingRibbonCanvasQualityBudget(
   requested: SoundDrawingVisualQuality,
   mode: VisualSimulationRuntimeMode,
+  pointDensity?: number,
+  sparkAmount?: number,
 ): LivingRibbonCanvasQualityBudget {
   const safeRequested: SoundDrawingVisualQuality = ['auto', 'low', 'medium', 'high'].includes(requested)
     ? requested
     : 'auto'
-  const resolved: Exclude<VisualSimulationQualityTier, 'auto'> = safeRequested === 'auto'
-    ? (mode === 'thumbnail' ? 'low' : 'medium')
-    : safeRequested
+  const resolved: Exclude<VisualSimulationQualityTier, 'auto'> =
+    safeRequested === 'auto' ? (mode === 'thumbnail' ? 'low' : 'medium') : safeRequested
   const base = QUALITY_BUDGETS[resolved]
+  const densityScale = pointDensity == null ? 1 : 0.55 + clamp01(pointDensity) * 0.75
+  const sparkScale = sparkAmount == null ? 1 : clamp01(sparkAmount)
+  const modeCap = pointDensity == null
+    ? MAX_RENDER_POINTS
+    : mode === 'thumbnail'
+      ? 64
+      : mode === 'preview'
+        ? 128
+        : MAX_RENDER_POINTS
   return {
     requested: safeRequested,
     resolved,
-    // Manual tiers are deterministic and remain fixed. Runtime mode only
-    // influences the conservative Auto resolution; thumbnail callers also
-    // request Low explicitly so they cannot borrow a live renderer budget.
-    pointCount: Math.max(8, Math.min(MAX_RENDER_POINTS, base.pointCount)),
+    // Manual tiers remain deterministic. Point density only selects a bounded
+    // structural budget inside the requested tier and runtime ownership cap.
+    pointCount: Math.max(8, Math.min(modeCap, MAX_RENDER_POINTS, Math.round(base.pointCount * densityScale))),
     splineSubdivisions: Math.max(1, Math.min(3, base.splineSubdivisions)),
     glowPasses: Math.max(1, Math.min(3, base.glowPasses)),
-    sparkCount: Math.max(0, Math.min(8, base.sparkCount)),
+    sparkCount: Math.max(0, Math.min(8, Math.round(base.sparkCount * sparkScale))),
     accentStride: Math.max(1, Math.min(8, base.accentStride)),
     trailDetail: Math.max(0, Math.min(1, base.trailDetail)),
   }
@@ -119,12 +130,16 @@ interface LivingRibbonRuntimeRecord {
   lastAudioTimeSec: number
   lastTrackIdentity: string | null
   lastStructureRevision: number
+  controls: LivingRibbonRuntimeControls
+  recentImpulses: string[]
 }
 
 interface LivingRibbonOwnerState {
   runtimes: Map<string, LivingRibbonRuntimeRecord>
   failures: Map<string, string>
   paused: boolean
+  resetCount: number
+  finiteRecoveryCount: number
 }
 
 const ownerStateMap = new WeakMap<CanvasRenderingContext2D, LivingRibbonOwnerState>()
@@ -137,6 +152,8 @@ function getOwnerState(ownerContext: CanvasRenderingContext2D): LivingRibbonOwne
     runtimes: new Map(),
     failures: new Map(),
     paused: false,
+    resetCount: 0,
+    finiteRecoveryCount: 0,
   }
   ownerStateMap.set(ownerContext, created)
   return created
@@ -175,7 +192,10 @@ function boundedInsertRuntime(state: LivingRibbonOwnerState, record: LivingRibbo
   state.runtimes.set(record.key, record)
 }
 
-function layerRuntimeKey(performance: SoundDrawingResolvedPerformanceFrame, layer: SoundDrawingResolvedPerformanceLayer): string {
+function layerRuntimeKey(
+  performance: SoundDrawingResolvedPerformanceFrame,
+  layer: SoundDrawingResolvedPerformanceLayer,
+): string {
   return `${performance.showId}:${layer.id}`
 }
 
@@ -184,46 +204,25 @@ function layerRuntimeIdentity(
   layer: SoundDrawingResolvedPerformanceLayer,
   mode: VisualSimulationRuntimeMode,
 ): string {
-  return [
-    performance.showId,
-    layer.id,
-    layer.generator,
-    layer.source.identity,
-    mode,
-  ].join('|')
+  return [performance.showId, layer.id, layer.generator, layer.source.identity, mode].join('|')
 }
 
-function controlsForLayer(
-  frame: ReactFrameContext,
-  performance: SoundDrawingResolvedPerformanceFrame,
-  layer: SoundDrawingResolvedPerformanceLayer,
-): LivingRibbonRuntimeControls {
-  const context = performance.context
-  const sectionType = context.sectionType
-  const preDropCollapse = sectionType === 'preDrop'
-    ? 0.28 + context.sectionProgress * 0.52
-    : 0
-  const release = sectionType === 'drop'
-    ? Math.max(context.dropImpact, context.sectionPhase === 'entry' ? 0.55 : 0)
-    : 0
-  const energy = clamp01(context.energy)
-  const bass = clamp01(context.bass)
-  const high = clamp01(context.high)
-  const motion = clamp01(frame.isPlaying === false ? 0 : 0.35 + energy * 0.65)
+function controlsForLayer(layer: SoundDrawingResolvedPerformanceLayer): LivingRibbonRuntimeControls {
+  const controls: SoundDrawingLivingRibbonPhysicalControls = layer.livingRibbonControls
   return {
-    drive: clamp01(0.12 + motion * 0.42 + layer.supportingVisualReactivity * 0.18),
-    turbulence: clamp01(0.08 + high * 0.42 + layer.jitter * 1.8),
-    tension: clamp01(0.46 + layer.strokeWidth * 0.12 + (1 - layer.audioDisplacement) * 0.18),
-    damping: clamp01(0.5 + (1 - energy) * 0.18),
-    spread: clamp01(0.34 + layer.scale * 0.24 + layer.symmetry * 0.025),
-    centerAttraction: clamp01(0.12 + preDropCollapse * 0.5),
-    widthTarget: clamp01(0.28 + layer.strokeWidth * 0.18 + bass * 0.16),
-    twist: clampSigned((layer.rotation / 180) * 0.45 + context.mid * 0.22 + layer.topologyVariant * 0.025),
-    radialPressure: clampSigned((bass - 0.42) * 0.72 + release * 0.46 - preDropCollapse * 0.38),
-    collapseAmount: clamp01(preDropCollapse),
-    releaseAmount: clamp01(release),
-    directionalDrift: clampSigned(context.energyTrend * 0.55 + Math.sin(layer.phaseOffset * Math.PI * 2) * 0.16),
-    heatDecay: clamp01(0.38 + (1 - layer.trailPersistence) * 0.4),
+    drive: clamp01(controls.drive),
+    turbulence: clamp01(controls.turbulence),
+    tension: clamp01(controls.tension),
+    damping: clamp01(controls.damping),
+    spread: clamp01(controls.spread),
+    centerAttraction: clamp01(controls.centerAttraction),
+    widthTarget: clamp01(controls.widthTarget),
+    twist: clampSigned(controls.twist),
+    radialPressure: clampSigned(controls.radialPressure),
+    collapseAmount: clamp01(controls.collapseAmount),
+    releaseAmount: clamp01(controls.releaseAmount),
+    directionalDrift: clampSigned(controls.directionalDrift),
+    heatDecay: clamp01(controls.heatDecay),
   }
 }
 
@@ -235,8 +234,10 @@ function createRuntimeRecord(
   frame: ReactFrameContext,
   quality: SoundDrawingVisualQuality,
   mode: VisualSimulationRuntimeMode,
+  pointDensity?: number,
+  sparkAmount?: number,
 ): LivingRibbonRuntimeRecord {
-  const budget = resolveLivingRibbonCanvasQualityBudget(quality, mode)
+  const budget = resolveLivingRibbonCanvasQualityBudget(quality, mode, pointDensity, sparkAmount)
   const simulation = simulationFactory()
   const seed = hashVisualSimulationString(`${identity}|${performance.context.trackIdentity ?? 'no-track'}`)
   const configureResult = simulation.configure({
@@ -249,7 +250,7 @@ function createRuntimeRecord(
       boundarySize: 8,
       qualityTier: budget.resolved,
     },
-    controls: controlsForLayer(frame, performance, layer),
+    controls: controlsForLayer(layer),
     mode,
   })
   simulation.warmStart(mode === 'thumbnail' ? 0.05 : 0.12, mode === 'thumbnail' ? 6 : 14)
@@ -263,14 +264,15 @@ function createRuntimeRecord(
     lastAudioTimeSec: frame.audioTime,
     lastTrackIdentity: performance.context.trackIdentity,
     lastStructureRevision: configureResult.structureRevision,
+    controls: controlsForLayer(layer),
+    recentImpulses: [],
   }
 }
 
 export function usesLivingRibbonCanvasRenderer(layer: SoundDrawingResolvedPerformanceLayer): boolean {
-  return layer.enabled
-    && layer.opacity > 0.001
-    && layer.generator === 'livingRibbon'
-    && layer.source.kind === 'generated'
+  return (
+    layer.enabled && layer.opacity > 0.001 && layer.generator === 'livingRibbon' && layer.source.kind === 'generated'
+  )
 }
 
 export interface PrepareLivingRibbonCanvasFrameInput {
@@ -279,6 +281,8 @@ export interface PrepareLivingRibbonCanvasFrameInput {
   performance: SoundDrawingResolvedPerformanceFrame
   quality: SoundDrawingVisualQuality
   mode: VisualSimulationRuntimeMode
+  pointDensity?: number
+  sparkAmount?: number
 }
 
 export interface PrepareLivingRibbonCanvasFrameResult {
@@ -318,6 +322,8 @@ export function prepareLivingRibbonCanvasFrame(
           input.frame,
           input.quality,
           input.mode,
+          input.pointDensity,
+          input.sparkAmount,
         )
         boundedInsertRuntime(state, record)
         state.failures.delete(key)
@@ -329,7 +335,12 @@ export function prepareLivingRibbonCanvasFrame(
       }
     } else {
       try {
-        const nextBudget = resolveLivingRibbonCanvasQualityBudget(input.quality, input.mode)
+        const nextBudget = resolveLivingRibbonCanvasQualityBudget(
+          input.quality,
+          input.mode,
+          input.pointDensity,
+          input.sparkAmount,
+        )
         const result = record.simulation.configure({
           structural: {
             pointCount: nextBudget.pointCount,
@@ -340,7 +351,7 @@ export function prepareLivingRibbonCanvasFrame(
             boundarySize: 8,
             qualityTier: nextBudget.resolved,
           },
-          controls: controlsForLayer(input.frame, input.performance, layer),
+          controls: controlsForLayer(layer),
           mode: input.mode,
         })
         if (result.rebuilt) {
@@ -349,6 +360,7 @@ export function prepareLivingRibbonCanvasFrame(
           clearTrail = true
         }
         record.budget = nextBudget
+        record.controls = controlsForLayer(layer)
       } catch (error) {
         const message = diagnosticMessage('runtime configuration failed', error)
         disposeRuntime(record)
@@ -363,8 +375,7 @@ export function prepareLivingRibbonCanvasFrame(
     const current = state.runtimes.get(key)
     if (!current) continue
     const context = input.performance.context
-    const backwardSeek = context.seekDetected
-      && input.frame.audioTime + SEEK_EPSILON_SEC < current.lastAudioTimeSec
+    const backwardSeek = context.seekDetected && input.frame.audioTime + SEEK_EPSILON_SEC < current.lastAudioTimeSec
     try {
       if (context.trackReplacementDetected || current.lastTrackIdentity !== context.trackIdentity) {
         current.simulation.replaceTrack(
@@ -448,7 +459,7 @@ export function renderLivingRibbonCanvasLayer(
 
   try {
     if (input.frame.isPlaying !== false && !state.paused) {
-      applyMusicalImpulses(record, input.performance, input.layer)
+      applyPhysicalImpulses(record, input.layer)
       const deltaTimeSec = finiteNumber(input.frame.deltaTimeSec, DEFAULT_FRAME_DELTA_SEC)
       record.simulation.update({ deltaTimeSec: Math.max(0, deltaTimeSec) })
     }
@@ -465,6 +476,7 @@ export function renderLivingRibbonCanvasLayer(
     return { rendered: true, fallbackReason: null, runtimeKey: key }
   } catch (error) {
     const message = diagnosticMessage('rendering failed', error)
+    state.finiteRecoveryCount += 1
     disposeRuntime(record)
     state.runtimes.delete(key)
     state.failures.set(key, message)
@@ -472,48 +484,44 @@ export function renderLivingRibbonCanvasLayer(
   }
 }
 
-function applyMusicalImpulses(
-  record: LivingRibbonRuntimeRecord,
-  performance: SoundDrawingResolvedPerformanceFrame,
-  layer: SoundDrawingResolvedPerformanceLayer,
-): void {
-  const context = performance.context
-  const identityPrefix = `${context.trackIdentity ?? 'track'}:${context.beatIndex}:${layer.id}`
-  if (context.kick) {
-    record.simulation.radialImpact({
-      identity: `${identityPrefix}:kick`,
-      strength: 0.32 + context.kickStrength * 1.05,
+function applyPhysicalImpulses(record: LivingRibbonRuntimeRecord, layer: SoundDrawingResolvedPerformanceLayer): void {
+  for (const impulse of layer.livingRibbonImpulses) {
+    const input = {
+      identity: impulse.identity,
+      strength: clamp01(impulse.strength),
+      direction: impulse.direction,
+    }
+    let applied = false
+    switch (impulse.kind) {
+      case 'radialImpact':
+        applied = record.simulation.radialImpact(input)
+        break
+      case 'lateralShock':
+        applied = record.simulation.lateralShock(input)
+        break
+      case 'fineRipple':
+        applied = record.simulation.fineRipple(input)
+        break
+      case 'collapseImpulse':
+        applied = record.simulation.collapseImpulse(input)
+        break
+      case 'releaseBurst':
+        applied = record.simulation.releaseBurst(input)
+        break
+      case 'twistImpulse':
+        applied = record.simulation.twistImpulse(input)
+        break
+      case 'localizedImpulse':
+        applied = record.simulation.localizedImpulse({
+          ...input,
+          location: clamp01(impulse.location ?? 0.5),
+          radius: clamp(impulse.radius ?? 0.15, 0.01, 1),
     })
+        break
   }
-  if (context.snare) {
-    record.simulation.lateralShock({
-      identity: `${identityPrefix}:snare`,
-      strength: 0.26 + context.snareStrength * 0.82,
-      direction: [
-        visualSimulationDeterministicSigned(record.simulation.getRenderView().baseSeed, context.beatIndex),
-        1,
-        0.35,
-      ],
-    })
-  }
-  if (context.hat) {
-    record.simulation.fineRipple({
-      identity: `${identityPrefix}:hat`,
-      strength: 0.12 + context.hatStrength * 0.38,
-      direction: [0.25, 0.7, 1],
-    })
-  }
-  if (context.intelligence.rhythm.downbeatHit) {
-    record.simulation.twistImpulse({
-      identity: `${identityPrefix}:downbeat-twist`,
-      strength: 0.28 + context.dropImpact * 0.55,
-      direction: [context.beatIndex % 8 < 4 ? 1 : -1, 0, 0],
-    })
-    if (context.sectionType === 'drop') {
-      record.simulation.releaseBurst({
-        identity: `${identityPrefix}:drop-release`,
-        strength: 0.42 + context.dropImpact * 0.9,
-      })
+    if (applied) {
+      record.recentImpulses.push(`${impulse.kind}:${impulse.identity}`)
+      if (record.recentImpulses.length > 8) record.recentImpulses.splice(0, record.recentImpulses.length - 8)
     }
   }
 }
@@ -526,7 +534,12 @@ function isValidRenderView(view: LivingRibbonRenderView): boolean {
     if (!Number.isFinite(view.positions[index]) || !Number.isFinite(view.previousPositions[index])) return false
   }
   for (let index = 0; index < view.activePointCount; index += 1) {
-    if (!Number.isFinite(view.widths[index]) || !Number.isFinite(view.heat[index]) || !Number.isFinite(view.speedMagnitudes[index])) return false
+    if (
+      !Number.isFinite(view.widths[index]) ||
+      !Number.isFinite(view.heat[index]) ||
+      !Number.isFinite(view.speedMagnitudes[index])
+    )
+      return false
   }
   return Number.isFinite(view.interpolationAlpha) && view.boundarySize > 0
 }
@@ -538,7 +551,7 @@ function projectAndSample(
 ): number {
   const count = Math.min(view.activePointCount, record.buffers.pointX.length)
   const alpha = clamp01(view.interpolationAlpha)
-  const scale = Math.min(frame.W, frame.H) * 0.38 / Math.max(0.5, view.boundarySize)
+  const scale = (Math.min(frame.W, frame.H) * 0.38) / Math.max(0.5, view.boundarySize)
   const depthScale = scale * 0.18
   const centerX = frame.W * 0.5
   const centerY = frame.H * 0.5
@@ -564,8 +577,20 @@ function projectAndSample(
     const p3 = Math.min(count - 1, segment + 2)
     for (let step = 0; step < subdivisions; step += 1) {
       const t = step / subdivisions
-      buffers.splineX[cursor] = catmullRom(buffers.pointX[p0], buffers.pointX[p1], buffers.pointX[p2], buffers.pointX[p3], t)
-      buffers.splineY[cursor] = catmullRom(buffers.pointY[p0], buffers.pointY[p1], buffers.pointY[p2], buffers.pointY[p3], t)
+      buffers.splineX[cursor] = catmullRom(
+        buffers.pointX[p0],
+        buffers.pointX[p1],
+        buffers.pointX[p2],
+        buffers.pointX[p3],
+        t,
+      )
+      buffers.splineY[cursor] = catmullRom(
+        buffers.pointY[p0],
+        buffers.pointY[p1],
+        buffers.pointY[p2],
+        buffers.pointY[p3],
+        t,
+      )
       buffers.splineWidth[cursor] = lerp(buffers.pointWidth[p1], buffers.pointWidth[p2], t)
       buffers.splineHeat[cursor] = lerp(buffers.pointHeat[p1], buffers.pointHeat[p2], t)
       buffers.splineSpeed[cursor] = lerp(buffers.pointSpeed[p1], buffers.pointSpeed[p2], t)
@@ -718,17 +743,22 @@ function drawRestrainedSparks(
 ): void {
   if (record.budget.sparkCount <= 0 || count <= 2) return
   const buffers = record.buffers
-  const seed = record.simulation.getRenderView().baseSeed
-  const beatIndex = input.performance.context.beatIndex
+  const view = record.simulation.getRenderView()
+  const seed = view.baseSeed
+  const presentationStep = Math.max(0, Math.floor(view.simulationTimeSec * 8))
   ctx.fillStyle = sparkColor
   ctx.shadowColor = sparkColor
   let drawn = 0
-  for (let candidate = 0; candidate < record.budget.sparkCount * 2 && drawn < record.budget.sparkCount; candidate += 1) {
-    const unit = visualSimulationDeterministicUnit(seed ^ beatIndex, candidate + beatIndex * 17)
+  for (
+    let candidate = 0;
+    candidate < record.budget.sparkCount * 2 && drawn < record.budget.sparkCount;
+    candidate += 1
+  ) {
+    const unit = visualSimulationDeterministicUnit(seed ^ presentationStep, candidate + presentationStep * 17)
     const index = 1 + Math.floor(unit * Math.max(1, count - 2))
     const heat = clamp01(buffers.splineHeat[index] * 0.65 + buffers.splineSpeed[index] * 0.55)
     if (heat < 0.28) continue
-    const sign = visualSimulationDeterministicSigned(seed, candidate + beatIndex * 11)
+    const sign = visualSimulationDeterministicUnit(seed, candidate + presentationStep * 11) >= 0.5 ? 1 : -1
     const previous = Math.max(0, index - 1)
     const next = Math.min(count - 1, index + 1)
     const tangentX = buffers.splineX[next] - buffers.splineX[previous]
@@ -754,12 +784,9 @@ function drawRestrainedSparks(
 }
 
 function resolvePalette(record: LivingRibbonRuntimeRecord, preset: ReactPreset): LivingRibbonPaletteCache {
-  const key = [
-    preset.palette.primary,
-    preset.palette.secondary,
-    preset.palette.accent,
-    preset.palette.highlight,
-  ].join('|')
+  const key = [preset.palette.primary, preset.palette.secondary, preset.palette.accent, preset.palette.highlight].join(
+    '|',
+  )
   if (record.palette.key === key) return record.palette
   const primary = parseColor(preset.palette.primary)
   const secondary = parseColor(preset.palette.secondary)
@@ -779,10 +806,22 @@ function resolvePalette(record: LivingRibbonRuntimeRecord, preset: ReactPreset):
 }
 
 function emptyPaletteCache(): LivingRibbonPaletteCache {
-  return { key: '', bloom: '#ffffff', outer: '#ffffff', inner: '#ffffff', core: '#ffffff', accent: '#ffffff', spark: '#ffffff' }
+  return {
+    key: '',
+    bloom: '#ffffff',
+    outer: '#ffffff',
+    inner: '#ffffff',
+    core: '#ffffff',
+    accent: '#ffffff',
+    spark: '#ffffff',
+  }
 }
 
-interface RgbColor { r: number; g: number; b: number }
+interface RgbColor {
+  r: number
+  g: number
+  b: number
+}
 
 function parseColor(value: string): RgbColor {
   const hex = value.trim().replace('#', '')
@@ -819,12 +858,7 @@ function rgbCss(color: RgbColor): string {
 function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
   const t2 = t * t
   const t3 = t2 * t
-  return 0.5 * (
-    2 * p1
-    + (-p0 + p2) * t
-    + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
-    + (-p0 + 3 * p1 - 3 * p2 + p3) * t3
-  )
+  return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
 }
 
 function diagnosticMessage(prefix: string, error: unknown): string {
@@ -875,35 +909,90 @@ export function disposeLivingRibbonCanvasRuntimes(ownerContext: CanvasRenderingC
   ownerStateMap.delete(ownerContext)
 }
 
-export function getLivingRibbonCanvasDiagnosticsForTests(ownerContext: CanvasRenderingContext2D): Readonly<{
+export interface LivingRibbonCanvasRuntimeDiagnostics {
   runtimeCount: number
   failureCount: number
   paused: boolean
+  resetCount: number
+  finiteRecoveryCount: number
   runtimes: readonly {
     key: string
     identity: string
+    requestedQuality: SoundDrawingVisualQuality
+    resolvedQuality: Exclude<VisualSimulationQualityTier, 'auto'>
     pointCount: number
     structureRevision: number
+    structuralSignature: string
     simulationTimeSec: number
+    normalizedControls: LivingRibbonRuntimeControls
+    recentImpulses: readonly string[]
   }[]
-}> {
+}
+
+export function getLivingRibbonCanvasDiagnostics(
+  ownerContext: CanvasRenderingContext2D,
+): Readonly<LivingRibbonCanvasRuntimeDiagnostics> {
   const state = ownerStateMap.get(ownerContext)
-  if (!state) return { runtimeCount: 0, failureCount: 0, paused: false, runtimes: [] }
+  if (!state) {
+    return {
+      runtimeCount: 0,
+      failureCount: 0,
+      paused: false,
+      resetCount: 0,
+      finiteRecoveryCount: 0,
+      runtimes: [],
+    }
+  }
   return {
     runtimeCount: state.runtimes.size,
     failureCount: state.failures.size,
     paused: state.paused,
-    runtimes: [...state.runtimes.values()].map(record => {
+    resetCount: state.resetCount,
+    finiteRecoveryCount: state.finiteRecoveryCount,
+    runtimes: [...state.runtimes.values()].map((record) => {
       const view = record.simulation.getRenderView()
       return {
         key: record.key,
         identity: record.identity,
+        requestedQuality: record.budget.requested,
+        resolvedQuality: record.budget.resolved,
         pointCount: view.activePointCount,
         structureRevision: view.structureRevision,
+        structuralSignature: view.structuralSignature,
         simulationTimeSec: view.simulationTimeSec,
+        normalizedControls: { ...record.controls },
+        recentImpulses: [...record.recentImpulses],
       }
     }),
   }
+}
+
+export function getLivingRibbonCanvasDiagnosticsForTests(
+  ownerContext: CanvasRenderingContext2D,
+): Readonly<LivingRibbonCanvasRuntimeDiagnostics> {
+  return getLivingRibbonCanvasDiagnostics(ownerContext)
+}
+
+export function resetLivingRibbonCanvasRuntimes(
+  ownerContext: CanvasRenderingContext2D,
+  identity: string | number,
+): number {
+  const state = ownerStateMap.get(ownerContext)
+  if (!state) return 0
+  let reset = 0
+  for (const record of state.runtimes.values()) {
+    const seed = record.simulation.getRenderView().baseSeed
+    record.simulation.deterministicReset(seed, identity)
+    record.simulation.warmStart(
+      record.budget.resolved === 'low' ? 0.05 : 0.12,
+      record.budget.resolved === 'low' ? 6 : 14,
+    )
+    record.recentImpulses = []
+    reset += 1
+  }
+  state.failures.clear()
+  if (reset > 0) state.resetCount += 1
+  return reset
 }
 
 export function setLivingRibbonSimulationFactoryForTests(factory: (() => LivingRibbonSimulation) | null): void {

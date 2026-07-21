@@ -19,6 +19,8 @@ import {
   type SoundDrawingBehaviorTarget,
 } from './SoundDrawingBehaviorRuntime'
 import {
+  DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS,
+  DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS,
   DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   MAX_SOUND_DRAWING_PERFORMANCE_ENVELOPES,
   MAX_SOUND_DRAWING_PERFORMANCE_FEEDBACK_PASSES,
@@ -29,6 +31,8 @@ import {
   type SoundDrawingEventBinding,
   type SoundDrawingEventKind,
   type SoundDrawingGeneratorFamily,
+  type SoundDrawingLivingRibbonPhysicalControls,
+  type SoundDrawingLivingRibbonPhysicalImpulse,
   type SoundDrawingModulationRoute,
   type SoundDrawingModulationTarget,
   type SoundDrawingPerformanceAction,
@@ -79,20 +83,26 @@ function clamp01(value: unknown): number {
 
 function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): SoundDrawingPerformanceSettings {
   const source = value ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
-  const selectedShowId = source.selectedShowId in SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID
+  const selectedShowId =
+    source.selectedShowId in SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID
     ? source.selectedShowId
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId
-  const performanceSource = ['generatedVisual', 'activeText', 'activeSvg', 'activeUserSource'].includes(source.performanceSource)
+  const performanceSource = ['generatedVisual', 'activeText', 'activeSvg', 'activeUserSource'].includes(
+    source.performanceSource,
+  )
     ? source.performanceSource
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource
-  const sourceTreatment = ['preserveIdentity', 'controlledReactive', 'liquidContour', 'abstractDeformation'].includes(source.sourceTreatment)
+  const sourceTreatment = ['preserveIdentity', 'controlledReactive', 'liquidContour', 'abstractDeformation'].includes(
+    source.sourceTreatment,
+  )
     ? source.sourceTreatment
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment
   const useSourceAs = ['primaryMotif', 'supportingLayer', 'both'].includes(source.useSourceAs)
     ? source.useSourceAs
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs
-  const generatorPreference = source.generatorPreference === 'authored'
-    || SOUND_DRAWING_GENERATOR_FAMILIES.includes(source.generatorPreference as SoundDrawingGeneratorFamily)
+  const generatorPreference =
+    source.generatorPreference === 'authored' ||
+    SOUND_DRAWING_GENERATOR_FAMILIES.includes(source.generatorPreference as SoundDrawingGeneratorFamily)
     ? source.generatorPreference
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference
   return {
@@ -106,15 +116,49 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     quality: ['auto', 'low', 'medium', 'high'].includes(source.quality)
       ? source.quality
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
+    livingRibbon: {
+      quality: ['auto', 'low', 'medium', 'high'].includes(source.livingRibbon?.quality)
+        ? source.livingRibbon.quality
+        : ['auto', 'low', 'medium', 'high'].includes(source.quality)
+          ? source.quality
+          : DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.quality,
+      pointDensity: clamp01(
+        source.livingRibbon?.pointDensity ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.pointDensity,
+      ),
+      tension: clamp01(source.livingRibbon?.tension ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.tension),
+      turbulence: clamp01(source.livingRibbon?.turbulence ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.turbulence),
+      bodyWidth: clamp01(source.livingRibbon?.bodyWidth ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.bodyWidth),
+      trailPersistence: clamp01(
+        source.livingRibbon?.trailPersistence ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.trailPersistence,
+      ),
+      bloom: clamp01(source.livingRibbon?.bloom ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.bloom),
+      sparkAmount: clamp01(
+        source.livingRibbon?.sparkAmount ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.sparkAmount,
+      ),
+      centerAttraction: clamp01(
+        source.livingRibbon?.centerAttraction ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.centerAttraction,
+      ),
+      audioReactionDepth: clamp01(
+        source.livingRibbon?.audioReactionDepth ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.audioReactionDepth,
+      ),
+    },
     performanceSource,
     sourceTreatment,
     useSourceAs,
     preserveIdentity: source.preserveIdentity !== false,
-    contourReactivity: clamp01(source.contourReactivity ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity),
-    wholeObjectMotion: clamp01(source.wholeObjectMotion ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion),
+    contourReactivity: clamp01(
+      source.contourReactivity ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity,
+    ),
+    wholeObjectMotion: clamp01(
+      source.wholeObjectMotion ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion,
+    ),
     echoStrength: clamp01(source.echoStrength ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength),
-    sourceTrailStrength: clamp01(source.sourceTrailStrength ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength),
-    supportingVisualReactivity: clamp01(source.supportingVisualReactivity ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity),
+    sourceTrailStrength: clamp01(
+      source.sourceTrailStrength ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength,
+    ),
+    supportingVisualReactivity: clamp01(
+      source.supportingVisualReactivity ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity,
+    ),
     locks: {
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks,
       ...(source.locks ?? {}),
@@ -123,7 +167,7 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
 }
 
 function buildFallbackMusicFrame(frame: ReactFrameContext): MusicIntelligenceFrame {
-  const absoluteBeat = frame.bpm > 0 ? frame.audioTime * frame.bpm / 60 : frame.t / 60
+  const absoluteBeat = frame.bpm > 0 ? (frame.audioTime * frame.bpm) / 60 : frame.t / 60
   const beatIndex = Math.max(0, Math.floor(absoluteBeat))
   const beatInBar = beatIndex % 4
   const bass = clamp01(frame.audio.bass)
@@ -209,7 +253,7 @@ export function buildSoundDrawingPerformanceContext(
   const miFrame = frame.musicIntelligence ?? buildFallbackMusicFrame(frame)
   const discontinuityIdentity = frame.timingDiscontinuity
     ? `timing:${frame.trackKey ?? 'none'}:${frame.audioTime.toFixed(4)}`
-    : previousContext?.timingDiscontinuityIdentity ?? 'timing:0'
+    : (previousContext?.timingDiscontinuityIdentity ?? 'timing:0')
   return buildSharedPerformanceContext({
     audioTimeSec: frame.audioTime,
     frame: miFrame,
@@ -222,24 +266,91 @@ export function buildSoundDrawingPerformanceContext(
   })
 }
 
-function generatorDefaults(generator: SoundDrawingGeneratorFamily): Pick<SoundDrawingResolvedPerformanceLayer, 'classicMode' | 'shape' | 'renderMode'> {
+function generatorDefaults(
+  generator: SoundDrawingGeneratorFamily,
+): Pick<SoundDrawingResolvedPerformanceLayer, 'classicMode' | 'shape' | 'renderMode'> {
   switch (generator) {
-    case 'horizontalOscilloscope': return { classicMode: 'waveform', shape: 'line', renderMode: 'outline' }
-    case 'mirroredOscilloscope': return { classicMode: 'waveform', shape: 'line', renderMode: 'multiTrace' }
-    case 'radialOscilloscope': return { classicMode: 'radialScope', shape: 'circle', renderMode: 'outline' }
-    case 'polarWaveform': return { classicMode: 'spiralScope', shape: 'spiral', renderMode: 'outline' }
-    case 'lissajousFigure': return { classicMode: 'lissajous', shape: 'infinity', renderMode: 'outline' }
-    case 'phaseScopeKnot': return { classicMode: 'lissajous', shape: 'infinity', renderMode: 'multiTrace' }
-    case 'harmonicRibbon': return { classicMode: 'waveform', shape: 'line', renderMode: 'ribbon' }
-    case 'livingRibbon': return { classicMode: 'waveform', shape: 'line', renderMode: 'ribbon' }
-    case 'spectralContour': return { classicMode: 'waveform', shape: 'line', renderMode: 'multiTrace' }
-    case 'circularBassMembrane': return { classicMode: 'radialScope', shape: 'circle', renderMode: 'outline' }
-    case 'kaleidoscopicTrace': return { classicMode: 'radialScope', shape: 'star', renderMode: 'multiTrace' }
-    case 'particleSpline': return { classicMode: 'waveform', shape: 'spiral', renderMode: 'dots' }
-    case 'vectorFieldStreamlines': return { classicMode: 'spiralScope', shape: 'spiral', renderMode: 'multiTrace' }
-    case 'audioReactiveAttractor': return { classicMode: 'lissajous', shape: 'infinity', renderMode: 'multiTrace' }
-    case 'tunnelTrace': return { classicMode: 'radialScope', shape: 'hexagon', renderMode: 'multiTrace' }
-    case 'stackedWaveformBands': return { classicMode: 'waveform', shape: 'line', renderMode: 'multiTrace' }
+    case 'horizontalOscilloscope':
+      return { classicMode: 'waveform', shape: 'line', renderMode: 'outline' }
+    case 'mirroredOscilloscope':
+      return { classicMode: 'waveform', shape: 'line', renderMode: 'multiTrace' }
+    case 'radialOscilloscope':
+      return { classicMode: 'radialScope', shape: 'circle', renderMode: 'outline' }
+    case 'polarWaveform':
+      return { classicMode: 'spiralScope', shape: 'spiral', renderMode: 'outline' }
+    case 'lissajousFigure':
+      return { classicMode: 'lissajous', shape: 'infinity', renderMode: 'outline' }
+    case 'phaseScopeKnot':
+      return { classicMode: 'lissajous', shape: 'infinity', renderMode: 'multiTrace' }
+    case 'harmonicRibbon':
+      return { classicMode: 'waveform', shape: 'line', renderMode: 'ribbon' }
+    case 'livingRibbon':
+      return { classicMode: 'waveform', shape: 'line', renderMode: 'ribbon' }
+    case 'spectralContour':
+      return { classicMode: 'waveform', shape: 'line', renderMode: 'multiTrace' }
+    case 'circularBassMembrane':
+      return { classicMode: 'radialScope', shape: 'circle', renderMode: 'outline' }
+    case 'kaleidoscopicTrace':
+      return { classicMode: 'radialScope', shape: 'star', renderMode: 'multiTrace' }
+    case 'particleSpline':
+      return { classicMode: 'waveform', shape: 'spiral', renderMode: 'dots' }
+    case 'vectorFieldStreamlines':
+      return { classicMode: 'spiralScope', shape: 'spiral', renderMode: 'multiTrace' }
+    case 'audioReactiveAttractor':
+      return { classicMode: 'lissajous', shape: 'infinity', renderMode: 'multiTrace' }
+    case 'tunnelTrace':
+      return { classicMode: 'radialScope', shape: 'hexagon', renderMode: 'multiTrace' }
+    case 'stackedWaveformBands':
+      return { classicMode: 'waveform', shape: 'line', renderMode: 'multiTrace' }
+  }
+}
+
+function normalizeLivingRibbonControls(
+  value: Partial<SoundDrawingLivingRibbonPhysicalControls> | undefined,
+): SoundDrawingLivingRibbonPhysicalControls {
+  const source = value ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS
+  return {
+    drive: clamp01(source.drive ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.drive),
+    turbulence: clamp01(source.turbulence ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.turbulence),
+    tension: clamp01(source.tension ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.tension),
+    damping: clamp01(source.damping ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.damping),
+    spread: clamp01(source.spread ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.spread),
+    centerAttraction: clamp01(
+      source.centerAttraction ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.centerAttraction,
+    ),
+    widthTarget: clamp01(source.widthTarget ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.widthTarget),
+    twist: clamp(source.twist ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.twist, -1, 1),
+    radialPressure: clamp(
+      source.radialPressure ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.radialPressure,
+      -1,
+      1,
+    ),
+    collapseAmount: clamp01(
+      source.collapseAmount ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.collapseAmount,
+    ),
+    releaseAmount: clamp01(source.releaseAmount ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.releaseAmount),
+    directionalDrift: clamp(
+      source.directionalDrift ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.directionalDrift,
+      -1,
+      1,
+    ),
+    heatDecay: clamp01(source.heatDecay ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_PHYSICAL_CONTROLS.heatDecay),
+  }
+}
+
+function normalizeLivingRibbonImpulse(
+  value: SoundDrawingLivingRibbonPhysicalImpulse,
+): SoundDrawingLivingRibbonPhysicalImpulse {
+  return {
+    kind: value.kind,
+    identity: value.identity,
+    strength: clamp(value.strength, 0, 4),
+    direction:
+      value.direction == null
+        ? undefined
+        : [clamp(value.direction[0], -1, 1), clamp(value.direction[1], -1, 1), clamp(value.direction[2], -1, 1)],
+    location: value.location == null ? undefined : clamp01(value.location),
+    radius: value.radius == null ? undefined : clamp(value.radius, 0.01, 1),
   }
 }
 
@@ -272,21 +383,60 @@ function normalizeLayer(layer: SoundDrawingPerformanceLayerBlueprint): SoundDraw
     audioDisplacement: clamp(layer.audioDisplacement ?? 0.14, 0, 0.25),
     jitter: clamp(layer.jitter ?? 0.04, 0, 0.25),
     particleCount: Math.round(clamp(layer.particleCount ?? 0, 0, MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES)),
-    source: layer.source?.kind === 'generated'
-      ? { kind: 'generated', generator: layer.source.generator, identity: 'identity' in layer.source && typeof layer.source.identity === 'string' ? layer.source.identity : `generated:${layer.id}:${layer.source.generator}` }
+    source:
+      layer.source?.kind === 'generated'
+        ? {
+            kind: 'generated',
+            generator: layer.source.generator,
+            identity:
+              'identity' in layer.source && typeof layer.source.identity === 'string'
+                ? layer.source.identity
+                : `generated:${layer.id}:${layer.source.generator}`,
+          }
       : layer.source?.kind === 'text'
-        ? { kind: 'text', identity: 'identity' in layer.source && typeof layer.source.identity === 'string' ? layer.source.identity : `text:${layer.id}`, textId: layer.source.textId, preserveReadability: layer.source.preserveReadability }
+          ? {
+              kind: 'text',
+              identity:
+                'identity' in layer.source && typeof layer.source.identity === 'string'
+                  ? layer.source.identity
+                  : `text:${layer.id}`,
+              textId: layer.source.textId,
+              preserveReadability: layer.source.preserveReadability,
+            }
         : layer.source?.kind === 'svg' && layer.source.svgId
-          ? { kind: 'svg', identity: 'identity' in layer.source && typeof layer.source.identity === 'string' ? layer.source.identity : `svg:${layer.source.svgId}`, svgId: layer.source.svgId, renderMode: layer.source.renderMode, preserveIdentity: layer.source.preserveIdentity }
+            ? {
+                kind: 'svg',
+                identity:
+                  'identity' in layer.source && typeof layer.source.identity === 'string'
+                    ? layer.source.identity
+                    : `svg:${layer.source.svgId}`,
+                svgId: layer.source.svgId,
+                renderMode: layer.source.renderMode,
+                preserveIdentity: layer.source.preserveIdentity,
+              }
           : layer.source?.kind === 'active-user-source'
-            ? { kind: 'active-user-source', identity: 'identity' in layer.source && typeof layer.source.identity === 'string' ? layer.source.identity : `active:${layer.id}` }
+              ? {
+                  kind: 'active-user-source',
+                  identity:
+                    'identity' in layer.source && typeof layer.source.identity === 'string'
+                      ? layer.source.identity
+                      : `active:${layer.id}`,
+                }
             : { kind: 'generated', generator, identity: `generated:${layer.id}:${generator}` },
     identityProfile: layer.identityProfile ?? 'abstract',
     treatment: layer.treatment ?? 'abstractDeformation',
     preserveIdentity: layer.preserveIdentity === true,
     contourBudget: clamp(layer.contourBudget ?? 0.25, 0, 0.25),
-    requestedContourDeformation: clamp(layer.requestedContourDeformation ?? ((layer.audioDisplacement ?? 0.14) + (layer.jitter ?? 0.04)), 0, 1),
-    appliedContourDeformation: clamp(layer.appliedContourDeformation ?? ((layer.audioDisplacement ?? 0.14) + (layer.jitter ?? 0.04)), 0, 1),
+    requestedContourDeformation: clamp(
+      layer.requestedContourDeformation ?? (layer.audioDisplacement ?? 0.14) + (layer.jitter ?? 0.04),
+      0,
+      1,
+    ),
+    appliedContourDeformation: clamp(
+      layer.appliedContourDeformation ?? (layer.audioDisplacement ?? 0.14) + (layer.jitter ?? 0.04),
+      0,
+      1,
+    ),
     readabilityClamped: layer.readabilityClamped === true,
     contourScale: clamp01(layer.contourScale ?? 1),
     allowCharacterDeformation: layer.allowCharacterDeformation !== false,
@@ -297,8 +447,10 @@ function normalizeLayer(layer: SoundDrawingPerformanceLayerBlueprint): SoundDraw
     sourceTrailStrength: clamp01(layer.sourceTrailStrength ?? 0.5),
     supportingVisualReactivity: clamp01(layer.supportingVisualReactivity ?? 1),
     sourceFailure: layer.sourceFailure ?? null,
-    modulationRoutes: (layer.modulationRoutes ?? []).slice(0, 8),
-    eventBindings: (layer.eventBindings ?? []).slice(0, 8),
+    livingRibbonControls: normalizeLivingRibbonControls(layer.livingRibbonControls),
+    livingRibbonImpulses: (layer.livingRibbonImpulses ?? []).slice(-16).map(normalizeLivingRibbonImpulse),
+    modulationRoutes: (layer.modulationRoutes ?? []).slice(0, 24),
+    eventBindings: (layer.eventBindings ?? []).slice(0, 16),
   }
 }
 
@@ -308,35 +460,69 @@ function actionLockKey(action: SoundDrawingPerformanceAction): SoundDrawingPerfo
     // A scene always establishes the authored baseline. Recruitment locks are
     // restored after authored/event/modulation work so they never suppress the
     // primary layer or leave the renderer without a valid scene.
-    case 'scene': return null
+    case 'scene':
+      return null
     case 'recruitLayer':
-    case 'retireRole': return 'layerRecruitment'
-    case 'patchRole': return action.lockKey ?? 'topology'
-    case 'pulse': return action.lockKey ?? 'reaction'
-    case 'global': return action.lockKey ?? 'camera'
+    case 'retireRole':
+      return 'layerRecruitment'
+    case 'patchRole':
+      return action.lockKey ?? 'topology'
+    case 'pulse':
+      return action.lockKey ?? 'reaction'
+    case 'global':
+      return action.lockKey ?? 'camera'
   }
 }
 
-function findLayer(state: MutablePerformanceState, role: SoundDrawingResolvedPerformanceLayer['role']): SoundDrawingResolvedPerformanceLayer | null {
-  return state.layers.find(layer => layer.role === role) ?? null
+function findLayer(
+  state: MutablePerformanceState,
+  role: SoundDrawingResolvedPerformanceLayer['role'],
+): SoundDrawingResolvedPerformanceLayer | null {
+  return state.layers.find((layer) => layer.role === role) ?? null
 }
 
-function patchLayer(layer: SoundDrawingResolvedPerformanceLayer, patch: Partial<SoundDrawingPerformanceLayerBlueprint>): SoundDrawingResolvedPerformanceLayer {
-  return normalizeLayer({ ...layer, ...patch, id: layer.id, role: layer.role, generator: patch.generator ?? layer.generator })
+function patchLayer(
+  layer: SoundDrawingResolvedPerformanceLayer,
+  patch: Partial<SoundDrawingPerformanceLayerBlueprint>,
+): SoundDrawingResolvedPerformanceLayer {
+  return normalizeLayer({
+    ...layer,
+    ...patch,
+    id: layer.id,
+    role: layer.role,
+    generator: patch.generator ?? layer.generator,
+    livingRibbonControls: patch.livingRibbonControls
+      ? { ...layer.livingRibbonControls, ...patch.livingRibbonControls }
+      : layer.livingRibbonControls,
+    livingRibbonImpulses: patch.livingRibbonImpulses ?? layer.livingRibbonImpulses,
+  })
 }
 
-export function soundDrawingTimingUnitToBeats(unit: SoundDrawingPerformanceEnvelope['attack'], timeSignature = 4): number {
+export function soundDrawingTimingUnitToBeats(
+  unit: SoundDrawingPerformanceEnvelope['attack'],
+  timeSignature = 4,
+): number {
   switch (unit) {
-    case '1/32beat': return 1 / 32
-    case '1/16beat': return 1 / 16
-    case '1/8beat': return 1 / 8
-    case '1/4beat': return 1 / 4
-    case '1/2beat': return 1 / 2
-    case '1beat': return 1
-    case '2beats': return 2
-    case '1bar': return Math.max(1, timeSignature)
-    case '2bars': return Math.max(1, timeSignature) * 2
-    case '4bars': return Math.max(1, timeSignature) * 4
+    case '1/32beat':
+      return 1 / 32
+    case '1/16beat':
+      return 1 / 16
+    case '1/8beat':
+      return 1 / 8
+    case '1/4beat':
+      return 1 / 4
+    case '1/2beat':
+      return 1 / 2
+    case '1beat':
+      return 1
+    case '2beats':
+      return 2
+    case '1bar':
+      return Math.max(1, timeSignature)
+    case '2bars':
+      return Math.max(1, timeSignature) * 2
+    case '4bars':
+      return Math.max(1, timeSignature) * 4
   }
 }
 
@@ -355,20 +541,96 @@ export function resolveSoundDrawingMusicalEnvelope(
 
 type SoundDrawingNumericTarget = SoundDrawingEventBinding['target'] | SoundDrawingModulationTarget
 
-function targetValue(layer: SoundDrawingResolvedPerformanceLayer, target: SoundDrawingNumericTarget): number {
+const RIBBON_CONTROL_TARGETS = new Set<SoundDrawingNumericTarget>([
+  'ribbonDrive',
+  'ribbonTurbulence',
+  'ribbonTension',
+  'ribbonDamping',
+  'ribbonSpread',
+  'ribbonCenterAttraction',
+  'ribbonWidth',
+  'ribbonTwist',
+  'ribbonRadialPressure',
+  'ribbonCollapse',
+  'ribbonRelease',
+  'ribbonDirectionalDrift',
+  'ribbonHeatDecay',
+])
+const RIBBON_IMPULSE_TARGETS = new Set<SoundDrawingNumericTarget>([
+  'ribbonRadialImpact',
+  'ribbonLateralShock',
+  'ribbonFineRipple',
+  'ribbonCollapseImpulse',
+  'ribbonReleaseBurst',
+  'ribbonTwistImpulse',
+  'ribbonLocalizedImpulse',
+])
+
+function ribbonControlKey(target: SoundDrawingNumericTarget): keyof SoundDrawingLivingRibbonPhysicalControls | null {
   switch (target) {
-    case 'opacity': return layer.opacity
-    case 'strokeWidth': return layer.strokeWidth
-    case 'scale': return layer.scale
-    case 'rotation': return layer.rotation
-    case 'symmetry': return layer.symmetry
-    case 'traceCount': return layer.traceCount
-    case 'trailPersistence': return layer.trailPersistence
-    case 'feedbackAmount': return layer.feedbackAmount
-    case 'glow': return layer.glow
-    case 'audioDisplacement': return layer.audioDisplacement
-    case 'jitter': return layer.jitter
-    case 'topologyVariant': return layer.topologyVariant
+    case 'ribbonDrive':
+      return 'drive'
+    case 'ribbonTurbulence':
+      return 'turbulence'
+    case 'ribbonTension':
+      return 'tension'
+    case 'ribbonDamping':
+      return 'damping'
+    case 'ribbonSpread':
+      return 'spread'
+    case 'ribbonCenterAttraction':
+      return 'centerAttraction'
+    case 'ribbonWidth':
+      return 'widthTarget'
+    case 'ribbonTwist':
+      return 'twist'
+    case 'ribbonRadialPressure':
+      return 'radialPressure'
+    case 'ribbonCollapse':
+      return 'collapseAmount'
+    case 'ribbonRelease':
+      return 'releaseAmount'
+    case 'ribbonDirectionalDrift':
+      return 'directionalDrift'
+    case 'ribbonHeatDecay':
+      return 'heatDecay'
+    default:
+      return null
+  }
+}
+
+function targetValue(layer: SoundDrawingResolvedPerformanceLayer, target: SoundDrawingNumericTarget): number {
+  const ribbonKey = ribbonControlKey(target)
+  if (ribbonKey) return layer.livingRibbonControls[ribbonKey]
+  switch (target) {
+    case 'opacity':
+      return layer.opacity
+    case 'strokeWidth':
+      return layer.strokeWidth
+    case 'scale':
+      return layer.scale
+    case 'rotation':
+      return layer.rotation
+    case 'symmetry':
+      return layer.symmetry
+    case 'traceCount':
+      return layer.traceCount
+    case 'trailPersistence':
+      return layer.trailPersistence
+    case 'feedbackAmount':
+      return layer.feedbackAmount
+    case 'glow':
+      return layer.glow
+    case 'audioDisplacement':
+      return layer.audioDisplacement
+    case 'jitter':
+      return layer.jitter
+    case 'topologyVariant':
+      return layer.topologyVariant
+    case 'particleCount':
+      return layer.particleCount
+    default:
+      return 0
   }
 }
 
@@ -377,7 +639,65 @@ function setTargetValue(
   target: SoundDrawingNumericTarget,
   value: number,
 ): SoundDrawingResolvedPerformanceLayer {
+  const ribbonKey = ribbonControlKey(target)
+  if (ribbonKey) {
+    return patchLayer(layer, {
+      livingRibbonControls: { ...layer.livingRibbonControls, [ribbonKey]: value },
+    })
+  }
   return patchLayer(layer, { [target]: value })
+}
+
+function impulseKind(target: SoundDrawingNumericTarget): SoundDrawingLivingRibbonPhysicalImpulse['kind'] | null {
+  switch (target) {
+    case 'ribbonRadialImpact':
+      return 'radialImpact'
+    case 'ribbonLateralShock':
+      return 'lateralShock'
+    case 'ribbonFineRipple':
+      return 'fineRipple'
+    case 'ribbonCollapseImpulse':
+      return 'collapseImpulse'
+    case 'ribbonReleaseBurst':
+      return 'releaseBurst'
+    case 'ribbonTwistImpulse':
+      return 'twistImpulse'
+    case 'ribbonLocalizedImpulse':
+      return 'localizedImpulse'
+    default:
+      return null
+  }
+}
+
+function appendRibbonImpulse(
+  state: MutablePerformanceState,
+  target: SoundDrawingBehaviorTarget,
+  strength: number,
+  context: SharedPerformanceContext,
+  bindingId: string,
+  eventIdentity: string,
+): void {
+  const layer = state.layers.find((candidate) => candidate.id === target.layerId)
+  const kind = impulseKind(target.target)
+  if (!layer || !kind || strength <= 0.0001) return
+  const index = state.layers.indexOf(layer)
+  const alternatingSign = Math.floor(Math.max(0, context.beatIndex) / 2) % 2 === 0 ? 1 : -1
+  const sourceDirection =
+    target.direction ?? (kind === 'lateralShock' ? [1, 0.35, 0.15] : kind === 'fineRipple' ? [0.2, 0.75, 1] : [1, 0, 0])
+  const direction = target.alternateDirection
+    ? ([sourceDirection[0] * alternatingSign, sourceDirection[1], sourceDirection[2]] as const)
+    : sourceDirection
+  const impulse = normalizeLivingRibbonImpulse({
+    kind,
+    identity: `${layer.id}:${bindingId}:${eventIdentity}`,
+    strength,
+    direction,
+    location: target.location,
+    radius: target.radius,
+  })
+  state.layers[index] = patchLayer(layer, {
+    livingRibbonImpulses: [...layer.livingRibbonImpulses, impulse].slice(-16),
+  })
 }
 
 function applyBehaviorTargetDelta(
@@ -385,14 +705,25 @@ function applyBehaviorTargetDelta(
   target: SoundDrawingBehaviorTarget,
   delta: number,
   settings: SoundDrawingPerformanceSettings,
+  context: SharedPerformanceContext,
+  event?: { bindingId: string; eventIdentity: string },
 ): void {
   if (target.lockKey && settings.locks[target.lockKey]) return
-  const layer = state.layers.find(candidate => candidate.id === target.layerId)
+  const reactionScale =
+    settings.reactionIntensity *
+    (RIBBON_CONTROL_TARGETS.has(target.target) || RIBBON_IMPULSE_TARGETS.has(target.target)
+      ? settings.livingRibbon.audioReactionDepth
+      : 1)
+  if (RIBBON_IMPULSE_TARGETS.has(target.target)) {
+    if (event) appendRibbonImpulse(state, target, delta * reactionScale, context, event.bindingId, event.eventIdentity)
+    return
+  }
+  const layer = state.layers.find((candidate) => candidate.id === target.layerId)
   if (!layer) return
   const current = targetValue(layer, target.target)
   const [minimum, maximum] = target.clamp ?? [-Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]
   const index = state.layers.indexOf(layer)
-  state.layers[index] = setTargetValue(layer, target.target, clamp(current + delta * settings.reactionIntensity, minimum, maximum))
+  state.layers[index] = setTargetValue(layer, target.target, clamp(current + delta * reactionScale, minimum, maximum))
 }
 
 function applyAction(
@@ -416,12 +747,15 @@ function applyAction(
       break
     }
     case 'recruitLayer':
-      if (state.layers.length < MAX_SOUND_DRAWING_PERFORMANCE_LAYERS && !state.layers.some(layer => layer.id === action.layer.id)) {
+      if (
+        state.layers.length < MAX_SOUND_DRAWING_PERFORMANCE_LAYERS &&
+        !state.layers.some((layer) => layer.id === action.layer.id)
+      ) {
         state.layers.push(normalizeLayer(action.layer))
       }
       break
     case 'retireRole':
-      state.layers = state.layers.filter(layer => layer.role !== action.role)
+      state.layers = state.layers.filter((layer) => layer.role !== action.role)
       break
     case 'pulse':
       // Pulse actions are resolved by the shared behavior-routing runtime after
@@ -484,10 +818,14 @@ function manualGenerator(oscillator: OscillatorSettings): SoundDrawingGeneratorF
     return 'kaleidoscopicTrace'
   }
   switch (oscillator.classicMode) {
-    case 'lissajous': return 'lissajousFigure'
-    case 'radialScope': return 'radialOscilloscope'
-    case 'spiralScope': return 'polarWaveform'
-    default: return 'horizontalOscilloscope'
+    case 'lissajous':
+      return 'lissajousFigure'
+    case 'radialScope':
+      return 'radialOscilloscope'
+    case 'spiralScope':
+      return 'polarWaveform'
+    default:
+      return 'horizontalOscilloscope'
   }
 }
 
@@ -496,7 +834,7 @@ function applyUserLocks(
   settings: SoundDrawingPerformanceSettings,
   oscillator: OscillatorSettings,
 ): void {
-  let primary = state.layers.find(layer => layer.role === 'primaryMotif') ?? state.layers[0]
+  let primary = state.layers.find((layer) => layer.role === 'primaryMotif') ?? state.layers[0]
   if (!primary) return
   if (settings.locks.layerRecruitment) {
     state.layers = [primary]
@@ -536,11 +874,69 @@ function applyUserLocks(
     })
   }
   if (settings.locks.echoBehavior) next = patchLayer(next, { traceCount: oscillator.duplicateTraces })
+  if (next.generator === 'livingRibbon') {
+    const controls = next.livingRibbonControls
+    if (settings.locks.ribbonMovement) {
+      next = patchLayer(next, {
+        livingRibbonControls: {
+          ...controls,
+          drive: clamp01(0.12 + settings.motionIntensity * 0.48),
+          turbulence: settings.livingRibbon.turbulence,
+          tension: settings.livingRibbon.tension,
+          centerAttraction: settings.livingRibbon.centerAttraction,
+          twist: 0,
+          directionalDrift: 0,
+        },
+      })
+    }
+    if (settings.locks.ribbonWidth)
+      next = patchLayer(next, {
+        livingRibbonControls: { ...next.livingRibbonControls, widthTarget: settings.livingRibbon.bodyWidth },
+      })
+    if (settings.locks.ribbonTrail)
+      next = patchLayer(next, { trailPersistence: settings.livingRibbon.trailPersistence })
+    if (settings.locks.ribbonGlow)
+      next = patchLayer(next, {
+        glow: settings.livingRibbon.bloom,
+        particleCount: Math.round(MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES * 0.2 * settings.livingRibbon.sparkAmount),
+      })
+  }
   state.layers[index] = next
+  state.layers = state.layers.map(layer => {
+    if (layer.generator !== 'livingRibbon') return layer
+    let locked = layer
+    if (settings.locks.ribbonMovement) {
+      locked = patchLayer(locked, {
+        livingRibbonControls: {
+          ...locked.livingRibbonControls,
+          drive: clamp01(0.12 + settings.motionIntensity * 0.48),
+          turbulence: settings.livingRibbon.turbulence,
+          tension: settings.livingRibbon.tension,
+          centerAttraction: settings.livingRibbon.centerAttraction,
+          twist: 0,
+          directionalDrift: 0,
+        },
+      })
+    }
+    if (settings.locks.ribbonWidth) {
+      locked = patchLayer(locked, {
+        livingRibbonControls: { ...locked.livingRibbonControls, widthTarget: settings.livingRibbon.bodyWidth },
+      })
+    }
+    if (settings.locks.ribbonTrail) locked = patchLayer(locked, { trailPersistence: settings.livingRibbon.trailPersistence })
+    if (settings.locks.ribbonGlow) {
+      locked = patchLayer(locked, {
+        glow: settings.livingRibbon.bloom,
+        particleCount: Math.round(MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES * 0.2 * settings.livingRibbon.sparkAmount),
+      })
+    }
+    return locked
+  })
   if (settings.locks.trail) state.global.trailPersistence = 1 - clamp01(oscillator.autoSectionMode ? 0.08 : 0.2)
   if (settings.locks.feedback) state.global.feedbackAmount = 0
+  if (settings.locks.ribbonTrail) state.global.trailPersistence = settings.livingRibbon.trailPersistence
   if (settings.locks.color) {
-    state.layers = state.layers.map(layer => patchLayer(layer, { colorRole: 'primary' }))
+    state.layers = state.layers.map((layer) => patchLayer(layer, { colorRole: 'primary' }))
   }
   if (settings.locks.camera) {
     state.global.cameraScale = 1
@@ -551,19 +947,56 @@ function applyUserLocks(
 }
 
 function applyUserIntensityControls(state: MutablePerformanceState, settings: SoundDrawingPerformanceSettings): void {
-  const maximumLayers = Math.max(1, Math.min(MAX_SOUND_DRAWING_PERFORMANCE_LAYERS, 1 + Math.floor(settings.complexity * (MAX_SOUND_DRAWING_PERFORMANCE_LAYERS - 1) + 1e-6)))
-  const enabledLayers = state.layers.filter(layer => layer.enabled)
-  const disabledLayers = state.layers.filter(layer => !layer.enabled)
-  state.layers = [...enabledLayers.slice(0, maximumLayers), ...disabledLayers].slice(0, MAX_SOUND_DRAWING_PERFORMANCE_LAYERS)
-  state.layers = state.layers.map(layer => patchLayer(layer, {
+  const maximumLayers = Math.max(
+    1,
+    Math.min(
+      MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
+      1 + Math.floor(settings.complexity * (MAX_SOUND_DRAWING_PERFORMANCE_LAYERS - 1) + 1e-6),
+    ),
+  )
+  const enabledLayers = state.layers.filter((layer) => layer.enabled)
+  const disabledLayers = state.layers.filter((layer) => !layer.enabled)
+  state.layers = [...enabledLayers.slice(0, maximumLayers), ...disabledLayers].slice(
+    0,
+    MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
+  )
+  state.layers = state.layers.map((layer) => {
+    const ribbon = layer.livingRibbonControls
+    const userRibbon = settings.livingRibbon
+    return patchLayer(layer, {
     rotation: layer.rotation * settings.motionIntensity,
     phaseOffset: layer.phaseOffset * settings.motionIntensity,
     traceCount: 1 + (layer.traceCount - 1) * settings.complexity,
-    trailPersistence: layer.trailPersistence * (0.35 + settings.trailIntensity * 0.65),
+      trailPersistence:
+        layer.generator === 'livingRibbon'
+          ? clamp01(layer.trailPersistence * 0.55 + userRibbon.trailPersistence * 0.45)
+          : layer.trailPersistence * (0.35 + settings.trailIntensity * 0.65),
     feedbackAmount: layer.feedbackAmount * settings.trailIntensity,
-    particleCount: layer.particleCount * settings.complexity,
-  }))
-  state.global.trailPersistence = state.global.trailPersistence * (0.25 + settings.trailIntensity * 0.75)
+      glow: layer.generator === 'livingRibbon' ? clamp01(layer.glow * 0.6 + userRibbon.bloom * 0.4) : layer.glow,
+      particleCount:
+        layer.generator === 'livingRibbon'
+          ? Math.round(layer.particleCount * userRibbon.sparkAmount * settings.complexity)
+          : layer.particleCount * settings.complexity,
+      livingRibbonControls:
+        layer.generator === 'livingRibbon'
+          ? {
+              ...ribbon,
+              drive: clamp01(ribbon.drive * (0.4 + settings.motionIntensity * 0.6)),
+              turbulence: clamp01(
+                ribbon.turbulence * (0.45 + userRibbon.turbulence * 0.9) * (0.5 + settings.motionIntensity * 0.5),
+              ),
+              tension: clamp01(ribbon.tension * 0.62 + userRibbon.tension * 0.38),
+              widthTarget: clamp01(ribbon.widthTarget * 0.5 + userRibbon.bodyWidth * 0.5),
+              centerAttraction: clamp01(ribbon.centerAttraction * 0.68 + userRibbon.centerAttraction * 0.32),
+              twist: clamp(ribbon.twist * settings.motionIntensity, -1, 1),
+              directionalDrift: clamp(ribbon.directionalDrift * settings.motionIntensity, -1, 1),
+            }
+          : ribbon,
+    })
+  })
+  state.global.trailPersistence = state.layers.some((layer) => layer.generator === 'livingRibbon')
+    ? clamp01(state.global.trailPersistence * 0.6 + settings.livingRibbon.trailPersistence * 0.4)
+    : state.global.trailPersistence * (0.25 + settings.trailIntensity * 0.75)
   state.global.feedbackAmount *= settings.trailIntensity
   state.global.cameraRotation *= settings.motionIntensity
   state.global.cameraX *= settings.motionIntensity
@@ -572,7 +1005,7 @@ function applyUserIntensityControls(state: MutablePerformanceState, settings: So
 
 function applyGeneratorPreference(state: MutablePerformanceState, settings: SoundDrawingPerformanceSettings): void {
   if (settings.generatorPreference === 'authored' || settings.locks.generator) return
-  const primary = state.layers.find(layer => layer.role === 'primaryMotif')
+  const primary = state.layers.find((layer) => layer.role === 'primaryMotif')
   if (!primary) return
   const index = state.layers.indexOf(primary)
   state.layers[index] = patchLayer(primary, { generator: settings.generatorPreference })
@@ -587,13 +1020,14 @@ function enforceSafetyBounds(state: MutablePerformanceState): void {
     'tunnelTrace',
   ])
   let expensiveCount = 0
-  state.layers = state.layers
-    .slice(0, MAX_SOUND_DRAWING_PERFORMANCE_LAYERS)
-    .map(layer => {
+  state.layers = state.layers.slice(0, MAX_SOUND_DRAWING_PERFORMANCE_LAYERS).map((layer) => {
       const expensive = expensiveGenerators.has(layer.generator)
       expensiveCount += expensive ? 1 : 0
-      const generator = expensive && expensiveCount > 2
-        ? (layer.role === 'atmosphereLayer' ? 'spectralContour' : 'horizontalOscilloscope')
+    const generator =
+      expensive && expensiveCount > 2
+        ? layer.role === 'atmosphereLayer'
+          ? 'spectralContour'
+          : 'horizontalOscilloscope'
         : layer.generator
       return normalizeLayer({
         ...layer,
@@ -641,8 +1075,9 @@ function resolveState(
     settings,
     routes: definitions.routes,
     events: definitions.events,
-    applyContinuous: (target, value) => applyBehaviorTargetDelta(state, target, value, settings),
-    applyEvent: (target, value) => applyBehaviorTargetDelta(state, target, value, settings),
+    applyContinuous: (target, value) => applyBehaviorTargetDelta(state, target, value, settings, context),
+    applyEvent: (target, value, bindingId, eventIdentity) =>
+      applyBehaviorTargetDelta(state, target, value, settings, context, { bindingId, eventIdentity }),
   })
   applyGeneratorPreference(state, settings)
   applyUserIntensityControls(state, settings)
@@ -691,10 +1126,10 @@ export function resolveSoundDrawingPerformanceFrame(
   applyUserLocks(state, settings, input.manualOscillator)
   enforceSafetyBounds(state)
   const sceneId = resolution.scene?.id ?? `${show.id}-none`
-  const finalSourceLayer = state.layers.find(layer => layer.source.kind !== 'generated')
+  const finalSourceLayer = state.layers.find((layer) => layer.source.kind !== 'generated')
   const finalSupportingGeneratedLayers = state.layers
-    .filter(layer => layer.source.kind === 'generated' && layer.role !== 'primaryMotif')
-    .map(layer => layer.id)
+    .filter((layer) => layer.source.kind === 'generated' && layer.role !== 'primaryMotif')
+    .map((layer) => layer.id)
   return {
     showId: show.id,
     showName: show.name,
@@ -706,14 +1141,20 @@ export function resolveSoundDrawingPerformanceFrame(
     activeTreatment: finalSourceLayer?.treatment ?? sourceResolution.activeTreatment,
     preserveIdentity: finalSourceLayer?.preserveIdentity ?? sourceResolution.preserveIdentity,
     contourBudget: finalSourceLayer?.contourBudget ?? sourceResolution.contourBudget,
-    requestedContourDeformation: finalSourceLayer?.requestedContourDeformation ?? sourceResolution.requestedContourDeformation,
-    appliedContourDeformation: finalSourceLayer?.appliedContourDeformation ?? sourceResolution.appliedContourDeformation,
+    requestedContourDeformation:
+      finalSourceLayer?.requestedContourDeformation ?? sourceResolution.requestedContourDeformation,
+    appliedContourDeformation:
+      finalSourceLayer?.appliedContourDeformation ?? sourceResolution.appliedContourDeformation,
     readabilityClampApplied: finalSourceLayer?.readabilityClamped ?? sourceResolution.readabilityClampApplied,
     supportingGeneratedLayers: finalSupportingGeneratedLayers,
     layers: state.layers,
     global: state.global,
-    fallbackUsed: resolution.scene == null || sceneId.includes('fallback') || context.sectionConfidence < 0.3 || sourceResolution.sourceFallbackState != null,
+    fallbackUsed:
+      resolution.scene == null ||
+      sceneId.includes('fallback') ||
+      context.sectionConfidence < 0.3 ||
+      sourceResolution.sourceFallbackState != null,
     deterministicIdentity: `${resolution.deterministicIdentity}:${sourceResolution.activeSourceKind}:${sourceResolution.activeTreatment}`,
-    appliedActionReasons: resolution.intents.map(intent => intent.reason),
+    appliedActionReasons: resolution.intents.map((intent) => intent.reason),
   }
 }

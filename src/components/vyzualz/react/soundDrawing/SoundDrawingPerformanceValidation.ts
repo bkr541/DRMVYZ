@@ -18,20 +18,27 @@ const ROLES = new Set(['primaryMotif', 'harmonicLayer', 'rhythmAccent', 'echoLay
 const GENERATORS = new Set(SOUND_DRAWING_GENERATOR_FAMILIES)
 const TARGET_RANGES: Record<string, readonly [number, number]> = {
   opacity: [0, 1], strokeWidth: [0.25, 3], traceCount: [1, MAX_SOUND_DRAWING_PERFORMANCE_TRACES], symmetry: [1, 8],
-  scale: [0.1, 2], rotation: [-360, 360], trailPersistence: [0, 1], feedbackAmount: [0, 1], glow: [0, 1], audioDisplacement: [0, 0.25], jitter: [0, 0.25], topologyVariant: [0, 7],
+  scale: [0.1, 2], rotation: [-360, 360], trailPersistence: [0, 1], feedbackAmount: [0, 1], glow: [0, 1], audioDisplacement: [0, 0.25], jitter: [0, 0.25], topologyVariant: [0, 7], particleCount: [0, MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES],
+  ribbonDrive: [0, 1], ribbonTurbulence: [0, 1], ribbonTension: [0, 1], ribbonDamping: [0, 1], ribbonSpread: [0, 1], ribbonCenterAttraction: [0, 1], ribbonWidth: [0, 1], ribbonTwist: [-1, 1], ribbonRadialPressure: [-1, 1], ribbonCollapse: [0, 1], ribbonRelease: [0, 1], ribbonDirectionalDrift: [-1, 1], ribbonHeatDecay: [0, 1],
 }
+const EVENT_TARGETS = new Set([
+  ...Object.keys(TARGET_RANGES),
+  'ribbonRadialImpact', 'ribbonLateralShock', 'ribbonFineRipple', 'ribbonCollapseImpulse',
+  'ribbonReleaseBurst', 'ribbonTwistImpulse', 'ribbonLocalizedImpulse',
+])
 
 function validateLayer(layer: SoundDrawingPerformanceLayerBlueprint): Omit<SharedPerformanceProgramValidationIssue, 'programId' | 'sceneId' | 'actionPath'>[] {
   const issues: Omit<SharedPerformanceProgramValidationIssue, 'programId' | 'sceneId' | 'actionPath'>[] = []
   if (!ROLES.has(layer.role)) issues.push({ severity: 'error', code: 'unknown-layer-role', message: `Unknown Sound Drawing layer role “${layer.role}”.` })
   if (!GENERATORS.has(layer.generator)) issues.push({ severity: 'error', code: 'unknown-generator', message: `Unknown Sound Drawing generator “${layer.generator}”.` })
   for (const route of layer.modulationRoutes ?? []) {
-    if (!Number.isFinite(route.min) || !Number.isFinite(route.max) || route.min > route.max) issues.push({ severity: 'error', code: 'invalid-modulation-range', message: `Route “${route.id}” has an invalid range.` })
+    if (!Number.isFinite(route.min) || !Number.isFinite(route.max)) issues.push({ severity: 'error', code: 'invalid-modulation-range', message: `Route “${route.id}” has an invalid range.` })
     const range = TARGET_RANGES[route.target]
     if (route.clamp && route.clamp[0] > route.clamp[1]) issues.push({ severity: 'error', code: 'invalid-modulation-clamp', message: `Route “${route.id}” has an inverted clamp.` })
     if (!range) issues.push({ severity: 'error', code: 'unsupported-target', message: `Route “${route.id}” targets unsupported parameter “${route.target}”.` })
   }
   for (const binding of layer.eventBindings ?? []) {
+    if (!EVENT_TARGETS.has(binding.target)) issues.push({ severity: 'error', code: 'unsupported-target', message: `Binding “${binding.id}” targets unsupported parameter “${binding.target}”.` })
     const beats = [binding.envelope.attack, binding.envelope.hold, binding.envelope.release]
     if (beats.some(value => !value)) issues.push({ severity: 'error', code: 'unbounded-envelope', message: `Binding “${binding.id}” has an invalid musical envelope.` })
   }
@@ -46,7 +53,7 @@ const adapter: SharedPerformanceActionValidationAdapter<SoundDrawingPerformanceA
     if (action.type === 'scene') return action.layers.flatMap(validateLayer)
     if (action.type === 'recruitLayer') return validateLayer(action.layer)
     if ('role' in action && action.role && !ROLES.has(action.role)) return [{ severity: 'error', code: 'unknown-layer-role', message: `Unknown Sound Drawing layer role “${action.role}”.` }]
-    if (action.type === 'pulse' && !TARGET_RANGES[action.target]) return [{ severity: 'error', code: 'unsupported-target', message: `Pulse targets unsupported parameter “${action.target}”.` }]
+    if (action.type === 'pulse' && !EVENT_TARGETS.has(action.target)) return [{ severity: 'error', code: 'unsupported-target', message: `Pulse targets unsupported parameter “${action.target}”.` }]
     return []
   },
   estimateResources(action) {

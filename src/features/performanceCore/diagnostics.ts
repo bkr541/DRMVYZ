@@ -11,6 +11,7 @@ export interface SharedPerformanceDiagnosticsSnapshot {
   sectionFamily: string | null
   sectionOccurrence: number
   dropOccurrence: number
+  phraseIndex: number
   barWithinSection: number
   fourBarStage: number
   eightBarStage: number
@@ -26,6 +27,7 @@ export interface SharedPerformanceDiagnosticsSnapshot {
   capabilityLimitations: readonly string[]
   confidenceLimitations: readonly string[]
   resourceLimitDecisions: readonly string[]
+  engineDetails: readonly { label: string; value: string }[]
   runtimeIdentity: string
 }
 
@@ -42,6 +44,7 @@ export interface CreateSharedPerformanceDiagnosticsInput {
   lockedParameters?: readonly string[]
   fallbackState?: string | null
   resourceLimitDecisions?: readonly string[]
+  engineDetails?: readonly { label: string; value: string }[]
 }
 
 const CAPABILITY_LABELS: Record<keyof SharedPerformanceContext['capabilities'], string> = {
@@ -59,8 +62,8 @@ export function createSharedPerformanceDiagnostics(
   input: CreateSharedPerformanceDiagnosticsInput,
 ): SharedPerformanceDiagnosticsSnapshot {
   const capabilityLimitations = (Object.keys(context.capabilities) as Array<keyof typeof context.capabilities>)
-    .filter(key => !context.capabilities[key])
-    .map(key => CAPABILITY_LABELS[key])
+    .filter((key) => !context.capabilities[key])
+    .map((key) => CAPABILITY_LABELS[key])
   const confidenceLimitations: string[] = []
   if (context.confidence.overall < 0.35) confidenceLimitations.push('Overall analysis confidence is low')
   if (context.confidence.section < 0.35) confidenceLimitations.push('Section choreography is using safe fallback')
@@ -76,6 +79,7 @@ export function createSharedPerformanceDiagnostics(
     sectionFamily: context.sectionFamily,
     sectionOccurrence: context.sectionOccurrence,
     dropOccurrence: context.dropOccurrence,
+    phraseIndex: context.phraseIndex,
     barWithinSection: context.barWithinMacroSection,
     fourBarStage: context.performanceFourBarBlockIndex + 1,
     eightBarStage: context.performanceEightBarBlockIndex + 1,
@@ -85,12 +89,15 @@ export function createSharedPerformanceDiagnostics(
     activeEventEnvelopes: [...(input.activeEventEnvelopes ?? [])],
     recentActions: [...(input.recentActions ?? [])].slice(-8),
     continuousRoutes: [...(input.continuousRoutes ?? [])],
-    upcomingSemanticMoment: nextMoment ? `${nextMoment.label ?? nextMoment.type} @ ${nextMoment.timeSec.toFixed(2)}s` : null,
+    upcomingSemanticMoment: nextMoment
+      ? `${nextMoment.label ?? nextMoment.type} @ ${nextMoment.timeSec.toFixed(2)}s`
+      : null,
     lockedParameters: [...(input.lockedParameters ?? [])],
     fallbackState: input.fallbackState ?? null,
     capabilityLimitations,
     confidenceLimitations,
     resourceLimitDecisions: [...(input.resourceLimitDecisions ?? [])],
+    engineDetails: [...(input.engineDetails ?? [])].slice(0, 12),
     runtimeIdentity: context.runtimeIdentity,
   }
 }

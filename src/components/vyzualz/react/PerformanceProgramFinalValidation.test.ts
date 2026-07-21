@@ -21,6 +21,7 @@ const snapshot = (engine: 'laserDmx' | 'soundDrawing' | 'canvas') => ({
   sectionFamily: 'drop-family',
   sectionOccurrence: 1,
   dropOccurrence: 1,
+  phraseIndex: 0,
   barWithinSection: 0,
   fourBarStage: 1,
   eightBarStage: 1,
@@ -36,6 +37,7 @@ const snapshot = (engine: 'laserDmx' | 'soundDrawing' | 'canvas') => ({
   capabilityLimitations: [],
   confidenceLimitations: [],
   resourceLimitDecisions: [],
+  engineDetails: [],
   runtimeIdentity: 'runtime',
 })
 

@@ -10,6 +10,7 @@ import {
   getLivingRibbonCanvasDiagnosticsForTests,
   prepareLivingRibbonCanvasFrame,
   renderLivingRibbonCanvasLayer,
+  resetLivingRibbonCanvasRuntimes,
   resolveLivingRibbonCanvasQualityBudget,
   setLivingRibbonSimulationFactoryForTests,
   usesLivingRibbonCanvasRenderer,
@@ -140,6 +141,22 @@ function livingLayer(patch: Partial<SoundDrawingResolvedPerformanceLayer> = {}):
     sourceTrailStrength: 0.7,
     supportingVisualReactivity: 0.75,
     sourceFailure: null,
+    livingRibbonControls: {
+      drive: 0.42,
+      turbulence: 0.18,
+      tension: 0.67,
+      damping: 0.61,
+      spread: 0.58,
+      centerAttraction: 0.35,
+      widthTarget: 0.54,
+      twist: 0.08,
+      radialPressure: 0.03,
+      collapseAmount: 0.02,
+      releaseAmount: 0.1,
+      directionalDrift: -0.04,
+      heatDecay: 0.55,
+    },
+    livingRibbonImpulses: [],
     modulationRoutes: [],
     eventBindings: [],
     ...patch,
@@ -271,6 +288,75 @@ describe('Living Ribbon Canvas2D renderer ownership and quality', () => {
     expect(target.recordedStrokeStyles.length).toBeGreaterThanOrEqual(5)
     expect(target.recordedStrokeStyles.some(style => style.includes('0,179,163') || style.includes('44,212,252'))).toBe(true)
     expect(target.recordedCompositeOperations.every(operation => operation === 'lighter')).toBe(true)
+    disposeLivingRibbonCanvasRuntimes(owner)
+  })
+
+
+  it('consumes only normalized physical controls, de-duplicates impulses, and resets deterministically', () => {
+    const owner = createMockContext()
+    const target = createMockContext()
+    const layer = livingLayer({
+      livingRibbonControls: {
+        ...livingLayer().livingRibbonControls,
+        drive: 0.36,
+        turbulence: 0.23,
+        centerAttraction: 0.71,
+        directionalDrift: -0.18,
+      },
+      livingRibbonImpulses: [
+        {
+          kind: 'radialImpact',
+          identity: 'kick:track-a:beat-8',
+          strength: 0.78,
+          direction: [1, 0, 0],
+        },
+      ],
+    })
+    const resolved = performance({ layers: [layer] })
+    prepareLivingRibbonCanvasFrame({
+      ownerContext: owner,
+      frame: frame({ audio: { bass: 0, mid: 0, high: 0, volume: 0 } }),
+      performance: resolved,
+      quality: 'medium',
+      mode: 'live',
+      pointDensity: 0.4,
+      sparkAmount: 0.3,
+    })
+    renderLivingRibbonCanvasLayer({
+      ownerContext: owner,
+      targetContext: target,
+      frame: frame({ audio: { bass: 0, mid: 0, high: 0, volume: 0 } }),
+      preset: PRESET,
+      performance: resolved,
+      layer,
+      intensity: 1,
+      glow: 1,
+    })
+    renderLivingRibbonCanvasLayer({
+      ownerContext: owner,
+      targetContext: target,
+      frame: frame({ t: 61, elapsedTimeSec: 1 + 1 / 60, audioTime: 1 + 1 / 60, audio: { bass: 1, mid: 1, high: 1, volume: 1 } }),
+      preset: PRESET,
+      performance: resolved,
+      layer,
+      intensity: 1,
+      glow: 1,
+    })
+
+    const beforeReset = getLivingRibbonCanvasDiagnosticsForTests(owner)
+    expect(beforeReset.runtimes[0].normalizedControls).toMatchObject({
+      drive: 0.36,
+      turbulence: 0.23,
+      centerAttraction: 0.71,
+      directionalDrift: -0.18,
+    })
+    expect(beforeReset.runtimes[0].recentImpulses).toHaveLength(1)
+    expect(resetLivingRibbonCanvasRuntimes(owner, 'manual-reset-1')).toBe(1)
+    const afterReset = getLivingRibbonCanvasDiagnosticsForTests(owner)
+    expect(afterReset).toMatchObject({ runtimeCount: 1, resetCount: 1, failureCount: 0 })
+    expect(afterReset.runtimes[0].recentImpulses).toEqual([])
+    expect(afterReset.runtimes[0].normalizedControls).toEqual(beforeReset.runtimes[0].normalizedControls)
+    expect(afterReset.runtimes[0].structuralSignature).toBe(beforeReset.runtimes[0].structuralSignature)
     disposeLivingRibbonCanvasRuntimes(owner)
   })
 

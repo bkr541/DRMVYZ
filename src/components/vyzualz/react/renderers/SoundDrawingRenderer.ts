@@ -1,4 +1,14 @@
-import type { ReactPreset, ReactSectionType, OscillatorGlyphPoint, OscillatorSettings, OscillatorTextWaveformMode, OscillatorTextLetterReactionMode, LetterReactionAssignment, SoundDrawingLayer, SoundDrawingClip } from '../ReactTypes'
+import type {
+  ReactPreset,
+  ReactSectionType,
+  OscillatorGlyphPoint,
+  OscillatorSettings,
+  OscillatorTextWaveformMode,
+  OscillatorTextLetterReactionMode,
+  LetterReactionAssignment,
+  SoundDrawingLayer,
+  SoundDrawingClip,
+} from '../ReactTypes'
 import { getCharReactionWeights } from './letterReactionUtils'
 import { evalCustomSignal, applyCustomTargetDelta } from './letterReactionCustom'
 import type { CustomTargetDelta } from './letterReactionCustom'
@@ -11,14 +21,20 @@ import {
   getRuntimeOpenTypeTextGeometryStats,
   getRuntimeOpenTypeTextPoints,
 } from './soundDrawingTextGeometryCache'
-import { EMPTY_LYRIC_PLAYBACK_STATE, type LyricPlaybackState } from '../../../../features/lyrics/runtime/lyricPlaybackResolver'
+import {
+  EMPTY_LYRIC_PLAYBACK_STATE,
+  type LyricPlaybackState,
+} from '../../../../features/lyrics/runtime/lyricPlaybackResolver'
 import { SoundDrawingLyricTextRuntime } from '../../../../features/lyrics/runtime/soundDrawingLyricText'
 import { getSvgVisualEntry } from './svgVisualCache'
 import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUtils'
 import { getSvgGlyphAssetId, resolveUnifiedSvgSource } from '../svgSourceLifecycle'
 import { createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { resolveSoundDrawingPerformanceFrame } from '../soundDrawing/SoundDrawingPerformanceEngine'
-import { disposeSoundDrawingBehaviorRuntime } from '../soundDrawing/SoundDrawingBehaviorRuntime'
+import {
+  disposeSoundDrawingBehaviorRuntime,
+  synchronizeSoundDrawingBehaviorRuntime,
+} from '../soundDrawing/SoundDrawingBehaviorRuntime'
 import {
   MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
   MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES,
@@ -28,14 +44,21 @@ import {
   type SoundDrawingResolvedPerformanceLayer,
   type SoundDrawingPerformanceTemporalState,
   type SoundDrawingIdentityProfile,
+  type SoundDrawingModulationRoute,
+  type SoundDrawingPerformanceSettings,
   type SoundDrawingSourceTreatment,
 } from '../soundDrawing/SoundDrawingPerformanceTypes'
-import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from '../SharedPerformanceDiagnosticsStore'
+import {
+  clearSharedPerformanceDiagnostics,
+  publishSharedPerformanceDiagnostics,
+} from '../SharedPerformanceDiagnosticsStore'
 import {
   disposeLivingRibbonCanvasRuntimes,
+  getLivingRibbonCanvasDiagnostics,
   pauseLivingRibbonCanvasRuntimes,
   prepareLivingRibbonCanvasFrame,
   renderLivingRibbonCanvasLayer,
+  resetLivingRibbonCanvasRuntimes,
   resolveLivingRibbonCanvasQualityBudget,
   usesLivingRibbonCanvasRenderer,
 } from './LivingRibbonCanvas2DRenderer'
@@ -46,8 +69,19 @@ import {
 // ── Trail canvas pool (per ctx) ───────────────────────────────────────────────
 const trailMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
 const soundDrawingPerformanceContextMap = new WeakMap<CanvasRenderingContext2D, SharedPerformanceContext>()
-const soundDrawingPerformanceTemporalStateMap = new WeakMap<CanvasRenderingContext2D, SoundDrawingPerformanceTemporalState>()
-const SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS = new Set(['beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'semanticMoment'])
+const soundDrawingPerformanceTemporalStateMap = new WeakMap<
+  CanvasRenderingContext2D,
+  SoundDrawingPerformanceTemporalState
+>()
+const SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS = new Set([
+  'beat',
+  'downbeat',
+  'kick',
+  'snare',
+  'hat',
+  'transient',
+  'semanticMoment',
+])
 
 function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanvasElement {
   return getOrCreateOffscreen(trailMap, ctx, W, H)
@@ -69,12 +103,7 @@ const BEAT_DECAY = 0.86
 const twistSignMap     = new WeakMap<CanvasRenderingContext2D, 1 | -1>()
 const twistPhasePrevMap = new WeakMap<CanvasRenderingContext2D, number>()
 
-function tickTwistSign(
-  ctx:       CanvasRenderingContext2D,
-  beatHit:   boolean,
-  beatPhase: number,
-  altTwist:  boolean,
-): 1 | -1 {
+function tickTwistSign(ctx: CanvasRenderingContext2D, beatHit: boolean, beatPhase: number, altTwist: boolean): 1 | -1 {
   if (!altTwist) {
     twistSignMap.delete(ctx)
     twistPhasePrevMap.delete(ctx)
@@ -98,7 +127,11 @@ function tickTwistSign(
 // Replaces global-time rotation so that changing speed doesn't snap the angle,
 // and so that text/svg sources can be stationary when autoRotate is false.
 
-interface RotState { phase: number; prevT: number; prevSourceKey: string }
+interface RotState {
+  phase: number
+  prevT: number
+  prevSourceKey: string
+}
 const rotPhaseMap = new WeakMap<CanvasRenderingContext2D, RotState>()
 
 function tickRotPhase(
@@ -108,12 +141,14 @@ function tickRotPhase(
   shouldRotate: boolean,
   angularVelocity: number,
 ): number {
-  const prev = rotPhaseMap.get(ctx) ?? { phase: 0, prevT: t, prevSourceKey: '' }
+  const prev = rotPhaseMap.get(ctx) ?? {
+    phase: 0,
+    prevT: t,
+    prevSourceKey: '',
+  }
   const sourceChanged = sourceKey !== prev.prevSourceKey
   const deltaT_s = sourceChanged ? 0 : Math.min((t - prev.prevT) / 1000, 0.1)
-  const newPhase = sourceChanged || !shouldRotate
-    ? 0
-    : prev.phase + deltaT_s * angularVelocity
+  const newPhase = sourceChanged || !shouldRotate ? 0 : prev.phase + deltaT_s * angularVelocity
   rotPhaseMap.set(ctx, { phase: newPhase, prevT: t, prevSourceKey: sourceKey })
   return newPhase
 }
@@ -134,13 +169,20 @@ type ScopeMode = 'waveform' | 'lissajous' | 'radialScope' | 'spiralScope' | 'pat
 
 function modeForSection(type: ReactSectionType | null): ScopeMode {
   switch (type) {
-    case 'intro':     return 'waveform'
-    case 'verse':     return 'waveform'
-    case 'build':     return 'radialScope'
-    case 'drop':      return 'lissajous'
-    case 'breakdown': return 'spiralScope'
-    case 'outro':     return 'waveform'
-    default:          return 'waveform'
+    case 'intro':
+      return 'waveform'
+    case 'verse':
+      return 'waveform'
+    case 'build':
+      return 'radialScope'
+    case 'drop':
+      return 'lissajous'
+    case 'breakdown':
+      return 'spiralScope'
+    case 'outro':
+      return 'waveform'
+    default:
+      return 'waveform'
   }
 }
 
@@ -173,6 +215,7 @@ let _sdExpectedAudioTrackId: string | null = null
 let _sdTrailResetRevision = 0
 const trailResetSeenMap = new WeakMap<CanvasRenderingContext2D, string>()
 const authoredTrailIdentityMap = new WeakMap<CanvasRenderingContext2D, string>()
+const livingRibbonResetSeenMap = new WeakMap<CanvasRenderingContext2D, number>()
 
 const lyricTextRuntime = new SoundDrawingLyricTextRuntime()
 let textGeometryBuildCount = 0
@@ -215,6 +258,7 @@ export function disposeSoundDrawingRenderer(
   rotPhaseMap.delete(ctx)
   trailResetSeenMap.delete(ctx)
   authoredTrailIdentityMap.delete(ctx)
+  livingRibbonResetSeenMap.delete(ctx)
   disposeLivingRibbonCanvasRuntimes(ctx)
   soundDrawingPerformanceContextMap.delete(ctx)
   const temporalState = soundDrawingPerformanceTemporalStateMap.get(ctx)
@@ -284,9 +328,7 @@ function cachePut(key: string, pts: OscillatorGlyphPoint[]): void {
 }
 
 /** Test seam for verifying content-keyed geometry reuse without a render loop. */
-export function getSoundDrawingPathPointsForTest(
-  params: ReactRenderParams,
-): OscillatorGlyphPoint[] | null {
+export function getSoundDrawingPathPointsForTest(params: ReactRenderParams): OscillatorGlyphPoint[] | null {
   return getOscillatorPathPoints(params)
 }
 
@@ -341,7 +383,11 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       const key = `text:${trimmed}:${res}:${spacing}:${lh}:${ali}`
       const cached = pathCache.get(key)
       if (cached) return cached
-      const pts = textToGlyphPoints(trimmed, res, { letterSpacing: spacing, lineHeight: lh, alignment: ali })
+      const pts = textToGlyphPoints(trimmed, res, {
+        letterSpacing: spacing,
+        lineHeight: lh,
+        alignment: ali,
+      })
       cachePut(key, pts)
       textGeometryBuildCount += 1
       return pts
@@ -351,8 +397,10 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
       const unified = resolveUnifiedSvgSource(osc)
       const glyphId = unified?.mediaId
         ? getSvgGlyphAssetId(unified.mediaId)
-        : (osc.sourceType === 'svgGlyph' ? osc.selectedGlyphId : null)
-      const asset = glyphId ? params.oscillatorGlyphAssets.find(candidate => candidate.id === glyphId) : undefined
+        : osc.sourceType === 'svgGlyph'
+          ? osc.selectedGlyphId
+          : null
+      const asset = glyphId ? params.oscillatorGlyphAssets.find((candidate) => candidate.id === glyphId) : undefined
       if (asset) {
         const cacheKey = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
         const prepared = params.oscillatorGlyphPointCache[cacheKey]
@@ -365,7 +413,9 @@ function getOscillatorPathPoints(params: ReactRenderParams): OscillatorGlyphPoin
         )
         if (nearest) return nearest
         if (import.meta.env.DEV) {
-          console.warn(`[SoundDrawingRenderer] No compiled points for SVG "${asset.id}" at res ${res} — falling back to circle`)
+          console.warn(
+            `[SoundDrawingRenderer] No compiled points for SVG "${asset.id}" at res ${res} — falling back to circle`,
+          )
         }
       }
       const key = `builtin:circle:${res}`
@@ -706,7 +756,7 @@ export function resolveOscillatorAudioModifiers(
 function getTimeDomainNorm(timeDomainData: Uint8Array<ArrayBuffer> | null, i: number): number {
   if (!timeDomainData) return 0
   const raw = timeDomainData[i % timeDomainData.length]
-  return (raw / 128.0) - 1.0  // -1..1
+  return raw / 128.0 - 1.0 // -1..1
 }
 
 function getFreqNorm(freqData: Uint8Array<ArrayBuffer> | null, i: number): number {
@@ -726,8 +776,8 @@ function getSynthStereo(
     const idxL   = Math.floor((i / totalPts) * half)
     const idxR   = half + Math.floor((i / totalPts) * half)
     return {
-      x: (timeDomainData[idxL] / 128) - 1,
-      y: (timeDomainData[idxR] / 128) - 1,
+      x: timeDomainData[idxL] / 128 - 1,
+      y: timeDomainData[idxR] / 128 - 1,
     }
   }
   const phase = (i / totalPts) * Math.PI * 2
@@ -740,10 +790,20 @@ function getSynthStereo(
 
 // ── Text waveform helpers ─────────────────────────────────────────────────────
 
-function fract(v: number): number { return v - Math.floor(v) }
+function fract(v: number): number {
+  return v - Math.floor(v)
+}
 
-function getPointBounds(points: OscillatorGlyphPoint[]): { minX: number; maxX: number; minY: number; maxY: number } {
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+function getPointBounds(points: OscillatorGlyphPoint[]): {
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+} {
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity
   for (const p of points) {
     if (p.x < minX) minX = p.x
     if (p.x > maxX) maxX = p.x
@@ -776,7 +836,7 @@ export function buildTextWaveformMeta(
   text: string,
 ): TextWaveformMeta {
   const { minX, maxX, minY, maxY } = getPointBounds(basePoints)
-  const xRange    = (maxX - minX) || 1
+  const xRange = maxX - minX || 1
   const charCount = Math.max(1, text.trim().length)
   const isSingle  = sourceGroups.length === 1
   const local     = new Array<number>(basePoints.length).fill(0)
@@ -801,7 +861,14 @@ export function buildTextWaveformMeta(
     }
   }
 
-  return { minX, maxX, minY, maxY, charCount, localProgressByPointIndex: local }
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    charCount,
+    localProgressByPointIndex: local,
+  }
 }
 
 /**
@@ -811,9 +878,12 @@ export function buildTextWaveformMeta(
  * Returns new { px, py }.
  */
 export function applyTextWaveformDisplacement(
-  px: number, py: number,
-  origX: number, origY: number,
-  normalX: number, normalY: number,
+  px: number,
+  py: number,
+  origX: number,
+  origY: number,
+  normalX: number,
+  normalY: number,
   pointIndex: number,
   meta: TextWaveformMeta,
   mode: OscillatorTextWaveformMode,
@@ -828,7 +898,7 @@ export function applyTextWaveformDisplacement(
   const sampleProgress = fract(localProgress * cycles + scrollPhase)
   const tdIdx          = Math.floor(sampleProgress * tdLen)
   const wave           = getTimeDomainNorm(timeDomainData, tdIdx)
-  const effectiveAmt   = clamp(amount * (1 + bass * 0.35), 0, 0.30)
+  const effectiveAmt = clamp(amount * (1 + bass * 0.35), 0, 0.3)
   const dispAmt        = wave * effectiveAmt
 
   switch (mode) {
@@ -836,7 +906,11 @@ export function applyTextWaveformDisplacement(
       return { px: px + normalX * dispAmt, py: py + normalY * dispAmt }
     case 'radial': {
       const rlen = Math.sqrt(origX * origX + origY * origY)
-      if (rlen > 0) return { px: px + (origX / rlen) * dispAmt, py: py + (origY / rlen) * dispAmt }
+      if (rlen > 0)
+        return {
+          px: px + (origX / rlen) * dispAmt,
+          py: py + (origY / rlen) * dispAmt,
+        }
       return { px, py }
     }
     case 'tangent':
@@ -888,8 +962,8 @@ export function computeTextFitScale(
   fontSizeMul: number,
 ): number {
   const MARGIN    = 0.05
-  const fitScaleX = (W / 2) * (1 - MARGIN) / maxAbsX
-  const fitScaleY = (H / 2) * (1 - MARGIN) / maxAbsY
+  const fitScaleX = ((W / 2) * (1 - MARGIN)) / maxAbsX
+  const fitScaleY = ((H / 2) * (1 - MARGIN)) / maxAbsY
   return Math.min(fitScaleX, fitScaleY) * pathScale * fontSizeMul
 }
 
@@ -901,16 +975,17 @@ export function computeTextFitScale(
  * local offsets around it leaves the centroid unchanged — the expected layout
  * position stays anchored while audio-reactive motion expands outward.
  */
-export function computeCharCenters(
-  points: OscillatorGlyphPoint[],
-): Map<number, { cx: number; cy: number }> {
+export function computeCharCenters(points: OscillatorGlyphPoint[]): Map<number, { cx: number; cy: number }> {
   const sums = new Map<number, { sx: number; sy: number; n: number }>()
   for (const p of points) {
     const ci = p.characterIndex
     if (ci == null) continue
     const s = sums.get(ci)
-    if (s) { s.sx += p.x; s.sy += p.y; s.n++ }
-    else sums.set(ci, { sx: p.x, sy: p.y, n: 1 })
+    if (s) {
+      s.sx += p.x
+      s.sy += p.y
+      s.n++
+    } else sums.set(ci, { sx: p.x, sy: p.y, n: 1 })
   }
   const centers = new Map<number, { cx: number; cy: number }>()
   for (const [ci, s] of sums) centers.set(ci, { cx: s.sx / s.n, cy: s.sy / s.n })
@@ -919,11 +994,7 @@ export function computeCharCenters(
 
 // ── Canvas path helpers ───────────────────────────────────────────────────────
 
-function drawConnectedPath(
-  tctx: CanvasRenderingContext2D,
-  pts: [number, number][],
-  close: boolean,
-): void {
+function drawConnectedPath(tctx: CanvasRenderingContext2D, pts: [number, number][], close: boolean): void {
   if (pts.length < 2) return
   tctx.beginPath()
   tctx.moveTo(pts[0][0], pts[0][1])
@@ -932,11 +1003,7 @@ function drawConnectedPath(
   tctx.stroke()
 }
 
-function drawDotPoints(
-  tctx: CanvasRenderingContext2D,
-  pts: [number, number][],
-  r: number,
-): void {
+function drawDotPoints(tctx: CanvasRenderingContext2D, pts: [number, number][], r: number): void {
   tctx.beginPath()
   for (const [x, y] of pts) {
     tctx.moveTo(x + r, y)
@@ -947,11 +1014,7 @@ function drawDotPoints(
 
 // ── Fade trail each frame ─────────────────────────────────────────────────────
 
-function fadeTrail(
-  trailCanvas: HTMLCanvasElement,
-  bgColor: string,
-  decayAlpha: number,
-): void {
+function fadeTrail(trailCanvas: HTMLCanvasElement, bgColor: string, decayAlpha: number): void {
   const tctx = trailCanvas.getContext('2d')
   if (!tctx) return
   tctx.fillStyle = hexToRgba(bgColor, Math.max(0.02, decayAlpha))
@@ -962,7 +1025,9 @@ function fadeTrail(
 
 function drawWaveformOnTrail(
   tctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
+  W: number,
+  H: number,
+  dpr: number,
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
@@ -977,9 +1042,19 @@ function drawWaveformOnTrail(
   const glowPx    = params.glow * (12 + (beatHit ? 18 : 0)) + bass * 14
 
   const layers = [
-    { yOff: H * 0.25, scaleY: H * 0.18, color: preset.palette.secondary, alpha: 0.4 },
+    {
+      yOff: H * 0.25,
+      scaleY: H * 0.18,
+      color: preset.palette.secondary,
+      alpha: 0.4,
+    },
     { yOff: H * 0.5,  scaleY: H * 0.24, color: lineColor,                 alpha: 0.9 },
-    { yOff: H * 0.75, scaleY: H * 0.18, color: preset.palette.secondary, alpha: 0.4 },
+    {
+      yOff: H * 0.75,
+      scaleY: H * 0.18,
+      color: preset.palette.secondary,
+      alpha: 0.4,
+    },
   ]
 
   for (const layer of layers) {
@@ -997,7 +1072,8 @@ function drawWaveformOnTrail(
       const v = getTimeDomainNorm(timeDomainData, i)
       const x = i * stepX
       const y = layer.yOff + v * layer.scaleY * (1 + bass * 0.5) * params.intensity
-      if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y)
+      if (i === 0) tctx.moveTo(x, y)
+      else tctx.lineTo(x, y)
     }
     tctx.stroke()
     tctx.restore()
@@ -1008,7 +1084,9 @@ function drawWaveformOnTrail(
 
 function drawLissajousOnTrail(
   tctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
+  W: number,
+  H: number,
+  dpr: number,
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
@@ -1017,7 +1095,8 @@ function drawLissajousOnTrail(
   const { audio, timeDomainData, freqData, beatHit } = frame
   const bass  = audio.bass * params.bassReactivity
   const pts   = 512
-  const cx2   = W / 2, cy2 = H / 2
+  const cx2 = W / 2,
+    cy2 = H / 2
   const scale = Math.min(W, H) * 0.42 * (1 + bass * 0.12) * params.intensity
 
   const glowPx = params.glow * (14 + (beatHit ? 20 : 0))
@@ -1038,7 +1117,8 @@ function drawLissajousOnTrail(
     const st = getSynthStereo(timeDomainData, freqData, i, pts)
     const x  = cx2 + st.x * scale
     const y  = cy2 + st.y * scale
-    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y)
+    if (i === 0) tctx.moveTo(x, y)
+    else tctx.lineTo(x, y)
   }
   tctx.stroke()
 
@@ -1056,7 +1136,9 @@ function drawLissajousOnTrail(
 
 function drawRadialScopeOnTrail(
   tctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
+  W: number,
+  H: number,
+  dpr: number,
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
@@ -1064,7 +1146,8 @@ function drawRadialScopeOnTrail(
 ): void {
   const { audio, timeDomainData, beatHit } = frame
   const bass   = audio.bass * params.bassReactivity
-  const cx2    = W / 2, cy2 = H / 2
+  const cx2 = W / 2,
+    cy2 = H / 2
   const baseR  = Math.min(W, H) * 0.3 * params.intensity
   const pts    = 256
   const glowPx = params.glow * (10 + (beatHit ? 16 : 0)) + bass * 10
@@ -1086,7 +1169,8 @@ function drawRadialScopeOnTrail(
     const r     = baseR + v * baseR * 0.55 * (1 + bass * 0.6)
     const x     = cx2 + Math.cos(angle) * r
     const y     = cy2 + Math.sin(angle) * r
-    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y)
+    if (i === 0) tctx.moveTo(x, y)
+    else tctx.lineTo(x, y)
   }
   tctx.closePath()
   tctx.stroke()
@@ -1106,7 +1190,9 @@ function drawRadialScopeOnTrail(
 
 function drawSpiralScopeOnTrail(
   tctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
+  W: number,
+  H: number,
+  dpr: number,
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
@@ -1114,7 +1200,8 @@ function drawSpiralScopeOnTrail(
 ): void {
   const { audio, freqData, t, beatHit } = frame
   const bass   = audio.bass * params.bassReactivity
-  const cx2    = W / 2, cy2 = H / 2
+  const cx2 = W / 2,
+    cy2 = H / 2
   const pts    = 360
   const glowPx = params.glow * (12 + (beatHit ? 18 : 0))
   const col    = preset.palette.primary
@@ -1139,7 +1226,8 @@ function drawSpiralScopeOnTrail(
     const r       = frac * spiralR * (0.8 + freqVal * 0.5 + bass * 0.3)
     const x       = cx2 + Math.cos(angle) * r
     const y       = cy2 + Math.sin(angle) * r
-    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y)
+    if (i === 0) tctx.moveTo(x, y)
+    else tctx.lineTo(x, y)
   }
   tctx.stroke()
 
@@ -1183,11 +1271,9 @@ export function computeRuntimeSoundDrawingContourScale(input: {
   jitter: number
   character: number
 }): number {
-  const requested = Math.max(0,
-    Math.abs(input.waveform)
-      + Math.abs(input.twist)
-      + Math.abs(input.jitter)
-      + Math.abs(input.character),
+  const requested = Math.max(
+    0,
+    Math.abs(input.waveform) + Math.abs(input.twist) + Math.abs(input.jitter) + Math.abs(input.character),
   )
   if (requested <= 0) return 1
   return clamp(Math.max(0, input.budget) / requested, 0, 1)
@@ -1216,29 +1302,32 @@ function resolveLyricDrivenOscillator(
   }
 
   const playbackMatchesTrack = Boolean(
-    _sdExpectedAudioTrackId &&
-    _sdLyricPlayback.sourceIdentity?.startsWith(`${_sdExpectedAudioTrackId}:`),
+    _sdExpectedAudioTrackId && _sdLyricPlayback.sourceIdentity?.startsWith(`${_sdExpectedAudioTrackId}:`),
   )
   const playback = playbackMatchesTrack ? _sdLyricPlayback : EMPTY_LYRIC_PLAYBACK_STATE
 
-  const resolved = lyricTextRuntime.resolve(runtimeKey, {
+  const resolved = lyricTextRuntime.resolve(
+    runtimeKey,
+    {
     textSource,
     staticText: oscillator.text,
     gapBehavior: oscillator.lyricGapBehavior,
     fallbackText: oscillator.lyricFallbackText,
-  }, playback)
+    },
+    playback,
+  )
 
   return {
-    oscillator: resolved.text === oscillator.text
-      ? oscillator
-      : { ...oscillator, text: resolved.text },
+    oscillator: resolved.text === oscillator.text ? oscillator : { ...oscillator, text: resolved.text },
     visible: resolved.visible,
   }
 }
 
 function drawPathScopeOnTrail(
   tctx: CanvasRenderingContext2D,
-  W: number, H: number, dpr: number,
+  W: number,
+  H: number,
+  dpr: number,
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
@@ -1252,9 +1341,10 @@ function drawPathScopeOnTrail(
   const effectiveParams = osc === params.oscillator ? params : { ...params, oscillator: osc }
   const sourcePolicy = getPerformanceSourcePolicy(osc)
   const contourScale = sourcePolicy?.contourScale ?? 1
-  const contourAllowed = sourcePolicy?.treatment !== 'preserveIdentity'
-    && sourcePolicy?.identityProfile !== 'originalArtwork'
-    && contourScale > 0.000001
+  const contourAllowed =
+    sourcePolicy?.treatment !== 'preserveIdentity' &&
+    sourcePolicy?.identityProfile !== 'originalArtwork' &&
+    contourScale > 0.000001
   const { audio, timeDomainData, beatHit, t } = frame
 
   const basePoints = getOscillatorPathPoints(effectiveParams)
@@ -1293,27 +1383,28 @@ function drawPathScopeOnTrail(
   const twistSign = tickTwistSign(tctx, beatHit, frame.beatPhase, effectiveOsc.altTwist)
 
   // All audio-reactive values in one pure call
-  const amRaw = resolveOscillatorAudioModifiers(
-    frame,
-    { ...effectiveParams, oscillator: effectiveOsc },
-    beatEnvelope,
-  )
-  const textWaveContourRequested = effectiveOsc.sourceType === 'text'
-    && effectiveOsc.textWaveformMode !== 'off'
-    && (sourcePolicy?.allowTextWaveform ?? true)
-    && contourAllowed
-  const runtimeContourScale = sourcePolicy && sourcePolicy.sourceKind !== 'generated' && contourAllowed
+  const amRaw = resolveOscillatorAudioModifiers(frame, { ...effectiveParams, oscillator: effectiveOsc }, beatEnvelope)
+  const textWaveContourRequested =
+    effectiveOsc.sourceType === 'text' &&
+    effectiveOsc.textWaveformMode !== 'off' &&
+    (sourcePolicy?.allowTextWaveform ?? true) &&
+    contourAllowed
+  const runtimeContourScale =
+    sourcePolicy && sourcePolicy.sourceKind !== 'generated' && contourAllowed
     ? computeRuntimeSoundDrawingContourScale({
         budget: sourcePolicy.contourBudget,
         waveform: textWaveContourRequested
           ? effectiveOsc.textWaveformAmount * (1 + bass * 0.35)
-          : effectiveOsc.sourceType === 'text' ? 0 : amRaw.displacementAmount,
+            : effectiveOsc.sourceType === 'text'
+              ? 0
+              : amRaw.displacementAmount,
         twist: Math.abs(amRaw.midTwistAmount) * 0.08,
         jitter: amRaw.highJitterAmount,
         character: sourcePolicy.allowCharacterDeformation ? 0.04 : 0,
       })
     : 1
-  const amBudgeted = runtimeContourScale < 0.999999
+  const amBudgeted =
+    runtimeContourScale < 0.999999
     ? {
         ...amRaw,
         midTwistAmount: amRaw.midTwistAmount * runtimeContourScale,
@@ -1321,9 +1412,7 @@ function drawPathScopeOnTrail(
         displacementAmount: amRaw.displacementAmount * runtimeContourScale,
       }
     : amRaw
-  const am = twistSign === -1
-    ? { ...amBudgeted, midTwistAmount: -amBudgeted.midTwistAmount }
-    : amBudgeted
+  const am = twistSign === -1 ? { ...amBudgeted, midTwistAmount: -amBudgeted.midTwistAmount } : amBudgeted
 
   const numTraces = clamp(effectiveOsc.duplicateTraces, 1, 6)
   const close     = shouldClose(effectiveParams)
@@ -1332,9 +1421,7 @@ function drawPathScopeOnTrail(
   // For text sources: rotate only when autoRotate is explicitly true (default: stationary).
   // For all other sources: rotate unless autoRotate is explicitly false (backward compat).
   const isTextSource = effectiveOsc.sourceType === 'text'
-  const rotate       = isTextSource
-    ? effectiveOsc.autoRotate === true
-    : effectiveOsc.autoRotate !== false
+  const rotate = isTextSource ? effectiveOsc.autoRotate === true : effectiveOsc.autoRotate !== false
   const sourceKey    = `${effectiveOsc.sourceType}:${effectiveOsc.selectedGlyphId ?? effectiveOsc.selectedSvgId ?? effectiveOsc.text ?? effectiveOsc.builtinShape}`
   const angularVel   = 2 * effectiveParams.motion * effectiveOsc.rotationSpeed * am.rotationBoost
   const rotRad       = tickRotPhase(tctx, t, sourceKey, rotate, angularVel)
@@ -1385,7 +1472,11 @@ function drawPathScopeOnTrail(
         const ali = effectiveOsc.textAlignment  ?? 'center'
         const zeroCanvasKey = `text:${trimmed}:${res}:0:${lh}:${ali}`
         if (!pathCache.has(zeroCanvasKey)) {
-          const pts = textToGlyphPoints(trimmed, res, { letterSpacing: 0, lineHeight: lh, alignment: ali })
+          const pts = textToGlyphPoints(trimmed, res, {
+            letterSpacing: 0,
+            lineHeight: lh,
+            alignment: ali,
+          })
           cachePut(zeroCanvasKey, pts)
         }
         fitPoints = pathCache.get(zeroCanvasKey) ?? null
@@ -1394,10 +1485,13 @@ function drawPathScopeOnTrail(
     // Cold-start fallback: zero-spacing OpenType cache not yet populated.
     if (!fitPoints) fitPoints = basePoints
 
-    let maxAbsX = 1e-6, maxAbsY = 1e-6
+    let maxAbsX = 1e-6,
+      maxAbsY = 1e-6
     for (const p of fitPoints) {
-      const ax = Math.abs(p.x); if (ax > maxAbsX) maxAbsX = ax
-      const ay = Math.abs(p.y); if (ay > maxAbsY) maxAbsY = ay
+      const ax = Math.abs(p.x)
+      if (ax > maxAbsX) maxAbsX = ax
+      const ay = Math.abs(p.y)
+      if (ay > maxAbsY) maxAbsY = ay
     }
     baseScale = computeTextFitScale(W, H, maxAbsX, maxAbsY, effectiveOsc.pathScale, fontSizeMul)
     baseScale *= am.bassPulse * (1 + bloomFactor * 0.24)
@@ -1426,16 +1520,16 @@ function drawPathScopeOnTrail(
   // Per-character audio transform setup.
   // charCenters is non-null only when text points carry characterIndex metadata.
   // Legacy cached text (no characterIndex) falls back to the old global behavior.
-  const hasCharGroups = isTextSource && basePoints.some(p => p.characterIndex != null)
-  const charCenters = hasCharGroups && (sourcePolicy?.allowCharacterDeformation ?? true) && contourAllowed
+  const hasCharGroups = isTextSource && basePoints.some((p) => p.characterIndex != null)
+  const charCenters =
+    hasCharGroups && (sourcePolicy?.allowCharacterDeformation ?? true) && contourAllowed
     ? computeCharCenters(basePoints)
     : null
 
   // Precompute per-character reaction weights for this frame (constant across traces).
   // Each entry scales bassPulse-delta, midTwistAmount, and bloomFactor independently
   // so different letter-reaction modes animate each letter differently.
-  const letterReactionMode: OscillatorTextLetterReactionMode =
-    effectiveOsc.textLetterReactionMode ?? 'uniform'
+  const letterReactionMode: OscillatorTextLetterReactionMode = effectiveOsc.textLetterReactionMode ?? 'uniform'
   const charWeightsMap = new Map<number, ReturnType<typeof getCharReactionWeights>>()
   if (charCenters !== null && letterReactionMode !== 'custom') {
     // numChars uses the max visible characterIndex + 1 (not charCenters.size) so that
@@ -1462,13 +1556,12 @@ function drawPathScopeOnTrail(
 
   // Text-specific waveform: build per-point local progress metadata once,
   // reuse across all trace passes.  null when mode is 'off' or source is not text.
-  const isTextWaveActive = effectiveOsc.sourceType === 'text'
-    && effectiveOsc.textWaveformMode !== 'off'
-    && (sourcePolicy?.allowTextWaveform ?? true)
-    && contourAllowed
-  const textWaveMeta     = isTextWaveActive
-    ? buildTextWaveformMeta(basePoints, sourceGroups, effectiveOsc.text)
-    : null
+  const isTextWaveActive =
+    effectiveOsc.sourceType === 'text' &&
+    effectiveOsc.textWaveformMode !== 'off' &&
+    (sourcePolicy?.allowTextWaveform ?? true) &&
+    contourAllowed
+  const textWaveMeta = isTextWaveActive ? buildTextWaveformMeta(basePoints, sourceGroups, effectiveOsc.text) : null
   const textWaveScrollPhase = isTextWaveActive
     ? fract(t * 0.001 * effectiveParams.motion * effectiveOsc.textWaveformScroll)
     : 0
@@ -1507,14 +1600,14 @@ function drawPathScopeOnTrail(
             const assignments = assignmentsByChar.get(p.characterIndex)
             if (assignments && assignments.length > 0) {
               const acc: CustomTargetDelta = {
-                ldx: px - cc.cx, ldy: py - cc.cy,
-                dOffX: 0, dOffY: 0, jitter: 0,
+                ldx: px - cc.cx,
+                ldy: py - cc.cy,
+                dOffX: 0,
+                dOffY: 0,
+                jitter: 0,
               }
               for (const asgn of assignments) {
-                const sig = evalCustomSignal(
-                  asgn.source, bass, mid, high, am.beatPulse,
-                  asgn.phaseOffset, asgn.invert,
-                )
+                const sig = evalCustomSignal(asgn.source, bass, mid, high, am.beatPulse, asgn.phaseOffset, asgn.invert)
                 applyCustomTargetDelta(asgn.target, sig, asgn.amount * runtimeContourScale, acc)
               }
               px = cc.cx + acc.dOffX + acc.ldx
@@ -1531,7 +1624,11 @@ function drawPathScopeOnTrail(
           } else {
             // Automatic modes (uniform / alternating / frequencySplit / ripple):
             // Bass/bloom and mid-twist scaled by the per-mode weight for this char.
-            const w             = charWeightsMap.get(p.characterIndex) ?? { bassScale: 1, midScale: 1, bloomScale: 1 }
+            const w = charWeightsMap.get(p.characterIndex) ?? {
+              bassScale: 1,
+              midScale: 1,
+              bloomScale: 1,
+            }
             const charBassScale = 1 + (am.bassPulse - 1) * w.bassScale * runtimeContourScale
             const charBloom     = bloomFactor * w.bloomScale * runtimeContourScale
             const charScale     = charBassScale * (1 + charBloom * 0.4)
@@ -1574,8 +1671,12 @@ function drawPathScopeOnTrail(
       // all other sources (and text with mode 'off') use the generic path.
       if (textWaveMeta !== null) {
         const r = applyTextWaveformDisplacement(
-          px, py, p.x, p.y,
-          p.normalX ?? 0, p.normalY ?? 0,
+          px,
+          py,
+          p.x,
+          p.y,
+          p.normalX ?? 0,
+          p.normalY ?? 0,
           i,
           textWaveMeta,
           effectiveOsc.textWaveformMode,
@@ -1587,13 +1688,15 @@ function drawPathScopeOnTrail(
         )
         px = r.px
         py = r.py
-      } else if (shouldApplyGenericSoundDrawingPathDisplacement(
+      } else if (
+        shouldApplyGenericSoundDrawingPathDisplacement(
         effectiveOsc.sourceType,
         effectiveOsc.textWaveformMode,
         sourcePolicy?.treatment === 'preserveIdentity' || sourcePolicy?.identityProfile === 'originalArtwork',
         contourScale,
-      )) {
-        const tdIdx   = Math.floor(i * tdLen / resolution)
+        )
+      ) {
+        const tdIdx = Math.floor((i * tdLen) / resolution)
         const td      = getTimeDomainNorm(timeDomainData, tdIdx)
         const dispAmt = td * am.displacementAmount
         switch (osc.audioDisplaceMode) {
@@ -1645,9 +1748,7 @@ function drawPathScopeOnTrail(
     }
 
     // Gather screen coords grouped by source pathIndex (preserving source order within each group)
-    const screenGroups: [number, number][][] = sourceGroups.map(
-      indices => indices.map(i => screenPts[i])
-    )
+    const screenGroups: [number, number][][] = sourceGroups.map((indices) => indices.map((i) => screenPts[i]))
 
     if (isMain) mainTraceGroups = screenGroups
 
@@ -1737,19 +1838,14 @@ function hasSvgGlyphPoints(osc: OscillatorSettings, params: ReactRenderParams): 
   const res = clamp(Math.round(osc.pathResolution), 64, 2048)
   const mediaId = resolveUnifiedSvgSource(osc)?.mediaId
   const glyphId = mediaId ? getSvgGlyphAssetId(mediaId) : null
-  const asset = glyphId ? params.oscillatorGlyphAssets.find(candidate => candidate.id === glyphId) : undefined
+  const asset = glyphId ? params.oscillatorGlyphAssets.find((candidate) => candidate.id === glyphId) : undefined
   if (!asset) return false
   const key = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
   if (params.oscillatorGlyphPointCache[key]) return true
   return findNearestSvgGlyphCacheEntry(params.oscillatorGlyphPointCache, asset.id, res, asset.contentHash) !== null
 }
 
-function clearSoundDrawingTrail(
-  ctx: CanvasRenderingContext2D,
-  W: number,
-  H: number,
-  background: string,
-): void {
+function clearSoundDrawingTrail(ctx: CanvasRenderingContext2D, W: number, H: number, background: string): void {
   const trailCanvas = getTrail(ctx, W, H)
   const trailContext = trailCanvas.getContext('2d')
   if (trailContext) {
@@ -1808,14 +1904,14 @@ function computeClipFade(timeSec: number, clip: SoundDrawingClip): number {
   return Math.max(0, Math.min(1, alpha))
 }
 
-function buildEffectiveOscForLayer(
-  globalOsc: OscillatorSettings,
-  layer:     SoundDrawingLayer,
-): OscillatorSettings {
+function buildEffectiveOscForLayer(globalOsc: OscillatorSettings, layer: SoundDrawingLayer): OscillatorSettings {
   const overrides: Partial<OscillatorSettings> = {
     // geometry / source fields always come from the layer
     ...(layer.sourceType === 'text'         && { sourceType: 'text'         }),
-    ...(layer.sourceType === 'builtinShape' && { sourceType: 'builtinShape', builtinShape: layer.shape }),
+    ...(layer.sourceType === 'builtinShape' && {
+      sourceType: 'builtinShape',
+      builtinShape: layer.shape,
+    }),
     ...(layer.sourceType === 'svg'          && { sourceType: 'svg'          }),
     ...(layer.fontId        !== null         && { textFontId:       layer.fontId }),
     ...(layer.text                           && { text:             layer.text }),
@@ -1824,7 +1920,9 @@ function buildEffectiveOscForLayer(
       lyricGapBehavior: layer.lyricGapBehavior ?? 'hide',
       lyricFallbackText: layer.lyricFallbackText ?? '',
     }),
-    ...(layer.letterSpacing !== undefined    && { textLetterSpacing: layer.letterSpacing }),
+    ...(layer.letterSpacing !== undefined && {
+      textLetterSpacing: layer.letterSpacing,
+    }),
     ...(layer.lineHeight    !== undefined    && { textLineHeight:   layer.lineHeight }),
     ...(layer.alignment     !== undefined    && { textAlignment:    layer.alignment }),
     ...(layer.svgId         !== null         && { selectedSvgId:    layer.svgId }),
@@ -1845,14 +1943,14 @@ function renderSoundDrawingClips(
 ): void {
   const { W, H, dpr } = frame
   const timeSec = frame.timeSec ?? 0
-  const layerMap = new Map(layers.map(l => [l.id, l]))
+  const layerMap = new Map(layers.map((l) => [l.id, l]))
 
   // Filter to active, enabled clips in z-order. Runtime state belonging to
   // inactive layers is discarded so lyric text does not linger between clips.
   const activeClips = clips
-    .filter(c => c.enabled && timeSec >= c.startSec && timeSec < c.endSec)
+    .filter((c) => c.enabled && timeSec >= c.startSec && timeSec < c.endSec)
     .sort((a, b) => a.zIndex - b.zIndex)
-  const activeLayerIds = new Set(activeClips.map(clip => clip.layerId))
+  const activeLayerIds = new Set(activeClips.map((clip) => clip.layerId))
   for (const layer of layers) {
     if (!layer.enabled || !activeLayerIds.has(layer.id)) {
       lyricTextRuntime.delete(`layer:${layer.id}`)
@@ -1884,7 +1982,10 @@ function renderSoundDrawingClips(
     const clipAlpha  = fade * params.intensity
 
     const effectiveOsc = buildEffectiveOscForLayer(params.oscillator, layer)
-    const effectiveParams: ReactRenderParams = { ...params, oscillator: effectiveOsc }
+    const effectiveParams: ReactRenderParams = {
+      ...params,
+      oscillator: effectiveOsc,
+    }
 
     // Apply layer position, scale, and rotation as a canvas transform
     const cx      = layer.x * W + W / 2
@@ -1898,9 +1999,7 @@ function renderSoundDrawingClips(
     tctx.scale(s, s)
     tctx.translate(-W / 2, -H / 2)
 
-    drawPathScopeOnTrail(
-      tctx, W, H, dpr, frame, preset, effectiveParams, clipAlpha, sectionType, `layer:${layer.id}`,
-    )
+    drawPathScopeOnTrail(tctx, W, H, dpr, frame, preset, effectiveParams, clipAlpha, sectionType, `layer:${layer.id}`)
 
     tctx.restore()
   }
@@ -1910,15 +2009,29 @@ function renderSoundDrawingClips(
   ctx.drawImage(trailCanvas, 0, 0)
 }
 
-
 function paletteForPerformanceRole(preset: ReactPreset, colorRole: SoundDrawingColorRole): ReactPreset {
   if (colorRole === 'primary') return preset
   const palette = preset.palette
   if (colorRole === 'secondary') {
-    return { ...preset, palette: { ...palette, primary: palette.secondary, secondary: palette.primary } }
+    return {
+      ...preset,
+      palette: {
+        ...palette,
+        primary: palette.secondary,
+        secondary: palette.primary,
+      },
+    }
   }
   if (colorRole === 'accent') {
-    return { ...preset, palette: { ...palette, primary: palette.accent, secondary: palette.highlight, accent: palette.secondary } }
+    return {
+      ...preset,
+      palette: {
+        ...palette,
+        primary: palette.accent,
+        secondary: palette.highlight,
+        accent: palette.secondary,
+      },
+    }
   }
   return {
     ...preset,
@@ -1935,9 +2048,11 @@ function performanceLayerUsesPath(layer: SoundDrawingResolvedPerformanceLayer): 
   if (layer.source.kind === 'text') return true
   if (layer.source.kind === 'svg') return layer.source.renderMode === 'traced-path'
   if (layer.source.kind === 'active-user-source') return true
-  return layer.generator === 'circularBassMembrane'
-    || layer.generator === 'kaleidoscopicTrace'
-    || layer.generator === 'particleSpline'
+  return (
+    layer.generator === 'circularBassMembrane' ||
+    layer.generator === 'kaleidoscopicTrace' ||
+    layer.generator === 'particleSpline'
+  )
 }
 
 function buildPerformanceOscillator(
@@ -1946,20 +2061,27 @@ function buildPerformanceOscillator(
   motionIntensity: number,
 ): OscillatorSettings {
   const usesPath = performanceLayerUsesPath(layer)
-  const isProtectedSource = layer.source.kind === 'text' || layer.source.kind === 'svg' || layer.source.kind === 'active-user-source'
-  const sourceType = layer.source.kind === 'text'
+  const isProtectedSource =
+    layer.source.kind === 'text' || layer.source.kind === 'svg' || layer.source.kind === 'active-user-source'
+  const sourceType =
+    layer.source.kind === 'text'
     ? 'text'
     : layer.source.kind === 'svg'
       ? 'svg'
       : layer.source.kind === 'active-user-source'
         ? base.sourceType
-        : usesPath ? 'builtinShape' : 'classic'
+          : usesPath
+            ? 'builtinShape'
+            : 'classic'
   const result: PerformanceAwareOscillator = {
     ...base,
     sourceType,
     selectedSvgId: layer.source.kind === 'svg' ? layer.source.svgId : base.selectedSvgId,
-    svgRenderMode: layer.source.kind === 'svg'
-      ? (layer.source.renderMode === 'original-artwork' ? 'originalArtwork' : 'reactivePath')
+    svgRenderMode:
+      layer.source.kind === 'svg'
+        ? layer.source.renderMode === 'original-artwork'
+          ? 'originalArtwork'
+          : 'reactivePath'
       : base.svgRenderMode,
     classicMode: layer.classicMode,
     builtinShape: layer.shape,
@@ -1977,7 +2099,8 @@ function buildPerformanceOscillator(
     highJitter: clamp(layer.jitter, 0, 0.25),
     bassScale: clamp((isProtectedSource ? 0.08 : base.bassScale) + Math.max(0, layer.strokeWidth - 1) * 0.12, 0, 0.8),
     beatBloom: clamp((isProtectedSource ? 0.18 : base.beatBloom) + layer.glow * 0.25, 0, 1),
-    midTwist: layer.treatment === 'preserveIdentity'
+    midTwist:
+      layer.treatment === 'preserveIdentity'
       ? 0
       : clamp(base.midTwist * layer.contourScale + Math.abs(layer.rotation) / 1100, 0, 0.7),
     textWaveformAmount: clamp(base.textWaveformAmount * layer.contourScale, 0, 0.25),
@@ -2067,15 +2190,21 @@ function renderPerformanceLayer(
     bassReactivity: clamp(params.bassReactivity * params.soundDrawingPerformanceSettings.reactionIntensity, 0, 1.2),
     oscillator: effectiveOscillator,
   }
-  const layerFrame: ReactFrameContext = layer.phaseOffset === 0
+  const layerFrame: ReactFrameContext =
+    layer.phaseOffset === 0
     ? frame
-    : { ...frame, t: frame.t + layer.phaseOffset * 240, beatPhase: (frame.beatPhase + layer.phaseOffset + 1) % 1 }
+      : {
+          ...frame,
+          t: frame.t + layer.phaseOffset * 240,
+          beatPhase: (frame.beatPhase + layer.phaseOffset + 1) % 1,
+        }
 
   if (
-    layer.source.kind === 'svg'
-    && layer.source.renderMode === 'traced-path'
-    && !hasSvgGlyphPoints(effectiveOscillator, effectiveParams)
-  ) return {}
+    layer.source.kind === 'svg' &&
+    layer.source.renderMode === 'traced-path' &&
+    !hasSvgGlyphPoints(effectiveOscillator, effectiveParams)
+  )
+    return {}
 
   let result: PerformanceLayerRenderResult = {}
   tctx.save()
@@ -2117,8 +2246,16 @@ function renderPerformanceLayer(
       drawOriginalArtworkPerformanceLayer(tctx, layerFrame, layerPreset, effectiveParams, layer, layer.source.svgId)
     } else if (performanceLayerUsesPath(layer)) {
       drawPathScopeOnTrail(
-        tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams,
-        effectiveParams.intensity, sectionType, `performance:${performance.showId}:${layer.id}`,
+        tctx,
+        W,
+        H,
+        dpr,
+        layerFrame,
+        layerPreset,
+        effectiveParams,
+        effectiveParams.intensity,
+        sectionType,
+        `performance:${performance.showId}:${layer.id}`,
       )
     } else {
       switch (layer.classicMode) {
@@ -2142,10 +2279,7 @@ function renderPerformanceLayer(
   return result
 }
 
-function authoredTrailIdentity(
-  performance: SoundDrawingResolvedPerformanceFrame,
-  params: ReactRenderParams,
-): string {
+function authoredTrailIdentity(performance: SoundDrawingResolvedPerformanceFrame, params: ReactRenderParams): string {
   const oscillator = params.oscillator
   return [
     performance.showId,
@@ -2180,6 +2314,20 @@ function renderSafeAuthoredFallback(
   } finally {
     ctx.restore()
   }
+}
+
+function soundDrawingRouteIsActive(
+  route: SoundDrawingModulationRoute,
+  context: SharedPerformanceContext,
+  settings: SoundDrawingPerformanceSettings,
+): boolean {
+  if (route.lockKey && settings.locks[route.lockKey]) return false
+  if (route.capability && !context.capabilities[route.capability]) return false
+  if (route.capabilityAny && !route.capabilityAny.some((key) => context.capabilities[key])) return false
+  const section = context.macroSectionType ?? context.sectionType ?? 'unknown'
+  if (route.sectionFilter?.length && !route.sectionFilter.includes(section)) return false
+  if (route.minConfidence != null && context.confidence[route.confidenceKey ?? 'overall'] < route.minConfidence) return false
+  return true
 }
 
 function renderAuthoredSoundDrawingPerformance(
@@ -2225,7 +2373,8 @@ function renderAuthoredSoundDrawingPerformance(
     disposeLivingRibbonCanvasRuntimes(ctx)
     renderSafeAuthoredFallback(ctx, frame, preset, params)
     if (publishesProductionDiagnostics) {
-      publishSharedPerformanceDiagnostics(createSharedPerformanceDiagnostics(performance.context, {
+      publishSharedPerformanceDiagnostics(
+        createSharedPerformanceDiagnostics(performance.context, {
         engine: 'soundDrawing',
         performanceShow: performance.showName,
         scene: performance.sceneId,
@@ -2237,17 +2386,34 @@ function renderAuthoredSoundDrawingPerformance(
         lockedParameters: [],
         fallbackState: 'Canvas2D trail context unavailable; safe harmonic fallback rendered',
         resourceLimitDecisions: ['Living Ribbon runtime disposed because the authored trail context was unavailable'],
-      }))
+        }),
+      )
     }
     return true
   }
 
+  const ribbonResetRevision = params.soundDrawingRibbonResetRevision ?? 0
+  const previousRibbonResetRevision = livingRibbonResetSeenMap.get(ctx)
+  let ribbonResetApplied = false
+  if (previousRibbonResetRevision === undefined) {
+    livingRibbonResetSeenMap.set(ctx, ribbonResetRevision)
+  } else if (previousRibbonResetRevision !== ribbonResetRevision) {
+    synchronizeSoundDrawingBehaviorRuntime(temporalState, 'manual')
+    resetLivingRibbonCanvasRuntimes(ctx, `${performance.deterministicIdentity}:manual-reset:${ribbonResetRevision}`)
+    clearSoundDrawingTrail(ctx, W, H, preset.palette.background)
+    livingRibbonResetSeenMap.set(ctx, ribbonResetRevision)
+    ribbonResetApplied = true
+  }
+
+  const ribbonSettings = params.soundDrawingPerformanceSettings.livingRibbon
   const preparation = prepareLivingRibbonCanvasFrame({
     ownerContext: ctx,
     frame,
     performance,
-    quality: params.soundDrawingPerformanceSettings.quality,
+    quality: ribbonSettings.quality,
     mode: runtimeMode,
+    pointDensity: ribbonSettings.pointDensity,
+    sparkAmount: ribbonSettings.sparkAmount,
   })
   const nextTrailIdentity = authoredTrailIdentity(performance, params)
   const previousTrailIdentity = authoredTrailIdentityMap.get(ctx)
@@ -2255,36 +2421,37 @@ function renderAuthoredSoundDrawingPerformance(
   const sourceOrGeneratorChanged = previousTrailIdentity !== undefined && previousTrailIdentity !== nextTrailIdentity
   authoredTrailIdentityMap.set(ctx, nextTrailIdentity)
   if (
-    enteringAuthoredPerformance
-    || sourceOrGeneratorChanged
-    || preparation.clearTrail
-    || performance.context.trackReplacementDetected
-    || performance.context.seekDetected
-    || performance.context.loopWrapDetected
-    || frame.timingDiscontinuity
+    enteringAuthoredPerformance ||
+    sourceOrGeneratorChanged ||
+    preparation.clearTrail ||
+    ribbonResetApplied ||
+    performance.context.trackReplacementDetected ||
+    performance.context.seekDetected ||
+    performance.context.loopWrapDetected ||
+    frame.timingDiscontinuity
   ) {
     clearSoundDrawingTrail(ctx, W, H, preset.palette.background)
   }
 
-  const activeSourceTrail = performance.layers.find(layer => layer.source.kind !== 'generated')?.sourceTrailStrength ?? 0.5
+  const activeSourceTrail =
+    performance.layers.find((layer) => layer.source.kind !== 'generated')?.sourceTrailStrength ?? 0.5
   const authoredPersistence = clamp(
-    performance.global.trailPersistence * 0.78
-      + activeSourceTrail * 0.16
-      + performance.global.feedbackAmount * 0.12,
+    performance.global.trailPersistence * 0.78 + activeSourceTrail * 0.16 + performance.global.feedbackAmount * 0.12,
     0,
     0.98,
   )
-  const livingRibbonActive = performance.layers.some(layer => (
-    layer.enabled && layer.source.kind === 'generated' && layer.generator === 'livingRibbon'
-  ))
+  const livingRibbonActive = performance.layers.some(
+    (layer) => layer.enabled && layer.source.kind === 'generated' && layer.generator === 'livingRibbon',
+  )
   const livingRibbonBudget = resolveLivingRibbonCanvasQualityBudget(
-    params.soundDrawingPerformanceSettings.quality,
+    ribbonSettings.quality,
     runtimeMode,
+    ribbonSettings.pointDensity,
+    ribbonSettings.sparkAmount,
   )
   const livingRibbonTrailDetail = livingRibbonBudget.trailDetail
   const decayRate = clamp(
-    ((1 - authoredPersistence) * 0.28 + params.trailDecay * 0.04)
-      / (livingRibbonActive ? livingRibbonTrailDetail : 1),
+    ((1 - authoredPersistence) * 0.28 + params.trailDecay * 0.04) / (livingRibbonActive ? livingRibbonTrailDetail : 1),
     0.02,
     0.32,
   )
@@ -2310,7 +2477,9 @@ function renderAuthoredSoundDrawingPerformance(
     ctx.restore()
   }
 
-  const activeEventEnvelopes = performance.appliedActionReasons.filter(reason => SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS.has(reason))
+  const activeEventEnvelopes = performance.appliedActionReasons.filter((reason) =>
+    SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS.has(reason),
+  )
   const lockedParameters = Object.entries(params.soundDrawingPerformanceSettings?.locks ?? {})
     .filter(([, locked]) => locked)
     .map(([key]) => key)
@@ -2318,9 +2487,9 @@ function renderAuthoredSoundDrawingPerformance(
   const sourceFailureDecisions: string[] = []
   for (const layer of performance.layers) {
     if (
-      layer.source.kind === 'text'
-      && (params.oscillator.textSource ?? 'static') === 'static'
-      && !params.oscillator.text.trim()
+      layer.source.kind === 'text' &&
+      (params.oscillator.textSource ?? 'static') === 'static' &&
+      !params.oscillator.text.trim()
     ) {
       sourceFailureDecisions.push('Active text source is empty')
     }
@@ -2330,45 +2499,124 @@ function renderAuthoredSoundDrawingPerformance(
       else if (!entry?.loaded) sourceFailureDecisions.push('SVG artwork is not available in the render cache')
     }
     if (layer.source.kind === 'svg' && layer.source.renderMode === 'traced-path') {
-      const sourceOscillator = buildPerformanceOscillator(params.oscillator, layer, params.soundDrawingPerformanceSettings.motionIntensity)
-      if (!hasSvgGlyphPoints(sourceOscillator, { ...params, oscillator: sourceOscillator })) {
+      const sourceOscillator = buildPerformanceOscillator(
+        params.oscillator,
+        layer,
+        params.soundDrawingPerformanceSettings.motionIntensity,
+      )
+      if (
+        !hasSvgGlyphPoints(sourceOscillator, {
+          ...params,
+          oscillator: sourceOscillator,
+        })
+      ) {
         sourceFailureDecisions.push('SVG traced path is unavailable; generated supporting layers remain active')
       }
     }
   }
-  if (performance.layers.length >= MAX_SOUND_DRAWING_PERFORMANCE_LAYERS) resourceLimitDecisions.push('Layer budget reached')
-  if (performance.layers.some(layer => layer.traceCount >= MAX_SOUND_DRAWING_PERFORMANCE_TRACES)) resourceLimitDecisions.push('Trace budget reached')
-  if (performance.layers.some(layer => layer.particleCount >= MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES)) resourceLimitDecisions.push('Particle budget reached')
+  if (performance.layers.length >= MAX_SOUND_DRAWING_PERFORMANCE_LAYERS)
+    resourceLimitDecisions.push('Layer budget reached')
+  if (performance.layers.some((layer) => layer.traceCount >= MAX_SOUND_DRAWING_PERFORMANCE_TRACES))
+    resourceLimitDecisions.push('Trace budget reached')
+  if (performance.layers.some((layer) => layer.particleCount >= MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES))
+    resourceLimitDecisions.push('Particle budget reached')
+  const ribbonDiagnostics = getLivingRibbonCanvasDiagnostics(ctx)
+  const activeRibbonRuntime = ribbonDiagnostics.runtimes[0] ?? null
+  const activeRibbonLayer = performance.layers.find((layer) => usesLivingRibbonCanvasRenderer(layer)) ?? null
+  const ribbonFallbackState = livingRibbonActive
+    ? [
+        !performance.context.capabilities.sections ? 'section fallback' : null,
+        !performance.context.capabilities.stemCurves ? 'stem fallback' : null,
+        !performance.context.capabilities.lyrics ? 'vocal/lyric fallback' : null,
+      ]
+        .filter(Boolean)
+        .join(', ') || 'advanced capabilities active'
+    : null
   if (livingRibbonActive) {
     resourceLimitDecisions.push(
       `Living Ribbon quality ${livingRibbonBudget.requested} → ${livingRibbonBudget.resolved} (${livingRibbonBudget.pointCount} points, ${runtimeMode})`,
     )
   }
   if (publishesProductionDiagnostics) {
-    publishSharedPerformanceDiagnostics(createSharedPerformanceDiagnostics(performance.context, {
+    publishSharedPerformanceDiagnostics(
+      createSharedPerformanceDiagnostics(performance.context, {
       engine: 'soundDrawing',
       performanceShow: performance.showName,
       scene: performance.sceneId,
       motifOrComposition: `4-bar ${performance.context.performanceFourBarBlockIndex + 1}`,
-      activeLayers: performance.layers.filter(layer => layer.enabled).map(layer => `${layer.role}:${layer.source.kind}:${layer.source.kind === 'generated' ? layer.generator : layer.identityProfile}`),
+        activeLayers: performance.layers
+          .filter((layer) => layer.enabled)
+          .map(
+            (layer) =>
+              `${layer.role}:${layer.source.kind}:${layer.source.kind === 'generated' ? layer.generator : layer.identityProfile}`,
+          ),
       activeEventEnvelopes,
       recentActions: performance.appliedActionReasons,
-      continuousRoutes: performance.layers.flatMap(layer => layer.modulationRoutes.map(route => route.id)),
+        continuousRoutes: performance.layers.flatMap((layer) =>
+          layer.modulationRoutes
+            .filter((route) => soundDrawingRouteIsActive(route, performance.context, params.soundDrawingPerformanceSettings))
+            .map((route) => route.id),
+        ),
       lockedParameters,
-      fallbackState: livingRibbonFailures[0]
-        ?? performance.sourceFallbackState
-        ?? sourceFailureDecisions[0]
-        ?? (performance.fallbackUsed ? 'Safe authored fallback active' : null),
+        fallbackState:
+          livingRibbonFailures[0] ??
+          performance.sourceFallbackState ??
+          sourceFailureDecisions[0] ??
+          (performance.fallbackUsed ? 'Safe authored fallback active' : null),
       resourceLimitDecisions: [
         ...resourceLimitDecisions,
         ...sourceFailureDecisions,
-        ...livingRibbonFailures.map(reason => `Living Ribbon fallback: ${reason}`),
+          ...livingRibbonFailures.map((reason) => `Living Ribbon fallback: ${reason}`),
         `Source ${performance.activeSourceKind} / ${performance.activeIdentityProfile} / ${performance.activeTreatment}`,
         `Contour ${performance.appliedContourDeformation.toFixed(4)} of ${performance.contourBudget.toFixed(4)} (requested ${performance.requestedContourDeformation.toFixed(4)})`,
         ...(performance.readabilityClampApplied ? ['Readability clamp applied'] : []),
-        ...performance.supportingGeneratedLayers.map(id => `Supporting layer ${id}`),
+          ...performance.supportingGeneratedLayers.map((id) => `Supporting layer ${id}`),
       ],
-    }))
+        engineDetails: livingRibbonActive
+          ? [
+              { label: 'Ribbon Scene', value: performance.sceneId },
+              {
+                label: 'Ribbon Routes',
+                value: String(
+                  activeRibbonLayer?.modulationRoutes.filter((route) =>
+                    soundDrawingRouteIsActive(route, performance.context, params.soundDrawingPerformanceSettings),
+                  ).length ?? 0,
+                ),
+              },
+              {
+                label: 'Ribbon Impulses',
+                value: activeRibbonRuntime?.recentImpulses.slice(-4).join(', ') || 'None',
+              },
+              {
+                label: 'Ribbon Controls',
+                value: activeRibbonRuntime
+                  ? `drv ${activeRibbonRuntime.normalizedControls.drive.toFixed(2)} · ten ${activeRibbonRuntime.normalizedControls.tension.toFixed(2)} · tur ${activeRibbonRuntime.normalizedControls.turbulence.toFixed(2)} · wid ${activeRibbonRuntime.normalizedControls.widthTarget.toFixed(2)}`
+                  : 'Unavailable',
+              },
+              {
+                label: 'Ribbon Capability',
+                value: ribbonFallbackState ?? 'Not active',
+              },
+              {
+                label: 'Ribbon Quality',
+                value: `${livingRibbonBudget.requested} → ${livingRibbonBudget.resolved}`,
+              },
+              {
+                label: 'Ribbon Structure',
+                value: activeRibbonRuntime?.structuralSignature ?? 'Unavailable',
+              },
+              {
+                label: 'Ribbon Locks',
+                value: lockedParameters.filter((key) => key.startsWith('ribbon')).join(', ') || 'None',
+              },
+              {
+                label: 'Ribbon Recovery',
+                value: `reset ${ribbonDiagnostics.resetCount} · finite ${ribbonDiagnostics.finiteRecoveryCount}`,
+              },
+            ]
+          : [],
+      }),
+    )
   }
   return true
 }
@@ -2402,8 +2650,8 @@ export function renderSoundDrawing(
   // compatibility boundary and follow the same selectedSvgId/render-mode lifecycle.
   const svgSource = resolveUnifiedSvgSource(osc)
   if (svgSource?.mediaId) {
-    const wantsOriginal = svgSource.renderMode === 'originalArtwork' ||
-      (svgSource.renderMode === 'auto' && !hasSvgGlyphPoints(osc, params))
+    const wantsOriginal =
+      svgSource.renderMode === 'originalArtwork' || (svgSource.renderMode === 'auto' && !hasSvgGlyphPoints(osc, params))
     if (wantsOriginal) {
       renderOriginalArtwork(ctx, frame, preset, params, svgSource.mediaId)
       return
