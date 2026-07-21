@@ -194,13 +194,40 @@ describe('Sound Drawing authored Performance Engine', () => {
       'Radial Pressure System',
       'Harmonic Ribbon Reactor',
       'Phase-Knot Cathedral',
+      'Living Ribbon System',
     ])
     const generators = SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => {
       const scene = show.program.scenes.find(candidate => candidate.id.endsWith('-drop'))
       const action = scene?.actions?.find(candidate => candidate.type === 'scene')
       return action?.type === 'scene' ? action.layers[0]?.generator : null
     })
-    expect(new Set(generators).size).toBe(3)
+    expect(new Set(generators).size).toBe(4)
+  })
+
+  it('keeps the existing default show unchanged while making Living Ribbon opt-in and selectable', () => {
+    expect(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId).toBe('radialPressureSystem')
+    expect(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference).toBe('authored')
+
+    const authored = resolved(31, {}, {
+      selectedShowId: 'livingRibbonSystem',
+      performanceSource: 'generatedVisual',
+    })
+    expect(authored.showId).toBe('livingRibbonSystem')
+    expect(role(authored, 'primaryMotif').generator).toBe('livingRibbon')
+
+    const selected = resolved(31, {}, {
+      selectedShowId: 'livingRibbonSystem',
+      generatorPreference: 'livingRibbon',
+      performanceSource: 'generatedVisual',
+    })
+    expect(role(selected, 'primaryMotif').generator).toBe('livingRibbon')
+
+    const legacy = resolved(31, {}, {
+      selectedShowId: 'harmonicRibbonReactor',
+      generatorPreference: 'harmonicRibbon',
+      performanceSource: 'generatedVisual',
+    })
+    expect(role(legacy, 'primaryMotif').generator).toBe('harmonicRibbon')
   })
 
   it('consumes the authoritative shared context and preserves manual mode when Auto Performance is off', () => {

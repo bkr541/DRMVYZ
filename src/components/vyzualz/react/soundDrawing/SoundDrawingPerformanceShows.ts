@@ -375,10 +375,194 @@ function phaseKnotCathedral(): SoundDrawingPerformanceShowDefinition {
   }
 }
 
+
+function livingRibbonSystem(): SoundDrawingPerformanceShowDefinition {
+  const intro = [
+    layer('lrs-primary', 'primaryMotif', 'livingRibbon', {
+      opacity: 0.58,
+      scale: 0.7,
+      strokeWidth: 0.82,
+      trailPersistence: 0.82,
+      glow: 0.5,
+      audioDisplacement: 0.08,
+      jitter: 0.025,
+      colorRole: 'primary',
+    }),
+    layer('lrs-atmos', 'atmosphereLayer', 'spectralContour', {
+      opacity: 0.12,
+      scale: 0.92,
+      traceCount: 1,
+      colorRole: 'secondary',
+    }),
+  ]
+  const verse = [
+    layer('lrs-primary', 'primaryMotif', 'livingRibbon', {
+      opacity: 0.76,
+      scale: 0.82,
+      strokeWidth: 0.95,
+      trailPersistence: 0.72,
+      glow: 0.58,
+      audioDisplacement: 0.12,
+      jitter: 0.035,
+    }),
+    layer('lrs-harmonic', 'harmonicLayer', 'harmonicRibbon', {
+      opacity: 0.2,
+      scale: 0.92,
+      traceCount: 1,
+      colorRole: 'secondary',
+      trailPersistence: 0.78,
+    }),
+  ]
+  const build = [
+    layer('lrs-primary', 'primaryMotif', 'livingRibbon', {
+      opacity: 0.88,
+      scale: 0.9,
+      strokeWidth: 1.04,
+      trailPersistence: 0.58,
+      glow: 0.7,
+      audioDisplacement: 0.16,
+      jitter: 0.055,
+      rotation: 8,
+      modulationRoutes: [bassScaleRoute('lrs-build-bass', 0.14), buildRotationRoute, energyGlowRoute('lrs-build-glow', 0.22)],
+    }),
+    layer('lrs-harmonic', 'harmonicLayer', 'harmonicRibbon', {
+      opacity: 0.28,
+      scale: 1.02,
+      traceCount: 2,
+      colorRole: 'secondary',
+    }),
+    layer('lrs-rhythm', 'rhythmAccent', 'radialOscilloscope', {
+      opacity: 0.18,
+      scale: 0.5,
+      colorRole: 'accent',
+    }),
+  ]
+  const preDrop = [
+    layer('lrs-primary', 'primaryMotif', 'livingRibbon', {
+      opacity: 0.92,
+      scale: 0.48,
+      strokeWidth: 1.08,
+      trailPersistence: 0.2,
+      glow: 0.72,
+      audioDisplacement: 0.08,
+      jitter: 0.02,
+      colorRole: 'accent',
+    }),
+  ]
+  const drop = [
+    layer('lrs-primary', 'primaryMotif', 'livingRibbon', {
+      opacity: 1,
+      scale: 1,
+      strokeWidth: 1.28,
+      trailPersistence: 0.62,
+      glow: 0.94,
+      audioDisplacement: 0.2,
+      jitter: 0.075,
+      topologyVariant: 2,
+    }),
+    layer('lrs-harmonic', 'harmonicLayer', 'harmonicRibbon', {
+      opacity: 0.34,
+      scale: 1.08,
+      traceCount: 2,
+      colorRole: 'secondary',
+    }),
+    layer('lrs-rhythm', 'rhythmAccent', 'circularBassMembrane', {
+      opacity: 0.28,
+      scale: 0.62,
+      colorRole: 'accent',
+    }),
+    layer('lrs-echo', 'echoLayer', 'spectralContour', {
+      enabled: false,
+      opacity: 0.22,
+      scale: 1.18,
+      traceCount: 2,
+      feedbackAmount: 0.18,
+      colorRole: 'secondary',
+    }),
+  ]
+  const breakdown = [
+    layer('lrs-primary', 'primaryMotif', 'livingRibbon', {
+      opacity: 0.64,
+      scale: 0.76,
+      strokeWidth: 0.86,
+      trailPersistence: 0.9,
+      glow: 0.48,
+      audioDisplacement: 0.08,
+      jitter: 0.02,
+      modulationRoutes: [vocalOpacityRoute, energyGlowRoute('lrs-break-glow', 0.16)],
+    }),
+    layer('lrs-harmonic', 'harmonicLayer', 'harmonicRibbon', {
+      opacity: 0.18,
+      scale: 0.9,
+      colorRole: 'secondary',
+    }),
+  ]
+  const outro = [
+    layer('lrs-primary', 'primaryMotif', 'livingRibbon', {
+      opacity: 0.42,
+      scale: 0.62,
+      strokeWidth: 0.74,
+      trailPersistence: 0.94,
+      glow: 0.38,
+      audioDisplacement: 0.05,
+      jitter: 0.015,
+    }),
+  ]
+  const fallback = [
+    layer('lrs-fallback-primary', 'primaryMotif', 'harmonicRibbon', {
+      opacity: 0.64,
+      scale: 0.78,
+      strokeWidth: 0.9,
+      traceCount: 1,
+      trailPersistence: 0.72,
+      glow: 0.48,
+      audioDisplacement: 0.1,
+      jitter: 0.02,
+    }),
+  ]
+
+  return {
+    id: 'livingRibbonSystem',
+    name: 'Living Ribbon System',
+    description: 'A momentum-preserving organic ribbon with restrained harmonic support and safe scope fallback.',
+    program: {
+      id: 'soundDrawing.livingRibbonSystem',
+      metadata: {
+        name: 'Living Ribbon System',
+        description: 'Renderer-owned Living Ribbon physics with conservative authored section development.',
+        engine: 'soundDrawing',
+        version: 1,
+        authoringRevision: 'living-ribbon-rendering-integration',
+      },
+      fallbackOrder: ['unknown'],
+      fallbackSceneId: 'lrs-fallback',
+      scenes: [
+        scene('lrs-intro', ['intro'], intro),
+        scene('lrs-verse', ['verse'], verse),
+        scene('lrs-build', ['build'], build),
+        scene('lrs-pre-drop', ['preDrop'], preDrop, { priority: 6 }),
+        scene('lrs-drop-2', ['drop'], drop, {
+          priority: 10,
+          dropOccurrence: { minOccurrence: 2 },
+          bodyActions: [
+            { type: 'patchRole', role: 'primaryMotif', patch: { strokeWidth: 1.42, topologyVariant: 3, rotation: 12 }, lockKey: 'topology' },
+            { type: 'patchRole', role: 'echoLayer', patch: { enabled: true, opacity: 0.28 }, lockKey: 'layerRecruitment' },
+          ],
+        }),
+        scene('lrs-drop', ['drop'], drop, { priority: 5 }),
+        scene('lrs-breakdown', ['breakdown', 'bridge'], breakdown),
+        scene('lrs-outro', ['outro'], outro),
+        scene('lrs-fallback', ['unknown'], fallback, { priority: -10 }),
+      ],
+    },
+  }
+}
+
 export const SOUND_DRAWING_PERFORMANCE_SHOWS: readonly SoundDrawingPerformanceShowDefinition[] = [
   radialPressureSystem(),
   harmonicRibbonReactor(),
   phaseKnotCathedral(),
+  livingRibbonSystem(),
 ]
 
 export const SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID = Object.fromEntries(

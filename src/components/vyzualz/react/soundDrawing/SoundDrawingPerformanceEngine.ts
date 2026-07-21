@@ -25,6 +25,7 @@ import {
   MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
   MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES,
   MAX_SOUND_DRAWING_PERFORMANCE_TRACES,
+  SOUND_DRAWING_GENERATOR_FAMILIES,
   type SoundDrawingEventBinding,
   type SoundDrawingEventKind,
   type SoundDrawingGeneratorFamily,
@@ -90,6 +91,10 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
   const useSourceAs = ['primaryMotif', 'supportingLayer', 'both'].includes(source.useSourceAs)
     ? source.useSourceAs
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs
+  const generatorPreference = source.generatorPreference === 'authored'
+    || SOUND_DRAWING_GENERATOR_FAMILIES.includes(source.generatorPreference as SoundDrawingGeneratorFamily)
+    ? source.generatorPreference
+    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference
   return {
     selectedShowId,
     autoPerformance: source.autoPerformance === true,
@@ -97,7 +102,10 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     motionIntensity: clamp01(source.motionIntensity),
     reactionIntensity: clamp01(source.reactionIntensity),
     trailIntensity: clamp01(source.trailIntensity),
-    generatorPreference: source.generatorPreference ?? 'authored',
+    generatorPreference,
+    quality: ['auto', 'low', 'medium', 'high'].includes(source.quality)
+      ? source.quality
+      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
     performanceSource,
     sourceTreatment,
     useSourceAs,
@@ -223,6 +231,7 @@ function generatorDefaults(generator: SoundDrawingGeneratorFamily): Pick<SoundDr
     case 'lissajousFigure': return { classicMode: 'lissajous', shape: 'infinity', renderMode: 'outline' }
     case 'phaseScopeKnot': return { classicMode: 'lissajous', shape: 'infinity', renderMode: 'multiTrace' }
     case 'harmonicRibbon': return { classicMode: 'waveform', shape: 'line', renderMode: 'ribbon' }
+    case 'livingRibbon': return { classicMode: 'waveform', shape: 'line', renderMode: 'ribbon' }
     case 'spectralContour': return { classicMode: 'waveform', shape: 'line', renderMode: 'multiTrace' }
     case 'circularBassMembrane': return { classicMode: 'radialScope', shape: 'circle', renderMode: 'outline' }
     case 'kaleidoscopicTrace': return { classicMode: 'radialScope', shape: 'star', renderMode: 'multiTrace' }
@@ -572,6 +581,7 @@ function applyGeneratorPreference(state: MutablePerformanceState, settings: Soun
 function enforceSafetyBounds(state: MutablePerformanceState): void {
   const expensiveGenerators = new Set<SoundDrawingGeneratorFamily>([
     'particleSpline',
+    'livingRibbon',
     'vectorFieldStreamlines',
     'audioReactiveAttractor',
     'tunnelTrace',

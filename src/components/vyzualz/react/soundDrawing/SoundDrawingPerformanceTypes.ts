@@ -13,6 +13,7 @@ export type SoundDrawingPerformanceShowId =
   | 'radialPressureSystem'
   | 'harmonicRibbonReactor'
   | 'phaseKnotCathedral'
+  | 'livingRibbonSystem'
 
 export type SoundDrawingLayerRole =
   | 'primaryMotif'
@@ -30,6 +31,7 @@ export type SoundDrawingGeneratorFamily =
   | 'lissajousFigure'
   | 'phaseScopeKnot'
   | 'harmonicRibbon'
+  | 'livingRibbon'
   | 'spectralContour'
   | 'circularBassMembrane'
   | 'kaleidoscopicTrace'
@@ -42,6 +44,7 @@ export type SoundDrawingGeneratorFamily =
 export type SoundDrawingBlendMode = 'screen' | 'lighter' | 'source-over'
 export type SoundDrawingColorRole = 'primary' | 'secondary' | 'accent' | 'inverted'
 export type SoundDrawingGeneratorPreference = 'authored' | SoundDrawingGeneratorFamily
+export type SoundDrawingVisualQuality = 'auto' | 'low' | 'medium' | 'high'
 
 export type SoundDrawingPerformanceSourceSelection =
   | 'generatedVisual'
@@ -84,6 +87,7 @@ export const SOUND_DRAWING_GENERATOR_FAMILIES: readonly SoundDrawingGeneratorFam
   'lissajousFigure',
   'phaseScopeKnot',
   'harmonicRibbon',
+  'livingRibbon',
   'spectralContour',
   'circularBassMembrane',
   'kaleidoscopicTrace',
@@ -303,6 +307,7 @@ export interface SoundDrawingPerformanceSettings {
   reactionIntensity: number
   trailIntensity: number
   generatorPreference: SoundDrawingGeneratorPreference
+  quality: SoundDrawingVisualQuality
   performanceSource: SoundDrawingPerformanceSourceSelection
   sourceTreatment: SoundDrawingSourceTreatment
   useSourceAs: SoundDrawingSourceUsePolicy
@@ -390,6 +395,7 @@ export const DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS: SoundDrawingPerformance
   reactionIntensity: 0.8,
   trailIntensity: 0.55,
   generatorPreference: 'authored',
+  quality: 'auto',
   performanceSource: 'activeUserSource',
   sourceTreatment: 'preserveIdentity',
   useSourceAs: 'primaryMotif',

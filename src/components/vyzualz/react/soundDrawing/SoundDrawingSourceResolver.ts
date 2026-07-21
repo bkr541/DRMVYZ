@@ -185,6 +185,7 @@ function estimateRequestedContour(layer: SoundDrawingResolvedPerformanceLayer, o
 
 function supportingGeneratorForShow(showId: string, primary: SoundDrawingResolvedPerformanceLayer): SoundDrawingGeneratorFamily {
   if (showId === 'harmonicRibbonReactor') return 'harmonicRibbon'
+  if (showId === 'livingRibbonSystem') return 'livingRibbon'
   if (showId === 'phaseKnotCathedral') return 'phaseScopeKnot'
   return primary.generator === 'circularBassMembrane' ? primary.generator : 'radialOscilloscope'
 }

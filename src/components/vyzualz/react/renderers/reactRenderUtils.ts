@@ -4,6 +4,7 @@ import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { ReactPerformanceActionEvent } from '../ReactPerformanceActions'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS, type SoundDrawingPerformanceSettings } from '../soundDrawing/SoundDrawingPerformanceTypes'
+import type { VisualSimulationRuntimeMode } from '../../../../features/visualSimulation'
 import { resolveSectionAtTime as resolveCanonicalSectionAtTime } from '../../../../features/trackIntelligence/authoritativeTimeline'
 
 // ── React frame context ───────────────────────────────────────────────────────
@@ -97,6 +98,8 @@ export interface ReactRenderParams {
   soundDrawingTrailResetRevision?: number
   /** Persisted authored Sound Drawing performance controls. */
   soundDrawingPerformanceSettings: SoundDrawingPerformanceSettings
+  /** Volatile renderer ownership mode; thumbnails and previews receive isolated budgets. */
+  soundDrawingRuntimeMode?: VisualSimulationRuntimeMode
   /** Isolated preset-preview override. Never persisted and never read by the live control surface. */
   thumbnailLaserDmxSettings?: LaserDmxSettings
   /** Generic transient event. Renderers consume each sequence at most once. */
@@ -122,6 +125,7 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
   oscillatorTextPointCache:  {},
   soundDrawingTrailResetRevision: 0,
   soundDrawingPerformanceSettings: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+  soundDrawingRuntimeMode: 'live',
 }
 
 // ── VzFrameContext → ReactFrameContext conversion ────────────────────────────

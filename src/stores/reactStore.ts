@@ -284,6 +284,7 @@ const SOUND_DRAWING_GENERATOR_PREFERENCES = new Set<SoundDrawingGeneratorPrefere
   'authored',
   ...SOUND_DRAWING_GENERATOR_FAMILIES,
 ])
+const SOUND_DRAWING_VISUAL_QUALITIES = new Set(['auto', 'low', 'medium', 'high'])
 const SOUND_DRAWING_PERFORMANCE_SOURCES = new Set(['generatedVisual', 'activeText', 'activeSvg', 'activeUserSource'])
 const SOUND_DRAWING_SOURCE_TREATMENTS = new Set(['preserveIdentity', 'controlledReactive', 'liquidContour', 'abstractDeformation'])
 const SOUND_DRAWING_SOURCE_POLICIES = new Set(['primaryMotif', 'supportingLayer', 'both'])
@@ -311,6 +312,9 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
     reactionIntensity: Math.max(0, Math.min(1, finiteNumber(source.reactionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.reactionIntensity))),
     trailIntensity: Math.max(0, Math.min(1, finiteNumber(source.trailIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailIntensity))),
     generatorPreference,
+    quality: typeof source.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(source.quality)
+      ? source.quality as SoundDrawingPerformanceSettings['quality']
+      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
     performanceSource: typeof source.performanceSource === 'string' && SOUND_DRAWING_PERFORMANCE_SOURCES.has(source.performanceSource)
       ? source.performanceSource as SoundDrawingPerformanceSettings['performanceSource']
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource,

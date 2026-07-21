@@ -2,7 +2,7 @@ import type { ReactEngineId, ReactPreset, ReactSectionType, ReactTrackSection } 
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { disposeCinematicPortalRenderer, renderCinematicPortal } from './CinematicPortalRenderer'
-import { disposeSoundDrawingRenderer, renderSoundDrawing } from './SoundDrawingRenderer'
+import { disposeSoundDrawingRenderer, pauseSoundDrawingRenderer, renderSoundDrawing } from './SoundDrawingRenderer'
 import { renderLaserDmx, clearLaserDmxVisualState, disposeLaserDmxRenderer, pauseLaserDmxRenderer } from './LaserDmxRenderer'
 import type { WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
 import { createPixGridStateForPreset, disposePixGridBaselineRenderer, renderPixGridBaseline } from './pixGrid/PixGridBaselineRenderer'
@@ -145,6 +145,7 @@ export function renderReactEngine(
   // gated engines and do not let idle/random animation mutate the last frame.
   if (frame.isPaused === true) {
     if (preset.engine === 'laserDmx') pauseLaserDmxRenderer(ctx, frame.audioTime)
+    if (preset.engine === 'oscilloscope') pauseSoundDrawingRenderer(ctx)
     return
   }
 

@@ -17,6 +17,7 @@ describe('performance settings persistence migration', () => {
       reactionIntensity: Number.NaN,
       trailIntensity: 0.42,
       generatorPreference: 'retired-generator',
+      quality: 'retired-quality',
       performanceSource: 'retired-source',
       sourceTreatment: 'retired-treatment',
       useSourceAs: 'retired-policy',
@@ -33,6 +34,7 @@ describe('performance settings persistence migration', () => {
 
     expect(normalized.selectedShowId).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId)
     expect(normalized.generatorPreference).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference)
+    expect(normalized.quality).toBe('auto')
     expect(normalized.complexity).toBe(1)
     expect(normalized.motionIntensity).toBe(0)
     expect(normalized.reactionIntensity).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.reactionIntensity)
@@ -72,12 +74,37 @@ describe('performance settings persistence migration', () => {
 
     const settings = migrated.soundDrawingPerformanceSettings as typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
     expect(settings.performanceSource).toBe('activeUserSource')
+    expect(settings.quality).toBe('auto')
     expect(settings.sourceTreatment).toBe('preserveIdentity')
     expect(settings.useSourceAs).toBe('primaryMotif')
     expect(settings.preserveIdentity).toBe(true)
     expect(settings.locks.generator).toBe(true)
     expect(settings.locks.sourceSelection).toBe(false)
     expect(settings).not.toHaveProperty('runtimeFrame')
+  })
+
+  it('preserves the opt-in Living Ribbon selection without rewriting legacy Harmonic Ribbon projects', () => {
+    const living = normalizeSoundDrawingPerformanceSettings({
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+      selectedShowId: 'livingRibbonSystem',
+      generatorPreference: 'livingRibbon',
+      quality: 'high',
+    })
+    expect(living).toMatchObject({
+      selectedShowId: 'livingRibbonSystem',
+      generatorPreference: 'livingRibbon',
+      quality: 'high',
+    })
+
+    const legacy = normalizeSoundDrawingPerformanceSettings({
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+      selectedShowId: 'harmonicRibbonReactor',
+      generatorPreference: 'harmonicRibbon',
+    })
+    expect(legacy).toMatchObject({
+      selectedShowId: 'harmonicRibbonReactor',
+      generatorPreference: 'harmonicRibbon',
+    })
   })
 
   it('bounds CANVAS pools and controls, removes unknown locks, and falls back from retired shows', () => {

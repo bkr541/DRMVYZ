@@ -695,6 +695,7 @@ export function ReactEnginePanel() {
                   { value: 'lissajousFigure', label: 'Lissajous Figure' },
                   { value: 'phaseScopeKnot', label: 'Phase-Scope Knot' },
                   { value: 'harmonicRibbon', label: 'Harmonic Ribbon' },
+                  { value: 'livingRibbon', label: 'Living Ribbon' },
                   { value: 'spectralContour', label: 'Spectral Contour' },
                   { value: 'circularBassMembrane', label: 'Circular Bass Membrane' },
                   { value: 'kaleidoscopicTrace', label: 'Kaleidoscopic Trace' },

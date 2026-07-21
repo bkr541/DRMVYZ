@@ -9,6 +9,7 @@ import { renderReactEngine } from './ReactEngineRenderer'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { clearLaserDmxVisualState, disposeLaserDmxRenderer } from './LaserDmxRenderer'
+import { disposeSoundDrawingRenderer } from './SoundDrawingRenderer'
 import {
   disposeCinematicPortalRenderer,
   resetCinematicPortalRenderer,
@@ -525,6 +526,7 @@ function prepareThumbnailRendererPool(
   if (canvas.height !== height) canvas.height = height
   resetCanvas2DState(context)
   resetCinematicPortalRenderer(context, 'thumbnailReuse')
+  disposeSoundDrawingRenderer(context, { affectProductionDiagnostics: false })
   clearLaserDmxVisualState(context, width, height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(context, { affectProductionOutput: false })
   context.clearRect(0, 0, width, height)
@@ -533,6 +535,7 @@ function prepareThumbnailRendererPool(
 function resetThumbnailRendererPoolAfterJob(pool: ThumbnailRendererPool): void {
   if (thumbnailRendererPool !== pool) return
   resetCinematicPortalRenderer(pool.context, 'thumbnailReuse')
+  disposeSoundDrawingRenderer(pool.context, { affectProductionDiagnostics: false })
   clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
   resetCanvas2DState(pool.context)
@@ -547,6 +550,7 @@ function retireIncompatibleThumbnailFamily(pool: ThumbnailRendererPool): void {
   } else {
     resetCinematicPortalRenderer(pool.context, 'thumbnailReuse')
   }
+  disposeSoundDrawingRenderer(pool.context, { affectProductionDiagnostics: false })
   clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
   resetCanvas2DState(pool.context)
@@ -564,6 +568,7 @@ function terminallyDisposeThumbnailRendererPool(expectedPool: ThumbnailRendererP
     return
   }
   try { disposeCinematicPortalRenderer(pool.context, 'terminal-retire') } catch { /* Best effort. */ }
+  try { disposeSoundDrawingRenderer(pool.context, { affectProductionDiagnostics: false }) } catch { /* Best effort. */ }
   try {
     clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
     disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
@@ -682,6 +687,11 @@ function buildRenderParams(preset: ReactPreset): ReactRenderParams {
       ...DEFAULT_OSCILLATOR_SETTINGS,
       ...(preset.oscillatorSettings ?? {}),
     },
+    soundDrawingPerformanceSettings: {
+      ...DEFAULT_REACT_RENDER_PARAMS.soundDrawingPerformanceSettings,
+      quality: 'low',
+    },
+    soundDrawingRuntimeMode: 'thumbnail',
     thumbnailLaserDmxSettings: preset.laserDmxSettings
       ? {
           ...createDefaultLaserDmxSettings(),

@@ -10,6 +10,7 @@ const rendererMocks = vi.hoisted(() => ({
   disposeCinematicPortalRenderer: vi.fn(),
   renderSoundDrawing: vi.fn(),
   disposeSoundDrawingRenderer: vi.fn(),
+  pauseSoundDrawingRenderer: vi.fn(),
   renderLaserDmx: vi.fn(),
   clearLaserDmxVisualState: vi.fn(),
   disposeLaserDmxRenderer: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('../CinematicPortalRenderer', () => ({
 vi.mock('../SoundDrawingRenderer', () => ({
   renderSoundDrawing: rendererMocks.renderSoundDrawing,
   disposeSoundDrawingRenderer: rendererMocks.disposeSoundDrawingRenderer,
+  pauseSoundDrawingRenderer: rendererMocks.pauseSoundDrawingRenderer,
 }))
 vi.mock('../LaserDmxRenderer', () => ({
   renderLaserDmx: rendererMocks.renderLaserDmx,
@@ -87,6 +89,19 @@ function samplePreset(engine: ReactEngineId): ReactPreset {
 }
 
 describe('React engine renderer final audit', () => {
+  it('holds Sound Drawing runtime state on user pause without dispatching a new frame', () => {
+    const ctx = mockContext()
+    renderReactEngine(
+      ctx,
+      { ...frame, isPaused: true, isPlaying: false },
+      samplePreset('oscilloscope'),
+      DEFAULT_REACT_RENDER_PARAMS,
+    )
+    expect(rendererMocks.pauseSoundDrawingRenderer).toHaveBeenCalledWith(ctx)
+    expect(rendererMocks.renderSoundDrawing).not.toHaveBeenCalled()
+    rendererMocks.pauseSoundDrawingRenderer.mockClear()
+  })
+
   it('dispatches and disposes every currently registered engine family', () => {
     expect([...REACT_ENGINE_IDS].sort()).toEqual([
       'canvas',
