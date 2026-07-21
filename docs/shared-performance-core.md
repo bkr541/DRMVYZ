@@ -4,7 +4,7 @@
 
 Loaded-track analysis is shared infrastructure. It owns the resolved Track Sections, beat and downbeat grid, bars, phrases, section families and occurrences, semantic moments, confidence, and capability reporting. LaserDMX, Sound Drawing, and CANVAS consume that same context through `src/features/performanceCore/context.ts`.
 
-Engine Performance Programs do not analyze tracks. They interpret the authoritative context and emit engine-specific actions. Adding a separate section detector inside an engine would create conflicting timelines, non-deterministic seeking, and disagreement with Track Map.
+Engine Performance Programs do not analyze tracks. They interpret the authoritative context and emit engine-specific actions. They are DRMVYZ's Behavior Controller layer: the place where musical meaning becomes authored visual intent. Adding a second global Behavior Controller or a separate section detector inside an engine would create conflicting timelines, non-deterministic seeking, and disagreement with Track Map.
 
 ## Architecture
 
@@ -13,6 +13,7 @@ The core is split into small engine-neutral modules:
 - `context.ts`: authoritative musical context, transport discontinuities, cadence, occurrences, and analysis adapters.
 - `signals.ts`: discrete beat/kick/snare/hat/downbeat events versus continuous bass, energy, tension, complexity, phrase, and vocal signals.
 - `programRuntime.ts`: scene matching, occurrence and bar matching, fallback selection, deterministic variation, cadence actions, and event intents.
+- `behaviorRouting.ts`: reusable engine-neutral continuous-route smoothing, range/curve mapping, capability/confidence/section gates, deterministic event envelopes, duplicate suppression, and bounded transport-safe runtime state.
 - `authoring.ts`: typed metadata, capability/confidence requirements, bar ranges, validation adapters, resource estimates, and collection validation.
 - `diagnostics.ts`: compact cross-engine runtime snapshots.
 - `PerformanceProgramDevelopmentValidation.ts`: one-shot, development-only catalog validation that logs errors without interrupting playback.
@@ -25,6 +26,41 @@ Engine payloads remain separate:
 - CANVAS: `canvasPerformance/CanvasPerformanceTypes.ts`
 
 This avoids a single mega-union containing fixtures, drawing layers, media roles, transitions, and effects.
+
+
+## Behavior-routing runtime
+
+`SharedBehaviorRoutingRuntime` sits beneath an engine-specific Performance Program. Engines supply source resolvers and target sinks, so the runtime never reads `AudioFeatureBus` directly and never owns a union of LaserDMX, Sound Drawing, CANVAS, PixGrid, or future target names. It stores smoothing by route ID and transient state by deterministic event identity, with bounded route, active-event, and remembered-identity budgets.
+
+Continuous routes reuse the shared response curves and attack/release smoothing. Event bindings reuse the shared attack/hold/release envelope resolver. Section, confidence, and capability gates are evaluated through the adapter. Seek, backward seek, loop wrap, track replacement, source replacement, and timing discontinuities reset or synchronize volatile state instead of carrying stale history into a new musical position.
+
+The target architecture is:
+
+```text
+Music Intelligence
+↓
+SharedPerformanceContext
+↓
+Engine-specific Performance Program
+↓
+Shared behavior-routing runtime
+↓
+Engine-normalized controls and impulses
+↓
+Optional shared visual-simulation utilities
+↓
+Engine-owned simulation domain
+↓
+Engine renderer
+```
+
+The shared routing layer is infrastructure, not a second authoring authority. Engine programs still decide what the music means and engine adapters still decide how generic control values affect their own state.
+
+## Optional visual simulation
+
+Simulation-based visuals may opt into `src/features/visualSimulation/`. The module provides a bounded fixed-step clock, deterministic random/noise utilities, structural signatures, lifecycle coordination, generic quality budgets, and small reusable math helpers. It is not a top-level engine, rendered overlay, React provider, Zustand store, or global mutable singleton. See `docs/visual-simulation.md`.
+
+Each renderer owns its simulation domain, typed arrays, clock, lifecycle controller, preview/thumbnail mode, and disposal. Engine-specific physics, rendering, target names, choreography, graph generation, visual roles, UI, and persistence remain inside the engine or visual domain. Per-frame simulation state must not live in Zustand.
 
 ## Resolution and precedence
 

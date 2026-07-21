@@ -1,3 +1,4 @@
+export * from './behaviorRouting'
 export * from './context'
 export * from './authoring'
 export * from './diagnostics'
