@@ -70,6 +70,7 @@ export interface AnalyserInputFrame {
   sampleRate: number
   audioTime:  number
   isPlaying:  boolean
+  publisherId?: string
 }
 
 export interface AudioFrameInput {
@@ -78,6 +79,7 @@ export interface AudioFrameInput {
   sampleRate: number
   audioTime:  number
   isPlaying:  boolean
+  publisherId?: string
 }
 
 // ── Engine class ──────────────────────────────────────────────────────────────
@@ -562,16 +564,16 @@ export class MusicIntelligenceEngine {
 
   /** Feed a live AnalyserNode — allocates two typed arrays per call. */
   updateFromAnalyser(input: AnalyserInputFrame): void {
-    const { analyser, sampleRate, audioTime, isPlaying } = input
+    const { analyser, sampleRate, audioTime, isPlaying, publisherId } = input
     const freqBuf = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
     analyser.getByteFrequencyData(freqBuf)
     const timeBuf = new Uint8Array(analyser.fftSize) as Uint8Array<ArrayBuffer>
     analyser.getByteTimeDomainData(timeBuf)
-    this.updateFromAudioFrame({ freqBuf, timeBuf, sampleRate, audioTime, isPlaying })
+    this.updateFromAudioFrame({ freqBuf, timeBuf, sampleRate, audioTime, isPlaying, publisherId })
   }
 
   updateFromAudioFrame(input: AudioFrameInput): void {
-    const { freqBuf, timeBuf, sampleRate, audioTime, isPlaying } = input
+    const { freqBuf, timeBuf, sampleRate, audioTime, isPlaying, publisherId } = input
     this.sampleRate = sampleRate > 0 ? sampleRate : this.sampleRate
     this.frameId++
 
@@ -705,7 +707,7 @@ export class MusicIntelligenceEngine {
 
     // Publish final frame with semantics filled in
     const frame: MusicIntelligenceFrame = { ...partialFrame, semantics: semanticsResult }
-    AudioFeatureBus.setFrame(frame)
+    AudioFeatureBus.setFrame(frame, publisherId ?? null)
   }
 
   start(): void { /**/ }

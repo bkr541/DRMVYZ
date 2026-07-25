@@ -16,6 +16,7 @@ import type { PixGridAudioFrame, PixGridDiscreteAudioSource, PixGridQualityTier,
 import { pixGridPreparedAssetCache, preparePixGridMediaAsset, type PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { inspectPixGridMediaCapability, resolvePixGridMediaRevision } from './PixGridMediaCapabilities'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
+import { MusicIntelligenceAnalyserFramePump } from '../../../../features/musicIntelligence/MusicIntelligenceAnalyserFramePump'
 import {
   buildSharedPerformanceContext,
   createSharedPerformanceDiagnostics,
@@ -314,7 +315,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
     let resolution: CanvasResolution | null = null
     let previousPerformanceContext: SharedPerformanceContext | null = null
+    let previousTrackIdentity: string | null = propsRef.current.trackIdentity ?? null
     let lastAudioTime = 0
+    const analyserFramePump = new MusicIntelligenceAnalyserFramePump({ publisherId: 'react:pixGrid' })
     const unifiedReactionRuntime = new PixGridReactionRuntime()
     const unifiedPerformanceRuntime = new PixGridUnifiedPerformanceRuntime()
     const fallbackGroupCompiler = new PixGridFrameGroupCompiler()
@@ -404,9 +407,22 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const activePreset = current.activePreset
       if (!activePreset) return null
       const shouldAnimate = current.isPlaying && !current.isPaused
-      const intelligenceFrame = AudioFeatureBus.getFrame()
       const sampledAudioTime = shouldAnimate ? current.getAudioTime() : lastAudioTime
       const audioTime = Number.isFinite(sampledAudioTime) ? Math.max(0, sampledAudioTime) : lastAudioTime
+      const trackIdentity = current.trackIdentity ?? null
+      if (trackIdentity !== previousTrackIdentity) {
+        previousTrackIdentity = trackIdentity
+        previousPerformanceContext = null
+        lastAudioTime = audioTime
+      }
+      const intelligenceFrame = current.analyser
+        ? analyserFramePump.sample({
+            analyser: current.analyser,
+            audioTime,
+            isPlaying: shouldAnimate,
+            trackIdentity,
+          })
+        : AudioFeatureBus.getFrame()
       const deltaTimeSec = shouldAnimate ? Math.max(0, Math.min(0.25, audioTime - lastAudioTime)) : 0
       const context = buildSharedPerformanceContext({
         audioTimeSec: audioTime,
@@ -745,6 +761,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       resizeRef.current = () => {}
       unifiedPerformanceRuntime.reset()
       unifiedReactionRuntime.reset()
+      analyserFramePump.dispose()
       fallbackGroupCompiler.reset()
       clearPixGridPerformanceRuntimeStatus()
       clearPixGridCueRuntimeStatus()

@@ -15,6 +15,7 @@ import {
 } from './PixGridAuthoring'
 import type { PixGridEditorTool, PixGridState } from './PixGridTypes'
 import { activePixGridGroups, compilePixGridGroupMask } from './PixGridGroups'
+import { samplePixGridCanvasColor } from './PixGridLiveCanvas'
 
 interface PointerOperation {
   pointerId: number
@@ -65,8 +66,13 @@ export function shouldShowPixGridEditorOverlay(activeEngineId: string, authoring
   return activeEngineId === 'pixGrid' && authoringOverlayVisible
 }
 
-export function PixGridEditorOverlay() {
+export interface PixGridEditorOverlayProps {
+  liveCanvas: HTMLCanvasElement | null
+}
+
+export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const sampleCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const operationRef = useRef<PointerOperation | null>(null)
   const previewEndRef = useRef<PixGridCellPoint | null>(null)
   const [size, setSize] = useState({ width: 1, height: 1 })
@@ -134,14 +140,13 @@ export function PixGridEditorOverlay() {
       context.setTransform(dpr, 0, 0, dpr, 0, 0)
       context.clearRect(0, 0, size.width, size.height)
       const output = resolvePixGridOutputRect(viewport(current))
-      const source = canvas.parentElement?.querySelector<HTMLCanvasElement>('.rv-pix-grid-surface-host canvas:not([hidden])')
       context.save()
       context.fillStyle = 'rgba(0,0,0,0.35)'
       context.fillRect(0, 0, size.width, size.height)
       context.beginPath()
       context.rect(output.left, output.top, output.width, output.height)
       context.clip()
-      if (source) context.drawImage(source, output.left, output.top, output.width, output.height)
+      if (liveCanvas) context.drawImage(liveCanvas, output.left, output.top, output.width, output.height)
       context.restore()
       context.strokeStyle = 'rgba(74,199,219,0.9)'
       context.lineWidth = 1
@@ -211,7 +216,7 @@ export function PixGridEditorOverlay() {
     }
     animationFrame = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(animationFrame)
-  }, [size, viewport])
+  }, [liveCanvas, size, viewport])
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
@@ -272,18 +277,15 @@ export function PixGridEditorOverlay() {
       return
     }
     if (current.editorTool === 'eyedropper') {
-      const source = event.currentTarget.parentElement?.querySelector<HTMLCanvasElement>('.rv-pix-grid-surface-host canvas:not([hidden])')
-      if (source) {
-        const sample = document.createElement('canvas')
-        sample.width = 1
-        sample.height = 1
-        const context = sample.getContext('2d')
-        if (context) {
-          context.drawImage(source, point.x / current.matrixWidth * source.width, point.y / current.matrixHeight * source.height, Math.max(1, source.width / current.matrixWidth), Math.max(1, source.height / current.matrixHeight), 0, 0, 1, 1)
-          const pixel = context.getImageData(0, 0, 1, 1).data
-          updateEditor({ paintColor: `#${[pixel[0], pixel[1], pixel[2]].map(value => value.toString(16).padStart(2, '0')).join('')}` })
-        }
-      }
+      if (!sampleCanvasRef.current) sampleCanvasRef.current = document.createElement('canvas')
+      const color = samplePixGridCanvasColor(
+        liveCanvas,
+        point,
+        current.matrixWidth,
+        current.matrixHeight,
+        sampleCanvasRef.current,
+      )
+      if (color) updateEditor({ paintColor: color })
       return
     }
 
@@ -372,12 +374,21 @@ export function PixGridEditorOverlay() {
             type="button"
             className={state.editorTool === item.tool ? 'is-active' : ''}
             aria-pressed={state.editorTool === item.tool}
+            disabled={item.tool === 'eyedropper' && !liveCanvas}
+            title={item.tool === 'eyedropper' && !liveCanvas ? 'Live PixGrid output is unavailable.' : undefined}
             onClick={() => setState({ editorTool: item.tool })}
           >
             {item.label}
           </button>
         ))}
         <span className="rv-pix-grid-editor-zoom">{Math.round(state.editor.zoom * 100)}%</span>
+        <span
+          className="rv-pix-grid-editor-live-status"
+          role="status"
+          data-live-canvas={liveCanvas ? 'ready' : 'unavailable'}
+        >
+          {liveCanvas ? 'Live output' : 'Live output unavailable'}
+        </span>
       </div>
       <canvas
         ref={canvasRef}

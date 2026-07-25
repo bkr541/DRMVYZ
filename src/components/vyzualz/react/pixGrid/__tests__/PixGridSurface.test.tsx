@@ -2,9 +2,12 @@
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AudioFeatureBus } from '../../../../../features/musicIntelligence/AudioFeatureBus'
+import { musicIntelligenceEngine } from '../../../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
 import { resetReactLiveEngineOwnershipForTests } from '../../renderers/ReactLiveEngineOwnership'
 import { createDefaultPixGridState } from '../PixGridDefaults'
+import { getPixGridReactivityRuntimeStatus } from '../PixGridReactivityStatus'
 import { PixGridSurface } from '../PixGridSurface'
 import type { PixGridRendererDiagnostics, PixGridState } from '../PixGridTypes'
 
@@ -38,6 +41,9 @@ beforeEach(() => {
   disconnectedObservers.length = 0
   webglAttempts = 0
   vi.clearAllMocks()
+  musicIntelligenceEngine.setSourceId(null, null)
+  musicIntelligenceEngine.reset()
+  AudioFeatureBus.reset()
 
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => {
     if (kind === 'webgl2') {
@@ -82,6 +88,7 @@ afterEach(() => {
 function renderSurface({
   isPlaying,
   isPaused = false,
+  analyser = null,
   state = createDefaultPixGridState(),
   onCanvasReady = vi.fn(),
   onLiveFps = vi.fn(),
@@ -90,6 +97,7 @@ function renderSurface({
 }: {
   isPlaying: boolean
   isPaused?: boolean
+  analyser?: AnalyserNode | null
   state?: PixGridState
   onCanvasReady?: ReturnType<typeof vi.fn>
   onLiveFps?: ReturnType<typeof vi.fn>
@@ -99,7 +107,7 @@ function renderSurface({
   const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'pix-grid-bass-beacon')!
   act(() => root.render(
     <PixGridSurface
-      analyser={null}
+      analyser={analyser}
       activePreset={preset}
       pixGridState={state}
       intensity={1}
@@ -115,6 +123,22 @@ function renderSurface({
     />,
   ))
   return { onCanvasReady, onLiveFps, onDiagnostics, getAudioTime }
+}
+
+function analyserFixture(value = 208) {
+  const getByteFrequencyData = vi.fn((buffer: Uint8Array) => buffer.fill(value))
+  const getByteTimeDomainData = vi.fn((buffer: Uint8Array) => buffer.fill(128 + Math.floor(value / 10)))
+  return {
+    analyser: {
+      frequencyBinCount: 32,
+      fftSize: 64,
+      context: { sampleRate: 48_000 },
+      getByteFrequencyData,
+      getByteTimeDomainData,
+    } as unknown as AnalyserNode,
+    getByteFrequencyData,
+    getByteTimeDomainData,
+  }
 }
 
 function runNextFrame(now = 16) {
@@ -148,6 +172,50 @@ describe('PixGridSurface lifecycle', () => {
     expect(rafCallbacks.size).toBe(0)
     expect(context.clearRect).not.toHaveBeenCalled()
     expect(context.drawImage).not.toHaveBeenCalled()
+  })
+
+  it('samples the active analyser before resolving PixGrid audio and performance state', () => {
+    const fixture = analyserFixture()
+    let audioTime = 1
+    const getAudioTime = vi.fn(() => {
+      audioTime += 1 / 60
+      return audioTime
+    })
+    renderSurface({ isPlaying: true, analyser: fixture.analyser, getAudioTime })
+
+    runNextFrame()
+
+    const intelligenceFrame = AudioFeatureBus.getFrame()
+    const pixGridFrame = getPixGridReactivityRuntimeStatus().audioFrame
+    expect(fixture.getByteFrequencyData).toHaveBeenCalledOnce()
+    expect(fixture.getByteTimeDomainData).toHaveBeenCalledOnce()
+    expect(intelligenceFrame.frameId).toBeGreaterThan(0)
+    expect(intelligenceFrame.raw.freqData).toHaveLength(32)
+    expect(intelligenceFrame.raw.timeDomainData).toHaveLength(64)
+    expect(intelligenceFrame.bands.volume).toBeGreaterThan(0)
+    expect(pixGridFrame?.energy).toBeGreaterThan(0)
+    expect(pixGridFrame?.sourceValues?.bass).toBeGreaterThan(0)
+    expect(rafCallbacks.size).toBe(1)
+
+    runNextFrame(32)
+    expect(fixture.getByteFrequencyData).toHaveBeenCalledTimes(2)
+    expect(rafCallbacks.size).toBe(1)
+  })
+
+  it('switches analyser ownership without retaining stale buffers or adding a second loop', () => {
+    const first = analyserFixture(160)
+    const second = analyserFixture(240)
+    renderSurface({ isPlaying: true, analyser: first.analyser, getAudioTime: vi.fn(() => 2) })
+    runNextFrame()
+
+    renderSurface({ isPlaying: true, analyser: second.analyser, getAudioTime: vi.fn(() => 2.02) })
+    expect(rafCallbacks.size).toBe(1)
+    runNextFrame(32)
+
+    expect(first.getByteFrequencyData).toHaveBeenCalledOnce()
+    expect(second.getByteFrequencyData).toHaveBeenCalledOnce()
+    expect(AudioFeatureBus.getFrame().raw.freqData?.[0]).toBe(240)
+    expect(rafCallbacks.size).toBe(1)
   })
 
   it('updates controls live without recreating the surface or retrying WebGL automatically', () => {

@@ -286,6 +286,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const { startVideoRecording } = recorder
   const { isActive: hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [pixGridOutputCanvas, setPixGridOutputCanvas] = useState<HTMLCanvasElement | null>(null)
+  const handlePixGridCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
+    setOutputCanvas(canvas)
+    setPixGridOutputCanvas(canvas)
+  }, [])
   const [liveFps, setLiveFps]           = useState(0)
 
   // Engine swaps are semantic diagnostics boundaries. Clear immediately rather
@@ -294,8 +299,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setLiveFps(0)
   }, [activeReactEngineId])
   useEffect(() => {
-    if (activeReactEngineId !== 'pixGrid' && pixGridState.authoringOverlayVisible) {
-      setPixGridState({ authoringOverlayVisible: false })
+    if (activeReactEngineId !== 'pixGrid') {
+      setPixGridOutputCanvas(null)
+      if (pixGridState.authoringOverlayVisible) setPixGridState({ authoringOverlayVisible: false })
     }
   }, [activeReactEngineId, pixGridState.authoringOverlayVisible, setPixGridState])
   useEffect(() => {
@@ -312,7 +318,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           ? 'soundDrawing'
           : activeReactEngineId === 'canvas'
             ? 'canvas'
-            : null,
+            : activeReactEngineId === 'pixGrid'
+              ? 'pixGrid'
+              : null,
     )
   }, [activeReactEngineId])
 
@@ -626,7 +634,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 durationSec={audioDurationSec}
                 getAudioTime={engine.getCurrentTime}
                 effectiveBpm={engine.currentEffectiveBpm ?? undefined}
-                onCanvasReady={setOutputCanvas}
+                onCanvasReady={handlePixGridCanvasReady}
                 onLiveFps={setLiveFps}
               />
             ) : (
@@ -670,7 +678,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               />
             )}
             {shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
-              <PixGridEditorOverlay />
+              <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} />
             )}
             {showDirectorStageEditorVisible && (
               <div className="rv-show-director-stage-overlay" aria-label="Show Director center visualizer editor">

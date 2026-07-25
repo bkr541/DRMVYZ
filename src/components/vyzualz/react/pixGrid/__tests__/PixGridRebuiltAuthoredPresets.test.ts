@@ -278,6 +278,23 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
     }
   })
 
+  it('gives every built-in preset an immediate native visual delta at normal audio levels', () => {
+    for (const preset of PIX_GRID_PRESETS) {
+      const state = stateFor(preset, 'drop')
+      const quiet = composePixGridLogicalFrame(preset, state, frame('kick', 0))
+      const active = composePixGridLogicalFrame(preset, state, frame('kick', 0.85, {
+        bass: 0.72,
+        energy: 0.76,
+        beatHit: true,
+        downbeatHit: true,
+        kickHit: true,
+      }))
+
+      expect(hash(active), preset.name).not.toBe(hash(quiet))
+      expect(active.pixels.every(Number.isFinite), preset.name).toBe(true)
+    }
+  })
+
   it.each(['draft', 'low', 'high', 'ultra'] as const)('renders every preset at %s with negative space and deterministic pixels', quality => {
     for (const preset of PIX_GRID_PRESETS) {
       const state = stateFor(preset, 'drop', quality)

@@ -11270,6 +11270,20 @@
   text-align: center;
 }
 
+.rv-pix-grid-editor-live-status {
+  align-self: center;
+  padding: 0 5px;
+  color: rgba(164, 255, 210, 0.78);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rv-pix-grid-editor-live-status[data-live-canvas='unavailable'] {
+  color: rgba(255, 179, 126, 0.82);
+}
+
 .rv-pix-grid-edit-toggle {
   width: 100%;
   min-height: 34px;

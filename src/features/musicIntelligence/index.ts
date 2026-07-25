@@ -95,6 +95,12 @@ export {
   MusicIntelligenceEngine,
   musicIntelligenceEngine,
 } from './MusicIntelligenceEngine'
+export {
+  MusicIntelligenceAnalyserFramePump,
+  type MusicIntelligenceAnalyserFramePumpDiagnostics,
+  type MusicIntelligenceAnalyserFramePumpInput,
+  type MusicIntelligenceAnalyserFramePumpOptions,
+} from './MusicIntelligenceAnalyserFramePump'
 
 export type { SectionDetectionOptions, StructuralSegmentationResult } from './sectionAnalysis'
 export { analyzeStructuralRegions, detectSections } from './sectionAnalysis'

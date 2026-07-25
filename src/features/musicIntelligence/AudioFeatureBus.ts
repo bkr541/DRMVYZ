@@ -8,8 +8,43 @@ import { DEFAULT_MI_FRAME } from './constants'
 
 type FrameListener = (frame: MusicIntelligenceFrame) => void
 
+export type AudioFeatureBusPublicationKind = 'frame' | 'partial' | 'reset'
+
+export interface AudioFeatureBusPublicationMeta {
+  sequence: number
+  publishedAtMs: number
+  publisherId: string | null
+  kind: AudioFeatureBusPublicationKind
+}
+
 let currentFrame: MusicIntelligenceFrame = { ...DEFAULT_MI_FRAME }
+let publicationMeta: AudioFeatureBusPublicationMeta = {
+  sequence: 0,
+  publishedAtMs: 0,
+  publisherId: null,
+  kind: 'reset',
+}
+let framePublicationMeta: AudioFeatureBusPublicationMeta = publicationMeta
 const listeners = new Set<FrameListener>()
+
+function publicationTime(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now()
+}
+
+function recordPublication(
+  publisherId: string | null,
+  kind: AudioFeatureBusPublicationKind,
+): AudioFeatureBusPublicationMeta {
+  publicationMeta = {
+    sequence: publicationMeta.sequence + 1,
+    publishedAtMs: publicationTime(),
+    publisherId,
+    kind,
+  }
+  return publicationMeta
+}
 
 function notifyListeners(): void {
   if (listeners.size === 0) return
@@ -24,15 +59,27 @@ export const AudioFeatureBus = {
     return currentFrame
   },
 
+  /** Volatile metadata used to avoid duplicate analyser publishers in one animation frame. */
+  getPublicationMeta(): AudioFeatureBusPublicationMeta {
+    return publicationMeta
+  },
+
+  /** Metadata for the most recent complete analyser-derived frame publication. */
+  getFramePublicationMeta(): AudioFeatureBusPublicationMeta {
+    return framePublicationMeta
+  },
+
   /** Replace the current frame and notify all subscribers. */
-  setFrame(frame: MusicIntelligenceFrame): void {
+  setFrame(frame: MusicIntelligenceFrame, publisherId: string | null = null): void {
     currentFrame = frame
+    framePublicationMeta = recordPublication(publisherId, 'frame')
     notifyListeners()
   },
 
   /** Shallow-merge a partial update and notify subscribers. */
-  updatePartial(partial: Partial<MusicIntelligenceFrame>): void {
+  updatePartial(partial: Partial<MusicIntelligenceFrame>, publisherId: string | null = null): void {
     currentFrame = { ...currentFrame, ...partial }
+    recordPublication(publisherId, 'partial')
     notifyListeners()
   },
 
@@ -49,6 +96,7 @@ export const AudioFeatureBus = {
   /** Reset to the safe-default frame and notify. Call when a track changes. */
   reset(): void {
     currentFrame = { ...DEFAULT_MI_FRAME }
+    framePublicationMeta = recordPublication(null, 'reset')
     notifyListeners()
   },
 } as const
