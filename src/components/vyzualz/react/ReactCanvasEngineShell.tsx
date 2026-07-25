@@ -31,6 +31,7 @@ import {
   compositeCanvasParticleLayerToCapture,
   getCanvasParticleSourceSize,
   isCanvasParticleSourceReady,
+  resolveCanvasParticleAdaptiveQuality,
   resolveCanvasParticleBudget,
   resolveCanvasParticleQualityProfile,
   sampleCanvasParticleSource,
@@ -449,10 +450,6 @@ function clampCanvasRange(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min))
 }
 
-function lowerCanvasParticleQuality(quality: CanvasParticleQuality): CanvasParticleQuality {
-  return quality === 'high' ? 'balanced' : quality === 'balanced' ? 'low' : 'low'
-}
-
 function resolveCanvas2dParticleBudget(
   settings: CanvasPresetSettings,
   profile: ReturnType<typeof resolveCanvasParticleQualityProfile>,
@@ -460,7 +457,7 @@ function resolveCanvas2dParticleBudget(
   width: number,
   height: number,
 ): number {
-  const qualityCap = quality === 'high' ? 900 : quality === 'balanced' ? 650 : 420
+  const qualityCap = quality === 'high' ? 1800 : quality === 'balanced' ? 1200 : 760
   return Math.min(qualityCap, resolveCanvasParticleBudget(settings, profile, width, height))
 }
 
@@ -556,7 +553,10 @@ function CanvasParticleAuraLayer({
   activeItem,
   sourceRef,
   settings,
+  fitMode,
+  sourceTransform,
   analyser,
+  performanceContextRef,
   isPlaying,
   isPaused,
   onCanvasReady,
@@ -566,7 +566,10 @@ function CanvasParticleAuraLayer({
   activeItem: CanvasMediaItem | null
   sourceRef: { current: CanvasParticleSourceElement | null }
   settings: CanvasPresetSettings
+  fitMode: CanvasFitMode
+  sourceTransform: { scale: number; positionX: number; positionY: number; rotation: number }
   analyser?: AnalyserNode | null
+  performanceContextRef: { current: SharedPerformanceContext | null }
   isPlaying: boolean
   isPaused: boolean
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
@@ -574,11 +577,21 @@ function CanvasParticleAuraLayer({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const settingsRef = useRef(settings)
+  const fitModeRef = useRef(fitMode)
+  const sourceTransformRef = useRef(sourceTransform)
   const [rendererMode, setRendererMode] = useState<CanvasParticleRendererMode>('webgl')
 
   useEffect(() => {
     settingsRef.current = settings
   }, [settings])
+
+  useEffect(() => {
+    fitModeRef.current = fitMode
+  }, [fitMode])
+
+  useEffect(() => {
+    sourceTransformRef.current = sourceTransform
+  }, [sourceTransform])
 
   useEffect(() => {
     setRendererMode('webgl')
@@ -604,25 +617,92 @@ function CanvasParticleAuraLayer({
     let fpsLastAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
     let requestedQuality = settingsRef.current.particleQuality
     let runtimeQuality = requestedQuality
+    let lowFpsWindows = 0
+    let highFpsWindows = 0
     let disposed = false
     let lastUploadedColorMode = settingsRef.current.particleColorMode
 
     const readAudioFrame = (now: number): CanvasParticleAudioFrame => {
+      const context = performanceContextRef.current
+      if (context && isPlaying && !isPaused) {
+        return {
+          bass: clampCanvasRange(context.bass, 0, 1),
+          mid: clampCanvasRange(context.mid, 0, 1),
+          high: clampCanvasRange(context.high, 0, 1),
+          beat: clampCanvasRange(Math.max(context.kickStrength, context.transient * 0.72), 0, 1),
+          kick: context.kick ? clampCanvasRange(context.kickStrength, 0, 1) : 0,
+          snare: context.snare ? clampCanvasRange(context.snareStrength, 0, 1) : 0,
+          hat: context.hat ? clampCanvasRange(context.hatStrength, 0, 1) : 0,
+          downbeat: context.downbeat && context.boundaries.beatBoundary ? 1 : 0,
+          energy: clampCanvasRange(context.energy, 0, 1),
+          energyTrend: clampCanvasRange(context.energyTrend * 0.5 + 0.5, 0, 1),
+          spectralFlux: clampCanvasRange(context.spectralFlux, 0, 1),
+          tension: clampCanvasRange(context.tension, 0, 1),
+          buildProgress: clampCanvasRange(context.buildProgress, 0, 1),
+          dropImpact: clampCanvasRange(context.dropImpact, 0, 1),
+          phraseProgress: clampCanvasRange(context.phraseProgress, 0, 1),
+          sectionProgress: clampCanvasRange(context.sectionProgress, 0, 1),
+          fourBarProgress: clampCanvasRange(context.fourBarProgress, 0, 1),
+          vocalEnergy: clampCanvasRange(context.vocalEnergy, 0, 1),
+        }
+      }
+
       let bass = 0.16 + Math.sin(now * 1.4) * 0.035
+      let mid = 0.13 + Math.sin(now * 1.9) * 0.025
       let high = 0.12 + Math.sin(now * 2.7) * 0.025
       let beat = Math.max(0, Math.sin(now * 2.2)) * 0.22
       if (analyser && frequencyData && isPlaying && !isPaused) {
         analyser.getByteFrequencyData(frequencyData)
-        bass = averageByteRange(frequencyData, 0, 0.16)
+        bass = averageByteRange(frequencyData, 0, 0.09)
+        mid = averageByteRange(frequencyData, 0.16, 0.52)
         high = averageByteRange(frequencyData, 0.62, 1)
         const bassDelta = bass - previousBass
-        heldBeat = Math.max(0, heldBeat * 0.76, bass > 0.52 && bassDelta > 0.04 ? 1 : 0)
+        heldBeat = Math.max(0, heldBeat * 0.76, bass > 0.5 && bassDelta > 0.035 ? 1 : 0)
         beat = heldBeat
         previousBass = previousBass * 0.58 + bass * 0.42
       } else {
         previousBass = bass
       }
-      return { bass, high, beat }
+      return {
+        bass,
+        mid,
+        high,
+        beat,
+        kick: beat,
+        snare: Math.max(0, Math.sin(now * 1.1 + 1.7)) * high * 0.2,
+        hat: high * 0.35,
+        downbeat: beat > 0.9 ? 1 : 0,
+        energy: clampCanvasRange(bass * 0.5 + mid * 0.28 + high * 0.22, 0, 1),
+        energyTrend: 0.5,
+        spectralFlux: high * 0.5,
+        tension: mid * 0.35,
+        buildProgress: 0,
+        dropImpact: beat * bass,
+        phraseProgress: (now / 8) % 1,
+        sectionProgress: (now / 24) % 1,
+        fourBarProgress: (now / 4) % 1,
+        vocalEnergy: mid * 0.22,
+      }
+    }
+
+    const updateAdaptiveQuality = (nowMs: number) => {
+      fpsFrames += 1
+      if (nowMs - fpsLastAt < 1200) return false
+      const fps = (fpsFrames * 1000) / Math.max(1, nowMs - fpsLastAt)
+      fpsFrames = 0
+      fpsLastAt = nowMs
+      const adaptive = resolveCanvasParticleAdaptiveQuality({
+        requested: requestedQuality,
+        current: runtimeQuality,
+        fps,
+        lowFpsWindows,
+        highFpsWindows,
+      })
+      lowFpsWindows = adaptive.lowFpsWindows
+      highFpsWindows = adaptive.highFpsWindows
+      if (adaptive.quality === runtimeQuality) return false
+      runtimeQuality = adaptive.quality
+      return true
     }
 
     if (rendererMode === 'webgl') {
@@ -660,9 +740,9 @@ function CanvasParticleAuraLayer({
         if (liveSettings.particleQuality !== requestedQuality) {
           requestedQuality = liveSettings.particleQuality
           runtimeQuality = requestedQuality
-          points = []
+          lowFpsWindows = 0
+          highFpsWindows = 0
           renderer.clear()
-          lastSampleAt = 0
         }
         const profile = resolveCanvasParticleQualityProfile(runtimeQuality)
         const dpr = Math.min(profile.maxDpr, Math.max(1, window.devicePixelRatio || 1))
@@ -671,21 +751,17 @@ function CanvasParticleAuraLayer({
         const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
         const now = nowMs / 1000
         const audio = readAudioFrame(now)
-        const source = sourceRef.current
-        const sampleInterval = activeItem.type === 'video' && isPlaying && !isPaused
-          ? profile.videoSampleIntervalMs
-          : profile.staticSampleIntervalMs
-        const targetCount = resolveCanvasParticleBudget(liveSettings, profile, cssWidth, cssHeight)
-        const shouldResample = points.length === 0 || nowMs - lastSampleAt > sampleInterval || liveSettings.particleColorMode !== lastUploadedColorMode
+        renderer.render({
+          settings: liveSettings,
+          audio,
+          source: sourceRef.current,
+          fitMode: fitModeRef.current,
+          sourceTransform: sourceTransformRef.current,
+          qualityProfile: profile,
+          timeSec: now,
+          pixelRatio: dpr,
+        })
 
-        if (shouldResample) {
-          points = sampleCanvasParticleSource({ source, settings: liveSettings, sampleCanvas, profile, targetCount })
-          renderer.uploadPoints(points, liveSettings, audio)
-          lastUploadedColorMode = liveSettings.particleColorMode
-          lastSampleAt = nowMs
-        }
-
-        renderer.render({ settings: liveSettings, audio, timeSec: now, pixelRatio: dpr })
         if (captureSnapshotContext && nowMs - lastSnapshotAt >= 30) {
           if (captureSnapshotCanvas.width !== canvas.width || captureSnapshotCanvas.height !== canvas.height) {
             captureSnapshotCanvas.width = canvas.width
@@ -693,27 +769,14 @@ function CanvasParticleAuraLayer({
           }
           captureSnapshotContext.clearRect(0, 0, captureSnapshotCanvas.width, captureSnapshotCanvas.height)
           try {
-            // Copy immediately after the WebGL draw, before the browser is allowed
-            // to recycle a non-preserved drawing buffer.
             captureSnapshotContext.drawImage(canvas, 0, 0)
           } catch {
-            // Keep the previous stable frame for recording if a transient copy fails.
+            // Preserve the previous stable recording frame after transient GPU copies.
           }
           lastSnapshotAt = nowMs
         }
 
-        fpsFrames += 1
-        if (nowMs - fpsLastAt >= 1200) {
-          const fps = (fpsFrames * 1000) / Math.max(1, nowMs - fpsLastAt)
-          fpsFrames = 0
-          fpsLastAt = nowMs
-          if (fps < 24 && runtimeQuality !== 'low') {
-            runtimeQuality = lowerCanvasParticleQuality(runtimeQuality)
-            points = []
-            renderer.clear()
-          }
-        }
-
+        if (updateAdaptiveQuality(nowMs)) renderer.clear()
         frameId = window.requestAnimationFrame(tick)
       }
 
@@ -745,6 +808,8 @@ function CanvasParticleAuraLayer({
       if (liveSettings.particleQuality !== requestedQuality) {
         requestedQuality = liveSettings.particleQuality
         runtimeQuality = requestedQuality
+        lowFpsWindows = 0
+        highFpsWindows = 0
         points = []
         lastSampleAt = 0
       }
@@ -763,8 +828,8 @@ function CanvasParticleAuraLayer({
       const audio = readAudioFrame(now)
       const source = sourceRef.current
       const sampleInterval = activeItem.type === 'video' && isPlaying && !isPaused
-        ? Math.max(300, profile.videoSampleIntervalMs)
-        : Math.max(900, profile.staticSampleIntervalMs)
+        ? Math.max(120, profile.videoSampleIntervalMs)
+        : Math.max(720, profile.staticSampleIntervalMs)
       const targetCount = resolveCanvas2dParticleBudget(liveSettings, profile, runtimeQuality, cssWidth, cssHeight)
       if (points.length === 0 || nowMs - lastSampleAt > sampleInterval || liveSettings.particleColorMode !== lastUploadedColorMode) {
         points = sampleCanvasParticleSource({ source, settings: liveSettings, sampleCanvas, profile, targetCount })
@@ -773,17 +838,7 @@ function CanvasParticleAuraLayer({
       }
 
       drawCanvas2dParticleFrame({ context, canvas, points, settings: liveSettings, audio, timeSec: now, pixelRatio: dpr })
-
-      fpsFrames += 1
-      if (nowMs - fpsLastAt >= 1200) {
-        const fps = (fpsFrames * 1000) / Math.max(1, nowMs - fpsLastAt)
-        fpsFrames = 0
-        fpsLastAt = nowMs
-        if (fps < 24 && runtimeQuality !== 'low') {
-          runtimeQuality = lowerCanvasParticleQuality(runtimeQuality)
-          points = []
-        }
-      }
+      if (updateAdaptiveQuality(nowMs)) points = []
       frameId = window.requestAnimationFrame(tick)
     }
 
@@ -794,7 +849,7 @@ function CanvasParticleAuraLayer({
       context.clearRect(0, 0, canvas.width, canvas.height)
       onCanvasReady?.(null)
     }
-  }, [active, activeItem, analyser, isPaused, isPlaying, onCanvasReady, onStatusChange, rendererMode, sourceRef])
+  }, [active, activeItem, analyser, isPaused, isPlaying, onCanvasReady, onStatusChange, performanceContextRef, rendererMode, sourceRef])
 
   if (!active || !activeItem) return null
   return (
@@ -1256,6 +1311,8 @@ export function CanvasEngineSurface({
   const orchestrationPreloadManager = orchestrationPreloadManagerRef.current
   const previousOrchestrationContextRef = useRef<SharedPerformanceContext | null>(null)
   const previousOrchestrationFrameRef = useRef<CanvasResolvedPerformanceFrame | null>(null)
+  const previousParticlePerformanceContextRef = useRef<SharedPerformanceContext | null>(null)
+  const particlePerformanceContextRef = useRef<SharedPerformanceContext | null>(null)
   const [orchestrationFrame, setOrchestrationFrame] = useState<CanvasResolvedPerformanceFrame | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
@@ -1271,7 +1328,8 @@ export function CanvasEngineSurface({
     [activeCanvasMediaId, mediaItems],
   )
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
-  const effectPassActive = hasCanvasEffectPass(canvasPresetSettings)
+  const particleReconstructionActive = canvasPresetSettings.particleDensity > 0.02
+  const effectPassActive = hasCanvasEffectPass(canvasPresetSettings) && !particleReconstructionActive
   const activeVideo = activeItem?.type === 'video'
   const activeMediaTransparencyKey = activeItem ? getCanvasMediaTransparencyKey(activeItem) : null
   const activeMediaTransparencyKeyRef = useRef<string | null>(activeMediaTransparencyKey)
@@ -1377,6 +1435,39 @@ export function CanvasEngineSurface({
     orchestrationPreloadManager.dispose()
     clearSharedPerformanceDiagnostics('canvas')
   }, [orchestrationPreloadManager])
+
+  useEffect(() => {
+    if (!particleReconstructionActive) {
+      previousParticlePerformanceContextRef.current = null
+      particlePerformanceContextRef.current = null
+      return
+    }
+
+    const trackIdentity = activeAudioTrackId ?? 'canvas:unloaded-track'
+    previousParticlePerformanceContextRef.current = null
+
+    const resolveParticleContext = () => {
+      const context = buildSharedPerformanceContext({
+        audioTimeSec: resolveCanvasAudioTime(getAudioTimeRef.current),
+        frame: AudioFeatureBus.getFrame(),
+        analysis: trackAnalysisRef.current,
+        resolvedSections: trackSectionsRef.current,
+        trackIdentity,
+        trackChangeIdentity: `track:${trackIdentity}`,
+        previous: previousParticlePerformanceContextRef.current,
+      })
+      previousParticlePerformanceContextRef.current = context
+      particlePerformanceContextRef.current = context
+    }
+
+    resolveParticleContext()
+    const intervalId = window.setInterval(resolveParticleContext, 50)
+    return () => {
+      window.clearInterval(intervalId)
+      previousParticlePerformanceContextRef.current = null
+      particlePerformanceContextRef.current = null
+    }
+  }, [activeAudioTrackId, particleReconstructionActive])
 
   const orchestrationRenderable = Boolean(
     orchestrationSettings.enabled
@@ -1941,6 +2032,7 @@ export function CanvasEngineSurface({
         data-fit-mode={settings.fitMode}
         data-background-mode={effectiveBackgroundMode}
         data-source-effect-active={effectPassActive ? 'true' : 'false'}
+        data-particle-reconstruction-active={particleReconstructionActive ? 'true' : 'false'}
         style={presetStyle}
       >
         {!transparentStage && <div className="rv-canvas-live-grid" aria-hidden="true" />}
@@ -1988,7 +2080,15 @@ export function CanvasEngineSurface({
           activeItem={activeItem}
           sourceRef={particleSourceRef}
           settings={canvasPresetSettings}
+          fitMode={settings.fitMode}
+          sourceTransform={{
+            scale: settings.scale,
+            positionX: settings.positionX,
+            positionY: settings.positionY,
+            rotation: settings.rotation,
+          }}
           analyser={analyser}
+          performanceContextRef={particlePerformanceContextRef}
           isPlaying={isPlaying}
           isPaused={isPaused}
           onCanvasReady={handleParticleCanvasReady}
@@ -2126,7 +2226,7 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
     max: 1,
     step: 0.01,
     color: '#dffcff',
-    description: 'Controls how many points CANVAS emits from the active media. Set to 0 to hide particles.',
+    description: 'Controls the density of the source-reconstruction grid. Set to 0 to disable Particle Aura.',
   },
   particleSize: {
     label: 'Particle Size',
@@ -2569,7 +2669,7 @@ function CanvasPresetControls() {
           value={canvasPresetSettings.particleQuality}
           onChange={value => setCanvasPresetSettings({ particleQuality: value as CanvasParticleQuality })}
           options={CANVAS_PARTICLE_QUALITY_OPTIONS}
-          description="Caps WebGL particle budget and source-sampling resolution. Balanced is designed for live video playback."
+          description="Controls hologram grid resolution, render scale, and compatibility sampling. Adaptive quality can recover after temporary slowdowns."
         />
       )
     }

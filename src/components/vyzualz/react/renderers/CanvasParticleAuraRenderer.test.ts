@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_CANVAS_PRESET_SETTINGS } from '../ReactTypes'
+import { CANVAS_PRESET_BY_ID, DEFAULT_CANVAS_PRESET_SETTINGS } from '../ReactTypes'
 import {
   CanvasParticleAuraRenderer,
   compositeCanvasParticleLayerToCapture,
+  resolveCanvasParticleAdaptiveQuality,
+  resolveCanvasParticleGrid,
   resolveCanvasParticleQualityProfile,
   sampleCanvasParticleSource,
 } from './CanvasParticleAuraRenderer'
@@ -67,4 +69,49 @@ describe('CanvasParticleAuraRenderer fallback and capture contract', () => {
     expect(context.save).toHaveBeenCalledTimes(1)
     expect(context.restore).toHaveBeenCalledTimes(1)
   })
+  it('uses a dense reconstruction grid that scales with authored density', () => {
+    const profile = resolveCanvasParticleQualityProfile('balanced')
+    const sparse = resolveCanvasParticleGrid({
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      particleDensity: 0.2,
+    }, profile, 1280, 720)
+    const dense = resolveCanvasParticleGrid({
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      particleDensity: 0.94,
+    }, profile, 1280, 720)
+
+    expect(dense.width).toBeGreaterThan(sparse.width)
+    expect(dense.height).toBeGreaterThan(sparse.height)
+    expect(dense.width).toBeGreaterThanOrEqual(200)
+  })
+
+  it('recovers adaptive quality after sustained healthy frame rate', () => {
+    let state: ReturnType<typeof resolveCanvasParticleAdaptiveQuality> = {
+      quality: 'low',
+      lowFpsWindows: 0,
+      highFpsWindows: 0,
+    }
+
+    for (let index = 0; index < 3; index += 1) {
+      state = resolveCanvasParticleAdaptiveQuality({
+        requested: 'high',
+        current: state.quality,
+        fps: 60,
+        lowFpsWindows: state.lowFpsWindows,
+        highFpsWindows: state.highFpsWindows,
+      })
+    }
+
+    expect(state.quality).toBe('balanced')
+  })
+
+  it('ships Particle Aura as a reconstruction-first hologram recipe', () => {
+    const preset = CANVAS_PRESET_BY_ID['canvas-particle-aura']
+
+    expect(preset.settings.sourceVisibility).toBeLessThan(0.1)
+    expect(preset.settings.particleDensity).toBeGreaterThan(0.9)
+    expect(preset.settings.particleColorMode).toBe('audioReactive')
+    expect(preset.controls).toEqual(expect.arrayContaining(['rgbSplit', 'glitchAmount', 'trailAmount', 'motionAmount']))
+  })
+
 })

@@ -67,8 +67,9 @@ export function hasCanvasSourceTransform(
 
 /**
  * Preset processing is rendered into a high-DPI transparent canvas above the
- * pristine browser video/image. This keeps a sharp source visible beneath every
- * recipe while preserving glow, smear, RGB, and reactive-motion character.
+ * browser-owned video/image. Source-forward recipes keep that fidelity anchor
+ * visible; reconstructive recipes may intentionally lower it and let their GPU
+ * output carry the source detail.
  */
 export function hasCanvasEffectPass(presetSettings: CanvasPresetSettings): boolean {
   return hasCanvasSourceFilter(presetSettings) || hasCanvasReactiveTransform(presetSettings)

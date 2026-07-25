@@ -9988,9 +9988,7 @@
   height: 100%;
   pointer-events: none;
   mix-blend-mode: screen;
-  filter:
-    drop-shadow(0 0 28px rgba(97, 214, 170, 0.28))
-    drop-shadow(0 0 42px rgba(74, 199, 219, 0.18));
+  filter: none;
 }
 
 /* CANVAS parameters drive the live look; presets only load recipe values. */
@@ -10028,11 +10026,15 @@
 }
 
 .rv-canvas-param-output .rv-canvas-particle-aura-layer {
-  filter:
-    drop-shadow(0 0 var(--canvas-param-glow-px, 0px) rgba(97, 214, 170, 0.3))
-    drop-shadow(0 0 var(--canvas-param-particle-glow-px, 0px) rgba(74, 199, 219, 0.2));
+  filter: none;
 }
 
+.rv-canvas-param-output[data-particle-reconstruction-active='true'] .rv-canvas-preset-aura,
+.rv-canvas-param-output[data-particle-reconstruction-active='true'] .rv-canvas-live-grid,
+.rv-canvas-param-output[data-particle-reconstruction-active='true'] .rv-canvas-live-media-shell::before,
+.rv-canvas-param-output[data-particle-reconstruction-active='true'] .rv-canvas-live-media-shell::after {
+  opacity: 0;
+}
 
 .rv-canvas-render-notice {
   position: absolute;
