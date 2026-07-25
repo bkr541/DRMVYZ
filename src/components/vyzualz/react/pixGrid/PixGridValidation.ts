@@ -770,8 +770,13 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const selectedSceneId = scenes.some((scene) => scene.id === fallbackSceneId) ? fallbackSceneId : scenes[0].id
   const activeScene = scenes.find((scene) => scene.id === selectedSceneId) ?? scenes[0]
   const selectedLayerId = nullableId(editor.selectedLayerId)
-  const safeSelectedLayerId =
-    selectedLayerId && activeScene.layerIds.includes(selectedLayerId) ? selectedLayerId : (activeScene.layerIds[0] ?? null)
+  const selectedLayerWasExplicitlyCleared =
+    Object.prototype.hasOwnProperty.call(editor, 'selectedLayerId') && editor.selectedLayerId === null
+  const safeSelectedLayerId = selectedLayerWasExplicitlyCleared
+    ? null
+    : selectedLayerId && activeScene.layerIds.includes(selectedLayerId)
+      ? selectedLayerId
+      : (activeScene.layerIds[0] ?? null)
   const groups = normalizeGroups(input.groups === undefined ? defaults.groups : input.groups, dimensions.width, dimensions.height)
   const selectedGroupId = nullableId(editor.selectedGroupId)
   const safeSelectedGroupId =
@@ -814,6 +819,7 @@ export function normalizePixGridState(value: unknown): PixGridState {
     authoringOverlayVisible: input.authoringOverlayVisible === true,
     editorTool,
     editor: {
+      hasEnteredAuthoring: editor.hasEnteredAuthoring === true,
       guidesVisible: editor.guidesVisible !== false,
       zoom: clamp(editor.zoom, 0.25, 16, 1),
       panX: clamp(editor.panX, -4, 4, 0),

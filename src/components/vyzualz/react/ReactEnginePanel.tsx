@@ -223,7 +223,9 @@ function CinematicWorldSourceGrid({
   onSelect: (presetId: string) => void
 }) {
   const hasActiveWorld = groups.some((group) => group.world.id === activeWorldMode)
-  let optionIndex = 0
+  const orderedGroups = CINEMATIC_WORLD_CATEGORY_ORDER.flatMap(category =>
+    groups.filter(group => group.world.category === category),
+  )
 
   return (
     <div
@@ -231,49 +233,40 @@ function CinematicWorldSourceGrid({
       role="radiogroup"
       aria-label="Cinematic worlds"
       data-cinematic-world-grid
+      data-grid-columns="2"
     >
-      {CINEMATIC_WORLD_CATEGORY_ORDER.map((category) => {
-        const categoryGroups = groups.filter((group) => group.world.category === category)
-        if (categoryGroups.length === 0) return null
+      {orderedGroups.map((group, optionIndex) => {
+        const isActive = group.world.id === activeWorldMode
+        const activePresetInWorld = group.presets.find((preset) => preset.id === activePresetId)
+        const targetPreset = activePresetInWorld ?? group.presets[0]
         return (
-          <React.Fragment key={category}>
-            <div className="rv-cinematic-world-source-category" role="presentation">
-              {category}
-            </div>
-            {categoryGroups.map((group) => {
-              const currentOptionIndex = optionIndex++
-              const isActive = group.world.id === activeWorldMode
-              const activePresetInWorld = group.presets.find((preset) => preset.id === activePresetId)
-              const targetPreset = activePresetInWorld ?? group.presets[0]
-              return (
-                <button
-                  id={`cinematic-world-group-${group.world.id}`}
-                  key={group.world.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={isActive}
-                  tabIndex={isActive || (!hasActiveWorld && currentOptionIndex === 0) ? 0 : -1}
-                  aria-label={`${group.world.label}, ${group.presets.length} presets`}
-                  className={`rv-sound-source-card rv-cinematic-world-source-card${isActive ? ' is-active' : ''}`}
-                  title={group.world.description}
-                  data-cinematic-world-option
-                  onKeyDown={handleCinematicWorldKeyDown}
-                  onClick={() => {
-                    if (targetPreset && !isActive) onSelect(targetPreset.id)
-                  }}
-                >
-                  <span className="rv-sound-source-card-icon">
-                    <CinematicWorldIcon mode={group.world.id} />
-                  </span>
-                  <span className="rv-sound-source-card-label">{group.world.label}</span>
-                  <span className="rv-cinematic-world-source-count">
-                    {group.presets.length} preset
-                    {group.presets.length === 1 ? '' : 's'}
-                  </span>
-                </button>
-              )
-            })}
-          </React.Fragment>
+          <button
+            id={`cinematic-world-group-${group.world.id}`}
+            key={group.world.id}
+            type="button"
+            role="radio"
+            aria-checked={isActive}
+            tabIndex={isActive || (!hasActiveWorld && optionIndex === 0) ? 0 : -1}
+            aria-label={`${group.world.label}, ${group.world.category} category, ${group.presets.length} presets`}
+            className={`rv-sound-source-card rv-cinematic-world-source-card${isActive ? ' is-active' : ''}`}
+            title={group.world.description}
+            data-cinematic-world-option
+            data-cinematic-world-category={group.world.category}
+            onKeyDown={handleCinematicWorldKeyDown}
+            onClick={() => {
+              if (targetPreset && !isActive) onSelect(targetPreset.id)
+            }}
+          >
+            <span className="rv-cinematic-world-source-category-badge">{group.world.category}</span>
+            <span className="rv-sound-source-card-icon">
+              <CinematicWorldIcon mode={group.world.id} />
+            </span>
+            <span className="rv-sound-source-card-label">{group.world.label}</span>
+            <span className="rv-cinematic-world-source-count">
+              {group.presets.length} preset
+              {group.presets.length === 1 ? '' : 's'}
+            </span>
+          </button>
         )
       })}
     </div>

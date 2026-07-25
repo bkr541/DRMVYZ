@@ -157,6 +157,7 @@ export function createDefaultPixGridState(): PixGridState {
     authoringOverlayVisible: false,
     editorTool: 'select',
     editor: {
+      hasEnteredAuthoring: false,
       guidesVisible: true,
       zoom: 1,
       panX: 0,

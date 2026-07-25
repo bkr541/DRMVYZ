@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import {
   SliderRow, SelectRow, ToggleRow,
-  Collapsible,
+  Collapsible, CtrlSection,
 } from './ReactControlRows'
 import { getUnifiedSvgPointCount, resolveSvgUiCapabilities } from './svgSourceLifecycle'
 import {
@@ -14,6 +14,10 @@ import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
 import { CinematicWorldsDesignControls, CinematicWorldsFxControls } from './CinematicWorldsControls'
 import { CanvasEngineFxPanel } from './ReactCanvasEngineShell'
+import {
+  SOUND_DRAWING_VISUAL_SIZE_MAX,
+  SOUND_DRAWING_VISUAL_SIZE_MIN,
+} from './soundDrawing/SoundDrawingVisualSize'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -166,83 +170,82 @@ export function ReactFxPanel() {
 
         {/* ── Engine Appearance: Oscilloscope ─────────────────────────── */}
         {isSoundDrawing && (
-          isSvgOriginalArtwork ? (
-            // Original Artwork: only whole-artwork transforms affect rendering.
-            // Trail, render mode, duplicate traces, and mirror are point-path features
-            // that do nothing when displaying a native SVG image.
-            <Collapsible label="SVG Original Artwork" defaultOpen>
-              <Collapsible label="Transform" defaultOpen>
+          <>
+            <CtrlSection label="Drawing Size" />
+            <SliderRow
+              label="Visual Size"
+              value={osc.pathScale}
+              onChange={v => set({ pathScale: v })}
+              min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+              max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+              step={0.01}
+              color="#61d6aa"
+              description="Sets the base size for scopes, built-in shapes, text, and SVG artwork. Auto Performance may animate the effective size unless Scale is locked."
+            />
+            {isSvgOriginalArtwork ? (
+              // Original Artwork: only whole-artwork transforms affect rendering.
+              // Trail, render mode, duplicate traces, and mirror are point-path features
+              // that do nothing when displaying a native SVG image.
+              <Collapsible label="SVG Original Artwork" defaultOpen>
+                <Collapsible label="Transform" defaultOpen>
+                  <SliderRow
+                    label="Rotation Speed"
+                    value={osc.rotationSpeed}
+                    onChange={v => set({ rotationSpeed: v })}
+                    min={-1} max={1} step={0.01}
+                    color="#d8b95a"
+                  />
+                </Collapsible>
+              </Collapsible>
+            ) : (
+              // Built-in Shape, Text, SVG Glyph: full point-path controls
+              <Collapsible label="Sound Drawing" defaultOpen>
                 <SliderRow
-                  label="Scale"
-                  value={osc.pathScale}
-                  onChange={v => set({ pathScale: v })}
-                  min={0.1} max={1.5} step={0.01}
+                  label="Trail Decay"
+                  value={reactTrailDecay}
+                  onChange={setReactTrailDecay}
+                  color="#4ac7db"
+                />
+                <SelectRow
+                  label="Render Mode"
+                  value={osc.renderMode}
+                  onChange={v => set({ renderMode: v as OscillatorRenderMode })}
+                  options={[
+                    { value: 'outline',    label: 'Outline' },
+                    { value: 'multiTrace', label: 'Multi Trace' },
+                    { value: 'dots',       label: 'Dots' },
+                    { value: 'ribbon',     label: 'Ribbon' },
+                  ]}
+                />
+                <SliderRow
+                  label="Duplicate Traces"
+                  value={osc.duplicateTraces}
+                  onChange={v => set({ duplicateTraces: Math.round(v) })}
+                  min={1} max={6} step={1}
                   color="#61d6aa"
                 />
-                <SliderRow
-                  label="Rotation Speed"
-                  value={osc.rotationSpeed}
-                  onChange={v => set({ rotationSpeed: v })}
-                  min={-1} max={1} step={0.01}
-                  color="#d8b95a"
-                />
+                <Collapsible label="Path">
+                  <SliderRow
+                    label="Rotation Speed"
+                    value={osc.rotationSpeed}
+                    onChange={v => set({ rotationSpeed: v })}
+                    min={-1} max={1} step={0.01}
+                    color="#d8b95a"
+                  />
+                  <ToggleRow label="Mirror X" value={osc.mirrorX} onChange={v => set({ mirrorX: v })} />
+                  <ToggleRow label="Mirror Y" value={osc.mirrorY} onChange={v => set({ mirrorY: v })} />
+                </Collapsible>
+                <button
+                  type="button"
+                  className="rv-osc-reset-btn"
+                  onClick={resetOscillatorSettings}
+                  title="Reset all Sound Drawing source, rendering, modulation, text, and path settings"
+                >
+                  Reset Sound Drawing Settings
+                </button>
               </Collapsible>
-            </Collapsible>
-          ) : (
-            // Built-in Shape, Text, SVG Glyph: full point-path controls
-            <Collapsible label="Sound Drawing" defaultOpen>
-              <SliderRow
-                label="Trail Decay"
-                value={reactTrailDecay}
-                onChange={setReactTrailDecay}
-                color="#4ac7db"
-              />
-              <SelectRow
-                label="Render Mode"
-                value={osc.renderMode}
-                onChange={v => set({ renderMode: v as OscillatorRenderMode })}
-                options={[
-                  { value: 'outline',    label: 'Outline' },
-                  { value: 'multiTrace', label: 'Multi Trace' },
-                  { value: 'dots',       label: 'Dots' },
-                  { value: 'ribbon',     label: 'Ribbon' },
-                ]}
-              />
-              <SliderRow
-                label="Duplicate Traces"
-                value={osc.duplicateTraces}
-                onChange={v => set({ duplicateTraces: Math.round(v) })}
-                min={1} max={6} step={1}
-                color="#61d6aa"
-              />
-              <Collapsible label="Path">
-                <SliderRow
-                  label="Scale"
-                  value={osc.pathScale}
-                  onChange={v => set({ pathScale: v })}
-                  min={0.1} max={1.5} step={0.01}
-                  color="#61d6aa"
-                />
-                <SliderRow
-                  label="Rotation Speed"
-                  value={osc.rotationSpeed}
-                  onChange={v => set({ rotationSpeed: v })}
-                  min={-1} max={1} step={0.01}
-                  color="#d8b95a"
-                />
-                <ToggleRow label="Mirror X" value={osc.mirrorX} onChange={v => set({ mirrorX: v })} />
-                <ToggleRow label="Mirror Y" value={osc.mirrorY} onChange={v => set({ mirrorY: v })} />
-              </Collapsible>
-              <button
-                type="button"
-                className="rv-osc-reset-btn"
-                onClick={resetOscillatorSettings}
-                title="Reset all Sound Drawing source, rendering, modulation, text, and path settings"
-              >
-                Reset Sound Drawing Settings
-              </button>
-            </Collapsible>
-          )
+            )}
+          </>
         )}
 
         {/* ── Engine Appearance: LaserDMX Beam Matrix ──────────────────── */}

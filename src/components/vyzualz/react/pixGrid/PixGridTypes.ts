@@ -1,6 +1,6 @@
 import type { ReactSectionType } from '../ReactTypes'
 
-export const PIX_GRID_STATE_VERSION = 11 as const
+export const PIX_GRID_STATE_VERSION = 12 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
@@ -94,6 +94,7 @@ export interface PixGridScene {
 }
 
 export interface PixGridEditorSettings {
+  hasEnteredAuthoring: boolean
   guidesVisible: boolean
   zoom: number
   panX: number

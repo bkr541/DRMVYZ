@@ -214,6 +214,40 @@ export function TextInputRow({
   )
 }
 
+// ── Color row ─────────────────────────────────────────────────────────────────
+
+export interface ColorRowProps {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+  id?: string
+  description?: string
+}
+
+export function ColorRow({ label, value, onChange, disabled = false, id, description }: ColorRowProps) {
+  const generatedId = useId()
+  const inputId = id ?? generatedId
+  return (
+    <div className="rv-ctrl-row">
+      <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+      <div className="rv-ctrl-color-field">
+        <input
+          id={inputId}
+          type="color"
+          className="rv-ctrl-color-input"
+          value={value}
+          disabled={disabled}
+          onChange={event => onChange(event.target.value)}
+          aria-describedby={description ? `${inputId}-description` : undefined}
+        />
+        <output className="rv-ctrl-color-value" htmlFor={inputId}>{value.toUpperCase()}</output>
+      </div>
+      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
+    </div>
+  )
+}
+
 // ── Section label ─────────────────────────────────────────────────────────────
 
 export function CtrlSection({ label }: { label: string }) {

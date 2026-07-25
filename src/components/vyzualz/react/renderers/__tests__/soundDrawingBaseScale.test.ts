@@ -28,6 +28,15 @@ describe('computePathBaseScale', () => {
     }
   })
 
+  it('clamps invalid and oversized Visual Size values before geometry reaches the renderer', () => {
+    const oversized = computePathBaseScale(1000, 600, 99, 1, 0)
+    const maximum = computePathBaseScale(1000, 600, 2.5, 1, 0)
+    const invalid = computePathBaseScale(1000, 600, Number.NaN, 1, 0)
+    const fallback = computePathBaseScale(1000, 600, 0.78, 1, 0)
+    expect(oversized).toBe(maximum)
+    expect(invalid).toBe(fallback)
+  })
+
   it('scales linearly with pathScale', () => {
     const s1 = computePathBaseScale(W, H, 1, 1, 0)
     const s2 = computePathBaseScale(W, H, 2, 1, 0)

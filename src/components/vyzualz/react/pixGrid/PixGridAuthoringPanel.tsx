@@ -31,12 +31,6 @@ export function PixGridAuthoringPanel() {
 
   return (
     <div className="rv-pix-grid-authoring-panel">
-      <div className="rv-engine-status-grid" aria-label="PixGrid authoring status">
-        <span>Matrix</span><strong>{state.matrixWidth} × {state.matrixHeight}</strong>
-        <span>Scenes</span><strong>{state.scenes.length}</strong>
-        <span>Active Layers</span><strong>{layers.length}</strong>
-      </div>
-
       <button
         type="button"
         className={state.authoringOverlayVisible ? 'rv-pix-grid-edit-toggle is-active' : 'rv-pix-grid-edit-toggle'}
@@ -45,6 +39,7 @@ export function PixGridAuthoringPanel() {
       >
         {state.authoringOverlayVisible ? 'Close PixGrid Edit' : 'Edit PixGrid'}
       </button>
+      <div className="rv-ctrl-info rv-pix-grid-authoring-hint">Edit on the center canvas. Changes save automatically.</div>
 
       <section className="rv-pix-grid-browser-section" aria-label="PixGrid scenes">
         <header><strong>SCENES</strong><span>{state.scenes.length}</span></header>

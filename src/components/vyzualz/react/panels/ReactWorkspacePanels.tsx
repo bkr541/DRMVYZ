@@ -10,40 +10,11 @@ import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
 import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
 import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pixGrid/PixGridReactivityWorkspace'
+import { PanelSubtabs } from '../PanelSubtabs'
 
 type DesignSurface = 'engine' | 'selection'
 type ReactivitySurface = 'routing' | 'analysis'
 type OutputSurface = 'recording' | 'production'
-
-function PanelSubtabs<T extends string>({
-  value,
-  options,
-  onChange,
-  ariaLabel,
-}: {
-  value: T
-  options: Array<{ id: T; label: string; disabled?: boolean }>
-  onChange: (value: T) => void
-  ariaLabel: string
-}) {
-  return (
-    <div className="rv-right-subtabs" role="tablist" aria-label={ariaLabel}>
-      {options.map(option => (
-        <button
-          key={option.id}
-          type="button"
-          role="tab"
-          aria-selected={value === option.id}
-          className={value === option.id ? 'is-active' : ''}
-          disabled={option.disabled}
-          onClick={() => onChange(option.id)}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: boolean }) {
   const activeReactEngineId = useReactStore(state => state.activeReactEngineId)

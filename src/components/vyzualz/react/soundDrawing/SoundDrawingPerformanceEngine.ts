@@ -9,6 +9,7 @@ import {
 } from '../../../../features/performanceCore'
 import type { OscillatorSettings } from '../ReactTypes'
 import type { ReactFrameContext } from '../renderers/reactRenderUtils'
+import { normalizeSoundDrawingVisualSize } from './SoundDrawingVisualSize'
 import { SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID } from './SoundDrawingPerformanceShows'
 import { resolveSoundDrawingPerformanceSources } from './SoundDrawingSourceResolver'
 import {
@@ -864,7 +865,7 @@ function applyUserLocks(
       audioDisplacement: oscillator.audioDisplacement,
     })
   }
-  if (settings.locks.scale) next = patchLayer(next, { scale: clamp(oscillator.pathScale, 0.1, 2) })
+  if (settings.locks.scale) next = patchLayer(next, { scale: normalizeSoundDrawingVisualSize(oscillator.pathScale) })
   if (settings.locks.rotation) next = patchLayer(next, { rotation: 0 })
   if (settings.locks.glow) next = patchLayer(next, { glow: clamp01(oscillator.beatBloom) })
   if (settings.locks.contourReactivity) {

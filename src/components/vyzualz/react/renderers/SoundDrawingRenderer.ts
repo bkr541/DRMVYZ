@@ -31,6 +31,7 @@ import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUt
 import { getSvgGlyphAssetId, resolveUnifiedSvgSource } from '../svgSourceLifecycle'
 import { createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { resolveSoundDrawingPerformanceFrame } from '../soundDrawing/SoundDrawingPerformanceEngine'
+import { normalizeSoundDrawingVisualSize } from '../soundDrawing/SoundDrawingVisualSize'
 import {
   disposeSoundDrawingBehaviorRuntime,
   synchronizeSoundDrawingBehaviorRuntime,
@@ -481,7 +482,7 @@ function renderOriginalArtwork(
   // Scale: bass scale + beat bloom (much stronger than legacy 4% cap)
   const bassPulse   = 1 + clamp(bass * osc.bassScale, 0, 0.6)
   const bloomFactor = beatEnvelope * osc.beatBloom
-  const maxSide     = Math.min(W, H) * Math.max(0.05, osc.pathScale)
+  const maxSide     = Math.min(W, H) * normalizeSoundDrawingVisualSize(osc.pathScale)
   const ratio       = Math.min(maxSide / imgW, maxSide / imgH)
   const drawScale   = ratio * bassPulse * (1 + bloomFactor * 0.4)
   const drawW       = imgW * drawScale
@@ -938,7 +939,7 @@ export function computePathBaseScale(
   bassPulse:   number,
   bloomFactor: number,
 ): number {
-  return Math.min(W, H) * 0.42 * pathScale * bassPulse * (1 + bloomFactor * 0.4)
+  return Math.min(W, H) * 0.42 * normalizeSoundDrawingVisualSize(pathScale) * bassPulse * (1 + bloomFactor * 0.4)
 }
 
 /**
@@ -963,7 +964,7 @@ export function computeTextFitScale(
   const MARGIN    = 0.05
   const fitScaleX = ((W / 2) * (1 - MARGIN)) / maxAbsX
   const fitScaleY = ((H / 2) * (1 - MARGIN)) / maxAbsY
-  return Math.min(fitScaleX, fitScaleY) * pathScale * fontSizeMul
+  return Math.min(fitScaleX, fitScaleY) * normalizeSoundDrawingVisualSize(pathScale) * fontSizeMul
 }
 
 /**
@@ -2134,7 +2135,7 @@ function drawOriginalArtworkPerformanceLayer(
   const img = entry.image
   const imgW = entry.width || img.naturalWidth || 512
   const imgH = entry.height || img.naturalHeight || 512
-  const maxSide = Math.min(frame.W, frame.H) * Math.max(0.05, params.oscillator.pathScale)
+  const maxSide = Math.min(frame.W, frame.H) * normalizeSoundDrawingVisualSize(params.oscillator.pathScale)
   const ratio = Math.min(maxSide / imgW, maxSide / imgH)
   const bassPulse = 1 + frame.audio.bass * params.bassReactivity * 0.08
   const beatPulse = frame.beatHit ? 1.06 : 1

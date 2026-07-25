@@ -4,8 +4,10 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useReactStore } from '../../../../stores/reactStore'
+import { migrateReactStore, useReactStore } from '../../../../stores/reactStore'
 import { ReactEnginePanel } from '../ReactEnginePanel'
+import { ReactFxPanel } from '../ReactFxPanel'
+import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 
 vi.mock('../../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({ currentAudioTrackId: null }),
@@ -64,5 +66,42 @@ describe('Sound Drawing source grid', () => {
     const svgChoice = [...container.querySelectorAll<HTMLButtonElement>('[role="radio"]')]
       .find(choice => choice.textContent?.trim() === 'SVG')
     expect(svgChoice?.getAttribute('aria-checked')).toBe('true')
+  })
+})
+
+
+describe('Sound Drawing Visual Size', () => {
+  async function expectVisualSizeFor(patch: Partial<typeof DEFAULT_OSCILLATOR_SETTINGS>) {
+    useReactStore.getState().setOscillatorSettings(patch)
+    await act(async () => root.render(<ReactFxPanel />))
+    const controls = [...container.querySelectorAll<HTMLInputElement>('input[type="range"]')]
+      .filter(input => input.id.includes('visual-size') || input.closest('.rv-ctrl-row')?.textContent?.includes('Visual Size'))
+    expect(controls).toHaveLength(1)
+    expect(controls[0].max).toBe('2.5')
+    expect(controls[0].min).toBe('0.1')
+    expect(container.textContent).toContain('Auto Performance may animate the effective size')
+  }
+
+  it('shows one top-level Visual Size control for Classic Scope and Built-In Shape', async () => {
+    await expectVisualSizeFor({ sourceType: 'classic' })
+    await expectVisualSizeFor({ sourceType: 'builtinShape' })
+  })
+
+  it('shows one top-level Visual Size control for reactive and original SVG modes', async () => {
+    await expectVisualSizeFor({ sourceType: 'svg', selectedSvgId: 'test-svg', svgRenderMode: 'reactivePath' })
+    await expectVisualSizeFor({ sourceType: 'svg', selectedSvgId: 'test-svg', svgRenderMode: 'originalArtwork' })
+  })
+
+  it('shows the same control for text and safely normalizes legacy values', async () => {
+    await expectVisualSizeFor({ sourceType: 'text' })
+    useReactStore.getState().setOscillatorSettings({ pathScale: 99 })
+    expect(useReactStore.getState().oscillatorSettings.pathScale).toBe(2.5)
+    useReactStore.getState().setOscillatorSettings({ pathScale: Number.NaN })
+    expect(useReactStore.getState().oscillatorSettings.pathScale).toBe(DEFAULT_OSCILLATOR_SETTINGS.pathScale)
+
+    const migrated = migrateReactStore({
+      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, pathScale: 1.4 },
+    }, 0) as { oscillatorSettings: typeof DEFAULT_OSCILLATOR_SETTINGS }
+    expect(migrated.oscillatorSettings.pathScale).toBe(1.4)
   })
 })

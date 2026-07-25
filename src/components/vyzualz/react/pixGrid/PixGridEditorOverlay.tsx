@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import {
   applyPixGridPoints,
   createPixGridSelection,
   deletePixGridLayer,
   fillPixGridRegion,
+  getPixGridActiveLayers,
+  getPixGridActiveScene,
   movePixGridSelection,
   pixGridCellRectToView,
   pixGridLinePoints,
   pixGridRectanglePoints,
   pixGridViewPointToCell,
   resolvePixGridOutputRect,
+  selectPixGridScene,
   type PixGridCellPoint,
 } from './PixGridAuthoring'
 import type { PixGridEditorTool, PixGridState } from './PixGridTypes'
@@ -28,18 +31,28 @@ interface PointerOperation {
   tool: PixGridEditorTool
 }
 
-const TOOL_LABELS: Array<{ tool: PixGridEditorTool; label: string; shortcut?: string }> = [
-  { tool: 'select', label: 'Select' },
-  { tool: 'pan', label: 'Pan' },
-  { tool: 'pencil', label: 'Pencil' },
-  { tool: 'eraser', label: 'Eraser' },
-  { tool: 'fill', label: 'Fill' },
-  { tool: 'eyedropper', label: 'Pick' },
-  { tool: 'rectangle', label: 'Rect' },
-  { tool: 'line', label: 'Line' },
-  { tool: 'marquee', label: 'Marquee' },
-  { tool: 'move', label: 'Move' },
+interface ToolDefinition {
+  tool: PixGridEditorTool
+  label: string
+  shortcut: string
+  description: string
+}
+
+const TOOL_DEFINITIONS: ToolDefinition[] = [
+  { tool: 'select', label: 'Select', shortcut: 'V', description: 'Drag to select a rectangular cell area.' },
+  { tool: 'pan', label: 'Pan', shortcut: 'H', description: 'Drag the canvas without changing pixels.' },
+  { tool: 'pencil', label: 'Pencil', shortcut: 'P', description: 'Draw cells with the active color.' },
+  { tool: 'eraser', label: 'Eraser', shortcut: 'E', description: 'Clear cells or restore inherited artwork.' },
+  { tool: 'fill', label: 'Fill', shortcut: 'F', description: 'Fill a connected region with the active color.' },
+  { tool: 'eyedropper', label: 'Eyedropper', shortcut: 'I', description: 'Sample a color from the live PixGrid output.' },
+  { tool: 'rectangle', label: 'Rectangle', shortcut: 'R', description: 'Drag to draw a rectangle outline.' },
+  { tool: 'line', label: 'Line', shortcut: 'L', description: 'Drag to draw a straight line.' },
+  { tool: 'marquee', label: 'Marquee', shortcut: 'M', description: 'Drag to create a cell selection.' },
+  { tool: 'move', label: 'Move', shortcut: 'G', description: 'Drag the active selection to a new location.' },
 ]
+
+const TOOL_BY_SHORTCUT = new Map(TOOL_DEFINITIONS.map(definition => [definition.shortcut.toLowerCase(), definition.tool]))
+const PIXEL_EDIT_TOOLS = new Set<PixGridEditorTool>(['pencil', 'eraser', 'fill', 'rectangle', 'line', 'move'])
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const element = target instanceof HTMLElement ? target : null
@@ -61,6 +74,21 @@ function selectionPoints(state: PixGridState): PixGridCellPoint[] {
   return points
 }
 
+function resolveToolDisabledReason(
+  tool: PixGridEditorTool,
+  state: PixGridState,
+  liveCanvas: HTMLCanvasElement | null,
+  targetLayer: ReturnType<typeof getPixGridActiveLayers>[number] | null,
+): string | null {
+  if (tool === 'eyedropper' && !liveCanvas) return 'Live PixGrid output is unavailable.'
+  if (tool === 'move' && !state.editor.selection) return 'Create a selection before using Move.'
+  if (!PIXEL_EDIT_TOOLS.has(tool)) return null
+  if (state.editor.selectedLayerId === null) return null
+  if (!targetLayer) return 'The selected layer is unavailable. Choose Scene Pixels.'
+  if (targetLayer.locked) return `${targetLayer.name} is locked. Unlock it or choose Scene Pixels.`
+  if (targetLayer.mediaId) return 'Imported artwork must be converted before pixel editing. Choose Scene Pixels to paint non-destructively.'
+  return 'Built-in artwork remains non-destructive. Choose Scene Pixels to paint over it.'
+}
 
 export function shouldShowPixGridEditorOverlay(activeEngineId: string, authoringOverlayVisible: boolean): boolean {
   return activeEngineId === 'pixGrid' && authoringOverlayVisible
@@ -78,12 +106,26 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
   const [size, setSize] = useState({ width: 1, height: 1 })
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
+  const setOverlay = useReactStore(store => store.setPixGridAuthoringOverlayVisible)
   const applyState = useReactStore(store => store.applyPixGridAuthoringState)
   const beginHistory = useReactStore(store => store.beginPixGridHistoryTransaction)
   const commitHistory = useReactStore(store => store.commitPixGridHistoryTransaction)
   const cancelHistory = useReactStore(store => store.cancelPixGridHistoryTransaction)
   const undo = useReactStore(store => store.undoPixGridEdit)
   const redo = useReactStore(store => store.redoPixGridEdit)
+  const undoCount = useReactStore(store => store.pixGridUndoStack.length)
+  const redoCount = useReactStore(store => store.pixGridRedoStack.length)
+
+  const scene = getPixGridActiveScene(state)
+  const layers = getPixGridActiveLayers(state)
+  const targetLayer = layers.find(layer => layer.id === state.editor.selectedLayerId) ?? null
+  const activeTool = TOOL_DEFINITIONS.find(definition => definition.tool === state.editorTool) ?? TOOL_DEFINITIONS[0]
+  const activeToolDisabledReason = resolveToolDisabledReason(state.editorTool, state, liveCanvas, targetLayer)
+  const targetLabel = targetLayer?.name ?? 'Scene Pixels'
+  const targetOptions = useMemo(() => [
+    { value: 'scene', label: 'Scene Pixels' },
+    ...layers.map(layer => ({ value: layer.id, label: layer.name })),
+  ], [layers])
 
   const viewport = useCallback((current: PixGridState = useReactStore.getState().pixGridState) => ({
     viewportWidth: size.width,
@@ -100,10 +142,10 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
     setState({ editor: { ...current.editor, ...patch } })
   }, [setState])
 
-  const pointFromEvent = useCallback((event: React.PointerEvent<HTMLCanvasElement>, clamp = false) => {
+  const pointFromEvent = useCallback((event: React.PointerEvent<HTMLCanvasElement>, shouldClamp = false) => {
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return null
-    return pixGridViewPointToCell(event.clientX - rect.left, event.clientY - rect.top, viewport(), clamp)
+    return pixGridViewPointToCell(event.clientX - rect.left, event.clientY - rect.top, viewport(), shouldClamp)
   }, [viewport])
 
   useEffect(() => () => {
@@ -182,12 +224,7 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
           context.fillStyle = group.displayColor ?? '#4ac7db'
           context.globalAlpha = group.id === current.editor.selectedGroupId ? 0.3 : 0.16
           for (const [row, startColumn, length] of compiled.runs) {
-            context.fillRect(
-              output.left + startColumn * cellWidth,
-              output.top + row * cellHeight,
-              length * cellWidth,
-              cellHeight,
-            )
+            context.fillRect(output.left + startColumn * cellWidth, output.top + row * cellHeight, length * cellWidth, cellHeight)
           }
         }
         context.restore()
@@ -233,6 +270,14 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
         redo()
         return
       }
+      if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+        const nextTool = TOOL_BY_SHORTCUT.get(event.key.toLowerCase())
+        if (nextTool) {
+          event.preventDefault()
+          setState({ editorTool: nextTool })
+          return
+        }
+      }
       if (event.key === 'Escape') {
         if (operationRef.current) {
           cancelHistory()
@@ -262,10 +307,13 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
     }
     window.addEventListener('keydown', keyDown)
     return () => window.removeEventListener('keydown', keyDown)
-  }, [applyState, beginHistory, cancelHistory, commitHistory, redo, undo, updateEditor])
+  }, [applyState, beginHistory, cancelHistory, commitHistory, redo, setState, undo, updateEditor])
 
   const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const current = useReactStore.getState().pixGridState
+    const currentLayers = getPixGridActiveLayers(current)
+    const currentLayer = currentLayers.find(layer => layer.id === current.editor.selectedLayerId) ?? null
+    if (resolveToolDisabledReason(current.editorTool, current, liveCanvas, currentLayer)) return
     const point = pointFromEvent(event, current.editorTool === 'pan')
     if (!point) return
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -278,13 +326,7 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
     }
     if (current.editorTool === 'eyedropper') {
       if (!sampleCanvasRef.current) sampleCanvasRef.current = document.createElement('canvas')
-      const color = samplePixGridCanvasColor(
-        liveCanvas,
-        point,
-        current.matrixWidth,
-        current.matrixHeight,
-        sampleCanvasRef.current,
-      )
+      const color = samplePixGridCanvasColor(liveCanvas, point, current.matrixWidth, current.matrixHeight, sampleCanvasRef.current)
       if (color) updateEditor({ paintColor: color })
       return
     }
@@ -368,32 +410,91 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
   return (
     <div className="rv-pix-grid-editor-overlay" data-testid="pix-grid-editor-overlay">
       <div className="rv-pix-grid-editor-toolbar" role="toolbar" aria-label="PixGrid editor tools">
-        {TOOL_LABELS.map(item => (
-          <button
-            key={item.tool}
-            type="button"
-            className={state.editorTool === item.tool ? 'is-active' : ''}
-            aria-pressed={state.editorTool === item.tool}
-            disabled={item.tool === 'eyedropper' && !liveCanvas}
-            title={item.tool === 'eyedropper' && !liveCanvas ? 'Live PixGrid output is unavailable.' : undefined}
-            onClick={() => setState({ editorTool: item.tool })}
-          >
-            {item.label}
-          </button>
-        ))}
+        <div className="rv-pix-grid-editor-history" aria-label="Edit history">
+          <button type="button" className="rv-reset-btn" disabled={undoCount === 0} onClick={undo} title="Undo (Command/Ctrl+Z)">Undo</button>
+          <button type="button" className="rv-reset-btn" disabled={redoCount === 0} onClick={redo} title="Redo (Shift+Command/Ctrl+Z)">Redo</button>
+        </div>
+        <div className="rv-pix-grid-editor-tool-list">
+          {TOOL_DEFINITIONS.map(item => {
+            const disabledReason = resolveToolDisabledReason(item.tool, state, liveCanvas, targetLayer)
+            return (
+              <button
+                key={item.tool}
+                type="button"
+                className={state.editorTool === item.tool ? 'is-active' : ''}
+                aria-label={`${item.label} tool, shortcut ${item.shortcut}`}
+                aria-pressed={state.editorTool === item.tool}
+                disabled={Boolean(disabledReason)}
+                title={disabledReason ?? `${item.description} Shortcut: ${item.shortcut}`}
+                onClick={() => setState({ editorTool: item.tool })}
+              >
+                <span>{item.label}</span><kbd>{item.shortcut}</kbd>
+              </button>
+            )
+          })}
+        </div>
+        <label className="rv-pix-grid-editor-color" title="Active paint color">
+          <span>Color</span>
+          <input
+            type="color"
+            aria-label="Active PixGrid paint color"
+            value={state.editor.paintColor}
+            onChange={event => updateEditor({ paintColor: event.target.value })}
+          />
+          <output>{state.editor.paintColor.toUpperCase()}</output>
+        </label>
         <span className="rv-pix-grid-editor-zoom">{Math.round(state.editor.zoom * 100)}%</span>
-        <span
-          className="rv-pix-grid-editor-live-status"
-          role="status"
-          data-live-canvas={liveCanvas ? 'ready' : 'unavailable'}
-        >
-          {liveCanvas ? 'Live output' : 'Live output unavailable'}
-        </span>
+        <button type="button" className="rv-pix-grid-editor-done" onClick={() => setOverlay(false)}>Done</button>
       </div>
+
+      <div className="rv-pix-grid-editor-context" aria-label="PixGrid editing context">
+        <p id="pix-grid-editor-instructions"><strong>Choose a tool, then draw on the center canvas.</strong> Changes save automatically.</p>
+        <label>
+          <span>Scene</span>
+          <select
+            aria-label="Active PixGrid scene"
+            value={scene.id}
+            onChange={event => setState(selectPixGridScene(state, event.target.value))}
+          >
+            {state.scenes.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Edit Target</span>
+          <select
+            aria-label="PixGrid edit target"
+            value={state.editor.selectedLayerId ?? 'scene'}
+            onChange={event => updateEditor({ selectedLayerId: event.target.value === 'scene' ? null : event.target.value })}
+          >
+            {targetOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <dl>
+          <div><dt>Tool</dt><dd>{activeTool.label}</dd></div>
+          <div><dt>Target</dt><dd>{targetLabel}</dd></div>
+          <div><dt>Color</dt><dd>{state.editor.paintColor.toUpperCase()}</dd></div>
+          <div><dt>Save</dt><dd>Automatic</dd></div>
+        </dl>
+        <span className="rv-pix-grid-editor-live-status" role="status" data-live-canvas={liveCanvas ? 'ready' : 'unavailable'}>
+          {liveCanvas ? 'Live output ready' : 'Live output unavailable'}
+        </span>
+        {activeToolDisabledReason && (
+          <div className="rv-pix-grid-editor-blocked" id="pix-grid-editor-status" role="status">
+            <span>{activeToolDisabledReason}</span>
+            {state.editor.selectedLayerId !== null && (
+              <button type="button" onClick={() => updateEditor({ selectedLayerId: null })}>Edit Scene Pixels</button>
+            )}
+          </div>
+        )}
+      </div>
+
       <canvas
         ref={canvasRef}
         className="rv-pix-grid-editor-canvas"
-        aria-label="PixGrid logical cell editor"
+        aria-label="PixGrid logical cell editor. Draw inside the outlined center canvas."
+        aria-describedby={activeToolDisabledReason ? 'pix-grid-editor-instructions pix-grid-editor-status' : 'pix-grid-editor-instructions'}
+        data-tool={state.editorTool}
+        data-edit-blocked={activeToolDisabledReason ? 'true' : 'false'}
         data-interactive-cell-count="0"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

@@ -2669,10 +2669,6 @@ export function CanvasEngineFxPanel() {
         <CanvasAutoSelectControl />
       </Collapsible>
 
-      <CanvasOrchestrationControls />
-
-      <CanvasPresetControls />
-
       <Collapsible label="Display" defaultOpen>
         <SelectRow
           label="Fit Mode"
@@ -2730,6 +2726,11 @@ export function CanvasEngineFxPanel() {
           color="#b84fc9"
         />
       </Collapsible>
+
+
+      <CanvasOrchestrationControls />
+
+      <CanvasPresetControls />
 
       <CanvasTimingControls />
     </div>

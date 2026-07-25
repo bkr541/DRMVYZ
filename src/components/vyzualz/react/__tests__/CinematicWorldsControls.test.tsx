@@ -312,6 +312,28 @@ describe('Cinematic Worlds preset semantics', () => {
     expect(container.querySelector('#cinematic-preset-select')).toBeNull()
   })
 
+  it('keeps category metadata inside a continuous two-column World grid', async () => {
+    useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
+    await render(<ReactEnginePanel />)
+
+    const grid = container.querySelector<HTMLElement>('[data-cinematic-world-grid]')!
+    const cards = [...grid.children] as HTMLButtonElement[]
+    expect(grid.dataset.gridColumns).toBe('2')
+    expect(cards.length).toBeGreaterThan(2)
+    expect(cards.every(card => card.matches('[data-cinematic-world-option]'))).toBe(true)
+    expect(grid.querySelector('.rv-cinematic-world-source-category')).toBeNull()
+    for (const card of cards) {
+      const category = card.dataset.cinematicWorldCategory
+      expect(category).toBeTruthy()
+      expect(card.querySelector('.rv-cinematic-world-source-category-badge')?.textContent).toBe(category)
+      expect(card.getAttribute('aria-label')).toContain(`${category} category`)
+    }
+
+    cards[0].focus()
+    await act(async () => cards[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
+    expect(document.activeElement).toBe(cards[2])
+  })
+
   it('supports keyboard navigation between World groups through the canonical preset path', async () => {
     useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
     await render(<><ReactEnginePanel /><ReactPresetsPanel /></>)

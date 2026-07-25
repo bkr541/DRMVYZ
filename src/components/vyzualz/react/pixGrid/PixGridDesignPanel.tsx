@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
-import { CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { ColorRow, CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { PanelSubtabs, type PanelSubtabOption } from '../PanelSubtabs'
 import {
   applyPixGridPoints,
   deletePixGridLayer,
@@ -9,6 +10,7 @@ import {
   getPixGridActiveScene,
   renamePixGridScene,
   resetPixGridLayerTransform,
+  selectPixGridScene,
   updatePixGridLayer,
 } from './PixGridAuthoring'
 import type { PixGridEditorTool, PixGridQualityTier, PixGridState } from './PixGridTypes'
@@ -23,8 +25,25 @@ const QUALITY_OPTIONS = [
 ]
 
 const TOOL_OPTIONS = [
-  'select', 'pan', 'pencil', 'eraser', 'fill', 'eyedropper', 'rectangle', 'line', 'marquee', 'move',
-].map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) }))
+  { value: 'select', label: 'Select' },
+  { value: 'pan', label: 'Pan' },
+  { value: 'pencil', label: 'Pencil' },
+  { value: 'eraser', label: 'Eraser' },
+  { value: 'fill', label: 'Fill' },
+  { value: 'eyedropper', label: 'Eyedropper' },
+  { value: 'rectangle', label: 'Rectangle' },
+  { value: 'line', label: 'Line' },
+  { value: 'marquee', label: 'Marquee' },
+  { value: 'move', label: 'Move Selection' },
+]
+
+const SURFACE_OPTIONS: Array<PanelSubtabOption<PixGridDesignSurface>> = [
+  { id: 'grid', label: 'Grid' },
+  { id: 'scene', label: 'Scene' },
+  { id: 'layer', label: 'Layer' },
+  { id: 'selection', label: 'Selection' },
+  { id: 'tool', label: 'Tool' },
+]
 
 function selectionPoints(state: PixGridState) {
   const selection = state.editor.selection
@@ -57,10 +76,8 @@ export function PixGridDesignPanel() {
   const layers = getPixGridActiveLayers(state)
   const layer = layers.find(candidate => candidate.id === state.editor.selectedLayerId) ?? null
   const [sceneName, setSceneName] = useState(scene.name)
-  const [paintColor, setPaintColor] = useState(state.editor.paintColor)
 
   useEffect(() => setSceneName(scene.name), [scene.id, scene.name])
-  useEffect(() => setPaintColor(state.editor.paintColor), [state.editor.paintColor])
   useEffect(() => {
     if (surface === 'layer' && !layer) setSurface('grid')
     if (surface === 'selection' && !state.editor.selection) setSurface('tool')
@@ -70,32 +87,50 @@ export function PixGridDesignPanel() {
   const updateLayer = (patch: Parameters<typeof updatePixGridLayer>[2]) => {
     if (layer) applyState(updatePixGridLayer(useReactStore.getState().pixGridState, layer.id, patch))
   }
+  const targetValue = state.editor.selectedLayerId ?? 'scene'
+  const targetOptions = [
+    { value: 'scene', label: 'Scene Pixels' },
+    ...layers.map(candidate => ({ value: candidate.id, label: candidate.name })),
+  ]
+  const surfaceOptions = SURFACE_OPTIONS.map(option => ({
+    ...option,
+    disabled: (option.id === 'layer' && !layer) || (option.id === 'selection' && !state.editor.selection),
+  }))
 
   return (
-    <div className="rv-pix-grid-design-panel">
-      <div className="rv-right-subtabs rv-pix-grid-design-subtabs" role="tablist" aria-label="PixGrid design surfaces">
-        {(['grid', 'scene', 'layer', 'selection', 'tool'] as const).map(id => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={surface === id}
-            className={surface === id ? 'is-active' : ''}
-            disabled={(id === 'layer' && !layer) || (id === 'selection' && !state.editor.selection)}
-            onClick={() => setSurface(id)}
-          >{id.toUpperCase()}</button>
-        ))}
-      </div>
+    <div className="rv-ctrl-group rv-pix-grid-design-panel">
+      <PanelSubtabs
+        value={surface}
+        options={surfaceOptions}
+        onChange={setSurface}
+        ariaLabel="PixGrid design sections"
+        layout="wrap"
+        className="rv-right-subtabs--embedded"
+      />
 
-      <div className="rv-pix-grid-history-row">
-        <button type="button" disabled={undoCount === 0} onClick={undo}>Undo</button>
-        <button type="button" disabled={redoCount === 0} onClick={redo}>Redo</button>
-        <span>{undoCount} / {redoCount}</span>
+      <CtrlSection label="Editing Context" />
+      <SelectRow
+        label="Active Scene"
+        value={scene.id}
+        options={state.scenes.map(candidate => ({ value: candidate.id, label: candidate.name }))}
+        onChange={value => setState(selectPixGridScene(state, value))}
+      />
+      <SelectRow
+        label="Edit Target"
+        value={targetValue}
+        options={targetOptions}
+        onChange={value => updateEditor({ selectedLayerId: value === 'scene' ? null : value })}
+        description={layer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
+      />
+      <div className="rv-ctrl-action-row rv-pix-grid-history-row" aria-label="PixGrid edit history">
+        <button type="button" className="rv-reset-btn" disabled={undoCount === 0} onClick={undo}>Undo</button>
+        <button type="button" className="rv-reset-btn" disabled={redoCount === 0} onClick={redo}>Redo</button>
+        <span className="rv-ctrl-info" aria-label={`${undoCount} undo steps and ${redoCount} redo steps`}>{undoCount} / {redoCount}</span>
       </div>
 
       {surface === 'grid' && (
         <>
-          <CtrlSection label="GRID" />
+          <CtrlSection label="Grid Presentation" />
           <SelectRow label="Quality" value={state.quality} options={QUALITY_OPTIONS} onChange={value => setState({ quality: value as PixGridQualityTier })} />
           <HistorySlider><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => applyState({ ...useReactStore.getState().pixGridState, cellGap: value })} /></HistorySlider>
           <HistorySlider><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => applyState({ ...useReactStore.getState().pixGridState, cellRoundness: value })} /></HistorySlider>
@@ -109,7 +144,7 @@ export function PixGridDesignPanel() {
 
       {surface === 'scene' && (
         <>
-          <CtrlSection label="SCENE" />
+          <CtrlSection label="Scene" />
           <TextInputRow
             label="Name"
             value={sceneName}
@@ -126,7 +161,7 @@ export function PixGridDesignPanel() {
 
       {surface === 'layer' && layer && (
         <>
-          <CtrlSection label="LAYER" />
+          <CtrlSection label="Layer" />
           <div className="rv-ctrl-info"><strong>{layer.name}</strong><br />{layer.mediaId ? 'Media Library artwork' : layer.assetId}</div>
           <ToggleRow label="Visible" value={layer.visible} onChange={value => updateLayer({ visible: value })} />
           <ToggleRow label="Locked" value={layer.locked === true} onChange={value => applyState(updatePixGridLayer(state, layer.id, { locked: value }))} />
@@ -146,7 +181,7 @@ export function PixGridDesignPanel() {
 
       {surface === 'selection' && state.editor.selection && (
         <>
-          <CtrlSection label="SELECTION" />
+          <CtrlSection label="Selection" />
           <div className="rv-ctrl-info">X {state.editor.selection.x} · Y {state.editor.selection.y} · {state.editor.selection.width} × {state.editor.selection.height}</div>
           <div className="rv-ctrl-action-row">
             <button type="button" className="rv-reset-btn" onClick={() => {
@@ -162,22 +197,17 @@ export function PixGridDesignPanel() {
 
       {surface === 'tool' && (
         <>
-          <CtrlSection label="TOOL SETTINGS" />
+          <CtrlSection label="Tool Settings" />
           <SelectRow label="Tool" value={state.editorTool} options={TOOL_OPTIONS} onChange={value => setState({ editorTool: value as PixGridEditorTool })} />
-          <TextInputRow
+          <ColorRow
             label="Paint Color"
-            value={paintColor}
-            maxLength={7}
-            placeholder="#ffffff"
-            onChange={setPaintColor}
-            onBlur={() => {
-              if (/^#[0-9a-f]{6}$/i.test(paintColor)) updateEditor({ paintColor })
-              else setPaintColor(state.editor.paintColor)
-            }}
+            value={state.editor.paintColor}
+            onChange={paintColor => updateEditor({ paintColor })}
+            description="The active paint, fill, line, and rectangle color."
           />
           <SliderRow label="Paint Opacity" value={state.editor.paintOpacity} onChange={value => updateEditor({ paintOpacity: value })} />
           <SelectRow
-            label="Eraser"
+            label="Eraser Behavior"
             value={state.editor.eraserMode}
             options={[{ value: 'off', label: 'Clear / Force Off' }, { value: 'restore', label: 'Restore Inherited' }]}
             onChange={value => updateEditor({ eraserMode: value as 'off' | 'restore' })}

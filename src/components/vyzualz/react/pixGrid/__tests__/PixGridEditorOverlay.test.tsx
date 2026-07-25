@@ -105,6 +105,29 @@ describe('PixGrid editor overlay shell', () => {
     expect(shouldShowPixGridEditorOverlay('canvas', true)).toBe(false)
   })
 
+  it('opens with drawing-first guidance and identifiable scene, target, tool, and color', () => {
+    act(() => root.render(<PixGridEditorOverlay liveCanvas={liveCanvas} />))
+    expect(useReactStore.getState().pixGridState.editorTool).toBe('pencil')
+    expect(host.textContent).toContain('Choose a tool, then draw on the center canvas.')
+    expect(host.textContent).toContain('Changes save automatically.')
+    expect(host.querySelector('[aria-label="Active PixGrid scene"]')).toBeInstanceOf(HTMLSelectElement)
+    expect(host.querySelector('[aria-label="PixGrid edit target"]')).toBeInstanceOf(HTMLSelectElement)
+    expect(host.querySelector('[aria-label="Active PixGrid paint color"]')).toBeInstanceOf(HTMLInputElement)
+    const pencil = host.querySelector<HTMLButtonElement>('[aria-label="Pencil tool, shortcut P"]')!
+    expect(pencil.getAttribute('aria-pressed')).toBe('true')
+    expect(pencil.title).toContain('Draw cells')
+  })
+
+  it('exposes accessible tool names, shortcuts, selected state, and contextual disabled reasons', () => {
+    act(() => root.render(<PixGridEditorOverlay liveCanvas={null} />))
+    const tools = host.querySelectorAll<HTMLButtonElement>('.rv-pix-grid-editor-tool-list button')
+    expect(tools).toHaveLength(10)
+    expect([...tools].every(button => button.hasAttribute('aria-label') && button.hasAttribute('aria-pressed'))).toBe(true)
+    const eyedropper = host.querySelector<HTMLButtonElement>('[aria-label="Eyedropper tool, shortcut I"]')!
+    expect(eyedropper.disabled).toBe(true)
+    expect(eyedropper.title).toContain('unavailable')
+  })
+
   it('uses one canvas and never creates an interactive DOM node per logical cell', () => {
     act(() => root.render(<PixGridEditorOverlay liveCanvas={liveCanvas} />))
     expect(host.querySelectorAll('canvas')).toHaveLength(1)
@@ -136,7 +159,7 @@ describe('PixGrid editor overlay shell', () => {
 
   it('disables the eyedropper with a clear state when live output is unavailable', () => {
     act(() => root.render(<PixGridEditorOverlay liveCanvas={null} />))
-    const pick = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Pick')!
+    const pick = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('Eyedropper'))!
     expect(pick.disabled).toBe(true)
     expect(host.textContent).toContain('Live output unavailable')
     expect(host.querySelector('[data-live-canvas="unavailable"]')).not.toBeNull()
@@ -187,6 +210,23 @@ describe('PixGrid editor overlay shell', () => {
 
     act(() => root.render(null))
     act(() => root.render(<PixGridEditorOverlay liveCanvas={liveCanvas} />))
+    expect(useReactStore.getState().pixGridState.pixelOverrides).toHaveLength(1)
+  })
+
+  it('closes with Done without losing already committed edits', () => {
+    useReactStore.getState().setPixGridState({
+      editorTool: 'pencil',
+      editor: { ...useReactStore.getState().pixGridState.editor, selectedLayerId: null },
+    })
+    act(() => root.render(<PixGridEditorOverlay liveCanvas={liveCanvas} />))
+    const editor = host.querySelector<HTMLCanvasElement>('.rv-pix-grid-editor-canvas')!
+    dispatchPointer(editor, 'pointerdown', { clientX: 320, clientY: 180 })
+    dispatchPointer(editor, 'pointerup', { clientX: 320, clientY: 180 })
+    expect(useReactStore.getState().pixGridState.pixelOverrides).toHaveLength(1)
+
+    const done = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Done')!
+    act(() => done.click())
+    expect(useReactStore.getState().pixGridState.authoringOverlayVisible).toBe(false)
     expect(useReactStore.getState().pixGridState.pixelOverrides).toHaveLength(1)
   })
 

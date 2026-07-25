@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import { handleReactPersistenceStatus } from './reactPersistenceStatusStore'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
+import { normalizeSoundDrawingVisualSize } from '../components/vyzualz/react/soundDrawing/SoundDrawingVisualSize'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
   getReactPerformanceAction,
@@ -271,6 +272,7 @@ function normalizeOscillatorSettings(settings: OscillatorSettings): OscillatorSe
   const normalized = normalizeUnifiedSvgSettings(settings)
   return {
     ...normalized,
+    pathScale: normalizeSoundDrawingVisualSize(normalized.pathScale),
     textSource: normalizeSoundDrawingTextSource(normalized.textSource),
     lyricGapBehavior: normalizeSoundDrawingGapBehavior(normalized.lyricGapBehavior),
     lyricFallbackText: typeof normalized.lyricFallbackText === 'string'
@@ -4306,12 +4308,23 @@ export const useReactStore = create<ReactStoreState>()(
         pixGridState: resetPixGridStatePreservingSelection(state.pixGridState),
       })),
 
-      setPixGridAuthoringOverlayVisible: (visible) => set((state) => ({
-        pixGridState: normalizePixGridState({
-          ...state.pixGridState,
-          authoringOverlayVisible: visible,
-        }),
-      })),
+      setPixGridAuthoringOverlayVisible: (visible) => set((state) => {
+        const firstAuthoringEntry = visible && !state.pixGridState.editor.hasEnteredAuthoring
+        return {
+          pixGridState: normalizePixGridState({
+            ...state.pixGridState,
+            authoringOverlayVisible: visible,
+            editorTool: firstAuthoringEntry && state.pixGridState.editorTool === 'select'
+              ? 'pencil'
+              : state.pixGridState.editorTool,
+            editor: {
+              ...state.pixGridState.editor,
+              hasEnteredAuthoring: state.pixGridState.editor.hasEnteredAuthoring || visible,
+              selectedLayerId: firstAuthoringEntry ? null : state.pixGridState.editor.selectedLayerId,
+            },
+          }),
+        }
+      }),
 
       applyPixGridAuthoringState: (nextState) => set(state => buildPixGridHistoryPatch(state, nextState)),
 
