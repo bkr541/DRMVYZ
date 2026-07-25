@@ -407,7 +407,15 @@ function macroOpticalPlan(
 }
 
 export function createLaserDmxMacroScannerPlan(input: CreateLaserDmxMacroScannerPlanInput): LaserDmxMacroScannerPlanResult {
-  if (input.fixture.kind !== 'laser' || !input.fixture.enabled || !input.fixture.beam.beamEnabled) {
+  if (
+    input.fixture.kind !== 'laser'
+    || !input.fixture.enabled
+    || input.fixture.runtimeOutputGate?.open === false
+    || input.macro.outputGateOpen === false
+    || input.macro.lifecycleState === 'off'
+    || input.macro.lifecycleState === 'blackout'
+    || !input.fixture.beam.beamEnabled
+  ) {
     return {
       heads: [], paths: [], opticalCopies: [],
       diagnostics: {

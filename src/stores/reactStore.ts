@@ -3816,6 +3816,16 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(state.soundDrawingPerformanceSettings),
     }
   }
+  if (version < 54) {
+    // Patch 1 of the finite-cue architecture re-normalizes every persisted
+    // performance definition so v1 programming documents gain bounded cue
+    // lifecycles, parameter ownership, output gates, and safe blackout defaults.
+    state = {
+      ...state,
+      laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
+      laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -7997,7 +8007,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 53,
+      version: 54,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

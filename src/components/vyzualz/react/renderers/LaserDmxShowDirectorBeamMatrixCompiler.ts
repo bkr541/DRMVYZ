@@ -285,9 +285,10 @@ function gridTargetFromEditableTarget(
 function defaultAppearance(fixture: LaserDmxShowDirectorFixture, patch: Partial<LaserDmxMatrixBeamAppearance> = {}): LaserDmxMatrixBeamAppearance {
   const brightness = clamp01(finite(fixture.brightness, 0.85))
   const spread = clamp(finite(fixture.beam.beamSpread, 0), 0, 180)
+  const outputEnabled = fixture.enabled && fixture.runtimeOutputGate?.open !== false
   return {
     dimmer:        brightness,
-    shutterOpen:   fixture.enabled,
+    shutterOpen:   outputEnabled,
     width:         1,
     focus:         clamp01(finite(fixture.beam.focus, 0.8)),
     strobeRate:    0,
@@ -777,7 +778,7 @@ function makeGroup(fixture: LaserDmxShowDirectorFixture, groupLabels: Map<string
   return {
     id: groupIdForFixture(fixture),
     name: ((fixture.groupId ? groupLabels.get(fixture.groupId) : null) ?? fixture.groupId?.trim()) || fixture.label || `Show Director ${fixture.kind}`,
-    enabled: fixture.enabled,
+    enabled: fixture.enabled && fixture.runtimeOutputGate?.open !== false,
     muted: false,
     soloed: false,
     colorOverrideEnabled: true,
@@ -843,7 +844,7 @@ function makeBeam(
   return {
     id: beamIdForFixture(fixture, suffix),
     name: `${fixture.label || fixture.kind} ${suffix}`,
-    enabled: fixture.enabled,
+    enabled: fixture.enabled && fixture.runtimeOutputGate?.open !== false,
     sequenceIndex,
     origin,
     target,
@@ -1201,7 +1202,7 @@ function hazeFogRoutes(fixture: LaserDmxShowDirectorFixture): LaserDmxModulation
 }
 
 function compileFixture(fixture: LaserDmxShowDirectorFixture, ctx: FixtureCompileContext): void {
-  if (!fixture || fixture.enabled !== true || !hasFixtureShape(fixture) || !isSupportedFixtureKind(fixture.kind)) return
+  if (!fixture || fixture.enabled !== true || fixture.runtimeOutputGate?.open === false || !hasFixtureShape(fixture) || !isSupportedFixtureKind(fixture.kind)) return
   ctx.groups.push(makeGroup(fixture, ctx.groupLabels))
   compileTriggerGateCues(fixture, ctx)
   ctx.hasRenderableFixture = true

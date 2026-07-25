@@ -641,7 +641,9 @@ function roleForFixture(
 }
 
 function createFixtureBeamAllocations(input: CreateLaserDmxSceneFrameInput): Map<string, number> {
-  const fixtures = input.showDirector.fixtures
+  const fixtures = input.showDirector.fixtures.map(fixture => (
+    fixture.runtimeOutputGate?.open === false ? { ...fixture, enabled: false } : fixture
+  ))
   if (input.fixturePriorityById || input.fixturePriorityRoleById) {
     const report = createLaserDmxShowDirectorBeamBudgetReport(
       fixtures,
@@ -824,7 +826,9 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
   const columns = Math.max(1, Math.round(showDirector.settings.gridSize.columns || 1))
   const rows = Math.max(1, Math.round(showDirector.settings.gridSize.rows || 1))
   const masterDimmer = clamp01(evaluated.output.masterDimmer)
-  const blackout = evaluated.output.blackout === true
+  const finiteCueGates = showDirector.fixtures.map(fixture => fixture.runtimeOutputGate).filter((gate): gate is NonNullable<typeof gate> => Boolean(gate))
+  const finiteCueBlackout = finiteCueGates.length > 0 && finiteCueGates.every(gate => !gate.open)
+  const blackout = evaluated.output.blackout === true || finiteCueBlackout
   const selected = new Set(showDirector.selectedFixtureIds)
   if (showDirector.selectedFixtureId) selected.add(showDirector.selectedFixtureId)
   const allocations = createFixtureBeamAllocations(input)
@@ -848,19 +852,21 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     // Geometry is captured before the Beam Matrix compatibility compiler. Grid
     // dimensions define the authoring bounds only; fixture and target values are
     // never rounded or converted into matrix cells on the WebGL path.
-    const fixtureEnabled = fixture.enabled
+    const fixtureEnabled = fixture.enabled && fixture.runtimeOutputGate?.open !== false
     const intensity = fixtureEnabled ? clamp01(fixture.brightness) : 0
     const xy = normalizedStagePoint(fixture, columns, rows)
     const fixtureDepth = resolveLaserDmxFixtureDepth(fixture, xy.y)
     const position: LaserDmxSceneVec3 = { ...xy, z: fixtureDepth.z }
     const color = authoredColor
-    if (fixture.kind === 'laser') scannerOriginByFixtureId.set(fixture.id, position)
+    if (fixture.kind === 'laser' && fixtureEnabled) scannerOriginByFixtureId.set(fixture.id, position)
     const allocatedDemand = allocations.get(fixture.id) ?? 0
     const requestedDemand = estimateLaserDmxShowDirectorFixtureBeamDemand(fixture, {
       quality: showDirector.settings.webglQuality,
       role: input.fixturePriorityRoleById?.[fixture.id],
     })
-    const targetSeeds = targetsForFixture(fixture, columns, rows, allocatedDemand, requestedDemand, input)
+    const targetSeeds = fixtureEnabled
+      ? targetsForFixture(fixture, columns, rows, allocatedDemand, requestedDemand, input)
+      : []
     const resolvedTargets = targetSeeds.map(seed => {
       const targetXy = normalizedStagePoint(seed, columns, rows)
       const targetDepth = resolveLaserDmxTargetDepth({
@@ -891,7 +897,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
         bounds: { columns, rows },
       })
       : null
-    const authoredScannerTargets = authoredScanner?.path.points.map((point, pointIndex) => {
+    const authoredScannerTargets = fixtureEnabled ? authoredScanner?.path.points.map((point, pointIndex) => {
       const targetXy = normalizedStagePoint(point, columns, rows)
       const targetDepth = resolveLaserDmxTargetDepth({
         fixture,
@@ -916,13 +922,13 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
         color: point.color ? colorFromHex(point.color, fixture.color) : color,
         sourceTargetId: point.id,
       }
-    }) ?? []
+    }) ?? [] : []
     const authoredScannerDemand = clamp(
       Math.max(fixture.beam.targets?.length ?? 0, fixture.optics.rayCount, 1),
       1,
       LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS,
     )
-    const scannerTargetSeeds = fixture.kind === 'laser' && !authoredScanner && !macroPlan
+    const scannerTargetSeeds = fixtureEnabled && fixture.kind === 'laser' && !authoredScanner && !macroPlan
       ? targetsForFixture(fixture, columns, rows, authoredScannerDemand, authoredScannerDemand, input)
       : []
     const scannerTargets = scannerTargetSeeds.map(seed => {
@@ -1170,6 +1176,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     exposureAggregation: exposureAggregation.diagnostics,
   })
   const scannerHistoryReset = scanPaths.some(path => path.clearTemporalHistory)
+    || showDirector.fixtures.some(fixture => fixture.runtimeOutputGate?.clearTemporalHistory === true && fixture.runtimeOutputGate.open === false)
   const timingDiscontinuity = input.timingDiscontinuity || scannerHistoryReset
   const transientEvents = createSceneTransientEvents({
     timestamp: Math.max(0, finite(input.audioTimeSec, 0)),

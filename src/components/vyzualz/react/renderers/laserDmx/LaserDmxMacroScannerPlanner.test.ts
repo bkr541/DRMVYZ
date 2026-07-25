@@ -229,6 +229,48 @@ describe('LaserDMX macro-aware scanner planning', () => {
     expect(scannerPlan.paths[0]!.clearTemporalHistory).toBe(true)
   })
 
+  it('emits no scanner path, legacy ray, or scene-frame history contribution when the finite cue gate is closed', () => {
+    const gatedFixture = fixture()
+    gatedFixture.runtimeOutputGate = {
+      open: false,
+      reason: 'blackout',
+      cueId: 'cue-blackout',
+      lifecycleState: 'blackout',
+      clearTemporalHistory: true,
+    }
+    gatedFixture.runtimeScanner = {
+      authoritativeSource: 'macro',
+      macroPlan: macro({ outputGateOpen: false, lifecycleState: 'blackout', shutterClosed: true, clearTemporalHistory: true }),
+    }
+    const scannerPlan = createLaserDmxMacroScannerPlan({
+      fixture: gatedFixture,
+      macro: gatedFixture.runtimeScanner.macroPlan!,
+      origin: ORIGIN,
+      primitiveType: 'fan',
+      color: COLOR,
+    })
+    expect(scannerPlan.paths).toEqual([])
+    expect(scannerPlan.heads).toEqual([])
+    expect(scannerPlan.opticalCopies).toEqual([])
+
+    const showDirector = createDefaultLaserDmxShowDirectorState()
+    showDirector.fixtures = [gatedFixture]
+    const frame = createLaserDmxSceneFrame({
+      showDirector,
+      evaluatedBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+      audioTimeSec: 8,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'finite-blackout-gate-test',
+      bpm: 150,
+      devicePixelRatio: 2,
+    })
+    expect(frame.scanPaths).toEqual([])
+    expect(frame.beams).toEqual([])
+    expect(frame.fixtures[0]?.enabled).toBe(false)
+  })
+
   it('routes macro-controlled fixtures through one scanner path and one aggregated WebGL path', () => {
     const showDirector = createDefaultLaserDmxShowDirectorState()
     const laser = fixture()

@@ -400,9 +400,9 @@ Both programs use schema version 3 and the existing transient scheduler, Track M
 
 ## Persistence and migration
 
-Projects created before performance programs normalize to a disabled default state. Program definitions normalize to schema version 3, including bounded blackout windows, section energy envelopes, and bar-progression stages. A legacy built-in ID-only project hydrates a fresh cloned program from the current built-in registry. A missing or removed built-in ID is suppressed safely instead of appearing enabled without an executable program.
+Projects created before performance programs normalize to a disabled default state. Current program definitions normalize to schema version 5. The nested Show Programming document normalizes to version 2 with bounded finite commands, explicit attack/movement/hold/release/blackout lifecycle defaults, deterministic parameter ownership, program-level output constraints, and a renderer-facing shutter gate. Existing schema-version-3 show definitions remain valid authored inputs and are upgraded during normalization. A legacy built-in ID-only project hydrates a fresh cloned program from the current built-in registry. A missing or removed built-in ID is suppressed safely instead of appearing enabled without an executable program.
 
-Malformed program data normalizes to a disabled or safely suppressed state. Stable semantic fixture and group keys survive recreation and preset reload. Clearing a program leaves the authored rig intact.
+Malformed program data normalizes to a disabled or safely suppressed state. Legacy continuous phase or target motion is converted to a bounded macro command with safe maximum duration and completion blackout instead of preserving permanent rotation. Stable semantic fixture and group keys survive recreation and preset reload. Clearing a program leaves the authored rig intact.
 
 ## Performance and lifecycle
 

@@ -100,7 +100,7 @@ function rig(presentationMode: 'edit' | 'live' | 'capture' = 'edit'): LaserDmxSh
 
 function program(): LaserDmxShowDirectorPerformanceProgram {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     id: 'programming-test',
     name: 'Programming Test',
     deterministicSeed: 42,
@@ -216,7 +216,10 @@ function resolveMixedFixtureFamily(family: LaserShowProgrammingDocument['macros'
 describe('LaserDMX show programming architecture', () => {
   it('creates versioned macros and cue stacks without deleting the legacy source', () => {
     const document = adapterDocument()
-    expect(document.schemaVersion).toBe(1)
+    expect(document.schemaVersion).toBe(2)
+    expect(document.macros[0].schemaVersion).toBe(2)
+    expect(document.cueStacks[0].schemaVersion).toBe(2)
+    expect(document.constraints.requiredBlackoutBeats).toBeGreaterThan(0)
     expect(document.macros).toHaveLength(1)
     expect(document.cueStacks[0].cues).toHaveLength(1)
     expect(document.compatibility.source).toBe('legacy-adapter')
@@ -278,6 +281,138 @@ describe('LaserDMX show programming architecture', () => {
     const looped = resolveDocument(document, 5, { loop: 'loop-9' })
     expect(seeked.frame).toEqual(normal.frame)
     expect(looped.frame).toEqual(normal.frame)
+    expect(seeked.showDirector.fixtures.map(item => item.runtimeOutputGate)).toEqual(normal.showDirector.fixtures.map(item => item.runtimeOutputGate))
+  })
+
+  it('keeps scanner phase stable unless a finite command explicitly owns phase', () => {
+    const document = adapterDocument()
+    document.macros[0].scan.phase = 0.375
+    document.macros[0].automation = []
+    document.macros[0].defaultCommand = {
+      kind: 'staticHold', durationBeats: 4, easing: 'easeInOut', loopMode: 'none', shutdown: 'blackout',
+    }
+    document.cueStacks[0].cues[0].command = document.macros[0].defaultCommand
+    const first = resolveDocument(document, 0.5)
+    const later = resolveDocument(document, 1.5)
+    expect(first.frame?.phase).toBeCloseTo(0.375, 8)
+    expect(later.frame?.phase).toBeCloseTo(0.375, 8)
+  })
+
+  it('executes finite rotation, settles at its endpoint, then enters a true blackout', () => {
+    const document = adapterDocument()
+    const cue = document.cueStacks[0].cues[0]
+    cue.duration = { kind: 'explicitBeats', beats: 8 }
+    cue.command = {
+      kind: 'circleRotation',
+      durationBeats: 4,
+      easing: 'linear',
+      rotation: {
+        target: 'patternPhase', startAngleDeg: 0, endAngleDeg: 360, durationBeats: 4,
+        direction: 'clockwise', easing: 'linear', holdAfterCompletion: true,
+      },
+      loopMode: 'none',
+      shutdown: 'blackout',
+    }
+    cue.lifecycle = {
+      delayBeats: 0, attackBeats: 0, movementBeats: 4, holdBeats: 2, releaseBeats: 1,
+      blackoutBeats: 1, blackoutAfterCompletion: true, maximumRunBeats: 7,
+      completionBehavior: 'blackout', returnBehavior: 'none',
+    }
+    const moving = resolveDocument(document, 1)
+    const held = resolveDocument(document, 2.5)
+    const black = resolveDocument(document, 3.75)
+    expect(moving.frame?.lifecycleState).toBe('movement')
+    expect(held.frame?.lifecycleState).toBe('hold')
+    expect(held.frame?.phase).toBeCloseTo(document.macros[0].scan.phase, 8)
+    expect(black.frame?.lifecycleState).toBe('blackout')
+    expect(black.frame?.outputGateOpen).toBe(false)
+    expect(black.showDirector.fixtures.every(item => item.runtimeOutputGate?.open === false)).toBe(true)
+    expect(black.showDirector.fixtures.every(item => item.runtimeScanner?.shutterClosed === true)).toBe(true)
+  })
+
+  it('runs only an explicitly bounded finite rotation repeat count', () => {
+    const document = adapterDocument()
+    const cue = document.cueStacks[0].cues[0]
+    cue.duration = { kind: 'explicitBeats', beats: 4 }
+    cue.command = {
+      kind: 'circleRotation',
+      durationBeats: 1,
+      easing: 'linear',
+      rotation: {
+        target: 'patternPhase', startAngleDeg: 0, turnCount: 1, durationBeats: 1,
+        direction: 'clockwise', easing: 'linear', holdAfterCompletion: true,
+      },
+      loopMode: 'bounded',
+      repeatCount: 2,
+      maximumLoopBeats: 2,
+      shutdown: 'blackout',
+    }
+    cue.lifecycle = {
+      delayBeats: 0, attackBeats: 0, movementBeats: 2, holdBeats: 1, releaseBeats: 0,
+      blackoutBeats: 1, blackoutAfterCompletion: true, maximumRunBeats: 3,
+      completionBehavior: 'blackout', returnBehavior: 'none',
+    }
+    const firstTurn = resolveDocument(document, 0.25)
+    const secondTurn = resolveDocument(document, 0.75)
+    const settled = resolveDocument(document, 1.25)
+    expect(firstTurn.frame?.phase).toBeCloseTo(secondTurn.frame?.phase ?? -1, 8)
+    expect(firstTurn.frame?.phase).not.toBeCloseTo(document.macros[0].scan.phase, 8)
+    expect(settled.frame?.lifecycleState).toBe('hold')
+    expect(settled.frame?.phase).toBeCloseTo(document.macros[0].scan.phase, 8)
+    expect(validateLaserShowProgrammingDocument(document).some(issue => issue.code === 'unbounded-continuous-motion')).toBe(false)
+  })
+
+  it('fails dark when no cue is active and emits no fallback fixture output', () => {
+    const document = adapterDocument()
+    const cue = document.cueStacks[0].cues[0]
+    document.cueStacks[0].cues = [{ ...cue, duration: { kind: 'beat' }, repeatEveryBeats: 4 }]
+    const gap = resolveDocument(document, 1)
+    expect(gap.cue).toBeNull()
+    expect(gap.showDirector.fixtures.every(item => item.runtimeOutputGate?.open === false)).toBe(true)
+    expect(gap.showDirector.fixtures.every(item => item.runtimeScanner?.shutterClosed === true)).toBe(true)
+    expect(gap.diagnostics.blackedOutFixtureIds).toHaveLength(gap.showDirector.fixtures.length)
+  })
+
+  it('enforces active-fixture and animated-pattern constraints deterministically', () => {
+    const authoredRig = mixedFixtureRig()
+    const document = createLegacyLaserProgrammingAdapter(program(), authoredRig)
+    document.constraints.maximumSimultaneouslyActiveLaserFixtures = 1
+    document.constraints.maximumSimultaneouslyAnimatedPatterns = 1
+    document.macros[0].fixtureGroupAssignments[0].address = { fixtureIds: authoredRig.fixtures.map(item => item.id) }
+    document.cueStacks[0].cues[0].command = {
+      kind: 'circleRotation', durationBeats: 4, easing: 'linear', loopMode: 'none', shutdown: 'blackout',
+      rotation: { target: 'patternPhase', startAngleDeg: 0, turnCount: 1, durationBeats: 4, direction: 'clockwise', easing: 'linear', holdAfterCompletion: true },
+    }
+    const baseProgram = { ...program(), laserProgramming: document }
+    const result = resolveLaserShowProgramming({
+      document, program: baseProgram, selectedScene: baseProgram.scenes[0], authoredRig, runtimeRig: authoredRig,
+      context: contextAt(0.5), programSeed: 42,
+    })
+    expect(result.diagnostics.activeFixtureIds.filter(id => id.startsWith('laser-'))).toHaveLength(1)
+    expect(result.frame?.animatedFixtureIds).toHaveLength(1)
+    expect(result.showDirector.fixtures.filter(item => item.kind === 'laser' && item.runtimeOutputGate?.open)).toHaveLength(1)
+  })
+
+  it('migrates v1 continuous programming into bounded finite commands', () => {
+    const legacy = JSON.parse(JSON.stringify(adapterDocument())) as Record<string, unknown>
+    legacy.schemaVersion = 1
+    delete legacy.constraints
+    const macro = (legacy.macros as Array<Record<string, unknown>>)[0]
+    macro.schemaVersion = 1
+    macro.family = 'sequentialCircle'
+    macro.automation = [{ id: 'legacy-phase', parameter: 'phase', from: 0, to: 1, startProgress: 0, endProgress: 1, curve: 'linear' }]
+    delete macro.defaultCommand
+    const cue = ((legacy.cueStacks as Array<Record<string, unknown>>)[0].cues as Array<Record<string, unknown>>)[0]
+    cue.schemaVersion = 1
+    delete cue.lifecycle
+    delete cue.command
+    delete cue.ownership
+    const migrated = normalizeLaserShowProgrammingDocument(legacy, program())!
+    expect(migrated.schemaVersion).toBe(2)
+    expect(migrated.macros[0].defaultCommand?.rotation?.durationBeats).toBeGreaterThan(0)
+    expect(migrated.cueStacks[0].cues[0].lifecycle?.maximumRunBeats).toBeLessThanOrEqual(16)
+    expect(migrated.cueStacks[0].cues[0].ownership?.parameters).toContain('output')
+    expect(migrated.compatibility.warnings.some(warning => warning.includes('bounded finite cue'))).toBe(true)
   })
 
   it('evaluates bounded automation from cue-relative progress without mutating source data', () => {
@@ -288,7 +423,7 @@ describe('LaserDMX show programming architecture', () => {
     }]
     const before = JSON.stringify(document)
     const result = resolveDocument(document, 1)
-    expect(result.frame?.fanSpread).toBeCloseTo(20, 5)
+    expect(result.frame?.fanSpread).toBeCloseTo(30, 5)
     expect(JSON.stringify(document)).toBe(before)
   })
 
@@ -481,6 +616,10 @@ describe('LaserDMX show programming architecture', () => {
     }]
     document.macros[0].transitionIn = {
       type: 'shutterOutIn', durationBeats: 2, blankDisconnectedTravel: true, shutterDuringSwap: true,
+    }
+    document.cueStacks[0].cues[0].lifecycle = {
+      ...document.cueStacks[0].cues[0].lifecycle!,
+      attackBeats: 2,
     }
     const sameBeatA = resolveDocument(document, 0.1)
     const sameBeatB = resolveDocument(document, 0.2)

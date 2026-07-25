@@ -2,7 +2,7 @@
 
 ## Status
 
-Corrective Patches 1 and 2 provide the authoritative professional show-programming layer and its native physical-scanner execution path. It does not replace ordered scan paths, scanner kinematics, blanking, exposure sampling, WebGL rendering, Canvas2D fallback, production output, or recovery behavior.
+Corrective Patches 1 and 2 provide the authoritative professional show-programming layer and its native physical-scanner execution path. Finite Cue Architecture Patch 1 extends that same canonical layer with bounded DMX-style commands, explicit cue lifecycle state, parameter ownership, and a hard renderer-facing output gate. It does not replace ordered scan paths, scanner kinematics, blanking, exposure sampling, WebGL rendering, Canvas2D fallback, production output, or recovery behavior.
 
 The runtime order is now:
 
@@ -31,7 +31,7 @@ Each normalized `LaserDmxShowDirectorPerformanceProgram` now carries a `laserPro
 - transition settings
 - compatibility metadata and migration warnings
 
-The Performance Program schema is version 4 and the persisted React store is version 52. Older projects are normalized through the compatibility adapter without rewriting their original authored scenes. The adapter keeps a JSON-safe `originalProgramBackup` for migration preview and rollback workflows.
+The Performance Program schema is version 5, the nested Laser Show Programming document is version 2, and the persisted React store is version 54. Older projects are normalized through the compatibility adapter without rewriting their original authored scenes. The adapter keeps a JSON-safe `originalProgramBackup` for migration preview and rollback workflows. Version-1 programming documents inherit bounded macro commands, finite lifecycle defaults, deterministic ownership, maximum-run limits, and blackout-after-completion behavior.
 
 ## Effect macros
 
@@ -78,6 +78,16 @@ A `LaserPerformanceCue` selects a macro and defines:
 Cue start offsets are quantized from the current macro-section anchor. A cue is active only inside its authored window. It repeats only when `repeatEveryBeats` is present. Multiple eligible cues are resolved by priority, latest active start, then stable ID order.
 
 Kick, snare, hat, beat, bar, phrase, and section accents are reported as layers over the primary cue. They do not replace the primary macro.
+
+## Finite cue lifecycle and command authority
+
+Every resolved primary cue advances through explicit `off`, `attack`, `movement`, `hold`, `release`, and `blackout` states. Attack, movement, hold, release, required darkness, and maximum-run limits are evaluated from canonical musical position rather than accumulated render delta. A direct seek to a cue timestamp therefore reconstructs the same lifecycle state, progress, fixture recruitment, ownership, and output gate as uninterrupted playback.
+
+Finite commands keep fixture pan/tilt, scanner-frame pattern position, pattern phase/rotation, pattern scale, intensity/shutter, color, optics, scan speed, and persistence intent as separate parameter domains. Pattern rotation does not rotate fixture aim unless a command explicitly targets fixture pan or tilt. Rotation commands require a bounded angle or turn count, duration, direction, easing, hold/completion behavior, and maximum duration. Looping is opt-in and remains bounded by an authored repeat count, maximum loop duration, maximum cue run duration, and shutdown behavior.
+
+Parameter ownership is deterministic. Blackout authority wins first, then non-interruptible ownership, then priority, latest quantized start, and stable cue ID. Ownership is released when the cue completes. Program constraints cap simultaneously active laser fixtures, continuously open output, animated scanner patterns, and finite rotation duration, while requiring authored darkness between selected cue windows.
+
+The runtime output gate is independent of nominal intensity. A closed gate suppresses scanner samples, legacy rays, Beam Matrix beams, fallback fixtures, glow/history contribution, and renderer temporal history. An inactive cue stack fails dark rather than returning an illuminated authored rig. Both WebGL and Canvas2D consume this same resolved gate and fixture state.
 
 ## Fixture-group relationships
 
@@ -146,6 +156,10 @@ Transitions carry explicit blank-disconnected-travel and shutter-during-swap fla
 Outside Capture presentation mode, the Performance Program panel reports:
 
 - active primary and accent cues
+- cue lifecycle state, lifecycle progress, remaining duration, and completion reason
+- owning macro and deterministically owned parameters
+- active and blacked-out fixture IDs
+- current quantization boundary and finite-command validation warnings
 - active macro
 - cue start and remaining beats
 - fixture-group relationships

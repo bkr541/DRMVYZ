@@ -17,10 +17,10 @@ import type {
 } from './LaserDmxShowDirectorPerformanceProgram'
 import type { LaserDmxShowDirectorPerformanceTimingContext } from './LaserDmxShowDirectorPerformanceContext'
 
-export const LASER_DMX_SHOW_PROGRAMMING_SCHEMA_VERSION = 1 as const
-export const LASER_DMX_EFFECT_MACRO_SCHEMA_VERSION = 1 as const
-export const LASER_DMX_CUE_STACK_SCHEMA_VERSION = 1 as const
-export const LASER_DMX_PATTERN_FRAME_SCHEMA_VERSION = 1 as const
+export const LASER_DMX_SHOW_PROGRAMMING_SCHEMA_VERSION = 2 as const
+export const LASER_DMX_EFFECT_MACRO_SCHEMA_VERSION = 2 as const
+export const LASER_DMX_CUE_STACK_SCHEMA_VERSION = 2 as const
+export const LASER_DMX_PATTERN_FRAME_SCHEMA_VERSION = 2 as const
 
 export type LaserEffectFamily =
   | 'heldBeam'
@@ -62,6 +62,7 @@ export type LaserCueDurationKind =
   | 'twoBars'
   | 'fourBars'
   | 'eightBars'
+  | 'sixteenBars'
   | 'phrase'
   | 'section'
   | 'explicitBeats'
@@ -214,6 +215,118 @@ export interface LaserEffectAutomation {
   steps?: number
 }
 
+export type LaserCueLifecycleState = 'off' | 'attack' | 'movement' | 'hold' | 'release' | 'blackout'
+export type LaserCueTriggerSource =
+  | 'timeline'
+  | 'kick'
+  | 'snare'
+  | 'hat'
+  | 'beat'
+  | 'downbeat'
+  | 'bar'
+  | 'fourBars'
+  | 'eightBars'
+  | 'sixteenBars'
+  | 'phrase'
+  | 'sectionChange'
+  | 'buildStart'
+  | 'preDrop'
+  | 'drop'
+  | 'breakdown'
+  | 'semanticMoment'
+  | 'authoredCueMarker'
+export type LaserCueCompletionBehavior = 'settle' | 'return' | 'release' | 'blackout'
+export type LaserCueCompletionReason = 'running' | 'completed' | 'forced-blackout' | 'interrupted' | 'inactive'
+export type LaserCueReturnBehavior = 'none' | 'start'
+
+export type LaserFiniteMacroKind =
+  | 'tiltSweep'
+  | 'panSweep'
+  | 'fanOpen'
+  | 'fanClose'
+  | 'cross'
+  | 'mirror'
+  | 'patternScaleExpand'
+  | 'patternScaleContract'
+  | 'circleReveal'
+  | 'circleRotation'
+  | 'tunnelReveal'
+  | 'tunnelRotation'
+  | 'patternReplacement'
+  | 'fixtureGroupChase'
+  | 'fixtureRecruitment'
+  | 'fixtureWithdrawal'
+  | 'accentFlash'
+  | 'blackout'
+  | 'authoredAutomation'
+  | 'staticHold'
+
+export type LaserCueOwnedParameter =
+  | 'output'
+  | 'intensity'
+  | 'pan'
+  | 'tilt'
+  | 'pattern'
+  | 'patternPhase'
+  | 'patternScale'
+  | 'patternPosition'
+  | 'color'
+  | 'opticalCopies'
+  | 'scanSpeed'
+  | 'persistence'
+
+export interface LaserCueLifecycle {
+  delayBeats: number
+  attackBeats: number
+  movementBeats: number
+  holdBeats: number
+  releaseBeats: number
+  blackoutBeats: number
+  blackoutAfterCompletion: boolean
+  maximumRunBeats: number
+  completionBehavior: LaserCueCompletionBehavior
+  returnBehavior: LaserCueReturnBehavior
+}
+
+export interface LaserFiniteRotationCommand {
+  target: 'patternPhase' | 'patternRotation' | 'fixturePan' | 'fixtureTilt'
+  startAngleDeg: number
+  endAngleDeg?: number
+  turnCount?: number
+  durationBeats: number
+  direction: 'clockwise' | 'counterClockwise' | 'shortest'
+  easing: LaserEffectAutomationCurve
+  holdAfterCompletion: boolean
+}
+
+export interface LaserFiniteMacroCommand {
+  kind: LaserFiniteMacroKind
+  durationBeats: number
+  easing: LaserEffectAutomationCurve
+  startState?: Partial<Record<LaserCueOwnedParameter, number | boolean | string>>
+  destinationState?: Partial<Record<LaserCueOwnedParameter, number | boolean | string>>
+  rotation?: LaserFiniteRotationCommand
+  loopMode: 'none' | 'bounded'
+  repeatCount?: number
+  maximumLoopBeats?: number
+  shutdown: LaserCueCompletionBehavior
+}
+
+export interface LaserCueParameterOwnership {
+  parameters: LaserCueOwnedParameter[]
+  interruptible: boolean
+  releaseOnCompletion: boolean
+  blackoutOverride: boolean
+}
+
+export interface LaserShowProgrammingConstraints {
+  maximumSimultaneouslyActiveLaserFixtures: number
+  maximumContinuousOnBeats: number
+  requiredBlackoutBeats: number
+  maximumSimultaneouslyAnimatedPatterns: number
+  maximumFiniteRotationBeats: number
+}
+
 export type LaserEffectTransitionType =
   | 'cut'
   | 'fade'
@@ -238,7 +351,7 @@ export interface LaserEffectTransition {
 }
 
 export interface LaserEffectMacro {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   name: string
   family: LaserEffectFamily
@@ -253,6 +366,7 @@ export interface LaserEffectMacro {
   fixtureGroupAssignments: LaserEffectGroupAssignment[]
   transitionIn: LaserEffectTransition
   transitionOut: LaserEffectTransition
+  defaultCommand?: LaserFiniteMacroCommand
   compatibility?: {
     provisional: boolean
     sourceSceneId?: string
@@ -272,10 +386,12 @@ export interface LaserCueAccent {
 }
 
 export interface LaserPerformanceCue {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   name: string
   macroId: string
+  triggerSource?: LaserCueTriggerSource
+  authoredCueMarkerId?: string
   sceneIds?: string[]
   sectionTypes?: ReactSectionType[]
   startQuantize: Exclude<LaserCueDurationKind, 'explicitSeconds' | 'trackMapCue'>
@@ -292,24 +408,28 @@ export interface LaserPerformanceCue {
   minEnergy?: number
   maxEnergy?: number
   priority: number
+  lifecycle?: LaserCueLifecycle
+  command?: LaserFiniteMacroCommand
+  ownership?: LaserCueParameterOwnership
   blackout?: boolean
   shutterClosed?: boolean
 }
 
 export interface LaserCueStack {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   name: string
   cues: LaserPerformanceCue[]
 }
 
 export interface LaserShowProgrammingDocument {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   macros: LaserEffectMacro[]
   cueStacks: LaserCueStack[]
   activeCueStackId: string
   groupRelationships: LaserFixtureGroupRelationship[]
+  constraints: LaserShowProgrammingConstraints
   compatibility: {
     source: 'native' | 'legacy-adapter' | 'mixed'
     adapterVersion: number
@@ -320,7 +440,7 @@ export interface LaserShowProgrammingDocument {
 }
 
 export interface LaserStablePatternFrame {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   revision: number
   cueId: string
@@ -332,6 +452,20 @@ export interface LaserStablePatternFrame {
   cueStartBeat: number
   cueDurationBeats: number
   cueProgress: number
+  lifecycleState: LaserCueLifecycleState
+  lifecycleProgress: number
+  movementProgress: number
+  lifecycleRemainingBeats: number
+  completionReason: LaserCueCompletionReason
+  quantizationBoundary: LaserPerformanceCue['startQuantize']
+  owningMacroKind: LaserFiniteMacroKind
+  ownedParameters: LaserCueOwnedParameter[]
+  activeFixtureIds: string[]
+  blackedOutFixtureIds: string[]
+  animatedFixtureIds: string[]
+  outputGateOpen: boolean
+  patternAnimationActive: boolean
+  fixtureMovementActive: boolean
   centerX: number
   centerY: number
   depth: number
@@ -377,6 +511,11 @@ export interface LaserProgrammingValidationIssue {
     | 'transition-blanking-required'
     | 'independent-fixture-direction'
     | 'ray-slot-spacing'
+    | 'unbounded-continuous-motion'
+    | 'maximum-run-duration-exceeded'
+    | 'ownership-empty'
+    | 'constraint-invalid'
+    | 'rotation-duration-exceeded'
   severity: 'warning' | 'error'
   message: string
   sourceId?: string
@@ -405,7 +544,17 @@ export interface LaserProgrammingRuntimeDiagnostics {
   unexpectedTopologyChanges: number
   warnings: LaserProgrammingValidationIssue[]
   compatibilitySource: LaserShowProgrammingDocument['compatibility']['source'] | 'inactive'
+  cueLifecycleState: LaserCueLifecycleState
+  cueLifecycleProgress: number
+  cueRemainingDurationBeats: number
+  owningMacroKind: LaserFiniteMacroKind | null
+  activeFixtureIds: string[]
+  blackedOutFixtureIds: string[]
+  ownedParameters: LaserCueOwnedParameter[]
+  currentQuantizationBoundary: LaserPerformanceCue['startQuantize'] | null
+  completionReason: LaserCueCompletionReason
 }
+
 
 export interface ResolveLaserProgrammingInput {
   document: LaserShowProgrammingDocument
@@ -460,8 +609,30 @@ const TRANSITIONS = new Set<LaserEffectTransitionType>([
   'colorCrossfade', 'opticalModeSwap', 'briefBlackout', 'strobeTransition', 'blinderImpact',
 ])
 const DURATION_KINDS = new Set<LaserCueDurationKind>([
-  'beat', 'twoBeats', 'bar', 'twoBars', 'fourBars', 'eightBars', 'phrase', 'section', 'explicitBeats', 'explicitSeconds', 'trackMapCue',
+  'beat', 'twoBeats', 'bar', 'twoBars', 'fourBars', 'eightBars', 'sixteenBars', 'phrase', 'section', 'explicitBeats', 'explicitSeconds', 'trackMapCue',
 ])
+const CUE_TRIGGER_SOURCES = new Set<LaserCueTriggerSource>([
+  'timeline', 'kick', 'snare', 'hat', 'beat', 'downbeat', 'bar', 'fourBars', 'eightBars', 'sixteenBars', 'phrase',
+  'sectionChange', 'buildStart', 'preDrop', 'drop', 'breakdown', 'semanticMoment', 'authoredCueMarker',
+])
+const FINITE_MACRO_KINDS = new Set<LaserFiniteMacroKind>([
+  'tiltSweep', 'panSweep', 'fanOpen', 'fanClose', 'cross', 'mirror', 'patternScaleExpand', 'patternScaleContract',
+  'circleReveal', 'circleRotation', 'tunnelReveal', 'tunnelRotation', 'patternReplacement', 'fixtureGroupChase',
+  'fixtureRecruitment', 'fixtureWithdrawal', 'accentFlash', 'blackout', 'authoredAutomation', 'staticHold',
+])
+const OWNED_PARAMETERS = new Set<LaserCueOwnedParameter>([
+  'output', 'intensity', 'pan', 'tilt', 'pattern', 'patternPhase', 'patternScale', 'patternPosition', 'color',
+  'opticalCopies', 'scanSpeed', 'persistence',
+])
+const COMPLETION_BEHAVIORS = new Set<LaserCueCompletionBehavior>(['settle', 'return', 'release', 'blackout'])
+
+export const DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS: Readonly<LaserShowProgrammingConstraints> = Object.freeze({
+  maximumSimultaneouslyActiveLaserFixtures: 8,
+  maximumContinuousOnBeats: 16,
+  requiredBlackoutBeats: 0.25,
+  maximumSimultaneouslyAnimatedPatterns: 4,
+  maximumFiniteRotationBeats: 16,
+})
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -593,6 +764,10 @@ function transitionSafety(
 }
 
 function boundedEnvelope(frame: LaserStablePatternFrame, macro: LaserEffectMacro): number {
+  if (frame.lifecycleState === 'off' || frame.lifecycleState === 'blackout') return 0
+  if (frame.lifecycleState === 'attack') return frame.lifecycleProgress
+  if (frame.lifecycleState === 'release') return 1 - frame.lifecycleProgress
+  if (frame.lifecycleState === 'movement' || frame.lifecycleState === 'hold') return 1
   const attack = Math.max(0, macro.envelope.attack)
   const hold = Math.max(0, macro.envelope.hold)
   const release = Math.max(0, macro.envelope.release)
@@ -688,6 +863,203 @@ function normalizeAutomation(raw: unknown, index: number): LaserEffectAutomation
   }
 }
 
+function finiteMacroKindForFamily(family: LaserEffectFamily, automation: readonly LaserEffectAutomation[]): LaserFiniteMacroKind {
+  if (family === 'smoothFanSweep' || family === 'centerOutFan') return 'fanOpen'
+  if (family === 'outsideInFan') return 'fanClose'
+  if (family === 'crossingFans' || family === 'xFan') return 'cross'
+  if (family === 'mirroredFan' || family === 'opposedFans') return 'mirror'
+  if (family === 'sequentialCircle') return automation.some(lane => lane.parameter === 'phase' || lane.parameter === 'rotation') ? 'circleRotation' : 'circleReveal'
+  if (family === 'tunnel') return automation.some(lane => lane.parameter === 'phase' || lane.parameter === 'rotation') ? 'tunnelRotation' : 'tunnelReveal'
+  if (family === 'movingHeadSweep') {
+    if (automation.some(lane => lane.parameter === 'movingHeadTilt')) return 'tiltSweep'
+    return 'panSweep'
+  }
+  if (family === 'strobeAccent' || family === 'blinderImpact') return 'accentFlash'
+  if (family === 'ledChase') return 'fixtureGroupChase'
+  if (automation.some(lane => lane.parameter === 'width' || lane.parameter === 'height' || lane.parameter === 'radius')) return 'patternScaleExpand'
+  if (automation.length) return 'authoredAutomation'
+  return 'staticHold'
+}
+
+function normalizeRotationCommand(raw: unknown): LaserFiniteRotationCommand | undefined {
+  if (!record(raw)) return undefined
+  const target = raw.target === 'patternRotation' || raw.target === 'fixturePan' || raw.target === 'fixtureTilt'
+    ? raw.target
+    : 'patternPhase'
+  const direction = raw.direction === 'counterClockwise' || raw.direction === 'shortest' ? raw.direction : 'clockwise'
+  const easing = AUTOMATION_CURVES.has(raw.easing as LaserEffectAutomationCurve) ? raw.easing as LaserEffectAutomationCurve : 'easeInOut'
+  const endAngleDeg = raw.endAngleDeg == null ? undefined : clamp(raw.endAngleDeg, 0, -100_000, 100_000)
+  const turnCount = raw.turnCount == null ? undefined : clamp(raw.turnCount, 0, -128, 128)
+  if (endAngleDeg == null && turnCount == null) return undefined
+  return {
+    target,
+    startAngleDeg: clamp(raw.startAngleDeg, 0, -100_000, 100_000),
+    ...(endAngleDeg != null ? { endAngleDeg } : {}),
+    ...(turnCount != null ? { turnCount } : {}),
+    durationBeats: clamp(raw.durationBeats, 4, 0.0625, 1024),
+    direction,
+    easing,
+    holdAfterCompletion: raw.holdAfterCompletion !== false,
+  }
+}
+
+function normalizeFiniteMacroCommand(
+  raw: unknown,
+  family: LaserEffectFamily,
+  automation: readonly LaserEffectAutomation[],
+): LaserFiniteMacroCommand {
+  const value = record(raw) ? raw : {}
+  const kind = FINITE_MACRO_KINDS.has(value.kind as LaserFiniteMacroKind)
+    ? value.kind as LaserFiniteMacroKind
+    : finiteMacroKindForFamily(family, automation)
+  const shutdown = COMPLETION_BEHAVIORS.has(value.shutdown as LaserCueCompletionBehavior)
+    ? value.shutdown as LaserCueCompletionBehavior
+    : kind === 'blackout' || kind === 'accentFlash' ? 'blackout' : 'settle'
+  const loopMode = value.loopMode === 'bounded' ? 'bounded' : 'none'
+  const authoredRotation = normalizeRotationCommand(value.rotation)
+  const rotation = authoredRotation ?? (
+    kind === 'circleRotation' || kind === 'tunnelRotation' || (family === 'polygonOutline' && automation.some(lane => lane.parameter === 'phase' || lane.parameter === 'rotation'))
+      ? {
+        target: automation.some(lane => lane.parameter === 'rotation') ? 'patternRotation' as const : 'patternPhase' as const,
+        startAngleDeg: 0,
+        endAngleDeg: kind === 'circleRotation' ? 360 : kind === 'tunnelRotation' ? 180 : 90,
+        durationBeats: 4,
+        direction: 'clockwise' as const,
+        easing: 'easeInOut' as const,
+        holdAfterCompletion: true,
+      }
+      : undefined
+  )
+  const normalizedState = (candidate: unknown): Partial<Record<LaserCueOwnedParameter, number | boolean | string>> | undefined => {
+    if (!record(candidate)) return undefined
+    const result: Partial<Record<LaserCueOwnedParameter, number | boolean | string>> = {}
+    for (const [key, stateValue] of Object.entries(candidate)) {
+      if (!OWNED_PARAMETERS.has(key as LaserCueOwnedParameter)) continue
+      if (typeof stateValue === 'number' && Number.isFinite(stateValue)) result[key as LaserCueOwnedParameter] = stateValue
+      else if (typeof stateValue === 'boolean' || typeof stateValue === 'string') result[key as LaserCueOwnedParameter] = stateValue
+    }
+    return Object.keys(result).length ? result : undefined
+  }
+  const startState = normalizedState(value.startState)
+  const destinationState = normalizedState(value.destinationState)
+  const durationBeats = clamp(value.durationBeats, rotation?.durationBeats ?? 4, 0.0625, 1024)
+  const maximumLoopBeats = loopMode === 'bounded'
+    ? clamp(value.maximumLoopBeats, Math.min(16, durationBeats * 4), durationBeats, 1024)
+    : undefined
+  const maximumRepeatCount = Math.max(1, Math.floor((maximumLoopBeats ?? durationBeats) / durationBeats))
+  const repeatCount = loopMode === 'bounded'
+    ? Math.max(1, Math.min(128, maximumRepeatCount, Math.round(finite(value.repeatCount, maximumRepeatCount))))
+    : undefined
+  return {
+    kind,
+    durationBeats,
+    easing: AUTOMATION_CURVES.has(value.easing as LaserEffectAutomationCurve) ? value.easing as LaserEffectAutomationCurve : 'easeInOut',
+    ...(startState ? { startState } : {}),
+    ...(destinationState ? { destinationState } : {}),
+    ...(rotation ? { rotation } : {}),
+    loopMode,
+    ...(repeatCount != null ? { repeatCount } : {}),
+    ...(maximumLoopBeats != null ? { maximumLoopBeats } : {}),
+    shutdown,
+  }
+}
+
+function ownershipParametersForAutomation(automation: readonly LaserEffectAutomation[]): LaserCueOwnedParameter[] {
+  const parameters = new Set<LaserCueOwnedParameter>(['output', 'intensity', 'pattern', 'color', 'scanSpeed'])
+  for (const lane of automation) {
+    if (lane.parameter === 'phase' || lane.parameter === 'direction') parameters.add('patternPhase')
+    else if (lane.parameter === 'width' || lane.parameter === 'height' || lane.parameter === 'radius' || lane.parameter === 'fanSpread') parameters.add('patternScale')
+    else if (lane.parameter === 'centerX' || lane.parameter === 'centerY' || lane.parameter === 'depth') parameters.add('patternPosition')
+    else if (lane.parameter === 'movingHeadPan') parameters.add('pan')
+    else if (lane.parameter === 'movingHeadTilt') parameters.add('tilt')
+    else if (lane.parameter === 'opticalCopySpread') parameters.add('opticalCopies')
+    else if (lane.parameter === 'colorBlend') parameters.add('color')
+    else if (lane.parameter === 'scanSpeed') parameters.add('scanSpeed')
+  }
+  return [...parameters]
+}
+
+function normalizeOwnership(
+  raw: unknown,
+  automation: readonly LaserEffectAutomation[],
+  commandOrBlackout: LaserFiniteMacroCommand | boolean = false,
+): LaserCueParameterOwnership {
+  const value = record(raw) ? raw : {}
+  const command = typeof commandOrBlackout === 'object' ? commandOrBlackout : null
+  const blackout = commandOrBlackout === true || command?.kind === 'blackout'
+  const inferred = new Set(ownershipParametersForAutomation(automation))
+  if (command?.rotation?.target === 'fixturePan') inferred.add('pan')
+  if (command?.rotation?.target === 'fixtureTilt') inferred.add('tilt')
+  if (command?.rotation?.target === 'patternPhase' || command?.rotation?.target === 'patternRotation') inferred.add('patternPhase')
+  if (command?.kind === 'patternScaleExpand' || command?.kind === 'patternScaleContract') inferred.add('patternScale')
+  if (command?.kind === 'fixtureRecruitment' || command?.kind === 'fixtureWithdrawal') inferred.add('output')
+  const parameters = Array.isArray(value.parameters)
+    ? value.parameters.filter((entry): entry is LaserCueOwnedParameter => OWNED_PARAMETERS.has(entry as LaserCueOwnedParameter))
+    : [...inferred]
+  return {
+    parameters: Array.from(new Set(parameters.length ? parameters : ['output'])),
+    interruptible: value.interruptible !== false,
+    releaseOnCompletion: value.releaseOnCompletion !== false,
+    blackoutOverride: blackout || value.blackoutOverride === true,
+  }
+}
+
+function authoredDurationDefault(duration?: LaserCueDuration): number {
+  if (!duration) return 4
+  if (duration.kind === 'beat') return 1
+  if (duration.kind === 'twoBeats') return 2
+  if (duration.kind === 'bar') return 4
+  if (duration.kind === 'twoBars') return 8
+  if (duration.kind === 'fourBars') return 16
+  if (duration.kind === 'eightBars') return 32
+  if (duration.kind === 'sixteenBars') return 64
+  if (duration.kind === 'explicitBeats') return Math.max(0.25, duration.beats ?? 4)
+  return 16
+}
+
+function normalizeLifecycle(raw: unknown, command?: LaserFiniteMacroCommand, duration?: LaserCueDuration): LaserCueLifecycle {
+  const value = record(raw) ? raw : {}
+  const completionBehavior = COMPLETION_BEHAVIORS.has(value.completionBehavior as LaserCueCompletionBehavior)
+    ? value.completionBehavior as LaserCueCompletionBehavior
+    : command?.shutdown ?? 'blackout'
+  const total = authoredDurationDefault(duration)
+  const attack = clamp(value.attackBeats, Math.min(0.25, total * 0.1), 0, 1024)
+  const release = clamp(value.releaseBeats, Math.min(0.25, total * 0.1), 0, 1024)
+  const blackoutAfterCompletion = value.blackoutAfterCompletion !== false
+  const blackout = clamp(value.blackoutBeats, blackoutAfterCompletion || completionBehavior === 'blackout' ? 0.25 : 0, 0, 1024)
+  const commandMovementBeats = command
+    ? Math.min(
+      command.durationBeats * (command.loopMode === 'bounded' ? Math.max(1, command.repeatCount ?? 1) : 1),
+      command.maximumLoopBeats ?? Number.POSITIVE_INFINITY,
+    )
+    : Math.max(0, total - attack - release - blackout)
+  const movement = clamp(value.movementBeats, Math.min(commandMovementBeats, total), 0, 1024)
+  const hold = clamp(value.holdBeats, Math.max(0, total - attack - movement - release - blackout), 0, 1024)
+  return {
+    delayBeats: clamp(value.delayBeats, 0, 0, 1024),
+    attackBeats: attack,
+    movementBeats: movement,
+    holdBeats: hold,
+    releaseBeats: release,
+    blackoutBeats: blackout,
+    blackoutAfterCompletion,
+    maximumRunBeats: clamp(value.maximumRunBeats, Math.min(16, total), 0.25, 1024),
+    completionBehavior,
+    returnBehavior: value.returnBehavior === 'start' ? 'start' : 'none',
+  }
+}
+
+function normalizeConstraints(raw: unknown): LaserShowProgrammingConstraints {
+  const value = record(raw) ? raw : {}
+  return {
+    maximumSimultaneouslyActiveLaserFixtures: Math.max(1, Math.min(128, Math.round(finite(value.maximumSimultaneouslyActiveLaserFixtures, DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS.maximumSimultaneouslyActiveLaserFixtures)))),
+    maximumContinuousOnBeats: clamp(value.maximumContinuousOnBeats, DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS.maximumContinuousOnBeats, 0.25, 1024),
+    requiredBlackoutBeats: clamp(value.requiredBlackoutBeats, DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS.requiredBlackoutBeats, 0, 64),
+    maximumSimultaneouslyAnimatedPatterns: Math.max(1, Math.min(128, Math.round(finite(value.maximumSimultaneouslyAnimatedPatterns, DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS.maximumSimultaneouslyAnimatedPatterns)))),
+    maximumFiniteRotationBeats: clamp(value.maximumFiniteRotationBeats, DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS.maximumFiniteRotationBeats, 0.25, 1024),
+  }
+}
+
 function normalizeAssignment(raw: unknown, index: number): LaserEffectGroupAssignment | null {
   if (!record(raw)) return null
   return {
@@ -713,6 +1085,9 @@ function normalizeMacro(raw: unknown, index: number): LaserEffectMacro | null {
   const envelope = record(raw.envelope) ? raw.envelope : {}
   const compatibility = record(raw.compatibility) ? raw.compatibility : null
   const patternType = typeof pattern.scannerPatternType === 'string' ? pattern.scannerPatternType as LaserDmxShowDirectorScannerPatternType : familyToScannerPattern(family)
+  const automation = Array.isArray(raw.automation)
+    ? raw.automation.map(normalizeAutomation).filter((item): item is LaserEffectAutomation => item !== null).slice(0, 128)
+    : []
   return {
     schemaVersion: LASER_DMX_EFFECT_MACRO_SCHEMA_VERSION,
     id,
@@ -764,10 +1139,11 @@ function normalizeMacro(raw: unknown, index: number): LaserEffectMacro | null {
       intensityFloor: clamp(envelope.intensityFloor, 0, 0, 1),
       intensityCeiling: clamp(envelope.intensityCeiling, 1, 0, 2),
     },
-    automation: Array.isArray(raw.automation) ? raw.automation.map(normalizeAutomation).filter((item): item is LaserEffectAutomation => item !== null).slice(0, 128) : [],
+    automation,
     fixtureGroupAssignments: Array.isArray(raw.fixtureGroupAssignments) ? raw.fixtureGroupAssignments.map(normalizeAssignment).filter((item): item is LaserEffectGroupAssignment => item !== null).slice(0, 128) : [],
     transitionIn: normalizeTransition(raw.transitionIn, 'cut'),
     transitionOut: normalizeTransition(raw.transitionOut, 'cut'),
+    defaultCommand: normalizeFiniteMacroCommand(raw.defaultCommand, family, automation),
     ...(compatibility ? { compatibility: {
       provisional: compatibility.provisional !== false,
       ...(clean(compatibility.sourceSceneId, '', 128) ? { sourceSceneId: clean(compatibility.sourceSceneId, '', 128) } : {}),
@@ -802,7 +1178,7 @@ function normalizeCue(raw: unknown, index: number): LaserPerformanceCue | null {
   const macroId = clean(raw.macroId, '', 128)
   if (!macroId) return null
   const quantize = raw.startQuantize === 'beat' || raw.startQuantize === 'twoBeats' || raw.startQuantize === 'bar' || raw.startQuantize === 'twoBars'
-    || raw.startQuantize === 'fourBars' || raw.startQuantize === 'eightBars' || raw.startQuantize === 'phrase' || raw.startQuantize === 'section'
+    || raw.startQuantize === 'fourBars' || raw.startQuantize === 'eightBars' || raw.startQuantize === 'sixteenBars' || raw.startQuantize === 'phrase' || raw.startQuantize === 'section'
     || raw.startQuantize === 'explicitBeats' ? raw.startQuantize : 'bar'
   const accents = Array.isArray(raw.accents) ? raw.accents.flatMap((candidate, accentIndex): LaserCueAccent[] => {
     if (!record(candidate)) return []
@@ -819,20 +1195,28 @@ function normalizeCue(raw: unknown, index: number): LaserPerformanceCue | null {
       priority: Math.round(clamp(candidate.priority, 0, -1024, 1024)),
     }]
   }).slice(0, 128) : []
+  const automation = Array.isArray(raw.automation) ? raw.automation.map(normalizeAutomation).filter((item): item is LaserEffectAutomation => item !== null).slice(0, 128) : []
+  // A cue without an authored command inherits the referenced macro's finite command.
+  // Do not eagerly synthesize a mixed-fixture static hold here because that would
+  // erase the macro-family migration signal before the whole document is known.
+  const command = record(raw.command) ? normalizeFiniteMacroCommand(raw.command, 'mixedFixtureScene', automation) : undefined
+  const duration = normalizeDuration(raw.duration, { kind: 'section' })
   return {
-    schemaVersion: 1,
+    schemaVersion: LASER_DMX_CUE_STACK_SCHEMA_VERSION,
     id: clean(raw.id, `cue-${index + 1}`, 128),
     name: clean(raw.name, `Cue ${index + 1}`, 160),
     macroId,
+    triggerSource: CUE_TRIGGER_SOURCES.has(raw.triggerSource as LaserCueTriggerSource) ? raw.triggerSource as LaserCueTriggerSource : 'timeline',
+    ...(clean(raw.authoredCueMarkerId, '', 128) ? { authoredCueMarkerId: clean(raw.authoredCueMarkerId, '', 128) } : {}),
     ...(strings(raw.sceneIds, 128).length ? { sceneIds: strings(raw.sceneIds, 128) } : {}),
     ...(Array.isArray(raw.sectionTypes) ? { sectionTypes: raw.sectionTypes.filter((entry): entry is ReactSectionType => typeof entry === 'string') as ReactSectionType[] } : {}),
     startQuantize: quantize,
     startOffsetBeats: clamp(raw.startOffsetBeats, 0, 0, 100_000),
     ...(raw.repeatEveryBeats != null ? { repeatEveryBeats: clamp(raw.repeatEveryBeats, 4, 0.25, 100_000) } : {}),
     ...(raw.explicitTrackMapStartSec != null ? { explicitTrackMapStartSec: clamp(raw.explicitTrackMapStartSec, 0, 0, 86_400) } : {}),
-    duration: normalizeDuration(raw.duration, { kind: 'section' }),
+    duration,
     ...(strings(raw.fixtureGroupAssignmentIds, 128).length ? { fixtureGroupAssignmentIds: strings(raw.fixtureGroupAssignmentIds, 128) } : {}),
-    automation: Array.isArray(raw.automation) ? raw.automation.map(normalizeAutomation).filter((item): item is LaserEffectAutomation => item !== null).slice(0, 128) : [],
+    automation,
     transitionIn: normalizeTransition(raw.transitionIn, 'cut'),
     transitionOut: normalizeTransition(raw.transitionOut, 'cut'),
     accents,
@@ -840,6 +1224,9 @@ function normalizeCue(raw: unknown, index: number): LaserPerformanceCue | null {
     ...(raw.minEnergy != null ? { minEnergy: clamp(raw.minEnergy, 0, 0, 1) } : {}),
     ...(raw.maxEnergy != null ? { maxEnergy: clamp(raw.maxEnergy, 1, 0, 1) } : {}),
     priority: Math.round(clamp(raw.priority, 0, -1024, 1024)),
+    ...(record(raw.lifecycle) && command ? { lifecycle: normalizeLifecycle(raw.lifecycle, command, duration) } : {}),
+    ...(command ? { command } : {}),
+    ...(record(raw.ownership) && command ? { ownership: normalizeOwnership(raw.ownership, automation, command) } : {}),
     ...(typeof raw.blackout === 'boolean' ? { blackout: raw.blackout } : {}),
     ...(typeof raw.shutterClosed === 'boolean' ? { shutterClosed: raw.shutterClosed } : {}),
   }
@@ -966,7 +1353,7 @@ export function createLegacyLaserProgrammingAdapter(
       role: 'support',
     }))
     return {
-      schemaVersion: 1,
+      schemaVersion: LASER_DMX_EFFECT_MACRO_SCHEMA_VERSION,
       id: `legacy-macro:${scene.id}`,
       name: `${scene.label} Macro`,
       family,
@@ -1014,6 +1401,7 @@ export function createLegacyLaserProgrammingAdapter(
         type: scene.transitionOut.blackoutDuringTransition ? 'shutterOutIn' : 'crossfade',
         durationBeats: Math.max(0, finite(scene.transitionOut.durationBars, 0) * 4),
       } : null, 'cut'),
+      defaultCommand: normalizeFiniteMacroCommand(null, family, []),
       compatibility: {
         provisional: true,
         sourceSceneId: scene.id,
@@ -1028,36 +1416,54 @@ export function createLegacyLaserProgrammingAdapter(
       .map(assignment => assignment.id))
   }
   const cues = program.scenes.map((scene, index): LaserPerformanceCue => ({
-    schemaVersion: 1,
+    schemaVersion: LASER_DMX_CUE_STACK_SCHEMA_VERSION,
     id: `legacy-cue:${scene.id}`,
     name: scene.label,
     macroId: macros[index].id,
+    triggerSource: 'timeline',
     sceneIds: [scene.id],
     sectionTypes: scene.section.types,
     startQuantize: 'section',
     startOffsetBeats: 0,
-    duration: { kind: 'section' },
+    duration: { kind: 'fourBars' },
+    repeatEveryBeats: 20,
     fixtureGroupAssignmentIds: [macros[index].fixtureGroupAssignments[0].id],
     automation: [],
     transitionIn: macros[index].transitionIn,
     transitionOut: macros[index].transitionOut,
     accents: inferAccents(scene),
     priority: scene.priority ?? 0,
+    lifecycle: {
+      delayBeats: 0,
+      attackBeats: Math.min(0.5, macros[index].transitionIn.durationBeats),
+      movementBeats: 4,
+      holdBeats: 11.25,
+      releaseBeats: Math.min(0.5, macros[index].transitionOut.durationBeats || 0.25),
+      blackoutBeats: 0.25,
+      blackoutAfterCompletion: true,
+      maximumRunBeats: 16,
+      completionBehavior: 'blackout',
+      returnBehavior: 'none',
+    },
+    command: macros[index].defaultCommand,
+    ownership: normalizeOwnership(null, [], macros[index].defaultCommand),
     ...(scene.allowZeroBeamOutput ? { blackout: true } : {}),
   }))
   return {
     schemaVersion: LASER_DMX_SHOW_PROGRAMMING_SCHEMA_VERSION,
     id: `${program.id}:laser-programming`,
     macros,
-    cueStacks: [{ schemaVersion: 1, id: `${program.id}:primary-cue-stack`, name: `${program.name} Cue Stack`, cues }],
+    cueStacks: [{ schemaVersion: LASER_DMX_CUE_STACK_SCHEMA_VERSION, id: `${program.id}:primary-cue-stack`, name: `${program.name} Cue Stack`, cues }],
     activeCueStackId: `${program.id}:primary-cue-stack`,
     groupRelationships: relationships,
+    constraints: { ...DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS },
     compatibility: {
       source: 'legacy-adapter',
-      adapterVersion: 1,
+      adapterVersion: 2,
       ambiguousRelationshipIds,
       warnings: [
         'Existing fixture assignments, section timing, ordered scanner paths, and source choreography remain preserved.',
+        'Legacy section-long motion is translated into deterministic four-bar cue windows followed by one bar of darkness.',
         ...(relationships.length ? ['Safely inferred fixture-pair relationships are staged for migration preview and remain inactive until explicitly assigned to a cue.'] : []),
         ...(ambiguousRelationshipIds.length ? ['Some fixture relationships could not be inferred safely.'] : []),
       ],
@@ -1072,9 +1478,26 @@ export function normalizeLaserShowProgrammingDocument(
 ): LaserShowProgrammingDocument | null {
   if (!record(raw)) return fallbackProgram ? createLegacyLaserProgrammingAdapter(fallbackProgram) : null
   const macros = Array.isArray(raw.macros) ? raw.macros.map(normalizeMacro).filter((item): item is LaserEffectMacro => item !== null).slice(0, 512) : []
-  const cueStacks = Array.isArray(raw.cueStacks) ? raw.cueStacks.map(normalizeCueStack).filter((item): item is LaserCueStack => item !== null).slice(0, 64) : []
+  const macroById = new Map(macros.map(macro => [macro.id, macro] as const))
+  const cueStacks = Array.isArray(raw.cueStacks)
+    ? raw.cueStacks.map(normalizeCueStack).filter((item): item is LaserCueStack => item !== null).slice(0, 64).map(stack => ({
+      ...stack,
+      cues: stack.cues.map(cue => {
+        const macro = macroById.get(cue.macroId)
+        const combinedAutomation = [...(macro?.automation ?? []), ...cue.automation]
+        const command = cue.command ?? macro?.defaultCommand ?? normalizeFiniteMacroCommand(null, macro?.family ?? 'mixedFixtureScene', combinedAutomation)
+        return {
+          ...cue,
+          command,
+          lifecycle: normalizeLifecycle(cue.lifecycle, command, cue.duration),
+          ownership: normalizeOwnership(cue.ownership, combinedAutomation, command),
+        }
+      }),
+    }))
+    : []
   if (!macros.length || !cueStacks.length) return fallbackProgram ? createLegacyLaserProgrammingAdapter(fallbackProgram) : null
   const compatibility = record(raw.compatibility) ? raw.compatibility : {}
+  const sourceVersion = Math.max(1, Math.round(finite(raw.schemaVersion, 1)))
   const activeCueStackId = clean(raw.activeCueStackId, cueStacks[0].id, 128)
   return {
     schemaVersion: LASER_DMX_SHOW_PROGRAMMING_SCHEMA_VERSION,
@@ -1083,11 +1506,17 @@ export function normalizeLaserShowProgrammingDocument(
     cueStacks,
     activeCueStackId: cueStacks.some(stack => stack.id === activeCueStackId) ? activeCueStackId : cueStacks[0].id,
     groupRelationships: Array.isArray(raw.groupRelationships) ? raw.groupRelationships.map(normalizeRelationship).filter((item): item is LaserFixtureGroupRelationship => item !== null).slice(0, 256) : [],
+    constraints: normalizeConstraints(raw.constraints),
     compatibility: {
       source: compatibility.source === 'native' || compatibility.source === 'mixed' ? compatibility.source : 'legacy-adapter',
-      adapterVersion: Math.max(1, Math.round(finite(compatibility.adapterVersion, 1))),
+      adapterVersion: Math.max(2, Math.round(finite(compatibility.adapterVersion, 2))),
       ambiguousRelationshipIds: strings(compatibility.ambiguousRelationshipIds, 256),
-      warnings: strings(compatibility.warnings, 256),
+      warnings: Array.from(new Set([
+        ...strings(compatibility.warnings, 256),
+        ...(sourceVersion < LASER_DMX_SHOW_PROGRAMMING_SCHEMA_VERSION
+          ? ['Migrated legacy continuous motion to bounded finite cue commands with explicit completion and blackout defaults.']
+          : []),
+      ])),
       ...(compatibility.originalProgramBackup !== undefined ? { originalProgramBackup: compatibility.originalProgramBackup } : {}),
     },
   }
@@ -1101,6 +1530,7 @@ function durationBeats(duration: LaserCueDuration, context: LaserDmxShowDirector
   if (duration.kind === 'twoBars') return beatsPerBar * 2
   if (duration.kind === 'fourBars') return beatsPerBar * 4
   if (duration.kind === 'eightBars') return beatsPerBar * 8
+  if (duration.kind === 'sixteenBars') return beatsPerBar * 16
   if (duration.kind === 'phrase') return beatsPerBar * Math.max(1, context.phraseLengthBars)
   if (duration.kind === 'explicitBeats') return Math.max(0.25, duration.beats ?? beatsPerBar)
   if (duration.kind === 'explicitSeconds') return Math.max(0.25, (duration.seconds ?? 1) * Math.max(1, context.bpm) / 60)
@@ -1135,6 +1565,106 @@ interface ActiveCueWindow {
   cycle: number
 }
 
+interface ResolvedCueLifecycle {
+  state: LaserCueLifecycleState
+  stateProgress: number
+  movementProgress: number
+  remainingBeats: number
+  outputGateOpen: boolean
+  intensityEnvelope: number
+  completionReason: LaserCueCompletionReason
+}
+
+function resolveCueLifecycle(
+  cue: LaserPerformanceCue,
+  command: LaserFiniteMacroCommand,
+  startBeat: number,
+  cueDurationBeats: number,
+  absoluteBeat: number,
+  constraints: LaserShowProgrammingConstraints,
+): ResolvedCueLifecycle {
+  const lifecycle = cue.lifecycle ?? normalizeLifecycle(null, command, cue.duration)
+  const elapsed = Math.max(0, absoluteBeat - startBeat)
+  const delayEnd = lifecycle.delayBeats
+  const attackEnd = delayEnd + lifecycle.attackBeats
+  const requestedCommandMovementBeats = command.durationBeats
+    * (command.loopMode === 'bounded' ? Math.max(1, command.repeatCount ?? 1) : 1)
+  const movementDuration = Math.min(
+    lifecycle.movementBeats,
+    requestedCommandMovementBeats,
+    command.maximumLoopBeats ?? Number.POSITIVE_INFINITY,
+    constraints.maximumContinuousOnBeats,
+  )
+  const movementEnd = attackEnd + movementDuration
+  const holdEnd = movementEnd + lifecycle.holdBeats
+  const releaseEnd = holdEnd + lifecycle.releaseBeats
+  const authoredBlackoutStart = lifecycle.blackoutAfterCompletion || lifecycle.completionBehavior === 'blackout'
+    ? releaseEnd
+    : Number.POSITIVE_INFINITY
+  const maximumOnEnd = delayEnd + Math.min(lifecycle.maximumRunBeats, constraints.maximumContinuousOnBeats)
+  const blackoutStart = Math.min(authoredBlackoutStart, maximumOnEnd, cueDurationBeats)
+  const blackoutEnd = Math.min(cueDurationBeats, blackoutStart + Math.max(lifecycle.blackoutBeats, constraints.requiredBlackoutBeats))
+  const progress = (start: number, end: number): number => end <= start ? 1 : Math.max(0, Math.min(1, (elapsed - start) / (end - start)))
+
+  if (cue.blackout || cue.shutterClosed || command.kind === 'blackout') {
+    return { state: 'blackout', stateProgress: 1, movementProgress: 0, remainingBeats: Math.max(0, cueDurationBeats - elapsed), outputGateOpen: false, intensityEnvelope: 0, completionReason: 'forced-blackout' }
+  }
+  if (elapsed < delayEnd) {
+    return { state: 'off', stateProgress: progress(0, delayEnd), movementProgress: 0, remainingBeats: delayEnd - elapsed, outputGateOpen: false, intensityEnvelope: 0, completionReason: 'running' }
+  }
+  if (elapsed < attackEnd) {
+    const stateProgress = progress(delayEnd, attackEnd)
+    return { state: 'attack', stateProgress, movementProgress: 0, remainingBeats: attackEnd - elapsed, outputGateOpen: true, intensityEnvelope: curveValue(command.easing, stateProgress), completionReason: 'running' }
+  }
+  if (elapsed < movementEnd) {
+    const movementProgress = progress(attackEnd, movementEnd)
+    return { state: 'movement', stateProgress: movementProgress, movementProgress, remainingBeats: movementEnd - elapsed, outputGateOpen: true, intensityEnvelope: 1, completionReason: 'running' }
+  }
+  if (elapsed < holdEnd && elapsed < blackoutStart) {
+    return { state: 'hold', stateProgress: progress(movementEnd, holdEnd), movementProgress: 1, remainingBeats: Math.min(holdEnd, blackoutStart) - elapsed, outputGateOpen: true, intensityEnvelope: 1, completionReason: 'running' }
+  }
+  if (elapsed < releaseEnd && elapsed < blackoutStart) {
+    const stateProgress = progress(holdEnd, releaseEnd)
+    return { state: 'release', stateProgress, movementProgress: lifecycle.returnBehavior === 'start' ? 1 - stateProgress : 1, remainingBeats: Math.min(releaseEnd, blackoutStart) - elapsed, outputGateOpen: true, intensityEnvelope: 1 - curveValue(command.easing, stateProgress), completionReason: 'running' }
+  }
+  if (elapsed < blackoutEnd || elapsed >= blackoutStart) {
+    return { state: 'blackout', stateProgress: progress(blackoutStart, blackoutEnd), movementProgress: 1, remainingBeats: Math.max(0, cueDurationBeats - elapsed), outputGateOpen: false, intensityEnvelope: 0, completionReason: 'completed' }
+  }
+  return { state: 'hold', stateProgress: 1, movementProgress: 1, remainingBeats: Math.max(0, cueDurationBeats - elapsed), outputGateOpen: true, intensityEnvelope: 1, completionReason: 'completed' }
+}
+
+function gateRigOff(
+  rig: LaserDmxShowDirectorState,
+  reason: 'inactive' | 'blackout' = 'inactive',
+): LaserDmxShowDirectorState {
+  return {
+    ...rig,
+    fixtures: rig.fixtures.map(fixture => ({
+      ...fixture,
+      runtimeOutputGate: {
+        open: false,
+        reason,
+        cueId: null,
+        lifecycleState: reason === 'blackout' ? 'blackout' : 'off',
+        clearTemporalHistory: true,
+      },
+      ...(fixture.kind === 'laser' ? {
+        runtimeScanner: {
+          ...fixture.runtimeScanner,
+          shutterClosed: true,
+          macroPlan: fixture.runtimeScanner?.macroPlan ? {
+            ...fixture.runtimeScanner.macroPlan,
+            outputGateOpen: false,
+            lifecycleState: reason === 'blackout' ? 'blackout' : 'off',
+            shutterClosed: true,
+            clearTemporalHistory: true,
+          } : undefined,
+        },
+      } : {}),
+    })),
+  }
+}
+
 function activeCueWindow(cue: LaserPerformanceCue, context: LaserDmxShowDirectorPerformanceTimingContext): ActiveCueWindow | null {
   const firstStart = initialCueStartBeat(cue, context)
   const cueDuration = durationBeats(cue.duration, context)
@@ -1155,6 +1685,15 @@ function cueMatches(cue: LaserPerformanceCue, scene: LaserDmxShowDirectorPerform
   if (cue.sectionTypes?.length && !cue.sectionTypes.includes(context.sectionType ?? 'unknown')) return false
   if (cue.minEnergy != null && context.energy < cue.minEnergy) return false
   if (cue.maxEnergy != null && context.energy > cue.maxEnergy) return false
+  if (cue.triggerSource === 'kick' && !context.kick) return false
+  if (cue.triggerSource === 'snare' && !context.snare) return false
+  if (cue.triggerSource === 'hat' && !context.hat) return false
+  if (cue.triggerSource === 'buildStart' && context.sectionType !== 'build') return false
+  if (cue.triggerSource === 'preDrop' && context.sectionType !== 'preDrop') return false
+  if (cue.triggerSource === 'drop' && context.sectionType !== 'drop') return false
+  if (cue.triggerSource === 'breakdown' && context.sectionType !== 'breakdown') return false
+  if (cue.triggerSource === 'semanticMoment' && cue.explicitTrackMapStartSec == null && !context.upcomingSemanticMoments.some(marker => Math.abs(marker.timeSec - context.audioTimeSec) < 0.075)) return false
+  if (cue.triggerSource === 'authoredCueMarker' && cue.explicitTrackMapStartSec == null) return false
   return true
 }
 
@@ -1174,11 +1713,11 @@ function curveValue(curve: LaserEffectAutomationCurve, progress: number, steps =
 function applyAutomation(
   frame: LaserStablePatternFrame,
   automation: readonly LaserEffectAutomation[],
-  quantizedDirectionProgress = frame.cueProgress,
+  quantizedDirectionProgress = frame.movementProgress,
 ): LaserStablePatternFrame {
   const next = { ...frame }
   for (const lane of automation) {
-    const laneProgress = lane.parameter === 'direction' ? quantizedDirectionProgress : frame.cueProgress
+    const laneProgress = lane.parameter === 'direction' ? quantizedDirectionProgress : frame.movementProgress
     if (laneProgress < lane.startProgress || laneProgress > lane.endProgress) continue
     const local = lane.endProgress <= lane.startProgress ? 1 : (laneProgress - lane.startProgress) / (lane.endProgress - lane.startProgress)
     const value = lane.from + (lane.to - lane.from) * curveValue(lane.curve, local, lane.steps)
@@ -1217,6 +1756,73 @@ function activeAccents(cue: LaserPerformanceCue, context: LaserDmxShowDirectorPe
     if (accent.trigger === 'phrase') return context.boundaries.performanceSixteenBarBoundary || context.boundaries.macroSectionEntry
     return context.boundaries.sectionEntry
   }).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id)).map(accent => accent.id)
+}
+
+function applyFiniteCommand(
+  frame: LaserStablePatternFrame,
+  command: LaserFiniteMacroCommand,
+): LaserStablePatternFrame {
+  let next = { ...frame }
+  const repeatCount = command.loopMode === 'bounded' ? Math.max(1, command.repeatCount ?? 1) : 1
+  const scaledProgress = frame.movementProgress * repeatCount
+  const progress = frame.movementProgress >= 1
+    ? 1
+    : command.loopMode === 'bounded'
+      ? scaledProgress - Math.floor(scaledProgress)
+      : frame.movementProgress
+  if (command.kind === 'fanOpen') next.fanSpread = frame.fanSpread * (0.12 + progress * 0.88)
+  else if (command.kind === 'fanClose') next.fanSpread = frame.fanSpread * (1 - progress * 0.88)
+  else if (command.kind === 'patternScaleExpand' || command.kind === 'circleReveal' || command.kind === 'tunnelReveal') {
+    const scale = 0.12 + progress * 0.88
+    next.width = frame.width * scale
+    next.height = frame.height * scale
+    next.radius = frame.radius * scale
+  } else if (command.kind === 'patternScaleContract') {
+    const scale = 1 - progress * 0.88
+    next.width = frame.width * scale
+    next.height = frame.height * scale
+    next.radius = frame.radius * scale
+  }
+  const startState = command.startState ?? {}
+  const destinationState = command.destinationState ?? {}
+  const interpolate = (key: LaserCueOwnedParameter, fallback: number): number => {
+    const start = typeof startState[key] === 'number' ? startState[key] as number : fallback
+    const destination = typeof destinationState[key] === 'number' ? destinationState[key] as number : start
+    return start + (destination - start) * curveValue(command.easing, progress)
+  }
+  if (typeof destinationState.intensity === 'number' || typeof startState.intensity === 'number') next.intensity = Math.max(0, Math.min(2, interpolate('intensity', next.intensity)))
+  if (typeof destinationState.pan === 'number' || typeof startState.pan === 'number') next.movingHeadPan = interpolate('pan', next.movingHeadPan)
+  if (typeof destinationState.tilt === 'number' || typeof startState.tilt === 'number') next.movingHeadTilt = interpolate('tilt', next.movingHeadTilt)
+  if (typeof destinationState.patternPhase === 'number' || typeof startState.patternPhase === 'number') next.phase = ((interpolate('patternPhase', next.phase) % 1) + 1) % 1
+  if (typeof destinationState.patternScale === 'number' || typeof startState.patternScale === 'number') {
+    const scale = Math.max(0, interpolate('patternScale', 1))
+    next.width *= scale
+    next.height *= scale
+    next.radius *= scale
+  }
+  if (typeof destinationState.scanSpeed === 'number' || typeof startState.scanSpeed === 'number') next.scanRatePps = Math.max(10, Math.min(100_000, interpolate('scanSpeed', next.scanRatePps)))
+  const rotation = command.rotation
+  if (!rotation) return next
+  const eased = curveValue(rotation.easing, progress)
+  const signedTurns = (rotation.turnCount ?? 0) * 360
+  const authoredEnd = rotation.endAngleDeg ?? rotation.startAngleDeg + signedTurns
+  let delta = authoredEnd - rotation.startAngleDeg
+  if (rotation.direction === 'clockwise') delta = Math.abs(delta)
+  else if (rotation.direction === 'counterClockwise') delta = -Math.abs(delta)
+  else {
+    delta = ((delta + 540) % 360) - 180
+  }
+  const angle = rotation.startAngleDeg + delta * eased
+  // Scanner-frame pattern motion is relative to the macro's authored resting
+  // orientation. Applying the absolute start angle here would introduce a jump
+  // at cue attack and leave a one-turn command offset after completion.
+  const relativePatternAngle = angle - rotation.startAngleDeg
+  if (rotation.target === 'patternPhase') {
+    return { ...next, phase: ((next.phase + relativePatternAngle / 360) % 1 + 1) % 1 }
+  }
+  if (rotation.target === 'patternRotation') return { ...next, rotationDeg: next.rotationDeg + relativePatternAngle }
+  if (rotation.target === 'fixturePan') return { ...next, movingHeadPan: angle }
+  return { ...next, movingHeadTilt: angle }
 }
 
 function addressMatches(fixture: LaserDmxShowDirectorFixture, address: LaserDmxShowDirectorPerformanceAddress, rig: LaserDmxShowDirectorState): boolean {
@@ -1271,7 +1877,7 @@ function applyRelationship(
     else if (relationship.mode === 'alternating') angle = center + (index % 2 === 0 ? -frame.fanSpread * 0.5 : frame.fanSpread * 0.5)
     else if (relationship.mode === 'centerOut') angle = (normalizedIndex - 0.5) * frame.fanSpread
     else if (relationship.mode === 'outsideIn') angle = (0.5 - normalizedIndex) * frame.fanSpread
-    else if (relationship.mode === 'rotationalOffset') rotation += index * (relationship.rotationOffsetDeg ?? 15)
+    else if (relationship.mode === 'rotationalOffset' && fixture.kind !== 'laser') rotation += index * (relationship.rotationOffsetDeg ?? 15)
     else if (relationship.mode === 'chase') phase = ((frame.phase + index / unique.length) % 1 + 1) % 1
     else if (relationship.mode === 'phaseOffset') phase = ((frame.phase + index * (relationship.phaseOffset ?? 0.25)) % 1 + 1) % 1
     else if (relationship.mode === 'leaderFollower') phase = ((frame.phase + (index === 0 ? 0 : relationship.phaseOffset ?? 0.125)) % 1 + 1) % 1
@@ -1399,7 +2005,9 @@ function buildFixtureMacroPlan(input: {
     width: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.size ?? frame.width) : frame.width,
     height: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.size ?? frame.height) : frame.height,
     radius: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.radius ?? frame.radius) : frame.radius,
-    rotationDeg: (preserveLegacyScalarChoreography ? fixture.rotation : frame.rotationDeg) + fixture.beam.beamAngle,
+    rotationDeg: (preserveLegacyScalarChoreography ? 0 : frame.rotationDeg)
+      + fixture.beam.beamAngle
+      + (relationshipMode === 'rotationalOffset' ? memberIndex * (relationship?.rotationOffsetDeg ?? 15) : 0),
     fanSpreadDeg: Math.max(0, Math.min(180, runtime?.fanWidth ?? frame.fanSpread)),
     scanRatePps: Math.max(10, Math.min(100_000, runtime?.scanRatePps ?? frame.scanRatePps)),
     direction,
@@ -1424,6 +2032,8 @@ function buildFixtureMacroPlan(input: {
     shutterClosed: frame.shutterClosed || runtime?.shutterClosed === true,
     clearTemporalHistory: frame.clearTemporalHistory,
     preservePhase: frame.preservePhase,
+    outputGateOpen: frame.outputGateOpen,
+    lifecycleState: frame.lifecycleState,
   }
 }
 
@@ -1467,7 +2077,37 @@ function applyMacroFrameToRig(
     ...rig,
     fixtures: rig.fixtures.map(fixture => {
       const assignment = assignments.find(candidate => addressMatches(fixture, candidate.address, rig))
-      if (!assignment) return fixture
+      const fixtureActive = frame.outputGateOpen && frame.activeFixtureIds.includes(fixture.id)
+      if (!assignment || !fixtureActive) {
+        const reason = !frame.outputGateOpen
+          ? 'blackout' as const
+          : assignment
+            ? 'constraint' as const
+            : 'unassigned' as const
+        return {
+          ...fixture,
+          runtimeOutputGate: {
+            open: false,
+            reason,
+            cueId: cue.id,
+            lifecycleState: frame.lifecycleState,
+            clearTemporalHistory: true,
+          },
+          ...(fixture.kind === 'laser' ? {
+            runtimeScanner: {
+              ...fixture.runtimeScanner,
+              shutterClosed: true,
+              macroPlan: fixture.runtimeScanner?.macroPlan ? {
+                ...fixture.runtimeScanner.macroPlan,
+                outputGateOpen: false,
+                lifecycleState: frame.lifecycleState,
+                shutterClosed: true,
+                clearTemporalHistory: true,
+              } : undefined,
+            },
+          } : {}),
+        }
+      }
       const intensityScale = assignment.intensityScale ?? 1
       const assignmentAccentDefinitions = activeAccentDefinitions.filter(accent => (
         !accent.fixtureGroupAssignmentIds?.length || accent.fixtureGroupAssignmentIds.includes(assignment.id)
@@ -1543,6 +2183,13 @@ function applyMacroFrameToRig(
       } : fixture.runtimeScanner
       return {
         ...fixture,
+        runtimeOutputGate: {
+          open: true,
+          reason: 'cue',
+          cueId: cue.id,
+          lifecycleState: frame.lifecycleState,
+          clearTemporalHistory: frame.clearTemporalHistory,
+        },
         color: preserveLegacyScalarChoreography ? fixture.color : authoredColor,
         brightness: Math.max(0, Math.min(1,
           fixture.brightness
@@ -1553,7 +2200,9 @@ function applyMacroFrameToRig(
         )),
         rotation: preserveLegacyScalarChoreography
           ? fixture.rotation
-          : isMovingHead
+          : fixture.kind === 'laser'
+            ? fixture.rotation
+            : isMovingHead
             ? frame.movingHeadPan
             : isLed
               ? frame.ledChasePosition * 360
@@ -1618,6 +2267,13 @@ function applyMacroFrameToRig(
       })
       return {
         ...fixture,
+        runtimeOutputGate: {
+          open: frame.outputGateOpen && frame.activeFixtureIds.includes(fixture.id),
+          reason: frame.outputGateOpen && frame.activeFixtureIds.includes(fixture.id) ? 'cue' : 'blackout',
+          cueId: cue.id,
+          lifecycleState: frame.lifecycleState,
+          clearTemporalHistory: frame.clearTemporalHistory || !frame.outputGateOpen,
+        },
         runtimeScanner: {
           ...fixture.runtimeScanner,
           authoritativeSource: 'macro',
@@ -1642,6 +2298,13 @@ function applyMacroFrameToRig(
 
 export function validateLaserShowProgrammingDocument(document: LaserShowProgrammingDocument): LaserProgrammingValidationIssue[] {
   const issues: LaserProgrammingValidationIssue[] = []
+  const constraints = normalizeConstraints(document.constraints)
+  if (constraints.maximumSimultaneouslyActiveLaserFixtures < 1
+    || constraints.maximumContinuousOnBeats <= 0
+    || constraints.maximumSimultaneouslyAnimatedPatterns < 1
+    || constraints.maximumFiniteRotationBeats <= 0) {
+    issues.push({ code: 'constraint-invalid', severity: 'error', message: 'Show Director finite-cue constraints contain an invalid limit.', sourceId: document.id })
+  }
   const macroById = new Map(document.macros.map(macro => [macro.id, macro]))
   const relationships = new Map(document.groupRelationships.map(relationship => [relationship.id, relationship]))
   for (const macro of document.macros) {
@@ -1673,6 +2336,27 @@ export function validateLaserShowProgrammingDocument(document: LaserShowProgramm
   for (const stack of document.cueStacks) for (const cue of stack.cues) {
     const macro = macroById.get(cue.macroId)
     if (!macro) continue
+    const command = cue.command ?? macro.defaultCommand ?? normalizeFiniteMacroCommand(null, macro.family, [...macro.automation, ...cue.automation])
+    const lifecycle = cue.lifecycle ?? normalizeLifecycle(null, command, cue.duration)
+    const ownership = cue.ownership ?? normalizeOwnership(null, [...macro.automation, ...cue.automation], command)
+    if (!ownership.parameters.length) {
+      issues.push({ code: 'ownership-empty', severity: 'error', message: `${cue.name} does not own any fixture parameters.`, sourceId: cue.id })
+    }
+    if (command.loopMode === 'bounded' && (
+      !command.maximumLoopBeats
+      || !command.repeatCount
+      || command.durationBeats * command.repeatCount > command.maximumLoopBeats + 1e-7
+      || command.maximumLoopBeats > lifecycle.maximumRunBeats
+    )) {
+      issues.push({ code: 'unbounded-continuous-motion', severity: 'error', message: `${cue.name} requests looping motion without a bounded repeat count and shutdown window.`, sourceId: cue.id })
+    }
+    const producesOutput = command.kind !== 'blackout' && !cue.blackout && !cue.shutterClosed
+    if (producesOutput && (command.durationBeats > lifecycle.maximumRunBeats || lifecycle.maximumRunBeats > constraints.maximumContinuousOnBeats)) {
+      issues.push({ code: 'maximum-run-duration-exceeded', severity: 'warning', message: `${cue.name} exceeds the authored continuous-on limit and will be forced to blackout.`, sourceId: cue.id })
+    }
+    if (command.rotation && command.rotation.durationBeats > constraints.maximumFiniteRotationBeats) {
+      issues.push({ code: 'rotation-duration-exceeded', severity: 'error', message: `${cue.name} exceeds the maximum finite rotation duration.`, sourceId: cue.id })
+    }
     if (cue.duration.kind === 'beat' && (macro.family === 'tunnel' || macro.family === 'sequentialCircle' || macro.family === 'polygonOutline')) {
       issues.push({ code: 'cue-too-short', severity: 'warning', message: `${cue.name} is shorter than the effect can establish visually.`, sourceId: cue.id })
     }
@@ -1737,28 +2421,38 @@ export function sanitizeTransientLaserProgrammingPayload(
 }
 
 export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput): ResolveLaserProgrammingResult {
+  const constraints = normalizeConstraints(input.document.constraints)
   const stack = input.document.cueStacks.find(candidate => candidate.id === input.document.activeCueStackId) ?? input.document.cueStacks[0]
   const eligible = stack?.cues.filter(cue => cueMatches(cue, input.selectedScene, input.context)) ?? []
   const activeWindows = eligible.map(cue => activeCueWindow(cue, input.context)).filter((window): window is ActiveCueWindow => window !== null)
-  const activeWindow = [...activeWindows].sort((a, b) => b.cue.priority - a.cue.priority || b.startBeat - a.startBeat || a.cue.id.localeCompare(b.cue.id))[0] ?? null
+  const activeWindow = [...activeWindows].sort((a, b) => {
+    const aBlackout = a.cue.blackout || a.cue.shutterClosed || a.cue.ownership?.blackoutOverride ? 1 : 0
+    const bBlackout = b.cue.blackout || b.cue.shutterClosed || b.cue.ownership?.blackoutOverride ? 1 : 0
+    if (aBlackout !== bBlackout) return bBlackout - aBlackout
+    const aLocked = a.cue.ownership?.interruptible === false ? 1 : 0
+    const bLocked = b.cue.ownership?.interruptible === false ? 1 : 0
+    if (aLocked !== bLocked) return bLocked - aLocked
+    return b.cue.priority - a.cue.priority || b.startBeat - a.startBeat || a.cue.id.localeCompare(b.cue.id)
+  })[0] ?? null
   const cue = activeWindow?.cue ?? null
   const macro = cue ? input.document.macros.find(candidate => candidate.id === cue.macroId) ?? null : null
-  if (!cue || !macro) {
-    const issues = validateLaserShowProgrammingDocument(input.document)
+  const issues = validateLaserShowProgrammingDocument(input.document)
+
+  if (!cue || !macro || !activeWindow) {
     return {
       document: input.document,
       frame: null,
       cue,
       macro,
       activeAccentCueIds: [],
-      showDirector: input.runtimeRig,
+      showDirector: gateRigOff(input.runtimeRig),
       diagnostics: {
-        activePrimaryCueId: cue?.id ?? null,
+        activePrimaryCueId: null,
         activeAccentCueIds: [],
         cueStartBeat: 0,
         cueRemainingBeats: 0,
-        activeMacroId: macro?.id ?? null,
-        activeMacroName: macro?.name ?? null,
+        activeMacroId: null,
+        activeMacroName: null,
         fixtureGroupRelationships: [],
         stablePatternFrameId: null,
         patternFrameRevisionCount: 0,
@@ -1775,21 +2469,67 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
         unexpectedTopologyChanges: 0,
         warnings: issues,
         compatibilitySource: input.document.compatibility.source,
+        cueLifecycleState: 'off',
+        cueLifecycleProgress: 0,
+        cueRemainingDurationBeats: 0,
+        owningMacroKind: null,
+        activeFixtureIds: [],
+        blackedOutFixtureIds: input.runtimeRig.fixtures.map(fixture => fixture.id).sort(),
+        ownedParameters: [],
+        currentQuantizationBoundary: null,
+        completionReason: 'inactive',
       },
     }
   }
 
-  const startBeat = activeWindow?.startBeat ?? initialCueStartBeat(cue, input.context)
-  const cueBeats = activeWindow?.durationBeats ?? durationBeats(cue.duration, input.context)
-  const progress = Math.max(0, Math.min(1, (input.context.absoluteBeat - startBeat) / Math.max(0.25, cueBeats)))
-  const revision = activeWindow?.cycle ?? Math.max(0, Math.floor(startBeat / Math.max(0.25, quantizationBeats(cue.startQuantize, input.context))))
+  const startBeat = activeWindow.startBeat
+  const cueBeats = activeWindow.durationBeats
+  const rawCueProgress = Math.max(0, Math.min(1, (input.context.absoluteBeat - startBeat) / Math.max(0.25, cueBeats)))
+  const revision = activeWindow.cycle
+  const command = cue.command ?? macro.defaultCommand ?? normalizeFiniteMacroCommand(null, macro.family, [...macro.automation, ...cue.automation])
+  const ownership = cue.ownership ?? normalizeOwnership(null, [...macro.automation, ...cue.automation], command)
+  const lifecycle = resolveCueLifecycle(cue, command, startBeat, cueBeats, input.context.absoluteBeat, constraints)
   const selectedAssignmentIds = cue.fixtureGroupAssignmentIds?.length ? new Set(cue.fixtureGroupAssignmentIds) : null
   const assignments = macro.fixtureGroupAssignments.filter(assignment => !selectedAssignmentIds || selectedAssignmentIds.has(assignment.id))
   const activeRelationships = input.document.groupRelationships.filter(relationship => (
     relationshipAssignments(macro, relationship, selectedAssignmentIds).length > 0
   ))
-  const activeFixtureTopology = input.runtimeRig.fixtures
+  const matchedFixtures = input.runtimeRig.fixtures
     .filter(fixture => assignments.some(assignment => addressMatches(fixture, assignment.address, input.runtimeRig)))
+    .sort((a, b) => a.id.localeCompare(b.id))
+  const allowedLaserIds = new Set(matchedFixtures
+    .filter(fixture => fixture.kind === 'laser')
+    .slice(0, constraints.maximumSimultaneouslyActiveLaserFixtures)
+    .map(fixture => fixture.id))
+  let activeFixtureIds = lifecycle.outputGateOpen
+    ? matchedFixtures.filter(fixture => fixture.kind !== 'laser' || allowedLaserIds.has(fixture.id)).map(fixture => fixture.id)
+    : []
+  if (activeFixtureIds.length && lifecycle.state === 'movement') {
+    if (command.kind === 'fixtureRecruitment') {
+      activeFixtureIds = activeFixtureIds.slice(0, Math.max(1, Math.ceil(activeFixtureIds.length * lifecycle.movementProgress)))
+    } else if (command.kind === 'fixtureWithdrawal') {
+      activeFixtureIds = activeFixtureIds.slice(0, Math.max(0, Math.ceil(activeFixtureIds.length * (1 - lifecycle.movementProgress))))
+    } else if (command.kind === 'fixtureGroupChase') {
+      const index = Math.min(activeFixtureIds.length - 1, Math.floor(lifecycle.movementProgress * activeFixtureIds.length))
+      activeFixtureIds = activeFixtureIds[index] ? [activeFixtureIds[index]] : []
+    }
+  }
+  const activeFixtureSet = new Set(activeFixtureIds)
+  const patternAutomation = [...macro.automation, ...cue.automation].some(lane => (
+    lane.parameter === 'phase' || lane.parameter === 'rotation' || lane.parameter === 'width' || lane.parameter === 'height'
+    || lane.parameter === 'radius' || lane.parameter === 'centerX' || lane.parameter === 'centerY'
+  )) || Boolean(command.rotation)
+  const fixtureMovementActive = lifecycle.state === 'movement' && (
+    command.rotation?.target === 'fixturePan' || command.rotation?.target === 'fixtureTilt'
+    || [...macro.automation, ...cue.automation].some(lane => lane.parameter === 'movingHeadPan' || lane.parameter === 'movingHeadTilt')
+  )
+  const patternAnimationActive = lifecycle.state === 'movement' && patternAutomation
+  const animatedFixtureIds = patternAnimationActive
+    ? activeFixtureIds.filter(id => input.runtimeRig.fixtures.find(fixture => fixture.id === id)?.kind === 'laser').slice(0, constraints.maximumSimultaneouslyAnimatedPatterns)
+    : []
+  const blackedOutFixtureIds = input.runtimeRig.fixtures.filter(fixture => !activeFixtureSet.has(fixture.id)).map(fixture => fixture.id).sort()
+  const activeFixtureTopology = matchedFixtures
+    .filter(fixture => activeFixtureSet.has(fixture.id))
     .map(fixture => [
       fixture.id,
       fixture.groupId ?? 'group:none',
@@ -1816,24 +2556,16 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
     input.context.sectionOccurrence,
     cue.occurrenceVariationSeedOffset ?? 0,
   ].join('|')
-  const transitionInProgress = macro.transitionIn.durationBeats > 0
-    ? Math.min(1, Math.max(0, (input.context.absoluteBeat - startBeat) / macro.transitionIn.durationBeats))
-    : 1
-  const remaining = Math.max(0, startBeat + cueBeats - input.context.absoluteBeat)
-  const transitionOutProgress = macro.transitionOut.durationBeats > 0
-    ? 1 - Math.min(1, remaining / macro.transitionOut.durationBeats)
-    : 0
-  const transitionState: LaserStablePatternFrame['transitionState'] = transitionInProgress < 1
+  const transitionState: LaserStablePatternFrame['transitionState'] = lifecycle.state === 'attack'
     ? macro.transitionIn.type
-    : transitionOutProgress > 0
+    : lifecycle.state === 'release'
       ? macro.transitionOut.type
       : 'steady'
-  const transitionProgress = transitionInProgress < 1
-    ? transitionInProgress
-    : transitionOutProgress > 0
-      ? transitionOutProgress
-      : 1
-  const safety = transitionSafety(transitionState, transitionProgress, cue)
+  const transitionProgress = lifecycle.state === 'attack' || lifecycle.state === 'release' ? lifecycle.stateProgress : 1
+  const transition = transitionSafety(transitionState, transitionProgress, cue)
+  const shutterClosed = !lifecycle.outputGateOpen || transition.shutterClosed
+  const clearTemporalHistory = !lifecycle.outputGateOpen || transition.clearTemporalHistory
+
   let frame: LaserStablePatternFrame = {
     schemaVersion: LASER_DMX_PATTERN_FRAME_SCHEMA_VERSION,
     id: `pattern-frame:${stableHash(identity).toString(16)}`,
@@ -1843,10 +2575,24 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
     topologyId: macro.pattern.topologyId,
     topologyRevision: topology.template.topologyRevision,
     topologyCacheKey: topology.cacheKey,
-    patternFrameCacheHit: true,
+    patternFrameCacheHit: topology.cacheHit,
     cueStartBeat: startBeat,
     cueDurationBeats: cueBeats,
-    cueProgress: progress,
+    cueProgress: rawCueProgress,
+    lifecycleState: lifecycle.state,
+    lifecycleProgress: lifecycle.stateProgress,
+    movementProgress: lifecycle.movementProgress,
+    lifecycleRemainingBeats: lifecycle.remainingBeats,
+    completionReason: lifecycle.completionReason,
+    quantizationBoundary: cue.startQuantize,
+    owningMacroKind: command.kind,
+    ownedParameters: [...ownership.parameters],
+    activeFixtureIds,
+    blackedOutFixtureIds,
+    animatedFixtureIds,
+    outputGateOpen: lifecycle.outputGateOpen,
+    patternAnimationActive,
+    fixtureMovementActive,
     centerX: macro.transform.centerX,
     centerY: macro.transform.centerY,
     depth: macro.transform.depth,
@@ -1857,8 +2603,9 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
     fanSpread: Math.max(0, Math.min(180, macro.transform.width * 90)),
     scanRatePps: macro.scan.scanRatePps,
     direction: macro.scan.direction,
-    phase: ((macro.scan.phase + progress) % 1 + 1) % 1,
-    intensity: macro.envelope.intensityCeiling,
+    // Stable by default. Only an explicit finite command or authored phase lane may advance it.
+    phase: macro.scan.phase,
+    intensity: macro.envelope.intensityCeiling * lifecycle.intensityEnvelope,
     colorBlend: macro.color.blend,
     opticalCopySpread: macro.optics.spreadDeg,
     movingHeadPan: macro.transform.rotationDeg,
@@ -1866,29 +2613,30 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
     movingHeadZoom: 0.5,
     goboRotation: 0,
     washIntensity: 1,
-    ledChasePosition: Math.floor(progress * Math.max(1, topology.template.raySlots.length)) / Math.max(1, topology.template.raySlots.length),
+    ledChasePosition: Math.floor(lifecycle.movementProgress * Math.max(1, topology.template.raySlots.length)) / Math.max(1, topology.template.raySlots.length),
     hazeAmount: 0.5,
     raySlots: [...topology.template.raySlots],
     pathPointCount: topology.template.pathPointCount,
     relationshipModes: activeRelationships.map(relationship => relationship.mode),
     transitionState,
     transitionProgress,
-    shutterClosed: safety.shutterClosed,
-    clearTemporalHistory: safety.clearTemporalHistory,
-    preservePhase: safety.preservePhase,
+    shutterClosed,
+    clearTemporalHistory,
+    preservePhase: transition.preservePhase && !patternAnimationActive,
     activeRelationshipIds: activeRelationships.map(relationship => relationship.id),
     deterministicIdentity: identity,
   }
-  const quantizedDirectionProgress = Math.max(0, Math.min(1,
-    Math.floor(Math.max(0, input.context.absoluteBeat - startBeat) + 1e-7) / Math.max(0.25, cueBeats),
-  ))
+  const movementBeat = lifecycle.movementProgress * Math.max(0.25, cueBeats)
+  const quantizedDirectionProgress = Math.max(0, Math.min(1, Math.floor(movementBeat + 1e-7) / Math.max(0.25, cueBeats)))
   const automation = [...macro.automation, ...cue.automation]
   frame = applyAutomation(frame, automation, quantizedDirectionProgress)
+  frame = applyFiniteCommand(frame, command)
   frame = applyMusicModulation(frame, macro, input.context, automation)
-  const accentIds = activeAccents(cue, input.context)
+  if (!frame.outputGateOpen) frame = { ...frame, intensity: 0, shutterClosed: true, clearTemporalHistory: true }
+
+  const accentIds = lifecycle.outputGateOpen ? activeAccents(cue, input.context) : []
   const conflicts = conflictingRuntimeOverrides(input.runtimeRig, assignments, macro)
   const showDirector = applyMacroFrameToRig(input.runtimeRig, input.document, macro, cue, frame, input.context, accentIds)
-  const issues = validateLaserShowProgrammingDocument(input.document)
   const relationshipNames = activeRelationships.map(relationship => `${relationship.name} (${relationship.mode})`)
   const audioModulationBoundaries = [
     'continuous:intensity',
@@ -1897,7 +2645,12 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
     'continuous:colorBlend',
     'continuous:hazeAmount',
     ...(input.context.boundaries.beatBoundary ? ['transient:beatBoundary'] : []),
-    ...(input.context.boundaries.barBoundary ? ['transient:barBoundary'] : []),
+    ...(input.context.downbeat ? ['structural:downbeat'] : []),
+    ...(input.context.boundaries.barBoundary ? ['structural:barBoundary'] : []),
+    ...(input.context.boundaries.fourBarBoundary ? ['structural:fourBarBoundary'] : []),
+    ...(input.context.boundaries.eightBarBoundary ? ['structural:eightBarBoundary'] : []),
+    ...(input.context.boundaries.sixteenBarBoundary ? ['structural:sixteenBarBoundary'] : []),
+    ...(input.context.boundaries.sectionEntry ? [`structural:section:${input.context.sectionType ?? 'unknown'}`] : []),
     ...(input.context.kick ? ['transient:kickAccent'] : []),
     ...(input.context.snare ? ['transient:snareAccent'] : []),
   ]
@@ -1912,7 +2665,7 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
       activePrimaryCueId: cue.id,
       activeAccentCueIds: accentIds,
       cueStartBeat: startBeat,
-      cueRemainingBeats: remaining,
+      cueRemainingBeats: lifecycle.remainingBeats,
       activeMacroId: macro.id,
       activeMacroName: macro.name,
       fixtureGroupRelationships: relationshipNames,
@@ -1928,11 +2681,8 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
         patternSize: Math.max(frame.width, frame.height),
       },
       geometryRebuildCount: 0,
-      // Counts are scoped to the active topology key, not process-global.
-      // That keeps deterministic resolver output identical across seek/replay
-      // while still exposing that the topology was built once and is resident.
-      patternFrameCacheHits: 1,
-      patternFrameCacheMisses: 1,
+      patternFrameCacheHits: topology.cacheHit ? 1 : 0,
+      patternFrameCacheMisses: topology.cacheHit ? 0 : 1,
       raySlotCount: frame.raySlots.length,
       topologyChangesPerCue: 0,
       fixtureGroupSynchronizationStatus: conflicts.length
@@ -1945,6 +2695,15 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
       unexpectedTopologyChanges: 0,
       warnings: issues,
       compatibilitySource: input.document.compatibility.source,
+      cueLifecycleState: lifecycle.state,
+      cueLifecycleProgress: lifecycle.stateProgress,
+      cueRemainingDurationBeats: lifecycle.remainingBeats,
+      owningMacroKind: command.kind,
+      activeFixtureIds,
+      blackedOutFixtureIds,
+      ownedParameters: [...ownership.parameters],
+      currentQuantizationBoundary: cue.startQuantize,
+      completionReason: lifecycle.completionReason,
     },
   }
 }

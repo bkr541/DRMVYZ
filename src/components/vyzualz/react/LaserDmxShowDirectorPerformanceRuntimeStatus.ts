@@ -53,6 +53,15 @@ export interface LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot {
   suppressedAudioGeometryMappings: string[]
   programmingWarnings: string[]
   programmingCompatibilitySource: string
+  cueLifecycleState: string
+  cueLifecycleProgress: number
+  cueRemainingDurationBeats: number
+  owningMacroKind: string | null
+  activeFixtureIds: string[]
+  blackedOutFixtureIds: string[]
+  ownedParameters: string[]
+  currentQuantizationBoundary: string | null
+  completionReason: string
   boundaryIdentity: string
 }
 
@@ -97,6 +106,15 @@ const EMPTY_SNAPSHOT: LaserDmxShowDirectorPerformanceRuntimeStatusSnapshot = Obj
   suppressedAudioGeometryMappings: [],
   programmingWarnings: [],
   programmingCompatibilitySource: 'inactive',
+  cueLifecycleState: 'off',
+  cueLifecycleProgress: 0,
+  cueRemainingDurationBeats: 0,
+  owningMacroKind: null,
+  activeFixtureIds: [],
+  blackedOutFixtureIds: [],
+  ownedParameters: [],
+  currentQuantizationBoundary: null,
+  completionReason: 'inactive',
   boundaryIdentity: 'inactive',
 })
 
@@ -145,6 +163,15 @@ function statusFingerprint(value: LaserDmxShowDirectorPerformanceRuntimeStatusSn
     value.suppressedAudioGeometryMappings.join(','),
     value.programmingWarnings.join(','),
     value.programmingCompatibilitySource,
+    value.cueLifecycleState,
+    value.cueLifecycleProgress,
+    value.cueRemainingDurationBeats,
+    value.owningMacroKind,
+    value.activeFixtureIds.join(','),
+    value.blackedOutFixtureIds.join(','),
+    value.ownedParameters.join(','),
+    value.currentQuantizationBoundary,
+    value.completionReason,
     value.boundaryIdentity,
   ].join('|')
 }
@@ -198,6 +225,15 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
     suppressedAudioGeometryMappings: [...(resolution.diagnostics.suppressedAudioGeometryMappings ?? [])],
     programmingWarnings: (resolution.programmingDiagnostics?.warnings ?? []).map(warning => warning.message),
     programmingCompatibilitySource: resolution.programmingDiagnostics?.compatibilitySource ?? 'inactive',
+    cueLifecycleState: resolution.programmingDiagnostics?.cueLifecycleState ?? 'off',
+    cueLifecycleProgress: resolution.programmingDiagnostics?.cueLifecycleProgress ?? 0,
+    cueRemainingDurationBeats: resolution.programmingDiagnostics?.cueRemainingDurationBeats ?? 0,
+    owningMacroKind: resolution.programmingDiagnostics?.owningMacroKind ?? null,
+    activeFixtureIds: [...(resolution.programmingDiagnostics?.activeFixtureIds ?? [])],
+    blackedOutFixtureIds: [...(resolution.programmingDiagnostics?.blackedOutFixtureIds ?? [])],
+    ownedParameters: [...(resolution.programmingDiagnostics?.ownedParameters ?? [])],
+    currentQuantizationBoundary: resolution.programmingDiagnostics?.currentQuantizationBoundary ?? null,
+    completionReason: resolution.programmingDiagnostics?.completionReason ?? 'inactive',
     boundaryIdentity: [
       resolution.currentSection,
       resolution.currentSectionOccurrence,
@@ -220,6 +256,12 @@ export function publishLaserDmxShowDirectorPerformanceRuntimeStatus(
       resolution.programmingDiagnostics?.patternFrameRevisionCount,
       resolution.programmingDiagnostics?.transitionState,
       resolution.programmingDiagnostics?.unexpectedTopologyChanges,
+      resolution.programmingDiagnostics?.cueLifecycleState,
+      resolution.programmingDiagnostics?.cueLifecycleProgress,
+      resolution.programmingDiagnostics?.activeFixtureIds.join(','),
+      resolution.programmingDiagnostics?.blackedOutFixtureIds.join(','),
+      resolution.programmingDiagnostics?.ownedParameters.join(','),
+      resolution.programmingDiagnostics?.completionReason,
       resolution.diagnostics.suppressedAudioGeometryMappings?.join(','),
     ].join('|'),
   }

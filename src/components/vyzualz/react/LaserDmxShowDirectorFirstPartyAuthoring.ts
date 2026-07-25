@@ -9,6 +9,7 @@ import {
   LASER_DMX_CUE_STACK_SCHEMA_VERSION,
   LASER_DMX_EFFECT_MACRO_SCHEMA_VERSION,
   LASER_DMX_SHOW_PROGRAMMING_SCHEMA_VERSION,
+  DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS,
   type LaserCueAccent,
   type LaserEffectAutomation,
   type LaserEffectGroupAssignment,
@@ -170,7 +171,7 @@ function createMacro(
     compatibility: { provisional: false, sourceSceneId: scene.id, warnings: [] },
   }
   const cue: LaserPerformanceCue = {
-    schemaVersion: 1,
+    schemaVersion: LASER_DMX_CUE_STACK_SCHEMA_VERSION,
     id: `${prefix}:cue`,
     name: `${scene.label} · four-bar stage ${stage + 1}`,
     macroId: macro.id,
@@ -197,7 +198,7 @@ function createPreDropBlackout(
   baseMacro: LaserEffectMacro,
 ): LaserPerformanceCue {
   return {
-    schemaVersion: 1,
+    schemaVersion: LASER_DMX_CUE_STACK_SCHEMA_VERSION,
     id: `${program.id}:${scene.id}:intentional-blackout`,
     name: `${scene.label} · intentional pre-drop shutter`,
     macroId: baseMacro.id,
@@ -318,9 +319,10 @@ export function authorLaserDmxBuiltInPerformanceProgram(
     }],
     activeCueStackId: `${source.id}:professional-cue-stack`,
     groupRelationships: relationships,
+    constraints: { ...DEFAULT_LASER_SHOW_PROGRAMMING_CONSTRAINTS },
     compatibility: {
       source: 'native',
-      adapterVersion: 1,
+      adapterVersion: 2,
       ambiguousRelationshipIds: [],
       warnings: [],
     },

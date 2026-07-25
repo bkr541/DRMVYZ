@@ -1027,6 +1027,21 @@ export interface LaserDmxShowDirectorMacroScanPlan {
   shutterClosed: boolean
   clearTemporalHistory: boolean
   preservePhase: boolean
+  outputGateOpen?: boolean
+  lifecycleState?: 'off' | 'attack' | 'movement' | 'hold' | 'release' | 'blackout'
+}
+
+/**
+ * Transient shutter authority resolved by the finite Show Director cue runtime.
+ * This is deliberately separate from brightness: a closed gate emits no scanner
+ * samples, fallback rays, glow, or temporal-history contribution.
+ */
+export interface LaserDmxShowDirectorRuntimeOutputGate {
+  open: boolean
+  reason: 'cue' | 'accent' | 'blackout' | 'unassigned' | 'constraint' | 'inactive'
+  cueId: string | null
+  lifecycleState: 'off' | 'attack' | 'movement' | 'hold' | 'release' | 'blackout'
+  clearTemporalHistory: boolean
 }
 
 /** Transient high-level scanner controls reconstructed by the authoritative performance timeline. */
@@ -1216,6 +1231,8 @@ export interface LaserDmxShowDirectorFixture {
   scanner?: LaserDmxShowDirectorScannerConfig
   /** Transient high-level scanner override. Normalization intentionally omits this field. */
   runtimeScanner?: LaserDmxShowDirectorScannerRuntimeOverrides
+  /** Transient finite-cue shutter authority. Normalization intentionally omits this field. */
+  runtimeOutputGate?: LaserDmxShowDirectorRuntimeOutputGate
   /** Transient performance-program appearance override. Normalization intentionally omits this field. */
   runtimeBeamAppearance?: Partial<LaserDmxMatrixBeamAppearance>
   /** Transient performance-program renderer role. Normalization intentionally omits this field. */
@@ -1224,7 +1241,7 @@ export interface LaserDmxShowDirectorFixture {
   runtimeBeamTravel?: Partial<LaserDmxBeamMotion>
 }
 
-export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger' | 'component' | 'optics' | 'scanner' | 'runtimeScanner'>> & {
+export type LaserDmxShowDirectorFixturePatch = Partial<Omit<LaserDmxShowDirectorFixture, 'beam' | 'trigger' | 'component' | 'optics' | 'scanner' | 'runtimeScanner' | 'runtimeOutputGate'>> & {
   beam?:      Partial<LaserDmxShowDirectorBeamConfig>
   trigger?:   Partial<LaserDmxShowDirectorTriggerConfig>
   component?: Partial<LaserDmxShowDirectorFixtureSpecificConfig>
