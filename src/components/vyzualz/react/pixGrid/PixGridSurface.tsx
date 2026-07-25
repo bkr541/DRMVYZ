@@ -17,6 +17,7 @@ import { pixGridPreparedAssetCache, preparePixGridMediaAsset, type PixGridPrepar
 import { inspectPixGridMediaCapability, resolvePixGridMediaRevision } from './PixGridMediaCapabilities'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { MusicIntelligenceAnalyserFramePump } from '../../../../features/musicIntelligence/MusicIntelligenceAnalyserFramePump'
+import { resolvePixGridBusMusicIntelligenceFrame } from './PixGridMusicIntelligenceFrame'
 import {
   buildSharedPerformanceContext,
   createSharedPerformanceDiagnostics,
@@ -60,6 +61,8 @@ export interface PixGridSurfaceProps {
   trackAnalysis?: TrackIntelligenceAnalysis | null
   trackIdentity?: string | null
   durationSec?: number
+  /** React-visible playhead used to schedule deterministic paused seek frames. */
+  audioTimeSec?: number
   getAudioTime: () => number
   effectiveBpm?: number
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
@@ -395,7 +398,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       }, delay)
     }
 
-    const currentFrameInput = (): {
+    const currentFrameInput = (force: boolean): {
       frame: PixGridBaselineRenderFrame
       state: PixGridState
       blackout: boolean
@@ -407,8 +410,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const activePreset = current.activePreset
       if (!activePreset) return null
       const shouldAnimate = current.isPlaying && !current.isPaused
-      const sampledAudioTime = shouldAnimate ? current.getAudioTime() : lastAudioTime
-      const audioTime = Number.isFinite(sampledAudioTime) ? Math.max(0, sampledAudioTime) : lastAudioTime
+      const propAudioTime = Number.isFinite(current.audioTimeSec)
+        ? Math.max(0, current.audioTimeSec as number)
+        : lastAudioTime
+      const shouldReadLivePlayhead = shouldAnimate || (force && current.isPaused === true)
+      const sampledAudioTime = shouldReadLivePlayhead ? current.getAudioTime() : propAudioTime
+      const audioTime = Number.isFinite(sampledAudioTime) ? Math.max(0, sampledAudioTime) : propAudioTime
       const trackIdentity = current.trackIdentity ?? null
       if (trackIdentity !== previousTrackIdentity) {
         previousTrackIdentity = trackIdentity
@@ -422,7 +429,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             isPlaying: shouldAnimate,
             trackIdentity,
           })
-        : AudioFeatureBus.getFrame()
+        : resolvePixGridBusMusicIntelligenceFrame({
+            frame: AudioFeatureBus.getFrame(),
+            publication: AudioFeatureBus.getFramePublicationMeta(),
+            audioTimeSec: audioTime,
+            trackIdentity,
+          })
       const deltaTimeSec = shouldAnimate ? Math.max(0, Math.min(0.25, audioTime - lastAudioTime)) : 0
       const context = buildSharedPerformanceContext({
         audioTimeSec: audioTime,
@@ -532,7 +544,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         state,
         transition: resolvedRuntime.transition,
         groupEffects: resolvedRuntime.groupEffects,
-        blackout: !shouldAnimate && state.stoppedBehavior === 'blackout',
+        blackout: !current.isPlaying && !current.isPaused && state.stoppedBehavior === 'blackout',
         frame: {
           width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
           height: activePath === 'webgl2' ? gpuCanvas.height : fallbackCanvas.height,
@@ -602,7 +614,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         return
       }
 
-      const input = currentFrameInput()
+      const input = currentFrameInput(force)
       if (!input) return
       let rendered = false
       if (activePath === 'webgl2' && gpuRenderer?.isReady) {
@@ -650,7 +662,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       frameCount += 1
       const elapsed = now - fpsWindowStarted
       if (elapsed >= 1000) {
-        lastFps = current.isPlaying ? Math.round((frameCount * 1000) / elapsed) : 0
+        lastFps = current.isPlaying && !current.isPaused
+          ? Math.round((frameCount * 1000) / elapsed)
+          : 0
         fpsReporter.report(lastFps)
         frameCount = 0
         fpsWindowStarted = now
@@ -728,7 +742,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         })
         scheduleGpuRetry()
       }
-      requestRender()
+      requestRender(true)
     }
 
     const resize = () => {
@@ -744,7 +758,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       applyCanvasResolution(gpuCanvas, next)
       applyCanvasResolution(fallbackCanvas, next)
       resolution = next
-      requestRender()
+      requestRender(true)
     }
 
     const lifecycle = createPixGridRendererLifecycle(() => {
@@ -789,7 +803,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   }, [hasActivePreset])
 
   useEffect(() => {
-    requestRenderRef.current()
+    // State, preset, editor, and playhead changes need one deterministic frame
+    // even while transport animation is paused. The render loop itself remains
+    // stopped after that single forced frame.
+    requestRenderRef.current(true)
   }, [
     props.activePreset,
     props.bassReactivity,
@@ -804,6 +821,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     props.trackAnalysis,
     props.trackIdentity,
     props.durationSec,
+    props.audioTimeSec,
     preparedAssets,
   ])
 

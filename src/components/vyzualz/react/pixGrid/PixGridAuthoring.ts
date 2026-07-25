@@ -188,10 +188,16 @@ export function selectPixGridScene(state: PixGridState, sceneId: string): PixGri
   const safe = normalizePixGridState(state)
   const scene = safe.scenes.find(candidate => candidate.id === sceneId)
   if (!scene) return safe
+  const selectedLayerId = safe.editor.selectedLayerId === null
+    ? null
+    : scene.layerIds.includes(safe.editor.selectedLayerId)
+      ? safe.editor.selectedLayerId
+      : scene.layerIds[0] ?? null
+
   return normalizePixGridState({
     ...safe,
     selectedSceneId: scene.id,
-    editor: { ...safe.editor, selectedLayerId: scene.layerIds[0] ?? null, selection: null },
+    editor: { ...safe.editor, selectedLayerId, selection: null },
     pixelOverrides: scene.pixelOverrides,
   })
 }

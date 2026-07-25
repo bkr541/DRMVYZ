@@ -6,6 +6,7 @@ uniform sampler2D u_texB;
 uniform float uTransitionProgress;
 uniform float u_intensity;
 uniform int   u_direction;
+uniform int   u_selfTransition;
 out vec4 fragColor;
 
 void main() {
@@ -21,6 +22,12 @@ void main() {
   float edge  = uTransitionProgress;
   float soft  = 0.02 + (1.0 - u_intensity) * 0.1;
   float mask  = smoothstep(edge - soft, edge + soft, norm);
+  if (u_selfTransition == 1) {
+    float phase = 1.0 - abs(uTransitionProgress * 2.0 - 1.0);
+    float visible = smoothstep(phase - soft, phase + soft, norm);
+    fragColor = vec4(a.rgb * visible, a.a);
+    return;
+  }
   fragColor   = mix(a, b, mask);
 }
 `

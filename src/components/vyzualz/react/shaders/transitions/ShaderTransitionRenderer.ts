@@ -96,6 +96,11 @@ export class ShaderTransitionRenderer {
    */
   get allocationError(): string | null { return this._allocationError }
 
+  /** Cached compiler error for a transition type, if compilation failed. */
+  getCompileError(type: TransitionType): string | null {
+    return this._compileErrors.get(type) ?? null
+  }
+
   // ── Direction resolution ──────────────────────────────────────────────────
 
   /**
@@ -177,14 +182,15 @@ export class ShaderTransitionRenderer {
     seed:      number,
     w:         number,
     h:         number,
+    selfTransition = false,
   ): boolean {
     if (this._disposed) return false
 
     const prog = this._getOrCompile(type)
     if (!prog) return false
 
-    const texA = this._outFbo.texture
     const texB = this._inFbo.texture
+    const texA = selfTransition ? texB : this._outFbo.texture
     if (!texA || !texB) return false
 
     const clampedProgress = Math.max(0, Math.min(1, progress))
@@ -197,6 +203,7 @@ export class ShaderTransitionRenderer {
     prog.setFloat('u_intensity', Math.max(0, Math.min(1, intensity)))
     prog.setFloat('u_seed', seed)
     prog.setInt('u_direction', resolvedDir === 'backward' ? 1 : 0)
+    prog.setInt('u_selfTransition', selfTransition ? 1 : 0)
 
     this._fsPass.run(prog, null, w, h, [
       { unit: 0, texture: texA, uniformName: 'u_texA' },
@@ -233,7 +240,7 @@ export class ShaderTransitionRenderer {
       vertSrc: FULLSCREEN_VERT_SRC,
       fragSrc,
       label:   `transition:${type}`,
-      optionalUniforms: ['u_intensity', 'u_seed', 'u_direction'],
+      optionalUniforms: ['u_intensity', 'u_seed', 'u_direction', 'u_selfTransition'],
     })
 
     if (result.error) {

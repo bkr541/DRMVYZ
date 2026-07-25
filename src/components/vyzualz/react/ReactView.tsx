@@ -632,6 +632,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 trackAnalysis={effectiveTrackAnalysis}
                 trackIdentity={engine.currentTrackId}
                 durationSec={audioDurationSec}
+                audioTimeSec={engine.currentTime}
                 getAudioTime={engine.getCurrentTime}
                 effectiveBpm={engine.currentEffectiveBpm ?? undefined}
                 onCanvasReady={handlePixGridCanvasReady}

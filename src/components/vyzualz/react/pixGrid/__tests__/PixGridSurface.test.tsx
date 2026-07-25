@@ -93,6 +93,8 @@ function renderSurface({
   onCanvasReady = vi.fn(),
   onLiveFps = vi.fn(),
   onDiagnostics = vi.fn(),
+  audioTimeSec = 0,
+  trackIdentity = null,
   getAudioTime = vi.fn(() => 42),
 }: {
   isPlaying: boolean
@@ -102,6 +104,8 @@ function renderSurface({
   onCanvasReady?: ReturnType<typeof vi.fn>
   onLiveFps?: ReturnType<typeof vi.fn>
   onDiagnostics?: ReturnType<typeof vi.fn<(diagnostics: PixGridRendererDiagnostics) => void>>
+  audioTimeSec?: number
+  trackIdentity?: string | null
   getAudioTime?: ReturnType<typeof vi.fn<() => number>>
 }) {
   const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'pix-grid-bass-beacon')!
@@ -116,6 +120,8 @@ function renderSurface({
       bassReactivity={0.9}
       isPlaying={isPlaying}
       isPaused={isPaused}
+      audioTimeSec={audioTimeSec}
+      trackIdentity={trackIdentity}
       getAudioTime={getAudioTime}
       onCanvasReady={onCanvasReady}
       onLiveFps={onLiveFps}
@@ -167,11 +173,43 @@ describe('PixGridSurface lifecycle', () => {
     expect(rafCallbacks.size).toBe(0)
   })
 
-  it('treats pause as a true visual hold with no render or continuing animation work', () => {
-    renderSurface({ isPlaying: true, isPaused: true })
+  it('renders one deterministic paused frame, then leaves no continuing animation work', () => {
+    const getAudioTime = vi.fn(() => 18)
+    renderSurface({ isPlaying: true, isPaused: true, audioTimeSec: 18, getAudioTime })
+    expect(rafCallbacks.size).toBe(1)
+    runNextFrame()
+    expect(context.drawImage).toHaveBeenCalledOnce()
+    expect(getAudioTime).toHaveBeenCalledOnce()
     expect(rafCallbacks.size).toBe(0)
-    expect(context.clearRect).not.toHaveBeenCalled()
-    expect(context.drawImage).not.toHaveBeenCalled()
+  })
+
+  it('refreshes editor state and paused seeks with one forced frame', () => {
+    const base = createDefaultPixGridState()
+    const getAudioTime = vi.fn(() => 12)
+    renderSurface({ isPlaying: false, isPaused: true, audioTimeSec: 12, state: base, getAudioTime })
+    runNextFrame()
+    vi.clearAllMocks()
+
+    const edited: PixGridState = {
+      ...base,
+      pixelOverrides: [[8, 4, 1, '#ffffff', 1]],
+      scenes: base.scenes.map(scene => scene.id === base.selectedSceneId
+        ? { ...scene, pixelOverrides: [[8, 4, 1, '#ffffff', 1]] }
+        : scene),
+    }
+    getAudioTime.mockReturnValue(36)
+    renderSurface({ isPlaying: false, isPaused: true, audioTimeSec: 36, state: edited, getAudioTime })
+
+    expect(rafCallbacks.size).toBe(1)
+    runNextFrame(32)
+    expect(context.drawImage).toHaveBeenCalledOnce()
+    expect(getAudioTime).toHaveBeenCalledOnce()
+    expect(getPixGridReactivityRuntimeStatus().audioFrame).toMatchObject({
+      audioTime: 36,
+      isPlaying: false,
+      deltaTimeSec: 0,
+    })
+    expect(rafCallbacks.size).toBe(0)
   })
 
   it('samples the active analyser before resolving PixGrid audio and performance state', () => {

@@ -119,6 +119,23 @@ describe('PixGrid authoring model', () => {
     expect(state.selectedSceneId).toBe(secondSceneId)
   })
 
+  it('preserves Scene Pixels as the edit target when switching scenes', () => {
+    let state = createDefaultPixGridState()
+    const originalSceneId = state.selectedSceneId!
+    state = addPixGridScene(state, 'Alternate')
+    const alternateSceneId = state.selectedSceneId!
+    state = {
+      ...state,
+      selectedSceneId: originalSceneId,
+      editor: { ...state.editor, selectedLayerId: null },
+    }
+
+    state = selectPixGridScene(state, alternateSceneId)
+
+    expect(state.selectedSceneId).toBe(alternateSceneId)
+    expect(state.editor.selectedLayerId).toBeNull()
+  })
+
   it('round-trips scenes, layers, and compact edits through persistence normalization', () => {
     let state = createDefaultPixGridState()
     state = applyPixGridOverride(state, 9, 7, { kind: 'paint', color: '#12abef', opacity: 0.75 })

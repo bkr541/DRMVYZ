@@ -27,6 +27,11 @@ import {
  *   if (result.shouldRenderDual) { ... dual-scene capture + composite ... }
  *   else { ... normal single-scene render ... }
  */
+export interface ShaderTransitionRequestOptions {
+  /** Allow a transition effect to run while staying on the current shader scene. */
+  allowSameScene?: boolean
+}
+
 export class ShaderTransitionController {
   private _state:            ActiveTransitionState = { ...IDLE_TRANSITION }
   private _currentSceneId:   string | null = null
@@ -39,6 +44,7 @@ export class ShaderTransitionController {
   private _lastSectionType:  string | null = null
   private _lastPhrase16Hit:  boolean = false
   private _contextLost       = false
+  private _feedbackStartPending = false
 
   // ── Current scene access ──────────────────────────────────────────────────
 
@@ -75,11 +81,16 @@ export class ShaderTransitionController {
    * - Requesting a new transition while one is active: abort old, start new.
    * - If `toSceneId` === `fromSceneId`: treat as no-op.
    */
-  requestTransition(toSceneId: string, def: TransitionDefinition = DEFAULT_TRANSITION): void {
+  requestTransition(
+    toSceneId: string,
+    def: TransitionDefinition = DEFAULT_TRANSITION,
+    options: ShaderTransitionRequestOptions = {},
+  ): void {
     if (this._disposed) return
 
-    // No-op: re-selecting the scene that's already displayed
-    if (toSceneId === this._currentSceneId && this._state.phase === 'idle') return
+    // Manual re-selection remains a no-op. Section choreography may opt into
+    // a same-scene transition so shader-native section effects still render.
+    if (toSceneId === this._currentSceneId && this._state.phase === 'idle' && !options.allowSameScene) return
 
     // Scene switch during active: abandon the old pending/active transition,
     // use the current displayed scene as the new outgoing.
@@ -90,6 +101,8 @@ export class ShaderTransitionController {
     }
 
     this._compileError = null
+    this._feedbackStartPending = def.startTrigger === 'immediate'
+      && def.clearFeedback === 'at-start'
     this._state = {
       ...IDLE_TRANSITION,
       phase:          def.startTrigger === 'immediate' ? 'active' : 'waiting',
@@ -124,6 +137,11 @@ export class ShaderTransitionController {
     let triggerFired   = false
     let justCompleted  = false
     let feedbackClearNow: FeedbackClearTiming | null = null
+
+    if (this._feedbackStartPending && this._state.phase === 'active') {
+      feedbackClearNow = 'at-start'
+      this._feedbackStartPending = false
+    }
 
     // ── Update rhythm tracking ─────────────────────────────────────────────
     const rhythm  = frame?.rhythm  ?? null
@@ -171,6 +189,7 @@ export class ShaderTransitionController {
         // Feed clear at start
         if (this._state.definition.clearFeedback === 'at-start') {
           feedbackClearNow = 'at-start'
+          this._feedbackStartPending = false
         }
       }
     }
@@ -270,6 +289,7 @@ export class ShaderTransitionController {
   // ── Private ───────────────────────────────────────────────────────────────
 
   private _abortPending(): void {
+    this._feedbackStartPending = false
     if (this._state.phase !== 'idle') {
       // When aborting an active transition mid-flight, snap to the incoming
       // scene if progress is past the midpoint; otherwise keep the outgoing scene.

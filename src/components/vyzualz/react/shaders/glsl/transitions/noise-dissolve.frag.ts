@@ -6,6 +6,7 @@ uniform sampler2D u_texB;
 uniform float uTransitionProgress;
 uniform float u_intensity;
 uniform float u_seed;
+uniform int u_selfTransition;
 out vec4 fragColor;
 
 // LCG hash — same algorithm as ShaderNoiseTextureFactory
@@ -21,6 +22,12 @@ void main() {
   float n   = lcgNoise(v_uv, u_seed);
   float soft = max(0.02, 0.15 * (1.0 - u_intensity));
   float mask = smoothstep(uTransitionProgress - soft, uTransitionProgress + soft, n);
+  if (u_selfTransition == 1) {
+    float phase = 1.0 - abs(uTransitionProgress * 2.0 - 1.0);
+    float visible = smoothstep(phase - soft, phase + soft, n);
+    fragColor = vec4(a.rgb * visible, a.a);
+    return;
+  }
   fragColor  = mix(a, b, mask);
 }
 `

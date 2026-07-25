@@ -4,7 +4,10 @@ import type { MusicIntelligenceFrame } from '../../../../../../features/musicInt
 import { buildSharedPerformanceContext } from '../../../../../../features/performanceCore'
 import type { ReactTrackSection } from '../../../ReactTypes'
 import { NEUTRAL_AUDIO_FRAME, NEUTRAL_TIMING_FRAME } from '../../audio/shaderAudioTypes'
-import { resolveShaderRendererSectionAction } from '../../ShaderEngineRenderer'
+import {
+  resolveShaderRendererSectionAction,
+  resolveShaderRendererSectionTransitionRequest,
+} from '../../ShaderEngineRenderer'
 import { ShaderModulationEvaluator } from '../../modulation/ShaderModulationEvaluator'
 import { ShaderModulationMatrix } from '../../modulation/ShaderModulationMatrix'
 import { createModulationRoute } from '../../modulation/shaderModulationTypes'
@@ -282,6 +285,26 @@ describe('Shader native show director programs', () => {
     expect(buildAction?.toSceneId).toBe(definition.id)
     expect(buildAction?.paramOverrides.performancePlan).toBe('build')
     expect(unknownAction?.paramOverrides.performancePlan).toBe('unknown')
+  })
+
+  it('turns same-shader section choreography into a visible compositor request but not on seek reconstruction', () => {
+    const definition = PRODUCTION_SCENES[0]
+    const choreography = new ShaderSectionChoreography()
+    choreography.enabled = true
+    choreography.setRules([...(definition.performanceProgram?.sectionChoreography ?? [])])
+    choreography.setCurrentScene(definition.id)
+    const action = resolveShaderRendererSectionAction(choreography, contextAt(29), true)
+
+    const liveRequest = resolveShaderRendererSectionTransitionRequest(action, definition.id, false)
+    const reconstructRequest = resolveShaderRendererSectionTransitionRequest(action, definition.id, true)
+
+    expect(liveRequest).toMatchObject({
+      mode: 'self',
+      toSceneId: definition.id,
+      definition: { type: action?.transition.type },
+    })
+    expect(reconstructRequest?.mode).toBe('reconstruct')
+    expect(reconstructRequest?.definition.clearFeedback).toBe(action?.clearFeedback)
   })
 
   it('validates every registered shader program and rejects invalid targets visibly', () => {

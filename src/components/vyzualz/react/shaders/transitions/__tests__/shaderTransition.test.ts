@@ -14,6 +14,10 @@ import {
 } from '../shaderTransitionTypes'
 import { ShaderTransitionController } from '../ShaderTransitionController'
 import { ShaderSectionChoreography } from '../ShaderSectionChoreography'
+import { CROSSFADE_FRAG_SRC } from '../../glsl/transitions/crossfade.frag'
+import { LUMA_DISSOLVE_FRAG_SRC } from '../../glsl/transitions/luma-dissolve.frag'
+import { NOISE_DISSOLVE_FRAG_SRC } from '../../glsl/transitions/noise-dissolve.frag'
+import { RADIAL_WIPE_FRAG_SRC } from '../../glsl/transitions/radial-wipe.frag'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,6 +81,18 @@ function makeFrame(opts: PartialMIFrame = {}): MusicIntelligenceFrame {
 describe('A. Transition types', () => {
   it('has exactly 10 types', () => {
     expect(ALL_TRANSITION_TYPES).toHaveLength(10)
+  })
+
+  it('gives neutral blend transitions a visible same-shader effect path', () => {
+    for (const source of [
+      CROSSFADE_FRAG_SRC,
+      LUMA_DISSOLVE_FRAG_SRC,
+      NOISE_DISSOLVE_FRAG_SRC,
+      RADIAL_WIPE_FRAG_SRC,
+    ]) {
+      expect(source).toContain('u_selfTransition')
+      expect(source).toContain('uTransitionProgress')
+    }
   })
 
   it('includes all required types', () => {
@@ -358,6 +374,35 @@ describe('I. Transition safety edge cases', () => {
     ctrl.setActiveScene('a')
     ctrl.requestTransition('a')
     expect(ctrl.phase).toBe('idle')
+  })
+
+  it('allows an explicitly requested same-scene section transition', () => {
+    const ctrl = new ShaderTransitionController()
+    ctrl.setActiveScene('a')
+    ctrl.requestTransition(
+      'a',
+      makeDef({ startTrigger: 'immediate', durationMs: 100, easing: 'linear' }),
+      { allowSameScene: true },
+    )
+
+    const result = ctrl.tick(20, null)
+    expect(result.shouldRenderDual).toBe(true)
+    expect(result.fromSceneId).toBe('a')
+    expect(result.toSceneId).toBe('a')
+    expect(result.progress).toBeCloseTo(0.2)
+  })
+
+  it('fires immediate at-start feedback clearing on the first transition frame only', () => {
+    const ctrl = new ShaderTransitionController()
+    ctrl.setActiveScene('a')
+    ctrl.requestTransition('a', makeDef({
+      startTrigger: 'immediate',
+      durationMs: 100,
+      clearFeedback: 'at-start',
+    }), { allowSameScene: true })
+
+    expect(ctrl.tick(16, null).feedbackClearNow).toBe('at-start')
+    expect(ctrl.tick(16, null).feedbackClearNow).toBeNull()
   })
 
   it('scene switch during active transition aborts old and starts new', () => {

@@ -12,7 +12,7 @@ import { ShaderModulationEvaluator }   from './modulation/ShaderModulationEvalua
 import { ShaderModulationMatrix }      from './modulation/ShaderModulationMatrix'
 import { ShaderTransitionController }  from './transitions/ShaderTransitionController'
 import { ShaderTransitionRenderer }    from './transitions/ShaderTransitionRenderer'
-import { ShaderSectionChoreography }   from './transitions/ShaderSectionChoreography'
+import { ShaderSectionChoreography, type ShaderSectionAction } from './transitions/ShaderSectionChoreography'
 import { ShaderPerformanceMonitor }    from './performance/ShaderPerformanceMonitor'
 import { ShaderPerformanceRuntime }    from './performance/ShaderPerformanceRuntime'
 import { ShaderQualityController }     from './performance/ShaderQualityController'
@@ -29,7 +29,7 @@ import type {
 import type { CompiledGraph, RenderGraphError } from './rendergraph/shaderRenderGraphTypes'
 import type { ShaderProgram }          from './runtime/ShaderProgram'
 import type { ShaderTexSourceSelection, ShaderTextureMeta } from './textures/shaderTextureInputTypes'
-import { DEFAULT_TRANSITION }          from './transitions/shaderTransitionTypes'
+import { DEFAULT_TRANSITION, type TransitionDefinition } from './transitions/shaderTransitionTypes'
 import { resolveCanvasResolution, type CanvasResolution } from '../rendering/canvasResolution'
 import { useBrandKitStore } from '../../../../features/personalization/brandKitStore'
 import { getShaderReservedTextureUnits } from './runtime/shaderTextureUnits'
@@ -63,6 +63,40 @@ export function resolveShaderRendererSectionAction(
     context.macroSectionType ?? context.sectionType,
     { reconstruct },
   )
+}
+
+export type ShaderRendererSectionTransitionMode = 'reconstruct' | 'self' | 'scene'
+
+export interface ShaderRendererSectionTransitionRequest {
+  mode: ShaderRendererSectionTransitionMode
+  toSceneId: string
+  definition: TransitionDefinition
+}
+
+/**
+ * Convert an authored section action into a concrete renderer request. Seeking
+ * reconstructs parameter/feedback state without replaying a transient. A rule
+ * targeting the current shader becomes a same-scene compositor effect.
+ */
+export function resolveShaderRendererSectionTransitionRequest(
+  action: ShaderSectionAction | null,
+  activeSceneId: string | null,
+  reconstruct: boolean,
+): ShaderRendererSectionTransitionRequest | null {
+  if (!action) return null
+  const definition: TransitionDefinition = {
+    ...action.transition,
+    clearFeedback: action.clearFeedback,
+  }
+  return {
+    mode: reconstruct
+      ? 'reconstruct'
+      : action.toSceneId === activeSceneId
+        ? 'self'
+        : 'scene',
+    toSceneId: action.toSceneId,
+    definition,
+  }
 }
 
 /**
@@ -129,6 +163,11 @@ export class ShaderEngineRenderer {
   private _outgoingExecutor:  ShaderRenderGraph | null = null
   private _outgoingGraph:     CompiledGraph | null = null  // compiled graph stash for cleanup
   private _outgoingDef:       ShaderDefinition | null = null
+  private _selfTransitionActive = false
+  private _pendingSectionSceneTransition: {
+    toSceneId: string
+    definition: TransitionDefinition
+  } | null = null
 
   // Cached CSS layout dimensions for quality-change resizes
   private _lastCssW:          number = 0
@@ -351,11 +390,27 @@ export class ShaderEngineRenderer {
     const choreographyAction = choreography
       ? `${sectionType ?? 'unknown'}:${choreography.transition.type}`
       : null
-    if (choreography?.clearFeedback && choreography.clearFeedback !== 'preserve') {
-      this._pendingFeedbackReset = true
+    const sectionTransitionRequest = resolveShaderRendererSectionTransitionRequest(
+      choreography,
+      this._activeSceneId,
+      reconstructed,
+    )
+    if (reconstructed && this._transCtrl.isTransitioning) {
+      this._cancelActiveTransition()
     }
-    if (choreography?.toSceneId && choreography.toSceneId !== this._activeSceneId) {
-      store.setActiveShaderId(choreography.toSceneId)
+    if (sectionTransitionRequest?.mode === 'reconstruct') {
+      if (sectionTransitionRequest.definition.clearFeedback !== 'preserve') {
+        if (this._graphLoaded) this._graph.clearFeedbackBuffers()
+        else this._pendingFeedbackReset = true
+      }
+    } else if (sectionTransitionRequest?.mode === 'self') {
+      this._startSelfTransition(sectionTransitionRequest.definition)
+    } else if (sectionTransitionRequest?.mode === 'scene') {
+      this._pendingSectionSceneTransition = {
+        toSceneId: sectionTransitionRequest.toSceneId,
+        definition: sectionTransitionRequest.definition,
+      }
+      store.setActiveShaderId(sectionTransitionRequest.toSceneId)
     }
 
     // ── Modulation ─────────────────────────────────────────────────────────
@@ -472,24 +527,55 @@ export class ShaderEngineRenderer {
 
     // Consume feedback-clear policy when the transition controller fires it
     if (transResult.feedbackClearNow) {
-      this._graph.clearFeedbackBuffers()
+      if (this._graphLoaded) this._graph.clearFeedbackBuffers()
+      else this._pendingFeedbackReset = true
       this._outgoingExecutor?.clearFeedbackBuffers()
     }
 
-    // Ensure transition capture FBOs are allocated before the dual-render path.
-    // If allocation fails (context lost, FRAMEBUFFER_UNSUPPORTED, etc.) fall
-    // back to an immediate hard cut: promote the incoming scene and continue
-    // rendering normally.  This keeps Prism Tunnel / Liquid Metaballs rendering
-    // even when optional transition targets cannot be created.
-    if (transResult.shouldRenderDual && this._outgoingExecutor) {
-      if (!this._transRend.ensureCaptureTargets()) {
-        const allocErr = this._transRend.allocationError
-        if (allocErr) store.setCompileError(`Transition FBO: ${allocErr}`)
-        this._cleanupOutgoing()  // nulls _outgoingExecutor, aborts transition
-      }
+    const renderingSelfTransition = transResult.shouldRenderDual && this._selfTransitionActive
+    const renderingSceneTransition = transResult.shouldRenderDual && this._outgoingExecutor !== null
+
+    // Ensure transition capture FBOs are allocated before either compositor path.
+    // Same-scene section effects use the incoming capture as both sources; scene
+    // switches continue to preserve the outgoing executor and its feedback state.
+    if ((renderingSelfTransition || renderingSceneTransition) && !this._transRend.ensureCaptureTargets()) {
+      const allocErr = this._transRend.allocationError
+      if (allocErr) store.setCompileError(`Transition FBO: ${allocErr}`)
+      this._cancelActiveTransition()
     }
 
-    if (transResult.shouldRenderDual && this._outgoingExecutor) {
+    if (transResult.shouldRenderDual && this._selfTransitionActive) {
+      const graphToRender = this._previewActive && this._previewGraph
+        ? this._previewGraph
+        : this._activeGraph!
+      if (!this._graphLoaded) {
+        this._graph.loadGraph(graphToRender)
+        this._graphLoaded = true
+        this._flushPendingFeedbackReset()
+      }
+
+      this._graph.setOutputFbo(this._transRend.inCaptureFbo)
+      this._graph.execute(dims, texMap, applyUniforms)
+      this._graph.setOutputFbo(undefined)
+
+      const tDef = this._transCtrl.activeDefinition ?? DEFAULT_TRANSITION
+      const composited = this._transRend.renderComposite(
+        tDef.type,
+        transResult.progress,
+        tDef.intensity,
+        tDef.direction,
+        tDef.seed,
+        dims.W,
+        dims.H,
+        true,
+      )
+      if (!composited) {
+        const transitionError = this._transRend.getCompileError(tDef.type)
+        if (transitionError) store.setCompileError(`Transition ${tDef.type}: ${transitionError}`)
+        this._cancelActiveTransition()
+        this._graph.execute(dims, texMap, applyUniforms)
+      }
+    } else if (transResult.shouldRenderDual && this._outgoingExecutor) {
       // ── Dual render: outgoing (stashed executor with FB history) ──────────
       this._outgoingExecutor.setOutputFbo(this._transRend.outCaptureFbo)
       this._outgoingExecutor.execute(dims, texMap, (prog) => {
@@ -516,9 +602,8 @@ export class ShaderEngineRenderer {
       this._graph.execute(dims, texMap, applyUniforms)
       this._graph.setOutputFbo(undefined)
 
-      // Composite to screen using the ACTUAL transition definition (not always DEFAULT)
       const tDef = this._transCtrl.activeDefinition ?? DEFAULT_TRANSITION
-      this._transRend.renderComposite(
+      const composited = this._transRend.renderComposite(
         tDef.type,
         transResult.progress,
         tDef.intensity,
@@ -527,6 +612,12 @@ export class ShaderEngineRenderer {
         dims.W,
         dims.H,
       )
+      if (!composited) {
+        const transitionError = this._transRend.getCompileError(tDef.type)
+        if (transitionError) store.setCompileError(`Transition ${tDef.type}: ${transitionError}`)
+        this._cancelActiveTransition()
+        this._graph.execute(dims, texMap, applyUniforms)
+      }
     } else {
       // ── Normal single-scene render ─────────────────────────────────────
       const graphToRender = this._previewActive && this._previewGraph
@@ -544,7 +635,8 @@ export class ShaderEngineRenderer {
 
     // ── Transition completion ──────────────────────────────────────────────
     if (transResult.justCompleted) {
-      this._cleanupOutgoing()
+      if (this._selfTransitionActive) this._selfTransitionActive = false
+      else this._cleanupOutgoing()
     }
 
     // ── Performance ──────────────────────────────────────────────────────
@@ -689,6 +781,8 @@ export class ShaderEngineRenderer {
     this._graph.dispose()
     this._outgoingExecutor?.dispose()
     this._outgoingExecutor = null
+    this._selfTransitionActive = false
+    this._pendingSectionSceneTransition = null
 
     if (this._activeGraph)   ShaderPassCompiler.disposeGraph(this._activeGraph)
     if (this._outgoingGraph) ShaderPassCompiler.disposeGraph(this._outgoingGraph)
@@ -781,6 +875,13 @@ export class ShaderEngineRenderer {
       this._previewActive = false
     }
 
+    const pendingSectionTransition = this._pendingSectionSceneTransition?.toSceneId === id
+      ? this._pendingSectionSceneTransition
+      : null
+    if (this._pendingSectionSceneTransition && !pendingSectionTransition) {
+      this._pendingSectionSceneTransition = null
+    }
+
     if (this._activeGraph && this._activeSceneId) {
       // Start a transition: stash the CURRENT executor (with its live FBO state)
       // as the outgoing renderer so feedback history is preserved during the transition.
@@ -790,10 +891,12 @@ export class ShaderEngineRenderer {
       this._outgoingDef      = this._activeDef
       this._graph            = new ShaderRenderGraph(this._gl)  // fresh executor for incoming
 
-      const tDef = DEFAULT_TRANSITION
+      const tDef = pendingSectionTransition?.definition ?? DEFAULT_TRANSITION
+      this._pendingSectionSceneTransition = null
       this._transCtrl.requestTransition(id, tDef)
       this._transRend.beginTransition(tDef.direction)
     } else {
+      this._pendingSectionSceneTransition = null
       this._transCtrl.setActiveScene(id)
     }
 
@@ -836,6 +939,24 @@ export class ShaderEngineRenderer {
   }
 
 
+  private _startSelfTransition(definition: TransitionDefinition): void {
+    const sceneId = this._activeSceneId
+    if (!sceneId) return
+    this._cleanupOutgoing()
+    this._selfTransitionActive = true
+    this._transCtrl.requestTransition(sceneId, definition, { allowSameScene: true })
+    this._transRend.beginTransition(definition.direction)
+  }
+
+  private _cancelActiveTransition(): void {
+    if (this._outgoingExecutor || this._outgoingGraph) {
+      this._cleanupOutgoing()
+      return
+    }
+    this._selfTransitionActive = false
+    this._transCtrl.setActiveScene(this._activeSceneId)
+  }
+
   private _flushPendingFeedbackReset(): void {
     if (!this._pendingFeedbackReset || !this._graphLoaded) return
     this._graph.clearFeedbackBuffers()
@@ -874,6 +995,7 @@ export class ShaderEngineRenderer {
   }
 
   private _cleanupOutgoing(): void {
+    this._selfTransitionActive = false
     if (this._outgoingExecutor) {
       this._outgoingExecutor.dispose()
       this._outgoingExecutor = null

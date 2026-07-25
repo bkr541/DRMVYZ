@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useReactStore } from '../../../../../stores/reactStore'
 import { PixGridAuthoringPanel } from '../PixGridAuthoringPanel'
 import { PixGridDesignPanel } from '../PixGridDesignPanel'
+import reactViewCss from '../../../../../styles/reactView.css?raw'
 
 let root: Root
 let host: HTMLDivElement
@@ -32,6 +33,13 @@ describe('PixGrid panel consistency', () => {
     expect(host.querySelector('.rv-engine-status-grid')).toBeNull()
     expect(editButton.previousElementSibling).toBeNull()
     expect(editButton.nextElementSibling?.textContent).toContain('Changes save automatically')
+  })
+
+  it('retains the shared right-panel horizontal padding contract', () => {
+    const pixGridBlock = reactViewCss.match(/\.rv-pix-grid-design-panel\s*\{([^}]*)\}/)?.[1] ?? ''
+    const sharedBlock = reactViewCss.match(/\.rv-ctrl-group\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(pixGridBlock).not.toContain('padding-inline: 0')
+    expect(sharedBlock).toContain('padding: 7px 11px 10px')
   })
 
   it('uses the standard control group and wrapping workspace subtabs', () => {
