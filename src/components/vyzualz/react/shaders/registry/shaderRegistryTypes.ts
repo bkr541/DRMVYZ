@@ -1,4 +1,5 @@
 import type { BrandPaletteRole } from '../../../../../features/personalization/BrandKitTypes'
+import type { ShaderPerformanceProgram } from '../performance/ShaderPerformanceProgramTypes'
 
 // ── Categories ────────────────────────────────────────────────────────────────
 
@@ -363,6 +364,9 @@ export interface ShaderDefinition {
   feedbackReset?: ShaderFeedbackResetConfig
 
   transitions?: TransitionCompatibility
+
+  /** Native authored show program resolved by Shared Performance Core. */
+  performanceProgram?: ShaderPerformanceProgram
 }
 
 // ── Validation types ──────────────────────────────────────────────────────────

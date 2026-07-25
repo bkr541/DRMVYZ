@@ -1,5 +1,6 @@
 import type { ShaderDefinition, ValidationResult, ValidationError } from './shaderRegistryTypes'
 import { validateParamValue, isNumericParam } from './ShaderParameterSchema'
+import { validateSharedPerformanceProgram } from '../../../../../features/performanceCore/authoring'
 
 const PASS_RESOLUTION_SCALE_MIN = 0.05
 const PASS_RESOLUTION_SCALE_MAX = 4.0
@@ -118,6 +119,59 @@ export class ShaderDefinitionValidator {
         const err = validateParamValue(param, def.defaults[key])
         if (err) {
           e(`defaults.${key}`, `invalid default value for "${key}": ${err.message}`)
+        }
+      }
+    }
+
+    // ── Native performance-program validation ───────────────────────────────
+    if (def.performanceProgram) {
+      const program = def.performanceProgram
+      if (!program.authoredRoutes.length) {
+        e('performanceProgram.authoredRoutes', 'production performance program must declare at least one authored route')
+      }
+      const routeIds = new Set<string>()
+      for (const route of program.authoredRoutes) {
+        if (routeIds.has(route.id)) {
+          e(`performanceProgram.authoredRoutes.${route.id}`, `duplicate authored route id "${route.id}"`)
+        }
+        routeIds.add(route.id)
+        const targetIds = [route.targetParamId, ...(route.fallbackTargetParamIds ?? [])]
+        const target = targetIds
+          .map(targetId => def.params.find(param => param.id === targetId))
+          .find(param => param?.modulatable === true && param.type !== 'trigger' && param.type !== 'texture' && param.type !== 'gradient' && param.type !== 'enum')
+        if (!target) {
+          e(`performanceProgram.authoredRoutes.${route.id}.targetParamId`, `no safe target exists in [${targetIds.join(', ')}]`)
+        }
+      }
+
+      const sharedIssues = validateSharedPerformanceProgram(program, {
+        requireFallbackScene: true,
+        adapter: {
+          validate: action => {
+            if (action.type !== 'param') return []
+            const targetIds = [action.targetParamId, ...(action.fallbackTargetParamIds ?? [])]
+            const targets = targetIds
+              .map(targetId => def.params.find(param => param.id === targetId))
+              .filter((target): target is NonNullable<typeof target> => target !== undefined)
+            const target = targets.find(candidate =>
+              candidate.type === 'float' || candidate.type === 'integer' || candidate.type === 'boolean',
+            )
+            if (!target) {
+              if (!targets.length) {
+                return [{ severity: 'error' as const, code: 'shader-target-not-found', message: `No target exists in [${targetIds.join(', ')}].` }]
+              }
+              return [{ severity: 'error' as const, code: 'shader-target-not-supported', message: `No authored-performance-compatible target exists in [${targetIds.join(', ')}].` }]
+            }
+            return []
+          },
+          exclusiveTargetKey: action => action.type === 'param' && action.operation === 'replaceNormalized'
+            ? action.targetParamId
+            : null,
+        },
+      })
+      for (const issue of sharedIssues) {
+        if (issue.severity === 'error') {
+          e(`performanceProgram.${issue.sceneId ?? 'program'}${issue.actionPath ? `.${issue.actionPath}` : ''}`, issue.message)
         }
       }
     }

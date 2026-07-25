@@ -46,9 +46,10 @@ export class AudioSmoother {
     return this._value
   }
 
-  reset(): void {
-    this._value = 0
-    this._peakValue = 0
+  reset(value = 0): void {
+    const next = safeClamp01(value)
+    this._value = next
+    this._peakValue = next
     this._holdTimer = 0
   }
 

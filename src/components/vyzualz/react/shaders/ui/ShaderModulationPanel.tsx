@@ -3,6 +3,7 @@ import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 import type { ShaderModulationRoute } from '../modulation/shaderModulationTypes'
 import type { ModulationEvaluationFrame } from '../modulation/shaderModulationTypes'
 import type { ShaderAudioUniformFrame } from '../audio/shaderAudioTypes'
+import type { ShaderPerformanceRuntimeSnapshot } from '../performance/ShaderPerformanceProgramTypes'
 import {
   createModulationRoute,
   MODULATION_SOURCE_META,
@@ -21,6 +22,7 @@ export interface ShaderModulationPanelProps {
   audioFrame: ShaderAudioUniformFrame
   /** Latest evaluation result — used for effective-value readouts. */
   evaluationFrame: ModulationEvaluationFrame | null
+  performanceSnapshot?: ShaderPerformanceRuntimeSnapshot | null
   onAddRoute:    (route: ShaderModulationRoute) => void
   onUpdateRoute: (id: string, patch: Partial<ShaderModulationRoute>) => void
   onRemoveRoute: (id: string) => void
@@ -33,6 +35,7 @@ export function ShaderModulationPanel({
   routes,
   audioFrame,
   evaluationFrame,
+  performanceSnapshot,
   onAddRoute,
   onUpdateRoute,
   onRemoveRoute,
@@ -52,12 +55,33 @@ export function ShaderModulationPanel({
   }
 
   function getSourceValue(route: ShaderModulationRoute): number {
-    return (audioFrame as unknown as Record<string, number>)[route.source] ?? 0
+    const resolvedSource = evaluationFrame?.resolvedSourceByRouteId?.[route.id] ?? route.source
+    return (audioFrame as unknown as Record<string, number>)[resolvedSource] ?? 0
+  }
+
+  function routeBadge(route: ShaderModulationRoute): string {
+    if (!route.enabled) return 'Disabled'
+    if (route.origin === 'built-in' || route.id.startsWith('builtin:')) {
+      return route.modified ? 'Built-in · Modified' : 'Built-in'
+    }
+    return route.origin === 'legacy' ? 'Legacy' : 'User'
+  }
+
+  function conditionSummary(route: ShaderModulationRoute): string | null {
+    const sections = route.conditions?.sectionTypes
+    const phases = route.conditions?.sectionPhases
+    const parts = [
+      sections?.length ? sections.join('/') : null,
+      phases?.length ? phases.join('/') : null,
+      route.minimumConfidence != null ? `conf ≥ ${route.minimumConfidence.toFixed(2)}` : null,
+    ].filter(Boolean)
+    return parts.length ? parts.join(' · ') : null
   }
 
   function getEffectiveValue(route: ShaderModulationRoute): number | null {
     if (!evaluationFrame) return null
-    const result = evaluationFrame.params[route.targetParamId]
+    const targetId = evaluationFrame.resolvedTargetByRouteId?.[route.id] ?? route.targetParamId
+    const result = evaluationFrame.params[targetId]
     if (!result) return null
     const v = result.effectiveValue
     return typeof v === 'number' ? v : null
@@ -83,6 +107,15 @@ export function ShaderModulationPanel({
           + Route
         </button>
       </div>
+
+      {performanceSnapshot?.active && (
+        <div className="shader-mod-program-status" data-testid="shader-native-program-status">
+          <strong>{performanceSnapshot.programName}</strong>
+          <span>{performanceSnapshot.sectionType ?? 'unknown'} · {performanceSnapshot.sectionPhase}</span>
+          <span>4-bar {performanceSnapshot.fourBarStage} · 8-bar {performanceSnapshot.eightBarStage} · 16-bar {performanceSnapshot.sixteenBarStage}</span>
+          <span>{performanceSnapshot.authoredRouteCount} built-in · {performanceSnapshot.userRouteCount} user</span>
+        </div>
+      )}
 
       {/* ── Empty state ── */}
       {routes.length === 0 && (
@@ -130,8 +163,18 @@ export function ShaderModulationPanel({
                 {sourceMeta?.label ?? route.source}
               </span>
               <span className="shader-mod-summary-arrow">→</span>
-              <span className="shader-mod-summary-target">{route.targetParamId}</span>
+              <span className="shader-mod-summary-target">
+                {evaluationFrame?.resolvedTargetByRouteId?.[route.id] ?? route.targetParamId}
+              </span>
+              <span className={`shader-mod-route-badge ${route.modified ? 'modified' : ''}`}>
+                {routeBadge(route)}
+              </span>
               <span className="shader-mod-summary-mode">[{route.mode}]</span>
+              {conditionSummary(route) && (
+                <span className="shader-mod-route-condition" title="Musical route condition">
+                  {conditionSummary(route)}
+                </span>
+              )}
               {/* Mini bar for live source value */}
               <span className="shader-mod-summary-bar">
                 <span

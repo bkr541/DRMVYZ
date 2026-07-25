@@ -14,6 +14,12 @@ import type { ShaderCompileStatus } from '../editor/ShaderCompilePanel'
 import type { PerformanceMetrics } from '../performance/shaderPerformanceTypes'
 import type { QualityTier } from '../registry/shaderRegistryTypes'
 import type { RenderPassInfo } from '../rendergraph/shaderRenderGraphTypes'
+import type { ShaderPerformanceRuntimeSnapshot } from '../performance/ShaderPerformanceProgramTypes'
+import {
+  createUserShaderRoute,
+  markShaderRouteModified,
+  resolveShaderRoutesForDefinition,
+} from '../performance/ShaderPerformanceRoutes'
 import {
   REACTOR_SCENE_ID,
   applyReactorRecipe as getReactorRecipeValues,
@@ -51,6 +57,7 @@ export interface ShaderPanelState {
   routesByShaderId:   Record<string, ShaderModulationRoute[]>
   audioFrame:         ShaderAudioUniformFrame | null
   evaluationFrame:    ModulationEvaluationFrame | null
+  performanceSnapshot: ShaderPerformanceRuntimeSnapshot | null
 
   // ── Texture selections (per-scene) ────────────────────────────────────────
   textureSelectionsByShaderId:  Record<string, Record<string, ShaderTexSourceSelection>>
@@ -74,10 +81,12 @@ export interface ShaderPanelState {
   addRoute:           (shaderId: string, route: ShaderModulationRoute) => void
   updateRoute:        (shaderId: string, routeId: string, patch: Partial<ShaderModulationRoute>) => void
   removeRoute:        (shaderId: string, routeId: string) => void
+  ensureNativeProgram: (shaderId: string) => ShaderModulationRoute[]
 
   // Live frames
   setLiveAudioFrame:     (frame: ShaderAudioUniformFrame) => void
   setEvaluationFrame:    (frame: ModulationEvaluationFrame) => void
+  setPerformanceSnapshot: (snapshot: ShaderPerformanceRuntimeSnapshot | null) => void
   setCompileStatus:      (status: ShaderCompileStatus) => void
   setPerformanceMetrics: (metrics: PerformanceMetrics) => void
   setEffectiveQualityTier: (tier: QualityTier) => void
@@ -201,11 +210,22 @@ export function migrateShaderPanelPersistedState(
     }
   }
 
+  const migratedRoutes = removeRetiredShaderRecords(
+    migrateLegacyReactorRoutes(persisted.routesByShaderId),
+  )
+  const routesByShaderId: Record<string, ShaderModulationRoute[]> = { ...migratedRoutes }
+  for (const def of shaderRegistry.getAll()) {
+    if (!def.performanceProgram) continue
+    if (Object.prototype.hasOwnProperty.call(migratedRoutes, def.id) || def.id === activeShaderId) {
+      routesByShaderId[def.id] = resolveShaderRoutesForDefinition(def, migratedRoutes[def.id])
+    }
+  }
+
   return {
     ...persisted,
     activeShaderId,
     paramValuesByShaderId,
-    routesByShaderId: removeRetiredShaderRecords(migrateLegacyReactorRoutes(persisted.routesByShaderId)),
+    routesByShaderId,
     textureSelectionsByShaderId,
   }
 }
@@ -233,6 +253,7 @@ export function mergeShaderPanelState(
     paramValuesByShaderId,
     paramValues,
     routesByShaderId:            persisted.routesByShaderId ?? {},
+    performanceSnapshot:         null,
     textureSelectionsByShaderId: persisted.textureSelectionsByShaderId ?? {},
   }
 }
@@ -248,6 +269,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   routesByShaderId:            {},
   audioFrame:                  null,
   evaluationFrame:             null,
+  performanceSnapshot:          null,
   textureSelectionsByShaderId: {},
   textureValidationByShaderId: {},
   triggeredParamIds:           [],
@@ -274,16 +296,25 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
       ? normalizeReactorParamValues(rawValues)
       : rawValues
 
-    set(s => ({
-      activeShaderId:  migratedId,
-      paramValues:     newValues,
-      paramValuesByShaderId: migratedId
-        ? { ...s.paramValuesByShaderId, [migratedId]: { ...newValues } }
-        : s.paramValuesByShaderId,
-      modulatedValues: {},
-      compileError:    null,
-      compileStatus:   IDLE_COMPILE_STATUS,
-    }))
+    set(s => {
+      const resolvedRoutes = migratedId
+        ? resolveShaderRoutesForDefinition(def, s.routesByShaderId[migratedId])
+        : []
+      return {
+        activeShaderId: migratedId,
+        paramValues: newValues,
+        paramValuesByShaderId: migratedId
+          ? { ...s.paramValuesByShaderId, [migratedId]: { ...newValues } }
+          : s.paramValuesByShaderId,
+        routesByShaderId: migratedId
+          ? { ...s.routesByShaderId, [migratedId]: resolvedRoutes }
+          : s.routesByShaderId,
+        modulatedValues: {},
+        performanceSnapshot: null,
+        compileError: null,
+        compileStatus: IDLE_COMPILE_STATUS,
+      }
+    })
   },
 
   setParamValue: (paramId, value) =>
@@ -341,7 +372,10 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   setRoutesForShader: (shaderId, routes) => {
     const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
     set(s => ({
-      routesByShaderId: { ...s.routesByShaderId, [targetShaderId]: routes },
+      routesByShaderId: {
+        ...s.routesByShaderId,
+        [targetShaderId]: routes.map(route => route.origin ? { ...route } : createUserShaderRoute(route)),
+      },
     }))
   },
 
@@ -350,7 +384,10 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
     set(s => ({
       routesByShaderId: {
         ...s.routesByShaderId,
-        [targetShaderId]: [...(s.routesByShaderId[targetShaderId] ?? []), route],
+        [targetShaderId]: [
+          ...(s.routesByShaderId[targetShaderId] ?? []),
+          createUserShaderRoute(route),
+        ],
       },
     }))
   },
@@ -360,8 +397,8 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
     set(s => ({
       routesByShaderId: {
         ...s.routesByShaderId,
-        [targetShaderId]: (s.routesByShaderId[targetShaderId] ?? []).map(r =>
-          r.id === routeId ? { ...r, ...patch } : r
+        [targetShaderId]: (s.routesByShaderId[targetShaderId] ?? []).map(route =>
+          route.id === routeId ? markShaderRouteModified(route, patch) : route
         ),
       },
     }))
@@ -369,16 +406,34 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
 
   removeRoute: (shaderId, routeId) => {
     const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
+    set(s => {
+      const current = s.routesByShaderId[targetShaderId] ?? []
+      const target = current.find(route => route.id === routeId)
+      const next = target && (target.origin === 'built-in' || target.id.startsWith('builtin:'))
+        ? current.map(route => route.id === routeId
+          ? markShaderRouteModified(route, { enabled: false })
+          : route)
+        : current.filter(route => route.id !== routeId)
+      return { routesByShaderId: { ...s.routesByShaderId, [targetShaderId]: next } }
+    })
+  },
+
+  ensureNativeProgram: (shaderId) => {
+    const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
+    const def = shaderRegistry.get(targetShaderId)
+    const resolved = resolveShaderRoutesForDefinition(
+      def,
+      get().routesByShaderId[targetShaderId],
+    )
     set(s => ({
-      routesByShaderId: {
-        ...s.routesByShaderId,
-        [targetShaderId]: (s.routesByShaderId[targetShaderId] ?? []).filter(r => r.id !== routeId),
-      },
+      routesByShaderId: { ...s.routesByShaderId, [targetShaderId]: resolved },
     }))
+    return resolved
   },
 
   setLiveAudioFrame:       (frame)   => set({ audioFrame: frame }),
   setEvaluationFrame:      (frame)   => set({ evaluationFrame: frame }),
+  setPerformanceSnapshot:  (snapshot) => set({ performanceSnapshot: snapshot }),
   setCompileStatus:        (status)  => set({ compileStatus: status }),
   setPerformanceMetrics:   (metrics) => set({ performanceMetrics: metrics }),
   setEffectiveQualityTier: (tier)    => set({ effectiveQualityTier: tier }),
@@ -466,7 +521,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   setPassInfo: (info) => set({ passInfo: info }),
   }), {
     name: 'drmvyz:shader-panel',
-    version: 3,
+    version: 4,
     storage: createJSONStorage(() => localStorage),
     partialize: shaderPanelPartialize,
     migrate: persistedState => migrateShaderPanelPersistedState(persistedState),

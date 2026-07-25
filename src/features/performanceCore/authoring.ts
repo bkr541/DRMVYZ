@@ -2,7 +2,7 @@ import type { ReactSectionType } from '../musicIntelligence/types'
 import type { SharedPerformanceContext } from './context'
 import type { SharedPerformanceProgram, SharedPerformanceProgramScene } from './programRuntime'
 
-export type SharedPerformanceEngineKind = 'laserDmx' | 'soundDrawing' | 'canvas' | 'pixGrid'
+export type SharedPerformanceEngineKind = 'laserDmx' | 'soundDrawing' | 'canvas' | 'pixGrid' | 'shader'
 
 /** Highest authority first. Engine adapters apply these in reverse construction order. */
 export const SHARED_PERFORMANCE_PRECEDENCE = [

@@ -24,6 +24,7 @@ export function ConnectedShaderModulationPanel() {
     activeShaderId,
     audioFrame,
     evaluationFrame,
+    performanceSnapshot,
     addRoute,
     updateRoute,
     removeRoute,
@@ -31,6 +32,7 @@ export function ConnectedShaderModulationPanel() {
     activeShaderId: s.activeShaderId,
     audioFrame: s.audioFrame,
     evaluationFrame: s.evaluationFrame,
+    performanceSnapshot: s.performanceSnapshot,
     addRoute: s.addRoute,
     updateRoute: s.updateRoute,
     removeRoute: s.removeRoute,
@@ -70,6 +72,7 @@ export function ConnectedShaderModulationPanel() {
       routes={routes}
       audioFrame={audioFrame ?? NEUTRAL_AUDIO_FRAME}
       evaluationFrame={evaluationFrame}
+      performanceSnapshot={performanceSnapshot}
       onAddRoute={handleAdd}
       onUpdateRoute={handleUpdate}
       onRemoveRoute={handleRemove}

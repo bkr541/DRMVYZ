@@ -15,6 +15,7 @@ import type {
   ShaderTimingUniformFrame,
 } from '../audio/shaderAudioTypes'
 import type { MusicIntelligenceFrame } from '../../../../../features/musicIntelligence/types'
+import type { SharedPerformanceContext } from '../../../../../features/performanceCore/context'
 import { getConditionSourceValue, getModulationSourceValue, getTriggerSourceValue } from '../../../../../features/musicIntelligence/selectors'
 import { getMISourceDef } from '../../../../../lib/miSourceRegistry'
 import { AudioSmoother }                 from '../audio/ShaderAudioSmoothing'
@@ -138,53 +139,87 @@ function getSourceValue(
   return 0
 }
 
+// ── Route context resolution ──────────────────────────────────────────────────
+
+function routeMatchesContext(
+  route: ShaderModulationRoute,
+  context: SharedPerformanceContext | null | undefined,
+): boolean {
+  const conditions = route.conditions
+  if (!conditions) return true
+  if (!context) return false
+
+  const sectionType = context.macroSectionType ?? context.sectionType ?? 'unknown'
+  if (conditions.sectionTypes?.length && !conditions.sectionTypes.includes(sectionType)) return false
+  if (conditions.excludeSectionTypes?.includes(sectionType)) return false
+  if (conditions.sectionPhases?.length && !conditions.sectionPhases.includes(context.macroSectionPhase)) return false
+  if (conditions.sectionOccurrences?.length && !conditions.sectionOccurrences.includes(context.sectionOccurrence)) return false
+  if (conditions.dropOccurrences?.length && !conditions.dropOccurrences.includes(context.dropOccurrence)) return false
+  if (conditions.minimumEnergy != null && context.energy < conditions.minimumEnergy) return false
+  if (conditions.maximumEnergy != null && context.energy > conditions.maximumEnergy) return false
+  if (conditions.minimumBuildProgress != null && context.buildProgress < conditions.minimumBuildProgress) return false
+  if (conditions.maximumBuildProgress != null && context.buildProgress > conditions.maximumBuildProgress) return false
+  if (conditions.requiredCapabilities?.some(capability => !context.capabilities[capability])) return false
+  return true
+}
+
+function sourceIsAvailable(
+  source: ModulationSourceId,
+  route: ShaderModulationRoute,
+  context: SharedPerformanceContext | null | undefined,
+): boolean {
+  if (SHADER_AUDIO_ALIAS_KEYS.has(source)
+    || source === 'barPhase'
+    || source === 'phrasePhase'
+    || source === 'sectionPhase'
+    || source === 'playbackProgress') return true
+  if (!context) return true
+  if (!context.intelligence.supports(source)) return false
+  return context.intelligence.sourceConfidence(source) >= (route.minimumConfidence ?? 0)
+}
+
+function resolveRouteTarget(
+  route: ShaderModulationRoute,
+  def: ShaderDefinition,
+): ShaderParamDef | null {
+  for (const targetId of [route.targetParamId, ...(route.fallbackTargetParamIds ?? [])]) {
+    const param = def.params.find(candidate => candidate.id === targetId)
+    if (param?.modulatable && ShaderModulationMatrixTargetSupport.has(param.type)) return param
+  }
+  return null
+}
+
+const ShaderModulationMatrixTargetSupport = new Set(['float', 'integer', 'boolean', 'color', 'vec2'])
+
+function resolveRouteSource(
+  route: ShaderModulationRoute,
+  audio: ShaderAudioUniformFrame,
+  timing: ShaderTimingUniformFrame,
+  miFrame: MusicIntelligenceFrame | null | undefined,
+  context: SharedPerformanceContext | null | undefined,
+): { source: ModulationSourceId; value: number } | null {
+  const candidates = [route.source, ...(route.fallbackSources ?? [])]
+  for (const source of candidates) {
+    if (!sourceIsAvailable(source, route, context)) continue
+    return { source, value: clamp01(getSourceValue(source, audio, timing, miFrame)) }
+  }
+  return null
+}
+
 // ── Per-route internal state ──────────────────────────────────────────────────
 
 interface RouteState {
-  // Continuous mode — attack/release smoother
   smoother: AudioSmoother | null
-  // Trigger / envelope mode
   envelope: ShaderModulationEnvelope | null
-  // Edge detection for trigger mode
   prevAboveThreshold: boolean
 }
 
 // ── ShaderModulationEvaluator ─────────────────────────────────────────────────
-//
-// Computes effective parameter values for one frame by applying all active
-// modulation routes to a set of base parameter values.
-//
-// Stateful (owns per-route smoothers and envelopes).
-// Not re-entrant — call once per render frame.
-//
-// Evaluation data flow per route:
-//   1. rawSource  ← getSourceValue(route.source, audio, timing)
-//   2. curved     ← applyCurve(rawSource, route.curve)
-//   3. flipped    ← route.invert ? (1 - curved) : curved
-//   4. mapped     ← outputMin + flipped * (outputMax - outputMin)
-//   5. scaledSignal ← mapped * route.amount
-//   6. effectiveValue ← combineMode(baseValue, scaledSignal, param)
-//
-// After all routes for a param, the value is clamped to [param.min, param.max].
 
 export class ShaderModulationEvaluator {
   private readonly _stateMap = new Map<string, RouteState>()
   private _lastSceneId: string | null = null
 
-  // ── Main evaluation entry point ───────────────────────────────────────────
-
-  /**
-   * Compute effective param values for the current frame.
-   *
-   * @param matrix      The modulation matrix for the active scene.
-   * @param def         The active ShaderDefinition.
-   * @param audio       Current ShaderAudioUniformFrame from ShaderAudioBridge.
-   * @param timing      Current ShaderTimingUniformFrame from ShaderAudioBridge.
-   * @param baseValues  The preset's unmodulated parameter values.
-   * @param dt          Seconds since the last frame.
-   * @param sceneId     ID of the active shader scene; change triggers state reset.
-   * @param miFrame     Canonical MI frame used by shared-registry source adapters.
-   */
   evaluate(
     matrix:     ShaderModulationMatrix,
     def:        ShaderDefinition,
@@ -193,17 +228,24 @@ export class ShaderModulationEvaluator {
     baseValues: ShaderParamValues,
     dt:         number,
     sceneId:    string,
-    miFrame?:    MusicIntelligenceFrame | null,
+    miFrame?:   MusicIntelligenceFrame | null,
+    context?:   SharedPerformanceContext | null,
   ): ModulationEvaluationFrame {
-    if (sceneId !== this._lastSceneId) {
+    const transportReconstructed = Boolean(context && (
+      context.seekDetected
+      || context.loopWrapDetected
+      || context.trackReplacementDetected
+      || context.boundaries.timingDiscontinuity
+    ))
+    const sceneChanged = sceneId !== this._lastSceneId
+    const reconstruct = sceneChanged || transportReconstructed
+    if (reconstruct) {
       this._resetAll()
       this._lastSceneId = sceneId
     }
 
     const safeDt = Math.max(0, dt)
     const routes = matrix.getActiveRoutes()
-
-    // Build result map starting from base values
     const params: Record<string, ModulationParamResult> = {}
     for (const param of def.params) {
       const base = baseValues[param.id] ?? getParamDefault(param)
@@ -216,38 +258,59 @@ export class ShaderModulationEvaluator {
     }
 
     let activeRouteCount = 0
+    const activeRouteIds: string[] = []
+    const suppressedRouteIds: string[] = []
+    const resolvedSourceByRouteId: Record<string, ModulationSourceId> = {}
+    const resolvedTargetByRouteId: Record<string, string> = {}
 
     for (const route of routes) {
-      const param = def.params.find(p => p.id === route.targetParamId)
-      if (!param) continue
+      const param = resolveRouteTarget(route, def)
+      if (!param || !routeMatchesContext(route, context)) {
+        suppressedRouteIds.push(route.id)
+        continue
+      }
 
-      const rawSource  = clamp01(getSourceValue(route.source, audio, timing, miFrame))
-      const routeSignal = this._processRouteSignal(route, rawSource, safeDt)
+      const resolved = resolveRouteSource(route, audio, timing, miFrame, context)
+      if (!resolved) {
+        suppressedRouteIds.push(route.id)
+        continue
+      }
+      resolvedSourceByRouteId[route.id] = resolved.source
+      resolvedTargetByRouteId[route.id] = param.id
 
-      if (routeSignal === null) continue  // phase/mode produced no output this frame
+      const threshold = clamp01(route.threshold ?? (route.mode === 'continuous' || route.mode === 'phase' ? 0 : 0.5))
+      const gatedSource = (route.mode === 'continuous' || route.mode === 'phase') && resolved.value < threshold
+        ? 0
+        : resolved.value
+      const routeSignal = this._processRouteSignal(route, gatedSource, safeDt, reconstruct)
+      if (routeSignal === null) {
+        suppressedRouteIds.push(route.id)
+        continue
+      }
 
       const result = params[param.id]
       if (!result) continue
-
-      result.effectiveValue = applyRouteToParam(
-        param,
-        result.effectiveValue,
-        routeSignal,
-        route,
-      )
+      result.effectiveValue = applyRouteToParam(param, result.effectiveValue, routeSignal, route)
       result.modulationActive = true
-      activeRouteCount++
+      activeRouteCount += 1
+      activeRouteIds.push(route.id)
     }
 
-    return { params, activeRouteCount }
+    return {
+      params,
+      activeRouteCount,
+      activeRouteIds,
+      suppressedRouteIds,
+      resolvedSourceByRouteId,
+      resolvedTargetByRouteId,
+    }
   }
 
-  // ── Per-route signal processing ───────────────────────────────────────────
-
   private _processRouteSignal(
-    route:     ShaderModulationRoute,
+    route: ShaderModulationRoute,
     rawSource: number,
-    dt:        number,
+    dt: number,
+    reconstruct: boolean,
   ): number | null {
     let state = this._stateMap.get(route.id)
     if (!state) {
@@ -255,29 +318,28 @@ export class ShaderModulationEvaluator {
       this._stateMap.set(route.id, state)
     }
 
+    const threshold = clamp01(route.threshold ?? (route.mode === 'trigger' || route.mode === 'envelope' ? 0.5 : 0))
     let processedSource: number
 
     switch (route.mode) {
       case 'continuous': {
         if (!state.smoother) {
           state.smoother = new AudioSmoother(
-            Math.max(0.001, route.attackMs  / 1000),
+            Math.max(0.001, route.attackMs / 1000),
             Math.max(0.001, route.releaseMs / 1000),
           )
+          if (reconstruct) state.smoother.reset(rawSource)
         }
-        state.smoother = ensureSmootherTiming(
-          state.smoother, route.attackMs, route.releaseMs,
-        )
+        state.smoother = ensureSmootherTiming(state.smoother, route.attackMs, route.releaseMs)
+        if (reconstruct) state.smoother.reset(rawSource)
         processedSource = state.smoother.update(rawSource, dt)
         break
       }
 
       case 'trigger': {
         const env = this._getOrCreateEnvelope(state, route)
-        const aboveThreshold = rawSource >= 0.5
-        if (aboveThreshold && !state.prevAboveThreshold) {
-          env.trigger()
-        }
+        const aboveThreshold = rawSource >= threshold
+        if (aboveThreshold && (!state.prevAboveThreshold || reconstruct)) env.trigger()
         state.prevAboveThreshold = aboveThreshold
         env.update(dt)
         processedSource = env.value
@@ -286,26 +348,22 @@ export class ShaderModulationEvaluator {
 
       case 'envelope': {
         const env = this._getOrCreateEnvelope(state, route)
-        env.gate(rawSource >= 0.5)
+        env.gate(rawSource >= threshold)
         env.update(dt)
         processedSource = env.value
         break
       }
 
-      case 'phase': {
-        // Pass-through: no smoothing, no envelope. Ideal for phase sources.
+      case 'phase':
         processedSource = rawSource
         break
-      }
     }
 
-    // Shape the signal
-    const curved  = applyCurve(processedSource!, route.curve)
-    const flipped = route.invert ? (1 - curved) : curved
-    const mapped  = route.outputMin + flipped * (route.outputMax - route.outputMin)
-    const signal  = mapped * route.amount
-
-    return isFinite(signal) ? signal : null
+    const curved = applyCurve(processedSource, route.curve)
+    const flipped = route.invert ? 1 - curved : curved
+    const mapped = route.outputMin + flipped * (route.outputMax - route.outputMin)
+    const signal = mapped * route.amount
+    return Number.isFinite(signal) ? signal : null
   }
 
   private _getOrCreateEnvelope(
@@ -323,8 +381,6 @@ export class ShaderModulationEvaluator {
     return state.envelope
   }
 
-  // ── Reset ─────────────────────────────────────────────────────────────────
-
   private _resetAll(): void {
     for (const state of this._stateMap.values()) {
       state.smoother?.reset()
@@ -334,7 +390,6 @@ export class ShaderModulationEvaluator {
     this._stateMap.clear()
   }
 
-  /** Expose for testing: force a scene reset without changing the scene ID. */
   _resetForTest(): void { this._resetAll() }
 }
 

@@ -11871,3 +11871,44 @@
   stroke: rgba(2, 8, 12, 0.9);
   stroke-width: 0.18px;
 }
+
+
+/* Shader native performance-program inspection */
+.shader-mod-program-status {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(108, 224, 255, 0.2);
+  border-radius: 7px;
+  background: rgba(19, 48, 61, 0.34);
+  font-size: 10px;
+  color: rgba(224, 244, 250, 0.72);
+}
+
+.shader-mod-program-status strong { color: rgba(238, 251, 255, 0.94); }
+
+.shader-mod-route-badge {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 1px solid rgba(115, 222, 255, 0.18);
+  border-radius: 999px;
+  font-size: 8px;
+  letter-spacing: 0.03em;
+  color: rgba(184, 231, 244, 0.72);
+}
+
+.shader-mod-route-badge.modified {
+  border-color: rgba(255, 198, 101, 0.3);
+  color: rgba(255, 210, 139, 0.9);
+}
+
+.shader-mod-route-condition {
+  min-width: 0;
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+  color: rgba(190, 214, 224, 0.58);
+}

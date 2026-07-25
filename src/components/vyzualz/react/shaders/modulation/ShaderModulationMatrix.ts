@@ -41,7 +41,7 @@ export class ShaderModulationMatrix {
    *   3. Target param type must be in SUPPORTED_TARGET_TYPES.
    */
   validateRoute(
-    route: Pick<ShaderModulationRoute, 'targetParamId'>,
+    route: Pick<ShaderModulationRoute, 'targetParamId' | 'fallbackTargetParamIds'>,
     def: ShaderDefinition = this._def!,
   ): ModulationValidationError | null {
     if (!def) {
@@ -51,25 +51,27 @@ export class ShaderModulationMatrix {
       }
     }
 
-    const param = def.params.find(p => p.id === route.targetParamId)
+    const targetIds = [route.targetParamId, ...(route.fallbackTargetParamIds ?? [])]
+    const param = targetIds
+      .map(targetId => def.params.find(candidate => candidate.id === targetId))
+      .find(candidate => candidate?.modulatable === true && SUPPORTED_TARGET_TYPES.has(candidate.type))
     if (!param) {
-      return {
-        code: 'TARGET_NOT_FOUND',
-        message: `Param "${route.targetParamId}" does not exist in shader "${def.id}".`,
+      const existing = targetIds.map(targetId => def.params.find(candidate => candidate.id === targetId)).find(Boolean)
+      if (!existing) {
+        return {
+          code: 'TARGET_NOT_FOUND',
+          message: `No target in [${targetIds.map(id => `"${id}"`).join(', ')}] exists in shader "${def.id}".`,
+        }
       }
-    }
-
-    if (!param.modulatable) {
-      return {
-        code: 'NOT_MODULATABLE',
-        message: `Param "${param.id}" (${param.type}) has modulatable: false or is a trigger type — it cannot be driven by modulation.`,
+      if (!existing.modulatable) {
+        return {
+          code: 'NOT_MODULATABLE',
+          message: `Param "${existing.id}" (${existing.type}) has modulatable: false or is a trigger type — it cannot be driven by modulation.`,
+        }
       }
-    }
-
-    if (!SUPPORTED_TARGET_TYPES.has(param.type)) {
       return {
         code: 'TYPE_NOT_SUPPORTED',
-        message: `Param type "${param.type}" is not supported as a modulation target. Supported types: ${[...SUPPORTED_TARGET_TYPES].join(', ')}.`,
+        message: `Param type "${existing.type}" is not supported as a modulation target. Supported types: ${[...SUPPORTED_TARGET_TYPES].join(', ')}.`,
       }
     }
 
@@ -119,7 +121,9 @@ export class ShaderModulationMatrix {
 
   /** Routes targeting a specific param, in insertion order. */
   getRoutesForParam(paramId: string): ShaderModulationRoute[] {
-    return this.getRoutes().filter(r => r.targetParamId === paramId)
+    return this.getRoutes().filter(route =>
+      route.targetParamId === paramId || route.fallbackTargetParamIds?.includes(paramId),
+    )
   }
 
   /** All routes that are both enabled and pass validation against the active def. */

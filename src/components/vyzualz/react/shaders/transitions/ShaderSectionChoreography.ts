@@ -83,9 +83,21 @@ export class ShaderSectionChoreography {
    *
    * Call once per frame; this method tracks section changes internally.
    */
-  onFrame(frame: MusicIntelligenceFrame | null): ShaderSectionAction | null {
-    const sectionType  = (frame?.section?.type ?? null) as ReactSectionType | null
-    const changed      = sectionType !== this._lastSectionType && this._lastSectionType !== undefined
+  onFrame(
+    frame: MusicIntelligenceFrame | null,
+    options: { reconstruct?: boolean } = {},
+  ): ShaderSectionAction | null {
+    const sectionType = (frame?.section?.type ?? null) as ReactSectionType | null
+    return this.onSection(sectionType, options)
+  }
+
+  /** Resolve a section supplied by Shared Performance Core. */
+  onSection(
+    sectionType: ReactSectionType | null,
+    options: { reconstruct?: boolean } = {},
+  ): ShaderSectionAction | null {
+    const reconstruct = options.reconstruct ?? false
+    const changed = sectionType !== this._lastSectionType && this._lastSectionType !== undefined
     const wasOverridden = this._override
 
     // Consume override on section boundary so the NEXT section change goes through.
@@ -95,7 +107,7 @@ export class ShaderSectionChoreography {
 
     this._lastSectionType = sectionType
 
-    if (!changed)       return null
+    if (!changed && !reconstruct) return null
     if (!this._enabled) return null
     if (wasOverridden)  return null  // blocked on this boundary; next will be free
     if (!sectionType)   return null
@@ -120,8 +132,11 @@ export class ShaderSectionChoreography {
     for (const rule of this._rules) {
       if (rule.sectionType !== '*' && rule.sectionType !== sectionType) continue
 
-      // Skip if already on the target scene
-      if (rule.toSceneId === this._currentSceneId) return null
+      // Same-scene rules are still meaningful when they carry parameter or
+      // feedback instructions. This is the native Shader Pads choreography path.
+      const hasSameSceneInstruction = Object.keys(rule.paramOverrides ?? {}).length > 0
+        || (rule.clearFeedback ?? 'preserve') !== 'preserve'
+      if (rule.toSceneId === this._currentSceneId && !hasSameSceneInstruction) return null
 
       return {
         toSceneId:      rule.toSceneId,

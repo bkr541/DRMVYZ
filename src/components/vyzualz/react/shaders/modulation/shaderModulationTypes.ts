@@ -1,6 +1,8 @@
 import type { ShaderParamValue } from '../registry/shaderRegistryTypes'
 import { MI_SOURCE_CATEGORY_LABELS, MI_SOURCE_REGISTRY } from '../../../../../lib/miSourceRegistry'
 import type { ModulationSourceKey } from '../../../../../lib/miSourceRegistry'
+import type { SharedPerformanceContext, SharedPerformanceSectionPhase } from '../../../../../features/performanceCore/context'
+import type { ReactSectionType } from '../../ReactTypes'
 
 // ── Modulation source IDs ─────────────────────────────────────────────────────
 //
@@ -44,12 +46,36 @@ export type ModulationCombineMode =
 
 // ── Route definition ──────────────────────────────────────────────────────────
 
+export type ShaderModulationRouteOrigin = 'built-in' | 'user' | 'legacy'
+
+export interface ShaderModulationRouteConditions {
+  sectionTypes?: readonly ReactSectionType[]
+  excludeSectionTypes?: readonly ReactSectionType[]
+  sectionPhases?: readonly SharedPerformanceSectionPhase[]
+  sectionOccurrences?: readonly number[]
+  dropOccurrences?: readonly number[]
+  minimumEnergy?: number
+  maximumEnergy?: number
+  minimumBuildProgress?: number
+  maximumBuildProgress?: number
+  requiredCapabilities?: readonly (keyof SharedPerformanceContext['capabilities'])[]
+}
+
 export interface ShaderModulationRoute {
   /** Unique route identifier. */
   id: string
+  /** Ownership metadata used by preset-native program migration and UI inspection. */
+  origin?: ShaderModulationRouteOrigin
+  authoredRouteId?: string
+  authoredProgramVersion?: number
+  modified?: boolean
   source: ModulationSourceId
-  /** Must match a param ID in the active ShaderDefinition with modulatable: true. */
+  /** Ordered capability fallbacks resolved through the shared source registry. */
+  fallbackSources?: readonly ModulationSourceId[]
+  /** Preferred target param in the active ShaderDefinition. */
   targetParamId: string
+  /** Ordered target capability fallbacks for compatible shader variants. */
+  fallbackTargetParamIds?: readonly string[]
   enabled: boolean
 
   // ── Signal shaping ─────────────────────────────────────────────────────────
@@ -71,6 +97,14 @@ export interface ShaderModulationRoute {
   releaseMs: number  // 0..5000
   /** If true, a new trigger restarts the envelope even while a prior one is active. */
   retrigger: boolean
+  /** Optional explicit decay metadata; releaseMs remains the runtime tail. */
+  decayMs?: number
+  /** Trigger/gate threshold. Continuous values below this gate resolve to zero. */
+  threshold?: number
+  /** Minimum source confidence before falling back or suppressing the route. */
+  minimumConfidence?: number
+  /** Musical and capability gates evaluated from Shared Performance Core. */
+  conditions?: ShaderModulationRouteConditions
 
   mode: ModulationMode
   combineMode: ModulationCombineMode
@@ -104,6 +138,10 @@ export interface ModulationEvaluationFrame {
   /** Result for every param in the active definition, modulated and unmodulated. */
   params: Record<string, ModulationParamResult>
   activeRouteCount: number
+  activeRouteIds?: readonly string[]
+  suppressedRouteIds?: readonly string[]
+  resolvedSourceByRouteId?: Readonly<Record<string, ModulationSourceId>>
+  resolvedTargetByRouteId?: Readonly<Record<string, string>>
 }
 
 // ── Route factory ─────────────────────────────────────────────────────────────
@@ -117,6 +155,7 @@ export function createModulationRoute(
     id:           `mod-${++_routeCounter}`,
     source:       partial.source,
     targetParamId: partial.targetParamId,
+    fallbackTargetParamIds: partial.fallbackTargetParamIds,
     enabled:      partial.enabled      ?? true,
     amount:       partial.amount       ?? 1,
     outputMin:    partial.outputMin    ?? 0,
@@ -127,6 +166,15 @@ export function createModulationRoute(
     holdMs:       partial.holdMs       ?? 0,
     releaseMs:    partial.releaseMs    ?? 200,
     retrigger:    partial.retrigger    ?? true,
+    decayMs:      partial.decayMs,
+    threshold:    partial.threshold,
+    minimumConfidence: partial.minimumConfidence,
+    fallbackSources: partial.fallbackSources,
+    conditions: partial.conditions,
+    origin:       partial.origin       ?? 'user',
+    authoredRouteId: partial.authoredRouteId,
+    authoredProgramVersion: partial.authoredProgramVersion,
+    modified:     partial.modified     ?? true,
     mode:         partial.mode         ?? 'continuous',
     combineMode:  partial.combineMode  ?? 'add',
   }
