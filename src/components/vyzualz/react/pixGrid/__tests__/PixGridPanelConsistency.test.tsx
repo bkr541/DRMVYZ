@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useReactStore } from '../../../../../stores/reactStore'
 import { PixGridAuthoringPanel } from '../PixGridAuthoringPanel'
 import { PixGridDesignPanel } from '../PixGridDesignPanel'
+import { ReactReactivityWorkspacePanel } from '../../panels/ReactWorkspacePanels'
 import reactViewCss from '../../../../../styles/reactView.css?raw'
 
 let root: Root
@@ -53,5 +54,19 @@ describe('PixGrid panel consistency', () => {
     expect(host.querySelector('.rv-ctrl-action-row')).not.toBeNull()
     expect(host.textContent).toContain('Active Scene')
     expect(host.textContent).toContain('Edit Target')
+  })
+
+  it('keeps PixGrid reactivity controls inside canonical cards and a two-column tab wrap', () => {
+    act(() => root.render(<ReactReactivityWorkspacePanel />))
+    const workspace = host.querySelector('.rv-pix-grid-reactivity-workspace')!
+    const tabs = host.querySelector('[role="tablist"][aria-label="PixGrid reactivity surfaces"]')!
+    const tabCss = reactViewCss.match(/\.rv-pix-grid-reactivity-tabs button\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(workspace.classList.contains('rv-ctrl-group')).toBe(true)
+    expect(tabs.classList.contains('rv-right-subtabs--wrap')).toBe(true)
+    expect(tabs.classList.contains('rv-pix-grid-reactivity-tabs')).toBe(true)
+    expect(tabCss).toContain('flex: 1 1 calc(50% - 3px)')
+    expect(host.querySelectorAll('.rv-pix-grid-reactivity-workspace .rv-ctrl-collapsible').length).toBeGreaterThanOrEqual(3)
+    expect(host.textContent).toContain('CONTINUOUS ROUTES')
+    expect(host.textContent).toContain('CONTINUOUS ROUTE SETTINGS')
   })
 })

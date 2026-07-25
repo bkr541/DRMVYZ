@@ -47,10 +47,17 @@ function stateForBassBeacon() {
 describe('PixGrid final Reactivity workspace', () => {
   it('exposes native Routing, Events, Choreography, and Analysis tabs without replacing the center visualizer', async () => {
     await renderWorkspace()
+    const tabs = container.querySelector('[role="tablist"][aria-label="PixGrid reactivity surfaces"]')!
+    const controlGroup = container.querySelector('.rv-pix-grid-reactivity-workspace')!
+    expect(tabs.classList.contains('rv-right-subtabs--wrap')).toBe(true)
+    expect(tabs.classList.contains('rv-pix-grid-reactivity-tabs')).toBe(true)
+    expect(controlGroup.classList.contains('rv-ctrl-group')).toBe(true)
     expect(button('ROUTING').getAttribute('aria-selected')).toBe('true')
     expect(button('EVENTS')).toBeTruthy()
     expect(button('CHOREOGRAPHY')).toBeTruthy()
     expect(button('ANALYSIS')).toBeTruthy()
+    expect(button('CONTINUOUS ROUTES').getAttribute('aria-expanded')).toBe('true')
+    expect(button('CONTINUOUS ROUTE SETTINGS').getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelector('[data-testid="pix-grid-continuous-workspace"]')).not.toBeNull()
 
     await act(async () => button('EVENTS').click())

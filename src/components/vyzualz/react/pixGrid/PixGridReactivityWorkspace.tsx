@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import type { ReactSectionType } from '../ReactTypes'
-import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { Collapsible, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { PIX_GRID_ASSIGNMENT_TARGETS } from './PixGridAssignmentCompiler'
 import {
   PIX_GRID_AUDIO_INTELLIGENCE_SOURCES,
@@ -275,8 +275,7 @@ function ProgramRouteEditor({
   const inputRange = override.inputRange ?? route.inputRange ?? [0, 1]
   const outputRange = override.outputRange ?? route.outputRange ?? [0, 1]
   return (
-    <div className="rv-pix-grid-route-editor">
-      <CtrlSection label="SHIPPED PRESET ROUTE" />
+    <Collapsible label={continuous ? 'CONTINUOUS ROUTE SETTINGS' : 'EVENT ROUTE SETTINGS'} defaultOpen>
       <div className="rv-pix-grid-origin-card"><strong>{route.id}</strong><span>{routeTargetLabel(route.target)}</span><small>{program.metadata.name} default{Object.keys(override).length ? ' · modified' : ''}</small></div>
       <ToggleRow label="Enabled" value={override.enabled !== false} onChange={enabled => update({ enabled })} />
       <CategorizedSourceSelect labelText={continuous ? 'Source' : 'Event'} value={source} continuous={continuous} onChange={value => update({ source: value })} />
@@ -324,7 +323,7 @@ function ProgramRouteEditor({
         <button type="button" className="rv-reset-btn" disabled={!Object.keys(override).length} onClick={reset}>Reset Route</button>
       </div>
       <div className="rv-ctrl-info">Preview is transient and never writes a Track Map cue.</div>
-    </div>
+    </Collapsible>
   )
 }
 
@@ -357,8 +356,7 @@ function UserRouteEditor({ state, selection, applyState }: { state: PixGridState
         : []
   const section = assignment.conditions?.includeSectionTypes?.[0] ?? 'all'
   return (
-    <div className="rv-pix-grid-route-editor">
-      <CtrlSection label="USER ROUTE" />
+    <Collapsible label={continuous ? 'USER CONTINUOUS ROUTE' : 'USER EVENT ROUTE'} defaultOpen>
       <TextInputRow label="Name" value={assignment.name} onChange={name => update({ name })} />
       <ToggleRow label="Enabled" value={assignment.enabled} onChange={enabled => update({ enabled })} />
       <CategorizedSourceSelect labelText={continuous ? 'Source' : 'Event'} value={assignment.source} continuous={continuous} onChange={source => update({ source })} />
@@ -387,7 +385,7 @@ function UserRouteEditor({ state, selection, applyState }: { state: PixGridState
       <SliderRow label="Priority" value={assignment.priority ?? 0} min={-500} max={500} step={1} onChange={priority => update({ priority })} />
       <SelectRow label="Blend" value={assignment.blend} options={['add', 'multiply', 'replace', 'max'].map(value => ({ value, label: label(value) }))} onChange={value => update({ blend: value as PixGridReactionAssignment['blend'] })} />
       <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={() => triggerPixGridPreviewSource(assignment.source)}>{continuous ? 'Preview Route' : 'Test Trigger'}</button><button type="button" className="rv-reset-btn" onClick={remove}>Delete Route</button></div>
-    </div>
+    </Collapsible>
   )
 }
 
@@ -502,10 +500,11 @@ function RoutingOrEvents({ mode }: { mode: 'continuous' | 'event' }) {
   }
   return (
     <div data-testid={`pix-grid-${mode}-workspace`}>
-      <CtrlSection label={continuous ? 'CONTINUOUS ROUTING' : 'DISCRETE EVENTS'} />
-      <div className="rv-pix-grid-summary-strip"><span><strong>{continuous ? program.continuousRoutes.length : program.eventRoutes.length}</strong> preset</span><span><strong>{selections.filter(item => item.kind === 'user').length}</strong> user</span><span><strong>{program.metadata.name}</strong> active</span></div>
-      <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={() => addRoute()}>Add Route</button><button type="button" className="rv-reset-btn" disabled={!selected} onClick={duplicate}>Duplicate</button></div>
-      <RouteList routes={routeRows} selectedId={selectedId} onSelect={setSelectedId} />
+      <Collapsible label={continuous ? 'CONTINUOUS ROUTES' : 'EVENT ROUTES'} defaultOpen>
+        <div className="rv-pix-grid-summary-strip"><span><strong>{continuous ? program.continuousRoutes.length : program.eventRoutes.length}</strong> preset</span><span><strong>{selections.filter(item => item.kind === 'user').length}</strong> user</span><span><strong>{program.metadata.name}</strong> active</span></div>
+        <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={() => addRoute()}>Add Route</button><button type="button" className="rv-reset-btn" disabled={!selected} onClick={duplicate}>Duplicate</button></div>
+        <RouteList routes={routeRows} selectedId={selectedId} onSelect={setSelectedId} />
+      </Collapsible>
       {selected?.kind === 'program-continuous' && <ProgramRouteEditor state={state} program={program} route={selected.route} continuous applyState={applyState} />}
       {selected?.kind === 'program-event' && <ProgramRouteEditor state={state} program={program} route={selected.route} continuous={false} applyState={applyState} />}
       {selected?.kind === 'user' && <UserRouteEditor state={state} selection={selected} applyState={applyState} />}
@@ -527,7 +526,7 @@ function SectionPlanEditor({ state, plan, canDisable, applyState }: { state: Pix
     applyState({ ...state, performance: { ...state.performance, programOverrides: { ...state.performance.programOverrides, sections } } })
   }
   return (
-    <div>
+    <Collapsible label="SECTION PLAN CONTROLS" defaultOpen>
       <ToggleRow label="Section Enabled" value={override.enabled !== false} disabled={override.enabled !== false && !canDisable} onChange={enabled => update({ enabled })} />
       <SliderRow label="Density Arc" value={override.density ?? plan.densityState?.value ?? 0.5} onChange={density => update({ density })} />
       <SliderRow label="Palette Arc" value={override.paletteIntensity ?? plan.paletteState?.intensity ?? 0.5} onChange={paletteIntensity => update({ paletteIntensity })} />
@@ -551,7 +550,7 @@ function SectionPlanEditor({ state, plan, canDisable, applyState }: { state: Pix
         <strong>Drop occurrence rule</strong><span>{occurrenceRuleLabel(plan.dropOccurrence)}</span>
       </div></Collapsible>
       <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" disabled={!Object.keys(override).length} onClick={reset}>Reset Section</button></div>
-    </div>
+    </Collapsible>
   )
 }
 
@@ -569,19 +568,21 @@ function ChoreographyPanel() {
   const runtime = status.runtime
   return (
     <div data-testid="pix-grid-choreography-workspace">
-      <CtrlSection label="PERFORMANCE PROGRAM" />
-      <SelectRow label="Active Program" value={program.id} options={PIX_GRID_PERFORMANCE_PROGRAMS.map(item => ({ value: item.id, label: item.metadata.name }))} onChange={value => applyState({ ...state, performance: { ...state.performance, sharedPerformanceProgramId: value as PixGridPerformanceProgramId, programOverrides: { routes: {}, sections: {} } } })} />
-      <ToggleRow label="Auto Performance" value={state.performance.enabled} onChange={enabled => applyState({ ...state, performance: { ...state.performance, enabled } })} />
-      <SliderRow label="Performance Intensity" value={state.performance.intensity} onChange={intensity => applyState({ ...state, performance: { ...state.performance, intensity } })} />
-      <div className="rv-pix-grid-origin-card"><strong>{program.metadata.name}</strong><span>{program.metadata.description}</span><small>{program.visualRoles.length} visual roles · {program.bindings.length} bindings · {program.banks.length} banks</small></div>
-      <div className="rv-pix-grid-live-card"><span>Active section <strong>{runtime?.activeSectionPlan ?? 'Waiting for analysis'}</strong></span><span>Motif <strong>{runtime?.activeProgramMotif ?? 'none'}</strong></span><span>Recruitment <strong>{runtime?.activeProgramRecruitment ?? 'none'}</strong></span><span>Evolution <strong>{runtime?.activeProgramEvolution ?? 'none'}</strong></span></div>
-      <SelectRow label="Section Plan" value={plan?.id ?? ''} options={program.sectionPlans.map(item => ({ value: item.id, label: `${label(item.id)} · ${item.sectionTypes.map(label).join('/')}` }))} onChange={setSectionId} />
+      <Collapsible label="PERFORMANCE PROGRAM" defaultOpen>
+        <SelectRow label="Active Program" value={program.id} options={PIX_GRID_PERFORMANCE_PROGRAMS.map(item => ({ value: item.id, label: item.metadata.name }))} onChange={value => applyState({ ...state, performance: { ...state.performance, sharedPerformanceProgramId: value as PixGridPerformanceProgramId, programOverrides: { routes: {}, sections: {} } } })} />
+        <ToggleRow label="Auto Performance" value={state.performance.enabled} onChange={enabled => applyState({ ...state, performance: { ...state.performance, enabled } })} />
+        <SliderRow label="Performance Intensity" value={state.performance.intensity} onChange={intensity => applyState({ ...state, performance: { ...state.performance, intensity } })} />
+        <div className="rv-pix-grid-origin-card"><strong>{program.metadata.name}</strong><span>{program.metadata.description}</span><small>{program.visualRoles.length} visual roles · {program.bindings.length} bindings · {program.banks.length} banks</small></div>
+        <div className="rv-pix-grid-live-card"><span>Active section <strong>{runtime?.activeSectionPlan ?? 'Waiting for analysis'}</strong></span><span>Motif <strong>{runtime?.activeProgramMotif ?? 'none'}</strong></span><span>Recruitment <strong>{runtime?.activeProgramRecruitment ?? 'none'}</strong></span><span>Evolution <strong>{runtime?.activeProgramEvolution ?? 'none'}</strong></span></div>
+        <SelectRow label="Section Plan" value={plan?.id ?? ''} options={program.sectionPlans.map(item => ({ value: item.id, label: `${label(item.id)} · ${item.sectionTypes.map(label).join('/')}` }))} onChange={setSectionId} />
+      </Collapsible>
       {plan && <SectionPlanEditor state={state} plan={plan} canDisable={enabledSectionCount > 1 || state.performance.programOverrides.sections[plan.id]?.enabled === false} applyState={applyState} />}
       <Collapsible label="VISUAL ROLES AND BANKS" defaultOpen={false}><div className="rv-pix-grid-inspection-list"><span>Roles: {program.visualRoles.map(label).join(' · ')}</span>{program.bindings.map(binding => <span key={binding.id}>{label(binding.id)}: {binding.target.kind} {label(binding.target.id)} → {binding.roles.map(label).join(', ')}</span>)}{program.banks.map(bank => <span key={bank.id}>{bank.label ?? label(bank.id)}: {bank.members.length} targets · {(bank.roles ?? []).map(label).join(', ')}</span>)}</div></Collapsible>
       <Collapsible label="ROUTE BANKS AND CAPABILITIES" defaultOpen={false}><div className="rv-pix-grid-inspection-list"><span>Continuous route bank: {program.continuousRoutes.length} authored routes</span><span>Event route bank: {program.eventRoutes.length} authored routes</span><span>Fallback order: {program.fallbackOrder?.map(label).join(' → ') || 'program default'}</span><span>Binding warnings: {runtime?.programBindingWarnings.length ? runtime.programBindingWarnings.join(' · ') : 'none'}</span><span>Manual precedence: {runtime?.manualOverridePrecedence ?? 'Program → cues → manual override'}</span></div></Collapsible>
-      <CtrlSection label="OVERRIDES" />
-      <div className="rv-pix-grid-origin-card"><strong>{runtime?.activeCueActions.length ? 'Track Map cue override active' : state.performance.lockedRoutes.length || state.layers.some(layer => layer.locked) ? 'Manual override active' : 'Program controls output'}</strong><span>{runtime?.activeCueActions.join(' · ') || state.performance.lockedRoutes.join(' · ') || 'No temporary override routes.'}</span><small>Track Map cue state is distinct from preset defaults and user-authored configuration.</small></div>
-      <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={clearOverride}>Clear Override</button><button type="button" className="rv-reset-btn" onClick={resetAll}>Reset Performance Configuration</button></div>
+      <Collapsible label="OVERRIDES" defaultOpen>
+        <div className="rv-pix-grid-origin-card"><strong>{runtime?.activeCueActions.length ? 'Track Map cue override active' : state.performance.lockedRoutes.length || state.layers.some(layer => layer.locked) ? 'Manual override active' : 'Program controls output'}</strong><span>{runtime?.activeCueActions.join(' · ') || state.performance.lockedRoutes.join(' · ') || 'No temporary override routes.'}</span><small>Track Map cue state is distinct from preset defaults and user-authored configuration.</small></div>
+        <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={clearOverride}>Clear Override</button><button type="button" className="rv-reset-btn" onClick={resetAll}>Reset Performance Configuration</button></div>
+      </Collapsible>
     </div>
   )
 }
@@ -624,35 +625,44 @@ function AnalysisPanel() {
   ]
   return (
     <div data-testid="pix-grid-analysis-workspace">
-      <CtrlSection label="LIVE AUTHORITATIVE ANALYSIS" />
-      {!frame && <div className="rv-pix-grid-origin-card"><strong>Waiting for PixGrid frames</strong><span>Start playback or select PixGrid to publish live analysis.</span><small>No values are synthesized while analysis is absent.</small></div>}
-      <div className="rv-pix-grid-signal-list">{signals.map(([source, title]) => <SignalRow key={source} source={source} labelText={title} />)}</div>
-      <CtrlSection label="EVENTS AND MUSICAL POSITION" />
-      <div className="rv-pix-grid-event-grid">{events.map(([source, title]) => <EventStatus key={source} source={source} labelText={title} />)}</div>
-      <div className="rv-pix-grid-choreo-grid"><div><strong>Section</strong><span>{frame?.sectionType ? label(frame.sectionType) : 'Unavailable'}</span></div><div><strong>Phase</strong><span>{frame?.sectionPhase ? label(frame.sectionPhase) : 'Unavailable'}</span></div><div><strong>Occurrence</strong><span>{frame?.sectionOccurrence ?? 'Unavailable'}</span></div><div><strong>Drop</strong><span>{frame?.dropOccurrence ?? 'Unavailable'}</span></div><div><strong>4 / 8 / 16</strong><span>{runtime?.fourBarStage ?? '–'} / {runtime?.eightBarStage ?? '–'} / {runtime?.sixteenBarStage ?? '–'}</span></div><div><strong>Semantic</strong><span>{frame?.semanticMomentHit ? 'Active' : frame?.capabilities?.semanticMoment === false ? 'Unavailable' : 'Idle'}</span></div></div>
-      <CtrlSection label="CAPABILITY STATUS" />
-      <div className="rv-pix-grid-diagnostic-tags"><span className="is-available">Available {runtime?.availableSources.length ?? 0}</span><span className="is-degraded">Degraded {runtime?.degradedSources.length ?? 0}</span><span className="is-fallback">Fallback {runtime?.assignmentsUsingFallback.length ?? 0}</span><span className="is-blocked">Confidence blocked {runtime?.assignmentsBlockedByConfidence.length ?? 0}</span><span className="is-unavailable">Unavailable {runtime?.unavailableSources.length ?? 0}</span></div>
-      <CtrlSection label="RUNTIME DIAGNOSTICS" />
-      <div className="rv-pix-grid-diagnostics-grid">
-        {[
-          ['Total groups', renderer?.totalGroupCount ?? runtime?.enabledGroups.length], ['Compiled masks', renderer?.activeGroupMaskCount ?? runtime?.compiledMaskGroups.length],
-          ['Continuous routes', renderer?.activeContinuousAssignmentCount ?? runtime?.activeContinuousAssignments.length], ['Event routes', renderer?.activeDiscreteAssignmentCount ?? runtime?.activeDiscreteAssignments.length],
-          ['Program routes', renderer?.programGeneratedRouteCount ?? ((runtime?.activeProgramContinuousRoutes.length ?? 0) + (runtime?.activeProgramEventRoutes.length ?? 0))], ['User routes', renderer?.userAuthoredRouteCount ?? ((runtime?.activeContinuousAssignments.length ?? 0) + (runtime?.activeDiscreteAssignments.length ?? 0))],
-          ['Active envelopes', renderer?.activeEventEnvelopeCount ?? runtime?.activeEventEnvelopes.length], ['Cue actions', renderer?.activeCueActionCount ?? runtime?.activeCueActions.length],
-          ['Program actions', renderer?.activePerformanceActionCount ?? runtime?.activePerformanceActions.length], ['Transitions', renderer?.activeTransitionCount ?? runtime?.activeTransitions.length],
-          ['Manual overrides', renderer?.manualOverrideCount ?? runtime?.manualOverrides.length], ['Degraded sources', renderer?.degradedSignalCount ?? runtime?.degradedSignals.length],
-          ['Missing targets', renderer?.missingTargetCount ?? ((runtime?.missingTargets.length ?? 0) + (runtime?.programBindingWarnings.length ?? 0))], ['Compiler warnings', renderer?.assignmentCompilerWarningCount ?? runtime?.compilationWarnings.length],
-          ['Renderer', renderer?.path ?? 'Unavailable'], ['Resolution', renderer ? `${renderer.logicalWidth} × ${renderer.logicalHeight}` : 'Unavailable'], ['FPS', renderer ? renderer.fps.toFixed(1) : 'Unavailable'],
-        ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value ?? 0}</strong></div>)}
-      </div>
-      {runtime?.compilationWarnings.length ? <div className="rv-pix-grid-warning-list">{runtime.compilationWarnings.map(warning => <span key={warning}>{warning}</span>)}</div> : null}
+      <Collapsible label="LIVE AUTHORITATIVE ANALYSIS" defaultOpen>
+        {!frame && <div className="rv-pix-grid-origin-card"><strong>Waiting for PixGrid frames</strong><span>Start playback or select PixGrid to publish live analysis.</span><small>No values are synthesized while analysis is absent.</small></div>}
+        <div className="rv-pix-grid-signal-list">{signals.map(([source, title]) => <SignalRow key={source} source={source} labelText={title} />)}</div>
+      </Collapsible>
+      <Collapsible label="EVENTS AND MUSICAL POSITION" defaultOpen>
+        <div className="rv-pix-grid-event-grid">{events.map(([source, title]) => <EventStatus key={source} source={source} labelText={title} />)}</div>
+        <div className="rv-pix-grid-choreo-grid"><div><strong>Section</strong><span>{frame?.sectionType ? label(frame.sectionType) : 'Unavailable'}</span></div><div><strong>Phase</strong><span>{frame?.sectionPhase ? label(frame.sectionPhase) : 'Unavailable'}</span></div><div><strong>Occurrence</strong><span>{frame?.sectionOccurrence ?? 'Unavailable'}</span></div><div><strong>Drop</strong><span>{frame?.dropOccurrence ?? 'Unavailable'}</span></div><div><strong>4 / 8 / 16</strong><span>{runtime?.fourBarStage ?? '–'} / {runtime?.eightBarStage ?? '–'} / {runtime?.sixteenBarStage ?? '–'}</span></div><div><strong>Semantic</strong><span>{frame?.semanticMomentHit ? 'Active' : frame?.capabilities?.semanticMoment === false ? 'Unavailable' : 'Idle'}</span></div></div>
+      </Collapsible>
+      <Collapsible label="CAPABILITY STATUS" defaultOpen={false}>
+        <div className="rv-pix-grid-diagnostic-tags"><span className="is-available">Available {runtime?.availableSources.length ?? 0}</span><span className="is-degraded">Degraded {runtime?.degradedSources.length ?? 0}</span><span className="is-fallback">Fallback {runtime?.assignmentsUsingFallback.length ?? 0}</span><span className="is-blocked">Confidence blocked {runtime?.assignmentsBlockedByConfidence.length ?? 0}</span><span className="is-unavailable">Unavailable {runtime?.unavailableSources.length ?? 0}</span></div>
+      </Collapsible>
+      <Collapsible label="RUNTIME DIAGNOSTICS" defaultOpen={false}>
+        <div className="rv-pix-grid-diagnostics-grid">
+          {[
+            ['Total groups', renderer?.totalGroupCount ?? runtime?.enabledGroups.length], ['Compiled masks', renderer?.activeGroupMaskCount ?? runtime?.compiledMaskGroups.length],
+            ['Continuous routes', renderer?.activeContinuousAssignmentCount ?? runtime?.activeContinuousAssignments.length], ['Event routes', renderer?.activeDiscreteAssignmentCount ?? runtime?.activeDiscreteAssignments.length],
+            ['Program routes', renderer?.programGeneratedRouteCount ?? ((runtime?.activeProgramContinuousRoutes.length ?? 0) + (runtime?.activeProgramEventRoutes.length ?? 0))], ['User routes', renderer?.userAuthoredRouteCount ?? ((runtime?.activeContinuousAssignments.length ?? 0) + (runtime?.activeDiscreteAssignments.length ?? 0))],
+            ['Active envelopes', renderer?.activeEventEnvelopeCount ?? runtime?.activeEventEnvelopes.length], ['Cue actions', renderer?.activeCueActionCount ?? runtime?.activeCueActions.length],
+            ['Program actions', renderer?.activePerformanceActionCount ?? runtime?.activePerformanceActions.length], ['Transitions', renderer?.activeTransitionCount ?? runtime?.activeTransitions.length],
+            ['Manual overrides', renderer?.manualOverrideCount ?? runtime?.manualOverrides.length], ['Degraded sources', renderer?.degradedSignalCount ?? runtime?.degradedSignals.length],
+            ['Missing targets', renderer?.missingTargetCount ?? ((runtime?.missingTargets.length ?? 0) + (runtime?.programBindingWarnings.length ?? 0))], ['Compiler warnings', renderer?.assignmentCompilerWarningCount ?? runtime?.compilationWarnings.length],
+            ['Renderer', renderer?.path ?? 'Unavailable'], ['Resolution', renderer ? `${renderer.logicalWidth} × ${renderer.logicalHeight}` : 'Unavailable'], ['FPS', renderer ? renderer.fps.toFixed(1) : 'Unavailable'],
+          ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value ?? 0}</strong></div>)}
+        </div>
+        {runtime?.compilationWarnings.length ? <div className="rv-pix-grid-warning-list">{runtime.compilationWarnings.map(warning => <span key={warning}>{warning}</span>)}</div> : null}
+      </Collapsible>
     </div>
   )
 }
 
 export function PixGridReactivityWorkspace({ surface }: { surface: PixGridReactivitySurface }) {
-  if (surface === 'events') return <RoutingOrEvents mode="event" />
-  if (surface === 'choreography') return <ChoreographyPanel />
-  if (surface === 'analysis') return <AnalysisPanel />
-  return <RoutingOrEvents mode="continuous" />
+  const content = surface === 'events'
+    ? <RoutingOrEvents mode="event" />
+    : surface === 'choreography'
+      ? <ChoreographyPanel />
+      : surface === 'analysis'
+        ? <AnalysisPanel />
+        : <RoutingOrEvents mode="continuous" />
+
+  return <div className="rv-ctrl-group rv-pix-grid-reactivity-workspace">{content}</div>
 }

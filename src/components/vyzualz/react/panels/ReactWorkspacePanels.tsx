@@ -83,6 +83,8 @@ export function ReactReactivityWorkspacePanel() {
           value={pixGridSurface}
           onChange={value => setPixGridSurface(value)}
           ariaLabel="PixGrid reactivity surfaces"
+          layout="wrap"
+          className="rv-pix-grid-reactivity-tabs"
           options={[
             { id: 'routing', label: 'ROUTING' },
             { id: 'events', label: 'EVENTS' },
