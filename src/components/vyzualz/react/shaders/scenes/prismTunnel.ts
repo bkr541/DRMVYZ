@@ -173,7 +173,7 @@ void main() {
       uniformName: 'uTunnelRadius',
       min: 0.3, max: 2.0, step: 0.05,
       default: 0.9,
-      modulatable: false,
+      modulatable: true,
     },
     {
       id: 'warp',
