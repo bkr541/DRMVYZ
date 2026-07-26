@@ -267,7 +267,7 @@ describe('LaserDMX physical scanner domain', () => {
     expect(solved.blankedSampleCount).toBeGreaterThan(0)
     const blanked = solved.exposureSamples.filter(sample => sample.blanked)
     expect(blanked.length).toBeGreaterThan(0)
-    expect(blanked.every(sample => sample.exposureWeight === 0 && sample.intensity === 0)).toBe(true)
+    expect(blanked.every(sample => sample.exposureWeight === 0 && sample.intensity === 0 && sample.historyWeight === 0)).toBe(true)
   })
 
   it('concentrates held-point exposure and spreads fast scan exposure across space', () => {
@@ -291,9 +291,37 @@ describe('LaserDMX physical scanner domain', () => {
     }
     const low = solveLaserDmxScannerExposure({ ...common, quality: 'low' })
     const ultra = solveLaserDmxScannerExposure({ ...common, quality: 'ultra' })
-    expect(low.exposureSamples).toHaveLength(4)
-    expect(ultra.exposureSamples).toHaveLength(28)
+    expect(low.exposureSamples).toHaveLength(12)
+    expect(ultra.exposureSamples).toHaveLength(72)
+    const energy = (samples: typeof low.exposureSamples) => samples.reduce(
+      (sum, sample) => sum + sample.exposureWeight * sample.intensity,
+      0,
+    )
+    expect(energy(low.exposureSamples)).toBeCloseTo(energy(ultra.exposureSamples), 8)
     expect(migrated.paths[0]?.points).toHaveLength(3)
+  })
+
+  it('integrates one complete stable scanner frame at every transport position', () => {
+    const migrated = planFor(fixture('stable-frame', 'Circle Scanner'), targets([[0.5, 0.5]]), 'parallelBank')
+    const common = {
+      ...migrated,
+      originByFixtureId: new Map([['stable-frame', ORIGIN]]),
+      bpm: 150,
+      quality: 'high' as const,
+    }
+    const canonical = (time: number) => solveLaserDmxScannerExposure({
+      ...common,
+      audioTimeSec: time,
+    }).exposureSamples.map(sample => ({
+      x: Number(sample.targetOrDirection.x.toFixed(6)),
+      y: Number(sample.targetOrDirection.y.toFixed(6)),
+      z: Number(sample.targetOrDirection.z.toFixed(6)),
+      exposure: Number(sample.exposureWeight.toFixed(9)),
+      blanked: sample.blanked,
+      framePhase: Number((sample.scannerFramePhase ?? 0).toFixed(6)),
+    }))
+
+    expect(canonical(0.25)).toEqual(canonical(18.75))
   })
 
   it('reveals a more localized moving beam at low scan rates than high scan rates', () => {
@@ -421,7 +449,7 @@ describe('LaserDMX physical scanner domain', () => {
     ['line', 5],
     ['grid', 9],
     ['burst', 7],
-  ] as const)('compiles %s diffraction into explicit energy-conserving scanner outputs', (mode, outputCount) => {
+  ] as const)('compiles %s diffraction into explicit energy-conserving scanner outputs', (mode: 'line' | 'grid' | 'burst', outputCount: number) => {
     const source = fixture(`diffraction-${mode}`, `${mode} diffraction`)
     source.optics.diffractionMode = mode
     source.optics.diffractionCopies = outputCount

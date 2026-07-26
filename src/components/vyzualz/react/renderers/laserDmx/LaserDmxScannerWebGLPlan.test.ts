@@ -10,10 +10,12 @@ import type {
   LaserDmxScanPoint,
   LaserDmxScannerHead,
 } from './LaserDmxScannerDomain'
+import { buildLaserDmxCanvas2DScannerPlan } from './LaserDmxCanvas2DScannerRenderer'
 import { createLaserDmxSceneFrame, type LaserDmxSceneFrame } from './LaserDmxSceneFrame'
 import {
   aggregateLaserDmxScannerExposureSegments,
   buildLaserDmxScannerExposurePlan,
+  resolveLaserDmxScannerExposureDensity,
 } from './LaserDmxScannerWebGLPlan'
 import { buildLaserDmxWebGLBeamRenderPlan } from './LaserDmxWebGLBeamPlan'
 
@@ -77,6 +79,9 @@ function customPath(
     compatibilityMode: 'native',
     validationErrors: [],
     migrationWarnings: [],
+    presentationMode: 'scannedPath',
+    patternAnimationActive: false,
+    fixtureMovementActive: false,
     ...patch,
   }
 }
@@ -103,6 +108,11 @@ function sample(
     pathId: 'custom-path',
     pointIndex,
     velocityRatio: 0.7,
+    accelerationRatio: 0.2,
+    dwellWeight: 1,
+    historyWeight: 0.16,
+    scannerFramePhase: pointIndex / 16,
+    eventKind: 'travel',
     ...patch,
   }
 }
@@ -119,15 +129,23 @@ function withScanner(
     scanPaths: [path],
     exposureSamples,
     scannerInstantaneousRays: [],
+    exposureAggregation: {
+      rawSampleCount: exposureSamples.length,
+      aggregatedRayCount: exposureSamples.filter(candidate => !candidate.blanked).length,
+      visibleSlotCount: exposureSamples.filter(candidate => !candidate.blanked).length,
+      blankedSampleCount: exposureSamples.filter(candidate => candidate.blanked).length,
+      energyBeforeAggregation: exposureSamples.reduce((sum, candidate) => sum + candidate.exposureWeight * candidate.intensity, 0),
+      energyAfterAggregation: exposureSamples.reduce((sum, candidate) => sum + candidate.exposureWeight * candidate.intensity, 0),
+    },
   }
 }
 
-function radialDistance(pointA: { x: number; y: number }, pointB: { x: number; y: number }): number {
-  return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y)
+function distance2d(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
-describe('LaserDMX scanner-sample WebGL planning', () => {
-  it('renders sequential circle exposure as projector-origin aerial rays', () => {
+describe('LaserDMX ordered scanner exposure planning', () => {
+  it('integrates a stable circle into connected scan strokes without aperture spokes', () => {
     const frame = createBaseFrame()
     const center = { x: 0.5, y: 0.58 }
     const radius = 0.22
@@ -143,62 +161,20 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
     const planned = buildLaserDmxScannerExposurePlan(withScanner(
       frame,
       path,
-      positions.map((position, index) => sample(frame, position, 7.98 + index * 0.001, index)),
+      positions.map((position, index) => sample(frame, position, 7.98 + index * 0.001, index, {
+        exposureWeight: 1 / positions.length,
+      })),
     ))
 
     expect(planned.segments).toHaveLength(12)
-    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
-    expect(planned.segments.map(segment => ({ x: segment.target.x, y: segment.target.y }))).toEqual(positions)
-    expect(planned.segments.every(segment => radialDistance(segment.origin, segment.target) > 0.1)).toBe(true)
+    expect(planned.segments.every(segment => segment.geometry === 'scanStroke')).toBe(true)
+    expect(planned.segments.every(segment => distance2d(segment.origin, frame.fixtures[0]!.position) > 0.05)).toBe(true)
+    expect(planned.segments.every(segment => segment.stable && !segment.animated)).toBe(true)
+    expect(planned.validation.filledWedgeRiskCount).toBe(0)
+    expect(planned.validation.normalizedSegmentEnergy).toBeCloseTo(1, 6)
   })
 
-  it('keeps triangle and polygon aim order while rendering physical aerial rays', () => {
-    const frame = createBaseFrame()
-    const vertices = [
-      { x: 0.5, y: 0.2 },
-      { x: 0.82, y: 0.78 },
-      { x: 0.18, y: 0.78 },
-      { x: 0.5, y: 0.2 },
-    ]
-    const path = customPath(frame, vertices.slice(0, -1).map((position, index) => point(`triangle-${index}`, position.x, position.y)), {
-      closed: true,
-      conversionKind: 'polygon',
-    })
-    const planned = buildLaserDmxScannerExposurePlan(withScanner(
-      frame,
-      path,
-      vertices.map((position, index) => sample(frame, position, 8 + index * 0.001, index % 3)),
-    ))
-
-    expect(planned.segments).toHaveLength(4)
-    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
-    expect(planned.segments.map(segment => ({ x: segment.target.x, y: segment.target.y }))).toEqual(vertices)
-    expect(planned.validation.suppressedLegacyBeamIds.length).toBe(frame.beams.filter(beam => beam.fixtureKind === 'laser').length)
-    expect(planned.validation.duplicateFixtureIds).toEqual([])
-  })
-
-  it('keeps progressive waves and fan sweeps ordered in sample time', () => {
-    const frame = createBaseFrame()
-    const positions = Array.from({ length: 9 }, (_, index) => ({
-      x: 0.15 + index * 0.085,
-      y: 0.55 + Math.sin(index / 8 * Math.PI * 2) * 0.16,
-    }))
-    const path = customPath(frame, positions.map((position, index) => point(`wave-${index}`, position.x, position.y)), {
-      repeatMode: 'pingPong',
-      conversionKind: 'wave',
-    })
-    const planned = buildLaserDmxScannerExposurePlan(withScanner(
-      frame,
-      path,
-      positions.map((position, index) => sample(frame, position, 4 + index * 0.002, index)),
-    ))
-
-    expect(planned.segments).toHaveLength(9)
-    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
-    expect(planned.segments.every((segment, index) => segment.target.x === positions[index]!.x)).toBe(true)
-  })
-
-  it('breaks disconnected shapes at zero-energy blank markers', () => {
+  it('never bridges blanked or retrace travel', () => {
     const frame = createBaseFrame()
     const path = customPath(frame, [
       point('a', 0.15, 0.3),
@@ -208,90 +184,85 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
       point('d', 0.85, 0.7),
     ])
     const samples = [
-      sample(frame, { x: 0.15, y: 0.3 }, 1, 0),
-      sample(frame, { x: 0.3, y: 0.3 }, 1.001, 1),
-      sample(frame, { x: 0.75, y: 0.75 }, 1.002, 2, { blanked: true, intensity: 0, exposureWeight: 0 }),
-      sample(frame, { x: 0.7, y: 0.7 }, 1.003, 3),
-      sample(frame, { x: 0.85, y: 0.7 }, 1.004, 4),
+      sample(frame, { x: 0.15, y: 0.3 }, 1, 0, { exposureWeight: 0.25 }),
+      sample(frame, { x: 0.3, y: 0.3 }, 1.001, 1, { exposureWeight: 0.25 }),
+      sample(frame, { x: 0.75, y: 0.75 }, 1.002, 2, {
+        blanked: true,
+        retrace: true,
+        intensity: 0,
+        exposureWeight: 0,
+      }),
+      sample(frame, { x: 0.7, y: 0.7 }, 1.003, 3, { exposureWeight: 0.25 }),
+      sample(frame, { x: 0.85, y: 0.7 }, 1.004, 4, { exposureWeight: 0.25 }),
     ]
     const planned = buildLaserDmxScannerExposurePlan(withScanner(frame, path, samples))
 
-    expect(planned.segments).toHaveLength(4)
+    expect(planned.segments).toHaveLength(2)
     expect(planned.validation.blankedBreakCount).toBeGreaterThan(0)
-    expect(planned.segments.some(segment => radialDistance(segment.target, { x: 0.75, y: 0.75 }) < 1e-6)).toBe(false)
-    expect(planned.segments.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
+    expect(planned.validation.retraceBreakCount).toBe(1)
+    expect(planned.segments.some(segment =>
+      distance2d(segment.origin, { x: 0.3, y: 0.3 }) < 1e-6
+      && distance2d(segment.target, { x: 0.7, y: 0.7 }) < 1e-6,
+    )).toBe(false)
   })
 
-  it('merges repeated point dwell into one brighter projector-origin ray', () => {
+  it('retains only explicitly authored fan slots as aperture rays', () => {
     const frame = createBaseFrame()
-    const path = customPath(frame, [point('held', 0.5, 0.65)], { conversionKind: 'held' })
+    const positions = [
+      { x: 0.2, y: 0.75 },
+      { x: 0.5, y: 0.82 },
+      { x: 0.8, y: 0.75 },
+    ]
+    const path = customPath(frame, positions.map((position, index) => ({
+      ...point(`fan-${index}`, position.x, position.y),
+      intendedRaySlotId: `slot-${index}`,
+    })), {
+      conversionKind: 'fan',
+      presentationMode: 'intentionalRays',
+      exposureAggregation: 'intendedSlots',
+    })
+    const planned = buildLaserDmxScannerExposurePlan(withScanner(frame, path, positions.map((position, index) =>
+      sample(frame, position, 2 + index * 0.001, index, {
+        intendedRaySlotId: `slot-${index}`,
+        exposureWeight: 1 / positions.length,
+        eventKind: 'dwell',
+        velocityRatio: 0,
+      }),
+    )))
+
+    expect(planned.segments).toHaveLength(3)
+    expect(planned.segments.every(segment => segment.geometry === 'intentionalRay')).toBe(true)
+    expect(planned.segments.every(segment => distance2d(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
+  })
+
+  it('merges held dwell samples into one controlled bright ray', () => {
+    const frame = createBaseFrame()
+    const path = customPath(frame, [point('held', 0.5, 0.65)], {
+      conversionKind: 'held',
+      presentationMode: 'heldRay',
+      exposureAggregation: 'intendedSlots',
+    })
     const planned = buildLaserDmxScannerExposurePlan(withScanner(frame, path, [
-      sample(frame, { x: 0.5, y: 0.65 }, 2, 0, { exposureWeight: 0.5, velocityRatio: 0 }),
-      sample(frame, { x: 0.5, y: 0.65 }, 2.001, 0, { exposureWeight: 0.5, velocityRatio: 0 }),
+      sample(frame, { x: 0.5, y: 0.65 }, 2, 0, {
+        exposureWeight: 0.5,
+        velocityRatio: 0,
+        dwellWeight: 1.5,
+        eventKind: 'dwell',
+      }),
+      sample(frame, { x: 0.5, y: 0.65 }, 2.001, 0, {
+        exposureWeight: 0.5,
+        velocityRatio: 0,
+        dwellWeight: 1.5,
+        eventKind: 'dwell',
+      }),
     ]))
 
     expect(planned.segments).toHaveLength(1)
-    expect(planned.segments[0]?.pointDwell).toBe(true)
-    expect(radialDistance(planned.segments[0]!.origin, frame.fixtures[0]!.position)).toBeLessThan(1e-6)
-    expect(radialDistance(planned.segments[0]!.target, { x: 0.5, y: 0.65 })).toBeLessThan(1e-6)
+    expect(planned.segments[0]).toMatchObject({ geometry: 'heldRay', pointDwell: true })
     expect(planned.segments[0]?.exposureContribution).toBeCloseTo(1, 6)
   })
 
-  it('keeps multiple scanner heads and optical copies explicitly separate', () => {
-    const frame = createBaseFrame()
-    const headA = frame.scannerHeads[0]!
-    const headB: LaserDmxScannerHead = { ...headA, id: 'scanner-head-b', scanPhase: 0.5 }
-    const pathA = customPath(frame, [point('a', 0.2, 0.7), point('b', 0.4, 0.8)])
-    const pathB = customPath(frame, [point('c', 0.6, 0.8), point('d', 0.8, 0.7)], {
-      id: 'path-b',
-      scannerHeadId: headB.id,
-    })
-    const samples = [
-      sample(frame, { x: 0.2, y: 0.7 }, 1, 0),
-      sample(frame, { x: 0.4, y: 0.8 }, 1.001, 1),
-      sample(frame, { x: 0.22, y: 0.68 }, 1, 0, { opticalCopyIndex: 1 }),
-      sample(frame, { x: 0.42, y: 0.78 }, 1.001, 1, { opticalCopyIndex: 1 }),
-      sample(frame, { x: 0.6, y: 0.8 }, 1, 0, { scannerHeadId: headB.id, pathId: 'path-b' }),
-      sample(frame, { x: 0.8, y: 0.7 }, 1.001, 1, { scannerHeadId: headB.id, pathId: 'path-b' }),
-    ]
-    const planned = buildLaserDmxScannerExposurePlan({
-      ...frame,
-      scannerHeads: [headA, headB],
-      scanPaths: [pathA, pathB],
-      exposureSamples: samples,
-    })
-
-    expect(new Set(planned.segments.map(segment => segment.scannerHeadId))).toEqual(new Set([headA.id, headB.id]))
-    expect(new Set(planned.segments.map(segment => segment.opticalCopyIndex))).toEqual(new Set([0, 1]))
-  })
-
-  it('aggregates atmosphere samples without joining blanked runs or optical copies', () => {
-    const frame = createBaseFrame()
-    const path = customPath(frame, [
-      point('a', 0.12, 0.3),
-      point('b', 0.24, 0.3),
-      point('blank', 0.72, 0.72, 0, true),
-      point('c', 0.72, 0.72),
-      point('d', 0.84, 0.72),
-    ])
-    const plan = buildLaserDmxScannerExposurePlan(withScanner(frame, path, [
-      sample(frame, { x: 0.12, y: 0.3 }, 1, 0),
-      sample(frame, { x: 0.24, y: 0.3 }, 1.001, 1),
-      sample(frame, { x: 0.72, y: 0.72 }, 1.002, 2, { blanked: true, intensity: 0, exposureWeight: 0 }),
-      sample(frame, { x: 0.72, y: 0.72 }, 1.003, 3),
-      sample(frame, { x: 0.84, y: 0.72 }, 1.004, 4),
-      sample(frame, { x: 0.14, y: 0.28 }, 1, 0, { opticalCopyIndex: 1 }),
-      sample(frame, { x: 0.26, y: 0.28 }, 1.001, 1, { opticalCopyIndex: 1 }),
-    ]))
-    const aggregated = aggregateLaserDmxScannerExposureSegments(plan.segments, 3)
-
-    expect(aggregated).toHaveLength(3)
-    expect(new Set(aggregated.map(segment => segment.opticalCopyIndex))).toEqual(new Set([0, 1]))
-    expect(aggregated.every(segment => radialDistance(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
-    expect(aggregated.every(segment => radialDistance(segment.origin, segment.target) > 0.1)).toBe(true)
-  })
-
-  it('bounds quality work while preserving deterministic first and last samples', () => {
+  it('preserves normalized exposure energy when quality thins path samples', () => {
     const positions = Array.from({ length: 901 }, (_, index) => ({ x: 0.05 + index / 1000, y: 0.5 }))
     const build = (quality: LaserDmxSceneFrame['quality']['qualityTier']) => {
       const frame = createBaseFrame(quality)
@@ -299,100 +270,103 @@ describe('LaserDMX scanner-sample WebGL planning', () => {
       return buildLaserDmxScannerExposurePlan(withScanner(
         frame,
         path,
-        positions.map((position, index) => sample(frame, position, 1 + index * 0.0001, index, { exposureWeight: 1 / positions.length })),
+        positions.map((position, index) => sample(frame, position, 1 + index * 0.0001, index, {
+          exposureWeight: 1 / positions.length,
+        })),
       ))
     }
     const low = build('low')
     const ultra = build('ultra')
 
-    expect(low.segments.length).toBeLessThan(ultra.segments.length)
-    expect(low.segments).toHaveLength(120)
-    expect(ultra.segments).toHaveLength(860)
-    expect(low.segments[0]?.origin.x).toBeCloseTo(createBaseFrame('low').fixtures[0]!.position.x, 6)
-    expect(low.segments[0]?.target.x).toBeCloseTo(positions[0]!.x, 6)
+    expect(low.segments).toHaveLength(180)
+    expect(ultra.segments).toHaveLength(900)
+    expect(low.validation.normalizedSegmentEnergy).toBeCloseTo(ultra.validation.normalizedSegmentEnergy, 6)
+    expect(low.segments[0]?.geometry).toBe('scanStroke')
+    for (let index = 1; index < low.segments.length; index += 1) {
+      expect(low.segments[index]?.origin).toEqual(low.segments[index - 1]?.target)
+    }
     expect(low.segments[low.segments.length - 1]?.target.x).toBeCloseTo(positions[positions.length - 1]!.x, 6)
   })
 
-  it('keeps aperture energy stable when the same shutter exposure uses more samples', () => {
+  it('keeps exposure density stable as scanner sample count increases', () => {
     const makePlan = (sampleCount: number) => {
       const frame = createBaseFrame('high')
       const positions = Array.from({ length: sampleCount }, (_, index) => ({
         x: 0.2 + index / Math.max(1, sampleCount - 1) * 0.6,
         y: 0.72,
       }))
-      const path = customPath(frame, positions.map((position, index) => point(`p-${index}`, position.x, position.y)), {
-        repeatMode: 'pingPong',
-        conversionKind: 'fan',
-      })
-      const samples = positions.map((position, index) => sample(frame, position, 1 + index * 0.0001, index, {
+      const path = customPath(frame, positions.map((position, index) => point(`p-${index}`, position.x, position.y)))
+      const resolvedFrame = withScanner(frame, path, positions.map((position, index) => sample(frame, position, 1 + index * 0.0001, index, {
         exposureWeight: 1 / sampleCount,
-      }))
-      return buildLaserDmxWebGLBeamRenderPlan(withScanner(frame, path, samples), VIEWPORT)
+      })))
+      const plan = buildLaserDmxScannerExposurePlan(resolvedFrame)
+      const averageDensity = plan.segments.reduce(
+        (sum, segment) => sum + resolveLaserDmxScannerExposureDensity(resolvedFrame, segment),
+        0,
+      ) / plan.segments.length
+      return { resolvedFrame, plan, averageDensity }
     }
-    const sparse = makePlan(6)
-    const dense = makePlan(48)
+    const sparse = makePlan(8)
+    const dense = makePlan(64)
 
-    expect(sparse.laserInputMode).toBe('scanner-samples')
-    expect(dense.laserInputMode).toBe('scanner-samples')
-    expect(dense.apertures[0]?.totalActiveEnergy).toBeCloseTo(sparse.apertures[0]?.totalActiveEnergy ?? 0, 6)
-    expect(dense.apertures[0]?.intensity).toBeCloseTo(sparse.apertures[0]?.intensity ?? 0, 6)
+    expect(dense.averageDensity).toBeCloseTo(sparse.averageDensity, 1)
+    const sparseWebGL = buildLaserDmxWebGLBeamRenderPlan(sparse.resolvedFrame, VIEWPORT)
+    const denseWebGL = buildLaserDmxWebGLBeamRenderPlan(dense.resolvedFrame, VIEWPORT)
+    expect(denseWebGL.apertures[0]?.totalActiveEnergy).toBeCloseTo(sparseWebGL.apertures[0]?.totalActiveEnergy ?? 0, 6)
   })
 
-  it('scales aperture energy once for multiple physical heads', () => {
-    const frame = createBaseFrame('high')
-    const headA = frame.scannerHeads[0]!
-    const headB: LaserDmxScannerHead = { ...headA, id: 'second-physical-head', scanPhase: 0.5 }
-    const pathA = customPath(frame, [point('a0', 0.2, 0.7), point('a1', 0.4, 0.75)])
-    const pathB = customPath(frame, [point('b0', 0.6, 0.75), point('b1', 0.8, 0.7)], {
-      id: 'second-path',
-      scannerHeadId: headB.id,
-    })
-    const oneHeadFrame = withScanner(frame, pathA, [
-      sample(frame, { x: 0.2, y: 0.7 }, 1, 0, { exposureWeight: 0.5 }),
-      sample(frame, { x: 0.4, y: 0.75 }, 1.001, 1, { exposureWeight: 0.5 }),
-    ])
-    const twoHeadFrame: LaserDmxSceneFrame = {
-      ...frame,
-      scannerHeads: [headA, headB],
-      scanPaths: [pathA, pathB],
-      exposureSamples: [
-        ...oneHeadFrame.exposureSamples,
-        sample(frame, { x: 0.6, y: 0.75 }, 1, 0, { scannerHeadId: headB.id, pathId: pathB.id, exposureWeight: 0.5 }),
-        sample(frame, { x: 0.8, y: 0.7 }, 1.001, 1, { scannerHeadId: headB.id, pathId: pathB.id, exposureWeight: 0.5 }),
-      ],
-      scannerInstantaneousRays: [],
-    }
-    const oneHead = buildLaserDmxWebGLBeamRenderPlan(oneHeadFrame, VIEWPORT)
-    const twoHeads = buildLaserDmxWebGLBeamRenderPlan(twoHeadFrame, VIEWPORT)
-
-    expect(twoHeads.apertures[0]!.totalActiveEnergy).toBeCloseTo(oneHead.apertures[0]!.totalActiveEnergy * 2, 6)
-    expect(twoHeads.apertures[0]!.totalActiveEnergy).toBeLessThan(oneHead.apertures[0]!.totalActiveEnergy * 2.01)
-  })
-
-  it('leaves legacy beams untouched for Canvas2D compatibility', () => {
+  it('preserves optical-copy separation and energy during deterministic aggregation', () => {
     const frame = createBaseFrame()
-    const before = structuredClone(frame.beams)
-    buildLaserDmxWebGLBeamRenderPlan(frame, VIEWPORT)
-    expect(frame.beams).toEqual(before)
+    const path = customPath(frame, [point('a', 0.2, 0.7), point('b', 0.8, 0.7)])
+    const plan = buildLaserDmxScannerExposurePlan(withScanner(frame, path, [
+      sample(frame, { x: 0.2, y: 0.7 }, 1, 0, { exposureWeight: 0.25 }),
+      sample(frame, { x: 0.8, y: 0.7 }, 1.001, 1, { exposureWeight: 0.25 }),
+      sample(frame, { x: 0.22, y: 0.68 }, 1, 0, { opticalCopyIndex: 1, exposureWeight: 0.25 }),
+      sample(frame, { x: 0.82, y: 0.68 }, 1.001, 1, { opticalCopyIndex: 1, exposureWeight: 0.25 }),
+    ]))
+    const aggregated = aggregateLaserDmxScannerExposureSegments(plan.segments, 1)
+
+    expect(new Set(plan.segments.map(segment => segment.opticalCopyIndex))).toEqual(new Set([0, 1]))
+    expect(aggregated).toHaveLength(1)
+    expect(aggregated.reduce((sum, segment) => sum + segment.exposureContribution, 0))
+      .toBeLessThanOrEqual(plan.validation.normalizedSegmentEnergy)
   })
 
-  it('projects scanner segments through depth slices without NaN or giant geometry', () => {
-    const frame = createBaseFrame('ultra')
-    const path = customPath(frame, [
-      point('near', 0.25, 0.25, 0.78),
-      point('far', 0.75, 0.75, -0.78),
-    ])
-    const plan = buildLaserDmxWebGLBeamRenderPlan(withScanner(frame, path, [
-      sample(frame, { x: 0.25, y: 0.25, z: 0.78 }, 1, 0, { exposureWeight: 0.5 }),
-      sample(frame, { x: 0.75, y: 0.75, z: -0.78 }, 1.001, 1, { exposureWeight: 0.5 }),
-    ]), VIEWPORT)
+  it('uses the same authoritative exposure geometry in Canvas2D and WebGL', () => {
+    const frame = createBaseFrame()
+    const positions = [
+      { x: 0.2, y: 0.35 },
+      { x: 0.5, y: 0.75 },
+      { x: 0.8, y: 0.35 },
+    ]
+    const path = customPath(frame, positions.map((position, index) => point(`triangle-${index}`, position.x, position.y)), {
+      closed: true,
+      conversionKind: 'polygon',
+    })
+    const resolved = withScanner(frame, path, positions.map((position, index) => sample(frame, position, 1 + index * 0.001, index, {
+      exposureWeight: 1 / positions.length,
+    })))
+    const webgl = buildLaserDmxScannerExposurePlan(resolved)
+    const canvas = buildLaserDmxCanvas2DScannerPlan(resolved, 1920, 1080)
 
-    expect(plan.beams.length).toBeGreaterThan(1)
-    expect(new Set(plan.beams.map(beam => beam.depthSlice)).size).toBeGreaterThan(1)
-    expect(plan.beams.every(beam => [
-      beam.origin.x, beam.origin.y, beam.origin.z,
-      beam.target.x, beam.target.y, beam.target.z,
-    ].every(Number.isFinite))).toBe(true)
-    expect(plan.beams.every(beam => Math.abs(beam.origin.x) < 4 && Math.abs(beam.target.x) < 4)).toBe(true)
+    expect(canvas.segments.map(segment => segment.id)).toEqual(webgl.segments.map(segment => segment.id))
+    expect(canvas.segments.map(segment => segment.geometry)).toEqual(webgl.segments.map(segment => segment.geometry))
+    expect(canvas.validation.suppressedLegacyBeamIds).toEqual(webgl.validation.suppressedLegacyBeamIds)
+  })
+
+  it('does not derive scanner shader phase from renderer-local time', () => {
+    const frame = createBaseFrame()
+    const path = customPath(frame, [point('a', 0.2, 0.4), point('b', 0.8, 0.7)])
+    const samples = [
+      sample(frame, { x: 0.2, y: 0.4 }, 1, 0, { exposureWeight: 0.5 }),
+      sample(frame, { x: 0.8, y: 0.7 }, 1.001, 1, { exposureWeight: 0.5 }),
+    ]
+    const first = buildLaserDmxWebGLBeamRenderPlan(withScanner(frame, path, samples), VIEWPORT)
+    const laterFrame = withScanner(structuredClone(frame), structuredClone(path), structuredClone(samples))
+    laterFrame.transport.audioTimeSec += 16
+    const second = buildLaserDmxWebGLBeamRenderPlan(laterFrame, VIEWPORT)
+
+    expect(second.beams.map(beam => beam.phase)).toEqual(first.beams.map(beam => beam.phase))
+    expect(second.beams.map(beam => [beam.origin, beam.target])).toEqual(first.beams.map(beam => [beam.origin, beam.target]))
   })
 })

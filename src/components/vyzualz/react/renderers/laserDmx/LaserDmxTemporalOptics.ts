@@ -82,6 +82,12 @@ export interface LaserDmxTemporalBeamSnapshot {
   structure: LaserDmxSceneBeam['pattern']['structure']
 }
 
+export interface LaserDmxTemporalScannerSnapshot {
+  points: LaserDmxSceneVec3[]
+  cueFrameId: string | null
+  animated: boolean
+}
+
 const QUALITY_POLICIES: Readonly<Record<LaserDmxShowDirectorWebGLQuality, LaserDmxTemporalQualityPolicy>> = Object.freeze({
   low: { resolutionScale: 0.46, maximumRetention: 0.26, temporalStrength: 0.56, instabilityLayers: 1 },
   medium: { resolutionScale: 0.66, maximumRetention: 0.32, temporalStrength: 0.68, instabilityLayers: 2 },
@@ -346,6 +352,7 @@ export function resolveLaserDmxAtmosphereFlutter(frame: LaserDmxSceneFrame): Las
 export function measureLaserDmxTemporalMotion(
   frame: LaserDmxSceneFrame,
   previous: ReadonlyMap<string, LaserDmxTemporalBeamSnapshot>,
+  previousScanner: ReadonlyMap<string, LaserDmxTemporalScannerSnapshot> = new Map(),
 ): LaserDmxTemporalMotionSummary {
   const deltaTimeSec = clamp(frame.transport.deltaTimeSec, 1 / 240, 0.1)
   const samples: LaserDmxBeamMotionSample[] = []
@@ -353,8 +360,10 @@ export function measureLaserDmxTemporalMotion(
   let totalWeight = 0
   let peak = 0
 
+  const authoritativeScannerFixtureIds = new Set(frame.scanPaths.map(path => path.fixtureId))
   for (const beam of frame.beams) {
     if (!beam.enabled || beam.intensity <= 0.001) continue
+    if (beam.fixtureKind === 'laser' && authoritativeScannerFixtureIds.has(beam.fixtureId)) continue
     const before = previous.get(beam.id)
     if (!before) continue
     const angularSpeed = angularDistance(before.direction, beam.direction) / deltaTimeSec
@@ -376,29 +385,34 @@ export function measureLaserDmxTemporalMotion(
     peak = Math.max(peak, normalizedMotion)
   }
 
-  const visibleScannerSamples = frame.exposureSamples.filter(sample => !sample.blanked && sample.intensity > 0.001)
-  if (visibleScannerSamples.length > 0) {
-    const byHead = new Map<string, typeof visibleScannerSamples>()
-    for (const sample of visibleScannerSamples) {
-      const group = byHead.get(sample.scannerHeadId) ?? []
-      group.push(sample)
-      byHead.set(sample.scannerHeadId, group)
-    }
-    for (const [headId, headSamples] of byHead) {
-      const averageVelocity = headSamples.reduce((sum, sample) => sum + clamp01(sample.velocityRatio), 0) / headSamples.length
-      const normalizedMotion = clamp01(averageVelocity * 0.72)
-      const persistenceWeight = 0.58
-      samples.push({
-        beamId: `scanner:${headId}`,
-        angularSpeed: averageVelocity,
-        targetSpeed: averageVelocity,
-        normalizedMotion,
-        persistenceWeight,
-      })
-      weightedTotal += normalizedMotion * persistenceWeight
-      totalWeight += persistenceWeight
-      peak = Math.max(peak, normalizedMotion)
-    }
+  for (const path of frame.scanPaths) {
+    if (path.validationErrors.length > 0) continue
+    const before = previousScanner.get(path.id)
+    if (!before || before.points.length !== path.points.length) continue
+    const pointSpeeds = path.points.map((point, index) =>
+      vectorDistance(before.points[index] ?? point.position, point.position) / deltaTimeSec,
+    )
+    const targetSpeed = pointSpeeds.reduce((sum, speed) => sum + speed, 0) / Math.max(1, pointSpeeds.length)
+    const peakSpeed = pointSpeeds.reduce((maximum, speed) => Math.max(maximum, speed), 0)
+    const authoritativelyAnimated = path.patternAnimationActive === true || path.fixtureMovementActive === true
+    const normalizedMotion = authoritativelyAnimated || peakSpeed > 1e-5
+      ? clamp01(targetSpeed * 0.86 + peakSpeed * 0.24)
+      : 0
+    if (normalizedMotion <= 0) continue
+    const pathSamples = frame.exposureSamples.filter(sample => sample.pathId === path.id && !sample.blanked)
+    const persistenceWeight = pathSamples.length > 0
+      ? clamp(pathSamples.reduce((sum, sample) => sum + (sample.historyWeight ?? 0.1), 0) / pathSamples.length, 0.04, 0.32)
+      : 0.12
+    samples.push({
+      beamId: `scanner:${path.id}`,
+      angularSpeed: peakSpeed,
+      targetSpeed,
+      normalizedMotion,
+      persistenceWeight,
+    })
+    weightedTotal += normalizedMotion * persistenceWeight
+    totalWeight += persistenceWeight
+    peak = Math.max(peak, normalizedMotion)
   }
 
   const average = totalWeight > 0 ? weightedTotal / totalWeight : 0
@@ -433,14 +447,27 @@ export function resolveLaserDmxTemporalHistoryPlan(
   const snareSegmentation = frame.musicalState.snareHit ? 0.64 : 1
   const strobeSegmentation = strobeRate > 0.001 ? (input.strobeVisible ? 0.34 : 0) : 1
   const sensorPersistence = frame.presentationMode === 'capture' ? 0.72 : 1
-  const baseRetention = (0.018 + authoredPersistence * 0.24)
-    * movement
-    * sectionWeight
-    * policy.temporalStrength
+  const visibleScannerPaths = frame.scanPaths.filter(path =>
+    path.validationErrors.length === 0
+    && frame.exposureSamples.some(sample => sample.pathId === path.id && !sample.blanked && sample.intensity > 0.001),
+  )
+  const stableScannerHeld = visibleScannerPaths.some(path =>
+    !path.patternAnimationActive && !path.fixtureMovementActive,
+  )
+  const stableRetention = stableScannerHeld
+    ? (0.028 + authoredPersistence * 0.085) * sectionWeight * policy.temporalStrength
+    : 0
+  const movingRetention = motion.movingBeamCount > 0
+    ? (0.07 + authoredPersistence * 0.19)
+      * (1 - movement * 0.78)
+      * sectionWeight
+      * policy.temporalStrength
+    : 0
+  const baseRetention = Math.max(stableRetention, movingRetention)
   const retention = clearHistory
     ? 0
     : clamp(
-        (baseRetention + movement * (energy * 0.035 + beatLift + kickLift + hatLift))
+        (baseRetention + (1 - movement) * (energy * 0.012 + beatLift + kickLift + hatLift))
           * snareSegmentation
           * strobeSegmentation
           * sensorPersistence,
@@ -462,13 +489,14 @@ export function resolveLaserDmxTemporalHistoryPlan(
 
 function scannerTopologyIdentity(frame: LaserDmxSceneFrame): string {
   return frame.scanPaths
-    .map(path => `${path.id}:${path.scannerHeadId}:${path.closed ? 1 : 0}:${path.points.map(point => `${point.position.x.toFixed(5)},${point.position.y.toFixed(5)},${point.position.z.toFixed(5)},${point.blanked ? 1 : 0}`).join(';')}`)
+    .map(path => `${path.topologyCacheKey ?? path.topologyId ?? path.id}:${path.topologyRevision ?? 0}:${path.scannerHeadId}:${path.closed ? 1 : 0}:${path.points.map(point => point.blanked ? 1 : 0).join('')}`)
     .sort()
     .join('|')
 }
 
 export class LaserDmxTemporalOpticsController {
   private previousBeams = new Map<string, LaserDmxTemporalBeamSnapshot>()
+  private previousScannerPaths = new Map<string, LaserDmxTemporalScannerSnapshot>()
   private lastHistoryIdentity: string | null = null
   private lastQuality: LaserDmxShowDirectorWebGLQuality | null = null
   private lastPresentationMode: LaserDmxSceneFrame['presentationMode'] | null = null
@@ -507,11 +535,12 @@ export class LaserDmxTemporalOpticsController {
     else if (frame.quality.qualityTier !== this.lastQuality) clearReason = 'qualityChange'
     else if (frame.presentationMode === 'capture' && this.lastPresentationMode !== 'capture') clearReason = 'captureEntry'
     if (frame.output.blackout) clearReason = 'blackout'
+    else if (frame.scanPaths.some(path => path.clearTemporalHistory)) clearReason = 'scannerTopologyChange'
     else if (strobeDarkPhase) clearReason = 'strobeDarkPhase'
 
-    const hadHistory = this.previousBeams.size > 0 && clearReason == null
+    const hadHistory = (this.previousBeams.size > 0 || this.previousScannerPaths.size > 0) && clearReason == null
     const motion = clearReason == null
-      ? measureLaserDmxTemporalMotion(frame, this.previousBeams)
+      ? measureLaserDmxTemporalMotion(frame, this.previousBeams, this.previousScannerPaths)
       : { score: 0, peak: 0, average: 0, movingBeamCount: 0, samples: [] }
     const history = resolveLaserDmxTemporalHistoryPlan(frame, motion, {
       clearReason,
@@ -519,7 +548,10 @@ export class LaserDmxTemporalOpticsController {
       strobeVisible,
     })
 
-    if (clearReason != null) this.previousBeams.clear()
+    if (clearReason != null) {
+      this.previousBeams.clear()
+      this.previousScannerPaths.clear()
+    }
     if (!frame.output.blackout && !strobeDarkPhase) {
       for (const beam of frame.beams) {
         if (!beam.enabled || beam.intensity <= 0.001) continue
@@ -533,6 +565,17 @@ export class LaserDmxTemporalOpticsController {
       }
       const currentIds = new Set(frame.beams.map(beam => beam.id))
       for (const id of this.previousBeams.keys()) if (!currentIds.has(id)) this.previousBeams.delete(id)
+      const currentPathIds = new Set<string>()
+      for (const path of frame.scanPaths) {
+        if (path.validationErrors.length > 0) continue
+        currentPathIds.add(path.id)
+        this.previousScannerPaths.set(path.id, {
+          points: path.points.map(point => ({ ...point.position })),
+          cueFrameId: path.cueFrameId ?? null,
+          animated: path.patternAnimationActive === true || path.fixtureMovementActive === true,
+        })
+      }
+      for (const id of this.previousScannerPaths.keys()) if (!currentPathIds.has(id)) this.previousScannerPaths.delete(id)
     }
 
     this.lastHistoryIdentity = frame.transport.historyIdentity
@@ -545,6 +588,7 @@ export class LaserDmxTemporalOpticsController {
   reset(_reason: LaserDmxTemporalClearReason = 'manualReset'): void {
     if (this.disposed) return
     this.previousBeams.clear()
+    this.previousScannerPaths.clear()
     this.lastHistoryIdentity = null
     this.lastQuality = null
     this.lastPresentationMode = null

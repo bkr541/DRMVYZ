@@ -333,8 +333,38 @@ export function resolveLaserDmxWebGLPostProcessPlan(
   const hdrThreshold = targetStrategy.hdrEnabled ? 1.02 : 0.72
   const glareThreshold = targetStrategy.hdrEnabled ? 2.05 : 0.93
   const chromaticThreshold = targetStrategy.hdrEnabled ? 2.45 : 0.96
+  const activeScannerPaths = frame.scanPaths.filter(path =>
+    path.validationErrors.length === 0 && path.points.some(point => !point.blanked && point.intensity > 0),
+  )
+  const visibleScannerSamples = frame.exposureSamples.filter(sample =>
+    !sample.blanked && sample.intensity > 0 && sample.exposureWeight > 0,
+  )
+  const averageScannerVelocity = visibleScannerSamples.length > 0
+    ? visibleScannerSamples.reduce((sum, sample) => sum + clamp01(sample.velocityRatio), 0) / visibleScannerSamples.length
+    : 0
+  const scannerCueMotionActive = activeScannerPaths.some(path =>
+    path.patternAnimationActive === true || path.fixtureMovementActive === true,
+  )
+  // Scanner samples are subdivisions of one normalized exposure, not separate
+  // HDR emitters. Stable frames keep restrained bloom, while authored fast cue
+  // motion receives less radius and gain so history cannot become a neon cage.
+  const scannerBloomResponse = activeScannerPaths.length === 0
+    ? 1
+    : scannerCueMotionActive
+      ? clamp(0.76 - averageScannerVelocity * 0.16, 0.56, 0.76)
+      : 0.84
+  const scannerRadiusResponse = activeScannerPaths.length === 0
+    ? 1
+    : scannerCueMotionActive
+      ? clamp(0.86 - averageScannerVelocity * 0.16, 0.66, 0.86)
+      : 0.92
   const bloomStrength = clamp(
-    policy.strength * (0.78 + energy * 0.36 + flash * 0.34) * (0.72 + frame.output.globalGlow * 0.38),
+    policy.strength
+      * (
+        (0.78 + energy * 0.36) * scannerBloomResponse
+        + flash * 0.34
+      )
+      * (0.72 + frame.output.globalGlow * 0.38),
     0,
     1.2,
   )
@@ -359,7 +389,7 @@ export function resolveLaserDmxWebGLPostProcessPlan(
       threshold: hdrThreshold,
       softKnee: targetStrategy.hdrEnabled ? 0.58 : 0.18,
       strength: bloomStrength,
-      radius: clamp(policy.radius * (0.88 + energy * 0.18), 0.55, 1.45),
+      radius: clamp(policy.radius * (0.88 + energy * 0.18) * scannerRadiusResponse, 0.55, 1.45),
       levelWeights: policy.levelWeights,
     },
     optics: {

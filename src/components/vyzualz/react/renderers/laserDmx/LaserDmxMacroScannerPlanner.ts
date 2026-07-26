@@ -321,6 +321,26 @@ function aggregationTargets(points: readonly LaserDmxScanPoint[], macro: LaserDm
     : [])
 }
 
+function presentationModeForMacro(
+  macro: LaserDmxShowDirectorMacroScanPlan,
+): LaserDmxScanPath['presentationMode'] {
+  if (macro.family === 'heldBeam' || macro.family === 'parallelSheet' || macro.family === 'burstDiffraction') {
+    return 'heldRay'
+  }
+  if (
+    macro.family === 'steppedFan'
+    || macro.family === 'mirroredFan'
+    || macro.family === 'opposedFans'
+    || macro.family === 'crossingFans'
+    || macro.family === 'xFan'
+    || macro.family === 'centerOutFan'
+    || macro.family === 'outsideInFan'
+  ) {
+    return 'intentionalRays'
+  }
+  return 'scannedPath'
+}
+
 function macroOpticalPlan(
   fixture: LaserDmxShowDirectorFixture,
   macro: LaserDmxShowDirectorMacroScanPlan,
@@ -451,6 +471,7 @@ export function createLaserDmxMacroScannerPlan(input: CreateLaserDmxMacroScanner
   head.directOriginOffset = { ...opticalPlan.direct.originOffset }
   head.directSpectralChannel = opticalPlan.direct.spectralChannel
 
+  const presentationMode = presentationModeForMacro(input.macro)
   const path: LaserDmxScanPath = {
     schemaVersion: LASER_DMX_SCANNER_DOMAIN_VERSION,
     id: `${input.fixture.id}:macro-path:${input.macro.cueFrameId}`,
@@ -472,10 +493,18 @@ export function createLaserDmxMacroScannerPlan(input: CreateLaserDmxMacroScanner
     topologyId: input.macro.topologyId,
     topologyRevision: input.macro.topologyRevision,
     topologyCacheKey: input.macro.topologyCacheKey,
-    exposureAggregation: 'intendedSlots',
+    presentationMode,
+    exposureAggregation: presentationMode === 'scannedPath' ? 'none' : 'intendedSlots',
     intendedRaySlots: aggregationTargets(points, input.macro),
     totalDutyCycle: clamp(input.macro.totalDutyCycle, EPSILON, 1),
     clearTemporalHistory: input.macro.clearTemporalHistory,
+    cueId: input.macro.cueId,
+    macroId: input.macro.macroId,
+    lifecycleState: input.macro.lifecycleState,
+    patternAnimationActive: input.macro.patternAnimationActive,
+    fixtureMovementActive: input.macro.fixtureMovementActive,
+    movementProgress: input.macro.movementProgress,
+    ownedParameters: [...(input.macro.ownedParameters ?? [])],
   }
   path.validationErrors = validateLaserDmxScanPath(path)
   const copies = opticalPlan.copies

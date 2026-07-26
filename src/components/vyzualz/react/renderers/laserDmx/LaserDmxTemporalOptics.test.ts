@@ -91,6 +91,17 @@ function moveFirstBeam(frame: LaserDmxSceneFrame, targetOffset: number): LaserDm
   return moved
 }
 
+function moveScannerPath(frame: LaserDmxSceneFrame, targetOffset: number): LaserDmxSceneFrame {
+  const moved = structuredClone(frame)
+  moved.transport.audioTimeSec += moved.transport.deltaTimeSec
+  const path = moved.scanPaths[0]
+  if (!path) throw new Error('Expected a temporal scanner path')
+  path.patternAnimationActive = true
+  path.movementProgress = Math.min(1, (path.movementProgress ?? 0) + 0.1)
+  for (const point of path.points) point.position.x += targetOffset
+  return moved
+}
+
 describe('LaserDMX deterministic temporal optics', () => {
   it('resolves identical instability and haze flutter for the same transport position and occurrence', () => {
     const frame = createFrame()
@@ -122,7 +133,7 @@ describe('LaserDMX deterministic temporal optics', () => {
     })
   })
 
-  it('keeps stationary beams clean and increases bounded persistence with motion speed', () => {
+  it('keeps stable scanned frames lightly integrated and shortens persistence as cue motion accelerates', () => {
     const controller = new LaserDmxTemporalOpticsController()
     const base = createFrame()
     expect(controller.update(base).history.clearReason).toBe('initialMount')
@@ -131,18 +142,18 @@ describe('LaserDMX deterministic temporal optics', () => {
     stationary.transport.audioTimeSec += stationary.transport.deltaTimeSec
     const stationaryPlan = controller.update(stationary)
     expect(stationaryPlan.motion.score).toBe(0)
-    expect(stationaryPlan.history.enabled).toBe(false)
-    expect(stationaryPlan.history.retention).toBe(0)
+    expect(stationaryPlan.history.enabled).toBe(true)
+    expect(stationaryPlan.history.retention).toBeGreaterThan(0)
 
-    const slow = moveFirstBeam(stationary, 0.003)
+    const slow = moveScannerPath(stationary, 0.0005)
     const slowPlan = controller.update(slow)
     expect(slowPlan.motion.score).toBeGreaterThan(0)
     expect(slowPlan.history.retention).toBeGreaterThan(0)
 
-    const fast = moveFirstBeam(slow, 0.25)
+    const fast = moveScannerPath(slow, 0.08)
     const fastPlan = controller.update(fast)
     expect(fastPlan.motion.score).toBeGreaterThan(slowPlan.motion.score)
-    expect(fastPlan.history.retention).toBeGreaterThan(slowPlan.history.retention)
+    expect(fastPlan.history.retention).toBeLessThan(slowPlan.history.retention)
     expect(fastPlan.history.retention).toBeLessThanOrEqual(
       resolveLaserDmxTemporalQualityPolicy('high').maximumRetention,
     )
@@ -166,17 +177,19 @@ describe('LaserDMX deterministic temporal optics', () => {
       .toBe('captureEntry')
   })
 
-  it('clears history when an ordered scanner path is edited', () => {
+  it('does not clear for finite geometry motion but clears when scanner topology changes', () => {
     const controller = new LaserDmxTemporalOpticsController()
     const frame = createFrame()
     controller.update(frame)
-    const edited = structuredClone(frame)
-    edited.transport.audioTimeSec += edited.transport.deltaTimeSec
-    const firstPoint = edited.scanPaths[0]?.points[0]
-    if (!firstPoint) throw new Error('Expected a scanner path for topology reset testing')
-    firstPoint.position.x += 0.04
+    const animated = moveScannerPath(frame, 0.04)
+    expect(controller.update(animated).history.clearReason).toBeNull()
 
-    expect(controller.update(edited).history.clearReason).toBe('scannerTopologyChange')
+    const topologyChanged = structuredClone(animated)
+    topologyChanged.transport.audioTimeSec += topologyChanged.transport.deltaTimeSec
+    const path = topologyChanged.scanPaths[0]
+    if (!path) throw new Error('Expected a scanner path for topology reset testing')
+    path.topologyRevision = (path.topologyRevision ?? 0) + 1
+    expect(controller.update(topologyChanged).history.clearReason).toBe('scannerTopologyChange')
   })
 
   it('clears on blackout and dark strobe phases while segmenting visible strobe history', () => {

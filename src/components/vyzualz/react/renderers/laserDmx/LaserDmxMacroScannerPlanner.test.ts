@@ -66,6 +66,12 @@ function macro(patch: Partial<LaserDmxShowDirectorMacroScanPlan> = {}): LaserDmx
     shutterClosed: false,
     clearTemporalHistory: false,
     preservePhase: true,
+    lifecycleState: 'hold',
+    outputGateOpen: true,
+    patternAnimationActive: false,
+    fixtureMovementActive: false,
+    movementProgress: 1,
+    ownedParameters: [],
     ...patch,
   }
 }
@@ -108,6 +114,8 @@ describe('LaserDMX macro-aware scanner planning', () => {
     const path = first.paths[0]!
     expect(first.diagnostics.raySlotCount).toBe(12)
     expect(path.intendedRaySlots).toHaveLength(12)
+    expect(path.presentationMode).toBe('intentionalRays')
+    expect(path.exposureAggregation).toBe('intendedSlots')
     expect(path.points.filter(point => !point.blanked)).toHaveLength(12)
     expect(path.points.filter(point => point.blanked)).toHaveLength(11)
     expect(second.paths).toEqual(first.paths)
@@ -122,7 +130,7 @@ describe('LaserDMX macro-aware scanner planning', () => {
     }
   })
 
-  it('aggregates dense smooth-fan exposure into bounded angular slots', () => {
+  it('keeps smooth fans as one ordered scan trajectory instead of angular spoke slots', () => {
     const smooth = plan(macro({
       family: 'smoothFanSweep',
       topologyId: 'smooth-12',
@@ -131,12 +139,15 @@ describe('LaserDMX macro-aware scanner planning', () => {
       interpolation: 'bezier',
       blankBetweenSlots: false,
     }))
+    const path = smooth.paths[0]!
+    expect(path.presentationMode).toBe('scannedPath')
+    expect(path.exposureAggregation).toBe('none')
+
     const result = solve(smooth, 'ultra')
     const visible = result.exposureSamples.filter(sample => !sample.blanked)
-    expect(visible.length).toBeLessThanOrEqual(12)
-    expect(new Set(visible.map(sample => sample.intendedRaySlotId)).size).toBe(visible.length)
-    expect(result.diagnostics.aggregatedRayCount).toBe(visible.length)
-    expect(result.diagnostics.energyAfterAggregation).toBeLessThanOrEqual(result.diagnostics.energyBeforeAggregation + 1e-9)
+    expect(visible.length).toBeGreaterThan(12)
+    expect(visible.every(sample => sample.intendedRaySlotId == null)).toBe(true)
+    expect(result.diagnostics.energyAfterAggregation).toBeCloseTo(result.diagnostics.energyBeforeAggregation, 8)
   })
 
   it('keeps aggregated slot layout and energy independent of quality sample count', () => {
@@ -295,6 +306,9 @@ describe('LaserDMX macro-aware scanner planning', () => {
     const webgl = buildLaserDmxScannerExposurePlan(frame)
     expect(frame.scanPaths).toHaveLength(1)
     expect(frame.scanPaths[0]!.macroControlled).toBe(true)
+    expect(frame.scanPaths[0]!.patternAnimationActive).toBe(false)
+    expect(frame.scanPaths[0]!.fixtureMovementActive).toBe(false)
+    expect(frame.scanPaths[0]!.movementProgress).toBe(1)
     expect(frame.scannerDiagnostics.duplicateRenderingFixtureIds).toEqual([])
     expect(frame.exposureAggregation.rawSampleCount).toBeGreaterThanOrEqual(frame.exposureAggregation.aggregatedRayCount)
     expect(webgl.validation.duplicateFixtureIds).toEqual([])

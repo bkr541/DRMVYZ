@@ -2034,6 +2034,10 @@ function buildFixtureMacroPlan(input: {
     preservePhase: frame.preservePhase,
     outputGateOpen: frame.outputGateOpen,
     lifecycleState: frame.lifecycleState,
+    patternAnimationActive: frame.patternAnimationActive,
+    fixtureMovementActive: frame.fixtureMovementActive,
+    movementProgress: frame.movementProgress,
+    ownedParameters: [...frame.ownedParameters],
   }
 }
 

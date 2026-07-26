@@ -26,6 +26,7 @@ export type LaserDmxScanInterpolation = 'linear' | 'arc' | 'bezier'
 export type LaserDmxScanRepeatMode = 'loop' | 'pingPong' | 'once'
 export type LaserDmxScanDirection = 'forward' | 'reverse' | 'alternating'
 export type LaserDmxScanCornerBehavior = 'continuous' | 'dwell' | 'blank'
+export type LaserDmxScannerPresentationMode = 'scannedPath' | 'intentionalRays' | 'heldRay'
 export type LaserDmxScannerCompatibilityMode = 'native' | 'legacy-converted' | 'mixed' | 'inactive'
 export type LaserDmxLegacyScannerConversionKind =
   | 'held'
@@ -103,6 +104,14 @@ export interface LaserDmxScanPath {
   intendedRaySlots?: Array<{ id: string; target: LaserDmxScannerVec3 }>
   totalDutyCycle?: number
   clearTemporalHistory?: boolean
+  presentationMode?: LaserDmxScannerPresentationMode
+  cueId?: string
+  macroId?: string
+  lifecycleState?: 'off' | 'attack' | 'movement' | 'hold' | 'release' | 'blackout'
+  patternAnimationActive?: boolean
+  fixtureMovementActive?: boolean
+  movementProgress?: number
+  ownedParameters?: string[]
 }
 
 export interface LaserDmxScannerOpticalCopy {
@@ -131,6 +140,20 @@ export interface LaserDmxScannerInstantaneousRay {
   pathId: string
   pointIndex: number
   velocityRatio: number
+  /** Duration represented by this exposure sample. */
+  sampleDurationSec?: number
+  /** Scanner-space segment length represented by this sample. */
+  segmentLength?: number
+  /** Normalized instantaneous scanner acceleration. */
+  accelerationRatio?: number
+  /** Controlled point/corner dwell contribution. */
+  dwellWeight?: number
+  /** Suggested temporal-history contribution after cue-motion analysis. */
+  historyWeight?: number
+  /** Stable scanner-frame phase used only for exposure integration. */
+  scannerFramePhase?: number
+  eventKind?: 'dwell' | 'travel'
+  retrace?: boolean
   intendedRaySlotId?: string
   cueFrameId?: string
 }
@@ -180,6 +203,15 @@ export interface LaserDmxScannerDiagnostics {
   energyAfterAggregation: number
   macroControlledPathCount: number
   duplicateRenderingFixtureIds: string[]
+  retraceSegmentCount: number
+  averageSampleVelocity: number
+  averageDwellWeight: number
+  averageExposureWeight: number
+  averageHistoryWeight: number
+  normalizedFixtureEnergy: number
+  currentCueOwner: string | null
+  stablePathCount: number
+  animatedPathCount: number
 }
 
 export interface LaserDmxLegacyScannerTarget {
@@ -248,6 +280,7 @@ interface LaserDmxScanTimelineEvent {
   toIndex: number
   blanked: boolean
   velocityRatio: number
+  retrace: boolean
 }
 
 export interface LaserDmxScannerTimelineEventDiagnostic {
@@ -258,6 +291,7 @@ export interface LaserDmxScannerTimelineEventDiagnostic {
   toIndex: number
   blanked: boolean
   velocityRatio: number
+  retrace: boolean
 }
 
 interface LaserDmxScanTimeline {
@@ -274,15 +308,22 @@ interface LaserDmxScannerEvaluation {
   pathId: string
   pointIndex: number
   velocityRatio: number
+  accelerationRatio: number
+  segmentLength: number
+  eventDurationSec: number
+  eventKind: 'dwell' | 'travel'
+  retrace: boolean
+  dwellWeight: number
+  scannerFramePhase: number
   intendedRaySlotId?: string
 }
 
 const QUALITY_EXPOSURE_SAMPLES: Readonly<Record<LaserDmxShowDirectorWebGLQuality, number>> = Object.freeze({
-  low: 4,
-  medium: 8,
-  high: 16,
-  ultra: 28,
-  auto: 12,
+  low: 12,
+  medium: 24,
+  high: 48,
+  ultra: 72,
+  auto: 36,
 })
 
 const DEFAULT_SCANNER_RATE_PPS = 24_000
@@ -611,6 +652,11 @@ export function createLaserDmxLegacyScannerPlan(input: CreateLaserDmxLegacyScann
                 : conversionKind === 'lattice' ? 'gridScan'
                   : 'customPath',
     migrationStatus: 'legacy',
+    presentationMode: conversionKind === 'held'
+      ? 'heldRay'
+      : conversionKind === 'fan' || conversionKind === 'burst-diffraction'
+        ? 'intentionalRays'
+        : 'scannedPath',
   }
   path.validationErrors = validateLaserDmxScanPath(path)
 
@@ -784,6 +830,11 @@ export function createLaserDmxAuthoredScannerPlan(input: CreateLaserDmxAuthoredS
     migrationWarnings: [...input.scanner.migration.warnings],
     authoringPatternType: input.scanner.patternType,
     migrationStatus: input.scanner.migration.status,
+    presentationMode: input.scanner.patternType === 'holdBeam'
+      ? 'heldRay'
+      : input.scanner.patternType === 'fanSweep'
+        ? 'intentionalRays'
+        : 'scannedPath',
   }
   path.validationErrors = validateLaserDmxScanPath(path)
   return { heads: [head], paths: [path], opticalCopies: opticalSeedPlan.opticalCopies }
@@ -875,6 +926,7 @@ function buildTimeline(
         toIndex: indices[0]!,
         blanked: point.blanked,
         velocityRatio: 0,
+        retrace: false,
       }],
       durationSec,
       terminalPointIndex: indices[0]!,
@@ -889,7 +941,7 @@ function buildTimeline(
     events.push({
       kind: 'dwell', startSec: cursor, endSec: cursor + durationSec,
       from: point, to: point, fromIndex: index, toIndex: index,
-      blanked: point.blanked, velocityRatio: 0,
+      blanked: point.blanked, velocityRatio: 0, retrace: false,
     })
     cursor += durationSec
   }
@@ -902,7 +954,7 @@ function buildTimeline(
     const durationSec = travel.durationSec + blankingPadding
     events.push({
       kind: 'travel', startSec: cursor, endSec: cursor + durationSec,
-      from, to, fromIndex, toIndex, blanked, velocityRatio: travel.velocityRatio,
+      from, to, fromIndex, toIndex, blanked, velocityRatio: travel.velocityRatio, retrace,
     })
     cursor += durationSec
   }
@@ -956,6 +1008,7 @@ export function buildLaserDmxScannerTimelineDiagnostics(
       toIndex: event.toIndex,
       blanked: event.blanked,
       velocityRatio: event.velocityRatio,
+      retrace: event.retrace,
     })),
   }
 }
@@ -981,7 +1034,18 @@ function evaluateTimeline(
     ?? timeline.events[timeline.events.length - 1]
   if (!event) return null
   const duration = Math.max(1e-9, event.endSec - event.startSec)
-  const progress = event.kind === 'dwell' ? 0 : clamp01((localTime - event.startSec) / duration)
+  const linearProgress = event.kind === 'dwell' ? 0 : clamp01((localTime - event.startSec) / duration)
+  // Galvanometer travel is acceleration limited. Smoothstep prevents the
+  // renderer from treating every interpolation step as equal-speed motion.
+  const progress = event.kind === 'dwell'
+    ? 0
+    : linearProgress * linearProgress * (3 - 2 * linearProgress)
+  const velocityEnvelope = event.kind === 'dwell'
+    ? 0
+    : clamp01(4 * linearProgress * (1 - linearProgress))
+  const accelerationRatio = event.kind === 'dwell'
+    ? 0
+    : clamp01(Math.abs(1 - 2 * linearProgress))
   const target = event.kind === 'dwell'
     ? { ...event.to.position }
     : interpolate(event.from.position, event.to.position, progress, path.interpolation)
@@ -1007,7 +1071,16 @@ function evaluateTimeline(
     blanked: event.blanked,
     pathId: path.id,
     pointIndex: event.kind === 'dwell' ? event.toIndex : event.fromIndex,
-    velocityRatio: event.velocityRatio,
+    velocityRatio: clamp01(event.velocityRatio * velocityEnvelope),
+    accelerationRatio,
+    segmentLength: event.kind === 'dwell' ? 0 : distance(event.from.position, event.to.position),
+    eventDurationSec: duration,
+    eventKind: event.kind,
+    retrace: event.retrace,
+    dwellWeight: event.kind === 'dwell'
+      ? clamp(1 + duration * Math.max(1, head.scanRatePps) * 0.08, 1, 1.8)
+      : 1,
+    scannerFramePhase: clamp01(localTime / Math.max(timeline.durationSec, 1e-9)),
     intendedRaySlotId,
   }
 }
@@ -1065,6 +1138,57 @@ export function evaluateLaserDmxScannerAtTime(
   return evaluateTimeline(head, path, audioTimeSec, bpm)
 }
 
+function resolveScannerFrameSampleTimes(
+  head: LaserDmxScannerHead,
+  path: LaserDmxScanPath,
+  _audioTimeSec: number,
+  bpm: number,
+  sampleCount: number,
+): { sampleTimes: number[]; sampleDurationSec: number } {
+  const timeline = buildTimeline(head, path, path.scanDirection === 'reverse', bpm)
+  if (timeline.durationSec <= 1e-9) {
+    return {
+      sampleTimes: Array.from({ length: sampleCount }, () => Math.max(0, _audioTimeSec)),
+      sampleDurationSec: 1 / Math.max(1, head.scanRatePps),
+    }
+  }
+
+  if (path.exposureAggregation === 'intendedSlots') {
+    // Discrete fan spokes and held rays are authored outputs, not quality-tier
+    // shutter guesses. Sample every visible dwell exactly once so Draft through
+    // Ultra preserve the same ray layout, then retain one diagnostic sample for
+    // each authored blanked/retrace event without ever exposing travel between
+    // slots as an additional ray.
+    const visibleDwells = timeline.events.filter(event => event.kind === 'dwell' && !event.blanked)
+    const blankedEvents = timeline.events.filter(event => event.blanked)
+    const events = [...visibleDwells, ...blankedEvents]
+      .sort((a, b) => a.startSec - b.startSec || a.endSec - b.endSec)
+    if (events.length > 0) {
+      return {
+        sampleTimes: events.map(event => (event.startSec + event.endSec) * 0.5),
+        sampleDurationSec: timeline.durationSec / events.length,
+      }
+    }
+  }
+
+  // A projector repeats one ordered scanner frame many times during a camera
+  // exposure. Sampling one complete frame prevents renderer-local shutter time
+  // from turning a stable circle into a rotating spoke wheel. Finite cue motion
+  // still changes the authored path geometry before this solver runs.
+  const phaseOffsetSec = head.scanPhase * timeline.durationSec
+  const sampleDurationSec = timeline.durationSec / Math.max(1, sampleCount)
+  return {
+    // Exposure integration is scanner-frame-local, not transport-cycle-local.
+    // Keeping these values on one canonical cycle removes floating-point drift
+    // between seeks while preserving the authored scan phase and traversal order.
+    sampleTimes: Array.from(
+      { length: sampleCount },
+      (_, index) => phaseOffsetSec + (index + 0.5) * sampleDurationSec,
+    ),
+    sampleDurationSec,
+  }
+}
+
 export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposureInput): SolveLaserDmxScannerExposureResult {
   const pathByHead = new Map(input.paths.map(path => [path.scannerHeadId, path]))
   const copiesByHead = new Map<string, LaserDmxScannerOpticalCopy[]>()
@@ -1082,7 +1206,10 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
     const baseOrigin = input.originByFixtureId.get(head.fixtureId)
     if (!path || !baseOrigin || path.validationErrors.length > 0) continue
     const copies = copiesByHead.get(head.id) ?? []
-    const directScale = clamp01(head.directIntensityScale ?? 1)
+    const rawDirectScale = clamp01(head.directIntensityScale ?? 1)
+    const rawOpticalEnergy = rawDirectScale + copies.reduce((sum, copy) => sum + clamp01(copy.intensityScale), 0)
+    const opticalEnergyNormalizer = rawOpticalEnergy > 1 ? 1 / rawOpticalEnergy : 1
+    const directScale = rawDirectScale * opticalEnergyNormalizer
     const directRay = (target: LaserDmxScannerVec3) => resolveOpticalRay(
       baseOrigin,
       target,
@@ -1125,7 +1252,7 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
           origin: copied.origin,
           targetOrDirection: copied.target,
           sampleTime: input.audioTimeSec,
-          intensity: clamp01(current.intensity * copy.intensityScale),
+          intensity: clamp01(current.intensity * copy.intensityScale * opticalEnergyNormalizer),
           color: resolveSpectralColor(current.color, copy.spectralChannel),
           blanked: current.blanked,
           opticalCopyIndex: copy.opticalCopyIndex,
@@ -1141,28 +1268,50 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
     const intendedSlotCount = path.exposureAggregation === 'intendedSlots'
       ? Math.max(1, path.intendedRaySlots?.length ?? 1)
       : 0
-    const sampleCount = intendedSlotCount > 0
-      ? Math.max(QUALITY_EXPOSURE_SAMPLES[input.quality], Math.min(64, intendedSlotCount * 4))
-      : QUALITY_EXPOSURE_SAMPLES[input.quality]
-    const exposureSeconds = clamp(head.shutterExposureSeconds, 1 / 240, 1 / 12)
-    const directSamples: Array<{ evaluation: LaserDmxScannerEvaluation; sampleTime: number; rawWeight: number }> = []
+    const pathDensity = path.presentationMode === 'heldRay'
+      ? 1
+      : Math.max(1, path.points.filter(point => !point.blanked).length)
+    const sampleCount = Math.min(
+      128,
+      Math.max(
+        QUALITY_EXPOSURE_SAMPLES[input.quality],
+        intendedSlotCount > 0 ? intendedSlotCount * 4 : pathDensity * 4,
+      ),
+    )
+    const { sampleTimes, sampleDurationSec } = resolveScannerFrameSampleTimes(
+      head,
+      path,
+      input.audioTimeSec,
+      input.bpm,
+      sampleCount,
+    )
+    const directSamples: Array<{
+      evaluation: LaserDmxScannerEvaluation
+      sampleTime: number
+      rawWeight: number
+      sampleDurationSec: number
+    }> = []
     const blankedSamples: Array<{ evaluation: LaserDmxScannerEvaluation; sampleTime: number }> = []
-    for (let index = 0; index < sampleCount; index += 1) {
-      const sampleTime = input.audioTimeSec - exposureSeconds + (index + 0.5) / sampleCount * exposureSeconds
-      const evaluation = evaluateTimeline(head, path, Math.max(0, sampleTime), input.bpm)
+    for (const sampleTime of sampleTimes) {
+      const evaluation = evaluateTimeline(head, path, sampleTime, input.bpm)
       if (!evaluation) continue
       if (evaluation.blanked) {
         blankedSampleCount += 1
-        blankedSamples.push({ evaluation, sampleTime: Math.max(0, sampleTime) })
+        blankedSamples.push({ evaluation, sampleTime })
         continue
       }
-      const velocityWeight = lerp(1.65, 0.52, evaluation.velocityRatio)
-      directSamples.push({ evaluation, sampleTime: Math.max(0, sampleTime), rawWeight: velocityWeight })
+      const velocityWeight = lerp(1.16, 0.78, evaluation.velocityRatio)
+      const accelerationWeight = lerp(1, 0.9, evaluation.accelerationRatio)
+      const rawWeight = sampleDurationSec
+        * velocityWeight
+        * accelerationWeight
+        * evaluation.dwellWeight
+      directSamples.push({ evaluation, sampleTime, rawWeight, sampleDurationSec })
     }
     const totalRawWeight = directSamples.reduce((sum, sample) => sum + sample.rawWeight, 0) || 1
 
     const appendSample = (
-      sample: { evaluation: LaserDmxScannerEvaluation; sampleTime: number },
+      sample: { evaluation: LaserDmxScannerEvaluation; sampleTime: number; sampleDurationSec?: number },
       exposureWeight: number,
       opticalCopyIndex: number,
       intensityScale: number,
@@ -1183,6 +1332,18 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
       pathId: sample.evaluation.pathId,
       pointIndex: sample.evaluation.pointIndex,
       velocityRatio: sample.evaluation.velocityRatio,
+      sampleDurationSec: sample.sampleDurationSec ?? sampleDurationSec,
+      segmentLength: sample.evaluation.segmentLength,
+      accelerationRatio: sample.evaluation.accelerationRatio,
+      dwellWeight: sample.evaluation.dwellWeight,
+      historyWeight: blanked
+        ? 0
+        : path.patternAnimationActive || path.fixtureMovementActive
+          ? clamp(0.24 * (1 - sample.evaluation.velocityRatio * 0.72), 0.035, 0.24)
+          : 0.16,
+      scannerFramePhase: sample.evaluation.scannerFramePhase,
+      eventKind: sample.evaluation.eventKind,
+      retrace: sample.evaluation.retrace,
       intendedRaySlotId: sample.evaluation.intendedRaySlotId,
       cueFrameId: path.cueFrameId,
       sampleCount: 1,
@@ -1191,14 +1352,14 @@ export function solveLaserDmxScannerExposure(input: SolveLaserDmxScannerExposure
     for (const sample of blankedSamples) {
       appendSample(sample, 0, 0, directScale, head.directSpectralChannel, directRay(sample.evaluation.target), true)
       for (const copy of copies) {
-        appendSample(sample, 0, copy.opticalCopyIndex, copy.intensityScale, copy.spectralChannel, copyRay(sample.evaluation.target, copy), true)
+        appendSample(sample, 0, copy.opticalCopyIndex, copy.intensityScale * opticalEnergyNormalizer, copy.spectralChannel, copyRay(sample.evaluation.target, copy), true)
       }
     }
     for (const sample of directSamples) {
       const exposureWeight = sample.rawWeight / totalRawWeight
       appendSample(sample, exposureWeight, 0, directScale, head.directSpectralChannel, directRay(sample.evaluation.target), false)
       for (const copy of copies) {
-        appendSample(sample, exposureWeight, copy.opticalCopyIndex, copy.intensityScale, copy.spectralChannel, copyRay(sample.evaluation.target, copy), false)
+        appendSample(sample, exposureWeight, copy.opticalCopyIndex, copy.intensityScale * opticalEnergyNormalizer, copy.spectralChannel, copyRay(sample.evaluation.target, copy), false)
       }
     }
   }
@@ -1299,6 +1460,14 @@ export function aggregateLaserDmxScannerExposureSamples(input: {
       exposureWeight,
       blanked: false,
       velocityRatio: clamp01(weightedMean(samples.map(sample => sample.velocityRatio), weights)),
+      sampleDurationSec: weightedMean(samples.map(sample => sample.sampleDurationSec ?? 0), weights),
+      segmentLength: weightedMean(samples.map(sample => sample.segmentLength ?? 0), weights),
+      accelerationRatio: clamp01(weightedMean(samples.map(sample => sample.accelerationRatio ?? 0), weights)),
+      dwellWeight: weightedMean(samples.map(sample => sample.dwellWeight ?? 1), weights),
+      historyWeight: clamp01(weightedMean(samples.map(sample => sample.historyWeight ?? 0), weights)),
+      scannerFramePhase: clamp01(weightedMean(samples.map(sample => sample.scannerFramePhase ?? 0), weights)),
+      eventKind: samples.some(sample => sample.eventKind === 'dwell') ? 'dwell' : 'travel',
+      retrace: samples.some(sample => sample.retrace === true),
       sampleCount: samples.reduce((sum, sample) => sum + (sample.sampleCount ?? 1), 0),
     })
   }
@@ -1379,13 +1548,23 @@ export function createLaserDmxScannerDiagnostics(input: {
     .map(([fixtureId]) => fixtureId)
   let visibleSegmentCount = 0
   let blankedSegmentCount = 0
+  let retraceSegmentCount = 0
   for (const path of input.paths) {
     const segmentCount = Math.max(0, path.points.length - 1) + (path.closed && path.points.length > 1 ? 1 : 0)
     const blanked = path.points.slice(1).filter((point, index) => point.blanked || path.points[index]?.blanked).length
       + (path.closed && path.points.length > 1 && (path.points[0]?.blanked || path.points[path.points.length - 1]?.blanked) ? 1 : 0)
     blankedSegmentCount += blanked
     visibleSegmentCount += Math.max(0, segmentCount - blanked)
+    if (!path.closed && path.repeatMode === 'loop') retraceSegmentCount += 1
   }
+  const visibleSamples = input.exposureSamples.filter(sample => !sample.blanked && exposureEnergy(sample) > 0)
+  const mean = (selector: (sample: LaserDmxExposureSample) => number): number => visibleSamples.length > 0
+    ? visibleSamples.reduce((sum, sample) => sum + selector(sample), 0) / visibleSamples.length
+    : 0
+  const normalizedFixtureEnergy = [...new Set(visibleSamples.map(sample => sample.fixtureId))]
+    .reduce((sum, fixtureId) => sum + Math.min(1, visibleSamples
+      .filter(sample => sample.fixtureId === fixtureId)
+      .reduce((fixtureSum, sample) => fixtureSum + exposureEnergy(sample), 0)), 0)
   return {
     scannerHeadCount: input.heads.length,
     selectedScannerHeadId: selectedHead?.id ?? null,
@@ -1423,5 +1602,14 @@ export function createLaserDmxScannerDiagnostics(input: {
       ?? input.exposureSamples.reduce((sum, sample) => sum + exposureEnergy(sample), 0),
     macroControlledPathCount: input.paths.filter(path => path.macroControlled).length,
     duplicateRenderingFixtureIds,
+    retraceSegmentCount,
+    averageSampleVelocity: mean(sample => clamp01(sample.velocityRatio)),
+    averageDwellWeight: mean(sample => sample.dwellWeight ?? 1),
+    averageExposureWeight: mean(sample => clamp01(sample.exposureWeight)),
+    averageHistoryWeight: mean(sample => clamp01(sample.historyWeight ?? 0)),
+    normalizedFixtureEnergy,
+    currentCueOwner: activePath?.cueId ?? activePath?.cueFrameId ?? null,
+    stablePathCount: input.paths.filter(path => !path.patternAnimationActive && !path.fixtureMovementActive).length,
+    animatedPathCount: input.paths.filter(path => path.patternAnimationActive || path.fixtureMovementActive).length,
   }
 }

@@ -51,6 +51,15 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   scannerValidationErrorCount: number
   scannerCompatibilityMode: LaserDmxScannerCompatibilityMode
   scannerMigrationStatus: 'native' | 'legacy' | 'migrated' | 'mixed' | 'inactive'
+  retraceScannerSegmentCount: number
+  averageScannerVelocity: number
+  averageScannerDwellWeight: number
+  averageScannerExposureWeight: number
+  averageScannerHistoryWeight: number
+  normalizedScannerFixtureEnergy: number
+  currentScannerCueOwner: string | null
+  stableScannerPathCount: number
+  animatedScannerPathCount: number
   cpuFrameMs: number | null
   gpuFrameMs: number | null
   hdrMode: 'rgba16f' | 'rgba8' | 'none'
@@ -116,6 +125,15 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   scannerValidationErrorCount: 0,
   scannerCompatibilityMode: 'inactive',
   scannerMigrationStatus: 'inactive',
+  retraceScannerSegmentCount: 0,
+  averageScannerVelocity: 0,
+  averageScannerDwellWeight: 0,
+  averageScannerExposureWeight: 0,
+  averageScannerHistoryWeight: 0,
+  normalizedScannerFixtureEnergy: 0,
+  currentScannerCueOwner: null,
+  stableScannerPathCount: 0,
+  animatedScannerPathCount: 0,
   cpuFrameMs: null,
   gpuFrameMs: null,
   hdrMode: 'none',
@@ -191,6 +209,15 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.scannerValidationErrorCount,
     value.scannerCompatibilityMode,
     value.scannerMigrationStatus,
+    value.retraceScannerSegmentCount,
+    value.averageScannerVelocity,
+    value.averageScannerDwellWeight,
+    value.averageScannerExposureWeight,
+    value.averageScannerHistoryWeight,
+    value.normalizedScannerFixtureEnergy,
+    value.currentScannerCueOwner,
+    value.stableScannerPathCount,
+    value.animatedScannerPathCount,
     value.hdrMode,
     value.bloomLevels,
     value.temporalHistoryActive,

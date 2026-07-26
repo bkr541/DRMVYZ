@@ -58,6 +58,12 @@ export function LaserDmxRendererDiagnosticsPanel() {
                 <div><dt>Dwell</dt><dd>{diagnostics.scannerDwellTotalMicros.toLocaleString()} μs</dd></div>
                 <div><dt>Scan Rate</dt><dd>{diagnostics.currentScanRatePps ? `${diagnostics.currentScanRatePps.toLocaleString()} pps` : 'Inactive'}</dd></div>
                 <div><dt>Blanked Samples</dt><dd>{diagnostics.blankedScannerSampleCount}</dd></div>
+                <div><dt>Retrace Segments</dt><dd>{diagnostics.retraceScannerSegmentCount}</dd></div>
+                <div><dt>Velocity / Dwell</dt><dd>{diagnostics.averageScannerVelocity.toFixed(3)} / {diagnostics.averageScannerDwellWeight.toFixed(3)}</dd></div>
+                <div><dt>Exposure / History</dt><dd>{diagnostics.averageScannerExposureWeight.toFixed(3)} / {diagnostics.averageScannerHistoryWeight.toFixed(3)}</dd></div>
+                <div><dt>Normalized Energy</dt><dd>{diagnostics.normalizedScannerFixtureEnergy.toFixed(3)}</dd></div>
+                <div><dt>Cue Owner</dt><dd>{diagnostics.currentScannerCueOwner ?? 'None'}</dd></div>
+                <div><dt>Stable / Animated</dt><dd>{diagnostics.stableScannerPathCount} / {diagnostics.animatedScannerPathCount}</dd></div>
                 <div><dt>Path Errors</dt><dd>{diagnostics.scannerValidationErrorCount}</dd></div>
                 <div><dt>Scanner Mode</dt><dd>{diagnostics.scannerCompatibilityMode}</dd></div>
                 <div><dt>Migration</dt><dd>{diagnostics.scannerMigrationStatus}</dd></div>

@@ -43,6 +43,10 @@ import {
 } from './laserDmx/LaserDmxRendererBackend'
 import { LaserDmxWebGLRuntime } from './laserDmx/LaserDmxWebGLRuntime'
 import {
+  buildLaserDmxCanvas2DScannerPlan,
+  renderLaserDmxCanvas2DScannerPlan,
+} from './laserDmx/LaserDmxCanvas2DScannerRenderer'
+import {
   clearLaserDmxRendererDiagnostics,
   getLaserDmxWebGLRetryRequestSequence,
   publishLaserDmxRendererDiagnostics,
@@ -104,6 +108,15 @@ function laserDmxScannerRendererDiagnostics(frame: LaserDmxSceneFrame) {
     scannerValidationErrorCount: diagnostics.pathValidationErrorCount,
     scannerCompatibilityMode: diagnostics.compatibilityMode,
     scannerMigrationStatus: diagnostics.migrationStatus,
+    retraceScannerSegmentCount: diagnostics.retraceSegmentCount,
+    averageScannerVelocity: diagnostics.averageSampleVelocity,
+    averageScannerDwellWeight: diagnostics.averageDwellWeight,
+    averageScannerExposureWeight: diagnostics.averageExposureWeight,
+    averageScannerHistoryWeight: diagnostics.averageHistoryWeight,
+    normalizedScannerFixtureEnergy: diagnostics.normalizedFixtureEnergy,
+    currentScannerCueOwner: diagnostics.currentCueOwner,
+    stableScannerPathCount: diagnostics.stablePathCount,
+    animatedScannerPathCount: diagnostics.animatedPathCount,
   }
 }
 
@@ -898,6 +911,11 @@ export function renderLaserDmx(
     canvasHeight: H,
     personalization,
   })
+  const canvasScannerPlan = sceneFrame
+    ? buildLaserDmxCanvas2DScannerPlan(sceneFrame, W, H)
+    : null
+  const suppressedLegacyBeamIds = new Set(canvasScannerPlan?.validation.suppressedLegacyBeamIds ?? [])
+  const canvasBeams = compiled.beams.filter(beam => !suppressedLegacyBeamIds.has(beam.beamId))
   if (params.thumbnailLaserDmxSettings == null && sceneFrame) {
     publishLaserDmxRendererDiagnostics({
       activeRenderer: 'canvas2d',
@@ -913,8 +931,8 @@ export function renderLaserDmx(
       atmosphereWidth: 0,
       atmosphereHeight: 0,
       atmosphereSampleCount: 0,
-      activeBeamCount: compiled.beams.length,
-      requestedBeamCount: compiled.beams.length,
+      activeBeamCount: canvasBeams.length + (canvasScannerPlan?.segments.length ?? 0),
+      requestedBeamCount: compiled.beams.length + (canvasScannerPlan?.validation.scannerSampleCount ?? 0),
       activeFixtureCount: sceneFrame.fixtures.filter(fixture => fixture.enabled).length,
       ...laserDmxScannerRendererDiagnostics(sceneFrame),
       cpuFrameMs: null,
@@ -936,7 +954,16 @@ export function renderLaserDmx(
     })
   }
   const out = compiled.output
-  const fadeAlpha = clamp01(out.backgroundFade) * (0.3 + 0.7 * clamp01(1 - out.beamPersistence))
+  const baseFadeAlpha = clamp01(out.backgroundFade) * (0.3 + 0.7 * clamp01(1 - out.beamPersistence))
+  const scannerClearRequested = Boolean(
+    sceneFrame?.output.blackout
+    || sceneFrame?.transport.timingDiscontinuity
+    || sceneFrame?.scanPaths.some(path => path.clearTemporalHistory),
+  )
+  const scannerFadeAlpha = canvasScannerPlan && canvasScannerPlan.segments.length > 0
+    ? Math.max(0.34, Math.min(0.92, 0.34 + (1 - canvasScannerPlan.averageHistoryWeight) * 0.48))
+    : 0
+  const fadeAlpha = scannerClearRequested ? 1 : Math.max(baseFadeAlpha, scannerFadeAlpha)
   ctx.globalCompositeOperation = 'source-over'
   ctx.globalAlpha = Math.max(0.01, fadeAlpha)
   ctx.fillStyle = '#000000'
@@ -951,16 +978,25 @@ export function renderLaserDmx(
 
   const fogDt = prevFogTimeSec >= 0 ? Math.max(0, Math.min(0.1, timeSec - prevFogTimeSec)) : 1 / 60
   prevFogTimeSec = timeSec
-  renderFog(ctx, W, H, compiled.fog, compiled.beams, fogDt)
+  renderFog(ctx, W, H, compiled.fog, canvasBeams, fogDt)
   renderLaserDmxBeamMatrix(
     ctx,
     W,
     H,
     out,
-    compiled.beams,
+    canvasBeams,
     clamp01(params.intensity),
     clamp01(params.glow),
     false,
   )
+  if (sceneFrame && canvasScannerPlan) {
+    renderLaserDmxCanvas2DScannerPlan(
+      ctx,
+      sceneFrame,
+      canvasScannerPlan,
+      clamp01(params.intensity),
+      clamp01(params.glow),
+    )
+  }
 
 }

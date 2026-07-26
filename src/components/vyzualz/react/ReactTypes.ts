@@ -1029,6 +1029,14 @@ export interface LaserDmxShowDirectorMacroScanPlan {
   preservePhase: boolean
   outputGateOpen?: boolean
   lifecycleState?: 'off' | 'attack' | 'movement' | 'hold' | 'release' | 'blackout'
+  /** True only when the finite cue runtime is authoritatively changing pattern geometry. */
+  patternAnimationActive?: boolean
+  /** True only when the finite cue runtime is authoritatively changing fixture aim. */
+  fixtureMovementActive?: boolean
+  /** Deterministic finite-cue movement progress. Renderers must never advance it. */
+  movementProgress?: number
+  /** Cue-owned parameters retained for renderer diagnostics and history policy. */
+  ownedParameters?: string[]
 }
 
 /**

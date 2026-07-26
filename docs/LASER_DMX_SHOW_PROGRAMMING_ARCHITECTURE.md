@@ -2,7 +2,7 @@
 
 ## Status
 
-Corrective Patches 1 and 2 provide the authoritative professional show-programming layer and its native physical-scanner execution path. Finite Cue Architecture Patch 1 extends that same canonical layer with bounded DMX-style commands, explicit cue lifecycle state, parameter ownership, and a hard renderer-facing output gate. It does not replace ordered scan paths, scanner kinematics, blanking, exposure sampling, WebGL rendering, Canvas2D fallback, production output, or recovery behavior.
+Corrective Patches 1 and 2 provide the authoritative professional show-programming layer and its native physical-scanner execution path. Finite Cue Architecture Patch 1 extends that canonical layer with bounded DMX-style commands, explicit cue lifecycle state, parameter ownership, and a hard renderer-facing output gate. Finite Cue Physical Renderer Patch 2 carries that resolved state through ordered scanner exposure, WebGL, Canvas2D, atmosphere, bloom, and temporal history without allowing renderer-local choreography.
 
 The runtime order is now:
 
@@ -13,9 +13,9 @@ performance scene and cue stack
   -> macro-aware scan planner
   -> ordered scanner path
   -> physical scanner solver
-  -> raw exposure samples
-  -> intended-slot aggregation
-  -> WebGL or Canvas2D output
+  -> normalized exposure samples
+  -> scanned-path or intentional-ray integration
+  -> shared WebGL or Canvas2D renderer plan
 ```
 
 Corrective Patch 2 makes the stable pattern frame authoritative for macro-controlled fixtures. Authored and legacy scanner conversion remain available only for fixtures that have not been migrated to the macro route.
@@ -88,6 +88,14 @@ Finite commands keep fixture pan/tilt, scanner-frame pattern position, pattern p
 Parameter ownership is deterministic. Blackout authority wins first, then non-interruptible ownership, then priority, latest quantized start, and stable cue ID. Ownership is released when the cue completes. Program constraints cap simultaneously active laser fixtures, continuously open output, animated scanner patterns, and finite rotation duration, while requiring authored darkness between selected cue windows.
 
 The runtime output gate is independent of nominal intensity. A closed gate suppresses scanner samples, legacy rays, Beam Matrix beams, fallback fixtures, glow/history contribution, and renderer temporal history. An inactive cue stack fails dark rather than returning an illuminated authored rig. Both WebGL and Canvas2D consume this same resolved gate and fixture state.
+
+## Finite-cue physical renderer boundary
+
+The macro scan plan propagates cue lifecycle, cue and macro ownership, owned parameters, stable-versus-animated state, and deterministic movement progress into the ordered scan path. The scanner solver samples one complete repeated scanner frame for presentation. Stable paths therefore converge to stable images instead of revealing renderer-shutter phase as apparent rotation.
+
+Sequential circles, polygons, smooth sweeps, waves, grids, tunnels, and corridors render as integrated target-to-target scan strokes. Only explicitly authored stepped fan slots, held beams, physical apertures, prisms, and diffraction copies remain aperture rays. Blanked travel and retrace are zero-energy topology breaks in both renderers and in temporal history.
+
+Sample density and adaptive quality alter smoothness only. Per-output energy is normalized before optical-copy expansion, path integration preserves visible shutter energy, and deterministic segment thinning preserves per-path energy. Temporal retention is based on authoritative cue geometry movement rather than galvanometer velocity. See `LASER_DMX_FINITE_CUE_PHYSICAL_RENDERER_PATCH_2.md`.
 
 ## Fixture-group relationships
 

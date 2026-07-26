@@ -111,6 +111,45 @@ describe('LaserDMX WebGL photographic post-processing', () => {
     expect(levels[3]?.levelWeights.reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1, 8)
   })
 
+
+  it('reduces scanner bloom and radius during authored fast cue motion without using sample count as gain', () => {
+    const source = createPostFrame({ quality: 'high', energy: 0.9 })
+    const noScanner: LaserDmxSceneFrame = { ...source, scanPaths: [], exposureSamples: [] }
+    const stable: LaserDmxSceneFrame = {
+      ...source,
+      scanPaths: source.scanPaths.map(path => ({
+        ...path,
+        patternAnimationActive: false,
+        fixtureMovementActive: false,
+      })),
+      exposureSamples: source.exposureSamples.map(sample => ({ ...sample, velocityRatio: 0.2 })),
+    }
+    const moving: LaserDmxSceneFrame = {
+      ...source,
+      scanPaths: source.scanPaths.map(path => ({
+        ...path,
+        patternAnimationActive: true,
+        fixtureMovementActive: false,
+      })),
+      exposureSamples: source.exposureSamples.map(sample => ({ ...sample, velocityRatio: 1 })),
+    }
+    const state = { exposure: 1, washout: 0 }
+    const noScannerBloom = resolveLaserDmxWebGLPostProcessPlan(noScanner, HDR_STRATEGY, state).bloom
+    const stableBloom = resolveLaserDmxWebGLPostProcessPlan(stable, HDR_STRATEGY, state).bloom
+    const movingBloom = resolveLaserDmxWebGLPostProcessPlan(moving, HDR_STRATEGY, state).bloom
+
+    expect(stableBloom.strength).toBeLessThan(noScannerBloom.strength)
+    expect(movingBloom.strength).toBeLessThan(stableBloom.strength)
+    expect(movingBloom.radius).toBeLessThan(stableBloom.radius)
+
+    const duplicatedSamples: LaserDmxSceneFrame = {
+      ...stable,
+      exposureSamples: [...stable.exposureSamples, ...stable.exposureSamples.map(sample => ({ ...sample, sampleTime: sample.sampleTime + 1e-6 }))],
+    }
+    expect(resolveLaserDmxWebGLPostProcessPlan(duplicatedSamples, HDR_STRATEGY, state).bloom)
+      .toEqual(stableBloom)
+  })
+
   it('clamps exposure and washout during extreme inputs', () => {
     const response: LaserDmxExposureResponse = {
       baseExposure: 1,

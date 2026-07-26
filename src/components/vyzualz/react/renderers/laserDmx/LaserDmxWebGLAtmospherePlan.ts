@@ -425,18 +425,29 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
     if (!origin.visible && !targetPoint.visible) continue
     const globalWidth = clamp(frame.output.globalBeamWidth, 0.1, 6)
     const depthScale = clamp((origin.perspectiveScale + targetPoint.perspectiveScale) * 0.5, 0.82, 1.22)
+    const geometryWidthResponse = scannerSegment.geometry === 'scanStroke' ? 0.72 : 1
+    const motionWidthResponse = scannerSegment.animated
+      ? 0.82 + (1 - scannerSegment.velocityRatio) * 0.12
+      : 0.94
     const atmosphereWidth = clamp(
-      (3.2 + globalWidth * 1.4 + frame.atmosphere.diffusion * 4.8) * depthScale,
-      4,
+      (3.2 + globalWidth * 1.4 + frame.atmosphere.diffusion * 4.8)
+        * depthScale
+        * geometryWidthResponse
+        * motionWidthResponse,
+      3,
       34,
     )
     const exposureDensity = resolveLaserDmxScannerExposureDensity(frame, scannerSegment)
+    const motionVisibility = scannerSegment.animated
+      ? 0.72 + (1 - scannerSegment.velocityRatio) * 0.2
+      : 0.94
     const scannerIntensity = clamp(
       exposureDensity
         * fixture.optics.sourceIntensity
         * frame.atmosphere.beamScatter
         * (0.16 + fixture.optics.atmosphereResponse * 0.5)
-        * flutter.intensityMultiplier,
+        * flutter.intensityMultiplier
+        * motionVisibility,
       0,
       1.25,
     )
@@ -474,7 +485,7 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
         endWidthCssPx: atmosphereWidth * 1.08,
         depthWeight,
         extinctionWeight: clamp01(0.3 + (1 - segment.centerDepth) * 0.26),
-        phase: scannerSegment.sampleTimeEnd * 0.017 + scannerSegment.opticalCopyIndex * 0.13,
+        phase: scannerSegment.opticalCopyIndex * 0.13,
         depthSlice: segment.sliceIndex,
         segmentT0: segment.t0,
         segmentT1: segment.t1,
