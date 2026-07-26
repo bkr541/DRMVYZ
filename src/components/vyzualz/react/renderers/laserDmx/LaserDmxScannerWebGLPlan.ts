@@ -332,6 +332,101 @@ function buildScannedPathSegments(
   }
 }
 
+function buildCanvas2DScannedPathSegments(
+  ordered: readonly LaserDmxExposureSample[],
+  path: LaserDmxScanPath | undefined,
+): { segments: LaserDmxScannerExposureSegment[]; blankedBreakCount: number; retraceBreakCount: number } {
+  const segments: LaserDmxScannerExposureSegment[] = []
+  let previous: LaserDmxExposureSample | null = null
+  let firstVisible: LaserDmxExposureSample | null = null
+  let lastVisible: LaserDmxExposureSample | null = null
+  let blankedBreakCount = 0
+  let retraceBreakCount = 0
+  let sawVisibilityBreak = false
+  let ordinal = 0
+
+  const appendStroke = (from: LaserDmxExposureSample, to: LaserDmxExposureSample, closing = false) => {
+    const segmentLength = distance(from.targetOrDirection, to.targetOrDirection)
+    const contribution = (sampleEnergy(from) + sampleEnergy(to)) * 0.5
+    if (segmentLength < 1e-6) {
+      const previousSegment = segments[segments.length - 1]
+      if (previousSegment) {
+        previousSegment.exposureContribution += contribution
+        previousSegment.pointDwell = true
+        previousSegment.dwellWeight = Math.max(previousSegment.dwellWeight, to.dwellWeight ?? 1)
+        previousSegment.sampleTimeEnd = Math.max(previousSegment.sampleTimeEnd, to.sampleTime)
+      }
+      return
+    }
+    const metadata = segmentMetadata(to, path)
+    segments.push({
+      id: `${to.scannerHeadId}:${to.pathId}:copy-${to.opticalCopyIndex}:canvas-stroke-${ordinal++}${closing ? '-close' : ''}`,
+      scannerHeadId: to.scannerHeadId,
+      fixtureId: to.fixtureId,
+      pathId: to.pathId,
+      opticalCopyIndex: to.opticalCopyIndex,
+      intendedRaySlotId: to.intendedRaySlotId,
+      rawSampleCount: Math.max(1, from.sampleCount ?? 1) + Math.max(1, to.sampleCount ?? 1),
+      origin: { ...from.targetOrDirection },
+      target: { ...to.targetOrDirection },
+      color: weightedColor([from, to]),
+      exposureContribution: contribution,
+      intensity: clamp01((from.intensity + to.intensity) * 0.5),
+      velocityRatio: clamp01((from.velocityRatio + to.velocityRatio) * 0.5),
+      accelerationRatio: clamp01(((from.accelerationRatio ?? 0) + (to.accelerationRatio ?? 0)) * 0.5),
+      dwellWeight: Math.max(from.dwellWeight ?? 1, to.dwellWeight ?? 1),
+      pointDwell: from.eventKind === 'dwell' || to.eventKind === 'dwell',
+      retrace: false,
+      geometry: 'scanStroke',
+      segmentLength,
+      sampleTimeStart: from.sampleTime,
+      sampleTimeEnd: closing ? from.sampleTime : to.sampleTime,
+      ...metadata,
+      // Canvas2D intentionally keeps its established persistence profile. The
+      // WebGL scanner exposure correction must not silently dim or erase the
+      // compatibility renderer when both backends consume the same cue state.
+      historyWeight: Math.max(metadata.historyWeight, metadata.animated ? 0.08 : 0.16),
+    })
+  }
+
+  for (const sample of ordered) {
+    if (sample.blanked || sample.intensity <= 0 || sample.exposureWeight <= 0 || sample.retrace) {
+      blankedBreakCount += 1
+      if (sample.retrace) retraceBreakCount += 1
+      sawVisibilityBreak = true
+      previous = null
+      continue
+    }
+    if (!firstVisible) firstVisible = sample
+    if (previous) appendStroke(previous, sample)
+    previous = sample
+    lastVisible = sample
+  }
+
+  if (path?.closed && !sawVisibilityBreak && firstVisible && lastVisible && firstVisible !== lastVisible && previous === lastVisible) {
+    appendStroke(lastVisible, firstVisible, true)
+  }
+
+  if (segments.length === 0 && firstVisible) {
+    const fallback = buildIntentionalRaySegments([firstVisible], path, 'heldRay')
+    return {
+      segments: fallback.segments.map(segment => ({
+        ...segment,
+        historyWeight: Math.max(segment.historyWeight, segment.animated ? 0.08 : 0.16),
+      })),
+      blankedBreakCount,
+      retraceBreakCount,
+    }
+  }
+
+  const visibleEnergy = ordered.reduce((sum, sample) => sum + sampleEnergy(sample), 0)
+  return {
+    segments: normalizeSegmentEnergy(segments, visibleEnergy),
+    blankedBreakCount,
+    retraceBreakCount,
+  }
+}
+
 function buildGroupSegments(
   samples: readonly LaserDmxExposureSample[],
   path: LaserDmxScanPath | undefined,
@@ -341,6 +436,23 @@ function buildGroupSegments(
   return mode === 'scannedPath'
     ? buildScannedPathSegments(ordered, path)
     : buildIntentionalRaySegments(ordered, path, mode)
+}
+
+function buildCanvas2DGroupSegments(
+  samples: readonly LaserDmxExposureSample[],
+  path: LaserDmxScanPath | undefined,
+): { segments: LaserDmxScannerExposureSegment[]; blankedBreakCount: number; retraceBreakCount: number } {
+  const ordered = [...samples].sort(stableSampleSort)
+  const mode = presentationMode(path)
+  if (mode === 'scannedPath') return buildCanvas2DScannedPathSegments(ordered, path)
+  const built = buildIntentionalRaySegments(ordered, path, mode)
+  return {
+    ...built,
+    segments: built.segments.map(segment => ({
+      ...segment,
+      historyWeight: Math.max(segment.historyWeight, segment.animated ? 0.08 : 0.16),
+    })),
+  }
 }
 
 function scannerSegmentGroupKey(segment: LaserDmxScannerExposureSegment): string {
@@ -498,12 +610,17 @@ export function aggregateLaserDmxScannerExposureSegments(
   }).sort((a, b) => a.sampleTimeStart - b.sampleTimeStart || a.id.localeCompare(b.id))
 }
 
+type LaserDmxScannerExposurePlanTarget = 'webgl' | 'canvas2dCompatibility'
+
 /**
- * Converts authoritative ordered scanner exposure into either integrated scan
- * strokes or explicitly authored rays. Blanked and retrace travel never reaches
- * renderer geometry.
+ * Converts authoritative ordered scanner exposure into either integrated WebGL
+ * exposure or the established Canvas2D compatibility strokes. Blanked and
+ * retrace travel never reaches renderer geometry in either backend.
  */
-export function buildLaserDmxScannerExposurePlan(frame: LaserDmxSceneFrame): LaserDmxScannerExposurePlan {
+function buildLaserDmxScannerExposurePlanForTarget(
+  frame: LaserDmxSceneFrame,
+  target: LaserDmxScannerExposurePlanTarget,
+): LaserDmxScannerExposurePlan {
   const validHeadIds = new Set(frame.scannerHeads.map(head => head.id))
   const validPaths = frame.scanPaths.filter(path => path.validationErrors.length === 0 && validHeadIds.has(path.scannerHeadId))
   const validPathIds = new Set(validPaths.map(path => path.id))
@@ -525,7 +642,9 @@ export function buildLaserDmxScannerExposurePlan(frame: LaserDmxSceneFrame): Las
   let retraceBreakCount = 0
   for (const key of [...groups.keys()].sort()) {
     const group = groups.get(key)!
-    const built = buildGroupSegments(group, paths.get(group[0]!.pathId))
+    const built = target === 'canvas2dCompatibility'
+      ? buildCanvas2DGroupSegments(group, paths.get(group[0]!.pathId))
+      : buildGroupSegments(group, paths.get(group[0]!.pathId))
     allSegments.push(...built.segments)
     blankedBreakCount += built.blankedBreakCount
     retraceBreakCount += built.retraceBreakCount
@@ -566,6 +685,14 @@ export function buildLaserDmxScannerExposurePlan(frame: LaserDmxSceneFrame): Las
       filledWedgeRiskCount,
     },
   }
+}
+
+export function buildLaserDmxScannerExposurePlan(frame: LaserDmxSceneFrame): LaserDmxScannerExposurePlan {
+  return buildLaserDmxScannerExposurePlanForTarget(frame, 'webgl')
+}
+
+export function buildLaserDmxCanvas2DCompatibilityExposurePlan(frame: LaserDmxSceneFrame): LaserDmxScannerExposurePlan {
+  return buildLaserDmxScannerExposurePlanForTarget(frame, 'canvas2dCompatibility')
 }
 
 export function validateLaserDmxWebGLLaserInputs(frame: LaserDmxSceneFrame): LaserDmxScannerWebGLInputValidation {

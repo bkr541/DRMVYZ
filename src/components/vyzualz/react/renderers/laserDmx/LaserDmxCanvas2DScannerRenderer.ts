@@ -1,7 +1,7 @@
 import type { LaserDmxSceneFrame } from './LaserDmxSceneFrame'
 import { clipLaserDmxSceneSegment, projectLaserDmxScenePoint } from './LaserDmxSpatialModel'
 import {
-  buildLaserDmxScannerExposurePlan,
+  buildLaserDmxCanvas2DCompatibilityExposurePlan,
   resolveLaserDmxScannerExposureDensity,
   type LaserDmxScannerExposureGeometry,
   type LaserDmxScannerWebGLInputValidation,
@@ -41,15 +41,17 @@ function rgba(color: LaserDmxCanvas2DScannerSegment['color'], alpha: number): st
 }
 
 /**
- * Projects the exact same authoritative scanner exposure plan used by WebGL.
- * No Canvas-local oscillator, phase advance, fan sweep, or retrace is allowed.
+ * Projects the authoritative cue/scanner state through Canvas2D's established
+ * compatibility geometry. WebGL owns its integrated aerial-exposure model;
+ * Canvas2D keeps the brighter connected scan strokes users already relied on.
+ * Neither backend may invent choreography, phase advance, fan motion, or retrace.
  */
 export function buildLaserDmxCanvas2DScannerPlan(
   frame: LaserDmxSceneFrame,
   width: number,
   height: number,
 ): LaserDmxCanvas2DScannerPlan {
-  const scannerPlan = buildLaserDmxScannerExposurePlan(frame)
+  const scannerPlan = buildLaserDmxCanvas2DCompatibilityExposurePlan(frame)
   const aspect = Math.max(0.5, width / Math.max(1, height))
   const segments = scannerPlan.segments.flatMap((segment): LaserDmxCanvas2DScannerSegment[] => {
     const clipped = clipLaserDmxSceneSegment(frame.camera, segment.origin, segment.target)
@@ -77,7 +79,21 @@ export function buildLaserDmxCanvas2DScannerPlan(
   const averageHistoryWeight = segments.length > 0
     ? segments.reduce((sum, segment) => sum + segment.historyWeight, 0) / segments.length
     : 0
-  return { segments, validation: scannerPlan.validation, averageHistoryWeight }
+  const visibleScannerFixtureIds = new Set(segments.map(segment => segment.fixtureId))
+  const suppressedLegacyBeamIds = frame.beams
+    .filter(beam => beam.fixtureKind === 'laser' && visibleScannerFixtureIds.has(beam.fixtureId))
+    .map(beam => beam.id)
+    .sort()
+  return {
+    segments,
+    validation: {
+      ...scannerPlan.validation,
+      // Never remove Canvas2D's proven fallback beam unless a projected
+      // compatibility stroke for that exact fixture is actually drawable.
+      suppressedLegacyBeamIds,
+    },
+    averageHistoryWeight,
+  }
 }
 
 export function renderLaserDmxCanvas2DScannerPlan(
@@ -103,13 +119,12 @@ export function renderLaserDmxCanvas2DScannerPlan(
     const scannerIntensity = clamp(segment.density * masterIntensity, 0, 1.25)
     if (scannerIntensity <= 0.001) continue
     const isStroke = segment.geometry === 'scanStroke'
-    const isIntegrated = segment.geometry === 'scanExposure'
     const speedTightening = isStroke ? 0.78 + (1 - segment.velocityRatio) * 0.12 : 1
-    const bodyWidth = clamp((isIntegrated ? 1.3 : isStroke ? 0.62 : 0.9) * globalWidth * speedTightening, 0.45, isIntegrated ? 4.2 : isStroke ? 2.2 : 3.1)
-    const glowWidth = clamp(bodyWidth * (isIntegrated ? 4.2 : 2.4 + atmosphere * 2 + globalGlow * 1.2), bodyWidth * 1.8, isIntegrated ? 22 : isStroke ? 9 : 14)
-    const glowAlpha = clamp(scannerIntensity * (isIntegrated ? 0.045 : 0.055 + atmosphere * 0.12 + globalGlow * 0.055), 0, isIntegrated ? 0.15 : 0.24)
-    const bodyAlpha = clamp(scannerIntensity * (isIntegrated ? 0.26 : isStroke ? 0.62 : 0.76), 0, isIntegrated ? 0.48 : 0.9)
-    const coreAlpha = clamp(Math.sqrt(scannerIntensity) * (isIntegrated ? 0.18 : isStroke ? 0.58 : 0.72), 0, isIntegrated ? 0.34 : 0.94)
+    const bodyWidth = clamp((isStroke ? 0.62 : 0.9) * globalWidth * speedTightening, 0.45, isStroke ? 2.2 : 3.1)
+    const glowWidth = clamp(bodyWidth * (2.4 + atmosphere * 2 + globalGlow * 1.2), bodyWidth * 1.8, isStroke ? 9 : 14)
+    const glowAlpha = clamp(scannerIntensity * (0.055 + atmosphere * 0.12 + globalGlow * 0.055), 0, 0.24)
+    const bodyAlpha = clamp(scannerIntensity * (isStroke ? 0.62 : 0.76), 0, 0.9)
+    const coreAlpha = clamp(Math.sqrt(scannerIntensity) * (isStroke ? 0.58 : 0.72), 0, 0.94)
 
     ctx.beginPath()
     ctx.moveTo(segment.origin.x, segment.origin.y)

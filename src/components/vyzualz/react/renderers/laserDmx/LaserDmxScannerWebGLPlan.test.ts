@@ -333,7 +333,7 @@ describe('LaserDMX ordered scanner exposure planning', () => {
       .toBeLessThanOrEqual(plan.validation.normalizedSegmentEnergy)
   })
 
-  it('uses the same authoritative exposure geometry in Canvas2D and WebGL', () => {
+  it('keeps cue/scanner authority shared while preserving distinct Canvas2D compatibility geometry', () => {
     const frame = createBaseFrame()
     const positions = [
       { x: 0.2, y: 0.35 },
@@ -347,12 +347,44 @@ describe('LaserDMX ordered scanner exposure planning', () => {
     const resolved = withScanner(frame, path, positions.map((position, index) => sample(frame, position, 1 + index * 0.001, index, {
       exposureWeight: 1 / positions.length,
     })))
+    const sourceBeam = resolved.beams[0]!
+    resolved.beams.push({
+      ...sourceBeam,
+      id: 'moving-head-compatibility-beam',
+      fixtureId: 'moving-head-fixture',
+      fixtureKind: 'movingHead',
+    })
     const webgl = buildLaserDmxScannerExposurePlan(resolved)
     const canvas = buildLaserDmxCanvas2DScannerPlan(resolved, 1920, 1080)
 
-    expect(canvas.segments.map(segment => segment.id)).toEqual(webgl.segments.map(segment => segment.id))
-    expect(canvas.segments.map(segment => segment.geometry)).toEqual(webgl.segments.map(segment => segment.geometry))
-    expect(canvas.validation.suppressedLegacyBeamIds).toEqual(webgl.validation.suppressedLegacyBeamIds)
+    expect(webgl.segments.every(segment => segment.geometry === 'scanExposure')).toBe(true)
+    expect(canvas.segments.every(segment => segment.geometry === 'scanStroke')).toBe(true)
+    expect(canvas.segments.length).toBeGreaterThan(0)
+    expect(canvas.averageHistoryWeight).toBeGreaterThanOrEqual(0.16)
+    expect(canvas.validation.authoritativeFixtureIds).toEqual(webgl.validation.authoritativeFixtureIds)
+    expect(canvas.validation.blankedBreakCount).toBe(webgl.validation.blankedBreakCount)
+    expect(canvas.validation.retraceBreakCount).toBe(webgl.validation.retraceBreakCount)
+    expect(canvas.validation.suppressedLegacyBeamIds).not.toContain('moving-head-compatibility-beam')
+  })
+
+  it('keeps legacy Canvas2D laser beams when scanner strokes cannot be projected', () => {
+    const frame = createBaseFrame()
+    const positions = [
+      { x: 0.2, y: 0.35 },
+      { x: 0.5, y: 0.75 },
+      { x: 0.8, y: 0.35 },
+    ]
+    const path = customPath(frame, positions.map((position, index) => point(`offscreen-${index}`, position.x, position.y)), {
+      closed: true,
+    })
+    const resolved = withScanner(frame, path, positions.map((position, index) => sample(frame, position, 1 + index * 0.001, index)))
+    resolved.camera = { ...resolved.camera, nearClipDistance: 100, farClipDistance: 101 }
+
+    const canvas = buildLaserDmxCanvas2DScannerPlan(resolved, 1920, 1080)
+
+    expect(canvas.segments).toHaveLength(0)
+    expect(canvas.validation.suppressedLegacyBeamIds).toEqual([])
+    expect(resolved.beams.some(beam => beam.fixtureKind === 'laser')).toBe(true)
   })
 
   it('does not derive scanner shader phase from renderer-local time', () => {
