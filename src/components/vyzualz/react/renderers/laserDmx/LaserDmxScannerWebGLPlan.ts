@@ -10,7 +10,7 @@ import type {
   LaserDmxSceneVec3,
 } from './LaserDmxSceneFrame'
 
-export type LaserDmxScannerExposureGeometry = 'scanStroke' | 'intentionalRay' | 'heldRay'
+export type LaserDmxScannerExposureGeometry = 'scanExposure' | 'scanStroke' | 'intentionalRay' | 'heldRay'
 
 export interface LaserDmxScannerExposureSegment {
   id: string
@@ -151,7 +151,7 @@ function segmentMetadata(
     macroId: path?.macroId,
     stable: !animated,
     animated,
-    historyWeight: clamp01(sample.historyWeight ?? (animated ? 0.08 : 0.16)),
+    historyWeight: clamp01(sample.historyWeight ?? (animated ? 0.025 : 0.06)),
   }
 }
 
@@ -240,78 +240,87 @@ function buildScannedPathSegments(
   ordered: readonly LaserDmxExposureSample[],
   path: LaserDmxScanPath | undefined,
 ): { segments: LaserDmxScannerExposureSegment[]; blankedBreakCount: number; retraceBreakCount: number } {
-  const segments: LaserDmxScannerExposureSegment[] = []
-  let previous: LaserDmxExposureSample | null = null
-  let firstVisible: LaserDmxExposureSample | null = null
-  let lastVisible: LaserDmxExposureSample | null = null
+  const visibleRuns: LaserDmxExposureSample[][] = []
+  let currentRun: LaserDmxExposureSample[] = []
   let blankedBreakCount = 0
   let retraceBreakCount = 0
-  let sawVisibilityBreak = false
-  let ordinal = 0
 
-  const appendStroke = (from: LaserDmxExposureSample, to: LaserDmxExposureSample, closing = false) => {
-    const segmentLength = distance(from.targetOrDirection, to.targetOrDirection)
-    const contribution = (sampleEnergy(from) + sampleEnergy(to)) * 0.5
-    if (segmentLength < 1e-6) {
-      const previousSegment = segments[segments.length - 1]
-      if (previousSegment) {
-        previousSegment.exposureContribution += contribution
-        previousSegment.pointDwell = true
-        previousSegment.dwellWeight = Math.max(previousSegment.dwellWeight, to.dwellWeight ?? 1)
-        previousSegment.sampleTimeEnd = Math.max(previousSegment.sampleTimeEnd, to.sampleTime)
-      }
-      return
-    }
-    segments.push({
-      id: `${to.scannerHeadId}:${to.pathId}:copy-${to.opticalCopyIndex}:stroke-${ordinal++}${closing ? '-close' : ''}`,
-      scannerHeadId: to.scannerHeadId,
-      fixtureId: to.fixtureId,
-      pathId: to.pathId,
-      opticalCopyIndex: to.opticalCopyIndex,
-      intendedRaySlotId: to.intendedRaySlotId,
-      rawSampleCount: Math.max(1, from.sampleCount ?? 1) + Math.max(1, to.sampleCount ?? 1),
-      origin: { ...from.targetOrDirection },
-      target: { ...to.targetOrDirection },
-      color: weightedColor([from, to]),
-      exposureContribution: contribution,
-      intensity: clamp01((from.intensity + to.intensity) * 0.5),
-      velocityRatio: clamp01((from.velocityRatio + to.velocityRatio) * 0.5),
-      accelerationRatio: clamp01(((from.accelerationRatio ?? 0) + (to.accelerationRatio ?? 0)) * 0.5),
-      dwellWeight: Math.max(from.dwellWeight ?? 1, to.dwellWeight ?? 1),
-      pointDwell: from.eventKind === 'dwell' || to.eventKind === 'dwell',
-      retrace: false,
-      geometry: 'scanStroke',
-      segmentLength,
-      sampleTimeStart: from.sampleTime,
-      sampleTimeEnd: closing ? from.sampleTime : to.sampleTime,
-      ...segmentMetadata(to, path),
-    })
+  const flushRun = () => {
+    if (currentRun.length) visibleRuns.push(currentRun)
+    currentRun = []
   }
 
   for (const sample of ordered) {
     if (sample.blanked || sample.intensity <= 0 || sample.exposureWeight <= 0 || sample.retrace) {
       blankedBreakCount += 1
       if (sample.retrace) retraceBreakCount += 1
-      sawVisibilityBreak = true
-      previous = null
+      flushRun()
       continue
     }
-    if (!firstVisible) firstVisible = sample
-    if (previous) appendStroke(previous, sample)
-    previous = sample
-    lastVisible = sample
+    currentRun.push(sample)
+  }
+  flushRun()
+
+  const segments: LaserDmxScannerExposureSegment[] = []
+  let ordinal = 0
+  for (const run of visibleRuns) {
+    const animated = path?.patternAnimationActive === true || path?.fixtureMovementActive === true
+    // A scanned circle or polygon is not a self-illuminated outline in mid-air.
+    // Integrate the shutter interval into a small number of aperture-origin
+    // exposure lobes. Stable frames retain a little more spatial definition;
+    // moving frames collapse further so history cannot build spinning cages.
+    const bucketCount = Math.max(1, Math.min(run.length, animated ? 2 : 4))
+    for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
+      const bucketStart = Math.floor(bucketIndex * run.length / bucketCount)
+      const bucketEnd = Math.max(bucketStart + 1, Math.floor((bucketIndex + 1) * run.length / bucketCount))
+      const samples = run.slice(bucketStart, bucketEnd)
+      const first = samples[0]!
+      const weights = samples.map(sample => Math.max(1e-9, sampleEnergy(sample)))
+      const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+      const mean = (selector: (sample: LaserDmxExposureSample) => number): number =>
+        samples.reduce((sum, sample, index) => sum + selector(sample) * weights[index]!, 0) / totalWeight
+      const origin = {
+        x: mean(sample => sample.origin.x),
+        y: mean(sample => sample.origin.y),
+        z: mean(sample => sample.origin.z),
+      }
+      const target = {
+        x: mean(sample => sample.targetOrDirection.x),
+        y: mean(sample => sample.targetOrDirection.y),
+        z: mean(sample => sample.targetOrDirection.z),
+      }
+      segments.push({
+        id: `${first.scannerHeadId}:${first.pathId}:copy-${first.opticalCopyIndex}:exposure-${ordinal++}`,
+        scannerHeadId: first.scannerHeadId,
+        fixtureId: first.fixtureId,
+        pathId: first.pathId,
+        opticalCopyIndex: first.opticalCopyIndex,
+        intendedRaySlotId: first.intendedRaySlotId,
+        rawSampleCount: samples.reduce((sum, sample) => sum + Math.max(1, sample.sampleCount ?? 1), 0),
+        origin,
+        target,
+        color: weightedColor(samples),
+        exposureContribution: samples.reduce((sum, sample) => sum + sampleEnergy(sample), 0),
+        intensity: clamp01(mean(sample => sample.intensity)),
+        velocityRatio: clamp01(mean(sample => sample.velocityRatio)),
+        accelerationRatio: clamp01(mean(sample => sample.accelerationRatio ?? 0)),
+        dwellWeight: Math.max(...samples.map(sample => sample.dwellWeight ?? 1)),
+        pointDwell: samples.some(sample => sample.eventKind === 'dwell'),
+        retrace: false,
+        geometry: 'scanExposure',
+        segmentLength: distance(origin, target),
+        sampleTimeStart: Math.min(...samples.map(sample => sample.sampleTime)),
+        sampleTimeEnd: Math.max(...samples.map(sample => sample.sampleTime)),
+        ...segmentMetadata(first, path),
+      })
+    }
   }
 
-  if (path?.closed && !sawVisibilityBreak && firstVisible && lastVisible && firstVisible !== lastVisible && previous === lastVisible) {
-    appendStroke(lastVisible, firstVisible, true)
-  }
-
-  if (segments.length === 0 && firstVisible) {
-    const fallback = buildIntentionalRaySegments([firstVisible], path, 'heldRay')
-    return {
-      segments: fallback.segments,
-      blankedBreakCount,
-      retraceBreakCount,
+  if (segments.length === 0) {
+    const firstVisible = ordered.find(sample => !sample.blanked && !sample.retrace && sample.intensity > 0 && sample.exposureWeight > 0)
+    if (firstVisible) {
+      const fallback = buildIntentionalRaySegments([firstVisible], path, 'heldRay')
+      return { segments: fallback.segments, blankedBreakCount, retraceBreakCount }
     }
   }
 
@@ -572,10 +581,11 @@ export function resolveLaserDmxScannerExposureDensity(
   const accelerationResponse = 1 - clamp01(segment.accelerationRatio) * 0.08
   const dwellResponse = segment.pointDwell ? clamp(segment.dwellWeight, 1, 1.7) : 1
   if (segment.geometry === 'scanStroke') {
-    // Exposure per unit path length is invariant to sample density. More samples
-    // shorten each segment and divide energy by the same amount.
     const energyPerLength = segment.exposureContribution / Math.max(0.0035, segment.segmentLength)
     return clamp(energyPerLength * 0.045 * velocityResponse * accelerationResponse * dwellResponse, 0, 1.2)
+  }
+  if (segment.geometry === 'scanExposure') {
+    return clamp(segment.exposureContribution * 0.58 * velocityResponse * accelerationResponse * dwellResponse, 0, 0.78)
   }
   return clamp(segment.exposureContribution * velocityResponse * accelerationResponse * dwellResponse, 0, 1.35)
 }

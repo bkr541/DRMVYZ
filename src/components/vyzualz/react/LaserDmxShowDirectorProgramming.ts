@@ -795,9 +795,9 @@ function applyMusicModulation(
   const ceiling = Math.max(floor, Math.min(2, macro.envelope.intensityCeiling))
   next.intensity = Math.max(floor, Math.min(ceiling, next.intensity * envelope * (0.78 + continuousEnergy * 0.22) + accent * 0.12))
   const authored = new Set(automation.map(lane => lane.parameter))
-  if (!authored.has('fanSpread')) next.fanSpread = Math.max(0, Math.min(180, next.fanSpread * (0.9 + continuousEnergy * 0.1)))
-  if (!authored.has('width')) next.width = Math.max(0, next.width * (0.94 + continuousEnergy * 0.06))
-  if (!authored.has('height')) next.height = Math.max(0, next.height * (0.94 + continuousEnergy * 0.06))
+  // Stable scanner geometry is cue-owned. Continuous Music Intelligence may
+  // shape exposure, color and atmosphere, but it must not silently breathe a
+  // held fan, circle or polygon on every audio frame.
   if (!authored.has('colorBlend')) next.colorBlend = Math.max(0, Math.min(1, next.colorBlend + context.high * 0.08))
   if (!authored.has('hazeAmount')) next.hazeAmount = Math.max(0, Math.min(1, next.hazeAmount * 0.85 + continuousEnergy * 0.15))
   return next
@@ -1627,10 +1627,14 @@ function resolveCueLifecycle(
     const stateProgress = progress(holdEnd, releaseEnd)
     return { state: 'release', stateProgress, movementProgress: lifecycle.returnBehavior === 'start' ? 1 - stateProgress : 1, remainingBeats: Math.min(releaseEnd, blackoutStart) - elapsed, outputGateOpen: true, intensityEnvelope: 1 - curveValue(command.easing, stateProgress), completionReason: 'running' }
   }
-  if (elapsed < blackoutEnd || elapsed >= blackoutStart) {
+  if (Number.isFinite(blackoutStart) && elapsed >= blackoutStart) {
     return { state: 'blackout', stateProgress: progress(blackoutStart, blackoutEnd), movementProgress: 1, remainingBeats: Math.max(0, cueDurationBeats - elapsed), outputGateOpen: false, intensityEnvelope: 0, completionReason: 'completed' }
   }
-  return { state: 'hold', stateProgress: 1, movementProgress: 1, remainingBeats: Math.max(0, cueDurationBeats - elapsed), outputGateOpen: true, intensityEnvelope: 1, completionReason: 'completed' }
+  if (lifecycle.completionBehavior === 'release') {
+    return { state: 'off', stateProgress: 1, movementProgress: 1, remainingBeats: Math.max(0, cueDurationBeats - elapsed), outputGateOpen: false, intensityEnvelope: 0, completionReason: 'completed' }
+  }
+  const returnedToStart = lifecycle.completionBehavior === 'return' || lifecycle.returnBehavior === 'start'
+  return { state: 'hold', stateProgress: 1, movementProgress: returnedToStart ? 0 : 1, remainingBeats: Math.max(0, cueDurationBeats - elapsed), outputGateOpen: true, intensityEnvelope: 1, completionReason: 'completed' }
 }
 
 function gateRigOff(
@@ -1665,10 +1669,29 @@ function gateRigOff(
   }
 }
 
+function triggerRepeatBeats(
+  cue: LaserPerformanceCue,
+  context: LaserDmxShowDirectorPerformanceTimingContext,
+): number | undefined {
+  if (cue.repeatEveryBeats != null && cue.repeatEveryBeats > 0) return cue.repeatEveryBeats
+  if (cue.triggerSource === 'beat') return 1
+  if (cue.triggerSource === 'downbeat' || cue.triggerSource === 'bar') return Math.max(1, context.timeSignature)
+  if (cue.triggerSource === 'fourBars') return Math.max(1, context.timeSignature) * 4
+  if (cue.triggerSource === 'eightBars') return Math.max(1, context.timeSignature) * 8
+  if (cue.triggerSource === 'sixteenBars') return Math.max(1, context.timeSignature) * 16
+  if (cue.triggerSource === 'phrase') return Math.max(1, context.timeSignature) * Math.max(1, context.phraseLengthBars)
+  return undefined
+}
+
 function activeCueWindow(cue: LaserPerformanceCue, context: LaserDmxShowDirectorPerformanceTimingContext): ActiveCueWindow | null {
-  const firstStart = initialCueStartBeat(cue, context)
   const cueDuration = durationBeats(cue.duration, context)
-  const repeat = cue.repeatEveryBeats
+  if (cue.triggerSource === 'kick' || cue.triggerSource === 'snare' || cue.triggerSource === 'hat') {
+    const startBeat = Math.max(0, context.absoluteBeat - context.beatPhase)
+    if (context.absoluteBeat >= startBeat + cueDuration - 1e-7) return null
+    return { cue, startBeat, durationBeats: cueDuration, cycle: context.beatIndex }
+  }
+  const firstStart = initialCueStartBeat(cue, context)
+  const repeat = triggerRepeatBeats(cue, context)
   if (context.absoluteBeat + 1e-7 < firstStart) return null
   if (repeat != null && repeat > 0) {
     const cycle = Math.max(0, Math.floor((context.absoluteBeat - firstStart + 1e-7) / repeat))
@@ -1685,9 +1708,9 @@ function cueMatches(cue: LaserPerformanceCue, scene: LaserDmxShowDirectorPerform
   if (cue.sectionTypes?.length && !cue.sectionTypes.includes(context.sectionType ?? 'unknown')) return false
   if (cue.minEnergy != null && context.energy < cue.minEnergy) return false
   if (cue.maxEnergy != null && context.energy > cue.maxEnergy) return false
-  if (cue.triggerSource === 'kick' && !context.kick) return false
-  if (cue.triggerSource === 'snare' && !context.snare) return false
-  if (cue.triggerSource === 'hat' && !context.hat) return false
+  if (cue.triggerSource === 'kick' && !(context.kick || context.kickStrength > 0.02)) return false
+  if (cue.triggerSource === 'snare' && !(context.snare || context.snareStrength > 0.02)) return false
+  if (cue.triggerSource === 'hat' && !(context.hat || context.hatStrength > 0.02)) return false
   if (cue.triggerSource === 'buildStart' && context.sectionType !== 'build') return false
   if (cue.triggerSource === 'preDrop' && context.sectionType !== 'preDrop') return false
   if (cue.triggerSource === 'drop' && context.sectionType !== 'drop') return false
@@ -1746,16 +1769,40 @@ function applyAutomation(
   return next
 }
 
-function activeAccents(cue: LaserPerformanceCue, context: LaserDmxShowDirectorPerformanceTimingContext): string[] {
-  return cue.accents.filter(accent => {
-    if (accent.trigger === 'kick') return context.kick
-    if (accent.trigger === 'snare') return context.snare
-    if (accent.trigger === 'hat') return context.hat
-    if (accent.trigger === 'beat') return context.boundaries.beatBoundary
-    if (accent.trigger === 'bar') return context.boundaries.barBoundary
-    if (accent.trigger === 'phrase') return context.boundaries.performanceSixteenBarBoundary || context.boundaries.macroSectionEntry
-    return context.boundaries.sectionEntry
-  }).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id)).map(accent => accent.id)
+function accentElapsedBeats(
+  accent: LaserCueAccent,
+  context: LaserDmxShowDirectorPerformanceTimingContext,
+): number {
+  if (accent.trigger === 'bar') return context.beatWithinBar + context.beatPhase
+  if (accent.trigger === 'phrase') return context.phraseProgress * Math.max(1, context.phraseLengthBars) * Math.max(1, context.timeSignature)
+  if (accent.trigger === 'section') {
+    const sectionStartSec = (context.resolvedMacroSection ?? context.resolvedSection)?.startSec ?? context.audioTimeSec
+    return Math.max(0, context.audioTimeSec - sectionStartSec) * Math.max(1, context.bpm) / 60
+  }
+  return context.beatPhase
+}
+
+function activeAccentEnvelopes(
+  cue: LaserPerformanceCue,
+  context: LaserDmxShowDirectorPerformanceTimingContext,
+): ReadonlyMap<string, number> {
+  const active = new Map<string, number>()
+  const ordered = [...cue.accents].sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))
+  for (const accent of ordered) {
+    const elapsed = accentElapsedBeats(accent, context)
+    if (elapsed < -1e-7 || elapsed >= accent.durationBeats - 1e-7) continue
+    const sourceActive = accent.trigger === 'kick'
+      ? context.kick || context.kickStrength > 0.02
+      : accent.trigger === 'snare'
+        ? context.snare || context.snareStrength > 0.02
+        : accent.trigger === 'hat'
+          ? context.hat || context.hatStrength > 0.02
+          : true
+    if (!sourceActive) continue
+    const envelope = 1 - Math.max(0, Math.min(1, elapsed / Math.max(0.03125, accent.durationBeats)))
+    active.set(accent.id, Math.max(0, Math.min(2, accent.intensity * (0.35 + envelope * 0.65))))
+  }
+  return active
 }
 
 function applyFiniteCommand(
@@ -1968,14 +2015,24 @@ function buildFixtureMacroPlan(input: {
   const { fixture, assignment, relationship, memberIndex, memberCount, macro, frame, preserveLegacyScalarChoreography } = input
   const runtime = fixture.runtimeScanner
   const relationshipMode = relationship?.mode
+  const patternAnimationAllowed = !frame.patternAnimationActive || frame.animatedFixtureIds.includes(fixture.id)
+  const patternCenterX = patternAnimationAllowed ? frame.centerX : macro.transform.centerX
+  const patternCenterY = patternAnimationAllowed ? frame.centerY : macro.transform.centerY
+  const patternDepth = patternAnimationAllowed ? frame.depth : macro.transform.depth
+  const patternWidth = patternAnimationAllowed ? frame.width : macro.transform.width
+  const patternHeight = patternAnimationAllowed ? frame.height : macro.transform.height
+  const patternRadius = patternAnimationAllowed ? frame.radius : macro.transform.radius
+  const patternRotationDeg = patternAnimationAllowed ? frame.rotationDeg : macro.transform.rotationDeg
+  const patternFanSpread = patternAnimationAllowed ? frame.fanSpread : Math.max(0, Math.min(180, macro.transform.width * 90))
+  const patternPhase = patternAnimationAllowed ? frame.phase : macro.scan.phase
   const chaseSteps = Math.max(1, Math.round(frame.cueDurationBeats / Math.max(0.25, relationship?.chaseStepBeats ?? 1)))
   const chaseIndex = Math.floor(frame.cueProgress * chaseSteps) % Math.max(1, memberCount)
-  let phase = runtime?.phase ?? ((frame.phase + (assignment.phaseOffset ?? 0)) % 1 + 1) % 1
+  let phase = runtime?.phase ?? ((patternPhase + (assignment.phaseOffset ?? 0)) % 1 + 1) % 1
   let direction = runtime?.direction ?? frame.direction
   if (relationshipMode === 'opposed') direction = memberIndex % 2 === 0 ? frame.direction : frame.direction === 'forward' ? 'reverse' : 'forward'
   if (relationshipMode === 'chase') phase = ((chaseIndex + memberIndex) / Math.max(1, memberCount)) % 1
-  if (relationshipMode === 'phaseOffset') phase = ((frame.phase + memberIndex * (relationship?.phaseOffset ?? 0.25)) % 1 + 1) % 1
-  if (relationshipMode === 'leaderFollower') phase = ((frame.phase + (memberIndex === 0 ? 0 : relationship?.phaseOffset ?? 0.125)) % 1 + 1) % 1
+  if (relationshipMode === 'phaseOffset') phase = ((patternPhase + memberIndex * (relationship?.phaseOffset ?? 0.25)) % 1 + 1) % 1
+  if (relationshipMode === 'leaderFollower') phase = ((patternPhase + (memberIndex === 0 ? 0 : relationship?.phaseOffset ?? 0.125)) % 1 + 1) % 1
   const familyDutyCycle = macro.family === 'heldBeam'
     ? 1
     : macro.family === 'steppedFan' || macro.family === 'mirroredFan' || macro.family === 'opposedFans'
@@ -1999,16 +2056,16 @@ function buildFixtureMacroPlan(input: {
     pathPointCount: frame.pathPointCount,
     spacingCurve: macroSpacingCurve(macro),
     traversal: macro.pattern.traversal,
-    centerX: frame.centerX,
-    centerY: frame.centerY,
-    depth: frame.depth,
-    width: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.size ?? frame.width) : frame.width,
-    height: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.size ?? frame.height) : frame.height,
-    radius: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.radius ?? frame.radius) : frame.radius,
-    rotationDeg: (preserveLegacyScalarChoreography ? 0 : frame.rotationDeg)
+    centerX: patternCenterX,
+    centerY: patternCenterY,
+    depth: patternDepth,
+    width: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.size ?? patternWidth) : patternWidth,
+    height: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.size ?? patternHeight) : patternHeight,
+    radius: preserveLegacyScalarChoreography ? Math.max(0.01, runtime?.radius ?? patternRadius) : patternRadius,
+    rotationDeg: (preserveLegacyScalarChoreography ? 0 : patternRotationDeg)
       + fixture.beam.beamAngle
       + (relationshipMode === 'rotationalOffset' ? memberIndex * (relationship?.rotationOffsetDeg ?? 15) : 0),
-    fanSpreadDeg: Math.max(0, Math.min(180, runtime?.fanWidth ?? frame.fanSpread)),
+    fanSpreadDeg: Math.max(0, Math.min(180, runtime?.fanWidth ?? patternFanSpread)),
     scanRatePps: Math.max(10, Math.min(100_000, runtime?.scanRatePps ?? frame.scanRatePps)),
     direction,
     phase,
@@ -2034,7 +2091,7 @@ function buildFixtureMacroPlan(input: {
     preservePhase: frame.preservePhase,
     outputGateOpen: frame.outputGateOpen,
     lifecycleState: frame.lifecycleState,
-    patternAnimationActive: frame.patternAnimationActive,
+    patternAnimationActive: frame.patternAnimationActive && patternAnimationAllowed,
     fixtureMovementActive: frame.fixtureMovementActive,
     movementProgress: frame.movementProgress,
     ownedParameters: [...frame.ownedParameters],
@@ -2067,13 +2124,14 @@ function applyMacroFrameToRig(
   cue: LaserPerformanceCue,
   frame: LaserStablePatternFrame,
   context: LaserDmxShowDirectorPerformanceTimingContext,
-  activeAccentCueIds: readonly string[],
+  activeAccentEnvelopes: ReadonlyMap<string, number>,
 ): LaserDmxShowDirectorState {
-  const selectedAssignmentIds = cue.fixtureGroupAssignmentIds?.length ? new Set(cue.fixtureGroupAssignmentIds) : null
-  const assignments = macro.fixtureGroupAssignments.filter(assignment => !selectedAssignmentIds || selectedAssignmentIds.has(assignment.id))
+  const primaryAssignmentIds = cue.fixtureGroupAssignmentIds?.length ? new Set(cue.fixtureGroupAssignmentIds) : null
+  const activeAccentDefinitions = cue.accents.filter(accent => activeAccentEnvelopes.has(accent.id))
+  const selectedAssignmentIds = new Set(primaryAssignmentIds ?? macro.fixtureGroupAssignments.map(assignment => assignment.id))
+  for (const accent of activeAccentDefinitions) for (const assignmentId of accent.fixtureGroupAssignmentIds ?? []) selectedAssignmentIds.add(assignmentId)
+  const assignments = macro.fixtureGroupAssignments.filter(assignment => selectedAssignmentIds.has(assignment.id))
   const beatImpact = Math.max(0, 1 - context.beatPhase * 4)
-  const activeAccentIds = new Set(activeAccentCueIds)
-  const activeAccentDefinitions = cue.accents.filter(accent => activeAccentIds.has(accent.id))
   const preserveLegacyScalarChoreography = document.compatibility.source === 'legacy-adapter'
     && macro.compatibility?.provisional === true
   const scalarIntensity = document.compatibility.source === 'legacy-adapter' ? 1 : frame.intensity
@@ -2081,7 +2139,15 @@ function applyMacroFrameToRig(
     ...rig,
     fixtures: rig.fixtures.map(fixture => {
       const assignment = assignments.find(candidate => addressMatches(fixture, candidate.address, rig))
-      const fixtureActive = frame.outputGateOpen && frame.activeFixtureIds.includes(fixture.id)
+      const assignmentAccentDefinitions = assignment ? activeAccentDefinitions.filter(accent => (
+        !accent.fixtureGroupAssignmentIds?.length || accent.fixtureGroupAssignmentIds.includes(assignment.id)
+      )) : []
+      const assignmentAccentActive = assignmentAccentDefinitions.length > 0
+      const assignmentAccentIntensity = assignmentAccentDefinitions.reduce(
+        (maximum, accent) => Math.max(maximum, activeAccentEnvelopes.get(accent.id) ?? 0),
+        0,
+      )
+      const fixtureActive = frame.outputGateOpen && (frame.activeFixtureIds.includes(fixture.id) || assignmentAccentActive)
       if (!assignment || !fixtureActive) {
         const reason = !frame.outputGateOpen
           ? 'blackout' as const
@@ -2113,11 +2179,6 @@ function applyMacroFrameToRig(
         }
       }
       const intensityScale = assignment.intensityScale ?? 1
-      const assignmentAccentDefinitions = activeAccentDefinitions.filter(accent => (
-        !accent.fixtureGroupAssignmentIds?.length || accent.fixtureGroupAssignmentIds.includes(assignment.id)
-      ))
-      const assignmentAccentActive = assignmentAccentDefinitions.length > 0
-      const assignmentAccentIntensity = assignmentAccentDefinitions.reduce((maximum, accent) => Math.max(maximum, accent.intensity), 0)
       const isMovingHead = fixture.kind === 'movingHead'
       const isWash = fixture.kind === 'parWash'
       const isHaze = fixture.kind === 'haze'
@@ -2189,7 +2250,7 @@ function applyMacroFrameToRig(
         ...fixture,
         runtimeOutputGate: {
           open: true,
-          reason: 'cue',
+          reason: assignmentAccentActive && !frame.activeFixtureIds.includes(fixture.id) ? 'accent' : 'cue',
           cueId: cue.id,
           lifecycleState: frame.lifecycleState,
           clearTemporalHistory: frame.clearTemporalHistory,
@@ -2256,6 +2317,10 @@ function applyMacroFrameToRig(
       if (fixture.kind !== 'laser') return fixture
       const assignment = assignments.find(candidate => addressMatches(fixture, candidate.address, next))
       if (!assignment) return fixture
+      const assignmentAccentActive = activeAccentDefinitions.some(accent => (
+        !accent.fixtureGroupAssignmentIds?.length || accent.fixtureGroupAssignmentIds.includes(assignment.id)
+      ))
+      const fixtureOutputOpen = frame.outputGateOpen && (frame.activeFixtureIds.includes(fixture.id) || assignmentAccentActive)
       const relationship = relationshipForAssignment(document, assignment)
       const members = fixturesForRelationship(next, macro, relationship, assignment, selectedAssignmentIds)
       const memberIndex = Math.max(0, members.findIndex(member => member.id === fixture.id))
@@ -2272,16 +2337,16 @@ function applyMacroFrameToRig(
       return {
         ...fixture,
         runtimeOutputGate: {
-          open: frame.outputGateOpen && frame.activeFixtureIds.includes(fixture.id),
-          reason: frame.outputGateOpen && frame.activeFixtureIds.includes(fixture.id) ? 'cue' : 'blackout',
+          open: fixtureOutputOpen,
+          reason: fixtureOutputOpen ? assignmentAccentActive && !frame.activeFixtureIds.includes(fixture.id) ? 'accent' : 'cue' : 'blackout',
           cueId: cue.id,
           lifecycleState: frame.lifecycleState,
-          clearTemporalHistory: frame.clearTemporalHistory || !frame.outputGateOpen,
+          clearTemporalHistory: frame.clearTemporalHistory || !fixtureOutputOpen,
         },
         runtimeScanner: {
           ...fixture.runtimeScanner,
           authoritativeSource: 'macro',
-          macroPlan,
+          macroPlan: { ...macroPlan, outputGateOpen: fixtureOutputOpen, shutterClosed: !fixtureOutputOpen || macroPlan.shutterClosed },
           patternType: macro.pattern.scannerPatternType,
           scanRatePps: macroPlan.scanRatePps,
           direction: macroPlan.direction,
@@ -2292,7 +2357,7 @@ function applyMacroFrameToRig(
           retraceBlanking: macroPlan.retraceBlanking,
           opticalMode: macroPlan.opticalMode,
           opticalCopyCount: macroPlan.opticalCopyCount,
-          shutterClosed: macroPlan.shutterClosed,
+          shutterClosed: !fixtureOutputOpen || macroPlan.shutterClosed,
         },
       }
     }),
@@ -2424,20 +2489,279 @@ export function sanitizeTransientLaserProgrammingPayload(
   return { payload: clone, suppressed }
 }
 
-export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput): ResolveLaserProgrammingResult {
+
+function compareActiveCueWindows(a: ActiveCueWindow, b: ActiveCueWindow): number {
+  const aBlackout = a.cue.blackout || a.cue.shutterClosed || a.cue.ownership?.blackoutOverride ? 1 : 0
+  const bBlackout = b.cue.blackout || b.cue.shutterClosed || b.cue.ownership?.blackoutOverride ? 1 : 0
+  if (aBlackout !== bBlackout) return bBlackout - aBlackout
+  const aLocked = a.cue.ownership?.interruptible === false ? 1 : 0
+  const bLocked = b.cue.ownership?.interruptible === false ? 1 : 0
+  if (aLocked !== bLocked) return bLocked - aLocked
+  return b.cue.priority - a.cue.priority || b.startBeat - a.startBeat || a.cue.id.localeCompare(b.cue.id)
+}
+
+interface ResolvedOwnershipLayer {
+  result: ResolveLaserProgrammingResult
+  ownership: LaserCueParameterOwnership
+}
+
+function fixtureTargetedByLayer(layer: ResolvedOwnershipLayer, fixtureId: string): boolean {
+  const fixture = layer.result.showDirector.fixtures.find(candidate => candidate.id === fixtureId)
+  if (!fixture || !layer.result.cue) return false
+  return fixture.runtimeOutputGate?.cueId === layer.result.cue.id
+    && fixture.runtimeOutputGate.reason !== 'unassigned'
+}
+
+function patchMacroPlan(
+  target: LaserDmxShowDirectorScannerRuntimeOverrides | undefined,
+  source: LaserDmxShowDirectorScannerRuntimeOverrides | undefined,
+  keys: readonly (keyof LaserDmxShowDirectorMacroScanPlan)[],
+): LaserDmxShowDirectorScannerRuntimeOverrides | undefined {
+  if (!source) return target
+  const sourcePlan = source.macroPlan
+  const targetPlan = target?.macroPlan
+  if (!sourcePlan || !targetPlan) return { ...target, ...source }
+  const macroPlan = { ...targetPlan }
+  for (const key of keys) {
+    ;(macroPlan as unknown as Record<string, unknown>)[key] = sourcePlan[key]
+  }
+  return { ...target, macroPlan }
+}
+
+function applyOwnedFixtureParameter(
+  target: LaserDmxShowDirectorFixture,
+  source: LaserDmxShowDirectorFixture,
+  parameter: LaserCueOwnedParameter,
+): LaserDmxShowDirectorFixture {
+  if (parameter === 'output') {
+    const runtimeScanner = patchMacroPlan(target.runtimeScanner, source.runtimeScanner, [
+      'outputGateOpen', 'lifecycleState', 'shutterClosed', 'clearTemporalHistory',
+    ])
+    return {
+      ...target,
+      runtimeOutputGate: source.runtimeOutputGate ? { ...source.runtimeOutputGate } : target.runtimeOutputGate,
+      ...(runtimeScanner ? { runtimeScanner: {
+        ...runtimeScanner,
+        shutterClosed: source.runtimeScanner?.shutterClosed ?? source.runtimeOutputGate?.open === false,
+      } } : {}),
+    }
+  }
+  if (parameter === 'intensity') {
+    return {
+      ...target,
+      brightness: source.brightness,
+      component: { ...target.component, ...source.component },
+      runtimeBeamAppearance: source.runtimeBeamAppearance ? { ...source.runtimeBeamAppearance } : target.runtimeBeamAppearance,
+    }
+  }
+  if (parameter === 'pan') {
+    return {
+      ...target,
+      rotation: source.rotation,
+      runtimeScanner: patchMacroPlan(target.runtimeScanner, source.runtimeScanner, ['rotationDeg']),
+    }
+  }
+  if (parameter === 'tilt') {
+    return { ...target, beam: { ...target.beam, beamAngle: source.beam.beamAngle } }
+  }
+  if (parameter === 'pattern') {
+    return {
+      ...target,
+      runtimeScanner: patchMacroPlan({ ...target.runtimeScanner, patternType: source.runtimeScanner?.patternType }, source.runtimeScanner, [
+        'family', 'topologyId', 'topologyRevision', 'topologyCacheKey', 'raySlots', 'pathPointCount',
+        'spacingCurve', 'traversal', 'repeatMode', 'interpolation', 'patternAnimationActive',
+      ]),
+    }
+  }
+  if (parameter === 'patternPhase') {
+    return {
+      ...target,
+      runtimeScanner: patchMacroPlan({
+        ...target.runtimeScanner,
+        phase: source.runtimeScanner?.phase,
+        direction: source.runtimeScanner?.direction,
+        reversePath: source.runtimeScanner?.reversePath,
+      }, source.runtimeScanner, ['phase', 'direction', 'movementProgress']),
+    }
+  }
+  if (parameter === 'patternScale') {
+    return {
+      ...target,
+      beam: { ...target.beam, beamSpread: source.beam.beamSpread },
+      runtimeScanner: patchMacroPlan({
+        ...target.runtimeScanner,
+        fanWidth: source.runtimeScanner?.fanWidth,
+        radius: source.runtimeScanner?.radius,
+        size: source.runtimeScanner?.size,
+      }, source.runtimeScanner, ['width', 'height', 'radius', 'fanSpreadDeg']),
+    }
+  }
+  if (parameter === 'patternPosition') {
+    return {
+      ...target,
+      beam: {
+        ...target.beam,
+        targetX: source.beam.targetX,
+        targetY: source.beam.targetY,
+        targets: source.beam.targets ? source.beam.targets.map(point => ({ ...point })) : source.beam.targets,
+      },
+      runtimeScanner: patchMacroPlan(target.runtimeScanner, source.runtimeScanner, ['centerX', 'centerY', 'depth']),
+    }
+  }
+  if (parameter === 'color') {
+    return {
+      ...target,
+      color: source.color,
+      colorMode: source.colorMode,
+      runtimeScanner: patchMacroPlan(target.runtimeScanner, source.runtimeScanner, ['colorBlend']),
+    }
+  }
+  if (parameter === 'opticalCopies') {
+    return {
+      ...target,
+      optics: { ...source.optics },
+      runtimeScanner: patchMacroPlan({
+        ...target.runtimeScanner,
+        opticalMode: source.runtimeScanner?.opticalMode,
+        opticalCopyCount: source.runtimeScanner?.opticalCopyCount,
+      }, source.runtimeScanner, ['opticalMode', 'opticalCopyCount', 'opticalCopySpreadDeg', 'apertureCount']),
+    }
+  }
+  if (parameter === 'scanSpeed') {
+    return {
+      ...target,
+      runtimeScanner: patchMacroPlan({ ...target.runtimeScanner, scanRatePps: source.runtimeScanner?.scanRatePps }, source.runtimeScanner, ['scanRatePps']),
+    }
+  }
+  if (parameter === 'persistence') {
+    const runtimeOutputGate = target.runtimeOutputGate && source.runtimeOutputGate
+      ? { ...target.runtimeOutputGate, clearTemporalHistory: source.runtimeOutputGate.clearTemporalHistory }
+      : target.runtimeOutputGate
+    return {
+      ...target,
+      runtimeOutputGate,
+      runtimeScanner: patchMacroPlan(target.runtimeScanner, source.runtimeScanner, ['clearTemporalHistory', 'preservePhase']),
+    }
+  }
+  return target
+}
+
+function mergeOwnershipLayers(
+  input: ResolveLaserProgrammingInput,
+  layers: readonly ResolvedOwnershipLayer[],
+  constraints: LaserShowProgrammingConstraints,
+): ResolveLaserProgrammingResult {
+  const primary = layers[0]!.result
+  const mergedFixtures = input.runtimeRig.fixtures.map(baseFixture => {
+    let fixture = { ...baseFixture }
+    for (const parameter of OWNED_PARAMETERS) {
+      const owner = layers.find(layer => layer.ownership.parameters.includes(parameter) && fixtureTargetedByLayer(layer, baseFixture.id))
+      if (!owner) continue
+      const source = owner.result.showDirector.fixtures.find(candidate => candidate.id === baseFixture.id)
+      if (source) fixture = applyOwnedFixtureParameter(fixture, source, parameter)
+    }
+    if (fixture.runtimeOutputGate?.open === false && fixture.kind === 'laser') {
+      fixture = {
+        ...fixture,
+        runtimeScanner: {
+          ...fixture.runtimeScanner,
+          shutterClosed: true,
+          macroPlan: fixture.runtimeScanner?.macroPlan ? {
+            ...fixture.runtimeScanner.macroPlan,
+            outputGateOpen: false,
+            shutterClosed: true,
+            clearTemporalHistory: true,
+          } : undefined,
+        },
+      }
+    }
+    return fixture
+  })
+  const activeFixtureIds = mergedFixtures.filter(fixture => fixture.runtimeOutputGate?.open === true).map(fixture => fixture.id).sort()
+  const patternOwnedParameters = new Set<LaserCueOwnedParameter>(['pattern', 'patternPhase', 'patternScale', 'patternPosition'])
+  const requestedAnimatedFixtureIds = layers.flatMap(layer => (
+    layer.ownership.parameters.some(parameter => patternOwnedParameters.has(parameter))
+      ? layer.result.frame?.animatedFixtureIds ?? []
+      : []
+  )).filter((id, index, all) => all.indexOf(id) === index && activeFixtureIds.includes(id))
+  const animatedFixtureIds = requestedAnimatedFixtureIds.slice(0, constraints.maximumSimultaneouslyAnimatedPatterns)
+  const animatedFixtureSet = new Set(animatedFixtureIds)
+  const constrainedFixtures = mergedFixtures.map(fixture => {
+    const plan = fixture.runtimeScanner?.macroPlan
+    if (fixture.kind !== 'laser' || !plan?.patternAnimationActive || animatedFixtureSet.has(fixture.id)) return fixture
+    const owner = layers.find(layer => (
+      layer.ownership.parameters.some(parameter => patternOwnedParameters.has(parameter))
+      && fixtureTargetedByLayer(layer, fixture.id)
+    ))
+    const macro = owner?.result.macro
+    if (!macro) return {
+      ...fixture,
+      runtimeScanner: {
+        ...fixture.runtimeScanner,
+        macroPlan: { ...plan, patternAnimationActive: false },
+      },
+    }
+    return {
+      ...fixture,
+      runtimeScanner: {
+        ...fixture.runtimeScanner,
+        phase: macro.scan.phase,
+        radius: macro.transform.radius,
+        size: Math.max(macro.transform.width, macro.transform.height),
+        fanWidth: Math.max(0, Math.min(180, macro.transform.width * 90)),
+        macroPlan: {
+          ...plan,
+          centerX: macro.transform.centerX,
+          centerY: macro.transform.centerY,
+          depth: macro.transform.depth,
+          width: macro.transform.width,
+          height: macro.transform.height,
+          radius: macro.transform.radius,
+          rotationDeg: macro.transform.rotationDeg + fixture.beam.beamAngle,
+          fanSpreadDeg: Math.max(0, Math.min(180, macro.transform.width * 90)),
+          phase: macro.scan.phase,
+          patternAnimationActive: false,
+        },
+      },
+    }
+  })
+  const frame = primary.frame ? {
+    ...primary.frame,
+    activeFixtureIds,
+    blackedOutFixtureIds: mergedFixtures.filter(fixture => fixture.runtimeOutputGate?.open !== true).map(fixture => fixture.id).sort(),
+    animatedFixtureIds,
+    outputGateOpen: activeFixtureIds.length > 0,
+    patternAnimationActive: animatedFixtureIds.length > 0,
+    fixtureMovementActive: layers.some(layer => layer.result.frame?.fixtureMovementActive),
+    ownedParameters: Array.from(new Set(layers.flatMap(layer => layer.ownership.parameters))),
+  } : null
+  const activeAccentCueIds = Array.from(new Set(layers.flatMap(layer => layer.result.activeAccentCueIds)))
+  return {
+    ...primary,
+    frame,
+    activeAccentCueIds,
+    showDirector: { ...primary.showDirector, fixtures: constrainedFixtures },
+    diagnostics: {
+      ...primary.diagnostics,
+      activeAccentCueIds,
+      activeFixtureIds,
+      blackedOutFixtureIds: constrainedFixtures.filter(fixture => fixture.runtimeOutputGate?.open !== true).map(fixture => fixture.id).sort(),
+      ownedParameters: frame?.ownedParameters ?? primary.diagnostics.ownedParameters,
+    },
+  }
+}
+
+function resolveLaserShowProgrammingInternal(
+  input: ResolveLaserProgrammingInput,
+  composeOwnership: boolean,
+): ResolveLaserProgrammingResult {
+
   const constraints = normalizeConstraints(input.document.constraints)
   const stack = input.document.cueStacks.find(candidate => candidate.id === input.document.activeCueStackId) ?? input.document.cueStacks[0]
   const eligible = stack?.cues.filter(cue => cueMatches(cue, input.selectedScene, input.context)) ?? []
   const activeWindows = eligible.map(cue => activeCueWindow(cue, input.context)).filter((window): window is ActiveCueWindow => window !== null)
-  const activeWindow = [...activeWindows].sort((a, b) => {
-    const aBlackout = a.cue.blackout || a.cue.shutterClosed || a.cue.ownership?.blackoutOverride ? 1 : 0
-    const bBlackout = b.cue.blackout || b.cue.shutterClosed || b.cue.ownership?.blackoutOverride ? 1 : 0
-    if (aBlackout !== bBlackout) return bBlackout - aBlackout
-    const aLocked = a.cue.ownership?.interruptible === false ? 1 : 0
-    const bLocked = b.cue.ownership?.interruptible === false ? 1 : 0
-    if (aLocked !== bLocked) return bLocked - aLocked
-    return b.cue.priority - a.cue.priority || b.startBeat - a.startBeat || a.cue.id.localeCompare(b.cue.id)
-  })[0] ?? null
+  const orderedActiveWindows = [...activeWindows].sort(compareActiveCueWindows)
+  const activeWindow = orderedActiveWindows[0] ?? null
   const cue = activeWindow?.cue ?? null
   const macro = cue ? input.document.macros.find(candidate => candidate.id === cue.macroId) ?? null : null
   const issues = validateLaserShowProgrammingDocument(input.document)
@@ -2638,14 +2962,13 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
   frame = applyMusicModulation(frame, macro, input.context, automation)
   if (!frame.outputGateOpen) frame = { ...frame, intensity: 0, shutterClosed: true, clearTemporalHistory: true }
 
-  const accentIds = lifecycle.outputGateOpen ? activeAccents(cue, input.context) : []
+  const accentEnvelopes = lifecycle.outputGateOpen ? activeAccentEnvelopes(cue, input.context) : new Map<string, number>()
+  const accentIds = [...accentEnvelopes.keys()]
   const conflicts = conflictingRuntimeOverrides(input.runtimeRig, assignments, macro)
-  const showDirector = applyMacroFrameToRig(input.runtimeRig, input.document, macro, cue, frame, input.context, accentIds)
+  const showDirector = applyMacroFrameToRig(input.runtimeRig, input.document, macro, cue, frame, input.context, accentEnvelopes)
   const relationshipNames = activeRelationships.map(relationship => `${relationship.name} (${relationship.mode})`)
   const audioModulationBoundaries = [
     'continuous:intensity',
-    'continuous:fanSpread',
-    'continuous:patternSize',
     'continuous:colorBlend',
     'continuous:hazeAmount',
     ...(input.context.boundaries.beatBoundary ? ['transient:beatBoundary'] : []),
@@ -2658,7 +2981,7 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
     ...(input.context.kick ? ['transient:kickAccent'] : []),
     ...(input.context.snare ? ['transient:snareAccent'] : []),
   ]
-  return {
+  const result: ResolveLaserProgrammingResult = {
     document: input.document,
     frame,
     cue,
@@ -2710,4 +3033,30 @@ export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput)
       completionReason: lifecycle.completionReason,
     },
   }
+  if (!composeOwnership || orderedActiveWindows.length <= 1) return result
+  const secondaryLayers = orderedActiveWindows.slice(1).flatMap(window => {
+    const secondaryDocument: LaserShowProgrammingDocument = {
+      ...input.document,
+      cueStacks: [{
+        schemaVersion: LASER_DMX_CUE_STACK_SCHEMA_VERSION,
+        id: stack?.id ?? input.document.activeCueStackId,
+        name: stack?.name ?? 'Ownership layer',
+        cues: [window.cue],
+      }],
+      activeCueStackId: stack?.id ?? input.document.activeCueStackId,
+    }
+    const secondary = resolveLaserShowProgrammingInternal({ ...input, document: secondaryDocument }, false)
+    if (!secondary.frame || !secondary.cue || !secondary.macro) return []
+    const secondaryCommand = secondary.cue.command ?? secondary.macro.defaultCommand
+      ?? normalizeFiniteMacroCommand(null, secondary.macro.family, [...secondary.macro.automation, ...secondary.cue.automation])
+    return [{
+      result: secondary,
+      ownership: secondary.cue.ownership ?? normalizeOwnership(null, [...secondary.macro.automation, ...secondary.cue.automation], secondaryCommand),
+    }]
+  })
+  return mergeOwnershipLayers(input, [{ result, ownership }, ...secondaryLayers], constraints)
+}
+
+export function resolveLaserShowProgramming(input: ResolveLaserProgrammingInput): ResolveLaserProgrammingResult {
+  return resolveLaserShowProgrammingInternal(input, true)
 }

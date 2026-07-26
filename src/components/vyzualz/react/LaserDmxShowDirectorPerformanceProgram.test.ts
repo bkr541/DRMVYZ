@@ -61,6 +61,20 @@ describe('Show Director performance-program foundation', () => {
     expect(missing.activeProgramId).toBeNull()
   })
 
+  it('hydrates ID-only persistence for every canonical built-in program', () => {
+    for (const id of Object.keys(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)) {
+      const hydrated = normalizeLaserDmxShowDirectorPerformanceState({
+        enabled: true,
+        activeProgramId: id,
+        activeBuiltInProgramId: id,
+      })
+      expect(hydrated.enabled, id).toBe(true)
+      expect(hydrated.activeProgramId, id).toBe(id)
+      expect(hydrated.activeBuiltInProgramId, id).toBe(id)
+      expect(hydrated.activeProgramDefinition?.id, id).toBe(id)
+    }
+  })
+
   it('serializes, clones, and normalizes programs idempotently', () => {
     const normalized = normalizeLaserDmxShowDirectorPerformanceProgram(program())
     expect(normalized).not.toBeNull()

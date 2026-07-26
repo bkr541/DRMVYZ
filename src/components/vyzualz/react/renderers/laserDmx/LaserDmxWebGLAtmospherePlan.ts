@@ -425,7 +425,7 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
     if (!origin.visible && !targetPoint.visible) continue
     const globalWidth = clamp(frame.output.globalBeamWidth, 0.1, 6)
     const depthScale = clamp((origin.perspectiveScale + targetPoint.perspectiveScale) * 0.5, 0.82, 1.22)
-    const geometryWidthResponse = scannerSegment.geometry === 'scanStroke' ? 0.72 : 1
+    const geometryWidthResponse = scannerSegment.geometry === 'scanExposure' ? 1.55 : scannerSegment.geometry === 'scanStroke' ? 0.72 : 1
     const motionWidthResponse = scannerSegment.animated
       ? 0.82 + (1 - scannerSegment.velocityRatio) * 0.12
       : 0.94
@@ -438,9 +438,13 @@ export function buildLaserDmxWebGLAtmosphereRenderPlan(
       34,
     )
     const exposureDensity = resolveLaserDmxScannerExposureDensity(frame, scannerSegment)
-    const motionVisibility = scannerSegment.animated
-      ? 0.72 + (1 - scannerSegment.velocityRatio) * 0.2
-      : 0.94
+    const motionVisibility = scannerSegment.geometry === 'scanExposure'
+      ? scannerSegment.animated
+        ? 0.48 + (1 - scannerSegment.velocityRatio) * 0.16
+        : 0.66
+      : scannerSegment.animated
+        ? 0.72 + (1 - scannerSegment.velocityRatio) * 0.2
+        : 0.94
     const scannerIntensity = clamp(
       exposureDensity
         * fixture.optics.sourceIntensity

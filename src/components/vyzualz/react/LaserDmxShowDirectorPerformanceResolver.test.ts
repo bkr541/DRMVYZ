@@ -11,7 +11,7 @@ import {
 } from './ReactTypes'
 import { buildLaserDmxShowDirectorPerformanceContext, type LaserDmxShowDirectorPerformanceTimingContext } from './LaserDmxShowDirectorPerformanceContext'
 import type { LaserDmxShowDirectorPerformanceProgram } from './LaserDmxShowDirectorPerformanceProgram'
-import { resolveLaserDmxShowDirectorPerformance } from './LaserDmxShowDirectorPerformanceResolver'
+import { measureLaserDmxShowDirectorEnergyMetrics, resolveLaserDmxShowDirectorPerformance } from './LaserDmxShowDirectorPerformanceResolver'
 import { compileLaserDmxShowDirectorToBeamMatrix } from './renderers/LaserDmxShowDirectorBeamMatrixCompiler'
 
 const sections: ReactTrackSection[] = [
@@ -162,6 +162,30 @@ function fixtureByKey(result: ReturnType<typeof resolve>, key: string) {
 }
 
 describe('Show Director deterministic performance resolver', () => {
+  it('excludes shutter-gated fixtures from visibility and energy metrics', () => {
+    const authored = rig()
+    const blackedOut = {
+      ...authored,
+      fixtures: authored.fixtures.map(fixture => ({
+        ...fixture,
+        enabled: true,
+        brightness: 1,
+        runtimeOutputGate: {
+          open: false,
+          reason: 'blackout' as const,
+          cueId: 'blackout-cue',
+          lifecycleState: 'blackout' as const,
+          clearTemporalHistory: true,
+        },
+      })),
+    }
+    const metrics = measureLaserDmxShowDirectorEnergyMetrics(blackedOut)
+    expect(metrics.activeFixtureGroups).toBe(0)
+    expect(metrics.estimatedBeamCount).toBe(0)
+    expect(metrics.brightness).toBe(0)
+    expect(metrics.negativeSpace).toBe(1)
+  })
+
   it('does not mutate the authored rig, program, or canonical context', () => {
     const authored = rig()
     const authoredProgram = program()

@@ -1205,7 +1205,7 @@ function resolveProgrammedBlackoutWindow(
 
 function visibleBeamCount(fixtures: readonly LaserDmxShowDirectorFixture[]): number {
   return fixtures.reduce((sum, fixture) => {
-    if (!fixture.enabled || fixture.brightness <= 0.04) return sum
+    if (!fixture.enabled || fixture.brightness <= 0.04 || fixture.runtimeOutputGate?.open === false) return sum
     return sum + Math.max(1, Math.min(LASER_DMX_SHOW_DIRECTOR_MAX_BEAM_TARGETS, fixture.beam.targets?.length ?? 0))
   }, 0)
 }
@@ -1243,7 +1243,7 @@ export function measureLaserDmxShowDirectorEnergyMetrics(
   state: LaserDmxShowDirectorState,
   global: LaserDmxShowDirectorGlobalOutputOverrides = {},
 ): LaserDmxShowDirectorResolvedEnergyMetrics {
-  const active = state.fixtures.filter(fixture => fixture.enabled && fixture.brightness > 0.04)
+  const active = state.fixtures.filter(fixture => fixture.enabled && fixture.brightness > 0.04 && fixture.runtimeOutputGate?.open !== false)
   const groups = new Set(active.map(fixture => fixture.groupId).filter(Boolean))
   const average = (values: number[], fallback = 0) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : fallback
   const estimatedBeamCount = visibleBeamCount(active)

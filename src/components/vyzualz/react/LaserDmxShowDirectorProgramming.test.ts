@@ -393,6 +393,136 @@ describe('LaserDMX show programming architecture', () => {
     expect(result.showDirector.fixtures.filter(item => item.kind === 'laser' && item.runtimeOutputGate?.open)).toHaveLength(1)
   })
 
+  it('applies animated-pattern limits to fixture macro plans, not diagnostics alone', () => {
+    const authoredRig = rig()
+    const document = createLegacyLaserProgrammingAdapter(program(), authoredRig)
+    document.constraints.maximumSimultaneouslyActiveLaserFixtures = 2
+    document.constraints.maximumSimultaneouslyAnimatedPatterns = 1
+    document.macros[0].fixtureGroupAssignments[0].address = { fixtureSemanticKeys: ['laser-left', 'laser-right'] }
+    document.cueStacks[0].cues[0].command = {
+      kind: 'circleRotation', durationBeats: 4, easing: 'linear', loopMode: 'none', shutdown: 'blackout',
+      rotation: { target: 'patternPhase', startAngleDeg: 0, turnCount: 1, durationBeats: 4, direction: 'clockwise', easing: 'linear', holdAfterCompletion: true },
+    }
+    const result = resolveDocument(document, 0.5)
+    const laserPlans = result.showDirector.fixtures
+      .filter(item => item.kind === 'laser' && item.runtimeOutputGate?.open)
+      .map(item => item.runtimeScanner?.macroPlan)
+    expect(laserPlans.filter(plan => plan?.patternAnimationActive)).toHaveLength(1)
+    expect(laserPlans.filter(plan => plan && !plan.patternAnimationActive)).toHaveLength(1)
+    expect(result.frame?.animatedFixtureIds).toHaveLength(1)
+  })
+
+  it('settles, returns, and releases finite cues without forcing an early blackout', () => {
+    const base = adapterDocument()
+    const configure = (completionBehavior: 'settle' | 'return' | 'release') => {
+      const document = structuredClone(base)
+      const cue = document.cueStacks[0].cues[0]
+      cue.duration = { kind: 'explicitBeats', beats: 8 }
+      cue.command = {
+        kind: 'patternScaleExpand', durationBeats: 1, easing: 'linear', loopMode: 'none', shutdown: completionBehavior,
+      }
+      cue.lifecycle = {
+        delayBeats: 0, attackBeats: 0, movementBeats: 1, holdBeats: 0, releaseBeats: 0,
+        blackoutBeats: 0, blackoutAfterCompletion: false, maximumRunBeats: 8,
+        completionBehavior, returnBehavior: completionBehavior === 'return' ? 'start' : 'none',
+      }
+      return resolveDocument(document, 1)
+    }
+
+    const settled = configure('settle')
+    expect(settled.frame?.lifecycleState).toBe('hold')
+    expect(settled.frame?.movementProgress).toBe(1)
+    expect(settled.frame?.outputGateOpen).toBe(true)
+
+    const returned = configure('return')
+    expect(returned.frame?.lifecycleState).toBe('hold')
+    expect(returned.frame?.movementProgress).toBe(0)
+    expect(returned.frame?.outputGateOpen).toBe(true)
+
+    const released = configure('release')
+    expect(released.frame?.lifecycleState).toBe('off')
+    expect(released.frame?.outputGateOpen).toBe(false)
+    expect(released.showDirector.fixtures.every(item => item.runtimeOutputGate?.open === false)).toBe(true)
+  })
+
+  it('starts boundary-triggered cues on each musical event window', () => {
+    const document = adapterDocument()
+    const cue = document.cueStacks[0].cues[0]
+    cue.triggerSource = 'beat'
+    cue.startQuantize = 'beat'
+    cue.duration = { kind: 'explicitBeats', beats: 0.25 }
+    cue.repeatEveryBeats = undefined
+    cue.lifecycle = {
+      delayBeats: 0, attackBeats: 0, movementBeats: 0.25, holdBeats: 0, releaseBeats: 0,
+      blackoutBeats: 0, blackoutAfterCompletion: false, maximumRunBeats: 0.25,
+      completionBehavior: 'release', returnBehavior: 'none',
+    }
+    expect(resolveDocument(document, 0.05).cue?.id).toBe(cue.id)
+    expect(resolveDocument(document, 0.2).cue).toBeNull()
+    expect(resolveDocument(document, 0.55).cue?.id).toBe(cue.id)
+  })
+
+  it('runs accent-only fixture assignments for their authored duration', () => {
+    const authoredRig = mixedFixtureRig()
+    const document = createLegacyLaserProgrammingAdapter(program(), authoredRig)
+    const macro = document.macros[0]
+    const cue = document.cueStacks[0].cues[0]
+    macro.fixtureGroupAssignments[0].address = { fixtureSemanticKeys: ['laser-left', 'laser-right'] }
+    const strobeAssignment = {
+      ...structuredClone(macro.fixtureGroupAssignments[0]),
+      id: 'accent-only-strobe',
+      address: { fixtureSemanticKeys: ['strobe-a'] },
+      role: 'impact' as const,
+    }
+    macro.fixtureGroupAssignments.push(strobeAssignment)
+    cue.fixtureGroupAssignmentIds = [macro.fixtureGroupAssignments[0].id]
+    cue.accents = [{
+      id: 'beat-strobe', trigger: 'beat', fixtureGroupAssignmentIds: [strobeAssignment.id],
+      durationBeats: 0.25, intensity: 1, priority: 100,
+    }]
+    const baseProgram = { ...program(), laserProgramming: document }
+    const resolveAt = (timeSec: number) => resolveLaserShowProgramming({
+      document, program: baseProgram, selectedScene: baseProgram.scenes[0], authoredRig, runtimeRig: authoredRig,
+      context: contextAt(timeSec), programSeed: 42,
+    })
+    const active = resolveAt(0.05)
+    const expired = resolveAt(0.2)
+    expect(fixture(active, 'strobe-a').runtimeOutputGate?.open).toBe(true)
+    expect(fixture(active, 'strobe-a').runtimeOutputGate?.reason).toBe('accent')
+    expect(fixture(active, 'strobe-a').brightness).toBeGreaterThan(0)
+    expect(fixture(expired, 'strobe-a').runtimeOutputGate?.open).toBe(false)
+  })
+
+  it('composes non-conflicting cue ownership per fixture parameter', () => {
+    const document = adapterDocument()
+    document.compatibility.source = 'native'
+    document.macros[0].compatibility = { ...document.macros[0].compatibility!, provisional: false }
+    const structuralCue = document.cueStacks[0].cues[0]
+    structuralCue.ownership = {
+      parameters: ['output', 'intensity', 'pattern', 'patternPhase', 'patternScale', 'patternPosition', 'scanSpeed', 'persistence'],
+      interruptible: true, releaseOnCompletion: true, blackoutOverride: false,
+    }
+    const colorMacro = structuredClone(document.macros[0])
+    colorMacro.id = 'color-overlay-macro'
+    colorMacro.name = 'Color Overlay Macro'
+    colorMacro.color = { ...colorMacro.color, mode: 'fixed', colors: ['#ff2244'], blend: 0 }
+    document.macros.push(colorMacro)
+    const colorCue = structuredClone(structuralCue)
+    colorCue.id = 'color-overlay-cue'
+    colorCue.name = 'Color Overlay Cue'
+    colorCue.macroId = colorMacro.id
+    colorCue.priority = structuralCue.priority - 1
+    colorCue.ownership = {
+      parameters: ['color'], interruptible: true, releaseOnCompletion: true, blackoutOverride: false,
+    }
+    document.cueStacks[0].cues.push(colorCue)
+
+    const result = resolveDocument(document, 0.5)
+    expect(result.cue?.id).toBe(structuralCue.id)
+    expect(result.frame?.ownedParameters).toContain('color')
+    expect(result.showDirector.fixtures.filter(item => item.runtimeOutputGate?.open).map(item => item.color)).toEqual(['#ff2244', '#ff2244'])
+  })
+
   it('migrates v1 continuous programming into bounded finite commands', () => {
     const legacy = JSON.parse(JSON.stringify(adapterDocument())) as Record<string, unknown>
     legacy.schemaVersion = 1

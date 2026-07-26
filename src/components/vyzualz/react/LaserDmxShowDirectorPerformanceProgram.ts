@@ -620,16 +620,8 @@ function isSectionType(value: unknown): value is LaserDmxShowDirectorPerformance
 }
 
 function isBuiltInId(value: unknown): value is LaserDmxShowDirectorBuiltInPerformanceProgramId {
-  return value === 'prism-cathedral'
-    || value === 'cardinal-fan-reactor'
-    || value === 'cyan-mirror-cage'
-    || value === 'small-club-rig-performance'
-    || value === 'festival-front-beams-performance'
-    || value === 'dubstep-drop-lasers-performance'
-    || value === 'led-bar-grid-performance'
-    || value === 'moving-head-sweep-performance'
-    || value === 'strobe-blinder-hits-performance'
-    || value === 'haze-co2-drops-performance'
+  return typeof value === 'string'
+    && Object.prototype.hasOwnProperty.call(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY, value)
 }
 
 export function normalizeLaserDmxShowDirectorPerformanceTuning(

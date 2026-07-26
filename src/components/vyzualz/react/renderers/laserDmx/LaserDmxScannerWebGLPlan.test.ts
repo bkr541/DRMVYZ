@@ -145,7 +145,7 @@ function distance2d(a: { x: number; y: number }, b: { x: number; y: number }): n
 }
 
 describe('LaserDMX ordered scanner exposure planning', () => {
-  it('integrates a stable circle into connected scan strokes without aperture spokes', () => {
+  it('integrates a stable circle into aperture-origin exposure lobes without a floating outline', () => {
     const frame = createBaseFrame()
     const center = { x: 0.5, y: 0.58 }
     const radius = 0.22
@@ -166,9 +166,10 @@ describe('LaserDMX ordered scanner exposure planning', () => {
       })),
     ))
 
-    expect(planned.segments).toHaveLength(12)
-    expect(planned.segments.every(segment => segment.geometry === 'scanStroke')).toBe(true)
-    expect(planned.segments.every(segment => distance2d(segment.origin, frame.fixtures[0]!.position) > 0.05)).toBe(true)
+    expect(planned.segments).toHaveLength(4)
+    expect(planned.segments.every(segment => segment.geometry === 'scanExposure')).toBe(true)
+    expect(planned.segments.every(segment => distance2d(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
+    expect(new Set(planned.segments.map(segment => `${segment.target.x.toFixed(4)}:${segment.target.y.toFixed(4)}`)).size).toBeGreaterThan(1)
     expect(planned.segments.every(segment => segment.stable && !segment.animated)).toBe(true)
     expect(planned.validation.filledWedgeRiskCount).toBe(0)
     expect(planned.validation.normalizedSegmentEnergy).toBeCloseTo(1, 6)
@@ -197,12 +198,13 @@ describe('LaserDMX ordered scanner exposure planning', () => {
     ]
     const planned = buildLaserDmxScannerExposurePlan(withScanner(frame, path, samples))
 
-    expect(planned.segments).toHaveLength(2)
+    expect(planned.segments).toHaveLength(4)
+    expect(planned.segments.every(segment => segment.geometry === 'scanExposure')).toBe(true)
+    expect(planned.segments.every(segment => distance2d(segment.origin, frame.fixtures[0]!.position) < 1e-6)).toBe(true)
     expect(planned.validation.blankedBreakCount).toBeGreaterThan(0)
     expect(planned.validation.retraceBreakCount).toBe(1)
     expect(planned.segments.some(segment =>
-      distance2d(segment.origin, { x: 0.3, y: 0.3 }) < 1e-6
-      && distance2d(segment.target, { x: 0.7, y: 0.7 }) < 1e-6,
+      distance2d(segment.target, { x: 0.75, y: 0.75 }) < 1e-6,
     )).toBe(false)
   })
 
@@ -278,14 +280,13 @@ describe('LaserDMX ordered scanner exposure planning', () => {
     const low = build('low')
     const ultra = build('ultra')
 
-    expect(low.segments).toHaveLength(180)
-    expect(ultra.segments).toHaveLength(900)
+    expect(low.segments).toHaveLength(4)
+    expect(ultra.segments).toHaveLength(4)
     expect(low.validation.normalizedSegmentEnergy).toBeCloseTo(ultra.validation.normalizedSegmentEnergy, 6)
-    expect(low.segments[0]?.geometry).toBe('scanStroke')
-    for (let index = 1; index < low.segments.length; index += 1) {
-      expect(low.segments[index]?.origin).toEqual(low.segments[index - 1]?.target)
-    }
-    expect(low.segments[low.segments.length - 1]?.target.x).toBeCloseTo(positions[positions.length - 1]!.x, 6)
+    expect(low.segments.every(segment => segment.geometry === 'scanExposure')).toBe(true)
+    expect(ultra.segments.every(segment => segment.geometry === 'scanExposure')).toBe(true)
+    expect(low.segments.every(segment => distance2d(segment.origin, low.segments[0]!.origin) < 1e-6)).toBe(true)
+    expect(ultra.segments.every(segment => distance2d(segment.origin, ultra.segments[0]!.origin) < 1e-6)).toBe(true)
   })
 
   it('keeps exposure density stable as scanner sample count increases', () => {

@@ -742,17 +742,21 @@ export function buildLaserDmxWebGLBeamRenderPlan(
       scannerSegment,
     )
     const opticalPower = clamp(fixture.optics.sourceIntensity, 0, 2)
+    const integratedScan = scannerSegment.geometry === 'scanExposure'
+    const scannedStroke = scannerSegment.geometry === 'scanStroke'
     const authoredIntensity = clamp(
       exposureDensity *
         opticalPower *
-        (0.72 + glow * 0.32),
+        (0.72 + glow * 0.32) *
+        (integratedScan ? 0.74 : 1),
       0,
-      1.8,
+      integratedScan ? 1.15 : 1.8,
     )
     const scannerCoreIntensity = clamp01(
-      (scannerSegment.geometry === 'scanStroke' ? 0.22 : 0.38)
-        + Math.sqrt(Math.max(0, authoredIntensity))
-          * (scannerSegment.geometry === 'scanStroke' ? 0.42 : 0.4),
+      integratedScan
+        ? 0.06 + Math.sqrt(Math.max(0, authoredIntensity)) * 0.18
+        : (scannedStroke ? 0.22 : 0.38)
+          + Math.sqrt(Math.max(0, authoredIntensity)) * (scannedStroke ? 0.42 : 0.4),
     )
     if (authoredIntensity <= 0.0005) continue
     const depthScale = clamp(
@@ -763,8 +767,8 @@ export function buildLaserDmxWebGLBeamRenderPlan(
     )
     const focus = template?.focus ?? 0.92
     const templateWidth = template?.width ?? 0.72
-    const geometryWidth = scannerSegment.geometry === 'scanStroke' ? 0.76 : 1
-    const speedTightening = scannerSegment.geometry === 'scanStroke'
+    const geometryWidth = integratedScan ? 1.28 : scannedStroke ? 0.76 : 1
+    const speedTightening = scannedStroke
       ? 0.82 + (1 - scannerSegment.velocityRatio) * 0.12
       : 1
     const baseWidth = clamp(
@@ -775,7 +779,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         geometryWidth *
         speedTightening,
       0.24,
-      scannerSegment.geometry === 'scanStroke' ? 1.65 : 2.35,
+      integratedScan ? 3.2 : scannedStroke ? 1.65 : 2.35,
     )
     const bodyStartWidth = baseWidth
     const bodyEndWidth = clamp(
@@ -785,12 +789,12 @@ export function buildLaserDmxWebGLBeamRenderPlan(
     )
     const atmosphereEnvelope = clamp(
       baseWidth * (
-        (scannerSegment.geometry === 'scanStroke' ? 2.35 : 2.9)
+        (integratedScan ? 4.6 : scannedStroke ? 2.35 : 2.9)
         + atmosphere * 1.65
         + (template?.scatterEnvelopeWidth ?? 1.8) * 0.24
       ),
       baseWidth * 1.9,
-      scannerSegment.geometry === 'scanStroke' ? 9 : 13,
+      integratedScan ? 18 : scannedStroke ? 9 : 13,
     )
     const segments = splitLaserDmxDepthInterval(
       projectedOrigin.clipDepth,
@@ -841,7 +845,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
         intensity: authoredIntensity * transmission,
         coreIntensity: scannerCoreIntensity * transmission,
         whiteHotMix: resolveLaserDmxWhiteHotMix(authoredIntensity, scannerCoreIntensity)
-          * (scannerSegment.geometry === 'scanStroke' ? 0.72 : 0.88),
+          * (integratedScan ? 0.28 : scannedStroke ? 0.72 : 0.88),
         opacity: clamp01(scannerSegment.color.a),
         bodyStartWidthCssPx: lerp(bodyStartWidth, bodyEndWidth, t0),
         bodyEndWidthCssPx: lerp(bodyStartWidth, bodyEndWidth, t1),
@@ -851,7 +855,7 @@ export function buildLaserDmxWebGLBeamRenderPlan(
           (0.012 + atmosphere * 0.052 + glow * 0.018) *
             policy.envelopeComplexity *
             (scannerSegment.pointDwell ? 0.82 : 1) *
-            (scannerSegment.geometry === 'scanStroke' ? 0.78 : 1),
+            (integratedScan ? 0.55 : scannedStroke ? 0.78 : 1),
           0.004,
           0.11,
         ),

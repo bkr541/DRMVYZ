@@ -218,7 +218,7 @@ function stableFixtureSnapshot(fixture: LaserDmxShowDirectorFixture): string {
 }
 
 function activeFixture(fixture: LaserDmxShowDirectorFixture): boolean {
-  return fixture.enabled && fixture.brightness > 0.04
+  return fixture.enabled && fixture.brightness > 0.04 && fixture.runtimeOutputGate?.open !== false
 }
 
 function activeMatrixSourceFixture(fixture: LaserDmxShowDirectorFixture): boolean {
