@@ -1,14 +1,30 @@
 import { describe, expect, it } from 'vitest'
 import {
   LASER_DMX_WEBGL_REFERENCE_METRIC_ENVELOPE,
+  LASER_DMX_WEBGL_REFERENCE_SCENES,
   LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS,
   missingLaserDmxWebGLReferenceScenes,
 } from './LaserDmxWebGLVisualReferenceManifest'
 
 describe('LaserDMX WebGL physical reference manifest', () => {
   it('keeps every required physical and musical reference scene unique', () => {
-    expect(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS).toHaveLength(67)
-    expect(new Set(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS)).toHaveLength(67)
+    expect(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS).toHaveLength(77)
+    expect(new Set(LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS)).toHaveLength(77)
+  })
+
+  it('keeps the finite-cue acceptance suite explicit and complete', () => {
+    expect(LASER_DMX_WEBGL_REFERENCE_SCENES.finiteCue).toEqual([
+      'finite-stable-fan',
+      'finite-upward-sweep',
+      'finite-circle-hold',
+      'finite-circle-one-turn-hold',
+      'finite-tunnel-pulse-blackout',
+      'finite-alternating-groups',
+      'finite-build-recruitment',
+      'finite-pre-drop-blackout',
+      'finite-drop-full-rig-withdrawal',
+      'finite-end-blackout',
+    ])
   })
 
   it('reports supported-platform coverage gaps explicitly', () => {

@@ -6,6 +6,11 @@ import {
   type LaserDmxShowDirectorTemplate,
 } from './laserDmxShowDirectorTemplates'
 
+function createSequentialIdFactory(prefix: string): () => string {
+  let index = 0
+  return () => `${prefix}-fixture-${++index}`
+}
+
 describe('LaserDMX Show Director starter templates', () => {
   it('builds every starter template into normalized Show Director fixture state with unique ids', () => {
     for (const template of LASER_DMX_SHOW_DIRECTOR_TEMPLATES) {
@@ -19,6 +24,19 @@ describe('LaserDMX Show Director starter templates', () => {
       expect(state?.settings.gridSize.columns).toBeGreaterThan(0)
       expect(state?.settings.gridSize.rows).toBeGreaterThan(0)
       expect(state?.fixtures.every(fixture => (fixture.schemaVersion ?? 0) > 0)).toBe(true)
+    }
+  })
+
+  it('keeps starter fixtures finite, gated, and free of legacy continuous motion', () => {
+    for (const template of LASER_DMX_SHOW_DIRECTOR_TEMPLATES) {
+      const state = createLaserDmxShowDirectorTemplateState(template.id, createSequentialIdFactory(template.id))!
+      for (const fixture of state.fixtures) {
+        expect(fixture.trigger.mode, `${template.id}:${fixture.label}`).not.toBe('alwaysOn')
+        expect(fixture.trigger.fadeOutMs, `${template.id}:${fixture.label}`).toBeGreaterThan(0)
+        if (fixture.kind === 'movingHead') {
+          expect(fixture.component.movingHeadPanTiltStyle, `${template.id}:${fixture.label}`).not.toBe('figureEight')
+        }
+      }
     }
   })
 

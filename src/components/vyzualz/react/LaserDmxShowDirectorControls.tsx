@@ -13,6 +13,7 @@ import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmx
 import { useLaserDmxShowDirectorPerformanceRuntimeStatus } from './LaserDmxShowDirectorPerformanceRuntimeStatus'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { LaserDmxRendererDiagnosticsPanel } from './LaserDmxRendererDiagnosticsPanel'
+import { validateLaserDmxShowDirectorPresetRealism } from './LaserDmxShowDirectorPresetRealismValidation'
 
 const GRID_PRESETS = [
   { label: '10 × 6', value: '10x6', columns: 10, rows: 6 },
@@ -248,6 +249,28 @@ function PerformanceProgramControls() {
   })))
   const status = useLaserDmxShowDirectorPerformanceRuntimeStatus()
   const program = performance.activeProgramDefinition
+  const activeCue = useMemo(() => {
+    if (!program?.laserProgramming || !status.activePrimaryCueId) return null
+    return program.laserProgramming.cueStacks
+      .flatMap(stack => stack.cues)
+      .find(cue => cue.id === status.activePrimaryCueId) ?? null
+  }, [program, status.activePrimaryCueId])
+  const activeMacro = useMemo(() => {
+    if (!program?.laserProgramming || !activeCue) return null
+    return program.laserProgramming.macros.find(macro => macro.id === activeCue.macroId) ?? null
+  }, [activeCue, program])
+  const realismIssues = useMemo(
+    () => program ? validateLaserDmxShowDirectorPresetRealism(program) : [],
+    [program],
+  )
+  const cueLifecycle = activeCue?.lifecycle
+  const cueCommand = activeCue?.command ?? activeMacro?.defaultCommand
+  const cueOwnership = activeCue?.ownership
+  const fixtureMovement = cueOwnership?.parameters.filter(parameter => parameter === 'pan' || parameter === 'tilt') ?? []
+  const patternMovement = cueOwnership?.parameters.filter(parameter => parameter === 'patternPhase' || parameter === 'patternScale' || parameter === 'patternPosition') ?? []
+  const targetGroups = activeCue?.fixtureGroupAssignmentIds?.map(id => id.split(':').slice(-1)[0] ?? id) ?? []
+  const commandStart = cueCommand?.startState ? JSON.stringify(cueCommand.startState) : 'Authored frame'
+  const commandDestination = cueCommand?.destinationState ? JSON.stringify(cueCommand.destinationState) : cueCommand?.rotation ? `${cueCommand.rotation.turnCount ?? 0} turn` : 'Hold / release'
   const supportsVariation = Boolean(program?.scenes.some(scene => (
     (scene.variations?.length ?? 0) > 0
     || (scene.fourBarVariations?.length ?? 0) > 0
@@ -311,7 +334,7 @@ function PerformanceProgramControls() {
         ]}
       />
       <div className="rv-show-director-performance-status" aria-live="polite" data-performance-runtime-status>
-        <div className="rv-show-director-performance-status__title">Runtime Status</div>
+        <div className="rv-show-director-performance-status__title">Runtime + Finite Cue Inspector</div>
         <dl className="rv-show-director-performance-status__grid">
           <div><dt>Show</dt><dd>{status.performanceShowName ?? program?.name ?? 'None'}</dd></div>
           <div><dt>Section</dt><dd>{status.section}{status.sectionOccurrence > 0 ? ` ${status.sectionOccurrence}` : ''}</dd></div>
@@ -361,6 +384,24 @@ function PerformanceProgramControls() {
               <div><dt>Modulation Bounds</dt><dd>{status.audioModulationBoundaries.join(', ') || 'None'}</dd></div>
               <div><dt>Topology Changes</dt><dd>{status.unexpectedTopologyChanges}</dd></div>
               <div><dt>Compatibility</dt><dd>{status.programmingCompatibilitySource}</dd></div>
+              <div><dt>Cue Trigger</dt><dd>{activeCue?.triggerSource ?? 'Inactive'}</dd></div>
+              <div><dt>Quantization</dt><dd>{activeCue?.startQuantize ?? status.currentQuantizationBoundary ?? 'Inactive'}</dd></div>
+              <div><dt>Lifecycle</dt><dd>{status.cueLifecycleState} · {(status.cueLifecycleProgress * 100).toFixed(0)}%</dd></div>
+              <div><dt>Attack / Movement</dt><dd>{cueLifecycle ? `${cueLifecycle.attackBeats.toFixed(2)} / ${cueLifecycle.movementBeats.toFixed(2)} beats` : 'Inactive'}</dd></div>
+              <div><dt>Hold / Release</dt><dd>{cueLifecycle ? `${cueLifecycle.holdBeats.toFixed(2)} / ${cueLifecycle.releaseBeats.toFixed(2)} beats` : 'Inactive'}</dd></div>
+              <div><dt>Blackout</dt><dd>{cueLifecycle ? `${cueLifecycle.blackoutBeats.toFixed(2)} beats · ${cueLifecycle.blackoutAfterCompletion ? 'after completion' : 'manual'}` : 'Inactive'}</dd></div>
+              <div><dt>Start → Destination</dt><dd>{activeCue ? `${commandStart} → ${commandDestination}` : 'Inactive'}</dd></div>
+              <div><dt>Rotation</dt><dd>{cueCommand?.rotation ? `${cueCommand.rotation.target} · ${cueCommand.rotation.turnCount ?? 0} turn · ${cueCommand.rotation.durationBeats.toFixed(2)} beats` : 'None'}</dd></div>
+              <div><dt>Repeat / Maximum</dt><dd>{cueCommand ? `${cueCommand.loopMode === 'bounded' ? `${cueCommand.repeatCount ?? 1}×` : 'No loop'} · ${cueLifecycle?.maximumRunBeats.toFixed(2) ?? cueCommand.durationBeats.toFixed(2)} beats max` : 'Inactive'}</dd></div>
+              <div><dt>Target Groups</dt><dd>{targetGroups.join(', ') || 'None'}</dd></div>
+              <div><dt>Parameter Ownership</dt><dd>{cueOwnership?.parameters.join(', ') || status.ownedParameters.join(', ') || 'None'}</dd></div>
+              <div><dt>Completion</dt><dd>{cueLifecycle ? `${cueLifecycle.completionBehavior} · release ownership ${cueOwnership?.releaseOnCompletion === false ? 'no' : 'yes'}` : status.completionReason}</dd></div>
+              <div><dt>Fixture Movement</dt><dd>{fixtureMovement.join(', ') || 'None'}</dd></div>
+              <div><dt>Scanner-Frame Movement</dt><dd>{patternMovement.join(', ') || 'Stable frame'}</dd></div>
+              <div><dt>Pattern Rotation</dt><dd>{cueCommand?.rotation?.target === 'patternRotation' || cueCommand?.rotation?.target === 'patternPhase' ? 'Finite' : 'None'}</dd></div>
+              <div><dt>Pattern Scale</dt><dd>{patternMovement.includes('patternScale') ? 'Finite cue-owned' : 'Held'}</dd></div>
+              <div><dt>Fixture Intensity</dt><dd>{cueOwnership?.parameters.includes('intensity') ? 'Cue-owned' : 'Unchanged'}</dd></div>
+              <div><dt>Output / Shutter</dt><dd>{activeCue?.shutterClosed || activeCue?.blackout ? 'Closed' : status.cueLifecycleState === 'blackout' ? 'Closed' : 'Open while active'}</dd></div>
             </>
           )}
         </dl>
@@ -383,6 +424,11 @@ function PerformanceProgramControls() {
         )}
         {presentationMode !== 'capture' && status.programmingWarnings.map((warning, index) => (
           <p key={`${warning}-${index}`} className="rv-show-director-performance-status__warning">{warning}</p>
+        ))}
+        {presentationMode !== 'capture' && realismIssues.map((warning, index) => (
+          <p key={`${warning.code}-${warning.sourceId ?? index}`} className="rv-show-director-performance-status__warning">
+            {warning.severity === 'error' ? 'Realism error' : 'Realism warning'}: {warning.message}
+          </p>
         ))}
       </div>
       <SharedPerformanceDiagnosticsPanel engine="laserDmx" label="Shared Core Diagnostics" />

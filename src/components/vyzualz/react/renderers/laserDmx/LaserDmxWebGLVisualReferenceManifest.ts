@@ -74,6 +74,18 @@ export const LASER_DMX_WEBGL_REFERENCE_SCENES = Object.freeze({
     'musical-drop-2',
     'musical-outro',
   ]),
+  finiteCue: Object.freeze([
+    'finite-stable-fan',
+    'finite-upward-sweep',
+    'finite-circle-hold',
+    'finite-circle-one-turn-hold',
+    'finite-tunnel-pulse-blackout',
+    'finite-alternating-groups',
+    'finite-build-recruitment',
+    'finite-pre-drop-blackout',
+    'finite-drop-full-rig-withdrawal',
+    'finite-end-blackout',
+  ]),
 })
 
 export type LaserDmxWebGLReferenceSceneId =
@@ -81,12 +93,14 @@ export type LaserDmxWebGLReferenceSceneId =
   | typeof LASER_DMX_WEBGL_REFERENCE_SCENES.nonlaser[number]
   | typeof LASER_DMX_WEBGL_REFERENCE_SCENES.programming[number]
   | typeof LASER_DMX_WEBGL_REFERENCE_SCENES.musical[number]
+  | typeof LASER_DMX_WEBGL_REFERENCE_SCENES.finiteCue[number]
 
 export const LASER_DMX_WEBGL_REQUIRED_REFERENCE_SCENE_IDS: readonly LaserDmxWebGLReferenceSceneId[] = Object.freeze([
   ...LASER_DMX_WEBGL_REFERENCE_SCENES.laser,
   ...LASER_DMX_WEBGL_REFERENCE_SCENES.nonlaser,
   ...LASER_DMX_WEBGL_REFERENCE_SCENES.programming,
   ...LASER_DMX_WEBGL_REFERENCE_SCENES.musical,
+  ...LASER_DMX_WEBGL_REFERENCE_SCENES.finiteCue,
 ])
 
 export interface LaserDmxWebGLReferenceMetricEnvelope {

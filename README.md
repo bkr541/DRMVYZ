@@ -8,6 +8,7 @@ MiniMeters-inspired feature set in a DVYDRM neon cyan/green dark dashboard theme
 Before making code changes, read `AI_IMPLEMENTATION_CONTRACT.md` and follow its layout, styling, component, media, preset, and rendering rules.
 
 LaserDMX physical scanner architecture and Patch 1 compatibility boundaries are documented in `docs/LASER_DMX_PHYSICAL_SCANNER_ARCHITECTURE.md`.
+LaserDMX Show Director built-in preset re-authoring, finite-cue realism validation, and deterministic acceptance coverage are documented in `docs/LASER_DMX_PRESET_REALISM_PATCH_3.md`.
 
 ## Quick Start
 

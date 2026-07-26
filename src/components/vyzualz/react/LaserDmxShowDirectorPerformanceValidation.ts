@@ -1,5 +1,6 @@
 import type { SharedPerformanceProgramValidationIssue } from '../../../features/performanceCore'
 import { validateLaserShowProgrammingDocument } from './LaserDmxShowDirectorProgramming'
+import { validateLaserDmxShowDirectorPresetRealism } from './LaserDmxShowDirectorPresetRealismValidation'
 import {
   LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY,
   normalizeLaserDmxShowDirectorPerformanceProgram,
@@ -158,6 +159,18 @@ export function validateLaserDmxShowDirectorPerformancePrograms(): SharedPerform
           program.id,
           undefined,
           programmingIssue.sourceId,
+        ))
+      }
+    }
+    if (normalizedProgram) {
+      for (const realismIssue of validateLaserDmxShowDirectorPresetRealism(normalizedProgram)) {
+        issues.push(issue(
+          realismIssue.severity,
+          `laser-realism-${realismIssue.code}`,
+          realismIssue.message,
+          program.id,
+          undefined,
+          realismIssue.sourceId,
         ))
       }
     }

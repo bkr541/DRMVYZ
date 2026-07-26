@@ -1340,6 +1340,41 @@ function buildDiagnostics(
   }
 }
 
+function authoritativeTimelineHasEnded(context: LaserDmxShowDirectorPerformanceTimingContext): boolean {
+  if (context.sections.length === 0) return false
+  const finalSectionEndSec = Math.max(...context.sections.map(section => section.endSec))
+  return Number.isFinite(finalSectionEndSec) && context.audioTimeSec >= finalSectionEndSec - EPSILON
+}
+
+function trackEndBlackoutState(authored: LaserDmxShowDirectorState): LaserDmxShowDirectorState {
+  return {
+    ...authored,
+    selectedFixtureId: null,
+    selectedFixtureIds: [],
+    fixtures: authored.fixtures.map(fixture => ({
+      ...fixture,
+      enabled: false,
+      brightness: 0,
+      beam: { ...fixture.beam, beamEnabled: false },
+      component: {
+        ...fixture.component,
+        hazeIntensity: 0,
+        videoWallBrightness: 0,
+      },
+      runtimeOutputGate: {
+        open: false,
+        reason: 'inactive',
+        cueId: null,
+        lifecycleState: 'off',
+        clearTemporalHistory: true,
+      },
+      ...(fixture.kind === 'laser'
+        ? { runtimeScanner: { ...(fixture.runtimeScanner ?? {}), shutterClosed: true } }
+        : {}),
+    })),
+  }
+}
+
 function unchangedResolution(
   input: ResolveLaserDmxShowDirectorPerformanceInput,
   authored: LaserDmxShowDirectorState,
@@ -1420,6 +1455,9 @@ export function resolveLaserDmxShowDirectorPerformance(
   }
   if (!isStructurallyValidProgram(input.program)) {
     return unchangedResolution(input, authored, 'Malformed performance program was suppressed safely.')
+  }
+  if (authoritativeTimelineHasEnded(input.context)) {
+    return unchangedResolution(input, trackEndBlackoutState(authored), 'Authoritative track timeline ended; all fixture output was released.')
   }
 
   try {

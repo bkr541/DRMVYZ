@@ -43,7 +43,7 @@ describe('LaserDMX professional first-party show authoring', () => {
     for (const entry of entries) {
       const program = entry.program
       expect(program, entry.id).not.toBeNull()
-      expect(program?.diagnostics?.authoringVersion, entry.id).toBe('professional-cue-authoring-v1')
+      expect(program?.diagnostics?.authoringVersion, entry.id).toBe('finite-realism-authoring-v3')
       const document = program?.laserProgramming
       expect(document, entry.id).toBeDefined()
       expect(document?.compatibility.source, entry.id).toBe('native')
@@ -51,19 +51,26 @@ describe('LaserDMX professional first-party show authoring', () => {
       expect(document?.macros.some(macro => macro.compatibility?.provisional), entry.id).toBe(false)
       expect(validateLaserShowProgrammingDocument(document!), entry.id).toEqual([])
       expect(document?.cueStacks).toHaveLength(1)
-      expect(document?.cueStacks[0]?.cues.length, entry.id).toBeGreaterThanOrEqual((program?.scenes.length ?? 0) * 4)
+      expect(document?.cueStacks[0]?.cues.length, entry.id).toBeGreaterThanOrEqual((program?.scenes.length ?? 0) * 16)
       expect(document?.macros.length, entry.id).toBeGreaterThanOrEqual(4)
       expect(document?.macros.length, entry.id).toBeLessThanOrEqual(32)
       expect(document?.groupRelationships.length, entry.id).toBe(document?.macros.length)
     }
   })
 
-  it('keeps topology stable for four bars and makes every laser relationship share speed and spread', () => {
+  it('keeps topology stable inside finite one-bar cues and makes every laser relationship share speed and spread', () => {
     for (const entry of Object.values(LASER_DMX_SHOW_DIRECTOR_BUILT_IN_PERFORMANCE_REGISTRY)) {
       const document = entry.program!.laserProgramming!
       const topologyByCue = new Map(document.macros.map(macro => [macro.id, macro.pattern.topologyId]))
       for (const cue of document.cueStacks[0].cues.filter(candidate => !candidate.blackout)) {
-        expect(cue.duration.kind, `${entry.id}:${cue.id}`).toBe('fourBars')
+        expect(cue.duration.kind, `${entry.id}:${cue.id}`).toBe('bar')
+        expect(cue.lifecycle, `${entry.id}:${cue.id}`).toBeDefined()
+        expect(cue.command, `${entry.id}:${cue.id}`).toBeDefined()
+        expect(cue.command?.loopMode, `${entry.id}:${cue.id}`).toBe('none')
+        expect(cue.lifecycle?.maximumRunBeats, `${entry.id}:${cue.id}`).toBeLessThanOrEqual(3.5)
+        expect(cue.lifecycle?.blackoutAfterCompletion, `${entry.id}:${cue.id}`).toBe(true)
+        expect(cue.lifecycle?.blackoutBeats, `${entry.id}:${cue.id}`).toBeGreaterThanOrEqual(0.25)
+        expect(cue.ownership?.releaseOnCompletion, `${entry.id}:${cue.id}`).toBe(true)
         expect(cue.repeatEveryBeats, `${entry.id}:${cue.id}`).toBe(64)
         expect(topologyByCue.get(cue.macroId), `${entry.id}:${cue.id}`).toBeTruthy()
       }

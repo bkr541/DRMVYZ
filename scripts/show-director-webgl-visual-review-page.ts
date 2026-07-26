@@ -774,10 +774,11 @@ function referenceSceneIdsForCase(
   if (scenario === 'baseline') {
     const musical = musicalByFrame[frameId]
     if (musical) scenes.add(musical)
+    if (frameId === 'outro') scenes.add('finite-end-blackout')
   }
   const scenarioScenes: Partial<Record<WebGLReviewScenario, LaserDmxWebGLReferenceSceneId[]>> = {
     'reference-held-beam': ['laser-held-beam'],
-    'reference-line-sweep': ['laser-line-sweep'],
+    'reference-line-sweep': ['laser-line-sweep', 'finite-upward-sweep'],
     'reference-circle': ['laser-sequential-circle'],
     'reference-triangle': ['laser-triangle-perimeter'],
     'reference-polygon': ['laser-polygon-perimeter'],
@@ -792,7 +793,7 @@ function referenceSceneIdsForCase(
     'programming-moving-head-position': ['programming-moving-head-position'],
     'programming-moving-head-gobo': ['programming-moving-head-gobo'],
     'programming-wash-scene': ['programming-wash-scene'],
-    'programming-cue-blackout': ['programming-cue-blackout'],
+    'programming-cue-blackout': ['programming-cue-blackout', 'finite-pre-drop-blackout'],
     'moving-head-prism': ['nonlaser-moving-head-prism'],
     'moving-head-zoom': ['nonlaser-zoom'],
     'moving-head-iris': ['nonlaser-iris'],
@@ -804,20 +805,20 @@ function referenceSceneIdsForCase(
     'co2-partial-attenuation': ['nonlaser-co2-burst'],
     'strobe-blinder-distinction': ['nonlaser-strobe-pulse', 'nonlaser-blinder-impact'],
     'video-wall-emissive': ['nonlaser-video-surface-fallback'],
-    'programming-stable-8-ray-fan': ['programming-stable-8-ray-fan'],
+    'programming-stable-8-ray-fan': ['programming-stable-8-ray-fan', 'finite-stable-fan'],
     'programming-stable-12-ray-fan': ['programming-stable-12-ray-fan'],
     'programming-mirrored-12-ray-fans': ['programming-mirrored-12-ray-fans'],
-    'programming-opposed-fan-banks': ['programming-opposed-fan-banks'],
+    'programming-opposed-fan-banks': ['programming-opposed-fan-banks', 'finite-drop-full-rig-withdrawal'],
     'programming-crossing-fan': ['programming-crossing-fan'],
-    'programming-smooth-opening-fan': ['programming-smooth-opening-fan'],
+    'programming-smooth-opening-fan': ['programming-smooth-opening-fan', 'finite-build-recruitment'],
     'programming-smooth-closing-fan': ['programming-smooth-closing-fan'],
     'programming-parallel-sheet': ['programming-parallel-sheet'],
-    'programming-tunnel': ['programming-tunnel'],
+    'programming-tunnel': ['programming-tunnel', 'finite-tunnel-pulse-blackout'],
     'programming-corridor': ['programming-corridor'],
-    'programming-circle': ['programming-circle'],
+    'programming-circle': ['programming-circle', 'finite-circle-hold', 'finite-circle-one-turn-hold'],
     'programming-wave': ['programming-wave'],
     'programming-cue-transition': ['programming-cue-transition'],
-    'programming-bank-handoff': ['programming-bank-handoff'],
+    'programming-bank-handoff': ['programming-bank-handoff', 'finite-alternating-groups'],
     'programming-call-response': ['programming-call-response'],
     'programming-strobe-accent': ['programming-strobe-accent'],
     'programming-blinder-impact': ['programming-blinder-impact'],
