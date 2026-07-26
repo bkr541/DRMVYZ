@@ -1,8 +1,13 @@
-import { createDefaultPixGridState } from './PixGridDefaults'
-import type { PixGridPresetSettings, PixGridState } from './PixGridTypes'
-import { clonePixGridLayer } from './PixGridDefaults'
+import { clonePixGridLayer, createDefaultPixGridState } from './PixGridDefaults'
+import {
+  PIX_GRID_CONFIGURATION_METADATA_VERSION,
+  PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
+  type PixGridPresetSettings,
+  type PixGridState,
+} from './PixGridTypes'
 import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 import { normalizePixGridState } from './PixGridValidation'
+import { createPixGridCanonicalSignatures } from './PixGridConfiguration'
 
 function pixGridSceneNameFromId(id: string, index: number): string {
   const parts = id.split('-')
@@ -53,6 +58,16 @@ export function applyPixGridPresetSettings(
     diffusion: settings.diffusion ?? safeCurrent.diffusion,
     rgbSubpixelMode: settings.rgbSubpixelMode ?? safeCurrent.rgbSubpixelMode,
     selectedPresetId: presetId,
+    configuration: {
+      metadataVersion: PIX_GRID_CONFIGURATION_METADATA_VERSION,
+      origin: 'builtInPreset',
+      sourcePresetId: presetId,
+      presetConfigurationVersion: settings.authoredConfigurationVersion ?? 1,
+      musicReactiveConfigurationVersion: PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
+      userCustomized: false,
+      canonicalSignatures: createPixGridCanonicalSignatures(settings),
+      lastMigration: null,
+    },
     selectedSceneId,
     layers: presetLayers,
     groups: presetGroups,

@@ -20,6 +20,7 @@ import {
 } from '../PixGridPerformanceRuntime'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
+import { applyPixGridBassGainToPerformanceContext } from '../PixGridRuntimeControls'
 import { normalizePixGridState } from '../PixGridValidation'
 import type { PixGridPerformanceAction } from '../PixGridPerformanceTypes'
 import type { PixGridState } from '../PixGridTypes'
@@ -203,6 +204,51 @@ describe('PixGrid Shared Performance choreography', () => {
     }))
     expect(drop.snapshot.recentActionReasons).toEqual(expect.arrayContaining(['kick', 'snare', 'hat', 'semanticMoment']))
     expect(drop.appliedActions.filter(action => action.type === 'flashGroup').length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('applies Bass Reactivity to kick choreography without suppressing snare events', () => {
+    const presetId = 'pix-grid-bass-beacon'
+    const input = contextAt(40, { kick: true, snare: true })
+    const suppressed = resolvePixGridPerformanceFrame(
+      stateForPreset(presetId),
+      applyPixGridBassGainToPerformanceContext(input, 0),
+      presetId,
+      { bassReactivityGain: 0 },
+    )
+    const full = resolvePixGridPerformanceFrame(
+      stateForPreset(presetId),
+      applyPixGridBassGainToPerformanceContext(input, 1),
+      presetId,
+      { bassReactivityGain: 1 },
+    )
+
+    expect(suppressed.snapshot.recentActionReasons).not.toContain('kick')
+    expect(suppressed.snapshot.recentActionReasons).toContain('snare')
+    expect(full.snapshot.recentActionReasons).toEqual(expect.arrayContaining(['kick', 'snare']))
+  })
+
+  it('stops persistent program motion at Motion 0 while preserving the deterministic authored action', () => {
+    const presetId = 'pix-grid-bass-beacon'
+    const context = contextAt(10)
+    const stopped = resolvePixGridPerformanceFrame(
+      stateForPreset(presetId),
+      context,
+      presetId,
+      { motionMultiplier: 0 },
+    )
+    const full = resolvePixGridPerformanceFrame(
+      stateForPreset(presetId),
+      context,
+      presetId,
+      { motionMultiplier: 1 },
+    )
+    const stoppedShift = stopped.groupEffects.find(effect => effect.stage === 'persistent' && effect.kind === 'shift')
+    const fullShift = full.groupEffects.find(effect => effect.stage === 'persistent' && effect.kind === 'shift')
+
+    expect(stopped.snapshot.recentActionReasons).toContain('fourBarMotif')
+    expect(full.snapshot.recentActionReasons).toContain('fourBarMotif')
+    expect(Math.abs(stoppedShift?.x ?? 0) + Math.abs(stoppedShift?.y ?? 0)).toBe(0)
+    expect(Math.abs(fullShift?.x ?? 0) + Math.abs(fullShift?.y ?? 0)).toBeGreaterThan(0)
   })
 
   it('applies four-bar motifs, eight-bar recruitment, and sixteen-bar evolution', () => {

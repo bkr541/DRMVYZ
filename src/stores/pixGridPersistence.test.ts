@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { PIX_GRID_PRESET_IDS } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
-import type { PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
+import { PIX_GRID_STATE_VERSION, type PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import {
   mergeReactStoreState,
   migrateReactStore,
@@ -24,6 +24,81 @@ describe('PixGrid persistence and selection invariants', () => {
       .filter(preset => preset.engine === 'pixGrid')
       .map(preset => preset.id)
     expect(pixGridPresetIds).toEqual([...PIX_GRID_PRESET_IDS])
+  })
+
+  it('rehydrates legacy nonempty artwork with current built-in routing instead of treating layers as completeness', () => {
+    const current = useReactStore.getState()
+    const legacy = {
+      ...current.pixGridState,
+      version: PIX_GRID_STATE_VERSION - 1,
+      configuration: undefined,
+      groups: [],
+      audioAssignments: [],
+      performance: {
+        ...current.pixGridState.performance,
+        sharedPerformanceProgramId: null,
+      },
+    }
+    const migratedPersisted = migrateReactStore({
+      activeReactEngineId: 'pixGrid',
+      activeReactPresetId: current.pixGridState.selectedPresetId,
+      pixGridState: legacy,
+    }, 54)
+    const merged = mergeReactStoreState(migratedPersisted, current)
+
+    expect(merged.pixGridState.layers).toEqual(current.pixGridState.layers)
+    expect(merged.pixGridState.groups.length).toBeGreaterThan(0)
+    expect(merged.pixGridState.audioAssignments.length).toBeGreaterThan(0)
+    expect(merged.pixGridState.performance.sharedPerformanceProgramId).not.toBeNull()
+    expect(merged.pixGridState.configuration.lastMigration?.applied).toBe(true)
+    const repeated = mergeReactStoreState({ pixGridState: merged.pixGridState }, current)
+    expect(repeated.pixGridState).toEqual(merged.pixGridState)
+  })
+
+  it('does not replace an explicitly custom PixGrid scene with the active built-in preset during hydration', () => {
+    const current = useReactStore.getState()
+    const customLayer = {
+      ...current.pixGridState.layers[0]!,
+      id: 'custom-hydration-layer',
+      name: 'Custom Hydration Artwork',
+    }
+    const custom: PixGridState = {
+      ...current.pixGridState,
+      selectedPresetId: null,
+      selectedSceneId: 'custom-hydration-scene',
+      configuration: {
+        ...current.pixGridState.configuration,
+        origin: 'custom',
+        sourcePresetId: null,
+        presetConfigurationVersion: 0,
+        userCustomized: true,
+      },
+      layers: [customLayer],
+      scenes: [{
+        id: 'custom-hydration-scene',
+        name: 'Custom Hydration Scene',
+        layerIds: [customLayer.id],
+        pixelOverrides: [],
+      }],
+      groups: [],
+      audioAssignments: [],
+      performance: {
+        ...current.pixGridState.performance,
+        enabled: false,
+        sharedPerformanceProgramId: null,
+      },
+    }
+    const merged = mergeReactStoreState({
+      activeReactEngineId: 'pixGrid',
+      activeReactPresetId: current.pixGridState.selectedPresetId,
+      pixGridState: custom,
+    }, current)
+
+    expect(merged.pixGridState.selectedPresetId).toBeNull()
+    expect(merged.pixGridState.layers).toEqual([customLayer])
+    expect(merged.pixGridState.groups).toEqual([])
+    expect(merged.pixGridState.audioAssignments).toEqual([])
+    expect(merged.pixGridState.configuration.origin).toBe('custom')
   })
 
   it('persists normalized PixGrid state without transient frame data', () => {

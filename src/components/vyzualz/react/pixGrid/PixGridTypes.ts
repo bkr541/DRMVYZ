@@ -1,6 +1,8 @@
 import type { ReactSectionType } from '../ReactTypes'
 
-export const PIX_GRID_STATE_VERSION = 12 as const
+export const PIX_GRID_STATE_VERSION = 13 as const
+export const PIX_GRID_CONFIGURATION_METADATA_VERSION = 1 as const
+export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 1 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
@@ -381,6 +383,43 @@ export interface PixGridConversionSettings {
   preserveWhite: boolean
 }
 
+
+export type PixGridStateOrigin = 'builtInPreset' | 'custom'
+
+export interface PixGridMigrationDiagnostics {
+  applied: boolean
+  fromStateVersion: number
+  toStateVersion: number
+  fromPresetConfigurationVersion: number
+  toPresetConfigurationVersion: number
+  groupsAdded: number
+  groupsPreserved: number
+  groupsUpgraded: number
+  assignmentsAdded: number
+  assignmentsPreserved: number
+  assignmentsUpgraded: number
+  layersAdded: number
+  scenesAdded: number
+  fallbackRoutesActive: boolean
+}
+
+export interface PixGridCanonicalSignatures {
+  groups: Record<string, string>
+  assignments: Record<string, string>
+  layerAnimations: Record<string, string>
+}
+
+export interface PixGridConfigurationMetadata {
+  metadataVersion: number
+  origin: PixGridStateOrigin
+  sourcePresetId: string | null
+  presetConfigurationVersion: number
+  musicReactiveConfigurationVersion: number
+  userCustomized: boolean
+  canonicalSignatures: PixGridCanonicalSignatures
+  lastMigration: PixGridMigrationDiagnostics | null
+}
+
 export interface PixGridRuntimeDiagnosticsSettings {
   showFps: boolean
   showMatrixBounds: boolean
@@ -413,6 +452,7 @@ export interface PixGridPresetSettings {
 
 export interface PixGridState {
   version: typeof PIX_GRID_STATE_VERSION
+  configuration: PixGridConfigurationMetadata
   quality: PixGridQualityTier
   qualityMode: PixGridQualityMode
   matrixWidth: number
@@ -508,6 +548,10 @@ export interface PixGridAudioFrame {
   capabilities?: Partial<Record<PixGridReactionSource, boolean>>
   confidence?: Partial<Record<PixGridReactionSource, number>>
   eventIdentities?: Partial<Record<PixGridDiscreteAudioSource, string>>
+  /** PixGrid-local master gain applied before route evaluation. */
+  bassReactivityGain?: number
+  /** PixGrid-local autonomous animation multiplier. */
+  motionMultiplier?: number
 }
 
 
@@ -547,4 +591,20 @@ export interface PixGridRendererDiagnostics {
   rendererWarningCount?: number
   groupMaskUploadCount?: number
   groupMaskApproximateBytes?: number
+  stateSchemaVersion?: number
+  presetConfigurationVersion?: number
+  migrationApplied?: boolean
+  migrationGroupsAdded?: number
+  migrationGroupsPreserved?: number
+  migrationGroupsUpgraded?: number
+  migrationAssignmentsAdded?: number
+  migrationAssignmentsPreserved?: number
+  migrationAssignmentsUpgraded?: number
+  activeAudioSourceCount?: number
+  activeAssignmentCount?: number
+  fallbackRoutesActive?: boolean
+  effectiveBassReactivityGain?: number
+  effectiveMotionMultiplier?: number
+  affectedGroupCount?: number
+  affectedCellCount?: number
 }

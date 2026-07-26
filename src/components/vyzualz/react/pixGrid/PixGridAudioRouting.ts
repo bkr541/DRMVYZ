@@ -25,6 +25,7 @@ import type {
   PixGridReactionAssignment,
   PixGridReactionSource,
 } from './PixGridTypes'
+import { isPixGridBassReactivitySource } from './PixGridRuntimeControls'
 
 const CONTINUOUS_SOURCES = new Set<PixGridReactionSource>(
   PIX_GRID_AUDIO_INTELLIGENCE_SOURCES.filter(isPixGridContinuousSourceDefinition).map(definition => definition.id),
@@ -473,6 +474,9 @@ export class PixGridReactionRuntime {
         return { value: 0, active: false, supported: false, confidence: sourceConfidence, usingFallback: false, blockedByCondition: false, blockedByConfidence: true, compiled }
       }
       raw = fallback
+      if (isPixGridBassReactivitySource(compiled.source.id)) {
+        raw *= clamp(frame.bassReactivityGain ?? 1)
+      }
       supported = true
       usingFallback = true
       blockedByConfidence = false

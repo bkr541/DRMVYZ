@@ -52,6 +52,14 @@ Each built-in preset has an authored PixGrid Performance Program resolved throug
 
 Manual locks and Track Map actions take precedence over lower-priority automatic choreography without invoking LaserDMX fixture, beam, or runtime state.
 
+## State migration and live global controls
+
+Persisted PixGrid documents carry an overall state schema version plus configuration metadata for their source preset, authored preset-configuration version, music-reactive configuration version, customization state, and last migration result. Rehydration does not use nonempty layers as proof that a document is complete. Built-in-derived states are merged with the current canonical preset by stable group and assignment IDs, while user layers, transforms, palettes, media, sparse cells, custom groups, route edits, program overrides, and scene selection remain intact. The merge is deterministic and idempotent.
+
+If a custom scene has visible artwork but no executable audio assignments, the live runtime attaches a small, stable fallback route set for bass, kick, and overall energy. These routes are runtime-only and do not replace or duplicate the user's persisted artwork or routing document.
+
+Global **Bass Reactivity** is applied to bass-family Music Intelligence values before assignment and performance-action evaluation. Kick, bass, sub, low-mid, and bass-stem responses scale smoothly from suppressed at 0 to the authored response at 1; independent signals such as snare and phrase boundaries remain available. Global **Motion** multiplies scene and layer animation clocks without changing the Shared Performance clock. Motion 0 freezes autonomous motion while event-driven one-shots can still execute. WebGL2 and Canvas2D consume the same resolved PixGrid state, audio frame, and group effects.
+
 ## Track Map actions
 
 PixGrid actions live in the existing Track Map cue architecture and snap to the authoritative Beat Grid. They can select scenes, show or hide layers/groups, flash or dissolve groups, reveal rows/columns, change palette/background, start/stop/reverse/jump animations, transform targets, freeze, clear/restore, toggle automatic performance, and apply bounded manual overrides.
@@ -77,7 +85,7 @@ For best results, keep High/Adaptive selected for normal production, use Ultra o
 
 ## Verification
 
-PixGrid coverage includes state migration, normalization, media conversion, SVG lifecycle, smart groups, audio routing, performance choreography, Track Map actions, renderer ownership, WebGL shader/resource behavior, adaptive quality, deterministic logical framebuffer scenarios, and browser WebGL pixel readback. The pixel suite covers all three presets, imported raster/SVG content, Brand Kit conversion, percussion reactions, four-bar evolution, Track Map transitions, pause, and seek reconstruction.
+PixGrid coverage includes versioned and idempotent state migration, customized-state preservation, empty-route fallback, Bass Reactivity and Motion control wiring, normalization, media conversion, SVG lifecycle, smart groups, audio routing, performance choreography, Track Map actions, renderer ownership, WebGL shader/resource behavior, adaptive quality, deterministic logical framebuffer scenarios, and browser WebGL pixel readback. The pixel suite covers all three presets, imported raster/SVG content, Brand Kit conversion, percussion reactions, four-bar evolution, Track Map transitions, pause, and seek reconstruction.
 
 ## Deferred post-MVP features
 

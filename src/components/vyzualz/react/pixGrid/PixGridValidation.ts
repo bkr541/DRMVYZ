@@ -62,6 +62,10 @@ import {
   type PixGridScene,
   type PixGridCellRect,
   type PixGridState,
+  type PixGridConfigurationMetadata,
+  type PixGridCanonicalSignatures,
+  type PixGridMigrationDiagnostics,
+  PIX_GRID_CONFIGURATION_METADATA_VERSION,
 } from './PixGridTypes'
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
@@ -705,6 +709,70 @@ function normalizeSelection(value: unknown, width: number, height: number): PixG
   return { x, y, width: selectionWidth, height: selectionHeight }
 }
 
+
+function normalizeMigrationDiagnostics(value: unknown): PixGridMigrationDiagnostics | null {
+  if (!isRecord(value)) return null
+  return {
+    applied: value.applied === true,
+    fromStateVersion: Math.max(0, Math.round(finite(value.fromStateVersion, 0))),
+    toStateVersion: Math.max(0, Math.round(finite(value.toStateVersion, PIX_GRID_STATE_VERSION))),
+    fromPresetConfigurationVersion: Math.max(0, Math.round(finite(value.fromPresetConfigurationVersion, 0))),
+    toPresetConfigurationVersion: Math.max(0, Math.round(finite(value.toPresetConfigurationVersion, 0))),
+    groupsAdded: Math.max(0, Math.round(finite(value.groupsAdded, 0))),
+    groupsPreserved: Math.max(0, Math.round(finite(value.groupsPreserved, 0))),
+    groupsUpgraded: Math.max(0, Math.round(finite(value.groupsUpgraded, 0))),
+    assignmentsAdded: Math.max(0, Math.round(finite(value.assignmentsAdded, 0))),
+    assignmentsPreserved: Math.max(0, Math.round(finite(value.assignmentsPreserved, 0))),
+    assignmentsUpgraded: Math.max(0, Math.round(finite(value.assignmentsUpgraded, 0))),
+    layersAdded: Math.max(0, Math.round(finite(value.layersAdded, 0))),
+    scenesAdded: Math.max(0, Math.round(finite(value.scenesAdded, 0))),
+    fallbackRoutesActive: value.fallbackRoutesActive === true,
+  }
+}
+
+function normalizeSignatureRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {}
+  const entries = Object.entries(value).slice(0, 1_024).flatMap(([key, signature]) => {
+    const safeKey = key.trim().slice(0, 256)
+    const safeSignature = typeof signature === 'string'
+      ? signature.trim().slice(0, 64)
+      : ''
+    return safeKey && safeSignature ? [[safeKey, safeSignature] as const] : []
+  })
+  return Object.fromEntries(entries)
+}
+
+function normalizeCanonicalSignatures(value: unknown): PixGridCanonicalSignatures {
+  const raw = isRecord(value) ? value : {}
+  return {
+    groups: normalizeSignatureRecord(raw.groups),
+    assignments: normalizeSignatureRecord(raw.assignments),
+    layerAnimations: normalizeSignatureRecord(raw.layerAnimations),
+  }
+}
+
+function normalizeConfigurationMetadata(
+  value: unknown,
+  selectedPresetId: string | null,
+): PixGridConfigurationMetadata {
+  const raw = isRecord(value) ? value : {}
+  const sourcePresetId = nullableId(raw.sourcePresetId) ?? selectedPresetId
+  const origin = raw.origin === 'custom' || (!sourcePresetId && raw.origin !== 'builtInPreset') ? 'custom' : 'builtInPreset'
+  return {
+    metadataVersion: Math.max(0, Math.min(
+      PIX_GRID_CONFIGURATION_METADATA_VERSION,
+      Math.round(finite(raw.metadataVersion, 0)),
+    )),
+    origin,
+    sourcePresetId: origin === 'builtInPreset' ? sourcePresetId : nullableId(raw.sourcePresetId),
+    presetConfigurationVersion: Math.max(0, Math.min(1_000, Math.round(finite(raw.presetConfigurationVersion, 0)))),
+    musicReactiveConfigurationVersion: Math.max(0, Math.min(1_000, Math.round(finite(raw.musicReactiveConfigurationVersion, 0)))),
+    userCustomized: raw.userCustomized === true,
+    canonicalSignatures: normalizeCanonicalSignatures(raw.canonicalSignatures),
+    lastMigration: normalizeMigrationDiagnostics(raw.lastMigration),
+  }
+}
+
 function normalizeScenes(
   value: unknown,
   layers: PixGridLayer[],
@@ -761,7 +829,12 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const diagnostics = isRecord(input.diagnostics) ? input.diagnostics : {}
   const editor = isRecord(input.editor) ? input.editor : {}
   const fallbackSceneId = nullableId(input.selectedSceneId) ?? defaults.selectedSceneId ?? 'pix-grid-scene-1'
-  const selectedPresetId = nullableId(input.selectedPresetId) ?? defaults.selectedPresetId
+  const selectedPresetWasExplicitlyCleared =
+    Object.prototype.hasOwnProperty.call(input, 'selectedPresetId') && input.selectedPresetId === null
+  const selectedPresetId = selectedPresetWasExplicitlyCleared
+    ? null
+    : nullableId(input.selectedPresetId) ?? defaults.selectedPresetId
+  const configuration = normalizeConfigurationMetadata(input.configuration, selectedPresetId)
   const defaultPerformanceProgramId = selectedPresetId
     ? (PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID[selectedPresetId] ?? DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId)
     : DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId
@@ -795,6 +868,7 @@ export function normalizePixGridState(value: unknown): PixGridState {
 
   return {
     version: PIX_GRID_STATE_VERSION,
+    configuration,
     quality,
     qualityMode: QUALITY_MODES.has(input.qualityMode as PixGridQualityMode)
       ? (input.qualityMode as PixGridQualityMode)

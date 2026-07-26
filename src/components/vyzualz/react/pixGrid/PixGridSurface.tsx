@@ -45,6 +45,10 @@ import {
   resolvePixGridAdaptiveQualityProfile,
   type PixGridAdaptiveQualityProfile,
 } from './PixGridAdaptiveQuality'
+import {
+  applyPixGridBassGainToPerformanceContext,
+  applyPixGridRuntimeControls,
+} from './PixGridRuntimeControls'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -74,6 +78,10 @@ function canvasQuality(quality: PixGridQualityTier): 'low' | 'medium' | 'high' |
   if (quality === 'draft') return 'low'
   if (quality === 'low') return 'medium'
   return quality
+}
+
+function normalizedControl(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
 }
 
 function resolveSectionScene(preset: ReactPreset, sections: readonly ReactTrackSection[], audioTime: number): string | null {
@@ -167,7 +175,23 @@ function diagnosticsEqual(a: PixGridRendererDiagnostics, b: PixGridRendererDiagn
     a.assignmentCompilerWarningCount === b.assignmentCompilerWarningCount &&
     a.rendererWarningCount === b.rendererWarningCount &&
     a.groupMaskUploadCount === b.groupMaskUploadCount &&
-    a.groupMaskApproximateBytes === b.groupMaskApproximateBytes
+    a.groupMaskApproximateBytes === b.groupMaskApproximateBytes &&
+    a.stateSchemaVersion === b.stateSchemaVersion &&
+    a.presetConfigurationVersion === b.presetConfigurationVersion &&
+    a.migrationApplied === b.migrationApplied &&
+    a.migrationGroupsAdded === b.migrationGroupsAdded &&
+    a.migrationGroupsPreserved === b.migrationGroupsPreserved &&
+    a.migrationGroupsUpgraded === b.migrationGroupsUpgraded &&
+    a.migrationAssignmentsAdded === b.migrationAssignmentsAdded &&
+    a.migrationAssignmentsPreserved === b.migrationAssignmentsPreserved &&
+    a.migrationAssignmentsUpgraded === b.migrationAssignmentsUpgraded &&
+    a.activeAudioSourceCount === b.activeAudioSourceCount &&
+    a.activeAssignmentCount === b.activeAssignmentCount &&
+    a.fallbackRoutesActive === b.fallbackRoutesActive &&
+    a.effectiveBassReactivityGain === b.effectiveBassReactivityGain &&
+    a.effectiveMotionMultiplier === b.effectiveMotionMultiplier &&
+    a.affectedGroupCount === b.affectedGroupCount &&
+    a.affectedCellCount === b.affectedCellCount
   )
 }
 
@@ -367,6 +391,22 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         missingTargetCount: (latestRuntimeDiagnostics?.missingTargets.length ?? 0) + (latestRuntimeDiagnostics?.programBindingWarnings.length ?? 0),
         assignmentCompilerWarningCount: latestRuntimeDiagnostics?.compilationWarnings.length ?? 0,
         rendererWarningCount: next.fallbackReason ? 1 : 0,
+        stateSchemaVersion: latestRuntimeDiagnostics?.stateSchemaVersion ?? propsRef.current.pixGridState.version,
+        presetConfigurationVersion: latestRuntimeDiagnostics?.presetConfigurationVersion ?? propsRef.current.pixGridState.configuration.presetConfigurationVersion,
+        migrationApplied: latestRuntimeDiagnostics?.migrationApplied ?? propsRef.current.pixGridState.configuration.lastMigration?.applied ?? false,
+        migrationGroupsAdded: latestRuntimeDiagnostics?.migrationGroupsAdded ?? propsRef.current.pixGridState.configuration.lastMigration?.groupsAdded ?? 0,
+        migrationGroupsPreserved: latestRuntimeDiagnostics?.migrationGroupsPreserved ?? propsRef.current.pixGridState.configuration.lastMigration?.groupsPreserved ?? 0,
+        migrationGroupsUpgraded: latestRuntimeDiagnostics?.migrationGroupsUpgraded ?? propsRef.current.pixGridState.configuration.lastMigration?.groupsUpgraded ?? 0,
+        migrationAssignmentsAdded: latestRuntimeDiagnostics?.migrationAssignmentsAdded ?? propsRef.current.pixGridState.configuration.lastMigration?.assignmentsAdded ?? 0,
+        migrationAssignmentsPreserved: latestRuntimeDiagnostics?.migrationAssignmentsPreserved ?? propsRef.current.pixGridState.configuration.lastMigration?.assignmentsPreserved ?? 0,
+        migrationAssignmentsUpgraded: latestRuntimeDiagnostics?.migrationAssignmentsUpgraded ?? propsRef.current.pixGridState.configuration.lastMigration?.assignmentsUpgraded ?? 0,
+        activeAudioSourceCount: latestRuntimeDiagnostics?.activeAudioSourceCount ?? 0,
+        activeAssignmentCount: latestRuntimeDiagnostics?.activeAssignmentCount ?? 0,
+        fallbackRoutesActive: latestRuntimeDiagnostics?.fallbackRoutesActive ?? false,
+        effectiveBassReactivityGain: latestRuntimeDiagnostics?.effectiveBassReactivityGain ?? normalizedControl(propsRef.current.bassReactivity),
+        effectiveMotionMultiplier: latestRuntimeDiagnostics?.effectiveMotionMultiplier ?? normalizedControl(propsRef.current.motion),
+        affectedGroupCount: latestRuntimeDiagnostics?.affectedGroupCount ?? 0,
+        affectedCellCount: latestRuntimeDiagnostics?.affectedCellCount ?? 0,
       }
       lastDiagnostics = enriched
       publishPixGridRendererDiagnostics(enriched)
@@ -447,11 +487,18 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       })
       previousPerformanceContext = context
       lastAudioTime = audioTime
-      const audioFrame = applyPixGridEditorPreview(createPixGridAudioFrame(context, {
+      const audioFrame = applyPixGridRuntimeControls(applyPixGridEditorPreview(createPixGridAudioFrame(context, {
         isPlaying: shouldAnimate,
         deltaTimeSec,
         autoPerformanceEnabled: current.pixGridState.performance.enabled,
-      }))
+      })), {
+        bassReactivity: current.bassReactivity,
+        motion: current.motion,
+      })
+      const pixGridPerformanceContext = applyPixGridBassGainToPerformanceContext(
+        context,
+        audioFrame.bassReactivityGain ?? 1,
+      )
       const qualityProfile = adaptiveProfileRef.current
       const runtimeState: PixGridState = {
         ...current.pixGridState,
@@ -473,7 +520,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const mappedState = selectedSceneId ? { ...runtimeState, selectedSceneId } : runtimeState
       const resolvedRuntime = unifiedPerformanceRuntime.resolve({
         authoredState: mappedState,
-        context,
+        context: pixGridPerformanceContext,
         audioFrame,
         presetId: activePreset.id,
         cues: current.pixGridActionCues ?? [],

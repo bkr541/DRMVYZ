@@ -6,8 +6,14 @@ import type {
   PixGridState,
   PixGridScene,
 } from './PixGridTypes'
-import { PIX_GRID_STATE_VERSION, type PixGridLayer } from './PixGridTypes'
-import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
+import {
+  PIX_GRID_CONFIGURATION_METADATA_VERSION,
+  PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
+  PIX_GRID_STATE_VERSION,
+  type PixGridLayer,
+} from './PixGridTypes'
+import { PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION, PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
+import { createPixGridCanonicalSignatures } from './PixGridConfiguration'
 
 export const PIX_GRID_MATRIX_DIMENSIONS: Readonly<Record<PixGridQualityTier, Readonly<{ width: number; height: number }>>> = {
   draft: { width: 64, height: 36 },
@@ -137,6 +143,16 @@ export function createDefaultPixGridState(): PixGridState {
   }))
   return {
     version: PIX_GRID_STATE_VERSION,
+    configuration: {
+      metadataVersion: PIX_GRID_CONFIGURATION_METADATA_VERSION,
+      origin: 'builtInPreset',
+      sourcePresetId: DEFAULT_PIX_GRID_PRESET_ID,
+      presetConfigurationVersion: defaultSettings?.authoredConfigurationVersion ?? PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION,
+      musicReactiveConfigurationVersion: PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
+      userCustomized: false,
+      canonicalSignatures: createPixGridCanonicalSignatures(defaultSettings),
+      lastMigration: null,
+    },
     quality: DEFAULT_PIX_GRID_QUALITY,
     qualityMode: 'adaptive',
     matrixWidth: dimensions.width,

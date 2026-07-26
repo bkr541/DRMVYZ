@@ -192,6 +192,7 @@ import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/P
 import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from '../components/vyzualz/react/pixGrid/PixGridState'
 import type { PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import { normalizePixGridPresetSettings, normalizePixGridState } from '../components/vyzualz/react/pixGrid/PixGridValidation'
+import { markPixGridStateCustomized, migratePixGridState } from '../components/vyzualz/react/pixGrid/PixGridStateMigration'
 import {
   MAX_PIX_GRID_ACTION_CUES_PER_TRACK,
   MAX_PIX_GRID_ACTION_CUE_TRACKS,
@@ -1527,7 +1528,7 @@ function buildPixGridHistoryPatch(
   nextState: PixGridState,
 ) {
   const current = normalizePixGridState(storeState.pixGridState)
-  const next = normalizePixGridState(nextState)
+  const next = markPixGridStateCustomized(normalizePixGridState(nextState))
   if (pixGridSnapshotsEqual(current, next)) return {}
   if (storeState.pixGridHistoryTransaction) return { pixGridState: next }
   return {
@@ -3826,6 +3827,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
     }
   }
+  if (version < 55) {
+    // Structural normalization only. Canonical PixGrid preset infrastructure
+    // is merged later, after the current and persisted preset registries have
+    // been reconciled by mergeReactStoreState.
+    state = {
+      ...state,
+      pixGridState: normalizePixGridState(state.pixGridState),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -4112,6 +4122,7 @@ export function mergeReactStoreState(
   )
   const persistedUiMode = persisted.cinematicWorldsUiMode ?? currentState.cinematicWorldsUiMode
   const cinematicWorldsUiMode: CinematicWorldsUiMode = persistedUiMode === 'advanced' ? 'advanced' : 'simple'
+  const rawPixGridState = persisted.pixGridState ?? currentState.pixGridState
   const merged = {
     ...currentState,
     ...persisted,
@@ -4120,7 +4131,7 @@ export function mergeReactStoreState(
     cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode,
-    pixGridState: normalizePixGridState(persisted.pixGridState ?? currentState.pixGridState),
+    pixGridState: normalizePixGridState(rawPixGridState),
     pixGridActionCuesByTrackId: normalizePixGridActionCueMap(
       persisted.pixGridActionCuesByTrackId ?? currentState.pixGridActionCuesByTrackId,
     ),
@@ -4185,12 +4196,19 @@ export function mergeReactStoreState(
   const activePixGridPreset = repairedSelection.activeReactEngineId === 'pixGrid'
     ? reactPresets.find(preset => preset.id === repairedSelection.activeReactPresetId && preset.engine === 'pixGrid') ?? null
     : null
-  const needsPixGridArtworkMigration = merged.pixGridState.layers.length === 0
-  const pixGridState = activePixGridPreset && (
-    merged.pixGridState.selectedPresetId !== activePixGridPreset.id || needsPixGridArtworkMigration
-  )
+  const persistedPixGridPreset = merged.pixGridState.selectedPresetId
+    ? reactPresets.find(preset => preset.id === merged.pixGridState.selectedPresetId && preset.engine === 'pixGrid') ?? null
+    : null
+  const preserveCustomPixGridState = merged.pixGridState.configuration.origin === 'custom'
+    || merged.pixGridState.selectedPresetId == null
+  const pixGridState = activePixGridPreset
+    && !preserveCustomPixGridState
+    && merged.pixGridState.selectedPresetId !== activePixGridPreset.id
     ? applyPixGridPresetSettings(merged.pixGridState, activePixGridPreset.id, activePixGridPreset.pixGridSettings)
-    : normalizePixGridState(merged.pixGridState)
+    : migratePixGridState(
+        rawPixGridState,
+        preserveCustomPixGridState ? null : activePixGridPreset ?? persistedPixGridPreset,
+      )
 
   return {
     ...merged,
@@ -4311,7 +4329,15 @@ export const useReactStore = create<ReactStoreState>()(
             ? { ...scene, pixelOverrides: patch.pixelOverrides ?? [] }
             : scene)
         }
-        return { pixGridState: normalizePixGridState(merged) }
+        const normalized = normalizePixGridState(merged)
+        const onlyTransientKeys = Object.keys(patch).every(key => (
+          key === 'authoringOverlayVisible'
+          || key === 'editorTool'
+          || key === 'editor'
+          || key === 'diagnostics'
+          || key === 'selectedSceneId'
+        ))
+        return { pixGridState: onlyTransientKeys ? normalized : markPixGridStateCustomized(normalized) }
       }),
 
       resetPixGridState: () => set((state) => ({
@@ -8007,7 +8033,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 54,
+      version: 55,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

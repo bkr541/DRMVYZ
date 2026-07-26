@@ -276,11 +276,15 @@ function groupEffectForAction(
   intensity: number,
   identity: string,
   context: SharedPerformanceContext,
+  motionMultiplier: number,
 ): PixGridGroupFrameEffect | null {
   if (!isGroupScopedAction(action)) return null;
   const stage: PixGridGroupFrameEffect["stage"] = EVENT_REASONS.has(reason)
     ? "event"
     : "persistent";
+  const autonomousMotionGain = stage === "persistent"
+    ? clamp(motionMultiplier)
+    : 1;
   const base = {
     id: `performance:${identity}:${action.type}`,
     source: "performance" as const,
@@ -330,8 +334,8 @@ function groupEffectForAction(
         groupId: action.groupId,
         kind: "shift",
         amount: 1,
-        x: (action.x ?? 0) * intensity,
-        y: (action.y ?? 0) * intensity,
+        x: (action.x ?? 0) * intensity * autonomousMotionGain,
+        y: (action.y ?? 0) * intensity * autonomousMotionGain,
       };
     case "setPaletteRole":
       return {
@@ -374,7 +378,10 @@ function groupEffectForAction(
         kind: "shift",
         amount: 1,
         x:
-          Math.sin(context.absoluteBeat * action.multiplier) * 0.02 * intensity,
+          Math.sin(context.absoluteBeat * action.multiplier)
+          * 0.02
+          * intensity
+          * autonomousMotionGain,
       };
     case "reverseDirection":
       return {
@@ -382,7 +389,7 @@ function groupEffectForAction(
         groupId: groupIdForTarget(action.target) ?? "",
         kind: "shift",
         amount: 1,
-        x: -0.02 * intensity,
+        x: -0.02 * intensity * autonomousMotionGain,
       };
     case "triggerFrame":
       return {
@@ -390,7 +397,7 @@ function groupEffectForAction(
         groupId: groupIdForTarget(action.target) ?? "",
         kind: "shift",
         amount: 1,
-        x: (action.step ?? 0.1) * intensity,
+        x: (action.step ?? 0.1) * intensity * autonomousMotionGain,
       };
     default:
       return null;
@@ -912,6 +919,8 @@ export function resolvePixGridPerformanceFrame(
   options: {
     runtime?: PixGridPerformanceExecutionRuntime;
     capabilities?: Partial<Record<PixGridReactionSource, boolean>>;
+    bassReactivityGain?: number;
+    motionMultiplier?: number;
   } = {},
 ): PixGridResolvedPerformanceFrame {
   const base = normalizePixGridState(rawState);
@@ -998,6 +1007,9 @@ export function resolvePixGridPerformanceFrame(
 
   for (const intent of limited.intents) {
     if (isLocked(state, intent.action)) continue;
+    const intentIntensity = base.performance.intensity
+      * (EVENT_REASONS.has(intent.reason) ? arcState.impactStrength : 1)
+      * (intent.reason === "kick" ? clamp(options.bassReactivityGain ?? 1) : 1);
     if (intent.action.type === "setTransition") {
       transitionLabel = intent.action.transition;
       transition =
@@ -1009,10 +1021,10 @@ export function resolvePixGridPerformanceFrame(
     const groupEffect = groupEffectForAction(
       intent.action,
       intent.reason,
-      base.performance.intensity *
-        (EVENT_REASONS.has(intent.reason) ? arcState.impactStrength : 1),
+      intentIntensity,
       intent.identity,
       context,
+      options.motionMultiplier ?? 1,
     );
     if (groupEffect) {
       if (EVENT_REASONS.has(intent.reason))
@@ -1023,7 +1035,7 @@ export function resolvePixGridPerformanceFrame(
         state,
         base,
         intent.action,
-        base.performance.intensity,
+        intentIntensity,
       );
     }
     appliedActions.push(intent.action);

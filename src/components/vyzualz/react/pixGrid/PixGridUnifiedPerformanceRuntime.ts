@@ -28,6 +28,7 @@ import type {
   PixGridReactionTargetScope,
   PixGridState,
 } from "./PixGridTypes";
+import { ensurePixGridRuntimeAudioRoutes } from "./PixGridStateMigration";
 
 export const PIX_GRID_RUNTIME_COMPOSITION_ORDER = Object.freeze([
   "authored-state",
@@ -50,6 +51,23 @@ export function selectPixGridTransition(
 }
 
 export interface PixGridUnifiedRuntimeDiagnostics {
+  stateSchemaVersion: number;
+  presetConfigurationVersion: number;
+  migrationApplied: boolean;
+  migrationGroupsAdded: number;
+  migrationGroupsPreserved: number;
+  migrationGroupsUpgraded: number;
+  migrationAssignmentsAdded: number;
+  migrationAssignmentsPreserved: number;
+  migrationAssignmentsUpgraded: number;
+  activeAudioSourceCount: number;
+  activeAssignmentCount: number;
+  fallbackRoutesActive: boolean;
+  effectiveBassReactivityGain: number;
+  effectiveMotionMultiplier: number;
+  affectedGroupCount: number;
+  affectedCellCount: number;
+  assignmentExecutionReasons: readonly string[];
   enabledGroups: readonly string[];
   compiledMaskGroups: readonly string[];
   availableSources: readonly PixGridReactionSource[];
@@ -181,13 +199,17 @@ export class PixGridUnifiedPerformanceRuntime {
     cues: readonly PixGridActionCue[];
     trackId?: string | null;
   }): PixGridUnifiedFrame {
+    const runtimeRoutes = ensurePixGridRuntimeAudioRoutes(input.authoredState);
+    const authoredState = runtimeRoutes.state;
     const performance = resolvePixGridPerformanceFrame(
-      input.authoredState,
+      authoredState,
       input.context,
       input.presetId,
       {
         runtime: this.performanceRuntime,
         capabilities: input.audioFrame.capabilities,
+        bassReactivityGain: input.audioFrame.bassReactivityGain,
+        motionMultiplier: input.audioFrame.motionMultiplier,
       },
     );
     const cues = resolvePixGridActionCueFrame(
@@ -209,16 +231,17 @@ export class PixGridUnifiedPerformanceRuntime {
       performance.transition,
     );
     const enabledGroups = cues.state.groups.filter((group) => group.enabled);
-    const compiledMaskGroups = enabledGroups
-      .filter(
-        (group) =>
-          compilePixGridGroupMask(
-            group,
-            cues.state.matrixWidth,
-            cues.state.matrixHeight,
-          ).cellCount > 0,
-      )
-      .map((group) => group.id);
+    const compiledMasks = enabledGroups.map((group) => ({
+      groupId: group.id,
+      mask: compilePixGridGroupMask(
+        group,
+        cues.state.matrixWidth,
+        cues.state.matrixHeight,
+      ),
+    }));
+    const compiledMaskGroups = compiledMasks
+      .filter(({ mask }) => mask.cellCount > 0)
+      .map(({ groupId }) => groupId);
     const activeLayerIds = new Set(
       cues.state.layers
         .filter((layer) => layer.visible)
@@ -275,6 +298,10 @@ export class PixGridUnifiedPerformanceRuntime {
     const continuousAssignments: string[] = [];
     const discreteAssignments: string[] = [];
     const degradedSignals: string[] = [];
+    const affectedGroupIds = new Set(
+      groupEffects.map((effect) => effect.groupId).filter(Boolean),
+    );
+    let affectsWholeFrame = false;
 
     for (const route of assignmentRoutes(cues.state)) {
       const capabilities =
@@ -332,10 +359,32 @@ export class PixGridUnifiedPerformanceRuntime {
         addUnique(degradedSignals, route.routeId);
       }
       addUnique(activeCompiledAssignments, route.routeId);
+      if ((route.scope === "group" || route.scope === "pixels") && route.targetId) {
+        affectedGroupIds.add(route.targetId);
+      } else {
+        affectsWholeFrame = true;
+      }
       if (isPixGridContinuousReactionSource(route.assignment.source))
         addUnique(continuousAssignments, route.displayId);
       else addUnique(discreteAssignments, route.displayId);
     }
+
+    const migration = cues.state.configuration.lastMigration;
+    const affectedCellCount = affectsWholeFrame
+      ? cues.state.matrixWidth * cues.state.matrixHeight
+      : compiledMasks.reduce(
+          (sum, { groupId, mask }) => sum + (affectedGroupIds.has(groupId) ? mask.cellCount : 0),
+          0,
+        );
+    const activeAudioSourceCount = Object.values(continuousSourceValues)
+      .filter((value) => (value ?? 0) > 0.0001).length + recentDiscreteTriggers.length;
+    const assignmentExecutionReasons = [
+      ...disabledAssignments.map((route) => `${route}: disabled`),
+      ...blockedByConditions.map((route) => `${route}: conditions not met`),
+      ...blockedByConfidence.map((route) => `${route}: unavailable or below confidence threshold`),
+      ...missingTargets.map((route) => `${route}: target missing`),
+      ...assignmentsUsingFallback.map((route) => `${route}: capability fallback active`),
+    ];
 
     return {
       state: cues.state,
@@ -344,6 +393,23 @@ export class PixGridUnifiedPerformanceRuntime {
       performance,
       cues,
       diagnostics: {
+        stateSchemaVersion: cues.state.version,
+        presetConfigurationVersion: cues.state.configuration.presetConfigurationVersion,
+        migrationApplied: migration?.applied === true,
+        migrationGroupsAdded: migration?.groupsAdded ?? 0,
+        migrationGroupsPreserved: migration?.groupsPreserved ?? 0,
+        migrationGroupsUpgraded: migration?.groupsUpgraded ?? 0,
+        migrationAssignmentsAdded: migration?.assignmentsAdded ?? 0,
+        migrationAssignmentsPreserved: migration?.assignmentsPreserved ?? 0,
+        migrationAssignmentsUpgraded: migration?.assignmentsUpgraded ?? 0,
+        activeAudioSourceCount,
+        activeAssignmentCount: activeCompiledAssignments.length,
+        fallbackRoutesActive: runtimeRoutes.fallbackActive,
+        effectiveBassReactivityGain: input.audioFrame.bassReactivityGain ?? 1,
+        effectiveMotionMultiplier: input.audioFrame.motionMultiplier ?? 1,
+        affectedGroupCount: affectedGroupIds.size,
+        affectedCellCount,
+        assignmentExecutionReasons,
         enabledGroups: enabledGroups.map((group) => group.id),
         compiledMaskGroups,
         availableSources,

@@ -608,6 +608,7 @@ function EventStatus({ source, labelText }: { source: PixGridReactionSource; lab
 
 function AnalysisPanel() {
   const status = usePixGridReactivityRuntimeStatus()
+  const pixGridState = useReactStore(state => state.pixGridState)
   const frame = status.audioFrame
   const runtime = status.runtime
   const renderer = status.renderer
@@ -639,6 +640,13 @@ function AnalysisPanel() {
       <Collapsible label="RUNTIME DIAGNOSTICS" defaultOpen={false}>
         <div className="rv-pix-grid-diagnostics-grid">
           {[
+            ['State schema', renderer?.stateSchemaVersion ?? runtime?.stateSchemaVersion ?? pixGridState.version], ['Preset config', renderer?.presetConfigurationVersion ?? runtime?.presetConfigurationVersion ?? pixGridState.configuration.presetConfigurationVersion],
+            ['Migration', (renderer?.migrationApplied ?? runtime?.migrationApplied ?? pixGridState.configuration.lastMigration?.applied) ? 'Applied' : 'Current'], ['Fallback routes', (renderer?.fallbackRoutesActive ?? runtime?.fallbackRoutesActive) ? 'Active' : 'Inactive'],
+            ['Groups added / kept / upgraded', `${renderer?.migrationGroupsAdded ?? runtime?.migrationGroupsAdded ?? 0} / ${renderer?.migrationGroupsPreserved ?? runtime?.migrationGroupsPreserved ?? 0} / ${renderer?.migrationGroupsUpgraded ?? runtime?.migrationGroupsUpgraded ?? 0}`],
+            ['Routes added / kept / upgraded', `${renderer?.migrationAssignmentsAdded ?? runtime?.migrationAssignmentsAdded ?? 0} / ${renderer?.migrationAssignmentsPreserved ?? runtime?.migrationAssignmentsPreserved ?? 0} / ${renderer?.migrationAssignmentsUpgraded ?? runtime?.migrationAssignmentsUpgraded ?? 0}`],
+            ['Active audio sources', renderer?.activeAudioSourceCount ?? runtime?.activeAudioSourceCount], ['Active assignments', renderer?.activeAssignmentCount ?? runtime?.activeAssignmentCount],
+            ['Bass reactivity gain', `${Math.round((renderer?.effectiveBassReactivityGain ?? runtime?.effectiveBassReactivityGain ?? frame?.bassReactivityGain ?? 1) * 100)}%`], ['Motion multiplier', `${Math.round((renderer?.effectiveMotionMultiplier ?? runtime?.effectiveMotionMultiplier ?? frame?.motionMultiplier ?? 1) * 100)}%`],
+            ['Affected groups', renderer?.affectedGroupCount ?? runtime?.affectedGroupCount], ['Affected cells', renderer?.affectedCellCount ?? runtime?.affectedCellCount],
             ['Total groups', renderer?.totalGroupCount ?? runtime?.enabledGroups.length], ['Compiled masks', renderer?.activeGroupMaskCount ?? runtime?.compiledMaskGroups.length],
             ['Continuous routes', renderer?.activeContinuousAssignmentCount ?? runtime?.activeContinuousAssignments.length], ['Event routes', renderer?.activeDiscreteAssignmentCount ?? runtime?.activeDiscreteAssignments.length],
             ['Program routes', renderer?.programGeneratedRouteCount ?? ((runtime?.activeProgramContinuousRoutes.length ?? 0) + (runtime?.activeProgramEventRoutes.length ?? 0))], ['User routes', renderer?.userAuthoredRouteCount ?? ((runtime?.activeContinuousAssignments.length ?? 0) + (runtime?.activeDiscreteAssignments.length ?? 0))],
@@ -650,6 +658,7 @@ function AnalysisPanel() {
           ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value ?? 0}</strong></div>)}
         </div>
         {runtime?.compilationWarnings.length ? <div className="rv-pix-grid-warning-list">{runtime.compilationWarnings.map(warning => <span key={warning}>{warning}</span>)}</div> : null}
+        {runtime?.assignmentExecutionReasons.length ? <div className="rv-pix-grid-warning-list">{runtime.assignmentExecutionReasons.map(reason => <span key={reason}>{reason}</span>)}</div> : null}
       </Collapsible>
     </div>
   )
