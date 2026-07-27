@@ -712,4 +712,22 @@ export interface PixGridRendererDiagnostics {
   migrationCustomizationsPreserved?: boolean
   migrationConflictCount?: number
   migrationSkippedUpgradeCount?: number
+  perceptualSampleSequence?: number
+  changedVisibleCellCount?: number
+  changedVisibleCellPercentage?: number
+  meanBrightnessDelta?: number
+  peakBrightnessDelta?: number
+  meanPerceptualColorDistance?: number
+  localizedGroupChangePercentage?: number
+  currentAudioOnsetStrength?: number
+  recentOnsetToPixelCorrelation?: number
+  silenceBaselineDifference?: number
+  sceneTransitionActivity?: number
+  perceptualVisibleCellCount?: number
+  perceptualAffectedGroupCellCount?: number
+  truthfulReactivityState?: string
+  truthfulReactivityLabel?: string
+  truthfulReactivityTone?: 'positive' | 'neutral' | 'warning' | 'error'
+  truthfulReactivityMessage?: string
+  truthfulReactivityFlags?: readonly string[]
 }

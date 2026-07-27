@@ -66,6 +66,10 @@ export interface PixGridResolvedReactionValue {
   reason: string
   envelopePhase: PixGridEnvelopePhase
   compiled: PixGridCompiledAssignment
+  rawSourceValue?: number
+  adjustedSourceValue?: number
+  curveOutput?: number
+  fallbackSource?: string | null
 }
 
 export interface PixGridRouteActivity {
@@ -82,6 +86,16 @@ export interface PixGridRouteActivity {
   usingFallback: boolean
   envelopePhase: PixGridEnvelopePhase
   affectedGroupIds: readonly string[]
+  rawSourceValue: number
+  adjustedSourceValue: number
+  threshold: number
+  curveOutput: number
+  capabilityFallback: PixGridReactionAssignment['capabilityFallback']
+  bassReactivityApplied: boolean
+  compiledTargetCellCount?: number
+  visibleAffectedCellCount?: number
+  expectedPerceptible?: boolean
+  suppressionReason?: string | null
   reason: string
 }
 
@@ -439,6 +453,7 @@ export class PixGridReactionRuntime {
     compiled: PixGridCompiledAssignment,
     resolved: PixGridResolvedReactionValue,
     evaluationContext: PixGridAssignmentEvaluationContext,
+    frame: PixGridAudioFrame,
   ): PixGridResolvedReactionValue {
     const existing = this.diagnostics.routeActivity.get(compiled.id)
     const groupIds = new Set(existing?.affectedGroupIds ?? [])
@@ -465,6 +480,12 @@ export class PixGridReactionRuntime {
       usingFallback: Boolean(existing?.usingFallback || resolved.usingFallback),
       envelopePhase: resolved.envelopePhase === 'idle' && existing ? existing.envelopePhase : resolved.envelopePhase,
       affectedGroupIds: [...groupIds].sort(),
+      rawSourceValue: resolved.rawSourceValue ?? pixGridReactionSourceValue(frame, compiled.source.id, true),
+      adjustedSourceValue: resolved.adjustedSourceValue ?? pixGridReactionSourceValue(frame, compiled.source.id),
+      threshold: compiled.threshold,
+      curveOutput: resolved.curveOutput ?? 0,
+      capabilityFallback: compiled.capabilityFallback,
+      bassReactivityApplied: compiled.bassReactivityEnabled && isPixGridBassReactivitySource(compiled.source.id),
       reason: resolved.active || !existing ? resolved.reason : existing.reason,
     }
     this.diagnostics.routeActivity.set(compiled.id, next)
@@ -498,7 +519,17 @@ export class PixGridReactionRuntime {
     evaluationContext: PixGridAssignmentEvaluationContext = {},
   ): PixGridResolvedReactionValue {
     const route = compiled.id
-    const finish = (resolved: PixGridResolvedReactionValue) => this.recordResolution(compiled, resolved, evaluationContext)
+    let observedRawSourceValue = pixGridReactionSourceValue(frame, compiled.source.id, true)
+    let observedAdjustedSourceValue = pixGridReactionSourceValue(frame, compiled.source.id)
+    let observedCurveOutput = 0
+    let observedFallbackSource: string | null = null
+    const finish = (resolved: PixGridResolvedReactionValue) => this.recordResolution(compiled, {
+      ...resolved,
+      rawSourceValue: resolved.rawSourceValue ?? observedRawSourceValue,
+      adjustedSourceValue: resolved.adjustedSourceValue ?? observedAdjustedSourceValue,
+      curveOutput: resolved.curveOutput ?? observedCurveOutput,
+      fallbackSource: resolved.fallbackSource ?? observedFallbackSource,
+    }, evaluationContext, frame)
     for (const warning of compiled.warnings) pushUnique(this.diagnostics.compilationWarnings, `${route}: ${warning}`)
     if (!compiled.enabled) {
       pushUnique(this.diagnostics.disabledAssignments, route)
@@ -545,8 +576,11 @@ export class PixGridReactionRuntime {
         return finish({ value: 0, active: false, supported: false, confidence: sourceConfidence, usingFallback: false, blockedByCondition: false, blockedByConfidence: true, reason: 'source unavailable or below confidence and no fallback is configured', envelopePhase: 'idle', compiled })
       }
       raw = fallback
+      observedFallbackSource = compiled.capabilityFallback
+      observedAdjustedSourceValue = raw
       if (compiled.bassReactivityEnabled && isPixGridBassReactivitySource(compiled.source.id)) {
         raw *= clamp(frame.bassReactivityGain ?? 1)
+        observedAdjustedSourceValue = raw
       }
       supported = true
       usingFallback = true
@@ -618,6 +652,7 @@ export class PixGridReactionRuntime {
       )
     }
 
+    observedCurveOutput = evaluatePixGridReactionCurve(compiled.curve, normalized)
     const mapped = mapOutput(normalized, compiled)
     const value = clamp(mapped, Math.min(compiled.clamp[0], compiled.clamp[1]), Math.max(compiled.clamp[0], compiled.clamp[1]))
     state.lastValue = value

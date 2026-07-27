@@ -656,6 +656,9 @@ function AnalysisPanel() {
   )
   const activeRoutes = runtime?.routeActivity.filter(route => route.state === 'active' || route.state === 'fallback') ?? []
   const accessibleStatus = useMemo(() => {
+    if (renderer?.truthfulReactivityLabel) {
+      return `${renderer.truthfulReactivityLabel}. ${renderer.truthfulReactivityMessage ?? ''}`.trim()
+    }
     const input = runtime?.audioInputStatus ?? 'unavailable'
     const fallback = runtime?.fallbackRoutesActive ? ' Baseline fallback routing is active.' : ''
     const validationState = validation.errors.length > 0
@@ -664,7 +667,18 @@ function AnalysisPanel() {
         ? ` ${validation.warnings.length} configuration warning${validation.warnings.length === 1 ? '' : 's'}.`
         : ' Configuration valid.'
     return `PixGrid audio input ${input}.${fallback}${validationState}`
-  }, [runtime?.audioInputStatus, runtime?.fallbackRoutesActive, validation.errors.length, validation.warnings.length])
+  }, [renderer?.truthfulReactivityLabel, renderer?.truthfulReactivityMessage, runtime?.audioInputStatus, runtime?.fallbackRoutesActive, validation.errors.length, validation.warnings.length])
+  const analysisMode = !frame
+    ? 'Unavailable'
+    : frame.capabilities?.sectionProgress !== false && frame.capabilities?.phraseProgress !== false
+      ? 'Offline enhanced when available'
+      : 'Live only'
+  const trackMapStatus = !frame || frame.capabilities?.trackMapCueEvent === false
+    ? 'Unavailable'
+    : frame.trackMapCueIdentity
+      ? `Cue ${frame.trackMapCueIdentity}`
+      : 'Available · idle'
+  const truthfulTone = renderer?.truthfulReactivityTone ?? 'neutral'
   const signals: Array<[PixGridReactionSource, string]> = [
     ['sub', 'Sub'], ['bass', 'Bass'], ['lowMid', 'Low-mid'], ['mid', 'Mid'], ['high', 'High'], ['air', 'Air'],
     ['volume', 'Volume'], ['energy', 'Energy'], ['trackRelativeEnergy', 'Track-relative energy'], ['spectralFlux', 'Spectral flux'],
@@ -688,15 +702,40 @@ function AnalysisPanel() {
             ['Audio input', runtime?.audioInputStatus ?? 'Unavailable'],
             ['Analyser', frame?.analyserConnected === false ? 'Disconnected' : runtime?.analyserActive ? 'Active' : frame?.analyserConnected ? 'Connected · idle' : 'Unavailable'],
             ['Shared Performance Core', runtime?.sharedPerformanceCoreAvailable ? 'Available' : 'Unavailable'],
+            ['Analysis mode', analysisMode],
             ['Source', frame?.inputSourceId ?? frame?.inputSource ?? 'Unavailable'],
             ['Frame age', frame?.inputFrameAgeMs == null ? 'Unavailable' : `${Math.round(frame.inputFrameAgeMs)} ms`],
             ['Beat / downbeat', `${frame?.beatIndex ?? '–'} / ${frame?.downbeatHit ? 'active' : 'idle'}`],
             ['Bar / phrase', `${frame?.barIndex ?? '–'} / ${frame?.phraseIndex ?? '–'}`],
+            ['Section / phase', `${frame?.sectionType ? label(frame.sectionType) : 'Unavailable'} / ${frame?.sectionPhase ? label(frame.sectionPhase) : 'Unavailable'}`],
+            ['Build / drop', `${Math.round((frame?.buildProgress ?? 0) * 100)}% / ${frame?.dropImpactHit ? 'impact' : frame?.sectionType === 'drop' ? `drop ${frame.dropOccurrence ?? 1}` : 'idle'}`],
             ['Source confidence', `${Math.round((runtime?.aggregateSourceConfidence ?? frame?.aggregateSourceConfidence ?? 0) * 100)}%`],
+            ['Track Map', trackMapStatus],
             ['Stems', runtime?.stemAvailability.length ? runtime.stemAvailability.map(label).join(', ') : 'Unavailable'],
             ['Kick / snare / hat', `${Math.round((sourceValue(frame, 'kick') ?? 0) * 100)} / ${Math.round((sourceValue(frame, 'snare') ?? 0) * 100)} / ${Math.round((sourceValue(frame, 'hat') ?? 0) * 100)}%`],
           ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}
         </div>
+      </Collapsible>
+      <Collapsible label="PERCEPTUAL RESPONSE METER" defaultOpen>
+        <div className={`rv-pix-grid-truthful-status is-${truthfulTone}`} aria-live="off">
+          <strong>{renderer?.truthfulReactivityLabel ?? 'Awaiting rendered output'}</strong>
+          <span>{renderer?.truthfulReactivityMessage ?? 'The meter begins after PixGrid produces a logical framebuffer.'}</span>
+        </div>
+        <div className="rv-pix-grid-diagnostics-grid rv-pix-grid-perceptual-grid" aria-live="off">
+          {[
+            ['Changed visible cells', `${renderer?.changedVisibleCellCount ?? 0} · ${((renderer?.changedVisibleCellPercentage ?? 0) * 100).toFixed(2)}%`],
+            ['Brightness delta mean / peak', `${(renderer?.meanBrightnessDelta ?? 0).toFixed(2)} / ${(renderer?.peakBrightnessDelta ?? 0).toFixed(2)}`],
+            ['Perceptual color distance', (renderer?.meanPerceptualColorDistance ?? 0).toFixed(2)],
+            ['Localized group change', `${((renderer?.localizedGroupChangePercentage ?? 0) * 100).toFixed(2)}%`],
+            ['Audio onset strength', `${((renderer?.currentAudioOnsetStrength ?? 0) * 100).toFixed(1)}%`],
+            ['Onset-to-pixel correlation', (renderer?.recentOnsetToPixelCorrelation ?? 0).toFixed(3)],
+            ['Active envelopes', renderer?.activeEventEnvelopeCount ?? runtime?.activeEventEnvelopes.length ?? 0],
+            ['Scene-transition activity', (renderer?.sceneTransitionActivity ?? runtime?.sceneTransitionActionCount ?? 0).toFixed(2)],
+            ['Silence baseline difference', (renderer?.silenceBaselineDifference ?? 0).toFixed(2)],
+            ['Visible / targeted cells', `${renderer?.perceptualVisibleCellCount ?? 0} / ${renderer?.perceptualAffectedGroupCellCount ?? 0}`],
+          ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}
+        </div>
+        <small className="rv-pix-grid-diagnostic-note">Routes existing, routes executing, pixels changing, and changes being visibly perceptible are measured as separate states.</small>
       </Collapsible>
       <Collapsible label="WHY PIXGRID IS MOVING" defaultOpen>
         <div className="rv-pix-grid-motion-ledger">
@@ -708,18 +747,41 @@ function AnalysisPanel() {
           <div><strong>Global Motion</strong><span>{Math.round((runtime?.effectiveMotionMultiplier ?? frame?.motionMultiplier ?? 1) * 100)}%</span><small>Separate from music-reaction intensity.</small></div>
         </div>
       </Collapsible>
+      <Collapsible label="PERFORMANCE STATE" defaultOpen={false}>
+        <div className="rv-pix-grid-diagnostics-grid">
+          {[
+            ['Current scene', runtime?.currentSceneId ?? 'None'],
+            ['Current motif', runtime?.activeProgramMotif ?? 'None'],
+            ['Route banks', runtime?.resolvedProgramBanks.join(', ') || 'None'],
+            ['Section plan', runtime?.activeSectionPlan ?? 'None'],
+            ['Section occurrence', runtime?.sectionOccurrence ?? 0],
+            ['Drop occurrence', runtime?.dropOccurrence ?? 0],
+            ['Recruitment', runtime?.activeProgramRecruitment ?? 'None'],
+            ['Evolution', runtime?.activeProgramEvolution ?? 'None'],
+            ['Autonomous animation', runtime?.autonomousAnimationCount ?? 0],
+            ['Motion multiplier', `${Math.round((runtime?.effectiveMotionMultiplier ?? frame?.motionMultiplier ?? 1) * 100)}%`],
+            ['One-shot reactions', runtime?.activeEventEnvelopes.length ?? 0],
+          ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}
+        </div>
+      </Collapsible>
       <Collapsible label="ACTIVE ROUTES AND ENVELOPES" defaultOpen>
         <div className="rv-pix-grid-route-activity" role="list" aria-label="Active PixGrid audio routes" aria-live="off">
           {activeRoutes.map(route => <div key={route.routeId} role="listitem" className={`is-${route.state}`}>
-            <span><strong>{route.name}</strong><small>{label(route.source)} → {label(route.target)} · {route.targetScope}{route.targetId ? ` · ${route.targetId}` : ''}</small></span>
-            <em>{route.state === 'fallback' ? 'Fallback' : route.envelopePhase}</em>
-            <b>{Math.round(route.effectiveAmount * 100)}%</b>
+            <span>
+              <strong>{route.name}</strong>
+              <small>{route.routeId} · {label(route.source)} → {label(route.target)} · {route.targetScope}{route.targetId ? ` · ${route.targetId}` : ''}</small>
+              <small>Raw {route.rawSourceValue.toFixed(3)} · adjusted {route.adjustedSourceValue.toFixed(3)} · threshold {route.threshold.toFixed(3)} · curve {route.curveOutput.toFixed(3)} · confidence {Math.round(route.confidence * 100)}%</small>
+              <small>{route.compiledTargetCellCount ?? 0} compiled cells · {route.visibleAffectedCellCount ?? 0} visible cells · {route.bassReactivityApplied ? 'Bass Reactivity applied' : 'Bass Reactivity bypassed'}</small>
+              {route.suppressionReason ? <small className="is-warning">{route.suppressionReason}</small> : null}
+            </span>
+            <em>{route.state === 'fallback' ? `Fallback · ${label(route.capabilityFallback ?? 'disable')}` : route.envelopePhase}</em>
+            <b>{Math.round(route.effectiveAmount * 100)}% · {route.expectedPerceptible ? 'Perceptible' : 'Weak'}</b>
           </div>)}
           {!activeRoutes.length && <div className="rv-ctrl-info">No route is currently producing a non-zero action. Open Inactive Route Reasons below to see why.</div>}
         </div>
         <Collapsible label="INACTIVE ROUTE REASONS" defaultOpen={false}>
           <div className="rv-pix-grid-warning-list" aria-live="off">
-            {(runtime?.routeActivity ?? []).filter(route => route.state !== 'active' && route.state !== 'fallback').map(route => <span key={route.routeId}><strong>{route.name}</strong> · {route.reason}</span>)}
+            {(runtime?.routeActivity ?? []).filter(route => route.state !== 'active' && route.state !== 'fallback').map(route => <span key={route.routeId}><strong>{route.name}</strong> · {route.suppressionReason ?? route.reason}</span>)}
           </div>
         </Collapsible>
       </Collapsible>
@@ -727,8 +789,10 @@ function AnalysisPanel() {
         <div className="rv-pix-grid-group-inspection" role="list" aria-label="PixGrid smart group diagnostics">
           {groupInspection.map(group => <div key={group.groupId} role="listitem" className={group.maskValid ? '' : 'is-invalid'}>
             <span><strong>{group.name}</strong><small>{group.groupId} · {label(group.source)} · {label(group.maskKind)}</small></span>
-            <em>{group.maskStatus === 'pending-source' ? 'Source mask · resolves during render' : group.maskValid ? `${group.compiledCellCount} cells` : 'Invalid · zero cells'}</em>
-            <small>{group.activeRouteIds.length} active actions · {Math.round(group.reactionIntensity * 100)}% intensity · overlaps {group.overlappingGroupIds.length ? group.overlappingGroupIds.join(', ') : 'none'}</small>
+            <em>{group.maskStatus === 'pending-source' ? 'Source mask · resolves during render' : group.maskValid ? `${group.compiledCellCount} compiled · ${group.visibleCellCount} visible` : 'Invalid · zero cells'}</em>
+            <small>{group.activeRouteIds.length} active actions · {Math.round(group.reactionIntensity * 100)}% intensity · {group.effectiveRenderedCellCount} affected cells · {label(group.targetStatus)}</small>
+            <small>Layers {group.sourceLayerIds.join(', ') || 'none'} · missing {group.missingLayerIds.join(', ') || 'none'} · overlaps {group.overlappingGroupIds.length ? group.overlappingGroupIds.join(', ') : 'none'}</small>
+            <small>Mask bounds {group.maskBounds ? `${group.maskBounds.x},${group.maskBounds.y} · ${group.maskBounds.width}×${group.maskBounds.height}` : 'empty'}</small>
           </div>)}
         </div>
       </Collapsible>

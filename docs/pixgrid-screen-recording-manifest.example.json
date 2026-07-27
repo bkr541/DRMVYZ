@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "engine": "pixGrid",
+  "automatedAcceptance": {
+    "command": "npm run verify:pix-grid:final",
+    "passed": true,
+    "completedAt": "2026-07-27T12:00:00Z",
+    "commit": "replace-with-tested-commit"
+  },
+  "reviewer": {
+    "name": "replace-with-reviewer",
+    "reviewedAt": "2026-07-27T12:30:00Z",
+    "notes": "Record ordinary program material with controls visible and unchanged during each take."
+  },
+  "recordings": [
+    {
+      "presetId": "pix-grid-bass-beacon",
+      "file": "./pix-grid-bass-beacon.mp4",
+      "rendererEvidence": { "canvas": true, "gpu": true },
+      "expectedBehaviorObserved": "Bass sustains illuminate the central word and rings, kicks expand or punch the center, snares strike the side accents, and the second drop develops beyond the first.",
+      "checks": {
+        "kickReactionsVisible": true,
+        "snareReactionsVisible": true,
+        "sustainedBassVisible": true,
+        "groupedPixelMovementVisible": true,
+        "beatAndBarChangesVisible": true,
+        "buildDevelops": true,
+        "preDropRestrained": true,
+        "dropContrastVisible": true,
+        "secondDropDiffers": true,
+        "silenceSettles": true,
+        "noHiddenControlDependency": true,
+        "noPresetReselectionRequired": true,
+        "canvasChoreographyEquivalent": true,
+        "gpuChoreographyEquivalent": true,
+        "analyserLossRecovers": true,
+        "presetSwitchClearsStaleState": true
+      }
+    },
+    {
+      "presetId": "pix-grid-geometric-reactor",
+      "file": "./pix-grid-geometric-reactor.mp4",
+      "rendererEvidence": { "canvas": true, "gpu": true },
+      "expectedBehaviorObserved": "Kick, snare, bass, beat, and section events recruit different geometric regions; builds increase structured density, pre-drops contract, and drop two changes motif and recruitment.",
+      "checks": {
+        "kickReactionsVisible": true,
+        "snareReactionsVisible": true,
+        "sustainedBassVisible": true,
+        "groupedPixelMovementVisible": true,
+        "beatAndBarChangesVisible": true,
+        "buildDevelops": true,
+        "preDropRestrained": true,
+        "dropContrastVisible": true,
+        "secondDropDiffers": true,
+        "silenceSettles": true,
+        "noHiddenControlDependency": true,
+        "noPresetReselectionRequired": true,
+        "canvasChoreographyEquivalent": true,
+        "gpuChoreographyEquivalent": true,
+        "analyserLossRecovers": true,
+        "presetSwitchClearsStaleState": true
+      }
+    },
+    {
+      "presetId": "pix-grid-pixel-parade",
+      "file": "./pix-grid-pixel-parade.mp4",
+      "rendererEvidence": { "canvas": true, "gpu": true },
+      "expectedBehaviorObserved": "Percussion advances and accents grouped rows and columns, bass sustains recruit lower-weight pixel fields, phrases reorganize the parade, and the second drop expands the development.",
+      "checks": {
+        "kickReactionsVisible": true,
+        "snareReactionsVisible": true,
+        "sustainedBassVisible": true,
+        "groupedPixelMovementVisible": true,
+        "beatAndBarChangesVisible": true,
+        "buildDevelops": true,
+        "preDropRestrained": true,
+        "dropContrastVisible": true,
+        "secondDropDiffers": true,
+        "silenceSettles": true,
+        "noHiddenControlDependency": true,
+        "noPresetReselectionRequired": true,
+        "canvasChoreographyEquivalent": true,
+        "gpuChoreographyEquivalent": true,
+        "analyserLossRecovers": true,
+        "presetSwitchClearsStaleState": true
+      }
+    }
+  ]
+}

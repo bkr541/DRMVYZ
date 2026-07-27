@@ -77,6 +77,17 @@ describe('PixGrid bundled preset reactivity audit', () => {
       const report = auditPixGridPresetRenderedReactivity(preset, state)
       expect(report.validation.errors).toEqual([])
       expect(report.checks.filter(check => !check.passed)).toEqual([])
+      expect(report.acceptanceMatrix.filter(row => !row.passed)).toEqual([])
+      expect(report.acceptanceMatrix.map(row => row.id)).toEqual(expect.arrayContaining([
+        'fresh-canonical-state',
+        'legacy-migrated-state',
+        'live-analyser-only',
+        'missing-advanced-source-fallbacks',
+        'canvas-gpu-semantic-parity',
+        'quality-draft',
+        'quality-ultra',
+        'complete-unified-pipeline',
+      ]))
       expect(report.passed).toBe(true)
       expect(new Set(Object.values(report.pixelHashes)).size).toBeGreaterThan(3)
     },
@@ -192,6 +203,10 @@ describe('PixGrid route observability and controls', () => {
       usingFallback: false,
     })
     expect(activity?.effectiveAmount).toBeGreaterThan(0)
+    expect(activity?.rawSourceValue).toBe(1)
+    expect(activity?.adjustedSourceValue).toBeGreaterThan(0)
+    expect(activity?.curveOutput).toBeGreaterThan(0)
+    expect(activity?.threshold).toBe(route.threshold)
     expect(['attack', 'hold']).toContain(activity?.envelopePhase)
   })
 

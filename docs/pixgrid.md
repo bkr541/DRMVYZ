@@ -199,3 +199,21 @@ Cooldown is tracked independently from envelope lifetime, so a short flash canno
 **Bass Reactivity** scales sub, bass, low-mid, bass-stem activity, and kick before normal route evaluation. Each route has an explicit participation flag. The default is enabled; disabling it is an intentional authored bypass and is visible in validation and the inspector. Capability fallbacks for a participating bass route receive the same effective gain.
 
 **Motion** scales autonomous and beat/cue-clocked layer animation without changing Shared Performance musical time or route-envelope intensity. Motion 0 freezes autonomous movement but does not suppress percussion flashes, route envelopes, performance actions, or phrase/section transitions. This distinction is enforced by rendered-pixel audit scenarios at 0, 0.5, and 1.
+
+## Live perceptual response and truthful status
+
+The Analysis workspace measures the compositor output, not just authored metadata. Both Canvas and GPU publish the same logical frame to a bounded perceptual tracker before renderer-specific presentation. The tracker samples at a controlled diagnostic cadence and retains only one previous framebuffer plus fixed-size onset and response windows.
+
+The Perceptual Response Meter reports changed visible cells and percentage, mean and peak brightness delta, mean perceptual color distance, localized smart-group change, current onset strength, recent onset-to-pixel correlation, active envelopes, scene-transition activity, silence-baseline difference, and visible versus targeted cell counts. High-frequency values use `aria-live="off"`. A separate polite live region announces only meaningful status transitions.
+
+Truthful status never treats route presence as proof of music reaction. The state machine distinguishes audio unavailable, audio with no valid routes, fallback routing, below-threshold routes, empty target masks, likely imperceptible output, visible music reaction, performance-program transitions, autonomous motion only, incomplete migration, and a fully active canonical preset. Warnings include a direct remediation path through source availability, fallback, conditions, target visibility, mask coverage, amount, or migration integrity.
+
+Route inspection exposes stable assignment identity, raw and Bass Reactivity-adjusted source values, threshold, curve output, envelope phase, effective amount, target group, compiled and visible target cells, action, capability fallback, execution state, suppression reason, and estimated perceptibility. Smart-group inspection reports stable ID, source and mask kind, source layers, compiled and visible cells, overlap, current route intensity, affected cells, and hidden or missing content status.
+
+## Final acceptance matrix
+
+The canonical rendered-preset audit now covers fresh canonical state, simulated legacy migration, user overlays surviving migration, analyser-only input, offline-enhanced input, missing advanced sources, silence, beat, downbeat, kick, snare, sustained bass, ordinary energy, build, pre-drop, first drop, breakdown, phrase entry, second drop, outro, Bass Reactivity 0/0.5/1, Motion 0/0.5/1, Canvas/GPU semantic parity, and Draft/Standard/High/Ultra logical resolutions. Response coverage is normalized across logical resolution so quality changes cannot silently weaken choreography.
+
+Renderer parity is audited from a shared semantic plan containing scene, visible layer order, active groups, route-envelope values, affected cells, palette and frame intent, Motion, Bass Reactivity, section, and phrase position. Pixel-perfect equality is not required, but musical semantics must match.
+
+Automated acceptance still does not certify the human-visible result by itself. Follow `docs/PIXGRID_SCREEN_RECORDING_ACCEPTANCE.md`, complete an evidence manifest based on `docs/pixgrid-screen-recording-manifest.example.json`, and run `npm run verify:pix-grid:recording -- path/to/manifest.json`. The release gate is `npm run verify:pix-grid:release -- path/to/manifest.json`; it must not be reported as complete without real recording files and reviewer signoff.

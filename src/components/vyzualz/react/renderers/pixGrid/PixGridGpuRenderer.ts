@@ -1,6 +1,6 @@
 import type { ReactPreset } from '../../ReactTypes'
 import type { PixGridRendererDiagnostics, PixGridState } from '../../pixGrid/PixGridTypes'
-import { composePixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
+import { composePixGridLogicalFrame, type PixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 import type { PixGridBaselineRenderFrame } from './PixGridBaselineRenderer'
 import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation'
@@ -9,11 +9,24 @@ import { PixGridGpuMaskAtlas } from './PixGridGpuMasks'
 import type { PixGridResolvedTransition } from '../../pixGrid/PixGridActionCues'
 import type { PixGridGroupFrameEffect } from '../../pixGrid/PixGridFrameEffects'
 import { PixGridFrameGroupCompiler } from '../../pixGrid/PixGridGroupCompiler'
+import type { PixGridCompiledMask } from '../../pixGrid/PixGridGroups'
+import { buildPixGridRendererSemanticPlan, type PixGridRendererSemanticPlan } from '../../pixGrid/PixGridValidationAudit'
+import type { PixGridAudioFrame } from '../../pixGrid/PixGridTypes'
+import type { PixGridUnifiedRuntimeDiagnostics } from '../../pixGrid/PixGridUnifiedPerformanceRuntime'
 import {
   PIX_GRID_FULLSCREEN_VERTEX_SHADER,
   PIX_GRID_LOGICAL_FRAGMENT_SHADER,
   PIX_GRID_PRESENTATION_FRAGMENT_SHADER,
 } from './PixGridGpuShaderSources'
+
+
+export function buildPixGridGpuSemanticPlan(
+  state: PixGridState,
+  audioFrame: PixGridAudioFrame,
+  runtime: PixGridUnifiedRuntimeDiagnostics,
+): PixGridRendererSemanticPlan {
+  return buildPixGridRendererSemanticPlan(state, audioFrame, runtime)
+}
 
 export interface PixGridGpuRendererCallbacks {
   onContextLost?: () => void
@@ -155,6 +168,7 @@ export class PixGridGpuRenderer {
   private logicalHeight = 0
   private logicalAllocationCount = 0
   private logicalPixels: Uint8Array | null = null
+  private lastLogicalFrame: PixGridLogicalFrame | null = null
   private readonly reactionRuntime = new PixGridReactionRuntime()
   private readonly groupCompiler = new PixGridFrameGroupCompiler()
   private maskAtlas: PixGridGpuMaskAtlas | null = null
@@ -205,6 +219,14 @@ export class PixGridGpuRenderer {
 
   get compiledGroupIds(): readonly string[] {
     return this.groupCompiler.compiledGroupIds
+  }
+
+  get logicalFrame(): PixGridLogicalFrame | null {
+    return this.lastLogicalFrame
+  }
+
+  compiledMaskForGroup(group: PixGridState['groups'][number]): PixGridCompiledMask {
+    return this.groupCompiler.compile(group)
   }
 
   get diagnostics(): PixGridRendererDiagnostics {
@@ -315,6 +337,7 @@ export class PixGridGpuRenderer {
     this.logicalWidth = 0
     this.logicalHeight = 0
     this.logicalPixels = null
+    this.lastLogicalFrame = null
   }
 
   private ensureLogicalTarget(width: number, height: number): void {
@@ -366,6 +389,7 @@ export class PixGridGpuRenderer {
       this.groupCompiler,
     )
     this.logicalPixels = logical.pixels
+    this.lastLogicalFrame = logical
     const gl = this.gl
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, this.overrideTexture)
@@ -494,5 +518,6 @@ export class PixGridGpuRenderer {
     this.logicalWidth = 0
     this.logicalHeight = 0
     this.logicalPixels = null
+    this.lastLogicalFrame = null
   }
 }

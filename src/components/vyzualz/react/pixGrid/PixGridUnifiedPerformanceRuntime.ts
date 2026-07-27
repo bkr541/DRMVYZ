@@ -221,8 +221,36 @@ export function mergePixGridReactionRuntimeDiagnostics(
   base: PixGridUnifiedRuntimeDiagnostics,
   reaction: PixGridAudioIntelligenceRuntimeDiagnostics,
   state: PixGridState,
+  groupCellCounts: ReadonlyMap<string, Readonly<{ compiled: number; visible: number }>> = new Map(),
+  visibleFrameCellCount?: number,
 ): PixGridUnifiedRuntimeDiagnostics {
-  const activeRoutes = reaction.routeActivity.filter(route => route.state === 'active' || route.state === 'fallback')
+  const routeActivity = reaction.routeActivity.map(route => {
+    const wholeFrame = route.targetScope !== 'group' && route.targetScope !== 'pixels'
+    const compiledTargetCellCount = wholeFrame
+      ? state.matrixWidth * state.matrixHeight
+      : route.affectedGroupIds.reduce((sum, groupId) => {
+        const group = state.groups.find(candidate => candidate.id === groupId)
+        return sum + (groupCellCounts.get(groupId)?.compiled ?? (group
+          ? compilePixGridGroupMask(group, state.matrixWidth, state.matrixHeight).cellCount
+          : 0))
+      }, 0)
+    const visibleAffectedCellCount = wholeFrame
+      ? visibleFrameCellCount ?? compiledTargetCellCount
+      : route.affectedGroupIds.reduce((sum, groupId) => sum + (groupCellCounts.get(groupId)?.visible ?? 0), 0)
+    const minimumCells = Math.max(4, Math.round(state.matrixWidth * state.matrixHeight * 0.0015))
+    const expectedPerceptible = route.effectiveAmount >= 0.055 && visibleAffectedCellCount >= minimumCells
+    const suppressionReason = route.state === 'disabled' || route.state === 'blocked'
+      ? route.reason
+      : visibleAffectedCellCount === 0
+        ? 'compiled target contains no visible cells'
+        : route.state === 'idle'
+          ? route.reason
+          : expectedPerceptible
+            ? null
+            : `effective amount or target coverage is below the perceptual floor (${minimumCells} cells minimum)`
+    return { ...route, compiledTargetCellCount, visibleAffectedCellCount, expectedPerceptible, suppressionReason }
+  })
+  const activeRoutes = routeActivity.filter(route => route.state === 'active' || route.state === 'fallback')
   const affectedGroups = new Set<string>()
   let affectsWholeFrame = false
   for (const route of activeRoutes) {
@@ -262,7 +290,7 @@ export function mergePixGridReactionRuntimeDiagnostics(
     affectedGroupCount: affectedGroups.size,
     affectedCellCount,
     activeAffectedGroupIds: [...affectedGroups].sort(),
-    routeActivity: reaction.routeActivity,
+    routeActivity,
     currentEnvelopePhase: envelope,
     assignmentExecutionReasons: [...new Set([...base.assignmentExecutionReasons, ...reasons])],
   }

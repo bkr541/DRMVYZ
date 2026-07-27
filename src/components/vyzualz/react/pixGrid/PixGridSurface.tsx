@@ -51,6 +51,14 @@ import {
 } from './PixGridAdaptiveQuality'
 import { validatePixGridState } from './PixGridValidationAudit'
 import {
+  PixGridPerceptualResponseTracker,
+  resolvePixGridTruthfulReactivityStatus,
+  type PixGridPerceptualResponseMetrics,
+  type PixGridTruthfulReactivityStatus,
+} from './PixGridPerceptualResponse'
+import { pixGridMaskHasCell, type PixGridCompiledMask } from './PixGridGroups'
+import type { PixGridLogicalFrame } from './PixGridCompositor'
+import {
   applyPixGridBassGainToPerformanceContext,
   PixGridMotionClock,
   applyPixGridRuntimeControls,
@@ -222,7 +230,9 @@ function diagnosticsEqual(a: PixGridRendererDiagnostics, b: PixGridRendererDiagn
     a.migrationProgramsUpgraded === b.migrationProgramsUpgraded &&
     a.migrationCustomizationsPreserved === b.migrationCustomizationsPreserved &&
     a.migrationConflictCount === b.migrationConflictCount &&
-    a.migrationSkippedUpgradeCount === b.migrationSkippedUpgradeCount
+    a.migrationSkippedUpgradeCount === b.migrationSkippedUpgradeCount &&
+    a.perceptualSampleSequence === b.perceptualSampleSequence &&
+    a.truthfulReactivityState === b.truthfulReactivityState
   )
 }
 
@@ -388,6 +398,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     const unifiedPerformanceRuntime = new PixGridUnifiedPerformanceRuntime()
     const motionClock = new PixGridMotionClock()
     const fallbackGroupCompiler = new PixGridFrameGroupCompiler()
+    const perceptualTracker = new PixGridPerceptualResponseTracker()
     let animationFrame = 0
     let gpuRenderer: PixGridGpuRenderer | null = null
     let activePath: PixGridRendererDiagnostics['path'] = 'canvas2d-fallback'
@@ -398,6 +409,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let lastFps = 0
     let lastDiagnostics = EMPTY_DIAGNOSTICS
     let latestRuntimeDiagnostics: PixGridUnifiedRuntimeDiagnostics | null = null
+    let latestPerceptualMetrics: PixGridPerceptualResponseMetrics | null = null
+    let latestTruthfulStatus: PixGridTruthfulReactivityStatus | null = null
+    let latestGroupCoverage = new Map<string, { compiled: number; visible: number }>()
+    let latestVisibleFrameCellCount = 0
+    let lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
     let mounted = true
     let gpuRetryAttempts = 0
     let gpuRetryTimer: ReturnType<typeof setTimeout> | null = null
@@ -481,6 +497,24 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         migrationCustomizationsPreserved: latestRuntimeDiagnostics?.migrationCustomizationsPreserved ?? false,
         migrationConflictCount: latestRuntimeDiagnostics?.migrationConflicts.length ?? 0,
         migrationSkippedUpgradeCount: latestRuntimeDiagnostics?.migrationSkippedUpgrades.length ?? 0,
+        perceptualSampleSequence: latestPerceptualMetrics?.sampleSequence,
+        changedVisibleCellCount: latestPerceptualMetrics?.changedVisibleCellCount,
+        changedVisibleCellPercentage: latestPerceptualMetrics?.changedVisibleCellPercentage,
+        meanBrightnessDelta: latestPerceptualMetrics?.meanBrightnessDelta,
+        peakBrightnessDelta: latestPerceptualMetrics?.peakBrightnessDelta,
+        meanPerceptualColorDistance: latestPerceptualMetrics?.meanPerceptualColorDistance,
+        localizedGroupChangePercentage: latestPerceptualMetrics?.localizedGroupChangePercentage,
+        currentAudioOnsetStrength: latestPerceptualMetrics?.currentAudioOnsetStrength,
+        recentOnsetToPixelCorrelation: latestPerceptualMetrics?.recentOnsetToPixelCorrelation,
+        silenceBaselineDifference: latestPerceptualMetrics?.silenceBaselineDifference,
+        sceneTransitionActivity: latestPerceptualMetrics?.sceneTransitionActivity,
+        perceptualVisibleCellCount: latestPerceptualMetrics?.visibleCellCount,
+        perceptualAffectedGroupCellCount: latestPerceptualMetrics?.affectedGroupCellCount,
+        truthfulReactivityState: latestTruthfulStatus?.state,
+        truthfulReactivityLabel: latestTruthfulStatus?.label,
+        truthfulReactivityTone: latestTruthfulStatus?.tone,
+        truthfulReactivityMessage: latestTruthfulStatus?.message,
+        truthfulReactivityFlags: latestTruthfulStatus?.flags,
       }
       lastDiagnostics = enriched
       publishPixGridRendererDiagnostics(enriched)
@@ -540,6 +574,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         unifiedReactionRuntime.reset()
         motionClock.reset(current.trackIdentity ?? null)
         fallbackGroupCompiler.reset()
+        perceptualTracker.reset()
+        latestGroupCoverage = new Map()
+        latestVisibleFrameCellCount = 0
+        lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
       } else {
         previousTransportState = transportState
       }
@@ -559,6 +597,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         unifiedReactionRuntime.reset()
         motionClock.reset(trackIdentity)
         fallbackGroupCompiler.reset()
+        perceptualTracker.reset()
+        latestGroupCoverage = new Map()
+        latestVisibleFrameCellCount = 0
+        lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
       }
       const busPublication = current.analyser ? null : AudioFeatureBus.getFramePublicationMeta()
       const intelligenceFrame = current.analyser
@@ -779,14 +821,70 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       }
     }
 
-    const publishResolvedRouteDiagnostics = (input: NonNullable<ReturnType<typeof currentFrameInput>>) => {
-      if (!latestRuntimeDiagnostics) return
+    const publishResolvedRouteDiagnostics = (
+      input: NonNullable<ReturnType<typeof currentFrameInput>>,
+      resolveMask: (group: PixGridState['groups'][number]) => PixGridCompiledMask,
+      logicalFrame: PixGridLogicalFrame | null,
+    ): readonly PixGridCompiledMask[] => {
+      if (!latestRuntimeDiagnostics) return []
+      const nowMs = globalThis.performance.now()
+      if (nowMs - lastRouteDiagnosticsAt < 80 && latestTruthfulStatus) return []
+      lastRouteDiagnosticsAt = nowMs
+      const reactionDiagnostics = unifiedReactionRuntime.getDiagnostics()
+      const activeGroupIds = new Set<string>()
+      for (const route of reactionDiagnostics.routeActivity) {
+        if (route.state !== 'active' && route.state !== 'fallback') continue
+        route.affectedGroupIds.forEach(groupId => activeGroupIds.add(groupId))
+      }
+      const groupCellCounts = new Map<string, { compiled: number; visible: number }>()
+      const activeMasks: PixGridCompiledMask[] = []
+      const shouldMeasurePixels = logicalFrame != null && perceptualTracker.shouldSample(nowMs)
+      if (shouldMeasurePixels && logicalFrame) {
+        latestVisibleFrameCellCount = 0
+        for (let cell = 0; cell < logicalFrame.width * logicalFrame.height; cell += 1) {
+          if (logicalFrame.pixels[cell * 4 + 3]! > 0) latestVisibleFrameCellCount += 1
+        }
+      }
+      for (const groupId of activeGroupIds) {
+        const group = input.state.groups.find(candidate => candidate.id === groupId)
+        if (!group) continue
+        const mask = resolveMask(group)
+        let visible = latestGroupCoverage.get(groupId)?.visible ?? 0
+        if (shouldMeasurePixels && logicalFrame) {
+          visible = 0
+          for (let cell = 0; cell < logicalFrame.width * logicalFrame.height; cell += 1) {
+            if (pixGridMaskHasCell(mask.bits, cell) && logicalFrame.pixels[cell * 4 + 3]! > 0) visible += 1
+          }
+        }
+        groupCellCounts.set(groupId, { compiled: mask.cellCount, visible })
+        if (mask.cellCount > 0) activeMasks.push(mask)
+      }
+      latestGroupCoverage = groupCellCounts
       latestRuntimeDiagnostics = mergePixGridReactionRuntimeDiagnostics(
         latestRuntimeDiagnostics,
-        unifiedReactionRuntime.getDiagnostics(),
+        reactionDiagnostics,
         input.state,
+        groupCellCounts,
+        latestVisibleFrameCellCount,
       )
+      if (logicalFrame) {
+        latestPerceptualMetrics = perceptualTracker.sample({
+          frame: logicalFrame,
+          audioFrame: input.audioFrame,
+          activeGroupMasks: activeMasks,
+          activeEnvelopeCount: latestRuntimeDiagnostics.activeEventEnvelopes.length,
+          sceneTransitionActivity: latestRuntimeDiagnostics.sceneTransitionActionCount,
+          nowMs,
+        })
+      }
+      latestTruthfulStatus = resolvePixGridTruthfulReactivityStatus({
+        state: input.state,
+        runtime: latestRuntimeDiagnostics,
+        metrics: latestPerceptualMetrics,
+        validationErrorCount: lastValidationCounts.errors,
+      })
       publishPixGridAudioAnalysis(input.audioFrame, latestRuntimeDiagnostics)
+      return activeMasks
     }
 
     const renderFallback = (input: NonNullable<ReturnType<typeof currentFrameInput>>) => {
@@ -807,7 +905,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       if (latestRuntimeDiagnostics) {
         latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: fallbackGroupCompiler.compiledGroupIds }
       }
-      publishResolvedRouteDiagnostics(input)
+      publishResolvedRouteDiagnostics(input, group => fallbackGroupCompiler.compile(group), fallbackLogical.logicalFrame)
       publishDiagnostics({
         path: 'canvas2d-fallback',
         logicalWidth: fallbackLogical.logicalWidth,
@@ -869,7 +967,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             if (latestRuntimeDiagnostics) {
               latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: gpuRenderer.compiledGroupIds }
             }
-            publishResolvedRouteDiagnostics(input)
+            publishResolvedRouteDiagnostics(input, group => gpuRenderer!.compiledMaskForGroup(group), gpuRenderer.logicalFrame)
             publishDiagnostics({ ...gpuDiagnostics, fps: lastFps })
           }
         } catch (error) {
@@ -1011,6 +1109,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       unifiedReactionRuntime.reset()
       analyserFramePump.dispose()
       fallbackGroupCompiler.reset()
+      perceptualTracker.reset()
+      latestGroupCoverage.clear()
+      latestVisibleFrameCellCount = 0
       clearPixGridPerformanceRuntimeStatus()
       clearPixGridCueRuntimeStatus()
       clearPixGridPreviewSource()

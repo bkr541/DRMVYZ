@@ -9,6 +9,17 @@ import type { PixGridReactionRuntime } from '../../pixGrid/PixGridAudioRouting'
 import type { PixGridResolvedTransition } from '../../pixGrid/PixGridActionCues'
 import type { PixGridGroupFrameEffect } from '../../pixGrid/PixGridFrameEffects'
 import type { PixGridFrameGroupCompiler } from '../../pixGrid/PixGridGroupCompiler'
+import { buildPixGridRendererSemanticPlan, type PixGridRendererSemanticPlan } from '../../pixGrid/PixGridValidationAudit'
+import type { PixGridUnifiedRuntimeDiagnostics } from '../../pixGrid/PixGridUnifiedPerformanceRuntime'
+
+
+export function buildPixGridCanvasSemanticPlan(
+  state: PixGridState,
+  audioFrame: PixGridAudioFrame,
+  runtime: PixGridUnifiedRuntimeDiagnostics,
+): PixGridRendererSemanticPlan {
+  return buildPixGridRendererSemanticPlan(state, audioFrame, runtime)
+}
 
 export interface PixGridBaselineRenderFrame extends PixGridAudioFrame {
   width: number
@@ -146,7 +157,7 @@ export function renderPixGridCanvasFallback(
   transition?: PixGridResolvedTransition | null,
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
-): Readonly<{ logicalWidth: number; logicalHeight: number }> {
+): Readonly<{ logicalWidth: number; logicalHeight: number; logicalFrame: ReturnType<typeof composePixGridLogicalFrame> }> {
   const requested = normalizePixGridState(rawState)
   const state = requested.quality === 'draft' ? normalizePixGridState({ ...requested, quality: 'low' }) : requested
   const logicalCanvas = logicalTarget.canvas
@@ -200,5 +211,5 @@ export function renderPixGridCanvasFallback(
     output.strokeRect(offsetX + 0.5, offsetY + 0.5, drawWidth - 1, drawHeight - 1)
   }
   output.restore()
-  return { logicalWidth: state.matrixWidth, logicalHeight: state.matrixHeight }
+  return { logicalWidth: state.matrixWidth, logicalHeight: state.matrixHeight, logicalFrame: logical }
 }

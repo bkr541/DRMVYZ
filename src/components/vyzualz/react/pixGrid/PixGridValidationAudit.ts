@@ -2,12 +2,13 @@ import type { ReactPreset } from '../ReactTypes'
 import { PixGridAssignmentCompiler } from './PixGridAssignmentCompiler'
 import { getPixGridAudioIntelligenceSource } from './PixGridAudioIntelligenceRegistry'
 import type { PixGridRouteActivity } from './PixGridAudioRouting'
-import { compilePixGridGroupMask } from './PixGridGroups'
+import { compilePixGridGroupMask, pixGridMaskHasCell } from './PixGridGroups'
 import { inspectPixGridGroupTarget, type PixGridGroupTargetStatus } from './PixGridCanonicalGraph'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
 import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 import { PixGridPerformanceProgramCompiler, validatePixGridPerformanceProgram } from './PixGridPerformanceProgramCompiler'
 import { isPixGridBassReactivitySource } from './PixGridRuntimeControls'
+import type { PixGridUnifiedRuntimeDiagnostics } from './PixGridUnifiedPerformanceRuntime'
 import {
   PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS,
   isPixGridAudioAssignmentEffective,
@@ -19,6 +20,7 @@ import {
   PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION,
   PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION,
   PIX_GRID_STATE_VERSION,
+  type PixGridAudioFrame,
   type PixGridGroup,
   type PixGridReactionAssignment,
   type PixGridReactionSource,
@@ -71,6 +73,8 @@ export interface PixGridGroupInspection {
   source: PixGridGroup['source']
   maskKind: PixGridGroup['mask']['kind']
   sourceLayerIds: readonly string[]
+  missingLayerIds: readonly string[]
+  maskBounds: { x: number; y: number; width: number; height: number } | null
   compiledCellCount: number
   maskValid: boolean
   maskStatus: 'valid' | 'invalid' | 'pending-source'
@@ -164,6 +168,59 @@ export function comparePixGridRendererSemanticPlans(
   )]
 }
 
+
+export function buildPixGridRendererSemanticPlan(
+  state: PixGridState,
+  audioFrame: PixGridAudioFrame,
+  runtime: PixGridUnifiedRuntimeDiagnostics,
+): PixGridRendererSemanticPlan {
+  const scene = state.scenes.find(candidate => candidate.id === runtime.currentSceneId)
+    ?? state.scenes.find(candidate => candidate.id === state.selectedSceneId)
+    ?? state.scenes[0]
+    ?? null
+  const sceneLayerIds = new Set(scene?.layerIds ?? state.layers.map(layer => layer.id))
+  const visibleLayerIds = state.layers
+    .filter(layer => layer.visible && layer.opacity > 0.001 && sceneLayerIds.has(layer.id))
+    .sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id))
+    .map(layer => layer.id)
+  const activeRoutes = runtime.routeActivity.filter(route => route.state === 'active' || route.state === 'fallback')
+  const activeGroupIds = [...new Set(activeRoutes.flatMap(route => route.affectedGroupIds))].sort()
+  const affectedCells = new Set<number>()
+  const wholeFrameActive = activeRoutes.some(route => route.targetScope !== 'group' && route.targetScope !== 'pixels')
+  if (wholeFrameActive) {
+    for (let cell = 0; cell < state.matrixWidth * state.matrixHeight; cell += 1) affectedCells.add(cell)
+  } else {
+    for (const groupId of activeGroupIds) {
+      const group = state.groups.find(candidate => candidate.id === groupId)
+      if (!group) continue
+      const mask = compilePixGridGroupMask(group, state.matrixWidth, state.matrixHeight)
+      for (let cell = 0; cell < state.matrixWidth * state.matrixHeight; cell += 1) {
+        if (pixGridMaskHasCell(mask.bits, cell)) affectedCells.add(cell)
+      }
+    }
+  }
+  const paletteTargets = new Set(['paletteRole', 'paletteIndex', 'paletteCycle', 'hueOffset', 'highlightColor', 'backgroundColor', 'color', 'saturation', 'invert', 'posterize'])
+  const paletteIntent = activeRoutes
+    .filter(route => paletteTargets.has(route.target))
+    .map(route => `${route.routeId}:${route.target}:${route.effectiveAmount.toFixed(6)}`)
+  const frameSelection = Object.fromEntries(activeRoutes
+    .filter(route => route.target === 'frameIndex' || route.target === 'frameAdvance')
+    .map(route => [route.routeId, route.effectiveAmount]))
+  return {
+    sceneId: scene?.id ?? null,
+    visibleLayerIds,
+    activeGroupIds,
+    routeEnvelopeValues: Object.fromEntries(activeRoutes.map(route => [route.routeId, route.effectiveAmount])),
+    affectedCellIds: [...affectedCells].sort((left, right) => left - right),
+    paletteIntent,
+    frameSelection,
+    motionMultiplier: audioFrame.motionMultiplier ?? runtime.effectiveMotionMultiplier,
+    bassReactivityGain: audioFrame.bassReactivityGain ?? runtime.effectiveBassReactivityGain,
+    sectionType: audioFrame.sectionType ?? runtime.sectionName ?? null,
+    phraseIndex: audioFrame.phraseIndex ?? 0,
+  }
+}
+
 export function inspectPixGridGroups(
   state: PixGridState,
   routeActivity: readonly PixGridRouteActivity[] = [],
@@ -191,6 +248,7 @@ export function inspectPixGridGroups(
     const intensity = activeRoutes.reduce((maximum, route) => Math.max(maximum, route.effectiveAmount), 0)
     const targetInspection = inspectPixGridGroupTarget(state, group)
     const sourceLayerIds = [...targetInspection.sourceLayerIds]
+    const missingLayerIds = sourceLayerIds.filter(layerId => !state.layers.some(layer => layer.id === layerId))
     const requiresSource = ['layerAlpha', 'colorRange', 'luminanceRange', 'connectedRegion', 'svgMetadata'].includes(group.mask.kind)
     const maskStatus: PixGridGroupInspection['maskStatus'] = targetInspection.usable
       ? requiresSource && mask.cellCount === 0 ? 'pending-source' : 'valid'
@@ -201,6 +259,8 @@ export function inspectPixGridGroups(
       source: group.source,
       maskKind: group.mask.kind,
       sourceLayerIds,
+      missingLayerIds,
+      maskBounds: mask.bounds ? { ...mask.bounds } : null,
       compiledCellCount: mask.cellCount,
       maskValid: maskStatus !== 'invalid',
       maskStatus,
@@ -307,6 +367,24 @@ export function validatePixGridState(
       || Math.abs(outputRange[1] - outputRange[0]) <= 1e-6
       || (Math.abs(assignment.clamp[0]) <= 1e-6 && Math.abs(assignment.clamp[1]) <= 1e-6)
     if (ineffective) issues.push(issue('warning', 'ineffective-route-amount', `Assignment ${assignment.id} cannot produce a visible change with its current amount or output range.`, location.path, 'Increase Amount or widen Output Range and Clamp.'))
+    const peakOutputSpan = Math.abs(outputRange[1] - outputRange[0])
+      * Math.abs(assignment.amount)
+      * Math.max(Math.abs(assignment.clamp[0]), Math.abs(assignment.clamp[1]))
+    const targetGroupId = (scope === 'group' || scope === 'pixels')
+      ? assignment.targetId ?? location.ownerGroupId
+      : null
+    const targetInspection = targetGroupId ? groupInspections.find(group => group.groupId === targetGroupId) : null
+    const targetCoverage = targetInspection
+      ? targetInspection.visibleCellCount / Math.max(1, state.matrixWidth * state.matrixHeight)
+      : 1
+    const estimatedPerceptibility = peakOutputSpan * Math.min(1, Math.sqrt(Math.max(0, targetCoverage) * 16))
+    if (assignment.enabled && !ineffective && estimatedPerceptibility < 0.035) issues.push(issue(
+      'warning',
+      'assignment-below-perceptual-floor',
+      `Assignment ${assignment.id} is structurally valid but is unlikely to exceed the PixGrid perceptual floor at its current amount and target coverage.`,
+      location.path,
+      'Increase the route amount, widen its output range, or target a larger visible group while preserving the intended choreography.',
+    ))
     if (assignment.enabled && !isPixGridAudioAssignmentEffective(state, assignment, location.ownerGroupId ?? undefined, options.capabilities)) issues.push(issue(
       builtIn ? 'error' : 'warning',
       'ineffective-assignment-target',
@@ -354,6 +432,15 @@ export function validatePixGridState(
     location.ownerGroupId ?? undefined,
     options.capabilities,
   )).length
+  const motionConsumerCount = state.layers.reduce((count, layer) => count + layer.animations.length, 0)
+    + locations.filter(location => ['animationSpeed', 'frameAdvance', 'bounceAmount', 'scrollRate', 'pixelDisplacement', 'positionX', 'positionY', 'rotation', 'scale'].includes(location.assignment.target)).length
+  if (builtIn && motionConsumerCount === 0) issues.push(issue(
+    'error',
+    'motion-control-ignored',
+    'Built-in preset accepts the global Motion value but has no animation or motion-sensitive route that can consume it.',
+    'layers',
+    'Restore an authored animation or a motion-sensitive route so Motion 0, 0.5, and 1 have bounded, visible behavior.',
+  ))
   if (builtIn && autonomousAnimationCount > 0 && musicRouteCount === 0) issues.push(issue('error', 'autonomous-only-built-in', 'Built-in preset only contains autonomous animation.', 'layers', 'Restore authored music routes and performance choreography.'))
   if (builtIn && !locations.some(location => COMMON_LIVE_SOURCES.has(location.assignment.source) || ['energy', 'beat', 'transient'].includes(location.assignment.capabilityFallback))) issues.push(issue(
     severityForWeakConfig,
@@ -373,6 +460,7 @@ export function validatePixGridState(
     && state.configuration.performanceProgramConfigurationVersion >= PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION
     && state.configuration.musicReactiveConfigurationVersion >= PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION
     && state.configuration.canonicalMigrationCompleted
+  if (builtIn && state.configuration.legacyOfficialLayerGraph) issues.push(issue('error', 'built-in-legacy-layer-graph', 'Built-in PixGrid state still declares the legacy official layer graph after migration.', 'configuration.legacyOfficialLayerGraph', 'Run canonical layer-graph migration and clear the legacy marker only after layer, scene, group, and route references are repaired.'))
   if (builtIn && !state.configuration.canonicalMigrationCompleted) issues.push(issue('error', 'canonical-migration-incomplete', 'Built-in PixGrid state has not completed canonical graph and route integrity migration.', 'configuration.canonicalMigrationCompleted', 'Run canonical migration and keep the state incomplete until layers, scenes, groups, routes, and the performance program pass structural integrity.'))
   if (builtIn && stateMarkedCurrent && (state.groups.length === 0 || locations.length === 0)) issues.push(issue('error', 'current-state-missing-required-configuration', 'State is marked current but required built-in reaction configuration is missing.', 'configuration', 'Run built-in preset migration even when legacy layers are non-empty.'))
   const builtInPreset = options.builtInPresetId ? PIX_GRID_PRESET_BY_ID.get(options.builtInPresetId) : state.selectedPresetId ? PIX_GRID_PRESET_BY_ID.get(state.selectedPresetId) : null
