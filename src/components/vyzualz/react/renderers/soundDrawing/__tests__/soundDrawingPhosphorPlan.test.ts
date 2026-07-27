@@ -9,8 +9,7 @@ import {
   resolveScopePersistenceDecay,
   resolveScopePersistenceHalfLifeSeconds,
   resolveScopePhosphorPlan,
-  resolveScopeQualityTransitionEffects,
-  type ScopePhosphorQuality,
+  scopeQualityChangeNeedsTargetReallocation,
 } from '../soundDrawingPhosphorPlan'
 
 const HDR_PROBE = { colorBufferFloat: true, rgba16fRenderable: true, floatLinearFiltering: true }
@@ -73,9 +72,15 @@ describe('phosphor persistence', () => {
     expect(resolveScopePersistenceDecay(1.5, dt)).toBeGreaterThan(resolveScopePersistenceDecay(0.2, dt))
   })
 
-  it('never fully retains, so a trace cannot burn in permanently', () => {
-    expect(resolveScopePersistenceDecay(MAX_SCOPE_PERSISTENCE_SECONDS, 1 / 240)).toBeLessThan(1)
-    expect(resolveScopePersistenceDecay(1e9, 1 / 240)).toBeLessThan(1)
+  it('cannot burn in, because persistence itself is bounded', () => {
+    // Burn-in is prevented by clamping tau rather than by capping the decay:
+    // even at the longest supported persistence, real elapsed time always
+    // removes energy, so the trail clears in bounded time.
+    expect(resolveScopePersistenceDecay(MAX_SCOPE_PERSISTENCE_SECONDS, 1 / 60)).toBeLessThan(1)
+    expect(resolveScopePersistenceDecay(1e9, 1 / 60)).toBeLessThan(1)
+    // A request beyond the maximum is clamped to it, not honoured.
+    expect(resolveScopePersistenceDecay(1e9, 1 / 60))
+      .toBeCloseTo(resolveScopePersistenceDecay(MAX_SCOPE_PERSISTENCE_SECONDS, 1 / 60), 12)
   })
 
   it('clamps persistence to the supported range', () => {
@@ -84,12 +89,25 @@ describe('phosphor persistence', () => {
     expect(tiny).toBeCloseTo(clamped, 10)
   })
 
-  it('handles a zero or invalid delta without discarding the trail', () => {
-    // No elapsed time means no decay, held just under 1 by the burn-in guard.
-    expect(resolveScopePersistenceDecay(0.5, 0)).toBeCloseTo(0.9999, 10)
-    // A non-finite delta is treated as zero rather than wiping the phosphor.
-    expect(resolveScopePersistenceDecay(0.5, Number.NaN)).toBeCloseTo(0.9999, 10)
-    expect(resolveScopePersistenceDecay(0.5, -1)).toBeCloseTo(0.9999, 10)
+  it('does not decay when no time has elapsed', () => {
+    // No elapsed time, no change. A cap just below 1 here would fade a paused
+    // display and would break exact frame-rate composition.
+    expect(resolveScopePersistenceDecay(0.5, 0)).toBe(1)
+    // A non-finite or negative delta is treated as zero rather than wiping it.
+    expect(resolveScopePersistenceDecay(0.5, Number.NaN)).toBe(1)
+    expect(resolveScopePersistenceDecay(0.5, -1)).toBe(1)
+  })
+
+  it('composes exactly, so splitting a frame changes nothing', () => {
+    // The property the missing cap was quietly breaking: subdividing an
+    // interval must reproduce it to full precision at any subdivision.
+    const tau = 0.35
+    const dt = 1 / 60
+    for (const parts of [2, 3, 7, 16]) {
+      let composed = 1
+      for (let i = 0; i < parts; i++) composed *= resolveScopePersistenceDecay(tau, dt / parts)
+      expect(composed).toBeCloseTo(resolveScopePersistenceDecay(tau, dt), 12)
+    }
   })
 
   it('reports half-life in observable seconds', () => {
@@ -190,30 +208,21 @@ describe('initial quality selection', () => {
 describe('quality transitions', () => {
   const hdr = resolveScopeHdrTargetStrategy(HDR_PROBE)
 
-  it('never disturbs signal, trigger, persistence, colour, or saved state', () => {
-    for (const from of SCOPE_PHOSPHOR_QUALITY_ORDER) {
-      for (const to of SCOPE_PHOSPHOR_QUALITY_ORDER) {
-        const effects = resolveScopeQualityTransitionEffects(
-          resolveScopePhosphorPlan(from as ScopePhosphorQuality, hdr),
-          resolveScopePhosphorPlan(to as ScopePhosphorQuality, hdr),
-        )
-        expect(effects.clearsPersistence).toBe(false)
-        expect(effects.resetsTrigger).toBe(false)
-        expect(effects.changesSignalMode).toBe(false)
-        expect(effects.changesPhosphorColor).toBe(false)
-        expect(effects.mutatesSavedState).toBe(false)
-      }
-    }
-  })
-
   it('reallocates targets only when a target scale or level count actually changes', () => {
     const high = resolveScopePhosphorPlan('high', hdr)
     const ultra = resolveScopePhosphorPlan('ultra', hdr)
     const low = resolveScopePhosphorPlan('low', hdr)
 
     // High and Ultra share bloom shape and persistence scale — nothing to redo.
-    expect(resolveScopeQualityTransitionEffects(high, ultra).reallocatesTargets).toBe(false)
-    expect(resolveScopeQualityTransitionEffects(high, low).reallocatesTargets).toBe(true)
-    expect(resolveScopeQualityTransitionEffects(high, high).reallocatesTargets).toBe(false)
+    expect(scopeQualityChangeNeedsTargetReallocation(high, ultra)).toBe(false)
+    expect(scopeQualityChangeNeedsTargetReallocation(high, high)).toBe(false)
+    expect(scopeQualityChangeNeedsTargetReallocation(high, low)).toBe(true)
+  })
+
+  it('is symmetric — direction of travel does not change what must be rebuilt', () => {
+    const low = resolveScopePhosphorPlan('low', hdr)
+    const ultra = resolveScopePhosphorPlan('ultra', hdr)
+    expect(scopeQualityChangeNeedsTargetReallocation(low, ultra))
+      .toBe(scopeQualityChangeNeedsTargetReallocation(ultra, low))
   })
 })

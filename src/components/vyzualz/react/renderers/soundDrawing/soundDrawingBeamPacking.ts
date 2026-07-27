@@ -118,24 +118,41 @@ export function packVectorBeamSegments(
 }
 
 /**
- * Screen-space quad half-width the geometry pass must expand to, in pixels.
+ * Value to supply as the geometry pass's `uHaloWidthPx` uniform.
  *
- * The fragment shader draws core and halo as nested Gaussians measured across
- * the quad, so the quad has to be wide enough to contain the widest term it
- * will evaluate. Too narrow and the halo is sliced off with a visible straight
- * edge along the beam; the padding term covers the Gaussian's tail rather than
- * only its nominal radius.
+ * Shader contract, which is easy to get wrong: the vertex shader offsets by
+ * `a_corner.y * uHaloWidthPx` where `a_corner.y` is ±0.5, so this uniform is the
+ * quad's FULL width in pixels, not a half-width. The fragment shader then
+ * measures `distAcross` in quad-relative units (0 at the centreline, 1 at the
+ * edge) and evaluates both the core and halo Gaussians against it.
+ *
+ * The consequence worth stating explicitly: the beam profile scales *with* the
+ * quad. Widening the quad widens the halo proportionally — it does not expose
+ * more of a fixed-size Gaussian's tail. So this returns the halo diameter the
+ * look calls for, and nothing here can be used to pad away edge clipping. See
+ * `BEAM_PROFILE_EDGE_RESIDUAL`.
  */
-export function resolveBeamQuadHalfWidthPx(
-  coreWidthPx: number,
-  haloWidthPx: number,
-): number {
+export function resolveBeamHaloWidthPx(coreWidthPx: number, haloScale: number): number {
   const core = Math.max(0, finite(coreWidthPx))
-  const halo = Math.max(core, finite(haloWidthPx))
-  // 1.5x covers the Gaussian tail down to a visually negligible level; a tighter
-  // bound clips the halo, a looser one wastes fill rate on empty pixels.
-  return Math.max(1, halo * 1.5)
+  const scale = Math.max(1, finite(haloScale) || 1)
+  return Math.max(1, core * scale)
 }
+
+/**
+ * Fragment intensity the stock beam profile still has at the quad edge,
+ * as a fraction of its centreline peak.
+ *
+ * Because the profile is quad-relative, this residual is a constant — the halo
+ * term is `exp(-1) * 0.35 ≈ 0.047` at the edge against a peak of ≈1.35, and no
+ * choice of quad width changes it. It therefore shows as a faint hard-edged band
+ * running parallel to every beam.
+ *
+ * Recorded here rather than silently tolerated because it is a real artifact the
+ * renderer work has to resolve, and it cannot be fixed by any caller of this
+ * module: it needs the fragment shader to taper the profile to zero at the quad
+ * boundary (a smoothstep against `distAcross`, or a steeper halo exponent).
+ */
+export const BEAM_PROFILE_EDGE_RESIDUAL = 0.0474 / 1.35
 
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0

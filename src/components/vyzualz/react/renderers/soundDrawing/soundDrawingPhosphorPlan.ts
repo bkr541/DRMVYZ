@@ -108,10 +108,16 @@ export function resolveScopePersistenceDecay(
 ): number {
   const tau = clamp(persistenceSeconds, MIN_SCOPE_PERSISTENCE_SECONDS, MAX_SCOPE_PERSISTENCE_SECONDS)
   const dt = Math.max(0, Number.isFinite(deltaSeconds) ? deltaSeconds : 0)
-  const decay = Math.exp(-dt / tau)
-  // Never a hard 1.0: a trail that retains everything can never clear, which
-  // would strand a burned-in figure after the signal stops.
-  return clamp(decay, 0, 0.9999)
+  // Exactly exp(-dt/tau), with no upper clamp.
+  //
+  // Burn-in is already prevented by clamping tau: at the longest supported
+  // persistence a 60 fps frame still retains only exp(-(1/60)/4) ≈ 0.9958, so
+  // the trail always clears in bounded time. An additional cap just below 1
+  // would decay the phosphor even when dt is zero, which breaks the property
+  // this function exists to provide — that n frames of dt/n compose exactly to
+  // one frame of dt — and would quietly mask a stalled upstream clock rather
+  // than letting it surface.
+  return Math.exp(-dt / tau)
 }
 
 /**
@@ -259,45 +265,23 @@ export function resolveInitialScopePhosphorQuality(capabilities: {
 // ── Quality transitions ───────────────────────────────────────────────────────
 
 /**
- * Properties a quality change must not disturb.
+ * Whether moving between two plans requires reallocating render targets.
  *
- * The brief is explicit that changing tier must not reset the trace, flash
- * black, clear persistence, or change signal/trigger/phosphor colour. The
- * runtime asserts against this list, and the tests use it to prove a tier
- * change is visually continuous.
+ * This is the only part of a quality change that is decidable from the plans
+ * alone. The stronger guarantees the brief demands — that a tier change must
+ * not clear persistence, reset the trigger, or change signal mode or phosphor
+ * colour — are properties of the *runtime*, not of this data, so they are
+ * asserted against the runtime when it lands rather than by a function here
+ * that could only ever return a hardcoded answer.
  */
-export interface ScopeQualityTransitionEffects {
-  clearsPersistence: boolean
-  resetsTrigger: boolean
-  changesSignalMode: boolean
-  changesPhosphorColor: boolean
-  mutatesSavedState: boolean
-  /** Framebuffers must be reallocated when a target scale actually changes. */
-  reallocatesTargets: boolean
-}
-
-/**
- * Describes what changing tier is permitted to do.
- *
- * Everything except target reallocation is false by construction: a tier change
- * swaps how much work each pass does, never what the signal core resolved. This
- * is a function rather than a constant so the comparison of the two plans stays
- * explicit and testable.
- */
-export function resolveScopeQualityTransitionEffects(
+export function scopeQualityChangeNeedsTargetReallocation(
   from: ScopePhosphorPlan,
   to: ScopePhosphorPlan,
-): ScopeQualityTransitionEffects {
-  return {
-    clearsPersistence: false,
-    resetsTrigger: false,
-    changesSignalMode: false,
-    changesPhosphorColor: false,
-    mutatesSavedState: false,
-    reallocatesTargets:
-      from.persistenceResolutionScale !== to.persistenceResolutionScale ||
-      from.bloomLevels.length !== to.bloomLevels.length,
-  }
+): boolean {
+  return (
+    from.persistenceResolutionScale !== to.persistenceResolutionScale ||
+    from.bloomLevels.length !== to.bloomLevels.length
+  )
 }
 
 function clamp(value: number, min: number, max: number): number {

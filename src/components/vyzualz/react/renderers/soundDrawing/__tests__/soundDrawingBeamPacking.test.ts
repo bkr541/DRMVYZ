@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { GEOMETRY_SEGMENT_FLOAT_STRIDE } from '../../../shaders/runtime/GeometryPass'
 import {
+  BEAM_PROFILE_EDGE_RESIDUAL,
   packVectorBeamSegments,
   requiredBeamSegmentFloats,
-  resolveBeamQuadHalfWidthPx,
+  resolveBeamHaloWidthPx,
 } from '../soundDrawingBeamPacking'
 import type { VectorBeamSegment } from '../../../vectorBeam/VectorBeamTypes'
 
@@ -232,18 +233,50 @@ describe('robustness', () => {
   })
 })
 
-describe('beam quad sizing', () => {
-  it('expands wide enough to contain the halo Gaussian tail', () => {
-    // Too narrow and the halo is sliced off with a straight edge along the beam.
-    expect(resolveBeamQuadHalfWidthPx(2, 10)).toBeGreaterThan(10)
+describe('beam halo width', () => {
+  it('scales the halo from the core width', () => {
+    expect(resolveBeamHaloWidthPx(2, 5)).toBeCloseTo(10, 6)
   })
 
-  it('never returns less than the core width', () => {
-    expect(resolveBeamQuadHalfWidthPx(12, 4)).toBeGreaterThanOrEqual(12)
+  it('never returns a halo narrower than the core', () => {
+    // A scale below 1 would put the halo inside the core, inverting the profile.
+    expect(resolveBeamHaloWidthPx(12, 0.25)).toBeGreaterThanOrEqual(12)
   })
 
   it('stays positive for degenerate input', () => {
-    expect(resolveBeamQuadHalfWidthPx(0, 0)).toBeGreaterThan(0)
-    expect(resolveBeamQuadHalfWidthPx(Number.NaN, Number.NaN)).toBeGreaterThan(0)
+    expect(resolveBeamHaloWidthPx(0, 0)).toBeGreaterThan(0)
+    expect(resolveBeamHaloWidthPx(Number.NaN, Number.NaN)).toBeGreaterThan(0)
+  })
+})
+
+describe('beam profile edge residual', () => {
+  /**
+   * Reproduces the shader's own profile maths so the recorded constant cannot
+   * drift from what the GPU actually draws.
+   *
+   *   distAcross = |v_localY| = |a_corner.y * 2|, so 1.0 exactly at the quad edge
+   *   coreTerm   = exp(-(distAcross/coreFrac)^2 * 4)
+   *   haloTerm   = exp(-distAcross^2 * 2) * 0.35
+   */
+  const coreTerm = (d: number, coreFrac: number) => Math.exp(-((d / coreFrac) ** 2) * 4)
+  const haloTerm = (d: number) => Math.exp(-(d ** 2) * 2) * 0.35
+  const profile = (d: number, coreFrac: number) => coreTerm(d, coreFrac) + haloTerm(d)
+
+  it('is non-zero at the quad edge, so the beam has a hard-edged band', () => {
+    const coreFrac = 2 / 12
+    expect(profile(1, coreFrac) / profile(0, coreFrac)).toBeCloseTo(BEAM_PROFILE_EDGE_RESIDUAL, 3)
+    expect(BEAM_PROFILE_EDGE_RESIDUAL).toBeGreaterThan(0)
+  })
+
+  it('cannot be reduced by widening the quad, because the profile is quad-relative', () => {
+    // This is the misreading the helper originally encoded: padding the quad
+    // does not expose more of a fixed Gaussian, it rescales the whole profile.
+    const residuals = [4, 12, 40, 200].map(width => {
+      const coreFrac = 2 / width
+      return profile(1, coreFrac) / profile(0, coreFrac)
+    })
+    for (const residual of residuals) {
+      expect(residual).toBeCloseTo(residuals[0], 6)
+    }
   })
 })
