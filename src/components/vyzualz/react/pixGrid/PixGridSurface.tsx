@@ -186,7 +186,18 @@ function diagnosticsEqual(a: PixGridRendererDiagnostics, b: PixGridRendererDiagn
     a.groupMaskApproximateBytes === b.groupMaskApproximateBytes &&
     a.stateSchemaVersion === b.stateSchemaVersion &&
     a.presetConfigurationVersion === b.presetConfigurationVersion &&
+    a.layerGraphVersion === b.layerGraphVersion &&
+    a.canonicalMigrationCompleted === b.canonicalMigrationCompleted &&
     a.migrationApplied === b.migrationApplied &&
+    a.migrationDetectedPresetLineage === b.migrationDetectedPresetLineage &&
+    a.migrationCanonicalLayersAdded === b.migrationCanonicalLayersAdded &&
+    a.migrationLegacyLayersMapped === b.migrationLegacyLayersMapped &&
+    a.migrationSceneReferencesRepaired === b.migrationSceneReferencesRepaired &&
+    a.migrationEmptyGroupCount === b.migrationEmptyGroupCount &&
+    a.migrationMissingLayerGroupCount === b.migrationMissingLayerGroupCount &&
+    a.migrationIneffectiveAssignmentCount === b.migrationIneffectiveAssignmentCount &&
+    a.migrationEffectiveLiveRouteCount === b.migrationEffectiveLiveRouteCount &&
+    a.migrationSafeRecoveryUsed === b.migrationSafeRecoveryUsed &&
     a.migrationGroupsAdded === b.migrationGroupsAdded &&
     a.migrationGroupsPreserved === b.migrationGroupsPreserved &&
     a.migrationGroupsUpgraded === b.migrationGroupsUpgraded &&
@@ -433,7 +444,18 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         rendererWarningCount: next.fallbackReason ? 1 : 0,
         stateSchemaVersion: latestRuntimeDiagnostics?.stateSchemaVersion ?? propsRef.current.pixGridState.version,
         presetConfigurationVersion: latestRuntimeDiagnostics?.presetConfigurationVersion ?? propsRef.current.pixGridState.configuration.presetConfigurationVersion,
+        layerGraphVersion: latestRuntimeDiagnostics?.layerGraphVersion ?? propsRef.current.pixGridState.configuration.layerGraphVersion,
+        canonicalMigrationCompleted: latestRuntimeDiagnostics?.canonicalMigrationCompleted ?? propsRef.current.pixGridState.configuration.canonicalMigrationCompleted,
         migrationApplied: latestRuntimeDiagnostics?.migrationApplied ?? propsRef.current.pixGridState.configuration.lastMigration?.applied ?? false,
+        migrationDetectedPresetLineage: latestRuntimeDiagnostics?.migrationDetectedPresetLineage ?? propsRef.current.pixGridState.configuration.lastMigration?.detectedPresetLineage ?? 'unknown',
+        migrationCanonicalLayersAdded: latestRuntimeDiagnostics?.migrationCanonicalLayersAdded.length ?? propsRef.current.pixGridState.configuration.lastMigration?.canonicalLayersAdded?.length ?? 0,
+        migrationLegacyLayersMapped: latestRuntimeDiagnostics?.migrationLegacyLayersMapped.length ?? propsRef.current.pixGridState.configuration.lastMigration?.legacyLayersMapped?.length ?? 0,
+        migrationSceneReferencesRepaired: latestRuntimeDiagnostics?.migrationSceneReferencesRepaired ?? propsRef.current.pixGridState.configuration.lastMigration?.sceneReferencesRepaired ?? 0,
+        migrationEmptyGroupCount: latestRuntimeDiagnostics?.migrationEmptyGroups.length ?? propsRef.current.pixGridState.configuration.lastMigration?.emptyGroups?.length ?? 0,
+        migrationMissingLayerGroupCount: latestRuntimeDiagnostics?.migrationMissingLayerGroups.length ?? propsRef.current.pixGridState.configuration.lastMigration?.missingLayerGroups?.length ?? 0,
+        migrationIneffectiveAssignmentCount: latestRuntimeDiagnostics?.migrationIneffectiveAssignments.length ?? propsRef.current.pixGridState.configuration.lastMigration?.ineffectiveAssignments?.length ?? 0,
+        migrationEffectiveLiveRouteCount: latestRuntimeDiagnostics?.migrationEffectiveLiveRouteCount ?? propsRef.current.pixGridState.configuration.lastMigration?.effectiveLiveRouteCount ?? 0,
+        migrationSafeRecoveryUsed: latestRuntimeDiagnostics?.migrationSafeRecoveryUsed ?? propsRef.current.pixGridState.configuration.lastMigration?.safeRecoveryUsed ?? false,
         migrationGroupsAdded: latestRuntimeDiagnostics?.migrationGroupsAdded ?? propsRef.current.pixGridState.configuration.lastMigration?.groupsAdded ?? 0,
         migrationGroupsPreserved: latestRuntimeDiagnostics?.migrationGroupsPreserved ?? propsRef.current.pixGridState.configuration.lastMigration?.groupsPreserved ?? 0,
         migrationGroupsUpgraded: latestRuntimeDiagnostics?.migrationGroupsUpgraded ?? propsRef.current.pixGridState.configuration.lastMigration?.groupsUpgraded ?? 0,

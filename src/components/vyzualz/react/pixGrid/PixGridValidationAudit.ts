@@ -3,15 +3,21 @@ import { PixGridAssignmentCompiler } from './PixGridAssignmentCompiler'
 import { getPixGridAudioIntelligenceSource } from './PixGridAudioIntelligenceRegistry'
 import type { PixGridRouteActivity } from './PixGridAudioRouting'
 import { compilePixGridGroupMask } from './PixGridGroups'
+import { inspectPixGridGroupTarget, type PixGridGroupTargetStatus } from './PixGridCanonicalGraph'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
-import { validatePixGridPerformanceProgram } from './PixGridPerformanceProgramCompiler'
+import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
+import { PixGridPerformanceProgramCompiler, validatePixGridPerformanceProgram } from './PixGridPerformanceProgramCompiler'
 import { isPixGridBassReactivitySource } from './PixGridRuntimeControls'
 import {
   PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS,
   isPixGridAudioAssignmentEffective,
 } from './PixGridStateMigration'
 import {
+  PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+  PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,
   PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
+  PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION,
+  PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION,
   PIX_GRID_STATE_VERSION,
   type PixGridGroup,
   type PixGridReactionAssignment,
@@ -72,6 +78,9 @@ export interface PixGridGroupInspection {
   reactionIntensity: number
   overlappingGroupIds: readonly string[]
   renderedContribution: number
+  visibleCellCount: number
+  effectiveRenderedCellCount: number
+  targetStatus: PixGridGroupTargetStatus
 }
 
 interface AssignmentLocation {
@@ -180,14 +189,12 @@ export function inspectPixGridGroups(
     }
     const activeRoutes = routeActivity.filter(route => route.affectedGroupIds.includes(group.id) && (route.state === 'active' || route.state === 'fallback'))
     const intensity = activeRoutes.reduce((maximum, route) => Math.max(maximum, route.effectiveAmount), 0)
-    const sourceLayerIds = group.layerScope?.length ? [...group.layerScope] : group.layerId ? [group.layerId] : []
+    const targetInspection = inspectPixGridGroupTarget(state, group)
+    const sourceLayerIds = [...targetInspection.sourceLayerIds]
     const requiresSource = ['layerAlpha', 'colorRange', 'luminanceRange', 'connectedRegion', 'svgMetadata'].includes(group.mask.kind)
-    const sourceReferencesValid = !requiresSource || sourceLayerIds.length > 0 && sourceLayerIds.every(layerId => state.layers.some(layer => layer.id === layerId))
-    const maskStatus: PixGridGroupInspection['maskStatus'] = mask.cellCount > 0
-      ? 'valid'
-      : requiresSource && sourceReferencesValid
-        ? 'pending-source'
-        : 'invalid'
+    const maskStatus: PixGridGroupInspection['maskStatus'] = targetInspection.usable
+      ? requiresSource && mask.cellCount === 0 ? 'pending-source' : 'valid'
+      : 'invalid'
     return {
       groupId: group.id,
       name: group.name,
@@ -200,7 +207,10 @@ export function inspectPixGridGroups(
       activeRouteIds: activeRoutes.map(route => route.routeId).sort(),
       reactionIntensity: intensity,
       overlappingGroupIds: overlaps.sort(),
-      renderedContribution: mask.cellCount * intensity,
+      renderedContribution: (mask.cellCount || targetInspection.compiledCellCount) * intensity,
+      visibleCellCount: targetInspection.visibleLayerCount > 0 ? (mask.cellCount || targetInspection.compiledCellCount) : 0,
+      effectiveRenderedCellCount: targetInspection.usable ? (mask.cellCount || targetInspection.compiledCellCount) : 0,
+      targetStatus: targetInspection.status,
     }
   })
 }
@@ -261,12 +271,26 @@ export function validatePixGridState(
 
   const groupInspections = inspectPixGridGroups(state)
   for (const [index, group] of groupInspections.entries()) {
-    if (group.maskStatus === 'invalid') issues.push(issue(
+    if (group.targetStatus === 'missing-layer') issues.push(issue(
+      builtIn ? 'error' : 'warning',
+      'group-missing-layer',
+      `Group ${group.name} references a missing layer.`,
+      `groups[${index}].layerScope`,
+      'Repair the group layer scope through canonical layer-graph migration.',
+    ))
+    else if (group.targetStatus === 'empty-mask') issues.push(issue(
       builtIn ? 'error' : 'warning',
       'empty-group-mask',
       `Group ${group.name} compiles to zero cells.`,
       `groups[${index}].mask`,
       'Repair the mask source or select cells before assigning reactions.',
+    ))
+    else if (group.targetStatus === 'invisible-content') issues.push(issue(
+      builtIn ? 'error' : 'warning',
+      'group-invisible-content',
+      `Group ${group.name} resolves only to invisible or fully transparent layers.`,
+      `groups[${index}]`,
+      'Restore a visible canonical source layer or intentionally disable the group.',
     ))
   }
 
@@ -283,6 +307,13 @@ export function validatePixGridState(
       || Math.abs(outputRange[1] - outputRange[0]) <= 1e-6
       || (Math.abs(assignment.clamp[0]) <= 1e-6 && Math.abs(assignment.clamp[1]) <= 1e-6)
     if (ineffective) issues.push(issue('warning', 'ineffective-route-amount', `Assignment ${assignment.id} cannot produce a visible change with its current amount or output range.`, location.path, 'Increase Amount or widen Output Range and Clamp.'))
+    if (assignment.enabled && !isPixGridAudioAssignmentEffective(state, assignment, location.ownerGroupId ?? undefined, options.capabilities)) issues.push(issue(
+      builtIn ? 'error' : 'warning',
+      'ineffective-assignment-target',
+      `Assignment ${assignment.id} cannot currently alter visible pixels.`,
+      location.path,
+      'Repair its layer/group target, mask, visibility, source fallback, amount, clamp, or conditions.',
+    ))
 
     const sourceDefinition = getPixGridAudioIntelligenceSource(assignment.source)
     const unavailable = options.capabilities?.[assignment.source] === false
@@ -336,8 +367,19 @@ export function validatePixGridState(
   if (duplicateFallbacks > fallbackIds.size) issues.push(issue('error', 'duplicated-canonical-fallback-routes', 'Migration duplicated canonical fallback routes.', 'audioAssignments', 'Deduplicate by stable assignment ID and make migration idempotent.'))
 
   const stateMarkedCurrent = state.version >= PIX_GRID_STATE_VERSION
+    && state.configuration.layerGraphVersion >= PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION
+    && state.configuration.smartGroupConfigurationVersion >= PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION
+    && state.configuration.audioRouteConfigurationVersion >= PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION
+    && state.configuration.performanceProgramConfigurationVersion >= PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION
     && state.configuration.musicReactiveConfigurationVersion >= PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION
+    && state.configuration.canonicalMigrationCompleted
+  if (builtIn && !state.configuration.canonicalMigrationCompleted) issues.push(issue('error', 'canonical-migration-incomplete', 'Built-in PixGrid state has not completed canonical graph and route integrity migration.', 'configuration.canonicalMigrationCompleted', 'Run canonical migration and keep the state incomplete until layers, scenes, groups, routes, and the performance program pass structural integrity.'))
   if (builtIn && stateMarkedCurrent && (state.groups.length === 0 || locations.length === 0)) issues.push(issue('error', 'current-state-missing-required-configuration', 'State is marked current but required built-in reaction configuration is missing.', 'configuration', 'Run built-in preset migration even when legacy layers are non-empty.'))
+  const builtInPreset = options.builtInPresetId ? PIX_GRID_PRESET_BY_ID.get(options.builtInPresetId) : state.selectedPresetId ? PIX_GRID_PRESET_BY_ID.get(state.selectedPresetId) : null
+  if (builtInPreset?.pixGridSettings) {
+    const layerIds = new Set(state.layers.map(layer => layer.id))
+    for (const requiredLayer of builtInPreset.pixGridSettings.layers ?? []) if (!layerIds.has(requiredLayer.id)) issues.push(issue('error', 'missing-canonical-layer', `Built-in preset is missing canonical layer ${requiredLayer.id}.`, 'layers', 'Restore the current canonical layer graph before marking migration complete.'))
+  }
   if (!builtIn && stateMarkedCurrent && effectiveAuthoredRoutes.length === 0 && activeFallbackRoutes.length === 0) issues.push(issue(
     'warning',
     'current-custom-state-missing-fallback-routing',
@@ -360,6 +402,14 @@ export function validatePixGridState(
     if (!program.sectionPlans.some(plan => (plan.actions?.length ?? 0) + (plan.entryActions?.length ?? 0) + (plan.bodyActions?.length ?? 0) + (plan.exitActions?.length ?? 0) + (plan.continuousRouteIds?.length ?? 0) + (plan.eventRouteIds?.length ?? 0) > 0)) issues.push(issue('error', 'program-no-section-behavior', 'Performance program defines no section behavior.', 'performance', 'Author at least one section action or route binding.'))
     const sceneIds = new Set(state.scenes.map(scene => scene.id))
     for (const plan of program.sectionPlans) for (const sceneId of plan.scenePreference ?? []) if (!sceneIds.has(sceneId)) issues.push(issue('error', 'program-missing-scene', `Performance plan ${plan.id} references missing scene ${sceneId}.`, `performance.sectionPlans.${plan.id}`, 'Restore the scene or update the plan preference.'))
+    const compiledProgram = new PixGridPerformanceProgramCompiler().compile(program, state, options.capabilities)
+    for (const missingBinding of compiledProgram.missingBindings) issues.push(issue(
+      builtIn ? 'error' : 'warning',
+      'program-missing-state-target',
+      `Performance program target ${missingBinding} does not resolve in the current PixGrid state.`,
+      'performance.sharedPerformanceProgramId',
+      'Restore the canonical scene, group, or layer graph, or update the custom performance-program binding.',
+    ))
   }
 
   if (options.canvasPlan && options.gpuPlan) issues.push(...comparePixGridRendererSemanticPlans(options.canvasPlan, options.gpuPlan))

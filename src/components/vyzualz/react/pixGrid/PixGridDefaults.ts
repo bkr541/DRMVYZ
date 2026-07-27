@@ -7,8 +7,12 @@ import type {
   PixGridScene,
 } from './PixGridTypes'
 import {
+  PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+  PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,
   PIX_GRID_CONFIGURATION_METADATA_VERSION,
   PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
+  PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION,
+  PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION,
   PIX_GRID_STATE_VERSION,
   type PixGridLayer,
 } from './PixGridTypes'
@@ -148,8 +152,15 @@ export function createDefaultPixGridState(): PixGridState {
       origin: 'builtInPreset',
       sourcePresetId: DEFAULT_PIX_GRID_PRESET_ID,
       presetConfigurationVersion: defaultSettings?.authoredConfigurationVersion ?? PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION,
+      layerGraphVersion: PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,
+      smartGroupConfigurationVersion: PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION,
+      audioRouteConfigurationVersion: PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+      performanceProgramConfigurationVersion: PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION,
       musicReactiveConfigurationVersion: PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
       userCustomized: false,
+      legacyOfficialLayerGraph: false,
+      genuineUserLayers: false,
+      canonicalMigrationCompleted: true,
       canonicalSignatures: createPixGridCanonicalSignatures(defaultSettings),
       lastMigration: null,
     },

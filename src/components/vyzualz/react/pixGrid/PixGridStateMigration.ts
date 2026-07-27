@@ -1,4 +1,5 @@
 import type { ReactPreset } from '../ReactTypes'
+import { PixGridAssignmentCompiler } from './PixGridAssignmentCompiler'
 import {
   createEmptyPixGridCanonicalSignatures,
   createPixGridCanonicalSignatures,
@@ -9,11 +10,22 @@ import {
   pixGridLayerAnimationSignature,
 } from './PixGridConfiguration'
 import { clonePixGridLayer } from './PixGridDefaults'
-import { compilePixGridGroupMask } from './PixGridGroups'
+import {
+  detectPixGridPresetLineage,
+  inspectPixGridGroupTarget,
+  mergePixGridCanonicalLayerGraph,
+  repairPixGridLayerReferences,
+} from './PixGridCanonicalGraph'
+import { PixGridPerformanceProgramCompiler } from './PixGridPerformanceProgramCompiler'
+import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
 import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 import {
+  PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+  PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,
   PIX_GRID_CONFIGURATION_METADATA_VERSION,
   PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
+  PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION,
+  PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION,
   PIX_GRID_STATE_VERSION,
   type PixGridCanonicalSignatures,
   type PixGridGroup,
@@ -23,6 +35,8 @@ import {
   type PixGridState,
 } from './PixGridTypes'
 import { normalizePixGridReactionAssignment, normalizePixGridState } from './PixGridValidation'
+
+const PIX_GRID_EFFECTIVENESS_COMPILER = new PixGridAssignmentCompiler()
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value)
@@ -248,6 +262,92 @@ function canonicalPresetFor(state: PixGridState, explicitPreset?: ReactPreset | 
   return PIX_GRID_PRESET_BY_ID.get(state.selectedPresetId) ?? null
 }
 
+function builtInMigrationIntegrity(
+  state: PixGridState,
+  preset: ReactPreset,
+): {
+  completed: boolean
+  emptyGroups: string[]
+  missingLayerGroups: string[]
+  ineffectiveAssignments: string[]
+  effectiveLiveRouteCount: number
+  conflicts: string[]
+} {
+  const requiredLayerIds = new Set((preset.pixGridSettings?.layers ?? []).map(layer => layer.id))
+  const requiredSceneIds = new Set(Object.keys(preset.pixGridSettings?.sceneSettings ?? {}))
+  const requiredGroupIds = new Set((preset.pixGridSettings?.groups ?? []).map(group => group.id))
+  const requiredAssignmentIds = new Set((preset.pixGridSettings?.audioAssignments ?? []).map(route => route.id))
+  const layerIds = new Set(state.layers.map(layer => layer.id))
+  const sceneById = new Map(state.scenes.map(scene => [scene.id, scene]))
+  const groupById = new Map(state.groups.map(group => [group.id, group]))
+  const assignmentById = new Map(state.audioAssignments.map(route => [route.id, route]))
+  const conflicts: string[] = []
+  const emptyGroups: string[] = []
+  const missingLayerGroups: string[] = []
+  const ineffectiveAssignments: string[] = []
+
+  for (const layerId of requiredLayerIds) if (!layerIds.has(layerId)) conflicts.push(`Missing canonical layer ${layerId}.`)
+  for (const sceneId of requiredSceneIds) {
+    const scene = sceneById.get(sceneId)
+    if (!scene || !scene.layerIds.some(layerId => layerIds.has(layerId))) conflicts.push(`Scene ${sceneId} has no valid visible layer reference.`)
+  }
+  for (const groupId of requiredGroupIds) {
+    const group = groupById.get(groupId)
+    if (!group) {
+      conflicts.push(`Missing canonical group ${groupId}.`)
+      continue
+    }
+    const inspection = inspectPixGridGroupTarget(state, group)
+    if (inspection.status === 'missing-layer') missingLayerGroups.push(groupId)
+    else if (inspection.status === 'empty-mask' || inspection.status === 'invisible-content') emptyGroups.push(groupId)
+  }
+  for (const assignmentId of requiredAssignmentIds) {
+    const assignment = assignmentById.get(assignmentId)
+    if (!assignment || !isPixGridAudioAssignmentEffective(state, assignment)) ineffectiveAssignments.push(assignmentId)
+  }
+  for (const groupId of requiredGroupIds) {
+    const group = groupById.get(groupId)
+    if (!group) continue
+    for (const assignment of group.reactions) {
+      if (!isPixGridAudioAssignmentEffective(state, assignment, group.id)) ineffectiveAssignments.push(`${group.id}:${assignment.id}`)
+    }
+  }
+  const effectiveLiveRouteCount = [
+    ...state.audioAssignments.map(assignment => ({ assignment, ownerGroupId: undefined as string | undefined })),
+    ...state.groups.flatMap(group => group.reactions.map(assignment => ({ assignment, ownerGroupId: group.id }))),
+  ].filter(({ assignment, ownerGroupId }) => (
+    ['kick', 'snare', 'bass', 'beat', 'energy'].includes(assignment.source)
+    && isPixGridAudioAssignmentEffective(state, assignment, ownerGroupId)
+  )).length
+  if (state.performance.sharedPerformanceProgramId !== preset.pixGridSettings?.performanceProgramId) conflicts.push('Performance program binding is not canonical.')
+  const programId = state.performance.sharedPerformanceProgramId
+  const program = programId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId) : null
+  if (!program) conflicts.push('Performance program does not resolve from the canonical registry.')
+  else {
+    const compiledProgram = new PixGridPerformanceProgramCompiler().compile(program, state)
+    for (const missing of compiledProgram.missingBindings) conflicts.push(`Performance program target is missing: ${missing}.`)
+    for (const validationIssue of compiledProgram.validationIssues) {
+      if (validationIssue.severity === 'error') conflicts.push(`Performance program ${validationIssue.code}: ${validationIssue.message}`)
+    }
+  }
+  const groupIds = state.groups.map(group => group.id)
+  const routeIds = [
+    ...state.audioAssignments.map(route => `audio:${route.id}`),
+    ...state.groups.flatMap(group => group.reactions.map(route => `group:${group.id}:${route.id}`)),
+  ]
+  if (new Set(groupIds).size !== groupIds.length) conflicts.push('Duplicate smart-group IDs remain after migration.')
+  if (new Set(routeIds).size !== routeIds.length) conflicts.push('Duplicate audio-route IDs remain after migration.')
+  if (effectiveLiveRouteCount === 0) conflicts.push('No common live source can produce visible output.')
+  return {
+    completed: conflicts.length === 0 && emptyGroups.length === 0 && missingLayerGroups.length === 0 && ineffectiveAssignments.length === 0,
+    emptyGroups: [...new Set(emptyGroups)].sort(),
+    missingLayerGroups: [...new Set(missingLayerGroups)].sort(),
+    ineffectiveAssignments: [...new Set(ineffectiveAssignments)].sort(),
+    effectiveLiveRouteCount,
+    conflicts,
+  }
+}
+
 export function migratePixGridState(
   rawState: unknown,
   explicitPreset?: ReactPreset | null,
@@ -257,6 +357,10 @@ export function migratePixGridState(
   const rawConfiguration = isRecord(raw.configuration) ? raw.configuration : null
   const rawPerformance = isRecord(raw.performance) ? raw.performance : null
   const fromPresetConfigurationVersion = finiteVersion(rawConfiguration?.presetConfigurationVersion)
+  const fromLayerGraphVersion = finiteVersion(rawConfiguration?.layerGraphVersion)
+  const fromSmartGroupConfigurationVersion = finiteVersion(rawConfiguration?.smartGroupConfigurationVersion)
+  const fromAudioRouteConfigurationVersion = finiteVersion(rawConfiguration?.audioRouteConfigurationVersion)
+  const fromPerformanceProgramConfigurationVersion = finiteVersion(rawConfiguration?.performanceProgramConfigurationVersion)
   const normalized = normalizePixGridState(rawState)
   const preset = canonicalPresetFor(normalized, explicitPreset)
 
@@ -267,6 +371,7 @@ export function migratePixGridState(
       fromStateVersion >= PIX_GRID_STATE_VERSION
       && normalized.configuration.origin === 'custom'
       && normalized.configuration.musicReactiveConfigurationVersion >= PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION
+      && normalized.configuration.canonicalMigrationCompleted
       && canonicalSignaturesEqual(normalized.configuration.canonicalSignatures, emptyCanonicalSignatures)
       && fallback.state === normalized
     ) return normalized
@@ -291,6 +396,28 @@ export function migratePixGridState(
       conflicts: [],
       skippedUpgrades: [],
       fallbackRoutingInstalled: fallback.assignmentsAdded > 0,
+      detectedPresetLineage: 'fully-custom',
+      fromLayerGraphVersion,
+      toLayerGraphVersion: 0,
+      fromSmartGroupConfigurationVersion,
+      toSmartGroupConfigurationVersion: 0,
+      fromAudioRouteConfigurationVersion,
+      toAudioRouteConfigurationVersion: PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+      fromPerformanceProgramConfigurationVersion,
+      toPerformanceProgramConfigurationVersion: 0,
+      canonicalLayersAdded: [],
+      legacyLayersMapped: [],
+      legacyLayersPreservedAsOverlays: normalized.layers.map(layer => layer.id),
+      obsoleteOfficialLayersRemoved: [],
+      sceneReferencesRepaired: 0,
+      groupsRepaired: [],
+      emptyGroups: [],
+      missingLayerGroups: [],
+      assignmentsRepaired: [],
+      ineffectiveAssignments: [],
+      effectiveLiveRouteCount: fallback.validAssignmentCount,
+      migrationCompleted: true,
+      safeRecoveryUsed: false,
     }
     return normalizePixGridState({
       ...fallback.state,
@@ -299,8 +426,15 @@ export function migratePixGridState(
         origin: 'custom',
         sourcePresetId: normalized.configuration.sourcePresetId,
         presetConfigurationVersion: 0,
+        layerGraphVersion: 0,
+        smartGroupConfigurationVersion: 0,
+        audioRouteConfigurationVersion: PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+        performanceProgramConfigurationVersion: 0,
         musicReactiveConfigurationVersion: PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
         userCustomized: normalized.configuration.userCustomized,
+        legacyOfficialLayerGraph: false,
+        genuineUserLayers: normalized.layers.length > 0,
+        canonicalMigrationCompleted: true,
         canonicalSignatures: emptyCanonicalSignatures,
         lastMigration: report,
       },
@@ -308,44 +442,53 @@ export function migratePixGridState(
   }
 
   const settings = preset.pixGridSettings
+  const lineage = detectPixGridPresetLineage(normalized, preset)
+  if (lineage.lineage === 'fully-custom' && normalized.configuration.origin === 'custom') {
+    return migratePixGridState({ ...normalized, selectedPresetId: null }, null)
+  }
   const targetPresetConfigurationVersion = settings.authoredConfigurationVersion ?? 1
   const targetProgramId = settings.performanceProgramId ?? normalized.performance.sharedPerformanceProgramId
-  const canonicalLayers = settings.layers ?? []
   const canonicalGroups = settings.groups ?? []
   const canonicalAssignments = settings.audioAssignments ?? []
   const targetCanonicalSignatures = createPixGridCanonicalSignatures(settings)
   const previousCanonicalSignatures = normalized.configuration.canonicalSignatures
-  const canonicalSceneIds = Object.keys(settings.sceneSettings ?? {})
-  const existingLayerIds = new Set(normalized.layers.map(layer => layer.id))
-  const existingSceneIds = new Set(normalized.scenes.map(scene => scene.id))
-  const missingCanonicalLayers = canonicalLayers.filter(layer => !existingLayerIds.has(layer.id))
-  const missingScenes = canonicalSceneIds.filter(sceneId => !existingSceneIds.has(sceneId))
-  const hasTrustedConfigurationMetadata = finiteVersion(rawConfiguration?.metadataVersion)
-    >= PIX_GRID_CONFIGURATION_METADATA_VERSION
+  const hasTrustedConfigurationMetadata = finiteVersion(rawConfiguration?.metadataVersion) >= PIX_GRID_CONFIGURATION_METADATA_VERSION
   const userCustomized = hasTrustedConfigurationMetadata
     ? rawConfiguration?.userCustomized === true
     : strongLegacyCustomization(normalized, preset)
-  const presetUpgradeRequested = hasTrustedConfigurationMetadata
-    && rawConfiguration?.origin === 'builtInPreset'
-    && fromPresetConfigurationVersion < targetPresetConfigurationVersion
-  const allowBlindUpgrade = presetUpgradeRequested && !userCustomized
-  const missingLayers = normalized.layers.length === 0 || (presetUpgradeRequested && !userCustomized)
-    ? missingCanonicalLayers
-    : []
+  const graphUpgradeRequested = lineage.lineage !== 'current-canonical-built-in'
+    || fromLayerGraphVersion < PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION
+    || normalized.configuration.canonicalMigrationCompleted !== true
+  const presetUpgradeRequested = fromPresetConfigurationVersion < targetPresetConfigurationVersion
+    || fromSmartGroupConfigurationVersion < PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION
+    || fromAudioRouteConfigurationVersion < PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION
+    || fromPerformanceProgramConfigurationVersion < PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION
+  const allowBlindUpgrade = presetUpgradeRequested && (!userCustomized || lineage.legacyOfficialLayerGraph)
+  const layerMerge = graphUpgradeRequested
+    ? mergePixGridCanonicalLayerGraph(normalized, preset)
+    : {
+        layers: normalized.layers.map(clonePixGridLayer),
+        layerIdMap: new Map(normalized.layers.map(layer => [layer.id, layer.id])),
+        canonicalLayersAdded: [] as string[],
+        legacyLayersMapped: [] as string[],
+        legacyLayersPreservedAsOverlays: [] as string[],
+        obsoleteOfficialLayersRemoved: [] as string[],
+        safeRecoveryUsed: false,
+      }
 
   const groupMerge = mergeCanonicalGroups(normalized.groups, canonicalGroups, {
-    upgradeRequested: presetUpgradeRequested,
+    upgradeRequested: presetUpgradeRequested || graphUpgradeRequested,
     allowBlindUpgrade,
     previousSignatures: previousCanonicalSignatures,
   })
   const assignmentMerge = mergeCanonicalAssignments(normalized.audioAssignments, canonicalAssignments, {
-    upgradeRequested: presetUpgradeRequested,
+    upgradeRequested: presetUpgradeRequested || graphUpgradeRequested,
     allowBlindUpgrade,
     previousSignatures: previousCanonicalSignatures.assignments,
     signatureKey: pixGridGlobalAssignmentSignatureKey,
   })
-  const canonicalLayerById = new Map(canonicalLayers.map(layer => [layer.id, layer]))
-  const layerAnimationUpgradeIds = new Set(normalized.layers.flatMap(layer => {
+  const canonicalLayerById = new Map((settings.layers ?? []).map(layer => [layer.id, layer]))
+  const layerAnimationUpgradeIds = new Set(layerMerge.layers.flatMap(layer => {
     const canonicalLayer = canonicalLayerById.get(layer.id)
     if (!canonicalLayer) return []
     return shouldUpgradeCanonicalEntity(
@@ -355,12 +498,52 @@ export function migratePixGridState(
       pixGridLayerAnimationSignature(layer),
     ) ? [layer.id] : []
   }))
+  const layers = layerMerge.layers.map(layer => {
+    const canonicalLayer = canonicalLayerById.get(layer.id)
+    return canonicalLayer && layerAnimationUpgradeIds.has(layer.id)
+      ? mergeCanonicalLayerAnimationMetadata(layer, canonicalLayer)
+      : clonePixGridLayer(layer)
+  })
+  const repaired = repairPixGridLayerReferences(
+    normalized,
+    preset,
+    layers,
+    layerMerge.layerIdMap,
+    groupMerge.groups,
+    assignmentMerge.assignments,
+  )
   const programMissing = targetProgramId != null && rawPerformance?.sharedPerformanceProgramId !== targetProgramId
+  const candidateBase = normalizePixGridState({
+    ...normalized,
+    selectedPresetId: preset.id,
+    selectedSceneId: repaired.selectedSceneId,
+    layers,
+    scenes: repaired.scenes,
+    groups: repaired.groups,
+    audioAssignments: repaired.audioAssignments,
+    editor: { ...normalized.editor, selectedLayerId: repaired.selectedLayerId },
+    performance: {
+      ...repaired.performance,
+      enabled: targetProgramId ? true : repaired.performance.enabled,
+      sharedPerformanceProgramId: targetProgramId,
+    },
+  })
+  const fallback = reconcilePixGridFallbackAssignments(candidateBase)
+  const integrity = builtInMigrationIntegrity(fallback.state, preset)
+  const completed = integrity.completed
   const migrationNeeded = fromStateVersion < PIX_GRID_STATE_VERSION
     || fromPresetConfigurationVersion < targetPresetConfigurationVersion
+    || fromLayerGraphVersion < PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION
+    || fromSmartGroupConfigurationVersion < PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION
+    || fromAudioRouteConfigurationVersion < PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION
+    || fromPerformanceProgramConfigurationVersion < PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION
     || normalized.configuration.musicReactiveConfigurationVersion < PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION
-    || missingLayers.length > 0
-    || missingScenes.length > 0
+    || normalized.configuration.canonicalMigrationCompleted !== completed
+    || layerMerge.canonicalLayersAdded.length > 0
+    || layerMerge.legacyLayersMapped.length > 0
+    || repaired.sceneReferencesRepaired > 0
+    || repaired.groupsRepaired.length > 0
+    || repaired.assignmentsRepaired.length > 0
     || groupMerge.groupsAdded > 0
     || groupMerge.groupsUpgraded > 0
     || groupMerge.assignmentsAdded > 0
@@ -374,25 +557,6 @@ export function migratePixGridState(
 
   if (!migrationNeeded) return normalized
 
-  const layers = [
-    ...normalized.layers.map(layer => {
-      const canonicalLayer = canonicalLayerById.get(layer.id)
-      return canonicalLayer && layerAnimationUpgradeIds.has(layer.id)
-        ? mergeCanonicalLayerAnimationMetadata(layer, canonicalLayer)
-        : clonePixGridLayer(layer)
-    }),
-    ...missingLayers.map(clonePixGridLayer),
-  ]
-  const allLayerIds = layers.map(layer => layer.id)
-  const scenes = [
-    ...normalized.scenes.map(scene => ({ ...scene, layerIds: [...scene.layerIds], pixelOverrides: [...scene.pixelOverrides] })),
-    ...missingScenes.map((sceneId, index) => ({
-      id: sceneId,
-      name: (sceneId.split('-').slice(-1)[0] ?? `scene-${normalized.scenes.length + index + 1}`).replace(/^./, (character: string) => character.toUpperCase()),
-      layerIds: [...allLayerIds],
-      pixelOverrides: [],
-    })),
-  ]
   const report: PixGridMigrationDiagnostics = {
     applied: true,
     fromStateVersion,
@@ -402,41 +566,60 @@ export function migratePixGridState(
     groupsAdded: groupMerge.groupsAdded,
     groupsPreserved: groupMerge.groupsPreserved,
     groupsUpgraded: groupMerge.groupsUpgraded,
-    assignmentsAdded: groupMerge.assignmentsAdded + assignmentMerge.added,
+    assignmentsAdded: groupMerge.assignmentsAdded + assignmentMerge.added + fallback.assignmentsAdded,
     assignmentsPreserved: groupMerge.assignmentsPreserved + assignmentMerge.preserved,
     assignmentsUpgraded: groupMerge.assignmentsUpgraded + assignmentMerge.upgraded,
-    layersAdded: missingLayers.length,
-    scenesAdded: missingScenes.length,
-    fallbackRoutesActive: false,
+    layersAdded: layerMerge.canonicalLayersAdded.length,
+    scenesAdded: Math.max(0, repaired.scenes.length - normalized.scenes.length),
+    fallbackRoutesActive: fallback.fallbackActive,
     originalBuiltInPresetId: normalized.configuration.sourcePresetId ?? preset.id,
     programsUpgraded: programMissing ? 1 : 0,
-    customizationsPreserved: userCustomized,
-    conflicts: [],
+    customizationsPreserved: userCustomized || lineage.genuineUserLayers,
+    conflicts: integrity.conflicts,
     skippedUpgrades: userCustomized && presetUpgradeRequested
-      ? ['Customized canonical entities were preserved unless their prior canonical signature still matched.']
+      ? ['Customized canonical entities were preserved unless structurally invalid or their prior canonical signature still matched.']
       : [],
-    fallbackRoutingInstalled: false,
+    fallbackRoutingInstalled: fallback.assignmentsAdded > 0,
+    detectedPresetLineage: lineage.lineage,
+    fromLayerGraphVersion,
+    toLayerGraphVersion: PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,
+    fromSmartGroupConfigurationVersion,
+    toSmartGroupConfigurationVersion: PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION,
+    fromAudioRouteConfigurationVersion,
+    toAudioRouteConfigurationVersion: PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+    fromPerformanceProgramConfigurationVersion,
+    toPerformanceProgramConfigurationVersion: PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION,
+    canonicalLayersAdded: layerMerge.canonicalLayersAdded,
+    legacyLayersMapped: layerMerge.legacyLayersMapped,
+    legacyLayersPreservedAsOverlays: layerMerge.legacyLayersPreservedAsOverlays,
+    obsoleteOfficialLayersRemoved: layerMerge.obsoleteOfficialLayersRemoved,
+    sceneReferencesRepaired: repaired.sceneReferencesRepaired,
+    groupsRepaired: repaired.groupsRepaired,
+    emptyGroups: integrity.emptyGroups,
+    missingLayerGroups: integrity.missingLayerGroups,
+    assignmentsRepaired: repaired.assignmentsRepaired,
+    ineffectiveAssignments: integrity.ineffectiveAssignments,
+    effectiveLiveRouteCount: integrity.effectiveLiveRouteCount,
+    migrationCompleted: completed,
+    safeRecoveryUsed: layerMerge.safeRecoveryUsed,
   }
 
   return normalizePixGridState({
-    ...normalized,
-    selectedPresetId: preset.id,
-    layers,
-    scenes,
-    groups: groupMerge.groups,
-    audioAssignments: assignmentMerge.assignments,
-    performance: {
-      ...normalized.performance,
-      enabled: targetProgramId ? true : normalized.performance.enabled,
-      sharedPerformanceProgramId: targetProgramId,
-    },
+    ...fallback.state,
     configuration: {
       metadataVersion: PIX_GRID_CONFIGURATION_METADATA_VERSION,
       origin: 'builtInPreset',
       sourcePresetId: normalized.configuration.sourcePresetId ?? preset.id,
       presetConfigurationVersion: targetPresetConfigurationVersion,
+      layerGraphVersion: PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,
+      smartGroupConfigurationVersion: PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION,
+      audioRouteConfigurationVersion: PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+      performanceProgramConfigurationVersion: PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION,
       musicReactiveConfigurationVersion: PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
       userCustomized,
+      legacyOfficialLayerGraph: !completed && lineage.legacyOfficialLayerGraph,
+      genuineUserLayers: lineage.genuineUserLayers,
+      canonicalMigrationCompleted: completed,
       canonicalSignatures: targetCanonicalSignatures,
       lastMigration: report,
     },
@@ -508,14 +691,6 @@ const PIX_GRID_BASELINE_FALLBACK_IDS = new Set(
   PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(assignment => assignment.id),
 )
 
-const SOURCE_BACKED_GROUP_MASKS = new Set<PixGridGroup['mask']['kind']>([
-  'layerAlpha',
-  'colorRange',
-  'luminanceRange',
-  'connectedRegion',
-  'svgMetadata',
-])
-
 const FALLBACK_SOURCE_BY_MODE: Partial<Record<NonNullable<PixGridReactionAssignment['capabilityFallback']>, PixGridReactionSource>> = {
   energy: 'energy',
   beat: 'beat',
@@ -539,16 +714,22 @@ function assignmentTargetExists(state: PixGridState, assignment: PixGridReaction
 function assignmentTargetCanRender(state: PixGridState, assignment: PixGridReactionAssignment, ownerGroupId?: string): boolean {
   if (!assignmentTargetExists(state, assignment, ownerGroupId)) return false
   const scope = assignment.targetScope ?? (ownerGroupId ? 'group' : 'output')
+  if (scope === 'layer' || scope === 'animation') {
+    if (!assignment.targetId) return state.layers.some(layer => layer.visible && layer.opacity > 0)
+    const layer = state.layers.find(candidate => candidate.id === assignment.targetId)
+    return Boolean(layer?.visible && layer.opacity > 0)
+  }
+  if (scope === 'scene') {
+    if (!assignment.targetId) return state.scenes.some(scene => scene.layerIds.length > 0)
+    const scene = state.scenes.find(candidate => candidate.id === assignment.targetId)
+    return Boolean(scene?.layerIds.some(layerId => state.layers.some(layer => layer.id === layerId && layer.visible && layer.opacity > 0)))
+  }
   if (scope !== 'group' && scope !== 'pixels') return true
   const targetId = assignment.targetId ?? ownerGroupId ?? null
   if (!targetId) return true
   const group = state.groups.find(candidate => candidate.id === targetId)
-  if (!group || !group.enabled || group.contentVisible === false) return false
-  if (SOURCE_BACKED_GROUP_MASKS.has(group.mask.kind)) {
-    const sourceLayerIds = group.layerScope?.length ? group.layerScope : group.layerId ? [group.layerId] : []
-    return sourceLayerIds.length > 0 && sourceLayerIds.every(layerId => state.layers.some(layer => layer.id === layerId))
-  }
-  return compilePixGridGroupMask(group, state.matrixWidth, state.matrixHeight).cellCount > 0
+  if (!group) return false
+  return inspectPixGridGroupTarget(state, group).usable
 }
 
 function assignmentConditionsCanMatch(state: PixGridState, assignment: PixGridReactionAssignment): boolean {
@@ -591,9 +772,12 @@ export function isPixGridAudioAssignmentEffective(
   if (Math.abs(assignment.amount) <= 1e-6) return false
   const outputRange = assignment.outputRange ?? [0, 1]
   if (Math.abs(outputRange[1] - outputRange[0]) <= 1e-6) return false
-  if (Math.abs(assignment.clamp[0]) <= 1e-6 && Math.abs(assignment.clamp[1]) <= 1e-6) return false
+  if (Math.abs(assignment.clamp[1] - assignment.clamp[0]) <= 1e-6) return false
   if (!assignmentConditionsCanMatch(state, assignment)) return false
   if (!assignmentTargetCanRender(state, assignment, ownerGroupId)) return false
+  const defaultScope = ownerGroupId ? 'group' : 'output'
+  const compiled = PIX_GRID_EFFECTIVENESS_COMPILER.compile(assignment, capabilities ?? {}, defaultScope, `${ownerGroupId ?? 'audio'}:${assignment.id}`)
+  if (!compiled.compatible) return false
   return assignmentSourceCanResolve(assignment, capabilities)
 }
 
@@ -642,10 +826,13 @@ function reconcilePixGridFallbackAssignments(
     ...cloneAssignment(assignment),
     enabled: fallbackActive,
   }))
-  const desiredAssignments = existingFallback.length > 0 || fallbackActive
+  const fallbackDefinitionsRequired = existingFallback.length > 0 || fallbackActive
+  const desiredAssignments = fallbackDefinitionsRequired
     ? [...existingNonFallback, ...canonicalFallback]
     : state.audioAssignments
-  const assignmentsAdded = Math.max(0, canonicalFallback.length - existingFallback.length)
+  const assignmentsAdded = fallbackDefinitionsRequired
+    ? Math.max(0, canonicalFallback.length - existingFallback.length)
+    : 0
   const unchanged = desiredAssignments === state.audioAssignments || (
     existingNonFallback.length + existingFallback.length === state.audioAssignments.length
     && fallbackAssignmentsMatch(state.audioAssignments, desiredAssignments)

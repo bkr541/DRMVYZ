@@ -55,7 +55,24 @@ export function selectPixGridTransition(
 export interface PixGridUnifiedRuntimeDiagnostics {
   stateSchemaVersion: number;
   presetConfigurationVersion: number;
+  layerGraphVersion: number;
+  smartGroupConfigurationVersion: number;
+  audioRouteConfigurationVersion: number;
+  performanceProgramConfigurationVersion: number;
+  canonicalMigrationCompleted: boolean;
   migrationApplied: boolean;
+  migrationDetectedPresetLineage: string;
+  migrationCanonicalLayersAdded: readonly string[];
+  migrationLegacyLayersMapped: readonly string[];
+  migrationLegacyLayersPreservedAsOverlays: readonly string[];
+  migrationSceneReferencesRepaired: number;
+  migrationGroupsRepaired: readonly string[];
+  migrationEmptyGroups: readonly string[];
+  migrationMissingLayerGroups: readonly string[];
+  migrationAssignmentsRepaired: readonly string[];
+  migrationIneffectiveAssignments: readonly string[];
+  migrationEffectiveLiveRouteCount: number;
+  migrationSafeRecoveryUsed: boolean;
   migrationGroupsAdded: number;
   migrationGroupsPreserved: number;
   migrationGroupsUpgraded: number;
@@ -470,7 +487,24 @@ export class PixGridUnifiedPerformanceRuntime {
       diagnostics: {
         stateSchemaVersion: cues.state.version,
         presetConfigurationVersion: cues.state.configuration.presetConfigurationVersion,
+        layerGraphVersion: cues.state.configuration.layerGraphVersion,
+        smartGroupConfigurationVersion: cues.state.configuration.smartGroupConfigurationVersion,
+        audioRouteConfigurationVersion: cues.state.configuration.audioRouteConfigurationVersion,
+        performanceProgramConfigurationVersion: cues.state.configuration.performanceProgramConfigurationVersion,
+        canonicalMigrationCompleted: cues.state.configuration.canonicalMigrationCompleted,
         migrationApplied: migration?.applied === true,
+        migrationDetectedPresetLineage: migration?.detectedPresetLineage ?? 'unknown',
+        migrationCanonicalLayersAdded: migration?.canonicalLayersAdded ?? [],
+        migrationLegacyLayersMapped: migration?.legacyLayersMapped ?? [],
+        migrationLegacyLayersPreservedAsOverlays: migration?.legacyLayersPreservedAsOverlays ?? [],
+        migrationSceneReferencesRepaired: migration?.sceneReferencesRepaired ?? 0,
+        migrationGroupsRepaired: migration?.groupsRepaired ?? [],
+        migrationEmptyGroups: migration?.emptyGroups ?? [],
+        migrationMissingLayerGroups: migration?.missingLayerGroups ?? [],
+        migrationAssignmentsRepaired: migration?.assignmentsRepaired ?? [],
+        migrationIneffectiveAssignments: migration?.ineffectiveAssignments ?? [],
+        migrationEffectiveLiveRouteCount: migration?.effectiveLiveRouteCount ?? 0,
+        migrationSafeRecoveryUsed: migration?.safeRecoveryUsed === true,
         migrationGroupsAdded: migration?.groupsAdded ?? 0,
         migrationGroupsPreserved: migration?.groupsPreserved ?? 0,
         migrationGroupsUpgraded: migration?.groupsUpgraded ?? 0,

@@ -1,8 +1,12 @@
 import type { ReactSectionType } from '../ReactTypes'
 
-export const PIX_GRID_STATE_VERSION = 14 as const
-export const PIX_GRID_CONFIGURATION_METADATA_VERSION = 1 as const
-export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 2 as const
+export const PIX_GRID_STATE_VERSION = 15 as const
+export const PIX_GRID_CONFIGURATION_METADATA_VERSION = 2 as const
+export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 3 as const
+export const PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION = 2 as const
+export const PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION = 2 as const
+export const PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION = 3 as const
+export const PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION = 2 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
@@ -395,6 +399,13 @@ export interface PixGridConversionSettings {
 
 
 export type PixGridStateOrigin = 'builtInPreset' | 'custom'
+export type PixGridPresetLineage =
+  | 'current-canonical-built-in'
+  | 'untouched-legacy-built-in'
+  | 'legacy-built-in-minor-customization'
+  | 'legacy-built-in-custom-overlays'
+  | 'fully-custom'
+  | 'unknown'
 
 export interface PixGridMigrationDiagnostics {
   applied: boolean
@@ -417,6 +428,28 @@ export interface PixGridMigrationDiagnostics {
   conflicts?: readonly string[]
   skippedUpgrades?: readonly string[]
   fallbackRoutingInstalled?: boolean
+  detectedPresetLineage?: PixGridPresetLineage
+  fromLayerGraphVersion?: number
+  toLayerGraphVersion?: number
+  fromSmartGroupConfigurationVersion?: number
+  toSmartGroupConfigurationVersion?: number
+  fromAudioRouteConfigurationVersion?: number
+  toAudioRouteConfigurationVersion?: number
+  fromPerformanceProgramConfigurationVersion?: number
+  toPerformanceProgramConfigurationVersion?: number
+  canonicalLayersAdded?: readonly string[]
+  legacyLayersMapped?: readonly string[]
+  legacyLayersPreservedAsOverlays?: readonly string[]
+  obsoleteOfficialLayersRemoved?: readonly string[]
+  sceneReferencesRepaired?: number
+  groupsRepaired?: readonly string[]
+  emptyGroups?: readonly string[]
+  missingLayerGroups?: readonly string[]
+  assignmentsRepaired?: readonly string[]
+  ineffectiveAssignments?: readonly string[]
+  effectiveLiveRouteCount?: number
+  migrationCompleted?: boolean
+  safeRecoveryUsed?: boolean
 }
 
 export interface PixGridCanonicalSignatures {
@@ -430,8 +463,15 @@ export interface PixGridConfigurationMetadata {
   origin: PixGridStateOrigin
   sourcePresetId: string | null
   presetConfigurationVersion: number
+  layerGraphVersion: number
+  smartGroupConfigurationVersion: number
+  audioRouteConfigurationVersion: number
+  performanceProgramConfigurationVersion: number
   musicReactiveConfigurationVersion: number
   userCustomized: boolean
+  legacyOfficialLayerGraph: boolean
+  genuineUserLayers: boolean
+  canonicalMigrationCompleted: boolean
   canonicalSignatures: PixGridCanonicalSignatures
   lastMigration: PixGridMigrationDiagnostics | null
 }
@@ -626,7 +666,18 @@ export interface PixGridRendererDiagnostics {
   groupMaskApproximateBytes?: number
   stateSchemaVersion?: number
   presetConfigurationVersion?: number
+  layerGraphVersion?: number
+  canonicalMigrationCompleted?: boolean
   migrationApplied?: boolean
+  migrationDetectedPresetLineage?: string
+  migrationCanonicalLayersAdded?: number
+  migrationLegacyLayersMapped?: number
+  migrationSceneReferencesRepaired?: number
+  migrationEmptyGroupCount?: number
+  migrationMissingLayerGroupCount?: number
+  migrationIneffectiveAssignmentCount?: number
+  migrationEffectiveLiveRouteCount?: number
+  migrationSafeRecoveryUsed?: boolean
   migrationGroupsAdded?: number
   migrationGroupsPreserved?: number
   migrationGroupsUpgraded?: number

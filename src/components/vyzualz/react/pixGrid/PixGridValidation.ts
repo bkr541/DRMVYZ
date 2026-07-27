@@ -21,6 +21,10 @@ import {
   MAX_PIX_GRID_AUDIO_ASSIGNMENTS,
 } from './PixGridLimits'
 import {
+  PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
+  PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,
+  PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION,
+  PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION,
   PIX_GRID_STATE_VERSION,
   type PixGridAnimationBoundary,
   type PixGridAnimationMode,
@@ -65,6 +69,7 @@ import {
   type PixGridConfigurationMetadata,
   type PixGridCanonicalSignatures,
   type PixGridMigrationDiagnostics,
+  type PixGridPresetLineage,
   PIX_GRID_CONFIGURATION_METADATA_VERSION,
 } from './PixGridTypes'
 
@@ -718,6 +723,21 @@ function normalizeSelection(value: unknown, width: number, height: number): PixG
 }
 
 
+function normalizeDiagnosticStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).map(item => item.trim().slice(0, 256)))].slice(0, 128)
+    : []
+}
+
+const PIX_GRID_PRESET_LINEAGES = new Set<PixGridPresetLineage>([
+  'current-canonical-built-in',
+  'untouched-legacy-built-in',
+  'legacy-built-in-minor-customization',
+  'legacy-built-in-custom-overlays',
+  'fully-custom',
+  'unknown',
+])
+
 function normalizeMigrationDiagnostics(value: unknown): PixGridMigrationDiagnostics | null {
   if (!isRecord(value)) return null
   return {
@@ -738,9 +758,33 @@ function normalizeMigrationDiagnostics(value: unknown): PixGridMigrationDiagnost
     originalBuiltInPresetId: nullableId(value.originalBuiltInPresetId),
     programsUpgraded: Math.max(0, Math.round(finite(value.programsUpgraded, 0))),
     customizationsPreserved: value.customizationsPreserved === true,
-    conflicts: Array.isArray(value.conflicts) ? value.conflicts.filter((item): item is string => typeof item === 'string').slice(0, 64) : [],
-    skippedUpgrades: Array.isArray(value.skippedUpgrades) ? value.skippedUpgrades.filter((item): item is string => typeof item === 'string').slice(0, 64) : [],
+    conflicts: normalizeDiagnosticStringList(value.conflicts),
+    skippedUpgrades: normalizeDiagnosticStringList(value.skippedUpgrades),
     fallbackRoutingInstalled: value.fallbackRoutingInstalled === true,
+    detectedPresetLineage: PIX_GRID_PRESET_LINEAGES.has(value.detectedPresetLineage as PixGridPresetLineage)
+      ? value.detectedPresetLineage as PixGridPresetLineage
+      : 'unknown',
+    fromLayerGraphVersion: Math.max(0, Math.round(finite(value.fromLayerGraphVersion, 0))),
+    toLayerGraphVersion: Math.max(0, Math.round(finite(value.toLayerGraphVersion, 0))),
+    fromSmartGroupConfigurationVersion: Math.max(0, Math.round(finite(value.fromSmartGroupConfigurationVersion, 0))),
+    toSmartGroupConfigurationVersion: Math.max(0, Math.round(finite(value.toSmartGroupConfigurationVersion, 0))),
+    fromAudioRouteConfigurationVersion: Math.max(0, Math.round(finite(value.fromAudioRouteConfigurationVersion, 0))),
+    toAudioRouteConfigurationVersion: Math.max(0, Math.round(finite(value.toAudioRouteConfigurationVersion, 0))),
+    fromPerformanceProgramConfigurationVersion: Math.max(0, Math.round(finite(value.fromPerformanceProgramConfigurationVersion, 0))),
+    toPerformanceProgramConfigurationVersion: Math.max(0, Math.round(finite(value.toPerformanceProgramConfigurationVersion, 0))),
+    canonicalLayersAdded: normalizeDiagnosticStringList(value.canonicalLayersAdded),
+    legacyLayersMapped: normalizeDiagnosticStringList(value.legacyLayersMapped),
+    legacyLayersPreservedAsOverlays: normalizeDiagnosticStringList(value.legacyLayersPreservedAsOverlays),
+    obsoleteOfficialLayersRemoved: normalizeDiagnosticStringList(value.obsoleteOfficialLayersRemoved),
+    sceneReferencesRepaired: Math.max(0, Math.round(finite(value.sceneReferencesRepaired, 0))),
+    groupsRepaired: normalizeDiagnosticStringList(value.groupsRepaired),
+    emptyGroups: normalizeDiagnosticStringList(value.emptyGroups),
+    missingLayerGroups: normalizeDiagnosticStringList(value.missingLayerGroups),
+    assignmentsRepaired: normalizeDiagnosticStringList(value.assignmentsRepaired),
+    ineffectiveAssignments: normalizeDiagnosticStringList(value.ineffectiveAssignments),
+    effectiveLiveRouteCount: Math.max(0, Math.round(finite(value.effectiveLiveRouteCount, 0))),
+    migrationCompleted: value.migrationCompleted === true,
+    safeRecoveryUsed: value.safeRecoveryUsed === true,
   }
 }
 
@@ -780,8 +824,15 @@ function normalizeConfigurationMetadata(
     origin,
     sourcePresetId: origin === 'builtInPreset' ? sourcePresetId : nullableId(raw.sourcePresetId),
     presetConfigurationVersion: Math.max(0, Math.min(1_000, Math.round(finite(raw.presetConfigurationVersion, 0)))),
+    layerGraphVersion: Math.max(0, Math.min(1_000, Math.round(finite(raw.layerGraphVersion, 0)))),
+    smartGroupConfigurationVersion: Math.max(0, Math.min(1_000, Math.round(finite(raw.smartGroupConfigurationVersion, 0)))),
+    audioRouteConfigurationVersion: Math.max(0, Math.min(1_000, Math.round(finite(raw.audioRouteConfigurationVersion, 0)))),
+    performanceProgramConfigurationVersion: Math.max(0, Math.min(1_000, Math.round(finite(raw.performanceProgramConfigurationVersion, 0)))),
     musicReactiveConfigurationVersion: Math.max(0, Math.min(1_000, Math.round(finite(raw.musicReactiveConfigurationVersion, 0)))),
     userCustomized: raw.userCustomized === true,
+    legacyOfficialLayerGraph: raw.legacyOfficialLayerGraph === true,
+    genuineUserLayers: raw.genuineUserLayers === true,
+    canonicalMigrationCompleted: raw.canonicalMigrationCompleted === true,
     canonicalSignatures: normalizeCanonicalSignatures(raw.canonicalSignatures),
     lastMigration: normalizeMigrationDiagnostics(raw.lastMigration),
   }
