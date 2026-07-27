@@ -41,7 +41,7 @@ Cue and Performance progress use audio time. Pause holds progress, seek reconstr
 
 ## Resolved reaction ledger
 
-The compositor-owned `PixGridReactionRuntime` publishes one compact `routeActivity` record per compiled route per frame. Each record contains the stable route ID, source, target, scope, target ID, active/idle/fallback/disabled/blocked state, resolved value, effective amount, confidence, fallback state, envelope phase, affected group IDs, and a human-readable reason. Multiple evaluations of one route in a frame are merged by stable ID and never create unbounded diagnostic history.
+The compositor-owned `PixGridReactionRuntime` publishes one compact `routeActivity` record per compiled route per frame. Each record contains the stable route ID, source, target, scope, target ID, active/idle/fallback/disabled/blocked state, resolved value, perceptually calibrated effective amount, confidence, fallback state, envelope phase, affected group IDs, and a human-readable reason. Multiple evaluations of one route in a frame are merged by stable ID and never create unbounded diagnostic history.
 
 `mergePixGridReactionRuntimeDiagnostics` replaces the eligibility-only view with the actual compositor evaluation after either Canvas2D or WebGL2 renders. Affected cells are derived from the active shared group masks. Whole-frame targets report the full logical matrix. This merged snapshot is the source used by the Analysis inspector and renderer diagnostics.
 
@@ -58,3 +58,11 @@ Canvas2D and WebGL2 may differ in rasterization and glow, but they must agree on
 ## Validation and performance bounds
 
 Validation runs when authored state changes, not at analyser frequency. The React status store remains throttled and uses selector snapshots. Group masks and assignments remain cache-keyed; diagnostics are frame-bounded; renderer plans reuse typed buffers; and migration is not rerun in the animation hot loop. Bundled-preset audits prove reactivity with rendered pixels across standardized musical scenarios rather than checking for route metadata alone.
+
+## Perceptual route resolution
+
+Built-in perceptual calibration is resolved once above the compositor and both renderer paths. Source range mapping, confidence/fallback handling, threshold/hysteresis, smoothing, retained event envelopes, Bass Reactivity, per-route gain, minimum effective strength, and mask-coverage compensation all feed one signed action value. Group-targeted compensation uses the compiled logical mask cell count and current matrix size; whole-layer, scene, output, palette, and transition routes use the same calibration without mask compensation. Canvas2D and WebGL2 never perform independent source normalization or event routing.
+
+The calibration floor is proportional to actual mapped activity and is exactly zero for silence. It cannot create stale events, bypass conditions, defeat cooldown, or grow stacks beyond the existing limits. Built-in event curves remain linear after envelope evaluation so release tails are preserved. User-authored routes default to gain 1, floor 0, and coverage compensation 0.
+
+Rendered audits use ordinary analyser values and compare material cell changes rather than byte inequality. Normal kick and snare scenarios must exceed changed-cell and color-distance minimums, differ spatially, survive long enough to read, and remain deterministic under seek/loop reconstruction. Sustained bass must separate Bass Reactivity 0, 0.5, and 1; silent playback must remain materially calmer than ordinary playback; build, pre-drop, drop, breakdown, later-drop, and outro states must resolve distinct plans and pixels.

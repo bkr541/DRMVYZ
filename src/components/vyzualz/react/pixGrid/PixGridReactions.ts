@@ -3,6 +3,7 @@ import type { PixGridCompiledAssignment } from './PixGridAssignmentCompiler'
 import type { PixGridCompiledGroupMaskResolver } from './PixGridGroupCompiler'
 import { MAX_PIX_GRID_ACTIVE_REACTIONS } from './PixGridLimits'
 import { isPixGridContinuousReactionSource, PixGridReactionRuntime } from './PixGridAudioRouting'
+import { resolvePixGridPerceptualStrength } from './PixGridPerceptualCalibration'
 import { activePixGridGroups, compilePixGridGroupMask, pixGridMaskHasCell, pixGridSetMaskCell } from './PixGridGroups'
 import type { PixGridAudioFrame, PixGridGroup, PixGridLayer, PixGridPaletteRole, PixGridReactionAssignment } from './PixGridTypes'
 
@@ -339,7 +340,7 @@ export function applyPixGridGroupReactions(
         { activeLayerIds, activeGroupIds, currentGroupId: group.id },
       )
       if (!resolved.active) continue
-      const strength = compiledAssignment.amount * resolved.value
+      const strength = resolvePixGridPerceptualStrength(compiledAssignment, resolved.value, compiled.cellCount, width * height)
       applyPixelReaction(pixels, width, height, compiled.bits, assignment, compiledAssignment, strength, frame, group, palette, claimed, claim)
     }
   }
@@ -379,7 +380,7 @@ export function resolvePixGridLayerReactionFrame(
         activeGroupIds,
       })
       if (!resolved.active) continue
-      const value = compiled.amount * resolved.value
+      const value = resolvePixGridPerceptualStrength(compiled, resolved.value)
       if (compiled.target.id === 'animationSpeed') speed = Math.max(0, speed + value)
       else if ((compiled.target.id === 'directionReverse' || compiled.target.id === 'direction' || compiled.target.id === 'reverse') && Math.abs(value) >= 0.5) direction *= -1
       else if (compiled.target.id === 'frameAdvance' || compiled.target.id === 'frameIndex') frameAdvance += value

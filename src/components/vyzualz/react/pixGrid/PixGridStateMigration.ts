@@ -6,6 +6,7 @@ import {
   pixGridAssignmentSignature,
   pixGridGlobalAssignmentSignatureKey,
   pixGridGroupAssignmentSignatureKey,
+  pixGridLegacyPerceptualAssignmentSignature,
   pixGridGroupSignature,
   pixGridLayerAnimationSignature,
 } from './PixGridConfiguration'
@@ -132,9 +133,13 @@ function shouldUpgradeCanonicalEntity(
   allowBlindUpgrade: boolean,
   previousSignature: string | undefined,
   existingSignature: string,
+  compatibleSignatures: readonly string[] = [],
 ): boolean {
   if (!upgradeRequested) return false
-  if (previousSignature) return previousSignature === existingSignature
+  if (previousSignature === existingSignature || compatibleSignatures.includes(previousSignature ?? '')) return true
+  // Untouched built-in states are safe to refresh even when a newer normalizer adds
+  // neutral fields that could not have existed in the stored canonical signature.
+  // Customized states still require a current or version-compatible signature match.
   return allowBlindUpgrade
 }
 
@@ -165,6 +170,7 @@ function mergeCanonicalAssignments(
       options.allowBlindUpgrade,
       options.previousSignatures[signatureKey],
       pixGridAssignmentSignature(assignment),
+      [pixGridLegacyPerceptualAssignmentSignature(assignment)],
     )) {
       upgraded += 1
       return cloneAssignment(authored)

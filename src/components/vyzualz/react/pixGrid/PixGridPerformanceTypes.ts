@@ -24,7 +24,7 @@ import type {
   PixGridState,
 } from './PixGridTypes'
 
-export const PIX_GRID_PERFORMANCE_PROGRAM_SCHEMA_VERSION = 2 as const
+export const PIX_GRID_PERFORMANCE_PROGRAM_SCHEMA_VERSION = 3 as const
 
 export type PixGridPerformanceTransition = PixGridCueTransition | 'fade' | 'wipeRows' | 'wipeColumns' | 'dissolve'
 export type PixGridPerformanceBackgroundState = 'preset' | 'black' | 'dim' | 'lifted'
@@ -127,6 +127,9 @@ export interface PixGridContinuousRoutePlan {
   release?: number
   cooldown?: number
   bassReactivityEnabled?: boolean
+  perceptualGain?: number
+  minimumEffectiveStrength?: number
+  maskSizeCompensation?: number
   smoothing?: number
   blend?: PixGridReactionBlend
   intensityScale?: number
@@ -159,6 +162,10 @@ export interface PixGridEventRoutePlan {
   threshold?: number
   hysteresis?: number
   smoothing?: number
+  curve?: PixGridReactionCurve
+  perceptualGain?: number
+  minimumEffectiveStrength?: number
+  maskSizeCompensation?: number
   quantization?: PixGridReactionQuantization
   retrigger?: PixGridReactionRetrigger
   maximumStacking?: number

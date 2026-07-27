@@ -3,6 +3,8 @@ import { buildSharedPerformanceContext } from '../../../../features/performanceC
 import type { ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
 import { PixGridReactionRuntime, createSilentPixGridAudioFrame } from './PixGridAudioRouting'
 import { composePixGridLogicalFrame } from './PixGridCompositor'
+import { PIX_GRID_MATRIX_DIMENSIONS } from './PixGridDefaults'
+import { measurePixGridPerceptualDifference } from './PixGridPerceptualMetrics'
 import { applyPixGridRuntimeControls } from './PixGridRuntimeControls'
 import type { PixGridAudioFrame, PixGridReactionSource, PixGridState } from './PixGridTypes'
 import { PixGridUnifiedPerformanceRuntime } from './PixGridUnifiedPerformanceRuntime'
@@ -51,16 +53,16 @@ const AUDIT_SECTIONS: readonly ReactTrackSection[] = Object.freeze([
 
 export const PIX_GRID_REACTIVITY_AUDIT_SCENARIOS: readonly PixGridAuditScenario[] = Object.freeze([
   { id: 'silence', sectionType: 'verse', audioTime: 8, sourceValues: {} },
-  { id: 'kick', sectionType: 'verse', audioTime: 12, sourceValues: { kick: 1, beat: 1, transient: 0.85, bass: 0.45 } },
-  { id: 'snare', sectionType: 'verse', audioTime: 14, sourceValues: { snare: 1, beat: 1, transient: 0.75, high: 0.55 } },
-  { id: 'bassSustain', sectionType: 'verse', audioTime: 18, sourceValues: { sub: 0.9, bass: 1, lowMid: 0.72, bassStemActivity: 0.9, energy: 0.62 } },
-  { id: 'highEnergy', sectionType: 'verse', audioTime: 22, sourceValues: { energy: 1, trackRelativeEnergy: 1, volume: 0.92, spectralFlux: 0.8 } },
-  { id: 'build', sectionType: 'build', audioTime: 28, sourceValues: { buildProgress: 0.9, energy: 0.82, tension: 0.88, phraseProgress: 0.82 }, sectionOccurrence: 1 },
-  { id: 'preDrop', sectionType: 'preDrop', audioTime: 31, sourceValues: { energy: 0.25, tension: 1, phraseProgress: 0.96 }, sectionOccurrence: 1 },
-  { id: 'drop', sectionType: 'drop', audioTime: 32.1, sourceValues: { dropImpact: 1, kick: 1, beat: 1, bass: 1, energy: 1, transient: 1 }, sectionOccurrence: 1, dropOccurrence: 1 },
+  { id: 'kick', sectionType: 'verse', audioTime: 12, sourceValues: { kick: 0.62, beat: 1, transient: 0.52, bass: 0.38, energy: 0.48 } },
+  { id: 'snare', sectionType: 'verse', audioTime: 14, sourceValues: { snare: 0.66, beat: 1, transient: 0.58, high: 0.38, energy: 0.46 } },
+  { id: 'bassSustain', sectionType: 'verse', audioTime: 18, sourceValues: { sub: 0.35, bass: 0.43, lowMid: 0.31, bassStemActivity: 0.42, energy: 0.5 } },
+  { id: 'highEnergy', sectionType: 'verse', audioTime: 22, sourceValues: { energy: 0.78, trackRelativeEnergy: 0.82, volume: 0.74, spectralFlux: 0.56, beat: 1 } },
+  { id: 'build', sectionType: 'build', audioTime: 28, sourceValues: { buildProgress: 0.68, energy: 0.62, tension: 0.64, phraseProgress: 0.72, beat: 1 }, sectionOccurrence: 1 },
+  { id: 'preDrop', sectionType: 'preDrop', audioTime: 31, sourceValues: { energy: 0.2, tension: 0.78, phraseProgress: 0.94 }, sectionOccurrence: 1 },
+  { id: 'drop', sectionType: 'drop', audioTime: 32.1, sourceValues: { dropImpact: 0.88, kick: 0.78, beat: 1, downbeat: 1, bass: 0.68, sub: 0.58, energy: 0.82, transient: 0.72 }, sectionOccurrence: 1, dropOccurrence: 1 },
   { id: 'breakdown', sectionType: 'breakdown', audioTime: 68, sourceValues: { energy: 0.28, vocalActivity: 0.5, melodyActivity: 0.45 }, sectionOccurrence: 1 },
   { id: 'phraseBoundary', sectionType: 'breakdown', audioTime: 72, sourceValues: { phraseEntry: 1, beat: 1, energy: 0.4 }, phraseEntry: true, sectionOccurrence: 1 },
-  { id: 'secondDrop', sectionType: 'drop', audioTime: 80.1, sourceValues: { dropImpact: 1, kick: 1, snare: 0.8, beat: 1, bass: 1, energy: 1, transient: 1 }, sectionOccurrence: 2, dropOccurrence: 2 },
+  { id: 'secondDrop', sectionType: 'drop', audioTime: 80.1, sourceValues: { dropImpact: 0.9, kick: 0.82, snare: 0.72, beat: 1, downbeat: 1, bass: 0.72, energy: 0.86, transient: 0.78 }, sectionOccurrence: 2, dropOccurrence: 2 },
   { id: 'outro', sectionType: 'outro', audioTime: 120, sourceValues: { energy: 0.18, volume: 0.22, phraseProgress: 0.9 }, sectionOccurrence: 1 },
 ])
 
@@ -235,7 +237,10 @@ export function auditPixGridPresetRenderedReactivity(
   const silence = rendered.get('silence')!
   const kick = rendered.get('kick')!
   const snare = rendered.get('snare')!
-  const bass0 = renderScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'bassSustain')!, { bassReactivity: 0, motion: 1 })
+  const bassScenario = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'bassSustain')!
+  const lowBass = renderScenario(preset, state, { ...bassScenario, sourceValues: { sub: 0.14, bass: 0.18, lowMid: 0.16, bassStemActivity: 0.16, energy: 0.28 } })
+  const strongBass = renderScenario(preset, state, { ...bassScenario, sourceValues: { sub: 0.64, bass: 0.72, lowMid: 0.48, bassStemActivity: 0.7, energy: 0.72 } })
+  const bass0 = renderScenario(preset, state, bassScenario, { bassReactivity: 0, motion: 1 })
   const bass05 = renderScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'bassSustain')!, { bassReactivity: 0.5, motion: 1 })
   const bass1 = renderScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'bassSustain')!, { bassReactivity: 1, motion: 1 })
   const motion0 = renderScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS[0]!, { bassReactivity: 1, motion: 0 })
@@ -245,11 +250,29 @@ export function auditPixGridPresetRenderedReactivity(
   const unifiedDeterministicA = renderUnifiedScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'secondDrop')!)
   const unifiedDeterministicB = renderUnifiedScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'secondDrop')!)
   const validation = validatePixGridPreset(preset, state)
+  const dimensions = PIX_GRID_MATRIX_DIMENSIONS[state.quality]
+  const logicalFrame = (pixels: Uint8Array) => ({ ...dimensions, pixels, visibleLayerCount: 0 })
+  const kickMetrics = measurePixGridPerceptualDifference(logicalFrame(silence), logicalFrame(kick))
+  const snareMetrics = measurePixGridPerceptualDifference(logicalFrame(silence), logicalFrame(snare))
+  const activeMetrics = measurePixGridPerceptualDifference(logicalFrame(silence), logicalFrame(rendered.get('highEnergy')!))
+  const kickSnareMetrics = measurePixGridPerceptualDifference(logicalFrame(kick), logicalFrame(snare))
+  const bassRangeMetrics = measurePixGridPerceptualDifference(logicalFrame(lowBass), logicalFrame(strongBass))
+  const bassHalfMetrics = measurePixGridPerceptualDifference(logicalFrame(bass0), logicalFrame(bass05))
+  const bassFullMetrics = measurePixGridPerceptualDifference(logicalFrame(bass05), logicalFrame(bass1))
+  const localizationDelta = (
+    Math.abs(kickMetrics.centerChangedRatio * kickMetrics.changedCells - snareMetrics.centerChangedRatio * snareMetrics.changedCells)
+    + Math.abs(kickMetrics.borderChangedRatio * kickMetrics.changedCells - snareMetrics.borderChangedRatio * snareMetrics.changedCells)
+    + Math.abs(kickMetrics.upperChangedRatio * kickMetrics.changedCells - snareMetrics.upperChangedRatio * snareMetrics.changedCells)
+    + Math.abs(kickMetrics.lowerChangedRatio * kickMetrics.changedCells - snareMetrics.lowerChangedRatio * snareMetrics.changedCells)
+  )
   const checks: PixGridReactivityAuditCheck[] = [
     { id: 'compiles-and-validates', passed: validation.valid, detail: validation.summary },
-    { id: 'active-differs-from-silence', passed: [...rendered.entries()].some(([id, pixels]) => id !== 'silence' && differingBytes(silence, pixels) > 0), detail: 'At least one standardized music scenario must change rendered pixels.' },
-    { id: 'kick-differs-from-snare', passed: differingBytes(kick, snare) > 0, detail: 'Kick and snare scenarios must not resolve to the same rendered frame.' },
-    { id: 'bass-reactivity-control', passed: differingBytes(bass0, bass05) > 0 && differingBytes(bass05, bass1) > 0, detail: 'Bass Reactivity 0, 0.5, and 1 must materially change bass-driven output.' },
+    { id: 'active-differs-from-silence', passed: activeMetrics.changedCellRatio >= 0.025 && activeMetrics.meanMaterialDelta >= 14, detail: `Ordinary playback changed ${(activeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${activeMetrics.meanMaterialDelta.toFixed(1)} relative to silence.` },
+    { id: 'kick-perceptual-minimum', passed: kickMetrics.changedCellRatio >= 0.012 && kickMetrics.meanMaterialDelta >= 18, detail: `Normal kick changed ${(kickMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${kickMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'snare-perceptual-minimum', passed: snareMetrics.changedCellRatio >= 0.008 && snareMetrics.meanMaterialDelta >= 16, detail: `Normal snare changed ${(snareMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${snareMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'kick-differs-from-snare', passed: kickSnareMetrics.changedCellRatio >= 0.03 && localizationDelta >= Math.max(8, dimensions.width * dimensions.height * 0.015), detail: `Kick and snare differ across ${(kickSnareMetrics.changedCellRatio * 100).toFixed(2)}% of cells with distinct center, edge, upper, or lower localization.` },
+    { id: 'bass-dynamic-range', passed: bassRangeMetrics.changedCellRatio >= 0.008 && bassRangeMetrics.meanMaterialDelta >= 12, detail: `Low and strong sustained bass differ across ${(bassRangeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${bassRangeMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'bass-reactivity-control', passed: bassHalfMetrics.changedCellRatio >= 0.004 && bassFullMetrics.changedCellRatio >= 0.004 && differingBytes(bass0, bass05) > 0 && differingBytes(bass05, bass1) > 0, detail: 'Bass Reactivity 0, 0.5, and 1 must produce bounded, materially distinct bass output.' },
     { id: 'motion-control', passed: differingBytes(motion0, motion1) > 0, detail: 'Motion 0 and 1 must change autonomous animation output.' },
     { id: 'drop-differs-from-breakdown', passed: differingBytes(rendered.get('drop')!, rendered.get('breakdown')!) > 0, detail: 'Drop and breakdown must resolve distinct pixels.' },
     { id: 'first-drop-differs-from-second', passed: differingBytes(rendered.get('drop')!, rendered.get('secondDrop')!) > 0, detail: 'First and second drop must develop differently.' },

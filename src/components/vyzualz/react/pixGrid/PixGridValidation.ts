@@ -228,6 +228,9 @@ function normalizeProgramOverrides(value: unknown): PixGridPerformanceProgramOve
         ...(raw.release != null ? { release: clamp(raw.release, 0, 20, 0) } : {}),
         ...(raw.cooldown != null ? { cooldown: clamp(raw.cooldown, 0, 30, 0) } : {}),
         ...(typeof raw.bassReactivityEnabled === 'boolean' ? { bassReactivityEnabled: raw.bassReactivityEnabled } : {}),
+        ...(raw.perceptualGain != null ? { perceptualGain: clamp(raw.perceptualGain, 0, 3, 1) } : {}),
+        ...(raw.minimumEffectiveStrength != null ? { minimumEffectiveStrength: clamp(raw.minimumEffectiveStrength, 0, 2, 0) } : {}),
+        ...(raw.maskSizeCompensation != null ? { maskSizeCompensation: clamp(raw.maskSizeCompensation, 0, 1, 0) } : {}),
         ...(REACTION_DECAY_CURVES.has(raw.decayCurve as PixGridReactionDecayCurve) ? { decayCurve: raw.decayCurve as PixGridReactionDecayCurve } : {}),
         ...(REACTION_QUANTIZATION.has(raw.quantization as PixGridReactionQuantization) ? { quantization: raw.quantization as PixGridReactionQuantization } : {}),
         ...(REACTION_RETRIGGER.has(raw.retrigger as PixGridReactionRetrigger) ? { retrigger: raw.retrigger as PixGridReactionRetrigger } : {}),
@@ -619,6 +622,9 @@ export function normalizePixGridReactionAssignment(
     release: clamp(value.release, 0, 20, sourceDefinition.recommendedSmoothing.release),
     cooldown: clamp(value.cooldown, 0, 30, 0),
     bassReactivityEnabled: value.bassReactivityEnabled !== false,
+    perceptualGain: clamp(value.perceptualGain, 0, 3, 1),
+    minimumEffectiveStrength: clamp(value.minimumEffectiveStrength, 0, 2, 0),
+    maskSizeCompensation: clamp(value.maskSizeCompensation, 0, 1, 0),
     decayCurve: REACTION_DECAY_CURVES.has(value.decayCurve as PixGridReactionDecayCurve)
       ? (value.decayCurve as PixGridReactionDecayCurve)
       : 'easeOut',

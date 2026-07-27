@@ -299,7 +299,7 @@ function cue(timeSec: number): PixGridActionCue {
 }
 
 describe("PixGrid native Performance Program architecture", () => {
-  it("1. validates every schema-v2 program", () => {
+  it("1. validates every schema-v3 program", () => {
     expect(
       validatePixGridPerformanceProgramCollection(
         PIX_GRID_PERFORMANCE_PROGRAMS,
@@ -307,7 +307,7 @@ describe("PixGrid native Performance Program architecture", () => {
     ).toEqual([]);
     expect(
       PIX_GRID_PERFORMANCE_PROGRAMS.every(
-        (program) => program.schemaVersion === 2,
+        (program) => program.schemaVersion === 3,
       ),
     ).toBe(true);
     const invalid = {

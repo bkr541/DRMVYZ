@@ -2,11 +2,11 @@ import type { ReactSectionType } from '../ReactTypes'
 
 export const PIX_GRID_STATE_VERSION = 15 as const
 export const PIX_GRID_CONFIGURATION_METADATA_VERSION = 2 as const
-export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 3 as const
+export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 4 as const
 export const PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION = 2 as const
 export const PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION = 2 as const
-export const PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION = 3 as const
-export const PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION = 2 as const
+export const PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION = 4 as const
+export const PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION = 3 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
@@ -255,6 +255,12 @@ export interface PixGridReactionAssignment {
   cooldown?: number
   /** When false, bass-sensitive routes use the unscaled source value. */
   bassReactivityEnabled?: boolean
+  /** Built-in-only perceptual calibration. Custom routes default to neutral values. */
+  perceptualGain?: number
+  /** Minimum material output reached progressively as the source becomes active. */
+  minimumEffectiveStrength?: number
+  /** 0..1 blend toward coverage-aware gain for small or large group masks. */
+  maskSizeCompensation?: number
   decayCurve?: PixGridReactionDecayCurve
   smoothing: number
   quantization: PixGridReactionQuantization
@@ -326,6 +332,9 @@ export interface PixGridProgramRouteOverride {
   release?: number
   cooldown?: number
   bassReactivityEnabled?: boolean
+  perceptualGain?: number
+  minimumEffectiveStrength?: number
+  maskSizeCompensation?: number
   decayCurve?: PixGridReactionDecayCurve
   quantization?: PixGridReactionQuantization
   retrigger?: PixGridReactionRetrigger

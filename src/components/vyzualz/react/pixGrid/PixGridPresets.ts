@@ -17,7 +17,7 @@ export const PIX_GRID_PRESET_IDS = [
 
 export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
 
-export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 6 as const
+export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 7 as const
 
 const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro']
 
@@ -44,7 +44,15 @@ function animation(
   amount: number,
   extras: Partial<PixGridLayer['animations'][number]> = {},
 ): PixGridLayer['animations'][number] {
-  return { mode, speed, amount, phase: 0, boundary: 'wrap', ...extras }
+  const autonomous = !extras.clock || extras.clock === 'time'
+  return {
+    mode,
+    speed: autonomous ? speed * 0.55 : speed,
+    amount: autonomous ? amount * 0.6 : amount,
+    phase: 0,
+    boundary: 'wrap',
+    ...extras,
+  }
 }
 
 function layer(
@@ -85,7 +93,7 @@ function sceneSettings(
     verse: { density: 0.55, motionMultiplier: 0.38, paletteOffset: 0 },
     build: { density: 0.78, motionMultiplier: 0.65, paletteOffset: 1 },
     preDrop: { density: 0.3, motionMultiplier: 0.05, paletteOffset: 2 },
-    drop: { density: 1, motionMultiplier: 0.78, paletteOffset: 0 },
+    drop: { density: 1, motionMultiplier: 0.62, paletteOffset: 0 },
     breakdown: { density: 0.4, motionMultiplier: 0.14, paletteOffset: 2 },
     outro: { density: 0.22, motionMultiplier: 0.05, paletteOffset: 0 },
   }

@@ -26,6 +26,7 @@ import type {
   PixGridReactionSource,
 } from './PixGridTypes'
 import { isPixGridBassReactivitySource } from './PixGridRuntimeControls'
+import { resolvePixGridPerceptualStrength } from './PixGridPerceptualCalibration'
 
 const CONTINUOUS_SOURCES = new Set<PixGridReactionSource>(
   PIX_GRID_AUDIO_INTELLIGENCE_SOURCES.filter(isPixGridContinuousSourceDefinition).map(definition => definition.id),
@@ -459,7 +460,7 @@ export class PixGridReactionRuntime {
       targetId: compiled.targetId,
       state: existing?.state === 'active' || existing?.state === 'fallback' ? existing.state : state,
       value: Math.max(Math.abs(existing?.value ?? 0), Math.abs(resolved.value)),
-      effectiveAmount: Math.max(existing?.effectiveAmount ?? 0, Math.abs(compiled.amount * resolved.value)),
+      effectiveAmount: Math.max(existing?.effectiveAmount ?? 0, Math.abs(resolvePixGridPerceptualStrength(compiled, resolved.value))),
       confidence: resolved.confidence,
       usingFallback: Boolean(existing?.usingFallback || resolved.usingFallback),
       envelopePhase: resolved.envelopePhase === 'idle' && existing ? existing.envelopePhase : resolved.envelopePhase,

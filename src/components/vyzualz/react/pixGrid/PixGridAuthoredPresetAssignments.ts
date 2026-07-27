@@ -7,6 +7,7 @@ import type {
   PixGridReactionTarget,
   PixGridReactionTargetScope,
 } from './PixGridTypes'
+import { getPixGridBuiltInCalibration } from './PixGridPerceptualCalibration'
 
 const EVENT_SOURCES = new Set<PixGridReactionSource>([
   'beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'barEntry',
@@ -23,6 +24,7 @@ function authoredAssignment(
   overrides: Partial<PixGridReactionAssignment> = {},
 ): PixGridReactionAssignment {
   const event = EVENT_SOURCES.has(source)
+  const calibration = getPixGridBuiltInCalibration(source, target)
   const targetScope = overrides.targetScope ?? 'group'
   return {
     id,
@@ -35,14 +37,19 @@ function authoredAssignment(
     amount: overrides.amount ?? 0.5,
     polarity: overrides.polarity ?? 'positive',
     invert: overrides.invert ?? false,
-    inputRange: overrides.inputRange ?? [0, 1],
+    inputRange: overrides.inputRange ?? calibration.inputRange,
     outputRange: overrides.outputRange ?? [0, 1],
-    curve: overrides.curve ?? (event ? 'gate' : 'smoothstep'),
-    threshold: overrides.threshold ?? (event ? 0.5 : 0),
-    hysteresis: overrides.hysteresis ?? (event ? 0.08 : 0.02),
-    attack: overrides.attack ?? (event ? 0 : 0.05),
-    hold: overrides.hold ?? (event ? 0.04 : 0),
-    release: overrides.release ?? (event ? 0.18 : 0.22),
+    curve: overrides.curve ?? calibration.curve,
+    threshold: overrides.threshold ?? calibration.threshold,
+    hysteresis: overrides.hysteresis ?? calibration.hysteresis,
+    attack: overrides.attack ?? calibration.attack,
+    hold: Math.max(overrides.hold ?? 0, calibration.hold),
+    release: Math.max(overrides.release ?? 0, calibration.release),
+    cooldown: overrides.cooldown ?? calibration.cooldown,
+    bassReactivityEnabled: overrides.bassReactivityEnabled !== false,
+    perceptualGain: overrides.perceptualGain ?? calibration.perceptualGain,
+    minimumEffectiveStrength: overrides.minimumEffectiveStrength ?? calibration.minimumEffectiveStrength,
+    maskSizeCompensation: overrides.maskSizeCompensation ?? calibration.maskSizeCompensation,
     decayCurve: overrides.decayCurve ?? 'easeOut',
     smoothing: overrides.smoothing ?? (event ? 0 : 0.08),
     quantization: overrides.quantization ?? 'none',

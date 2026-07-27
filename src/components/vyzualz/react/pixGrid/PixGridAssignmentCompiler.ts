@@ -134,6 +134,9 @@ export interface PixGridCompiledAssignment {
   release: number
   cooldown: number
   bassReactivityEnabled: boolean
+  perceptualGain: number
+  minimumEffectiveStrength: number
+  maskSizeCompensation: number
   decayCurve: NonNullable<PixGridReactionAssignment['decayCurve']>
   smoothing: number
   quantization: PixGridReactionAssignment['quantization']
@@ -194,8 +197,8 @@ function signature(assignment: PixGridReactionAssignment, defaultScope: PixGridR
     assignment.id, assignment.enabled ? 1 : 0, assignment.source, assignment.target, assignment.targetScope ?? defaultScope,
     assignment.targetId ?? '', assignment.amount, assignment.polarity ?? (assignment.invert ? 'negative' : 'positive'),
     assignment.inputRange?.join(','), assignment.outputRange?.join(','), assignment.threshold, assignment.hysteresis,
-    assignment.curve ?? 'linear', assignment.attack, assignment.hold, assignment.release, assignment.cooldown, assignment.bassReactivityEnabled, assignment.decayCurve,
-    assignment.smoothing, assignment.quantization, assignment.retrigger, assignment.maximumStacking,
+    assignment.curve ?? 'linear', assignment.attack, assignment.hold, assignment.release, assignment.cooldown, assignment.bassReactivityEnabled,
+    assignment.perceptualGain, assignment.minimumEffectiveStrength, assignment.maskSizeCompensation, assignment.decayCurve, assignment.smoothing, assignment.quantization, assignment.retrigger, assignment.maximumStacking,
     assignment.minimumConfidence, assignment.capabilityFallback, assignment.clamp.join(','), assignment.blend,
     assignment.paletteRole, assignment.color, assignment.seedOffset, assignment.priority, assignment.eventPriority,
     conditionSignature(assignment.conditions), capabilityAvailable ? 1 : 0,
@@ -321,6 +324,9 @@ export class PixGridAssignmentCompiler {
       release: clamp(assignment.release, 0, 20, sourceDefinition.recommendedSmoothing.release),
       cooldown: clamp(assignment.cooldown, 0, 30, 0),
       bassReactivityEnabled: assignment.bassReactivityEnabled !== false,
+      perceptualGain: clamp(assignment.perceptualGain, 0, 3, 1),
+      minimumEffectiveStrength: clamp(assignment.minimumEffectiveStrength, 0, 2, 0),
+      maskSizeCompensation: clamp(assignment.maskSizeCompensation, 0, 1, 0),
       decayCurve: assignment.decayCurve ?? 'easeOut',
       smoothing: clamp(assignment.smoothing, 0, 10, sourceDefinition.recommendedSmoothing.smoothing),
       quantization: assignment.quantization,

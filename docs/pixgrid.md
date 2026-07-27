@@ -83,6 +83,30 @@ Imported artwork supports Original, Hybrid, Preset, and Brand color modes. Brand
 
 For best results, keep High/Adaptive selected for normal production, use Ultra only when the output GPU has headroom, keep imported artwork high-contrast, and avoid stacking many full-screen additive layers when a compact smart group can express the same reaction.
 
+## Perceptual Audio Intelligence calibration
+
+Bundled PixGrid content is calibrated against ordinary live analyser distributions, not only source values of `1.0`. The canonical fixture profiles include silence, weak transients, normal and strong kick/snare events, low/medium/strong sustained bass, verse/build/drop energy, partial confidence, and live-analyser-only capability sets. The repository-owned analyser fixture first establishes a realistic running normalization peak, settles the production band and rhythm filters, then produces ordinary-strength events through `MultiBandAnalyzer` and `RhythmAnalyzer`.
+
+Built-in assignments and Performance Program routes may carry three bounded calibration values:
+
+- `perceptualGain` scales the authored route after normal source mapping and envelope evaluation.
+- `minimumEffectiveStrength` establishes a progressive, activity-dependent material floor without turning silence into output.
+- `maskSizeCompensation` raises per-cell legibility for compact masks and restrains very large masks.
+
+These values are neutral by default for user-authored routes. They are persisted and migrated only as normal route fields, remain overrideable without rewriting custom routes, and are included in canonical signatures and compiler cache keys. Version-compatible legacy signatures allow untouched Patch 1 routes to receive the new authored calibration while a customized route remains byte-for-byte authored. Signed actions remain signed, so position, withdrawal, inversion, and alternating-direction routes are not forced into a positive-only range.
+
+Discrete built-in routes map realistic event strength before the retained attack/hold/release envelope. They do not apply a second gate to the decaying envelope value. Normal kick and snare events therefore remain readable for their authored hold and release instead of collapsing into a one-frame flash. Cooldown remains independent from envelope duration, retrigger behavior remains bounded, seek reconstruction remains deterministic, and stop/analyser loss returns the image to the quiet baseline.
+
+The three bundled identities use distinct spatial roles:
+
+- **Bass Beacon:** kick concentrates on the core and inner beacon, sustained bass pressures the lower field and rings, snare favors edge and mirrored-side accents, downbeats widen recruitment, and section plans narrow before drops then expand radially.
+- **Geometric Reactor:** kick drives the core/rings, snare favors crosses and perimeter geometry, bass energizes tunnel/checker regions, beats pulse hero geometry, bars and phrases alter motif ordering, and later drops change symmetry and recruitment.
+- **Pixel Parade:** kick favors lower lanes and impact banks, snare favors upper lanes and props, hats remain restrained on detail banks, bass fills the ground/lower banks, and bar/phrase plans change formations and quantized chase order.
+
+Beat and downbeat routes now have explicit pulse and recruitment roles. Autonomous time-clocked layer animation is reduced at authoring time while beat/bar/cue-clocked animation retains its musical clock. Motion 0 therefore freezes drift, rotation, bounce, and cycling without disabling kick, snare, bass, phrase, section, or cue actions. Bass Reactivity continues to scale only the bass-family source set and has distinct outputs at 0, 0.5, and 1.
+
+The perceptual contract measures material changed-cell ratio, channel/color distance, luminance contrast, spatial localization, envelope duration, onset-to-pixel correlation, section contrast, Bass Reactivity scaling, Motion scaling, deterministic replay, and shared Canvas/GPU semantic inputs. A nonzero byte difference alone is not a passing result.
+
 ## Verification
 
 PixGrid coverage includes versioned and idempotent state migration, customized-state preservation, empty-route fallback, Bass Reactivity and Motion control wiring, normalization, media conversion, SVG lifecycle, smart groups, audio routing, performance choreography, Track Map actions, renderer ownership, WebGL shader/resource behavior, adaptive quality, deterministic logical framebuffer scenarios, and browser WebGL pixel readback. The pixel suite covers all three presets, imported raster/SVG content, Brand Kit conversion, percussion reactions, four-bar evolution, Track Map transitions, pause, and seek reconstruction.

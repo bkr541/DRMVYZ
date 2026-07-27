@@ -1,6 +1,7 @@
 import type { ReactPalette } from '../ReactTypes'
 import type { PixGridResolvedTransition } from './PixGridActionCues'
 import { PixGridReactionRuntime } from './PixGridAudioRouting'
+import { resolvePixGridPerceptualStrength } from './PixGridPerceptualCalibration'
 import type {
   PixGridAudioFrame,
   PixGridLayer,
@@ -99,7 +100,7 @@ export function resolvePixGridAuthoredAssignmentState(
     if (pixelMaskScope || outputPostProcess || compiled.target.runtimeHandler === 'transition') continue
     const resolved = runtime.resolveCompiled(compiled, frame, false, { activeLayerIds, activeGroupIds })
     if (!resolved.supported || resolved.blockedByCondition || resolved.blockedByConfidence || !resolved.active) continue
-    const strength = compiled.amount * resolved.value
+    const strength = resolvePixGridPerceptualStrength(compiled, resolved.value)
     switch (compiled.targetScope) {
       case 'output':
       case 'scene':
@@ -190,7 +191,8 @@ export function applyPixGridOutputAssignments(
     if (compiled.target.runtimeHandler !== 'postProcess' && compiled.target.runtimeHandler !== 'pixel') continue
     const resolved = runtime.resolveCompiled(compiled, frame, false, { activeLayerIds, activeGroupIds })
     if (!resolved.supported || resolved.blockedByCondition || resolved.blockedByConfidence) continue
-    const strength = clamp(Math.abs(compiled.amount * resolved.value))
+    const calibratedStrength = resolvePixGridPerceptualStrength(compiled, resolved.value)
+    const strength = clamp(Math.abs(calibratedStrength))
     const tint = hexRgb(assignment.color ?? palette[assignment.paletteRole ?? 'highlight'])
     for (let offset = 0; offset < pixels.length; offset += 4) {
       const r = pixels[offset]
@@ -198,7 +200,7 @@ export function applyPixGridOutputAssignments(
       const b = pixels[offset + 2]
       switch (assignment.target) {
         case 'brightness': {
-          const factor = Math.max(0, 1 + compiled.amount * resolved.value)
+          const factor = Math.max(0, 1 + calibratedStrength)
           pixels[offset] = Math.round(clamp(r * factor, 0, 255))
           pixels[offset + 1] = Math.round(clamp(g * factor, 0, 255))
           pixels[offset + 2] = Math.round(clamp(b * factor, 0, 255))
@@ -206,11 +208,11 @@ export function applyPixGridOutputAssignments(
         }
         case 'opacity': {
           const alpha = pixels[offset + 3] / 255
-          pixels[offset + 3] = Math.round(clamp(blend(alpha, compiled.amount * resolved.value, assignment)) * 255)
+          pixels[offset + 3] = Math.round(clamp(blend(alpha, calibratedStrength, assignment)) * 255)
           break
         }
         case 'contrast': {
-          const factor = Math.max(0, 1 + compiled.amount * resolved.value)
+          const factor = Math.max(0, 1 + calibratedStrength)
           pixels[offset] = clamp((r - 128) * factor + 128, 0, 255)
           pixels[offset + 1] = clamp((g - 128) * factor + 128, 0, 255)
           pixels[offset + 2] = clamp((b - 128) * factor + 128, 0, 255)
@@ -218,7 +220,7 @@ export function applyPixGridOutputAssignments(
         }
         case 'saturation': {
           const gray = r * 0.2126 + g * 0.7152 + b * 0.0722
-          const factor = Math.max(0, 1 + compiled.amount * resolved.value)
+          const factor = Math.max(0, 1 + calibratedStrength)
           pixels[offset] = clamp(gray + (r - gray) * factor, 0, 255)
           pixels[offset + 1] = clamp(gray + (g - gray) * factor, 0, 255)
           pixels[offset + 2] = clamp(gray + (b - gray) * factor, 0, 255)
@@ -231,7 +233,7 @@ export function applyPixGridOutputAssignments(
           break
         }
         case 'hueOffset': {
-          const rotated = hueRotate(r, g, b, compiled.amount * resolved.value)
+          const rotated = hueRotate(r, g, b, calibratedStrength)
           pixels[offset] = rotated[0]
           pixels[offset + 1] = rotated[1]
           pixels[offset + 2] = rotated[2]
@@ -278,7 +280,7 @@ export function resolvePixGridTransitionAssignment(
     if (compiled.targetScope !== 'transition') continue
     const resolved = runtime.resolveCompiled(compiled, frame)
     if (!resolved.supported || resolved.blockedByCondition || resolved.blockedByConfidence) continue
-    progress = clamp(blend(progress, compiled.amount * resolved.value, assignment))
+    progress = clamp(blend(progress, resolvePixGridPerceptualStrength(compiled, resolved.value), assignment))
   }
   return progress === transition.progress ? transition : { ...transition, progress }
 }

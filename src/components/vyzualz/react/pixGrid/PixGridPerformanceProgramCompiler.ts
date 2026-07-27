@@ -5,6 +5,7 @@ import type {
 } from "../../../../features/performanceCore";
 import { getPixGridAudioIntelligenceSource } from "./PixGridAudioIntelligenceRegistry";
 import { PixGridAssignmentCompiler } from "./PixGridAssignmentCompiler";
+import { PIX_GRID_PERFORMANCE_PROGRAM_SCHEMA_VERSION } from "./PixGridPerformanceTypes";
 import type {
   PixGridContinuousRoutePlan,
   PixGridEventRoutePlan,
@@ -385,6 +386,9 @@ function assignmentForContinuous(
     release: route.release ?? 0.12,
     cooldown: route.cooldown ?? 0,
     bassReactivityEnabled: route.bassReactivityEnabled !== false,
+    perceptualGain: route.perceptualGain ?? 1,
+    minimumEffectiveStrength: route.minimumEffectiveStrength ?? 0,
+    maskSizeCompensation: route.maskSizeCompensation ?? 0,
     decayCurve: "easeOut",
     smoothing: route.smoothing ?? 0.08,
     quantization: "none",
@@ -430,7 +434,7 @@ function assignmentForEvent(
     invert: false,
     inputRange: route.inputRange ?? [0, 1],
     outputRange: route.outputRange ?? [0, 1],
-    curve: "gate",
+    curve: route.curve ?? "linear",
     threshold: route.threshold ?? 0.01,
     hysteresis: route.hysteresis ?? 0,
     attack: route.envelope.attack,
@@ -438,6 +442,9 @@ function assignmentForEvent(
     release: route.envelope.release,
     cooldown: route.cooldown ?? 0,
     bassReactivityEnabled: route.bassReactivityEnabled !== false,
+    perceptualGain: route.perceptualGain ?? 1,
+    minimumEffectiveStrength: route.minimumEffectiveStrength ?? 0,
+    maskSizeCompensation: route.maskSizeCompensation ?? 0,
     decayCurve:
       route.envelope.curve === "step"
         ? "step"
@@ -890,6 +897,9 @@ function effectivePixGridProgram(
       ...(override?.hold != null ? { hold: override.hold } : {}),
       ...(override?.release != null ? { release: override.release } : {}),
       ...(override?.cooldown != null ? { cooldown: override.cooldown } : {}),
+      ...(override?.perceptualGain != null ? { perceptualGain: override.perceptualGain } : {}),
+      ...(override?.minimumEffectiveStrength != null ? { minimumEffectiveStrength: override.minimumEffectiveStrength } : {}),
+      ...(override?.maskSizeCompensation != null ? { maskSizeCompensation: override.maskSizeCompensation } : {}),
       ...(override?.bassReactivityEnabled != null ? { bassReactivityEnabled: override.bassReactivityEnabled } : {}),
       ...(override?.minimumConfidence != null ? { minimumConfidence: override.minimumConfidence } : {}),
       ...(override?.capabilityFallback ? { capabilityFallback: override.capabilityFallback } : {}),
@@ -925,6 +935,9 @@ function effectivePixGridProgram(
       ...(override?.quantization ? { quantization: override.quantization } : {}),
       ...(override?.retrigger ? { retrigger: override.retrigger } : {}),
       ...(override?.cooldown != null ? { cooldown: override.cooldown } : {}),
+      ...(override?.perceptualGain != null ? { perceptualGain: override.perceptualGain } : {}),
+      ...(override?.minimumEffectiveStrength != null ? { minimumEffectiveStrength: override.minimumEffectiveStrength } : {}),
+      ...(override?.maskSizeCompensation != null ? { maskSizeCompensation: override.maskSizeCompensation } : {}),
       ...(override?.bassReactivityEnabled != null ? { bassReactivityEnabled: override.bassReactivityEnabled } : {}),
       ...(override?.minimumConfidence != null ? { minimumConfidence: override.minimumConfidence } : {}),
       ...(override?.capabilityFallback ? { capabilityFallback: override.capabilityFallback } : {}),
@@ -999,13 +1012,13 @@ export function validatePixGridPerformanceProgram(
   program: PixGridPerformanceProgram,
 ): PixGridProgramValidationIssue[] {
   const issues: PixGridProgramValidationIssue[] = [];
-  if (program.schemaVersion !== 2)
+  if (program.schemaVersion !== PIX_GRID_PERFORMANCE_PROGRAM_SCHEMA_VERSION)
     issues.push(
       issue(
         program,
         "error",
         "invalid-schema-version",
-        "PixGrid Performance Program schemaVersion must be 2.",
+        `PixGrid Performance Program schemaVersion must be ${PIX_GRID_PERFORMANCE_PROGRAM_SCHEMA_VERSION}.`,
       ),
     );
   if (!program.sectionPlans.length)

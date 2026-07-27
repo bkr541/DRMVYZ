@@ -1,5 +1,6 @@
 import type { SharedPerformanceProgramValidationIssue } from "../../../../features/performanceCore";
 import { validatePixGridPerformanceProgramCollection } from "./PixGridPerformanceProgramCompiler";
+import { calibratePixGridBuiltInContinuousRoute, calibratePixGridBuiltInEventRoute } from "./PixGridPerceptualCalibration";
 import type { PixGridPerformanceProgramId } from "./PixGridTypes";
 import {
   PIX_GRID_PERFORMANCE_PROGRAM_SCHEMA_VERSION,
@@ -158,6 +159,8 @@ function defineProgram(
 ): PixGridPerformanceProgram {
   return {
     ...program,
+    continuousRoutes: program.continuousRoutes.map(calibratePixGridBuiltInContinuousRoute),
+    eventRoutes: program.eventRoutes.map(calibratePixGridBuiltInEventRoute),
     sectionPlans: program.sectionPlans.map((plan) =>
       completeSectionPlan(plan, program),
     ),
@@ -173,7 +176,7 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
         target: { bankId: bank("bass-bank") },
         source: "bass",
         operation: "brightness",
-        amount: 0.52,
+        amount: 0.62,
         curve: "smoothstep",
         blend: "add",
         intensityScale: 0.8,
@@ -220,12 +223,39 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
     ],
     eventRoutes: [
       {
+        id: "beat-pulse",
+        target: { bankId: bank("hero-bank") },
+        event: "beat",
+        operation: "scale",
+        amount: 0.075,
+        envelope: { attack: 0, hold: 0.04, release: 0.14, curve: "easeOut" },
+        retrigger: "restart",
+        maximumStacking: 1,
+        capabilityFallback: "beat",
+        blend: "add",
+        clamp: [0, 0.14],
+        priority: -165,
+      },
+      {
+        id: "downbeat-recruitment",
+        target: { bankId: bank("recruitment-bank") },
+        event: "downbeat",
+        operation: "maskExpansion",
+        amount: 0.28,
+        envelope: { attack: 0, hold: 0.055, release: 0.22, curve: "easeOut" },
+        retrigger: "restart",
+        maximumStacking: 1,
+        capabilityFallback: "beat",
+        blend: "max",
+        priority: -160,
+      },
+      {
         id: "kick-impact",
         target: { bankId: bank("bass-bank") },
         event: "kick",
         operation: "brightness",
-        amount: 0.82,
-        envelope: { attack: 0, hold: 0.025, release: 0.14, curve: "easeOut" },
+        amount: 1.02,
+        envelope: { attack: 0, hold: 0.065, release: 0.18, curve: "easeOut" },
         retrigger: "restart",
         maximumStacking: 2,
         capabilityFallback: "beat",
@@ -237,8 +267,8 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
         target: { bankId: bank("snare-bank") },
         event: "snare",
         operation: "outlineFlash",
-        amount: 0.92,
-        envelope: { attack: 0, hold: 0.025, release: 0.14, curve: "easeOut" },
+        amount: 1.08,
+        envelope: { attack: 0, hold: 0.075, release: 0.19, curve: "easeOut" },
         retrigger: "extend",
         maximumStacking: 2,
         capabilityFallback: "transient",

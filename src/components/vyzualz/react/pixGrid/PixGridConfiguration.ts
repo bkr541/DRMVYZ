@@ -42,6 +42,11 @@ export function pixGridAssignmentSignature(assignment: PixGridReactionAssignment
   return compactSignature(assignment)
 }
 
+export function pixGridLegacyPerceptualAssignmentSignature(assignment: PixGridReactionAssignment): string {
+  const { perceptualGain: _gain, minimumEffectiveStrength: _floor, maskSizeCompensation: _mask, ...legacy } = assignment
+  return compactSignature(legacy)
+}
+
 export function pixGridLayerAnimationSignature(layer: PixGridLayer): string {
   return compactSignature({
     animations: layer.animations,
