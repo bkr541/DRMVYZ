@@ -1,5 +1,6 @@
 import type { ReactPreset } from '../../ReactTypes'
 import { composePixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
+import type { PixGridStructuralChoreography } from '../../pixGrid/PixGridStructuralChoreographer'
 import { createDefaultPixGridState } from '../../pixGrid/PixGridDefaults'
 import { applyPixGridPresetSettings } from '../../pixGrid/PixGridState'
 import type { PixGridAudioFrame, PixGridState } from '../../pixGrid/PixGridTypes'
@@ -62,6 +63,7 @@ export function renderPixGridBaseline(
   transition?: PixGridResolvedTransition | null,
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
+  choreography?: PixGridStructuralChoreography | null,
 ): void {
   const state = normalizePixGridState(rawState)
   const logical = composePixGridLogicalFrame(
@@ -74,6 +76,7 @@ export function renderPixGridBaseline(
     transition,
     groupEffects,
     groupCompiler,
+    choreography,
   )
   const W = Math.max(1, frame.width)
   const H = Math.max(1, frame.height)
@@ -157,6 +160,7 @@ export function renderPixGridCanvasFallback(
   transition?: PixGridResolvedTransition | null,
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
+  choreography?: PixGridStructuralChoreography | null,
 ): Readonly<{ logicalWidth: number; logicalHeight: number; logicalFrame: ReturnType<typeof composePixGridLogicalFrame> }> {
   const requested = normalizePixGridState(rawState)
   const state = requested.quality === 'draft' ? normalizePixGridState({ ...requested, quality: 'low' }) : requested
@@ -175,6 +179,7 @@ export function renderPixGridCanvasFallback(
     transition,
     groupEffects,
     groupCompiler,
+    choreography,
   )
   const image = logicalContext.createImageData(state.matrixWidth, state.matrixHeight)
   const intensity = clamp01(frame.intensity * state.globalIntensity * state.cellBrightness)

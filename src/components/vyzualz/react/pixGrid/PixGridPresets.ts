@@ -38,6 +38,68 @@ function createMappings(prefix: string): ReactSectionMapping[] {
   return SECTION_TYPES.map(sectionType => ({ sectionType, sceneId: `${prefix}-${sectionType}` }))
 }
 
+/**
+ * Autonomous (time-clocked) animation gains.
+ *
+ * These were 0.55 for speed and 0.6 for amount. Applied to authored amounts of
+ * 0.006-0.035 they produced sub-pixel motion: a positional offset of 0.006 on a
+ * 32-cell-wide matrix moves 0.19 of a cell and therefore never renders as
+ * movement at all. The dampening is removed and replaced with per-family floors
+ * so an authored animation is always guaranteed to cross at least one cell.
+ */
+const AUTONOMOUS_SPEED_GAIN = 4.5
+const AUTONOMOUS_AMOUNT_GAIN = 1
+
+/**
+ * Authored speeds of 0.06-0.25 put a full animation cycle at 6-20 seconds, so
+ * continuous animations advanced by fractions of a cell per frame and the only
+ * measurable frame-to-frame change came from beat-stepped `frameCycle`. The
+ * floor puts a cycle in the 1-2 bar range at club tempo.
+ */
+const MIN_AUTONOMOUS_SPEED = 0.3
+
+/** Modes whose amount is a normalized position offset or rate. */
+const POSITION_ANIMATION_MODES = new Set<PixGridLayer['animations'][number]['mode']>([
+  'bounce',
+  'pingPong',
+  'horizontalScroll',
+  'verticalScroll',
+  'beatStepMovement',
+])
+
+/** Modes whose amount is a multiplicative scale delta. */
+const SCALE_ANIMATION_MODES = new Set<PixGridLayer['animations'][number]['mode']>([
+  'pulse',
+  'audioAmplitudeScale',
+])
+
+/** One cell on the narrowest supported matrix, with headroom. */
+const MIN_POSITION_AMOUNT = 0.045
+const MIN_SCALE_AMOUNT = 0.16
+
+function animationSpeed(
+  mode: PixGridLayer['animations'][number]['mode'],
+  speed: number,
+): number {
+  const gained = speed * AUTONOMOUS_SPEED_GAIN
+  if (POSITION_ANIMATION_MODES.has(mode) || SCALE_ANIMATION_MODES.has(mode)) {
+    return Math.max(gained, MIN_AUTONOMOUS_SPEED)
+  }
+  return gained
+}
+
+function animationAmount(
+  mode: PixGridLayer['animations'][number]['mode'],
+  amount: number,
+  autonomous: boolean,
+): number {
+  const gained = autonomous ? amount * AUTONOMOUS_AMOUNT_GAIN : amount
+  const sign = gained < 0 ? -1 : 1
+  if (POSITION_ANIMATION_MODES.has(mode)) return sign * Math.max(Math.abs(gained), MIN_POSITION_AMOUNT)
+  if (SCALE_ANIMATION_MODES.has(mode)) return sign * Math.max(Math.abs(gained), MIN_SCALE_AMOUNT)
+  return gained
+}
+
 function animation(
   mode: PixGridLayer['animations'][number]['mode'],
   speed: number,
@@ -47,8 +109,8 @@ function animation(
   const autonomous = !extras.clock || extras.clock === 'time'
   return {
     mode,
-    speed: autonomous ? speed * 0.55 : speed,
-    amount: autonomous ? amount * 0.6 : amount,
+    speed: autonomous ? animationSpeed(mode, speed) : speed,
+    amount: animationAmount(mode, amount, autonomous),
     phase: 0,
     boundary: 'wrap',
     ...extras,
@@ -89,13 +151,16 @@ function sceneSettings(
   custom: Partial<Record<ReactSectionType, Partial<PixGridSceneSettings>>> = {},
 ): Record<string, PixGridSceneSettings> {
   const base: Partial<Record<ReactSectionType, PixGridSceneSettings>> = {
-    intro: { density: 0.28, motionMultiplier: 0.16, paletteOffset: 0 },
-    verse: { density: 0.55, motionMultiplier: 0.38, paletteOffset: 0 },
-    build: { density: 0.78, motionMultiplier: 0.65, paletteOffset: 1 },
+    // The drop previously capped at 0.62 while build sat at 0.65, which inverted
+    // the energy arc on screen. Ordering is now drop > build > verse > breakdown
+    // > intro > outro > preDrop, with preDrop still deliberately near-frozen.
+    intro: { density: 0.28, motionMultiplier: 0.3, paletteOffset: 0 },
+    verse: { density: 0.55, motionMultiplier: 0.6, paletteOffset: 0 },
+    build: { density: 0.78, motionMultiplier: 0.95, paletteOffset: 1 },
     preDrop: { density: 0.3, motionMultiplier: 0.05, paletteOffset: 2 },
-    drop: { density: 1, motionMultiplier: 0.62, paletteOffset: 0 },
-    breakdown: { density: 0.4, motionMultiplier: 0.14, paletteOffset: 2 },
-    outro: { density: 0.22, motionMultiplier: 0.05, paletteOffset: 0 },
+    drop: { density: 1, motionMultiplier: 1.25, paletteOffset: 0 },
+    breakdown: { density: 0.4, motionMultiplier: 0.35, paletteOffset: 2 },
+    outro: { density: 0.22, motionMultiplier: 0.15, paletteOffset: 0 },
   }
   return Object.fromEntries(SECTION_TYPES.map(type => [
     `${prefix}-${type}`,
@@ -105,7 +170,7 @@ function sceneSettings(
 
 const BASS_BEACON_LAYERS: PixGridLayer[] = [
   layer('bass-rings', 'Sub Pressure Rings', 'pix-concentric-rings', {
-    opacity: 0.3,
+    opacity: 0.52,
     scale: { x: 0.42, y: 0.74 },
     blendMode: 'add',
     zIndex: 1,
@@ -115,7 +180,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     seed: 101,
   }),
   layer('bass-outline', 'Typography Outline', 'pix-bass-word', {
-    opacity: 0.24,
+    opacity: 0.48,
     scale: { x: 0.68, y: 0.37 },
     blendMode: 'add',
     zIndex: 3,
@@ -135,7 +200,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
   layer('bass-letter-b', 'Letter B Highlight', 'pix-bass-letter-b', {
     position: { x: 0.262, y: 0.5 },
     scale: { x: 0.133, y: 0.31 },
-    opacity: 0.2,
+    opacity: 0.46,
     blendMode: 'add',
     zIndex: 5,
     densityRank: 0.5,
@@ -146,7 +211,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
   layer('bass-letter-a', 'Letter A Highlight', 'pix-bass-letter-a', {
     position: { x: 0.421, y: 0.5 },
     scale: { x: 0.133, y: 0.31 },
-    opacity: 0.2,
+    opacity: 0.46,
     blendMode: 'add',
     zIndex: 5,
     densityRank: 0.56,
@@ -157,7 +222,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
   layer('bass-letter-s-left', 'First S Highlight', 'pix-bass-letter-s', {
     position: { x: 0.579, y: 0.5 },
     scale: { x: 0.133, y: 0.31 },
-    opacity: 0.2,
+    opacity: 0.46,
     blendMode: 'add',
     zIndex: 5,
     densityRank: 0.62,
@@ -168,7 +233,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
   layer('bass-letter-s-right', 'Final S Highlight', 'pix-bass-letter-s', {
     position: { x: 0.738, y: 0.5 },
     scale: { x: 0.133, y: 0.31 },
-    opacity: 0.2,
+    opacity: 0.46,
     blendMode: 'add',
     zIndex: 5,
     densityRank: 0.68,
@@ -180,7 +245,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     position: { x: 0.115, y: 0.5 },
     scale: { x: 0.16, y: 0.54 },
     rotation: 90,
-    opacity: 0.34,
+    opacity: 0.58,
     blendMode: 'add',
     zIndex: 6,
     densityRank: 0.58,
@@ -192,7 +257,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     scale: { x: 0.16, y: 0.54 },
     rotation: -90,
     flipX: true,
-    opacity: 0.34,
+    opacity: 0.58,
     blendMode: 'add',
     zIndex: 6,
     densityRank: 0.58,
@@ -200,7 +265,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     seed: 607,
   }),
   layer('bass-sparkles', 'Air and Hat Details', 'pix-multi-star-field', {
-    opacity: 0.26,
+    opacity: 0.5,
     scale: { x: 1, y: 1 },
     blendMode: 'add',
     zIndex: 7,
@@ -277,7 +342,7 @@ const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
 
 const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
   layer('parade-stars', 'Parade Sky and Particles', 'pix-multi-star-field', {
-    opacity: 0.28,
+    opacity: 0.5,
     scale: { x: 1, y: 1 },
     blendMode: 'add',
     zIndex: 0,
@@ -288,7 +353,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
   layer('parade-wave-top', 'Upper Parade Lane', 'pix-wave-line', {
     position: { x: 0.5, y: 0.24 },
     scale: { x: 0.94, y: 0.18 },
-    opacity: 0.44,
+    opacity: 0.6,
     blendMode: 'add',
     zIndex: 1,
     densityRank: 0.2,

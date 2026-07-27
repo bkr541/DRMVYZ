@@ -1,4 +1,5 @@
 import type { ReactEngineId, ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
+import { PixGridStructuralChoreographer } from '../pixGrid/PixGridStructuralChoreographer'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { disposeCinematicPortalRenderer, renderCinematicPortal } from './CinematicPortalRenderer'
@@ -7,6 +8,14 @@ import { renderLaserDmx, clearLaserDmxVisualState, disposeLaserDmxRenderer, paus
 import type { WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
 import { createPixGridStateForPreset, disposePixGridBaselineRenderer, renderPixGridBaseline } from './pixGrid/PixGridBaselineRenderer'
 
+
+/**
+ * The Canvas 2D engine path has no unified performance runtime, so it owns a
+ * choreographer directly. Sequential single-surface rendering makes a
+ * module-scoped instance safe here, matching the existing per-engine visual
+ * state kept in this module.
+ */
+const pixGridChoreographer = new PixGridStructuralChoreographer()
 export type { ReactFrameContext, ReactRenderParams }
 export { DEFAULT_REACT_RENDER_PARAMS }
 
@@ -207,7 +216,28 @@ export function renderReactEngine(
         intensity: effectiveParams.intensity,
         glow: effectiveParams.glow,
         bassReactivity: effectiveParams.bassReactivity,
-      }, preset, mappedSceneId ? { ...basePixGridState, selectedSceneId: mappedSceneId } : basePixGridState)
+      }, preset, mappedSceneId ? { ...basePixGridState, selectedSceneId: mappedSceneId } : basePixGridState,
+        undefined,
+        undefined,
+        null,
+        [],
+        undefined,
+        pixGridChoreographer.evaluate({
+          audioTime: frame.audioTime,
+          bass: frame.audio.bass,
+          mid: frame.audio.mid,
+          high: frame.audio.high,
+          volume: frame.audio.volume,
+          beatHit: frame.beatHit,
+          beatPhase: frame.beatPhase,
+          isPlaying: frame.isPlaying !== false,
+          sectionType,
+          sectionProgress: sectionResolution.progress,
+          barIndex: Math.max(0, Math.floor(frame.audioTime * frame.bpm / 60 / 4)),
+          barEntry: frame.beatHit && Math.floor(frame.audioTime * frame.bpm / 60) % 4 === 0,
+          kickHit: frame.musicIntelligence?.rhythm.kickHit ?? frame.beatHit,
+        }),
+      )
       break
     }
     case 'laserDmx':

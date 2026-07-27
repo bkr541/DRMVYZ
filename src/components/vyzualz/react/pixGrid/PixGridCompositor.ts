@@ -24,6 +24,11 @@ import {
   resolvePixGridAuthoredAssignmentState,
   resolvePixGridTransitionAssignment,
 } from './PixGridAssignmentApplication'
+import {
+  applyPixGridVisualEffectStack,
+  createPixGridVisualEffectScratch,
+} from './PixGridVisualEffectStack'
+import type { PixGridStructuralChoreography } from './PixGridStructuralChoreographer'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -35,6 +40,12 @@ export interface PixGridLogicalFrame {
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
 }
+
+/**
+ * Post-composite operators only need transient working memory, so a single
+ * module-scoped scratch avoids per-frame allocation without holding frame state.
+ */
+const visualEffectScratch = createPixGridVisualEffectScratch()
 
 function fract(value: number): number {
   return value - Math.floor(value)
@@ -285,6 +296,7 @@ function composePixGridBaseFrame(
   reactionRuntime?: PixGridReactionRuntime,
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
+  choreography?: PixGridStructuralChoreography | null,
 ): PixGridLogicalFrame {
   const normalizedState = normalizePixGridState(rawState)
   const state = reactionRuntime
@@ -295,7 +307,13 @@ function composePixGridBaseFrame(
   const required = width * height * 4
   const pixels = reusable?.length === required ? reusable : new Uint8Array(required)
   pixels.fill(0)
-  const scene = sceneFor(preset, state)
+  const authoredScene = sceneFor(preset, state)
+  const motionScale = Number.isFinite(choreography?.motionScale ?? NaN)
+    ? Math.max(0, choreography!.motionScale)
+    : 1
+  const scene = motionScale === 1
+    ? authoredScene
+    : { ...authoredScene, motionMultiplier: authoredScene.motionMultiplier * motionScale }
   const hidden = new Set(scene.hiddenLayerIds ?? [])
   const activeScene = state.scenes.find((candidate) => candidate.id === state.selectedSceneId) ?? state.scenes[0]
   const orderedLayerIds = activeScene?.layerIds ?? state.layers.map((layer) => layer.id)
@@ -471,6 +489,15 @@ function applyLogicalTransition(
   }
 }
 
+function applyStructuralVisualEffects(
+  logical: PixGridLogicalFrame,
+  choreography?: PixGridStructuralChoreography | null,
+): void {
+  const ops = choreography?.visualEffects
+  if (!ops || ops.length === 0) return
+  applyPixGridVisualEffectStack(logical.pixels, logical.width, logical.height, ops, visualEffectScratch)
+}
+
 export function composePixGridLogicalFrame(
   preset: ReactPreset,
   rawState: PixGridState,
@@ -481,6 +508,7 @@ export function composePixGridLogicalFrame(
   transition?: PixGridResolvedTransition | null,
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
+  choreography?: PixGridStructuralChoreography | null,
 ): PixGridLogicalFrame {
   const normalizedTargetState = normalizePixGridState(rawState)
   const normalizedSourceState = transition ? normalizePixGridState(transition.fromState) : null
@@ -493,8 +521,11 @@ export function composePixGridLogicalFrame(
   const effectiveTransition = runtime
     ? resolvePixGridTransitionAssignment(transition, normalizedTargetState, frame, runtime)
     : transition
-  const target = composePixGridBaseFrame(preset, normalizedTargetState, frame, reusable, preparedAsset, runtime, groupEffects, groupCompiler)
-  if (!effectiveTransition || effectiveTransition.type === 'cut' || effectiveTransition.progress >= 1) return target
+  const target = composePixGridBaseFrame(preset, normalizedTargetState, frame, reusable, preparedAsset, runtime, groupEffects, groupCompiler, choreography)
+  if (!effectiveTransition || effectiveTransition.type === 'cut' || effectiveTransition.progress >= 1) {
+    applyStructuralVisualEffects(target, choreography)
+    return target
+  }
   const source = composePixGridBaseFrame(
     preset,
     effectiveTransition.fromState,
@@ -504,9 +535,11 @@ export function composePixGridLogicalFrame(
     runtime,
     [],
     new PixGridFrameGroupCompiler(),
+    choreography,
   )
   if (source.width === target.width && source.height === target.height) {
     applyLogicalTransition(target.pixels, source.pixels, target.width, target.height, effectiveTransition)
   }
+  applyStructuralVisualEffects(target, choreography)
   return target
 }

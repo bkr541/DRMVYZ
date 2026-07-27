@@ -17,6 +17,10 @@ import {
 } from "./PixGridAudioRouting";
 import { PIX_GRID_AUDIO_INTELLIGENCE_SOURCES } from "./PixGridAudioIntelligenceRegistry";
 import type { PixGridGroupFrameEffect } from "./PixGridFrameEffects";
+import {
+  PixGridStructuralChoreographer,
+  type PixGridStructuralChoreography,
+} from './PixGridStructuralChoreographer';
 import { sortPixGridGroupFrameEffects } from "./PixGridFrameEffects";
 import { compilePixGridGroupMask } from "./PixGridGroups";
 import {
@@ -158,6 +162,8 @@ export interface PixGridUnifiedRuntimeDiagnostics {
 export interface PixGridUnifiedFrame {
   state: PixGridState;
   groupEffects: readonly PixGridGroupFrameEffect[];
+  /** Bar-clocked structural choreography consumed by the compositor. */
+  choreography: PixGridStructuralChoreography;
   transition: PixGridResolvedTransition | null;
   performance: ReturnType<typeof resolvePixGridPerformanceFrame>;
   cues: ReturnType<typeof resolvePixGridActionCueFrame>;
@@ -301,6 +307,7 @@ export class PixGridUnifiedPerformanceRuntime {
     new PixGridPerformanceExecutionRuntime();
   private readonly cueRuntime = new PixGridCueExecutionRuntime();
   private readonly assignmentCompiler = new PixGridAssignmentCompiler();
+  private readonly choreographer = new PixGridStructuralChoreographer();
 
   reset(trackId: string | null = null): void {
     this.performanceRuntime.reset();
@@ -341,6 +348,7 @@ export class PixGridUnifiedPerformanceRuntime {
         runtime: this.cueRuntime,
       },
     );
+    const choreography = this.choreographer.evaluate(input.audioFrame);
     const groupEffects = sortPixGridGroupFrameEffects([
       ...performance.groupEffects,
       ...cues.groupEffects,
@@ -509,6 +517,7 @@ export class PixGridUnifiedPerformanceRuntime {
     return {
       state: cues.state,
       groupEffects,
+      choreography,
       transition,
       performance,
       cues,

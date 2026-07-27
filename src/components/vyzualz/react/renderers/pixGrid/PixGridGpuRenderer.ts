@@ -1,6 +1,7 @@
 import type { ReactPreset } from '../../ReactTypes'
 import type { PixGridRendererDiagnostics, PixGridState } from '../../pixGrid/PixGridTypes'
 import { composePixGridLogicalFrame, type PixGridLogicalFrame } from '../../pixGrid/PixGridCompositor'
+import type { PixGridStructuralChoreography } from '../../pixGrid/PixGridStructuralChoreographer'
 import { normalizePixGridState } from '../../pixGrid/PixGridValidation'
 import type { PixGridBaselineRenderFrame } from './PixGridBaselineRenderer'
 import type { PixGridPreparedAsset } from '../../pixGrid/PixGridAssetPreparation'
@@ -47,6 +48,7 @@ interface PixGridGpuRenderInput {
   transition?: PixGridResolvedTransition | null
   groupEffects?: readonly PixGridGroupFrameEffect[]
   reactionRuntime?: PixGridReactionRuntime
+  choreography?: PixGridStructuralChoreography | null
 }
 
 interface SavedWebGLState {
@@ -387,6 +389,7 @@ export class PixGridGpuRenderer {
       input.transition,
       input.groupEffects ?? [],
       this.groupCompiler,
+      input.choreography ?? null,
     )
     this.logicalPixels = logical.pixels
     this.lastLogicalFrame = logical
