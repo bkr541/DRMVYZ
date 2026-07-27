@@ -159,6 +159,14 @@ export interface OscillatorSettings {
   mirrorX: boolean
   mirrorY: boolean
   autoSectionMode: boolean
+  /** Optional: routes paths through simulated galvo slew limits (corner dwell + blanking) before rasterizing. Default off — a purely optional "realistic scanner" mode, not required for normal rendering. */
+  scannerKinematicsEnabled: boolean
+  /** Extra dwell (microseconds) budgeted for sharp corners when scanner kinematics are enabled. Mirrors LaserDmxScannerHead.cornerDwellMicros. */
+  scannerCornerDwellMicros: number
+  /** Blanking gap (microseconds) at corners sharp enough to demand a retrace when scanner kinematics are enabled. Mirrors LaserDmxScannerHead.blankingDelayMicros. */
+  scannerBlankingDelayMicros: number
+  /** Maximum sustained angular velocity (degrees/sec) the simulated galvo can hit when scanner kinematics are enabled. Mirrors LaserDmxScannerHead.maximumAngularVelocity. */
+  scannerMaxAngularVelocityDegPerSec: number
 }
 
 // ── CANVAS engine types ─────────────────────────────────────────────────────
@@ -582,6 +590,10 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   mirrorX:           false,
   mirrorY:           false,
   autoSectionMode:   true,
+  scannerKinematicsEnabled:           false,
+  scannerCornerDwellMicros:           64,
+  scannerBlankingDelayMicros:         18,
+  scannerMaxAngularVelocityDegPerSec: 18_000,
 }
 
 // ── Sound Drawing Layer / Clip types ─────────────────────────────────────────

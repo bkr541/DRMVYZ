@@ -63,6 +63,12 @@ import {
   resetLivingRibbonCanvasRuntimes,
   usesLivingRibbonCanvasRenderer,
 } from './LivingRibbonCanvas2DRenderer'
+import { rasterizeVectorBeamSegments } from '../vectorBeam/VectorBeamRasterizer'
+import type { VectorBeamColor, VectorBeamPoint, VectorBeamSegment } from '../vectorBeam/VectorBeamTypes'
+import {
+  applyVectorBeamScannerKinematics,
+  type VectorBeamScannerKinematicsSettings,
+} from '../vectorBeam/VectorBeamScannerKinematics'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
 // SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
 // This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
@@ -1032,67 +1038,132 @@ export function computeCharCenters(points: OscillatorGlyphPoint[]): Map<number, 
 
 // ── Canvas path helpers ───────────────────────────────────────────────────────
 
-function drawConnectedPath(tctx: CanvasRenderingContext2D, pts: [number, number][], close: boolean): void {
-  if (pts.length < 2) return
-  tctx.beginPath()
-  tctx.moveTo(pts[0][0], pts[0][1])
-  for (let i = 1; i < pts.length; i++) tctx.lineTo(pts[i][0], pts[i][1])
-  if (close) tctx.closePath()
-  tctx.stroke()
+// ── Vector-beam segment construction ──────────────────────────────────────────
+// Every trace draw path below builds an array of shared VectorBeamSegments and
+// hands it to the ONE shared rasterizer (rasterizeVectorBeamSegments), instead
+// of issuing its own beginPath/stroke sequence — the same segment model and
+// beam-optics/color-science pipeline src/.../renderers/laserDmx/ uses to author
+// its own scene frames. A galvo scanner and an oscilloscope trace are both XY
+// vector displays; this is where that gets shared instead of duplicated.
+
+function vectorBeamColorFromHex(hex: string, alpha: number): VectorBeamColor {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  const value = match?.[1] ?? '4ac7db'
+  return {
+    r: parseInt(value.slice(0, 2), 16) / 255,
+    g: parseInt(value.slice(2, 4), 16) / 255,
+    b: parseInt(value.slice(4, 6), 16) / 255,
+    a: clamp(alpha, 0, 1),
+  }
+}
+
+/** Angle in degrees between two direction vectors: 0 = continues straight, 180 = full reversal. */
+function directionTurnAngleDeg(dx1: number, dy1: number, dx2: number, dy2: number): number {
+  const denom = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
+  if (denom <= 1e-8) return 0
+  const cos = clamp((dx1 * dx2 + dy1 * dy2) / denom, -1, 1)
+  return (Math.acos(cos) * 180) / Math.PI
 }
 
 /**
- * Like `drawConnectedPath`, but when per-point velocityRatio data is available,
- * strokes the path as batched runs of similar velocity so alpha (and line width)
- * dim on fast sweeps and brighten at cusps/turning points — matching an oscilloscope
- * beam's dwell time. Reads the caller's current globalAlpha/lineWidth as the base
- * values to modulate, and restores them afterward. Falls back to a single uniform
- * stroke (unchanged behavior) when `ratios` is null, e.g. for built-in shapes/SVG
- * sources that never went through resamplePointsWithVelocity.
+ * Builds shared vector-beam segments from a point path, deriving dwellWeight
+ * from corner/cusp detection (the sharper the direction change at a segment's
+ * origin, the higher its dwell — a physical beam lingers longer at turning
+ * points) and velocityRatio from `velocityRatios` (Phase 1's per-point inverse-
+ * velocity signal) when supplied, falling back to a dwell-derived estimate for
+ * sources that never went through resamplePointsWithVelocity (built-in shapes, SVG).
+ */
+/** Reads the (optional, default-off) scanner kinematics knobs off an oscillator's settings. */
+function resolveVectorBeamScannerKinematicsSettings(osc: OscillatorSettings): VectorBeamScannerKinematicsSettings {
+  return {
+    enabled: osc.scannerKinematicsEnabled === true,
+    cornerDwellMicros: osc.scannerCornerDwellMicros,
+    blankingDelayMicros: osc.scannerBlankingDelayMicros,
+    maxAngularVelocityDegPerSec: osc.scannerMaxAngularVelocityDegPerSec,
+  }
+}
+
+function buildVectorBeamSegmentsFromPoints(
+  points: readonly VectorBeamPoint[],
+  close: boolean,
+  color: VectorBeamColor,
+  velocityRatios?: readonly (number | undefined)[] | null,
+  kinematics?: VectorBeamScannerKinematicsSettings,
+): VectorBeamSegment[] {
+  const n = points.length
+  if (n < 2) return []
+  const segmentCount = close ? n : n - 1
+  const segments: VectorBeamSegment[] = []
+  for (let s = 0; s < segmentCount; s++) {
+    const originIdx = s
+    const targetIdx = (s + 1) % n
+    const origin = points[originIdx]
+    const target = points[targetIdx]
+
+    let dwellWeight = 0
+    const hasPrior = close || originIdx > 0
+    if (hasPrior) {
+      const prior = points[(originIdx - 1 + n) % n]
+      const turnAngle = directionTurnAngleDeg(
+        origin.x - prior.x, origin.y - prior.y,
+        target.x - origin.x, target.y - origin.y,
+      )
+      dwellWeight = clamp(turnAngle / 150, 0, 1)
+    }
+
+    const velocityRatio = clamp(velocityRatios?.[originIdx] ?? (1 - dwellWeight * 0.5), 0, 1)
+    segments.push({
+      origin,
+      target,
+      color,
+      density: 1,
+      dwellWeight,
+      velocityRatio,
+      historyWeight: color.a,
+    })
+  }
+  return kinematics
+    ? (applyVectorBeamScannerKinematics(segments, kinematics) as VectorBeamSegment[])
+    : segments
+}
+
+function circleVectorBeamPoints(cx: number, cy: number, radius: number, count = 64): VectorBeamPoint[] {
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (i / count) * Math.PI * 2
+    return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius }
+  })
+}
+
+/**
+ * Strokes a path through the shared vector-beam rasterizer. Reads the caller's
+ * current globalAlpha (as base density), lineWidth (as base stroke width), and
+ * globalCompositeOperation (as blend mode) — the same "set state, then draw"
+ * contract the old direct-stroke call sites already used — but resolves color
+ * from the explicit `colorHex` parameter rather than reading `tctx.strokeStyle`
+ * back, since browsers may normalize a color string on readback (e.g. to
+ * `rgb(...)`), which would silently break hex parsing.
+ * `ratios` carries Phase 1's per-point velocityRatio when available (text/font
+ * glyph sources); dwell-derived geometry is computed either way, so sources
+ * with no velocity signal (built-in shapes, SVG) still render through the same
+ * shared beam-optics/color-science pipeline as everything else.
  */
 function drawConnectedPathWithVelocity(
   tctx: CanvasRenderingContext2D,
   pts: [number, number][],
   ratios: (number | undefined)[] | null,
   close: boolean,
+  colorHex: string,
+  kinematics?: VectorBeamScannerKinematicsSettings,
 ): void {
   if (pts.length < 2) return
-  if (!ratios) { drawConnectedPath(tctx, pts, close); return }
-
-  const n = pts.length
-  const segmentCount = close ? n : n - 1
-  if (segmentCount < 1) { drawConnectedPath(tctx, pts, close); return }
-
-  const baseAlpha     = tctx.globalAlpha
+  const baseAlpha = tctx.globalAlpha
   const baseLineWidth = tctx.lineWidth
-  const ratioAt = (idx: number): number => clamp(ratios[idx % n] ?? 1, 0, 1)
-  const bucketFor = (seg: number): number =>
-    Math.round(((ratioAt(seg) + ratioAt(seg + 1)) / 2) * SOUND_DRAWING_VELOCITY_RUN_BUCKETS)
+  const blendMode = tctx.globalCompositeOperation as GlobalCompositeOperation
 
-  let runStart  = 0
-  let runBucket = bucketFor(0)
-  for (let seg = 1; seg <= segmentCount; seg++) {
-    const isLast = seg === segmentCount
-    const bucket = isLast ? -1 : bucketFor(seg)
-    if (isLast || bucket !== runBucket) {
-      const ratio = runBucket / SOUND_DRAWING_VELOCITY_RUN_BUCKETS
-      tctx.globalAlpha = baseAlpha * (
-        SOUND_DRAWING_VELOCITY_ALPHA_MIN + (SOUND_DRAWING_VELOCITY_ALPHA_MAX - SOUND_DRAWING_VELOCITY_ALPHA_MIN) * ratio
-      )
-      tctx.lineWidth = Math.max(
-        0.4,
-        baseLineWidth * (1 + (ratio - 0.5) * 2 * SOUND_DRAWING_VELOCITY_LINE_WIDTH_AMOUNT),
-      )
-      tctx.beginPath()
-      tctx.moveTo(pts[runStart % n][0], pts[runStart % n][1])
-      for (let s = runStart; s < seg; s++) tctx.lineTo(pts[(s + 1) % n][0], pts[(s + 1) % n][1])
-      tctx.stroke()
-      runStart  = seg
-      runBucket = bucket
-    }
-  }
-  tctx.globalAlpha = baseAlpha
-  tctx.lineWidth   = baseLineWidth
+  const points: VectorBeamPoint[] = pts.map(([x, y]) => ({ x, y }))
+  const color = vectorBeamColorFromHex(colorHex, baseAlpha)
+  const segments = buildVectorBeamSegmentsFromPoints(points, close, color, ratios, kinematics)
+  rasterizeVectorBeamSegments(tctx, segments, { blendMode, baseWidthPx: baseLineWidth, intensity: 1 })
 }
 
 function drawDotPoints(tctx: CanvasRenderingContext2D, pts: [number, number][], r: number): void {
@@ -1157,26 +1228,18 @@ function drawWaveformOnTrail(
     },
   ]
 
+  const baseWidthPx = (1.2 + bass * 2) * dpr * params.intensity
+  const kinematics = resolveVectorBeamScannerKinematicsSettings(params.oscillator)
+
   for (const layer of layers) {
-    tctx.save()
-    tctx.globalAlpha              = layer.alpha * intMul
-    tctx.globalCompositeOperation = blendMode
-    tctx.strokeStyle              = layer.color
-    tctx.lineWidth                = (1.2 + bass * 2) * dpr * params.intensity
-    tctx.shadowColor              = layer.color
-    tctx.shadowBlur               = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX
-    tctx.lineCap                  = 'round'
-    tctx.lineJoin                 = 'round'
-    tctx.beginPath()
+    const points: VectorBeamPoint[] = new Array(pts + 1)
     for (let i = 0; i <= pts; i++) {
       const v = getTimeDomainNorm(timeDomainData, i)
-      const x = i * stepX
-      const y = layer.yOff + v * layer.scaleY * (1 + bass * 0.5) * params.intensity
-      if (i === 0) tctx.moveTo(x, y)
-      else tctx.lineTo(x, y)
+      points[i] = { x: i * stepX, y: layer.yOff + v * layer.scaleY * (1 + bass * 0.5) * params.intensity }
     }
-    tctx.stroke()
-    tctx.restore()
+    const color = vectorBeamColorFromHex(layer.color, layer.alpha * intMul)
+    const segments = buildVectorBeamSegmentsFromPoints(points, false, color, undefined, kinematics)
+    rasterizeVectorBeamSegments(tctx, segments, { blendMode, baseWidthPx, intensity: 1 })
   }
 }
 
@@ -1200,36 +1263,24 @@ function drawLissajousOnTrail(
     cy2 = H / 2
   const scale = Math.min(W, H) * 0.42 * (1 + bass * 0.12) * params.intensity
 
-  const col    = preset.palette.primary
-
-  tctx.save()
-  tctx.globalCompositeOperation = blendMode
-  tctx.strokeStyle              = col
-  tctx.lineWidth                = (0.9 + bass * 1.5) * dpr * params.intensity
-  tctx.shadowColor              = col
-  tctx.shadowBlur               = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX
-  tctx.globalAlpha              = 0.85 * intMul
-  tctx.lineCap                  = 'round'
-  tctx.lineJoin                 = 'round'
-  tctx.beginPath()
-
+  const points: VectorBeamPoint[] = new Array(pts + 1)
   for (let i = 0; i <= pts; i++) {
     const st = getSynthStereo(timeDomainData, freqData, i, pts)
-    const x  = cx2 + st.x * scale
-    const y  = cy2 + st.y * scale
-    if (i === 0) tctx.moveTo(x, y)
-    else tctx.lineTo(x, y)
+    points[i] = { x: cx2 + st.x * scale, y: cy2 + st.y * scale }
   }
-  tctx.stroke()
 
-  tctx.strokeStyle = preset.palette.accent
-  tctx.shadowColor = preset.palette.accent
-  tctx.shadowBlur  = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX * 0.5
-  tctx.lineWidth  *= 0.4
-  tctx.globalAlpha = 0.3 * intMul
-  tctx.stroke()
+  const baseWidthPx = (0.9 + bass * 1.5) * dpr * params.intensity
+  const kinematics = resolveVectorBeamScannerKinematicsSettings(params.oscillator)
 
-  tctx.restore()
+  const mainSegments = buildVectorBeamSegmentsFromPoints(
+    points, false, vectorBeamColorFromHex(preset.palette.primary, 0.85 * intMul), undefined, kinematics,
+  )
+  rasterizeVectorBeamSegments(tctx, mainSegments, { blendMode, baseWidthPx, intensity: 1 })
+
+  const accentSegments = buildVectorBeamSegmentsFromPoints(
+    points, false, vectorBeamColorFromHex(preset.palette.accent, 0.3 * intMul), undefined, kinematics,
+  )
+  rasterizeVectorBeamSegments(tctx, accentSegments, { blendMode, baseWidthPx: baseWidthPx * 0.4, intensity: 1 })
 }
 
 // ── Radial scope mode ─────────────────────────────────────────────────────────
@@ -1251,39 +1302,28 @@ function drawRadialScopeOnTrail(
     cy2 = H / 2
   const baseR  = Math.min(W, H) * 0.3 * params.intensity
   const pts    = 256
-  const col    = preset.palette.secondary
 
-  tctx.save()
-  tctx.globalCompositeOperation = blendMode
-  tctx.strokeStyle              = col
-  tctx.lineWidth                = (1.0 + bass * 1.8) * dpr * params.intensity
-  tctx.shadowColor              = col
-  tctx.shadowBlur               = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX
-  tctx.globalAlpha              = 0.9 * intMul
-  tctx.lineCap                  = 'round'
-  tctx.beginPath()
-
+  const points: VectorBeamPoint[] = new Array(pts + 1)
   for (let i = 0; i <= pts; i++) {
     const angle = (i / pts) * Math.PI * 2
     const v     = getTimeDomainNorm(timeDomainData, i)
     const r     = baseR + v * baseR * 0.55 * (1 + bass * 0.6)
-    const x     = cx2 + Math.cos(angle) * r
-    const y     = cy2 + Math.sin(angle) * r
-    if (i === 0) tctx.moveTo(x, y)
-    else tctx.lineTo(x, y)
+    points[i] = { x: cx2 + Math.cos(angle) * r, y: cy2 + Math.sin(angle) * r }
   }
-  tctx.closePath()
-  tctx.stroke()
 
-  tctx.strokeStyle = preset.palette.accent
-  tctx.shadowColor = preset.palette.accent
-  tctx.lineWidth  *= 0.5
-  tctx.globalAlpha = 0.35 * intMul
-  tctx.beginPath()
-  tctx.arc(cx2, cy2, baseR * 0.55, 0, Math.PI * 2)
-  tctx.stroke()
+  const baseWidthPx = (1.0 + bass * 1.8) * dpr * params.intensity
+  const kinematics = resolveVectorBeamScannerKinematicsSettings(params.oscillator)
 
-  tctx.restore()
+  const mainSegments = buildVectorBeamSegmentsFromPoints(
+    points, true, vectorBeamColorFromHex(preset.palette.secondary, 0.9 * intMul), undefined, kinematics,
+  )
+  rasterizeVectorBeamSegments(tctx, mainSegments, { blendMode, baseWidthPx, intensity: 1 })
+
+  const accentPoints = circleVectorBeamPoints(cx2, cy2, baseR * 0.55)
+  const accentSegments = buildVectorBeamSegmentsFromPoints(
+    accentPoints, true, vectorBeamColorFromHex(preset.palette.accent, 0.35 * intMul), undefined, kinematics,
+  )
+  rasterizeVectorBeamSegments(tctx, accentSegments, { blendMode, baseWidthPx: baseWidthPx * 0.5, intensity: 1 })
 }
 
 // ── Spiral scope mode ─────────────────────────────────────────────────────────
@@ -1304,34 +1344,25 @@ function drawSpiralScopeOnTrail(
   const cx2 = W / 2,
     cy2 = H / 2
   const pts    = 360
-  const col    = preset.palette.primary
-
-  tctx.save()
-  tctx.globalCompositeOperation = blendMode
-  tctx.strokeStyle              = col
-  tctx.lineWidth                = (0.8 + bass * 1.2) * dpr * params.intensity
-  tctx.shadowColor              = col
-  tctx.shadowBlur               = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX
-  tctx.globalAlpha              = 0.85 * intMul
-  tctx.lineCap                  = 'round'
-  tctx.beginPath()
 
   const spiralR     = Math.min(W, H) * 0.35 * params.intensity
   const spiralTurns = 3.5 + audio.mid * 1.5
 
+  const points: VectorBeamPoint[] = new Array(pts + 1)
   for (let i = 0; i <= pts; i++) {
     const frac    = i / pts
     const angle   = frac * Math.PI * 2 * spiralTurns + t * 0.001 * params.motion
     const freqVal = getFreqNorm(freqData, Math.floor(frac * (freqData ? freqData.length : 256)))
     const r       = frac * spiralR * (0.8 + freqVal * 0.5 + bass * 0.3)
-    const x       = cx2 + Math.cos(angle) * r
-    const y       = cy2 + Math.sin(angle) * r
-    if (i === 0) tctx.moveTo(x, y)
-    else tctx.lineTo(x, y)
+    points[i] = { x: cx2 + Math.cos(angle) * r, y: cy2 + Math.sin(angle) * r }
   }
-  tctx.stroke()
 
-  tctx.restore()
+  const baseWidthPx = (0.8 + bass * 1.2) * dpr * params.intensity
+  const segments = buildVectorBeamSegmentsFromPoints(
+    points, false, vectorBeamColorFromHex(preset.palette.primary, 0.85 * intMul), undefined,
+    resolveVectorBeamScannerKinematicsSettings(params.oscillator),
+  )
+  rasterizeVectorBeamSegments(tctx, segments, { blendMode, baseWidthPx, intensity: 1 })
 }
 
 interface SoundDrawingPerformanceSourceRuntimePolicy {
@@ -1625,6 +1656,7 @@ function drawPathScopeOnTrail(
   const ratioGroups: (number | undefined)[][] | null = hasVelocityData
     ? sourceGroups.map((indices) => indices.map((i) => basePoints[i].velocityRatio))
     : null
+  const kinematics = resolveVectorBeamScannerKinematicsSettings(effectiveOsc)
 
   // Per-character audio transform setup.
   // charCenters is non-null only when text points carry characterIndex metadata.
@@ -1869,33 +1901,30 @@ function drawPathScopeOnTrail(
     switch (osc.renderMode) {
       case 'outline': {
         tctx.globalAlpha = traceAlpha * intMul
-        tctx.strokeStyle = traceColor
-        tctx.shadowColor = traceColor
-        tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.2 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
         for (let g = 0; g < screenGroups.length; g++) {
-          drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+          drawConnectedPathWithVelocity(
+            tctx, screenGroups[g], ratioGroups?.[g] ?? null, close, traceColor, kinematics,
+          )
         }
         break
       }
       case 'multiTrace': {
         if (isMain) {
           tctx.globalAlpha = 0.25 * intMul
-          tctx.strokeStyle = preset.palette.accent
-          tctx.shadowColor = preset.palette.accent
-          tctx.shadowBlur  = glowBase * 0.8
           tctx.lineWidth   = (2.5 + bass * 2.5) * am.lineWidthBoost * dpr
           for (let g = 0; g < screenGroups.length; g++) {
-            drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+            drawConnectedPathWithVelocity(
+              tctx, screenGroups[g], ratioGroups?.[g] ?? null, close, preset.palette.accent, kinematics,
+            )
           }
         }
         tctx.globalAlpha = traceAlpha * intMul
-        tctx.strokeStyle = traceColor
-        tctx.shadowColor = traceColor
-        tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.0 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
         for (let g = 0; g < screenGroups.length; g++) {
-          drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+          drawConnectedPathWithVelocity(
+            tctx, screenGroups[g], ratioGroups?.[g] ?? null, close, traceColor, kinematics,
+          )
         }
         break
       }
@@ -1911,21 +1940,19 @@ function drawPathScopeOnTrail(
       case 'ribbon': {
         // Underlay pass (wide, semi-transparent) — all groups first
         tctx.globalAlpha = 0.18 * intMul
-        tctx.strokeStyle = preset.palette.accent
-        tctx.shadowColor = preset.palette.accent
-        tctx.shadowBlur  = glowBase * 1.2
         tctx.lineWidth   = (5 + bass * 5) * am.lineWidthBoost * dpr
         for (let g = 0; g < screenGroups.length; g++) {
-          drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+          drawConnectedPathWithVelocity(
+            tctx, screenGroups[g], ratioGroups?.[g] ?? null, close, preset.palette.accent, kinematics,
+          )
         }
         // Inner trace pass (thin, full alpha) — all groups second
         tctx.globalAlpha = traceAlpha * intMul
-        tctx.strokeStyle = traceColor
-        tctx.shadowColor = traceColor
-        tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.5 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
         for (let g = 0; g < screenGroups.length; g++) {
-          drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+          drawConnectedPathWithVelocity(
+            tctx, screenGroups[g], ratioGroups?.[g] ?? null, close, traceColor, kinematics,
+          )
         }
         break
       }
@@ -1939,15 +1966,14 @@ function drawPathScopeOnTrail(
   if (am.beatPulse > 0.05 && mainTraceGroups) {
     tctx.save()
     tctx.globalCompositeOperation = blendMode
-    tctx.strokeStyle = preset.palette.accent
-    tctx.shadowColor = preset.palette.accent
-    tctx.shadowBlur  = glowBase * 2.5
     tctx.lineWidth   = (2.5 + bass * 3) * dpr
     tctx.globalAlpha = 0.5 * am.beatPulse * effectiveOsc.beatBloom * intMul
     tctx.lineCap     = 'round'
     tctx.lineJoin    = 'round'
     for (let g = 0; g < mainTraceGroups.length; g++) {
-      drawConnectedPathWithVelocity(tctx, mainTraceGroups[g], ratioGroups?.[g] ?? null, close)
+      drawConnectedPathWithVelocity(
+        tctx, mainTraceGroups[g], ratioGroups?.[g] ?? null, close, preset.palette.accent, kinematics,
+      )
     }
     tctx.restore()
   }

@@ -271,6 +271,7 @@ function normalizeSoundDrawingGapBehavior(value: unknown): SoundDrawingLyricGapB
 
 function normalizeOscillatorSettings(settings: OscillatorSettings): OscillatorSettings {
   const normalized = normalizeUnifiedSvgSettings(settings)
+  const raw = settings as Partial<OscillatorSettings>
   return {
     ...normalized,
     pathScale: normalizeSoundDrawingVisualSize(normalized.pathScale),
@@ -279,6 +280,26 @@ function normalizeOscillatorSettings(settings: OscillatorSettings): OscillatorSe
     lyricFallbackText: typeof normalized.lyricFallbackText === 'string'
       ? normalized.lyricFallbackText
       : '',
+    // Projects persisted before scanner kinematics existed have these fields
+    // undefined; default them in here rather than a version-gated migration
+    // block, since this function already runs unconditionally on every
+    // persisted oscillatorSettings load (see migrateReactStore).
+    scannerKinematicsEnabled: raw.scannerKinematicsEnabled === true,
+    scannerCornerDwellMicros: Math.max(
+      0,
+      finiteNumber(raw.scannerCornerDwellMicros, DEFAULT_OSCILLATOR_SETTINGS.scannerCornerDwellMicros),
+    ),
+    scannerBlankingDelayMicros: Math.max(
+      0,
+      finiteNumber(raw.scannerBlankingDelayMicros, DEFAULT_OSCILLATOR_SETTINGS.scannerBlankingDelayMicros),
+    ),
+    scannerMaxAngularVelocityDegPerSec: Math.max(
+      1,
+      finiteNumber(
+        raw.scannerMaxAngularVelocityDegPerSec,
+        DEFAULT_OSCILLATOR_SETTINGS.scannerMaxAngularVelocityDegPerSec,
+      ),
+    ),
   }
 }
 

@@ -6,18 +6,17 @@ import {
   type LaserDmxScannerExposureGeometry,
   type LaserDmxScannerWebGLInputValidation,
 } from './LaserDmxScannerWebGLPlan'
+import type { VectorBeamSegment } from '../../vectorBeam/VectorBeamTypes'
 
-export interface LaserDmxCanvas2DScannerSegment {
+// Extends the shared renderer-agnostic vector-beam segment (origin, target,
+// color, density, dwellWeight, velocityRatio, historyWeight) with the
+// laser-specific fixture/geometry identity fields. Purely a type-level change —
+// every field below was already present with identical shapes, so nothing about
+// how this renderer builds or consumes segments changes.
+export interface LaserDmxCanvas2DScannerSegment extends VectorBeamSegment {
   id: string
   fixtureId: string
   geometry: LaserDmxScannerExposureGeometry
-  origin: { x: number; y: number }
-  target: { x: number; y: number }
-  color: { r: number; g: number; b: number; a: number }
-  density: number
-  dwellWeight: number
-  velocityRatio: number
-  historyWeight: number
   stable: boolean
   animated: boolean
 }
