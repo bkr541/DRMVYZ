@@ -1,170 +1,178 @@
-# DRMVYZ v2.0 — DVYDRM Signal System
+# DRMVYZ
 
-A screen-recordable, modular audio visualization dashboard for DVYDRM track teasers.
-MiniMeters-inspired feature set in a DVYDRM neon cyan/green dark dashboard theme.
+DRMVYZ is a desktop-first VJ and audio-reactive visualization system for DVYDRM. It combines a six-engine live performance workspace, track-aware choreography, media and brand libraries, lyric tooling, recording, and a classic modular audio-visualizer workspace.
 
-## AI Implementation Rule
+The default performance workspace is **React View**. The older modular **Visualizer** remains available for analyzer-style layouts and social-format capture.
 
-Before making code changes, read `AI_IMPLEMENTATION_CONTRACT.md` and follow its layout, styling, component, media, preset, and rendering rules.
+## Implementation contract
 
-LaserDMX physical scanner architecture and Patch 1 compatibility boundaries are documented in `docs/LASER_DMX_PHYSICAL_SCANNER_ARCHITECTURE.md`.
-LaserDMX Show Director built-in preset re-authoring, finite-cue realism validation, and deterministic acceptance coverage are documented in `docs/LASER_DMX_PRESET_REALISM_PATCH_3.md`.
+Before changing the application, read:
 
-## Quick Start
+- [`AI_IMPLEMENTATION_CONTRACT.md`](AI_IMPLEMENTATION_CONTRACT.md)
+- [`docs/documentation-index.md`](docs/documentation-index.md)
+- [`docs/react-view-architecture.md`](docs/react-view-architecture.md)
 
-### Desktop app (recommended)
+Historical patch records are useful evidence, but they are not automatically current architecture.
 
-DRMVYZ Desktop requires Node.js 22.12 or newer within the Node 22 release line.
+## Application workspaces
+
+| Workspace | Purpose |
+| --- | --- |
+| **React** | Main VJ workspace with six visual engines, Track Map, performance controls, recording, and production output |
+| **Visualizer** | Classic modular spectrum, waveform, meter, and social-layout workspace |
+| **Media Manager** | Shared image, SVG, video, audio, and Brand Kit asset management |
+| **Lyric Manager** | Lyric extraction, timing, cue styling, editing, and preview |
+
+## React View engines
+
+The selectable engine registry is `src/components/vyzualz/react/reactEngineCatalog.ts`.
+
+| Engine | Role |
+| --- | --- |
+| **Shader Pads** | Authored WebGL shader scenes with native performance programs and modulation |
+| **Cinematic Worlds** | Directed immersive worlds with camera, atmosphere, post-processing, and audio intelligence |
+| **Sound Drawing** | Waveform, text, font, SVG, glyph, and Living Ribbon drawing |
+| **CANVAS** | User media compositions, transitions, effect recipes, and authored full-song shows |
+| **LaserDMX** | Virtual fixture rigs, Beam Matrix compatibility, Show Director, cues, and production-output preparation |
+| **PixGrid** | Programmable LED-cell artwork, media conversion, smart groups, routing, and full-song pixel choreography |
+
+React View is organized into an engine-aware left rail, a live center stage, a role-based right rail, a lower Track Map/Performance Pads workspace, and a shared audio dock. See [`docs/react-view-architecture.md`](docs/react-view-architecture.md).
+
+## Quick start
+
+### Requirements
+
+- Node.js `>=22.12 <23`
+- npm with the committed `package-lock.json`
+- A modern Chromium or WebKit browser for browser development
+- Electron for native desktop features
+
+Use the Node version declared by `package.json` and `.nvmrc`.
+
+### Desktop app
 
 ```bash
 npm ci
 npm run electron:dev
-# or double-click launch.command on macOS
 ```
 
-The Electron shell enables native Rekordbox USB scanning, including `export.pdb` and `PIONEER/USBANLZ` cue/beat-grid metadata.
+On macOS, `launch.command` starts the same development workflow.
 
-### Browser-only development
+The Electron shell enables native Rekordbox USB scanning, including `export.pdb` and `PIONEER/USBANLZ` cue and beat-grid metadata.
+
+### Browser development
 
 ```bash
+npm ci
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). The browser build remains supported, but native USB database parsing is unavailable there; use Rekordbox XML for cue hydration.
+Open `http://localhost:5173`.
 
-### Package installers
+The browser build supports the main visual workspaces. Native Rekordbox USB database scanning is unavailable in browser-only mode; use Rekordbox XML for cue hydration.
+
+### Desktop packages
 
 ```bash
-npm run desktop:pack       # unpacked local application
-npm run desktop:dist:mac   # DMG
-npm run desktop:dist:win   # NSIS installer
-npm run desktop:dist:linux # AppImage
+npm run desktop:pack
+npm run desktop:dist:mac
+npm run desktop:dist:win
+npm run desktop:dist:linux
 ```
 
-Desktop artifacts are written to `release/`. Cross-platform installers normally need to be built on their target operating system, and production distribution should add platform code signing/notarization.
+Desktop artifacts are written to `release/`. Production distribution should add platform signing and notarization. Cross-platform installers are normally built on their target operating system.
 
-For the complete locked-install, unit, production-build, Chromium smoke, and audit workflow, see [`docs/verification.md`](docs/verification.md).
+## Audio sources
 
-Lyric Manager identity, extraction, Cue Style, vocal-reference, waveform editing, review, and troubleshooting behavior is documented in [`docs/lyric-manager.md`](docs/lyric-manager.md).
+| Source | Behavior |
+| --- | --- |
+| **File** | Loads supported audio files into the shared audio engine and offline-analysis pipeline |
+| **Microphone** | Uses `getUserMedia`; the browser or desktop shell requests permission |
+| **Demo** | Uses synthetic analysis input for development without normal program audio output |
 
-PixGrid architecture, media support, quality tiers, editor workflow, smart groups, choreography, Track Map cues, recovery, and deferred features are documented in [`docs/pixgrid.md`](docs/pixgrid.md).
+System audio from another application still requires operating-system routing such as BlackHole on macOS or VB-Cable on Windows, or capture through OBS.
 
----
+## Music Intelligence and performance timing
 
-## Audio Sources
+DRMVYZ uses one shared analysis and timing authority:
 
-| Source | How it works |
-|--------|-------------|
-| **File** | Upload MP3, WAV, AIFF, M4A, OGG, FLAC via drag-drop or "Add Track" |
-| **Microphone** | Uses `getUserMedia` — browser will prompt for permission |
-| **Demo** | Synthetic oscillators feeding the analysers — no audio output |
+1. The audio engine and loaded-track analysis publish Music Intelligence data.
+2. Shared Performance Core resolves authoritative beat, bar, phrase, section, occurrence, confidence, and transport state.
+3. Engine-specific performance programs interpret that context.
+4. Renderers consume engine-normalized state without creating competing beat grids or section detectors.
 
-> **Audio-routing limitation:** System audio (e.g., Spotify or other applications) still requires OS-level virtual routing such as BlackHole on macOS or VB-Cable on Windows, or capture through OBS.
+See:
 
----
+- [`docs/music-intelligence.md`](docs/music-intelligence.md)
+- [`docs/loaded-audio-analysis.md`](docs/loaded-audio-analysis.md)
+- [`docs/shared-performance-core.md`](docs/shared-performance-core.md)
 
-## Modules
+## Recording and production output
 
-All modules are **audio-reactive** and show idle animations when no source is active.
+React View records the active output canvas through `HTMLCanvasElement.captureStream()` and `MediaRecorder`.
 
-| Module | Description |
-|--------|-------------|
-| **Spectrum** | FFT analyzer — bars / line / filled / smooth curve modes |
-| **Spectrogram** | Scrolling time-frequency display with 6 color maps |
-| **Waveform** | Time-domain waveform — centered or scrolling mode |
-| **Vectorscope** | Stereo Lissajous figure (L=X, R=Y) |
-| **Oscilloscope** | Time-domain signal — L, R, Mid, or Side channel |
-| **Loudness** | Approx. LUFS: Momentary (M), Short-term (S), Integrated (I) |
-| **L/R Meters** | Per-channel RMS level with peak hold |
-| **Mid/Side** | Mid=(L+R)/√2 and Side=(L−R)/√2 meters + width indicator |
-| **Phase Correlation** | Pearson correlation between L/R (-1 to +1) |
-| **Band Meters** | Bass (<250 Hz), Mid (250–4 kHz), High (>4 kHz) energy |
-| **Level** | Configurable: RMS / Peak / True Peak (approx) / VU (needle or bar) |
+- Video export is WebM.
+- Recording can use 30 or 60 FPS.
+- The active program-audio track is added when available.
+- Recording falls back to video-only when no program-audio stream is available.
+- PNG frame export uses the same active output canvas.
+- Recorder state lives at React View level so an active recording survives right-panel tab changes.
 
-> **LUFS note:** The loudness meter uses a simplified K-weighted RMS approximation. It is NOT ITU-R BS.1770-4 compliant and should not be used for broadcast loudness compliance.
+LaserDMX also exposes a Production Output surface. Virtual Output is the executable default. Art-Net and sACN are protocol-ready descriptors, but physical transmission requires a trusted host boundary and explicit safety work.
 
-> **True Peak note:** The true peak meter uses 4× linear interpolation. It is not a full ITU-R BS.1770 true peak implementation. Labeled "approx." in the UI.
+See [`docs/react-recording-and-output.md`](docs/react-recording-and-output.md).
 
----
+## Media and Brand Kit
 
-## Module System
+React View engines use the shared Media Library rather than engine-specific upload silos. Media capability filters decide whether an item can be selected by Sound Drawing, CANVAS, PixGrid, or another surface.
 
-- **Enable/Disable:** Click **⊞ Modules** in the top bar → toggle checkboxes
-- **Reorder:** Use ↑↓ arrows in the Module panel, or drag module headers in edit mode
-- **Resize:** Width (S/M/L/XL) and Height (C/N/T) buttons appear in each module header when edit mode is on
+Brand Kit supplies persisted palettes, assets, effective engine palettes, branded preset resolution, and optional stage overlays. See [`docs/brand-kit.md`](docs/brand-kit.md).
 
----
+## Classic Visualizer
 
-## Layout Presets
+The Visualizer workspace retains the modular analyzer system:
 
-| Preset | Description |
-|--------|-------------|
-| Dashboard | Multi-column with sidebar |
-| 16:9 | Landscape optimized |
-| Quad | 2-column equal grid |
-| Stack | All modules full-width |
-| 1:1 | Square social format |
-| 9:16 | Vertical TikTok/Reels format |
+- Spectrum, spectrogram, waveform, vectorscope, and oscilloscope
+- Loudness, L/R, Mid/Side, phase correlation, band, level, and related meters
+- Reorderable and resizable modules
+- Dashboard, landscape, quad, stack, square, and vertical layouts
+- Themes, color maps, display density, FFT, smoothing, sensitivity, and peak settings
+- Preset import/export and screen-recording layouts
 
----
+The LUFS and true-peak displays are approximate visual tools, not broadcast-compliance meters.
 
-## Settings
+## Verification
 
-- **Themes:** Cyan/Green · Cyan/Blue · Green/Gold · Purple/Cyan
-- **Color maps** (per module): Cyan-Green · Fire · Ice · Mono · Rainbow · Plasma
-- Glow intensity, scanlines, grid, logo, module borders, transparent background
-- Font density (compact / normal / large)
-- FFT size (512–8192), smoothing, sensitivity, peak hold + decay speed
-- Display name override for the now-playing title
+Use the scripts as the command authority:
 
----
+```bash
+npm run verify:fast
+npm run verify
+npm run verify:clean
+```
 
-## Presets
+The full workflow, Node baseline, CI behavior, specialized engine verification, and source packaging are documented in [`docs/verification.md`](docs/verification.md).
 
-Visual presets save the full state: theme, all module settings, layout, and color maps.
+## Source packaging
 
-- Click **⊙ Presets** → type a name → Save
-- Load, delete, or export to JSON from the same panel
-- Import JSON preset files from other devices
+Do not zip a working directory containing `node_modules`, `dist`, coverage, logs, or browser output.
 
----
+```bash
+npm run package:source
+```
 
-## Recording & Export
+See [`docs/source-packaging.md`](docs/source-packaging.md).
 
-### Screen Recording (recommended)
-1. Select a layout preset matching your target platform
-2. Click **◉ REC MODE** to hide all UI chrome
-3. Use OBS, QuickTime, or any screen recorder to capture the window
-4. Click **EXIT REC** to return to editing mode
+## Technology
 
-### PNG Export
-Click **● Record** → **Export frame as PNG** — captures the largest canvas.
+- React 18, TypeScript, Vite 6, Zustand
+- Electron desktop shell
+- Web Audio API, Canvas 2D, WebGL2
+- Meyda, Essentia.js, Pitchy, Tonal, and web-audio-beat-detector
+- Supabase database, storage, and Edge Functions
+- Groq Whisper for new server-side lyric transcription jobs
+- Playwright, Vitest, ESLint, and Node native tests
 
-### WAV Export (ring buffer)
-A 60-second audio ring buffer continuously captures your audio at native sample rate.
-- Works with File and Microphone sources
-- Click **● Record** → **Export last 10s / 30s / 60s WAV**
+## Current architecture documentation
 
-### Live Audio Recording
-Records the active microphone stream as `.webm` audio.
-Requires the Microphone source to be active.
-
-> **Video export:** Not currently supported in-browser. Use OBS or screen recording software to capture visualizer clips.
-
----
-
-## Tech Stack
-
-React 18 · Vite 6 · TypeScript · Web Audio API · Canvas 2D API
-
-No backend · No paid APIs · No external audio processing libraries
-
----
-
-## Browser Compatibility
-
-Tested in Chrome 120+ and Safari 17+. Firefox works but AudioWorklet/ScriptProcessor behavior may differ slightly. All core features work in any modern browser that supports Web Audio API.
-
-### Shared Performance authoring
-
-Architecture, precedence, deterministic transport behavior, validation, diagnostics, Sound Drawing roles, and CANVAS media/composition authoring are documented in [`docs/shared-performance-core.md`](docs/shared-performance-core.md).
+Start with [`docs/documentation-index.md`](docs/documentation-index.md). It separates canonical current documentation from historical patch and acceptance records.

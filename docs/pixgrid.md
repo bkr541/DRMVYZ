@@ -52,6 +52,16 @@ Each built-in preset has an authored PixGrid Performance Program resolved throug
 
 Manual locks and Track Map actions take precedence over lower-priority automatic choreography without invoking LaserDMX fixture, beam, or runtime state.
 
+## Structural choreography and post-composite magnitude
+
+`PixGridStructuralChoreographer` converts authoritative section identity, section progress, beat, downbeat, bar entry, four/eight/sixteen-bar boundaries, and drop impact into bounded decaying envelopes. It produces a section-aware `motionScale`, smoothed structural energy, transient impact, development stages, and an ordered visual-effect plan. The section profile restores a readable energy arc in which drops exceed builds, builds exceed verses, and pre-drop suspension remains intentionally restrained.
+
+The choreographer resets on timing discontinuity or track-identity change. Event responses decay over wall-clock time rather than existing for one animation frame, so a drop impact has a visible tail and remains consistent across supported genre tempos.
+
+`PixGridVisualEffectStack` runs after logical composition and transition resolution. Its allocation-reusing operators include exposure, contrast, bloom, chroma shift, posterize, invert, strobe, scanline, and shake. Operators preserve transparent cells, clamp channel values, and are applied to the shared logical framebuffer before Canvas2D or WebGL2 presentation. They do not change the persisted layer graph, group assignments, or authored media.
+
+Canvas2D and WebGL2 consume the same structural choreography and post-composite logical frame. A renderer must not invent its own section arc, effect timing, or magnitude calibration.
+
 ## State migration and live global controls
 
 Persisted PixGrid documents carry an overall state schema version plus configuration metadata for their source preset, authored preset-configuration version, music-reactive configuration version, customization state, and last migration result. Rehydration does not use nonempty layers as proof that a document is complete. Built-in-derived states are merged with the current canonical preset by stable group and assignment IDs, while user layers, transforms, palettes, media, sparse cells, custom groups, route edits, program overrides, and scene selection remain intact. The merge is deterministic and idempotent.
@@ -109,7 +119,9 @@ The perceptual contract measures material changed-cell ratio, channel/color dist
 
 ## Verification
 
-PixGrid coverage includes versioned and idempotent state migration, customized-state preservation, empty-route fallback, Bass Reactivity and Motion control wiring, normalization, media conversion, SVG lifecycle, smart groups, audio routing, performance choreography, Track Map actions, renderer ownership, WebGL shader/resource behavior, adaptive quality, deterministic logical framebuffer scenarios, and browser WebGL pixel readback. The pixel suite covers all three presets, imported raster/SVG content, Brand Kit conversion, percussion reactions, four-bar evolution, Track Map transitions, pause, and seek reconstruction.
+PixGrid coverage includes versioned and idempotent state migration, customized-state preservation, empty-route fallback, Bass Reactivity and Motion control wiring, normalization, media conversion, SVG lifecycle, smart groups, audio routing, performance choreography, structural magnitude, post-composite effects, Track Map actions, renderer ownership, WebGL shader/resource behavior, adaptive quality, deterministic logical framebuffer scenarios, and browser WebGL pixel readback. The pixel suite covers all three presets, imported raster/SVG content, Brand Kit conversion, percussion reactions, four-bar evolution, Track Map transitions, pause, and seek reconstruction.
+
+`PixGridPerceptualMagnitude.test.ts` is the acceptance guard for visible magnitude. It measures sustained and drop luminance, drop frame-change bands, choreography gain over the bare composite, section-energy ordering, decaying impact envelopes, transparent-cell preservation, deterministic output, and stability from 70 through 180 BPM. It is included in both `npm run test:pix-grid:final` and `npm run test:pix-grid:perceptual`.
 
 ## Deferred post-MVP features
 
@@ -170,11 +182,12 @@ The live path is deliberately single-source:
 1. Music Intelligence publishes analyser or shared-bus data.
 2. Shared Performance Core resolves authoritative track, beat, bar, phrase, section, occurrence, confidence, and boundary state.
 3. PixGrid creates one typed audio frame and applies the global Bass Reactivity gain while retaining the unscaled values for routes explicitly authored to bypass that control.
-4. `PixGridUnifiedPerformanceRuntime` resolves scenes, performance-program actions, Track Map state, and route eligibility.
+4. `PixGridUnifiedPerformanceRuntime` resolves scenes, performance-program actions, Track Map state, route eligibility, and the structural choreography produced by `PixGridStructuralChoreographer`.
 5. `PixGridReactionRuntime` evaluates the same compiled assignments used by the compositor and records whether each route fired, fell back, was disabled, missed a condition, lacked confidence, or remained below threshold.
-6. Canvas2D and WebGL2 consume the same resolved state, audio frame, group effects, route envelopes, controls, section/phrase identity, and transition. No renderer performs its own audio routing.
+6. `PixGridCompositor` applies the resolved scene and group behavior, scales authored motion by the structural `motionScale`, resolves transitions, and applies the bounded `PixGridVisualEffectStack` to the logical framebuffer.
+7. Canvas2D and WebGL2 present that same logical state and choreography. No renderer performs its own audio routing or structural effect timing.
 
-Diagnostics separate five reasons for visible motion: autonomous layer animation, beat/cue-clocked animation, audio-envelope group actions, performance-program actions, and scene/phrase transitions. The global Motion multiplier is reported separately from route intensity, so an author can tell whether a quiet moving layer is autonomous or music-driven.
+Diagnostics separate seven reasons for visible change: autonomous layer animation, beat/cue-clocked animation, audio-envelope group actions, performance-program actions, scene/phrase transitions, structural choreography, and post-composite effects. The global Motion multiplier is reported separately from route intensity and structural magnitude, so an author can tell whether a quiet moving layer is autonomous, routed, or section-driven.
 
 Route activity is frame-bounded. The runtime retains only assignment state needed for smoothing, cooldown, and bounded envelopes; the inspector retains no unbounded analyser history. Assignment compilation and group-mask compilation remain signature-cached.
 
@@ -183,6 +196,8 @@ Route activity is frame-bounded. The runtime retains only assignment state neede
 `validatePixGridState` is the canonical structural validator. Errors cover missing groups/routes/targets, duplicate stable IDs, invalid masks, unsupported operations, invalid numeric ranges, impossible conditions, broken performance-program references, duplicated migration routes, current-version states missing required configuration, and Canvas/GPU semantic-plan divergence. Warnings identify artistically weak but structurally usable configurations such as ineffective amounts, optional sources without a fallback, bass-sensitive routes that intentionally bypass Bass Reactivity, or a built-in configuration without a common live-source path. Error and warning labels are textual and do not rely on color.
 
 `auditPixGridPresetRenderedReactivity` renders standardized silence, kick, snare, bass sustain, high-energy, build, pre-drop, drop, breakdown, phrase-boundary, second-drop, and outro scenarios. Every bundled preset must compile, validate, change actual rendered pixels, distinguish silence from music, distinguish kick from snare, respond monotonically to Bass Reactivity, respond to Motion, develop drops differently from breakdowns and later drops, and repeat deterministically. Metadata alone does not satisfy the audit.
+
+The separate perceptual-magnitude acceptance test prevents a structurally valid but near-black or near-static result. It asserts readable luminance and bounded frame change for the three built-in presets, verifies that choreography materially exceeds the bare composite, and checks consistent behavior across the supported tempo range.
 
 Source-backed masks such as layer alpha, color, luminance, connected-region, and SVG masks are reported as **resolves during render** until prepared pixels are available. A missing source layer or an authored empty run mask is reported as invalid. Raw matrix-sized masks are never printed in the normal inspector.
 

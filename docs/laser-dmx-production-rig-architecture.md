@@ -15,7 +15,7 @@ This document describes the post-sequence LaserDMX contract. The system is a vir
 | Moving-head interpolation | `LaserDmxMovingHeadEngine.ts` |
 | Haze, fog, and cryogenic-style transient runtime | `LaserDmxAtmosphereEngine.ts` |
 | Virtual fixture compilation | `LaserDmxCompiler.ts` and the compatibility-only Beam Matrix compiler |
-| Output lifecycle and fail-dark boundary | `output/ProductionOutput.ts` |
+| Output lifecycle and fail-dark boundary | `src/components/vyzualz/react/output/ProductionOutput.ts` |
 
 The renderer does not create a second BPM, beat grid, section detector, fixture schema, or free-running animation clock. Animated laser geometry, flashes, movement, cues, and atmosphere all derive from the audio playhead. The deprecated compiler `time` input is ignored so older call sites remain source-compatible without becoming a competing clock.
 

@@ -1,298 +1,255 @@
-# DRMVYZ React View UI Audit and AI Implementation Contract
+# DRMVYZ React View AI Implementation Contract
 
-## Purpose
+## Purpose and authority
 
-This file is a repo-native styling and implementation guardrail for future DRMVYZ React View work. Its job is to stop style drift, duplicate component systems, isolated feature islands, and accidental layout violations.
+This file is the canonical implementation and UI contract for DRMVYZ React View. It exists to prevent parallel component systems, conflicting musical timelines, isolated media flows, duplicated render state, and layout drift.
 
-The core rule is simple:
+The primary rule is:
 
-> If DRMVYZ already has a component, layout pattern, store pattern, media flow, preset flow, or renderer pattern, future enhancements must reuse that first.
+> Reuse the existing DRMVYZ architecture before adding a new component, store, renderer, upload path, preset system, timing source, or visual surface.
 
-Do not invent a new slider, toggle, dropdown, preset card, media picker, rail layout, upload flow, or visual output wrapper unless the existing repo has been inspected and there is no appropriate native pattern.
+When documentation and code disagree, inspect the current repository, update the documentation in the same patch, and do not preserve a known-stale statement merely because it appears in an older patch record.
 
----
+Read [`docs/documentation-index.md`](docs/documentation-index.md) before treating a patch-history document as current architecture.
 
-## Required pre-coding process for future AI edits
+## Required pre-coding inspection
 
-Before implementing any DRMVYZ React View change, inspect these files first when relevant:
+Before changing React View, inspect the files that own the affected boundary.
+
+### Shell, engine registry, and workspace composition
 
 - `src/components/vyzualz/react/ReactView.tsx`
+- `src/components/vyzualz/react/reactEngineCatalog.ts`
+- `src/components/vyzualz/react/reactWorkspaceComposition.ts`
+- `src/components/vyzualz/react/reactWorkspacePreferences.ts`
+- `src/components/vyzualz/react/reactRightPanelPersistence.ts`
+- `src/components/vyzualz/react/panels/ReactWorkspacePanels.tsx`
+- `src/components/vyzualz/react/PanelSubtabs.tsx`
+- `src/components/vyzualz/layout/WorkspaceRail.tsx`
+- `src/components/vyzualz/layout/RailTabs.tsx`
+- `src/components/vyzualz/shared/VyzualzAudioDock.tsx`
+
+`reactEngineCatalog.ts` is the selectable-engine registry. `reactWorkspaceComposition.ts` is the canonical engine-to-workspace mapping. Do not hard-code a second engine list or independently decide which rails, tabs, preset surfaces, Track Map tools, or authoring overlays an engine receives.
+
+### Controls, presets, media, and state
+
 - `src/components/vyzualz/react/ReactControlRows.tsx`
+- `src/components/vyzualz/react/ReactPresetCard.tsx`
+- `src/components/vyzualz/react/ReactPresetsPanel.tsx`
 - `src/components/vyzualz/react/ReactEnginePanel.tsx`
 - `src/components/vyzualz/react/ReactFxPanel.tsx`
-- `src/components/vyzualz/react/ReactPresetsPanel.tsx`
-- `src/components/vyzualz/react/ReactCanvasEngineShell.tsx`
-- `src/components/vyzualz/react/ReactWorkspacePanels.tsx`
-- `src/components/vyzualz/react/ReactEngineBrowser.tsx`
+- `src/components/vyzualz/react/ReactInspectorPanel.tsx`
 - `src/components/vyzualz/media/MediaDeckPanel.tsx`
 - `src/components/vyzualz/media/MediaLibraryBrowser.tsx`
 - `src/components/vyzualz/MediaUploadModal.tsx`
 - `src/stores/reactStore.ts`
 - `src/stores/mediaStore.ts`
-- `src/styles/reactView.css`
-- `src/styles/vyzualz.css`
 
-For rendering or visual effects, also inspect:
+### Rendering, output, and lifecycle
 
+- `src/components/vyzualz/react/ReactPlaceholderCanvas.tsx`
 - `src/components/vyzualz/react/ReactShaderCanvas.tsx`
-- `src/components/vyzualz/react/shaders/runtime/ShaderWebGLRuntime.ts`
+- `src/components/vyzualz/react/ReactCanvasEngineShell.tsx`
+- `src/components/vyzualz/react/pixGrid/PixGridSurface.tsx`
+- `src/components/vyzualz/react/renderers/ReactEngineRenderer.ts`
 - `src/components/vyzualz/react/renderers/CinematicPortalRenderer.ts`
 - `src/components/vyzualz/react/renderers/CinematicWorldRenderer.ts`
 - `src/components/vyzualz/react/renderers/cinematic/CinematicWebGLRuntime.ts`
-- `src/components/vyzualz/react/renderers/cinematic/worlds/*`
-- `package.json`
+- `src/components/vyzualz/react/shaders/runtime/ShaderWebGLRuntime.ts`
+- `src/hooks/useRecorder.ts`
+- `src/components/vyzualz/react/output/ProductionOutput.ts`
 
-Never assume a renderer, dependency, component, or store exists. Confirm it from the repo.
-
----
+Never assume that a renderer, dependency, store, bridge, capability, or output adapter exists. Confirm it in the repository.
 
 ## React View layout contract
 
+The complete shell is documented in [`docs/react-view-architecture.md`](docs/react-view-architecture.md).
+
 ### Header
 
-Location:
+Canonical location:
 
 - `src/components/vyzualz/react/ReactView.tsx`
 - `src/styles/vyzualz.css`
 - `src/styles/reactView.css`
 
-Native pattern:
-
-- Header uses `.vz-header`, `.vz-header-left`, `.vz-header-right`, `.vz-title`, `.vz-subtitle`.
-- Header select/input styling may use `.az-select` inside `.vz-input-group`.
+Current structure uses `.vz-header`, `.vz-header-title-group`, `.vz-header-title`, `.vz-header-sub`, `.vz-input-group`, and `.az-select`.
 
 Rules:
 
-- Do not place engine-specific control stacks in the header.
-- Use the header only for high-level status, source selection, collapse controls, and global React View context.
+- Keep engine-specific control stacks out of the header.
+- The header is for high-level audio source selection, persistence status, global output controls, app actions, and React View identity.
+- Do not add a second transport. Transport and waveform ownership remain in the shared audio dock.
 
 ### Left rail
 
-Location:
+The left rail is a `WorkspaceRail` with `side="left"` and `RailTabs`.
 
-- `src/components/vyzualz/react/ReactView.tsx`
-- `src/components/vyzualz/layout/WorkspaceRail.tsx`
-- `src/components/vyzualz/layout/RailTabs.tsx`
-- `src/components/vyzualz/media/MediaDeckPanel.tsx`
-- `src/components/vyzualz/media/MediaLibraryBrowser.tsx`
+It owns contextual setup and source surfaces:
 
-Native pattern:
-
-- Left rail is a `WorkspaceRail` with `side="left"`.
-- Left rail tabs use `RailTabs` and `.vz-panel-tabs`.
-- Left rail is for engine/source/library selection, media decks, laser layers, fonts, and setup browsing.
+- Engine selection and engine-specific setup.
+- Media browsing through the existing media system.
+- LaserDMX layers.
+- Sound Drawing fonts.
+- Other source or rig browsing explicitly declared by `reactWorkspaceComposition.ts`.
 
 Rules:
 
-- Source selection belongs here.
-- Media browsing belongs here.
-- Library/upload entry points belong here or in existing media flows, not over the visualizer.
-- Do not create new left rail tab markup unless `RailTabs` cannot support it.
+- Add or remove engine-specific left tabs through `reactWorkspaceComposition.ts`.
+- Reuse `MediaDeckPanel` and `MediaLibraryBrowser`.
+- Do not place upload or library interfaces over the center stage.
+- Do not create custom top-level rail tab markup when `RailTabs` supports the requirement.
 
-### Center visualizer
+### Center stage
 
-Location:
+Normal playback treats the center as visual output. Renderer controls, media libraries, setup cards, and general inspector UI do not belong there.
 
-- `src/components/vyzualz/react/ReactView.tsx`
-- `src/components/vyzualz/react/ReactShaderCanvas.tsx`
-- `src/components/vyzualz/react/CanvasEngineSurface.tsx`
-- `src/components/vyzualz/react/ReactPlaceholderCanvas.tsx`
+The current renderer ownership is:
 
-Native pattern:
+- Shader Pads: `ReactShaderCanvas`
+- CANVAS: `CanvasEngineSurface`, exported by `ReactCanvasEngineShell.tsx`
+- PixGrid: `PixGridSurface`
+- Cinematic Worlds, Sound Drawing, and LaserDMX live rendering: `ReactPlaceholderCanvas` and engine renderers
 
-- Center is render-only output.
-- It can host renderer surfaces and output overlays that are part of the visual performance.
+#### Explicit authoring-overlay exception
 
-Rules:
+An engine may mount a center-stage authoring overlay only when all of the following are true:
 
-- Do not put upload UI, media library UI, setup cards, or right-panel controls over the center visualizer.
-- Empty states are allowed only when they describe the missing render input and do not become a control panel.
-- If a visual effect needs controls, place them in the right rail.
-- If a visual effect needs source selection, place it in the left rail.
+- The user explicitly enabled an authoring mode.
+- The overlay is scoped to the active engine.
+- It edits the rendered spatial composition directly.
+- It is not a replacement for left-rail source selection or right-rail controls.
+- It cleans up listeners, transient resources, and selection state when hidden or when the engine changes.
+- Recording and stage-focus behavior are deliberate and documented.
+
+Current approved overlays are:
+
+- `PixGridEditorOverlay`
+- `LaserDmxShowDirectorCanvas` with `variant="stage"`
+- `LaserDmxBeamMatrixEditorOverlay`
+
+Do not generalize this exception into arbitrary center-stage UI.
 
 ### Right rail
 
-Location:
+The right rail is a `WorkspaceRail` with `side="right"`.
 
-- `src/components/vyzualz/react/ReactView.tsx`
-- `src/components/vyzualz/react/ReactWorkspacePanels.tsx`
-- `src/components/vyzualz/react/ReactPresetsPanel.tsx`
-- `src/components/vyzualz/react/ReactFxPanel.tsx`
-- `src/components/vyzualz/react/ReactInspectorPanel.tsx`
+Top-level destinations are:
 
-Native pattern:
+- `PRESETS`, or `SCENES` for Shader Pads
+- `DESIGN`
+- `REACT`
+- `OUTPUT`
 
-- Right rail is a `WorkspaceRail` with `side="right"`.
-- Top-level rail tabs use `RailTabs` and `.vz-panel-tabs`.
-- Right rail content uses `.rv-workspace-panel`, `.rv-workspace-panel-body`, `.rv-inspector`, and `.rv-inspector-scroll`.
-- Control groups use `.rv-ctrl-group` and components from `ReactControlRows.tsx`.
+`src/components/vyzualz/react/panels/ReactWorkspacePanels.tsx` owns the canonical nested surfaces:
 
-Rules:
-
-- Controls, FX, parameters, presets, output settings, and inspector panels belong here.
-- Do not use one-off local sliders, toggles, number inputs, or selects for normal engine controls.
-- Use `SliderRow`, `NumberInputRow`, `SelectRow`, `ToggleRow`, `TextInputRow`, `CtrlSection`, and `Collapsible`.
-
-### Lower workspace and bottom dock
-
-Location:
-
-- `src/components/vyzualz/react/ReactView.tsx`
-- `src/components/vyzualz/react/ReactTrackMapStrip.tsx`
-- `src/components/vyzualz/react/SoundDrawingTimelineLane.tsx`
-- `src/components/vyzualz/VyzualzAudioDock.tsx`
-
-Native pattern:
-
-- Lower workspace is for track maps, timeline lanes, and performance pads.
-- Bottom dock is for audio transport and waveform/track controls.
+- DESIGN: `ENGINE` / `SELECTION`, with PixGrid and Show Director specialized design surfaces.
+- REACT: `ROUTING` / `ANALYSIS`.
+- PixGrid REACT: `ROUTING` / `EVENTS` / `CHOREOGRAPHY` / `ANALYSIS`.
+- OUTPUT: `RECORDING` / `PRODUCTION`, with Production enabled only for LaserDMX.
 
 Rules:
 
-- Timeline editing may use compact editor-specific controls.
-- Do not copy timeline-specific `.rv-form-*` or `.rv-sd-*` controls into right-panel engine controls.
+- Use `PanelSubtabs` for right-rail subnavigation.
+- Keep controls, FX, parameters, presets, routing, diagnostics, recording, and production output in the right rail.
+- Do not create a new parallel inspector shell.
+- Keep right-panel content inside `.rv-workspace-panel`, `.rv-workspace-panel-body`, `.rv-inspector`, and `.rv-inspector-scroll`.
 
----
+### Lower workspace and audio dock
+
+The lower workspace owns Track Map, Sound Drawing timeline lanes, and Performance Pads. Its composition is controlled by `reactWorkspaceComposition.ts`.
+
+The shared audio dock is mounted outside the main grid through `src/components/vyzualz/shared/VyzualzAudioDock.tsx`.
+
+Rules:
+
+- Timeline editors may use compact, timeline-specific controls.
+- Do not copy `.rv-form-*`, `.rv-sd-*`, or timeline lane controls into ordinary right-rail panels.
+- Stage Focus is session-only. It hides workspace surfaces and switches the audio dock to compact mode without rewriting persisted collapse preferences.
+- The audio dock may persist its own user-collapse preference independently.
+
+## Canonical engine and workspace composition
+
+The selectable engines are defined only in `REACT_ENGINE_IDS` and `REACT_ENGINE_CATALOG`:
+
+| Engine ID | Label | Primary center renderer |
+| --- | --- | --- |
+| `shaderPads` | Shader Pads | `ReactShaderCanvas` |
+| `cinematicPortal` | Cinematic Worlds | Cinematic renderer through `ReactPlaceholderCanvas` |
+| `oscilloscope` | Sound Drawing | Sound Drawing renderer through `ReactPlaceholderCanvas` |
+| `canvas` | CANVAS | `CanvasEngineSurface` |
+| `laserDmx` | LaserDMX | LaserDMX renderer through `ReactPlaceholderCanvas` |
+| `pixGrid` | PixGrid | `PixGridSurface` |
+
+`resolveReactWorkspaceComposition()` decides:
+
+- Left-rail tabs and their labels.
+- Whether Performance Pads are available.
+- Whether Sound Drawing timeline is mounted.
+- Whether the LaserDMX layers tab and Beam Matrix editor are available.
+- Whether the preset surface is engine presets or Shader scenes.
+
+Track Map is shared by every React engine. Shader Pads intentionally omit React Performance Pads because Shader scenes use an independent scene system.
 
 ## Canonical UI components
 
 ### Control rows
 
-Location:
-
-- `src/components/vyzualz/react/ReactControlRows.tsx`
-- `src/styles/reactView.css`
-
-Exports:
+Use exports from `src/components/vyzualz/react/ReactControlRows.tsx` for normal right-panel controls:
 
 - `SliderRow`
 - `NumberInputRow`
 - `SelectRow`
 - `ToggleRow`
 - `TextInputRow`
+- `ColorRow`
 - `CtrlSection`
 - `Collapsible`
 
-Standard classes:
-
-- `.rv-ctrl-group`
-- `.rv-ctrl-row`
-- `.rv-ctrl-label`
-- `.rv-ctrl-slider-hdr`
-- `.rv-ctrl-val`
-- `.rv-ctrl-slider`
-- `.rv-ctrl-select`
-- `.rv-ctrl-text-input`
-- `.rv-ctrl-number-field`
-- `.rv-ctrl-number-unit`
-- `.rv-ctrl-toggle-row`
-- `.rv-ctrl-toggle-line`
-- `.rv-ctrl-toggle`
-- `.rv-ctrl-toggle--on`
-- `.rv-ctrl-section-label`
-- `.rv-ctrl-collapsible`
-- `.rv-ctrl-collapsible-hdr`
-- `.rv-ctrl-collapsible-body`
-- `.rv-ctrl-info`
-
 Rules:
 
-- Use these components for all normal right-panel controls.
 - Do not create `EngineSlider`, `EngineToggle`, `EngineSelect`, or similar duplicates.
-- If a missing control type repeats in multiple files, add it to `ReactControlRows.tsx` rather than creating multiple local one-offs.
-- Good candidates for future additions: `TextareaRow`, `ColorRow`, and possibly `ActionRow`.
+- Add a repeated missing control type to `ReactControlRows.tsx`.
+- Keep complex editors, such as shader gradients, texture inputs, timeline timecode, and multi-stop palettes, specialized and scoped.
+- Inline CSS variables for slider fill or runtime colors are allowed. Static layout belongs in CSS.
 
-### Rails and tabs
+### Preset cards
 
-Locations:
+`src/components/vyzualz/react/ReactPresetCard.tsx` is the shared engine-preset card.
 
-- `src/components/vyzualz/layout/WorkspaceRail.tsx`
-- `src/components/vyzualz/layout/RailTabs.tsx`
-- `src/components/vyzualz/react/ReactWorkspacePanels.tsx`
+It is used by standard React presets and Beam Matrix presets and supports:
 
-Standard classes:
-
-- `.vz-inspector`
-- `.vz-inspector--left`
-- `.vz-inspector--right`
-- `.vz-inspector-toggle`
-- `.vz-inspector-inner`
-- `.vz-panel-tabs`
-- `.rv-right-subtabs`
+- Active, modified, and favorite state.
+- Thumbnails.
+- Chips and palettes.
+- Expanded details.
+- Secondary actions.
+- Keyboard grid navigation.
 
 Rules:
 
-- Use `WorkspaceRail` for collapsible side rails.
-- Use `RailTabs` for top-level rail tabs.
-- Use the `PanelSubtabs` pattern in `ReactWorkspacePanels.tsx` for sub-tabs inside the right rail.
-- Do not create custom pill/tab bars unless the existing rail/sub-tab patterns do not fit.
+- Route new engine preset collections through `ReactPresetsPanel` or reuse `ReactPresetCard`.
+- Shader scene cards remain a separate library/editor concept and must not become the general preset language.
+- Presets are complete visual recipes. Small parameter changes normally belong in DESIGN or REACT.
 
-### Media and source selection
+### Searchable libraries
 
-Locations:
+Use the existing media search pattern for library surfaces:
 
-- `src/components/vyzualz/media/MediaDeckPanel.tsx`
-- `src/components/vyzualz/media/MediaLibraryBrowser.tsx`
-- `src/components/vyzualz/MediaUploadModal.tsx`
-- `src/stores/mediaStore.ts`
-- `src/components/vyzualz/react/ReactCanvasEngineShell.tsx`
+- `.vz-md-search-wrap`
+- `.vz-md-search-icon`
+- `.vz-md-search-input`
+- `.vz-md-search-clear`
 
-Native pattern:
-
-- App-wide media library and browser exist.
-- `MediaDeckPanel` wraps `MediaLibraryBrowser` for React View.
-- `MediaLibraryBrowser` already supports context modes including `react` and `canvas`.
-- CANVAS-specific capabilities already exist via `CANVAS_MEDIA_LIBRARY_CAPABILITIES`.
-
-Rules:
-
-- Do not create a separate CANVAS-only upload bucket.
-- Do not store large media blobs in localStorage.
-- Do not place upload/library UI over the center visualizer.
-- Use `MediaLibraryBrowser` or extend its capabilities when the feature needs media selection.
-- Legacy session media cards may remain only for legacy cleanup or compatibility, not as the primary new media UX.
-
-### Presets
-
-Locations:
-
-- `src/components/vyzualz/react/ReactPresetsPanel.tsx`
-- `src/components/vyzualz/react/ReactPresetBrowser.tsx`
-- `src/components/vyzualz/react/ReactPresetThumbnail.tsx`
-- `src/components/vyzualz/react/LaserDmxBeamMatrixPresetBrowser.tsx`
-
-Native pattern:
-
-- `ReactPresetsPanel.tsx` has the strongest standard preset card pattern.
-- It uses `.rv-preset-card`, `.rv-preset-card--active`, `.rv-preset-card--with-thumb`, `.rv-preset-card-layout`, `.rv-preset-card-content`, `.rv-preset-chip-row`, `.rv-preset-mode-chip`, `.rv-preset-desc`, `.rv-preset-palette`, and preset thumbnail classes.
-- CANVAS presets already reuse this local `PresetCard` through `CanvasPresetCollection`.
-
-Rules:
-
-- Do not create custom preset card styling for CANVAS or new engines.
-- If a new engine needs preset cards, either route it through `ReactPresetsPanel` or extract the local `PresetCard` into a shared `ReactPresetCard.tsx`.
-- Presets should be complete visual recipes that apply parameter bundles.
-- Small effects should usually be right-panel controls, not tiny one-effect preset buttons.
+This pattern is for browsers and libraries, not ordinary control rows.
 
 ### Source card selectors
 
-Location:
+Use `.rv-sound-source-grid`, `.rv-sound-source-card`, and `.is-active` for visual source-card choices. Use `SelectRow` for normal dropdown behavior.
 
-- `src/components/vyzualz/react/ReactEnginePanel.tsx`
+### Buttons and action groups
 
-Native pattern:
-
-- Sound Drawing source selection uses `.rv-sound-source-grid`, `.rv-sound-source-card`, and `.is-active`.
-
-Rules:
-
-- Use this pattern for engine source card grids.
-- Do not use this pattern for normal dropdowns.
-- Normal single-choice controls should be `SelectRow`.
-
-### Buttons and action rows
-
-Common classes observed:
+Prefer existing classes:
 
 - `.rv-reset-btn`
 - `.rv-glyph-upload-btn`
@@ -300,241 +257,190 @@ Common classes observed:
 - `.vz-btn`
 - `.vz-btn-ghost`
 
+Repeated action layouts should receive a shared CSS class or component. Do not use static `style={{ flex: 1 }}` or margin styles to assemble ordinary action rows.
+
+## Media and Brand Kit contract
+
+The app-wide media system is authoritative:
+
+- `MediaDeckPanel` wraps `MediaLibraryBrowser` for React View.
+- Media capabilities determine which assets are selectable.
+- CANVAS uses the shared library and its CANVAS capability contract.
+- PixGrid accepts compatible still images and SVG through the shared library.
+- Sound Drawing uses compatible SVG media through the shared library.
+
 Rules:
 
-- Prefer existing button classes.
-- Do not use static inline button layout styles like `style={{ flex: 1 }}`.
-- If a button row pattern repeats, add a shared class or small action row component.
+- Do not create an engine-only upload bucket.
+- Do not persist decoded pixels, `ImageBitmap`, object URLs, GPU textures, or large media blobs.
+- Keep legacy session media cards only for compatibility cleanup.
+- Brand Kit integration must use the personalization store, effective-palette helpers, branded preset resolver, and active overlay flow. Do not fork engine-specific brand ownership without a documented capability reason.
 
----
+See [`docs/brand-kit.md`](docs/brand-kit.md).
 
-## Current React View UI drift audit
+## Musical-time and analysis authority
 
-The following items differ from the standard control, preset, media, or layout patterns. Some are acceptable specialized editors. Others are good cleanup candidates.
+Music Intelligence and loaded-track analysis own audio features and structural analysis. Shared Performance Core owns the authoritative performance context used by engine programs.
 
-| Area | Location | Current UI | Difference from standard | Recommendation |
-|---|---|---|---|---|
-| Beam Matrix preset cards | `src/components/vyzualz/react/LaserDmxBeamMatrixPresetBrowser.tsx` | Local `PresetCard` uses `.rv-preset-card` plus many inline styles, custom chip rows, and `.rv-glyph-upload-btn` actions. | It does not reuse the stronger `ReactPresetsPanel` preset card structure. Inline layout styles make it easier to drift. | Extract `ReactPresetsPanel` local `PresetCard` into shared `ReactPresetCard.tsx`, then convert Beam Matrix presets to use it or mirror its class structure with no inline layout styles. |
-| Beam Matrix filters | `src/components/vyzualz/react/LaserDmxBeamMatrixPresetBrowser.tsx` | Category/tag chips use `rv-preset-mode-chip` with inline cursor, border, and active background styles. | Active state is partly CSS class and partly inline styles. | Move active and clickable chip styling into CSS, such as `.rv-preset-mode-chip--active` and `.rv-preset-mode-chip--button`. |
-| Beam Matrix search spacing | `src/components/vyzualz/react/LaserDmxBeamMatrixPresetBrowser.tsx` | Search wrapper uses `style={{ marginBottom: 6 }}`. | Static spacing should live in CSS. | Add a class like `.rv-bm-preset-search` and move spacing into `reactView.css`. |
-| Trigger timing inputs | `src/components/vyzualz/react/ReactModulationPanel.tsx` | Uses `.rv-timing-num-input` and `.rv-timing-bars-input`. | Duplicates `NumberInputRow` and `TextInputRow` for normal-looking inputs. | Replace simple rows with `NumberInputRow` and `TextInputRow` where possible. If timing parsing/commit behavior requires custom inputs, create a reusable `TimingNumberRow` instead of scattered raw inputs. |
-| Sound Drawing timeline active toggle | `src/components/vyzualz/react/SoundDrawingTimelineLane.tsx` | Manually builds `.rv-ctrl-row` with `.rv-ctrl-toggle`. | Standard toggle rows use `ToggleRow`, `.rv-ctrl-toggle-row`, and `.rv-ctrl-toggle-line`. | Replace with `ToggleRow` unless timeline layout requires a compact variant. If compact is needed, add a `compact` option to `ToggleRow`. |
-| Sound Drawing timeline time fields | `src/components/vyzualz/react/SoundDrawingTimelineLane.tsx` | Manual time fields use `.rv-ctrl-text-input rv-ctrl-text-input--time`. | Not using `TextInputRow`. | Acceptable for timeline timecode inputs because they parse/commit on blur and Enter. Do not copy this pattern into right-panel engine controls. |
-| Sound Drawing multiline text | `src/components/vyzualz/react/SoundDrawingTimelineLane.tsx` | Uses `.rv-sd-textarea`. | No standard `TextareaRow` exists. | If multiline text recurs, add `TextareaRow` to `ReactControlRows.tsx`. Until then, keep `.rv-sd-textarea` scoped to Sound Drawing timeline. |
-| Track Map edit forms | `src/components/vyzualz/react/ReactTrackMapStrip.tsx` | Uses `.rv-form-row`, `.rv-form-label`, `.rv-form-select`, `.rv-form-input`, `.rv-form-range`, `.rv-form-actions`. | This is a separate form system from `ReactControlRows`. | Acceptable for timeline/track-map editing. Do not copy `.rv-form-*` into right-panel engine controls. For future right-panel forms, use `ReactControlRows`. |
-| Track Map inline intensity row | `src/components/vyzualz/react/ReactTrackMapStrip.tsx` | Uses static inline flex style in the section edit form. | Static layout is inline instead of CSS. | Move to a class in `reactView.css`, such as `.rv-form-range-row`. |
-| Timeline lane select | `src/components/vyzualz/react/ReactTrackMapStrip.tsx` | Uses `.rv-timeline-lane-select`. | Separate from `.rv-ctrl-select`. | Acceptable for dense timeline lane controls. Do not copy to right rail. |
-| Font preview input | `src/components/vyzualz/react/FontLibraryPanel.tsx` | Uses `.rv-font-preview-input`. | Custom input rather than `TextInputRow` or `.rv-ctrl-text-input`. | Acceptable if it is intentionally larger for font preview. If it behaves like a normal text control, switch to `TextInputRow` or at least reuse `.rv-ctrl-text-input`. |
-| Font search input | `src/components/vyzualz/react/FontLibraryPanel.tsx` | Uses media-deck search classes `vz-md-search-input`. | Search components are not in `ReactControlRows`. | Acceptable for library/search surfaces. Use the media deck search pattern consistently for searchable libraries. |
-| Show Director color fields | `src/components/vyzualz/react/LaserDmxShowDirectorInspector.tsx` | Raw `input type="color"` inside `.rv-show-director-color-field`. | No shared color control exists. | If color inputs recur, add `ColorRow` to `ReactControlRows.tsx`. Until then, keep this scoped to Show Director. |
-| Show Director palette search | `src/components/vyzualz/react/LaserDmxShowDirectorPalette.tsx` | Uses `.rv-show-director-search` and raw search input. | Not using media deck search or `TextInputRow`. | Acceptable because it is a specialized component palette. Do not copy to engine controls. |
-| Shader color control | `src/components/vyzualz/react/shaders/ShaderColorControl.tsx` | Raw color input plus alpha slider. | Specialized color editor rather than standard rows. | Acceptable for shader parameters. If generic color rows are needed, extract a shared `ColorRow`. |
-| Shader gradient control | `src/components/vyzualz/react/shaders/ShaderGradientControl.tsx` | Custom stop list, raw range inputs, color buttons. | Complex editor, not standard control rows. | Acceptable as a specialized shader editor. Do not use this for normal sliders or color toggles. |
-| Shader texture input | `src/components/vyzualz/react/shaders/ShaderTextureInputControl.tsx` | Uses custom texture row with badge/clear action and a standard select class. | More complex than a simple `SelectRow`. | Acceptable for texture inputs. Extract only if more texture controls appear. |
-| Shader library search and category select | `src/components/vyzualz/react/ShaderLibraryPanel.tsx` | Uses `.rv-ctrl-text-input rv-shader-library-search-input` and raw `.rv-ctrl-select rv-shader-library-cat`. | Uses standard classes but not row components. | Acceptable for compact search/filter header. Keep search/filter surfaces consistent. |
-| Shader scene cards | `src/components/vyzualz/react/ShaderLibraryPanel.tsx` | Uses `.rv-shader-scene-card`. | Different from preset cards. | Acceptable because shader scenes are a library/editor concept, not general engine presets. Do not reuse for normal presets. |
-| Shader code editor | `src/components/vyzualz/react/ShaderCodeEditor.tsx` | Uses custom tabs, code textareas, editor name input. | Specialized editor UI. | Acceptable. Do not use shader editor tab styles for main rail tabs. |
-| CANVAS legacy session media cards | `src/components/vyzualz/react/ReactCanvasEngineShell.tsx` | Uses `.rv-canvas-media-card` for `canvasMediaItems`. | Separate card style from `MediaLibraryBrowser`. | Keep only for legacy session media cleanup. New CANVAS media selection should use `MediaLibraryBrowser`. |
-| CANVAS section trigger chips | `src/components/vyzualz/react/ReactCanvasEngineShell.tsx` | Uses `.rv-canvas-section-trigger-chip`. | Custom multi-select pill group. | Acceptable for multi-select section triggers. Do not use this as a replacement for dropdowns or toggles. |
-| CANVAS reset/action row | `src/components/vyzualz/react/ReactCanvasEngineShell.tsx` | Uses manual `.rv-ctrl-toggle-line` with `.rv-reset-btn`. | Not a reusable action row. | Acceptable locally. If action rows recur, add `ActionRow` or a standard `.rv-ctrl-action-row`. |
-| Inline static styles | Multiple files, especially `LaserDmxBeamMatrixPresetBrowser.tsx`, `ReactTrackMapStrip.tsx`, and small places in `ReactEnginePanel.tsx` | Uses inline layout styles for margins, flex, chip color, and widths. | Static styling should be CSS classes, not inline. | Move static layout and active-state styling into `reactView.css`. Reserve inline styles for dynamic CSS variables, canvas coordinates, measured transforms, and user-selected colors. |
-| CSS duplicate selector | `src/styles/reactView.css` around the preset thumbnail fallback glow block | Duplicate `.rv-preset-thumb-fallback-glow {` appears near the same selector block. | Likely accidental CSS duplication or malformed block. | Verify and clean up the duplicate selector before large preset styling work. |
+Rules:
 
----
+- Do not add an engine-local beat grid, section detector, phrase clock, or replacement transport.
+- Engine programs interpret shared context and emit engine-specific actions.
+- Seeking, looping, track replacement, analysis replacement, and timing discontinuities must reset or reconstruct volatile runtime state deterministically.
+- Per-frame simulation and renderer state must not live in Zustand.
+- High-frequency consumers should read frame data without creating React render loops.
 
-## Native patterns to reuse by feature type
+See:
 
-### Adding a normal right-panel control
+- [`docs/music-intelligence.md`](docs/music-intelligence.md)
+- [`docs/loaded-audio-analysis.md`](docs/loaded-audio-analysis.md)
+- [`docs/shared-performance-core.md`](docs/shared-performance-core.md)
 
-Use:
+## Rendering and lifecycle contract
 
-- `SliderRow`
-- `NumberInputRow`
-- `SelectRow`
-- `ToggleRow`
-- `TextInputRow`
-- `CtrlSection`
-- `Collapsible`
+Every live renderer must define:
 
-Do not use:
+- Mount and disposal ownership.
+- Canvas or WebGL context-loss behavior.
+- Bounded retry or fallback behavior.
+- Quality-tier behavior.
+- Track, preset, and engine-switch reset boundaries.
+- Deterministic seek and loop behavior.
+- Thumbnail or preview isolation.
+- Output-canvas publication for recording.
 
-- Local `input type="range"`
-- Local `select`
-- Local toggle buttons
-- Inline label/value layouts
-- New CSS for one-off slider, toggle, or select rows
+Rules:
 
-### Adding a preset or preset browser
+- A renderer must not subscribe to Zustand inside its animation loop.
+- A renderer must not create a second audio-analysis path.
+- Canvas2D and WebGL paths for the same engine must consume the same resolved semantic frame.
+- Preview and thumbnail renderers must not mutate live production output or live renderer state.
+- Transient buffers, textures, workers, observers, animation frames, timers, and object URLs must be disposed by their owner.
 
-Use one of these approaches:
+## Persistence contract
 
-1. Route the new preset collection through `ReactPresetsPanel.tsx`.
-2. Extract the local `PresetCard` from `ReactPresetsPanel.tsx` into `ReactPresetCard.tsx` and reuse it.
-3. Reuse the same class structure if extraction is not part of the patch scope.
+Persist authored state and user preferences, not volatile runtime state.
 
-Do not create a new card language for engine presets.
+Current React workspace preferences persist:
 
-### Adding media/source selection
+- Left rail collapsed.
+- Right rail collapsed.
+- Lower workspace collapsed.
+- Track Map versus Performance Pads.
+- Preferred left tab, subject to active-engine availability.
 
-Use:
+The right-rail top-level destination persists separately.
 
-- `MediaDeckPanel`
-- `MediaLibraryBrowser`
-- existing media store records
-- existing media thumbnails, filters, capabilities, and upload modal flows
+Do not persist:
 
-Do not:
+- Stage Focus.
+- Per-frame diagnostics.
+- Active envelopes.
+- WebGL lifecycle state.
+- Output arming, heartbeat, emergency blackout, or network runtime state.
+- Decoded media or renderer caches.
 
-- Add upload UI to the visualizer surface
-- Store large media blobs in localStorage
-- Create isolated media records when the app-wide library can be used
+All persisted input must pass through current normalizers and migrations before use.
 
-### Adding a source card grid
+## Styling contract
 
-Use the Sound Drawing source grid pattern:
+### Static layout belongs in CSS
 
-- `.rv-sound-source-grid`
-- `.rv-sound-source-card`
-- `.is-active`
+Do not use inline styles for static:
 
-Only use this for visual card choices. Use `SelectRow` for normal dropdown behavior.
-
-### Adding a searchable library
-
-Prefer the existing media deck search pattern:
-
-- `.vz-md-search-wrap`
-- `.vz-md-search-icon`
-- `.vz-md-search-input`
-- `.vz-md-search-clear`
-
-This is appropriate for libraries and browsers. It is not a replacement for `TextInputRow` in a control panel.
-
-### Adding color controls
-
-Current state:
-
-- Color controls exist, but they are specialized in Show Director and shader components.
-- There is no generic `ColorRow` in `ReactControlRows.tsx`.
-
-Rule:
-
-- If only one specialized color editor is needed, keep it scoped.
-- If color picking appears in multiple engines or panels, add `ColorRow` to `ReactControlRows.tsx` and update repeated local color inputs.
-
-### Adding multiline text
-
-Current state:
-
-- Timeline text uses `.rv-sd-textarea`.
-- There is no generic `TextareaRow`.
-
-Rule:
-
-- If multiline fields appear in more than one panel, add `TextareaRow` to `ReactControlRows.tsx`.
-
----
-
-## Styling rules
-
-### No static inline layout styles
-
-Do not use inline styles for static layout values like:
-
-- margin
-- gap
-- flex direction
-- width
-- border
-- background for active states
-- opacity
-- font size
-
-Use CSS classes in `src/styles/reactView.css`.
+- Margin, gap, padding, or flex layout.
+- Width or height that is not measured or renderer-driven.
+- Border and active-state background.
+- Opacity, font size, or fixed semantic color.
 
 Inline styles are allowed for:
 
-- CSS variables based on runtime values
-- user-selected colors
-- canvas or WebGL render dimensions
-- measured element positions
-- dynamic transforms required by render logic
+- Runtime CSS variables.
+- User-selected colors and palette swatches.
+- Canvas or WebGL dimensions.
+- Measured positions.
+- Timeline geometry.
+- Dynamic transforms required by rendering.
 
-### Use existing tokens and variables
+### Reuse existing tokens
 
-Observed palette and variable patterns include:
+Prefer existing variables and established palette values in `src/styles/reactView.css` and `src/styles/vyzualz.css`. Do not create a one-feature color language.
 
-- Cyan/accent: `#4ac7db`
-- Emerald/secondary accent: `#61d6aa`
-- Deep background: `#060d10`
-- Primary text: `#e8f4f8`
-- Muted text: `rgba(232, 244, 248, 0.6)` and similar
-- Gold/yellow section color: `#d8b95a`
-- Danger/red: `#c0314a`
-- Purple/reactive accent: `#b84fc9`
-- Control height variable: `--ui-control-height`
-- Control radius variable: `--ui-control-radius`
+### Selected states
 
-Rules:
-
-- Prefer existing CSS variables and rgba patterns.
-- Do not introduce a new color palette for one feature.
-- If a new state color is needed, add it once as a variable or consistent CSS class.
-
-### Use existing selected states
-
-Use these before inventing new ones:
+Reuse existing state classes:
 
 - `.rv-preset-card--active`
 - `.rv-preset-mode-chip--active`
 - `.is-active`
 - `.rv-ctrl-toggle--on`
-- `.vz-panel-tab.active` or existing tab active classes
+- Existing active tab classes
 
----
+## Current implementation audit
 
-## Recommended cleanup sequence
+### Resolved and now canonical
 
-These are not required for every future patch, but they are the highest-value cleanup items found in the current audit.
+The following items were previously listed as future cleanup and are now implemented:
 
-1. Extract `ReactPresetCard.tsx` from the local `PresetCard` inside `ReactPresetsPanel.tsx`.
-2. Convert `LaserDmxBeamMatrixPresetBrowser.tsx` to use the shared preset card or match its class structure without inline styles.
-3. Replace the manual active toggle in `SoundDrawingTimelineLane.tsx` with `ToggleRow`, or add a compact toggle option to `ReactControlRows.tsx`.
-4. Replace simple timing inputs in `ReactModulationPanel.tsx` with `NumberInputRow` and `TextInputRow`, or extract a timing-specific row component.
-5. Move static inline layout styles from Beam Matrix preset/filter UI and Track Map forms into CSS classes.
-6. Add `TextareaRow` to `ReactControlRows.tsx` if multiline text fields expand beyond Sound Drawing timeline.
-7. Add `ColorRow` to `ReactControlRows.tsx` if color controls expand beyond specialized shader and Show Director editors.
-8. Verify and clean up the duplicate `.rv-preset-thumb-fallback-glow` selector in `src/styles/reactView.css`.
-9. Keep `.rv-canvas-media-card` limited to legacy CANVAS session media. New CANVAS source selection should continue through `MediaLibraryBrowser`.
+- Shared `ReactPresetCard`.
+- Beam Matrix conversion to the shared preset card.
+- Beam Matrix filter/search class cleanup.
+- Shared `ColorRow`.
+- Track Map inline intensity-row cleanup.
+- Duplicate preset fallback-glow selector cleanup.
+- Trigger timing controls no longer use the old timing input classes.
 
----
+Do not reintroduce these items as future work.
+
+### Remaining bounded cleanup opportunities
+
+| Area | Current state | Contract direction |
+| --- | --- | --- |
+| Sound Drawing timeline active toggle | A compact manual toggle remains in `SoundDrawingTimelineLane.tsx`. | Keep it timeline-scoped or add a deliberate compact variant to `ToggleRow`; do not copy it into right panels. |
+| Static inline layout | Small static margins and flex layouts remain in `ReactModulationPanel.tsx`, `FontLibraryPanel.tsx`, and `output/ProductionOutputPanel.tsx`. | Move static layout into named CSS classes when those files are next touched. Preserve runtime geometry and user-color inline styles. |
+| Show Director fixed color fields | Simple raw color inputs remain inside a specialized fixture inspector. | Reuse `ColorRow` where the layout is a normal row; keep genuinely compound fixture color editors specialized. |
+| Dead timing CSS | `.rv-timing-num-input` and `.rv-timing-bars-input` remain in `reactView.css` without TSX consumers. | Remove after confirming no compatibility or dynamically generated markup depends on them. |
+| CANVAS legacy media cards | Compatibility cards remain for session media. | Do not use them as the primary media selection path. |
+| Specialized editors | Shader gradients, shader textures, timeline time fields, scene cards, and Track Map forms use scoped systems. | Keep them specialized. Do not promote them into general engine controls. |
+
+## Documentation contract
+
+Any patch that changes one of these boundaries must update its canonical documentation in the same patch:
+
+- React shell or workspace composition: `docs/react-view-architecture.md`
+- Engine behavior: the engine's current architecture document
+- Music Intelligence or analysis authority: `docs/music-intelligence.md` or `docs/loaded-audio-analysis.md`
+- Shared performance behavior: `docs/shared-performance-core.md`
+- Recording or production output: `docs/react-recording-and-output.md`
+- Brand Kit: `docs/brand-kit.md`
+- Verification scripts, Node baseline, or CI: `docs/verification.md`
+- Source packaging: `docs/source-packaging.md`
+
+Historical patch records should remain historical. Add a correction note or update the documentation index instead of rewriting history unless the record itself contains a broken link that prevents use.
 
 ## Future patch response contract
 
-When returning any future DRMVYZ patch, the response should state:
+A DRMVYZ implementation response must state:
 
-- Which existing components and styling patterns were reused.
-- Which files were changed.
-- Whether the patch changes layout, styling, state, rendering, dependencies, or data/storage.
-- What could not be validated locally.
-- Whether any new UI pattern was introduced and why it was unavoidable.
-- Whether the center visualizer remains render-only.
-- Whether the feature reuses existing media, preset, control, and engine architecture.
+- Existing components and patterns reused.
+- Files changed.
+- Whether layout, styling, state, rendering, dependencies, storage, migrations, or output behavior changed.
+- Validation commands actually run and their result.
+- Validation that could not be completed.
+- Any new UI pattern and why the native patterns could not support it.
+- Whether normal center-stage playback remains output-only and whether any authoring overlay changed.
+- Whether existing media, preset, engine, Music Intelligence, Shared Performance, and persistence architecture were reused.
 
-If the repo is available, do not answer with conditional architecture guesses. Inspect the code first, then answer from the actual files.
+When the repository is available, inspect it. Do not answer with conditional architecture guesses.
 
----
-
-## Short future prompt preamble
-
-Use this at the top of future implementation prompts:
+## Reusable prompt preamble
 
 ```text
-Before implementing, read and follow DRMVYZ_REACT_VIEW_UI_AUDIT_AND_AI_CONTRACT.md if present.
+Before implementing, read and follow AI_IMPLEMENTATION_CONTRACT.md and docs/documentation-index.md.
 
-Inspect the existing React View layout, control components, media flow, preset flow, engine architecture, stores, renderers, and styling before coding. Reuse existing DRMVYZ components and CSS patterns first. Do not create new UI styles, parallel upload flows, isolated engine systems, or center-visualizer setup UI unless the existing repo has no suitable native pattern.
+Inspect the current React View shell, engine catalog, workspace composition, controls, media flow, preset flow, stores, renderers, Music Intelligence, Shared Performance, persistence, output, tests, and styling before coding. Reuse existing DRMVYZ components and contracts first. Do not create parallel UI systems, upload flows, engine registries, timing authorities, renderer state, or center-stage setup UI.
 
-If a requested change conflicts with existing DRMVYZ patterns, choose the DRMVYZ-native pattern and explain the conflict before implementing.
+If the request conflicts with a current DRMVYZ contract, use the canonical architecture and explain the conflict.
 
-Return one single downloadable .patch file only.
+Return one single downloadable Git-compatible .patch file.
 ```

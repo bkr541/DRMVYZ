@@ -2,67 +2,95 @@
 
 ## Authority boundary
 
-Loaded-track analysis is shared infrastructure. It owns the resolved Track Sections, beat and downbeat grid, bars, phrases, section families and occurrences, semantic moments, confidence, and capability reporting. LaserDMX, Sound Drawing, and CANVAS consume that same context through `src/features/performanceCore/context.ts`.
+Loaded-track analysis and Music Intelligence own the resolved beat grid, downbeats, bars, phrases, section families and occurrences, semantic moments, confidence, and capability reporting.
 
-Engine Performance Programs do not analyze tracks. They interpret the authoritative context and emit engine-specific actions. They are DRMVYZ's Behavior Controller layer: the place where musical meaning becomes authored visual intent. Adding a second global Behavior Controller or a separate section detector inside an engine would create conflicting timelines, non-deterministic seeking, and disagreement with Track Map.
+Shared Performance Core converts that authoritative timeline into an engine-neutral `SharedPerformanceContext`. Engine Performance Programs interpret the context and emit engine-specific visual intent. They do not analyze tracks.
 
-## Architecture
+Adding a second global behavior controller, beat grid, or section detector inside an engine would create conflicting timelines and non-deterministic seeking.
 
-The core is split into small engine-neutral modules:
+## Current consumers
 
-- `context.ts`: authoritative musical context, transport discontinuities, cadence, occurrences, and analysis adapters.
-- `signals.ts`: discrete beat/kick/snare/hat/downbeat events versus continuous bass, energy, tension, complexity, phrase, and vocal signals.
-- `programRuntime.ts`: scene matching, occurrence and bar matching, fallback selection, deterministic variation, cadence actions, and event intents.
-- `behaviorRouting.ts`: reusable engine-neutral continuous-route smoothing, range/curve mapping, capability/confidence/section gates, deterministic event envelopes, duplicate suppression, and bounded transport-safe runtime state.
-- `authoring.ts`: typed metadata, capability/confidence requirements, bar ranges, validation adapters, resource estimates, and collection validation.
-- `diagnostics.ts`: compact cross-engine runtime snapshots.
-- `PerformanceProgramDevelopmentValidation.ts`: one-shot, development-only catalog validation that logs errors without interrupting playback.
-- `determinism.ts`, `envelopes.ts`, and `transport.ts`: stable variation, bounded musical envelopes, and seek/loop/track-replacement detection.
+The shared context is consumed by:
 
-Engine payloads remain separate:
+- LaserDMX Show Director
+- Sound Drawing
+- CANVAS
+- Shader Pads
+- PixGrid
 
-- LaserDMX: `LaserDmxShowDirectorPerformanceProgram.ts`
-- Sound Drawing: `soundDrawing/SoundDrawingPerformanceTypes.ts`
-- CANVAS: `canvasPerformance/CanvasPerformanceTypes.ts`
+Cinematic Worlds consumes Music Intelligence and shared resolved sections through its own renderer and camera-direction systems. It must not introduce a competing structural-analysis authority.
 
-This avoids a single mega-union containing fixtures, drawing layers, media roles, transitions, and effects.
+Consumer-specific runtime and payload types remain in their engine folders. Shared Performance Core does not contain a mega-union of fixtures, drawing roles, shader parameters, media roles, PixGrid groups, transitions, and effects.
 
+## Core modules
+
+The engine-neutral implementation lives in `src/features/performanceCore/`:
+
+- `context.ts`: authoritative context construction, cadence, occurrences, confidence, capabilities, and transport discontinuities
+- `signals.ts`: discrete events and continuous performance signals
+- `programRuntime.ts`: scene matching, fallback selection, deterministic variation, cadence actions, and event intent
+- `behaviorRouting.ts`: continuous-route smoothing, curves, capability/confidence/section gates, event envelopes, duplicate suppression, and bounded state
+- `authoring.ts`: typed metadata, requirements, validation adapters, and resource estimates
+- `diagnostics.ts`: compact cross-engine runtime snapshots
+- `determinism.ts`, `envelopes.ts`, and `transport.ts`: stable variation, bounded envelopes, and transport-change detection
+
+Development catalog validation is coordinated by:
+
+- `src/components/vyzualz/react/PerformanceProgramDevelopmentValidation.ts`
+
+It validates the catalogs wired into that coordinator. Engine-specific validators remain authoritative for engine-only schemas and acceptance rules.
+
+## Engine-owned payloads and runtimes
+
+| Engine | Primary sources |
+| --- | --- |
+| LaserDMX | `src/components/vyzualz/react/LaserDmxShowDirectorPerformanceProgram.ts`, `LaserDmxShowDirectorPerformanceContext.ts`, and related Show Director runtime/validation files |
+| Sound Drawing | `src/components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes.ts`, `SoundDrawingPerformanceEngine.ts`, and `SoundDrawingBehaviorRuntime.ts` |
+| CANVAS | `src/components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes.ts`, `CanvasPerformanceEngine.ts`, and composition/effect/transition registries |
+| Shader Pads | `src/components/vyzualz/react/shaders/performance/` plus the authored `performanceProgram` on shader definitions |
+| PixGrid | `src/components/vyzualz/react/pixGrid/PixGridPerformancePrograms.ts`, `PixGridPerformanceRuntime.ts`, `PixGridAudioRouting.ts`, and `PixGridUnifiedPerformanceRuntime.ts` |
+
+The shared layer owns musical context and generic routing mechanics. Each engine owns target names, visual roles, normalization, resource limits, simulation, rendering, UI, persistence, and recovery.
 
 ## Behavior-routing runtime
 
-`SharedBehaviorRoutingRuntime` sits beneath an engine-specific Performance Program. Engines supply source resolvers and target sinks, so the runtime never reads `AudioFeatureBus` directly and never owns a union of LaserDMX, Sound Drawing, CANVAS, PixGrid, or future target names. It stores smoothing by route ID and transient state by deterministic event identity, with bounded route, active-event, and remembered-identity budgets.
+`SharedBehaviorRoutingRuntime` sits beneath an engine-specific program.
 
-Continuous routes reuse the shared response curves and attack/release smoothing. Event bindings reuse the shared attack/hold/release envelope resolver. Section, confidence, and capability gates are evaluated through the adapter. Seek, backward seek, loop wrap, track replacement, source replacement, and timing discontinuities reset or synchronize volatile state instead of carrying stale history into a new musical position.
+Engines supply:
 
-The target architecture is:
+- Source resolvers
+- Event identities
+- Capability and confidence interpretation
+- Target sinks
+- Normalization and clamps
+
+The runtime does not read `AudioFeatureBus` directly and does not own a union of engine targets. It stores bounded smoothing state by route ID and bounded event state by deterministic event identity.
+
+Continuous routes reuse shared curves and attack/release smoothing. Event bindings reuse shared attack/hold/release envelopes. Section, confidence, capability, occurrence, and phase gates are evaluated through the engine adapter.
+
+Seek, backward seek, loop wrap, track replacement, source replacement, and timing discontinuities reset or synchronize volatile state rather than carrying stale history into a new musical position.
+
+## Runtime flow
 
 ```text
-Music Intelligence
+Audio engine and loaded-track analysis
+↓
+Music Intelligence frame and resolved sections
 ↓
 SharedPerformanceContext
 ↓
 Engine-specific Performance Program
 ↓
-Shared behavior-routing runtime
+Optional SharedBehaviorRoutingRuntime
 ↓
-Engine-normalized controls and impulses
+Engine-normalized controls, events, and actions
 ↓
 Optional shared visual-simulation utilities
 ↓
-Engine-owned simulation domain
-↓
-Engine renderer
+Engine-owned runtime and renderer
 ```
 
-The shared routing layer is infrastructure, not a second authoring authority. Engine programs still decide what the music means and engine adapters still decide how generic control values affect their own state.
-
-## Optional visual simulation
-
-Simulation-based visuals may opt into `src/features/visualSimulation/`. The module provides a bounded fixed-step clock, deterministic random/noise utilities, structural signatures, lifecycle coordination, generic quality budgets, and small reusable math helpers. It is not a top-level engine, rendered overlay, React provider, Zustand store, or global mutable singleton. See `docs/visual-simulation.md`.
-
-Living Ribbon's final Sound Drawing ownership, bounded reconstruction, quality hysteresis, recovery path, and measured limits are documented in `docs/living-ribbon-production-validation.md`.
-
-Each renderer owns its simulation domain, typed arrays, clock, lifecycle controller, preview/thumbnail mode, and disposal. Engine-specific physics, rendering, target names, choreography, graph generation, visual roles, UI, and persistence remain inside the engine or visual domain. Per-frame simulation state must not live in Zustand.
+Shared Performance Core is infrastructure, not a second authoring authority.
 
 ## Resolution and precedence
 
@@ -77,54 +105,142 @@ Highest authority wins in this order:
 7. Continuous modulation
 8. Engine defaults
 
-Adapters construct state from the bottom upward. Sound Drawing, for example, starts with defaults, resolves authored/cadence actions, applies continuous routes, applies transient envelopes, restores user locks, then clamps layers, traces, particles, feedback, transforms, and camera bounds. CANVAS resolves authored composition and media decisions, respects media/layer/global locks, then enforces decoder, layer, texture, feedback, preload, and effect limits. LaserDMX retains its established beam and safety budgets.
+Adapters construct state from the bottom upward, then restore higher-authority locks and apply final clamps.
 
-## Event actions versus continuous routes
+## Event actions and continuous routes
 
-Event actions are short musical envelopes triggered by beat, downbeat, kick, snare, hat, transient, or semantic moments. They are suitable for impacts, cuts, topology flips, flashes, and brief motion accents.
+Event actions are short musical envelopes triggered by beat, downbeat, kick, snare, hat, transient, semantic moments, or other discrete identities. They suit impacts, cuts, topology changes, flashes, recruitment, and brief motion accents.
 
-Continuous routes map sustained analysis values such as bass, energy, tension, build progress, phrase progress, or vocal energy into bounded parameters. Routes must define finite ranges and should include clamps. They are recomputed from the current track position rather than historical frame accumulation, so seeking and looping resolve deterministically.
+Continuous routes map sustained values such as bass, energy, tension, complexity, build progress, phrase progress, or vocal energy into bounded parameters.
 
-## Seeking, looping, and track replacement
+Routes must define finite ranges and explicit clamps. They resolve from the current authoritative position rather than unbounded frame history.
 
-Every frame is derived from track position, timeline revision, section occurrence, cadence block, deterministic seed, and transport identities. Volatile envelopes are not persisted. On seek, loop wrap, track restart, or replacement, renderers clear transient surfaces and rebuild the resolved frame from the authoritative context. CANVAS preload work is scoped to track identity and pool revision; inactive media resources are released.
+## Seeking, looping, and replacement
+
+Every resolved frame derives from track identity, audio position, timeline and analysis revisions, section occurrence, cadence block, event identity, and deterministic seed.
+
+Volatile envelopes are not persisted.
+
+On seek, loop wrap, track restart, track replacement, source replacement, or incompatible analysis replacement, engines must clear or reconstruct transient state. Pause remains distinct from stop: a paused engine may hold visual state while stopped playback returns transient musical input toward neutral.
 
 ## Confidence and capability gates
 
-Scenes may require capabilities and confidence channels. Low-confidence section interpretation retains beat-level reactivity when possible, disables aggressive anticipatory choreography, selects a safe fallback scene, and exposes the limitation in diagnostics. Validation never crashes production playback.
+Scenes and routes may declare capability and confidence requirements.
+
+Low-confidence structural interpretation should retain safe beat-level or band-level reactivity when available, suppress aggressive anticipatory behavior, choose an explicit fallback, and expose the limitation in diagnostics.
+
+Validation must report unsupported targets and requirements without crashing playback.
 
 ## Diagnostics
 
-Each engine publishes a compact, collapsible inspector containing the current show, scene, section/family/occurrence, drop occurrence, bar and 4/8/16-bar stages, motif or composition, active layers, event envelopes, continuous routes, semantic look-ahead, locks, fallback state, capability/confidence limitations, and resource-limit decisions. Diagnostics are throttled to a bounded update rate, cleared on engine switches, and never persisted, so inactive or stale frame state cannot leak between engines.
+Engine diagnostics should expose the information needed to explain visual behavior:
 
-## Sound Drawing authoring
+- Current show and scene
+- Section family, occurrence, and phase
+- Bar and 4/8/16-bar stages
+- Active motif, composition, or visual roles
+- Event envelopes and continuous routes
+- Locks, fallbacks, confidence, and capability gates
+- Resource-limit decisions
+- Transport discontinuities and reconstruction state
 
-A Sound Drawing show contains scene actions made from separately typed layers and roles:
+Diagnostics are bounded, throttled, cleared on engine switches, and never persisted.
 
-- `primaryMotif`
-- `harmonicLayer`
-- `rhythmAccent`
-- `echoLayer`
-- `atmosphereLayer`
-- `transitionLayer`
+React View surfaces common analysis under **REACT → ANALYSIS**. Engines with deeper authoring diagnostics may expose additional engine-specific analysis surfaces.
 
-To add a show, create a `SoundDrawingPerformanceShowDefinition` in `SoundDrawingPerformanceShows.ts`, declare program metadata and a fallback scene, author section scenes and cadence arrays, then run `validateSoundDrawingPerformanceShows()`. New action types belong in `SoundDrawingPerformanceTypes.ts` and must be handled in `SoundDrawingPerformanceEngine.ts` plus its validator.
+## Optional visual simulation
 
-## CANVAS authoring
+Simulation-based visuals may use `src/features/visualSimulation/`.
 
-CANVAS separates media roles from composition slots. Media can be tagged as hero, alternate hero, background, texture, foreground accent, mask, transition, or section-specialized assets. Composition templates define bounded layer layouts; effect recipes define bounded chains; transitions define duration, interruption policy, and fallback.
+The module provides:
 
-To add a show, create scenes in `CanvasPerformanceShows.ts`, assign a declared fallback scene, and compose only registered template, recipe, transition, and layer-role IDs. Run `validateCanvasPerformanceShows()`. New action types belong in `CanvasPerformanceTypes.ts`, are resolved in `CanvasPerformanceEngine.ts`, and must be added to `CanvasPerformanceValidation.ts`.
+- Bounded fixed-step timing
+- Deterministic random and noise utilities
+- Structural signatures
+- Lifecycle coordination
+- Quality budgets
+- Small reusable math helpers
+
+It is not a top-level engine, React provider, Zustand store, global mutable simulation, or rendered overlay.
+
+Each renderer owns its simulation domain, typed arrays, clock, lifecycle controller, preview mode, and disposal. Per-frame simulation state must not live in Zustand.
+
+See:
+
+- `docs/visual-simulation.md`
+- `docs/living-ribbon-production-validation.md`
+
+## Engine authoring notes
+
+### Sound Drawing
+
+A Sound Drawing show uses typed visual roles such as `primaryMotif`, `harmonicLayer`, `rhythmAccent`, `echoLayer`, `atmosphereLayer`, and `transitionLayer`.
+
+Author shows in:
+
+- `src/components/vyzualz/react/soundDrawing/SoundDrawingPerformanceShows.ts`
+
+Add new action types in:
+
+- `src/components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes.ts`
+
+Resolve and validate them in the corresponding engine and validation files.
+
+### CANVAS
+
+CANVAS separates media roles from composition slots. Shows compose registered media roles, templates, effect recipes, transitions, event bindings, and bounded routes.
+
+Author shows in:
+
+- `src/components/vyzualz/react/canvasPerformance/CanvasPerformanceShows.ts`
+
+Add new action types in:
+
+- `src/components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes.ts`
+
+Resolve and validate them in `CanvasPerformanceEngine.ts` and `CanvasPerformanceValidation.ts`.
+
+### Shader Pads
+
+A production shader definition may include an authored `performanceProgram`. The shader runtime merges authored scene actions and the route matrix without mutating persisted manual parameter values.
+
+See:
+
+- `docs/shader-pads.md`
+- `docs/shader-native-performance-programs.md`
+
+### PixGrid
+
+PixGrid resolves typed audio assignments, performance-program actions, Track Map cues, structural choreography, and post-composite perceptual effects into one semantic frame shared by Canvas2D and WebGL2.
+
+See `docs/pixgrid.md`.
 
 ## Production limits
 
-Sound Drawing caps layers, traces, particles, event envelopes, expensive generators, and feedback passes. CANVAS caps active layers, video decoders, media handles, preload requests, transition/effect depth, and feedback passes while retaining original media fidelity. LaserDMX continues to use its existing beam-budget and safety rules. `LaserDmxShowDirectorPerformanceValidation.ts` validates the compatibility schema, bank-role references, modulation targets, durations, transitions, fallbacks, and built-in registry without changing rendered output. Limits are reported when they alter authored demand.
+Each engine owns bounded resource policies:
 
-## Validation commands
+- Sound Drawing: layers, traces, particles, feedback, event envelopes, and expensive generators
+- CANVAS: active layers, media handles, video decoders, preload work, transitions, effect depth, and feedback
+- Shader Pads: route, graph, texture, feedback, render-target, and WebGL lifecycle limits
+- PixGrid: layers, groups, routes, cues, masks, logical framebuffers, transitions, diagnostic history, and post-composite effect count
+- LaserDMX: fixtures, beams, scanner samples, atmosphere, cues, output universes, and safety-related clamps
+
+Limits must be visible in validation or diagnostics when they alter authored demand.
+
+## Validation
+
+Use the repository-level sequence for broad validation:
 
 ```bash
-npm run typecheck
-npm test -- --run src/features/performanceCore src/components/vyzualz/react/PerformanceProgramFinalValidation.test.ts src/components/vyzualz/react/soundDrawing src/components/vyzualz/react/canvasPerformance src/stores/performancePersistenceMigration.test.ts
-npm run lint
-npm run build
+npm run verify:fast
 ```
+
+Useful focused checks include:
+
+```bash
+npm run test:laser-dmx:programming
+npm run test:pix-grid:perceptual
+npm run test:node
+```
+
+Engine-specific validation suites remain required when changing an engine's payload, target schema, resource limits, or rendered acceptance behavior.

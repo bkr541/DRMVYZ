@@ -24,7 +24,7 @@ Layered real-time and offline analysis pipeline that turns raw audio into struct
 ### `MusicIntelligenceEngine`
 `src/features/musicIntelligence/MusicIntelligenceEngine.ts`
 
-Central coordinator. Called every animation frame by `LiveVisualCanvas`.
+Central coordinator. Live audio loops call it once per animation frame and publish the completed frame to `AudioFeatureBus`. React View renderers, the classic `LiveVisualCanvas`, modulation, diagnostics, and engine-specific performance adapters consume that shared frame rather than running independent analysis.
 
 ```ts
 engine.updateFromAudioFrame({ freqBuf, timeBuf, sampleRate, audioTime, isPlaying })
@@ -107,10 +107,10 @@ Key fields: `bpm`, grid confidence, `beatGrid[]`, `downbeats[]`, `barMarkers[]`,
 
 ## Real-time vs Offline Analysis
 
-### Real-time (per frame, `LiveVisualCanvas`)
+### Real-time (per frame, shared live render paths)
 1. `AnalyserNode.getByteFrequencyData(freqBuf)` — browser-native
 2. `musicIntelligenceEngine.updateFromAudioFrame(...)` — all layers 1–8
-3. `AudioFeatureBus.getFrame()` — read by modulation system and React renderer
+3. `AudioFeatureBus.getFrame()` - read by the classic visualizer, React View renderers, modulation, diagnostics, and Shared Performance adapters
 
 Cost: O(fftSize/2) operations per frame. Designed to be lightweight.
 
@@ -162,7 +162,7 @@ All numeric sources return `0–1`. Trigger sources return `0` or `1`. See `src/
 
 ## Diagnostics Panel
 
-The **Music Intelligence** tab in the right rail (AUDIO) shows live values from all 8 layers.
+React View exposes live values from all eight layers under **REACT → ANALYSIS**. The classic visualizer may surface the same diagnostics through its own modulation workspace.
 
 `src/components/vyzualz/modulation/MusicIntelligenceDiagnosticsPanel.tsx`
 
