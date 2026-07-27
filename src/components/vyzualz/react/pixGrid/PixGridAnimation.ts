@@ -61,16 +61,19 @@ function audioValue(frame: PixGridAudioFrame, source: PixGridLayerAnimation['aud
 
 function animationClockValue(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): number {
   switch (animation.clock ?? 'time') {
-    case 'beat': return (frame.beatIndex ?? 0) + clamp01(frame.beatPhase)
-    case 'bar': return (frame.barIndex ?? 0) + ((frame.beatIndex ?? 0) % 4 + clamp01(frame.beatPhase)) / 4
+    case 'beat': return frame.motionClockBeat ?? ((frame.beatIndex ?? 0) + clamp01(frame.beatPhase))
+    case 'bar': return frame.motionClockBar ?? ((frame.barIndex ?? 0) + ((frame.beatIndex ?? 0) % 4 + clamp01(frame.beatPhase)) / 4)
     case 'cue': return 0
     case 'time':
-    default: return frame.audioTime
+    default: return frame.motionClockTime ?? frame.audioTime
   }
 }
 
 function animationTime(frame: PixGridAudioFrame, animation: PixGridLayerAnimation, sceneMotionMultiplier: number): number {
-  const effectiveMotion = resolvePixGridMotionMultiplier(frame.motionMultiplier, sceneMotionMultiplier)
+  const hasIntegratedClock = frame.motionClockTime != null || frame.motionClockBeat != null || frame.motionClockBar != null
+  const effectiveMotion = hasIntegratedClock
+    ? Math.max(0, Number.isFinite(sceneMotionMultiplier) ? sceneMotionMultiplier : 1)
+    : resolvePixGridMotionMultiplier(frame.motionMultiplier, sceneMotionMultiplier)
   return animationClockValue(frame, animation) * animation.speed * effectiveMotion + animation.phase
 }
 
@@ -168,9 +171,7 @@ export function resolvePixGridLayerAnimation(
         break
       }
       case 'beatStepMovement': {
-        const beatIndex = frame.beatIndex ?? Math.floor(frame.audioTime * 2)
-        const effectiveMotion = resolvePixGridMotionMultiplier(frame.motionMultiplier, motionMultiplier)
-        const step = Math.floor((beatIndex + animation.phase) * Math.max(0, animation.speed) * effectiveMotion)
+        const step = Math.floor(time)
         const offset = step * amount
         if (animation.axis === 'y') resolved.positionY = resolvePixGridBoundedValue(layer.position.y, offset, animation.boundary)
         else resolved.positionX = resolvePixGridBoundedValue(layer.position.x, offset, animation.boundary)

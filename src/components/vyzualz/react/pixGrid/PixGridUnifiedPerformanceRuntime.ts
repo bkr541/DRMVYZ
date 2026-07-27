@@ -271,7 +271,10 @@ export class PixGridUnifiedPerformanceRuntime {
     cues: readonly PixGridActionCue[];
     trackId?: string | null;
   }): PixGridUnifiedFrame {
-    const runtimeRoutes = ensurePixGridRuntimeAudioRoutes(input.authoredState);
+    const runtimeRoutes = ensurePixGridRuntimeAudioRoutes(
+      input.authoredState,
+      input.audioFrame.capabilities,
+    );
     const authoredState = runtimeRoutes.state;
     const performance = resolvePixGridPerformanceFrame(
       authoredState,

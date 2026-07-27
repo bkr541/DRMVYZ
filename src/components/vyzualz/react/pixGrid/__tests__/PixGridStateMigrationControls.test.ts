@@ -5,7 +5,7 @@ import { createSilentPixGridAudioFrame, PixGridReactionRuntime } from '../PixGri
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createPixGridCanonicalSignatures } from '../PixGridConfiguration'
 import { createDefaultPixGridState } from '../PixGridDefaults'
-import { applyPixGridRuntimeControls } from '../PixGridRuntimeControls'
+import { applyPixGridRuntimeControls, PixGridMotionClock } from '../PixGridRuntimeControls'
 import { PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION, PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import {
@@ -313,5 +313,108 @@ describe('PixGrid empty custom routing fallback', () => {
     const repeated = ensurePixGridRuntimeAudioRoutes(fallback.state)
     expect(repeated.state.audioAssignments.map(route => route.id)).toEqual(fallback.state.audioAssignments.map(route => route.id))
     expect(new Set(repeated.state.audioAssignments.map(route => route.id)).size).toBe(repeated.state.audioAssignments.length)
+  })
+
+  it('persists canonical fallback routes during custom-state migration and remains idempotent', () => {
+    const builtIn = stateForPreset()
+    const custom = {
+      ...builtIn,
+      selectedPresetId: null,
+      configuration: undefined,
+      groups: [],
+      audioAssignments: [],
+      performance: { ...builtIn.performance, enabled: false, sharedPerformanceProgramId: null },
+    }
+    const migrated = migratePixGridState(custom)
+    expect(migrated.configuration.origin).toBe('custom')
+    expect(migrated.configuration.lastMigration?.fallbackRoutesActive).toBe(true)
+    expect(migrated.configuration.lastMigration?.fallbackRoutingInstalled).toBe(true)
+    expect(migrated.audioAssignments.length).toBeGreaterThan(0)
+    expect(migrated.audioAssignments.every(route => route.enabled)).toBe(true)
+    expect(migratePixGridState(migrated)).toEqual(migrated)
+  })
+
+  it('does not let an enabled but ineffective route suppress baseline fallback response', () => {
+    const builtIn = stateForPreset()
+    const ineffective = normalizePixGridReactionAssignment({
+      ...builtIn.audioAssignments[0],
+      id: 'custom-zero-output-route',
+      name: 'Custom zero output route',
+      enabled: true,
+      amount: 0,
+      targetScope: 'output',
+      targetId: null,
+    }, 0, 'output') as PixGridReactionAssignment
+    const custom = normalizePixGridState({
+      ...builtIn,
+      selectedPresetId: null,
+      groups: [],
+      audioAssignments: [ineffective],
+      performance: { ...builtIn.performance, enabled: false, sharedPerformanceProgramId: null },
+      configuration: {
+        ...builtIn.configuration,
+        origin: 'custom',
+        sourcePresetId: null,
+        presetConfigurationVersion: 0,
+      },
+    })
+    const fallback = ensurePixGridRuntimeAudioRoutes(custom)
+    expect(fallback.fallbackActive).toBe(true)
+    expect(fallback.state.audioAssignments.some(route => route.id === ineffective.id)).toBe(true)
+    expect(fallback.state.audioAssignments.filter(route => route.id.startsWith('pix-grid-fallback-')).every(route => route.enabled)).toBe(true)
+  })
+
+  it('uses source capabilities when deciding whether a custom route can prevent fallback', () => {
+    const builtIn = stateForPreset()
+    const unavailable = normalizePixGridReactionAssignment({
+      ...builtIn.audioAssignments[0],
+      id: 'custom-semantic-only-route',
+      name: 'Custom semantic only route',
+      source: 'semanticMoment',
+      capabilityFallback: 'disable',
+      amount: 1,
+      targetScope: 'output',
+      targetId: null,
+    }, 0, 'output') as PixGridReactionAssignment
+    const custom = normalizePixGridState({
+      ...builtIn,
+      selectedPresetId: null,
+      groups: [],
+      audioAssignments: [unavailable],
+      performance: { ...builtIn.performance, enabled: false, sharedPerformanceProgramId: null },
+      configuration: { ...builtIn.configuration, origin: 'custom', sourcePresetId: null, presetConfigurationVersion: 0 },
+    })
+    expect(ensurePixGridRuntimeAudioRoutes(custom, { semanticMoment: true }).fallbackActive).toBe(false)
+    expect(ensurePixGridRuntimeAudioRoutes(custom, { semanticMoment: false }).fallbackActive).toBe(true)
+  })
+})
+
+describe('PixGrid integrated Motion clock', () => {
+  it('slows and freezes without changing the current animation phase', () => {
+    const clock = new PixGridMotionClock()
+    const start = clock.apply(applyPixGridRuntimeControls(createSilentPixGridAudioFrame({ audioTime: 10, isPlaying: true, trackIdentity: 'track-a' }), { bassReactivity: 1, motion: 1 }))
+    const full = clock.apply(applyPixGridRuntimeControls(createSilentPixGridAudioFrame({ audioTime: 11, isPlaying: true, trackIdentity: 'track-a' }), { bassReactivity: 1, motion: 1 }))
+    const sameTimeHalf = clock.apply(applyPixGridRuntimeControls(createSilentPixGridAudioFrame({ audioTime: 11, isPlaying: true, trackIdentity: 'track-a' }), { bassReactivity: 1, motion: 0.5 }))
+    const half = clock.apply(applyPixGridRuntimeControls(createSilentPixGridAudioFrame({ audioTime: 12, isPlaying: true, trackIdentity: 'track-a' }), { bassReactivity: 1, motion: 0.5 }))
+    const frozen = clock.apply(applyPixGridRuntimeControls(createSilentPixGridAudioFrame({ audioTime: 13, isPlaying: true, trackIdentity: 'track-a' }), { bassReactivity: 1, motion: 0 }))
+    expect(full.motionClockTime).toBeGreaterThan(start.motionClockTime!)
+    expect(sameTimeHalf.motionClockTime).toBe(full.motionClockTime)
+    expect(half.motionClockTime! - full.motionClockTime!).toBeCloseTo(0.5, 6)
+    expect(frozen.motionClockTime).toBe(half.motionClockTime)
+  })
+
+  it('re-anchors deterministically on a seek', () => {
+    const left = new PixGridMotionClock()
+    const right = new PixGridMotionClock()
+    const frame = applyPixGridRuntimeControls(createSilentPixGridAudioFrame({
+      audioTime: 42.25,
+      beatIndex: 84,
+      beatPhase: 0.5,
+      barIndex: 21,
+      timingDiscontinuity: true,
+      isPlaying: true,
+      trackIdentity: 'track-a',
+    }), { bassReactivity: 1, motion: 0.5 })
+    expect(left.apply(frame)).toEqual(right.apply(frame))
   })
 })

@@ -572,6 +572,10 @@ export interface PixGridAudioFrame {
   bassReactivityGain?: number
   /** PixGrid-local autonomous animation multiplier. */
   motionMultiplier?: number
+  /** Integrated motion clocks prevent live Motion changes from jumping phase. */
+  motionClockTime?: number
+  motionClockBeat?: number
+  motionClockBar?: number
   transportState?: 'playing' | 'paused' | 'stopped'
   inputSource?: 'analyser' | 'shared-bus' | 'neutral' | 'editor-preview'
   analyserConnected?: boolean

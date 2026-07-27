@@ -1,8 +1,11 @@
-import type { ReactPreset, ReactSectionType } from '../ReactTypes'
+import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
+import { buildSharedPerformanceContext } from '../../../../features/performanceCore'
+import type { ReactPreset, ReactSectionType, ReactTrackSection } from '../ReactTypes'
 import { PixGridReactionRuntime, createSilentPixGridAudioFrame } from './PixGridAudioRouting'
 import { composePixGridLogicalFrame } from './PixGridCompositor'
 import { applyPixGridRuntimeControls } from './PixGridRuntimeControls'
 import type { PixGridAudioFrame, PixGridReactionSource, PixGridState } from './PixGridTypes'
+import { PixGridUnifiedPerformanceRuntime } from './PixGridUnifiedPerformanceRuntime'
 import { validatePixGridPreset, type PixGridValidationReport } from './PixGridValidationAudit'
 
 export type PixGridAuditScenarioId =
@@ -32,7 +35,19 @@ export interface PixGridReactivityAuditReport {
   validation: PixGridValidationReport
   checks: readonly PixGridReactivityAuditCheck[]
   pixelHashes: Readonly<Record<PixGridAuditScenarioId, string>>
+  unifiedPixelHashes: Readonly<Record<PixGridAuditScenarioId, string>>
 }
+
+const AUDIT_SECTIONS: readonly ReactTrackSection[] = Object.freeze([
+  { id: 'audit-intro', label: 'Intro', type: 'intro', startSec: 0, endSec: 8, intensity: 0.25, source: 'auto', confidence: 1 },
+  { id: 'audit-verse', label: 'Verse', type: 'verse', startSec: 8, endSec: 24, intensity: 0.5, source: 'auto', confidence: 1 },
+  { id: 'audit-build', label: 'Build', type: 'build', startSec: 24, endSec: 31, intensity: 0.8, source: 'auto', confidence: 1 },
+  { id: 'audit-pre-drop', label: 'Pre-drop', type: 'preDrop', startSec: 31, endSec: 32, intensity: 0.7, source: 'auto', confidence: 1 },
+  { id: 'audit-drop-one', label: 'Drop 1', type: 'drop', startSec: 32, endSec: 64, intensity: 1, source: 'auto', confidence: 1 },
+  { id: 'audit-breakdown', label: 'Breakdown', type: 'breakdown', startSec: 64, endSec: 76, intensity: 0.35, source: 'auto', confidence: 1 },
+  { id: 'audit-drop-two', label: 'Drop 2', type: 'drop', startSec: 76, endSec: 112, intensity: 1, source: 'auto', confidence: 1 },
+  { id: 'audit-outro', label: 'Outro', type: 'outro', startSec: 112, endSec: 132, intensity: 0.2, source: 'auto', confidence: 1 },
+])
 
 export const PIX_GRID_REACTIVITY_AUDIT_SCENARIOS: readonly PixGridAuditScenario[] = Object.freeze([
   { id: 'silence', sectionType: 'verse', audioTime: 8, sourceValues: {} },
@@ -118,16 +133,104 @@ function renderScenario(
   return composePixGridLogicalFrame(preset, state, settleFrame, undefined, null, runtime).pixels.slice()
 }
 
+function renderUnifiedScenario(
+  preset: ReactPreset,
+  state: PixGridState,
+  scenario: PixGridAuditScenario,
+  controls: { bassReactivity: number; motion: number } = { bassReactivity: 1, motion: 1 },
+): Uint8Array {
+  const audioFrame = frameForScenario(scenario, controls)
+  const absoluteBeat = scenario.audioTime * 2
+  const beatIndex = Math.floor(absoluteBeat)
+  const source = audioFrame.sourceValues ?? {}
+  const context = buildSharedPerformanceContext({
+    audioTimeSec: scenario.audioTime,
+    frame: {
+      ...DEFAULT_MI_FRAME,
+      timeSec: scenario.audioTime,
+      frameId: Math.max(1, Math.round(scenario.audioTime * 60)),
+      sourceId: 'pix-grid-reactivity-audit',
+      trackId: 'pix-grid-reactivity-audit',
+      bands: {
+        ...DEFAULT_MI_FRAME.bands,
+        sub: source.sub ?? 0,
+        bass: source.bass ?? 0,
+        lowMid: source.lowMid ?? 0,
+        mid: source.mid ?? 0,
+        high: source.high ?? 0,
+        air: source.air ?? 0,
+        volume: source.volume ?? source.energy ?? 0,
+        normalizedSub: source.sub ?? 0,
+        normalizedBass: source.bass ?? 0,
+        normalizedLowMid: source.lowMid ?? 0,
+        normalizedMid: source.mid ?? 0,
+        normalizedHigh: source.high ?? 0,
+        normalizedAir: source.air ?? 0,
+      },
+      rhythm: {
+        ...DEFAULT_MI_FRAME.rhythm,
+        bpm: 120,
+        bpmConfidence: 1,
+        beatIndex,
+        beatPhase: absoluteBeat - beatIndex,
+        beatInBar: beatIndex % 4,
+        barIndex: Math.floor(beatIndex / 4),
+        beatHit: (source.beat ?? 0) > 0,
+        kickHit: (source.kick ?? 0) > 0,
+        kickStrength: source.kick ?? 0,
+        snareHit: (source.snare ?? 0) > 0,
+        snareStrength: source.snare ?? 0,
+        hatHit: (source.hat ?? 0) > 0,
+        hatStrength: source.hat ?? 0,
+      },
+      energy: {
+        ...DEFAULT_MI_FRAME.energy,
+        instant: source.energy ?? source.volume ?? 0,
+        shortTerm: source.energy ?? source.volume ?? 0,
+        longTerm: Math.max(0.05, (source.energy ?? source.volume ?? 0) * 0.75),
+        percentile: source.trackRelativeEnergy ?? source.energy ?? 0,
+        spectralFlux: source.spectralFlux ?? source.transient ?? 0,
+      },
+    },
+    resolvedSections: AUDIT_SECTIONS,
+    durationSec: 132,
+    trackIdentity: 'pix-grid-reactivity-audit',
+  })
+  const unified = new PixGridUnifiedPerformanceRuntime().resolve({
+    authoredState: state,
+    context,
+    audioFrame,
+    presetId: preset.id,
+    cues: [],
+    trackId: 'pix-grid-reactivity-audit',
+  })
+  return composePixGridLogicalFrame(
+    preset,
+    unified.state,
+    audioFrame,
+    undefined,
+    null,
+    new PixGridReactionRuntime(),
+    unified.transition,
+    unified.groupEffects,
+  ).pixels.slice()
+}
+
 export function auditPixGridPresetRenderedReactivity(
   preset: ReactPreset,
   state: PixGridState,
 ): PixGridReactivityAuditReport {
   const rendered = new Map<PixGridAuditScenarioId, Uint8Array>()
+  const unifiedRendered = new Map<PixGridAuditScenarioId, Uint8Array>()
   const pixelHashes = {} as Record<PixGridAuditScenarioId, string>
+  const unifiedPixelHashes = {} as Record<PixGridAuditScenarioId, string>
   for (const scenario of PIX_GRID_REACTIVITY_AUDIT_SCENARIOS) {
     const pixels = renderScenario(preset, state, scenario)
+    const unifiedPixels = renderUnifiedScenario(preset, state, scenario)
     rendered.set(scenario.id, pixels)
+    unifiedRendered.set(scenario.id, unifiedPixels)
     pixelHashes[scenario.id] = hashPixels(pixels)
+    unifiedPixelHashes[scenario.id] = hashPixels(unifiedPixels)
   }
   const silence = rendered.get('silence')!
   const kick = rendered.get('kick')!
@@ -139,6 +242,8 @@ export function auditPixGridPresetRenderedReactivity(
   const motion1 = renderScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS[0]!, { bassReactivity: 1, motion: 1 })
   const deterministicA = renderScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'secondDrop')!)
   const deterministicB = renderScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'secondDrop')!)
+  const unifiedDeterministicA = renderUnifiedScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'secondDrop')!)
+  const unifiedDeterministicB = renderUnifiedScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'secondDrop')!)
   const validation = validatePixGridPreset(preset, state)
   const checks: PixGridReactivityAuditCheck[] = [
     { id: 'compiles-and-validates', passed: validation.valid, detail: validation.summary },
@@ -149,6 +254,9 @@ export function auditPixGridPresetRenderedReactivity(
     { id: 'drop-differs-from-breakdown', passed: differingBytes(rendered.get('drop')!, rendered.get('breakdown')!) > 0, detail: 'Drop and breakdown must resolve distinct pixels.' },
     { id: 'first-drop-differs-from-second', passed: differingBytes(rendered.get('drop')!, rendered.get('secondDrop')!) > 0, detail: 'First and second drop must develop differently.' },
     { id: 'deterministic-repeat', passed: differingBytes(deterministicA, deterministicB) === 0, detail: 'Repeated evaluation at identical position and controls must match.' },
+    { id: 'unified-runtime-active-differs-from-silence', passed: [...unifiedRendered.entries()].some(([id, pixels]) => id !== 'silence' && differingBytes(unifiedRendered.get('silence')!, pixels) > 0), detail: 'The full Shared Performance and PixGrid unified runtime must change rendered pixels, not only the direct compositor harness.' },
+    { id: 'unified-runtime-first-drop-differs-from-second', passed: differingBytes(unifiedRendered.get('drop')!, unifiedRendered.get('secondDrop')!) > 0, detail: 'The full performance runtime must preserve authored second-drop development.' },
+    { id: 'unified-runtime-deterministic-repeat', passed: differingBytes(unifiedDeterministicA, unifiedDeterministicB) === 0, detail: 'Full-pipeline repeated evaluation at identical position and controls must match.' },
   ]
-  return { presetId: preset.id, passed: validation.valid && checks.every(check => check.passed), validation, checks, pixelHashes }
+  return { presetId: preset.id, passed: validation.valid && checks.every(check => check.passed), validation, checks, pixelHashes, unifiedPixelHashes }
 }

@@ -9,6 +9,7 @@ import {
   pixGridLayerAnimationSignature,
 } from './PixGridConfiguration'
 import { clonePixGridLayer } from './PixGridDefaults'
+import { compilePixGridGroupMask } from './PixGridGroups'
 import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 import {
   PIX_GRID_CONFIGURATION_METADATA_VERSION,
@@ -18,6 +19,7 @@ import {
   type PixGridGroup,
   type PixGridMigrationDiagnostics,
   type PixGridReactionAssignment,
+  type PixGridReactionSource,
   type PixGridState,
 } from './PixGridTypes'
 import { normalizePixGridReactionAssignment, normalizePixGridState } from './PixGridValidation'
@@ -260,11 +262,13 @@ export function migratePixGridState(
 
   if (!preset?.pixGridSettings) {
     const emptyCanonicalSignatures = createEmptyPixGridCanonicalSignatures()
+    const fallback = reconcilePixGridFallbackAssignments(normalized)
     if (
       fromStateVersion >= PIX_GRID_STATE_VERSION
       && normalized.configuration.origin === 'custom'
       && normalized.configuration.musicReactiveConfigurationVersion >= PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION
       && canonicalSignaturesEqual(normalized.configuration.canonicalSignatures, emptyCanonicalSignatures)
+      && fallback.state === normalized
     ) return normalized
     const report: PixGridMigrationDiagnostics = {
       applied: true,
@@ -275,21 +279,21 @@ export function migratePixGridState(
       groupsAdded: 0,
       groupsPreserved: normalized.groups.length,
       groupsUpgraded: 0,
-      assignmentsAdded: 0,
+      assignmentsAdded: fallback.assignmentsAdded,
       assignmentsPreserved: normalized.audioAssignments.length + normalized.groups.reduce((sum, group) => sum + group.reactions.length, 0),
       assignmentsUpgraded: 0,
       layersAdded: 0,
       scenesAdded: 0,
-      fallbackRoutesActive: false,
+      fallbackRoutesActive: fallback.fallbackActive,
       originalBuiltInPresetId: normalized.configuration.sourcePresetId,
       programsUpgraded: 0,
       customizationsPreserved: normalized.configuration.userCustomized,
       conflicts: [],
       skippedUpgrades: [],
-      fallbackRoutingInstalled: false,
+      fallbackRoutingInstalled: fallback.assignmentsAdded > 0,
     }
     return normalizePixGridState({
-      ...normalized,
+      ...fallback.state,
       configuration: {
         metadataVersion: PIX_GRID_CONFIGURATION_METADATA_VERSION,
         origin: 'custom',
@@ -500,6 +504,25 @@ export const PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS: readonly PixGridReactionAss
   FALLBACK_ASSIGNMENT_INPUTS.map((input, index) => normalizePixGridReactionAssignment(input, index, 'output')!),
 )
 
+const PIX_GRID_BASELINE_FALLBACK_IDS = new Set(
+  PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(assignment => assignment.id),
+)
+
+const SOURCE_BACKED_GROUP_MASKS = new Set<PixGridGroup['mask']['kind']>([
+  'layerAlpha',
+  'colorRange',
+  'luminanceRange',
+  'connectedRegion',
+  'svgMetadata',
+])
+
+const FALLBACK_SOURCE_BY_MODE: Partial<Record<NonNullable<PixGridReactionAssignment['capabilityFallback']>, PixGridReactionSource>> = {
+  energy: 'energy',
+  beat: 'beat',
+  midHighActivity: 'mid',
+  transient: 'transient',
+}
+
 function assignmentTargetExists(state: PixGridState, assignment: PixGridReactionAssignment, ownerGroupId?: string): boolean {
   const scope = assignment.targetScope ?? (ownerGroupId ? 'group' : 'output')
   const targetId = assignment.targetId ?? ((scope === 'group' || scope === 'pixels') ? ownerGroupId : null) ?? null
@@ -513,54 +536,167 @@ function assignmentTargetExists(state: PixGridState, assignment: PixGridReaction
   }
 }
 
-export function countValidPixGridAudioAssignments(state: PixGridState): number {
-  let count = state.audioAssignments.filter(assignment => assignment.enabled && assignmentTargetExists(state, assignment)).length
+function assignmentTargetCanRender(state: PixGridState, assignment: PixGridReactionAssignment, ownerGroupId?: string): boolean {
+  if (!assignmentTargetExists(state, assignment, ownerGroupId)) return false
+  const scope = assignment.targetScope ?? (ownerGroupId ? 'group' : 'output')
+  if (scope !== 'group' && scope !== 'pixels') return true
+  const targetId = assignment.targetId ?? ownerGroupId ?? null
+  if (!targetId) return true
+  const group = state.groups.find(candidate => candidate.id === targetId)
+  if (!group || !group.enabled || group.contentVisible === false) return false
+  if (SOURCE_BACKED_GROUP_MASKS.has(group.mask.kind)) {
+    const sourceLayerIds = group.layerScope?.length ? group.layerScope : group.layerId ? [group.layerId] : []
+    return sourceLayerIds.length > 0 && sourceLayerIds.every(layerId => state.layers.some(layer => layer.id === layerId))
+  }
+  return compilePixGridGroupMask(group, state.matrixWidth, state.matrixHeight).cellCount > 0
+}
+
+function assignmentConditionsCanMatch(state: PixGridState, assignment: PixGridReactionAssignment): boolean {
+  const conditions = assignment.conditions
+  if (!conditions) return true
+  if (
+    conditions.minimumEnergy != null
+    && conditions.maximumEnergy != null
+    && conditions.minimumEnergy > conditions.maximumEnergy
+  ) return false
+  if (conditions.activeLayerId && !state.layers.some(layer => layer.id === conditions.activeLayerId)) return false
+  if (conditions.activeGroupId && !state.groups.some(group => group.id === conditions.activeGroupId && group.enabled)) return false
+  return true
+}
+
+function assignmentSourceCanResolve(
+  assignment: PixGridReactionAssignment,
+  capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+): boolean {
+  if (!capabilities || capabilities[assignment.source] !== false) return true
+  const fallback = assignment.capabilityFallback ?? 'disable'
+  if (fallback === 'disable' || fallback === 'zero') return false
+  const fallbackSource = FALLBACK_SOURCE_BY_MODE[fallback]
+  return fallbackSource == null || capabilities[fallbackSource] !== false
+}
+
+/**
+ * Returns whether an authored route can produce a visible result for this state.
+ * This intentionally goes beyond `enabled`: zero-output routes, impossible
+ * conditions, missing targets, empty masks, and unavailable sources do not
+ * prevent the baseline safety routes from activating.
+ */
+export function isPixGridAudioAssignmentEffective(
+  state: PixGridState,
+  assignment: PixGridReactionAssignment,
+  ownerGroupId?: string,
+  capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+): boolean {
+  if (!assignment.enabled) return false
+  if (Math.abs(assignment.amount) <= 1e-6) return false
+  const outputRange = assignment.outputRange ?? [0, 1]
+  if (Math.abs(outputRange[1] - outputRange[0]) <= 1e-6) return false
+  if (Math.abs(assignment.clamp[0]) <= 1e-6 && Math.abs(assignment.clamp[1]) <= 1e-6) return false
+  if (!assignmentConditionsCanMatch(state, assignment)) return false
+  if (!assignmentTargetCanRender(state, assignment, ownerGroupId)) return false
+  return assignmentSourceCanResolve(assignment, capabilities)
+}
+
+function countEffectiveNonFallbackAssignments(
+  state: PixGridState,
+  capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+): number {
+  let count = state.audioAssignments.filter(assignment => (
+    !PIX_GRID_BASELINE_FALLBACK_IDS.has(assignment.id)
+    && isPixGridAudioAssignmentEffective(state, assignment, undefined, capabilities)
+  )).length
   for (const group of state.groups) {
     if (!group.enabled) continue
-    count += group.reactions.filter(assignment => assignment.enabled && assignmentTargetExists(state, assignment, group.id)).length
+    count += group.reactions.filter(assignment => (
+      !PIX_GRID_BASELINE_FALLBACK_IDS.has(assignment.id)
+      && isPixGridAudioAssignmentEffective(state, assignment, group.id, capabilities)
+    )).length
   }
   return count
 }
 
-export function ensurePixGridRuntimeAudioRoutes(state: PixGridState): {
+interface PixGridFallbackReconciliation {
+  state: PixGridState
+  fallbackActive: boolean
+  validAssignmentCount: number
+  assignmentsAdded: number
+}
+
+function fallbackAssignmentsMatch(
+  current: readonly PixGridReactionAssignment[],
+  desired: readonly PixGridReactionAssignment[],
+): boolean {
+  if (current.length !== desired.length) return false
+  return current.every((assignment, index) => pixGridAssignmentSignature(assignment) === pixGridAssignmentSignature(desired[index]!))
+}
+
+function reconcilePixGridFallbackAssignments(
+  state: PixGridState,
+  capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+): PixGridFallbackReconciliation {
+  const validNonFallbackCount = countEffectiveNonFallbackAssignments(state, capabilities)
+  const fallbackActive = validNonFallbackCount === 0
+  const existingNonFallback = state.audioAssignments.filter(assignment => !PIX_GRID_BASELINE_FALLBACK_IDS.has(assignment.id))
+  const existingFallback = state.audioAssignments.filter(assignment => PIX_GRID_BASELINE_FALLBACK_IDS.has(assignment.id))
+  const canonicalFallback = PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(assignment => ({
+    ...cloneAssignment(assignment),
+    enabled: fallbackActive,
+  }))
+  const desiredAssignments = existingFallback.length > 0 || fallbackActive
+    ? [...existingNonFallback, ...canonicalFallback]
+    : state.audioAssignments
+  const assignmentsAdded = Math.max(0, canonicalFallback.length - existingFallback.length)
+  const unchanged = desiredAssignments === state.audioAssignments || (
+    existingNonFallback.length + existingFallback.length === state.audioAssignments.length
+    && fallbackAssignmentsMatch(state.audioAssignments, desiredAssignments)
+  )
+  const nextState = unchanged ? state : { ...state, audioAssignments: desiredAssignments }
+  const validAssignmentCount = validNonFallbackCount + (fallbackActive
+    ? canonicalFallback.filter(assignment => isPixGridAudioAssignmentEffective(nextState, assignment, undefined, capabilities)).length
+    : 0)
+  return { state: nextState, fallbackActive, validAssignmentCount, assignmentsAdded }
+}
+
+export function countValidPixGridAudioAssignments(
+  state: PixGridState,
+  capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+): number {
+  let count = state.audioAssignments.filter(assignment => isPixGridAudioAssignmentEffective(state, assignment, undefined, capabilities)).length
+  for (const group of state.groups) {
+    if (!group.enabled) continue
+    count += group.reactions.filter(assignment => isPixGridAudioAssignmentEffective(state, assignment, group.id, capabilities)).length
+  }
+  return count
+}
+
+export function ensurePixGridRuntimeAudioRoutes(
+  state: PixGridState,
+  capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+): {
   state: PixGridState
   fallbackActive: boolean
   validAssignmentCount: number
 } {
-  const fallbackIds = new Set(PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(assignment => assignment.id))
-  const validAssignmentCount = countValidPixGridAudioAssignments(state)
-  const validNonFallbackCount = state.audioAssignments.filter(assignment => (
-    assignment.enabled
-    && assignmentTargetExists(state, assignment)
-    && !fallbackIds.has(assignment.id)
-  )).length + state.groups.reduce((count, group) => (
-    group.enabled
-      ? count + group.reactions.filter(assignment => assignment.enabled && assignmentTargetExists(state, assignment, group.id)).length
-      : count
-  ), 0)
-  if (validNonFallbackCount > 0) return { state, fallbackActive: false, validAssignmentCount }
-  const existingIds = new Set(state.audioAssignments.map(assignment => assignment.id))
-  const fallbackAssignments = PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS
-    .filter(assignment => !existingIds.has(assignment.id))
-    .map(cloneAssignment)
-  const nextAssignments = fallbackAssignments.length > 0
-    ? [...state.audioAssignments.map(cloneAssignment), ...fallbackAssignments]
-    : state.audioAssignments
-  const activeFallbackCount = nextAssignments.filter(assignment => (
-    fallbackIds.has(assignment.id) && assignment.enabled && assignmentTargetExists(state, assignment)
-  )).length
+  const reconciled = reconcilePixGridFallbackAssignments(state, capabilities)
+  if (!reconciled.fallbackActive && reconciled.state === state) {
+    return { state, fallbackActive: false, validAssignmentCount: reconciled.validAssignmentCount }
+  }
   return {
     state: {
-      ...state,
-      audioAssignments: nextAssignments,
+      ...reconciled.state,
       configuration: {
-        ...state.configuration,
-        lastMigration: state.configuration.lastMigration
-          ? { ...state.configuration.lastMigration, fallbackRoutesActive: true, fallbackRoutingInstalled: fallbackAssignments.length > 0 }
-          : state.configuration.lastMigration,
+        ...reconciled.state.configuration,
+        lastMigration: reconciled.state.configuration.lastMigration
+          ? {
+              ...reconciled.state.configuration.lastMigration,
+              fallbackRoutesActive: reconciled.fallbackActive,
+              fallbackRoutingInstalled: reconciled.state.configuration.lastMigration.fallbackRoutingInstalled
+                || reconciled.assignmentsAdded > 0,
+            }
+          : reconciled.state.configuration.lastMigration,
       },
     },
-    fallbackActive: true,
-    validAssignmentCount: activeFallbackCount,
+    fallbackActive: reconciled.fallbackActive,
+    validAssignmentCount: reconciled.validAssignmentCount,
   }
 }

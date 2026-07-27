@@ -6,7 +6,10 @@ import { compilePixGridGroupMask } from './PixGridGroups'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
 import { validatePixGridPerformanceProgram } from './PixGridPerformanceProgramCompiler'
 import { isPixGridBassReactivitySource } from './PixGridRuntimeControls'
-import { PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS } from './PixGridStateMigration'
+import {
+  PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS,
+  isPixGridAudioAssignmentEffective,
+} from './PixGridStateMigration'
 import {
   PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
   PIX_GRID_STATE_VERSION,
@@ -220,6 +223,39 @@ export function validatePixGridState(
   if (builtIn && state.groups.length === 0) issues.push(issue('error', 'built-in-no-groups', 'Built-in PixGrid preset has no smart groups.', 'groups', 'Restore the canonical smart groups through preset migration.'))
   if (builtIn && locations.length === 0) issues.push(issue('error', 'built-in-no-routes', 'Built-in PixGrid preset has no audio assignments.', 'audioAssignments', 'Restore the canonical audio routes through preset migration.'))
 
+  const fallbackIds = new Set(PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(route => route.id))
+  const effectiveAuthoredRoutes = locations.filter(location => (
+    !fallbackIds.has(location.assignment.id)
+    && isPixGridAudioAssignmentEffective(
+      state,
+      location.assignment,
+      location.ownerGroupId ?? undefined,
+      options.capabilities,
+    )
+  ))
+  const activeFallbackRoutes = locations.filter(location => (
+    fallbackIds.has(location.assignment.id)
+    && isPixGridAudioAssignmentEffective(
+      state,
+      location.assignment,
+      location.ownerGroupId ?? undefined,
+      options.capabilities,
+    )
+  ))
+  if (!builtIn && effectiveAuthoredRoutes.length === 0) {
+    issues.push(issue(
+      'warning',
+      activeFallbackRoutes.length > 0 ? 'baseline-fallback-routing-active' : 'missing-effective-audio-routes',
+      activeFallbackRoutes.length > 0
+        ? 'No effective authored music routes are active; PixGrid is using its baseline fallback response.'
+        : 'No effective authored music routes are available and baseline fallback routing is not installed.',
+      'audioAssignments',
+      activeFallbackRoutes.length > 0
+        ? 'Author smart-group or global routes when you want behavior beyond the baseline kick, bass, and energy response.'
+        : 'Run PixGrid state migration or add an enabled route with a visible amount, valid target, usable source, and satisfiable conditions.',
+    ))
+  }
+
   for (const [id, count] of groupIdCounts) if (count > 1) issues.push(issue('error', 'duplicate-group-id', `Stable group ID ${id} appears ${count} times.`, 'groups', 'Give every smart group a unique stable ID.'))
   for (const [id, count] of assignmentIdCounts) if (count > 1) issues.push(issue('error', 'duplicate-assignment-id', `Stable assignment ID ${id} appears ${count} times.`, 'audioAssignments', 'Give every authored assignment a unique stable ID across global and group-local routes.'))
 
@@ -281,7 +317,12 @@ export function validatePixGridState(
   }
 
   const autonomousAnimationCount = state.layers.reduce((count, layer) => count + layer.animations.filter(animation => AUTONOMOUS_ANIMATION_MODES.has(animation.mode) && animation.clock !== 'beat' && animation.clock !== 'cue').length, 0)
-  const musicRouteCount = locations.filter(location => location.assignment.enabled).length
+  const musicRouteCount = locations.filter(location => isPixGridAudioAssignmentEffective(
+    state,
+    location.assignment,
+    location.ownerGroupId ?? undefined,
+    options.capabilities,
+  )).length
   if (builtIn && autonomousAnimationCount > 0 && musicRouteCount === 0) issues.push(issue('error', 'autonomous-only-built-in', 'Built-in preset only contains autonomous animation.', 'layers', 'Restore authored music routes and performance choreography.'))
   if (builtIn && !locations.some(location => COMMON_LIVE_SOURCES.has(location.assignment.source) || ['energy', 'beat', 'transient'].includes(location.assignment.capabilityFallback))) issues.push(issue(
     severityForWeakConfig,
@@ -291,13 +332,19 @@ export function validatePixGridState(
     'Add at least one common live source or a common capability fallback.',
   ))
 
-  const fallbackIds = new Set(PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(route => route.id))
   const duplicateFallbacks = locations.filter(location => fallbackIds.has(location.assignment.id)).length
   if (duplicateFallbacks > fallbackIds.size) issues.push(issue('error', 'duplicated-canonical-fallback-routes', 'Migration duplicated canonical fallback routes.', 'audioAssignments', 'Deduplicate by stable assignment ID and make migration idempotent.'))
 
   const stateMarkedCurrent = state.version >= PIX_GRID_STATE_VERSION
     && state.configuration.musicReactiveConfigurationVersion >= PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION
   if (builtIn && stateMarkedCurrent && (state.groups.length === 0 || locations.length === 0)) issues.push(issue('error', 'current-state-missing-required-configuration', 'State is marked current but required built-in reaction configuration is missing.', 'configuration', 'Run built-in preset migration even when legacy layers are non-empty.'))
+  if (!builtIn && stateMarkedCurrent && effectiveAuthoredRoutes.length === 0 && activeFallbackRoutes.length === 0) issues.push(issue(
+    'warning',
+    'current-custom-state-missing-fallback-routing',
+    'Custom state is marked current but has neither an effective authored route nor the canonical baseline fallback routes.',
+    'configuration.musicReactiveConfigurationVersion',
+    'Re-run custom-state migration so fallback routing is persisted before marking the configuration current.',
+  ))
 
   const programId = state.performance.sharedPerformanceProgramId
   const program = programId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId) : null

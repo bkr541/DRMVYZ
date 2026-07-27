@@ -52,6 +52,7 @@ import {
 import { validatePixGridState } from './PixGridValidationAudit'
 import {
   applyPixGridBassGainToPerformanceContext,
+  PixGridMotionClock,
   applyPixGridRuntimeControls,
 } from './PixGridRuntimeControls'
 
@@ -374,6 +375,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     const analyserFramePump = new MusicIntelligenceAnalyserFramePump({ publisherId: 'react:pixGrid' })
     const unifiedReactionRuntime = new PixGridReactionRuntime()
     const unifiedPerformanceRuntime = new PixGridUnifiedPerformanceRuntime()
+    const motionClock = new PixGridMotionClock()
     const fallbackGroupCompiler = new PixGridFrameGroupCompiler()
     let animationFrame = 0
     let gpuRenderer: PixGridGpuRenderer | null = null
@@ -514,6 +516,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previousPerformanceContext = null
         unifiedPerformanceRuntime.reset(current.trackIdentity ?? null)
         unifiedReactionRuntime.reset()
+        motionClock.reset(current.trackIdentity ?? null)
         fallbackGroupCompiler.reset()
       } else {
         previousTransportState = transportState
@@ -532,6 +535,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         lastAudioTime = audioTime
         unifiedPerformanceRuntime.reset(trackIdentity)
         unifiedReactionRuntime.reset()
+        motionClock.reset(trackIdentity)
         fallbackGroupCompiler.reset()
       }
       const busPublication = current.analyser ? null : AudioFeatureBus.getFramePublicationMeta()
@@ -604,7 +608,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         : usingFreshBusFrame
           ? 'shared-bus'
           : 'neutral'
-      const audioFrame = applyPixGridRuntimeControls(applyPixGridEditorPreview({
+      const audioFrame = motionClock.apply(applyPixGridRuntimeControls(applyPixGridEditorPreview({
         ...authoredAudioFrame,
         transportState,
         inputSource,
@@ -621,7 +625,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       }), {
         bassReactivity: current.bassReactivity,
         motion: current.motion,
-      })
+      }))
       const pixGridPerformanceContext = applyPixGridBassGainToPerformanceContext(
         context,
         audioFrame.bassReactivityGain ?? 1,

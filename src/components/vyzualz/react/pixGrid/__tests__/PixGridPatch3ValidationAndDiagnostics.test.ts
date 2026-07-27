@@ -9,6 +9,7 @@ import { PIX_GRID_PRESETS } from '../PixGridPresets'
 import { auditPixGridPresetRenderedReactivity } from '../PixGridReactivityAudit'
 import { applyPixGridRuntimeControls } from '../PixGridRuntimeControls'
 import { applyPixGridPresetSettings } from '../PixGridState'
+import { ensurePixGridRuntimeAudioRoutes } from '../PixGridStateMigration'
 import {
   comparePixGridRendererSemanticPlans,
   inspectPixGridGroups,
@@ -141,6 +142,31 @@ describe('PixGrid canonical validation', () => {
     )
     expect(mismatch).toHaveLength(1)
     expect(mismatch[0]?.code).toBe('renderer-action-plan-mismatch')
+  })
+
+  it('reports truthful fallback status for custom scenes instead of calling route-less state valid', () => {
+    const builtIn = stateForPreset('pix-grid-bass-beacon')
+    const routeLess = {
+      ...builtIn,
+      selectedPresetId: null,
+      groups: [],
+      audioAssignments: [],
+      performance: { ...builtIn.performance, enabled: false, sharedPerformanceProgramId: null },
+      configuration: {
+        ...builtIn.configuration,
+        origin: 'custom' as const,
+        sourcePresetId: null,
+        presetConfigurationVersion: 0,
+      },
+    }
+    const missingReport = validatePixGridState(routeLess)
+    expect(missingReport.warnings.map(item => item.code)).toContain('missing-effective-audio-routes')
+    expect(missingReport.warnings.map(item => item.code)).toContain('current-custom-state-missing-fallback-routing')
+
+    const migrated = ensurePixGridRuntimeAudioRoutes(routeLess).state
+    const fallbackReport = validatePixGridState(migrated)
+    expect(fallbackReport.warnings.map(item => item.code)).toContain('baseline-fallback-routing-active')
+    expect(fallbackReport.warnings.map(item => item.code)).not.toContain('missing-effective-audio-routes')
   })
 })
 

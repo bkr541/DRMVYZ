@@ -655,6 +655,16 @@ function AnalysisPanel() {
     [pixGridState, runtime?.routeActivity],
   )
   const activeRoutes = runtime?.routeActivity.filter(route => route.state === 'active' || route.state === 'fallback') ?? []
+  const accessibleStatus = useMemo(() => {
+    const input = runtime?.audioInputStatus ?? 'unavailable'
+    const fallback = runtime?.fallbackRoutesActive ? ' Baseline fallback routing is active.' : ''
+    const validationState = validation.errors.length > 0
+      ? ` ${validation.errors.length} configuration error${validation.errors.length === 1 ? '' : 's'}.`
+      : validation.warnings.length > 0
+        ? ` ${validation.warnings.length} configuration warning${validation.warnings.length === 1 ? '' : 's'}.`
+        : ' Configuration valid.'
+    return `PixGrid audio input ${input}.${fallback}${validationState}`
+  }, [runtime?.audioInputStatus, runtime?.fallbackRoutesActive, validation.errors.length, validation.warnings.length])
   const signals: Array<[PixGridReactionSource, string]> = [
     ['sub', 'Sub'], ['bass', 'Bass'], ['lowMid', 'Low-mid'], ['mid', 'Mid'], ['high', 'High'], ['air', 'Air'],
     ['volume', 'Volume'], ['energy', 'Energy'], ['trackRelativeEnergy', 'Track-relative energy'], ['spectralFlux', 'Spectral flux'],
@@ -670,7 +680,7 @@ function AnalysisPanel() {
   return (
     <div data-testid="pix-grid-analysis-workspace">
       <div className="rv-pix-grid-a11y-status" role="status" aria-live="polite" aria-atomic="true">
-        PixGrid audio input {runtime?.audioInputStatus ?? 'unavailable'}; {activeRoutes.length} active routes; {validation.summary}.
+        {accessibleStatus}
       </div>
       <Collapsible label="AUDIO INPUT AND TRANSPORT" defaultOpen>
         <div className="rv-pix-grid-diagnostics-grid">
