@@ -13,7 +13,7 @@ import { getCharReactionWeights } from './letterReactionUtils'
 import { evalCustomSignal, applyCustomTargetDelta } from './letterReactionCustom'
 import type { CustomTargetDelta } from './letterReactionCustom'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
-import { hexToRgba, getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
+import { getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
 import { textToGlyphPoints } from './textGlyphUtils'
 import {
@@ -40,6 +40,7 @@ import {
   MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
   MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES,
   MAX_SOUND_DRAWING_PERFORMANCE_TRACES,
+  type SoundDrawingBlendMode,
   type SoundDrawingColorRole,
   type SoundDrawingResolvedPerformanceFrame,
   type SoundDrawingResolvedPerformanceLayer,
@@ -91,6 +92,60 @@ function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanv
 
 const beatEnvelopeMap = new WeakMap<CanvasRenderingContext2D, number>()
 const BEAT_DECAY = 0.86
+
+// ── Additive trace blending ────────────────────────────────────────────────────
+// Reference oscilloscope footage shows core-to-white / halo-to-hue desaturation,
+// the signature of additive accumulation (not 'screen' blend). Authored performance
+// layers already resolve their own blend mode; the legacy/manual and clip pipelines
+// have no layer to read from, so they default to 'lighter'.
+const SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE: SoundDrawingBlendMode = 'lighter'
+
+// ── Trail decay (per canvas context) ──────────────────────────────────────────
+// Reference footage: per-frame retention ~0.35 at 30fps / ~0.59 at 60fps, decaying
+// to the noise floor in ~100ms (3-4 visible trail frames). 0.59 ≈ 0.35^0.5, i.e. the
+// underlying decay is a continuous rate expressed per 1/30s reference frame and then
+// raised to the actual elapsed-time ratio, so the look holds across 30/60/120fps.
+const SOUND_DRAWING_TRAIL_REFERENCE_FPS = 30
+const SOUND_DRAWING_TRAIL_RETENTION_MIN = 0.35 // trailDecay = 1 (fastest)
+const SOUND_DRAWING_TRAIL_RETENTION_MAX = 0.97 // trailDecay = 0 (slowest)
+const trailDecayTimeMap = new WeakMap<CanvasRenderingContext2D, number>()
+
+/** Maps the 0–1 trailDecay control to a per-reference-frame (1/30s) retention fraction. */
+export function computeSoundDrawingTrailRetentionPerReferenceFrame(trailDecay: number): number {
+  const t = clamp(trailDecay, 0, 1)
+  return SOUND_DRAWING_TRAIL_RETENTION_MAX - t * (SOUND_DRAWING_TRAIL_RETENTION_MAX - SOUND_DRAWING_TRAIL_RETENTION_MIN)
+}
+
+/** Frame-rate-independent trail retention over an actual elapsed `dtSeconds`. */
+export function computeSoundDrawingTrailRetention(trailDecay: number, dtSeconds: number): number {
+  const perReferenceFrame = computeSoundDrawingTrailRetentionPerReferenceFrame(trailDecay)
+  const frameRatio = Math.max(0, dtSeconds) * SOUND_DRAWING_TRAIL_REFERENCE_FPS
+  return Math.pow(clamp(perReferenceFrame, 0.0001, 0.9999), frameRatio)
+}
+
+/** Fraction of trail energy to erase this frame (destination-out alpha), floored so the trail never fully freezes. */
+export function computeSoundDrawingTrailDecayAlpha(trailDecay: number, dtSeconds: number): number {
+  return clamp(1 - computeSoundDrawingTrailRetention(trailDecay, dtSeconds), 0.01, 1)
+}
+
+/** Tracks per-context wall-clock time so trail decay scales by actual elapsed time, not frame count. */
+function tickTrailDeltaSeconds(ctx: CanvasRenderingContext2D, t: number): number {
+  const prevT = trailDecayTimeMap.get(ctx)
+  trailDecayTimeMap.set(ctx, t)
+  if (prevT === undefined) return 1 / SOUND_DRAWING_TRAIL_REFERENCE_FPS
+  return Math.max(0, Math.min((t - prevT) / 1000, 0.5))
+}
+
+// ── Inverse-velocity stroke modulation ────────────────────────────────────────
+// Physical oscilloscope beams dwell longer (brighter) at cusps/turning points and
+// sweep faster (dimmer) across straight runs. velocityRatio (from resamplePointsWithVelocity)
+// is 0..1, low sweep velocity → high ratio. Sources without the signal (built-in
+// shapes, SVG) fall back to the original uniform-alpha stroke unchanged.
+const SOUND_DRAWING_VELOCITY_ALPHA_MIN = 0.45
+const SOUND_DRAWING_VELOCITY_ALPHA_MAX = 1.0
+const SOUND_DRAWING_VELOCITY_LINE_WIDTH_AMOUNT = 0.12
+const SOUND_DRAWING_VELOCITY_RUN_BUCKETS = 10
+const SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX = 2
 
 // ── Twist sign (per canvas context) ──────────────────────────────────────────
 // When altTwist is enabled the sign flips on every beat, producing true
@@ -256,6 +311,7 @@ export function disposeSoundDrawingRenderer(
   twistSignMap.delete(ctx)
   twistPhasePrevMap.delete(ctx)
   rotPhaseMap.delete(ctx)
+  trailDecayTimeMap.delete(ctx)
   trailResetSeenMap.delete(ctx)
   authoredTrailIdentityMap.delete(ctx)
   livingRibbonResetSeenMap.delete(ctx)
@@ -450,7 +506,6 @@ function renderOriginalArtwork(
   const bass = frame.audio.bass * params.bassReactivity
   const mid  = frame.audio.mid
   const high = frame.audio.high
-  const vol  = frame.audio.volume
 
   const entry = getSvgVisualEntry(mediaId)
 
@@ -461,9 +516,9 @@ function renderOriginalArtwork(
 
   const beatEnvelope = tickBeatEnvelope(tctx, frame.beatHit)
 
-  // Fade trail
-  const decayRate = params.trailDecay * 0.25 + 0.01
-  fadeTrail(trailCanvas, preset.palette.background, decayRate)
+  // Fade trail (frame-rate independent; erases toward zero energy under additive blending)
+  const dtSeconds = tickTrailDeltaSeconds(ctx, t)
+  fadeTrail(trailCanvas, computeSoundDrawingTrailDecayAlpha(params.trailDecay, dtSeconds))
 
   // Composite trail to main canvas even if image is missing, so background shows
   if (!entry?.loaded || !entry.image) {
@@ -515,8 +570,6 @@ function renderOriginalArtwork(
 
   const numTraces       = clamp(osc.duplicateTraces, 1, 6)
   const visualIntensity = clamp(params.intensity ?? 1, 0, 2)
-  const glowBoost       = vol * 8 + beatEnvelope * 18 * osc.beatBloom
-  const glowBase        = (params.glow * (10 + glowBoost) + bass * 8) * visualIntensity
   const totalRot        = rotRad + midTwistAngle
 
   // ── Draw each trace onto the trail canvas ─────────────────────────────────
@@ -531,21 +584,6 @@ function renderOriginalArtwork(
     const tRot         = totalRot + traceRotOff
     const tDrawW       = drawW * traceScale
     const tDrawH       = drawH * traceScale
-
-    // Glow pass: blurred, screen-blended copy on main trace only
-    if (isMain && params.glow > 0.15) {
-      const blurPx    = Math.max(1, Math.round(params.glow * 16 + bass * 10 + beatEnvelope * 12))
-      const glowAlpha = Math.min(0.45, glowBase * 0.035)
-      tctx.save()
-      tctx.translate(cx, cy)
-      tctx.rotate(tRot)
-      tctx.globalAlpha              = glowAlpha
-      tctx.globalCompositeOperation = 'screen'
-      tctx.filter                   = `blur(${blurPx}px)`
-      tctx.drawImage(img, -tDrawW / 2, -tDrawH / 2, tDrawW, tDrawH)
-      tctx.filter = 'none'
-      tctx.restore()
-    }
 
     if (osc.svgUseReactPalette) {
       // Offscreen canvas for palette tinting via source-in compositing
@@ -572,7 +610,7 @@ function renderOriginalArtwork(
 
         tctx.save()
         tctx.globalAlpha              = traceAlpha
-        tctx.globalCompositeOperation = 'screen'
+        tctx.globalCompositeOperation = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE
         tctx.drawImage(offscreen, 0, 0)
         tctx.restore()
       }
@@ -581,7 +619,7 @@ function renderOriginalArtwork(
       tctx.translate(cx, cy)
       tctx.rotate(tRot)
       tctx.globalAlpha              = traceAlpha
-      tctx.globalCompositeOperation = 'screen'
+      tctx.globalCompositeOperation = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE
       tctx.drawImage(img, -tDrawW / 2, -tDrawH / 2, tDrawW, tDrawH)
       tctx.restore()
     }
@@ -1003,6 +1041,60 @@ function drawConnectedPath(tctx: CanvasRenderingContext2D, pts: [number, number]
   tctx.stroke()
 }
 
+/**
+ * Like `drawConnectedPath`, but when per-point velocityRatio data is available,
+ * strokes the path as batched runs of similar velocity so alpha (and line width)
+ * dim on fast sweeps and brighten at cusps/turning points — matching an oscilloscope
+ * beam's dwell time. Reads the caller's current globalAlpha/lineWidth as the base
+ * values to modulate, and restores them afterward. Falls back to a single uniform
+ * stroke (unchanged behavior) when `ratios` is null, e.g. for built-in shapes/SVG
+ * sources that never went through resamplePointsWithVelocity.
+ */
+function drawConnectedPathWithVelocity(
+  tctx: CanvasRenderingContext2D,
+  pts: [number, number][],
+  ratios: (number | undefined)[] | null,
+  close: boolean,
+): void {
+  if (pts.length < 2) return
+  if (!ratios) { drawConnectedPath(tctx, pts, close); return }
+
+  const n = pts.length
+  const segmentCount = close ? n : n - 1
+  if (segmentCount < 1) { drawConnectedPath(tctx, pts, close); return }
+
+  const baseAlpha     = tctx.globalAlpha
+  const baseLineWidth = tctx.lineWidth
+  const ratioAt = (idx: number): number => clamp(ratios[idx % n] ?? 1, 0, 1)
+  const bucketFor = (seg: number): number =>
+    Math.round(((ratioAt(seg) + ratioAt(seg + 1)) / 2) * SOUND_DRAWING_VELOCITY_RUN_BUCKETS)
+
+  let runStart  = 0
+  let runBucket = bucketFor(0)
+  for (let seg = 1; seg <= segmentCount; seg++) {
+    const isLast = seg === segmentCount
+    const bucket = isLast ? -1 : bucketFor(seg)
+    if (isLast || bucket !== runBucket) {
+      const ratio = runBucket / SOUND_DRAWING_VELOCITY_RUN_BUCKETS
+      tctx.globalAlpha = baseAlpha * (
+        SOUND_DRAWING_VELOCITY_ALPHA_MIN + (SOUND_DRAWING_VELOCITY_ALPHA_MAX - SOUND_DRAWING_VELOCITY_ALPHA_MIN) * ratio
+      )
+      tctx.lineWidth = Math.max(
+        0.4,
+        baseLineWidth * (1 + (ratio - 0.5) * 2 * SOUND_DRAWING_VELOCITY_LINE_WIDTH_AMOUNT),
+      )
+      tctx.beginPath()
+      tctx.moveTo(pts[runStart % n][0], pts[runStart % n][1])
+      for (let s = runStart; s < seg; s++) tctx.lineTo(pts[(s + 1) % n][0], pts[(s + 1) % n][1])
+      tctx.stroke()
+      runStart  = seg
+      runBucket = bucket
+    }
+  }
+  tctx.globalAlpha = baseAlpha
+  tctx.lineWidth   = baseLineWidth
+}
+
 function drawDotPoints(tctx: CanvasRenderingContext2D, pts: [number, number][], r: number): void {
   tctx.beginPath()
   for (const [x, y] of pts) {
@@ -1013,12 +1105,20 @@ function drawDotPoints(tctx: CanvasRenderingContext2D, pts: [number, number][], 
 }
 
 // ── Fade trail each frame ─────────────────────────────────────────────────────
+// Under additive ('lighter') blending the trail buffer holds accumulated light
+// energy on a transparent base — it must asymptote to zero energy, not toward the
+// background color (the background is composited underneath separately by callers).
+// destination-out erases by alpha regardless of what blend mode drew the pixels.
 
-function fadeTrail(trailCanvas: HTMLCanvasElement, bgColor: string, decayAlpha: number): void {
+function fadeTrail(trailCanvas: HTMLCanvasElement, decayAlpha: number): void {
   const tctx = trailCanvas.getContext('2d')
   if (!tctx) return
-  tctx.fillStyle = hexToRgba(bgColor, Math.max(0.02, decayAlpha))
+  tctx.save()
+  tctx.globalCompositeOperation = 'destination-out'
+  tctx.globalAlpha = clamp(decayAlpha, 0, 1)
+  tctx.fillStyle = '#000000'
   tctx.fillRect(0, 0, trailCanvas.width, trailCanvas.height)
+  tctx.restore()
 }
 
 // ── Waveform mode ─────────────────────────────────────────────────────────────
@@ -1032,14 +1132,14 @@ function drawWaveformOnTrail(
   preset: ReactPreset,
   params: ReactRenderParams,
   intMul: number,
+  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
 ): void {
-  const { audio, timeDomainData, beatHit } = frame
+  const { audio, timeDomainData } = frame
   const bass  = audio.bass * params.bassReactivity
   const pts   = 256
   const stepX = W / pts
 
   const lineColor = preset.palette.primary
-  const glowPx    = params.glow * (12 + (beatHit ? 18 : 0)) + bass * 14
 
   const layers = [
     {
@@ -1060,11 +1160,11 @@ function drawWaveformOnTrail(
   for (const layer of layers) {
     tctx.save()
     tctx.globalAlpha              = layer.alpha * intMul
-    tctx.globalCompositeOperation = 'screen'
+    tctx.globalCompositeOperation = blendMode
     tctx.strokeStyle              = layer.color
     tctx.lineWidth                = (1.2 + bass * 2) * dpr * params.intensity
     tctx.shadowColor              = layer.color
-    tctx.shadowBlur               = glowPx * (layer.alpha > 0.8 ? 1 : 0.4)
+    tctx.shadowBlur               = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX
     tctx.lineCap                  = 'round'
     tctx.lineJoin                 = 'round'
     tctx.beginPath()
@@ -1091,23 +1191,23 @@ function drawLissajousOnTrail(
   preset: ReactPreset,
   params: ReactRenderParams,
   intMul: number,
+  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
 ): void {
-  const { audio, timeDomainData, freqData, beatHit } = frame
+  const { audio, timeDomainData, freqData } = frame
   const bass  = audio.bass * params.bassReactivity
   const pts   = 512
   const cx2 = W / 2,
     cy2 = H / 2
   const scale = Math.min(W, H) * 0.42 * (1 + bass * 0.12) * params.intensity
 
-  const glowPx = params.glow * (14 + (beatHit ? 20 : 0))
   const col    = preset.palette.primary
 
   tctx.save()
-  tctx.globalCompositeOperation = 'screen'
+  tctx.globalCompositeOperation = blendMode
   tctx.strokeStyle              = col
   tctx.lineWidth                = (0.9 + bass * 1.5) * dpr * params.intensity
   tctx.shadowColor              = col
-  tctx.shadowBlur               = glowPx
+  tctx.shadowBlur               = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX
   tctx.globalAlpha              = 0.85 * intMul
   tctx.lineCap                  = 'round'
   tctx.lineJoin                 = 'round'
@@ -1124,7 +1224,7 @@ function drawLissajousOnTrail(
 
   tctx.strokeStyle = preset.palette.accent
   tctx.shadowColor = preset.palette.accent
-  tctx.shadowBlur  = glowPx * 0.5
+  tctx.shadowBlur  = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX * 0.5
   tctx.lineWidth  *= 0.4
   tctx.globalAlpha = 0.3 * intMul
   tctx.stroke()
@@ -1143,22 +1243,22 @@ function drawRadialScopeOnTrail(
   preset: ReactPreset,
   params: ReactRenderParams,
   intMul: number,
+  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
 ): void {
-  const { audio, timeDomainData, beatHit } = frame
+  const { audio, timeDomainData } = frame
   const bass   = audio.bass * params.bassReactivity
   const cx2 = W / 2,
     cy2 = H / 2
   const baseR  = Math.min(W, H) * 0.3 * params.intensity
   const pts    = 256
-  const glowPx = params.glow * (10 + (beatHit ? 16 : 0)) + bass * 10
   const col    = preset.palette.secondary
 
   tctx.save()
-  tctx.globalCompositeOperation = 'screen'
+  tctx.globalCompositeOperation = blendMode
   tctx.strokeStyle              = col
   tctx.lineWidth                = (1.0 + bass * 1.8) * dpr * params.intensity
   tctx.shadowColor              = col
-  tctx.shadowBlur               = glowPx
+  tctx.shadowBlur               = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX
   tctx.globalAlpha              = 0.9 * intMul
   tctx.lineCap                  = 'round'
   tctx.beginPath()
@@ -1197,21 +1297,21 @@ function drawSpiralScopeOnTrail(
   preset: ReactPreset,
   params: ReactRenderParams,
   intMul: number,
+  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
 ): void {
-  const { audio, freqData, t, beatHit } = frame
+  const { audio, freqData, t } = frame
   const bass   = audio.bass * params.bassReactivity
   const cx2 = W / 2,
     cy2 = H / 2
   const pts    = 360
-  const glowPx = params.glow * (12 + (beatHit ? 18 : 0))
   const col    = preset.palette.primary
 
   tctx.save()
-  tctx.globalCompositeOperation = 'screen'
+  tctx.globalCompositeOperation = blendMode
   tctx.strokeStyle              = col
   tctx.lineWidth                = (0.8 + bass * 1.2) * dpr * params.intensity
   tctx.shadowColor              = col
-  tctx.shadowBlur               = glowPx
+  tctx.shadowBlur               = SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX
   tctx.globalAlpha              = 0.85 * intMul
   tctx.lineCap                  = 'round'
   tctx.beginPath()
@@ -1334,6 +1434,7 @@ function drawPathScopeOnTrail(
   intMul: number,
   sectionType: ReactSectionType | null,
   runtimeKey = 'global',
+  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
 ): void {
   const lyricDriven = resolveLyricDrivenOscillator(params.oscillator, runtimeKey)
   if (!lyricDriven.visible) return
@@ -1516,6 +1617,14 @@ function drawPathScopeOnTrail(
   const sourceGroups = Array.from(pathIndexGroups.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([, indices]) => indices)
+
+  // Inverse-velocity stroke modulation: only meaningful for sources that carry
+  // pre-resample spacing data (text/font glyphs). Built-in shapes and SVG have no
+  // signal, so groups fall back to the original uniform-alpha stroke unchanged.
+  const hasVelocityData = basePoints.some((p) => p.velocityRatio !== undefined)
+  const ratioGroups: (number | undefined)[][] | null = hasVelocityData
+    ? sourceGroups.map((indices) => indices.map((i) => basePoints[i].velocityRatio))
+    : null
 
   // Per-character audio transform setup.
   // charCenters is non-null only when text points carry characterIndex metadata.
@@ -1753,7 +1862,7 @@ function drawPathScopeOnTrail(
     if (isMain) mainTraceGroups = screenGroups
 
     tctx.save()
-    tctx.globalCompositeOperation = 'screen'
+    tctx.globalCompositeOperation = blendMode
     tctx.lineCap  = 'round'
     tctx.lineJoin = 'round'
 
@@ -1764,7 +1873,9 @@ function drawPathScopeOnTrail(
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.2 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
-        for (const group of screenGroups) drawConnectedPath(tctx, group, close)
+        for (let g = 0; g < screenGroups.length; g++) {
+          drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+        }
         break
       }
       case 'multiTrace': {
@@ -1774,14 +1885,18 @@ function drawPathScopeOnTrail(
           tctx.shadowColor = preset.palette.accent
           tctx.shadowBlur  = glowBase * 0.8
           tctx.lineWidth   = (2.5 + bass * 2.5) * am.lineWidthBoost * dpr
-          for (const group of screenGroups) drawConnectedPath(tctx, group, close)
+          for (let g = 0; g < screenGroups.length; g++) {
+            drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+          }
         }
         tctx.globalAlpha = traceAlpha * intMul
         tctx.strokeStyle = traceColor
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.0 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
-        for (const group of screenGroups) drawConnectedPath(tctx, group, close)
+        for (let g = 0; g < screenGroups.length; g++) {
+          drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+        }
         break
       }
       case 'dots': {
@@ -1800,14 +1915,18 @@ function drawPathScopeOnTrail(
         tctx.shadowColor = preset.palette.accent
         tctx.shadowBlur  = glowBase * 1.2
         tctx.lineWidth   = (5 + bass * 5) * am.lineWidthBoost * dpr
-        for (const group of screenGroups) drawConnectedPath(tctx, group, close)
+        for (let g = 0; g < screenGroups.length; g++) {
+          drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+        }
         // Inner trace pass (thin, full alpha) — all groups second
         tctx.globalAlpha = traceAlpha * intMul
         tctx.strokeStyle = traceColor
         tctx.shadowColor = traceColor
         tctx.shadowBlur  = glowBase
         tctx.lineWidth   = (1.5 + bass * 1.5) * am.lineWidthBoost * dpr * intensityLineBoost
-        for (const group of screenGroups) drawConnectedPath(tctx, group, close)
+        for (let g = 0; g < screenGroups.length; g++) {
+          drawConnectedPathWithVelocity(tctx, screenGroups[g], ratioGroups?.[g] ?? null, close)
+        }
         break
       }
     }
@@ -1819,7 +1938,7 @@ function drawPathScopeOnTrail(
   // Iterates over the same per-pathIndex groups so no cross-path connector lines appear here either.
   if (am.beatPulse > 0.05 && mainTraceGroups) {
     tctx.save()
-    tctx.globalCompositeOperation = 'screen'
+    tctx.globalCompositeOperation = blendMode
     tctx.strokeStyle = preset.palette.accent
     tctx.shadowColor = preset.palette.accent
     tctx.shadowBlur  = glowBase * 2.5
@@ -1827,7 +1946,9 @@ function drawPathScopeOnTrail(
     tctx.globalAlpha = 0.5 * am.beatPulse * effectiveOsc.beatBloom * intMul
     tctx.lineCap     = 'round'
     tctx.lineJoin    = 'round'
-    for (const group of mainTraceGroups) drawConnectedPath(tctx, group, close)
+    for (let g = 0; g < mainTraceGroups.length; g++) {
+      drawConnectedPathWithVelocity(tctx, mainTraceGroups[g], ratioGroups?.[g] ?? null, close)
+    }
     tctx.restore()
   }
 }
@@ -1849,13 +1970,14 @@ function clearSoundDrawingTrail(ctx: CanvasRenderingContext2D, W: number, H: num
   const trailCanvas = getTrail(ctx, W, H)
   const trailContext = trailCanvas.getContext('2d')
   if (trailContext) {
+    // Under additive blending the trail buffer holds light energy on a transparent
+    // base (the background is composited underneath separately by callers) — reset
+    // to fully transparent, not opaque background color.
     trailContext.save()
     trailContext.setTransform(1, 0, 0, 1, 0, 0)
     trailContext.globalCompositeOperation = 'source-over'
     trailContext.globalAlpha = 1
     trailContext.clearRect(0, 0, trailCanvas.width, trailCanvas.height)
-    trailContext.fillStyle = background
-    trailContext.fillRect(0, 0, trailCanvas.width, trailCanvas.height)
     trailContext.restore()
   }
 
@@ -1870,6 +1992,7 @@ function clearSoundDrawingTrail(ctx: CanvasRenderingContext2D, W: number, H: num
   twistSignMap.delete(ctx)
   twistPhasePrevMap.delete(ctx)
   rotPhaseMap.delete(ctx)
+  trailDecayTimeMap.delete(ctx)
 }
 
 function resetTrailForRevisionIfNeeded(
@@ -1962,8 +2085,8 @@ function renderSoundDrawingClips(
   const tctx        = trailCanvas.getContext('2d')
   if (!tctx) return
 
-  const decayRate = params.trailDecay * 0.25 + 0.01
-  fadeTrail(trailCanvas, preset.palette.background, decayRate)
+  const dtSeconds = tickTrailDeltaSeconds(ctx, frame.t)
+  fadeTrail(trailCanvas, computeSoundDrawingTrailDecayAlpha(params.trailDecay, dtSeconds))
 
   // Continue fading and repainting during gaps instead of leaving the final
   // lyric frame frozen on the canvas.
@@ -1999,7 +2122,10 @@ function renderSoundDrawingClips(
     tctx.scale(s, s)
     tctx.translate(-W / 2, -H / 2)
 
-    drawPathScopeOnTrail(tctx, W, H, dpr, frame, preset, effectiveParams, clipAlpha, sectionType, `layer:${layer.id}`)
+    drawPathScopeOnTrail(
+      tctx, W, H, dpr, frame, preset, effectiveParams, clipAlpha, sectionType, `layer:${layer.id}`,
+      SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
+    )
 
     tctx.restore()
   }
@@ -2240,7 +2366,9 @@ function renderPerformanceLayer(
       if (!livingRibbon.rendered) {
         // Preserve a basic audio-reactive visual when the simulation or Canvas2D
         // path fails. The existing harmonic ribbon path is deliberately retained.
-        drawWaveformOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+        drawWaveformOnTrail(
+          tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+        )
       }
     } else if (layer.source.kind === 'svg' && layer.source.renderMode === 'original-artwork') {
       drawOriginalArtworkPerformanceLayer(tctx, layerFrame, layerPreset, effectiveParams, layer, layer.source.svgId)
@@ -2256,20 +2384,29 @@ function renderPerformanceLayer(
         effectiveParams.intensity,
         sectionType,
         `performance:${performance.showId}:${layer.id}`,
+        layer.blendMode,
       )
     } else {
       switch (layer.classicMode) {
         case 'lissajous':
-          drawLissajousOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+          drawLissajousOnTrail(
+            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+          )
           break
         case 'radialScope':
-          drawRadialScopeOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+          drawRadialScopeOnTrail(
+            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+          )
           break
         case 'spiralScope':
-          drawSpiralScopeOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+          drawSpiralScopeOnTrail(
+            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+          )
           break
         default:
-          drawWaveformOnTrail(tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity)
+          drawWaveformOnTrail(
+            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+          )
           break
       }
     }
@@ -2449,7 +2586,7 @@ function renderAuthoredSoundDrawingPerformance(
     0.02,
     0.32,
   )
-  fadeTrail(trailCanvas, preset.palette.background, decayRate)
+  fadeTrail(trailCanvas, decayRate)
 
   const livingRibbonFailures = [...preparation.diagnostics]
   for (const layer of performance.layers) {
@@ -2668,26 +2805,29 @@ export function renderSoundDrawing(
   const tctx        = trailCanvas.getContext('2d')
   if (!tctx) return
 
-  // Fade trail
-  const decayRate = params.trailDecay * 0.25 + 0.01
-  fadeTrail(trailCanvas, preset.palette.background, decayRate)
+  // Fade trail (frame-rate independent; erases toward zero energy under additive blending)
+  const dtSeconds = tickTrailDeltaSeconds(ctx, frame.t)
+  fadeTrail(trailCanvas, computeSoundDrawingTrailDecayAlpha(params.trailDecay, dtSeconds))
 
   // Draw new scope frame onto trail canvas
   switch (mode) {
     case 'lissajous':
-      drawLissajousOnTrail(tctx, W, H, dpr, frame, preset, params, intMul)
+      drawLissajousOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
       break
     case 'radialScope':
-      drawRadialScopeOnTrail(tctx, W, H, dpr, frame, preset, params, intMul)
+      drawRadialScopeOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
       break
     case 'spiralScope':
-      drawSpiralScopeOnTrail(tctx, W, H, dpr, frame, preset, params, intMul)
+      drawSpiralScopeOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
       break
     case 'pathScope':
-      drawPathScopeOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, sectionType)
+      drawPathScopeOnTrail(
+        tctx, W, H, dpr, frame, preset, params, intMul, sectionType, 'global',
+        SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
+      )
       break
     default:
-      drawWaveformOnTrail(tctx, W, H, dpr, frame, preset, params, intMul)
+      drawWaveformOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
   }
 
   // Composite trail onto main canvas

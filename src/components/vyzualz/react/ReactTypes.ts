@@ -83,6 +83,8 @@ export interface OscillatorGlyphPoint {
   localProgress?: number
   /** 0-based line index for multiline text; absent (treated as 0) for single-line text. */
   lineIndex?: number
+  /** Normalized 0..1 inverse-velocity ratio from pre-resample source spacing; absent for sources that don't resample (built-in shapes, SVG). */
+  velocityRatio?: number
 }
 
 export interface OscillatorGlyphAsset {

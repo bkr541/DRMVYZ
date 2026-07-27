@@ -2,7 +2,7 @@ import * as opentype from 'opentype.js'
 import type { OscillatorGlyphPoint, OscillatorFontAsset } from '../ReactTypes'
 import {
   computePathNormals,
-  resamplePoints,
+  resamplePointsWithVelocity,
   generateBuiltinShapePoints,
 } from './oscillatorPathUtils'
 
@@ -452,8 +452,8 @@ export function textToOpenTypeGlyphPoints(
         characterIndex: rc.characterIndex,
         glyphIndex:     rc.glyphFontIndex,
       }))
-      const resampled = resamplePoints(rawPts, allocated)
-      for (const p of resampled) allPoints.push(p)
+      const { points: resampled, velocityRatio } = resamplePointsWithVelocity(rawPts, allocated)
+      for (let i = 0; i < resampled.length; i++) allPoints.push({ ...resampled[i], velocityRatio: velocityRatio[i] })
     }
 
     if (allPoints.length === 0) return generateBuiltinShapePoints('circle', n)

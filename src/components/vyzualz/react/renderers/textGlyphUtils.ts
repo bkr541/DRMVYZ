@@ -2,7 +2,7 @@ import type { OscillatorGlyphPoint, OscillatorGlyphAsset } from '../ReactTypes'
 import {
   computePathNormals,
   generateBuiltinShapePoints,
-  resamplePoints,
+  resamplePointsWithVelocity,
 } from './oscillatorPathUtils'
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -124,8 +124,8 @@ export function assembleCharacterPoints(
       characterIndex: ac.charIdx,
       glyphIndex:     ac.glyphIdx,
     }))
-    const resampled = resamplePoints(rawPts, allocated)
-    for (const p of resampled) allPoints.push(p)
+    const { points: resampled, velocityRatio } = resamplePointsWithVelocity(rawPts, allocated)
+    for (let i = 0; i < resampled.length; i++) allPoints.push({ ...resampled[i], velocityRatio: velocityRatio[i] })
     pointsEmitted += resampled.length
   }
 
@@ -267,8 +267,8 @@ function rasterizeLineRaw(
       glyphIndex:     chars[ac.ci].codePointAt(0) ?? 0,
     }))
 
-    const resampled = resamplePoints(rawPts, allocated)
-    for (const p of resampled) points.push(p)
+    const { points: resampled, velocityRatio } = resamplePointsWithVelocity(rawPts, allocated)
+    for (let i = 0; i < resampled.length; i++) points.push({ ...resampled[i], velocityRatio: velocityRatio[i] })
     pointsEmitted += resampled.length
   }
 

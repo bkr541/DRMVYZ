@@ -113,6 +113,69 @@ export function resamplePoints(
   return result
 }
 
+export interface ResampledPointsWithVelocity {
+  points: OscillatorGlyphPoint[]
+  /** Same length as `points`. 0..1, normalized; low pre-resample source velocity → high value. */
+  velocityRatio: number[]
+}
+
+/**
+ * Like `resamplePoints`, but also derives a per-point "inverse velocity" ratio from
+ * the PRE-resample point spacing: densely-packed source points (cusps, corners, tight
+ * curvature in a vector outline) produce a high ratio; sparse source points (long
+ * straight runs) produce a low ratio. The resampled points themselves are uniformly
+ * spaced by construction and carry no such signal — this samples the pre-resample
+ * spacing at each resampled point's arc-length position instead of recomputing from
+ * the (uniform) output.
+ *
+ * Values are normalized to 0..1 against the densest point in this call, so callers
+ * get a stable, bounded modulation range regardless of the source geometry's scale.
+ */
+export function resamplePointsWithVelocity(
+  points: OscillatorGlyphPoint[],
+  targetCount: number,
+): ResampledPointsWithVelocity {
+  const resampled = resamplePoints(points, targetCount)
+  if (points.length < 2 || targetCount <= 1) {
+    return { points: resampled, velocityRatio: resampled.map(() => 1) }
+  }
+
+  const cumLen: number[] = [0]
+  const localSpacing: number[] = [0]
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x
+    const dy = points[i].y - points[i - 1].y
+    const seg = Math.sqrt(dx * dx + dy * dy)
+    cumLen.push(cumLen[cumLen.length - 1] + seg)
+    localSpacing.push(seg)
+  }
+  const totalLen = cumLen[cumLen.length - 1]
+  if (totalLen === 0) {
+    return { points: resampled, velocityRatio: resampled.map(() => 1) }
+  }
+  const avgSpacing = totalLen / (points.length - 1)
+
+  // Mirror resamplePoints' own arc-length walk so the sampled spacing stays in
+  // registration with the resampled point it corresponds to.
+  const rawRatios: number[] = []
+  let srcIdx = 0
+  for (let i = 0; i < targetCount; i++) {
+    const targetDist = (i / (targetCount - 1)) * totalLen
+    while (srcIdx < points.length - 2 && cumLen[srcIdx + 1] < targetDist) srcIdx++
+    const spacing = localSpacing[Math.min(srcIdx + 1, localSpacing.length - 1)] || avgSpacing
+    // Dense original points (small spacing) → low local velocity → high ratio.
+    rawRatios.push(avgSpacing / Math.max(1e-6, spacing))
+  }
+
+  let maxRatio = 0
+  for (const r of rawRatios) if (r > maxRatio) maxRatio = r
+  const velocityRatio = maxRatio > 0
+    ? rawRatios.map((r) => clamp(r / maxRatio, 0, 1))
+    : rawRatios.map(() => 1)
+
+  return { points: resampled, velocityRatio }
+}
+
 // ── Transform ─────────────────────────────────────────────────────────────────
 
 export interface TransformOptions {
