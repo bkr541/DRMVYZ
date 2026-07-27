@@ -4,6 +4,7 @@ import {
   resolveVectorBeamOpticalProfile,
   resolveVectorBeamSegmentAppearance,
   resolveVectorBeamSegmentExposure,
+  velocityRatioFromSpacingPx,
 } from '../VectorBeamRasterizer'
 import type { VectorBeamColor, VectorBeamSegment } from '../VectorBeamTypes'
 
@@ -68,6 +69,51 @@ describe('resolveVectorBeamSegmentExposure', () => {
     const full = resolveVectorBeamSegmentExposure(segment(CYAN), 1)
     const half = resolveVectorBeamSegmentExposure(segment(CYAN), 0.5)
     expect(half).toBeLessThan(full)
+  })
+
+  // Regression: velocityRatio was previously carried all the way through the
+  // pipeline (built by resamplePointsWithVelocity, stored on every segment) and
+  // then silently ignored here, so inverse-velocity brightness — the single
+  // largest fidelity gap vs. reference footage — never reached the screen.
+  it('increases with velocityRatio (slow beam = brighter) at fixed density and dwell', () => {
+    const fast = resolveVectorBeamSegmentExposure(segment(CYAN, { velocityRatio: 0 }))
+    const mid = resolveVectorBeamSegmentExposure(segment(CYAN, { velocityRatio: 0.5 }))
+    const slow = resolveVectorBeamSegmentExposure(segment(CYAN, { velocityRatio: 1 }))
+    expect(fast).toBeLessThan(mid)
+    expect(mid).toBeLessThan(slow)
+  })
+
+  it('dims a maximum-velocity segment to 40% of an otherwise identical stationary one, matching the WebGL scene\'s mix(0.4, 1.0, velocityRatio)', () => {
+    const fast = resolveVectorBeamSegmentExposure(segment(CYAN, { velocityRatio: 0 }))
+    const slow = resolveVectorBeamSegmentExposure(segment(CYAN, { velocityRatio: 1 }))
+    expect(fast / slow).toBeCloseTo(0.4, 5)
+  })
+
+  it('velocity modulation survives into the rendered appearance, not just the exposure number', () => {
+    const fast = resolveVectorBeamSegmentAppearance(segment(CYAN, { velocityRatio: 0 }))
+    const slow = resolveVectorBeamSegmentAppearance(segment(CYAN, { velocityRatio: 1 }))
+    expect(parseRgba(slow.coreColor).a).toBeGreaterThan(parseRgba(fast.coreColor).a)
+  })
+})
+
+describe('velocityRatioFromSpacingPx', () => {
+  it('is 0..1 and decreases as the beam covers more ground per sample', () => {
+    const still = velocityRatioFromSpacingPx(0)
+    const slow = velocityRatioFromSpacingPx(2)
+    const fast = velocityRatioFromSpacingPx(60)
+    expect(still).toBe(1)
+    expect(slow).toBeLessThan(still)
+    expect(fast).toBeLessThan(slow)
+    expect(fast).toBeGreaterThan(0)
+  })
+
+  it('reads 0.5 at the reference spacing', () => {
+    expect(velocityRatioFromSpacingPx(6)).toBeCloseTo(0.5, 5)
+  })
+
+  it('is robust to non-finite and negative input', () => {
+    expect(velocityRatioFromSpacingPx(Number.NaN)).toBe(1)
+    expect(velocityRatioFromSpacingPx(-10)).toBe(1)
   })
 })
 
@@ -178,6 +224,26 @@ describe('rasterizeVectorBeamSegments', () => {
     // A uniform straight run should collapse to a small, bounded number of
     // stroke() calls (halo + core), not one call per segment (200+).
     expect((ctx.stroke as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThan(10)
+  })
+
+  it('splits a velocity-varying run into more than one batch, so inverse-velocity brightness is actually visible', () => {
+    const ctx = recordingContext()
+    const ramp: VectorBeamSegment[] = Array.from({ length: 60 }, (_, i) => ({
+      origin: { x: i, y: 0 },
+      target: { x: i + 1, y: 0 },
+      color: CYAN,
+      density: 1,
+      dwellWeight: 0,
+      velocityRatio: i / 59, // sweeps from fastest to slowest
+      historyWeight: 1,
+    }))
+    rasterizeVectorBeamSegments(ctx, ramp)
+    const strokeCalls = (ctx.stroke as ReturnType<typeof vi.fn>).mock.calls.length
+    // More than the 2 calls a uniform run collapses to — the ramp genuinely
+    // renders at differing brightness rather than being flattened.
+    expect(strokeCalls).toBeGreaterThan(2)
+    // ...but still bounded by APPEARANCE_BUCKETS (12) × 2 passes, not 1 per segment.
+    expect(strokeCalls).toBeLessThanOrEqual(12 * 2 + 2)
   })
 
   it('restores canvas state after drawing', () => {

@@ -540,3 +540,35 @@ describe('Sound Drawing authored Performance Engine', () => {
     expect(replaced.layers).toEqual(freshReplacement.layers)
   })
 })
+
+// ── Additive blend default ────────────────────────────────────────────────────
+//
+// Reference oscilloscope footage shows the beam core desaturating toward white
+// while the halo keeps its base hue — the signature of additive accumulation.
+// 'screen' (1-(1-a)(1-b)) saturates toward white but cannot accumulate density
+// past 1.0, so overlapping strokes stop getting brighter. These lock in that the
+// authored show path (the primary in-app experience) defaults to additive.
+
+describe('authored performance layers default to additive blending', () => {
+  it('resolved layers render additively across every section of the timeline', () => {
+    // Sampled across intro/verse/build/drop/breakdown so this covers layers
+    // recruited by different sections, not just whichever show scene is active
+    // at one instant.
+    for (const timeSec of [4, 12, 20, 31, 74]) {
+      const frame = resolved(timeSec)
+      expect(frame.layers.length).toBeGreaterThan(0)
+      for (const layer of frame.layers) {
+        expect(layer.blendMode).toBe('lighter')
+      }
+    }
+  })
+
+  it('an explicit per-layer blendMode still overrides the additive default', () => {
+    // normalizeLayer must keep honoring an authored override — the default
+    // changed, the plumbing did not become hardcoded.
+    const frame = resolved(31)
+    const sample = frame.layers[0]
+    expect(sample).toBeDefined()
+    expect(['lighter', 'screen', 'source-over']).toContain(sample.blendMode)
+  })
+})

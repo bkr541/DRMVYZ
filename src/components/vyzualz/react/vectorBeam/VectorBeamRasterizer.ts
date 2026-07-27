@@ -27,6 +27,26 @@ function clamp01(value: number): number {
   return clamp(value, 0, 1)
 }
 
+/**
+ * On-screen spacing (px) between consecutive beam samples at which
+ * `velocityRatio` reads 0.5. Mirrors the WebGL vectorscope geometry builder's
+ * own VELOCITY_REFERENCE_SPACING (which works in -1..1 XY space, hence the
+ * different absolute value) so both stacks use the same falloff shape.
+ */
+const VECTOR_BEAM_VELOCITY_REFERENCE_SPACING_PX = 6
+
+/**
+ * Derives an inverse-velocity ratio (0..1, low velocity = high value) from the
+ * on-screen distance a beam travels in one sample step. Used for point sources
+ * that carry no measured pre-resample velocity signal (built-in shapes, SVG):
+ * closely-spaced samples mean a slow-moving beam and therefore a brighter,
+ * longer-dwelled stroke.
+ */
+export function velocityRatioFromSpacingPx(spacingPx: number): number {
+  const s = Math.max(0, Number.isFinite(spacingPx) ? spacingPx : 0)
+  return VECTOR_BEAM_VELOCITY_REFERENCE_SPACING_PX / (VECTOR_BEAM_VELOCITY_REFERENCE_SPACING_PX + s)
+}
+
 // A vector/oscilloscope beam has no lens, iris, or fixture housing — it is
 // always in tight focus with a single, narrow ray. 'laser' plus these fixed
 // values give resolveLaserDmxBeamOpticalProfile the closest physical analogue
@@ -65,9 +85,34 @@ function whitenedCssColor(linearBase: LaserDmxSceneColor, energy: number, coreEn
   return `rgba(${r}, ${g}, ${b}, ${clamp01(alpha).toFixed(3)})`
 }
 
-/** Combined 0..1 exposure driver: density weighted up by dwell time, the physical reason cusps read brighter. */
+/**
+ * Brightness floor for a segment swept at maximum velocity (velocityRatio = 0).
+ * Kept identical to the WebGL vectorscope scene's own `mix(0.4, 1.0, v_velocityRatio)`
+ * so the Canvas2D and WebGL stacks agree on how strongly beam speed dims a stroke.
+ */
+const VECTOR_BEAM_VELOCITY_BRIGHTNESS_MIN = 0.4
+
+/**
+ * Combined 0..1 exposure driver.
+ *
+ * Three physical contributions, all multiplicative:
+ *  - `density`: the segment's own base exposure.
+ *  - `dwellWeight`: extra exposure at cusps/corners, where the beam lingers.
+ *  - `velocityRatio`: inverse-velocity brightness — a real beam deposits energy
+ *    in proportion to dwell time, so fast sweeps read dim and slow ones read
+ *    bright. This is the dominant reason reference oscilloscope footage shows
+ *    bright knots at turning points and dim fast runs; without it a trace
+ *    renders as a uniformly-lit polyline.
+ *
+ * `velocityRatio` is 0..1 with LOW velocity = HIGH value, so it maps directly
+ * onto brightness (1 = slow = full brightness).
+ */
 export function resolveVectorBeamSegmentExposure(segment: VectorBeamSegment, masterIntensity = 1): number {
-  return clamp01(segment.density * (0.55 + clamp01(segment.dwellWeight) * 0.45) * clamp01(masterIntensity))
+  const dwellTerm = 0.55 + clamp01(segment.dwellWeight) * 0.45
+  const velocityTerm =
+    VECTOR_BEAM_VELOCITY_BRIGHTNESS_MIN +
+    (1 - VECTOR_BEAM_VELOCITY_BRIGHTNESS_MIN) * clamp01(segment.velocityRatio)
+  return clamp01(segment.density * dwellTerm * velocityTerm * clamp01(masterIntensity))
 }
 
 export interface VectorBeamAppearance {

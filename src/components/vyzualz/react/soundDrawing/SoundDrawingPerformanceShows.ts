@@ -122,7 +122,13 @@ function layer(
     audioDisplacement: 0.14,
     jitter: 0.04,
     particleCount: 0,
-    blendMode: 'screen',
+    // Additive, not 'screen'. Reference oscilloscope footage shows the beam core
+    // desaturating toward white while the halo keeps its base hue — that is the
+    // signature of additive accumulation. 'screen' (1-(1-a)(1-b)) saturates toward
+    // white but cannot accumulate density past 1.0, so overlapping strokes stop
+    // getting brighter and the core/halo separation collapses. Individual layers
+    // can still override this via their own blendMode in the `patch` spread below.
+    blendMode: 'lighter',
     modulationRoutes: [bassScaleRoute(`${id}-bass`), energyGlowRoute(`${id}-energy`)],
     eventBindings: roleEventBindings(id, role),
     ...patch,

@@ -63,7 +63,7 @@ import {
   resetLivingRibbonCanvasRuntimes,
   usesLivingRibbonCanvasRenderer,
 } from './LivingRibbonCanvas2DRenderer'
-import { rasterizeVectorBeamSegments } from '../vectorBeam/VectorBeamRasterizer'
+import { rasterizeVectorBeamSegments, velocityRatioFromSpacingPx } from '../vectorBeam/VectorBeamRasterizer'
 import type { VectorBeamColor, VectorBeamPoint, VectorBeamSegment } from '../vectorBeam/VectorBeamTypes'
 import {
   applyVectorBeamScannerKinematics,
@@ -144,14 +144,15 @@ function tickTrailDeltaSeconds(ctx: CanvasRenderingContext2D, t: number): number
 
 // ── Inverse-velocity stroke modulation ────────────────────────────────────────
 // Physical oscilloscope beams dwell longer (brighter) at cusps/turning points and
-// sweep faster (dimmer) across straight runs. velocityRatio (from resamplePointsWithVelocity)
-// is 0..1, low sweep velocity → high ratio. Sources without the signal (built-in
-// shapes, SVG) fall back to the original uniform-alpha stroke unchanged.
-const SOUND_DRAWING_VELOCITY_ALPHA_MIN = 0.45
-const SOUND_DRAWING_VELOCITY_ALPHA_MAX = 1.0
-const SOUND_DRAWING_VELOCITY_LINE_WIDTH_AMOUNT = 0.12
-const SOUND_DRAWING_VELOCITY_RUN_BUCKETS = 10
-const SOUND_DRAWING_TIGHT_GLOW_RADIUS_PX = 2
+// sweep faster (dimmer) across straight runs. velocityRatio (from
+// resamplePointsWithVelocity, or derived from segment length when that signal is
+// absent) is 0..1, low sweep velocity → high ratio, and is consumed by
+// resolveVectorBeamSegmentExposure in the shared vector-beam rasterizer.
+//
+// The alpha/line-width/bucket/glow-radius tuning constants that used to live here
+// were superseded by that shared rasterizer, which owns stroke appearance for
+// every trace path (core+halo widths and colors come from LaserDmxBeamOptics /
+// LaserDmxColorScience, run batching from its own APPEARANCE_BUCKETS).
 
 // ── Twist sign (per canvas context) ──────────────────────────────────────────
 // When altTwist is enabled the sign flips on every beat, producing true
@@ -1111,7 +1112,17 @@ function buildVectorBeamSegmentsFromPoints(
       dwellWeight = clamp(turnAngle / 150, 0, 1)
     }
 
-    const velocityRatio = clamp(velocityRatios?.[originIdx] ?? (1 - dwellWeight * 0.5), 0, 1)
+    // Prefer the measured pre-resample velocity signal (text/font glyph sources).
+    // Otherwise derive it from this segment's own on-screen length: a short hop
+    // means a slow beam and therefore a brighter, longer-dwelled stroke. The old
+    // fallback (1 - dwellWeight * 0.5) was physically inverted — it made corners,
+    // which are the SLOWEST part of a sweep, read as the fastest.
+    const measuredRatio = velocityRatios?.[originIdx]
+    const velocityRatio = clamp(
+      measuredRatio ?? velocityRatioFromSpacingPx(Math.hypot(target.x - origin.x, target.y - origin.y)),
+      0,
+      1,
+    )
     segments.push({
       origin,
       target,

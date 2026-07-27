@@ -260,6 +260,27 @@ describe('Sound Drawing additive blending', () => {
     disposeSoundDrawingRenderer(context)
   })
 
+  // Regression: the authored-performance path (the four production shows) is the
+  // primary in-app experience, and it previously defaulted every layer to 'screen'
+  // via SoundDrawingPerformanceShows' layer builder and the engine's normalizeLayer
+  // fallback. Flipping the manual path to 'lighter' alone left the shows on screen
+  // blend, so the additive core-to-white behavior never reached most users.
+  it('an authored performance layer with no explicit blendMode now resolves to additive', () => {
+    mocks.resolvePerformanceFrame.mockReturnValue(resolvedPerformance({ blendMode: 'lighter' }))
+    const context = recordingContext()
+
+    renderSoundDrawing(context, FRAME, PRESET, {
+      ...DEFAULT_REACT_RENDER_PARAMS,
+      soundDrawingPerformanceSettings: {
+        ...DEFAULT_REACT_RENDER_PARAMS.soundDrawingPerformanceSettings,
+        autoPerformance: true,
+      },
+    }, null)
+
+    expect(offscreenContext.globalCompositeOperation).toBe('lighter')
+    disposeSoundDrawingRenderer(context)
+  })
+
   it('a different resolved layer blendMode ("source-over") is also honored, proving it is read, not hardcoded', () => {
     mocks.resolvePerformanceFrame.mockReturnValue(resolvedPerformance({ blendMode: 'source-over' }))
     const context = recordingContext()

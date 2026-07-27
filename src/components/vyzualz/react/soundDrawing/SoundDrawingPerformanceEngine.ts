@@ -363,7 +363,10 @@ function normalizeLayer(layer: SoundDrawingPerformanceLayerBlueprint): SoundDraw
     role: layer.role,
     enabled: layer.enabled !== false,
     generator,
-    blendMode: layer.blendMode ?? 'screen',
+    // Matches the authored-show layer default (see SoundDrawingPerformanceShows).
+    // Additive accumulation is what produces the core-to-white / halo-to-hue
+    // behavior of a real scope beam; 'screen' clamps density at 1.0 and cannot.
+    blendMode: layer.blendMode ?? 'lighter',
     opacity: clamp01(layer.opacity ?? 0.8),
     strokeWidth: clamp(layer.strokeWidth ?? 1, 0.25, 3),
     traceCount: Math.round(clamp(layer.traceCount ?? 1, 1, MAX_SOUND_DRAWING_PERFORMANCE_TRACES)),
