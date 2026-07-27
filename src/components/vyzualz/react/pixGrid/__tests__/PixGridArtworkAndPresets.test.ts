@@ -37,7 +37,7 @@ const FRAME: PixGridAudioFrame = {
   isPlaying: true,
 }
 
-const AUTHORED_SECTION_TYPES = ['intro', 'verse', 'build', 'drop', 'breakdown', 'outro'] as const
+const AUTHORED_SECTION_TYPES = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro'] as const
 
 function cloneLayer(layer: PixGridLayer, overrides: Partial<PixGridLayer> = {}): PixGridLayer {
   return {
@@ -235,7 +235,7 @@ describe('PixGrid deterministic animation', () => {
 })
 
 describe('PixGrid finished presets', () => {
-  it('authors six meaningfully different section mappings for every preset', () => {
+  it('authors seven meaningfully different section mappings for every preset', () => {
     for (const preset of PIX_GRID_PRESETS) {
       expect(preset.sectionMappings.map(mapping => mapping.sectionType)).toEqual(AUTHORED_SECTION_TYPES)
       const settings = preset.pixGridSettings!.sceneSettings!

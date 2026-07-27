@@ -88,11 +88,13 @@ function completeSectionPlan(
     densityFor(plan.actions) ??
     (section === "drop"
       ? 1
-      : section === "build" || section === "preDrop"
-        ? 0.82
-        : section === "intro" || section === "outro"
-          ? 0.32
-          : 0.58);
+      : section === "build"
+        ? 0.78
+        : section === "preDrop"
+          ? 0.28
+          : section === "intro" || section === "outro"
+            ? 0.3
+            : 0.56);
   const negativeSpace = Math.max(0.08, Math.min(0.88, 1 - density * 0.72));
   return {
     ...plan,
@@ -104,12 +106,14 @@ function completeSectionPlan(
     motionState: plan.motionState ?? {
       amount:
         section === "drop"
-          ? 1.18
-          : section === "build" || section === "preDrop"
-            ? 1.08
-            : section === "breakdown"
-              ? 0.62
-              : 0.82,
+          ? 0.92
+          : section === "build"
+            ? 0.68
+            : section === "preDrop"
+              ? 0.08
+              : section === "breakdown"
+                ? 0.28
+                : 0.46,
       direction: "alternate",
       grammar: `${plan.id}-motion`,
     },
@@ -117,9 +121,11 @@ function completeSectionPlan(
       intensity:
         section === "drop"
           ? 1
-          : section === "build" || section === "preDrop"
-            ? 0.86
-            : 0.68,
+          : section === "build"
+            ? 0.82
+            : section === "preDrop"
+              ? 0.5
+              : 0.64,
       primaryRole: "primary",
       accentRole: "accent",
     },
@@ -167,7 +173,7 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
         target: { bankId: bank("bass-bank") },
         source: "bass",
         operation: "brightness",
-        amount: 0.34,
+        amount: 0.52,
         curve: "smoothstep",
         blend: "add",
         intensityScale: 0.8,
@@ -179,7 +185,7 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
         target: { bankId: bank("hero-bank") },
         source: "trackRelativeEnergy",
         operation: "brightness",
-        amount: 0.24,
+        amount: 0.16,
         curve: "easeOut",
         blend: "add",
         intensityScale: 0.72,
@@ -191,7 +197,7 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
         target: { bankId: bank("accent-bank") },
         source: "high",
         operation: "sparkleDensity",
-        amount: 0.28,
+        amount: 0.18,
         curve: "exponential",
         blend: "max",
         intensityScale: 0.7,
@@ -218,8 +224,8 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
         target: { bankId: bank("bass-bank") },
         event: "kick",
         operation: "brightness",
-        amount: 0.52,
-        envelope: { attack: 0, hold: 0.03, release: 0.16, curve: "easeOut" },
+        amount: 0.82,
+        envelope: { attack: 0, hold: 0.025, release: 0.14, curve: "easeOut" },
         retrigger: "restart",
         maximumStacking: 2,
         capabilityFallback: "beat",
@@ -231,8 +237,8 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
         target: { bankId: bank("snare-bank") },
         event: "snare",
         operation: "outlineFlash",
-        amount: 0.68,
-        envelope: { attack: 0, hold: 0.04, release: 0.2, curve: "easeOut" },
+        amount: 0.92,
+        envelope: { attack: 0, hold: 0.025, release: 0.14, curve: "easeOut" },
         retrigger: "extend",
         maximumStacking: 2,
         capabilityFallback: "transient",
@@ -245,8 +251,8 @@ function sharedRoutes(prefix: "bass" | "reactor" | "parade") {
         target: { bankId: bank("hat-bank") },
         event: "hat",
         operation: "sparkle",
-        amount: 0.36,
-        envelope: { attack: 0, hold: 0.015, release: 0.09, curve: "easeOut" },
+        amount: 0.24,
+        envelope: { attack: 0, hold: 0.012, release: 0.07, curve: "easeOut" },
         retrigger: "restart",
         maximumStacking: 3,
         capabilityFallback: "midHighActivity",
@@ -520,7 +526,7 @@ const COMMON_ARCS = [
       intro: 0.3,
       verse: 0.55,
       build: 0.78,
-      preDrop: 0.86,
+      preDrop: 0.3,
       drop: 1,
       breakdown: 0.4,
       outro: 0.26,
@@ -536,7 +542,7 @@ const COMMON_ARCS = [
       intro: 0.44,
       verse: 0.62,
       build: 0.84,
-      preDrop: 0.92,
+      preDrop: 0.52,
       drop: 1,
       breakdown: 0.5,
       outro: 0.36,
@@ -551,13 +557,13 @@ const COMMON_ARCS = [
       intro: 0.42,
       verse: 0.68,
       build: 0.96,
-      preDrop: 1.08,
-      drop: 1.16,
+      preDrop: 0.08,
+      drop: 0.92,
       breakdown: 0.48,
       outro: 0.32,
     },
     occurrenceDelta: 0.025,
-    clamp: [0.2, 1.35],
+    clamp: [0.04, 1.1],
   },
   {
     id: "contrast-arc",
@@ -567,7 +573,7 @@ const COMMON_ARCS = [
       intro: 0.55,
       verse: 0.68,
       build: 0.82,
-      preDrop: 0.92,
+      preDrop: 0.52,
       drop: 1,
       breakdown: 0.58,
       outro: 0.46,
@@ -581,7 +587,7 @@ const COMMON_ARCS = [
       intro: 0.64,
       verse: 0.42,
       build: 0.28,
-      preDrop: 0.2,
+      preDrop: 0.78,
       drop: 0.12,
       breakdown: 0.58,
       outro: 0.72,
@@ -596,7 +602,7 @@ const COMMON_ARCS = [
       intro: 0.22,
       verse: 0.48,
       build: 0.76,
-      preDrop: 0.88,
+      preDrop: 0.24,
       drop: 1,
       breakdown: 0.38,
       outro: 0.2,
@@ -611,7 +617,7 @@ const COMMON_ARCS = [
       intro: 0.35,
       verse: 0.62,
       build: 0.78,
-      preDrop: 0.9,
+      preDrop: 0.34,
       drop: 1,
       breakdown: 0.46,
       outro: 0.28,
@@ -626,7 +632,7 @@ const COMMON_ARCS = [
       intro: 0.24,
       verse: 0.54,
       build: 0.72,
-      preDrop: 0.82,
+      preDrop: 0.18,
       drop: 0.88,
       breakdown: 0.42,
       outro: 0.2,
@@ -641,7 +647,7 @@ const COMMON_ARCS = [
       intro: 0.16,
       verse: 0.34,
       build: 0.56,
-      preDrop: 0.66,
+      preDrop: 0.12,
       drop: 0.72,
       breakdown: 0.24,
       outro: 0.12,
@@ -664,11 +670,13 @@ const BASS_ARCHITECTURE = {
     { id: 'bass-highlight-binding', target: { kind: 'group', id: 'bass-highlight-travel-group' }, roles: ['accent', 'transition', 'typography'] },
     { id: 'bass-side-binding', target: { kind: 'group', id: 'bass-side-accent-group' }, roles: ['secondary', 'percussion', 'transition'] },
     { id: 'bass-row-binding', target: { kind: 'group', id: 'bass-row-recruitment-group' }, roles: ['transition', 'typography'] },
+    { id: 'bass-center-impact-binding', target: { kind: 'group', id: 'bass-center-impact-group' }, roles: ['impact', 'bass', 'primary'] },
+    { id: 'bass-edge-snare-binding', target: { kind: 'group', id: 'bass-edge-snare-group' }, roles: ['outline', 'percussion', 'secondary'] },
   ],
   banks: [
     { id: 'bass-hero-bank', roles: ['hero'], members: [{ kind: 'group', id: 'bass-body-group' }] },
-    { id: 'bass-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'bass-kick-group' }, { kind: 'group', id: 'bass-body-group' }] },
-    { id: 'bass-snare-bank', roles: ['percussion', 'outline'], members: [{ kind: 'group', id: 'bass-snare-group' }, { kind: 'group', id: 'bass-side-accent-group' }] },
+    { id: 'bass-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'bass-center-impact-group' }, { kind: 'group', id: 'bass-kick-group' }, { kind: 'group', id: 'bass-body-group' }] },
+    { id: 'bass-snare-bank', roles: ['percussion', 'outline'], members: [{ kind: 'group', id: 'bass-edge-snare-group' }, { kind: 'group', id: 'bass-snare-group' }, { kind: 'group', id: 'bass-side-accent-group' }] },
     { id: 'bass-hat-bank', roles: ['sparkle'], members: [{ kind: 'group', id: 'bass-hat-group' }] },
     { id: 'bass-accent-bank', roles: ['accent'], members: [{ kind: 'group', id: 'bass-highlight-travel-group' }, { kind: 'group', id: 'bass-side-accent-group' }] },
     { id: 'bass-letter-bank', roles: ['typography'], members: [{ kind: 'group', id: 'bass-letter-b-group' }, { kind: 'group', id: 'bass-letter-a-group' }, { kind: 'group', id: 'bass-letter-s-left-group' }, { kind: 'group', id: 'bass-letter-s-right-group' }] },
@@ -677,7 +685,7 @@ const BASS_ARCHITECTURE = {
     { id: 'bass-row-bank', roles: ['transition'], members: [{ kind: 'group', id: 'bass-row-recruitment-group' }] },
     { id: 'bass-recruitment-bank', members: [{ kind: 'group', id: 'bass-row-recruitment-group' }, { kind: 'group', id: 'bass-side-accent-group' }, { kind: 'group', id: 'bass-hat-group' }] },
     { id: 'bass-transition-bank', roles: ['transition'], members: [{ kind: 'group', id: 'bass-row-recruitment-group' }, { kind: 'group', id: 'bass-body-group' }] },
-    { id: 'bass-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'bass-kick-group' }] },
+    { id: 'bass-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'bass-center-impact-group' }, { kind: 'group', id: 'bass-kick-group' }] },
   ],
   ...bassBeaconRoutes(),
   musicalArcs: COMMON_ARCS,
@@ -696,11 +704,13 @@ const REACTOR_ARCHITECTURE = {
     { id: 'reactor-checker-binding', target: { kind: 'group', id: 'reactor-checker-group' }, roles: ['background', 'environment'] },
     { id: 'reactor-impact-binding', target: { kind: 'group', id: 'reactor-impact-group' }, roles: ['impact', 'transition'] },
     { id: 'reactor-recruitment-binding', target: { kind: 'group', id: 'reactor-recruitment-group' }, roles: ['transition', 'background'] },
+    { id: 'reactor-center-impact-binding', target: { kind: 'group', id: 'reactor-center-impact-group' }, roles: ['impact', 'bass', 'primary'] },
+    { id: 'reactor-edge-snare-binding', target: { kind: 'group', id: 'reactor-edge-snare-group' }, roles: ['outline', 'percussion', 'secondary'] },
   ],
   banks: [
     { id: 'reactor-hero-bank', roles: ['hero'], members: [{ kind: 'group', id: 'reactor-core-group' }, { kind: 'group', id: 'reactor-outer-ring-group' }] },
-    { id: 'reactor-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'reactor-core-group' }, { kind: 'group', id: 'reactor-inner-ring-group' }] },
-    { id: 'reactor-snare-bank', roles: ['percussion'], members: [{ kind: 'group', id: 'reactor-cross-group' }] },
+    { id: 'reactor-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'reactor-center-impact-group' }, { kind: 'group', id: 'reactor-core-group' }, { kind: 'group', id: 'reactor-inner-ring-group' }] },
+    { id: 'reactor-snare-bank', roles: ['percussion'], members: [{ kind: 'group', id: 'reactor-edge-snare-group' }, { kind: 'group', id: 'reactor-cross-group' }] },
     { id: 'reactor-hat-bank', roles: ['sparkle'], members: [{ kind: 'group', id: 'reactor-node-group' }] },
     { id: 'reactor-accent-bank', roles: ['accent'], members: [{ kind: 'group', id: 'reactor-cross-group' }, { kind: 'group', id: 'reactor-chevron-group' }] },
     { id: 'reactor-core-bank', members: [{ kind: 'group', id: 'reactor-core-group' }] },
@@ -713,7 +723,7 @@ const REACTOR_ARCHITECTURE = {
     { id: 'reactor-checker-bank', members: [{ kind: 'group', id: 'reactor-checker-group' }] },
     { id: 'reactor-recruitment-bank', members: [{ kind: 'group', id: 'reactor-recruitment-group' }] },
     { id: 'reactor-transition-bank', roles: ['transition'], members: [{ kind: 'group', id: 'reactor-outer-ring-group' }, { kind: 'group', id: 'reactor-chevron-group' }] },
-    { id: 'reactor-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'reactor-impact-group' }, { kind: 'group', id: 'reactor-core-group' }] },
+    { id: 'reactor-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'reactor-center-impact-group' }, { kind: 'group', id: 'reactor-impact-group' }, { kind: 'group', id: 'reactor-core-group' }] },
   ],
   ...geometricReactorRoutes(),
   musicalArcs: COMMON_ARCS,
@@ -732,11 +742,13 @@ const PARADE_ARCHITECTURE = {
     { id: 'parade-impact-binding', target: { kind: 'group', id: 'parade-impact-group' }, roles: ['impact', 'bass', 'transition'] },
     { id: 'parade-recruitment-binding', target: { kind: 'group', id: 'parade-recruitment-group' }, roles: ['transition', 'character'] },
     { id: 'parade-alternate-binding', target: { kind: 'group', id: 'parade-alternate-layout-group' }, roles: ['transition', 'environment'] },
+    { id: 'parade-lower-kick-binding', target: { kind: 'group', id: 'parade-lower-kick-lane-group' }, roles: ['impact', 'bass', 'primary'] },
+    { id: 'parade-upper-snare-binding', target: { kind: 'group', id: 'parade-upper-snare-lane-group' }, roles: ['outline', 'percussion', 'secondary'] },
   ],
   banks: [
     { id: 'parade-hero-bank', roles: ['hero'], members: [{ kind: 'group', id: 'parade-hero-group' }] },
-    { id: 'parade-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'parade-impact-group' }, { kind: 'group', id: 'parade-ground-group' }] },
-    { id: 'parade-snare-bank', roles: ['percussion'], members: [{ kind: 'group', id: 'parade-prop-group' }] },
+    { id: 'parade-bass-bank', roles: ['bass'], members: [{ kind: 'group', id: 'parade-lower-kick-lane-group' }, { kind: 'group', id: 'parade-impact-group' }, { kind: 'group', id: 'parade-ground-group' }] },
+    { id: 'parade-snare-bank', roles: ['percussion'], members: [{ kind: 'group', id: 'parade-upper-snare-lane-group' }, { kind: 'group', id: 'parade-prop-group' }] },
     { id: 'parade-hat-bank', roles: ['sparkle'], members: [{ kind: 'group', id: 'parade-star-group' }] },
     { id: 'parade-accent-bank', roles: ['accent'], members: [{ kind: 'group', id: 'parade-prop-group' }, { kind: 'group', id: 'parade-secondary-group' }] },
     { id: 'parade-primary-bank', members: [{ kind: 'group', id: 'parade-foreground-group' }] },
@@ -748,7 +760,7 @@ const PARADE_ARCHITECTURE = {
     { id: 'parade-recruitment-bank', members: [{ kind: 'group', id: 'parade-recruitment-group' }] },
     { id: 'parade-alternate-bank', members: [{ kind: 'group', id: 'parade-alternate-layout-group' }] },
     { id: 'parade-transition-bank', roles: ['transition'], members: [{ kind: 'group', id: 'parade-alternate-layout-group' }, { kind: 'group', id: 'parade-hero-group' }] },
-    { id: 'parade-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'parade-impact-group' }] },
+    { id: 'parade-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'parade-lower-kick-lane-group' }, { kind: 'group', id: 'parade-impact-group' }] },
   ],
   ...pixelParadeRoutes(),
   musicalArcs: COMMON_ARCS,
@@ -779,6 +791,15 @@ const build = (
   { type: "setScene", sceneId },
   { type: "setTransition", transition: "wipeRows", durationBeats: 1 },
   { type: "setDensity", density: 0.82 },
+  ...extra,
+];
+const preDrop = (
+  sceneId: string,
+  extra: readonly PixGridPerformanceAction[] = [],
+): readonly PixGridPerformanceAction[] => [
+  { type: "setScene", sceneId },
+  { type: "setTransition", transition: "wipeColumns", durationBeats: 0.5 },
+  { type: "setDensity", density: 0.28 },
   ...extra,
 ];
 const drop = (
@@ -901,13 +922,13 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
       ],
       eventActions: {
         kick: [
-          { type: "flashGroup", groupId: "bass-kick-group", amount: 0.36 },
+          { type: "flashGroup", groupId: "bass-center-impact-group", amount: 0.58 },
         ],
         snare: [
           {
             type: "flashGroup",
-            groupId: "bass-snare-group",
-            amount: 0.48,
+            groupId: "bass-edge-snare-group",
+            amount: 0.68,
             paletteRole: "highlight",
           },
         ],
@@ -916,11 +937,11 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
     },
     {
       id: "bass-build",
-      sectionTypes: ["build", "preDrop"],
+      sectionTypes: ["build"],
       priority: 25,
       actions: build("pix-grid-bass-beacon-build", [
         { type: "revealRows", target: "all", progress: 0.68, from: "bottom" },
-        { type: "changeAnimationSpeed", target: "all", multiplier: 1.35 },
+        { type: "changeAnimationSpeed", target: "all", multiplier: 1.12 },
         { type: "setPaletteRole", target: "all", role: "secondary" },
       ]),
       fourBarActions: [
@@ -949,10 +970,10 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
       ],
       eventActions: {
         kick: [
-          { type: "flashGroup", groupId: "bass-kick-group", amount: 0.42 },
+          { type: "flashGroup", groupId: "bass-center-impact-group", amount: 0.64 },
         ],
         snare: [
-          { type: "flashGroup", groupId: "bass-snare-group", amount: 0.56 },
+          { type: "flashGroup", groupId: "bass-edge-snare-group", amount: 0.72 },
         ],
         transient: [
           {
@@ -962,6 +983,32 @@ export const BASS_BEACON_PERFORMANCE_PROGRAM = defineProgram({
           },
         ],
       },
+    },
+    {
+      id: "bass-pre-drop",
+      sectionTypes: ["preDrop"],
+      priority: 36,
+      continuousRouteIds: ["energy-hero"],
+      eventRouteIds: ["bar-motif", "section-entry-route"],
+      motionState: { amount: 0.06, direction: "alternate", grammar: "bass-pre-drop-freeze" },
+      negativeSpaceTarget: 0.82,
+      intensityRange: [0.22, 0.52],
+      actions: preDrop("pix-grid-bass-beacon-preDrop", [
+        { type: "setLayerActive", layerId: "bass-rings", active: false },
+        { type: "setLayerActive", layerId: "bass-sparkles", active: false },
+        { type: "setLayerActive", layerId: "bass-side-chevrons-left", active: false },
+        { type: "setLayerActive", layerId: "bass-side-chevrons-right", active: false },
+        { type: "setLayerOpacity", layerId: "bass-word", opacity: 0.46 },
+        { type: "setLayerOpacity", layerId: "bass-outline", opacity: 0.14 },
+        { type: "changeAnimationSpeed", target: "all", multiplier: 0.05 },
+      ]),
+      fourBarActions: [
+        [{ type: "revealColumns", target: { groupId: "bass-body-group" }, progress: 0.25, from: "left" }],
+        [{ type: "revealColumns", target: { groupId: "bass-body-group" }, progress: 0.5, from: "left" }],
+        [{ type: "revealColumns", target: { groupId: "bass-body-group" }, progress: 0.75, from: "left" }],
+        [{ type: "revealColumns", target: { groupId: "bass-body-group" }, progress: 1, from: "left" }],
+      ],
+      entryActions: [{ type: "dissolveGroup", groupId: "bass-kick-group", amount: 0.65 }],
     },
     {
       id: "bass-drop-one",
@@ -1298,10 +1345,10 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       ],
       eventActions: {
         kick: [
-          { type: "flashGroup", groupId: "reactor-core-group", amount: 0.42 },
+          { type: "flashGroup", groupId: "reactor-center-impact-group", amount: 0.62 },
         ],
         snare: [
-          { type: "flashGroup", groupId: "reactor-chevron-group", amount: 0.38 },
+          { type: "flashGroup", groupId: "reactor-edge-snare-group", amount: 0.68 },
         ],
         hat: [
           { type: "flashGroup", groupId: "reactor-node-group", amount: 0.2 },
@@ -1310,7 +1357,7 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
     },
     {
       id: "reactor-build",
-      sectionTypes: ["build", "preDrop"],
+      sectionTypes: ["build"],
       priority: 25,
       actions: build("pix-grid-geometric-reactor-build", [
         {
@@ -1319,7 +1366,7 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
           progress: 0.72,
           from: "center",
         },
-        { type: "changeAnimationSpeed", target: "all", multiplier: 1.42 },
+        { type: "changeAnimationSpeed", target: "all", multiplier: 1.14 },
         { type: "recruitLayer", layerId: "reactor-cross", opacity: 0.62 },
       ]),
       fourBarActions: [
@@ -1343,6 +1390,33 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
       eventActions: {
         transient: [{ type: "triggerFrame", target: "all", step: 0.16 }],
       },
+    },
+    {
+      id: "reactor-pre-drop",
+      sectionTypes: ["preDrop"],
+      priority: 36,
+      continuousRouteIds: ["energy-hero"],
+      eventRouteIds: ["bar-motif", "section-entry-route"],
+      motionState: { amount: 0.05, direction: "alternate", grammar: "reactor-pre-drop-lock" },
+      negativeSpaceTarget: 0.84,
+      intensityRange: [0.2, 0.5],
+      actions: preDrop("pix-grid-geometric-reactor-preDrop", [
+        { type: "setLayerActive", layerId: "reactor-checker", active: false },
+        { type: "setLayerActive", layerId: "reactor-chevrons", active: false },
+        { type: "setLayerActive", layerId: "reactor-cross", active: false },
+        { type: "setLayerActive", layerId: "reactor-orbits", active: false },
+        { type: "setLayerOpacity", layerId: "reactor-tunnel", opacity: 0.18 },
+        { type: "setLayerOpacity", layerId: "reactor-rings", opacity: 0.24 },
+        { type: "setLayerOpacity", layerId: "reactor-diamond", opacity: 0.52 },
+        { type: "changeAnimationSpeed", target: "all", multiplier: 0.04 },
+      ]),
+      fourBarActions: [
+        [{ type: "setPaletteRole", target: { groupId: "reactor-core-group" }, role: "primary" }],
+        [{ type: "setPaletteRole", target: { groupId: "reactor-core-group" }, role: "secondary" }],
+        [{ type: "revealRows", target: { groupId: "reactor-core-group" }, progress: 0.5, from: "center" }],
+        [{ type: "revealRows", target: { groupId: "reactor-core-group" }, progress: 1, from: "center" }],
+      ],
+      entryActions: [{ type: "dissolveGroup", groupId: "reactor-outer-ring-group", amount: 0.7 }],
     },
     {
       id: "reactor-drop-one",
@@ -1463,7 +1537,7 @@ export const GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM = defineProgram({
           {
             type: "changeAnimationSpeed",
             target: { groupId: "reactor-node-group" },
-            multiplier: 1.35,
+            multiplier: 1.12,
           },
         ],
         [{ type: "triggerFrame", target: "all", step: 0.28 }],
@@ -1650,15 +1724,15 @@ export const PIXEL_PARADE_PERFORMANCE_PROGRAM = defineProgram({
         kick: [
           {
             type: "flashGroup",
-            groupId: "parade-foreground-group",
-            amount: 0.34,
+            groupId: "parade-lower-kick-lane-group",
+            amount: 0.58,
           },
         ],
         snare: [
           {
             type: "flashGroup",
-            groupId: "parade-background-group",
-            amount: 0.3,
+            groupId: "parade-upper-snare-lane-group",
+            amount: 0.64,
           },
         ],
         hat: [
@@ -1672,11 +1746,11 @@ export const PIXEL_PARADE_PERFORMANCE_PROGRAM = defineProgram({
     },
     {
       id: "parade-build",
-      sectionTypes: ["build", "preDrop"],
+      sectionTypes: ["build"],
       priority: 25,
       actions: build("pix-grid-pixel-parade-build", [
         { type: "revealColumns", target: "all", progress: 0.76, from: "left" },
-        { type: "changeAnimationSpeed", target: "all", multiplier: 1.36 },
+        { type: "changeAnimationSpeed", target: "all", multiplier: 1.12 },
         { type: "recruitLayer", layerId: "parade-eq", opacity: 0.82 },
       ]),
       fourBarActions: [
@@ -1693,6 +1767,34 @@ export const PIXEL_PARADE_PERFORMANCE_PROGRAM = defineProgram({
       eventActions: {
         transient: [{ type: "triggerFrame", target: "all", step: 0.14 }],
       },
+    },
+    {
+      id: "parade-pre-drop",
+      sectionTypes: ["preDrop"],
+      priority: 36,
+      continuousRouteIds: ["energy-hero"],
+      eventRouteIds: ["bar-motif", "section-entry-route"],
+      motionState: { amount: 0.05, direction: "alternate", grammar: "parade-pre-drop-hold" },
+      negativeSpaceTarget: 0.86,
+      intensityRange: [0.2, 0.48],
+      actions: preDrop("pix-grid-pixel-parade-preDrop", [
+        { type: "setLayerActive", layerId: "parade-stars", active: false },
+        { type: "setLayerActive", layerId: "parade-wave-bottom", active: false },
+        { type: "setLayerActive", layerId: "parade-star-left", active: false },
+        { type: "setLayerActive", layerId: "parade-orbit", active: false },
+        { type: "setLayerActive", layerId: "parade-eq", active: false },
+        { type: "setLayerActive", layerId: "parade-burst", active: false },
+        { type: "setLayerOpacity", layerId: "parade-pal", opacity: 0.48 },
+        { type: "setLayerOpacity", layerId: "parade-wave-top", opacity: 0.14 },
+        { type: "changeAnimationSpeed", target: "all", multiplier: 0.04 },
+      ]),
+      fourBarActions: [
+        [{ type: "shiftGroup", groupId: "parade-hero-group", x: -0.02 }],
+        [{ type: "shiftGroup", groupId: "parade-hero-group", x: 0.02 }],
+        [{ type: "revealColumns", target: { groupId: "parade-hero-group" }, progress: 0.5, from: "center" }],
+        [{ type: "revealColumns", target: { groupId: "parade-hero-group" }, progress: 1, from: "center" }],
+      ],
+      entryActions: [{ type: "dissolveGroup", groupId: "parade-background-group", amount: 0.72 }],
     },
     {
       id: "parade-drop-one",
@@ -1852,7 +1954,7 @@ export const PIXEL_PARADE_PERFORMANCE_PROGRAM = defineProgram({
           {
             type: "changeAnimationSpeed",
             target: { groupId: "parade-background-group" },
-            multiplier: 1.35,
+            multiplier: 1.12,
           },
         ],
         [{ type: "triggerFrame", target: "all", step: 0.28 }],

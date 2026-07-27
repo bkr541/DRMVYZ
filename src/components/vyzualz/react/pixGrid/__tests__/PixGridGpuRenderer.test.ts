@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
+import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
+import { PIX_GRID_PRESETS } from '../PixGridPresets'
+import { applyPixGridRuntimeControls } from '../PixGridRuntimeControls'
+import { applyPixGridPresetSettings } from '../PixGridState'
+import { PixGridReactionRuntime } from '../PixGridAudioRouting'
+import { normalizePixGridState } from '../PixGridValidation'
 import { PixGridGpuRenderer } from '../../renderers/pixGrid/PixGridGpuRenderer'
-import { renderPixGridBaseline } from '../../renderers/pixGrid/PixGridBaselineRenderer'
+import { renderPixGridBaseline, renderPixGridCanvasFallback } from '../../renderers/pixGrid/PixGridBaselineRenderer'
 import {
   getReactLiveEngineOwnershipDiagnosticsForTests,
   resetReactLiveEngineOwnershipForTests,
@@ -123,6 +129,87 @@ describe('PixGridGpuRenderer', () => {
     expect(renderer.render(renderInput('ultra'))).toBe(true)
     expect(renderer.diagnostics.logicalAllocationCount).toBe(2)
     expect(gl.texImage2D).toHaveBeenCalledTimes(6)
+  })
+
+  it('uploads the same resolved action framebuffer consumed by the Canvas fallback', () => {
+    const gl = createFakeWebGL2()
+    const canvas = createCanvas(gl)
+    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
+    const preset = PIX_GRID_PRESETS[0]
+    const state = normalizePixGridState({
+      ...applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
+      quality: 'low',
+      globalIntensity: 1,
+      cellBrightness: 1,
+    })
+    const controlled = {
+      ...applyPixGridRuntimeControls({
+        audioTime: 40,
+        bass: 0.88,
+        mid: 0.24,
+        high: 0.18,
+        volume: 0.8,
+        beatHit: true,
+        kickHit: true,
+        snareHit: false,
+        hatHit: false,
+        beatPhase: 0,
+        beatIndex: 80,
+        barIndex: 20,
+        sectionType: 'drop',
+        sourceValues: { bass: 0.88, kick: 1 },
+        isPlaying: true,
+      }, { bassReactivity: 1, motion: 0 }),
+      width: 640,
+      height: 360,
+      motion: 0,
+      intensity: 1,
+      glow: 0,
+      bassReactivity: 1,
+    }
+    const expected = composePixGridLogicalFrame(
+      preset,
+      state,
+      controlled,
+      undefined,
+      undefined,
+      new PixGridReactionRuntime(),
+    )
+
+    expect(renderer.render({
+      frame: controlled,
+      preset,
+      state,
+      presentationWidth: 640,
+      presentationHeight: 360,
+      reactionRuntime: new PixGridReactionRuntime(),
+    })).toBe(true)
+    const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
+
+    const image = { data: new Uint8ClampedArray(state.matrixWidth * state.matrixHeight * 4) }
+    const logicalContext = {
+      createImageData: vi.fn(() => image),
+      putImageData: vi.fn(),
+    }
+    const outputContext = {
+      save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), strokeRect: vi.fn(),
+      fillStyle: '', strokeStyle: '', globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true, lineWidth: 1,
+    }
+    renderPixGridCanvasFallback(
+      outputContext as unknown as CanvasRenderingContext2D,
+      {
+        canvas: { width: state.matrixWidth, height: state.matrixHeight } as HTMLCanvasElement,
+        context: logicalContext as unknown as CanvasRenderingContext2D,
+      },
+      controlled,
+      preset,
+      state,
+      undefined,
+      new PixGridReactionRuntime(),
+    )
+
+    expect(Array.from(gpuUpload)).toEqual(Array.from(expected.pixels))
+    expect(Array.from(image.data)).toEqual(Array.from(expected.pixels))
   })
 
   it('disposes every owned GPU resource idempotently', () => {

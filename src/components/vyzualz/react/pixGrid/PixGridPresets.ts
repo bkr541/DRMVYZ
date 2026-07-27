@@ -17,9 +17,9 @@ export const PIX_GRID_PRESET_IDS = [
 
 export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
 
-export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 4 as const
+export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 5 as const
 
-const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'drop', 'breakdown', 'outro']
+const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro']
 
 function createScenes(prefix: string, intensity: number[], motion: number[], glow: number[]) {
   return SECTION_TYPES.map((sectionType, index) => ({
@@ -81,12 +81,13 @@ function sceneSettings(
   custom: Partial<Record<ReactSectionType, Partial<PixGridSceneSettings>>> = {},
 ): Record<string, PixGridSceneSettings> {
   const base: Partial<Record<ReactSectionType, PixGridSceneSettings>> = {
-    intro: { density: 0.34, motionMultiplier: 0.42, paletteOffset: 0 },
-    verse: { density: 0.58, motionMultiplier: 0.72, paletteOffset: 0 },
-    build: { density: 0.82, motionMultiplier: 1.12, paletteOffset: 1 },
-    drop: { density: 1, motionMultiplier: 1.5, paletteOffset: 0 },
-    breakdown: { density: 0.44, motionMultiplier: 0.34, paletteOffset: 2 },
-    outro: { density: 0.26, motionMultiplier: 0.22, paletteOffset: 0 },
+    intro: { density: 0.28, motionMultiplier: 0.16, paletteOffset: 0 },
+    verse: { density: 0.55, motionMultiplier: 0.38, paletteOffset: 0 },
+    build: { density: 0.78, motionMultiplier: 0.65, paletteOffset: 1 },
+    preDrop: { density: 0.3, motionMultiplier: 0.05, paletteOffset: 2 },
+    drop: { density: 1, motionMultiplier: 0.78, paletteOffset: 0 },
+    breakdown: { density: 0.4, motionMultiplier: 0.14, paletteOffset: 2 },
+    outro: { density: 0.22, motionMultiplier: 0.05, paletteOffset: 0 },
   }
   return Object.fromEntries(SECTION_TYPES.map(type => [
     `${prefix}-${type}`,
@@ -102,7 +103,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     zIndex: 1,
     densityRank: 0.22,
     paletteMap: { primary: 'secondary', secondary: 'primary' },
-    animations: [animation('pulse', 0.28, 0.08), animation('rotate', 0.05, 0.25)],
+    animations: [animation('pulse', 0.12, 0.035), animation('rotate', 0.018, 0.125)],
     seed: 101,
   }),
   layer('bass-outline', 'Typography Outline', 'pix-bass-word', {
@@ -112,7 +113,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     zIndex: 3,
     densityRank: 0.28,
     paletteMap: { primary: 'highlight', highlight: 'accent' },
-    animations: [animation('pulse', 0.36, 0.018, { phase: 0.25 })],
+    animations: [animation('pulse', 0.08, 0.008, { phase: 0.25 })],
     seed: 307,
   }),
   layer('bass-word', 'BASS Hero Body', 'pix-bass-word', {
@@ -120,7 +121,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     zIndex: 4,
     densityRank: 0,
     paletteMap: { primary: 'primary', highlight: 'highlight' },
-    animations: [animation('pulse', 0.18, 0.012)],
+    animations: [animation('pulse', 0.06, 0.006)],
     seed: 401,
   }),
   layer('bass-letter-b', 'Letter B Highlight', 'pix-bass-letter-b', {
@@ -131,7 +132,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     zIndex: 5,
     densityRank: 0.5,
     paletteMap: { primary: 'secondary', highlight: 'highlight' },
-    animations: [animation('pulse', 0.22, 0.018, { phase: 0 })],
+    animations: [animation('pulse', 0.08, 0.008, { phase: 0 })],
     seed: 503,
   }),
   layer('bass-letter-a', 'Letter A Highlight', 'pix-bass-letter-a', {
@@ -142,7 +143,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     zIndex: 5,
     densityRank: 0.56,
     paletteMap: { primary: 'accent', highlight: 'highlight' },
-    animations: [animation('pulse', 0.22, 0.018, { phase: 0.25 })],
+    animations: [animation('pulse', 0.08, 0.008, { phase: 0.25 })],
     seed: 509,
   }),
   layer('bass-letter-s-left', 'First S Highlight', 'pix-bass-letter-s', {
@@ -153,7 +154,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     zIndex: 5,
     densityRank: 0.62,
     paletteMap: { primary: 'secondary', highlight: 'highlight' },
-    animations: [animation('pulse', 0.22, 0.018, { phase: 0.5 })],
+    animations: [animation('pulse', 0.08, 0.008, { phase: 0.5 })],
     seed: 521,
   }),
   layer('bass-letter-s-right', 'Final S Highlight', 'pix-bass-letter-s', {
@@ -164,7 +165,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     zIndex: 5,
     densityRank: 0.68,
     paletteMap: { primary: 'accent', highlight: 'highlight' },
-    animations: [animation('pulse', 0.22, 0.018, { phase: 0.75 })],
+    animations: [animation('pulse', 0.08, 0.008, { phase: 0.75 })],
     seed: 523,
   }),
   layer('bass-side-chevrons-left', 'Left Snare Accents', 'pix-diagonal-chevrons', {
@@ -175,7 +176,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 6,
     densityRank: 0.58,
-    animations: [animation('pingPong', 0.48, 0.03, { axis: 'x', boundary: 'clamp' })],
+    animations: [animation('pingPong', 0.16, 0.012, { axis: 'x', boundary: 'clamp' })],
     seed: 601,
   }),
   layer('bass-side-chevrons-right', 'Right Snare Accents', 'pix-diagonal-chevrons', {
@@ -187,7 +188,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 6,
     densityRank: 0.58,
-    animations: [animation('pingPong', 0.48, 0.03, { axis: 'x', boundary: 'clamp', phase: 0.5 })],
+    animations: [animation('pingPong', 0.16, 0.012, { axis: 'x', boundary: 'clamp', phase: 0.5 })],
     seed: 607,
   }),
   layer('bass-sparkles', 'Air and Hat Details', 'pix-multi-star-field', {
@@ -197,7 +198,7 @@ const BASS_BEACON_LAYERS: PixGridLayer[] = [
     zIndex: 7,
     densityRank: 0.74,
     seed: 731,
-    animations: [animation('frameCycle', 4.5, 1), animation('checkerAlternate', 2, 1)],
+    animations: [animation('frameCycle', 0.25, 1, { clock: 'beat' }), animation('checkerAlternate', 0.125, 1, { clock: 'bar' })],
   }),
 ]
 
@@ -208,7 +209,7 @@ const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
     blendMode: 'multiply',
     zIndex: 0,
     densityRank: 0.62,
-    animations: [animation('checkerAlternate', 0.9, 1), animation('paletteCycle', 0.1, 1)],
+    animations: [animation('checkerAlternate', 0.125, 1, { clock: 'bar' })],
     seed: 811,
   }),
   layer('reactor-tunnel', 'Outer Tunnel Structure', 'pix-geometric-tunnel', {
@@ -217,7 +218,7 @@ const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 1,
     densityRank: 0.08,
-    animations: [animation('frameCycle', 1.7, 1), animation('pulse', 0.16, 0.025)],
+    animations: [animation('frameCycle', 0.25, 1, { clock: 'beat' }), animation('pulse', 0.06, 0.01)],
     seed: 821,
   }),
   layer('reactor-rings', 'Inner Reactor Rings', 'pix-concentric-rings', {
@@ -226,7 +227,7 @@ const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 2,
     densityRank: 0.22,
-    animations: [animation('rotate', 0.14, 0.5), animation('paletteCycle', 0.2, 1)],
+    animations: [animation('rotate', 0.025, 0.25), animation('paletteCycle', 0.04, 1)],
     seed: 823,
   }),
   layer('reactor-chevrons', 'Mid-Band Chevrons', 'pix-diagonal-chevrons', {
@@ -235,7 +236,7 @@ const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 3,
     densityRank: 0.46,
-    animations: [animation('horizontalScroll', 0.09, 0.1), animation('paletteCycle', 0.15, 1)],
+    animations: [animation('horizontalScroll', 0.02, 0.045), animation('paletteCycle', 0.04, 1)],
     seed: 827,
   }),
   layer('reactor-diamond', 'Center Core', 'pix-diamond', {
@@ -243,7 +244,7 @@ const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 4,
     densityRank: 0,
-    animations: [animation('rotate', 0.2, -0.5, { stepped: true }), animation('pulse', 0.2, 0.025)],
+    animations: [animation('rotate', 0.125, -0.25, { stepped: true, clock: 'bar' }), animation('pulse', 0.06, 0.012)],
     seed: 829,
   }),
   layer('reactor-cross', 'Cross Impact Accents', 'pix-cross', {
@@ -252,7 +253,7 @@ const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 5,
     densityRank: 0.72,
-    animations: [animation('blink', 2.4, 0.22), animation('rotate', 0.34, 0.25, { stepped: true })],
+    animations: [animation('rotate', 0.125, 0.25, { stepped: true, clock: 'bar' })],
     seed: 839,
   }),
   layer('reactor-orbits', 'High-Frequency Nodes', 'pix-orbiting-dots', {
@@ -261,7 +262,7 @@ const GEOMETRIC_REACTOR_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 6,
     densityRank: 0.82,
-    animations: [animation('frameCycle', 2.8, 1), animation('rotate', 0.09, 0.5)],
+    animations: [animation('frameCycle', 0.25, 1, { clock: 'beat' }), animation('rotate', 0.018, 0.25)],
     seed: 853,
   }),
 ]
@@ -274,7 +275,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
     zIndex: 0,
     densityRank: 0.34,
     seed: 212,
-    animations: [animation('frameCycle', 3.8, 1), animation('horizontalScroll', 0.025, 0.08)],
+    animations: [animation('frameCycle', 0.25, 1, { clock: 'beat' }), animation('horizontalScroll', 0.006, 0.04)],
   }),
   layer('parade-wave-top', 'Upper Parade Lane', 'pix-wave-line', {
     position: { x: 0.5, y: 0.24 },
@@ -283,7 +284,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 1,
     densityRank: 0.2,
-    animations: [animation('horizontalScroll', 0.08, 0.12), animation('frameCycle', 1.6, 1)],
+    animations: [animation('horizontalScroll', 0.018, 0.06), animation('frameCycle', 0.25, 1, { clock: 'beat' })],
     seed: 907,
   }),
   layer('parade-wave-bottom', 'Ground and Baseline', 'pix-wave-line', {
@@ -294,7 +295,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
     zIndex: 2,
     densityRank: 0.12,
     flipY: true,
-    animations: [animation('horizontalScroll', -0.07, 0.12), animation('frameCycle', 1.4, 1, { phase: 0.5 })],
+    animations: [animation('horizontalScroll', -0.018, 0.06), animation('frameCycle', 0.25, 1, { phase: 0.5, clock: 'beat' })],
     seed: 911,
   }),
   layer('parade-star-left', 'Primary Star Participant', 'pix-five-point-star', {
@@ -303,7 +304,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 3,
     densityRank: 0.08,
-    animations: [animation('bounce', 1.05, 0.05), animation('rotate', 0.08, 0.25)],
+    animations: [animation('bounce', 0.25, 0.022, { clock: 'beat' }), animation('rotate', 0.012, 0.125)],
     seed: 919,
   }),
   layer('parade-pal', 'Hero Pixel Pal', 'pix-mascot-face', {
@@ -311,7 +312,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
     scale: { x: 0.24, y: 0.36 },
     zIndex: 4,
     densityRank: 0,
-    animations: [animation('frameCycle', 2.2, 1), animation('bounce', 1.1, 0.045)],
+    animations: [animation('frameCycle', 0.25, 1, { clock: 'beat' }), animation('bounce', 0.25, 0.02, { clock: 'beat' })],
     seed: 929,
   }),
   layer('parade-orbit', 'Secondary Orbit Participant', 'pix-orbiting-dots', {
@@ -321,7 +322,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 5,
     densityRank: 0.58,
-    animations: [animation('frameCycle', 2.6, 1), animation('pingPong', 0.34, 0.035, { axis: 'y', boundary: 'bounce' })],
+    animations: [animation('frameCycle', 0.25, 1, { clock: 'beat' }), animation('pingPong', 0.12, 0.015, { axis: 'y', boundary: 'bounce' })],
     seed: 937,
   }),
   layer('parade-eq', 'Equalizer Float and Props', 'pix-equalizer-bars', {
@@ -331,7 +332,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 6,
     densityRank: 0.7,
-    animations: [animation('frameCycle', 2.8, 1), animation('horizontalScroll', 0.035, 0.05)],
+    animations: [animation('frameCycle', 0.5, 1, { clock: 'beat' }), animation('horizontalScroll', 0.01, 0.025)],
     seed: 941,
   }),
   layer('parade-burst', 'Bounded Parade Impact', 'pix-pixel-burst', {
@@ -340,7 +341,7 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
     blendMode: 'add',
     zIndex: 7,
     densityRank: 0.9,
-    animations: [animation('rotate', 0.08, 0.5), animation('frameCycle', 2.2, 1)],
+    animations: [animation('rotate', 0.01, 0.25), animation('frameCycle', 0.25, 1, { clock: 'beat' })],
     seed: 947,
   }),
 ]
@@ -379,7 +380,7 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
     'Crisp BASS typography with masked letter banks, phrase-travel highlights, bounded percussion impacts, and full-song row recruitment.',
     'pix-grid-bass-beacon',
     { primary: '#36d9ff', secondary: '#39e69b', accent: '#d8b95a', background: '#020608', highlight: '#f2feff', text: '#e8f4f8' },
-    { intensity: 0.86, motion: 0.62, glow: 0.72, bassReactivity: 0.95 },
+    { intensity: 0.86, motion: 0.48, glow: 0.72, bassReactivity: 0.95 },
     {
       pattern: 'bassBeacon',
       quality: 'high',
@@ -412,6 +413,12 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
           density: 0.86,
           layerOpacity: { 'bass-word': 0.88, 'bass-outline': 0.34 },
         },
+        preDrop: {
+          density: 0.28,
+          motionMultiplier: 0.03,
+          hiddenLayerIds: ['bass-sparkles', 'bass-side-chevrons-left', 'bass-side-chevrons-right', 'bass-rings', 'bass-letter-s-left', 'bass-letter-s-right'],
+          layerOpacity: { 'bass-word': 0.46, 'bass-outline': 0.16, 'bass-letter-b': 0.1, 'bass-letter-a': 0.08 },
+        },
         drop: {
           density: 1,
           layerOpacity: { 'bass-word': 1, 'bass-outline': 0.3, 'bass-rings': 0.38 },
@@ -429,9 +436,9 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       }),
     },
     {
-      intensity: [0.48, 0.68, 0.84, 1, 0.54, 0.34],
-      motion: [0.24, 0.46, 0.74, 0.92, 0.26, 0.14],
-      glow: [0.36, 0.54, 0.68, 0.82, 0.44, 0.28],
+      intensity: [0.42, 0.66, 0.82, 0.36, 1, 0.5, 0.3],
+      motion: [0.12, 0.32, 0.58, 0.02, 0.74, 0.16, 0.04],
+      glow: [0.3, 0.5, 0.64, 0.24, 0.82, 0.4, 0.22],
     },
   ),
   preset(
@@ -440,7 +447,7 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
     'A coherent frequency-owned reactor with core, rings, tunnel, chevrons, nodes, cross impacts, and staged geometry recruitment.',
     'pix-grid-geometric-reactor',
     { primary: '#a969ff', secondary: '#30d7ff', accent: '#f2c45c', background: '#05030b', highlight: '#fff3c7', text: '#f7efff' },
-    { intensity: 0.9, motion: 0.82, glow: 0.68, bassReactivity: 0.8 },
+    { intensity: 0.9, motion: 0.58, glow: 0.68, bassReactivity: 0.8 },
     {
       pattern: 'geometricReactor',
       quality: 'high',
@@ -474,6 +481,12 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
           density: 0.86,
           layerOpacity: { 'reactor-checker': 0.1, 'reactor-cross': 0.38 },
         },
+        preDrop: {
+          density: 0.26,
+          motionMultiplier: 0.03,
+          hiddenLayerIds: ['reactor-checker', 'reactor-chevrons', 'reactor-cross', 'reactor-orbits'],
+          layerOpacity: { 'reactor-tunnel': 0.18, 'reactor-rings': 0.24, 'reactor-diamond': 0.52 },
+        },
         drop: {
           density: 1,
           layerOpacity: { 'reactor-checker': 0.14, 'reactor-cross': 0.52, 'reactor-orbits': 0.7 },
@@ -491,9 +504,9 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       }),
     },
     {
-      intensity: [0.46, 0.68, 0.86, 1, 0.5, 0.3],
-      motion: [0.28, 0.6, 0.88, 1, 0.22, 0.12],
-      glow: [0.34, 0.52, 0.68, 0.8, 0.38, 0.24],
+      intensity: [0.4, 0.66, 0.84, 0.34, 1, 0.48, 0.28],
+      motion: [0.14, 0.38, 0.62, 0.02, 0.76, 0.14, 0.04],
+      glow: [0.3, 0.5, 0.66, 0.22, 0.8, 0.36, 0.2],
     },
   ),
   preset(
@@ -502,7 +515,7 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
     'A directed procession with a vocal-focused hero, participant banks, musical lanes, props, percussion accents, and evolving cast recruitment.',
     'pix-grid-pixel-parade',
     { primary: '#ff6d7f', secondary: '#ffd35c', accent: '#43d9ff', background: '#070508', highlight: '#67e3aa', text: '#fff4ef' },
-    { intensity: 0.82, motion: 0.9, glow: 0.54, bassReactivity: 0.72 },
+    { intensity: 0.82, motion: 0.62, glow: 0.54, bassReactivity: 0.72 },
     {
       pattern: 'pixelParade',
       quality: 'high',
@@ -537,6 +550,12 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
           hiddenLayerIds: ['parade-burst'],
           layerOpacity: { 'parade-eq': 0.5, 'parade-orbit': 0.62 },
         },
+        preDrop: {
+          density: 0.24,
+          motionMultiplier: 0.03,
+          hiddenLayerIds: ['parade-eq', 'parade-burst', 'parade-orbit', 'parade-star-left', 'parade-wave-bottom', 'parade-stars'],
+          layerOpacity: { 'parade-pal': 0.48, 'parade-wave-top': 0.14 },
+        },
         drop: {
           density: 1,
           layerOpacity: { 'parade-burst': 0.26, 'parade-eq': 0.62, 'parade-orbit': 0.74 },
@@ -554,9 +573,9 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       }),
     },
     {
-      intensity: [0.42, 0.64, 0.82, 0.98, 0.48, 0.28],
-      motion: [0.3, 0.66, 0.9, 1, 0.28, 0.14],
-      glow: [0.28, 0.44, 0.6, 0.72, 0.34, 0.2],
+      intensity: [0.38, 0.62, 0.8, 0.32, 0.98, 0.46, 0.26],
+      motion: [0.14, 0.4, 0.64, 0.02, 0.78, 0.16, 0.04],
+      glow: [0.26, 0.42, 0.58, 0.2, 0.72, 0.32, 0.18],
     },
   ),
 ]

@@ -30,7 +30,8 @@ import { normalizePixGridState } from '../PixGridValidation'
 const SECTIONS: ReactTrackSection[] = [
   { id: 'intro', label: 'Intro', type: 'intro', startSec: 0, endSec: 8, intensity: 0.25, source: 'auto', confidence: 0.98 },
   { id: 'verse', label: 'Verse', type: 'verse', startSec: 8, endSec: 24, intensity: 0.5, source: 'auto', confidence: 0.98 },
-  { id: 'build', label: 'Build', type: 'build', startSec: 24, endSec: 32, intensity: 0.82, source: 'auto', confidence: 0.98 },
+  { id: 'build', label: 'Build', type: 'build', startSec: 24, endSec: 30, intensity: 0.82, source: 'auto', confidence: 0.98 },
+  { id: 'pre-drop', label: 'Pre-drop', type: 'preDrop', startSec: 30, endSec: 32, intensity: 0.28, source: 'auto', confidence: 0.98 },
   { id: 'drop-1', label: 'Drop 1', type: 'drop', startSec: 32, endSec: 64, intensity: 1, source: 'auto', confidence: 0.98, interpretation: { familyId: 'drop', occurrenceIndex: 1 } },
   { id: 'breakdown', label: 'Breakdown', type: 'breakdown', startSec: 64, endSec: 80, intensity: 0.36, source: 'auto', confidence: 0.98 },
   { id: 'drop-2', label: 'Drop 2', type: 'drop', startSec: 80, endSec: 112, intensity: 1, source: 'auto', confidence: 0.98, interpretation: { familyId: 'drop', occurrenceIndex: 2 } },
@@ -275,6 +276,40 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
       expect(program!.sectionPlans.some(plan => (plan.fourBarActions?.length ?? 0) > 1)).toBe(true)
       expect(program!.sectionPlans.some(plan => (plan.eightBarRecruitment?.length ?? 0) > 0)).toBe(true)
       expect(program!.sectionPlans.some(plan => (plan.sixteenBarEvolution?.length ?? 0) > 0)).toBe(true)
+    }
+  })
+
+  it('authors pre-drop as a separate restraint plan with stable spatial impact masks', () => {
+    const expectedSpatialGroups = [
+      ['bass-center-impact-group', 'bass-edge-snare-group'],
+      ['reactor-center-impact-group', 'reactor-edge-snare-group'],
+      ['parade-lower-kick-lane-group', 'parade-upper-snare-lane-group'],
+    ] as const
+
+    for (const [index, preset] of PIX_GRID_PRESETS.entries()) {
+      const program = PIX_GRID_PERFORMANCE_PROGRAMS.find(candidate => candidate.id === preset.pixGridSettings!.performanceProgramId)!
+      const buildPlan = program.sectionPlans.find(plan => plan.sectionTypes.includes('build'))!
+      const preDropPlan = program.sectionPlans.find(plan => plan.sectionTypes.includes('preDrop'))!
+      const groupById = new Map((preset.pixGridSettings!.groups ?? []).map(group => [group.id, group]))
+      const [kickGroupId, snareGroupId] = expectedSpatialGroups[index]
+      const kickGroup = groupById.get(kickGroupId)!
+      const snareGroup = groupById.get(snareGroupId)!
+      const resolvedPreDrop = performanceFrame(preset, 31).resolved
+
+      expect(preset.sectionMappings.some(mapping => mapping.sectionType === 'preDrop')).toBe(true)
+      expect(resolvedPreDrop.snapshot.sceneId).toBe(preDropPlan.id)
+      expect(resolvedPreDrop.state.selectedSceneId).toBe(preset.sectionMappings.find(mapping => mapping.sectionType === 'preDrop')!.sceneId)
+      expect(buildPlan.sectionTypes).toEqual(['build'])
+      expect(preDropPlan.id).toContain('pre-drop')
+      expect(preDropPlan.motionState?.amount).toBeLessThan(0.1)
+      expect(preDropPlan.negativeSpaceTarget).toBeGreaterThan(0.75)
+      expect(preDropPlan.eventRouteIds).not.toContain('kick-impact')
+      expect(preDropPlan.eventRouteIds).not.toContain('snare-outline')
+      expect(kickGroup.mask.kind).toBe('geometric')
+      expect(snareGroup.mask.kind).toBe('geometric')
+      expect(kickGroup.mask).not.toEqual(snareGroup.mask)
+      expect(kickGroup.reactions.some(reaction => reaction.source === 'kick')).toBe(true)
+      expect(snareGroup.reactions.some(reaction => reaction.source === 'snare')).toBe(true)
     }
   })
 
