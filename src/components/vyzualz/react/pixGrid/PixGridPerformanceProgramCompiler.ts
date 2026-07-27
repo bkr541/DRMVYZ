@@ -383,6 +383,8 @@ function assignmentForContinuous(
     attack: route.attack ?? 0.03,
     hold: route.hold ?? 0,
     release: route.release ?? 0.12,
+    cooldown: route.cooldown ?? 0,
+    bassReactivityEnabled: route.bassReactivityEnabled !== false,
     decayCurve: "easeOut",
     smoothing: route.smoothing ?? 0.08,
     quantization: "none",
@@ -434,6 +436,8 @@ function assignmentForEvent(
     attack: route.envelope.attack,
     hold: route.envelope.hold,
     release: route.envelope.release,
+    cooldown: route.cooldown ?? 0,
+    bassReactivityEnabled: route.bassReactivityEnabled !== false,
     decayCurve:
       route.envelope.curve === "step"
         ? "step"
@@ -835,6 +839,30 @@ function overriddenRouteTarget(
   return original
 }
 
+function overriddenRouteConditions(
+  original: PixGridProgramRouteConditions | undefined,
+  override: PixGridState['performance']['programOverrides']['routes'][string] | undefined,
+): PixGridProgramRouteConditions | undefined {
+  const hasOverride = override?.sectionTypes != null
+    || override?.excludeSectionTypes != null
+    || override?.sectionPhases != null
+    || override?.sectionOccurrences != null
+    || override?.dropOccurrences != null
+    || override?.minimumEnergy != null
+    || override?.maximumEnergy != null
+  if (!hasOverride) return original
+  return {
+    ...(original ?? {}),
+    ...(override?.sectionTypes != null ? { sectionTypes: override.sectionTypes } : {}),
+    ...(override?.excludeSectionTypes != null ? { excludeSectionTypes: override.excludeSectionTypes } : {}),
+    ...(override?.sectionPhases != null ? { sectionPhases: override.sectionPhases } : {}),
+    ...(override?.sectionOccurrences != null ? { sectionOccurrences: override.sectionOccurrences } : {}),
+    ...(override?.dropOccurrences != null ? { dropOccurrences: override.dropOccurrences } : {}),
+    ...(override?.minimumEnergy != null ? { minimumEnergy: override.minimumEnergy } : {}),
+    ...(override?.maximumEnergy != null ? { maximumEnergy: override.maximumEnergy } : {}),
+  }
+}
+
 function effectivePixGridProgram(
   program: PixGridPerformanceProgram,
   state: PixGridState,
@@ -843,6 +871,7 @@ function effectivePixGridProgram(
   const continuousRoutes = program.continuousRoutes.flatMap((route) => {
     const override = overrides.routes[route.id]
     if (override?.enabled === false) return []
+    const conditions = overriddenRouteConditions(route.conditions, override)
     return [{
       ...route,
       target: overriddenRouteTarget(route.target, override),
@@ -860,22 +889,18 @@ function effectivePixGridProgram(
       ...(override?.attack != null ? { attack: override.attack } : {}),
       ...(override?.hold != null ? { hold: override.hold } : {}),
       ...(override?.release != null ? { release: override.release } : {}),
+      ...(override?.cooldown != null ? { cooldown: override.cooldown } : {}),
+      ...(override?.bassReactivityEnabled != null ? { bassReactivityEnabled: override.bassReactivityEnabled } : {}),
       ...(override?.minimumConfidence != null ? { minimumConfidence: override.minimumConfidence } : {}),
       ...(override?.capabilityFallback ? { capabilityFallback: override.capabilityFallback } : {}),
       ...(override?.blend ? { blend: override.blend } : {}),
-      ...(override?.sectionTypes || override?.sectionOccurrences || override?.dropOccurrences
-        ? { conditions: {
-            ...(route.conditions ?? {}),
-            ...(override.sectionTypes ? { sectionTypes: override.sectionTypes } : {}),
-            ...(override.sectionOccurrences ? { sectionOccurrences: override.sectionOccurrences } : {}),
-            ...(override.dropOccurrences ? { dropOccurrences: override.dropOccurrences } : {}),
-          } }
-        : {}),
+      ...(conditions ? { conditions } : {}),
     }]
   })
   const eventRoutes = program.eventRoutes.flatMap((route) => {
     const override = overrides.routes[route.id]
     if (override?.enabled === false) return []
+    const conditions = overriddenRouteConditions(route.conditions, override)
     return [{
       ...route,
       target: overriddenRouteTarget(route.target, override),
@@ -899,17 +924,12 @@ function effectivePixGridProgram(
         : {}),
       ...(override?.quantization ? { quantization: override.quantization } : {}),
       ...(override?.retrigger ? { retrigger: override.retrigger } : {}),
+      ...(override?.cooldown != null ? { cooldown: override.cooldown } : {}),
+      ...(override?.bassReactivityEnabled != null ? { bassReactivityEnabled: override.bassReactivityEnabled } : {}),
       ...(override?.minimumConfidence != null ? { minimumConfidence: override.minimumConfidence } : {}),
       ...(override?.capabilityFallback ? { capabilityFallback: override.capabilityFallback } : {}),
       ...(override?.blend ? { blend: override.blend } : {}),
-      ...(override?.sectionTypes || override?.sectionOccurrences || override?.dropOccurrences
-        ? { conditions: {
-            ...(route.conditions ?? {}),
-            ...(override.sectionTypes ? { sectionTypes: override.sectionTypes } : {}),
-            ...(override.sectionOccurrences ? { sectionOccurrences: override.sectionOccurrences } : {}),
-            ...(override.dropOccurrences ? { dropOccurrences: override.dropOccurrences } : {}),
-          } }
-        : {}),
+      ...(conditions ? { conditions } : {}),
     }]
   })
   const sectionPlans = program.sectionPlans.flatMap((plan) => {

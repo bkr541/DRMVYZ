@@ -38,3 +38,23 @@ Group-targeted Performance and cue actions become `PixGridGroupFrameEffect` inst
 3. Scene/preset cut fallback when no authored transition exists.
 
 Cue and Performance progress use audio time. Pause holds progress, seek reconstructs it, loop wrapping resets track-local transient state, and track replacement clears the complete track-local runtime.
+
+## Resolved reaction ledger
+
+The compositor-owned `PixGridReactionRuntime` publishes one compact `routeActivity` record per compiled route per frame. Each record contains the stable route ID, source, target, scope, target ID, active/idle/fallback/disabled/blocked state, resolved value, effective amount, confidence, fallback state, envelope phase, affected group IDs, and a human-readable reason. Multiple evaluations of one route in a frame are merged by stable ID and never create unbounded diagnostic history.
+
+`mergePixGridReactionRuntimeDiagnostics` replaces the eligibility-only view with the actual compositor evaluation after either Canvas2D or WebGL2 renders. Affected cells are derived from the active shared group masks. Whole-frame targets report the full logical matrix. This merged snapshot is the source used by the Analysis inspector and renderer diagnostics.
+
+## Transport and recovery boundaries
+
+Track replacement, built-in preset switching, entering or leaving the stopped state, and renderer disposal reset transient performance, cue, route, and mask state. Stop/end-of-track is not treated as pause: the surface evaluates a neutral frame, removes temporary group effects and transitions, and reports an idle envelope phase. Pause holds the resolved frame. Resume, analyser recovery, and GPU-to-Canvas fallback reuse the same authoritative audio time and event identities.
+
+Discrete cooldown uses `lastAcceptedTriggerTimeSec`, not the current envelope tail. Expired envelopes therefore cannot bypass cooldown. On timing discontinuity, future triggers are discarded, event identity is released for deterministic re-entry, smoothing/quantization state is reinitialized, and the same target position produces the same resolved plan when the same authoritative inputs are available.
+
+## Renderer parity contract
+
+Canvas2D and WebGL2 may differ in rasterization and glow, but they must agree on scene ID, visible layers, active groups, route-envelope values, affected cells, palette intent, frame selection, Motion multiplier, Bass Reactivity gain, section, and phrase. `comparePixGridRendererSemanticPlans` is the canonical parity assertion. Any mismatch is a structural validation error because audio routing belongs above both renderers.
+
+## Validation and performance bounds
+
+Validation runs when authored state changes, not at analyser frequency. The React status store remains throttled and uses selector snapshots. Group masks and assignments remain cache-keyed; diagnostics are frame-bounded; renderer plans reuse typed buffers; and migration is not rerun in the animation hot loop. Bundled-preset audits prove reactivity with rendered pixels across standardized musical scenarios rather than checking for route metadata alone.

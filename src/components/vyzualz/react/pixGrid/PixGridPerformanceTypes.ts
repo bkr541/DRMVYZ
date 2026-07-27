@@ -125,6 +125,8 @@ export interface PixGridContinuousRoutePlan {
   attack?: number
   hold?: number
   release?: number
+  cooldown?: number
+  bassReactivityEnabled?: boolean
   smoothing?: number
   blend?: PixGridReactionBlend
   intensityScale?: number
@@ -160,6 +162,8 @@ export interface PixGridEventRoutePlan {
   quantization?: PixGridReactionQuantization
   retrigger?: PixGridReactionRetrigger
   maximumStacking?: number
+  cooldown?: number
+  bassReactivityEnabled?: boolean
   intensityScale?: number
   priority?: number
   conditions?: PixGridProgramRouteConditions

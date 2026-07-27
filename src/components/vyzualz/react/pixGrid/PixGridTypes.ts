@@ -1,8 +1,8 @@
 import type { ReactSectionType } from '../ReactTypes'
 
-export const PIX_GRID_STATE_VERSION = 13 as const
+export const PIX_GRID_STATE_VERSION = 14 as const
 export const PIX_GRID_CONFIGURATION_METADATA_VERSION = 1 as const
-export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 1 as const
+export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 2 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
@@ -247,6 +247,10 @@ export interface PixGridReactionAssignment {
   attack: number
   hold: number
   release: number
+  /** Minimum seconds before a discrete route may accept another trigger. */
+  cooldown?: number
+  /** When false, bass-sensitive routes use the unscaled source value. */
+  bassReactivityEnabled?: boolean
   decayCurve?: PixGridReactionDecayCurve
   smoothing: number
   quantization: PixGridReactionQuantization
@@ -316,6 +320,8 @@ export interface PixGridProgramRouteOverride {
   attack?: number
   hold?: number
   release?: number
+  cooldown?: number
+  bassReactivityEnabled?: boolean
   decayCurve?: PixGridReactionDecayCurve
   quantization?: PixGridReactionQuantization
   retrigger?: PixGridReactionRetrigger
@@ -323,8 +329,12 @@ export interface PixGridProgramRouteOverride {
   capabilityFallback?: PixGridReactionCapabilityFallback
   blend?: PixGridReactionBlend
   sectionTypes?: ReactSectionType[]
+  excludeSectionTypes?: ReactSectionType[]
+  sectionPhases?: Array<'entry' | 'body' | 'exit'>
   sectionOccurrences?: number[]
   dropOccurrences?: number[]
+  minimumEnergy?: number
+  maximumEnergy?: number
 }
 
 export interface PixGridProgramSectionOverride {
@@ -401,6 +411,12 @@ export interface PixGridMigrationDiagnostics {
   layersAdded: number
   scenesAdded: number
   fallbackRoutesActive: boolean
+  originalBuiltInPresetId?: string | null
+  programsUpgraded?: number
+  customizationsPreserved?: boolean
+  conflicts?: readonly string[]
+  skippedUpgrades?: readonly string[]
+  fallbackRoutingInstalled?: boolean
 }
 
 export interface PixGridCanonicalSignatures {
@@ -424,6 +440,8 @@ export interface PixGridRuntimeDiagnosticsSettings {
   showFps: boolean
   showMatrixBounds: boolean
   logLifecycle: boolean
+  /** Advanced authoring diagnostics remain opt-in during normal playback. */
+  showAudioReactionInspector?: boolean
 }
 
 export interface PixGridPresetSettings {
@@ -545,6 +563,8 @@ export interface PixGridAudioFrame {
   timingDiscontinuity?: boolean
   trackIdentity?: string | null
   sourceValues?: Partial<Record<PixGridReactionSource, number>>
+  /** Source values before PixGrid-local Bass Reactivity is applied. */
+  unscaledSourceValues?: Partial<Record<PixGridReactionSource, number>>
   capabilities?: Partial<Record<PixGridReactionSource, boolean>>
   confidence?: Partial<Record<PixGridReactionSource, number>>
   eventIdentities?: Partial<Record<PixGridDiscreteAudioSource, string>>
@@ -552,6 +572,15 @@ export interface PixGridAudioFrame {
   bassReactivityGain?: number
   /** PixGrid-local autonomous animation multiplier. */
   motionMultiplier?: number
+  transportState?: 'playing' | 'paused' | 'stopped'
+  inputSource?: 'analyser' | 'shared-bus' | 'neutral' | 'editor-preview'
+  analyserConnected?: boolean
+  analyserActive?: boolean
+  sharedPerformanceCoreAvailable?: boolean
+  inputFrameAgeMs?: number | null
+  inputSourceId?: string | null
+  aggregateSourceConfidence?: number
+  stemAvailability?: readonly PixGridReactionSource[]
 }
 
 
@@ -607,4 +636,16 @@ export interface PixGridRendererDiagnostics {
   effectiveMotionMultiplier?: number
   affectedGroupCount?: number
   affectedCellCount?: number
+  activeAffectedGroupIds?: readonly string[]
+  activeRouteCount?: number
+  activeEnvelopePhase?: string
+  audioInputStatus?: string
+  analyserActive?: boolean
+  sharedPerformanceCoreAvailable?: boolean
+  validationErrorCount?: number
+  validationWarningCount?: number
+  migrationProgramsUpgraded?: number
+  migrationCustomizationsPreserved?: boolean
+  migrationConflictCount?: number
+  migrationSkippedUpgradeCount?: number
 }

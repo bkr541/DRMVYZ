@@ -12,6 +12,8 @@ import {
 import {
   isPixGridContinuousReactionSource,
   pixGridReactionSourceValue,
+  type PixGridAudioIntelligenceRuntimeDiagnostics,
+  type PixGridRouteActivity,
 } from "./PixGridAudioRouting";
 import { PIX_GRID_AUDIO_INTELLIGENCE_SOURCES } from "./PixGridAudioIntelligenceRegistry";
 import type { PixGridGroupFrameEffect } from "./PixGridFrameEffects";
@@ -60,6 +62,10 @@ export interface PixGridUnifiedRuntimeDiagnostics {
   migrationAssignmentsAdded: number;
   migrationAssignmentsPreserved: number;
   migrationAssignmentsUpgraded: number;
+  migrationProgramsUpgraded: number;
+  migrationCustomizationsPreserved: boolean;
+  migrationConflicts: readonly string[];
+  migrationSkippedUpgrades: readonly string[];
   activeAudioSourceCount: number;
   activeAssignmentCount: number;
   fallbackRoutesActive: boolean;
@@ -67,6 +73,20 @@ export interface PixGridUnifiedRuntimeDiagnostics {
   effectiveMotionMultiplier: number;
   affectedGroupCount: number;
   affectedCellCount: number;
+  activeAffectedGroupIds: readonly string[];
+  routeActivity: readonly PixGridRouteActivity[];
+  currentEnvelopePhase: string;
+  currentSceneId: string | null;
+  audioInputStatus: 'active' | 'idle' | 'disconnected' | 'bus-fallback' | 'stale';
+  analyserActive: boolean;
+  sharedPerformanceCoreAvailable: boolean;
+  aggregateSourceConfidence: number;
+  stemAvailability: readonly PixGridReactionSource[];
+  autonomousAnimationCount: number;
+  beatSynchronizedAnimationCount: number;
+  audioEnvelopeActionCount: number;
+  performanceProgramActionCount: number;
+  sceneTransitionActionCount: number;
   assignmentExecutionReasons: readonly string[];
   enabledGroups: readonly string[];
   compiledMaskGroups: readonly string[];
@@ -147,12 +167,13 @@ function assignmentRoutes(state: PixGridState): DiagnosticRoute[] {
   );
   for (const group of state.groups) {
     for (const assignment of group.reactions) {
+      const scope = assignment.targetScope ?? "group";
       routes.push({
         assignment,
         routeId: `group:${group.id}:${assignment.id}`,
         displayId: `${group.id}:${assignment.id}`,
-        scope: assignment.targetScope ?? "group",
-        targetId: assignment.targetId?.trim() || group.id,
+        scope,
+        targetId: assignment.targetId?.trim() || (scope === "group" || scope === "pixels" ? group.id : null),
       });
     }
   }
@@ -176,6 +197,57 @@ function routeTargetExists(route: DiagnosticRoute, state: PixGridState): boolean
       return state.groups.some((group) => group.id === route.targetId);
     default:
       return true;
+  }
+}
+
+export function mergePixGridReactionRuntimeDiagnostics(
+  base: PixGridUnifiedRuntimeDiagnostics,
+  reaction: PixGridAudioIntelligenceRuntimeDiagnostics,
+  state: PixGridState,
+): PixGridUnifiedRuntimeDiagnostics {
+  const activeRoutes = reaction.routeActivity.filter(route => route.state === 'active' || route.state === 'fallback')
+  const affectedGroups = new Set<string>()
+  let affectsWholeFrame = false
+  for (const route of activeRoutes) {
+    route.affectedGroupIds.forEach(groupId => affectedGroups.add(groupId))
+    if (route.targetScope !== 'group' && route.targetScope !== 'pixels') affectsWholeFrame = true
+  }
+  const affectedCellCount = affectsWholeFrame
+    ? state.matrixWidth * state.matrixHeight
+    : state.groups.reduce((sum, group) => affectedGroups.has(group.id)
+      ? sum + compilePixGridGroupMask(group, state.matrixWidth, state.matrixHeight).cellCount
+      : sum, 0)
+  const envelope = activeRoutes.find(route => route.envelopePhase !== 'continuous' && route.envelopePhase !== 'idle')?.envelopePhase
+    ?? activeRoutes.find(route => route.envelopePhase === 'continuous')?.envelopePhase
+    ?? 'idle'
+  const reasons = reaction.routeActivity
+    .filter(route => route.state !== 'active')
+    .map(route => `${route.routeId}: ${route.reason}`)
+  return {
+    ...base,
+    availableSources: reaction.availableSources,
+    unavailableSources: reaction.unavailableSources,
+    degradedSources: reaction.degradedSources,
+    activeCompiledAssignments: reaction.activeCompiledAssignments,
+    disabledAssignments: reaction.disabledAssignments,
+    assignmentsBlockedByConditions: reaction.assignmentsBlockedByConditions,
+    assignmentsBlockedByConfidence: reaction.assignmentsBlockedByConfidence,
+    assignmentsUsingFallback: reaction.assignmentsUsingFallback,
+    continuousSourceValues: reaction.continuousSourceValues,
+    recentDiscreteTriggers: reaction.recentDiscreteTriggers,
+    activeEventEnvelopes: reaction.activeEnvelopes,
+    compilationWarnings: [...new Set([...base.compilationWarnings, ...reaction.compilationWarnings])],
+    compilerGeneration: Math.max(base.compilerGeneration, reaction.compilerGeneration),
+    cachedAssignmentCount: Math.max(base.cachedAssignmentCount, reaction.cachedAssignmentCount),
+    activeAssignmentCount: activeRoutes.length,
+    activeContinuousAssignments: activeRoutes.filter(route => route.envelopePhase === 'continuous').map(route => route.routeId),
+    activeDiscreteAssignments: activeRoutes.filter(route => route.envelopePhase !== 'continuous').map(route => route.routeId),
+    affectedGroupCount: affectedGroups.size,
+    affectedCellCount,
+    activeAffectedGroupIds: [...affectedGroups].sort(),
+    routeActivity: reaction.routeActivity,
+    currentEnvelopePhase: envelope,
+    assignmentExecutionReasons: [...new Set([...base.assignmentExecutionReasons, ...reasons])],
   }
 }
 
@@ -402,6 +474,10 @@ export class PixGridUnifiedPerformanceRuntime {
         migrationAssignmentsAdded: migration?.assignmentsAdded ?? 0,
         migrationAssignmentsPreserved: migration?.assignmentsPreserved ?? 0,
         migrationAssignmentsUpgraded: migration?.assignmentsUpgraded ?? 0,
+        migrationProgramsUpgraded: migration?.programsUpgraded ?? 0,
+        migrationCustomizationsPreserved: migration?.customizationsPreserved ?? cues.state.configuration.userCustomized,
+        migrationConflicts: migration?.conflicts ?? [],
+        migrationSkippedUpgrades: migration?.skippedUpgrades ?? [],
         activeAudioSourceCount,
         activeAssignmentCount: activeCompiledAssignments.length,
         fallbackRoutesActive: runtimeRoutes.fallbackActive,
@@ -409,6 +485,28 @@ export class PixGridUnifiedPerformanceRuntime {
         effectiveMotionMultiplier: input.audioFrame.motionMultiplier ?? 1,
         affectedGroupCount: affectedGroupIds.size,
         affectedCellCount,
+        activeAffectedGroupIds: [...affectedGroupIds].sort(),
+        routeActivity: [],
+        currentEnvelopePhase: performance.snapshot.activeEventEnvelopes.length ? 'program' : 'idle',
+        currentSceneId: cues.state.selectedSceneId,
+        audioInputStatus: input.audioFrame.analyserConnected === false && input.audioFrame.inputSource === 'neutral'
+          ? 'disconnected'
+          : input.audioFrame.inputSource === 'shared-bus'
+            ? 'bus-fallback'
+            : input.audioFrame.analyserActive || activeAudioSourceCount > 0
+              ? 'active'
+              : input.audioFrame.inputFrameAgeMs != null && input.audioFrame.inputFrameAgeMs > 250
+                ? 'stale'
+                : 'idle',
+        analyserActive: input.audioFrame.analyserActive === true,
+        sharedPerformanceCoreAvailable: input.audioFrame.sharedPerformanceCoreAvailable !== false,
+        aggregateSourceConfidence: input.audioFrame.aggregateSourceConfidence ?? 0,
+        stemAvailability: input.audioFrame.stemAvailability ?? [],
+        autonomousAnimationCount: cues.state.layers.reduce((count, layer) => count + layer.animations.filter(animation => animation.clock !== 'beat' && animation.clock !== 'cue' && !animation.audioSource).length, 0),
+        beatSynchronizedAnimationCount: cues.state.layers.reduce((count, layer) => count + layer.animations.filter(animation => animation.clock === 'beat' || animation.clock === 'cue').length, 0),
+        audioEnvelopeActionCount: performance.snapshot.activeEventEnvelopes.length,
+        performanceProgramActionCount: performance.snapshot.recentActionTypes.length,
+        sceneTransitionActionCount: transition ? 1 : 0,
         assignmentExecutionReasons,
         enabledGroups: enabledGroups.map((group) => group.id),
         compiledMaskGroups,

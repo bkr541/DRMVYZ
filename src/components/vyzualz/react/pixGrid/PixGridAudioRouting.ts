@@ -42,6 +42,7 @@ interface PixGridEventTriggerState {
 
 interface PixGridAssignmentRuntimeState {
   triggerTimeSec: number | null
+  lastAcceptedTriggerTimeSec: number | null
   triggerIdentity: string | null
   triggers: PixGridEventTriggerState[]
   gateActive: boolean
@@ -51,6 +52,8 @@ interface PixGridAssignmentRuntimeState {
   lastValue: number
 }
 
+export type PixGridEnvelopePhase = 'idle' | 'attack' | 'hold' | 'release' | 'continuous' | 'preview'
+
 export interface PixGridResolvedReactionValue {
   value: number
   active: boolean
@@ -59,7 +62,26 @@ export interface PixGridResolvedReactionValue {
   usingFallback: boolean
   blockedByCondition: boolean
   blockedByConfidence: boolean
+  reason: string
+  envelopePhase: PixGridEnvelopePhase
   compiled: PixGridCompiledAssignment
+}
+
+export interface PixGridRouteActivity {
+  routeId: string
+  name: string
+  source: PixGridReactionSource
+  target: PixGridReactionAssignment['target']
+  targetScope: PixGridCompiledAssignment['targetScope']
+  targetId: string | null
+  state: 'active' | 'idle' | 'fallback' | 'disabled' | 'blocked'
+  value: number
+  effectiveAmount: number
+  confidence: number
+  usingFallback: boolean
+  envelopePhase: PixGridEnvelopePhase
+  affectedGroupIds: readonly string[]
+  reason: string
 }
 
 export interface PixGridAudioIntelligenceRuntimeDiagnostics {
@@ -74,6 +96,7 @@ export interface PixGridAudioIntelligenceRuntimeDiagnostics {
   continuousSourceValues: Readonly<Partial<Record<PixGridContinuousAudioSource, number>>>
   recentDiscreteTriggers: readonly PixGridDiscreteAudioSource[]
   activeEnvelopes: readonly string[]
+  routeActivity: readonly PixGridRouteActivity[]
   compilationWarnings: readonly string[]
   compilerGeneration: number
   cachedAssignmentCount: number
@@ -91,6 +114,7 @@ interface MutableRuntimeDiagnostics {
   continuousSourceValues: Partial<Record<PixGridContinuousAudioSource, number>>
   recentDiscreteTriggers: PixGridDiscreteAudioSource[]
   activeEnvelopes: string[]
+  routeActivity: Map<string, PixGridRouteActivity>
   compilationWarnings: string[]
 }
 
@@ -98,7 +122,7 @@ function emptyDiagnostics(): MutableRuntimeDiagnostics {
   return {
     availableSources: [], unavailableSources: [], degradedSources: [], activeCompiledAssignments: [], disabledAssignments: [],
     assignmentsBlockedByConditions: [], assignmentsBlockedByConfidence: [], assignmentsUsingFallback: [],
-    continuousSourceValues: {}, recentDiscreteTriggers: [], activeEnvelopes: [], compilationWarnings: [],
+    continuousSourceValues: {}, recentDiscreteTriggers: [], activeEnvelopes: [], routeActivity: new Map(), compilationWarnings: [],
   }
 }
 
@@ -251,6 +275,9 @@ export function createSilentPixGridAudioFrame(overrides: Partial<PixGridAudioFra
   }
   const merged = { ...base, ...overrides }
   merged.sourceValues = { ...sourceValues, ...overrides.sourceValues }
+  merged.unscaledSourceValues = overrides.unscaledSourceValues
+    ? { ...sourceValues, ...overrides.unscaledSourceValues }
+    : undefined
   for (const definition of PIX_GRID_AUDIO_INTELLIGENCE_SOURCES) {
     const explicit = pixGridLegacyFrameValue(overrides, definition.id)
     if (explicit != null) merged.sourceValues[definition.id] = explicit
@@ -309,8 +336,12 @@ function pixGridLegacyFrameValue(frame: Partial<PixGridAudioFrame>, source: PixG
   }
 }
 
-export function pixGridReactionSourceValue(frame: PixGridAudioFrame, source: PixGridReactionSource): number {
-  const direct = frame.sourceValues?.[source]
+export function pixGridReactionSourceValue(
+  frame: PixGridAudioFrame,
+  source: PixGridReactionSource,
+  bypassBassReactivity = false,
+): number {
+  const direct = (bypassBassReactivity ? frame.unscaledSourceValues : frame.sourceValues)?.[source]
   if (direct != null) return Number.isFinite(direct) ? direct : 0
   return pixGridLegacyFrameValue(frame, source) ?? 0
 }
@@ -397,9 +428,46 @@ export class PixGridReactionRuntime {
   getDiagnostics(): PixGridAudioIntelligenceRuntimeDiagnostics {
     return {
       ...this.diagnostics,
+      routeActivity: [...this.diagnostics.routeActivity.values()].sort((a, b) => a.routeId.localeCompare(b.routeId)),
       compilerGeneration: this.compiler.compilationCount,
       cachedAssignmentCount: this.compiler.cachedAssignmentCount,
     }
+  }
+
+  private recordResolution(
+    compiled: PixGridCompiledAssignment,
+    resolved: PixGridResolvedReactionValue,
+    evaluationContext: PixGridAssignmentEvaluationContext,
+  ): PixGridResolvedReactionValue {
+    const existing = this.diagnostics.routeActivity.get(compiled.id)
+    const groupIds = new Set(existing?.affectedGroupIds ?? [])
+    if (evaluationContext.currentGroupId) groupIds.add(evaluationContext.currentGroupId)
+    if ((compiled.targetScope === 'group' || compiled.targetScope === 'pixels') && compiled.targetId) groupIds.add(compiled.targetId)
+    const state: PixGridRouteActivity['state'] = !compiled.enabled
+      ? 'disabled'
+      : resolved.blockedByCondition || resolved.blockedByConfidence || !resolved.supported
+        ? 'blocked'
+        : resolved.active
+          ? resolved.usingFallback ? 'fallback' : 'active'
+          : 'idle'
+    const next: PixGridRouteActivity = {
+      routeId: compiled.id,
+      name: compiled.name,
+      source: compiled.source.id,
+      target: compiled.target.id,
+      targetScope: compiled.targetScope,
+      targetId: compiled.targetId,
+      state: existing?.state === 'active' || existing?.state === 'fallback' ? existing.state : state,
+      value: Math.max(Math.abs(existing?.value ?? 0), Math.abs(resolved.value)),
+      effectiveAmount: Math.max(existing?.effectiveAmount ?? 0, Math.abs(compiled.amount * resolved.value)),
+      confidence: resolved.confidence,
+      usingFallback: Boolean(existing?.usingFallback || resolved.usingFallback),
+      envelopePhase: resolved.envelopePhase === 'idle' && existing ? existing.envelopePhase : resolved.envelopePhase,
+      affectedGroupIds: [...groupIds].sort(),
+      reason: resolved.active || !existing ? resolved.reason : existing.reason,
+    }
+    this.diagnostics.routeActivity.set(compiled.id, next)
+    return resolved
   }
 
   compile(
@@ -429,14 +497,15 @@ export class PixGridReactionRuntime {
     evaluationContext: PixGridAssignmentEvaluationContext = {},
   ): PixGridResolvedReactionValue {
     const route = compiled.id
+    const finish = (resolved: PixGridResolvedReactionValue) => this.recordResolution(compiled, resolved, evaluationContext)
     for (const warning of compiled.warnings) pushUnique(this.diagnostics.compilationWarnings, `${route}: ${warning}`)
     if (!compiled.enabled) {
       pushUnique(this.diagnostics.disabledAssignments, route)
-      return { value: 0, active: false, supported: compiled.compatible, confidence: 1, usingFallback: false, blockedByCondition: false, blockedByConfidence: false, compiled }
+      return finish({ value: 0, active: false, supported: compiled.compatible, confidence: 1, usingFallback: false, blockedByCondition: false, blockedByConfidence: false, reason: 'route disabled or incompatible', envelopePhase: 'idle', compiled })
     }
     if (!evaluatePixGridCompiledConditions(compiled, frame, evaluationContext) && !preview) {
       pushUnique(this.diagnostics.assignmentsBlockedByConditions, route)
-      return { value: 0, active: false, supported: true, confidence: 1, usingFallback: false, blockedByCondition: true, blockedByConfidence: false, compiled }
+      return finish({ value: 0, active: false, supported: true, confidence: 1, usingFallback: false, blockedByCondition: true, blockedByConfidence: false, reason: 'conditions not met', envelopePhase: 'idle', compiled })
     }
 
     const trackChanged = this.trackIdentity !== null && this.trackIdentity !== frame.trackIdentity
@@ -445,6 +514,7 @@ export class PixGridReactionRuntime {
       for (const runtimeState of this.states.values()) {
         runtimeState.triggers = runtimeState.triggers.filter(trigger => trigger.timeSec <= frame.audioTime + 0.001)
         runtimeState.triggerTimeSec = runtimeState.triggers[runtimeState.triggers.length - 1]?.timeSec ?? null
+        runtimeState.lastAcceptedTriggerTimeSec = runtimeState.triggerTimeSec
         runtimeState.triggerIdentity = null
         runtimeState.smoothing.initialized = false
         runtimeState.quantizedInitialized = false
@@ -456,7 +526,7 @@ export class PixGridReactionRuntime {
     let state = this.states.get(route)
     if (!state) {
       state = {
-        triggerTimeSec: null, triggerIdentity: null, triggers: [], gateActive: false,
+        triggerTimeSec: null, lastAcceptedTriggerTimeSec: null, triggerIdentity: null, triggers: [], gateActive: false,
         quantizedValue: 0, quantizedInitialized: false, smoothing: { value: 0, initialized: false }, lastValue: 0,
       }
       this.states.set(route, state)
@@ -466,15 +536,15 @@ export class PixGridReactionRuntime {
     let supported = frame.capabilities?.[compiled.source.id] !== false
     let usingFallback = false
     let blockedByConfidence = sourceConfidence < compiled.minimumConfidence
-    let raw = preview ? 1 : pixGridReactionSourceValue(frame, compiled.source.id)
+    let raw = preview ? 1 : pixGridReactionSourceValue(frame, compiled.source.id, compiled.bassReactivityEnabled === false)
     if ((!supported || blockedByConfidence) && !preview) {
       const fallback = fallbackValue(frame, compiled.capabilityFallback)
       if (fallback == null) {
         pushUnique(this.diagnostics.assignmentsBlockedByConfidence, route)
-        return { value: 0, active: false, supported: false, confidence: sourceConfidence, usingFallback: false, blockedByCondition: false, blockedByConfidence: true, compiled }
+        return finish({ value: 0, active: false, supported: false, confidence: sourceConfidence, usingFallback: false, blockedByCondition: false, blockedByConfidence: true, reason: 'source unavailable or below confidence and no fallback is configured', envelopePhase: 'idle', compiled })
       }
       raw = fallback
-      if (isPixGridBassReactivitySource(compiled.source.id)) {
+      if (compiled.bassReactivityEnabled && isPixGridBassReactivitySource(compiled.source.id)) {
         raw *= clamp(frame.bassReactivityGain ?? 1)
       }
       supported = true
@@ -484,6 +554,7 @@ export class PixGridReactionRuntime {
     }
 
     const discrete = !isPixGridContinuousSourceDefinition(compiled.source)
+    let envelopePhase: PixGridEnvelopePhase = preview ? 'preview' : discrete ? 'idle' : 'continuous'
     let normalized = normalizeInput(raw, compiled.inputRange)
     if (discrete) {
       const fired = normalized > 0
@@ -491,14 +562,16 @@ export class PixGridReactionRuntime {
       const nextIdentity = fired ? triggerIdentity(frame, source) : null
       const envelopeDuration = compiled.attack + compiled.hold + compiled.release
       const activeEnvelope = state.triggerTimeSec != null && frame.audioTime - state.triggerTimeSec <= envelopeDuration + 1e-4
-      const mayRetrigger = compiled.retrigger === 'restart'
+      const cooldownReady = state.lastAcceptedTriggerTimeSec == null || frame.audioTime - state.lastAcceptedTriggerTimeSec + 1e-4 >= compiled.cooldown
+      const mayRetrigger = cooldownReady && (compiled.retrigger === 'restart'
         || (compiled.retrigger === 'extend' && fired)
-        || (compiled.retrigger === 'ignoreWhileActive' && !activeEnvelope)
+        || (compiled.retrigger === 'ignoreWhileActive' && !activeEnvelope))
       if (fired && nextIdentity !== state.triggerIdentity && mayRetrigger) {
         if (compiled.retrigger === 'restart') state.triggers = []
         state.triggers.push({ timeSec: frame.audioTime, strength: normalized })
         if (state.triggers.length > compiled.maximumStacking) state.triggers.splice(0, state.triggers.length - compiled.maximumStacking)
         state.triggerTimeSec = frame.audioTime
+        state.lastAcceptedTriggerTimeSec = frame.audioTime
         state.triggerIdentity = nextIdentity
       }
       let envelopeValue = 0
@@ -513,6 +586,10 @@ export class PixGridReactionRuntime {
         return elapsed <= envelopeDuration + 1e-4
       })
       state.triggerTimeSec = state.triggers[state.triggers.length - 1]?.timeSec ?? null
+      if (state.triggerTimeSec != null) {
+        const elapsed = Math.max(0, frame.audioTime - state.triggerTimeSec)
+        envelopePhase = elapsed < compiled.attack ? 'attack' : elapsed < compiled.attack + compiled.hold ? 'hold' : elapsed <= envelopeDuration ? 'release' : 'idle'
+      }
       normalized = clamp(envelopeValue)
       if (state.triggers.length > 0) pushUnique(this.diagnostics.activeEnvelopes, route)
     } else {
@@ -529,7 +606,7 @@ export class PixGridReactionRuntime {
         normalized = state.quantizedValue
       }
       if (!frame.isPlaying && !preview && state.smoothing.initialized) {
-        return { value: state.lastValue, active: Math.abs(state.lastValue) > 1e-5, supported, confidence: sourceConfidence, usingFallback, blockedByCondition: false, blockedByConfidence: false, compiled }
+        return finish({ value: state.lastValue, active: Math.abs(state.lastValue) > 1e-5, supported, confidence: sourceConfidence, usingFallback, blockedByCondition: false, blockedByConfidence: false, reason: 'paused continuous value held', envelopePhase, compiled })
       }
       normalized = smoothSharedPerformanceModulation(
         state.smoothing,
@@ -544,7 +621,7 @@ export class PixGridReactionRuntime {
     const value = clamp(mapped, Math.min(compiled.clamp[0], compiled.clamp[1]), Math.max(compiled.clamp[0], compiled.clamp[1]))
     state.lastValue = value
     if (Math.abs(value) > 1e-5) pushUnique(this.diagnostics.activeCompiledAssignments, route)
-    return { value, active: Math.abs(value) > 1e-5, supported, confidence: sourceConfidence, usingFallback, blockedByCondition: false, blockedByConfidence: false, compiled }
+    return finish({ value, active: Math.abs(value) > 1e-5, supported, confidence: sourceConfidence, usingFallback, blockedByCondition: false, blockedByConfidence: false, reason: Math.abs(value) > 1e-5 ? (usingFallback ? 'fallback source produced a visible value' : 'source produced a visible value') : (discrete && !preview && normalized <= 0 ? 'waiting for trigger or envelope is idle' : 'source is below threshold or maps to zero'), envelopePhase, compiled })
   }
 }
 

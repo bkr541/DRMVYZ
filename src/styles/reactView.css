@@ -12135,3 +12135,141 @@
   .rv-pix-grid-editor-context { top: 100px; }
   .rv-pix-grid-editor-tool-list { order: 4; flex-basis: 100%; }
 }
+
+/* PixGrid Patch 3 audio-reaction inspection and validation */
+.rv-pix-grid-a11y-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.rv-pix-grid-motion-ledger,
+.rv-pix-grid-group-inspection,
+.rv-pix-grid-validation-list,
+.rv-pix-grid-route-activity {
+  display: grid;
+  gap: 6px;
+}
+
+.rv-pix-grid-motion-ledger > div,
+.rv-pix-grid-group-inspection > div,
+.rv-pix-grid-validation-list > div,
+.rv-pix-grid-route-activity > div {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(111, 211, 236, 0.15);
+  border-radius: 7px;
+  background: rgba(4, 15, 21, 0.48);
+}
+
+.rv-pix-grid-motion-ledger > div,
+.rv-pix-grid-group-inspection > div {
+  display: grid;
+  gap: 3px;
+}
+
+.rv-pix-grid-motion-ledger span,
+.rv-pix-grid-group-inspection em,
+.rv-pix-grid-route-activity em,
+.rv-pix-grid-route-activity b {
+  font-size: 9px;
+  font-style: normal;
+  color: rgba(166, 230, 246, 0.82);
+}
+
+.rv-pix-grid-motion-ledger small,
+.rv-pix-grid-group-inspection small,
+.rv-pix-grid-route-activity small,
+.rv-pix-grid-validation-list small {
+  color: rgba(181, 208, 217, 0.62);
+  font-size: 9px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.rv-pix-grid-route-activity > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.rv-pix-grid-route-activity > div > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.rv-pix-grid-route-activity > div.is-active {
+  border-color: rgba(87, 239, 189, 0.3);
+  background: rgba(30, 92, 72, 0.2);
+}
+
+.rv-pix-grid-route-activity > div.is-fallback {
+  border-color: rgba(255, 196, 91, 0.34);
+  background: rgba(91, 65, 22, 0.22);
+}
+
+.rv-pix-grid-group-inspection > div.is-invalid {
+  border-style: dashed;
+  border-color: rgba(255, 113, 113, 0.45);
+}
+
+.rv-pix-grid-validation-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(12, 30, 38, 0.54);
+}
+
+.rv-pix-grid-validation-summary strong {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.rv-pix-grid-validation-summary span {
+  font-size: 10px;
+  color: rgba(207, 231, 239, 0.78);
+}
+
+.rv-pix-grid-validation-list > div {
+  display: grid;
+  gap: 3px;
+}
+
+.rv-pix-grid-validation-list > div.is-error {
+  border-left: 3px solid rgba(255, 103, 103, 0.82);
+}
+
+.rv-pix-grid-validation-list > div.is-warning {
+  border-left: 3px solid rgba(255, 197, 91, 0.82);
+}
+
+.rv-pix-grid-validation-list > div > strong {
+  font-size: 9px;
+  letter-spacing: 0.035em;
+}
+
+.rv-pix-grid-validation-list > div > span {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+@media (max-width: 1120px) {
+  .rv-pix-grid-route-activity > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .rv-pix-grid-route-activity > div > b {
+    grid-column: 2;
+  }
+}

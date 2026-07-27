@@ -84,7 +84,13 @@ describe('PixGrid state migration', () => {
       presetConfigurationVersion: PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION,
       musicReactiveConfigurationVersion: PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION,
     })
-    expect(migrated.configuration.lastMigration?.applied).toBe(true)
+    expect(migrated.configuration.lastMigration).toMatchObject({
+      applied: true,
+      originalBuiltInPresetId: PRESET_ID,
+      programsUpgraded: 1,
+      customizationsPreserved: false,
+      fallbackRoutingInstalled: false,
+    })
 
     const repeated = migratePixGridState(migrated, PRESET)
     expect(repeated).toEqual(migrated)
@@ -136,6 +142,12 @@ describe('PixGrid state migration', () => {
     expect(migrated.audioAssignments.find(route => route.id === editedRoute.id)).toMatchObject({ amount: editedRoute.amount, name: editedRoute.name })
     expect(migrated.audioAssignments.some(route => route.id === missingRoute.id)).toBe(true)
     expect(migrated.configuration.userCustomized).toBe(true)
+    expect(migrated.configuration.lastMigration).toMatchObject({
+      applied: true,
+      originalBuiltInPresetId: PRESET_ID,
+      customizationsPreserved: true,
+      fallbackRoutingInstalled: false,
+    })
     expect(new Set(migrated.groups.map(group => group.id)).size).toBe(migrated.groups.length)
     expect(new Set(assignmentKeys(migrated)).size).toBe(assignmentKeys(migrated).length)
   })

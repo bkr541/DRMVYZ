@@ -132,6 +132,8 @@ export interface PixGridCompiledAssignment {
   attack: number
   hold: number
   release: number
+  cooldown: number
+  bassReactivityEnabled: boolean
   decayCurve: NonNullable<PixGridReactionAssignment['decayCurve']>
   smoothing: number
   quantization: PixGridReactionAssignment['quantization']
@@ -192,7 +194,7 @@ function signature(assignment: PixGridReactionAssignment, defaultScope: PixGridR
     assignment.id, assignment.enabled ? 1 : 0, assignment.source, assignment.target, assignment.targetScope ?? defaultScope,
     assignment.targetId ?? '', assignment.amount, assignment.polarity ?? (assignment.invert ? 'negative' : 'positive'),
     assignment.inputRange?.join(','), assignment.outputRange?.join(','), assignment.threshold, assignment.hysteresis,
-    assignment.curve ?? 'linear', assignment.attack, assignment.hold, assignment.release, assignment.decayCurve,
+    assignment.curve ?? 'linear', assignment.attack, assignment.hold, assignment.release, assignment.cooldown, assignment.bassReactivityEnabled, assignment.decayCurve,
     assignment.smoothing, assignment.quantization, assignment.retrigger, assignment.maximumStacking,
     assignment.minimumConfidence, assignment.capabilityFallback, assignment.clamp.join(','), assignment.blend,
     assignment.paletteRole, assignment.color, assignment.seedOffset, assignment.priority, assignment.eventPriority,
@@ -317,6 +319,8 @@ export class PixGridAssignmentCompiler {
       attack: clamp(assignment.attack, 0, 10, sourceDefinition.recommendedSmoothing.attack),
       hold: clamp(assignment.hold, 0, 10, sourceDefinition.recommendedSmoothing.hold),
       release: clamp(assignment.release, 0, 20, sourceDefinition.recommendedSmoothing.release),
+      cooldown: clamp(assignment.cooldown, 0, 30, 0),
+      bassReactivityEnabled: assignment.bassReactivityEnabled !== false,
       decayCurve: assignment.decayCurve ?? 'easeOut',
       smoothing: clamp(assignment.smoothing, 0, 10, sourceDefinition.recommendedSmoothing.smoothing),
       quantization: assignment.quantization,

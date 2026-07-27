@@ -102,13 +102,13 @@ When PixGrid is active, the Reactivity workspace is PixGrid-native and contains 
 
 ### Routing
 
-**Routing** exposes continuous assignments from the shipped preset and from the user. Sources are grouped by Frequency, Energy, Musical Development, Progress, Stem and Vocal, and Optional Analysis rather than flattened into one list. Each route shows its origin, target role/bank/scope, enable state, and modification state. Users can add, duplicate, disable, delete, reset, and safely preview routes; edit source, target scope, target, operation, amount, ranges, polarity, curve, smoothing, threshold, hysteresis, confidence, fallback, section/occurrence conditions, priority, and blend; and open a selected smart group in the PixGrid editor with its mask overlay.
+**Routing** exposes continuous assignments from the shipped preset and from the user. Sources are grouped by Frequency, Energy, Musical Development, Progress, Stem and Vocal, and Optional Analysis rather than flattened into one list. Each route shows its origin, target role/bank/scope, enable state, and modification state. Users can add, duplicate, disable, delete, reset, and safely preview routes; edit source, target scope, target, operation, amount, ranges, polarity, curve, smoothing, threshold, hysteresis, attack, hold, release, cooldown, confidence, fallback, Bass Reactivity participation, section/occurrence conditions, priority, and blend; and open a selected smart group in the PixGrid editor with its mask overlay.
 
 Shipped routes are immutable baselines. Edits are stored as compact program overrides, compiled only when the performance configuration changes, and removed by **Reset Route**. User routes remain normal authored assignments. Preset resets clear only performance overrides and locks, preserving imported media and unrelated scene work.
 
 ### Events
 
-**Events** exposes beat, downbeat, kick, snare, hat, transient, bar, four/eight/sixteen-bar, phrase, section, drop-impact, semantic, and Track Map event sources. Event routes include attack, hold, release, decay curve, quantization, retrigger behavior, confidence, capability fallback, conditions, priority, and blend. **Test Trigger** creates a short editor-only preview source identity. It never persists a Track Map cue or changes the authoritative timeline.
+**Events** exposes beat, downbeat, kick, snare, hat, transient, bar, four/eight/sixteen-bar, phrase, section, drop-impact, semantic, and Track Map event sources. Event routes include attack, hold, release, cooldown, decay curve, quantization, retrigger behavior, confidence, capability fallback, Bass Reactivity participation, conditions, priority, and blend. **Test Trigger** creates a short editor-only preview source identity. It never persists a Track Map cue or changes the authoritative timeline.
 
 ### Choreography
 
@@ -118,9 +118,9 @@ Track Map cue state is shown separately from preset defaults, user changes, and 
 
 ### Analysis
 
-**Analysis** displays only authoritative PixGrid input and runtime status. It shows frequency bands, volume and energy, track-relative energy, spectral flux, tension, complexity, musical progress, beat/bar phase, available stem or vocal activity, event status, 4/8/16-bar stage, section phase and occurrences, semantic status, route capability/confidence state, compiler warnings, mask counts, active routes/envelopes/actions/transitions, renderer path, logical resolution, and FPS.
+**Analysis** displays only authoritative PixGrid input and runtime status. It shows audio-input and analyser state, Shared Performance Core availability, source age and identity, beat/downbeat/bar/phrase/section position, kick/snare/hat strength, bass and overall energy, stem availability, aggregate confidence, active routes with effective amount and envelope phase, inactive-route reasons, affected group IDs and cell counts, smart-group mask status and overlap, active performance actions, scene/motif state, Bass Reactivity gain, Motion multiplier, fallback routes, compiler warnings, validation findings, migration details, renderer path, logical resolution, and FPS.
 
-Each signal is marked Available, Unavailable, Degraded, Using Fallback, or Blocked by Confidence. Missing analysis is displayed as unavailable; the interface does not synthesize diagnostic values.
+Each signal is marked Available, Unavailable, Degraded, Using Fallback, or Blocked by Confidence. Missing analysis is displayed as unavailable; the interface does not synthesize diagnostic values. The inspector publishes a throttled status snapshot rather than rerendering React at raw analyser frequency, and its live regions remain quiet unless a concise status change is useful to assistive technology.
 
 ## Preset defaults and precedence
 
@@ -138,3 +138,40 @@ Reset actions use the existing PixGrid authoring history path where practical. I
 Program override normalization is bounded to 256 routes and 128 section plans. Assignment, group, event-envelope, action, transition, history, diagnostics, media-cache, framebuffer, and GPU resource limits remain enforced by their owning runtime. Compilers cache normalized signatures; they are not recreated in the animation hot loop. Group masks use deterministic cache keys and are rebuilt only when dimensions, mask input, or source revision changes.
 
 If a route is silent, inspect **Analysis** in this order: source availability, confidence, fallback state, section/occurrence conditions, target existence, group mask compilation, active cue/manual override state, then renderer status. A missing optional source can use its configured fallback; a route configured with **Disable** remains blocked rather than inventing data. Corrupt persisted overrides are normalized or discarded on load. Missing/deleted media, invalid SVG, missing groups/layers, empty analysis, stopped playback, WebGL context loss, and failed transition allocation retain the existing bounded fallback and recovery paths.
+
+## Audio-frame flow and final diagnostics
+
+The live path is deliberately single-source:
+
+1. Music Intelligence publishes analyser or shared-bus data.
+2. Shared Performance Core resolves authoritative track, beat, bar, phrase, section, occurrence, confidence, and boundary state.
+3. PixGrid creates one typed audio frame and applies the global Bass Reactivity gain while retaining the unscaled values for routes explicitly authored to bypass that control.
+4. `PixGridUnifiedPerformanceRuntime` resolves scenes, performance-program actions, Track Map state, and route eligibility.
+5. `PixGridReactionRuntime` evaluates the same compiled assignments used by the compositor and records whether each route fired, fell back, was disabled, missed a condition, lacked confidence, or remained below threshold.
+6. Canvas2D and WebGL2 consume the same resolved state, audio frame, group effects, route envelopes, controls, section/phrase identity, and transition. No renderer performs its own audio routing.
+
+Diagnostics separate five reasons for visible motion: autonomous layer animation, beat/cue-clocked animation, audio-envelope group actions, performance-program actions, and scene/phrase transitions. The global Motion multiplier is reported separately from route intensity, so an author can tell whether a quiet moving layer is autonomous or music-driven.
+
+Route activity is frame-bounded. The runtime retains only assignment state needed for smoothing, cooldown, and bounded envelopes; the inspector retains no unbounded analyser history. Assignment compilation and group-mask compilation remain signature-cached.
+
+## Validation and bundled-preset audit
+
+`validatePixGridState` is the canonical structural validator. Errors cover missing groups/routes/targets, duplicate stable IDs, invalid masks, unsupported operations, invalid numeric ranges, impossible conditions, broken performance-program references, duplicated migration routes, current-version states missing required configuration, and Canvas/GPU semantic-plan divergence. Warnings identify artistically weak but structurally usable configurations such as ineffective amounts, optional sources without a fallback, bass-sensitive routes that intentionally bypass Bass Reactivity, or a built-in configuration without a common live-source path. Error and warning labels are textual and do not rely on color.
+
+`auditPixGridPresetRenderedReactivity` renders standardized silence, kick, snare, bass sustain, high-energy, build, pre-drop, drop, breakdown, phrase-boundary, second-drop, and outro scenarios. Every bundled preset must compile, validate, change actual rendered pixels, distinguish silence from music, distinguish kick from snare, respond monotonically to Bass Reactivity, respond to Motion, develop drops differently from breakdowns and later drops, and repeat deterministically. Metadata alone does not satisfy the audit.
+
+Source-backed masks such as layer alpha, color, luminance, connected-region, and SVG masks are reported as **resolves during render** until prepared pixels are available. A missing source layer or an authored empty run mask is reported as invalid. Raw matrix-sized masks are never printed in the normal inspector.
+
+## Migration inspection and recovery
+
+Advanced diagnostics expose the current state schema, preset configuration version, original built-in preset ID, whether migration ran in the current session, groups/routes restored or preserved, programs upgraded, customization preservation, conflicts, skipped upgrades, and whether runtime fallback routing was installed. Normal launches remain quiet; lifecycle logging reports actionable validation errors only when development logging is enabled.
+
+Preset switching, track replacement, stop/end-of-track, and stopped-to-playing boundaries reset transient route, cue, performance, and compiled-mask runtime state. A stopped frame uses neutral audio data and clears temporary group effects and transitions. Pause remains distinct: it holds the current visual and envelope state. Analyser loss decays inputs toward neutral rather than freezing maximum reaction; restoring the analyser or a fresh shared-bus frame resumes routing without requiring preset reselection. GPU recovery can render the same frame through Canvas2D without accepting the same discrete trigger twice.
+
+Cooldown is tracked independently from envelope lifetime, so a short flash cannot retrigger before its authored cooldown expires. Timing discontinuities clear future trigger state and rebuild from the available authoritative event identity, keeping backward seeks and loop re-entry deterministic.
+
+## Bass Reactivity and Motion semantics
+
+**Bass Reactivity** scales sub, bass, low-mid, bass-stem activity, and kick before normal route evaluation. Each route has an explicit participation flag. The default is enabled; disabling it is an intentional authored bypass and is visible in validation and the inspector. Capability fallbacks for a participating bass route receive the same effective gain.
+
+**Motion** scales autonomous and beat/cue-clocked layer animation without changing Shared Performance musical time or route-envelope intensity. Motion 0 freezes autonomous movement but does not suppress percussion flashes, route envelopes, performance actions, or phrase/section transitions. This distinction is enforced by rendered-pixel audit scenarios at 0, 0.5, and 1.

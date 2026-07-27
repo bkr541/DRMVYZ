@@ -17,7 +17,7 @@ export const PIX_GRID_PRESET_IDS = [
 
 export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
 
-export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 5 as const
+export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 6 as const
 
 const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro']
 

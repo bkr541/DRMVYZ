@@ -221,6 +221,8 @@ function normalizeProgramOverrides(value: unknown): PixGridPerformanceProgramOve
         ...(raw.attack != null ? { attack: clamp(raw.attack, 0, 10, 0) } : {}),
         ...(raw.hold != null ? { hold: clamp(raw.hold, 0, 10, 0) } : {}),
         ...(raw.release != null ? { release: clamp(raw.release, 0, 20, 0) } : {}),
+        ...(raw.cooldown != null ? { cooldown: clamp(raw.cooldown, 0, 30, 0) } : {}),
+        ...(typeof raw.bassReactivityEnabled === 'boolean' ? { bassReactivityEnabled: raw.bassReactivityEnabled } : {}),
         ...(REACTION_DECAY_CURVES.has(raw.decayCurve as PixGridReactionDecayCurve) ? { decayCurve: raw.decayCurve as PixGridReactionDecayCurve } : {}),
         ...(REACTION_QUANTIZATION.has(raw.quantization as PixGridReactionQuantization) ? { quantization: raw.quantization as PixGridReactionQuantization } : {}),
         ...(REACTION_RETRIGGER.has(raw.retrigger as PixGridReactionRetrigger) ? { retrigger: raw.retrigger as PixGridReactionRetrigger } : {}),
@@ -228,8 +230,12 @@ function normalizeProgramOverrides(value: unknown): PixGridPerformanceProgramOve
         ...(REACTION_FALLBACK.has(raw.capabilityFallback as PixGridReactionCapabilityFallback) ? { capabilityFallback: raw.capabilityFallback as PixGridReactionCapabilityFallback } : {}),
         ...(REACTION_BLEND.has(raw.blend as PixGridReactionBlend) ? { blend: raw.blend as PixGridReactionBlend } : {}),
         ...(Array.isArray(raw.sectionTypes) ? { sectionTypes: raw.sectionTypes.filter(value => SECTION_TYPES.has(value as never)).slice(0, 16) as PixGridPerformanceProgramOverrides['routes'][string]['sectionTypes'] } : {}),
+        ...(Array.isArray(raw.excludeSectionTypes) ? { excludeSectionTypes: raw.excludeSectionTypes.filter(value => SECTION_TYPES.has(value as never)).slice(0, 16) as PixGridPerformanceProgramOverrides['routes'][string]['excludeSectionTypes'] } : {}),
+        ...(Array.isArray(raw.sectionPhases) ? { sectionPhases: raw.sectionPhases.filter(value => SECTION_PHASES.has(value as never)).slice(0, 3) as PixGridPerformanceProgramOverrides['routes'][string]['sectionPhases'] } : {}),
         ...(Array.isArray(raw.sectionOccurrences) ? { sectionOccurrences: raw.sectionOccurrences.map(value => Math.max(1, Math.round(finite(value, 1)))).slice(0, 32) } : {}),
         ...(Array.isArray(raw.dropOccurrences) ? { dropOccurrences: raw.dropOccurrences.map(value => Math.max(1, Math.round(finite(value, 1)))).slice(0, 32) } : {}),
+        ...(raw.minimumEnergy != null ? { minimumEnergy: clamp(raw.minimumEnergy, 0, 1, 0) } : {}),
+        ...(raw.maximumEnergy != null ? { maximumEnergy: clamp(raw.maximumEnergy, 0, 1, 1) } : {}),
       }
     }
   }
@@ -606,6 +612,8 @@ export function normalizePixGridReactionAssignment(
     attack: clamp(value.attack, 0, 10, sourceDefinition.recommendedSmoothing.attack),
     hold: clamp(value.hold, 0, 10, sourceDefinition.recommendedSmoothing.hold),
     release: clamp(value.release, 0, 20, sourceDefinition.recommendedSmoothing.release),
+    cooldown: clamp(value.cooldown, 0, 30, 0),
+    bassReactivityEnabled: value.bassReactivityEnabled !== false,
     decayCurve: REACTION_DECAY_CURVES.has(value.decayCurve as PixGridReactionDecayCurve)
       ? (value.decayCurve as PixGridReactionDecayCurve)
       : 'easeOut',
@@ -727,6 +735,12 @@ function normalizeMigrationDiagnostics(value: unknown): PixGridMigrationDiagnost
     layersAdded: Math.max(0, Math.round(finite(value.layersAdded, 0))),
     scenesAdded: Math.max(0, Math.round(finite(value.scenesAdded, 0))),
     fallbackRoutesActive: value.fallbackRoutesActive === true,
+    originalBuiltInPresetId: nullableId(value.originalBuiltInPresetId),
+    programsUpgraded: Math.max(0, Math.round(finite(value.programsUpgraded, 0))),
+    customizationsPreserved: value.customizationsPreserved === true,
+    conflicts: Array.isArray(value.conflicts) ? value.conflicts.filter((item): item is string => typeof item === 'string').slice(0, 64) : [],
+    skippedUpgrades: Array.isArray(value.skippedUpgrades) ? value.skippedUpgrades.filter((item): item is string => typeof item === 'string').slice(0, 64) : [],
+    fallbackRoutingInstalled: value.fallbackRoutingInstalled === true,
   }
 }
 

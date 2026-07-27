@@ -23,7 +23,7 @@ import {
   createSharedPerformanceDiagnostics,
   type SharedPerformanceContext,
 } from '../../../../features/performanceCore'
-import { createPixGridAudioFrame, PixGridReactionRuntime } from './PixGridAudioRouting'
+import { createPixGridAudioFrame, createSilentPixGridAudioFrame, PixGridReactionRuntime } from './PixGridAudioRouting'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import { clearPixGridPerformanceRuntimeStatus, publishPixGridPerformanceRuntimeStatus } from './PixGridPerformanceStatus'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from '../SharedPerformanceDiagnosticsStore'
@@ -36,7 +36,11 @@ import {
   publishPixGridAudioAnalysis,
   publishPixGridRendererDiagnostics,
 } from './PixGridReactivityStatus'
-import { PixGridUnifiedPerformanceRuntime, type PixGridUnifiedRuntimeDiagnostics } from './PixGridUnifiedPerformanceRuntime'
+import {
+  mergePixGridReactionRuntimeDiagnostics,
+  PixGridUnifiedPerformanceRuntime,
+  type PixGridUnifiedRuntimeDiagnostics,
+} from './PixGridUnifiedPerformanceRuntime'
 import type { PixGridGroupFrameEffect } from './PixGridFrameEffects'
 import { PixGridFrameGroupCompiler } from './PixGridGroupCompiler'
 import { resolvePixGridMatrixDimensions } from './PixGridDefaults'
@@ -45,6 +49,7 @@ import {
   resolvePixGridAdaptiveQualityProfile,
   type PixGridAdaptiveQualityProfile,
 } from './PixGridAdaptiveQuality'
+import { validatePixGridState } from './PixGridValidationAudit'
 import {
   applyPixGridBassGainToPerformanceContext,
   applyPixGridRuntimeControls,
@@ -116,6 +121,8 @@ function applyPixGridEditorPreview(frame: PixGridAudioFrame): PixGridAudioFrame 
   const next: PixGridAudioFrame = {
     ...frame,
     sourceValues: { ...frame.sourceValues, [preview.source]: 1 },
+    unscaledSourceValues: { ...frame.unscaledSourceValues, [preview.source]: 1 },
+    inputSource: 'editor-preview',
     capabilities: { ...frame.capabilities, [preview.source]: true },
     confidence: { ...frame.confidence, [preview.source]: 1 },
   }
@@ -191,7 +198,19 @@ function diagnosticsEqual(a: PixGridRendererDiagnostics, b: PixGridRendererDiagn
     a.effectiveBassReactivityGain === b.effectiveBassReactivityGain &&
     a.effectiveMotionMultiplier === b.effectiveMotionMultiplier &&
     a.affectedGroupCount === b.affectedGroupCount &&
-    a.affectedCellCount === b.affectedCellCount
+    a.affectedCellCount === b.affectedCellCount &&
+    (a.activeAffectedGroupIds ?? []).join('|') === (b.activeAffectedGroupIds ?? []).join('|') &&
+    a.activeRouteCount === b.activeRouteCount &&
+    a.activeEnvelopePhase === b.activeEnvelopePhase &&
+    a.audioInputStatus === b.audioInputStatus &&
+    a.analyserActive === b.analyserActive &&
+    a.sharedPerformanceCoreAvailable === b.sharedPerformanceCoreAvailable &&
+    a.validationErrorCount === b.validationErrorCount &&
+    a.validationWarningCount === b.validationWarningCount &&
+    a.migrationProgramsUpgraded === b.migrationProgramsUpgraded &&
+    a.migrationCustomizationsPreserved === b.migrationCustomizationsPreserved &&
+    a.migrationConflictCount === b.migrationConflictCount &&
+    a.migrationSkippedUpgradeCount === b.migrationSkippedUpgradeCount
   )
 }
 
@@ -343,6 +362,14 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let resolution: CanvasResolution | null = null
     let previousPerformanceContext: SharedPerformanceContext | null = null
     let previousTrackIdentity: string | null = propsRef.current.trackIdentity ?? null
+    let previousPresetIdentity: string | null = preset.id
+    let previousTransportState: NonNullable<PixGridAudioFrame['transportState']> = propsRef.current.isPaused
+      ? 'paused'
+      : propsRef.current.isPlaying
+        ? 'playing'
+        : 'stopped'
+    let lastValidatedState: PixGridState | null = null
+    let lastValidationCounts = { errors: 0, warnings: 0 }
     let lastAudioTime = 0
     const analyserFramePump = new MusicIntelligenceAnalyserFramePump({ publisherId: 'react:pixGrid' })
     const unifiedReactionRuntime = new PixGridReactionRuntime()
@@ -367,6 +394,17 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
     const publishDiagnostics = (next: PixGridRendererDiagnostics) => {
       const profile = adaptiveProfileRef.current
+      const currentState = propsRef.current.pixGridState
+      if (lastValidatedState !== currentState) {
+        const report = validatePixGridState(currentState, {
+          builtInPresetId: currentState.configuration.origin === 'builtInPreset' ? currentState.selectedPresetId : null,
+        })
+        lastValidatedState = currentState
+        lastValidationCounts = { errors: report.errors.length, warnings: report.warnings.length }
+        if (report.errors.length > 0 && currentState.diagnostics.logLifecycle) {
+          console.warn('[PixGrid] Invalid music-reactive configuration', report.issues)
+        }
+      }
       const enriched: PixGridRendererDiagnostics = {
         ...next,
         requestedQuality: propsRef.current.pixGridState.quality,
@@ -407,6 +445,18 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         effectiveMotionMultiplier: latestRuntimeDiagnostics?.effectiveMotionMultiplier ?? normalizedControl(propsRef.current.motion),
         affectedGroupCount: latestRuntimeDiagnostics?.affectedGroupCount ?? 0,
         affectedCellCount: latestRuntimeDiagnostics?.affectedCellCount ?? 0,
+        activeAffectedGroupIds: latestRuntimeDiagnostics?.activeAffectedGroupIds ?? [],
+        activeRouteCount: latestRuntimeDiagnostics?.routeActivity.filter(route => route.state === 'active' || route.state === 'fallback').length ?? 0,
+        activeEnvelopePhase: latestRuntimeDiagnostics?.currentEnvelopePhase ?? 'idle',
+        audioInputStatus: latestRuntimeDiagnostics?.audioInputStatus ?? 'idle',
+        analyserActive: latestRuntimeDiagnostics?.analyserActive ?? false,
+        sharedPerformanceCoreAvailable: latestRuntimeDiagnostics?.sharedPerformanceCoreAvailable ?? false,
+        validationErrorCount: lastValidationCounts.errors,
+        validationWarningCount: lastValidationCounts.warnings,
+        migrationProgramsUpgraded: latestRuntimeDiagnostics?.migrationProgramsUpgraded ?? 0,
+        migrationCustomizationsPreserved: latestRuntimeDiagnostics?.migrationCustomizationsPreserved ?? false,
+        migrationConflictCount: latestRuntimeDiagnostics?.migrationConflicts.length ?? 0,
+        migrationSkippedUpgradeCount: latestRuntimeDiagnostics?.migrationSkippedUpgrades.length ?? 0,
       }
       lastDiagnostics = enriched
       publishPixGridRendererDiagnostics(enriched)
@@ -445,11 +495,30 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       preset: ReactPreset
       transition: PixGridResolvedTransition | null
       groupEffects: readonly PixGridGroupFrameEffect[]
+      audioFrame: PixGridAudioFrame
     } | null => {
       const current = propsRef.current
       const activePreset = current.activePreset
       if (!activePreset) return null
-      const shouldAnimate = current.isPlaying && !current.isPaused
+      const transportState: NonNullable<PixGridAudioFrame['transportState']> = current.isPaused
+        ? 'paused'
+        : current.isPlaying
+          ? 'playing'
+          : 'stopped'
+      const presetChanged = previousPresetIdentity !== activePreset.id
+      const transportBoundary = previousTransportState !== transportState
+        && (previousTransportState === 'stopped' || transportState === 'stopped')
+      if (presetChanged || transportBoundary) {
+        previousPresetIdentity = activePreset.id
+        previousTransportState = transportState
+        previousPerformanceContext = null
+        unifiedPerformanceRuntime.reset(current.trackIdentity ?? null)
+        unifiedReactionRuntime.reset()
+        fallbackGroupCompiler.reset()
+      } else {
+        previousTransportState = transportState
+      }
+      const shouldAnimate = transportState === 'playing'
       const propAudioTime = Number.isFinite(current.audioTimeSec)
         ? Math.max(0, current.audioTimeSec as number)
         : lastAudioTime
@@ -461,7 +530,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previousTrackIdentity = trackIdentity
         previousPerformanceContext = null
         lastAudioTime = audioTime
+        unifiedPerformanceRuntime.reset(trackIdentity)
+        unifiedReactionRuntime.reset()
+        fallbackGroupCompiler.reset()
       }
+      const busPublication = current.analyser ? null : AudioFeatureBus.getFramePublicationMeta()
       const intelligenceFrame = current.analyser
         ? analyserFramePump.sample({
             analyser: current.analyser,
@@ -471,10 +544,18 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           })
         : resolvePixGridBusMusicIntelligenceFrame({
             frame: AudioFeatureBus.getFrame(),
-            publication: AudioFeatureBus.getFramePublicationMeta(),
+            publication: busPublication!,
             audioTimeSec: audioTime,
             trackIdentity,
           })
+      const publicationAgeMs = busPublication?.publishedAtMs
+        ? Math.max(0, globalThis.performance.now() - busPublication.publishedAtMs)
+        : null
+      const usingFreshBusFrame = !current.analyser
+        && busPublication?.kind === 'frame'
+        && publicationAgeMs != null
+        && publicationAgeMs <= 250
+        && intelligenceFrame.frameId > 0
       const deltaTimeSec = shouldAnimate ? Math.max(0, Math.min(0.25, audioTime - lastAudioTime)) : 0
       const context = buildSharedPerformanceContext({
         audioTimeSec: audioTime,
@@ -487,11 +568,57 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       })
       previousPerformanceContext = context
       lastAudioTime = audioTime
-      const audioFrame = applyPixGridRuntimeControls(applyPixGridEditorPreview(createPixGridAudioFrame(context, {
+      const liveAudioFrame = createPixGridAudioFrame(context, {
         isPlaying: shouldAnimate,
         deltaTimeSec,
         autoPerformanceEnabled: current.pixGridState.performance.enabled,
-      })), {
+      })
+      const authoredAudioFrame = transportState === 'stopped'
+        ? createSilentPixGridAudioFrame({
+            audioTime,
+            deltaTimeSec: 0,
+            timingDiscontinuity: true,
+            trackIdentity,
+            sectionType: liveAudioFrame.sectionType,
+            sectionPhase: liveAudioFrame.sectionPhase,
+            sectionOccurrence: liveAudioFrame.sectionOccurrence,
+            dropOccurrence: liveAudioFrame.dropOccurrence,
+            phraseIndex: liveAudioFrame.phraseIndex,
+            barIndex: liveAudioFrame.barIndex,
+            beatIndex: liveAudioFrame.beatIndex,
+            capabilities: liveAudioFrame.capabilities,
+            confidence: liveAudioFrame.confidence,
+            isPlaying: false,
+          })
+        : liveAudioFrame
+      const confidenceValues = Object.entries(authoredAudioFrame.confidence ?? {})
+        .filter(([, value]) => typeof value === 'number')
+        .map(([, value]) => value as number)
+      const analyserActive = Boolean(current.analyser) && (
+        (authoredAudioFrame.volume ?? 0) > 0.001
+        || (authoredAudioFrame.energy ?? 0) > 0.001
+        || (authoredAudioFrame.spectralFlux ?? 0) > 0.001
+      )
+      const inputSource: NonNullable<PixGridAudioFrame['inputSource']> = current.analyser
+        ? 'analyser'
+        : usingFreshBusFrame
+          ? 'shared-bus'
+          : 'neutral'
+      const audioFrame = applyPixGridRuntimeControls(applyPixGridEditorPreview({
+        ...authoredAudioFrame,
+        transportState,
+        inputSource,
+        analyserConnected: current.analyser != null,
+        analyserActive,
+        sharedPerformanceCoreAvailable: true,
+        inputFrameAgeMs: current.analyser ? 0 : publicationAgeMs,
+        inputSourceId: intelligenceFrame.sourceId ?? intelligenceFrame.trackId ?? null,
+        aggregateSourceConfidence: confidenceValues.length
+          ? confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length
+          : 0,
+        stemAvailability: (['bassStemActivity', 'drumActivity', 'melodyActivity', 'vocalActivity'] as const)
+          .filter(source => authoredAudioFrame.capabilities?.[source] !== false),
+      }), {
         bassReactivity: current.bassReactivity,
         motion: current.motion,
       })
@@ -526,8 +653,29 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         cues: current.pixGridActionCues ?? [],
         trackId: current.trackIdentity ?? null,
       })
-      const state = resolvedRuntime.state
-      latestRuntimeDiagnostics = resolvedRuntime.diagnostics
+      const state = transportState === 'stopped' ? mappedState : resolvedRuntime.state
+      latestRuntimeDiagnostics = transportState === 'stopped'
+        ? {
+            ...resolvedRuntime.diagnostics,
+            activeAssignmentCount: 0,
+            affectedGroupCount: 0,
+            affectedCellCount: 0,
+            activeAffectedGroupIds: [],
+            routeActivity: [],
+            currentEnvelopePhase: 'idle',
+            audioEnvelopeActionCount: 0,
+            performanceProgramActionCount: 0,
+            sceneTransitionActionCount: 0,
+            activeCompiledAssignments: [],
+            activeContinuousAssignments: [],
+            activeDiscreteAssignments: [],
+            activeEventEnvelopes: [],
+            activePerformanceActions: [],
+            activeCueActions: [],
+            activeGroupEffects: [],
+            activeTransitions: [],
+          }
+        : resolvedRuntime.diagnostics
       const performance = resolvedRuntime.performance
       const cueFrame = resolvedRuntime.cues
       const activeCueIdentity = cueFrame.snapshot.activeCueIds.join('|')
@@ -589,8 +737,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       return {
         preset: activePreset,
         state,
-        transition: resolvedRuntime.transition,
-        groupEffects: resolvedRuntime.groupEffects,
+        transition: transportState === 'stopped' ? null : resolvedRuntime.transition,
+        groupEffects: transportState === 'stopped' ? [] : resolvedRuntime.groupEffects,
+        audioFrame: routedAudioFrame,
         blackout: !current.isPlaying && !current.isPaused && state.stoppedBehavior === 'blackout',
         frame: {
           width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
@@ -602,6 +751,16 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           bassReactivity: current.bassReactivity,
         },
       }
+    }
+
+    const publishResolvedRouteDiagnostics = (input: NonNullable<ReturnType<typeof currentFrameInput>>) => {
+      if (!latestRuntimeDiagnostics) return
+      latestRuntimeDiagnostics = mergePixGridReactionRuntimeDiagnostics(
+        latestRuntimeDiagnostics,
+        unifiedReactionRuntime.getDiagnostics(),
+        input.state,
+      )
+      publishPixGridAudioAnalysis(input.audioFrame, latestRuntimeDiagnostics)
     }
 
     const renderFallback = (input: NonNullable<ReturnType<typeof currentFrameInput>>) => {
@@ -622,6 +781,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       if (latestRuntimeDiagnostics) {
         latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: fallbackGroupCompiler.compiledGroupIds }
       }
+      publishResolvedRouteDiagnostics(input)
       publishDiagnostics({
         path: 'canvas2d-fallback',
         logicalWidth: fallbackLogical.logicalWidth,
@@ -683,6 +843,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             if (latestRuntimeDiagnostics) {
               latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: gpuRenderer.compiledGroupIds }
             }
+            publishResolvedRouteDiagnostics(input)
             publishDiagnostics({ ...gpuDiagnostics, fps: lastFps })
           }
         } catch (error) {

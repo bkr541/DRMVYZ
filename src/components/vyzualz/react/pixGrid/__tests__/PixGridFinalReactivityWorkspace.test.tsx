@@ -12,6 +12,7 @@ import { BASS_BEACON_PERFORMANCE_PROGRAM } from '../PixGridPerformancePrograms'
 import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import type { PixGridState } from '../PixGridTypes'
+import { normalizePixGridState } from '../PixGridValidation'
 
 let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -94,6 +95,12 @@ describe('PixGrid final Reactivity workspace', () => {
     await act(async () => button('ANALYSIS').click())
     expect(container.textContent).toContain('Waiting for PixGrid frames')
     expect(container.textContent).toContain('No values are synthesized while analysis is absent')
+    expect(container.textContent).toContain('AUDIO INPUT AND TRANSPORT')
+    expect(container.textContent).toContain('WHY PIXGRID IS MOVING')
+    expect(container.textContent).toContain('ACTIVE ROUTES AND ENVELOPES')
+    expect(container.textContent).toContain('SMART GROUP LIVE INSPECTION')
+    expect(container.textContent).toContain('CONFIGURATION VALIDATION')
+    expect(container.querySelector('[role="status"]')).not.toBeNull()
   })
 })
 
@@ -136,13 +143,19 @@ describe('PixGrid authored performance overrides', () => {
               curve: 'easeIn' as const,
               smoothing: 0.22,
               threshold: 0.31,
+              cooldown: 0.64,
+              bassReactivityEnabled: false,
               hysteresis: 0.09,
               minimumConfidence: 0.71,
               capabilityFallback: 'energy' as const,
               blend: 'max' as const,
               sectionTypes: ['drop'],
+              excludeSectionTypes: ['breakdown'],
+              sectionPhases: ['entry'],
               sectionOccurrences: [2],
               dropOccurrences: [2],
+              minimumEnergy: 0.58,
+              maximumEnergy: 0.93,
               priority: 77,
               targetScope: 'group' as const,
               targetId: state.groups[0]!.id,
@@ -156,11 +169,18 @@ describe('PixGrid authored performance overrides', () => {
     const assignment = compiled.assignments.find(candidate => candidate.id.includes(`:${route.id}:`))!
     expect(assignment).toMatchObject({
       source: 'tension', target: 'contrast', amount: expect.any(Number), inputRange: [0.2, 0.8],
-      outputRange: [-0.4, 1.2], curve: 'easeIn', smoothing: 0.22, threshold: 0.31,
+      outputRange: [-0.4, 1.2], curve: 'easeIn', smoothing: 0.22, threshold: 0.31, cooldown: 0.64, bassReactivityEnabled: false,
       hysteresis: 0.09, minimumConfidence: 0.71, capabilityFallback: 'energy', blend: 'max', priority: 77,
       targetScope: 'group', targetId: state.groups[0]!.id,
     })
-    expect(assignment.conditions).toMatchObject({ includeSectionTypes: ['drop'], sectionOccurrences: [2], dropOccurrences: [2] })
+    expect(assignment.conditions).toMatchObject({
+      includeSectionTypes: ['drop'], excludeSectionTypes: ['breakdown'], sectionPhases: ['entry'],
+      sectionOccurrences: [2], dropOccurrences: [2], minimumEnergy: 0.58, maximumEnergy: 0.93,
+    })
+    expect(normalizePixGridState(edited).performance.programOverrides.routes[route.id]).toMatchObject({
+      cooldown: 0.64, bassReactivityEnabled: false, sectionTypes: ['drop'], excludeSectionTypes: ['breakdown'],
+      sectionPhases: ['entry'], sectionOccurrences: [2], dropOccurrences: [2], minimumEnergy: 0.58, maximumEnergy: 0.93,
+    })
   })
 
   it('compiles event-envelope and four/eight/sixteen-bar section overrides into the effective program', () => {
@@ -174,7 +194,7 @@ describe('PixGrid authored performance overrides', () => {
         programOverrides: {
           routes: {
             [eventRoute.id]: {
-              attack: 0.11, hold: 0.23, release: 0.47, decayCurve: 'overshoot' as const,
+              attack: 0.11, hold: 0.23, release: 0.47, cooldown: 0.83, bassReactivityEnabled: false, decayCurve: 'overshoot' as const,
               quantization: 'bar' as const, retrigger: 'extend' as const,
             },
           },
@@ -190,7 +210,7 @@ describe('PixGrid authored performance overrides', () => {
     }
     const compiled = new PixGridPerformanceProgramCompiler().compile(BASS_BEACON_PERFORMANCE_PROGRAM, edited)
     const eventAssignment = compiled.assignments.find(candidate => candidate.id.includes(`:${eventRoute.id}:`))!
-    expect(eventAssignment).toMatchObject({ attack: 0.11, hold: 0.23, release: 0.47, decayCurve: 'overshoot', quantization: 'bar', retrigger: 'extend' })
+    expect(eventAssignment).toMatchObject({ attack: 0.11, hold: 0.23, release: 0.47, cooldown: 0.83, bassReactivityEnabled: false, decayCurve: 'overshoot', quantization: 'bar', retrigger: 'extend' })
     const effectiveSection = compiled.program.sectionPlans.find(plan => plan.id === section.id)!
     expect(effectiveSection).toMatchObject({
       densityState: expect.objectContaining({ value: 0.42 }),

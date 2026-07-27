@@ -26,6 +26,7 @@ import {
   triggerPixGridPreviewSource,
   usePixGridReactivityRuntimeStatus,
 } from './PixGridReactivityStatus'
+import { inspectPixGridGroups, validatePixGridState } from './PixGridValidationAudit'
 import type {
   PixGridPerformanceProgramId,
   PixGridProgramRouteOverride,
@@ -70,6 +71,8 @@ const SCOPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'palette', label: 'Palette' },
 ]
 const PROGRAM_SCOPE_OPTIONS = SCOPE_OPTIONS.filter(option => ['output', 'scene', 'layer', 'group', 'background', 'transition', 'palette'].includes(option.value))
+const SECTION_PHASE_OPTIONS = ['all', 'entry', 'body', 'exit'].map(value => ({ value, label: value === 'all' ? 'Any section phase' : label(value) }))
+const PHRASE_SEGMENT_OPTIONS = ['all', 'entry', 'early', 'middle', 'late', 'exit'].map(value => ({ value, label: value === 'all' ? 'Any phrase segment' : label(value) }))
 const CURVE_OPTIONS = ['linear', 'easeIn', 'easeOut', 'easeInOut', 'exponential', 'logarithmic', 'smoothstep', 'stepped', 'gate', 'inverse']
 const DECAY_OPTIONS = ['linear', 'easeIn', 'easeOut', 'easeInOut', 'exponential', 'overshoot', 'step', 'stepped']
 const TRANSITION_OPTIONS = ['cut', 'crossfade', 'rowWipe', 'columnWipe', 'checkerWipe', 'pixelDissolve', 'radialReveal', 'paletteFade', 'powerOn', 'powerOff']
@@ -267,7 +270,11 @@ function ProgramRouteEditor({
   const operations = PIX_GRID_ASSIGNMENT_TARGETS
     .filter(target => target.supportedSourceKinds.includes(sourceDefinition.kind))
     .map(target => ({ value: target.id, label: target.label }))
-  const sectionValue = override.sectionTypes?.[0] ?? conditions.sectionTypes?.[0] ?? 'all'
+  const sectionValue = override.sectionTypes != null ? override.sectionTypes[0] ?? 'all' : conditions.sectionTypes?.[0] ?? 'all'
+  const excludedSectionValue = override.excludeSectionTypes != null ? override.excludeSectionTypes[0] ?? 'all' : conditions.excludeSectionTypes?.[0] ?? 'all'
+  const sectionPhaseValue = override.sectionPhases != null ? override.sectionPhases[0] ?? 'all' : conditions.sectionPhases?.[0] ?? 'all'
+  const minimumEnergy = override.minimumEnergy ?? conditions.minimumEnergy ?? 0
+  const maximumEnergy = override.maximumEnergy ?? conditions.maximumEnergy ?? 1
   const authoredTarget = programRouteTarget(program, route.target)
   const targetScope = override.targetScope ?? authoredTarget.scope
   const targetIds = targetChoices(state, targetScope)
@@ -286,7 +293,7 @@ function ProgramRouteEditor({
       }} />
       {targetIds.length > 0 && <SelectRow label="Target" value={targetId ?? targetIds[0]?.value ?? ''} options={targetIds} onChange={value => update({ targetId: value })} />}
       <SelectRow label="Operation" value={operation} options={operations} onChange={value => update({ operation: value as PixGridReactionTarget })} />
-      <SliderRow label="Amount" value={amount} min={-4} max={4} step={0.01} onChange={value => update({ amount: value })} />
+      <SliderRow label="Amount" value={amount} min={-4} max={4} step={0.01} description="Signed strength applied after source shaping and eligibility checks." onChange={value => update({ amount: value })} />
       <NumberInputRow label="Input Minimum" value={inputRange[0]} min={-4} max={4} step={0.01} onChange={value => update({ inputRange: [value, inputRange[1]] })} />
       <NumberInputRow label="Input Maximum" value={inputRange[1]} min={-4} max={4} step={0.01} onChange={value => update({ inputRange: [inputRange[0], value] })} />
       <NumberInputRow label="Output Minimum" value={outputRange[0]} min={-8} max={8} step={0.01} onChange={value => update({ outputRange: [value, outputRange[1]] })} />
@@ -299,7 +306,7 @@ function ProgramRouteEditor({
       ) : (
         <SelectRow label="Decay Curve" value={override.decayCurve ?? ('envelope' in route ? route.envelope.curve ?? 'easeOut' : 'easeOut')} options={DECAY_OPTIONS.map(value => ({ value, label: label(value) }))} onChange={value => update({ decayCurve: value as PixGridProgramRouteOverride['decayCurve'] })} />
       )}
-      <SliderRow label="Threshold" value={override.threshold ?? route.threshold ?? (continuous ? 0 : 0.01)} onChange={value => update({ threshold: value })} />
+      <SliderRow label="Threshold" value={override.threshold ?? route.threshold ?? (continuous ? 0 : 0.01)} description="Minimum shaped source value required before this route can contribute." onChange={value => update({ threshold: value })} />
       <SliderRow label="Hysteresis" value={override.hysteresis ?? route.hysteresis ?? 0} max={0.5} step={0.01} onChange={value => update({ hysteresis: value })} />
       <SliderRow label="Smoothing" value={override.smoothing ?? route.smoothing ?? sourceDefinition.recommendedSmoothing.smoothing} max={1} step={0.01} onChange={value => update({ smoothing: value })} />
       {!continuous && 'envelope' in route && (
@@ -307,20 +314,26 @@ function ProgramRouteEditor({
           <SliderRow label="Attack" value={override.attack ?? route.envelope.attack} max={2} step={0.005} onChange={value => update({ attack: value })} />
           <SliderRow label="Hold" value={override.hold ?? route.envelope.hold} max={2} step={0.005} onChange={value => update({ hold: value })} />
           <SliderRow label="Release" value={override.release ?? route.envelope.release} max={4} step={0.005} onChange={value => update({ release: value })} />
+          <SliderRow label="Cooldown" value={override.cooldown ?? route.cooldown ?? 0} max={8} step={0.01} description="Minimum seconds between accepted event triggers, independent of envelope length." onChange={value => update({ cooldown: value })} />
           <SelectRow label="Quantization" value={override.quantization ?? route.quantization ?? 'none'} options={['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'].map(value => ({ value, label: label(value) }))} onChange={value => update({ quantization: value as PixGridProgramRouteOverride['quantization'] })} />
           <SelectRow label="Retrigger" value={override.retrigger ?? route.retrigger ?? 'restart'} options={['restart', 'extend', 'ignoreWhileActive'].map(value => ({ value, label: label(value) }))} onChange={value => update({ retrigger: value as PixGridProgramRouteOverride['retrigger'] })} />
         </>
       )}
-      <SliderRow label="Minimum Confidence" value={override.minimumConfidence ?? route.minimumConfidence ?? 0} onChange={value => update({ minimumConfidence: value })} />
-      <SelectRow label="Fallback" value={override.capabilityFallback ?? route.capabilityFallback ?? sourceDefinition.capabilityFallback} options={['disable', 'zero', 'energy', 'beat', 'midHighActivity', 'transient'].map(value => ({ value, label: label(value) }))} onChange={value => update({ capabilityFallback: value as PixGridProgramRouteOverride['capabilityFallback'] })} />
-      <SelectRow label="Section Condition" value={sectionValue} options={SECTION_OPTIONS} onChange={value => update({ sectionTypes: value === 'all' ? undefined : [value as ReactSectionType] })} />
+      {['sub', 'bass', 'lowMid', 'bassStemActivity', 'kick'].includes(source) && <ToggleRow label="Use Bass Reactivity" value={override.bassReactivityEnabled ?? (route.bassReactivityEnabled !== false)} description="Let the global Bass Reactivity control scale this bass-sensitive source." onChange={bassReactivityEnabled => update({ bassReactivityEnabled })} />}
+      <SliderRow label="Minimum Confidence" value={override.minimumConfidence ?? route.minimumConfidence ?? 0} description="Reject optional or inferred analysis below this confidence." onChange={value => update({ minimumConfidence: value })} />
+      <SelectRow label="Fallback" value={override.capabilityFallback ?? route.capabilityFallback ?? sourceDefinition.capabilityFallback} options={['disable', 'zero', 'energy', 'beat', 'midHighActivity', 'transient'].map(value => ({ value, label: label(value) }))} description="Replacement source used when the authored source is unavailable." onChange={value => update({ capabilityFallback: value as PixGridProgramRouteOverride['capabilityFallback'] })} />
+      <SelectRow label="Include Section" value={sectionValue} options={SECTION_OPTIONS} onChange={value => update({ sectionTypes: value === 'all' ? [] : [value as ReactSectionType] })} />
+      <SelectRow label="Exclude Section" value={excludedSectionValue} options={SECTION_OPTIONS} onChange={value => update({ excludeSectionTypes: value === 'all' ? [] : [value as ReactSectionType] })} />
+      <SelectRow label="Section Phase" value={sectionPhaseValue} options={SECTION_PHASE_OPTIONS} onChange={value => update({ sectionPhases: value === 'all' ? [] : [value as 'entry' | 'body' | 'exit'] })} />
+      <SliderRow label="Minimum Energy" value={minimumEnergy} onChange={value => update({ minimumEnergy: value })} />
+      <SliderRow label="Maximum Energy" value={maximumEnergy} onChange={value => update({ maximumEnergy: value })} />
       <TextInputRow label="Section Occurrences" value={(override.sectionOccurrences ?? conditions.sectionOccurrences ?? []).join(', ')} placeholder="1, 2, 3" onChange={value => update({ sectionOccurrences: parseOccurrence(value) })} />
       <TextInputRow label="Drop Occurrences" value={(override.dropOccurrences ?? conditions.dropOccurrences ?? []).join(', ')} placeholder="1, 2" onChange={value => update({ dropOccurrences: parseOccurrence(value) })} />
       <SliderRow label="Priority" value={override.priority ?? route.priority ?? 0} min={-500} max={500} step={1} onChange={value => update({ priority: value })} />
       <SelectRow label="Blend" value={override.blend ?? route.blend ?? 'add'} options={['add', 'multiply', 'replace', 'max'].map(value => ({ value, label: label(value) }))} onChange={value => update({ blend: value as PixGridProgramRouteOverride['blend'] })} />
       <div className="rv-ctrl-action-row">
         <button type="button" className="rv-reset-btn" onClick={() => triggerPixGridPreviewSource(source)}>{continuous ? 'Preview Route' : 'Test Trigger'}</button>
-        <button type="button" className="rv-reset-btn" disabled={!Object.keys(override).length} onClick={reset}>Reset Route</button>
+        <button type="button" className="rv-reset-btn" disabled={!Object.keys(override).length} title={Object.keys(override).length ? 'Restore the bundled route settings.' : 'This route already uses its bundled settings.'} onClick={reset}>Reset Route</button>
       </div>
       <div className="rv-ctrl-info">Preview is transient and never writes a Track Map cue.</div>
     </Collapsible>
@@ -349,12 +362,17 @@ function UserRouteEditor({ state, selection, applyState }: { state: PixGridState
   const targetOptions = PIX_GRID_ASSIGNMENT_TARGETS.filter(target => target.scopes.includes(assignment.targetScope ?? 'output') && target.supportedSourceKinds.includes(definition.kind)).map(target => ({ value: target.id, label: target.label }))
   const targetIds = assignment.targetScope === 'group' || assignment.targetScope === 'pixels'
     ? state.groups.map(group => ({ value: group.id, label: group.name }))
-    : assignment.targetScope === 'layer'
+    : assignment.targetScope === 'layer' || assignment.targetScope === 'animation'
       ? state.layers.map(layer => ({ value: layer.id, label: layer.name }))
       : assignment.targetScope === 'scene'
         ? state.scenes.map(scene => ({ value: scene.id, label: scene.name }))
         : []
   const section = assignment.conditions?.includeSectionTypes?.[0] ?? 'all'
+  const excludedSection = assignment.conditions?.excludeSectionTypes?.[0] ?? 'all'
+  const sectionPhase = assignment.conditions?.sectionPhases?.[0] ?? 'all'
+  const phraseSegment = assignment.conditions?.phraseSegments?.[0] ?? 'all'
+  const activeLayer = assignment.conditions?.activeLayerId ?? 'any'
+  const activeGroup = assignment.conditions?.activeGroupId ?? 'any'
   return (
     <Collapsible label={continuous ? 'USER CONTINUOUS ROUTE' : 'USER EVENT ROUTE'} defaultOpen>
       <TextInputRow label="Name" value={assignment.name} onChange={name => update({ name })} />
@@ -366,20 +384,36 @@ function UserRouteEditor({ state, selection, applyState }: { state: PixGridState
       }} />
       {targetIds.length > 0 && <SelectRow label="Target" value={assignment.targetId ?? targetIds[0]?.value ?? ''} options={targetIds} onChange={targetId => update({ targetId })} />}
       <SelectRow label="Operation" value={assignment.target} options={targetOptions.length ? targetOptions : PIX_GRID_ASSIGNMENT_TARGETS.map(target => ({ value: target.id, label: target.label }))} onChange={value => update({ target: value as PixGridReactionTarget })} />
-      <SliderRow label="Amount" value={assignment.amount} min={-4} max={4} step={0.01} onChange={amount => update({ amount })} />
+      <SliderRow label="Amount" value={assignment.amount} min={-4} max={4} step={0.01} description="Signed strength applied after source shaping and eligibility checks." onChange={amount => update({ amount })} />
       <NumberInputRow label="Input Minimum" value={assignment.inputRange?.[0] ?? 0} min={-4} max={4} step={0.01} onChange={value => update({ inputRange: [value, assignment.inputRange?.[1] ?? 1] })} />
       <NumberInputRow label="Input Maximum" value={assignment.inputRange?.[1] ?? 1} min={-4} max={4} step={0.01} onChange={value => update({ inputRange: [assignment.inputRange?.[0] ?? 0, value] })} />
       <NumberInputRow label="Output Minimum" value={assignment.outputRange?.[0] ?? 0} min={-8} max={8} step={0.01} onChange={value => update({ outputRange: [value, assignment.outputRange?.[1] ?? 1] })} />
       <NumberInputRow label="Output Maximum" value={assignment.outputRange?.[1] ?? 1} min={-8} max={8} step={0.01} onChange={value => update({ outputRange: [assignment.outputRange?.[0] ?? 0, value] })} />
       <SelectRow label="Polarity" value={assignment.polarity ?? 'positive'} options={['positive', 'negative', 'bipolar'].map(value => ({ value, label: label(value) }))} onChange={value => update({ polarity: value as PixGridReactionAssignment['polarity'] })} />
       <SelectRow label={continuous ? 'Curve' : 'Decay Curve'} value={continuous ? assignment.curve ?? 'linear' : assignment.decayCurve ?? 'easeOut'} options={(continuous ? CURVE_OPTIONS : DECAY_OPTIONS).map(value => ({ value, label: label(value) }))} onChange={value => continuous ? update({ curve: value as PixGridReactionAssignment['curve'] }) : update({ decayCurve: value as PixGridReactionAssignment['decayCurve'] })} />
-      <SliderRow label="Threshold" value={assignment.threshold} onChange={threshold => update({ threshold })} />
+      <SliderRow label="Threshold" value={assignment.threshold} description="Minimum shaped source value required before this route can contribute." onChange={threshold => update({ threshold })} />
       <SliderRow label="Hysteresis" value={assignment.hysteresis ?? 0} max={0.5} step={0.01} onChange={hysteresis => update({ hysteresis })} />
       <SliderRow label="Smoothing" value={assignment.smoothing} max={1} step={0.01} onChange={smoothing => update({ smoothing })} />
-      {!continuous && <><SliderRow label="Attack" value={assignment.attack} max={2} step={0.005} onChange={attack => update({ attack })} /><SliderRow label="Hold" value={assignment.hold} max={2} step={0.005} onChange={hold => update({ hold })} /><SliderRow label="Release" value={assignment.release} max={4} step={0.005} onChange={release => update({ release })} /><SelectRow label="Quantization" value={assignment.quantization} options={['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'].map(value => ({ value, label: label(value) }))} onChange={value => update({ quantization: value as PixGridReactionAssignment['quantization'] })} /><SelectRow label="Retrigger" value={assignment.retrigger} options={['restart', 'extend', 'ignoreWhileActive'].map(value => ({ value, label: label(value) }))} onChange={value => update({ retrigger: value as PixGridReactionAssignment['retrigger'] })} /></>}
-      <SliderRow label="Minimum Confidence" value={assignment.minimumConfidence} onChange={minimumConfidence => update({ minimumConfidence })} />
-      <SelectRow label="Fallback" value={assignment.capabilityFallback} options={['disable', 'zero', 'energy', 'beat', 'midHighActivity', 'transient'].map(value => ({ value, label: label(value) }))} onChange={value => update({ capabilityFallback: value as PixGridReactionAssignment['capabilityFallback'] })} />
-      <SelectRow label="Section Condition" value={section} options={SECTION_OPTIONS} onChange={value => update({ conditions: { ...assignment.conditions, includeSectionTypes: value === 'all' ? [] : [value as ReactSectionType] } })} />
+      {!continuous && <>
+        <SliderRow label="Attack" value={assignment.attack} max={2} step={0.005} onChange={attack => update({ attack })} />
+        <SliderRow label="Hold" value={assignment.hold} max={2} step={0.005} onChange={hold => update({ hold })} />
+        <SliderRow label="Release" value={assignment.release} max={4} step={0.005} onChange={release => update({ release })} />
+        <SliderRow label="Cooldown" value={assignment.cooldown ?? 0} max={8} step={0.01} description="Minimum seconds between accepted event triggers, independent of envelope length." onChange={cooldown => update({ cooldown })} />
+        <SelectRow label="Quantization" value={assignment.quantization} options={['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'].map(value => ({ value, label: label(value) }))} onChange={value => update({ quantization: value as PixGridReactionAssignment['quantization'] })} />
+        <SelectRow label="Retrigger" value={assignment.retrigger} options={['restart', 'extend', 'ignoreWhileActive'].map(value => ({ value, label: label(value) }))} onChange={value => update({ retrigger: value as PixGridReactionAssignment['retrigger'] })} />
+      </>}
+      {['sub', 'bass', 'lowMid', 'bassStemActivity', 'kick'].includes(assignment.source) && <ToggleRow label="Use Bass Reactivity" value={assignment.bassReactivityEnabled !== false} description="Let the global Bass Reactivity control scale this bass-sensitive source." onChange={bassReactivityEnabled => update({ bassReactivityEnabled })} />}
+      <SliderRow label="Minimum Confidence" value={assignment.minimumConfidence} description="Reject optional or inferred analysis below this confidence." onChange={minimumConfidence => update({ minimumConfidence })} />
+      <SelectRow label="Fallback" value={assignment.capabilityFallback} options={['disable', 'zero', 'energy', 'beat', 'midHighActivity', 'transient'].map(value => ({ value, label: label(value) }))} description="Replacement source used when the authored source is unavailable." onChange={value => update({ capabilityFallback: value as PixGridReactionAssignment['capabilityFallback'] })} />
+      <SelectRow label="Include Section" value={section} options={SECTION_OPTIONS} onChange={value => update({ conditions: { ...assignment.conditions, includeSectionTypes: value === 'all' ? [] : [value as ReactSectionType] } })} />
+      <SelectRow label="Exclude Section" value={excludedSection} options={SECTION_OPTIONS} onChange={value => update({ conditions: { ...assignment.conditions, excludeSectionTypes: value === 'all' ? [] : [value as ReactSectionType] } })} />
+      <SelectRow label="Section Phase" value={sectionPhase} options={SECTION_PHASE_OPTIONS} onChange={value => update({ conditions: { ...assignment.conditions, sectionPhases: value === 'all' ? [] : [value as 'entry' | 'body' | 'exit'] } })} />
+      <SelectRow label="Phrase Segment" value={phraseSegment} options={PHRASE_SEGMENT_OPTIONS} onChange={value => update({ conditions: { ...assignment.conditions, phraseSegments: value === 'all' ? [] : [value as 'entry' | 'early' | 'middle' | 'late' | 'exit'] } })} />
+      <SliderRow label="Minimum Energy" value={assignment.conditions?.minimumEnergy ?? 0} onChange={minimumEnergy => update({ conditions: { ...assignment.conditions, minimumEnergy } })} />
+      <SliderRow label="Maximum Energy" value={assignment.conditions?.maximumEnergy ?? 1} onChange={maximumEnergy => update({ conditions: { ...assignment.conditions, maximumEnergy } })} />
+      <ToggleRow label="Auto Performance Only" value={assignment.conditions?.autoPerformanceOnly === true} description="Require the shared performance program to be active before this route is eligible." onChange={autoPerformanceOnly => update({ conditions: { ...assignment.conditions, autoPerformanceOnly } })} />
+      <SelectRow label="Active Layer" value={activeLayer} options={[{ value: 'any', label: 'Any active layer' }, ...state.layers.map(layer => ({ value: layer.id, label: layer.name }))]} onChange={value => update({ conditions: { ...assignment.conditions, activeLayerId: value === 'any' ? null : value } })} />
+      <SelectRow label="Active Group" value={activeGroup} options={[{ value: 'any', label: 'Any active group' }, ...state.groups.map(group => ({ value: group.id, label: group.name }))]} onChange={value => update({ conditions: { ...assignment.conditions, activeGroupId: value === 'any' ? null : value } })} />
       <TextInputRow label="Section Occurrences" value={(assignment.conditions?.sectionOccurrences ?? []).join(', ')} placeholder="1, 2, 3" onChange={value => update({ conditions: { ...assignment.conditions, sectionOccurrences: parseOccurrence(value) ?? [] } })} />
       <TextInputRow label="Drop Occurrences" value={(assignment.conditions?.dropOccurrences ?? []).join(', ')} placeholder="1, 2" onChange={value => update({ conditions: { ...assignment.conditions, dropOccurrences: parseOccurrence(value) ?? [] } })} />
       <SliderRow label="Priority" value={assignment.priority ?? 0} min={-500} max={500} step={1} onChange={priority => update({ priority })} />
@@ -612,6 +646,15 @@ function AnalysisPanel() {
   const frame = status.audioFrame
   const runtime = status.runtime
   const renderer = status.renderer
+  const validation = useMemo(() => validatePixGridState(pixGridState, {
+    builtInPresetId: pixGridState.configuration.origin === 'builtInPreset' ? pixGridState.selectedPresetId : null,
+    capabilities: frame?.capabilities,
+  }), [frame?.capabilities, pixGridState])
+  const groupInspection = useMemo(
+    () => inspectPixGridGroups(pixGridState, runtime?.routeActivity ?? []),
+    [pixGridState, runtime?.routeActivity],
+  )
+  const activeRoutes = runtime?.routeActivity.filter(route => route.state === 'active' || route.state === 'fallback') ?? []
   const signals: Array<[PixGridReactionSource, string]> = [
     ['sub', 'Sub'], ['bass', 'Bass'], ['lowMid', 'Low-mid'], ['mid', 'Mid'], ['high', 'High'], ['air', 'Air'],
     ['volume', 'Volume'], ['energy', 'Energy'], ['trackRelativeEnergy', 'Track-relative energy'], ['spectralFlux', 'Spectral flux'],
@@ -626,6 +669,59 @@ function AnalysisPanel() {
   ]
   return (
     <div data-testid="pix-grid-analysis-workspace">
+      <div className="rv-pix-grid-a11y-status" role="status" aria-live="polite" aria-atomic="true">
+        PixGrid audio input {runtime?.audioInputStatus ?? 'unavailable'}; {activeRoutes.length} active routes; {validation.summary}.
+      </div>
+      <Collapsible label="AUDIO INPUT AND TRANSPORT" defaultOpen>
+        <div className="rv-pix-grid-diagnostics-grid">
+          {[
+            ['Audio input', runtime?.audioInputStatus ?? 'Unavailable'],
+            ['Analyser', frame?.analyserConnected === false ? 'Disconnected' : runtime?.analyserActive ? 'Active' : frame?.analyserConnected ? 'Connected · idle' : 'Unavailable'],
+            ['Shared Performance Core', runtime?.sharedPerformanceCoreAvailable ? 'Available' : 'Unavailable'],
+            ['Source', frame?.inputSourceId ?? frame?.inputSource ?? 'Unavailable'],
+            ['Frame age', frame?.inputFrameAgeMs == null ? 'Unavailable' : `${Math.round(frame.inputFrameAgeMs)} ms`],
+            ['Beat / downbeat', `${frame?.beatIndex ?? '–'} / ${frame?.downbeatHit ? 'active' : 'idle'}`],
+            ['Bar / phrase', `${frame?.barIndex ?? '–'} / ${frame?.phraseIndex ?? '–'}`],
+            ['Source confidence', `${Math.round((runtime?.aggregateSourceConfidence ?? frame?.aggregateSourceConfidence ?? 0) * 100)}%`],
+            ['Stems', runtime?.stemAvailability.length ? runtime.stemAvailability.map(label).join(', ') : 'Unavailable'],
+            ['Kick / snare / hat', `${Math.round((sourceValue(frame, 'kick') ?? 0) * 100)} / ${Math.round((sourceValue(frame, 'snare') ?? 0) * 100)} / ${Math.round((sourceValue(frame, 'hat') ?? 0) * 100)}%`],
+          ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}
+        </div>
+      </Collapsible>
+      <Collapsible label="WHY PIXGRID IS MOVING" defaultOpen>
+        <div className="rv-pix-grid-motion-ledger">
+          <div><strong>Autonomous layer animation</strong><span>{runtime?.autonomousAnimationCount ?? 0} active definitions</span><small>Driven by elapsed time and the global Motion multiplier.</small></div>
+          <div><strong>Beat-synchronized animation</strong><span>{runtime?.beatSynchronizedAnimationCount ?? 0} active definitions</span><small>Driven by beat or cue clocks, not transient envelopes.</small></div>
+          <div><strong>Audio-envelope group actions</strong><span>{runtime?.audioEnvelopeActionCount ?? 0} active envelopes</span><small>Driven by continuous routes and transient attack, hold, release, and cooldown.</small></div>
+          <div><strong>Performance-program actions</strong><span>{runtime?.performanceProgramActionCount ?? 0} actions</span><small>Driven by authored visual roles, route banks, motifs, and recruitment.</small></div>
+          <div><strong>Scene and phrase transitions</strong><span>{runtime?.sceneTransitionActionCount ?? 0} transitions</span><small>Driven by section plans, phrase boundaries, or Track Map cues.</small></div>
+          <div><strong>Global Motion</strong><span>{Math.round((runtime?.effectiveMotionMultiplier ?? frame?.motionMultiplier ?? 1) * 100)}%</span><small>Separate from music-reaction intensity.</small></div>
+        </div>
+      </Collapsible>
+      <Collapsible label="ACTIVE ROUTES AND ENVELOPES" defaultOpen>
+        <div className="rv-pix-grid-route-activity" role="list" aria-label="Active PixGrid audio routes" aria-live="off">
+          {activeRoutes.map(route => <div key={route.routeId} role="listitem" className={`is-${route.state}`}>
+            <span><strong>{route.name}</strong><small>{label(route.source)} → {label(route.target)} · {route.targetScope}{route.targetId ? ` · ${route.targetId}` : ''}</small></span>
+            <em>{route.state === 'fallback' ? 'Fallback' : route.envelopePhase}</em>
+            <b>{Math.round(route.effectiveAmount * 100)}%</b>
+          </div>)}
+          {!activeRoutes.length && <div className="rv-ctrl-info">No route is currently producing a non-zero action. Open Inactive Route Reasons below to see why.</div>}
+        </div>
+        <Collapsible label="INACTIVE ROUTE REASONS" defaultOpen={false}>
+          <div className="rv-pix-grid-warning-list" aria-live="off">
+            {(runtime?.routeActivity ?? []).filter(route => route.state !== 'active' && route.state !== 'fallback').map(route => <span key={route.routeId}><strong>{route.name}</strong> · {route.reason}</span>)}
+          </div>
+        </Collapsible>
+      </Collapsible>
+      <Collapsible label="SMART GROUP LIVE INSPECTION" defaultOpen={false}>
+        <div className="rv-pix-grid-group-inspection" role="list" aria-label="PixGrid smart group diagnostics">
+          {groupInspection.map(group => <div key={group.groupId} role="listitem" className={group.maskValid ? '' : 'is-invalid'}>
+            <span><strong>{group.name}</strong><small>{group.groupId} · {label(group.source)} · {label(group.maskKind)}</small></span>
+            <em>{group.maskStatus === 'pending-source' ? 'Source mask · resolves during render' : group.maskValid ? `${group.compiledCellCount} cells` : 'Invalid · zero cells'}</em>
+            <small>{group.activeRouteIds.length} active actions · {Math.round(group.reactionIntensity * 100)}% intensity · overlaps {group.overlappingGroupIds.length ? group.overlappingGroupIds.join(', ') : 'none'}</small>
+          </div>)}
+        </div>
+      </Collapsible>
       <Collapsible label="LIVE AUTHORITATIVE ANALYSIS" defaultOpen>
         {!frame && <div className="rv-pix-grid-origin-card"><strong>Waiting for PixGrid frames</strong><span>Start playback or select PixGrid to publish live analysis.</span><small>No values are synthesized while analysis is absent.</small></div>}
         <div className="rv-pix-grid-signal-list">{signals.map(([source, title]) => <SignalRow key={source} source={source} labelText={title} />)}</div>
@@ -637,6 +733,17 @@ function AnalysisPanel() {
       <Collapsible label="CAPABILITY STATUS" defaultOpen={false}>
         <div className="rv-pix-grid-diagnostic-tags"><span className="is-available">Available {runtime?.availableSources.length ?? 0}</span><span className="is-degraded">Degraded {runtime?.degradedSources.length ?? 0}</span><span className="is-fallback">Fallback {runtime?.assignmentsUsingFallback.length ?? 0}</span><span className="is-blocked">Confidence blocked {runtime?.assignmentsBlockedByConfidence.length ?? 0}</span><span className="is-unavailable">Unavailable {runtime?.unavailableSources.length ?? 0}</span></div>
       </Collapsible>
+      <Collapsible label="CONFIGURATION VALIDATION" defaultOpen={validation.errors.length > 0}>
+        <div className="rv-pix-grid-validation-summary" role="status"><strong>{validation.valid ? 'VALID' : 'ACTION REQUIRED'}</strong><span>{validation.summary}</span></div>
+        <div className="rv-pix-grid-validation-list" role="list" aria-label="PixGrid validation issues">
+          {validation.issues.map(item => <div key={`${item.code}:${item.path}`} role="listitem" className={`is-${item.severity}`}>
+            <strong>{item.severity.toUpperCase()} · {label(item.code)}</strong>
+            <span>{item.message}</span>
+            <small>{item.path} · {item.remediation}</small>
+          </div>)}
+          {!validation.issues.length && <div className="rv-ctrl-info">Smart groups, routes, fallbacks, performance program, and migration metadata are structurally valid.</div>}
+        </div>
+      </Collapsible>
       <Collapsible label="RUNTIME DIAGNOSTICS" defaultOpen={false}>
         <div className="rv-pix-grid-diagnostics-grid">
           {[
@@ -644,9 +751,14 @@ function AnalysisPanel() {
             ['Migration', (renderer?.migrationApplied ?? runtime?.migrationApplied ?? pixGridState.configuration.lastMigration?.applied) ? 'Applied' : 'Current'], ['Fallback routes', (renderer?.fallbackRoutesActive ?? runtime?.fallbackRoutesActive) ? 'Active' : 'Inactive'],
             ['Groups added / kept / upgraded', `${renderer?.migrationGroupsAdded ?? runtime?.migrationGroupsAdded ?? 0} / ${renderer?.migrationGroupsPreserved ?? runtime?.migrationGroupsPreserved ?? 0} / ${renderer?.migrationGroupsUpgraded ?? runtime?.migrationGroupsUpgraded ?? 0}`],
             ['Routes added / kept / upgraded', `${renderer?.migrationAssignmentsAdded ?? runtime?.migrationAssignmentsAdded ?? 0} / ${renderer?.migrationAssignmentsPreserved ?? runtime?.migrationAssignmentsPreserved ?? 0} / ${renderer?.migrationAssignmentsUpgraded ?? runtime?.migrationAssignmentsUpgraded ?? 0}`],
+            ['Programs upgraded', renderer?.migrationProgramsUpgraded ?? runtime?.migrationProgramsUpgraded ?? pixGridState.configuration.lastMigration?.programsUpgraded ?? 0],
+            ['Customizations preserved', (renderer?.migrationCustomizationsPreserved ?? runtime?.migrationCustomizationsPreserved ?? pixGridState.configuration.lastMigration?.customizationsPreserved) ? 'Yes' : 'No'],
+            ['Migration conflicts / skipped', `${renderer?.migrationConflictCount ?? runtime?.migrationConflicts.length ?? 0} / ${renderer?.migrationSkippedUpgradeCount ?? runtime?.migrationSkippedUpgrades.length ?? 0}`],
+            ['Original built-in preset', pixGridState.configuration.lastMigration?.originalBuiltInPresetId ?? pixGridState.configuration.sourcePresetId ?? 'None'],
             ['Active audio sources', renderer?.activeAudioSourceCount ?? runtime?.activeAudioSourceCount], ['Active assignments', renderer?.activeAssignmentCount ?? runtime?.activeAssignmentCount],
             ['Bass reactivity gain', `${Math.round((renderer?.effectiveBassReactivityGain ?? runtime?.effectiveBassReactivityGain ?? frame?.bassReactivityGain ?? 1) * 100)}%`], ['Motion multiplier', `${Math.round((renderer?.effectiveMotionMultiplier ?? runtime?.effectiveMotionMultiplier ?? frame?.motionMultiplier ?? 1) * 100)}%`],
-            ['Affected groups', renderer?.affectedGroupCount ?? runtime?.affectedGroupCount], ['Affected cells', renderer?.affectedCellCount ?? runtime?.affectedCellCount],
+            ['Affected groups', renderer?.affectedGroupCount ?? runtime?.affectedGroupCount], ['Affected group IDs', runtime?.activeAffectedGroupIds.join(', ') || 'None'], ['Affected cells', renderer?.affectedCellCount ?? runtime?.affectedCellCount],
+            ['Scene / motif', `${runtime?.currentSceneId ?? 'None'} / ${runtime?.activeProgramMotif ?? 'None'}`], ['Envelope phase', renderer?.activeEnvelopePhase ?? runtime?.currentEnvelopePhase ?? 'idle'],
             ['Total groups', renderer?.totalGroupCount ?? runtime?.enabledGroups.length], ['Compiled masks', renderer?.activeGroupMaskCount ?? runtime?.compiledMaskGroups.length],
             ['Continuous routes', renderer?.activeContinuousAssignmentCount ?? runtime?.activeContinuousAssignments.length], ['Event routes', renderer?.activeDiscreteAssignmentCount ?? runtime?.activeDiscreteAssignments.length],
             ['Program routes', renderer?.programGeneratedRouteCount ?? ((runtime?.activeProgramContinuousRoutes.length ?? 0) + (runtime?.activeProgramEventRoutes.length ?? 0))], ['User routes', renderer?.userAuthoredRouteCount ?? ((runtime?.activeContinuousAssignments.length ?? 0) + (runtime?.activeDiscreteAssignments.length ?? 0))],

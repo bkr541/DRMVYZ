@@ -253,6 +253,7 @@ export function migratePixGridState(
   const raw = isRecord(rawState) ? rawState : {}
   const fromStateVersion = finiteVersion(raw.version)
   const rawConfiguration = isRecord(raw.configuration) ? raw.configuration : null
+  const rawPerformance = isRecord(raw.performance) ? raw.performance : null
   const fromPresetConfigurationVersion = finiteVersion(rawConfiguration?.presetConfigurationVersion)
   const normalized = normalizePixGridState(rawState)
   const preset = canonicalPresetFor(normalized, explicitPreset)
@@ -280,6 +281,12 @@ export function migratePixGridState(
       layersAdded: 0,
       scenesAdded: 0,
       fallbackRoutesActive: false,
+      originalBuiltInPresetId: normalized.configuration.sourcePresetId,
+      programsUpgraded: 0,
+      customizationsPreserved: normalized.configuration.userCustomized,
+      conflicts: [],
+      skippedUpgrades: [],
+      fallbackRoutingInstalled: false,
     }
     return normalizePixGridState({
       ...normalized,
@@ -344,7 +351,7 @@ export function migratePixGridState(
       pixGridLayerAnimationSignature(layer),
     ) ? [layer.id] : []
   }))
-  const programMissing = targetProgramId != null && normalized.performance.sharedPerformanceProgramId !== targetProgramId
+  const programMissing = targetProgramId != null && rawPerformance?.sharedPerformanceProgramId !== targetProgramId
   const migrationNeeded = fromStateVersion < PIX_GRID_STATE_VERSION
     || fromPresetConfigurationVersion < targetPresetConfigurationVersion
     || normalized.configuration.musicReactiveConfigurationVersion < PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION
@@ -397,6 +404,14 @@ export function migratePixGridState(
     layersAdded: missingLayers.length,
     scenesAdded: missingScenes.length,
     fallbackRoutesActive: false,
+    originalBuiltInPresetId: normalized.configuration.sourcePresetId ?? preset.id,
+    programsUpgraded: programMissing ? 1 : 0,
+    customizationsPreserved: userCustomized,
+    conflicts: [],
+    skippedUpgrades: userCustomized && presetUpgradeRequested
+      ? ['Customized canonical entities were preserved unless their prior canonical signature still matched.']
+      : [],
+    fallbackRoutingInstalled: false,
   }
 
   return normalizePixGridState({
@@ -486,8 +501,9 @@ export const PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS: readonly PixGridReactionAss
 )
 
 function assignmentTargetExists(state: PixGridState, assignment: PixGridReactionAssignment, ownerGroupId?: string): boolean {
-  const targetId = assignment.targetId ?? ownerGroupId ?? null
-  switch (assignment.targetScope) {
+  const scope = assignment.targetScope ?? (ownerGroupId ? 'group' : 'output')
+  const targetId = assignment.targetId ?? ((scope === 'group' || scope === 'pixels') ? ownerGroupId : null) ?? null
+  switch (scope) {
     case 'scene': return targetId == null || state.scenes.some(scene => scene.id === targetId)
     case 'layer':
     case 'animation': return targetId == null || state.layers.some(layer => layer.id === targetId)
@@ -540,7 +556,7 @@ export function ensurePixGridRuntimeAudioRoutes(state: PixGridState): {
       configuration: {
         ...state.configuration,
         lastMigration: state.configuration.lastMigration
-          ? { ...state.configuration.lastMigration, fallbackRoutesActive: true }
+          ? { ...state.configuration.lastMigration, fallbackRoutesActive: true, fallbackRoutingInstalled: fallbackAssignments.length > 0 }
           : state.configuration.lastMigration,
       },
     },

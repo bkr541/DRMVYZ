@@ -23,12 +23,13 @@ export function applyPixGridRuntimeControls(
 ): PixGridAudioFrame {
   const bassReactivityGain = clamp01(controls.bassReactivity)
   const motionMultiplier = clamp01(controls.motion)
-  const sourceValues = { ...frame.sourceValues }
-  sourceValues.sub = clamp01(sourceValues.sub ?? frame.sub ?? 0)
-  sourceValues.bass = clamp01(sourceValues.bass ?? frame.bass)
-  sourceValues.lowMid = clamp01(sourceValues.lowMid ?? frame.lowMid ?? 0)
-  sourceValues.bassStemActivity = clamp01(sourceValues.bassStemActivity ?? frame.bassStemActivity ?? 0)
-  sourceValues.kick = clamp01(sourceValues.kick ?? (frame.kickHit ? 1 : 0))
+  const unscaledSourceValues = { ...(frame.unscaledSourceValues ?? frame.sourceValues) }
+  unscaledSourceValues.sub = clamp01(unscaledSourceValues.sub ?? frame.sub ?? 0)
+  unscaledSourceValues.bass = clamp01(unscaledSourceValues.bass ?? frame.bass)
+  unscaledSourceValues.lowMid = clamp01(unscaledSourceValues.lowMid ?? frame.lowMid ?? 0)
+  unscaledSourceValues.bassStemActivity = clamp01(unscaledSourceValues.bassStemActivity ?? frame.bassStemActivity ?? 0)
+  unscaledSourceValues.kick = clamp01(unscaledSourceValues.kick ?? (frame.kickHit ? 1 : 0))
+  const sourceValues = { ...unscaledSourceValues }
   for (const source of BASS_REACTIVITY_SOURCES) {
     const current = sourceValues[source]
     if (current != null) sourceValues[source] = clamp01(current) * bassReactivityGain
@@ -41,6 +42,7 @@ export function applyPixGridRuntimeControls(
     bassStemActivity: clamp01(frame.bassStemActivity ?? 0) * bassReactivityGain,
     kickHit: (sourceValues.kick ?? 0) > 0.0001,
     sourceValues,
+    unscaledSourceValues,
     bassReactivityGain,
     motionMultiplier,
   }
