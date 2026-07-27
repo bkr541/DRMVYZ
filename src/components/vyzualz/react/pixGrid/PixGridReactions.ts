@@ -61,15 +61,27 @@ function hueRotate(r: number, g: number, b: number, offset: number): readonly [n
   ]
 }
 
-function isBorder(bits: Uint32Array, index: number, x: number, y: number, width: number, height: number): boolean {
+function isBorderBand(
+  bits: Uint32Array,
+  index: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  thickness: number,
+): boolean {
   if (!pixGridMaskHasCell(bits, index)) return false
-  if (x === 0 || y === 0 || x === width - 1 || y === height - 1) return true
-  return (
-    !pixGridMaskHasCell(bits, index - 1) ||
-    !pixGridMaskHasCell(bits, index + 1) ||
-    !pixGridMaskHasCell(bits, index - width) ||
-    !pixGridMaskHasCell(bits, index + width)
-  )
+  const radius = Math.max(1, Math.min(3, Math.round(thickness)))
+  for (let distance = 1; distance <= radius; distance += 1) {
+    if (x - distance < 0 || x + distance >= width || y - distance < 0 || y + distance >= height) return true
+    if (
+      !pixGridMaskHasCell(bits, index - distance) ||
+      !pixGridMaskHasCell(bits, index + distance) ||
+      !pixGridMaskHasCell(bits, index - distance * width) ||
+      !pixGridMaskHasCell(bits, index + distance * width)
+    ) return true
+  }
+  return false
 }
 
 function stableSeed(frame: PixGridAudioFrame, group: PixGridGroup, assignment: PixGridReactionAssignment, index: number): string {
@@ -177,9 +189,25 @@ function applyPixelReaction(
     switch (target) {
       case 'brightness': {
         const factor = clamp(blendScalar(1, strength, assignment), 0, 4)
-        pixels[offset] = Math.min(255, Math.round(pixels[offset] * factor))
-        pixels[offset + 1] = Math.min(255, Math.round(pixels[offset + 1] * factor))
-        pixels[offset + 2] = Math.min(255, Math.round(pixels[offset + 2] * factor))
+        const red = Math.min(255, pixels[offset] * factor)
+        const green = Math.min(255, pixels[offset + 1] * factor)
+        const blue = Math.min(255, pixels[offset + 2] * factor)
+        const calibrated = (assignment.perceptualGain ?? 1) > 1 || (assignment.minimumEffectiveStrength ?? 0) > 0
+        if (strength > 0 && calibrated) {
+          // Multiplication alone cannot reveal black or already-saturated preset art.
+          // Canonical music routes therefore add a bounded palette-aware exposure lift.
+          const sourcePeak = Math.max(pixels[offset], pixels[offset + 1], pixels[offset + 2]) / 255
+          const darkness = 1 - sourcePeak
+          const tintMix = clamp(absoluteStrength * (0.16 + darkness * 0.18), 0, 0.5)
+          const exposureLift = 255 * clamp(absoluteStrength * (0.035 + darkness * 0.075), 0, 0.22)
+          pixels[offset] = Math.min(255, Math.round(red + (tint[0] - red) * tintMix + exposureLift))
+          pixels[offset + 1] = Math.min(255, Math.round(green + (tint[1] - green) * tintMix + exposureLift))
+          pixels[offset + 2] = Math.min(255, Math.round(blue + (tint[2] - blue) * tintMix + exposureLift))
+        } else {
+          pixels[offset] = Math.round(red)
+          pixels[offset + 1] = Math.round(green)
+          pixels[offset + 2] = Math.round(blue)
+        }
         break
       }
       case 'opacity':
@@ -205,11 +233,16 @@ function applyPixelReaction(
         break
       case 'outlineFlash':
       case 'outlineIntensity': {
-        if (!isBorder(bits, index, x, y, width, height)) break
-        pixels[offset] = Math.round(pixels[offset] + (tint[0] - pixels[offset]) * clamp(absoluteStrength))
-        pixels[offset + 1] = Math.round(pixels[offset + 1] + (tint[1] - pixels[offset + 1]) * clamp(absoluteStrength))
-        pixels[offset + 2] = Math.round(pixels[offset + 2] + (tint[2] - pixels[offset + 2]) * clamp(absoluteStrength))
-        pixels[offset + 3] = Math.max(pixels[offset + 3], Math.round(clamp(absoluteStrength) * 255))
+        const bandThickness = target === 'outlineFlash'
+          ? 1 + Math.min(2, Math.floor(absoluteStrength * 1.4))
+          : 1
+        if (!isBorderBand(bits, index, x, y, width, height, bandThickness)) break
+        const mix = clamp(absoluteStrength * (target === 'outlineFlash' ? 1.2 : 1))
+        const lift = target === 'outlineFlash' ? Math.round(255 * clamp(absoluteStrength * 0.12, 0, 0.2)) : 0
+        pixels[offset] = Math.min(255, Math.round(pixels[offset] + (tint[0] - pixels[offset]) * mix) + lift)
+        pixels[offset + 1] = Math.min(255, Math.round(pixels[offset + 1] + (tint[1] - pixels[offset + 1]) * mix) + lift)
+        pixels[offset + 2] = Math.min(255, Math.round(pixels[offset + 2] + (tint[2] - pixels[offset + 2]) * mix) + lift)
+        pixels[offset + 3] = Math.max(pixels[offset + 3], Math.round(clamp(absoluteStrength * 1.1) * 255))
         break
       }
       case 'sparkle':

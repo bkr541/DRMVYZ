@@ -108,18 +108,22 @@ const sections = (...includeSectionTypes: NonNullable<PixGridReactionConditions[
 export const BASS_BEACON_GROUPS: PixGridGroup[] = [
   group('bass-body-group', 'Letter Body', ['bass-word'], '#36d9ff', [
     authoredAssignment('bass-body-bass-fill', 'Bass body fill', 'bass', 'brightness', {
-      amount: 0.66, threshold: 0.12, hysteresis: 0.05, attack: 0.04, release: 0.28, curve: 'smoothstep', blend: 'add', clamp: [0, 1.5], priority: -40,
+      amount: 0.86, threshold: 0.1, hysteresis: 0.05, attack: 0.04, release: 0.28, curve: 'smoothstep', blend: 'add', clamp: [0, 1.5], priority: -40,
     }),
     authoredAssignment('bass-body-energy-contrast', 'Track energy contrast', 'trackRelativeEnergy', 'contrast', {
       amount: 0.18, threshold: 0.1, hysteresis: 0.04, curve: 'easeOut', blend: 'add', clamp: [0, 1.3], priority: -35,
     }),
     authoredAssignment('bass-body-kick-impact', 'Kick body expansion', 'kick', 'scale', {
-      amount: 0.2, attack: 0, hold: 0.045, release: 0.18, decayCurve: 'overshoot',
+      amount: 0.28, attack: 0, hold: 0.055, release: 0.22, decayCurve: 'overshoot',
       capabilityFallback: 'beat', clamp: [0, 1], eventPriority: 120,
     }),
     authoredAssignment('bass-body-downbeat-impact', 'Downbeat typography impact', 'downbeat', 'brightness', {
       amount: 0.58, attack: 0, hold: 0.04, release: 0.2, decayCurve: 'overshoot',
       capabilityFallback: 'beat', paletteRole: 'highlight', blend: 'add', eventPriority: 135,
+    }),
+    authoredAssignment('bass-body-beat-color', 'Beat typography color pulse', 'beat', 'color', {
+      amount: 0.38, attack: 0, hold: 0.045, release: 0.17, capabilityFallback: 'energy',
+      paletteRole: 'primary', blend: 'max', eventPriority: 128,
     }),
   ], { priority: 30 }),
   group('bass-snare-group', 'Letter Outline', ['bass-outline'], '#f2feff', [
@@ -176,7 +180,7 @@ export const BASS_BEACON_GROUPS: PixGridGroup[] = [
   ], { priority: 20 }),
   group('bass-kick-group', 'Background Pressure Accents', ['bass-rings'], '#39e69b', [
     authoredAssignment('bass-background-sub-pressure', 'Sub pressure mass', 'sub', 'brightness', {
-      amount: 0.56, threshold: 0.1, hysteresis: 0.05, attack: 0.06, release: 0.34, curve: 'logarithmic', capabilityFallback: 'energy', blend: 'add', priority: -55,
+      amount: 0.74, threshold: 0.08, hysteresis: 0.05, attack: 0.06, release: 0.34, curve: 'logarithmic', capabilityFallback: 'energy', blend: 'add', priority: -55,
     }),
     authoredAssignment('bass-background-drop-impact', 'Drop hero reveal', 'dropImpact', 'brightness', {
       amount: 0.72, attack: 0, hold: 0.06, release: 0.34, decayCurve: 'overshoot',
@@ -203,7 +207,7 @@ export const BASS_BEACON_GROUPS: PixGridGroup[] = [
   ], { priority: 55 }),
   group('bass-center-impact-group', 'Beacon Center Impact', ['bass-rings', 'bass-word'], '#39e69b', [
     authoredAssignment('bass-center-kick-punch', 'Kick center punch', 'kick', 'brightness', {
-      amount: 1, attack: 0, hold: 0.035, release: 0.16, capabilityFallback: 'beat',
+      amount: 1.18, attack: 0, hold: 0.055, release: 0.22, capabilityFallback: 'beat',
       paletteRole: 'secondary', blend: 'add', clamp: [0, 1.7], eventPriority: 210,
       conditions: { excludeSectionTypes: ['preDrop'] },
     }),
@@ -217,7 +221,7 @@ export const BASS_BEACON_GROUPS: PixGridGroup[] = [
   }),
   group('bass-edge-snare-group', 'Beacon Edge Snare', ['bass-outline', 'bass-side-chevrons-left', 'bass-side-chevrons-right'], '#f2feff', [
     authoredAssignment('bass-edge-snare-flash', 'Snare edge flash', 'snare', 'outlineFlash', {
-      amount: 1, attack: 0, hold: 0.025, release: 0.14, capabilityFallback: 'transient',
+      amount: 1.28, attack: 0, hold: 0.045, release: 0.2, capabilityFallback: 'transient',
       paletteRole: 'highlight', blend: 'max', eventPriority: 215,
       conditions: { excludeSectionTypes: ['preDrop'] },
     }),
@@ -247,19 +251,19 @@ export const BASS_BEACON_AUDIO_ASSIGNMENTS: PixGridReactionAssignment[] = [
 export const GEOMETRIC_REACTOR_GROUPS: PixGridGroup[] = [
   group('reactor-core-group', 'Center Core', ['reactor-diamond'], '#fff3c7', [
     authoredAssignment('reactor-core-sub-mass', 'Sub center mass', 'sub', 'brightness', {
-      amount: 0.64, threshold: 0.1, hysteresis: 0.05, attack: 0.05, release: 0.32, curve: 'logarithmic', capabilityFallback: 'energy', blend: 'add', priority: -60,
+      amount: 0.82, threshold: 0.08, hysteresis: 0.05, attack: 0.05, release: 0.32, curve: 'logarithmic', capabilityFallback: 'energy', blend: 'add', priority: -60,
     }),
     authoredAssignment('reactor-core-kick', 'Kick core impact', 'kick', 'scale', {
-      amount: 0.18, hold: 0.04, release: 0.17, decayCurve: 'overshoot', capabilityFallback: 'beat',
+      amount: 0.3, hold: 0.055, release: 0.23, decayCurve: 'overshoot', capabilityFallback: 'beat',
       clamp: [0, 1], eventPriority: 160,
     }),
   ], { priority: 50 }),
   group('reactor-inner-ring-group', 'Inner Ring', ['reactor-rings'], '#a969ff', [
     authoredAssignment('reactor-inner-bass', 'Bass inner ring', 'bass', 'brightness', {
-      amount: 0.62, threshold: 0.12, hysteresis: 0.05, attack: 0.04, release: 0.28, curve: 'smoothstep', blend: 'add', priority: -55,
+      amount: 0.84, threshold: 0.09, hysteresis: 0.05, attack: 0.04, release: 0.28, curve: 'smoothstep', blend: 'add', priority: -55,
     }),
     authoredAssignment('reactor-inner-bass-scale', 'Bass ring expansion', 'bass', 'scale', {
-      amount: 0.11, curve: 'easeOut', blend: 'add', clamp: [0, 1], priority: -50,
+      amount: 0.2, curve: 'easeOut', blend: 'add', clamp: [0, 1], priority: -50,
     }),
     authoredAssignment('reactor-inner-downbeat', 'Downbeat ring contraction', 'downbeat', 'maskContraction', {
       amount: 0.18, hold: 0.04, release: 0.2, capabilityFallback: 'beat', blend: 'max', eventPriority: 140,
@@ -280,6 +284,10 @@ export const GEOMETRIC_REACTOR_GROUPS: PixGridGroup[] = [
     authoredAssignment('reactor-chevron-four-bars', 'Four-bar direction alternation', 'fourBarBoundary', 'directionReverse', {
       targetScope: 'animation', amount: 1, hold: 0.08, release: 0.16, quantization: 'fourBars',
       capabilityFallback: 'beat', blend: 'replace', eventPriority: 95,
+    }),
+    authoredAssignment('reactor-chevron-beat-color', 'Beat chevron color pulse', 'beat', 'color', {
+      amount: 0.36, attack: 0, hold: 0.045, release: 0.17, capabilityFallback: 'energy',
+      paletteRole: 'secondary', blend: 'max', eventPriority: 132,
     }),
   ], { priority: 35 }),
   group('reactor-mid-band-group', 'Mid-Band Structures', ['reactor-tunnel', 'reactor-chevrons'], '#30d7ff', [
@@ -331,7 +339,7 @@ export const GEOMETRIC_REACTOR_GROUPS: PixGridGroup[] = [
   ], { priority: 45 }),
   group('reactor-center-impact-group', 'Reactor Center Impact', ['reactor-diamond', 'reactor-rings'], '#fff3c7', [
     authoredAssignment('reactor-center-kick-flash', 'Kick center flash', 'kick', 'brightness', {
-      amount: 1, attack: 0, hold: 0.035, release: 0.16, capabilityFallback: 'beat',
+      amount: 1.2, attack: 0, hold: 0.055, release: 0.22, capabilityFallback: 'beat',
       paletteRole: 'highlight', blend: 'add', clamp: [0, 1.7], eventPriority: 215,
       conditions: { excludeSectionTypes: ['preDrop'] },
     }),
@@ -341,7 +349,7 @@ export const GEOMETRIC_REACTOR_GROUPS: PixGridGroup[] = [
   }),
   group('reactor-edge-snare-group', 'Reactor Edge Snare', ['reactor-tunnel', 'reactor-chevrons', 'reactor-cross'], '#30d7ff', [
     authoredAssignment('reactor-edge-snare-flash', 'Snare perimeter flash', 'snare', 'outlineFlash', {
-      amount: 1, attack: 0, hold: 0.025, release: 0.14, capabilityFallback: 'transient',
+      amount: 1.3, attack: 0, hold: 0.045, release: 0.2, capabilityFallback: 'transient',
       paletteRole: 'secondary', blend: 'max', eventPriority: 220,
       conditions: { excludeSectionTypes: ['preDrop'] },
     }),
@@ -376,7 +384,7 @@ export const GEOMETRIC_REACTOR_AUDIO_ASSIGNMENTS: PixGridReactionAssignment[] = 
 export const PIXEL_PARADE_GROUPS: PixGridGroup[] = [
   group('parade-hero-group', 'Hero Participant', ['parade-pal'], '#ff6d7f', [
     authoredAssignment('parade-hero-bass-body', 'Bass hero body', 'bass', 'brightness', {
-      amount: 0.58, threshold: 0.12, hysteresis: 0.05, attack: 0.04, release: 0.28, curve: 'smoothstep', blend: 'add', priority: -55,
+      amount: 0.8, threshold: 0.09, hysteresis: 0.05, attack: 0.04, release: 0.28, curve: 'smoothstep', blend: 'add', priority: -55,
     }),
     authoredAssignment('parade-hero-kick-step', 'Kick hero step', 'kick', 'positionY', {
       amount: -0.07, hold: 0.05, release: 0.22, decayCurve: 'overshoot', capabilityFallback: 'beat',
@@ -397,6 +405,10 @@ export const PIXEL_PARADE_GROUPS: PixGridGroup[] = [
     authoredAssignment('parade-primary-downbeat', 'Downbeat parade step', 'downbeat', 'positionX', {
       amount: 0.08, hold: 0.04, release: 0.2, capabilityFallback: 'beat', clamp: [0, 1], eventPriority: 145,
     }),
+    authoredAssignment('parade-primary-beat-color', 'Beat participant color pulse', 'beat', 'color', {
+      amount: 0.36, attack: 0, hold: 0.045, release: 0.17, capabilityFallback: 'energy',
+      paletteRole: 'primary', blend: 'max', eventPriority: 132,
+    }),
   ], { priority: 45 }),
   group('parade-secondary-group', 'Secondary Participants', ['parade-orbit', 'parade-eq'], '#ffd35c', [
     authoredAssignment('parade-secondary-low-mid', 'Low-mid parade travel', 'lowMid', 'positionX', {
@@ -409,7 +421,7 @@ export const PIXEL_PARADE_GROUPS: PixGridGroup[] = [
   ], { priority: 40 }),
   group('parade-ground-group', 'Ground and Baseline', ['parade-wave-bottom'], '#43d9ff', [
     authoredAssignment('parade-ground-bass', 'Bass baseline weight', 'bass', 'brightness', {
-      amount: 0.5, threshold: 0.12, hysteresis: 0.05, attack: 0.05, release: 0.32, curve: 'logarithmic', blend: 'add', priority: -35,
+      amount: 0.7, threshold: 0.09, hysteresis: 0.05, attack: 0.05, release: 0.32, curve: 'logarithmic', blend: 'add', priority: -35,
     }),
   ], { priority: 10 }),
   group('parade-background-group', 'Background Field', ['parade-wave-top', 'parade-stars'], '#43d9ff', [
@@ -445,7 +457,7 @@ export const PIXEL_PARADE_GROUPS: PixGridGroup[] = [
       paletteRole: 'highlight', blend: 'add', eventPriority: 210,
     }),
     authoredAssignment('parade-impact-kick', 'Kick foreground bounce', 'kick', 'scale', {
-      amount: 0.1, hold: 0.035, release: 0.18, decayCurve: 'overshoot', capabilityFallback: 'beat',
+      amount: 0.18, hold: 0.055, release: 0.22, decayCurve: 'overshoot', capabilityFallback: 'beat',
       clamp: [0, 1], eventPriority: 155,
     }),
   ], { priority: 65 }),
@@ -466,7 +478,7 @@ export const PIXEL_PARADE_GROUPS: PixGridGroup[] = [
   ], { priority: 30 }),
   group('parade-lower-kick-lane-group', 'Lower Kick Lane', ['parade-wave-bottom', 'parade-pal', 'parade-burst'], '#ff6d7f', [
     authoredAssignment('parade-lower-kick-flash', 'Kick lower-lane impact', 'kick', 'brightness', {
-      amount: 0.95, attack: 0, hold: 0.035, release: 0.16, capabilityFallback: 'beat',
+      amount: 1.18, attack: 0, hold: 0.055, release: 0.22, capabilityFallback: 'beat',
       paletteRole: 'primary', blend: 'add', clamp: [0, 1.65], eventPriority: 215,
       conditions: { excludeSectionTypes: ['preDrop'] },
     }),
@@ -476,7 +488,7 @@ export const PIXEL_PARADE_GROUPS: PixGridGroup[] = [
   }),
   group('parade-upper-snare-lane-group', 'Upper Snare Lane', ['parade-wave-top', 'parade-stars'], '#43d9ff', [
     authoredAssignment('parade-upper-snare-flash', 'Snare upper-lane flash', 'snare', 'outlineFlash', {
-      amount: 1.2, attack: 0, hold: 0.025, release: 0.14, capabilityFallback: 'transient',
+      amount: 1.35, attack: 0, hold: 0.045, release: 0.2, capabilityFallback: 'transient',
       paletteRole: 'accent', blend: 'max', eventPriority: 220,
       conditions: { excludeSectionTypes: ['preDrop'] },
     }),

@@ -206,11 +206,14 @@ describe('PixGrid perceptual Audio Intelligence contract', () => {
 
   it.each(PIX_GRID_PRESETS)('$name passes realistic perceptual-output audit minimums', (preset: ReactPreset) => {
     const report = auditPixGridPresetRenderedReactivity(preset, stateFor(preset.id))
+    expect(report.passed).toBe(true)
+    expect(report.checks.find(check => check.id === 'critical-routes-clear-perceptual-floor')).toMatchObject({ passed: true })
     expect(report.checks.find(check => check.id === 'kick-perceptual-minimum')).toMatchObject({ passed: true })
     expect(report.checks.find(check => check.id === 'snare-perceptual-minimum')).toMatchObject({ passed: true })
     expect(report.checks.find(check => check.id === 'bass-dynamic-range')).toMatchObject({ passed: true })
     expect(report.checks.find(check => check.id === 'bass-reactivity-control')).toMatchObject({ passed: true })
     expect(report.checks.find(check => check.id === 'deterministic-repeat')).toMatchObject({ passed: true })
+    expect(report.acceptanceMatrix.filter(row => row.category === 'music').every(row => row.passed)).toBe(true)
   })
 
   it('runs the repository band and rhythm analyser path and produces material localized pixels', () => {
@@ -240,13 +243,13 @@ describe('PixGrid perceptual Audio Intelligence contract', () => {
       const snareMetrics = measurePixGridPerceptualDifference(quiet, snare)
       const hatMetrics = measurePixGridPerceptualDifference(quiet, hat)
 
-      expect(kickMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.008)
-      expect(kickMetrics.meanMaterialDelta).toBeGreaterThan(14)
-      expect(kickMetrics.meanLuminanceDelta).toBeGreaterThan(10)
-      expect(snareMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.006)
-      expect(snareMetrics.meanMaterialDelta).toBeGreaterThan(12)
-      expect(snareMetrics.meanLuminanceDelta).toBeGreaterThan(10)
-      expect(hatMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.002)
+      expect(kickMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.15)
+      expect(kickMetrics.meanMaterialDelta).toBeGreaterThan(45)
+      expect(kickMetrics.meanLuminanceDelta).toBeGreaterThan(30)
+      expect(snareMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.15)
+      expect(snareMetrics.meanMaterialDelta).toBeGreaterThan(45)
+      expect(snareMetrics.meanLuminanceDelta).toBeGreaterThan(30)
+      expect(hatMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.02)
       expect(hatMetrics.changedCellRatio).toBeLessThan(kickMetrics.changedCellRatio)
       expect(kickMetrics.centerChangedRatio + kickMetrics.lowerChangedRatio)
         .not.toBeCloseTo(snareMetrics.centerChangedRatio + snareMetrics.lowerChangedRatio, 2)

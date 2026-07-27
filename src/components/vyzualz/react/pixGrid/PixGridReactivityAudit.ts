@@ -145,6 +145,27 @@ function differingBytes(a: Uint8Array, b: Uint8Array): number {
   return count
 }
 
+interface PixGridPerceptualRequirement {
+  changedCellRatio: number
+  meanMaterialDelta: number
+}
+
+const PIX_GRID_SCENARIO_REQUIREMENTS: Readonly<Partial<Record<PixGridAuditScenarioId, PixGridPerceptualRequirement>>> = Object.freeze({
+  beat: { changedCellRatio: 0.02, meanMaterialDelta: 14 },
+  downbeat: { changedCellRatio: 0.035, meanMaterialDelta: 18 },
+  kick: { changedCellRatio: 0.05, meanMaterialDelta: 24 },
+  snare: { changedCellRatio: 0.03, meanMaterialDelta: 22 },
+  bassSustain: { changedCellRatio: 0.035, meanMaterialDelta: 16 },
+  highEnergy: { changedCellRatio: 0.05, meanMaterialDelta: 16 },
+  build: { changedCellRatio: 0.03, meanMaterialDelta: 14 },
+  preDrop: { changedCellRatio: 0.02, meanMaterialDelta: 12 },
+  drop: { changedCellRatio: 0.08, meanMaterialDelta: 24 },
+  breakdown: { changedCellRatio: 0.02, meanMaterialDelta: 12 },
+  phraseBoundary: { changedCellRatio: 0.02, meanMaterialDelta: 14 },
+  secondDrop: { changedCellRatio: 0.08, meanMaterialDelta: 24 },
+  outro: { changedCellRatio: 0.02, meanMaterialDelta: 10 },
+})
+
 function renderScenario(
   preset: ReactPreset,
   state: PixGridState,
@@ -319,12 +340,13 @@ export function auditPixGridPresetRenderedReactivity(
   )
   const checks: PixGridReactivityAuditCheck[] = [
     { id: 'compiles-and-validates', passed: validation.valid, detail: validation.summary },
-    { id: 'active-differs-from-silence', passed: activeMetrics.changedCellRatio >= 0.025 && activeMetrics.meanMaterialDelta >= 14, detail: `Ordinary playback changed ${(activeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${activeMetrics.meanMaterialDelta.toFixed(1)} relative to silence.` },
-    { id: 'kick-perceptual-minimum', passed: kickMetrics.changedCellRatio >= 0.012 && kickMetrics.meanMaterialDelta >= 18, detail: `Normal kick changed ${(kickMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${kickMetrics.meanMaterialDelta.toFixed(1)}.` },
-    { id: 'snare-perceptual-minimum', passed: snareMetrics.changedCellRatio >= 0.008 && snareMetrics.meanMaterialDelta >= 16, detail: `Normal snare changed ${(snareMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${snareMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'critical-routes-clear-perceptual-floor', passed: !validation.issues.some(item => item.code === 'assignment-below-perceptual-floor' && item.severity === 'error'), detail: 'Every built-in beat, kick, snare, bass, sub, downbeat, and drop-impact route must clear the calibrated perceptual floor.' },
+    { id: 'active-differs-from-silence', passed: activeMetrics.changedCellRatio >= 0.05 && activeMetrics.meanMaterialDelta >= 18, detail: `Ordinary playback changed ${(activeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${activeMetrics.meanMaterialDelta.toFixed(1)} relative to silence.` },
+    { id: 'kick-perceptual-minimum', passed: kickMetrics.changedCellRatio >= 0.05 && kickMetrics.meanMaterialDelta >= 24, detail: `Normal kick changed ${(kickMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${kickMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'snare-perceptual-minimum', passed: snareMetrics.changedCellRatio >= 0.03 && snareMetrics.meanMaterialDelta >= 22, detail: `Normal snare changed ${(snareMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${snareMetrics.meanMaterialDelta.toFixed(1)}.` },
     { id: 'kick-differs-from-snare', passed: kickSnareMetrics.changedCellRatio >= 0.03 && localizationDelta >= Math.max(8, dimensions.width * dimensions.height * 0.015), detail: `Kick and snare differ across ${(kickSnareMetrics.changedCellRatio * 100).toFixed(2)}% of cells with distinct center, edge, upper, or lower localization.` },
-    { id: 'bass-dynamic-range', passed: bassRangeMetrics.changedCellRatio >= 0.008 && bassRangeMetrics.meanMaterialDelta >= 12, detail: `Low and strong sustained bass differ across ${(bassRangeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${bassRangeMetrics.meanMaterialDelta.toFixed(1)}.` },
-    { id: 'bass-reactivity-control', passed: bassHalfMetrics.changedCellRatio >= 0.004 && bassFullMetrics.changedCellRatio >= 0.004 && differingBytes(bass0, bass05) > 0 && differingBytes(bass05, bass1) > 0, detail: 'Bass Reactivity 0, 0.5, and 1 must produce bounded, materially distinct bass output.' },
+    { id: 'bass-dynamic-range', passed: bassRangeMetrics.changedCellRatio >= 0.025 && bassRangeMetrics.meanMaterialDelta >= 16, detail: `Low and strong sustained bass differ across ${(bassRangeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${bassRangeMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'bass-reactivity-control', passed: bassHalfMetrics.changedCellRatio >= 0.012 && bassFullMetrics.changedCellRatio >= 0.012 && bassHalfMetrics.meanMaterialDelta >= 10 && bassFullMetrics.meanMaterialDelta >= 10, detail: 'Bass Reactivity 0, 0.5, and 1 must produce bounded, materially distinct bass output.' },
     { id: 'motion-control', passed: differingBytes(motion0, motion05) > 0 && differingBytes(motion05, motion1) > 0, detail: 'Motion 0, 0.5, and 1 must produce bounded, distinct autonomous-animation output without suppressing music routes.' },
     { id: 'drop-differs-from-breakdown', passed: differingBytes(rendered.get('drop')!, rendered.get('breakdown')!) > 0, detail: 'Drop and breakdown must resolve distinct pixels.' },
     { id: 'first-drop-differs-from-second', passed: differingBytes(rendered.get('drop')!, rendered.get('secondDrop')!) > 0, detail: 'First and second drop must develop differently.' },
@@ -400,30 +422,43 @@ export function auditPixGridPresetRenderedReactivity(
     qualityRows.push({
       id: `quality-${quality}`,
       category: 'quality',
-      passed: qualityMetrics.changedCellRatio >= 0.006 && qualityMetrics.meanMaterialDelta >= 8,
+      passed: qualityMetrics.changedCellRatio >= 0.035 && qualityMetrics.meanMaterialDelta >= 18,
       detail: `${quality} changed ${(qualityMetrics.changedCellRatio * 100).toFixed(2)}% of logical cells with mean material delta ${qualityMetrics.meanMaterialDelta.toFixed(1)}.`,
     })
   }
   const positiveQualityRatios = qualityRatios.filter(value => value > 0)
   const responseNormalization = positiveQualityRatios.length === qualityRatios.length
     && Math.max(...positiveQualityRatios) / Math.max(0.0001, Math.min(...positiveQualityRatios)) <= 4
-  const scenarioRows: PixGridAcceptanceMatrixRow[] = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.map(scenario => ({
-    id: `music-${scenario.id}`,
-    category: 'music' as const,
-    passed: scenario.id === 'silence'
-      ? true
-      : differingBytes(unifiedRendered.get('silence')!, unifiedRendered.get(scenario.id)!) > 0,
-    detail: scenario.id === 'silence'
-      ? 'Silence baseline rendered successfully.'
-      : `${scenario.id} produced a distinct full-pipeline logical frame.`,
-  }))
+  const unifiedSilenceFrame = logicalFrame(unifiedRendered.get('silence')!)
+  const scenarioRows: PixGridAcceptanceMatrixRow[] = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.map(scenario => {
+    if (scenario.id === 'silence') return {
+      id: 'music-silence',
+      category: 'music' as const,
+      passed: true,
+      detail: 'Silence baseline rendered successfully.',
+    }
+    const requirement = PIX_GRID_SCENARIO_REQUIREMENTS[scenario.id] ?? { changedCellRatio: 0.015, meanMaterialDelta: 10 }
+    const metrics = measurePixGridPerceptualDifference(
+      unifiedSilenceFrame,
+      logicalFrame(unifiedRendered.get(scenario.id)!),
+    )
+    return {
+      id: `music-${scenario.id}`,
+      category: 'music' as const,
+      passed: metrics.changedCellRatio >= requirement.changedCellRatio
+        && metrics.meanMaterialDelta >= requirement.meanMaterialDelta,
+      detail: `${scenario.id} changed ${(metrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${metrics.meanMaterialDelta.toFixed(1)} through the full pipeline.`,
+    }
+  })
+  const liveOnlyMetrics = measurePixGridPerceptualDifference(logicalFrame(liveOnlySilence), logicalFrame(liveOnlyPixels))
+  const offlineMetrics = measurePixGridPerceptualDifference(unifiedSilenceFrame, logicalFrame(offlinePixels))
   const acceptanceMatrix: PixGridAcceptanceMatrixRow[] = [
     { id: 'fresh-canonical-state', category: 'state', passed: canonicalValidation.valid && state.configuration.canonicalMigrationCompleted && !state.configuration.legacyOfficialLayerGraph, detail: canonicalValidation.summary },
     { id: 'legacy-migrated-state', category: 'state', passed: validatePixGridPreset(preset, migratedLegacy).valid && migratedLegacy.configuration.canonicalMigrationCompleted && !migratedLegacy.configuration.legacyOfficialLayerGraph, detail: 'Legacy-version metadata was migrated through the canonical layer, group, route, and program path.' },
     { id: 'user-overlay-survives-migration', category: 'state', passed: !firstLayer || migratedOverlay.layers.some(layer => layer.id === overlayId), detail: 'A non-canonical user overlay remains present after migration.' },
-    { id: 'live-analyser-only', category: 'analysis', passed: differingBytes(liveOnlySilence, liveOnlyPixels) > 0, detail: 'Common analyser sources produce visible output with advanced analysis disabled.' },
-    { id: 'offline-enhanced-analysis', category: 'analysis', passed: differingBytes(unifiedRendered.get('silence')!, offlinePixels) > 0, detail: 'Offline-enhanced build and section sources produce full-pipeline output.' },
-    { id: 'missing-advanced-source-fallbacks', category: 'analysis', passed: differingBytes(liveOnlySilence, liveOnlyPixels) > 0, detail: 'Fallback routing remains effective when section, phrase, stem, semantic, and Track Map sources are unavailable.' },
+    { id: 'live-analyser-only', category: 'analysis', passed: liveOnlyMetrics.changedCellRatio >= 0.04 && liveOnlyMetrics.meanMaterialDelta >= 20, detail: `Common analyser sources changed ${(liveOnlyMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${liveOnlyMetrics.meanMaterialDelta.toFixed(1)} while advanced analysis was disabled.` },
+    { id: 'offline-enhanced-analysis', category: 'analysis', passed: offlineMetrics.changedCellRatio >= 0.03 && offlineMetrics.meanMaterialDelta >= 14, detail: `Offline-enhanced sources changed ${(offlineMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${offlineMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'missing-advanced-source-fallbacks', category: 'analysis', passed: liveOnlyMetrics.changedCellRatio >= 0.04 && liveOnlyMetrics.meanMaterialDelta >= 20, detail: 'Fallback routing remains perceptually effective when section, phrase, stem, semantic, and Track Map sources are unavailable.' },
     ...scenarioRows,
     { id: 'bass-reactivity-0-05-1', category: 'controls', passed: differingBytes(bass0, bass05) > 0 && differingBytes(bass05, bass1) > 0, detail: 'Bass Reactivity 0, 0.5, and 1 produce distinct bounded frames.' },
     { id: 'motion-0-05-1', category: 'controls', passed: differingBytes(motion0, motion05) > 0 && differingBytes(motion05, motion1) > 0, detail: 'Motion 0, 0.5, and 1 produce distinct autonomous-motion frames.' },

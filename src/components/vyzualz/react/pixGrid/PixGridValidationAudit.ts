@@ -377,13 +377,24 @@ export function validatePixGridState(
     const targetCoverage = targetInspection
       ? targetInspection.visibleCellCount / Math.max(1, state.matrixWidth * state.matrixHeight)
       : 1
-    const estimatedPerceptibility = peakOutputSpan * Math.min(1, Math.sqrt(Math.max(0, targetCoverage) * 16))
-    if (assignment.enabled && !ineffective && estimatedPerceptibility < 0.035) issues.push(issue(
-      'warning',
+    const calibratedSpan = Math.max(
+      peakOutputSpan * Math.max(0, assignment.perceptualGain ?? 1),
+      assignment.minimumEffectiveStrength ?? 0,
+    )
+    const coverageFactor = Math.max(0.34, Math.min(1, Math.sqrt(Math.max(0, targetCoverage) * 16)))
+    const actionVisibilityFactor = assignment.target === 'outlineFlash' || assignment.target === 'color' || assignment.target === 'paletteRole'
+      ? 1.2
+      : assignment.target === 'scale' || assignment.target === 'maskExpansion' || assignment.target === 'maskContraction'
+        ? 0.9
+        : 1
+    const estimatedPerceptibility = calibratedSpan * coverageFactor * actionVisibilityFactor
+    const criticalBuiltInSource = builtIn && ['beat', 'downbeat', 'kick', 'snare', 'bass', 'sub', 'dropImpact'].includes(assignment.source)
+    if (assignment.enabled && !ineffective && estimatedPerceptibility < 0.055) issues.push(issue(
+      criticalBuiltInSource ? 'error' : 'warning',
       'assignment-below-perceptual-floor',
-      `Assignment ${assignment.id} is structurally valid but is unlikely to exceed the PixGrid perceptual floor at its current amount and target coverage.`,
+      `Assignment ${assignment.id} is structurally valid but is unlikely to exceed the PixGrid perceptual floor at its current calibrated gain and target coverage.`,
       location.path,
-      'Increase the route amount, widen its output range, or target a larger visible group while preserving the intended choreography.',
+      'Increase the route amount, perceptual gain, minimum effective strength, or visible target coverage while preserving the intended choreography.',
     ))
     if (assignment.enabled && !isPixGridAudioAssignmentEffective(state, assignment, location.ownerGroupId ?? undefined, options.capabilities)) issues.push(issue(
       builtIn ? 'error' : 'warning',

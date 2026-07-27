@@ -1,11 +1,11 @@
 import type { ReactSectionType } from '../ReactTypes'
 
-export const PIX_GRID_STATE_VERSION = 15 as const
+export const PIX_GRID_STATE_VERSION = 16 as const
 export const PIX_GRID_CONFIGURATION_METADATA_VERSION = 2 as const
-export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 4 as const
+export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 5 as const
 export const PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION = 2 as const
 export const PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION = 2 as const
-export const PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION = 4 as const
+export const PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION = 5 as const
 export const PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION = 3 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'

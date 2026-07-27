@@ -64,16 +64,16 @@ const EVENT_INPUTS: Partial<Record<PixGridDiscreteAudioSource, readonly [number,
 
 function eventEnvelope(source: PixGridDiscreteAudioSource): Pick<PixGridBuiltInCalibration, 'hold' | 'release' | 'cooldown' | 'perceptualGain' | 'minimumEffectiveStrength'> {
   switch (source) {
-    case 'kick': return { hold: 0.065, release: 0.18, cooldown: 0.075, perceptualGain: 1.34, minimumEffectiveStrength: 0.2 }
-    case 'snare': return { hold: 0.075, release: 0.19, cooldown: 0.075, perceptualGain: 1.38, minimumEffectiveStrength: 0.22 }
-    case 'hat': return { hold: 0.02, release: 0.075, cooldown: 0.025, perceptualGain: 1.08, minimumEffectiveStrength: 0.08 }
-    case 'beat': return { hold: 0.04, release: 0.14, cooldown: 0.035, perceptualGain: 1.12, minimumEffectiveStrength: 0.12 }
-    case 'downbeat': return { hold: 0.055, release: 0.22, cooldown: 0.08, perceptualGain: 1.2, minimumEffectiveStrength: 0.16 }
-    case 'dropImpact': return { hold: 0.08, release: 0.38, cooldown: 0.18, perceptualGain: 1.22, minimumEffectiveStrength: 0.24 }
+    case 'kick': return { hold: 0.085, release: 0.24, cooldown: 0.065, perceptualGain: 1.85, minimumEffectiveStrength: 0.32 }
+    case 'snare': return { hold: 0.095, release: 0.25, cooldown: 0.065, perceptualGain: 1.95, minimumEffectiveStrength: 0.34 }
+    case 'hat': return { hold: 0.028, release: 0.095, cooldown: 0.025, perceptualGain: 1.18, minimumEffectiveStrength: 0.1 }
+    case 'beat': return { hold: 0.055, release: 0.18, cooldown: 0.03, perceptualGain: 1.35, minimumEffectiveStrength: 0.18 }
+    case 'downbeat': return { hold: 0.075, release: 0.3, cooldown: 0.075, perceptualGain: 1.5, minimumEffectiveStrength: 0.24 }
+    case 'dropImpact': return { hold: 0.11, release: 0.48, cooldown: 0.16, perceptualGain: 1.65, minimumEffectiveStrength: 0.36 }
     case 'phraseEntry':
     case 'sectionEntry':
-    case 'sectionExit': return { hold: 0.1, release: 0.42, cooldown: 0.12, perceptualGain: 1.08, minimumEffectiveStrength: 0.14 }
-    default: return { hold: 0.06, release: 0.24, cooldown: 0.04, perceptualGain: 1.08, minimumEffectiveStrength: 0.1 }
+    case 'sectionExit': return { hold: 0.12, release: 0.48, cooldown: 0.1, perceptualGain: 1.25, minimumEffectiveStrength: 0.2 }
+    default: return { hold: 0.07, release: 0.28, cooldown: 0.04, perceptualGain: 1.2, minimumEffectiveStrength: 0.14 }
   }
 }
 
@@ -92,7 +92,7 @@ export function getPixGridBuiltInCalibration(
       hysteresis: 0,
       attack: 0,
       ...event,
-      maskSizeCompensation: target === 'brightness' || target === 'color' || target === 'outlineFlash' || target === 'scale' ? 0.85 : 0.55,
+      maskSizeCompensation: target === 'brightness' || target === 'color' || target === 'paletteRole' || target === 'outlineFlash' || target === 'scale' ? 1 : 0.72,
     }
   }
   const isBand = BAND_SOURCES.has(source)
@@ -106,9 +106,9 @@ export function getPixGridBuiltInCalibration(
     hold: 0,
     release: source === 'bass' || source === 'sub' || source === 'bassStemActivity' ? 0.3 : 0.22,
     cooldown: 0,
-    perceptualGain: isBand ? 1.18 : 1.08,
-    minimumEffectiveStrength: isBand ? 0.08 : 0.05,
-    maskSizeCompensation: target === 'brightness' || target === 'color' || target === 'scale' || target === 'positionX' || target === 'positionY' ? 0.65 : 0.35,
+    perceptualGain: isBand ? 1.48 : 1.22,
+    minimumEffectiveStrength: isBand ? 0.14 : 0.08,
+    maskSizeCompensation: target === 'brightness' || target === 'color' || target === 'paletteRole' || target === 'scale' || target === 'positionX' || target === 'positionY' ? 0.86 : 0.5,
   }
 }
 
@@ -157,15 +157,15 @@ export function resolvePixGridPerceptualStrength(
   totalCellCount?: number,
 ): number {
   if (!Number.isFinite(resolvedValue) || Math.abs(resolvedValue) <= 1e-6) return 0
-  let gain = Math.max(0, Math.min(3, assignment.perceptualGain ?? 1))
+  let gain = Math.max(0, Math.min(4, assignment.perceptualGain ?? 1))
   if ((assignment.maskSizeCompensation ?? 0) > 0 && maskCellCount && totalCellCount) {
     const coverage = Math.max(0.002, Math.min(1, maskCellCount / totalCellCount))
-    const compensation = Math.max(0.78, Math.min(1.72, Math.sqrt(0.12 / coverage)))
+    const compensation = Math.max(0.82, Math.min(2.15, Math.sqrt(0.16 / coverage)))
     const mix = Math.max(0, Math.min(1, assignment.maskSizeCompensation ?? 0))
     gain *= 1 + (compensation - 1) * mix
   }
   let strength = assignment.amount * resolvedValue * gain
-  const minimum = Math.max(0, Math.min(2, assignment.minimumEffectiveStrength ?? 0))
+  const minimum = Math.max(0, Math.min(2.5, assignment.minimumEffectiveStrength ?? 0))
   if (minimum > 0) {
     const activity = Math.max(0, Math.min(1, Math.abs(resolvedValue) / 0.34))
     const shapedActivity = activity * activity * (3 - 2 * activity)
