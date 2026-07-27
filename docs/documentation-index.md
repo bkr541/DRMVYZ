@@ -33,7 +33,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/shader-pads.md` | Shader Pads engine, scene library, editor, renderer, persistence, and lifecycle |
 | `docs/shader-native-performance-programs.md` | Authored Shader performance programs and route ownership |
 | `docs/cinematic-worlds.md` | Cinematic Worlds configuration, renderer, camera direction, and lifecycle |
-| `docs/sound-drawing.md` | Sound Drawing sources, timeline, performance programs, Living Ribbon, and rendering |
+| `docs/sound-drawing.md` | Sound Drawing sources, timeline, performance programs, Living Ribbon, professional scope signal core, and rendering |
 | `docs/canvas.md` | CANVAS media, authored composition, playback, effects, transitions, and limits |
 | `docs/pixgrid.md` | PixGrid state, media, groups, routing, choreography, rendering, diagnostics, and acceptance |
 | `docs/laser-dmx-production-rig-architecture.md` | Current LaserDMX normalized rig, fixture, cue, stage, and output boundary |

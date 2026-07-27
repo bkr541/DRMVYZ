@@ -642,6 +642,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               <ReactPlaceholderCanvas
                 key={`react-live-${activeReactEngineId}`}
                 analyser={analyser}
+                scopeStereoTap={engine.scopeStereoTap}
                 engine={activeReactEngineId}
                 activePreset={renderPreset}
                 intensity={reactIntensity}

@@ -7,6 +7,7 @@ import {
 import type { TrackAnalysisStatus, TrackIntelligenceAnalysis, BeatMarkerMI } from '../features/musicIntelligence/types'
 import { generateId } from '../utils/audioUtils'
 import { buildMonitoringChain, type MonitoringChain } from '../audio/routing'
+import { StereoScopeAudioTap } from '../audio/scope/StereoScopeAudioTap'
 import type { MonitoringMode, ReferenceTrack, SpectralFeatures } from '../types/audio'
 import Meyda from 'meyda'
 import {
@@ -139,6 +140,17 @@ export interface AudioEngine {
   setSmoothing: (n: number) => void
 
   ringBuffer: RingBuffer | null
+
+  /**
+   * Synchronized stereo capture for the Sound Drawing professional scope core.
+   *
+   * Separate from `analyserL`/`analyserR`: those are two independent analysers
+   * that each snapshot on their own read, with no guarantee the samples came
+   * from the same instant — adequate for level meters, not for a vectorscope.
+   * null until the audio graph is built; capture itself is best-effort and
+   * consumers must handle a tap that never becomes active.
+   */
+  scopeStereoTap: StereoScopeAudioTap | null
 
   // Monitoring
   monitoringMode: MonitoringMode
@@ -282,6 +294,7 @@ export function useAudioEngine(): AudioEngine {
   // Ring buffer — written by AudioWorklet message handler
   const ringBufRef       = useRef<RingBuffer | null>(null)
   const workletNodeRef   = useRef<AudioWorkletNode | null>(null)
+  const scopeTapRef      = useRef<StereoScopeAudioTap | null>(null)
   const recordingDestRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   const audioRef         = useRef<HTMLAudioElement | null>(null)
   const activeSourceNodeRef = useRef<AudioNode | null>(null)
@@ -324,6 +337,16 @@ export function useAudioEngine(): AudioEngine {
       el.pause(); el.src = ''
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Stereo scope capture disposal ───────────────────────────────────────────
+  // The tap owns a worklet node and its message port; both must be released with
+  // the hook, not left holding a reference to a torn-down audio graph.
+  useEffect(() => {
+    return () => {
+      scopeTapRef.current?.dispose()
+      scopeTapRef.current = null
+    }
   }, [])
 
   // ── Init reference audio element ────────────────────────────────────────────
@@ -411,6 +434,14 @@ export function useAudioEngine(): AudioEngine {
         workletNodeRef.current  = worklet
       })
       .catch(() => undefined)
+
+    // Synchronized stereo scope capture. Taps masterGain in parallel with the
+    // analysers and never joins the monitoring chain, so it cannot alter or
+    // delay what the user hears. Failure to load is non-fatal: the tap reports
+    // itself unavailable and Sound Drawing keeps its existing analyser path.
+    const scopeTap = new StereoScopeAudioTap(ctx)
+    scopeTapRef.current = scopeTap
+    void scopeTap.start(masterGain).catch(() => undefined)
 
     // Reference analysers
     const refGain = ctx.createGain()
@@ -1105,6 +1136,7 @@ export function useAudioEngine(): AudioEngine {
 
   const selectTrack = useCallback((i: number) => {
     setCurrentIndex(i); setIsPlaying(true)
+    scopeTapRef.current?.reset()
     connectFileSource()
     const ctx = ensureContext()
     if (ctx.state === 'suspended') ctx.resume()
@@ -1132,6 +1164,7 @@ export function useAudioEngine(): AudioEngine {
     const el = audioRef.current
     if (!el) return
     el.pause(); el.currentTime = 0; setIsPlaying(false); setCurrentTime(0)
+    scopeTapRef.current?.reset()
     musicIntelligenceEngine.resolveLyricsAt(0, 'discontinuous')
   }, [])
   const next   = useCallback(() => {
@@ -1145,6 +1178,9 @@ export function useAudioEngine(): AudioEngine {
     el.currentTime = t
     const resolvedTime = el.currentTime
     setCurrentTime(resolvedTime)
+    // Discard captured audio so no scope window straddles the jump and renders
+    // pre- and post-seek samples as one continuous trace.
+    scopeTapRef.current?.reset()
     musicIntelligenceEngine.resolveLyricsAt(resolvedTime, 'discontinuous')
   }, [])
 
@@ -1286,6 +1322,7 @@ export function useAudioEngine(): AudioEngine {
     sampleRate: ctxRef.current?.sampleRate ?? 44100,
     fftSize, setFftSize, smoothing, setSmoothing,
     ringBuffer: ringBufRef.current,
+    scopeStereoTap: scopeTapRef.current,
     monitoringMode, setMonitoringMode,
     referenceTracks, activeRefSlot, setActiveRefSlot,
     isABMode, setABMode,

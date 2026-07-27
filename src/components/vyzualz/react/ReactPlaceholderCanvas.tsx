@@ -41,6 +41,8 @@ import { createLiveFpsReporter } from './fpsDiagnostics'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import type { ActiveBrandOverlay } from '../../../features/personalization/brandAssetCompositor'
 import { compositeBrandAsset } from '../../../features/personalization/brandAssetCompositor'
+import type { StereoScopeAudioTap } from '../../../audio/scope/StereoScopeAudioTap'
+import { resolveScopeCaptureRequestFrames } from './renderers/soundDrawingScopeGeometry'
 
 const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader',
@@ -53,6 +55,11 @@ const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
 
 interface Props {
   analyser:           AnalyserNode | null
+  /**
+   * Synchronized stereo capture for Sound Drawing's professional scope modes.
+   * Optional and best-effort — rendering never depends on it being available.
+   */
+  scopeStereoTap?:    StereoScopeAudioTap | null
   /** Stable ownership boundary for the mounted live renderer. */
   engine:             Exclude<ReactEngineId, 'shaderPads' | 'canvas' | 'pixGrid'>
   activePreset:       ReactPreset | null
@@ -101,6 +108,7 @@ interface Props {
 
 export function ReactPlaceholderCanvas({
   analyser,
+  scopeStereoTap              = null,
   engine,
   activePreset,
   intensity,
@@ -143,6 +151,7 @@ export function ReactPlaceholderCanvas({
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)
   const analyserRef    = useRef<AnalyserNode | null>(null)
+  const scopeTapRef    = useRef<StereoScopeAudioTap | null>(scopeStereoTap)
   const freqBufRef     = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const timeBufRef     = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const tRef           = useRef(0)
@@ -219,6 +228,7 @@ export function ReactPlaceholderCanvas({
   activeAudioTrackIdRef.current  = activeAudioTrackId
   brandOverlayRef.current         = brandOverlay
   durationSecRef.current          = durationSec
+  scopeTapRef.current             = scopeStereoTap
 
   // Update analyser buffers when analyser changes
   useEffect(() => {
@@ -549,6 +559,21 @@ export function ReactPlaceholderCanvas({
         audioTime: canonicalAudioTime,
       })
 
+      // Synchronized stereo capture. Read only when Sound Drawing's professional
+      // scope core is actually enabled — every other engine ignores the field,
+      // and an unread window is a wasted copy on every frame.
+      let scopeStereo: ReactFrameContext['scopeStereo'] = null
+      const scopeTap = scopeTapRef.current
+      if (scopeTap && preset.engine === 'oscilloscope') {
+        const requestFrames = resolveScopeCaptureRequestFrames(
+          oscillatorSettingsRef.current,
+          scopeTap.sampleRate,
+        )
+        if (requestFrames > 0) {
+          scopeStereo = scopeTap.readLatest(requestFrames, audioTimeRef.current)
+        }
+      }
+
       const rfCtx: ReactFrameContext = {
         W,
         H,
@@ -568,6 +593,7 @@ export function ReactPlaceholderCanvas({
         audio:     { bass, mid, high, volume: vol },
         freqData:       buf ?? null,
         timeDomainData: tBuf ?? null,
+        scopeStereo,
         musicIntelligence: hasMI ? miFrame : null,
         trackAnalysis: trackAnalysisRef.current,
         trackSections: trackSectionsRef.current,

@@ -822,6 +822,9 @@ function manualGenerator(oscillator: OscillatorSettings): SoundDrawingGeneratorF
     return 'kaleidoscopicTrace'
   }
   switch (oscillator.classicMode) {
+    // Both the migrated name and the legacy value map to the same generator;
+    // the rename must not change which show an existing project resolves to.
+    case 'monoDelayXY':
     case 'lissajous':
       return 'lissajousFigure'
     case 'radialScope':

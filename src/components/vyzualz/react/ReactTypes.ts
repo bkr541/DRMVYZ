@@ -1,3 +1,5 @@
+import { DEFAULT_SOUND_DRAWING_SCOPE_STATE } from '../../../audio/scope/scopeTypes'
+import type { SoundDrawingScopeState } from '../../../audio/scope/scopeTypes'
 import { createCinematicWorldConfig } from './CinematicWorldConfig'
 import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
@@ -34,7 +36,29 @@ export type OscillatorSourceType = 'classic' | 'builtinShape' | 'text' | 'svg' |
 
 export type SvgRenderMode = 'auto' | 'reactivePath' | 'originalArtwork'
 
-export type ClassicScopeMode = 'sectionAuto' | 'waveform' | 'lissajous' | 'radialScope' | 'spiralScope'
+/**
+ * Classic scope presentations.
+ *
+ * `monoDelayXY` is the accurate name for the long-standing `lissajous` mode: it
+ * plots the signal against a delayed copy of itself, an expressive phase
+ * portrait rather than a stereo measurement. `lissajous` stays in the union so
+ * unmigrated values still render; normalization maps it to `monoDelayXY`, which
+ * draws identically.
+ *
+ * `professionalScope` routes to the professional signal core. Which signal it
+ * plots is `OscillatorSettings.scope.signalMode` — one selector for the scope
+ * family, one for the signal, so the two never disagree. The core needs the
+ * synchronized stereo capture tap; without it the renderer falls back to the
+ * legacy waveform rather than presenting mono-derived geometry as stereo.
+ */
+export type ClassicScopeMode =
+  | 'sectionAuto'
+  | 'waveform'
+  | 'lissajous'
+  | 'monoDelayXY'
+  | 'radialScope'
+  | 'spiralScope'
+  | 'professionalScope'
 
 export type BuiltinOscillatorShape =
   | 'circle' | 'square' | 'triangle' | 'star'
@@ -167,6 +191,15 @@ export interface OscillatorSettings {
   scannerBlankingDelayMicros: number
   /** Maximum sustained angular velocity (degrees/sec) the simulated galvo can hit when scanner kinematics are enabled. Mirrors LaserDmxScannerHead.maximumAngularVelocity. */
   scannerMaxAngularVelocityDegPerSec: number
+  /**
+   * Professional scope signal core configuration.
+   *
+   * Lives here rather than in a parallel store so it follows the existing
+   * oscillator persistence, preset, and normalization path. Signal only — beam,
+   * phosphor, and CRT presentation belong to the renderer patches and enter
+   * through a versioned migration on `SoundDrawingScopeState`.
+   */
+  scope: SoundDrawingScopeState
 }
 
 // ── CANVAS engine types ─────────────────────────────────────────────────────
@@ -594,6 +627,7 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   scannerCornerDwellMicros:           64,
   scannerBlankingDelayMicros:         18,
   scannerMaxAngularVelocityDegPerSec: 18_000,
+  scope:             DEFAULT_SOUND_DRAWING_SCOPE_STATE,
 }
 
 // ── Sound Drawing Layer / Clip types ─────────────────────────────────────────

@@ -4,6 +4,7 @@ import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import { handleReactPersistenceStatus } from './reactPersistenceStatusStore'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import { normalizeSoundDrawingVisualSize } from '../components/vyzualz/react/soundDrawing/SoundDrawingVisualSize'
+import { normalizeSoundDrawingScopeState } from '../audio/scope/scopeStateNormalization'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
   getReactPerformanceAction,
@@ -54,6 +55,7 @@ import type {
   ReactPerformancePadTransition,
   ReactPresetControlValues,
   ReactPresetAutomationCue,
+  ClassicScopeMode,
   OscillatorSettings,
   CanvasEngineSettings,
   CanvasFitMode,
@@ -269,11 +271,34 @@ function normalizeSoundDrawingGapBehavior(value: unknown): SoundDrawingLyricGapB
   return value === 'keepPrevious' || value === 'fallback' ? value : 'hide'
 }
 
+/**
+ * Migrates the legacy `lissajous` classic mode to `monoDelayXY`.
+ *
+ * The old mode plotted one half of a mono time-domain buffer against the other,
+ * which is a delayed mono phase portrait. `monoDelayXY` renders identically, so
+ * saved projects keep their exact appearance while the label stops claiming a
+ * stereo measurement the mode never performed. Values are not promoted to
+ * `stereoXY`, which would visibly change existing work.
+ */
+function normalizeClassicScopeMode(value: unknown): ClassicScopeMode {
+  if (value === 'lissajous') return 'monoDelayXY'
+  return value === 'sectionAuto' ||
+    value === 'waveform' ||
+    value === 'monoDelayXY' ||
+    value === 'radialScope' ||
+    value === 'spiralScope' ||
+    value === 'professionalScope'
+    ? value
+    : DEFAULT_OSCILLATOR_SETTINGS.classicMode
+}
+
 function normalizeOscillatorSettings(settings: OscillatorSettings): OscillatorSettings {
   const normalized = normalizeUnifiedSvgSettings(settings)
   const raw = settings as Partial<OscillatorSettings>
   return {
     ...normalized,
+    classicMode: normalizeClassicScopeMode(normalized.classicMode),
+    scope: normalizeSoundDrawingScopeState(raw.scope),
     pathScale: normalizeSoundDrawingVisualSize(normalized.pathScale),
     textSource: normalizeSoundDrawingTextSource(normalized.textSource),
     lyricGapBehavior: normalizeSoundDrawingGapBehavior(normalized.lyricGapBehavior),

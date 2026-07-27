@@ -13,6 +13,7 @@ import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } 
 import { buildUnifiedSvgStatus, isUnifiedSvgMediaItem, resolveUnifiedSvgSource } from './svgSourceLifecycle'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from './soundDrawing/SoundDrawingPerformanceShows'
 import { shouldShowLivingRibbonControls } from './soundDrawing/SoundDrawingControlVisibility'
+import { SoundDrawingProScopeControls } from './soundDrawing/SoundDrawingProScopeControls'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './soundDrawing/SoundDrawingPerformanceTypes'
 import type {
   SoundDrawingGeneratorPreference,
@@ -988,12 +989,19 @@ export function ReactEnginePanel() {
                   value={osc.classicMode === 'sectionAuto' ? 'waveform' : osc.classicMode}
                   onChange={(v) => set({ classicMode: v as ClassicScopeMode })}
                   options={[
-                    { value: 'waveform',    label: 'Waveform' },
-                    { value: 'lissajous',   label: 'Lissajous' },
-                    { value: 'radialScope', label: 'Radial Scope' },
-                    { value: 'spiralScope', label: 'Spiral Scope' },
+                    { value: 'waveform',          label: 'Waveform' },
+                    // Named for what it does: this mode plots the signal against
+                    // a delayed copy of itself, which is a phase portrait, not a
+                    // stereo measurement. True stereo lives under Pro Scope.
+                    { value: 'monoDelayXY',       label: 'Mono Delay Portrait' },
+                    { value: 'radialScope',       label: 'Radial Scope' },
+                    { value: 'spiralScope',       label: 'Spiral Scope' },
+                    { value: 'professionalScope', label: 'Pro Scope' },
                   ]}
                 />
+              )}
+              {!osc.autoSectionMode && osc.classicMode === 'professionalScope' && (
+                <SoundDrawingProScopeControls osc={osc} set={set} />
               )}
             </>
           )}

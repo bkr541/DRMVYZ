@@ -57,6 +57,28 @@ export interface ReactFrameContext {
   }
   freqData:       Uint8Array<ArrayBuffer> | null
   timeDomainData: Uint8Array<ArrayBuffer> | null
+  /**
+   * Synchronized stereo capture for the professional scope core.
+   *
+   * Present only when the stereo tap is running; absent for thumbnail renders,
+   * tests, and hosts where AudioWorklet is unavailable. Consumers must fall back
+   * to `timeDomainData` rather than assuming stereo is always there.
+   *
+   * `left`/`right` are views into capture-owned buffers, valid for this frame
+   * only. Float samples rather than the analyser's 8-bit bytes: 8-bit
+   * quantisation is visible as stair-stepping on a low-amplitude scope trace.
+   */
+  scopeStereo?: {
+    left: Float32Array
+    right: Float32Array
+    sampleRate: number
+    /** Absolute capture-frame index of left[0]/right[0]. */
+    startFrame: number
+    sequenceNumber: number
+    audioTimeSeconds: number
+    /** 1 when the source is genuinely mono and R was duplicated from L. */
+    channelCount: number
+  } | null
   /** Current music intelligence frame; null when MI engine has not produced data yet. */
   musicIntelligence: MusicIntelligenceFrame | null
   /** Offline analysis used only to resolve authored musical placement. audioTime remains the canonical clock. */

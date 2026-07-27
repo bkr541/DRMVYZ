@@ -1,4 +1,5 @@
 import type {
+  ClassicScopeMode,
   ReactPreset,
   ReactSectionType,
   OscillatorGlyphPoint,
@@ -15,6 +16,13 @@ import type { CustomTargetDelta } from './letterReactionCustom'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { getOrCreateOffscreen, seededRandom } from './reactRenderUtils'
 import { generateBuiltinShapePoints, clamp } from './oscillatorPathUtils'
+import {
+  buildScopeTracePoints,
+  canRenderProfessionalScope,
+  disposeScopeSignalCore,
+  getScopeSignalCore,
+  toStereoScopeFrame,
+} from './soundDrawingScopeGeometry'
 import { textToGlyphPoints } from './textGlyphUtils'
 import {
   clearRuntimeOpenTypeTextGeometry,
@@ -227,7 +235,38 @@ function tickBeatEnvelope(ctx: CanvasRenderingContext2D, beatHit: boolean): numb
 
 // ── Mode selector ─────────────────────────────────────────────────────────────
 
-type ScopeMode = 'waveform' | 'lissajous' | 'radialScope' | 'spiralScope' | 'pathScope'
+type ScopeMode =
+  | 'waveform'
+  | 'lissajous'
+  | 'radialScope'
+  | 'spiralScope'
+  | 'pathScope'
+  | 'professionalScope'
+
+/**
+ * Maps a persisted classic mode onto a draw routine.
+ *
+ * `monoDelayXY` and the legacy `lissajous` both route to the same draw path:
+ * they are the same visual, and renaming it must not change a single pixel of an
+ * existing project.
+ */
+export function scopeModeForClassicMode(classicMode: ClassicScopeMode): ScopeMode {
+  switch (classicMode) {
+    case 'lissajous':
+    case 'monoDelayXY':
+      return 'lissajous'
+    case 'radialScope':
+      return 'radialScope'
+    case 'spiralScope':
+      return 'spiralScope'
+    case 'professionalScope':
+      return 'professionalScope'
+    case 'waveform':
+    case 'sectionAuto':
+    default:
+      return 'waveform'
+  }
+}
 
 function modeForSection(type: ReactSectionType | null): ScopeMode {
   switch (type) {
@@ -327,6 +366,11 @@ export function disposeSoundDrawingRenderer(
   const temporalState = soundDrawingPerformanceTemporalStateMap.get(ctx)
   if (temporalState) disposeSoundDrawingBehaviorRuntime(temporalState)
   soundDrawingPerformanceTemporalStateMap.delete(ctx)
+  // Release the professional scope core and its point buffers with the canvas
+  // that owned them; a stale core would carry trigger and filter history into
+  // whatever renders next.
+  disposeScopeSignalCore(ctx)
+  scopeTracePointBuffers.delete(ctx)
   if (options.affectProductionDiagnostics !== false) clearSharedPerformanceDiagnostics('soundDrawing')
 }
 
@@ -1252,6 +1296,103 @@ function drawWaveformOnTrail(
     const segments = buildVectorBeamSegmentsFromPoints(points, false, color, undefined, kinematics)
     rasterizeVectorBeamSegments(tctx, segments, { blendMode, baseWidthPx, intensity: 1 })
   }
+}
+
+// ── Professional scope mode ───────────────────────────────────────────────────
+//
+// Draws the resolved trace from the professional signal core. Unlike the legacy
+// modes below, the geometry here is a measurement: the trace's shape carries
+// real information about channel relationships, so nothing in this path applies
+// decorative deformation that would corrupt the reading. Audio-reactive
+// treatment is limited to beam width and brightness.
+
+function drawProfessionalScopeOnTrail(
+  tctx: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  dpr: number,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+  intMul: number,
+  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
+): boolean {
+  const osc = params.oscillator
+  if (!canRenderProfessionalScope(osc, frame)) return false
+
+  const capture = toStereoScopeFrame(frame)
+  if (!capture) return false
+
+  const core = getScopeSignalCore(ctx)
+  const trace = core.process({
+    state: osc.scope,
+    frame: capture,
+    // Path resolution controls plotted point density. It deliberately does not
+    // control the timebase — how much audio is shown is the timebase's job.
+    requestedPoints: Math.max(64, Math.round(osc.pathResolution)),
+    deltaSeconds: frame.deltaTimeSec ?? 1 / 60,
+    bpm: frame.bpm > 0 ? frame.bpm : 0,
+    timingDiscontinuity: frame.timingDiscontinuity === true,
+  })
+  if (!trace) return false
+
+  const bass = frame.audio.bass * params.bassReactivity
+  const scalePx = Math.min(W, H) * 0.42 * normalizeSoundDrawingVisualSize(osc.pathScale) * params.intensity
+  const geometry = {
+    W,
+    H,
+    scalePx,
+    centerX: W / 2,
+    centerY: H / 2,
+    secondaryOffsetPx: H * 0.18,
+  }
+
+  const baseWidthPx = (1.0 + bass * 1.6) * dpr * params.intensity
+  const kinematics = resolveVectorBeamScannerKinematicsSettings(osc)
+
+  // Dual-channel display separates the two traces vertically so each can be read
+  // on its own, rather than overlaying them into one ambiguous figure. The pair
+  // straddles centre, so the primary shifts up by the same amount the secondary
+  // shifts down.
+  const drawsSecondary = trace.hasSecondary && trace.secondaryY != null
+  const primaryOffsetPx = drawsSecondary ? -geometry.secondaryOffsetPx : 0
+
+  const primaryPoints = getScopeTracePointBuffer(ctx, 0)
+  const primaryCount = buildScopeTracePoints(trace, trace.y, geometry, primaryPoints, primaryOffsetPx)
+  if (primaryCount < 2) return false
+
+  const primarySegments = buildVectorBeamSegmentsFromPoints(
+    primaryPoints, false, vectorBeamColorFromHex(preset.palette.primary, 0.9 * intMul), undefined, kinematics,
+  )
+  rasterizeVectorBeamSegments(tctx, primarySegments, { blendMode, baseWidthPx, intensity: 1 })
+
+  if (drawsSecondary) {
+    const secondaryPoints = getScopeTracePointBuffer(ctx, 1)
+    const secondaryCount = buildScopeTracePoints(
+      trace, trace.secondaryY!, geometry, secondaryPoints, geometry.secondaryOffsetPx,
+    )
+    if (secondaryCount >= 2) {
+      const secondarySegments = buildVectorBeamSegmentsFromPoints(
+        secondaryPoints, false, vectorBeamColorFromHex(preset.palette.secondary, 0.9 * intMul), undefined, kinematics,
+      )
+      rasterizeVectorBeamSegments(tctx, secondarySegments, { blendMode, baseWidthPx, intensity: 1 })
+    }
+  }
+
+  return true
+}
+
+/** Reusable per-canvas point buffers so the scope draw path allocates nothing. */
+const scopeTracePointBuffers = new WeakMap<CanvasRenderingContext2D, VectorBeamPoint[][]>()
+
+function getScopeTracePointBuffer(ctx: CanvasRenderingContext2D, index: number): VectorBeamPoint[] {
+  let buffers = scopeTracePointBuffers.get(ctx)
+  if (!buffers) {
+    buffers = [[], []]
+    scopeTracePointBuffers.set(ctx, buffers)
+  }
+  return buffers[index]
 }
 
 // ── Lissajous mode ────────────────────────────────────────────────────────────
@@ -2425,6 +2566,8 @@ function renderPerformanceLayer(
       )
     } else {
       switch (layer.classicMode) {
+        // Authored layers may carry either the migrated or the legacy value.
+        case 'monoDelayXY':
         case 'lissajous':
           drawLissajousOnTrail(
             tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
@@ -2832,7 +2975,7 @@ export function renderSoundDrawing(
     if (osc.autoSectionMode || osc.classicMode === 'sectionAuto') {
       mode = modeForSection(sectionType)
     } else {
-      mode = osc.classicMode as ScopeMode
+      mode = scopeModeForClassicMode(osc.classicMode)
     }
   } else {
     mode = 'pathScope'
@@ -2848,6 +2991,14 @@ export function renderSoundDrawing(
 
   // Draw new scope frame onto trail canvas
   switch (mode) {
+    case 'professionalScope':
+      // Falls through to the legacy waveform when stereo capture is unavailable
+      // (AudioWorklet unsupported, module blocked, or the ring not yet filled).
+      // The professional modes are an enhancement, never a hard requirement for
+      // the engine to render.
+      if (drawProfessionalScopeOnTrail(tctx, ctx, W, H, dpr, frame, preset, params, intMul)) break
+      drawWaveformOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
+      break
     case 'lissajous':
       drawLissajousOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
       break

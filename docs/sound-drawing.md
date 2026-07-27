@@ -91,6 +91,60 @@ The renderer must:
 - Dispose behavior and Living Ribbon runtimes when the canvas is replaced
 - Avoid parsing SVG or rasterizing text each frame
 
+## Professional scope signal core
+
+A dedicated signal core sits underneath the creative Sound Drawing systems and supplies measurement-grade waveform and vectorscope geometry. It is signal only: it owns no rendering concepts, so a Canvas2D path and a future GPU beam renderer consume the same resolved trace.
+
+| Responsibility | Current authority |
+| --- | --- |
+| Capture worklet | `public/worklets/stereo-scope-processor.js` |
+| Capture tap and lifecycle | `src/audio/scope/StereoScopeAudioTap.ts` |
+| Synchronized ring buffer | `src/audio/scope/StereoScopeRingBuffer.ts` |
+| Channel matrix and correlation | `src/audio/scope/ScopeChannelMatrix.ts` |
+| Conditioning (coupling, gain, offset, invert, swap) | `src/audio/scope/ScopeSignalConditioner.ts` |
+| Trigger | `src/audio/scope/ScopeTrigger.ts` |
+| Period estimation | `src/audio/scope/ScopePeriodEstimator.ts` |
+| Timebase | `src/audio/scope/ScopeTimebase.ts` |
+| Orchestration | `src/audio/scope/ScopeSignalCore.ts` |
+| Persisted state and normalization | `src/audio/scope/scopeStateNormalization.ts` |
+| Canvas geometry bridge | `src/components/vyzualz/react/renderers/soundDrawingScopeGeometry.ts` |
+| Controls | `src/components/vyzualz/react/soundDrawing/SoundDrawingProScopeControls.tsx` |
+
+### Capture
+
+`StereoScopeAudioTap` runs one `AudioWorkletNode` that reads left and right from the same input render quantum, so `left[i]` and `right[i]` are a genuine stereo sample pair. This is the property a vectorscope depends on and that `analyserL`/`analyserR` cannot provide: each analyser snapshots on its own read with no alignment contract between them.
+
+The tap is a pure observer connected in parallel to `masterGain`, never into the monitoring chain, so it cannot alter or delay what the user hears. Blocks are transferred to the main thread as pooled `Float32Array` pairs that the main thread returns for reuse, so steady-state capture allocates on neither thread. `SharedArrayBuffer` was not used because cross-origin isolation is not guaranteed across every DRMVYZ host.
+
+Capture is best-effort. When AudioWorklet is unavailable or the module fails to load, the tap reports an unavailable reason, `readLatest()` returns null, and the renderer falls back to the existing analyser waveform. High-quality scope capture is never a requirement for engine availability.
+
+The ring buffer resets on any gap or rewind in the capture frame counter, and on seek, stop, and track change, so no display window can straddle a transport jump.
+
+### Signal modes and honesty rules
+
+`ScopeSignalMode` separates measurement modes (`stereoXY`, `midSideXY`, `sumDifferenceXY`, `dualWaveform`, `left`, `right`, `mono`) from creative portrait modes (`monoDelayXY`, `bandSplitXY`, `proceduralFallback`).
+
+Two rules are load-bearing:
+
+- A mono-derived figure is never presented as a stereo measurement. The controls surface a notice when capture is unavailable, and when a stereo measurement mode is selected over a genuinely single-channel source.
+- Mid/side uses the energy-preserving `(L ± R) · 1/√2` conversion, not `(L + R)/2`, so a hard-panned and a centred source of equal level produce comparable trace amplitudes.
+
+### Trigger, period, and timebase
+
+Triggering is Schmitt-style: for a rising trigger the signal must fall below `level − hysteresis` before a crossing above `level + hysteresis` counts. Holdoff suppresses candidates inside one complex period, and the crossing point is interpolated to sub-sample resolution so a short timebase does not twitch by a pixel every frame.
+
+Continuity is judged in **absolute capture-frame coordinates**, not within-window indices. The capture window advances every frame, so two equal window indices are different instants; comparing them would make the trigger chase the window rather than the signal.
+
+Period estimation uses a local normalized square difference function. `fftMagnitudes` in `offlineTrackAnalyzer.ts` was evaluated and not reused: it returns magnitudes only, with no inverse transform, and allocates per call. No new dependency was added.
+
+The timebase is independent of `pathResolution`. Path resolution controls how many points are plotted; the timebase controls how much audio those points span. Beat-relative mode uses the canonical effective BPM and falls back to a fixed time window when BPM is unknown rather than assuming a tempo.
+
+### State and migration
+
+`SoundDrawingScopeState` is versioned and persists under `OscillatorSettings.scope`, following the existing oscillator normalization path. Only serializable configuration is stored — never ring buffers, trigger history, or telemetry. Beam, phosphor, and CRT presentation settings are deliberately absent and enter through a versioned migration when the renderer work lands.
+
+The pre-existing `lissajous` classic mode plotted one half of a mono time-domain buffer against the other, which is a delayed mono phase portrait rather than stereo. It migrates to `monoDelayXY`, which routes to the identical draw path, so existing projects keep their exact appearance under an accurate name. Legacy values are never promoted to `stereoXY`, and the professional core stays disabled until the user selects it.
+
 ## Size and identity controls
 
 Visual size is normalized through `SoundDrawingVisualSize.ts`. Classic Scope, Built-In Shape, text, SVG, and generated sources should use the same normalized size contract rather than separate incompatible scale semantics.
@@ -102,3 +156,5 @@ Source treatments may alter contour, repetition, deformation, color, trail, and 
 Shared Performance diagnostics report active routes, event reasons, locks, clamps, source identity, and bounded runtime statistics. A visual moving autonomously must not be reported as proof of music reaction.
 
 Tests under `src/components/vyzualz/react/soundDrawing/` cover performance sources, deterministic identity, limits, temporal routing, Living Ribbon control visibility, and authored shows. Shared simulation and Living Ribbon validation remain separate required gates for changes to that generator.
+
+Professional scope DSP is covered by deterministic analytic fixtures under `src/audio/scope/__tests__/`, which assert the mathematically derivable result for each signal relationship rather than a recorded render: in-phase stereo plots the positive diagonal, anti-phase the negative diagonal, a 90° phase shift a circle, and unequal channel gain a compressed diagonal. Trigger, timebase, ring-buffer, and migration behavior are covered alongside. Screen-space mapping and classic-mode routing are covered by `src/components/vyzualz/react/renderers/__tests__/soundDrawingProfessionalScope.test.ts`; persistence behavior by `src/stores/soundDrawingScopeMigration.test.ts`.
