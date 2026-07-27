@@ -704,7 +704,7 @@ export class ShaderEngineRenderer {
       vertSrc: vertSrc ?? 'shared',
       passes:  [],
     }
-    const result = this._compiler.compile(previewDef)
+    const result = this._compiler.compile(previewDef, this._qualCtrl?.profile)
 
     if (result.error) {
       this._publishCompileFailure(this._activeDef, result.error, store)
@@ -817,7 +817,7 @@ export class ShaderEngineRenderer {
 
     store.setCompileStatus({ state: 'compiling' })
 
-    const result = this._compiler.compile(def)
+    const result = this._compiler.compile(def, this._qualCtrl?.profile)
 
     if (result.error || !result.graph) {
       if (result.error) this._publishCompileFailure(def, result.error, store)
@@ -861,7 +861,7 @@ export class ShaderEngineRenderer {
 
     store.setCompileStatus({ state: 'compiling' })
 
-    const result = this._compiler.compile(def)
+    const result = this._compiler.compile(def, this._qualCtrl?.profile)
 
     if (result.error || !result.graph) {
       if (result.error) this._publishCompileFailure(def, result.error, store)

@@ -50,6 +50,23 @@ export interface TextureBinding {
   uniformName: string
 }
 
+// ── Geometry pass input ───────────────────────────────────────────────────────
+
+/**
+ * Per-instance line-segment attribute data for a GeometryPass draw call.
+ *
+ * `data` is laid out as `count` contiguous records of
+ * GEOMETRY_SEGMENT_FLOAT_STRIDE floats each: origin.xy, target.xy,
+ * color.rgba, density, dwellWeight, velocityRatio (see GeometryPass.ts).
+ * Callers own and reuse this Float32Array across frames — GeometryPass never
+ * allocates it and only reads the first `count * GEOMETRY_SEGMENT_FLOAT_STRIDE`
+ * floats.
+ */
+export interface GeometryPassInput {
+  data: Float32Array
+  count: number
+}
+
 // ── Framebuffer configuration ─────────────────────────────────────────────────
 
 export interface FramebufferDescriptor {

@@ -1,7 +1,14 @@
 import type { ShaderDefinition, ShaderPassDef, ShaderPassInputBinding } from '../registry/shaderRegistryTypes'
+import type { TextureFormat } from '../runtime/shaderRuntimeTypes'
 import { ShaderCompiler } from '../runtime/ShaderCompiler'
 import { ShaderProgram } from '../runtime/ShaderProgram'
 import { FULLSCREEN_VERT_SRC } from '../runtime/FullscreenPass'
+import {
+  detectShaderFloatTargetCapability,
+  resolveShaderTextureFormat,
+  type ShaderFloatTargetCapability,
+} from '../runtime/ShaderCapabilities'
+import type { QualityProfile } from '../performance/shaderPerformanceTypes'
 import type {
   CompiledGraph,
   CompiledPassInputBinding,
@@ -16,6 +23,17 @@ export const PASS_SCALE_MAX = 4.0
 
 function clampScale(s: number): number {
   return s < PASS_SCALE_MIN ? PASS_SCALE_MIN : s > PASS_SCALE_MAX ? PASS_SCALE_MAX : s
+}
+
+/**
+ * How many of a scene's declared bloomTier passes are "active" at a given
+ * quality profile. Derived directly from the existing, previously-unused
+ * QualityProfile.bloomResolution field (0.25/0.5/0.75/1.0 across
+ * low/medium/high/ultra) so bloom tiers degrade in lockstep with every other
+ * quality-scaled effect.
+ */
+export function resolveActiveBloomTierCount(profile: QualityProfile): number {
+  return Math.max(1, Math.min(3, Math.round(profile.bloomResolution * 4)))
 }
 
 // ── Topological sort ──────────────────────────────────────────────────────────
@@ -76,15 +94,28 @@ export function topologicalSort(passes: ShaderPassDef[]): TopoSortResult {
  * The compiler is bound to a single WebGL2 context at construction time.
  */
 export class ShaderPassCompiler {
-  private readonly _gl:       WebGL2RenderingContext
-  private readonly _compiler: ShaderCompiler
+  private readonly _gl:           WebGL2RenderingContext
+  private readonly _compiler:     ShaderCompiler
+  private readonly _capability:   ShaderFloatTargetCapability
 
   constructor(gl: WebGL2RenderingContext) {
-    this._gl       = gl
-    this._compiler = new ShaderCompiler(gl)
+    this._gl         = gl
+    this._compiler   = new ShaderCompiler(gl)
+    this._capability = detectShaderFloatTargetCapability(gl)
   }
 
-  compile(def: ShaderDefinition): GraphCompileResult {
+  /** Capability probe used to resolve rgba16f/rgba32f pass formats. Exposed for diagnostics. */
+  get floatTargetCapability(): ShaderFloatTargetCapability { return this._capability }
+
+  /**
+   * @param qualityProfile  When supplied, any pass with `bloomTier` beyond
+   *   what this profile affords (see resolveActiveBloomTierCount) has its
+   *   resolutionScale floored to PASS_SCALE_MIN rather than removed from the
+   *   graph — the pass still executes (dependency wiring stays valid) but at
+   *   a near-free resolution. Omitting this parameter preserves every pass's
+   *   authored resolutionScale unchanged.
+   */
+  compile(def: ShaderDefinition, qualityProfile?: QualityProfile): GraphCompileResult {
     const shaderId = def.id
 
     if (!def.fragSrc && (!def.passes || def.passes.length === 0)) {
@@ -99,7 +130,7 @@ export class ShaderPassCompiler {
     }
 
     return def.passes && def.passes.length > 0
-      ? this._compileMultiPass(def)
+      ? this._compileMultiPass(def, qualityProfile)
       : this._compileSinglePass(def)
   }
 
@@ -139,6 +170,9 @@ export class ShaderPassCompiler {
       wrap:              'clamp',
       persistent:        false,
       pingPong:          false,
+      format:            'rgba8', // renders to screen — format is inert but kept defined for type completeness
+      drawKind:          'fullscreen',
+      bloomTier:         null,
     }
 
     return { graph: { shaderId, passes: [node], isSinglePass: true }, error: null }
@@ -146,9 +180,14 @@ export class ShaderPassCompiler {
 
   // ── Multi-pass ────────────────────────────────────────────────────────────
 
-  private _compileMultiPass(def: ShaderDefinition): GraphCompileResult {
+  private _compileMultiPass(def: ShaderDefinition, qualityProfile?: QualityProfile): GraphCompileResult {
     const shaderId = def.id
     const passes   = def.passes!
+    const defaultFloatFormat: TextureFormat = def.quality?.requiresFloatTarget ? 'rgba16f' : 'rgba8'
+    const activeBloomTiers = qualityProfile ? resolveActiveBloomTierCount(qualityProfile) : Infinity
+    const devWarn = (message: string) => {
+      if (import.meta.env.DEV) console.warn(message)
+    }
 
     // Build output-owner map: output name → the pass that produces it
     const outputOwner = new Map<string, string>(passes.map(p => [p.output, p.id]))
@@ -244,18 +283,33 @@ export class ShaderPassCompiler {
         }
       }
 
+      const blendMode = pass.blendMode ?? 'none'
+      const requestedFormat = pass.format ?? defaultFloatFormat
+      const resolvedFormat = isLast
+        ? 'rgba8' // last pass always renders to the screen's default framebuffer
+        : resolveShaderTextureFormat(requestedFormat, blendMode !== 'none', this._capability, devWarn)
+
+      const bloomTier = pass.bloomTier ?? null
+      const scaleFlooredForQuality = bloomTier !== null && bloomTier > activeBloomTiers
+      const resolutionScale = scaleFlooredForQuality
+        ? PASS_SCALE_MIN
+        : clampScale(pass.resolutionScale ?? 1.0)
+
       compiled.push({
         passId:            pass.id,
         program:           result.program,
         inputs:            pass.inputs.map(normalizeInput),
         outputName:        isLast ? null : pass.output,
-        resolutionScale:   clampScale(pass.resolutionScale ?? 1.0),
+        resolutionScale,
         clearBeforeRender: pass.clearBeforeRender ?? true,
-        blendMode:         pass.blendMode  ?? 'none',
+        blendMode,
         filter:            pass.filter     ?? 'linear',
         wrap:              pass.wrap       ?? 'clamp',
         persistent:        pass.persistent ?? false,
         pingPong:          pass.pingPong   ?? false,
+        format:            resolvedFormat,
+        drawKind:          pass.drawKind   ?? 'fullscreen',
+        bloomTier,
       })
     }
 

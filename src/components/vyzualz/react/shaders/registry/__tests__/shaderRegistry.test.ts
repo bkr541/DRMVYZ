@@ -18,6 +18,7 @@
  *   N. defaults map references unknown param id
  *   O. Texture input reference in pass not declared
  *   P. Pass references itself in dependsOn
+ *   Q. Phase 3 pass fields (format / drawKind / bloomTier) don't interfere with validation
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -538,5 +539,75 @@ describe('P — pass self-dependency', () => {
       }],
     }))
     expect(result.valid).toBe(false)
+  })
+})
+
+// ── Q. Phase 3 pass fields (format / drawKind / bloomTier) ───────────────────
+
+describe('Q — new pass fields do not interfere with validation', () => {
+  it('accepts a pass declaring format, drawKind, and bloomTier alongside otherwise-valid fields', () => {
+    const result = ShaderDefinitionValidator.validate(minimalDef({
+      quality: { requiresFloatTarget: true, requiresPersistentBuffers: true },
+      passes: [{
+        id: 'p',
+        fragSrc: '#version 300 es\nout vec4 c; void main() { c = vec4(0); }',
+        inputs: [],
+        output: 'tex',
+        format: 'rgba16f',
+        drawKind: 'geometry',
+        bloomTier: 1,
+      }],
+    }))
+    expect(result.valid).toBe(true)
+    expect(result.errors).toEqual([])
+  })
+
+  it('a pass with drawKind "fullscreen" (the default, made explicit) is still valid', () => {
+    const result = ShaderDefinitionValidator.validate(minimalDef({
+      passes: [{
+        id: 'p',
+        fragSrc: '#version 300 es\nout vec4 c; void main() { c = vec4(0); }',
+        inputs: [],
+        output: 'tex',
+        drawKind: 'fullscreen',
+      }],
+    }))
+    expect(result.valid).toBe(true)
+  })
+
+  it('omitting format/drawKind/bloomTier entirely is still valid (all optional, fully back-compatible)', () => {
+    const result = ShaderDefinitionValidator.validate(minimalDef({
+      passes: [{
+        id: 'p',
+        fragSrc: '#version 300 es\nout vec4 c; void main() { c = vec4(0); }',
+        inputs: [],
+        output: 'tex',
+      }],
+    }))
+    expect(result.valid).toBe(true)
+  })
+
+  it('the new fields do not suppress a genuine, unrelated validation error (resolutionScale still checked)', () => {
+    const result = ShaderDefinitionValidator.validate(minimalDef({
+      passes: [{
+        id: 'p',
+        fragSrc: '#version 300 es\nout vec4 c; void main() { c = vec4(0); }',
+        inputs: [],
+        output: 'tex',
+        format: 'rgba16f',
+        drawKind: 'geometry',
+        bloomTier: 2,
+        resolutionScale: 99, // still invalid regardless of the new fields
+      }],
+    }))
+    expect(result.valid).toBe(false)
+    expect(result.errors.some(e => e.message.includes('resolutionScale'))).toBe(true)
+  })
+
+  it('quality.requiresFloatTarget and quality.requiresPersistentBuffers are accepted booleans with no validation errors of their own', () => {
+    const result = ShaderDefinitionValidator.validate(minimalDef({
+      quality: { requiresFloatTarget: true, requiresPersistentBuffers: true, estimatedPassCount: 6 },
+    }))
+    expect(result.valid).toBe(true)
   })
 })

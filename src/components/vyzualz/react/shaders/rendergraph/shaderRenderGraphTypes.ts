@@ -1,8 +1,11 @@
-import type { ShaderProgramError } from '../runtime/shaderRuntimeTypes'
+import type { ShaderProgramError, TextureFormat } from '../runtime/shaderRuntimeTypes'
 import type { BlendMode, FilterMode, WrapMode } from '../registry/shaderRegistryTypes'
 import type { ShaderProgram } from '../runtime/ShaderProgram'
 
 export type { BlendMode, FilterMode, WrapMode }
+
+/** How a compiled pass is rasterized. See ShaderPassDef.drawKind. */
+export type PassDrawKind = 'fullscreen' | 'geometry'
 
 // ── Compile errors ────────────────────────────────────────────────────────────
 
@@ -51,6 +54,12 @@ export interface CompiledPassNode {
   wrap: WrapMode
   persistent: boolean       // keep this FBO alive between frames
   pingPong: boolean         // use a ShaderPingPongBuffer instead of a single FBO
+  /** Resolved, capability-checked render target format. Ignored for the screen pass. */
+  format: TextureFormat
+  /** How this pass is rasterized — dispatches ShaderRenderPass.execute() to FullscreenPass or GeometryPass. */
+  drawKind: PassDrawKind
+  /** Bloom-chain tier this pass belongs to, if any. See ShaderPassDef.bloomTier. */
+  bloomTier: number | null
 }
 
 export interface CompiledGraph {

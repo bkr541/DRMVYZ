@@ -1,11 +1,20 @@
-import type { RuntimeDimensions } from '../runtime/shaderRuntimeTypes'
+import type { RuntimeDimensions, GeometryPassInput } from '../runtime/shaderRuntimeTypes'
 import type { ShaderProgram } from '../runtime/ShaderProgram'
 import { ShaderFramebuffer } from '../runtime/ShaderFramebuffer'
 import { FullscreenPass } from '../runtime/FullscreenPass'
-import type { CompiledGraph, RenderGraphInfo, RenderPassInfo } from './shaderRenderGraphTypes'
+import { GeometryPass } from '../runtime/GeometryPass'
+import type { CompiledGraph, CompiledPassNode, RenderGraphInfo, RenderPassInfo } from './shaderRenderGraphTypes'
 import { ShaderFramebufferPool } from './ShaderFramebufferPool'
 import { ShaderRenderPass } from './ShaderRenderPass'
 import { ShaderPingPongBuffer } from '../feedback/ShaderPingPongBuffer'
+
+/**
+ * Supplies per-instance line-segment data for a 'geometry' draw-kind pass.
+ * Called once per geometry pass per frame; returning null (or omitting the
+ * provider entirely) draws nothing for that pass — every existing fullscreen
+ * scene is unaffected since none of their passes declare drawKind:'geometry'.
+ */
+export type ShaderGeometryProvider = (passId: string, node: CompiledPassNode) => GeometryPassInput | null
 
 // ── ShaderRenderGraph ─────────────────────────────────────────────────────────
 
@@ -36,6 +45,7 @@ import { ShaderPingPongBuffer } from '../feedback/ShaderPingPongBuffer'
 export class ShaderRenderGraph {
   private readonly _pool:   ShaderFramebufferPool
   private readonly _fsPass: FullscreenPass
+  private readonly _geoPass: GeometryPass
 
   private _passes:      ShaderRenderPass[] = []
   private _activeGraph: CompiledGraph | null = null
@@ -54,6 +64,7 @@ export class ShaderRenderGraph {
   constructor(private readonly _gl: WebGL2RenderingContext) {
     this._pool   = new ShaderFramebufferPool(_gl)
     this._fsPass = new FullscreenPass(_gl)
+    this._geoPass = new GeometryPass(_gl)
   }
 
   /**
@@ -70,7 +81,7 @@ export class ShaderRenderGraph {
    * Disposes all ping-pong and persistent FBOs from the previous scene.
    */
   loadGraph(compiled: CompiledGraph): void {
-    this._passes      = compiled.passes.map(n => new ShaderRenderPass(this._gl, this._fsPass, n))
+    this._passes      = compiled.passes.map(n => new ShaderRenderPass(this._gl, this._fsPass, this._geoPass, n))
     this._activeGraph = compiled
     this._disposePersistentFbos()
     this._disposePingPongBuffers()
@@ -82,11 +93,15 @@ export class ShaderRenderGraph {
    * @param dims              Current render target dimensions.
    * @param externalTextures  Logical name → WebGLTexture for declared textureInputs.
    * @param applyUniforms     Called on each pass's ShaderProgram after activation.
+   * @param provideGeometry   Optional; supplies per-instance segment data to
+   *                          any pass whose drawKind is 'geometry'. Omit for
+   *                          scenes with no geometry passes.
    */
   execute(
     dims:             RuntimeDimensions,
     externalTextures: ReadonlyMap<string, WebGLTexture>,
     applyUniforms:    (program: ShaderProgram) => void,
+    provideGeometry?: ShaderGeometryProvider,
   ): void {
     if (this._passes.length === 0) {
       this._renderBlack(dims)
@@ -138,7 +153,7 @@ export class ShaderRenderGraph {
           currentOutputTexture = pfbo.texture
         } else {
           // ── Temporary pool path ──────────────────────────────────────────
-          const tfbo = this._pool.acquire(passW, passH, 'rgba8', node.filter, node.wrap)
+          const tfbo = this._pool.acquire(passW, passH, node.format, node.filter, node.wrap)
           frameAllocated.push(tfbo)
           targetFbo = tfbo.framebuffer
           currentOutputTexture = tfbo.texture
@@ -157,7 +172,8 @@ export class ShaderRenderGraph {
       const drawW = isScreen ? dims.W : passW
       const drawH = isScreen ? dims.H : passH
 
-      rp.execute(targetFbo, drawW, drawH, inputs, applyUniforms)
+      const geometry = node.drawKind === 'geometry' ? (provideGeometry?.(node.passId, node) ?? null) : null
+      rp.execute(targetFbo, drawW, drawH, inputs, applyUniforms, geometry)
 
       // Post-draw: update texMap so downstream passes see the output.
       if (!isScreen) {
@@ -241,6 +257,7 @@ export class ShaderRenderGraph {
   dispose(): void {
     this._pool.disposeAll()
     this._fsPass.dispose()
+    this._geoPass.dispose()
     this._disposePersistentFbos()
     this._disposePingPongBuffers()
     this._passes      = []
@@ -252,11 +269,11 @@ export class ShaderRenderGraph {
   private _getOrCreatePingPong(
     outputName: string,
     w: number, h: number,
-    node: import('./shaderRenderGraphTypes').CompiledPassNode,
+    node: CompiledPassNode,
   ): ShaderPingPongBuffer {
     let pp = this._pingPongBuffers.get(outputName)
     if (!pp) {
-      pp = new ShaderPingPongBuffer(this._gl, 'rgba8', node.filter, node.wrap)
+      pp = new ShaderPingPongBuffer(this._gl, node.format, node.filter, node.wrap)
       this._pingPongBuffers.set(outputName, pp)
     }
     pp.resize(w, h)
@@ -266,11 +283,11 @@ export class ShaderRenderGraph {
   private _getPersistentFbo(
     outputName: string,
     w: number, h: number,
-    node: import('./shaderRenderGraphTypes').CompiledPassNode,
+    node: CompiledPassNode,
   ): ShaderFramebuffer {
     let fbo = this._persistentFbos.get(outputName)
     if (!fbo) {
-      fbo = new ShaderFramebuffer(this._gl, { format: 'rgba8', filter: node.filter, wrap: node.wrap })
+      fbo = new ShaderFramebuffer(this._gl, { format: node.format, filter: node.filter, wrap: node.wrap })
       this._persistentFbos.set(outputName, fbo)
     }
     if (fbo.width !== w || fbo.height !== h) fbo.resize(w, h)

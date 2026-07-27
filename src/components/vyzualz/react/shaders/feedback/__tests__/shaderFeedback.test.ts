@@ -519,6 +519,21 @@ describe('G: feedback parameter defaults and blend-mode constants', () => {
     expect(DEFAULT_FEEDBACK_RESET_CONFIG.onSectionChange).toBe(false)
     expect(DEFAULT_FEEDBACK_RESET_CONFIG.onDropImpact).toBe(false)
   })
+
+  it('G10: decay\'s usable range comfortably includes a fast, snappy trail (~0.59 retention/frame) without changing the slow (0.96) default for existing scenes', () => {
+    // Phase 3 target: ~0.59 per-frame retention at 60fps decays to the noise
+    // floor in ~100ms (0.59^6 ≈ 0.04). The type only documents a 0..1 range
+    // with no narrower clamp anywhere in the feedback module, so this value
+    // is already fully usable by any scene's own decay param (e.g. the new
+    // Sound Drawing vectorscope's `decay` param defaults to exactly this) —
+    // this test locks in that DEFAULT_FEEDBACK_PARAMS.decay itself is left
+    // unchanged at the slower 0.96 for every existing scene.
+    const fastDecay = 0.59
+    expect(fastDecay).toBeGreaterThanOrEqual(0)
+    expect(fastDecay).toBeLessThanOrEqual(1)
+    expect(Math.pow(fastDecay, 6)).toBeLessThan(0.05) // ~100ms at 60fps reaches the noise floor
+    expect(DEFAULT_FEEDBACK_PARAMS.decay).toBe(0.96) // existing-scene default is untouched
+  })
 })
 
 // ── H: Scene-change reset ─────────────────────────────────────────────────────

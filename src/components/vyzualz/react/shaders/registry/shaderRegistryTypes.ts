@@ -1,5 +1,6 @@
 import type { BrandPaletteRole } from '../../../../../features/personalization/BrandKitTypes'
 import type { ShaderPerformanceProgram } from '../performance/ShaderPerformanceProgramTypes'
+import type { TextureFormat } from '../runtime/shaderRuntimeTypes'
 
 // ── Categories ────────────────────────────────────────────────────────────────
 
@@ -230,6 +231,33 @@ export interface ShaderPassDef {
   wrap?: WrapMode
   /** IDs of passes that must complete before this pass runs. */
   dependsOn?: string[]
+  /**
+   * Render target format for this pass's output. Defaults to 'rgba8'.
+   * When absent, a definition-level default of 'rgba16f' is used instead if
+   * `ShaderDefinition.quality.requiresFloatTarget` is true. The compiler
+   * downgrades rgba16f/rgba32f to rgba8 automatically (with a dev warning)
+   * when the device lacks EXT_color_buffer_float, or lacks EXT_float_blend
+   * while this pass blends. Ignored for the final screen pass, which always
+   * renders to the default framebuffer.
+   */
+  format?: TextureFormat
+  /**
+   * How this pass is rasterized. 'fullscreen' (default) draws the shared
+   * fullscreen triangle. 'geometry' draws instanced quads expanded from
+   * line segments supplied to the render graph at execute() time — used for
+   * drawing a polyline (e.g. a waveform trace) that a fragment-only pass
+   * cannot rasterize.
+   */
+  drawKind?: 'fullscreen' | 'geometry'
+  /**
+   * Marks this pass as one tier of a multi-tier bloom chain (1 = tightest/
+   * cheapest, increasing tiers = wider/more expensive). When a
+   * QualityProfile is supplied to ShaderPassCompiler.compile(), tiers beyond
+   * what the active profile's `bloomResolution` affords are floored to the
+   * engine's minimum resolutionScale rather than removed from the graph, so
+   * quality tiers cannot invalidate pass dependency wiring.
+   */
+  bloomTier?: number
 }
 
 // ── Texture input declaration ─────────────────────────────────────────────────

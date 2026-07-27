@@ -4,11 +4,14 @@ import {
   ShaderPassCompiler,
   PASS_SCALE_MIN,
   PASS_SCALE_MAX,
+  resolveActiveBloomTierCount,
   type TopoSortResult,
 } from '../ShaderPassCompiler'
 import { ShaderFramebufferPool } from '../ShaderFramebufferPool'
+import { ShaderRenderGraph } from '../ShaderRenderGraph'
 import { resolveBlendState } from '../ShaderRenderPass'
-import type { ShaderPassDef } from '../../registry/shaderRegistryTypes'
+import { QUALITY_PROFILES } from '../../performance/shaderPerformanceTypes'
+import type { ShaderPassDef, ShaderDefinition } from '../../registry/shaderRegistryTypes'
 import type { BlendMode } from '../shaderRenderGraphTypes'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -39,9 +42,11 @@ const GL_CONSTS = {
 
 // ── Mock WebGL context ────────────────────────────────────────────────────────
 
-function makeMockGL() {
+function makeMockGL(extensions: ReadonlySet<string> = new Set()) {
   let texId = 1
   let fboId = 1
+  let bufId = 1
+  let vaoId = 1
 
   const calls: { method: string; args: unknown[] }[] = []
   function track(method: string, args: unknown[]) { calls.push({ method, args }) }
@@ -68,6 +73,9 @@ function makeMockGL() {
     BLEND:           0x0BE2,
     ONE: 1, ZERO: 0, SRC_ALPHA: 0x0302, ONE_MINUS_SRC_ALPHA: 0x0303,
     DST_COLOR: 0x0306, ONE_MINUS_SRC_COLOR: 0x0301,
+    // Geometry pass (VAO/VBO/instancing)
+    ARRAY_BUFFER: 0x8892, STATIC_DRAW: 0x88E4, DYNAMIC_DRAW: 0x88E8,
+    TRIANGLE_STRIP: 0x0005, TRIANGLES: 0x0004,
 
     createTexture():     WebGLTexture    { track('createTexture', []); return { _id: texId++ } as unknown as WebGLTexture },
     bindTexture(t: number, o: unknown)   { track('bindTexture', [t, o]) },
@@ -86,6 +94,7 @@ function makeMockGL() {
     isContextLost() { return false },
     getError()      { return 0 },
     getParameter(p: number) { return p === 0x0D33 || p === 0x84E8 ? 16384 : null },
+    getExtension(name: string) { return extensions.has(name) ? {} : null },
 
     // Shader / program (success path)
     createShader():     WebGLShader    { return { _s: 1 } as unknown as WebGLShader },
@@ -103,6 +112,7 @@ function makeMockGL() {
     deleteProgram()     {},
     useProgram()        {},
     getUniformLocation() { return {} as WebGLUniformLocation },
+    getAttribLocation() { return 0 },
 
     viewport()          {},
     clearColor()        {},
@@ -114,6 +124,19 @@ function makeMockGL() {
     uniform1f()         {},
     uniform1i()         {},
     drawArrays()        {},
+
+    createBuffer():      WebGLBuffer { track('createBuffer', []); return { _b: bufId++ } as unknown as WebGLBuffer },
+    bindBuffer(...a: unknown[])            { track('bindBuffer', a) },
+    bufferData(...a: unknown[])            { track('bufferData', a) },
+    bufferSubData(...a: unknown[])         { track('bufferSubData', a) },
+    deleteBuffer(...a: unknown[])          { track('deleteBuffer', a) },
+    enableVertexAttribArray(...a: unknown[]) { track('enableVertexAttribArray', a) },
+    vertexAttribPointer(...a: unknown[])   { track('vertexAttribPointer', a) },
+    vertexAttribDivisor(...a: unknown[])   { track('vertexAttribDivisor', a) },
+    drawArraysInstanced(...a: unknown[])   { track('drawArraysInstanced', a) },
+    createVertexArray():  WebGLVertexArrayObject { track('createVertexArray', []); return { _va: vaoId++ } as unknown as WebGLVertexArrayObject },
+    bindVertexArray(...a: unknown[])       { track('bindVertexArray', a) },
+    deleteVertexArray(...a: unknown[])     { track('deleteVertexArray', a) },
 
     _calls: calls,
   }
@@ -709,5 +732,321 @@ describe('I: deterministic execution order', () => {
       const ids = result.graph.passes.map(n => n.passId)
       expect(ids.indexOf('A')).toBeLessThan(ids.indexOf('B'))
     }
+  })
+})
+
+// ── J: HDR format resolution + capability fallback (Blocker A) ──────────────
+
+describe('J: ShaderPassCompiler — format resolution and float-target capability', () => {
+  function multiPassDef(passes: ShaderPassDef[], quality?: ShaderDefinition['quality']): ShaderDefinition {
+    return {
+      id: 'fmt-test', name: 'F', description: 'F', category: 'generator', version: 1,
+      params: [], defaults: {}, passes, quality,
+    }
+  }
+
+  it('J1: a pass with no explicit format and no quality.requiresFloatTarget compiles to rgba8', () => {
+    const gl = makeMockGL(new Set(['EXT_color_buffer_float', 'EXT_float_blend']))
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef([makePass('a'), makePass('b', { inputs: ['a-out'] })])
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].format).toBe('rgba8')
+  })
+
+  it('J2: quality.requiresFloatTarget defaults every explicit-format-less non-screen pass to rgba16f when the device supports it', () => {
+    const gl = makeMockGL(new Set(['EXT_color_buffer_float', 'EXT_float_blend']))
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef(
+      [makePass('a'), makePass('b', { inputs: ['a-out'] })],
+      { requiresFloatTarget: true },
+    )
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].format).toBe('rgba16f') // non-screen pass
+  })
+
+  it('J3: the final (screen) pass is always rgba8 even under quality.requiresFloatTarget', () => {
+    const gl = makeMockGL(new Set(['EXT_color_buffer_float', 'EXT_float_blend']))
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef(
+      [makePass('a'), makePass('b', { inputs: ['a-out'] })],
+      { requiresFloatTarget: true },
+    )
+    const { graph } = compiler.compile(def)
+    const last = graph!.passes[graph!.passes.length - 1]
+    expect(last.outputName).toBeNull()
+    expect(last.format).toBe('rgba8')
+  })
+
+  it('J4: an explicit per-pass format overrides the definition-level default (checked on a non-screen pass)', () => {
+    const gl = makeMockGL(new Set(['EXT_color_buffer_float', 'EXT_float_blend']))
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef(
+      [
+        makePass('a', { format: 'r8' }),
+        makePass('b', { inputs: ['a-out'] }), // non-screen: gets the definition default
+        makePass('c', { inputs: ['b-out'] }), // screen pass: always rgba8
+      ],
+      { requiresFloatTarget: true },
+    )
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].format).toBe('r8')
+    expect(graph!.passes[1].format).toBe('rgba16f') // still gets the definition default
+  })
+
+  it('J5: falls back to rgba8 when EXT_color_buffer_float is unavailable, regardless of request', () => {
+    const gl = makeMockGL() // no extensions
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef([makePass('a', { format: 'rgba16f' }), makePass('b', { inputs: ['a-out'] })])
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].format).toBe('rgba8')
+  })
+
+  it('J6: falls back to rgba8 when a blending pass requests a float format but EXT_float_blend is unavailable', () => {
+    const gl = makeMockGL(new Set(['EXT_color_buffer_float'])) // colorBufferFloat yes, floatBlend no
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef([
+      makePass('a', { format: 'rgba16f', blendMode: 'additive' }),
+      makePass('b', { inputs: ['a-out'] }),
+    ])
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].format).toBe('rgba8')
+  })
+
+  it('J7: keeps rgba16f for a blending pass when both float extensions are available', () => {
+    const gl = makeMockGL(new Set(['EXT_color_buffer_float', 'EXT_float_blend']))
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef([
+      makePass('a', { format: 'rgba16f', blendMode: 'additive' }),
+      makePass('b', { inputs: ['a-out'] }),
+    ])
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].format).toBe('rgba16f')
+  })
+
+  it('J8: a non-blending pass only needs EXT_color_buffer_float, not EXT_float_blend', () => {
+    const gl = makeMockGL(new Set(['EXT_color_buffer_float'])) // floatBlend missing
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef([
+      makePass('a', { format: 'rgba16f' }), // blendMode omitted -> 'none'
+      makePass('b', { inputs: ['a-out'] }),
+    ])
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].format).toBe('rgba16f')
+  })
+
+  it('J9: single-pass (screen-only) definitions always report rgba8, capability notwithstanding', () => {
+    const gl = makeMockGL() // no extensions
+    const compiler = new ShaderPassCompiler(gl)
+    const def: ShaderDefinition = {
+      id: 'single', name: 'S', description: 'S', category: 'generator', version: 1,
+      params: [], defaults: {},
+      fragSrc: '#version 300 es\nout vec4 c;\nvoid main(){c=vec4(1);}',
+    }
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].format).toBe('rgba8')
+  })
+
+  it('J10: ShaderRenderGraph threads the compiled format into the pool, ping-pong, and persistent FBO paths', () => {
+    const gl = makeMockGL(new Set(['EXT_color_buffer_float', 'EXT_float_blend']))
+    const compiler = new ShaderPassCompiler(gl)
+    const def = multiPassDef(
+      [
+        makePass('pooled'),
+        makePass('pingpong', { inputs: ['pooled-out', 'pingpong-out'], pingPong: true, persistent: true }),
+        makePass('screen', { inputs: ['pingpong-out'] }),
+      ],
+      { requiresFloatTarget: true },
+    )
+    const { graph } = compiler.compile(def)
+    expect(graph).not.toBeNull()
+
+    const renderGraph = new ShaderRenderGraph(gl)
+    renderGraph.loadGraph(graph!)
+    renderGraph.execute({ W: 64, H: 64, aspect: 1, pixelRatio: 1 }, new Map(), () => {})
+
+    // texImage2D is called for every texture allocation; at least one call
+    // for the pooled + ping-pong (x2) + persistent-adjacent paths should
+    // request the RGBA16F internal format the definition asked for.
+    const texImageCalls = (gl as unknown as { _calls: { method: string; args: unknown[] }[] })._calls
+      .filter(c => c.method === 'texImage2D' || c.method === 'texStorage2D')
+    const usedRgba16f = texImageCalls.some(c => c.args.includes(gl.RGBA16F))
+    expect(usedRgba16f).toBe(true)
+  })
+})
+
+// ── K: Geometry pass dispatch through ShaderRenderPass / ShaderRenderGraph (Blocker B) ──
+
+describe('K: geometry pass dispatch', () => {
+  function geometryDef(): ShaderDefinition {
+    return {
+      id: 'geo-test', name: 'G', description: 'G', category: 'generator', version: 1,
+      params: [], defaults: {},
+      passes: [
+        {
+          id: 'draw',
+          drawKind: 'geometry',
+          fragSrc: '#version 300 es\nprecision mediump float;\nout vec4 c;\nvoid main(){c=vec4(1);}',
+          vertSrc: '#version 300 es\nlayout(location=0) in vec2 a;\nvoid main(){gl_Position=vec4(a,0.0,1.0);}',
+          inputs: [],
+          output: 'draw-out',
+        },
+      ],
+    }
+  }
+
+  it('K1: a compiled geometry pass node reports drawKind "geometry"', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph } = compiler.compile(geometryDef())
+    expect(graph!.passes[0].drawKind).toBe('geometry')
+  })
+
+  it('K2: a plain fragSrc-only pass defaults to drawKind "fullscreen"', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const def = {
+      id: 'fs-test', name: 'F', description: 'F', category: 'generator' as const, version: 1,
+      params: [], defaults: {},
+      passes: [makePass('a')],
+    }
+    const { graph } = compiler.compile(def)
+    expect(graph!.passes[0].drawKind).toBe('fullscreen')
+  })
+
+  it('K3: executing a graph with a geometry pass and a provideGeometry callback issues an instanced draw call', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph } = compiler.compile(geometryDef())
+    const renderGraph = new ShaderRenderGraph(gl)
+    renderGraph.loadGraph(graph!)
+
+    const segmentData = new Float32Array(11).fill(0.5)
+    renderGraph.execute(
+      { W: 64, H: 64, aspect: 1, pixelRatio: 1 },
+      new Map(),
+      () => {},
+      () => ({ data: segmentData, count: 1 }),
+    )
+
+    expect(gl._calls.some(c => c.method === 'drawArraysInstanced')).toBe(true)
+  })
+
+  it('K4: executing a graph with a geometry pass but NO provideGeometry callback draws nothing (no throw, no instanced draw call)', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph } = compiler.compile(geometryDef())
+    const renderGraph = new ShaderRenderGraph(gl)
+    renderGraph.loadGraph(graph!)
+
+    expect(() => {
+      renderGraph.execute({ W: 64, H: 64, aspect: 1, pixelRatio: 1 }, new Map(), () => {})
+    }).not.toThrow()
+    expect(gl._calls.some(c => c.method === 'drawArraysInstanced')).toBe(false)
+  })
+
+  it('K5: a provideGeometry callback returning null for this pass id also draws nothing', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph } = compiler.compile(geometryDef())
+    const renderGraph = new ShaderRenderGraph(gl)
+    renderGraph.loadGraph(graph!)
+
+    renderGraph.execute(
+      { W: 64, H: 64, aspect: 1, pixelRatio: 1 },
+      new Map(),
+      () => {},
+      () => null,
+    )
+    expect(gl._calls.some(c => c.method === 'drawArraysInstanced')).toBe(false)
+  })
+
+  it('K6: existing fullscreen-only scenes are unaffected by the new geometry dispatch (still draw via drawArrays, never drawArraysInstanced)', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const def = {
+      id: 'fs-only', name: 'F', description: 'F', category: 'generator' as const, version: 1,
+      params: [], defaults: {},
+      fragSrc: '#version 300 es\nout vec4 c;\nvoid main(){c=vec4(1);}',
+    }
+    const { graph } = compiler.compile(def)
+    const renderGraph = new ShaderRenderGraph(gl)
+    renderGraph.loadGraph(graph!)
+    renderGraph.execute({ W: 64, H: 64, aspect: 1, pixelRatio: 1 }, new Map(), () => {})
+    expect(gl._calls.some(c => c.method === 'drawArraysInstanced')).toBe(false)
+  })
+})
+
+// ── L: Quality-aware bloom tier resolution scale flooring ───────────────────
+
+describe('L: resolveActiveBloomTierCount + quality-aware bloomTier compilation', () => {
+  it('L1: maps each quality tier to the expected active bloom tier count', () => {
+    expect(resolveActiveBloomTierCount(QUALITY_PROFILES.low)).toBe(1)
+    expect(resolveActiveBloomTierCount(QUALITY_PROFILES.medium)).toBe(2)
+    expect(resolveActiveBloomTierCount(QUALITY_PROFILES.high)).toBe(3)
+    expect(resolveActiveBloomTierCount(QUALITY_PROFILES.ultra)).toBe(3)
+  })
+
+  function bloomDef(): ShaderDefinition {
+    return {
+      id: 'bloom-test', name: 'B', description: 'B', category: 'generator', version: 1,
+      params: [], defaults: {},
+      passes: [
+        makePass('base'),
+        makePass('tier1', { inputs: ['base-out'], bloomTier: 1, resolutionScale: 0.5 }),
+        makePass('tier2', { inputs: ['base-out'], bloomTier: 2, resolutionScale: 0.25 }),
+        makePass('tier3', { inputs: ['base-out'], bloomTier: 3, resolutionScale: 0.125 }),
+        makePass('composite', { inputs: ['tier1-out', 'tier2-out', 'tier3-out'] }),
+      ],
+    }
+  }
+
+  it('L2: omitting the quality profile preserves every bloomTier pass\'s authored resolutionScale', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph } = compiler.compile(bloomDef())
+    const byId = new Map(graph!.passes.map(p => [p.passId, p]))
+    expect(byId.get('tier1')!.resolutionScale).toBeCloseTo(0.5)
+    expect(byId.get('tier2')!.resolutionScale).toBeCloseTo(0.25)
+    expect(byId.get('tier3')!.resolutionScale).toBeCloseTo(0.125)
+  })
+
+  it('L3: at the low profile (1 active tier), tiers 2 and 3 are floored to PASS_SCALE_MIN but tier 1 is untouched', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph } = compiler.compile(bloomDef(), QUALITY_PROFILES.low)
+    const byId = new Map(graph!.passes.map(p => [p.passId, p]))
+    expect(byId.get('tier1')!.resolutionScale).toBeCloseTo(0.5)
+    expect(byId.get('tier2')!.resolutionScale).toBe(PASS_SCALE_MIN)
+    expect(byId.get('tier3')!.resolutionScale).toBe(PASS_SCALE_MIN)
+  })
+
+  it('L4: at the medium profile (2 active tiers), only tier 3 is floored', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph } = compiler.compile(bloomDef(), QUALITY_PROFILES.medium)
+    const byId = new Map(graph!.passes.map(p => [p.passId, p]))
+    expect(byId.get('tier1')!.resolutionScale).toBeCloseTo(0.5)
+    expect(byId.get('tier2')!.resolutionScale).toBeCloseTo(0.25)
+    expect(byId.get('tier3')!.resolutionScale).toBe(PASS_SCALE_MIN)
+  })
+
+  it('L5: flooring a bloom tier does not remove it from the graph or break its dependents (composite still compiles and depends on all 3 tiers)', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph, error } = compiler.compile(bloomDef(), QUALITY_PROFILES.low)
+    expect(error).toBeNull()
+    const ids = graph!.passes.map(p => p.passId)
+    expect(ids).toContain('tier2')
+    expect(ids).toContain('tier3')
+    expect(ids.indexOf('composite')).toBe(ids.length - 1)
+  })
+
+  it('L6: passes with no bloomTier are never affected by a quality profile', () => {
+    const gl = makeMockGL()
+    const compiler = new ShaderPassCompiler(gl)
+    const { graph } = compiler.compile(bloomDef(), QUALITY_PROFILES.low)
+    const base = graph!.passes.find(p => p.passId === 'base')!
+    expect(base.bloomTier).toBeNull()
+    expect(base.resolutionScale).toBe(1.0)
   })
 })

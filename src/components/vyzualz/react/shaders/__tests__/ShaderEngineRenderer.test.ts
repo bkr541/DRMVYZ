@@ -59,6 +59,7 @@ function makeMockGL() {
     isContextLost()       { return false },
     getError()            { return 0 },
     getParameter(p: number) { return p === 0x0D33 || p === 0x84E8 ? 16384 : null },
+    getExtension()        { return null },
 
     createShader():       WebGLShader     { return { _s: objId++ } as unknown as WebGLShader },
     shaderSource()        {},

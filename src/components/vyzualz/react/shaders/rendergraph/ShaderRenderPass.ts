@@ -1,8 +1,11 @@
 import type { BlendMode } from '../registry/shaderRegistryTypes'
-import type { TextureBinding } from '../runtime/shaderRuntimeTypes'
+import type { TextureBinding, GeometryPassInput } from '../runtime/shaderRuntimeTypes'
 import type { ShaderProgram } from '../runtime/ShaderProgram'
 import type { CompiledPassNode, RenderPassInfo } from './shaderRenderGraphTypes'
 import { FullscreenPass } from '../runtime/FullscreenPass'
+import type { GeometryPass } from '../runtime/GeometryPass'
+
+const EMPTY_GEOMETRY: GeometryPassInput = { data: new Float32Array(0), count: 0 }
 
 // ── Blend state ───────────────────────────────────────────────────────────────
 
@@ -73,17 +76,25 @@ export class ShaderRenderPass {
   private _lastDurationMs: number | null = null
 
   constructor(
-    private readonly _gl:     WebGL2RenderingContext,
-    private readonly _fsPass: FullscreenPass,
+    private readonly _gl:      WebGL2RenderingContext,
+    private readonly _fsPass:  FullscreenPass,
+    private readonly _geoPass: GeometryPass,
     readonly node: CompiledPassNode,
   ) {}
 
+  /**
+   * @param geometry  Per-instance segment data for a 'geometry' drawKind
+   *                  pass. Ignored for 'fullscreen' passes. Defaults to an
+   *                  empty (zero-instance) buffer when a geometry pass has no
+   *                  provider — draws nothing rather than throwing.
+   */
   execute(
     targetFbo:     WebGLFramebuffer | null,
     w:             number,
     h:             number,
     inputs:        TextureBinding[],
     applyUniforms: (program: ShaderProgram) => void,
+    geometry?:     GeometryPassInput | null,
   ): void {
     const gl    = this._gl
     const start = performance.now()
@@ -95,13 +106,24 @@ export class ShaderRenderPass {
     this.node.program.activate()
     applyUniforms(this.node.program)
 
-    this._fsPass.run(
-      this.node.program,
-      targetFbo,
-      w, h,
-      inputs,
-      { clear: this.node.clearBeforeRender },
-    )
+    if (this.node.drawKind === 'geometry') {
+      this._geoPass.run(
+        this.node.program,
+        targetFbo,
+        w, h,
+        inputs,
+        geometry ?? EMPTY_GEOMETRY,
+        { clear: this.node.clearBeforeRender },
+      )
+    } else {
+      this._fsPass.run(
+        this.node.program,
+        targetFbo,
+        w, h,
+        inputs,
+        { clear: this.node.clearBeforeRender },
+      )
+    }
 
     // Restore blend to a known-off state before the next pass.
     restoreBlendState(gl)

@@ -11,6 +11,14 @@ export { MELODIC_RIFT_BLOOM } from './melodicRiftBloom'
 export { RIDDIM_RAILGUN_SEQUENCER } from './riddimRailgunSequencer'
 export { BRAND_SINGULARITY } from './brandSingularity'
 
+// Phase 3 capability scene: exercises the geometry draw pass, HDR/float
+// render targets, chromatic bloom, and feedback persistence end-to-end. Not
+// yet wired into ShaderEngineRenderer's live per-frame geometry data source
+// (see soundDrawingVectorscopeRuntime.ts's docblock), so — like
+// feedbackKaleidoscope.ts below — it is exported for direct use/testing but
+// intentionally absent from PRODUCTION_SCENES.
+export { SOUND_DRAWING_VECTORSCOPE, SOUND_DRAWING_VECTORSCOPE_SCENE_ID } from './soundDrawingVectorscope'
+
 // Legacy source definitions remain importable for migration fixtures and visual
 // regression reference, but are intentionally absent from PRODUCTION_SCENES.
 // Reactor is the only runtime registry entry for these three visual systems.
