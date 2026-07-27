@@ -12,8 +12,12 @@ import {
   scopeQualityChangeNeedsTargetReallocation,
 } from '../soundDrawingPhosphorPlan'
 
-const HDR_PROBE = { colorBufferFloat: true, rgba16fRenderable: true, floatLinearFiltering: true }
-const LDR_PROBE = { colorBufferFloat: false, rgba16fRenderable: false, floatLinearFiltering: false }
+const HDR_PROBE = {
+  colorBufferFloat: true, rgba16fRenderable: true, floatLinearFiltering: true, floatBlend: true,
+}
+const LDR_PROBE = {
+  colorBufferFloat: false, rgba16fRenderable: false, floatLinearFiltering: false, floatBlend: false,
+}
 
 describe('HDR target selection', () => {
   it('prefers RGBA16F when the probe reports it renderable', () => {
@@ -34,10 +38,18 @@ describe('HDR target selection', () => {
   })
 
   it('does not claim half-float support when the extension exists but the target is not renderable', () => {
-    const strategy = resolveScopeHdrTargetStrategy({
-      colorBufferFloat: true, rgba16fRenderable: false, floatLinearFiltering: true,
-    })
+    // Several drivers advertise EXT_color_buffer_float yet report an incomplete
+    // framebuffer for a real RGBA16F attachment.
+    expect(resolveScopeHdrTargetStrategy({ ...HDR_PROBE, rgba16fRenderable: false }).hdrEnabled).toBe(false)
+  })
+
+  it('requires float blending, because beam emission is an additive pass', () => {
+    // A device that can render float but not blend into it would fail at draw
+    // time on the very pass HDR exists for: additive accumulation is what makes
+    // overlapping strokes produce hotter intersections.
+    const strategy = resolveScopeHdrTargetStrategy({ ...HDR_PROBE, floatBlend: false })
     expect(strategy.hdrEnabled).toBe(false)
+    expect(strategy.targetFormat).toBe('rgba8')
   })
 
   it('only enables linear filtering when the float-linear capability is present', () => {

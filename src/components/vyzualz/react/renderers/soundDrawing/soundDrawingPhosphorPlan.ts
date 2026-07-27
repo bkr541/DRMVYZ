@@ -1,3 +1,4 @@
+import { detectShaderFloatTargetCapability } from '../../shaders/runtime/ShaderCapabilities'
 import { SOUND_DRAWING_BLOOM_TIERS, type BloomTierConfig } from '../../shaders/scenes/soundDrawingBloom'
 
 // ── soundDrawingPhosphorPlan ──────────────────────────────────────────────────
@@ -35,6 +36,18 @@ export interface ScopeHdrCapabilityProbe {
   colorBufferFloat: boolean
   rgba16fRenderable: boolean
   floatLinearFiltering: boolean
+  /**
+   * `EXT_float_blend`: whether `gl.BLEND` may be enabled while drawing into a
+   * float target.
+   *
+   * Load-bearing for this pipeline specifically. Beam emission is an *additive*
+   * pass into the HDR target — that is what makes overlapping strokes accumulate
+   * into hotter intersections instead of overwriting each other. Some drivers
+   * expose float render targets but reject blending into them, so a probe that
+   * only checked renderability would select HDR and then fail at draw time on
+   * exactly the pass the HDR path exists for.
+   */
+  floatBlend: boolean
 }
 
 export interface ScopeHdrTargetStrategy {
@@ -61,7 +74,10 @@ export interface ScopeHdrTargetStrategy {
 export function resolveScopeHdrTargetStrategy(
   probe: ScopeHdrCapabilityProbe,
 ): ScopeHdrTargetStrategy {
-  const hdrEnabled = probe.colorBufferFloat && probe.rgba16fRenderable
+  // All three are required, not just renderability: the beam pass blends
+  // additively into this target, so a device that can render float but not
+  // blend into it must take the RGBA8 path rather than fail at draw time.
+  const hdrEnabled = probe.colorBufferFloat && probe.rgba16fRenderable && probe.floatBlend
   return hdrEnabled
     ? {
         hdrEnabled: true,
@@ -77,6 +93,50 @@ export function resolveScopeHdrTargetStrategy(
         maximumSceneValue: 1,
         diagnosticCode: 'ldr-rgba8-fallback',
       }
+}
+
+/**
+ * Probes the live context for the capabilities `resolveScopeHdrTargetStrategy`
+ * needs.
+ *
+ * Extension detection delegates to the shared `ShaderCapabilities` module so
+ * there is one source of truth for the float-target policy across the engine.
+ * The renderability check is done here because it is the part extension
+ * presence does not guarantee: several drivers advertise
+ * `EXT_color_buffer_float` yet report an incomplete framebuffer for an actual
+ * RGBA16F attachment, so a two-texel test attachment is built and torn down.
+ */
+export function probeScopeHdrCapability(gl: WebGL2RenderingContext): ScopeHdrCapabilityProbe {
+  const { colorBufferFloat, floatBlend } = detectShaderFloatTargetCapability(gl)
+  const floatLinearFiltering = gl.getExtension('OES_texture_float_linear') != null
+
+  let rgba16fRenderable = false
+  const texture = gl.createTexture()
+  const framebuffer = gl.createFramebuffer()
+  try {
+    if (colorBufferFloat && texture && framebuffer && !gl.isContextLost()) {
+      gl.bindTexture(gl.TEXTURE_2D, texture)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, 2, 2, 0, gl.RGBA, gl.HALF_FLOAT, null)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0)
+      rgba16fRenderable = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE
+    }
+  } catch {
+    rgba16fRenderable = false
+  } finally {
+    // The probe must leave no trace: it runs during init and on every context
+    // restore, so a leaked texture or framebuffer would accumulate per restore.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    if (framebuffer) gl.deleteFramebuffer(framebuffer)
+    if (texture) gl.deleteTexture(texture)
+  }
+
+  return { colorBufferFloat, rgba16fRenderable, floatLinearFiltering, floatBlend }
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────────

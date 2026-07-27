@@ -50,6 +50,19 @@ export class ShaderPingPongBuffer {
     return this._readIdx === 0 ? this._b.framebuffer : this._a.framebuffer
   }
 
+  /**
+   * Texture backing the current WRITE target.
+   *
+   * Exposed so callers can assert they are not about to bind it as a sampler
+   * input: sampling the texture currently attached as the draw target is
+   * undefined behaviour in WebGL, and typically shows as a black or garbage
+   * frame with no reported error. Not needed to render — `readTexture` is the
+   * one a pass should sample.
+   */
+  get writeTexture(): WebGLTexture | null {
+    return this._readIdx === 0 ? this._b.texture : this._a.texture
+  }
+
   /** Framebuffer holding the previous frame (rarely needed directly). */
   get readFbo(): WebGLFramebuffer | null {
     return this._readIdx === 0 ? this._a.framebuffer : this._b.framebuffer
