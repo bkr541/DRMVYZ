@@ -17,6 +17,21 @@ import {
 /** Upper bound on plotted points. Beyond this the extra detail is sub-pixel. */
 const MAX_TRACE_POINTS = 4096
 
+/** Auto-gain release time. Slow enough that the figure does not pump on beats. */
+const AUTO_GAIN_RELEASE_SECONDS = 0.9
+
+/** Below this the input is silence or dither, and amplifying it is noise. */
+const AUTO_GAIN_SILENCE_FLOOR = 0.002
+
+/** Auto-gain bounds. Wide enough for quiet masters, bounded against runaway. */
+const MIN_AUTO_GAIN = 0.25
+const MAX_AUTO_GAIN = 24
+
+function clampGain(value: number): number {
+  if (!Number.isFinite(value)) return 1
+  return value < MIN_AUTO_GAIN ? MIN_AUTO_GAIN : value > MAX_AUTO_GAIN ? MAX_AUTO_GAIN : value
+}
+
 /** Extra capture headroom beyond the display window, for trigger search. */
 const TRIGGER_SEARCH_HEADROOM = 1.5
 
@@ -82,8 +97,12 @@ export class ScopeSignalCore {
   private proceduralPhase = 0
   private lastFrameSequence = -1
 
+  /** Smoothed peak driving auto-gain. Fast attack, slow release. */
+  private trackedPeak = 0
+
   /** Clears trigger, filter, period, and timebase history. */
   reset(): void {
+    this.trackedPeak = 0
     this.conditioner.reset()
     this.trigger.reset()
     this.timebase.reset()
@@ -139,7 +158,17 @@ export class ScopeSignalCore {
       periodConfidence: period.confidence,
       bpm: input.bpm,
     })
-    const windowSamples = Math.min(timebase.windowSamples, available)
+
+    // The display never draws fewer points than the window holds samples.
+    //
+    // Resampling a window down to a smaller point count decimates it, and on
+    // broadband material consecutive surviving samples are uncorrelated — the
+    // trace becomes straight chords across the figure instead of the continuous
+    // curve a real beam draws. So the window is clamped to the point budget and
+    // every plotted point is an actual sample. Showing less time is the correct
+    // trade; showing invented geometry is not.
+    const pointBudget = Math.max(2, Math.min(MAX_TRACE_POINTS, Math.floor(input.requestedPoints)))
+    const windowSamples = Math.min(timebase.windowSamples, available, pointBudget)
 
     // ── Trigger ───────────────────────────────────────────────────────────────
     const searchSamples = Math.min(
@@ -183,9 +212,18 @@ export class ScopeSignalCore {
     )
     if (matrix.length < 2) return null
 
+    // ── Auto-gain ─────────────────────────────────────────────────────────────
+    const isXY = isScopeXYSignalMode(state.signalMode)
+    if (state.signalConditioner.autoGain) {
+      this.applyAutoGain(
+        this.matrixX, this.matrixY, matrix, isXY,
+        state.signalConditioner.autoGainTarget,
+        deltaSeconds,
+      )
+    }
+
     // ── Conditioning ──────────────────────────────────────────────────────────
     this.conditioner.setSettings(state.signalConditioner)
-    const isXY = isScopeXYSignalMode(state.signalMode)
     if (isXY) {
       this.conditioner.process(this.matrixX, this.matrixY, matrix.length, sampleRate)
     } else {
@@ -197,15 +235,14 @@ export class ScopeSignalCore {
       )
     }
 
-    // ── Resample to display points ────────────────────────────────────────────
-    const points = Math.max(
-      2,
-      Math.min(MAX_TRACE_POINTS, Math.floor(input.requestedPoints), matrix.length),
-    )
-    resampleLinear(this.matrixX, matrix.length, this.outX, points)
-    resampleLinear(this.matrixY, matrix.length, this.outY, points)
+    // ── Copy to display buffers ───────────────────────────────────────────────
+    // One plotted point per captured sample, by construction of the window
+    // clamp above, so this is a copy rather than a resample.
+    const points = matrix.length
+    this.outX.set(this.matrixX.subarray(0, points))
+    this.outY.set(this.matrixY.subarray(0, points))
     const hasSecondary = matrix.hasSecondary
-    if (hasSecondary) resampleLinear(this.matrixSecondary, matrix.length, this.outSecondary, points)
+    if (hasSecondary) this.outSecondary.set(this.matrixSecondary.subarray(0, points))
 
     this.sequence++
 
@@ -222,6 +259,55 @@ export class ScopeSignalCore {
       correlation: computeChannelCorrelation(frame.left, frame.right, available),
       monoSource: frame.channelCount < 2,
       sequenceNumber: this.sequence,
+    }
+  }
+
+  /**
+   * Scales the frame so the figure fills `target` of the display.
+   *
+   * Peak tracking is fast-attack, slow-release: a transient immediately pulls the
+   * gain down so a snare cannot clip off-screen, and the recovery is slow enough
+   * that the figure does not visibly pump between beats. The gain is bounded so a
+   * near-silent passage cannot amplify noise into a full-screen scribble.
+   */
+  private applyAutoGain(
+    x: Float32Array,
+    y: Float32Array,
+    matrix: { length: number; hasSecondary: boolean },
+    isXY: boolean,
+    target: number,
+    deltaSeconds: number,
+  ): void {
+    let peak = 0
+    for (let i = 0; i < matrix.length; i++) {
+      // Waveform modes carry a time ramp in X, which must not count toward the
+      // level being measured.
+      const magnitude = isXY ? Math.max(Math.abs(x[i]), Math.abs(y[i])) : Math.abs(y[i])
+      if (magnitude > peak) peak = magnitude
+    }
+    if (matrix.hasSecondary) {
+      for (let i = 0; i < matrix.length; i++) {
+        const magnitude = Math.abs(this.matrixSecondary[i])
+        if (magnitude > peak) peak = magnitude
+      }
+    }
+
+    if (peak > this.trackedPeak) {
+      this.trackedPeak = peak
+    } else {
+      const release = Math.exp(-Math.max(0, deltaSeconds) / AUTO_GAIN_RELEASE_SECONDS)
+      this.trackedPeak = this.trackedPeak * release + peak * (1 - release)
+    }
+
+    if (this.trackedPeak <= AUTO_GAIN_SILENCE_FLOOR) return
+    const gain = clampGain(target / this.trackedPeak)
+
+    for (let i = 0; i < matrix.length; i++) {
+      if (isXY) x[i] *= gain
+      y[i] *= gain
+    }
+    if (matrix.hasSecondary) {
+      for (let i = 0; i < matrix.length; i++) this.matrixSecondary[i] *= gain
     }
   }
 

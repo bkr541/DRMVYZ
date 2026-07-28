@@ -75,6 +75,7 @@ describe('scope state normalization', () => {
       enabled: true,
       signalMode: 'midSideXY',
       signalConditioner: {
+        autoGain: false, autoGainTarget: 0.82,
         coupling: 'ac', dcBlockHz: 30, gainX: 2, gainY: 3,
         offsetX: 0.1, offsetY: -0.1, invertX: true, invertY: false, swapAxes: true,
       },

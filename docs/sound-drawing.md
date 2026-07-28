@@ -220,6 +220,31 @@ bass width response and curvature at or near zero — a trace that thickens with
 the music changes the reading with it. `violatesMeasurementDiscipline` asserts
 this in tests.
 
+### Auto-gain, and why version 5 breaks the appearance rule
+
+Every other migration preserved how an existing project looks, because the
+existing behaviour was correct. Version 5 does not, because the existing
+behaviour was the defect.
+
+The trace was drawn at the audio's own amplitude. A master at -12 dBFS therefore
+spanned about 11% of the tube and a quieter one about 5% — a dot, not a trace.
+Hardware scopes solve this with a gain knob set once per source; auto-gain does it
+continuously, which is what keeps a scope usable across a whole set. Peak tracking
+is fast-attack and slow-release so a snare cannot clip off-screen and the figure
+does not pump between beats, and the gain is bounded so a near-silent passage
+cannot amplify noise into a full-screen scribble.
+
+Leaving it off by default to preserve the old look would have preserved the wrong
+thing.
+
+### One point per sample
+
+The core never resamples a window down onto fewer points. Decimation leaves
+consecutive plotted samples uncorrelated on broadband material, and the trace
+becomes straight chords across the figure rather than the continuous curve a real
+beam draws. The display window is therefore clamped to the point budget: showing
+less time is the correct trade, showing invented geometry is not.
+
 ### Music Intelligence mapping
 
 `scopeMusicMapping.ts` is the seam that keeps the scope part of DRMVYZ rather than a bolted-on instrument. It maps beat, kick, bass, build progress, and drop impact onto **presentation only** — glow, beam width, exposure, and persistence.
@@ -266,6 +291,7 @@ Version history, each following the same rule — migrating forward must never c
 | 2 | CRT presentation | Defaults arrive disabled, so a v1 project renders unchanged |
 | 3 | Beam and phosphor tuning | Defaults reproduce the previously hardcoded values exactly |
 | 4 | Music Intelligence mapping | Every amount defaults to zero, which is the identity mapping |
+| 5 | Auto-gain | **Deliberately changes appearance** — see below |
 
 The pre-existing `lissajous` classic mode plotted one half of a mono time-domain buffer against the other, which is a delayed mono phase portrait rather than stereo. It migrates to `monoDelayXY`, which routes to the identical draw path, so existing projects keep their exact appearance under an accurate name. Legacy values are never promoted to `stereoXY`, and the professional core stays disabled until the user selects it.
 

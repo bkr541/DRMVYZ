@@ -78,6 +78,8 @@ export function normalizeScopeSignalConditioner(value: unknown): ScopeSignalCond
   const source = isRecord(value) ? value : {}
   const defaults = DEFAULT_SCOPE_SIGNAL_CONDITIONER
   return {
+    autoGain: bool(source.autoGain, defaults.autoGain),
+    autoGainTarget: num(source.autoGainTarget, defaults.autoGainTarget, 0.2, 1),
     coupling: source.coupling === 'ac' ? 'ac' : 'dc',
     dcBlockHz: num(source.dcBlockHz, defaults.dcBlockHz, 0.5, 500),
     gainX: num(source.gainX, defaults.gainX, 0.01, 16),

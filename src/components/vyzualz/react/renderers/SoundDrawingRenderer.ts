@@ -1343,9 +1343,10 @@ function buildProfessionalScopeSegments(
   const trace = core.process({
     state: osc.scope,
     frame: capture,
-    // Path resolution controls plotted point density. It deliberately does not
-    // control the timebase — how much audio is shown is the timebase's job.
-    requestedPoints: Math.max(64, Math.round(osc.pathResolution)),
+    // Point budget, which now also bounds the window: the core draws one point
+    // per captured sample rather than decimating. 2048 points is ~43 ms at
+    // 48 kHz, a normal scope window, and well inside the geometry budget.
+    requestedPoints: Math.max(1024, Math.round(osc.pathResolution), 2048),
     deltaSeconds: frame.deltaTimeSec ?? 1 / 60,
     bpm: frame.bpm > 0 ? frame.bpm : 0,
     timingDiscontinuity: frame.timingDiscontinuity === true,

@@ -471,6 +471,22 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
       </Collapsible>
 
       <Collapsible label="Signal Conditioning" defaultOpen={false}>
+        <ToggleRow
+          label="Auto Gain"
+          value={scope.signalConditioner.autoGain}
+          onChange={v => patchConditioner({ autoGain: v })}
+          description="Keeps the figure filling the display whatever the track level. Off to set the gain by hand."
+        />
+        {scope.signalConditioner.autoGain && (
+          <SliderRow
+            label="Fill Amount"
+            value={scope.signalConditioner.autoGainTarget}
+            onChange={v => patchConditioner({ autoGainTarget: v })}
+            min={0.2}
+            max={1}
+            step={0.01}
+          />
+        )}
         <SelectRow
           label="Coupling"
           value={scope.signalConditioner.coupling}

@@ -23,6 +23,7 @@ import {
   meanDistanceFromNegativeDiagonal,
   meanDistanceFromPositiveDiagonal,
   meanRadiusError,
+  radiusVariation,
   rms,
 } from './scopeFixtures'
 
@@ -70,9 +71,9 @@ describe('scope signal core — trace geometry', () => {
 
   it('produces a circle for a 90-degree phase shift', () => {
     const trace = run(new ScopeSignalCore(), createStereoSineFrame({ rightPhase: Math.PI / 2 }), 'stereoXY')
-    // Tolerance covers linear resampling from the capture window down to the
-    // display point count: chords across a curve read slightly inside the arc.
-    expect(meanRadiusError(trace!.x, trace!.y, trace!.length, 1)).toBeLessThan(1e-3)
+    // Roundness, not radius: auto-gain sets the size, so an absolute-radius
+    // assertion would be testing the gain stage instead of the geometry.
+    expect(radiusVariation(trace!.x, trace!.y, trace!.length)).toBeLessThan(0.01)
   })
 
   it('flags a genuinely mono source', () => {
@@ -95,6 +96,126 @@ describe('scope signal core — trace geometry', () => {
 
   it('returns null rather than fabricating a trace when capture is unavailable', () => {
     expect(run(new ScopeSignalCore(), null, 'stereoXY')).toBeNull()
+  })
+})
+
+describe('scope signal core — no decimation', () => {
+  it('draws one point per captured sample rather than resampling the window down', () => {
+    // Decimating a window onto fewer points leaves consecutive plotted samples
+    // uncorrelated on broadband material, and the trace becomes straight chords
+    // across the figure instead of a continuous curve.
+    const core = new ScopeSignalCore()
+    const trace = core.process({
+      state: state({ signalMode: 'stereoXY' }),
+      frame: createStereoSineFrame({ length: 8192 }),
+      requestedPoints: 256,
+      deltaSeconds: 1 / 60,
+      bpm: 0,
+      timingDiscontinuity: false,
+    })!
+    // 0.02 s at 48 kHz is 960 samples, but the budget is 256, so the window
+    // shortens to 256 rather than 960 samples being squeezed into 256 points.
+    expect(trace.length).toBe(256)
+    expect(trace.windowSeconds).toBeCloseTo(256 / FIXTURE_SAMPLE_RATE, 6)
+  })
+
+  it('keeps consecutive plotted points adjacent in the source', () => {
+    const core = new ScopeSignalCore()
+    const frame = createStereoSineFrame({ frequencyHz: 440, length: 8192 })
+    const trace = core.process({
+      state: state({ signalMode: 'stereoXY' }),
+      frame,
+      requestedPoints: 512,
+      deltaSeconds: 1 / 60,
+      bpm: 0,
+      timingDiscontinuity: false,
+    })!
+    // Adjacent samples of a 440 Hz tone at 48 kHz differ by at most ~0.06.
+    // A decimated trace would show much larger jumps.
+    let maxStep = 0
+    for (let i = 1; i < trace.length; i++) {
+      maxStep = Math.max(maxStep, Math.abs(trace.x[i] - trace.x[i - 1]))
+    }
+    expect(maxStep).toBeLessThan(0.12)
+  })
+})
+
+describe('scope signal core — auto-gain', () => {
+  function peakOf(trace: { x: Float32Array; y: Float32Array; length: number }): number {
+    let peak = 0
+    for (let i = 0; i < trace.length; i++) {
+      peak = Math.max(peak, Math.abs(trace.x[i]), Math.abs(trace.y[i]))
+    }
+    return peak
+  }
+
+  it('fills the display for a quiet source instead of drawing a dot', () => {
+    // A master at -18 dBFS drew a figure spanning about 5% of the tube. That is
+    // the defect auto-gain exists to remove.
+    const core = new ScopeSignalCore()
+    let trace = core.process({
+      state: state({ signalMode: 'stereoXY' }),
+      frame: createStereoSineFrame({ leftGain: 0.125, rightGain: 0.125, rightPhase: Math.PI / 2 }),
+      requestedPoints: 512, deltaSeconds: 1 / 60, bpm: 0, timingDiscontinuity: false,
+    })!
+    // Settle the peak tracker.
+    for (let i = 0; i < 30; i++) {
+      const next = createStereoSineFrame({ leftGain: 0.125, rightGain: 0.125, rightPhase: Math.PI / 2 })
+      next.sequenceNumber = i + 2
+      trace = core.process({
+        state: state({ signalMode: 'stereoXY' }),
+        frame: next, requestedPoints: 512, deltaSeconds: 1 / 60, bpm: 0, timingDiscontinuity: false,
+      })!
+    }
+    expect(peakOf(trace)).toBeGreaterThan(0.6)
+  })
+
+  it('brings a hot source back inside the display', () => {
+    const core = new ScopeSignalCore()
+    let trace = core.process({
+      state: state({ signalMode: 'stereoXY' }),
+      frame: createStereoSineFrame({ leftGain: 1, rightGain: 1, rightPhase: Math.PI / 2 }),
+      requestedPoints: 512, deltaSeconds: 1 / 60, bpm: 0, timingDiscontinuity: false,
+    })!
+    for (let i = 0; i < 30; i++) {
+      const next = createStereoSineFrame({ rightPhase: Math.PI / 2 })
+      next.sequenceNumber = i + 2
+      trace = core.process({
+        state: state({ signalMode: 'stereoXY' }),
+        frame: next, requestedPoints: 512, deltaSeconds: 1 / 60, bpm: 0, timingDiscontinuity: false,
+      })!
+    }
+    expect(peakOf(trace)).toBeLessThan(1.05)
+  })
+
+  it('leaves the trace alone when disabled', () => {
+    const core = new ScopeSignalCore()
+    const trace = core.process({
+      state: state({
+        signalMode: 'stereoXY',
+        signalConditioner: { ...DEFAULT_SCOPE_SIGNAL_CONDITIONER, autoGain: false },
+      }),
+      frame: createStereoSineFrame({ leftGain: 0.2, rightGain: 0.2 }),
+      requestedPoints: 512, deltaSeconds: 1 / 60, bpm: 0, timingDiscontinuity: false,
+    })!
+    expect(peakOf(trace)).toBeCloseTo(0.2, 2)
+  })
+
+  it('does not amplify silence into noise', () => {
+    const core = new ScopeSignalCore()
+    let trace = core.process({
+      state: state({ signalMode: 'stereoXY' }), frame: createSilentFrame(),
+      requestedPoints: 512, deltaSeconds: 1 / 60, bpm: 0, timingDiscontinuity: false,
+    })!
+    for (let i = 0; i < 20; i++) {
+      const next = createSilentFrame()
+      next.sequenceNumber = i + 2
+      trace = core.process({
+        state: state({ signalMode: 'stereoXY' }), frame: next,
+        requestedPoints: 512, deltaSeconds: 1 / 60, bpm: 0, timingDiscontinuity: false,
+      })!
+    }
+    expect(peakOf(trace)).toBe(0)
   })
 })
 
@@ -158,7 +279,7 @@ describe('scope signal core — discontinuity handling', () => {
     rewound.sequenceNumber = 1
     const trace = run(core, rewound, 'stereoXY')
     expect(trace).not.toBeNull()
-    expect(meanRadiusError(trace!.x, trace!.y, trace!.length, 1)).toBeLessThan(1e-3)
+    expect(radiusVariation(trace!.x, trace!.y, trace!.length)).toBeLessThan(0.01)
   })
 
   it('accepts an explicit timing discontinuity without producing invalid output', () => {

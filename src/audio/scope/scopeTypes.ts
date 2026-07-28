@@ -112,6 +112,19 @@ export type ScopeCaptureUnavailableReason =
 // ── Conditioning ──────────────────────────────────────────────────────────────
 
 export interface ScopeSignalConditionerSettings {
+  /**
+   * Continuously scales the trace so it fills the display regardless of track
+   * level.
+   *
+   * Without it the figure is drawn at the audio's own amplitude: a master at
+   * -12 dBFS spans about 11% of the tube, which reads as a dot rather than a
+   * trace. Hardware scopes solve this with a gain knob the operator sets once
+   * per source; this does it continuously, which is the behaviour that makes a
+   * scope usable across a whole set without touching anything.
+   */
+  autoGain: boolean
+  /** Fraction of the display the auto-gain aims to fill. */
+  autoGainTarget: number
   coupling: 'dc' | 'ac'
   /** Cutoff of the DC blocker used when coupling is 'ac'. */
   dcBlockHz: number
@@ -128,6 +141,8 @@ export interface ScopeSignalConditionerSettings {
 }
 
 export const DEFAULT_SCOPE_SIGNAL_CONDITIONER: ScopeSignalConditionerSettings = {
+  autoGain: true,
+  autoGainTarget: 0.82,
   coupling: 'dc',
   dcBlockHz: 12,
   gainX: 1,
@@ -457,12 +472,26 @@ export interface SoundDrawingScopeStateV4 extends Omit<SoundDrawingScopeStateV3,
   music: ScopeMusicMappingSettings
 }
 
-export type SoundDrawingScopeState = SoundDrawingScopeStateV4
+/**
+ * Version 5 adds auto-gain, and is the one migration that deliberately changes
+ * how an existing project looks.
+ *
+ * Every earlier version preserved appearance because the existing behaviour was
+ * correct. This one does not, because the existing behaviour was the defect: a
+ * trace drawn at the audio's own amplitude is a dot on any normally-mastered
+ * track. Turning auto-gain on by default is the fix, and leaving it off to
+ * preserve a broken look would preserve the wrong thing.
+ */
+export interface SoundDrawingScopeStateV5 extends Omit<SoundDrawingScopeStateV4, 'version'> {
+  version: 5
+}
 
-export const SOUND_DRAWING_SCOPE_STATE_VERSION = 4
+export type SoundDrawingScopeState = SoundDrawingScopeStateV5
+
+export const SOUND_DRAWING_SCOPE_STATE_VERSION = 5
 
 export const DEFAULT_SOUND_DRAWING_SCOPE_STATE: SoundDrawingScopeState = {
-  version: 4,
+  version: 5,
   music: DEFAULT_SCOPE_MUSIC_MAPPING,
   beam: DEFAULT_SCOPE_BEAM,
   phosphor: DEFAULT_SCOPE_PHOSPHOR,

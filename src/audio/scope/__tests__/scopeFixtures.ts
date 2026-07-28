@@ -168,6 +168,26 @@ export function meanDistanceFromNegativeDiagonal(
 }
 
 /**
+ * Roundness, independent of size: the spread of the plotted radius as a fraction
+ * of its mean. Near zero means a circle at whatever scale.
+ *
+ * Scale-invariant on purpose — auto-gain sets the figure's size, so asserting an
+ * absolute radius would test the gain stage rather than the geometry.
+ */
+export function radiusVariation(x: Float32Array, y: Float32Array, length: number): number {
+  if (length < 2) return 0
+  let sum = 0
+  for (let i = 0; i < length; i++) sum += Math.hypot(x[i], y[i])
+  const mean = sum / length
+  if (mean <= 1e-9) return 0
+  let maxDeviation = 0
+  for (let i = 0; i < length; i++) {
+    maxDeviation = Math.max(maxDeviation, Math.abs(Math.hypot(x[i], y[i]) - mean))
+  }
+  return maxDeviation / mean
+}
+
+/**
  * Mean absolute deviation of the plotted radius from `expectedRadius`.
  * Near zero means the figure is a circle of that radius.
  */
