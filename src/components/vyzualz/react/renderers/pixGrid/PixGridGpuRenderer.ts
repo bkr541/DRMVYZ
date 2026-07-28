@@ -11,6 +11,7 @@ import type { PixGridResolvedTransition } from '../../pixGrid/PixGridActionCues'
 import type { PixGridGroupFrameEffect } from '../../pixGrid/PixGridFrameEffects'
 import { PixGridFrameGroupCompiler } from '../../pixGrid/PixGridGroupCompiler'
 import type { PixGridCompiledMask } from '../../pixGrid/PixGridGroups'
+import { resolvePixGridPresentation } from '../../pixGrid/PixGridPresentation'
 import { buildPixGridRendererSemanticPlan, type PixGridRendererSemanticPlan } from '../../pixGrid/PixGridValidationAudit'
 import type { PixGridAudioFrame } from '../../pixGrid/PixGridTypes'
 import type { PixGridUnifiedRuntimeDiagnostics } from '../../pixGrid/PixGridUnifiedPerformanceRuntime'
@@ -65,10 +66,6 @@ interface SavedWebGLState {
   scissorTest: boolean
   unpackAlignment: number
   clearColor: Float32Array
-}
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
 }
 
 function hexToUnitRgb(value: string): readonly [number, number, number] {
@@ -327,10 +324,10 @@ export class PixGridGpuRenderer {
         'uBackground',
         'uGap',
         'uRoundness',
-        'uCellBrightness',
+        'uResolvedIntensity',
         'uGlow',
+        'uHaloRadius',
         'uDiffusion',
-        'uGlobalIntensity',
         'uRgbSubpixel',
         'uShowBounds',
       ].map((name) => [name, requireUniform(this.gl, this.presentationProgram!, name)]),
@@ -409,17 +406,16 @@ export class PixGridGpuRenderer {
   private applyPresentationUniforms(input: PixGridGpuRenderInput, state: PixGridState): void {
     const gl = this.gl
     const background = resolveBackgroundColor(input.preset, state)
-    const effectiveGlow = clamp01((input.frame.glow + state.glowAmount) * 0.5)
-    const effectiveIntensity = clamp01(input.frame.intensity) * state.globalIntensity
+    const presentation = resolvePixGridPresentation(state, input.frame)
     gl.uniform2f(this.presentationUniform('uLogicalSize'), state.matrixWidth, state.matrixHeight)
     gl.uniform2f(this.presentationUniform('uPresentationSize'), input.presentationWidth, input.presentationHeight)
     gl.uniform3f(this.presentationUniform('uBackground'), background[0], background[1], background[2])
     gl.uniform1f(this.presentationUniform('uGap'), state.cellGap)
     gl.uniform1f(this.presentationUniform('uRoundness'), state.cellRoundness)
-    gl.uniform1f(this.presentationUniform('uCellBrightness'), state.cellBrightness)
-    gl.uniform1f(this.presentationUniform('uGlow'), effectiveGlow)
-    gl.uniform1f(this.presentationUniform('uDiffusion'), state.diffusion)
-    gl.uniform1f(this.presentationUniform('uGlobalIntensity'), effectiveIntensity)
+    gl.uniform1f(this.presentationUniform('uResolvedIntensity'), presentation.resolvedOutputIntensity)
+    gl.uniform1f(this.presentationUniform('uGlow'), presentation.glow)
+    gl.uniform1f(this.presentationUniform('uHaloRadius'), presentation.haloRadius)
+    gl.uniform1f(this.presentationUniform('uDiffusion'), presentation.diffusion)
     gl.uniform1i(this.presentationUniform('uRgbSubpixel'), state.rgbSubpixelMode ? 1 : 0)
     gl.uniform1i(this.presentationUniform('uShowBounds'), state.diagnostics.showMatrixBounds ? 1 : 0)
   }

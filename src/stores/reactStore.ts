@@ -192,9 +192,20 @@ import {
 import { sanitizeReactPresetFavorites } from '../components/vyzualz/react/reactPresetLibraryState'
 import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
 import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from '../components/vyzualz/react/pixGrid/PixGridState'
-import type { PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
+import type { PixGridPerformanceProgramId, PixGridQualityMode, PixGridQualityTier, PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import { normalizePixGridPresetSettings, normalizePixGridState } from '../components/vyzualz/react/pixGrid/PixGridValidation'
 import { markPixGridStateCustomized, migratePixGridState } from '../components/vyzualz/react/pixGrid/PixGridStateMigration'
+import {
+  applyPixGridPerformancePatch,
+  applyPixGridPresentationPatch,
+  applyPixGridQualityMode,
+  applyPixGridRequestedQuality,
+  changePixGridPerformanceProgramOnly as resolvePixGridPerformanceProgramOnly,
+  clearPixGridManualOverrideState,
+  type PixGridPerformancePatch,
+  type PixGridPresentationPatch,
+} from '../components/vyzualz/react/pixGrid/PixGridControlContract'
+import { PIX_GRID_PRESET_ID_BY_PROGRAM } from '../components/vyzualz/react/pixGrid/PixGridPerformancePrograms'
 import {
   MAX_PIX_GRID_ACTION_CUES_PER_TRACK,
   MAX_PIX_GRID_ACTION_CUE_TRACKS,
@@ -1867,6 +1878,13 @@ interface ReactStoreState {
   // PixGrid compact, serializable authoring/runtime configuration.
   pixGridState: PixGridState
   setPixGridState: (patch: Partial<PixGridState>) => void
+  setPixGridRequestedQuality: (quality: PixGridQualityTier) => void
+  setPixGridQualityMode: (mode: PixGridQualityMode) => void
+  setPixGridPresentation: (patch: PixGridPresentationPatch) => void
+  setPixGridPerformance: (patch: PixGridPerformancePatch) => void
+  loadPixGridProgramPreset: (programId: PixGridPerformanceProgramId) => void
+  changePixGridPerformanceProgramOnly: (programId: PixGridPerformanceProgramId) => void
+  clearPixGridManualOverride: () => void
   resetPixGridState: () => void
   setPixGridAuthoringOverlayVisible: (visible: boolean) => void
   pixGridUndoStack: PixGridState[]
@@ -4385,6 +4403,54 @@ export const useReactStore = create<ReactStoreState>()(
         ))
         return { pixGridState: onlyTransientKeys ? normalized : markPixGridStateCustomized(normalized) }
       }),
+
+      setPixGridRequestedQuality: (quality) => set(state => buildPixGridHistoryPatch(
+        state,
+        applyPixGridRequestedQuality(state.pixGridState, quality),
+      )),
+
+      setPixGridQualityMode: (mode) => set(state => buildPixGridHistoryPatch(
+        state,
+        applyPixGridQualityMode(state.pixGridState, mode),
+      )),
+
+      setPixGridPresentation: (patch) => set(state => buildPixGridHistoryPatch(
+        state,
+        applyPixGridPresentationPatch(state.pixGridState, patch),
+      )),
+
+      setPixGridPerformance: (patch) => set(state => buildPixGridHistoryPatch(
+        state,
+        applyPixGridPerformancePatch(state.pixGridState, patch),
+      )),
+
+      loadPixGridProgramPreset: (programId) => set(state => {
+        const presetId = PIX_GRID_PRESET_ID_BY_PROGRAM[programId]
+        const preset = presetId
+          ? state.reactPresets.find(candidate => candidate.id === presetId && candidate.engine === 'pixGrid')
+          : null
+        if (!preset) return {}
+        return {
+          ...buildPresetPatchForState(preset, state),
+          performancePadTransition: null,
+          pixGridUndoStack: [],
+          pixGridRedoStack: [],
+          pixGridHistoryTransaction: null,
+        }
+      }),
+
+      changePixGridPerformanceProgramOnly: (programId) => set(state => ({
+        ...buildPixGridHistoryPatch(
+          state,
+          resolvePixGridPerformanceProgramOnly(state.pixGridState, programId),
+        ),
+        performancePadTransition: null,
+      })),
+
+      clearPixGridManualOverride: () => set(state => buildPixGridHistoryPatch(
+        state,
+        clearPixGridManualOverrideState(state.pixGridState),
+      )),
 
       resetPixGridState: () => set((state) => ({
         pixGridState: resetPixGridStatePreservingSelection(state.pixGridState),

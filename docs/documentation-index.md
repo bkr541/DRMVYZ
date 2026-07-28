@@ -35,7 +35,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/cinematic-worlds.md` | Cinematic Worlds configuration, renderer, camera direction, and lifecycle |
 | `docs/sound-drawing.md` | Sound Drawing sources, timeline, performance programs, Living Ribbon, professional scope signal core, and rendering |
 | `docs/canvas.md` | CANVAS media, authored composition, playback, effects, transitions, and limits |
-| `docs/pixgrid.md` | PixGrid state, media, groups, routing, choreography, rendering, diagnostics, and acceptance |
+| `docs/pixgrid.md` | PixGrid state, canonical controls, media, groups, routing, choreography, rendering, diagnostics, and acceptance |
 | `docs/laser-dmx-production-rig-architecture.md` | Current LaserDMX normalized rig, fixture, cue, stage, and output boundary |
 | `docs/laser-dmx-choreography.md` | Current LaserDMX choreography behavior |
 | `docs/laser-dmx-professional-show-authoring.md` | Show Director authoring conventions |

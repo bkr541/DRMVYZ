@@ -63,6 +63,7 @@ import {
   PixGridMotionClock,
   applyPixGridRuntimeControls,
 } from './PixGridRuntimeControls'
+import { resolvePixGridPresentation, resolvePixGridPublishedQuality } from './PixGridPresentation'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -172,6 +173,15 @@ function diagnosticsEqual(a: PixGridRendererDiagnostics, b: PixGridRendererDiagn
     a.effectiveQuality === b.effectiveQuality &&
     a.adaptiveStage === b.adaptiveStage &&
     a.adaptiveReason === b.adaptiveReason &&
+    a.qualityPromotionBackend === b.qualityPromotionBackend &&
+    a.qualityPromotionReason === b.qualityPromotionReason &&
+    a.outputIntensity === b.outputIntensity &&
+    a.authoredPerformanceTrim === b.authoredPerformanceTrim &&
+    a.cellCalibration === b.cellCalibration &&
+    a.resolvedOutputIntensity === b.resolvedOutputIntensity &&
+    a.glow === b.glow &&
+    a.haloRadius === b.haloRadius &&
+    a.resolvedDiffusion === b.resolvedDiffusion &&
     a.preparedMediaCacheEntries === b.preparedMediaCacheEntries &&
     a.preparedMediaCacheBytes === b.preparedMediaCacheBytes &&
     a.enabledGroupCount === b.enabledGroupCount &&
@@ -413,6 +423,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let latestTruthfulStatus: PixGridTruthfulReactivityStatus | null = null
     let latestGroupCoverage = new Map<string, { compiled: number; visible: number }>()
     let latestVisibleFrameCellCount = 0
+    let latestRenderedPresentationState: PixGridState | null = null
+    let latestRenderedPresentationFrame: Pick<PixGridBaselineRenderFrame, 'intensity' | 'glow'> | null = null
     let lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
     let mounted = true
     let gpuRetryAttempts = 0
@@ -434,12 +446,31 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           console.warn('[PixGrid] Invalid music-reactive configuration', report.issues)
         }
       }
+      const quality = resolvePixGridPublishedQuality(currentState.quality, profile, next.path)
+      const presentation = resolvePixGridPresentation(
+        latestRenderedPresentationState ?? currentState,
+        latestRenderedPresentationFrame ?? {
+          intensity: propsRef.current.intensity,
+          glow: propsRef.current.glow,
+        },
+      )
       const enriched: PixGridRendererDiagnostics = {
         ...next,
-        requestedQuality: propsRef.current.pixGridState.quality,
-        effectiveQuality: profile.logicalQuality,
+        requestedQuality: quality.requestedQuality,
+        effectiveQuality: quality.effectiveQuality,
+        logicalWidth: next.logicalWidth || quality.logicalWidth,
+        logicalHeight: next.logicalHeight || quality.logicalHeight,
         adaptiveStage: profile.stage,
         adaptiveReason: profile.reason,
+        qualityPromotionBackend: quality.promotionSource,
+        qualityPromotionReason: quality.promotionReason,
+        outputIntensity: presentation.outputIntensity,
+        authoredPerformanceTrim: presentation.authoredPerformanceTrim,
+        cellCalibration: presentation.cellCalibration,
+        resolvedOutputIntensity: presentation.resolvedOutputIntensity,
+        glow: presentation.glow,
+        haloRadius: presentation.haloRadius,
+        resolvedDiffusion: presentation.diffusion,
         preparedMediaCacheEntries: pixGridPreparedAssetCache.size,
         preparedMediaCacheBytes: pixGridPreparedAssetCache.approximateBytes,
         enabledGroupCount: latestRuntimeDiagnostics?.enabledGroups.length ?? 0,
@@ -906,6 +937,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: fallbackGroupCompiler.compiledGroupIds }
       }
       publishResolvedRouteDiagnostics(input, group => fallbackGroupCompiler.compile(group), fallbackLogical.logicalFrame)
+      latestRenderedPresentationState = fallbackState
+      latestRenderedPresentationFrame = frame
       publishDiagnostics({
         path: 'canvas2d-fallback',
         logicalWidth: fallbackLogical.logicalWidth,
@@ -950,10 +983,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       let rendered = false
       if (activePath === 'webgl2' && gpuRenderer?.isReady) {
         try {
+          const gpuFrame = input.blackout ? { ...input.frame, intensity: 0 } : input.frame
+          const gpuState = input.blackout ? { ...input.state, backgroundMode: 'black' as const, backgroundBrightness: 0 } : input.state
           rendered = gpuRenderer.render({
-            frame: input.frame,
+            frame: gpuFrame,
             preset: input.preset,
-            state: input.blackout ? { ...input.state, backgroundMode: 'black', backgroundBrightness: 0 } : input.state,
+            state: gpuState,
             presentationWidth: gpuCanvas.width,
             presentationHeight: gpuCanvas.height,
             blackout: input.blackout,
@@ -968,6 +1003,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
               latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: gpuRenderer.compiledGroupIds }
             }
             publishResolvedRouteDiagnostics(input, group => gpuRenderer!.compiledMaskForGroup(group), gpuRenderer.logicalFrame)
+            latestRenderedPresentationState = gpuState
+            latestRenderedPresentationFrame = gpuFrame
             publishDiagnostics({ ...gpuDiagnostics, fps: lastFps })
           }
         } catch (error) {

@@ -38,10 +38,10 @@ uniform vec2 uPresentationSize;
 uniform vec3 uBackground;
 uniform float uGap;
 uniform float uRoundness;
-uniform float uCellBrightness;
+uniform float uResolvedIntensity;
 uniform float uGlow;
+uniform float uHaloRadius;
 uniform float uDiffusion;
-uniform float uGlobalIntensity;
 uniform bool uRgbSubpixel;
 uniform bool uShowBounds;
 out vec4 outColor;
@@ -82,7 +82,7 @@ void main() {
   float aa = max(fwidth(distanceToCell), 0.0008);
   float diffuserWidth = aa + clamp(uDiffusion, 0.0, 1.0) * 0.045;
   float cellMask = 1.0 - smoothstep(-diffuserWidth, diffuserWidth, distanceToCell);
-  float glowWidth = 0.015 + clamp(uGlow, 0.0, 1.0) * 0.16;
+  float glowWidth = 0.015 + clamp(uHaloRadius, 0.0, 1.0) * 0.16;
   float glowMask = exp(-max(distanceToCell, 0.0) / glowWidth) * clamp(uGlow, 0.0, 1.0);
   float center = clamp(1.0 - length(local / halfSize) * 0.62, 0.0, 1.0);
   float edgeFalloff = mix(0.86, 1.08, center);
@@ -101,8 +101,7 @@ void main() {
   // black cells and gaps instead of a gray matrix veil.
   vec3 inactiveCell = uBackground * (0.42 + cellMask * 0.18);
   vec3 linearEmitter = toLinear(emitter)
-    * uCellBrightness
-    * uGlobalIntensity
+    * uResolvedIntensity
     * edgeFalloff
     * contentAlpha;
   vec3 linearColor = toLinear(inactiveCell);

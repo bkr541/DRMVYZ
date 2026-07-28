@@ -29,6 +29,7 @@ import {
 } from "./PixGridPerformanceRuntime";
 import type {
   PixGridAudioFrame,
+  PixGridPerformanceProgramId,
   PixGridReactionAssignment,
   PixGridReactionSource,
   PixGridReactionTargetScope,
@@ -131,6 +132,8 @@ export interface PixGridUnifiedRuntimeDiagnostics {
   activeDiscreteAssignments: readonly string[];
   activeEventEnvelopes: readonly string[];
   activePerformanceActions: readonly string[];
+  activeProgramId: PixGridPerformanceProgramId | null;
+  activeProgramName: string | null;
   activeSectionPlan: string | null;
   activeVisualRoles: readonly string[];
   resolvedProgramBanks: readonly string[];
@@ -602,6 +605,8 @@ export class PixGridUnifiedPerformanceRuntime {
         activeDiscreteAssignments: discreteAssignments,
         activeEventEnvelopes: performance.snapshot.activeEventEnvelopes,
         activePerformanceActions: performance.snapshot.recentActionTypes,
+        activeProgramId: performance.snapshot.programId,
+        activeProgramName: performance.snapshot.programName,
         activeSectionPlan: performance.snapshot.activeSectionPlanId,
         activeVisualRoles: performance.snapshot.activeVisualRoles,
         resolvedProgramBanks: performance.snapshot.resolvedBanks,

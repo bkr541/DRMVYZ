@@ -62,6 +62,7 @@ import {
   getReactMediaSourceId,
 } from './reactMediaSourceCapabilities'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
+import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
 
 // These workspaces carry large, engine-specific renderers and authoring tools.
@@ -348,6 +349,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   useEffect(() => {
     writeReactRightPanel(activeRightPanel)
   }, [activeRightPanel])
+  useEffect(() => subscribePixGridWorkspace(() => {
+    setActiveRightPanel('react')
+    setRightCollapsed(false)
+  }), [setRightCollapsed])
 
   // Presets describe an engine-wide look, but they are not object selections.
   // Keep preset resolution separate from Inspector enablement so INSP only opens

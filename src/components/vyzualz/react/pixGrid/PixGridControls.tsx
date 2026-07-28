@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
-import { useSharedAudio } from '../../../../context/AudioEngineContext'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { DEFAULT_PIX_GRID_CONVERSION_SETTINGS } from './PixGridDefaults'
-import { SharedPerformanceDiagnosticsPanel } from '../SharedPerformanceDiagnosticsPanel'
-import { PIX_GRID_PERFORMANCE_PROGRAMS, PIX_GRID_PRESET_ID_BY_PROGRAM } from './PixGridPerformancePrograms'
-import { usePixGridPerformanceRuntimeStatus } from './PixGridPerformanceStatus'
-import { usePixGridCueRuntimeStatus } from './PixGridCueStatus'
-import { nextPixGridCueOrder, normalizePixGridActionCue, snapPixGridCueTime } from './PixGridActionCues'
+import { PIX_GRID_PERFORMANCE_PROGRAMS } from './PixGridPerformancePrograms'
+import { usePixGridReactivityRuntimeStatus } from './PixGridReactivityStatus'
+import { PIX_GRID_QUALITY_OPTIONS } from './PixGridControlContract'
+import { PixGridHistoryGesture } from './PixGridHistoryGesture'
+import { requestPixGridWorkspace } from './PixGridWorkspaceNavigation'
 import type {
   PixGridBackgroundHandling,
   PixGridBackgroundMode,
@@ -16,16 +15,8 @@ import type {
   PixGridDitherMode,
   PixGridFitMode,
   PixGridPerformanceProgramId,
-  PixGridQualityTier,
   PixGridSamplingMode,
 } from './PixGridTypes'
-
-const QUALITY_OPTIONS = [
-  { value: 'draft', label: 'Draft · 64 × 36' },
-  { value: 'low', label: 'Low · 96 × 54' },
-  { value: 'high', label: 'High · 160 × 90' },
-  { value: 'ultra', label: 'Ultra · 256 × 144' },
-]
 
 const BACKGROUND_OPTIONS = [
   { value: 'preset', label: 'Preset Background' },
@@ -57,10 +48,13 @@ const DITHER_OPTIONS = [
   { value: 'atkinson', label: 'Atkinson Error Diffusion' },
 ]
 
-const PERFORMANCE_PROGRAM_OPTIONS = PIX_GRID_PERFORMANCE_PROGRAMS.map(program => ({
-  value: program.id,
-  label: program.metadata?.name ?? program.id,
-}))
+const PERFORMANCE_PROGRAM_OPTIONS = [
+  { value: '', label: 'Choose preset to load…', disabled: true },
+  ...PIX_GRID_PERFORMANCE_PROGRAMS.map(program => ({
+    value: program.id,
+    label: program.metadata?.name ?? program.id,
+  })),
+]
 
 const PREP_BACKGROUND_OPTIONS = [
   { value: 'transparent', label: 'Preserve Transparency' },
@@ -69,15 +63,17 @@ const PREP_BACKGROUND_OPTIONS = [
 ]
 
 export function PixGridControls() {
-  const engine = useSharedAudio()
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
-  const pixGridActionCuesByTrackId = useReactStore(store => store.pixGridActionCuesByTrackId)
-  const addPixGridActionCue = useReactStore(store => store.addPixGridActionCue)
-  const selectReactPreset = useReactStore(store => store.selectReactPreset)
+  const setRequestedQuality = useReactStore(store => store.setPixGridRequestedQuality)
+  const setQualityMode = useReactStore(store => store.setPixGridQualityMode)
+  const setPresentation = useReactStore(store => store.setPixGridPresentation)
+  const setPerformance = useReactStore(store => store.setPixGridPerformance)
+  const loadProgramPreset = useReactStore(store => store.loadPixGridProgramPreset)
+  const clearManualOverride = useReactStore(store => store.clearPixGridManualOverride)
   const setOverlay = useReactStore(store => store.setPixGridAuthoringOverlayVisible)
-  const performanceStatus = usePixGridPerformanceRuntimeStatus()
-  const cueStatus = usePixGridCueRuntimeStatus()
+  const reactivityStatus = usePixGridReactivityRuntimeStatus()
+  const runtimeStatus = reactivityStatus.runtime
   const selectedMedia = useMediaStore(store => state.conversion.selectedMediaId
     ? store.items.find(item => item.id === state.conversion.selectedMediaId) ?? null
     : null)
@@ -100,40 +96,6 @@ export function PixGridControls() {
     if (/^#[0-9a-f]{6}$/i.test(value)) updateConversion({ backgroundColor: value })
     else setPrepBackgroundDraft(state.conversion.backgroundColor)
   }
-
-  const clearManualOverride = () => {
-    setState({
-      performance: { ...state.performance, lockedRoutes: [] },
-      layers: state.layers.map(layer => layer.locked ? { ...layer, locked: false } : layer),
-    })
-    const trackId = engine.currentTrackId
-    if (!trackId || cueStatus.manualOverrideRoutes.length === 0) return
-    const authoredTime = Math.max(0, engine.getCurrentTime())
-    const timeSec = snapPixGridCueTime(authoredTime, 'beat', engine.currentEffectiveBeatGrid)
-    const cues = pixGridActionCuesByTrackId[trackId] ?? []
-    const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `pixgrid-clear-override-${Date.now()}`
-    const cue = normalizePixGridActionCue({
-      version: 1,
-      id,
-      timeSec,
-      label: 'Clear Manual Override',
-      enabled: true,
-      engineId: 'pixGrid',
-      action: { type: 'clearManualOverride' },
-      quantization: 'beat',
-      transition: 'cut',
-      transitionDurationSec: 0,
-      oneShotDurationSec: 0.25,
-      loopBehavior: 'retrigger',
-      order: nextPixGridCueOrder(cues, timeSec),
-      provenance: { kind: 'manual' },
-      color: '#4ac7db',
-    }, cues.length)
-    if (cue) addPixGridActionCue(trackId, cue)
-  }
-
   const resetConversion = () => updateConversion({
     ...DEFAULT_PIX_GRID_CONVERSION_SETTINGS,
     selectedMediaId: state.conversion.selectedMediaId,
@@ -145,77 +107,63 @@ export function PixGridControls() {
       <ToggleRow
         label="Auto Performance"
         value={state.performance.enabled}
-        onChange={enabled => setState({ performance: { ...state.performance, enabled } })}
+        onChange={enabled => setPerformance({ enabled })}
         description="Runs the selected PixGrid program through the engine-neutral Shared Performance Core."
       />
-      <SliderRow
+      <PixGridHistoryGesture><SliderRow
         label="Performance Intensity"
         value={state.performance.intensity}
-        onChange={intensity => setState({ performance: { ...state.performance, intensity } })}
-      />
+        onChange={intensity => setPerformance({ intensity })}
+      /></PixGridHistoryGesture>
       <SelectRow
-        label="Program"
-        value={state.performance.sharedPerformanceProgramId ?? PERFORMANCE_PROGRAM_OPTIONS[0]?.value ?? ''}
+        label="Load Program Preset"
+        value=""
         options={PERFORMANCE_PROGRAM_OPTIONS}
         onChange={value => {
-          const programId = value as PixGridPerformanceProgramId
-          const presetId = PIX_GRID_PRESET_ID_BY_PROGRAM[programId]
-          if (presetId) selectReactPreset(presetId)
-          else setState({ performance: { ...state.performance, sharedPerformanceProgramId: programId } })
+          if (value) loadProgramPreset(value as PixGridPerformanceProgramId)
         }}
+        description="Loads the complete matching PixGrid preset, including artwork, presentation, and performance configuration."
       />
-      <div className="rv-ctrl-info" data-testid="pix-grid-performance-status">
-        <strong>{performanceStatus.programName ?? 'Awaiting playback'}</strong>
-        <span>Plan: {performanceStatus.activeSectionPlanId ?? performanceStatus.sceneId ?? 'None'} · {performanceStatus.sectionPhase}</span>
-        <span>Section: {performanceStatus.section} #{performanceStatus.sectionOccurrence} · drop #{performanceStatus.dropOccurrence || '—'} · variation {performanceStatus.variationId ?? 'base'}</span>
-        <span>Roles: {performanceStatus.activeVisualRoles.join(', ') || 'None'} · banks {performanceStatus.resolvedBanks.length}</span>
-        <span>Routes: {performanceStatus.activeContinuousRoutes.length} continuous · {performanceStatus.activeEventRoutes.length} event</span>
-        <span>4-bar: {performanceStatus.currentFourBarMotif ?? `stage ${performanceStatus.fourBarStage}`} · 8-bar: {performanceStatus.currentEightBarRecruitment ?? `stage ${performanceStatus.eightBarStage}`}</span>
-        <span>16-bar: {performanceStatus.currentSixteenBarEvolution ?? `stage ${performanceStatus.sixteenBarStage}`}</span>
-        <span>Arcs D/P/M/N: {Math.round(performanceStatus.arcState.density * 100)} / {Math.round(performanceStatus.arcState.paletteIntensity * 100)} / {Math.round(performanceStatus.arcState.motion * 100)} / {Math.round(performanceStatus.arcState.negativeSpace * 100)}%</span>
-        <span>Override: {[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length ? `${[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length} locked route${[...new Set([...performanceStatus.manualOverrideRoutes, ...cueStatus.manualOverrideRoutes])].length === 1 ? '' : 's'}` : 'Auto'}</span>
-        <span>Cue: {cueStatus.mostRecentCueLabel ?? 'None'}{cueStatus.activeOneShotCueIds.length ? ` · ${cueStatus.activeOneShotCueIds.length} active` : ''}</span>
-        <span>Transition: {cueStatus.transition ? `${cueStatus.transition.type} · ${Math.round(cueStatus.transition.progress * 100)}%` : performanceStatus.transition ?? 'Idle'}</span>
-        {(performanceStatus.missingBindings.length > 0 || performanceStatus.degradedBindings.length > 0) && (
-          <span>Bindings: {performanceStatus.missingBindings.length} missing · {performanceStatus.degradedBindings.length} degraded</span>
-        )}
-        <span>Precedence: {performanceStatus.manualOverridePrecedence}</span>
+      <div className="rv-ctrl-info" data-testid="pix-grid-performance-status" role="status" aria-label="PixGrid live performance summary">
+        <strong>{runtimeStatus?.activeProgramName ?? 'Awaiting playback'}</strong>
+        <span>Owner: {runtimeStatus?.activeCueActions.length ? 'Track Map cue' : runtimeStatus?.manualOverrides.length ? 'Manual override' : 'Performance program'}</span>
+        <span>Section: {runtimeStatus?.sectionName || 'Unknown'} · {runtimeStatus?.sectionPhase ?? 'none'}</span>
+        <span>{runtimeStatus?.programBindingWarnings.length ? runtimeStatus.programBindingWarnings[0] : runtimeStatus?.manualOverrides.length ? 'Override active' : 'No live warnings'}</span>
       </div>
-      {(performanceStatus.manualOverrideRoutes.length > 0 || cueStatus.manualOverrideRoutes.length > 0) && (
-        <div className="rv-ctrl-action-row">
-          <button
-            type="button"
-            className="rv-reset-btn"
-            onClick={clearManualOverride}
-          >
-            Clear Override
-          </button>
-        </div>
-      )}
-      <SharedPerformanceDiagnosticsPanel engine="pixGrid" label="PixGrid Diagnostics" />
+      <div className="rv-ctrl-action-row">
+        {(state.performance.lockedRoutes.length > 0 || state.layers.some(layer => layer.locked)) && (
+          <button type="button" className="rv-reset-btn" onClick={clearManualOverride}>Clear Override</button>
+        )}
+        <button type="button" className="rv-reset-btn" onClick={() => requestPixGridWorkspace('analysis')} aria-label="Open full PixGrid diagnostics">Open Full Diagnostics</button>
+      </div>
 
       <CtrlSection label="LED MATRIX" />
       <ToggleRow
         label="Adaptive Quality"
         value={state.qualityMode === 'adaptive'}
-        onChange={enabled => setState({ qualityMode: enabled ? 'adaptive' : 'fixed' })}
-        description="Protects live frame rate by reducing secondary LED effects first and only then lowering the runtime matrix, never below 96 × 54."
+        onChange={enabled => setQualityMode(enabled ? 'adaptive' : 'fixed')}
+        description="Protects live frame rate by reducing secondary LED effects first and then lowering the effective runtime matrix."
       />
       <SelectRow
         label={state.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'}
         value={state.quality}
-        options={QUALITY_OPTIONS}
-        onChange={value => setState({ quality: value as PixGridQualityTier, qualityMode: 'fixed' })}
+        options={PIX_GRID_QUALITY_OPTIONS}
+        onChange={value => setRequestedQuality(value as typeof state.quality)}
       />
-      <SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setState({ cellGap: value })} />
-      <SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setState({ cellRoundness: value })} />
-      <SliderRow label="Cell Brightness" value={state.cellBrightness} onChange={value => setState({ cellBrightness: value })} />
-      <SliderRow label="Glow" value={state.glowAmount} onChange={value => setState({ glowAmount: value })} />
-      <SliderRow label="Diffusion" value={state.diffusion} onChange={value => setState({ diffusion: value })} />
+      <div className="rv-ctrl-info" role="status" aria-label="PixGrid requested and effective quality">
+        <span>Requested: {state.quality} · Effective: {reactivityStatus.renderer?.effectiveQuality ?? state.quality}</span>
+        <span>Resolution: {reactivityStatus.renderer?.logicalWidth ?? state.matrixWidth} × {reactivityStatus.renderer?.logicalHeight ?? state.matrixHeight} · {reactivityStatus.renderer?.path ?? 'renderer pending'}</span>
+        {reactivityStatus.renderer?.qualityPromotionReason && <span>{reactivityStatus.renderer.qualityPromotionReason}</span>}
+        {reactivityStatus.renderer?.adaptiveReason && <span>Adaptive status: {reactivityStatus.renderer.adaptiveReason}</span>}
+      </div>
+      <PixGridHistoryGesture><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setPresentation({ cellGap: value })} /></PixGridHistoryGesture>
+      <PixGridHistoryGesture><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setPresentation({ cellRoundness: value })} /></PixGridHistoryGesture>
+      <PixGridHistoryGesture><SliderRow label="Glow" value={state.glowAmount} onChange={value => setPresentation({ glowAmount: value })} description="Controls emitter halo strength." /></PixGridHistoryGesture>
+      <PixGridHistoryGesture><SliderRow label="Diffusion" value={state.diffusion} onChange={value => setPresentation({ diffusion: value })} description="Softens emitter edges without changing halo radius." /></PixGridHistoryGesture>
       <ToggleRow
         label="RGB Subpixel Mode"
         value={state.rgbSubpixelMode}
-        onChange={value => setState({ rgbSubpixelMode: value })}
+        onChange={value => setPresentation({ rgbSubpixelMode: value })}
         description="Previews red, green, and blue emitter stripes inside each logical LED cell."
       />
 
@@ -310,11 +258,12 @@ export function PixGridControls() {
       />
 
       <CtrlSection label="OUTPUT" />
-      <SliderRow
-        label="Global PixGrid Intensity"
+      <PixGridHistoryGesture><SliderRow
+        label="Output Intensity"
         value={state.globalIntensity}
-        onChange={value => setState({ globalIntensity: value })}
-      />
+        onChange={value => setPresentation({ globalIntensity: value })}
+        description="Primary PixGrid output brightness before advanced cell calibration and authored performance trim."
+      /></PixGridHistoryGesture>
 
       <CtrlSection label="AUTHORING" />
       <ToggleRow

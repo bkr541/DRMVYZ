@@ -13,16 +13,11 @@ import {
   selectPixGridScene,
   updatePixGridLayer,
 } from './PixGridAuthoring'
-import type { PixGridEditorTool, PixGridQualityTier, PixGridState } from './PixGridTypes'
+import type { PixGridEditorTool, PixGridState } from './PixGridTypes'
+import { PIX_GRID_QUALITY_OPTIONS } from './PixGridControlContract'
+import { PixGridHistoryGesture } from './PixGridHistoryGesture'
 
 type PixGridDesignSurface = 'grid' | 'scene' | 'layer' | 'selection' | 'tool'
-
-const QUALITY_OPTIONS = [
-  { value: 'draft', label: 'Draft · 64 × 36' },
-  { value: 'low', label: 'Low · 96 × 54' },
-  { value: 'high', label: 'High · 160 × 90' },
-  { value: 'ultra', label: 'Ultra · 256 × 144' },
-]
 
 const TOOL_OPTIONS = [
   { value: 'select', label: 'Select' },
@@ -54,17 +49,12 @@ function selectionPoints(state: PixGridState) {
   }))
 }
 
-function HistorySlider({ children }: { children: React.ReactNode }) {
-  const begin = useReactStore(store => store.beginPixGridHistoryTransaction)
-  const commit = useReactStore(store => store.commitPixGridHistoryTransaction)
-  const cancel = useReactStore(store => store.cancelPixGridHistoryTransaction)
-  return <div onPointerDown={begin} onPointerUp={commit} onPointerCancel={cancel}>{children}</div>
-}
-
 export function PixGridDesignPanel() {
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
   const applyState = useReactStore(store => store.applyPixGridAuthoringState)
+  const setRequestedQuality = useReactStore(store => store.setPixGridRequestedQuality)
+  const setPresentation = useReactStore(store => store.setPixGridPresentation)
   const begin = useReactStore(store => store.beginPixGridHistoryTransaction)
   const commit = useReactStore(store => store.commitPixGridHistoryTransaction)
   const undo = useReactStore(store => store.undoPixGridEdit)
@@ -131,13 +121,13 @@ export function PixGridDesignPanel() {
       {surface === 'grid' && (
         <>
           <CtrlSection label="Grid Presentation" />
-          <SelectRow label="Quality" value={state.quality} options={QUALITY_OPTIONS} onChange={value => setState({ quality: value as PixGridQualityTier })} />
-          <HistorySlider><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => applyState({ ...useReactStore.getState().pixGridState, cellGap: value })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => applyState({ ...useReactStore.getState().pixGridState, cellRoundness: value })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Cell Brightness" value={state.cellBrightness} onChange={value => applyState({ ...useReactStore.getState().pixGridState, cellBrightness: value })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Glow" value={state.glowAmount} onChange={value => applyState({ ...useReactStore.getState().pixGridState, glowAmount: value })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Diffusion" value={state.diffusion} onChange={value => applyState({ ...useReactStore.getState().pixGridState, diffusion: value })} /></HistorySlider>
-          <ToggleRow label="RGB Subpixels" value={state.rgbSubpixelMode} onChange={value => applyState({ ...state, rgbSubpixelMode: value })} />
+          <SelectRow label={state.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'} value={state.quality} options={PIX_GRID_QUALITY_OPTIONS} onChange={value => setRequestedQuality(value as typeof state.quality)} />
+          <PixGridHistoryGesture><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setPresentation({ cellGap: value })} /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setPresentation({ cellRoundness: value })} /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Cell Calibration" value={state.cellBrightness} onChange={value => setPresentation({ cellBrightness: value })} description="Advanced emitter calibration retained for compatibility." /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Glow" value={state.glowAmount} onChange={value => setPresentation({ glowAmount: value })} description="Emitter halo strength." /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Diffusion" value={state.diffusion} onChange={value => setPresentation({ diffusion: value })} description="Emitter edge softness." /></PixGridHistoryGesture>
+          <ToggleRow label="RGB Subpixels" value={state.rgbSubpixelMode} onChange={value => setPresentation({ rgbSubpixelMode: value })} />
           <ToggleRow label="Cell Guides" value={state.editor.guidesVisible} onChange={value => updateEditor({ guidesVisible: value })} />
         </>
       )}
@@ -165,12 +155,12 @@ export function PixGridDesignPanel() {
           <div className="rv-ctrl-info"><strong>{layer.name}</strong><br />{layer.mediaId ? 'Media Library artwork' : layer.assetId}</div>
           <ToggleRow label="Visible" value={layer.visible} onChange={value => updateLayer({ visible: value })} />
           <ToggleRow label="Locked" value={layer.locked === true} onChange={value => applyState(updatePixGridLayer(state, layer.id, { locked: value }))} />
-          <HistorySlider><SliderRow label="Opacity" value={layer.opacity} onChange={value => updateLayer({ opacity: value })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Position X" value={layer.position.x} onChange={value => updateLayer({ position: { ...layer.position, x: value } })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Position Y" value={layer.position.y} onChange={value => updateLayer({ position: { ...layer.position, y: value } })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Scale X" value={layer.scale.x} min={0.01} max={2} step={0.01} onChange={value => updateLayer({ scale: { ...layer.scale, x: value } })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Scale Y" value={layer.scale.y} min={0.01} max={2} step={0.01} onChange={value => updateLayer({ scale: { ...layer.scale, y: value } })} /></HistorySlider>
-          <HistorySlider><SliderRow label="Rotation" value={layer.rotation} min={-180} max={180} step={1} onChange={value => updateLayer({ rotation: value })} /></HistorySlider>
+          <PixGridHistoryGesture><SliderRow label="Opacity" value={layer.opacity} onChange={value => updateLayer({ opacity: value })} /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Position X" value={layer.position.x} onChange={value => updateLayer({ position: { ...layer.position, x: value } })} /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Position Y" value={layer.position.y} onChange={value => updateLayer({ position: { ...layer.position, y: value } })} /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Scale X" value={layer.scale.x} min={0.01} max={2} step={0.01} onChange={value => updateLayer({ scale: { ...layer.scale, x: value } })} /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Scale Y" value={layer.scale.y} min={0.01} max={2} step={0.01} onChange={value => updateLayer({ scale: { ...layer.scale, y: value } })} /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Rotation" value={layer.rotation} min={-180} max={180} step={1} onChange={value => updateLayer({ rotation: value })} /></PixGridHistoryGesture>
           <div className="rv-ctrl-action-row">
             <button type="button" className="rv-reset-btn" disabled={layer.locked} onClick={() => applyState(resetPixGridLayerTransform(state, layer.id))}>Reset Transform</button>
             <button type="button" className="rv-reset-btn" disabled={layer.locked} onClick={() => applyState(duplicatePixGridLayer(state, layer.id))}>Duplicate</button>

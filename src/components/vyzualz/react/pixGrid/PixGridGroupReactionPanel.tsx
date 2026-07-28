@@ -23,7 +23,15 @@ import { PIX_GRID_ASSIGNMENT_TARGETS } from './PixGridAssignmentCompiler'
 import {
   PIX_GRID_AUDIO_INTELLIGENCE_SOURCES,
   getPixGridAudioIntelligenceSource,
+  isPixGridContinuousSourceDefinition,
 } from './PixGridAudioIntelligenceRegistry'
+import {
+  PIX_GRID_REACTION_FIELDS,
+  patchPixGridReactionAssignment,
+  pixGridReactionHasAdvancedValues,
+  summarizePixGridReactionAssignment,
+} from './PixGridControlContract'
+import { requestPixGridWorkspace } from './PixGridWorkspaceNavigation'
 import type {
   PixGridGeometricGroupPattern,
   PixGridGroup,
@@ -92,7 +100,7 @@ function replaceGroup(state: PixGridState, groupId: string, updater: (group: Pix
 }
 
 function replaceAssignment(group: PixGridGroup, assignmentId: string, patch: Partial<PixGridReactionAssignment>): PixGridGroup {
-  return { ...group, reactions: group.reactions.map(assignment => assignment.id === assignmentId ? { ...assignment, ...patch } : assignment) }
+  return { ...group, reactions: group.reactions.map(assignment => assignment.id === assignmentId ? patchPixGridReactionAssignment(assignment, patch) : assignment) }
 }
 
 export function PixGridGroupReactionPanel() {
@@ -217,21 +225,18 @@ export function PixGridGroupReactionPanel() {
             { value: 'group', label: 'Group mask' }, { value: 'pixels', label: 'Selected sparse pixels / mask' },
           ]} onChange={value => updateAssignment({ targetScope: value as PixGridReactionAssignment['targetScope'], targetId: group.id })} />
           <SelectRow label="Target" value={assignment.target} options={targetOptions} onChange={value => updateAssignment({ target: value as PixGridReactionAssignment['target'] })} />
-          <SliderRow label="Amount" value={assignment.amount} min={-2} max={2} step={0.01} onChange={value => updateAssignment({ amount: value })} />
-          <SliderRow label="Threshold" value={assignment.threshold} onChange={value => updateAssignment({ threshold: value })} />
-          <SliderRow label="Hysteresis" value={assignment.hysteresis ?? 0} max={0.5} step={0.01} onChange={value => updateAssignment({ hysteresis: value })} />
-          <SelectRow label="Curve" value={assignment.curve ?? 'linear'} options={['linear', 'easeIn', 'easeOut', 'easeInOut', 'exponential', 'logarithmic', 'smoothstep', 'stepped', 'gate', 'inverse'].map(value => ({ value, label: label(value) }))} onChange={value => updateAssignment({ curve: value as PixGridReactionAssignment['curve'] })} />
-          <SliderRow label="Attack" value={assignment.attack} max={2} step={0.01} onChange={value => updateAssignment({ attack: value })} />
-          <SliderRow label="Hold" value={assignment.hold} max={2} step={0.01} onChange={value => updateAssignment({ hold: value })} />
-          <SliderRow label="Release" value={assignment.release} max={4} step={0.01} onChange={value => updateAssignment({ release: value })} />
-          <SliderRow label="Smoothing" value={assignment.smoothing} max={1} step={0.01} onChange={value => updateAssignment({ smoothing: value })} />
-          <SliderRow label="Minimum Confidence" value={assignment.minimumConfidence} onChange={value => updateAssignment({ minimumConfidence: value })} />
-          <SelectRow label="Polarity" value={assignment.polarity ?? (assignment.invert ? 'negative' : 'positive')} options={['positive', 'negative', 'bipolar'].map(value => ({ value, label: label(value) }))} onChange={value => updateAssignment({ polarity: value as PixGridReactionAssignment['polarity'], invert: value === 'negative' })} />
-          <SelectRow label="Quantize" value={assignment.quantization} options={['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'].map(value => ({ value, label: label(value) }))} onChange={value => updateAssignment({ quantization: value as PixGridReactionAssignment['quantization'] })} />
-          <SelectRow label="Retrigger" value={assignment.retrigger} options={['restart', 'extend', 'ignoreWhileActive'].map(value => ({ value, label: label(value) }))} onChange={value => updateAssignment({ retrigger: value as PixGridReactionAssignment['retrigger'] })} />
-          <SelectRow label="Fallback" value={assignment.capabilityFallback} options={['disable', 'zero', 'energy', 'beat', 'midHighActivity', 'transient'].map(value => ({ value, label: label(value) }))} onChange={value => updateAssignment({ capabilityFallback: value as PixGridReactionAssignment['capabilityFallback'] })} />
-          <SelectRow label="Blend" value={assignment.blend} options={['add', 'multiply', 'replace', 'max'].map(value => ({ value, label: label(value) }))} onChange={value => updateAssignment({ blend: value as PixGridReactionAssignment['blend'] })} />
-          <SliderRow label="Priority" value={assignment.priority ?? 0} min={-100} max={100} step={1} onChange={value => updateAssignment({ priority: value })} />
+          <SliderRow label="Amount" value={assignment.amount} min={PIX_GRID_REACTION_FIELDS.amount.min} max={PIX_GRID_REACTION_FIELDS.amount.max} step={PIX_GRID_REACTION_FIELDS.amount.step} onChange={value => updateAssignment({ amount: value })} />
+          <SliderRow label="Threshold" value={assignment.threshold} min={PIX_GRID_REACTION_FIELDS.threshold.min} max={PIX_GRID_REACTION_FIELDS.threshold.max} step={PIX_GRID_REACTION_FIELDS.threshold.step} onChange={value => updateAssignment({ threshold: value })} />
+          <div className="rv-ctrl-info" role="status" aria-label="PixGrid reaction route summary">
+            <span>{summarizePixGridReactionAssignment(assignment)}</span>
+            {pixGridReactionHasAdvancedValues(assignment) && <span>Conditions, ranges, envelope precision, cooldown, quantization, blend, or priority are configured in the full editor and remain preserved here.</span>}
+          </div>
+          <div className="rv-ctrl-action-row">
+            <button type="button" className="rv-reset-btn" onClick={() => {
+              updateEditor({ selectedGroupId: group.id, previewReactionAssignmentId: assignment.id })
+              requestPixGridWorkspace(sourceDefinition && isPixGridContinuousSourceDefinition(sourceDefinition) ? 'routing' : 'events')
+            }}>Open Full Route Editor</button>
+          </div>
           <div className="rv-ctrl-action-row">
             <button type="button" className="rv-reset-btn" aria-pressed={state.editor.previewReactionAssignmentId === assignment.id} onClick={() => updateEditor({ previewReactionAssignmentId: state.editor.previewReactionAssignmentId === assignment.id ? null : assignment.id })}>Test / Preview</button>
             <button type="button" className="rv-reset-btn" onClick={() => applyState({

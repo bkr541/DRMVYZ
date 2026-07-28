@@ -12,6 +12,7 @@ import type { PixGridGroupFrameEffect } from '../../pixGrid/PixGridFrameEffects'
 import type { PixGridFrameGroupCompiler } from '../../pixGrid/PixGridGroupCompiler'
 import { buildPixGridRendererSemanticPlan, type PixGridRendererSemanticPlan } from '../../pixGrid/PixGridValidationAudit'
 import type { PixGridUnifiedRuntimeDiagnostics } from '../../pixGrid/PixGridUnifiedPerformanceRuntime'
+import { resolvePixGridPresentation } from '../../pixGrid/PixGridPresentation'
 
 
 export function buildPixGridCanvasSemanticPlan(
@@ -93,8 +94,8 @@ export function renderPixGridBaseline(
   const pixelWidth = Math.max(0.2, cellWidth - gapX * 2)
   const pixelHeight = Math.max(0.2, cellHeight - gapY * 2)
   const radius = Math.min(pixelWidth, pixelHeight) * state.cellRoundness
-  const intensity = clamp01(frame.intensity * state.globalIntensity * state.cellBrightness)
-  const glow = clamp01((frame.glow + state.glowAmount) * 0.5)
+  const presentation = resolvePixGridPresentation(state, frame)
+  const intensity = presentation.resolvedOutputIntensity
 
   ctx.save()
   ctx.imageSmoothingEnabled = false
@@ -106,6 +107,9 @@ export function renderPixGridBaseline(
   ctx.globalAlpha = state.backgroundBrightness
   ctx.fillRect(0, 0, W, H)
   ctx.globalAlpha = 1
+  ctx.filter = presentation.diffusion > 0.01
+    ? `blur(${Math.max(0.1, presentation.diffusion * Math.min(cellWidth, cellHeight) * 0.35)}px)`
+    : 'none'
 
   for (let y = 0; y < state.matrixHeight; y += 1) {
     for (let x = 0; x < state.matrixWidth; x += 1) {
@@ -117,9 +121,9 @@ export function renderPixGridBaseline(
       const b = Math.round(logical.pixels[offset + 2] * intensity)
       const px = offsetX + x * cellWidth + gapX
       const py = offsetY + y * cellHeight + gapY
-      if (glow > 0.02 && alpha > 0.45) {
-        ctx.shadowColor = `rgb(${r},${g},${b})`
-        ctx.shadowBlur = Math.min(18, Math.max(cellWidth, cellHeight) * (1 + glow * 4))
+      if (presentation.glow > 0.02 && alpha > 0.45) {
+        ctx.shadowColor = `rgba(${r},${g},${b},${presentation.glow})`
+        ctx.shadowBlur = Math.min(18, Math.max(cellWidth, cellHeight) * (1 + presentation.haloRadius * 3))
       } else {
         ctx.shadowBlur = 0
       }
@@ -131,6 +135,7 @@ export function renderPixGridBaseline(
   }
 
   ctx.shadowBlur = 0
+  ctx.filter = 'none'
   if (state.diagnostics.showMatrixBounds) {
     ctx.strokeStyle = preset.palette.highlight
     ctx.globalAlpha = 0.7
@@ -182,7 +187,8 @@ export function renderPixGridCanvasFallback(
     choreography,
   )
   const image = logicalContext.createImageData(state.matrixWidth, state.matrixHeight)
-  const intensity = clamp01(frame.intensity * state.globalIntensity * state.cellBrightness)
+  const presentation = resolvePixGridPresentation(state, frame)
+  const intensity = presentation.resolvedOutputIntensity
   for (let offset = 0; offset < logical.pixels.length; offset += 4) {
     image.data[offset] = Math.round(logical.pixels[offset] * intensity)
     image.data[offset + 1] = Math.round(logical.pixels[offset + 1] * intensity)
@@ -208,7 +214,19 @@ export function renderPixGridCanvasFallback(
   output.globalAlpha = state.backgroundBrightness
   output.fillRect(0, 0, W, H)
   output.globalAlpha = 1
+  if (presentation.glow > 0.02) {
+    output.save()
+    output.globalCompositeOperation = 'lighter'
+    output.globalAlpha = presentation.glow * 0.55
+    output.filter = `blur(${Math.max(0.5, Math.max(drawWidth / state.matrixWidth, drawHeight / state.matrixHeight) * presentation.haloRadius * 2.5)}px)`
+    output.drawImage(logicalCanvas, offsetX, offsetY, drawWidth, drawHeight)
+    output.restore()
+  }
+  output.filter = presentation.diffusion > 0.01
+    ? `blur(${Math.max(0.1, presentation.diffusion * 0.75)}px)`
+    : 'none'
   output.drawImage(logicalCanvas, offsetX, offsetY, drawWidth, drawHeight)
+  output.filter = 'none'
   if (state.diagnostics.showMatrixBounds) {
     output.strokeStyle = preset.palette.highlight
     output.globalAlpha = 0.7

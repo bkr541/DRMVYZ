@@ -7,6 +7,7 @@ import { applyPixGridRuntimeControls } from '../PixGridRuntimeControls'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import { PixGridReactionRuntime } from '../PixGridAudioRouting'
 import { normalizePixGridState } from '../PixGridValidation'
+import { resolvePixGridPresentation } from '../PixGridPresentation'
 import { PixGridGpuRenderer } from '../../renderers/pixGrid/PixGridGpuRenderer'
 import { renderPixGridBaseline, renderPixGridCanvasFallback } from '../../renderers/pixGrid/PixGridBaselineRenderer'
 import {
@@ -110,6 +111,26 @@ describe('PixGridGpuRenderer', () => {
   it('uses texelFetch and NEAREST sampling for crisp logical presentation', () => {
     expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).toContain('texelFetch(uLogicalTexture')
     expect(PIX_GRID_LOGICAL_FRAGMENT_SHADER).toContain('outColor = vec4(logicalColor, alpha)')
+  })
+
+  it('binds the canonical resolved intensity, Glow, Halo Radius, and Diffusion uniforms', () => {
+    const gl = createFakeWebGL2()
+    const canvas = createCanvas(gl)
+    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
+    const input = renderInput('high')
+    const expected = resolvePixGridPresentation(input.state, input.frame)
+
+    expect(renderer.render(input)).toBe(true)
+    const uniformValue = (name: string): number | undefined => {
+      const call = gl.uniform1f.mock.calls.find((entry: unknown[]) => (entry[0] as { name?: string } | null)?.name === name)
+      return typeof call?.[1] === 'number' ? call[1] : undefined
+    }
+    expect(uniformValue('uResolvedIntensity')).toBeCloseTo(expected.resolvedOutputIntensity)
+    expect(uniformValue('uGlow')).toBeCloseTo(expected.glow)
+    expect(uniformValue('uHaloRadius')).toBeCloseTo(expected.haloRadius)
+    expect(uniformValue('uDiffusion')).toBeCloseTo(expected.diffusion)
+    expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).not.toContain('uCellBrightness')
+    expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).not.toContain('uGlobalIntensity')
   })
 
   it('reuses logical textures and framebuffers until the quality resolution changes', () => {

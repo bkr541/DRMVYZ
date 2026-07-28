@@ -653,6 +653,15 @@ export interface PixGridRendererDiagnostics {
   effectiveQuality?: PixGridQualityTier
   adaptiveStage?: number
   adaptiveReason?: string
+  qualityPromotionBackend?: 'adaptive-controller' | 'canvas2d-fallback' | null
+  qualityPromotionReason?: string | null
+  outputIntensity?: number
+  authoredPerformanceTrim?: number
+  cellCalibration?: number
+  resolvedOutputIntensity?: number
+  glow?: number
+  haloRadius?: number
+  resolvedDiffusion?: number
   preparedMediaCacheEntries?: number
   preparedMediaCacheBytes?: number
   enabledGroupCount?: number

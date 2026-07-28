@@ -69,6 +69,7 @@ export function ReactFxPanel() {
   const isCinematic     = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx      = activeReactEngineId === 'laserDmx'
   const isCanvas        = activeReactEngineId === 'canvas'
+  const isPixGrid       = activeReactEngineId === 'pixGrid'
   const isBeamMatrix    = isLaserDmx
 
   const masterControls = getReactFxMasterControls(activeReactEngineId)
@@ -81,10 +82,11 @@ export function ReactFxPanel() {
     <>
       {showMasterIntensity && (
         <SliderRow
-          label={isLaserDmx ? 'Master Intensity' : 'Intensity'}
+          label={isLaserDmx ? 'Master Intensity' : isPixGrid ? 'Authored Performance Trim' : 'Intensity'}
           value={reactIntensity}
           onChange={setReactIntensity}
           color="#4ac7db"
+          description={isPixGrid ? 'Trims the authored React performance output after PixGrid Output Intensity. Kept separate for automation and legacy preset compatibility.' : undefined}
         />
       )}
       {showMasterMotion && (
@@ -92,10 +94,11 @@ export function ReactFxPanel() {
       )}
       {showMasterGlow && (
         <SliderRow
-          label={isLaserDmx ? 'Master Glow' : 'Glow'}
+          label={isLaserDmx ? 'Master Glow' : isPixGrid ? 'Halo Radius' : 'Glow'}
           value={reactGlow}
           onChange={setReactGlow}
           color="#b84fc9"
+          description={isPixGrid ? 'Controls the spatial radius of the PixGrid halo. Emitter Glow controls halo strength.' : undefined}
         />
       )}
       {showMasterBassReactivity && (

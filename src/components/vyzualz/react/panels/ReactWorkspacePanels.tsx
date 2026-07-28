@@ -11,6 +11,7 @@ import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
 import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
 import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pixGrid/PixGridReactivityWorkspace'
 import { PanelSubtabs } from '../PanelSubtabs'
+import { getRequestedPixGridWorkspace, subscribePixGridWorkspace } from '../pixGrid/PixGridWorkspaceNavigation'
 
 type DesignSurface = 'engine' | 'selection'
 type ReactivitySurface = 'routing' | 'analysis'
@@ -74,7 +75,10 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
 export function ReactReactivityWorkspacePanel() {
   const pixGridActive = useReactStore(state => state.activeReactEngineId === 'pixGrid')
   const [surface, setSurface] = useState<ReactivitySurface>('routing')
-  const [pixGridSurface, setPixGridSurface] = useState<PixGridReactivitySurface>('routing')
+  const [pixGridSurface, setPixGridSurface] = useState<PixGridReactivitySurface>(
+    () => getRequestedPixGridWorkspace() ?? 'routing',
+  )
+  useEffect(() => subscribePixGridWorkspace(next => setPixGridSurface(next)), [])
 
   if (pixGridActive) {
     return (

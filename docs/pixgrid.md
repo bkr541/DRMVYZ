@@ -17,9 +17,33 @@ Animated GIF, animated WebP, video, sprite-sheet slicing, and image sequences ar
 | High | 160 × 90 | Default production quality |
 | Ultra | 256 × 144 | High-detail output on capable GPUs |
 
-Adaptive mode is the default. It first reduces diagnostics, glow/diffusion work, and secondary presentation effects. Only sustained pressure can reduce the logical matrix, never below 96 × 54. Recovery is gradual and hysteresis prevents rapid quality oscillation. Selecting a quality tier explicitly switches to fixed mode. Thumbnail rendering has an independent renderer and does not influence live quality.
+Adaptive mode is the default. It first reduces diagnostics, glow/diffusion work, and secondary presentation effects. Only sustained pressure can reduce the logical matrix, never below 96 × 54. Recovery is gradual and hysteresis prevents rapid quality oscillation. The quality selector changes only the requested tier; only the explicit Adaptive Quality control changes fixed/adaptive mode. Requested and effective quality remain separate. Fixed GPU Draft stays 64 × 36 where supported, while adaptive safety-floor or Canvas2D promotion is published as effective Low without overwriting the saved Draft request. Thumbnail rendering has an independent renderer and does not influence live quality.
 
 The logical framebuffer uses nearest sampling. The presentation shader preserves black/off texels, restrained glow, chromatic highlights, and dark cell gaps at 1080p and 4K. Recording and production output consume the same visible output canvas as normal React View playback.
+
+
+## Canonical control hierarchy
+
+PixGrid presentation controls use one store action and one authoring-history contract from every compact or advanced surface. A selector or slider must not reproduce quality-mode, normalization, or history policy inside a React component.
+
+- **Output Intensity** is the primary PixGrid brightness control and persists in the legacy `globalIntensity` field.
+- **Authored Performance Trim** is the React-wide automatable trim passed to the PixGrid renderer. It remains separate because presets and authored performance automation already target it.
+- **Cell Calibration** is the advanced per-emitter compatibility/calibration factor persisted in `cellBrightness`.
+- The renderer resolves final output once as `Output Intensity × Authored Performance Trim × Cell Calibration`; WebGL2 and Canvas2D consume the same resolved value, and Advanced diagnostics publish every factor plus the product.
+- **Glow** controls halo strength. **Halo Radius** controls halo width. **Diffusion** controls emitter edge softness. These are mathematically distinct renderer inputs in both backends.
+
+Persisted intensity and glow fields remain compatibility inputs. This contract does not add a state version because it introduces no new persisted field and performs no repeated load-time recombination.
+
+The quick and Design quality selectors both call `setPixGridRequestedQuality`. `setPixGridQualityMode` is the only operation that changes fixed/adaptive policy. All duplicate presentation surfaces call `setPixGridPresentation` and therefore create equivalent validation and undo/redo transactions.
+
+Program operations are intentionally separate:
+
+- **Load Program Preset** loads the complete matching PixGrid preset and may replace artwork, presentation, and performance configuration. It updates active-preset provenance and creates a PixGrid history boundary by clearing incompatible PixGrid undo/redo snapshots, so a broad preset replacement cannot be partially undone into a hybrid preset.
+- **Change Performance Program Only** changes only the Shared Performance Program ID and resets that program's route/section overrides. It preserves artwork, scenes, groups, Track Map cues, conversion settings, and unrelated presentation state, and marks the current PixGrid configuration as custom.
+
+The compact Group Reaction editor is a non-destructive summary editor. It exposes a safe field subset using the same field definitions as the full route editor, visibly indicates advanced values, and never normalizes or deletes conditions, ranges, cooldown, quantization, blend, envelope precision, or priority merely because the compact panel opened. **Open Full Route Editor** transfers the same stable assignment ID to the canonical Routing or Events workspace.
+
+Compact live status is limited to active program, owner, section, one warning/override summary, and the truthful requested/effective quality summary. Route banks, arcs, bindings, conditions, cue internals, and resolved compatibility products live in the canonical Analysis/Choreography diagnostics surfaces.
 
 ## Built-in presets
 

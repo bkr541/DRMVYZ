@@ -27,6 +27,8 @@ import {
   usePixGridReactivityRuntimeStatus,
 } from './PixGridReactivityStatus'
 import { inspectPixGridGroups, validatePixGridState } from './PixGridValidationAudit'
+import { PIX_GRID_REACTION_FIELDS } from './PixGridControlContract'
+import { PixGridHistoryGesture } from './PixGridHistoryGesture'
 import type {
   PixGridPerformanceProgramId,
   PixGridProgramRouteOverride,
@@ -293,11 +295,11 @@ function ProgramRouteEditor({
       }} />
       {targetIds.length > 0 && <SelectRow label="Target" value={targetId ?? targetIds[0]?.value ?? ''} options={targetIds} onChange={value => update({ targetId: value })} />}
       <SelectRow label="Operation" value={operation} options={operations} onChange={value => update({ operation: value as PixGridReactionTarget })} />
-      <SliderRow label="Amount" value={amount} min={-4} max={4} step={0.01} description="Signed strength applied after source shaping and eligibility checks." onChange={value => update({ amount: value })} />
-      <NumberInputRow label="Input Minimum" value={inputRange[0]} min={-4} max={4} step={0.01} onChange={value => update({ inputRange: [value, inputRange[1]] })} />
-      <NumberInputRow label="Input Maximum" value={inputRange[1]} min={-4} max={4} step={0.01} onChange={value => update({ inputRange: [inputRange[0], value] })} />
-      <NumberInputRow label="Output Minimum" value={outputRange[0]} min={-8} max={8} step={0.01} onChange={value => update({ outputRange: [value, outputRange[1]] })} />
-      <NumberInputRow label="Output Maximum" value={outputRange[1]} min={-8} max={8} step={0.01} onChange={value => update({ outputRange: [outputRange[0], value] })} />
+      <SliderRow label="Amount" value={amount} min={PIX_GRID_REACTION_FIELDS.amount.min} max={PIX_GRID_REACTION_FIELDS.amount.max} step={PIX_GRID_REACTION_FIELDS.amount.step} description="Signed strength applied after source shaping and eligibility checks." onChange={value => update({ amount: value })} />
+      <NumberInputRow label="Input Minimum" value={inputRange[0]} min={PIX_GRID_REACTION_FIELDS.inputRange.min} max={PIX_GRID_REACTION_FIELDS.inputRange.max} step={PIX_GRID_REACTION_FIELDS.inputRange.step} onChange={value => update({ inputRange: [value, inputRange[1]] })} />
+      <NumberInputRow label="Input Maximum" value={inputRange[1]} min={PIX_GRID_REACTION_FIELDS.inputRange.min} max={PIX_GRID_REACTION_FIELDS.inputRange.max} step={PIX_GRID_REACTION_FIELDS.inputRange.step} onChange={value => update({ inputRange: [inputRange[0], value] })} />
+      <NumberInputRow label="Output Minimum" value={outputRange[0]} min={PIX_GRID_REACTION_FIELDS.outputRange.min} max={PIX_GRID_REACTION_FIELDS.outputRange.max} step={PIX_GRID_REACTION_FIELDS.outputRange.step} onChange={value => update({ outputRange: [value, outputRange[1]] })} />
+      <NumberInputRow label="Output Maximum" value={outputRange[1]} min={PIX_GRID_REACTION_FIELDS.outputRange.min} max={PIX_GRID_REACTION_FIELDS.outputRange.max} step={PIX_GRID_REACTION_FIELDS.outputRange.step} onChange={value => update({ outputRange: [outputRange[0], value] })} />
       {continuous ? (
         <>
           <SelectRow label="Polarity" value={override.polarity ?? ('polarity' in route ? route.polarity ?? 'positive' : 'positive')} options={['positive', 'negative', 'bipolar'].map(value => ({ value, label: label(value) }))} onChange={value => update({ polarity: value as PixGridProgramRouteOverride['polarity'] })} />
@@ -306,21 +308,21 @@ function ProgramRouteEditor({
       ) : (
         <SelectRow label="Decay Curve" value={override.decayCurve ?? ('envelope' in route ? route.envelope.curve ?? 'easeOut' : 'easeOut')} options={DECAY_OPTIONS.map(value => ({ value, label: label(value) }))} onChange={value => update({ decayCurve: value as PixGridProgramRouteOverride['decayCurve'] })} />
       )}
-      <SliderRow label="Threshold" value={override.threshold ?? route.threshold ?? (continuous ? 0 : 0.01)} description="Minimum shaped source value required before this route can contribute." onChange={value => update({ threshold: value })} />
-      <SliderRow label="Hysteresis" value={override.hysteresis ?? route.hysteresis ?? 0} max={0.5} step={0.01} onChange={value => update({ hysteresis: value })} />
-      <SliderRow label="Smoothing" value={override.smoothing ?? route.smoothing ?? sourceDefinition.recommendedSmoothing.smoothing} max={1} step={0.01} onChange={value => update({ smoothing: value })} />
+      <SliderRow label="Threshold" value={override.threshold ?? route.threshold ?? (continuous ? 0 : 0.01)} min={PIX_GRID_REACTION_FIELDS.threshold.min} max={PIX_GRID_REACTION_FIELDS.threshold.max} step={PIX_GRID_REACTION_FIELDS.threshold.step} description="Minimum shaped source value required before this route can contribute." onChange={value => update({ threshold: value })} />
+      <SliderRow label="Hysteresis" value={override.hysteresis ?? route.hysteresis ?? 0} min={PIX_GRID_REACTION_FIELDS.hysteresis.min} max={PIX_GRID_REACTION_FIELDS.hysteresis.max} step={PIX_GRID_REACTION_FIELDS.hysteresis.step} onChange={value => update({ hysteresis: value })} />
+      <SliderRow label="Smoothing" value={override.smoothing ?? route.smoothing ?? sourceDefinition.recommendedSmoothing.smoothing} min={PIX_GRID_REACTION_FIELDS.smoothing.min} max={PIX_GRID_REACTION_FIELDS.smoothing.max} step={PIX_GRID_REACTION_FIELDS.smoothing.step} onChange={value => update({ smoothing: value })} />
       {!continuous && 'envelope' in route && (
         <>
-          <SliderRow label="Attack" value={override.attack ?? route.envelope.attack} max={2} step={0.005} onChange={value => update({ attack: value })} />
-          <SliderRow label="Hold" value={override.hold ?? route.envelope.hold} max={2} step={0.005} onChange={value => update({ hold: value })} />
-          <SliderRow label="Release" value={override.release ?? route.envelope.release} max={4} step={0.005} onChange={value => update({ release: value })} />
-          <SliderRow label="Cooldown" value={override.cooldown ?? route.cooldown ?? 0} max={8} step={0.01} description="Minimum seconds between accepted event triggers, independent of envelope length." onChange={value => update({ cooldown: value })} />
+          <SliderRow label="Attack" value={override.attack ?? route.envelope.attack} min={PIX_GRID_REACTION_FIELDS.attack.min} max={PIX_GRID_REACTION_FIELDS.attack.max} step={PIX_GRID_REACTION_FIELDS.attack.step} onChange={value => update({ attack: value })} />
+          <SliderRow label="Hold" value={override.hold ?? route.envelope.hold} min={PIX_GRID_REACTION_FIELDS.hold.min} max={PIX_GRID_REACTION_FIELDS.hold.max} step={PIX_GRID_REACTION_FIELDS.hold.step} onChange={value => update({ hold: value })} />
+          <SliderRow label="Release" value={override.release ?? route.envelope.release} min={PIX_GRID_REACTION_FIELDS.release.min} max={PIX_GRID_REACTION_FIELDS.release.max} step={PIX_GRID_REACTION_FIELDS.release.step} onChange={value => update({ release: value })} />
+          <SliderRow label="Cooldown" value={override.cooldown ?? route.cooldown ?? 0} min={PIX_GRID_REACTION_FIELDS.cooldown.min} max={PIX_GRID_REACTION_FIELDS.cooldown.max} step={PIX_GRID_REACTION_FIELDS.cooldown.step} description="Minimum seconds between accepted event triggers, independent of envelope length." onChange={value => update({ cooldown: value })} />
           <SelectRow label="Quantization" value={override.quantization ?? route.quantization ?? 'none'} options={['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'].map(value => ({ value, label: label(value) }))} onChange={value => update({ quantization: value as PixGridProgramRouteOverride['quantization'] })} />
           <SelectRow label="Retrigger" value={override.retrigger ?? route.retrigger ?? 'restart'} options={['restart', 'extend', 'ignoreWhileActive'].map(value => ({ value, label: label(value) }))} onChange={value => update({ retrigger: value as PixGridProgramRouteOverride['retrigger'] })} />
         </>
       )}
       {['sub', 'bass', 'lowMid', 'bassStemActivity', 'kick'].includes(source) && <ToggleRow label="Use Bass Reactivity" value={override.bassReactivityEnabled ?? (route.bassReactivityEnabled !== false)} description="Let the global Bass Reactivity control scale this bass-sensitive source." onChange={bassReactivityEnabled => update({ bassReactivityEnabled })} />}
-      <SliderRow label="Minimum Confidence" value={override.minimumConfidence ?? route.minimumConfidence ?? 0} description="Reject optional or inferred analysis below this confidence." onChange={value => update({ minimumConfidence: value })} />
+      <SliderRow label="Minimum Confidence" value={override.minimumConfidence ?? route.minimumConfidence ?? 0} min={PIX_GRID_REACTION_FIELDS.minimumConfidence.min} max={PIX_GRID_REACTION_FIELDS.minimumConfidence.max} step={PIX_GRID_REACTION_FIELDS.minimumConfidence.step} description="Reject optional or inferred analysis below this confidence." onChange={value => update({ minimumConfidence: value })} />
       <SelectRow label="Fallback" value={override.capabilityFallback ?? route.capabilityFallback ?? sourceDefinition.capabilityFallback} options={['disable', 'zero', 'energy', 'beat', 'midHighActivity', 'transient'].map(value => ({ value, label: label(value) }))} description="Replacement source used when the authored source is unavailable." onChange={value => update({ capabilityFallback: value as PixGridProgramRouteOverride['capabilityFallback'] })} />
       <SelectRow label="Include Section" value={sectionValue} options={SECTION_OPTIONS} onChange={value => update({ sectionTypes: value === 'all' ? [] : [value as ReactSectionType] })} />
       <SelectRow label="Exclude Section" value={excludedSectionValue} options={SECTION_OPTIONS} onChange={value => update({ excludeSectionTypes: value === 'all' ? [] : [value as ReactSectionType] })} />
@@ -329,7 +331,7 @@ function ProgramRouteEditor({
       <SliderRow label="Maximum Energy" value={maximumEnergy} onChange={value => update({ maximumEnergy: value })} />
       <TextInputRow label="Section Occurrences" value={(override.sectionOccurrences ?? conditions.sectionOccurrences ?? []).join(', ')} placeholder="1, 2, 3" onChange={value => update({ sectionOccurrences: parseOccurrence(value) })} />
       <TextInputRow label="Drop Occurrences" value={(override.dropOccurrences ?? conditions.dropOccurrences ?? []).join(', ')} placeholder="1, 2" onChange={value => update({ dropOccurrences: parseOccurrence(value) })} />
-      <SliderRow label="Priority" value={override.priority ?? route.priority ?? 0} min={-500} max={500} step={1} onChange={value => update({ priority: value })} />
+      <SliderRow label="Priority" value={override.priority ?? route.priority ?? 0} min={PIX_GRID_REACTION_FIELDS.priority.min} max={PIX_GRID_REACTION_FIELDS.priority.max} step={PIX_GRID_REACTION_FIELDS.priority.step} onChange={value => update({ priority: value })} />
       <SelectRow label="Blend" value={override.blend ?? route.blend ?? 'add'} options={['add', 'multiply', 'replace', 'max'].map(value => ({ value, label: label(value) }))} onChange={value => update({ blend: value as PixGridProgramRouteOverride['blend'] })} />
       <div className="rv-ctrl-action-row">
         <button type="button" className="rv-reset-btn" onClick={() => triggerPixGridPreviewSource(source)}>{continuous ? 'Preview Route' : 'Test Trigger'}</button>
@@ -384,26 +386,26 @@ function UserRouteEditor({ state, selection, applyState }: { state: PixGridState
       }} />
       {targetIds.length > 0 && <SelectRow label="Target" value={assignment.targetId ?? targetIds[0]?.value ?? ''} options={targetIds} onChange={targetId => update({ targetId })} />}
       <SelectRow label="Operation" value={assignment.target} options={targetOptions.length ? targetOptions : PIX_GRID_ASSIGNMENT_TARGETS.map(target => ({ value: target.id, label: target.label }))} onChange={value => update({ target: value as PixGridReactionTarget })} />
-      <SliderRow label="Amount" value={assignment.amount} min={-4} max={4} step={0.01} description="Signed strength applied after source shaping and eligibility checks." onChange={amount => update({ amount })} />
-      <NumberInputRow label="Input Minimum" value={assignment.inputRange?.[0] ?? 0} min={-4} max={4} step={0.01} onChange={value => update({ inputRange: [value, assignment.inputRange?.[1] ?? 1] })} />
-      <NumberInputRow label="Input Maximum" value={assignment.inputRange?.[1] ?? 1} min={-4} max={4} step={0.01} onChange={value => update({ inputRange: [assignment.inputRange?.[0] ?? 0, value] })} />
-      <NumberInputRow label="Output Minimum" value={assignment.outputRange?.[0] ?? 0} min={-8} max={8} step={0.01} onChange={value => update({ outputRange: [value, assignment.outputRange?.[1] ?? 1] })} />
-      <NumberInputRow label="Output Maximum" value={assignment.outputRange?.[1] ?? 1} min={-8} max={8} step={0.01} onChange={value => update({ outputRange: [assignment.outputRange?.[0] ?? 0, value] })} />
+      <SliderRow label="Amount" value={assignment.amount} min={PIX_GRID_REACTION_FIELDS.amount.min} max={PIX_GRID_REACTION_FIELDS.amount.max} step={PIX_GRID_REACTION_FIELDS.amount.step} description="Signed strength applied after source shaping and eligibility checks." onChange={amount => update({ amount })} />
+      <NumberInputRow label="Input Minimum" value={assignment.inputRange?.[0] ?? 0} min={PIX_GRID_REACTION_FIELDS.inputRange.min} max={PIX_GRID_REACTION_FIELDS.inputRange.max} step={PIX_GRID_REACTION_FIELDS.inputRange.step} onChange={value => update({ inputRange: [value, assignment.inputRange?.[1] ?? 1] })} />
+      <NumberInputRow label="Input Maximum" value={assignment.inputRange?.[1] ?? 1} min={PIX_GRID_REACTION_FIELDS.inputRange.min} max={PIX_GRID_REACTION_FIELDS.inputRange.max} step={PIX_GRID_REACTION_FIELDS.inputRange.step} onChange={value => update({ inputRange: [assignment.inputRange?.[0] ?? 0, value] })} />
+      <NumberInputRow label="Output Minimum" value={assignment.outputRange?.[0] ?? 0} min={PIX_GRID_REACTION_FIELDS.outputRange.min} max={PIX_GRID_REACTION_FIELDS.outputRange.max} step={PIX_GRID_REACTION_FIELDS.outputRange.step} onChange={value => update({ outputRange: [value, assignment.outputRange?.[1] ?? 1] })} />
+      <NumberInputRow label="Output Maximum" value={assignment.outputRange?.[1] ?? 1} min={PIX_GRID_REACTION_FIELDS.outputRange.min} max={PIX_GRID_REACTION_FIELDS.outputRange.max} step={PIX_GRID_REACTION_FIELDS.outputRange.step} onChange={value => update({ outputRange: [assignment.outputRange?.[0] ?? 0, value] })} />
       <SelectRow label="Polarity" value={assignment.polarity ?? 'positive'} options={['positive', 'negative', 'bipolar'].map(value => ({ value, label: label(value) }))} onChange={value => update({ polarity: value as PixGridReactionAssignment['polarity'] })} />
       <SelectRow label={continuous ? 'Curve' : 'Decay Curve'} value={continuous ? assignment.curve ?? 'linear' : assignment.decayCurve ?? 'easeOut'} options={(continuous ? CURVE_OPTIONS : DECAY_OPTIONS).map(value => ({ value, label: label(value) }))} onChange={value => continuous ? update({ curve: value as PixGridReactionAssignment['curve'] }) : update({ decayCurve: value as PixGridReactionAssignment['decayCurve'] })} />
-      <SliderRow label="Threshold" value={assignment.threshold} description="Minimum shaped source value required before this route can contribute." onChange={threshold => update({ threshold })} />
-      <SliderRow label="Hysteresis" value={assignment.hysteresis ?? 0} max={0.5} step={0.01} onChange={hysteresis => update({ hysteresis })} />
-      <SliderRow label="Smoothing" value={assignment.smoothing} max={1} step={0.01} onChange={smoothing => update({ smoothing })} />
+      <SliderRow label="Threshold" value={assignment.threshold} min={PIX_GRID_REACTION_FIELDS.threshold.min} max={PIX_GRID_REACTION_FIELDS.threshold.max} step={PIX_GRID_REACTION_FIELDS.threshold.step} description="Minimum shaped source value required before this route can contribute." onChange={threshold => update({ threshold })} />
+      <SliderRow label="Hysteresis" value={assignment.hysteresis ?? 0} min={PIX_GRID_REACTION_FIELDS.hysteresis.min} max={PIX_GRID_REACTION_FIELDS.hysteresis.max} step={PIX_GRID_REACTION_FIELDS.hysteresis.step} onChange={hysteresis => update({ hysteresis })} />
+      <SliderRow label="Smoothing" value={assignment.smoothing} min={PIX_GRID_REACTION_FIELDS.smoothing.min} max={PIX_GRID_REACTION_FIELDS.smoothing.max} step={PIX_GRID_REACTION_FIELDS.smoothing.step} onChange={smoothing => update({ smoothing })} />
       {!continuous && <>
-        <SliderRow label="Attack" value={assignment.attack} max={2} step={0.005} onChange={attack => update({ attack })} />
-        <SliderRow label="Hold" value={assignment.hold} max={2} step={0.005} onChange={hold => update({ hold })} />
-        <SliderRow label="Release" value={assignment.release} max={4} step={0.005} onChange={release => update({ release })} />
-        <SliderRow label="Cooldown" value={assignment.cooldown ?? 0} max={8} step={0.01} description="Minimum seconds between accepted event triggers, independent of envelope length." onChange={cooldown => update({ cooldown })} />
+        <SliderRow label="Attack" value={assignment.attack} min={PIX_GRID_REACTION_FIELDS.attack.min} max={PIX_GRID_REACTION_FIELDS.attack.max} step={PIX_GRID_REACTION_FIELDS.attack.step} onChange={attack => update({ attack })} />
+        <SliderRow label="Hold" value={assignment.hold} min={PIX_GRID_REACTION_FIELDS.hold.min} max={PIX_GRID_REACTION_FIELDS.hold.max} step={PIX_GRID_REACTION_FIELDS.hold.step} onChange={hold => update({ hold })} />
+        <SliderRow label="Release" value={assignment.release} min={PIX_GRID_REACTION_FIELDS.release.min} max={PIX_GRID_REACTION_FIELDS.release.max} step={PIX_GRID_REACTION_FIELDS.release.step} onChange={release => update({ release })} />
+        <SliderRow label="Cooldown" value={assignment.cooldown ?? 0} min={PIX_GRID_REACTION_FIELDS.cooldown.min} max={PIX_GRID_REACTION_FIELDS.cooldown.max} step={PIX_GRID_REACTION_FIELDS.cooldown.step} description="Minimum seconds between accepted event triggers, independent of envelope length." onChange={cooldown => update({ cooldown })} />
         <SelectRow label="Quantization" value={assignment.quantization} options={['none', 'beat', 'bar', 'fourBars', 'eightBars', 'sixteenBars'].map(value => ({ value, label: label(value) }))} onChange={value => update({ quantization: value as PixGridReactionAssignment['quantization'] })} />
         <SelectRow label="Retrigger" value={assignment.retrigger} options={['restart', 'extend', 'ignoreWhileActive'].map(value => ({ value, label: label(value) }))} onChange={value => update({ retrigger: value as PixGridReactionAssignment['retrigger'] })} />
       </>}
       {['sub', 'bass', 'lowMid', 'bassStemActivity', 'kick'].includes(assignment.source) && <ToggleRow label="Use Bass Reactivity" value={assignment.bassReactivityEnabled !== false} description="Let the global Bass Reactivity control scale this bass-sensitive source." onChange={bassReactivityEnabled => update({ bassReactivityEnabled })} />}
-      <SliderRow label="Minimum Confidence" value={assignment.minimumConfidence} description="Reject optional or inferred analysis below this confidence." onChange={minimumConfidence => update({ minimumConfidence })} />
+      <SliderRow label="Minimum Confidence" value={assignment.minimumConfidence} min={PIX_GRID_REACTION_FIELDS.minimumConfidence.min} max={PIX_GRID_REACTION_FIELDS.minimumConfidence.max} step={PIX_GRID_REACTION_FIELDS.minimumConfidence.step} description="Reject optional or inferred analysis below this confidence." onChange={minimumConfidence => update({ minimumConfidence })} />
       <SelectRow label="Fallback" value={assignment.capabilityFallback} options={['disable', 'zero', 'energy', 'beat', 'midHighActivity', 'transient'].map(value => ({ value, label: label(value) }))} description="Replacement source used when the authored source is unavailable." onChange={value => update({ capabilityFallback: value as PixGridReactionAssignment['capabilityFallback'] })} />
       <SelectRow label="Include Section" value={section} options={SECTION_OPTIONS} onChange={value => update({ conditions: { ...assignment.conditions, includeSectionTypes: value === 'all' ? [] : [value as ReactSectionType] } })} />
       <SelectRow label="Exclude Section" value={excludedSection} options={SECTION_OPTIONS} onChange={value => update({ conditions: { ...assignment.conditions, excludeSectionTypes: value === 'all' ? [] : [value as ReactSectionType] } })} />
@@ -416,7 +418,7 @@ function UserRouteEditor({ state, selection, applyState }: { state: PixGridState
       <SelectRow label="Active Group" value={activeGroup} options={[{ value: 'any', label: 'Any active group' }, ...state.groups.map(group => ({ value: group.id, label: group.name }))]} onChange={value => update({ conditions: { ...assignment.conditions, activeGroupId: value === 'any' ? null : value } })} />
       <TextInputRow label="Section Occurrences" value={(assignment.conditions?.sectionOccurrences ?? []).join(', ')} placeholder="1, 2, 3" onChange={value => update({ conditions: { ...assignment.conditions, sectionOccurrences: parseOccurrence(value) ?? [] } })} />
       <TextInputRow label="Drop Occurrences" value={(assignment.conditions?.dropOccurrences ?? []).join(', ')} placeholder="1, 2" onChange={value => update({ conditions: { ...assignment.conditions, dropOccurrences: parseOccurrence(value) ?? [] } })} />
-      <SliderRow label="Priority" value={assignment.priority ?? 0} min={-500} max={500} step={1} onChange={priority => update({ priority })} />
+      <SliderRow label="Priority" value={assignment.priority ?? 0} min={PIX_GRID_REACTION_FIELDS.priority.min} max={PIX_GRID_REACTION_FIELDS.priority.max} step={PIX_GRID_REACTION_FIELDS.priority.step} onChange={priority => update({ priority })} />
       <SelectRow label="Blend" value={assignment.blend} options={['add', 'multiply', 'replace', 'max'].map(value => ({ value, label: label(value) }))} onChange={value => update({ blend: value as PixGridReactionAssignment['blend'] })} />
       <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={() => triggerPixGridPreviewSource(assignment.source)}>{continuous ? 'Preview Route' : 'Test Trigger'}</button><button type="button" className="rv-reset-btn" onClick={remove}>Delete Route</button></div>
     </Collapsible>
@@ -443,11 +445,17 @@ function RoutingOrEvents({ mode }: { mode: 'continuous' | 'event' }) {
   }, [continuous, program, state.audioAssignments, state.groups])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   useEffect(() => {
+    const previewId = state.editor.previewReactionAssignmentId
+    if (previewId && selections.some(selection => selection.kind === 'user' && selection.assignment.id === previewId)) {
+      const previewSelectionId = `user:${previewId}`
+      if (selectedId !== previewSelectionId) setSelectedId(previewSelectionId)
+      return
+    }
     if (!selectedId || !selections.some(selection => `${selection.kind}:${selection.kind === 'user' ? selection.assignment.id : selection.route.id}` === selectedId)) {
       const first = selections[0]
       setSelectedId(first ? `${first.kind}:${first.kind === 'user' ? first.assignment.id : first.route.id}` : null)
     }
-  }, [selectedId, selections])
+  }, [selectedId, selections, state.editor.previewReactionAssignmentId])
   const selected = selections.find(selection => `${selection.kind}:${selection.kind === 'user' ? selection.assignment.id : selection.route.id}` === selectedId) ?? null
   const routeRows = selections.map(selection => {
     if (selection.kind === 'user') {
@@ -591,21 +599,23 @@ function SectionPlanEditor({ state, plan, canDisable, applyState }: { state: Pix
 function ChoreographyPanel() {
   const state = useReactStore(store => store.pixGridState)
   const applyState = useReactStore(store => store.applyPixGridAuthoringState)
+  const changeProgramOnly = useReactStore(store => store.changePixGridPerformanceProgramOnly)
+  const setPerformance = useReactStore(store => store.setPixGridPerformance)
+  const clearManualOverride = useReactStore(store => store.clearPixGridManualOverride)
   const status = usePixGridReactivityRuntimeStatus()
   const program = programForState(state)
   const [sectionId, setSectionId] = useState(program.sectionPlans[0]?.id ?? '')
   useEffect(() => { if (!program.sectionPlans.some(plan => plan.id === sectionId)) setSectionId(program.sectionPlans[0]?.id ?? '') }, [program, sectionId])
   const plan = program.sectionPlans.find(candidate => candidate.id === sectionId) ?? program.sectionPlans[0]
   const enabledSectionCount = program.sectionPlans.filter(candidate => state.performance.programOverrides.sections[candidate.id]?.enabled !== false).length
-  const clearOverride = () => applyState({ ...state, performance: { ...state.performance, lockedRoutes: [] }, layers: state.layers.map(layer => layer.locked ? { ...layer, locked: false } : layer) })
   const resetAll = () => applyState({ ...state, performance: { ...state.performance, programOverrides: { routes: {}, sections: {} }, lockedRoutes: [] } })
   const runtime = status.runtime
   return (
     <div data-testid="pix-grid-choreography-workspace">
       <Collapsible label="PERFORMANCE PROGRAM" defaultOpen>
-        <SelectRow label="Active Program" value={program.id} options={PIX_GRID_PERFORMANCE_PROGRAMS.map(item => ({ value: item.id, label: item.metadata.name }))} onChange={value => applyState({ ...state, performance: { ...state.performance, sharedPerformanceProgramId: value as PixGridPerformanceProgramId, programOverrides: { routes: {}, sections: {} } } })} />
-        <ToggleRow label="Auto Performance" value={state.performance.enabled} onChange={enabled => applyState({ ...state, performance: { ...state.performance, enabled } })} />
-        <SliderRow label="Performance Intensity" value={state.performance.intensity} onChange={intensity => applyState({ ...state, performance: { ...state.performance, intensity } })} />
+        <SelectRow label="Change Performance Program Only" value={program.id} options={PIX_GRID_PERFORMANCE_PROGRAMS.map(item => ({ value: item.id, label: item.metadata.name }))} onChange={value => changeProgramOnly(value as PixGridPerformanceProgramId)} description="Changes only the authored performance program and its overrides. Artwork and presentation settings remain unchanged." />
+        <ToggleRow label="Auto Performance" value={state.performance.enabled} onChange={enabled => setPerformance({ enabled })} />
+        <PixGridHistoryGesture><SliderRow label="Performance Intensity" value={state.performance.intensity} onChange={intensity => setPerformance({ intensity })} /></PixGridHistoryGesture>
         <div className="rv-pix-grid-origin-card"><strong>{program.metadata.name}</strong><span>{program.metadata.description}</span><small>{program.visualRoles.length} visual roles · {program.bindings.length} bindings · {program.banks.length} banks</small></div>
         <div className="rv-pix-grid-live-card"><span>Active section <strong>{runtime?.activeSectionPlan ?? 'Waiting for analysis'}</strong></span><span>Motif <strong>{runtime?.activeProgramMotif ?? 'none'}</strong></span><span>Recruitment <strong>{runtime?.activeProgramRecruitment ?? 'none'}</strong></span><span>Evolution <strong>{runtime?.activeProgramEvolution ?? 'none'}</strong></span></div>
         <SelectRow label="Section Plan" value={plan?.id ?? ''} options={program.sectionPlans.map(item => ({ value: item.id, label: `${label(item.id)} · ${item.sectionTypes.map(label).join('/')}` }))} onChange={setSectionId} />
@@ -615,7 +625,7 @@ function ChoreographyPanel() {
       <Collapsible label="ROUTE BANKS AND CAPABILITIES" defaultOpen={false}><div className="rv-pix-grid-inspection-list"><span>Continuous route bank: {program.continuousRoutes.length} authored routes</span><span>Event route bank: {program.eventRoutes.length} authored routes</span><span>Fallback order: {program.fallbackOrder?.map(label).join(' → ') || 'program default'}</span><span>Binding warnings: {runtime?.programBindingWarnings.length ? runtime.programBindingWarnings.join(' · ') : 'none'}</span><span>Manual precedence: {runtime?.manualOverridePrecedence ?? 'Program → cues → manual override'}</span></div></Collapsible>
       <Collapsible label="OVERRIDES" defaultOpen>
         <div className="rv-pix-grid-origin-card"><strong>{runtime?.activeCueActions.length ? 'Track Map cue override active' : state.performance.lockedRoutes.length || state.layers.some(layer => layer.locked) ? 'Manual override active' : 'Program controls output'}</strong><span>{runtime?.activeCueActions.join(' · ') || state.performance.lockedRoutes.join(' · ') || 'No temporary override routes.'}</span><small>Track Map cue state is distinct from preset defaults and user-authored configuration.</small></div>
-        <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={clearOverride}>Clear Override</button><button type="button" className="rv-reset-btn" onClick={resetAll}>Reset Performance Configuration</button></div>
+        <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={clearManualOverride}>Clear Override</button><button type="button" className="rv-reset-btn" onClick={resetAll}>Reset Performance Configuration</button></div>
       </Collapsible>
     </div>
   )
@@ -847,7 +857,16 @@ function AnalysisPanel() {
             ['Program actions', renderer?.activePerformanceActionCount ?? runtime?.activePerformanceActions.length], ['Transitions', renderer?.activeTransitionCount ?? runtime?.activeTransitions.length],
             ['Manual overrides', renderer?.manualOverrideCount ?? runtime?.manualOverrides.length], ['Degraded sources', renderer?.degradedSignalCount ?? runtime?.degradedSignals.length],
             ['Missing targets', renderer?.missingTargetCount ?? ((runtime?.missingTargets.length ?? 0) + (runtime?.programBindingWarnings.length ?? 0))], ['Compiler warnings', renderer?.assignmentCompilerWarningCount ?? runtime?.compilationWarnings.length],
-            ['Renderer', renderer?.path ?? 'Unavailable'], ['Resolution', renderer ? `${renderer.logicalWidth} × ${renderer.logicalHeight}` : 'Unavailable'], ['FPS', renderer ? renderer.fps.toFixed(1) : 'Unavailable'],
+            ['Renderer', renderer?.path ?? 'Unavailable'],
+            ['Requested / effective quality', renderer ? `${renderer.requestedQuality ?? pixGridState.quality} / ${renderer.effectiveQuality ?? pixGridState.quality}` : `${pixGridState.quality} / unavailable`],
+            ['Quality adjustment', renderer?.qualityPromotionBackend ? `${renderer.qualityPromotionBackend} · ${renderer.qualityPromotionReason ?? 'adjusted'}` : 'None'],
+            ['Resolution', renderer ? `${renderer.logicalWidth} × ${renderer.logicalHeight}` : 'Unavailable'],
+            ['Output intensity', renderer?.outputIntensity != null ? `${Math.round(renderer.outputIntensity * 100)}%` : 'Unavailable'],
+            ['Authored trim', renderer?.authoredPerformanceTrim != null ? `${Math.round(renderer.authoredPerformanceTrim * 100)}%` : 'Unavailable'],
+            ['Cell calibration', renderer?.cellCalibration != null ? `${Math.round(renderer.cellCalibration * 100)}%` : 'Unavailable'],
+            ['Resolved output product', renderer?.resolvedOutputIntensity != null ? renderer.resolvedOutputIntensity.toFixed(4) : 'Unavailable'],
+            ['Glow / halo radius / diffusion', renderer ? `${Math.round((renderer.glow ?? 0) * 100)}% / ${Math.round((renderer.haloRadius ?? 0) * 100)}% / ${Math.round((renderer.resolvedDiffusion ?? 0) * 100)}%` : 'Unavailable'],
+            ['FPS', renderer ? renderer.fps.toFixed(1) : 'Unavailable'],
           ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value ?? 0}</strong></div>)}
         </div>
         {runtime?.compilationWarnings.length ? <div className="rv-pix-grid-warning-list">{runtime.compilationWarnings.map(warning => <span key={warning}>{warning}</span>)}</div> : null}
