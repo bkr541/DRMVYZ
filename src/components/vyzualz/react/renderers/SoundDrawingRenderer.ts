@@ -30,6 +30,7 @@ import {
   requiredBeamSegmentFloats,
   resolveBeamHaloWidthPx,
 } from './soundDrawing/soundDrawingBeamPacking'
+import { resolveScopeEmissionColor } from './soundDrawing/soundDrawingPhosphorPlan'
 import { resolveScopeMusicModulation } from '../../../../audio/scope/scopeMusicMapping'
 import { textToGlyphPoints } from './textGlyphUtils'
 import {
@@ -1429,6 +1430,14 @@ interface ScopeGpuState {
   quality: ScopePhosphorQualityController
   segmentData: Float32Array
   lastFrameMs: number
+  /**
+   * Stable persisted settings reference from the previous frame.
+   *
+   * Zustand replaces the scope object when any scope control changes, so a
+   * reference comparison detects preset/signal/presentation changes without
+   * serializing settings in the animation loop.
+   */
+  lastScopeConfig: OscillatorSettings['scope'] | null
 }
 
 const scopeGpuStateByContext = new WeakMap<CanvasRenderingContext2D, ScopeGpuState | null>()
@@ -1451,6 +1460,7 @@ function getScopeGpuState(ctx: CanvasRenderingContext2D): ScopeGpuState | null {
         quality: new ScopePhosphorQualityController('auto', runtime.currentQuality),
         segmentData: new Float32Array(0),
         lastFrameMs: 0,
+        lastScopeConfig: null,
       }
     } else {
       runtime.dispose()
@@ -1509,6 +1519,8 @@ function renderProfessionalScopeOnGpu(
   const startedAt = performance.now()
   const bass = frame.audio.bass * params.bassReactivity
   const beam = osc.scope.beam
+  const scopeConfigChanged = state.lastScopeConfig !== osc.scope
+  state.lastScopeConfig = osc.scope
 
   // Music Intelligence modulates presentation only — bloom, width, exposure, and
   // persistence. Nothing here touches the resolved geometry: a measurement
@@ -1553,10 +1565,18 @@ function renderProfessionalScopeOnGpu(
       },
       intensity: params.intensity * music.exposureMultiplier,
       glow: params.glow * music.glowMultiplier,
-      traceColor: hexToLinearRgb(preset.palette.primary),
+      traceColor: resolveScopeEmissionColor(
+        osc.scope.crt,
+        hexToLinearRgb(preset.palette.primary),
+      ),
       backgroundColor: hexToLinearRgb(preset.palette.background),
       crt: osc.scope.crt,
-      resetPersistence: frame.timingDiscontinuity === true,
+      // A preset or manual scope edit changes the meaning and often the colour
+      // of accumulated energy. Keeping the previous target produced hybrid
+      // frames (for example an amber waveform behind a newly selected cyan
+      // vectorscope), so settings changes are authoritative reset boundaries
+      // just like seeks and track changes.
+      resetPersistence: frame.timingDiscontinuity === true || scopeConfigChanged,
     })
   } catch (error) {
     if (import.meta.env.DEV) console.error('[SoundDrawing] GPU phosphor frame failed:', error)

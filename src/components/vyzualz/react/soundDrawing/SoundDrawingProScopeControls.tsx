@@ -11,8 +11,8 @@ import type {
 } from '../../../../audio/scope'
 import {
   SCOPE_PRESETS,
-  applyScopePreset,
   isScopeStereoMeasurementMode,
+  resolveScopePresetState,
 } from '../../../../audio/scope'
 import { SliderRow, SelectRow, ToggleRow, ColorRow, CtrlSection, Collapsible } from '../ReactControlRows'
 import type { OscillatorSettings } from '../ReactTypes'
@@ -103,7 +103,7 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
       <SelectRow
         label="Preset"
         value={scope.presetId ?? ''}
-        onChange={v => { if (v) set({ scope: applyScopePreset(scope, v) }) }}
+        onChange={v => { if (v) set({ scope: resolveScopePresetState(v) }) }}
         description="A complete recipe — signal, timebase, trigger, beam, phosphor, and tube. Everything below stays adjustable afterwards."
         options={[
           { value: '', label: scope.presetId ? 'Custom' : 'Select a preset…' },

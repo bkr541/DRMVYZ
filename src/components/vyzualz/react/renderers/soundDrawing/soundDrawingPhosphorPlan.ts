@@ -1,5 +1,9 @@
 import { detectShaderFloatTargetCapability } from '../../shaders/runtime/ShaderCapabilities'
 import { SOUND_DRAWING_BLOOM_TIERS, type BloomTierConfig } from '../../shaders/scenes/soundDrawingBloom'
+import {
+  SCOPE_PHOSPHOR_COLORS,
+  type ScopeCrtSettings,
+} from '../../../../../audio/scope/scopeTypes'
 
 // ── soundDrawingPhosphorPlan ──────────────────────────────────────────────────
 //
@@ -191,6 +195,76 @@ export function resolveScopePersistenceHalfLifeSeconds(
   const tau = clamp(persistenceSeconds, MIN_SCOPE_PERSISTENCE_SECONDS, MAX_SCOPE_PERSISTENCE_SECONDS)
   const fraction = clamp(targetFraction, 1e-6, 0.999999)
   return -tau * Math.log(fraction)
+}
+
+// ── Beam exposure ─────────────────────────────────────────────────────────────
+
+export interface ScopeBeamExposureInput {
+  density: number
+  dwellWeight: number
+  velocityRatio: number
+  cornerDwell: number
+  velocityBrightness: number
+}
+
+export interface ScopeLinearColor {
+  r: number
+  g: number
+  b: number
+}
+
+function hexToScopeLinearColor(hex: string): ScopeLinearColor {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  const value = match?.[1] ?? 'ffffff'
+  return {
+    r: parseInt(value.slice(0, 2), 16) / 255,
+    g: parseInt(value.slice(2, 4), 16) / 255,
+    b: parseInt(value.slice(4, 6), 16) / 255,
+  }
+}
+
+/**
+ * Resolves the beam's emission colour before the optional CRT pass.
+ *
+ * Low quality deliberately omits that presentation pass, but losing the
+ * selected phosphor colour with it made Amber, Blue, and White presets all fall
+ * back to the active Sound Drawing palette. Applying a fixed-phosphor colour at
+ * emission preserves preset identity at every tier; RGB displays and disabled
+ * CRT settings continue to use the authored palette.
+ */
+export function resolveScopeEmissionColor(
+  crt: ScopeCrtSettings,
+  fallback: ScopeLinearColor,
+): ScopeLinearColor {
+  if (!crt.enabled || crt.phosphorModel === 'rgb') return fallback
+  if (crt.phosphorModel === 'custom') return hexToScopeLinearColor(crt.customPhosphorColor)
+  const [r, g, b] = SCOPE_PHOSPHOR_COLORS[crt.phosphorModel]
+  return { r, g, b }
+}
+
+/** Whether the beam shader should replace, rather than multiply, vertex hue. */
+export function scopeEmissionUsesFixedColor(crt: ScopeCrtSettings): boolean {
+  return crt.enabled && crt.phosphorModel !== 'rgb'
+}
+
+/**
+ * Mirrors the beam fragment shader's exposure response.
+ *
+ * Dwell and velocity create the hardware-like bright knots seen where the beam
+ * slows, but neither may erase the connecting curve. The 0.55 dwell and 0.4
+ * velocity floors match the shared Canvas2D beam response, keeping a fast,
+ * straight segment legible while still allowing a slow corner to be over four
+ * times brighter.
+ */
+export function resolveScopeBeamExposure(input: ScopeBeamExposureInput): number {
+  const density = clamp(input.density, 0, 1)
+  const dwellWeight = clamp(input.dwellWeight, 0, 1)
+  const velocityRatio = clamp(input.velocityRatio, 0, 1)
+  const cornerDwell = clamp(input.cornerDwell, 0, 1)
+  const velocityBrightness = clamp(input.velocityBrightness, 0, 1)
+  const dwellResponse = 1 + ((0.55 + dwellWeight * 0.45) - 1) * cornerDwell
+  const velocityResponse = 1 + ((0.4 + velocityRatio * 0.6) - 1) * velocityBrightness
+  return clamp(density * dwellResponse * velocityResponse, 0, 1)
 }
 
 // ── Bloom pyramid ─────────────────────────────────────────────────────────────

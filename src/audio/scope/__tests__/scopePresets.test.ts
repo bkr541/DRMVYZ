@@ -98,6 +98,18 @@ describe('applying a preset', () => {
     expect(resolveScopePresetState('scope-stereo-phase').presetId).toBe('scope-stereo-phase')
   })
 
+  it('resolves factory presets independently of the previously selected look', () => {
+    const expected = resolveScopePresetState('scope-clean-white')
+    const modified = applyScopePreset(
+      resolveScopePresetState('scope-burned-phosphor'),
+      'scope-clean-white',
+    )
+    // The layering API remains available for deliberate partial application,
+    // but the factory resolver used by the UI must always start from defaults.
+    expect(resolveScopePresetState('scope-clean-white')).toEqual(expected)
+    expect(modified).not.toEqual(expected)
+  })
+
   it('layers rather than replaces, so unrelated settings survive', () => {
     const base = {
       ...DEFAULT_SOUND_DRAWING_SCOPE_STATE,

@@ -26,6 +26,7 @@ import {
 import {
   probeScopeHdrCapability,
   resolveInitialScopePhosphorQuality,
+  scopeEmissionUsesFixedColor,
   resolveScopeHdrTargetStrategy,
   resolveScopePersistenceDecay,
   resolveScopePhosphorPlan,
@@ -58,7 +59,7 @@ import {
  * The LDR value is far lower because an RGBA8 target clips rather than
  * compressing, and over-driving it would flatten the whole trace to solid white.
  */
-const HDR_EXPOSURE_SCALE = 6
+const HDR_EXPOSURE_SCALE = 8
 const LDR_EXPOSURE_SCALE = 1.4
 
 /**
@@ -376,6 +377,10 @@ export class ScopePhosphorRuntime {
     this.beamProgram.setFloat('uExposureScale', plan.hdr.hdrEnabled ? HDR_EXPOSURE_SCALE : LDR_EXPOSURE_SCALE)
     this.beamProgram.setVec4('uTraceColor',
       input.traceColor.r, input.traceColor.g, input.traceColor.b, 1)
+    this.beamProgram.setFloat(
+      'uFixedPhosphorColor',
+      scopeEmissionUsesFixedColor(input.crt) ? 1 : 0,
+    )
 
     this.geometryPass.run(
       this.beamProgram, scene.framebuffer, width, height, [],

@@ -193,6 +193,10 @@ Constraints worth stating, because each was a bug before it was a rule:
   target scales are chosen to keep each level's sigma near 2–3 texels.
 - **Persistence decay is `exp(-dt / tau)`, converted every frame.** A per-frame
   retention constant makes a trail twice as long at 120fps as at 60fps.
+- **Dwell and velocity responses have legibility floors.** Slow corners are
+  brighter, as on a physical tube, but fast straight runs retain 22% of maximum
+  exposure instead of disappearing into isolated dots. The pure
+  `resolveScopeBeamExposure` helper pins the shader response in tests.
 
 ### Quality and lifecycle
 
@@ -202,17 +206,30 @@ the downshift cooldown, and each tier's headroom threshold is strictly tighter
 than the tier above's downshift threshold. That gap is what prevents two-tier
 oscillation, which reads worse than sitting one tier low.
 
+The Low tier omits the optional CRT distortion pass, but fixed phosphor colour is
+resolved at beam emission as well. Amber, blue, green, white, and custom-colour
+presets therefore keep their identity when quality drops; disabled CRT and RGB
+display modes continue to use the authored Sound Drawing palette.
+
 Targets rebuild only when the *layout* changes — format, persistence scale, bloom
 scales — so an Ultra-to-High change costs nothing and cannot flash. Context loss
 releases targets while keeping the runtime alive; restore re-probes capabilities,
 because a restored context may be a different GPU.
 
+The persistence target clears when the stable scope-settings object changes.
+Zustand replaces that object for preset and manual scope edits, so the renderer
+detects the boundary with one reference comparison rather than per-frame
+serialization. This prevents the previous preset's geometry or phosphor colour
+from lingering behind the newly selected look.
+
 ### Presets
 
 `scopePresets.ts` holds fifteen factory presets in three groups: measurement,
-analog character, and signature. They are partial patches layered over the
-defaults, so a preset states only what it changes and a field added later reaches
-every preset through the defaults.
+analog character, and signature. Each preset is a partial patch resolved over a
+fresh copy of the defaults, so selecting the same preset always produces the
+same complete recipe regardless of the previously selected look. The
+`applyScopePreset` layering API remains available for callers that deliberately
+want partial application.
 
 The grouping is enforced, not descriptive. A measurement preset must not apply
 treatment that misrepresents the signal it reads, so measurement presets hold
@@ -236,6 +253,30 @@ cannot amplify noise into a full-screen scribble.
 
 Leaving it off by default to preserve the old look would have preserved the wrong
 thing.
+
+The current default target is 94% of the normalized signal range. Together with
+the shared Sound Drawing size transform this fills roughly two-thirds of the
+tube on a full-scale periodic figure, matching the large but unclipped Leader
+hardware references more closely than the former 82% target.
+
+### Reference-calibrated beam character
+
+The default and factory looks were calibrated in one batched pass against the
+provided Leader hardware recordings, then checked with both real music and a
+deterministic quadrature fixture. The default is a sub-pixel core with a tight
+aura, restrained medium and wide bloom, and a near-black unexcited tube.
+Creative presets may use stronger glow, but keep the core legible rather than
+turning the whole figure into a broad neon tube. `Long-Window Mono` is named for
+what it actually does: `mid` is the L+R channel matrix, not a frequency-selective
+bass trigger. Mono-delay factory portraits use short, sub- to low-millisecond
+offsets; longer offsets decorrelate dense broadband masters into an
+axis-aligned square instead of a readable folded curve.
+
+HDR beam emission uses an exposure scale of 8. This keeps a measurement
+hairline luminous through quieter intros and section-level presentation changes
+while retaining floating-point headroom for brighter dwell knots. The RGBA8
+fallback remains at its lower scale because it clips rather than tone-maps HDR
+energy.
 
 ### One point per sample
 

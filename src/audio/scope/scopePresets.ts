@@ -68,7 +68,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       // Constant width and no corner emphasis: a measurement trace must not
       // change thickness with the music, or the reading changes with it.
       beam: { bassWidthResponse: 0, cornerDwell: 0.1, velocityBrightness: 0.4 },
-      phosphor: { persistenceSeconds: 0.12, mediumBloom: 0.12, wideBloom: 0.03, whiteHot: 0.25 },
+      phosphor: { persistenceSeconds: 0.12, mediumBloom: 0.1, wideBloom: 0.02, whiteHot: 0.5 },
       crt: { enabled: true, phosphorModel: 'green', graticuleStyle: 'scope', curvature: 0, scanlineStrength: 0.1 },
     },
   },
@@ -82,7 +82,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       trigger: { mode: 'auto', continuityWeight: 0.7 },
       timebase: { mode: 'auto', visibleCycles: 4 },
       beam: { coreWidthPx: 0.9, bassWidthResponse: 0, cornerDwell: 0.15 },
-      phosphor: { persistenceSeconds: 0.4, mediumBloom: 0.2, wideBloom: 0.06, whiteHot: 0.3 },
+      phosphor: { persistenceSeconds: 0.4, mediumBloom: 0.14, wideBloom: 0.04, whiteHot: 0.45 },
       crt: { enabled: true, phosphorModel: 'amber', graticuleStyle: 'scope', curvature: 0.08 },
     },
   },
@@ -96,7 +96,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       trigger: { mode: 'freeRun' },
       timebase: { mode: 'auto', visibleCycles: 2 },
       beam: { bassWidthResponse: 0, cornerDwell: 0.25 },
-      phosphor: { persistenceSeconds: 0.5, mediumBloom: 0.18, wideBloom: 0.05, whiteHot: 0.4 },
+      phosphor: { persistenceSeconds: 0.5, mediumBloom: 0.12, wideBloom: 0.03, whiteHot: 0.5 },
       crt: { enabled: true, phosphorModel: 'green', graticuleStyle: 'vectorscope', curvature: 0 },
     },
   },
@@ -136,23 +136,23 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       trigger: { mode: 'auto', source: 'left', continuityWeight: 0.75, periodAssist: 0.75 },
       timebase: { mode: 'auto', visibleCycles: 3 },
       beam: { coreWidthPx: 0.75, haloScale: 2.2, bassWidthResponse: 0, cornerDwell: 0.1 },
-      phosphor: { persistenceSeconds: 0.15, mediumBloom: 0.14, wideBloom: 0.03, whiteHot: 0.25 },
+      phosphor: { persistenceSeconds: 0.15, mediumBloom: 0.1, wideBloom: 0.02, whiteHot: 0.5 },
       crt: { enabled: true, phosphorModel: 'green', graticuleStyle: 'minimal', curvature: 0 },
     },
   },
   {
     id: 'scope-slow-bass',
-    name: 'Slow Bass Trigger',
-    description: 'Long window locked to the low end. Built for watching sub movement.',
+    name: 'Long-Window Mono',
+    description: 'Longer mono acquisition for watching slower periodic motion.',
     group: 'measurement',
     state: {
       signalMode: 'mono',
-      // A low-passed trigger source and a generous holdoff: bass periods are
-      // long, and without holdoff the display locks to harmonics instead.
+      // This is a longer mono acquisition, not a frequency-selective trigger:
+      // `mid` means the L+R channel matrix, not a mid-frequency or bass band.
       trigger: { mode: 'auto', source: 'mid', holdoffSeconds: 0.02, continuityWeight: 0.85, periodAssist: 0.9 },
       timebase: { mode: 'cycles', visibleCycles: 2 },
-      beam: { coreWidthPx: 1.1, haloScale: 3, bassWidthResponse: 0.2 },
-      phosphor: { persistenceSeconds: 0.5, mediumBloom: 0.3, wideBloom: 0.12 },
+      beam: { coreWidthPx: 1, haloScale: 2.8, bassWidthResponse: 0.2 },
+      phosphor: { persistenceSeconds: 0.5, mediumBloom: 0.18, wideBloom: 0.06 },
       crt: { enabled: true, phosphorModel: 'amber', graticuleStyle: 'minimal' },
     },
   },
@@ -161,30 +161,33 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
   {
     id: 'scope-neon-persistence',
     name: 'Neon Persistence',
-    description: 'Long-decay phosphor with heavy bloom. Figures hang in the air.',
+    description: 'Long-decay phosphor with pronounced, controlled bloom. Figures hang in the air.',
     group: 'analog',
     state: {
       signalMode: 'stereoXY',
       trigger: { mode: 'freeRun' },
-      beam: { coreWidthPx: 1.1, haloScale: 4.5, bassWidthResponse: 0.6, cornerDwell: 0.6 },
+      beam: { coreWidthPx: 1, haloScale: 3.4, bassWidthResponse: 0.6, cornerDwell: 0.6 },
       // whiteHot deliberately mid-range: for a preset whose whole appeal is neon,
       // pushing the core to white throws away the colour it is named for.
-      phosphor: { persistenceSeconds: 1.6, tightBloom: 1, mediumBloom: 0.85, wideBloom: 0.75, whiteHot: 0.5, backgroundLift: 0.16 },
+      phosphor: { persistenceSeconds: 1.6, tightBloom: 1, mediumBloom: 0.45, wideBloom: 0.16, whiteHot: 0.5, backgroundLift: 0.06 },
       crt: { enabled: true, phosphorModel: 'rgb', curvature: 0.15, vignette: 0.4, scanlineStrength: 0.12 },
     },
   },
   {
     id: 'scope-burned-phosphor',
     name: 'Burned Phosphor',
-    description: 'Overdriven green tube with a thick core and a wide, soft halo.',
+    description: 'Overdriven green tube with a strong core and concentrated glow.',
     group: 'analog',
     state: {
       signalMode: 'monoDelayXY',
       trigger: { mode: 'freeRun' },
-      beam: { coreWidthPx: 1.6, haloScale: 6, bassWidthResponse: 0.8, cornerDwell: 0.7 },
-      phosphor: { persistenceSeconds: 1.1, tightBloom: 1, mediumBloom: 0.9, wideBloom: 0.85, whiteHot: 0.9, backgroundLift: 0.2 },
+      beam: { coreWidthPx: 1.2, haloScale: 3.8, bassWidthResponse: 0.8, cornerDwell: 0.7 },
+      phosphor: { persistenceSeconds: 1.1, tightBloom: 1, mediumBloom: 0.5, wideBloom: 0.2, whiteHot: 0.9, backgroundLift: 0.08 },
       crt: { enabled: true, phosphorModel: 'green', curvature: 0.22, vignette: 0.5, scanlineStrength: 0.28, grain: 0.12, edgeDefocus: 0.45 },
-      monoDelayMs: 3.5,
+      // A sub-millisecond offset keeps broadband music correlated enough to
+      // form a continuous folded figure. Multi-millisecond delays decorrelate
+      // dense masters into an axis-aligned square rather than a readable trace.
+      monoDelayMs: 0.85,
     },
   },
   {
@@ -196,7 +199,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       signalMode: 'stereoXY',
       trigger: { mode: 'freeRun' },
       beam: { coreWidthPx: 0.7, haloScale: 3, bassWidthResponse: 0.3, cornerDwell: 0.5 },
-      phosphor: { persistenceSeconds: 2.8, tightBloom: 0.6, mediumBloom: 0.5, wideBloom: 0.5, whiteHot: 0.4, backgroundLift: 0.08 },
+      phosphor: { persistenceSeconds: 2.8, tightBloom: 0.6, mediumBloom: 0.25, wideBloom: 0.08, whiteHot: 0.4, backgroundLift: 0.03 },
       crt: { enabled: true, phosphorModel: 'blue', curvature: 0.18, vignette: 0.55, edgeDefocus: 0.5 },
     },
   },
@@ -210,8 +213,17 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       trigger: { mode: 'auto', continuityWeight: 0.7, periodAssist: 0.7 },
       timebase: { mode: 'auto', visibleCycles: 3 },
       beam: { bassWidthResponse: 0.2, cornerDwell: 0.3 },
-      phosphor: { persistenceSeconds: 0.2, mediumBloom: 0.15, wideBloom: 0.04, whiteHot: 0.45 },
-      crt: { enabled: false },
+      phosphor: { persistenceSeconds: 0.2, mediumBloom: 0.1, wideBloom: 0.02, whiteHot: 0.45 },
+      crt: {
+        enabled: true,
+        phosphorModel: 'white',
+        scanlineStrength: 0,
+        curvature: 0,
+        vignette: 0,
+        edgeDefocus: 0,
+        grain: 0,
+        graticuleStyle: 'none',
+      },
     },
   },
 
@@ -225,7 +237,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       signalMode: 'stereoXY',
       trigger: { mode: 'freeRun' },
       beam: { coreWidthPx: 0.85, haloScale: 3.2, bassWidthResponse: 0.5, cornerDwell: 0.55 },
-      phosphor: { persistenceSeconds: 0.9, tightBloom: 1, mediumBloom: 0.7, wideBloom: 0.55, whiteHot: 0.85, backgroundLift: 0.14 },
+      phosphor: { persistenceSeconds: 0.9, tightBloom: 1, mediumBloom: 0.3, wideBloom: 0.1, whiteHot: 0.85, backgroundLift: 0.04 },
       crt: { enabled: true, phosphorModel: 'rgb', curvature: 0.1, vignette: 0.35, scanlineStrength: 0.1 },
       music: { beatBloom: 0.5, kickWidth: 0.35, bassExposure: 0.3 },
     },
@@ -242,8 +254,8 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       // about the signal's frequency, and an eighth note holds tens of cycles of
       // anything mid-range, which collapses the figure.
       timebase: { mode: 'cycles', visibleCycles: 2 },
-      beam: { coreWidthPx: 1.3, haloScale: 4.5, bassWidthResponse: 1, cornerDwell: 0.5 },
-      phosphor: { persistenceSeconds: 0.22, tightBloom: 1, mediumBloom: 0.8, wideBloom: 0.7, whiteHot: 0.95, backgroundLift: 0.1 },
+      beam: { coreWidthPx: 1, haloScale: 3.2, bassWidthResponse: 1, cornerDwell: 0.5 },
+      phosphor: { persistenceSeconds: 0.22, tightBloom: 1, mediumBloom: 0.35, wideBloom: 0.12, whiteHot: 0.95, backgroundLift: 0.04 },
       crt: { enabled: true, phosphorModel: 'rgb', curvature: 0.12, vignette: 0.45 },
       music: { beatBloom: 0.7, kickWidth: 0.8, bassExposure: 0.6, buildExposure: 0.7, dropSnap: 0.8 },
     },
@@ -257,9 +269,9 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       signalMode: 'monoDelayXY',
       trigger: { mode: 'freeRun' },
       beam: { coreWidthPx: 0.85, haloScale: 3.2, bassWidthResponse: 0.45, cornerDwell: 0.65 },
-      phosphor: { persistenceSeconds: 1.2, tightBloom: 1, mediumBloom: 0.75, wideBloom: 0.6, whiteHot: 0.8 },
+      phosphor: { persistenceSeconds: 1.2, tightBloom: 1, mediumBloom: 0.3, wideBloom: 0.1, whiteHot: 0.8 },
       crt: { enabled: true, phosphorModel: 'rgb', curvature: 0.14, vignette: 0.4 },
-      monoDelayMs: 6,
+      monoDelayMs: 1.35,
     },
   },
   {
@@ -271,7 +283,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       signalMode: 'stereoXY',
       trigger: { mode: 'freeRun' },
       beam: { coreWidthPx: 0.8, haloScale: 2.8, bassWidthResponse: 0.35, cornerDwell: 1, velocityBrightness: 1 },
-      phosphor: { persistenceSeconds: 0.75, tightBloom: 1, mediumBloom: 0.65, wideBloom: 0.5, whiteHot: 0.75 },
+      phosphor: { persistenceSeconds: 0.75, tightBloom: 1, mediumBloom: 0.25, wideBloom: 0.06, whiteHot: 0.75 },
       crt: { enabled: true, phosphorModel: 'green', curvature: 0.1, vignette: 0.38 },
       music: { beatBloom: 0.4, kickWidth: 0.5 },
     },

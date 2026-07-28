@@ -142,7 +142,7 @@ export interface ScopeSignalConditionerSettings {
 
 export const DEFAULT_SCOPE_SIGNAL_CONDITIONER: ScopeSignalConditionerSettings = {
   autoGain: true,
-  autoGainTarget: 0.82,
+  autoGainTarget: 0.94,
   coupling: 'dc',
   dcBlockHz: 12,
   gainX: 1,
@@ -332,10 +332,10 @@ export interface ScopePhosphorSettings {
 export const DEFAULT_SCOPE_PHOSPHOR: ScopePhosphorSettings = {
   persistenceSeconds: 0.35,
   tightBloom: 1,
-  mediumBloom: 0.22,
-  wideBloom: 0.08,
-  whiteHot: 0.6,
-  backgroundLift: 0.06,
+  mediumBloom: 0.16,
+  wideBloom: 0.04,
+  whiteHot: 0.65,
+  backgroundLift: 0.03,
 }
 
 // ── CRT presentation ──────────────────────────────────────────────────────────

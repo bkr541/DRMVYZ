@@ -98,6 +98,7 @@ in float v_velocityRatio;
 in float v_localY;
 
 uniform vec4 uTraceColor;
+uniform float uFixedPhosphorColor;
 uniform float uCoreWidthPx;
 uniform float uHaloWidthPx;
 uniform float uMasterIntensity;
@@ -123,14 +124,35 @@ void main() {
   // Both responses are user-scalable, and at 0 each collapses to a flat term so
   // the trace reads as uniform brightness rather than losing energy.
   float dwell = clamp(uCornerDwell, 0.0, 1.0);
-  float exposure = clamp(v_density * (1.0 - dwell + v_dwellWeight * dwell), 0.0, 1.0);
+  // A straight segment still deposits energy. Scaling all the way to zero made
+  // high-dwell presets render only isolated corners instead of a continuous
+  // beam. The 0.55 floor matches the shared Canvas2D beam response.
+  float dwellResponse = mix(
+    1.0,
+    mix(0.55, 1.0, clamp(v_dwellWeight, 0.0, 1.0)),
+    dwell
+  );
   float velocity = clamp(uVelocityBrightness, 0.0, 1.0);
-  float brightness = mix(1.0, mix(0.4, 1.0, clamp(v_velocityRatio, 0.0, 1.0)), velocity);
+  float velocityResponse = mix(
+    1.0,
+    mix(0.4, 1.0, clamp(v_velocityRatio, 0.0, 1.0)),
+    velocity
+  );
+  float exposure = clamp(v_density * dwellResponse * velocityResponse, 0.0, 1.0);
 
-  float intensity = (coreTerm + haloTerm) * edgeTaper * exposure * brightness
+  float intensity = (coreTerm + haloTerm) * edgeTaper * exposure
                   * uMasterIntensity * uExposureScale;
 
-  fragColor = vec4(v_color.rgb * uTraceColor.rgb * intensity, 1.0);
+  // RGB/disabled CRT uses the authored per-segment colour. A fixed phosphor
+  // model replaces it: multiplying amber or white by a green vertex colour
+  // cannot produce the requested tube colour, especially when the Low tier
+  // omits the later CRT presentation pass.
+  vec3 emissionColor = mix(
+    v_color.rgb * uTraceColor.rgb,
+    uTraceColor.rgb,
+    clamp(uFixedPhosphorColor, 0.0, 1.0)
+  );
+  fragColor = vec4(emissionColor * intensity, 1.0);
 }
 `
 

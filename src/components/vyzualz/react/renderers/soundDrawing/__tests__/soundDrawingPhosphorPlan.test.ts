@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_SCOPE_CRT } from '../../../../../../audio/scope/scopeTypes'
 import {
   MAX_SCOPE_PERSISTENCE_SECONDS,
   MIN_SCOPE_PERSISTENCE_SECONDS,
   SCOPE_PHOSPHOR_QUALITY_ORDER,
   resolveInitialScopePhosphorQuality,
+  resolveScopeBeamExposure,
   resolveScopeBloomLevels,
+  resolveScopeEmissionColor,
   resolveScopeHdrTargetStrategy,
   resolveScopePersistenceDecay,
   resolveScopePersistenceHalfLifeSeconds,
   resolveScopePhosphorPlan,
+  scopeEmissionUsesFixedColor,
   scopeQualityChangeNeedsTargetReallocation,
 } from '../soundDrawingPhosphorPlan'
 
@@ -18,6 +22,94 @@ const HDR_PROBE = {
 const LDR_PROBE = {
   colorBufferFloat: false, rgba16fRenderable: false, floatLinearFiltering: false, floatBlend: false,
 }
+
+describe('beam exposure', () => {
+  const base = {
+    density: 1,
+    dwellWeight: 0,
+    velocityRatio: 0,
+    cornerDwell: 1,
+    velocityBrightness: 1,
+  }
+
+  it('keeps fast straight segments visible at maximum response strength', () => {
+    expect(resolveScopeBeamExposure(base)).toBeCloseTo(0.55 * 0.4, 6)
+  })
+
+  it('brightens slow corners without changing the density ceiling', () => {
+    const slowCorner = resolveScopeBeamExposure({
+      ...base,
+      dwellWeight: 1,
+      velocityRatio: 1,
+    })
+    expect(slowCorner).toBe(1)
+    expect(slowCorner).toBeGreaterThan(resolveScopeBeamExposure(base) * 4)
+  })
+
+  it('becomes uniform when both response controls are disabled', () => {
+    expect(resolveScopeBeamExposure({
+      ...base,
+      density: 0.7,
+      cornerDwell: 0,
+      velocityBrightness: 0,
+    })).toBeCloseTo(0.7, 6)
+  })
+
+  it('clamps malformed or out-of-range inputs', () => {
+    expect(resolveScopeBeamExposure({
+      density: 4,
+      dwellWeight: 4,
+      velocityRatio: 4,
+      cornerDwell: 4,
+      velocityBrightness: 4,
+    })).toBe(1)
+    expect(resolveScopeBeamExposure({
+      density: Number.NaN,
+      dwellWeight: 0,
+      velocityRatio: 0,
+      cornerDwell: 0,
+      velocityBrightness: 0,
+    })).toBe(0)
+  })
+})
+
+describe('emission colour', () => {
+  const paletteGreen = { r: 0.1, g: 0.8, b: 0.2 }
+
+  it('preserves the authored palette when CRT presentation is disabled or RGB', () => {
+    expect(resolveScopeEmissionColor(DEFAULT_SCOPE_CRT, paletteGreen)).toBe(paletteGreen)
+    expect(scopeEmissionUsesFixedColor(DEFAULT_SCOPE_CRT)).toBe(false)
+    expect(resolveScopeEmissionColor({
+      ...DEFAULT_SCOPE_CRT,
+      enabled: true,
+      phosphorModel: 'rgb',
+    }, paletteGreen)).toBe(paletteGreen)
+    expect(scopeEmissionUsesFixedColor({
+      ...DEFAULT_SCOPE_CRT,
+      enabled: true,
+      phosphorModel: 'rgb',
+    })).toBe(false)
+  })
+
+  it('applies fixed phosphor colour before the optional quality-tier CRT pass', () => {
+    expect(resolveScopeEmissionColor({
+      ...DEFAULT_SCOPE_CRT,
+      enabled: true,
+      phosphorModel: 'white',
+    }, paletteGreen)).toEqual({ r: 0.92, g: 0.96, b: 1 })
+    expect(scopeEmissionUsesFixedColor({
+      ...DEFAULT_SCOPE_CRT,
+      enabled: true,
+      phosphorModel: 'white',
+    })).toBe(true)
+    expect(resolveScopeEmissionColor({
+      ...DEFAULT_SCOPE_CRT,
+      enabled: true,
+      phosphorModel: 'custom',
+      customPhosphorColor: '#ff8000',
+    }, paletteGreen)).toEqual({ r: 1, g: 128 / 255, b: 0 })
+  })
+})
 
 describe('HDR target selection', () => {
   it('prefers RGBA16F when the probe reports it renderable', () => {
