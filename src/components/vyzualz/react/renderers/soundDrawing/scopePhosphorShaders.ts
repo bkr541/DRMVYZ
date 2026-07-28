@@ -165,15 +165,24 @@ void main() {
   vec3 emission = texture(u_emission, v_uv).rgb;
 
   vec3 decayed = previous * clamp(uDecay, 0.0, 1.0);
-  vec3 accumulated = decayed + emission;
+  vec3 accumulated = max(decayed + emission, vec3(0.0));
 
-  // Saturating ceiling, not a hard clamp: values approach the target's usable
-  // maximum asymptotically so a bright intersection keeps some headroom above a
-  // merely bright stroke instead of both pinning to the same value.
+  // Saturating ceiling on LUMINANCE, scaling all channels together, so the hue
+  // ratio survives.
+  //
+  // Applying the curve per channel destroys colour on anything that accumulates:
+  // a long-persistence trace on a static figure converges far above the ceiling,
+  // every channel pins near it, and the ratio that carried the hue flattens to
+  // white. Scaling by a single factor keeps a saturated cyan core cyan.
   float ceilingValue = max(uMaxSceneValue, 1.0);
-  vec3 saturated = ceilingValue * (accumulated / (ceilingValue + accumulated));
+  float peak = max(max(accumulated.r, accumulated.g), accumulated.b);
+  vec3 saturated = accumulated;
+  if (peak > 1e-5) {
+    float saturatedPeak = ceilingValue * (peak / (ceilingValue + peak));
+    saturated = accumulated * (saturatedPeak / peak);
+  }
 
-  fragColor = vec4(max(saturated, vec3(0.0)), 1.0);
+  fragColor = vec4(saturated, 1.0);
 }
 `
 
@@ -211,8 +220,16 @@ uniform float uExtract;
 
 out vec4 fragColor;
 
-/** Taps either side of centre. 9 samples covers roughly +/-2 sigma. */
-const int TAP_RADIUS = 4;
+/**
+ * Taps either side of centre.
+ *
+ * Sized so the kernel reaches ~3 sigma, where the Gaussian weight is ~0.01. A
+ * kernel truncated while its weight is still high is a box, not a Gaussian, and
+ * two separable box passes produce a *square* support region — which showed up
+ * as a square halo around the trace. The previous budget stopped at 1.6 sigma
+ * with the weight still at 0.28.
+ */
+const int TAP_RADIUS = 8;
 
 /**
  * Soft-knee highlight extraction for one tap.

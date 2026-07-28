@@ -209,7 +209,7 @@ because a restored context may be a different GPU.
 ### Presets
 
 `scopePresets.ts` holds fifteen factory presets in three groups: measurement,
-analog character, and DVYDRM signature. They are partial patches layered over the
+analog character, and signature. They are partial patches layered over the
 defaults, so a preset states only what it changes and a field added later reaches
 every preset through the defaults.
 

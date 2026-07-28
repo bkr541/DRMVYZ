@@ -20,7 +20,7 @@ import type { OscillatorSettings } from '../ReactTypes'
 const PRESET_GROUP_LABEL: Record<'measurement' | 'analog' | 'signature', string> = {
   measurement: 'Measure',
   analog: 'Analog',
-  signature: 'DVYDRM',
+  signature: 'Signature',
 }
 
 interface Props {

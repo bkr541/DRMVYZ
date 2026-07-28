@@ -165,7 +165,9 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       signalMode: 'stereoXY',
       trigger: { mode: 'freeRun' },
       beam: { coreWidthPx: 1.8, haloScale: 8, bassWidthResponse: 0.6, cornerDwell: 0.6 },
-      phosphor: { persistenceSeconds: 1.6, tightBloom: 1, mediumBloom: 0.85, wideBloom: 0.75, whiteHot: 0.8, backgroundLift: 0.16 },
+      // whiteHot deliberately mid-range: for a preset whose whole appeal is neon,
+      // pushing the core to white throws away the colour it is named for.
+      phosphor: { persistenceSeconds: 1.6, tightBloom: 1, mediumBloom: 0.85, wideBloom: 0.75, whiteHot: 0.5, backgroundLift: 0.16 },
       crt: { enabled: true, phosphorModel: 'rgb', curvature: 0.15, vignette: 0.4, scanlineStrength: 0.12 },
     },
   },
@@ -211,11 +213,11 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
     },
   },
 
-  // ── DVYDRM signature ────────────────────────────────────────────────────────
+  // ── Signature ───────────────────────────────────────────────────────────────
   {
     id: 'scope-cyan-emerald-core',
     name: 'Cyan / Emerald Core',
-    description: 'The house palette: tight cyan core, emerald spill, white-hot crossings.',
+    description: 'Tight cyan core with emerald spill and white-hot crossings.',
     group: 'signature',
     state: {
       signalMode: 'stereoXY',
@@ -233,7 +235,10 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
     state: {
       signalMode: 'stereoXY',
       trigger: { mode: 'freeRun' },
-      timebase: { mode: 'beatRelative', beatDivision: '1/8' },
+      // Cycle-locked rather than beat-relative. A musical window says nothing
+      // about the signal's frequency, and an eighth note holds tens of cycles of
+      // anything mid-range, which collapses the figure.
+      timebase: { mode: 'cycles', visibleCycles: 2 },
       beam: { coreWidthPx: 2.2, haloScale: 9, bassWidthResponse: 1, cornerDwell: 0.5 },
       phosphor: { persistenceSeconds: 0.22, tightBloom: 1, mediumBloom: 0.8, wideBloom: 0.7, whiteHot: 0.95, backgroundLift: 0.1 },
       crt: { enabled: true, phosphorModel: 'rgb', curvature: 0.12, vignette: 0.45 },

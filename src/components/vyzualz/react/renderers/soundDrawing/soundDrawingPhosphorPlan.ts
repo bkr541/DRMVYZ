@@ -230,13 +230,19 @@ const BLOOM_LEVEL_IDS: readonly ScopeBloomLevelPlan['id'][] = ['tight', 'medium'
 /**
  * Target scale per bloom level. Index matches BLOOM_LEVEL_IDS.
  *
- * Chosen so each level's sigma stays around 2-3 *texels* once scaled
- * (2x1.0, 10x0.25, 40x0.0625). That is the constraint that matters: a separable
- * Gaussian with a fixed tap budget undersamples if its texel-space sigma grows,
- * and the sparse comb of taps shows up as an axis-aligned lattice around the
- * trace. Wide blur comes from the downsample, not from reaching further per tap.
+ * Two constraints, pulling against each other:
+ *
+ * - Texel-space sigma must stay small (2x0.5, 10x0.25, 40x0.0625 give 1, 2.5,
+ *   2.5) so the fixed tap budget can reach ~3 sigma. A kernel truncated early is
+ *   a box, and separable box passes give a square halo.
+ * - Taps must never stride more than a texel, or the kernel becomes a sparse
+ *   comb and shows as an axis-aligned lattice.
+ *
+ * Both are satisfied by taking width from the downsample. No level runs at full
+ * resolution: the tight level at half scale is both rounder and four times
+ * cheaper than at full scale, and a tight glow does not need full-res detail.
  */
-const BLOOM_RESOLUTION_SCALES: readonly number[] = [1, 0.25, 0.0625]
+const BLOOM_RESOLUTION_SCALES: readonly number[] = [0.5, 0.25, 0.0625]
 
 /** Bloom levels retained per tier, cheapest first. */
 const BLOOM_LEVEL_COUNT: Record<ScopePhosphorQuality, number> = {

@@ -101,9 +101,15 @@ export class ScopePhosphorTargets {
       Math.max(MIN_TARGET_PX, Math.floor(height * persistenceScale)),
     )
 
+    // Bloom targets are read back at a larger size than they were written, so
+    // linear filtering matters more here than for the 1:1 scene and persistence
+    // targets. Requested wherever the device allows it; when float-linear is
+    // missing this falls back to nearest, which with a Gaussian that reaches its
+    // tail costs slight stepping rather than a hard-edged footprint.
+    const bloomFilter = filter
     while (this.bloom.length < plan.bloomLevels.length) {
-      this.bloom.push(new ShaderFramebuffer(gl, { format, filter, wrap: 'clamp' }))
-      this.bloomScratch.push(new ShaderFramebuffer(gl, { format, filter, wrap: 'clamp' }))
+      this.bloom.push(new ShaderFramebuffer(gl, { format, filter: bloomFilter, wrap: 'clamp' }))
+      this.bloomScratch.push(new ShaderFramebuffer(gl, { format, filter: bloomFilter, wrap: 'clamp' }))
     }
     for (let i = 0; i < plan.bloomLevels.length; i++) {
       const scale = plan.bloomLevels[i].resolutionScale

@@ -11,6 +11,14 @@ const BEAT_DIVISION_MULTIPLIER: Record<ScopeBeatDivision, number> = {
   '1bar': 4,
 }
 
+/**
+ * Most detected cycles a beat-relative window may contain.
+ *
+ * Above roughly this many, consecutive display points land at unrelated phases
+ * and the trace stops reading as a waveform at all.
+ */
+const MAX_BEAT_RELATIVE_CYCLES = 24
+
 /** Absolute clamps. Below the first, a display shows less than one audio cycle
  *  at any musical frequency; above the second, individual cycles are unreadable. */
 const MIN_WINDOW_SECONDS = 0.0005
@@ -99,7 +107,20 @@ function resolveTargetWindowSeconds(
       if (bpm > 0) {
         const beatSeconds = 60 / bpm
         const multiplier = BEAT_DIVISION_MULTIPLIER[settings.beatDivision] ?? 1
-        return { seconds: clampWindow(beatSeconds * multiplier), cycleLocked: false }
+        const requested = beatSeconds * multiplier
+
+        // Aliasing guard. A musically-chosen window says nothing about the
+        // signal's own frequency: a 250 ms eighth-note window holds ~55 cycles
+        // of a 220 Hz tone, and resampling that many cycles down to the display
+        // point count collapses the figure into noise. Cap the window at a
+        // readable number of detected cycles when a period is known.
+        if (periodSamples > 1 && periodConfidence >= 0.4) {
+          const maxSeconds = (periodSamples * MAX_BEAT_RELATIVE_CYCLES) / sampleRate
+          if (requested > maxSeconds) {
+            return { seconds: clampWindow(maxSeconds), cycleLocked: true }
+          }
+        }
+        return { seconds: clampWindow(requested), cycleLocked: false }
       }
       // BPM unknown. Falling back to a hardcoded tempo would be a fabricated
       // musical claim, so use the fixed-time window instead.

@@ -337,6 +337,52 @@ describe('scope timebase', () => {
     expect(result.windowSeconds).toBeCloseTo(0.5, 6)
   })
 
+  it('caps a beat-relative window that would alias the signal', () => {
+    const timebase = new ScopeTimebase()
+    // A 250 ms eighth-note window at 120 BPM holds ~55 cycles of a 220 Hz tone.
+    // Resampling that many cycles to the display point count collapses the
+    // figure, so the window is capped to a readable number of cycles.
+    const periodSamples = FIXTURE_SAMPLE_RATE / 220
+    const result = timebase.resolve({
+      settings: { ...DEFAULT_SCOPE_TIMEBASE, mode: 'beatRelative', beatDivision: '1/8', smoothing: 0 },
+      sampleRate: FIXTURE_SAMPLE_RATE,
+      periodSamples,
+      periodConfidence: 0.9,
+      bpm: 120,
+    })
+    const cyclesShown = (result.windowSeconds * FIXTURE_SAMPLE_RATE) / periodSamples
+    expect(cyclesShown).toBeLessThanOrEqual(24.5)
+    expect(result.cycleLocked).toBe(true)
+  })
+
+  it('honours a beat-relative window that does not alias', () => {
+    const timebase = new ScopeTimebase()
+    // A 60 Hz tone in a 250 ms window is only ~15 cycles: musically chosen and
+    // still readable, so the request stands.
+    const result = timebase.resolve({
+      settings: { ...DEFAULT_SCOPE_TIMEBASE, mode: 'beatRelative', beatDivision: '1/8', smoothing: 0 },
+      sampleRate: FIXTURE_SAMPLE_RATE,
+      periodSamples: FIXTURE_SAMPLE_RATE / 60,
+      periodConfidence: 0.9,
+      bpm: 120,
+    })
+    expect(result.windowSeconds).toBeCloseTo(0.25, 4)
+  })
+
+  it('does not cap a beat-relative window on an unreliable period', () => {
+    const timebase = new ScopeTimebase()
+    // Low confidence means the period is noise; capping on it would shrink the
+    // window for no reason.
+    const result = timebase.resolve({
+      settings: { ...DEFAULT_SCOPE_TIMEBASE, mode: 'beatRelative', beatDivision: '1/8', smoothing: 0 },
+      sampleRate: FIXTURE_SAMPLE_RATE,
+      periodSamples: FIXTURE_SAMPLE_RATE / 220,
+      periodConfidence: 0.1,
+      bpm: 120,
+    })
+    expect(result.windowSeconds).toBeCloseTo(0.25, 4)
+  })
+
   it('falls back to fixed time rather than assuming a tempo when BPM is unknown', () => {
     const timebase = new ScopeTimebase()
     const result = timebase.resolve({
