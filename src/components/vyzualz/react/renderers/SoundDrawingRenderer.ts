@@ -90,6 +90,17 @@ import {
   applyVectorBeamScannerKinematics,
   type VectorBeamScannerKinematicsSettings,
 } from '../vectorBeam/VectorBeamScannerKinematics'
+import {
+  SOUND_DRAWING_TRAIL_REFERENCE_FPS,
+  computeSoundDrawingTrailDecayAlpha,
+  resolveAuthoredSoundDrawingTrailDecay,
+} from './soundDrawing/SoundDrawingTrailComposition'
+export {
+  computeSoundDrawingTrailDecayAlpha,
+  computeSoundDrawingTrailRetention,
+  computeSoundDrawingTrailRetentionPerReferenceFrame,
+  resolveAuthoredSoundDrawingTrailDecay,
+} from './soundDrawing/SoundDrawingTrailComposition'
 // parseSvgToGlyphPoints is intentionally NOT imported here.
 // SVG parsing happens at upload/select/resolution-change time in reactStore.ts.
 // This renderer only reads pre-prepared points from params.oscillatorGlyphPointCache.
@@ -128,32 +139,9 @@ const BEAT_DECAY = 0.86
 const SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE: SoundDrawingBlendMode = 'lighter'
 
 // ── Trail decay (per canvas context) ──────────────────────────────────────────
-// Reference footage: per-frame retention ~0.35 at 30fps / ~0.59 at 60fps, decaying
-// to the noise floor in ~100ms (3-4 visible trail frames). 0.59 ≈ 0.35^0.5, i.e. the
-// underlying decay is a continuous rate expressed per 1/30s reference frame and then
-// raised to the actual elapsed-time ratio, so the look holds across 30/60/120fps.
-const SOUND_DRAWING_TRAIL_REFERENCE_FPS = 30
-const SOUND_DRAWING_TRAIL_RETENTION_MIN = 0.35 // trailDecay = 1 (fastest)
-const SOUND_DRAWING_TRAIL_RETENTION_MAX = 0.97 // trailDecay = 0 (slowest)
+// The versioned equation and pure ownership resolution live in
+// SoundDrawingTrailComposition so renderer, diagnostics, and tests share one contract.
 const trailDecayTimeMap = new WeakMap<CanvasRenderingContext2D, number>()
-
-/** Maps the 0–1 trailDecay control to a per-reference-frame (1/30s) retention fraction. */
-export function computeSoundDrawingTrailRetentionPerReferenceFrame(trailDecay: number): number {
-  const t = clamp(trailDecay, 0, 1)
-  return SOUND_DRAWING_TRAIL_RETENTION_MAX - t * (SOUND_DRAWING_TRAIL_RETENTION_MAX - SOUND_DRAWING_TRAIL_RETENTION_MIN)
-}
-
-/** Frame-rate-independent trail retention over an actual elapsed `dtSeconds`. */
-export function computeSoundDrawingTrailRetention(trailDecay: number, dtSeconds: number): number {
-  const perReferenceFrame = computeSoundDrawingTrailRetentionPerReferenceFrame(trailDecay)
-  const frameRatio = Math.max(0, dtSeconds) * SOUND_DRAWING_TRAIL_REFERENCE_FPS
-  return Math.pow(clamp(perReferenceFrame, 0.0001, 0.9999), frameRatio)
-}
-
-/** Fraction of trail energy to erase this frame (destination-out alpha), floored so the trail never fully freezes. */
-export function computeSoundDrawingTrailDecayAlpha(trailDecay: number, dtSeconds: number): number {
-  return clamp(1 - computeSoundDrawingTrailRetention(trailDecay, dtSeconds), 0.01, 1)
-}
 
 /** Tracks per-context wall-clock time so trail decay scales by actual elapsed time, not frame count. */
 function tickTrailDeltaSeconds(ctx: CanvasRenderingContext2D, t: number): number {
@@ -2923,6 +2911,10 @@ function authoredTrailIdentity(performance: SoundDrawingResolvedPerformanceFrame
     oscillator.selectedGlyphId ?? 'no-glyph',
     oscillator.textFontId ?? 'no-font',
     oscillator.text,
+    params.soundDrawingPerformanceSettings.locks.trail ? 'trail-lock' : 'trail-unlocked',
+    params.soundDrawingPerformanceSettings.trailLockContract.version,
+    params.soundDrawingPerformanceSettings.trailLockContract.mode,
+    params.soundDrawingPerformanceSettings.trailLockContract.snapshot?.trailDecay ?? 'no-trail-snapshot',
     performance.context.trackIdentity ?? 'no-track',
   ].join('|')
 }
@@ -3084,21 +3076,24 @@ function renderAuthoredSoundDrawingPerformance(
 
   const activeSourceTrail =
     performance.layers.find((layer) => layer.source.kind !== 'generated')?.sourceTrailStrength ?? 0.5
-  const authoredPersistence = clamp(
-    performance.global.trailPersistence * 0.78 + activeSourceTrail * 0.16 + performance.global.feedbackAmount * 0.12,
-    0,
-    0.98,
-  )
   const livingRibbonActive = performance.layers.some(
     (layer) => layer.enabled && layer.source.kind === 'generated' && layer.generator === 'livingRibbon',
   )
   const livingRibbonTrailDetail = preparation.qualityBudget.trailDetail
-  const decayRate = clamp(
-    ((1 - authoredPersistence) * 0.28 + params.trailDecay * 0.04) / (livingRibbonActive ? livingRibbonTrailDetail : 1),
-    0.02,
-    0.32,
-  )
-  fadeTrail(trailCanvas, decayRate)
+  const trailLock = params.soundDrawingPerformanceSettings.trailLockContract
+  const trailResolution = resolveAuthoredSoundDrawingTrailDecay({
+    manualTrailDecay: params.trailDecay,
+    dtSeconds: tickTrailDeltaSeconds(tctx, frame.t),
+    trailLockEnabled: params.soundDrawingPerformanceSettings.locks.trail,
+    trailLockMode: trailLock.mode,
+    trailLockSnapshotDecay: trailLock.snapshot?.trailDecay,
+    globalTrailPersistence: performance.global.trailPersistence,
+    activeSourceTrail,
+    feedbackAmount: performance.global.feedbackAmount,
+    livingRibbonActive,
+    livingRibbonTrailDetail,
+  })
+  fadeTrail(trailCanvas, trailResolution.alpha)
 
   const layerRenderFailures = [...preparation.diagnostics]
   let professionalScopeRendered = false

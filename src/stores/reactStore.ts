@@ -426,6 +426,36 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
       locksSource[key] === true,
     ]),
   ) as Record<SoundDrawingPerformanceLockKey, boolean>
+  const trailLockSource = isRecord(source.trailLockContract) ? source.trailLockContract : null
+  const trailSnapshotSource = trailLockSource && isRecord(trailLockSource.snapshot)
+    ? trailLockSource.snapshot
+    : null
+  const trailLockContract = trailLockSource
+    ? {
+        version: trailLockSource.version === 1 || trailLockSource.mode === 'legacyRecipe' ? 1 as const : 2 as const,
+        mode: trailLockSource.version === 1 || trailLockSource.mode === 'legacyRecipe'
+          ? 'legacyRecipe' as const
+          : 'manualResolved' as const,
+        snapshot: trailSnapshotSource
+          ? {
+              trailDecay: Math.max(0, Math.min(1, finiteNumber(trailSnapshotSource.trailDecay, 0.76))),
+              autoSectionMode: trailSnapshotSource.autoSectionMode === true,
+              ribbonTrailPersistence: Math.max(
+                0,
+                Math.min(
+                  1,
+                  finiteNumber(
+                    trailSnapshotSource.ribbonTrailPersistence,
+                    DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.trailPersistence,
+                  ),
+                ),
+              ),
+            }
+          : null,
+      }
+    : locks.trail
+      ? { version: 1 as const, mode: 'legacyRecipe' as const, snapshot: null }
+      : { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract }
   return {
     selectedShowId,
     autoPerformance: source.autoPerformance === true,
@@ -494,6 +524,7 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
       ),
     ),
     locks,
+    trailLockContract,
   }
 }
 
@@ -1783,10 +1814,28 @@ function buildPresetPatchForState(
         ),
       }
     : {}
-  if (!geometryChanged) return { ...patch, ...pixGridPatch }
+  const trailLock = state.soundDrawingPerformanceSettings.trailLockContract
+  const trailLockPatch = state.soundDrawingPerformanceSettings.locks.trail && trailLock.mode === 'manualResolved'
+    ? {
+        soundDrawingPerformanceSettings: {
+          ...state.soundDrawingPerformanceSettings,
+          trailLockContract: {
+            ...trailLock,
+            snapshot: {
+              trailDecay: patch.reactTrailDecay,
+              autoSectionMode: trailLock.snapshot?.autoSectionMode ?? state.oscillatorSettings.autoSectionMode,
+              ribbonTrailPersistence: trailLock.snapshot?.ribbonTrailPersistence
+                ?? state.soundDrawingPerformanceSettings.livingRibbon.trailPersistence,
+            },
+          },
+        },
+      }
+    : {}
+  if (!geometryChanged) return { ...patch, ...pixGridPatch, ...trailLockPatch }
   return {
     ...patch,
     ...pixGridPatch,
+    ...trailLockPatch,
     oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
       state.oscillatorFontAssets,
       patch.oscillatorSettings,
@@ -3900,6 +3949,17 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       pixGridState: normalizePixGridState(state.pixGridState),
     }
   }
+  if (version < 56) {
+    // Patch 2 versions the Sound Drawing trail-lock contract. Historical
+    // locked shows retain legacy recipe semantics; unlocked/new projects use
+    // corrected manual-resolved protection without changing rendered values.
+    state = {
+      ...state,
+      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
+        state.soundDrawingPerformanceSettings,
+      ),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -5102,7 +5162,29 @@ export const useReactStore = create<ReactStoreState>()(
       setReactMotion:          (v) => set({ reactMotion: v, performancePadTransition: null }),
       setReactGlow:            (v) => set({ reactGlow: v, performancePadTransition: null }),
       setReactBassReactivity:  (v) => set({ reactBassReactivity: v, performancePadTransition: null }),
-      setReactTrailDecay:      (v) => set({ reactTrailDecay: v, performancePadTransition: null }),
+      setReactTrailDecay:      (v) => set((s) => {
+        const trailLock = s.soundDrawingPerformanceSettings.trailLockContract
+        if (!s.soundDrawingPerformanceSettings.locks.trail || trailLock.mode !== 'manualResolved') {
+          return { reactTrailDecay: v, performancePadTransition: null }
+        }
+        return {
+          reactTrailDecay: v,
+          performancePadTransition: null,
+          soundDrawingPerformanceSettings: {
+            ...s.soundDrawingPerformanceSettings,
+            trailLockContract: {
+              ...trailLock,
+              snapshot: {
+                trailDecay: v,
+                autoSectionMode: trailLock.snapshot?.autoSectionMode ?? s.oscillatorSettings.autoSectionMode,
+                ribbonTrailPersistence: trailLock.snapshot?.ribbonTrailPersistence
+                  ?? s.soundDrawingPerformanceSettings.livingRibbon.trailPersistence,
+              },
+            },
+          },
+          soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
+        }
+      }),
       setReactFogDensity:      (v) => set({ reactFogDensity: v, performancePadTransition: null }),
       setReactParticleDensity: (v) => set({ reactParticleDensity: v, performancePadTransition: null }),
 
@@ -5304,17 +5386,44 @@ export const useReactStore = create<ReactStoreState>()(
             livingRibbon: patch.livingRibbon
               ? { ...s.soundDrawingPerformanceSettings.livingRibbon, ...patch.livingRibbon }
               : s.soundDrawingPerformanceSettings.livingRibbon,
+            trailLockContract: patch.trailLockContract
+              ? {
+                  ...s.soundDrawingPerformanceSettings.trailLockContract,
+                  ...patch.trailLockContract,
+                  snapshot: patch.trailLockContract.snapshot === undefined
+                    ? s.soundDrawingPerformanceSettings.trailLockContract.snapshot
+                    : patch.trailLockContract.snapshot,
+                }
+              : s.soundDrawingPerformanceSettings.trailLockContract,
           }),
           soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
         })),
 
       setSoundDrawingPerformanceLock: (key, value) =>
-        set(s => ({
-          soundDrawingPerformanceSettings: {
-            ...s.soundDrawingPerformanceSettings,
-            locks: { ...s.soundDrawingPerformanceSettings.locks, [key]: value },
-          },
-        })),
+        set(s => {
+          const settings = s.soundDrawingPerformanceSettings
+          const trailLockContract = key === 'trail' && value && settings.trailLockContract.mode === 'manualResolved'
+            ? {
+                version: 2 as const,
+                mode: 'manualResolved' as const,
+                snapshot: {
+                  trailDecay: s.reactTrailDecay,
+                  autoSectionMode: s.oscillatorSettings.autoSectionMode,
+                  ribbonTrailPersistence: settings.livingRibbon.trailPersistence,
+                },
+              }
+            : settings.trailLockContract
+          return {
+            soundDrawingPerformanceSettings: {
+              ...settings,
+              locks: { ...settings.locks, [key]: value },
+              trailLockContract,
+            },
+            soundDrawingTrailResetRevision: key === 'trail'
+              ? s.soundDrawingTrailResetRevision + 1
+              : s.soundDrawingTrailResetRevision,
+          }
+        }),
 
       resetSoundDrawingPerformanceSettings: () =>
         set(s => ({
@@ -8145,7 +8254,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 55,
+      version: 56,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

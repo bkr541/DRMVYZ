@@ -61,6 +61,31 @@ describe('Sound Drawing source grid', () => {
     expect(choices[2].getAttribute('aria-checked')).toBe('true')
   })
 
+
+  it('disables source rows only when Generated Visual bypasses the manual source', async () => {
+    useReactStore.getState().setOscillatorSettings({
+      sourceType: 'classic',
+      autoSectionMode: false,
+      classicMode: 'professionalScope',
+    })
+    useReactStore.getState().setSoundDrawingPerformanceSettings({
+      autoPerformance: true,
+      selectedShowId: 'phaseOrbit',
+      performanceSource: 'generatedVisual',
+    })
+    await act(async () => root.render(<ReactEnginePanel />))
+
+    const choices = [...container.querySelectorAll<HTMLButtonElement>('[role="radio"]')]
+    expect(choices.every(choice => choice.disabled)).toBe(true)
+    expect(container.textContent).toContain('Unavailable ownership')
+    expect(container.querySelector('fieldset[disabled][aria-describedby="sound-drawing-source-ownership"]')).not.toBeNull()
+
+    const traceSizeRow = [...container.querySelectorAll('.rv-ctrl-row')]
+      .find(row => row.textContent?.includes('Trace Size'))
+    expect(traceSizeRow?.querySelector<HTMLInputElement>('input[type="range"]')?.disabled).toBe(false)
+    expect(traceSizeRow?.textContent).toContain('Mixed ownership')
+  })
+
   it('maps legacy SVG source values to the unified SVG card', async () => {
     useReactStore.getState().setOscillatorSettings({ sourceType: 'svgVisual' })
     await act(async () => root.render(<ReactEnginePanel />))
@@ -105,5 +130,64 @@ describe('Sound Drawing Visual Size', () => {
       oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, pathScale: 1.4 },
     }, 0) as { oscillatorSettings: typeof DEFAULT_OSCILLATOR_SETTINGS }
     expect(migrated.oscillatorSettings.pathScale).toBe(1.4)
+  })
+
+  it('keeps authored Pro Scope Trace Size live while signal controls are program-owned', async () => {
+    useReactStore.getState().setOscillatorSettings({
+      sourceType: 'classic',
+      autoSectionMode: false,
+      classicMode: 'professionalScope',
+    })
+    useReactStore.getState().setSoundDrawingPerformanceSettings({
+      autoPerformance: true,
+      selectedShowId: 'phaseOrbit',
+    })
+    await act(async () => root.render(<ReactEnginePanel />))
+
+    const traceSizeRow = [...container.querySelectorAll('.rv-ctrl-row')]
+      .find(row => row.textContent?.includes('Trace Size'))
+    const traceSizeInput = traceSizeRow?.querySelector<HTMLInputElement>('input[type="range"]')
+    expect(traceSizeInput?.disabled).toBe(false)
+    expect(traceSizeRow?.textContent).toContain('Mixed ownership')
+
+    const ownedScopeFieldset = container.querySelector<HTMLFieldSetElement>(
+      'fieldset[disabled][aria-describedby="sound-drawing-performance-ownership"]',
+    )
+    expect(ownedScopeFieldset).not.toBeNull()
+    expect(ownedScopeFieldset?.textContent).toContain('Signal, trigger, phosphor, and CRT controls are owned')
+  })
+
+  it('disables authored topology rows until their matching lock is active', async () => {
+    useReactStore.getState().setOscillatorSettings({ sourceType: 'builtinShape' })
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: true })
+    await act(async () => root.render(<ReactFxPanel />))
+
+    const rowInput = (label: string) => [...container.querySelectorAll('.rv-ctrl-row')]
+      .find(row => row.textContent?.includes(label))
+      ?.querySelector<HTMLInputElement | HTMLSelectElement>('input, select')
+    expect(rowInput('Visual Size')?.disabled).toBe(false)
+    expect(rowInput('Render Mode')?.disabled).toBe(true)
+    expect(rowInput('Duplicate Traces')?.disabled).toBe(true)
+
+    useReactStore.getState().setSoundDrawingPerformanceLock('topology', true)
+    await act(async () => root.render(<ReactFxPanel />))
+    expect(rowInput('Render Mode')?.disabled).toBe(false)
+    expect(rowInput('Duplicate Traces')?.disabled).toBe(false)
+  })
+
+  it('moves Pro Scope Trace Size to the Engine panel instead of duplicating it in FX', async () => {
+    useReactStore.getState().setOscillatorSettings({
+      sourceType: 'classic',
+      autoSectionMode: false,
+      classicMode: 'professionalScope',
+    })
+    await act(async () => root.render(<ReactFxPanel />))
+    expect(container.textContent).toContain('Pro Scope Trace Size is owned by Engine')
+    expect(container.textContent).not.toContain('Visual Size')
+
+    await act(async () => root.render(<ReactEnginePanel />))
+    const traceSizeRows = [...container.querySelectorAll('.rv-ctrl-row')]
+      .filter(row => row.textContent?.includes('Trace Size'))
+    expect(traceSizeRows).toHaveLength(1)
   })
 })

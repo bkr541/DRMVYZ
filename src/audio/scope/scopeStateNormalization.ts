@@ -219,6 +219,8 @@ export function normalizeScopeCrt(value: unknown): ScopeCrtSettings {
  */
 export function normalizeSoundDrawingScopeState(value: unknown): SoundDrawingScopeState {
   const source = isRecord(value) ? value : {}
+  const signalConditioner = normalizeScopeSignalConditioner(source.signalConditioner)
+  const gainsMatch = Math.abs(signalConditioner.gainX - signalConditioner.gainY) <= 1e-6
   return {
     version: SOUND_DRAWING_SCOPE_STATE_VERSION,
     // A v1 project has no `crt` key, so it receives the defaults — which are
@@ -230,7 +232,8 @@ export function normalizeSoundDrawingScopeState(value: unknown): SoundDrawingSco
     music: normalizeScopeMusicMapping(source.music),
     enabled: bool(source.enabled, DEFAULT_SOUND_DRAWING_SCOPE_STATE.enabled),
     signalMode: normalizeScopeSignalMode(source.signalMode),
-    signalConditioner: normalizeScopeSignalConditioner(source.signalConditioner),
+    signalConditioner,
+    axisGainLinked: typeof source.axisGainLinked === 'boolean' ? source.axisGainLinked : gainsMatch,
     trigger: normalizeScopeTrigger(source.trigger),
     timebase: normalizeScopeTimebase(source.timebase),
     monoDelayMs: num(source.monoDelayMs, DEFAULT_SOUND_DRAWING_SCOPE_STATE.monoDelayMs, 0.01, 100),

@@ -28,12 +28,14 @@ export function resolveProfessionalScopeLayerSettings(
     presetId && SCOPE_PRESETS_BY_ID.has(presetId)
       ? applyScopePreset(freshScopeState(), presetId)
       : freshScopeState()
+  const signalConditioner = { ...base.signalConditioner, ...authored?.signalConditioner }
   const state = normalizeSoundDrawingScopeState({
     ...base,
     enabled: true,
     signalMode: authored?.signalMode ?? base.signalMode,
     monoDelayMs: authored?.monoDelayMs ?? base.monoDelayMs,
-    signalConditioner: { ...base.signalConditioner, ...authored?.signalConditioner },
+    signalConditioner,
+    axisGainLinked: Math.abs(signalConditioner.gainX - signalConditioner.gainY) <= 1e-6,
     trigger: { ...base.trigger, ...authored?.trigger },
     timebase: { ...base.timebase, ...authored?.timebase },
     beam: { ...base.beam, ...authored?.beam },

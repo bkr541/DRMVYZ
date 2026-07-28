@@ -79,6 +79,7 @@ describe('scope state normalization', () => {
         coupling: 'ac', dcBlockHz: 30, gainX: 2, gainY: 3,
         offsetX: 0.1, offsetY: -0.1, invertX: true, invertY: false, swapAxes: true,
       },
+      axisGainLinked: false,
       trigger: {
         mode: 'normal', source: 'left', slope: 'falling', level: 0.25, hysteresis: 0.05,
         holdoffSeconds: 0.01, searchWindowSeconds: 0.08, preTriggerRatio: 0.5,
@@ -98,6 +99,20 @@ describe('scope state normalization', () => {
   it('always stamps the current version', () => {
     expect(normalizeSoundDrawingScopeState({ version: 99 }).version)
       .toBe(SOUND_DRAWING_SCOPE_STATE_VERSION)
+  })
+
+  it('migrates linked-axis semantics without changing canonical gains', () => {
+    const linked = normalizeSoundDrawingScopeState({
+      version: 5,
+      signalConditioner: { ...DEFAULT_SOUND_DRAWING_SCOPE_STATE.signalConditioner, gainX: 1.25, gainY: 1.25 },
+    })
+    expect(linked.axisGainLinked).toBe(true)
+    const custom = normalizeSoundDrawingScopeState({
+      version: 5,
+      signalConditioner: { ...DEFAULT_SOUND_DRAWING_SCOPE_STATE.signalConditioner, gainX: 0.75, gainY: 1.5 },
+    })
+    expect(custom.axisGainLinked).toBe(false)
+    expect(custom.signalConditioner).toMatchObject({ gainX: 0.75, gainY: 1.5 })
   })
 
   it('migrates a v1 project forward without switching on a look it never chose', () => {

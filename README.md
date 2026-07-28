@@ -128,6 +128,8 @@ React View engines use the shared Media Library rather than engine-specific uplo
 
 Brand Kit supplies persisted palettes, assets, effective engine palettes, branded preset resolution, and optional stage overlays. See [`docs/brand-kit.md`](docs/brand-kit.md).
 
+Sound Drawing control ownership, Pro Scope Trace Size and linked-axis semantics, preset provenance, and versioned trail-lock compatibility are documented in [`docs/sound-drawing-control-ownership-and-provenance.md`](docs/sound-drawing-control-ownership-and-provenance.md).
+
 ## Classic Visualizer
 
 The Visualizer workspace retains the modular analyzer system:

@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
+import {
+  resolveCinematicConfigForPreset,
+  resolvePresetOscillatorSettings,
+  useReactStore,
+} from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
 import type { CinematicWorldMode } from './CinematicWorldConfig'
 import {
@@ -36,6 +40,7 @@ import { useBrandKitStore } from '../../../features/personalization/brandKitStor
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import type { ProductionFixtureKind } from './LaserDmxProductionRig'
 import { isSelectableReactEngineId, REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
+import { resolveReactPresetProvenance } from './ReactPresetProvenance'
 import {
   filterReactPresetLibrary,
   isReactPresetVisibleForLockedLaserDmx,
@@ -66,6 +71,15 @@ function getModeHint(preset: ReactPreset): string | null {
     case 'svgGlyph': return 'SVG Glyph'
     default: return null
   }
+}
+
+function isCinematicPresetModified(
+  preset: ReactPreset | undefined,
+  overrides: Record<string, import('./CinematicWorldConfig').CinematicWorldConfig>,
+): boolean {
+  if (!preset || preset.engine !== 'cinematicPortal' || !overrides[preset.id]) return false
+  return JSON.stringify(resolveCinematicConfigForPreset(preset, overrides)) !==
+    JSON.stringify(resolveCinematicConfigForPreset(preset, {}))
 }
 
 const FIXTURE_BADGE_LABELS: Record<ProductionFixtureKind, string> = {
@@ -158,7 +172,9 @@ function StandardReactPresetCard({
     <ReactPresetCard
       id={preset.id}
       title={preset.name}
-      description={preset.description}
+      description={isActive && modified
+        ? `Source preset: ${preset.description} Current values have diverged from this recipe.`
+        : preset.description}
       thumbnail={<ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} />}
       chips={chips}
       palette={Object.values(preset.palette).slice(0, 5).map(color => ({ color }))}
@@ -168,6 +184,7 @@ function StandardReactPresetCard({
       activateLabel={`${switchesContext ? `Switch to ${destinationLabel} and load` : 'Load'} ${preset.name}`}
       onActivate={() => onSelect(preset.id)}
       onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(preset.id) : undefined}
+      titleText={isActive && modified ? `Modified from ${preset.name}. ${preset.description}` : preset.description}
       contentBeforeDescription={detailsOpen => production ? (
         <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
           {production.fixtureFamilyBadges.slice(0, detailsOpen ? 7 : 5).map(kind => (
@@ -576,6 +593,14 @@ export function ReactPresetsPanel() {
     activeReactEngineId,
     laserDmxBeamMatrixAuthoringMode,
     cinematicConfigsByPresetId,
+    reactIntensity,
+    reactMotion,
+    reactGlow,
+    reactBassReactivity,
+    reactTrailDecay,
+    reactFogDensity,
+    reactParticleDensity,
+    oscillatorSettings,
     selectReactPreset,
   } = useReactStore(useShallow(state => ({
     reactPresets: state.reactPresets,
@@ -583,6 +608,14 @@ export function ReactPresetsPanel() {
     activeReactEngineId: state.activeReactEngineId,
     laserDmxBeamMatrixAuthoringMode: state.laserDmxBeamMatrixAuthoringMode,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
+    reactIntensity: state.reactIntensity,
+    reactMotion: state.reactMotion,
+    reactGlow: state.reactGlow,
+    reactBassReactivity: state.reactBassReactivity,
+    reactTrailDecay: state.reactTrailDecay,
+    reactFogDensity: state.reactFogDensity,
+    reactParticleDensity: state.reactParticleDensity,
+    oscillatorSettings: state.oscillatorSettings,
     selectReactPreset: state.selectReactPreset,
   })))
   const [libraryView, setLibraryView] = useState<ReactPresetLibraryView>('current')
@@ -634,7 +667,51 @@ export function ReactPresetsPanel() {
   const cinematicWorldCount = activeReactEngineId === 'cinematicPortal'
     ? getCinematicWorldPresetGroups(visiblePresets).length
     : 0
-  const modifiedIds = useMemo(() => new Set(Object.keys(cinematicConfigsByPresetId)), [cinematicConfigsByPresetId])
+  const activePresetProvenance = useMemo(() => resolveReactPresetProvenance({
+    presets: reactPresets,
+    activePresetId: activeReactPresetId,
+    activeEngineId: activeReactEngineId,
+    controls: {
+      intensity: reactIntensity,
+      motion: reactMotion,
+      glow: reactGlow,
+      bassReactivity: reactBassReactivity,
+      trailDecay: reactTrailDecay,
+      fogDensity: reactFogDensity,
+      particleDensity: reactParticleDensity,
+    },
+    oscillatorSettings,
+    expectedOscillatorSettings: active?.engine === 'oscilloscope'
+      ? resolvePresetOscillatorSettings(active, oscillatorSettings)
+      : undefined,
+    engineSpecificModified: isCinematicPresetModified(
+      reactPresets.find(preset => preset.id === activeReactPresetId),
+      cinematicConfigsByPresetId,
+    ),
+  }), [
+    reactPresets,
+    activeReactPresetId,
+    activeReactEngineId,
+    reactIntensity,
+    reactMotion,
+    reactGlow,
+    reactBassReactivity,
+    reactTrailDecay,
+    reactFogDensity,
+    reactParticleDensity,
+    oscillatorSettings,
+    active,
+    cinematicConfigsByPresetId,
+  ])
+  const modifiedIds = useMemo(() => {
+    const ids = new Set(
+      reactPresets
+        .filter(preset => isCinematicPresetModified(preset, cinematicConfigsByPresetId))
+        .map(preset => preset.id),
+    )
+    if (activePresetProvenance.status === 'modified' && activeReactPresetId) ids.add(activeReactPresetId)
+    return ids
+  }, [reactPresets, activePresetProvenance.status, activeReactPresetId, cinematicConfigsByPresetId])
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
   const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx' && libraryView === 'current'
   const isCanvasCurrentLibrary = activeReactEngineId === 'canvas' && libraryView === 'current'
@@ -685,6 +762,9 @@ export function ReactPresetsPanel() {
                     ? `${visiblePresets.length} presets across ${cinematicWorldCount} worlds`
                     : `${visiblePresets.length} presets for the selected engine`
                   : `${visiblePresets.length} presets shown`}</small>
+            {activePresetProvenance.status === 'modified' && activePresetProvenance.preset && (
+              <small role="status">Modified from {activePresetProvenance.preset.name}</small>
+            )}
           </div>
         </div>
         <div className="rv-preset-library-views" role="tablist" aria-label="Preset library filter">

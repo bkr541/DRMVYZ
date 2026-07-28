@@ -451,6 +451,19 @@ export type SoundDrawingPerformanceAction =
       lockKey?: SoundDrawingPerformanceLockKey
     }
 
+
+export interface SoundDrawingManualTrailSnapshot {
+  trailDecay: number
+  autoSectionMode: boolean
+  ribbonTrailPersistence: number
+}
+
+export interface SoundDrawingTrailLockContract {
+  version: 1 | 2
+  mode: 'legacyRecipe' | 'manualResolved'
+  snapshot: SoundDrawingManualTrailSnapshot | null
+}
+
 export interface SoundDrawingPerformanceSettings {
   selectedShowId: SoundDrawingPerformanceShowId
   autoPerformance: boolean
@@ -471,6 +484,7 @@ export interface SoundDrawingPerformanceSettings {
   sourceTrailStrength: number
   supportingVisualReactivity: number
   locks: Record<SoundDrawingPerformanceLockKey, boolean>
+  trailLockContract: SoundDrawingTrailLockContract
 }
 
 export interface SoundDrawingResolvedPerformanceLayer extends Required<
@@ -536,10 +550,11 @@ export interface SoundDrawingPerformanceTemporalState {
 
 export type SoundDrawingPerformanceSettingsPatch = Omit<
   Partial<SoundDrawingPerformanceSettings>,
-  'livingRibbon' | 'locks'
+  'livingRibbon' | 'locks' | 'trailLockContract'
 > & {
   livingRibbon?: Partial<SoundDrawingLivingRibbonSettings>
   locks?: Partial<Record<SoundDrawingPerformanceLockKey, boolean>>
+  trailLockContract?: Partial<SoundDrawingTrailLockContract>
 }
 
 export const DEFAULT_SOUND_DRAWING_PERFORMANCE_LOCKS: Record<SoundDrawingPerformanceLockKey, boolean> = {
@@ -619,4 +634,5 @@ export const DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS: SoundDrawingPerformance
   sourceTrailStrength: 0.28,
   supportingVisualReactivity: 0.72,
   locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_LOCKS },
+  trailLockContract: { version: 2, mode: 'manualResolved', snapshot: null },
 }

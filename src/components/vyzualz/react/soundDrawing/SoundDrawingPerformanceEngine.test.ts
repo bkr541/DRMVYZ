@@ -168,6 +168,10 @@ function settings(patch: SoundDrawingPerformanceSettingsPatch = {}): SoundDrawin
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks,
       ...(patch.locks ?? {}),
     },
+    trailLockContract: {
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract,
+      ...(patch.trailLockContract ?? {}),
+    },
   }
 }
 

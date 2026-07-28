@@ -5,8 +5,10 @@ import {
   DEFAULT_REACT_PRESETS,
   createDefaultLaserDmxSettings,
 } from '../components/vyzualz/react/ReactTypes'
+import { resolveReactPresetProvenance } from '../components/vyzualz/react/ReactPresetProvenance'
 import {
   buildPresetPatch,
+  mergeReactStoreState,
   migrateReactStore,
   reactStorePartialize,
   useReactStore,
@@ -40,6 +42,58 @@ describe('React preset contracts', () => {
     expect(patch.reactTrailDecay).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.trailDecay)
     expect(patch.reactFogDensity).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.fogDensity)
     expect(patch.reactParticleDensity).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.particleDensity)
+  })
+
+  it('keeps stable preset provenance while manual masters diverge', () => {
+    useReactStore.getState().selectReactPreset(cinematicPreset.id)
+    const selectedId = useReactStore.getState().activeReactPresetId
+    useReactStore.getState().setReactIntensity(0.11)
+    useReactStore.getState().setReactMotion(0.22)
+    useReactStore.getState().setReactGlow(0.33)
+    useReactStore.getState().setReactBassReactivity(0.44)
+    useReactStore.getState().setReactTrailDecay(0.55)
+    useReactStore.getState().setReactFogDensity(0.66)
+    useReactStore.getState().setReactParticleDensity(0.77)
+    expect(useReactStore.getState().activeReactPresetId).toBe(selectedId)
+
+    useReactStore.getState().selectReactPreset(cinematicPreset.id)
+    expect(useReactStore.getState().activeReactPresetId).toBe(cinematicPreset.id)
+    expect(useReactStore.getState().reactIntensity).toBe(cinematicPreset.params.intensity)
+  })
+
+
+  it('preserves modified preset provenance across save and reload', () => {
+    useReactStore.getState().selectReactPreset(cinematicPreset.id)
+    useReactStore.getState().setReactGlow(0.19)
+    const saved = reactStorePartialize(useReactStore.getState())
+    const merged = mergeReactStoreState(saved, useReactStore.getState())
+    const provenance = resolveReactPresetProvenance({
+      presets: merged.reactPresets,
+      activePresetId: merged.activeReactPresetId,
+      activeEngineId: merged.activeReactEngineId,
+      controls: {
+        intensity: merged.reactIntensity,
+        motion: merged.reactMotion,
+        glow: merged.reactGlow,
+        bassReactivity: merged.reactBassReactivity,
+        trailDecay: merged.reactTrailDecay,
+        fogDensity: merged.reactFogDensity,
+        particleDensity: merged.reactParticleDensity,
+      },
+      oscillatorSettings: merged.oscillatorSettings,
+    })
+    expect(merged.activeReactPresetId).toBe(cinematicPreset.id)
+    expect(provenance.status).toBe('modified')
+    expect(provenance.changedFields).toContain('glow')
+  })
+
+  it('keeps a corrected Sound Drawing trail lock synchronized with preset-owned Trail Decay', () => {
+    useReactStore.getState().setSoundDrawingPerformanceLock('trail', true)
+    useReactStore.getState().selectReactPreset(cinematicPreset.id)
+    const state = useReactStore.getState()
+    expect(state.soundDrawingPerformanceSettings.trailLockContract.mode).toBe('manualResolved')
+    expect(state.soundDrawingPerformanceSettings.trailLockContract.snapshot?.trailDecay)
+      .toBe(state.reactTrailDecay)
   })
 
   it('creates a transient visual transition from the pad transitionTimeMs', () => {

@@ -20,7 +20,7 @@ export {
   type ScopeMatrixResult,
 } from './ScopeChannelMatrix'
 export { ScopePeriodEstimator, type ScopePeriodEstimate } from './ScopePeriodEstimator'
-export { ScopeTrigger, interpolateCrossing } from './ScopeTrigger'
+export { ScopeTrigger, interpolateCrossing, scoreScopeTriggerCandidate } from './ScopeTrigger'
 export { ScopeTimebase, resolveWindowStartOffset, type ScopeTimebaseResult } from './ScopeTimebase'
 export {
   ScopeSignalCore,
@@ -28,3 +28,5 @@ export {
   resolveScopeCaptureFrames,
   type ScopeSignalCoreInput,
 } from './ScopeSignalCore'
+
+export * from './scopeControlSemantics'

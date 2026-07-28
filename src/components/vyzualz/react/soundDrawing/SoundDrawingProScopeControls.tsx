@@ -12,10 +12,17 @@ import type {
 import {
   SCOPE_PRESETS,
   isScopeStereoMeasurementMode,
+  relinkScopeAxisGains,
+  resolveScopeAxisGainLinkState,
+  resolveScopePresetProvenance,
   resolveScopePresetState,
+  resolveScopeSettledScaleDiagnostics,
+  resolveScopeStabilityMacro,
+  scopeSignalModeUsesXGain,
 } from '../../../../audio/scope'
 import { SliderRow, SelectRow, ToggleRow, ColorRow, CtrlSection, Collapsible } from '../ReactControlRows'
 import type { OscillatorSettings } from '../ReactTypes'
+import { SOUND_DRAWING_VISUAL_SIZE_MAX, SOUND_DRAWING_VISUAL_SIZE_MIN } from './SoundDrawingVisualSize'
 
 const PRESET_GROUP_LABEL: Record<'measurement' | 'analog' | 'signature', string> = {
   measurement: 'Measure',
@@ -26,6 +33,7 @@ const PRESET_GROUP_LABEL: Record<'measurement' | 'analog' | 'signature', string>
 interface Props {
   osc: OscillatorSettings
   set: (patch: Partial<OscillatorSettings>) => void
+  hideTraceSize?: boolean
 }
 
 /**
@@ -40,7 +48,7 @@ interface Props {
  * plan rather than exposed here. CRT presentation is a look the user authors, so
  * it gets a collapsible of its own.
  */
-export function SoundDrawingProScopeControls({ osc, set }: Props) {
+export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }: Props) {
   const engine = useSharedAudio()
   const scope = osc.scope
 
@@ -69,9 +77,12 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
     patchScope({ crt: { ...scope.crt, ...patch } })
   }
 
-  const activePreset = scope.presetId
-    ? SCOPE_PRESETS.find(preset => preset.id === scope.presetId) ?? null
-    : null
+  const presetProvenance = resolveScopePresetProvenance(scope)
+  const activePreset = presetProvenance.preset
+  const gainLink = resolveScopeAxisGainLinkState(scope)
+  const stabilityMacro = resolveScopeStabilityMacro(scope)
+  const scaleDiagnostics = resolveScopeSettledScaleDiagnostics(osc.pathScale, scope)
+  const xGainActive = scopeSignalModeUsesXGain(scope.signalMode)
 
   const captureStatus = engine.scopeStereoTap?.getStatus() ?? null
   const captureUnavailable = captureStatus == null || !captureStatus.active
@@ -102,19 +113,24 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
 
       <SelectRow
         label="Preset"
-        value={scope.presetId ?? ''}
+        value={activePreset?.id ?? ''}
         onChange={v => { if (v) set({ scope: resolveScopePresetState(v) }) }}
         description="A complete recipe — signal, timebase, trigger, beam, phosphor, and tube. Everything below stays adjustable afterwards."
         options={[
-          { value: '', label: scope.presetId ? 'Custom' : 'Select a preset…' },
+          { value: '', label: presetProvenance.status === 'unknownLegacy' ? presetProvenance.label : 'Select a preset…' },
           ...SCOPE_PRESETS.map(preset => ({
             value: preset.id,
             label: `${PRESET_GROUP_LABEL[preset.group]} · ${preset.name}`,
           })),
         ]}
       />
-      {activePreset && (
-        <p className="rv-ctrl-info">{activePreset.description}</p>
+      <p className="rv-ctrl-info" role="status" aria-live="polite">
+        <strong>{presetProvenance.label}</strong> · {presetProvenance.description}
+      </p>
+      {activePreset && presetProvenance.status === 'modified' && (
+        <button type="button" className="rv-reset-btn" onClick={() => set({ scope: resolveScopePresetState(activePreset.id) })}>
+          Reset to {activePreset.name}
+        </button>
       )}
 
       <SelectRow
@@ -134,20 +150,25 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
         ]}
       />
 
-      <SliderRow
-        label="Input Gain"
-        value={scope.signalConditioner.gainY}
-        onChange={v => patchConditioner({ gainX: v, gainY: v })}
-        min={0.1}
-        max={8}
-        step={0.1}
-      />
+      {!hideTraceSize && (
+        <SliderRow
+          label="Trace Size"
+          value={osc.pathScale}
+          onChange={v => set({ pathScale: v })}
+          min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+          max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+          step={0.01}
+          description="Immediate presentation scale. Signal calibration remains in Advanced Signal Conditioning."
+        />
+      )}
 
       <SliderRow
-        label="Trigger Stability"
-        value={scope.trigger.continuityWeight}
+        label={`Stability Macro · ${stabilityMacro.label}`}
+        value={stabilityMacro.value}
         onChange={v => patchTrigger({ continuityWeight: v, periodAssist: v })}
-        description="Higher favours a still trace; lower reacts faster to changes in the signal."
+        description={stabilityMacro.mixed
+          ? 'Custom: Continuity and Period Assist differ. Moving this macro intentionally relinks both algorithms.'
+          : 'Linked macro: moves Continuity and Period Assist together without combining their runtime algorithms.'}
       />
 
       <Collapsible label="Timebase" defaultOpen={false}>
@@ -277,6 +298,18 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
           label="Pre-Trigger"
           value={scope.trigger.preTriggerRatio}
           onChange={v => patchTrigger({ preTriggerRatio: v })}
+        />
+        <SliderRow
+          label="Continuity"
+          value={scope.trigger.continuityWeight}
+          onChange={v => patchTrigger({ continuityWeight: v })}
+          description="Weights drift from the previous within-window trigger position. Editing it does not change Period Assist."
+        />
+        <SliderRow
+          label="Period Assist"
+          value={scope.trigger.periodAssist}
+          onChange={v => patchTrigger({ periodAssist: v })}
+          description="Weights agreement with the estimated signal period. Editing it does not change Continuity."
         />
       </Collapsible>
 
@@ -470,7 +503,7 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
         )}
       </Collapsible>
 
-      <Collapsible label="Signal Conditioning" defaultOpen={false}>
+      <Collapsible label="Advanced Signal Conditioning" defaultOpen={false}>
         <ToggleRow
           label="Auto Gain"
           value={scope.signalConditioner.autoGain}
@@ -497,22 +530,66 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
             { value: 'ac', label: 'AC' },
           ]}
         />
+        <ToggleRow
+          label="Link X/Y Trim"
+          value={gainLink.linked}
+          onChange={linked => {
+            if (linked) set({ scope: relinkScopeAxisGains(scope) })
+            else patchScope({ axisGainLinked: false })
+          }}
+          description={gainLink.linked
+            ? 'Linked. Post Auto-Gain Trim writes both canonical axes.'
+            : 'Custom X/Y. Relinking explicitly replaces both axes with their average.'}
+        />
         <SliderRow
-          label="X Gain"
+          label={`Post Auto-Gain Trim · ${gainLink.label}`}
+          value={gainLink.linkedValue ?? (scope.signalConditioner.gainX + scope.signalConditioner.gainY) / 2}
+          onChange={v => patchScope({
+            axisGainLinked: true,
+            signalConditioner: { ...scope.signalConditioner, gainX: v, gainY: v },
+          })}
+          min={0.1}
+          max={8}
+          step={0.1}
+          disabled={!gainLink.linked}
+          description="Smoothed signal-domain calibration after Auto Gain. This is not the primary visual-size control."
+        />
+        {!gainLink.linked && (
+          <button type="button" className="rv-reset-btn" onClick={() => set({ scope: relinkScopeAxisGains(scope) })}>
+            Relink X/Y at Average
+          </button>
+        )}
+        <SliderRow
+          label="X Trim"
           value={scope.signalConditioner.gainX}
-          onChange={v => patchConditioner({ gainX: v })}
+          onChange={v => patchScope({
+            axisGainLinked: false,
+            signalConditioner: { ...scope.signalConditioner, gainX: v },
+          })}
           min={0.1}
           max={8}
           step={0.1}
+          disabled={!xGainActive}
+          description={xGainActive
+            ? 'Independent horizontal signal calibration. Editing it unlinks X and Y.'
+            : 'Unavailable in waveform modes: horizontal position is timebase-driven, so X Trim does not control vertical amplitude.'}
         />
         <SliderRow
-          label="Y Gain"
+          label="Y Trim"
           value={scope.signalConditioner.gainY}
-          onChange={v => patchConditioner({ gainY: v })}
+          onChange={v => patchScope({
+            axisGainLinked: false,
+            signalConditioner: { ...scope.signalConditioner, gainY: v },
+          })}
           min={0.1}
           max={8}
           step={0.1}
+          description="Independent vertical signal calibration. Editing it unlinks X and Y."
         />
+        <p className="rv-ctrl-info">
+          Resolved settled factors: X {scaleDiagnostics.settledXFactor.toFixed(2)}× · Y {scaleDiagnostics.settledYFactor.toFixed(2)}×
+          {' '}(Trace Size {scaleDiagnostics.traceSize.toFixed(2)} × post-auto-gain trim). Auto Gain remains dynamic and separate.
+        </p>
         <ToggleRow
           label="Invert X"
           value={scope.signalConditioner.invertX}

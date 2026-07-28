@@ -87,6 +87,95 @@ describe('performance settings persistence migration', () => {
     expect(settings).not.toHaveProperty('runtimeFrame')
   })
 
+  it('runs the v56 trail-lock migration explicitly for historical persisted documents', () => {
+    const migrated = migrateReactStore({
+      soundDrawingPerformanceSettings: {
+        ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+        locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks, trail: true },
+        trailLockContract: undefined,
+      },
+    }, 55)
+    const settings = migrated.soundDrawingPerformanceSettings as typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
+    expect(settings.trailLockContract).toEqual({ version: 1, mode: 'legacyRecipe', snapshot: null })
+  })
+
+  it('versions historical trail locks without silently changing their recipe', () => {
+    const legacy = normalizeSoundDrawingPerformanceSettings({
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+      locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks, trail: true },
+      trailLockContract: undefined,
+    })
+    expect(legacy.trailLockContract).toEqual({ version: 1, mode: 'legacyRecipe', snapshot: null })
+
+    const corrected = normalizeSoundDrawingPerformanceSettings({
+      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+      locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks, trail: true },
+      trailLockContract: {
+        version: 2,
+        mode: 'manualResolved',
+        snapshot: { trailDecay: 0.37, autoSectionMode: true, ribbonTrailPersistence: 0.82 },
+      },
+    })
+    expect(corrected.trailLockContract).toEqual({
+      version: 2,
+      mode: 'manualResolved',
+      snapshot: { trailDecay: 0.37, autoSectionMode: true, ribbonTrailPersistence: 0.82 },
+    })
+  })
+
+  it('snapshots the visible manual trail state when the corrected lock is enabled', () => {
+    const before = useReactStore.getState()
+    useReactStore.setState({
+      reactTrailDecay: 0.41,
+      oscillatorSettings: { ...before.oscillatorSettings, autoSectionMode: true },
+      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
+        ...before.soundDrawingPerformanceSettings,
+        locks: { ...before.soundDrawingPerformanceSettings.locks, trail: false },
+        livingRibbon: { ...before.soundDrawingPerformanceSettings.livingRibbon, trailPersistence: 0.83 },
+        trailLockContract: { version: 2, mode: 'manualResolved', snapshot: null },
+      }),
+    })
+    useReactStore.getState().setSoundDrawingPerformanceLock('trail', true)
+    expect(useReactStore.getState().soundDrawingPerformanceSettings.trailLockContract).toEqual({
+      version: 2,
+      mode: 'manualResolved',
+      snapshot: { trailDecay: 0.41, autoSectionMode: true, ribbonTrailPersistence: 0.83 },
+    })
+    useReactStore.getState().setReactTrailDecay(0.52)
+    expect(useReactStore.getState().soundDrawingPerformanceSettings.trailLockContract.snapshot).toEqual({
+      trailDecay: 0.52,
+      autoSectionMode: true,
+      ribbonTrailPersistence: 0.83,
+    })
+    useReactStore.setState({
+      reactTrailDecay: before.reactTrailDecay,
+      oscillatorSettings: before.oscillatorSettings,
+      soundDrawingPerformanceSettings: before.soundDrawingPerformanceSettings,
+      soundDrawingTrailResetRevision: before.soundDrawingTrailResetRevision,
+    })
+  })
+
+  it('round-trips corrected trail protection and its captured state through persistence', () => {
+    const current = useReactStore.getState()
+    const corrected = normalizeSoundDrawingPerformanceSettings({
+      ...current.soundDrawingPerformanceSettings,
+      locks: { ...current.soundDrawingPerformanceSettings.locks, trail: true },
+      trailLockContract: {
+        version: 2,
+        mode: 'manualResolved',
+        snapshot: { trailDecay: 0.43, autoSectionMode: true, ribbonTrailPersistence: 0.79 },
+      },
+    })
+    const persisted = reactStorePartialize({
+      ...current,
+      reactTrailDecay: 0.43,
+      soundDrawingPerformanceSettings: corrected,
+    })
+    const merged = mergeReactStoreState(persisted, current)
+    expect(merged.reactTrailDecay).toBe(0.43)
+    expect(merged.soundDrawingPerformanceSettings).toEqual(corrected)
+  })
+
   it('preserves the opt-in Living Ribbon selection without rewriting legacy Harmonic Ribbon projects', () => {
     const living = normalizeSoundDrawingPerformanceSettings({
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,

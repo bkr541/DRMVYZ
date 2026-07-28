@@ -10,6 +10,35 @@ interface TriggerCandidate {
   strength: number
 }
 
+export function scoreScopeTriggerCandidate(input: {
+  candidatePosition: number
+  candidateStrength: number
+  continuityWeight: number
+  periodAssist: number
+  periodConfidence: number
+  periodSamples: number
+  windowLength: number
+  windowStartFrame: number
+  lastTriggerPosition: number
+  lastAbsolutePosition: number
+}): number {
+  let cost = -input.candidateStrength * 0.5
+  const continuityWeight = clamp01(input.continuityWeight)
+  const periodWeight = clamp01(input.periodAssist) * clamp01(input.periodConfidence)
+  const hasHistory = input.lastAbsolutePosition >= 0
+  if (hasHistory && periodWeight > 0 && input.periodSamples > 1) {
+    const absolute = input.windowStartFrame + input.candidatePosition
+    const periodsAway = (absolute - input.lastAbsolutePosition) / input.periodSamples
+    const phaseError = Math.abs(periodsAway - Math.round(periodsAway))
+    cost += periodWeight * phaseError * 8
+  }
+  if (hasHistory && continuityWeight > 0 && input.lastTriggerPosition >= 0) {
+    const drift = Math.abs(input.candidatePosition - input.lastTriggerPosition) / Math.max(1, input.windowLength)
+    cost += continuityWeight * drift * 2
+  }
+  return cost
+}
+
 /**
  * Schmitt-style trigger with holdoff, sub-sample interpolation, and continuity.
  *
@@ -212,36 +241,22 @@ export class ScopeTrigger {
   ): TriggerCandidate {
     if (candidates.length === 1) return candidates[0]
 
-    const continuityWeight = clamp01(settings.continuityWeight)
-    const periodWeight = clamp01(settings.periodAssist) * clamp01(periodConfidence)
-    const hasHistory = this.lastAbsolutePosition >= 0
-    const usePeriod = periodWeight > 0 && periodSamples > 1
-
     let best = candidates[0]
     let bestCost = Infinity
 
     for (const candidate of candidates) {
-      // Edge strength is the tiebreaker, not the driver: the strongest crossing
-      // in a window is frequently not the one that continues the trace.
-      let cost = -candidate.strength * 0.5
-
-      if (hasHistory && usePeriod) {
-        // A candidate an integer number of periods from the last trigger shows
-        // the waveform at an identical phase. This is the dominant term, since
-        // it is precisely what stops the trace from sliding.
-        const absolute = windowStartFrame + candidate.position
-        const periodsAway = (absolute - this.lastAbsolutePosition) / periodSamples
-        const phaseError = Math.abs(periodsAway - Math.round(periodsAway)) // 0..0.5
-        cost += periodWeight * phaseError * 8
-      }
-
-      if (hasHistory && continuityWeight > 0 && this.lastTriggerPosition >= 0) {
-        // Secondary preference for staying near the previous within-window
-        // position, which keeps the display from hopping between distant
-        // crossings when no period is known.
-        const drift = Math.abs(candidate.position - this.lastTriggerPosition) / Math.max(1, windowLength)
-        cost += continuityWeight * drift * 2
-      }
+      const cost = scoreScopeTriggerCandidate({
+        candidatePosition: candidate.position,
+        candidateStrength: candidate.strength,
+        continuityWeight: settings.continuityWeight,
+        periodAssist: settings.periodAssist,
+        periodConfidence,
+        periodSamples,
+        windowLength,
+        windowStartFrame,
+        lastTriggerPosition: this.lastTriggerPosition,
+        lastAbsolutePosition: this.lastAbsolutePosition,
+      })
 
       if (cost < bestCost) {
         bestCost = cost

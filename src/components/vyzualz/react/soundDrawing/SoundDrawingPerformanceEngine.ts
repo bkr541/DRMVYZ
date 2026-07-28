@@ -165,6 +165,7 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks,
       ...(source.locks ?? {}),
     },
+    trailLockContract: source.trailLockContract ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract,
   }
 }
 
@@ -1027,7 +1028,11 @@ function applyUserLocks(
     }
     return locked
   })
-  if (settings.locks.trail) state.global.trailPersistence = 1 - clamp01(oscillator.autoSectionMode ? 0.08 : 0.2)
+  if (settings.locks.trail) {
+    state.global.trailPersistence = settings.trailLockContract.mode === 'manualResolved'
+      ? 1 - clamp01(settings.trailLockContract.snapshot?.trailDecay ?? 0.76)
+      : 1 - clamp01(oscillator.autoSectionMode ? 0.08 : 0.2)
+  }
   if (settings.locks.feedback) state.global.feedbackAmount = 0
   if (settings.locks.ribbonTrail) state.global.trailPersistence = settings.livingRibbon.trailPersistence
   if (settings.locks.color) {

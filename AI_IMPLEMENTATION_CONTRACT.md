@@ -448,3 +448,13 @@ If the request conflicts with a current DRMVYZ contract, use the canonical archi
 
 Return one single downloadable Git-compatible .patch file.
 ```
+
+## Sound Drawing control ownership and preset provenance
+
+Sound Drawing manual/program/lock ownership must be derived through `src/components/vyzualz/react/soundDrawing/SoundDrawingOwnership.ts`. Do not add scattered `autoPerformance` disable rules. Controls are disabled only when their domain resolves to Program or Unavailable; Locked and Mixed controls remain editable and must explain their resolved ownership through accessible descriptions.
+
+Pro Scope uses `pathScale` as the primary **Trace Size** presentation control. `gainX` and `gainY` remain independent, smoothed signal-domain **Post Auto-Gain Trim** values with explicit link metadata. Trigger Stability is a macro over independent Continuity and Period Assist costs and must not collapse the runtime algorithms.
+
+Scope and generic React preset IDs are stable provenance. Exact/Modified/Custom/Unknown Legacy status is derived by comparison and must survive manual edits, Track Map changes, automation, persistence, seek, and reset. Never clear stable preset IDs merely to display a modified state.
+
+Trail lock behavior follows the versioned contract in [`docs/sound-drawing-control-ownership-and-provenance.md`](docs/sound-drawing-control-ownership-and-provenance.md). Historical recipe locks are preserved and truthfully labeled; new manual trail protection owns the final Trail Decay composition step.

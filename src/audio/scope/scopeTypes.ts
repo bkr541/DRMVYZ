@@ -486,12 +486,22 @@ export interface SoundDrawingScopeStateV5 extends Omit<SoundDrawingScopeStateV4,
   version: 5
 }
 
-export type SoundDrawingScopeState = SoundDrawingScopeStateV5
+/**
+ * Version 6 records linked-axis authoring semantics without changing either
+ * canonical gain value. Persisted v1-v5 projects derive the link from whether
+ * gainX and gainY already match, so their rendered geometry is unchanged.
+ */
+export interface SoundDrawingScopeStateV6 extends Omit<SoundDrawingScopeStateV5, 'version'> {
+  version: 6
+  axisGainLinked: boolean
+}
 
-export const SOUND_DRAWING_SCOPE_STATE_VERSION = 5
+export type SoundDrawingScopeState = SoundDrawingScopeStateV6
+
+export const SOUND_DRAWING_SCOPE_STATE_VERSION = 6
 
 export const DEFAULT_SOUND_DRAWING_SCOPE_STATE: SoundDrawingScopeState = {
-  version: 5,
+  version: 6,
   music: DEFAULT_SCOPE_MUSIC_MAPPING,
   beam: DEFAULT_SCOPE_BEAM,
   phosphor: DEFAULT_SCOPE_PHOSPHOR,
@@ -499,6 +509,7 @@ export const DEFAULT_SOUND_DRAWING_SCOPE_STATE: SoundDrawingScopeState = {
   enabled: false,
   signalMode: 'stereoXY',
   signalConditioner: DEFAULT_SCOPE_SIGNAL_CONDITIONER,
+  axisGainLinked: true,
   trigger: DEFAULT_SCOPE_TRIGGER,
   timebase: DEFAULT_SCOPE_TIMEBASE,
   monoDelayMs: 2,

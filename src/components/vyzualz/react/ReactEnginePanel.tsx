@@ -17,6 +17,7 @@ import {
 import { shouldShowLivingRibbonControls } from './soundDrawing/SoundDrawingControlVisibility'
 import { resolveSoundDrawingOwnership } from './soundDrawing/SoundDrawingOwnership'
 import { SoundDrawingProScopeControls } from './soundDrawing/SoundDrawingProScopeControls'
+import { SOUND_DRAWING_VISUAL_SIZE_MAX, SOUND_DRAWING_VISUAL_SIZE_MIN } from './soundDrawing/SoundDrawingVisualSize'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './soundDrawing/SoundDrawingPerformanceTypes'
 import type {
   SoundDrawingGeneratorPreference,
@@ -93,27 +94,40 @@ function SoundDrawingSourceIcon({ source }: { source: SoundDrawingSourceChoice }
 function SoundDrawingSourceGrid({
   value,
   onChange,
+  disabled = false,
+  description,
 }: {
   value: SoundDrawingSourceChoice
   onChange: (value: SoundDrawingSourceChoice) => void
+  disabled?: boolean
+  description?: string
 }) {
   return (
-    <div className="rv-sound-source-grid" role="radiogroup" aria-label="Sound Drawing source">
-      {SOUND_DRAWING_SOURCE_OPTIONS.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          className={value === option.value ? 'rv-sound-source-card is-active' : 'rv-sound-source-card'}
-          onClick={() => onChange(option.value)}
-        >
-          <span className="rv-sound-source-card-icon">
-            <SoundDrawingSourceIcon source={option.value} />
-          </span>
-          <span className="rv-sound-source-card-label">{option.label}</span>
-        </button>
-      ))}
+    <div>
+      <div
+        className="rv-sound-source-grid"
+        role="radiogroup"
+        aria-label="Sound Drawing source"
+        aria-describedby={description ? 'sound-drawing-source-ownership' : undefined}
+      >
+        {SOUND_DRAWING_SOURCE_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={value === option.value}
+            className={value === option.value ? 'rv-sound-source-card is-active' : 'rv-sound-source-card'}
+            onClick={() => onChange(option.value)}
+            disabled={disabled}
+          >
+            <span className="rv-sound-source-card-icon">
+              <SoundDrawingSourceIcon source={option.value} />
+            </span>
+            <span className="rv-sound-source-card-label">{option.label}</span>
+          </button>
+        ))}
+      </div>
+      {description && <span id="sound-drawing-source-ownership" className="rv-ctrl-description">{description}</span>}
     </div>
   )
 }
@@ -323,6 +337,7 @@ export function ReactEnginePanel() {
     activeReactEngineId,
     reactPresets,
     activeReactPresetId,
+    reactTrailDecay,
     cinematicConfigsByPresetId,
     selectReactPreset,
     oscillatorSettings,
@@ -347,6 +362,7 @@ export function ReactEnginePanel() {
     activeReactEngineId:        s.activeReactEngineId,
     reactPresets:               s.reactPresets,
     activeReactPresetId:        s.activeReactPresetId,
+    reactTrailDecay:            s.reactTrailDecay,
     cinematicConfigsByPresetId: s.cinematicConfigsByPresetId,
     selectReactPreset:          s.selectReactPreset,
     oscillatorSettings:         s.oscillatorSettings,
@@ -820,7 +836,9 @@ export function ReactEnginePanel() {
                   ['generator', 'Generator'],
                   ['layerRecruitment', 'Layer Recruitment'],
                   ['topology', 'Topology & Symmetry'],
-                  ['trail', 'Trails'],
+                  ['trail', soundDrawingPerformanceSettings.trailLockContract.mode === 'legacyRecipe'
+                    ? 'Legacy Performance Trail Recipe'
+                    : 'Protect Manual Trail State'],
                   ['feedback', 'Feedback'],
                   ['transform', 'Transform'],
                   ['camera', 'Camera'],
@@ -848,8 +866,32 @@ export function ReactEnginePanel() {
                     label={label}
                     value={soundDrawingPerformanceSettings.locks[key]}
                     onChange={(value) => setSoundDrawingPerformanceLock(key, value)}
+                    description={key === 'trail'
+                      ? soundDrawingPerformanceSettings.trailLockContract.mode === 'legacyRecipe'
+                        ? 'Compatibility mode for historical shows. Protects the old authored recipe, not the visible manual Trail Decay.'
+                        : 'Snapshots Trail Decay, Auto Section mode, and Ribbon Trail Persistence. Final Trail Decay is protected; Ribbon Trails remain separately lockable.'
+                      : undefined}
                   />
                 ))}
+                {soundDrawingPerformanceSettings.trailLockContract.mode === 'legacyRecipe' && (
+                  <button
+                    type="button"
+                    className="rv-reset-btn"
+                    onClick={() => setSoundDrawingPerformanceSettings({
+                      trailLockContract: {
+                        version: 2,
+                        mode: 'manualResolved',
+                        snapshot: {
+                          trailDecay: reactTrailDecay,
+                          autoSectionMode: osc.autoSectionMode,
+                          ribbonTrailPersistence: ribbon.trailPersistence,
+                        },
+                      },
+                    })}
+                  >
+                    Use Corrected Manual Trail Protection
+                  </button>
+                )}
               </Collapsible>
               <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />
               <button type="button" className="rv-reset-btn" onClick={resetSoundDrawingPerformanceSettings}>
@@ -893,11 +935,33 @@ export function ReactEnginePanel() {
           <SoundDrawingSourceGrid
             value={osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual' ? 'svg' : osc.sourceType}
             onChange={(sourceType) => set({ sourceType })}
+            disabled={!soundDrawingOwnership.domains.source.editable}
+            description={soundDrawingOwnership.domains.source.ariaDescription}
           />
 
-          {/* Classic Scope mode */}
-          {osc.sourceType === 'classic' && (
-            <>
+          {osc.sourceType === 'classic' &&
+            !osc.autoSectionMode &&
+            osc.classicMode === 'professionalScope' &&
+            authoredScopeOwnsControls && (
+              <SliderRow
+                label="Trace Size"
+                value={osc.pathScale}
+                onChange={value => set({ pathScale: value })}
+                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+                step={0.01}
+                description={soundDrawingOwnership.domains.geometry.ariaDescription}
+              />
+            )}
+
+          <fieldset
+            disabled={!soundDrawingOwnership.domains.source.editable}
+            aria-describedby="sound-drawing-source-ownership"
+            style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
+          >
+            {/* Classic Scope mode */}
+            {osc.sourceType === 'classic' && (
+              <>
               <ToggleRow
                 label="Auto Section Mode"
                 value={osc.autoSectionMode}
@@ -921,26 +985,28 @@ export function ReactEnginePanel() {
                 />
               )}
               {!osc.autoSectionMode && osc.classicMode === 'professionalScope' && (
-                <fieldset
-                  disabled={authoredScopeOwnsControls}
-                  aria-describedby="sound-drawing-performance-ownership"
-                  style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
-                >
-                  {authoredScopeOwnsControls && (
-                    <div className="rv-ctrl-info">
-                      {soundDrawingOwnership.professionalScopeOwner === 'authored'
-                        ? `Controlled by ${selectedSoundDrawingShow?.name ?? 'the active show'}.`
-                        : `Inactive while ${selectedSoundDrawingShow?.name ?? 'the active show'} owns the output.`}
-                    </div>
-                  )}
-                  <SoundDrawingProScopeControls osc={osc} set={set} />
-                </fieldset>
+                <>
+                  <fieldset
+                    disabled={authoredScopeOwnsControls}
+                    aria-describedby="sound-drawing-performance-ownership"
+                    style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
+                  >
+                    {authoredScopeOwnsControls && (
+                      <div className="rv-ctrl-info">
+                        {soundDrawingOwnership.professionalScopeOwner === 'authored'
+                          ? `Signal, trigger, phosphor, and CRT controls are owned by ${selectedSoundDrawingShow?.name ?? 'the active show'}. Trace Size remains a live mixed input.`
+                          : `Pro Scope signal controls are inactive because ${selectedSoundDrawingShow?.name ?? 'the active show'} has no scope layer. Trace Size still controls the authored base geometry.`}
+                      </div>
+                    )}
+                    <SoundDrawingProScopeControls osc={osc} set={set} hideTraceSize={authoredScopeOwnsControls} />
+                  </fieldset>
+                </>
               )}
-            </>
-          )}
+              </>
+            )}
 
-          {/* Built-in shape picker */}
-          {osc.sourceType === 'builtinShape' && (
+            {/* Built-in shape picker */}
+            {osc.sourceType === 'builtinShape' && (
             <SelectRow
               label="Shape"
               value={osc.builtinShape}
@@ -956,10 +1022,10 @@ export function ReactEnginePanel() {
                 { value: 'line',     label: 'Line' },
               ]}
             />
-          )}
+            )}
 
-          {/* Text source */}
-          {osc.sourceType === 'text' && (
+            {/* Text source */}
+            {osc.sourceType === 'text' && (
             <>
               <SelectRow
                 label="Text Source"
@@ -1065,10 +1131,10 @@ export function ReactEnginePanel() {
                 color="#d8b95a"
               />
             </>
-          )}
+            )}
 
-          {/* Unified SVG picker (source type 'svg', or legacy svgGlyph/svgVisual) */}
-          {(osc.sourceType === 'svg' || osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual') &&
+            {/* Unified SVG picker (source type 'svg', or legacy svgGlyph/svgVisual) */}
+            {(osc.sourceType === 'svg' || osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual') &&
             (svgMediaItems.length === 0 ? (
               <div className="rv-ctrl-info">No SVG files yet — import from the Media tab.</div>
             ) : (
@@ -1114,10 +1180,10 @@ export function ReactEnginePanel() {
                   </div>
                 )}
               </>
-            ))}
+              ))}
 
-          {/* ── Source: path resolution (non-classic; hide for pure originalArtwork modes) ── */}
-          {osc.sourceType !== 'classic' && activeSvgSource?.renderMode !== 'originalArtwork' && (
+            {/* ── Source: path resolution (non-classic; hide for pure originalArtwork modes) ── */}
+            {osc.sourceType !== 'classic' && activeSvgSource?.renderMode !== 'originalArtwork' && (
             <>
               <CtrlSection label="Source" />
               <SliderRow
@@ -1130,7 +1196,8 @@ export function ReactEnginePanel() {
                 color="#4ac7db"
               />
             </>
-          )}
+              )}
+          </fieldset>
         </>
       )}
     </div>

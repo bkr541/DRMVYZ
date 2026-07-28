@@ -18,6 +18,7 @@ import {
   SOUND_DRAWING_VISUAL_SIZE_MAX,
   SOUND_DRAWING_VISUAL_SIZE_MIN,
 } from './soundDrawing/SoundDrawingVisualSize'
+import { resolveSoundDrawingOwnership, soundDrawingOwnershipTooltip } from './soundDrawing/SoundDrawingOwnership'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -34,6 +35,7 @@ export function ReactFxPanel() {
     reactParticleDensity, setReactParticleDensity,
     activeReactEngineId,
     oscillatorSettings, oscillatorGlyphAssets, oscillatorGlyphPointCache,
+    soundDrawingPerformanceSettings,
     setOscillatorSettings, resetOscillatorSettings,
     laserDmxBeamMatrix,   setLaserDmxBeamMatrixSettings,
   } = useReactStore(useShallow(s => ({
@@ -53,6 +55,7 @@ export function ReactFxPanel() {
     setReactParticleDensity:     s.setReactParticleDensity,
     activeReactEngineId:         s.activeReactEngineId,
     oscillatorSettings:          s.oscillatorSettings,
+    soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
     oscillatorGlyphAssets:        s.oscillatorGlyphAssets,
     oscillatorGlyphPointCache:    s.oscillatorGlyphPointCache,
     setOscillatorSettings:       s.setOscillatorSettings,
@@ -71,6 +74,8 @@ export function ReactFxPanel() {
   const isCanvas        = activeReactEngineId === 'canvas'
   const isPixGrid       = activeReactEngineId === 'pixGrid'
   const isBeamMatrix    = isLaserDmx
+  const soundDrawingOwnership = resolveSoundDrawingOwnership(soundDrawingPerformanceSettings)
+  const isProfessionalScope = isSoundDrawing && osc.sourceType === 'classic' && !osc.autoSectionMode && osc.classicMode === 'professionalScope'
 
   const masterControls = getReactFxMasterControls(activeReactEngineId)
   const showMasterIntensity = masterControls.includes('intensity')
@@ -86,11 +91,21 @@ export function ReactFxPanel() {
           value={reactIntensity}
           onChange={setReactIntensity}
           color="#4ac7db"
-          description={isPixGrid ? 'Trims the authored React performance output after PixGrid Output Intensity. Kept separate for automation and legacy preset compatibility.' : undefined}
+          description={isPixGrid
+            ? 'Trims the authored React performance output after PixGrid Output Intensity. Kept separate for automation and legacy preset compatibility.'
+            : isSoundDrawing
+              ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.performanceIntensity)
+              : undefined}
         />
       )}
       {showMasterMotion && (
-        <SliderRow label="Motion" value={reactMotion} onChange={setReactMotion} color="#61d6aa" />
+        <SliderRow
+          label="Motion"
+          value={reactMotion}
+          onChange={setReactMotion}
+          color="#61d6aa"
+          description={isSoundDrawing ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.motion) : undefined}
+        />
       )}
       {showMasterGlow && (
         <SliderRow
@@ -98,7 +113,11 @@ export function ReactFxPanel() {
           value={reactGlow}
           onChange={setReactGlow}
           color="#b84fc9"
-          description={isPixGrid ? 'Controls the spatial radius of the PixGrid halo. Emitter Glow controls halo strength.' : undefined}
+          description={isPixGrid
+            ? 'Controls the spatial radius of the PixGrid halo. Emitter Glow controls halo strength.'
+            : isSoundDrawing
+              ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.glow)
+              : undefined}
         />
       )}
       {showMasterBassReactivity && (
@@ -107,6 +126,7 @@ export function ReactFxPanel() {
           value={reactBassReactivity}
           onChange={setReactBassReactivity}
           color="#d8b95a"
+          description={isSoundDrawing ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.reaction) : undefined}
         />
       )}
     </>
@@ -175,16 +195,23 @@ export function ReactFxPanel() {
         {isSoundDrawing && (
           <>
             <CtrlSection label="Drawing Size" />
-            <SliderRow
-              label="Visual Size"
-              value={osc.pathScale}
-              onChange={v => set({ pathScale: v })}
-              min={SOUND_DRAWING_VISUAL_SIZE_MIN}
-              max={SOUND_DRAWING_VISUAL_SIZE_MAX}
-              step={0.01}
-              color="#61d6aa"
-              description="Sets the base size for scopes, built-in shapes, text, and SVG artwork. Auto Performance may animate the effective size unless Scale is locked."
-            />
+            {isProfessionalScope ? (
+              <div className="rv-ctrl-info">
+                Pro Scope Trace Size is owned by Engine → Pro Scope. This removes the duplicate top-level size control.
+              </div>
+            ) : (
+              <SliderRow
+                label="Visual Size"
+                value={osc.pathScale}
+                onChange={v => set({ pathScale: v })}
+                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+                step={0.01}
+                color="#61d6aa"
+                disabled={!soundDrawingOwnership.domains.geometry.editable}
+                description={`Sets the base size for scopes, built-in shapes, text, and SVG artwork. Auto Performance may animate the effective size unless Scale is locked. ${soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.geometry)}`}
+              />
+            )}
             {isSvgOriginalArtwork ? (
               // Original Artwork: only whole-artwork transforms affect rendering.
               // Trail, render mode, duplicate traces, and mirror are point-path features
@@ -197,6 +224,8 @@ export function ReactFxPanel() {
                     onChange={v => set({ rotationSpeed: v })}
                     min={-1} max={1} step={0.01}
                     color="#d8b95a"
+                    disabled={!soundDrawingOwnership.domains.presentation.editable}
+                    description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.presentation)}
                   />
                 </Collapsible>
               </Collapsible>
@@ -208,11 +237,15 @@ export function ReactFxPanel() {
                   value={reactTrailDecay}
                   onChange={setReactTrailDecay}
                   color="#4ac7db"
+                  disabled={!soundDrawingOwnership.domains.trails.editable}
+                  description={`${soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.trails)} Trail Decay sets fade speed; authored Trail Intensity sets performance persistence demand.`}
                 />
                 <SelectRow
                   label="Render Mode"
                   value={osc.renderMode}
                   onChange={v => set({ renderMode: v as OscillatorRenderMode })}
+                  disabled={!soundDrawingOwnership.domains.topology.editable}
+                  description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.topology)}
                   options={[
                     { value: 'outline',    label: 'Outline' },
                     { value: 'multiTrace', label: 'Multi Trace' },
@@ -226,6 +259,8 @@ export function ReactFxPanel() {
                   onChange={v => set({ duplicateTraces: Math.round(v) })}
                   min={1} max={6} step={1}
                   color="#61d6aa"
+                  disabled={!soundDrawingOwnership.domains.echo.editable}
+                  description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.echo)}
                 />
                 <Collapsible label="Path">
                   <SliderRow
@@ -234,9 +269,23 @@ export function ReactFxPanel() {
                     onChange={v => set({ rotationSpeed: v })}
                     min={-1} max={1} step={0.01}
                     color="#d8b95a"
+                    disabled={!soundDrawingOwnership.domains.presentation.editable}
+                    description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.presentation)}
                   />
-                  <ToggleRow label="Mirror X" value={osc.mirrorX} onChange={v => set({ mirrorX: v })} />
-                  <ToggleRow label="Mirror Y" value={osc.mirrorY} onChange={v => set({ mirrorY: v })} />
+                  <ToggleRow
+                    label="Mirror X"
+                    value={osc.mirrorX}
+                    onChange={v => set({ mirrorX: v })}
+                    disabled={!soundDrawingOwnership.domains.topology.editable}
+                    description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.topology)}
+                  />
+                  <ToggleRow
+                    label="Mirror Y"
+                    value={osc.mirrorY}
+                    onChange={v => set({ mirrorY: v })}
+                    disabled={!soundDrawingOwnership.domains.topology.editable}
+                    description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.topology)}
+                  />
                 </Collapsible>
                 <button
                   type="button"

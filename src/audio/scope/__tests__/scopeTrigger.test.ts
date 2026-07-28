@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ScopeTrigger, interpolateCrossing } from '../ScopeTrigger'
+import { ScopeTrigger, interpolateCrossing, scoreScopeTriggerCandidate } from '../ScopeTrigger'
 import { DEFAULT_SCOPE_TRIGGER, type ScopeTriggerSettings } from '../scopeTypes'
 import { FIXTURE_SAMPLE_RATE, createNoiseFrame, createStereoSineFrame } from './scopeFixtures'
 
@@ -146,6 +146,25 @@ describe('trigger — sub-sample interpolation', () => {
 })
 
 describe('trigger — stability across advancing capture windows', () => {
+  it('keeps Continuity and Period Assist as independent costs', () => {
+    const common = {
+      candidatePosition: 80,
+      candidateStrength: 0.2,
+      periodConfidence: 1,
+      periodSamples: 100,
+      windowLength: 1000,
+      windowStartFrame: 1000,
+      lastTriggerPosition: 20,
+      lastAbsolutePosition: 900,
+    }
+    const neutral = scoreScopeTriggerCandidate({ ...common, continuityWeight: 0, periodAssist: 0 })
+    const continuityOnly = scoreScopeTriggerCandidate({ ...common, continuityWeight: 1, periodAssist: 0 })
+    const periodOnly = scoreScopeTriggerCandidate({ ...common, continuityWeight: 0, periodAssist: 1 })
+    expect(continuityOnly).toBeGreaterThan(neutral)
+    expect(periodOnly).toBeGreaterThan(neutral)
+    expect(continuityOnly).not.toBe(periodOnly)
+  })
+
   /**
    * The product claim is that a steady tone stops sliding. Concretely: as the
    * capture window advances by an arbitrary, non-period-aligned number of

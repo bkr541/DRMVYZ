@@ -299,3 +299,15 @@ gate with no dev bypass.
    change set rather than iterating one number at a time.
 4. Only then consider the visual regression suite, so it locks in a look that is
    actually right.
+
+## Patch 2 control semantics
+
+Scope state version 6 adds persisted `axisGainLinked` authoring metadata. It does not change `gainX`, `gainY`, or `pathScale`. Earlier projects derive link state from gain equality.
+
+The primary size control is **Trace Size** (`pathScale`). Advanced **Post Auto-Gain Trim** retains the conditioner smoothing and independent axis calibration. X Trim is unavailable in waveform modes because their horizontal axis is timebase-driven.
+
+**Stability Macro** intentionally writes Continuity and Period Assist together only when the user moves the macro. Advanced edits remain independent and produce Custom status.
+
+Scope `presetId` is provenance. The UI derives Exact, Modified from Preset, Custom, or Unknown Legacy by comparing the normalized current state with the complete installed recipe. Reset restores the exact source recipe.
+
+See [`docs/sound-drawing-control-ownership-and-provenance.md`](docs/sound-drawing-control-ownership-and-provenance.md) for generic React provenance, row/domain ownership, and versioned trail-lock precedence.
