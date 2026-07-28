@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { ReactPresetCard, type ReactPresetCardChip } from './ReactPresetCard'
+import { resolveLaserDmxBeamMatrixPresetProvenance } from './LaserDmxBeamMatrixPresetProvenance'
 import {
   BeamMatrixPresetThumbnail,
   getBeamMatrixPresetPalette,
@@ -97,15 +98,18 @@ export function filterLaserDmxBeamMatrixPresets(
 export function LaserDmxBeamMatrixPresetBrowser() {
   const {
     activeLaserDmxBeamMatrixPresetId,
-    laserDmxBeamMatrixPresetDirty,
     laserDmxBeamMatrix,
     applyLaserDmxBeamMatrixPreset,
   } = useReactStore(useShallow(state => ({
     activeLaserDmxBeamMatrixPresetId: state.activeLaserDmxBeamMatrixPresetId,
-    laserDmxBeamMatrixPresetDirty: state.laserDmxBeamMatrixPresetDirty,
     laserDmxBeamMatrix: state.laserDmxBeamMatrix,
     applyLaserDmxBeamMatrixPreset: state.applyLaserDmxBeamMatrixPreset,
   })))
+
+  const activePresetProvenance = useMemo(
+    () => resolveLaserDmxBeamMatrixPresetProvenance(laserDmxBeamMatrix, activeLaserDmxBeamMatrixPresetId),
+    [activeLaserDmxBeamMatrixPresetId, laserDmxBeamMatrix],
+  )
 
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -149,7 +153,7 @@ export function LaserDmxBeamMatrixPresetBrowser() {
   function handleApply(presetId: string) {
     const hasContent = laserDmxBeamMatrix.beams.length > 0
     const replacesModifiedPreset = hasContent
-      && laserDmxBeamMatrixPresetDirty
+      && activePresetProvenance.status === 'modified'
       && activeLaserDmxBeamMatrixPresetId !== presetId
     if (replacesModifiedPreset) {
       setPendingId(presetId)
@@ -303,7 +307,7 @@ export function LaserDmxBeamMatrixPresetBrowser() {
               <div className="rv-preset-group-cards rv-laser-dmx-preset-category-list" data-preset-grid>
                 {presets.map(preset => {
                   const isActive = preset.id === activeLaserDmxBeamMatrixPresetId
-                  const isModified = isActive && laserDmxBeamMatrixPresetDirty
+                  const isModified = isActive && activePresetProvenance.status === 'modified'
                   return (
                     <ReactPresetCard
                       key={preset.id}

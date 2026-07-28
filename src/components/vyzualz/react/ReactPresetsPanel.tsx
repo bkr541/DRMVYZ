@@ -41,6 +41,7 @@ import { resolveBrandedReactPreset } from '../../../features/personalization/res
 import type { ProductionFixtureKind } from './LaserDmxProductionRig'
 import { isSelectableReactEngineId, REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
 import { resolveReactPresetProvenance } from './ReactPresetProvenance'
+import { resolveCanvasPresetProvenance } from './canvasPerformance/CanvasPresetProvenance'
 import {
   filterReactPresetLibrary,
   isReactPresetVisibleForLockedLaserDmx,
@@ -368,10 +369,7 @@ function EngineSection({ engineId, presets, expandedByDefault = false, ...props 
 function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGenerationKey: string }) {
   const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
   const selectCanvasPreset = useReactStore(state => state.selectCanvasPreset)
-  const canvasPresetOverride = useReactStore(state => state.canvasPresetOverride)
-  const customizedPresetId = canvasPresetOverride?.source === 'manual' && canvasPresetOverride.label === 'User-adjusted preset'
-    ? canvasPresetOverride.presetId
-    : null
+  const canvasPresetSettings = useReactStore(state => state.canvasPresetSettings)
   const cardPresets = useMemo(() => CANVAS_PRESETS.map(createCanvasPresetCardPreset), [])
   const cardById = useMemo(() => new Map(cardPresets.map(preset => [preset.id, preset])), [cardPresets])
   const canvasThumbnailGenerationKey = useMemo(
@@ -395,7 +393,8 @@ function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGeneratio
               key={canvasPreset.id}
               preset={cardPreset}
               isActive={canvasPreset.id === selectedCanvasPresetId}
-              modified={canvasPreset.id === customizedPresetId}
+              modified={canvasPreset.id === selectedCanvasPresetId
+                && resolveCanvasPresetProvenance(canvasPreset, canvasPresetSettings).status === 'modified'}
               activeEngineId="canvas"
               onSelect={id => selectCanvasPreset(id as CanvasPresetId)}
               thumbnailGenerationKey={canvasThumbnailGenerationKey}

@@ -3,6 +3,7 @@ import type { CanvasEngineSettings, CanvasMediaItem, CanvasPresetSettings } from
 import { resolveCanvasEffectVisualState } from './CanvasEffectRecipes'
 import type { CanvasPreloadHandle, CanvasPreloadManager } from './CanvasPreloadManager'
 import { resolveCanvasTransitionVisualState } from './CanvasTransitions'
+import { resolveCanvasLayerAlphaHierarchy, resolveCanvasOutputContract, type CanvasLayerAlphaHierarchy } from './CanvasOutputContract'
 import type {
   CanvasAspectBehavior,
   CanvasResolvedLayer,
@@ -102,7 +103,7 @@ function drawSource(
   globalRotation = 0,
   globalOffsetX = 0,
   globalOffsetY = 0,
-  alphaMultiplier = 1,
+  alphaHierarchy: CanvasLayerAlphaHierarchy = { drySourceAlpha: 1, processedAlpha: 0 },
   motionIntensity = 1,
 ): void {
   const size = sourceSize(source)
@@ -120,23 +121,25 @@ function drawSource(
 
   context.save()
   context.globalCompositeOperation = layer.blendMode
-  context.globalAlpha = Math.max(0, Math.min(1, layer.opacity * alphaMultiplier))
+  context.globalAlpha = alphaHierarchy.drySourceAlpha
   context.translate(x + effects.offsetX, y + effects.offsetY)
   context.rotate((layer.rotation + globalRotation + effects.rotationDeg) * Math.PI / 180)
   context.scale(scaleX, scaleY)
   context.filter = 'none'
-  context.drawImage(source, sx, sy, sw, sh, -fitted.width / 2, -fitted.height / 2, fitted.width, fitted.height)
+  if (alphaHierarchy.drySourceAlpha > 0.001) {
+    context.drawImage(source, sx, sy, sw, sh, -fitted.width / 2, -fitted.height / 2, fitted.width, fitted.height)
+  }
 
   // Effects are an additive pass over an untouched source pass. Disabling a recipe
   // therefore restores the pristine frame rather than compounding filtered pixels.
-  if (layer.effectChain.length > 0) {
+  if (layer.effectChain.length > 0 && alphaHierarchy.processedAlpha > 0.001) {
     context.globalCompositeOperation = effects.rgbSplitAmount > 0.02 ? 'screen' : 'source-over'
-    context.globalAlpha = Math.min(0.48, layer.opacity * alphaMultiplier * 0.34)
+    context.globalAlpha = Math.min(0.48, alphaHierarchy.processedAlpha * 0.34)
     context.filter = effects.filter
     context.drawImage(source, sx, sy, sw, sh, -fitted.width / 2, -fitted.height / 2, fitted.width, fitted.height)
     if (effects.rgbSplitAmount > 0.02) {
       const split = effects.rgbSplitAmount * 12
-      context.globalAlpha = Math.min(0.26, effects.rgbSplitAmount * 0.3)
+      context.globalAlpha = Math.min(0.26, alphaHierarchy.processedAlpha * effects.rgbSplitAmount * 0.3)
       context.drawImage(source, sx, sy, sw, sh, -fitted.width / 2 + split, -fitted.height / 2, fitted.width, fitted.height)
       context.drawImage(source, sx, sy, sw, sh, -fitted.width / 2 - split, -fitted.height / 2, fitted.width, fitted.height)
     }
@@ -146,7 +149,7 @@ function drawSource(
   if (effects.scanlineAmount > 0.02) {
     context.save()
     context.globalCompositeOperation = 'source-over'
-    context.globalAlpha = Math.min(0.18, effects.scanlineAmount * 0.22)
+    context.globalAlpha = Math.min(0.18, alphaHierarchy.processedAlpha * effects.scanlineAmount * 0.22)
     context.fillStyle = '#000'
     const gap = Math.max(3, Math.round(7 - effects.scanlineAmount * 3))
     for (let row = 0; row < height; row += gap) context.fillRect(0, row, width, 1)
@@ -167,7 +170,7 @@ function drawLayerWithOptionalMask({
   globalRotation,
   globalOffsetX,
   globalOffsetY,
-  alphaMultiplier,
+  alphaHierarchy,
   motionIntensity,
 }: {
   output: CanvasRenderingContext2D
@@ -182,7 +185,7 @@ function drawLayerWithOptionalMask({
   globalRotation: number
   globalOffsetX: number
   globalOffsetY: number
-  alphaMultiplier: number
+  alphaHierarchy: CanvasLayerAlphaHierarchy
   motionIntensity: number
 }): void {
   const layerContext = layerCanvas.getContext('2d', { alpha: true })
@@ -190,7 +193,7 @@ function drawLayerWithOptionalMask({
   if (!layerContext || !maskContext) return
   layerContext.setTransform(1, 0, 0, 1, 0, 0)
   layerContext.clearRect(0, 0, width, height)
-  drawSource(layerContext, source, layer, width, height, globalScale, globalRotation, globalOffsetX, globalOffsetY, alphaMultiplier, motionIntensity)
+  drawSource(layerContext, source, layer, width, height, globalScale, globalRotation, globalOffsetX, globalOffsetY, alphaHierarchy, motionIntensity)
 
   if (mask && layer.maskMode) {
     maskContext.setTransform(1, 0, 0, 1, 0, 0)
@@ -210,7 +213,7 @@ function drawLayerWithOptionalMask({
       mirrorX: false,
       mirrorY: false,
     }
-    drawSource(maskContext, mask, maskLayer, width, height)
+    drawSource(maskContext, mask, maskLayer, width, height, 1, 0, 0, 0, { drySourceAlpha: 1, processedAlpha: 0 })
     layerContext.save()
     layerContext.globalCompositeOperation = layer.maskMode.startsWith('inverted') ? 'destination-out' : 'destination-in'
     // Canvas2D luma masks degrade safely to the source alpha channel. This avoids
@@ -283,6 +286,7 @@ export function CanvasOrchestrationStage({
 }: CanvasOrchestrationStageProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const shellRef = useRef<HTMLDivElement | null>(null)
+  const compositionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const previousCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const layerCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -293,6 +297,10 @@ export function CanvasOrchestrationStage({
   propsRef.current = { isPlaying, isPaused, engineSettings, presetSettings, motionIntensity }
 
   const mediaSummary = useMemo(() => activeMedia(frame), [frame])
+  const outputContract = useMemo(() => resolveCanvasOutputContract({
+    canvasOutputOpacity: engineSettings.opacity,
+    presetSettings,
+  }), [engineSettings.opacity, presetSettings])
 
   useEffect(() => {
     onCanvasReady?.(canvasRef.current)
@@ -303,15 +311,19 @@ export function CanvasOrchestrationStage({
     const canvas = canvasRef.current
     const shell = shellRef.current
     if (!canvas || !shell) return
-    const context = canvas.getContext('2d', { alpha: true })
-    if (!context) return
+    const outputContext = canvas.getContext('2d', { alpha: true })
+    if (!outputContext) return
+    compositionCanvasRef.current ??= makeScratchCanvas()
     previousCanvasRef.current ??= makeScratchCanvas()
     layerCanvasRef.current ??= makeScratchCanvas()
     maskCanvasRef.current ??= makeScratchCanvas()
+    const compositionCanvas = compositionCanvasRef.current
     const previousCanvas = previousCanvasRef.current
     const layerCanvas = layerCanvasRef.current
     const maskCanvas = maskCanvasRef.current
-    if (!previousCanvas || !layerCanvas || !maskCanvas) return
+    if (!compositionCanvas || !previousCanvas || !layerCanvas || !maskCanvas) return
+    const context = compositionCanvas.getContext('2d', { alpha: true })
+    if (!context) return
 
     let animationFrame = 0
     let fpsFrames = 0
@@ -327,6 +339,7 @@ export function CanvasOrchestrationStage({
       const width = Math.max(1, Math.round(cssWidth * dpr))
       const height = Math.max(1, Math.round(cssHeight * dpr))
       resizeCanvas(canvas, width, height)
+      resizeCanvas(compositionCanvas, width, height)
       resizeCanvas(previousCanvas, width, height)
       resizeCanvas(layerCanvas, width, height)
       resizeCanvas(maskCanvas, width, height)
@@ -334,7 +347,7 @@ export function CanvasOrchestrationStage({
       if (previousIdentityRef.current && previousIdentityRef.current !== liveFrame.frameIdentity) {
         const previousContext = previousCanvas.getContext('2d', { alpha: true })
         previousContext?.clearRect(0, 0, width, height)
-        previousContext?.drawImage(canvas, 0, 0)
+        previousContext?.drawImage(compositionCanvas, 0, 0)
       }
       previousIdentityRef.current = liveFrame.frameIdentity
 
@@ -361,6 +374,10 @@ export function CanvasOrchestrationStage({
 
       context.save()
       applyIncomingTransitionClip(context, liveFrame.transition?.id ?? null, transition.clipProgress, width, height)
+      const liveOutputContract = resolveCanvasOutputContract({
+        canvasOutputOpacity: liveProps.engineSettings.opacity,
+        presetSettings: liveProps.presetSettings,
+      })
       const layers = [...liveFrame.layers].filter(layer => layer.enabled && layer.sourceMediaId).sort((a, b) => a.zIndex - b.zIndex)
       for (const layer of layers) {
         const handle = layer.sourceMediaId ? preloadManager.getHandle(layer.sourceMediaId) : null
@@ -386,7 +403,12 @@ export function CanvasOrchestrationStage({
           globalRotation,
           globalOffsetX,
           globalOffsetY,
-          alphaMultiplier: transition.incomingOpacity * liveProps.engineSettings.opacity * liveProps.presetSettings.sourceVisibility,
+          alphaHierarchy: resolveCanvasLayerAlphaHierarchy({
+            layer,
+            transitionOpacity: transition.incomingOpacity,
+            drySourceMix: liveOutputContract.drySourceMix,
+            sourceMixMode: liveOutputContract.sourceMixMode,
+          }),
           motionIntensity: motion,
         })
       }
@@ -409,6 +431,14 @@ export function CanvasOrchestrationStage({
         context.restore()
       }
 
+      outputContext.setTransform(1, 0, 0, 1, 0, 0)
+      outputContext.clearRect(0, 0, width, height)
+      outputContext.globalCompositeOperation = 'source-over'
+      outputContext.globalAlpha = liveOutputContract.canvasOutputOpacity
+      outputContext.filter = 'none'
+      outputContext.drawImage(compositionCanvas, 0, 0)
+      outputContext.globalAlpha = 1
+
       fpsFrames += 1
       const now = performance.now()
       if (now - fpsStartedAt >= 1000) {
@@ -425,7 +455,11 @@ export function CanvasOrchestrationStage({
 
   return (
     <div ref={shellRef} className="rv-canvas-engine-surface rv-canvas-orchestration-stage" role="region" aria-label="CANVAS orchestrated media surface">
-      <canvas ref={canvasRef} className="rv-canvas-orchestration-canvas" />
+      <canvas
+        ref={canvasRef}
+        className="rv-canvas-orchestration-canvas"
+        data-output-opacity={outputContract.canvasOutputOpacity.toFixed(3)}
+      />
       <div className="rv-canvas-orchestration-status" role="status">
         <strong>{frame.showLabel} · {frame.template.label}</strong>
         <span>{frame.layers.filter(layer => layer.enabled).length} layers · {frame.decoderCount} video decoders · {mediaSummary.length} sources</span>

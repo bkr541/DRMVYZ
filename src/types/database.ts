@@ -20,6 +20,7 @@ export type Json =
 export type AudioSource  = 'file' | 'microphone' | 'demo' | 'ring_buffer' | 'rekordbox_xml' | 'rekordbox_usb'
 export type MeterMode    = 'vu' | 'rms' | 'peak' | 'ebu'
 export type ViewMode     = 'analyzer' | 'reference' | 'vyzualz'
+/** Canonical persisted appearance IDs. Historical rows are normalized by migration 0030 and the appearance service. */
 export type Theme        = 'dark' | 'light' | 'cdj'
 export type MediaType    = 'image' | 'video'
 export type ExportFormat = 'png' | 'jpeg' | 'webm' | 'gif'

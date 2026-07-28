@@ -2,6 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
+import { resolveCinematicPresetProvenance } from './CinematicPresetProvenance'
 import {
   CINEMATIC_AUDIO_SOURCES,
   CINEMATIC_NUMERIC_RANGES,
@@ -11,6 +12,7 @@ import {
   type CinematicAudioRoute,
   type CinematicAudioSource,
   type CinematicAudioTarget,
+  resolveSupportedCinematicCameraRig,
   type CinematicCameraRig,
   type CinematicPortalShape,
   type CinematicQualityTier,
@@ -208,7 +210,7 @@ function useActiveCinematic() {
     preset,
     config,
     presets,
-    modified: Boolean(preset && selected.configOverrides[preset.id]),
+    modified: resolveCinematicPresetProvenance(preset, config).status === 'modified',
     seedLocked: Boolean(preset && selected.seedLocks[preset.id]),
   }
 }
@@ -341,7 +343,7 @@ function AutoDirectorControls({ config, onChange, advanced }: { config: Cinemati
   return (
     <>
       <CtrlSection label="Auto Director" />
-      <ToggleRow id="cinematic-auto-director-enabled" label="Auto Director Enabled" value={config.cameraRig === 'autoDirector'} onChange={enabled => onChange({ ...config, cameraRig: enabled ? 'autoDirector' : 'locked' })} />
+      <div className="rv-ctrl-info">Auto Director is selected through Camera Mode. Its settings never rewrite the last manual rig.</div>
       <SliderRow id="cinematic-auto-director-strength" label="Strength" value={auto.strength} onChange={strength => setAuto({ strength })} />
       {advanced && (
         <>
@@ -362,6 +364,7 @@ export function CinematicWorldsDesignControls() {
   if (!active.preset || !active.config) return <div className="rv-ctrl-info">No Cinematic Worlds preset is available.</div>
   const { preset, config, modified, setConfig, clearConfig, seedLocked, setSeedLocked, uiMode } = active
   const world = CINEMATIC_WORLD_BY_ID[config.worldMode]
+  const resolvedCameraRig = resolveSupportedCinematicCameraRig(config.cameraRig, world.cameraRigs, 'locked')
   const save = (next: CinematicWorldConfig) => setConfig(preset.id, next)
   const saveCameraEdit = (next: CinematicWorldConfig) => save(uiMode === 'advanced' && config.worldMode === 'reactiveConstellation'
     ? markReactiveConstellationVisualDnaCustom(next)
@@ -387,8 +390,11 @@ export function CinematicWorldsDesignControls() {
       <SelectRow
         id="cinematic-camera-rig"
         label="Camera Mode"
-        value={config.cameraRig}
-        onChange={cameraRig => saveCameraEdit({ ...config, cameraRig: cameraRig as CinematicCameraRig })}
+        value={resolvedCameraRig}
+        onChange={cameraRig => saveCameraEdit({
+          ...config,
+          cameraRig: resolveSupportedCinematicCameraRig(cameraRig, world.cameraRigs, resolvedCameraRig),
+        })}
         options={world.cameraRigs.map(rig => ({ value: rig, label: CAMERA_LABELS[rig] }))}
       />
 
@@ -401,22 +407,22 @@ export function CinematicWorldsDesignControls() {
             </>
           )}
           <CtrlSection label="Camera Values" />
-          {config.cameraRig === 'locked' && (
+          {resolvedCameraRig === 'locked' && (
             <>
               <SliderRow id="cinematic-camera-fov" label="Field of View" value={config.camera.locked.fieldOfView} min={30} max={100} step={1} onChange={fieldOfView => saveCameraEdit({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, fieldOfView } } })} />
               <SliderRow id="cinematic-camera-breathing" label="Breathing" value={config.camera.locked.breathingStrength} min={0} max={0.12} step={0.002} onChange={breathingStrength => saveCameraEdit({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, breathingStrength } } })} />
               <SliderRow id="cinematic-camera-beat-punch" label="Beat Punch" value={config.camera.locked.beatPunch} min={0} max={0.4} step={0.01} onChange={beatPunch => saveCameraEdit({ ...config, camera: { ...config.camera, locked: { ...config.camera.locked, beatPunch } } })} />
             </>
           )}
-          {config.cameraRig === 'dolly' && <SliderRow id="cinematic-camera-dolly-speed" label="Dolly Speed" value={config.camera.dolly.speed} min={0} max={1} step={0.01} onChange={speed => saveCameraEdit({ ...config, camera: { ...config.camera, dolly: { ...config.camera.dolly, speed } } })} />}
-          {config.cameraRig === 'orbit' && (
+          {resolvedCameraRig === 'dolly' && <SliderRow id="cinematic-camera-dolly-speed" label="Dolly Speed" value={config.camera.dolly.speed} min={0} max={1} step={0.01} onChange={speed => saveCameraEdit({ ...config, camera: { ...config.camera, dolly: { ...config.camera.dolly, speed } } })} />}
+          {resolvedCameraRig === 'orbit' && (
             <>
               <SliderRow id="cinematic-camera-orbit-radius" label="Orbit Radius" value={config.camera.orbit.radius} min={0.5} max={4} step={0.05} onChange={radius => saveCameraEdit({ ...config, camera: { ...config.camera, orbit: { ...config.camera.orbit, radius } } })} />
               <SliderRow id="cinematic-camera-orbit-speed" label="Orbit Speed" value={config.camera.orbit.angularSpeed} min={-1} max={1} step={0.01} onChange={angularSpeed => saveCameraEdit({ ...config, camera: { ...config.camera, orbit: { ...config.camera.orbit, angularSpeed } } })} />
             </>
           )}
-          {config.cameraRig === 'flyThrough' && <SliderRow id="cinematic-camera-fly-speed" label="Travel Speed" value={config.camera.flyThrough.speed} min={0} max={1.5} step={0.01} onChange={speed => saveCameraEdit({ ...config, camera: { ...config.camera, flyThrough: { ...config.camera.flyThrough, speed } } })} />}
-          {config.cameraRig === 'handheld' && <SliderRow id="cinematic-camera-handheld" label="Handheld Strength" value={config.camera.handheld.strength} min={0} max={1} step={0.01} onChange={strength => saveCameraEdit({ ...config, camera: { ...config.camera, handheld: { ...config.camera.handheld, strength } } })} />}
+          {resolvedCameraRig === 'flyThrough' && <SliderRow id="cinematic-camera-fly-speed" label="Travel Speed" value={config.camera.flyThrough.speed} min={0} max={1.5} step={0.01} onChange={speed => saveCameraEdit({ ...config, camera: { ...config.camera, flyThrough: { ...config.camera.flyThrough, speed } } })} />}
+          {resolvedCameraRig === 'handheld' && <SliderRow id="cinematic-camera-handheld" label="Handheld Strength" value={config.camera.handheld.strength} min={0} max={1} step={0.01} onChange={strength => saveCameraEdit({ ...config, camera: { ...config.camera, handheld: { ...config.camera.handheld, strength } } })} />}
           <CtrlSection label="Transitions" />
           <SelectRow id="cinematic-transition-mode" label="Transition" value={config.transition.mode} onChange={mode => save({ ...config, transition: { ...config.transition, mode: mode as CinematicTransitionMode } })} options={CINEMATIC_TRANSITION_MODES.map(mode => ({ value: mode, label: humanizeCinematicKey(mode) }))} />
           <SliderRow id="cinematic-transition-duration" label="Duration" value={config.transition.durationMs} min={0} max={10000} step={50} onChange={durationMs => save({ ...config, transition: { ...config.transition, durationMs } })} description="Milliseconds used when switching compatible worlds or presets." />
@@ -425,7 +431,9 @@ export function CinematicWorldsDesignControls() {
         </>
       )}
 
-      <AutoDirectorControls config={config} onChange={saveCameraEdit} advanced={uiMode === 'advanced'} />
+      {resolvedCameraRig === 'autoDirector' && world.cameraRigs.includes('autoDirector') && (
+        <AutoDirectorControls config={config} onChange={saveCameraEdit} advanced={uiMode === 'advanced'} />
+      )}
       <VariationControls
         config={config}
         presetId={preset.id}

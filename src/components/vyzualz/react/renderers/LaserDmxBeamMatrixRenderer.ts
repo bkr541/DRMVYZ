@@ -27,14 +27,9 @@
  * Volumetric cones are rendered before line glow so they appear "behind"
  * the sharp line cores.
  *
- * Relationship to global React params:
- *   - params.intensity: scales the final master-dimmer contribution from the
- *     React-wide intensity slider (kept intentional, maps linearly).
- *   - params.glow: scales effectiveGlow; user can turn glow fully off here.
- *   - params.motion: NOT applied to Beam Matrix (motion alters coordinate
- *     paths, which are explicitly saved grid positions — must not move).
- *   - params.bassReactivity: NOT applied (Beam Matrix has its own group routes).
- *   - params.fogDensity: NOT applied (Beam Matrix has its own fog.density setting).
+ * The caller supplies a backend-neutral, fully resolved preview result. This
+ * renderer does not own React preview trims, authored master values, or safety.
+ * Motion, bass reactivity, and fog remain Beam Matrix/compiler-owned domains.
  */
 
 import type { CompiledLaserDmxMatrixBeam, CompiledLaserDmxBeamMatrixOutput } from './LaserDmxBeamMatrixCompiler'
@@ -412,8 +407,7 @@ function drawDebugOverlay(
  * @param W, H        Canvas dimensions.
  * @param output      Compiled global output settings.
  * @param beams       Array of compiled beams.
- * @param intensityScale  React-wide intensity multiplier (0–1).
- * @param glowScale       React-wide glow multiplier (0–1).
+ * Beam intensity and glow are already resolved by the canonical presentation contract.
  * @param showDebug   When true, overlays diagnostic text.
  */
 export function renderLaserDmxBeamMatrix(
@@ -422,8 +416,6 @@ export function renderLaserDmxBeamMatrix(
   H:              number,
   output:         CompiledLaserDmxBeamMatrixOutput,
   beams:          CompiledLaserDmxMatrixBeam[],
-  intensityScale: number,
-  glowScale:      number,
   showDebug:      boolean,
 ): void {
   if (beams.length === 0) return
@@ -453,11 +445,7 @@ export function renderLaserDmxBeamMatrix(
     ctx.globalCompositeOperation = 'screen'
     ctx.lineCap  = 'round'
     for (const beam of coneBeams) {
-      const effectiveGlow = clamp01(beam.glow * glowScale)
-      const beamWithGlow  = effectiveGlow !== beam.glow
-        ? { ...beam, glow: effectiveGlow }
-        : beam
-      drawVolumetricCone(ctx, beamWithGlow, clamp01(beam.intensity * intensityScale))
+      drawVolumetricCone(ctx, beam, clamp01(beam.intensity))
     }
     ctx.restore()
   }
@@ -469,8 +457,7 @@ export function renderLaserDmxBeamMatrix(
     ctx.globalCompositeOperation = 'screen'
     ctx.lineCap = 'round'
     for (const beam of lineBeams) {
-      const eg = clamp01(beam.glow * glowScale)
-      drawLineGlow(ctx, eg !== beam.glow ? { ...beam, glow: eg } : beam, clamp01(beam.intensity * intensityScale))
+      drawLineGlow(ctx, beam, clamp01(beam.intensity))
     }
     ctx.restore()
 
@@ -479,8 +466,7 @@ export function renderLaserDmxBeamMatrix(
     ctx.globalCompositeOperation = 'source-over'
     ctx.lineCap = 'round'
     for (const beam of lineBeams) {
-      const eg = clamp01(beam.glow * glowScale)
-      drawLineBody(ctx, eg !== beam.glow ? { ...beam, glow: eg } : beam, clamp01(beam.intensity * intensityScale))
+      drawLineBody(ctx, beam, clamp01(beam.intensity))
     }
     ctx.restore()
 
@@ -489,7 +475,7 @@ export function renderLaserDmxBeamMatrix(
     ctx.globalCompositeOperation = 'screen'
     ctx.lineCap = 'round'
     for (const beam of lineBeams) {
-      drawLineCore(ctx, beam, clamp01(beam.intensity * intensityScale))
+      drawLineCore(ctx, beam, clamp01(beam.intensity))
     }
     ctx.restore()
   }
@@ -498,7 +484,7 @@ export function renderLaserDmxBeamMatrix(
   // Multiple rays commonly share an origin. Deduplicating here prevents their
   // halos from stacking into a large diffuse cloud while retaining a bright,
   // readable attachment point for every active fixture bank.
-  const sourceBlooms = collectSourceBlooms(beams, intensityScale)
+  const sourceBlooms = collectSourceBlooms(beams, 1)
   if (sourceBlooms.length > 0) {
     ctx.save()
     ctx.globalCompositeOperation = 'screen'
@@ -512,7 +498,7 @@ export function renderLaserDmxBeamMatrix(
     ctx.globalCompositeOperation = 'screen'
     for (const beam of headGlowBeams) {
       if (!beam.strobeVisible) continue
-      drawHeadGlow(ctx, beam, clamp01(beam.intensity * intensityScale))
+      drawHeadGlow(ctx, beam, clamp01(beam.intensity))
     }
     ctx.restore()
   }

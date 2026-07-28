@@ -180,6 +180,7 @@ export interface Track {
 
 export type LayoutPreset = '16:9' | '9:16' | '1:1' | 'horizontal' | 'quad' | 'dashboard'
 
+/** @deprecated Legacy workspace colorway metadata. Runtime application appearance is owned by features/appearance. */
 export type Theme = 'cyan-green' | 'cyan-blue' | 'green-gold' | 'purple-cyan'
 
 export const THEME_COLORS: Record<Theme, { primary: string; secondary: string }> = {
@@ -192,8 +193,11 @@ export const THEME_COLORS: Record<Theme, { primary: string; secondary: string }>
 // ─── Global Settings ─────────────────────────────────────────────────────────
 
 export interface GlobalSettings {
+  /** @deprecated Compatibility-only legacy colorway. Does not drive the live Dark/Light/CDJ service. */
   theme: Theme
+  /** @deprecated Legacy presentation preference retained for session round trips. */
   accentIntensity: number
+  /** Engine/output presentation fields, not application appearance tokens. */
   showScanlines: boolean
   showGlow: boolean
   showGrid: boolean

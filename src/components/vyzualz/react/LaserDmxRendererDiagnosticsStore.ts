@@ -15,6 +15,15 @@ export interface LaserDmxRendererDiagnosticsSnapshot {
   activeRenderer: LaserDmxActiveRenderer
   requestedRenderer: LaserDmxShowDirectorRendererMode
   presentationMode: LaserDmxShowDirectorPresentationMode
+  authoredShowDimmer: number
+  previewOutputTrim: number
+  safetyClamp: number
+  resolvedPreviewIntensity: number
+  resolvedHardwareIntensity: number
+  authoredShowGlow: number
+  previewGlowTrim: number
+  resolvedPreviewGlow: number
+  resolvedHardwareGlow: number
   webgl2Available: boolean | null
   floatTargetsAvailable: boolean
   requestedQuality: LaserDmxShowDirectorWebGLQuality
@@ -89,6 +98,15 @@ const EMPTY_SNAPSHOT: LaserDmxRendererDiagnosticsSnapshot = Object.freeze({
   activeRenderer: 'inactive',
   requestedRenderer: 'auto',
   presentationMode: 'edit',
+  authoredShowDimmer: 1,
+  previewOutputTrim: 1,
+  safetyClamp: 1,
+  resolvedPreviewIntensity: 1,
+  resolvedHardwareIntensity: 1,
+  authoredShowGlow: 0,
+  previewGlowTrim: 1,
+  resolvedPreviewGlow: 0,
+  resolvedHardwareGlow: 0,
   webgl2Available: null,
   floatTargetsAvailable: false,
   requestedQuality: 'high',
@@ -173,6 +191,15 @@ function structuralFingerprint(value: LaserDmxRendererDiagnosticsSnapshot): stri
     value.activeRenderer,
     value.requestedRenderer,
     value.presentationMode,
+    value.authoredShowDimmer,
+    value.previewOutputTrim,
+    value.safetyClamp,
+    value.resolvedPreviewIntensity,
+    value.resolvedHardwareIntensity,
+    value.authoredShowGlow,
+    value.previewGlowTrim,
+    value.resolvedPreviewGlow,
+    value.resolvedHardwareGlow,
     value.webgl2Available,
     value.floatTargetsAvailable,
     value.requestedQuality,

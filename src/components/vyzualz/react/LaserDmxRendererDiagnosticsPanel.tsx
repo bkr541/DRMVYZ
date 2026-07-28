@@ -31,6 +31,13 @@ export function LaserDmxRendererDiagnosticsPanel() {
             <div><dt>Renderer</dt><dd>{diagnostics.activeRenderer === 'webgl' ? 'WebGL2' : 'Canvas2D'}</dd></div>
             <div><dt>Requested</dt><dd>{diagnostics.requestedRenderer}</dd></div>
             <div><dt>Presentation</dt><dd>{diagnostics.presentationMode}</dd></div>
+            <div><dt>Authored Show Dimmer</dt><dd>{diagnostics.authoredShowDimmer.toFixed(3)}</dd></div>
+            <div><dt>Preview Output Trim</dt><dd>{diagnostics.previewOutputTrim.toFixed(3)}</dd></div>
+            <div><dt>Safety Clamp</dt><dd>{diagnostics.safetyClamp.toFixed(3)}</dd></div>
+            <div><dt>Resolved Preview Product</dt><dd>{diagnostics.resolvedPreviewIntensity.toFixed(3)}</dd></div>
+            <div><dt>Hardware-Safe Product</dt><dd>{diagnostics.resolvedHardwareIntensity.toFixed(3)}</dd></div>
+            <div><dt>Authored / Preview Glow</dt><dd>{diagnostics.authoredShowGlow.toFixed(3)} × {diagnostics.previewGlowTrim.toFixed(3)} = {diagnostics.resolvedPreviewGlow.toFixed(3)}</dd></div>
+            <div><dt>Hardware-Safe Glow</dt><dd>{diagnostics.resolvedHardwareGlow.toFixed(3)}</dd></div>
             <div><dt>WebGL2</dt><dd>{diagnostics.webgl2Available == null ? 'Not probed' : diagnostics.webgl2Available ? 'Available' : 'Unavailable'}</dd></div>
             <div><dt>Float Targets</dt><dd>{diagnostics.floatTargetsAvailable ? 'RGBA16F' : 'RGBA8 / none'}</dd></div>
             <div><dt>Quality</dt><dd>{diagnostics.requestedQuality}{diagnostics.effectiveQuality ? ` → ${diagnostics.effectiveQuality}` : ''}</dd></div>

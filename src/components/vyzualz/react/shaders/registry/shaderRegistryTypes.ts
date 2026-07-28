@@ -333,6 +333,14 @@ export interface TransitionCompatibility {
   supportedTransitionTypes?: string[]
 }
 
+
+export interface ShaderMasterCapabilities {
+  intensity: boolean
+  motion: boolean
+  glow: boolean
+  bassReactivity: boolean
+}
+
 // ── ShaderDefinition ──────────────────────────────────────────────────────────
 
 /**
@@ -392,6 +400,9 @@ export interface ShaderDefinition {
   feedbackReset?: ShaderFeedbackResetConfig
 
   transitions?: TransitionCompatibility
+
+  /** Generated from executable shared-master uniform use at registration time. */
+  masterCapabilities?: Readonly<ShaderMasterCapabilities>
 
   /** Native authored show program resolved by Shared Performance Core. */
   performanceProgram?: ShaderPerformanceProgram

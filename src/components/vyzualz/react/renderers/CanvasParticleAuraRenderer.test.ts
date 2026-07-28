@@ -60,6 +60,7 @@ describe('CanvasParticleAuraRenderer fallback and capture contract', () => {
         intensity: 0.82,
         glow: 0.86,
       },
+      outputAlpha: 0.4,
       width: 1280,
       height: 720,
     })
@@ -68,6 +69,7 @@ describe('CanvasParticleAuraRenderer fallback and capture contract', () => {
     expect(drawImage).toHaveBeenCalledWith(particleCanvas, 0, 0, 1280, 720)
     expect(context.save).toHaveBeenCalledTimes(1)
     expect(context.restore).toHaveBeenCalledTimes(1)
+    expect(context.globalAlpha).toBeCloseTo((0.82 * 0.96 + 0.86 * 0.12) * 0.4)
   })
   it('uses a dense reconstruction grid that scales with authored density', () => {
     const profile = resolveCanvasParticleQualityProfile('balanced')
@@ -108,7 +110,7 @@ describe('CanvasParticleAuraRenderer fallback and capture contract', () => {
   it('ships Particle Aura as a reconstruction-first hologram recipe', () => {
     const preset = CANVAS_PRESET_BY_ID['canvas-particle-aura']
 
-    expect(preset.settings.sourceVisibility).toBeLessThan(0.1)
+    expect(preset.settings.drySourceMix).toBeLessThan(0.1)
     expect(preset.settings.particleDensity).toBeGreaterThan(0.9)
     expect(preset.settings.particleColorMode).toBe('audioReactive')
     expect(preset.controls).toEqual(expect.arrayContaining(['rgbSplit', 'glitchAmount', 'trailAmount', 'motionAmount']))

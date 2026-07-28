@@ -619,19 +619,25 @@ export function compositeCanvasParticleLayerToCapture({
   context,
   particleCanvas,
   settings,
+  outputAlpha = 1,
   width,
   height,
 }: {
   context: CanvasRenderingContext2D
   particleCanvas: HTMLCanvasElement | null
   settings: CanvasPresetSettings
+  outputAlpha?: number
   width: number
   height: number
 }): boolean {
   if (!particleCanvas?.width || !particleCanvas.height || settings.particleDensity <= 0.02) return false
   context.save()
   context.globalCompositeOperation = 'screen'
-  context.globalAlpha = clampCanvasParticleRange(settings.intensity * 0.96 + settings.glow * 0.12, 0, 1)
+  context.globalAlpha = clampCanvasParticleRange(
+    (settings.intensity * 0.96 + settings.glow * 0.12) * outputAlpha,
+    0,
+    1,
+  )
   context.filter = 'none'
   try {
     context.drawImage(particleCanvas, 0, 0, width, height)

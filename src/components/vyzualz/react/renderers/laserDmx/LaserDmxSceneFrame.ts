@@ -310,6 +310,15 @@ export interface LaserDmxSceneFrame {
     globalBeamWidth: number
     globalStrobeRate: number
     beamPersistence: number
+    /** Preview-only React trim, resolved before backend selection. */
+    previewOutputTrim?: number
+    /** Preview-only glow trim, resolved before backend selection. */
+    previewGlowTrim?: number
+    safetyClamp?: number
+    resolvedPreviewIntensity?: number
+    resolvedHardwareIntensity?: number
+    resolvedPreviewGlow?: number
+    resolvedHardwareGlow?: number
   }
 }
 
@@ -1260,6 +1269,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
     output: {
       blackout,
       masterDimmer,
+      safetyClamp: clamp01(evaluated.output.safetyClamp),
       globalGlow: clamp01(evaluated.output.globalGlow),
       globalBeamWidth: clamp(evaluated.output.globalBeamWidth, 0.1, 6),
       globalStrobeRate: clamp01(evaluated.output.globalStrobeRate),
@@ -1273,6 +1283,8 @@ export function resolveLaserDmxSceneFrameOutput(
   evaluated: LaserDmxBeamMatrixSettings,
 ): LaserDmxSceneFrame {
   const masterDimmer = clamp01(evaluated.output.masterDimmer)
+  const safetyClamp = clamp01(evaluated.output.safetyClamp)
+  const outputDimmer = masterDimmer * safetyClamp
   const blackout = evaluated.output.blackout === true
   const matrixByFixture = new Map<string, ReturnType<typeof matrixBeamsForFixture>>()
   for (const fixture of frame.fixtures) {
@@ -1294,7 +1306,7 @@ export function resolveLaserDmxSceneFrameOutput(
       color,
       strobeRate: Math.max(fixture.strobeRate, matrixStrobeRate),
       enabled: fixture.enabled && !blackout,
-      intensity: fixture.enabled && !blackout ? clamp01(matrixIntensity * masterDimmer) : 0,
+      intensity: fixture.enabled && !blackout ? clamp01(matrixIntensity * outputDimmer) : 0,
     }
   })
   const fixtureById = new Map(fixtures.map(fixture => [fixture.id, fixture]))
@@ -1307,7 +1319,7 @@ export function resolveLaserDmxSceneFrameOutput(
     const matrixBeam = matrixBeams[index] ?? matrixBeams[0]
     const fixture = fixtureById.get(beam.fixtureId)
     const enabled = Boolean(fixture?.enabled && (matrixBeam?.enabled ?? beam.enabled) && (matrixBeam?.appearance.shutterOpen ?? true))
-    const intensity = enabled ? clamp01((matrixBeam?.appearance.dimmer ?? beam.intensity) * masterDimmer) : 0
+    const intensity = enabled ? clamp01((matrixBeam?.appearance.dimmer ?? beam.intensity) * outputDimmer) : 0
     const focus = clamp01(matrixBeam?.appearance.focus ?? beam.focus)
     const visualRole = matrixBeam?.visualRole ?? beam.visualRole
     const color = colorFromMatrix(matrixBeam?.color, fixture?.color ?? beam.color, beam.fixtureKind)
@@ -1418,6 +1430,7 @@ export function resolveLaserDmxSceneFrameOutput(
     output: {
       blackout,
       masterDimmer,
+      safetyClamp: clamp01(evaluated.output.safetyClamp),
       globalGlow: clamp01(evaluated.output.globalGlow),
       globalBeamWidth: clamp(evaluated.output.globalBeamWidth, 0.1, 6),
       globalStrobeRate: clamp01(evaluated.output.globalStrobeRate),

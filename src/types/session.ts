@@ -7,6 +7,7 @@ export interface WorkspacePreset {
   monitoringMode: MonitoringMode
   fftSize: number
   smoothing: number
+  /** @deprecated Compatibility-only workspace look name. Runtime appearance is owned by features/appearance. */
   theme: string
   layout: string
 }

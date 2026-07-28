@@ -46,6 +46,7 @@ import {
   CANVAS_PERFORMANCE_SHOW_OPTIONS,
   CanvasOrchestrationStage,
   CanvasPreloadManager,
+  resolveCanvasOutputContract,
   getCanvasPerformancePreloadCandidates,
   getCanvasPerformanceShow,
   resolveCanvasMediaRoles,
@@ -382,7 +383,7 @@ function canvasObjectFit(fitMode: CanvasFitMode): CSSProperties['objectFit'] {
 
 function makeCanvasMediaStyle(
   settings: ReturnType<typeof useReactStore.getState>['canvasEngineSettings'],
-  presetSettings: CanvasPresetSettings,
+  drySourceMix: number,
 ): CSSProperties {
   const transform = hasCanvasBaseTransform(settings)
     ? `translate(${settings.positionX}%, ${settings.positionY}%) rotate(${settings.rotation}deg) scale(${settings.scale})`
@@ -390,7 +391,7 @@ function makeCanvasMediaStyle(
 
   return {
     objectFit: canvasObjectFit(settings.fitMode),
-    opacity: settings.opacity * presetSettings.sourceVisibility,
+    opacity: drySourceMix,
     transform,
   }
 }
@@ -433,11 +434,11 @@ function makeCanvasPresetStyle(settings: CanvasPresetSettings): CSSProperties {
     '--canvas-param-glow-px': `${(settings.glow * 34).toFixed(2)}px`,
     '--canvas-param-particle-glow-px': `${(settings.particleDensity * 42).toFixed(2)}px`,
     '--canvas-param-grid-opacity': (0.1 + settings.glow * 0.12 + settings.particleDensity * 0.08).toFixed(3),
-    '--canvas-particle-source-visibility': settings.sourceVisibility.toFixed(3),
+    '--canvas-particle-source-visibility': settings.drySourceMix.toFixed(3),
     '--canvas-particle-glow': settings.glow.toFixed(3),
     '--canvas-particle-density': settings.particleDensity.toFixed(3),
     '--canvas-particle-glow-blur': `${(18 + settings.glow * 28 + settings.particleDensity * 16).toFixed(2)}px`,
-    '--canvas-particle-source-brightness': (0.82 + settings.sourceVisibility * 0.34).toFixed(3),
+    '--canvas-particle-source-brightness': (0.82 + settings.drySourceMix * 0.34).toFixed(3),
     '--canvas-particle-dissolve': settings.turbulence.toFixed(3),
     '--canvas-particle-dissolve-blur': `${(settings.turbulence * 1.8).toFixed(2)}px`,
   } as CSSProperties & Record<string, string>
@@ -561,6 +562,7 @@ function CanvasParticleAuraLayer({
   isPaused,
   onCanvasReady,
   onStatusChange,
+  outputAlpha,
 }: {
   active: boolean
   activeItem: CanvasMediaItem | null
@@ -574,6 +576,7 @@ function CanvasParticleAuraLayer({
   isPaused: boolean
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onStatusChange?: (message: string | null) => void
+  outputAlpha: number
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const settingsRef = useRef(settings)
@@ -858,6 +861,7 @@ function CanvasParticleAuraLayer({
       ref={canvasRef}
       className="rv-canvas-particle-aura-layer"
       data-particle-renderer={rendererMode}
+      style={{ opacity: outputAlpha }}
       aria-hidden="true"
     />
   )
@@ -1328,6 +1332,10 @@ export function CanvasEngineSurface({
     [activeCanvasMediaId, mediaItems],
   )
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
+  const outputContract = useMemo(() => resolveCanvasOutputContract({
+    canvasOutputOpacity: settings.opacity,
+    presetSettings: canvasPresetSettings,
+  }), [canvasPresetSettings, settings.opacity])
   const particleReconstructionActive = canvasPresetSettings.particleDensity > 0.02
   const effectPassActive = hasCanvasEffectPass(canvasPresetSettings) && !particleReconstructionActive
   const activeVideo = activeItem?.type === 'video'
@@ -1340,8 +1348,8 @@ export function CanvasEngineSurface({
   const transparentStage = effectiveBackgroundMode === 'transparent'
   const activeTiming = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
   const mediaStyle = useMemo(
-    () => makeCanvasMediaStyle(settings, canvasPresetSettings),
-    [canvasPresetSettings, settings],
+    () => makeCanvasMediaStyle(settings, outputContract.drySourceMix),
+    [outputContract.drySourceMix, settings],
   )
   const particleSourceRef = activeVideo ? videoRef : imageRef
   const handleParticleCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
@@ -1490,6 +1498,9 @@ export function CanvasEngineSurface({
     const captureContext = captureCanvas.getContext('2d', { alpha: true })
     const effectsContext = effectsCanvas.getContext('2d', { alpha: true })
     if (!captureContext || !effectsContext) return
+    const compositionCanvas = document.createElement('canvas')
+    const compositionContext = compositionCanvas.getContext('2d', { alpha: true })
+    if (!compositionContext) return
 
     const frequencyData = analyser ? new Uint8Array(Math.max(1, analyser.frequencyBinCount)) : null
     let frameId = 0
@@ -1505,15 +1516,15 @@ export function CanvasEngineSurface({
       const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
       const targetWidth = Math.max(1, Math.round(cssWidth * dpr))
       const targetHeight = Math.max(1, Math.round(cssHeight * dpr))
-      for (const canvas of [captureCanvas, effectsCanvas]) {
+      for (const canvas of [captureCanvas, compositionCanvas, effectsCanvas]) {
         if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
           canvas.width = targetWidth
           canvas.height = targetHeight
         }
       }
 
-      captureContext.setTransform(dpr, 0, 0, dpr, 0, 0)
-      prepareCanvasCaptureBackground(captureContext, cssWidth, cssHeight, effectiveBackgroundMode)
+      compositionContext.setTransform(dpr, 0, 0, dpr, 0, 0)
+      prepareCanvasCaptureBackground(compositionContext, cssWidth, cssHeight, effectiveBackgroundMode)
       effectsContext.setTransform(dpr, 0, 0, dpr, 0, 0)
       effectsContext.clearRect(0, 0, cssWidth, cssHeight)
 
@@ -1553,7 +1564,10 @@ export function CanvasEngineSurface({
         else drawHeight = cssWidth / sourceAspect
       }
 
-      const baseAlpha = clampCanvasRange(settings.opacity * canvasPresetSettings.sourceVisibility, 0, 1)
+      const drySourceAlpha = outputContract.drySourceMix
+      const processedAlpha = outputContract.sourceMixMode === 'legacyComposite'
+        ? outputContract.drySourceMix
+        : 1
       const baseTranslateX = cssWidth * 0.5 + cssWidth * 0.5 * (settings.positionX / 100)
       const baseTranslateY = cssHeight * 0.5 + cssHeight * 0.5 * (settings.positionY / 100)
       const liveScale = settings.scale
@@ -1595,8 +1609,8 @@ export function CanvasEngineSurface({
       // The capture/export source begins with the same pristine, unfiltered
       // fidelity anchor shown by the browser-owned video/image element.
       drawMediaFrame({
-        context: captureContext,
-        alpha: baseAlpha,
+        context: compositionContext,
+        alpha: drySourceAlpha,
         filter: 'none',
         reactive: false,
       })
@@ -1604,26 +1618,35 @@ export function CanvasEngineSurface({
       if (effectPassActive) {
         drawMediaFrame({
           context: effectsContext,
-          alpha: baseAlpha * resolveCanvasEffectOpacity(canvasPresetSettings),
+          alpha: processedAlpha * resolveCanvasEffectOpacity(canvasPresetSettings),
           filter: makeCanvasCaptureFilter(canvasPresetSettings, bass, high),
           reactive: true,
         })
 
-        captureContext.save()
-        captureContext.globalCompositeOperation = 'screen'
-        captureContext.globalAlpha = 1
-        captureContext.filter = 'none'
-        captureContext.drawImage(effectsCanvas, 0, 0, cssWidth, cssHeight)
-        captureContext.restore()
+        compositionContext.save()
+        compositionContext.globalCompositeOperation = 'screen'
+        compositionContext.globalAlpha = 1
+        compositionContext.filter = 'none'
+        compositionContext.drawImage(effectsCanvas, 0, 0, cssWidth, cssHeight)
+        compositionContext.restore()
       }
 
       compositeCanvasParticleLayerToCapture({
-        context: captureContext,
+        context: compositionContext,
         particleCanvas: particleOutputCanvasRef.current,
         settings: canvasPresetSettings,
+        outputAlpha: processedAlpha,
         width: cssWidth,
         height: cssHeight,
       })
+
+      captureContext.setTransform(1, 0, 0, 1, 0, 0)
+      captureContext.clearRect(0, 0, targetWidth, targetHeight)
+      captureContext.globalCompositeOperation = 'source-over'
+      captureContext.globalAlpha = outputContract.canvasOutputOpacity
+      captureContext.filter = 'none'
+      captureContext.drawImage(compositionCanvas, 0, 0)
+      captureContext.globalAlpha = 1
     }
 
     const tick = () => {
@@ -1643,7 +1666,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, isPaused, isPlaying, onLiveFps, orchestrationRenderable, particleSourceRef, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, isPaused, isPlaying, onLiveFps, orchestrationRenderable, outputContract, particleSourceRef, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -1974,6 +1997,11 @@ export function CanvasEngineSurface({
     <canvas
       ref={sourceEffectsCanvasRef}
       className={`rv-canvas-source-fx-canvas${effectPassActive ? ' rv-canvas-source-fx-canvas--active' : ''}`}
+      style={{
+        opacity: effectPassActive
+          ? outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1
+          : 0,
+      }}
       aria-hidden="true"
     />
   )
@@ -2033,7 +2061,7 @@ export function CanvasEngineSurface({
         data-background-mode={effectiveBackgroundMode}
         data-source-effect-active={effectPassActive ? 'true' : 'false'}
         data-particle-reconstruction-active={particleReconstructionActive ? 'true' : 'false'}
-        style={presetStyle}
+        style={{ ...presetStyle, opacity: outputContract.canvasOutputOpacity }}
       >
         {!transparentStage && <div className="rv-canvas-live-grid" aria-hidden="true" />}
         <div className="rv-canvas-preset-aura" aria-hidden="true" />
@@ -2093,6 +2121,7 @@ export function CanvasEngineSurface({
           isPaused={isPaused}
           onCanvasReady={handleParticleCanvasReady}
           onStatusChange={setParticleRendererNotice}
+          outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
         />
         {particleRendererNotice && canvasPresetSettings.particleDensity > 0.02 && (
           <div className="rv-canvas-render-notice" role="status">{particleRendererNotice}</div>
@@ -2129,13 +2158,21 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
   color: string
   description?: string
 }> = {
-  sourceVisibility: {
-    label: 'Source Visibility',
+  drySourceMix: {
+    label: 'Dry Source Mix',
     min: 0,
     max: 1,
     step: 0.01,
     color: '#61d6aa',
-    description: 'Blends the selected media source beneath the live CANVAS treatment.',
+    description: 'Controls only the untreated source contribution. Processed layers and effects remain visible.',
+  },
+  sourceVisibility: {
+    label: 'Dry Source Mix',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    color: '#61d6aa',
+    description: 'Legacy control alias for Dry Source Mix.',
   },
   intensity: {
     label: 'Visual Intensity',
@@ -2143,7 +2180,7 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
     max: 1,
     step: 0.01,
     color: '#4ac7db',
-    description: 'Master amount for the current CANVAS look recipe.',
+    description: 'Recipe macro that scales coordinated effect strength without replacing Glow, Trail, Glitch, Particle Density, Motion, Dry Source Mix, or Output Opacity.',
   },
   bassReactivity: {
     label: 'Bass Reactivity',
@@ -2243,7 +2280,7 @@ export const CANVAS_REACT_CONTROL_GROUPS: Array<{
 }> = [
   {
     title: 'Source + Reactivity',
-    controls: ['sourceVisibility', 'intensity', 'bassReactivity', 'beatPulse'],
+    controls: ['drySourceMix', 'intensity', 'bassReactivity', 'beatPulse'],
   },
   {
     title: 'FX',
@@ -2817,7 +2854,7 @@ export function CanvasEngineFxPanel() {
           color="#d8b95a"
         />
         <SliderRow
-          label="Opacity"
+          label="Canvas Output Opacity"
           value={settings.opacity}
           onChange={value => setSettings({ opacity: value })}
           min={0}

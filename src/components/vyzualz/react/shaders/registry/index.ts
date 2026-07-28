@@ -2,6 +2,7 @@ export * from './shaderRegistryTypes'
 export * from './ShaderParameterSchema'
 export { ShaderDefinitionValidator } from './ShaderDefinitionValidator'
 export { ShaderRegistry } from './ShaderRegistry'
+export * from './ShaderMasterCapabilities'
 
 import type { ShaderDefinition } from './shaderRegistryTypes'
 import { ShaderRegistry } from './ShaderRegistry'

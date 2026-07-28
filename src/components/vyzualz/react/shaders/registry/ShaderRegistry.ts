@@ -1,5 +1,6 @@
 import type { ShaderDefinition, ShaderCategory, ValidationResult } from './shaderRegistryTypes'
 import { ShaderDefinitionValidator } from './ShaderDefinitionValidator'
+import { detectShaderMasterCapabilities } from './ShaderMasterCapabilities'
 
 // ── ShaderRegistry ────────────────────────────────────────────────────────────
 
@@ -41,7 +42,10 @@ export class ShaderRegistry {
       )
     }
 
-    this._defs.set(def.id, Object.freeze({ ...def }) as ShaderDefinition)
+    this._defs.set(def.id, Object.freeze({
+      ...def,
+      masterCapabilities: detectShaderMasterCapabilities(def),
+    }) as ShaderDefinition)
   }
 
   /**

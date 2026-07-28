@@ -115,3 +115,52 @@ export function resolveReactPresetProvenance(input: {
     changedFields,
   }
 }
+
+export function presetValuesEqual(expected: unknown, actual: unknown): boolean {
+  if (typeof expected === 'number' || typeof actual === 'number') return equalNumber(expected, actual)
+  if (expected === null || actual === null || typeof expected !== 'object' || typeof actual !== 'object') {
+    return Object.is(expected, actual)
+  }
+  if (Array.isArray(expected) || Array.isArray(actual)) {
+    return Array.isArray(expected)
+      && Array.isArray(actual)
+      && expected.length === actual.length
+      && expected.every((value, index) => presetValuesEqual(value, actual[index]))
+  }
+  const expectedKeys = Object.keys(expected as Record<string, unknown>).sort()
+  const actualKeys = Object.keys(actual as Record<string, unknown>).sort()
+  return expectedKeys.length === actualKeys.length
+    && expectedKeys.every((key, index) => key === actualKeys[index]
+      && presetValuesEqual(
+        (expected as Record<string, unknown>)[key],
+        (actual as Record<string, unknown>)[key],
+      ))
+}
+
+/** Shared exact/modified provenance for engine-native preset and scene systems. */
+export function resolveEnginePresetProvenance(input: {
+  presetId: string | null
+  presetName: string | null
+  expectedValues: unknown
+  actualValues: unknown
+}): Pick<ReactPresetProvenance, 'status' | 'label' | 'description'> {
+  if (!input.presetId || !input.presetName) {
+    return {
+      status: 'custom',
+      label: 'Custom',
+      description: 'No stable preset ID is attached to the current engine state.',
+    }
+  }
+  const exact = presetValuesEqual(input.expectedValues, input.actualValues)
+  return exact
+    ? {
+        status: 'exact',
+        label: input.presetName,
+        description: `Current values exactly match ${input.presetName}.`,
+      }
+    : {
+        status: 'modified',
+        label: `Modified from ${input.presetName}`,
+        description: 'The stable source preset ID is preserved while engine-owned values differ.',
+      }
+}

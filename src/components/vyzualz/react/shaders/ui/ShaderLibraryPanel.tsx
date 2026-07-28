@@ -8,6 +8,7 @@ import { SelectRow, ToggleRow } from '../../ReactControlRows'
 import type { ShaderCategory } from '../registry/shaderRegistryTypes'
 import type { QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
 import { ShaderSceneThumbnail } from './ShaderSceneThumbnail'
+import { resolveShaderSceneProvenance } from './ShaderSceneProvenance'
 
 // ── Tab types ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ const QUALITY_OPTIONS: { value: QualityTierWithAuto; label: string }[] = [
 function SceneCard({
   entry,
   isActive,
+  isModified,
   onActivate,
   onFavorite,
   onDuplicate,
@@ -37,6 +39,7 @@ function SceneCard({
 }: {
   entry:       ShaderLibraryEntry
   isActive:    boolean
+  isModified:  boolean
   onActivate:  (id: string) => void
   onFavorite:  (id: string) => void
   onDuplicate: (id: string) => void
@@ -86,6 +89,7 @@ function SceneCard({
           <span className="rv-shader-scene-category">{def.category}</span>
           {entry.bundled && <span className="rv-shader-scene-badge">bundled</span>}
           {entry.favorite && <span className="rv-shader-scene-badge rv-shader-scene-badge--fav">★</span>}
+          {isActive && isModified && <span className="rv-shader-scene-badge">Modified from preset</span>}
         </div>
       </div>
 
@@ -151,6 +155,7 @@ export function ShaderLibraryPanel() {
   const store          = useShaderLibraryStore()
   // Narrow selector: only activeShaderId and its setter (stable actions never change)
   const activeShaderId  = useShaderPanelStore(s => s.activeShaderId)
+  const activeParamValues = useShaderPanelStore(s => s.paramValues)
   const setActiveShaderId = useShaderPanelStore(s => s.setActiveShaderId)
   const [tab,     setTab]     = useState<LibraryTab>('scenes')
   const [query,   setQuery]   = useState('')
@@ -329,6 +334,8 @@ export function ShaderLibraryPanel() {
               key={entry.definition.id}
               entry={entry}
               isActive={activeShaderId === entry.definition.id}
+              isModified={activeShaderId === entry.definition.id
+                && resolveShaderSceneProvenance(entry.definition, activeParamValues).status === 'modified'}
               onActivate={handleActivate}
               onFavorite={handleFavorite}
               onDuplicate={handleDuplicate}

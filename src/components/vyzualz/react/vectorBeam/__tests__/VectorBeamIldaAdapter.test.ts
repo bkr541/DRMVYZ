@@ -119,7 +119,7 @@ describe('adaptVectorBeamSegmentsToLaserDmxScannerSegments', () => {
       strokeStyle: '#000000',
     } as unknown as CanvasRenderingContext2D
 
-    expect(() => renderLaserDmxCanvas2DScannerPlan(ctx, frame, plan, 1, 1)).not.toThrow()
+    expect(() => renderLaserDmxCanvas2DScannerPlan(ctx, frame, plan)).not.toThrow()
     expect(ctx.stroke).toHaveBeenCalled()
   })
 })

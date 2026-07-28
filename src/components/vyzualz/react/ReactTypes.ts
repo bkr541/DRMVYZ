@@ -219,8 +219,16 @@ export type CanvasPresetId =
 
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
+/**
+ * `legacyComposite` preserves the pre-v2 Source Visibility product for loaded
+ * projects. New presets use `dryOnly`, where Dry Source Mix owns only the
+ * untreated contribution and processed passes remain independent.
+ */
+export type CanvasSourceMixMode = 'dryOnly' | 'legacyComposite'
 
 export type CanvasPresetControlKey =
+  | 'drySourceMix'
+  /** @deprecated Legacy automation/control alias. */
   | 'sourceVisibility'
   | 'intensity'
   | 'bassReactivity'
@@ -270,7 +278,14 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 2 as const
+
 export interface CanvasPresetSettings {
+  schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
+  sourceMixMode: CanvasSourceMixMode
+  /** Untreated source-layer contribution only. */
+  drySourceMix: number
+  /** @deprecated Read/write compatibility alias for drySourceMix. */
   sourceVisibility: number
   intensity: number
   bassReactivity: number
@@ -374,6 +389,9 @@ export const DEFAULT_CANVAS_ENGINE_SETTINGS: CanvasEngineSettings = {
 export const DEFAULT_CANVAS_PRESET_ID: CanvasPresetId = 'canvas-clean-playback'
 
 export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
+  schemaVersion: CANVAS_PRESET_SETTINGS_SCHEMA_VERSION,
+  sourceMixMode: 'dryOnly',
+  drySourceMix: 1,
   sourceVisibility: 1,
   intensity: 0.08,
   bassReactivity: 0,
@@ -407,6 +425,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#e8f4f8',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 1,
       sourceVisibility: 1,
       intensity: 0.06,
       bassReactivity: 0,
@@ -420,7 +439,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0,
       particleDensity: 0,
     },
-    controls: ['sourceVisibility', 'intensity'],
+    controls: ['drySourceMix', 'intensity'],
   },
   {
     id: 'canvas-bass-bloom',
@@ -429,6 +448,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#61d6aa',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0.94,
       sourceVisibility: 0.94,
       intensity: 0.7,
       bassReactivity: 0.82,
@@ -442,7 +462,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.08,
       particleDensity: 0,
     },
-    controls: ['sourceVisibility', 'intensity', 'bassReactivity', 'beatPulse', 'glow', 'trailAmount', 'motionAmount'],
+    controls: ['drySourceMix', 'intensity', 'bassReactivity', 'beatPulse', 'glow', 'trailAmount', 'motionAmount'],
   },
   {
     id: 'canvas-ghost-echo',
@@ -451,6 +471,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#9ddcff',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0.76,
       sourceVisibility: 0.76,
       intensity: 0.56,
       bassReactivity: 0.18,
@@ -464,7 +485,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.18,
       particleDensity: 0,
     },
-    controls: ['sourceVisibility', 'intensity', 'trailAmount', 'motionAmount', 'glow', 'bassReactivity'],
+    controls: ['drySourceMix', 'intensity', 'trailAmount', 'motionAmount', 'glow', 'bassReactivity'],
   },
   {
     id: 'canvas-glitch-pulse',
@@ -473,6 +494,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#ff4fd8',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0.92,
       sourceVisibility: 0.92,
       intensity: 0.66,
       bassReactivity: 0.38,
@@ -487,7 +509,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.32,
       particleDensity: 0,
     },
-    controls: ['sourceVisibility', 'intensity', 'beatPulse', 'rgbSplit', 'glitchAmount', 'stutterRate', 'motionAmount'],
+    controls: ['drySourceMix', 'intensity', 'beatPulse', 'rgbSplit', 'glitchAmount', 'stutterRate', 'motionAmount'],
   },
   {
     id: 'canvas-luma-melt',
@@ -496,6 +518,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#d8b95a',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0.84,
       sourceVisibility: 0.84,
       intensity: 0.58,
       bassReactivity: 0.2,
@@ -510,7 +533,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.26,
       particleDensity: 0,
     },
-    controls: ['sourceVisibility', 'intensity', 'lumaThreshold', 'glow', 'trailAmount', 'motionAmount', 'turbulence'],
+    controls: ['drySourceMix', 'intensity', 'lumaThreshold', 'glow', 'trailAmount', 'motionAmount', 'turbulence'],
   },
   {
     id: 'canvas-frame-stutter',
@@ -519,6 +542,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#4ac7db',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0.95,
       sourceVisibility: 0.95,
       intensity: 0.55,
       bassReactivity: 0.22,
@@ -532,7 +556,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.12,
       particleDensity: 0,
     },
-    controls: ['sourceVisibility', 'intensity', 'beatPulse', 'stutterRate', 'rgbSplit', 'glitchAmount'],
+    controls: ['drySourceMix', 'intensity', 'beatPulse', 'stutterRate', 'rgbSplit', 'glitchAmount'],
   },
   {
     id: 'canvas-particle-aura',
@@ -541,6 +565,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#dffcff',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0.04,
       sourceVisibility: 0.04,
       intensity: 0.94,
       bassReactivity: 0.72,
@@ -559,7 +584,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       particleQuality: 'high',
     },
     controls: [
-      'sourceVisibility',
+      'drySourceMix',
       'intensity',
       'particleDensity',
       'particleSize',
@@ -2891,7 +2916,7 @@ export function createDefaultLaserDmxBeamMatrixSettings(): LaserDmxBeamMatrixSet
   ])
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     selectedBeamIds: [],
     selectedGroupId: null,
     beams:  [],

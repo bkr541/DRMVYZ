@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_OSCILLATOR_SETTINGS, type ReactPreset, type ReactPresetControlValues } from './ReactTypes'
-import { resolveReactPresetProvenance } from './ReactPresetProvenance'
+import { resolveEnginePresetProvenance, resolveReactPresetProvenance } from './ReactPresetProvenance'
 
 const preset: ReactPreset = {
   id: 'test-preset',
@@ -55,5 +55,28 @@ describe('engine-neutral React preset provenance', () => {
       activeEngineId: 'oscilloscope',
       controls: exactControls,
     }).status).toBe('unknownLegacy')
+  })
+})
+
+describe('generic engine preset provenance', () => {
+  it('retains a stable source ID while values are modified', () => {
+    const result = resolveEnginePresetProvenance({
+      presetId: 'stable-preset',
+      presetName: 'Stable Preset',
+      expectedValues: { intensity: 0.5 },
+      actualValues: { intensity: 0.7 },
+    })
+    expect(result.status).toBe('modified')
+    expect(result.label).toBe('Modified from Stable Preset')
+  })
+
+  it('returns to exact when authored values are restored', () => {
+    const result = resolveEnginePresetProvenance({
+      presetId: 'stable-preset',
+      presetName: 'Stable Preset',
+      expectedValues: { nested: { glow: 0.5 } },
+      actualValues: { nested: { glow: 0.5 } },
+    })
+    expect(result.status).toBe('exact')
   })
 })

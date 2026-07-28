@@ -99,16 +99,14 @@ export function renderLaserDmxCanvas2DScannerPlan(
   ctx: CanvasRenderingContext2D,
   frame: LaserDmxSceneFrame,
   plan: LaserDmxCanvas2DScannerPlan,
-  intensity: number,
-  glow: number,
 ): void {
   if (frame.output.blackout || plan.segments.length === 0) return
   const atmosphere = frame.atmosphere.enabled
     ? clamp01(frame.atmosphere.opacity * 0.42 + frame.atmosphere.beamScatter * 0.58)
     : 0
   const globalWidth = clamp(frame.output.globalBeamWidth, 0.1, 6)
-  const masterIntensity = clamp01(intensity)
-  const globalGlow = clamp01(glow)
+  const masterIntensity = 1
+  const globalGlow = clamp01(frame.output.globalGlow)
 
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'

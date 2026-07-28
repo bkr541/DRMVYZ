@@ -43,6 +43,11 @@ import {
 } from './laserDmx/LaserDmxRendererBackend'
 import { LaserDmxWebGLRuntime } from './laserDmx/LaserDmxWebGLRuntime'
 import {
+  applyLaserDmxPreviewPresentation,
+  applyLaserDmxPreviewToCompiledResult,
+  resolveLaserDmxOutputHierarchy,
+} from './laserDmx/LaserDmxResolvedOutput'
+import {
   buildLaserDmxCanvas2DScannerPlan,
   renderLaserDmxCanvas2DScannerPlan,
 } from './laserDmx/LaserDmxCanvas2DScannerRenderer'
@@ -779,8 +784,36 @@ export function renderLaserDmx(
     productionOutputController.transportStopped('Beam Matrix has no patched production output frame')
   }
 
-  const sceneFrame = unresolvedSceneFrame
-    ? resolveLaserDmxSceneFrameOutput(unresolvedSceneFrame, finalBeamMatrix)
+  // Compile once before backend selection. The compiler owns authored global
+  // routes, gates, strobes, per-beam values, and safety, so WebGL and Canvas2D
+  // begin from the same resolved authored state during normal rendering and
+  // context-loss fallback.
+  const authoredCompiled = compileLaserDmxBeamMatrix({
+    settings: finalBeamMatrix,
+    mi,
+    timeSec,
+    canvasWidth: W,
+    canvasHeight: H,
+    personalization,
+  })
+  const sceneOutputBeamMatrix = {
+    ...finalBeamMatrix,
+    output: {
+      ...finalBeamMatrix.output,
+      ...authoredCompiled.output,
+    },
+  }
+
+  const authoredSceneFrame = unresolvedSceneFrame
+    ? resolveLaserDmxSceneFrameOutput(unresolvedSceneFrame, sceneOutputBeamMatrix)
+    : null
+  const resolvedOutput = resolveLaserDmxOutputHierarchy({
+    authoredOutput: authoredCompiled.output,
+    previewOutputTrim: params.intensity,
+    previewGlowTrim: params.glow,
+  })
+  const sceneFrame = authoredSceneFrame
+    ? applyLaserDmxPreviewPresentation(authoredSceneFrame, resolvedOutput)
     : null
   const requestedRenderer = showDirectorRuntimeRig.settings.rendererMode
   let fallbackCode: LaserDmxRendererFallbackCode | null = requestedRenderer === 'canvas2d'
@@ -845,6 +878,15 @@ export function renderLaserDmx(
           activeRenderer: 'webgl',
           requestedRenderer,
           presentationMode: sceneFrame.presentationMode,
+          authoredShowDimmer: resolvedOutput.authoredShowDimmer,
+          previewOutputTrim: resolvedOutput.previewOutputTrim,
+          safetyClamp: resolvedOutput.safetyClamp,
+          resolvedPreviewIntensity: resolvedOutput.resolvedPreviewIntensity,
+          resolvedHardwareIntensity: resolvedOutput.resolvedHardwareIntensity,
+          authoredShowGlow: resolvedOutput.authoredShowGlow,
+          previewGlowTrim: resolvedOutput.previewGlowTrim,
+          resolvedPreviewGlow: resolvedOutput.resolvedPreviewGlow,
+          resolvedHardwareGlow: resolvedOutput.resolvedHardwareGlow,
           webgl2Available: true,
           floatTargetsAvailable: diagnostics.hdrMode === 'rgba16f',
           requestedQuality: sceneFrame.quality.qualityTier,
@@ -903,14 +945,7 @@ export function renderLaserDmx(
 
   webglRecoveryState = getLaserDmxWebGLRecoveryState(ctx)
 
-  const compiled = compileLaserDmxBeamMatrix({
-    settings: finalBeamMatrix,
-    mi,
-    timeSec,
-    canvasWidth: W,
-    canvasHeight: H,
-    personalization,
-  })
+  const compiled = applyLaserDmxPreviewToCompiledResult(authoredCompiled, resolvedOutput)
   const canvasScannerPlan = sceneFrame
     ? buildLaserDmxCanvas2DScannerPlan(sceneFrame, W, H)
     : null
@@ -921,6 +956,15 @@ export function renderLaserDmx(
       activeRenderer: 'canvas2d',
       requestedRenderer,
       presentationMode: sceneFrame.presentationMode,
+      authoredShowDimmer: resolvedOutput.authoredShowDimmer,
+      previewOutputTrim: resolvedOutput.previewOutputTrim,
+      safetyClamp: resolvedOutput.safetyClamp,
+      resolvedPreviewIntensity: resolvedOutput.resolvedPreviewIntensity,
+      resolvedHardwareIntensity: resolvedOutput.resolvedHardwareIntensity,
+      authoredShowGlow: resolvedOutput.authoredShowGlow,
+      previewGlowTrim: resolvedOutput.previewGlowTrim,
+      resolvedPreviewGlow: resolvedOutput.resolvedPreviewGlow,
+      resolvedHardwareGlow: resolvedOutput.resolvedHardwareGlow,
       webgl2Available,
       floatTargetsAvailable: false,
       requestedQuality: sceneFrame.quality.qualityTier,
@@ -985,8 +1029,6 @@ export function renderLaserDmx(
     H,
     out,
     canvasBeams,
-    clamp01(params.intensity),
-    clamp01(params.glow),
     false,
   )
   if (sceneFrame && canvasScannerPlan) {
@@ -994,8 +1036,6 @@ export function renderLaserDmx(
       ctx,
       sceneFrame,
       canvasScannerPlan,
-      clamp01(params.intensity),
-      clamp01(params.glow),
     )
   }
 

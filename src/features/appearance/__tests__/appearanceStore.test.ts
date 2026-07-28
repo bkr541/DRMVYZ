@@ -95,6 +95,31 @@ describe('appearanceStore', () => {
     expect(document.documentElement.dataset.theme).toBe('light')
   })
 
+
+  it('bootstraps Dark, Light, and CDJ before React mounts', async () => {
+    const { bootstrapAppearanceTheme } = await import('../appearanceStore')
+    for (const theme of ['dark', 'light', 'cdj'] as const) {
+      localStorage.setItem('drmvyz:appearance:theme:v1', JSON.stringify({
+        version: 1,
+        theme,
+        updatedAt: '2026-07-28T08:00:00.000Z',
+      }))
+      expect(bootstrapAppearanceTheme()).toBe(theme)
+      expect(document.documentElement.dataset.theme).toBe(theme)
+    }
+  })
+
+  it('ignores invalid saved values and safely applies Dark', async () => {
+    const { bootstrapAppearanceTheme } = await import('../appearanceStore')
+    localStorage.setItem('drmvyz:appearance:theme:v1', JSON.stringify({
+      version: 1,
+      theme: 'cyan-green',
+      updatedAt: '2026-07-28T08:00:00.000Z',
+    }))
+    expect(bootstrapAppearanceTheme()).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+
   it('normalizes the legacy system value to Dark', () => {
     expect(normalizeAppearanceTheme('system')).toBe('dark')
   })

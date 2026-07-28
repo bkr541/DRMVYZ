@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
-import { isAppearanceTheme, normalizeAppearanceTheme, type AppearanceTheme } from './appearanceTypes'
+import type { AppearanceTheme } from './appearanceTypes'
+import { resolveCanonicalAppearanceTheme } from './appearanceCompatibility'
 
 const db = supabase as unknown as SupabaseClient
 
@@ -34,7 +35,7 @@ export async function readAppearanceTheme(userId: string): Promise<AppearanceThe
   const raw = data as { theme?: unknown; updated_at?: unknown }
   return {
     record: {
-      theme: isAppearanceTheme(raw.theme) ? raw.theme : normalizeAppearanceTheme(raw.theme),
+      theme: resolveCanonicalAppearanceTheme({ canonicalTheme: raw.theme }),
       updatedAt: typeof raw.updated_at === 'string' ? raw.updated_at : null,
     },
     error: null,
@@ -58,7 +59,7 @@ export async function saveAppearanceTheme(
   const raw = data as { theme?: unknown; updated_at?: unknown }
   return {
     record: {
-      theme: normalizeAppearanceTheme(raw.theme),
+      theme: resolveCanonicalAppearanceTheme({ canonicalTheme: raw.theme }),
       updatedAt: typeof raw.updated_at === 'string' ? raw.updated_at : null,
     },
     error: null,

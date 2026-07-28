@@ -10,6 +10,8 @@ import {
   type OscillatorRenderMode,
 } from './ReactTypes'
 import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
+import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
+import { shaderRegistry } from './shaders/registry'
 import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
 import { CinematicWorldsDesignControls, CinematicWorldsFxControls } from './CinematicWorldsControls'
@@ -74,6 +76,10 @@ export function ReactFxPanel() {
   const isCanvas        = activeReactEngineId === 'canvas'
   const isPixGrid       = activeReactEngineId === 'pixGrid'
   const isBeamMatrix    = isLaserDmx
+  const activeShaderId = useShaderPanelStore(state => state.activeShaderId)
+  const shaderMasterCapabilities = isShader && activeShaderId
+    ? shaderRegistry.get(activeShaderId)?.masterCapabilities
+    : undefined
   const soundDrawingOwnership = resolveSoundDrawingOwnership(soundDrawingPerformanceSettings)
   const isProfessionalScope = isSoundDrawing && osc.sourceType === 'classic' && !osc.autoSectionMode && osc.classicMode === 'professionalScope'
 
@@ -87,15 +93,22 @@ export function ReactFxPanel() {
     <>
       {showMasterIntensity && (
         <SliderRow
-          label={isLaserDmx ? 'Master Intensity' : isPixGrid ? 'Authored Performance Trim' : 'Intensity'}
+          label={isLaserDmx ? 'Preview Output Trim' : isPixGrid ? 'Authored Performance Trim' : 'Intensity'}
           value={reactIntensity}
           onChange={setReactIntensity}
+          disabled={isShader && shaderMasterCapabilities?.intensity === false}
           color="#4ac7db"
           description={isPixGrid
             ? 'Trims the authored React performance output after PixGrid Output Intensity. Kept separate for automation and legacy preset compatibility.'
-            : isSoundDrawing
-              ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.performanceIntensity)
-              : undefined}
+            : isLaserDmx
+              ? 'Preview-only trim applied consistently to WebGL and Canvas2D. It never changes production hardware output.'
+              : isShader && shaderMasterCapabilities?.intensity === false
+                ? 'Not used by this scene.'
+                : isShader
+                  ? 'Global scene output intensity. Scene-local brightness controls retain their authored scope.'
+                  : isSoundDrawing
+                    ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.performanceIntensity)
+                    : undefined}
         />
       )}
       {showMasterMotion && (
@@ -103,21 +116,33 @@ export function ReactFxPanel() {
           label="Motion"
           value={reactMotion}
           onChange={setReactMotion}
+          disabled={isShader && shaderMasterCapabilities?.motion === false}
           color="#61d6aa"
-          description={isSoundDrawing ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.motion) : undefined}
+          description={isShader && shaderMasterCapabilities?.motion === false
+            ? 'Not used by this scene.'
+            : isShader
+              ? 'Global animation-rate trim. Scene-local motion parameters keep their authored behavior.'
+              : isSoundDrawing ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.motion) : undefined}
         />
       )}
       {showMasterGlow && (
         <SliderRow
-          label={isLaserDmx ? 'Master Glow' : isPixGrid ? 'Halo Radius' : 'Glow'}
+          label={isLaserDmx ? 'Preview Glow Trim' : isPixGrid ? 'Halo Radius' : 'Glow'}
           value={reactGlow}
           onChange={setReactGlow}
+          disabled={isShader && shaderMasterCapabilities?.glow === false}
           color="#b84fc9"
           description={isPixGrid
             ? 'Controls the spatial radius of the PixGrid halo. Emitter Glow controls halo strength.'
-            : isSoundDrawing
-              ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.glow)
-              : undefined}
+            : isLaserDmx
+              ? 'Preview-only glow trim applied after Authored Show Glow. Production hardware output never inherits it.'
+              : isShader && shaderMasterCapabilities?.glow === false
+                ? 'Not used by this scene.'
+                : isShader
+                  ? 'Global post or scene glow trim. Scene-local glow controls remain independent.'
+                  : isSoundDrawing
+                    ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.glow)
+                    : undefined}
         />
       )}
       {showMasterBassReactivity && (
@@ -125,8 +150,13 @@ export function ReactFxPanel() {
           label="Bass React"
           value={reactBassReactivity}
           onChange={setReactBassReactivity}
+          disabled={isShader && shaderMasterCapabilities?.bassReactivity === false}
           color="#d8b95a"
-          description={isSoundDrawing ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.reaction) : undefined}
+          description={isShader && shaderMasterCapabilities?.bassReactivity === false
+            ? 'Not used by this scene.'
+            : isShader
+              ? 'Global bass-response trim. Scene-local audio parameters retain their authored sensitivity.'
+              : isSoundDrawing ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.reaction) : undefined}
         />
       )}
     </>
@@ -304,7 +334,7 @@ export function ReactFxPanel() {
         {isBeamMatrix && (
           <>
             <Collapsible label="Output Styling" defaultOpen>
-              <SliderRow label="Master Dimmer"  value={bmOut.masterDimmer}    onChange={v => setOutput({ masterDimmer: v })}    color="#4ac7db" />
+              <SliderRow label="Authored Show Dimmer"  value={bmOut.masterDimmer}    onChange={v => setOutput({ masterDimmer: v })}    color="#4ac7db" />
               <SliderRow label="Safety Clamp"   value={bmOut.safetyClamp}     onChange={v => setOutput({ safetyClamp: v })}     color="#c0314a" />
               <SliderRow label="Bg Fade"        value={bmOut.backgroundFade}  onChange={v => setOutput({ backgroundFade: v })}  color="#d8b95a" />
               <SliderRow label="Persistence"    value={bmOut.beamPersistence} onChange={v => setOutput({ beamPersistence: v })} color="#4ac7db" />
@@ -312,7 +342,7 @@ export function ReactFxPanel() {
 
             <Collapsible label="Global Beam" defaultOpen>
               <SliderRow label="Beam Width"   value={bmOut.globalBeamWidth}  onChange={v => setOutput({ globalBeamWidth: v })}  min={0.1} max={6} step={0.05} color="#61d6aa" />
-              <SliderRow label="Global Glow"  value={bmOut.globalGlow}       onChange={v => setOutput({ globalGlow: v })}       color="#b84fc9" />
+              <SliderRow label="Authored Show Glow"  value={bmOut.globalGlow}       onChange={v => setOutput({ globalGlow: v })}       color="#b84fc9" />
               <SliderRow label="Strobe Rate"  value={bmOut.globalStrobeRate} onChange={v => setOutput({ globalStrobeRate: v })} color="#c0314a" />
             </Collapsible>
 

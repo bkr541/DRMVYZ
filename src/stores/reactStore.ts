@@ -3,6 +3,9 @@ import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import { handleReactPersistenceStatus } from './reactPersistenceStatusStore'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
+import { resolveCinematicPresetBaseConfig, resolveCinematicPresetProvenance } from '../components/vyzualz/react/CinematicPresetProvenance'
+import { isLaserDmxBeamMatrixPresetModified } from '../components/vyzualz/react/LaserDmxBeamMatrixPresetProvenance'
+import { getLaserDmxBeamMatrixPreset } from '../components/vyzualz/react/laserDmxBeamMatrixPresets'
 import { normalizeSoundDrawingVisualSize } from '../components/vyzualz/react/soundDrawing/SoundDrawingVisualSize'
 import { normalizeSoundDrawingScopeState } from '../audio/scope/scopeStateNormalization'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
@@ -19,6 +22,7 @@ import {
   DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_CANVAS_ENGINE_SETTINGS,
   DEFAULT_CANVAS_PRESET_ID,
+  CANVAS_PRESET_SETTINGS_SCHEMA_VERSION,
   DEFAULT_CANVAS_PRESET_SETTINGS,
   DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
@@ -124,9 +128,6 @@ import {
   isSvgContent,
   getSvgGlyphCacheKey,
 } from '../components/vyzualz/react/renderers/svgGlyphUtils'
-import {
-  getLaserDmxBeamMatrixPreset,
-} from '../components/vyzualz/react/laserDmxBeamMatrixPresets'
 import { resetBeamMatrixCompilerState } from '../components/vyzualz/react/renderers/LaserDmxBeamMatrixCompiler'
 import { resetFogState } from '../components/vyzualz/react/renderers/LaserDmxFogRenderer'
 import {
@@ -1901,7 +1902,12 @@ function normalizeCinematicConfigOverrides(
   const cinematicPresetIds = new Set(presets.filter(preset => preset.engine === 'cinematicPortal').map(preset => preset.id))
   const normalized: Record<string, CinematicWorldConfig> = {}
   for (const [presetId, config] of Object.entries(value as Record<string, unknown>)) {
-    if (cinematicPresetIds.has(presetId)) normalized[presetId] = normalizeCinematicWorldConfig(config)
+    if (!cinematicPresetIds.has(presetId)) continue
+    const preset = presets.find(candidate => candidate.id === presetId && candidate.engine === 'cinematicPortal')
+    const normalizedConfig = normalizeCinematicWorldConfig(config)
+    if (resolveCinematicPresetProvenance(preset, normalizedConfig).status === 'modified') {
+      normalized[presetId] = normalizedConfig
+    }
   }
   return normalized
 }
@@ -3112,7 +3118,7 @@ function normalizeCanvasParticleQuality(value: unknown): CanvasParticleQuality {
     : DEFAULT_CANVAS_PRESET_SETTINGS.particleQuality
 }
 
-function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
+export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
   const source = isRecord(value) ? value : DEFAULT_CANVAS_PRESET_SETTINGS
   const trailAmount = clampCanvasNumber(
     source.trailAmount ?? source.motionTrailAmount ?? source.trailLength,
@@ -3145,8 +3151,24 @@ function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
     1,
   )
 
+  const sourceSchemaVersion = Math.max(1, Math.floor(finiteCanvasNumber(source.schemaVersion, 1)))
+  const sourceMixMode = sourceSchemaVersion >= 2
+    ? source.sourceMixMode === 'legacyComposite' ? 'legacyComposite' : 'dryOnly'
+    : 'legacyComposite'
+  const drySourceMix = clampCanvasNumber(
+    sourceSchemaVersion >= 2
+      ? source.drySourceMix ?? source.sourceVisibility
+      : source.sourceVisibility ?? source.drySourceMix,
+    DEFAULT_CANVAS_PRESET_SETTINGS.drySourceMix,
+    0,
+    1,
+  )
+
   return {
-    sourceVisibility: clampCanvasNumber(source.sourceVisibility, DEFAULT_CANVAS_PRESET_SETTINGS.sourceVisibility, 0, 1),
+    schemaVersion: CANVAS_PRESET_SETTINGS_SCHEMA_VERSION,
+    sourceMixMode,
+    drySourceMix,
+    sourceVisibility: drySourceMix,
     intensity: clampCanvasNumber(source.intensity, DEFAULT_CANVAS_PRESET_SETTINGS.intensity, 0, 1),
     bassReactivity,
     beatPulse: clampCanvasNumber(source.beatPulse, DEFAULT_CANVAS_PRESET_SETTINGS.beatPulse, 0, 1),
@@ -3244,29 +3266,6 @@ export function repairReactEnginePresetSelection(
   }
 }
 
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize)
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.keys(value as Record<string, unknown>)
-        .sort()
-        .map(key => [key, canonicalize((value as Record<string, unknown>)[key])]),
-    )
-  }
-  return value
-}
-
-function normalizeBeamMatrixForPresetComparison(settings: LaserDmxBeamMatrixSettings): unknown {
-  return {
-    beams: settings.beams,
-    groups: settings.groups.map(({ muted: _muted, soloed: _soloed, ...group }) => group),
-    globalModulationRoutes: settings.globalModulationRoutes,
-    output: settings.output,
-    fog: settings.fog,
-    cues: settings.cues ?? [],
-  }
-}
-
 /**
  * Recomputes Beam Matrix dirty state from authored content. Selection, editor
  * chrome, and temporary mute/solo performance state intentionally do not count.
@@ -3275,12 +3274,7 @@ export function isLaserDmxBeamMatrixPresetDirty(
   settings: LaserDmxBeamMatrixSettings,
   activePresetId: string | null,
 ): boolean {
-  if (!activePresetId) return false
-  const preset = getLaserDmxBeamMatrixPreset(activePresetId)
-  if (!preset) return true
-  const current = canonicalize(normalizeBeamMatrixForPresetComparison(settings))
-  const expected = canonicalize(normalizeBeamMatrixForPresetComparison(preset.createSettings()))
-  return JSON.stringify(current) !== JSON.stringify(expected)
+  return isLaserDmxBeamMatrixPresetModified(settings, activePresetId)
 }
 
 function mergeCollectionsById<T extends { id: string }>(
@@ -3960,6 +3954,18 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 57) {
+    // Patch 3 versions CANVAS Dry Source Mix semantics and the LaserDMX
+    // authored-versus-preview output scopes. Both normalizers are idempotent,
+    // so imported current-version documents also remain safe below.
+    state = {
+      ...state,
+      canvasPresetSettings: normalizeCanvasPresetSettings(state.canvasPresetSettings),
+      laserDmxBeamMatrix: isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)
+        ? normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix)
+        : state.laserDmxBeamMatrix,
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -4599,11 +4605,14 @@ export const useReactStore = create<ReactStoreState>()(
           const normalized = normalizeCinematicWorldConfig(config)
           const previous = resolveCinematicConfigForPreset(preset, state.cinematicConfigsByPresetId)
           const worldChanged = state.activeReactPresetId === presetId && previous?.worldMode !== normalized.worldMode
+          const { [presetId]: _previousOverride, ...otherOverrides } = state.cinematicConfigsByPresetId
+          void _previousOverride
+          const baseConfig = resolveCinematicPresetBaseConfig(preset)
+          const exactPresetValues = resolveCinematicPresetProvenance(preset, normalized).status === 'exact'
           return {
-            cinematicConfigsByPresetId: {
-              ...state.cinematicConfigsByPresetId,
-              [presetId]: normalized,
-            },
+            cinematicConfigsByPresetId: exactPresetValues && baseConfig
+              ? otherOverrides
+              : { ...otherOverrides, [presetId]: normalized },
             ...(worldChanged ? clearPerformanceActionPatch() : {}),
           }
         }),
@@ -4852,17 +4861,24 @@ export const useReactStore = create<ReactStoreState>()(
         }
       }),
 
-      setCanvasPresetSettings: (patch) => set((state) => ({
-        canvasPresetSettings: normalizeCanvasPresetSettings({
-          ...state.canvasPresetSettings,
-          ...patch,
-        }),
-        canvasPresetOverride: {
-          source: 'manual' as const,
-          presetId: state.selectedCanvasPresetId,
-          label: 'User-adjusted preset',
-        },
-      })),
+      setCanvasPresetSettings: (patch) => set((state) => {
+        const compatibilityPatch = 'drySourceMix' in patch
+          ? { ...patch, sourceVisibility: patch.drySourceMix }
+          : 'sourceVisibility' in patch
+            ? { ...patch, drySourceMix: patch.sourceVisibility }
+            : patch
+        return {
+          canvasPresetSettings: normalizeCanvasPresetSettings({
+            ...state.canvasPresetSettings,
+            ...compatibilityPatch,
+          }),
+          canvasPresetOverride: {
+            source: 'manual' as const,
+            presetId: state.selectedCanvasPresetId,
+            label: 'User-adjusted preset',
+          },
+        }
+      }),
 
       resetCanvasPresetSettings: () => set((state) => {
         const preset = CANVAS_PRESET_BY_ID[state.selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
@@ -8254,7 +8270,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 56,
+      version: 57,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

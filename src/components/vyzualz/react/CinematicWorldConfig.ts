@@ -51,6 +51,18 @@ export const CINEMATIC_CAMERA_RIGS = [
 
 export type CinematicCameraRig = typeof CINEMATIC_CAMERA_RIGS[number]
 
+export function resolveSupportedCinematicCameraRig(
+  requested: unknown,
+  supported: readonly CinematicCameraRig[],
+  fallback: CinematicCameraRig,
+): CinematicCameraRig {
+  if (typeof requested === 'string' && supported.includes(requested as CinematicCameraRig)) {
+    return requested as CinematicCameraRig
+  }
+  if (supported.includes(fallback)) return fallback
+  return supported[0] ?? 'locked'
+}
+
 export const CINEMATIC_CAMERA_EASINGS = ['linear', 'easeInOut', 'smoothstep'] as const
 export type CinematicCameraEasing = typeof CINEMATIC_CAMERA_EASINGS[number]
 

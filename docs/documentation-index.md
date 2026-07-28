@@ -52,6 +52,8 @@ When a historical document conflicts with canonical current documentation or the
 | --- | --- |
 | `docs/brand-kit.md` | Brand Kit storage, palettes, assets, overlays, and engine integration |
 | `docs/react-recording-and-output.md` | React View recording and LaserDMX Production Output |
+| `docs/contracts/CROSS_ENGINE_CONTROL_SCOPES.md` | Canonical LaserDMX, Shader Pads, CANVAS, Cinematic camera, and preset-provenance control scopes |
+| `docs/contracts/APPEARANCE_CONTRACT.md` | Canonical Dark/Light/CDJ ownership, startup bootstrap, persistence, and legacy appearance compatibility |
 | `docs/visual-simulation.md` | Shared bounded visual-simulation utilities |
 | `docs/living-ribbon-production-validation.md` | Living Ribbon production limits and acceptance |
 | `docs/lyric-manager.md` | Lyric Manager behavior |

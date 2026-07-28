@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
+import { shaderRegistry } from '../registry'
 import {
   mergeShaderPanelState,
   migrateShaderPanelPersistedState,
@@ -89,6 +90,31 @@ describe('Shader panel persistence', () => {
     expect(persisted.paramValuesByShaderId).toEqual({})
     expect(persisted.routesByShaderId).toEqual({})
     expect(persisted.textureSelectionsByShaderId).toEqual({})
+  })
+
+  it('restores scene-local master and parameter values after switching scenes', () => {
+    const original = useShaderPanelStore.getState()
+    const scenes = shaderRegistry.getAll().filter(definition => (
+      Object.values(definition.defaults).some(value => typeof value === 'number')
+    )).slice(0, 2)
+    expect(scenes).toHaveLength(2)
+    const first = scenes[0]
+    const second = scenes[1]
+    if (!first || !second) return
+    const parameter = Object.keys(first.defaults).find(key => typeof first.defaults[key] === 'number')
+    expect(parameter).toBeDefined()
+    if (!parameter) return
+    const authored = (first.defaults[parameter] as number) + 0.03125
+
+    try {
+      useShaderPanelStore.getState().setActiveShaderId(first.id)
+      useShaderPanelStore.getState().setParamValue(parameter, authored)
+      useShaderPanelStore.getState().setActiveShaderId(second.id)
+      useShaderPanelStore.getState().setActiveShaderId(first.id)
+      expect(useShaderPanelStore.getState().paramValues[parameter]).toBe(authored)
+    } finally {
+      useShaderPanelStore.setState(original)
+    }
   })
 
 })
