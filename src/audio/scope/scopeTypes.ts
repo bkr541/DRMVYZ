@@ -236,6 +236,70 @@ export const DEFAULT_SCOPE_TIMEBASE: ScopeTimebaseSettings = {
 }
 
 
+
+// ── Beam and phosphor ─────────────────────────────────────────────────────────
+
+export interface ScopeBeamSettings {
+  /** Bright inner core width in pixels, before audio reactivity. */
+  coreWidthPx: number
+  /** Halo diameter as a multiple of the core width. */
+  haloScale: number
+  /** 0..1 how much bass widens the beam. 0 is a constant-width trace. */
+  bassWidthResponse: number
+  /**
+   * 0..1 how strongly a slow-moving beam reads brighter than a fast one.
+   *
+   * The physical effect a real beam has and the reason corners glow: the spot
+   * dwells longer where it turns. 0 flattens it to uniform brightness.
+   */
+  velocityBrightness: number
+  /** Extra brightness at corners and cusps, 0..1. */
+  cornerDwell: number
+}
+
+export const DEFAULT_SCOPE_BEAM: ScopeBeamSettings = {
+  coreWidthPx: 1.6,
+  haloScale: 6,
+  bassWidthResponse: 0.55,
+  velocityBrightness: 0.6,
+  cornerDwell: 0.45,
+}
+
+export interface ScopePhosphorSettings {
+  /**
+   * Phosphor time constant in seconds — how long the trail takes to fade.
+   *
+   * Distinct from the Canvas2D `trailDecay` control, which is a 0..1 rate. This
+   * is stated in seconds because that is the observable property of a phosphor
+   * and it is what makes the decay frame-rate independent.
+   */
+  persistenceSeconds: number
+  /** 0..1 multiplier on the tight bloom level. */
+  tightBloom: number
+  /** 0..1 multiplier on the medium bloom level. */
+  mediumBloom: number
+  /** 0..1 multiplier on the wide bloom level. */
+  wideBloom: number
+  /**
+   * 0..1 how readily bright pixels desaturate toward white.
+   *
+   * This is what makes overlapping strokes read as hot rather than merely
+   * bright. 0 keeps every pixel at its trace hue.
+   */
+  whiteHot: number
+  /** 0..1 glow the unexcited tube retains, so black is never absolute. */
+  backgroundLift: number
+}
+
+export const DEFAULT_SCOPE_PHOSPHOR: ScopePhosphorSettings = {
+  persistenceSeconds: 0.35,
+  tightBloom: 1,
+  mediumBloom: 0.6,
+  wideBloom: 0.45,
+  whiteHot: 0.7,
+  backgroundLift: 0.12,
+}
+
 // ── CRT presentation ──────────────────────────────────────────────────────────
 
 /**
@@ -346,12 +410,27 @@ export interface SoundDrawingScopeStateV2 extends Omit<SoundDrawingScopeStateV1,
   crt: ScopeCrtSettings
 }
 
-export type SoundDrawingScopeState = SoundDrawingScopeStateV2
+/**
+ * Version 3 exposes beam and phosphor tuning.
+ *
+ * These were previously hardcoded in the renderer. Their defaults reproduce
+ * exactly the values that were compiled in, so a v2 project looks identical
+ * after migration — the controls become adjustable, not different.
+ */
+export interface SoundDrawingScopeStateV3 extends Omit<SoundDrawingScopeStateV2, 'version'> {
+  version: 3
+  beam: ScopeBeamSettings
+  phosphor: ScopePhosphorSettings
+}
 
-export const SOUND_DRAWING_SCOPE_STATE_VERSION = 2
+export type SoundDrawingScopeState = SoundDrawingScopeStateV3
+
+export const SOUND_DRAWING_SCOPE_STATE_VERSION = 3
 
 export const DEFAULT_SOUND_DRAWING_SCOPE_STATE: SoundDrawingScopeState = {
-  version: 2,
+  version: 3,
+  beam: DEFAULT_SCOPE_BEAM,
+  phosphor: DEFAULT_SCOPE_PHOSPHOR,
   crt: DEFAULT_SCOPE_CRT,
   enabled: false,
   signalMode: 'stereoXY',

@@ -1,5 +1,7 @@
 import {
+  DEFAULT_SCOPE_BEAM,
   DEFAULT_SCOPE_CRT,
+  DEFAULT_SCOPE_PHOSPHOR,
   DEFAULT_SCOPE_SIGNAL_CONDITIONER,
   DEFAULT_SCOPE_TIMEBASE,
   DEFAULT_SCOPE_TRIGGER,
@@ -14,7 +16,9 @@ import {
   type ScopeTriggerSlope,
   type ScopeTriggerSource,
   SOUND_DRAWING_SCOPE_STATE_VERSION,
+  type ScopeBeamSettings,
   type ScopeCrtSettings,
+  type ScopePhosphorSettings,
   type ScopeGraticuleStyle,
   type ScopePhosphorModel,
   type SoundDrawingScopeState,
@@ -137,6 +141,31 @@ export function normalizeScopeTimebase(value: unknown): ScopeTimebaseSettings {
   }
 }
 
+export function normalizeScopeBeam(value: unknown): ScopeBeamSettings {
+  const source = isRecord(value) ? value : {}
+  const d = DEFAULT_SCOPE_BEAM
+  return {
+    coreWidthPx: num(source.coreWidthPx, d.coreWidthPx, 0.25, 12),
+    haloScale: num(source.haloScale, d.haloScale, 1, 24),
+    bassWidthResponse: num(source.bassWidthResponse, d.bassWidthResponse, 0, 1),
+    velocityBrightness: num(source.velocityBrightness, d.velocityBrightness, 0, 1),
+    cornerDwell: num(source.cornerDwell, d.cornerDwell, 0, 1),
+  }
+}
+
+export function normalizeScopePhosphor(value: unknown): ScopePhosphorSettings {
+  const source = isRecord(value) ? value : {}
+  const d = DEFAULT_SCOPE_PHOSPHOR
+  return {
+    persistenceSeconds: num(source.persistenceSeconds, d.persistenceSeconds, 0.01, 4),
+    tightBloom: num(source.tightBloom, d.tightBloom, 0, 1),
+    mediumBloom: num(source.mediumBloom, d.mediumBloom, 0, 1),
+    wideBloom: num(source.wideBloom, d.wideBloom, 0, 1),
+    whiteHot: num(source.whiteHot, d.whiteHot, 0, 1),
+    backgroundLift: num(source.backgroundLift, d.backgroundLift, 0, 1),
+  }
+}
+
 /** Hex colours only; anything else falls back rather than reaching a shader. */
 function hexColor(value: unknown, fallback: string): string {
   return typeof value === 'string' && /^#?[0-9a-f]{6}$/i.test(value.trim()) ? value.trim() : fallback
@@ -181,6 +210,8 @@ export function normalizeSoundDrawingScopeState(value: unknown): SoundDrawingSco
     // disabled. Migrating forward must never switch on a look the user never
     // chose.
     crt: normalizeScopeCrt(source.crt),
+    beam: normalizeScopeBeam(source.beam),
+    phosphor: normalizeScopePhosphor(source.phosphor),
     enabled: bool(source.enabled, DEFAULT_SOUND_DRAWING_SCOPE_STATE.enabled),
     signalMode: normalizeScopeSignalMode(source.signalMode),
     signalConditioner: normalizeScopeSignalConditioner(source.signalConditioner),

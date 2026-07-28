@@ -102,6 +102,8 @@ uniform float uCoreWidthPx;
 uniform float uHaloWidthPx;
 uniform float uMasterIntensity;
 uniform float uExposureScale;
+uniform float uVelocityBrightness;
+uniform float uCornerDwell;
 
 out vec4 fragColor;
 
@@ -118,8 +120,12 @@ void main() {
 
   // Corner dwell brightens segments that linger at a cusp; velocityRatio is
   // already "how slow" (1 = slow = bright), matching the Canvas2D beam optics.
-  float exposure = clamp(v_density * (0.55 + v_dwellWeight * 0.45), 0.0, 1.0);
-  float brightness = mix(0.4, 1.0, clamp(v_velocityRatio, 0.0, 1.0));
+  // Both responses are user-scalable, and at 0 each collapses to a flat term so
+  // the trace reads as uniform brightness rather than losing energy.
+  float dwell = clamp(uCornerDwell, 0.0, 1.0);
+  float exposure = clamp(v_density * (1.0 - dwell + v_dwellWeight * dwell), 0.0, 1.0);
+  float velocity = clamp(uVelocityBrightness, 0.0, 1.0);
+  float brightness = mix(1.0, mix(0.4, 1.0, clamp(v_velocityRatio, 0.0, 1.0)), velocity);
 
   float intensity = (coreTerm + haloTerm) * edgeTaper * exposure * brightness
                   * uMasterIntensity * uExposureScale;

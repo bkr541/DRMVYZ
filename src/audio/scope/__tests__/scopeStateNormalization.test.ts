@@ -6,7 +6,9 @@ import {
   normalizeSoundDrawingScopeState,
 } from '../scopeStateNormalization'
 import {
+  DEFAULT_SCOPE_BEAM,
   DEFAULT_SCOPE_CRT,
+  DEFAULT_SCOPE_PHOSPHOR,
   DEFAULT_SOUND_DRAWING_SCOPE_STATE,
   SOUND_DRAWING_SCOPE_STATE_VERSION,
 } from '../scopeTypes'
@@ -66,6 +68,8 @@ describe('scope state normalization', () => {
     const source = {
       version: SOUND_DRAWING_SCOPE_STATE_VERSION,
       crt: DEFAULT_SCOPE_CRT,
+      beam: DEFAULT_SCOPE_BEAM,
+      phosphor: DEFAULT_SCOPE_PHOSPHOR,
       enabled: true,
       signalMode: 'midSideXY',
       signalConditioner: {
@@ -105,6 +109,27 @@ describe('scope state normalization', () => {
     // And the settings it did have survive.
     expect(migrated.signalMode).toBe('stereoXY')
     expect(migrated.enabled).toBe(true)
+  })
+
+  it('migrates a v2 project to v3 with the values that were previously compiled in', () => {
+    // Beam and phosphor were hardcoded before v3. Their defaults reproduce those
+    // values exactly, so a v2 project looks identical after migration — the
+    // controls become adjustable, not different.
+    const migrated = normalizeSoundDrawingScopeState({ version: 2, crt: DEFAULT_SCOPE_CRT })
+    expect(migrated.version).toBe(SOUND_DRAWING_SCOPE_STATE_VERSION)
+    expect(migrated.beam).toEqual(DEFAULT_SCOPE_BEAM)
+    expect(migrated.phosphor).toEqual(DEFAULT_SCOPE_PHOSPHOR)
+  })
+
+  it('repairs corrupted beam and phosphor blocks', () => {
+    const migrated = normalizeSoundDrawingScopeState({
+      beam: { coreWidthPx: -5, haloScale: 'wide' },
+      phosphor: { persistenceSeconds: 1e9, whiteHot: Number.NaN },
+    })
+    expect(migrated.beam.coreWidthPx).toBeGreaterThan(0)
+    expect(migrated.beam.haloScale).toBe(DEFAULT_SCOPE_BEAM.haloScale)
+    expect(migrated.phosphor.persistenceSeconds).toBeLessThanOrEqual(4)
+    expect(Number.isFinite(migrated.phosphor.whiteHot)).toBe(true)
   })
 
   it('repairs a corrupted CRT block rather than trusting it', () => {

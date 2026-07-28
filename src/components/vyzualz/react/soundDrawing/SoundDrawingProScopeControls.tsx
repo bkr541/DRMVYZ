@@ -9,9 +9,19 @@ import type {
   ScopeTriggerSource,
   SoundDrawingScopeState,
 } from '../../../../audio/scope'
-import { isScopeStereoMeasurementMode } from '../../../../audio/scope'
+import {
+  SCOPE_PRESETS,
+  applyScopePreset,
+  isScopeStereoMeasurementMode,
+} from '../../../../audio/scope'
 import { SliderRow, SelectRow, ToggleRow, ColorRow, CtrlSection, Collapsible } from '../ReactControlRows'
 import type { OscillatorSettings } from '../ReactTypes'
+
+const PRESET_GROUP_LABEL: Record<'measurement' | 'analog' | 'signature', string> = {
+  measurement: 'Measure',
+  analog: 'Analog',
+  signature: 'DVYDRM',
+}
 
 interface Props {
   osc: OscillatorSettings
@@ -46,9 +56,19 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
   const patchConditioner = (patch: Partial<SoundDrawingScopeState['signalConditioner']>) => {
     patchScope({ signalConditioner: { ...scope.signalConditioner, ...patch } })
   }
+  const patchBeam = (patch: Partial<SoundDrawingScopeState['beam']>) => {
+    patchScope({ beam: { ...scope.beam, ...patch } })
+  }
+  const patchPhosphor = (patch: Partial<SoundDrawingScopeState['phosphor']>) => {
+    patchScope({ phosphor: { ...scope.phosphor, ...patch } })
+  }
   const patchCrt = (patch: Partial<SoundDrawingScopeState['crt']>) => {
     patchScope({ crt: { ...scope.crt, ...patch } })
   }
+
+  const activePreset = scope.presetId
+    ? SCOPE_PRESETS.find(preset => preset.id === scope.presetId) ?? null
+    : null
 
   const captureStatus = engine.scopeStereoTap?.getStatus() ?? null
   const captureUnavailable = captureStatus == null || !captureStatus.active
@@ -75,6 +95,23 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
           Source is mono. Stereo modes will read as a perfect centre image because
           both channels are identical, not because the mix is correlated.
         </p>
+      )}
+
+      <SelectRow
+        label="Preset"
+        value={scope.presetId ?? ''}
+        onChange={v => { if (v) set({ scope: applyScopePreset(scope, v) }) }}
+        description="A complete recipe — signal, timebase, trigger, beam, phosphor, and tube. Everything below stays adjustable afterwards."
+        options={[
+          { value: '', label: scope.presetId ? 'Custom' : 'Select a preset…' },
+          ...SCOPE_PRESETS.map(preset => ({
+            value: preset.id,
+            label: `${PRESET_GROUP_LABEL[preset.group]} · ${preset.name}`,
+          })),
+        ]}
+      />
+      {activePreset && (
+        <p className="rv-ctrl-info">{activePreset.description}</p>
       )}
 
       <SelectRow
@@ -240,6 +277,81 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
         />
       </Collapsible>
 
+
+
+      <Collapsible label="Beam" defaultOpen={false}>
+        <SliderRow
+          label="Core Width"
+          value={scope.beam.coreWidthPx}
+          onChange={v => patchBeam({ coreWidthPx: v })}
+          min={0.25}
+          max={6}
+          step={0.05}
+        />
+        <SliderRow
+          label="Halo Size"
+          value={scope.beam.haloScale}
+          onChange={v => patchBeam({ haloScale: v })}
+          min={1}
+          max={16}
+          step={0.5}
+        />
+        <SliderRow
+          label="Bass Width"
+          value={scope.beam.bassWidthResponse}
+          onChange={v => patchBeam({ bassWidthResponse: v })}
+          description="How much bass thickens the beam. Zero keeps a constant width, which is what a measurement reading wants."
+        />
+        <SliderRow
+          label="Velocity Brightness"
+          value={scope.beam.velocityBrightness}
+          onChange={v => patchBeam({ velocityBrightness: v })}
+          description="A slow-moving beam reads brighter, the way a real spot dwells where it turns."
+        />
+        <SliderRow
+          label="Corner Dwell"
+          value={scope.beam.cornerDwell}
+          onChange={v => patchBeam({ cornerDwell: v })}
+        />
+      </Collapsible>
+
+      <Collapsible label="Phosphor" defaultOpen={false}>
+        <SliderRow
+          label="Persistence (s)"
+          value={scope.phosphor.persistenceSeconds}
+          onChange={v => patchPhosphor({ persistenceSeconds: v })}
+          min={0.01}
+          max={4}
+          step={0.01}
+          description="How long the trail takes to fade. Stated in seconds, so it holds at any frame rate."
+        />
+        <SliderRow
+          label="Tight Bloom"
+          value={scope.phosphor.tightBloom}
+          onChange={v => patchPhosphor({ tightBloom: v })}
+        />
+        <SliderRow
+          label="Medium Bloom"
+          value={scope.phosphor.mediumBloom}
+          onChange={v => patchPhosphor({ mediumBloom: v })}
+        />
+        <SliderRow
+          label="Wide Bloom"
+          value={scope.phosphor.wideBloom}
+          onChange={v => patchPhosphor({ wideBloom: v })}
+        />
+        <SliderRow
+          label="White Hot"
+          value={scope.phosphor.whiteHot}
+          onChange={v => patchPhosphor({ whiteHot: v })}
+          description="How readily overlapping strokes desaturate toward white."
+        />
+        <SliderRow
+          label="Background Lift"
+          value={scope.phosphor.backgroundLift}
+          onChange={v => patchPhosphor({ backgroundLift: v })}
+        />
+      </Collapsible>
 
       <Collapsible label="CRT Display" defaultOpen={false}>
         <ToggleRow

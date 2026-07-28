@@ -1501,7 +1501,10 @@ function renderProfessionalScopeOnGpu(
 
   const startedAt = performance.now()
   const bass = frame.audio.bass * params.bassReactivity
-  const coreWidthPx = (1.0 + bass * 1.6) * dpr * params.intensity
+  const beam = osc.scope.beam
+  // Base width from the user control, widened by bass to taste. bassWidthResponse
+  // at 0 gives a constant-width trace, which is what a measurement reading wants.
+  const coreWidthPx = beam.coreWidthPx * (1 + bass * beam.bassWidthResponse * 2) * dpr * params.intensity
 
   // The runtime's feedback-loop assertions throw by design, to surface a
   // mis-ordered ping-pong at the bind site during development. In a live render
@@ -1515,16 +1518,14 @@ function renderProfessionalScopeOnGpu(
       width: W,
       height: H,
       deltaSeconds: frame.deltaTimeSec ?? 1 / 60,
-      // The 0–1 trailDecay control maps to a phosphor time constant: 0 is the
-      // longest persistence, 1 the shortest, matching the Canvas2D trail's sense.
-      persistenceSeconds: 0.05 + (1 - clamp(params.trailDecay, 0, 1)) * 1.2,
       coreWidthPx,
-      haloWidthPx: resolveBeamHaloWidthPx(coreWidthPx, 6),
+      haloWidthPx: resolveBeamHaloWidthPx(coreWidthPx, beam.haloScale),
+      beam,
+      phosphor: osc.scope.phosphor,
       intensity: params.intensity,
       glow: params.glow,
       traceColor: hexToLinearRgb(preset.palette.primary),
       backgroundColor: hexToLinearRgb(preset.palette.background),
-      backgroundLift: 0.12,
       crt: osc.scope.crt,
       resetPersistence: frame.timingDiscontinuity === true,
     })

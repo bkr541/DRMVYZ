@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ScopePhosphorRuntime, type ScopePhosphorFrameInput } from '../ScopePhosphorRuntime'
 import { resetDrmvyzWebGLContextDiagnosticsForTests } from '../../../shaders/runtime/WebGLContextLifecycle'
-import { DEFAULT_SCOPE_CRT } from '../../../../../../audio/scope/scopeTypes'
+import {
+  DEFAULT_SCOPE_BEAM,
+  DEFAULT_SCOPE_CRT,
+  DEFAULT_SCOPE_PHOSPHOR,
+} from '../../../../../../audio/scope/scopeTypes'
 
 // ── Mock WebGL2 context ───────────────────────────────────────────────────────
 //
@@ -143,14 +147,14 @@ function frameInput(overrides: Partial<ScopePhosphorFrameInput> = {}): ScopePhos
     width: 800,
     height: 600,
     deltaSeconds: 1 / 60,
-    persistenceSeconds: 0.4,
     coreWidthPx: 2,
     haloWidthPx: 10,
+    beam: DEFAULT_SCOPE_BEAM,
+    phosphor: DEFAULT_SCOPE_PHOSPHOR,
     intensity: 1,
     glow: 0.6,
     traceColor: { r: 0.3, g: 0.9, b: 0.9 },
     backgroundColor: { r: 0, g: 0.05, b: 0.06 },
-    backgroundLift: 0.1,
     crt: DEFAULT_SCOPE_CRT,
     resetPersistence: false,
     ...overrides,

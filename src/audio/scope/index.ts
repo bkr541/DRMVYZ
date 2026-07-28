@@ -4,6 +4,7 @@
 
 export * from './scopeTypes'
 export * from './scopeStateNormalization'
+export * from './scopePresets'
 export { StereoScopeRingBuffer } from './StereoScopeRingBuffer'
 export { StereoScopeAudioTap } from './StereoScopeAudioTap'
 export { ScopeSignalConditioner, dcBlockerCoefficient } from './ScopeSignalConditioner'

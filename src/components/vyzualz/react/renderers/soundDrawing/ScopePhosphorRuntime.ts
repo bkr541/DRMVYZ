@@ -17,7 +17,12 @@ import {
   SCOPE_CRT_FRAG_SRC,
   SCOPE_PERSISTENCE_FRAG_SRC,
 } from './scopePhosphorShaders'
-import { SCOPE_PHOSPHOR_COLORS, type ScopeCrtSettings } from '../../../../../audio/scope/scopeTypes'
+import {
+  SCOPE_PHOSPHOR_COLORS,
+  type ScopeBeamSettings,
+  type ScopeCrtSettings,
+  type ScopePhosphorSettings,
+} from '../../../../../audio/scope/scopeTypes'
 import {
   probeScopeHdrCapability,
   resolveInitialScopePhosphorQuality,
@@ -108,20 +113,21 @@ export interface ScopePhosphorFrameInput {
   height: number
   /** Seconds since the previous rendered frame. */
   deltaSeconds: number
-  /** Phosphor time constant in seconds. */
-  persistenceSeconds: number
-  /** Beam core width in pixels; the halo is derived from it. */
+  /** Beam core width in pixels, already scaled for dpr and audio reactivity. */
   coreWidthPx: number
   haloWidthPx: number
+  /** Beam response curves. */
+  beam: ScopeBeamSettings
+  /** Phosphor persistence, bloom weighting, and tone response. */
+  phosphor: ScopePhosphorSettings
   /** 0..1 master intensity from the engine controls. */
   intensity: number
-  /** 0..1 bloom contribution. */
+  /** 0..1 master bloom contribution, multiplying the per-level weights. */
   glow: number
   /** Base trace colour, linear 0..1. */
   traceColor: { r: number; g: number; b: number }
   /** Background tint used for the tube's black level. */
   backgroundColor: { r: number; g: number; b: number }
-  backgroundLift: number
   /** Optional CRT presentation. Skipped entirely when disabled or unsupported. */
   crt: ScopeCrtSettings
   /** True on seek, loop, or track change: clears persistence before drawing. */
@@ -359,6 +365,8 @@ export class ScopePhosphorRuntime {
     this.beamProgram.setFloat('uCoreWidthPx', input.coreWidthPx)
     this.beamProgram.setFloat('uHaloWidthPx', input.haloWidthPx)
     this.beamProgram.setFloat('uMasterIntensity', input.intensity)
+    this.beamProgram.setFloat('uVelocityBrightness', input.beam.velocityBrightness)
+    this.beamProgram.setFloat('uCornerDwell', input.beam.cornerDwell)
     // Emission must land well above 1 on an HDR target. The profile's own peak
     // is ~1.35 before the exposure and intensity terms scale it down to roughly
     // 0.5, which is not high-dynamic-range at all: Reinhard would map it to a
@@ -387,7 +395,7 @@ export class ScopePhosphorRuntime {
 
     this.persistenceProgram.activate()
     this.persistenceProgram.setFloat('uDecay',
-      resolveScopePersistenceDecay(input.persistenceSeconds, input.deltaSeconds))
+      resolveScopePersistenceDecay(input.phosphor.persistenceSeconds, input.deltaSeconds))
     this.persistenceProgram.setFloat('uMaxSceneValue', plan.hdr.maximumSceneValue)
 
     this.fullscreenPass.run(
@@ -448,18 +456,22 @@ export class ScopePhosphorRuntime {
     }
 
     // ── Pass 4: composite to the runtime canvas ─────────────────────────────
+    // Plan weight sets each level's share of the bloom shape; the user control
+    // scales that share. Multiplying rather than replacing keeps the tuned
+    // relationship between tight, medium, and wide intact at any setting.
+    const userBloom = [input.phosphor.tightBloom, input.phosphor.mediumBloom, input.phosphor.wideBloom]
     const weights: [number, number, number] = [0, 0, 0]
     for (let level = 0; level < plan.bloomLevels.length && level < 3; level++) {
-      weights[level] = plan.bloomLevels[level].weight
+      weights[level] = plan.bloomLevels[level].weight * userBloom[level]
     }
 
     this.compositeProgram.activate()
     this.compositeProgram.setVec3('uBloomWeights', weights[0], weights[1], weights[2])
     this.compositeProgram.setFloat('uGlow', input.glow)
-    this.compositeProgram.setFloat('uWhitenStrength', 1)
+    this.compositeProgram.setFloat('uWhitenStrength', input.phosphor.whiteHot)
     this.compositeProgram.setVec3('uBackgroundColor',
       input.backgroundColor.r, input.backgroundColor.g, input.backgroundColor.b)
-    this.compositeProgram.setFloat('uBackgroundLift', input.backgroundLift)
+    this.compositeProgram.setFloat('uBackgroundLift', input.phosphor.backgroundLift)
 
     // CRT runs after tone mapping, on display-range colour: curving or
     // scanlining HDR values before compression would let a bright intersection
