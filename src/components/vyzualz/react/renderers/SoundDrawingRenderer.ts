@@ -1352,7 +1352,12 @@ function buildProfessionalScopeSegments(
   })
   if (!trace) return null
 
-  const scalePx = Math.min(W, H) * 0.42 * normalizeSoundDrawingVisualSize(osc.pathScale) * params.intensity
+  // Intensity deliberately absent. computePathBaseScale in this same file states
+  // the rule — "params.intensity is intentionally NOT a parameter — it must not
+  // affect object size" — and multiplying it in here shrank every figure to ~65%
+  // of the tube, which is a large part of why the display did not read like a
+  // real scope. Intensity belongs to brightness; pathScale is what resizes.
+  const scalePx = Math.min(W, H) * 0.46 * normalizeSoundDrawingVisualSize(osc.pathScale)
   const geometry = {
     W,
     H,

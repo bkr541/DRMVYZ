@@ -262,12 +262,22 @@ export interface ScopeBeamSettings {
   cornerDwell: number
 }
 
+/**
+ * Calibrated against footage of real analogue scopes rather than against a neon
+ * aesthetic.
+ *
+ * A CRT electron beam draws a *hairline* — one or two pixels of intensely bright
+ * core with glow hugging it within a few pixels. Earlier defaults produced a
+ * ~10px soft tube with a wide diffuse halo, which reads as a neon sign rather
+ * than as an instrument. Width and halo are both far tighter here, and the
+ * brightness that makes it read as a beam comes from exposure, not from size.
+ */
 export const DEFAULT_SCOPE_BEAM: ScopeBeamSettings = {
-  coreWidthPx: 1.6,
-  haloScale: 6,
-  bassWidthResponse: 0.55,
-  velocityBrightness: 0.6,
-  cornerDwell: 0.45,
+  coreWidthPx: 0.8,
+  haloScale: 2.4,
+  bassWidthResponse: 0.35,
+  velocityBrightness: 0.75,
+  cornerDwell: 0.55,
 }
 
 export interface ScopePhosphorSettings {
@@ -296,13 +306,21 @@ export interface ScopePhosphorSettings {
   backgroundLift: number
 }
 
+/**
+ * Bloom weighted heavily toward the tight level.
+ *
+ * On real hardware the glow is a tight aura on the line, not an atmospheric
+ * wash. The medium and wide levels are what make a trace look like a light
+ * source rather than a beam, so they sit low by default and the presets that
+ * genuinely want a wash raise them.
+ */
 export const DEFAULT_SCOPE_PHOSPHOR: ScopePhosphorSettings = {
   persistenceSeconds: 0.35,
   tightBloom: 1,
-  mediumBloom: 0.6,
-  wideBloom: 0.45,
-  whiteHot: 0.7,
-  backgroundLift: 0.12,
+  mediumBloom: 0.22,
+  wideBloom: 0.08,
+  whiteHot: 0.6,
+  backgroundLift: 0.06,
 }
 
 // ── CRT presentation ──────────────────────────────────────────────────────────
