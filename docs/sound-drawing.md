@@ -62,6 +62,25 @@ Timeline edits must preserve stable IDs, normalized ranges, deterministic orderi
 
 `SoundDrawingPerformanceEngine` resolves authored show definitions against Shared Performance context. Programs may recruit bounded layers, traces, particles, treatments, and event actions while respecting source-aware locks and safety limits.
 
+### Performance ownership and Professional Scope layers
+
+Authored shows and manual Pro Scope are explicit owners, not renderer-order
+side effects:
+
+- With Auto Performance off, manual source, clip, and Pro Scope settings own the renderer.
+- A running show owns its deterministic layer graph. Manual Pro Scope is not appended implicitly.
+- A `professionalScope` layer owns a validated scope state resolved from its authored preset and overrides. It reads the same synchronized `scopeStereo` capture, `ScopeSignalCore`, trigger, conditioner, timebase, vector-beam, phosphor, and CRT path as manual Pro Scope.
+- Manual scope controls remain visible but disabled and labelled while an authored scope layer owns them. They are not live offsets.
+- At most one professional scope instance is rendered per authored frame. A duplicate declaration is suppressed and reported in diagnostics.
+- Show, source, seek, loop, restart, and timing-discontinuity identities are reset boundaries. Disabling Auto Performance disposes authored scope DSP/GPU state and returns ownership to the manual path.
+
+Signal-domain controls (`signalMode`, conditioner, trigger, timebase), scope
+presentation controls (beam, exposure, bloom, persistence, phosphor, CRT), and
+layer/compositor controls (position, rotation, scale, opacity, blend) are
+separate authored surfaces. No scope automation target can provide replacement
+geometry. Measurement-safe modes remain genuine stereo or channel
+measurements; creative portraits stay explicitly named signal modes.
+
 The performance resolver distinguishes:
 
 - Continuous Music Intelligence routes
@@ -216,11 +235,11 @@ scales — so an Ultra-to-High change costs nothing and cannot flash. Context lo
 releases targets while keeping the runtime alive; restore re-probes capabilities,
 because a restored context may be a different GPU.
 
-The persistence target clears when the stable scope-settings object changes.
-Zustand replaces that object for preset and manual scope edits, so the renderer
-detects the boundary with one reference comparison rather than per-frame
-serialization. This prevents the previous preset's geometry or phosphor colour
-from lingering behind the newly selected look.
+The persistence target clears when a stable serialized scope-configuration
+identity changes. This works for both Zustand-owned manual state and authored
+layers, whose resolver creates fresh objects each frame. It prevents stale
+geometry or phosphor colour without resetting an unchanged authored trace every
+frame.
 
 ### Presets
 

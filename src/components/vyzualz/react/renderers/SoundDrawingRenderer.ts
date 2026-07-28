@@ -50,6 +50,10 @@ import { createSharedPerformanceDiagnostics, type SharedPerformanceContext } fro
 import { resolveSoundDrawingPerformanceFrame } from '../soundDrawing/SoundDrawingPerformanceEngine'
 import { normalizeSoundDrawingVisualSize } from '../soundDrawing/SoundDrawingVisualSize'
 import {
+  professionalScopeConfigurationIdentity,
+  professionalScopeSignalIdentity,
+} from '../soundDrawing/SoundDrawingProfessionalScopeLayer'
+import {
   disposeSoundDrawingBehaviorRuntime,
   synchronizeSoundDrawingBehaviorRuntime,
 } from '../soundDrawing/SoundDrawingBehaviorRuntime'
@@ -325,6 +329,8 @@ let _sdExpectedAudioTrackId: string | null = null
 let _sdTrailResetRevision = 0
 const trailResetSeenMap = new WeakMap<CanvasRenderingContext2D, string>()
 const authoredTrailIdentityMap = new WeakMap<CanvasRenderingContext2D, string>()
+const authoredScopeContextMap = new WeakMap<CanvasRenderingContext2D, CanvasRenderingContext2D>()
+const scopeSignalIdentityMap = new WeakMap<CanvasRenderingContext2D, string>()
 const livingRibbonResetSeenMap = new WeakMap<CanvasRenderingContext2D, number>()
 
 const lyricTextRuntime = new SoundDrawingLyricTextRuntime()
@@ -379,8 +385,17 @@ export function disposeSoundDrawingRenderer(
   // that owned them; a stale core would carry trigger and filter history into
   // whatever renders next.
   disposeScopeSignalCore(ctx)
+  scopeSignalIdentityMap.delete(ctx)
   scopeTracePointBuffers.delete(ctx)
   disposeScopeGpuState(ctx)
+  const authoredScopeContext = authoredScopeContextMap.get(ctx)
+  if (authoredScopeContext) {
+    disposeScopeSignalCore(authoredScopeContext)
+    scopeSignalIdentityMap.delete(authoredScopeContext)
+    scopeTracePointBuffers.delete(authoredScopeContext)
+    disposeScopeGpuState(authoredScopeContext)
+  }
+  authoredScopeContextMap.delete(ctx)
   if (options.affectProductionDiagnostics !== false) clearSharedPerformanceDiagnostics('soundDrawing')
 }
 
@@ -1341,6 +1356,10 @@ function buildProfessionalScopeSegments(
   if (!capture) return null
 
   const core = getScopeSignalCore(ctx)
+  const signalIdentity = professionalScopeSignalIdentity(osc.scope)
+  const previousSignalIdentity = scopeSignalIdentityMap.get(ctx)
+  if (previousSignalIdentity !== undefined && previousSignalIdentity !== signalIdentity) core.reset()
+  scopeSignalIdentityMap.set(ctx, signalIdentity)
   const trace = core.process({
     state: osc.scope,
     frame: capture,
@@ -1431,13 +1450,11 @@ interface ScopeGpuState {
   segmentData: Float32Array
   lastFrameMs: number
   /**
-   * Stable persisted settings reference from the previous frame.
-   *
-   * Zustand replaces the scope object when any scope control changes, so a
-   * reference comparison detects preset/signal/presentation changes without
-   * serializing settings in the animation loop.
+   * Stable structural identity from the previous frame. Authored automation
+   * creates fresh objects and may animate persistence continuously, so object
+   * identity would incorrectly clear phosphor history every frame.
    */
-  lastScopeConfig: OscillatorSettings['scope'] | null
+  lastScopeConfigIdentity: string | null
 }
 
 const scopeGpuStateByContext = new WeakMap<CanvasRenderingContext2D, ScopeGpuState | null>()
@@ -1460,7 +1477,7 @@ function getScopeGpuState(ctx: CanvasRenderingContext2D): ScopeGpuState | null {
         quality: new ScopePhosphorQualityController('auto', runtime.currentQuality),
         segmentData: new Float32Array(0),
         lastFrameMs: 0,
-        lastScopeConfig: null,
+        lastScopeConfigIdentity: null,
       }
     } else {
       runtime.dispose()
@@ -1499,6 +1516,10 @@ function renderProfessionalScopeOnGpu(
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
+  options: {
+    compositeOnly?: boolean
+    blendMode?: SoundDrawingBlendMode
+  } = {},
 ): boolean {
   const osc = params.oscillator
   if (!canRenderProfessionalScope(osc, frame)) return false
@@ -1519,8 +1540,10 @@ function renderProfessionalScopeOnGpu(
   const startedAt = performance.now()
   const bass = frame.audio.bass * params.bassReactivity
   const beam = osc.scope.beam
-  const scopeConfigChanged = state.lastScopeConfig !== osc.scope
-  state.lastScopeConfig = osc.scope
+  const scopeConfigIdentity = professionalScopeConfigurationIdentity(osc.scope)
+  const scopeConfigChanged =
+    state.lastScopeConfigIdentity !== null && state.lastScopeConfigIdentity !== scopeConfigIdentity
+  state.lastScopeConfigIdentity = scopeConfigIdentity
 
   // Music Intelligence modulates presentation only — bloom, width, exposure, and
   // persistence. Nothing here touches the resolved geometry: a measurement
@@ -1593,9 +1616,17 @@ function renderProfessionalScopeOnGpu(
   const nextQuality = state.quality.recordFrame(state.lastFrameMs, startedAt)
   if (nextQuality !== state.runtime.currentQuality) state.runtime.setQuality(nextQuality)
 
-  ctx.fillStyle = preset.palette.background
-  ctx.fillRect(0, 0, W, H)
-  ctx.drawImage(state.runtime.outputCanvas, 0, 0, W, H)
+  ctx.save()
+  try {
+    if (!options.compositeOnly) {
+      ctx.fillStyle = preset.palette.background
+      ctx.fillRect(0, 0, W, H)
+    }
+    ctx.globalCompositeOperation = options.blendMode ?? 'source-over'
+    ctx.drawImage(state.runtime.outputCanvas, 0, 0, W, H)
+  } finally {
+    ctx.restore()
+  }
   return true
 }
 
@@ -2581,7 +2612,7 @@ function performanceLayerUsesPath(layer: SoundDrawingResolvedPerformanceLayer): 
   )
 }
 
-function buildPerformanceOscillator(
+export function buildPerformanceOscillator(
   base: OscillatorSettings,
   layer: SoundDrawingResolvedPerformanceLayer,
   motionIntensity: number,
@@ -2609,7 +2640,8 @@ function buildPerformanceOscillator(
           ? 'originalArtwork'
           : 'reactivePath'
       : base.svgRenderMode,
-    classicMode: layer.classicMode,
+    classicMode: layer.generator === 'professionalScope' ? 'professionalScope' : layer.classicMode,
+    scope: layer.professionalScope?.state ?? base.scope,
     builtinShape: layer.shape,
     renderMode: layer.renderMode,
     autoSectionMode: false,
@@ -2687,6 +2719,16 @@ function drawOriginalArtworkPerformanceLayer(
 
 interface PerformanceLayerRenderResult {
   fallbackReason?: string
+  professionalScopeRendered?: boolean
+}
+
+export function resolveAuthoredScopeTransitionAlpha(
+  audioTimeSec: number,
+  sectionStartSec: number | null,
+  transitionSeconds: number,
+): number {
+  if (sectionStartSec == null || transitionSeconds <= 0) return 1
+  return clamp((audioTimeSec - sectionStartSec) / transitionSeconds, 0, 1)
 }
 
 function renderPerformanceLayer(
@@ -2698,11 +2740,22 @@ function renderPerformanceLayer(
   performance: SoundDrawingResolvedPerformanceFrame,
   layer: SoundDrawingResolvedPerformanceLayer,
   sectionType: ReactSectionType | null,
+  professionalScopeAlreadyRendered = false,
 ): PerformanceLayerRenderResult {
   if (!layer.enabled || layer.opacity <= 0.001) return {}
   const { W, H, dpr } = frame
   const camera = performance.global
   const layerPreset = paletteForPerformanceRole(preset, layer.colorRole)
+  const scopeTransitionSeconds = layer.professionalScope?.transitionSeconds ?? 0
+  const sectionStartSeconds = performance.context.resolvedSection?.startSec
+  const scopeTransitionAlpha =
+    layer.generator === 'professionalScope'
+      ? resolveAuthoredScopeTransitionAlpha(
+          performance.context.audioTimeSec,
+          sectionStartSeconds ?? null,
+          scopeTransitionSeconds,
+        )
+      : 1
   const effectiveOscillator = buildPerformanceOscillator(
     params.oscillator,
     layer,
@@ -2710,7 +2763,12 @@ function renderPerformanceLayer(
   )
   const effectiveParams: ReactRenderParams = {
     ...params,
-    intensity: clamp(params.intensity * layer.opacity * (0.88 + layer.strokeWidth * 0.12), 0, 1.4),
+    intensity: clamp(
+      params.intensity * layer.opacity * (0.88 + layer.strokeWidth * 0.12)
+      * (layer.professionalScope?.exposure ?? 1) * scopeTransitionAlpha,
+      0,
+      4,
+    ),
     motion: clamp(params.motion * params.soundDrawingPerformanceSettings.motionIntensity, 0, 1),
     glow: clamp(params.glow * (0.45 + layer.glow * 0.75), 0, 1.3),
     bassReactivity: clamp(params.bassReactivity * params.soundDrawingPerformanceSettings.reactionIntensity, 0, 1.2),
@@ -2751,7 +2809,39 @@ function renderPerformanceLayer(
     tctx.scale(layer.scale * topologyScale, layer.scale * topologyScale)
     tctx.translate(-W / 2, -H / 2)
 
-    if (usesLivingRibbonCanvasRenderer(layer)) {
+    if (layer.generator === 'professionalScope') {
+      if (professionalScopeAlreadyRendered) {
+        result = { fallbackReason: 'Duplicate authored Professional Scope layer suppressed' }
+      } else {
+        const gpuRendered = renderProfessionalScopeOnGpu(
+          tctx,
+          W,
+          H,
+          dpr,
+          layerFrame,
+          layerPreset,
+          effectiveParams,
+          { compositeOnly: true, blendMode: layer.blendMode },
+        )
+        const canvasRendered =
+          gpuRendered ||
+          drawProfessionalScopeOnTrail(
+            tctx,
+            tctx,
+            W,
+            H,
+            dpr,
+            layerFrame,
+            layerPreset,
+            effectiveParams,
+            effectiveParams.intensity,
+            layer.blendMode,
+          )
+        result = canvasRendered
+          ? { professionalScopeRendered: true }
+          : { fallbackReason: 'Professional Scope is awaiting synchronized stereo capture' }
+      }
+    } else if (usesLivingRibbonCanvasRenderer(layer)) {
       const livingRibbon = renderLivingRibbonCanvasLayer({
         ownerContext,
         targetContext: tctx,
@@ -2900,6 +2990,14 @@ function renderAuthoredSoundDrawingPerformance(
     }
     authoredTrailIdentityMap.delete(ctx)
     disposeLivingRibbonCanvasRuntimes(ctx)
+    const authoredScopeContext = authoredScopeContextMap.get(ctx)
+    if (authoredScopeContext) {
+      disposeScopeSignalCore(authoredScopeContext)
+      scopeSignalIdentityMap.delete(authoredScopeContext)
+      scopeTracePointBuffers.delete(authoredScopeContext)
+      disposeScopeGpuState(authoredScopeContext)
+      authoredScopeContextMap.delete(ctx)
+    }
     if (publishesProductionDiagnostics) clearSharedPerformanceDiagnostics('soundDrawing')
     return false
   }
@@ -2929,6 +3027,18 @@ function renderAuthoredSoundDrawingPerformance(
       )
     }
     return true
+  }
+  const hasAuthoredProfessionalScope = performance.layers.some(
+    (layer) => layer.enabled && layer.generator === 'professionalScope',
+  )
+  if (hasAuthoredProfessionalScope) {
+    authoredScopeContextMap.set(ctx, tctx)
+  } else if (authoredScopeContextMap.has(ctx)) {
+    disposeScopeSignalCore(tctx)
+    scopeSignalIdentityMap.delete(tctx)
+    scopeTracePointBuffers.delete(tctx)
+    disposeScopeGpuState(tctx)
+    authoredScopeContextMap.delete(ctx)
   }
 
   const ribbonResetRevision = params.soundDrawingRibbonResetRevision ?? 0
@@ -2990,10 +3100,22 @@ function renderAuthoredSoundDrawingPerformance(
   )
   fadeTrail(trailCanvas, decayRate)
 
-  const livingRibbonFailures = [...preparation.diagnostics]
+  const layerRenderFailures = [...preparation.diagnostics]
+  let professionalScopeRendered = false
   for (const layer of performance.layers) {
-    const result = renderPerformanceLayer(ctx, tctx, frame, preset, params, performance, layer, sectionType)
-    if (result.fallbackReason) livingRibbonFailures.push(result.fallbackReason)
+    const result = renderPerformanceLayer(
+      ctx,
+      tctx,
+      frame,
+      preset,
+      params,
+      performance,
+      layer,
+      sectionType,
+      professionalScopeRendered,
+    )
+    professionalScopeRendered ||= result.professionalScopeRendered === true
+    if (result.fallbackReason) layerRenderFailures.push(result.fallbackReason)
   }
 
   ctx.save()
@@ -3092,14 +3214,14 @@ function renderAuthoredSoundDrawingPerformance(
         ),
       lockedParameters,
         fallbackState:
-          livingRibbonFailures[0] ??
+          layerRenderFailures[0] ??
           performance.sourceFallbackState ??
           sourceFailureDecisions[0] ??
           (performance.fallbackUsed ? 'Safe authored fallback active' : null),
       resourceLimitDecisions: [
         ...resourceLimitDecisions,
         ...sourceFailureDecisions,
-          ...livingRibbonFailures.map((reason) => `Living Ribbon fallback: ${reason}`),
+          ...layerRenderFailures.map((reason) => `Layer fallback: ${reason}`),
         `Source ${performance.activeSourceKind} / ${performance.activeIdentityProfile} / ${performance.activeTreatment}`,
         `Contour ${performance.appliedContourDeformation.toFixed(4)} of ${performance.contourBudget.toFixed(4)} (requested ${performance.requestedContourDeformation.toFixed(4)})`,
         ...(performance.readabilityClampApplied ? ['Readability clamp applied'] : []),

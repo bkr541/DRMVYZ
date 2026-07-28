@@ -43,6 +43,11 @@ import type { ActiveBrandOverlay } from '../../../features/personalization/brand
 import { compositeBrandAsset } from '../../../features/personalization/brandAssetCompositor'
 import type { StereoScopeAudioTap } from '../../../audio/scope/StereoScopeAudioTap'
 import { resolveScopeCaptureRequestFrames } from './renderers/soundDrawingScopeGeometry'
+import { soundDrawingPerformanceShowProfessionalScopeLayers } from './soundDrawing/SoundDrawingPerformanceShows'
+import {
+  professionalScopeCaptureFrames,
+  resolveProfessionalScopeLayerSettings,
+} from './soundDrawing/SoundDrawingProfessionalScopeLayer'
 
 const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader',
@@ -569,8 +574,23 @@ export function ReactPlaceholderCanvas({
           oscillatorSettingsRef.current,
           scopeTap.sampleRate,
         )
-        if (requestFrames > 0) {
-          scopeStereo = scopeTap.readLatest(requestFrames, audioTimeRef.current)
+        const performanceSettings = soundDrawingPerformanceSettingsRef.current
+        const authoredRequestFrames = performanceSettings.autoPerformance
+          ? soundDrawingPerformanceShowProfessionalScopeLayers(performanceSettings.selectedShowId).reduce(
+              (maximum, layer) =>
+                Math.max(
+                  maximum,
+                  professionalScopeCaptureFrames(
+                    resolveProfessionalScopeLayerSettings(layer.professionalScope).state,
+                    scopeTap.sampleRate,
+                  ),
+                ),
+              0,
+            )
+          : 0
+        const requiredFrames = Math.max(requestFrames, authoredRequestFrames)
+        if (requiredFrames > 0) {
+          scopeStereo = scopeTap.readLatest(requiredFrames, audioTimeRef.current)
         }
       }
 

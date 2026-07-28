@@ -10,6 +10,7 @@ import {
 import type { OscillatorSettings } from '../ReactTypes'
 import type { ReactFrameContext } from '../renderers/reactRenderUtils'
 import { normalizeSoundDrawingVisualSize } from './SoundDrawingVisualSize'
+import { resolveProfessionalScopeLayerSettings } from './SoundDrawingProfessionalScopeLayer'
 import { SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID } from './SoundDrawingPerformanceShows'
 import { resolveSoundDrawingPerformanceSources } from './SoundDrawingSourceResolver'
 import {
@@ -303,6 +304,8 @@ function generatorDefaults(
       return { classicMode: 'radialScope', shape: 'hexagon', renderMode: 'multiTrace' }
     case 'stackedWaveformBands':
       return { classicMode: 'waveform', shape: 'line', renderMode: 'multiTrace' }
+    case 'professionalScope':
+      return { classicMode: 'professionalScope', shape: 'line', renderMode: 'outline' }
   }
 }
 
@@ -453,6 +456,10 @@ function normalizeLayer(layer: SoundDrawingPerformanceLayerBlueprint): SoundDraw
     sourceFailure: layer.sourceFailure ?? null,
     livingRibbonControls: normalizeLivingRibbonControls(layer.livingRibbonControls),
     livingRibbonImpulses: (layer.livingRibbonImpulses ?? []).slice(-16).map(normalizeLivingRibbonImpulse),
+    professionalScope:
+      generator === 'professionalScope'
+        ? resolveProfessionalScopeLayerSettings(layer.professionalScope)
+        : null,
     modulationRoutes: (layer.modulationRoutes ?? []).slice(0, 24),
     eventBindings: (layer.eventBindings ?? []).slice(0, 16),
   }
@@ -499,6 +506,24 @@ function patchLayer(
       ? { ...layer.livingRibbonControls, ...patch.livingRibbonControls }
       : layer.livingRibbonControls,
     livingRibbonImpulses: patch.livingRibbonImpulses ?? layer.livingRibbonImpulses,
+    professionalScope:
+      patch.professionalScope ??
+      (layer.professionalScope
+        ? {
+            presetId: layer.professionalScope.state.presetId ?? undefined,
+            signalMode: layer.professionalScope.state.signalMode,
+            signalConditioner: layer.professionalScope.state.signalConditioner,
+            trigger: layer.professionalScope.state.trigger,
+            timebase: layer.professionalScope.state.timebase,
+            beam: layer.professionalScope.state.beam,
+            phosphor: layer.professionalScope.state.phosphor,
+            crt: layer.professionalScope.state.crt,
+            music: layer.professionalScope.state.music,
+            monoDelayMs: layer.professionalScope.state.monoDelayMs,
+            exposure: layer.professionalScope.exposure,
+            transitionSeconds: layer.professionalScope.transitionSeconds,
+          }
+        : undefined),
   })
 }
 
@@ -607,6 +632,28 @@ function targetValue(layer: SoundDrawingResolvedPerformanceLayer, target: SoundD
   const ribbonKey = ribbonControlKey(target)
   if (ribbonKey) return layer.livingRibbonControls[ribbonKey]
   switch (target) {
+    case 'scopeTimebase':
+      return layer.professionalScope?.state.timebase.secondsPerDisplay ?? 0
+    case 'scopeGain':
+      return layer.professionalScope
+        ? (layer.professionalScope.state.signalConditioner.gainX + layer.professionalScope.state.signalConditioner.gainY) / 2
+        : 1
+    case 'scopeGainX':
+      return layer.professionalScope?.state.signalConditioner.gainX ?? 1
+    case 'scopeGainY':
+      return layer.professionalScope?.state.signalConditioner.gainY ?? 1
+    case 'scopeTriggerLevel':
+      return layer.professionalScope?.state.trigger.level ?? 0
+    case 'scopeTriggerStability':
+      return layer.professionalScope?.state.trigger.hysteresis ?? 0
+    case 'scopeBeamWidth':
+      return layer.professionalScope?.state.beam.coreWidthPx ?? 1
+    case 'scopeExposure':
+      return layer.professionalScope?.exposure ?? 1
+    case 'scopePersistence':
+      return layer.professionalScope?.state.phosphor.persistenceSeconds ?? 0.35
+    case 'scopeBloom':
+      return layer.professionalScope?.state.phosphor.mediumBloom ?? 0.16
     case 'opacity':
       return layer.opacity
     case 'strokeWidth':
@@ -648,6 +695,45 @@ function setTargetValue(
     return patchLayer(layer, {
       livingRibbonControls: { ...layer.livingRibbonControls, [ribbonKey]: value },
     })
+  }
+  const scope = layer.professionalScope
+  if (scope) {
+    const base = {
+      presetId: scope.state.presetId ?? undefined,
+      signalMode: scope.state.signalMode,
+      signalConditioner: scope.state.signalConditioner,
+      trigger: scope.state.trigger,
+      timebase: scope.state.timebase,
+      beam: scope.state.beam,
+      phosphor: scope.state.phosphor,
+      crt: scope.state.crt,
+      music: scope.state.music,
+      monoDelayMs: scope.state.monoDelayMs,
+      exposure: scope.exposure,
+      transitionSeconds: scope.transitionSeconds,
+    }
+    switch (target) {
+      case 'scopeTimebase':
+        return patchLayer(layer, { professionalScope: { ...base, timebase: { ...base.timebase, secondsPerDisplay: value } } })
+      case 'scopeGain':
+        return patchLayer(layer, { professionalScope: { ...base, signalConditioner: { ...base.signalConditioner, gainX: value, gainY: value } } })
+      case 'scopeGainX':
+        return patchLayer(layer, { professionalScope: { ...base, signalConditioner: { ...base.signalConditioner, gainX: value } } })
+      case 'scopeGainY':
+        return patchLayer(layer, { professionalScope: { ...base, signalConditioner: { ...base.signalConditioner, gainY: value } } })
+      case 'scopeTriggerLevel':
+        return patchLayer(layer, { professionalScope: { ...base, trigger: { ...base.trigger, level: value } } })
+      case 'scopeTriggerStability':
+        return patchLayer(layer, { professionalScope: { ...base, trigger: { ...base.trigger, hysteresis: value } } })
+      case 'scopeBeamWidth':
+        return patchLayer(layer, { professionalScope: { ...base, beam: { ...base.beam, coreWidthPx: value } } })
+      case 'scopeExposure':
+        return patchLayer(layer, { professionalScope: { ...base, exposure: value } })
+      case 'scopePersistence':
+        return patchLayer(layer, { professionalScope: { ...base, phosphor: { ...base.phosphor, persistenceSeconds: value } } })
+      case 'scopeBloom':
+        return patchLayer(layer, { professionalScope: { ...base, phosphor: { ...base.phosphor, mediumBloom: value } } })
+    }
   }
   return patchLayer(layer, { [target]: value })
 }
@@ -822,6 +908,8 @@ function manualGenerator(oscillator: OscillatorSettings): SoundDrawingGeneratorF
     return 'kaleidoscopicTrace'
   }
   switch (oscillator.classicMode) {
+    case 'professionalScope':
+      return 'professionalScope'
     // Both the migrated name and the legacy value map to the same generator;
     // the rename must not change which show an existing project resolves to.
     case 'monoDelayXY':
@@ -1036,8 +1124,7 @@ function enforceSafetyBounds(state: MutablePerformanceState): void {
           ? 'spectralContour'
           : 'horizontalOscilloscope'
         : layer.generator
-      return normalizeLayer({
-        ...layer,
+      return patchLayer(layer, {
         generator,
         traceCount: Math.min(
           layer.traceCount,

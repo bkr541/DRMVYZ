@@ -1,4 +1,15 @@
 import type { SharedPerformanceContext, SharedPerformanceEnvelopeCurve } from '../../../../features/performanceCore'
+import type {
+  ScopeBeamSettings,
+  ScopeCrtSettings,
+  ScopeMusicMappingSettings,
+  ScopePhosphorSettings,
+  ScopeSignalConditionerSettings,
+  ScopeSignalMode,
+  ScopeTimebaseSettings,
+  ScopeTriggerSettings,
+  SoundDrawingScopeState,
+} from '../../../../audio/scope'
 import type { BuiltinOscillatorShape, ClassicScopeMode, OscillatorRenderMode } from '../ReactTypes'
 
 export const MAX_SOUND_DRAWING_PERFORMANCE_LAYERS = 6
@@ -10,7 +21,13 @@ export const MAX_SOUND_DRAWING_TEXT_DUPLICATES = 3
 export const MAX_SOUND_DRAWING_SVG_DUPLICATES = 3
 
 export type SoundDrawingPerformanceShowId =
-  'radialPressureSystem' | 'harmonicRibbonReactor' | 'phaseKnotCathedral' | 'livingRibbonSystem'
+  | 'radialPressureSystem'
+  | 'harmonicRibbonReactor'
+  | 'phaseKnotCathedral'
+  | 'livingRibbonSystem'
+  | 'stereoPulseStudy'
+  | 'phaseOrbit'
+  | 'scopeAndShape'
 
 export type SoundDrawingLayerRole =
   'primaryMotif' | 'harmonicLayer' | 'rhythmAccent' | 'echoLayer' | 'atmosphereLayer' | 'transitionLayer'
@@ -32,6 +49,7 @@ export type SoundDrawingGeneratorFamily =
   | 'audioReactiveAttractor'
   | 'tunnelTrace'
   | 'stackedWaveformBands'
+  | 'professionalScope'
 
 export type SoundDrawingBlendMode = 'screen' | 'lighter' | 'source-over'
 export type SoundDrawingColorRole = 'primary' | 'secondary' | 'accent' | 'inverted'
@@ -143,7 +161,37 @@ export const SOUND_DRAWING_GENERATOR_FAMILIES: readonly SoundDrawingGeneratorFam
   'audioReactiveAttractor',
   'tunnelTrace',
   'stackedWaveformBands',
+  'professionalScope',
 ]
+
+/**
+ * Safe authored surface for the genuine professional scope. Signal-domain,
+ * presentation, and compositor controls remain separate: this block never
+ * accepts replacement geometry.
+ */
+export interface SoundDrawingProfessionalScopeLayerSettings {
+  presetId?: string
+  signalMode?: ScopeSignalMode
+  signalConditioner?: Partial<ScopeSignalConditionerSettings>
+  trigger?: Partial<ScopeTriggerSettings>
+  timebase?: Partial<ScopeTimebaseSettings>
+  beam?: Partial<ScopeBeamSettings>
+  phosphor?: Partial<ScopePhosphorSettings>
+  crt?: Partial<ScopeCrtSettings>
+  music?: Partial<ScopeMusicMappingSettings>
+  monoDelayMs?: number
+  /** Presentation exposure multiplier. Does not alter captured samples. */
+  exposure?: number
+  /** Authored crossfade hint used when a cue changes scope configuration. */
+  transitionSeconds?: number
+}
+
+export interface SoundDrawingResolvedProfessionalScopeLayerSettings {
+  state: SoundDrawingScopeState
+  exposure: number
+  transitionSeconds: number
+  measurementSafe: boolean
+}
 
 export type SoundDrawingPerformanceLockKey =
   | 'generator'
@@ -215,6 +263,16 @@ export type SoundDrawingModulationTarget =
   | 'ribbonRelease'
   | 'ribbonDirectionalDrift'
   | 'ribbonHeatDecay'
+  | 'scopeTimebase'
+  | 'scopeGain'
+  | 'scopeGainX'
+  | 'scopeGainY'
+  | 'scopeTriggerLevel'
+  | 'scopeTriggerStability'
+  | 'scopeBeamWidth'
+  | 'scopeExposure'
+  | 'scopePersistence'
+  | 'scopeBloom'
 
 export type SoundDrawingEventKind =
   | 'beat'
@@ -246,6 +304,10 @@ export type SoundDrawingEventTarget =
   | 'ribbonReleaseBurst'
   | 'ribbonTwistImpulse'
   | 'ribbonLocalizedImpulse'
+  | 'scopeBeamWidth'
+  | 'scopeExposure'
+  | 'scopePersistence'
+  | 'scopeBloom'
 
 export type SoundDrawingEnvelopeTimingUnit =
   '1/32beat' | '1/16beat' | '1/8beat' | '1/4beat' | '1/2beat' | '1beat' | '2beats' | '1bar' | '2bars' | '4bars'
@@ -339,6 +401,7 @@ export interface SoundDrawingPerformanceLayerBlueprint {
   sourceFailure?: string | null
   livingRibbonControls?: Partial<SoundDrawingLivingRibbonPhysicalControls>
   livingRibbonImpulses?: readonly SoundDrawingLivingRibbonPhysicalImpulse[]
+  professionalScope?: SoundDrawingProfessionalScopeLayerSettings
   modulationRoutes?: readonly SoundDrawingModulationRoute[]
   eventBindings?: readonly SoundDrawingEventBinding[]
 }
@@ -422,6 +485,7 @@ export interface SoundDrawingResolvedPerformanceLayer extends Required<
     | 'sourceFailure'
     | 'livingRibbonControls'
     | 'livingRibbonImpulses'
+    | 'professionalScope'
   >
 > {
   source: SoundDrawingResolvedPerformanceSource
@@ -433,6 +497,7 @@ export interface SoundDrawingResolvedPerformanceLayer extends Required<
   sourceFailure: string | null
   livingRibbonControls: SoundDrawingLivingRibbonPhysicalControls
   livingRibbonImpulses: readonly SoundDrawingLivingRibbonPhysicalImpulse[]
+  professionalScope: SoundDrawingResolvedProfessionalScopeLayerSettings | null
 }
 
 export interface SoundDrawingResolvedPerformanceFrame {

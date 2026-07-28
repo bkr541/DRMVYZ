@@ -381,7 +381,14 @@ export function resolveSoundDrawingPerformanceSources(input: {
     sourceFailure: null,
   }))
 
-  const primary = authored.find(layer => layer.role === 'primaryMotif') ?? authored[0]
+  // A genuine scope is a signal generator, not a replaceable artwork slot.
+  // User text/SVG integration may replace another primary motif, but never the
+  // synchronized measurement layer declared by the show.
+  const primary =
+    authored.find(layer => layer.role === 'primaryMotif' && layer.generator !== 'professionalScope') ??
+    authored.find(layer => layer.generator !== 'professionalScope') ??
+    authored.find(layer => layer.role === 'primaryMotif') ??
+    authored[0]
   if (!primary || !sourceResolution.source || input.settings.performanceSource === 'generatedVisual') {
     return {
       layers: authored.slice(0, MAX_SOUND_DRAWING_PERFORMANCE_LAYERS),
@@ -399,12 +406,24 @@ export function resolveSoundDrawingPerformanceSources(input: {
     }
   }
 
-  const selected = applyContourBudget(
+  let selected = applyContourBudget(
     makeSelectedSourceLayer(primary, sourceResolution.source, sourceResolution.profile, input.settings, input.context),
     input.oscillator,
   )
+  const scopeOnlyPrimary = primary.generator === 'professionalScope'
+  if (scopeOnlyPrimary) {
+    selected = {
+      ...selected,
+      generator: 'horizontalOscilloscope',
+      classicMode: 'waveform',
+      professionalScope: null,
+    }
+  }
   const supportGenerator = supportingGeneratorForShow(input.showId, primary)
-  const generatedPrimarySupport: SoundDrawingResolvedPerformanceLayer = {
+  const generatedPrimarySupport: SoundDrawingResolvedPerformanceLayer = scopeOnlyPrimary ? {
+    ...primary,
+    role: 'harmonicLayer',
+  } : {
     ...primary,
     id: `${primary.id}:generated-support`,
     role: 'harmonicLayer',

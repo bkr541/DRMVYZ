@@ -7,7 +7,13 @@ import {
   resolveScopeCaptureRequestFrames,
   toStereoScopeFrame,
 } from '../soundDrawingScopeGeometry'
-import { scopeModeForClassicMode } from '../SoundDrawingRenderer'
+import {
+  buildPerformanceOscillator,
+  resolveAuthoredScopeTransitionAlpha,
+  scopeModeForClassicMode,
+} from '../SoundDrawingRenderer'
+import { resolveSoundDrawingPerformanceFrame } from '../../soundDrawing/SoundDrawingPerformanceEngine'
+import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from '../../soundDrawing/SoundDrawingPerformanceTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS, type OscillatorSettings } from '../../ReactTypes'
 import type { ReactFrameContext } from '../reactRenderUtils'
 import type { VectorBeamPoint } from '../../vectorBeam/VectorBeamTypes'
@@ -76,6 +82,37 @@ describe('classic mode routing', () => {
 })
 
 describe('professional scope availability', () => {
+  it('uses deterministic cue-relative crossfades for authored scope transitions', () => {
+    expect(resolveAuthoredScopeTransitionAlpha(12, 12, 0.5)).toBe(0)
+    expect(resolveAuthoredScopeTransitionAlpha(12.25, 12, 0.5)).toBe(0.5)
+    expect(resolveAuthoredScopeTransitionAlpha(13, 12, 0.5)).toBe(1)
+    expect(resolveAuthoredScopeTransitionAlpha(13, null, 0.5)).toBe(1)
+  })
+
+  it('routes an authored layer through the same synchronized stereo scope contract', () => {
+    const frame = {
+      ...frameContext(stereoCapture(Math.PI / 3)),
+      timeSec: 1,
+      elapsedTimeSec: 1,
+      trackKey: 'scope-test',
+    }
+    const performance = resolveSoundDrawingPerformanceFrame({
+      frame,
+      settings: {
+        ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+        autoPerformance: true,
+        selectedShowId: 'stereoPulseStudy',
+        performanceSource: 'generatedVisual',
+      },
+      manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
+    })!
+    const layer = performance.layers.find((candidate) => candidate.generator === 'professionalScope')!
+    const effective = buildPerformanceOscillator(DEFAULT_OSCILLATOR_SETTINGS, layer, 1)
+    expect(effective.classicMode).toBe('professionalScope')
+    expect(effective.scope).toBe(layer.professionalScope?.state)
+    expect(canRenderProfessionalScope(effective, frame)).toBe(true)
+  })
+
   it('requires both the professional mode and actual stereo capture', () => {
     const withCapture = frameContext(stereoCapture(0))
     const withoutCapture = frameContext(null)

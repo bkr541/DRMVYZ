@@ -217,19 +217,78 @@ function ribbon(frame: SoundDrawingResolvedPerformanceFrame) {
 }
 
 describe('Sound Drawing authored Performance Engine', () => {
+  it('resolves built-in Professional Scope layers without enabling manual scope', () => {
+    const performance = resolved(10, {}, {
+      selectedShowId: 'stereoPulseStudy',
+      performanceSource: 'activeUserSource',
+    })
+    const scope = performance.layers.find((layer) => layer.generator === 'professionalScope')
+    expect(scope?.professionalScope?.state.signalMode).toBe('stereoXY')
+    expect(scope?.professionalScope?.measurementSafe).toBe(true)
+    expect(DEFAULT_OSCILLATOR_SETTINGS.classicMode).not.toBe('professionalScope')
+  })
+
+  it('does not inject manual Professional Scope into a show that does not author it', () => {
+    const performance = resolveSoundDrawingPerformanceFrame({
+      frame: frameAt(10),
+      settings: settings({ selectedShowId: 'radialPressureSystem', performanceSource: 'generatedVisual' }),
+      manualOscillator: {
+        ...DEFAULT_OSCILLATOR_SETTINGS,
+        sourceType: 'classic',
+        classicMode: 'professionalScope',
+      },
+    })!
+    expect(performance.layers.some((layer) => layer.generator === 'professionalScope')).toBe(false)
+  })
+
+  it('returns manual ownership when Auto Performance is disabled', () => {
+    expect(resolveSoundDrawingPerformanceFrame({
+      frame: frameAt(10),
+      settings: settings({ autoPerformance: false, selectedShowId: 'stereoPulseStudy' }),
+      manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
+    })).toBeNull()
+  })
+
+  it('applies authored scope automation to the resolved scope pipeline state', () => {
+    const low = resolved(8.1, {}, {
+      selectedShowId: 'stereoPulseStudy',
+      performanceSource: 'generatedVisual',
+    }).layers.find((layer) => layer.generator === 'professionalScope')!
+    const high = resolved(14.9, {}, {
+      selectedShowId: 'stereoPulseStudy',
+      performanceSource: 'generatedVisual',
+    }).layers.find((layer) => layer.generator === 'professionalScope')!
+    expect(high.professionalScope?.exposure).toBeGreaterThan(1)
+    expect(high.professionalScope?.state.phosphor.persistenceSeconds).not.toBe(
+      low.professionalScope?.state.phosphor.persistenceSeconds,
+    )
+  })
+
+  it('keeps exactly one genuine scope layer in the combined Scope and Shape show', () => {
+    const performance = resolved(30, {}, {
+      selectedShowId: 'scopeAndShape',
+      performanceSource: 'generatedVisual',
+    })
+    expect(performance.layers.filter((layer) => layer.generator === 'professionalScope')).toHaveLength(1)
+    expect(performance.layers.some((layer) => layer.generator === 'circularBassMembrane')).toBe(true)
+  })
+
   it('publishes all built-in authored shows with meaningfully different generator systems', () => {
     expect(SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => show.name)).toEqual([
       'Radial Pressure System',
       'Harmonic Ribbon Reactor',
       'Phase-Knot Cathedral',
       'Living Ribbon System',
+      'Stereo Pulse Study',
+      'Phase Orbit',
+      'Scope and Shape',
     ])
     const generators = SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => {
       const scene = show.program.scenes.find(candidate => candidate.id.endsWith('-drop'))
       const action = scene?.actions?.find(candidate => candidate.type === 'scene')
       return action?.type === 'scene' ? action.layers[0]?.generator : null
     })
-    expect(new Set(generators).size).toBe(4)
+    expect(new Set(generators).size).toBeGreaterThanOrEqual(4)
   })
 
   it('keeps the existing default show unchanged while making Living Ribbon opt-in and selectable', () => {

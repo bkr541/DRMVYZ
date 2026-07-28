@@ -11,8 +11,11 @@ import type { UploadedMedia } from '../../../stores/mediaStore'
 import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
 import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
 import { buildUnifiedSvgStatus, isUnifiedSvgMediaItem, resolveUnifiedSvgSource } from './svgSourceLifecycle'
-import { SOUND_DRAWING_PERFORMANCE_SHOWS } from './soundDrawing/SoundDrawingPerformanceShows'
+import {
+  SOUND_DRAWING_PERFORMANCE_SHOWS,
+} from './soundDrawing/SoundDrawingPerformanceShows'
 import { shouldShowLivingRibbonControls } from './soundDrawing/SoundDrawingControlVisibility'
+import { resolveSoundDrawingOwnership } from './soundDrawing/SoundDrawingOwnership'
 import { SoundDrawingProScopeControls } from './soundDrawing/SoundDrawingProScopeControls'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './soundDrawing/SoundDrawingPerformanceTypes'
 import type {
@@ -369,6 +372,11 @@ export function ReactEnginePanel() {
   const osc = oscillatorSettings
   const set = setOscillatorSettings
   const showLivingRibbonControls = shouldShowLivingRibbonControls(soundDrawingPerformanceSettings)
+  const selectedSoundDrawingShow = SOUND_DRAWING_PERFORMANCE_SHOWS.find(
+    (show) => show.id === soundDrawingPerformanceSettings.selectedShowId,
+  )
+  const soundDrawingOwnership = resolveSoundDrawingOwnership(soundDrawingPerformanceSettings)
+  const authoredScopeOwnsControls = soundDrawingOwnership.manualScopeControlsDisabled
   const ribbon = soundDrawingPerformanceSettings.livingRibbon
   const setRibbon = (patch: Partial<typeof ribbon>) => setSoundDrawingPerformanceSettings({ livingRibbon: patch })
   const cinematicWorldGroups = useMemo(
@@ -464,6 +472,14 @@ export function ReactEnginePanel() {
             value={soundDrawingPerformanceSettings.autoPerformance}
             onChange={(value) => setSoundDrawingPerformanceSettings({ autoPerformance: value })}
           />
+          <div
+            className="rv-ctrl-info"
+            role="status"
+            aria-live="polite"
+            id="sound-drawing-performance-ownership"
+          >
+            {soundDrawingOwnership.status}
+          </div>
           {soundDrawingPerformanceSettings.autoPerformance && (
             <>
               <CtrlSection label="Source Integration" />
@@ -694,6 +710,7 @@ export function ReactEnginePanel() {
                     value: 'stackedWaveformBands',
                     label: 'Stacked Waveform Bands',
                   },
+                  { value: 'professionalScope', label: 'Professional Scope' },
                 ]}
               />
               {showLivingRibbonControls && (
@@ -904,7 +921,20 @@ export function ReactEnginePanel() {
                 />
               )}
               {!osc.autoSectionMode && osc.classicMode === 'professionalScope' && (
-                <SoundDrawingProScopeControls osc={osc} set={set} />
+                <fieldset
+                  disabled={authoredScopeOwnsControls}
+                  aria-describedby="sound-drawing-performance-ownership"
+                  style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
+                >
+                  {authoredScopeOwnsControls && (
+                    <div className="rv-ctrl-info">
+                      {soundDrawingOwnership.professionalScopeOwner === 'authored'
+                        ? `Controlled by ${selectedSoundDrawingShow?.name ?? 'the active show'}.`
+                        : `Inactive while ${selectedSoundDrawingShow?.name ?? 'the active show'} owns the output.`}
+                    </div>
+                  )}
+                  <SoundDrawingProScopeControls osc={osc} set={set} />
+                </fieldset>
               )}
             </>
           )}

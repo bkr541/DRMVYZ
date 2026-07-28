@@ -1191,11 +1191,157 @@ function livingRibbonSystem(): SoundDrawingPerformanceShowDefinition {
   }
 }
 
+function professionalScopeShow(
+  id: Extract<SoundDrawingPerformanceShowDefinition['id'], 'stereoPulseStudy' | 'phaseOrbit' | 'scopeAndShape'>,
+  name: string,
+  description: string,
+  scopePresetId: string,
+  scopePatch: Partial<SoundDrawingPerformanceLayerBlueprint> = {},
+  supportingLayers: readonly SoundDrawingPerformanceLayerBlueprint[] = [],
+): SoundDrawingPerformanceShowDefinition {
+  const scope = layer(`${id}-scope`, 'primaryMotif', 'professionalScope', {
+    opacity: 0.9,
+    scale: 0.94,
+    audioDisplacement: 0,
+    jitter: 0,
+    professionalScope: {
+      presetId: scopePresetId,
+      signalMode: id === 'phaseOrbit' ? 'midSideXY' : 'stereoXY',
+      transitionSeconds: 0.45,
+      music: { beatBloom: 0.55, kickWidth: 0.3, bassExposure: 0.25, buildExposure: 0.35, dropSnap: 0.5 },
+    },
+    modulationRoutes: [
+      {
+        id: `${id}-scope-exposure`,
+        source: 'trackRelativeEnergy',
+        target: 'scopeExposure',
+        min: 0,
+        max: 0.45,
+        amount: 1,
+        clamp: [0.7, 2],
+        lockKey: 'reaction',
+      },
+      {
+        id: `${id}-scope-persistence`,
+        source: 'sectionProgress',
+        target: 'scopePersistence',
+        min: -0.08,
+        max: 0.18,
+        amount: 1,
+        clamp: [0.08, 2.5],
+        lockKey: 'trail',
+      },
+    ],
+    eventBindings: [
+      {
+        id: `${id}-scope-beat`,
+        event: 'beat',
+        target: 'scopeBloom',
+        amount: 0.12,
+        envelope: FAST,
+        lockKey: 'reaction',
+      },
+      {
+        id: `${id}-scope-drop`,
+        event: 'dropImpact',
+        target: 'scopeBeamWidth',
+        amount: 0.45,
+        envelope: DOWNBEAT,
+        lockKey: 'reaction',
+      },
+    ],
+    ...scopePatch,
+  })
+  const calm = [scope, ...supportingLayers]
+  const drop = [
+    { ...scope, opacity: 1, scale: 1.04, professionalScope: { ...scope.professionalScope, presetId: 'scope-heavy-drop-vector', transitionSeconds: 0.3 } },
+    ...supportingLayers.map((candidate) => ({ ...candidate, opacity: Math.min(1, (candidate.opacity ?? 0.5) + 0.18) })),
+  ]
+  return {
+    id,
+    name,
+    description,
+    program: {
+      id: `soundDrawing.${id}`,
+      metadata: {
+        name,
+        description,
+        engine: 'soundDrawing',
+        version: 2,
+        authoringRevision: 'professional-scope-layer-v1',
+      },
+      fallbackOrder: ['unknown'],
+      fallbackSceneId: `${id}-fallback`,
+      scenes: [
+        scene(`${id}-intro`, ['intro', 'verse', 'breakdown', 'bridge'], calm),
+        scene(`${id}-build`, ['build', 'preDrop'], calm, {
+          fourBarActions: [
+            [{ type: 'patchRole', role: 'primaryMotif', patch: { rotation: id === 'phaseOrbit' ? 12 : 0, scale: 0.9 }, lockKey: 'transform' }],
+            [{ type: 'patchRole', role: 'primaryMotif', patch: { rotation: id === 'phaseOrbit' ? -12 : 0, scale: 0.98 }, lockKey: 'transform' }],
+          ],
+        }),
+        scene(`${id}-drop`, ['drop'], drop, { priority: 5 }),
+        scene(`${id}-outro`, ['outro'], calm.map((candidate) => ({ ...candidate, opacity: (candidate.opacity ?? 0.8) * 0.55 }))),
+        scene(`${id}-fallback`, ['unknown'], calm, { priority: -10 }),
+      ],
+    },
+  }
+}
+
+function stereoPulseStudy(): SoundDrawingPerformanceShowDefinition {
+  return professionalScopeShow(
+    'stereoPulseStudy',
+    'Stereo Pulse Study',
+    'A genuine stereo X/Y trace with stable triggering, phrase persistence, and beat-driven phosphor.',
+    'scope-stereo-phase',
+    {
+      professionalScope: {
+        presetId: 'scope-stereo-phase',
+        signalMode: 'stereoXY',
+        trigger: { mode: 'auto', source: 'mid', hysteresis: 0.035, continuityWeight: 0.82, periodAssist: 0.76 },
+        timebase: { mode: 'auto', autoMinimumSeconds: 0.006, autoMaximumSeconds: 0.09 },
+        transitionSeconds: 0.45,
+      },
+    },
+  )
+}
+
+function phaseOrbit(): SoundDrawingPerformanceShowDefinition {
+  return professionalScopeShow(
+    'phaseOrbit',
+    'Phase Orbit',
+    'Mid/side measurement orbit with controlled viewport rotation and section-shaped exposure.',
+    'scope-mid-side',
+    { rotation: -8, scale: 0.86, professionalScope: { presetId: 'scope-mid-side', signalMode: 'midSideXY', exposure: 0.9 } },
+  )
+}
+
+function scopeAndShape(): SoundDrawingPerformanceShowDefinition {
+  return professionalScopeShow(
+    'scopeAndShape',
+    'Scope and Shape',
+    'A synchronized stereo scope composited beneath an authored bass membrane in deterministic order.',
+    'scope-cyan-emerald-core',
+    { role: 'harmonicLayer', opacity: 0.72, blendMode: 'lighter' },
+    [
+      layer('scope-shape-primary', 'primaryMotif', 'circularBassMembrane', {
+        opacity: 0.62,
+        scale: 0.56,
+        colorRole: 'accent',
+        blendMode: 'screen',
+      }),
+    ],
+  )
+}
+
 export const SOUND_DRAWING_PERFORMANCE_SHOWS: readonly SoundDrawingPerformanceShowDefinition[] = [
   radialPressureSystem(),
   harmonicRibbonReactor(),
   phaseKnotCathedral(),
   livingRibbonSystem(),
+  stereoPulseStudy(),
+  phaseOrbit(),
+  scopeAndShape(),
 ]
 
 export const SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID = Object.fromEntries(
@@ -1212,4 +1358,22 @@ export function soundDrawingPerformanceShowUsesGenerator(
       (action) => action.type === 'scene' && action.layers.some((layer) => layer.generator === generator),
     ),
   )
+}
+
+/** All authored scope declarations, used to size the live stereo capture window. */
+export function soundDrawingPerformanceShowProfessionalScopeLayers(
+  showId: SoundDrawingPerformanceShowDefinition['id'],
+): readonly SoundDrawingPerformanceLayerBlueprint[] {
+  const show = SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID[showId]
+  const layers: SoundDrawingPerformanceLayerBlueprint[] = []
+  for (const candidate of show.program.scenes) {
+    for (const action of candidate.actions ?? []) {
+      if (action.type === 'scene') {
+        layers.push(...action.layers.filter((layer) => layer.generator === 'professionalScope'))
+      } else if (action.type === 'recruitLayer' && action.layer.generator === 'professionalScope') {
+        layers.push(action.layer)
+      }
+    }
+  }
+  return layers
 }

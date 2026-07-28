@@ -111,6 +111,26 @@ describe('performance settings persistence migration', () => {
     })
   })
 
+  it('round-trips authored Professional Scope show selection while old shows remain scope-free', () => {
+    const current = useReactStore.getState()
+    const authoredScope = normalizeSoundDrawingPerformanceSettings({
+      ...current.soundDrawingPerformanceSettings,
+      selectedShowId: 'stereoPulseStudy',
+      autoPerformance: true,
+      generatorPreference: 'professionalScope',
+    })
+    const persisted = reactStorePartialize({ ...current, soundDrawingPerformanceSettings: authoredScope })
+    const merged = mergeReactStoreState(persisted, current)
+    expect(merged.soundDrawingPerformanceSettings).toEqual(authoredScope)
+
+    const legacy = normalizeSoundDrawingPerformanceSettings({
+      selectedShowId: 'harmonicRibbonReactor',
+      autoPerformance: true,
+    })
+    expect(legacy.selectedShowId).toBe('harmonicRibbonReactor')
+    expect(legacy.generatorPreference).toBe('authored')
+  })
+
 
   it('normalizes missing, invalid, and out-of-range Living Ribbon settings safely', () => {
     const missing = normalizeSoundDrawingPerformanceSettings({

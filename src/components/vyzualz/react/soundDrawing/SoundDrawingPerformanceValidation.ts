@@ -20,6 +20,9 @@ const TARGET_RANGES: Record<string, readonly [number, number]> = {
   opacity: [0, 1], strokeWidth: [0.25, 3], traceCount: [1, MAX_SOUND_DRAWING_PERFORMANCE_TRACES], symmetry: [1, 8],
   scale: [0.1, 2], rotation: [-360, 360], trailPersistence: [0, 1], feedbackAmount: [0, 1], glow: [0, 1], audioDisplacement: [0, 0.25], jitter: [0, 0.25], topologyVariant: [0, 7], particleCount: [0, MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES],
   ribbonDrive: [0, 1], ribbonTurbulence: [0, 1], ribbonTension: [0, 1], ribbonDamping: [0, 1], ribbonSpread: [0, 1], ribbonCenterAttraction: [0, 1], ribbonWidth: [0, 1], ribbonTwist: [-1, 1], ribbonRadialPressure: [-1, 1], ribbonCollapse: [0, 1], ribbonRelease: [0, 1], ribbonDirectionalDrift: [-1, 1], ribbonHeatDecay: [0, 1],
+  scopeTimebase: [0.0005, 2], scopeGain: [0.01, 16], scopeGainX: [0.01, 16], scopeGainY: [0.01, 16],
+  scopeTriggerLevel: [-1, 1], scopeTriggerStability: [0, 0.5], scopeBeamWidth: [0.25, 12],
+  scopeExposure: [0.1, 4], scopePersistence: [0.01, 4], scopeBloom: [0, 1],
 }
 const EVENT_TARGETS = new Set([
   ...Object.keys(TARGET_RANGES),
@@ -31,6 +34,9 @@ function validateLayer(layer: SoundDrawingPerformanceLayerBlueprint): Omit<Share
   const issues: Omit<SharedPerformanceProgramValidationIssue, 'programId' | 'sceneId' | 'actionPath'>[] = []
   if (!ROLES.has(layer.role)) issues.push({ severity: 'error', code: 'unknown-layer-role', message: `Unknown Sound Drawing layer role “${layer.role}”.` })
   if (!GENERATORS.has(layer.generator)) issues.push({ severity: 'error', code: 'unknown-generator', message: `Unknown Sound Drawing generator “${layer.generator}”.` })
+  if (layer.generator === 'professionalScope' && !layer.professionalScope) {
+    issues.push({ severity: 'warning', code: 'scope-defaults', message: `Professional Scope layer “${layer.id}” uses safe default scope settings.` })
+  }
   for (const route of layer.modulationRoutes ?? []) {
     if (!Number.isFinite(route.min) || !Number.isFinite(route.max)) issues.push({ severity: 'error', code: 'invalid-modulation-range', message: `Route “${route.id}” has an invalid range.` })
     const range = TARGET_RANGES[route.target]
