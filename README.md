@@ -176,3 +176,5 @@ See [`docs/source-packaging.md`](docs/source-packaging.md).
 ## Current architecture documentation
 
 Start with [`docs/documentation-index.md`](docs/documentation-index.md). It separates canonical current documentation from historical patch and acceptance records.
+
+_Last touched: a lava lamp is basically a slow-motion GPU fluid sim._
