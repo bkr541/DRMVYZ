@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ReactLeftTab } from './reactWorkspaceComposition'
-
-export type ReactLowerSurface = 'trackMap' | 'performancePads'
+import type { ReactLeftTab, ReactLowerSurface } from './reactWorkspaceComposition'
 
 export interface ReactWorkspacePreferences {
   leftCollapsed: boolean
@@ -31,7 +29,10 @@ export function readReactWorkspacePreferences(): ReactWorkspacePreferences {
       lowerWorkspaceCollapsed: typeof parsed.lowerWorkspaceCollapsed === 'boolean'
         ? parsed.lowerWorkspaceCollapsed
         : DEFAULTS.lowerWorkspaceCollapsed,
-      lowerSurface: parsed.lowerSurface === 'performancePads' ? 'performancePads' : 'trackMap',
+      lowerSurface:
+        parsed.lowerSurface === 'soundDrawing' || parsed.lowerSurface === 'performancePads'
+          ? parsed.lowerSurface
+          : 'trackMap',
       leftTab: parsed.leftTab === 'media' || parsed.leftTab === 'layers' || parsed.leftTab === 'fonts'
         ? parsed.leftTab
         : 'workspace',

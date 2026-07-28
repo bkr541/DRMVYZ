@@ -73,6 +73,14 @@ function assignClipRows(clips: SoundDrawingClip[]): Map<string, number> {
   return map
 }
 
+export function getSoundDrawingTimelineRowCount(
+  clips: SoundDrawingClip[],
+  assignedRows = assignClipRows(clips),
+): number {
+  if (clips.length === 0) return 0
+  return Math.max(...Array.from(assignedRows.values())) + 1
+}
+
 function snapTime(
   t:        number,
   mode:     SnapMode,
@@ -634,9 +642,7 @@ export function SoundDrawingTimelineLane({
     a.startSec !== b.startSec ? a.startSec - b.startSec : a.zIndex - b.zIndex
   )
   const clipRows = assignClipRows(sortedClips)
-  const rowCount = sortedClips.length === 0
-    ? 1
-    : Math.max(...Array.from(clipRows.values())) + 1
+  const rowCount = getSoundDrawingTimelineRowCount(sortedClips, clipRows)
 
   const selectedClip  = clips.find(c => c.id === selectedClipId) ?? null
   const selectedLayer = selectedClip ? layers.find(l => l.id === selectedClip.layerId) ?? null : null

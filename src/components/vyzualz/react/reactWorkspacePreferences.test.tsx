@@ -19,6 +19,7 @@ function Harness() {
       <button onClick={() => preferences.setLeftCollapsed(value => !value)}>left</button>
       <button onClick={() => preferences.setRightCollapsed(value => !value)}>right</button>
       <button onClick={() => preferences.setLowerWorkspaceCollapsed(value => !value)}>lower</button>
+      <button onClick={() => preferences.setLowerSurface('soundDrawing')}>sound drawing</button>
       <button onClick={() => preferences.setLowerSurface('performancePads')}>pads</button>
       <button onClick={() => preferences.setLeftTab('media')}>media tab</button>
     </div>
@@ -69,5 +70,19 @@ describe('React workspace preferences', () => {
     expect(remounted.dataset.lower).toBe('false')
     expect(remounted.dataset.surface).toBe('performancePads')
     expect(remounted.dataset.tab).toBe('media')
+  })
+
+  it('persists the dedicated Sound Drawing lower surface', () => {
+    const soundDrawingButton = [...(container?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find(button => button.textContent === 'sound drawing')
+
+    act(() => soundDrawingButton?.click())
+    expect((container?.firstElementChild as HTMLElement).dataset.surface).toBe('soundDrawing')
+
+    act(() => root?.unmount())
+    root = null
+    mount()
+
+    expect((container?.firstElementChild as HTMLElement).dataset.surface).toBe('soundDrawing')
   })
 })

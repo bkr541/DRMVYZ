@@ -27,37 +27,19 @@ import { CINEMATIC_WORLD_UI, type CinematicWorldUiDefinition } from './Cinematic
 import type { CinematicWorldMode } from './CinematicWorldConfig'
 import { resolvePresetCardNavigationIndex } from './ReactPresetCard'
 import type {
-  OscillatorSourceType,
   SvgRenderMode,
   ClassicScopeMode,
   BuiltinOscillatorShape,
   OscillatorGlyphAsset,
   OscillatorFontAsset,
   OscillatorSettings,
-  OscillatorRenderMode,
   OscillatorGlyphPoint,
   SoundDrawingTextSource,
   SoundDrawingLyricGapBehavior,
   ReactPreset,
 } from './ReactTypes'
 
-// ── Oscillator status card ────────────────────────────────────────────────────
-
-const SOURCE_LABELS: Record<OscillatorSourceType, string> = {
-  classic:      'Classic Scope',
-  builtinShape: 'Shape',
-  text:         'Text',
-  svg:          'SVG',
-  svgGlyph:     'SVG Glyph',   // legacy — kept for backward-compat display
-  svgVisual:    'SVG Visual',  // legacy — kept for backward-compat display
-}
-
-const RENDER_LABELS: Record<OscillatorRenderMode, string> = {
-  outline:    'Outline',
-  multiTrace: 'Multi Trace',
-  dots:       'Dots',
-  ribbon:     'Ribbon',
-}
+// ── Sound Drawing source chooser ──────────────────────────────────────────────
 
 type SoundDrawingSourceChoice = 'classic' | 'builtinShape' | 'text' | 'svg'
 
@@ -274,16 +256,7 @@ function CinematicWorldSourceGrid({
   )
 }
 
-function StatusKV({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="rv-osc-status-kv">
-      <span className="rv-osc-status-key">{label}</span>
-      <span className="rv-osc-status-val">{value}</span>
-    </div>
-  )
-}
-
-function OscillatorStatusCard({
+function OscillatorSourceDiagnostics({
   osc,
   glyphAssets,
   fontAssets,
@@ -298,111 +271,42 @@ function OscillatorStatusCard({
 }) {
   useSyncExternalStore(subscribeSvgVisualCache, getSvgVisualCacheVersion, getSvgVisualCacheVersion)
 
-  const isClassic = osc.sourceType === 'classic'
   const svgSource = resolveUnifiedSvgSource(osc)
   const svgEntry = svgSource?.mediaId ? getSvgVisualEntry(svgSource.mediaId) : null
   const svgStatus = buildUnifiedSvgStatus(osc, glyphAssets, glyphCache, allMediaItems, svgEntry)
   const selectedGlyph =
     osc.sourceType === 'svgGlyph' && !svgStatus && osc.selectedGlyphId
       ? glyphAssets.find((asset) => asset.id === osc.selectedGlyphId)
-    : undefined
+      : undefined
   const selectedFont = osc.textFontId ? fontAssets.find((font) => font.id === osc.textFontId) : undefined
 
-  let activeName: string | null = null
-  if (osc.sourceType === 'builtinShape') {
-    activeName = osc.builtinShape.charAt(0).toUpperCase() + osc.builtinShape.slice(1)
-  } else if (osc.sourceType === 'text') {
-    activeName =
-      osc.textSource === 'activeLyricLine'
-      ? 'Active lyric line'
-      : osc.textSource === 'activeLyricWord'
-        ? 'Active lyric word'
-        : osc.text.trim() || null
-  } else if (svgStatus) {
-    activeName = svgStatus.assetName
-  } else if (selectedGlyph) {
-    activeName = selectedGlyph.name
-  }
+  const hasSvgDiagnostics = Boolean(
+    svgStatus?.loading ||
+    (svgStatus && !svgStatus.mediaId) ||
+    svgStatus?.error ||
+    (osc.sourceType === 'svgGlyph' && !svgStatus && !selectedGlyph),
+  )
+  const hasTextDiagnostics = Boolean(
+    osc.sourceType === 'text' && (!osc.text.trim() || selectedFont?.parseError),
+  )
 
-  const sourceLabel = svgStatus ? 'SVG' : SOURCE_LABELS[osc.sourceType]
-  const activeLabel = osc.sourceType === 'text' ? 'Text' : svgStatus ? 'Asset' : selectedGlyph ? 'Glyph' : 'Shape'
+  if (!hasSvgDiagnostics && !hasTextDiagnostics) return null
 
   return (
-    <div className="rv-osc-status-card">
-      <StatusKV label="Source" value={<span className="rv-osc-status-val--source">{sourceLabel}</span>} />
-      {!isClassic && activeName && (
-        <StatusKV label={activeLabel} value={<span className="rv-osc-status-val--highlight">{activeName}</span>} />
+    <div className="rv-osc-source-diagnostics" role="status" aria-live="polite">
+      {svgStatus?.loading && <div className="rv-ctrl-info">Loading SVG caches…</div>}
+      {svgStatus && !svgStatus.mediaId && (
+        <div className="rv-osc-status-warn">No SVG selected — choose one below</div>
       )}
-
-      {svgStatus ? (
-        <>
-          <StatusKV
-            label="Render As"
-            value={
-              svgStatus.renderMode === 'auto' && svgStatus.resolvedMode
-              ? `${svgStatus.renderModeLabel} · ${svgStatus.resolvedMode === 'reactivePath' ? 'Reactive Path' : 'Original Artwork'}`
-                : svgStatus.renderModeLabel
-            }
-          />
-          {svgStatus.resolvedMode === 'reactivePath' && (
-            <>
-              <StatusKV label="Resolution" value={`${osc.pathResolution} pts`} />
-              <StatusKV label="Points" value={svgStatus.pointCount.toLocaleString()} />
-              <StatusKV label="Path Style" value={RENDER_LABELS[osc.renderMode]} />
-            </>
-          )}
-          {svgStatus.resolvedMode === 'originalArtwork' && (
-            <StatusKV
-              label="Artwork"
-              value={svgStatus.loaded ? 'Ready' : svgStatus.loading ? 'Loading…' : 'Not cached'}
-            />
-          )}
-          <StatusKV label="React Palette" value={osc.svgUseReactPalette ? 'On' : 'Original colors'} />
-          {svgStatus.loading && <div className="rv-ctrl-info">Loading SVG caches…</div>}
-          {!svgStatus.mediaId && <div className="rv-osc-status-warn">No SVG selected — choose one below</div>}
-          {svgStatus.error && <div className="rv-osc-status-warn">Load error: {svgStatus.error}</div>}
-          {svgStatus.uploadedAt && (
-            <StatusKV
-              label="Uploaded"
-              value={new Date(svgStatus.uploadedAt).toLocaleDateString(undefined, {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
-            />
-          )}
-        </>
-      ) : !isClassic ? (
-        <>
-          <StatusKV label="Resolution" value={`${osc.pathResolution} pts`} />
-          <StatusKV label="Render" value={RENDER_LABELS[osc.renderMode]} />
-        </>
-      ) : null}
-
+      {svgStatus?.error && <div className="rv-osc-status-warn">Load error: {svgStatus.error}</div>}
       {osc.sourceType === 'svgGlyph' && !svgStatus && !selectedGlyph && (
         <div className="rv-osc-status-warn">No SVG glyph selected</div>
       )}
-
-      {osc.sourceType === 'text' && (
-        <>
-          {osc.text.trim() ? (
-            <StatusKV label="Chars" value={osc.text.trim().length} />
-          ) : (
-            <div className="rv-osc-status-warn">Text is empty</div>
-          )}
-          {selectedFont ? (
-            selectedFont.parseError ? (
-              <div className="rv-osc-status-warn">{selectedFont.parseError}</div>
-            ) : (
-              <StatusKV
-                label="Font"
-                value={<span className="rv-osc-status-val--highlight">{selectedFont.name}</span>}
-              />
-            )
-          ) : (
-            <StatusKV label="Engine" value="Canvas fallback" />
-          )}
-        </>
+      {osc.sourceType === 'text' && !osc.text.trim() && (
+        <div className="rv-osc-status-warn">Text is empty</div>
+      )}
+      {osc.sourceType === 'text' && selectedFont?.parseError && (
+        <div className="rv-osc-status-warn">{selectedFont.parseError}</div>
       )}
     </div>
   )
@@ -562,7 +466,7 @@ export function ReactEnginePanel() {
           />
           {soundDrawingPerformanceSettings.autoPerformance && (
             <>
-              <CtrlSection label="Performance Source" />
+              <CtrlSection label="Source Integration" />
               <SelectRow
                 label="Performance Source"
                 value={soundDrawingPerformanceSettings.performanceSource}
@@ -794,7 +698,6 @@ export function ReactEnginePanel() {
               />
               {showLivingRibbonControls && (
                 <>
-                  <CtrlSection label="Living Ribbon" />
                   <Collapsible label="Living Ribbon Controls" defaultOpen>
                     <SelectRow
                       label="Ribbon Quality"
@@ -962,7 +865,7 @@ export function ReactEnginePanel() {
             </div>
           )}
 
-          <OscillatorStatusCard
+          <OscillatorSourceDiagnostics
             osc={osc}
             glyphAssets={oscillatorGlyphAssets}
             fontAssets={oscillatorFontAssets}

@@ -4,7 +4,9 @@ import {
   getReactDefaultLeftTab,
   getReactLeftTabLabel,
   getReactLeftTabs,
+  getReactLowerSurfaces,
   getReactPresetTabLabel,
+  isReactLowerSurfaceAvailable,
   isReactLeftTabAvailable,
   resolveReactWorkspaceComposition,
 } from '../reactWorkspaceComposition'
@@ -27,12 +29,20 @@ describe('React workspace composition', () => {
   })
 
   it('mounts Sound Drawing authoring lanes only for Sound Drawing', () => {
-    expect(resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false).showSoundDrawingTimeline)
-      .toBe(true)
+    const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)
+    expect(soundDrawing.showSoundDrawingTimeline).toBe(true)
+    expect(getReactLowerSurfaces(soundDrawing)).toEqual([
+      'trackMap',
+      'soundDrawing',
+      'performancePads',
+    ])
+    expect(isReactLowerSurfaceAvailable('soundDrawing', soundDrawing)).toBe(true)
 
     for (const engine of ['shaderPads', 'cinematicPortal', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
-      expect(resolveReactWorkspaceComposition(engine, 'beamMatrix', false).showSoundDrawingTimeline)
-        .toBe(false)
+      const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
+      expect(composition.showSoundDrawingTimeline).toBe(false)
+      expect(getReactLowerSurfaces(composition)).not.toContain('soundDrawing')
+      expect(isReactLowerSurfaceAvailable('soundDrawing', composition)).toBe(false)
     }
   })
 

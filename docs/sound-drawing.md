@@ -34,7 +34,7 @@ Sound Drawing uses:
 - **DESIGN → ENGINE / SELECTION** for global and source-specific controls
 - **REACT → ROUTING / ANALYSIS** for Music Intelligence behavior and diagnostics
 - **OUTPUT → RECORDING** for browser capture
-- Track Map, Performance Pads, and the Sound Drawing timeline in the lower workspace
+- Three lower-workspace surfaces in canonical order: **Track Map → Sound Drawing → Performance Pads**. The Sound Drawing surface is available only while the Sound Drawing engine is active; it shares the Track Map transport duration and zoom authority without being nested inside Track Map. Its timeline creates clip rows only when clips exist, so an empty track shows one compact add/load prompt instead of a reserved blank row.
 
 ## Source model
 
@@ -54,7 +54,7 @@ A source identity must remain stable across ordinary section changes. Performanc
 
 ## Timeline and clips
 
-`SoundDrawingTimelineLane` is the canonical clip and lane editor. Clip time is resolved against the same Track Map duration and transport authority used by the renderer.
+`SoundDrawingTimelineLane` is the canonical clip and lane editor. React View mounts it in the dedicated **Sound Drawing** lower-workspace surface between **Track Map** and **Performance Pads**. Clip time is resolved against the same Track Map duration, transport, and waveform-zoom authority used by the renderer.
 
 Timeline edits must preserve stable IDs, normalized ranges, deterministic ordering, and bounded clip counts. The lane is an authoring surface, not a second playback clock.
 

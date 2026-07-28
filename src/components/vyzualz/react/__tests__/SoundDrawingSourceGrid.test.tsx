@@ -53,6 +53,8 @@ describe('Sound Drawing source grid', () => {
       'SVG',
     ])
     expect(choices[0].getAttribute('aria-checked')).toBe('true')
+    expect(container.querySelector('.rv-osc-status-card')).toBeNull()
+    expect((container.textContent?.match(/Classic Scope/g) ?? [])).toHaveLength(1)
 
     await act(async () => choices[2].click())
     expect(useReactStore.getState().oscillatorSettings.sourceType).toBe('text')

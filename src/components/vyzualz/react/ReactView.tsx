@@ -45,7 +45,10 @@ import {
   getReactDefaultLeftTab,
   getReactLeftTabLabel,
   getReactLeftTabs,
+  getReactLowerSurfaceLabel,
+  getReactLowerSurfaces,
   getReactPresetTabLabel,
+  isReactLowerSurfaceAvailable,
   isReactLeftTabAvailable,
   resolveReactWorkspaceComposition,
   type ReactLeftTab,
@@ -227,6 +230,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     () => resolveReactWorkspaceComposition(activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible),
     [activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible],
   )
+  const lowerSurfaces = useMemo(
+    () => getReactLowerSurfaces(workspaceComposition),
+    [workspaceComposition],
+  )
   const leftTabs = useMemo<RailTabOption<ReactLeftTab>[]>(
     () =>
       getReactLeftTabs(workspaceComposition).map((id) => ({
@@ -249,6 +256,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     leftTab: preferredLeftTab,
     setLeftTab,
   } = useReactWorkspacePreferences()
+  const activeLowerSurface = isReactLowerSurfaceAvailable(lowerSurface, workspaceComposition)
+    ? lowerSurface
+    : (lowerSurfaces[0] ?? 'trackMap')
   const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
@@ -368,10 +378,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   )
 
   useEffect(() => {
-    if (lowerSurface === 'performancePads' && !workspaceComposition.showPerformancePads) {
-      setLowerSurface('trackMap')
+    if (lowerSurface !== activeLowerSurface) {
+      setLowerSurface(activeLowerSurface)
     }
-  }, [lowerSurface, setLowerSurface, workspaceComposition.showPerformancePads])
+  }, [activeLowerSurface, lowerSurface, setLowerSurface])
 
   useEffect(() => {
     if (!isReactLeftTabAvailable(preferredLeftTab, workspaceComposition)) {
@@ -695,7 +705,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             )}
             {laserDmxAuthoringOverlayVisibility.showBeamMatrixEditor && <LaserDmxBeamMatrixEditorOverlay />}
           </div>
-          {(workspaceComposition.showTrackMap || workspaceComposition.showPerformancePads) && (
+          {lowerSurfaces.length > 0 && (
             <section
               className="rv-lower-workspace"
               data-collapsed={lowerWorkspaceCollapsed ? 'true' : undefined}
@@ -708,40 +718,27 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   aria-expanded={!lowerWorkspaceCollapsed}
                   aria-label={
                     lowerWorkspaceCollapsed
-                    ? 'Expand Track Map and Performance Pads'
-                      : 'Collapse Track Map and Performance Pads'
+                      ? 'Expand lower workspace'
+                      : 'Collapse lower workspace'
                   }
                   onClick={() => setLowerWorkspaceCollapsed((value) => !value)}
                 />
                 <div className="rv-lower-workspace-tabs" role="tablist" aria-label="Timeline surfaces">
-                  {workspaceComposition.showTrackMap && (
+                  {lowerSurfaces.map((surface) => (
                     <button
+                      key={surface}
                       type="button"
                       role="tab"
-                      aria-selected={lowerSurface === 'trackMap'}
-                      className={lowerSurface === 'trackMap' ? 'is-active' : ''}
+                      aria-selected={activeLowerSurface === surface}
+                      className={activeLowerSurface === surface ? 'is-active' : ''}
                       onClick={() => {
-                        setLowerSurface('trackMap')
+                        setLowerSurface(surface)
                         setLowerWorkspaceCollapsed(false)
                       }}
                     >
-                      Track Map
+                      {getReactLowerSurfaceLabel(surface)}
                     </button>
-                  )}
-                  {workspaceComposition.showPerformancePads && (
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={lowerSurface === 'performancePads'}
-                      className={lowerSurface === 'performancePads' ? 'is-active' : ''}
-                      onClick={() => {
-                        setLowerSurface('performancePads')
-                        setLowerWorkspaceCollapsed(false)
-                      }}
-                    >
-                      Performance Pads
-                    </button>
-                  )}
+                  ))}
                 </div>
                 <div className="rv-lower-workspace-actions">
                   <button
@@ -761,17 +758,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               </div>
 
               <div
-                hidden={lowerSurface !== 'trackMap' || lowerWorkspaceCollapsed || stageFocus}
+                hidden={activeLowerSurface !== 'trackMap' || lowerWorkspaceCollapsed || stageFocus}
                 className="rv-lower-workspace-surface rv-lower-workspace-surface--track-map"
               >
-                {workspaceComposition.showSoundDrawingTimeline && (
-                  <Suspense fallback={<LazyWorkspaceFallback label="Sound Drawing timeline" />}>
-                    <SoundDrawingTimelineLane
-                      audioDurationSec={audioDurationSec}
-                      trackSections={resolvedTrackSections}
-                    />
-                  </Suspense>
-                )}
                 {workspaceComposition.showTrackMap && (
                   <Suspense fallback={<LazyWorkspaceFallback label="Track Map" />}>
                     <ReactTrackMapStrip audioDurationSec={audioDurationSec} embedded />
@@ -779,9 +768,23 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 )}
               </div>
 
+              {workspaceComposition.showSoundDrawingTimeline && (
+                <div
+                  hidden={activeLowerSurface !== 'soundDrawing' || lowerWorkspaceCollapsed || stageFocus}
+                  className="rv-lower-workspace-surface rv-lower-workspace-surface--sound-drawing"
+                >
+                  <Suspense fallback={<LazyWorkspaceFallback label="Sound Drawing timeline" />}>
+                    <SoundDrawingTimelineLane
+                      audioDurationSec={audioDurationSec}
+                      trackSections={resolvedTrackSections}
+                    />
+                  </Suspense>
+                </div>
+              )}
+
               {workspaceComposition.showPerformancePads && (
                 <div
-                  hidden={lowerSurface !== 'performancePads' || lowerWorkspaceCollapsed || stageFocus}
+                  hidden={activeLowerSurface !== 'performancePads' || lowerWorkspaceCollapsed || stageFocus}
                   className="rv-lower-workspace-surface"
                 >
                   <ReactPerformancePads embedded />
@@ -835,7 +838,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         compact={stageFocus}
         expandable
         unifiedTimeline={
-          workspaceComposition.showTrackMap && lowerSurface === 'trackMap' && !lowerWorkspaceCollapsed && !stageFocus
+          (activeLowerSurface === 'trackMap' || activeLowerSurface === 'soundDrawing') &&
+          !lowerWorkspaceCollapsed &&
+          !stageFocus
         }
         waveformAppearance="deck"
       />

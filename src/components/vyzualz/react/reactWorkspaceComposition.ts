@@ -1,8 +1,15 @@
 import type { ReactEngineId } from './ReactTypes'
 
 export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts'
+export type ReactLowerSurface = 'trackMap' | 'soundDrawing' | 'performancePads'
 export type ReactPresetSurface = 'enginePresets' | 'shaderScenes'
 export type ReactWorkspaceTabLabel = 'SETUP' | 'SOURCE' | 'RIG' | 'LAYOUT'
+
+const REACT_LOWER_SURFACE_LABELS: Record<ReactLowerSurface, string> = {
+  trackMap: 'Track Map',
+  soundDrawing: 'Sound Drawing',
+  performancePads: 'Performance Pads',
+}
 
 export interface ReactWorkspaceComposition {
   showPerformancePads: boolean
@@ -102,4 +109,30 @@ export function getReactDefaultLeftTab(
   composition: ReactWorkspaceComposition,
 ): ReactLeftTab {
   return composition.leftTabs[0] ?? 'workspace'
+}
+
+/**
+ * Returns lower-workspace surfaces in their canonical left-to-right order.
+ * Sound Drawing is intentionally a sibling of Track Map rather than a lane
+ * nested inside it.
+ */
+export function getReactLowerSurfaces(
+  composition: ReactWorkspaceComposition,
+): ReactLowerSurface[] {
+  const surfaces: ReactLowerSurface[] = []
+  if (composition.showTrackMap) surfaces.push('trackMap')
+  if (composition.showSoundDrawingTimeline) surfaces.push('soundDrawing')
+  if (composition.showPerformancePads) surfaces.push('performancePads')
+  return surfaces
+}
+
+export function getReactLowerSurfaceLabel(surface: ReactLowerSurface): string {
+  return REACT_LOWER_SURFACE_LABELS[surface]
+}
+
+export function isReactLowerSurfaceAvailable(
+  surface: ReactLowerSurface,
+  composition: ReactWorkspaceComposition,
+): boolean {
+  return getReactLowerSurfaces(composition).includes(surface)
 }
