@@ -116,15 +116,25 @@ describe('Brand Kit Settings states and accessibility', () => {
     const onClose = vi.fn()
     await render(<SettingsModal onClose={onClose} />)
     const account = container.querySelector('#vsm-tab-account') as HTMLButtonElement
+    const appearance = container.querySelector('#vsm-tab-appearance') as HTMLButtonElement
     const brand = container.querySelector('#vsm-tab-brand') as HTMLButtonElement
+    const system = container.querySelector('#vsm-tab-system') as HTMLButtonElement
     const modal = container.querySelector('.vsm-modal') as HTMLDivElement
     const initialModalClassName = modal.className
     expect(account.getAttribute('aria-selected')).toBe('true')
+    expect(container.querySelector('#vsm-tab-shortcuts')).toBeNull()
 
     await act(async () => account.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
+    expect(appearance.getAttribute('aria-selected')).toBe('true')
+    expect(container.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe('vsm-tab-appearance')
+
+    await act(async () => appearance.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
     expect(brand.getAttribute('aria-selected')).toBe('true')
     expect(container.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe('vsm-tab-brand')
     expect(modal.className).toBe(initialModalClassName)
+
+    await act(async () => system.click())
+    expect(container.textContent).toContain('Keyboard Shortcuts')
 
     await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
     expect(onClose).toHaveBeenCalledTimes(1)

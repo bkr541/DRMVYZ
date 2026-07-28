@@ -1,0 +1,563 @@
+/* ════════════════════════════════════════════════════════════════════════
+   DRMVYZ Appearance Themes
+   Standard UI component colors only. Visual canvases, waveforms, branding,
+   typography, effects, and authored media retain their engine-owned colors.
+════════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-background: #090d0f;
+  --color-panel: #0b1012;
+  --color-panel-alt: #151a1d;
+  --color-card: #151a1d;
+  --color-popover: #171b1d;
+  --color-surface: #1a2024;
+  --color-surface-hover: #252d32;
+  --color-muted: #1a2024;
+  --color-input: #1a2024;
+  --color-border: rgba(154, 178, 188, 0.26);
+  --color-border-subtle: rgba(154, 178, 188, 0.18);
+  --color-border-faint: rgba(154, 178, 188, 0.1);
+  --color-primary: #4ac7db;
+  --color-primary-rgb: 74, 199, 219;
+  --color-secondary: #61d6aa;
+  --color-secondary-rgb: 97, 214, 170;
+  --color-accent: #b84fc9;
+  --color-ring: #4ac7db;
+  --color-text: rgba(232, 238, 240, 0.88);
+  --color-text-strong: rgba(245, 248, 250, 0.94);
+  --color-text-muted: rgba(196, 207, 211, 0.58);
+  --color-text-faint: rgba(196, 207, 211, 0.32);
+  --color-text-on-primary: #081014;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-background: #e7edf1;
+  --color-panel: #f3f6f8;
+  --color-panel-alt: #ffffff;
+  --color-card: #ffffff;
+  --color-popover: #ffffff;
+  --color-surface: #e2e9ee;
+  --color-surface-hover: #d3dfe6;
+  --color-muted: #dbe4e9;
+  --color-input: #ffffff;
+  --color-border: #9fadb7;
+  --color-border-subtle: #bcc7cf;
+  --color-border-faint: #d5dde2;
+  --color-primary: #087f9c;
+  --color-primary-rgb: 8, 127, 156;
+  --color-secondary: #168e68;
+  --color-secondary-rgb: 22, 142, 104;
+  --color-accent: #b33954;
+  --color-ring: #087f9c;
+  --color-text: #1a2931;
+  --color-text-strong: #0d1b22;
+  --color-text-muted: #4f626d;
+  --color-text-faint: #70818b;
+  --color-text-on-primary: #f7fbfc;
+}
+
+[data-theme='cdj'] {
+  color-scheme: dark;
+
+  /* DropDex CDJ standard UI component tokens */
+  --color-background: #0b0e12;
+  --color-panel: #0f1318;
+  --color-panel-alt: #171d23;
+  --color-card: #181e25;
+  --color-popover: #181e25;
+  --color-surface: #202731;
+  --color-surface-hover: #29333d;
+  --color-muted: #202731;
+  --color-input: #202731;
+  --color-border: #343e48;
+  --color-border-subtle: #343e48;
+  --color-border-faint: #252d35;
+  --color-primary: #168cff;
+  --color-primary-rgb: 22, 140, 255;
+  --color-secondary: #38afff;
+  --color-secondary-rgb: 56, 175, 255;
+  --color-accent: #ef4e5d;
+  --color-ring: #168cff;
+
+  /* Readability aliases are intentionally separate from the supplied UI-token guide. */
+  --color-text: rgba(232, 238, 244, 0.9);
+  --color-text-strong: rgba(247, 250, 252, 0.96);
+  --color-text-muted: rgba(196, 207, 218, 0.62);
+  --color-text-faint: rgba(196, 207, 218, 0.36);
+  --color-text-on-primary: #07111c;
+}
+
+/* Existing application-token aliases. New components should use --color-*.
+   These aliases let the current UI migrate without a risky all-at-once rewrite. */
+[data-theme] {
+  --bg: var(--color-background);
+  --bg-panel: var(--color-panel);
+  --bg-panel2: var(--color-panel-alt);
+  --border: var(--color-border-subtle);
+  --text: var(--color-text);
+  --text-dim: var(--color-text-muted);
+  --text-faint: var(--color-text-faint);
+
+  --az-bg: var(--color-background);
+  --az-sidebar: var(--color-panel);
+  --az-panel: var(--color-card);
+  --az-panel2: var(--color-panel-alt);
+  --az-dock: var(--color-panel);
+  --az-border: var(--color-border-subtle);
+  --az-border-s: var(--color-border);
+  --az-text: var(--color-text);
+  --az-text-muted: var(--color-text-muted);
+  --az-text-faint: var(--color-text-faint);
+}
+
+body,
+.app-root,
+.az-root {
+  background: var(--color-background);
+  color: var(--color-text);
+}
+
+/* Structural surfaces */
+[data-theme] .az-sidebar,
+[data-theme] .vz-header,
+[data-theme] .az-dock,
+[data-theme] .vz-transport-dock {
+  background-color: var(--color-panel);
+  border-color: var(--color-border-subtle);
+}
+
+[data-theme] .vz-inspector-inner,
+[data-theme] .rv-shell,
+[data-theme] .rv-lower-workspace,
+[data-theme] .rv-right-subtabs--embedded {
+  background-color: var(--color-panel-alt);
+}
+
+[data-theme] .az-panel,
+[data-theme] .vz-panel,
+[data-theme] .vsm-modal,
+[data-theme] .rv-workspace-panel,
+[data-theme] .rv-control-panel {
+  background-color: var(--color-card);
+  border-color: var(--color-border-subtle);
+}
+
+[data-theme] .az-popover,
+[data-theme] .vz-settings-popover,
+[data-theme] .vz-view-menu,
+[data-theme] .vz-preset-dialog,
+[data-theme] .bk-picker {
+  background-color: var(--color-popover);
+  border-color: var(--color-border-subtle);
+}
+
+[data-theme] .vz-panel-tabs,
+[data-theme] .rv-right-subtabs,
+[data-theme] .rv-lower-workspace-toolbar,
+[data-theme] .vsm-header,
+[data-theme] .vsm-nav {
+  border-color: var(--color-border-faint);
+}
+
+[data-theme] .vz-panel-tabs,
+[data-theme] .rv-right-subtabs {
+  background-color: var(--color-panel);
+}
+
+/* Standard controls */
+[data-theme] :is(
+  .az-select,
+  .az-input,
+  .vsm-acct-input,
+  .vz-settings-seg-btn,
+  .vz-settings-reset-btn,
+  .vsm-settings-btn,
+  .vz-header .vz-session-save-btn,
+  .vz-header .az-overflow-btn,
+  .vz-inspector-toggle,
+  .vz-shortcut-card,
+  .rv-lower-workspace-tabs button,
+  .rv-stage-focus-btn,
+  .rv-right-subtabs button,
+  .rv-ctrl-select,
+  .rv-ctrl-input,
+  .rv-ctrl-toggle,
+  .rv-action-btn
+) {
+  background-color: var(--color-surface);
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-muted);
+}
+
+[data-theme] :is(
+  .az-select,
+  .az-input,
+  .vsm-acct-input,
+  .rv-ctrl-select,
+  .rv-ctrl-input
+):focus {
+  border-color: var(--color-primary);
+}
+
+[data-theme] :is(
+  .vz-settings-seg-btn,
+  .vz-settings-reset-btn,
+  .vsm-settings-btn,
+  .vz-header .vz-session-save-btn,
+  .vz-header .az-overflow-btn,
+  .vz-inspector-toggle,
+  .vz-panel-tabs button,
+  .rv-lower-workspace-tabs button,
+  .rv-stage-focus-btn,
+  .rv-right-subtabs button,
+  .rv-action-btn
+):hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text-strong);
+}
+
+[data-theme] :is(
+  .vz-settings-seg-btn--active,
+  .vz-panel-tabs button.is-active,
+  .vz-panel-tabs button[aria-selected='true'],
+  .rv-lower-workspace-tabs button.is-active,
+  .rv-right-subtabs button.is-active,
+  .vsm-nav-item--active
+) {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-color: rgba(var(--color-primary-rgb), 0.12);
+}
+
+[data-theme] :focus-visible {
+  outline-color: var(--color-ring);
+}
+
+/* Common UI text. Authored renderer/canvas colors are deliberately untouched. */
+[data-theme] :is(
+  .vz-header-title,
+  .vsm-title,
+  .vsm-settings-group-heading h2,
+  .vsm-theme-copy strong
+) {
+  color: var(--color-text-strong);
+}
+
+[data-theme] :is(
+  .vz-header-sub,
+  .vz-input-label,
+  .vsm-nav-item,
+  .vsm-settings-group-heading p,
+  .vsm-settings-inline-row,
+  .vsm-settings-detail,
+  .vsm-theme-copy span,
+  .vsm-theme-sync,
+  .rv-panel-title,
+  .rv-ctrl-label,
+  .rv-right-subtabs button,
+  .rv-lower-workspace-tabs button
+) {
+  color: var(--color-text-muted);
+}
+
+/* Settings modal layout */
+.vsm-system-settings,
+.vsm-appearance {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.vsm-settings-group {
+  padding: 16px;
+  border: 1px solid var(--color-border-faint);
+  border-radius: 8px;
+  background: var(--color-panel-alt);
+}
+
+.vsm-settings-group-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.vsm-settings-group-heading h2 {
+  margin: 0;
+  font: 700 12px/1.2 var(--az-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vsm-settings-group-heading p {
+  margin: 5px 0 0;
+  font: 400 10px/1.55 var(--az-font-data);
+}
+
+.vsm-settings-group-heading--action {
+  align-items: center;
+}
+
+.vsm-settings-segment-row,
+.vsm-settings-actions,
+.vsm-settings-inline-row,
+.vsm-auto-quality-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vsm-settings-segment-row .vz-settings-seg-btn {
+  flex: 1 1 0;
+  min-height: 30px;
+}
+
+.vsm-settings-segment-row--compact {
+  flex: 1;
+}
+
+.vsm-settings-segment-row--compact .vz-settings-seg-btn {
+  min-height: 26px;
+  padding: 3px 8px;
+}
+
+.vsm-settings-toggle {
+  flex: 0 0 auto;
+  min-width: 58px;
+}
+
+.vsm-auto-quality {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vsm-auto-quality-row > span:first-child {
+  width: 34px;
+  flex: 0 0 34px;
+  color: var(--color-text-faint);
+  font: 600 10px/1 var(--az-font-data);
+}
+
+.vsm-settings-detail,
+.vsm-settings-inline-row {
+  font: 500 10px/1.45 var(--az-font-data);
+}
+
+.vsm-settings-detail > span:first-child {
+  color: var(--color-primary);
+}
+
+.vsm-settings-detail-reason {
+  margin-left: 8px;
+  color: var(--color-text-faint);
+}
+
+.vsm-media-sync-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--color-muted);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.vsm-media-sync-dot.is-online {
+  background: var(--color-secondary);
+  border-color: var(--color-secondary);
+}
+
+.vz-shortcuts-section--settings {
+  width: 100%;
+  padding: 0;
+  overflow: visible;
+}
+
+.vz-shortcuts-section--settings .vz-shortcut-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.vz-shortcuts-section--settings .vz-shortcut-card {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.vz-shortcuts-section--settings .vz-shortcut-key {
+  color: var(--color-primary);
+  background: rgba(var(--color-primary-rgb), 0.12);
+  border-color: rgba(var(--color-primary-rgb), 0.28);
+}
+
+.vz-shortcuts-section--settings .vz-shortcut-desc {
+  color: var(--color-text-muted);
+}
+
+/* Theme chooser */
+.vsm-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.vsm-theme-card {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-card);
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.vsm-theme-card:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-hover);
+  transform: translateY(-1px);
+}
+
+.vsm-theme-card.is-selected {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.22);
+}
+
+.vsm-theme-preview {
+  height: 74px;
+  display: grid;
+  grid-template-columns: 28% 1fr;
+  overflow: hidden;
+  border: 1px solid var(--preview-border);
+  border-radius: 6px;
+  background: var(--preview-bg);
+}
+
+.vsm-theme-preview-sidebar {
+  background: var(--preview-panel);
+  border-right: 1px solid var(--preview-border);
+}
+
+.vsm-theme-preview-panel {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  padding: 9px;
+  background: var(--preview-panel-alt);
+}
+
+.vsm-theme-preview-control {
+  width: 32%;
+  height: 12px;
+  border: 1px solid var(--preview-border);
+  border-radius: 3px;
+  background: var(--preview-surface);
+}
+
+.vsm-theme-preview-control--active {
+  width: 42%;
+  background: var(--preview-primary);
+  border-color: var(--preview-primary);
+}
+
+.vsm-theme-card--dark {
+  --preview-bg: #090d0f;
+  --preview-panel: #0b1012;
+  --preview-panel-alt: #151a1d;
+  --preview-surface: #1a2024;
+  --preview-border: rgba(154, 178, 188, 0.24);
+  --preview-primary: #4ac7db;
+}
+
+.vsm-theme-card--light {
+  --preview-bg: #e7edf1;
+  --preview-panel: #f3f6f8;
+  --preview-panel-alt: #ffffff;
+  --preview-surface: #e2e9ee;
+  --preview-border: #aebbc5;
+  --preview-primary: #087f9c;
+}
+
+.vsm-theme-card--cdj {
+  --preview-bg: #0b0e12;
+  --preview-panel: #0f1318;
+  --preview-panel-alt: #171d23;
+  --preview-surface: #202731;
+  --preview-border: #343e48;
+  --preview-primary: #168cff;
+}
+
+.vsm-theme-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 18px;
+}
+
+.vsm-theme-copy strong {
+  font: 700 11px/1.2 var(--az-font);
+  letter-spacing: 0.05em;
+}
+
+.vsm-theme-copy span {
+  font: 400 9px/1.45 var(--az-font-data);
+}
+
+.vsm-theme-radio {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+
+.vsm-theme-card.is-selected .vsm-theme-radio {
+  border: 3px solid var(--color-primary);
+  background: var(--color-text-on-primary);
+}
+
+.vsm-theme-sync {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-faint);
+  font: 500 9px/1.4 var(--az-font-data);
+}
+
+.vsm-theme-sync--error {
+  color: var(--color-accent);
+}
+
+.vsm-theme-sync button {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font: 700 9px/1 var(--az-font-data);
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .vsm-theme-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vz-shortcuts-section--settings .vz-shortcut-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

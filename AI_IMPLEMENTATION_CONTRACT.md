@@ -321,6 +321,10 @@ Rules:
 
 Persist authored state and user preferences, not volatile runtime state.
 
+Current application preferences persist:
+
+- Appearance theme (`dark`, `light`, or `cdj`) uses a local-first cache and authenticated Supabase reconciliation.
+
 Current React workspace preferences persist:
 
 - Left rail collapsed.

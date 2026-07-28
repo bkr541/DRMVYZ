@@ -18,7 +18,7 @@
 |-------|---------|
 | `profiles` | Mirrors `auth.users`; auto-created on signup via trigger |
 | `sessions` | App usage sessions (start/end time, client info) |
-| `user_settings` | Per-user preferences (theme, default view, FFT size, volume) |
+| `user_settings` | Per-user preferences (Dark, Light, or CDJ theme; default view; FFT size; volume) |
 | `tags` | User-defined labels |
 | `audio_track_tags` | M2M: tracks ↔ tags |
 | `media_item_tags` | M2M: media items ↔ tags |
@@ -117,6 +117,12 @@ All buckets are private. Storage RLS policies enforce that each user can only ac
 ## TypeScript Types
 
 All types are in [`src/types/database.ts`](../src/types/database.ts). The `Database` interface is passed to `createClient<Database>()` in [`src/lib/supabase.ts`](../src/lib/supabase.ts) for end-to-end type safety.
+
+### Appearance preference
+
+`user_settings.theme` accepts `dark`, `light`, or `cdj`. The client applies the most recent local cache before React mounts, then reconciles the authenticated user's preference with Supabase. Local changes remain active if cloud sync is unavailable and are retried on the next authenticated startup or from the Appearance status control.
+
+Migration `0030_appearance_themes.sql` converts legacy `system` rows to `dark` and updates the database check constraint.
 
 ## Security
 

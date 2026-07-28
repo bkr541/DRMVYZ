@@ -1,5 +1,5 @@
 // Auto-maintained TypeScript types for the DRMVYZ Supabase schema.
-// Keep in sync with supabase/migrations/0001_initial_drmvyz_schema.sql
+// Keep in sync with the cumulative schema in supabase/migrations/.
 // Lyric tables added in 0006_lyric_system.sql — see src/types/lyrics.ts for full lyric types.
 import type {
   LyricDocumentRow, LyricDocumentInsert, LyricDocumentUpdate,
@@ -20,7 +20,7 @@ export type Json =
 export type AudioSource  = 'file' | 'microphone' | 'demo' | 'ring_buffer' | 'rekordbox_xml' | 'rekordbox_usb'
 export type MeterMode    = 'vu' | 'rms' | 'peak' | 'ebu'
 export type ViewMode     = 'analyzer' | 'reference' | 'vyzualz'
-export type Theme        = 'dark' | 'light' | 'system'
+export type Theme        = 'dark' | 'light' | 'cdj'
 export type MediaType    = 'image' | 'video'
 export type ExportFormat = 'png' | 'jpeg' | 'webm' | 'gif'
 

@@ -8,6 +8,7 @@ import { useBrandKitStore } from './features/personalization/brandKitStore'
 import { applyBrandAppAccent, restoreStandardAppAccent } from './features/personalization/appAccentPersonalization'
 import { productionOutputController } from './components/vyzualz/react/output/ProductionOutput'
 import { useMediaStore } from './stores/mediaStore'
+import { useAppearanceStore } from './features/appearance/appearanceStore'
 
 const VyzualzView = lazy(() =>
   import('./components/vyzualz/VyzualzView').then(module => ({ default: module.VyzualzView })),
@@ -47,6 +48,7 @@ export default function App() {
     // is never bypassed, including local and packaged production builds.
     if (!supabaseConfigured) {
       useBrandKitStore.getState().clearForSignedOut()
+      useAppearanceStore.getState().clearForSignedOut()
       useMediaStore.getState().clear()
       setAuthGate('configuration-required')
       return
@@ -57,8 +59,13 @@ export default function App() {
       activeUserId = userId
       useMediaStore.getState().clear()
       setAuthGate(userId ? 'authenticated' : 'signed-out')
-      if (userId) void useBrandKitStore.getState().initializeForUser(userId)
-      else useBrandKitStore.getState().clearForSignedOut()
+      if (userId) {
+        void useBrandKitStore.getState().initializeForUser(userId)
+        void useAppearanceStore.getState().initializeForUser(userId)
+      } else {
+        useBrandKitStore.getState().clearForSignedOut()
+        useAppearanceStore.getState().clearForSignedOut()
+      }
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -69,8 +76,13 @@ export default function App() {
       }
       activeUserId = userId
       setAuthGate(userId ? 'authenticated' : 'signed-out')
-      if (userId) void useBrandKitStore.getState().initializeForUser(userId)
-      else useBrandKitStore.getState().clearForSignedOut()
+      if (userId) {
+        void useBrandKitStore.getState().initializeForUser(userId)
+        void useAppearanceStore.getState().initializeForUser(userId)
+      } else {
+        useBrandKitStore.getState().clearForSignedOut()
+        useAppearanceStore.getState().clearForSignedOut()
+      }
     })
 
     return () => {

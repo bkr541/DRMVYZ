@@ -11,6 +11,10 @@ import './styles/lyricManagerModal.css'
 import './styles/lyricManager.css'
 import './styles/mediaManager.css'
 import './styles/addCueModal.css'
+import './styles/appearance.css'
+import { bootstrapAppearanceTheme } from './features/appearance/appearanceStore'
+
+bootstrapAppearanceTheme()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

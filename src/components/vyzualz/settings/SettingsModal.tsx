@@ -6,6 +6,7 @@ import { supabase, supabaseConfigured } from '../../../lib/supabase'
 import { getProfile, updateProfile, uploadAvatar } from '../../../lib/profileDb'
 import type { Profile } from '../../../types/database'
 import { BrandKitSettingsPanel } from '../../../features/personalization/components/BrandKitSettingsPanel'
+import { AppearanceSettingsPanel } from '../../../features/appearance/AppearanceSettingsPanel'
 
 // ── AccountPanel ──────────────────────────────────────────────────────────────
 
@@ -219,8 +220,7 @@ const SHORTCUTS = [
 
 function ShortcutPanel() {
   return (
-    <div className="vz-shortcuts-section">
-      <span className="vz-shortcuts-label">Shortcuts</span>
+    <div className="vz-shortcuts-section vz-shortcuts-section--settings">
       <div className="vz-shortcut-grid">
         {SHORTCUTS.map(s => (
           <div key={s.key} className="vz-shortcut-card">
@@ -248,10 +248,15 @@ function SystemSettingsPanel() {
   })))
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div className="az-popover-section-title">Canvas Quality</div>
-        <div style={{ display: 'flex', gap: 6 }}>
+    <div className="vsm-system-settings">
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading">
+          <div>
+            <h2>Canvas Quality</h2>
+            <p>Set the base renderer quality used by the visual canvas.</p>
+          </div>
+        </div>
+        <div className="vsm-settings-segment-row">
           {QUALITY_LEVELS.map(q => (
             <button
               key={q}
@@ -260,86 +265,95 @@ function SystemSettingsPanel() {
             >{q}</button>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div>
-        <div className="az-popover-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          Auto Quality
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading vsm-settings-group-heading--action">
+          <div>
+            <h2>Auto Quality</h2>
+            <p>Allow DRMVYZ to adjust quality inside the selected bounds.</p>
+          </div>
           <button
-            className={`vz-settings-seg-btn${autoQualityEnabled ? ' vz-settings-seg-btn--active' : ''}`}
-            style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px' }}
+            className={`vz-settings-seg-btn vsm-settings-toggle${autoQualityEnabled ? ' vz-settings-seg-btn--active' : ''}`}
             onClick={() => setAutoQualityEnabled(!autoQualityEnabled)}
           >{autoQualityEnabled ? 'ON' : 'OFF'}</button>
         </div>
         {autoQualityEnabled && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.5)', width: 28 }}>Min</span>
-              <div style={{ display: 'flex', gap: 4 }}>
+          <div className="vsm-auto-quality">
+            <div className="vsm-auto-quality-row">
+              <span>Min</span>
+              <div className="vsm-settings-segment-row vsm-settings-segment-row--compact">
                 {QUALITY_LEVELS.map(q => (
                   <button key={q}
                     className={`vz-settings-seg-btn${autoQualityMin === q ? ' vz-settings-seg-btn--active' : ''}`}
-                    style={{ fontSize: 10, padding: '2px 8px' }}
                     onClick={() => setAutoQualityMin(q)}
                   >{q}</button>
                 ))}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, color: 'rgba(245,248,250,0.5)', width: 28 }}>Max</span>
-              <div style={{ display: 'flex', gap: 4 }}>
+            <div className="vsm-auto-quality-row">
+              <span>Max</span>
+              <div className="vsm-settings-segment-row vsm-settings-segment-row--compact">
                 {QUALITY_LEVELS.map(q => (
                   <button key={q}
                     className={`vz-settings-seg-btn${autoQualityMax === q ? ' vz-settings-seg-btn--active' : ''}`}
-                    style={{ fontSize: 10, padding: '2px 8px' }}
                     onClick={() => setAutoQualityMax(q)}
                   >{q}</button>
                 ))}
               </div>
             </div>
-            <div style={{ fontSize: 10, color: 'rgba(245,248,250,0.45)', fontFamily: 'var(--az-font-data)', lineHeight: 1.5 }}>
-              Current: <span style={{ color: 'rgba(74,199,219,0.85)' }}>{quality}</span>
-              {autoQualityReason && (
-                <span style={{ marginLeft: 8, color: 'rgba(245,248,250,0.3)' }}>{autoQualityReason}</span>
-              )}
+            <div className="vsm-settings-detail">
+              Current: <span>{quality}</span>
+              {autoQualityReason && <span className="vsm-settings-detail-reason">{autoQualityReason}</span>}
             </div>
           </div>
         )}
-      </div>
+      </section>
 
-      <div>
-        <div className="az-popover-section-title">BPM Sync</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            className={`vz-settings-seg-btn${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
-            onClick={toggleBpmSync}
-            style={{ minWidth: 54 }}
-          >{bpmSync ? 'ON' : 'OFF'}</button>
-          <span style={{ fontSize: 11, color: 'rgba(245,248,250,0.45)', fontFamily: 'var(--az-font-data)' }}>
-            {bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}
-          </span>
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading">
+          <div>
+            <h2>BPM Sync</h2>
+            <p>Lock visual timing to the active track tempo.</p>
+          </div>
         </div>
-      </div>
+        <div className="vsm-settings-inline-row">
+          <button
+            className={`vz-settings-seg-btn vsm-settings-toggle${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
+            onClick={toggleBpmSync}
+          >{bpmSync ? 'ON' : 'OFF'}</button>
+          <span>{bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}</span>
+        </div>
+      </section>
 
-      <div>
-        <div className="az-popover-section-title">Media Sync</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
-            background: storageAvailable && !authRequired ? '#61d6aa' : 'rgba(245,248,250,0.2)',
-            flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 11, color: 'rgba(245,248,250,0.55)', fontFamily: 'var(--az-font-data)' }}>
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading">
+          <div>
+            <h2>Media Sync</h2>
+            <p>Shows whether media changes can be persisted to cloud storage.</p>
+          </div>
+        </div>
+        <div className="vsm-settings-inline-row">
+          <span
+            className={`vsm-media-sync-dot${storageAvailable && !authRequired ? ' is-online' : ''}`}
+            aria-hidden="true"
+          />
+          <span>
             {!storageAvailable ? 'Local only — Supabase not configured'
               : authRequired   ? 'Signed out — media stored locally'
               :                  'Cloud sync enabled'}
           </span>
         </div>
-      </div>
+      </section>
 
-      <div>
-        <div className="az-popover-section-title">Reset</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading">
+          <div>
+            <h2>Reset</h2>
+            <p>Restore effect or modulation settings without changing saved media.</p>
+          </div>
+        </div>
+        <div className="vsm-settings-actions">
           <button
             className="vz-settings-reset-btn"
             onClick={resetEffects}
@@ -351,17 +365,27 @@ function SystemSettingsPanel() {
             title="Restore default audio modulation routing"
           >Reset Modulation</button>
         </div>
-      </div>
+      </section>
+
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading">
+          <div>
+            <h2>Keyboard Shortcuts</h2>
+            <p>Quick performance controls available from the main workspace.</p>
+          </div>
+        </div>
+        <ShortcutPanel />
+      </section>
     </div>
   )
 }
 
-type SettingsTab = 'account' | 'brand' | 'shortcuts' | 'system'
+type SettingsTab = 'account' | 'appearance' | 'brand' | 'system'
 
 const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'account', label: 'Account' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'brand', label: 'Brand Kit' },
-  { id: 'shortcuts', label: 'Shortcuts' },
   { id: 'system', label: 'System Settings' },
 ]
 
@@ -456,8 +480,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             tabIndex={0}
           >
             {tab === 'account' && <AccountPanel />}
+            {tab === 'appearance' && <AppearanceSettingsPanel />}
             {tab === 'brand' && <BrandKitSettingsPanel />}
-            {tab === 'shortcuts' && <ShortcutPanel />}
             {tab === 'system' && <SystemSettingsPanel />}
           </div>
         </div>
