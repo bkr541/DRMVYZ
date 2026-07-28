@@ -23,6 +23,13 @@ import {
   getScopeSignalCore,
   toStereoScopeFrame,
 } from './soundDrawingScopeGeometry'
+import { ScopePhosphorQualityController } from './soundDrawing/ScopePhosphorQualityController'
+import { ScopePhosphorRuntime } from './soundDrawing/ScopePhosphorRuntime'
+import {
+  packVectorBeamSegments,
+  requiredBeamSegmentFloats,
+  resolveBeamHaloWidthPx,
+} from './soundDrawing/soundDrawingBeamPacking'
 import { textToGlyphPoints } from './textGlyphUtils'
 import {
   clearRuntimeOpenTypeTextGeometry,
@@ -371,6 +378,7 @@ export function disposeSoundDrawingRenderer(
   // whatever renders next.
   disposeScopeSignalCore(ctx)
   scopeTracePointBuffers.delete(ctx)
+  disposeScopeGpuState(ctx)
   if (options.affectProductionDiagnostics !== false) clearSharedPerformanceDiagnostics('soundDrawing')
 }
 
@@ -1306,8 +1314,15 @@ function drawWaveformOnTrail(
 // decorative deformation that would corrupt the reading. Audio-reactive
 // treatment is limited to beam width and brightness.
 
-function drawProfessionalScopeOnTrail(
-  tctx: CanvasRenderingContext2D,
+/**
+ * Resolves the professional scope trace and builds its beam segments.
+ *
+ * Shared by both presentations: the Canvas2D rasterizer strokes the returned
+ * array, and the GPU path packs the very same array for the geometry pass. That
+ * is what makes falling back from GPU to Canvas2D a change of presentation only
+ * — the geometry, corner dwell, and velocity exposure are already decided here.
+ */
+function buildProfessionalScopeSegments(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
@@ -1315,14 +1330,13 @@ function drawProfessionalScopeOnTrail(
   frame: ReactFrameContext,
   preset: ReactPreset,
   params: ReactRenderParams,
-  intMul: number,
-  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
-): boolean {
+  intMul = params.intensity,
+): VectorBeamSegment[] | null {
   const osc = params.oscillator
-  if (!canRenderProfessionalScope(osc, frame)) return false
+  if (!canRenderProfessionalScope(osc, frame)) return null
 
   const capture = toStereoScopeFrame(frame)
-  if (!capture) return false
+  if (!capture) return null
 
   const core = getScopeSignalCore(ctx)
   const trace = core.process({
@@ -1335,9 +1349,8 @@ function drawProfessionalScopeOnTrail(
     bpm: frame.bpm > 0 ? frame.bpm : 0,
     timingDiscontinuity: frame.timingDiscontinuity === true,
   })
-  if (!trace) return false
+  if (!trace) return null
 
-  const bass = frame.audio.bass * params.bassReactivity
   const scalePx = Math.min(W, H) * 0.42 * normalizeSoundDrawingVisualSize(osc.pathScale) * params.intensity
   const geometry = {
     W,
@@ -1347,8 +1360,6 @@ function drawProfessionalScopeOnTrail(
     centerY: H / 2,
     secondaryOffsetPx: H * 0.18,
   }
-
-  const baseWidthPx = (1.0 + bass * 1.6) * dpr * params.intensity
   const kinematics = resolveVectorBeamScannerKinematicsSettings(osc)
 
   // Dual-channel display separates the two traces vertically so each can be read
@@ -1360,12 +1371,11 @@ function drawProfessionalScopeOnTrail(
 
   const primaryPoints = getScopeTracePointBuffer(ctx, 0)
   const primaryCount = buildScopeTracePoints(trace, trace.y, geometry, primaryPoints, primaryOffsetPx)
-  if (primaryCount < 2) return false
+  if (primaryCount < 2) return null
 
-  const primarySegments = buildVectorBeamSegmentsFromPoints(
+  const segments = buildVectorBeamSegmentsFromPoints(
     primaryPoints, false, vectorBeamColorFromHex(preset.palette.primary, 0.9 * intMul), undefined, kinematics,
   )
-  rasterizeVectorBeamSegments(tctx, primarySegments, { blendMode, baseWidthPx, intensity: 1 })
 
   if (drawsSecondary) {
     const secondaryPoints = getScopeTracePointBuffer(ctx, 1)
@@ -1373,14 +1383,175 @@ function drawProfessionalScopeOnTrail(
       trace, trace.secondaryY!, geometry, secondaryPoints, geometry.secondaryOffsetPx,
     )
     if (secondaryCount >= 2) {
-      const secondarySegments = buildVectorBeamSegmentsFromPoints(
+      segments.push(...buildVectorBeamSegmentsFromPoints(
         secondaryPoints, false, vectorBeamColorFromHex(preset.palette.secondary, 0.9 * intMul), undefined, kinematics,
-      )
-      rasterizeVectorBeamSegments(tctx, secondarySegments, { blendMode, baseWidthPx, intensity: 1 })
+      ))
     }
   }
 
+  void dpr
+  return segments
+}
+
+/** Canvas2D presentation of the professional scope. */
+function drawProfessionalScopeOnTrail(
+  tctx: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  dpr: number,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+  intMul: number,
+  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
+): boolean {
+  const segments = buildProfessionalScopeSegments(ctx, W, H, dpr, frame, preset, params, intMul)
+  if (!segments || segments.length === 0) return false
+
+  const bass = frame.audio.bass * params.bassReactivity
+  const baseWidthPx = (1.0 + bass * 1.6) * dpr * params.intensity
+  rasterizeVectorBeamSegments(tctx, segments, { blendMode, baseWidthPx, intensity: 1 })
   return true
+}
+
+// ── GPU phosphor path ─────────────────────────────────────────────────────────
+
+interface ScopeGpuState {
+  runtime: ScopePhosphorRuntime
+  quality: ScopePhosphorQualityController
+  segmentData: Float32Array
+  lastFrameMs: number
+}
+
+const scopeGpuStateByContext = new WeakMap<CanvasRenderingContext2D, ScopeGpuState | null>()
+
+/**
+ * Per-canvas GPU state, created on first use.
+ *
+ * A null entry records that construction already failed, so a device without
+ * WebGL2 does not pay for a fresh context attempt every frame.
+ */
+function getScopeGpuState(ctx: CanvasRenderingContext2D): ScopeGpuState | null {
+  if (scopeGpuStateByContext.has(ctx)) return scopeGpuStateByContext.get(ctx) ?? null
+
+  let state: ScopeGpuState | null = null
+  try {
+    const runtime = new ScopePhosphorRuntime()
+    if (runtime.available) {
+      state = {
+        runtime,
+        quality: new ScopePhosphorQualityController('auto', runtime.currentQuality),
+        segmentData: new Float32Array(0),
+        lastFrameMs: 0,
+      }
+    } else {
+      runtime.dispose()
+    }
+  } catch {
+    // A host without WebGL2, or with contexts exhausted. Canvas2D still renders.
+    state = null
+  }
+
+  scopeGpuStateByContext.set(ctx, state)
+  return state
+}
+
+function disposeScopeGpuState(ctx: CanvasRenderingContext2D): void {
+  const state = scopeGpuStateByContext.get(ctx)
+  if (state) state.runtime.dispose()
+  scopeGpuStateByContext.delete(ctx)
+}
+
+/**
+ * Renders the professional scope through the GPU phosphor pipeline and
+ * composites the result onto the 2D output context.
+ *
+ * Consumes the identical `VectorBeamSegment[]` the Canvas2D path builds, so
+ * both renderers draw the same resolved beam optics and a fallback cannot
+ * change the geometry — only its presentation.
+ *
+ * Returns false whenever the GPU path did not produce a frame, which the caller
+ * reads as "carry on with Canvas2D".
+ */
+function renderProfessionalScopeOnGpu(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  dpr: number,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+): boolean {
+  const osc = params.oscillator
+  if (!canRenderProfessionalScope(osc, frame)) return false
+
+  const state = getScopeGpuState(ctx)
+  if (!state || !state.runtime.available) return false
+
+  const segments = buildProfessionalScopeSegments(ctx, W, H, dpr, frame, preset, params)
+  if (!segments || segments.length === 0) return false
+
+  const requiredFloats = requiredBeamSegmentFloats(segments.length)
+  if (state.segmentData.length < requiredFloats) {
+    state.segmentData = new Float32Array(requiredFloats)
+  }
+  const packed = packVectorBeamSegments(segments, { width: W, height: H }, state.segmentData)
+  if (packed.segmentCount < 1) return false
+
+  const startedAt = performance.now()
+  const bass = frame.audio.bass * params.bassReactivity
+  const coreWidthPx = (1.0 + bass * 1.6) * dpr * params.intensity
+
+  // The runtime's feedback-loop assertions throw by design, to surface a
+  // mis-ordered ping-pong at the bind site during development. In a live render
+  // loop that must degrade to Canvas2D rather than take the engine down with it,
+  // so the frame is guarded and a failed runtime is retired for this canvas.
+  let rendered = false
+  try {
+    rendered = state.runtime.renderFrame({
+      segmentData: state.segmentData,
+      segmentCount: packed.segmentCount,
+      width: W,
+      height: H,
+      deltaSeconds: frame.deltaTimeSec ?? 1 / 60,
+      // The 0–1 trailDecay control maps to a phosphor time constant: 0 is the
+      // longest persistence, 1 the shortest, matching the Canvas2D trail's sense.
+      persistenceSeconds: 0.05 + (1 - clamp(params.trailDecay, 0, 1)) * 1.2,
+      coreWidthPx,
+      haloWidthPx: resolveBeamHaloWidthPx(coreWidthPx, 6),
+      intensity: params.intensity,
+      glow: params.glow,
+      traceColor: hexToLinearRgb(preset.palette.primary),
+      backgroundColor: hexToLinearRgb(preset.palette.background),
+      backgroundLift: 0.12,
+      resetPersistence: frame.timingDiscontinuity === true,
+    })
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('[SoundDrawing] GPU phosphor frame failed:', error)
+    // Retire this canvas's runtime so the failure costs one frame, not every
+    // frame. The next render takes the Canvas2D path.
+    disposeScopeGpuState(ctx)
+    scopeGpuStateByContext.set(ctx, null)
+    return false
+  }
+  if (!rendered) return false
+
+  // Feed measured frame cost back into tier selection.
+  state.lastFrameMs = performance.now() - startedAt
+  const nextQuality = state.quality.recordFrame(state.lastFrameMs, startedAt)
+  if (nextQuality !== state.runtime.currentQuality) state.runtime.setQuality(nextQuality)
+
+  ctx.fillStyle = preset.palette.background
+  ctx.fillRect(0, 0, W, H)
+  ctx.drawImage(state.runtime.outputCanvas, 0, 0, W, H)
+  return true
+}
+
+/** Parses a hex colour into linear 0..1 components for shader uniforms. */
+function hexToLinearRgb(hex: string): { r: number; g: number; b: number } {
+  const color = vectorBeamColorFromHex(hex, 1)
+  return { r: color.r, g: color.g, b: color.b }
 }
 
 /** Reusable per-canvas point buffers so the scope draw path allocates nothing. */
@@ -2979,6 +3150,15 @@ export function renderSoundDrawing(
     }
   } else {
     mode = 'pathScope'
+  }
+
+  // GPU phosphor path. Runs its own persistence, so it bypasses the trail
+  // canvas entirely and composites straight onto the output context. Returning
+  // false means the runtime is unavailable or produced nothing this frame, in
+  // which case rendering continues down the Canvas2D path below exactly as
+  // before — the GPU pipeline is an enhancement, never a requirement.
+  if (mode === 'professionalScope' && renderProfessionalScopeOnGpu(ctx, W, H, dpr, frame, preset, params)) {
+    return
   }
 
   const trailCanvas = getTrail(ctx, W, H)
