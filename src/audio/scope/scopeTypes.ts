@@ -5,10 +5,10 @@
 // Nothing here knows about rendering. Geometry consumers (Canvas2D today, a GPU
 // beam renderer later) read the resolved trace this core produces.
 //
-// Rendering-side contracts (beam profile, phosphor persistence, CRT treatment)
-// are deliberately absent — they belong to the renderer patches and are added to
-// `SoundDrawingScopeState` through a versioned migration when they land, rather
-// than being persisted now as unused fields.
+// Beam profile and phosphor persistence remain renderer-owned and are derived
+// from the quality plan rather than persisted. CRT presentation IS persisted,
+// because it is a look the user authors rather than a performance tier — it
+// arrived in version 2 through the migration this file was versioned for.
 
 /**
  * How left/right samples are matrixed into the plotted X and Y axes.
@@ -235,6 +235,82 @@ export const DEFAULT_SCOPE_TIMEBASE: ScopeTimebaseSettings = {
   smoothing: 0.85,
 }
 
+
+// ── CRT presentation ──────────────────────────────────────────────────────────
+
+/**
+ * Phosphor colour response.
+ *
+ * Named for the look rather than for a specific tube. The brief is explicit that
+ * claiming exact emulation of a particular Tektronix phosphor would be a
+ * measurement claim this engine has not earned, so these are stylistic presets.
+ */
+export type ScopePhosphorModel = 'green' | 'amber' | 'blue' | 'white' | 'rgb' | 'custom'
+
+export type ScopeGraticuleStyle = 'none' | 'minimal' | 'scope' | 'vectorscope'
+
+export interface ScopeCrtSettings {
+  enabled: boolean
+
+  phosphorModel: ScopePhosphorModel
+  /** Used only when phosphorModel is 'custom'. Hex string. */
+  customPhosphorColor: string
+
+  /** 0..1. Subtle by default; heavy scanlines destroy thin trace detail. */
+  scanlineStrength: number
+  /** Scanline pairs per 1000 device pixels. Resolution-aware, so scaling the
+   *  output does not change how coarse the lines look. */
+  scanlineDensity: number
+
+  /** 0..1 barrel distortion. */
+  curvature: number
+  /** 0..1 corner darkening. */
+  vignette: number
+  /** 0..1 focus loss toward the tube edge. */
+  edgeDefocus: number
+
+  /** 0..1 static grain. */
+  grain: number
+
+  graticuleStyle: ScopeGraticuleStyle
+  /** 0..1 graticule line brightness. */
+  graticuleBrightness: number
+}
+
+/**
+ * Defaults deliberately exclude every animated artifact.
+ *
+ * Flicker, vertical roll, and horizontal jitter are the CRT effects that carry
+ * photosensitivity risk, and the accessibility requirement is that they have
+ * safe defaults. They are therefore not part of this settings shape at all
+ * rather than present-and-zeroed: a control that only ever hurts when raised,
+ * shipped off, is still a control someone raises. Static character — scanlines,
+ * curvature, vignette, grain — carries the CRT identity without motion.
+ */
+export const DEFAULT_SCOPE_CRT: ScopeCrtSettings = {
+  enabled: false,
+  phosphorModel: 'green',
+  customPhosphorColor: '#4ac7db',
+  scanlineStrength: 0.18,
+  scanlineDensity: 320,
+  curvature: 0.12,
+  vignette: 0.35,
+  edgeDefocus: 0.25,
+  grain: 0.05,
+  graticuleStyle: 'none',
+  graticuleBrightness: 0.22,
+}
+
+/** Linear RGB for each phosphor model. */
+export const SCOPE_PHOSPHOR_COLORS: Record<Exclude<ScopePhosphorModel, 'custom'>, readonly [number, number, number]> = {
+  green: [0.28, 1.0, 0.42],
+  amber: [1.0, 0.68, 0.18],
+  blue: [0.42, 0.68, 1.0],
+  white: [0.92, 0.96, 1.0],
+  // 'rgb' leaves the trace colour untouched, for a colour vector display.
+  rgb: [1.0, 1.0, 1.0],
+}
+
 // ── Persisted scope state ─────────────────────────────────────────────────────
 
 /**
@@ -258,10 +334,25 @@ export interface SoundDrawingScopeStateV1 {
   presetId: string | null
 }
 
-export type SoundDrawingScopeState = SoundDrawingScopeStateV1
+/**
+ * Version 2 adds CRT presentation.
+ *
+ * V1 projects migrate by receiving `DEFAULT_SCOPE_CRT`, which has `enabled:
+ * false` — so a project saved before the CRT layer existed renders exactly as it
+ * did, and the look is opt-in.
+ */
+export interface SoundDrawingScopeStateV2 extends Omit<SoundDrawingScopeStateV1, 'version'> {
+  version: 2
+  crt: ScopeCrtSettings
+}
+
+export type SoundDrawingScopeState = SoundDrawingScopeStateV2
+
+export const SOUND_DRAWING_SCOPE_STATE_VERSION = 2
 
 export const DEFAULT_SOUND_DRAWING_SCOPE_STATE: SoundDrawingScopeState = {
-  version: 1,
+  version: 2,
+  crt: DEFAULT_SCOPE_CRT,
   enabled: false,
   signalMode: 'stereoXY',
   signalConditioner: DEFAULT_SCOPE_SIGNAL_CONDITIONER,

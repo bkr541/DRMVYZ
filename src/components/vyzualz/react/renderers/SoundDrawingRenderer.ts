@@ -1525,6 +1525,7 @@ function renderProfessionalScopeOnGpu(
       traceColor: hexToLinearRgb(preset.palette.primary),
       backgroundColor: hexToLinearRgb(preset.palette.background),
       backgroundLift: 0.12,
+      crt: osc.scope.crt,
       resetPersistence: frame.timingDiscontinuity === true,
     })
   } catch (error) {

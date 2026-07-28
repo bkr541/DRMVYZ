@@ -5,7 +5,11 @@ import {
   normalizeScopeTrigger,
   normalizeSoundDrawingScopeState,
 } from '../scopeStateNormalization'
-import { DEFAULT_SOUND_DRAWING_SCOPE_STATE } from '../scopeTypes'
+import {
+  DEFAULT_SCOPE_CRT,
+  DEFAULT_SOUND_DRAWING_SCOPE_STATE,
+  SOUND_DRAWING_SCOPE_STATE_VERSION,
+} from '../scopeTypes'
 
 describe('scope signal mode migration', () => {
   it('migrates the legacy lissajous mode to the mono delay portrait', () => {
@@ -60,7 +64,8 @@ describe('scope state normalization', () => {
 
   it('preserves a fully specified valid state', () => {
     const source = {
-      version: 1,
+      version: SOUND_DRAWING_SCOPE_STATE_VERSION,
+      crt: DEFAULT_SCOPE_CRT,
       enabled: true,
       signalMode: 'midSideXY',
       signalConditioner: {
@@ -79,11 +84,45 @@ describe('scope state normalization', () => {
       monoDelayMs: 5,
       presetId: 'scope-lab-green',
     }
-    expect(normalizeSoundDrawingScopeState(source)).toEqual({ ...source, version: 1 })
+    expect(normalizeSoundDrawingScopeState(source))
+      .toEqual({ ...source, version: SOUND_DRAWING_SCOPE_STATE_VERSION })
   })
 
   it('always stamps the current version', () => {
-    expect(normalizeSoundDrawingScopeState({ version: 99 }).version).toBe(1)
+    expect(normalizeSoundDrawingScopeState({ version: 99 }).version)
+      .toBe(SOUND_DRAWING_SCOPE_STATE_VERSION)
+  })
+
+  it('migrates a v1 project forward without switching on a look it never chose', () => {
+    // A project saved before the CRT layer existed has no `crt` key at all. It
+    // must render exactly as it did, so the migrated settings arrive disabled.
+    const migrated = normalizeSoundDrawingScopeState({
+      version: 1, enabled: true, signalMode: 'stereoXY',
+    })
+    expect(migrated.version).toBe(SOUND_DRAWING_SCOPE_STATE_VERSION)
+    expect(migrated.crt).toEqual(DEFAULT_SCOPE_CRT)
+    expect(migrated.crt.enabled).toBe(false)
+    // And the settings it did have survive.
+    expect(migrated.signalMode).toBe('stereoXY')
+    expect(migrated.enabled).toBe(true)
+  })
+
+  it('repairs a corrupted CRT block rather than trusting it', () => {
+    const migrated = normalizeSoundDrawingScopeState({
+      crt: { phosphorModel: 'nonsense', scanlineStrength: 99, customPhosphorColor: 'drop table' },
+    })
+    expect(migrated.crt.phosphorModel).toBe(DEFAULT_SCOPE_CRT.phosphorModel)
+    expect(migrated.crt.scanlineStrength).toBe(1)
+    expect(migrated.crt.customPhosphorColor).toBe(DEFAULT_SCOPE_CRT.customPhosphorColor)
+  })
+
+  it('ships no animated CRT artifact, so photosensitivity risk is off by construction', () => {
+    // Flicker, vertical roll, and horizontal jitter are absent from the settings
+    // shape entirely rather than present-and-zeroed.
+    const keys = Object.keys(normalizeSoundDrawingScopeState({}).crt)
+    for (const risky of ['flicker', 'verticalRoll', 'horizontalJitter']) {
+      expect(keys).not.toContain(risky)
+    }
   })
 
   it('does not enable the professional core for legacy projects', () => {

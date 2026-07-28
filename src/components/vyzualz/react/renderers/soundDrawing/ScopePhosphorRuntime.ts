@@ -14,8 +14,10 @@ import {
   SCOPE_BEAM_VERT_SRC,
   SCOPE_BLOOM_FRAG_SRC,
   SCOPE_COMPOSITE_FRAG_SRC,
+  SCOPE_CRT_FRAG_SRC,
   SCOPE_PERSISTENCE_FRAG_SRC,
 } from './scopePhosphorShaders'
+import { SCOPE_PHOSPHOR_COLORS, type ScopeCrtSettings } from '../../../../../audio/scope/scopeTypes'
 import {
   probeScopeHdrCapability,
   resolveInitialScopePhosphorQuality,
@@ -70,6 +72,26 @@ const UNIT_SOURCE = 2
 const UNIT_BLOOM_0 = 3
 const UNIT_BLOOM_1 = 4
 const UNIT_BLOOM_2 = 5
+const UNIT_PRESENTATION = 6
+
+/** Maps the graticule style to the CRT shader's integer switch. */
+const GRATICULE_STYLE_INDEX: Record<ScopeCrtSettings['graticuleStyle'], number> = {
+  none: 0,
+  minimal: 1,
+  scope: 2,
+  vectorscope: 3,
+}
+
+/** Parses a hex phosphor colour into linear 0..1 components. */
+function hexToRgbTriplet(hex: string): readonly [number, number, number] {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  const value = match?.[1] ?? 'ffffff'
+  return [
+    parseInt(value.slice(0, 2), 16) / 255,
+    parseInt(value.slice(2, 4), 16) / 255,
+    parseInt(value.slice(4, 6), 16) / 255,
+  ]
+}
 
 export type ScopePhosphorUnavailableReason =
   | 'context-creation-failed'
@@ -100,6 +122,8 @@ export interface ScopePhosphorFrameInput {
   /** Background tint used for the tube's black level. */
   backgroundColor: { r: number; g: number; b: number }
   backgroundLift: number
+  /** Optional CRT presentation. Skipped entirely when disabled or unsupported. */
+  crt: ScopeCrtSettings
   /** True on seek, loop, or track change: clears persistence before drawing. */
   resetPersistence: boolean
 }
@@ -114,6 +138,7 @@ export class ScopePhosphorRuntime {
   private persistenceProgram: ShaderProgram | null = null
   private bloomProgram: ShaderProgram | null = null
   private compositeProgram: ShaderProgram | null = null
+  private crtProgram: ShaderProgram | null = null
 
   private geometryPass: GeometryPass | null = null
   private fullscreenPass: FullscreenPass | null = null
@@ -213,12 +238,16 @@ export class ScopePhosphorRuntime {
     const composite = ShaderProgram.create(gl, this.compiler, {
       label: 'scope-composite', vertSrc: FULLSCREEN_VERT_SRC, fragSrc: SCOPE_COMPOSITE_FRAG_SRC,
     })
+    const crt = ShaderProgram.create(gl, this.compiler, {
+      label: 'scope-crt', vertSrc: FULLSCREEN_VERT_SRC, fragSrc: SCOPE_CRT_FRAG_SRC,
+    })
 
-    if (!beam.program || !persistence.program || !bloom.program || !composite.program) {
+    if (!beam.program || !persistence.program || !bloom.program || !composite.program || !crt.program) {
       beam.program?.dispose()
       persistence.program?.dispose()
       bloom.program?.dispose()
       composite.program?.dispose()
+      crt.program?.dispose()
       this.unavailableReason = 'shader-compilation-failed'
       return
     }
@@ -227,6 +256,7 @@ export class ScopePhosphorRuntime {
     this.persistenceProgram = persistence.program
     this.bloomProgram = bloom.program
     this.compositeProgram = composite.program
+    this.crtProgram = crt.program
 
     this.geometryPass = new GeometryPass(gl)
     this.fullscreenPass = new FullscreenPass(gl)
@@ -431,14 +461,56 @@ export class ScopePhosphorRuntime {
       input.backgroundColor.r, input.backgroundColor.g, input.backgroundColor.b)
     this.compositeProgram.setFloat('uBackgroundLift', input.backgroundLift)
 
+    // CRT runs after tone mapping, on display-range colour: curving or
+    // scanlining HDR values before compression would let a bright intersection
+    // survive a scanline that should have dimmed it. When CRT is off the
+    // composite writes straight to the canvas and costs nothing extra.
+    const presentation = this.targets.presentationTarget
+    const runsCrt =
+      input.crt.enabled && plan.crtEnabled && this.crtProgram != null && presentation != null
+
     this.fullscreenPass.run(
-      this.compositeProgram, null, width, height,
+      this.compositeProgram,
+      runsCrt ? presentation!.framebuffer : null,
+      width, height,
       [
         { unit: UNIT_PREVIOUS, texture: persisted, uniformName: 'u_persistence' },
         { unit: UNIT_BLOOM_0, texture: this.targets.bloomTarget(0)?.texture ?? black, uniformName: 'u_bloom0' },
         { unit: UNIT_BLOOM_1, texture: this.targets.bloomTarget(1)?.texture ?? black, uniformName: 'u_bloom1' },
         { unit: UNIT_BLOOM_2, texture: this.targets.bloomTarget(2)?.texture ?? black, uniformName: 'u_bloom2' },
       ],
+      { clear: true },
+    )
+
+    if (!runsCrt) return true
+
+    // ── Pass 5: CRT presentation ────────────────────────────────────────────
+    const presentationTexture = presentation!.texture
+    if (!presentationTexture) return true
+
+    const crt = input.crt
+    const phosphor = crt.phosphorModel === 'custom'
+      ? hexToRgbTriplet(crt.customPhosphorColor)
+      : SCOPE_PHOSPHOR_COLORS[crt.phosphorModel]
+
+    this.crtProgram!.activate()
+    this.crtProgram!.setVec2('uResolution', width, height)
+    this.crtProgram!.setFloat('uScanlineStrength', crt.scanlineStrength)
+    this.crtProgram!.setFloat('uScanlineDensity', crt.scanlineDensity)
+    this.crtProgram!.setFloat('uCurvature', crt.curvature)
+    this.crtProgram!.setFloat('uVignette', crt.vignette)
+    this.crtProgram!.setFloat('uEdgeDefocus', crt.edgeDefocus)
+    this.crtProgram!.setFloat('uGrain', crt.grain)
+    this.crtProgram!.setVec3('uPhosphorColor', phosphor[0], phosphor[1], phosphor[2])
+    // 'rgb' is a colour vector display: it keeps the trace's own hue rather than
+    // driving everything to one emission colour.
+    this.crtProgram!.setFloat('uPhosphorTint', crt.phosphorModel === 'rgb' ? 0 : 1)
+    this.crtProgram!.setFloat('uGraticuleBrightness', crt.graticuleBrightness)
+    this.crtProgram!.setInt('uGraticuleStyle', GRATICULE_STYLE_INDEX[crt.graticuleStyle])
+
+    this.fullscreenPass.run(
+      this.crtProgram!, null, width, height,
+      [{ unit: UNIT_PRESENTATION, texture: presentationTexture, uniformName: 'u_source' }],
       { clear: true },
     )
 
@@ -450,6 +522,8 @@ export class ScopePhosphorRuntime {
     this.persistenceProgram?.dispose()
     this.bloomProgram?.dispose()
     this.compositeProgram?.dispose()
+    this.crtProgram?.dispose()
+    this.crtProgram = null
     this.beamProgram = null
     this.persistenceProgram = null
     this.bloomProgram = null

@@ -1,5 +1,7 @@
 import { useSharedAudio } from '../../../../context/AudioEngineContext'
 import type {
+  ScopeGraticuleStyle,
+  ScopePhosphorModel,
   ScopeSignalMode,
   ScopeTimebaseMode,
   ScopeTriggerMode,
@@ -8,7 +10,7 @@ import type {
   SoundDrawingScopeState,
 } from '../../../../audio/scope'
 import { isScopeStereoMeasurementMode } from '../../../../audio/scope'
-import { SliderRow, SelectRow, ToggleRow, CtrlSection, Collapsible } from '../ReactControlRows'
+import { SliderRow, SelectRow, ToggleRow, ColorRow, CtrlSection, Collapsible } from '../ReactControlRows'
 import type { OscillatorSettings } from '../ReactTypes'
 
 interface Props {
@@ -24,8 +26,9 @@ interface Props {
  * precise trigger, timebase, and conditioning parameters live behind
  * collapsibles so a new user reaches a stable trace without opening any of them.
  *
- * Beam, phosphor, and CRT controls are deliberately absent — they belong to the
- * renderer patches and would be inert here.
+ * Beam and phosphor tuning stay renderer-owned and are derived from the quality
+ * plan rather than exposed here. CRT presentation is a look the user authors, so
+ * it gets a collapsible of its own.
  */
 export function SoundDrawingProScopeControls({ osc, set }: Props) {
   const engine = useSharedAudio()
@@ -42,6 +45,9 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
   }
   const patchConditioner = (patch: Partial<SoundDrawingScopeState['signalConditioner']>) => {
     patchScope({ signalConditioner: { ...scope.signalConditioner, ...patch } })
+  }
+  const patchCrt = (patch: Partial<SoundDrawingScopeState['crt']>) => {
+    patchScope({ crt: { ...scope.crt, ...patch } })
   }
 
   const captureStatus = engine.scopeStereoTap?.getStatus() ?? null
@@ -232,6 +238,85 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
           value={scope.trigger.preTriggerRatio}
           onChange={v => patchTrigger({ preTriggerRatio: v })}
         />
+      </Collapsible>
+
+
+      <Collapsible label="CRT Display" defaultOpen={false}>
+        <ToggleRow
+          label="CRT Presentation"
+          value={scope.crt.enabled}
+          onChange={v => patchCrt({ enabled: v })}
+          description="Adds tube character over the finished image. Off by default; the trace itself is unchanged."
+        />
+        {scope.crt.enabled && (
+          <>
+            <SelectRow
+              label="Phosphor"
+              value={scope.crt.phosphorModel}
+              onChange={v => patchCrt({ phosphorModel: v as ScopePhosphorModel })}
+              description="A stylistic colour response, not an emulation of any specific tube."
+              options={[
+                { value: 'green', label: 'Lab Green' },
+                { value: 'amber', label: 'Amber' },
+                { value: 'blue',  label: 'Ice Blue' },
+                { value: 'white', label: 'Neutral White' },
+                { value: 'rgb',   label: 'RGB Vector (keeps trace colour)' },
+                { value: 'custom', label: 'Custom' },
+              ]}
+            />
+            {scope.crt.phosphorModel === 'custom' && (
+              <ColorRow
+                label="Phosphor Colour"
+                value={scope.crt.customPhosphorColor}
+                onChange={v => patchCrt({ customPhosphorColor: v })}
+              />
+            )}
+            <SliderRow
+              label="Scanlines"
+              value={scope.crt.scanlineStrength}
+              onChange={v => patchCrt({ scanlineStrength: v })}
+            />
+            <SliderRow
+              label="Curvature"
+              value={scope.crt.curvature}
+              onChange={v => patchCrt({ curvature: v })}
+            />
+            <SliderRow
+              label="Vignette"
+              value={scope.crt.vignette}
+              onChange={v => patchCrt({ vignette: v })}
+            />
+            <SliderRow
+              label="Edge Focus Loss"
+              value={scope.crt.edgeDefocus}
+              onChange={v => patchCrt({ edgeDefocus: v })}
+            />
+            <SliderRow
+              label="Grain"
+              value={scope.crt.grain}
+              onChange={v => patchCrt({ grain: v })}
+            />
+            <SelectRow
+              label="Graticule"
+              value={scope.crt.graticuleStyle}
+              onChange={v => patchCrt({ graticuleStyle: v as ScopeGraticuleStyle })}
+              description="A reference overlay for reading the display. Not calibrated measurement."
+              options={[
+                { value: 'none',        label: 'None' },
+                { value: 'minimal',     label: 'Centre Axes' },
+                { value: 'scope',       label: 'Scope Grid' },
+                { value: 'vectorscope', label: 'Vectorscope Rings' },
+              ]}
+            />
+            {scope.crt.graticuleStyle !== 'none' && (
+              <SliderRow
+                label="Graticule Brightness"
+                value={scope.crt.graticuleBrightness}
+                onChange={v => patchCrt({ graticuleBrightness: v })}
+              />
+            )}
+          </>
+        )}
       </Collapsible>
 
       <Collapsible label="Signal Conditioning" defaultOpen={false}>

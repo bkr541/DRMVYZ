@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ScopePhosphorRuntime, type ScopePhosphorFrameInput } from '../ScopePhosphorRuntime'
 import { resetDrmvyzWebGLContextDiagnosticsForTests } from '../../../shaders/runtime/WebGLContextLifecycle'
+import { DEFAULT_SCOPE_CRT } from '../../../../../../audio/scope/scopeTypes'
 
 // ── Mock WebGL2 context ───────────────────────────────────────────────────────
 //
@@ -150,6 +151,7 @@ function frameInput(overrides: Partial<ScopePhosphorFrameInput> = {}): ScopePhos
     traceColor: { r: 0.3, g: 0.9, b: 0.9 },
     backgroundColor: { r: 0, g: 0.05, b: 0.06 },
     backgroundLift: 0.1,
+    crt: DEFAULT_SCOPE_CRT,
     resetPersistence: false,
     ...overrides,
   }
@@ -163,8 +165,8 @@ describe('initialization', () => {
     const runtime = new ScopePhosphorRuntime(() => mock.canvas)
     expect(runtime.available).toBe(true)
     expect(runtime.getDiagnostics().unavailableReason).toBeNull()
-    // beam, persistence, bloom, composite
-    expect(mock.gl._created.programs).toBe(4)
+    // beam, persistence, bloom, composite, crt
+    expect(mock.gl._created.programs).toBe(5)
     runtime.dispose()
   })
 
@@ -349,8 +351,8 @@ describe('context loss and restoration', () => {
 
     expect(runtime.available).toBe(true)
     expect(runtime.getDiagnostics().contextLost).toBe(false)
-    // Four fresh programs; the old ones belonged to the dead context.
-    expect(mock.gl._created.programs).toBe(8)
+    // A fresh set; the old programs belonged to the dead context.
+    expect(mock.gl._created.programs).toBe(10)
     expect(runtime.renderFrame(frameInput())).toBe(true)
     runtime.dispose()
   })

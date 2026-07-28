@@ -330,3 +330,158 @@ void main() {
   fragColor = vec4(clamp(lifted, 0.0, 1.0), 1.0);
 }
 `
+
+// ── CRT presentation ──────────────────────────────────────────────────────────
+
+/**
+ * Optional CRT layer: curvature, scanlines, edge defocus, vignette, grain, and
+ * an optional graticule.
+ *
+ * Deliberately contains no animated artifact. Flicker, vertical roll, and
+ * horizontal jitter are the CRT effects that carry photosensitivity risk, and
+ * this pass has no time uniform at all — so they cannot be added by setting a
+ * value. Static character carries the tube identity without motion.
+ *
+ * Runs after tone mapping, on display-range colour. Curving or scanlining HDR
+ * values before compression would let a bright intersection survive the
+ * scanline it should have been dimmed by.
+ */
+export const SCOPE_CRT_FRAG_SRC = /* glsl */ `#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+
+uniform sampler2D u_source;
+uniform vec2 uResolution;
+
+uniform float uScanlineStrength;
+uniform float uScanlineDensity;
+uniform float uCurvature;
+uniform float uVignette;
+uniform float uEdgeDefocus;
+uniform float uGrain;
+
+uniform vec3 uPhosphorColor;
+/** 1 when the phosphor model tints the image, 0 for an untinted RGB display. */
+uniform float uPhosphorTint;
+
+uniform float uGraticuleBrightness;
+/** 0 none, 1 minimal, 2 scope grid, 3 vectorscope rings. */
+uniform int uGraticuleStyle;
+
+out vec4 fragColor;
+
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+
+/** Barrel distortion about the screen centre. */
+vec2 curveUv(vec2 uv, float amount) {
+  vec2 centered = uv * 2.0 - 1.0;
+  float r2 = dot(centered, centered);
+  centered *= 1.0 + amount * r2 * 0.35;
+  return centered * 0.5 + 0.5;
+}
+
+/** Cheap 4-tap defocus, widening toward the tube edge. */
+vec3 sampleDefocused(vec2 uv, vec2 texel, float amount) {
+  vec3 centre = texture(u_source, uv).rgb;
+  if (amount <= 0.001) return centre;
+  vec3 blurred = centre;
+  blurred += texture(u_source, clamp(uv + vec2(texel.x, 0.0) * amount, 0.0, 1.0)).rgb;
+  blurred += texture(u_source, clamp(uv - vec2(texel.x, 0.0) * amount, 0.0, 1.0)).rgb;
+  blurred += texture(u_source, clamp(uv + vec2(0.0, texel.y) * amount, 0.0, 1.0)).rgb;
+  blurred += texture(u_source, clamp(uv - vec2(0.0, texel.y) * amount, 0.0, 1.0)).rgb;
+  return blurred / 5.0;
+}
+
+/**
+ * Graticule intensity at this pixel.
+ *
+ * Drawn procedurally rather than from a texture so it stays crisp at any
+ * resolution. Presented as a reference overlay only — the brief is explicit that
+ * this must not be positioned as calibrated measurement, so the divisions are
+ * evenly spaced guides with no unit labels.
+ */
+float graticule(vec2 uv, vec2 texel) {
+  if (uGraticuleStyle == 0) return 0.0;
+
+  vec2 centered = uv * 2.0 - 1.0;
+  float line = max(texel.x, texel.y) * 1.5;
+  float value = 0.0;
+
+  // Centre axes, common to every style.
+  value = max(value, 1.0 - smoothstep(0.0, line * 2.0, abs(centered.x)));
+  value = max(value, 1.0 - smoothstep(0.0, line * 2.0, abs(centered.y)));
+  if (uGraticuleStyle == 1) return value;
+
+  if (uGraticuleStyle == 3) {
+    // Vectorscope: concentric rings plus the two correlation diagonals, which
+    // are where a mono-compatible and an anti-phase signal sit.
+    //
+    // Measured in aspect-corrected space so the rings are actually circular. UV
+    // space is anisotropic on a non-square canvas, and an elliptical ring would
+    // misstate the amplitude it marks — the one thing a reference overlay on a
+    // correlation display must not do. The same reasoning as the trace's own
+    // aspect handling in packVectorBeamSegments.
+    float aspect = uResolution.x / max(uResolution.y, 1.0);
+    vec2 circular = vec2(centered.x * aspect, centered.y);
+
+    for (int i = 1; i <= 3; i++) {
+      float radius = float(i) / 3.0;
+      float d = abs(length(circular) - radius);
+      value = max(value, 1.0 - smoothstep(0.0, line * 2.0, d));
+    }
+    // The +/-45 degree lines in that same circular space.
+    float diagA = abs(circular.y - circular.x) * 0.70710678;
+    float diagB = abs(circular.y + circular.x) * 0.70710678;
+    value = max(value, (1.0 - smoothstep(0.0, line * 2.0, diagA)) * 0.6);
+    value = max(value, (1.0 - smoothstep(0.0, line * 2.0, diagB)) * 0.6);
+    return value;
+  }
+
+  // Scope grid: eight horizontal and ten vertical divisions.
+  vec2 grid = abs(fract(vec2(centered.x * 5.0, centered.y * 4.0)) - 0.5);
+  vec2 gridLine = vec2(line * 5.0, line * 4.0);
+  value = max(value, (1.0 - smoothstep(0.0, gridLine.x, grid.x)) * 0.45);
+  value = max(value, (1.0 - smoothstep(0.0, gridLine.y, grid.y)) * 0.45);
+  return value;
+}
+
+void main() {
+  vec2 texel = 1.0 / max(uResolution, vec2(1.0));
+  vec2 uv = curveUv(v_uv, uCurvature);
+
+  // Outside the curved tube is bezel, not signal.
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+    fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    return;
+  }
+
+  vec2 centered = uv * 2.0 - 1.0;
+  float edge = clamp(dot(centered, centered), 0.0, 1.0);
+
+  vec3 color = sampleDefocused(uv, texel, uEdgeDefocus * edge * 2.0);
+
+  // Phosphor tint: drive the trace toward the tube's emission colour while
+  // keeping its own luminance, so a green tube reads green without flattening
+  // bright cores to a single value.
+  vec3 tinted = uPhosphorColor * luma(color);
+  color = mix(color, tinted, uPhosphorTint);
+
+  color += uPhosphorColor * graticule(uv, texel) * uGraticuleBrightness;
+
+  // Scanlines in device pixels, so output resolution does not change how coarse
+  // they look. Halved in amplitude against the signal's own luminance so a
+  // bright trace is not sliced apart by them.
+  float scanPhase = uv.y * uResolution.y / max(uResolution.y / uScanlineDensity, 1.0);
+  float scan = 0.5 + 0.5 * cos(scanPhase * 6.28318530718);
+  color *= 1.0 - uScanlineStrength * scan * (1.0 - luma(color) * 0.5);
+
+  color *= 1.0 - uVignette * edge * edge;
+
+  // Static grain from screen position. No time input, deliberately.
+  float noise = fract(sin(dot(uv * uResolution, vec2(12.9898, 78.233))) * 43758.5453);
+  color += (noise - 0.5) * uGrain * 0.12;
+
+  fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+}
+`

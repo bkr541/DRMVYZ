@@ -1,4 +1,5 @@
 import {
+  DEFAULT_SCOPE_CRT,
   DEFAULT_SCOPE_SIGNAL_CONDITIONER,
   DEFAULT_SCOPE_TIMEBASE,
   DEFAULT_SCOPE_TRIGGER,
@@ -12,6 +13,10 @@ import {
   type ScopeTriggerSettings,
   type ScopeTriggerSlope,
   type ScopeTriggerSource,
+  SOUND_DRAWING_SCOPE_STATE_VERSION,
+  type ScopeCrtSettings,
+  type ScopeGraticuleStyle,
+  type ScopePhosphorModel,
   type SoundDrawingScopeState,
 } from './scopeTypes'
 
@@ -31,6 +36,8 @@ const SIGNAL_MODES = new Set<ScopeSignalMode>([
 const TRIGGER_MODES = new Set<ScopeTriggerMode>(['auto', 'normal', 'freeRun', 'single'])
 const TRIGGER_SLOPES = new Set<ScopeTriggerSlope>(['rising', 'falling', 'either'])
 const TRIGGER_SOURCES = new Set<ScopeTriggerSource>(['left', 'right', 'mid', 'side', 'sum', 'difference'])
+const PHOSPHOR_MODELS = new Set<ScopePhosphorModel>(['green', 'amber', 'blue', 'white', 'rgb', 'custom'])
+const GRATICULE_STYLES = new Set<ScopeGraticuleStyle>(['none', 'minimal', 'scope', 'vectorscope'])
 const TIMEBASE_MODES = new Set<ScopeTimebaseMode>(['seconds', 'cycles', 'beatRelative', 'auto'])
 const BEAT_DIVISIONS = new Set<ScopeBeatDivision>(['1/16', '1/8', '1/4', '1/2', '1beat', '2beats', '1bar'])
 
@@ -130,6 +137,35 @@ export function normalizeScopeTimebase(value: unknown): ScopeTimebaseSettings {
   }
 }
 
+/** Hex colours only; anything else falls back rather than reaching a shader. */
+function hexColor(value: unknown, fallback: string): string {
+  return typeof value === 'string' && /^#?[0-9a-f]{6}$/i.test(value.trim()) ? value.trim() : fallback
+}
+
+export function normalizeScopeCrt(value: unknown): ScopeCrtSettings {
+  const source = isRecord(value) ? value : {}
+  const defaults = DEFAULT_SCOPE_CRT
+  return {
+    enabled: bool(source.enabled, defaults.enabled),
+    phosphorModel:
+      typeof source.phosphorModel === 'string' && PHOSPHOR_MODELS.has(source.phosphorModel as ScopePhosphorModel)
+        ? (source.phosphorModel as ScopePhosphorModel)
+        : defaults.phosphorModel,
+    customPhosphorColor: hexColor(source.customPhosphorColor, defaults.customPhosphorColor),
+    scanlineStrength: num(source.scanlineStrength, defaults.scanlineStrength, 0, 1),
+    scanlineDensity: num(source.scanlineDensity, defaults.scanlineDensity, 40, 2000),
+    curvature: num(source.curvature, defaults.curvature, 0, 1),
+    vignette: num(source.vignette, defaults.vignette, 0, 1),
+    edgeDefocus: num(source.edgeDefocus, defaults.edgeDefocus, 0, 1),
+    grain: num(source.grain, defaults.grain, 0, 1),
+    graticuleStyle:
+      typeof source.graticuleStyle === 'string' && GRATICULE_STYLES.has(source.graticuleStyle as ScopeGraticuleStyle)
+        ? (source.graticuleStyle as ScopeGraticuleStyle)
+        : defaults.graticuleStyle,
+    graticuleBrightness: num(source.graticuleBrightness, defaults.graticuleBrightness, 0, 1),
+  }
+}
+
 /**
  * Normalizes persisted professional-scope state.
  *
@@ -140,7 +176,11 @@ export function normalizeScopeTimebase(value: unknown): ScopeTimebaseSettings {
 export function normalizeSoundDrawingScopeState(value: unknown): SoundDrawingScopeState {
   const source = isRecord(value) ? value : {}
   return {
-    version: 1,
+    version: SOUND_DRAWING_SCOPE_STATE_VERSION,
+    // A v1 project has no `crt` key, so it receives the defaults — which are
+    // disabled. Migrating forward must never switch on a look the user never
+    // chose.
+    crt: normalizeScopeCrt(source.crt),
     enabled: bool(source.enabled, DEFAULT_SOUND_DRAWING_SCOPE_STATE.enabled),
     signalMode: normalizeScopeSignalMode(source.signalMode),
     signalConditioner: normalizeScopeSignalConditioner(source.signalConditioner),

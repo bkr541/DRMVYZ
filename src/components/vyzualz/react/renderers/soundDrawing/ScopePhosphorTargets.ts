@@ -38,6 +38,8 @@ export class ScopePhosphorTargets {
   private bloom: ShaderFramebuffer[] = []
   /** Intermediate target per bloom level, holding the horizontal blur pass. */
   private bloomScratch: ShaderFramebuffer[] = []
+  /** Tone-mapped result, when a CRT pass still has to run over it. */
+  private presentation: ShaderFramebuffer | null = null
 
   private width = 0
   private height = 0
@@ -113,6 +115,18 @@ export class ScopePhosphorTargets {
       this.bloomScratch[i].resize(levelWidth, levelHeight)
     }
 
+    // Only allocated when the tier can run CRT; otherwise the composite writes
+    // straight to the canvas and this target would be pure cost.
+    if (plan.crtEnabled) {
+      if (!this.presentation) {
+        this.presentation = new ShaderFramebuffer(gl, { format: 'rgba8', filter: 'linear', wrap: 'clamp' })
+      }
+      this.presentation.resize(width, height)
+    } else if (this.presentation) {
+      this.presentation.dispose()
+      this.presentation = null
+    }
+
     this.width = width
     this.height = height
     this.planKey = key
@@ -135,6 +149,11 @@ export class ScopePhosphorTargets {
   /** Horizontal-pass scratch target for a bloom level. */
   bloomScratchTarget(level: number): ShaderFramebuffer | null {
     return this.bloomScratch[level] ?? null
+  }
+
+  /** Tone-mapped intermediate, present only when a CRT pass follows. */
+  get presentationTarget(): ShaderFramebuffer | null {
+    return this.presentation
   }
 
   /**
@@ -176,6 +195,8 @@ export class ScopePhosphorTargets {
     this.bloom = []
     for (const target of this.bloomScratch) target.dispose()
     this.bloomScratch = []
+    this.presentation?.dispose()
+    this.presentation = null
     this.width = 0
     this.height = 0
     this.planKey = ''
