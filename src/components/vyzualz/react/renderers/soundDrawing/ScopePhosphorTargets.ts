@@ -36,6 +36,8 @@ export class ScopePhosphorTargets {
   private scene: ShaderFramebuffer | null = null
   private persistence: ShaderPingPongBuffer | null = null
   private bloom: ShaderFramebuffer[] = []
+  /** Intermediate target per bloom level, holding the horizontal blur pass. */
+  private bloomScratch: ShaderFramebuffer[] = []
 
   private width = 0
   private height = 0
@@ -99,13 +101,16 @@ export class ScopePhosphorTargets {
 
     while (this.bloom.length < plan.bloomLevels.length) {
       this.bloom.push(new ShaderFramebuffer(gl, { format, filter, wrap: 'clamp' }))
+      this.bloomScratch.push(new ShaderFramebuffer(gl, { format, filter, wrap: 'clamp' }))
     }
     for (let i = 0; i < plan.bloomLevels.length; i++) {
       const scale = plan.bloomLevels[i].resolutionScale
-      this.bloom[i].resize(
-        Math.max(MIN_TARGET_PX, Math.floor(width * scale)),
-        Math.max(MIN_TARGET_PX, Math.floor(height * scale)),
-      )
+      const levelWidth = Math.max(MIN_TARGET_PX, Math.floor(width * scale))
+      const levelHeight = Math.max(MIN_TARGET_PX, Math.floor(height * scale))
+      this.bloom[i].resize(levelWidth, levelHeight)
+      // The separable blur needs somewhere to put the horizontal pass; it must
+      // match the level exactly so the vertical pass's texel maths is right.
+      this.bloomScratch[i].resize(levelWidth, levelHeight)
     }
 
     this.width = width
@@ -125,6 +130,11 @@ export class ScopePhosphorTargets {
   /** Bloom target for a level index, or null when the tier does not run it. */
   bloomTarget(level: number): ShaderFramebuffer | null {
     return this.bloom[level] ?? null
+  }
+
+  /** Horizontal-pass scratch target for a bloom level. */
+  bloomScratchTarget(level: number): ShaderFramebuffer | null {
+    return this.bloomScratch[level] ?? null
   }
 
   /**
@@ -164,6 +174,8 @@ export class ScopePhosphorTargets {
     this.persistence = null
     for (const target of this.bloom) target.dispose()
     this.bloom = []
+    for (const target of this.bloomScratch) target.dispose()
+    this.bloomScratch = []
     this.width = 0
     this.height = 0
     this.planKey = ''

@@ -227,8 +227,16 @@ export interface ScopePhosphorPlan {
 
 const BLOOM_LEVEL_IDS: readonly ScopeBloomLevelPlan['id'][] = ['tight', 'medium', 'wide']
 
-/** Target scale per bloom level. Index matches BLOOM_LEVEL_IDS. */
-const BLOOM_RESOLUTION_SCALES: readonly number[] = [1, 0.5, 0.25]
+/**
+ * Target scale per bloom level. Index matches BLOOM_LEVEL_IDS.
+ *
+ * Chosen so each level's sigma stays around 2-3 *texels* once scaled
+ * (2x1.0, 10x0.25, 40x0.0625). That is the constraint that matters: a separable
+ * Gaussian with a fixed tap budget undersamples if its texel-space sigma grows,
+ * and the sparse comb of taps shows up as an axis-aligned lattice around the
+ * trace. Wide blur comes from the downsample, not from reaching further per tap.
+ */
+const BLOOM_RESOLUTION_SCALES: readonly number[] = [1, 0.25, 0.0625]
 
 /** Bloom levels retained per tier, cheapest first. */
 const BLOOM_LEVEL_COUNT: Record<ScopePhosphorQuality, number> = {

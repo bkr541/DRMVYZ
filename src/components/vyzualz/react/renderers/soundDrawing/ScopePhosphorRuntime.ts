@@ -369,34 +369,51 @@ export class ScopePhosphorRuntime {
     )
     persistence.swap()
 
-    // ── Pass 3: bloom levels ────────────────────────────────────────────────
+    // ── Pass 3: bloom levels, separable Gaussian ────────────────────────────
+    // Two passes per level: horizontal into scratch (extracting highlights),
+    // then vertical into the level target. A single-radius ring kernel is not a
+    // blur — it convolves with a circle, which rendered a circular trace as a
+    // rosette of displaced copies.
+    const persisted = persistence.readTexture
+    if (!persisted) return false
+    const threshold = plan.hdr.hdrEnabled ? BLOOM_THRESHOLD_HDR : BLOOM_THRESHOLD_LDR
+
     for (let level = 0; level < plan.bloomLevels.length; level++) {
       const target = this.targets.bloomTarget(level)
-      if (!target) continue
+      const scratch = this.targets.bloomScratchTarget(level)
+      if (!target || !scratch) continue
       const config = plan.bloomLevels[level]
+      const sigma = config.sigmaPx * config.resolutionScale
+      const gain = 1 / Math.max(config.resolutionScale, 0.01)
 
       this.bloomProgram.activate()
       this.bloomProgram.setVec2('uResolution', target.width, target.height)
-      this.bloomProgram.setFloat('uSigmaPx', config.sigmaPx * config.resolutionScale)
+      this.bloomProgram.setFloat('uSigmaPx', sigma)
       this.bloomProgram.setVec3('uChannelRadiusScale',
         config.channelRadiusScale[0], config.channelRadiusScale[1], config.channelRadiusScale[2])
-      // Only the first level thresholds the raw signal; later levels widen the
-      // already-extracted highlights, so re-thresholding would erode them.
-      this.bloomProgram.setFloat(
-        'uThreshold',
-        level === 0 ? (plan.hdr.hdrEnabled ? BLOOM_THRESHOLD_HDR : BLOOM_THRESHOLD_LDR) : 0,
+      this.bloomProgram.setFloat('uThreshold', threshold)
+      this.bloomProgram.setFloat('uGain', gain)
+
+      // Horizontal. Every level reads the persistence texture directly: chaining
+      // levels compounds the kernel's averaging loss and left the widest level
+      // at a fraction of a percent of the trace, invisible against black.
+      this.bloomProgram.setVec2('uDirection', 1, 0)
+      this.bloomProgram.setFloat('uExtract', 1)
+      this.fullscreenPass.run(
+        this.bloomProgram, scratch.framebuffer, scratch.width, scratch.height,
+        [{ unit: UNIT_SOURCE, texture: persisted, uniformName: 'u_source' }],
       )
 
-      // After the swap, readTexture is the frame just written.
-      const persisted = persistence.readTexture
-      const source = level === 0
-        ? persisted
-        : this.targets.bloomTarget(level - 1)?.texture ?? persisted
-      if (!source) continue
+      const scratchTexture = scratch.texture
+      if (!scratchTexture) continue
 
+      // Vertical. Highlights are already extracted, and the gain is applied here
+      // only so the two passes do not square it.
+      this.bloomProgram.setVec2('uDirection', 0, 1)
+      this.bloomProgram.setFloat('uExtract', 0)
       this.fullscreenPass.run(
         this.bloomProgram, target.framebuffer, target.width, target.height,
-        [{ unit: UNIT_SOURCE, texture: source, uniformName: 'u_source' }],
+        [{ unit: UNIT_SOURCE, texture: scratchTexture, uniformName: 'u_source' }],
       )
     }
 
@@ -413,9 +430,6 @@ export class ScopePhosphorRuntime {
     this.compositeProgram.setVec3('uBackgroundColor',
       input.backgroundColor.r, input.backgroundColor.g, input.backgroundColor.b)
     this.compositeProgram.setFloat('uBackgroundLift', input.backgroundLift)
-
-    const persisted = persistence.readTexture
-    if (!persisted) return false
 
     this.fullscreenPass.run(
       this.compositeProgram, null, width, height,

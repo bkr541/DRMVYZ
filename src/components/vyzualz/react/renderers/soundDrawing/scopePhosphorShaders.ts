@@ -174,12 +174,18 @@ void main() {
 // ── Bloom ─────────────────────────────────────────────────────────────────────
 
 /**
- * Separable-in-spirit radial blur with per-channel radii.
+ * One axis of a separable Gaussian blur, with per-channel radii.
+ *
+ * Separable and Gaussian, not a single-radius ring. A ring kernel — 8 taps all
+ * at the same offset distance — does not blur, it convolves with a circle: a
+ * circular trace came out as a rosette of eight displaced copies of itself,
+ * because that is literally what the kernel describes. Weighted taps spread
+ * along one axis, run twice, are what produce a smooth falloff.
  *
  * Red blurs tightest and blue widest, matching SOUND_DRAWING_BLOOM_CHANNEL_SCALE
  * — the chromatic bleed that gives a phosphor its coloured tail. Each level runs
- * at a smaller target scale, so one small texel-space kernel becomes a much
- * wider effective screen-space blur on the cheaper levels.
+ * at a smaller target scale, so the same texel-space kernel becomes a much wider
+ * effective screen-space blur on the cheaper levels.
  */
 export const SCOPE_BLOOM_FRAG_SRC = /* glsl */ `#version 300 es
 precision highp float;
@@ -191,39 +197,77 @@ uniform vec2 uResolution;
 uniform float uSigmaPx;
 uniform vec3 uChannelRadiusScale;
 uniform float uThreshold;
+uniform float uGain;
+/** (1,0) for the horizontal pass, (0,1) for the vertical. */
+uniform vec2 uDirection;
+/** 1 on the first (extracting) axis, 0 on the second. */
+uniform float uExtract;
 
 out vec4 fragColor;
 
-const int TAP_COUNT = 8;
+/** Taps either side of centre. 9 samples covers roughly +/-2 sigma. */
+const int TAP_RADIUS = 4;
 
-float channelBlur(vec2 uv, vec2 texel, float radiusPx, vec3 mask) {
-  vec3 sum = texture(u_source, uv).rgb;
-  float weight = 1.0;
-  for (int i = 0; i < TAP_COUNT; i++) {
-    float angle = (float(i) / float(TAP_COUNT)) * 6.28318530718;
-    vec2 offset = vec2(cos(angle), sin(angle)) * radiusPx * texel;
-    // Clamped so the kernel cannot wrap or pull in the black border, either of
-    // which shows as a dark halo along the frame edge.
-    sum += texture(u_source, clamp(uv + offset, vec2(0.0), vec2(1.0))).rgb;
-    weight += 1.0;
+/**
+ * Soft-knee highlight extraction for one tap.
+ *
+ * Applied per sample, inside the blur. Thresholding the *result* instead — that
+ * is, blurring the raw image and multiplying by the destination fragment's own
+ * brightness — silently deletes the entire halo: away from the trace the local
+ * brightness is zero, so the spread energy is multiplied to nothing at exactly
+ * the pixels the glow is supposed to occupy. Extract, then blur.
+ */
+vec3 extractHighlight(vec3 c) {
+  float brightness = max(max(c.r, c.g), c.b);
+  return c * smoothstep(uThreshold, uThreshold + 0.5, brightness);
+}
+
+/** Sample with extraction applied only on the first axis. */
+vec3 sampleSource(vec2 uv) {
+  // Clamped so the kernel cannot wrap or pull in the black border, either of
+  // which shows as a dark line along the frame edge.
+  vec3 c = texture(u_source, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+  return uExtract > 0.5 ? extractHighlight(c) : c;
+}
+
+/** Weighted Gaussian sum along uDirection at this channel's radius. */
+float channelBlur(vec2 uv, vec2 texel, float sigmaPx, vec3 mask) {
+  float sigma = max(sigmaPx, 0.0001);
+  // Spread the tap budget across +/-2 sigma, but never skip texels: a step
+  // wider than one texel turns the kernel into a sparse comb, which reads as an
+  // axis-aligned lattice around the trace rather than a smooth falloff. Levels
+  // reach further by rendering into a smaller target, not by striding further.
+  float step = min((sigma * 2.0) / float(TAP_RADIUS), 1.0);
+
+  vec3 sum = sampleSource(uv);
+  float weightSum = 1.0;
+
+  for (int i = 1; i <= TAP_RADIUS; i++) {
+    float distancePx = float(i) * step;
+    float weight = exp(-(distancePx * distancePx) / (2.0 * sigma * sigma));
+    vec2 offset = uDirection * distancePx * texel;
+    sum += sampleSource(uv + offset) * weight;
+    sum += sampleSource(uv - offset) * weight;
+    weightSum += weight * 2.0;
   }
-  return dot(sum / weight, mask);
+
+  return dot(sum / weightSum, mask);
 }
 
 void main() {
   vec2 texel = 1.0 / max(uResolution, vec2(1.0));
 
-  // Soft-knee highlight extraction, applied before blurring so dim beam bodies
-  // do not smear into a uniform fog.
-  vec3 source = texture(u_source, v_uv).rgb;
-  float brightness = max(max(source.r, source.g), source.b);
-  float knee = smoothstep(uThreshold, uThreshold + 0.5, brightness);
-
   float red   = channelBlur(v_uv, texel, uSigmaPx * uChannelRadiusScale.r, vec3(1.0, 0.0, 0.0));
   float green = channelBlur(v_uv, texel, uSigmaPx * uChannelRadiusScale.g, vec3(0.0, 1.0, 0.0));
   float blue  = channelBlur(v_uv, texel, uSigmaPx * uChannelRadiusScale.b, vec3(0.0, 0.0, 1.0));
 
-  fragColor = vec4(vec3(red, green, blue) * knee, 1.0);
+  // uGain compensates the peak a thin feature loses to downsampling. A trace is
+  // thin in one dimension, so rendering it into a half-scale target roughly
+  // halves its peak; without the gain the wide levels — the ones that produce
+  // the atmospheric halo — arrive far too dim to see against black. Applied on
+  // the second axis only, so it is not squared by the two passes.
+  float gain = uExtract > 0.5 ? 1.0 : max(uGain, 0.0);
+  fragColor = vec4(vec3(red, green, blue) * gain, 1.0);
 }
 `
 
