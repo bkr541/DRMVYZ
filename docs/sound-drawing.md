@@ -109,6 +109,7 @@ A dedicated signal core sits underneath the creative Sound Drawing systems and s
 | Persisted state and normalization | `src/audio/scope/scopeStateNormalization.ts` |
 | Canvas geometry bridge | `src/components/vyzualz/react/renderers/soundDrawingScopeGeometry.ts` |
 | Factory presets | `src/audio/scope/scopePresets.ts` |
+| Music Intelligence mapping | `src/audio/scope/scopeMusicMapping.ts` |
 | GPU phosphor plan | `src/components/vyzualz/react/renderers/soundDrawing/soundDrawingPhosphorPlan.ts` |
 | GPU runtime | `src/components/vyzualz/react/renderers/soundDrawing/ScopePhosphorRuntime.ts` |
 | GPU render targets | `src/components/vyzualz/react/renderers/soundDrawing/ScopePhosphorTargets.ts` |
@@ -219,6 +220,24 @@ bass width response and curvature at or near zero — a trace that thickens with
 the music changes the reading with it. `violatesMeasurementDiscipline` asserts
 this in tests.
 
+### Music Intelligence mapping
+
+`scopeMusicMapping.ts` is the seam that keeps the scope part of DRMVYZ rather than a bolted-on instrument. It maps beat, kick, bass, build progress, and drop impact onto **presentation only** — glow, beam width, exposure, and persistence.
+
+Nothing in it touches geometry, signal path, or trigger. That boundary is structural rather than stylistic: a measurement display that moved with the music would no longer be measuring anything. The returned shape is the enforcement, and a test pins its keys.
+
+Everything returned is a multiplier, so the user's own tuning stays authoritative and the music scales it. Every amount defaults to zero, which is exactly the identity — that is what makes the version-4 migration appearance-preserving. Presets are what dial it in, and only the signature group does.
+
+Multipliers are hard-bounded. Music Intelligence values come from live analysis, and a transient mis-detection should cost a slightly wrong frame rather than an unreadable one.
+
+MI reports section *type* and *progress* rather than build/drop scalars, so the renderer reads the section directly and passes -1 or 0 for "not in one". The mapping treats those as no contribution rather than as a zero value, so an ordinary passage does not read as the beginning of a build.
+
+### Performance budgets
+
+`__tests__/scopePerformanceBudget.test.ts` asserts the structural budgets rather than relying on "looks smooth": per-tier pass counts, geometry point counts, and total fill expressed as a multiple of one full-resolution pass.
+
+Two constraints are load-bearing. No bloom level runs at full resolution — full-res blur is the most expensive thing this pipeline could do, and it is also what keeps each level's texel-space sigma small enough for the tap budget to reach its tail. And the entire six-pass bloom pyramid costs less than one full-resolution pass, which is only possible because every level is downscaled.
+
 ### CRT presentation
 
 Optional, off by default, and runs after tone mapping on display-range colour:
@@ -246,6 +265,7 @@ Version history, each following the same rule — migrating forward must never c
 | 1 | Signal, conditioning, trigger, timebase | Legacy `lissajous` becomes `monoDelayXY`, which renders identically |
 | 2 | CRT presentation | Defaults arrive disabled, so a v1 project renders unchanged |
 | 3 | Beam and phosphor tuning | Defaults reproduce the previously hardcoded values exactly |
+| 4 | Music Intelligence mapping | Every amount defaults to zero, which is the identity mapping |
 
 The pre-existing `lissajous` classic mode plotted one half of a mono time-domain buffer against the other, which is a delayed mono phase portrait rather than stereo. It migrates to `monoDelayXY`, which routes to the identical draw path, so existing projects keep their exact appearance under an accurate name. Legacy values are never promoted to `stereoXY`, and the professional core stays disabled until the user selects it.
 

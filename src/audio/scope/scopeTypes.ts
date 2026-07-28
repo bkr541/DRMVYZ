@@ -1,3 +1,5 @@
+import { DEFAULT_SCOPE_MUSIC_MAPPING, type ScopeMusicMappingSettings } from './scopeMusicMapping'
+
 // ── Professional scope signal core: contracts ────────────────────────────────
 //
 // These types describe the *signal* half of Sound Drawing's professional scope:
@@ -238,6 +240,9 @@ export const DEFAULT_SCOPE_TIMEBASE: ScopeTimebaseSettings = {
 
 
 // ── Beam and phosphor ─────────────────────────────────────────────────────────
+//
+// Music Intelligence mapping lives in `scopeMusicMapping.ts`, re-exported through
+// the state here because it is persisted alongside the rest.
 
 export interface ScopeBeamSettings {
   /** Bright inner core width in pixels, before audio reactivity. */
@@ -423,12 +428,24 @@ export interface SoundDrawingScopeStateV3 extends Omit<SoundDrawingScopeStateV2,
   phosphor: ScopePhosphorSettings
 }
 
-export type SoundDrawingScopeState = SoundDrawingScopeStateV3
+/**
+ * Version 4 adds Music Intelligence mapping.
+ *
+ * Every amount defaults to zero, which is the identity mapping, so a v3 project
+ * picks up the feature switched on but neutral and looks unchanged.
+ */
+export interface SoundDrawingScopeStateV4 extends Omit<SoundDrawingScopeStateV3, 'version'> {
+  version: 4
+  music: ScopeMusicMappingSettings
+}
 
-export const SOUND_DRAWING_SCOPE_STATE_VERSION = 3
+export type SoundDrawingScopeState = SoundDrawingScopeStateV4
+
+export const SOUND_DRAWING_SCOPE_STATE_VERSION = 4
 
 export const DEFAULT_SOUND_DRAWING_SCOPE_STATE: SoundDrawingScopeState = {
-  version: 3,
+  version: 4,
+  music: DEFAULT_SCOPE_MUSIC_MAPPING,
   beam: DEFAULT_SCOPE_BEAM,
   phosphor: DEFAULT_SCOPE_PHOSPHOR,
   crt: DEFAULT_SCOPE_CRT,

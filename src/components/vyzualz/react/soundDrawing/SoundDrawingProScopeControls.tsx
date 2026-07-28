@@ -62,6 +62,9 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
   const patchPhosphor = (patch: Partial<SoundDrawingScopeState['phosphor']>) => {
     patchScope({ phosphor: { ...scope.phosphor, ...patch } })
   }
+  const patchMusic = (patch: Partial<SoundDrawingScopeState['music']>) => {
+    patchScope({ music: { ...scope.music, ...patch } })
+  }
   const patchCrt = (patch: Partial<SoundDrawingScopeState['crt']>) => {
     patchScope({ crt: { ...scope.crt, ...patch } })
   }
@@ -350,6 +353,42 @@ export function SoundDrawingProScopeControls({ osc, set }: Props) {
           label="Background Lift"
           value={scope.phosphor.backgroundLift}
           onChange={v => patchPhosphor({ backgroundLift: v })}
+        />
+      </Collapsible>
+
+
+      <Collapsible label="Music Reactivity" defaultOpen={false}>
+        <p className="rv-ctrl-info">
+          Music Intelligence modulates presentation only — glow, beam width, exposure,
+          and trail length. The trace geometry never moves, so a measurement mode stays
+          a measurement.
+        </p>
+        <SliderRow
+          label="Beat Bloom"
+          value={scope.music.beatBloom}
+          onChange={v => patchMusic({ beatBloom: v })}
+        />
+        <SliderRow
+          label="Kick Width"
+          value={scope.music.kickWidth}
+          onChange={v => patchMusic({ kickWidth: v })}
+        />
+        <SliderRow
+          label="Bass Exposure"
+          value={scope.music.bassExposure}
+          onChange={v => patchMusic({ bassExposure: v })}
+        />
+        <SliderRow
+          label="Build Exposure"
+          value={scope.music.buildExposure}
+          onChange={v => patchMusic({ buildExposure: v })}
+          description="Lifts exposure as a build progresses toward a drop."
+        />
+        <SliderRow
+          label="Drop Snap"
+          value={scope.music.dropSnap}
+          onChange={v => patchMusic({ dropSnap: v })}
+          description="Shortens the trail on a drop, so the figure reads sharper."
         />
       </Collapsible>
 

@@ -1,3 +1,4 @@
+import { DEFAULT_SCOPE_MUSIC_MAPPING } from './scopeMusicMapping'
 import {
   DEFAULT_SCOPE_BEAM,
   DEFAULT_SCOPE_CRT,
@@ -49,6 +50,7 @@ export interface ScopePresetPatch {
   beam?: Partial<SoundDrawingScopeState['beam']>
   phosphor?: Partial<SoundDrawingScopeState['phosphor']>
   crt?: Partial<SoundDrawingScopeState['crt']>
+  music?: Partial<SoundDrawingScopeState['music']>
   monoDelayMs?: number
 }
 
@@ -225,6 +227,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       beam: { coreWidthPx: 1.5, haloScale: 7, bassWidthResponse: 0.5, cornerDwell: 0.55 },
       phosphor: { persistenceSeconds: 0.9, tightBloom: 1, mediumBloom: 0.7, wideBloom: 0.55, whiteHot: 0.85, backgroundLift: 0.14 },
       crt: { enabled: true, phosphorModel: 'rgb', curvature: 0.1, vignette: 0.35, scanlineStrength: 0.1 },
+      music: { beatBloom: 0.5, kickWidth: 0.35, bassExposure: 0.3 },
     },
   },
   {
@@ -242,6 +245,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       beam: { coreWidthPx: 2.2, haloScale: 9, bassWidthResponse: 1, cornerDwell: 0.5 },
       phosphor: { persistenceSeconds: 0.22, tightBloom: 1, mediumBloom: 0.8, wideBloom: 0.7, whiteHot: 0.95, backgroundLift: 0.1 },
       crt: { enabled: true, phosphorModel: 'rgb', curvature: 0.12, vignette: 0.45 },
+      music: { beatBloom: 0.7, kickWidth: 0.8, bassExposure: 0.6, buildExposure: 0.7, dropSnap: 0.8 },
     },
   },
   {
@@ -269,6 +273,7 @@ export const SCOPE_PRESETS: readonly ScopePreset[] = [
       beam: { coreWidthPx: 1.3, haloScale: 6, bassWidthResponse: 0.35, cornerDwell: 1, velocityBrightness: 1 },
       phosphor: { persistenceSeconds: 0.75, tightBloom: 1, mediumBloom: 0.65, wideBloom: 0.5, whiteHot: 0.75 },
       crt: { enabled: true, phosphorModel: 'green', curvature: 0.1, vignette: 0.38 },
+      music: { beatBloom: 0.4, kickWidth: 0.5 },
     },
   },
 ]
@@ -304,6 +309,7 @@ export function applyScopePreset(
     beam: { ...base.beam, ...patch.beam },
     phosphor: { ...base.phosphor, ...patch.phosphor },
     crt: { ...base.crt, ...patch.crt },
+    music: { ...base.music, ...patch.music },
   }
 }
 
@@ -316,6 +322,7 @@ export function resolveScopePresetState(presetId: string): SoundDrawingScopeStat
       trigger: { ...DEFAULT_SCOPE_TRIGGER },
       timebase: { ...DEFAULT_SCOPE_TIMEBASE },
       beam: { ...DEFAULT_SCOPE_BEAM },
+      music: { ...DEFAULT_SCOPE_MUSIC_MAPPING },
       phosphor: { ...DEFAULT_SCOPE_PHOSPHOR },
       crt: { ...DEFAULT_SCOPE_CRT },
     },

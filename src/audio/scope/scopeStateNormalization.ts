@@ -1,3 +1,4 @@
+import { DEFAULT_SCOPE_MUSIC_MAPPING, type ScopeMusicMappingSettings } from './scopeMusicMapping'
 import {
   DEFAULT_SCOPE_BEAM,
   DEFAULT_SCOPE_CRT,
@@ -153,6 +154,18 @@ export function normalizeScopeBeam(value: unknown): ScopeBeamSettings {
   }
 }
 
+export function normalizeScopeMusicMapping(value: unknown): ScopeMusicMappingSettings {
+  const source = isRecord(value) ? value : {}
+  const d = DEFAULT_SCOPE_MUSIC_MAPPING
+  return {
+    beatBloom: num(source.beatBloom, d.beatBloom, 0, 1),
+    kickWidth: num(source.kickWidth, d.kickWidth, 0, 1),
+    bassExposure: num(source.bassExposure, d.bassExposure, 0, 1),
+    buildExposure: num(source.buildExposure, d.buildExposure, 0, 1),
+    dropSnap: num(source.dropSnap, d.dropSnap, 0, 1),
+  }
+}
+
 export function normalizeScopePhosphor(value: unknown): ScopePhosphorSettings {
   const source = isRecord(value) ? value : {}
   const d = DEFAULT_SCOPE_PHOSPHOR
@@ -212,6 +225,7 @@ export function normalizeSoundDrawingScopeState(value: unknown): SoundDrawingSco
     crt: normalizeScopeCrt(source.crt),
     beam: normalizeScopeBeam(source.beam),
     phosphor: normalizeScopePhosphor(source.phosphor),
+    music: normalizeScopeMusicMapping(source.music),
     enabled: bool(source.enabled, DEFAULT_SOUND_DRAWING_SCOPE_STATE.enabled),
     signalMode: normalizeScopeSignalMode(source.signalMode),
     signalConditioner: normalizeScopeSignalConditioner(source.signalConditioner),

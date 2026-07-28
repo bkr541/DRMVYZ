@@ -5,6 +5,7 @@ import {
   normalizeScopeTrigger,
   normalizeSoundDrawingScopeState,
 } from '../scopeStateNormalization'
+import { DEFAULT_SCOPE_MUSIC_MAPPING } from '../scopeMusicMapping'
 import {
   DEFAULT_SCOPE_BEAM,
   DEFAULT_SCOPE_CRT,
@@ -70,6 +71,7 @@ describe('scope state normalization', () => {
       crt: DEFAULT_SCOPE_CRT,
       beam: DEFAULT_SCOPE_BEAM,
       phosphor: DEFAULT_SCOPE_PHOSPHOR,
+      music: DEFAULT_SCOPE_MUSIC_MAPPING,
       enabled: true,
       signalMode: 'midSideXY',
       signalConditioner: {
@@ -119,6 +121,14 @@ describe('scope state normalization', () => {
     expect(migrated.version).toBe(SOUND_DRAWING_SCOPE_STATE_VERSION)
     expect(migrated.beam).toEqual(DEFAULT_SCOPE_BEAM)
     expect(migrated.phosphor).toEqual(DEFAULT_SCOPE_PHOSPHOR)
+  })
+
+  it('migrates a v3 project to v4 with music mapping neutral', () => {
+    // Every music amount defaults to zero, which is the identity mapping, so the
+    // feature arrives switched on but changing nothing.
+    const migrated = normalizeSoundDrawingScopeState({ version: 3 })
+    expect(migrated.version).toBe(SOUND_DRAWING_SCOPE_STATE_VERSION)
+    expect(migrated.music).toEqual(DEFAULT_SCOPE_MUSIC_MAPPING)
   })
 
   it('repairs corrupted beam and phosphor blocks', () => {

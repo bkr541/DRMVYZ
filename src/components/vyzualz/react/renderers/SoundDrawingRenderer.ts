@@ -30,6 +30,7 @@ import {
   requiredBeamSegmentFloats,
   resolveBeamHaloWidthPx,
 } from './soundDrawing/soundDrawingBeamPacking'
+import { resolveScopeMusicModulation } from '../../../../audio/scope/scopeMusicMapping'
 import { textToGlyphPoints } from './textGlyphUtils'
 import {
   clearRuntimeOpenTypeTextGeometry,
@@ -1502,9 +1503,28 @@ function renderProfessionalScopeOnGpu(
   const startedAt = performance.now()
   const bass = frame.audio.bass * params.bassReactivity
   const beam = osc.scope.beam
+
+  // Music Intelligence modulates presentation only — bloom, width, exposure, and
+  // persistence. Nothing here touches the resolved geometry: a measurement
+  // display that moved with the music would stop measuring anything. MI values
+  // come from the canonical frame when present; absent MI yields the identity.
+  const mi = frame.musicIntelligence
+  const music = resolveScopeMusicModulation(osc.scope.music, {
+    // Decays across the beat, so the lift lands on the beat rather than sitting on.
+    beatEnvelope: mi ? clamp(1 - mi.rhythm.beatPhase, 0, 1) : 0,
+    kickEnvelope: mi?.rhythm.kickStrength ?? 0,
+    bass: frame.audio.bass,
+    // MI reports section type and progress rather than a build/drop scalar, so
+    // these read the section directly. -1 and 0 mean "not in one", which the
+    // mapping treats as no contribution rather than as a zero value.
+    buildProgress: mi?.section.type === 'build' ? mi.section.progress : -1,
+    dropImpact: mi?.section.type === 'drop' ? mi.section.intensity : 0,
+  })
   // Base width from the user control, widened by bass to taste. bassWidthResponse
   // at 0 gives a constant-width trace, which is what a measurement reading wants.
-  const coreWidthPx = beam.coreWidthPx * (1 + bass * beam.bassWidthResponse * 2) * dpr * params.intensity
+  const coreWidthPx =
+    beam.coreWidthPx * (1 + bass * beam.bassWidthResponse * 2) * music.beamWidthMultiplier
+    * dpr * params.intensity
 
   // The runtime's feedback-loop assertions throw by design, to surface a
   // mis-ordered ping-pong at the bind site during development. In a live render
@@ -1521,9 +1541,12 @@ function renderProfessionalScopeOnGpu(
       coreWidthPx,
       haloWidthPx: resolveBeamHaloWidthPx(coreWidthPx, beam.haloScale),
       beam,
-      phosphor: osc.scope.phosphor,
-      intensity: params.intensity,
-      glow: params.glow,
+      phosphor: {
+        ...osc.scope.phosphor,
+        persistenceSeconds: osc.scope.phosphor.persistenceSeconds * music.persistenceMultiplier,
+      },
+      intensity: params.intensity * music.exposureMultiplier,
+      glow: params.glow * music.glowMultiplier,
       traceColor: hexToLinearRgb(preset.palette.primary),
       backgroundColor: hexToLinearRgb(preset.palette.background),
       crt: osc.scope.crt,
