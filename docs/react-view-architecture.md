@@ -39,6 +39,11 @@ The left `WorkspaceRail` owns contextual source and setup surfaces.
 
 `resolveReactWorkspaceComposition()` decides the available tabs, so engine code must not mount left-rail tabs independently.
 
+The left rail uses compact description density. Control labels, values, actions,
+warnings, errors, empty states, and live diagnostics remain visible, while
+long explanatory helper copy is visually removed from the layout and retained
+for assistive technology. Right-rail descriptions are unaffected.
+
 ### Center stage
 
 The center stage owns the active visual output canvas and approved spatial authoring overlays.

@@ -4553,6 +4553,23 @@
   overflow: hidden;
 }
 
+/* The left rail is a compact source/setup surface. Long control descriptions
+   stay available to assistive technology without consuming vertical space.
+   Operational warnings, errors, empty states, and live diagnostics remain
+   visible because they do not use these description-only classes. */
+.rv-left-workspace-shell[data-description-density='compact'] .rv-ctrl-description,
+.rv-left-workspace-shell[data-description-density='compact'] .rv-control-helper-copy {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 .rv-engine-dropdown {
   position: relative;
   z-index: 6;

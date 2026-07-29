@@ -333,7 +333,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
           <strong>{poolItems.length}</strong>
         </div>
         {poolItems.length === 0 ? (
-          <p>Select media to build a deterministic multi-source pool.</p>
+          <p className="rv-control-helper-copy">Select media to build a deterministic multi-source pool.</p>
         ) : (
           <div className="rv-canvas-pool__chips">
             {poolItems.map(item => (

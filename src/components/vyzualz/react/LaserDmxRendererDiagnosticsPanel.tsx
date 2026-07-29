@@ -24,7 +24,7 @@ export function LaserDmxRendererDiagnosticsPanel() {
   return (
     <Collapsible label="Renderer Diagnostics" defaultOpen={false}>
       {diagnostics.activeRenderer === 'inactive' ? (
-        <div className="rv-ctrl-info">Renderer diagnostics appear while LaserDMX is actively rendering.</div>
+        <div className="rv-ctrl-info rv-control-helper-copy">Renderer diagnostics appear while LaserDMX is actively rendering.</div>
       ) : (
         <div className="rv-show-director-performance-status" data-laser-dmx-renderer-diagnostics>
           <dl className="rv-show-director-performance-status__grid">

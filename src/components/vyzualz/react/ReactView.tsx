@@ -545,7 +545,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           collapsed={leftCollapsed}
           onToggleCollapsed={() => setLeftCollapsed((v) => !v)}
         >
-          <div className="rv-left-workspace-shell">
+          <div className="rv-left-workspace-shell" data-description-density="compact">
             <section
               className="rv-context-workspace"
               aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}

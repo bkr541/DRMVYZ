@@ -86,7 +86,7 @@ export function ReactEngineBrowser() {
                 <span className="rv-engine-dropdown-option-icon" aria-hidden="true">{engine.icon}</span>
                 <span className="rv-engine-dropdown-option-copy">
                   <span>{engine.label}</span>
-                  <small>{engine.description}</small>
+                  <small className="rv-control-helper-copy">{engine.description}</small>
                 </span>
                 {active && <span className="rv-engine-dropdown-option-check" aria-hidden="true">✓</span>}
               </button>

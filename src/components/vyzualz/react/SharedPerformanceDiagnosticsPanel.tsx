@@ -17,7 +17,7 @@ export function SharedPerformanceDiagnosticsPanel({
   return (
     <Collapsible label={label} defaultOpen={false}>
       {!diagnostics ? (
-        <div className="rv-ctrl-info">
+        <div className="rv-ctrl-info rv-control-helper-copy">
           Runtime diagnostics appear while Auto Performance is active and the engine is rendering.
         </div>
       ) : (

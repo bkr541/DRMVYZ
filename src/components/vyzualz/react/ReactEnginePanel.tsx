@@ -450,7 +450,7 @@ export function ReactEnginePanel() {
       {/* ── Engine Mode: GLSL Shader ──────────────────────────────────── */}
       {activeReactEngineId === 'shaderPads' && (
         <Collapsible label="Shader Scenes" defaultOpen>
-          <div className="rv-ctrl-info">
+          <div className="rv-ctrl-info rv-control-helper-copy">
             Shader uses Scenes rather than React presets. Choose and manage the active scene from the SCENES tab in the
             right rail.
           </div>
@@ -489,7 +489,7 @@ export function ReactEnginePanel() {
             onChange={(value) => setSoundDrawingPerformanceSettings({ autoPerformance: value })}
           />
           <div
-            className="rv-ctrl-info"
+            className="rv-ctrl-info rv-control-helper-copy"
             role="status"
             aria-live="polite"
             id="sound-drawing-performance-ownership"
@@ -900,7 +900,7 @@ export function ReactEnginePanel() {
             </>
           )}
           {!soundDrawingPerformanceSettings.autoPerformance && (
-            <div className="rv-ctrl-info">
+            <div className="rv-ctrl-info rv-control-helper-copy">
               Manual Sound Drawing sources, presets, timeline layers, and clips remain authoritative while Auto
               Performance is off.
             </div>
@@ -992,7 +992,7 @@ export function ReactEnginePanel() {
                     style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
                   >
                     {authoredScopeOwnsControls && (
-                      <div className="rv-ctrl-info">
+                      <div className="rv-ctrl-info rv-control-helper-copy">
                         {soundDrawingOwnership.professionalScopeOwner === 'authored'
                           ? `Signal, trigger, phosphor, and CRT controls are owned by ${selectedSoundDrawingShow?.name ?? 'the active show'}. Trace Size remains a live mixed input.`
                           : `Pro Scope signal controls are inactive because ${selectedSoundDrawingShow?.name ?? 'the active show'} has no scope layer. Trace Size still controls the authored base geometry.`}
@@ -1174,7 +1174,7 @@ export function ReactEnginePanel() {
                   onChange={(v) => set({ autoRotate: v })}
                 />
                 {(osc.svgRenderMode === 'auto' || osc.svgRenderMode === 'reactivePath') && (
-                  <div className="rv-ctrl-info" style={{ marginTop: 2 }}>
+                  <div className="rv-ctrl-info rv-control-helper-copy" style={{ marginTop: 2 }}>
                     Reactive Path deforms the SVG outline with audio. Original Artwork renders it at full fidelity with
                     whole-object reactions.
                   </div>

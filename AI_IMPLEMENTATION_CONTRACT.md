@@ -99,6 +99,12 @@ Rules:
 - Reuse `MediaDeckPanel` and `MediaLibraryBrowser`.
 - Do not place upload or library interfaces over the center stage.
 - Do not create custom top-level rail tab markup when `RailTabs` supports the requirement.
+- Keep the left rail compact: ordinary control descriptions use the shared
+  `.rv-ctrl-description` output, and standalone explanatory helper copy uses
+  `.rv-control-helper-copy`. React View removes both from the visible left-rail
+  layout while preserving them for assistive technology. Do not apply the
+  helper class to warnings, errors, empty states, or live diagnostics that the
+  user must see.
 
 ### Center stage
 

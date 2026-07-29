@@ -174,7 +174,7 @@ export function LaserDmxBeamMatrixPanel() {
 
       {/* ── Cue list ────────────────────────────────────────────────────── */}
       <Collapsible label="Cue List" defaultOpen={false}>
-        <div className="rv-ctrl-info">Cue list controls appear here when authored timeline cues are available.</div>
+        <div className="rv-ctrl-info rv-control-helper-copy">Cue list controls appear here when authored timeline cues are available.</div>
       </Collapsible>
     </>
   )

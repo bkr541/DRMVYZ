@@ -124,7 +124,7 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
           })),
         ]}
       />
-      <p className="rv-ctrl-info" role="status" aria-live="polite">
+      <p className="rv-ctrl-info rv-control-helper-copy" role="status" aria-live="polite">
         <strong>{presetProvenance.label}</strong> · {presetProvenance.description}
       </p>
       {activePreset && presetProvenance.status === 'modified' && (
@@ -391,7 +391,7 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
 
 
       <Collapsible label="Music Reactivity" defaultOpen={false}>
-        <p className="rv-ctrl-info">
+        <p className="rv-ctrl-info rv-control-helper-copy">
           Music Intelligence modulates presentation only — glow, beam width, exposure,
           and trail length. The trace geometry never moves, so a measurement mode stays
           a measurement.

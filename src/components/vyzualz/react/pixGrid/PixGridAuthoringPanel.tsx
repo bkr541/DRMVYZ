@@ -39,7 +39,7 @@ export function PixGridAuthoringPanel() {
       >
         {state.authoringOverlayVisible ? 'Close PixGrid Edit' : 'Edit PixGrid'}
       </button>
-      <div className="rv-ctrl-info rv-pix-grid-authoring-hint">Edit on the center canvas. Changes save automatically.</div>
+      <div className="rv-ctrl-info rv-pix-grid-authoring-hint rv-control-helper-copy">Edit on the center canvas. Changes save automatically.</div>
 
       <section className="rv-pix-grid-browser-section" aria-label="PixGrid scenes">
         <header><strong>SCENES</strong><span>{state.scenes.length}</span></header>
@@ -116,7 +116,7 @@ export function PixGridAuthoringPanel() {
         </div>
       </section>
 
-      <div className="rv-ctrl-info">Use the MEDIA tab to add PNG, JPEG, static WebP, or SVG artwork as a layer. Upload remains in the shared Media Library.</div>
+      <div className="rv-ctrl-info rv-control-helper-copy">Use the MEDIA tab to add PNG, JPEG, static WebP, or SVG artwork as a layer. Upload remains in the shared Media Library.</div>
     </div>
   )
 }
