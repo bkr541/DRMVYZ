@@ -248,12 +248,11 @@ describe('Sound Drawing Visual Size', () => {
     })
     await act(async () => root.render(<ReactFxPanel />))
     expect(container.textContent).not.toContain('Visual Size')
-    expect(container.textContent).not.toContain('Visual Size')
 
     await act(async () => root.render(<ReactEnginePanel />))
     const visualSizeRows = [...container.querySelectorAll('.rv-ctrl-row')]
       .filter(row => row.textContent?.includes('Visual Size'))
     expect(visualSizeRows).toHaveLength(1)
-    expect(container.textContent).not.toContain('Visual Size')
+    expect(container.textContent).toContain('Visual Size')
   })
 })

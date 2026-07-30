@@ -29,6 +29,20 @@ export interface AuthoredTrailDecayResolution {
   alpha: number
   owner: 'manualResolvedLock' | 'authoredMix'
   authoredPersistence: number
+  /** Alpha used when copying the clean current frame into bounded history. */
+  historyWriteAlpha: number
+}
+
+/**
+ * Controls how strongly a clean current frame is written into temporal history.
+ * History is always committed with source-over, so this value changes trail weight
+ * without permitting additive frame-over-frame energy growth.
+ */
+export function computeSoundDrawingHistoryWriteAlpha(
+  authoredPersistence: number,
+  feedbackAmount: number,
+): number {
+  return clamp(0.42 + clamp(authoredPersistence, 0, 1) * 0.28 + clamp(feedbackAmount, 0, 1) * 0.18, 0.42, 0.88)
 }
 
 /**
@@ -64,6 +78,10 @@ export function resolveAuthoredSoundDrawingTrailDecay(input: {
     0,
     0.98,
   )
+  const historyWriteAlpha = computeSoundDrawingHistoryWriteAlpha(
+    authoredPersistence,
+    layerFeedbackAmount,
+  )
   if (input.trailLockEnabled && input.trailLockMode === 'manualResolved') {
     return {
       alpha: computeSoundDrawingTrailDecayAlpha(
@@ -72,6 +90,7 @@ export function resolveAuthoredSoundDrawingTrailDecay(input: {
       ),
       owner: 'manualResolvedLock',
       authoredPersistence,
+      historyWriteAlpha,
     }
   }
   const referenceAlpha = clamp(
@@ -85,5 +104,6 @@ export function resolveAuthoredSoundDrawingTrailDecay(input: {
     alpha: clamp(1 - Math.pow(1 - referenceAlpha, frameRatio), 0.001, 1),
     owner: 'authoredMix',
     authoredPersistence,
+    historyWriteAlpha,
   }
 }

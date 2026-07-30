@@ -41,18 +41,25 @@ vi.mock('../../../../../features/performanceCore', () => ({
   createSharedPerformanceDiagnostics: vi.fn((_context: unknown, diagnostics: unknown) => diagnostics),
 }))
 
-import { disposeSoundDrawingRenderer, renderSoundDrawing } from '../SoundDrawingRenderer'
+import {
+  disposeSoundDrawingRenderer,
+  renderSoundDrawing,
+  resolveSoundDrawingTemporalBlendMode,
+} from '../SoundDrawingRenderer'
 
 interface RecordingContext extends CanvasRenderingContext2D {
   stroke: ReturnType<typeof vi.fn>
   drawImage: ReturnType<typeof vi.fn>
+  compositeOperations: GlobalCompositeOperation[]
 }
 
 function recordingContext(): RecordingContext {
+  const compositeOperations: GlobalCompositeOperation[] = []
+  let compositeOperation: GlobalCompositeOperation = 'source-over'
   const context: Partial<RecordingContext> & Record<string, unknown> = {
     canvas: { width: 640, height: 360 } as HTMLCanvasElement,
     globalAlpha: 1,
-    globalCompositeOperation: 'source-over',
+    compositeOperations,
     fillStyle: '#000000',
     strokeStyle: '#ffffff',
     lineWidth: 1,
@@ -79,6 +86,14 @@ function recordingContext(): RecordingContext {
     fill: vi.fn(),
     createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
   }
+  Object.defineProperty(context, 'globalCompositeOperation', {
+    configurable: true,
+    get: () => compositeOperation,
+    set: (value: GlobalCompositeOperation) => {
+      compositeOperation = value
+      compositeOperations.push(value)
+    },
+  })
   return context as unknown as RecordingContext
 }
 
@@ -214,18 +229,21 @@ function resolvedPerformance(layerOverrides: Partial<Record<string, unknown>> = 
   } as unknown as SoundDrawingResolvedPerformanceFrame
 }
 
-let offscreenContext: RecordingContext
+let offscreenContexts: RecordingContext[]
 
 beforeEach(() => {
   vi.clearAllMocks()
-  offscreenContext = recordingContext()
-  const offscreenCanvas = {
-    width: 1,
-    height: 1,
-    getContext: vi.fn(() => offscreenContext),
-  } as unknown as HTMLCanvasElement
+  offscreenContexts = []
   vi.stubGlobal('document', {
-    createElement: vi.fn(() => offscreenCanvas),
+    createElement: vi.fn(() => {
+      const context = recordingContext()
+      offscreenContexts.push(context)
+      return {
+        width: 1,
+        height: 1,
+        getContext: vi.fn(() => context),
+      } as unknown as HTMLCanvasElement
+    }),
   })
 })
 
@@ -233,18 +251,28 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('Sound Drawing additive blending', () => {
-  it('defaults trace blend mode to "lighter" on the legacy/manual render path (no authored performance active)', () => {
+describe('Sound Drawing bounded temporal blending', () => {
+  it('maps additive lighter requests to bounded screen blending', () => {
+    expect(resolveSoundDrawingTemporalBlendMode('lighter')).toBe('screen')
+    expect(resolveSoundDrawingTemporalBlendMode('screen')).toBe('screen')
+    expect(resolveSoundDrawingTemporalBlendMode('source-over')).toBe('source-over')
+  })
+
+  it('renders manual current geometry with screen and commits history with source-over', () => {
     mocks.resolvePerformanceFrame.mockReturnValue(null)
     const context = recordingContext()
 
     renderSoundDrawing(context, FRAME, PRESET, DEFAULT_REACT_RENDER_PARAMS, null)
 
-    expect(offscreenContext.globalCompositeOperation).toBe('lighter')
+    const operations = offscreenContexts.flatMap((candidate) => candidate.compositeOperations)
+    expect(operations).toContain('screen')
+    expect(operations).toContain('source-over')
+    expect(operations).not.toContain('lighter')
+    expect(document.createElement).toHaveBeenCalledTimes(2)
     disposeSoundDrawingRenderer(context)
   })
 
-  it('honors an authored performance layer\'s own resolved blendMode instead of forcing "lighter" or "screen"', () => {
+  it('allocates separate current-frame and history canvases for an authored layer', () => {
     mocks.resolvePerformanceFrame.mockReturnValue(resolvedPerformance({ blendMode: 'screen' }))
     const context = recordingContext()
 
@@ -256,14 +284,12 @@ describe('Sound Drawing additive blending', () => {
       },
     }, null)
 
-    expect(offscreenContext.globalCompositeOperation).toBe('screen')
+    expect(document.createElement).toHaveBeenCalledTimes(4)
+    expect(context.drawImage).toHaveBeenCalledTimes(2)
     disposeSoundDrawingRenderer(context)
   })
 
-  // Regression: authored layers default to screen so unrelated traces do not
-  // accumulate as one white-hot mass. A show may still opt a specific layer into
-  // lighter, which remains additive inside that layer's isolated trail buffer.
-  it('preserves an explicitly additive authored layer inside its isolated trail buffer', () => {
+  it('never writes an explicitly additive authored layer into temporal history with lighter', () => {
     mocks.resolvePerformanceFrame.mockReturnValue(resolvedPerformance({ blendMode: 'lighter' }))
     const context = recordingContext()
 
@@ -275,23 +301,9 @@ describe('Sound Drawing additive blending', () => {
       },
     }, null)
 
-    expect(offscreenContext.globalCompositeOperation).toBe('lighter')
-    disposeSoundDrawingRenderer(context)
-  })
-
-  it('a different resolved layer blendMode ("source-over") is also honored, proving it is read, not hardcoded', () => {
-    mocks.resolvePerformanceFrame.mockReturnValue(resolvedPerformance({ blendMode: 'source-over' }))
-    const context = recordingContext()
-
-    renderSoundDrawing(context, FRAME, PRESET, {
-      ...DEFAULT_REACT_RENDER_PARAMS,
-      soundDrawingPerformanceSettings: {
-        ...DEFAULT_REACT_RENDER_PARAMS.soundDrawingPerformanceSettings,
-        autoPerformance: true,
-      },
-    }, null)
-
-    expect(offscreenContext.globalCompositeOperation).toBe('source-over')
+    const operations = [context, ...offscreenContexts].flatMap((candidate) => candidate.compositeOperations)
+    expect(operations).toContain('screen')
+    expect(operations).not.toContain('lighter')
     disposeSoundDrawingRenderer(context)
   })
 })

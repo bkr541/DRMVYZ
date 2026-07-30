@@ -93,10 +93,12 @@ import {
 } from '../vectorBeam/VectorBeamScannerKinematics'
 import {
   SOUND_DRAWING_TRAIL_REFERENCE_FPS,
+  computeSoundDrawingHistoryWriteAlpha,
   computeSoundDrawingTrailDecayAlpha,
   resolveAuthoredSoundDrawingTrailDecay,
 } from './soundDrawing/SoundDrawingTrailComposition'
 export {
+  computeSoundDrawingHistoryWriteAlpha,
   computeSoundDrawingTrailDecayAlpha,
   computeSoundDrawingTrailRetention,
   computeSoundDrawingTrailRetentionPerReferenceFrame,
@@ -108,9 +110,11 @@ export {
 
 // ── Trail canvas pool (per ctx) ───────────────────────────────────────────────
 const trailMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
+const trailFrameMap = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
 
 interface AuthoredLayerTrailEntry {
-  canvas: HTMLCanvasElement
+  historyCanvas: HTMLCanvasElement
+  frameCanvas: HTMLCanvasElement
   identity: string
 }
 
@@ -135,6 +139,12 @@ const SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS = new Set([
 
 function getTrail(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanvasElement {
   return getOrCreateOffscreen(trailMap, ctx, W, H)
+}
+
+function getTrailFrame(ctx: CanvasRenderingContext2D, W: number, H: number): HTMLCanvasElement {
+  const frameCanvas = getOrCreateOffscreen(trailFrameMap, ctx, W, H)
+  clearCanvasEnergy(frameCanvas)
+  return frameCanvas
 }
 
 function clearCanvasEnergy(canvas: HTMLCanvasElement): void {
@@ -162,15 +172,24 @@ function getAuthoredLayerTrail(
   }
   let entry = trails.get(layerKey)
   if (!entry) {
-    entry = { canvas: document.createElement('canvas'), identity }
+    entry = {
+      historyCanvas: document.createElement('canvas'),
+      frameCanvas: document.createElement('canvas'),
+      identity,
+    }
     trails.set(layerKey, entry)
   }
-  const resized = entry.canvas.width !== W || entry.canvas.height !== H
+  const resized =
+    entry.historyCanvas.width !== W || entry.historyCanvas.height !== H ||
+    entry.frameCanvas.width !== W || entry.frameCanvas.height !== H
   if (resized) {
-    entry.canvas.width = W
-    entry.canvas.height = H
+    entry.historyCanvas.width = W
+    entry.historyCanvas.height = H
+    entry.frameCanvas.width = W
+    entry.frameCanvas.height = H
   }
-  if (resized || entry.identity !== identity) clearCanvasEnergy(entry.canvas)
+  if (resized || entry.identity !== identity) clearCanvasEnergy(entry.historyCanvas)
+  clearCanvasEnergy(entry.frameCanvas)
   entry.identity = identity
   return entry
 }
@@ -178,7 +197,10 @@ function getAuthoredLayerTrail(
 function clearAuthoredLayerTrails(ownerContext: CanvasRenderingContext2D): void {
   const trails = authoredLayerTrailMap.get(ownerContext)
   if (!trails) return
-  for (const entry of trails.values()) clearCanvasEnergy(entry.canvas)
+  for (const entry of trails.values()) {
+    clearCanvasEnergy(entry.historyCanvas)
+    clearCanvasEnergy(entry.frameCanvas)
+  }
 }
 
 function pruneAuthoredLayerTrails(
@@ -189,9 +211,12 @@ function pruneAuthoredLayerTrails(
   if (!trails) return
   for (const [key, entry] of trails) {
     if (activeLayerKeys.has(key)) continue
-    clearCanvasEnergy(entry.canvas)
-    entry.canvas.width = 1
-    entry.canvas.height = 1
+    clearCanvasEnergy(entry.historyCanvas)
+    clearCanvasEnergy(entry.frameCanvas)
+    entry.historyCanvas.width = 1
+    entry.historyCanvas.height = 1
+    entry.frameCanvas.width = 1
+    entry.frameCanvas.height = 1
     trails.delete(key)
   }
   if (trails.size === 0) authoredLayerTrailMap.delete(ownerContext)
@@ -201,9 +226,12 @@ function disposeAuthoredLayerTrails(ownerContext: CanvasRenderingContext2D): voi
   const trails = authoredLayerTrailMap.get(ownerContext)
   if (!trails) return
   for (const entry of trails.values()) {
-    clearCanvasEnergy(entry.canvas)
-    entry.canvas.width = 1
-    entry.canvas.height = 1
+    clearCanvasEnergy(entry.historyCanvas)
+    clearCanvasEnergy(entry.frameCanvas)
+    entry.historyCanvas.width = 1
+    entry.historyCanvas.height = 1
+    entry.frameCanvas.width = 1
+    entry.frameCanvas.height = 1
   }
   trails.clear()
   authoredLayerTrailMap.delete(ownerContext)
@@ -214,12 +242,16 @@ function disposeAuthoredLayerTrails(ownerContext: CanvasRenderingContext2D): voi
 const beatEnvelopeMap = new WeakMap<CanvasRenderingContext2D, number>()
 const BEAT_DECAY = 0.86
 
-// ── Additive trace blending ────────────────────────────────────────────────────
-// Reference oscilloscope footage shows core-to-white / halo-to-hue desaturation,
-// the signature of additive accumulation (not 'screen' blend). Authored performance
-// layers already resolve their own blend mode; the legacy/manual and clip pipelines
-// have no layer to read from, so they default to 'lighter'.
-const SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE: SoundDrawingBlendMode = 'lighter'
+// ── Bounded trace blending ─────────────────────────────────────────────────────
+// Current geometry is rendered onto a clean per-frame surface. Screen preserves
+// luminous overlap without allowing repeated frames to add unlimited light energy.
+const SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE: SoundDrawingBlendMode = 'screen'
+
+export function resolveSoundDrawingTemporalBlendMode(
+  blendMode: SoundDrawingBlendMode,
+): Exclude<SoundDrawingBlendMode, 'lighter'> {
+  return blendMode === 'lighter' ? 'screen' : blendMode
+}
 
 // ── Trail decay (per canvas context) ──────────────────────────────────────────
 // The versioned equation and pure ownership resolution live in
@@ -384,6 +416,7 @@ let _sdTrailResetRevision = 0
 const trailResetSeenMap = new WeakMap<CanvasRenderingContext2D, string>()
 const authoredTrailIdentityMap = new WeakMap<CanvasRenderingContext2D, string>()
 const manualTrailIdentityMap = new WeakMap<CanvasRenderingContext2D, string>()
+const trailPipelineIdentityMap = new WeakMap<CanvasRenderingContext2D, 'authored' | 'clips' | 'manual'>()
 const authoredScopeContextMap = new WeakMap<CanvasRenderingContext2D, CanvasRenderingContext2D>()
 const scopeSignalIdentityMap = new WeakMap<CanvasRenderingContext2D, string>()
 const livingRibbonResetSeenMap = new WeakMap<CanvasRenderingContext2D, number>()
@@ -415,6 +448,12 @@ export function disposeSoundDrawingRenderer(
     trail.width = 1
     trail.height = 1
   }
+  const trailFrame = trailFrameMap.get(ctx)
+  if (trailFrame) {
+    trailFrame.getContext('2d')?.clearRect(0, 0, trailFrame.width, trailFrame.height)
+    trailFrame.width = 1
+    trailFrame.height = 1
+  }
   const artwork = artworkPaletteMap.get(ctx)
   if (artwork) {
     artwork.getContext('2d')?.clearRect(0, 0, artwork.width, artwork.height)
@@ -422,6 +461,7 @@ export function disposeSoundDrawingRenderer(
     artwork.height = 1
   }
   trailMap.delete(ctx)
+  trailFrameMap.delete(ctx)
   disposeAuthoredLayerTrails(ctx)
   artworkPaletteMap.delete(ctx)
   beatEnvelopeMap.delete(ctx)
@@ -432,6 +472,7 @@ export function disposeSoundDrawingRenderer(
   trailResetSeenMap.delete(ctx)
   authoredTrailIdentityMap.delete(ctx)
   manualTrailIdentityMap.delete(ctx)
+  trailPipelineIdentityMap.delete(ctx)
   livingRibbonResetSeenMap.delete(ctx)
   disposeLivingRibbonCanvasRuntimes(ctx)
   soundDrawingPerformanceContextMap.delete(ctx)
@@ -642,22 +683,24 @@ function renderOriginalArtwork(
 
   const entry = getSvgVisualEntry(mediaId)
 
-  // Trail canvas for decay / ghost-echo effect
+  // Render current artwork onto a clean frame surface, then write it into
+  // bounded history after presentation. This prevents repeated artwork copies
+  // from accumulating additive light inside the history buffer.
   const trailCanvas = getTrail(ctx, W, H)
-  const tctx = trailCanvas.getContext('2d')
+  const frameCanvas = getTrailFrame(ctx, W, H)
+  const tctx = frameCanvas.getContext('2d')
   if (!tctx) return
 
   const beatEnvelope = tickBeatEnvelope(tctx, frame.beatHit)
-
-  // Fade trail (frame-rate independent; erases toward zero energy under additive blending)
   const dtSeconds = tickTrailDeltaSeconds(ctx, t)
   fadeTrail(trailCanvas, computeSoundDrawingTrailDecayAlpha(params.trailDecay, dtSeconds))
 
-  // Composite trail to main canvas even if image is missing, so background shows
   if (!entry?.loaded || !entry.image) {
+    ctx.save()
     ctx.fillStyle = preset.palette.background
     ctx.fillRect(0, 0, W, H)
-    ctx.drawImage(trailCanvas, 0, 0)
+    compositeTrailSurface(ctx, trailCanvas, frameCanvas, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
+    ctx.restore()
     return
   }
 
@@ -758,10 +801,17 @@ function renderOriginalArtwork(
     }
   }
 
-  // ── Composite trail to main canvas ────────────────────────────────────────
+  // ── Composite current frame over bounded history, then commit ─────────────
+  ctx.save()
   ctx.fillStyle = preset.palette.background
   ctx.fillRect(0, 0, W, H)
-  ctx.drawImage(trailCanvas, 0, 0)
+  compositeTrailSurface(ctx, trailCanvas, frameCanvas, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
+  ctx.restore()
+  commitFrameToTrailHistory(
+    trailCanvas,
+    frameCanvas,
+    computeSoundDrawingHistoryWriteAlpha(1 - params.trailDecay, 0),
+  )
 }
 
 // Shapes that naturally close back to their start point
@@ -1313,10 +1363,9 @@ function drawDotPoints(tctx: CanvasRenderingContext2D, pts: [number, number][], 
 }
 
 // ── Fade trail each frame ─────────────────────────────────────────────────────
-// Under additive ('lighter') blending the trail buffer holds accumulated light
-// energy on a transparent base — it must asymptote to zero energy, not toward the
-// background color (the background is composited underneath separately by callers).
-// destination-out erases by alpha regardless of what blend mode drew the pixels.
+// History is transparent temporal energy, separate from the clean current frame.
+// destination-out removes history alpha directly so decay is independent of hue
+// and cannot drift toward an opaque background color.
 
 function fadeTrail(trailCanvas: HTMLCanvasElement, decayAlpha: number): void {
   const tctx = trailCanvas.getContext('2d')
@@ -1327,6 +1376,35 @@ function fadeTrail(trailCanvas: HTMLCanvasElement, decayAlpha: number): void {
   tctx.fillStyle = '#000000'
   tctx.fillRect(0, 0, trailCanvas.width, trailCanvas.height)
   tctx.restore()
+}
+
+function commitFrameToTrailHistory(
+  historyCanvas: HTMLCanvasElement,
+  frameCanvas: HTMLCanvasElement,
+  historyWriteAlpha: number,
+): void {
+  const historyContext = historyCanvas.getContext('2d')
+  if (!historyContext) return
+  historyContext.save()
+  historyContext.setTransform(1, 0, 0, 1, 0, 0)
+  historyContext.globalCompositeOperation = 'source-over'
+  historyContext.globalAlpha = clamp(historyWriteAlpha, 0, 1)
+  historyContext.drawImage(frameCanvas, 0, 0)
+  historyContext.restore()
+}
+
+function compositeTrailSurface(
+  target: CanvasRenderingContext2D,
+  historyCanvas: HTMLCanvasElement,
+  frameCanvas: HTMLCanvasElement,
+  blendMode: SoundDrawingBlendMode,
+  alpha = 1,
+): void {
+  target.globalAlpha = clamp(alpha, 0, 1)
+  target.globalCompositeOperation = 'source-over'
+  target.drawImage(historyCanvas, 0, 0)
+  target.globalCompositeOperation = resolveSoundDrawingTemporalBlendMode(blendMode)
+  target.drawImage(frameCanvas, 0, 0)
 }
 
 // ── Waveform mode ─────────────────────────────────────────────────────────────
@@ -2457,11 +2535,11 @@ function hasSvgGlyphPoints(osc: OscillatorSettings, params: ReactRenderParams): 
 function clearSoundDrawingTrail(ctx: CanvasRenderingContext2D, W: number, H: number, background: string): void {
   clearAuthoredLayerTrails(ctx)
   const trailCanvas = getTrail(ctx, W, H)
+  getTrailFrame(ctx, W, H)
   const trailContext = trailCanvas.getContext('2d')
   if (trailContext) {
-    // Under additive blending the trail buffer holds light energy on a transparent
-    // base (the background is composited underneath separately by callers) — reset
-    // to fully transparent, not opaque background color.
+    // Temporal history is transparent and composited over the background later.
+    // Reset to zero alpha so no prior source, topology, or pipeline can reappear.
     trailContext.save()
     trailContext.setTransform(1, 0, 0, 1, 0, 0)
     trailContext.globalCompositeOperation = 'source-over'
@@ -2494,6 +2572,22 @@ function resetTrailForRevisionIfNeeded(
   if (trailResetSeenMap.get(ctx) === revisionKey) return
   clearSoundDrawingTrail(ctx, W, H, background)
   trailResetSeenMap.set(ctx, revisionKey)
+}
+
+function enterSoundDrawingTrailPipeline(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  background: string,
+  pipeline: 'authored' | 'clips' | 'manual',
+): void {
+  const previous = trailPipelineIdentityMap.get(ctx)
+  if (previous !== undefined && previous !== pipeline) {
+    clearSoundDrawingTrail(ctx, W, H, background)
+    manualTrailIdentityMap.delete(ctx)
+    authoredTrailIdentityMap.delete(ctx)
+  }
+  trailPipelineIdentityMap.set(ctx, pipeline)
 }
 
 // ── Public export ─────────────────────────────────────────────────────────────
@@ -2557,71 +2651,107 @@ function renderSoundDrawingClips(
   const timeSec = frame.timeSec ?? 0
   const layerMap = new Map(layers.map((l) => [l.id, l]))
 
-  // Filter to active, enabled clips in z-order. Runtime state belonging to
-  // inactive layers is discarded so lyric text does not linger between clips.
   const activeClips = clips
     .filter((c) => c.enabled && timeSec >= c.startSec && timeSec < c.endSec)
     .sort((a, b) => a.zIndex - b.zIndex)
   const activeLayerIds = new Set(activeClips.map((clip) => clip.layerId))
   for (const layer of layers) {
-    if (!layer.enabled || !activeLayerIds.has(layer.id)) {
-      lyricTextRuntime.delete(`layer:${layer.id}`)
-    }
+    if (!layer.enabled || !activeLayerIds.has(layer.id)) lyricTextRuntime.delete(`layer:${layer.id}`)
   }
   lyricTextRuntime.delete('global')
 
-  const trailCanvas = getTrail(ctx, W, H)
-  const tctx        = trailCanvas.getContext('2d')
-  if (!tctx) return
-
   const dtSeconds = tickTrailDeltaSeconds(ctx, frame.t)
-  fadeTrail(trailCanvas, computeSoundDrawingTrailDecayAlpha(params.trailDecay, dtSeconds))
-
-  // Continue fading and repainting during gaps instead of leaving the final
-  // lyric frame frozen on the canvas.
-  if (activeClips.length === 0) {
-    ctx.fillStyle = preset.palette.background
-    ctx.fillRect(0, 0, W, H)
-    ctx.drawImage(trailCanvas, 0, 0)
-    return
-  }
+  const activeTrailKeys = new Set<string>()
+  const renderedClips: Array<{
+    historyCanvas: HTMLCanvasElement
+    frameCanvas: HTMLCanvasElement
+  }> = []
 
   for (const clip of activeClips) {
     const layer = layerMap.get(clip.layerId)
     if (!layer || !layer.enabled) continue
 
-    const fade       = computeClipFade(timeSec, clip)
-    const clipAlpha  = fade * params.intensity
+    const layerKey = `clip:${clip.id}`
+    activeTrailKeys.add(layerKey)
+    const clipIdentity = [
+      'clip',
+      clip.id,
+      clip.layerId,
+      layer.sourceType,
+      layer.shape,
+      layer.svgId ?? 'no-svg',
+      layer.fontId ?? 'no-font',
+      layer.text,
+      layer.x,
+      layer.y,
+      layer.scale,
+      layer.rotation,
+      JSON.stringify(layer.oscillatorOverride),
+    ].join('|')
+    const trail = getAuthoredLayerTrail(ctx, layerKey, clipIdentity, W, H)
+    const frameContext = trail.frameCanvas.getContext('2d')
+    if (!frameContext) continue
 
+    fadeTrail(trail.historyCanvas, computeSoundDrawingTrailDecayAlpha(params.trailDecay, dtSeconds))
+
+    const fade = computeClipFade(timeSec, clip)
+    const clipAlpha = fade * params.intensity
     const effectiveOsc = buildEffectiveOscForLayer(params.oscillator, layer)
-    const effectiveParams: ReactRenderParams = {
-      ...params,
-      oscillator: effectiveOsc,
-    }
+    const effectiveParams: ReactRenderParams = { ...params, oscillator: effectiveOsc }
+    const cx = layer.x * W + W / 2
+    const cy = layer.y * H + H / 2
+    const scale = layer.scale ?? 1
+    const rotationRadians = ((layer.rotation ?? 0) * Math.PI) / 180
 
-    // Apply layer position, scale, and rotation as a canvas transform
-    const cx      = layer.x * W + W / 2
-    const cy      = layer.y * H + H / 2
-    const s       = layer.scale ?? 1
-    const rotRad  = ((layer.rotation ?? 0) * Math.PI) / 180
-
-    tctx.save()
-    tctx.translate(cx, cy)
-    tctx.rotate(rotRad)
-    tctx.scale(s, s)
-    tctx.translate(-W / 2, -H / 2)
-
+    frameContext.save()
+    frameContext.translate(cx, cy)
+    frameContext.rotate(rotationRadians)
+    frameContext.scale(scale, scale)
+    frameContext.translate(-W / 2, -H / 2)
     drawPathScopeOnTrail(
-      tctx, W, H, dpr, frame, preset, effectiveParams, clipAlpha, sectionType, `layer:${layer.id}`,
+      frameContext,
+      W,
+      H,
+      dpr,
+      frame,
+      preset,
+      effectiveParams,
+      clipAlpha,
+      sectionType,
+      `layer:${layer.id}`,
       SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
     )
-
-    tctx.restore()
+    frameContext.restore()
+    renderedClips.push({ historyCanvas: trail.historyCanvas, frameCanvas: trail.frameCanvas })
   }
 
-  ctx.fillStyle = preset.palette.background
-  ctx.fillRect(0, 0, W, H)
-  ctx.drawImage(trailCanvas, 0, 0)
+  pruneAuthoredLayerTrails(ctx, activeTrailKeys)
+
+  ctx.save()
+  try {
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+    ctx.fillStyle = preset.palette.background
+    ctx.fillRect(0, 0, W, H)
+    for (const { historyCanvas, frameCanvas } of renderedClips) {
+      compositeTrailSurface(
+        ctx,
+        historyCanvas,
+        frameCanvas,
+        SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
+      )
+    }
+  } finally {
+    ctx.restore()
+  }
+
+  for (const { historyCanvas, frameCanvas } of renderedClips) {
+    commitFrameToTrailHistory(
+      historyCanvas,
+      frameCanvas,
+      computeSoundDrawingHistoryWriteAlpha(1 - params.trailDecay, 0),
+    )
+  }
 }
 
 function paletteForPerformanceRole(preset: ReactPreset, colorRole: SoundDrawingColorRole): ReactPreset {
@@ -2810,6 +2940,7 @@ function renderPerformanceLayer(
 ): PerformanceLayerRenderResult {
   if (!layer.enabled || layer.opacity <= 0.001) return {}
   const { W, H, dpr } = frame
+  const temporalBlendMode = resolveSoundDrawingTemporalBlendMode(layer.blendMode)
   const camera = performance.global
   const layerPreset = paletteForPerformanceRole(preset, layer.colorRole)
   const scopeTransitionSeconds = layer.professionalScope?.transitionSeconds ?? 0
@@ -2859,7 +2990,7 @@ function renderPerformanceLayer(
   let result: PerformanceLayerRenderResult = {}
   tctx.save()
   try {
-    tctx.globalCompositeOperation = layer.blendMode
+    tctx.globalCompositeOperation = temporalBlendMode
     const cameraX = camera.cameraX * W
     const cameraY = camera.cameraY * H
     tctx.translate(W / 2 + cameraX, H / 2 + cameraY)
@@ -2887,7 +3018,7 @@ function renderPerformanceLayer(
           layerFrame,
           layerPreset,
           effectiveParams,
-          { compositeOnly: true, blendMode: layer.blendMode },
+          { compositeOnly: true, blendMode: temporalBlendMode },
         )
         const canvasRendered =
           gpuRendered ||
@@ -2901,7 +3032,7 @@ function renderPerformanceLayer(
             layerPreset,
             effectiveParams,
             effectiveParams.intensity,
-            layer.blendMode,
+            temporalBlendMode,
           )
         result = canvasRendered
           ? { professionalScopeRendered: true }
@@ -2923,7 +3054,7 @@ function renderPerformanceLayer(
         // Preserve a basic audio-reactive visual when the simulation or Canvas2D
         // path fails. The existing harmonic ribbon path is deliberately retained.
         drawWaveformOnTrail(
-          tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+          tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, temporalBlendMode,
         )
       }
     } else if (layer.source.kind === 'svg' && layer.source.renderMode === 'original-artwork') {
@@ -2940,23 +3071,23 @@ function renderPerformanceLayer(
         effectiveParams.intensity,
         sectionType,
         `performance:${performance.showId}:${layer.id}`,
-        layer.blendMode,
+        temporalBlendMode,
       )
     } else {
       switch (scopeModeForClassicMode(effectiveOscillator.classicMode)) {
         case 'lissajous':
           drawLissajousOnTrail(
-            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, temporalBlendMode,
           )
           break
         case 'radialScope':
           drawRadialScopeOnTrail(
-            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, temporalBlendMode,
           )
           break
         case 'spiralScope':
           drawSpiralScopeOnTrail(
-            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, temporalBlendMode,
           )
           break
         case 'professionalScope':
@@ -2964,7 +3095,7 @@ function renderPerformanceLayer(
         case 'waveform':
         default:
           drawWaveformOnTrail(
-            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, layer.blendMode,
+            tctx, W, H, dpr, layerFrame, layerPreset, effectiveParams, effectiveParams.intensity, temporalBlendMode,
           )
           break
       }
@@ -2989,7 +3120,11 @@ function authoredLayerTrailIdentity(
     layer.classicMode,
     layer.shape,
     layer.renderMode,
-    layer.blendMode,
+    resolveSoundDrawingTemporalBlendMode(layer.blendMode),
+    Math.round(layer.traceCount),
+    Math.round(layer.symmetry),
+    Math.round(layer.topologyVariant),
+    layer.professionalScope?.state.signalMode ?? 'no-professional-scope',
   ].join('|')
 }
 
@@ -2998,7 +3133,6 @@ function authoredTrailIdentity(performance: SoundDrawingResolvedPerformanceFrame
   const layerTopology = performance.layers
     .filter((layer) => layer.enabled)
     .map((layer) => authoredLayerTrailIdentity(performance, layer))
-    .sort()
     .join('::')
   return [
     performance.showId,
@@ -3016,6 +3150,8 @@ function authoredTrailIdentity(performance: SoundDrawingResolvedPerformanceFrame
     oscillator.selectedGlyphId ?? 'no-glyph',
     oscillator.textFontId ?? 'no-font',
     oscillator.text,
+    oscillator.pathScale,
+    oscillator.pathResolution,
     params.soundDrawingPerformanceSettings.locks.trail ? 'trail-lock' : 'trail-unlocked',
     params.soundDrawingPerformanceSettings.trailLockContract.version,
     params.soundDrawingPerformanceSettings.trailLockContract.mode,
@@ -3102,6 +3238,7 @@ function renderAuthoredSoundDrawingPerformance(
   soundDrawingPerformanceContextMap.set(ctx, performance.context)
 
   const { W, H } = frame
+  enterSoundDrawingTrailPipeline(ctx, W, H, preset.palette.background, 'authored')
 
   const ribbonResetRevision = params.soundDrawingRibbonResetRevision ?? 0
   const previousRibbonResetRevision = livingRibbonResetSeenMap.get(ctx)
@@ -3149,7 +3286,9 @@ function renderAuthoredSoundDrawingPerformance(
   const layerRenderFailures = [...preparation.diagnostics]
   const renderedLayers: Array<{
     layer: SoundDrawingResolvedPerformanceLayer
-    canvas: HTMLCanvasElement
+    historyCanvas: HTMLCanvasElement
+    frameCanvas: HTMLCanvasElement
+    historyWriteAlpha: number
   }> = []
   const activeLayerKeys = new Set<string>()
   let professionalScopeRendered = false
@@ -3165,7 +3304,7 @@ function renderAuthoredSoundDrawingPerformance(
       W,
       H,
     )
-    const layerContext = layerTrail.canvas.getContext('2d')
+    const layerContext = layerTrail.frameCanvas.getContext('2d')
     activeLayerKeys.add(layerKey)
     if (!layerContext) {
       layerRenderFailures.push(`${layer.id}: Canvas2D layer trail unavailable`)
@@ -3190,7 +3329,7 @@ function renderAuthoredSoundDrawingPerformance(
       livingRibbonActive: layer.generator === 'livingRibbon',
       livingRibbonTrailDetail: preparation.qualityBudget.trailDetail,
     })
-    fadeTrail(layerTrail.canvas, trailResolution.alpha)
+    fadeTrail(layerTrail.historyCanvas, trailResolution.alpha)
 
     const result = renderPerformanceLayer(
       ctx,
@@ -3205,7 +3344,12 @@ function renderAuthoredSoundDrawingPerformance(
     )
     professionalScopeRendered ||= result.professionalScopeRendered === true
     if (result.fallbackReason) layerRenderFailures.push(result.fallbackReason)
-    renderedLayers.push({ layer, canvas: layerTrail.canvas })
+    renderedLayers.push({
+      layer,
+      historyCanvas: layerTrail.historyCanvas,
+      frameCanvas: layerTrail.frameCanvas,
+      historyWriteAlpha: trailResolution.historyWriteAlpha,
+    })
   }
   pruneAuthoredLayerTrails(ctx, activeLayerKeys)
 
@@ -3224,20 +3368,28 @@ function renderAuthoredSoundDrawingPerformance(
   } else {
     ctx.save()
     try {
-      // Every authored layer owns a separate temporal buffer. Additive energy can
-      // build inside a trace, but one scene/layer cannot bleach unrelated layers
-      // into a single persistent white knot.
+      // Each authored layer now has two surfaces:
+      //   1. a clean current-frame canvas, cleared before every generator draw;
+      //   2. a decaying history canvas that never receives additive writes.
+      // This bounds temporal energy inside each layer and keeps current geometry
+      // readable even when authored persistence is intentionally long.
       ctx.globalCompositeOperation = 'source-over'
       ctx.globalAlpha = 1
       ctx.fillStyle = preset.palette.background
       ctx.fillRect(0, 0, W, H)
-      ctx.globalAlpha = clamp(performance.global.backgroundFade, 0, 1)
-      for (const { layer, canvas } of renderedLayers) {
-        ctx.globalCompositeOperation = layer.blendMode === 'lighter' ? 'screen' : layer.blendMode
-        ctx.drawImage(canvas, 0, 0)
+      const presentationAlpha = clamp(performance.global.backgroundFade, 0, 1)
+      for (const { layer, historyCanvas, frameCanvas } of renderedLayers) {
+        compositeTrailSurface(ctx, historyCanvas, frameCanvas, layer.blendMode, presentationAlpha)
       }
     } finally {
       ctx.restore()
+    }
+
+    // Commit only after presentation so the current frame is not rendered twice.
+    // source-over writes converge toward the current trace instead of accumulating
+    // unbounded light as repeated lighter/screen feedback would.
+    for (const { historyCanvas, frameCanvas, historyWriteAlpha } of renderedLayers) {
+      commitFrameToTrailHistory(historyCanvas, frameCanvas, historyWriteAlpha)
     }
   }
 
@@ -3412,9 +3564,16 @@ export function renderSoundDrawing(
 
   // If clips are active for this frame, render through clip pipeline instead
   if (_sdClips.length > 0) {
+    enterSoundDrawingTrailPipeline(ctx, W, H, preset.palette.background, 'clips')
     renderSoundDrawingClips(ctx, frame, preset, params, sectionType, _sdLayers, _sdClips)
     return
   }
+
+  enterSoundDrawingTrailPipeline(ctx, W, H, preset.palette.background, 'manual')
+
+  // Timeline clips use the same isolated temporal-surface pool as authored
+  // performance layers. Release those surfaces when returning to manual output.
+  disposeAuthoredLayerTrails(ctx)
 
   // Unified SVG runtime path. Legacy media-backed settings are resolved at the
   // compatibility boundary and follow the same selectedSvgId/render-mode lifecycle.
@@ -3423,6 +3582,19 @@ export function renderSoundDrawing(
     const wantsOriginal =
       svgSource.renderMode === 'originalArtwork' || (svgSource.renderMode === 'auto' && !hasSvgGlyphPoints(osc, params))
     if (wantsOriginal) {
+      const artworkTrailIdentity = [
+        'original-artwork',
+        svgSource.mediaId,
+        osc.svgRenderMode,
+        osc.pathScale,
+        osc.duplicateTraces,
+        osc.svgUseReactPalette ? 'palette' : 'source-color',
+      ].join('|')
+      const previousManualTrailIdentity = manualTrailIdentityMap.get(ctx)
+      if (previousManualTrailIdentity !== undefined && previousManualTrailIdentity !== artworkTrailIdentity) {
+        clearSoundDrawingTrail(ctx, W, H, preset.palette.background)
+      }
+      manualTrailIdentityMap.set(ctx, artworkTrailIdentity)
       renderOriginalArtwork(ctx, frame, preset, params, svgSource.mediaId)
       return
     }
@@ -3443,12 +3615,21 @@ export function renderSoundDrawing(
   const manualTrailIdentity = [
     osc.sourceType,
     mode,
+    osc.autoSectionMode || osc.classicMode === 'sectionAuto'
+      ? `section:${sectionType ?? 'unresolved'}`
+      : 'section-follow-off',
     osc.builtinShape,
     osc.selectedSvgId ?? 'no-svg',
     osc.selectedGlyphId ?? 'no-glyph',
     osc.textFontId ?? 'no-font',
     osc.text,
+    osc.textLetterSpacing,
+    osc.textLineHeight,
+    osc.textAlignment,
     osc.renderMode,
+    osc.pathScale,
+    osc.pathResolution,
+    osc.duplicateTraces,
   ].join('|')
   const previousManualTrailIdentity = manualTrailIdentityMap.get(ctx)
   if (previousManualTrailIdentity !== undefined && previousManualTrailIdentity !== manualTrailIdentity) {
@@ -3466,14 +3647,16 @@ export function renderSoundDrawing(
   }
 
   const trailCanvas = getTrail(ctx, W, H)
-  const tctx        = trailCanvas.getContext('2d')
+  const frameCanvas = getTrailFrame(ctx, W, H)
+  const tctx = frameCanvas.getContext('2d')
   if (!tctx) return
 
-  // Fade trail (frame-rate independent; erases toward zero energy under additive blending)
+  // Decay only previous-frame history. Current geometry is always drawn onto a
+  // freshly cleared surface, so it cannot recursively brighten itself.
   const dtSeconds = tickTrailDeltaSeconds(ctx, frame.t)
   fadeTrail(trailCanvas, computeSoundDrawingTrailDecayAlpha(params.trailDecay, dtSeconds))
 
-  // Draw new scope frame onto trail canvas
+  // Draw new scope frame onto the clean current-frame canvas.
   switch (mode) {
     case 'professionalScope':
       // Falls through to the legacy waveform when stereo capture is unavailable
@@ -3502,8 +3685,16 @@ export function renderSoundDrawing(
       drawWaveformOnTrail(tctx, W, H, dpr, frame, preset, params, intMul, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
   }
 
-  // Composite trail onto main canvas
+  // Present history and the crisp current frame separately, then commit the
+  // current frame with a bounded source-over write for use on the next frame.
+  ctx.save()
   ctx.fillStyle = preset.palette.background
   ctx.fillRect(0, 0, W, H)
-  ctx.drawImage(trailCanvas, 0, 0)
+  compositeTrailSurface(ctx, trailCanvas, frameCanvas, SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE)
+  ctx.restore()
+  commitFrameToTrailHistory(
+    trailCanvas,
+    frameCanvas,
+    computeSoundDrawingHistoryWriteAlpha(1 - params.trailDecay, 0),
+  )
 }
