@@ -129,6 +129,8 @@ export interface ScopePhosphorFrameInput {
   traceColor: { r: number; g: number; b: number }
   /** Background tint used for the tube's black level. */
   backgroundColor: { r: number; g: number; b: number }
+  /** When true, unlit tube pixels remain transparent for authored layer composition. */
+  transparentBackground?: boolean
   /** Optional CRT presentation. Skipped entirely when disabled or unsupported. */
   crt: ScopeCrtSettings
   /** True on seek, loop, or track change: clears persistence before drawing. */
@@ -477,6 +479,7 @@ export class ScopePhosphorRuntime {
     this.compositeProgram.setVec3('uBackgroundColor',
       input.backgroundColor.r, input.backgroundColor.g, input.backgroundColor.b)
     this.compositeProgram.setFloat('uBackgroundLift', input.phosphor.backgroundLift)
+    this.compositeProgram.setFloat('uTransparentBackground', input.transparentBackground === true ? 1 : 0)
 
     // CRT runs after tone mapping, on display-range colour: curving or
     // scanlining HDR values before compression would let a bright intersection
@@ -518,6 +521,7 @@ export class ScopePhosphorRuntime {
     this.crtProgram!.setFloat('uVignette', crt.vignette)
     this.crtProgram!.setFloat('uEdgeDefocus', crt.edgeDefocus)
     this.crtProgram!.setFloat('uGrain', crt.grain)
+    this.crtProgram!.setFloat('uTransparentBackground', input.transparentBackground === true ? 1 : 0)
     this.crtProgram!.setVec3('uPhosphorColor', phosphor[0], phosphor[1], phosphor[2])
     // 'rgb' is a colour vector display: it keeps the trace's own hue rather than
     // driving everything to one emission colour.

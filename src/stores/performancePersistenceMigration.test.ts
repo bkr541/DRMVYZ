@@ -51,10 +51,8 @@ describe('performance settings persistence migration', () => {
     expect(normalized.echoStrength).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength)
     expect(normalized.sourceTrailStrength).toBe(0.31)
     expect(normalized.supportingVisualReactivity).toBe(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity)
-    expect(normalized.locks.generator).toBe(true)
-    expect(normalized.locks.transform).toBe(true)
-    expect(normalized.locks.sourceSelection).toBe(true)
-    expect(normalized.locks.contourReactivity).toBe(true)
+    expect(Object.values(normalized.locks).every(value => value === false)).toBe(true)
+    expect(normalized.trailLockContract).toEqual(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract)
     expect(normalized.livingRibbon).toEqual(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.livingRibbon)
     expect(normalized.locks).not.toHaveProperty('unknown')
     expect(normalized).not.toHaveProperty('runtimeFrame')
@@ -77,13 +75,13 @@ describe('performance settings persistence migration', () => {
     }, 45)
 
     const settings = migrated.soundDrawingPerformanceSettings as typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
-    expect(settings.performanceSource).toBe('activeUserSource')
+    expect(settings.performanceSource).toBe('generatedVisual')
+    expect(settings.generatorPreference).toBe('authored')
     expect(settings.quality).toBe('auto')
     expect(settings.sourceTreatment).toBe('preserveIdentity')
     expect(settings.useSourceAs).toBe('primaryMotif')
     expect(settings.preserveIdentity).toBe(true)
-    expect(settings.locks.generator).toBe(true)
-    expect(settings.locks.sourceSelection).toBe(false)
+    expect(Object.values(settings.locks).every(value => value === false)).toBe(true)
     expect(settings).not.toHaveProperty('runtimeFrame')
   })
 
@@ -211,6 +209,9 @@ describe('performance settings persistence migration', () => {
     const persisted = reactStorePartialize({ ...current, soundDrawingPerformanceSettings: authoredScope })
     const merged = mergeReactStoreState(persisted, current)
     expect(merged.soundDrawingPerformanceSettings).toEqual(authoredScope)
+    expect(authoredScope.generatorPreference).toBe('authored')
+    expect(authoredScope.performanceSource).toBe('generatedVisual')
+    expect(Object.values(authoredScope.locks).every(value => value === false)).toBe(true)
 
     const legacy = normalizeSoundDrawingPerformanceSettings({
       selectedShowId: 'harmonicRibbonReactor',

@@ -1719,6 +1719,7 @@ function renderProfessionalScopeOnGpu(
       beam,
       phosphor: {
         ...osc.scope.phosphor,
+        backgroundLift: options.compositeOnly ? 0 : osc.scope.phosphor.backgroundLift,
         persistenceSeconds: osc.scope.phosphor.persistenceSeconds * music.persistenceMultiplier,
       },
       intensity: params.intensity * music.exposureMultiplier,
@@ -1728,6 +1729,7 @@ function renderProfessionalScopeOnGpu(
         hexToLinearRgb(preset.palette.primary),
       ),
       backgroundColor: hexToLinearRgb(preset.palette.background),
+      transparentBackground: options.compositeOnly === true,
       crt: osc.scope.crt,
       // A preset or manual scope edit changes the meaning and often the colour
       // of accumulated energy. Keeping the previous target produced hybrid
@@ -3129,7 +3131,6 @@ function authoredLayerTrailIdentity(
 }
 
 function authoredTrailIdentity(performance: SoundDrawingResolvedPerformanceFrame, params: ReactRenderParams): string {
-  const oscillator = params.oscillator
   const layerTopology = performance.layers
     .filter((layer) => layer.enabled)
     .map((layer) => authoredLayerTrailIdentity(performance, layer))
@@ -3138,24 +3139,7 @@ function authoredTrailIdentity(performance: SoundDrawingResolvedPerformanceFrame
     performance.showId,
     performance.sceneId,
     layerTopology,
-    params.soundDrawingPerformanceSettings.generatorPreference,
-    params.soundDrawingPerformanceSettings.performanceSource,
-    params.soundDrawingPerformanceSettings.sourceTreatment,
-    params.soundDrawingPerformanceSettings.useSourceAs,
-    oscillator.sourceType,
-    oscillator.classicMode,
-    oscillator.autoSectionMode ? 'section-follow' : 'manual-mode',
-    oscillator.builtinShape,
-    oscillator.selectedSvgId ?? 'no-svg',
-    oscillator.selectedGlyphId ?? 'no-glyph',
-    oscillator.textFontId ?? 'no-font',
-    oscillator.text,
-    oscillator.pathScale,
-    oscillator.pathResolution,
-    params.soundDrawingPerformanceSettings.locks.trail ? 'trail-lock' : 'trail-unlocked',
-    params.soundDrawingPerformanceSettings.trailLockContract.version,
-    params.soundDrawingPerformanceSettings.trailLockContract.mode,
-    params.soundDrawingPerformanceSettings.trailLockContract.snapshot?.trailDecay ?? 'no-trail-snapshot',
+    params.oscillator.pathScale,
     performance.context.trackIdentity ?? 'no-track',
   ].join('|')
 }
@@ -3173,7 +3157,7 @@ function renderSafeAuthoredFallback(
     ctx.globalAlpha = 1
     ctx.fillStyle = preset.palette.background
     ctx.fillRect(0, 0, frame.W, frame.H)
-    drawWaveformOnTrail(ctx, frame.W, frame.H, frame.dpr, frame, preset, params, params.intensity)
+    drawRadialScopeOnTrail(ctx, frame.W, frame.H, frame.dpr, frame, preset, params, params.intensity)
   } finally {
     ctx.restore()
   }
@@ -3184,7 +3168,6 @@ function soundDrawingRouteIsActive(
   context: SharedPerformanceContext,
   settings: SoundDrawingPerformanceSettings,
 ): boolean {
-  if (route.lockKey && settings.locks[route.lockKey]) return false
   if (route.capability && !context.capabilities[route.capability]) return false
   if (route.capabilityAny && !route.capabilityAny.some((key) => context.capabilities[key])) return false
   const section = context.macroSectionType ?? context.sectionType ?? 'unknown'
@@ -3281,7 +3264,6 @@ function renderAuthoredSoundDrawingPerformance(
     clearSoundDrawingTrail(ctx, W, H, preset.palette.background)
   }
 
-  const trailLock = params.soundDrawingPerformanceSettings.trailLockContract
   const dtSeconds = tickTrailDeltaSeconds(ctx, frame.t)
   const layerRenderFailures = [...preparation.diagnostics]
   const renderedLayers: Array<{
@@ -3318,9 +3300,9 @@ function renderAuthoredSoundDrawingPerformance(
     const trailResolution = resolveAuthoredSoundDrawingTrailDecay({
       manualTrailDecay: params.trailDecay,
       dtSeconds,
-      trailLockEnabled: params.soundDrawingPerformanceSettings.locks.trail,
-      trailLockMode: trailLock.mode,
-      trailLockSnapshotDecay: trailLock.snapshot?.trailDecay,
+      trailLockEnabled: false,
+      trailLockMode: 'manualResolved',
+      trailLockSnapshotDecay: undefined,
       globalTrailPersistence: performance.global.trailPersistence,
       layerTrailPersistence: layer.trailPersistence,
       activeSourceTrail: layer.source.kind === 'generated' ? 0 : layer.sourceTrailStrength,
@@ -3396,9 +3378,7 @@ function renderAuthoredSoundDrawingPerformance(
   const activeEventEnvelopes = performance.appliedActionReasons.filter((reason) =>
     SOUND_DRAWING_DIAGNOSTIC_EVENT_REASONS.has(reason),
   )
-  const lockedParameters = Object.entries(params.soundDrawingPerformanceSettings?.locks ?? {})
-    .filter(([, locked]) => locked)
-    .map(([key]) => key)
+  const lockedParameters: string[] = []
   const resourceLimitDecisions: string[] = []
   const sourceFailureDecisions: string[] = []
   for (const layer of performance.layers) {

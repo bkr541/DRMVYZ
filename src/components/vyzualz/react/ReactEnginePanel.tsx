@@ -23,13 +23,6 @@ import {
   soundDrawingSectionScopeModeLabel,
 } from './soundDrawing/SoundDrawingSectionMode'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './soundDrawing/SoundDrawingPerformanceTypes'
-import type {
-  SoundDrawingGeneratorPreference,
-  SoundDrawingPerformanceLockKey,
-  SoundDrawingPerformanceSourceSelection,
-  SoundDrawingSourceTreatment,
-  SoundDrawingSourceUsePolicy,
-} from './soundDrawing/SoundDrawingPerformanceTypes'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { CINEMATIC_WORLD_UI, type CinematicWorldUiDefinition } from './CinematicWorldsUi'
 import type { CinematicWorldMode } from './CinematicWorldConfig'
@@ -348,7 +341,6 @@ export function ReactEnginePanel() {
     setOscillatorSettings,
     soundDrawingPerformanceSettings,
     setSoundDrawingPerformanceSettings,
-    setSoundDrawingPerformanceLock,
     resetSoundDrawingPerformanceSettings,
     requestSoundDrawingRibbonReset,
     oscillatorGlyphAssets,
@@ -373,7 +365,6 @@ export function ReactEnginePanel() {
     setOscillatorSettings:      s.setOscillatorSettings,
     soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
     setSoundDrawingPerformanceSettings: s.setSoundDrawingPerformanceSettings,
-    setSoundDrawingPerformanceLock: s.setSoundDrawingPerformanceLock,
     resetSoundDrawingPerformanceSettings: s.resetSoundDrawingPerformanceSettings,
       requestSoundDrawingRibbonReset: s.requestSoundDrawingRibbonReset,
     oscillatorGlyphAssets:      s.oscillatorGlyphAssets,
@@ -481,7 +472,18 @@ export function ReactEnginePanel() {
           <ToggleRow
             label="Auto Performance"
             value={soundDrawingPerformanceSettings.autoPerformance}
-            onChange={(value) => setSoundDrawingPerformanceSettings({ autoPerformance: value })}
+            onChange={(value) =>
+              setSoundDrawingPerformanceSettings({
+                autoPerformance: value,
+                ...(value
+                  ? {
+                      performanceSource: 'generatedVisual',
+                      generatorPreference: 'authored',
+                      locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
+                    }
+                  : {}),
+              })
+            }
             description="Runs the selected authored show. Manual Engine Mode controls remain available when the show is off."
           />
           <SelectRow
@@ -491,6 +493,9 @@ export function ReactEnginePanel() {
               setSoundDrawingPerformanceSettings({
                 selectedShowId: value as typeof soundDrawingPerformanceSettings.selectedShowId,
                 autoPerformance: true,
+                performanceSource: 'generatedVisual',
+                generatorPreference: 'authored',
+                locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
               })
             }
             options={SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
@@ -509,148 +514,6 @@ export function ReactEnginePanel() {
           </div>
           {soundDrawingPerformanceSettings.autoPerformance && (
             <>
-              <CtrlSection label="Source Integration" />
-              <SelectRow
-                label="Performance Source"
-                value={soundDrawingPerformanceSettings.performanceSource}
-                onChange={(value) =>
-                  setSoundDrawingPerformanceSettings({
-                    performanceSource: value as SoundDrawingPerformanceSourceSelection,
-                  })
-                }
-                options={[
-                  { value: 'generatedVisual', label: 'Generated Show Visuals' },
-                  { value: 'activeUserSource', label: 'Use Current Engine Source' },
-                ]}
-                description="Engine Mode is the single source selector. This control decides whether the show uses that source or its own generated visuals."
-              />
-              <SelectRow
-                label="Source Treatment"
-                value={soundDrawingPerformanceSettings.sourceTreatment}
-                onChange={(value) =>
-                  setSoundDrawingPerformanceSettings({
-                    sourceTreatment: value as SoundDrawingSourceTreatment,
-                  })
-                }
-                options={[
-                  { value: 'preserveIdentity', label: 'Preserve Identity' },
-                  { value: 'controlledReactive', label: 'Controlled Reactive' },
-                  { value: 'liquidContour', label: 'Liquid Contour' },
-                  {
-                    value: 'abstractDeformation',
-                    label: 'Abstract Deformation',
-                  },
-                ]}
-              />
-              <SelectRow
-                label="Use Source As"
-                value={soundDrawingPerformanceSettings.useSourceAs}
-                onChange={(value) =>
-                  setSoundDrawingPerformanceSettings({
-                    useSourceAs: value as SoundDrawingSourceUsePolicy,
-                  })
-                }
-                options={[
-                  { value: 'primaryMotif', label: 'Primary Motif' },
-                  { value: 'supportingLayer', label: 'Supporting Layer' },
-                  { value: 'both', label: 'Both' },
-                ]}
-              />
-              <ToggleRow
-                label={osc.sourceType === 'text' ? 'Preserve Readability' : 'Preserve Identity'}
-                value={soundDrawingPerformanceSettings.preserveIdentity}
-                onChange={(value) =>
-                  setSoundDrawingPerformanceSettings({
-                    preserveIdentity: value,
-                  })
-                }
-              />
-              {soundDrawingPerformanceSettings.sourceTreatment !== 'preserveIdentity' && (
-                <SliderRow
-                  label="Contour Reactivity"
-                  value={soundDrawingPerformanceSettings.contourReactivity}
-                  onChange={(value) =>
-                    setSoundDrawingPerformanceSettings({
-                      contourReactivity: value,
-                    })
-                  }
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  color="#b84fc9"
-                />
-              )}
-              <SliderRow
-                label="Whole-Object Motion"
-                value={soundDrawingPerformanceSettings.wholeObjectMotion}
-                onChange={(value) =>
-                  setSoundDrawingPerformanceSettings({
-                    wholeObjectMotion: value,
-                  })
-                }
-                min={0}
-                max={1}
-                step={0.01}
-                color="#4ac7db"
-              />
-              <SliderRow
-                label="Echo Strength"
-                value={soundDrawingPerformanceSettings.echoStrength}
-                onChange={(value) => setSoundDrawingPerformanceSettings({ echoStrength: value })}
-                min={0}
-                max={1}
-                step={0.01}
-                color="#9ddcff"
-              />
-              <SliderRow
-                label="Source Trail Strength"
-                value={soundDrawingPerformanceSettings.sourceTrailStrength}
-                onChange={(value) =>
-                  setSoundDrawingPerformanceSettings({
-                    sourceTrailStrength: value,
-                  })
-                }
-                min={0}
-                max={1}
-                step={0.01}
-                color="#9ddcff"
-              />
-              <SliderRow
-                label="Supporting Visual Reactivity"
-                value={soundDrawingPerformanceSettings.supportingVisualReactivity}
-                onChange={(value) =>
-                  setSoundDrawingPerformanceSettings({
-                    supportingVisualReactivity: value,
-                  })
-                }
-                min={0}
-                max={1}
-                step={0.01}
-                color="#61d6aa"
-              />
-              <ToggleRow
-                label="Source Lock"
-                value={soundDrawingPerformanceSettings.locks.sourceSelection}
-                onChange={(value) => setSoundDrawingPerformanceLock('sourceSelection', value)}
-              />
-              <button
-                type="button"
-                className="rv-reset-btn"
-                onClick={() =>
-                  setSoundDrawingPerformanceSettings({
-                  sourceTreatment: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment,
-                  useSourceAs: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs,
-                  preserveIdentity: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.preserveIdentity,
-                  contourReactivity: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity,
-                  wholeObjectMotion: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion,
-                  echoStrength: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength,
-                  sourceTrailStrength: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength,
-                  supportingVisualReactivity: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity,
-                  })
-                }
-              >
-                Reset Source Treatment
-              </button>
               <CtrlSection label="Show Choreography" />
               <SliderRow
                 label="Complexity"
@@ -692,52 +555,15 @@ export function ReactEnginePanel() {
                 step={0.01}
                 color="#9ddcff"
               />
-              <SelectRow
-                label="Generator Preference"
-                value={soundDrawingPerformanceSettings.generatorPreference}
-                onChange={(value) =>
-                  setSoundDrawingPerformanceSettings({
-                    generatorPreference: value as SoundDrawingGeneratorPreference,
-                  })
-                }
-                options={[
-                  { value: 'authored', label: 'Authored by Show' },
-                  {
-                    value: 'horizontalOscilloscope',
-                    label: 'Horizontal Oscilloscope',
-                  },
-                  {
-                    value: 'mirroredOscilloscope',
-                    label: 'Mirrored Oscilloscope',
-                  },
-                  { value: 'radialOscilloscope', label: 'Radial Oscilloscope' },
-                  { value: 'polarWaveform', label: 'Polar Waveform' },
-                  { value: 'lissajousFigure', label: 'Lissajous Figure' },
-                  { value: 'phaseScopeKnot', label: 'Phase-Scope Knot' },
-                  { value: 'harmonicRibbon', label: 'Harmonic Ribbon' },
-                  { value: 'livingRibbon', label: 'Living Ribbon' },
-                  { value: 'spectralContour', label: 'Spectral Contour' },
-                  {
-                    value: 'circularBassMembrane',
-                    label: 'Circular Bass Membrane',
-                  },
-                  { value: 'kaleidoscopicTrace', label: 'Kaleidoscopic Trace' },
-                  { value: 'particleSpline', label: 'Particle Spline' },
-                  {
-                    value: 'vectorFieldStreamlines',
-                    label: 'Vector-Field Streamlines',
-                  },
-                  {
-                    value: 'audioReactiveAttractor',
-                    label: 'Audio-Reactive Attractor',
-                  },
-                  { value: 'tunnelTrace', label: 'Tunnel Trace' },
-                  {
-                    value: 'stackedWaveformBands',
-                    label: 'Stacked Waveform Bands',
-                  },
-                  { value: 'professionalScope', label: 'Professional Scope' },
-                ]}
+              <SliderRow
+                label="Show Size"
+                value={osc.pathScale}
+                onChange={(value) => set({ pathScale: value })}
+                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+                step={0.01}
+                color="#4ac7db"
+                description="Scales the authored composition without replacing its generator, layers, or source identity."
               />
               {showLivingRibbonControls && (
                 <>
@@ -840,69 +666,6 @@ export function ReactEnginePanel() {
                   </Collapsible>
                 </>
               )}
-              <Collapsible label="Parameter Locks" defaultOpen={false}>
-                {(
-                  [
-                  ['generator', 'Generator'],
-                  ['layerRecruitment', 'Layer Recruitment'],
-                  ['topology', 'Topology & Symmetry'],
-                  ['trail', soundDrawingPerformanceSettings.trailLockContract.mode === 'legacyRecipe'
-                    ? 'Legacy Performance Trail Recipe'
-                    : 'Protect Manual Trail State'],
-                  ['feedback', 'Feedback'],
-                  ['transform', 'Transform'],
-                  ['camera', 'Camera'],
-                  ['color', 'Color Role'],
-                  ['reaction', 'Audio Reactions'],
-                  ['sourceTreatment', 'Source Treatment'],
-                  ['preserveIdentity', 'Identity Protection'],
-                  ['wholeObjectMotion', 'Whole-Object Motion'],
-                  ['contourReactivity', 'Contour Reactivity'],
-                  ['rotation', 'Rotation'],
-                  ['scale', 'Scale'],
-                  ['glow', 'Glow'],
-                  ['echoBehavior', 'Echo Behavior'],
-                  ['trailBehavior', 'Source Trail Behavior'],
-                    ['ribbonStructure', 'Ribbon Structure & Quality'],
-                    ['ribbonMovement', 'Ribbon Movement'],
-                    ['ribbonWidth', 'Ribbon Width'],
-                    ['ribbonTrail', 'Ribbon Trails'],
-                    ['ribbonGlow', 'Ribbon Glow'],
-                    ['ribbonReaction', 'Ribbon Audio Reaction'],
-                  ] as Array<[SoundDrawingPerformanceLockKey, string]>
-                ).map(([key, label]) => (
-                  <ToggleRow
-                    key={key}
-                    label={label}
-                    value={soundDrawingPerformanceSettings.locks[key]}
-                    onChange={(value) => setSoundDrawingPerformanceLock(key, value)}
-                    description={key === 'trail'
-                      ? soundDrawingPerformanceSettings.trailLockContract.mode === 'legacyRecipe'
-                        ? 'Compatibility mode for historical shows. Protects the old authored recipe, not the visible manual Trail Decay.'
-                        : 'Snapshots Trail Decay, Auto Section mode, and Ribbon Trail Persistence. Final Trail Decay is protected; Ribbon Trails remain separately lockable.'
-                      : undefined}
-                  />
-                ))}
-                {soundDrawingPerformanceSettings.trailLockContract.mode === 'legacyRecipe' && (
-                  <button
-                    type="button"
-                    className="rv-reset-btn"
-                    onClick={() => setSoundDrawingPerformanceSettings({
-                      trailLockContract: {
-                        version: 2,
-                        mode: 'manualResolved',
-                        snapshot: {
-                          trailDecay: reactTrailDecay,
-                          autoSectionMode: osc.autoSectionMode,
-                          ribbonTrailPersistence: ribbon.trailPersistence,
-                        },
-                      },
-                    })}
-                  >
-                    Use Corrected Manual Trail Protection
-                  </button>
-                )}
-              </Collapsible>
               <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />
               <button type="button" className="rv-reset-btn" onClick={resetSoundDrawingPerformanceSettings}>
                 Reset to Authored State
@@ -916,6 +679,8 @@ export function ReactEnginePanel() {
             </div>
           )}
 
+          {!soundDrawingPerformanceSettings.autoPerformance && (
+            <>
           <CtrlSection label="Engine Mode" />
 
           {glyphLostNotice && (
@@ -957,7 +722,7 @@ export function ReactEnginePanel() {
             max={SOUND_DRAWING_VISUAL_SIZE_MAX}
             step={0.01}
             disabled={!soundDrawingOwnership.domains.geometry.editable}
-            description={`Sets the base size for the selected Engine Mode. Auto Performance may animate the effective size unless Scale is locked. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
+            description={`Sets the base size for the selected manual Engine Mode. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
           />
 
           <fieldset
@@ -1216,6 +981,8 @@ export function ReactEnginePanel() {
             </>
               )}
           </fieldset>
+        </>
+      )}
         </>
       )}
     </div>

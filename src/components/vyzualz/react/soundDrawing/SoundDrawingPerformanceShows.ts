@@ -1251,9 +1251,27 @@ function professionalScopeShow(
     ...scopePatch,
   })
   const calm = [scope, ...supportingLayers]
+  const dropScopePresetId = id === 'stereoPulseStudy'
+    ? 'scope-dual-channel'
+    : id === 'phaseOrbit'
+      ? 'scope-phase-knot'
+      : 'scope-heavy-drop-vector'
   const drop = [
-    { ...scope, opacity: 1, scale: 1.04, professionalScope: { ...scope.professionalScope, presetId: 'scope-heavy-drop-vector', transitionSeconds: 0.3 } },
-    ...supportingLayers.map((candidate) => ({ ...candidate, opacity: Math.min(1, (candidate.opacity ?? 0.5) + 0.18) })),
+    {
+      ...scope,
+      opacity: 1,
+      scale: id === 'phaseOrbit' ? 0.88 : 1.04,
+      rotation: id === 'phaseOrbit' ? -16 : scope.rotation,
+      professionalScope: {
+        ...scope.professionalScope,
+        presetId: dropScopePresetId,
+        transitionSeconds: 0.3,
+      },
+    },
+    ...supportingLayers.map((candidate) => ({
+      ...candidate,
+      opacity: Math.min(1, (candidate.opacity ?? 0.5) + 0.18),
+    })),
   ]
   return {
     id,
@@ -1290,9 +1308,10 @@ function stereoPulseStudy(): SoundDrawingPerformanceShowDefinition {
   return professionalScopeShow(
     'stereoPulseStudy',
     'Stereo Pulse Study',
-    'A genuine stereo X/Y trace with stable triggering, phrase persistence, and beat-driven phosphor.',
+    'A dual-trace stereo study with separated pulse bands, stable triggering, and restrained phosphor atmosphere.',
     'scope-stereo-phase',
     {
+      scale: 0.82,
       professionalScope: {
         presetId: 'scope-stereo-phase',
         signalMode: 'stereoXY',
@@ -1301,6 +1320,23 @@ function stereoPulseStudy(): SoundDrawingPerformanceShowDefinition {
         transitionSeconds: 0.45,
       },
     },
+    [
+      layer('stereo-pulse-bands', 'harmonicLayer', 'stackedWaveformBands', {
+        opacity: 0.34,
+        scale: 0.92,
+        traceCount: 3,
+        y: 0.16,
+        trailPersistence: 0.34,
+        colorRole: 'secondary',
+      }),
+      layer('stereo-pulse-dust', 'atmosphereLayer', 'particleSpline', {
+        opacity: 0.14,
+        scale: 0.76,
+        particleCount: 72,
+        jitter: 0.05,
+        colorRole: 'accent',
+      }),
+    ],
   )
 }
 
@@ -1308,9 +1344,27 @@ function phaseOrbit(): SoundDrawingPerformanceShowDefinition {
   return professionalScopeShow(
     'phaseOrbit',
     'Phase Orbit',
-    'Mid/side measurement orbit with controlled viewport rotation and section-shaped exposure.',
+    'A mid/side measurement core suspended inside rotating phase knots and a slow orbital tunnel.',
     'scope-mid-side',
-    { rotation: -8, scale: 0.86, professionalScope: { presetId: 'scope-mid-side', signalMode: 'midSideXY', exposure: 0.9 } },
+    { rotation: -8, scale: 0.72, professionalScope: { presetId: 'scope-mid-side', signalMode: 'midSideXY', exposure: 0.9 } },
+    [
+      layer('phase-orbit-knot', 'harmonicLayer', 'phaseScopeKnot', {
+        opacity: 0.48,
+        scale: 0.96,
+        symmetry: 4,
+        traceCount: 2,
+        rotation: 22,
+        trailPersistence: 0.62,
+        colorRole: 'secondary',
+      }),
+      layer('phase-orbit-tunnel', 'atmosphereLayer', 'tunnelTrace', {
+        opacity: 0.2,
+        scale: 1.18,
+        traceCount: 3,
+        rotation: -16,
+        colorRole: 'accent',
+      }),
+    ],
   )
 }
 
@@ -1323,10 +1377,18 @@ function scopeAndShape(): SoundDrawingPerformanceShowDefinition {
     { role: 'harmonicLayer', opacity: 0.72, blendMode: 'lighter' },
     [
       layer('scope-shape-primary', 'primaryMotif', 'circularBassMembrane', {
-        opacity: 0.62,
+        opacity: 0.72,
         scale: 0.56,
         colorRole: 'accent',
         blendMode: 'screen',
+      }),
+      layer('scope-shape-prism', 'atmosphereLayer', 'kaleidoscopicTrace', {
+        opacity: 0.22,
+        scale: 0.92,
+        symmetry: 6,
+        rotation: 15,
+        trailPersistence: 0.42,
+        colorRole: 'secondary',
       }),
     ],
   )

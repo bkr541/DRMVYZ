@@ -9,7 +9,6 @@ import {
 } from '../../../../features/performanceCore'
 import type { OscillatorSettings } from '../ReactTypes'
 import type { ReactFrameContext } from '../renderers/reactRenderUtils'
-import { normalizeSoundDrawingVisualSize } from './SoundDrawingVisualSize'
 import { resolveProfessionalScopeLayerSettings } from './SoundDrawingProfessionalScopeLayer'
 import { SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID } from './SoundDrawingPerformanceShows'
 import { resolveSoundDrawingPerformanceSources } from './SoundDrawingSourceResolver'
@@ -41,7 +40,6 @@ import {
   type SoundDrawingPerformanceEnvelope,
   type SoundDrawingPerformanceGlobalBlueprint,
   type SoundDrawingPerformanceLayerBlueprint,
-  type SoundDrawingPerformanceLockKey,
   type SoundDrawingPerformanceSettings,
   type SoundDrawingPerformanceTemporalState,
   type SoundDrawingResolvedPerformanceFrame,
@@ -107,14 +105,15 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     SOUND_DRAWING_GENERATOR_FAMILIES.includes(source.generatorPreference as SoundDrawingGeneratorFamily)
     ? source.generatorPreference
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference
+  const autoPerformance = source.autoPerformance === true
   return {
     selectedShowId,
-    autoPerformance: source.autoPerformance === true,
+    autoPerformance,
     complexity: clamp01(source.complexity),
     motionIntensity: clamp01(source.motionIntensity),
     reactionIntensity: clamp01(source.reactionIntensity),
     trailIntensity: clamp01(source.trailIntensity),
-    generatorPreference,
+    generatorPreference: autoPerformance ? 'authored' : generatorPreference,
     quality: ['auto', 'low', 'medium', 'high'].includes(source.quality)
       ? source.quality
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
@@ -144,7 +143,7 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
         source.livingRibbon?.audioReactionDepth ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.audioReactionDepth,
       ),
     },
-    performanceSource,
+    performanceSource: autoPerformance ? 'generatedVisual' : performanceSource,
     sourceTreatment,
     useSourceAs,
     preserveIdentity: source.preserveIdentity !== false,
@@ -161,10 +160,12 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     supportingVisualReactivity: clamp01(
       source.supportingVisualReactivity ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity,
     ),
-    locks: {
-      ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks,
-      ...(source.locks ?? {}),
-    },
+    locks: autoPerformance
+      ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks }
+      : {
+          ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks,
+          ...(source.locks ?? {}),
+        },
     trailLockContract: source.trailLockContract ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract,
   }
 }
@@ -463,26 +464,6 @@ function normalizeLayer(layer: SoundDrawingPerformanceLayerBlueprint): SoundDraw
         : null,
     modulationRoutes: (layer.modulationRoutes ?? []).slice(0, 24),
     eventBindings: (layer.eventBindings ?? []).slice(0, 16),
-  }
-}
-
-function actionLockKey(action: SoundDrawingPerformanceAction): SoundDrawingPerformanceLockKey | null {
-  if ('lockKey' in action && action.lockKey) return action.lockKey
-  switch (action.type) {
-    // A scene always establishes the authored baseline. Recruitment locks are
-    // restored after authored/event/modulation work so they never suppress the
-    // primary layer or leave the renderer without a valid scene.
-    case 'scene':
-      return null
-    case 'recruitLayer':
-    case 'retireRole':
-      return 'layerRecruitment'
-    case 'patchRole':
-      return action.lockKey ?? 'topology'
-    case 'pulse':
-      return action.lockKey ?? 'reaction'
-    case 'global':
-      return action.lockKey ?? 'camera'
   }
 }
 
@@ -799,7 +780,6 @@ function applyBehaviorTargetDelta(
   context: SharedPerformanceContext,
   event?: { bindingId: string; eventIdentity: string },
 ): void {
-  if (target.lockKey && settings.locks[target.lockKey]) return
   const reactionScale =
     settings.reactionIntensity *
     (RIBBON_CONTROL_TARGETS.has(target.target) || RIBBON_IMPULSE_TARGETS.has(target.target)
@@ -821,10 +801,7 @@ function applyAction(
   state: MutablePerformanceState,
   action: SoundDrawingPerformanceAction,
   _context: SharedPerformanceContext,
-  settings: SoundDrawingPerformanceSettings,
 ): void {
-  const lockKey = actionLockKey(action)
-  if (lockKey && settings.locks[lockKey]) return
   switch (action.type) {
     case 'scene':
       state.layers = action.layers.slice(0, MAX_SOUND_DRAWING_PERFORMANCE_LAYERS).map(normalizeLayer)
@@ -901,151 +878,6 @@ function collectBehaviorDefinitions(
   return { routes, events }
 }
 
-function manualGenerator(oscillator: OscillatorSettings): SoundDrawingGeneratorFamily {
-  if (oscillator.sourceType !== 'classic') {
-    if (oscillator.builtinShape === 'circle') return 'circularBassMembrane'
-    if (oscillator.builtinShape === 'infinity') return 'phaseScopeKnot'
-    if (oscillator.builtinShape === 'spiral') return 'polarWaveform'
-    return 'kaleidoscopicTrace'
-  }
-  switch (oscillator.classicMode) {
-    case 'professionalScope':
-      return 'professionalScope'
-    // Both the migrated name and the legacy value map to the same generator;
-    // the rename must not change which show an existing project resolves to.
-    case 'monoDelayXY':
-    case 'lissajous':
-      return 'lissajousFigure'
-    case 'radialScope':
-      return 'radialOscilloscope'
-    case 'spiralScope':
-      return 'polarWaveform'
-    default:
-      return 'horizontalOscilloscope'
-  }
-}
-
-function applyUserLocks(
-  state: MutablePerformanceState,
-  settings: SoundDrawingPerformanceSettings,
-  oscillator: OscillatorSettings,
-): void {
-  let primary = state.layers.find((layer) => layer.role === 'primaryMotif') ?? state.layers[0]
-  if (!primary) return
-  if (settings.locks.layerRecruitment) {
-    state.layers = [primary]
-    primary = state.layers[0]
-  }
-  const index = state.layers.indexOf(primary)
-  let next = primary
-  if (settings.locks.generator) next = patchLayer(next, { generator: manualGenerator(oscillator) })
-  if (settings.locks.topology) {
-    next = patchLayer(next, {
-      symmetry: oscillator.mirrorX || oscillator.mirrorY ? 2 : 1,
-      traceCount: oscillator.duplicateTraces,
-      renderMode: oscillator.renderMode,
-    })
-  }
-  if (settings.locks.transform) {
-    next = patchLayer(next, {
-      scale: oscillator.pathScale,
-      rotation: 0,
-      audioDisplacement: oscillator.audioDisplacement,
-    })
-  }
-  if (settings.locks.reaction) {
-    next = patchLayer(next, {
-      jitter: oscillator.highJitter,
-      glow: clamp01(oscillator.beatBloom),
-      audioDisplacement: oscillator.audioDisplacement,
-    })
-  }
-  if (settings.locks.scale) next = patchLayer(next, { scale: normalizeSoundDrawingVisualSize(oscillator.pathScale) })
-  if (settings.locks.rotation) next = patchLayer(next, { rotation: 0 })
-  if (settings.locks.glow) next = patchLayer(next, { glow: clamp01(oscillator.beatBloom) })
-  if (settings.locks.contourReactivity) {
-    next = patchLayer(next, {
-      audioDisplacement: oscillator.audioDisplacement,
-      jitter: oscillator.highJitter,
-    })
-  }
-  if (settings.locks.echoBehavior) next = patchLayer(next, { traceCount: oscillator.duplicateTraces })
-  if (next.generator === 'livingRibbon') {
-    const controls = next.livingRibbonControls
-    if (settings.locks.ribbonMovement) {
-      next = patchLayer(next, {
-        livingRibbonControls: {
-          ...controls,
-          drive: clamp01(0.12 + settings.motionIntensity * 0.48),
-          turbulence: settings.livingRibbon.turbulence,
-          tension: settings.livingRibbon.tension,
-          centerAttraction: settings.livingRibbon.centerAttraction,
-          twist: 0,
-          directionalDrift: 0,
-        },
-      })
-    }
-    if (settings.locks.ribbonWidth)
-      next = patchLayer(next, {
-        livingRibbonControls: { ...next.livingRibbonControls, widthTarget: settings.livingRibbon.bodyWidth },
-      })
-    if (settings.locks.ribbonTrail)
-      next = patchLayer(next, { trailPersistence: settings.livingRibbon.trailPersistence })
-    if (settings.locks.ribbonGlow)
-      next = patchLayer(next, {
-        glow: settings.livingRibbon.bloom,
-        particleCount: Math.round(MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES * 0.2 * settings.livingRibbon.sparkAmount),
-      })
-  }
-  state.layers[index] = next
-  state.layers = state.layers.map(layer => {
-    if (layer.generator !== 'livingRibbon') return layer
-    let locked = layer
-    if (settings.locks.ribbonMovement) {
-      locked = patchLayer(locked, {
-        livingRibbonControls: {
-          ...locked.livingRibbonControls,
-          drive: clamp01(0.12 + settings.motionIntensity * 0.48),
-          turbulence: settings.livingRibbon.turbulence,
-          tension: settings.livingRibbon.tension,
-          centerAttraction: settings.livingRibbon.centerAttraction,
-          twist: 0,
-          directionalDrift: 0,
-        },
-      })
-    }
-    if (settings.locks.ribbonWidth) {
-      locked = patchLayer(locked, {
-        livingRibbonControls: { ...locked.livingRibbonControls, widthTarget: settings.livingRibbon.bodyWidth },
-      })
-    }
-    if (settings.locks.ribbonTrail) locked = patchLayer(locked, { trailPersistence: settings.livingRibbon.trailPersistence })
-    if (settings.locks.ribbonGlow) {
-      locked = patchLayer(locked, {
-        glow: settings.livingRibbon.bloom,
-        particleCount: Math.round(MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES * 0.2 * settings.livingRibbon.sparkAmount),
-      })
-    }
-    return locked
-  })
-  if (settings.locks.trail) {
-    state.global.trailPersistence = settings.trailLockContract.mode === 'manualResolved'
-      ? 1 - clamp01(settings.trailLockContract.snapshot?.trailDecay ?? 0.76)
-      : 1 - clamp01(oscillator.autoSectionMode ? 0.08 : 0.2)
-  }
-  if (settings.locks.feedback) state.global.feedbackAmount = 0
-  if (settings.locks.ribbonTrail) state.global.trailPersistence = settings.livingRibbon.trailPersistence
-  if (settings.locks.color) {
-    state.layers = state.layers.map((layer) => patchLayer(layer, { colorRole: 'primary' }))
-  }
-  if (settings.locks.camera) {
-    state.global.cameraScale = 1
-    state.global.cameraRotation = 0
-    state.global.cameraX = 0
-    state.global.cameraY = 0
-  }
-}
-
 function applyUserIntensityControls(state: MutablePerformanceState, settings: SoundDrawingPerformanceSettings): void {
   const maximumLayers = Math.max(
     1,
@@ -1103,14 +935,6 @@ function applyUserIntensityControls(state: MutablePerformanceState, settings: So
   state.global.cameraY *= settings.motionIntensity
 }
 
-function applyGeneratorPreference(state: MutablePerformanceState, settings: SoundDrawingPerformanceSettings): void {
-  if (settings.generatorPreference === 'authored' || settings.locks.generator) return
-  const primary = state.layers.find((layer) => layer.role === 'primaryMotif')
-  if (!primary) return
-  const index = state.layers.indexOf(primary)
-  state.layers[index] = patchLayer(primary, { generator: settings.generatorPreference })
-}
-
 function enforceSafetyBounds(state: MutablePerformanceState): void {
   const expensiveGenerators = new Set<SoundDrawingGeneratorFamily>([
     'particleSpline',
@@ -1160,9 +984,9 @@ function resolveState(
   const state: MutablePerformanceState = { layers: [], global: { ...DEFAULT_GLOBAL } }
   // Establish authored scene/cadence first. The shared routing adapter then
   // applies continuous modulation and persistent transient envelopes in that
-  // exact order before user intensity, locks, and safety clamps.
+  // exact order before user intensity and safety clamps.
   for (const intent of resolution.intents) {
-    if (intent.action.type !== 'pulse') applyAction(state, intent.action, context, settings)
+    if (intent.action.type !== 'pulse') applyAction(state, intent.action, context)
   }
   const definitions = collectBehaviorDefinitions(state, resolution)
   // State-aware sinks preserve Sound Drawing target semantics while the
@@ -1178,16 +1002,15 @@ function resolveState(
     applyEvent: (target, value, bindingId, eventIdentity) =>
       applyBehaviorTargetDelta(state, target, value, settings, context, { bindingId, eventIdentity }),
   })
-  applyGeneratorPreference(state, settings)
   applyUserIntensityControls(state, settings)
   return state
 }
 
 /**
- * Actual Sound Drawing precedence is: engine defaults → authored scene/cadence →
- * continuous routes → event envelopes → user intensity controls → explicit locks
- * → hard safety clamps. Locks therefore restore the user's manual values after
- * every authored or reactive mutation, while clamps remain absolute.
+ * Auto Performance precedence is: engine defaults → authored scene/cadence →
+ * continuous routes → event envelopes → global choreography intensity controls
+ * → hard safety clamps. Manual source selection and parameter locks are excluded
+ * so an authored show cannot silently collapse back into the Classic Scope preset.
  */
 export function resolveSoundDrawingPerformanceFrame(
   input: ResolveSoundDrawingPerformanceInput,
@@ -1200,13 +1023,7 @@ export function resolveSoundDrawingPerformanceFrame(
   const temporalIdentity = [
     context.trackChangeIdentity,
     context.timingDiscontinuityIdentity,
-    input.manualOscillator.sourceType,
-    input.manualOscillator.builtinShape,
-    input.manualOscillator.selectedSvgId ?? 'no-svg',
-    input.manualOscillator.svgRenderMode,
-    input.manualOscillator.selectedGlyphId ?? 'no-glyph',
-    input.manualOscillator.textFontId ?? 'canvas-font',
-    input.manualOscillator.text,
+    show.id,
   ].join(':')
   const temporalState = input.temporalState ?? { identity: temporalIdentity }
   if (temporalState.identity !== temporalIdentity) {
@@ -1222,7 +1039,6 @@ export function resolveSoundDrawingPerformanceFrame(
     context,
   })
   state.layers = sourceResolution.layers
-  applyUserLocks(state, settings, input.manualOscillator)
   enforceSafetyBounds(state)
   const sceneId = resolution.scene?.id ?? `${show.id}-none`
   const finalSourceLayer = state.layers.find((layer) => layer.source.kind !== 'generated')

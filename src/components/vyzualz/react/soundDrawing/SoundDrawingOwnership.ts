@@ -4,7 +4,7 @@ import {
 } from './SoundDrawingPerformanceShows'
 import type { SoundDrawingPerformanceSettings } from './SoundDrawingPerformanceTypes'
 
-export type SoundDrawingOwnershipKind = 'manual' | 'program' | 'locked' | 'mixed' | 'unavailable'
+export type SoundDrawingOwnershipKind = 'manual' | 'program' | 'mixed' | 'unavailable'
 export type SoundDrawingControlDomain =
   | 'source'
   | 'geometry'
@@ -21,7 +21,7 @@ export type SoundDrawingControlDomain =
 export interface SoundDrawingDomainOwnership {
   owner: SoundDrawingOwnershipKind
   editable: boolean
-  label: 'Manual' | 'Program' | 'Locked' | 'Mixed' | 'Unavailable'
+  label: 'Manual' | 'Program' | 'Mixed' | 'Unavailable'
   reason: string
   ariaDescription: string
 }
@@ -44,13 +44,11 @@ function domain(
 ): SoundDrawingDomainOwnership {
   const label = owner === 'program'
     ? 'Program'
-    : owner === 'locked'
-      ? 'Locked'
-      : owner === 'mixed'
-        ? 'Mixed'
-        : owner === 'unavailable'
-          ? 'Unavailable'
-          : 'Manual'
+    : owner === 'mixed'
+      ? 'Mixed'
+      : owner === 'unavailable'
+        ? 'Unavailable'
+        : 'Manual'
   return {
     owner,
     editable,
@@ -58,10 +56,6 @@ function domain(
     reason,
     ariaDescription: `${label} ownership. ${reason}`,
   }
-}
-
-function hasAnyLock(settings: SoundDrawingPerformanceSettings, keys: readonly (keyof SoundDrawingPerformanceSettings['locks'])[]) {
-  return keys.some(key => settings.locks[key])
 }
 
 export function resolveSoundDrawingOwnership(
@@ -94,25 +88,24 @@ export function resolveSoundDrawingOwnership(
     }
   }
 
-  const sourceSelectionActive = settings.performanceSource !== 'generatedVisual'
-  const sourceSelectionLocked = settings.locks.sourceSelection
-  const scaleLocked = settings.locks.scale || settings.locks.transform
-  const glowLocked = settings.locks.glow || settings.locks.ribbonGlow
-  const reactionLocked = hasAnyLock(settings, ['reaction', 'contourReactivity', 'ribbonReaction'])
-  const trailLocked = settings.locks.trail || settings.locks.trailBehavior || settings.locks.ribbonTrail
-
+  const program = domain(
+    'program',
+    false,
+    `${show.name} supplies this value as part of its authored scene choreography.`,
+  )
+  const mixedGeometry = domain(
+    'mixed',
+    true,
+    'Show Size scales the complete authored composition without replacing its generators or layer structure.',
+  )
+  const mixedIntensity = domain(
+    'mixed',
+    true,
+    'The control scales authored choreography while the show retains source, generator, and scene ownership.',
+  )
   const scope = showUsesScope
-    ? domain('program', false, `${show.name} supplies the live Pro Scope layer, so manual scope edits cannot affect output.`)
-    : domain('unavailable', false, `${show.name} has no Pro Scope layer in the current authored composition.`)
-  const trails = trailLocked
-    ? domain(
-        'locked',
-        true,
-        settings.trailLockContract.mode === 'legacyRecipe'
-          ? 'A versioned legacy recipe lock is active. Manual Trail Decay remains an authored-mix input rather than the protected final value.'
-          : 'The captured manual Trail Decay is protected at final trail composition. Ribbon Trails and feedback remain separately owned.',
-      )
-    : domain('mixed', true, 'Manual Trail Decay participates in the authored persistence equation with program trail intensity, source trails and feedback.')
+    ? domain('program', false, `${show.name} supplies the live Pro Scope layer and its signal presentation.`)
+    : domain('unavailable', false, `${show.name} does not use a Pro Scope layer.`)
 
   return {
     owner: 'authored',
@@ -120,37 +113,19 @@ export function resolveSoundDrawingOwnership(
     showRunning: true,
     professionalScopeOwner: showUsesScope ? 'authored' : 'none',
     manualScopeControlsDisabled: true,
-    status: `${show.name} owns the authored output.${
-      showUsesScope
-        ? ' Genuine Pro Scope is active as a show-controlled layer; manual scope controls are read-only.'
-        : ' This show has no Pro Scope layer, so manual Pro Scope is not rendered.'
-    }`,
+    status: `${show.name} owns its source, generators, layers, and section choreography. Manual Engine Mode and parameter locks are not used while Auto Performance is on.`,
     domains: {
-      source: !sourceSelectionActive
-        ? domain('unavailable', false, 'Performance Source is Generated Show Visuals, so changing the manual source selector cannot affect the current composition.')
-        : sourceSelectionLocked
-          ? domain('locked', true, 'The selected manual source is protected and remains an input to the authored composition.')
-          : domain('mixed', true, 'The manual source supplies artwork or signal input while the authored show controls its role and treatment.'),
-      geometry: scaleLocked
-        ? domain('locked', true, 'Manual Visual Size is protected by the Scale or Transform lock and remains the resolved base scale.')
-        : domain('mixed', true, 'Manual Visual Size remains the base scale while the authored layer contributes its own scale and topology factors.'),
-      motion: domain('mixed', true, 'Manual Motion scales authored movement and remains live during Auto Performance.'),
-      topology: settings.locks.topology
-        ? domain('locked', true, 'Manual Render Mode and mirror symmetry are protected by the Topology lock.')
-        : domain('program', false, 'The authored layer resolves Render Mode and symmetry. Enable the Topology lock to use those manual controls.'),
-      echo: settings.locks.topology || settings.locks.echoBehavior
-        ? domain('locked', true, 'Manual Duplicate Traces is protected by the Topology or Echo Behavior lock.')
-        : domain('program', false, 'The authored layer resolves trace count. Enable Topology or Echo Behavior lock to use Duplicate Traces.'),
-      glow: glowLocked
-        ? domain('locked', true, 'Manual glow is protected for the relevant authored layer.')
-        : domain('mixed', true, 'Manual master Glow combines with authored layer glow and bloom.'),
-      trails,
-      reaction: reactionLocked
-        ? domain('locked', true, 'Manual reaction depth is protected for the relevant authored layer.')
-        : domain('mixed', true, 'Manual reaction masters scale authored modulation rather than replacing it.'),
+      source: program,
+      geometry: mixedGeometry,
+      motion: mixedIntensity,
+      topology: program,
+      echo: program,
+      glow: mixedIntensity,
+      trails: mixedIntensity,
+      reaction: mixedIntensity,
       scope,
-      performanceIntensity: domain('mixed', true, 'Manual intensity controls scale the authored program and remain live.'),
-      presentation: domain('program', false, 'The authored program resolves rotation, camera, and presentation values for the active layer.'),
+      performanceIntensity: mixedIntensity,
+      presentation: program,
     },
   }
 }

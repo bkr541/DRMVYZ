@@ -343,6 +343,7 @@ uniform float uGlow;
 uniform float uWhitenStrength;
 uniform vec3 uBackgroundColor;
 uniform float uBackgroundLift;
+uniform float uTransparentBackground;
 
 out vec4 fragColor;
 
@@ -370,9 +371,12 @@ void main() {
 
   // Background lift keeps the tube from reading as absolute black, the way a
   // real CRT's unexcited phosphor never is.
-  vec3 lifted = toned + uBackgroundColor * uBackgroundLift * (1.0 - l);
+  vec3 lifted = toned + uBackgroundColor * uBackgroundLift * (1.0 - l) * (1.0 - uTransparentBackground);
+  vec3 outputColor = clamp(lifted, 0.0, 1.0);
+  float signalAlpha = smoothstep(0.001, 0.045, max(max(outputColor.r, outputColor.g), outputColor.b));
+  float outputAlpha = mix(1.0, signalAlpha, clamp(uTransparentBackground, 0.0, 1.0));
 
-  fragColor = vec4(clamp(lifted, 0.0, 1.0), 1.0);
+  fragColor = vec4(outputColor, outputAlpha);
 }
 `
 
@@ -405,6 +409,7 @@ uniform float uCurvature;
 uniform float uVignette;
 uniform float uEdgeDefocus;
 uniform float uGrain;
+uniform float uTransparentBackground;
 
 uniform vec3 uPhosphorColor;
 /** 1 when the phosphor model tints the image, 0 for an untinted RGB display. */
@@ -497,13 +502,14 @@ void main() {
 
   // Outside the curved tube is bezel, not signal.
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-    fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    fragColor = vec4(0.0, 0.0, 0.0, 1.0 - clamp(uTransparentBackground, 0.0, 1.0));
     return;
   }
 
   vec2 centered = uv * 2.0 - 1.0;
   float edge = clamp(dot(centered, centered), 0.0, 1.0);
 
+  vec4 sourceSample = texture(u_source, uv);
   vec3 color = sampleDefocused(uv, texel, uEdgeDefocus * edge * 2.0);
 
   // Phosphor tint: drive the trace toward the tube's emission colour while
@@ -512,7 +518,8 @@ void main() {
   vec3 tinted = uPhosphorColor * luma(color);
   color = mix(color, tinted, uPhosphorTint);
 
-  color += uPhosphorColor * graticule(uv, texel) * uGraticuleBrightness;
+  float graticuleSignal = graticule(uv, texel) * uGraticuleBrightness;
+  color += uPhosphorColor * graticuleSignal;
 
   // Scanlines in device pixels, so output resolution does not change how coarse
   // they look. Halved in amplitude against the signal's own luminance so a
@@ -527,6 +534,13 @@ void main() {
   float noise = fract(sin(dot(uv * uResolution, vec2(12.9898, 78.233))) * 43758.5453);
   color += (noise - 0.5) * uGrain * 0.12;
 
-  fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+  vec3 outputColor = clamp(color, 0.0, 1.0);
+  float graticuleAlpha = smoothstep(0.001, 0.03, graticuleSignal);
+  float outputAlpha = mix(
+    1.0,
+    max(sourceSample.a, graticuleAlpha),
+    clamp(uTransparentBackground, 0.0, 1.0)
+  );
+  fragColor = vec4(outputColor, outputAlpha);
 }
 `

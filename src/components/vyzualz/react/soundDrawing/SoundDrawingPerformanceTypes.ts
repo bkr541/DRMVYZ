@@ -624,7 +624,7 @@ export const DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS: SoundDrawingPerformance
   generatorPreference: 'authored',
   quality: 'auto',
   livingRibbon: { ...DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS },
-  performanceSource: 'activeUserSource',
+  performanceSource: 'generatedVisual',
   sourceTreatment: 'preserveIdentity',
   useSourceAs: 'primaryMotif',
   preserveIdentity: true,

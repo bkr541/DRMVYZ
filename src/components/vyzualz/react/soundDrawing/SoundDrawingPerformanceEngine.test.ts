@@ -277,7 +277,7 @@ describe('Sound Drawing authored Performance Engine', () => {
     expect(performance.layers.some((layer) => layer.generator === 'circularBassMembrane')).toBe(true)
   })
 
-  it('publishes all built-in authored shows with meaningfully different generator systems', () => {
+  it('publishes seven fundamentally distinct authored systems at the same playhead', () => {
     expect(SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => show.name)).toEqual([
       'Radial Pressure System',
       'Harmonic Ribbon Reactor',
@@ -287,38 +287,44 @@ describe('Sound Drawing authored Performance Engine', () => {
       'Phase Orbit',
       'Scope and Shape',
     ])
-    const generators = SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => {
-      const scene = show.program.scenes.find(candidate => candidate.id.endsWith('-drop'))
-      const action = scene?.actions?.find(candidate => candidate.type === 'scene')
-      return action?.type === 'scene' ? action.layers[0]?.generator : null
-    })
-    expect(new Set(generators).size).toBeGreaterThanOrEqual(4)
+
+    for (const timeSec of [10, 25, 31]) {
+      const signatures = SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => {
+        const performance = resolved(timeSec, {}, { selectedShowId: show.id })
+        return performance.layers
+          .filter(layer => layer.enabled)
+          .map(layer => [
+            layer.role,
+            layer.generator,
+            layer.professionalScope?.state.presetId ?? 'no-scope',
+            layer.symmetry,
+            layer.traceCount,
+          ].join(':'))
+          .join('|')
+      })
+      expect(new Set(signatures).size).toBe(SOUND_DRAWING_PERFORMANCE_SHOWS.length)
+    }
   })
 
-  it('keeps the existing default show unchanged while making Living Ribbon opt-in and selectable', () => {
+  it('keeps the default show stable and treats show selection as the only generator-system selector', () => {
     expect(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId).toBe('radialPressureSystem')
     expect(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference).toBe('authored')
 
-    const authored = resolved(31, {}, {
+    const living = resolved(31, {}, { selectedShowId: 'livingRibbonSystem' })
+    const staleLivingOverride = resolved(31, {}, {
       selectedShowId: 'livingRibbonSystem',
-      performanceSource: 'generatedVisual',
+      generatorPreference: 'horizontalOscilloscope',
     })
-    expect(authored.showId).toBe('livingRibbonSystem')
-    expect(role(authored, 'primaryMotif').generator).toBe('livingRibbon')
+    expect(living.showId).toBe('livingRibbonSystem')
+    expect(role(living, 'primaryMotif').generator).toBe('livingRibbon')
+    expect(staleLivingOverride.layers).toEqual(living.layers)
 
-    const selected = resolved(31, {}, {
-      selectedShowId: 'livingRibbonSystem',
-      generatorPreference: 'livingRibbon',
-      performanceSource: 'generatedVisual',
-    })
-    expect(role(selected, 'primaryMotif').generator).toBe('livingRibbon')
-
-    const legacy = resolved(31, {}, {
+    const harmonic = resolved(31, {}, { selectedShowId: 'harmonicRibbonReactor' })
+    const staleHarmonicOverride = resolved(31, {}, {
       selectedShowId: 'harmonicRibbonReactor',
-      generatorPreference: 'harmonicRibbon',
-      performanceSource: 'generatedVisual',
+      generatorPreference: 'livingRibbon',
     })
-    expect(role(legacy, 'primaryMotif').generator).toBe('harmonicRibbon')
+    expect(staleHarmonicOverride.layers).toEqual(harmonic.layers)
   })
 
   it('consumes the authoritative shared context and preserves manual mode when Auto Performance is off', () => {
@@ -415,20 +421,28 @@ describe('Sound Drawing authored Performance Engine', () => {
     expect(looped.context.loopWrapDetected).toBe(true)
   })
 
-  it('restores explicit user locks after authored, modulation, and event mutations', () => {
-    const lockedOscillator = {
-      ...DEFAULT_OSCILLATOR_SETTINGS,
-      duplicateTraces: 5,
-      mirrorX: true,
-      mirrorY: false,
-      renderMode: 'dots' as const,
-    }
+  it('ignores retired manual locks and manual oscillator topology during authored playback', () => {
+    const baseline = resolved(29.01, { events: ['kick', 'downbeat'] })
     const result = resolveSoundDrawingPerformanceFrame({
       frame: frameAt(29.01, { events: ['kick', 'downbeat'] }),
-      settings: settings({ locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks, topology: true } }),
-      manualOscillator: lockedOscillator,
+      settings: settings({
+        performanceSource: 'activeUserSource',
+        generatorPreference: 'horizontalOscilloscope',
+        locks: Object.fromEntries(
+          Object.keys(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks).map(key => [key, true]),
+        ) as SoundDrawingPerformanceSettings['locks'],
+      }),
+      manualOscillator: {
+        ...DEFAULT_OSCILLATOR_SETTINGS,
+        sourceType: 'classic',
+        classicMode: 'waveform',
+        duplicateTraces: 5,
+        mirrorX: true,
+        renderMode: 'dots',
+      },
     }) as SoundDrawingResolvedPerformanceFrame
-    expect(role(result, 'primaryMotif')).toMatchObject({ symmetry: 2, traceCount: 5, renderMode: 'dots' })
+    expect(result.layers).toEqual(baseline.layers)
+    expect(result.global).toEqual(baseline.global)
   })
 
   it('enforces bounded layers, traces, particles, and low-confidence fallback', () => {
@@ -560,22 +574,26 @@ describe('Sound Drawing authored Performance Engine', () => {
     }
   })
 
-  it('scales Living Ribbon reactions and restores coarse user locks after every authored route and event', () => {
+  it('scales Living Ribbon reactions while retired lock flags remain inert', () => {
     const full = ribbon(livingResolved(29.01, { events: ['kick'] }, { livingRibbon: { audioReactionDepth: 1 } }))
     const restrained = ribbon(livingResolved(29.01, { events: ['kick'] }, { livingRibbon: { audioReactionDepth: 0.25 } }))
     expect(restrained.livingRibbonImpulses[0].strength).toBeLessThan(full.livingRibbonImpulses[0].strength)
 
-    const locked = ribbon(livingResolved(31.01, { events: ['kick', 'snare', 'downbeat'] }, {
-      livingRibbon: {
-        tension: 0.21,
-        turbulence: 0.17,
-        bodyWidth: 0.33,
-        trailPersistence: 0.41,
-        bloom: 0.37,
-        sparkAmount: 0.15,
-        centerAttraction: 0.77,
-        audioReactionDepth: 0.55,
-      },
+    const ribbonSettings = {
+      tension: 0.21,
+      turbulence: 0.17,
+      bodyWidth: 0.33,
+      trailPersistence: 0.41,
+      bloom: 0.37,
+      sparkAmount: 0.15,
+      centerAttraction: 0.77,
+      audioReactionDepth: 0.55,
+    }
+    const authored = ribbon(livingResolved(31.01, { events: ['kick', 'snare', 'downbeat'] }, {
+      livingRibbon: ribbonSettings,
+    }))
+    const staleLocks = ribbon(livingResolved(31.01, { events: ['kick', 'snare', 'downbeat'] }, {
+      livingRibbon: ribbonSettings,
       locks: {
         ribbonMovement: true,
         ribbonWidth: true,
@@ -584,15 +602,8 @@ describe('Sound Drawing authored Performance Engine', () => {
         ribbonReaction: true,
       },
     }))
-    expect(locked.livingRibbonControls).toMatchObject({
-      turbulence: 0.17,
-      tension: 0.21,
-      widthTarget: 0.33,
-      centerAttraction: 0.77,
-    })
-    expect(locked.trailPersistence).toBe(0.41)
-    expect(locked.glow).toBe(0.37)
-    expect(locked.livingRibbonImpulses).toHaveLength(0)
+    expect(staleLocks).toEqual(authored)
+    expect(staleLocks.livingRibbonImpulses.length).toBeGreaterThan(0)
   })
 
   it('detects track replacement and resolves the replacement from a clean deterministic state', () => {
@@ -604,34 +615,21 @@ describe('Sound Drawing authored Performance Engine', () => {
   })
 })
 
-// ── Additive blend default ────────────────────────────────────────────────────
-//
-// Reference oscilloscope footage shows the beam core desaturating toward white
-// while the halo keeps its base hue — the signature of additive accumulation.
-// 'screen' (1-(1-a)(1-b)) saturates toward white but cannot accumulate density
-// past 1.0, so overlapping strokes stop getting brighter. These lock in that the
-// authored show path (the primary in-app experience) defaults to additive.
+// ── Bounded authored composition ──────────────────────────────────────────────
 
-describe('authored performance layers default to additive blending', () => {
-  it('resolved layers render additively across every section of the timeline', () => {
-    // Sampled across intro/verse/build/drop/breakdown so this covers layers
-    // recruited by different sections, not just whichever show scene is active
-    // at one instant.
+describe('authored performance layers use bounded composition', () => {
+  it('defaults ordinary authored geometry to screen rather than recursive additive accumulation', () => {
     for (const timeSec of [4, 12, 20, 31, 74]) {
       const frame = resolved(timeSec)
       expect(frame.layers.length).toBeGreaterThan(0)
-      for (const layer of frame.layers) {
-        expect(layer.blendMode).toBe('lighter')
-      }
+      expect(frame.layers.every(layer => layer.blendMode === 'screen')).toBe(true)
     }
   })
 
-  it('an explicit per-layer blendMode still overrides the additive default', () => {
-    // normalizeLayer must keep honoring an authored override — the default
-    // changed, the plumbing did not become hardcoded.
-    const frame = resolved(31)
-    const sample = frame.layers[0]
-    expect(sample).toBeDefined()
-    expect(['lighter', 'screen', 'source-over']).toContain(sample.blendMode)
+  it('retains an explicit lighter blend only for intentionally emissive layers', () => {
+    const frame = resolved(31, {}, { selectedShowId: 'scopeAndShape' })
+    const scope = frame.layers.find(layer => layer.generator === 'professionalScope')
+    expect(scope?.blendMode).toBe('lighter')
+    expect(frame.layers.some(layer => layer.blendMode === 'screen')).toBe(true)
   })
 })

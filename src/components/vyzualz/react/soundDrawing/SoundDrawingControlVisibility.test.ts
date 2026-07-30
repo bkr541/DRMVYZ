@@ -20,15 +20,14 @@ function settings(
 }
 
 describe('Sound Drawing Living Ribbon control visibility', () => {
-  it('shows controls for the authored Living Ribbon show or explicit generator preference', () => {
+  it('shows controls only for the authored Living Ribbon show', () => {
     expect(shouldShowLivingRibbonControls(settings({ selectedShowId: 'livingRibbonSystem' }))).toBe(true)
-    expect(shouldShowLivingRibbonControls(settings({ generatorPreference: 'livingRibbon' }))).toBe(true)
   })
 
-  it('does not clutter unrelated Sound Drawing shows', () => {
+  it('ignores retired generator preferences and does not clutter unrelated shows', () => {
     expect(shouldShowLivingRibbonControls(settings({
       selectedShowId: 'radialPressureSystem',
-      generatorPreference: 'authored',
+      generatorPreference: 'livingRibbon',
     }))).toBe(false)
     expect(shouldShowLivingRibbonControls(settings({
       selectedShowId: 'harmonicRibbonReactor',

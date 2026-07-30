@@ -359,6 +359,7 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
     SOUND_DRAWING_PERFORMANCE_SHOW_IDS.has(source.selectedShowId as SoundDrawingPerformanceShowId)
       ? (source.selectedShowId as SoundDrawingPerformanceShowId)
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId
+  const autoPerformance = source.autoPerformance === true
   const generatorPreference =
     typeof source.generatorPreference === 'string' &&
     SOUND_DRAWING_GENERATOR_PREFERENCES.has(source.generatorPreference as SoundDrawingGeneratorPreference)
@@ -459,7 +460,7 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
       : { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract }
   return {
     selectedShowId,
-    autoPerformance: source.autoPerformance === true,
+    autoPerformance,
     complexity: Math.max(
       0,
       Math.min(1, finiteNumber(source.complexity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.complexity)),
@@ -476,14 +477,15 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
       0,
       Math.min(1, finiteNumber(source.trailIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailIntensity)),
     ),
-    generatorPreference,
+    generatorPreference: autoPerformance ? 'authored' : generatorPreference,
     quality:
       typeof source.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(source.quality)
         ? (source.quality as SoundDrawingPerformanceSettings['quality'])
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
     livingRibbon,
-    performanceSource:
-      source.performanceSource === 'activeText' || source.performanceSource === 'activeSvg'
+    performanceSource: autoPerformance
+      ? 'generatedVisual'
+      : source.performanceSource === 'activeText' || source.performanceSource === 'activeSvg'
         ? 'activeUserSource'
         : typeof source.performanceSource === 'string' && SOUND_DRAWING_PERFORMANCE_SOURCES.has(source.performanceSource)
           ? (source.performanceSource as SoundDrawingPerformanceSettings['performanceSource'])
@@ -526,8 +528,10 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
         ),
       ),
     ),
-    locks,
-    trailLockContract,
+    locks: autoPerformance ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks } : locks,
+    trailLockContract: autoPerformance
+      ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract }
+      : trailLockContract,
   }
 }
 
@@ -5431,6 +5435,10 @@ export const useReactStore = create<ReactStoreState>()(
       setSoundDrawingPerformanceLock: (key, value) =>
         set(s => {
           const settings = s.soundDrawingPerformanceSettings
+          // Parameter Locks are a retired manual-override contract. Auto Performance
+          // owns the active show atomically, so stale UI callbacks or old project
+          // code cannot partially replace a running scene.
+          if (settings.autoPerformance) return s
           const trailLockContract = key === 'trail' && value && settings.trailLockContract.mode === 'manualResolved'
             ? {
                 version: 2 as const,

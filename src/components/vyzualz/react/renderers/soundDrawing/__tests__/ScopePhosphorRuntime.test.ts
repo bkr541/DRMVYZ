@@ -74,9 +74,12 @@ function makeMockGL(options: MockOptions = {}) {
     getProgramParameter: vi.fn(() => !options.failShaderCompile),
     getProgramInfoLog: vi.fn(() => 'mock link failure'),
     useProgram: vi.fn((...a: unknown[]) => record('useProgram', a)),
-    getUniformLocation: vi.fn(() => ({ _u: objectId++ } as unknown as WebGLUniformLocation)),
+    getUniformLocation: vi.fn((_program: WebGLProgram, name: string) => (
+      { _u: objectId++, name } as unknown as WebGLUniformLocation
+    )),
     getAttribLocation: vi.fn(() => 0),
-    uniform1f: vi.fn(), uniform1i: vi.fn(), uniform2f: vi.fn(),
+    uniform1f: vi.fn((...a: unknown[]) => record('uniform1f', a)),
+    uniform1i: vi.fn(), uniform2f: vi.fn(),
     uniform3f: vi.fn(), uniform4f: vi.fn(), uniformMatrix4fv: vi.fn(),
 
     bindTexture: vi.fn((...a: unknown[]) => record('bindTexture', a)),
@@ -212,6 +215,27 @@ describe('initialization', () => {
 })
 
 describe('pass execution', () => {
+
+  it('enables transparent tube output for authored layer composition', () => {
+    const mock = makeMockCanvas()
+    const runtime = new ScopePhosphorRuntime(() => mock.canvas)
+    mock.gl._calls.length = 0
+
+    runtime.renderFrame(frameInput({
+      transparentBackground: true,
+      crt: { ...DEFAULT_SCOPE_CRT, enabled: true },
+    }))
+
+    const transparentWrites = mock.gl._calls.filter(call => {
+      if (call.method !== 'uniform1f') return false
+      const location = call.args[0] as { name?: string }
+      return location?.name === 'uTransparentBackground' && call.args[1] === 1
+    })
+    // Composite and CRT passes both receive the transparent presentation flag.
+    expect(transparentWrites).toHaveLength(2)
+    runtime.dispose()
+  })
+
   it('runs beam, persistence, bloom, and composite in order', () => {
     const mock = makeMockCanvas()
     const runtime = new ScopePhosphorRuntime(() => mock.canvas)
