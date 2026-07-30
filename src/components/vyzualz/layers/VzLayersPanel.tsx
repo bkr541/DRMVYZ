@@ -102,8 +102,11 @@ export function VzLayersPanel() {
                 title="Click to select this layer as effect target"
               >
                 <button
+                  type="button"
                   className={`vz-layer-toggle${cfg.enabled ? ' vz-layer-toggle--on' : ''}`}
                   onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
+                  aria-pressed={cfg.enabled}
+                  aria-label={`${cfg.enabled ? 'Hide' : 'Show'} ${LAYER_LABELS[layerId]} layer`}
                   title={cfg.enabled ? 'Hide layer' : 'Show layer'}
                 />
                 <span className="vz-slider-label">{LAYER_LABELS[layerId]}</span>
@@ -257,7 +260,9 @@ export function VzLayersPanel() {
                                 title="When on, global live effects (scale pulse, Color Shift) apply to this item"
                               >Enable Global FX</label>
                               <button
+                                type="button"
                                 className={`vz-li-audio-btn${(item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive) ? ' vz-li-audio-btn--on' : ''}`}
+                                aria-pressed={item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive}
                                 onClick={() => {
                                   const cur = item.enableGlobalFx !== undefined ? item.enableGlobalFx : item.audioReactive
                                   updateLayerItem(item.id, { enableGlobalFx: !cur, audioReactive: !cur })

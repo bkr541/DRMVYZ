@@ -274,7 +274,9 @@ function SystemSettingsPanel() {
             <p>Allow DRMVYZ to adjust quality inside the selected bounds.</p>
           </div>
           <button
+            type="button"
             className={`vz-settings-seg-btn vsm-settings-toggle${autoQualityEnabled ? ' vz-settings-seg-btn--active' : ''}`}
+            aria-pressed={autoQualityEnabled}
             onClick={() => setAutoQualityEnabled(!autoQualityEnabled)}
           >{autoQualityEnabled ? 'ON' : 'OFF'}</button>
         </div>
@@ -319,7 +321,9 @@ function SystemSettingsPanel() {
         </div>
         <div className="vsm-settings-inline-row">
           <button
+            type="button"
             className={`vz-settings-seg-btn vsm-settings-toggle${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
+            aria-pressed={bpmSync}
             onClick={toggleBpmSync}
           >{bpmSync ? 'ON' : 'OFF'}</button>
           <span>{bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}</span>

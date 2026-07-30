@@ -386,6 +386,12 @@ Reuse existing state classes:
 - `.rv-ctrl-toggle--on`
 - Existing active tab classes
 
+Boolean controls must expose their state through `aria-pressed`, or through
+`role="switch"` plus `aria-checked`. An ON control must retain its active
+class and light-primary surface even when disabled. Theme-level generic control
+rules must not override active toggle backgrounds. Native checkboxes and radios
+use the current appearance theme's primary accent.
+
 ## Current implementation audit
 
 ### Resolved and now canonical

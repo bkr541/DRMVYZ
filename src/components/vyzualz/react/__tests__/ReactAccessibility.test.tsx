@@ -55,7 +55,7 @@ describe('React-view control accessibility', () => {
           />
           <TextInputRow label="Layer name" value="Title" onChange={vi.fn()} />
           <NumberInputRow label="Delay" value={125} onChange={vi.fn()} unit="ms" />
-          <ToggleRow label="Enabled" value={false} onChange={vi.fn()} disabled description="Controls whether the route is active." />
+          <ToggleRow label="Enabled" value onChange={vi.fn()} disabled description="Controls whether the route is active." />
           <Collapsible label="Advanced"><span>Content</span></Collapsible>
         </>,
       )
@@ -82,6 +82,9 @@ describe('React-view control accessibility', () => {
     const toggleLabel = document.getElementById(toggle.getAttribute('aria-labelledby') ?? '')
     expect(toggleLabel?.textContent).toBe('Enabled')
     expect(toggle.disabled).toBe(true)
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    expect(toggle.dataset.state).toBe('on')
+    expect(toggle.classList.contains('rv-ctrl-toggle--on')).toBe(true)
     expect(toggle.closest('.rv-ctrl-toggle-line')).not.toBeNull()
     expect(toggle.closest('.rv-ctrl-toggle-row')?.querySelector(':scope > .rv-ctrl-description')?.textContent)
       .toBe('Controls whether the route is active.')

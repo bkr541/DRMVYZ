@@ -234,6 +234,49 @@ body,
   background-color: rgba(var(--color-primary-rgb), 0.12);
 }
 
+/* Boolean controls need a stronger state rule than the generic control surface.
+   The extra specificity prevents the theme layer from flattening ON back to OFF. */
+[data-theme] :is(
+  .rv-ctrl-toggle:is(.rv-ctrl-toggle--on, [aria-pressed='true'], [data-state='on']),
+  .vz-param-toggle:is(.vz-param-toggle--on, [aria-pressed='true']),
+  .vz-layer-toggle:is(.vz-layer-toggle--on, [aria-pressed='true']),
+  .vz-li-audio-btn:is(.vz-li-audio-btn--on, [aria-pressed='true']),
+  .vz-settings-seg-btn.vsm-settings-toggle:is(.vz-settings-seg-btn--active, [aria-pressed='true']),
+  .rv-stage-focus-btn:is(.is-active, [aria-pressed='true']),
+  .rv-reset-btn[aria-pressed='true'],
+  .rv-glyph-upload-btn:is(.rv-glyph-upload-btn--active, [aria-pressed='true']),
+  .rv-cinematic-mode-btn:is(.rv-cinematic-mode-btn--active, [aria-pressed='true']),
+  .rv-show-director-mode-toggle__button:is(.rv-show-director-mode-toggle__button--active, [aria-pressed='true']),
+  .rv-pix-grid-edit-toggle:is(.is-active, [aria-pressed='true']),
+  .vz-dock-sync-master-btn.vz-dock-sync-master-btn--on,
+  button[role='switch'][aria-checked='true']
+) {
+  background-color: rgba(var(--color-primary-rgb), 0.22);
+  border-color: color-mix(in srgb, var(--color-primary) 68%, transparent);
+  color: var(--color-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 12px rgba(var(--color-primary-rgb), 0.1);
+}
+
+[data-theme] :is(
+  .lmv-toggle-track--on,
+  .vz-sync-track--on,
+  .vz-mod-reactivity-track--on,
+  .toggle-row input[type='checkbox']:checked + .toggle-track,
+  .az-toggle-input:checked + .az-toggle-track,
+  .ref-toggle input[type='checkbox']:checked + .ref-toggle-track,
+  .mum-toggle input[type='checkbox']:checked ~ .mum-toggle-track,
+  .lmm-toggle input[type='checkbox']:checked ~ .lmm-toggle-track,
+  .vz-ml-insp-toggle-input:checked + .vz-ml-insp-toggle-track
+) {
+  background-color: rgba(var(--color-primary-rgb), 0.34);
+  border-color: color-mix(in srgb, var(--color-primary) 72%, transparent);
+  box-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.14);
+}
+
+[data-theme] input:is([type='checkbox'], [type='radio']) {
+  accent-color: var(--color-primary);
+}
+
 [data-theme] :focus-visible {
   outline-color: var(--color-ring);
 }

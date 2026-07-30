@@ -159,7 +159,8 @@ export function ToggleRow({ label, value, onChange, disabled, title, id, descrip
         <button
           id={buttonId}
           type="button"
-          className={`rv-ctrl-toggle${value && !disabled ? ' rv-ctrl-toggle--on' : ''}`}
+          className={`rv-ctrl-toggle${value ? ' rv-ctrl-toggle--on' : ''}`}
+          data-state={value ? 'on' : 'off'}
           onClick={() => onChange(!value)}
           aria-pressed={value}
           aria-labelledby={labelId}

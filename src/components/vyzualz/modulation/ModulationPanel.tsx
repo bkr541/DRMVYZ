@@ -31,7 +31,8 @@ export function ModulationPanel({ routes, onToggle, onSetAmount, audioReactivity
       <div
         className={`vz-mod-reactivity-row${audioReactivityEnabled ? ' vz-mod-reactivity-row--on' : ''}`}
         onClick={() => onSetAudioReactivity(!audioReactivityEnabled)}
-        role="button"
+        role="switch"
+        aria-checked={audioReactivityEnabled}
         tabIndex={0}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSetAudioReactivity(!audioReactivityEnabled) }}
         title={audioReactivityEnabled
@@ -56,8 +57,11 @@ export function ModulationPanel({ routes, onToggle, onSetAmount, audioReactivity
             <div key={route.id} className={`vz-mod-route ${route.enabled ? 'vz-mod-route--on' : ''}`}>
               <div className="vz-mod-route-header">
                 <button
+                  type="button"
                   className="vz-mod-toggle"
                   onClick={() => onToggle(route.id)}
+                  aria-pressed={route.enabled}
+                  aria-label={`${route.enabled ? 'Disable' : 'Enable'} ${EFFECT_LABELS[route.effectId] ?? route.effectId} modulation route`}
                   title={route.enabled ? 'Disable route' : 'Enable route'}
                 >
                   <span className={`vz-mod-dot ${route.enabled ? 'vz-mod-dot--on' : ''}`} />

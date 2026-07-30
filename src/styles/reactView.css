@@ -700,7 +700,9 @@
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.rv-ctrl-toggle--on {
+.rv-ctrl-toggle--on,
+.rv-ctrl-toggle[aria-pressed='true'],
+.rv-ctrl-toggle[data-state='on'] {
   background: rgba(74, 199, 219, 0.18);
   border-color: rgba(74, 199, 219, 0.4);
   color: #4ac7db;
@@ -1058,6 +1060,21 @@
   color: #4ac7db;
 }
 
+.rv-glyph-upload-btn--active,
+.rv-glyph-upload-btn[aria-pressed='true'] {
+  background: rgba(74, 199, 219, 0.18);
+  border-color: rgba(74, 199, 219, 0.48);
+  color: #4ac7db;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 10px rgba(74, 199, 219, 0.08);
+}
+
+.rv-glyph-upload-btn--active:hover,
+.rv-glyph-upload-btn[aria-pressed='true']:hover {
+  background: rgba(74, 199, 219, 0.24);
+  border-color: rgba(74, 199, 219, 0.68);
+  color: #67f7ff;
+}
+
 /* ── LaserDMX modulation route card ─────────────────────────────────────────── */
 .rv-ldx-route {
   display: flex;
@@ -1168,6 +1185,19 @@
   outline-offset: 2px;
   border-color: rgba(74, 199, 219, 0.55);
   color: #e8f4f8;
+}
+
+.rv-reset-btn[aria-pressed='true'] {
+  background: rgba(74, 199, 219, 0.18);
+  border-color: rgba(74, 199, 219, 0.48);
+  color: #4ac7db;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 10px rgba(74, 199, 219, 0.08);
+}
+
+.rv-reset-btn[aria-pressed='true']:hover {
+  background: rgba(74, 199, 219, 0.24);
+  border-color: rgba(74, 199, 219, 0.68);
+  color: #67f7ff;
 }
 
 .rv-reset-actions {

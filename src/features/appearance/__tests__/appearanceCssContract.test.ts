@@ -29,4 +29,31 @@ describe('appearance CSS token contract', () => {
     expect(appearanceCss).toContain('--color-primary: #168cff')
     expect(appearanceCss).toContain('--color-secondary: #38afff')
   })
+
+  it('keeps every toggle family visibly active after generic theme controls are applied', () => {
+    const genericControls = appearanceCss.indexOf('/* Standard controls */')
+    const booleanControls = appearanceCss.indexOf('/* Boolean controls need a stronger state rule')
+
+    expect(genericControls).toBeGreaterThanOrEqual(0)
+    expect(booleanControls).toBeGreaterThan(genericControls)
+
+    for (const selector of [
+      ".rv-ctrl-toggle:is(.rv-ctrl-toggle--on, [aria-pressed='true'], [data-state='on'])",
+      ".vz-param-toggle:is(.vz-param-toggle--on, [aria-pressed='true'])",
+      ".vz-layer-toggle:is(.vz-layer-toggle--on, [aria-pressed='true'])",
+      ".rv-stage-focus-btn:is(.is-active, [aria-pressed='true'])",
+      ".rv-reset-btn[aria-pressed='true']",
+      ".rv-glyph-upload-btn:is(.rv-glyph-upload-btn--active, [aria-pressed='true'])",
+      "button[role='switch'][aria-checked='true']",
+      '.lmv-toggle-track--on',
+      '.vz-sync-track--on',
+      '.vz-mod-reactivity-track--on',
+      ".vz-ml-insp-toggle-input:checked + .vz-ml-insp-toggle-track",
+    ]) {
+      expect(appearanceCss, selector).toContain(selector)
+    }
+
+    expect(appearanceCss).toContain('background-color: rgba(var(--color-primary-rgb), 0.22)')
+    expect(appearanceCss).toContain('accent-color: var(--color-primary)')
+  })
 })

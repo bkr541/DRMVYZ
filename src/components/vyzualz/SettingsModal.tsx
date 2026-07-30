@@ -57,7 +57,9 @@ function SystemSettingsPanel() {
         <div className="az-popover-section-title">BPM Sync</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
+            type="button"
             className={`vz-settings-seg-btn${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
+            aria-pressed={bpmSync}
             onClick={toggleBpmSync}
             style={{ minWidth: 54 }}
           >{bpmSync ? 'ON' : 'OFF'}</button>

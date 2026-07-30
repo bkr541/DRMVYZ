@@ -95,7 +95,9 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
     <div className="vz-param-row">
       <span className="vz-param-label">{label}</span>
       <button
+        type="button"
         className={`vz-param-toggle${value ? ' vz-param-toggle--on' : ''}`}
+        aria-pressed={value}
         onClick={() => onChange(!value)}
       >
         {value ? 'On' : 'Off'}
