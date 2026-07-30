@@ -158,9 +158,11 @@ export function renderReactEngine(
     return
   }
 
-  const authoritativeSections = frame.musicIntelligence?.resolvedSections?.length
-    ? frame.musicIntelligence.resolvedSections
-    : trackSections
+  // Track Map owns the merged automatic/imported/manual timeline. Prefer the
+  // explicit timeline supplied by ReactView; the MI bus can still hold the
+  // previous revision for one or more frames after edits, analysis completion,
+  // track replacement, or seeks.
+  const authoritativeSections = trackSections
   const sectionResolution = frame.resolvedSection
     ? { type: frame.resolvedSection.type, progress: frame.resolvedSection.progress }
     : resolveCurrentSection(authoritativeSections, frame.audioTime)

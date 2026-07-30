@@ -69,6 +69,34 @@ const vocalOpacityRoute: SoundDrawingModulationRoute = {
   lockKey: 'reaction',
 }
 
+
+const harmonicRibbonBuildSpreadRoute: SoundDrawingModulationRoute = {
+  id: 'hrr-build-spread',
+  source: 'buildProgress',
+  target: 'audioDisplacement',
+  min: 0,
+  max: 0.085,
+  amount: 1,
+  curve: 'easeIn',
+  smoothing: 0.08,
+  minConfidence: 0,
+  clamp: [0.02, 0.22],
+  lockKey: 'reaction',
+}
+
+const harmonicRibbonEnergySpreadRoute: SoundDrawingModulationRoute = {
+  id: 'hrr-energy-spread',
+  source: 'trackRelativeEnergy',
+  target: 'audioDisplacement',
+  min: 0,
+  max: 0.055,
+  amount: 1,
+  curve: 'easeOut',
+  smoothing: 0.12,
+  clamp: [0.02, 0.22],
+  lockKey: 'reaction',
+}
+
 function roleEventBindings(
   prefix: string,
   role: SoundDrawingPerformanceLayerBlueprint['role'],
@@ -250,100 +278,127 @@ function radialPressureSystem(): SoundDrawingPerformanceShowDefinition {
 }
 
 function harmonicRibbonReactor(): SoundDrawingPerformanceShowDefinition {
-  // One dedicated renderer already contains the high/mid/low contour families.
-  // Additional generated layers only duplicate those families and recreate the
-  // fog this show is designed to avoid, so section evolution stays inside the
-  // primary motif through trace density, scale, stroke, glow, and persistence.
+  // The dedicated renderer owns all three high/mid/low contour families. The
+  // authored program changes that same identity through density, spread,
+  // phase, stroke, glow, and bounded persistence rather than recruiting
+  // duplicate waveform layers.
   const intro = [
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', {
-      opacity: 0.88,
-      scale: 0.9,
-      strokeWidth: 0.85,
-      traceCount: 2,
-      trailPersistence: 0.12,
+      opacity: 1,
+      scale: 1,
+      strokeWidth: 0.9,
+      traceCount: 3,
+      trailPersistence: 0.06,
       renderMode: 'ribbon',
-      audioDisplacement: 0.04,
-      glow: 0.42,
+      audioDisplacement: 0.035,
+      phaseOffset: -0.04,
+      glow: 0.5,
+      modulationRoutes: [energyGlowRoute('hrr-intro-glow', 0.14)],
     }),
   ]
   const verse = [
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', {
-      opacity: 0.94,
-      scale: 0.96,
+      opacity: 1,
+      scale: 1,
       strokeWidth: 1,
       traceCount: 3,
-      trailPersistence: 0.16,
+      trailPersistence: 0.1,
       renderMode: 'ribbon',
-      glow: 0.5,
-      modulationRoutes: [vocalOpacityRoute, energyGlowRoute('hrr-verse-glow')],
+      audioDisplacement: 0.055,
+      phaseOffset: 0.025,
+      glow: 0.56,
+      modulationRoutes: [energyGlowRoute('hrr-verse-glow', 0.2), harmonicRibbonEnergySpreadRoute],
     }),
   ]
   const build = [
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', {
-      opacity: 0.98,
-      scale: 1,
-      strokeWidth: 1.05,
-      traceCount: 4,
-      trailPersistence: 0.14,
+      opacity: 1,
+      scale: 1.03,
+      strokeWidth: 1.08,
+      traceCount: 5,
+      trailPersistence: 0.12,
       renderMode: 'ribbon',
-      glow: 0.62,
-      modulationRoutes: [bassScaleRoute('hrr-build-bass', 0.08)],
+      audioDisplacement: 0.08,
+      phaseOffset: 0.1,
+      glow: 0.72,
+      modulationRoutes: [
+        bassScaleRoute('hrr-build-bass', 0.1),
+        energyGlowRoute('hrr-build-glow', 0.24),
+        harmonicRibbonBuildSpreadRoute,
+      ],
     }),
   ]
   const preDrop = [
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', {
-      opacity: 0.96,
-      scale: 0.74,
-      strokeWidth: 1.24,
-      traceCount: 2,
-      trailPersistence: 0.05,
+      opacity: 1,
+      scale: 1,
+      strokeWidth: 1.18,
+      traceCount: 3,
+      trailPersistence: 0.025,
       renderMode: 'ribbon',
-      glow: 0.42,
+      audioDisplacement: 0.025,
+      phaseOffset: -0.12,
+      glow: 0.58,
+      modulationRoutes: [energyGlowRoute('hrr-pre-drop-glow', 0.12)],
     }),
   ]
   const drop = [
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', {
       opacity: 1,
-      scale: 1.02,
-      strokeWidth: 1.12,
-      traceCount: 4,
-      trailPersistence: 0.18,
+      scale: 1.08,
+      strokeWidth: 1.16,
+      traceCount: 5,
+      trailPersistence: 0.16,
       renderMode: 'ribbon',
-      glow: 0.72,
+      audioDisplacement: 0.12,
+      phaseOffset: 0.16,
+      glow: 0.82,
+      modulationRoutes: [
+        bassScaleRoute('hrr-drop-bass', 0.13),
+        energyGlowRoute('hrr-drop-glow', 0.3),
+        harmonicRibbonEnergySpreadRoute,
+      ],
     }),
   ]
   const breakdown = [
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', {
-      opacity: 0.88,
-      scale: 0.9,
-      strokeWidth: 0.94,
+      opacity: 1,
+      scale: 1,
+      strokeWidth: 0.96,
       traceCount: 3,
-      trailPersistence: 0.22,
+      trailPersistence: 0.18,
       renderMode: 'ribbon',
-      glow: 0.46,
-      modulationRoutes: [vocalOpacityRoute],
+      audioDisplacement: 0.045,
+      phaseOffset: -0.065,
+      glow: 0.5,
+      modulationRoutes: [energyGlowRoute('hrr-breakdown-glow', 0.14)],
     }),
   ]
   const outro = [
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', {
-      opacity: 0.76,
-      scale: 0.82,
-      strokeWidth: 0.82,
-      traceCount: 2,
-      trailPersistence: 0.2,
+      opacity: 1,
+      scale: 1,
+      strokeWidth: 0.88,
+      traceCount: 3,
+      trailPersistence: 0.08,
       renderMode: 'ribbon',
-      glow: 0.34,
+      audioDisplacement: 0.03,
+      phaseOffset: 0,
+      glow: 0.44,
+      modulationRoutes: [energyGlowRoute('hrr-outro-glow', 0.1)],
     }),
   ]
   const unknown = [
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', {
-      opacity: 0.9,
-      scale: 0.94,
-      strokeWidth: 0.96,
+      opacity: 1,
+      scale: 1,
+      strokeWidth: 1,
       traceCount: 3,
-      trailPersistence: 0.14,
+      trailPersistence: 0.08,
       renderMode: 'ribbon',
-      glow: 0.48,
+      audioDisplacement: 0.05,
+      phaseOffset: 0,
+      glow: 0.54,
     }),
   ]
 
@@ -358,26 +413,27 @@ function harmonicRibbonReactor(): SoundDrawingPerformanceShowDefinition {
         name: 'Harmonic Ribbon Reactor',
         description: 'A stable three-band harmonic-ribbon architecture with section-aware contour density and bounded persistence.',
         engine: 'soundDrawing',
-        version: 3,
-        authoringRevision: 'dedicated-harmonic-ribbon-v1',
+        version: 4,
+        authoringRevision: 'section-authority-and-choreography-v2',
       },
       fallbackOrder: ['unknown'],
       fallbackSceneId: 'hrr-fallback',
       scenes: [
-        scene('hrr-intro', ['intro'], intro),
-        scene('hrr-verse', ['verse'], verse),
-        scene('hrr-build', ['build'], build),
-        scene('hrr-pre-drop', ['preDrop'], preDrop, { priority: 5 }),
+        scene('hrr-intro', ['intro'], intro, { minConfidence: 0 }),
+        scene('hrr-verse', ['verse'], verse, { minConfidence: 0 }),
+        scene('hrr-build', ['build'], build, { minConfidence: 0 }),
+        scene('hrr-pre-drop', ['preDrop'], preDrop, { priority: 5, minConfidence: 0 }),
         scene('hrr-drop-2', ['drop'], drop, {
           priority: 10,
+          minConfidence: 0,
           dropOccurrence: { minOccurrence: 2 },
           bodyActions: [
-            { type: 'patchRole', role: 'primaryMotif', patch: { traceCount: 5, scale: 1.06, phaseOffset: 0.08 }, lockKey: 'topology' },
+            { type: 'patchRole', role: 'primaryMotif', patch: { traceCount: 5, scale: 1.12, phaseOffset: 0.24, audioDisplacement: 0.17, glow: 0.9 }, lockKey: 'topology' },
           ],
         }),
-        scene('hrr-drop', ['drop'], drop, { priority: 5 }),
-        scene('hrr-breakdown', ['breakdown', 'bridge'], breakdown),
-        scene('hrr-outro', ['outro'], outro),
+        scene('hrr-drop', ['drop'], drop, { priority: 5, minConfidence: 0 }),
+        scene('hrr-breakdown', ['breakdown', 'bridge'], breakdown, { minConfidence: 0 }),
+        scene('hrr-outro', ['outro'], outro, { minConfidence: 0 }),
         scene('hrr-fallback', ['unknown'], unknown, { priority: -10 }),
       ],
     },

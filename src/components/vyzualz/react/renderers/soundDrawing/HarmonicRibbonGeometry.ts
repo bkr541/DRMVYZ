@@ -21,9 +21,9 @@ export const HARMONIC_RIBBON_SAMPLE_COUNT = 256
  * never collapse into one continuous wall of light.
  */
 export const HARMONIC_RIBBON_BAND_LAYOUT: readonly HarmonicRibbonBandLayout[] = [
-  { id: 'high', centerRatio: 0.22, amplitudeRatio: 0.105, colorKey: 'secondary' },
+  { id: 'high', centerRatio: 0.19, amplitudeRatio: 0.105, colorKey: 'secondary' },
   { id: 'mid', centerRatio: 0.5, amplitudeRatio: 0.135, colorKey: 'primary' },
-  { id: 'low', centerRatio: 0.78, amplitudeRatio: 0.105, colorKey: 'highlight' },
+  { id: 'low', centerRatio: 0.81, amplitudeRatio: 0.105, colorKey: 'highlight' },
 ]
 
 function clamp(value: number, min: number, max: number): number {

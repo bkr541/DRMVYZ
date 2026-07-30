@@ -249,25 +249,15 @@ export function resolveAuthoritativeFrameSection({
   trackSections?: readonly ReactTrackSection[]
   audioTime: number
 }): NonNullable<ReactFrameContext['resolvedSection']> | null {
-  const published = musicIntelligence?.currentResolvedSection ?? null
-  if (published && audioTime >= published.startSec && audioTime < published.endSec) {
-    return {
-      id: published.id,
-      label: published.label,
-      type: published.type,
-      startSec: published.startSec,
-      endSec: published.endSec,
-      progress: published.progress,
-      confidence: published.analysisConfidence ?? published.confidence,
-      provenance: published.provenance,
-      source: legacySectionSource(published),
-    }
-  }
-  const publishedTimeline = musicIntelligence?.resolvedSections ?? []
-  const section = resolveSectionAtTime(
-    publishedTimeline.length > 0 ? publishedTimeline : (trackSections ?? []),
-    audioTime,
-  )
+  // ReactView already resolves automatic, imported, and manual overrides into
+  // one Track Map timeline. Prefer that exact timeline over a Music
+  // Intelligence snapshot that can lag one render behind after analysis,
+  // manual edits, track replacement, or transport seeks.
+  const hasExplicitTimeline = trackSections !== undefined
+  const authoritativeTimeline = hasExplicitTimeline
+    ? trackSections
+    : (musicIntelligence?.resolvedSections ?? [])
+  const section = resolveSectionAtTime(authoritativeTimeline, audioTime)
   if (section) {
     const duration = section.endSec - section.startSec
     return {
@@ -282,6 +272,27 @@ export function resolveAuthoritativeFrameSection({
       source: legacySectionSource(section),
     }
   }
+
+  // Once ReactView supplies its merged Track Map timeline, an uncovered
+  // playhead is intentionally unresolved. Do not let a stale MI publication
+  // resurrect a section that the visible Track Map no longer owns.
+  if (hasExplicitTimeline) return null
+
+  const published = musicIntelligence?.currentResolvedSection ?? null
+  if (published && audioTime >= published.startSec && audioTime < published.endSec) {
+    return {
+      id: published.id,
+      label: published.label,
+      type: published.type,
+      startSec: published.startSec,
+      endSec: published.endSec,
+      progress: published.progress,
+      confidence: published.analysisConfidence ?? published.confidence,
+      provenance: published.provenance,
+      source: legacySectionSource(published),
+    }
+  }
+
   const legacy = musicIntelligence?.section
   if (!legacy?.type) return null
   return {

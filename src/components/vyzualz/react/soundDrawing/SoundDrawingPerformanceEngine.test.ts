@@ -299,6 +299,82 @@ describe('Sound Drawing authored Performance Engine', () => {
     }
   })
 
+  it('uses the Track Map timeline when a stale Music Intelligence snapshot still reports unknown', () => {
+    const frame = frameAt(31)
+    const staleUnknown: ReactTrackSection = {
+      id: 'stale-unknown',
+      label: 'Unknown',
+      type: 'unknown',
+      startSec: 0,
+      endSec: 140,
+      intensity: 0.5,
+      source: 'fallback',
+      confidence: 0.05,
+    }
+    frame.musicIntelligence = {
+      ...frame.musicIntelligence!,
+      resolvedSections: [staleUnknown],
+      currentResolvedSection: { ...staleUnknown, progress: 31 / 140 },
+    }
+    frame.trackSections = SECTIONS
+
+    const context = buildSoundDrawingPerformanceContext(frame)
+    expect(context.sectionType).toBe('drop')
+    expect(context.macroSectionType).toBe('drop')
+    expect(context.resolvedSection?.id).toBe('drop-1')
+
+    const performance = resolveSoundDrawingPerformanceFrame({
+      frame,
+      settings: settings({ selectedShowId: 'harmonicRibbonReactor', autoPerformance: true }),
+      manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
+    })!
+    expect(performance.sceneId).toBe('hrr-drop')
+    expect(performance.fallbackUsed).toBe(false)
+  })
+
+  it('authors visibly different Harmonic Ribbon states across the song arc', () => {
+    const intro = role(resolved(2, {}, { selectedShowId: 'harmonicRibbonReactor' }), 'primaryMotif')
+    const build = role(resolved(20, {}, { selectedShowId: 'harmonicRibbonReactor' }), 'primaryMotif')
+    const preDrop = role(resolved(25, {}, { selectedShowId: 'harmonicRibbonReactor' }), 'primaryMotif')
+    const drop = role(resolved(31, {}, { selectedShowId: 'harmonicRibbonReactor' }), 'primaryMotif')
+    const breakdown = role(resolved(72, {}, { selectedShowId: 'harmonicRibbonReactor' }), 'primaryMotif')
+
+    expect(intro.traceCount).toBe(3)
+    expect(build.traceCount).toBe(5)
+    expect(preDrop.traceCount).toBe(3)
+    expect(drop.traceCount).toBe(5)
+    expect(build.audioDisplacement).toBeGreaterThan(intro.audioDisplacement)
+    expect(drop.scale).toBeGreaterThan(build.scale)
+    expect(preDrop.audioDisplacement).toBeLessThan(build.audioDisplacement)
+    expect(preDrop.trailPersistence).toBeLessThan(build.trailPersistence)
+    expect(drop.glow).toBeGreaterThan(breakdown.glow)
+    expect(drop.phaseOffset).not.toBe(intro.phaseOffset)
+  })
+
+  it('makes Harmonic Ribbon choreography controls materially change its resolved geometry', () => {
+    const minimal = role(resolved(31, {}, {
+      selectedShowId: 'harmonicRibbonReactor',
+      complexity: 0,
+      motionIntensity: 0,
+      reactionIntensity: 0,
+      trailIntensity: 0,
+    }), 'primaryMotif')
+    const full = role(resolved(31, {}, {
+      selectedShowId: 'harmonicRibbonReactor',
+      complexity: 1,
+      motionIntensity: 1,
+      reactionIntensity: 1,
+      trailIntensity: 1,
+    }), 'primaryMotif')
+
+    expect(minimal.traceCount).toBe(1)
+    expect(full.traceCount).toBe(5)
+    expect(minimal.phaseOffset).toBe(0)
+    expect(Math.abs(full.phaseOffset)).toBeGreaterThan(0)
+    expect(minimal.trailPersistence).toBe(0)
+    expect(full.trailPersistence).toBeGreaterThan(0)
+  })
+
   it('applies authored scope automation to the resolved scope pipeline state', () => {
     const low = resolved(8.1, {}, {
       selectedShowId: 'stereoPulseStudy',

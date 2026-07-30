@@ -48,7 +48,10 @@ import { getSvgGlyphCacheKey, findNearestSvgGlyphCacheEntry } from './svgGlyphUt
 import { getSvgGlyphAssetId, resolveUnifiedSvgSource } from '../svgSourceLifecycle'
 import { createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { resolveSoundDrawingPerformanceFrame } from '../soundDrawing/SoundDrawingPerformanceEngine'
-import { normalizeSoundDrawingVisualSize } from '../soundDrawing/SoundDrawingVisualSize'
+import {
+  normalizeSoundDrawingVisualSize,
+  resolveSoundDrawingAuthoredCompositionScale,
+} from '../soundDrawing/SoundDrawingVisualSize'
 import { resolveSoundDrawingSectionScopeMode } from '../soundDrawing/SoundDrawingSectionMode'
 import {
   professionalScopeConfigurationIdentity,
@@ -1483,6 +1486,15 @@ function drawHarmonicRibbonOnTrail(
   const xSpan = W
   const brightness = clamp(intMul, 0, 1.2)
   const strokeScale = clamp(layer.strokeWidth, 0.55, 2.2)
+  const choreographyActive = params.soundDrawingPerformanceSettings.autoPerformance
+  const motionIntensity = choreographyActive
+    ? clamp(params.soundDrawingPerformanceSettings.motionIntensity, 0, 1)
+    : 0
+  const reactionIntensity = choreographyActive
+    ? clamp(params.soundDrawingPerformanceSettings.reactionIntensity, 0, 1)
+    : 0
+  const authoredSpread = clamp(layer.audioDisplacement / 0.18, 0, 1.35)
+  const topologyEnergy = clamp(layer.topologyVariant / 5, 0, 1)
   const kinematics = resolveVectorBeamScannerKinematicsSettings(params.oscillator)
 
   for (let bandIndex = 0; bandIndex < HARMONIC_RIBBON_BAND_LAYOUT.length; bandIndex++) {
@@ -1493,29 +1505,51 @@ function drawHarmonicRibbonOnTrail(
       : layout.id === 'mid'
         ? frame.audio.mid
         : frame.audio.bass * params.bassReactivity
+    const normalizedEnergy = clamp(energy, 0, 1.2)
     const centerY = H * layout.centerRatio
-    const amplitude = H * layout.amplitudeRatio * (0.76 + clamp(energy, 0, 1.2) * 0.34)
+    // Reaction changes the envelope and spacing, not whether the master trace is
+    // readable. At zero the authored ribbon remains stable; at one it visibly
+    // opens and breathes with the music.
+    const amplitude = H * layout.amplitudeRatio * (
+      0.82 + normalizedEnergy * (0.1 + reactionIntensity * 0.26)
+    )
+    const sectionSpread = 0.78 + authoredSpread * 0.72
+    const reactiveSpread = 1 + normalizedEnergy * reactionIntensity * 0.32
+    const topologySpread = 1 + topologyEnergy * 0.12
     const traceSeparation =
-      H * (0.0055 + Math.min(6, traceOffsets.length) * 0.0009) * (0.92 + energy * 0.12)
+      H * (0.0062 + Math.min(5, traceOffsets.length) * 0.00095)
+      * sectionSpread
+      * reactiveSpread
+      * topologySpread
     const color = preset.palette[layout.colorKey]
 
     const buildTracePoints = (offset: number): VectorBeamPoint[] => {
       const points: VectorBeamPoint[] = new Array(signal.length)
-      const phaseShift = offset * (2.2 + bandIndex * 1.35 + layer.phaseOffset * 2)
-      const traceAmplitude = 1 - Math.abs(offset) * 0.055
+      const phaseDepth = 1.8 + authoredSpread * 2.1 + topologyEnergy * 0.9
+      const phaseShift = offset * (phaseDepth + bandIndex * 1.15 + layer.phaseOffset * 4.2)
+      const traceAmplitude = 1 - Math.abs(offset) * (0.04 + authoredSpread * 0.025)
+      const weaveCycles = bandIndex + 2 + topologyEnergy * 1.5
+      const timePhase = frame.t * 0.0123 * motionIntensity
+      const weaveDepth =
+        offset * amplitude * (0.01 + authoredSpread * 0.035)
+        * (0.35 + normalizedEnergy * (0.25 + reactionIntensity * 0.55))
+        * (0.35 + motionIntensity * 0.65)
 
       for (let sampleIndex = 0; sampleIndex < signal.length; sampleIndex++) {
         const progress = sampleIndex / Math.max(1, signal.length - 1)
         const sample = sampleHarmonicRibbonSignal(signal, sampleIndex + phaseShift)
         const harmonicWeave =
-          Math.sin(progress * Math.PI * 2 * (bandIndex + 2) + frame.t * 0.0065 + offset * 1.7) *
-          offset * amplitude * 0.022 * (0.45 + energy * 0.55)
+          Math.sin(
+            progress * Math.PI * 2 * weaveCycles
+            + timePhase
+            + offset * (1.45 + layer.phaseOffset * 2.2),
+          ) * weaveDepth
         points[sampleIndex] = {
           x: xStart + progress * xSpan,
           y:
             centerY +
             sample * amplitude * traceAmplitude +
-            offset * traceSeparation * (0.78 + Math.abs(sample) * 0.22) +
+            offset * traceSeparation * (0.76 + Math.abs(sample) * 0.24) +
             harmonicWeave,
         }
       }
@@ -3201,7 +3235,11 @@ function renderPerformanceLayer(
     const layerRotation = horizontalRibbonBands ? 0 : layer.rotation + layer.topologyVariant * 7.5
     tctx.rotate((layerRotation * Math.PI) / 180)
     const topologyScale = 1 + Math.max(0, layer.symmetry - 1) * 0.015
-    tctx.scale(layer.scale * topologyScale, layer.scale * topologyScale)
+    const authoredCompositionScale = horizontalRibbonBands
+      ? resolveSoundDrawingAuthoredCompositionScale(effectiveOscillator.pathScale)
+      : 1
+    const resolvedLayerScale = layer.scale * topologyScale * authoredCompositionScale
+    tctx.scale(resolvedLayerScale, resolvedLayerScale)
     tctx.translate(-W / 2, -H / 2)
 
     if (layer.generator === 'professionalScope') {

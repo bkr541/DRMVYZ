@@ -1,5 +1,8 @@
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
-import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
+import type {
+  MusicIntelligenceCapabilities,
+  MusicIntelligenceFrame,
+} from '../../../../features/musicIntelligence/types'
 import {
   buildSharedPerformanceContext,
   resolveSharedPerformanceEventEnvelope,
@@ -8,8 +11,8 @@ import {
   type SharedPerformanceContext,
   type SharedPerformanceProgramResolution,
 } from '../../../../features/performanceCore'
-import type { OscillatorSettings } from '../ReactTypes'
-import type { ReactFrameContext } from '../renderers/reactRenderUtils'
+import type { OscillatorSettings, ReactTrackSection } from '../ReactTypes'
+import { resolveSectionAtTime, type ReactFrameContext } from '../renderers/reactRenderUtils'
 import { resolveProfessionalScopeLayerSettings } from './SoundDrawingProfessionalScopeLayer'
 import { SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID } from './SoundDrawingPerformanceShows'
 import { resolveSoundDrawingPerformanceSources } from './SoundDrawingSourceResolver'
@@ -255,11 +258,96 @@ function buildFallbackMusicFrame(frame: ReactFrameContext): MusicIntelligenceFra
   }
 }
 
+function reactSectionSourceFromMusicSource(
+  source: NonNullable<ReactFrameContext['resolvedSection']>['source'],
+): ReactTrackSection['source'] {
+  switch (source) {
+    case 'analysis': return 'auto'
+    case 'rekordbox': return 'imported'
+    case 'inferred': return 'fallback'
+    case 'manual':
+    default: return 'manual'
+  }
+}
+
+function musicSectionSource(section: ReactTrackSection): MusicIntelligenceFrame['section']['source'] {
+  const authority = section.provenance?.authority
+  if (authority === 'imported' || section.source === 'imported') return 'rekordbox'
+  if (authority === 'automatic' || section.source === 'auto') return 'analysis'
+  if (authority === 'fallback' || section.source === 'fallback' || section.source === 'mock') return 'inferred'
+  return 'manual'
+}
+
+function resolveSoundDrawingSectionTimeline(
+  frame: ReactFrameContext,
+  miFrame: MusicIntelligenceFrame,
+): readonly ReactTrackSection[] {
+  if (frame.trackSections !== undefined) return frame.trackSections
+  if (miFrame.resolvedSections?.length) return miFrame.resolvedSections
+  const resolved = frame.resolvedSection
+  if (!resolved) return []
+  return [{
+    id: resolved.id ?? `resolved:${resolved.type}:${resolved.startSec.toFixed(3)}`,
+    label: resolved.label ?? resolved.type,
+    type: resolved.type,
+    startSec: resolved.startSec,
+    endSec: resolved.endSec,
+    intensity: clamp01(miFrame.section.intensity),
+    source: reactSectionSourceFromMusicSource(resolved.source),
+    confidence: resolved.confidence,
+    provenance: resolved.provenance,
+  }]
+}
+
+function synchronizeSoundDrawingSectionFrame(
+  miFrame: MusicIntelligenceFrame,
+  frame: ReactFrameContext,
+  sections: readonly ReactTrackSection[],
+): MusicIntelligenceFrame {
+  const active = resolveSectionAtTime(sections, frame.audioTime)
+  const capabilities: MusicIntelligenceCapabilities = {
+    ...(miFrame.capabilities ?? DEFAULT_MI_FRAME.capabilities!),
+    sections: sections.length > 0,
+  }
+  if (!active) {
+    return { ...miFrame, resolvedSections: sections, capabilities }
+  }
+
+  const duration = Math.max(0, active.endSec - active.startSec)
+  const progress = duration > 0 ? clamp01((frame.audioTime - active.startSec) / duration) : 0
+  const sectionConfidence = clamp01(
+    active.analysisConfidence ?? active.confidence ?? miFrame.confidence.section,
+  )
+  return {
+    ...miFrame,
+    section: {
+      ...miFrame.section,
+      type: active.type,
+      label: active.label,
+      startSec: active.startSec,
+      endSec: active.endSec,
+      progress,
+      intensity: clamp01(active.intensity),
+      confidence: sectionConfidence,
+      source: musicSectionSource(active),
+    },
+    resolvedSections: sections,
+    currentResolvedSection: { ...active, progress },
+    capabilities,
+    confidence: {
+      ...miFrame.confidence,
+      section: sectionConfidence,
+    },
+  }
+}
+
 export function buildSoundDrawingPerformanceContext(
   frame: ReactFrameContext,
   previousContext: SharedPerformanceContext | null = null,
 ): SharedPerformanceContext {
-  const miFrame = frame.musicIntelligence ?? buildFallbackMusicFrame(frame)
+  const sourceFrame = frame.musicIntelligence ?? buildFallbackMusicFrame(frame)
+  const resolvedSections = resolveSoundDrawingSectionTimeline(frame, sourceFrame)
+  const miFrame = synchronizeSoundDrawingSectionFrame(sourceFrame, frame, resolvedSections)
   const discontinuityIdentity = frame.timingDiscontinuity
     ? `timing:${frame.trackKey ?? 'none'}:${frame.audioTime.toFixed(4)}`
     : (previousContext?.timingDiscontinuityIdentity ?? 'timing:0')
@@ -267,7 +355,7 @@ export function buildSoundDrawingPerformanceContext(
     audioTimeSec: frame.audioTime,
     frame: miFrame,
     analysis: frame.trackAnalysis ?? null,
-    resolvedSections: frame.trackSections ?? miFrame.resolvedSections,
+    resolvedSections,
     trackIdentity: frame.trackKey ?? miFrame.trackId ?? miFrame.sourceId,
     trackChangeIdentity: `track:${frame.trackKey ?? miFrame.trackId ?? 'none'}`,
     timingDiscontinuityIdentity: discontinuityIdentity,
@@ -958,7 +1046,14 @@ export function resolveSoundDrawingPrimaryTraceCount(
   // preserving the intended intro/build/drop contour progression.
   const authoredMaximum = Math.round(clamp(authoredTraceCount, 1, maximumTraceCount))
   const density = 0.25 + clamp01(complexity) * 0.75
-  return Math.round(clamp(authoredMaximum * density, 1, authoredMaximum))
+  const requested = clamp(authoredMaximum * density, 1, authoredMaximum)
+
+  // Harmonic Ribbon always needs one exact center master plus symmetric pairs.
+  // Quantize density to 1 / 3 / 5 rather than allowing even values that create
+  // two co-leads or an unbalanced contour family.
+  if (authoredMaximum < 3 || requested < 1.75) return 1
+  if (authoredMaximum < 5 || requested < 3.75) return 3
+  return Math.min(5, authoredMaximum)
 }
 
 function primaryTrailPersistenceCeiling(generator: SoundDrawingGeneratorFamily): number {
@@ -1378,7 +1473,8 @@ export function resolveSoundDrawingPerformanceFrame(
     fallbackUsed: choreographyActive && (
       resolution.scene == null ||
       authoredSceneId.includes('fallback') ||
-      context.sectionConfidence < 0.3 ||
+      ((context.macroSectionType ?? context.sectionType ?? 'unknown') === 'unknown'
+        && context.sectionConfidence < 0.3) ||
       sourceResolution.sourceFallbackState != null
     ),
     deterministicIdentity: `${resolution.deterministicIdentity}:${choreographyActive ? 'choreography' : 'base'}:${sourceResolution.activeSourceKind}:${sourceResolution.activeTreatment}`,

@@ -10,6 +10,9 @@ import {
 } from '../HarmonicRibbonGeometry'
 import { resolveSoundDrawingPrimaryTraceCount } from '../../../soundDrawing/SoundDrawingPerformanceEngine'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../../../soundDrawing/SoundDrawingPerformanceShows'
+import {
+  resolveSoundDrawingAuthoredCompositionScale,
+} from '../../../soundDrawing/SoundDrawingVisualSize'
 
 function totalVariation(signal: Float32Array): number {
   let variation = 0
@@ -90,11 +93,19 @@ describe('Harmonic Ribbon geometry', () => {
     expect(resolveHarmonicRibbonHistoryPresentationAlpha(1)).toBe(0.08)
   })
 
-  it('preserves section-authored trace density while Complexity scales within it', () => {
-    expect(resolveSoundDrawingPrimaryTraceCount('harmonicRibbon', 2, 5, 1)).toBe(2)
-    expect(resolveSoundDrawingPrimaryTraceCount('harmonicRibbon', 4, 5, 1)).toBe(4)
+  it('preserves a center master by quantizing Complexity to odd trace families', () => {
+    expect(resolveSoundDrawingPrimaryTraceCount('harmonicRibbon', 2, 5, 1)).toBe(1)
+    expect(resolveSoundDrawingPrimaryTraceCount('harmonicRibbon', 4, 5, 1)).toBe(3)
     expect(resolveSoundDrawingPrimaryTraceCount('harmonicRibbon', 5, 5, 1)).toBe(5)
-    expect(resolveSoundDrawingPrimaryTraceCount('harmonicRibbon', 4, 5, 0)).toBe(1)
+    expect(resolveSoundDrawingPrimaryTraceCount('harmonicRibbon', 5, 5, 0.45)).toBe(3)
+    expect(resolveSoundDrawingPrimaryTraceCount('harmonicRibbon', 5, 5, 0)).toBe(1)
+  })
+
+  it('maps Show Size around the authored default without collapsing or escaping the viewport', () => {
+    expect(resolveSoundDrawingAuthoredCompositionScale(0.78)).toBeCloseTo(1)
+    expect(resolveSoundDrawingAuthoredCompositionScale(0.1)).toBeCloseTo(0.72)
+    expect(resolveSoundDrawingAuthoredCompositionScale(1.82)).toBeGreaterThan(1.4)
+    expect(resolveSoundDrawingAuthoredCompositionScale(2.5)).toBe(1.45)
   })
 
   it('authors Harmonic Ribbon as one uncluttered primary system in every base scene', () => {
