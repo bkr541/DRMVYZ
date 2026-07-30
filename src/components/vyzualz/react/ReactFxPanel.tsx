@@ -16,10 +16,6 @@ import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
 import { CinematicWorldsDesignControls, CinematicWorldsFxControls } from './CinematicWorldsControls'
 import { CanvasEngineFxPanel } from './ReactCanvasEngineShell'
-import {
-  SOUND_DRAWING_VISUAL_SIZE_MAX,
-  SOUND_DRAWING_VISUAL_SIZE_MIN,
-} from './soundDrawing/SoundDrawingVisualSize'
 import { resolveSoundDrawingOwnership, soundDrawingOwnershipTooltip } from './soundDrawing/SoundDrawingOwnership'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
@@ -81,7 +77,6 @@ export function ReactFxPanel() {
     ? shaderRegistry.get(activeShaderId)?.masterCapabilities
     : undefined
   const soundDrawingOwnership = resolveSoundDrawingOwnership(soundDrawingPerformanceSettings)
-  const isProfessionalScope = isSoundDrawing && osc.sourceType === 'classic' && !osc.autoSectionMode && osc.classicMode === 'professionalScope'
 
   const masterControls = getReactFxMasterControls(activeReactEngineId)
   const showMasterIntensity = masterControls.includes('intensity')
@@ -224,24 +219,6 @@ export function ReactFxPanel() {
         {/* ── Engine Appearance: Oscilloscope ─────────────────────────── */}
         {isSoundDrawing && (
           <>
-            <CtrlSection label="Drawing Size" />
-            {isProfessionalScope ? (
-              <div className="rv-ctrl-info">
-                Pro Scope Trace Size is owned by Engine → Pro Scope. This removes the duplicate top-level size control.
-              </div>
-            ) : (
-              <SliderRow
-                label="Visual Size"
-                value={osc.pathScale}
-                onChange={v => set({ pathScale: v })}
-                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
-                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
-                step={0.01}
-                color="#61d6aa"
-                disabled={!soundDrawingOwnership.domains.geometry.editable}
-                description={`Sets the base size for scopes, built-in shapes, text, and SVG artwork. Auto Performance may animate the effective size unless Scale is locked. ${soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.geometry)}`}
-              />
-            )}
             {isSvgOriginalArtwork ? (
               // Original Artwork: only whole-artwork transforms affect rendering.
               // Trail, render mode, duplicate traces, and mirror are point-path features

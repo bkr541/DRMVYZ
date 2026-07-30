@@ -459,8 +459,13 @@ Return one single downloadable Git-compatible .patch file.
 
 Sound Drawing manual/program/lock ownership must be derived through `src/components/vyzualz/react/soundDrawing/SoundDrawingOwnership.ts`. Do not add scattered `autoPerformance` disable rules. Controls are disabled only when their domain resolves to Program or Unavailable; Locked and Mixed controls remain editable and must explain their resolved ownership through accessible descriptions.
 
-Pro Scope uses `pathScale` as the primary **Trace Size** presentation control. `gainX` and `gainY` remain independent, smoothed signal-domain **Post Auto-Gain Trim** values with explicit link metadata. Trigger Stability is a macro over independent Continuity and Period Assist costs and must not collapse the runtime algorithms.
+Sound Drawing uses `pathScale` as the single primary **Visual Size** presentation control beside Engine Mode, including Pro Scope. `gainX` and `gainY` remain independent, smoothed signal-domain **Post Auto-Gain Trim** values with explicit link metadata. Trigger Stability is a macro over independent Continuity and Period Assist costs and must not collapse the runtime algorithms.
 
 Scope and generic React preset IDs are stable provenance. Exact/Modified/Custom/Unknown Legacy status is derived by comparison and must survive manual edits, Track Map changes, automation, persistence, seek, and reset. Never clear stable preset IDs merely to display a modified state.
 
 Trail lock behavior follows the versioned contract in [`docs/sound-drawing-control-ownership-and-provenance.md`](docs/sound-drawing-control-ownership-and-provenance.md). Historical recipe locks are preserved and truthfully labeled; new manual trail protection owns the final Trail Decay composition step.
+
+
+Engine Mode is the canonical Sound Drawing user-source selector. Performance Source may route either generated show visuals or the current Engine Mode; do not reintroduce source-specific choices that can contradict Engine Mode. Selecting a Performance Show must produce an active show rather than an unlabelled queued state.
+
+Authored Sound Drawing layers own separate bounded trail histories. Scene, layer topology, generator, source identity, and effective manual section-following mode are reset boundaries. Per-layer persistence and feedback must reach the compositor, and additive blending must not allow unrelated layers to accumulate into a single history buffer.

@@ -46,7 +46,7 @@ describe('Sound Drawing row and domain ownership', () => {
   })
 
 
-  it('marks source selection unavailable only when Generated Visual bypasses it', () => {
+  it('marks source selection unavailable only when Generated Show Visuals bypasses it', () => {
     const state = resolveSoundDrawingOwnership({
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
       autoPerformance: true,
@@ -55,7 +55,7 @@ describe('Sound Drawing row and domain ownership', () => {
     expect(state.domains.source).toMatchObject({ owner: 'unavailable', editable: false })
   })
 
-  it('promotes mixed Trace Size to locked ownership for Scale or Transform locks', () => {
+  it('promotes mixed Visual Size to locked ownership for Scale or Transform locks', () => {
     const generatorOnly = resolveSoundDrawingOwnership({
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
       autoPerformance: true,

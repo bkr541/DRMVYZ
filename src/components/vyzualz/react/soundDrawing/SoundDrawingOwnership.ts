@@ -127,13 +127,13 @@ export function resolveSoundDrawingOwnership(
     }`,
     domains: {
       source: !sourceSelectionActive
-        ? domain('unavailable', false, 'Performance Source is Generated Visual, so changing the manual source selector cannot affect the current composition.')
+        ? domain('unavailable', false, 'Performance Source is Generated Show Visuals, so changing the manual source selector cannot affect the current composition.')
         : sourceSelectionLocked
           ? domain('locked', true, 'The selected manual source is protected and remains an input to the authored composition.')
           : domain('mixed', true, 'The manual source supplies artwork or signal input while the authored show controls its role and treatment.'),
       geometry: scaleLocked
-        ? domain('locked', true, 'Manual Trace Size is protected by the Scale or Transform lock and remains the resolved base scale.')
-        : domain('mixed', true, 'Manual Trace Size remains the base scale while the authored layer contributes its own scale and topology factors.'),
+        ? domain('locked', true, 'Manual Visual Size is protected by the Scale or Transform lock and remains the resolved base scale.')
+        : domain('mixed', true, 'Manual Visual Size remains the base scale while the authored layer contributes its own scale and topology factors.'),
       motion: domain('mixed', true, 'Manual Motion scales authored movement and remains live during Auto Performance.'),
       topology: settings.locks.topology
         ? domain('locked', true, 'Manual Render Mode and mirror symmetry are protected by the Topology lock.')

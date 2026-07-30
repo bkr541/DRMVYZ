@@ -18,6 +18,10 @@ import { shouldShowLivingRibbonControls } from './soundDrawing/SoundDrawingContr
 import { resolveSoundDrawingOwnership } from './soundDrawing/SoundDrawingOwnership'
 import { SoundDrawingProScopeControls } from './soundDrawing/SoundDrawingProScopeControls'
 import { SOUND_DRAWING_VISUAL_SIZE_MAX, SOUND_DRAWING_VISUAL_SIZE_MIN } from './soundDrawing/SoundDrawingVisualSize'
+import {
+  resolveSoundDrawingSectionScopeMode,
+  soundDrawingSectionScopeModeLabel,
+} from './soundDrawing/SoundDrawingSectionMode'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './soundDrawing/SoundDrawingPerformanceTypes'
 import type {
   SoundDrawingGeneratorPreference,
@@ -423,6 +427,10 @@ export function ReactEnginePanel() {
     activeLyricSourceIdentity?.startsWith(`${engine.currentAudioTrackId}:`) &&
     activeLyricDocumentId,
   )
+  const currentAnalyzedSection = engine.currentAnalysis?.sections?.find(
+    (section) => engine.currentTime >= section.startSec && engine.currentTime < section.endSec,
+  ) ?? null
+  const followedScopeMode = resolveSoundDrawingSectionScopeMode(currentAnalyzedSection?.type)
 
   // SVG Visual rehydration is handled by useSvgVisualRehydration in ReactView —
   // that hook always runs regardless of which panel tab is active.
@@ -470,23 +478,26 @@ export function ReactEnginePanel() {
       {activeReactEngineId === 'oscilloscope' && (
         <>
           <CtrlSection label="Authored Performance" />
+          <ToggleRow
+            label="Auto Performance"
+            value={soundDrawingPerformanceSettings.autoPerformance}
+            onChange={(value) => setSoundDrawingPerformanceSettings({ autoPerformance: value })}
+            description="Runs the selected authored show. Manual Engine Mode controls remain available when the show is off."
+          />
           <SelectRow
             label="Performance Show"
             value={soundDrawingPerformanceSettings.selectedShowId}
             onChange={(value) =>
               setSoundDrawingPerformanceSettings({
                 selectedShowId: value as typeof soundDrawingPerformanceSettings.selectedShowId,
+                autoPerformance: true,
               })
             }
             options={SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
               value: show.id,
               label: show.name,
             }))}
-          />
-          <ToggleRow
-            label="Auto Performance"
-            value={soundDrawingPerformanceSettings.autoPerformance}
-            onChange={(value) => setSoundDrawingPerformanceSettings({ autoPerformance: value })}
+            description="Selecting a show starts it immediately so the control never behaves like an inert queued choice."
           />
           <div
             className="rv-ctrl-info rv-control-helper-copy"
@@ -508,11 +519,10 @@ export function ReactEnginePanel() {
                   })
                 }
                 options={[
-                  { value: 'generatedVisual', label: 'Generated Visual' },
-                  { value: 'activeText', label: 'Active Text' },
-                  { value: 'activeSvg', label: 'Active SVG' },
-                  { value: 'activeUserSource', label: 'Active User Source' },
+                  { value: 'generatedVisual', label: 'Generated Show Visuals' },
+                  { value: 'activeUserSource', label: 'Use Current Engine Source' },
                 ]}
+                description="Engine Mode is the single source selector. This control decides whether the show uses that source or its own generated visuals."
               />
               <SelectRow
                 label="Source Treatment"
@@ -939,20 +949,16 @@ export function ReactEnginePanel() {
             description={soundDrawingOwnership.domains.source.ariaDescription}
           />
 
-          {osc.sourceType === 'classic' &&
-            !osc.autoSectionMode &&
-            osc.classicMode === 'professionalScope' &&
-            authoredScopeOwnsControls && (
-              <SliderRow
-                label="Trace Size"
-                value={osc.pathScale}
-                onChange={value => set({ pathScale: value })}
-                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
-                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
-                step={0.01}
-                description={soundDrawingOwnership.domains.geometry.ariaDescription}
-              />
-            )}
+          <SliderRow
+            label="Visual Size"
+            value={osc.pathScale}
+            onChange={value => set({ pathScale: value })}
+            min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+            max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+            step={0.01}
+            disabled={!soundDrawingOwnership.domains.geometry.editable}
+            description={`Sets the base size for the selected Engine Mode. Auto Performance may animate the effective size unless Scale is locked. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
+          />
 
           <fieldset
             disabled={!soundDrawingOwnership.domains.source.editable}
@@ -962,12 +968,24 @@ export function ReactEnginePanel() {
             {/* Classic Scope mode */}
             {osc.sourceType === 'classic' && (
               <>
-              <ToggleRow
-                label="Auto Section Mode"
-                value={osc.autoSectionMode}
-                onChange={(v) => set({ autoSectionMode: v })}
-              />
-              {!osc.autoSectionMode && (
+              {!soundDrawingPerformanceSettings.autoPerformance && (
+                <>
+                  <ToggleRow
+                    label="Follow Track Sections"
+                    value={osc.autoSectionMode}
+                    onChange={(v) => set({ autoSectionMode: v })}
+                    description="Automatically changes the manual Classic Scope topology from the analyzed section at the playhead."
+                  />
+                  {osc.autoSectionMode && (
+                    <div className="rv-ctrl-info" role="status" aria-live="polite">
+                      {currentAnalyzedSection
+                        ? `Detected ${currentAnalyzedSection.label || currentAnalyzedSection.type} · Effective visual ${soundDrawingSectionScopeModeLabel(followedScopeMode)}`
+                        : `No analyzed section at the playhead · Effective visual ${soundDrawingSectionScopeModeLabel(followedScopeMode)}`}
+                    </div>
+                  )}
+                </>
+              )}
+              {(!osc.autoSectionMode || soundDrawingPerformanceSettings.autoPerformance) && (
                 <SelectRow
                   label="Classic Mode"
                   value={osc.classicMode === 'sectionAuto' ? 'waveform' : osc.classicMode}
@@ -984,7 +1002,7 @@ export function ReactEnginePanel() {
                   ]}
                 />
               )}
-              {!osc.autoSectionMode && osc.classicMode === 'professionalScope' && (
+              {(!osc.autoSectionMode || soundDrawingPerformanceSettings.autoPerformance) && osc.classicMode === 'professionalScope' && (
                 <>
                   <fieldset
                     disabled={authoredScopeOwnsControls}
@@ -994,11 +1012,11 @@ export function ReactEnginePanel() {
                     {authoredScopeOwnsControls && (
                       <div className="rv-ctrl-info rv-control-helper-copy">
                         {soundDrawingOwnership.professionalScopeOwner === 'authored'
-                          ? `Signal, trigger, phosphor, and CRT controls are owned by ${selectedSoundDrawingShow?.name ?? 'the active show'}. Trace Size remains a live mixed input.`
-                          : `Pro Scope signal controls are inactive because ${selectedSoundDrawingShow?.name ?? 'the active show'} has no scope layer. Trace Size still controls the authored base geometry.`}
+                          ? `Signal, trigger, phosphor, and CRT controls are owned by ${selectedSoundDrawingShow?.name ?? 'the active show'}. Visual Size remains a live mixed input.`
+                          : `Pro Scope signal controls are inactive because ${selectedSoundDrawingShow?.name ?? 'the active show'} has no scope layer. Visual Size still controls the authored base geometry.`}
                       </div>
                     )}
-                    <SoundDrawingProScopeControls osc={osc} set={set} hideTraceSize={authoredScopeOwnsControls} />
+                    <SoundDrawingProScopeControls osc={osc} set={set} hideTraceSize />
                   </fieldset>
                 </>
               )}

@@ -52,6 +52,10 @@ Expensive source preparation must occur at upload, selection, resolution change,
 
 A source identity must remain stable across ordinary section changes. Performance programs may transform presentation without silently replacing the selected text, SVG, shape, or lyric source.
 
+Engine Mode is the canonical manual source selector. Auto Performance exposes only a routing policy: **Generated Show Visuals** or **Use Current Engine Source**. Selecting a Performance Show starts it immediately. Historical Active Text and Active SVG routing values migrate to Use Current Engine Source, where Text, SVG, Built-In Shape, and Classic Scope are all resolved from the current Engine Mode. Missing text or SVG content produces a truthful generated fallback diagnostic.
+
+Manual Classic Scope section automation is named **Follow Track Sections**. The control and renderer share `SoundDrawingSectionMode.ts`, so the displayed analyzed section and effective topology cannot drift from runtime behavior. A section-driven topology change is a trail reset boundary.
+
 ## Timeline and clips
 
 `SoundDrawingTimelineLane` is the canonical clip and lane editor. React View mounts it in the dedicated **Sound Drawing** lower-workspace surface between **Track Map** and **Performance Pads**. Clip time is resolved against the same Track Map duration, transport, and waveform-zoom authority used by the renderer.
@@ -72,7 +76,7 @@ side effects:
 - A `professionalScope` layer owns a validated scope state resolved from its authored preset and overrides. It reads the same synchronized `scopeStereo` capture, `ScopeSignalCore`, trigger, conditioner, timebase, vector-beam, phosphor, and CRT path as manual Pro Scope.
 - Manual scope controls remain visible but disabled and labelled while an authored scope layer owns them. They are not live offsets.
 - At most one professional scope instance is rendered per authored frame. A duplicate declaration is suppressed and reported in diagnostics.
-- Show, source, seek, loop, restart, and timing-discontinuity identities are reset boundaries. Disabling Auto Performance disposes authored scope DSP/GPU state and returns ownership to the manual path.
+- Show, scene, layer topology, effective manual scope mode, source, seek, loop, restart, and timing-discontinuity identities are reset boundaries. Disabling Auto Performance disposes authored scope DSP/GPU state and returns ownership to the manual path.
 
 Signal-domain controls (`signalMode`, conditioner, trigger, timebase), scope
 presentation controls (beam, exposure, bloom, persistence, phosphor, CRT), and
@@ -99,11 +103,14 @@ Living Ribbon controls are shown only when the authored show or explicit generat
 
 ## Rendering and caches
 
-`SoundDrawingRenderer` owns bounded per-canvas runtime maps for trails, beat envelopes, rotation phase, prepared paths, lyric runtime, Shared Performance temporal state, and Living Ribbon instances.
+`SoundDrawingRenderer` owns bounded per-canvas runtime maps for manual trails, per-authored-layer trails, beat envelopes, rotation phase, prepared paths, lyric runtime, Shared Performance temporal state, and Living Ribbon instances.
 
 The renderer must:
 
 - Reuse offscreen canvases and cached geometry
+- Keep each authored layer in a separate bounded history buffer so layer persistence and feedback remain independent
+- Clear incompatible history when scene, generator, source identity, topology, or effective section-following mode changes
+- Reserve additive blending for deliberate intra-layer energy and use safe cross-layer composition
 - Bound path and glyph caches
 - Reset trails and transient state on authoritative discontinuities
 - Pause simulation without advancing hidden time
@@ -357,7 +364,7 @@ The pre-existing `lissajous` classic mode plotted one half of a mono time-domain
 
 ## Size and identity controls
 
-Visual size is normalized through `SoundDrawingVisualSize.ts`. Classic Scope, Built-In Shape, text, SVG, and generated sources should use the same normalized size contract rather than separate incompatible scale semantics.
+Visual size is normalized through `SoundDrawingVisualSize.ts` and exposed once beside Engine Mode. Classic Scope, Pro Scope, Built-In Shape, text, SVG, and generated sources use the same `pathScale` contract rather than separate or conditionally duplicated size controls.
 
 Source treatments may alter contour, repetition, deformation, color, trail, and motion while retaining source identity unless the user explicitly chooses an abstracting mode.
 

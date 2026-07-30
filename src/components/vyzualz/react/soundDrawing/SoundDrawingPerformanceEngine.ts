@@ -89,11 +89,11 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     source.selectedShowId in SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID
     ? source.selectedShowId
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId
-  const performanceSource = ['generatedVisual', 'activeText', 'activeSvg', 'activeUserSource'].includes(
-    source.performanceSource,
-  )
-    ? source.performanceSource
-    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource
+  const performanceSource = source.performanceSource === 'generatedVisual'
+    ? 'generatedVisual'
+    : source.performanceSource === 'activeUserSource' || source.performanceSource === 'activeText' || source.performanceSource === 'activeSvg'
+      ? 'activeUserSource'
+      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource
   const sourceTreatment = ['preserveIdentity', 'controlledReactive', 'liquidContour', 'abstractDeformation'].includes(
     source.sourceTreatment,
   )
@@ -370,7 +370,7 @@ function normalizeLayer(layer: SoundDrawingPerformanceLayerBlueprint): SoundDraw
     // Matches the authored-show layer default (see SoundDrawingPerformanceShows).
     // Additive accumulation is what produces the core-to-white / halo-to-hue
     // behavior of a real scope beam; 'screen' clamps density at 1.0 and cannot.
-    blendMode: layer.blendMode ?? 'lighter',
+    blendMode: layer.blendMode ?? 'screen',
     opacity: clamp01(layer.opacity ?? 0.8),
     strokeWidth: clamp(layer.strokeWidth ?? 1, 0.25, 3),
     traceCount: Math.round(clamp(layer.traceCount ?? 1, 1, MAX_SOUND_DRAWING_PERFORMANCE_TRACES)),

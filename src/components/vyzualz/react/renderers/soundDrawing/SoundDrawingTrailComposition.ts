@@ -43,13 +43,24 @@ export function resolveAuthoredSoundDrawingTrailDecay(input: {
   trailLockMode: 'legacyRecipe' | 'manualResolved'
   trailLockSnapshotDecay?: number | null
   globalTrailPersistence: number
+  layerTrailPersistence?: number
   activeSourceTrail: number
   feedbackAmount: number
+  layerFeedbackAmount?: number
   livingRibbonActive: boolean
   livingRibbonTrailDetail: number
 }): AuthoredTrailDecayResolution {
+  const layerTrailPersistence = clamp(
+    input.layerTrailPersistence ?? input.globalTrailPersistence,
+    0,
+    1,
+  )
+  const layerFeedbackAmount = clamp(input.layerFeedbackAmount ?? input.feedbackAmount, 0, 1)
   const authoredPersistence = clamp(
-    input.globalTrailPersistence * 0.78 + input.activeSourceTrail * 0.16 + input.feedbackAmount * 0.12,
+    layerTrailPersistence * 0.58
+      + input.globalTrailPersistence * 0.22
+      + input.activeSourceTrail * 0.12
+      + layerFeedbackAmount * 0.08,
     0,
     0.98,
   )
@@ -63,13 +74,15 @@ export function resolveAuthoredSoundDrawingTrailDecay(input: {
       authoredPersistence,
     }
   }
+  const referenceAlpha = clamp(
+    ((1 - authoredPersistence) * 0.28 + input.manualTrailDecay * 0.04) /
+      (input.livingRibbonActive ? input.livingRibbonTrailDetail : 1),
+    0.02,
+    0.32,
+  )
+  const frameRatio = Math.max(0, input.dtSeconds) * SOUND_DRAWING_TRAIL_REFERENCE_FPS
   return {
-    alpha: clamp(
-      ((1 - authoredPersistence) * 0.28 + input.manualTrailDecay * 0.04) /
-        (input.livingRibbonActive ? input.livingRibbonTrailDetail : 1),
-      0.02,
-      0.32,
-    ),
+    alpha: clamp(1 - Math.pow(1 - referenceAlpha, frameRatio), 0.001, 1),
     owner: 'authoredMix',
     authoredPersistence,
   }

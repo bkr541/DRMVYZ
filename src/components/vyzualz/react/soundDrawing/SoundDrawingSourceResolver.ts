@@ -79,34 +79,31 @@ function resolveRequestedSource(
       }
     : null
 
-  const activeUserSource = oscillator.sourceType === 'builtinShape'
-    || (oscillator.sourceType === 'svgGlyph' && !svg?.mediaId)
-    ? { kind: 'active-user-source' as const, identity: `active:${oscillator.sourceType}:${oscillator.builtinShape}:${oscillator.selectedGlyphId ?? 'none'}` }
-    : null
+  const activeUserSource = oscillator.sourceType === 'classic'
+    ? {
+        kind: 'active-user-source' as const,
+        identity: `active:classic:${oscillator.autoSectionMode ? 'section-follow' : oscillator.classicMode}`,
+      }
+    : oscillator.sourceType === 'builtinShape' || (oscillator.sourceType === 'svgGlyph' && !svg?.mediaId)
+      ? {
+          kind: 'active-user-source' as const,
+          identity: `active:${oscillator.sourceType}:${oscillator.builtinShape}:${oscillator.selectedGlyphId ?? 'none'}`,
+        }
+      : null
 
-  switch (settings.performanceSource) {
-    case 'generatedVisual':
-      return { source: null, profile: 'abstract', fallback: null }
-    case 'activeText':
-      return textSource
-        ? { source: textSource, profile: 'readableText', fallback: null }
-        : { source: null, profile: 'abstract', fallback: 'Active Text was requested but no text source is selected.' }
-    case 'activeSvg':
-      return svgSource
-        ? { source: svgSource, profile: profileForSvg(svgSource.renderMode), fallback: null }
-        : { source: null, profile: 'abstract', fallback: 'Active SVG was requested but no valid SVG source is selected.' }
-    case 'activeUserSource':
-      if (textSource) return { source: textSource, profile: 'readableText', fallback: null }
-      if (svgSource) return { source: svgSource, profile: profileForSvg(svgSource.renderMode), fallback: null }
-      if (activeUserSource) return { source: activeUserSource, profile: 'abstract', fallback: null }
-      if (oscillator.sourceType === 'text') {
-        return { source: null, profile: 'abstract', fallback: 'The active user text source is empty.' }
-      }
-      if (svg) {
-        return { source: null, profile: 'abstract', fallback: 'The active user SVG source is unavailable.' }
-      }
-      return { source: null, profile: 'abstract', fallback: null }
+  if (settings.performanceSource === 'generatedVisual') {
+    return { source: null, profile: 'abstract', fallback: null }
   }
+  if (textSource) return { source: textSource, profile: 'readableText', fallback: null }
+  if (svgSource) return { source: svgSource, profile: profileForSvg(svgSource.renderMode), fallback: null }
+  if (activeUserSource) return { source: activeUserSource, profile: 'abstract', fallback: null }
+  if (oscillator.sourceType === 'text') {
+    return { source: null, profile: 'abstract', fallback: 'The current Engine Mode is Text, but its source is empty.' }
+  }
+  if (oscillator.sourceType === 'svg' || svg) {
+    return { source: null, profile: 'abstract', fallback: 'The current Engine Mode is SVG, but no valid SVG is selected.' }
+  }
+  return { source: null, profile: 'abstract', fallback: 'The current Engine Mode source is unavailable.' }
 }
 
 function treatmentBudget(

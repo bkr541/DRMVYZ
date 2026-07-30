@@ -69,4 +69,28 @@ describe('Sound Drawing trail ownership', () => {
     expect(protectedB.authoredPersistence).not.toBe(protectedA.authoredPersistence)
     expect(protectedB.alpha).toBe(protectedA.alpha)
   })
+
+  it('uses each authored layer persistence and feedback instead of only the global recipe', () => {
+    const shortTrail = resolveAuthoredSoundDrawingTrailDecay({
+      ...base,
+      layerTrailPersistence: 0.15,
+      layerFeedbackAmount: 0.05,
+    })
+    const longTrail = resolveAuthoredSoundDrawingTrailDecay({
+      ...base,
+      layerTrailPersistence: 0.95,
+      layerFeedbackAmount: 0.9,
+    })
+    expect(longTrail.authoredPersistence).toBeGreaterThan(shortTrail.authoredPersistence)
+    expect(longTrail.alpha).toBeLessThan(shortTrail.alpha)
+  })
+
+  it('keeps authored trail decay equivalent across 30fps and 60fps', () => {
+    const at30 = resolveAuthoredSoundDrawingTrailDecay({ ...base, dtSeconds: 1 / 30 })
+    const at60 = resolveAuthoredSoundDrawingTrailDecay({ ...base, dtSeconds: 1 / 60 })
+    const retentionAt30 = 1 - at30.alpha
+    const retentionAcrossTwo60Frames = Math.pow(1 - at60.alpha, 2)
+    expect(retentionAcrossTwo60Frames).toBeCloseTo(retentionAt30, 6)
+  })
+
 })

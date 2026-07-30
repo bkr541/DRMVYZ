@@ -348,7 +348,7 @@ const SOUND_DRAWING_GENERATOR_PREFERENCES = new Set<SoundDrawingGeneratorPrefere
   ...SOUND_DRAWING_GENERATOR_FAMILIES,
 ])
 const SOUND_DRAWING_VISUAL_QUALITIES = new Set(['auto', 'low', 'medium', 'high'])
-const SOUND_DRAWING_PERFORMANCE_SOURCES = new Set(['generatedVisual', 'activeText', 'activeSvg', 'activeUserSource'])
+const SOUND_DRAWING_PERFORMANCE_SOURCES = new Set(['generatedVisual', 'activeUserSource'])
 const SOUND_DRAWING_SOURCE_TREATMENTS = new Set(['preserveIdentity', 'controlledReactive', 'liquidContour', 'abstractDeformation'])
 const SOUND_DRAWING_SOURCE_POLICIES = new Set(['primaryMotif', 'supportingLayer', 'both'])
 
@@ -483,9 +483,11 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
     livingRibbon,
     performanceSource:
-      typeof source.performanceSource === 'string' && SOUND_DRAWING_PERFORMANCE_SOURCES.has(source.performanceSource)
-        ? (source.performanceSource as SoundDrawingPerformanceSettings['performanceSource'])
-      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource,
+      source.performanceSource === 'activeText' || source.performanceSource === 'activeSvg'
+        ? 'activeUserSource'
+        : typeof source.performanceSource === 'string' && SOUND_DRAWING_PERFORMANCE_SOURCES.has(source.performanceSource)
+          ? (source.performanceSource as SoundDrawingPerformanceSettings['performanceSource'])
+          : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource,
     sourceTreatment:
       typeof source.sourceTreatment === 'string' && SOUND_DRAWING_SOURCE_TREATMENTS.has(source.sourceTreatment)
         ? (source.sourceTreatment as SoundDrawingPerformanceSettings['sourceTreatment'])
@@ -912,7 +914,7 @@ function patchChangesTextGeometry(patch: Partial<OscillatorSettings>): boolean {
 }
 
 const SOUND_DRAWING_TRAIL_RESET_SETTING_KEYS = new Set<keyof OscillatorSettings>([
-  'sourceType', 'classicMode', 'builtinShape', 'selectedGlyphId', 'selectedSvgVisualId',
+  'sourceType', 'classicMode', 'autoSectionMode', 'builtinShape', 'selectedGlyphId', 'selectedSvgVisualId',
   'selectedSvgId', 'svgRenderMode', 'svgUseReactPalette', 'text', 'textSource',
   'lyricGapBehavior', 'lyricFallbackText', 'textFontId', 'textFontSize',
   'textLetterSpacing', 'textLineHeight', 'textAlignment', 'renderMode', 'pathResolution',
@@ -3964,6 +3966,17 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxBeamMatrix: isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)
         ? normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix)
         : state.laserDmxBeamMatrix,
+    }
+  }
+  if (version < 58) {
+    // Sound Drawing now treats Engine Mode as the canonical user-source
+    // selector. Historical Active Text and Active SVG routing values migrate
+    // to Use Current Engine Source instead of becoming invalid selections.
+    state = {
+      ...state,
+      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
+        state.soundDrawingPerformanceSettings,
+      ),
     }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -8270,7 +8283,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 57,
+      version: 58,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

@@ -8,6 +8,7 @@ import { migrateReactStore, useReactStore } from '../../../../stores/reactStore'
 import { ReactEnginePanel } from '../ReactEnginePanel'
 import { ReactFxPanel } from '../ReactFxPanel'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
+import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from '../soundDrawing/SoundDrawingPerformanceTypes'
 
 vi.mock('../../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({ currentAudioTrackId: null }),
@@ -62,7 +63,7 @@ describe('Sound Drawing source grid', () => {
   })
 
 
-  it('disables source rows only when Generated Visual bypasses the manual source', async () => {
+  it('disables source rows only when Generated Show Visuals bypasses the manual source', async () => {
     useReactStore.getState().setOscillatorSettings({
       sourceType: 'classic',
       autoSectionMode: false,
@@ -80,10 +81,10 @@ describe('Sound Drawing source grid', () => {
     expect(container.textContent).toContain('Unavailable ownership')
     expect(container.querySelector('fieldset[disabled][aria-describedby="sound-drawing-source-ownership"]')).not.toBeNull()
 
-    const traceSizeRow = [...container.querySelectorAll('.rv-ctrl-row')]
-      .find(row => row.textContent?.includes('Trace Size'))
-    expect(traceSizeRow?.querySelector<HTMLInputElement>('input[type="range"]')?.disabled).toBe(false)
-    expect(traceSizeRow?.textContent).toContain('Mixed ownership')
+    const visualSizeRow = [...container.querySelectorAll('.rv-ctrl-row')]
+      .find(row => row.textContent?.includes('Visual Size'))
+    expect(visualSizeRow?.querySelector<HTMLInputElement>('input[type="range"]')?.disabled).toBe(false)
+    expect(visualSizeRow?.textContent).toContain('Mixed ownership')
   })
 
   it('maps legacy SVG source values to the unified SVG card', async () => {
@@ -94,13 +95,71 @@ describe('Sound Drawing source grid', () => {
       .find(choice => choice.textContent?.trim() === 'SVG')
     expect(svgChoice?.getAttribute('aria-checked')).toBe('true')
   })
+
+
+  it('starts a selected authored show instead of storing an inert queued choice', async () => {
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: false })
+    await act(async () => root.render(<ReactEnginePanel />))
+
+    const showSelect = [...container.querySelectorAll<HTMLSelectElement>('select')]
+      .find(select => select.closest('.rv-ctrl-row')?.textContent?.includes('Performance Show'))
+    expect(showSelect).toBeDefined()
+    const nextShow = [...showSelect!.options].find(option => option.value !== showSelect!.value)!
+    await act(async () => {
+      showSelect!.value = nextShow.value
+      showSelect!.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(useReactStore.getState().soundDrawingPerformanceSettings.selectedShowId).toBe(nextShow.value)
+    expect(useReactStore.getState().soundDrawingPerformanceSettings.autoPerformance).toBe(true)
+  })
+
+  it('offers only generated visuals or the current Engine Mode as performance sources', async () => {
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: true })
+    await act(async () => root.render(<ReactEnginePanel />))
+
+    const sourceSelect = [...container.querySelectorAll<HTMLSelectElement>('select')]
+      .find(select => select.closest('.rv-ctrl-row')?.textContent?.includes('Performance Source'))
+    expect([...sourceSelect!.options].map(option => option.textContent)).toEqual([
+      'Generated Show Visuals',
+      'Use Current Engine Source',
+    ])
+    expect(container.textContent).not.toContain('Active Text')
+    expect(container.textContent).not.toContain('Active SVG')
+  })
+
+
+  it('migrates legacy Active Text and Active SVG routing to the current Engine Mode', () => {
+    for (const performanceSource of ['activeText', 'activeSvg'] as const) {
+      const migrated = migrateReactStore({
+        soundDrawingPerformanceSettings: {
+          ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+          performanceSource,
+        },
+      }, 57) as { soundDrawingPerformanceSettings: typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS }
+      expect(migrated.soundDrawingPerformanceSettings.performanceSource).toBe('activeUserSource')
+    }
+  })
+
+  it('presents section following as a manual Classic Scope control only', async () => {
+    useReactStore.getState().setOscillatorSettings({ sourceType: 'classic', autoSectionMode: true })
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: false })
+    await act(async () => root.render(<ReactEnginePanel />))
+    expect(container.textContent).toContain('Follow Track Sections')
+    expect(container.textContent).toContain('Effective visual Waveform')
+
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: true })
+    await act(async () => root.render(<ReactEnginePanel />))
+    expect(container.textContent).not.toContain('Follow Track Sections')
+    expect(container.textContent).toContain('Classic Mode')
+  })
 })
 
 
 describe('Sound Drawing Visual Size', () => {
   async function expectVisualSizeFor(patch: Partial<typeof DEFAULT_OSCILLATOR_SETTINGS>) {
     useReactStore.getState().setOscillatorSettings(patch)
-    await act(async () => root.render(<ReactFxPanel />))
+    await act(async () => root.render(<ReactEnginePanel />))
     const controls = [...container.querySelectorAll<HTMLInputElement>('input[type="range"]')]
       .filter(input => input.id.includes('visual-size') || input.closest('.rv-ctrl-row')?.textContent?.includes('Visual Size'))
     expect(controls).toHaveLength(1)
@@ -132,7 +191,7 @@ describe('Sound Drawing Visual Size', () => {
     expect(migrated.oscillatorSettings.pathScale).toBe(1.4)
   })
 
-  it('keeps authored Pro Scope Trace Size live while signal controls are program-owned', async () => {
+  it('keeps authored Pro Scope Visual Size live while signal controls are program-owned', async () => {
     useReactStore.getState().setOscillatorSettings({
       sourceType: 'classic',
       autoSectionMode: false,
@@ -144,11 +203,11 @@ describe('Sound Drawing Visual Size', () => {
     })
     await act(async () => root.render(<ReactEnginePanel />))
 
-    const traceSizeRow = [...container.querySelectorAll('.rv-ctrl-row')]
-      .find(row => row.textContent?.includes('Trace Size'))
-    const traceSizeInput = traceSizeRow?.querySelector<HTMLInputElement>('input[type="range"]')
-    expect(traceSizeInput?.disabled).toBe(false)
-    expect(traceSizeRow?.textContent).toContain('Mixed ownership')
+    const visualSizeRow = [...container.querySelectorAll('.rv-ctrl-row')]
+      .find(row => row.textContent?.includes('Visual Size'))
+    const visualSizeInput = visualSizeRow?.querySelector<HTMLInputElement>('input[type="range"]')
+    expect(visualSizeInput?.disabled).toBe(false)
+    expect(visualSizeRow?.textContent).toContain('Mixed ownership')
 
     const ownedScopeFieldset = container.querySelector<HTMLFieldSetElement>(
       'fieldset[disabled][aria-describedby="sound-drawing-performance-ownership"]',
@@ -160,12 +219,18 @@ describe('Sound Drawing Visual Size', () => {
   it('disables authored topology rows until their matching lock is active', async () => {
     useReactStore.getState().setOscillatorSettings({ sourceType: 'builtinShape' })
     useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: true })
-    await act(async () => root.render(<ReactFxPanel />))
+    await act(async () => root.render(<ReactEnginePanel />))
 
+    const engineSize = [...container.querySelectorAll('.rv-ctrl-row')]
+      .find(row => row.textContent?.includes('Visual Size'))
+      ?.querySelector<HTMLInputElement>('input[type="range"]')
+    expect(engineSize?.disabled).toBe(false)
+
+    await act(async () => root.render(<ReactFxPanel />))
     const rowInput = (label: string) => [...container.querySelectorAll('.rv-ctrl-row')]
       .find(row => row.textContent?.includes(label))
       ?.querySelector<HTMLInputElement | HTMLSelectElement>('input, select')
-    expect(rowInput('Visual Size')?.disabled).toBe(false)
+    expect(container.textContent).not.toContain('Visual Size')
     expect(rowInput('Render Mode')?.disabled).toBe(true)
     expect(rowInput('Duplicate Traces')?.disabled).toBe(true)
 
@@ -175,19 +240,20 @@ describe('Sound Drawing Visual Size', () => {
     expect(rowInput('Duplicate Traces')?.disabled).toBe(false)
   })
 
-  it('moves Pro Scope Trace Size to the Engine panel instead of duplicating it in FX', async () => {
+  it('keeps one Visual Size in Engine and removes the duplicate from FX', async () => {
     useReactStore.getState().setOscillatorSettings({
       sourceType: 'classic',
       autoSectionMode: false,
       classicMode: 'professionalScope',
     })
     await act(async () => root.render(<ReactFxPanel />))
-    expect(container.textContent).toContain('Pro Scope Trace Size is owned by Engine')
+    expect(container.textContent).not.toContain('Visual Size')
     expect(container.textContent).not.toContain('Visual Size')
 
     await act(async () => root.render(<ReactEnginePanel />))
-    const traceSizeRows = [...container.querySelectorAll('.rv-ctrl-row')]
-      .filter(row => row.textContent?.includes('Trace Size'))
-    expect(traceSizeRows).toHaveLength(1)
+    const visualSizeRows = [...container.querySelectorAll('.rv-ctrl-row')]
+      .filter(row => row.textContent?.includes('Visual Size'))
+    expect(visualSizeRows).toHaveLength(1)
+    expect(container.textContent).not.toContain('Visual Size')
   })
 })

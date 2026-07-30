@@ -103,7 +103,7 @@ export interface SoundDrawingLivingRibbonPhysicalImpulse {
   radius?: number
 }
 
-export type SoundDrawingPerformanceSourceSelection = 'generatedVisual' | 'activeText' | 'activeSvg' | 'activeUserSource'
+export type SoundDrawingPerformanceSourceSelection = 'generatedVisual' | 'activeUserSource'
 
 export type SoundDrawingSourceTreatment =
   'preserveIdentity' | 'controlledReactive' | 'liquidContour' | 'abstractDeformation'

@@ -260,12 +260,10 @@ describe('Sound Drawing additive blending', () => {
     disposeSoundDrawingRenderer(context)
   })
 
-  // Regression: the authored-performance path (the four production shows) is the
-  // primary in-app experience, and it previously defaulted every layer to 'screen'
-  // via SoundDrawingPerformanceShows' layer builder and the engine's normalizeLayer
-  // fallback. Flipping the manual path to 'lighter' alone left the shows on screen
-  // blend, so the additive core-to-white behavior never reached most users.
-  it('an authored performance layer with no explicit blendMode now resolves to additive', () => {
+  // Regression: authored layers default to screen so unrelated traces do not
+  // accumulate as one white-hot mass. A show may still opt a specific layer into
+  // lighter, which remains additive inside that layer's isolated trail buffer.
+  it('preserves an explicitly additive authored layer inside its isolated trail buffer', () => {
     mocks.resolvePerformanceFrame.mockReturnValue(resolvedPerformance({ blendMode: 'lighter' }))
     const context = recordingContext()
 

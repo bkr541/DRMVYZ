@@ -152,7 +152,7 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
 
       {!hideTraceSize && (
         <SliderRow
-          label="Trace Size"
+          label="Visual Size"
           value={osc.pathScale}
           onChange={v => set({ pathScale: v })}
           min={SOUND_DRAWING_VISUAL_SIZE_MIN}
@@ -588,7 +588,7 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
         />
         <p className="rv-ctrl-info">
           Resolved settled factors: X {scaleDiagnostics.settledXFactor.toFixed(2)}× · Y {scaleDiagnostics.settledYFactor.toFixed(2)}×
-          {' '}(Trace Size {scaleDiagnostics.traceSize.toFixed(2)} × post-auto-gain trim). Auto Gain remains dynamic and separate.
+          {' '}(Visual Size {scaleDiagnostics.traceSize.toFixed(2)} × post-auto-gain trim). Auto Gain remains dynamic and separate.
         </p>
         <ToggleRow
           label="Invert X"

@@ -223,23 +223,31 @@ describe('first-class Sound Drawing text and SVG performance sources', () => {
       text: '',
       textSource: 'activeLyricLine',
       lyricFallbackText: 'LYRICS',
-    }, { performanceSource: 'activeText' })
+    })
     expect(lyricText.activeSourceKind).toBe('text')
     expect(selectedSource(lyricText).source.identity).toContain('activeLyricLine')
     expect(selectedSource(lyricText).source.identity).not.toContain('undefined')
   })
 
-  it('falls back safely when an explicitly requested source is unavailable', () => {
-    const missingText = resolve(31, DEFAULT_OSCILLATOR_SETTINGS, { performanceSource: 'activeText' })
-    const missingSvg = resolve(31, { ...DEFAULT_OSCILLATOR_SETTINGS, sourceType: 'svg', selectedSvgId: null }, { performanceSource: 'activeSvg' })
+  it('falls back safely when the current Engine Mode source is unavailable', () => {
+    const missingText = resolve(31, { ...textOscillator, text: '', textSource: 'static' })
+    const missingSvg = resolve(31, { ...DEFAULT_OSCILLATOR_SETTINGS, sourceType: 'svg', selectedSvgId: null })
     expect(missingText.layers.every(layer => layer.source.kind === 'generated')).toBe(true)
-    expect(missingText.sourceFallbackState).toContain('Active Text')
+    expect(missingText.sourceFallbackState).toContain('Text')
     expect(missingSvg.layers.every(layer => layer.source.kind === 'generated')).toBe(true)
-    expect(missingSvg.sourceFallbackState).toContain('Active SVG')
+    expect(missingSvg.sourceFallbackState).toContain('SVG')
+  })
 
-    const emptyActiveUserText = resolve(31, { ...textOscillator, text: '', textSource: 'static' })
-    expect(emptyActiveUserText.layers.every(layer => layer.source.kind === 'generated')).toBe(true)
-    expect(emptyActiveUserText.sourceFallbackState).toContain('empty')
+  it('treats Classic Scope as a valid current Engine Mode source', () => {
+    const classic = resolve(31, {
+      ...DEFAULT_OSCILLATOR_SETTINGS,
+      sourceType: 'classic',
+      classicMode: 'radialScope',
+      autoSectionMode: false,
+    })
+    expect(classic.activeSourceKind).toBe('active-user-source')
+    expect(classic.sourceFallbackState).toBeNull()
+    expect(classic.layers.some(layer => layer.source.kind === 'active-user-source')).toBe(true)
   })
 
   it('supports primary, supporting, both, and generated-only source policies', () => {
