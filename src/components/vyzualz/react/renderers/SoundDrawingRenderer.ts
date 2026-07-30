@@ -97,6 +97,12 @@ import {
   computeSoundDrawingTrailDecayAlpha,
   resolveAuthoredSoundDrawingTrailDecay,
 } from './soundDrawing/SoundDrawingTrailComposition'
+import {
+  HARMONIC_RIBBON_BAND_LAYOUT,
+  buildHarmonicRibbonSignalBands,
+  resolveHarmonicRibbonHistoryPresentationAlpha,
+  resolveHarmonicRibbonTraceOffsets,
+} from './soundDrawing/HarmonicRibbonGeometry'
 export {
   computeSoundDrawingHistoryWriteAlpha,
   computeSoundDrawingTrailDecayAlpha,
@@ -1398,13 +1404,104 @@ function compositeTrailSurface(
   historyCanvas: HTMLCanvasElement,
   frameCanvas: HTMLCanvasElement,
   blendMode: SoundDrawingBlendMode,
-  alpha = 1,
+  historyAlpha = 1,
+  frameAlpha = historyAlpha,
 ): void {
-  target.globalAlpha = clamp(alpha, 0, 1)
+  target.globalAlpha = clamp(historyAlpha, 0, 1)
   target.globalCompositeOperation = 'source-over'
   target.drawImage(historyCanvas, 0, 0)
+  target.globalAlpha = clamp(frameAlpha, 0, 1)
   target.globalCompositeOperation = resolveSoundDrawingTemporalBlendMode(blendMode)
   target.drawImage(frameCanvas, 0, 0)
+}
+
+function sampleHarmonicRibbonSignal(signal: Float32Array, index: number): number {
+  if (signal.length === 0) return 0
+  const clampedIndex = clamp(index, 0, signal.length - 1)
+  const left = Math.floor(clampedIndex)
+  const right = Math.min(signal.length - 1, left + 1)
+  const mix = clampedIndex - left
+  return (signal[left] ?? 0) * (1 - mix) + (signal[right] ?? 0) * mix
+}
+
+/**
+ * Dedicated Harmonic Ribbon renderer. Multiple traces are current-frame
+ * geometry; history is reserved for a short, faint afterimage by the authored
+ * composition pass below.
+ */
+function drawHarmonicRibbonOnTrail(
+  tctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  dpr: number,
+  frame: ReactFrameContext,
+  preset: ReactPreset,
+  params: ReactRenderParams,
+  layer: SoundDrawingResolvedPerformanceLayer,
+  intMul: number,
+  blendMode: SoundDrawingBlendMode = SOUND_DRAWING_DEFAULT_TRACE_BLEND_MODE,
+): void {
+  const bands = buildHarmonicRibbonSignalBands(frame.timeDomainData)
+  const traceOffsets = resolveHarmonicRibbonTraceOffsets(params.oscillator.duplicateTraces)
+  const orderedOffsets = [...traceOffsets].sort((left, right) => Math.abs(right) - Math.abs(left))
+  const closestToCenter = Math.min(...traceOffsets.map(offset => Math.abs(offset)))
+  const xStart = W * 0.035
+  const xSpan = W * 0.93
+  const brightness = clamp(intMul, 0, 1.2)
+  const strokeScale = clamp(layer.strokeWidth, 0.55, 2.2)
+  const kinematics = resolveVectorBeamScannerKinematicsSettings(params.oscillator)
+
+  for (let bandIndex = 0; bandIndex < HARMONIC_RIBBON_BAND_LAYOUT.length; bandIndex++) {
+    const layout = HARMONIC_RIBBON_BAND_LAYOUT[bandIndex]
+    const signal = bands[layout.id]
+    const energy = layout.id === 'high'
+      ? frame.audio.high
+      : layout.id === 'mid'
+        ? frame.audio.mid
+        : frame.audio.bass * params.bassReactivity
+    const centerY = H * layout.centerRatio
+    const amplitude = H * layout.amplitudeRatio * (0.76 + clamp(energy, 0, 1.2) * 0.34)
+    const traceSeparation = H * (0.0042 + traceOffsets.length * 0.00072) * (0.92 + energy * 0.12)
+    const color = preset.palette[layout.colorKey]
+
+    for (const offset of orderedOffsets) {
+      const leadTrace = Math.abs(Math.abs(offset) - closestToCenter) <= 0.0001
+      const distance = Math.abs(offset)
+      const points: VectorBeamPoint[] = new Array(signal.length)
+      const phaseShift = offset * (2.2 + bandIndex * 1.35 + layer.phaseOffset * 2)
+      const traceAmplitude = 1 - distance * 0.055
+
+      for (let sampleIndex = 0; sampleIndex < signal.length; sampleIndex++) {
+        const progress = sampleIndex / Math.max(1, signal.length - 1)
+        const sample = sampleHarmonicRibbonSignal(signal, sampleIndex + phaseShift)
+        const harmonicWeave =
+          Math.sin(progress * Math.PI * 2 * (bandIndex + 2) + frame.t * 0.0065 + offset * 1.7) *
+          offset * amplitude * 0.022 * (0.45 + energy * 0.55)
+        points[sampleIndex] = {
+          x: xStart + progress * xSpan,
+          y:
+            centerY +
+            sample * amplitude * traceAmplitude +
+            offset * traceSeparation * (0.78 + Math.abs(sample) * 0.22) +
+            harmonicWeave,
+        }
+      }
+
+      const alpha = clamp(
+        (leadTrace ? 0.8 : 0.5 - distance * 0.14) * (0.82 + energy * 0.16) * brightness,
+        0.12,
+        0.92,
+      )
+      const baseWidthPx = clamp(
+        (leadTrace ? 0.82 : 0.58) * strokeScale * dpr,
+        0.42 * dpr,
+        1.7 * dpr,
+      )
+      const beamColor = vectorBeamColorFromHex(color, alpha)
+      const segments = buildVectorBeamSegmentsFromPoints(points, false, beamColor, undefined, kinematics)
+      rasterizeVectorBeamSegments(tctx, segments, { blendMode, baseWidthPx, intensity: 1 })
+    }
+  }
 }
 
 // ── Waveform mode ─────────────────────────────────────────────────────────────
@@ -3002,8 +3099,14 @@ function renderPerformanceLayer(
 
     const cx = W / 2 + layer.x * W * 0.5
     const cy = H / 2 + layer.y * H * 0.5
+    const horizontalRibbonBands =
+      layer.generator === 'harmonicRibbon' || layer.generator === 'stackedWaveformBands'
     tctx.translate(cx, cy)
-    tctx.rotate(((layer.rotation + layer.topologyVariant * 7.5) * Math.PI) / 180)
+    // Harmonic Ribbon's identity is three stable horizontal frequency lanes.
+    // Whole-canvas rotation turns those lanes into overlapping diagonals, so
+    // motion is expressed inside the traces instead of rotating the system.
+    const layerRotation = horizontalRibbonBands ? 0 : layer.rotation + layer.topologyVariant * 7.5
+    tctx.rotate((layerRotation * Math.PI) / 180)
     const topologyScale = 1 + Math.max(0, layer.symmetry - 1) * 0.015
     tctx.scale(layer.scale * topologyScale, layer.scale * topologyScale)
     tctx.translate(-W / 2, -H / 2)
@@ -3040,6 +3143,19 @@ function renderPerformanceLayer(
           ? { professionalScopeRendered: true }
           : { fallbackReason: 'Professional Scope is awaiting synchronized stereo capture' }
       }
+    } else if (layer.generator === 'harmonicRibbon' || layer.generator === 'stackedWaveformBands') {
+      drawHarmonicRibbonOnTrail(
+        tctx,
+        W,
+        H,
+        dpr,
+        layerFrame,
+        layerPreset,
+        effectiveParams,
+        layer,
+        effectiveParams.intensity,
+        temporalBlendMode,
+      )
     } else if (usesLivingRibbonCanvasRenderer(layer)) {
       const livingRibbon = renderLivingRibbonCanvasLayer({
         ownerContext,
@@ -3361,7 +3477,19 @@ function renderAuthoredSoundDrawingPerformance(
       ctx.fillRect(0, 0, W, H)
       const presentationAlpha = clamp(performance.global.backgroundFade, 0, 1)
       for (const { layer, historyCanvas, frameCanvas } of renderedLayers) {
-        compositeTrailSurface(ctx, historyCanvas, frameCanvas, layer.blendMode, presentationAlpha)
+        const harmonicRibbonLayer =
+          layer.generator === 'harmonicRibbon' || layer.generator === 'stackedWaveformBands'
+        const historyPresentationAlpha = harmonicRibbonLayer
+          ? presentationAlpha * resolveHarmonicRibbonHistoryPresentationAlpha(layer.trailPersistence)
+          : presentationAlpha
+        compositeTrailSurface(
+          ctx,
+          historyCanvas,
+          frameCanvas,
+          layer.blendMode,
+          historyPresentationAlpha,
+          harmonicRibbonLayer ? 1 : presentationAlpha,
+        )
       }
     } finally {
       ctx.restore()

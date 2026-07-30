@@ -925,7 +925,7 @@ function primaryComplexityLimits(generator: SoundDrawingGeneratorFamily): {
     case 'kaleidoscopicTrace':
       return { maxTraceCount: 3, maxSymmetry: 4 }
     case 'harmonicRibbon':
-      return { maxTraceCount: 3, maxSymmetry: 2 }
+      return { maxTraceCount: 5, maxSymmetry: 1 }
     case 'livingRibbon':
       return { maxTraceCount: 1, maxSymmetry: 2 }
     case 'professionalScope':
@@ -941,8 +941,25 @@ function complexityInteger(maximum: number, complexity: number): number {
   return Math.max(1, Math.round(1 + Math.max(0, maximum - 1) * clamp01(complexity)))
 }
 
+export function resolveSoundDrawingPrimaryTraceCount(
+  generator: SoundDrawingGeneratorFamily,
+  authoredTraceCount: number,
+  maximumTraceCount: number,
+  complexity: number,
+): number {
+  if (generator !== 'harmonicRibbon') return complexityInteger(maximumTraceCount, complexity)
+
+  // Harmonic Ribbon's section program authors the maximum useful density for
+  // each scene. Complexity scales within that scene instead of replacing it,
+  // preserving the intended intro/build/drop contour progression.
+  const authoredMaximum = Math.round(clamp(authoredTraceCount, 1, maximumTraceCount))
+  const density = 0.25 + clamp01(complexity) * 0.75
+  return Math.round(clamp(authoredMaximum * density, 1, authoredMaximum))
+}
+
 function primaryTrailPersistenceCeiling(generator: SoundDrawingGeneratorFamily): number {
   if (generator === 'professionalScope') return 0.16
+  if (generator === 'harmonicRibbon') return 0.24
   if (generator === 'livingRibbon') return 0.78
   return 0.68
 }
@@ -1016,7 +1033,14 @@ function applyUserIntensityControls(state: MutablePerformanceState, settings: So
     const userRibbon = settings.livingRibbon
     const primary = layer.role === 'primaryMotif'
     const limits = primaryComplexityLimits(layer.generator)
-    const traceCount = primary ? complexityInteger(limits.maxTraceCount, settings.complexity) : layer.traceCount
+    const traceCount = primary
+      ? resolveSoundDrawingPrimaryTraceCount(
+          layer.generator,
+          layer.traceCount,
+          limits.maxTraceCount,
+          settings.complexity,
+        )
+      : layer.traceCount
     const symmetry = primary ? complexityInteger(limits.maxSymmetry, settings.complexity) : layer.symmetry
     const trailPersistence = primary
       ? layer.generator === 'professionalScope'
