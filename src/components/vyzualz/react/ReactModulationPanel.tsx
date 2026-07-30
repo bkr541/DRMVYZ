@@ -4,6 +4,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
 import { SliderRow, NumberInputRow, SelectRow, TextInputRow, ToggleRow, Collapsible } from './ReactControlRows'
+import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import {
   type OscillatorAudioDisplaceMode,
   type OscillatorTextLetterReactionMode,
@@ -688,17 +689,22 @@ export function ReactModulationPanel() {
   return (
     <div className="rv-ctrl-group">
       <Collapsible label="Audio Reactivity" defaultOpen>
-        <SelectRow
-          label="Displace Mode"
-          value={osc.audioDisplaceMode}
-          onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
-          options={[
-            { value: 'normal',  label: 'Normal'  },
-            { value: 'radial',  label: 'Radial'  },
-            { value: 'tangent', label: 'Tangent' },
-            { value: 'xy',      label: 'XY'      },
-          ]}
-        />
+        <div className="rv-ctrl-row">
+          <Dropdown
+            id="sound-drawing-displace-mode"
+            label="Displace Mode"
+            menuLabel="Displace Modes"
+            value={osc.audioDisplaceMode}
+            onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
+            options={[
+              { value: 'normal',  label: 'Normal'  },
+              { value: 'radial',  label: 'Radial'  },
+              { value: 'tangent', label: 'Tangent' },
+              { value: 'xy',      label: 'XY'      },
+            ]}
+            size="compact"
+          />
+        </div>
         <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
       </Collapsible>
 
