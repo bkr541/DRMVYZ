@@ -41,6 +41,18 @@ afterEach(async () => {
 })
 
 describe('Sound Drawing authored-show ownership', () => {
+  it('loads with no Performance Show selected and leaves the base source controls active', async () => {
+    await act(async () => root.render(<ReactEnginePanel />))
+    const showSelect = [...container.querySelectorAll<HTMLSelectElement>('select')]
+      .find(select => select.closest('.rv-ctrl-row')?.textContent?.includes('Performance Show'))!
+    const autoToggle = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.closest('.rv-ctrl-row')?.textContent?.includes('Auto Performance'))!
+
+    expect(showSelect.value).toBe('')
+    expect(autoToggle.disabled).toBe(true)
+    expect(container.querySelector('[role="radiogroup"][aria-label="Sound Drawing source"]')).not.toBeNull()
+  })
+
   it('renders the manual 2x2 source chooser only while Auto Performance is off', async () => {
     useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: false })
     await act(async () => root.render(<ReactEnginePanel />))
@@ -106,6 +118,7 @@ describe('Sound Drawing authored-show ownership', () => {
 
   it('canonicalizes stale source and lock settings whenever Auto Performance turns on', () => {
     useReactStore.getState().setSoundDrawingPerformanceSettings({
+      selectedShowId: 'phaseOrbit',
       autoPerformance: false,
       performanceSource: 'activeUserSource',
       generatorPreference: 'particleSpline',
@@ -139,11 +152,14 @@ describe('Sound Drawing authored-show ownership', () => {
     const authored = migrateReactStore({
       soundDrawingPerformanceSettings: {
         ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+        selectedShowId: 'phaseOrbit',
         autoPerformance: true,
         performanceSource: 'activeSvg',
         locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks, generator: true },
       },
     }, 57) as { soundDrawingPerformanceSettings: typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS }
+    expect(authored.soundDrawingPerformanceSettings.selectedShowId).toBeNull()
+    expect(authored.soundDrawingPerformanceSettings.autoPerformance).toBe(false)
     expect(authored.soundDrawingPerformanceSettings.performanceSource).toBe('generatedVisual')
     expect(authored.soundDrawingPerformanceSettings.locks.generator).toBe(false)
   })
@@ -155,7 +171,7 @@ describe('Sound Drawing authored-show ownership', () => {
     expect(container.textContent).toContain('Follow Track Sections')
     expect(container.textContent).toContain('Effective visual Waveform')
 
-    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: true })
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ selectedShowId: 'radialPressureSystem', autoPerformance: true })
     await act(async () => root.render(<ReactEnginePanel />))
     expect(container.textContent).not.toContain('Follow Track Sections')
     expect(container.textContent).not.toContain('Classic Mode')
@@ -182,7 +198,7 @@ describe('Sound Drawing size controls', () => {
   })
 
   it('replaces manual Visual Size with one composition-level Show Size during authored playback', async () => {
-    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: true })
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ selectedShowId: 'radialPressureSystem', autoPerformance: true })
     await act(async () => root.render(<ReactEnginePanel />))
 
     const showSizeRows = [...container.querySelectorAll('.rv-ctrl-row')]

@@ -61,17 +61,23 @@ function domain(
 export function resolveSoundDrawingOwnership(
   settings: SoundDrawingPerformanceSettings,
 ): SoundDrawingOwnershipState {
-  const show = SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID[settings.selectedShowId]
-  const showUsesScope = soundDrawingPerformanceShowUsesGenerator(settings.selectedShowId, 'professionalScope')
-  if (!settings.autoPerformance) {
+  const show = settings.selectedShowId == null
+    ? null
+    : SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID[settings.selectedShowId]
+  const showUsesScope = settings.selectedShowId == null
+    ? false
+    : soundDrawingPerformanceShowUsesGenerator(settings.selectedShowId, 'professionalScope')
+  if (!settings.autoPerformance || show == null) {
     const manual = domain('manual', true, 'The manual control value is the resolved runtime input.')
     return {
       owner: 'manual',
-      showName: show.name,
+      showName: show?.name ?? 'No Performance Show',
       showRunning: false,
       professionalScopeOwner: 'manual',
       manualScopeControlsDisabled: false,
-      status: `${show.name} is selected but not running. Manual Sound Drawing controls own the output.`,
+      status: show
+        ? `${show.name} is selected but not running. Manual Sound Drawing controls own the output.`
+        : 'No Performance Show preset is selected. The base Classic Scope, Built-in Shape, Text, or SVG source owns the output.',
       domains: {
         source: manual,
         geometry: manual,

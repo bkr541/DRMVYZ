@@ -41,6 +41,7 @@ import {
   type SoundDrawingPerformanceGlobalBlueprint,
   type SoundDrawingPerformanceLayerBlueprint,
   type SoundDrawingPerformanceSettings,
+  type SoundDrawingPerformanceShowDefinition,
   type SoundDrawingPerformanceTemporalState,
   type SoundDrawingResolvedPerformanceFrame,
   type SoundDrawingResolvedPerformanceLayer,
@@ -84,9 +85,9 @@ function clamp01(value: unknown): number {
 function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): SoundDrawingPerformanceSettings {
   const source = value ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
   const selectedShowId =
-    source.selectedShowId in SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID
-    ? source.selectedShowId
-    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId
+    typeof source.selectedShowId === 'string' && source.selectedShowId in SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID
+      ? source.selectedShowId
+      : null
   const performanceSource = source.performanceSource === 'generatedVisual'
     ? 'generatedVisual'
     : source.performanceSource === 'activeUserSource' || source.performanceSource === 'activeText' || source.performanceSource === 'activeSvg'
@@ -105,7 +106,7 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     SOUND_DRAWING_GENERATOR_FAMILIES.includes(source.generatorPreference as SoundDrawingGeneratorFamily)
     ? source.generatorPreference
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference
-  const autoPerformance = source.autoPerformance === true
+  const autoPerformance = source.autoPerformance === true && selectedShowId !== null
   return {
     selectedShowId,
     autoPerformance,
@@ -878,37 +879,214 @@ function collectBehaviorDefinitions(
   return { routes, events }
 }
 
+const HIGH_ENERGY_SUPPORTING_SECTIONS = new Set(['build', 'preDrop', 'drop'])
+const MAX_HIGH_ENERGY_SUPPORTING_LAYERS = 2
+
+const SUPPORTING_OPACITY_CAP: Record<Exclude<SoundDrawingResolvedPerformanceLayer['role'], 'primaryMotif'>, number> = {
+  harmonicLayer: 0.18,
+  rhythmAccent: 0.22,
+  echoLayer: 0.12,
+  atmosphereLayer: 0.1,
+  transitionLayer: 0.16,
+}
+
+const PERFORMANCE_LAYER_PRESENTATION_ORDER: Record<SoundDrawingResolvedPerformanceLayer['role'], number> = {
+  atmosphereLayer: 0,
+  echoLayer: 1,
+  harmonicLayer: 2,
+  rhythmAccent: 3,
+  transitionLayer: 4,
+  primaryMotif: 5,
+}
+
+function isHighEnergySupportingContext(context: SharedPerformanceContext): boolean {
+  const section = context.macroSectionType ?? context.sectionType ?? 'unknown'
+  if (!HIGH_ENERGY_SUPPORTING_SECTIONS.has(section)) return false
+  if (section === 'drop') return true
+  if (section === 'preDrop') {
+    return context.buildProgress >= 0.72 || context.trackRelativeEnergy >= 0.58
+  }
+  // A globally energetic track must not make support layers appear during the
+  // quiet opening of a build. Recruitment follows the local section ramp.
+  return context.buildProgress >= 0.35 && context.trackRelativeEnergy >= 0.55
+}
+
+function primaryComplexityLimits(generator: SoundDrawingGeneratorFamily): {
+  maxTraceCount: number
+  maxSymmetry: number
+} {
+  switch (generator) {
+    case 'circularBassMembrane':
+    case 'radialOscilloscope':
+    case 'polarWaveform':
+      return { maxTraceCount: 3, maxSymmetry: 4 }
+    case 'phaseScopeKnot':
+    case 'lissajousFigure':
+    case 'kaleidoscopicTrace':
+      return { maxTraceCount: 3, maxSymmetry: 4 }
+    case 'harmonicRibbon':
+      return { maxTraceCount: 3, maxSymmetry: 2 }
+    case 'livingRibbon':
+      return { maxTraceCount: 1, maxSymmetry: 2 }
+    case 'professionalScope':
+      // A measurement scope already contains its own stereo traces. Duplicating
+      // them is density, not detail, so complexity keeps one readable scope.
+      return { maxTraceCount: 1, maxSymmetry: 1 }
+    default:
+      return { maxTraceCount: 2, maxSymmetry: 2 }
+  }
+}
+
+function complexityInteger(maximum: number, complexity: number): number {
+  return Math.max(1, Math.round(1 + Math.max(0, maximum - 1) * clamp01(complexity)))
+}
+
+function primaryTrailPersistenceCeiling(generator: SoundDrawingGeneratorFamily): number {
+  if (generator === 'professionalScope') return 0.16
+  if (generator === 'livingRibbon') return 0.78
+  return 0.68
+}
+
+/**
+ * Enforces the semantic contract of an authored Performance Show:
+ * one stable primary generator, optional restrained support only in high-energy
+ * sections, and the primary motif composited last so it remains legible.
+ */
+function applyPerformanceShowIdentityContract(
+  state: MutablePerformanceState,
+  show: SoundDrawingPerformanceShowDefinition,
+  context: SharedPerformanceContext,
+): void {
+  const highEnergy = isHighEnergySupportingContext(context)
+  let supportingLayersEnabled = 0
+
+  state.layers = state.layers.map((layer) => {
+    if (layer.role === 'primaryMotif') {
+      const generator = show.primaryGenerator
+      const defaults = generatorDefaults(generator)
+      return patchLayer(layer, {
+        enabled: true,
+        generator,
+        source: { kind: 'generated', generator },
+        classicMode: defaults.classicMode,
+        shape: defaults.shape,
+        renderMode: defaults.renderMode,
+        opacity: Math.max(0.82, layer.opacity),
+        blendMode: 'source-over',
+        // Temporal feedback is not a second trail control. The primary history
+        // is driven exclusively by Trail Intensity below.
+        feedbackAmount: 0,
+      })
+    }
+
+    const enabled = highEnergy && layer.enabled && supportingLayersEnabled < MAX_HIGH_ENERGY_SUPPORTING_LAYERS
+    if (enabled) supportingLayersEnabled += 1
+    return patchLayer(layer, {
+      enabled,
+      opacity: enabled ? Math.min(layer.opacity * 0.35, SUPPORTING_OPACITY_CAP[layer.role]) : 0,
+      blendMode: 'screen',
+      // Supporting visuals are current-frame accents only. Trail Intensity
+      // belongs exclusively to the primary visual, so support cannot leave a
+      // second haze field behind it.
+      trailPersistence: 0,
+      feedbackAmount: 0,
+      glow: Math.min(layer.glow * 0.35, 0.28),
+      traceCount: Math.min(layer.traceCount, 2),
+      symmetry: Math.min(layer.symmetry, 4),
+      particleCount: Math.min(Math.round(layer.particleCount * 0.12), 40),
+      audioDisplacement: Math.min(layer.audioDisplacement * 0.35, 0.12),
+      jitter: Math.min(layer.jitter * 0.25, 0.06),
+    })
+  })
+
+  // Global history used to act as a second trail control and affected every
+  // layer. Per-layer history is authoritative now; the user Trail Intensity
+  // control is applied only to the primary motif below.
+  state.global.trailPersistence = 0
+  state.global.feedbackAmount = 0
+
+  state.layers.sort(
+    (left, right) => PERFORMANCE_LAYER_PRESENTATION_ORDER[left.role] - PERFORMANCE_LAYER_PRESENTATION_ORDER[right.role],
+  )
+}
+
 function applyUserIntensityControls(state: MutablePerformanceState, settings: SoundDrawingPerformanceSettings): void {
-  const maximumLayers = Math.max(
-    1,
-    Math.min(
-      MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
-      1 + Math.floor(settings.complexity * (MAX_SOUND_DRAWING_PERFORMANCE_LAYERS - 1) + 1e-6),
-    ),
-  )
-  const enabledLayers = state.layers.filter((layer) => layer.enabled)
-  const disabledLayers = state.layers.filter((layer) => !layer.enabled)
-  state.layers = [...enabledLayers.slice(0, maximumLayers), ...disabledLayers].slice(
-    0,
-    MAX_SOUND_DRAWING_PERFORMANCE_LAYERS,
-  )
   state.layers = state.layers.map((layer) => {
     const ribbon = layer.livingRibbonControls
     const userRibbon = settings.livingRibbon
+    const primary = layer.role === 'primaryMotif'
+    const limits = primaryComplexityLimits(layer.generator)
+    const traceCount = primary ? complexityInteger(limits.maxTraceCount, settings.complexity) : layer.traceCount
+    const symmetry = primary ? complexityInteger(limits.maxSymmetry, settings.complexity) : layer.symmetry
+    const trailPersistence = primary
+      ? layer.generator === 'professionalScope'
+        // Professional Scope already owns a native phosphor surface. A second
+        // Canvas history trail would double-expose the same trace.
+        ? 0
+        : clamp01(
+            Math.min(layer.trailPersistence, primaryTrailPersistenceCeiling(layer.generator)) *
+              settings.trailIntensity,
+          )
+      : 0
+
+    let professionalScope = layer.professionalScope
+    if (primary && professionalScope) {
+      const authoredPersistence = professionalScope.state.phosphor.persistenceSeconds
+      // Professional Scope has its own phosphor history in addition to the
+      // layer history canvas. Scale that native tail with the same single Trail
+      // Intensity control and cap it before it can turn the scope into a cloud.
+      const scopePersistence = clamp(authoredPersistence * settings.trailIntensity, 0.015, 0.22)
+      // Professional Scope complexity reveals trace detail by tightening the
+      // beam and reducing smoothing. It never creates duplicate scope layers.
+      professionalScope = {
+        ...professionalScope,
+        state: {
+          ...professionalScope.state,
+          timebase: {
+            ...professionalScope.state.timebase,
+            smoothing: clamp(0.92 - settings.complexity * 0.24, 0.55, 0.92),
+          },
+          beam: {
+            ...professionalScope.state.beam,
+            coreWidthPx: clamp(1 - settings.complexity * 0.28, 0.66, 1),
+            haloScale: clamp(2.35 - settings.complexity * 0.35, 1.9, 2.35),
+          },
+          phosphor: {
+            ...professionalScope.state.phosphor,
+            persistenceSeconds: scopePersistence,
+            mediumBloom: Math.min(professionalScope.state.phosphor.mediumBloom, 0.1),
+            wideBloom: Math.min(professionalScope.state.phosphor.wideBloom, 0.02),
+          },
+        },
+      }
+    }
+
     return patchLayer(layer, {
-    rotation: layer.rotation * settings.motionIntensity,
-    phaseOffset: layer.phaseOffset * settings.motionIntensity,
-    traceCount: 1 + (layer.traceCount - 1) * settings.complexity,
-      trailPersistence:
-        layer.generator === 'livingRibbon'
-          ? clamp01(layer.trailPersistence * 0.55 + userRibbon.trailPersistence * 0.45)
-          : layer.trailPersistence * (0.35 + settings.trailIntensity * 0.65),
-    feedbackAmount: layer.feedbackAmount * settings.trailIntensity,
+      rotation: layer.rotation * settings.motionIntensity,
+      phaseOffset: layer.phaseOffset * settings.motionIntensity,
+      traceCount,
+      symmetry,
+      trailPersistence,
+      // Trail Intensity is deliberately not a feedback or brightness control.
+      feedbackAmount: layer.feedbackAmount,
       glow: layer.generator === 'livingRibbon' ? clamp01(layer.glow * 0.6 + userRibbon.bloom * 0.4) : layer.glow,
-      particleCount:
-        layer.generator === 'livingRibbon'
-          ? Math.round(layer.particleCount * userRibbon.sparkAmount * settings.complexity)
-          : layer.particleCount * settings.complexity,
+      particleCount: layer.particleCount,
+      professionalScope: professionalScope
+        ? {
+            presetId: professionalScope.state.presetId ?? undefined,
+            signalMode: professionalScope.state.signalMode,
+            signalConditioner: professionalScope.state.signalConditioner,
+            trigger: professionalScope.state.trigger,
+            timebase: professionalScope.state.timebase,
+            beam: professionalScope.state.beam,
+            phosphor: professionalScope.state.phosphor,
+            crt: professionalScope.state.crt,
+            music: professionalScope.state.music,
+            monoDelayMs: professionalScope.state.monoDelayMs,
+            exposure: clamp(professionalScope.exposure, 0.65, 1.15),
+            transitionSeconds: professionalScope.transitionSeconds,
+          }
+        : undefined,
       livingRibbonControls:
         layer.generator === 'livingRibbon'
           ? {
@@ -926,10 +1104,6 @@ function applyUserIntensityControls(state: MutablePerformanceState, settings: So
           : ribbon,
     })
   })
-  state.global.trailPersistence = state.layers.some((layer) => layer.generator === 'livingRibbon')
-    ? clamp01(state.global.trailPersistence * 0.6 + settings.livingRibbon.trailPersistence * 0.4)
-    : state.global.trailPersistence * (0.25 + settings.trailIntensity * 0.75)
-  state.global.feedbackAmount *= settings.trailIntensity
   state.global.cameraRotation *= settings.motionIntensity
   state.global.cameraX *= settings.motionIntensity
   state.global.cameraY *= settings.motionIntensity
@@ -943,29 +1117,29 @@ function enforceSafetyBounds(state: MutablePerformanceState): void {
     'audioReactiveAttractor',
     'tunnelTrace',
   ])
-  let expensiveCount = 0
+  let enabledExpensiveSupportingLayers = 0
   state.layers = state.layers.slice(0, MAX_SOUND_DRAWING_PERFORMANCE_LAYERS).map((layer) => {
-      const expensive = expensiveGenerators.has(layer.generator)
-      expensiveCount += expensive ? 1 : 0
-    const generator =
-      expensive && expensiveCount > 2
-        ? layer.role === 'atmosphereLayer'
-          ? 'spectralContour'
-          : 'horizontalOscilloscope'
-        : layer.generator
-      return patchLayer(layer, {
-        generator,
-        traceCount: Math.min(
-          layer.traceCount,
-          layer.source.kind === 'text' || layer.source.kind === 'svg' ? 3 : MAX_SOUND_DRAWING_PERFORMANCE_TRACES,
-        ),
-        particleCount: Math.min(layer.particleCount, MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES),
-        feedbackAmount: MAX_SOUND_DRAWING_PERFORMANCE_FEEDBACK_PASSES > 0 ? layer.feedbackAmount : 0,
-      })
+    let enabled = layer.enabled
+    if (layer.role !== 'primaryMotif' && enabled && expensiveGenerators.has(layer.generator)) {
+      enabledExpensiveSupportingLayers += 1
+      if (enabledExpensiveSupportingLayers > 1) enabled = false
+    }
+    return patchLayer(layer, {
+      // Safety may retire an expensive supporting layer, but it must never
+      // substitute another generator and change the Performance Show identity.
+      enabled,
+      opacity: enabled ? layer.opacity : 0,
+      traceCount: Math.min(
+        layer.traceCount,
+        layer.source.kind === 'text' || layer.source.kind === 'svg' ? 3 : MAX_SOUND_DRAWING_PERFORMANCE_TRACES,
+      ),
+      particleCount: Math.min(layer.particleCount, MAX_SOUND_DRAWING_PERFORMANCE_PARTICLES),
+      feedbackAmount: MAX_SOUND_DRAWING_PERFORMANCE_FEEDBACK_PASSES > 0 ? layer.feedbackAmount : 0,
     })
+  })
   state.global = {
-    trailPersistence: clamp01(state.global.trailPersistence),
-    feedbackAmount: MAX_SOUND_DRAWING_PERFORMANCE_FEEDBACK_PASSES > 0 ? clamp01(state.global.feedbackAmount) : 0,
+    trailPersistence: 0,
+    feedbackAmount: 0,
     cameraScale: clamp(state.global.cameraScale, 0.55, 1.45),
     cameraRotation: clamp(state.global.cameraRotation, -45, 45),
     cameraX: clamp(state.global.cameraX, -0.2, 0.2),
@@ -1002,7 +1176,6 @@ function resolveState(
     applyEvent: (target, value, bindingId, eventIdentity) =>
       applyBehaviorTargetDelta(state, target, value, settings, context, { bindingId, eventIdentity }),
   })
-  applyUserIntensityControls(state, settings)
   return state
 }
 
@@ -1016,7 +1189,7 @@ export function resolveSoundDrawingPerformanceFrame(
   input: ResolveSoundDrawingPerformanceInput,
 ): SoundDrawingResolvedPerformanceFrame | null {
   const settings = normalizeSettings(input.settings)
-  if (!settings.autoPerformance) return null
+  if (!settings.autoPerformance || settings.selectedShowId == null) return null
   const show = SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID[settings.selectedShowId]
   const context = buildSoundDrawingPerformanceContext(input.frame, input.previousContext ?? null)
   const resolution = resolveSharedPerformanceProgram(show.program, context)
@@ -1031,6 +1204,8 @@ export function resolveSoundDrawingPerformanceFrame(
     temporalState.identity = temporalIdentity
   }
   const state = resolveState(resolution, context, settings, input.frame, temporalState)
+  applyPerformanceShowIdentityContract(state, show, context)
+  applyUserIntensityControls(state, settings)
   const sourceResolution = resolveSoundDrawingPerformanceSources({
     showId: show.id,
     layers: state.layers,

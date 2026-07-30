@@ -2,5 +2,5 @@ import { soundDrawingPerformanceShowUsesGenerator } from './SoundDrawingPerforma
 import type { SoundDrawingPerformanceSettings } from './SoundDrawingPerformanceTypes'
 
 export function shouldShowLivingRibbonControls(settings: SoundDrawingPerformanceSettings): boolean {
-  return soundDrawingPerformanceShowUsesGenerator(settings.selectedShowId, 'livingRibbon')
+  return settings.selectedShowId != null && soundDrawingPerformanceShowUsesGenerator(settings.selectedShowId, 'livingRibbon')
 }

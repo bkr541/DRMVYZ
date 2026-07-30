@@ -94,10 +94,12 @@ describe('Sound Drawing trail ownership', () => {
     expect(retentionAcrossTwo60Frames).toBeCloseTo(retentionAt30, 6)
   })
 
-  it('keeps temporal history writes bounded while feedback changes trail weight', () => {
+  it('keeps temporal history writes bounded while allowing a true zero-trail state', () => {
+    const none = computeSoundDrawingHistoryWriteAlpha(0, 0)
     const low = computeSoundDrawingHistoryWriteAlpha(0.2, 0.1)
     const high = computeSoundDrawingHistoryWriteAlpha(0.9, 0.9)
-    expect(low).toBeGreaterThanOrEqual(0.42)
+    expect(none).toBe(0)
+    expect(low).toBeGreaterThan(0)
     expect(high).toBeLessThanOrEqual(0.88)
     expect(high).toBeGreaterThan(low)
   })

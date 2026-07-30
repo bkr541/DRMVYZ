@@ -3,6 +3,13 @@ import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './SoundDrawingPerfor
 import { resolveSoundDrawingOwnership } from './SoundDrawingOwnership'
 
 describe('Sound Drawing authored-show ownership', () => {
+  it('keeps the base Sound Drawing source authoritative until a preset is selected', () => {
+    const state = resolveSoundDrawingOwnership(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS)
+    expect(state.owner).toBe('manual')
+    expect(state.showName).toBe('No Performance Show')
+    expect(state.status).toContain('base Classic Scope, Built-in Shape, Text, or SVG source owns the output')
+  })
+
   it('reports every domain as manual while Auto Performance is off', () => {
     const state = resolveSoundDrawingOwnership({
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
@@ -59,6 +66,7 @@ describe('Sound Drawing authored-show ownership', () => {
     for (const key of Object.keys(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks) as Array<keyof typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks>) {
       const state = resolveSoundDrawingOwnership({
         ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+        selectedShowId: 'radialPressureSystem',
         autoPerformance: true,
         locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks, [key]: true },
       })

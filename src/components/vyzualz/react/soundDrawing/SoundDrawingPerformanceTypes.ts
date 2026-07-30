@@ -465,7 +465,7 @@ export interface SoundDrawingTrailLockContract {
 }
 
 export interface SoundDrawingPerformanceSettings {
-  selectedShowId: SoundDrawingPerformanceShowId
+  selectedShowId: SoundDrawingPerformanceShowId | null
   autoPerformance: boolean
   complexity: number
   motionIntensity: number
@@ -541,6 +541,8 @@ export interface SoundDrawingPerformanceShowDefinition {
   id: SoundDrawingPerformanceShowId
   name: string
   description: string
+  /** Stable generator family that defines the show's visual identity in every section. */
+  primaryGenerator: SoundDrawingGeneratorFamily
   program: import('../../../../features/performanceCore').SharedPerformanceProgram<SoundDrawingPerformanceAction>
 }
 
@@ -615,7 +617,7 @@ export const DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS: SoundDrawingLivingRib
 }
 
 export const DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS: SoundDrawingPerformanceSettings = {
-  selectedShowId: 'radialPressureSystem',
+  selectedShowId: null,
   autoPerformance: false,
   complexity: 0.7,
   motionIntensity: 0.65,

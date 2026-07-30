@@ -358,8 +358,8 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
     typeof source.selectedShowId === 'string' &&
     SOUND_DRAWING_PERFORMANCE_SHOW_IDS.has(source.selectedShowId as SoundDrawingPerformanceShowId)
       ? (source.selectedShowId as SoundDrawingPerformanceShowId)
-    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId
-  const autoPerformance = source.autoPerformance === true
+      : null
+  const autoPerformance = source.autoPerformance === true && selectedShowId !== null
   const generatorPreference =
     typeof source.generatorPreference === 'string' &&
     SOUND_DRAWING_GENERATOR_PREFERENCES.has(source.generatorPreference as SoundDrawingGeneratorPreference)
@@ -3983,6 +3983,21 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 59) {
+    // Performance Shows are opt-in presets. Startup always returns to the base
+    // Sound Drawing source instead of silently restoring an authored show.
+    const existing = isRecord(state.soundDrawingPerformanceSettings)
+      ? state.soundDrawingPerformanceSettings
+      : {}
+    state = {
+      ...state,
+      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
+        ...existing,
+        selectedShowId: null,
+        autoPerformance: false,
+      }),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -4179,7 +4194,11 @@ export function reactStorePartialize(s: ReactStoreState) {
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
     pixGridActionCuesByTrackId:          normalizePixGridActionCueMap(s.pixGridActionCuesByTrackId),
     oscillatorSettings:                 s.oscillatorSettings,
-    soundDrawingPerformanceSettings:     normalizeSoundDrawingPerformanceSettings(s.soundDrawingPerformanceSettings),
+    soundDrawingPerformanceSettings:     normalizeSoundDrawingPerformanceSettings({
+      ...s.soundDrawingPerformanceSettings,
+      selectedShowId: null,
+      autoPerformance: false,
+    }),
     oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
     laserDmxSettings:                   sanitizeLaserDmxSettingsForPersistence(s.laserDmxSettings),
     laserDmxWorkspaceMode:              coerceLaserDmxWorkspaceMode(s.laserDmxWorkspaceMode),
@@ -4294,9 +4313,11 @@ export function mergeReactStoreState(
     canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(
       persisted.canvasOrchestrationSettings ?? currentState.canvasOrchestrationSettings,
     ),
-    soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
-      persisted.soundDrawingPerformanceSettings ?? currentState.soundDrawingPerformanceSettings,
-    ),
+    soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
+      ...(persisted.soundDrawingPerformanceSettings ?? currentState.soundDrawingPerformanceSettings),
+      selectedShowId: null,
+      autoPerformance: false,
+    }),
     canvasPresetOverride: normalizeCanvasPresetOverride(
       persisted.canvasPresetOverride ?? currentState.canvasPresetOverride,
       normalizeCanvasPresetId(persisted.selectedCanvasPresetId ?? currentState.selectedCanvasPresetId),
@@ -8291,7 +8312,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 58,
+      version: 59,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

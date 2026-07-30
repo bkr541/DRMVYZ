@@ -75,6 +75,8 @@ describe('performance settings persistence migration', () => {
     }, 45)
 
     const settings = migrated.soundDrawingPerformanceSettings as typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
+    expect(settings.selectedShowId).toBeNull()
+    expect(settings.autoPerformance).toBe(false)
     expect(settings.performanceSource).toBe('generatedVisual')
     expect(settings.generatorPreference).toBe('authored')
     expect(settings.quality).toBe('auto')
@@ -198,7 +200,7 @@ describe('performance settings persistence migration', () => {
     })
   })
 
-  it('round-trips authored Professional Scope show selection while old shows remain scope-free', () => {
+  it('keeps an explicitly selected show active in-session but never restores it on app load', () => {
     const current = useReactStore.getState()
     const authoredScope = normalizeSoundDrawingPerformanceSettings({
       ...current.soundDrawingPerformanceSettings,
@@ -206,19 +208,18 @@ describe('performance settings persistence migration', () => {
       autoPerformance: true,
       generatorPreference: 'professionalScope',
     })
-    const persisted = reactStorePartialize({ ...current, soundDrawingPerformanceSettings: authoredScope })
-    const merged = mergeReactStoreState(persisted, current)
-    expect(merged.soundDrawingPerformanceSettings).toEqual(authoredScope)
+    expect(authoredScope.selectedShowId).toBe('stereoPulseStudy')
+    expect(authoredScope.autoPerformance).toBe(true)
     expect(authoredScope.generatorPreference).toBe('authored')
     expect(authoredScope.performanceSource).toBe('generatedVisual')
     expect(Object.values(authoredScope.locks).every(value => value === false)).toBe(true)
 
-    const legacy = normalizeSoundDrawingPerformanceSettings({
-      selectedShowId: 'harmonicRibbonReactor',
-      autoPerformance: true,
-    })
-    expect(legacy.selectedShowId).toBe('harmonicRibbonReactor')
-    expect(legacy.generatorPreference).toBe('authored')
+    const persisted = reactStorePartialize({ ...current, soundDrawingPerformanceSettings: authoredScope })
+    expect(persisted.soundDrawingPerformanceSettings.selectedShowId).toBeNull()
+    expect(persisted.soundDrawingPerformanceSettings.autoPerformance).toBe(false)
+    const merged = mergeReactStoreState(persisted, current)
+    expect(merged.soundDrawingPerformanceSettings.selectedShowId).toBeNull()
+    expect(merged.soundDrawingPerformanceSettings.autoPerformance).toBe(false)
   })
 
 
@@ -271,6 +272,8 @@ describe('performance settings persistence migration', () => {
       },
     }, 52)
     const migratedSettings = migrated.soundDrawingPerformanceSettings as typeof DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS
+    expect(migratedSettings.selectedShowId).toBeNull()
+    expect(migratedSettings.autoPerformance).toBe(false)
     expect(migratedSettings.livingRibbon.quality).toBe('high')
     expect(migratedSettings.livingRibbon.pointDensity).toBe(
       DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.livingRibbon.pointDensity,
@@ -292,7 +295,10 @@ describe('performance settings persistence migration', () => {
     const persisted = reactStorePartialize({ ...current, soundDrawingPerformanceSettings: custom })
     expect(persisted).not.toHaveProperty('soundDrawingRibbonResetRevision')
     const merged = mergeReactStoreState(persisted, current)
-    expect(merged.soundDrawingPerformanceSettings).toEqual(custom)
+    expect(merged.soundDrawingPerformanceSettings.selectedShowId).toBeNull()
+    expect(merged.soundDrawingPerformanceSettings.autoPerformance).toBe(false)
+    expect(merged.soundDrawingPerformanceSettings.livingRibbon).toEqual(custom.livingRibbon)
+    expect(merged.soundDrawingPerformanceSettings.locks).toEqual(custom.locks)
   })
 
   it('resets the live ribbon runtime through a transient command while preserving user settings', () => {

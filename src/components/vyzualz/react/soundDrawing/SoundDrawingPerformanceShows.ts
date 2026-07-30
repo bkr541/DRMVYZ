@@ -180,7 +180,7 @@ function scene(
 
 function radialPressureSystem(): SoundDrawingPerformanceShowDefinition {
   const intro = [
-    layer('rps-primary', 'primaryMotif', 'circularBassMembrane', { scale: 0.64, opacity: 0.7, trailPersistence: 0.82, glow: 0.42, colorRole: 'secondary' }),
+    layer('rps-primary', 'primaryMotif', 'radialOscilloscope', { scale: 0.64, opacity: 0.7, trailPersistence: 0.82, glow: 0.42, colorRole: 'secondary' }),
     layer('rps-atmos', 'atmosphereLayer', 'particleSpline', { enabled: true, opacity: 0.18, scale: 0.88, particleCount: 96, jitter: 0.08, colorRole: 'accent' }),
   ]
   const verse = [
@@ -189,13 +189,13 @@ function radialPressureSystem(): SoundDrawingPerformanceShowDefinition {
     layer('rps-atmos', 'atmosphereLayer', 'particleSpline', { opacity: 0.22, particleCount: 128, jitter: 0.1 }),
   ]
   const build = [
-    layer('rps-primary', 'primaryMotif', 'tunnelTrace', { scale: 0.72, traceCount: 2, symmetry: 2, rotation: 10, modulationRoutes: [bassScaleRoute('rps-build-bass', 0.16), buildRotationRoute] }),
+    layer('rps-primary', 'primaryMotif', 'radialOscilloscope', { scale: 0.72, traceCount: 2, symmetry: 2, rotation: 10, modulationRoutes: [bassScaleRoute('rps-build-bass', 0.16), buildRotationRoute] }),
     layer('rps-harmonic', 'harmonicLayer', 'polarWaveform', { opacity: 0.46, scale: 0.92, rotation: -12, traceCount: 2 }),
     layer('rps-rhythm', 'rhythmAccent', 'kaleidoscopicTrace', { opacity: 0.36, scale: 0.58, symmetry: 4, colorRole: 'accent' }),
     layer('rps-atmos', 'atmosphereLayer', 'particleSpline', { opacity: 0.28, particleCount: 180, jitter: 0.13 }),
   ]
   const preDrop = [
-    layer('rps-primary', 'primaryMotif', 'circularBassMembrane', { scale: 0.34, opacity: 0.88, traceCount: 1, symmetry: 1, trailPersistence: 0.18, colorRole: 'accent' }),
+    layer('rps-primary', 'primaryMotif', 'radialOscilloscope', { scale: 0.34, opacity: 0.88, traceCount: 1, symmetry: 1, trailPersistence: 0.18, colorRole: 'accent' }),
     layer('rps-transition', 'transitionLayer', 'radialOscilloscope', { opacity: 0.18, scale: 0.18, glow: 0.8, feedbackAmount: 0 }),
   ]
   const drop = [
@@ -206,11 +206,11 @@ function radialPressureSystem(): SoundDrawingPerformanceShowDefinition {
     layer('rps-atmos', 'atmosphereLayer', 'particleSpline', { opacity: 0.42, particleCount: 260, jitter: 0.18 }),
   ]
   const breakdown = [
-    layer('rps-primary', 'primaryMotif', 'polarWaveform', { scale: 0.76, opacity: 0.68, trailPersistence: 0.86, rotation: 6, modulationRoutes: [vocalOpacityRoute, energyGlowRoute('rps-break-glow', 0.22)] }),
+    layer('rps-primary', 'primaryMotif', 'radialOscilloscope', { scale: 0.76, opacity: 0.68, trailPersistence: 0.86, rotation: 6, modulationRoutes: [vocalOpacityRoute, energyGlowRoute('rps-break-glow', 0.22)] }),
     layer('rps-harmonic', 'harmonicLayer', 'harmonicRibbon', { opacity: 0.3, scale: 0.9, trailPersistence: 0.9, colorRole: 'secondary' }),
   ]
   const outro = [
-    layer('rps-primary', 'primaryMotif', 'circularBassMembrane', { scale: 0.54, opacity: 0.46, trailPersistence: 0.92, feedbackAmount: 0.04 }),
+    layer('rps-primary', 'primaryMotif', 'radialOscilloscope', { scale: 0.54, opacity: 0.46, trailPersistence: 0.92, feedbackAmount: 0.04 }),
   ]
   const unknown = [
     layer('rps-primary', 'primaryMotif', 'radialOscilloscope', { scale: 0.72, opacity: 0.7, traceCount: 1, glow: 0.45 }),
@@ -219,10 +219,11 @@ function radialPressureSystem(): SoundDrawingPerformanceShowDefinition {
   return {
     id: 'radialPressureSystem',
     name: 'Radial Pressure System',
-    description: 'Concentric bass membranes, pressure rings, tunnel depth, and percussion-separated radial impacts.',
+    description: 'A pressure-driven radial oscillator that contracts, expands, and deforms without abandoning its circular identity.',
+    primaryGenerator: 'radialOscilloscope',
     program: {
       id: 'soundDrawing.radialPressureSystem',
-      metadata: { name: 'Radial Pressure System', description: 'Concentric bass membranes and percussion-separated radial impacts.', engine: 'soundDrawing', version: 1, authoringRevision: 'first-class-source-integration' },
+      metadata: { name: 'Radial Pressure System', description: 'A stable radial oscillator whose pressure, symmetry, and scale evolve across sections.', engine: 'soundDrawing', version: 2, authoringRevision: 'stable-primary-identity-v1' },
       fallbackOrder: ['unknown'],
       fallbackSceneId: 'rps-fallback',
       scenes: [
@@ -254,18 +255,18 @@ function harmonicRibbonReactor(): SoundDrawingPerformanceShowDefinition {
     layer('hrr-atmos', 'atmosphereLayer', 'stackedWaveformBands', { opacity: 0.16, scale: 0.9, colorRole: 'secondary' }),
   ]
   const verse = [
-    layer('hrr-primary', 'primaryMotif', 'horizontalOscilloscope', { opacity: 0.86, strokeWidth: 1.1, scale: 0.9 }),
+    layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', { opacity: 0.86, strokeWidth: 1.1, scale: 0.9 }),
     layer('hrr-harmonic', 'harmonicLayer', 'harmonicRibbon', { opacity: 0.5, scale: 0.82, y: 0.08, colorRole: 'secondary', renderMode: 'ribbon', modulationRoutes: [vocalOpacityRoute, energyGlowRoute('hrr-verse-glow')] }),
     layer('hrr-atmos', 'atmosphereLayer', 'particleSpline', { opacity: 0.18, particleCount: 112, jitter: 0.08 }),
   ]
   const build = [
-    layer('hrr-primary', 'primaryMotif', 'stackedWaveformBands', { opacity: 0.92, traceCount: 3, scale: 0.92, modulationRoutes: [bassScaleRoute('hrr-build-bass', 0.1), buildRotationRoute] }),
+    layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', { opacity: 0.92, traceCount: 3, scale: 0.92, modulationRoutes: [bassScaleRoute('hrr-build-bass', 0.1), buildRotationRoute] }),
     layer('hrr-harmonic', 'harmonicLayer', 'harmonicRibbon', { opacity: 0.68, traceCount: 2, scale: 0.78, rotation: 8, renderMode: 'ribbon' }),
     layer('hrr-rhythm', 'rhythmAccent', 'mirroredOscilloscope', { opacity: 0.4, scale: 0.68, symmetry: 2, colorRole: 'accent' }),
     layer('hrr-atmos', 'atmosphereLayer', 'spectralContour', { opacity: 0.28, traceCount: 2, scale: 1.05 }),
   ]
   const preDrop = [
-    layer('hrr-primary', 'primaryMotif', 'horizontalOscilloscope', { opacity: 0.92, scale: 0.58, trailPersistence: 0.12, strokeWidth: 1.6, colorRole: 'accent' }),
+    layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', { opacity: 0.92, scale: 0.58, trailPersistence: 0.12, strokeWidth: 1.6, colorRole: 'accent' }),
     layer('hrr-transition', 'transitionLayer', 'particleSpline', { opacity: 0.12, particleCount: 64, jitter: 0.04 }),
   ]
   const drop = [
@@ -279,16 +280,17 @@ function harmonicRibbonReactor(): SoundDrawingPerformanceShowDefinition {
     layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', { opacity: 0.66, scale: 0.8, trailPersistence: 0.94, renderMode: 'ribbon', modulationRoutes: [vocalOpacityRoute] }),
     layer('hrr-harmonic', 'harmonicLayer', 'lissajousFigure', { opacity: 0.22, scale: 0.68, colorRole: 'secondary' }),
   ]
-  const outro = [layer('hrr-primary', 'primaryMotif', 'horizontalOscilloscope', { opacity: 0.42, scale: 0.66, trailPersistence: 0.94, feedbackAmount: 0.02 })]
-  const unknown = [layer('hrr-primary', 'primaryMotif', 'horizontalOscilloscope', { opacity: 0.68, scale: 0.82, traceCount: 1 })]
+  const outro = [layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', { opacity: 0.42, scale: 0.66, trailPersistence: 0.94, feedbackAmount: 0.02 })]
+  const unknown = [layer('hrr-primary', 'primaryMotif', 'harmonicRibbon', { opacity: 0.68, scale: 0.82, traceCount: 1 })]
 
   return {
     id: 'harmonicRibbonReactor',
     name: 'Harmonic Ribbon Reactor',
-    description: 'Layered waveform bands and elastic ribbons that recruit harmonics as phrases accumulate.',
+    description: 'One elastic harmonic-ribbon system that folds, multiplies, and tightens without becoming a different generator.',
+    primaryGenerator: 'harmonicRibbon',
     program: {
       id: 'soundDrawing.harmonicRibbonReactor',
-      metadata: { name: 'Harmonic Ribbon Reactor', description: 'Ribbon architecture with phrase-scaled recruitment and clear percussion roles.', engine: 'soundDrawing', version: 1, authoringRevision: 'first-class-source-integration' },
+      metadata: { name: 'Harmonic Ribbon Reactor', description: 'A stable harmonic-ribbon architecture with section-bounded detail and restrained high-energy support.', engine: 'soundDrawing', version: 2, authoringRevision: 'stable-primary-identity-v1' },
       fallbackOrder: ['unknown'],
       fallbackSceneId: 'hrr-fallback',
       scenes: [
@@ -320,12 +322,12 @@ function phaseKnotCathedral(): SoundDrawingPerformanceShowDefinition {
     layer('pkc-atmos', 'atmosphereLayer', 'vectorFieldStreamlines', { opacity: 0.15, scale: 0.86, traceCount: 2, colorRole: 'secondary' }),
   ]
   const verse = [
-    layer('pkc-primary', 'primaryMotif', 'lissajousFigure', { opacity: 0.86, scale: 0.78, symmetry: 2 }),
+    layer('pkc-primary', 'primaryMotif', 'phaseScopeKnot', { opacity: 0.86, scale: 0.78, symmetry: 2 }),
     layer('pkc-harmonic', 'harmonicLayer', 'phaseScopeKnot', { opacity: 0.38, scale: 0.54, rotation: -18, colorRole: 'secondary' }),
     layer('pkc-atmos', 'atmosphereLayer', 'vectorFieldStreamlines', { opacity: 0.2, scale: 1.02, traceCount: 2 }),
   ]
   const build = [
-    layer('pkc-primary', 'primaryMotif', 'audioReactiveAttractor', { opacity: 0.9, scale: 0.72, symmetry: 3, rotation: 10, modulationRoutes: [bassScaleRoute('pkc-build-bass', 0.12), buildRotationRoute] }),
+    layer('pkc-primary', 'primaryMotif', 'phaseScopeKnot', { opacity: 0.9, scale: 0.72, symmetry: 3, rotation: 10, modulationRoutes: [bassScaleRoute('pkc-build-bass', 0.12), buildRotationRoute] }),
     layer('pkc-harmonic', 'harmonicLayer', 'phaseScopeKnot', { opacity: 0.52, scale: 0.58, traceCount: 2, rotation: -22 }),
     layer('pkc-rhythm', 'rhythmAccent', 'kaleidoscopicTrace', { opacity: 0.36, scale: 0.48, symmetry: 4, colorRole: 'accent' }),
     layer('pkc-atmos', 'atmosphereLayer', 'vectorFieldStreamlines', { opacity: 0.28, scale: 1.14, traceCount: 3 }),
@@ -342,19 +344,20 @@ function phaseKnotCathedral(): SoundDrawingPerformanceShowDefinition {
     layer('pkc-atmos', 'atmosphereLayer', 'vectorFieldStreamlines', { opacity: 0.36, scale: 1.18, traceCount: 4, jitter: 0.12 }),
   ]
   const breakdown = [
-    layer('pkc-primary', 'primaryMotif', 'lissajousFigure', { opacity: 0.62, scale: 0.68, trailPersistence: 0.94, modulationRoutes: [vocalOpacityRoute, energyGlowRoute('pkc-break-glow', 0.18)] }),
+    layer('pkc-primary', 'primaryMotif', 'phaseScopeKnot', { opacity: 0.62, scale: 0.68, trailPersistence: 0.94, modulationRoutes: [vocalOpacityRoute, energyGlowRoute('pkc-break-glow', 0.18)] }),
     layer('pkc-harmonic', 'harmonicLayer', 'phaseScopeKnot', { opacity: 0.26, scale: 0.46, rotation: 24, colorRole: 'secondary' }),
   ]
   const outro = [layer('pkc-primary', 'primaryMotif', 'phaseScopeKnot', { opacity: 0.4, scale: 0.44, symmetry: 2, trailPersistence: 0.95, feedbackAmount: 0.02 })]
-  const unknown = [layer('pkc-primary', 'primaryMotif', 'lissajousFigure', { opacity: 0.66, scale: 0.68, symmetry: 2 })]
+  const unknown = [layer('pkc-primary', 'primaryMotif', 'phaseScopeKnot', { opacity: 0.66, scale: 0.68, symmetry: 2 })]
 
   return {
     id: 'phaseKnotCathedral',
     name: 'Phase-Knot Cathedral',
-    description: 'Architectural Lissajous knots, kaleidoscopic cuts, and evolving attractor vaults.',
+    description: 'One architectural phase-knot system whose symmetry, scale, and internal order evolve without changing visual family.',
+    primaryGenerator: 'phaseScopeKnot',
     program: {
       id: 'soundDrawing.phaseKnotCathedral',
-      metadata: { name: 'Phase-Knot Cathedral', description: 'Architectural phase knots with deterministic long-form evolution.', engine: 'soundDrawing', version: 1, authoringRevision: 'first-class-source-integration' },
+      metadata: { name: 'Phase-Knot Cathedral', description: 'A stable phase-knot architecture with deterministic long-form symmetry and topology changes.', engine: 'soundDrawing', version: 2, authoringRevision: 'stable-primary-identity-v1' },
       fallbackOrder: ['unknown'],
       fallbackSceneId: 'pkc-fallback',
       scenes: [
@@ -596,19 +599,6 @@ const LIVING_RIBBON_ROUTES: readonly SoundDrawingModulationRoute[] = [
     minConfidence: 0.25,
     clamp: [0, 1],
     lockKey: 'ribbonMovement',
-  },
-  {
-    id: 'ribbon-complexity-detail',
-    source: 'complexity',
-    target: 'particleCount',
-    min: 0,
-    max: 54,
-    amount: 1,
-    curve: 'easeIn',
-    attack: 0.22,
-    release: 0.5,
-    clamp: [0, 96],
-    lockKey: 'ribbonGlow',
   },
   {
     id: 'ribbon-vocal-center',
@@ -1101,6 +1091,7 @@ function livingRibbonSystem(): SoundDrawingPerformanceShowDefinition {
     name: 'Living Ribbon System',
     description:
       'A persistent physical ribbon shaped by continuous musical forces and deterministic structural impulses.',
+    primaryGenerator: 'livingRibbon',
     program: {
       id: 'soundDrawing.livingRibbonSystem',
       metadata: {
@@ -1194,6 +1185,7 @@ function professionalScopeShow(
   name: string,
   description: string,
   scopePresetId: string,
+  primaryGenerator: SoundDrawingPerformanceShowDefinition['primaryGenerator'],
   scopePatch: Partial<SoundDrawingPerformanceLayerBlueprint> = {},
   supportingLayers: readonly SoundDrawingPerformanceLayerBlueprint[] = [],
 ): SoundDrawingPerformanceShowDefinition {
@@ -1251,11 +1243,6 @@ function professionalScopeShow(
     ...scopePatch,
   })
   const calm = [scope, ...supportingLayers]
-  const dropScopePresetId = id === 'stereoPulseStudy'
-    ? 'scope-dual-channel'
-    : id === 'phaseOrbit'
-      ? 'scope-phase-knot'
-      : 'scope-heavy-drop-vector'
   const drop = [
     {
       ...scope,
@@ -1264,19 +1251,17 @@ function professionalScopeShow(
       rotation: id === 'phaseOrbit' ? -16 : scope.rotation,
       professionalScope: {
         ...scope.professionalScope,
-        presetId: dropScopePresetId,
+        presetId: scopePresetId,
         transitionSeconds: 0.3,
       },
     },
-    ...supportingLayers.map((candidate) => ({
-      ...candidate,
-      opacity: Math.min(1, (candidate.opacity ?? 0.5) + 0.18),
-    })),
+    ...supportingLayers,
   ]
   return {
     id,
     name,
     description,
+    primaryGenerator,
     program: {
       id: `soundDrawing.${id}`,
       metadata: {
@@ -1310,6 +1295,7 @@ function stereoPulseStudy(): SoundDrawingPerformanceShowDefinition {
     'Stereo Pulse Study',
     'A dual-trace stereo study with separated pulse bands, stable triggering, and restrained phosphor atmosphere.',
     'scope-stereo-phase',
+    'professionalScope',
     {
       scale: 0.82,
       professionalScope: {
@@ -1346,6 +1332,7 @@ function phaseOrbit(): SoundDrawingPerformanceShowDefinition {
     'Phase Orbit',
     'A mid/side measurement core suspended inside rotating phase knots and a slow orbital tunnel.',
     'scope-mid-side',
+    'professionalScope',
     { rotation: -8, scale: 0.72, professionalScope: { presetId: 'scope-mid-side', signalMode: 'midSideXY', exposure: 0.9 } },
     [
       layer('phase-orbit-knot', 'harmonicLayer', 'phaseScopeKnot', {
@@ -1374,6 +1361,7 @@ function scopeAndShape(): SoundDrawingPerformanceShowDefinition {
     'Scope and Shape',
     'A synchronized stereo scope composited beneath an authored bass membrane in deterministic order.',
     'scope-cyan-emerald-core',
+    'circularBassMembrane',
     { role: 'harmonicLayer', opacity: 0.72, blendMode: 'lighter' },
     [
       layer('scope-shape-primary', 'primaryMotif', 'circularBassMembrane', {

@@ -109,6 +109,7 @@ function frameAt(timeSec: number, trackKey = 'track-a'): ReactFrameContext {
 function settings(patch: Partial<SoundDrawingPerformanceSettings> = {}): SoundDrawingPerformanceSettings {
   return {
     ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+    selectedShowId: 'radialPressureSystem',
     autoPerformance: true,
     complexity: 1,
     motionIntensity: 1,

@@ -472,9 +472,10 @@ export function ReactEnginePanel() {
           <ToggleRow
             label="Auto Performance"
             value={soundDrawingPerformanceSettings.autoPerformance}
+            disabled={soundDrawingPerformanceSettings.selectedShowId == null}
             onChange={(value) =>
               setSoundDrawingPerformanceSettings({
-                autoPerformance: value,
+                autoPerformance: value && soundDrawingPerformanceSettings.selectedShowId != null,
                 ...(value
                   ? {
                       performanceSource: 'generatedVisual',
@@ -484,25 +485,34 @@ export function ReactEnginePanel() {
                   : {}),
               })
             }
-            description="Runs the selected authored show. Manual Engine Mode controls remain available when the show is off."
+            description={soundDrawingPerformanceSettings.selectedShowId == null
+              ? 'Select a Performance Show preset first. Until then, the base Classic Scope, Built-in Shape, Text, or SVG source remains active.'
+              : 'Runs the selected authored show. Turn it off to return to the unchanged base Sound Drawing source.'}
           />
           <SelectRow
             label="Performance Show"
-            value={soundDrawingPerformanceSettings.selectedShowId}
-            onChange={(value) =>
+            value={soundDrawingPerformanceSettings.selectedShowId ?? ''}
+            onChange={(value) => {
+              if (!value) {
+                setSoundDrawingPerformanceSettings({ selectedShowId: null, autoPerformance: false })
+                return
+              }
               setSoundDrawingPerformanceSettings({
-                selectedShowId: value as typeof soundDrawingPerformanceSettings.selectedShowId,
+                selectedShowId: value as NonNullable<typeof soundDrawingPerformanceSettings.selectedShowId>,
                 autoPerformance: true,
                 performanceSource: 'generatedVisual',
                 generatorPreference: 'authored',
                 locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
               })
-            }
-            options={SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
-              value: show.id,
-              label: show.name,
-            }))}
-            description="Selecting a show starts it immediately so the control never behaves like an inert queued choice."
+            }}
+            options={[
+              { value: '', label: 'Select a Performance Show…', disabled: true },
+              ...SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
+                value: show.id,
+                label: show.name,
+              })),
+            ]}
+            description="Performance Shows are opt-in presets. No preset is selected when Sound Drawing loads, so the base engine remains authoritative until you choose one."
           />
           <div
             className="rv-ctrl-info rv-control-helper-copy"
@@ -614,15 +624,6 @@ export function ReactEnginePanel() {
                       max={1}
                       step={0.01}
                       color="#4ac7db"
-                    />
-                    <SliderRow
-                      label="Trail Persistence"
-                      value={ribbon.trailPersistence}
-                      onChange={(value) => setRibbon({ trailPersistence: value })}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      color="#9ddcff"
                     />
                     <SliderRow
                       label="Bloom"

@@ -154,6 +154,7 @@ function frameAt(
 function settings(patch: SoundDrawingPerformanceSettingsPatch = {}): SoundDrawingPerformanceSettings {
   return {
     ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+    selectedShowId: 'radialPressureSystem',
     autoPerformance: true,
     complexity: 1,
     motionIntensity: 1,
@@ -306,9 +307,67 @@ describe('Sound Drawing authored Performance Engine', () => {
     }
   })
 
-  it('keeps the default show stable and treats show selection as the only generator-system selector', () => {
-    expect(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId).toBe('radialPressureSystem')
-    expect(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference).toBe('authored')
+  it('preserves each show primary visual identity across every song section', () => {
+    const expected = new Map(SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => [show.id, show.primaryGenerator]))
+    for (const show of SOUND_DRAWING_PERFORMANCE_SHOWS) {
+      for (const timeSec of [2, 10, 20, 25, 31, 72, 87, 132]) {
+        const frame = resolved(timeSec, {}, { selectedShowId: show.id })
+        expect(role(frame, 'primaryMotif').generator).toBe(expected.get(show.id))
+      }
+    }
+  })
+
+  it('authors every scene with the declared primary generator instead of relying on runtime substitution', () => {
+    for (const show of SOUND_DRAWING_PERFORMANCE_SHOWS) {
+      for (const candidate of show.program.scenes) {
+        for (const action of candidate.actions ?? []) {
+          if (action.type !== 'scene') continue
+          const primary = action.layers.find(layer => layer.role === 'primaryMotif')
+          if (primary) expect(primary.generator).toBe(show.primaryGenerator)
+        }
+      }
+    }
+  })
+
+  it('uses Complexity only for primary trace detail and symmetry', () => {
+    const low = resolved(31, {}, { complexity: 0 })
+    const high = resolved(31, {}, { complexity: 1 })
+    const lowPrimary = role(low, 'primaryMotif')
+    const highPrimary = role(high, 'primaryMotif')
+
+    expect(highPrimary.traceCount).toBeGreaterThanOrEqual(lowPrimary.traceCount)
+    expect(highPrimary.symmetry).toBeGreaterThanOrEqual(lowPrimary.symmetry)
+    expect(high.layers.map(layer => [layer.id, layer.enabled, layer.generator, layer.particleCount, layer.opacity])).toEqual(
+      low.layers.map(layer => [layer.id, layer.enabled, layer.generator, layer.particleCount, layer.opacity]),
+    )
+  })
+
+  it('uses Trail Intensity only for the primary fading history', () => {
+    const dry = resolved(31, {}, { selectedShowId: 'stereoPulseStudy', trailIntensity: 0 })
+    const long = resolved(31, {}, { selectedShowId: 'stereoPulseStudy', trailIntensity: 1 })
+    const dryPrimary = role(dry, 'primaryMotif')
+    const longPrimary = role(long, 'primaryMotif')
+
+    expect(dryPrimary.trailPersistence).toBe(0)
+    expect(longPrimary.trailPersistence).toBe(0)
+    expect(longPrimary.professionalScope?.state.phosphor.persistenceSeconds).toBeGreaterThan(
+      dryPrimary.professionalScope?.state.phosphor.persistenceSeconds ?? 0,
+    )
+    expect(longPrimary.feedbackAmount).toBe(0)
+    expect(long.global).toEqual(dry.global)
+    expect(long.layers.filter(layer => layer.role !== 'primaryMotif')).toEqual(
+      dry.layers.filter(layer => layer.role !== 'primaryMotif'),
+    )
+  })
+
+  it('starts with no Performance Show and treats explicit preset selection as the only authored-system selector', () => {
+    expect(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.selectedShowId).toBeNull()
+    expect(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.autoPerformance).toBe(false)
+    expect(resolveSoundDrawingPerformanceFrame({
+      frame: frameAt(31),
+      settings: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS, autoPerformance: true },
+      manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
+    })).toBeNull()
 
     const living = resolved(31, {}, { selectedShowId: 'livingRibbonSystem' })
     const staleLivingOverride = resolved(31, {}, {
@@ -373,37 +432,53 @@ describe('Sound Drawing authored Performance Engine', () => {
     expect(role(hat, 'primaryMotif').scale).toBeCloseTo(role(baseline, 'primaryMotif').scale)
   })
 
-  it('develops four-bar motifs, recruits at eight bars, and evolves at sixteen bars', () => {
-    const opening = resolved(31)
-    const fourBar = resolved(39)
-    const eightBar = resolved(47)
-    const sixteenBar = resolved(63)
+  it('shows supporting visuals only in high-energy sections and never recruits them through Complexity', () => {
+    const intro = resolved(4)
+    const verse = resolved(12)
+    const earlyBuild = resolved(17)
+    const lateBuild = resolved(22)
+    const drop = resolved(31)
+    const breakdown = resolved(72)
 
-    expect(role(fourBar, 'primaryMotif').rotation).not.toBe(role(opening, 'primaryMotif').rotation)
-    expect(role(opening, 'harmonicLayer').enabled).toBe(false)
-    expect(role(eightBar, 'harmonicLayer').enabled).toBe(true)
-    expect(role(sixteenBar, 'primaryMotif').traceCount).toBeGreaterThan(role(opening, 'primaryMotif').traceCount)
-    expect(role(sixteenBar, 'primaryMotif').symmetry).toBeGreaterThan(role(opening, 'primaryMotif').symmetry)
+    for (const frame of [intro, verse, earlyBuild, breakdown]) {
+      expect(frame.layers.filter(layer => layer.enabled && layer.role !== 'primaryMotif')).toHaveLength(0)
+    }
+    for (const frame of [lateBuild, drop]) {
+      const supporting = frame.layers.filter(layer => layer.enabled && layer.role !== 'primaryMotif')
+      expect(supporting.length).toBeGreaterThan(0)
+      expect(supporting.length).toBeLessThanOrEqual(2)
+      expect(supporting.every(layer => layer.opacity <= 0.22)).toBe(true)
+      expect(supporting.every(layer => layer.trailPersistence === 0 && layer.feedbackAmount === 0)).toBe(true)
+    }
+
+    const lowComplexity = resolved(31, {}, { complexity: 0 })
+    const highComplexity = resolved(31, {}, { complexity: 1 })
+    expect(highComplexity.layers.map(layer => [layer.id, layer.enabled, layer.generator])).toEqual(
+      lowComplexity.layers.map(layer => [layer.id, layer.enabled, layer.generator]),
+    )
   })
 
-  it('keeps Drop 2 recognizable while applying occurrence-aware evolution', () => {
+  it('keeps Drop 2 inside the same visual system while applying bounded occurrence-aware evolution', () => {
     const first = resolved(31)
     const second = resolved(87)
     expect(first.sceneId).toBe('rps-drop')
     expect(second.sceneId).toBe('rps-drop-2')
+    expect(role(second, 'primaryMotif').generator).toBe('radialOscilloscope')
     expect(role(second, 'primaryMotif').generator).toBe(role(first, 'primaryMotif').generator)
-    expect(role(second, 'primaryMotif').symmetry).toBeGreaterThan(role(first, 'primaryMotif').symmetry)
+    expect(role(second, 'primaryMotif').topologyVariant).not.toBe(role(first, 'primaryMotif').topologyVariant)
     expect(role(second, 'echoLayer').enabled).toBe(true)
   })
 
-  it('contracts before a drop and simplifies during breakdown', () => {
+  it('contracts before a drop and removes supporting visuals during breakdown', () => {
     const preDrop = resolved(25)
     const drop = resolved(31)
     const breakdown = resolved(72)
     expect(role(preDrop, 'primaryMotif').scale).toBeLessThan(role(drop, 'primaryMotif').scale)
-    expect(preDrop.global.feedbackAmount).toBeLessThan(drop.global.feedbackAmount)
-    expect(breakdown.layers.filter(layer => layer.enabled).length).toBeLessThan(drop.layers.filter(layer => layer.enabled).length)
-    expect(breakdown.layers.reduce((sum, layer) => sum + layer.traceCount, 0)).toBeLessThan(drop.layers.reduce((sum, layer) => sum + layer.traceCount, 0))
+    expect(preDrop.global.feedbackAmount).toBe(0)
+    expect(drop.global.feedbackAmount).toBe(0)
+    expect(breakdown.layers.filter(layer => layer.enabled)).toHaveLength(1)
+    expect(drop.layers.filter(layer => layer.enabled).length).toBeGreaterThan(1)
+    expect(role(breakdown, 'primaryMotif').generator).toBe(role(drop, 'primaryMotif').generator)
   })
 
   it('is deterministic for direct resolution, seek discontinuities, and loop wraps', () => {
@@ -618,18 +693,20 @@ describe('Sound Drawing authored Performance Engine', () => {
 // ── Bounded authored composition ──────────────────────────────────────────────
 
 describe('authored performance layers use bounded composition', () => {
-  it('defaults ordinary authored geometry to screen rather than recursive additive accumulation', () => {
+  it('composites the readable primary motif last with source-over and restrains supporting layers to screen', () => {
     for (const timeSec of [4, 12, 20, 31, 74]) {
       const frame = resolved(timeSec)
       expect(frame.layers.length).toBeGreaterThan(0)
-      expect(frame.layers.every(layer => layer.blendMode === 'screen')).toBe(true)
+      const primary = role(frame, 'primaryMotif')
+      expect(frame.layers[frame.layers.length - 1]?.id).toBe(primary.id)
+      expect(primary.blendMode).toBe('source-over')
+      expect(frame.layers.filter(layer => layer.role !== 'primaryMotif').every(layer => layer.blendMode === 'screen')).toBe(true)
     }
   })
 
-  it('retains an explicit lighter blend only for intentionally emissive layers', () => {
+  it('never permits an authored layer to use recursive additive composition', () => {
     const frame = resolved(31, {}, { selectedShowId: 'scopeAndShape' })
-    const scope = frame.layers.find(layer => layer.generator === 'professionalScope')
-    expect(scope?.blendMode).toBe('lighter')
-    expect(frame.layers.some(layer => layer.blendMode === 'screen')).toBe(true)
+    expect(frame.layers.some(layer => layer.blendMode === 'lighter')).toBe(false)
+    expect(role(frame, 'primaryMotif').blendMode).toBe('source-over')
   })
 })

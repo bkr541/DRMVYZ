@@ -42,7 +42,13 @@ export function computeSoundDrawingHistoryWriteAlpha(
   authoredPersistence: number,
   feedbackAmount: number,
 ): number {
-  return clamp(0.42 + clamp(authoredPersistence, 0, 1) * 0.28 + clamp(feedbackAmount, 0, 1) * 0.18, 0.42, 0.88)
+  const persistence = clamp(authoredPersistence, 0, 1)
+  const feedback = clamp(feedbackAmount, 0, 1)
+  // Zero persistence means zero history. The previous fixed 0.42 floor wrote a
+  // ghost frame even when a layer explicitly requested no trail, which kept
+  // supporting visuals and low-Trail-Intensity scopes smeared on screen.
+  if (persistence <= 0.0001 && feedback <= 0.0001) return 0
+  return clamp(persistence * 0.72 + feedback * 0.18, 0, 0.88)
 }
 
 /**
