@@ -9,6 +9,7 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
+import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
 import { buildUnifiedSvgStatus, isUnifiedSvgMediaItem, resolveUnifiedSvgSource } from './svgSourceLifecycle'
 import {
@@ -489,30 +490,36 @@ export function ReactEnginePanel() {
               ? 'Select a Performance Show preset first. Until then, the base Classic Scope, Built-in Shape, Text, or SVG source remains active.'
               : 'Adds section-aware choreography to the selected show. Turn it off to keep the same show loaded in its stable base-design state.'}
           />
-          <SelectRow
-            label="Performance Show"
-            value={soundDrawingPerformanceSettings.selectedShowId ?? ''}
-            onChange={(value) => {
-              if (!value) {
-                setSoundDrawingPerformanceSettings({ selectedShowId: null, autoPerformance: false })
-                return
-              }
-              setSoundDrawingPerformanceSettings({
-                selectedShowId: value as NonNullable<typeof soundDrawingPerformanceSettings.selectedShowId>,
-                performanceSource: 'generatedVisual',
-                generatorPreference: 'authored',
-                locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
-              })
-            }}
-            options={[
-              { value: '', label: 'Select a Performance Show…', disabled: true },
-              ...SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
+          <div className="rv-ctrl-row">
+            <Dropdown
+              id="sound-drawing-performance-show"
+              label="Performance Show"
+              menuLabel="Performance Shows"
+              value={soundDrawingPerformanceSettings.selectedShowId}
+              onChange={(value) => {
+                setSoundDrawingPerformanceSettings({
+                  selectedShowId: value as NonNullable<typeof soundDrawingPerformanceSettings.selectedShowId>,
+                  performanceSource: 'generatedVisual',
+                  generatorPreference: 'authored',
+                  locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
+                })
+              }}
+              options={SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
                 value: show.id,
                 label: show.name,
-              })),
-            ]}
-            description="Selecting a Performance Show loads its base visual design without enabling Auto Performance. Auto Performance separately controls section choreography."
-          />
+                description: show.description,
+              }))}
+              placeholder="Select a Performance Show…"
+              ariaDescribedBy="sound-drawing-performance-show-description"
+              size="compact"
+            />
+            <span
+              id="sound-drawing-performance-show-description"
+              className="rv-ctrl-description"
+            >
+              Selecting a Performance Show loads its base visual design without enabling Auto Performance. Auto Performance separately controls section choreography.
+            </span>
+          </div>
           <div
             className="rv-ctrl-info rv-control-helper-copy"
             role="status"

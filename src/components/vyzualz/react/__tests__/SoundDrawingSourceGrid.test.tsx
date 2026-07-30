@@ -9,6 +9,7 @@ import { ReactEnginePanel } from '../ReactEnginePanel'
 import { ReactFxPanel } from '../ReactFxPanel'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from '../soundDrawing/SoundDrawingPerformanceTypes'
+import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../soundDrawing/SoundDrawingPerformanceShows'
 
 vi.mock('../../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({ currentAudioTrackId: null }),
@@ -43,12 +44,11 @@ afterEach(async () => {
 describe('Sound Drawing authored-show ownership', () => {
   it('loads with no Performance Show selected and leaves the base source controls active', async () => {
     await act(async () => root.render(<ReactEnginePanel />))
-    const showSelect = [...container.querySelectorAll<HTMLSelectElement>('select')]
-      .find(select => select.closest('.rv-ctrl-row')?.textContent?.includes('Performance Show'))!
+    const showDropdown = container.querySelector<HTMLButtonElement>('#sound-drawing-performance-show-trigger')!
     const autoToggle = [...container.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.closest('.rv-ctrl-row')?.textContent?.includes('Auto Performance'))!
 
-    expect(showSelect.value).toBe('')
+    expect(showDropdown.textContent).toContain('Select a Performance Show…')
     expect(autoToggle.disabled).toBe(true)
     expect(container.querySelector('[role="radiogroup"][aria-label="Sound Drawing source"]')).not.toBeNull()
   })
@@ -100,16 +100,15 @@ describe('Sound Drawing authored-show ownership', () => {
     })
     await act(async () => root.render(<ReactEnginePanel />))
 
-    const showSelect = [...container.querySelectorAll<HTMLSelectElement>('select')]
-      .find(select => select.closest('.rv-ctrl-row')?.textContent?.includes('Performance Show'))!
-    const nextShow = [...showSelect.options].find(option => option.value !== showSelect.value)!
-    await act(async () => {
-      showSelect.value = nextShow.value
-      showSelect.dispatchEvent(new Event('change', { bubbles: true }))
-    })
+    const showDropdown = container.querySelector<HTMLButtonElement>('#sound-drawing-performance-show-trigger')!
+    const nextShow = SOUND_DRAWING_PERFORMANCE_SHOWS[0]!
+    await act(async () => showDropdown.click())
+    const nextShowOption = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(option => option.textContent?.includes(nextShow.name))!
+    await act(async () => nextShowOption.click())
 
     const settings = useReactStore.getState().soundDrawingPerformanceSettings
-    expect(settings.selectedShowId).toBe(nextShow.value)
+    expect(settings.selectedShowId).toBe(nextShow.id)
     expect(settings.autoPerformance).toBe(false)
     expect(settings.performanceSource).toBe('generatedVisual')
     expect(settings.generatorPreference).toBe('authored')
