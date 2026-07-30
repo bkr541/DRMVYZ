@@ -542,12 +542,8 @@ export function Dropdown({
                   }}
                   onClick={() => chooseOption(option)}
                 >
-                  <span className="drm-dropdown__check" aria-hidden="true">
-                    {selected && (
-                      <svg viewBox="0 0 24 24">
-                        <path d="m5 12.5 4.2 4.2L19 7" />
-                      </svg>
-                    )}
+                  <span className="drm-dropdown__selection-indicator" aria-hidden="true">
+                    {selected && <span className="drm-dropdown__selection-dot" />}
                   </span>
                   <span className="drm-dropdown__option-copy">
                     <span className="drm-dropdown__option-label">{option.label}</span>
