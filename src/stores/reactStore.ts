@@ -2397,6 +2397,16 @@ function clearPerformanceActionPatch() {
   }
 }
 
+const DEFAULT_REACT_MASTER_CONTROLS = {
+  reactIntensity:       0.7,
+  reactMotion:          0.5,
+  reactGlow:            0.65,
+  reactBassReactivity:  0.8,
+  reactTrailDecay:      0.08,
+  reactFogDensity:      0.5,
+  reactParticleDensity: 0.5,
+} as const
+
 const MAX_PERFORMANCE_ACTION_EVENTS = 64
 
 function sanitizeLiveTrackSection(section: ReactTrackSection): ReactTrackSection {
@@ -2737,14 +2747,18 @@ export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): R
   const activeEngineId = typeof state.activeReactEngineId === 'string' ? state.activeReactEngineId : null
   const activePreset = activePresetId ? validPresetById.get(activePresetId) ?? null : null
   const activePresetWasRetired = activePresetId != null && retiredPresetIds.has(activePresetId)
-  const validStandaloneSelection = (activeEngineId === 'shaderPads' || activeEngineId === 'canvas') && activePresetId == null
+  const validPresetFreeSelection = (
+    activeEngineId === 'shaderPads'
+    || activeEngineId === 'canvas'
+    || activeEngineId === 'oscilloscope'
+  ) && activePresetId == null
   const validPresetSelection = activeEngineId != null
     && activeEngineId !== RETIRED_NEON_LATTICE_ENGINE_ID
     && activePreset != null
     && activePreset.engine === activeEngineId
 
   const hasPersistedSelection = 'activeReactPresetId' in state || 'activeReactEngineId' in state
-  if (hasPersistedSelection && (activePresetWasRetired || (!validStandaloneSelection && !validPresetSelection))) {
+  if (hasPersistedSelection && (activePresetWasRetired || (!validPresetFreeSelection && !validPresetSelection))) {
     state = {
       ...state,
       activeReactPresetId: INITIAL_PRESET_ID,
@@ -3222,10 +3236,11 @@ export interface RepairedReactSelection {
  * Repairs an engine/preset pair without mutating any unrelated state.
  *
  * The engine is authoritative when it is valid because the ENGINE tab is the
- * user's top-level selection. Preset-backed engines receive a preset from the
- * same family. The standalone Shader engine intentionally carries no React
- * preset. When the engine itself is invalid, a valid preset may recover it;
- * otherwise the explicit startup pair is used.
+ * user's top-level selection. Sound Drawing may intentionally run without a
+ * preset so its manual Classic Scope, Built-in Shape, Text, or SVG source owns
+ * the stage. Other preset-backed engines receive a preset from the same family.
+ * When the engine itself is invalid, a valid preset may recover it; otherwise
+ * the explicit startup pair is used.
  */
 export function repairReactEnginePresetSelection(
   activeReactPresetId: unknown,
@@ -3253,6 +3268,12 @@ export function repairReactEnginePresetSelection(
   }
 
   const engineId = activeReactEngineId as ReactEngineId
+  if (engineId === 'oscilloscope') {
+    return selectedPreset?.engine === engineId
+      ? { activeReactPresetId: selectedPreset.id, activeReactEngineId: engineId }
+      : { activeReactPresetId: null, activeReactEngineId: engineId }
+  }
+
   if (isStandaloneReactEngineId(engineId)) {
     return { activeReactPresetId: null, activeReactEngineId: engineId }
   }
@@ -4033,6 +4054,19 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   }
   // Imported/current-version snapshots do not necessarily pass through a
   // numbered migration, so keep the retirement boundary defensive.
+  if (version < 60) {
+    const activeEngineId = state.activeReactEngineId
+    const activePresetId = state.activeReactPresetId
+    if (activeEngineId === 'oscilloscope' && typeof activePresetId === 'string') {
+      state = {
+        ...state,
+        activeReactPresetId: null,
+        oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+        ...DEFAULT_REACT_MASTER_CONTROLS,
+      }
+    }
+  }
+
   return sanitizeRetiredReactPresetState(
     sanitizeRetiredNeonLatticeReactState(state),
   )
@@ -4172,9 +4206,14 @@ export function reactStorePartialize(s: ReactStoreState) {
     s.activeReactEngineId,
     s.reactPresets,
   )
+  const soundDrawingPresetIsActive = s.activeReactEngineId === 'oscilloscope'
+    && s.activeReactPresetId != null
+  const persistedSelection = soundDrawingPresetIsActive
+    ? { activeReactPresetId: null, activeReactEngineId: 'oscilloscope' as const }
+    : repairedSelection
   const persisted = {
-    activeReactPresetId:                repairedSelection.activeReactPresetId,
-    activeReactEngineId:                repairedSelection.activeReactEngineId,
+    activeReactPresetId:                persistedSelection.activeReactPresetId,
+    activeReactEngineId:                persistedSelection.activeReactEngineId,
     reactPresets:                       s.reactPresets,
     pixGridState:                       normalizePixGridState(s.pixGridState),
     cinematicConfigsByPresetId:         s.cinematicConfigsByPresetId,
@@ -4193,7 +4232,9 @@ export function reactStorePartialize(s: ReactStoreState) {
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
     pixGridActionCuesByTrackId:          normalizePixGridActionCueMap(s.pixGridActionCuesByTrackId),
-    oscillatorSettings:                 s.oscillatorSettings,
+    oscillatorSettings:                 soundDrawingPresetIsActive
+      ? { ...DEFAULT_OSCILLATOR_SETTINGS }
+      : s.oscillatorSettings,
     soundDrawingPerformanceSettings:     normalizeSoundDrawingPerformanceSettings({
       ...s.soundDrawingPerformanceSettings,
       selectedShowId: null,
@@ -4210,13 +4251,13 @@ export function reactStorePartialize(s: ReactStoreState) {
     laserDmxBeamMatrixPresetDirty:      s.laserDmxBeamMatrixPresetDirty,
     soundDrawingLayersByTrackId:        normalizeSoundDrawingLayersByTrackId(s.soundDrawingLayersByTrackId),
     soundDrawingClipsByTrackId:         s.soundDrawingClipsByTrackId,
-    reactIntensity:       s.reactIntensity,
-    reactMotion:          s.reactMotion,
-    reactGlow:            s.reactGlow,
-    reactBassReactivity:  s.reactBassReactivity,
-    reactTrailDecay:      s.reactTrailDecay,
-    reactFogDensity:      s.reactFogDensity,
-    reactParticleDensity: s.reactParticleDensity,
+    reactIntensity:       soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactIntensity : s.reactIntensity,
+    reactMotion:          soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactMotion : s.reactMotion,
+    reactGlow:            soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactGlow : s.reactGlow,
+    reactBassReactivity:  soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactBassReactivity : s.reactBassReactivity,
+    reactTrailDecay:      soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactTrailDecay : s.reactTrailDecay,
+    reactFogDensity:      soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactFogDensity : s.reactFogDensity,
+    reactParticleDensity: soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactParticleDensity : s.reactParticleDensity,
   }
   return sanitizeRetiredReactPresetState(
     sanitizeRetiredNeonLatticeReactState(persisted),
@@ -5103,6 +5144,28 @@ export const useReactStore = create<ReactStoreState>()(
               : {}
           }
 
+          if (s.activeReactEngineId === 'oscilloscope') {
+            return {
+              activeReactPresetId: null,
+              oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+              soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
+                DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+              ),
+              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+                s.oscillatorFontAssets,
+                DEFAULT_OSCILLATOR_SETTINGS,
+                s.soundDrawingLayersByTrackId,
+                s.oscillatorTextPointCache,
+              ),
+              glyphLostNotice: null,
+              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
+              soundDrawingRibbonResetRevision: s.soundDrawingRibbonResetRevision + 1,
+              performancePadTransition: null,
+              ...DEFAULT_REACT_MASTER_CONTROLS,
+              ...clearPerformanceActionPatch(),
+            }
+          }
+
           if (isStandaloneReactEngineId(s.activeReactEngineId)) {
             return { activeReactPresetId: null, performancePadTransition: null, ...clearPerformanceActionPatch() }
           }
@@ -5145,6 +5208,32 @@ export const useReactStore = create<ReactStoreState>()(
                   ...clearPerformanceActionPatch(),
                   ...pixGridCleanup,
                 }
+          }
+
+          // Sound Drawing always opens in its preset-free base state. Presets are
+          // opt-in looks and must never be silently selected by an engine switch.
+          if (engineId === 'oscilloscope') {
+            return {
+              activeReactEngineId: engineId,
+              activeReactPresetId: null,
+              oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+              soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
+                DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+              ),
+              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
+                s.oscillatorFontAssets,
+                DEFAULT_OSCILLATOR_SETTINGS,
+                s.soundDrawingLayersByTrackId,
+                s.oscillatorTextPointCache,
+              ),
+              glyphLostNotice: null,
+              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
+              soundDrawingRibbonResetRevision: s.soundDrawingRibbonResetRevision + 1,
+              performancePadTransition: null,
+              ...DEFAULT_REACT_MASTER_CONTROLS,
+              ...clearPerformanceActionPatch(),
+              ...pixGridCleanup,
+            }
           }
 
           // Shader Pads and CANVAS are standalone shells with no React presets.
@@ -8087,7 +8176,11 @@ export const useReactStore = create<ReactStoreState>()(
           if (s.activeReactEngineId === 'oscilloscope') {
             return {
               ...sharedDefaults,
+              activeReactPresetId: null,
               oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+              soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
+                DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
+              ),
               oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
                 s.oscillatorFontAssets,
                 DEFAULT_OSCILLATOR_SETTINGS,
@@ -8312,7 +8405,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 59,
+      version: 60,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

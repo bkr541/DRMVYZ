@@ -1,7 +1,8 @@
 /**
  * Tests for the React store's engine/preset synchronisation invariant:
  *
- *   activeReactEngineId === reactPresets.find(p => p.id === activeReactPresetId)?.engine
+ * Preset-backed engines keep engine/preset IDs synchronized. Sound Drawing,
+ * Shader Pads, and CANVAS may intentionally run with no active preset.
  *
  * Covers:
  *   1. buildPresetPatch pure-function correctness
@@ -28,7 +29,7 @@ const oscPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'oscillosco
 const enhancedOscPreset = DEFAULT_REACT_PRESETS.find(
   p => p.engine === 'oscilloscope' && p.oscillatorSettings != null,
 )
-const STANDALONE_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas'])
+const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas', 'oscilloscope'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -108,24 +109,23 @@ describe('selectReactEngine', () => {
     expect(useReactStore.getState().activeReactEngineId).toBe('oscilloscope')
   })
 
-  it('selecting oscilloscope: active preset belongs to oscilloscope', () => {
+  it('selecting oscilloscope: opens the preset-free base engine', () => {
     useReactStore.getState().selectReactEngine('oscilloscope')
-    const { activeReactPresetId, reactPresets } = useReactStore.getState()
-    const preset = activePreset(reactPresets, activeReactPresetId)
-    expect(preset?.engine).toBe('oscilloscope')
+    const { activeReactPresetId, oscillatorSettings } = useReactStore.getState()
+    expect(activeReactPresetId).toBeNull()
+    expect(oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
+    expect(oscillatorSettings.sourceType).toBe('classic')
+    expect(oscillatorSettings.classicMode).toBe('waveform')
+    expect(oscillatorSettings.autoSectionMode).toBe(false)
   })
 
-  it('selecting oscilloscope: oscillatorSettings are resolved (no leftover state)', () => {
-    // Put the store into a text-source state first
+  it('selecting oscilloscope: removes settings left by a previously selected preset', () => {
+    useReactStore.getState().selectReactPreset(oscPreset.id)
     useReactStore.getState().setOscillatorSettings({ sourceType: 'text', text: 'LEFTOVER' })
     useReactStore.getState().selectReactEngine('oscilloscope')
-    const { oscillatorSettings, activeReactPresetId, reactPresets } = useReactStore.getState()
-    const preset = activePreset(reactPresets, activeReactPresetId)
-    // If the selected oscilloscope preset has no sourceType override, DEFAULT wins
-    if (!preset?.oscillatorSettings?.sourceType) {
-      expect(oscillatorSettings.sourceType).toBe(DEFAULT_OSCILLATOR_SETTINGS.sourceType)
-      expect(oscillatorSettings.text).toBe(DEFAULT_OSCILLATOR_SETTINGS.text)
-    }
+    const { oscillatorSettings, activeReactPresetId } = useReactStore.getState()
+    expect(activeReactPresetId).toBeNull()
+    expect(oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
   })
 
   it('re-selecting the current engine does not change the active preset', () => {
@@ -145,17 +145,13 @@ describe('selectReactEngine', () => {
     expect(reactIntensity).toBe(preset?.params.intensity)
   })
 
-  // Invariant: engine ID and preset's engine always agree after selectReactEngine
-  it.each(['cinematicPortal', 'oscilloscope'] as const)(
-    'invariant: activeReactEngineId === activePreset.engine after selecting %s',
-    (engineId) => {
-      useReactStore.getState().selectReactEngine(engineId)
-      const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
-      const preset = activePreset(reactPresets, activeReactPresetId)
-      expect(activeReactEngineId).toBe(engineId)
-      expect(preset?.engine).toBe(activeReactEngineId)
-    },
-  )
+  it('invariant: preset-backed engines keep the active preset in the same family', () => {
+    useReactStore.getState().selectReactEngine('cinematicPortal')
+    const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
+    const preset = activePreset(reactPresets, activeReactPresetId)
+    expect(activeReactEngineId).toBe('cinematicPortal')
+    expect(preset?.engine).toBe(activeReactEngineId)
+  })
 
   it('selecting canvas: sets a standalone engine with no preset', () => {
     useReactStore.getState().selectReactEngine('canvas')
@@ -171,7 +167,7 @@ describe('selectReactEngine', () => {
         expect(() => useReactStore.getState().selectReactEngine(engineId)).not.toThrow()
         const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
         expect(activeReactEngineId).toBe(engineId)
-        if (STANDALONE_ENGINE_IDS.has(engineId)) {
+        if (PRESET_FREE_ENGINE_IDS.has(engineId)) {
           expect(activeReactPresetId).toBeNull()
         } else {
           expect(activePreset(reactPresets, activeReactPresetId)?.engine).toBe(engineId)

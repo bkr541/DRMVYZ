@@ -610,7 +610,7 @@ export const CANVAS_PRESET_BY_ID: Record<CanvasPresetId, CanvasPresetDefinition>
 
 export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   sourceType:          'classic',
-  classicMode:         'sectionAuto',
+  classicMode:         'waveform',
   builtinShape:        'circle',
   selectedGlyphId:     null,
   selectedSvgVisualId: null,
@@ -647,7 +647,7 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   duplicateTraces:   1,
   mirrorX:           false,
   mirrorY:           false,
-  autoSectionMode:   true,
+  autoSectionMode:   false,
   scannerKinematicsEnabled:           false,
   scannerCornerDwellMicros:           64,
   scannerBlankingDelayMicros:         18,

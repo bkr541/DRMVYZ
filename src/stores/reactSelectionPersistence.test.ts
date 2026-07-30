@@ -9,6 +9,7 @@ import {
   useReactStore,
 } from './reactStore'
 import {
+  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_REACT_PRESETS,
   createDefaultLaserDmxBeamMatrixSettings,
@@ -22,10 +23,17 @@ const firstFor = (engine: (typeof DEFAULT_REACT_PRESETS)[number]['engine']) =>
   DEFAULT_REACT_PRESETS.find(p => p.engine === engine)!
 
 describe('repairReactEnginePresetSelection', () => {
-  it('preserves a valid matching engine/preset pair', () => {
+  it('preserves an explicitly selected Sound Drawing preset in live memory', () => {
     const preset = firstFor('oscilloscope')
     expect(repairReactEnginePresetSelection(preset.id, 'oscilloscope')).toEqual({
       activeReactPresetId: preset.id,
+      activeReactEngineId: 'oscilloscope',
+    })
+  })
+
+  it('keeps Sound Drawing preset-free when no preset was explicitly selected', () => {
+    expect(repairReactEnginePresetSelection(null, 'oscilloscope')).toEqual({
+      activeReactPresetId: null,
       activeReactEngineId: 'oscilloscope',
     })
   })
@@ -94,6 +102,48 @@ describe('React selection persistence invariant', () => {
     const persisted = reactStorePartialize(useReactStore.getState())
     expect(persisted.activeReactEngineId).toBe('cinematicPortal')
     expect(persisted.activeReactPresetId).toBe('preset-singularity-crown')
+  })
+
+  it('does not persist a selected Sound Drawing preset or its display payload', () => {
+    const preset = firstFor('oscilloscope')
+    useReactStore.getState().selectReactPreset(preset.id)
+    useReactStore.getState().setOscillatorSettings({
+      sourceType: 'text',
+      text: 'PRESET PAYLOAD',
+      autoSectionMode: true,
+    })
+
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted.activeReactEngineId).toBe('oscilloscope')
+    expect(persisted.activeReactPresetId).toBeNull()
+    expect(persisted.oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
+    expect(persisted.reactIntensity).toBe(0.7)
+    expect(persisted.reactMotion).toBe(0.5)
+    expect(persisted.reactGlow).toBe(0.65)
+  })
+
+  it('migrates an old Sound Drawing preset selection back to the base engine', () => {
+    const preset = firstFor('oscilloscope')
+    const migrated = migrateReactStore({
+      activeReactPresetId: preset.id,
+      activeReactEngineId: 'oscilloscope',
+      oscillatorSettings: {
+        ...DEFAULT_OSCILLATOR_SETTINGS,
+        sourceType: 'text',
+        text: 'OLD PRESET',
+        autoSectionMode: true,
+      },
+      reactIntensity: 0.12,
+      reactMotion: 0.93,
+      reactGlow: 1,
+    }, 59)
+
+    expect(migrated.activeReactEngineId).toBe('oscilloscope')
+    expect(migrated.activeReactPresetId).toBeNull()
+    expect(migrated.oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
+    expect(migrated.reactIntensity).toBe(0.7)
+    expect(migrated.reactMotion).toBe(0.5)
+    expect(migrated.reactGlow).toBe(0.65)
   })
 
   it('compatibility engine setter routes through the invariant-preserving selector', () => {
