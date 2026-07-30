@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   resolveCinematicConfigForPreset,
@@ -17,6 +17,7 @@ import {
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import {
   ReactPresetCard,
+  resolvePresetCardNavigationIndex,
   type ReactPresetCardChip,
 } from './ReactPresetCard'
 import {
@@ -220,14 +221,119 @@ type PresetCollectionProps = {
   thumbnailGenerationKey: string
 }
 
+function handleCompactPresetCardKeyDown(
+  event: KeyboardEvent<HTMLDivElement>,
+  onActivate: () => void,
+): void {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    onActivate()
+    return
+  }
+
+  const group = event.currentTarget.closest<HTMLElement>('[data-preset-grid]')
+  if (!group) return
+  const cards = Array.from(group.querySelectorAll<HTMLElement>('[data-preset-card]'))
+  const currentIndex = cards.indexOf(event.currentTarget)
+  const columns = group.clientWidth >= 720 ? 2 : 1
+  const nextIndex = resolvePresetCardNavigationIndex(currentIndex, event.key, cards.length, columns)
+  if (nextIndex == null || nextIndex === currentIndex) return
+  event.preventDefault()
+  cards[nextIndex]?.focus()
+}
+
+function SoundDrawingPresetCard({
+  preset,
+  isActive,
+  modified,
+  isFavorite,
+  onSelect,
+  onToggleFavorite,
+  thumbnailGenerationKey,
+}: {
+  preset: ReactPreset
+  isActive: boolean
+  modified: boolean
+  isFavorite: boolean
+  onSelect: (id: string) => void
+  onToggleFavorite: (id: string) => void
+  thumbnailGenerationKey: string
+}) {
+  const modeHint = getModeHint(preset)
+  const activate = () => onSelect(preset.id)
+
+  return (
+    <div
+      className={`rv-shader-scene-card rv-sound-drawing-preset-card${isActive ? ' rv-shader-scene-card--active' : ''}`}
+      role="button"
+      tabIndex={0}
+      data-preset-card
+      data-preset-card-shell
+      data-preset-card-id={preset.id}
+      aria-pressed={isActive}
+      aria-current={isActive ? 'true' : undefined}
+      aria-label={`Load ${preset.name}`}
+      title={preset.description}
+      onClick={activate}
+      onKeyDown={event => handleCompactPresetCardKeyDown(event, activate)}
+    >
+      <ReactPresetThumbnail
+        preset={preset}
+        generationKey={thumbnailGenerationKey}
+        className="rv-shader-scene-thumb rv-sound-drawing-preset-thumb"
+      />
+
+      <div className="rv-shader-scene-card-body">
+        <div className="rv-shader-scene-name">{preset.name}</div>
+        <div className="rv-shader-scene-meta">
+          {modeHint && <span className="rv-shader-scene-category">{modeHint}</span>}
+          {modified && <span className="rv-shader-scene-badge">Modified</span>}
+        </div>
+      </div>
+
+      <div className="rv-shader-scene-actions" onClick={event => event.stopPropagation()}>
+        <button
+          type="button"
+          className={`rv-shader-scene-action${isFavorite ? ' rv-shader-scene-action--active' : ''}`}
+          onClick={() => onToggleFavorite(preset.id)}
+          aria-pressed={isFavorite}
+          aria-label={`${isFavorite ? 'Remove' : 'Add'} ${preset.name} ${isFavorite ? 'from' : 'to'} favorites`}
+          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          {isFavorite ? '★' : '☆'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps, 'presets'>) {
+  const isActive = preset.id === props.activePresetId && preset.engine === props.activeEngineId
+  const modified = props.modifiedIds.has(preset.id)
+  const isFavorite = props.favoriteIds.has(preset.id)
+
+  if (preset.engine === 'oscilloscope') {
+    return (
+      <SoundDrawingPresetCard
+        key={preset.id}
+        preset={preset}
+        isActive={isActive}
+        modified={modified}
+        isFavorite={isFavorite}
+        onSelect={props.onSelect}
+        onToggleFavorite={props.onToggleFavorite}
+        thumbnailGenerationKey={props.thumbnailGenerationKey}
+      />
+    )
+  }
+
   return (
     <StandardReactPresetCard
       key={preset.id}
       preset={preset}
-      isActive={preset.id === props.activePresetId && preset.engine === props.activeEngineId}
-      modified={props.modifiedIds.has(preset.id)}
-      isFavorite={props.favoriteIds.has(preset.id)}
+      isActive={isActive}
+      modified={modified}
+      isFavorite={isFavorite}
       activeEngineId={props.activeEngineId}
       onSelect={props.onSelect}
       onToggleFavorite={props.onToggleFavorite}

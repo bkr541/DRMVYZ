@@ -12,7 +12,13 @@ import { LASER_DMX_BEAM_MATRIX_PRESETS } from '../laserDmxBeamMatrixPresets'
 import { ReactPresetsPanel } from '../ReactPresetsPanel'
 
 vi.mock('../ReactPresetThumbnail', () => ({
-  ReactPresetThumbnail: () => <div className="rv-preset-thumb" data-thumbnail-kind="standard" aria-hidden="true" />,
+  ReactPresetThumbnail: ({ className = '' }: { className?: string }) => (
+    <div
+      className={`rv-preset-thumb${className ? ` ${className}` : ''}`}
+      data-thumbnail-kind="standard"
+      aria-hidden="true"
+    />
+  ),
 }))
 
 let container: HTMLDivElement
@@ -224,18 +230,27 @@ describe('canonical React preset card architecture', () => {
     })
   })
 
-  it('keeps standard non-Laser preset cards on the same canonical structure', async () => {
+  it('renders Sound Drawing presets with the same compact scene-card structure as Shader Pads', async () => {
     await act(async () => {
       useReactStore.getState().selectReactEngine('oscilloscope')
     })
     await render(<ReactPresetsPanel />)
 
-    const card = container.querySelector('[data-preset-card]')!
-    expect(card.classList.contains('rv-preset-card--with-thumb')).toBe(true)
-    expect(card.querySelector('.rv-preset-card-layout')).not.toBeNull()
-    expect(card.querySelector('[data-thumbnail-kind="standard"]')).not.toBeNull()
-    expect(card.querySelector('.rv-preset-name')).not.toBeNull()
-    expect(card.querySelector('.rv-preset-palette')).not.toBeNull()
-    expect(container.querySelector('.rv-preset-more-btn')).not.toBeNull()
+    const card = container.querySelector<HTMLElement>('[data-preset-card]')!
+    expect(card.classList.contains('rv-shader-scene-card')).toBe(true)
+    expect(card.classList.contains('rv-sound-drawing-preset-card')).toBe(true)
+    expect(card.classList.contains('rv-preset-card')).toBe(false)
+    expect(card.querySelector('.rv-shader-scene-thumb.rv-sound-drawing-preset-thumb')).not.toBeNull()
+    expect(card.querySelector('.rv-shader-scene-card-body')).not.toBeNull()
+    expect(card.querySelector('.rv-shader-scene-name')).not.toBeNull()
+    expect(card.querySelector('.rv-shader-scene-meta')).not.toBeNull()
+    expect(card.querySelector('.rv-shader-scene-actions .rv-shader-scene-action')).not.toBeNull()
+    expect(card.querySelector('.rv-preset-desc')).toBeNull()
+    expect(card.querySelector('.rv-preset-palette')).toBeNull()
+    expect(container.querySelector('.rv-preset-more-btn')).toBeNull()
+
+    await click(card)
+    expect(useReactStore.getState().activeReactPresetId).not.toBeNull()
+    expect(card.getAttribute('aria-pressed')).toBe('true')
   })
 })
