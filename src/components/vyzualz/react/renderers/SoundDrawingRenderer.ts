@@ -1449,8 +1449,8 @@ function drawHarmonicRibbonOnTrail(
   const supportingOffsets = traceOffsets
     .filter(offset => Math.abs(offset) > 0.0001)
     .sort((left, right) => Math.abs(right) - Math.abs(left))
-  const xStart = W * 0.035
-  const xSpan = W * 0.93
+  const xStart = 0
+  const xSpan = W
   const brightness = clamp(intMul, 0, 1.2)
   const strokeScale = clamp(layer.strokeWidth, 0.55, 2.2)
   const kinematics = resolveVectorBeamScannerKinematicsSettings(params.oscillator)
@@ -3082,10 +3082,17 @@ function renderPerformanceLayer(
           scopeTransitionSeconds,
         )
       : 1
+  const choreographyMotion = performance.choreographyActive
+    ? params.soundDrawingPerformanceSettings.motionIntensity
+    : 1
+  const choreographyReaction = performance.choreographyActive
+    ? params.soundDrawingPerformanceSettings.reactionIntensity
+    : 1
+  const effectiveSectionType = performance.choreographyActive ? sectionType : null
   const effectiveOscillator = buildPerformanceOscillator(
     params.oscillator,
     layer,
-    params.soundDrawingPerformanceSettings.motionIntensity,
+    choreographyMotion,
   )
   const effectiveParams: ReactRenderParams = {
     ...params,
@@ -3095,9 +3102,9 @@ function renderPerformanceLayer(
       0,
       4,
     ),
-    motion: clamp(params.motion * params.soundDrawingPerformanceSettings.motionIntensity, 0, 1),
+    motion: clamp(params.motion * choreographyMotion, 0, 1),
     glow: clamp(params.glow * (0.45 + layer.glow * 0.75), 0, 1.3),
-    bassReactivity: clamp(params.bassReactivity * params.soundDrawingPerformanceSettings.reactionIntensity, 0, 1.2),
+    bassReactivity: clamp(params.bassReactivity * choreographyReaction, 0, 1.2),
     oscillator: effectiveOscillator,
   }
   const layerFrame: ReactFrameContext =
@@ -3217,7 +3224,7 @@ function renderPerformanceLayer(
         layerPreset,
         effectiveParams,
         effectiveParams.intensity,
-        sectionType,
+        effectiveSectionType,
         `performance:${performance.showId}:${layer.id}`,
         temporalBlendMode,
       )

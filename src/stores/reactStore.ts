@@ -360,6 +360,7 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
       ? (source.selectedShowId as SoundDrawingPerformanceShowId)
       : null
   const autoPerformance = source.autoPerformance === true && selectedShowId !== null
+  const showSelected = selectedShowId !== null
   const generatorPreference =
     typeof source.generatorPreference === 'string' &&
     SOUND_DRAWING_GENERATOR_PREFERENCES.has(source.generatorPreference as SoundDrawingGeneratorPreference)
@@ -477,13 +478,13 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
       0,
       Math.min(1, finiteNumber(source.trailIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailIntensity)),
     ),
-    generatorPreference: autoPerformance ? 'authored' : generatorPreference,
+    generatorPreference: showSelected ? 'authored' : generatorPreference,
     quality:
       typeof source.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(source.quality)
         ? (source.quality as SoundDrawingPerformanceSettings['quality'])
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
     livingRibbon,
-    performanceSource: autoPerformance
+    performanceSource: showSelected
       ? 'generatedVisual'
       : source.performanceSource === 'activeText' || source.performanceSource === 'activeSvg'
         ? 'activeUserSource'
@@ -528,8 +529,8 @@ export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundD
         ),
       ),
     ),
-    locks: autoPerformance ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks } : locks,
-    trailLockContract: autoPerformance
+    locks: showSelected ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks } : locks,
+    trailLockContract: showSelected
       ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract }
       : trailLockContract,
   }
@@ -5545,10 +5546,10 @@ export const useReactStore = create<ReactStoreState>()(
       setSoundDrawingPerformanceLock: (key, value) =>
         set(s => {
           const settings = s.soundDrawingPerformanceSettings
-          // Parameter Locks are a retired manual-override contract. Auto Performance
-          // owns the active show atomically, so stale UI callbacks or old project
-          // code cannot partially replace a running scene.
-          if (settings.autoPerformance) return s
+          // A selected Performance Show owns its base design even while Auto
+          // Performance is off. Parameter Locks remain a manual-source contract
+          // and cannot partially replace either the base design or choreography.
+          if (settings.selectedShowId != null) return s
           const trailLockContract = key === 'trail' && value && settings.trailLockContract.mode === 'manualResolved'
             ? {
                 version: 2 as const,

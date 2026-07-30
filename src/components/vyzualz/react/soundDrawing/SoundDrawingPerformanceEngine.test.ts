@@ -246,12 +246,52 @@ describe('Sound Drawing authored Performance Engine', () => {
     expect(performance.layers.some((layer) => layer.generator === 'professionalScope')).toBe(false)
   })
 
-  it('returns manual ownership when Auto Performance is disabled', () => {
-    expect(resolveSoundDrawingPerformanceFrame({
+  it('renders the selected show base design when Auto Performance is disabled', () => {
+    const performance = resolveSoundDrawingPerformanceFrame({
       frame: frameAt(10),
       settings: settings({ autoPerformance: false, selectedShowId: 'stereoPulseStudy' }),
       manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
-    })).toBeNull()
+    })!
+    expect(performance.choreographyActive).toBe(false)
+    expect(performance.sceneId).toMatch(/^base:/)
+    expect(performance.appliedActionReasons).toContain('baseDesign')
+    expect(performance.global).toMatchObject({
+      cameraScale: 1, cameraRotation: 0, cameraX: 0, cameraY: 0, backgroundFade: 1,
+    })
+    const primary = role(performance, 'primaryMotif')
+    expect(primary).toMatchObject({ enabled: true, opacity: 1, scale: 1, x: 0, y: 0, rotation: 0 })
+    expect(primary.modulationRoutes).toEqual([])
+    expect(primary.eventBindings).toEqual([])
+  })
+
+  it('keeps the base design stable across track sections until choreography is enabled', () => {
+    const intro = resolved(2, {}, { selectedShowId: 'harmonicRibbonReactor', autoPerformance: false })
+    const drop = resolved(31, {}, { selectedShowId: 'harmonicRibbonReactor', autoPerformance: false })
+    expect(intro.choreographyActive).toBe(false)
+    expect(drop.choreographyActive).toBe(false)
+    expect(drop.sceneId).toBe(intro.sceneId)
+    expect(drop.layers).toEqual(intro.layers)
+    expect(drop.global).toEqual(intro.global)
+  })
+
+  it('preserves Harmonic Ribbon visibility and full-size presentation during choreography', () => {
+    for (const timeSec of [2, 25, 31, 90, 130]) {
+      const performance = resolved(timeSec, {}, {
+        selectedShowId: 'harmonicRibbonReactor',
+        autoPerformance: true,
+      })
+      const primary = role(performance, 'primaryMotif')
+      expect(performance.choreographyActive).toBe(true)
+      expect(primary.opacity).toBe(1)
+      expect(primary.scale).toBeGreaterThanOrEqual(1)
+      expect(primary.x).toBe(0)
+      expect(primary.y).toBe(0)
+      expect(performance.global.cameraScale).toBeGreaterThanOrEqual(1)
+      expect(performance.global.cameraRotation).toBe(0)
+      expect(performance.global.cameraX).toBe(0)
+      expect(performance.global.cameraY).toBe(0)
+      expect(performance.global.backgroundFade).toBe(1)
+    }
   })
 
   it('applies authored scope automation to the resolved scope pipeline state', () => {
@@ -386,7 +426,7 @@ describe('Sound Drawing authored Performance Engine', () => {
     expect(staleHarmonicOverride.layers).toEqual(harmonic.layers)
   })
 
-  it('consumes the authoritative shared context and preserves manual mode when Auto Performance is off', () => {
+  it('consumes the authoritative shared context and preserves manual mode when no show is selected', () => {
     const context = buildSoundDrawingPerformanceContext(frameAt(31))
     expect(context).toMatchObject({
       trackIdentity: 'track-a',
@@ -397,7 +437,7 @@ describe('Sound Drawing authored Performance Engine', () => {
     })
     expect(resolveSoundDrawingPerformanceFrame({
       frame: frameAt(31),
-      settings: settings({ autoPerformance: false }),
+      settings: settings({ autoPerformance: false, selectedShowId: null }),
       manualOscillator: DEFAULT_OSCILLATOR_SETTINGS,
     })).toBeNull()
   })

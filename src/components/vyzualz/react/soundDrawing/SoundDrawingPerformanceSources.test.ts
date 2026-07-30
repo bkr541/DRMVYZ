@@ -201,10 +201,29 @@ describe('Auto Performance source isolation', () => {
     expect(temporal.identity).not.toBe(phaseIdentity)
   })
 
-  it('preserves manual operation by returning no authored frame while Auto Performance is off', () => {
-    expect(resolveSoundDrawingPerformanceFrame({
+  it('changes the temporal identity when choreography is toggled without changing the selected show', () => {
+    const temporal: SoundDrawingPerformanceTemporalState = { identity: '' }
+    resolve(textOscillator, { selectedShowId: 'phaseOrbit', autoPerformance: false }, temporal)
+    const baseIdentity = temporal.identity
+    resolve(textOscillator, { selectedShowId: 'phaseOrbit', autoPerformance: true }, temporal)
+    expect(temporal.identity).not.toBe(baseIdentity)
+  })
+
+  it('keeps the selected authored source active while Auto Performance is off', () => {
+    const performance = resolveSoundDrawingPerformanceFrame({
       frame: frameAt(31),
       settings: settings({ autoPerformance: false }),
+      manualOscillator: textOscillator,
+    })!
+    expect(performance.choreographyActive).toBe(false)
+    expect(performance.activeSourceKind).toBe('generated')
+    expect(performance.sceneId).toMatch(/^base:/)
+  })
+
+  it('returns no authored frame only when no Performance Show is selected', () => {
+    expect(resolveSoundDrawingPerformanceFrame({
+      frame: frameAt(31),
+      settings: settings({ autoPerformance: false, selectedShowId: null }),
       manualOscillator: textOscillator,
     })).toBeNull()
   })

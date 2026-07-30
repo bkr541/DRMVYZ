@@ -176,27 +176,35 @@ describe('performance settings persistence migration', () => {
     expect(merged.soundDrawingPerformanceSettings).toEqual(corrected)
   })
 
-  it('preserves the opt-in Living Ribbon selection without rewriting legacy Harmonic Ribbon projects', () => {
+  it('canonicalizes every selected show to authored generated ownership even when choreography is off', () => {
     const living = normalizeSoundDrawingPerformanceSettings({
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
       selectedShowId: 'livingRibbonSystem',
+      autoPerformance: false,
       generatorPreference: 'livingRibbon',
+      performanceSource: 'activeUserSource',
       quality: 'high',
     })
     expect(living).toMatchObject({
       selectedShowId: 'livingRibbonSystem',
-      generatorPreference: 'livingRibbon',
+      autoPerformance: false,
+      generatorPreference: 'authored',
+      performanceSource: 'generatedVisual',
       quality: 'high',
     })
 
     const legacy = normalizeSoundDrawingPerformanceSettings({
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
       selectedShowId: 'harmonicRibbonReactor',
+      autoPerformance: false,
       generatorPreference: 'harmonicRibbon',
+      performanceSource: 'activeUserSource',
     })
     expect(legacy).toMatchObject({
       selectedShowId: 'harmonicRibbonReactor',
-      generatorPreference: 'harmonicRibbon',
+      autoPerformance: false,
+      generatorPreference: 'authored',
+      performanceSource: 'generatedVisual',
     })
   })
 

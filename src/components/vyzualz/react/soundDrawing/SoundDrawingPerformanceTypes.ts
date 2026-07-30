@@ -518,6 +518,8 @@ export interface SoundDrawingResolvedPerformanceFrame {
   showId: SoundDrawingPerformanceShowId
   showName: string
   sceneId: string
+  /** Selected show is always rendered; this flag only controls section choreography. */
+  choreographyActive: boolean
   context: SharedPerformanceContext
   layers: readonly SoundDrawingResolvedPerformanceLayer[]
   global: Required<SoundDrawingPerformanceGlobalBlueprint>

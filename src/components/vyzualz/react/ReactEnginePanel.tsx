@@ -487,7 +487,7 @@ export function ReactEnginePanel() {
             }
             description={soundDrawingPerformanceSettings.selectedShowId == null
               ? 'Select a Performance Show preset first. Until then, the base Classic Scope, Built-in Shape, Text, or SVG source remains active.'
-              : 'Runs the selected authored show. Turn it off to return to the unchanged base Sound Drawing source.'}
+              : 'Adds section-aware choreography to the selected show. Turn it off to keep the same show loaded in its stable base-design state.'}
           />
           <SelectRow
             label="Performance Show"
@@ -499,7 +499,6 @@ export function ReactEnginePanel() {
               }
               setSoundDrawingPerformanceSettings({
                 selectedShowId: value as NonNullable<typeof soundDrawingPerformanceSettings.selectedShowId>,
-                autoPerformance: true,
                 performanceSource: 'generatedVisual',
                 generatorPreference: 'authored',
                 locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
@@ -512,7 +511,7 @@ export function ReactEnginePanel() {
                 label: show.name,
               })),
             ]}
-            description="Performance Shows are opt-in presets. No preset is selected when Sound Drawing loads, so the base engine remains authoritative until you choose one."
+            description="Selecting a Performance Show loads its base visual design without enabling Auto Performance. Auto Performance separately controls section choreography."
           />
           <div
             className="rv-ctrl-info rv-control-helper-copy"
@@ -673,14 +672,31 @@ export function ReactEnginePanel() {
               </button>
             </>
           )}
-          {!soundDrawingPerformanceSettings.autoPerformance && (
+          {soundDrawingPerformanceSettings.selectedShowId != null && !soundDrawingPerformanceSettings.autoPerformance && (
+            <>
+              <CtrlSection label="Base Design" />
+              <SliderRow
+                label="Show Size"
+                value={osc.pathScale}
+                onChange={(value) => set({ pathScale: value })}
+                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+                step={0.01}
+                color="#4ac7db"
+                description="Scales the selected show's stable base design. Auto Performance can be enabled separately without replacing this visual family."
+              />
+              <div className="rv-ctrl-info rv-control-helper-copy">
+                {selectedSoundDrawingShow?.name ?? 'The selected Performance Show'} is active in its stable base-design state. Auto Performance is off, so section transitions and authored choreography are paused.
+              </div>
+            </>
+          )}
+          {soundDrawingPerformanceSettings.selectedShowId == null && (
             <div className="rv-ctrl-info rv-control-helper-copy">
-              Manual Sound Drawing sources, presets, timeline layers, and clips remain authoritative while Auto
-              Performance is off.
+              No Performance Show is selected. Manual Sound Drawing sources, presets, timeline layers, and clips own the output.
             </div>
           )}
 
-          {!soundDrawingPerformanceSettings.autoPerformance && (
+          {soundDrawingPerformanceSettings.selectedShowId == null && (
             <>
           <CtrlSection label="Engine Mode" />
 

@@ -10,14 +10,20 @@ describe('Sound Drawing authored-show ownership', () => {
     expect(state.status).toContain('base Classic Scope, Built-in Shape, Text, or SVG source owns the output')
   })
 
-  it('reports every domain as manual while Auto Performance is off', () => {
+  it('keeps a selected show authoritative in its base-design state while Auto Performance is off', () => {
     const state = resolveSoundDrawingOwnership({
       ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
       selectedShowId: 'stereoPulseStudy',
       autoPerformance: false,
     })
-    expect(state.owner).toBe('manual')
-    expect(Object.values(state.domains).every(domain => domain.owner === 'manual' && domain.editable)).toBe(true)
+    expect(state.owner).toBe('authored')
+    expect(state.showRunning).toBe(true)
+    expect(state.domains.source).toMatchObject({ owner: 'program', editable: false })
+    expect(state.domains.topology).toMatchObject({ owner: 'program', editable: false })
+    expect(state.domains.presentation).toMatchObject({ owner: 'program', editable: false })
+    expect(state.domains.geometry).toMatchObject({ owner: 'mixed', editable: true })
+    expect(state.status).toContain('base design is active')
+    expect(state.status).toContain('section choreography is paused')
   })
 
   it('makes a running show authoritative for source, generators, topology, and presentation', () => {

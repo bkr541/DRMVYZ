@@ -575,7 +575,7 @@ export function ReactPlaceholderCanvas({
           scopeTap.sampleRate,
         )
         const performanceSettings = soundDrawingPerformanceSettingsRef.current
-        const authoredRequestFrames = performanceSettings.autoPerformance && performanceSettings.selectedShowId != null
+        const authoredRequestFrames = performanceSettings.selectedShowId != null
           ? soundDrawingPerformanceShowProfessionalScopeLayers(performanceSettings.selectedShowId).reduce(
               (maximum, layer) =>
                 Math.max(

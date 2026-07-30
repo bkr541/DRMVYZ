@@ -67,17 +67,15 @@ export function resolveSoundDrawingOwnership(
   const showUsesScope = settings.selectedShowId == null
     ? false
     : soundDrawingPerformanceShowUsesGenerator(settings.selectedShowId, 'professionalScope')
-  if (!settings.autoPerformance || show == null) {
+  if (show == null) {
     const manual = domain('manual', true, 'The manual control value is the resolved runtime input.')
     return {
       owner: 'manual',
-      showName: show?.name ?? 'No Performance Show',
+      showName: 'No Performance Show',
       showRunning: false,
       professionalScopeOwner: 'manual',
       manualScopeControlsDisabled: false,
-      status: show
-        ? `${show.name} is selected but not running. Manual Sound Drawing controls own the output.`
-        : 'No Performance Show preset is selected. The base Classic Scope, Built-in Shape, Text, or SVG source owns the output.',
+      status: 'No Performance Show preset is selected. The base Classic Scope, Built-in Shape, Text, or SVG source owns the output.',
       domains: {
         source: manual,
         geometry: manual,
@@ -94,10 +92,13 @@ export function resolveSoundDrawingOwnership(
     }
   }
 
+
   const program = domain(
     'program',
     false,
-    `${show.name} supplies this value as part of its authored scene choreography.`,
+    settings.autoPerformance
+      ? `${show.name} supplies this value as part of its authored scene choreography.`
+      : `${show.name} supplies this value as part of its stable base design.`,
   )
   const mixedGeometry = domain(
     'mixed',
@@ -119,7 +120,9 @@ export function resolveSoundDrawingOwnership(
     showRunning: true,
     professionalScopeOwner: showUsesScope ? 'authored' : 'none',
     manualScopeControlsDisabled: true,
-    status: `${show.name} owns its source, generators, layers, and section choreography. Manual Engine Mode and parameter locks are not used while Auto Performance is on.`,
+    status: settings.autoPerformance
+      ? `${show.name} owns its source, generators, layers, and section choreography. Auto Performance is on.`
+      : `${show.name} base design is active. Auto Performance is off, so section choreography is paused while the selected visual remains loaded.`,
     domains: {
       source: program,
       geometry: mixedGeometry,

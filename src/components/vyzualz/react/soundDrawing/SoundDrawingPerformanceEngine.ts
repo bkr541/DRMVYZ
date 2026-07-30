@@ -4,6 +4,7 @@ import {
   buildSharedPerformanceContext,
   resolveSharedPerformanceEventEnvelope,
   resolveSharedPerformanceProgram,
+  type SharedPerformanceActionIntent,
   type SharedPerformanceContext,
   type SharedPerformanceProgramResolution,
 } from '../../../../features/performanceCore'
@@ -107,6 +108,7 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     ? source.generatorPreference
     : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference
   const autoPerformance = source.autoPerformance === true && selectedShowId !== null
+  const showSelected = selectedShowId !== null
   return {
     selectedShowId,
     autoPerformance,
@@ -114,7 +116,7 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     motionIntensity: clamp01(source.motionIntensity),
     reactionIntensity: clamp01(source.reactionIntensity),
     trailIntensity: clamp01(source.trailIntensity),
-    generatorPreference: autoPerformance ? 'authored' : generatorPreference,
+    generatorPreference: showSelected ? 'authored' : generatorPreference,
     quality: ['auto', 'low', 'medium', 'high'].includes(source.quality)
       ? source.quality
       : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
@@ -144,7 +146,7 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
         source.livingRibbon?.audioReactionDepth ?? DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.audioReactionDepth,
       ),
     },
-    performanceSource: autoPerformance ? 'generatedVisual' : performanceSource,
+    performanceSource: showSelected ? 'generatedVisual' : performanceSource,
     sourceTreatment,
     useSourceAs,
     preserveIdentity: source.preserveIdentity !== false,
@@ -161,13 +163,15 @@ function normalizeSettings(value: SoundDrawingPerformanceSettings | undefined): 
     supportingVisualReactivity: clamp01(
       source.supportingVisualReactivity ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity,
     ),
-    locks: autoPerformance
+    locks: showSelected
       ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks }
       : {
           ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks,
           ...(source.locks ?? {}),
         },
-    trailLockContract: source.trailLockContract ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract,
+    trailLockContract: showSelected
+      ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract }
+      : source.trailLockContract ?? DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract,
   }
 }
 
@@ -973,8 +977,9 @@ function applyPerformanceShowIdentityContract(
   state: MutablePerformanceState,
   show: SoundDrawingPerformanceShowDefinition,
   context: SharedPerformanceContext,
+  choreographyActive: boolean,
 ): void {
-  const highEnergy = isHighEnergySupportingContext(context)
+  const highEnergy = choreographyActive && isHighEnergySupportingContext(context)
   let supportingLayersEnabled = 0
 
   state.layers = state.layers.map((layer) => {
@@ -1178,14 +1183,16 @@ function resolveState(
   settings: SoundDrawingPerformanceSettings,
   frame: ReactFrameContext,
   temporalState: SoundDrawingPerformanceTemporalState,
+  choreographyActive: boolean,
 ): MutablePerformanceState {
   const state: MutablePerformanceState = { layers: [], global: { ...DEFAULT_GLOBAL } }
-  // Establish authored scene/cadence first. The shared routing adapter then
-  // applies continuous modulation and persistent transient envelopes in that
-  // exact order before user intensity and safety clamps.
+  // Establish the authored visual design first. Cadence, continuous routes, and
+  // transient envelopes are only resolved while Auto Performance is enabled.
   for (const intent of resolution.intents) {
     if (intent.action.type !== 'pulse') applyAction(state, intent.action, context)
   }
+  if (!choreographyActive) return state
+
   const definitions = collectBehaviorDefinitions(state, resolution)
   // State-aware sinks preserve Sound Drawing target semantics while the
   // shared runtime owns only smoothing and transient timing state.
@@ -1203,6 +1210,93 @@ function resolveState(
   return state
 }
 
+function resolveBaseDesignProgram(
+  show: SoundDrawingPerformanceShowDefinition,
+  context: SharedPerformanceContext,
+): SharedPerformanceProgramResolution<SoundDrawingPerformanceAction> {
+  // Reuse the shared signal frame, but intentionally select only the fallback
+  // scene's static scene action. Entry/exit cadence, four-bar evolution,
+  // section routing, and event pulses belong to Auto Performance, not selection.
+  const shared = resolveSharedPerformanceProgram(show.program, context)
+  const scene =
+    (show.program.fallbackSceneId
+      ? show.program.scenes.find(candidate => candidate.id === show.program.fallbackSceneId)
+      : null) ??
+    show.program.scenes.find(candidate => candidate.sectionTypes.includes('unknown')) ??
+    show.program.scenes[0] ??
+    null
+  const intents: SharedPerformanceActionIntent<SoundDrawingPerformanceAction>[] = []
+  for (let index = 0; index < (scene?.actions?.length ?? 0); index += 1) {
+    intents.push({
+      reason: 'scene',
+      action: scene!.actions![index],
+      identity: `${show.program.id}|${scene!.id}|base|scene|${index}`,
+    })
+  }
+  return {
+    scene,
+    variation: null,
+    sectionPhase: shared.sectionPhase,
+    signals: shared.signals,
+    intents,
+    deterministicIdentity: `${show.program.id}|${scene?.id ?? 'none'}|base|${context.runtimeIdentity}`,
+  }
+}
+
+function applyBaseDesignContract(state: MutablePerformanceState): void {
+  // Selecting a show loads its full-size, full-visibility base visual. Auto
+  // Performance may later choreograph that design, but the off state must not
+  // fall back to Classic Scope or inherit hidden choreography intensity values.
+  state.layers = state.layers.map(layer => patchLayer(layer, {
+    modulationRoutes: [],
+    eventBindings: [],
+    ...(layer.role === 'primaryMotif'
+      ? {
+          enabled: true,
+          opacity: 1,
+          scale: 1,
+          x: 0,
+          y: 0,
+          rotation: 0,
+          phaseOffset: 0,
+          feedbackAmount: 0,
+        }
+      : {
+          trailPersistence: 0,
+          feedbackAmount: 0,
+        }),
+  }))
+  state.global = {
+    trailPersistence: 0,
+    feedbackAmount: 0,
+    cameraScale: 1,
+    cameraRotation: 0,
+    cameraX: 0,
+    cameraY: 0,
+    backgroundFade: 1,
+  }
+}
+
+function applyHarmonicRibbonPresentationFloor(
+  state: MutablePerformanceState,
+  show: SoundDrawingPerformanceShowDefinition,
+): void {
+  if (show.id !== 'harmonicRibbonReactor') return
+  state.layers = state.layers.map(layer => layer.role === 'primaryMotif'
+    ? patchLayer(layer, {
+        opacity: 1,
+        scale: Math.max(1, layer.scale),
+        x: 0,
+        y: 0,
+      })
+    : layer)
+  state.global.cameraScale = Math.max(1, state.global.cameraScale)
+  state.global.cameraRotation = 0
+  state.global.cameraX = 0
+  state.global.cameraY = 0
+  state.global.backgroundFade = 1
+}
+
 /**
  * Auto Performance precedence is: engine defaults → authored scene/cadence →
  * continuous routes → event envelopes → global choreography intensity controls
@@ -1213,23 +1307,29 @@ export function resolveSoundDrawingPerformanceFrame(
   input: ResolveSoundDrawingPerformanceInput,
 ): SoundDrawingResolvedPerformanceFrame | null {
   const settings = normalizeSettings(input.settings)
-  if (!settings.autoPerformance || settings.selectedShowId == null) return null
+  if (settings.selectedShowId == null) return null
   const show = SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID[settings.selectedShowId]
+  const choreographyActive = settings.autoPerformance
   const context = buildSoundDrawingPerformanceContext(input.frame, input.previousContext ?? null)
-  const resolution = resolveSharedPerformanceProgram(show.program, context)
+  const resolution = choreographyActive
+    ? resolveSharedPerformanceProgram(show.program, context)
+    : resolveBaseDesignProgram(show, context)
   const temporalIdentity = [
     context.trackChangeIdentity,
     context.timingDiscontinuityIdentity,
     show.id,
+    choreographyActive ? 'choreography' : 'base',
   ].join(':')
   const temporalState = input.temporalState ?? { identity: temporalIdentity }
   if (temporalState.identity !== temporalIdentity) {
     if (!context.trackReplacementDetected) synchronizeSoundDrawingBehaviorRuntime(temporalState, 'sourceReplacement')
     temporalState.identity = temporalIdentity
   }
-  const state = resolveState(resolution, context, settings, input.frame, temporalState)
-  applyPerformanceShowIdentityContract(state, show, context)
-  applyUserIntensityControls(state, settings)
+  const state = resolveState(resolution, context, settings, input.frame, temporalState, choreographyActive)
+  applyPerformanceShowIdentityContract(state, show, context, choreographyActive)
+  if (choreographyActive) applyUserIntensityControls(state, settings)
+  else applyBaseDesignContract(state)
+  applyHarmonicRibbonPresentationFloor(state, show)
   const sourceResolution = resolveSoundDrawingPerformanceSources({
     showId: show.id,
     layers: state.layers,
@@ -1239,7 +1339,8 @@ export function resolveSoundDrawingPerformanceFrame(
   })
   state.layers = sourceResolution.layers
   enforceSafetyBounds(state)
-  const sceneId = resolution.scene?.id ?? `${show.id}-none`
+  const authoredSceneId = resolution.scene?.id ?? `${show.id}-none`
+  const sceneId = choreographyActive ? authoredSceneId : `base:${authoredSceneId}`
   const finalSourceLayer = state.layers.find((layer) => layer.source.kind !== 'generated')
   const finalSupportingGeneratedLayers = state.layers
     .filter((layer) => layer.source.kind === 'generated' && layer.role !== 'primaryMotif')
@@ -1248,6 +1349,7 @@ export function resolveSoundDrawingPerformanceFrame(
     showId: show.id,
     showName: show.name,
     sceneId,
+    choreographyActive,
     context,
     ...sourceResolution,
     activeSourceKind: finalSourceLayer?.source.kind ?? sourceResolution.activeSourceKind,
@@ -1263,12 +1365,16 @@ export function resolveSoundDrawingPerformanceFrame(
     supportingGeneratedLayers: finalSupportingGeneratedLayers,
     layers: state.layers,
     global: state.global,
-    fallbackUsed:
+    fallbackUsed: choreographyActive && (
       resolution.scene == null ||
-      sceneId.includes('fallback') ||
+      authoredSceneId.includes('fallback') ||
       context.sectionConfidence < 0.3 ||
-      sourceResolution.sourceFallbackState != null,
-    deterministicIdentity: `${resolution.deterministicIdentity}:${sourceResolution.activeSourceKind}:${sourceResolution.activeTreatment}`,
-    appliedActionReasons: resolution.intents.map((intent) => intent.reason),
+      sourceResolution.sourceFallbackState != null
+    ),
+    deterministicIdentity: `${resolution.deterministicIdentity}:${choreographyActive ? 'choreography' : 'base'}:${sourceResolution.activeSourceKind}:${sourceResolution.activeTreatment}`,
+    appliedActionReasons: [
+      ...resolution.intents.map((intent) => intent.reason),
+      ...(choreographyActive ? [] : ['baseDesign']),
+    ],
   }
 }
