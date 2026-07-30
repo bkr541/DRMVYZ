@@ -3,6 +3,9 @@ import {
   HARMONIC_RIBBON_BAND_LAYOUT,
   buildHarmonicRibbonSignalBands,
   resolveHarmonicRibbonHistoryPresentationAlpha,
+  resolveHarmonicRibbonHistoryWriteAlpha,
+  resolveHarmonicRibbonMasterTraceAlpha,
+  resolveHarmonicRibbonSupportingTraceAlpha,
   resolveHarmonicRibbonTraceOffsets,
 } from '../HarmonicRibbonGeometry'
 import { resolveSoundDrawingPrimaryTraceCount } from '../../../soundDrawing/SoundDrawingPerformanceEngine'
@@ -63,10 +66,25 @@ describe('Harmonic Ribbon geometry', () => {
     }
   })
 
-  it('keeps history subordinate to current geometry', () => {
+  it('keeps the master waveform substantially brighter than supporting traces', () => {
+    const master = resolveHarmonicRibbonMasterTraceAlpha(1, 0.6)
+    const nearestSupport = resolveHarmonicRibbonSupportingTraceAlpha(0.33, 1, 0.6)
+    const outerSupport = resolveHarmonicRibbonSupportingTraceAlpha(1, 1, 0.6)
+    expect(master).toBeGreaterThan(0.95)
+    expect(nearestSupport).toBeLessThanOrEqual(0.16)
+    expect(outerSupport).toBeLessThan(nearestSupport)
+    expect(master / nearestSupport).toBeGreaterThan(6)
+    expect(resolveHarmonicRibbonMasterTraceAlpha(0, 1)).toBe(0)
+    expect(resolveHarmonicRibbonSupportingTraceAlpha(1, 0, 1)).toBe(0)
+  })
+
+  it('keeps history subordinate to current geometry at write and presentation time', () => {
+    expect(resolveHarmonicRibbonHistoryWriteAlpha(0)).toBe(0)
+    expect(resolveHarmonicRibbonHistoryWriteAlpha(0.24)).toBeCloseTo(0.06)
+    expect(resolveHarmonicRibbonHistoryWriteAlpha(1)).toBe(0.06)
     expect(resolveHarmonicRibbonHistoryPresentationAlpha(0)).toBe(0)
-    expect(resolveHarmonicRibbonHistoryPresentationAlpha(0.24)).toBeCloseTo(0.216)
-    expect(resolveHarmonicRibbonHistoryPresentationAlpha(1)).toBe(0.38)
+    expect(resolveHarmonicRibbonHistoryPresentationAlpha(0.24)).toBeCloseTo(0.0672)
+    expect(resolveHarmonicRibbonHistoryPresentationAlpha(1)).toBe(0.08)
   })
 
   it('preserves section-authored trace density while Complexity scales within it', () => {

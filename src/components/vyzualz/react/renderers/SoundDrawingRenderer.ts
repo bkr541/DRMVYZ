@@ -101,6 +101,9 @@ import {
   HARMONIC_RIBBON_BAND_LAYOUT,
   buildHarmonicRibbonSignalBands,
   resolveHarmonicRibbonHistoryPresentationAlpha,
+  resolveHarmonicRibbonHistoryWriteAlpha,
+  resolveHarmonicRibbonMasterTraceAlpha,
+  resolveHarmonicRibbonSupportingTraceAlpha,
   resolveHarmonicRibbonTraceOffsets,
 } from './soundDrawing/HarmonicRibbonGeometry'
 export {
@@ -1443,8 +1446,9 @@ function drawHarmonicRibbonOnTrail(
 ): void {
   const bands = buildHarmonicRibbonSignalBands(frame.timeDomainData)
   const traceOffsets = resolveHarmonicRibbonTraceOffsets(params.oscillator.duplicateTraces)
-  const orderedOffsets = [...traceOffsets].sort((left, right) => Math.abs(right) - Math.abs(left))
-  const closestToCenter = Math.min(...traceOffsets.map(offset => Math.abs(offset)))
+  const supportingOffsets = traceOffsets
+    .filter(offset => Math.abs(offset) > 0.0001)
+    .sort((left, right) => Math.abs(right) - Math.abs(left))
   const xStart = W * 0.035
   const xSpan = W * 0.93
   const brightness = clamp(intMul, 0, 1.2)
@@ -1464,12 +1468,10 @@ function drawHarmonicRibbonOnTrail(
     const traceSeparation = H * (0.0042 + traceOffsets.length * 0.00072) * (0.92 + energy * 0.12)
     const color = preset.palette[layout.colorKey]
 
-    for (const offset of orderedOffsets) {
-      const leadTrace = Math.abs(Math.abs(offset) - closestToCenter) <= 0.0001
-      const distance = Math.abs(offset)
+    const buildTracePoints = (offset: number): VectorBeamPoint[] => {
       const points: VectorBeamPoint[] = new Array(signal.length)
       const phaseShift = offset * (2.2 + bandIndex * 1.35 + layer.phaseOffset * 2)
-      const traceAmplitude = 1 - distance * 0.055
+      const traceAmplitude = 1 - Math.abs(offset) * 0.055
 
       for (let sampleIndex = 0; sampleIndex < signal.length; sampleIndex++) {
         const progress = sampleIndex / Math.max(1, signal.length - 1)
@@ -1486,20 +1488,48 @@ function drawHarmonicRibbonOnTrail(
             harmonicWeave,
         }
       }
+      return points
+    }
 
-      const alpha = clamp(
-        (leadTrace ? 0.8 : 0.5 - distance * 0.14) * (0.82 + energy * 0.16) * brightness,
-        0.12,
-        0.92,
-      )
-      const baseWidthPx = clamp(
-        (leadTrace ? 0.82 : 0.58) * strokeScale * dpr,
-        0.42 * dpr,
-        1.7 * dpr,
-      )
+    // Supporting contours are deliberately drawn first and kept dim. They add
+    // harmonic depth without competing with the readable live oscillator.
+    for (const offset of supportingOffsets) {
+      const alpha = resolveHarmonicRibbonSupportingTraceAlpha(offset, brightness, energy)
+      if (alpha <= 0.001) continue
+      const points = buildTracePoints(offset)
+      const baseWidthPx = clamp(0.46 * strokeScale * dpr, 0.3 * dpr, 0.9 * dpr)
       const beamColor = vectorBeamColorFromHex(color, alpha)
       const segments = buildVectorBeamSegmentsFromPoints(points, false, beamColor, undefined, kinematics)
-      rasterizeVectorBeamSegments(tctx, segments, { blendMode, baseWidthPx, intensity: 1 })
+      rasterizeVectorBeamSegments(tctx, segments, {
+        blendMode,
+        baseWidthPx,
+        intensity: 0.62,
+      })
+    }
+
+    // The zero-offset master contour is always generated independently, then
+    // drawn last in two passes: a controlled glow followed by a crisp source-over
+    // core. This guarantees one clearly visible waveform even in even-count scenes.
+    const masterPoints = buildTracePoints(0)
+    const masterAlpha = resolveHarmonicRibbonMasterTraceAlpha(brightness, energy)
+    if (masterAlpha > 0.001) {
+      const masterSegments = buildVectorBeamSegmentsFromPoints(
+        masterPoints,
+        false,
+        vectorBeamColorFromHex(color, masterAlpha),
+        undefined,
+        kinematics,
+      )
+      rasterizeVectorBeamSegments(tctx, masterSegments, {
+        blendMode,
+        baseWidthPx: clamp(1.35 * strokeScale * dpr, 0.85 * dpr, 2.6 * dpr),
+        intensity: 1,
+      })
+      rasterizeVectorBeamSegments(tctx, masterSegments, {
+        blendMode: 'source-over',
+        baseWidthPx: clamp(0.82 * strokeScale * dpr, 0.58 * dpr, 1.55 * dpr),
+        intensity: 1,
+      })
     }
   }
 }
@@ -3442,11 +3472,15 @@ function renderAuthoredSoundDrawingPerformance(
     )
     professionalScopeRendered ||= result.professionalScopeRendered === true
     if (result.fallbackReason) layerRenderFailures.push(result.fallbackReason)
+    const harmonicRibbonLayer =
+      layer.generator === 'harmonicRibbon' || layer.generator === 'stackedWaveformBands'
     renderedLayers.push({
       layer,
       historyCanvas: layerTrail.historyCanvas,
       frameCanvas: layerTrail.frameCanvas,
-      historyWriteAlpha: trailResolution.historyWriteAlpha,
+      historyWriteAlpha: harmonicRibbonLayer
+        ? resolveHarmonicRibbonHistoryWriteAlpha(trailResolution.historyWriteAlpha)
+        : trailResolution.historyWriteAlpha,
     })
   }
   pruneAuthoredLayerTrails(ctx, activeLayerKeys)

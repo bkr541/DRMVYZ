@@ -113,9 +113,32 @@ export function resolveHarmonicRibbonTraceOffsets(traceCount: number): readonly 
 }
 
 /**
- * History is a supporting afterimage only. Even at maximum authored persistence
- * it is presented below 40% opacity, leaving the current trace family dominant.
+ * The live master contour must remain unmistakable above every supporting trace.
+ * Supporting lines are intentionally capped at a small fraction of the master's
+ * opacity, while both roles still respect the layer's resolved brightness.
  */
+export function resolveHarmonicRibbonMasterTraceAlpha(brightness: number, energy: number): number {
+  return clamp(brightness * (0.94 + clamp(energy, 0, 1.2) * 0.05), 0, 1)
+}
+
+export function resolveHarmonicRibbonSupportingTraceAlpha(
+  distanceFromMaster: number,
+  brightness: number,
+  energy: number,
+): number {
+  const distance = Math.abs(distanceFromMaster)
+  const supportLevel = Math.max(0.07, 0.14 - distance * 0.035)
+  return clamp(supportLevel * brightness * (0.82 + clamp(energy, 0, 1.2) * 0.1), 0, 0.16)
+}
+
+/**
+ * History is only a dim motion echo. It is both written and presented at a
+ * reduced level so a saturated trail buffer cannot become a visible rectangle.
+ */
+export function resolveHarmonicRibbonHistoryWriteAlpha(historyWriteAlpha: number): number {
+  return clamp(historyWriteAlpha * 0.25, 0, 0.06)
+}
+
 export function resolveHarmonicRibbonHistoryPresentationAlpha(trailPersistence: number): number {
-  return clamp(trailPersistence * 0.9, 0, 0.38)
+  return clamp(trailPersistence * 0.28, 0, 0.08)
 }
