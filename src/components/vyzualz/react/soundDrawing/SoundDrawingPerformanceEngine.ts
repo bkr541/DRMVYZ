@@ -1280,6 +1280,7 @@ function applyBaseDesignContract(state: MutablePerformanceState): void {
 function applyHarmonicRibbonPresentationFloor(
   state: MutablePerformanceState,
   show: SoundDrawingPerformanceShowDefinition,
+  choreographyActive: boolean,
 ): void {
   if (show.id !== 'harmonicRibbonReactor') return
   state.layers = state.layers.map(layer => layer.role === 'primaryMotif'
@@ -1288,6 +1289,15 @@ function applyHarmonicRibbonPresentationFloor(
         scale: Math.max(1, layer.scale),
         x: 0,
         y: 0,
+        // The selected-show base state must visibly read as a ribbon rather
+        // than three isolated oscillator lines. Keep one master plus four
+        // symmetric supporting contours until choreography takes ownership.
+        traceCount: choreographyActive ? layer.traceCount : Math.max(5, layer.traceCount),
+        strokeWidth: Math.max(choreographyActive ? 1 : 1.05, layer.strokeWidth),
+        glow: Math.max(choreographyActive ? 0.5 : 0.62, layer.glow),
+        trailPersistence: choreographyActive
+          ? layer.trailPersistence
+          : Math.min(layer.trailPersistence, 0.1),
       })
     : layer)
   state.global.cameraScale = Math.max(1, state.global.cameraScale)
@@ -1329,7 +1339,7 @@ export function resolveSoundDrawingPerformanceFrame(
   applyPerformanceShowIdentityContract(state, show, context, choreographyActive)
   if (choreographyActive) applyUserIntensityControls(state, settings)
   else applyBaseDesignContract(state)
-  applyHarmonicRibbonPresentationFloor(state, show)
+  applyHarmonicRibbonPresentationFloor(state, show, choreographyActive)
   const sourceResolution = resolveSoundDrawingPerformanceSources({
     showId: show.id,
     layers: state.layers,

@@ -66,14 +66,17 @@ describe('Harmonic Ribbon geometry', () => {
     }
   })
 
-  it('keeps the master waveform substantially brighter than supporting traces', () => {
+  it('keeps the master waveform bright while leaving supporting traces visibly subordinate', () => {
     const master = resolveHarmonicRibbonMasterTraceAlpha(1, 0.6)
+    const midIntensityMaster = resolveHarmonicRibbonMasterTraceAlpha(0.5, 0.2)
     const nearestSupport = resolveHarmonicRibbonSupportingTraceAlpha(0.33, 1, 0.6)
     const outerSupport = resolveHarmonicRibbonSupportingTraceAlpha(1, 1, 0.6)
-    expect(master).toBeGreaterThan(0.95)
-    expect(nearestSupport).toBeLessThanOrEqual(0.16)
+    expect(master).toBeGreaterThan(0.98)
+    expect(midIntensityMaster).toBeGreaterThan(0.7)
+    expect(nearestSupport).toBeGreaterThan(0.2)
+    expect(nearestSupport).toBeLessThanOrEqual(0.3)
     expect(outerSupport).toBeLessThan(nearestSupport)
-    expect(master / nearestSupport).toBeGreaterThan(6)
+    expect(master / nearestSupport).toBeGreaterThan(3)
     expect(resolveHarmonicRibbonMasterTraceAlpha(0, 1)).toBe(0)
     expect(resolveHarmonicRibbonSupportingTraceAlpha(1, 0, 1)).toBe(0)
   })

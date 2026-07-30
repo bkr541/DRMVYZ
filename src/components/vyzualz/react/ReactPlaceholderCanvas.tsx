@@ -403,8 +403,13 @@ export function ReactPlaceholderCanvas({
         if (pausedTime !== undefined) audioTimeRef.current = pausedTime
         musicIntelligenceEngine.resolveLyricsAt(audioTimeRef.current, 'discontinuous')
         const lyricState = LyricPlaybackBus.getState()
+        const performanceSettings = soundDrawingPerformanceSettingsRef.current
         const pausedRenderKey = [
           renderRevisionRef.current,
+          soundDrawingTrailResetRevisionRef.current,
+          soundDrawingRibbonResetRevisionRef.current,
+          performanceSettings.selectedShowId ?? 'no-performance-show',
+          performanceSettings.autoPerformance ? 'choreography' : 'base-design',
           activeAudioTrackIdRef.current ?? 'none',
           lyricState.sourceIdentity ?? 'none',
           lyricState.documentId ?? 'none',

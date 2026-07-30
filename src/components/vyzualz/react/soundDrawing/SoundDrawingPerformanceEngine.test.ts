@@ -272,6 +272,11 @@ describe('Sound Drawing authored Performance Engine', () => {
     expect(drop.sceneId).toBe(intro.sceneId)
     expect(drop.layers).toEqual(intro.layers)
     expect(drop.global).toEqual(intro.global)
+    const primary = role(intro, 'primaryMotif')
+    expect(primary.traceCount).toBeGreaterThanOrEqual(5)
+    expect(primary.strokeWidth).toBeGreaterThanOrEqual(1.05)
+    expect(primary.glow).toBeGreaterThanOrEqual(0.62)
+    expect(primary.trailPersistence).toBeLessThanOrEqual(0.1)
   })
 
   it('preserves Harmonic Ribbon visibility and full-size presentation during choreography', () => {

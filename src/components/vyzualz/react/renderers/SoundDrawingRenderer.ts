@@ -1427,6 +1427,36 @@ function sampleHarmonicRibbonSignal(signal: Float32Array, index: number): number
   return (signal[left] ?? 0) * (1 - mix) + (signal[right] ?? 0) * mix
 }
 
+function strokeHarmonicRibbonPath(
+  tctx: CanvasRenderingContext2D,
+  points: readonly VectorBeamPoint[],
+  color: string,
+  alpha: number,
+  lineWidth: number,
+  blendMode: GlobalCompositeOperation,
+  shadowBlur = 0,
+): void {
+  if (points.length < 2 || alpha <= 0.001 || lineWidth <= 0) return
+  tctx.save()
+  tctx.globalCompositeOperation = blendMode
+  tctx.globalAlpha = clamp(alpha, 0, 1)
+  tctx.strokeStyle = color
+  tctx.lineWidth = lineWidth
+  tctx.lineCap = 'round'
+  tctx.lineJoin = 'round'
+  if (shadowBlur > 0) {
+    tctx.shadowColor = color
+    tctx.shadowBlur = shadowBlur
+  }
+  tctx.beginPath()
+  tctx.moveTo(points[0].x, points[0].y)
+  for (let index = 1; index < points.length; index++) {
+    tctx.lineTo(points[index].x, points[index].y)
+  }
+  tctx.stroke()
+  tctx.restore()
+}
+
 /**
  * Dedicated Harmonic Ribbon renderer. Multiple traces are current-frame
  * geometry; history is reserved for a short, faint afterimage by the authored
@@ -1465,7 +1495,8 @@ function drawHarmonicRibbonOnTrail(
         : frame.audio.bass * params.bassReactivity
     const centerY = H * layout.centerRatio
     const amplitude = H * layout.amplitudeRatio * (0.76 + clamp(energy, 0, 1.2) * 0.34)
-    const traceSeparation = H * (0.0042 + traceOffsets.length * 0.00072) * (0.92 + energy * 0.12)
+    const traceSeparation =
+      H * (0.0055 + Math.min(6, traceOffsets.length) * 0.0009) * (0.92 + energy * 0.12)
     const color = preset.palette[layout.colorKey]
 
     const buildTracePoints = (offset: number): VectorBeamPoint[] => {
@@ -1491,25 +1522,37 @@ function drawHarmonicRibbonOnTrail(
       return points
     }
 
-    // Supporting contours are deliberately drawn first and kept dim. They add
-    // harmonic depth without competing with the readable live oscillator.
+    // Supporting contours are deliberately drawn first. A faint halo and a
+    // clean source-over filament make the contour family visible as a ribbon,
+    // while avoiding the additive overdraw that previously turned it into fog.
     for (const offset of supportingOffsets) {
       const alpha = resolveHarmonicRibbonSupportingTraceAlpha(offset, brightness, energy)
       if (alpha <= 0.001) continue
       const points = buildTracePoints(offset)
-      const baseWidthPx = clamp(0.46 * strokeScale * dpr, 0.3 * dpr, 0.9 * dpr)
-      const beamColor = vectorBeamColorFromHex(color, alpha)
-      const segments = buildVectorBeamSegmentsFromPoints(points, false, beamColor, undefined, kinematics)
-      rasterizeVectorBeamSegments(tctx, segments, {
-        blendMode,
-        baseWidthPx,
-        intensity: 0.62,
-      })
+      const supportWidth = clamp(0.72 * strokeScale * dpr, 0.45 * dpr, 1.15 * dpr)
+      strokeHarmonicRibbonPath(
+        tctx,
+        points,
+        color,
+        alpha * 0.32,
+        supportWidth * 2.35,
+        'lighter',
+        supportWidth * 1.5,
+      )
+      strokeHarmonicRibbonPath(
+        tctx,
+        points,
+        color,
+        alpha,
+        supportWidth,
+        'source-over',
+      )
     }
 
-    // The zero-offset master contour is always generated independently, then
-    // drawn last in two passes: a controlled glow followed by a crisp source-over
-    // core. This guarantees one clearly visible waveform even in even-count scenes.
+    // The zero-offset master contour is always generated independently and
+    // drawn last. The shared beam pass supplies optical bloom; the direct
+    // source-over core bypasses velocity attenuation so the current oscillator
+    // remains unmistakable above the ribbon family and its temporal history.
     const masterPoints = buildTracePoints(0)
     const masterAlpha = resolveHarmonicRibbonMasterTraceAlpha(brightness, energy)
     if (masterAlpha > 0.001) {
@@ -1522,14 +1565,27 @@ function drawHarmonicRibbonOnTrail(
       )
       rasterizeVectorBeamSegments(tctx, masterSegments, {
         blendMode,
-        baseWidthPx: clamp(1.35 * strokeScale * dpr, 0.85 * dpr, 2.6 * dpr),
+        baseWidthPx: clamp(1.55 * strokeScale * dpr, 1 * dpr, 2.9 * dpr),
         intensity: 1,
       })
-      rasterizeVectorBeamSegments(tctx, masterSegments, {
-        blendMode: 'source-over',
-        baseWidthPx: clamp(0.82 * strokeScale * dpr, 0.58 * dpr, 1.55 * dpr),
-        intensity: 1,
-      })
+      strokeHarmonicRibbonPath(
+        tctx,
+        masterPoints,
+        color,
+        masterAlpha * 0.52,
+        clamp(3.15 * strokeScale * dpr, 2.2 * dpr, 5.6 * dpr),
+        'lighter',
+        clamp(4.5 * strokeScale * dpr, 3 * dpr, 9 * dpr),
+      )
+      strokeHarmonicRibbonPath(
+        tctx,
+        masterPoints,
+        color,
+        clamp(masterAlpha * 1.08 + 0.06, 0, 1),
+        clamp(1.18 * strokeScale * dpr, 0.82 * dpr, 2.1 * dpr),
+        'source-over',
+        clamp(1.4 * strokeScale * dpr, 0.8 * dpr, 3.2 * dpr),
+      )
     }
   }
 }

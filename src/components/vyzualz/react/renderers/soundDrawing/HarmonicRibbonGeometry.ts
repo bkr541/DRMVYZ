@@ -118,7 +118,15 @@ export function resolveHarmonicRibbonTraceOffsets(traceCount: number): readonly 
  * opacity, while both roles still respect the layer's resolved brightness.
  */
 export function resolveHarmonicRibbonMasterTraceAlpha(brightness: number, energy: number): number {
-  return clamp(brightness * (0.94 + clamp(energy, 0, 1.2) * 0.05), 0, 1)
+  const resolvedBrightness = clamp(brightness, 0, 1.2)
+  if (resolvedBrightness <= 0.001) return 0
+
+  // The shared vector-beam optics intentionally dim fast-moving segments.
+  // Apply a perceptual lift before rasterization so the live master contour
+  // remains readable at normal app intensity without defeating a deliberate
+  // master-intensity fade to zero.
+  const perceptualBrightness = Math.pow(Math.min(1, resolvedBrightness), 0.42)
+  return clamp(perceptualBrightness * (0.98 + clamp(energy, 0, 1.2) * 0.02), 0, 1)
 }
 
 export function resolveHarmonicRibbonSupportingTraceAlpha(
@@ -126,9 +134,17 @@ export function resolveHarmonicRibbonSupportingTraceAlpha(
   brightness: number,
   energy: number,
 ): number {
+  const resolvedBrightness = clamp(brightness, 0, 1.2)
+  if (resolvedBrightness <= 0.001) return 0
+
   const distance = Math.abs(distanceFromMaster)
-  const supportLevel = Math.max(0.07, 0.14 - distance * 0.035)
-  return clamp(supportLevel * brightness * (0.82 + clamp(energy, 0, 1.2) * 0.1), 0, 0.16)
+  const supportLevel = Math.max(0.16, 0.3 - distance * 0.08)
+  const perceptualBrightness = Math.pow(Math.min(1, resolvedBrightness), 0.72)
+  return clamp(
+    supportLevel * perceptualBrightness * (0.9 + clamp(energy, 0, 1.2) * 0.08),
+    0,
+    0.3,
+  )
 }
 
 /**
