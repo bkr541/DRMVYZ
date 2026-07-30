@@ -12341,3 +12341,151 @@
   overflow-wrap: anywhere;
 }
 .rv-pix-grid-route-activity > div > span small.is-warning { color: #ffcf71; }
+
+/* All right-panel preset recipes use the same compact scene-card language as
+   Shader Pads and Sound Drawing. The canonical card API remains intact so each
+   engine keeps its own selection, favorite, restore, and reload behavior. */
+.rv-compact-preset-card-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 70px;
+}
+
+.rv-compact-preset-card-shell > .rv-compact-preset-card {
+  display: block;
+  min-height: 70px;
+  height: 70px;
+  padding: 8px 10px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.rv-compact-preset-card-shell--has-actions > .rv-compact-preset-card {
+  padding-right: 76px;
+}
+
+.rv-compact-preset-card-shell:not(.rv-preset-card-shell--expanded) .rv-compact-preset-card-layout,
+.rv-compact-preset-card-layout {
+  display: flex;
+  grid-template-columns: none;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  height: 52px;
+}
+
+.rv-compact-preset-card-shell:not(.rv-preset-card-shell--expanded) .rv-compact-preset-card-content,
+.rv-compact-preset-card-content,
+.rv-compact-preset-card-body {
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+.rv-compact-preset-thumb {
+  width: 76px;
+  height: 52px;
+  min-height: 52px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: #020508;
+  overflow: hidden;
+  flex: 0 0 76px;
+}
+
+.rv-compact-preset-thumb > .rv-preset-thumb,
+.rv-compact-preset-thumb > [data-thumbnail-kind] {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.rv-compact-preset-thumb .rv-preset-thumb-img,
+.rv-compact-preset-thumb svg,
+.rv-compact-preset-thumb canvas,
+.rv-compact-preset-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rv-compact-preset-card .rv-preset-name {
+  display: block;
+  flex: 0 0 auto;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rv-compact-preset-meta {
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.rv-compact-preset-meta > span {
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rv-compact-preset-switch-badge {
+  color: rgba(232, 175, 242, 0.92);
+  background: rgba(184, 79, 201, 0.1);
+}
+
+.rv-compact-preset-actions {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+.rv-compact-preset-action--text {
+  width: auto;
+  min-width: 24px;
+  padding: 0 6px;
+  font-family: var(--az-font);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rv-compact-preset-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.rv-compact-preset-card-shell > .rv-compact-preset-card:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(74,199,219,0.3);
+}
+
+.rv-compact-preset-card-shell > .rv-compact-preset-card.rv-shader-scene-card--active {
+  border-color: var(--vz-accent, #0fe0c8);
+  background: rgba(15,224,200,0.06);
+  box-shadow: none;
+}
+
+.rv-compact-preset-card-shell > .rv-compact-preset-card:focus-visible {
+  outline: 2px solid rgba(103, 247, 255, 0.82);
+  outline-offset: 2px;
+  border-color: rgba(103, 247, 255, 0.76);
+  box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.12);
+}

@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { type KeyboardEvent, type ReactNode } from 'react'
 
 export type ReactPresetCardChipTone = 'mode' | 'switch'
 
@@ -86,35 +86,30 @@ export function ReactPresetCard({
   description,
   thumbnail,
   chips = [],
-  palette = [],
   isActive = false,
   isModified = false,
   isFavorite = false,
   activateLabel,
   onActivate,
   onToggleFavorite,
-  contentBeforeDescription,
-  expandedContent,
-  showMore = false,
   secondaryActions = [],
   className = '',
   shellClassName = '',
   titleText = description,
 }: ReactPresetCardProps) {
-  const [detailsOpen, setDetailsOpen] = useState(false)
   const hasThumbnail = Boolean(thumbnail)
-  const hasMoreDetails = showMore
-  const hasSecondaryActions = secondaryActions.length > 0
+  const hasActions = Boolean(onToggleFavorite) || secondaryActions.length > 0
+  const visibleChips = chips.slice(0, 2)
 
   return (
     <div
-      className={`rv-preset-card-shell${detailsOpen ? ' rv-preset-card-shell--expanded' : ''}${hasSecondaryActions ? ' rv-preset-card-shell--has-secondary-actions' : ''}${shellClassName ? ` ${shellClassName}` : ''}`}
+      className={`rv-preset-card-shell rv-compact-preset-card-shell${hasActions ? ' rv-compact-preset-card-shell--has-actions' : ''}${shellClassName ? ` ${shellClassName}` : ''}`}
       data-preset-card-shell
       data-preset-card-id={id}
     >
       <button
         type="button"
-        className={`rv-preset-card${hasThumbnail ? ' rv-preset-card--with-thumb' : ''}${isActive ? ' rv-preset-card--active' : ''}${detailsOpen ? ' rv-preset-card--expanded' : ''}${className ? ` ${className}` : ''}`}
+        className={`rv-preset-card rv-shader-scene-card rv-compact-preset-card${hasThumbnail ? ' rv-preset-card--with-thumb' : ''}${isActive ? ' rv-preset-card--active rv-shader-scene-card--active' : ''}${className ? ` ${className}` : ''}`}
         onClick={onActivate}
         onKeyDown={handlePresetCardKeyDown}
         data-preset-card
@@ -124,79 +119,55 @@ export function ReactPresetCard({
         aria-label={activateLabel}
         title={titleText}
       >
-        <div className="rv-preset-card-layout">
-          {thumbnail}
-          <div className="rv-preset-card-content">
-            <div className="rv-preset-card-header">
-              <span className="rv-preset-name">{title}</span>
+        <div className="rv-preset-card-layout rv-compact-preset-card-layout">
+          {hasThumbnail && (
+            <div className="rv-preset-thumb rv-shader-scene-thumb rv-compact-preset-thumb" aria-hidden="true">
+              {thumbnail}
             </div>
-            {(chips.length > 0 || isModified) && (
-              <div className="rv-preset-chip-row">
-                {chips.map((chip, index) => (
+          )}
+          <div className="rv-preset-card-content rv-shader-scene-card-body rv-compact-preset-card-body">
+            <div className="rv-preset-name rv-shader-scene-name">{title}</div>
+            {(visibleChips.length > 0 || isModified) && (
+              <div className="rv-shader-scene-meta rv-compact-preset-meta">
+                {visibleChips.map((chip, index) => (
                   <span
                     key={`${chip.label}-${index}`}
-                    className={chip.tone === 'switch' ? 'rv-preset-switch-chip' : 'rv-preset-mode-chip'}
+                    className={index === 0 && chip.tone !== 'switch'
+                      ? 'rv-shader-scene-category'
+                      : `rv-shader-scene-badge${chip.tone === 'switch' ? ' rv-compact-preset-switch-badge' : ''}`}
                   >
                     {chip.label}
                   </span>
                 ))}
-                {isModified && <span className="rv-preset-modified-chip">Modified</span>}
-              </div>
-            )}
-            {typeof contentBeforeDescription === 'function' ? contentBeforeDescription(detailsOpen) : contentBeforeDescription}
-            {detailsOpen && expandedContent}
-            <p className="rv-preset-desc">{description}</p>
-            {palette.length > 0 && (
-              <div className="rv-preset-palette" aria-label={`${title} palette`}>
-                {palette.slice(0, 5).map((item, index) => (
-                  <span
-                    key={`${item.color}-${index}`}
-                    className="rv-palette-swatch"
-                    style={{ background: item.color }}
-                    title={item.label ?? item.color}
-                  />
-                ))}
+                {isModified && <span className="rv-shader-scene-badge">Modified</span>}
               </div>
             )}
           </div>
         </div>
       </button>
-      {onToggleFavorite && (
-        <button
-          type="button"
-          className={`rv-preset-favorite${isFavorite ? ' rv-preset-favorite--active' : ''}`}
-          onClick={event => {
-            event.stopPropagation()
-            onToggleFavorite()
-          }}
-          aria-pressed={isFavorite}
-          aria-label={`${isFavorite ? 'Remove' : 'Add'} ${title} ${isFavorite ? 'from' : 'to'} favorites`}
-          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          {isFavorite ? '★' : '☆'}
-        </button>
-      )}
-      {hasMoreDetails && (
-        <button
-          type="button"
-          className="rv-preset-more-btn"
-          aria-expanded={detailsOpen}
-          aria-label={`${detailsOpen ? 'Hide' : 'Show'} detailed information for ${title}`}
-          onClick={event => {
-            event.stopPropagation()
-            setDetailsOpen(open => !open)
-          }}
-        >
-          {detailsOpen ? 'Less' : 'More'} <span aria-hidden="true">▾</span>
-        </button>
-      )}
-      {hasSecondaryActions && (
-        <div className="rv-preset-secondary-actions" aria-label={`${title} preset actions`}>
+
+      {hasActions && (
+        <div className="rv-shader-scene-actions rv-compact-preset-actions" aria-label={`${title} preset actions`}>
+          {onToggleFavorite && (
+            <button
+              type="button"
+              className={`rv-shader-scene-action${isFavorite ? ' rv-shader-scene-action--active' : ''}`}
+              onClick={event => {
+                event.stopPropagation()
+                onToggleFavorite()
+              }}
+              aria-pressed={isFavorite}
+              aria-label={`${isFavorite ? 'Remove' : 'Add'} ${title} ${isFavorite ? 'from' : 'to'} favorites`}
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              {isFavorite ? '★' : '☆'}
+            </button>
+          )}
           {secondaryActions.map(action => (
             <button
               key={action.id}
               type="button"
-              className={`rv-preset-secondary-action${action.tone === 'danger' ? ' rv-preset-secondary-action--danger' : ''}${action.iconOnly ? ' rv-preset-secondary-action--icon' : ''}`}
+              className={`rv-shader-scene-action rv-compact-preset-action${action.tone === 'danger' ? ' rv-shader-scene-action--danger' : ''}${action.iconOnly ? '' : ' rv-compact-preset-action--text'}`}
               onClick={event => {
                 event.stopPropagation()
                 action.onSelect()

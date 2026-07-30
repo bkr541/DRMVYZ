@@ -90,6 +90,13 @@ describe('canonical React preset card architecture', () => {
 
     const card = container.querySelector('[data-preset-card="true"], [data-preset-card]')!
     expect(card.classList.contains('rv-preset-card--active')).toBe(true)
+    expect(card.classList.contains('rv-shader-scene-card')).toBe(true)
+    expect(card.classList.contains('rv-compact-preset-card')).toBe(true)
+    expect(card.querySelector('.rv-shader-scene-thumb.rv-compact-preset-thumb')).not.toBeNull()
+    expect(card.querySelector('.rv-shader-scene-card-body')).not.toBeNull()
+    expect(card.querySelector('.rv-preset-desc')).toBeNull()
+    expect(card.querySelector('.rv-preset-palette')).toBeNull()
+    expect(container.querySelector('.rv-preset-more-btn')).toBeNull()
     expect(container.textContent).toContain('Modified')
 
     await click(card)
