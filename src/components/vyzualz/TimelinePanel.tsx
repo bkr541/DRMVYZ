@@ -42,6 +42,7 @@ import {
   MIN_CLIP_DUR, BASE_PX_PER_SEC,
   timeToPx, pxToTime, fmtTimelineLabel, fmtSec, clampSec, snapSec, rulerTickInterval,
 } from './timeline/tlHelpers'
+import { DropdownSelect } from '../shared/Dropdown/Dropdown'
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -337,14 +338,14 @@ function ColorGradeControls({
 
       <div className="vz-ml-insp-section-label">LOOKS</div>
       <div className="vz-cg-looks-row">
-        <select className="az-select vz-ml-insp-sel" value={matchedPreset ?? ''}
+        <DropdownSelect className="az-select vz-ml-insp-sel" value={matchedPreset ?? ''}
           onChange={e => {
             const next = applyColorGradePreset(e.target.value, grade)
             if (next) onChange(next)
           }}>
           {!matchedPreset && <option value="" disabled>Custom…</option>}
           {COLOR_GRADE_PRESETS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        </DropdownSelect>
       </div>
 
       <div className="vz-ml-insp-section-label">BASIC</div>
@@ -395,10 +396,10 @@ function BgClipInspector({
             <span className="vz-ml-insp-lbl">File</span>
             <span className="vz-ml-insp-val vz-ml-insp-fname" title={media?.name}>{media?.title ?? media?.name ?? '(missing)'}</span>
             <span className="vz-ml-insp-lbl">Role</span>
-            <select className="az-select vz-ml-insp-sel" value={media?.mediaRole ?? 'other'} disabled={!media}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={media?.mediaRole ?? 'other'} disabled={!media}
               onChange={e => media && onSetMediaRole(media.id, e.target.value as MediaRole)}>
               {MEDIA_ROLES.map(r => <option key={r} value={r}>{MEDIA_ROLE_LABELS[r]}</option>)}
-            </select>
+            </DropdownSelect>
           </div>
           <div className="vz-ml-insp-row vz-ml-insp-row--grid4">
             <span className="vz-ml-insp-lbl">Start (s)</span>
@@ -426,18 +427,18 @@ function BgClipInspector({
           </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Mode</span>
-            <select className="az-select vz-ml-insp-sel" value={clip.playbackMode}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.playbackMode}
               onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}>
               <option value="trim">Trim</option>
               <option value="loop">Loop</option>
               <option value="freeze">Freeze</option>
-            </select>
+            </DropdownSelect>
             <span className="vz-ml-insp-lbl">Fit</span>
-            <select className="az-select vz-ml-insp-sel" value={clip.fitMode}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.fitMode}
               onChange={e => onUpdate(clip.id, { fitMode: e.target.value as VzTimelineClip['fitMode'] })}>
               <option value="cover">Cover</option>
               <option value="contain">Contain</option>
-            </select>
+            </DropdownSelect>
           </div>
           <div className="vz-cg-slider-row">
             <span className="vz-cg-slider-lbl">Size</span>
@@ -478,7 +479,7 @@ function BgClipInspector({
           </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Tx In</span>
-            <select className="az-select vz-ml-insp-sel" value={clip.transitionIn?.type ?? 'cut'}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.transitionIn?.type ?? 'cut'}
               onChange={e => {
                 const type = e.target.value as VzTransitionType
                 if (type === 'cut') { onUpdate(clip.id, { transitionIn: undefined }); return }
@@ -488,7 +489,7 @@ function BgClipInspector({
               {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
                 <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
               ))}
-            </select>
+            </DropdownSelect>
             {clip.transitionIn && clip.transitionIn.type !== 'cut' && (
               <>
                 <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
@@ -499,7 +500,7 @@ function BgClipInspector({
                       onUpdate(clip.id, { transitionIn: { ...clip.transitionIn, durationSec: v } })
                   }}
                 />
-                <select className="az-select vz-ml-insp-sel" value={clip.transitionIn.easing ?? 'linear'}
+                <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.transitionIn.easing ?? 'linear'}
                   onChange={e => clip.transitionIn && onUpdate(clip.id, { transitionIn: { ...clip.transitionIn, easing: e.target.value as VzTransitionEasing } })}>
                   <option value="linear">Linear</option>
                   <option value="easeIn">Ease In</option>
@@ -508,13 +509,13 @@ function BgClipInspector({
                   <option value="easeInCubic">Cubic In</option>
                   <option value="easeOutCubic">Cubic Out</option>
                   <option value="easeInOutCubic">Cubic In/Out</option>
-                </select>
+                </DropdownSelect>
               </>
             )}
           </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Tx Out</span>
-            <select className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
               onChange={e => {
                 const type = e.target.value as VzTransitionType
                 if (type === 'cut') { onUpdate(clip.id, { transitionOut: undefined }); return }
@@ -524,7 +525,7 @@ function BgClipInspector({
               {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
                 <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
               ))}
-            </select>
+            </DropdownSelect>
             {clip.transitionOut && clip.transitionOut.type !== 'cut' && (
               <>
                 <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
@@ -535,7 +536,7 @@ function BgClipInspector({
                       onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, durationSec: v } })
                   }}
                 />
-                <select className="az-select vz-ml-insp-sel" value={clip.transitionOut.easing ?? 'linear'}
+                <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.transitionOut.easing ?? 'linear'}
                   onChange={e => clip.transitionOut && onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, easing: e.target.value as VzTransitionEasing } })}>
                   <option value="linear">Linear</option>
                   <option value="easeIn">Ease In</option>
@@ -544,7 +545,7 @@ function BgClipInspector({
                   <option value="easeInCubic">Cubic In</option>
                   <option value="easeOutCubic">Cubic Out</option>
                   <option value="easeInOutCubic">Cubic In/Out</option>
-                </select>
+                </DropdownSelect>
               </>
             )}
           </div>
@@ -619,10 +620,10 @@ function OverlayClipInspector({
             <span className="vz-ml-insp-lbl">File</span>
             <span className="vz-ml-insp-val vz-ml-insp-fname" title={media?.name}>{media?.title ?? media?.name ?? '(missing)'}</span>
             <span className="vz-ml-insp-lbl">Role</span>
-            <select className="az-select vz-ml-insp-sel" value={media?.mediaRole ?? 'other'} disabled={!media}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={media?.mediaRole ?? 'other'} disabled={!media}
               onChange={e => media && onSetMediaRole(media.id, e.target.value as MediaRole)}>
               {MEDIA_ROLES.map(r => <option key={r} value={r}>{MEDIA_ROLE_LABELS[r]}</option>)}
-            </select>
+            </DropdownSelect>
           </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Start (s)</span>
@@ -638,18 +639,18 @@ function OverlayClipInspector({
           </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Mode</span>
-            <select className="az-select vz-ml-insp-sel" value={clip.playbackMode}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.playbackMode}
               onChange={e => onUpdate(clip.id, { playbackMode: e.target.value as VzTimelineClip['playbackMode'] })}>
               <option value="trim">Trim</option>
               <option value="loop">Loop</option>
               <option value="freeze">Freeze</option>
-            </select>
+            </DropdownSelect>
             <span className="vz-ml-insp-lbl">Fit</span>
-            <select className="az-select vz-ml-insp-sel" value={cfg.fitMode}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={cfg.fitMode}
               onChange={e => patchCfg({ fitMode: e.target.value as VzOverlayCompositingConfig['fitMode'] })}>
               <option value="contain">Contain</option>
               <option value="cover">Cover</option>
-            </select>
+            </DropdownSelect>
           </div>
           {media?.type === 'video' && (
             <div className="vz-ml-insp-row">
@@ -720,15 +721,15 @@ function OverlayClipInspector({
           </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Blend</span>
-            <select className="az-select vz-ml-insp-sel" value={cfg.blendMode}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={cfg.blendMode}
               onChange={e => patchCfg({ blendMode: e.target.value })}>
               {BLEND_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+            </DropdownSelect>
           </div>
 
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Tx In</span>
-            <select className="az-select vz-ml-insp-sel" value={clip.transitionIn?.type ?? 'cut'}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.transitionIn?.type ?? 'cut'}
               onChange={e => {
                 const type = e.target.value as VzTransitionType
                 if (type === 'cut') { onUpdate(clip.id, { transitionIn: undefined }); return }
@@ -738,7 +739,7 @@ function OverlayClipInspector({
               {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
                 <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
               ))}
-            </select>
+            </DropdownSelect>
             {clip.transitionIn && clip.transitionIn.type !== 'cut' && (
               <>
                 <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
@@ -749,7 +750,7 @@ function OverlayClipInspector({
                       onUpdate(clip.id, { transitionIn: { ...clip.transitionIn, durationSec: v } })
                   }}
                 />
-                <select className="az-select vz-ml-insp-sel" value={clip.transitionIn.easing ?? 'linear'}
+                <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.transitionIn.easing ?? 'linear'}
                   onChange={e => clip.transitionIn && onUpdate(clip.id, { transitionIn: { ...clip.transitionIn, easing: e.target.value as VzTransitionEasing } })}>
                   <option value="linear">Linear</option>
                   <option value="easeIn">Ease In</option>
@@ -758,13 +759,13 @@ function OverlayClipInspector({
                   <option value="easeInCubic">Cubic In</option>
                   <option value="easeOutCubic">Cubic Out</option>
                   <option value="easeInOutCubic">Cubic In/Out</option>
-                </select>
+                </DropdownSelect>
               </>
             )}
           </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Tx Out</span>
-            <select className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.transitionOut?.type ?? 'cut'}
               onChange={e => {
                 const type = e.target.value as VzTransitionType
                 if (type === 'cut') { onUpdate(clip.id, { transitionOut: undefined }); return }
@@ -774,7 +775,7 @@ function OverlayClipInspector({
               {(Object.keys(TRANSITION_LABELS) as VzTransitionType[]).map(t => (
                 <option key={t} value={t}>{TRANSITION_LABELS[t]}</option>
               ))}
-            </select>
+            </DropdownSelect>
             {clip.transitionOut && clip.transitionOut.type !== 'cut' && (
               <>
                 <input type="number" className="vz-ml-insp-num" min={0.1} max={clip.durationSec} step={0.1}
@@ -785,7 +786,7 @@ function OverlayClipInspector({
                       onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, durationSec: v } })
                   }}
                 />
-                <select className="az-select vz-ml-insp-sel" value={clip.transitionOut.easing ?? 'linear'}
+                <DropdownSelect className="az-select vz-ml-insp-sel" value={clip.transitionOut.easing ?? 'linear'}
                   onChange={e => clip.transitionOut && onUpdate(clip.id, { transitionOut: { ...clip.transitionOut, easing: e.target.value as VzTransitionEasing } })}>
                   <option value="linear">Linear</option>
                   <option value="easeIn">Ease In</option>
@@ -794,7 +795,7 @@ function OverlayClipInspector({
                   <option value="easeInCubic">Cubic In</option>
                   <option value="easeOutCubic">Cubic Out</option>
                   <option value="easeInOutCubic">Cubic In/Out</option>
-                </select>
+                </DropdownSelect>
               </>
             )}
           </div>
@@ -846,10 +847,10 @@ function EffectInspector({
         <div className="vz-ml-insp-group-body">
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Effect</span>
-            <select className="az-select vz-ml-insp-sel" value={region.effectId}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={region.effectId}
               onChange={e => onUpdate(region.id, { effectId: e.target.value })}>
               {EFFECT_LIST.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-            </select>
+            </DropdownSelect>
             <label className="vz-ml-insp-check">
               <input type="checkbox" checked={region.enabled}
                 onChange={e => onUpdate(region.id, { enabled: e.target.checked })}
@@ -881,7 +882,7 @@ function EffectInspector({
 
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Target</span>
-            <select className="az-select vz-ml-insp-sel" value={targetType}
+            <DropdownSelect className="az-select vz-ml-insp-sel" value={targetType}
               onChange={e => onUpdate(region.id, {
                 targetType: e.target.value as VzTimelineEffectRegion['targetType'],
                 targetIds: [],
@@ -890,26 +891,26 @@ function EffectInspector({
               <option value="layer">Layer</option>
               <option value="layerItem">Layer Item</option>
               <option value="clip">Clip</option>
-            </select>
+            </DropdownSelect>
           </div>
 
           {targetType === 'layer' && (
             <div className="vz-ml-insp-row">
               <span className="vz-ml-insp-lbl">Layer</span>
-              <select className="az-select vz-ml-insp-sel" value={targetId}
+              <DropdownSelect className="az-select vz-ml-insp-sel" value={targetId}
                 onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
                 <option value="" disabled>Select layer…</option>
                 {(Object.keys(LAYER_LABELS) as Array<keyof typeof LAYER_LABELS>).map(id => (
                   <option key={id} value={id}>{LAYER_LABELS[id]}</option>
                 ))}
-              </select>
+              </DropdownSelect>
             </div>
           )}
 
           {targetType === 'layerItem' && (
             <div className="vz-ml-insp-row">
               <span className="vz-ml-insp-lbl">Item</span>
-              <select className="az-select vz-ml-insp-sel" value={targetId}
+              <DropdownSelect className="az-select vz-ml-insp-sel" value={targetId}
                 onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
                 <option value="" disabled>Select item…</option>
                 {layerItems.map(item => (
@@ -917,14 +918,14 @@ function EffectInspector({
                     {LAYER_LABELS[item.layerId]}: {mediaMap.get(item.mediaId)?.name ?? item.id.slice(0, 8)}
                   </option>
                 ))}
-              </select>
+              </DropdownSelect>
             </div>
           )}
 
           {targetType === 'clip' && (
             <div className="vz-ml-insp-row">
               <span className="vz-ml-insp-lbl">Clip</span>
-              <select className="az-select vz-ml-insp-sel" value={targetId}
+              <DropdownSelect className="az-select vz-ml-insp-sel" value={targetId}
                 onChange={e => onUpdate(region.id, { targetIds: [e.target.value] })}>
                 <option value="" disabled>Select clip…</option>
                 {bgClips.length > 0 && (
@@ -941,7 +942,7 @@ function EffectInspector({
                     ))}
                   </optgroup>
                 )}
-              </select>
+              </DropdownSelect>
             </div>
           )}
 

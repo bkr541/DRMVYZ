@@ -18,12 +18,12 @@ import type { PixGridReactionAssignment } from '../PixGridTypes'
 let root: Root
 let host: HTMLDivElement
 
-function selectByLabel(label: string): HTMLSelectElement {
+function dropdownByLabel(label: string): HTMLButtonElement {
   const element = [...host.querySelectorAll('label')].find(candidate => candidate.textContent === label)
-  if (!element?.htmlFor) throw new Error(`Missing select label ${label}`)
-  const select = document.getElementById(element.htmlFor)
-  if (!(select instanceof HTMLSelectElement)) throw new Error(`Missing select for ${label}`)
-  return select
+  if (!element?.htmlFor) throw new Error(`Missing dropdown label ${label}`)
+  const dropdown = document.getElementById(element.htmlFor)
+  if (!(dropdown instanceof HTMLButtonElement)) throw new Error(`Missing dropdown for ${label}`)
+  return dropdown
 }
 
 
@@ -45,11 +45,12 @@ function changeRange(input: HTMLInputElement, value: string): void {
   })
 }
 
-function changeSelect(select: HTMLSelectElement, value: string): void {
-  act(() => {
-    select.value = value
-    select.dispatchEvent(new Event('change', { bubbles: true }))
-  })
+function chooseDropdownOption(dropdown: HTMLButtonElement, label: string): void {
+  act(() => dropdown.click())
+  const option = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+    .find(candidate => candidate.textContent?.trim() === label)
+  if (!option) throw new Error(`Missing dropdown option ${label}`)
+  act(() => option.click())
 }
 
 function clickButton(label: string): void {
@@ -75,7 +76,7 @@ afterEach(() => {
 describe('PixGrid duplicate control surfaces', () => {
   it('produces identical complete quality state and history from compact and design selectors', () => {
     act(() => root.render(<PixGridControls />))
-    changeSelect(selectByLabel('Starting Quality'), 'draft')
+    chooseDropdownOption(dropdownByLabel('Starting Quality'), 'Draft · 64 × 36')
     const compactState = useReactStore.getState().pixGridState
     const compactUndo = useReactStore.getState().pixGridUndoStack
     expect(compactState.qualityMode).toBe('adaptive')
@@ -86,7 +87,7 @@ describe('PixGrid duplicate control surfaces', () => {
     useReactStore.getState().selectReactEngine('pixGrid')
     root = createRoot(host)
     act(() => root.render(<PixGridDesignPanel />))
-    changeSelect(selectByLabel('Starting Quality'), 'draft')
+    chooseDropdownOption(dropdownByLabel('Starting Quality'), 'Draft · 64 × 36')
     const designState = useReactStore.getState().pixGridState
     const designUndo = useReactStore.getState().pixGridUndoStack
 
@@ -147,7 +148,7 @@ describe('PixGrid duplicate control surfaces', () => {
 
   it('distinguishes broad and narrow program operations and exposes concise status accessibility', () => {
     act(() => root.render(<PixGridControls />))
-    expect(selectByLabel('Load Program Preset')).toBeDefined()
+    expect(dropdownByLabel('Load Program Preset')).toBeDefined()
     expect(host.querySelector('[role="status"][aria-label="PixGrid live performance summary"]')).not.toBeNull()
     expect(host.querySelector('[role="status"][aria-label="PixGrid requested and effective quality"]')).not.toBeNull()
     expect([...host.querySelectorAll('button')].some(button => button.textContent === 'Open Full Diagnostics')).toBe(true)
@@ -159,7 +160,7 @@ describe('PixGrid duplicate control surfaces', () => {
     host.innerHTML = ''
     root = createRoot(host)
     act(() => root.render(<PixGridReactivityWorkspace surface="choreography" />))
-    expect(selectByLabel('Change Performance Program Only')).toBeDefined()
+    expect(dropdownByLabel('Change Performance Program Only')).toBeDefined()
   })
 
   it('preserves advanced route fields while compact and full editors share the same assignment', () => {

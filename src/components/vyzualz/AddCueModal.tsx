@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import type { LyricAnimationName } from '../../types/lyrics'
+import { DropdownSelect } from '../shared/Dropdown/Dropdown'
 
 const MIN_CUE_DURATION_MS = 100
 
@@ -344,15 +345,15 @@ export function AddCueModal({ isOpen, onClose }: Props) {
             <div className="acm-row acm-row--two-col">
               <div className="acm-field">
                 <label className="acm-label">Track / Source</label>
-                <select className="acm-select acm-select--disabled" disabled>
+                <DropdownSelect className="acm-select acm-select--disabled" disabled>
                   <option>Current Audio Track</option>
-                </select>
+                </DropdownSelect>
               </div>
               <div className="acm-field">
                 <label className="acm-label">Style Preset</label>
-                <select className="acm-select acm-select--disabled" disabled>
+                <DropdownSelect className="acm-select acm-select--disabled" disabled>
                   <option>Default Lyric</option>
-                </select>
+                </DropdownSelect>
               </div>
             </div>
 
@@ -361,7 +362,7 @@ export function AddCueModal({ isOpen, onClose }: Props) {
             <div className="acm-row acm-row--display">
               <div className="acm-field">
                 <label className="acm-label">Position</label>
-                <select
+                <DropdownSelect
                   className="acm-select"
                   value={position}
                   onChange={e => setPosition(e.target.value as PositionKey)}
@@ -369,11 +370,11 @@ export function AddCueModal({ isOpen, onClose }: Props) {
                   {(Object.keys(POSITION_PRESETS) as PositionKey[]).map(k => (
                     <option key={k} value={k}>{k}</option>
                   ))}
-                </select>
+                </DropdownSelect>
               </div>
               <div className="acm-field">
                 <label className="acm-label">Text Align</label>
-                <select
+                <DropdownSelect
                   className="acm-select"
                   value={textAlign}
                   onChange={e => setTextAlign(e.target.value as AlignOption)}
@@ -381,7 +382,7 @@ export function AddCueModal({ isOpen, onClose }: Props) {
                   <option>Left</option>
                   <option>Center</option>
                   <option>Right</option>
-                </select>
+                </DropdownSelect>
               </div>
               <div className="acm-field">
                 <label className="acm-label">Font Size</label>
@@ -437,7 +438,7 @@ export function AddCueModal({ isOpen, onClose }: Props) {
             <div className="acm-row acm-row--animation">
               <div className="acm-field">
                 <label className="acm-label">In Animation</label>
-                <select
+                <DropdownSelect
                   className="acm-select"
                   value={inAnimation}
                   onChange={e => setInAnimation(e.target.value as LyricAnimationName)}
@@ -445,11 +446,11 @@ export function AddCueModal({ isOpen, onClose }: Props) {
                   {IN_ANIM_OPTIONS.map(o => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
-                </select>
+                </DropdownSelect>
               </div>
               <div className="acm-field">
                 <label className="acm-label">Out Animation</label>
-                <select
+                <DropdownSelect
                   className="acm-select"
                   value={outAnimation}
                   onChange={e => setOutAnimation(e.target.value as LyricAnimationName)}
@@ -457,7 +458,7 @@ export function AddCueModal({ isOpen, onClose }: Props) {
                   {OUT_ANIM_OPTIONS.map(o => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
-                </select>
+                </DropdownSelect>
               </div>
               <div className="acm-field">
                 <label className="acm-label">In Duration (MS)</label>

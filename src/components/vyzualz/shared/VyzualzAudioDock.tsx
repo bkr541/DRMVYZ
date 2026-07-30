@@ -21,6 +21,7 @@ import { PeaksWaveformView } from '../transport/PeaksWaveformView'
 import type { WaveformCueCreateRequest } from '../../../features/timeline/waveformCuePoint'
 import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { cueMarkerBelongsToTrack } from '../../../types/cue'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
 
@@ -805,7 +806,7 @@ export function VyzualzAudioDock({
           <label className="vz-dock-rekordbox-label" htmlFor={rekordboxActionSelectId}>
             Rekordbox
           </label>
-          <select
+          <DropdownSelect
             id={rekordboxActionSelectId}
             className="vz-dock-rekordbox-select"
             value=""
@@ -825,7 +826,7 @@ export function VyzualzAudioDock({
             <option value="xml">Import XML…</option>
             <option value="usb">Scan USB…</option>
             <option value="mode">{rekordboxUsbMode ? 'Turn USB Mode Off' : 'Arm USB Mode'}</option>
-          </select>
+          </DropdownSelect>
         </div>
         </div>
 

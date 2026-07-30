@@ -19,6 +19,7 @@ import {
 import type { PixGridEditorTool, PixGridState } from './PixGridTypes'
 import { activePixGridGroups, compilePixGridGroupMask } from './PixGridGroups'
 import { samplePixGridCanvasColor } from './PixGridLiveCanvas'
+import { DropdownSelect } from '../../../shared/Dropdown/Dropdown'
 
 interface PointerOperation {
   pointerId: number
@@ -451,23 +452,23 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
         <p id="pix-grid-editor-instructions"><strong>Choose a tool, then draw on the center canvas.</strong> Changes save automatically.</p>
         <label>
           <span>Scene</span>
-          <select
+          <DropdownSelect
             aria-label="Active PixGrid scene"
             value={scene.id}
             onChange={event => setState(selectPixGridScene(state, event.target.value))}
           >
             {state.scenes.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
-          </select>
+          </DropdownSelect>
         </label>
         <label>
           <span>Edit Target</span>
-          <select
+          <DropdownSelect
             aria-label="PixGrid edit target"
             value={state.editor.selectedLayerId ?? 'scene'}
             onChange={event => updateEditor({ selectedLayerId: event.target.value === 'scene' ? null : event.target.value })}
           >
             {targetOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+          </DropdownSelect>
         </label>
         <dl>
           <div><dt>Tool</dt><dd>{activeTool.label}</dd></div>

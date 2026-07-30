@@ -6,6 +6,7 @@ import type { BrandAssetPresentation, BrandAssetRole, BrandKitAssetWithMedia, Br
 import { BRAND_ASSET_BLEND_MODES, BRAND_ASSET_GLOW_MODES, BRAND_ASSET_PLACEMENTS, BRAND_ASSET_ROLES, BRAND_ASSET_VISIBILITY_MODES } from '../BrandKitTypes'
 import { DEFAULT_BRAND_ASSET_PRESENTATION } from '../brandKitNormalization'
 import { useBrandKitStore } from '../brandKitStore'
+import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 
 const ROLE_LABELS: Record<BrandAssetRole, string> = {
   primaryLogo: 'Primary logo',
@@ -254,7 +255,7 @@ export function BrandKitAssetsEditor({
           </div>
         </div>
         <label className="bk-field-label" htmlFor="bk-display-asset">Display asset</label>
-        <select
+        <DropdownSelect
           id="bk-display-asset"
           value={activeDisplayAsset?.id ?? ''}
           disabled={syncing || displayAssets.length === 0}
@@ -264,28 +265,28 @@ export function BrandKitAssetsEditor({
           {displayAssets.map(asset => (
             <option key={asset.id} value={asset.id}>{ROLE_LABELS[asset.role]} · {mediaByDbId.get(asset.mediaItemId)?.name ?? asset.media?.name ?? 'Missing media'}</option>
           ))}
-        </select>
+        </DropdownSelect>
         {activeDisplayAsset && (
           <div className="bk-compositor-grid">
             <label>Placement
-              <select value={activePresentation.placement} onChange={event => void patchDisplayPresentation({ placement: event.target.value as BrandAssetPresentation['placement'] })}>
+              <DropdownSelect value={activePresentation.placement} onChange={event => void patchDisplayPresentation({ placement: event.target.value as BrandAssetPresentation['placement'] })}>
                 {BRAND_ASSET_PLACEMENTS.map(value => <option key={value} value={value}>{value.replace('-', ' ')}</option>)}
-              </select>
+              </DropdownSelect>
             </label>
             <label>Blend
-              <select value={activePresentation.blendMode} onChange={event => void patchDisplayPresentation({ blendMode: event.target.value as BrandAssetPresentation['blendMode'] })}>
+              <DropdownSelect value={activePresentation.blendMode} onChange={event => void patchDisplayPresentation({ blendMode: event.target.value as BrandAssetPresentation['blendMode'] })}>
                 {BRAND_ASSET_BLEND_MODES.map(value => <option key={value} value={value}>{value}</option>)}
-              </select>
+              </DropdownSelect>
             </label>
             <label>Visibility
-              <select value={activePresentation.visibility} onChange={event => void patchDisplayPresentation({ visibility: event.target.value as BrandAssetPresentation['visibility'] })}>
+              <DropdownSelect value={activePresentation.visibility} onChange={event => void patchDisplayPresentation({ visibility: event.target.value as BrandAssetPresentation['visibility'] })}>
                 {BRAND_ASSET_VISIBILITY_MODES.map(value => <option key={value} value={value}>{value === 'always' ? 'Always' : value === 'introOnly' ? 'Intro only' : 'Outro only'}</option>)}
-              </select>
+              </DropdownSelect>
             </label>
             <label>Glow
-              <select value={activePresentation.glowMode} onChange={event => void patchDisplayPresentation({ glowMode: event.target.value as BrandAssetPresentation['glowMode'] })}>
+              <DropdownSelect value={activePresentation.glowMode} onChange={event => void patchDisplayPresentation({ glowMode: event.target.value as BrandAssetPresentation['glowMode'] })}>
                 {BRAND_ASSET_GLOW_MODES.map(value => <option key={value} value={value}>{value === 'audioReactive' ? 'Audio-reactive' : value}</option>)}
-              </select>
+              </DropdownSelect>
             </label>
             <label>Scale <output>{Math.round(activePresentation.scale * 100)}%</output>
               <input type="range" min="0.04" max="0.6" step="0.01" value={activePresentation.scale} onChange={event => void patchDisplayPresentation({ scale: Number(event.target.value) })} />

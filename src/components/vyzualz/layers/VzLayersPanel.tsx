@@ -9,6 +9,7 @@ import {
 } from '../../../types/vzLayers'
 import type { VzLayerItem } from '../../../types/vzLayers'
 import { MEDIA_ROLE_BADGE_LABELS } from '../../../lib/mediaRoles'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 export function VzLayersPanel() {
   const {
@@ -112,7 +113,7 @@ export function VzLayersPanel() {
                 <span className="vz-slider-label">{LAYER_LABELS[layerId]}</span>
                 {hasItems && <span className="vz-layer-count">{lItems.length}</span>}
                 <span className="vz-slider-val">{Math.round(cfg.opacity * 100)}%</span>
-                <select
+                <DropdownSelect
                   className="az-select vz-layer-blend-select"
                   value={cfg.blendMode}
                   disabled={!cfg.enabled || !hasItems}
@@ -122,7 +123,7 @@ export function VzLayersPanel() {
                   {LAYER_BLEND_MODES.map(bm => (
                     <option key={bm} value={bm}>{bm}</option>
                   ))}
-                </select>
+                </DropdownSelect>
               </div>
 
               {/* Assigned items list */}
@@ -201,17 +202,17 @@ export function VzLayersPanel() {
                             </div>
                             <div className="vz-li-row2">
                               <label className="vz-li-field-label">Blend</label>
-                              <select
+                              <DropdownSelect
                                 className="az-select vz-li-select"
                                 value={item.blendMode}
                                 onChange={e => updateLayerItem(item.id, { blendMode: e.target.value as GlobalCompositeOperation })}
                               >
                                 {LAYER_BLEND_MODES.map(bm => <option key={bm} value={bm}>{bm}</option>)}
-                              </select>
+                              </DropdownSelect>
                             </div>
                             <div className="vz-li-row2">
                               <label className="vz-li-field-label">Fit</label>
-                              <select
+                              <DropdownSelect
                                 className="az-select vz-li-select"
                                 value={item.fitMode}
                                 onChange={e => updateLayerItem(item.id, { fitMode: e.target.value as VzLayerItem['fitMode'] })}
@@ -220,11 +221,11 @@ export function VzLayersPanel() {
                                 <option value="cover">Cover</option>
                                 <option value="stretch">Stretch</option>
                                 <option value="original">Original</option>
-                              </select>
+                              </DropdownSelect>
                             </div>
                             <div className="vz-li-row2">
                               <label className="vz-li-field-label">Anchor</label>
-                              <select
+                              <DropdownSelect
                                 className="az-select vz-li-select"
                                 value={item.anchor}
                                 onChange={e => updateLayerItem(item.id, { anchor: e.target.value as VzLayerItem['anchor'] })}
@@ -234,7 +235,7 @@ export function VzLayersPanel() {
                                 <option value="topRight">Top Right</option>
                                 <option value="bottomLeft">Bot Left</option>
                                 <option value="bottomRight">Bot Right</option>
-                              </select>
+                              </DropdownSelect>
                             </div>
                             <div className="vz-li-transform-grid">
                               <label className="vz-li-field-label">X</label>

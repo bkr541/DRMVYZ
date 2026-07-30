@@ -20,6 +20,7 @@ import {
 } from '../../../features/timeline/timelineViewport'
 import type { ReactTrackSection, SoundDrawingLayer, SoundDrawingClip, SoundDrawingLayerSourceType, BuiltinOscillatorShape, OscillatorFontAsset, SoundDrawingTextSource, SoundDrawingLyricGapBehavior } from './ReactTypes'
 import type { BeatMarkerMI } from '../../../features/musicIntelligence/types'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -467,7 +468,7 @@ function AddClipForm({ onAdd, onCancel }: AddClipFormProps) {
   return (
     <div className="rv-sd-add-form">
       <span className="rv-sd-add-title">New Clip</span>
-      <select
+      <DropdownSelect
         id={`${idPrefix}-source`}
         className="rv-ctrl-select rv-ctrl-select--sm"
         aria-label="Clip source type"
@@ -477,7 +478,7 @@ function AddClipForm({ onAdd, onCancel }: AddClipFormProps) {
         <option value="text">Text</option>
         <option value="builtinShape">Shape</option>
         <option value="svg">SVG</option>
-      </select>
+      </DropdownSelect>
       <input
         id={`${idPrefix}-name`}
         className="rv-ctrl-text-input rv-ctrl-text-input--sm"
@@ -863,7 +864,7 @@ export function SoundDrawingTimelineLane({
         {!collapsed && (
           <div className="rv-sd-lane-controls" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
             <span id={snapLabelId} className="rv-ctrl-label" style={{ marginRight: 4, opacity: 0.65 }}>Snap</span>
-            <select
+            <DropdownSelect
               className="rv-ctrl-select rv-ctrl-select--sm"
               aria-labelledby={snapLabelId}
               value={snapMode}
@@ -873,7 +874,7 @@ export function SoundDrawingTimelineLane({
               <option value="beat">Beat</option>
               <option value="bar">Bar</option>
               <option value="section">Section</option>
-            </select>
+            </DropdownSelect>
             <button
               type="button"
               className="rv-sd-add-btn"

@@ -110,8 +110,8 @@ describe('PixGrid editor overlay shell', () => {
     expect(useReactStore.getState().pixGridState.editorTool).toBe('pencil')
     expect(host.textContent).toContain('Choose a tool, then draw on the center canvas.')
     expect(host.textContent).toContain('Changes save automatically.')
-    expect(host.querySelector('[aria-label="Active PixGrid scene"]')).toBeInstanceOf(HTMLSelectElement)
-    expect(host.querySelector('[aria-label="PixGrid edit target"]')).toBeInstanceOf(HTMLSelectElement)
+    expect(host.querySelector('[aria-label="Active PixGrid scene"]')).toBeInstanceOf(HTMLButtonElement)
+    expect(host.querySelector('[aria-label="PixGrid edit target"]')).toBeInstanceOf(HTMLButtonElement)
     expect(host.querySelector('[aria-label="Active PixGrid paint color"]')).toBeInstanceOf(HTMLInputElement)
     const pencil = host.querySelector<HTMLButtonElement>('[aria-label="Pencil tool, shortcut P"]')!
     expect(pencil.getAttribute('aria-pressed')).toBe('true')

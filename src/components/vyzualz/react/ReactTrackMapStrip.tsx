@@ -51,6 +51,7 @@ import {
   restoreTrackSectionUndoSnapshot,
   type TrackSectionUndoSnapshot,
 } from '../../../features/trackIntelligence/trackSectionUndo'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 // ── Engine display labels ─────────────────────────────────────────────────────
 
@@ -622,7 +623,7 @@ export function EditSectionForm({
       <div className="rv-section-editor-primary-grid">
         <div className="rv-form-row">
           <label className="rv-form-label" htmlFor={`${idPrefix}-type`}>Type</label>
-          <select
+          <DropdownSelect
             id={`${idPrefix}-type`}
             className="rv-form-select"
             value={type}
@@ -633,7 +634,7 @@ export function EditSectionForm({
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </option>
             ))}
-          </select>
+          </DropdownSelect>
         </div>
 
         <div className="rv-form-row rv-form-row--section-label">
@@ -704,7 +705,7 @@ export function EditSectionForm({
           <div className="rv-form-group-label">Boundary Tools</div>
           <div className="rv-form-row">
             <label className="rv-form-label" htmlFor={`${idPrefix}-snap-mode`}>Snap</label>
-            <select
+            <DropdownSelect
               id={`${idPrefix}-snap-mode`}
               className="rv-form-select"
               value={snapMode}
@@ -715,7 +716,7 @@ export function EditSectionForm({
               <option value="bar">Bar</option>
               <option value="four-bar">Four-bar</option>
               <option value="free">Free</option>
-            </select>
+            </DropdownSelect>
           </div>
           <div className="rv-boundary-action-grid">
             <span className="rv-form-label">Start</span>
@@ -734,7 +735,7 @@ export function EditSectionForm({
             <div className="rv-form-group-label">Visual Assignment</div>
             <div className="rv-form-row">
               <label className="rv-form-label" htmlFor={`${idPrefix}-preset`}>Preset</label>
-              <select
+              <DropdownSelect
                 id={`${idPrefix}-preset`}
                 className="rv-form-select"
                 value={assignedPresetId ?? ''}
@@ -744,7 +745,7 @@ export function EditSectionForm({
                 {reactPresets.filter(p => isSelectableReactEngineId(p.engine)).map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
-              </select>
+              </DropdownSelect>
             </div>
             {assignedPresetId && (() => {
               const preset = reactPresets.find(p => p.id === assignedPresetId)
@@ -863,7 +864,7 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
     <div className="rv-add-section-form">
       <div className="rv-form-row">
         <label className="rv-form-label" htmlFor={`${idPrefix}-type`}>Type</label>
-        <select
+        <DropdownSelect
           id={`${idPrefix}-type`}
           className="rv-form-select"
           value={type}
@@ -874,7 +875,7 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </option>
           ))}
-        </select>
+        </DropdownSelect>
       </div>
       <div className="rv-form-row">
         <label className="rv-form-label" htmlFor={`${idPrefix}-label`}>Label</label>
@@ -2433,7 +2434,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                         <canvas ref={energyCanvasRef} className="rv-energy-canvas" aria-hidden="true" />
                       </div>
                       <div className="rv-timeline-lane-tools">
-                        <select
+                        <DropdownSelect
                           className="rv-timeline-lane-select"
                           value={energyCurveKey}
                           onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
@@ -2443,7 +2444,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                           {ENERGY_CURVE_OPTIONS.map(o => (
                             <option key={o.key} value={o.key}>{o.label}</option>
                           ))}
-                        </select>
+                        </DropdownSelect>
                       </div>
                     </div>
                   )}

@@ -336,6 +336,19 @@
   transition: border-color 0.12s;
 }
 .mum-chip-input:focus-within { border-color: rgba(74,199,219,0.4); }
+.mum-collection-dropdown-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.mum-collections-dropdown {
+  flex: 1 1 180px;
+  min-width: 140px;
+}
+.mum-collections-dropdown .drm-dropdown__search-trigger {
+  min-height: 36px;
+}
 .mum-chip {
   display: inline-flex;
   align-items: center;

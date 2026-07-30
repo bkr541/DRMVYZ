@@ -3,7 +3,8 @@
  *
  * The menu is rendered through a portal, so every visual dependency is
  * declared on the component itself rather than inherited from a parent panel.
- * Existing native selects are intentionally untouched until they are migrated.
+ * Native-select call sites can migrate through DropdownSelect while preserving
+ * their existing value and change contracts.
  */
 
 .drm-dropdown {
@@ -41,6 +42,16 @@
   --drm-dropdown-option-size: 13px;
   --drm-dropdown-description-size: 11px;
   gap: 7px;
+}
+
+.drm-dropdown--dense {
+  --drm-dropdown-radius: 8px;
+  --drm-dropdown-trigger-height: 30px;
+  --drm-dropdown-trigger-padding: 9px;
+  --drm-dropdown-value-size: 11px;
+  --drm-dropdown-option-size: 12px;
+  --drm-dropdown-description-size: 10px;
+  gap: 5px;
 }
 
 .drm-dropdown--large {
@@ -107,6 +118,30 @@
     background-color 140ms ease,
     box-shadow 160ms ease,
     opacity 140ms ease;
+}
+
+.drm-dropdown__search-trigger {
+  position: relative;
+}
+
+.drm-dropdown__search-input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--drm-dropdown-text);
+  font: inherit;
+  font-size: var(--drm-dropdown-value-size);
+  letter-spacing: 0.018em;
+}
+
+.drm-dropdown__search-input::placeholder {
+  color: var(--drm-dropdown-faint);
+}
+
+.drm-dropdown__search-input:disabled {
+  cursor: not-allowed;
 }
 
 .drm-dropdown__trigger:hover:not(:disabled) {
@@ -225,6 +260,12 @@
   --drm-dropdown-description-size: 11px;
 }
 
+.drm-dropdown__menu--dense {
+  --drm-dropdown-option-size: 12px;
+  --drm-dropdown-description-size: 10px;
+  border-radius: 10px;
+}
+
 .drm-dropdown__menu--large {
   --drm-dropdown-option-size: 19px;
   --drm-dropdown-description-size: 14px;
@@ -275,6 +316,17 @@
   scrollbar-width: thin;
 }
 
+.drm-dropdown__group-label {
+  padding: 8px 10px 4px;
+  color: var(--drm-dropdown-muted);
+  font-family: var(--drm-dropdown-display-font);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .drm-dropdown__options::-webkit-scrollbar {
   width: 8px;
 }
@@ -307,6 +359,70 @@
     background-color 120ms ease,
     box-shadow 140ms ease,
     opacity 120ms ease;
+}
+
+.drm-dropdown__menu--dense .drm-dropdown__options {
+  padding: 6px;
+}
+
+.drm-dropdown__menu--dense .drm-dropdown__option {
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.drm-dropdown__menu--dense .drm-dropdown__menu-header {
+  padding: 8px 10px 5px;
+}
+
+.drm-dropdown__menu--dense .drm-dropdown__menu-header::after {
+  margin-top: 5px;
+}
+
+.drm-dropdown__menu--dense .drm-dropdown__menu-title {
+  font-size: 9px;
+}
+
+/*
+ * DropdownSelect carries legacy class names on both the wrapper and trigger.
+ * Keep layout-affecting declarations such as width, flex, and margins on the
+ * wrapper, while the shared component remains the visual source of truth.
+ */
+.drm-dropdown.drm-dropdown-select {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  color: inherit;
+}
+
+.drm-dropdown.drm-dropdown-select > .drm-dropdown__trigger {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: var(--drm-dropdown-trigger-height) !important;
+  height: var(--drm-dropdown-trigger-height) !important;
+  margin: 0 !important;
+  padding: 0 var(--drm-dropdown-trigger-padding) !important;
+  border: 1px solid color-mix(in srgb, var(--drm-dropdown-accent) 76%, transparent) !important;
+  border-radius: var(--drm-dropdown-radius) !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(var(--drm-dropdown-accent-rgb), 0.07), transparent 58%),
+    var(--drm-dropdown-surface) !important;
+  color: var(--drm-dropdown-text) !important;
+  font-family: var(--drm-dropdown-font) !important;
+  font-size: var(--drm-dropdown-value-size) !important;
+  box-shadow:
+    0 0 0 1px rgba(var(--drm-dropdown-accent-rgb), 0.05),
+    0 0 12px rgba(var(--drm-dropdown-accent-rgb), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+}
+
+.drm-dropdown.drm-dropdown-select > .drm-dropdown__trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--drm-dropdown-accent) 75%, white 25%) !important;
+  outline-offset: 2px;
 }
 
 .drm-dropdown__option + .drm-dropdown__option {

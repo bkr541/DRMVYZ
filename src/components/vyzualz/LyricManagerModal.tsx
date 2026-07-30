@@ -3,6 +3,7 @@ import { useLyricsStore } from '../../stores/lyricsStore'
 import { parseLyricCueJson, LyricParseError, formatMs } from '../../lib/lyricsImport'
 import type { CreateLyricCueInput } from '../../types/lyrics'
 import { createLyricCueInputFromCue } from '../../types/lyrics'
+import { DropdownSelect } from '../shared/Dropdown/Dropdown'
 
 const ANIM_IN_OPTIONS = [
   'none','fade','fadeUp','fadeDown','scale','scalePop',
@@ -29,14 +30,6 @@ const JSON_PLACEHOLDER = `[
 ]`
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
-
-function SelectCaret() {
-  return (
-    <svg className="lmm-select-caret" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
-      <path d="M0 0l5 6 5-6z"/>
-    </svg>
-  )
-}
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -375,14 +368,13 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
               </Field>
               <Field label="ALIGN">
                 <div className="lmm-select-wrap">
-                  <select
+                  <DropdownSelect
                     className="lmm-select"
                     value={ds.align ?? 'center'}
                     onChange={e => updateDraftDefaultStyle({ align: e.target.value as typeof ALIGN_OPTIONS[number] })}
                   >
                     {ALIGN_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                  <SelectCaret />
+                  </DropdownSelect>
                 </div>
               </Field>
             </div>
@@ -393,26 +385,24 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
             <div className="lmm-grid2">
               <Field label="ANIMATE IN">
                 <div className="lmm-select-wrap">
-                  <select
+                  <DropdownSelect
                     className="lmm-select"
                     value={da.in ?? 'none'}
                     onChange={e => updateDraftDefaultAnimation({ in: e.target.value as typeof ANIM_IN_OPTIONS[number] })}
                   >
                     {ANIM_IN_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                  <SelectCaret />
+                  </DropdownSelect>
                 </div>
               </Field>
               <Field label="ANIMATE OUT">
                 <div className="lmm-select-wrap">
-                  <select
+                  <DropdownSelect
                     className="lmm-select"
                     value={da.out ?? 'none'}
                     onChange={e => updateDraftDefaultAnimation({ out: e.target.value as typeof ANIM_OUT_OPTIONS[number] })}
                   >
                     {ANIM_OUT_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                  <SelectCaret />
+                  </DropdownSelect>
                 </div>
               </Field>
             </div>
@@ -438,14 +428,13 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
               </Field>
               <Field label="EASING">
                 <div className="lmm-select-wrap">
-                  <select
+                  <DropdownSelect
                     className="lmm-select"
                     value={da.easing ?? 'easeOutCubic'}
                     onChange={e => updateDraftDefaultAnimation({ easing: e.target.value as typeof EASING_OPTIONS[number] })}
                   >
                     {EASING_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                  <SelectCaret />
+                  </DropdownSelect>
                 </div>
               </Field>
             </div>

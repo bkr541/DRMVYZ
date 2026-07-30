@@ -12,6 +12,7 @@ import type {
 } from '../../../types/lyrics'
 import { getCueIssues, LOW_LYRIC_CONFIDENCE, validateWordTiming } from './lyricCueEditorModel'
 import { LyricPresentationControls } from '../components/LyricPresentationControls'
+import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 
 export interface LyricSectionOption {
   id: string
@@ -359,21 +360,21 @@ export function LyricCueInspector({
         </label>
         <label>
           <span>Source</span>
-          <select className="lmv-select" value={cue.source ?? ''} onChange={event => onUpdateCue(cue.id, { source: event.target.value ? event.target.value as LyricSource : undefined })}>
+          <DropdownSelect className="lmv-select" value={cue.source ?? ''} onChange={event => onUpdateCue(cue.id, { source: event.target.value ? event.target.value as LyricSource : undefined })}>
             <option value="">Unspecified</option>
             {SOURCES.map(source => <option key={source} value={source}>{source.replace(/_/g, ' ')}</option>)}
-          </select>
+          </DropdownSelect>
         </label>
         <label>
           <span>Review status</span>
-          <select className="lmv-select" value={cue.reviewStatus ?? ''} onChange={event => onUpdateCue(cue.id, { reviewStatus: event.target.value ? event.target.value as LyricReviewStatus : undefined })}>
+          <DropdownSelect className="lmv-select" value={cue.reviewStatus ?? ''} onChange={event => onUpdateCue(cue.id, { reviewStatus: event.target.value ? event.target.value as LyricReviewStatus : undefined })}>
             <option value="">Unspecified</option>
             {REVIEW_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
-          </select>
+          </DropdownSelect>
         </label>
         <label className="lyric-cue-inspector__wide">
           <span>Section association</span>
-          <select
+          <DropdownSelect
             className="lmv-select"
             value={cue.sectionId ?? ''}
             onChange={event => {
@@ -383,7 +384,7 @@ export function LyricCueInspector({
           >
             <option value="">No section</option>
             {sections.map(section => <option key={section.id} value={section.id}>{section.label} ({section.type.replace(/_/g, ' ')})</option>)}
-          </select>
+          </DropdownSelect>
           {cue.sectionId && !selectedSection && <small>Stored section is not available in the current track analysis.</small>}
         </label>
       </div>

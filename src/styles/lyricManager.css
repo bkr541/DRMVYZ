@@ -3085,3 +3085,9 @@
   .lmv-root *,
   .lyric-cue-editor * { scroll-behavior: auto !important; transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Shared Dropdown replacement for the Track Library filter selector. */
+.lmv-track-filter-dropdown {
+  width: 190px;
+  max-width: min(190px, 42vw);
+}

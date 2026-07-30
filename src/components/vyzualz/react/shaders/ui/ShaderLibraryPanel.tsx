@@ -9,6 +9,7 @@ import type { ShaderCategory } from '../registry/shaderRegistryTypes'
 import type { QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
 import { ShaderSceneThumbnail } from './ShaderSceneThumbnail'
 import { resolveShaderSceneProvenance } from './ShaderSceneProvenance'
+import { DropdownSelect } from '../../../../shared/Dropdown/Dropdown'
 
 // ── Tab types ─────────────────────────────────────────────────────────────────
 
@@ -284,7 +285,7 @@ export function ShaderLibraryPanel() {
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
-        <select
+        <DropdownSelect
           className="rv-ctrl-select rv-shader-library-cat"
           value={catFilter}
           onChange={e => setCatFilter(e.target.value as ShaderCategory | '')}
@@ -294,7 +295,7 @@ export function ShaderLibraryPanel() {
           {categories.map(c => (
             <option key={c} value={c}>{c}</option>
           ))}
-        </select>
+        </DropdownSelect>
       </div>
 
       {/* ── Tabs ── */}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { VzEffects, Quality } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -12,6 +12,7 @@ import { LiveVisualCanvas } from './LiveVisualCanvas'
 import { PreviewOverlay } from './PreviewOverlay'
 import { RenderSourceBadge } from './RenderSourceBadge'
 import { OutputHealthIndicator } from '../layout/OutputHealthIndicator'
+import { Dropdown, DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 function fmtTime(secs: number): string {
   if (!isFinite(secs) || secs < 0) return '--:--.--'
@@ -64,20 +65,7 @@ export function LiveVisualPreview({
   onLiveFps?: (fps: number) => void
 }) {
   const [liveStats, setLiveStats] = useState<PerformanceStats>(DEFAULT_PERFORMANCE_STATS)
-  const [viewMenuOpen, setViewMenuOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!viewMenuOpen) return
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setViewMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [viewMenuOpen])
 
   // Track fullscreen state so diagnostic overlays are hidden during program output.
   useEffect(() => {
@@ -166,50 +154,25 @@ export function LiveVisualPreview({
 
         <div className="az-spacer" />
 
-        <div className="vz-view-menu-wrap" ref={menuRef}>
-          <button
-            className={`vz-view-menu-btn${viewMenuOpen ? ' vz-view-menu-btn--open' : ''}${anyViewActive ? ' vz-view-menu-btn--active' : ''}`}
-            onClick={() => setViewMenuOpen(o => !o)}
-            title="View options"
-          >
-            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true">
-              <path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/>
-            </svg>
-            <span>View</span>
-            {anyViewActive && <span className="vz-view-menu-active-dot" />}
-            <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor" aria-hidden="true"
-              style={{ transform: viewMenuOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
-              <path d="M7 9l5 5 5-5z"/>
-            </svg>
-          </button>
-
-          {viewMenuOpen && (
-            <div className="vz-view-menu-dropdown">
-              <button
-                className={`vz-view-menu-item${!timelineEnabled ? ' vz-view-menu-item--on' : ''}`}
-                onClick={() => { onSelectVisualizer(); setViewMenuOpen(false) }}
-              >
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
-                  <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
-                </svg>
-                <span>Visualizer</span>
-                <span className={`vz-view-menu-dot${!timelineEnabled ? ' vz-view-menu-dot--on' : ''}`} />
-              </button>
-
-              <button
-                className={`vz-view-menu-item${timelineEnabled ? ' vz-view-menu-item--on' : ''}`}
-                onClick={() => { onToggleTimeline(); setViewMenuOpen(false) }}
-              >
-                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true">
-                  <path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/>
-                </svg>
-                <span>Timeline</span>
-                <span className={`vz-view-menu-dot${timelineEnabled ? ' vz-view-menu-dot--on' : ''}`} />
-              </button>
-
-            </div>
-          )}
-        </div>
+        <Dropdown
+          id="visualizer-view"
+          value={timelineEnabled ? 'timeline' : 'visualizer'}
+          options={[
+            { value: 'visualizer', label: 'Visualizer' },
+            { value: 'timeline', label: 'Timeline' },
+          ]}
+          onChange={value => {
+            if (value === 'visualizer' && timelineEnabled) onSelectVisualizer()
+            if (value === 'timeline' && !timelineEnabled) onToggleTimeline()
+          }}
+          ariaLabel="View"
+          menuLabel="View"
+          title="View options"
+          size="dense"
+          menuWidth={180}
+          showDescriptions={false}
+          className={`vz-view-dropdown${anyViewActive ? ' vz-view-dropdown--active' : ''}`}
+        />
 
         <div className="vz-header-sep" />
 
@@ -217,12 +180,12 @@ export function LiveVisualPreview({
 
         <div className="vz-header-sep" />
 
-        <select className="az-select" value={quality}
+        <DropdownSelect className="az-select" value={quality}
           onChange={e => onQualityChange(e.target.value as Quality)}>
           <option value="High">High</option>
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
-        </select>
+        </DropdownSelect>
       </div>
     </div>
   )

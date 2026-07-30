@@ -39,6 +39,7 @@ import type {
   PixGridReactionTargetScope,
   PixGridState,
 } from './PixGridTypes'
+import { DropdownSelect } from '../../../shared/Dropdown/Dropdown'
 
 export type PixGridReactivitySurface = 'routing' | 'events' | 'choreography' | 'analysis'
 
@@ -205,7 +206,7 @@ function CategorizedSourceSelect({
   return (
     <div className="rv-ctrl-row">
       <label className="rv-ctrl-label" htmlFor={`pix-grid-source-${labelText.replace(/\s/g, '-')}`}>{labelText}</label>
-      <select
+      <DropdownSelect
         id={`pix-grid-source-${labelText.replace(/\s/g, '-')}`}
         className="rv-ctrl-select"
         value={value}
@@ -218,7 +219,7 @@ function CategorizedSourceSelect({
             ))}
           </optgroup>
         ))}
-      </select>
+      </DropdownSelect>
     </div>
   )
 }

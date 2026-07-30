@@ -1,4 +1,7 @@
 import {
+  Children,
+  Fragment,
+  isValidElement,
   useCallback,
   useEffect,
   useId,
@@ -7,8 +10,11 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
   type ReactNode,
+  type SelectHTMLAttributes,
 } from 'react'
 import { createPortal } from 'react-dom'
 import './Dropdown.css'
@@ -23,17 +29,22 @@ export interface DropdownOption {
   label: string
   description?: string
   disabled?: boolean
+  group?: string
+  style?: CSSProperties
 }
 
 export type DropdownPlacement = 'auto' | 'above' | 'below'
-export type DropdownSize = 'compact' | 'default' | 'large'
+export type DropdownSize = 'dense' | 'compact' | 'default' | 'large'
 
 export interface DropdownProps {
   id?: string
+  triggerId?: string
   label?: ReactNode
   menuLabel?: ReactNode
   ariaLabel?: string
+  ariaLabelledBy?: string
   ariaDescribedBy?: string
+  title?: string
   value?: string | null
   defaultValue?: string | null
   options: readonly DropdownOption[]
@@ -55,6 +66,11 @@ export interface DropdownProps {
   className?: string
   triggerClassName?: string
   menuClassName?: string
+  searchable?: boolean
+  searchValue?: string
+  defaultSearchValue?: string
+  onSearchChange?: (value: string) => void
+  clearSearchOnSelect?: boolean
 }
 
 interface MenuPosition {
@@ -110,10 +126,13 @@ function normalizeIdPart(value: string): string {
 
 export function Dropdown({
   id,
+  triggerId: requestedTriggerId,
   label,
   menuLabel,
   ariaLabel,
+  ariaLabelledBy,
   ariaDescribedBy,
+  title,
   value,
   defaultValue = null,
   options,
@@ -135,15 +154,22 @@ export function Dropdown({
   className = '',
   triggerClassName = '',
   menuClassName = '',
+  searchable = false,
+  searchValue,
+  defaultSearchValue = '',
+  onSearchChange,
+  clearSearchOnSelect = true,
 }: DropdownProps) {
   const generatedId = normalizeIdPart(useId())
   const baseId = id ?? `drm-dropdown-${generatedId}`
   const labelId = `${baseId}-label`
-  const triggerId = `${baseId}-trigger`
+  const triggerId = requestedTriggerId ?? `${baseId}-trigger`
   const listboxId = `${baseId}-listbox`
   const menuLabelId = `${baseId}-menu-label`
 
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const searchTriggerRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const typeaheadBufferRef = useRef('')
   const typeaheadTimerRef = useRef<number | null>(null)
@@ -152,12 +178,15 @@ export function Dropdown({
   const openIsControlled = open !== undefined
   const [internalValue, setInternalValue] = useState<string | null>(defaultValue)
   const [internalOpen, setInternalOpen] = useState(defaultOpen)
+  const [internalSearchValue, setInternalSearchValue] = useState(defaultSearchValue)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
 
   const selectedValue = valueIsControlled ? value ?? null : internalValue
   const requestedOpen = openIsControlled ? Boolean(open) : internalOpen
   const isOpen = !disabled && requestedOpen
+  const searchIsControlled = searchValue !== undefined
+  const resolvedSearchValue = searchIsControlled ? searchValue : internalSearchValue
   const selectedOption = useMemo(
     () => options.find(option => option.value === selectedValue) ?? null,
     [options, selectedValue],
@@ -172,8 +201,11 @@ export function Dropdown({
   const closeMenu = useCallback((restoreFocus = false) => {
     setOpen(false)
     setActiveIndex(-1)
-    if (restoreFocus) triggerRef.current?.focus()
-  }, [setOpen])
+    if (restoreFocus) {
+      if (searchable) searchInputRef.current?.focus()
+      else triggerRef.current?.focus()
+    }
+  }, [searchable, setOpen])
 
   const openMenu = useCallback((preferredIndex?: number) => {
     if (disabled || options.length === 0) return
@@ -186,11 +218,15 @@ export function Dropdown({
     if (disabled || option.disabled) return
     if (!valueIsControlled) setInternalValue(option.value)
     onChange?.(option.value, option)
+    if (searchable && clearSearchOnSelect) {
+      if (!searchIsControlled) setInternalSearchValue('')
+      onSearchChange?.('')
+    }
     closeMenu(true)
-  }, [closeMenu, disabled, onChange, valueIsControlled])
+  }, [clearSearchOnSelect, closeMenu, disabled, onChange, onSearchChange, searchable, searchIsControlled, valueIsControlled])
 
   const updateMenuPosition = useCallback(() => {
-    const trigger = triggerRef.current
+    const trigger = searchable ? searchTriggerRef.current : triggerRef.current
     const menu = menuRef.current
     if (!trigger || !menu || typeof window === 'undefined') return
 
@@ -261,7 +297,7 @@ export function Dropdown({
       }
       return nextPosition
     })
-  }, [maxMenuHeight, menuWidth, placement])
+  }, [maxMenuHeight, menuWidth, placement, searchable])
 
   useLayoutEffect(() => {
     if (!isOpen) {
@@ -277,7 +313,8 @@ export function Dropdown({
     const resizeObserver = typeof ResizeObserver === 'undefined'
       ? null
       : new ResizeObserver(handleViewportChange)
-    if (triggerRef.current) resizeObserver?.observe(triggerRef.current)
+    if (searchable && searchTriggerRef.current) resizeObserver?.observe(searchTriggerRef.current)
+    if (!searchable && triggerRef.current) resizeObserver?.observe(triggerRef.current)
     if (menuRef.current) resizeObserver?.observe(menuRef.current)
 
     return () => {
@@ -293,7 +330,11 @@ export function Dropdown({
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Node ? event.target : null
       if (!target) return
-      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      if (
+        triggerRef.current?.contains(target)
+        || searchTriggerRef.current?.contains(target)
+        || menuRef.current?.contains(target)
+      ) return
       closeMenu(false)
     }
 
@@ -320,6 +361,11 @@ export function Dropdown({
     })
   }, [isOpen, options, selectedValue])
 
+  const setSearch = useCallback((nextValue: string) => {
+    if (!searchIsControlled) setInternalSearchValue(nextValue)
+    onSearchChange?.(nextValue)
+  }, [onSearchChange, searchIsControlled])
+
   const handleTypeahead = useCallback((key: string) => {
     if (typeaheadTimerRef.current != null) {
       window.clearTimeout(typeaheadTimerRef.current)
@@ -345,7 +391,7 @@ export function Dropdown({
     }
   }, [activeIndex, isOpen, openMenu, options])
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (disabled) return
 
     if (event.key === 'ArrowDown') {
@@ -380,7 +426,7 @@ export function Dropdown({
       return
     }
 
-    if (event.key === 'Enter' || event.key === ' ') {
+    if (event.key === 'Enter' || (!searchable && event.key === ' ')) {
       event.preventDefault()
       if (!isOpen) {
         openMenu()
@@ -404,7 +450,8 @@ export function Dropdown({
     }
 
     if (
-      event.key.length === 1
+      !searchable
+      && event.key.length === 1
       && !event.altKey
       && !event.ctrlKey
       && !event.metaKey
@@ -455,41 +502,87 @@ export function Dropdown({
         </span>
       )}
 
-      <button
-        ref={triggerRef}
-        id={triggerId}
-        type="button"
-        className={triggerClassNames}
-        role="combobox"
-        aria-label={ariaLabel}
-        aria-labelledby={!ariaLabel && label != null ? labelId : undefined}
-        aria-describedby={ariaDescribedBy}
-        aria-controls={listboxId}
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
-        aria-activedescendant={isOpen ? activeOptionId : undefined}
-        aria-required={required || undefined}
-        aria-invalid={invalid || undefined}
-        disabled={disabled}
-        onClick={() => {
-          if (isOpen) closeMenu(false)
-          else openMenu()
-        }}
-        onKeyDown={handleKeyDown}
-      >
-        <span
-          className={selectedOption ? 'drm-dropdown__value' : 'drm-dropdown__value drm-dropdown__value--placeholder'}
+      {searchable ? (
+        <div ref={searchTriggerRef} className={`${triggerClassNames} drm-dropdown__search-trigger`}>
+          <input
+            ref={searchInputRef}
+            id={triggerId}
+            type="text"
+            className="drm-dropdown__search-input"
+            role="combobox"
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy ?? (!ariaLabel && label != null ? labelId : undefined)}
+            aria-describedby={ariaDescribedBy}
+            aria-controls={listboxId}
+            aria-expanded={isOpen}
+            aria-haspopup="listbox"
+            aria-activedescendant={isOpen ? activeOptionId : undefined}
+            aria-required={required || undefined}
+            aria-invalid={invalid || undefined}
+            autoComplete="off"
+            disabled={disabled}
+            placeholder={placeholder}
+            title={title}
+            value={resolvedSearchValue}
+            onChange={event => {
+              setSearch(event.target.value)
+              if (!isOpen) setOpen(true)
+            }}
+            onFocus={() => {
+              if (!isOpen && options.length > 0) openMenu()
+            }}
+            onClick={() => {
+              if (!isOpen && options.length > 0) openMenu()
+            }}
+            onKeyDown={handleKeyDown}
+          />
+          <svg
+            className="drm-dropdown__chevron"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      ) : (
+        <button
+          ref={triggerRef}
+          id={triggerId}
+          type="button"
+          className={triggerClassNames}
+          role="combobox"
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy ?? (!ariaLabel && label != null ? labelId : undefined)}
+          aria-describedby={ariaDescribedBy}
+          aria-controls={listboxId}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          aria-activedescendant={isOpen ? activeOptionId : undefined}
+          aria-required={required || undefined}
+          aria-invalid={invalid || undefined}
+          disabled={disabled}
+          title={title}
+          onClick={() => {
+            if (isOpen) closeMenu(false)
+            else openMenu()
+          }}
+          onKeyDown={handleKeyDown}
         >
-          {selectedOption?.label ?? placeholder}
-        </span>
-        <svg
-          className="drm-dropdown__chevron"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
+          <span
+            className={selectedOption ? 'drm-dropdown__value' : 'drm-dropdown__value drm-dropdown__value--placeholder'}
+            style={selectedOption?.style}
+          >
+            {selectedOption?.label ?? placeholder}
+          </span>
+          <svg
+            className="drm-dropdown__chevron"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      )}
 
       {name && <input type="hidden" name={name} value={selectedValue ?? ''} />}
 
@@ -499,7 +592,7 @@ export function Dropdown({
           id={listboxId}
           className={menuClassNames}
           role="listbox"
-          aria-labelledby={menuLabel != null ? menuLabelId : label != null ? labelId : undefined}
+          aria-labelledby={menuLabel != null ? menuLabelId : label != null ? labelId : ariaLabelledBy}
           aria-label={menuLabel == null && label == null ? ariaLabel ?? 'Options' : undefined}
           data-placement={menuPosition?.placement ?? 'below'}
           style={menuStyle as CSSProperties}
@@ -517,6 +610,7 @@ export function Dropdown({
             ) : options.map((option, index) => {
               const selected = option.value === selectedValue
               const active = index === activeIndex
+              const showGroup = option.group != null && option.group !== options[index - 1]?.group
               const optionClassName = [
                 'drm-dropdown__option',
                 selected ? 'drm-dropdown__option--selected' : '',
@@ -526,37 +620,293 @@ export function Dropdown({
               ].filter(Boolean).join(' ')
 
               return (
-                <div
-                  key={option.value}
-                  id={`${baseId}-option-${index}`}
-                  className={optionClassName}
-                  role="option"
-                  aria-selected={selected}
-                  aria-disabled={option.disabled || undefined}
-                  onPointerMove={() => {
-                    if (!option.disabled) setActiveIndex(index)
-                  }}
-                  onPointerDown={event => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                  }}
-                  onClick={() => chooseOption(option)}
-                >
-                  <span className="drm-dropdown__selection-indicator" aria-hidden="true">
-                    {selected && <span className="drm-dropdown__selection-dot" />}
-                  </span>
-                  <span className="drm-dropdown__option-copy">
-                    <span className="drm-dropdown__option-label">{option.label}</span>
-                    {showDescriptions && option.description && (
-                      <span className="drm-dropdown__option-description">{option.description}</span>
-                    )}
-                  </span>
-                </div>
+                <Fragment key={`${option.value}-${index}`}>
+                  {showGroup && (
+                    <div className="drm-dropdown__group-label" role="presentation">
+                      {option.group}
+                    </div>
+                  )}
+                  <div
+                    id={`${baseId}-option-${index}`}
+                    className={optionClassName}
+                    role="option"
+                    aria-selected={selected}
+                    aria-disabled={option.disabled || undefined}
+                    onPointerMove={() => {
+                      if (!option.disabled) setActiveIndex(index)
+                    }}
+                    onPointerDown={event => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                    }}
+                    onClick={() => chooseOption(option)}
+                  >
+                    <span className="drm-dropdown__selection-indicator" aria-hidden="true">
+                      {selected && <span className="drm-dropdown__selection-dot" />}
+                    </span>
+                    <span className="drm-dropdown__option-copy">
+                      <span className="drm-dropdown__option-label" style={option.style}>{option.label}</span>
+                      {showDescriptions && option.description && (
+                        <span className="drm-dropdown__option-description">{option.description}</span>
+                      )}
+                    </span>
+                  </div>
+                </Fragment>
               )
             })}
           </div>
         </div>
       ), document.body)}
     </div>
+  )
+}
+
+interface NativeOptionElementProps {
+  value?: string | number
+  label?: string
+  disabled?: boolean
+  style?: CSSProperties
+  children?: ReactNode
+}
+
+interface NativeOptGroupElementProps {
+  label?: string
+  disabled?: boolean
+  children?: ReactNode
+}
+
+function dropdownNodeText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(dropdownNodeText).join('')
+  if (isValidElement(node)) {
+    return dropdownNodeText((node as ReactElement<{ children?: ReactNode }>).props.children)
+  }
+  return String(node)
+}
+
+function dropdownOptionsFromNativeChildren(
+  children: ReactNode,
+  inheritedGroup?: string,
+  inheritedDisabled = false,
+): DropdownOption[] {
+  const options: DropdownOption[] = []
+
+  Children.forEach(children, child => {
+    if (!isValidElement(child)) return
+
+    if (child.type === Fragment) {
+      options.push(...dropdownOptionsFromNativeChildren(
+        (child as ReactElement<{ children?: ReactNode }>).props.children,
+        inheritedGroup,
+        inheritedDisabled,
+      ))
+      return
+    }
+
+    if (child.type === 'optgroup') {
+      const props = (child as ReactElement<NativeOptGroupElementProps>).props
+      options.push(...dropdownOptionsFromNativeChildren(
+        props.children,
+        props.label ?? inheritedGroup,
+        inheritedDisabled || Boolean(props.disabled),
+      ))
+      return
+    }
+
+    if (child.type !== 'option') return
+    const props = (child as ReactElement<NativeOptionElementProps>).props
+    const label = props.label ?? dropdownNodeText(props.children)
+    options.push({
+      value: String(props.value ?? label),
+      label,
+      disabled: inheritedDisabled || Boolean(props.disabled),
+      group: inheritedGroup,
+      style: props.style,
+    })
+  })
+
+  return options
+}
+
+function normalizeNativeSelectValue(
+  value: string | number | readonly string[] | undefined,
+): string | undefined {
+  if (value === undefined) return undefined
+  if (Array.isArray(value)) return value[0] == null ? undefined : String(value[0])
+  return String(value)
+}
+
+function humanizeDropdownId(id?: string): string | undefined {
+  if (!id) return undefined
+  const text = id
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b(select|selector|dropdown|input|field)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!text) return undefined
+  return text.replace(/\b\w/g, letter => letter.toUpperCase())
+}
+
+function cleanInferredDropdownLabel(value: string | null | undefined): string | undefined {
+  const cleaned = value
+    ?.replace(/\(optional\)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned || cleaned.length > 80) return undefined
+  return cleaned
+}
+
+function inferDropdownLabelFromDom(triggerId: string, ariaLabelledBy?: string): string | undefined {
+  if (typeof document === 'undefined') return undefined
+  if (ariaLabelledBy) {
+    const labelledText = ariaLabelledBy
+      .split(/\s+/)
+      .map(id => document.getElementById(id)?.textContent ?? '')
+      .join(' ')
+    const cleaned = cleanInferredDropdownLabel(labelledText)
+    if (cleaned) return cleaned
+  }
+
+  const trigger = document.getElementById(triggerId)
+  if (!trigger) return undefined
+  const root = trigger.closest('.drm-dropdown')
+  const associatedLabel = Array.from(document.querySelectorAll<HTMLLabelElement>('label[for]'))
+    .find(label => label.htmlFor === triggerId)
+  const associatedText = cleanInferredDropdownLabel(associatedLabel?.textContent)
+  if (associatedText) return associatedText
+
+  const wrappingLabel = trigger.closest('label')
+  if (wrappingLabel) {
+    const clone = wrappingLabel.cloneNode(true) as HTMLElement
+    clone.querySelector('.drm-dropdown')?.remove()
+    const wrappingText = cleanInferredDropdownLabel(clone.textContent)
+    if (wrappingText) return wrappingText
+  }
+
+  let ancestor = root?.parentElement ?? null
+  for (let depth = 0; ancestor && depth < 3; depth += 1, ancestor = ancestor.parentElement) {
+    const candidate = Array.from(ancestor.children).find(element => {
+      if (element === root || element.contains(root)) return false
+      return element.tagName === 'LABEL'
+        || element.className.toString().toLocaleLowerCase().includes('label')
+    })
+    const candidateText = cleanInferredDropdownLabel(candidate?.textContent)
+    if (candidateText) return candidateText
+  }
+
+  return undefined
+}
+
+export interface DropdownSelectProps extends Omit<
+  SelectHTMLAttributes<HTMLSelectElement>,
+  'multiple' | 'size'
+> {
+  dropdownSize?: DropdownSize
+  menuLabel?: ReactNode
+  menuWidth?: 'trigger' | number
+  maxMenuHeight?: number
+  placement?: DropdownPlacement
+  placeholder?: string
+  showDescriptions?: boolean
+}
+
+/**
+ * Migration adapter for native selects. It accepts the existing <option> and
+ * <optgroup> children while rendering the shared DRMVYZ Dropdown UI.
+ */
+export function DropdownSelect({
+  children,
+  value,
+  defaultValue,
+  onChange,
+  className = '',
+  id,
+  disabled = false,
+  required = false,
+  name,
+  title,
+  dropdownSize = 'dense',
+  menuLabel,
+  menuWidth = 'trigger',
+  maxMenuHeight,
+  placement,
+  placeholder = 'Select an option…',
+  showDescriptions = false,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
+}: DropdownSelectProps) {
+  const generatedId = normalizeIdPart(useId())
+  const resolvedId = id ?? `drm-native-dropdown-${generatedId}`
+  const options = useMemo(() => dropdownOptionsFromNativeChildren(children), [children])
+  const [inferredMenuLabel, setInferredMenuLabel] = useState<string>()
+  const normalizedValue = normalizeNativeSelectValue(value)
+  const normalizedDefaultValue = normalizeNativeSelectValue(defaultValue)
+  const fallbackDefault = normalizedDefaultValue ?? (value === undefined ? options[0]?.value : undefined)
+  const explicitMenuLabel = menuLabel ?? ariaLabel
+  const conciseTitle = typeof title === 'string' && title.length <= 40 ? title : undefined
+  const fallbackMenuLabel = conciseTitle ?? humanizeDropdownId(id)
+
+  useLayoutEffect(() => {
+    if (explicitMenuLabel != null) return
+    setInferredMenuLabel(inferDropdownLabelFromDom(resolvedId, ariaLabelledBy))
+  }, [ariaLabelledBy, explicitMenuLabel, resolvedId])
+
+  const emitNativeChange = useCallback((nextValue: string) => {
+    if (!onChange) return
+    const target = {
+      value: nextValue,
+      id: resolvedId,
+      name: name ?? '',
+      disabled,
+    } as HTMLSelectElement
+    const event = {
+      target,
+      currentTarget: target,
+      type: 'change',
+      bubbles: true,
+      cancelable: false,
+      defaultPrevented: false,
+      eventPhase: 3,
+      isTrusted: false,
+      nativeEvent: typeof Event === 'undefined' ? undefined : new Event('change'),
+      preventDefault: () => undefined,
+      isDefaultPrevented: () => false,
+      stopPropagation: () => undefined,
+      isPropagationStopped: () => false,
+      persist: () => undefined,
+      timeStamp: Date.now(),
+    } as ChangeEvent<HTMLSelectElement>
+    onChange(event)
+  }, [disabled, name, onChange, resolvedId])
+
+  return (
+    <Dropdown
+      id={`${resolvedId}-dropdown`}
+      triggerId={resolvedId}
+      value={normalizedValue}
+      defaultValue={fallbackDefault}
+      options={options}
+      onChange={emitNativeChange}
+      disabled={disabled}
+      required={required}
+      invalid={ariaInvalid === true || ariaInvalid === 'true'}
+      placeholder={placeholder}
+      ariaLabel={ariaLabel}
+      ariaLabelledBy={ariaLabelledBy}
+      ariaDescribedBy={ariaDescribedBy}
+      title={title}
+      menuLabel={explicitMenuLabel ?? inferredMenuLabel ?? fallbackMenuLabel}
+      menuWidth={menuWidth}
+      maxMenuHeight={maxMenuHeight}
+      placement={placement}
+      size={dropdownSize}
+      showDescriptions={showDescriptions}
+      name={name}
+      className={['drm-dropdown-select', className].filter(Boolean).join(' ')}
+      triggerClassName={className}
+    />
   )
 }

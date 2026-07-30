@@ -5,6 +5,7 @@ import type {
   ShaderTexSourceType,
   TextureInputValidation,
 } from '../textures/shaderTextureInputTypes'
+import { DropdownSelect } from '../../../../shared/Dropdown/Dropdown'
 
 // ── ShaderTextureInputControl ─────────────────────────────────────────────────
 //
@@ -97,7 +98,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
         )}
       </div>
 
-      <select
+      <DropdownSelect
         className="rv-ctrl-select"
         aria-labelledby={labelId}
         value={currentType}
@@ -117,7 +118,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
         </optgroup>
         {/* Media sources are hidden until an asset resolver is connected.
             Selecting these without a mediaElement produces no texture. */}
-      </select>
+      </DropdownSelect>
 
       {warning && (
         <div className="rv-ctrl-warning" role="alert">{warning}</div>

@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { Dropdown } from '../../shared/Dropdown/Dropdown'
 
 // ── Slider row ────────────────────────────────────────────────────────────────
 
@@ -119,18 +120,20 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
   return (
     <div className="rv-ctrl-row">
       <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
-      <select
-        id={inputId}
-        className="rv-ctrl-select"
+      <Dropdown
+        id={`${inputId}-dropdown`}
+        triggerId={inputId}
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={onChange}
+        options={options}
         disabled={disabled}
-        aria-describedby={description ? `${inputId}-description` : undefined}
-      >
-        {options.map(o => (
-          <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
-        ))}
-      </select>
+        ariaLabel={label}
+        ariaDescribedBy={description ? `${inputId}-description` : undefined}
+        menuLabel={label}
+        size="compact"
+        showDescriptions={false}
+        className="rv-ctrl-dropdown"
+      />
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )

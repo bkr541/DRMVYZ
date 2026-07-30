@@ -31,6 +31,7 @@ import {
   type TimelineOverlayVisibility,
 } from '../../timeline/timelineOverlays'
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
+import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 
 export type LyricCueFilter = 'all' | 'unreviewed' | 'low-confidence' | 'warnings' | 'empty-text'
 export type LyricBeatGridStatus = 'trusted' | 'temporary' | 'not-loaded' | 'analyzing' | 'failed' | 'missing' | 'no-track'
@@ -347,7 +348,7 @@ export function LyricCueEditor({
         <button type="button" className="lmv-btn lmv-btn--ghost" disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</button>
         <label>
           <span>Snap</span>
-          <select className="lmv-select" value={snapMode} onChange={event => setSnapMode(event.target.value as LyricSnapMode)}>
+          <DropdownSelect className="lmv-select" value={snapMode} onChange={event => setSnapMode(event.target.value as LyricSnapMode)}>
             <option value="none">No snap</option>
             <option value="millisecond">10 ms grid</option>
             <option value="frame">30 fps frames</option>
@@ -355,7 +356,7 @@ export function LyricCueEditor({
             <option value="half-beat" disabled={!canUseSnapMode('half-beat', { beatGridMs })}>Half beat</option>
             <option value="quarter-beat" disabled={!canUseSnapMode('quarter-beat', { beatGridMs })}>Quarter beat</option>
             <option value="word" disabled={!canUseSnapMode('word', { wordBoundaryMs })}>Word boundary</option>
-          </select>
+          </DropdownSelect>
         </label>
         <label className="lyric-cue-editor-toolbar__zoom">
           <span>Zoom {waveformZoom.toFixed(2)}×</span>
@@ -423,13 +424,13 @@ export function LyricCueEditor({
             <strong>{filteredCues.length} of {cues.length} cues</strong>
             <label>
               <span>Filter</span>
-              <select className="lmv-select" value={filter} onChange={event => setFilter(event.target.value as LyricCueFilter)}>
+              <DropdownSelect className="lmv-select" value={filter} onChange={event => setFilter(event.target.value as LyricCueFilter)}>
                 <option value="all">All</option>
                 <option value="unreviewed">Unreviewed</option>
                 <option value="low-confidence">Low confidence</option>
                 <option value="warnings">Warnings</option>
                 <option value="empty-text">Empty text</option>
-              </select>
+              </DropdownSelect>
             </label>
           </div>
           <div className="lyric-cue-list__scroll">

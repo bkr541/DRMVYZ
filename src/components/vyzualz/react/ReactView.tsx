@@ -64,6 +64,7 @@ import {
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 // These workspaces carry large, engine-specific renderers and authoring tools.
 // Keep them outside the initial React-view graph and load them only when their
@@ -516,7 +517,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           <label className="vz-input-label" htmlFor={audioSourceId}>
             Input
           </label>
-          <select
+          <DropdownSelect
             id={audioSourceId}
             className="az-select"
             value={engine.source}
@@ -525,7 +526,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             <option value="file">Track Input</option>
             <option value="microphone">Microphone</option>
             <option value="demo">Demo Signal</option>
-          </select>
+          </DropdownSelect>
         </div>
 
         <span className="az-spacer" />

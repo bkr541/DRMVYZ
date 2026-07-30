@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
+import { Dropdown } from '../../../components/shared/Dropdown/Dropdown'
 import { ContextActionMenu } from '../../../components/vyzualz/context-menu/ContextActionMenu'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 
@@ -132,26 +133,19 @@ export function LyricTrackBrowser({
         </div>
         <div className="lmv-track-browser-actions">
           <button className="lmv-icon-btn" onClick={onUpload} aria-label="Upload track" title="Upload track"><span className="lmv-sr-label">Upload Track</span>⇧</button>
-          <details className="lmv-track-filter">
-            <summary className="lmv-icon-btn" aria-label={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`} title={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}>▽</summary>
-            <div className="lmv-track-filter-menu" role="menu" aria-label="Track Library filters">
-              {(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([id, label]) => (
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={filter === id}
-                  className={filter === id ? 'lmv-track-filter-option lmv-track-filter-option--active' : 'lmv-track-filter-option'}
-                  key={id}
-                  onClick={event => {
-                    setFilter(id)
-                    event.currentTarget.closest('details')?.removeAttribute('open')
-                  }}
-                >
-                  <span>{label}</span><em aria-hidden="true">{filter === id ? '✓' : ''}</em>
-                </button>
-              ))}
-            </div>
-          </details>
+          <Dropdown
+            id="lyric-track-filter"
+            value={filter}
+            options={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
+            onChange={value => setFilter(value as LyricTrackFilter)}
+            ariaLabel={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
+            menuLabel="Track Library Filters"
+            title={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
+            size="dense"
+            menuWidth={220}
+            showDescriptions={false}
+            className="lmv-track-filter-dropdown"
+          />
         </div>
       </div>
 

@@ -7794,3 +7794,9 @@ input[type='range'].vz-slider--color {
 .vz-app-context-menu__meta { display: grid; gap: 2px; padding: 5px 7px 7px; }
 .vz-app-context-menu__meta strong { color: rgba(232,244,248,0.94); font-size: 11px; }
 .vz-app-context-menu__meta span { color: rgba(196,207,211,0.58); font-size: 9px; }
+
+/* Shared Dropdown replacement for the preview View selector. */
+.vz-view-dropdown {
+  width: 118px;
+  flex: 0 0 auto;
+}

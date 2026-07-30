@@ -8,6 +8,7 @@ import {
   type LyricAnimationPreset,
   type LyricEffectPreset,
 } from '../utils/lyricPresentation'
+import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 
 interface Props {
   style: Partial<LyricStyle>
@@ -119,7 +120,7 @@ export function LyricPresentationControls({
           </label>
           <label>
             <span>Weight</span>
-            <select className="lmv-select" value={style.fontWeight ?? ''} onChange={event => onStyleChange({ fontWeight: event.target.value ? Number(event.target.value) : undefined })}>
+            <DropdownSelect className="lmv-select" value={style.fontWeight ?? ''} onChange={event => onStyleChange({ fontWeight: event.target.value ? Number(event.target.value) : undefined })}>
               {allowInherit && <option value="">Inherit</option>}
               <option value="400">Regular</option>
               <option value="500">Medium</option>
@@ -127,20 +128,20 @@ export function LyricPresentationControls({
               <option value="700">Bold</option>
               <option value="800">Extra bold</option>
               <option value="900">Black</option>
-            </select>
+            </DropdownSelect>
           </label>
           <label>
             <span>Alignment</span>
-            <select className="lmv-select" value={style.align ?? ''} onChange={event => onStyleChange({ align: event.target.value ? event.target.value as LyricStyle['align'] : undefined })}>
+            <DropdownSelect className="lmv-select" value={style.align ?? ''} onChange={event => onStyleChange({ align: event.target.value ? event.target.value as LyricStyle['align'] : undefined })}>
               {allowInherit && <option value="">Inherit</option>}
               <option value="left">Left</option>
               <option value="center">Center</option>
               <option value="right">Right</option>
-            </select>
+            </DropdownSelect>
           </label>
           <label>
             <span>Screen anchor</span>
-            <select
+            <DropdownSelect
               className="lmv-select"
               value={anchorPreset}
               onChange={event => {
@@ -153,7 +154,7 @@ export function LyricPresentationControls({
               <option value="center">Center</option>
               <option value="lower-third">Lower third</option>
               <option value="bottom">Bottom center</option>
-            </select>
+            </DropdownSelect>
           </label>
           <label>
             <span>Opacity</span>
@@ -194,7 +195,7 @@ export function LyricPresentationControls({
         </div>
         <label>
           <span>Animation preset</span>
-          <select
+          <DropdownSelect
             className="lmv-select"
             value={animationPreset}
             onChange={event => {
@@ -211,7 +212,7 @@ export function LyricPresentationControls({
             <option value="pop">Scale pop</option>
             <option value="typewriter">Typewriter</option>
             <option value="glitch">Glitch</option>
-          </select>
+          </DropdownSelect>
         </label>
       </div>
 
@@ -224,7 +225,7 @@ export function LyricPresentationControls({
         </div>
         <label>
           <span>Effect preset</span>
-          <select
+          <DropdownSelect
             className="lmv-select"
             value={effectPreset}
             onChange={event => {
@@ -240,7 +241,7 @@ export function LyricPresentationControls({
             <option value="beat-punch">Beat punch</option>
             <option value="glitch">Glitch</option>
             <option value="bass-reactive">Bass reactive</option>
-          </select>
+          </DropdownSelect>
         </label>
       </div>
     </div>

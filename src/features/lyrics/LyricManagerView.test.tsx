@@ -654,9 +654,10 @@ describe('LyricManagerView track-first workflow', () => {
     expect(snap.disabled).toBe(false)
     await act(async () => snap.click())
     expect(buttonWithText('⌕ Snap: beat').getAttribute('aria-pressed')).toBe('true')
-    const snapSelect = [...container.querySelectorAll<HTMLSelectElement>('select')]
-      .find(select => [...select.options].some(option => option.textContent === 'No snap'))
-    expect(snapSelect?.value).toBe('beat')
+    const snapDropdown = [...container.querySelectorAll<HTMLLabelElement>('label')]
+      .find(label => label.querySelector('span')?.textContent === 'Snap')
+      ?.querySelector<HTMLElement>('[role="combobox"]')
+    expect(snapDropdown?.textContent).toContain('Beat')
   })
 
   it('autosaves dirty lyric edits to the user-scoped recovery repository', async () => {

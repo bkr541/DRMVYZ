@@ -20,6 +20,7 @@ import { BrandSoundDrawingShortcuts } from './BrandSoundDrawingShortcuts'
 import { BrandPersonalizationDiagnostics } from './BrandPersonalizationDiagnostics'
 import { BrandKitEngineControls } from './BrandKitEngineControls'
 import { BrandKitPaletteEditor } from './BrandKitPaletteEditor'
+import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 
 const CANDIDATE_LABELS: Record<BrandPaletteCandidateId, string> = {
   faithful: 'Faithful',
@@ -474,11 +475,11 @@ export function BrandKitSettingsPanel() {
               {paletteSources.length > 1 && (
                 <div className="bk-source-selector">
                   <label htmlFor="bk-palette-source">Palette source to analyze</label>
-                  <select id="bk-palette-source" value={selectedSource?.id ?? ''} onChange={event => setSelectedSourceAssetId(event.target.value)}>
+                  <DropdownSelect id="bk-palette-source" value={selectedSource?.id ?? ''} onChange={event => setSelectedSourceAssetId(event.target.value)}>
                     {paletteSources.map(source => (
                       <option key={source.id} value={source.id}>{items.find(item => item.dbId === source.mediaItemId)?.name ?? source.media?.name ?? 'Missing media'}</option>
                     ))}
-                  </select>
+                  </DropdownSelect>
                 </div>
               )}
 

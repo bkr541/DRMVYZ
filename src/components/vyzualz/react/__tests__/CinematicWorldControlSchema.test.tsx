@@ -151,9 +151,9 @@ describe('Cinematic World control schema', () => {
       />,
     )
 
-    const select = container.querySelector('#constellation-topology-style') as HTMLSelectElement
-    expect(select).toBeInstanceOf(HTMLSelectElement)
-    expect(select.value).toBe(REACTIVE_CONSTELLATION_DEFAULTS.topologyStyle)
+    const select = container.querySelector('#constellation-topology-style') as HTMLButtonElement
+    expect(select).toBeInstanceOf(HTMLButtonElement)
+    expect(select.textContent).toContain('Cluster')
   })
 
   it('preserves discriminated modes while clamping integers and validating select and toggle values', () => {
@@ -212,7 +212,7 @@ describe('Cinematic World control schema', () => {
       />,
     )
     expect(container.querySelector('#constellation-node-count')).toBeInstanceOf(HTMLInputElement)
-    expect(container.querySelector('#constellation-topology-style')).toBeInstanceOf(HTMLSelectElement)
+    expect(container.querySelector('#constellation-topology-style')).toBeInstanceOf(HTMLButtonElement)
     expect(container.querySelector('#constellation-camera-orbit')).toBeInstanceOf(HTMLInputElement)
     expect(container.querySelector('#constellation-beam-width')).toBeInstanceOf(HTMLInputElement)
     expect(container.querySelector('#constellation-trail-samples')).toBeInstanceOf(HTMLInputElement)

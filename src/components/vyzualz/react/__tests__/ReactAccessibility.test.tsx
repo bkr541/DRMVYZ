@@ -71,8 +71,8 @@ describe('React-view control accessibility', () => {
 
     const modeLabel = [...container.querySelectorAll('label')]
       .find(label => label.textContent === 'Mode') as HTMLLabelElement
-    expect(modeLabel.control).toBeInstanceOf(HTMLSelectElement)
-    expect((modeLabel.control as HTMLSelectElement).disabled).toBe(true)
+    expect(modeLabel.control).toBeInstanceOf(HTMLButtonElement)
+    expect((modeLabel.control as HTMLButtonElement).disabled).toBe(true)
 
     const textLabel = [...container.querySelectorAll('label')]
       .find(label => label.textContent === 'Layer name') as HTMLLabelElement

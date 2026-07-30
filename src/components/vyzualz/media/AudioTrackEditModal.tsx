@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MUSICAL_KEYS } from '../../../lib/mediaRoles'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack; onClose: () => void }) {
   const updateSavedTrackMetadata = useAudioStore(state => state.updateSavedTrackMetadata)
@@ -84,11 +85,11 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
             </label>
             <label className="mum-field">
               <span className="mum-field-label">MUSICAL KEY</span>
-              <select className="mum-select" value={musicalKey} onChange={event => setMusicalKey(event.target.value)}>
+              <DropdownSelect className="mum-select" value={musicalKey} onChange={event => setMusicalKey(event.target.value)}>
                 <option value="">Unknown</option>
                 {hasCustomMusicalKey && <option value={track.musicalKey!}>{track.musicalKey} (existing)</option>}
                 {MUSICAL_KEYS.map(key => <option key={key} value={key}>{key}</option>)}
-              </select>
+              </DropdownSelect>
             </label>
           </div>
           {(validationError || loadError) && <div className="mmv-editor-error" role="alert">{validationError ?? loadError}</div>}

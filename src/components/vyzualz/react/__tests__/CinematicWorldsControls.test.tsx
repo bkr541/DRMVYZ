@@ -72,6 +72,14 @@ async function setRangeValue(input: HTMLInputElement, value: number) {
   await act(async () => input.dispatchEvent(new Event('input', { bubbles: true })))
 }
 
+async function selectDropdownOption(trigger: HTMLButtonElement, label: string) {
+  await act(async () => trigger.click())
+  const option = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+    .find(candidate => candidate.textContent?.trim() === label)
+  if (!option) throw new Error(`Dropdown option not found: ${label}`)
+  await act(async () => option.click())
+}
+
 function activeConstellationSettings(presetId: string) {
   const config = useReactStore.getState().cinematicConfigsByPresetId[presetId]
   if (!config || config.worldSettings.mode !== 'reactiveConstellation') throw new Error('Expected Reactive Constellation override')
@@ -137,23 +145,22 @@ describe('Cinematic Worlds engine controls', () => {
     expect(buttonWithText('Reset Audio Mappings')).toBeTruthy()
   })
 
-  it('applies Visual DNA through a labeled native selector and preserves scoped reset behavior', async () => {
+  it('applies Visual DNA through the shared labeled dropdown and preserves scoped reset behavior', async () => {
     const preset = presetFor('reactiveConstellation')
     const base = resolveCinematicConfigForPreset(preset, {})!
     useReactStore.getState().selectReactPreset(preset.id)
     await render(<CinematicWorldsDesignControls />)
 
-    const selector = container.querySelector('#constellation-visual-dna-profile') as HTMLSelectElement
-    expect(selector).toBeInstanceOf(HTMLSelectElement)
+    const selector = container.querySelector('#constellation-visual-dna-profile') as HTMLButtonElement
+    expect(selector).toBeInstanceOf(HTMLButtonElement)
     expect((container.querySelector('label[for="constellation-visual-dna-profile"]') as HTMLLabelElement).control).toBe(selector)
     selector.focus()
     expect(document.activeElement).toBe(selector)
-    expect([...selector.options].map(option => option.value)).toEqual([
-      'melodicBass', 'heavyDubstep', 'hybridTrap', 'house', 'techno', 'openFormat', 'custom',
-    ])
+    await act(async () => selector.click())
+    expect(document.body.querySelectorAll('[role="option"]')).toHaveLength(7)
+    await act(async () => selector.click())
 
-    selector.value = 'heavyDubstep'
-    await act(async () => selector.dispatchEvent(new Event('change', { bubbles: true })))
+    await selectDropdownOption(selector, 'Heavy Dubstep')
     expect(activeConstellationSettings(preset.id).visualDnaProfile).toBe('heavyDubstep')
     expect(useReactStore.getState().cinematicConfigsByPresetId[preset.id].worldMode).toBe('reactiveConstellation')
 
@@ -162,15 +169,13 @@ describe('Cinematic Worlds engine controls', () => {
     expect(override.camera).toEqual(base.camera)
     expect(activeConstellationSettings(preset.id).visualDnaProfile).toBe('custom')
 
-    selector.value = 'techno'
-    await act(async () => selector.dispatchEvent(new Event('change', { bubbles: true })))
+    await selectDropdownOption(selector, 'Techno')
     await act(async () => buttonWithText('Reset Audio Mappings').click())
     override = useReactStore.getState().cinematicConfigsByPresetId[preset.id]
     expect(override.audioMapping).toEqual(base.audioMapping)
     expect(activeConstellationSettings(preset.id).visualDnaProfile).toBe('custom')
 
-    selector.value = 'house'
-    await act(async () => selector.dispatchEvent(new Event('change', { bubbles: true })))
+    await selectDropdownOption(selector, 'House')
     await act(async () => buttonWithText('Reset World').click())
     expect(useReactStore.getState().cinematicConfigsByPresetId[preset.id]).toBeUndefined()
   })
@@ -277,13 +282,14 @@ describe('Cinematic Worlds audio mappings', () => {
     useReactStore.getState().setCinematicWorldsUiMode('advanced')
     await render(<CinematicWorldsModulationControls />)
 
-    const source = container.querySelector('#cinematic-route-0-source') as HTMLSelectElement
-    source.value = 'bass'
-    await act(async () => source.dispatchEvent(new Event('change', { bubbles: true })))
+    const source = container.querySelector('#cinematic-route-0-source') as HTMLButtonElement
+    await selectDropdownOption(source, 'Bass')
     expect(useReactStore.getState().cinematicConfigsByPresetId[preset.id].audioMapping.routes[0].source).toBe('bass')
 
-    const target = container.querySelector('#cinematic-route-0-target') as HTMLSelectElement
-    expect([...target.options].map(option => option.textContent)).toContain('Gravitational Lensing')
+    const target = container.querySelector('#cinematic-route-0-target') as HTMLButtonElement
+    await act(async () => target.click())
+    expect([...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+      .map(option => option.textContent?.trim())).toContain('Gravitational Lensing')
   })
 })
 

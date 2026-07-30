@@ -18,6 +18,7 @@ import { analyzeAudioFile } from '../../utils/analyzeAudioFile'
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { analyzeSvgCapabilities } from './react/renderers/svgCapabilityAnalysis'
+import { Dropdown, DropdownSelect } from '../shared/Dropdown/Dropdown'
 
 // ── Local display metadata ────────────────────────────────────────────────────
 // Separate from store queue — purely for thumbnail/dims display in modal file list
@@ -512,17 +513,19 @@ export function MediaUploadModal({
   const removeCollection = (id: string) =>
     setUploadDraftCollections(uploadDraft.collectionIds.filter(x => x !== id))
 
-  const handleCollKey = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && collInput.trim()) {
-      e.preventDefault()
-      const existing = collections.find(c => c.name.toLowerCase() === collInput.trim().toLowerCase())
-      if (existing) {
-        addCollection(existing.id)
-      } else {
-        const newId = await createCollection(collInput.trim())
-        if (newId) addCollection(newId)
-      }
+  const collectionDropdownOptions = collInput.trim()
+    ? filteredColls.length > 0
+      ? filteredColls.map(collection => ({ value: collection.id, label: collection.name }))
+      : [{ value: '__create_collection__', label: `+ Create "${collInput.trim()}"` }]
+    : []
+
+  const handleCollectionDropdownChange = async (value: string) => {
+    if (value !== '__create_collection__') {
+      addCollection(value)
+      return
     }
+    const newId = await createCollection(collInput.trim())
+    if (newId) addCollection(newId)
   }
 
   // BPM validation
@@ -671,8 +674,8 @@ export function MediaUploadModal({
   const bpmContent    = <input className="mum-addinfo-input" type="number" min="20" max="300" placeholder="e.g. 128" value={uploadDraft.metadata.bpm ?? ''} onChange={e => setUploadDraftMetadata({ bpm: parseFloat(e.target.value) || undefined })} />
   const loopContent   = <label className="mum-toggle"><input type="checkbox" checked={uploadDraft.metadata.loopable ?? false} onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })} /><span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span></label>
   const alphaContent  = <label className="mum-toggle"><input type="checkbox" checked={uploadDraft.metadata.hasAlpha ?? false} onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })} /><span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span></label>
-  const keyContent    = <div className="mum-select-wrap mum-select-wrap--sm"><select className="mum-select" value={uploadDraft.metadata.key ?? ''} onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}><option value="">—</option>{MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}</select><svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor"><path d="M0 0l5 6 5-6z"/></svg></div>
-  const energyContent = <div className="mum-select-wrap mum-select-wrap--sm"><select className="mum-select" value={uploadDraft.metadata.energy ?? ''} onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}><option value="">—</option>{(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => <option key={k} value={k}>{ENERGY_LABELS[k]}</option>)}</select><svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor"><path d="M0 0l5 6 5-6z"/></svg></div>
+  const keyContent    = <div className="mum-select-wrap mum-select-wrap--sm"><DropdownSelect className="mum-select" value={uploadDraft.metadata.key ?? ''} onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}><option value="">—</option>{MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}</DropdownSelect></div>
+  const energyContent = <div className="mum-select-wrap mum-select-wrap--sm"><DropdownSelect className="mum-select" value={uploadDraft.metadata.energy ?? ''} onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}><option value="">—</option>{(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => <option key={k} value={k}>{ENERGY_LABELS[k]}</option>)}</DropdownSelect></div>
 
   // ── Raster SVG warning handler ──────────────────────────────────────────────
   const handleRasterSvgContinue = useCallback(async () => {
@@ -895,17 +898,14 @@ export function MediaUploadModal({
                     <div className="mum-track-detail-field">
                       <label className="mum-track-detail-label">KEY <span className="mum-opt">(OPTIONAL)</span></label>
                       <div className="mum-select-wrap mum-track-detail-control">
-                        <select
+                        <DropdownSelect
                           className="mum-select"
                           value={uploadDraft.audioMusicalKey}
                           onChange={e => setUploadDraftAudioMusicalKey(e.target.value)}
                         >
                           <option value="">—</option>
                           {MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
-                        </select>
-                        <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
-                          <path d="M0 0l5 6 5-6z"/>
-                        </svg>
+                        </DropdownSelect>
                       </div>
                     </div>
                   </div>
@@ -919,7 +919,7 @@ export function MediaUploadModal({
                 <div className="mum-field">
                   <label className="mum-field-label">MEDIA ROLE<span className="mum-req">*</span></label>
                   <div className="mum-select-wrap">
-                    <select
+                    <DropdownSelect
                       className="mum-select"
                       value={uploadDraft.role}
                       onChange={e => handleRoleChange(e.target.value as MediaRole)}
@@ -929,10 +929,7 @@ export function MediaUploadModal({
                           {MEDIA_ROLE_ICONS[r]}  {MEDIA_ROLE_LABELS[r]}
                         </option>
                       ))}
-                    </select>
-                    <svg className="mum-select-caret" viewBox="0 0 10 6" fill="currentColor">
-                      <path d="M0 0l5 6 5-6z"/>
-                    </svg>
+                    </DropdownSelect>
                   </div>
                   <div className="mum-field-hint">Role affects placement and visual behavior. You can change it later in the Clip Inspector.</div>
                 </div>
@@ -985,45 +982,28 @@ export function MediaUploadModal({
                   <div className="mum-field">
                     <label className="mum-field-label">COLLECTIONS</label>
                     <div className="mum-field-hint">Add this media to one or more collections.</div>
-                    <div className="mum-chip-input" style={{ position: 'relative' }}>
+                    <div className="mum-collection-dropdown-field">
                       <CollectionChips
                         ids={uploadDraft.collectionIds}
                         collections={collections}
                         onRemove={removeCollection}
                       />
-                      <input
-                        className="mum-chip-text"
+                      <Dropdown
+                        id="media-collections"
+                        searchable
+                        searchValue={collInput}
+                        onSearchChange={setCollInput}
+                        value={null}
+                        options={collectionDropdownOptions}
+                        onChange={value => { void handleCollectionDropdownChange(value) }}
                         placeholder="Type to search or create…"
-                        value={collInput}
-                        onChange={e => setCollInput(e.target.value)}
-                        onKeyDown={handleCollKey}
+                        ariaLabel="Collections"
+                        menuLabel="Collections"
+                        size="compact"
+                        maxMenuHeight={260}
+                        showDescriptions={false}
+                        className="mum-collections-dropdown"
                       />
-                      <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
-                        <path d="M0 0l5 6 5-6z"/>
-                      </svg>
-                      {collInput && filteredColls.length > 0 && (
-                        <div className="mum-coll-dropdown">
-                          {filteredColls.map(c => (
-                            <button key={c.id} className="mum-coll-option" onClick={() => addCollection(c.id)}>
-                              {c.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {collInput && filteredColls.length === 0 && (
-                        <div className="mum-coll-dropdown">
-                          <button
-                            className="mum-coll-option mum-coll-option--create"
-                            onMouseDown={async e => {
-                              e.preventDefault()
-                              const newId = await createCollection(collInput.trim())
-                              if (newId) { addCollection(newId); setCollInput('') }
-                            }}
-                          >
-                            + Create "{collInput.trim()}"
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>

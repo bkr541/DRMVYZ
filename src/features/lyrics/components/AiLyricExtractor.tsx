@@ -28,6 +28,7 @@ import {
   type LocalAudioPreparationProgress,
 } from '../services/localAudioPreparation'
 import { getAudioPreparationOperation } from '../../../lib/audioPreparationDb'
+import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 
 const CUE_STYLE_OPTIONS: Array<{ value: LyricCueStyle; description: string }> = [
   { value: 'hip-hop', description: 'Short rhythmic phrases' },
@@ -846,7 +847,7 @@ export function AiLyricExtractor({
       <div className="lmv-grid2">
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-source-mode">SOURCE MODE</label>
-          <select
+          <DropdownSelect
             id="lyric-extraction-source-mode"
             className="lmv-select"
             value={extractionSourceMode}
@@ -861,12 +862,12 @@ export function AiLyricExtractor({
           >
             <option value="full_mix">Full Mix</option>
             <option value="vocal_reference">Vocal Reference</option>
-          </select>
+          </DropdownSelect>
         </div>
         {extractionSourceMode === 'vocal_reference' && (
           <div className="lmv-field">
             <label className="lmv-field-label" htmlFor="lyric-vocal-reference-track">SAVED VOCAL TRACK</label>
-            <select
+            <DropdownSelect
               id="lyric-vocal-reference-track"
               className="lmv-select"
               value={vocalReferenceTrackId ?? ''}
@@ -883,7 +884,7 @@ export function AiLyricExtractor({
                   {track.title}{track.artist ? ` · ${track.artist}` : ''} · {formatTrackDuration(track.durationSec)}
                 </option>
               ))}
-            </select>
+            </DropdownSelect>
           </div>
         )}
         {extractionSourceMode === 'vocal_reference' && (
@@ -963,7 +964,7 @@ export function AiLyricExtractor({
       <div className="lmv-grid2">
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-language">LANGUAGE</label>
-          <select id="lyric-extraction-language" className="lmv-select" value={options.language}
+          <DropdownSelect id="lyric-extraction-language" className="lmv-select" value={options.language}
             disabled={active}
             onChange={event => setOptions(current => ({ ...current, language: event.target.value }))}>
             <option value="auto">Auto-detect</option>
@@ -972,22 +973,22 @@ export function AiLyricExtractor({
             <option value="fr">French</option>
             <option value="de">German</option>
             <option value="ja">Japanese</option>
-          </select>
+          </DropdownSelect>
         </div>
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-timing">TIMING DETAIL</label>
-          <select id="lyric-extraction-timing" className="lmv-select" value={options.timingDetail}
+          <DropdownSelect id="lyric-extraction-timing" className="lmv-select" value={options.timingDetail}
             disabled={active}
             onChange={event => setOptions(current => ({ ...current, timingDetail: event.target.value as LyricTranscriptionOptions['timingDetail'] }))}>
             {TIMING_OPTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+          </DropdownSelect>
         </div>
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-cue-style">CUE STYLE</label>
-          <select id="lyric-extraction-cue-style" className="lmv-select" value={options.cueStyle ?? 'balanced'} disabled={active}
+          <DropdownSelect id="lyric-extraction-cue-style" className="lmv-select" value={options.cueStyle ?? 'balanced'} disabled={active}
             onChange={event => setOptions(current => ({ ...current, cueStyle: event.target.value as LyricCueStyle }))}>
             {CUE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{LYRIC_CUE_STYLE_LABELS[option.value]} · {option.description}</option>)}
-          </select>
+          </DropdownSelect>
         </div>
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-offset">GLOBAL OFFSET MS</label>
@@ -1022,9 +1023,9 @@ export function AiLyricExtractor({
         <div className="lmv-job-card">
           <div className="lmv-section-label">REFORMAT CUES</div>
           <div className="lmv-grid2">
-            <select className="lmv-select" value={reformatStyle} onChange={event => { setReformatStyle(event.target.value as LyricCueStyle); setReformatPreview(null) }}>
+            <DropdownSelect className="lmv-select" value={reformatStyle} onChange={event => { setReformatStyle(event.target.value as LyricCueStyle); setReformatPreview(null) }}>
               {CUE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{LYRIC_CUE_STYLE_LABELS[option.value]}</option>)}
-            </select>
+            </DropdownSelect>
             <button className="lmv-btn" onClick={previewReformat}>Preview Reformat</button>
           </div>
           {reformatPreview && <div className="lmv-parse-next-hint">Current: {cues.length} cues · Proposed: {reformatPreview.length} cues

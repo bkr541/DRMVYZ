@@ -4,7 +4,7 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Dropdown, type DropdownOption } from './Dropdown'
+import { Dropdown, DropdownSelect, type DropdownOption } from './Dropdown'
 
 const OPTIONS: readonly DropdownOption[] = [
   {
@@ -153,6 +153,33 @@ describe('Dropdown', () => {
     expect(onChange).toHaveBeenCalledWith('auto-director', OPTIONS[1])
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(container?.querySelector('[role="combobox"]')?.textContent).toContain('Orbit')
+  })
+
+
+  it('adapts native option children while preserving the existing change contract', () => {
+    const onChange = vi.fn()
+    renderDropdown(
+      <div>
+        <label htmlFor="quality-selector">Quality</label>
+        <DropdownSelect id="quality-selector" value="High" onChange={onChange}>
+          <option value="High">High</option>
+          <option value="Low">Low</option>
+        </DropdownSelect>
+      </div>,
+    )
+
+    const trigger = container?.querySelector('#quality-selector') as HTMLButtonElement
+    expect(trigger).toBeInstanceOf(HTMLButtonElement)
+    expect(trigger.textContent).toContain('High')
+
+    click(trigger)
+    expect(document.body.querySelector('[role="listbox"]')?.textContent).toContain('Quality')
+    const low = [...document.body.querySelectorAll('[role="option"]')]
+      .find(option => option.textContent?.trim() === 'Low')
+    click(low as Element)
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange.mock.calls[0]?.[0].target.value).toBe('Low')
   })
 
   it('renders disabled and empty states accessibly', () => {

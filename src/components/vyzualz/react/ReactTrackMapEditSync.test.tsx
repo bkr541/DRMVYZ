@@ -48,11 +48,11 @@ function changeInput(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-function inputFor(label: string): HTMLInputElement | HTMLSelectElement {
+function controlFor(label: string): HTMLInputElement | HTMLButtonElement {
   const labelElement = [...(container?.querySelectorAll('label') ?? [])]
     .find(candidate => candidate.textContent === label)
   const id = labelElement?.getAttribute('for')
-  const input = id ? document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null : null
+  const input = id ? document.getElementById(id) as HTMLInputElement | HTMLButtonElement | null : null
   expect(input, `input for ${label}`).not.toBeNull()
   return input!
 }
@@ -76,17 +76,17 @@ describe('Track Map edit-form synchronization', () => {
       intensity: 0.9,
     })
 
-    expect(inputFor('Type').value).toBe('drop')
-    expect(inputFor('Label').value).toBe('Restored Drop')
-    expect(Number(inputFor('Start (s)').value)).toBe(24)
-    expect(Number(inputFor('End (s)').value)).toBe(56)
-    expect(Number(inputFor('Intensity').value)).toBe(0.9)
+    expect(controlFor('Type').textContent).toContain('Drop')
+    expect((controlFor('Label') as HTMLInputElement).value).toBe('Restored Drop')
+    expect(Number((controlFor('Start (s)') as HTMLInputElement).value)).toBe(24)
+    expect(Number((controlFor('End (s)') as HTMLInputElement).value)).toBe(56)
+    expect(Number((controlFor('Intensity') as HTMLInputElement).value)).toBe(0.9)
   })
 
   it('preserves active user edits while syncing other canonical fields', () => {
     renderSection(baseSection)
-    const label = inputFor('Label') as HTMLInputElement
-    const start = inputFor('Start (s)') as HTMLInputElement
+    const label = controlFor('Label') as HTMLInputElement
+    const start = controlFor('Start (s)') as HTMLInputElement
 
     act(() => {
       changeInput(label, 'My Custom Build')
@@ -102,10 +102,10 @@ describe('Track Map edit-form synchronization', () => {
       intensity: 0.8,
     })
 
-    expect(inputFor('Label').value).toBe('My Custom Build')
-    expect(Number(inputFor('Start (s)').value)).toBe(12)
-    expect(inputFor('Type').value).toBe('drop')
-    expect(Number(inputFor('End (s)').value)).toBe(45)
-    expect(Number(inputFor('Intensity').value)).toBe(0.8)
+    expect((controlFor('Label') as HTMLInputElement).value).toBe('My Custom Build')
+    expect(Number((controlFor('Start (s)') as HTMLInputElement).value)).toBe(12)
+    expect(controlFor('Type').textContent).toContain('Drop')
+    expect(Number((controlFor('End (s)') as HTMLInputElement).value)).toBe(45)
+    expect(Number((controlFor('Intensity') as HTMLInputElement).value)).toBe(0.8)
   })
 })

@@ -139,11 +139,11 @@ describe('LyricCueEditor selection synchronization', () => {
 
   it('filters low-confidence and warning rows without changing canonical cues', async () => {
     await renderEditor()
-    const filter = container.querySelector<HTMLSelectElement>('.lyric-cue-list__controls select')!
-    await act(async () => {
-      filter.value = 'low-confidence'
-      filter.dispatchEvent(new Event('change', { bubbles: true }))
-    })
+    const filter = container.querySelector<HTMLButtonElement>('.lyric-cue-list__controls [role="combobox"]')!
+    await act(async () => filter.click())
+    const lowConfidence = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(option => option.textContent?.trim() === 'Low confidence')!
+    await act(async () => lowConfidence.click())
     expect(container.querySelector('[data-cue-row-id="cue-1"]')).toBeNull()
     expect(container.querySelector('[data-cue-row-id="cue-2"]')).not.toBeNull()
     expect(useLyricsStore.getState().cues).toHaveLength(2)

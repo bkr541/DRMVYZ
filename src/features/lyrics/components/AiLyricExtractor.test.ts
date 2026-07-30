@@ -537,6 +537,15 @@ describe('AI lyric extractor internet-required guard', () => {
 })
 
 describe('AI lyric vocal-reference source selection', () => {
+  async function selectDropdownOption(id: string, label: string) {
+    const trigger = container!.querySelector<HTMLButtonElement>(`#${id}`)!
+    await act(async () => trigger.click())
+    const option = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(candidate => candidate.textContent?.trim() === label)
+    if (!option) throw new Error(`Dropdown option not found: ${label}`)
+    await act(async () => option.click())
+  }
+
   it('prepares the saved vocal track while sending the full mix as the lyric owner', async () => {
     const vocalTrack: LyricManagerTrack = {
       ...selectedTrack(),
@@ -550,16 +559,8 @@ describe('AI lyric vocal-reference source selection', () => {
     }
     await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), vocalTrack] })
 
-    const modeSelect = container!.querySelector<HTMLSelectElement>('#lyric-extraction-source-mode')!
-    await act(async () => {
-      modeSelect.value = 'vocal_reference'
-      modeSelect.dispatchEvent(new Event('change', { bubbles: true }))
-    })
-    const sourceSelect = container!.querySelector<HTMLSelectElement>('#lyric-vocal-reference-track')!
-    await act(async () => {
-      sourceSelect.value = 'vocals-1'
-      sourceSelect.dispatchEvent(new Event('change', { bubbles: true }))
-    })
+    await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
+    await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals · 03:00')
 
     expect(container!.textContent).toContain('Lyrics belong to')
     expect(container!.textContent).toContain('Reverie Vocals')
@@ -590,16 +591,8 @@ describe('AI lyric vocal-reference source selection', () => {
     }
     await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), alternateVocal] })
 
-    const modeSelect = container!.querySelector<HTMLSelectElement>('#lyric-extraction-source-mode')!
-    await act(async () => {
-      modeSelect.value = 'vocal_reference'
-      modeSelect.dispatchEvent(new Event('change', { bubbles: true }))
-    })
-    const sourceSelect = container!.querySelector<HTMLSelectElement>('#lyric-vocal-reference-track')!
-    await act(async () => {
-      sourceSelect.value = 'vocals-alt'
-      sourceSelect.dispatchEvent(new Event('change', { bubbles: true }))
-    })
+    await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
+    await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals Alt · 02:30')
 
     expect(container!.textContent).toContain('Significant mismatch')
     expect(buttonByText('Start Automatic Extraction').disabled).toBe(true)

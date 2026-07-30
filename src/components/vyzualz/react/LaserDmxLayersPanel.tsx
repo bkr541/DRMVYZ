@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import type { LaserDmxMatrixBeam, LaserDmxReactionGroup } from './ReactTypes'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -200,22 +201,22 @@ export function LaserDmxLayersPanel() {
             onChange={e => setFilters(f => ({ ...f, name: e.target.value }))}
             aria-label="Filter beams by name"
           />
-          <select
+          <DropdownSelect
             className="rv-ctrl-select"
             value={filters.groupId}
             onChange={e => setFilters(f => ({ ...f, groupId: e.target.value }))}
             aria-label="Filter by group"
           >
             {groupOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <select
+          </DropdownSelect>
+          <DropdownSelect
             className="rv-ctrl-select"
             value={filters.enabled}
             onChange={e => setFilters(f => ({ ...f, enabled: e.target.value as FilterEnabledVal }))}
             aria-label="Filter by enabled state"
           >
             {enabledOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          </DropdownSelect>
           <button
             type="button"
             className="rv-glyph-upload-btn"

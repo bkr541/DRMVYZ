@@ -4,6 +4,7 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { SettingsModal } from '../settings/SettingsModal'
 import { supabase, supabaseConfigured } from '../../../lib/supabase'
 import { getProfile } from '../../../lib/profileDb'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 function BeatCanvas({ analyser }: { analyser: AnalyserNode | null }) {
   const canvasRef   = useRef<HTMLCanvasElement>(null)
@@ -171,11 +172,11 @@ export function VyzualzTopBar({ analyser, onSaveSession }: VyzualzTopBarProps) {
 
         <div className="vz-input-group">
           <span className="vz-input-label">Audio In</span>
-          <select className="az-select" value={engine.source} onChange={e => engine.setSource(e.target.value as typeof engine.source)}>
+          <DropdownSelect className="az-select" value={engine.source} onChange={e => engine.setSource(e.target.value as typeof engine.source)}>
             <option value="file">File Input</option>
             <option value="microphone">Microphone</option>
             <option value="demo">Demo Signal</option>
-          </select>
+          </DropdownSelect>
         </div>
 
         <div className="vz-header-sep" />

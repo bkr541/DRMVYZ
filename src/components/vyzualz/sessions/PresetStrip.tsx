@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import type { VzPreset, PresetScope } from '../../../stores/visualStore'
 import { SavePresetDialog } from './SavePresetDialog'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 function presetHasScene(p: VzPreset): boolean {
   const s = p.scope
@@ -53,7 +54,7 @@ export function PresetStrip({ activePresetId, presets, onSelect, onSave, onDelet
             <button className="vz-md-search-clear" onClick={() => setSearch('')} title="Clear search">✕</button>
           )}
         </div>
-        <select
+        <DropdownSelect
           className="az-select vz-presets-cat-select"
           value={category}
           onChange={e => setCategory(e.target.value)}
@@ -62,7 +63,7 @@ export function PresetStrip({ activePresetId, presets, onSelect, onSave, onDelet
           <option value="default">Default</option>
           <option value="custom">Custom</option>
           <option value="scene">Scene</option>
-        </select>
+        </DropdownSelect>
         {!dialogOpen && (
           <button className="vz-new-preset-btn" onClick={() => setDialogOpen(true)} title="Save new preset">
             <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">

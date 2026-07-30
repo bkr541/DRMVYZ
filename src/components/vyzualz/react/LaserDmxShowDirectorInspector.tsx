@@ -54,6 +54,7 @@ import {
   triggerRecipeLabel,
   type LaserDmxShowDirectorTriggerRecipe,
 } from './laserDmxShowDirectorTriggerRecipes'
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 
 interface LaserDmxShowDirectorInspectorProps {
   fixture: LaserDmxShowDirectorFixture | null
@@ -931,7 +932,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                       <div className="rv-show-director-scanner-point__overrides">
                         <label>Dwell <input aria-label={`Point ${index + 1} dwell`} type="number" value={point.dwellMicros} min={0} max={1000000} step={1} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { dwellMicros: clamp(finite(event.target.value, point.dwellMicros), 0, 1000000) }))} /></label>
                         <label>Corner <input aria-label={`Point ${index + 1} corner dwell`} type="number" value={point.cornerDwellMicros ?? scanner.path.cornerDwellMicros} min={0} max={1000000} step={1} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { cornerDwellMicros: clamp(finite(event.target.value, scanner.path.cornerDwellMicros), 0, 1000000) }))} /></label>
-                        <label>Depth <select aria-label={`Point ${index + 1} depth layer`} value={point.depthLayer ?? scanner.depthLayer} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { depthLayer: event.target.value as LaserDmxShowDirectorDepthLayer }))}>{DEPTH_LAYER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                        <label>Depth <DropdownSelect aria-label={`Point ${index + 1} depth layer`} value={point.depthLayer ?? scanner.depthLayer} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { depthLayer: event.target.value as LaserDmxShowDirectorDepthLayer }))}>{DEPTH_LAYER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>
                       </div>
                     </div>
                   ))}
