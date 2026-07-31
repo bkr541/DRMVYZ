@@ -160,12 +160,28 @@ export function applyPixGridPresetSignClock(
   motionScale = 1,
 ): PixGridAudioFrame {
   if (presetId !== 'pix-grid-neon-marquee-cycle') return frame
-  const state = resolvePixGridSectionCadenceClockState(
-    rawAbsoluteBar(frame),
-    frame.sectionBarTimeline ?? [],
-    PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
-    motionScale,
-  )
+  const previewBar = Number.isFinite(frame.previewElapsedBar)
+    ? finiteNonNegative(frame.previewElapsedBar)
+    : null
+  const previewType = previewBar != null ? frame.sectionType : null
+  const state = previewBar != null && previewType
+    ? resolvePixGridSectionCadenceClockState(
+        previewBar,
+        [{
+          id: `editor-preview:${previewType}`,
+          type: previewType,
+          startBar: 0,
+          endBar: previewBar + 1,
+        }],
+        PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
+        motionScale,
+      )
+    : resolvePixGridSectionCadenceClockState(
+        rawAbsoluteBar(frame),
+        frame.sectionBarTimeline ?? [],
+        PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
+        motionScale,
+      )
   return {
     ...frame,
     signClock: state.clock,

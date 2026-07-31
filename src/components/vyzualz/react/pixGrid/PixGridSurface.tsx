@@ -67,6 +67,7 @@ import {
 import { resolvePixGridPresentation, resolvePixGridPublishedQuality } from './PixGridPresentation'
 import { resolvePixGridSurfacePerformanceFrame } from './PixGridSurfaceRuntime'
 import { applyPixGridPresetSignClock } from './PixGridSignClock'
+import { PixGridSelectedScenePreviewClock } from './PixGridScenePreview'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -434,6 +435,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     const unifiedReactionRuntime = new PixGridReactionRuntime()
     const unifiedPerformanceRuntime = new PixGridUnifiedPerformanceRuntime()
     const motionClock = new PixGridMotionClock()
+    const selectedScenePreviewClock = new PixGridSelectedScenePreviewClock()
     const fallbackGroupCompiler = new PixGridFrameGroupCompiler()
     const perceptualTracker = new PixGridPerceptualResponseTracker()
     let animationFrame = 0
@@ -635,11 +637,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previousPerformanceContext = null
         unifiedPerformanceRuntime.reset(current.trackIdentity ?? null)
         unifiedReactionRuntime.reset()
-        // Preserve only the independent sign clock across manual scene ownership
-        // changes. The remaining motion clocks still reset exactly as before.
-        motionClock.reset(current.trackIdentity ?? null, {
-          preserveSign: sceneOwnershipChanged && !presetChanged && !transportBoundary,
-        })
+        // Selected Scene owns a local preview timeline. Manual scene changes
+        // restart it from a held frame instead of inheriting an unrelated sign.
+        motionClock.reset(current.trackIdentity ?? null)
+        selectedScenePreviewClock.reset()
         fallbackGroupCompiler.reset()
         perceptualTracker.reset()
         latestGroupCoverage = new Map()
@@ -663,6 +664,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         unifiedPerformanceRuntime.reset(trackIdentity)
         unifiedReactionRuntime.reset()
         motionClock.reset(trackIdentity)
+        selectedScenePreviewClock.reset()
         fallbackGroupCompiler.reset()
         perceptualTracker.reset()
         latestGroupCoverage = new Map()
@@ -743,7 +745,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         : usingFreshBusFrame
           ? 'shared-bus'
           : 'neutral'
-      const audioFrame = motionClock.apply(applyPixGridRuntimeControls(applyPixGridEditorPreview(applyPixGridPresetSignClock({
+      const previewSourceFrame = selectedScenePreviewClock.apply({
         ...authoredAudioFrame,
         transportState,
         inputSource,
@@ -757,7 +759,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           : 0,
         stemAvailability: (['bassStemActivity', 'drumActivity', 'melodyActivity', 'vocalActivity'] as const)
           .filter(source => authoredAudioFrame.capabilities?.[source] !== false),
-      }, activePreset.id, current.motion)), {
+      }, current.pixGridState)
+      const audioFrame = motionClock.apply(applyPixGridRuntimeControls(applyPixGridEditorPreview(applyPixGridPresetSignClock(
+        previewSourceFrame,
+        activePreset.id,
+        current.motion,
+      )), {
         bassReactivity: current.bassReactivity,
         motion: current.motion,
       }))

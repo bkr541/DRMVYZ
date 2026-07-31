@@ -8,7 +8,7 @@ import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
 import { createDefaultPixGridState } from '../PixGridDefaults'
 import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridRuntimeControls, PixGridMotionClock } from '../PixGridRuntimeControls'
-import { applyPixGridSelectedScenePreviewFrame } from '../PixGridScenePreview'
+import { PixGridSelectedScenePreviewClock } from '../PixGridScenePreview'
 import {
   applyPixGridPresetSignClock,
   PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
@@ -225,18 +225,23 @@ describe('Marquee independent sign clock', () => {
 
     const selected = marqueeState(`${PRESET_ID}-drop`)
     selected.editor = { ...selected.editor, scenePreviewMode: 'selectedScene' }
-    const previewFrame = applyPixGridSelectedScenePreviewFrame(baseFrame, selected)
-    expect(previewFrame.sectionType).toBe('drop')
-    expect(previewFrame.signClock).toBe(baseFrame.signClock)
-    expect(previewFrame.motionClockSign).toBe(baseFrame.motionClockSign)
-    expect(resolve(structure, previewFrame).frameIndex).toBe(baseSign)
+    const previewClock = new PixGridSelectedScenePreviewClock()
+    const previewStart = applyPixGridPresetSignClock(
+      previewClock.apply(rawFrameAt(18.5, { timingDiscontinuity: true }), selected),
+      PRESET_ID,
+    )
+    const previewFrame = applyPixGridPresetSignClock(
+      previewClock.apply(rawFrameAt(22.5), selected),
+      PRESET_ID,
+    )
+    expect(previewStart).toMatchObject({ sectionType: 'drop', previewElapsedBar: 0, signClock: 0 })
+    expect(previewFrame).toMatchObject({ sectionType: 'drop', previewElapsedBar: 4, signClock: 1 })
+    expect(resolve(structure, previewFrame).frameIndex).toBe(1)
 
     const motionClock = new PixGridMotionClock()
-    const beforeSceneChange = motionClock.apply(applyPixGridRuntimeControls(baseFrame, { bassReactivity: 1, motion: 0.5 }))
-    motionClock.reset(baseFrame.trackIdentity ?? null, { preserveSign: true })
-    const afterSceneChange = motionClock.apply(applyPixGridRuntimeControls(previewFrame, { bassReactivity: 1, motion: 0.5 }))
-    expect(afterSceneChange.motionClockSign).toBe(beforeSceneChange.motionClockSign)
-    expect(resolve(structure, afterSceneChange).frameIndex).toBe(resolve(structure, beforeSceneChange).frameIndex)
+    const afterSceneChange = motionClock.apply(applyPixGridRuntimeControls(previewStart, { bassReactivity: 1, motion: 0.5 }))
+    expect(afterSceneChange.motionClockSign).toBe(0)
+    expect(resolve(structure, afterSceneChange).frameIndex).toBe(0)
 
     const verseScene = marqueeState(`${PRESET_ID}-verse`)
     const breakdownScene = marqueeState(`${PRESET_ID}-breakdown`)

@@ -7,6 +7,7 @@ import {
   resolvePixGridPreviewPerformanceContext,
   resolvePixGridPreviewState,
 } from './PixGridScenePreview'
+import { applyPixGridPresetSignClock } from './PixGridSignClock'
 import { PixGridUnifiedPerformanceRuntime, type PixGridUnifiedFrame } from './PixGridUnifiedPerformanceRuntime'
 import type { PixGridAudioFrame, PixGridState } from './PixGridTypes'
 
@@ -38,7 +39,12 @@ export function resolvePixGridSurfacePerformanceFrame(
   input: ResolvePixGridSurfacePerformanceFrameInput,
 ): PixGridSurfacePerformanceFrame {
   const mappedState = resolvePixGridPreviewState(input.authoredState, input.trackSceneId)
-  const previewAudioFrame = applyPixGridSelectedScenePreviewFrame(input.audioFrame, mappedState)
+  const projectedPreviewFrame = applyPixGridSelectedScenePreviewFrame(input.audioFrame, mappedState)
+  const previewAudioFrame = applyPixGridPresetSignClock(
+    projectedPreviewFrame,
+    input.presetId ?? '',
+    projectedPreviewFrame.motionMultiplier ?? 1,
+  )
   const previewContext = resolvePixGridPreviewPerformanceContext(input.context, mappedState, previewAudioFrame)
   const performanceContext = applyPixGridBassGainToPerformanceContext(
     previewContext,

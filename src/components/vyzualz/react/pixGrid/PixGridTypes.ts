@@ -660,6 +660,16 @@ export interface PixGridAudioFrame {
   signTransitionClock?: number | null
   /** Raw sign units per bar at the latest real sign boundary. */
   signTransitionRate?: number
+  /** Selected Scene's unwrapped deterministic preview position in bars. */
+  previewElapsedBar?: number
+  /** Length of the selected scene's authored preview loop in bars. */
+  previewLoopBars?: number
+  /** Zero-based loop occurrence for Selected Scene preview. */
+  previewLoopIndex?: number
+  /** Whether the selected scene timeline wraps instead of holding its completed state. */
+  previewLoops?: boolean
+  /** True on a manual preview reset or deterministic loop boundary. */
+  previewLoopBoundary?: boolean
   /** Fractional musical position measured from the resolved section start. */
   beatsSinceSectionStart?: number
   /** Fractional bar position measured from the resolved section start. */

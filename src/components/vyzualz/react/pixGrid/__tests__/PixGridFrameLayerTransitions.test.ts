@@ -396,8 +396,10 @@ describe('Marquee logical visual acceptance', () => {
     expect(previewFrame).toMatchObject({
       sectionType: 'drop',
       motionClockSectionType: 'drop',
-      motionClockSectionBar: 1.25,
-      motionClockSectionBeat: 5,
+      barsSinceSectionStart: 5.25,
+      beatsSinceSectionStart: 21,
+      previewElapsedBar: 5.25,
+      previewLoopBars: 16,
       inputSource: 'editor-preview',
     })
 

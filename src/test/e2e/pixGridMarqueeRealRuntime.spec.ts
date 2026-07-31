@@ -7,6 +7,8 @@ const VERSE_SCENE_ID = `${PRESET_ID}-verse`
 const DROP_SCENE_ID = `${PRESET_ID}-drop`
 // The deterministic 120 BPM fixture reaches the first Drop sign boundary here.
 const DROP_INTERMEDIATE_TRANSITION_TIME_SEC = 55.02
+// Selected Drop preview starts at 20s; +8.0625s reaches the middle of its first four-bar sign transition.
+const SELECTED_DROP_PREVIEW_TRANSITION_TIME_SEC = 28.0625
 
 interface RuntimeReadback {
   ready: boolean
@@ -276,6 +278,16 @@ test.describe('Marquee Sign Cycle real production browser acceptance', () => {
     expect(drop.sharedPerformance).toMatchObject({ active: true, scene: DROP_SCENE_ID, section: 'drop' })
     expect(drop.runtimeFrame!.activeCellCount).toBeGreaterThan(intro.runtimeFrame!.activeCellCount)
     expect(drop.runtimeFrame!.pixelHash).not.toBe(intro.runtimeFrame!.pixelHash)
+
+    await setMusicalTime(page, SELECTED_DROP_PREVIEW_TRANSITION_TIME_SEC)
+    const selectedDropTransition = await readRuntime(page)
+    expect(selectedDropTransition.previewMode).toBe('selectedScene')
+    expect(selectedDropTransition.runtimeFrame?.sceneId).toBe(DROP_SCENE_ID)
+    expect(selectedDropTransition.runtimeFrame?.signTransitionType).not.toBe('cut')
+    expect(selectedDropTransition.runtimeFrame?.previousSignFrameIndex).toBe(0)
+    expect(selectedDropTransition.runtimeFrame?.signFrameIndex).toBe(1)
+    expect(selectedDropTransition.runtimeFrame!.signTransitionProgress).toBeGreaterThan(0)
+    expect(selectedDropTransition.runtimeFrame!.signTransitionProgress).toBeLessThan(1)
 
     await choose(page, 'Edit Target', 'Perimeter Bulbs A')
     await expect(page.getByRole('tab', { name: 'Layer', exact: true })).toHaveAttribute('aria-selected', 'true')
