@@ -26,6 +26,7 @@ import { compilePixGridGroupMask } from "./PixGridGroups";
 import {
   PixGridPerformanceExecutionRuntime,
   resolvePixGridPerformanceFrame,
+  type PixGridPerformanceSceneOwnership,
 } from "./PixGridPerformanceRuntime";
 import type {
   PixGridAudioFrame,
@@ -325,6 +326,7 @@ export class PixGridUnifiedPerformanceRuntime {
     presetId: string | null | undefined;
     cues: readonly PixGridActionCue[];
     trackId?: string | null;
+    sceneOwnership?: PixGridPerformanceSceneOwnership;
   }): PixGridUnifiedFrame {
     const runtimeRoutes = ensurePixGridRuntimeAudioRoutes(
       input.authoredState,
@@ -340,9 +342,10 @@ export class PixGridUnifiedPerformanceRuntime {
         capabilities: input.audioFrame.capabilities,
         bassReactivityGain: input.audioFrame.bassReactivityGain,
         motionMultiplier: input.audioFrame.motionMultiplier,
+        sceneOwnership: input.sceneOwnership,
       },
     );
-    const cues = resolvePixGridActionCueFrame(
+    const cueFrame = resolvePixGridActionCueFrame(
       performance.state,
       input.cues,
       input.context.audioTimeSec,
@@ -351,6 +354,16 @@ export class PixGridUnifiedPerformanceRuntime {
         runtime: this.cueRuntime,
       },
     );
+    const editingContextOwnsScene = input.sceneOwnership === "editingContext";
+    const resolvedState = editingContextOwnsScene && cueFrame.state.selectedSceneId !== authoredState.selectedSceneId
+      ? { ...cueFrame.state, selectedSceneId: authoredState.selectedSceneId }
+      : cueFrame.state;
+    const cues = resolvedState === cueFrame.state ? cueFrame : { ...cueFrame, state: resolvedState };
+    const cueSceneTransition = editingContextOwnsScene && cueFrame.transition && input.cues.some((cue) => (
+      cue.id === cueFrame.transition?.cueId && cue.action.type === "selectScene"
+    ))
+      ? null
+      : cueFrame.transition;
     const choreography = this.choreographer.evaluate(input.audioFrame);
     const groupEffects = sortPixGridGroupFrameEffects([
       ...performance.groupEffects,
@@ -358,23 +371,23 @@ export class PixGridUnifiedPerformanceRuntime {
     ]);
 
     const transition = selectPixGridTransition(
-      cues.transition,
+      cueSceneTransition,
       performance.transition,
     );
-    const enabledGroups = cues.state.groups.filter((group) => group.enabled);
+    const enabledGroups = resolvedState.groups.filter((group) => group.enabled);
     const compiledMasks = enabledGroups.map((group) => ({
       groupId: group.id,
       mask: compilePixGridGroupMask(
         group,
-        cues.state.matrixWidth,
-        cues.state.matrixHeight,
+        resolvedState.matrixWidth,
+        resolvedState.matrixHeight,
       ),
     }));
     const compiledMaskGroups = compiledMasks
       .filter(({ mask }) => mask.cellCount > 0)
       .map(({ groupId }) => groupId);
     const activeLayerIds = new Set(
-      cues.state.layers
+      resolvedState.layers
         .filter((layer) => layer.visible)
         .map((layer) => layer.id),
     );
@@ -434,7 +447,7 @@ export class PixGridUnifiedPerformanceRuntime {
     );
     let affectsWholeFrame = false;
 
-    for (const route of assignmentRoutes(cues.state)) {
+    for (const route of assignmentRoutes(resolvedState)) {
       const capabilities =
         route.assignment.source === "trackMapCueEvent"
           ? { ...input.audioFrame.capabilities, trackMapCueEvent: cueTriggered }
@@ -451,7 +464,7 @@ export class PixGridUnifiedPerformanceRuntime {
         addUnique(disabledAssignments, route.routeId);
         continue;
       }
-      if (!routeTargetExists(route, cues.state)) {
+      if (!routeTargetExists(route, resolvedState)) {
         addUnique(missingTargets, route.routeId);
         addUnique(compilationWarnings, `${route.routeId}: missing target ${route.targetId}`);
         continue;
@@ -500,9 +513,9 @@ export class PixGridUnifiedPerformanceRuntime {
       else addUnique(discreteAssignments, route.displayId);
     }
 
-    const migration = cues.state.configuration.lastMigration;
+    const migration = resolvedState.configuration.lastMigration;
     const affectedCellCount = affectsWholeFrame
-      ? cues.state.matrixWidth * cues.state.matrixHeight
+      ? resolvedState.matrixWidth * resolvedState.matrixHeight
       : compiledMasks.reduce(
           (sum, { groupId, mask }) => sum + (affectedGroupIds.has(groupId) ? mask.cellCount : 0),
           0,
@@ -518,20 +531,20 @@ export class PixGridUnifiedPerformanceRuntime {
     ];
 
     return {
-      state: cues.state,
+      state: resolvedState,
       groupEffects,
       choreography,
       transition,
       performance,
       cues,
       diagnostics: {
-        stateSchemaVersion: cues.state.version,
-        presetConfigurationVersion: cues.state.configuration.presetConfigurationVersion,
-        layerGraphVersion: cues.state.configuration.layerGraphVersion,
-        smartGroupConfigurationVersion: cues.state.configuration.smartGroupConfigurationVersion,
-        audioRouteConfigurationVersion: cues.state.configuration.audioRouteConfigurationVersion,
-        performanceProgramConfigurationVersion: cues.state.configuration.performanceProgramConfigurationVersion,
-        canonicalMigrationCompleted: cues.state.configuration.canonicalMigrationCompleted,
+        stateSchemaVersion: resolvedState.version,
+        presetConfigurationVersion: resolvedState.configuration.presetConfigurationVersion,
+        layerGraphVersion: resolvedState.configuration.layerGraphVersion,
+        smartGroupConfigurationVersion: resolvedState.configuration.smartGroupConfigurationVersion,
+        audioRouteConfigurationVersion: resolvedState.configuration.audioRouteConfigurationVersion,
+        performanceProgramConfigurationVersion: resolvedState.configuration.performanceProgramConfigurationVersion,
+        canonicalMigrationCompleted: resolvedState.configuration.canonicalMigrationCompleted,
         migrationApplied: migration?.applied === true,
         migrationDetectedPresetLineage: migration?.detectedPresetLineage ?? 'unknown',
         migrationCanonicalLayersAdded: migration?.canonicalLayersAdded ?? [],
@@ -552,7 +565,7 @@ export class PixGridUnifiedPerformanceRuntime {
         migrationAssignmentsPreserved: migration?.assignmentsPreserved ?? 0,
         migrationAssignmentsUpgraded: migration?.assignmentsUpgraded ?? 0,
         migrationProgramsUpgraded: migration?.programsUpgraded ?? 0,
-        migrationCustomizationsPreserved: migration?.customizationsPreserved ?? cues.state.configuration.userCustomized,
+        migrationCustomizationsPreserved: migration?.customizationsPreserved ?? resolvedState.configuration.userCustomized,
         migrationConflicts: migration?.conflicts ?? [],
         migrationSkippedUpgrades: migration?.skippedUpgrades ?? [],
         activeAudioSourceCount,
@@ -565,7 +578,7 @@ export class PixGridUnifiedPerformanceRuntime {
         activeAffectedGroupIds: [...affectedGroupIds].sort(),
         routeActivity: [],
         currentEnvelopePhase: performance.snapshot.activeEventEnvelopes.length ? 'program' : 'idle',
-        currentSceneId: cues.state.selectedSceneId,
+        currentSceneId: resolvedState.selectedSceneId,
         audioInputStatus: input.audioFrame.analyserConnected === false && input.audioFrame.inputSource === 'neutral'
           ? 'disconnected'
           : input.audioFrame.inputSource === 'shared-bus'
@@ -579,8 +592,8 @@ export class PixGridUnifiedPerformanceRuntime {
         sharedPerformanceCoreAvailable: input.audioFrame.sharedPerformanceCoreAvailable !== false,
         aggregateSourceConfidence: input.audioFrame.aggregateSourceConfidence ?? 0,
         stemAvailability: input.audioFrame.stemAvailability ?? [],
-        autonomousAnimationCount: cues.state.layers.reduce((count, layer) => count + layer.animations.filter(animation => animation.clock !== 'beat' && animation.clock !== 'cue' && !animation.audioSource).length, 0),
-        beatSynchronizedAnimationCount: cues.state.layers.reduce((count, layer) => count + layer.animations.filter(animation => animation.clock === 'beat' || animation.clock === 'cue').length, 0),
+        autonomousAnimationCount: resolvedState.layers.reduce((count, layer) => count + layer.animations.filter(animation => animation.clock !== 'beat' && animation.clock !== 'cue' && !animation.audioSource).length, 0),
+        beatSynchronizedAnimationCount: resolvedState.layers.reduce((count, layer) => count + layer.animations.filter(animation => animation.clock === 'beat' || animation.clock === 'cue').length, 0),
         audioEnvelopeActionCount: performance.snapshot.activeEventEnvelopes.length,
         performanceProgramActionCount: performance.snapshot.recentActionTypes.length,
         sceneTransitionActionCount: transition ? 1 : 0,

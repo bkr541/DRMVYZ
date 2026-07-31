@@ -34,6 +34,7 @@ import type {
 import { normalizePixGridState } from "./PixGridValidation";
 
 export const MAX_PIX_GRID_PERFORMANCE_ACTIONS = 96;
+export type PixGridPerformanceSceneOwnership = 'performance' | 'editingContext';
 const MAX_ACTIVE_PROGRAM_EVENTS = 32;
 
 const EVENT_REASONS = new Set<SharedPerformanceActionReason>([
@@ -906,6 +907,7 @@ export function resolvePixGridPerformanceFrame(
     capabilities?: Partial<Record<PixGridReactionSource, boolean>>;
     bassReactivityGain?: number;
     motionMultiplier?: number;
+    sceneOwnership?: PixGridPerformanceSceneOwnership;
   } = {},
 ): PixGridResolvedPerformanceFrame {
   const base = normalizePixGridState(rawState);
@@ -1015,7 +1017,10 @@ export function resolvePixGridPerformanceFrame(
       if (EVENT_REASONS.has(intent.reason))
         runtime.triggerEvent(groupEffect, intent, context);
       else groupEffects.push(groupEffect);
-    } else {
+    } else if (
+      intent.action.type !== "setScene" ||
+      options.sceneOwnership !== "editingContext"
+    ) {
       state = applyStateAction(
         state,
         base,

@@ -59,12 +59,11 @@ import {
 import { pixGridMaskHasCell, type PixGridCompiledMask } from './PixGridGroups'
 import type { PixGridLogicalFrame } from './PixGridCompositor'
 import {
-  applyPixGridBassGainToPerformanceContext,
   PixGridMotionClock,
   applyPixGridRuntimeControls,
 } from './PixGridRuntimeControls'
 import { resolvePixGridPresentation, resolvePixGridPublishedQuality } from './PixGridPresentation'
-import { applyPixGridSelectedScenePreviewFrame, resolvePixGridPreviewState } from './PixGridScenePreview'
+import { resolvePixGridSurfacePerformanceFrame } from './PixGridSurfaceRuntime'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -396,6 +395,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let previousPerformanceContext: SharedPerformanceContext | null = null
     let previousTrackIdentity: string | null = propsRef.current.trackIdentity ?? null
     let previousPresetIdentity: string | null = preset.id
+    let previousSceneOwnershipIdentity = propsRef.current.pixGridState.editor.scenePreviewMode === 'selectedScene'
+      ? `${preset.id}:selected:${propsRef.current.pixGridState.selectedSceneId}`
+      : `${preset.id}:followTrack`
     let previousTransportState: NonNullable<PixGridAudioFrame['transportState']> = propsRef.current.isPaused
       ? 'paused'
       : propsRef.current.isPlaying
@@ -596,10 +598,15 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           ? 'playing'
           : 'stopped'
       const presetChanged = previousPresetIdentity !== activePreset.id
+      const sceneOwnershipIdentity = current.pixGridState.editor.scenePreviewMode === 'selectedScene'
+        ? `${activePreset.id}:selected:${current.pixGridState.selectedSceneId}`
+        : `${activePreset.id}:followTrack`
+      const sceneOwnershipChanged = previousSceneOwnershipIdentity !== sceneOwnershipIdentity
       const transportBoundary = previousTransportState !== transportState
         && (previousTransportState === 'stopped' || transportState === 'stopped')
-      if (presetChanged || transportBoundary) {
+      if (presetChanged || sceneOwnershipChanged || transportBoundary) {
         previousPresetIdentity = activePreset.id
+        previousSceneOwnershipIdentity = sceneOwnershipIdentity
         previousTransportState = transportState
         previousPerformanceContext = null
         unifiedPerformanceRuntime.reset(current.trackIdentity ?? null)
@@ -724,10 +731,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         bassReactivity: current.bassReactivity,
         motion: current.motion,
       }))
-      const pixGridPerformanceContext = applyPixGridBassGainToPerformanceContext(
-        context,
-        audioFrame.bassReactivityGain ?? 1,
-      )
       const qualityProfile = adaptiveProfileRef.current
       const runtimeState: PixGridState = {
         ...current.pixGridState,
@@ -746,16 +749,22 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         current.trackSections ?? intelligenceFrame.resolvedSections ?? [],
         audioTime,
       )
-      const mappedState = resolvePixGridPreviewState(runtimeState, selectedSceneId)
-      const previewAudioFrame = applyPixGridSelectedScenePreviewFrame(audioFrame, mappedState)
-      const resolvedRuntime = unifiedPerformanceRuntime.resolve({
-        authoredState: mappedState,
-        context: pixGridPerformanceContext,
-        audioFrame: previewAudioFrame,
+      const surfacePerformanceFrame = resolvePixGridSurfacePerformanceFrame({
+        authoredState: runtimeState,
+        trackSceneId: selectedSceneId,
+        context,
+        audioFrame,
         presetId: activePreset.id,
         cues: current.pixGridActionCues ?? [],
+        runtime: unifiedPerformanceRuntime,
         trackId: current.trackIdentity ?? null,
       })
+      const {
+        mappedState,
+        previewAudioFrame,
+        performanceContext: pixGridPerformanceContext,
+        resolvedRuntime,
+      } = surfacePerformanceFrame
       const state = transportState === 'stopped' ? mappedState : resolvedRuntime.state
       latestRuntimeDiagnostics = transportState === 'stopped'
         ? {
@@ -797,7 +806,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       publishPixGridCueRuntimeStatus(cueFrame.snapshot)
       publishPixGridAudioAnalysis(routedAudioFrame, resolvedRuntime.diagnostics)
       publishSharedPerformanceDiagnostics(
-        createSharedPerformanceDiagnostics(context, {
+        createSharedPerformanceDiagnostics(pixGridPerformanceContext, {
           engine: 'pixGrid',
           active: performance.snapshot.active || cueFrame.snapshot.active,
           performanceShow: performance.snapshot.programName,
