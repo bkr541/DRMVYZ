@@ -13,7 +13,30 @@ import type {
 export const PIX_GRID_NEON_MARQUEE_PRESET_ID = 'pix-grid-neon-marquee-cycle' as const
 export const PIX_GRID_NEON_MARQUEE_ASSET_ID = 'pix-neon-marquee-cycle' as const
 export const PIX_GRID_NEON_MARQUEE_LAYER_ID = 'neon-marquee-frame' as const
-export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 11 as const
+export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 12 as const
+
+const MARQUEE_CELL_X = 1 / 160
+const MARQUEE_CELL_Y = 1 / 90
+
+export const PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS = Object.freeze({
+  introVerticalCells: 0.5,
+  verseHorizontalCells: 2,
+  verseVerticalCells: 0.5,
+  buildHorizontalCells: 3,
+  buildVerticalCells: 1.5,
+  dropHorizontalCells: 1.5,
+  dropVerticalCells: 2,
+  breakdownVerticalCells: 1,
+  outroVerticalCells: 0.75,
+  introScaleDelta: 0.006,
+  verseScaleDelta: 0.012,
+  buildScaleDelta: 0.018,
+  dropScaleDelta: 0.02,
+  breakdownScaleDelta: 0.008,
+  outroScaleDelta: 0.006,
+  maximumAuthoredScale: 1.02,
+  maximumComposedScale: 1.1,
+} as const)
 
 export const PIX_GRID_NEON_MARQUEE_SECTION_SUBDIVISIONS: Readonly<Record<ReactSectionType, string>> = Object.freeze({
   intro: 'one selected section-local bar in four; otherwise held',
@@ -29,6 +52,9 @@ export const PIX_GRID_NEON_MARQUEE_SECTION_SUBDIVISIONS: Readonly<Record<ReactSe
 
 export interface PixGridNeonMarqueeResolvedPerformance {
   frameIndex: 0 | 1 | 2 | 3
+  positionOffsetX: number
+  positionOffsetY: number
+  scaleMultiplier: number
 }
 
 function clamp01(value: number | undefined): number {
@@ -89,6 +115,95 @@ function positiveModulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor
 }
 
+function fract(value: number): number {
+  return value - Math.floor(value)
+}
+
+function wave(value: number, period: number): number {
+  return Math.sin((value / Math.max(0.000001, period)) * Math.PI * 2)
+}
+
+function breath(value: number, period: number): number {
+  return 0.5 - 0.5 * Math.cos((value / Math.max(0.000001, period)) * Math.PI * 2)
+}
+
+function smoothstep(value: number): number {
+  const normalized = clamp01(value)
+  return normalized * normalized * (3 - 2 * normalized)
+}
+
+function baseMovement(): Omit<PixGridNeonMarqueeResolvedPerformance, 'frameIndex'> {
+  return { positionOffsetX: 0, positionOffsetY: 0, scaleMultiplier: 1 }
+}
+
+function movementForSection(
+  frame: PixGridAudioFrame,
+  sceneMotionMultiplier: number,
+): Omit<PixGridNeonMarqueeResolvedPerformance, 'frameIndex'> {
+  if (frame.transportState === 'stopped') return baseMovement()
+  if (!frame.sectionType && !frame.isPlaying && frame.transportState !== 'paused') return baseMovement()
+
+  const beat = sectionBeat(frame, sceneMotionMultiplier)
+  const bar = sectionBar(frame, sceneMotionMultiplier)
+  const progress = sectionProgress(frame, sceneMotionMultiplier)
+  const sectionType = frame.motionClockSectionType !== undefined
+    ? frame.motionClockSectionType
+    : frame.sectionType
+
+  switch (sectionType ?? 'unknown') {
+    case 'intro':
+      return {
+        positionOffsetX: 0,
+        positionOffsetY: wave(bar, 2) * MARQUEE_CELL_Y * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.introVerticalCells,
+        scaleMultiplier: 1 + breath(bar, 2) * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.introScaleDelta,
+      }
+    case 'verse':
+      return {
+        positionOffsetX: wave(bar, 2) * MARQUEE_CELL_X * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.verseHorizontalCells,
+        positionOffsetY: -breath(bar, 1) * MARQUEE_CELL_Y * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.verseVerticalCells,
+        scaleMultiplier: 1 + breath(bar, 1) * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.verseScaleDelta,
+      }
+    case 'build': {
+      const ramp = smoothstep(progress)
+      return {
+        positionOffsetX: wave(bar, 1) * ramp * MARQUEE_CELL_X * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.buildHorizontalCells,
+        positionOffsetY: -breath(beat, 2) * ramp * MARQUEE_CELL_Y * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.buildVerticalCells,
+        scaleMultiplier: 1 + breath(beat, 2) * ramp * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.buildScaleDelta,
+      }
+    }
+    case 'preDrop':
+      return baseMovement()
+    case 'drop': {
+      const beatPhase = fract(beat)
+      const impact = Math.sin(beatPhase * Math.PI)
+      const direction = positiveModulo(Math.floor(beat), 2) === 0 ? 1 : -1
+      return {
+        positionOffsetX: direction * impact * MARQUEE_CELL_X * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.dropHorizontalCells,
+        positionOffsetY: -impact * MARQUEE_CELL_Y * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.dropVerticalCells,
+        scaleMultiplier: 1 + impact * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.dropScaleDelta,
+      }
+    }
+    case 'breakdown':
+    case 'bridge':
+      return {
+        positionOffsetX: 0,
+        positionOffsetY: wave(bar, 2) * MARQUEE_CELL_Y * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.breakdownVerticalCells,
+        scaleMultiplier: 1 + breath(bar, 2) * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.breakdownScaleDelta,
+      }
+    case 'outro': {
+      const remaining = 1 - smoothstep(progress)
+      return {
+        positionOffsetX: 0,
+        positionOffsetY: wave(bar, 2) * remaining * MARQUEE_CELL_Y * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.outroVerticalCells,
+        scaleMultiplier: 1 + breath(bar, 2) * remaining * PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.outroScaleDelta,
+      }
+    }
+    case 'unknown':
+    default:
+      return baseMovement()
+  }
+}
+
 function frameForSection(frame: PixGridAudioFrame, sceneMotionMultiplier: number): 0 | 1 | 2 | 3 {
   if (frame.transportState === 'stopped') return 0
   if (!frame.sectionType && !frame.isPlaying && frame.transportState !== 'paused') return 0
@@ -139,7 +254,15 @@ export function resolvePixGridNeonMarqueePerformance(
   frame: PixGridAudioFrame,
   sceneMotionMultiplier = 1,
 ): PixGridNeonMarqueeResolvedPerformance {
-  return { frameIndex: frameForSection(frame, sceneMotionMultiplier) }
+  const movement = movementForSection(frame, sceneMotionMultiplier)
+  const positionOffsetX = Math.abs(movement.positionOffsetX) < 1e-10 ? 0 : movement.positionOffsetX
+  const positionOffsetY = Math.abs(movement.positionOffsetY) < 1e-10 ? 0 : movement.positionOffsetY
+  return {
+    frameIndex: frameForSection(frame, sceneMotionMultiplier),
+    positionOffsetX,
+    positionOffsetY,
+    scaleMultiplier: Math.max(1, Math.min(PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.maximumAuthoredScale, movement.scaleMultiplier)),
+  }
 }
 
 const EVENT_SOURCES = new Set<PixGridReactionSource>([

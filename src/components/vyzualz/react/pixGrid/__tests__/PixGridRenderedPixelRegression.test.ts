@@ -40,6 +40,7 @@ function audioFrame(audioTime: number, patch: Partial<PixGridAudioFrame> = {}): 
     beatIndex,
     barIndex: Math.floor(beatIndex / 4),
     isPlaying: true,
+    autoPerformanceEnabled: true,
     ...patch,
   }
 }

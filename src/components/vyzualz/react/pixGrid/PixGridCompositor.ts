@@ -29,6 +29,11 @@ import {
   createPixGridVisualEffectScratch,
 } from './PixGridVisualEffectStack'
 import type { PixGridStructuralChoreography } from './PixGridStructuralChoreographer'
+import {
+  PIX_GRID_NEON_MARQUEE_ASSET_ID,
+  PIX_GRID_NEON_MARQUEE_LAYER_ID,
+  PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS,
+} from './PixGridNeonMarqueePerformance'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -39,6 +44,13 @@ export interface PixGridLogicalFrame {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+}
+
+function composedLayerScale(layer: PixGridLayer, authoredScale: number, audioScale: number): number {
+  const composed = authoredScale * audioScale
+  return layer.id === PIX_GRID_NEON_MARQUEE_LAYER_ID && layer.assetId === PIX_GRID_NEON_MARQUEE_ASSET_ID
+    ? Math.max(0.05, Math.min(PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.maximumComposedScale, composed))
+    : composed
 }
 
 /**
@@ -194,8 +206,8 @@ function renderLayer(
   if (!asset) return
   const animation = resolvePixGridLayerAnimation(layer, asset, frame, scene.motionMultiplier)
   const audioScale = effectiveScale(layer, frame)
-  const scaleX = animation.scaleX * audioScale
-  const scaleY = animation.scaleY * audioScale
+  const scaleX = composedLayerScale(layer, animation.scaleX, audioScale)
+  const scaleY = composedLayerScale(layer, animation.scaleY, audioScale)
   const layerOpacity = clamp01(animation.opacity * effectiveOpacity(layer, scene, frame))
   if (layerOpacity <= 0) return
 
@@ -241,8 +253,8 @@ function renderPreparedAssetLayer(
 ): void {
   const animation = resolvePixGridLayerAnimation(layer, PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)!, frame, scene.motionMultiplier)
   const audioScale = effectiveScale(layer, frame)
-  const scaleX = animation.scaleX * audioScale
-  const scaleY = animation.scaleY * audioScale
+  const scaleX = composedLayerScale(layer, animation.scaleX, audioScale)
+  const scaleY = composedLayerScale(layer, animation.scaleY, audioScale)
   const opacity = clamp01(animation.opacity * effectiveOpacity(layer, scene, frame))
   if (opacity <= 0) return
   for (let y = 0; y < height; y += 1) {

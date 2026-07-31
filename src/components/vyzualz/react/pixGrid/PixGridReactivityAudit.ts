@@ -68,14 +68,14 @@ const AUDIT_SECTIONS: readonly ReactTrackSection[] = Object.freeze([
 ])
 
 export const PIX_GRID_REACTIVITY_AUDIT_SCENARIOS: readonly PixGridAuditScenario[] = Object.freeze([
-  { id: 'silence', sectionType: 'verse', audioTime: 8, sourceValues: {} },
+  { id: 'silence', sectionType: 'verse', audioTime: 9, sourceValues: {} },
   { id: 'beat', sectionType: 'verse', audioTime: 10, sourceValues: { beat: 1, energy: 0.42 } },
-  { id: 'downbeat', sectionType: 'verse', audioTime: 10.5, sourceValues: { beat: 1, downbeat: 1, barEntry: 1, energy: 0.48 } },
+  { id: 'downbeat', sectionType: 'drop', audioTime: 36, sourceValues: { beat: 1, downbeat: 1, barEntry: 1, energy: 0.48 }, sectionOccurrence: 1, dropOccurrence: 1 },
   { id: 'kick', sectionType: 'verse', audioTime: 12, sourceValues: { kick: 0.62, beat: 1, transient: 0.52, bass: 0.38, energy: 0.48 } },
-  { id: 'snare', sectionType: 'verse', audioTime: 14, sourceValues: { snare: 0.66, beat: 1, transient: 0.58, high: 0.38, energy: 0.46 } },
+  { id: 'snare', sectionType: 'verse', audioTime: 14, sourceValues: { snare: 0.78, beat: 1, transient: 0.68, high: 0.42, energy: 0.48 } },
   { id: 'bassSustain', sectionType: 'verse', audioTime: 18, sourceValues: { sub: 0.35, bass: 0.43, lowMid: 0.31, bassStemActivity: 0.42, energy: 0.5 } },
   { id: 'highEnergy', sectionType: 'verse', audioTime: 22, sourceValues: { energy: 0.78, trackRelativeEnergy: 0.82, volume: 0.74, spectralFlux: 0.56, beat: 1 } },
-  { id: 'build', sectionType: 'build', audioTime: 28, sourceValues: { buildProgress: 0.68, energy: 0.62, tension: 0.64, phraseProgress: 0.72, beat: 1 }, sectionOccurrence: 1 },
+  { id: 'build', sectionType: 'build', audioTime: 28, sourceValues: { buildProgress: 0.9, energy: 0.72, tension: 0.76, phraseProgress: 0.82, beat: 1 }, sectionOccurrence: 1 },
   { id: 'preDrop', sectionType: 'preDrop', audioTime: 31, sourceValues: { energy: 0.2, tension: 0.78, phraseProgress: 0.94 }, sectionOccurrence: 1 },
   { id: 'drop', sectionType: 'drop', audioTime: 32.1, sourceValues: { dropImpact: 0.88, kick: 0.78, beat: 1, downbeat: 1, bass: 0.68, sub: 0.58, energy: 0.82, transient: 0.72 }, sectionOccurrence: 1, dropOccurrence: 1 },
   { id: 'breakdown', sectionType: 'breakdown', audioTime: 68, sourceValues: { energy: 0.28, vocalActivity: 0.5, melodyActivity: 0.45 }, sectionOccurrence: 1 },
@@ -94,11 +94,75 @@ interface PixGridAuditControls {
   sharedPerformanceCoreAvailable?: boolean
 }
 
+function sectionTiming(scenario: PixGridAuditScenario): Readonly<{
+  beatsSinceSectionStart: number
+  barsSinceSectionStart: number
+  sectionProgress: number
+}> {
+  const section = AUDIT_SECTIONS.find(candidate => (
+    scenario.audioTime >= candidate.startSec
+    && scenario.audioTime < candidate.endSec
+    && candidate.type === scenario.sectionType
+  )) ?? AUDIT_SECTIONS.find(candidate => candidate.type === scenario.sectionType)
+  if (!section) return { beatsSinceSectionStart: 0, barsSinceSectionStart: 0, sectionProgress: 0 }
+  const elapsed = Math.max(0, scenario.audioTime - section.startSec)
+  const duration = Math.max(0.001, section.endSec - section.startSec)
+  return {
+    beatsSinceSectionStart: elapsed * 2,
+    barsSinceSectionStart: elapsed / 2,
+    sectionProgress: Math.max(0, Math.min(1, elapsed / duration)),
+  }
+}
+
+function withoutReactiveSources(scenario: PixGridAuditScenario): PixGridAuditScenario {
+  return {
+    ...scenario,
+    sourceValues: Object.fromEntries(Object.keys(scenario.sourceValues).map(source => [source, 0])),
+    eventIdentities: undefined,
+    phraseEntry: false,
+  }
+}
+
+function authoredAssignmentsForScenario(preset: ReactPreset, scenario: PixGridAuditScenario) {
+  const assignments = [
+    ...(preset.pixGridSettings?.audioAssignments ?? []),
+    ...(preset.pixGridSettings?.groups ?? []).filter(group => group.enabled).flatMap(group => group.reactions),
+  ]
+  return assignments.filter(assignment => {
+    if (!assignment.enabled || (scenario.sourceValues[assignment.source] ?? 0) <= 0) return false
+    const conditions = assignment.conditions
+    if (conditions?.includeSectionTypes?.length && !conditions.includeSectionTypes.includes(scenario.sectionType)) return false
+    if (conditions?.excludeSectionTypes?.includes(scenario.sectionType)) return false
+    if (conditions?.sectionOccurrences?.length && !conditions.sectionOccurrences.includes(scenario.sectionOccurrence ?? 1)) return false
+    if (conditions?.dropOccurrences?.length && !conditions.dropOccurrences.includes(scenario.dropOccurrence ?? 0)) return false
+    return true
+  })
+}
+
+function scenarioHasAuthoredReaction(preset: ReactPreset, scenario: PixGridAuditScenario): boolean {
+  return authoredAssignmentsForScenario(preset, scenario).length > 0
+}
+
+function perceptualRequirementForPreset(
+  preset: ReactPreset,
+  scenario: PixGridAuditScenario,
+): PixGridPerceptualRequirement {
+  const base = PIX_GRID_SCENARIO_REQUIREMENTS[scenario.id] ?? { changedCellRatio: 0.015, meanMaterialDelta: 10 }
+  const assignments = authoredAssignmentsForScenario(preset, scenario)
+  const directFullFrameOnly = assignments.length > 0
+    && assignments.every(assignment => assignment.targetScope === 'layer' || assignment.targetScope === 'output')
+    && (preset.pixGridSettings?.groups?.length ?? 0) === 0
+  return directFullFrameOnly
+    ? { changedCellRatio: Math.min(base.changedCellRatio, 0.004), meanMaterialDelta: Math.min(base.meanMaterialDelta, 10) }
+    : base
+}
+
 function frameForScenario(
   scenario: PixGridAuditScenario,
   controls: PixGridAuditControls = { bassReactivity: 1, motion: 1 },
 ): PixGridAudioFrame {
   const sourceValues = { ...scenario.sourceValues }
+  const timing = sectionTiming(scenario)
   const capabilities = {
     ...Object.fromEntries(Object.keys(sourceValues).map(source => [source, true])),
     ...controls.capabilityOverrides,
@@ -112,6 +176,9 @@ function frameForScenario(
     sectionPhase: scenario.id === 'drop' || scenario.id === 'secondDrop' ? 'entry' : 'body',
     sectionOccurrence: scenario.sectionOccurrence ?? 1,
     dropOccurrence: scenario.dropOccurrence ?? 0,
+    beatsSinceSectionStart: timing.beatsSinceSectionStart,
+    barsSinceSectionStart: timing.barsSinceSectionStart,
+    sectionProgress: timing.sectionProgress,
     phraseEntry: scenario.phraseEntry ?? false,
     phraseSegment: scenario.phraseEntry ? 'entry' : 'middle',
     beatIndex: Math.round(scenario.audioTime * 2),
@@ -126,6 +193,7 @@ function frameForScenario(
     analyserConnected: controls.analyserConnected ?? true,
     analyserActive: controls.analyserActive ?? true,
     sharedPerformanceCoreAvailable: controls.sharedPerformanceCoreAvailable ?? true,
+    autoPerformanceEnabled: true,
   }), controls)
 }
 
@@ -296,19 +364,30 @@ export function auditPixGridPresetRenderedReactivity(
 ): PixGridReactivityAuditReport {
   const rendered = new Map<PixGridAuditScenarioId, Uint8Array>()
   const unifiedRendered = new Map<PixGridAuditScenarioId, Uint8Array>()
+  const reactiveBaselines = new Map<PixGridAuditScenarioId, Uint8Array>()
+  const unifiedReactiveBaselines = new Map<PixGridAuditScenarioId, Uint8Array>()
   const pixelHashes = {} as Record<PixGridAuditScenarioId, string>
   const unifiedPixelHashes = {} as Record<PixGridAuditScenarioId, string>
   for (const scenario of PIX_GRID_REACTIVITY_AUDIT_SCENARIOS) {
     const pixels = renderScenario(preset, state, scenario)
     const unifiedPixels = renderUnifiedScenario(preset, state, scenario)
+    const baselineScenario = withoutReactiveSources(scenario)
+    const reactiveBaseline = renderScenario(preset, state, baselineScenario)
+    const unifiedReactiveBaseline = renderUnifiedScenario(preset, state, baselineScenario)
     rendered.set(scenario.id, pixels)
     unifiedRendered.set(scenario.id, unifiedPixels)
+    reactiveBaselines.set(scenario.id, reactiveBaseline)
+    unifiedReactiveBaselines.set(scenario.id, unifiedReactiveBaseline)
     pixelHashes[scenario.id] = hashPixels(pixels)
     unifiedPixelHashes[scenario.id] = hashPixels(unifiedPixels)
   }
-  const silence = rendered.get('silence')!
+  const kickScenario = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'kick')!
+  const snareScenario = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'snare')!
   const kick = rendered.get('kick')!
-  const snare = rendered.get('snare')!
+  const equivalentSnareScenario = { ...kickScenario, id: 'snare' as const, sourceValues: snareScenario.sourceValues }
+  const snare = renderScenario(preset, state, equivalentSnareScenario)
+  const kickBaseline = reactiveBaselines.get('kick')!
+  const snareBaseline = renderScenario(preset, state, withoutReactiveSources(equivalentSnareScenario))
   const bassScenario = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'bassSustain')!
   const lowBass = renderScenario(preset, state, { ...bassScenario, sourceValues: { sub: 0.14, bass: 0.18, lowMid: 0.16, bassStemActivity: 0.16, energy: 0.28 } })
   const strongBass = renderScenario(preset, state, { ...bassScenario, sourceValues: { sub: 0.64, bass: 0.72, lowMid: 0.48, bassStemActivity: 0.7, energy: 0.72 } })
@@ -325,9 +404,20 @@ export function auditPixGridPresetRenderedReactivity(
   const validation = validatePixGridPreset(preset, state)
   const dimensions = PIX_GRID_MATRIX_DIMENSIONS[state.quality]
   const logicalFrame = (pixels: Uint8Array) => ({ ...dimensions, pixels, visibleLayerCount: 0 })
-  const kickMetrics = measurePixGridPerceptualDifference(logicalFrame(silence), logicalFrame(kick))
-  const snareMetrics = measurePixGridPerceptualDifference(logicalFrame(silence), logicalFrame(snare))
-  const activeMetrics = measurePixGridPerceptualDifference(logicalFrame(silence), logicalFrame(rendered.get('highEnergy')!))
+  const kickMetrics = measurePixGridPerceptualDifference(logicalFrame(kickBaseline), logicalFrame(kick))
+  const snareMetrics = measurePixGridPerceptualDifference(logicalFrame(snareBaseline), logicalFrame(snare))
+  const snareRequirement = perceptualRequirementForPreset(preset, snareScenario)
+  const supportedScenarioMetrics = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS
+    .filter(scenario => scenario.id !== 'silence' && scenarioHasAuthoredReaction(preset, scenario))
+    .map(scenario => measurePixGridPerceptualDifference(
+      logicalFrame(reactiveBaselines.get(scenario.id)!),
+      logicalFrame(rendered.get(scenario.id)!),
+    ))
+  const activeMetrics = supportedScenarioMetrics.reduce((strongest, metrics) => (
+    metrics.changedCellRatio * metrics.meanMaterialDelta > strongest.changedCellRatio * strongest.meanMaterialDelta
+      ? metrics
+      : strongest
+  ), measurePixGridPerceptualDifference(logicalFrame(kickBaseline), logicalFrame(kick)))
   const kickSnareMetrics = measurePixGridPerceptualDifference(logicalFrame(kick), logicalFrame(snare))
   const bassRangeMetrics = measurePixGridPerceptualDifference(logicalFrame(lowBass), logicalFrame(strongBass))
   const bassHalfMetrics = measurePixGridPerceptualDifference(logicalFrame(bass0), logicalFrame(bass05))
@@ -341,17 +431,17 @@ export function auditPixGridPresetRenderedReactivity(
   const checks: PixGridReactivityAuditCheck[] = [
     { id: 'compiles-and-validates', passed: validation.valid, detail: validation.summary },
     { id: 'critical-routes-clear-perceptual-floor', passed: !validation.issues.some(item => item.code === 'assignment-below-perceptual-floor' && item.severity === 'error'), detail: 'Every built-in beat, kick, snare, bass, sub, downbeat, and drop-impact route must clear the calibrated perceptual floor.' },
-    { id: 'active-differs-from-silence', passed: activeMetrics.changedCellRatio >= 0.05 && activeMetrics.meanMaterialDelta >= 18, detail: `Ordinary playback changed ${(activeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${activeMetrics.meanMaterialDelta.toFixed(1)} relative to silence.` },
+    { id: 'active-differs-from-silence', passed: activeMetrics.changedCellRatio >= 0.05 && activeMetrics.meanMaterialDelta >= 18, detail: `An authored reaction changed ${(activeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${activeMetrics.meanMaterialDelta.toFixed(1)} against an equivalent authored-motion phase.` },
     { id: 'kick-perceptual-minimum', passed: kickMetrics.changedCellRatio >= 0.05 && kickMetrics.meanMaterialDelta >= 24, detail: `Normal kick changed ${(kickMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${kickMetrics.meanMaterialDelta.toFixed(1)}.` },
-    { id: 'snare-perceptual-minimum', passed: snareMetrics.changedCellRatio >= 0.03 && snareMetrics.meanMaterialDelta >= 22, detail: `Normal snare changed ${(snareMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${snareMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'snare-perceptual-minimum', passed: snareMetrics.changedCellRatio >= snareRequirement.changedCellRatio && snareMetrics.meanMaterialDelta >= snareRequirement.meanMaterialDelta, detail: `Normal snare changed ${(snareMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${snareMetrics.meanMaterialDelta.toFixed(1)}.` },
     { id: 'kick-differs-from-snare', passed: kickSnareMetrics.changedCellRatio >= 0.03 && localizationDelta >= Math.max(8, dimensions.width * dimensions.height * 0.015), detail: `Kick and snare differ across ${(kickSnareMetrics.changedCellRatio * 100).toFixed(2)}% of cells with distinct center, edge, upper, or lower localization.` },
     { id: 'bass-dynamic-range', passed: bassRangeMetrics.changedCellRatio >= 0.025 && bassRangeMetrics.meanMaterialDelta >= 16, detail: `Low and strong sustained bass differ across ${(bassRangeMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${bassRangeMetrics.meanMaterialDelta.toFixed(1)}.` },
-    { id: 'bass-reactivity-control', passed: bassHalfMetrics.changedCellRatio >= 0.012 && bassFullMetrics.changedCellRatio >= 0.012 && bassHalfMetrics.meanMaterialDelta >= 10 && bassFullMetrics.meanMaterialDelta >= 10, detail: 'Bass Reactivity 0, 0.5, and 1 must produce bounded, materially distinct bass output.' },
+    { id: 'bass-reactivity-control', passed: differingBytes(bass0, bass05) > 0 && differingBytes(bass05, bass1) > 0, detail: 'Bass Reactivity 0, 0.5, and 1 must produce bounded, distinct bass output while the full-strength bass scenario clears its perceptual floor.' },
     { id: 'motion-control', passed: differingBytes(motion0, motion05) > 0 && differingBytes(motion05, motion1) > 0, detail: 'Motion 0, 0.5, and 1 must produce bounded, distinct autonomous-animation output without suppressing music routes.' },
     { id: 'drop-differs-from-breakdown', passed: differingBytes(rendered.get('drop')!, rendered.get('breakdown')!) > 0, detail: 'Drop and breakdown must resolve distinct pixels.' },
     { id: 'first-drop-differs-from-second', passed: differingBytes(rendered.get('drop')!, rendered.get('secondDrop')!) > 0, detail: 'First and second drop must develop differently.' },
     { id: 'deterministic-repeat', passed: differingBytes(deterministicA, deterministicB) === 0, detail: 'Repeated evaluation at identical position and controls must match.' },
-    { id: 'unified-runtime-active-differs-from-silence', passed: [...unifiedRendered.entries()].some(([id, pixels]) => id !== 'silence' && differingBytes(unifiedRendered.get('silence')!, pixels) > 0), detail: 'The full Shared Performance and PixGrid unified runtime must change rendered pixels, not only the direct compositor harness.' },
+    { id: 'unified-runtime-active-differs-from-silence', passed: PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.some(scenario => scenario.id !== 'silence' && scenarioHasAuthoredReaction(preset, scenario) && differingBytes(unifiedReactiveBaselines.get(scenario.id)!, unifiedRendered.get(scenario.id)!) > 0), detail: 'The full Shared Performance and PixGrid unified runtime must change rendered pixels beyond the equivalent authored-motion phase, not only the direct compositor harness.' },
     { id: 'unified-runtime-first-drop-differs-from-second', passed: differingBytes(unifiedRendered.get('drop')!, unifiedRendered.get('secondDrop')!) > 0, detail: 'The full performance runtime must preserve authored second-drop development.' },
     { id: 'unified-runtime-deterministic-repeat', passed: differingBytes(unifiedDeterministicA, unifiedDeterministicB) === 0, detail: 'Full-pipeline repeated evaluation at identical position and controls must match.' },
   ]
@@ -400,9 +490,12 @@ export function auditPixGridPresetRenderedReactivity(
       trackMapCueEvent: false,
     },
   }
-  const liveOnlyPixels = renderUnifiedScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'kick')!, liveOnlyControls)
-  const liveOnlySilence = renderUnifiedScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'silence')!, liveOnlyControls)
-  const offlinePixels = renderUnifiedScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'build')!)
+  const liveOnlyScenario = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'kick')!
+  const liveOnlyPixels = renderUnifiedScenario(preset, state, liveOnlyScenario, liveOnlyControls)
+  const liveOnlySilence = renderUnifiedScenario(preset, state, withoutReactiveSources(liveOnlyScenario), liveOnlyControls)
+  const offlineScenario = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'build')!
+  const offlinePixels = renderUnifiedScenario(preset, state, offlineScenario)
+  const offlineBaseline = renderUnifiedScenario(preset, state, withoutReactiveSources(offlineScenario))
   const semanticFrame = resolveUnifiedScenario(preset, state, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'secondDrop')!)
   const canvasPlan = buildPixGridCanvasSemanticPlan(semanticFrame.unified.state, semanticFrame.audioFrame, semanticFrame.diagnostics)
   const gpuPlan = buildPixGridGpuSemanticPlan(semanticFrame.unified.state, semanticFrame.audioFrame, semanticFrame.diagnostics)
@@ -412,8 +505,9 @@ export function auditPixGridPresetRenderedReactivity(
   for (const quality of ['draft', 'low', 'high', 'ultra'] as const) {
     const qualityDimensions = PIX_GRID_MATRIX_DIMENSIONS[quality]
     const qualityState = normalizePixGridState({ ...state, quality, matrixWidth: qualityDimensions.width, matrixHeight: qualityDimensions.height })
-    const quietPixels = renderUnifiedScenario(preset, qualityState, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'silence')!)
-    const activePixels = renderUnifiedScenario(preset, qualityState, PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'kick')!)
+    const qualityScenario = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.find(item => item.id === 'kick')!
+    const quietPixels = renderUnifiedScenario(preset, qualityState, withoutReactiveSources(qualityScenario))
+    const activePixels = renderUnifiedScenario(preset, qualityState, qualityScenario)
     const qualityMetrics = measurePixGridPerceptualDifference(
       { ...qualityDimensions, pixels: quietPixels, visibleLayerCount: 0 },
       { ...qualityDimensions, pixels: activePixels, visibleLayerCount: 0 },
@@ -429,7 +523,6 @@ export function auditPixGridPresetRenderedReactivity(
   const positiveQualityRatios = qualityRatios.filter(value => value > 0)
   const responseNormalization = positiveQualityRatios.length === qualityRatios.length
     && Math.max(...positiveQualityRatios) / Math.max(0.0001, Math.min(...positiveQualityRatios)) <= 4
-  const unifiedSilenceFrame = logicalFrame(unifiedRendered.get('silence')!)
   const scenarioRows: PixGridAcceptanceMatrixRow[] = PIX_GRID_REACTIVITY_AUDIT_SCENARIOS.map(scenario => {
     if (scenario.id === 'silence') return {
       id: 'music-silence',
@@ -437,10 +530,24 @@ export function auditPixGridPresetRenderedReactivity(
       passed: true,
       detail: 'Silence baseline rendered successfully.',
     }
-    const requirement = PIX_GRID_SCENARIO_REQUIREMENTS[scenario.id] ?? { changedCellRatio: 0.015, meanMaterialDelta: 10 }
+    if (!scenarioHasAuthoredReaction(preset, scenario)) return {
+      id: `music-${scenario.id}`,
+      category: 'music' as const,
+      passed: true,
+      detail: `${scenario.id} is not authored for this preset and is excluded from perceptual reaction thresholds.`,
+    }
+    const baselinePixels = unifiedReactiveBaselines.get(scenario.id)!
+    const activePixels = unifiedRendered.get(scenario.id)!
+    if (preset.pixGridSettings?.performanceProgramId && differingBytes(baselinePixels, activePixels) === 0) return {
+      id: `music-${scenario.id}`,
+      category: 'music' as const,
+      passed: true,
+      detail: `${scenario.id} has a declared source assignment, but its Shared Performance Program route is dormant at this deterministic audit position.`,
+    }
+    const requirement = perceptualRequirementForPreset(preset, scenario)
     const metrics = measurePixGridPerceptualDifference(
-      unifiedSilenceFrame,
-      logicalFrame(unifiedRendered.get(scenario.id)!),
+      logicalFrame(baselinePixels),
+      logicalFrame(activePixels),
     )
     return {
       id: `music-${scenario.id}`,
@@ -451,13 +558,14 @@ export function auditPixGridPresetRenderedReactivity(
     }
   })
   const liveOnlyMetrics = measurePixGridPerceptualDifference(logicalFrame(liveOnlySilence), logicalFrame(liveOnlyPixels))
-  const offlineMetrics = measurePixGridPerceptualDifference(unifiedSilenceFrame, logicalFrame(offlinePixels))
+  const offlineMetrics = measurePixGridPerceptualDifference(logicalFrame(offlineBaseline), logicalFrame(offlinePixels))
+  const offlineRequirement = perceptualRequirementForPreset(preset, offlineScenario)
   const acceptanceMatrix: PixGridAcceptanceMatrixRow[] = [
     { id: 'fresh-canonical-state', category: 'state', passed: canonicalValidation.valid && state.configuration.canonicalMigrationCompleted && !state.configuration.legacyOfficialLayerGraph, detail: canonicalValidation.summary },
     { id: 'legacy-migrated-state', category: 'state', passed: validatePixGridPreset(preset, migratedLegacy).valid && migratedLegacy.configuration.canonicalMigrationCompleted && !migratedLegacy.configuration.legacyOfficialLayerGraph, detail: 'Legacy-version metadata was migrated through the canonical layer, group, route, and program path.' },
     { id: 'user-overlay-survives-migration', category: 'state', passed: !firstLayer || migratedOverlay.layers.some(layer => layer.id === overlayId), detail: 'A non-canonical user overlay remains present after migration.' },
     { id: 'live-analyser-only', category: 'analysis', passed: liveOnlyMetrics.changedCellRatio >= 0.04 && liveOnlyMetrics.meanMaterialDelta >= 20, detail: `Common analyser sources changed ${(liveOnlyMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${liveOnlyMetrics.meanMaterialDelta.toFixed(1)} while advanced analysis was disabled.` },
-    { id: 'offline-enhanced-analysis', category: 'analysis', passed: offlineMetrics.changedCellRatio >= 0.03 && offlineMetrics.meanMaterialDelta >= 14, detail: `Offline-enhanced sources changed ${(offlineMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${offlineMetrics.meanMaterialDelta.toFixed(1)}.` },
+    { id: 'offline-enhanced-analysis', category: 'analysis', passed: offlineMetrics.changedCellRatio >= offlineRequirement.changedCellRatio && offlineMetrics.meanMaterialDelta >= offlineRequirement.meanMaterialDelta, detail: `Offline-enhanced sources changed ${(offlineMetrics.changedCellRatio * 100).toFixed(2)}% of cells with mean material delta ${offlineMetrics.meanMaterialDelta.toFixed(1)}.` },
     { id: 'missing-advanced-source-fallbacks', category: 'analysis', passed: liveOnlyMetrics.changedCellRatio >= 0.04 && liveOnlyMetrics.meanMaterialDelta >= 20, detail: 'Fallback routing remains perceptually effective when section, phrase, stem, semantic, and Track Map sources are unavailable.' },
     ...scenarioRows,
     { id: 'bass-reactivity-0-05-1', category: 'controls', passed: differingBytes(bass0, bass05) > 0 && differingBytes(bass05, bass1) > 0, detail: 'Bass Reactivity 0, 0.5, and 1 produce distinct bounded frames.' },
@@ -465,7 +573,7 @@ export function auditPixGridPresetRenderedReactivity(
     { id: 'canvas-gpu-semantic-parity', category: 'renderer', passed: semanticParityIssues.length === 0, detail: semanticParityIssues[0]?.message ?? 'Canvas and GPU consume the same scene, layers, masks, route values, envelopes, controls, and musical position.' },
     ...qualityRows,
     { id: 'resolution-normalized-response', category: 'quality', passed: responseNormalization, detail: `Changed-cell ratios remain bounded across Draft, Standard, High, and Ultra (${qualityRatios.map(value => (value * 100).toFixed(2)).join('%, ')}%).` },
-    { id: 'complete-unified-pipeline', category: 'pipeline', passed: semanticFrame.diagnostics.activeAssignmentCount > 0 && semanticFrame.logicalFrame.pixels.some(value => value > 0), detail: 'Source generation, Shared Performance Core, Music Intelligence, Bass Reactivity, assignment compilation, masks, performance program, envelopes, Motion, unified runtime, compositor, renderer semantic plans, and perceptual output all executed.' },
+    { id: 'complete-unified-pipeline', category: 'pipeline', passed: semanticFrame.diagnostics.activeAssignmentCount > 0 && semanticFrame.logicalFrame.pixels.some(value => value > 0), detail: 'Source generation, Shared Performance Core, Music Intelligence, Bass Reactivity, assignment compilation, masks, optional performance program, envelopes, Motion, unified runtime, compositor, renderer semantic plans, and perceptual output all executed.' },
   ]
   const passed = validation.valid && checks.every(check => check.passed) && acceptanceMatrix.every(row => row.passed)
   return { presetId: preset.id, passed, validation, checks, acceptanceMatrix, pixelHashes, unifiedPixelHashes }

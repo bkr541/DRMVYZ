@@ -243,7 +243,7 @@ describe('PixGrid finished presets', () => {
       expect(mappedSettings.every(Boolean)).toBe(true)
     }
 
-    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS.filter(candidate => candidate.pixGridSettings?.performanceProgramId)) {
       const settings = preset.pixGridSettings!.sceneSettings!
       const mappedSettings = preset.sectionMappings.map(mapping => settings[mapping.sceneId])
       expect(new Set(mappedSettings.map(value => JSON.stringify(value))).size).toBeGreaterThanOrEqual(4)

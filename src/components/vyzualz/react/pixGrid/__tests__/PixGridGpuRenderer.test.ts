@@ -133,6 +133,27 @@ describe('PixGridGpuRenderer', () => {
     expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).not.toContain('uGlobalIntensity')
   })
 
+  it('binds the Marquee Sign Cycle LED-cell presentation through the existing WebGL uniforms', () => {
+    const gl = createFakeWebGL2()
+    const canvas = createCanvas(gl)
+    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
+    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const baseInput = renderInput('high')
+    const state = normalizePixGridState(
+      applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
+    )
+
+    expect(renderer.render({ ...baseInput, preset, state, frame: { ...baseInput.frame, glow: 0 } })).toBe(true)
+    const uniformValue = (name: string): number | undefined => {
+      const call = gl.uniform1f.mock.calls.find((entry: unknown[]) => (entry[0] as { name?: string } | null)?.name === name)
+      return typeof call?.[1] === 'number' ? call[1] : undefined
+    }
+    expect(uniformValue('uGap')).toBeCloseTo(0.1)
+    expect(uniformValue('uRoundness')).toBeCloseTo(0.1)
+    expect(uniformValue('uGlow')).toBeCloseTo(0.08)
+    expect(uniformValue('uDiffusion')).toBeCloseTo(0.04)
+  })
+
   it('reuses logical textures and framebuffers until the quality resolution changes', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)

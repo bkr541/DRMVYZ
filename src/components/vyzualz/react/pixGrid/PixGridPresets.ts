@@ -686,12 +686,12 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       backgroundMode: 'black',
       backgroundColor: '#000000',
       backgroundBrightness: 0,
-      cellGap: 0,
-      cellRoundness: 0,
+      cellGap: 0.1,
+      cellRoundness: 0.1,
       cellBrightness: 1,
       globalIntensity: 1,
-      glowAmount: 0,
-      diffusion: 0,
+      glowAmount: 0.08,
+      diffusion: 0.04,
       rgbSubpixelMode: false,
       selectedSceneId: 'pix-grid-neon-marquee-cycle-intro',
       layers: NEON_MARQUEE_CYCLE_LAYERS,
@@ -716,9 +716,29 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
   ),
 ]
 
-/** Built-in presets whose authored contract includes live music-reactive performance routes. */
+/** Capability-based discovery for every renderer-supported PixGrid reaction path. */
+export function isPixGridMusicReactivePreset(preset: ReactPreset): boolean {
+  const settings = preset.pixGridSettings
+  if (!settings) return false
+  if (settings.performanceProgramId) return true
+  if (settings.audioAssignments?.some(assignment => assignment.enabled)) return true
+  if (settings.groups?.some(group => group.enabled && group.reactions.some(assignment => assignment.enabled))) return true
+  return settings.layers?.some(layer => (
+    layer.animations.some(animation => Boolean(animation.audioSource))
+    || Boolean(
+      layer.audioReactivity
+      && (
+        layer.audioReactivity.brightnessSource
+        || layer.audioReactivity.scaleSource
+        || (layer.audioReactivity.beatImpact ?? 0) !== 0
+      )
+    )
+  )) ?? false
+}
+
+/** Built-in presets whose authored contract includes at least one live music-reactive capability. */
 export const PIX_GRID_MUSIC_REACTIVE_PRESETS = PIX_GRID_PRESETS.filter(
-  preset => Boolean(preset.pixGridSettings?.performanceProgramId),
+  isPixGridMusicReactivePreset,
 )
 
 export const PIX_GRID_PRESET_BY_ID = new Map(PIX_GRID_PRESETS.map(item => [item.id, item]))

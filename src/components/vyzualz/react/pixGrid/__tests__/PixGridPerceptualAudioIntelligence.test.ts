@@ -57,6 +57,13 @@ function stateFor(presetId: string) {
   return normalizePixGridState({ ...state, quality: 'low', selectedSceneId })
 }
 
+function presetUsesSource(preset: ReactPreset, source: PixGridReactionAssignment['source']): boolean {
+  return [
+    ...(preset.pixGridSettings?.audioAssignments ?? []),
+    ...(preset.pixGridSettings?.groups ?? []).filter(group => group.enabled).flatMap(group => group.reactions),
+  ].some(assignment => assignment.enabled && assignment.source === source)
+}
+
 function legacyPresetStateForMigration(preset: ReactPreset) {
   const settings = preset.pixGridSettings!
   const stripCalibration = (assignment: PixGridReactionAssignment): PixGridReactionAssignment => {
@@ -121,6 +128,7 @@ function pixGridFrameFromMusicIntelligence(frame: PixGridFixtureAnalysis, event:
     confidence: Object.fromEntries(Object.keys(sourceValues).map(source => [source, 0.82])),
     eventIdentities: event === 'quiet' || event === 'bass' ? {} : { [event]: `fixture:${event}:1`, beat: `fixture:beat:1` },
     trackIdentity: 'pix-grid-perceptual-fixture',
+    autoPerformanceEnabled: true,
   }), { bassReactivity: 1, motion: 0 })
 }
 
@@ -249,8 +257,12 @@ describe('PixGrid perceptual Audio Intelligence contract', () => {
       expect(snareMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.15)
       expect(snareMetrics.meanMaterialDelta).toBeGreaterThan(45)
       expect(snareMetrics.meanLuminanceDelta).toBeGreaterThan(30)
-      expect(hatMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.02)
-      expect(hatMetrics.changedCellRatio).toBeLessThan(kickMetrics.changedCellRatio)
+      if (presetUsesSource(preset, 'hat')) {
+        expect(hatMetrics.changedCellRatio).toBeGreaterThanOrEqual(0.02)
+        expect(hatMetrics.changedCellRatio).toBeLessThan(kickMetrics.changedCellRatio)
+      } else {
+        expect(hatMetrics.changedCellRatio).toBe(0)
+      }
       expect(kickMetrics.centerChangedRatio + kickMetrics.lowerChangedRatio)
         .not.toBeCloseTo(snareMetrics.centerChangedRatio + snareMetrics.lowerChangedRatio, 2)
     }
@@ -275,6 +287,7 @@ describe('PixGrid perceptual Audio Intelligence contract', () => {
         confidence: { bass: 0.82, energy: 0.82, snare: 0.82 },
         eventIdentities: identity ? { snare: identity } : {},
         trackIdentity: 'pix-grid-envelope-fixture',
+        autoPerformanceEnabled: true,
       }),
       { bassReactivity: 1, motion: 0 },
     )

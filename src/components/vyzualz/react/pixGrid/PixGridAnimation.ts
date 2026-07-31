@@ -167,6 +167,10 @@ export function resolvePixGridLayerAnimation(
         if (asset.id === PIX_GRID_NEON_MARQUEE_ASSET_ID && layer.id === PIX_GRID_NEON_MARQUEE_LAYER_ID) {
           const performance = resolvePixGridNeonMarqueePerformance(frame, motionMultiplier)
           resolved.frameIndex = performance.frameIndex
+          resolved.positionX = Math.max(0, Math.min(1, layer.position.x + performance.positionOffsetX))
+          resolved.positionY = Math.max(0, Math.min(1, layer.position.y + performance.positionOffsetY))
+          resolved.scaleX *= performance.scaleMultiplier
+          resolved.scaleY *= performance.scaleMultiplier
           break
         }
         const count = Math.max(1, asset.frameCount ?? 1)

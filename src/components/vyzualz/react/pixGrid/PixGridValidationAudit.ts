@@ -5,7 +5,7 @@ import type { PixGridRouteActivity } from './PixGridAudioRouting'
 import { compilePixGridGroupMask, pixGridMaskHasCell } from './PixGridGroups'
 import { inspectPixGridGroupTarget, type PixGridGroupTargetStatus } from './PixGridCanonicalGraph'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
-import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
+import { isPixGridMusicReactivePreset, PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 import { PixGridPerformanceProgramCompiler, validatePixGridPerformanceProgram } from './PixGridPerformanceProgramCompiler'
 import { isPixGridBassReactivitySource } from './PixGridRuntimeControls'
 import type { PixGridUnifiedRuntimeDiagnostics } from './PixGridUnifiedPerformanceRuntime'
@@ -284,7 +284,9 @@ export function validatePixGridState(
     ?? (state.configuration.origin === 'builtInPreset' ? state.selectedPresetId : null)
   const builtIn = Boolean(builtInPresetId)
   const builtInPreset = builtInPresetId ? PIX_GRID_PRESET_BY_ID.get(builtInPresetId) : null
-  const requiresMusicReactiveContract = builtIn && builtInPreset?.pixGridSettings?.performanceEnabled !== false
+  const requiresMusicReactiveContract = Boolean(builtIn && builtInPreset && isPixGridMusicReactivePreset(builtInPreset))
+  const requiresPerformanceProgram = Boolean(requiresMusicReactiveContract && builtInPreset?.pixGridSettings?.performanceProgramId)
+  const requiresSmartGroups = Boolean(requiresMusicReactiveContract && (builtInPreset?.pixGridSettings?.groups?.length ?? 0) > 0)
   const severityForWeakConfig: PixGridValidationSeverity = requiresMusicReactiveContract ? 'error' : 'warning'
   const locations = assignmentLocations(state)
   const compiler = new PixGridAssignmentCompiler()
@@ -294,7 +296,7 @@ export function validatePixGridState(
   for (const group of state.groups) groupIdCounts.set(group.id, (groupIdCounts.get(group.id) ?? 0) + 1)
   for (const location of locations) assignmentIdCounts.set(location.assignment.id, (assignmentIdCounts.get(location.assignment.id) ?? 0) + 1)
 
-  if (requiresMusicReactiveContract && state.groups.length === 0) issues.push(issue('error', 'built-in-no-groups', 'Built-in PixGrid preset has no smart groups.', 'groups', 'Restore the canonical smart groups through preset migration.'))
+  if (requiresSmartGroups && state.groups.length === 0) issues.push(issue('error', 'built-in-no-groups', 'Built-in PixGrid preset has no smart groups.', 'groups', 'Restore the canonical smart groups through preset migration.'))
   if (requiresMusicReactiveContract && locations.length === 0) issues.push(issue('error', 'built-in-no-routes', 'Built-in PixGrid preset has no audio assignments.', 'audioAssignments', 'Restore the canonical audio routes through preset migration.'))
 
   const fallbackIds = new Set(PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(route => route.id))
@@ -371,9 +373,10 @@ export function validatePixGridState(
       || Math.abs(outputRange[1] - outputRange[0]) <= 1e-6
       || (Math.abs(assignment.clamp[0]) <= 1e-6 && Math.abs(assignment.clamp[1]) <= 1e-6)
     if (ineffective) issues.push(issue('warning', 'ineffective-route-amount', `Assignment ${assignment.id} cannot produce a visible change with its current amount or output range.`, location.path, 'Increase Amount or widen Output Range and Clamp.'))
-    const peakOutputSpan = Math.abs(outputRange[1] - outputRange[0])
-      * Math.abs(assignment.amount)
-      * Math.max(Math.abs(assignment.clamp[0]), Math.abs(assignment.clamp[1]))
+    const peakOutputSpan = Math.min(
+      Math.abs(outputRange[1] - outputRange[0]) * Math.abs(assignment.amount),
+      Math.max(Math.abs(assignment.clamp[0]), Math.abs(assignment.clamp[1])),
+    )
     const targetGroupId = (scope === 'group' || scope === 'pixels')
       ? assignment.targetId ?? location.ownerGroupId
       : null
@@ -388,8 +391,10 @@ export function validatePixGridState(
     const coverageFactor = Math.max(0.34, Math.min(1, Math.sqrt(Math.max(0, targetCoverage) * 16)))
     const actionVisibilityFactor = assignment.target === 'outlineFlash' || assignment.target === 'color' || assignment.target === 'paletteRole'
       ? 1.2
-      : assignment.target === 'scale' || assignment.target === 'maskExpansion' || assignment.target === 'maskContraction'
-        ? 0.9
+      : assignment.target === 'scale' && scope === 'layer'
+        ? 4
+        : assignment.target === 'scale' || assignment.target === 'maskExpansion' || assignment.target === 'maskContraction'
+          ? 0.9
         : 1
     const estimatedPerceptibility = calibratedSpan * coverageFactor * actionVisibilityFactor
     const criticalBuiltInSource = builtIn && ['beat', 'downbeat', 'kick', 'snare', 'bass', 'sub', 'dropImpact'].includes(assignment.source)
@@ -477,7 +482,7 @@ export function validatePixGridState(
     && state.configuration.canonicalMigrationCompleted
   if (builtIn && state.configuration.legacyOfficialLayerGraph) issues.push(issue('error', 'built-in-legacy-layer-graph', 'Built-in PixGrid state still declares the legacy official layer graph after migration.', 'configuration.legacyOfficialLayerGraph', 'Run canonical layer-graph migration and clear the legacy marker only after layer, scene, group, and route references are repaired.'))
   if (builtIn && !state.configuration.canonicalMigrationCompleted) issues.push(issue('error', 'canonical-migration-incomplete', 'Built-in PixGrid state has not completed canonical graph and route integrity migration.', 'configuration.canonicalMigrationCompleted', 'Run canonical migration and keep the state incomplete until layers, scenes, groups, routes, and the performance program pass structural integrity.'))
-  if (requiresMusicReactiveContract && stateMarkedCurrent && (state.groups.length === 0 || locations.length === 0)) issues.push(issue('error', 'current-state-missing-required-configuration', 'State is marked current but required built-in reaction configuration is missing.', 'configuration', 'Run built-in preset migration even when legacy layers are non-empty.'))
+  if (requiresMusicReactiveContract && stateMarkedCurrent && ((requiresSmartGroups && state.groups.length === 0) || locations.length === 0)) issues.push(issue('error', 'current-state-missing-required-configuration', 'State is marked current but required built-in reaction configuration is missing.', 'configuration', 'Run built-in preset migration even when legacy layers are non-empty.'))
   if (builtInPreset?.pixGridSettings) {
     const layerIds = new Set(state.layers.map(layer => layer.id))
     for (const requiredLayer of builtInPreset.pixGridSettings.layers ?? []) if (!layerIds.has(requiredLayer.id)) issues.push(issue('error', 'missing-canonical-layer', `Built-in preset is missing canonical layer ${requiredLayer.id}.`, 'layers', 'Restore the current canonical layer graph before marking migration complete.'))
@@ -492,7 +497,7 @@ export function validatePixGridState(
 
   const programId = state.performance.sharedPerformanceProgramId
   const program = programId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId) : null
-  if (requiresMusicReactiveContract && !program) issues.push(issue('error', 'missing-performance-program', 'Built-in preset does not resolve a performance program.', 'performance.sharedPerformanceProgramId', 'Restore the preset performance-program binding.'))
+  if (requiresPerformanceProgram && !program) issues.push(issue('error', 'missing-performance-program', 'Built-in preset does not resolve a performance program.', 'performance.sharedPerformanceProgramId', 'Restore the preset performance-program binding.'))
   if (program) {
     for (const programIssue of validatePixGridPerformanceProgram(program)) issues.push(issue(
       programIssue.severity === 'error' ? 'error' : 'warning',
