@@ -685,6 +685,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             phraseIndex: liveAudioFrame.phraseIndex,
             barIndex: liveAudioFrame.barIndex,
             beatIndex: liveAudioFrame.beatIndex,
+            beatsSinceSectionStart: liveAudioFrame.beatsSinceSectionStart,
+            barsSinceSectionStart: liveAudioFrame.barsSinceSectionStart,
             capabilities: liveAudioFrame.capabilities,
             confidence: liveAudioFrame.confidence,
             isPlaying: false,

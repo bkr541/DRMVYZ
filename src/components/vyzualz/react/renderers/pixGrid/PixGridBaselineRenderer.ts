@@ -42,6 +42,21 @@ function resolveBackground(preset: ReactPreset, state: PixGridState): string {
   return preset.palette.background
 }
 
+let fallbackImageDataCache = new WeakMap<HTMLCanvasElement, ImageData>()
+
+function fallbackImageData(
+  canvas: HTMLCanvasElement,
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+): ImageData {
+  const cached = fallbackImageDataCache.get(canvas)
+  if (cached && cached.width === width && cached.height === height) return cached
+  const created = context.createImageData(width, height)
+  fallbackImageDataCache.set(canvas, created)
+  return created
+}
+
 function roundedCellPath(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
   if (radius <= 0 || typeof ctx.roundRect !== 'function') {
     ctx.rect(x, y, width, height)
@@ -146,7 +161,7 @@ export function renderPixGridBaseline(
 }
 
 export function disposePixGridBaselineRenderer(): void {
-  // The fallback compositor owns only frame-local typed arrays.
+  fallbackImageDataCache = new WeakMap<HTMLCanvasElement, ImageData>()
 }
 
 export interface PixGridCanvasFallbackTarget {
@@ -186,7 +201,7 @@ export function renderPixGridCanvasFallback(
     groupCompiler,
     choreography,
   )
-  const image = logicalContext.createImageData(state.matrixWidth, state.matrixHeight)
+  const image = fallbackImageData(logicalCanvas, logicalContext, state.matrixWidth, state.matrixHeight)
   const presentation = resolvePixGridPresentation(state, frame)
   const intensity = presentation.resolvedOutputIntensity
   for (let offset = 0; offset < logical.pixels.length; offset += 4) {

@@ -453,7 +453,10 @@ export function migratePixGridState(
     return migratePixGridState({ ...normalized, selectedPresetId: null }, null)
   }
   const targetPresetConfigurationVersion = settings.authoredConfigurationVersion ?? 1
-  const targetProgramId = settings.performanceProgramId ?? normalized.performance.sharedPerformanceProgramId
+  const explicitlyDisablesPerformance = settings.performanceEnabled === false && !settings.performanceProgramId
+  const targetProgramId = explicitlyDisablesPerformance
+    ? null
+    : settings.performanceProgramId ?? normalized.performance.sharedPerformanceProgramId
   const canonicalGroups = settings.groups ?? []
   const canonicalAssignments = settings.audioAssignments ?? []
   const targetCanonicalSignatures = createPixGridCanonicalSignatures(settings)
@@ -518,7 +521,8 @@ export function migratePixGridState(
     groupMerge.groups,
     assignmentMerge.assignments,
   )
-  const programMissing = targetProgramId != null && rawPerformance?.sharedPerformanceProgramId !== targetProgramId
+  const programConfigurationMismatch = rawPerformance?.sharedPerformanceProgramId !== targetProgramId
+    || (explicitlyDisablesPerformance && rawPerformance?.enabled !== false)
   const candidateBase = normalizePixGridState({
     ...normalized,
     selectedPresetId: preset.id,
@@ -530,7 +534,7 @@ export function migratePixGridState(
     editor: { ...normalized.editor, selectedLayerId: repaired.selectedLayerId },
     performance: {
       ...repaired.performance,
-      enabled: targetProgramId ? true : repaired.performance.enabled,
+      enabled: explicitlyDisablesPerformance ? false : targetProgramId ? true : repaired.performance.enabled,
       sharedPerformanceProgramId: targetProgramId,
     },
   })
@@ -557,7 +561,7 @@ export function migratePixGridState(
     || assignmentMerge.added > 0
     || assignmentMerge.upgraded > 0
     || layerAnimationUpgradeIds.size > 0
-    || programMissing
+    || programConfigurationMismatch
     || normalized.selectedPresetId !== preset.id
     || !canonicalSignaturesEqual(previousCanonicalSignatures, targetCanonicalSignatures)
 
@@ -579,7 +583,7 @@ export function migratePixGridState(
     scenesAdded: Math.max(0, repaired.scenes.length - normalized.scenes.length),
     fallbackRoutesActive: fallback.fallbackActive,
     originalBuiltInPresetId: normalized.configuration.sourcePresetId ?? preset.id,
-    programsUpgraded: programMissing ? 1 : 0,
+    programsUpgraded: programConfigurationMismatch ? 1 : 0,
     customizationsPreserved: userCustomized || lineage.genuineUserLayers,
     conflicts: integrity.conflicts,
     skippedUpgrades: userCustomized && presetUpgradeRequested

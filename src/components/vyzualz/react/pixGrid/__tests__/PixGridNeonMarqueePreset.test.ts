@@ -77,7 +77,7 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
     expect(new Set(frames.map(fnv1a)).size).toBe(4)
   })
 
-  it('keeps the Stage 1 native frame exact at the stopped baseline while attaching Stage 2 programming', () => {
+  it('keeps the native frame exact at the stopped baseline while attaching Stage 3 programming', () => {
     const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)
     expect(preset).toBeDefined()
     const state = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset?.pixGridSettings)
@@ -115,7 +115,7 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
     expect(validatePixGridState(state, { builtInPresetId: PRESET_ID }).errors).toEqual([])
   })
 
-  it('exposes all four distinct frames through nearest-cell built-in sampling for Stage 2', () => {
+  it('exposes all four distinct frames through nearest-cell built-in sampling after Stage 3', () => {
     const sampleCoordinates = [
       [0.1, 0.1],
       [0.5, 0.5],

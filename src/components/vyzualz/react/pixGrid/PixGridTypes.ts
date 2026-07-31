@@ -605,6 +605,10 @@ export interface PixGridAudioFrame {
   trackMapCueIdentity?: string | null
   beatIndex?: number
   barIndex?: number
+  /** Fractional musical position measured from the resolved section start. */
+  beatsSinceSectionStart?: number
+  /** Fractional bar position measured from the resolved section start. */
+  barsSinceSectionStart?: number
   phraseIndex?: number
   sectionOccurrence?: number
   dropOccurrence?: number
