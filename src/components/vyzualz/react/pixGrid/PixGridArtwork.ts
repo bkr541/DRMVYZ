@@ -3,10 +3,13 @@ import type {
   PixGridBuiltInAssetManifestEntry,
   PixGridPaletteRole,
 } from './PixGridTypes'
+import { samplePixGridNeonMarqueeFrame } from './PixGridNeonMarqueeFrames'
 
 export interface PixGridAssetSample {
   alpha: number
   role: PixGridPaletteRole
+  /** Exact source color for native full-color assets; palette assets leave this undefined. */
+  color?: readonly [number, number, number]
 }
 
 const COMMON_STATIC = ['static', 'pulse', 'bounce', 'horizontalScroll', 'verticalScroll', 'pingPong', 'rotate', 'paletteCycle', 'blink', 'revealRow', 'revealColumn', 'checkerAlternate', 'audioAmplitudeScale', 'beatStepMovement'] as const
@@ -56,6 +59,7 @@ export const PIX_GRID_BUILT_IN_ASSETS: readonly PixGridBuiltInAssetManifestEntry
   asset('pix-orbiting-dots', 'Orbiting Dots', 'motion', 20, 20, 'frameBased', ['primary', 'secondary', 'accent'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 12 }),
   asset('pix-pixel-burst', 'Pixel Burst', 'geometry', 24, 24, 'procedural', ['accent', 'highlight'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 16 }),
   asset('pix-geometric-tunnel', 'Geometric Tunnel', 'geometry', 32, 18, 'procedural', ['primary', 'secondary', 'accent'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 16 }),
+  asset('pix-neon-marquee-cycle', 'Neon Marquee Cycle', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['full-frame'] }),
 ] as const
 
 export const PIX_GRID_BUILT_IN_ASSET_BY_ID = new Map(PIX_GRID_BUILT_IN_ASSETS.map(item => [item.id, item]))
@@ -261,6 +265,8 @@ export function samplePixGridBuiltInAsset(
       const rails = Math.min(Math.abs(Math.abs(x) - Math.abs(y)), Math.abs(x), Math.abs(y))
       return { alpha: Math.max(lineBand(band, 0.11), lineBand(rails, 0.025)), role: Math.floor(diamond * 8) % 3 === 0 ? 'accent' : diamond > 0.28 ? 'secondary' : 'primary' }
     }
+    case 'pix-neon-marquee-cycle':
+      return samplePixGridNeonMarqueeFrame(u, v, frameIndex)
   }
 }
 

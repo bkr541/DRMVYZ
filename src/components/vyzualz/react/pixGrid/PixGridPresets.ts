@@ -13,6 +13,7 @@ export const PIX_GRID_PRESET_IDS = [
   'pix-grid-bass-beacon',
   'pix-grid-geometric-reactor',
   'pix-grid-pixel-parade',
+  'pix-grid-neon-marquee-cycle',
 ] as const
 
 export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
@@ -419,6 +420,21 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
   }),
 ]
 
+const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
+  layer('neon-marquee-frame', 'Neon Marquee Frame', 'pix-neon-marquee-cycle', {
+    position: { x: 0.5, y: 0.5 },
+    scale: { x: 1, y: 1 },
+    rotation: 0,
+    opacity: 1,
+    blendMode: 'normal',
+    clipMode: 'clip',
+    animations: [],
+    zIndex: 0,
+    densityRank: 0,
+    seed: 1207,
+  }),
+]
+
 function preset(
   id: PixGridPresetId,
   name: string,
@@ -651,6 +667,47 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       glow: [0.26, 0.42, 0.58, 0.2, 0.72, 0.32, 0.18],
     },
   ),
+  preset(
+    'pix-grid-neon-marquee-cycle',
+    'Marquee Sign Cycle',
+    'Four supplied illuminated marquee frames in deterministic Base, Rise, Peak, and Release order; Stage 1 holds the MARYS base frame as a static native PixGrid scene.',
+    'pix-grid-neon-marquee-cycle',
+    { primary: '#ffffff', secondary: '#ffffff', accent: '#ffffff', background: '#000000', highlight: '#ffffff', text: '#ffffff' },
+    { intensity: 1, motion: 0, glow: 0, bassReactivity: 0 },
+    {
+      pattern: 'neonMarqueeCycle',
+      quality: 'high',
+      qualityMode: 'fixed',
+      backgroundMode: 'black',
+      backgroundColor: '#000000',
+      backgroundBrightness: 0,
+      cellGap: 0,
+      cellRoundness: 0,
+      cellBrightness: 1,
+      globalIntensity: 1,
+      glowAmount: 0,
+      diffusion: 0,
+      rgbSubpixelMode: false,
+      selectedSceneId: 'pix-grid-neon-marquee-cycle-intro',
+      layers: NEON_MARQUEE_CYCLE_LAYERS,
+      groups: [],
+      audioAssignments: [],
+      performanceEnabled: false,
+      sceneSettings: sceneSettings('pix-grid-neon-marquee-cycle', Object.fromEntries(
+        SECTION_TYPES.map(sectionType => [sectionType, { density: 1, motionMultiplier: 0, paletteOffset: 0 }]),
+      ) as Partial<Record<ReactSectionType, Partial<PixGridSceneSettings>>>),
+    },
+    {
+      intensity: [1, 1, 1, 1, 1, 1, 1],
+      motion: [0, 0, 0, 0, 0, 0, 0],
+      glow: [0, 0, 0, 0, 0, 0, 0],
+    },
+  ),
 ]
+
+/** Built-in presets whose authored contract includes live music-reactive performance routes. */
+export const PIX_GRID_MUSIC_REACTIVE_PRESETS = PIX_GRID_PRESETS.filter(
+  preset => Boolean(preset.pixGridSettings?.performanceProgramId),
+)
 
 export const PIX_GRID_PRESET_BY_ID = new Map(PIX_GRID_PRESETS.map(item => [item.id, item]))

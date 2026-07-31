@@ -8,7 +8,7 @@ import { composePixGridLogicalFrame, type PixGridLogicalFrame } from '../PixGrid
 import { createDefaultPixGridState } from '../PixGridDefaults'
 import { resolvePixGridPerformanceFrame } from '../PixGridPerformanceRuntime'
 import { applyPixGridRuntimeControls } from '../PixGridRuntimeControls'
-import { PIX_GRID_PRESETS } from '../PixGridPresets'
+import { PIX_GRID_MUSIC_REACTIVE_PRESETS, PIX_GRID_PRESETS } from '../PixGridPresets'
 import { measurePixGridPerceptualDifference } from '../PixGridPerceptualMetrics'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import type { PixGridAudioFrame, PixGridState } from '../PixGridTypes'
@@ -266,7 +266,7 @@ describe('PixGrid rendered-pixel regression matrix', () => {
     expect(summary(snare).luminance).toBeGreaterThan(0)
   })
 
-  it.each(PIX_GRID_PRESETS)('$name separates silence, kick, snare, and bass in rendered pixels', (preset: ReactPreset) => {
+  it.each(PIX_GRID_MUSIC_REACTIVE_PRESETS)('$name separates silence, kick, snare, and bass in rendered pixels', (preset: ReactPreset) => {
     const state = stateFor(preset, 'drop')
     const silence = composePixGridLogicalFrame(preset, state, audioFrame(40, {
       bass: 0,
@@ -318,7 +318,7 @@ describe('PixGrid rendered-pixel regression matrix', () => {
     }
   })
 
-  it.each(PIX_GRID_PRESETS)('$name renders build, pre-drop, drop, and Drop 2 as distinct song states', (preset: ReactPreset) => {
+  it.each(PIX_GRID_MUSIC_REACTIVE_PRESETS)('$name renders build, pre-drop, drop, and Drop 2 as distinct song states', (preset: ReactPreset) => {
     const verse = composePixGridLogicalFrame(preset, stateFor(preset, 'verse'), audioFrame(16, { bass: 0.42, volume: 0.5 }))
     const build = composePixGridLogicalFrame(preset, stateFor(preset, 'build'), audioFrame(28, { bass: 0.62, volume: 0.68 }))
     const preDrop = composePixGridLogicalFrame(preset, stateFor(preset, 'preDrop'), audioFrame(31, {
@@ -346,7 +346,7 @@ describe('PixGrid rendered-pixel regression matrix', () => {
     expect(summary(renderedDropTwo).hash).not.toBe(summary(renderedDropOne).hash)
   })
 
-  it.each(PIX_GRID_PRESETS)('$name scales bass output without scaling snare and keeps Motion 0 event-reactive', (preset: ReactPreset) => {
+  it.each(PIX_GRID_MUSIC_REACTIVE_PRESETS)('$name scales bass output without scaling snare and keeps Motion 0 event-reactive', (preset: ReactPreset) => {
     const state = stateFor(preset, 'drop')
     const bassFrame = audioFrame(40, { bass: 0.52, sourceValues: { bass: 0.52, sub: 0.42 } })
     const bassOff = composePixGridLogicalFrame(preset, state, applyPixGridRuntimeControls(bassFrame, { bassReactivity: 0, motion: 0 }))
@@ -369,7 +369,7 @@ describe('PixGrid rendered-pixel regression matrix', () => {
     expect(summary(snareOff).hash).not.toBe(summary(bassOff).hash)
   })
 
-  it.each(PIX_GRID_PRESETS)('$name freezes autonomous motion at Motion 0 while Motion 1 advances', (preset: ReactPreset) => {
+  it.each(PIX_GRID_MUSIC_REACTIVE_PRESETS)('$name freezes autonomous motion at Motion 0 while Motion 1 advances', (preset: ReactPreset) => {
     const state = stateFor(preset, 'verse')
     const stillA = composePixGridLogicalFrame(preset, state, applyPixGridRuntimeControls(audioFrame(16), { bassReactivity: 0, motion: 0 }))
     const stillB = composePixGridLogicalFrame(preset, state, applyPixGridRuntimeControls(audioFrame(18), { bassReactivity: 0, motion: 0 }))
@@ -380,7 +380,7 @@ describe('PixGrid rendered-pixel regression matrix', () => {
     expect(summary(movingB).hash).not.toBe(summary(movingA).hash)
   })
 
-  it.each(PIX_GRID_PRESETS)('$name normalizes reaction coverage across logical resolutions', (preset: ReactPreset) => {
+  it.each(PIX_GRID_MUSIC_REACTIVE_PRESETS)('$name normalizes reaction coverage across logical resolutions', (preset: ReactPreset) => {
     const ratios: number[] = []
     for (const quality of ['draft', 'low', 'high', 'ultra'] as const) {
       const state = normalizePixGridState({ ...stateFor(preset, 'drop'), quality })

@@ -221,7 +221,7 @@ function renderLayer(
       }
       if (alpha <= 0) continue
       const role = resolveRole(layer, sample.role, scene.paletteOffset + animation.paletteOffset)
-      const color = resolveColor(palette, role)
+      const color = sample.color ?? resolveColor(palette, role)
       const index = y * width + x
       groupCompiler?.recordPixel(layer.id, index, color, alpha)
       blendPixel(pixels, index * 4, color, alpha, layer.blendMode)

@@ -51,6 +51,7 @@ export function applyPixGridPresetSettings(
   return normalizePixGridState({
     ...safeCurrent,
     quality: settings.quality ?? safeCurrent.quality,
+    qualityMode: settings.qualityMode ?? safeCurrent.qualityMode,
     backgroundMode: settings.backgroundMode ?? safeCurrent.backgroundMode,
     backgroundColor: settings.backgroundColor ?? safeCurrent.backgroundColor,
     backgroundBrightness: settings.backgroundBrightness ?? safeCurrent.backgroundBrightness,
@@ -85,8 +86,10 @@ export function applyPixGridPresetSettings(
     audioAssignments: presetAssignments,
     performance: {
       ...safeCurrent.performance,
-      enabled: settings.performanceProgramId ? true : safeCurrent.performance.enabled,
-      sharedPerformanceProgramId: settings.performanceProgramId ?? safeCurrent.performance.sharedPerformanceProgramId,
+      enabled: settings.performanceEnabled ?? (settings.performanceProgramId ? true : safeCurrent.performance.enabled),
+      sharedPerformanceProgramId: settings.performanceEnabled === false && !settings.performanceProgramId
+        ? null
+        : settings.performanceProgramId ?? safeCurrent.performance.sharedPerformanceProgramId,
       programOverrides: { routes: {}, sections: {} },
       lockedRoutes: [],
     },

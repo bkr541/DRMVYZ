@@ -11,7 +11,7 @@ import {
 } from '../PixGridPerceptualCalibration'
 import { measurePixGridPerceptualDifference, pearsonCorrelation } from '../PixGridPerceptualMetrics'
 import { PIX_GRID_PERFORMANCE_PROGRAMS } from '../PixGridPerformancePrograms'
-import { PIX_GRID_PRESETS } from '../PixGridPresets'
+import { PIX_GRID_MUSIC_REACTIVE_PRESETS, PIX_GRID_PRESETS } from '../PixGridPresets'
 import { auditPixGridPresetRenderedReactivity } from '../PixGridReactivityAudit'
 import { applyPixGridRuntimeControls } from '../PixGridRuntimeControls'
 import { applyPixGridPresetSettings } from '../PixGridState'
@@ -204,7 +204,7 @@ describe('PixGrid perceptual Audio Intelligence contract', () => {
     }
   })
 
-  it.each(PIX_GRID_PRESETS)('$name passes realistic perceptual-output audit minimums', (preset: ReactPreset) => {
+  it.each(PIX_GRID_MUSIC_REACTIVE_PRESETS)('$name passes realistic perceptual-output audit minimums', (preset: ReactPreset) => {
     const report = auditPixGridPresetRenderedReactivity(preset, stateFor(preset.id))
     expect(report.passed).toBe(true)
     expect(report.checks.find(check => check.id === 'critical-routes-clear-perceptual-floor')).toMatchObject({ passed: true })
@@ -231,7 +231,7 @@ describe('PixGrid perceptual Audio Intelligence contract', () => {
     expect(hatAnalysis.rhythm.hatHit).toBe(true)
     expect(bassAnalysis.bands.bass.normalized).toBeGreaterThan(0.25)
 
-    for (const preset of PIX_GRID_PRESETS) {
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
       const state = stateFor(preset.id)
       const quietFrame = pixGridFrameFromMusicIntelligence(analyseFixture('bass'), 'quiet')
       quietFrame.sourceValues = { ...quietFrame.sourceValues, sub: 0.01, bass: 0.01, energy: 0.02, volume: 0.01 }
@@ -256,7 +256,7 @@ describe('PixGrid perceptual Audio Intelligence contract', () => {
     }
   })
 
-  it.each(PIX_GRID_PRESETS)('$name keeps a normal snare readable beyond 100 ms and clears the envelope', (preset: ReactPreset) => {
+  it.each(PIX_GRID_MUSIC_REACTIVE_PRESETS)('$name keeps a normal snare readable beyond 100 ms and clears the envelope', (preset: ReactPreset) => {
     const state = stateFor(preset.id)
     const frame = (audioTime: number, snare: number, identity?: string): PixGridAudioFrame => applyPixGridRuntimeControls(
       createSilentPixGridAudioFrame({

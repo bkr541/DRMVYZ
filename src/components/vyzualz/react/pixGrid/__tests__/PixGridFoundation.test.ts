@@ -21,12 +21,12 @@ describe('PixGrid engine foundation', () => {
     })
   })
 
-  it('registers exactly three distinct built-in PixGrid presets', () => {
+  it('registers four distinct built-in PixGrid presets', () => {
     const registered = DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'pixGrid')
     expect(registered.map(preset => preset.id)).toEqual([...PIX_GRID_PRESET_IDS])
-    expect(registered).toHaveLength(3)
-    expect(new Set(registered.map(preset => preset.palette.primary)).size).toBe(3)
-    expect(new Set(registered.map(preset => preset.pixGridSettings?.pattern)).size).toBe(3)
+    expect(registered).toHaveLength(4)
+    expect(new Set(registered.map(preset => preset.palette.primary)).size).toBe(4)
+    expect(new Set(registered.map(preset => preset.pixGridSettings?.pattern)).size).toBe(4)
     expect(PIX_GRID_PRESETS.every(preset => preset.scenes.length > 0 && preset.sectionMappings.length > 0)).toBe(true)
   })
 

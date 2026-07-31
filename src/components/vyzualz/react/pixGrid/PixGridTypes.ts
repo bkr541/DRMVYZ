@@ -12,7 +12,7 @@ export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
 export type PixGridEditorTool = 'select' | 'pan' | 'pencil' | 'eraser' | 'fill' | 'eyedropper' | 'rectangle' | 'line' | 'marquee' | 'move'
-export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade'
+export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade' | 'neonMarqueeCycle'
 export type PixGridPerformanceProgramId =
   | 'pix-grid-bass-beacon-performance'
   | 'pix-grid-geometric-reactor-performance'
@@ -80,6 +80,7 @@ export type PixGridBuiltInAssetId =
   | 'pix-orbiting-dots'
   | 'pix-pixel-burst'
   | 'pix-geometric-tunnel'
+  | 'pix-neon-marquee-cycle'
 
 export type PixGridPixelOverrideMode = 0 | 1
 /** Compact sparse tuple. Mode 0 forces the cell off; mode 1 paints color at opacity. Legacy v4 tuples are accepted by normalization. */
@@ -498,6 +499,7 @@ export interface PixGridPresetSettings {
   authoredConfigurationVersion?: number
   pattern: PixGridPatternId
   quality?: PixGridQualityTier
+  qualityMode?: PixGridQualityMode
   backgroundMode?: PixGridBackgroundMode
   backgroundColor?: string
   backgroundBrightness?: number
@@ -514,6 +516,8 @@ export interface PixGridPresetSettings {
   /** Editable authored routes that are not owned by a specific smart group. */
   audioAssignments?: PixGridReactionAssignment[]
   performanceProgramId?: PixGridPerformanceProgramId
+  /** Explicitly disables inherited runtime programming for static built-in presets. */
+  performanceEnabled?: boolean
   sceneSettings?: Record<string, PixGridSceneSettings>
 }
 

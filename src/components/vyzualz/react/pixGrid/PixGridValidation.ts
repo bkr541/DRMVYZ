@@ -442,8 +442,13 @@ function normalizeSceneSettings(value: unknown): Record<string, PixGridSceneSett
 
 export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSettings | undefined {
   if (!isRecord(value)) return undefined
-  const pattern = value.pattern === 'geometricReactor' || value.pattern === 'pixelParade' ? value.pattern : 'bassBeacon'
+  const pattern = value.pattern === 'geometricReactor' || value.pattern === 'pixelParade' || value.pattern === 'neonMarqueeCycle'
+    ? value.pattern
+    : 'bassBeacon'
   const quality = value.quality == null ? undefined : normalizePixGridQuality(value.quality)
+  const qualityMode = value.qualityMode == null || !QUALITY_MODES.has(value.qualityMode as PixGridQualityMode)
+    ? undefined
+    : (value.qualityMode as PixGridQualityMode)
   const backgroundMode =
     value.backgroundMode == null || !BACKGROUND_MODES.has(value.backgroundMode as PixGridBackgroundMode)
       ? undefined
@@ -466,6 +471,7 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
       : {}),
     pattern,
     ...(quality ? { quality } : {}),
+    ...(qualityMode ? { qualityMode } : {}),
     ...(backgroundMode ? { backgroundMode } : {}),
     ...(value.backgroundColor != null ? { backgroundColor: normalizePixGridColor(value.backgroundColor, '#030608') } : {}),
     ...(value.backgroundBrightness != null ? { backgroundBrightness: clamp(value.backgroundBrightness, 0, 1, 0.18) } : {}),
@@ -481,6 +487,7 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
     ...(groups ? { groups } : {}),
     ...(audioAssignments ? { audioAssignments } : {}),
     ...(performanceProgramId ? { performanceProgramId } : {}),
+    ...(value.performanceEnabled != null ? { performanceEnabled: value.performanceEnabled === true } : {}),
     ...(sceneSettings ? { sceneSettings } : {}),
   }
 }
@@ -909,6 +916,9 @@ export function normalizePixGridState(value: unknown): PixGridState {
   const defaultPerformanceProgramId = selectedPresetId
     ? (PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID[selectedPresetId] ?? DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId)
     : DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.sharedPerformanceProgramId
+  const performanceProgramWasExplicitlyCleared =
+    Object.prototype.hasOwnProperty.call(performance, 'sharedPerformanceProgramId')
+    && performance.sharedPerformanceProgramId === null
   const sceneSource = Array.isArray(input.scenes) ? input.scenes : input.pixelOverrides === undefined ? defaults.scenes : undefined
   const scenes = normalizeScenes(sceneSource, layers, dimensions.width, dimensions.height, fallbackSceneId, input.pixelOverrides)
   const selectedSceneId = scenes.some((scene) => scene.id === fallbackSceneId) ? fallbackSceneId : scenes[0].id
@@ -985,9 +995,11 @@ export function normalizePixGridState(value: unknown): PixGridState {
     performance: {
       enabled: performance.enabled !== false,
       intensity: clamp(performance.intensity, 0, 1, DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.intensity),
-      sharedPerformanceProgramId: PERFORMANCE_PROGRAM_IDS.has(performance.sharedPerformanceProgramId as PixGridPerformanceProgramId)
-        ? (performance.sharedPerformanceProgramId as PixGridPerformanceProgramId)
-        : defaultPerformanceProgramId,
+      sharedPerformanceProgramId: performanceProgramWasExplicitlyCleared
+        ? null
+        : PERFORMANCE_PROGRAM_IDS.has(performance.sharedPerformanceProgramId as PixGridPerformanceProgramId)
+          ? (performance.sharedPerformanceProgramId as PixGridPerformanceProgramId)
+          : defaultPerformanceProgramId,
       seed: Math.max(0, Math.min(2_147_483_647, Math.round(finite(performance.seed, DEFAULT_PIX_GRID_PERFORMANCE_SETTINGS.seed)))),
       lockedRoutes: Array.isArray(performance.lockedRoutes)
         ? [

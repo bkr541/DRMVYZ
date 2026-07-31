@@ -5,7 +5,7 @@ import {
   PixGridReactionRuntime,
   createSilentPixGridAudioFrame,
 } from '../PixGridAudioRouting'
-import { PIX_GRID_PRESETS } from '../PixGridPresets'
+import { PIX_GRID_MUSIC_REACTIVE_PRESETS, PIX_GRID_PRESETS } from '../PixGridPresets'
 import { auditPixGridPresetRenderedReactivity } from '../PixGridReactivityAudit'
 import { applyPixGridRuntimeControls } from '../PixGridRuntimeControls'
 import { applyPixGridPresetSettings } from '../PixGridState'
@@ -70,7 +70,7 @@ function semanticPlan(patch: Partial<PixGridRendererSemanticPlan> = {}): PixGrid
 }
 
 describe('PixGrid bundled preset reactivity audit', () => {
-  it.each(PIX_GRID_PRESETS.filter(preset => preset.pixGridSettings).map(preset => [preset.id, preset] as const))(
+  it.each(PIX_GRID_MUSIC_REACTIVE_PRESETS.map(preset => [preset.id, preset] as const))(
     '%s passes structural and rendered-pixel validation',
     (_presetId: string, preset: (typeof PIX_GRID_PRESETS)[number]) => {
       const state = stateForPreset(preset.id)

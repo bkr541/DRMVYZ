@@ -12,7 +12,7 @@ import {
   MAX_PIX_GRID_LAYERS,
   MAX_PIX_GRID_VISIBLE_LAYERS,
 } from '../PixGridLimits'
-import { PIX_GRID_PRESETS } from '../PixGridPresets'
+import { PIX_GRID_MUSIC_REACTIVE_PRESETS, PIX_GRID_PRESETS } from '../PixGridPresets'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import type {
   PixGridAudioFrame,
@@ -105,7 +105,7 @@ function alphaBounds(pixels: Uint8Array, width: number, height: number) {
 describe('PixGrid built-in artwork manifest', () => {
   it('contains a typed, unique, internally generated starter library', () => {
     const ids = PIX_GRID_BUILT_IN_ASSETS.map(asset => asset.id)
-    expect(PIX_GRID_BUILT_IN_ASSETS).toHaveLength(18)
+    expect(PIX_GRID_BUILT_IN_ASSETS).toHaveLength(19)
     expect(new Set(ids).size).toBe(ids.length)
     expect(PIX_GRID_BUILT_IN_ASSET_BY_ID.size).toBe(ids.length)
 
@@ -235,17 +235,22 @@ describe('PixGrid deterministic animation', () => {
 })
 
 describe('PixGrid finished presets', () => {
-  it('authors seven meaningfully different section mappings for every preset', () => {
+  it('authors all seven section mappings and preserves varied choreography for music-reactive presets', () => {
     for (const preset of PIX_GRID_PRESETS) {
       expect(preset.sectionMappings.map(mapping => mapping.sectionType)).toEqual(AUTHORED_SECTION_TYPES)
       const settings = preset.pixGridSettings!.sceneSettings!
       const mappedSettings = preset.sectionMappings.map(mapping => settings[mapping.sceneId])
       expect(mappedSettings.every(Boolean)).toBe(true)
+    }
+
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
+      const settings = preset.pixGridSettings!.sceneSettings!
+      const mappedSettings = preset.sectionMappings.map(mapping => settings[mapping.sceneId])
       expect(new Set(mappedSettings.map(value => JSON.stringify(value))).size).toBeGreaterThanOrEqual(4)
     }
   })
 
-  it('produces three unique drop compositions and thumbnail fingerprints', () => {
+  it('produces unique built-in drop compositions and thumbnail fingerprints', () => {
     const frameHashes = PIX_GRID_PRESETS.map((preset, index) => frameHash(
       composePixGridLogicalFrame(preset, stateForPreset(index), FRAME).pixels,
     ))

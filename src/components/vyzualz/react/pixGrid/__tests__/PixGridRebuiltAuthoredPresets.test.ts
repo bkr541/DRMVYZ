@@ -14,6 +14,7 @@ import {
 } from '../PixGridPerformancePrograms'
 import {
   PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION,
+  PIX_GRID_MUSIC_REACTIVE_PRESETS,
   PIX_GRID_PRESETS,
 } from '../PixGridPresets'
 import { PixGridReactionRuntime, createSilentPixGridAudioFrame } from '../PixGridAudioRouting'
@@ -244,7 +245,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
     expect(validatePixGridPerformancePrograms().filter(issue => issue.severity === 'error')).toEqual([])
     expect(PIX_GRID_PERFORMANCE_PROGRAMS).toHaveLength(3)
 
-    for (const preset of PIX_GRID_PRESETS) {
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
       const settings = preset.pixGridSettings!
       const groups = settings.groups ?? []
       const audioAssignments = settings.audioAssignments ?? []
@@ -286,7 +287,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
       ['parade-lower-kick-lane-group', 'parade-upper-snare-lane-group'],
     ] as const
 
-    for (const [index, preset] of PIX_GRID_PRESETS.entries()) {
+    for (const [index, preset] of PIX_GRID_MUSIC_REACTIVE_PRESETS.entries()) {
       const program = PIX_GRID_PERFORMANCE_PROGRAMS.find(candidate => candidate.id === preset.pixGridSettings!.performanceProgramId)!
       const buildPlan = program.sectionPlans.find(plan => plan.sectionTypes.includes('build'))!
       const preDropPlan = program.sectionPlans.find(plan => plan.sectionTypes.includes('preDrop'))!
@@ -314,7 +315,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
   })
 
   it('gives every built-in preset an immediate native visual delta at normal audio levels', () => {
-    for (const preset of PIX_GRID_PRESETS) {
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
       const state = stateFor(preset, 'drop')
       const quiet = composePixGridLogicalFrame(preset, state, frame('kick', 0))
       const active = composePixGridLogicalFrame(preset, state, frame('kick', 0.85, {
@@ -331,7 +332,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
   })
 
   it.each(['draft', 'low', 'high', 'ultra'] as const)('renders every preset at %s with negative space and deterministic pixels', quality => {
-    for (const preset of PIX_GRID_PRESETS) {
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
       const state = stateFor(preset, 'drop', quality)
       const first = composePixGridLogicalFrame(preset, state, frame('trackRelativeEnergy', 0.78))
       const second = composePixGridLogicalFrame(preset, state, frame('trackRelativeEnergy', 0.78))
@@ -344,7 +345,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
   })
 
   it('persists authored edits and resets both group and preset-owned assignments to defaults', () => {
-    for (const preset of PIX_GRID_PRESETS) {
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
       const original = stateFor(preset)
       const edited = normalizePixGridState(JSON.parse(JSON.stringify({
         ...original,
@@ -387,7 +388,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
       { reactionId: 'parade-hero-kick-step', groupId: 'parade-hero-group', source: 'kick' },
     ] as const
 
-    for (const [index, preset] of PIX_GRID_PRESETS.entries()) {
+    for (const [index, preset] of PIX_GRID_MUSIC_REACTIVE_PRESETS.entries()) {
       for (const palette of palettes) {
         const themedPreset: ReactPreset = { ...preset, palette: { ...palette } }
         const route = routes[index]
@@ -407,7 +408,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
 
 describe('first-party preset runtime integrity', () => {
   it('reports real active routes and resolves only preset-owned targets', () => {
-    for (const preset of PIX_GRID_PRESETS) {
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
       const ownState = stateFor(preset)
       const ownLayerIds = new Set(ownState.layers.map(layer => layer.id))
       const ownGroupIds = new Set(ownState.groups.map(group => group.id))
@@ -437,7 +438,7 @@ describe('first-party preset runtime integrity', () => {
   })
 
   it('holds paused output and reconstructs seek and loop frames deterministically for every preset', () => {
-    for (const preset of PIX_GRID_PRESETS) {
+    for (const preset of PIX_GRID_MUSIC_REACTIVE_PRESETS) {
       const state = stateFor(preset)
       const live = composePixGridLogicalFrame(preset, state, frame('trackRelativeEnergy', 0.74, { audioTime: 88, isPlaying: true }))
       const paused = composePixGridLogicalFrame(preset, state, frame('trackRelativeEnergy', 0.74, { audioTime: 88, isPlaying: false }))
