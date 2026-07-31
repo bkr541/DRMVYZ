@@ -12,7 +12,6 @@ import {
   getPixGridNeonMarqueeFrames,
 } from '../PixGridNeonMarqueeFrames'
 import {
-  PIX_GRID_NEON_MARQUEE_ASSET_ID,
   PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION,
   PIX_GRID_NEON_MARQUEE_SECTION_SUBDIVISIONS,
   resolvePixGridNeonMarqueePerformance,
@@ -30,7 +29,6 @@ import {
 } from '../../renderers/pixGrid/PixGridBaselineRenderer'
 
 const PRESET_ID = 'pix-grid-neon-marquee-cycle'
-const ASSET = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(PIX_GRID_NEON_MARQUEE_ASSET_ID)!
 const PRESET = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
 
 function frame(overrides: Partial<PixGridAudioFrame> = {}): PixGridAudioFrame {
@@ -68,7 +66,8 @@ function presetState(enabled: boolean): PixGridState {
   const current = createDefaultPixGridState()
   current.performance.enabled = enabled
   current.performance.sharedPerformanceProgramId = enabled ? 'pix-grid-bass-beacon-performance' : null
-  return applyPixGridPresetSettings(current, PRESET_ID, PRESET.pixGridSettings)
+  const applied = applyPixGridPresetSettings(current, PRESET_ID, PRESET.pixGridSettings)
+  return { ...applied, selectedSceneId: `${PRESET_ID}-drop` }
 }
 
 function eventFrame(overrides: Partial<PixGridAudioFrame>): PixGridAudioFrame {
@@ -120,7 +119,7 @@ function perceptuallyChangedCellCount(a: Uint8Array, b: Uint8Array): number {
 function resolvedLayerScale(state: PixGridState, audioFrame: PixGridAudioFrame, runtime = new PixGridReactionRuntime()): number {
   runtime.beginFrame(audioFrame)
   const resolved = resolvePixGridAuthoredAssignmentState(state, audioFrame, runtime)
-  return resolved.layers.find(layer => layer.id === 'neon-marquee-frame')!.scale.x
+  return resolved.layers.find(layer => layer.id === 'marquee-structure')!.scale.x
 }
 
 describe('PixGrid Neon Marquee motion, audio, and Auto Performance correction', () => {
@@ -302,31 +301,21 @@ describe('PixGrid Neon Marquee motion, audio, and Auto Performance correction', 
     expect(frameIndex(replacement)).toBe(0)
   })
 
-  it('uses integrated section clocks only for the canonical marquee branch', () => {
+  it('uses the same integrated generic frame clock for canonical and copied component layers', () => {
     const canonicalLayer = PRESET.pixGridSettings!.layers![0]
-    const canonical = resolvePixGridLayerAnimation(
-      canonicalLayer,
-      ASSET,
-      frame({
-        sectionType: 'drop',
-        beatIndex: 999,
-        beatsSinceSectionStart: 2,
-        motionClockBeat: 123.75,
-        motionClockSectionBeat: 3,
-        motionClockTime: 456,
-      }),
-      1,
-    )
+    const asset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(canonicalLayer.assetId)!
+    const clockFrame = frame({
+      sectionType: 'drop',
+      beatIndex: 999,
+      beatsSinceSectionStart: 2,
+      motionClockBeat: 3,
+      motionClockSectionBeat: 123.75,
+      motionClockTime: 456,
+    })
+    const canonical = resolvePixGridLayerAnimation(canonicalLayer, asset, clockFrame, 1)
+    const copied = resolvePixGridLayerAnimation({ ...canonicalLayer, id: 'custom-neon-copy' }, asset, clockFrame, 1)
     expect(canonical.frameIndex).toBe(3)
-
-    const customLayer = { ...canonicalLayer, id: 'custom-neon-copy' }
-    const generic = resolvePixGridLayerAnimation(
-      customLayer,
-      ASSET,
-      frame({ sectionType: 'drop', beatIndex: 2, beatsSinceSectionStart: 0, motionClockBeat: 2 }),
-      1,
-    )
-    expect(generic.frameIndex).toBe(2)
+    expect(copied).toEqual(canonical)
   })
 
   it('preserves native frame geometry and pixels when Auto Performance is off', () => {
@@ -342,10 +331,13 @@ describe('PixGrid Neon Marquee motion, audio, and Auto Performance correction', 
       const audioFrame = frame({
         autoPerformanceEnabled: false,
         sectionType: 'drop',
+        beatIndex: index,
+        motionClockBeat: index,
         beatsSinceSectionStart: index,
         barsSinceSectionStart: index / 4,
       })
-      const resolved = resolvePixGridLayerAnimation(layer, ASSET, audioFrame, 1)
+      const asset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)!
+      const resolved = resolvePixGridLayerAnimation(layer, asset, audioFrame, 1)
       expect(resolved).toMatchObject({
         frameIndex: index,
         positionX: 0.5,
@@ -365,7 +357,8 @@ describe('PixGrid Neon Marquee motion, audio, and Auto Performance correction', 
         expect(logical.pixels[rgba]).toBe(source[rgb])
         expect(logical.pixels[rgba + 1]).toBe(source[rgb + 1])
         expect(logical.pixels[rgba + 2]).toBe(source[rgb + 2])
-        expect(logical.pixels[rgba + 3]).toBe(255)
+        const nonBlack = source[rgb] !== 0 || source[rgb + 1] !== 0 || source[rgb + 2] !== 0
+        expect(logical.pixels[rgba + 3]).toBe(nonBlack ? 255 : 0)
       }
     }
   })
@@ -556,7 +549,7 @@ describe('PixGrid Neon Marquee motion, audio, and Auto Performance correction', 
     const second = renderPixGridCanvasFallback(output, { canvas: logicalCanvas, context: logicalContext }, renderFrame, PRESET, state)
     expect(allocationCount).toBe(1)
     expect(second.logicalFrame.pixels).toEqual(first.logicalFrame.pixels)
-    expect(resolvePixGridLayerAnimation(state.layers[0], ASSET, audioFrame, 1).frameIndex).toBe(2)
+    expect(resolvePixGridLayerAnimation(state.layers[0], PIX_GRID_BUILT_IN_ASSET_BY_ID.get(state.layers[0].assetId)!, audioFrame, 1).frameIndex).toBe(2)
 
     disposePixGridBaselineRenderer()
     renderPixGridCanvasFallback(output, { canvas: logicalCanvas, context: logicalContext }, renderFrame, PRESET, state)

@@ -185,6 +185,7 @@ export function createDefaultPixGridState(): PixGridState {
     editorTool: 'select',
     editor: {
       hasEnteredAuthoring: false,
+      scenePreviewMode: 'followTrack',
       guidesVisible: true,
       zoom: 1,
       panX: 0,

@@ -13,7 +13,6 @@ import {
   pixGridRectanglePoints,
   pixGridViewPointToCell,
   resolvePixGridOutputRect,
-  selectPixGridScene,
   type PixGridCellPoint,
 } from './PixGridAuthoring'
 import type { PixGridEditorTool, PixGridState } from './PixGridTypes'
@@ -21,6 +20,11 @@ import { activePixGridGroups, compilePixGridGroupMask } from './PixGridGroups'
 import { samplePixGridCanvasColor } from './PixGridLiveCanvas'
 import { DropdownSelect } from '../../../shared/Dropdown/Dropdown'
 import { isKeyboardInputTarget } from '../../../../utils/keyboardTargets'
+import {
+  PIX_GRID_FOLLOW_TRACK_SCENE_VALUE,
+  selectPixGridEditingTarget,
+  selectPixGridPreviewScene,
+} from './PixGridScenePreview'
 
 interface PointerOperation {
   pointerId: number
@@ -194,6 +198,28 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
       context.strokeStyle = 'rgba(74,199,219,0.9)'
       context.lineWidth = 1
       context.strokeRect(output.left + 0.5, output.top + 0.5, output.width - 1, output.height - 1)
+
+      const selectedComponent = current.editor.selectedLayerId
+        ? getPixGridActiveLayers(current).find(layer => layer.id === current.editor.selectedLayerId) ?? null
+        : null
+      if (selectedComponent) {
+        context.save()
+        context.setLineDash([6, 4])
+        context.strokeStyle = selectedComponent.visible === false
+          ? 'rgba(255,145,145,0.95)'
+          : selectedComponent.locked
+            ? 'rgba(255,211,107,0.95)'
+            : 'rgba(255,255,255,0.95)'
+        context.lineWidth = 2
+        context.strokeRect(output.left + 3, output.top + 3, output.width - 6, output.height - 6)
+        context.setLineDash([])
+        context.fillStyle = 'rgba(0,0,0,0.78)'
+        context.fillRect(output.left + 8, output.top + 8, Math.min(output.width - 16, 260), 24)
+        context.fillStyle = '#ffffff'
+        context.font = '12px sans-serif'
+        context.fillText(selectedComponent.name, output.left + 16, output.top + 24, Math.max(20, output.width - 32))
+        context.restore()
+      }
 
       if (current.editor.guidesVisible) {
         const cellWidth = output.width / current.matrixWidth
@@ -454,9 +480,13 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
           <span>Scene</span>
           <DropdownSelect
             aria-label="Active PixGrid scene"
-            value={scene.id}
-            onChange={event => setState(selectPixGridScene(state, event.target.value))}
+            value={state.editor.scenePreviewMode === 'followTrack' ? PIX_GRID_FOLLOW_TRACK_SCENE_VALUE : scene.id}
+            onChange={event => {
+              const value = event.target.value
+              setState(selectPixGridPreviewScene(state, value))
+            }}
           >
+            <option value={PIX_GRID_FOLLOW_TRACK_SCENE_VALUE}>Follow Track</option>
             {state.scenes.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
           </DropdownSelect>
         </label>
@@ -465,14 +495,14 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
           <DropdownSelect
             aria-label="PixGrid edit target"
             value={state.editor.selectedLayerId ?? 'scene'}
-            onChange={event => updateEditor({ selectedLayerId: event.target.value === 'scene' ? null : event.target.value })}
+            onChange={event => setState(selectPixGridEditingTarget(state, event.target.value === 'scene' ? null : event.target.value))}
           >
             {targetOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </DropdownSelect>
         </label>
         <dl>
           <div><dt>Tool</dt><dd>{activeTool.label}</dd></div>
-          <div><dt>Target</dt><dd>{targetLabel}</dd></div>
+          <div data-testid="pix-grid-selected-component"><dt>Target</dt><dd>{targetLabel}{targetLayer?.locked ? ' · Locked' : ''}{targetLayer && !targetLayer.visible ? ' · Hidden' : ''}</dd></div>
           <div><dt>Color</dt><dd>{state.editor.paintColor.toUpperCase()}</dd></div>
           <div><dt>Save</dt><dd>Automatic</dd></div>
         </dl>

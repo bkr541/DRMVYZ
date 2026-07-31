@@ -11,6 +11,7 @@ import {
   PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS,
   PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION,
 } from './PixGridNeonMarqueePerformance'
+import { PIX_GRID_NEON_MARQUEE_GROUPS } from './PixGridNeonMarqueeGroups'
 import type { PixGridLayer, PixGridPresetSettings, PixGridSceneSettings } from './PixGridTypes'
 
 export const PIX_GRID_PRESET_IDS = [
@@ -425,17 +426,45 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
 ]
 
 const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
-  layer('neon-marquee-frame', 'Neon Marquee Frame', 'pix-neon-marquee-cycle', {
-    position: { x: 0.5, y: 0.5 },
+  layer('marquee-structure', 'Stable Sign Structure', 'pix-neon-marquee-structure', {
     scale: { x: 1, y: 1 },
-    rotation: 0,
-    opacity: 1,
-    blendMode: 'normal',
-    clipMode: 'clip',
     animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })],
     zIndex: 0,
     densityRank: 0,
     seed: 1207,
+  }),
+  layer('marquee-bulbs-a', 'Perimeter Bulbs A', 'pix-neon-marquee-bulbs-a', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 1, densityRank: 0.08, seed: 1211,
+  }),
+  layer('marquee-bulbs-b', 'Perimeter Bulbs B', 'pix-neon-marquee-bulbs-b', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 2, densityRank: 0.16, seed: 1213,
+  }),
+  layer('marquee-bulbs-c', 'Perimeter Bulbs C', 'pix-neon-marquee-bulbs-c', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 3, densityRank: 0.28, seed: 1217,
+  }),
+  layer('marquee-bulbs-d', 'Perimeter Bulbs D', 'pix-neon-marquee-bulbs-d', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 4, densityRank: 0.4, seed: 1223,
+  }),
+  layer('marquee-letter-lights-a', 'Letter Lights A', 'pix-neon-marquee-letter-lights-a', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 5, densityRank: 0.24, seed: 1229,
+  }),
+  layer('marquee-letter-lights-b', 'Letter Lights B', 'pix-neon-marquee-letter-lights-b', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 6, densityRank: 0.46, seed: 1231,
+  }),
+  layer('marquee-letter-lights-c', 'Letter Lights C', 'pix-neon-marquee-letter-lights-c', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 7, densityRank: 0.62, seed: 1237,
+  }),
+  layer('marquee-equalizer-lights', 'Equalizer and Halo Lights', 'pix-neon-marquee-equalizer-lights', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 8, densityRank: 0.58, seed: 1249,
+  }),
+  layer('marquee-trim-lights', 'Trim and Underline Lights', 'pix-neon-marquee-trim-lights', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 9, densityRank: 0.52, seed: 1259,
+  }),
+  layer('marquee-focal-lights', 'Frenchie and Focal Lights', 'pix-neon-marquee-focal-lights', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 10, densityRank: 0.36, seed: 1277,
+  }),
+  layer('marquee-sparkle-lights', 'Sparse Accent Bulbs', 'pix-neon-marquee-sparkle-lights', {
+    scale: { x: 1, y: 1 }, animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })], zIndex: 11, densityRank: 0.78, seed: 1283,
   }),
 ]
 
@@ -674,7 +703,7 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
   preset(
     'pix-grid-neon-marquee-cycle',
     'Marquee Sign Cycle',
-    'Four supplied illuminated marquee frames sequenced as a deterministic, section-aware Base, Rise, Peak, and Release performance with bounded musical impacts.',
+    'A native layered marquee graph with stable sign structure, controllable perimeter phases, letter lights, equalizers, trim, focal accents, and sparse sparkles.',
     'pix-grid-neon-marquee-cycle',
     { primary: '#ffffff', secondary: '#ffffff', accent: '#ffffff', background: '#000000', highlight: '#ffffff', text: '#ffffff' },
     { intensity: 0.92, motion: 0.35, glow: 0.08, bassReactivity: 0.72 },
@@ -695,17 +724,50 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       rgbSubpixelMode: false,
       selectedSceneId: 'pix-grid-neon-marquee-cycle-intro',
       layers: NEON_MARQUEE_CYCLE_LAYERS,
-      groups: [],
+      groups: PIX_GRID_NEON_MARQUEE_GROUPS,
       audioAssignments: [...PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS],
       performanceProgramId: null,
       sceneSettings: sceneSettings('pix-grid-neon-marquee-cycle', {
-        intro: { density: 1, motionMultiplier: 1, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
-        verse: { density: 1, motionMultiplier: 1, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
-        build: { density: 1, motionMultiplier: 1, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
-        preDrop: { density: 1, motionMultiplier: 1, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
-        drop: { density: 1, motionMultiplier: 1, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
-        breakdown: { density: 1, motionMultiplier: 1, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
-        outro: { density: 1, motionMultiplier: 1, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
+        intro: {
+          density: 0.54,
+          motionMultiplier: 0.18,
+          hiddenLayerIds: ['marquee-bulbs-c', 'marquee-bulbs-d', 'marquee-letter-lights-b', 'marquee-letter-lights-c', 'marquee-equalizer-lights', 'marquee-sparkle-lights'],
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.48, 'marquee-bulbs-b': 0.28, 'marquee-letter-lights-a': 0.26, 'marquee-trim-lights': 0.12, 'marquee-focal-lights': 0.18 },
+        },
+        verse: {
+          density: 0.8,
+          motionMultiplier: 0.5,
+          hiddenLayerIds: ['marquee-letter-lights-c'],
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.72, 'marquee-bulbs-b': 0.64, 'marquee-bulbs-c': 0.54, 'marquee-bulbs-d': 0.46, 'marquee-letter-lights-a': 0.58, 'marquee-letter-lights-b': 0.42, 'marquee-equalizer-lights': 0.18, 'marquee-trim-lights': 0.2, 'marquee-focal-lights': 0.32, 'marquee-sparkle-lights': 0.08 },
+        },
+        build: {
+          density: 0.9,
+          motionMultiplier: 0.92,
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.88, 'marquee-bulbs-b': 0.9, 'marquee-bulbs-c': 0.92, 'marquee-bulbs-d': 0.94, 'marquee-letter-lights-a': 0.72, 'marquee-letter-lights-b': 0.78, 'marquee-letter-lights-c': 0.84, 'marquee-equalizer-lights': 0.66, 'marquee-trim-lights': 0.56, 'marquee-focal-lights': 0.58, 'marquee-sparkle-lights': 0.2 },
+        },
+        preDrop: {
+          density: 0.5,
+          motionMultiplier: 0.02,
+          hiddenLayerIds: ['marquee-bulbs-b', 'marquee-bulbs-c', 'marquee-bulbs-d', 'marquee-letter-lights-a', 'marquee-letter-lights-c', 'marquee-equalizer-lights', 'marquee-trim-lights', 'marquee-sparkle-lights'],
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.34, 'marquee-letter-lights-b': 0.24, 'marquee-focal-lights': 0.28 },
+        },
+        drop: {
+          density: 1,
+          motionMultiplier: 1.25,
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 1, 'marquee-bulbs-b': 1, 'marquee-bulbs-c': 1, 'marquee-bulbs-d': 1, 'marquee-letter-lights-a': 1, 'marquee-letter-lights-b': 1, 'marquee-letter-lights-c': 1, 'marquee-equalizer-lights': 1, 'marquee-trim-lights': 1, 'marquee-focal-lights': 1, 'marquee-sparkle-lights': 1 },
+        },
+        breakdown: {
+          density: 0.48,
+          motionMultiplier: 0.18,
+          hiddenLayerIds: ['marquee-bulbs-b', 'marquee-bulbs-d', 'marquee-letter-lights-a', 'marquee-letter-lights-c', 'marquee-equalizer-lights', 'marquee-trim-lights', 'marquee-sparkle-lights'],
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.46, 'marquee-bulbs-c': 0.42, 'marquee-letter-lights-b': 0.22, 'marquee-focal-lights': 0.52 },
+        },
+        outro: {
+          density: 0.26,
+          motionMultiplier: 0.04,
+          hiddenLayerIds: ['marquee-bulbs-c', 'marquee-bulbs-d', 'marquee-letter-lights-b', 'marquee-letter-lights-c', 'marquee-equalizer-lights', 'marquee-trim-lights', 'marquee-focal-lights', 'marquee-sparkle-lights'],
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.28, 'marquee-bulbs-b': 0.16, 'marquee-letter-lights-a': 0.2 },
+        },
       }),
     },
     {

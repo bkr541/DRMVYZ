@@ -12,8 +12,10 @@ import type {
 
 export const PIX_GRID_NEON_MARQUEE_PRESET_ID = 'pix-grid-neon-marquee-cycle' as const
 export const PIX_GRID_NEON_MARQUEE_ASSET_ID = 'pix-neon-marquee-cycle' as const
+/** Obsolete official layer ID retained only for saved-state migration and compatibility tests. */
 export const PIX_GRID_NEON_MARQUEE_LAYER_ID = 'neon-marquee-frame' as const
-export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 12 as const
+export const PIX_GRID_NEON_MARQUEE_STRUCTURE_LAYER_ID = 'marquee-structure' as const
+export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 13 as const
 
 const MARQUEE_CELL_X = 1 / 160
 const MARQUEE_CELL_Y = 1 / 90
@@ -244,11 +246,11 @@ function frameForSection(frame: PixGridAudioFrame, sceneMotionMultiplier: number
 }
 
 /**
- * Stateless, transport-position-based choreography for the four supplied native
- * frames. Section-local clocks keep every section entry intentional even when a
- * section starts on an odd absolute beat. Intensity and audio emphasis remain in
- * the existing presentation and output-assignment paths, so native geometry,
- * RGB values, and opaque alpha stay exact in the logical framebuffer.
+ * @deprecated Compatibility oracle for pre-v13 saved projects and historical
+ * tests. The v13 canonical component graph and generic renderer no longer call
+ * this resolver. It remains stateless and transport-position based so legacy
+ * state can be interpreted deterministically until the compatibility path is
+ * removed in a later migration.
  */
 export function resolvePixGridNeonMarqueePerformance(
   frame: PixGridAudioFrame,
@@ -290,7 +292,7 @@ function assignment(
     source,
     target,
     targetScope,
-    targetId: overrides.targetId ?? (targetScope === 'layer' ? PIX_GRID_NEON_MARQUEE_LAYER_ID : null),
+    targetId: overrides.targetId ?? (targetScope === 'layer' ? PIX_GRID_NEON_MARQUEE_STRUCTURE_LAYER_ID : null),
     amount: overrides.amount ?? 1,
     polarity: overrides.polarity ?? 'positive',
     invert: overrides.invert ?? false,
@@ -331,7 +333,7 @@ const inSections = (...includeSectionTypes: ReactSectionType[]): PixGridReaction
 })
 
 /**
- * Whole-artwork reactions stay subordinate to the deterministic frame resolver.
+ * Legacy baseline reactions remain ordinary authored routes and no longer own frame resolution.
  * Transform peaks are deliberately budgeted together so simultaneous bass,
  * kick, downbeat, and drop events remain below a ten-percent scale increase.
  */

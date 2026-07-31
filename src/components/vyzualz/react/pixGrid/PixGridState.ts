@@ -98,7 +98,7 @@ export function applyPixGridPresetSettings(
     },
     scenes,
     pixelOverrides: [],
-    editor: { ...safeCurrent.editor, selectedLayerId: presetLayers[0]?.id ?? null, selection: null },
+    editor: { ...safeCurrent.editor, scenePreviewMode: 'followTrack', selectedLayerId: presetLayers[0]?.id ?? null, selection: null },
   })
 }
 

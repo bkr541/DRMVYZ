@@ -10,12 +10,16 @@ import {
   getPixGridActiveScene,
   renamePixGridScene,
   resetPixGridLayerTransform,
-  selectPixGridScene,
   updatePixGridLayer,
 } from './PixGridAuthoring'
 import type { PixGridEditorTool, PixGridState } from './PixGridTypes'
 import { PIX_GRID_QUALITY_OPTIONS } from './PixGridControlContract'
 import { PixGridHistoryGesture } from './PixGridHistoryGesture'
+import {
+  PIX_GRID_FOLLOW_TRACK_SCENE_VALUE,
+  selectPixGridEditingTarget,
+  selectPixGridPreviewScene,
+} from './PixGridScenePreview'
 
 type PixGridDesignSurface = 'grid' | 'scene' | 'layer' | 'selection' | 'tool'
 
@@ -78,6 +82,9 @@ export function PixGridDesignPanel() {
     if (layer) applyState(updatePixGridLayer(useReactStore.getState().pixGridState, layer.id, patch))
   }
   const targetValue = state.editor.selectedLayerId ?? 'scene'
+  const activeSceneValue = state.editor.scenePreviewMode === 'followTrack'
+    ? PIX_GRID_FOLLOW_TRACK_SCENE_VALUE
+    : scene.id
   const targetOptions = [
     { value: 'scene', label: 'Scene Pixels' },
     ...layers.map(candidate => ({ value: candidate.id, label: candidate.name })),
@@ -101,15 +108,25 @@ export function PixGridDesignPanel() {
       <CtrlSection label="Editing Context" />
       <SelectRow
         label="Active Scene"
-        value={scene.id}
-        options={state.scenes.map(candidate => ({ value: candidate.id, label: candidate.name }))}
-        onChange={value => setState(selectPixGridScene(state, value))}
+        value={activeSceneValue}
+        options={[
+          { value: PIX_GRID_FOLLOW_TRACK_SCENE_VALUE, label: 'Follow Track' },
+          ...state.scenes.map(candidate => ({ value: candidate.id, label: candidate.name })),
+        ]}
+        onChange={value => {
+          setState(selectPixGridPreviewScene(state, value))
+        }}
+        description={state.editor.scenePreviewMode === 'followTrack' ? 'Track analysis owns the live scene.' : 'Editing Context owns the live preview scene.'}
       />
       <SelectRow
         label="Edit Target"
         value={targetValue}
         options={targetOptions}
-        onChange={value => updateEditor({ selectedLayerId: value === 'scene' ? null : value })}
+        onChange={value => {
+          const selectedLayerId = value === 'scene' ? null : value
+          setState(selectPixGridEditingTarget(state, selectedLayerId))
+          setSurface(selectedLayerId ? 'layer' : 'scene')
+        }}
         description={layer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
       />
       <div className="rv-ctrl-action-row rv-pix-grid-history-row" aria-label="PixGrid edit history">

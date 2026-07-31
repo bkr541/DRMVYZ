@@ -23,6 +23,7 @@ interface LegacyLayerAlias {
   ids?: readonly string[]
   names?: readonly string[]
   assetIds?: readonly PixGridLayer['assetId'][]
+  preserveName?: boolean
 }
 
 const LEGACY_LAYER_ALIASES: Readonly<Record<string, readonly LegacyLayerAlias[]>> = {
@@ -38,6 +39,15 @@ const LEGACY_LAYER_ALIASES: Readonly<Record<string, readonly LegacyLayerAlias[]>
     { canonicalId: 'bass-rings', ids: ['bass-rings-v1', 'concentric-rings', 'sub-rings'], names: ['concentric rings', 'bass rings', 'sub rings'], assetIds: ['pix-concentric-rings'] },
     { canonicalId: 'bass-outline', ids: ['bass-outline-v1', 'bass-border'], names: ['bass outline', 'typography outline'] },
     { canonicalId: 'bass-sparkles', ids: ['bass-stars', 'star-field'], names: ['star field', 'sparkles'], assetIds: ['pix-multi-star-field'] },
+  ],
+  'pix-grid-neon-marquee-cycle': [
+    {
+      canonicalId: 'marquee-structure',
+      ids: ['neon-marquee-frame'],
+      names: ['Neon Marquee Frame'],
+      assetIds: ['pix-neon-marquee-cycle'],
+      preserveName: false,
+    },
   ],
   'pix-grid-pixel-parade': [
     { canonicalId: 'parade-pal', ids: ['pixel-pal', 'mascot', 'parade-mascot'], names: ['pixel pal', 'mascot', 'hero pixel pal'], assetIds: ['pix-mascot-face'] },
@@ -118,10 +128,10 @@ export function detectPixGridPresetLineage(state: PixGridState, preset: ReactPre
   return { lineage, legacyOfficialLayerGraph, genuineUserLayers, canonicalLayerCount, mappedLegacyLayerCount, customLayerCount }
 }
 
-function mergeMappedLayer(canonical: PixGridLayer, legacy: PixGridLayer): PixGridLayer {
+function mergeMappedLayer(canonical: PixGridLayer, legacy: PixGridLayer, preserveName = true): PixGridLayer {
   return {
     ...clonePixGridLayer(canonical),
-    name: legacy.name,
+    name: preserveName ? legacy.name : canonical.name,
     visible: legacy.visible,
     opacity: legacy.opacity,
     position: { ...legacy.position },
@@ -168,7 +178,7 @@ export function mergePixGridCanonicalLayerGraph(state: PixGridState, preset: Rea
     }
     const alias = layer.mediaId ? null : aliasForLayer(preset, layer)
     if (alias && canonicalById.has(alias.canonicalId) && !mappedByCanonicalId.has(alias.canonicalId)) {
-      mappedByCanonicalId.set(alias.canonicalId, mergeMappedLayer(canonicalById.get(alias.canonicalId)!, layer))
+      mappedByCanonicalId.set(alias.canonicalId, mergeMappedLayer(canonicalById.get(alias.canonicalId)!, layer, alias.preserveName !== false))
       layerIdMap.set(layer.id, alias.canonicalId)
       legacyLayersMapped.push(`${layer.id}->${alias.canonicalId}`)
       obsoleteOfficialLayersRemoved.push(layer.id)

@@ -977,6 +977,7 @@ export function normalizePixGridState(value: unknown): PixGridState {
     editorTool,
     editor: {
       hasEnteredAuthoring: editor.hasEnteredAuthoring === true,
+      scenePreviewMode: editor.scenePreviewMode === 'selectedScene' ? 'selectedScene' : 'followTrack',
       guidesVisible: editor.guidesVisible !== false,
       zoom: clamp(editor.zoom, 0.25, 16, 1),
       panX: clamp(editor.panX, -4, 4, 0),

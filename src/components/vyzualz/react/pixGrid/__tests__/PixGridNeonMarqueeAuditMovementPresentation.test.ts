@@ -7,7 +7,6 @@ import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
 import {
-  PIX_GRID_NEON_MARQUEE_ASSET_ID,
   PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS,
   resolvePixGridNeonMarqueePerformance,
 } from '../PixGridNeonMarqueePerformance'
@@ -34,7 +33,7 @@ const PRESET_ID = 'pix-grid-neon-marquee-cycle'
 const PRESET = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
 const SETTINGS = PRESET.pixGridSettings!
 const LAYER = SETTINGS.layers![0]
-const ASSET = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(PIX_GRID_NEON_MARQUEE_ASSET_ID)!
+const ASSET = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(LAYER.assetId)!
 
 function audioFrame(overrides: Partial<PixGridAudioFrame> = {}): PixGridAudioFrame {
   return createSilentPixGridAudioFrame({
@@ -157,7 +156,7 @@ describe('PixGrid music-reactive capability discovery', () => {
   })
 })
 
-describe('Marquee Sign Cycle authored PixGrid movement', () => {
+describe('Deprecated Marquee compatibility choreography', () => {
   it('keeps intro restrained and adds bounded verse drift', () => {
     const intro = resolvePixGridNeonMarqueePerformance(sectionFrame('intro', 2, 0.5, 0.25))
     const verse = resolvePixGridNeonMarqueePerformance(sectionFrame('verse', 2, 0.5, 0.25))
@@ -210,11 +209,10 @@ describe('Marquee Sign Cycle authored PixGrid movement', () => {
     expect(resolvePixGridNeonMarqueePerformance(half)).not.toEqual(resolvePixGridNeonMarqueePerformance(normal))
   })
 
-  it('keeps authored movement active with Auto Performance off while disabling only reactive scale', () => {
+  it('keeps the canonical component transform generic while Auto Performance owns only routed reactions', () => {
     const moving = sectionFrame('verse', 2, 0.5, 0.25, { autoPerformanceEnabled: false })
     const authored = transform(moving)
-    expect(authored.positionX).not.toBe(0.5)
-    expect(authored.scaleX).toBeGreaterThan(1)
+    expect(authored).toMatchObject({ positionX: 0.5, positionY: 0.5, scaleX: 1, scaleY: 1, rotation: 0 })
 
     const event = sectionFrame('drop', 0.5, 0.125, 0.25, {
       autoPerformanceEnabled: true,
@@ -268,21 +266,13 @@ describe('Marquee Sign Cycle authored PixGrid movement', () => {
     })
   })
 
-  it('clamps combined authored and reactive scale to ten percent without rotation', () => {
-    const event = sectionFrame('drop', 0.5, 0.125, 0.25, {
-      autoPerformanceEnabled: true,
-      kickHit: true,
-      downbeatHit: true,
-      dropImpactHit: true,
-      sourceValues: { kick: 1, downbeat: 1, dropImpact: 1, bass: 1 },
-      eventIdentities: { kick: 'kick:peak', downbeat: 'downbeat:peak', dropImpact: 'drop:peak' },
-    })
-    const state = presetState(true)
+  it('does not apply a hidden Marquee-only scale clamp in the generic compositor', () => {
+    const event = sectionFrame('drop', 0, 0, 0, { autoPerformanceEnabled: false })
+    const state = { ...presetState(false), selectedSceneId: `${PRESET_ID}-drop` }
     const authored = transform(event)
-    expect(authored.rotation).toBe(0)
-    expect(authored.scaleX).toBeLessThanOrEqual(PIX_GRID_NEON_MARQUEE_MOVEMENT_LIMITS.maximumAuthoredScale)
+    expect(authored).toMatchObject({ rotation: 0, scaleX: 1, scaleY: 1 })
 
-    const clampedState = {
+    const modestState = {
       ...state,
       layers: state.layers.map(layer => layer.id === LAYER.id ? { ...layer, scale: { x: 1.1, y: 1.1 } } : layer),
     }
@@ -290,9 +280,9 @@ describe('Marquee Sign Cycle authored PixGrid movement', () => {
       ...state,
       layers: state.layers.map(layer => layer.id === LAYER.id ? { ...layer, scale: { x: 2, y: 2 } } : layer),
     }
-    const clamped = composePixGridLogicalFrame(PRESET, clampedState, event)
+    const modest = composePixGridLogicalFrame(PRESET, modestState, event)
     const overdriven = composePixGridLogicalFrame(PRESET, overdrivenState, event)
-    expect(overdriven.pixels).toEqual(clamped.pixels)
+    expect(overdriven.pixels).not.toEqual(modest.pixels)
   })
 })
 

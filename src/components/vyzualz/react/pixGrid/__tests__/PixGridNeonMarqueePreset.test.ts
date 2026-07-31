@@ -45,7 +45,7 @@ function rgbaFromRgb(rgb: Uint8Array): Uint8Array {
     rgba[cell * 4] = rgb[cell * 3]
     rgba[cell * 4 + 1] = rgb[cell * 3 + 1]
     rgba[cell * 4 + 2] = rgb[cell * 3 + 2]
-    rgba[cell * 4 + 3] = 255
+    rgba[cell * 4 + 3] = rgb[cell * 3] || rgb[cell * 3 + 1] || rgb[cell * 3 + 2] ? 255 : 0
   }
   return rgba
 }
@@ -77,11 +77,11 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
     expect(new Set(frames.map(fnv1a)).size).toBe(4)
   })
 
-  it('keeps the native frame exact at the stopped baseline while attaching Stage 3 programming', () => {
+  it('keeps the source frame exact while exposing the Stage 1 layered canonical graph', () => {
     const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)
     expect(preset).toBeDefined()
-    const state = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset?.pixGridSettings)
-    const layer = state.layers[0]
+    const applied = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset?.pixGridSettings)
+    const state = { ...applied, selectedSceneId: `${PRESET_ID}-drop` }
 
     expect(state.quality).toBe('high')
     expect(state.qualityMode).toBe('fixed')
@@ -89,17 +89,12 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
     expect(state.matrixHeight).toBe(90)
     expect(state.performance.enabled).toBe(false)
     expect(state.performance.sharedPerformanceProgramId).toBeNull()
-    expect(state.groups).toEqual([])
-    expect(state.audioAssignments.map(assignment => assignment.id)).toEqual([
-      'neon-marquee-bass-breath',
-      'neon-marquee-build-lift',
-      'neon-marquee-kick-impact',
-      'neon-marquee-snare-edge',
-      'neon-marquee-downbeat-structure',
-      'neon-marquee-drop-impact',
-    ])
-    expect(layer).toMatchObject({
-      assetId: ASSET_ID,
+    expect(state.layers).toHaveLength(12)
+    expect(state.groups).toHaveLength(14)
+    expect(state.layers.map(layer => layer.id)).not.toContain('neon-marquee-frame')
+    expect(state.layers[0]).toMatchObject({
+      id: 'marquee-structure',
+      assetId: 'pix-neon-marquee-structure',
       position: { x: 0.5, y: 0.5 },
       scale: { x: 1, y: 1 },
       rotation: 0,
@@ -115,7 +110,7 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
     expect(validatePixGridState(state, { builtInPresetId: PRESET_ID }).errors).toEqual([])
   })
 
-  it('exposes all four distinct frames through nearest-cell built-in sampling after Stage 3', () => {
+  it('exposes all four distinct source frames through nearest-cell built-in sampling', () => {
     const sampleCoordinates = [
       [0.1, 0.1],
       [0.5, 0.5],

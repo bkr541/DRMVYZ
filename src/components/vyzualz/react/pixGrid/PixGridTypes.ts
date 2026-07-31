@@ -1,16 +1,17 @@
 import type { ReactSectionType } from '../ReactTypes'
 
-export const PIX_GRID_STATE_VERSION = 16 as const
+export const PIX_GRID_STATE_VERSION = 17 as const
 export const PIX_GRID_CONFIGURATION_METADATA_VERSION = 2 as const
 export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 5 as const
-export const PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION = 2 as const
-export const PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION = 2 as const
+export const PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION = 3 as const
+export const PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION = 3 as const
 export const PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION = 5 as const
 export const PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION = 3 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
+export type PixGridScenePreviewMode = 'followTrack' | 'selectedScene'
 export type PixGridEditorTool = 'select' | 'pan' | 'pencil' | 'eraser' | 'fill' | 'eyedropper' | 'rectangle' | 'line' | 'marquee' | 'move'
 export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade' | 'neonMarqueeCycle'
 export type PixGridPerformanceProgramId =
@@ -81,6 +82,18 @@ export type PixGridBuiltInAssetId =
   | 'pix-pixel-burst'
   | 'pix-geometric-tunnel'
   | 'pix-neon-marquee-cycle'
+  | 'pix-neon-marquee-structure'
+  | 'pix-neon-marquee-bulbs-a'
+  | 'pix-neon-marquee-bulbs-b'
+  | 'pix-neon-marquee-bulbs-c'
+  | 'pix-neon-marquee-bulbs-d'
+  | 'pix-neon-marquee-letter-lights-a'
+  | 'pix-neon-marquee-letter-lights-b'
+  | 'pix-neon-marquee-letter-lights-c'
+  | 'pix-neon-marquee-equalizer-lights'
+  | 'pix-neon-marquee-trim-lights'
+  | 'pix-neon-marquee-focal-lights'
+  | 'pix-neon-marquee-sparkle-lights'
 
 export type PixGridPixelOverrideMode = 0 | 1
 /** Compact sparse tuple. Mode 0 forces the cell off; mode 1 paints color at opacity. Legacy v4 tuples are accepted by normalization. */
@@ -102,6 +115,7 @@ export interface PixGridScene {
 
 export interface PixGridEditorSettings {
   hasEnteredAuthoring: boolean
+  scenePreviewMode: PixGridScenePreviewMode
   guidesVisible: boolean
   zoom: number
   panX: number

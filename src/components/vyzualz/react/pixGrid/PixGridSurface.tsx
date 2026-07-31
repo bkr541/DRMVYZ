@@ -64,6 +64,7 @@ import {
   applyPixGridRuntimeControls,
 } from './PixGridRuntimeControls'
 import { resolvePixGridPresentation, resolvePixGridPublishedQuality } from './PixGridPresentation'
+import { applyPixGridSelectedScenePreviewFrame, resolvePixGridPreviewState } from './PixGridScenePreview'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -745,11 +746,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         current.trackSections ?? intelligenceFrame.resolvedSections ?? [],
         audioTime,
       )
-      const mappedState = selectedSceneId ? { ...runtimeState, selectedSceneId } : runtimeState
+      const mappedState = resolvePixGridPreviewState(runtimeState, selectedSceneId)
+      const previewAudioFrame = applyPixGridSelectedScenePreviewFrame(audioFrame, mappedState)
       const resolvedRuntime = unifiedPerformanceRuntime.resolve({
         authoredState: mappedState,
         context: pixGridPerformanceContext,
-        audioFrame,
+        audioFrame: previewAudioFrame,
         presetId: activePreset.id,
         cues: current.pixGridActionCues ?? [],
         trackId: current.trackIdentity ?? null,
@@ -782,15 +784,15 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const activeCueIdentity = cueFrame.snapshot.activeCueIds.join('|')
       const routedAudioFrame = activeCueIdentity
         ? {
-            ...audioFrame,
+            ...previewAudioFrame,
             trackMapCueEvent: true,
             trackMapCueIdentity: `track-map:${activeCueIdentity}`,
-            sourceValues: { ...audioFrame.sourceValues, trackMapCueEvent: 1 },
-            capabilities: { ...audioFrame.capabilities, trackMapCueEvent: true },
-            confidence: { ...audioFrame.confidence, trackMapCueEvent: 1 },
-            eventIdentities: { ...audioFrame.eventIdentities, trackMapCueEvent: `track-map:${activeCueIdentity}` },
+            sourceValues: { ...previewAudioFrame.sourceValues, trackMapCueEvent: 1 },
+            capabilities: { ...previewAudioFrame.capabilities, trackMapCueEvent: true },
+            confidence: { ...previewAudioFrame.confidence, trackMapCueEvent: 1 },
+            eventIdentities: { ...previewAudioFrame.eventIdentities, trackMapCueEvent: `track-map:${activeCueIdentity}` },
           }
-        : audioFrame
+        : previewAudioFrame
       publishPixGridPerformanceRuntimeStatus(performance.snapshot)
       publishPixGridCueRuntimeStatus(cueFrame.snapshot)
       publishPixGridAudioAnalysis(routedAudioFrame, resolvedRuntime.diagnostics)
