@@ -80,6 +80,14 @@ function hash(pixels: Uint8Array): string {
   return (value >>> 0).toString(16)
 }
 
+function activeCellCount(pixels: Uint8Array): number {
+  let count = 0
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    if (pixels[offset + 3] > 0) count += 1
+  }
+  return count
+}
+
 function resolved(layer: PixGridLayer, frame: PixGridAudioFrame) {
   return resolvePixGridLayerAnimation(layer, PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)!, frame, 1)
 }
@@ -144,7 +152,9 @@ describe('frameCycle transition resolution', () => {
     const outroStart = resolved(structure, audio({ sectionType: 'outro', motionClockSectionType: 'outro', motionClockSectionBar: 0 }))
     expect(introStart).toMatchObject({ frameIndex: 0, previousFrameIndex: 0, frameTransitionType: 'powerOn', frameTransitionProgress: 0 })
     expect(introComplete.frameTransitionProgress).toBe(1)
+    expect(introComplete.frameTransitionCompletedState).toBe('target')
     expect(outroStart.frameTransitionType).toBe('powerOff')
+    expect(outroStart.frameTransitionCompletedState).toBe('transparent')
   })
 
   it('is seek, loop, pause, and remount deterministic', () => {
@@ -183,6 +193,143 @@ describe('frameCycle transition resolution', () => {
 })
 
 describe('Marquee logical visual acceptance', () => {
+  it('holds power-off transparent at and after completion, restores on power-on, and seeks deterministically', () => {
+    const base = structureOnly()
+    const render = (
+      sectionType: 'intro' | 'verse' | 'outro',
+      sectionBar: number,
+      overrides: Partial<PixGridAudioFrame> = {},
+    ) => composePixGridLogicalFrame(
+      preset,
+      base,
+      audio({
+        sectionType,
+        motionClockSectionType: sectionType,
+        motionClockSectionBar: sectionBar,
+        barsSinceSectionStart: sectionBar,
+        signClock: 0,
+        motionClockSign: 0,
+        signTransitionClock: null,
+        motionClockSignTransition: null,
+        ...overrides,
+      }),
+    ).pixels
+
+    const offStart = render('outro', 0)
+    const offMiddle = render('outro', 0.125)
+    const offJustBefore = render('outro', 0.249999)
+    const offComplete = render('outro', 0.25)
+    const offAfter = render('outro', 0.75)
+    const onStart = render('intro', 0)
+    const onMiddle = render('intro', 0.125)
+    const onComplete = render('intro', 0.25)
+    const onAfter = render('intro', 0.75)
+    const seekBackward = render('verse', 0.5)
+
+    expect(activeCellCount(offStart)).toBeGreaterThan(0)
+    expect(activeCellCount(offMiddle)).toBeGreaterThan(0)
+    expect(activeCellCount(offMiddle)).toBeLessThan(activeCellCount(offStart))
+    expect(activeCellCount(offJustBefore)).toBeLessThanOrEqual(activeCellCount(offMiddle))
+    expect(activeCellCount(offComplete)).toBe(0)
+    expect(offAfter).toEqual(offComplete)
+
+    expect(activeCellCount(onStart)).toBe(0)
+    expect(activeCellCount(onMiddle)).toBeGreaterThan(0)
+    expect(activeCellCount(onComplete)).toBeGreaterThan(activeCellCount(onMiddle))
+    expect(onAfter).toEqual(onComplete)
+    expect(activeCellCount(seekBackward)).toBeGreaterThan(0)
+    expect(render('outro', 0.75)).toEqual(offAfter)
+    expect(render('outro', 0.75, { isPlaying: false, transportState: 'paused' })).toEqual(offAfter)
+    expect(render('outro', 0.75, { transportState: 'playing' })).toEqual(offAfter)
+    expect(render('outro', 0.75, { timingDiscontinuity: true })).toEqual(offAfter)
+    expect(composePixGridLogicalFrame(preset, structureOnly(), audio({
+      sectionType: 'outro',
+      motionClockSectionType: 'outro',
+      motionClockSectionBar: 0.75,
+      barsSinceSectionStart: 0.75,
+      signClock: 0,
+      motionClockSign: 0,
+      signTransitionClock: null,
+      motionClockSignTransition: null,
+    })).pixels).toEqual(offAfter)
+  })
+
+  it('allows authored power-off transitions to opt out of terminal holding', () => {
+    const base = structureOnly()
+    const layer = base.layers[0]
+    const noHoldLayer = {
+      ...layer,
+      animations: layer.animations.map((animation) => {
+        const outro = animation.sectionFrameTransitions?.outro
+        if (animation.mode !== 'frameCycle' || !outro) return animation
+        return {
+          ...animation,
+          sectionFrameTransitions: {
+            ...animation.sectionFrameTransitions,
+            outro: { ...outro, holdAfterCompletion: false },
+          },
+        }
+      }),
+    }
+    const noHold = normalizePixGridState({ ...base, layers: [noHoldLayer] })
+    const complete = composePixGridLogicalFrame(preset, noHold, audio({
+      sectionType: 'outro',
+      motionClockSectionType: 'outro',
+      motionClockSectionBar: 0.25,
+      barsSinceSectionStart: 0.25,
+      signTransitionClock: null,
+      motionClockSignTransition: null,
+    })).pixels
+
+    expect(resolved(noHold.layers[0], audio({
+      sectionType: 'outro',
+      motionClockSectionType: 'outro',
+      motionClockSectionBar: 0.25,
+      signTransitionClock: null,
+      motionClockSignTransition: null,
+    })).frameTransitionCompletedState).toBe('target')
+    expect(activeCellCount(complete)).toBeGreaterThan(0)
+  })
+
+  it('completes non-power-off transitions on the target frame without stale source state', () => {
+    const base = structureOnly()
+    const transitionTypes = [
+      'pixelDissolve',
+      'rowWipe',
+      'columnWipe',
+      'checkerWipe',
+      'radialReveal',
+      'paletteFade',
+      'powerOn',
+    ] as const
+    const cutLayer = {
+      ...base.layers[0],
+      animations: base.layers[0].animations.map(animation => animation.mode === 'frameCycle'
+        ? { ...animation, frameTransition: { type: 'cut' as const, durationFraction: 0 }, sectionFrameTransitions: {} }
+        : animation),
+    }
+    const exactTarget = composePixGridLogicalFrame(
+      preset,
+      normalizePixGridState({ ...base, layers: [cutLayer] }),
+      audio({ signClock: 1.25, motionClockSign: 1.25 }),
+    ).pixels
+
+    for (const type of transitionTypes) {
+      const layer = {
+        ...base.layers[0],
+        animations: base.layers[0].animations.map(animation => animation.mode === 'frameCycle'
+          ? { ...animation, frameTransition: { type, durationFraction: 0.25 }, sectionFrameTransitions: {} }
+          : animation),
+      }
+      const complete = composePixGridLogicalFrame(
+        preset,
+        normalizePixGridState({ ...base, layers: [layer] }),
+        audio({ signClock: 1.25, motionClockSign: 1.25 }),
+      ).pixels
+      expect(complete).toEqual(exactTarget)
+    }
+  })
+
   it('renders at least one exact-cell intermediate state and completes exactly on the target frame', () => {
     const base = structureOnly()
     const sourceFrame = composePixGridLogicalFrame(preset, base, audio({ signClock: 0.99875, motionClockSign: 0.99875 })).pixels

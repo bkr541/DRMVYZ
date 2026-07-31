@@ -249,8 +249,11 @@ function renderLayer(
       let target = sampleLayerFrame(layer, u, v, animation.frameIndex)
       let source = target
       let mix = 1
-      const transitioning = animation.frameTransitionType !== 'cut' && animation.frameTransitionProgress < 1
-      if (transitioning) {
+      const transitionComplete = animation.frameTransitionProgress >= 1
+      const usesTransitionSamples = animation.frameTransitionType !== 'cut' && (
+        !transitionComplete || animation.frameTransitionCompletedState === 'transparent'
+      )
+      if (usesTransitionSamples) {
         source = animation.frameTransitionType === 'powerOn'
           ? transparentSample(target)
           : sampleLayerFrame(layer, u, v, animation.previousFrameIndex)
@@ -273,7 +276,7 @@ function renderLayer(
 
       let alpha: number
       let color: readonly [number, number, number]
-      if (transitioning && animation.frameTransitionType === 'paletteFade' && mix > 0 && mix < 1) {
+      if (usesTransitionSamples && animation.frameTransitionType === 'paletteFade' && mix > 0 && mix < 1) {
         alpha = (source.alpha + (target.alpha - source.alpha) * mix) * layerOpacity
         const sourceRole = resolveRole(layer, source.role, scene.paletteOffset + animation.paletteOffset)
         const targetRole = resolveRole(layer, target.role, scene.paletteOffset + animation.paletteOffset)

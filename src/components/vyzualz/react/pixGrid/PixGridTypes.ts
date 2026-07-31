@@ -31,6 +31,7 @@ export type PixGridAnimationBoundary = 'wrap' | 'clamp' | 'bounce'
 export type PixGridFrameTransitionEasing = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'step'
 export type PixGridFrameTransitionSeedMode = 'fixed' | 'layer' | 'frame' | 'section'
 export type PixGridFrameTransitionDirection = 'forward' | 'reverse'
+export type PixGridFrameTransitionCompletedState = 'target' | 'transparent'
 
 export type PixGridFrameTransitionType = Exclude<PixGridProgramTransitionOverride, 'crossfade'>
 
@@ -45,6 +46,8 @@ export interface PixGridFrameTransitionConfig {
   origin?: { x: number; y: number }
   /** Runs once from section-local zero even when frame cadence is held. */
   onSectionEntry?: boolean
+  /** Keeps a transition-specific terminal state after progress reaches one. Power-off holds by default. */
+  holdAfterCompletion?: boolean
 }
 export type PixGridContinuousAudioSource =
   | 'sub' | 'bass' | 'lowMid' | 'mid' | 'high' | 'air' | 'volume'

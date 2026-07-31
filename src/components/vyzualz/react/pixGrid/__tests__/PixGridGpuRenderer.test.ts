@@ -288,6 +288,65 @@ describe('PixGridGpuRenderer', () => {
     }
   })
 
+  it('keeps completed Marquee power-off transparent across WebGL and Canvas logical paths', () => {
+    const gl = createFakeWebGL2()
+    const canvas = createCanvas(gl)
+    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
+    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const state = normalizePixGridState({
+      ...applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
+      selectedSceneId: `${preset.id}-outro`,
+      globalIntensity: 1,
+      cellBrightness: 1,
+    })
+    const base = renderInput('high')
+    const completedOutro = {
+      ...base.frame,
+      sectionType: 'outro' as const,
+      motionClockSectionType: 'outro' as const,
+      motionClockSectionBar: 0.75,
+      barsSinceSectionStart: 0.75,
+      signClock: 0,
+      motionClockSign: 0,
+      signTransitionClock: null,
+      motionClockSignTransition: null,
+      intensity: 1,
+      glow: 0,
+    }
+
+    expect(renderer.render({
+      ...base,
+      preset,
+      state,
+      frame: completedOutro,
+    })).toBe(true)
+    const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
+
+    const image = { data: new Uint8ClampedArray(state.matrixWidth * state.matrixHeight * 4) }
+    const logicalContext = {
+      createImageData: vi.fn(() => image),
+      putImageData: vi.fn(),
+    }
+    const outputContext = {
+      save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), strokeRect: vi.fn(),
+      fillStyle: '', strokeStyle: '', globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true, lineWidth: 1,
+    }
+    const fallback = renderPixGridCanvasFallback(
+      outputContext as unknown as CanvasRenderingContext2D,
+      {
+        canvas: { width: state.matrixWidth, height: state.matrixHeight } as HTMLCanvasElement,
+        context: logicalContext as unknown as CanvasRenderingContext2D,
+      },
+      completedOutro,
+      preset,
+      state,
+    )
+
+    expect(Array.from(gpuUpload)).toEqual(Array.from(fallback.logicalFrame.pixels))
+    expect(Array.from(image.data)).toEqual(Array.from(fallback.logicalFrame.pixels))
+    expect(gpuUpload.every(value => value === 0)).toBe(true)
+  })
+
   it('disposes every owned GPU resource idempotently', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)

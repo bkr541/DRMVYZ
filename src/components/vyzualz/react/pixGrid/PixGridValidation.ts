@@ -225,6 +225,7 @@ function normalizeFrameTransition(value: unknown): PixGridFrameTransitionConfig 
       origin: { x: clamp(value.origin.x, 0, 1, 0.5), y: clamp(value.origin.y, 0, 1, 0.5) },
     } : {}),
     ...(value.onSectionEntry != null ? { onSectionEntry: value.onSectionEntry === true } : {}),
+    ...(value.holdAfterCompletion != null ? { holdAfterCompletion: value.holdAfterCompletion === true } : {}),
   }
 }
 

@@ -1,6 +1,7 @@
 import type {
   PixGridAudioFrame,
   PixGridBuiltInAssetManifestEntry,
+  PixGridFrameTransitionCompletedState,
   PixGridFrameTransitionConfig,
   PixGridLayer,
   PixGridLayerAnimation,
@@ -31,6 +32,7 @@ export interface PixGridResolvedLayerAnimation {
   frameTransitionDirection: 'forward' | 'reverse'
   frameTransitionOrigin: Readonly<{ x: number; y: number }>
   frameTransitionOnSectionEntry: boolean
+  frameTransitionCompletedState: PixGridFrameTransitionCompletedState
 }
 
 function clamp01(value: number): number {
@@ -183,6 +185,12 @@ function transitionSeed(
   return deterministicHash(layer.seed, previousFrameIndex, frameIndex)
 }
 
+function transitionCompletedState(config: PixGridFrameTransitionConfig): PixGridFrameTransitionCompletedState {
+  return config.type === 'powerOff' && config.holdAfterCompletion !== false
+    ? 'transparent'
+    : 'target'
+}
+
 function resolveFrameCycle(
   resolved: PixGridResolvedLayerAnimation,
   layer: PixGridLayer,
@@ -252,6 +260,7 @@ function resolveFrameCycle(
     y: clamp01(config.origin?.y ?? 0.5),
   }
   resolved.frameTransitionOnSectionEntry = entryTransition
+  resolved.frameTransitionCompletedState = transitionCompletedState(config)
 }
 
 export function resolvePixGridLayerAnimation(
@@ -282,6 +291,7 @@ export function resolvePixGridLayerAnimation(
     frameTransitionDirection: 'forward',
     frameTransitionOrigin: { x: 0.5, y: 0.5 },
     frameTransitionOnSectionEntry: false,
+    frameTransitionCompletedState: 'target',
   }
 
   for (const animation of layer.animations) {

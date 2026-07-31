@@ -492,7 +492,14 @@ function marqueeSignFrameAnimation(family: MarqueeTransitionFamily = 'structure'
       drop: { type: dropType, durationFraction: 1 / 64, easing: 'easeOut', seedMode: 'frame', origin: { x: 0.5, y: 0.5 } },
       breakdown: { type: 'pixelDissolve', durationFraction: 1 / 64, easing: 'easeInOut', seedMode: 'frame' },
       bridge: { type: 'columnWipe', durationFraction: 1 / 32, easing: 'easeInOut', seedMode: 'section' },
-      outro: { type: 'powerOff', durationFraction: 0.25, easing: 'easeIn', seedMode: 'section', onSectionEntry: true },
+      outro: {
+        type: 'powerOff',
+        durationFraction: 0.25,
+        easing: 'easeIn',
+        seedMode: 'section',
+        onSectionEntry: true,
+        holdAfterCompletion: true,
+      },
       unknown: { type: 'pixelDissolve', durationFraction: 1 / 64, easing: 'linear', seedMode: 'frame' },
     },
   })
