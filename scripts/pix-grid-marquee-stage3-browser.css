@@ -1,0 +1,102 @@
+html,
+body,
+#root {
+  min-width: 1180px;
+  min-height: 760px;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+body {
+  background: #060d10;
+}
+
+.real-browser-shell {
+  display: grid;
+  grid-template-columns: 390px minmax(720px, 1fr);
+  gap: 18px;
+  min-height: 100%;
+  padding: 18px;
+}
+
+.real-browser-controls {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(74, 199, 219, 0.2);
+  border-radius: 10px;
+  background: rgba(10, 18, 22, 0.96);
+  overflow: visible;
+}
+
+.real-browser-controls > * + * {
+  margin-top: 12px;
+}
+
+.real-browser-editing-toggle {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid rgba(74, 199, 219, 0.38);
+  border-radius: 6px;
+  background: rgba(74, 199, 219, 0.1);
+  color: rgba(232, 244, 248, 0.94);
+  cursor: pointer;
+}
+
+.real-browser-output {
+  min-width: 0;
+}
+
+.real-browser-surface-wrap {
+  position: relative;
+  width: min(100%, 1120px);
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid rgba(97, 214, 170, 0.25);
+  overflow: hidden;
+}
+
+.real-browser-surface-wrap .rv-pix-grid-surface-host,
+.real-browser-surface-wrap .rv-pix-grid-surface {
+  width: 100%;
+  height: 100%;
+}
+
+.real-browser-selected-layer {
+  position: absolute;
+  inset: 5px;
+  z-index: 20;
+  border: 2px solid #7eeeff;
+  color: #7eeeff;
+  padding: 7px;
+  pointer-events: none;
+  text-shadow: 0 1px 2px #000;
+}
+
+.real-browser-empty {
+  display: grid;
+  min-height: 420px;
+  place-items: center;
+  border: 1px dashed rgba(74, 199, 219, 0.22);
+}
+
+.real-browser-probe {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 11px;
+}
+
+.real-browser-probe output {
+  min-height: 28px;
+  padding: 7px;
+  border: 1px solid rgba(74, 199, 219, 0.16);
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+.drm-dropdown__menu,
+.rv-engine-dropdown-menu {
+  z-index: 100;
+}

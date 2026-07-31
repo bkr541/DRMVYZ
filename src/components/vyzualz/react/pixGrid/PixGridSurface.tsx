@@ -58,6 +58,8 @@ import {
 } from './PixGridPerceptualResponse'
 import { pixGridMaskHasCell, type PixGridCompiledMask } from './PixGridGroups'
 import type { PixGridLogicalFrame } from './PixGridCompositor'
+import { resolvePixGridLayerAnimation } from './PixGridAnimation'
+import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from './PixGridArtwork'
 import {
   PixGridMotionClock,
   applyPixGridRuntimeControls,
@@ -87,6 +89,27 @@ export interface PixGridSurfaceProps {
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
   onDiagnostics?: (diagnostics: PixGridRendererDiagnostics) => void
+  /** Production-frame observation hook used by browser acceptance coverage. */
+  onRuntimeFrame?: (frame: PixGridSurfaceRuntimeFrame) => void
+}
+
+export interface PixGridSurfaceRuntimeFrame {
+  rendererPath: PixGridRendererDiagnostics['path']
+  logicalWidth: number
+  logicalHeight: number
+  sceneId: string | null
+  audioTimeSec: number
+  sectionType: PixGridAudioFrame['sectionType']
+  autoPerformanceEnabled: boolean
+  signFrameIndex: number | null
+  previousSignFrameIndex: number | null
+  signTransitionType: string | null
+  signTransitionProgress: number
+  authoredAnimationPhase: number
+  authoredBulbStates: readonly Readonly<{ layerId: string; opacity: number; frameIndex: number }>[]
+  visibleComponentIds: readonly string[]
+  activeCellCount: number
+  pixelHash: string
 }
 
 function canvasQuality(quality: PixGridQualityTier): 'low' | 'medium' | 'high' | 'ultra' {
@@ -931,6 +954,69 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       return activeMasks
     }
 
+    const publishRuntimeFrame = (
+      input: NonNullable<ReturnType<typeof currentFrameInput>>,
+      logicalFrame: PixGridLogicalFrame | null,
+      rendererPath: PixGridRendererDiagnostics['path'],
+    ) => {
+      const listener = propsRef.current.onRuntimeFrame
+      if (!listener || !logicalFrame) return
+      const activeScene = input.state.scenes.find(scene => scene.id === input.state.selectedSceneId) ?? null
+      const sceneSettings = input.state.selectedSceneId
+        ? input.preset.pixGridSettings?.sceneSettings?.[input.state.selectedSceneId]
+        : undefined
+      const hiddenLayerIds = new Set(sceneSettings?.hiddenLayerIds ?? [])
+      const visibleComponentIds = input.state.layers
+        .filter(layer => layer.visible && !hiddenLayerIds.has(layer.id) && (activeScene?.layerIds.includes(layer.id) ?? true))
+        .map(layer => layer.id)
+      const signLayer = input.state.layers.find(layer => layer.id === 'marquee-structure')
+        ?? input.state.layers.find(layer => layer.assetId === 'pix-neon-marquee-structure')
+        ?? null
+      const signAsset = signLayer ? PIX_GRID_BUILT_IN_ASSET_BY_ID.get(signLayer.assetId) : null
+      const signAnimation = signLayer && signAsset
+        ? resolvePixGridLayerAnimation(signLayer, signAsset, input.audioFrame, sceneSettings?.motionMultiplier ?? 1)
+        : null
+      const authoredBulbStates = input.state.layers
+        .filter(layer => layer.id.startsWith('marquee-bulbs-'))
+        .flatMap(layer => {
+          const asset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)
+          if (!asset) return []
+          const animation = resolvePixGridLayerAnimation(layer, asset, input.audioFrame, sceneSettings?.motionMultiplier ?? 1)
+          return [{ layerId: layer.id, opacity: animation.opacity, frameIndex: animation.frameIndex }]
+        })
+      let activeCellCount = 0
+      let hash = 0x811c9dc5
+      for (let offset = 0; offset < logicalFrame.pixels.length; offset += 1) {
+        const value = logicalFrame.pixels[offset]!
+        hash ^= value
+        hash = Math.imul(hash, 0x01000193)
+        if (offset % 4 === 3 && value > 0) {
+          const rgbOffset = offset - 3
+          if ((logicalFrame.pixels[rgbOffset]! + logicalFrame.pixels[rgbOffset + 1]! + logicalFrame.pixels[rgbOffset + 2]!) > 12) {
+            activeCellCount += 1
+          }
+        }
+      }
+      listener({
+        rendererPath,
+        logicalWidth: logicalFrame.width,
+        logicalHeight: logicalFrame.height,
+        sceneId: input.state.selectedSceneId,
+        audioTimeSec: input.audioFrame.audioTime,
+        sectionType: input.audioFrame.sectionType,
+        autoPerformanceEnabled: input.audioFrame.autoPerformanceEnabled === true,
+        signFrameIndex: signAnimation?.frameIndex ?? null,
+        previousSignFrameIndex: signAnimation?.previousFrameIndex ?? null,
+        signTransitionType: signAnimation?.frameTransitionType ?? null,
+        signTransitionProgress: signAnimation?.frameTransitionProgress ?? 1,
+        authoredAnimationPhase: input.audioFrame.motionClockSectionBeat ?? 0,
+        authoredBulbStates,
+        visibleComponentIds,
+        activeCellCount,
+        pixelHash: (hash >>> 0).toString(16).padStart(8, '0'),
+      })
+    }
+
     const renderFallback = (input: NonNullable<ReturnType<typeof currentFrameInput>>) => {
       const frame = input.blackout ? { ...input.frame, intensity: 0 } : input.frame
       const fallbackState = input.blackout ? { ...input.state, backgroundMode: 'black' as const, backgroundBrightness: 0 } : input.state
@@ -950,6 +1036,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: fallbackGroupCompiler.compiledGroupIds }
       }
       publishResolvedRouteDiagnostics(input, group => fallbackGroupCompiler.compile(group), fallbackLogical.logicalFrame)
+      publishRuntimeFrame(input, fallbackLogical.logicalFrame, 'canvas2d-fallback')
       latestRenderedPresentationState = fallbackState
       latestRenderedPresentationFrame = frame
       publishDiagnostics({
@@ -1016,6 +1103,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
               latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: gpuRenderer.compiledGroupIds }
             }
             publishResolvedRouteDiagnostics(input, group => gpuRenderer!.compiledMaskForGroup(group), gpuRenderer.logicalFrame)
+            publishRuntimeFrame(input, gpuRenderer.logicalFrame, 'webgl2')
             latestRenderedPresentationState = gpuState
             latestRenderedPresentationFrame = gpuFrame
             publishDiagnostics({ ...gpuDiagnostics, fps: lastFps })
