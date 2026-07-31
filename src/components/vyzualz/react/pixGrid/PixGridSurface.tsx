@@ -66,6 +66,7 @@ import {
 } from './PixGridRuntimeControls'
 import { resolvePixGridPresentation, resolvePixGridPublishedQuality } from './PixGridPresentation'
 import { resolvePixGridSurfacePerformanceFrame } from './PixGridSurfaceRuntime'
+import { applyPixGridPresetSignClock } from './PixGridSignClock'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -634,7 +635,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previousPerformanceContext = null
         unifiedPerformanceRuntime.reset(current.trackIdentity ?? null)
         unifiedReactionRuntime.reset()
-        motionClock.reset(current.trackIdentity ?? null)
+        // Preserve only the independent sign clock across manual scene ownership
+        // changes. The remaining motion clocks still reset exactly as before.
+        motionClock.reset(current.trackIdentity ?? null, {
+          preserveSign: sceneOwnershipChanged && !presetChanged && !transportBoundary,
+        })
         fallbackGroupCompiler.reset()
         perceptualTracker.reset()
         latestGroupCoverage = new Map()
@@ -716,6 +721,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             phraseIndex: liveAudioFrame.phraseIndex,
             barIndex: liveAudioFrame.barIndex,
             beatIndex: liveAudioFrame.beatIndex,
+            absoluteBar: liveAudioFrame.absoluteBar,
+            sectionBarTimeline: liveAudioFrame.sectionBarTimeline,
             beatsSinceSectionStart: liveAudioFrame.beatsSinceSectionStart,
             barsSinceSectionStart: liveAudioFrame.barsSinceSectionStart,
             capabilities: liveAudioFrame.capabilities,
@@ -736,7 +743,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         : usingFreshBusFrame
           ? 'shared-bus'
           : 'neutral'
-      const audioFrame = motionClock.apply(applyPixGridRuntimeControls(applyPixGridEditorPreview({
+      const audioFrame = motionClock.apply(applyPixGridRuntimeControls(applyPixGridEditorPreview(applyPixGridPresetSignClock({
         ...authoredAudioFrame,
         transportState,
         inputSource,
@@ -750,7 +757,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           : 0,
         stemAvailability: (['bassStemActivity', 'drumActivity', 'melodyActivity', 'vocalActivity'] as const)
           .filter(source => authoredAudioFrame.capabilities?.[source] !== false),
-      }), {
+      }, activePreset.id, current.motion)), {
         bassReactivity: current.bassReactivity,
         motion: current.motion,
       }))

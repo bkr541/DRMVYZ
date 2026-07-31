@@ -242,6 +242,8 @@ export function createPixGridAudioFrame(
     trackMapCueIdentity: null,
     beatIndex: context.beatIndex,
     barIndex: context.barIndex,
+    absoluteBar: context.absoluteBar,
+    sectionBarTimeline: context.sectionBarTimeline,
     beatsSinceSectionStart: context.barsSinceSectionStart * context.timeSignature,
     barsSinceSectionStart: context.barsSinceSectionStart,
     phraseIndex: context.phraseIndex,

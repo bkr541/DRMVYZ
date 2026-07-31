@@ -39,6 +39,9 @@ function audio(overrides: Partial<PixGridAudioFrame> = {}): PixGridAudioFrame {
     motionClockSectionBar: 0,
     motionClockBeat: 0,
     motionClockBar: 0,
+    absoluteBar: 0,
+    signClock: 0,
+    motionClockSign: 0,
     motionClockTime: 0,
     motionMultiplier: 1,
     autoPerformanceEnabled: false,
@@ -114,23 +117,23 @@ describe('frameCycle transition resolution', () => {
   const structure = marquee.layers.find(layer => layer.id === 'marquee-structure')!
 
   it('resolves previous frame, target frame, progress, duration, type, and seed from the musical clock', () => {
-    const boundary = resolved(structure, audio({ motionClockSectionBar: 8, barsSinceSectionStart: 8 }))
-    const middle = resolved(structure, audio({ motionClockSectionBar: 8.0625, barsSinceSectionStart: 8.0625 }))
-    const complete = resolved(structure, audio({ motionClockSectionBar: 8.125, barsSinceSectionStart: 8.125 }))
+    const boundary = resolved(structure, audio({ signClock: 1, motionClockSign: 1 }))
+    const middle = resolved(structure, audio({ signClock: 1.0078125, motionClockSign: 1.0078125 }))
+    const complete = resolved(structure, audio({ signClock: 1.015625, motionClockSign: 1.015625 }))
     expect(boundary).toMatchObject({ previousFrameIndex: 0, frameIndex: 1, frameTransitionType: 'pixelDissolve', frameTransitionProgress: 0 })
     expect(middle.frameTransitionProgress).toBeGreaterThan(0)
     expect(middle.frameTransitionProgress).toBeLessThan(1)
     expect(complete.frameTransitionProgress).toBe(1)
     expect(middle.frameTransitionDuration).toBeCloseTo(1 / 64)
-    expect(resolved(structure, audio({ motionClockSectionBar: 8.0625 })).frameTransitionSeed).toBe(middle.frameTransitionSeed)
+    expect(resolved(structure, audio({ signClock: 1.0078125, motionClockSign: 1.0078125 })).frameTransitionSeed).toBe(middle.frameTransitionSeed)
   })
 
   it('uses section-authored transition language without changing sign cadence', () => {
-    const build = resolved(structure, audio({ sectionType: 'build', motionClockSectionType: 'build', motionClockSectionBar: 4 }))
-    const preDrop = resolved(structure, audio({ sectionType: 'preDrop', motionClockSectionType: 'preDrop', motionClockSectionBar: 12 }))
-    const drop = resolved(structure, audio({ sectionType: 'drop', motionClockSectionType: 'drop', motionClockSectionBar: 4 }))
+    const build = resolved(structure, audio({ sectionType: 'build', motionClockSectionType: 'build', signClock: 1, motionClockSign: 1 }))
+    const preDrop = resolved(structure, audio({ sectionType: 'preDrop', motionClockSectionType: 'preDrop', signClock: 1.5, motionClockSign: 1.5 }))
+    const drop = resolved(structure, audio({ sectionType: 'drop', motionClockSectionType: 'drop', signClock: 2, motionClockSign: 2 }))
     expect(build.frameTransitionType).toBe('rowWipe')
-    expect(preDrop.frameIndex).toBe(0)
+    expect(preDrop.frameIndex).toBe(1)
     expect(preDrop.frameTransitionType).toBe('cut')
     expect(drop.frameTransitionType).toBe('radialReveal')
   })
@@ -145,14 +148,14 @@ describe('frameCycle transition resolution', () => {
   })
 
   it('is seek, loop, pause, and remount deterministic', () => {
-    const position = audio({ motionClockSectionBar: 12.03125, barsSinceSectionStart: 12.03125, transportState: 'playing' })
+    const position = audio({ signClock: 1.50390625, motionClockSign: 1.50390625, transportState: 'playing' })
     const first = resolved(structure, position)
-    const seekForward = resolved(structure, audio({ motionClockSectionBar: 20.03125, barsSinceSectionStart: 20.03125 }))
+    const seekForward = resolved(structure, audio({ signClock: 2.50390625, motionClockSign: 2.50390625 }))
     expect(seekForward.frameIndex).not.toBe(first.frameIndex)
     expect(resolved(structure, position)).toEqual(first)
     expect(resolved(structure, { ...position, transportState: 'paused', isPlaying: false })).toEqual(first)
     expect(resolved(structure, { ...position, timingDiscontinuity: true })).toEqual(first)
-    expect(resolved(structure, audio({ motionClockSectionBar: 44.03125, barsSinceSectionStart: 44.03125 }))).toEqual(first)
+    expect(resolved(structure, audio({ signClock: 5.50390625, motionClockSign: 5.50390625 }))).toEqual(first)
     expect(resolved({ ...structure, animations: structure.animations.map(animation => ({ ...animation })) }, position)).toEqual(first)
   })
 
@@ -182,14 +185,14 @@ describe('frameCycle transition resolution', () => {
 describe('Marquee logical visual acceptance', () => {
   it('renders at least one exact-cell intermediate state and completes exactly on the target frame', () => {
     const base = structureOnly()
-    const sourceFrame = composePixGridLogicalFrame(preset, base, audio({ motionClockSectionBar: 7.99 })).pixels
-    const intermediate = composePixGridLogicalFrame(preset, base, audio({ motionClockSectionBar: 8.0625 })).pixels
-    const target = composePixGridLogicalFrame(preset, base, audio({ motionClockSectionBar: 8.125 })).pixels
+    const sourceFrame = composePixGridLogicalFrame(preset, base, audio({ signClock: 0.99875, motionClockSign: 0.99875 })).pixels
+    const intermediate = composePixGridLogicalFrame(preset, base, audio({ signClock: 1.0078125, motionClockSign: 1.0078125 })).pixels
+    const target = composePixGridLogicalFrame(preset, base, audio({ signClock: 1.015625, motionClockSign: 1.015625 })).pixels
     const cutLayer = { ...base.layers[0], animations: base.layers[0].animations.map(animation => animation.mode === 'frameCycle'
       ? { ...animation, frameTransition: { type: 'cut' as const, durationFraction: 0 }, sectionFrameTransitions: {} }
       : animation) }
     const cutState = normalizePixGridState({ ...base, layers: [cutLayer] })
-    const exactTarget = composePixGridLogicalFrame(preset, cutState, audio({ motionClockSectionBar: 8.125 })).pixels
+    const exactTarget = composePixGridLogicalFrame(preset, cutState, audio({ signClock: 1.015625, motionClockSign: 1.015625 })).pixels
 
     expect(hash(intermediate)).not.toBe(hash(sourceFrame))
     expect(hash(intermediate)).not.toBe(hash(target))
@@ -204,8 +207,8 @@ describe('Marquee logical visual acceptance', () => {
 
   it('keeps stable structure fixed while authored light layers animate at one sign identity', () => {
     const full = state()
-    const fixedSignA = audio({ sectionType: 'drop', motionClockSectionType: 'drop', motionClockSectionBar: 1, motionClockSectionBeat: 4 })
-    const fixedSignB = audio({ sectionType: 'drop', motionClockSectionType: 'drop', motionClockSectionBar: 1.25, motionClockSectionBeat: 5 })
+    const fixedSignA = audio({ sectionType: 'drop', motionClockSectionType: 'drop', motionClockSectionBar: 1, motionClockSectionBeat: 4, signClock: 2.25, motionClockSign: 2.25 })
+    const fixedSignB = audio({ sectionType: 'drop', motionClockSectionType: 'drop', motionClockSectionBar: 1.25, motionClockSectionBeat: 5, signClock: 2.25, motionClockSign: 2.25 })
     const fullA = composePixGridLogicalFrame(preset, full, fixedSignA).pixels
     const fullB = composePixGridLogicalFrame(preset, full, fixedSignB).pixels
     const structure = structureOnly({ ...full, selectedSceneId: `${PRESET_ID}-drop` })
@@ -219,12 +222,12 @@ describe('Marquee logical visual acceptance', () => {
     const base = state()
     const introState = { ...base, selectedSceneId: `${PRESET_ID}-intro` }
     const dropState = { ...base, selectedSceneId: `${PRESET_ID}-drop` }
-    const atSectionStart = audio({ sectionType: 'drop', motionClockSectionType: 'drop', motionClockSectionBar: 0 })
+    const atSectionStart = audio({ sectionType: 'drop', motionClockSectionType: 'drop', motionClockSectionBar: 0, signClock: 2.5, motionClockSign: 2.5 })
     const structure = base.layers.find(layer => layer.id === 'marquee-structure')!
-    expect(resolved(structure, atSectionStart).frameIndex).toBe(0)
+    expect(resolved(structure, atSectionStart).frameIndex).toBe(2)
     expect(introState.selectedSceneId).not.toBe(dropState.selectedSceneId)
-    const signChange = resolved(structure, { ...atSectionStart, motionClockSectionBar: 4.125 })
-    expect(signChange.frameIndex).toBe(1)
+    const signChange = resolved(structure, { ...atSectionStart, signClock: 3.015625, motionClockSign: 3.015625, motionClockSectionBar: 2.0625 })
+    expect(signChange.frameIndex).toBe(3)
     expect(dropState.selectedSceneId).toBe(`${PRESET_ID}-drop`)
   })
 
@@ -260,10 +263,10 @@ describe('Marquee logical visual acceptance', () => {
 
   it('completes to four distinct readable sign frames while retaining true-black cell gaps', () => {
     const base = state()
-    const hashes = [0.125, 8.125, 16.125, 24.125].map(motionClockSectionBar => {
+    const hashes = [0.015625, 1.015625, 2.015625, 3.015625].map(motionClockSign => {
       const pixels = composePixGridLogicalFrame(preset, base, audio({
-        motionClockSectionBar,
-        motionClockSectionBeat: motionClockSectionBar * 4,
+        signClock: motionClockSign,
+        motionClockSign,
       })).pixels
       let blackCells = 0
       let visibleCells = 0

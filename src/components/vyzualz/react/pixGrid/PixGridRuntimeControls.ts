@@ -81,6 +81,7 @@ function absoluteBeatClock(frame: PixGridAudioFrame): number {
 }
 
 function absoluteBarClock(frame: PixGridAudioFrame): number {
+  if (Number.isFinite(frame.absoluteBar)) return Math.max(0, frame.absoluteBar!)
   if (frame.barProgress != null) return Math.max(0, frame.barIndex ?? 0) + clamp01(frame.barProgress)
   const beatInBar = ((frame.beatIndex ?? 0) % 4 + 4) % 4
   return Math.max(0, frame.barIndex ?? 0) + (beatInBar + clamp01(frame.beatPhase)) / 4
@@ -99,33 +100,60 @@ export class PixGridMotionClock {
   private lastAudioTime: number | null = null
   private lastBeatClock: number | null = null
   private lastBarClock: number | null = null
+  private lastSignClock: number | null = null
   private lastSectionBeatClock: number | null = null
   private lastSectionBarClock: number | null = null
   private lastSectionProgress: number | null = null
   private motionTime = 0
   private motionBeat = 0
   private motionBar = 0
+  private motionSign = 0
+  private motionSignTransition: number | null = null
+  private motionSignTransitionRate = 0
+  private motionSignFrameIndex = 0
   private motionSectionBeat = 0
   private motionSectionBar = 0
   private motionSectionProgress = 0
   private motionSectionType: PixGridAudioFrame['sectionType'] = null
+  private preserveSignOnNextAnchor = false
 
-  reset(trackIdentity: string | null = null): void {
+  reset(
+    trackIdentity: string | null = null,
+    options: { preserveSign?: boolean } = {},
+  ): void {
+    const preservedMotionSign = this.motionSign
+    const preservedMotionSignTransition = this.motionSignTransition
+    const preservedMotionSignTransitionRate = this.motionSignTransitionRate
+    const preservedMotionSignFrameIndex = this.motionSignFrameIndex
+    const preservedLastSignClock = this.lastSignClock
     this.trackIdentity = trackIdentity
     this.sectionIdentity = null
     this.lastAudioTime = null
     this.lastBeatClock = null
     this.lastBarClock = null
+    this.lastSignClock = null
     this.lastSectionBeatClock = null
     this.lastSectionBarClock = null
     this.lastSectionProgress = null
     this.motionTime = 0
     this.motionBeat = 0
     this.motionBar = 0
+    this.motionSign = 0
+    this.motionSignTransition = null
+    this.motionSignTransitionRate = 0
+    this.motionSignFrameIndex = 0
     this.motionSectionBeat = 0
     this.motionSectionBar = 0
     this.motionSectionProgress = 0
     this.motionSectionType = null
+    this.preserveSignOnNextAnchor = options.preserveSign === true
+    if (this.preserveSignOnNextAnchor) {
+      this.motionSign = preservedMotionSign
+      this.motionSignTransition = preservedMotionSignTransition
+      this.motionSignTransitionRate = preservedMotionSignTransitionRate
+      this.motionSignFrameIndex = preservedMotionSignFrameIndex
+      this.lastSignClock = preservedLastSignClock
+    }
   }
 
   apply(frame: PixGridAudioFrame): PixGridAudioFrame {
@@ -133,6 +161,7 @@ export class PixGridMotionClock {
     const audioTime = Math.max(0, Number.isFinite(frame.audioTime) ? frame.audioTime : 0)
     const beatClock = absoluteBeatClock(frame)
     const barClock = absoluteBarClock(frame)
+    const signClock = Number.isFinite(frame.signClock) ? Math.max(0, frame.signClock!) : null
     const sectionBeatClock = Number.isFinite(frame.beatsSinceSectionStart)
       ? Math.max(0, frame.beatsSinceSectionStart!)
       : beatClock
@@ -149,18 +178,46 @@ export class PixGridMotionClock {
     const advances = frame.isPlaying !== false && frame.transportState !== 'paused' && frame.transportState !== 'stopped'
 
     if (this.lastAudioTime == null || discontinuity) {
+      const preserveSign = this.preserveSignOnNextAnchor && signClock != null && !identityChanged
       this.motionTime = audioTime * motion
       this.motionBeat = beatClock * motion
       this.motionBar = barClock * motion
+      if (!preserveSign) {
+        this.motionSign = (signClock ?? 0) * motion
+        this.motionSignFrameIndex = Math.floor(this.motionSign + 1e-9)
+        this.motionSignTransition = this.motionSignFrameIndex > 0 && Number.isFinite(frame.signTransitionClock)
+          ? Math.max(0, frame.signTransitionClock!)
+          : null
+        this.motionSignTransitionRate = this.motionSignTransition != null && Number.isFinite(frame.signTransitionRate)
+          ? Math.max(0, frame.signTransitionRate!)
+          : 0
+      }
       this.motionSectionBeat = sectionBeatClock * motion
       this.motionSectionBar = sectionBarClock * motion
       this.motionSectionProgress = sectionProgress * motion
       this.motionSectionType = frame.sectionType ?? null
       this.sectionIdentity = nextSectionIdentity
+      this.preserveSignOnNextAnchor = false
     } else if (advances) {
       this.motionTime += Math.max(0, audioTime - this.lastAudioTime) * motion
       this.motionBeat += Math.max(0, beatClock - (this.lastBeatClock ?? beatClock)) * motion
       this.motionBar += Math.max(0, barClock - (this.lastBarClock ?? barClock)) * motion
+      if (signClock != null) {
+        const previousMotionSign = this.motionSign
+        const signDelta = Math.max(0, signClock - (this.lastSignClock ?? signClock)) * motion
+        const barDelta = Math.max(0, barClock - (this.lastBarClock ?? barClock))
+        this.motionSign += signDelta
+        const nextFrameIndex = Math.floor(this.motionSign + 1e-9)
+        if (nextFrameIndex > this.motionSignFrameIndex) {
+          this.motionSignFrameIndex = nextFrameIndex
+          this.motionSignTransition = Math.max(0, this.motionSign - nextFrameIndex)
+          this.motionSignTransitionRate = barDelta > 1e-9 && motion > 1e-9
+            ? Math.max(0, (this.motionSign - previousMotionSign) / (barDelta * motion))
+            : Math.max(0, Number.isFinite(frame.signTransitionRate) ? frame.signTransitionRate! : 0)
+        } else if (this.motionSignTransition != null) {
+          this.motionSignTransition += barDelta * this.motionSignTransitionRate * motion
+        }
+      }
       if (sectionChanged) {
         if (motion > 0) {
           this.motionSectionBeat = sectionBeatClock * motion
@@ -180,6 +237,7 @@ export class PixGridMotionClock {
     this.lastAudioTime = audioTime
     this.lastBeatClock = beatClock
     this.lastBarClock = barClock
+    this.lastSignClock = signClock
     this.lastSectionBeatClock = sectionBeatClock
     this.lastSectionBarClock = sectionBarClock
     this.lastSectionProgress = sectionProgress
@@ -188,6 +246,10 @@ export class PixGridMotionClock {
       motionClockTime: this.motionTime,
       motionClockBeat: this.motionBeat,
       motionClockBar: this.motionBar,
+      ...(signClock != null ? {
+        motionClockSign: this.motionSign,
+        motionClockSignTransition: this.motionSignTransition,
+      } : {}),
       motionClockSectionBeat: this.motionSectionBeat,
       motionClockSectionBar: this.motionSectionBar,
       motionClockSectionProgress: this.motionSectionProgress,

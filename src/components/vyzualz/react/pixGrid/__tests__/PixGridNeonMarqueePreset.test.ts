@@ -101,7 +101,7 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
       rotation: 0,
       opacity: 1,
       blendMode: 'normal',
-      animations: [{ mode: 'frameCycle', clock: 'sectionBar', speed: 1, amount: 1, stepped: true }],
+      animations: [{ mode: 'frameCycle', clock: 'sign', speed: 1, amount: 1, stepped: true }],
     })
 
     const logical = composePixGridLogicalFrame(preset!, state, STATIC_FRAME)

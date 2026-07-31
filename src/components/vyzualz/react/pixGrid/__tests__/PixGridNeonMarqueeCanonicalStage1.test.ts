@@ -188,6 +188,8 @@ describe('Marquee Sign Cycle Stage 1 canonical component graph', () => {
       motionClockSectionType: 'verse',
       motionClockSectionBeat: 32,
       motionClockSectionBar: 8,
+      signClock: 1,
+      motionClockSign: 1,
     })
     for (const layer of SETTINGS.layers!) {
       const asset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)!

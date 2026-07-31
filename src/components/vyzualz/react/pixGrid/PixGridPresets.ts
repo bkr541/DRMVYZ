@@ -12,6 +12,7 @@ import {
   PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION,
 } from './PixGridNeonMarqueePerformance'
 import { PIX_GRID_NEON_MARQUEE_GROUPS } from './PixGridNeonMarqueeGroups'
+import { PIX_GRID_NEON_MARQUEE_SIGN_CADENCE } from './PixGridSignClock'
 import type { PixGridLayer, PixGridPresetSettings, PixGridSceneSettings } from './PixGridTypes'
 
 export const PIX_GRID_PRESET_IDS = [
@@ -425,18 +426,6 @@ const PIXEL_PARADE_LAYERS: PixGridLayer[] = [
   }),
 ]
 
-const MARQUEE_SIGN_CADENCE = {
-  intro: 0,
-  verse: 1 / 8,
-  build: 1 / 4,
-  preDrop: 0,
-  drop: 1 / 4,
-  breakdown: 1 / 16,
-  bridge: 1 / 8,
-  outro: 0,
-  unknown: 1 / 8,
-} as const
-
 const MARQUEE_BULB_CHASE_SPEED = {
   intro: 0.5,
   verse: 1,
@@ -491,9 +480,9 @@ function marqueeSignFrameAnimation(family: MarqueeTransitionFamily = 'structure'
   const buildType = family === 'letters' ? 'columnWipe' : 'rowWipe'
   const dropType = family === 'structure' ? 'radialReveal' : family === 'bulbs' ? 'checkerWipe' : 'pixelDissolve'
   return animation('frameCycle', 1, 1, {
-    clock: 'sectionBar',
+    clock: 'sign',
     stepped: true,
-    sectionSpeeds: MARQUEE_SIGN_CADENCE,
+    sectionSpeeds: PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
     frameTransition: { type: 'pixelDissolve', durationFraction: 1 / 64, easing: 'easeOut', seedMode: 'frame' },
     sectionFrameTransitions: {
       intro: { type: 'powerOn', durationFraction: 0.25, easing: 'easeOut', seedMode: 'section', onSectionEntry: true },

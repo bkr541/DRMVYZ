@@ -164,7 +164,7 @@ export interface PixGridBuiltInAssetManifestEntry {
 export interface PixGridLayerAnimation {
   mode: PixGridAnimationMode
   /** Selects the authoritative musical clock used by frame sequences and motion. */
-  clock?: 'time' | 'beat' | 'bar' | 'sectionBeat' | 'sectionBar' | 'sectionProgress' | 'cue'
+  clock?: 'time' | 'beat' | 'bar' | 'sectionBeat' | 'sectionBar' | 'sectionProgress' | 'sign' | 'cue'
   speed: number
   amount: number
   phase: number
@@ -647,6 +647,16 @@ export interface PixGridAudioFrame {
   trackMapCueIdentity?: string | null
   beatIndex?: number
   barIndex?: number
+  /** Authoritative fractional bar position from Shared Performance. */
+  absoluteBar?: number
+  /** Non-overlapping authoritative section spans on the same absolute bar grid. */
+  sectionBarTimeline?: readonly PixGridSectionBarSpan[]
+  /** Preset-authored deterministic sign cadence before Motion integration. */
+  signClock?: number
+  /** Deterministic scaled distance since the latest real sign boundary, or null before one occurs. */
+  signTransitionClock?: number | null
+  /** Raw sign units per bar at the latest real sign boundary. */
+  signTransitionRate?: number
   /** Fractional musical position measured from the resolved section start. */
   beatsSinceSectionStart?: number
   /** Fractional bar position measured from the resolved section start. */
@@ -675,6 +685,10 @@ export interface PixGridAudioFrame {
   motionClockTime?: number
   motionClockBeat?: number
   motionClockBar?: number
+  /** Motion-integrated sign cadence. The raw deterministic source remains signClock. */
+  motionClockSign?: number
+  /** Motion-integrated distance since the latest real sign boundary. */
+  motionClockSignTransition?: number | null
   /** Motion-scaled clocks measured from the resolved section start. */
   motionClockSectionBeat?: number
   motionClockSectionBar?: number
@@ -690,6 +704,13 @@ export interface PixGridAudioFrame {
   inputSourceId?: string | null
   aggregateSourceConfidence?: number
   stemAvailability?: readonly PixGridReactionSource[]
+}
+
+export interface PixGridSectionBarSpan {
+  id: string
+  type: ReactSectionType
+  startBar: number
+  endBar: number
 }
 
 

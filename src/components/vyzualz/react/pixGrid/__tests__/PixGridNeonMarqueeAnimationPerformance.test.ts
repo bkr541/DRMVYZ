@@ -5,6 +5,7 @@ import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
 import { PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION } from '../PixGridNeonMarqueePerformance'
+import { PIX_GRID_NEON_MARQUEE_SIGN_CADENCE } from '../PixGridSignClock'
 import { pixGridNeonMarqueeComponentContainsCell } from '../PixGridNeonMarqueeMasks'
 import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridRuntimeControls, PixGridMotionClock } from '../PixGridRuntimeControls'
@@ -151,12 +152,17 @@ describe('Marquee Sign Cycle Stage 2 authored animation', () => {
 
   it('keeps structure centered and changes complete signs only at large musical boundaries', () => {
     const structure = layer('marquee-structure')
-    const at = (sectionType: PixGridAudioFrame['sectionType'], bar: number, beat = bar * 4) => resolved(structure, audio({
-      sectionType,
-      motionClockSectionType: sectionType,
-      motionClockSectionBar: bar,
-      motionClockSectionBeat: beat,
-    }))
+    const at = (sectionType: PixGridAudioFrame['sectionType'], bar: number, beat = bar * 4) => {
+      const signClock = bar * PIX_GRID_NEON_MARQUEE_SIGN_CADENCE[sectionType ?? 'unknown']
+      return resolved(structure, audio({
+        sectionType,
+        motionClockSectionType: sectionType,
+        motionClockSectionBar: bar,
+        motionClockSectionBeat: beat,
+        signClock,
+        motionClockSign: signClock,
+      }))
+    }
 
     for (const section of ['intro', 'preDrop', 'outro'] as const) {
       expect([0, 4, 8, 16].map(bar => at(section, bar).frameIndex)).toEqual([0, 0, 0, 0])
@@ -308,7 +314,7 @@ describe('Marquee Sign Cycle Stage 2 authored animation', () => {
       expect(migrated.performance.enabled).toBe(enabled)
       expect(migrated.performance.sharedPerformanceProgramId).toBe(PROGRAM_ID)
       expect(migrated.layers.find(candidate => candidate.id === 'marquee-bulbs-a')?.animations.some(animation => animation.mode === 'blink')).toBe(true)
-      expect(migrated.layers.find(candidate => candidate.id === 'marquee-structure')?.animations[0].clock).toBe('sectionBar')
+      expect(migrated.layers.find(candidate => candidate.id === 'marquee-structure')?.animations[0].clock).toBe('sign')
     }
   })
 })

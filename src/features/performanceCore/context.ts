@@ -80,6 +80,13 @@ export interface SharedPerformanceResolvedSection {
   dropConfidence: number
 }
 
+export interface SharedPerformanceSectionBarSpan {
+  id: string
+  type: ReactSectionType
+  startBar: number
+  endBar: number
+}
+
 export interface SharedPerformanceMacroSection {
   id: string
   label: string
@@ -130,6 +137,8 @@ export interface SharedPerformanceContext extends SharedPerformanceGridPosition 
   trackChangeIdentity: string
   timingDiscontinuityIdentity: string
   sections: SharedPerformanceResolvedSection[]
+  /** Non-overlapping authoritative section spans projected onto the musical bar grid. */
+  sectionBarTimeline: SharedPerformanceSectionBarSpan[]
   macroSections: SharedPerformanceMacroSection[]
   resolvedSection: SharedPerformanceResolvedSection | null
   resolvedMacroSection: SharedPerformanceMacroSection | null
@@ -953,6 +962,12 @@ export function buildSharedPerformanceContext(
   const resolvedMacroSection = resolveSharedPerformanceMacroSectionAtTime(macroSections, audioTimeSec)
   const boundaryClassification = classifySharedPerformanceBoundary(sections, macroSections, resolvedSection, audioTimeSec)
   const grid = resolveSharedPerformanceGridPosition(audioTimeSec, frame, analysis)
+  const sectionBarTimeline = resolveAuthoritativeSectionSpans(sections).map(section => ({
+    id: section.id,
+    type: section.type,
+    startBar: resolveSharedPerformanceGridPosition(section.startSec, frame, analysis).absoluteBar,
+    endBar: resolveSharedPerformanceGridPosition(section.endSec, frame, analysis).absoluteBar,
+  }))
   const sectionStartGrid = resolvedSection
     ? resolveSharedPerformanceGridPosition(resolvedSection.startSec, frame, analysis)
     : null
@@ -1059,6 +1074,7 @@ export function buildSharedPerformanceContext(
     timingDiscontinuityIdentity,
     ...grid,
     sections,
+    sectionBarTimeline,
     macroSections,
     resolvedSection,
     resolvedMacroSection,
