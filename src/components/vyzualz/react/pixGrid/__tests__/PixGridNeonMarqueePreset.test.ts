@@ -78,7 +78,7 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
     expect(new Set(frames.map(fnv1a)).size).toBe(4)
   })
 
-  it('keeps the source frame exact while exposing the Stage 1 layered canonical graph', () => {
+  it('keeps the source frame exact while exposing the layered canonical graph', () => {
     const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)
     expect(preset).toBeDefined()
     const applied = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset?.pixGridSettings)

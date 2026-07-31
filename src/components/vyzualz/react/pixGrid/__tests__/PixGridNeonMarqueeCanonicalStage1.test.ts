@@ -162,7 +162,7 @@ function legacyMarqueeState(): PixGridState {
   }
 }
 
-describe('Marquee Sign Cycle Stage 1 canonical component graph', () => {
+describe('Marquee Sign Cycle canonical component graph', () => {
   it('registers every native component layer and Smart Group exactly once', () => {
     const layerIds = SETTINGS.layers!.map(layer => layer.id)
     const groupIds = SETTINGS.groups!.map(group => group.id)
@@ -181,8 +181,8 @@ describe('Marquee Sign Cycle Stage 1 canonical component graph', () => {
   })
 
   it('uses ordinary generic animation descriptors while keeping every component on one large-boundary sign identity', () => {
-    expect(resolvePixGridLayerAnimation.toString()).not.toContain('resolvePixGridNeonMarqueePerformance')
-    expect(resolvePixGridLayerAnimation.toString()).not.toContain('pix-neon-marquee-cycle')
+    const animationSource = resolvePixGridLayerAnimation.toString().toLowerCase()
+    expect(animationSource).not.toContain('marquee')
 
     const frame = previewFrame({
       motionClockSectionType: 'verse',
@@ -371,7 +371,7 @@ describe('Marquee authored scenes and Editing Context ownership', () => {
   })
 })
 
-describe('Marquee one-layer canonical migration', () => {
+describe('Marquee legacy one-layer saved-state migration', () => {
   it('replaces the obsolete official layer, repairs scenes and routes, and preserves custom overlays and controls', () => {
     const legacy = legacyMarqueeState()
     const migrated = migratePixGridState(legacy, PRESET)

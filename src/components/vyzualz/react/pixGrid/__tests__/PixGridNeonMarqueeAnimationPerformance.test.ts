@@ -4,10 +4,9 @@ import { PixGridReactionRuntime } from '../PixGridAudioRouting'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
-import { PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION } from '../PixGridNeonMarqueePerformance'
 import { PIX_GRID_NEON_MARQUEE_SIGN_CADENCE } from '../PixGridSignClock'
 import { pixGridNeonMarqueeComponentContainsCell } from '../PixGridNeonMarqueeMasks'
-import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
+import { PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION, PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridRuntimeControls, PixGridMotionClock } from '../PixGridRuntimeControls'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import { migratePixGridState } from '../PixGridStateMigration'
@@ -93,7 +92,7 @@ function changedCells(a: Uint8Array, b: Uint8Array): number {
   return changed
 }
 
-describe('Marquee Sign Cycle Stage 2 authored animation', () => {
+describe('Marquee Sign Cycle canonical authored animation', () => {
   it('binds the preset to its native Performance Program without changing semantic ownership', () => {
     const applied = state()
     expect(PRESET.pixGridSettings!.performanceProgramId).toBe(PROGRAM_ID)
@@ -300,7 +299,7 @@ describe('Marquee Sign Cycle Stage 2 authored animation', () => {
     expect(rendered(sought, runtime)).toEqual(rendered(sought, new PixGridReactionRuntime()))
   })
 
-  it('migrates Stage 1 canonical state to Stage 2 while preserving the user Auto Performance toggle', () => {
+  it('refreshes an older canonical state while preserving the user Auto Performance toggle', () => {
     for (const enabled of [false, true]) {
       const stageOne = state(enabled)
       stageOne.configuration.presetConfigurationVersion = PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION - 1

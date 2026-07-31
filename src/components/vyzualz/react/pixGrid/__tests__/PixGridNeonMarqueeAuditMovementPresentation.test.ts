@@ -39,7 +39,7 @@ function marqueeState() {
   return applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset.pixGridSettings)
 }
 
-describe('Marquee Stage 2 Performance Program architecture', () => {
+describe('Marquee canonical Performance Program architecture', () => {
   it('registers the program exactly once in every forward and reverse registry', () => {
     expect(PIX_GRID_PERFORMANCE_PROGRAMS.filter(program => program.id === PROGRAM_ID)).toHaveLength(1)
     expect(PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(PROGRAM_ID)).toBe(NEON_MARQUEE_PERFORMANCE_PROGRAM)
@@ -48,7 +48,7 @@ describe('Marquee Stage 2 Performance Program architecture', () => {
     expect(validatePixGridPerformanceProgramCollection(PIX_GRID_PERFORMANCE_PROGRAMS)).toEqual([])
   })
 
-  it('resolves every semantic binding and every requested bank to real Stage 1 groups', () => {
+  it('resolves every semantic binding and every requested bank to real canonical groups', () => {
     const state = marqueeState()
     const compiled = new PixGridPerformanceProgramCompiler().compile(NEON_MARQUEE_PERFORMANCE_PROGRAM, state)
     expect(compiled.missingBindings).toEqual([])

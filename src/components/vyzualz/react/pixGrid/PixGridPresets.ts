@@ -7,10 +7,7 @@ import {
   PIXEL_PARADE_AUDIO_ASSIGNMENTS,
   PIXEL_PARADE_GROUPS,
 } from './PixGridAuthoredPresetAssignments'
-import {
-  PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS,
-  PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION,
-} from './PixGridNeonMarqueePerformance'
+import { PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS } from './PixGridNeonMarqueeAssignments'
 import { PIX_GRID_NEON_MARQUEE_GROUPS } from './PixGridNeonMarqueeGroups'
 import { PIX_GRID_NEON_MARQUEE_SIGN_CADENCE } from './PixGridSignClock'
 import type { PixGridLayer, PixGridPresetSettings, PixGridSceneSettings } from './PixGridTypes'
@@ -25,6 +22,7 @@ export const PIX_GRID_PRESET_IDS = [
 export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
 
 export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 8 as const
+export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 16 as const
 
 const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro']
 

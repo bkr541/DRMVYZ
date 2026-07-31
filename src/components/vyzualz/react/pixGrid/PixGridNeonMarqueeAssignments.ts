@@ -1,0 +1,176 @@
+import type { ReactSectionType } from '../ReactTypes'
+import { getPixGridBuiltInCalibration } from './PixGridPerceptualCalibration'
+import type {
+  PixGridReactionAssignment,
+  PixGridReactionConditions,
+  PixGridReactionSource,
+  PixGridReactionTarget,
+  PixGridReactionTargetScope,
+} from './PixGridTypes'
+
+const MARQUEE_STRUCTURE_LAYER_ID = 'marquee-structure' as const
+
+const EVENT_SOURCES = new Set<PixGridReactionSource>([
+  'beat', 'downbeat', 'kick', 'snare', 'hat', 'transient', 'barEntry',
+  'fourBarBoundary', 'eightBarBoundary', 'sixteenBarBoundary', 'phraseEntry',
+  'sectionEntry', 'sectionExit', 'dropImpact', 'dropOccurrenceChange',
+  'semanticMoment', 'trackMapCueEvent',
+])
+
+function assignment(
+  id: string,
+  name: string,
+  source: PixGridReactionSource,
+  target: PixGridReactionTarget,
+  targetScope: PixGridReactionTargetScope,
+  outputRange: readonly [number, number],
+  overrides: Partial<PixGridReactionAssignment> = {},
+): PixGridReactionAssignment {
+  const calibration = getPixGridBuiltInCalibration(source, target)
+  const event = EVENT_SOURCES.has(source)
+  return {
+    id,
+    name,
+    enabled: true,
+    source,
+    target,
+    targetScope,
+    targetId: overrides.targetId ?? (targetScope === 'layer' ? MARQUEE_STRUCTURE_LAYER_ID : null),
+    amount: overrides.amount ?? 1,
+    polarity: overrides.polarity ?? 'positive',
+    invert: overrides.invert ?? false,
+    inputRange: overrides.inputRange ?? calibration.inputRange,
+    outputRange,
+    curve: overrides.curve ?? calibration.curve,
+    threshold: overrides.threshold ?? calibration.threshold,
+    hysteresis: overrides.hysteresis ?? calibration.hysteresis,
+    attack: overrides.attack ?? calibration.attack,
+    hold: Math.max(overrides.hold ?? 0, calibration.hold),
+    release: Math.max(overrides.release ?? 0, calibration.release),
+    cooldown: overrides.cooldown ?? calibration.cooldown,
+    bassReactivityEnabled: overrides.bassReactivityEnabled !== false,
+    perceptualGain: overrides.perceptualGain ?? 1,
+    minimumEffectiveStrength: overrides.minimumEffectiveStrength ?? 0,
+    maskSizeCompensation: overrides.maskSizeCompensation ?? 0,
+    decayCurve: overrides.decayCurve ?? 'easeOut',
+    smoothing: overrides.smoothing ?? (event ? 0 : 0.06),
+    quantization: overrides.quantization ?? 'none',
+    retrigger: overrides.retrigger ?? 'restart',
+    maximumStacking: overrides.maximumStacking ?? 1,
+    eventPriority: overrides.eventPriority ?? 0,
+    minimumConfidence: overrides.minimumConfidence ?? 0,
+    capabilityFallback: overrides.capabilityFallback ?? (event ? 'beat' : 'energy'),
+    ...(overrides.conditions ? { conditions: overrides.conditions } : {}),
+    priority: overrides.priority ?? 0,
+    clamp: overrides.clamp ?? outputRange,
+    blend: overrides.blend ?? 'add',
+    paletteRole: overrides.paletteRole ?? 'highlight',
+    color: overrides.color ?? '#ffffff',
+    seedOffset: overrides.seedOffset ?? 0,
+  }
+}
+
+const inSections = (...includeSectionTypes: ReactSectionType[]): PixGridReactionConditions => ({
+  includeSectionTypes,
+  autoPerformanceOnly: true,
+})
+
+/**
+ * Canonical targeted modulation for the semantic layer graph. These routes
+ * deliberately avoid the stable structure and output-wide contrast or scale.
+ * They remain gated by Auto Performance while authored layer animation keeps
+ * running from the normal Motion clock.
+ */
+export const PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS: readonly PixGridReactionAssignment[] = Object.freeze([
+  assignment('neon-marquee-bass-perimeter', 'Bass perimeter glow', 'bass', 'brightness', 'group', [0, 0.32], {
+    targetId: 'marquee-perimeter-group', attack: 0.07, release: 0.3, smoothing: 0.08,
+    minimumConfidence: 0.25, perceptualGain: 1.1, capabilityFallback: 'energy',
+    conditions: inSections('verse', 'build', 'drop', 'breakdown'), priority: -60,
+  }),
+  assignment('neon-marquee-sub-focal', 'Sub focal halo', 'sub', 'glow', 'group', [0, 0.24], {
+    targetId: 'marquee-focal-group', attack: 0.09, release: 0.34, smoothing: 0.09,
+    minimumConfidence: 0.25, capabilityFallback: 'energy',
+    conditions: inSections('verse', 'build', 'drop', 'breakdown'), priority: -58,
+  }),
+  assignment('neon-marquee-mid-letters', 'Midrange letter illumination', 'mid', 'brightness', 'group', [0, 0.24], {
+    targetId: 'marquee-letter-group', attack: 0.12, release: 0.28, smoothing: 0.08,
+    minimumConfidence: 0.2, perceptualGain: 1.25, minimumEffectiveStrength: 0.12, capabilityFallback: 'energy',
+    color: '#fff0b8', paletteRole: 'highlight',
+    conditions: inSections('intro', 'verse', 'build', 'drop', 'breakdown'), priority: -56,
+  }),
+  assignment('neon-marquee-vocal-focal', 'Vocal focal emphasis', 'vocalEnergy', 'brightness', 'group', [0, 0.28], {
+    targetId: 'marquee-focal-group', attack: 0.14, release: 0.36, smoothing: 0.1,
+    minimumConfidence: 0.35, perceptualGain: 1.25, minimumEffectiveStrength: 0.12, capabilityFallback: 'energy',
+    color: '#8cf4ff', paletteRole: 'highlight',
+    conditions: inSections('verse', 'build', 'drop', 'breakdown'), priority: -54,
+  }),
+  assignment('neon-marquee-vocal-letters', 'Vocal letter emphasis', 'vocalEnergy', 'brightness', 'group', [0, 0.22], {
+    targetId: 'marquee-letter-group', attack: 0.16, release: 0.38, smoothing: 0.11,
+    minimumConfidence: 0.35, perceptualGain: 1.2, minimumEffectiveStrength: 0.1,
+    capabilityFallback: 'energy', color: '#8cf4ff', paletteRole: 'highlight',
+    conditions: inSections('verse', 'build', 'drop', 'breakdown'), priority: -53,
+  }),
+  assignment('neon-marquee-high-equalizer', 'High equalizer detail', 'high', 'rowRecruitment', 'group', [0, 1], {
+    targetId: 'marquee-equalizer-group', attack: 0.035, release: 0.12, smoothing: 0.035,
+    minimumConfidence: 0.2, capabilityFallback: 'midHighActivity', blend: 'replace',
+    conditions: inSections('verse', 'build', 'drop'), priority: -52,
+  }),
+  assignment('neon-marquee-high-equalizer-brightness', 'High equalizer shimmer', 'high', 'brightness', 'group', [0, 0.22], {
+    targetId: 'marquee-equalizer-group', attack: 0.045, release: 0.14, smoothing: 0.04,
+    minimumConfidence: 0.2, perceptualGain: 1.2, minimumEffectiveStrength: 0.1,
+    capabilityFallback: 'midHighActivity', color: '#c8b8ff', paletteRole: 'highlight',
+    conditions: inSections('verse', 'build', 'drop'), priority: -51,
+  }),
+  assignment('neon-marquee-build-recruitment', 'Build light recruitment', 'buildProgress', 'rowRecruitment', 'group', [0, 1], {
+    targetId: 'marquee-perimeter-group', attack: 0.08, release: 0.2, smoothing: 0.05,
+    minimumConfidence: 0.3, capabilityFallback: 'energy', blend: 'replace',
+    conditions: inSections('build'), priority: -50,
+  }),
+  assignment('neon-marquee-kick-perimeter', 'Kick perimeter punch', 'kick', 'brightness', 'group', [0, 0.46], {
+    targetId: 'marquee-perimeter-group', attack: 0, hold: 0.045, release: 0.16, cooldown: 0.035,
+    minimumConfidence: 0.25, perceptualGain: 1.6, minimumEffectiveStrength: 0.18,
+    capabilityFallback: 'beat', blend: 'add',
+    conditions: inSections('verse', 'build', 'drop'), eventPriority: 120,
+  }),
+  assignment('neon-marquee-kick-focal', 'Kick focal punch', 'kick', 'brightness', 'group', [0, 0.42], {
+    targetId: 'marquee-focal-group', attack: 0, hold: 0.05, release: 0.18, cooldown: 0.035,
+    minimumConfidence: 0.25, capabilityFallback: 'beat',
+    conditions: inSections('verse', 'build', 'drop'), eventPriority: 121,
+  }),
+  assignment('neon-marquee-snare-letters', 'Snare letter advance accent', 'snare', 'brightness', 'group', [0, 0.38], {
+    targetId: 'marquee-letter-travel-group', attack: 0, hold: 0.04, release: 0.15, cooldown: 0.045,
+    minimumConfidence: 0.3, capabilityFallback: 'transient',
+    conditions: inSections('verse', 'build', 'drop'), eventPriority: 130,
+  }),
+  assignment('neon-marquee-snare-trim', 'Snare trim sweep', 'snare', 'outlineFlash', 'group', [0, 0.62], {
+    targetId: 'marquee-trim-group', attack: 0, hold: 0.035, release: 0.14, cooldown: 0.045,
+    minimumConfidence: 0.3, capabilityFallback: 'transient', blend: 'max',
+    conditions: inSections('verse', 'build', 'drop'), eventPriority: 131,
+  }),
+  assignment('neon-marquee-hat-sparkle', 'Hat sparse bulb tick', 'hat', 'sparkle', 'group', [0, 0.34], {
+    targetId: 'marquee-sparkle-group', attack: 0, hold: 0.01, release: 0.07, cooldown: 0.015,
+    minimumConfidence: 0.2, capabilityFallback: 'midHighActivity', blend: 'max',
+    conditions: inSections('build', 'drop'), eventPriority: 135,
+  }),
+  assignment('neon-marquee-hat-equalizer', 'Hat equalizer tick', 'hat', 'brightness', 'group', [0, 0.2], {
+    targetId: 'marquee-equalizer-group', attack: 0, hold: 0.012, release: 0.08, cooldown: 0.015,
+    minimumConfidence: 0.2, perceptualGain: 1.2, minimumEffectiveStrength: 0.1,
+    capabilityFallback: 'midHighActivity', color: '#d8ccff', paletteRole: 'highlight',
+    conditions: inSections('build', 'drop'), eventPriority: 136,
+  }),
+  assignment('neon-marquee-downbeat-perimeter', 'Downbeat perimeter synchronization', 'downbeat', 'brightness', 'group', [0, 0.62], {
+    targetId: 'marquee-perimeter-group', attack: 0, hold: 0.055, release: 0.23, cooldown: 0.055,
+    minimumConfidence: 0.2, capabilityFallback: 'beat', blend: 'add',
+    conditions: inSections('intro', 'verse', 'build', 'drop'), eventPriority: 149,
+  }),
+  assignment('neon-marquee-downbeat-convergence', 'Downbeat light convergence', 'downbeat', 'brightness', 'group', [0, 0.58], {
+    targetId: 'marquee-impact-group', attack: 0, hold: 0.055, release: 0.23, cooldown: 0.055,
+    minimumConfidence: 0.2, capabilityFallback: 'beat',
+    conditions: inSections('intro', 'verse', 'build', 'drop'), eventPriority: 150,
+  }),
+  assignment('neon-marquee-drop-power-on', 'Drop power-on impact', 'dropImpact', 'brightness', 'group', [0, 0.82], {
+    targetId: 'marquee-impact-group', attack: 0, hold: 0.075, release: 0.34, cooldown: 0.12,
+    minimumConfidence: 0.35, capabilityFallback: 'transient', blend: 'add',
+    conditions: inSections('drop'), eventPriority: 180,
+  }),
+])
