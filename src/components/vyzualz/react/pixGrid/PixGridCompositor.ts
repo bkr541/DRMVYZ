@@ -1,6 +1,6 @@
 import type { ReactPalette, ReactPreset } from '../ReactTypes'
 import { resolvePixGridLayerAnimation } from './PixGridAnimation'
-import { PIX_GRID_BUILT_IN_ASSET_BY_ID, samplePixGridBuiltInAsset } from './PixGridArtwork'
+import { PIX_GRID_BUILT_IN_ASSET_BY_ID, samplePixGridBuiltInAsset, type PixGridAssetSample } from './PixGridArtwork'
 import type {
   PixGridAudioFrame,
   PixGridBlendMode,
@@ -29,6 +29,7 @@ import {
   createPixGridVisualEffectScratch,
 } from './PixGridVisualEffectStack'
 import type { PixGridStructuralChoreography } from './PixGridStructuralChoreographer'
+import { pixGridCellTransitionMix } from './PixGridCellTransitions'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -184,6 +185,34 @@ function revealContains(value: number, progress: number, from: 'start' | 'end' |
   return value <= amount
 }
 
+function sampleLayerFrame(
+  layer: PixGridLayer,
+  u: number,
+  v: number,
+  frameIndex: number,
+): PixGridAssetSample {
+  const sample = samplePixGridBuiltInAsset(layer.assetId, u, v, frameIndex, layer.seed)
+  if (!layer.maskAssetId || sample.alpha <= 0) return sample
+  const maskAlpha = samplePixGridBuiltInAsset(layer.maskAssetId, u, v, frameIndex, layer.seed + 101).alpha
+  return maskAlpha >= 1 ? sample : { ...sample, alpha: sample.alpha * maskAlpha }
+}
+
+function transparentSample(reference: PixGridAssetSample): PixGridAssetSample {
+  return { alpha: 0, role: reference.role, ...(reference.color ? { color: reference.color } : {}) }
+}
+
+function interpolateColor(
+  source: readonly [number, number, number],
+  target: readonly [number, number, number],
+  mix: number,
+): readonly [number, number, number] {
+  return [
+    Math.round(source[0] + (target[0] - source[0]) * mix),
+    Math.round(source[1] + (target[1] - source[1]) * mix),
+    Math.round(source[2] + (target[2] - source[2]) * mix),
+  ]
+}
+
 function renderLayer(
   pixels: Uint8Array,
   width: number,
@@ -217,22 +246,53 @@ function renderLayer(
       if (animation.checkerAlternate && (Math.floor(u * asset.nativeSize.width) + Math.floor(v * asset.nativeSize.height)) % 2 !== 0)
         continue
 
-      const sample = samplePixGridBuiltInAsset(layer.assetId, u, v, animation.frameIndex, layer.seed)
-      if (sample.alpha <= 0) continue
-      let alpha = sample.alpha * layerOpacity
-      if (layer.maskAssetId) {
-        alpha *= samplePixGridBuiltInAsset(layer.maskAssetId, u, v, animation.frameIndex, layer.seed + 101).alpha
+      let target = sampleLayerFrame(layer, u, v, animation.frameIndex)
+      let source = target
+      let mix = 1
+      const transitioning = animation.frameTransitionType !== 'cut' && animation.frameTransitionProgress < 1
+      if (transitioning) {
+        source = animation.frameTransitionType === 'powerOn'
+          ? transparentSample(target)
+          : sampleLayerFrame(layer, u, v, animation.previousFrameIndex)
+        if (animation.frameTransitionType === 'powerOff') {
+          source = target
+          target = transparentSample(target)
+        }
+        mix = pixGridCellTransitionMix(
+          animation.frameTransitionType,
+          x,
+          y,
+          width,
+          height,
+          animation.frameTransitionProgress,
+          animation.frameTransitionSeed,
+          animation.frameTransitionDirection,
+          animation.frameTransitionOrigin,
+        )
+      }
+
+      let alpha: number
+      let color: readonly [number, number, number]
+      if (transitioning && animation.frameTransitionType === 'paletteFade' && mix > 0 && mix < 1) {
+        alpha = (source.alpha + (target.alpha - source.alpha) * mix) * layerOpacity
+        const sourceRole = resolveRole(layer, source.role, scene.paletteOffset + animation.paletteOffset)
+        const targetRole = resolveRole(layer, target.role, scene.paletteOffset + animation.paletteOffset)
+        const sourceColor = source.color ?? resolveColor(palette, sourceRole)
+        const targetColor = target.color ?? resolveColor(palette, targetRole)
+        color = interpolateColor(sourceColor, targetColor, mix)
+      } else {
+        const sample = mix >= 0.5 ? target : source
+        alpha = sample.alpha * layerOpacity
+        const role = resolveRole(layer, sample.role, scene.paletteOffset + animation.paletteOffset)
+        color = sample.color ?? resolveColor(palette, role)
       }
       if (alpha <= 0) continue
-      const role = resolveRole(layer, sample.role, scene.paletteOffset + animation.paletteOffset)
-      const color = sample.color ?? resolveColor(palette, role)
       const index = y * width + x
       groupCompiler?.recordPixel(layer.id, index, color, alpha)
       blendPixel(pixels, index * 4, color, alpha, layer.blendMode)
     }
   }
 }
-
 function renderPreparedAssetLayer(
   pixels: Uint8Array,
   width: number,
@@ -417,54 +477,6 @@ function composePixGridBaseFrame(
   return { width, height, pixels, visibleLayerCount: visibleLayers.length }
 }
 
-function transitionNoise(x: number, y: number, seed: number): number {
-  let value = Math.imul((x + 1) ^ seed, 0x45d9f3b) ^ Math.imul((y + 1) ^ (seed >>> 1), 0x27d4eb2d)
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b)
-  value ^= value >>> 16
-  return (value >>> 0) / 0xffffffff
-}
-
-function transitionMix(
-  type: PixGridResolvedTransition['type'],
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  progress: number,
-  seed: number,
-): number {
-  const u = (x + 0.5) / Math.max(1, width)
-  const v = (y + 0.5) / Math.max(1, height)
-  switch (type) {
-    case 'crossfade':
-    case 'paletteFade':
-      return progress
-    case 'rowWipe':
-      return v <= progress ? 1 : 0
-    case 'columnWipe':
-      return u <= progress ? 1 : 0
-    case 'checkerWipe': {
-      const checker = ((x + y) & 1) * 0.12
-      return v <= Math.max(0, progress - checker) ? 1 : 0
-    }
-    case 'pixelDissolve':
-      return transitionNoise(x, y, seed) <= progress ? 1 : 0
-    case 'radialReveal':
-      return Math.hypot(u - 0.5, v - 0.5) / Math.SQRT1_2 <= progress ? 1 : 0
-    case 'powerOn': {
-      const scan = Math.abs(v - 0.5) * 2
-      return scan <= progress ? Math.min(1, progress * 1.4) : 0
-    }
-    case 'powerOff': {
-      const scan = Math.abs(v - 0.5) * 2
-      return scan >= 1 - progress ? 1 : 0
-    }
-    case 'cut':
-    default:
-      return 1
-  }
-}
-
 function applyLogicalTransition(
   target: Uint8Array,
   source: Uint8Array,
@@ -475,7 +487,7 @@ function applyLogicalTransition(
   const progress = clamp01(transition.progress)
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const mix = transitionMix(transition.type, x, y, width, height, progress, transition.seed)
+      const mix = pixGridCellTransitionMix(transition.type, x, y, width, height, progress, transition.seed)
       if (mix >= 1) continue
       const offset = (y * width + x) * 4
       if (mix <= 0) {

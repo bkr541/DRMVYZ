@@ -1,9 +1,12 @@
 import type {
   PixGridAudioFrame,
   PixGridBuiltInAssetManifestEntry,
+  PixGridFrameTransitionConfig,
   PixGridLayer,
   PixGridLayerAnimation,
+  PixGridProgramTransitionOverride,
 } from './PixGridTypes'
+import { easePixGridTransition } from './PixGridCellTransitions'
 import { resolvePixGridMotionMultiplier } from './PixGridRuntimeControls'
 
 export interface PixGridResolvedLayerAnimation {
@@ -20,6 +23,14 @@ export interface PixGridResolvedLayerAnimation {
   revealColumnFrom: 'start' | 'end' | 'center'
   checkerAlternate: boolean
   frameIndex: number
+  previousFrameIndex: number
+  frameTransitionType: PixGridProgramTransitionOverride
+  frameTransitionProgress: number
+  frameTransitionDuration: number
+  frameTransitionSeed: number
+  frameTransitionDirection: 'forward' | 'reverse'
+  frameTransitionOrigin: Readonly<{ x: number; y: number }>
+  frameTransitionOnSectionEntry: boolean
 }
 
 function clamp01(value: number): number {
@@ -33,6 +44,32 @@ function fract(value: number): number {
 function triangle(value: number): number {
   const phase = fract(value)
   return 1 - Math.abs(phase * 2 - 1)
+}
+
+function positiveModulo(value: number, modulus: number): number {
+  return ((value % modulus) + modulus) % modulus
+}
+
+const SECTION_SEED = {
+  intro: 1,
+  verse: 2,
+  build: 3,
+  preDrop: 4,
+  drop: 5,
+  breakdown: 6,
+  bridge: 7,
+  outro: 8,
+  unknown: 9,
+} as const
+
+function deterministicHash(...values: number[]): number {
+  let hash = 0x811c9dc5
+  for (const value of values) {
+    hash ^= Math.round(Number.isFinite(value) ? value : 0) >>> 0
+    hash = Math.imul(hash, 0x01000193)
+    hash ^= hash >>> 13
+  }
+  return hash >>> 0
 }
 
 export function resolvePixGridBoundedValue(
@@ -72,10 +109,12 @@ function animationClockValue(frame: PixGridAudioFrame, animation: PixGridLayerAn
   }
 }
 
+function animationSectionType(frame: PixGridAudioFrame) {
+  return frame.motionClockSectionType !== undefined ? frame.motionClockSectionType : frame.sectionType
+}
+
 function animationSectionSpeed(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): number {
-  const sectionType = frame.motionClockSectionType !== undefined
-    ? frame.motionClockSectionType
-    : frame.sectionType
+  const sectionType = animationSectionType(frame)
   const speed = sectionType ? animation.sectionSpeeds?.[sectionType] : animation.sectionSpeeds?.unknown
   const baseSpeed = Math.max(0, Number.isFinite(speed) ? speed! : 1)
   const progressAmount = sectionType
@@ -85,21 +124,98 @@ function animationSectionSpeed(frame: PixGridAudioFrame, animation: PixGridLayer
   return baseSpeed * (1 + progress * Math.max(0, Number.isFinite(progressAmount) ? progressAmount! : 0))
 }
 
-function animationTime(frame: PixGridAudioFrame, animation: PixGridLayerAnimation, sceneMotionMultiplier: number): number {
+function effectiveMotion(frame: PixGridAudioFrame, sceneMotionMultiplier: number): number {
   const hasIntegratedClock = frame.motionClockTime != null
     || frame.motionClockBeat != null
     || frame.motionClockBar != null
     || frame.motionClockSectionBeat != null
     || frame.motionClockSectionBar != null
     || frame.motionClockSectionProgress != null
-  const effectiveMotion = hasIntegratedClock
+  return hasIntegratedClock
     ? Math.max(0, Number.isFinite(sceneMotionMultiplier) ? sceneMotionMultiplier : 1)
     : resolvePixGridMotionMultiplier(frame.motionMultiplier, sceneMotionMultiplier)
+}
+
+function animationTime(frame: PixGridAudioFrame, animation: PixGridLayerAnimation, sceneMotionMultiplier: number): number {
   return animationClockValue(frame, animation)
     * animation.speed
     * animationSectionSpeed(frame, animation)
-    * effectiveMotion
+    * effectiveMotion(frame, sceneMotionMultiplier)
     + animation.phase
+}
+
+function transitionConfig(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): PixGridFrameTransitionConfig | null {
+  const sectionType = animationSectionType(frame)
+  return (sectionType ? animation.sectionFrameTransitions?.[sectionType] : animation.sectionFrameTransitions?.unknown)
+    ?? animation.frameTransition
+    ?? null
+}
+
+function transitionSeed(
+  layer: PixGridLayer,
+  frame: PixGridAudioFrame,
+  config: PixGridFrameTransitionConfig,
+  previousFrameIndex: number,
+  frameIndex: number,
+): number {
+  if (config.seedMode === 'fixed') return Math.round(config.seed ?? layer.seed) >>> 0
+  if (config.seedMode === 'layer') return Math.round(layer.seed) >>> 0
+  if (config.seedMode === 'section') {
+    const sectionType = animationSectionType(frame) ?? 'unknown'
+    return deterministicHash(
+      layer.seed,
+      SECTION_SEED[sectionType],
+      frame.sectionOccurrence ?? 0,
+      frame.dropOccurrence ?? 0,
+      frame.phraseIndex ?? 0,
+    )
+  }
+  return deterministicHash(layer.seed, previousFrameIndex, frameIndex)
+}
+
+function resolveFrameCycle(
+  resolved: PixGridResolvedLayerAnimation,
+  layer: PixGridLayer,
+  asset: PixGridBuiltInAssetManifestEntry,
+  frame: PixGridAudioFrame,
+  animation: PixGridLayerAnimation,
+  time: number,
+  motionMultiplier: number,
+): void {
+  const count = Math.max(1, asset.frameCount ?? 1)
+  const frameRate = Math.max(1, Math.abs(animation.amount || 1))
+  const framePosition = time * frameRate
+  const rawFrame = Math.floor(framePosition)
+  const frameIndex = positiveModulo(rawFrame, count)
+  const config = transitionConfig(frame, animation)
+  resolved.frameIndex = frameIndex
+  resolved.previousFrameIndex = positiveModulo(rawFrame - 1, count)
+  if (!config || config.type === 'cut' || count <= 1) return
+
+  const duration = clamp01(config.durationFraction)
+  const sectionSpeed = animationSectionSpeed(frame, animation)
+  const rate = Math.abs(animation.speed * sectionSpeed * effectiveMotion(frame, motionMultiplier) * frameRate)
+  let rawProgress = duration <= 0 ? 1 : clamp01(fract(framePosition) / duration)
+  let entryTransition = false
+
+  if (rate <= 1e-10) {
+    if (!config.onSectionEntry) return
+    const entryClock = Math.max(0, animationClockValue(frame, animation) * effectiveMotion(frame, motionMultiplier))
+    rawProgress = duration <= 0 ? 1 : clamp01(entryClock / duration)
+    resolved.previousFrameIndex = frameIndex
+    entryTransition = true
+  }
+
+  resolved.frameTransitionType = config.type
+  resolved.frameTransitionProgress = easePixGridTransition(rawProgress, config.easing)
+  resolved.frameTransitionDuration = duration
+  resolved.frameTransitionSeed = transitionSeed(layer, frame, config, resolved.previousFrameIndex, frameIndex)
+  resolved.frameTransitionDirection = config.direction ?? 'forward'
+  resolved.frameTransitionOrigin = {
+    x: clamp01(config.origin?.x ?? 0.5),
+    y: clamp01(config.origin?.y ?? 0.5),
+  }
+  resolved.frameTransitionOnSectionEntry = entryTransition
 }
 
 export function resolvePixGridLayerAnimation(
@@ -122,6 +238,14 @@ export function resolvePixGridLayerAnimation(
     revealColumnFrom: 'start',
     checkerAlternate: false,
     frameIndex: 0,
+    previousFrameIndex: 0,
+    frameTransitionType: 'cut',
+    frameTransitionProgress: 1,
+    frameTransitionDuration: 0,
+    frameTransitionSeed: Math.round(layer.seed) >>> 0,
+    frameTransitionDirection: 'forward',
+    frameTransitionOrigin: { x: 0.5, y: 0.5 },
+    frameTransitionOnSectionEntry: false,
   }
 
   for (const animation of layer.animations) {
@@ -183,12 +307,9 @@ export function resolvePixGridLayerAnimation(
       case 'checkerAlternate':
         resolved.checkerAlternate = Math.floor(time) % 2 !== 0
         break
-      case 'frameCycle': {
-        const count = Math.max(1, asset.frameCount ?? 1)
-        const rawFrame = Math.floor(time * Math.max(1, amount || 1))
-        resolved.frameIndex = ((rawFrame % count) + count) % count
+      case 'frameCycle':
+        resolveFrameCycle(resolved, layer, asset, frame, animation, time, motionMultiplier)
         break
-      }
       case 'audioAmplitudeScale': {
         const multiplier = 1 + audioValue(frame, animation.audioSource) * amount
         resolved.scaleX *= multiplier

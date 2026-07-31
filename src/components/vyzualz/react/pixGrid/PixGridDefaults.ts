@@ -84,6 +84,18 @@ export function clonePixGridLayer(layer: PixGridLayer): PixGridLayer {
       ...animation,
       ...(animation.sectionSpeeds ? { sectionSpeeds: { ...animation.sectionSpeeds } } : {}),
       ...(animation.sectionProgressSpeed ? { sectionProgressSpeed: { ...animation.sectionProgressSpeed } } : {}),
+      ...(animation.frameTransition ? {
+        frameTransition: {
+          ...animation.frameTransition,
+          ...(animation.frameTransition.origin ? { origin: { ...animation.frameTransition.origin } } : {}),
+        },
+      } : {}),
+      ...(animation.sectionFrameTransitions ? {
+        sectionFrameTransitions: Object.fromEntries(Object.entries(animation.sectionFrameTransitions).map(([section, transition]) => [
+          section,
+          transition ? { ...transition, ...(transition.origin ? { origin: { ...transition.origin } } : {}) } : transition,
+        ])),
+      } : {}),
     })),
     ...(layer.audioReactivity ? { audioReactivity: { ...layer.audioReactivity } } : {}),
   }

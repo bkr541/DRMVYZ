@@ -167,6 +167,8 @@ export class PixGridGpuRenderer {
   private logicalHeight = 0
   private logicalAllocationCount = 0
   private logicalPixels: Uint8Array | null = null
+  private lastUploadedLogicalPixels: Uint8Array | null = null
+  private logicalTextureUploadCount = 0
   private lastLogicalFrame: PixGridLogicalFrame | null = null
   private readonly reactionRuntime = new PixGridReactionRuntime()
   private readonly groupCompiler = new PixGridFrameGroupCompiler()
@@ -243,6 +245,7 @@ export class PixGridGpuRenderer {
       approximateGpuResourceCount: this.approximateResourceCount(),
       activeGroupMaskCount: this.maskAtlas?.diagnostics.groupCount ?? 0,
       groupMaskUploadCount: this.maskAtlas?.diagnostics.uploadCount ?? 0,
+      logicalTextureUploadCount: this.logicalTextureUploadCount,
       groupMaskApproximateBytes: this.maskAtlas?.diagnostics.approximateBytes ?? 0,
     }
   }
@@ -336,6 +339,8 @@ export class PixGridGpuRenderer {
     this.logicalWidth = 0
     this.logicalHeight = 0
     this.logicalPixels = null
+    this.lastUploadedLogicalPixels = null
+    this.logicalTextureUploadCount = 0
     this.lastLogicalFrame = null
   }
 
@@ -373,6 +378,7 @@ export class PixGridGpuRenderer {
     this.logicalHeight = height
     this.logicalAllocationCount += 1
     this.logicalPixels = null
+    this.lastUploadedLogicalPixels = null
   }
 
   private updateOverrideTexture(input: PixGridGpuRenderInput, state: PixGridState): void {
@@ -390,11 +396,27 @@ export class PixGridGpuRenderer {
     )
     this.logicalPixels = logical.pixels
     this.lastLogicalFrame = logical
+    const previousUpload = this.lastUploadedLogicalPixels
+    let changed = previousUpload == null || previousUpload.length !== logical.pixels.length
+    if (!changed && previousUpload) {
+      for (let index = 0; index < logical.pixels.length; index += 1) {
+        if (previousUpload[index] !== logical.pixels[index]) {
+          changed = true
+          break
+        }
+      }
+    }
+    if (!changed) return
+    if (!this.lastUploadedLogicalPixels || this.lastUploadedLogicalPixels.length !== logical.pixels.length) {
+      this.lastUploadedLogicalPixels = new Uint8Array(logical.pixels.length)
+    }
+    this.lastUploadedLogicalPixels.set(logical.pixels)
     const gl = this.gl
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, this.overrideTexture)
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, state.matrixWidth, state.matrixHeight, gl.RGBA, gl.UNSIGNED_BYTE, logical.pixels)
+    this.logicalTextureUploadCount += 1
   }
 
   private applyLogicalUniforms(input: PixGridGpuRenderInput, state: PixGridState): void {
@@ -517,6 +539,8 @@ export class PixGridGpuRenderer {
     this.logicalWidth = 0
     this.logicalHeight = 0
     this.logicalPixels = null
+    this.lastUploadedLogicalPixels = null
+    this.logicalTextureUploadCount = 0
     this.lastLogicalFrame = null
   }
 }

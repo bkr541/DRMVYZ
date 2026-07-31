@@ -73,6 +73,8 @@ export function applyPixGridSelectedScenePreviewFrame(
     motionClockSectionProgress: sectionProgress,
     barsSinceSectionStart: sectionBar,
     beatsSinceSectionStart: sectionBar * 4,
+    motionClockSectionBar: sectionBar,
+    motionClockSectionBeat: sectionBar * 4,
     sectionPhase: sectionProgress < 0.125 ? 'entry' : sectionProgress > 0.875 ? 'exit' : 'body',
     inputSource: 'editor-preview',
     sourceValues: { ...frame.sourceValues, sectionProgress },

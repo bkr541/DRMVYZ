@@ -15,7 +15,7 @@ export const PIX_GRID_NEON_MARQUEE_ASSET_ID = 'pix-neon-marquee-cycle' as const
 /** Obsolete official layer ID retained only for saved-state migration and compatibility tests. */
 export const PIX_GRID_NEON_MARQUEE_LAYER_ID = 'neon-marquee-frame' as const
 export const PIX_GRID_NEON_MARQUEE_STRUCTURE_LAYER_ID = 'marquee-structure' as const
-export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 14 as const
+export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 15 as const
 
 const MARQUEE_CELL_X = 1 / 160
 const MARQUEE_CELL_Y = 1 / 90

@@ -485,11 +485,27 @@ const MARQUEE_TRIM_SPEED = {
   unknown: 0.4,
 } as const
 
-function marqueeSignFrameAnimation(): PixGridLayer['animations'][number] {
+type MarqueeTransitionFamily = 'structure' | 'bulbs' | 'letters' | 'activity'
+
+function marqueeSignFrameAnimation(family: MarqueeTransitionFamily = 'structure'): PixGridLayer['animations'][number] {
+  const buildType = family === 'letters' ? 'columnWipe' : 'rowWipe'
+  const dropType = family === 'structure' ? 'radialReveal' : family === 'bulbs' ? 'checkerWipe' : 'pixelDissolve'
   return animation('frameCycle', 1, 1, {
     clock: 'sectionBar',
     stepped: true,
     sectionSpeeds: MARQUEE_SIGN_CADENCE,
+    frameTransition: { type: 'pixelDissolve', durationFraction: 1 / 64, easing: 'easeOut', seedMode: 'frame' },
+    sectionFrameTransitions: {
+      intro: { type: 'powerOn', durationFraction: 0.25, easing: 'easeOut', seedMode: 'section', onSectionEntry: true },
+      verse: { type: 'pixelDissolve', durationFraction: 1 / 64, easing: 'easeOut', seedMode: 'frame' },
+      build: { type: buildType, durationFraction: 1 / 64, easing: 'easeInOut', seedMode: 'section', direction: family === 'letters' ? 'reverse' : 'forward' },
+      preDrop: { type: 'cut', durationFraction: 0, seedMode: 'layer' },
+      drop: { type: dropType, durationFraction: 1 / 64, easing: 'easeOut', seedMode: 'frame', origin: { x: 0.5, y: 0.5 } },
+      breakdown: { type: 'pixelDissolve', durationFraction: 1 / 64, easing: 'easeInOut', seedMode: 'frame' },
+      bridge: { type: 'columnWipe', durationFraction: 1 / 32, easing: 'easeInOut', seedMode: 'section' },
+      outro: { type: 'powerOff', durationFraction: 0.25, easing: 'easeIn', seedMode: 'section', onSectionEntry: true },
+      unknown: { type: 'pixelDissolve', durationFraction: 1 / 64, easing: 'linear', seedMode: 'frame' },
+    },
   })
 }
 
@@ -505,7 +521,7 @@ function marqueeBulbAnimation(phase: number): PixGridLayer['animations'][number]
 
 function marqueeLetterAnimations(phase: number, revealFrom: 'start' | 'end' | 'center'): PixGridLayer['animations'] {
   return [
-    marqueeSignFrameAnimation(),
+    marqueeSignFrameAnimation('letters'),
     animation('blink', 1 / 3, 0.25, {
       clock: 'sectionBeat',
       phase,
@@ -525,22 +541,22 @@ function marqueeLetterAnimations(phase: number, revealFrom: 'start' | 'end' | 'c
 const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
   layer('marquee-structure', 'Stable Sign Structure', 'pix-neon-marquee-structure', {
     scale: { x: 1, y: 1 },
-    animations: [marqueeSignFrameAnimation()],
+    animations: [marqueeSignFrameAnimation('structure')],
     zIndex: 0,
     densityRank: 0,
     seed: 1207,
   }),
   layer('marquee-bulbs-a', 'Perimeter Bulbs A', 'pix-neon-marquee-bulbs-a', {
-    scale: { x: 1, y: 1 }, animations: [marqueeSignFrameAnimation(), marqueeBulbAnimation(0)], zIndex: 1, densityRank: 0.08, seed: 1211,
+    scale: { x: 1, y: 1 }, animations: [marqueeSignFrameAnimation('bulbs'), marqueeBulbAnimation(0)], zIndex: 1, densityRank: 0.08, seed: 1211,
   }),
   layer('marquee-bulbs-b', 'Perimeter Bulbs B', 'pix-neon-marquee-bulbs-b', {
-    scale: { x: 1, y: 1 }, animations: [marqueeSignFrameAnimation(), marqueeBulbAnimation(0.75)], zIndex: 2, densityRank: 0.16, seed: 1213,
+    scale: { x: 1, y: 1 }, animations: [marqueeSignFrameAnimation('bulbs'), marqueeBulbAnimation(0.75)], zIndex: 2, densityRank: 0.16, seed: 1213,
   }),
   layer('marquee-bulbs-c', 'Perimeter Bulbs C', 'pix-neon-marquee-bulbs-c', {
-    scale: { x: 1, y: 1 }, animations: [marqueeSignFrameAnimation(), marqueeBulbAnimation(0.5)], zIndex: 3, densityRank: 0.28, seed: 1217,
+    scale: { x: 1, y: 1 }, animations: [marqueeSignFrameAnimation('bulbs'), marqueeBulbAnimation(0.5)], zIndex: 3, densityRank: 0.28, seed: 1217,
   }),
   layer('marquee-bulbs-d', 'Perimeter Bulbs D', 'pix-neon-marquee-bulbs-d', {
-    scale: { x: 1, y: 1 }, animations: [marqueeSignFrameAnimation(), marqueeBulbAnimation(0.25)], zIndex: 4, densityRank: 0.4, seed: 1223,
+    scale: { x: 1, y: 1 }, animations: [marqueeSignFrameAnimation('bulbs'), marqueeBulbAnimation(0.25)], zIndex: 4, densityRank: 0.4, seed: 1223,
   }),
   layer('marquee-letter-lights-a', 'Letter Lights A', 'pix-neon-marquee-letter-lights-a', {
     scale: { x: 1, y: 1 }, animations: marqueeLetterAnimations(0, 'start'), zIndex: 5, densityRank: 0.24, seed: 1229,
@@ -554,7 +570,7 @@ const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
   layer('marquee-equalizer-lights', 'Equalizer and Halo Lights', 'pix-neon-marquee-equalizer-lights', {
     scale: { x: 1, y: 1 },
     animations: [
-      marqueeSignFrameAnimation(),
+      marqueeSignFrameAnimation('activity'),
       animation('revealRow', 0.25, 1, { clock: 'sectionBeat', boundary: 'bounce', revealFrom: 'center', sectionSpeeds: MARQUEE_EQUALIZER_SPEED }),
       animation('checkerAlternate', 0.25, 1, { clock: 'sectionBeat', stepped: true, sectionSpeeds: MARQUEE_EQUALIZER_SPEED }),
     ],
@@ -563,7 +579,7 @@ const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
   layer('marquee-trim-lights', 'Trim and Underline Lights', 'pix-neon-marquee-trim-lights', {
     scale: { x: 1, y: 1 },
     animations: [
-      marqueeSignFrameAnimation(),
+      marqueeSignFrameAnimation('activity'),
       animation('revealColumn', 0.125, 1, { clock: 'sectionBeat', boundary: 'bounce', revealFrom: 'start', sectionSpeeds: MARQUEE_TRIM_SPEED }),
     ],
     zIndex: 9, densityRank: 0.52, seed: 1259,
@@ -571,7 +587,7 @@ const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
   layer('marquee-focal-lights', 'Frenchie and Focal Lights', 'pix-neon-marquee-focal-lights', {
     scale: { x: 1, y: 1 },
     animations: [
-      marqueeSignFrameAnimation(),
+      marqueeSignFrameAnimation('activity'),
       animation('revealRow', 0.125, 1, { clock: 'sectionBeat', boundary: 'bounce', revealFrom: 'center', sectionSpeeds: MARQUEE_EQUALIZER_SPEED }),
     ],
     zIndex: 10, densityRank: 0.36, seed: 1277,
@@ -579,7 +595,7 @@ const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
   layer('marquee-sparkle-lights', 'Sparse Accent Bulbs', 'pix-neon-marquee-sparkle-lights', {
     scale: { x: 1, y: 1 },
     animations: [
-      marqueeSignFrameAnimation(),
+      marqueeSignFrameAnimation('activity'),
       animation('blink', 0.5, 0.18, { clock: 'sectionBeat', phase: 0.5, stepped: true, sectionSpeeds: MARQUEE_EQUALIZER_SPEED }),
       animation('checkerAlternate', 0.25, 1, { clock: 'sectionBeat', stepped: true, sectionSpeeds: MARQUEE_EQUALIZER_SPEED }),
     ],

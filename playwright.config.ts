@@ -13,14 +13,17 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * CI: browsers are installed by the e2e job in .github/workflows/ci.yml.
  */
+const marqueeStage3Browser = process.env.DRMVYZ_PIX_GRID_MARQUEE_STAGE3_BROWSER === '1'
 const offlineVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1'
   || process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
+  || marqueeStage3Browser
 const webglVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
 const recordFailureVideo = !!process.env.CI || process.env.DRMVYZ_PLAYWRIGHT_VIDEO === '1'
 
 export default defineConfig({
   testDir: 'src/test/e2e',
   testMatch: '**/*.spec.ts',
+  outputDir: marqueeStage3Browser ? 'artifacts/pix-grid-marquee-stage3-browser/results' : 'test-results',
 
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

@@ -55,6 +55,8 @@ import {
   type PixGridPhraseSegment,
   type PixGridLayer,
   type PixGridLayerAnimation,
+  type PixGridFrameTransitionConfig,
+  type PixGridFrameTransitionType,
   type PixGridPaletteRole,
   type PixGridPerformanceProgramId,
   type PixGridPerformanceProgramOverrides,
@@ -203,6 +205,28 @@ const PROGRAM_TRANSITIONS = new Set<PixGridProgramTransitionOverride>([
   'cut', 'crossfade', 'rowWipe', 'columnWipe', 'checkerWipe',
   'pixelDissolve', 'radialReveal', 'paletteFade', 'powerOn', 'powerOff',
 ])
+const FRAME_TRANSITIONS = new Set<PixGridFrameTransitionType>([
+  'cut', 'rowWipe', 'columnWipe', 'checkerWipe', 'pixelDissolve',
+  'radialReveal', 'paletteFade', 'powerOn', 'powerOff',
+])
+const FRAME_TRANSITION_EASINGS = new Set(['linear', 'easeIn', 'easeOut', 'easeInOut', 'step'] as const)
+const FRAME_TRANSITION_SEED_MODES = new Set(['fixed', 'layer', 'frame', 'section'] as const)
+
+function normalizeFrameTransition(value: unknown): PixGridFrameTransitionConfig | null {
+  if (!isRecord(value) || !FRAME_TRANSITIONS.has(value.type as PixGridFrameTransitionType)) return null
+  return {
+    type: value.type as PixGridFrameTransitionType,
+    durationFraction: clamp(value.durationFraction, 0, 1, 0),
+    ...(FRAME_TRANSITION_EASINGS.has(value.easing as 'linear') ? { easing: value.easing as PixGridFrameTransitionConfig['easing'] } : {}),
+    ...(FRAME_TRANSITION_SEED_MODES.has(value.seedMode as 'frame') ? { seedMode: value.seedMode as PixGridFrameTransitionConfig['seedMode'] } : {}),
+    ...(value.seed != null ? { seed: Math.round(clamp(value.seed, -2147483648, 2147483647, 1)) } : {}),
+    ...(value.direction === 'forward' || value.direction === 'reverse' ? { direction: value.direction } : {}),
+    ...(isRecord(value.origin) ? {
+      origin: { x: clamp(value.origin.x, 0, 1, 0.5), y: clamp(value.origin.y, 0, 1, 0.5) },
+    } : {}),
+    ...(value.onSectionEntry != null ? { onSectionEntry: value.onSectionEntry === true } : {}),
+  }
+}
 
 function normalizeProgramOverrides(value: unknown): PixGridPerformanceProgramOverrides {
   if (!isRecord(value)) return { routes: {}, sections: {} }
@@ -330,6 +354,18 @@ function normalizeAnimation(value: unknown): PixGridLayerAnimation | null {
             : []
         )),
       ) as Partial<Record<ReactSectionType, number>>,
+    } : {}),
+    ...(() => {
+      const frameTransition = normalizeFrameTransition(value.frameTransition)
+      return frameTransition ? { frameTransition } : {}
+    })(),
+    ...(isRecord(value.sectionFrameTransitions) ? {
+      sectionFrameTransitions: Object.fromEntries(
+        Object.entries(value.sectionFrameTransitions).flatMap(([sectionType, transition]) => {
+          const normalized = normalizeFrameTransition(transition)
+          return SECTION_TYPES.has(sectionType as ReactSectionType) && normalized ? [[sectionType, normalized]] : []
+        }),
+      ) as Partial<Record<ReactSectionType, PixGridFrameTransitionConfig>>,
     } : {}),
   }
 }

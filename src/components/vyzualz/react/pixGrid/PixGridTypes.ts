@@ -1,6 +1,6 @@
 import type { ReactSectionType } from '../ReactTypes'
 
-export const PIX_GRID_STATE_VERSION = 17 as const
+export const PIX_GRID_STATE_VERSION = 18 as const
 export const PIX_GRID_CONFIGURATION_METADATA_VERSION = 2 as const
 export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 5 as const
 export const PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION = 3 as const
@@ -28,6 +28,24 @@ export type PixGridAssetKind = 'static' | 'procedural' | 'frameBased'
 export type PixGridPaletteRole = 'primary' | 'secondary' | 'accent' | 'highlight' | 'background'
 export type PixGridClipMode = 'clip' | 'wrap'
 export type PixGridAnimationBoundary = 'wrap' | 'clamp' | 'bounce'
+export type PixGridFrameTransitionEasing = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'step'
+export type PixGridFrameTransitionSeedMode = 'fixed' | 'layer' | 'frame' | 'section'
+export type PixGridFrameTransitionDirection = 'forward' | 'reverse'
+
+export type PixGridFrameTransitionType = Exclude<PixGridProgramTransitionOverride, 'crossfade'>
+
+export interface PixGridFrameTransitionConfig {
+  type: PixGridFrameTransitionType
+  /** Fraction of the current frame interval used by the transition. */
+  durationFraction: number
+  easing?: PixGridFrameTransitionEasing
+  seedMode?: PixGridFrameTransitionSeedMode
+  seed?: number
+  direction?: PixGridFrameTransitionDirection
+  origin?: { x: number; y: number }
+  /** Runs once from section-local zero even when frame cadence is held. */
+  onSectionEntry?: boolean
+}
 export type PixGridContinuousAudioSource =
   | 'sub' | 'bass' | 'lowMid' | 'mid' | 'high' | 'air' | 'volume'
   | 'energy' | 'trackRelativeEnergy' | 'spectralFlux' | 'spectralBrightness'
@@ -159,6 +177,10 @@ export interface PixGridLayerAnimation {
   sectionSpeeds?: Partial<Record<ReactSectionType, number>>
   /** Adds a deterministic section-progress speed ramp without introducing a second clock. */
   sectionProgressSpeed?: Partial<Record<ReactSectionType, number>>
+  /** Generic deterministic transition applied when a frameCycle advances. */
+  frameTransition?: PixGridFrameTransitionConfig
+  /** Section-authored overrides without changing sign cadence ownership. */
+  sectionFrameTransitions?: Partial<Record<ReactSectionType, PixGridFrameTransitionConfig>>
 }
 
 export interface PixGridLayerAudioReactivity {
@@ -715,6 +737,7 @@ export interface PixGridRendererDiagnostics {
   assignmentCompilerWarningCount?: number
   rendererWarningCount?: number
   groupMaskUploadCount?: number
+  logicalTextureUploadCount?: number
   groupMaskApproximateBytes?: number
   stateSchemaVersion?: number
   presetConfigurationVersion?: number

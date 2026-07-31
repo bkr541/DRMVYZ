@@ -154,6 +154,33 @@ describe('PixGridGpuRenderer', () => {
     expect(uniformValue('uDiffusion')).toBeCloseTo(0.04)
   })
 
+  it('skips unchanged logical texture uploads and uploads the next authored Marquee phase exactly once', () => {
+    const gl = createFakeWebGL2()
+    const canvas = createCanvas(gl)
+    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
+    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const state = normalizePixGridState(
+      applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
+    )
+    const base = renderInput('high')
+    const frame = {
+      ...base.frame,
+      sectionType: 'drop' as const,
+      motionClockSectionType: 'drop' as const,
+      motionClockSectionBar: 1,
+      motionClockSectionBeat: 4,
+      autoPerformanceEnabled: false,
+    }
+    const input = { ...base, preset, state, frame }
+
+    expect(renderer.render(input)).toBe(true)
+    expect(renderer.render(input)).toBe(true)
+    expect(renderer.diagnostics.logicalTextureUploadCount).toBe(1)
+
+    expect(renderer.render({ ...input, frame: { ...frame, motionClockSectionBeat: 5 } })).toBe(true)
+    expect(renderer.diagnostics.logicalTextureUploadCount).toBe(2)
+  })
+
   it('reuses logical textures and framebuffers until the quality resolution changes', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)
