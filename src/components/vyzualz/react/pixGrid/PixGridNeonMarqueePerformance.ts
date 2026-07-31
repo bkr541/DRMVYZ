@@ -1,5 +1,6 @@
 import type { ReactSectionType } from '../ReactTypes'
 import { getPixGridBuiltInCalibration } from './PixGridPerceptualCalibration'
+import { resolvePixGridMotionMultiplier } from './PixGridRuntimeControls'
 import type {
   PixGridAudioFrame,
   PixGridReactionAssignment,
@@ -12,7 +13,7 @@ import type {
 export const PIX_GRID_NEON_MARQUEE_PRESET_ID = 'pix-grid-neon-marquee-cycle' as const
 export const PIX_GRID_NEON_MARQUEE_ASSET_ID = 'pix-neon-marquee-cycle' as const
 export const PIX_GRID_NEON_MARQUEE_LAYER_ID = 'neon-marquee-frame' as const
-export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 10 as const
+export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 11 as const
 
 export const PIX_GRID_NEON_MARQUEE_SECTION_SUBDIVISIONS: Readonly<Record<ReactSectionType, string>> = Object.freeze({
   intro: 'one selected section-local bar in four; otherwise held',
@@ -44,31 +45,63 @@ function absoluteBar(frame: PixGridAudioFrame): number {
   return absoluteBeat(frame) / 4
 }
 
-function sectionBeat(frame: PixGridAudioFrame): number {
+function rawSectionBeat(frame: PixGridAudioFrame): number {
   return Number.isFinite(frame.beatsSinceSectionStart)
     ? Math.max(0, frame.beatsSinceSectionStart!)
     : absoluteBeat(frame)
 }
 
-function sectionBar(frame: PixGridAudioFrame): number {
+function rawSectionBar(frame: PixGridAudioFrame): number {
   return Number.isFinite(frame.barsSinceSectionStart)
     ? Math.max(0, frame.barsSinceSectionStart!)
     : absoluteBar(frame)
+}
+
+function sectionMotionValue(
+  integrated: number | undefined,
+  raw: number,
+  frame: PixGridAudioFrame,
+  sceneMotionMultiplier: number,
+): number {
+  return integrated != null
+    ? Math.max(0, integrated) * Math.max(0, Number.isFinite(sceneMotionMultiplier) ? sceneMotionMultiplier : 1)
+    : raw * resolvePixGridMotionMultiplier(frame.motionMultiplier, sceneMotionMultiplier)
+}
+
+function sectionBeat(frame: PixGridAudioFrame, sceneMotionMultiplier: number): number {
+  return sectionMotionValue(frame.motionClockSectionBeat, rawSectionBeat(frame), frame, sceneMotionMultiplier)
+}
+
+function sectionBar(frame: PixGridAudioFrame, sceneMotionMultiplier: number): number {
+  return sectionMotionValue(frame.motionClockSectionBar, rawSectionBar(frame), frame, sceneMotionMultiplier)
+}
+
+function sectionProgress(frame: PixGridAudioFrame, sceneMotionMultiplier: number): number {
+  return clamp01(sectionMotionValue(
+    frame.motionClockSectionProgress,
+    clamp01(frame.sectionProgress),
+    frame,
+    sceneMotionMultiplier,
+  ))
 }
 
 function positiveModulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor
 }
 
-function frameForSection(frame: PixGridAudioFrame): 0 | 1 | 2 | 3 {
+function frameForSection(frame: PixGridAudioFrame, sceneMotionMultiplier: number): 0 | 1 | 2 | 3 {
   if (frame.transportState === 'stopped') return 0
   if (!frame.sectionType && !frame.isPlaying && frame.transportState !== 'paused') return 0
 
-  const beat = sectionBeat(frame)
-  const bar = sectionBar(frame)
-  const progress = clamp01(frame.sectionProgress)
+  const beat = sectionBeat(frame, sceneMotionMultiplier)
+  const bar = sectionBar(frame, sceneMotionMultiplier)
+  const progress = sectionProgress(frame, sceneMotionMultiplier)
 
-  switch (frame.sectionType ?? 'unknown') {
+  const sectionType = frame.motionClockSectionType !== undefined
+    ? frame.motionClockSectionType
+    : frame.sectionType
+
+  switch (sectionType ?? 'unknown') {
     case 'intro':
       return positiveModulo(Math.floor(bar), 4) === 3 ? 1 : 0
     case 'verse':
@@ -104,8 +137,9 @@ function frameForSection(frame: PixGridAudioFrame): 0 | 1 | 2 | 3 {
  */
 export function resolvePixGridNeonMarqueePerformance(
   frame: PixGridAudioFrame,
+  sceneMotionMultiplier = 1,
 ): PixGridNeonMarqueeResolvedPerformance {
-  return { frameIndex: frameForSection(frame) }
+  return { frameIndex: frameForSection(frame, sceneMotionMultiplier) }
 }
 
 const EVENT_SOURCES = new Set<PixGridReactionSource>([
@@ -168,76 +202,109 @@ function assignment(
   }
 }
 
-const inSections = (...includeSectionTypes: ReactSectionType[]): PixGridReactionConditions => ({ includeSectionTypes })
+const inSections = (...includeSectionTypes: ReactSectionType[]): PixGridReactionConditions => ({
+  includeSectionTypes,
+  autoPerformanceOnly: true,
+})
 
 /**
- * Conservative whole-artwork reactions. Frame identity and native geometry are
- * owned solely by the deterministic section resolver. Routes only add bounded
- * RGB brightness, with confidence gates and safe local fallbacks.
+ * Whole-artwork reactions stay subordinate to the deterministic frame resolver.
+ * Transform peaks are deliberately budgeted together so simultaneous bass,
+ * kick, downbeat, and drop events remain below a ten-percent scale increase.
  */
 export const PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS: readonly PixGridReactionAssignment[] = Object.freeze([
-  assignment('neon-marquee-bass-breath', 'Bass breathing', 'bass', 'brightness', 'output', [0, 0.012], {
+  assignment('neon-marquee-bass-breath', 'Bass breathing', 'bass', 'scale', 'layer', [0, 0.015], {
     attack: 0.08,
-    release: 0.3,
+    release: 0.32,
     smoothing: 0.08,
     minimumConfidence: 0.3,
-    minimumEffectiveStrength: 0.055,
+    perceptualGain: 1,
+    minimumEffectiveStrength: 0.006,
     capabilityFallback: 'energy',
     conditions: inSections('verse', 'build', 'drop', 'breakdown'),
     priority: -40,
   }),
-  assignment('neon-marquee-build-lift', 'Build brightness lift', 'buildProgress', 'brightness', 'output', [0, 0.024], {
-    attack: 0.06,
-    release: 0.14,
+  assignment('neon-marquee-build-lift', 'Build contrast lift', 'buildProgress', 'contrast', 'output', [0, 0.12], {
+    attack: 0.08,
+    release: 0.18,
     smoothing: 0.05,
     minimumConfidence: 0.4,
-    minimumEffectiveStrength: 0.055,
+    perceptualGain: 1,
+    minimumEffectiveStrength: 0.025,
     capabilityFallback: 'energy',
     conditions: inSections('build'),
     priority: -30,
   }),
-  assignment('neon-marquee-kick-impact', 'Kick brightness impact', 'kick', 'brightness', 'output', [0, 0.014], {
+  assignment('neon-marquee-kick-impact', 'Kick scale impact', 'kick', 'scale', 'layer', [0, 0.035], {
     attack: 0,
-    hold: 0.045,
-    release: 0.16,
+    hold: 0.055,
+    release: 0.18,
     cooldown: 0.04,
     minimumConfidence: 0.38,
-    minimumEffectiveStrength: 0.06,
+    perceptualGain: 1,
+    minimumEffectiveStrength: 0.025,
     capabilityFallback: 'beat',
     conditions: inSections('verse', 'build', 'drop'),
     eventPriority: 120,
   }),
-  assignment('neon-marquee-snare-edge', 'Snare brightness edge', 'snare', 'brightness', 'output', [0, 0.018], {
+  assignment('neon-marquee-snare-edge', 'Snare contrast edge', 'snare', 'contrast', 'output', [0, 0.16], {
     attack: 0,
-    hold: 0.035,
-    release: 0.14,
+    hold: 0.04,
+    release: 0.15,
     cooldown: 0.05,
     minimumConfidence: 0.4,
-    minimumEffectiveStrength: 0.06,
+    perceptualGain: 1,
+    minimumEffectiveStrength: 0.08,
     capabilityFallback: 'transient',
     conditions: inSections('verse', 'build', 'drop'),
     eventPriority: 130,
   }),
-  assignment('neon-marquee-downbeat-structure', 'Downbeat structural emphasis', 'downbeat', 'brightness', 'output', [0, 0.016], {
+  assignment('neon-marquee-downbeat-structure', 'Downbeat structural scale', 'downbeat', 'scale', 'layer', [0, 0.02], {
     attack: 0,
-    hold: 0.045,
-    release: 0.18,
+    hold: 0.06,
+    release: 0.22,
     cooldown: 0.06,
     minimumConfidence: 0.28,
-    minimumEffectiveStrength: 0.06,
+    perceptualGain: 1,
+    minimumEffectiveStrength: 0.015,
     capabilityFallback: 'beat',
     conditions: inSections('intro', 'build', 'drop'),
     eventPriority: 145,
   }),
-  assignment('neon-marquee-drop-impact', 'Drop entry peak', 'dropImpact', 'brightness', 'output', [0, 0.026], {
+  assignment('neon-marquee-downbeat-accent', 'Downbeat contrast accent', 'downbeat', 'contrast', 'output', [0, 0.1], {
+    attack: 0,
+    hold: 0.05,
+    release: 0.2,
+    cooldown: 0.06,
+    minimumConfidence: 0.28,
+    perceptualGain: 1,
+    minimumEffectiveStrength: 0.05,
+    capabilityFallback: 'beat',
+    conditions: inSections('intro', 'build', 'drop'),
+    eventPriority: 146,
+  }),
+  assignment('neon-marquee-drop-impact', 'Drop entry scale peak', 'dropImpact', 'scale', 'layer', [0, 0.025], {
     attack: 0,
     hold: 0.07,
-    release: 0.3,
+    release: 0.32,
     cooldown: 0.14,
     minimumConfidence: 0.48,
-    minimumEffectiveStrength: 0.07,
+    perceptualGain: 1,
+    minimumEffectiveStrength: 0.02,
     capabilityFallback: 'transient',
     conditions: inSections('drop'),
     eventPriority: 180,
+  }),
+  assignment('neon-marquee-drop-accent', 'Drop contrast peak', 'dropImpact', 'contrast', 'output', [0, 0.18], {
+    attack: 0,
+    hold: 0.07,
+    release: 0.32,
+    cooldown: 0.14,
+    minimumConfidence: 0.48,
+    perceptualGain: 1,
+    minimumEffectiveStrength: 0.09,
+    capabilityFallback: 'transient',
+    conditions: inSections('drop'),
+    eventPriority: 181,
   }),
 ])

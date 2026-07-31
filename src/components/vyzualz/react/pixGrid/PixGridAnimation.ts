@@ -165,7 +165,7 @@ export function resolvePixGridLayerAnimation(
         break
       case 'frameCycle': {
         if (asset.id === PIX_GRID_NEON_MARQUEE_ASSET_ID && layer.id === PIX_GRID_NEON_MARQUEE_LAYER_ID) {
-          const performance = resolvePixGridNeonMarqueePerformance(frame)
+          const performance = resolvePixGridNeonMarqueePerformance(frame, motionMultiplier)
           resolved.frameIndex = performance.frameIndex
           break
         }

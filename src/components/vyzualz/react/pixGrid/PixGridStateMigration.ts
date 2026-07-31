@@ -325,11 +325,13 @@ function builtInMigrationIntegrity(
     ['kick', 'snare', 'bass', 'beat', 'energy'].includes(assignment.source)
     && isPixGridAudioAssignmentEffective(state, assignment, ownerGroupId)
   )).length
-  if (state.performance.sharedPerformanceProgramId !== preset.pixGridSettings?.performanceProgramId) conflicts.push('Performance program binding is not canonical.')
-  const programId = state.performance.sharedPerformanceProgramId
-  const program = programId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId) : null
-  if (!program) conflicts.push('Performance program does not resolve from the canonical registry.')
-  else {
+  const canonicalProgramId = preset.pixGridSettings?.performanceProgramId
+  if (canonicalProgramId !== undefined && state.performance.sharedPerformanceProgramId !== canonicalProgramId) {
+    conflicts.push('Performance program binding is not canonical.')
+  }
+  const program = canonicalProgramId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(canonicalProgramId) : null
+  if (canonicalProgramId && !program) conflicts.push('Performance program does not resolve from the canonical registry.')
+  else if (program) {
     const compiledProgram = new PixGridPerformanceProgramCompiler().compile(program, state)
     for (const missing of compiledProgram.missingBindings) conflicts.push(`Performance program target is missing: ${missing}.`)
     for (const validationIssue of compiledProgram.validationIssues) {
@@ -454,7 +456,8 @@ export function migratePixGridState(
   }
   const targetPresetConfigurationVersion = settings.authoredConfigurationVersion ?? 1
   const explicitlyDisablesPerformance = settings.performanceEnabled === false && !settings.performanceProgramId
-  const targetProgramId = explicitlyDisablesPerformance
+  const explicitlyClearsPerformanceProgram = settings.performanceProgramId === null
+  const targetProgramId = explicitlyDisablesPerformance || explicitlyClearsPerformanceProgram
     ? null
     : settings.performanceProgramId ?? normalized.performance.sharedPerformanceProgramId
   const canonicalGroups = settings.groups ?? []
@@ -534,7 +537,9 @@ export function migratePixGridState(
     editor: { ...normalized.editor, selectedLayerId: repaired.selectedLayerId },
     performance: {
       ...repaired.performance,
-      enabled: explicitlyDisablesPerformance ? false : targetProgramId ? true : repaired.performance.enabled,
+      enabled: explicitlyDisablesPerformance
+        ? false
+        : settings.performanceEnabled ?? (targetProgramId ? true : repaired.performance.enabled),
       sharedPerformanceProgramId: targetProgramId,
     },
   })

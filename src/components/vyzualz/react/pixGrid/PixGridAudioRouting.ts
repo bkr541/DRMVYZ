@@ -539,6 +539,9 @@ export class PixGridReactionRuntime {
       return finish({ value: 0, active: false, supported: compiled.compatible, confidence: 1, usingFallback: false, blockedByCondition: false, blockedByConfidence: false, reason: 'route disabled or incompatible', envelopePhase: 'idle', compiled })
     }
     if (!evaluatePixGridCompiledConditions(compiled, frame, evaluationContext) && !preview) {
+      if (compiled.conditions.autoPerformanceOnly && frame.autoPerformanceEnabled !== true) {
+        this.states.delete(route)
+      }
       pushUnique(this.diagnostics.assignmentsBlockedByConditions, route)
       return finish({ value: 0, active: false, supported: true, confidence: 1, usingFallback: false, blockedByCondition: true, blockedByConfidence: false, reason: 'conditions not met', envelopePhase: 'idle', compiled })
     }

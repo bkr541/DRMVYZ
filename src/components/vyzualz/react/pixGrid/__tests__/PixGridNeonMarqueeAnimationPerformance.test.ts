@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { resolvePixGridAuthoredAssignmentState } from '../PixGridAssignmentApplication'
 import { resolvePixGridLayerAnimation } from '../PixGridAnimation'
 import { createSilentPixGridAudioFrame, PixGridReactionRuntime } from '../PixGridAudioRouting'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
@@ -17,9 +18,10 @@ import {
   resolvePixGridNeonMarqueePerformance,
 } from '../PixGridNeonMarqueePerformance'
 import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
+import { applyPixGridRuntimeControls, PixGridMotionClock } from '../PixGridRuntimeControls'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import { migratePixGridState } from '../PixGridStateMigration'
-import type { PixGridAudioFrame } from '../PixGridTypes'
+import type { PixGridAudioFrame, PixGridState } from '../PixGridTypes'
 import { normalizePixGridState } from '../PixGridValidation'
 import {
   disposePixGridBaselineRenderer,
@@ -29,6 +31,7 @@ import {
 
 const PRESET_ID = 'pix-grid-neon-marquee-cycle'
 const ASSET = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(PIX_GRID_NEON_MARQUEE_ASSET_ID)!
+const PRESET = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
 
 function frame(overrides: Partial<PixGridAudioFrame> = {}): PixGridAudioFrame {
   return createSilentPixGridAudioFrame({
@@ -44,16 +47,84 @@ function frame(overrides: Partial<PixGridAudioFrame> = {}): PixGridAudioFrame {
     sectionProgress: 0,
     transportState: 'playing',
     trackIdentity: 'track-a',
+    autoPerformanceEnabled: false,
     ...overrides,
   })
 }
 
-function resolvedFrameIndex(overrides: Partial<PixGridAudioFrame>): number {
-  return resolvePixGridNeonMarqueePerformance(frame(overrides)).frameIndex
+function clocked(
+  clock: PixGridMotionClock,
+  motion: number,
+  overrides: Partial<PixGridAudioFrame>,
+): PixGridAudioFrame {
+  return clock.apply(applyPixGridRuntimeControls(frame(overrides), { bassReactivity: 1, motion }))
 }
 
-describe('PixGrid Neon Marquee Cycle Stage 3 final hardening', () => {
-  it('uses a documented section-local musical subdivision in every section', () => {
+function frameIndex(audioFrame: PixGridAudioFrame, sceneMotionMultiplier = 1): number {
+  return resolvePixGridNeonMarqueePerformance(audioFrame, sceneMotionMultiplier).frameIndex
+}
+
+function presetState(enabled: boolean): PixGridState {
+  const current = createDefaultPixGridState()
+  current.performance.enabled = enabled
+  current.performance.sharedPerformanceProgramId = enabled ? 'pix-grid-bass-beacon-performance' : null
+  return applyPixGridPresetSettings(current, PRESET_ID, PRESET.pixGridSettings)
+}
+
+function eventFrame(overrides: Partial<PixGridAudioFrame>): PixGridAudioFrame {
+  return frame({
+    autoPerformanceEnabled: true,
+    sectionType: 'drop',
+    sectionProgress: 0.6,
+    beatIndex: 32,
+    barIndex: 8,
+    beatsSinceSectionStart: 0,
+    barsSinceSectionStart: 0,
+    audioTime: 8,
+    sourceValues: {
+      beat: 0,
+      kick: 0,
+      snare: 0,
+      bass: 0,
+      downbeat: 0,
+      dropImpact: 0,
+      buildProgress: 0,
+    },
+    ...overrides,
+  })
+}
+
+function renderWith(frameValue: PixGridAudioFrame, state = presetState(true)): Uint8Array {
+  return composePixGridLogicalFrame(
+    PRESET,
+    state,
+    frameValue,
+    undefined,
+    undefined,
+    new PixGridReactionRuntime(),
+  ).pixels
+}
+
+function perceptuallyChangedCellCount(a: Uint8Array, b: Uint8Array): number {
+  let changed = 0
+  for (let offset = 0; offset < Math.min(a.length, b.length); offset += 4) {
+    const dr = Math.abs(a[offset] - b[offset])
+    const dg = Math.abs(a[offset + 1] - b[offset + 1])
+    const db = Math.abs(a[offset + 2] - b[offset + 2])
+    const colorDistance = Math.sqrt(dr * dr + dg * dg + db * db)
+    if (Math.max(dr, dg, db) >= 10 || colorDistance >= 16) changed += 1
+  }
+  return changed
+}
+
+function resolvedLayerScale(state: PixGridState, audioFrame: PixGridAudioFrame, runtime = new PixGridReactionRuntime()): number {
+  runtime.beginFrame(audioFrame)
+  const resolved = resolvePixGridAuthoredAssignmentState(state, audioFrame, runtime)
+  return resolved.layers.find(layer => layer.id === 'neon-marquee-frame')!.scale.x
+}
+
+describe('PixGrid Neon Marquee motion, audio, and Auto Performance correction', () => {
+  it('keeps the authored section choreography and canonical forward order', () => {
     expect(PIX_GRID_NEON_MARQUEE_SECTION_SUBDIVISIONS).toMatchObject({
       intro: expect.stringContaining('section-local'),
       verse: expect.stringContaining('section-local'),
@@ -63,165 +134,176 @@ describe('PixGrid Neon Marquee Cycle Stage 3 final hardening', () => {
       breakdown: expect.stringContaining('section-local'),
       outro: expect.stringContaining('section-local'),
     })
-  })
 
-  it('programs deterministic section-specific frame order from section-local clocks', () => {
-    expect([0, 1, 2, 3].map(barsSinceSectionStart => resolvedFrameIndex({
-      sectionType: 'intro',
-      barIndex: 37 + barsSinceSectionStart,
-      beatIndex: 148 + barsSinceSectionStart * 4,
-      barsSinceSectionStart,
-      beatsSinceSectionStart: barsSinceSectionStart * 4,
-    }))).toEqual([0, 0, 0, 1])
-
-    expect([0, 2, 4, 6].map(beatsSinceSectionStart => resolvedFrameIndex({
+    expect([0, 1, 2, 3, 4].map(beatsSinceSectionStart => frameIndex(frame({
+      sectionType: 'drop',
+      beatsSinceSectionStart,
+      barsSinceSectionStart: beatsSinceSectionStart / 4,
+    })))).toEqual([0, 1, 2, 3, 0])
+    expect([0, 2, 4, 6].map(beatsSinceSectionStart => frameIndex(frame({
       sectionType: 'verse',
-      beatIndex: 101 + beatsSinceSectionStart,
-      barIndex: 25,
       beatsSinceSectionStart,
       barsSinceSectionStart: beatsSinceSectionStart / 4,
-    }))).toEqual([0, 1, 0, 1])
-
-    expect([0, 1, 2, 3].map(beatsSinceSectionStart => resolvedFrameIndex({
-      sectionType: 'build',
-      sectionProgress: 0.5,
-      beatIndex: 73 + beatsSinceSectionStart,
-      beatsSinceSectionStart,
-      barsSinceSectionStart: beatsSinceSectionStart / 4,
-    }))).toEqual([0, 1, 2, 3])
-    expect([0, 0.5, 1, 1.5].map(beatsSinceSectionStart => resolvedFrameIndex({
-      sectionType: 'build',
-      sectionProgress: 0.8,
-      beatIndex: 91 + Math.floor(beatsSinceSectionStart),
-      beatPhase: beatsSinceSectionStart % 1,
-      beatsSinceSectionStart,
-      barsSinceSectionStart: beatsSinceSectionStart / 4,
-    }))).toEqual([0, 1, 2, 3])
-
-    expect([0.1, 0.5, 0.9].map(sectionProgress => resolvedFrameIndex({ sectionType: 'preDrop', sectionProgress })))
-      .toEqual([0, 1, 2])
-
-    expect([0, 1, 2, 3, 4].map(beatsSinceSectionStart => resolvedFrameIndex({
-      sectionType: 'drop',
-      beatIndex: 203 + beatsSinceSectionStart,
-      beatsSinceSectionStart,
-      barsSinceSectionStart: beatsSinceSectionStart / 4,
-    }))).toEqual([0, 1, 2, 3, 0])
-
-    expect([0, 1, 2, 3].map(barsSinceSectionStart => resolvedFrameIndex({
-      sectionType: 'breakdown',
-      barIndex: 61 + barsSinceSectionStart,
-      beatIndex: 244 + barsSinceSectionStart * 4,
-      barsSinceSectionStart,
-      beatsSinceSectionStart: barsSinceSectionStart * 4,
-    }))).toEqual([0, 3, 0, 3])
-
-    expect(resolvedFrameIndex({ sectionType: 'outro', sectionProgress: 0.2, barsSinceSectionStart: 0 })).toBe(3)
-    expect(resolvedFrameIndex({ sectionType: 'outro', sectionProgress: 0.2, barsSinceSectionStart: 1 })).toBe(0)
-    expect(resolvedFrameIndex({ sectionType: 'outro', sectionProgress: 0.5, barsSinceSectionStart: 0 })).toBe(0)
+    })))).toEqual([0, 1, 0, 1])
   })
 
-  it('resolves pause, seek, loop, stop, restart, and track replacement from transport position only', () => {
-    const position = frame({
-      sectionType: 'drop',
-      beatIndex: 206,
-      beatsSinceSectionStart: 2,
-      barsSinceSectionStart: 0.5,
-      beatPhase: 0.42,
-      audioTime: 18.21,
+  it('freezes the active frame at Motion 0 and resumes without a phase jump', () => {
+    const clock = new PixGridMotionClock()
+    const beforeFreeze = clocked(clock, 1, {
+      audioTime: 1.2,
+      beatIndex: 1,
+      beatPhase: 0.2,
+      beatsSinceSectionStart: 1.2,
+      barsSinceSectionStart: 0.3,
     })
-    const fresh = resolvePixGridNeonMarqueePerformance(position)
-    expect(resolvePixGridNeonMarqueePerformance({ ...position, transportState: 'paused', isPlaying: false })).toEqual(fresh)
+    expect(frameIndex(beforeFreeze)).toBe(1)
 
-    resolvePixGridNeonMarqueePerformance(frame({
-      sectionType: 'drop',
-      beatIndex: 231,
-      beatsSinceSectionStart: 27,
-      barsSinceSectionStart: 6.75,
-      audioTime: 70,
+    const frozen = [2.2, 3.2, 4.2].map(value => clocked(clock, 0, {
+      audioTime: value,
+      beatIndex: Math.floor(value),
+      beatPhase: value % 1,
+      beatsSinceSectionStart: value,
+      barsSinceSectionStart: value / 4,
     }))
-    expect(resolvePixGridNeonMarqueePerformance({ ...position, timingDiscontinuity: true })).toEqual(fresh)
+    expect(frozen.map(value => frameIndex(value))).toEqual([1, 1, 1])
 
-    const loopStart = frame({
-      sectionType: 'build',
-      sectionProgress: 0.82,
-      beatIndex: 112,
-      beatsSinceSectionStart: 12.5,
-      barsSinceSectionStart: 3.125,
+    const resumed = clocked(clock, 1, {
+      audioTime: 4.7,
+      beatIndex: 4,
+      beatPhase: 0.7,
+      beatsSinceSectionStart: 4.7,
+      barsSinceSectionStart: 1.175,
+    })
+    expect(resumed.motionClockSectionBeat).toBeCloseTo(1.7, 5)
+    expect(frameIndex(resumed)).toBe(1)
+  })
+
+  it('holds the active choreography identity across section changes while Motion is 0', () => {
+    const clock = new PixGridMotionClock()
+    const drop = clocked(clock, 1, {
+      sectionType: 'drop',
+      sectionOccurrence: 0,
+      audioTime: 3.2,
+      beatIndex: 3,
+      beatPhase: 0.2,
+      beatsSinceSectionStart: 3.2,
+      barsSinceSectionStart: 0.8,
+    })
+    expect(frameIndex(drop)).toBe(3)
+
+    const frozenBreakdown = clocked(clock, 0, {
+      sectionType: 'breakdown',
+      sectionOccurrence: 1,
+      audioTime: 4.2,
+      beatIndex: 4,
+      beatPhase: 0.2,
+      beatsSinceSectionStart: 0.2,
+      barsSinceSectionStart: 0.05,
+    })
+    expect(frozenBreakdown.motionClockSectionType).toBe('drop')
+    expect(frameIndex(frozenBreakdown)).toBe(3)
+
+    const resumedBreakdown = clocked(clock, 1, {
+      sectionType: 'breakdown',
+      sectionOccurrence: 1,
+      audioTime: 4.7,
+      beatIndex: 4,
+      beatPhase: 0.7,
+      beatsSinceSectionStart: 0.7,
+      barsSinceSectionStart: 0.175,
+    })
+    expect(resumedBreakdown.motionClockSectionType).toBe('breakdown')
+    expect(frameIndex(resumedBreakdown)).toBe(0)
+  })
+
+  it('scales progression proportionally at Motion 0.5, 1, and above 1', () => {
+    const half = new PixGridMotionClock()
+    const normal = new PixGridMotionClock()
+    const fast = new PixGridMotionClock()
+    clocked(half, 0.5, { audioTime: 0, beatsSinceSectionStart: 0 })
+    clocked(normal, 1, { audioTime: 0, beatsSinceSectionStart: 0 })
+    clocked(fast, 2, { audioTime: 0, beatsSinceSectionStart: 0 })
+
+    const halfFrame = clocked(half, 0.5, { audioTime: 2, beatIndex: 2, beatsSinceSectionStart: 2, barsSinceSectionStart: 0.5 })
+    const normalFrame = clocked(normal, 1, { audioTime: 2, beatIndex: 2, beatsSinceSectionStart: 2, barsSinceSectionStart: 0.5 })
+    const fastFrame = clocked(fast, 2, { audioTime: 2, beatIndex: 2, beatsSinceSectionStart: 2, barsSinceSectionStart: 0.5 })
+
+    expect(halfFrame.motionClockSectionBeat).toBeCloseTo(1, 5)
+    expect(normalFrame.motionClockSectionBeat).toBeCloseTo(2, 5)
+    expect(fastFrame.motionClockSectionBeat).toBeCloseTo(4, 5)
+    expect([frameIndex(halfFrame), frameIndex(normalFrame), frameIndex(fastFrame)]).toEqual([1, 2, 0])
+    expect(frameIndex(normalFrame, 0.5)).toBe(1)
+    expect(frameIndex(normalFrame, 2)).toBe(0)
+  })
+
+  it('holds while paused and reconstructs seeks, loops, restarts, and track changes deterministically', () => {
+    const clock = new PixGridMotionClock()
+    const active = clocked(clock, 1, {
+      audioTime: 2.4,
+      beatIndex: 2,
+      beatPhase: 0.4,
+      beatsSinceSectionStart: 2.4,
+      barsSinceSectionStart: 0.6,
+    })
+    const paused = clocked(clock, 1, {
+      audioTime: 9,
+      beatIndex: 9,
+      beatsSinceSectionStart: 9,
+      barsSinceSectionStart: 2.25,
+      transportState: 'paused',
+      isPlaying: false,
+    })
+    expect(paused.motionClockSectionBeat).toBe(active.motionClockSectionBeat)
+    expect(frameIndex(paused)).toBe(frameIndex(active))
+
+    const seekTarget = {
+      audioTime: 6.5,
+      beatIndex: 6,
       beatPhase: 0.5,
-      audioTime: 24.25,
-    })
-    const loopResolved = resolvePixGridNeonMarqueePerformance(loopStart)
-    resolvePixGridNeonMarqueePerformance(frame({
-      sectionType: 'build',
-      sectionProgress: 0.95,
-      beatIndex: 119,
-      beatsSinceSectionStart: 19,
-      barsSinceSectionStart: 4.75,
-      audioTime: 27.5,
-    }))
-    expect(resolvePixGridNeonMarqueePerformance({ ...loopStart, timingDiscontinuity: true })).toEqual(loopResolved)
+      beatsSinceSectionStart: 6.5,
+      barsSinceSectionStart: 1.625,
+      timingDiscontinuity: true,
+    } satisfies Partial<PixGridAudioFrame>
+    const firstSeek = clocked(clock, 1, seekTarget)
+    clocked(clock, 1, { audioTime: 12, beatIndex: 12, beatsSinceSectionStart: 12, barsSinceSectionStart: 3 })
+    const repeatedSeek = clocked(clock, 1, seekTarget)
+    expect(repeatedSeek.motionClockSectionBeat).toBe(firstSeek.motionClockSectionBeat)
+    expect(frameIndex(repeatedSeek)).toBe(frameIndex(firstSeek))
 
-    expect(resolvePixGridNeonMarqueePerformance(frame({ transportState: 'stopped', isPlaying: false, beatIndex: 27 })))
-      .toEqual({ frameIndex: 0 })
-    expect(resolvePixGridNeonMarqueePerformance(frame({
+    const loopStart = clocked(clock, 1, {
+      audioTime: 1,
+      beatIndex: 1,
+      beatsSinceSectionStart: 1,
+      barsSinceSectionStart: 0.25,
+      timingDiscontinuity: true,
+    })
+    clocked(clock, 1, { audioTime: 4, beatIndex: 4, beatsSinceSectionStart: 4, barsSinceSectionStart: 1 })
+    const repeatedLoopStart = clocked(clock, 1, {
+      audioTime: 1,
+      beatIndex: 1,
+      beatsSinceSectionStart: 1,
+      barsSinceSectionStart: 0.25,
+      timingDiscontinuity: true,
+    })
+    expect(repeatedLoopStart.motionClockSectionBeat).toBe(loopStart.motionClockSectionBeat)
+    expect(frameIndex(repeatedLoopStart)).toBe(frameIndex(loopStart))
+
+    clock.reset('track-b')
+    const replacement = clocked(clock, 1, {
       trackIdentity: 'track-b',
       sectionType: 'intro',
-      beatIndex: 300,
-      barIndex: 75,
+      audioTime: 0,
+      beatIndex: 0,
       beatsSinceSectionStart: 0,
       barsSinceSectionStart: 0,
-    }))).toMatchObject({ frameIndex: 0 })
+      timingDiscontinuity: true,
+    })
+    expect(replacement.motionClockSectionBeat).toBe(0)
+    expect(frameIndex(replacement)).toBe(0)
   })
 
-  it('keeps exact native geometry, RGB values, and opaque alpha in the logical framebuffer', () => {
-    const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
-    const layer = preset.pixGridSettings!.layers![0]
-
-    const resolved = [0, 1, 2, 3].map(beatsSinceSectionStart => resolvePixGridLayerAnimation(
-      layer,
-      ASSET,
-      frame({ sectionType: 'drop', beatIndex: 100 + beatsSinceSectionStart, beatsSinceSectionStart, beatPhase: 0.5 }),
-      0,
-    ))
-
-    expect(resolved.map(value => value.frameIndex)).toEqual([0, 1, 2, 3])
-    expect(resolved.every(value => value.positionX === 0.5 && value.positionY === 0.5 && value.rotation === 0)).toBe(true)
-    expect(resolved.every(value => value.scaleX === 1 && value.scaleY === 1 && value.opacity === 1)).toBe(true)
-
-    const state = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset.pixGridSettings)
-    const nativeFrames = getPixGridNeonMarqueeFrames()
-    expect(nativeFrames).toHaveLength(4)
-    expect(state.matrixWidth).toBe(PIX_GRID_NEON_MARQUEE_FRAME_WIDTH)
-    expect(state.matrixHeight).toBe(PIX_GRID_NEON_MARQUEE_FRAME_HEIGHT)
-
-    for (let frameIndex = 0; frameIndex < nativeFrames.length; frameIndex += 1) {
-      const audioFrame = frame({
-        sectionType: 'drop',
-        beatIndex: 400 + frameIndex,
-        beatsSinceSectionStart: frameIndex,
-        barsSinceSectionStart: frameIndex / 4,
-        beatPhase: 0.5,
-      })
-      const logical = composePixGridLogicalFrame(preset, state, audioFrame)
-      const source = nativeFrames[frameIndex]
-      expect(logical.width).toBe(PIX_GRID_NEON_MARQUEE_FRAME_WIDTH)
-      expect(logical.height).toBe(PIX_GRID_NEON_MARQUEE_FRAME_HEIGHT)
-      expect(logical.pixels).toHaveLength(PIX_GRID_NEON_MARQUEE_FRAME_CELL_COUNT * 4)
-      for (let cell = 0; cell < PIX_GRID_NEON_MARQUEE_FRAME_CELL_COUNT; cell += 1) {
-        const rgbOffset = cell * 3
-        const rgbaOffset = cell * 4
-        expect(logical.pixels[rgbaOffset]).toBe(source[rgbOffset])
-        expect(logical.pixels[rgbaOffset + 1]).toBe(source[rgbOffset + 1])
-        expect(logical.pixels[rgbaOffset + 2]).toBe(source[rgbOffset + 2])
-        expect(logical.pixels[rgbaOffset + 3]).toBe(255)
-      }
-    }
-  })
-
-  it('prevents duplicate frame ownership from integrated clocks or noncanonical asset reuse', () => {
-    const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
-    const canonicalLayer = preset.pixGridSettings!.layers![0]
+  it('uses integrated section clocks only for the canonical marquee branch', () => {
+    const canonicalLayer = PRESET.pixGridSettings!.layers![0]
     const canonical = resolvePixGridLayerAnimation(
       canonicalLayer,
       ASSET,
@@ -230,45 +312,140 @@ describe('PixGrid Neon Marquee Cycle Stage 3 final hardening', () => {
         beatIndex: 999,
         beatsSinceSectionStart: 2,
         motionClockBeat: 123.75,
+        motionClockSectionBeat: 3,
         motionClockTime: 456,
       }),
       1,
     )
-    expect(canonical.frameIndex).toBe(2)
+    expect(canonical.frameIndex).toBe(3)
 
     const customLayer = { ...canonicalLayer, id: 'custom-neon-copy' }
     const generic = resolvePixGridLayerAnimation(
       customLayer,
       ASSET,
-      frame({ sectionType: 'verse', beatIndex: 2, beatsSinceSectionStart: 0 }),
+      frame({ sectionType: 'drop', beatIndex: 2, beatsSinceSectionStart: 0, motionClockBeat: 2 }),
       1,
     )
     expect(generic.frameIndex).toBe(2)
   })
 
-  it('clears authored event envelopes on seek and stop', () => {
-    const assignment = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!.pixGridSettings!.audioAssignments!
-      .find(candidate => candidate.id === 'neon-marquee-kick-impact')!
-    const runtime = new PixGridReactionRuntime()
-    const fired = frame({
-      audioTime: 8,
-      beatIndex: 16,
-      kickHit: true,
-      sourceValues: { kick: 1 },
-      confidence: { kick: 1 },
-      bassReactivityGain: 1,
-    })
+  it('preserves native frame geometry and pixels when Auto Performance is off', () => {
+    const layer = PRESET.pixGridSettings!.layers![0]
+    const state = presetState(false)
+    const nativeFrames = getPixGridNeonMarqueeFrames()
 
-    expect(runtime.resolve(assignment, fired).value).toBeGreaterThan(0)
-    expect(runtime.resolve(assignment, { ...fired, audioTime: 8.08, kickHit: false, sourceValues: { kick: 0 } }).value).toBeGreaterThan(0)
-    expect(runtime.resolve(assignment, {
-      ...fired,
+    expect(state.matrixWidth).toBe(PIX_GRID_NEON_MARQUEE_FRAME_WIDTH)
+    expect(state.matrixHeight).toBe(PIX_GRID_NEON_MARQUEE_FRAME_HEIGHT)
+    expect(nativeFrames).toHaveLength(4)
+
+    for (let index = 0; index < nativeFrames.length; index += 1) {
+      const audioFrame = frame({
+        autoPerformanceEnabled: false,
+        sectionType: 'drop',
+        beatsSinceSectionStart: index,
+        barsSinceSectionStart: index / 4,
+      })
+      const resolved = resolvePixGridLayerAnimation(layer, ASSET, audioFrame, 1)
+      expect(resolved).toMatchObject({
+        frameIndex: index,
+        positionX: 0.5,
+        positionY: 0.5,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        opacity: 1,
+      })
+
+      const logical = composePixGridLogicalFrame(PRESET, state, audioFrame)
+      const source = nativeFrames[index]
+      expect(logical.pixels).toHaveLength(PIX_GRID_NEON_MARQUEE_FRAME_CELL_COUNT * 4)
+      for (let cell = 0; cell < PIX_GRID_NEON_MARQUEE_FRAME_CELL_COUNT; cell += 1) {
+        const rgb = cell * 3
+        const rgba = cell * 4
+        expect(logical.pixels[rgba]).toBe(source[rgb])
+        expect(logical.pixels[rgba + 1]).toBe(source[rgb + 1])
+        expect(logical.pixels[rgba + 2]).toBe(source[rgb + 2])
+        expect(logical.pixels[rgba + 3]).toBe(255)
+      }
+    }
+  })
+
+  it('produces visible bounded kick, snare, downbeat, build, and drop reactions', () => {
+    const state = presetState(true)
+    const baseDrop = renderWith(eventFrame({}), state)
+    const kick = renderWith(eventFrame({ kickHit: true, beatHit: true, sourceValues: { kick: 1, beat: 1 } }), state)
+    const snare = renderWith(eventFrame({ snareHit: true, beatHit: true, transientHit: true, sourceValues: { snare: 1, beat: 1, transient: 1 } }), state)
+    const downbeat = renderWith(eventFrame({ downbeatHit: true, beatHit: true, sourceValues: { downbeat: 1, beat: 1 } }), state)
+    const drop = renderWith(eventFrame({ dropImpactHit: true, transientHit: true, sourceValues: { dropImpact: 1, transient: 1 } }), state)
+
+    expect(perceptuallyChangedCellCount(baseDrop, kick)).toBeGreaterThan(50)
+    expect(perceptuallyChangedCellCount(baseDrop, snare)).toBeGreaterThan(50)
+    expect(perceptuallyChangedCellCount(baseDrop, downbeat)).toBeGreaterThan(50)
+    expect(perceptuallyChangedCellCount(baseDrop, drop)).toBeGreaterThan(perceptuallyChangedCellCount(baseDrop, snare))
+
+    const buildBase = renderWith(eventFrame({ sectionType: 'build', sectionProgress: 0.1, buildProgress: 0.1, sourceValues: { buildProgress: 0.1 } }), state)
+    const buildPeak = renderWith(eventFrame({ sectionType: 'build', sectionProgress: 0.92, buildProgress: 0.92, sourceValues: { buildProgress: 0.92 } }), state)
+    expect(perceptuallyChangedCellCount(buildBase, buildPeak)).toBeGreaterThan(50)
+  })
+
+  it('keeps bass smoothing and combined transform peaks inside the authored scale budget', () => {
+    const state = presetState(true)
+    const runtime = new PixGridReactionRuntime()
+    const silence = eventFrame({ sectionType: 'verse', audioTime: 1, bass: 0, sourceValues: { bass: 0 } })
+    const bassStart = eventFrame({ sectionType: 'verse', audioTime: 1.016, bass: 1, sourceValues: { bass: 1 } })
+    const bassLater = eventFrame({ sectionType: 'verse', audioTime: 1.25, bass: 1, sourceValues: { bass: 1 } })
+    const baseScale = resolvedLayerScale(state, silence, runtime)
+    const startScale = resolvedLayerScale(state, bassStart, runtime)
+    const laterScale = resolvedLayerScale(state, bassLater, runtime)
+    expect(startScale).toBeGreaterThanOrEqual(baseScale)
+    expect(laterScale).toBeGreaterThan(startScale)
+    expect(laterScale).toBeLessThanOrEqual(1.015001)
+
+    const peak = eventFrame({
       audioTime: 3,
-      beatIndex: 6,
-      kickHit: false,
-      sourceValues: { kick: 0 },
-      timingDiscontinuity: true,
-    }).value).toBe(0)
+      bass: 1,
+      kickHit: true,
+      downbeatHit: true,
+      dropImpactHit: true,
+      beatHit: true,
+      transientHit: true,
+      sourceValues: { bass: 1, kick: 1, downbeat: 1, dropImpact: 1, beat: 1, transient: 1 },
+    })
+    const peakScale = resolvedLayerScale(state, peak)
+    expect(Number.isFinite(peakScale)).toBe(true)
+    expect(peakScale).toBeGreaterThan(1.06)
+    expect(peakScale).toBeLessThanOrEqual(1.1)
+  })
+
+  it('gates every marquee reaction behind Auto Performance without stopping frame cycling', () => {
+    const stateOff = presetState(false)
+    const stateOn = presetState(true)
+    expect(stateOff.performance.enabled).toBe(false)
+    expect(stateOn.performance.enabled).toBe(true)
+    expect(stateOff.performance.sharedPerformanceProgramId).toBeNull()
+    expect(stateOn.performance.sharedPerformanceProgramId).toBeNull()
+    expect(stateOn.audioAssignments.every(assignment => assignment.conditions?.autoPerformanceOnly === true)).toBe(true)
+
+    const eventOn = eventFrame({ kickHit: true, sourceValues: { kick: 1 } })
+    const eventOff = { ...eventOn, autoPerformanceEnabled: false }
+    expect(resolvedLayerScale(stateOn, eventOff)).toBe(1)
+    expect(resolvedLayerScale(stateOn, eventOn)).toBeGreaterThan(1)
+    expect(frameIndex({ ...eventOff, beatsSinceSectionStart: 2 })).toBe(2)
+  })
+
+  it('clears active envelopes when Auto Performance is disabled and does not replay stale events', () => {
+    const assignment = presetState(true).audioAssignments.find(candidate => candidate.id === 'neon-marquee-kick-impact')!
+    const runtime = new PixGridReactionRuntime()
+    const fired = eventFrame({ audioTime: 8, kickHit: true, sourceValues: { kick: 1 } })
+    expect(runtime.resolve(assignment, fired).value).toBeGreaterThan(0)
+    expect(runtime.resolve(assignment, eventFrame({ audioTime: 8.08, kickHit: false, sourceValues: { kick: 0 } })).value).toBeGreaterThan(0)
+
+    const disabled = eventFrame({ audioTime: 8.09, autoPerformanceEnabled: false, kickHit: false, sourceValues: { kick: 0 } })
+    expect(runtime.resolve(assignment, disabled).value).toBe(0)
+    const reenabled = eventFrame({ audioTime: 8.1, autoPerformanceEnabled: true, kickHit: false, sourceValues: { kick: 0 } })
+    expect(runtime.resolve(assignment, reenabled).value).toBe(0)
+
+    expect(runtime.resolve(assignment, { ...fired, audioTime: 9, timingDiscontinuity: true, kickHit: false, sourceValues: { kick: 0 } }).value).toBe(0)
     expect(runtime.resolve(assignment, {
       ...fired,
       audioTime: 0,
@@ -281,116 +458,30 @@ describe('PixGrid Neon Marquee Cycle Stage 3 final hardening', () => {
     }).value).toBe(0)
   })
 
-  it('gates low-confidence sources and preserves a visible bounded no-audio fallback', () => {
-    const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
-    const state = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset.pixGridSettings)
-    const assignment = state.audioAssignments.find(candidate => candidate.id === 'neon-marquee-kick-impact')!
+  it('preserves the user toggle while clearing inherited program ownership on selection and migration', () => {
+    for (const enabled of [false, true]) {
+      const applied = presetState(enabled)
+      expect(applied.performance.enabled).toBe(enabled)
+      expect(applied.performance.sharedPerformanceProgramId).toBeNull()
 
-    const lowConfidence = new PixGridReactionRuntime().resolve(assignment, frame({
-      sectionType: 'drop',
-      kickHit: true,
-      beatHit: false,
-      sourceValues: { kick: 1, beat: 0 },
-      confidence: { kick: 0 },
-      capabilities: { kick: true, beat: true },
-    })).value
-    expect(lowConfidence).toBe(0)
-
-    const safeFallback = new PixGridReactionRuntime().resolve(assignment, frame({
-      sectionType: 'drop',
-      kickHit: false,
-      beatHit: true,
-      sourceValues: { kick: 0, beat: 1 },
-      confidence: { kick: 0 },
-      capabilities: { kick: false, beat: true },
-    })).value
-    expect(Number.isFinite(safeFallback)).toBe(true)
-    expect(safeFallback).toBeGreaterThan(0)
-    expect(safeFallback).toBeLessThanOrEqual(assignment.outputRange?.[1] ?? 0)
-
-    const silentFrame = createSilentPixGridAudioFrame({
-      transportState: 'paused',
-      isPlaying: false,
-      sectionType: null,
-      trackIdentity: null,
-      timingDiscontinuity: true,
-    })
-    const logical = composePixGridLogicalFrame(preset, state, silentFrame, undefined, undefined, new PixGridReactionRuntime())
-    let litCells = 0
-    for (let offset = 0; offset < logical.pixels.length; offset += 4) {
-      if (logical.pixels[offset] || logical.pixels[offset + 1] || logical.pixels[offset + 2]) litCells += 1
-      expect(logical.pixels[offset + 3]).toBe(255)
+      const contaminated = {
+        ...applied,
+        configuration: {
+          ...applied.configuration,
+          presetConfigurationVersion: PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION - 1,
+        },
+        performance: {
+          ...applied.performance,
+          enabled,
+          sharedPerformanceProgramId: 'pix-grid-bass-beacon-performance',
+        },
+      }
+      const migrated = migratePixGridState(contaminated, PRESET)
+      expect(migrated.configuration.presetConfigurationVersion).toBe(PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION)
+      expect(migrated.performance.enabled).toBe(enabled)
+      expect(migrated.performance.sharedPerformanceProgramId).toBeNull()
+      expect(migrated.audioAssignments.every(assignment => assignment.conditions?.autoPerformanceOnly === true)).toBe(true)
     }
-    expect(litCells).toBeGreaterThan(0)
-  })
-
-  it('attaches conservative output-brightness routes without taking Auto Performance ownership', () => {
-    const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
-    const current = createDefaultPixGridState()
-    current.performance.enabled = false
-    current.performance.sharedPerformanceProgramId = null
-    const state = applyPixGridPresetSettings(current, PRESET_ID, preset.pixGridSettings)
-
-    expect(state.configuration.presetConfigurationVersion).toBe(PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION)
-    expect(state.performance.enabled).toBe(false)
-    expect(state.performance.sharedPerformanceProgramId).toBeNull()
-    expect(preset.params.bassReactivity).toBeGreaterThan(0)
-
-    const expectedRanges = new Map<string, readonly [number, number]>([
-      ['neon-marquee-bass-breath', [0, 0.012]],
-      ['neon-marquee-build-lift', [0, 0.024]],
-      ['neon-marquee-kick-impact', [0, 0.014]],
-      ['neon-marquee-snare-edge', [0, 0.018]],
-      ['neon-marquee-downbeat-structure', [0, 0.016]],
-      ['neon-marquee-drop-impact', [0, 0.026]],
-    ])
-    expect(state.audioAssignments).toHaveLength(expectedRanges.size)
-    for (const assignment of state.audioAssignments) {
-      expect(assignment.target).toBe('brightness')
-      expect(assignment.targetScope).toBe('output')
-      expect(assignment.amount).toBe(1)
-      expect(assignment.outputRange).toEqual(expectedRanges.get(assignment.id))
-      expect(assignment.minimumConfidence).toBeGreaterThan(0)
-      expect(assignment.conditions?.autoPerformanceOnly).not.toBe(true)
-    }
-    expect(state.audioAssignments.every(assignment => !['frameIndex', 'frameAdvance', 'scale', 'positionX', 'positionY', 'opacity'].includes(assignment.target))).toBe(true)
-  })
-
-  it('removes inherited shared performance ownership when migrating this explicitly static preset', () => {
-    const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
-    const applied = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset.pixGridSettings)
-    const contaminated = {
-      ...applied,
-      configuration: {
-        ...applied.configuration,
-        presetConfigurationVersion: PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION - 1,
-      },
-      audioAssignments: applied.audioAssignments.map(assignment => ({
-        ...assignment,
-        amount: assignment.outputRange?.[1] ?? 0,
-        minimumConfidence: 0,
-        ...(assignment.id === 'neon-marquee-bass-breath' || assignment.id === 'neon-marquee-kick-impact'
-          ? { target: 'scale' as const, targetScope: 'layer' as const, targetId: 'neon-marquee-frame' }
-          : {}),
-      })),
-      performance: {
-        ...applied.performance,
-        enabled: true,
-        sharedPerformanceProgramId: 'pix-grid-bass-beacon-performance',
-      },
-    }
-
-    const migrated = migratePixGridState(contaminated, preset)
-    expect(migrated.configuration.presetConfigurationVersion).toBe(PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION)
-    expect(migrated.performance.enabled).toBe(false)
-    expect(migrated.performance.sharedPerformanceProgramId).toBeNull()
-    expect(migrated.audioAssignments.every(assignment => (
-      assignment.target === 'brightness'
-      && assignment.targetScope === 'output'
-      && assignment.amount === 1
-      && assignment.minimumConfidence > 0
-    ))).toBe(true)
-    expect(migrated.configuration.lastMigration?.programsUpgraded).toBe(1)
 
     const reactivePreset = PIX_GRID_PRESET_BY_ID.get('pix-grid-bass-beacon')!
     const reactiveState = applyPixGridPresetSettings(createDefaultPixGridState(), reactivePreset.id, reactivePreset.pixGridSettings)
@@ -399,9 +490,33 @@ describe('PixGrid Neon Marquee Cycle Stage 3 final hardening', () => {
     expect(reactiveMigrated.performance.sharedPerformanceProgramId).toBe('pix-grid-bass-beacon-performance')
   })
 
-  it('reuses Canvas fallback ImageData while preserving the same logical frame', () => {
-    const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
-    const state = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset.pixGridSettings)
+  it('keeps low-confidence, silence, and stop states safe', () => {
+    const state = presetState(true)
+    const assignment = state.audioAssignments.find(candidate => candidate.id === 'neon-marquee-kick-impact')!
+    const lowConfidence = new PixGridReactionRuntime().resolve(assignment, eventFrame({
+      kickHit: true,
+      sourceValues: { kick: 1 },
+      confidence: { kick: 0 },
+      capabilities: { kick: true },
+    })).value
+    expect(lowConfidence).toBe(0)
+
+    const silent = eventFrame({
+      autoPerformanceEnabled: true,
+      bass: 0,
+      kickHit: false,
+      snareHit: false,
+      downbeatHit: false,
+      dropImpactHit: false,
+      sourceValues: { bass: 0, kick: 0, snare: 0, downbeat: 0, dropImpact: 0 },
+    })
+    expect(resolvedLayerScale(state, silent)).toBe(1)
+    const logical = renderWith(silent, state)
+    expect(logical.every(value => Number.isFinite(value))).toBe(true)
+  })
+
+  it('keeps Canvas fallback logical state equivalent and reuses its ImageData allocation', () => {
+    const state = presetState(true)
     const logicalCanvas = { width: 0, height: 0 } as HTMLCanvasElement
     let allocationCount = 0
     const logicalContext = {
@@ -419,28 +534,36 @@ describe('PixGrid Neon Marquee Cycle Stage 3 final hardening', () => {
       drawImage() {},
       strokeRect() {},
     } as unknown as CanvasRenderingContext2D
+    const audioFrame = eventFrame({
+      beatsSinceSectionStart: 2,
+      beatIndex: 202,
+      kickHit: true,
+      sourceValues: { kick: 1 },
+      motionClockSectionBeat: 2,
+    })
     const renderFrame: PixGridBaselineRenderFrame = {
-      ...frame({ sectionType: 'drop', beatsSinceSectionStart: 2, beatIndex: 202, beatPhase: 0.5 }),
+      ...audioFrame,
       width: 640,
       height: 360,
-      motion: 0,
+      motion: 1,
       intensity: 1,
       glow: 0,
-      bassReactivity: 0,
+      bassReactivity: 1,
     }
 
     disposePixGridBaselineRenderer()
-    const first = renderPixGridCanvasFallback(output, { canvas: logicalCanvas, context: logicalContext }, renderFrame, preset, state)
-    const second = renderPixGridCanvasFallback(output, { canvas: logicalCanvas, context: logicalContext }, renderFrame, preset, state)
+    const first = renderPixGridCanvasFallback(output, { canvas: logicalCanvas, context: logicalContext }, renderFrame, PRESET, state)
+    const second = renderPixGridCanvasFallback(output, { canvas: logicalCanvas, context: logicalContext }, renderFrame, PRESET, state)
     expect(allocationCount).toBe(1)
     expect(second.logicalFrame.pixels).toEqual(first.logicalFrame.pixels)
+    expect(resolvePixGridLayerAnimation(state.layers[0], ASSET, audioFrame, 1).frameIndex).toBe(2)
 
     disposePixGridBaselineRenderer()
-    renderPixGridCanvasFallback(output, { canvas: logicalCanvas, context: logicalContext }, renderFrame, preset, state)
+    renderPixGridCanvasFallback(output, { canvas: logicalCanvas, context: logicalContext }, renderFrame, PRESET, state)
     expect(allocationCount).toBe(2)
   })
 
-  it('leaves generic frame-cycle behavior and existing preset configuration unchanged', () => {
+  it('leaves generic frame-cycle behavior and existing preset ownership unchanged', () => {
     const existingPreset = PIX_GRID_PRESET_BY_ID.get('pix-grid-pixel-parade')!
     const existingLayer = existingPreset.pixGridSettings!.layers!.find(layer => layer.assetId === 'pix-equalizer-bars')!
     const existingAsset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get('pix-equalizer-bars')!
@@ -449,20 +572,21 @@ describe('PixGrid Neon Marquee Cycle Stage 3 final hardening', () => {
     expect([0, 2, 4, 6].map(beatIndex => resolvePixGridLayerAnimation(
       existingLayer,
       existingAsset,
-      frame({ beatIndex, sectionType: 'drop' }),
+      frame({ beatIndex, sectionType: 'drop', motionClockBeat: beatIndex }),
       1,
     ).frameIndex)).toEqual([0, 1, 2, 3])
+    expect(existingPreset.pixGridSettings!.performanceProgramId).toBe('pix-grid-pixel-parade-performance')
   })
 
-  it('round-trips the Stage 3 preset through serialization without losing animation or routes', () => {
-    const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
-    const applied = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset.pixGridSettings)
+  it('round-trips the corrected preset without losing nullable ownership or gated routes', () => {
+    const applied = presetState(true)
     const restored = normalizePixGridState(JSON.parse(JSON.stringify(applied)))
 
     expect(restored.selectedPresetId).toBe(PRESET_ID)
     expect(restored.layers[0].animations).toEqual(applied.layers[0].animations)
     expect(restored.audioAssignments.map(assignment => assignment.id)).toEqual(applied.audioAssignments.map(assignment => assignment.id))
-    expect(restored.performance.enabled).toBe(false)
+    expect(restored.audioAssignments.every(assignment => assignment.conditions?.autoPerformanceOnly === true)).toBe(true)
+    expect(restored.performance.enabled).toBe(true)
     expect(restored.performance.sharedPerformanceProgramId).toBeNull()
   })
 })

@@ -42,6 +42,7 @@ export function applyPixGridPresetSettings(
   })) ?? []
   const sceneIds = Object.keys(settings.sceneSettings ?? {})
   const selectedSceneId = settings.selectedSceneId ?? sceneIds[0] ?? safeCurrent.selectedSceneId ?? 'pix-grid-scene-1'
+  const explicitlyClearsPerformanceProgram = settings.performanceProgramId === null
   const scenes = (sceneIds.length > 0 ? sceneIds : [selectedSceneId]).map((id, index) => ({
     id,
     name: pixGridSceneNameFromId(id, index),
@@ -87,7 +88,9 @@ export function applyPixGridPresetSettings(
     performance: {
       ...safeCurrent.performance,
       enabled: settings.performanceEnabled ?? (settings.performanceProgramId ? true : safeCurrent.performance.enabled),
-      sharedPerformanceProgramId: settings.performanceEnabled === false && !settings.performanceProgramId
+      sharedPerformanceProgramId: explicitlyClearsPerformanceProgram
+        ? null
+        : settings.performanceEnabled === false && !settings.performanceProgramId
         ? null
         : settings.performanceProgramId ?? safeCurrent.performance.sharedPerformanceProgramId,
       programOverrides: { routes: {}, sections: {} },

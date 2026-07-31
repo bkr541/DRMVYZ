@@ -515,7 +515,8 @@ export interface PixGridPresetSettings {
   groups?: PixGridGroup[]
   /** Editable authored routes that are not owned by a specific smart group. */
   audioAssignments?: PixGridReactionAssignment[]
-  performanceProgramId?: PixGridPerformanceProgramId
+  /** Null explicitly clears inherited program ownership while preserving the user-facing toggle. */
+  performanceProgramId?: PixGridPerformanceProgramId | null
   /** Explicitly disables inherited runtime programming for static built-in presets. */
   performanceEnabled?: boolean
   sceneSettings?: Record<string, PixGridSceneSettings>
@@ -633,6 +634,12 @@ export interface PixGridAudioFrame {
   motionClockTime?: number
   motionClockBeat?: number
   motionClockBar?: number
+  /** Motion-scaled clocks measured from the resolved section start. */
+  motionClockSectionBeat?: number
+  motionClockSectionBar?: number
+  motionClockSectionProgress?: number
+  /** Section choreography identity held while Motion or transport progression is frozen. */
+  motionClockSectionType?: ReactSectionType | null
   transportState?: 'playing' | 'paused' | 'stopped'
   inputSource?: 'analyser' | 'shared-bus' | 'neutral' | 'editor-preview'
   analyserConnected?: boolean

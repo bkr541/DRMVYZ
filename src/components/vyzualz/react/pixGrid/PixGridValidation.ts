@@ -461,9 +461,11 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
         return normalized ? [normalized] : []
       })
     : undefined
-  const performanceProgramId = PERFORMANCE_PROGRAM_IDS.has(value.performanceProgramId as PixGridPerformanceProgramId)
-    ? (value.performanceProgramId as PixGridPerformanceProgramId)
-    : undefined
+  const performanceProgramId = value.performanceProgramId === null
+    ? null
+    : PERFORMANCE_PROGRAM_IDS.has(value.performanceProgramId as PixGridPerformanceProgramId)
+      ? (value.performanceProgramId as PixGridPerformanceProgramId)
+      : undefined
   const sceneSettings = normalizeSceneSettings(value.sceneSettings)
   return {
     ...(value.authoredConfigurationVersion != null
@@ -486,7 +488,7 @@ export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSet
     ...(layers ? { layers } : {}),
     ...(groups ? { groups } : {}),
     ...(audioAssignments ? { audioAssignments } : {}),
-    ...(performanceProgramId ? { performanceProgramId } : {}),
+    ...(performanceProgramId !== undefined ? { performanceProgramId } : {}),
     ...(value.performanceEnabled != null ? { performanceEnabled: value.performanceEnabled === true } : {}),
     ...(sceneSettings ? { sceneSettings } : {}),
   }
