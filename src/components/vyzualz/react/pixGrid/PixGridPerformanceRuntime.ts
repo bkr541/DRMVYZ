@@ -303,6 +303,8 @@ function groupEffectForAction(
         kind: "visibility",
         amount: action.active ? 1 : 0,
         blend: "replace",
+        membership: "canonical",
+        recruitHidden: action.active,
       };
     case "setGroupBrightness":
       return {
@@ -323,6 +325,8 @@ function groupEffectForAction(
         kind: "flash",
         amount: clamp(action.amount * intensity, 0, 2),
         paletteRole: action.paletteRole,
+        membership: "canonical",
+        recruitHidden: true,
       };
     case "dissolveGroup":
       return {
@@ -361,6 +365,8 @@ function groupEffectForAction(
             : action.from === "center"
               ? "center"
               : "start",
+        membership: "canonical",
+        recruitHidden: true,
       };
     case "revealColumns":
       return {
@@ -374,6 +380,8 @@ function groupEffectForAction(
             : action.from === "center"
               ? "center"
               : "start",
+        membership: "canonical",
+        recruitHidden: true,
       };
     default:
       return null;

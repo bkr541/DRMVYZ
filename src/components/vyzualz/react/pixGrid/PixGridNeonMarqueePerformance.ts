@@ -378,15 +378,15 @@ export const PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS: readonly PixGridReactionAs
     capabilityFallback: 'midHighActivity', color: '#c8b8ff', paletteRole: 'highlight',
     conditions: inSections('verse', 'build', 'drop'), priority: -51,
   }),
-  assignment('neon-marquee-build-recruitment', 'Build light recruitment', 'buildProgress', 'maskExpansion', 'group', [0, 0.32], {
+  assignment('neon-marquee-build-recruitment', 'Build light recruitment', 'buildProgress', 'rowRecruitment', 'group', [0, 1], {
     targetId: 'marquee-perimeter-group', attack: 0.08, release: 0.2, smoothing: 0.05,
-    minimumConfidence: 0.3, capabilityFallback: 'energy', blend: 'max',
+    minimumConfidence: 0.3, capabilityFallback: 'energy', blend: 'replace',
     conditions: inSections('build'), priority: -50,
   }),
-  assignment('neon-marquee-kick-perimeter', 'Kick perimeter punch', 'kick', 'maskExpansion', 'group', [0, 0.16], {
+  assignment('neon-marquee-kick-perimeter', 'Kick perimeter punch', 'kick', 'brightness', 'group', [0, 0.46], {
     targetId: 'marquee-perimeter-group', attack: 0, hold: 0.045, release: 0.16, cooldown: 0.035,
     minimumConfidence: 0.25, perceptualGain: 1.6, minimumEffectiveStrength: 0.18,
-    capabilityFallback: 'beat', blend: 'max',
+    capabilityFallback: 'beat', blend: 'add',
     conditions: inSections('verse', 'build', 'drop'), eventPriority: 120,
   }),
   assignment('neon-marquee-kick-focal', 'Kick focal punch', 'kick', 'brightness', 'group', [0, 0.42], {
@@ -414,6 +414,11 @@ export const PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS: readonly PixGridReactionAs
     minimumConfidence: 0.2, perceptualGain: 1.2, minimumEffectiveStrength: 0.1,
     capabilityFallback: 'midHighActivity', color: '#d8ccff', paletteRole: 'highlight',
     conditions: inSections('build', 'drop'), eventPriority: 136,
+  }),
+  assignment('neon-marquee-downbeat-perimeter', 'Downbeat perimeter synchronization', 'downbeat', 'brightness', 'group', [0, 0.62], {
+    targetId: 'marquee-perimeter-group', attack: 0, hold: 0.055, release: 0.23, cooldown: 0.055,
+    minimumConfidence: 0.2, capabilityFallback: 'beat', blend: 'add',
+    conditions: inSections('intro', 'verse', 'build', 'drop'), eventPriority: 149,
   }),
   assignment('neon-marquee-downbeat-convergence', 'Downbeat light convergence', 'downbeat', 'brightness', 'group', [0, 0.58], {
     targetId: 'marquee-impact-group', attack: 0, hold: 0.055, release: 0.23, cooldown: 0.055,

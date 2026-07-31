@@ -288,6 +288,96 @@ describe('PixGridGpuRenderer', () => {
     }
   })
 
+  it('keeps canonical Marquee recruitment identical across WebGL and Canvas logical paths', () => {
+    const gl = createFakeWebGL2()
+    const canvas = createCanvas(gl)
+    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
+    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const state = normalizePixGridState({
+      ...applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
+      selectedSceneId: `${preset.id}-drop`,
+      globalIntensity: 1,
+      cellBrightness: 1,
+    })
+    const base = renderInput('high')
+    const recruitmentFrame = {
+      ...base.frame,
+      audioTime: 10,
+      beatHit: true,
+      downbeatHit: true,
+      beatPhase: 0,
+      beatIndex: 0,
+      barIndex: 0,
+      beatsSinceSectionStart: 0,
+      barsSinceSectionStart: 0,
+      sectionType: 'drop' as const,
+      motionClockSectionType: 'drop' as const,
+      motionClockSectionBeat: 0,
+      motionClockSectionBar: 0,
+      signClock: 0,
+      motionClockSign: 0,
+      signTransitionClock: null,
+      motionClockSignTransition: null,
+      autoPerformanceEnabled: true,
+      sourceValues: { downbeat: 1 },
+      capabilities: { downbeat: true },
+      confidence: { downbeat: 1 },
+      intensity: 1,
+      glow: 0,
+    }
+
+    expect(renderer.render({
+      ...base,
+      preset,
+      state,
+      frame: recruitmentFrame,
+      reactionRuntime: new PixGridReactionRuntime(),
+    })).toBe(true)
+    const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
+
+    const image = { data: new Uint8ClampedArray(state.matrixWidth * state.matrixHeight * 4) }
+    const logicalContext = {
+      createImageData: vi.fn(() => image),
+      putImageData: vi.fn(),
+    }
+    const outputContext = {
+      save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), strokeRect: vi.fn(),
+      fillStyle: '', strokeStyle: '', globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true, lineWidth: 1,
+    }
+    const fallback = renderPixGridCanvasFallback(
+      outputContext as unknown as CanvasRenderingContext2D,
+      {
+        canvas: { width: state.matrixWidth, height: state.matrixHeight } as HTMLCanvasElement,
+        context: logicalContext as unknown as CanvasRenderingContext2D,
+      },
+      recruitmentFrame,
+      preset,
+      state,
+      undefined,
+      new PixGridReactionRuntime(),
+    )
+    const calm = composePixGridLogicalFrame(
+      preset,
+      state,
+      {
+        ...recruitmentFrame,
+        beatHit: false,
+        downbeatHit: false,
+        sourceValues: { downbeat: 0 },
+      },
+      undefined,
+      undefined,
+      new PixGridReactionRuntime(),
+    )
+    let recruited = 0
+    for (let offset = 3; offset < gpuUpload.length; offset += 4) {
+      recruited += Number(calm.pixels[offset] === 0 && gpuUpload[offset] > 0)
+    }
+
+    expect(Array.from(gpuUpload)).toEqual(Array.from(fallback.logicalFrame.pixels))
+    expect(recruited).toBeGreaterThan(500)
+  })
+
   it('keeps completed Marquee power-off transparent across WebGL and Canvas logical paths', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)

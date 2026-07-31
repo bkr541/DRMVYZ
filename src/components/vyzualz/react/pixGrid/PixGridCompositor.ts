@@ -229,8 +229,8 @@ function renderLayer(
   const audioScale = effectiveScale(layer, frame)
   const scaleX = composedLayerScale(animation.scaleX, audioScale)
   const scaleY = composedLayerScale(animation.scaleY, audioScale)
-  const layerOpacity = clamp01(animation.opacity * effectiveOpacity(layer, scene, frame))
-  if (layerOpacity <= 0) return
+  const finalLayerOpacity = effectiveOpacity(layer, scene, frame)
+  const layerOpacity = clamp01(animation.opacity * finalLayerOpacity)
 
   for (let y = 0; y < height; y += 1) {
     const outputV = (y + 0.5) / height
@@ -238,6 +238,18 @@ function renderLayer(
       const outputU = (x + 0.5) / width
       const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
+
+      // Canonical semantic membership follows the resolved transform and sign
+      // frame, but intentionally precedes blink, reveal, checker, and animated
+      // opacity gates. Recruitment can therefore restore the exact component
+      // color even while authored animation currently hides the cell.
+      const canonicalSample = sampleLayerFrame(layer, u, v, animation.frameIndex)
+      if (canonicalSample.alpha > 0) {
+        const canonicalRole = resolveRole(layer, canonicalSample.role, scene.paletteOffset + animation.paletteOffset)
+        const canonicalColor = canonicalSample.color ?? resolveColor(palette, canonicalRole)
+        groupCompiler?.recordPixel(layer.id, y * width + x, canonicalColor, canonicalSample.alpha * finalLayerOpacity, 'canonical')
+      }
+      if (layerOpacity <= 0) continue
       if (
         !revealContains(v, animation.revealRow, animation.revealRowFrom) ||
         !revealContains(u, animation.revealColumn, animation.revealColumnFrom)
@@ -310,30 +322,33 @@ function renderPreparedAssetLayer(
   const audioScale = effectiveScale(layer, frame)
   const scaleX = composedLayerScale(animation.scaleX, audioScale)
   const scaleY = composedLayerScale(animation.scaleY, audioScale)
-  const opacity = clamp01(animation.opacity * effectiveOpacity(layer, scene, frame))
-  if (opacity <= 0) return
+  const finalLayerOpacity = effectiveOpacity(layer, scene, frame)
+  const opacity = clamp01(animation.opacity * finalLayerOpacity)
   for (let y = 0; y < height; y += 1) {
     const outputV = (y + 0.5) / height
     for (let x = 0; x < width; x += 1) {
       const outputU = (x + 0.5) / width
       const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
+      const sx = Math.max(0, Math.min(preparedAsset.width - 1, Math.floor(u * preparedAsset.width)))
+      const sy = Math.max(0, Math.min(preparedAsset.height - 1, Math.floor(v * preparedAsset.height)))
+      const sourceOffset = (sy * preparedAsset.width + sx) * 4
+      const sourceAlpha = preparedAsset.pixels[sourceOffset + 3] / 255
+      const color = [
+        preparedAsset.pixels[sourceOffset],
+        preparedAsset.pixels[sourceOffset + 1],
+        preparedAsset.pixels[sourceOffset + 2],
+      ] as const
+      if (sourceAlpha > 0) groupCompiler?.recordPixel(layer.id, y * width + x, color, sourceAlpha * finalLayerOpacity, 'canonical')
+      if (opacity <= 0) continue
       if (
         !revealContains(v, animation.revealRow, animation.revealRowFrom) ||
         !revealContains(u, animation.revealColumn, animation.revealColumnFrom)
       )
         continue
       if (animation.checkerAlternate && (Math.floor(u * preparedAsset.width) + Math.floor(v * preparedAsset.height)) % 2 !== 0) continue
-      const sx = Math.max(0, Math.min(preparedAsset.width - 1, Math.floor(u * preparedAsset.width)))
-      const sy = Math.max(0, Math.min(preparedAsset.height - 1, Math.floor(v * preparedAsset.height)))
-      const sourceOffset = (sy * preparedAsset.width + sx) * 4
-      const alpha = (preparedAsset.pixels[sourceOffset + 3] / 255) * opacity
+      const alpha = sourceAlpha * opacity
       if (alpha <= 0) continue
-      const color = [
-        preparedAsset.pixels[sourceOffset],
-        preparedAsset.pixels[sourceOffset + 1],
-        preparedAsset.pixels[sourceOffset + 2],
-      ] as const
       const index = y * width + x
       groupCompiler?.recordPixel(layer.id, index, color, alpha)
       blendPixel(pixels, index * 4, color, alpha, layer.blendMode)
@@ -418,6 +433,7 @@ function composePixGridBaseFrame(
       const alpha = preparedAsset.pixels[offset + 3] / 255
       if (alpha <= 0) continue
       const color = [preparedAsset.pixels[offset], preparedAsset.pixels[offset + 1], preparedAsset.pixels[offset + 2]] as const
+      compiler.recordPixel(null, offset / 4, color, alpha, 'canonical')
       compiler.recordPixel(null, offset / 4, color, alpha)
       blendPixel(pixels, offset, color, alpha, 'normal')
     }
@@ -435,6 +451,7 @@ function composePixGridBaseFrame(
       continue
     }
     const overrideColor = hexToRgb(color)
+    compiler.recordPixel(null, y * width + x, overrideColor, opacity, 'canonical')
     compiler.recordPixel(null, y * width + x, overrideColor, opacity)
     blendPixel(pixels, offset, overrideColor, opacity, 'normal')
   }
@@ -462,7 +479,7 @@ function composePixGridBaseFrame(
 
   for (const group of state.groups) {
     if (group.contentVisible !== false) continue
-    const mask = compiler.compile(group)
+    const mask = compiler.compile(group, 'canonical')
     for (let index = 0; index < width * height; index += 1) {
       if (!pixGridMaskHasCell(mask.bits, index)) continue
       const offset = index * 4

@@ -1,7 +1,7 @@
 import type { ReactPalette } from '../ReactTypes'
 import { compilePixGridGroupMask, pixGridMaskHasCell } from './PixGridGroups'
 import type { PixGridAudioFrame, PixGridGroup, PixGridPaletteRole } from './PixGridTypes'
-import type { PixGridCompiledGroupMaskResolver } from './PixGridGroupCompiler'
+import type { PixGridCompiledGroupMaskResolver, PixGridGroupMembership } from './PixGridGroupCompiler'
 
 export type PixGridFrameEffectSource = 'performance' | 'cue' | 'manual'
 export type PixGridFrameEffectStage = 'persistent' | 'event' | 'manual'
@@ -34,6 +34,10 @@ export interface PixGridGroupFrameEffect {
   y?: number
   from?: 'start' | 'end' | 'center'
   seed?: number
+  /** Selects post-animation or frame-aware semantic group membership. */
+  membership?: PixGridGroupMembership
+  /** Restores canonical source pixels before applying this effect. */
+  recruitHidden?: boolean
 }
 
 export const MAX_PIX_GRID_FRAME_GROUP_EFFECTS = 64
@@ -246,12 +250,20 @@ export function applyPixGridGroupFrameEffects(
   for (const effect of ordered) {
     const group = groupById.get(effect.groupId)
     if (!group || !group.enabled || !effectAppliesToActiveLayers(group, activeLayerIds)) continue
-    let compiled = compiledByGroupId.get(group.id)
+    const membership = effect.membership ?? 'rendered'
+    const compiledKey = `${membership}:${group.id}`
+    let compiled = compiledByGroupId.get(compiledKey)
     if (!compiled) {
-      compiled = maskResolver?.compile(group) ?? compilePixGridGroupMask(group, width, height)
-      compiledByGroupId.set(group.id, compiled)
+      compiled = maskResolver?.compile(group, membership) ?? compilePixGridGroupMask(group, width, height)
+      compiledByGroupId.set(compiledKey, compiled)
     }
     if (!compiled.cellCount) continue
+    if (effect.recruitHidden && effect.amount > 0) {
+      const opacityScale = effect.kind === 'brightness' || effect.kind === 'flash' || effect.kind === 'opacity'
+        ? clamp(effect.amount)
+        : 1
+      maskResolver?.restorePixels(group, pixels, compiled.bits, opacityScale)
+    }
     applyEffect(pixels, width, height, compiled.bits, effect, palette, frame)
   }
 }

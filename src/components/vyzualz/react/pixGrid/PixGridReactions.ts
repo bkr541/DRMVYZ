@@ -1,6 +1,6 @@
 import type { ReactPalette } from '../ReactTypes'
 import type { PixGridCompiledAssignment } from './PixGridAssignmentCompiler'
-import type { PixGridCompiledGroupMaskResolver } from './PixGridGroupCompiler'
+import type { PixGridCompiledGroupMaskResolver, PixGridGroupMembership } from './PixGridGroupCompiler'
 import { MAX_PIX_GRID_ACTIVE_REACTIONS } from './PixGridLimits'
 import { isPixGridContinuousReactionSource, PixGridReactionRuntime } from './PixGridAudioRouting'
 import { resolvePixGridPerceptualStrength } from './PixGridPerceptualCalibration'
@@ -9,6 +9,43 @@ import type { PixGridAudioFrame, PixGridGroup, PixGridLayer, PixGridPaletteRole,
 
 function clamp(value: number, min = 0, max = 1): number {
   return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min))
+}
+
+const CANONICAL_RECRUITMENT_TARGETS = new Set([
+  'reveal',
+  'blink',
+  'opacity',
+  'rowRecruitment',
+  'columnRecruitment',
+  'maskExpansion',
+  'groupRecruitment',
+  'outlineFlash',
+  'sparkle',
+  'sparkleDensity',
+])
+
+const EVENT_OVERRIDE_TARGETS = new Set([
+  'brightness',
+  'color',
+  'highlightColor',
+  'paletteRole',
+  'outlineIntensity',
+])
+
+function reactionMembership(
+  assignment: PixGridReactionAssignment,
+  compiled: PixGridCompiledAssignment,
+): PixGridGroupMembership {
+  if (CANONICAL_RECRUITMENT_TARGETS.has(compiled.target.id)) return 'canonical'
+  if (!isPixGridContinuousReactionSource(assignment.source) && EVENT_OVERRIDE_TARGETS.has(compiled.target.id)) return 'canonical'
+  return 'rendered'
+}
+
+function recruitmentOpacityScale(target: string, strength: number): number {
+  if (target === 'brightness' || target === 'opacity' || target === 'color' || target === 'highlightColor' || target === 'paletteRole') {
+    return clamp(Math.abs(strength))
+  }
+  return 1
 }
 
 function hash(value: string): number {
@@ -344,8 +381,7 @@ export function applyPixGridGroupReactions(
   for (const group of activeGroups) {
     if (activeReactionCount >= MAX_PIX_GRID_ACTIVE_REACTIONS) break
     if (!groupAppliesToActiveLayers(group, activeLayerIds)) continue
-    const compiled = maskResolver?.compile(group) ?? compilePixGridGroupMask(group, width, height)
-    if (compiled.cellCount === 0) continue
+    const compiledMasks = new Map<PixGridGroupMembership, ReturnType<typeof compilePixGridGroupMask>>()
     const claim = group.overlapBehavior === 'exclusive' || group.overlapBehavior === 'replace'
     const assignments = [
       ...group.reactions.map(assignment => ({ assignment, routeId: `group:${group.id}:${assignment.id}`, defaultScope: 'group' as const })),
@@ -365,6 +401,13 @@ export function applyPixGridGroupReactions(
       const compiledAssignment = runtime.compile(assignment, frame, route.defaultScope, route.routeId)
       if (compiledAssignment.targetScope !== 'group' && compiledAssignment.targetScope !== 'pixels') continue
       if (compiledAssignment.target.runtimeHandler !== 'pixel' && compiledAssignment.target.runtimeHandler !== 'transform' && compiledAssignment.target.runtimeHandler !== 'postProcess') continue
+      const membership = reactionMembership(assignment, compiledAssignment)
+      let compiled = compiledMasks.get(membership)
+      if (!compiled) {
+        compiled = maskResolver?.compile(group, membership) ?? compilePixGridGroupMask(group, width, height)
+        compiledMasks.set(membership, compiled)
+      }
+      if (compiled.cellCount === 0) continue
       activeReactionCount += 1
       const resolved = runtime.resolveCompiled(
         compiledAssignment,
@@ -374,6 +417,14 @@ export function applyPixGridGroupReactions(
       )
       if (!resolved.active) continue
       const strength = resolvePixGridPerceptualStrength(compiledAssignment, resolved.value, compiled.cellCount, width * height)
+      if (membership === 'canonical' && Math.abs(strength) > 0) {
+        maskResolver?.restorePixels(
+          group,
+          pixels,
+          compiled.bits,
+          recruitmentOpacityScale(compiledAssignment.target.id, strength),
+        )
+      }
       applyPixelReaction(pixels, width, height, compiled.bits, assignment, compiledAssignment, strength, frame, group, palette, claimed, claim)
     }
   }
