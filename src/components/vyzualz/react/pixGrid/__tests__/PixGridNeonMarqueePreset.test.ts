@@ -50,7 +50,7 @@ function rgbaFromRgb(rgb: Uint8Array): Uint8Array {
   return rgba
 }
 
-describe('PixGrid Neon Marquee Cycle Stage 1 foundation', () => {
+describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
   it('registers a fixed High-quality built-in preset and native four-frame asset', () => {
     expect(PIX_GRID_PRESET_IDS).toContain(PRESET_ID)
     expect(DEFAULT_REACT_PRESETS.some(preset => preset.id === PRESET_ID && preset.engine === 'pixGrid')).toBe(true)
@@ -77,7 +77,7 @@ describe('PixGrid Neon Marquee Cycle Stage 1 foundation', () => {
     expect(new Set(frames.map(fnv1a)).size).toBe(4)
   })
 
-  it('holds Frame 1 statically with exact transform, no inherited performance, and no sampling drift', () => {
+  it('keeps the Stage 1 native frame exact at the stopped baseline while attaching Stage 2 programming', () => {
     const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)
     expect(preset).toBeDefined()
     const state = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, preset?.pixGridSettings)
@@ -90,7 +90,14 @@ describe('PixGrid Neon Marquee Cycle Stage 1 foundation', () => {
     expect(state.performance.enabled).toBe(false)
     expect(state.performance.sharedPerformanceProgramId).toBeNull()
     expect(state.groups).toEqual([])
-    expect(state.audioAssignments).toEqual([])
+    expect(state.audioAssignments.map(assignment => assignment.id)).toEqual([
+      'neon-marquee-bass-breath',
+      'neon-marquee-build-lift',
+      'neon-marquee-kick-impact',
+      'neon-marquee-snare-edge',
+      'neon-marquee-downbeat-structure',
+      'neon-marquee-drop-impact',
+    ])
     expect(layer).toMatchObject({
       assetId: ASSET_ID,
       position: { x: 0.5, y: 0.5 },
@@ -98,7 +105,7 @@ describe('PixGrid Neon Marquee Cycle Stage 1 foundation', () => {
       rotation: 0,
       opacity: 1,
       blendMode: 'normal',
-      animations: [],
+      animations: [{ mode: 'frameCycle', clock: 'beat', speed: 1, amount: 1, stepped: true }],
     })
 
     const logical = composePixGridLogicalFrame(preset!, state, STATIC_FRAME)

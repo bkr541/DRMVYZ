@@ -7,6 +7,10 @@ import {
   PIXEL_PARADE_AUDIO_ASSIGNMENTS,
   PIXEL_PARADE_GROUPS,
 } from './PixGridAuthoredPresetAssignments'
+import {
+  PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS,
+  PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION,
+} from './PixGridNeonMarqueePerformance'
 import type { PixGridLayer, PixGridPresetSettings, PixGridSceneSettings } from './PixGridTypes'
 
 export const PIX_GRID_PRESET_IDS = [
@@ -428,7 +432,7 @@ const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
     opacity: 1,
     blendMode: 'normal',
     clipMode: 'clip',
-    animations: [],
+    animations: [animation('frameCycle', 1, 1, { clock: 'beat', stepped: true })],
     zIndex: 0,
     densityRank: 0,
     seed: 1207,
@@ -670,11 +674,12 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
   preset(
     'pix-grid-neon-marquee-cycle',
     'Marquee Sign Cycle',
-    'Four supplied illuminated marquee frames in deterministic Base, Rise, Peak, and Release order; Stage 1 holds the MARYS base frame as a static native PixGrid scene.',
+    'Four supplied illuminated marquee frames sequenced as a deterministic, section-aware Base, Rise, Peak, and Release performance with bounded musical impacts.',
     'pix-grid-neon-marquee-cycle',
     { primary: '#ffffff', secondary: '#ffffff', accent: '#ffffff', background: '#000000', highlight: '#ffffff', text: '#ffffff' },
-    { intensity: 1, motion: 0, glow: 0, bassReactivity: 0 },
+    { intensity: 0.92, motion: 0.35, glow: 0.08, bassReactivity: 0.72 },
     {
+      authoredConfigurationVersion: PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION,
       pattern: 'neonMarqueeCycle',
       quality: 'high',
       qualityMode: 'fixed',
@@ -691,16 +696,22 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       selectedSceneId: 'pix-grid-neon-marquee-cycle-intro',
       layers: NEON_MARQUEE_CYCLE_LAYERS,
       groups: [],
-      audioAssignments: [],
+      audioAssignments: [...PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS],
       performanceEnabled: false,
-      sceneSettings: sceneSettings('pix-grid-neon-marquee-cycle', Object.fromEntries(
-        SECTION_TYPES.map(sectionType => [sectionType, { density: 1, motionMultiplier: 0, paletteOffset: 0 }]),
-      ) as Partial<Record<ReactSectionType, Partial<PixGridSceneSettings>>>),
+      sceneSettings: sceneSettings('pix-grid-neon-marquee-cycle', {
+        intro: { density: 1, motionMultiplier: 0, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
+        verse: { density: 1, motionMultiplier: 0, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
+        build: { density: 1, motionMultiplier: 0, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
+        preDrop: { density: 1, motionMultiplier: 0, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
+        drop: { density: 1, motionMultiplier: 0, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
+        breakdown: { density: 1, motionMultiplier: 0, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
+        outro: { density: 1, motionMultiplier: 0, paletteOffset: 0, layerOpacity: { 'neon-marquee-frame': 1 } },
+      }),
     },
     {
-      intensity: [1, 1, 1, 1, 1, 1, 1],
-      motion: [0, 0, 0, 0, 0, 0, 0],
-      glow: [0, 0, 0, 0, 0, 0, 0],
+      intensity: [0.84, 0.92, 0.96, 0.86, 1, 0.78, 0.72],
+      motion: [0.02, 0.12, 0.28, 0.02, 0.42, 0.04, 0.02],
+      glow: [0, 0, 0.02, 0, 0.04, 0, 0],
     },
   ),
 ]

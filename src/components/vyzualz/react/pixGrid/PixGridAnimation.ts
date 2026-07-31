@@ -4,6 +4,10 @@ import type {
   PixGridLayer,
   PixGridLayerAnimation,
 } from './PixGridTypes'
+import {
+  PIX_GRID_NEON_MARQUEE_ASSET_ID,
+  resolvePixGridNeonMarqueePerformance,
+} from './PixGridNeonMarqueePerformance'
 import { resolvePixGridMotionMultiplier } from './PixGridRuntimeControls'
 
 export interface PixGridResolvedLayerAnimation {
@@ -159,6 +163,14 @@ export function resolvePixGridLayerAnimation(
         resolved.checkerAlternate = Math.floor(time) % 2 !== 0
         break
       case 'frameCycle': {
+        if (asset.id === PIX_GRID_NEON_MARQUEE_ASSET_ID) {
+          const performance = resolvePixGridNeonMarqueePerformance(frame)
+          resolved.frameIndex = performance.frameIndex
+          resolved.scaleX *= performance.scaleMultiplier
+          resolved.scaleY *= performance.scaleMultiplier
+          resolved.opacity *= performance.opacityMultiplier
+          break
+        }
         const count = Math.max(1, asset.frameCount ?? 1)
         const rawFrame = Math.floor(time * Math.max(1, amount || 1))
         resolved.frameIndex = ((rawFrame % count) + count) % count
