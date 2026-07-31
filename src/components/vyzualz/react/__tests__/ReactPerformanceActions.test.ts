@@ -58,18 +58,27 @@ describe('React visual performance action registry', () => {
     expect(resolvePerformancePadKeyboardRoute('?', actions)).toBeNull()
   })
 
-  it('ignores input, textarea, select, and content-editable keyboard targets', () => {
+  it('ignores form fields, content-editable regions, and shared dropdown keyboard targets', () => {
     const input = document.createElement('input')
     const textarea = document.createElement('textarea')
     const select = document.createElement('select')
     const editable = document.createElement('div')
     editable.contentEditable = 'true'
     Object.defineProperty(editable, 'isContentEditable', { value: true })
+    const dropdown = document.createElement('div')
+    dropdown.className = 'drm-dropdown'
+    const combobox = document.createElement('button')
+    combobox.setAttribute('role', 'combobox')
+    const comboboxLabel = document.createElement('span')
+    combobox.appendChild(comboboxLabel)
+    dropdown.appendChild(combobox)
 
     expect(isFormFieldKeyboardTarget(input)).toBe(true)
     expect(isFormFieldKeyboardTarget(textarea)).toBe(true)
     expect(isFormFieldKeyboardTarget(select)).toBe(true)
     expect(isFormFieldKeyboardTarget(editable)).toBe(true)
+    expect(isFormFieldKeyboardTarget(combobox)).toBe(true)
+    expect(isFormFieldKeyboardTarget(comboboxLabel)).toBe(true)
     expect(isFormFieldKeyboardTarget(document.createElement('button'))).toBe(false)
   })
 })

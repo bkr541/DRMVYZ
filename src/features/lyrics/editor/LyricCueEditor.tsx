@@ -32,6 +32,7 @@ import {
 } from '../../timeline/timelineOverlays'
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
 import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
+import { isKeyboardInputTarget } from '../../../utils/keyboardTargets'
 
 export type LyricCueFilter = 'all' | 'unreviewed' | 'low-confidence' | 'warnings' | 'empty-text'
 export type LyricBeatGridStatus = 'trusted' | 'temporary' | 'not-loaded' | 'analyzing' | 'failed' | 'missing' | 'no-track'
@@ -334,8 +335,7 @@ export function LyricCueEditor({
       ref={rootRef}
       className="lyric-cue-editor-root"
       onKeyDown={event => {
-        const target = event.target as HTMLElement
-        if (target.matches('input, textarea, select') || target.isContentEditable) return
+        if (isKeyboardInputTarget(event.target)) return
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
         event.preventDefault()
         if (event.shiftKey) redoCueEdit()

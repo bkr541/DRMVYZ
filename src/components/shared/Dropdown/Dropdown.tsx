@@ -81,6 +81,28 @@ interface MenuPosition {
   placement: 'above' | 'below'
 }
 
+interface DropdownOptionRun {
+  group: string | null
+  startIndex: number
+  options: DropdownOption[]
+}
+
+function buildOptionRuns(options: readonly DropdownOption[]): DropdownOptionRun[] {
+  const runs: DropdownOptionRun[] = []
+
+  options.forEach((option, index) => {
+    const group = option.group ?? null
+    const current = runs[runs.length - 1]
+    if (!current || current.group !== group) {
+      runs.push({ group, startIndex: index, options: [option] })
+      return
+    }
+    current.options.push(option)
+  })
+
+  return runs
+}
+
 function findFirstEnabled(options: readonly DropdownOption[]): number {
   return options.findIndex(option => !option.disabled)
 }
@@ -216,14 +238,17 @@ export function Dropdown({
 
   const chooseOption = useCallback((option: DropdownOption) => {
     if (disabled || option.disabled) return
-    if (!valueIsControlled) setInternalValue(option.value)
-    onChange?.(option.value, option)
+    const valueChanged = option.value !== selectedValue
+    if (valueChanged) {
+      if (!valueIsControlled) setInternalValue(option.value)
+      onChange?.(option.value, option)
+    }
     if (searchable && clearSearchOnSelect) {
       if (!searchIsControlled) setInternalSearchValue('')
       onSearchChange?.('')
     }
     closeMenu(true)
-  }, [clearSearchOnSelect, closeMenu, disabled, onChange, onSearchChange, searchable, searchIsControlled, valueIsControlled])
+  }, [clearSearchOnSelect, closeMenu, disabled, onChange, onSearchChange, searchable, searchIsControlled, selectedValue, valueIsControlled])
 
   const updateMenuPosition = useCallback(() => {
     const trigger = searchable ? searchTriggerRef.current : triggerRef.current
@@ -492,6 +517,48 @@ export function Dropdown({
         maxHeight: maxMenuHeight,
         visibility: 'hidden',
       }
+  const optionRuns = useMemo(() => buildOptionRuns(options), [options])
+
+  const renderOption = (option: DropdownOption, index: number) => {
+    const selected = option.value === selectedValue
+    const active = index === activeIndex
+    const optionClassName = [
+      'drm-dropdown__option',
+      selected ? 'drm-dropdown__option--selected' : '',
+      active ? 'drm-dropdown__option--active' : '',
+      option.disabled ? 'drm-dropdown__option--disabled' : '',
+      showDescriptions && option.description ? 'drm-dropdown__option--described' : '',
+    ].filter(Boolean).join(' ')
+
+    return (
+      <div
+        key={`${option.value}-${index}`}
+        id={`${baseId}-option-${index}`}
+        className={optionClassName}
+        role="option"
+        aria-selected={selected}
+        aria-disabled={option.disabled || undefined}
+        onPointerMove={() => {
+          if (!option.disabled) setActiveIndex(index)
+        }}
+        onPointerDown={event => {
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+        onClick={() => chooseOption(option)}
+      >
+        <span className="drm-dropdown__selection-indicator" aria-hidden="true">
+          {selected && <span className="drm-dropdown__selection-dot" />}
+        </span>
+        <span className="drm-dropdown__option-copy">
+          <span className="drm-dropdown__option-label" style={option.style}>{option.label}</span>
+          {showDescriptions && option.description && (
+            <span className="drm-dropdown__option-description">{option.description}</span>
+          )}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className={wrapperClassName} data-open={isOpen ? 'true' : 'false'}>
@@ -607,51 +674,28 @@ export function Dropdown({
           <div className="drm-dropdown__options">
             {options.length === 0 ? (
               <div className="drm-dropdown__empty">{emptyMessage}</div>
-            ) : options.map((option, index) => {
-              const selected = option.value === selectedValue
-              const active = index === activeIndex
-              const showGroup = option.group != null && option.group !== options[index - 1]?.group
-              const optionClassName = [
-                'drm-dropdown__option',
-                selected ? 'drm-dropdown__option--selected' : '',
-                active ? 'drm-dropdown__option--active' : '',
-                option.disabled ? 'drm-dropdown__option--disabled' : '',
-                showDescriptions && option.description ? 'drm-dropdown__option--described' : '',
-              ].filter(Boolean).join(' ')
+            ) : optionRuns.map((run, runIndex) => {
+              if (run.group == null) {
+                return (
+                  <Fragment key={`ungrouped-${run.startIndex}`}>
+                    {run.options.map((option, offset) => renderOption(option, run.startIndex + offset))}
+                  </Fragment>
+                )
+              }
 
+              const groupLabelId = `${baseId}-group-${runIndex}-label`
               return (
-                <Fragment key={`${option.value}-${index}`}>
-                  {showGroup && (
-                    <div className="drm-dropdown__group-label" role="presentation">
-                      {option.group}
-                    </div>
-                  )}
-                  <div
-                    id={`${baseId}-option-${index}`}
-                    className={optionClassName}
-                    role="option"
-                    aria-selected={selected}
-                    aria-disabled={option.disabled || undefined}
-                    onPointerMove={() => {
-                      if (!option.disabled) setActiveIndex(index)
-                    }}
-                    onPointerDown={event => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                    }}
-                    onClick={() => chooseOption(option)}
-                  >
-                    <span className="drm-dropdown__selection-indicator" aria-hidden="true">
-                      {selected && <span className="drm-dropdown__selection-dot" />}
-                    </span>
-                    <span className="drm-dropdown__option-copy">
-                      <span className="drm-dropdown__option-label" style={option.style}>{option.label}</span>
-                      {showDescriptions && option.description && (
-                        <span className="drm-dropdown__option-description">{option.description}</span>
-                      )}
-                    </span>
+                <div
+                  key={`${run.group}-${run.startIndex}`}
+                  className="drm-dropdown__group"
+                  role="group"
+                  aria-labelledby={groupLabelId}
+                >
+                  <div id={groupLabelId} className="drm-dropdown__group-label">
+                    {run.group}
                   </div>
-                </Fragment>
+                  {run.options.map((option, offset) => renderOption(option, run.startIndex + offset))}
+                </div>
               )
             })}
           </div>

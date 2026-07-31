@@ -20,6 +20,7 @@ import type { PixGridEditorTool, PixGridState } from './PixGridTypes'
 import { activePixGridGroups, compilePixGridGroupMask } from './PixGridGroups'
 import { samplePixGridCanvasColor } from './PixGridLiveCanvas'
 import { DropdownSelect } from '../../../shared/Dropdown/Dropdown'
+import { isKeyboardInputTarget } from '../../../../utils/keyboardTargets'
 
 interface PointerOperation {
   pointerId: number
@@ -56,8 +57,7 @@ const TOOL_BY_SHORTCUT = new Map(TOOL_DEFINITIONS.map(definition => [definition.
 const PIXEL_EDIT_TOOLS = new Set<PixGridEditorTool>(['pencil', 'eraser', 'fill', 'rectangle', 'line', 'move'])
 
 function isTypingTarget(target: EventTarget | null): boolean {
-  const element = target instanceof HTMLElement ? target : null
-  return Boolean(element?.isContentEditable || element?.closest('input, textarea, select, [contenteditable="true"]'))
+  return isKeyboardInputTarget(target)
 }
 
 function editFor(state: PixGridState) {

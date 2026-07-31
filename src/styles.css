@@ -29,7 +29,7 @@ body { background:#090d0f; color:var(--text); font-family:var(--font-mono);
        -webkit-font-smoothing:antialiased; }
 canvas { display:block; }
 button { font-family:var(--font-mono); }
-select,input { font-family:var(--font-mono); }
+input { font-family:var(--font-mono); }
 
 /* ── App Root ───────────────────────────────────────────────────────────────── */
 .app-root {

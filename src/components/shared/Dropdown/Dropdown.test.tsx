@@ -106,6 +106,29 @@ describe('Dropdown', () => {
     expect(document.body.querySelector('[role="listbox"]')).toBeNull()
   })
 
+  it('closes without firing onChange when the selected option is chosen again', () => {
+    const onChange = vi.fn()
+    renderDropdown(
+      <Dropdown
+        ariaLabel="Camera mode"
+        defaultValue="orbit"
+        options={OPTIONS}
+        onChange={onChange}
+      />,
+    )
+
+    const trigger = container?.querySelector('[role="combobox"]') as Element
+    click(trigger)
+    const selected = document.body.querySelector('[role="option"][aria-selected="true"]')
+    expect(selected).not.toBeNull()
+
+    click(selected as Element)
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(document.body.querySelector('[role="listbox"]')).toBeNull()
+  })
+
   it('supports arrow-key navigation and skips disabled options', () => {
     const onChange = vi.fn()
     const options: readonly DropdownOption[] = [
@@ -155,6 +178,30 @@ describe('Dropdown', () => {
     expect(container?.querySelector('[role="combobox"]')?.textContent).toContain('Orbit')
   })
 
+  it('preserves native optgroup semantics with labelled option groups', () => {
+    renderDropdown(
+      <DropdownSelect aria-label="Signal source" defaultValue="kick">
+        <optgroup label="Detected">
+          <option value="kick">Kick</option>
+          <option value="snare">Snare</option>
+        </optgroup>
+        <optgroup label="Transport">
+          <option value="beat">Beat</option>
+        </optgroup>
+      </DropdownSelect>,
+    )
+
+    const trigger = container?.querySelector('[role="combobox"]') as Element
+    click(trigger)
+
+    const groups = [...document.body.querySelectorAll('[role="group"]')]
+    expect(groups).toHaveLength(2)
+    expect(groups[0]?.getAttribute('aria-labelledby')).toBeTruthy()
+    expect(groups[0]?.textContent).toContain('Detected')
+    expect(groups[0]?.querySelectorAll('[role="option"]')).toHaveLength(2)
+    expect(groups[1]?.textContent).toContain('Transport')
+    expect(groups[1]?.querySelectorAll('[role="option"]')).toHaveLength(1)
+  })
 
   it('adapts native option children while preserving the existing change contract', () => {
     const onChange = vi.fn()

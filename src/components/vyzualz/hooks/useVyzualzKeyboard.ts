@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { isKeyboardInputTarget } from '../../../utils/keyboardTargets'
 
 type UseVyzualzKeyboardOptions = {
   enabled?: boolean
@@ -19,13 +20,7 @@ export function useVyzualzKeyboard({
     if (!enabled) return
 
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target
-      if (
-        t instanceof HTMLInputElement ||
-        t instanceof HTMLTextAreaElement ||
-        t instanceof HTMLSelectElement ||
-        (t instanceof HTMLElement && t.isContentEditable)
-      ) return
+      if (isKeyboardInputTarget(e.target)) return
       if (e.key === 'f' || e.key === 'F') onFullscreen?.()
       if (e.key === ' ') { e.preventDefault(); onPlayPause?.() }
       if (e.key >= '1' && e.key <= '5') {

@@ -1,3 +1,4 @@
+import { isKeyboardInputTarget } from '../../../utils/keyboardTargets'
 import type { CinematicWorldMode } from './CinematicWorldConfig'
 import type { CanvasPresetId, ReactEngineId } from './ReactTypes'
 
@@ -180,9 +181,5 @@ export function getReactPerformanceActionsForTarget(
 }
 
 export function isFormFieldKeyboardTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  return target instanceof HTMLInputElement
-    || target instanceof HTMLTextAreaElement
-    || target instanceof HTMLSelectElement
-    || target.isContentEditable === true
+  return isKeyboardInputTarget(target)
 }

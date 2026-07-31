@@ -43,6 +43,7 @@ import {
   timeToPx, pxToTime, fmtTimelineLabel, fmtSec, clampSec, snapSec, rulerTickInterval,
 } from './timeline/tlHelpers'
 import { DropdownSelect } from '../shared/Dropdown/Dropdown'
+import { isKeyboardInputTarget } from '../../utils/keyboardTargets'
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -1481,8 +1482,7 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      const el = e.target as HTMLElement
-      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable) return
+      if (isKeyboardInputTarget(e.target)) return
       if (!selected) return
       e.preventDefault()
       if (selected.kind === 'bg')      { removeTimelineClip(selected.id);    setSelected(null) }

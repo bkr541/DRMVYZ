@@ -28,6 +28,7 @@ import { SHOW_DIRECTOR_FIXTURE_DRAG_TYPE } from './LaserDmxShowDirectorPalette'
 import { scannerPointsToBeamTargets, updateLaserDmxScannerPoint } from './laserDmxScannerAuthoring'
 import { triggerPatchForRecipe, type LaserDmxShowDirectorTriggerRecipe } from './laserDmxShowDirectorTriggerRecipes'
 import { resolveLaserDmxPresentationVisibility } from './renderers/laserDmx/LaserDmxRendererBackend'
+import { isKeyboardInputTarget } from '../../../utils/keyboardTargets'
 
 interface LaserDmxShowDirectorCanvasProps {
   fixtures: LaserDmxShowDirectorFixture[]
@@ -533,10 +534,7 @@ function isSelectionModifier(event: { metaKey: boolean; ctrlKey: boolean }): boo
 }
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
-  const element = target instanceof HTMLElement ? target : null
-  if (!element) return false
-  if (element.isContentEditable) return true
-  return element.closest('input, textarea, select, [contenteditable="true"]') !== null
+  return isKeyboardInputTarget(target)
 }
 
 const SHOW_DIRECTOR_FLOATING_MENU_MARGIN = 12

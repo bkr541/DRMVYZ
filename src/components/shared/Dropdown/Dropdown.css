@@ -316,6 +316,11 @@
   scrollbar-width: thin;
 }
 
+.drm-dropdown__group {
+  display: block;
+  min-width: 0;
+}
+
 .drm-dropdown__group-label {
   padding: 8px 10px 4px;
   color: var(--drm-dropdown-muted);
