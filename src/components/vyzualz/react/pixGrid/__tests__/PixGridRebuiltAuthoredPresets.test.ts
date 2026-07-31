@@ -32,6 +32,14 @@ const PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS = PIX_GRID_MUSIC_REACTIVE_PRESETS.fi
   preset => Boolean(preset.pixGridSettings?.performanceProgramId),
 )
 
+// These three presets share the earlier rebuilt-authored contract (v8, per-group
+// reactions, and paired geometric impact masks). Marquee uses its preserved
+// Stage 1 semantic graph plus preset-owned routes and is covered by the focused
+// Marquee architecture/animation suites below the shared runtime contracts.
+const LEGACY_REBUILT_PROGRAM_BACKED_PRESETS = PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS.filter(
+  preset => preset.id !== 'pix-grid-neon-marquee-cycle',
+)
+
 const SECTIONS: ReactTrackSection[] = [
   { id: 'intro', label: 'Intro', type: 'intro', startSec: 0, endSec: 8, intensity: 0.25, source: 'auto', confidence: 0.98 },
   { id: 'verse', label: 'Verse', type: 'verse', startSec: 8, endSec: 24, intensity: 0.5, source: 'auto', confidence: 0.98 },
@@ -247,9 +255,9 @@ function renderPerformance(preset: ReactPreset, timeSec: number): PixGridLogical
 describe('rebuilt first-party PixGrid preset contracts', () => {
   it('ships bounded, editable, versioned assignments and complete choreography plans', () => {
     expect(validatePixGridPerformancePrograms().filter(issue => issue.severity === 'error')).toEqual([])
-    expect(PIX_GRID_PERFORMANCE_PROGRAMS).toHaveLength(3)
+    expect(PIX_GRID_PERFORMANCE_PROGRAMS).toHaveLength(4)
 
-    for (const preset of PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS) {
+    for (const preset of LEGACY_REBUILT_PROGRAM_BACKED_PRESETS) {
       const settings = preset.pixGridSettings!
       const groups = settings.groups ?? []
       const audioAssignments = settings.audioAssignments ?? []
@@ -291,7 +299,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
       ['parade-lower-kick-lane-group', 'parade-upper-snare-lane-group'],
     ] as const
 
-    for (const [index, preset] of PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS.entries()) {
+    for (const [index, preset] of LEGACY_REBUILT_PROGRAM_BACKED_PRESETS.entries()) {
       const program = PIX_GRID_PERFORMANCE_PROGRAMS.find(candidate => candidate.id === preset.pixGridSettings!.performanceProgramId)!
       const buildPlan = program.sectionPlans.find(plan => plan.sectionTypes.includes('build'))!
       const preDropPlan = program.sectionPlans.find(plan => plan.sectionTypes.includes('preDrop'))!
@@ -349,7 +357,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
   })
 
   it('persists authored edits and resets both group and preset-owned assignments to defaults', () => {
-    for (const preset of PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS) {
+    for (const preset of LEGACY_REBUILT_PROGRAM_BACKED_PRESETS) {
       const original = stateFor(preset)
       const edited = normalizePixGridState(JSON.parse(JSON.stringify({
         ...original,
@@ -392,7 +400,7 @@ describe('rebuilt first-party PixGrid preset contracts', () => {
       { reactionId: 'parade-hero-kick-step', groupId: 'parade-hero-group', source: 'kick' },
     ] as const
 
-    for (const [index, preset] of PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS.entries()) {
+    for (const [index, preset] of LEGACY_REBUILT_PROGRAM_BACKED_PRESETS.entries()) {
       for (const palette of palettes) {
         const themedPreset: ReactPreset = { ...preset, palette: { ...palette } }
         const route = routes[index]

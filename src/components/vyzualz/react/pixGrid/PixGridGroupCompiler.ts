@@ -20,6 +20,8 @@ interface SourceTarget {
   pixels: Uint8Array
 }
 
+let nextFrameGroupCompilerInstanceId = 1
+
 /**
  * Builds renderer-native group masks from the same layer samples used by the
  * logical compositor. Buffers are retained and cleared between frames, so
@@ -27,6 +29,7 @@ interface SourceTarget {
  * graphs. Static run/geometric masks continue through the shared mask cache.
  */
 export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolver {
+  private readonly instanceId = nextFrameGroupCompilerInstanceId++
   private width = 1
   private height = 1
   private revision = 0
@@ -114,7 +117,7 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
           width: this.width,
           height: this.height,
           pixels: target.pixels,
-          key: `pix-grid-frame-mask:${this.revision}:${group.id}`,
+          key: `pix-grid-frame-mask:${this.instanceId}:${this.revision}:${group.id}`,
           mediaRevision: this.revision,
         }
       : null

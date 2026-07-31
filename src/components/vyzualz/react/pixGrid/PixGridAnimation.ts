@@ -63,18 +63,43 @@ function animationClockValue(frame: PixGridAudioFrame, animation: PixGridLayerAn
   switch (animation.clock ?? 'time') {
     case 'beat': return frame.motionClockBeat ?? ((frame.beatIndex ?? 0) + clamp01(frame.beatPhase))
     case 'bar': return frame.motionClockBar ?? ((frame.barIndex ?? 0) + ((frame.beatIndex ?? 0) % 4 + clamp01(frame.beatPhase)) / 4)
+    case 'sectionBeat': return frame.motionClockSectionBeat ?? frame.beatsSinceSectionStart ?? ((frame.beatIndex ?? 0) + clamp01(frame.beatPhase))
+    case 'sectionBar': return frame.motionClockSectionBar ?? frame.barsSinceSectionStart ?? ((frame.barIndex ?? 0) + ((frame.beatIndex ?? 0) % 4 + clamp01(frame.beatPhase)) / 4)
+    case 'sectionProgress': return frame.motionClockSectionProgress ?? clamp01(frame.sectionProgress ?? 0)
     case 'cue': return 0
     case 'time':
     default: return frame.motionClockTime ?? frame.audioTime
   }
 }
 
+function animationSectionSpeed(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): number {
+  const sectionType = frame.motionClockSectionType !== undefined
+    ? frame.motionClockSectionType
+    : frame.sectionType
+  const speed = sectionType ? animation.sectionSpeeds?.[sectionType] : animation.sectionSpeeds?.unknown
+  const baseSpeed = Math.max(0, Number.isFinite(speed) ? speed! : 1)
+  const progressAmount = sectionType
+    ? animation.sectionProgressSpeed?.[sectionType]
+    : animation.sectionProgressSpeed?.unknown
+  const progress = clamp01(frame.motionClockSectionProgress ?? frame.sectionProgress ?? 0)
+  return baseSpeed * (1 + progress * Math.max(0, Number.isFinite(progressAmount) ? progressAmount! : 0))
+}
+
 function animationTime(frame: PixGridAudioFrame, animation: PixGridLayerAnimation, sceneMotionMultiplier: number): number {
-  const hasIntegratedClock = frame.motionClockTime != null || frame.motionClockBeat != null || frame.motionClockBar != null
+  const hasIntegratedClock = frame.motionClockTime != null
+    || frame.motionClockBeat != null
+    || frame.motionClockBar != null
+    || frame.motionClockSectionBeat != null
+    || frame.motionClockSectionBar != null
+    || frame.motionClockSectionProgress != null
   const effectiveMotion = hasIntegratedClock
     ? Math.max(0, Number.isFinite(sceneMotionMultiplier) ? sceneMotionMultiplier : 1)
     : resolvePixGridMotionMultiplier(frame.motionMultiplier, sceneMotionMultiplier)
-  return animationClockValue(frame, animation) * animation.speed * effectiveMotion + animation.phase
+  return animationClockValue(frame, animation)
+    * animation.speed
+    * animationSectionSpeed(frame, animation)
+    * effectiveMotion
+    + animation.phase
 }
 
 export function resolvePixGridLayerAnimation(

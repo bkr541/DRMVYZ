@@ -15,7 +15,7 @@ export const PIX_GRID_NEON_MARQUEE_ASSET_ID = 'pix-neon-marquee-cycle' as const
 /** Obsolete official layer ID retained only for saved-state migration and compatibility tests. */
 export const PIX_GRID_NEON_MARQUEE_LAYER_ID = 'neon-marquee-frame' as const
 export const PIX_GRID_NEON_MARQUEE_STRUCTURE_LAYER_ID = 'marquee-structure' as const
-export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 13 as const
+export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 14 as const
 
 const MARQUEE_CELL_X = 1 / 160
 const MARQUEE_CELL_Y = 1 / 90
@@ -333,103 +333,96 @@ const inSections = (...includeSectionTypes: ReactSectionType[]): PixGridReaction
 })
 
 /**
- * Legacy baseline reactions remain ordinary authored routes and no longer own frame resolution.
- * Transform peaks are deliberately budgeted together so simultaneous bass,
- * kick, downbeat, and drop events remain below a ten-percent scale increase.
+ * Canonical targeted modulation for the Stage 1 semantic graph. These routes
+ * deliberately avoid the stable structure and output-wide contrast/scale.
+ * They remain gated by Auto Performance while authored layer animation keeps
+ * running from the normal Motion clock.
  */
 export const PIX_GRID_NEON_MARQUEE_AUDIO_ASSIGNMENTS: readonly PixGridReactionAssignment[] = Object.freeze([
-  assignment('neon-marquee-bass-breath', 'Bass breathing', 'bass', 'scale', 'layer', [0, 0.015], {
-    attack: 0.08,
-    release: 0.32,
-    smoothing: 0.08,
-    minimumConfidence: 0.3,
-    perceptualGain: 1,
-    minimumEffectiveStrength: 0.006,
-    capabilityFallback: 'energy',
-    conditions: inSections('verse', 'build', 'drop', 'breakdown'),
-    priority: -40,
+  assignment('neon-marquee-bass-perimeter', 'Bass perimeter glow', 'bass', 'brightness', 'group', [0, 0.32], {
+    targetId: 'marquee-perimeter-group', attack: 0.07, release: 0.3, smoothing: 0.08,
+    minimumConfidence: 0.25, perceptualGain: 1.1, capabilityFallback: 'energy',
+    conditions: inSections('verse', 'build', 'drop', 'breakdown'), priority: -60,
   }),
-  assignment('neon-marquee-build-lift', 'Build contrast lift', 'buildProgress', 'contrast', 'output', [0, 0.12], {
-    attack: 0.08,
-    release: 0.18,
-    smoothing: 0.05,
-    minimumConfidence: 0.4,
-    perceptualGain: 1,
-    minimumEffectiveStrength: 0.025,
-    capabilityFallback: 'energy',
-    conditions: inSections('build'),
-    priority: -30,
+  assignment('neon-marquee-sub-focal', 'Sub focal halo', 'sub', 'glow', 'group', [0, 0.24], {
+    targetId: 'marquee-focal-group', attack: 0.09, release: 0.34, smoothing: 0.09,
+    minimumConfidence: 0.25, capabilityFallback: 'energy',
+    conditions: inSections('verse', 'build', 'drop', 'breakdown'), priority: -58,
   }),
-  assignment('neon-marquee-kick-impact', 'Kick scale impact', 'kick', 'scale', 'layer', [0, 0.035], {
-    attack: 0,
-    hold: 0.055,
-    release: 0.18,
-    cooldown: 0.04,
-    minimumConfidence: 0.38,
-    perceptualGain: 1,
-    minimumEffectiveStrength: 0.025,
-    capabilityFallback: 'beat',
-    conditions: inSections('verse', 'build', 'drop'),
-    eventPriority: 120,
+  assignment('neon-marquee-mid-letters', 'Midrange letter illumination', 'mid', 'brightness', 'group', [0, 0.24], {
+    targetId: 'marquee-letter-group', attack: 0.12, release: 0.28, smoothing: 0.08,
+    minimumConfidence: 0.2, perceptualGain: 1.25, minimumEffectiveStrength: 0.12, capabilityFallback: 'energy',
+    color: '#fff0b8', paletteRole: 'highlight',
+    conditions: inSections('intro', 'verse', 'build', 'drop', 'breakdown'), priority: -56,
   }),
-  assignment('neon-marquee-snare-edge', 'Snare contrast edge', 'snare', 'contrast', 'output', [0, 0.16], {
-    attack: 0,
-    hold: 0.04,
-    release: 0.15,
-    cooldown: 0.05,
-    minimumConfidence: 0.4,
-    perceptualGain: 1,
-    minimumEffectiveStrength: 0.08,
-    capabilityFallback: 'transient',
-    conditions: inSections('verse', 'build', 'drop'),
-    eventPriority: 130,
+  assignment('neon-marquee-vocal-focal', 'Vocal focal emphasis', 'vocalEnergy', 'brightness', 'group', [0, 0.28], {
+    targetId: 'marquee-focal-group', attack: 0.14, release: 0.36, smoothing: 0.1,
+    minimumConfidence: 0.35, perceptualGain: 1.25, minimumEffectiveStrength: 0.12, capabilityFallback: 'energy',
+    color: '#8cf4ff', paletteRole: 'highlight',
+    conditions: inSections('verse', 'build', 'drop', 'breakdown'), priority: -54,
   }),
-  assignment('neon-marquee-downbeat-structure', 'Downbeat structural scale', 'downbeat', 'scale', 'layer', [0, 0.02], {
-    attack: 0,
-    hold: 0.06,
-    release: 0.22,
-    cooldown: 0.06,
-    minimumConfidence: 0.28,
-    perceptualGain: 1,
-    minimumEffectiveStrength: 0.015,
-    capabilityFallback: 'beat',
-    conditions: inSections('intro', 'build', 'drop'),
-    eventPriority: 145,
+  assignment('neon-marquee-vocal-letters', 'Vocal letter emphasis', 'vocalEnergy', 'brightness', 'group', [0, 0.22], {
+    targetId: 'marquee-letter-group', attack: 0.16, release: 0.38, smoothing: 0.11,
+    minimumConfidence: 0.35, perceptualGain: 1.2, minimumEffectiveStrength: 0.1,
+    capabilityFallback: 'energy', color: '#8cf4ff', paletteRole: 'highlight',
+    conditions: inSections('verse', 'build', 'drop', 'breakdown'), priority: -53,
   }),
-  assignment('neon-marquee-downbeat-accent', 'Downbeat contrast accent', 'downbeat', 'contrast', 'output', [0, 0.1], {
-    attack: 0,
-    hold: 0.05,
-    release: 0.2,
-    cooldown: 0.06,
-    minimumConfidence: 0.28,
-    perceptualGain: 1,
-    minimumEffectiveStrength: 0.05,
-    capabilityFallback: 'beat',
-    conditions: inSections('intro', 'build', 'drop'),
-    eventPriority: 146,
+  assignment('neon-marquee-high-equalizer', 'High equalizer detail', 'high', 'rowRecruitment', 'group', [0, 1], {
+    targetId: 'marquee-equalizer-group', attack: 0.035, release: 0.12, smoothing: 0.035,
+    minimumConfidence: 0.2, capabilityFallback: 'midHighActivity', blend: 'replace',
+    conditions: inSections('verse', 'build', 'drop'), priority: -52,
   }),
-  assignment('neon-marquee-drop-impact', 'Drop entry scale peak', 'dropImpact', 'scale', 'layer', [0, 0.025], {
-    attack: 0,
-    hold: 0.07,
-    release: 0.32,
-    cooldown: 0.14,
-    minimumConfidence: 0.48,
-    perceptualGain: 1,
-    minimumEffectiveStrength: 0.02,
-    capabilityFallback: 'transient',
-    conditions: inSections('drop'),
-    eventPriority: 180,
+  assignment('neon-marquee-high-equalizer-brightness', 'High equalizer shimmer', 'high', 'brightness', 'group', [0, 0.22], {
+    targetId: 'marquee-equalizer-group', attack: 0.045, release: 0.14, smoothing: 0.04,
+    minimumConfidence: 0.2, perceptualGain: 1.2, minimumEffectiveStrength: 0.1,
+    capabilityFallback: 'midHighActivity', color: '#c8b8ff', paletteRole: 'highlight',
+    conditions: inSections('verse', 'build', 'drop'), priority: -51,
   }),
-  assignment('neon-marquee-drop-accent', 'Drop contrast peak', 'dropImpact', 'contrast', 'output', [0, 0.18], {
-    attack: 0,
-    hold: 0.07,
-    release: 0.32,
-    cooldown: 0.14,
-    minimumConfidence: 0.48,
-    perceptualGain: 1,
-    minimumEffectiveStrength: 0.09,
-    capabilityFallback: 'transient',
-    conditions: inSections('drop'),
-    eventPriority: 181,
+  assignment('neon-marquee-build-recruitment', 'Build light recruitment', 'buildProgress', 'maskExpansion', 'group', [0, 0.32], {
+    targetId: 'marquee-perimeter-group', attack: 0.08, release: 0.2, smoothing: 0.05,
+    minimumConfidence: 0.3, capabilityFallback: 'energy', blend: 'max',
+    conditions: inSections('build'), priority: -50,
+  }),
+  assignment('neon-marquee-kick-perimeter', 'Kick perimeter punch', 'kick', 'maskExpansion', 'group', [0, 0.16], {
+    targetId: 'marquee-perimeter-group', attack: 0, hold: 0.045, release: 0.16, cooldown: 0.035,
+    minimumConfidence: 0.25, perceptualGain: 1.6, minimumEffectiveStrength: 0.18,
+    capabilityFallback: 'beat', blend: 'max',
+    conditions: inSections('verse', 'build', 'drop'), eventPriority: 120,
+  }),
+  assignment('neon-marquee-kick-focal', 'Kick focal punch', 'kick', 'brightness', 'group', [0, 0.42], {
+    targetId: 'marquee-focal-group', attack: 0, hold: 0.05, release: 0.18, cooldown: 0.035,
+    minimumConfidence: 0.25, capabilityFallback: 'beat',
+    conditions: inSections('verse', 'build', 'drop'), eventPriority: 121,
+  }),
+  assignment('neon-marquee-snare-letters', 'Snare letter advance accent', 'snare', 'brightness', 'group', [0, 0.38], {
+    targetId: 'marquee-letter-travel-group', attack: 0, hold: 0.04, release: 0.15, cooldown: 0.045,
+    minimumConfidence: 0.3, capabilityFallback: 'transient',
+    conditions: inSections('verse', 'build', 'drop'), eventPriority: 130,
+  }),
+  assignment('neon-marquee-snare-trim', 'Snare trim sweep', 'snare', 'outlineFlash', 'group', [0, 0.62], {
+    targetId: 'marquee-trim-group', attack: 0, hold: 0.035, release: 0.14, cooldown: 0.045,
+    minimumConfidence: 0.3, capabilityFallback: 'transient', blend: 'max',
+    conditions: inSections('verse', 'build', 'drop'), eventPriority: 131,
+  }),
+  assignment('neon-marquee-hat-sparkle', 'Hat sparse bulb tick', 'hat', 'sparkle', 'group', [0, 0.34], {
+    targetId: 'marquee-sparkle-group', attack: 0, hold: 0.01, release: 0.07, cooldown: 0.015,
+    minimumConfidence: 0.2, capabilityFallback: 'midHighActivity', blend: 'max',
+    conditions: inSections('build', 'drop'), eventPriority: 135,
+  }),
+  assignment('neon-marquee-hat-equalizer', 'Hat equalizer tick', 'hat', 'brightness', 'group', [0, 0.2], {
+    targetId: 'marquee-equalizer-group', attack: 0, hold: 0.012, release: 0.08, cooldown: 0.015,
+    minimumConfidence: 0.2, perceptualGain: 1.2, minimumEffectiveStrength: 0.1,
+    capabilityFallback: 'midHighActivity', color: '#d8ccff', paletteRole: 'highlight',
+    conditions: inSections('build', 'drop'), eventPriority: 136,
+  }),
+  assignment('neon-marquee-downbeat-convergence', 'Downbeat light convergence', 'downbeat', 'brightness', 'group', [0, 0.58], {
+    targetId: 'marquee-impact-group', attack: 0, hold: 0.055, release: 0.23, cooldown: 0.055,
+    minimumConfidence: 0.2, capabilityFallback: 'beat',
+    conditions: inSections('intro', 'verse', 'build', 'drop'), eventPriority: 150,
+  }),
+  assignment('neon-marquee-drop-power-on', 'Drop power-on impact', 'dropImpact', 'brightness', 'group', [0, 0.82], {
+    targetId: 'marquee-impact-group', attack: 0, hold: 0.075, release: 0.34, cooldown: 0.12,
+    minimumConfidence: 0.35, capabilityFallback: 'transient', blend: 'add',
+    conditions: inSections('drop'), eventPriority: 180,
   }),
 ])

@@ -10,6 +10,7 @@ import {
   PIX_GRID_NEON_MARQUEE_FRAME_ORDER,
   PIX_GRID_NEON_MARQUEE_FRAME_WIDTH,
 } from '../PixGridNeonMarqueeFrames'
+import { pixGridNeonMarqueeComponentContainsCell } from '../PixGridNeonMarqueeMasks'
 import { PIX_GRID_PRESET_BY_ID, PIX_GRID_PRESET_IDS } from '../PixGridPresets'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import type { PixGridAudioFrame } from '../PixGridTypes'
@@ -87,8 +88,8 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
     expect(state.qualityMode).toBe('fixed')
     expect(state.matrixWidth).toBe(160)
     expect(state.matrixHeight).toBe(90)
-    expect(state.performance.enabled).toBe(false)
-    expect(state.performance.sharedPerformanceProgramId).toBeNull()
+    expect(state.performance.enabled).toBe(true)
+    expect(state.performance.sharedPerformanceProgramId).toBe('pix-grid-neon-marquee-performance')
     expect(state.layers).toHaveLength(12)
     expect(state.groups).toHaveLength(14)
     expect(state.layers.map(layer => layer.id)).not.toContain('neon-marquee-frame')
@@ -100,13 +101,29 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
       rotation: 0,
       opacity: 1,
       blendMode: 'normal',
-      animations: [{ mode: 'frameCycle', clock: 'beat', speed: 1, amount: 1, stepped: true }],
+      animations: [{ mode: 'frameCycle', clock: 'sectionBar', speed: 1, amount: 1, stepped: true }],
     })
 
     const logical = composePixGridLogicalFrame(preset!, state, STATIC_FRAME)
+    const source = rgbaFromRgb(getPixGridNeonMarqueeFrames()[0])
+    let structureMismatches = 0
+    let authoredLightDifferences = 0
+    for (let cell = 0; cell < PIX_GRID_NEON_MARQUEE_FRAME_CELL_COUNT; cell += 1) {
+      const x = cell % PIX_GRID_NEON_MARQUEE_FRAME_WIDTH
+      const y = Math.floor(cell / PIX_GRID_NEON_MARQUEE_FRAME_WIDTH)
+      const offset = cell * 4
+      const differs = logical.pixels[offset] !== source[offset]
+        || logical.pixels[offset + 1] !== source[offset + 1]
+        || logical.pixels[offset + 2] !== source[offset + 2]
+        || logical.pixels[offset + 3] !== source[offset + 3]
+      if (pixGridNeonMarqueeComponentContainsCell('structure', 0, x, y)) {
+        if (differs) structureMismatches += 1
+      } else if (differs) authoredLightDifferences += 1
+    }
     expect(logical.width).toBe(160)
     expect(logical.height).toBe(90)
-    expect(logical.pixels).toEqual(rgbaFromRgb(getPixGridNeonMarqueeFrames()[0]))
+    expect(structureMismatches).toBe(0)
+    expect(authoredLightDifferences).toBeGreaterThan(0)
     expect(validatePixGridState(state, { builtInPresetId: PRESET_ID }).errors).toEqual([])
   })
 

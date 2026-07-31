@@ -109,7 +109,13 @@ function explicitLayerTargetIds(
   target: "all" | { layerId: string } | { groupId: string },
 ): string[] {
   if (target === "all") return state.layers.map((layer) => layer.id);
-  return "layerId" in target ? [target.layerId] : [];
+  if ("layerId" in target) return [target.layerId];
+  const group = state.groups.find((candidate) => candidate.id === target.groupId);
+  if (!group) return [];
+  return [...new Set([
+    ...(group.layerScope ?? []),
+    ...(group.layerId ? [group.layerId] : []),
+  ])].filter((layerId) => state.layers.some((layer) => layer.id === layerId));
 }
 
 function actionRoute(action: PixGridPerformanceAction): string {
@@ -255,10 +261,7 @@ function isGroupScopedAction(action: PixGridPerformanceAction): boolean {
   return (
     (action.type === "setPaletteRole" ||
       action.type === "revealRows" ||
-      action.type === "revealColumns" ||
-      action.type === "changeAnimationSpeed" ||
-      action.type === "reverseDirection" ||
-      action.type === "triggerFrame") &&
+      action.type === "revealColumns") &&
     action.target !== "all" &&
     "groupId" in action.target
   );
@@ -370,34 +373,6 @@ function groupEffectForAction(
             : action.from === "center"
               ? "center"
               : "start",
-      };
-    case "changeAnimationSpeed":
-      return {
-        ...base,
-        groupId: groupIdForTarget(action.target) ?? "",
-        kind: "shift",
-        amount: 1,
-        x:
-          Math.sin(context.absoluteBeat * action.multiplier)
-          * 0.02
-          * intensity
-          * autonomousMotionGain,
-      };
-    case "reverseDirection":
-      return {
-        ...base,
-        groupId: groupIdForTarget(action.target) ?? "",
-        kind: "shift",
-        amount: 1,
-        x: -0.02 * intensity * autonomousMotionGain,
-      };
-    case "triggerFrame":
-      return {
-        ...base,
-        groupId: groupIdForTarget(action.target) ?? "",
-        kind: "shift",
-        amount: 1,
-        x: (action.step ?? 0.1) * intensity * autonomousMotionGain,
       };
     default:
       return null;
@@ -595,6 +570,16 @@ function applyStateAction(
     case "shiftGroup":
       return current;
   }
+}
+
+/** Applies a state-mutating Performance Program action through the same runtime path used during playback. */
+export function applyPixGridPerformanceStateAction(
+  rawState: PixGridState,
+  action: PixGridPerformanceAction,
+  intensity = 1,
+): PixGridState {
+  const base = normalizePixGridState(rawState);
+  return normalizePixGridState(applyStateAction(base, base, action, intensity));
 }
 
 interface ProgramEventRecord {

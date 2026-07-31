@@ -1,3 +1,4 @@
+import type { ReactSectionType } from '../ReactTypes'
 import {
   DEFAULT_PIX_GRID_CONVERSION_SETTINGS,
   DEFAULT_PIX_GRID_DIAGNOSTICS_SETTINGS,
@@ -110,7 +111,7 @@ const ANIMATION_MODES = new Set<PixGridAnimationMode>([
   'beatStepMovement',
 ])
 const ANIMATION_BOUNDARIES = new Set<PixGridAnimationBoundary>(['wrap', 'clamp', 'bounce'])
-const ANIMATION_CLOCKS = new Set(['time', 'beat', 'bar', 'cue'] as const)
+const ANIMATION_CLOCKS = new Set(['time', 'beat', 'bar', 'sectionBeat', 'sectionBar', 'sectionProgress', 'cue'] as const)
 const AUDIO_SOURCES = new Set<PixGridAudioSource>(PIX_GRID_AUDIO_INTELLIGENCE_SOURCES.map(source => source.id))
 const STOPPED_BEHAVIORS = new Set(['baseline', 'blackout'])
 const GROUP_SOURCES = new Set<PixGridGroupSource>([
@@ -181,12 +182,13 @@ const REACTION_CURVES = new Set<PixGridReactionCurve>([
 const REACTION_POLARITIES = new Set<PixGridReactionPolarity>(['positive', 'negative', 'bipolar'])
 const REACTION_TARGET_SCOPES = new Set<PixGridReactionTargetScope>(['output', 'scene', 'layer', 'group', 'pixels', 'background', 'transition', 'animation', 'palette'])
 const PHRASE_SEGMENTS = new Set<PixGridPhraseSegment>(['entry', 'early', 'middle', 'late', 'exit'])
-const SECTION_TYPES = new Set(['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown'] as const)
+const SECTION_TYPES = new Set<ReactSectionType>(['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown'])
 const SECTION_PHASES = new Set(['entry', 'body', 'exit'] as const)
 const PERFORMANCE_PROGRAM_IDS = new Set<PixGridPerformanceProgramId>([
   'pix-grid-bass-beacon-performance',
   'pix-grid-geometric-reactor-performance',
   'pix-grid-pixel-parade-performance',
+  'pix-grid-neon-marquee-performance',
 ])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -302,8 +304,8 @@ function normalizeAnimation(value: unknown): PixGridLayerAnimation | null {
   return {
     mode: value.mode as PixGridAnimationMode,
     speed: clamp(value.speed, -20, 20, 1),
-    ...(ANIMATION_CLOCKS.has(value.clock as 'time' | 'beat' | 'bar' | 'cue')
-      ? { clock: value.clock as 'time' | 'beat' | 'bar' | 'cue' }
+    ...(ANIMATION_CLOCKS.has(value.clock as NonNullable<PixGridLayerAnimation['clock']>)
+      ? { clock: value.clock as PixGridLayerAnimation['clock'] }
       : {}),
     amount: clamp(value.amount, -4, 4, 0),
     phase: clamp(value.phase, -1000, 1000, 0),
@@ -311,6 +313,24 @@ function normalizeAnimation(value: unknown): PixGridLayerAnimation | null {
     ...(value.axis === 'x' || value.axis === 'y' ? { axis: value.axis } : {}),
     ...(value.stepped != null ? { stepped: value.stepped === true } : {}),
     ...(AUDIO_SOURCES.has(value.audioSource as PixGridAudioSource) ? { audioSource: value.audioSource as PixGridAudioSource } : {}),
+    ...(isRecord(value.sectionSpeeds) ? {
+      sectionSpeeds: Object.fromEntries(
+        Object.entries(value.sectionSpeeds).flatMap(([sectionType, speed]) => (
+          SECTION_TYPES.has(sectionType as ReactSectionType)
+            ? [[sectionType, clamp(speed, 0, 8, 1)]]
+            : []
+        )),
+      ) as Partial<Record<ReactSectionType, number>>,
+    } : {}),
+    ...(isRecord(value.sectionProgressSpeed) ? {
+      sectionProgressSpeed: Object.fromEntries(
+        Object.entries(value.sectionProgressSpeed).flatMap(([sectionType, amount]) => (
+          SECTION_TYPES.has(sectionType as ReactSectionType)
+            ? [[sectionType, clamp(amount, 0, 4, 0)]]
+            : []
+        )),
+      ) as Partial<Record<ReactSectionType, number>>,
+    } : {}),
   }
 }
 

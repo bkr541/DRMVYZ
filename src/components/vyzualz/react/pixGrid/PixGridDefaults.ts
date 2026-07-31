@@ -80,7 +80,11 @@ export function clonePixGridLayer(layer: PixGridLayer): PixGridLayer {
     position: { ...layer.position },
     scale: { ...layer.scale },
     paletteMap: { ...layer.paletteMap },
-    animations: layer.animations.map(animation => ({ ...animation })),
+    animations: layer.animations.map(animation => ({
+      ...animation,
+      ...(animation.sectionSpeeds ? { sectionSpeeds: { ...animation.sectionSpeeds } } : {}),
+      ...(animation.sectionProgressSpeed ? { sectionProgressSpeed: { ...animation.sectionProgressSpeed } } : {}),
+    })),
     ...(layer.audioReactivity ? { audioReactivity: { ...layer.audioReactivity } } : {}),
   }
 }

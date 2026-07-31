@@ -155,16 +155,18 @@ function render(presetId: string, context: SharedPerformanceContext) {
 }
 
 describe('PixGrid Shared Performance choreography', () => {
-  it('validates all three authored programs without errors', () => {
+  it('validates all authored programs without errors', () => {
     expect(PIX_GRID_PERFORMANCE_PROGRAMS.map(program => program.id)).toEqual([
       'pix-grid-bass-beacon-performance',
       'pix-grid-geometric-reactor-performance',
       'pix-grid-pixel-parade-performance',
+      'pix-grid-neon-marquee-performance',
     ])
     expect(Object.values(PIX_GRID_PRESET_ID_BY_PROGRAM)).toEqual([
       'pix-grid-bass-beacon',
       'pix-grid-geometric-reactor',
       'pix-grid-pixel-parade',
+      'pix-grid-neon-marquee-cycle',
     ])
     expect(validatePixGridPerformancePrograms()).toEqual([])
   })

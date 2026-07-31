@@ -180,15 +180,22 @@ describe('Marquee Sign Cycle Stage 1 canonical component graph', () => {
     }
   })
 
-  it('uses ordinary generic frameCycle animation for every component', () => {
+  it('uses ordinary generic animation descriptors while keeping every component on one large-boundary sign identity', () => {
     expect(resolvePixGridLayerAnimation.toString()).not.toContain('resolvePixGridNeonMarqueePerformance')
     expect(resolvePixGridLayerAnimation.toString()).not.toContain('pix-neon-marquee-cycle')
 
-    const frame = previewFrame({ motionClockBeat: 2 })
+    const frame = previewFrame({
+      motionClockSectionType: 'verse',
+      motionClockSectionBeat: 32,
+      motionClockSectionBar: 8,
+    })
     for (const layer of SETTINGS.layers!) {
       const asset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)!
-      expect(resolvePixGridLayerAnimation(layer, asset, frame, 1).frameIndex).toBe(2)
+      expect(resolvePixGridLayerAnimation(layer, asset, frame, 1).frameIndex).toBe(1)
     }
+    expect(SETTINGS.layers!.find(layer => layer.id === 'marquee-bulbs-a')?.animations.some(animation => animation.mode === 'blink')).toBe(true)
+    expect(SETTINGS.layers!.find(layer => layer.id === 'marquee-letter-lights-a')?.animations.some(animation => animation.mode === 'revealColumn')).toBe(true)
+    expect(SETTINGS.layers!.find(layer => layer.id === 'marquee-structure')?.animations).toHaveLength(1)
   })
 })
 
@@ -294,10 +301,12 @@ describe('Marquee authored scenes and Editing Context ownership', () => {
     const outro = settings[`${PRESET_ID}-outro`]
     expect(intro.hiddenLayerIds).toContain('marquee-equalizer-lights')
     expect(drop.hiddenLayerIds ?? []).toHaveLength(0)
-    expect(drop.motionMultiplier).toBeGreaterThan(build.motionMultiplier)
-    expect(preDrop.motionMultiplier).toBeLessThan(build.motionMultiplier)
+    expect([intro, build, preDrop, drop, outro].every(scene => scene.motionMultiplier === 1)).toBe(true)
+    const structureAnimation = SETTINGS.layers!.find(layer => layer.id === 'marquee-structure')!.animations[0]
+    expect(structureAnimation.sectionSpeeds?.drop).toBeGreaterThan(structureAnimation.sectionSpeeds?.verse ?? 0)
+    expect(structureAnimation.sectionSpeeds?.preDrop).toBe(0)
+    expect(structureAnimation.sectionSpeeds?.outro).toBe(0)
     expect(preDrop.hiddenLayerIds!.length).toBeGreaterThan(build.hiddenLayerIds?.length ?? 0)
-    expect(outro.motionMultiplier).toBeLessThan(intro.motionMultiplier)
     expect(outro.hiddenLayerIds).toContain('marquee-trim-lights')
 
     expect(visibleLayerIdsFor(`${PRESET_ID}-intro`)).toEqual([

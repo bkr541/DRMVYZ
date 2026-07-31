@@ -18,6 +18,7 @@ export type PixGridPerformanceProgramId =
   | 'pix-grid-bass-beacon-performance'
   | 'pix-grid-geometric-reactor-performance'
   | 'pix-grid-pixel-parade-performance'
+  | 'pix-grid-neon-marquee-performance'
 export type PixGridBlendMode = 'normal' | 'add' | 'multiply'
 export type PixGridStoppedBehavior = 'baseline' | 'blackout'
 export type PixGridRendererPath = 'webgl2' | 'canvas2d-fallback'
@@ -145,7 +146,7 @@ export interface PixGridBuiltInAssetManifestEntry {
 export interface PixGridLayerAnimation {
   mode: PixGridAnimationMode
   /** Selects the authoritative musical clock used by frame sequences and motion. */
-  clock?: 'time' | 'beat' | 'bar' | 'cue'
+  clock?: 'time' | 'beat' | 'bar' | 'sectionBeat' | 'sectionBar' | 'sectionProgress' | 'cue'
   speed: number
   amount: number
   phase: number
@@ -154,6 +155,10 @@ export interface PixGridLayerAnimation {
   revealFrom?: 'start' | 'end' | 'center'
   stepped?: boolean
   audioSource?: PixGridAudioSource
+  /** Optional generic per-section speed multiplier. Keeps authored animation in the standard Motion clock. */
+  sectionSpeeds?: Partial<Record<ReactSectionType, number>>
+  /** Adds a deterministic section-progress speed ramp without introducing a second clock. */
+  sectionProgressSpeed?: Partial<Record<ReactSectionType, number>>
 }
 
 export interface PixGridLayerAudioReactivity {

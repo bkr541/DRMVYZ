@@ -539,7 +539,9 @@ export function migratePixGridState(
       ...repaired.performance,
       enabled: explicitlyDisablesPerformance
         ? false
-        : settings.performanceEnabled ?? (targetProgramId ? true : repaired.performance.enabled),
+        : typeof rawPerformance?.enabled === 'boolean'
+          ? rawPerformance.enabled
+          : settings.performanceEnabled ?? (targetProgramId ? true : repaired.performance.enabled),
       sharedPerformanceProgramId: targetProgramId,
     },
   })
