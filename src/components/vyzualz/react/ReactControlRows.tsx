@@ -1,10 +1,11 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 
 // ── Slider row ────────────────────────────────────────────────────────────────
 
 export interface SliderRowProps {
-  label: string
+  label: ReactNode
+  labelAccessory?: ReactNode
   value: number
   onChange: (v: number) => void
   min?: number
@@ -17,7 +18,7 @@ export interface SliderRowProps {
 }
 
 export function SliderRow({
-  label, value, onChange,
+  label, labelAccessory, value, onChange,
   min = 0, max = 1, step = 0.01,
   color = '#4ac7db', id, disabled = false, description,
 }: SliderRowProps) {
@@ -31,7 +32,10 @@ export function SliderRow({
   return (
     <div className="rv-ctrl-row">
       <div className="rv-ctrl-slider-hdr">
-        <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+        <span className="rv-ctrl-label-cluster">
+          <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+          {labelAccessory}
+        </span>
         <span className="rv-ctrl-val">{display}</span>
       </div>
       <input
@@ -142,23 +146,44 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
 // ── Toggle row ────────────────────────────────────────────────────────────────
 
 export interface ToggleRowProps {
-  label: string
+  label: ReactNode
+  labelAccessory?: ReactNode
   value: boolean
   onChange: (v: boolean) => void
   disabled?: boolean
   title?: string
   id?: string
   description?: string
+  keepLabelAccessoryInteractiveWhenDisabled?: boolean
 }
 
-export function ToggleRow({ label, value, onChange, disabled, title, id, description }: ToggleRowProps) {
+export function ToggleRow({
+  label,
+  labelAccessory,
+  value,
+  onChange,
+  disabled,
+  title,
+  id,
+  description,
+  keepLabelAccessoryInteractiveWhenDisabled = false,
+}: ToggleRowProps) {
   const generatedId = useId()
   const labelId = `${id ?? generatedId}-label`
   const buttonId = id ?? generatedId
   return (
-    <div className={`rv-ctrl-toggle-row${disabled ? ' rv-ctrl-toggle-row--disabled' : ''}`}>
+    <div className={[
+      'rv-ctrl-toggle-row',
+      disabled ? 'rv-ctrl-toggle-row--disabled' : '',
+      disabled && keepLabelAccessoryInteractiveWhenDisabled
+        ? 'rv-ctrl-toggle-row--interactive-accessory'
+        : '',
+    ].filter(Boolean).join(' ')}>
       <div className="rv-ctrl-toggle-line">
-        <span className="rv-ctrl-label" id={labelId}>{label}</span>
+        <span className="rv-ctrl-label-cluster">
+          <span className="rv-ctrl-label" id={labelId}>{label}</span>
+          {labelAccessory}
+        </span>
         <button
           id={buttonId}
           type="button"

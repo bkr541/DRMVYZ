@@ -228,3 +228,69 @@ describe('Sound Drawing size controls', () => {
     expect(container.textContent).not.toContain('Show Size')
   })
 })
+
+describe('Sound Drawing contextual help integration', () => {
+  it('adds the hover-revealed learn icon and opens registry-backed popovers for the three pilot controls', async () => {
+    useReactStore.getState().setSoundDrawingPerformanceSettings({
+      selectedShowId: 'phaseOrbit',
+      autoPerformance: true,
+      complexity: 0.7,
+    })
+    await act(async () => root.render(<ReactEnginePanel />))
+
+    const expected = [
+      {
+        helpId: 'react.soundDrawing.authoredPerformance.performanceShow',
+        title: 'Performance Show',
+        currentValue: 'Phase Orbit',
+      },
+      {
+        helpId: 'react.soundDrawing.authoredPerformance.autoPerformance',
+        title: 'Auto Performance',
+        currentValue: 'On',
+      },
+      {
+        helpId: 'react.soundDrawing.showChoreography.complexity',
+        title: 'Complexity',
+        currentValue: '70%',
+      },
+    ] as const
+
+    for (const item of expected) {
+      const trigger = container.querySelector<HTMLButtonElement>(`[data-help-id="${item.helpId}"]`)
+      expect(trigger).not.toBeNull()
+      expect(trigger?.querySelector('img')?.getAttribute('src')).toContain('learn-svgrepo-com.svg')
+      expect(trigger?.getAttribute('aria-expanded')).toBe('false')
+
+      await act(async () => trigger?.click())
+
+      const popoverId = `help-${item.helpId.replace(/\./g, '-')}`
+      const dialog = document.body.querySelector<HTMLElement>(`#${popoverId}`)
+      expect(dialog).not.toBeNull()
+      expect(dialog?.textContent).toContain(item.title)
+      expect(dialog?.textContent).toContain(item.currentValue)
+      expect(trigger?.getAttribute('aria-expanded')).toBe('true')
+
+      await act(async () => trigger?.click())
+      expect(document.body.querySelector(`#${popoverId}`)).toBeNull()
+    }
+  })
+
+  it('keeps Auto Performance help available while the toggle itself is disabled', async () => {
+    await act(async () => root.render(<ReactEnginePanel />))
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-help-id="react.soundDrawing.authoredPerformance.autoPerformance"]',
+    )
+    const row = trigger?.closest('.rv-ctrl-toggle-row')
+    const toggle = row?.querySelector<HTMLButtonElement>('.rv-ctrl-toggle')
+
+    expect(toggle?.disabled).toBe(true)
+    expect(row?.classList.contains('rv-ctrl-toggle-row--interactive-accessory')).toBe(true)
+
+    await act(async () => trigger?.click())
+    expect(document.body.textContent).toContain('Auto Performance')
+    expect(document.body.textContent).toContain('Status')
+    expect(document.body.textContent).toContain('Off')
+  })
+})

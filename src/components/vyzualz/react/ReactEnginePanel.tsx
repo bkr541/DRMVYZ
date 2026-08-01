@@ -10,6 +10,7 @@ import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLy
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
 import { buildUnifiedSvgStatus, isUnifiedSvgMediaItem, resolveUnifiedSvgSource } from './svgSourceLifecycle'
 import {
@@ -472,6 +473,15 @@ export function ReactEnginePanel() {
           <CtrlSection label="Authored Performance" />
           <ToggleRow
             label="Auto Performance"
+            labelAccessory={
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.authoredPerformance.autoPerformance"
+                currentValue={soundDrawingPerformanceSettings.autoPerformance ? 'On' : 'Off'}
+                currentValueLabel="Status"
+                currentValueTone={soundDrawingPerformanceSettings.autoPerformance ? 'success' : 'default'}
+              />
+            }
+            keepLabelAccessoryInteractiveWhenDisabled
             value={soundDrawingPerformanceSettings.autoPerformance}
             disabled={soundDrawingPerformanceSettings.selectedShowId == null}
             onChange={(value) =>
@@ -493,7 +503,15 @@ export function ReactEnginePanel() {
           <div className="rv-ctrl-row">
             <Dropdown
               id="sound-drawing-performance-show"
-              label="Performance Show"
+              label={
+                <>
+                  Performance Show
+                  <HelpInfoTrigger
+                    helpId="react.soundDrawing.authoredPerformance.performanceShow"
+                    currentValue={selectedSoundDrawingShow?.name ?? 'No show selected'}
+                  />
+                </>
+              }
               menuLabel="Performance Shows"
               value={soundDrawingPerformanceSettings.selectedShowId}
               onChange={(value) => {
@@ -533,6 +551,12 @@ export function ReactEnginePanel() {
               <CtrlSection label="Show Choreography" />
               <SliderRow
                 label="Complexity"
+                labelAccessory={
+                  <HelpInfoTrigger
+                    helpId="react.soundDrawing.showChoreography.complexity"
+                    currentValue={`${Math.round(soundDrawingPerformanceSettings.complexity * 100)}%`}
+                  />
+                }
                 value={soundDrawingPerformanceSettings.complexity}
                 onChange={(value) => setSoundDrawingPerformanceSettings({ complexity: value })}
                 min={0}

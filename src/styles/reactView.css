@@ -12521,3 +12521,31 @@
   height: 100%;
   pointer-events: none;
 }
+
+/* Initial contextual-help integration for the Sound Drawing authored-show controls. */
+.rv-ctrl-label-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.rv-ctrl-slider-hdr .rv-ctrl-label-cluster {
+  margin-right: auto;
+}
+
+.rv-ctrl-toggle-line .rv-ctrl-label-cluster {
+  min-width: 0;
+  margin-right: auto;
+}
+
+.rv-ctrl-toggle-row--disabled.rv-ctrl-toggle-row--interactive-accessory {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rv-ctrl-toggle-row--disabled.rv-ctrl-toggle-row--interactive-accessory .rv-ctrl-label,
+.rv-ctrl-toggle-row--disabled.rv-ctrl-toggle-row--interactive-accessory .rv-ctrl-toggle,
+.rv-ctrl-toggle-row--disabled.rv-ctrl-toggle-row--interactive-accessory > .rv-ctrl-description {
+  opacity: 0.35;
+}

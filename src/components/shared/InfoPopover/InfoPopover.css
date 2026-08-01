@@ -303,3 +303,69 @@
     animation: none;
   }
 }
+
+/* Hover-revealed contextual-help trigger used by the first React integration. */
+.drm-help-info-trigger {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transform: translateY(-1px);
+  transition:
+    opacity 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.drm-help-info-trigger img {
+  display: block;
+  width: 14px;
+  height: 14px;
+  filter: invert(82%) sepia(11%) saturate(338%) hue-rotate(153deg) brightness(92%);
+  opacity: 0.78;
+}
+
+:is(.rv-ctrl-row, .rv-ctrl-toggle-row, .drm-dropdown):hover .drm-help-info-trigger,
+.drm-help-info-trigger:focus-visible,
+.drm-help-info-trigger[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drm-help-info-trigger:hover,
+.drm-help-info-trigger[data-open='true'] {
+  border-color: rgba(var(--color-primary-rgb, var(--az-cyan-rgb, 74, 199, 219)), 0.52);
+  background: rgba(var(--color-primary-rgb, var(--az-cyan-rgb, 74, 199, 219)), 0.1);
+  box-shadow: 0 0 10px rgba(var(--color-primary-rgb, var(--az-cyan-rgb, 74, 199, 219)), 0.18);
+}
+
+.drm-help-info-trigger:hover img,
+.drm-help-info-trigger[data-open='true'] img {
+  filter: invert(75%) sepia(75%) saturate(588%) hue-rotate(142deg) brightness(93%);
+  opacity: 1;
+}
+
+.drm-help-info-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-ring, var(--drm-info-accent, #4ac7db)) 78%, white 22%);
+  outline-offset: 2px;
+}
+
+.drm-info-popover__section-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
