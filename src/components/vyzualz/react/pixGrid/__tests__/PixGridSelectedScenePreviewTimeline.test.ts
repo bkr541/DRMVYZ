@@ -87,13 +87,11 @@ function resolvedPreviewFrames(
   const motionClock = new PixGridMotionClock()
   const anchorBar = 100
   return elapsedBars.map((elapsedBar, index) => {
-    const projected = previewClock.apply(rawFrameAt(anchorBar + elapsedBar, {
+    const controlled = applyPixGridRuntimeControls(rawFrameAt(anchorBar + elapsedBar, {
       timingDiscontinuity: index === 0,
-    }), state)
-    return motionClock.apply(applyPixGridRuntimeControls(
-      applyPixGridPresetSignClock(projected, PRESET_ID, motion),
-      { bassReactivity: 1, motion },
-    ))
+    }), { bassReactivity: 1, motion })
+    const projected = previewClock.apply(controlled, state)
+    return motionClock.apply(applyPixGridPresetSignClock(projected, PRESET_ID))
   })
 }
 
@@ -163,6 +161,8 @@ describe('Selected Scene deterministic preview timeline', () => {
     expect(resolvePixGridSelectedScenePreviewLoopBars('drop')).toBe(16)
     expect(resolvePixGridSelectedScenePreviewLoopBars('breakdown')).toBe(64)
     expect(resolvePixGridSelectedScenePreviewLoopBars('outro')).toBe(16)
+    expect(resolvePixGridSelectedScenePreviewLoopBars('verse', 0.5)).toBe(64)
+    expect(resolvePixGridSelectedScenePreviewLoopBars('verse', 0)).toBe(16)
   })
 
   it('preserves the existing four-bar Selected Scene loop for non-Marquee presets', () => {
@@ -188,7 +188,7 @@ describe('Selected Scene deterministic preview timeline', () => {
     ['breakdown', 1 / 16],
   ] as const)('%s preview reaches a real intermediate sign transition', (scene: 'verse' | 'build' | 'drop' | 'breakdown', cadence: number) => {
     const firstBoundaryBar = 1 / cadence
-    const middleOffsetBar = (1 / 128) / cadence
+    const middleOffsetBar = (1 / 16) / cadence
     const [, middle] = resolvedPreviewFrames(scene, [0, firstBoundaryBar + middleOffsetBar])
     const animation = resolvePixGridLayerAnimation(
       structure,
@@ -198,7 +198,7 @@ describe('Selected Scene deterministic preview timeline', () => {
     )
 
     expect(middle.previewElapsedBar).toBeCloseTo(firstBoundaryBar + middleOffsetBar, 8)
-    expect(middle.signClock).toBeCloseTo(1 + 1 / 128, 8)
+    expect(middle.signClock).toBeCloseTo(1 + 1 / 16, 8)
     expect(animation).toMatchObject({ frameIndex: 1, previousFrameIndex: 0 })
     expect(animation.frameTransitionProgress).toBeGreaterThan(0)
     expect(animation.frameTransitionProgress).toBeLessThan(1)
@@ -209,8 +209,8 @@ describe('Selected Scene deterministic preview timeline', () => {
     const boundaryBar = 1 / cadence
     const [source, middle, complete] = resolvedPreviewFrames('verse', [
       0,
-      boundaryBar + (1 / 128) / cadence,
-      boundaryBar + (1 / 64) / cadence,
+      boundaryBar + (1 / 16) / cadence,
+      boundaryBar + (1 / 8) / cadence,
     ])
     const state = selectedState('verse')
     const sourcePixels = composePixGridLogicalFrame(preset, state, source).pixels
@@ -235,7 +235,7 @@ describe('Selected Scene deterministic preview timeline', () => {
       0,
       loopBars - 0.001,
       loopBars,
-      loopBars + (1 / 128) / cadence,
+      loopBars + (1 / 16) / cadence,
     ]).slice(1)
     const beforeAnimation = resolvePixGridLayerAnimation(
       structure,
@@ -286,6 +286,64 @@ describe('Selected Scene deterministic preview timeline', () => {
     })
   })
 
+  it('keeps the selected preview timeline through seeks instead of reconstructing track Outro transparency', () => {
+    const clock = new PixGridSelectedScenePreviewClock()
+    const motionClock = new PixGridMotionClock()
+    const state = selectedState('intro')
+    const project = (absoluteBar: number, timingDiscontinuity = false) => {
+      const controlled = applyPixGridRuntimeControls(rawFrameAt(absoluteBar, { timingDiscontinuity }), {
+        bassReactivity: 1,
+        motion: 1,
+      })
+      const preview = clock.apply(controlled, state)
+      return motionClock.apply(applyPixGridPresetSignClock(preview, PRESET_ID))
+    }
+
+    project(100, true)
+    const visible = project(104)
+    const sought = project(60, true)
+    const soughtPixels = composePixGridLogicalFrame(preset, state, sought).pixels
+
+    expect(visible.previewElapsedBar).toBe(4)
+    expect(sought).toMatchObject({
+      sectionType: 'intro',
+      previewElapsedBar: 4,
+      restoringFromTransparency: false,
+    })
+    expect(activeCellCount(soughtPixels)).toBeGreaterThan(9_000)
+  })
+
+  it('restores from a completed manual Outro through a controlled power-on', () => {
+    const clock = new PixGridSelectedScenePreviewClock()
+    const outro = selectedState('outro')
+    const intro = selectedState('intro')
+    clock.apply(applyPixGridRuntimeControls(rawFrameAt(100, { timingDiscontinuity: true }), {
+      bassReactivity: 1,
+      motion: 1,
+    }), outro)
+    clock.apply(applyPixGridRuntimeControls(rawFrameAt(101), { bassReactivity: 1, motion: 1 }), outro)
+
+    const start = clock.apply(applyPixGridRuntimeControls(rawFrameAt(101), { bassReactivity: 1, motion: 1 }), intro)
+    const middle = clock.apply(applyPixGridRuntimeControls(rawFrameAt(101.375), { bassReactivity: 1, motion: 1 }), intro)
+    const startAnimation = resolvePixGridLayerAnimation(
+      structure,
+      PIX_GRID_BUILT_IN_ASSET_BY_ID.get(structure.assetId)!,
+      applyPixGridPresetSignClock(start, PRESET_ID),
+      1,
+    )
+    const middleAnimation = resolvePixGridLayerAnimation(
+      structure,
+      PIX_GRID_BUILT_IN_ASSET_BY_ID.get(structure.assetId)!,
+      applyPixGridPresetSignClock(middle, PRESET_ID),
+      1,
+    )
+
+    expect(start).toMatchObject({ restoringFromTransparency: true, restorationElapsedBar: 0 })
+    expect(startAnimation).toMatchObject({ frameTransitionType: 'powerOn', frameTransitionProgress: 0 })
+    expect(middleAnimation.frameTransitionProgress).toBeGreaterThan(0)
+    expect(middleAnimation.frameTransitionProgress).toBeLessThan(1)
+  })
+
   it('freezes while paused and resumes without consuming the paused playhead jump', () => {
     const clock = new PixGridSelectedScenePreviewClock()
     const state = selectedState('verse')
@@ -328,16 +386,17 @@ describe('Selected Scene deterministic preview timeline', () => {
   })
 
   it('uses the same local timeline to demonstrate and hold Outro power-down completion', () => {
-    const frames = resolvedPreviewFrames('outro', [0, 0.125, 0.25, 1, 20])
+    const frames = resolvedPreviewFrames('outro', [0, 0.25, 0.5, 0.75, 1, 20])
     const state = selectedState('outro')
     const counts = frames.map(frame => activeCellCount(composePixGridLogicalFrame(preset, state, frame).pixels))
 
     expect(counts[0]).toBeGreaterThan(counts[1])
     expect(counts[1]).toBeGreaterThan(counts[2])
-    expect(counts[2]).toBe(0)
+    expect(counts[2]).toBeGreaterThan(counts[3])
     expect(counts[3]).toBe(0)
     expect(counts[4]).toBe(0)
-    expect(frames[4]).toMatchObject({
+    expect(counts[5]).toBe(0)
+    expect(frames[5]).toMatchObject({
       barsSinceSectionStart: 16,
       previewLoopIndex: 0,
       previewLoops: false,

@@ -4,6 +4,7 @@ import type { MusicIntelligenceFrame } from '../../../../../features/musicIntell
 import { buildSharedPerformanceContext, type SharedPerformanceContext } from '../../../../../features/performanceCore'
 import type { ReactSectionType, ReactTrackSection } from '../../ReactTypes'
 import { createPixGridAudioFrame } from '../PixGridAudioRouting'
+import type { PixGridActionCue } from '../PixGridActionCues'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
 import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
@@ -76,6 +77,24 @@ function contextAt(
   })
 }
 
+function blackoutCue(timeSec: number): PixGridActionCue {
+  return {
+    version: 1,
+    id: 'editing-context-blackout',
+    timeSec,
+    label: 'Track blackout',
+    enabled: true,
+    engineId: 'pixGrid',
+    action: { type: 'clearScreen' },
+    quantization: 'none',
+    transition: 'powerOff',
+    transitionDurationSec: 1,
+    oneShotDurationSec: 0,
+    loopBehavior: 'retrigger',
+    order: 0,
+  }
+}
+
 function stateForPreset(presetId: string, enabled = true): PixGridState {
   const preset = PIX_GRID_PRESET_BY_ID.get(presetId)!
   const applied = applyPixGridPresetSettings(createDefaultPixGridState(), presetId, preset.pixGridSettings)
@@ -90,6 +109,7 @@ function resolve(input: {
   trackSceneId: string | null
   context?: SharedPerformanceContext
   runtime?: PixGridUnifiedPerformanceRuntime
+  cues?: readonly PixGridActionCue[]
 }) {
   const context = input.context ?? contextAt('verse')
   return resolvePixGridSurfacePerformanceFrame({
@@ -102,7 +122,7 @@ function resolve(input: {
       autoPerformanceEnabled: input.state.performance.enabled,
     }),
     presetId: input.state.selectedPresetId,
-    cues: [],
+    cues: input.cues ?? [],
     runtime: input.runtime ?? new PixGridUnifiedPerformanceRuntime(),
     trackId: 'editing-context-track',
   })
@@ -237,6 +257,34 @@ describe('PixGrid Editing Context production scene ownership', () => {
     }
 
     expect(hashes.size).toBe(expectedPlans.size)
+  })
+
+  it('suppresses track-derived transition and power cues while Selected Scene owns the preview', () => {
+    const cue = blackoutCue(11.9)
+    const introId = `${MARQUEE_ID}-intro`
+    const selectedIntro = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID), introId)
+    const manual = resolve({
+      state: selectedIntro,
+      trackSceneId: `${MARQUEE_ID}-outro`,
+      context: contextAt('outro', 12),
+      cues: [cue],
+    })
+
+    expect(manual.sceneOwnership).toBe('editingContext')
+    expect(manual.resolvedRuntime.state.selectedSceneId).toBe(introId)
+    expect(manual.resolvedRuntime.cues.snapshot.activeCueIds).toEqual([])
+    expect(manual.resolvedRuntime.transition).toBeNull()
+
+    const followTrack = selectPixGridPreviewScene(selectedIntro, PIX_GRID_FOLLOW_TRACK_SCENE_VALUE)
+    const automatic = resolve({
+      state: followTrack,
+      trackSceneId: `${MARQUEE_ID}-outro`,
+      context: contextAt('outro', 12),
+      cues: [cue],
+    })
+    expect(automatic.sceneOwnership).toBe('performance')
+    expect(automatic.resolvedRuntime.cues.snapshot.activeCueIds).toContain(cue.id)
+    expect(automatic.resolvedRuntime.transition?.type).toBe('powerOff')
   })
 
   it('restores Follow Track ownership and does not retain stale selected-scene state', () => {

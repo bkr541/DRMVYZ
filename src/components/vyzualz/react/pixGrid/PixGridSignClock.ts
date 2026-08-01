@@ -162,7 +162,6 @@ function rawAbsoluteBar(frame: PixGridAudioFrame): number {
 export function applyPixGridPresetSignClock(
   frame: PixGridAudioFrame,
   presetId: string,
-  motionScale = 1,
 ): PixGridAudioFrame {
   if (presetId !== 'pix-grid-neon-marquee-cycle') return frame
   const previewBar = Number.isFinite(frame.previewElapsedBar)
@@ -188,7 +187,6 @@ export function applyPixGridPresetSignClock(
           endBar: previewBar + 1,
         }],
         PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
-        motionScale,
       )
     : terminalOutro
       ? {
@@ -196,7 +194,6 @@ export function applyPixGridPresetSignClock(
             Math.max(0, terminalOutro.startBar - 1e-7),
             sectionTimeline,
             PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
-            motionScale,
           ),
           transitionClock: null,
           transitionRate: 0,
@@ -207,7 +204,6 @@ export function applyPixGridPresetSignClock(
           absoluteBar,
           sectionTimeline,
           PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
-          motionScale,
         )
   return {
     ...frame,

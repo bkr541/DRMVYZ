@@ -143,6 +143,45 @@ describe('Marquee independent sign clock', () => {
     expect(signedFrameAt(49).signClock).toBe(signedFrameAt(42).signClock)
   })
 
+  it('applies global Motion exactly once to sign cadence', () => {
+    const clock = new PixGridMotionClock()
+    const resolveAt = (bar: number) => {
+      const controlled = applyPixGridRuntimeControls(rawFrameAt(bar), { bassReactivity: 1, motion: 0.5 })
+      return clock.apply(applyPixGridPresetSignClock(controlled, PRESET_ID))
+    }
+
+    resolveAt(8)
+    const verseBoundary = resolveAt(16)
+    expect(verseBoundary.signClock).toBe(1)
+    expect(verseBoundary.motionClockSign).toBe(0.5)
+    expect(verseBoundary.motionClockSign).not.toBe(0.25)
+  })
+
+  it('preserves the displayed sign when only scene ownership is re-anchored', () => {
+    const clock = new PixGridMotionClock()
+    const resolveAt = (bar: number) => {
+      const controlled = applyPixGridRuntimeControls(rawFrameAt(bar), { bassReactivity: 1, motion: 1 })
+      return clock.apply(applyPixGridPresetSignClock(controlled, PRESET_ID))
+    }
+
+    resolveAt(8)
+    const beforeSceneChange = resolveAt(24)
+    clock.reset('sign-clock-track', { preserveSign: true })
+    const previewStart = clock.apply(applyPixGridPresetSignClock(applyPixGridRuntimeControls({
+      ...rawFrameAt(24),
+      trackIdentity: 'sign-clock-track',
+      previewElapsedBar: 0,
+      sectionType: 'drop',
+      barsSinceSectionStart: 0,
+      beatsSinceSectionStart: 0,
+      timingDiscontinuity: true,
+    }, { bassReactivity: 1, motion: 1 }), PRESET_ID))
+
+    expect(beforeSceneChange.motionClockSign).toBe(2.5)
+    expect(previewStart.motionClockSign).toBe(beforeSceneChange.motionClockSign)
+    expect(resolve(structure, previewStart).frameIndex).toBe(resolve(structure, beforeSceneChange).frameIndex)
+  })
+
   it('does not invent a sign transition when Intro enters Verse at clock zero', () => {
     const before = resolve(structure, signedFrameAt(8 - 1e-6))
     const boundary = resolve(structure, signedFrameAt(8))
@@ -211,9 +250,9 @@ describe('Marquee independent sign clock', () => {
 
     const left = new PixGridMotionClock()
     const right = new PixGridMotionClock()
-    const controlled = (at: number, clock: PixGridMotionClock, discontinuity = false) => clock.apply(applyPixGridRuntimeControls(
-      applyPixGridPresetSignClock(rawFrameAt(at, { timingDiscontinuity: discontinuity }), PRESET_ID),
-      { bassReactivity: 1, motion: 1 },
+    const controlled = (at: number, clock: PixGridMotionClock, discontinuity = false) => clock.apply(applyPixGridPresetSignClock(
+      applyPixGridRuntimeControls(rawFrameAt(at, { timingDiscontinuity: discontinuity }), { bassReactivity: 1, motion: 1 }),
+      PRESET_ID,
     ))
     const initial = controlled(bar, left)
     let looped = initial
@@ -225,13 +264,13 @@ describe('Marquee independent sign clock', () => {
     }
     const remounted = controlled(bar, right, true)
     const restartedClock = new PixGridMotionClock()
-    const stopped = restartedClock.apply(applyPixGridRuntimeControls(
-      applyPixGridPresetSignClock(rawFrameAt(bar, { isPlaying: false, transportState: 'stopped', timingDiscontinuity: true }), PRESET_ID),
-      { bassReactivity: 1, motion: 1 },
+    const stopped = restartedClock.apply(applyPixGridPresetSignClock(
+      applyPixGridRuntimeControls(rawFrameAt(bar, { isPlaying: false, transportState: 'stopped', timingDiscontinuity: true }), { bassReactivity: 1, motion: 1 }),
+      PRESET_ID,
     ))
-    const restarted = restartedClock.apply(applyPixGridRuntimeControls(
-      applyPixGridPresetSignClock(rawFrameAt(bar, { transportState: 'playing' }), PRESET_ID),
-      { bassReactivity: 1, motion: 1 },
+    const restarted = restartedClock.apply(applyPixGridPresetSignClock(
+      applyPixGridRuntimeControls(rawFrameAt(bar, { transportState: 'playing' }), { bassReactivity: 1, motion: 1 }),
+      PRESET_ID,
     ))
     expect(stopped.motionClockSign).toBe(initial.motionClockSign)
     expect(restarted.motionClockSign).toBe(initial.motionClockSign)

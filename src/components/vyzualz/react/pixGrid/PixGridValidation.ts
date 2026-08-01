@@ -108,6 +108,7 @@ const ANIMATION_MODES = new Set<PixGridAnimationMode>([
   'revealRow',
   'revealColumn',
   'checkerAlternate',
+  'columnMeter',
   'frameCycle',
   'audioAmplitudeScale',
   'beatStepMovement',

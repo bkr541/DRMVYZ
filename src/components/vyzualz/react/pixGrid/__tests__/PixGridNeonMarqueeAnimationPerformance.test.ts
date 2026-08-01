@@ -48,6 +48,14 @@ function audio(overrides: Partial<PixGridAudioFrame> = {}): PixGridAudioFrame {
     motionClockSectionBar: 0,
     motionClockSectionProgress: 0,
     sectionProgress: 0,
+    signClock: 0,
+    motionClockSign: 0,
+    signTransitionClock: null,
+    motionClockSignTransition: null,
+    signTransitionSourceFrame: null,
+    signTransitionTargetFrame: null,
+    motionClockSignTransitionSourceFrame: null,
+    motionClockSignTransitionTargetFrame: null,
     transportState: 'playing',
     autoPerformanceEnabled: false,
     sourceValues: {},
@@ -63,7 +71,12 @@ function layer(id: string): PixGridLayer {
   return PRESET.pixGridSettings!.layers!.find(candidate => candidate.id === id)!
 }
 
-function rendered(frame: PixGridAudioFrame, runtime?: PixGridReactionRuntime): Uint8Array {
+function rendered(
+  frame: PixGridAudioFrame,
+  runtime?: PixGridReactionRuntime,
+  visibleLayerIds?: readonly string[],
+  performanceEnabled = frame.autoPerformanceEnabled === true,
+): Uint8Array {
   const sectionType = frame.sectionType ?? 'verse'
   const section = [{
     id: `marquee-${sectionType}`,
@@ -125,14 +138,23 @@ function rendered(frame: PixGridAudioFrame, runtime?: PixGridReactionRuntime): U
     previous: null,
   })
   const performance = resolvePixGridPerformanceFrame(
-    state(frame.autoPerformanceEnabled === true),
+    state(performanceEnabled),
     context,
     PRESET_ID,
     { capabilities: frame.capabilities },
   )
+  const renderedState = visibleLayerIds
+    ? {
+        ...performance.state,
+        layers: performance.state.layers.map(candidate => ({
+          ...candidate,
+          visible: visibleLayerIds.includes(candidate.id),
+        })),
+      }
+    : performance.state
   return composePixGridLogicalFrame(
     PRESET,
-    performance.state,
+    renderedState,
     frame,
     undefined,
     undefined,
@@ -168,6 +190,58 @@ function changedCells(a: Uint8Array, b: Uint8Array): number {
     ) changed += 1
   }
   return changed
+}
+
+function changedComponentCells(
+  componentId: Parameters<typeof pixGridNeonMarqueeComponentContainsCell>[0],
+  a: Uint8Array,
+  b: Uint8Array,
+): number {
+  let changed = 0
+  for (let cell = 0; cell < 160 * 90; cell += 1) {
+    const x = cell % 160
+    const y = Math.floor(cell / 160)
+    if (!pixGridNeonMarqueeComponentContainsCell(componentId, 0, x, y)) continue
+    const offset = cell * 4
+    if (
+      Math.abs(a[offset] - b[offset]) >= 8
+      || Math.abs(a[offset + 1] - b[offset + 1]) >= 8
+      || Math.abs(a[offset + 2] - b[offset + 2]) >= 8
+    ) changed += 1
+  }
+  return changed
+}
+
+function activeColumnHeights(pixels: Uint8Array): number[] {
+  const heights: number[] = []
+  for (let x = 0; x < 160; x += 1) {
+    let active = 0
+    for (let y = 0; y < 90; y += 1) {
+      if (pixels[(y * 160 + x) * 4 + 3] > 0) active += 1
+    }
+    if (active > 0) heights.push(active)
+  }
+  return heights
+}
+
+function activeCellsByHorizontalThird(pixels: Uint8Array): readonly [number, number, number] {
+  const totals: [number, number, number] = [0, 0, 0]
+  for (let y = 0; y < 90; y += 1) {
+    for (let x = 0; x < 160; x += 1) {
+      if (pixels[(y * 160 + x) * 4 + 3] <= 0) continue
+      const third = Math.min(2, Math.floor((x / 160) * 3)) as 0 | 1 | 2
+      totals[third] = totals[third] + 1
+    }
+  }
+  return totals
+}
+
+function totalColorEnergy(pixels: Uint8Array): number {
+  let total = 0
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    total += pixels[offset] + pixels[offset + 1] + pixels[offset + 2]
+  }
+  return total
 }
 
 describe('Marquee Sign Cycle canonical authored animation', () => {
@@ -215,16 +289,114 @@ describe('Marquee Sign Cycle canonical authored animation', () => {
 
   it('travels letter-light banks independently from the perimeter chase', () => {
     const letters = ['marquee-letter-lights-a', 'marquee-letter-lights-b', 'marquee-letter-lights-c'].map(layer)
-    const activeAtBeat = [0, 1, 2].map(beat => letters.map(candidate => (
+    const activeAtBeat = [0.5, 1.25, 1.5].map(beat => letters.map(candidate => (
       resolved(candidate, audio({ motionClockSectionBeat: beat })).opacity
     )))
-    expect(activeAtBeat.map(values => values.findIndex(value => value > 0.9))).toEqual([0, 1, 2])
+    expect(activeAtBeat.map(values => values.map(value => value > 0.9))).toEqual([
+      [true, false, false],
+      [false, false, true],
+      [false, true, true],
+    ])
 
-    const bulbAtBeatTwo = resolved(layer('marquee-bulbs-c'), audio({ motionClockSectionBeat: 2 })).opacity
-    const letterAtBeatTwo = resolved(layer('marquee-letter-lights-c'), audio({ motionClockSectionBeat: 2 })).opacity
-    expect(bulbAtBeatTwo).toBeGreaterThan(0.9)
-    expect(letterAtBeatTwo).toBeGreaterThan(0.9)
-    expect(resolved(layer('marquee-letter-lights-a'), audio({ motionClockSectionBeat: 2 })).opacity).toBe(0)
+    const letterLayers = ['marquee-letter-lights-a', 'marquee-letter-lights-b', 'marquee-letter-lights-c']
+    const atHalfBeat = rendered(audio({ motionClockSectionBeat: 0.5 }), undefined, letterLayers)
+    const atOneAndQuarter = rendered(audio({ motionClockSectionBeat: 1.25 }), undefined, letterLayers)
+    const atOneAndHalf = rendered(audio({ motionClockSectionBeat: 1.5 }), undefined, letterLayers)
+    expect(changedComponentCells('letter-a', atHalfBeat, atOneAndQuarter)).toBeGreaterThan(0)
+    expect(changedComponentCells('letter-c', atHalfBeat, atOneAndQuarter)).toBeGreaterThan(0)
+    expect(changedComponentCells('letter-b', atOneAndQuarter, atOneAndHalf)).toBeGreaterThan(0)
+
+    const bulbAtBeatOneAndQuarter = resolved(layer('marquee-bulbs-b'), audio({ motionClockSectionBeat: 1.25 })).opacity
+    expect(bulbAtBeatOneAndQuarter).toBeGreaterThan(0.9)
+    expect(activeAtBeat[1]).toEqual([0, 0, 1])
+  })
+
+  it('animates independent equalizer columns and maps low, mid, and high modulation to separate regions', () => {
+    const equalizerOnly = ['marquee-equalizer-lights']
+    const idleA = rendered(audio({
+      sectionType: 'drop',
+      motionClockSectionType: 'drop',
+      motionClockSectionBeat: 0,
+    }), undefined, equalizerOnly)
+    const idleB = rendered(audio({
+      sectionType: 'drop',
+      motionClockSectionType: 'drop',
+      motionClockSectionBeat: 1,
+    }), undefined, equalizerOnly)
+    expect(changedCells(idleA, idleB)).toBeGreaterThan(100)
+    expect(new Set(activeColumnHeights(idleA)).size).toBeGreaterThan(8)
+    expect(new Set(activeColumnHeights(idleB)).size).toBeGreaterThan(8)
+
+    const reactiveBase = {
+      sectionType: 'drop' as const,
+      motionClockSectionType: 'drop' as const,
+      motionClockSectionBeat: 2,
+      motionClockSectionBar: 0.5,
+      autoPerformanceEnabled: true,
+    }
+    const baseline = activeCellsByHorizontalThird(rendered(audio(reactiveBase), undefined, equalizerOnly, false))
+    const bass = activeCellsByHorizontalThird(rendered(audio({ ...reactiveBase, bass: 1, sourceValues: { bass: 1 } }), undefined, equalizerOnly, false))
+    const mid = activeCellsByHorizontalThird(rendered(audio({ ...reactiveBase, mid: 1, sourceValues: { mid: 1 } }), undefined, equalizerOnly, false))
+    const high = activeCellsByHorizontalThird(rendered(audio({ ...reactiveBase, high: 1, sourceValues: { high: 1 } }), undefined, equalizerOnly, false))
+    expect(bass[0]).toBeGreaterThan(baseline[0])
+    expect(bass[1]).toBe(baseline[1])
+    expect(mid[1]).toBeGreaterThan(baseline[1])
+    expect(mid[2]).toBe(baseline[2])
+    expect(high[2]).toBeGreaterThan(baseline[2])
+    expect(high[0]).toBe(baseline[0])
+  })
+
+  it('resolves all seven scenes into distinct component-level programs', () => {
+    const scenes = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro'] as const
+    const outputs = new Map(scenes.map(scene => {
+      const bar = scene === 'outro' ? 0.75 : 2
+      const sceneFrame = audio({
+        audioTime: bar * 2,
+        sectionType: scene,
+        motionClockSectionType: scene,
+        motionClockSectionBeat: bar * 4,
+        motionClockSectionBar: bar,
+        beatsSinceSectionStart: bar * 4,
+        barsSinceSectionStart: bar,
+        sectionProgress: Math.min(1, bar / 16),
+        motionClockSectionProgress: Math.min(1, bar / 16),
+      })
+      const sceneState = { ...state(false), selectedSceneId: `${PRESET_ID}-${scene}` }
+      return [scene, composePixGridLogicalFrame(PRESET, sceneState, sceneFrame).pixels] as const
+    }))
+    const hashes = new Set(Array.from(outputs.values(), pixels => {
+      let hash = 2166136261
+      for (const value of pixels) {
+        hash ^= value
+        hash = Math.imul(hash, 16777619)
+      }
+      return hash >>> 0
+    }))
+    expect(hashes.size).toBe(scenes.length)
+    expect(totalColorEnergy(outputs.get('drop')!)).toBeGreaterThan(totalColorEnergy(outputs.get('intro')!))
+    expect(changedCells(outputs.get('drop')!, outputs.get('verse')!)).toBeGreaterThan(100)
+    expect(changedCells(outputs.get('intro')!, outputs.get('breakdown')!)).toBeGreaterThan(100)
+    expect(changedCells(outputs.get('preDrop')!, outputs.get('breakdown')!)).toBeGreaterThan(100)
+    expect(outputs.get('outro')!.some(value => value !== 0)).toBe(false)
+
+    const buildState = { ...state(false), selectedSceneId: `${PRESET_ID}-build` }
+    const buildEarly = composePixGridLogicalFrame(PRESET, buildState, audio({
+      sectionType: 'build',
+      motionClockSectionType: 'build',
+      motionClockSectionBeat: 1,
+      motionClockSectionBar: 0.25,
+      sectionProgress: 0,
+      motionClockSectionProgress: 0,
+    })).pixels
+    const buildLate = composePixGridLogicalFrame(PRESET, buildState, audio({
+      sectionType: 'build',
+      motionClockSectionType: 'build',
+      motionClockSectionBeat: 13,
+      motionClockSectionBar: 3.25,
+      sectionProgress: 1,
+      motionClockSectionProgress: 1,
+    })).pixels
+    expect(changedCells(buildEarly, buildLate)).toBeGreaterThan(100)
   })
 
   it('keeps structure centered and changes complete signs only at large musical boundaries', () => {

@@ -19,6 +19,7 @@ const MINIMUM_CYCLING_PREVIEW_BARS = 16
 const MARQUEE_SIGN_FRAME_COUNT = 4
 const LEGACY_SELECTED_SCENE_PREVIEW_BARS = 4
 const MARQUEE_PRESET_ID = 'pix-grid-neon-marquee-cycle'
+const MARQUEE_POWER_TRANSITION_BARS = 0.75
 
 export const PIX_GRID_FOLLOW_TRACK_SCENE_VALUE = 'followTrack' as const
 
@@ -94,10 +95,14 @@ function rawAbsoluteBar(frame: PixGridAudioFrame): number {
  * the final sign transition naturally return to the first sign instead of
  * fabricating a previous frame when the authored section animation repeats.
  */
-export function resolvePixGridSelectedScenePreviewLoopBars(sectionType: ReactSectionType): number {
+export function resolvePixGridSelectedScenePreviewLoopBars(
+  sectionType: ReactSectionType,
+  motionMultiplier = 1,
+): number {
   const cadence = Math.max(0, PIX_GRID_NEON_MARQUEE_SIGN_CADENCE[sectionType] ?? 0)
-  if (cadence <= PREVIEW_CLOCK_EPSILON) return HELD_SCENE_PREVIEW_BARS
-  const barsPerSign = 1 / cadence
+  const motion = Math.max(0, Number.isFinite(motionMultiplier) ? motionMultiplier : 1)
+  if (cadence <= PREVIEW_CLOCK_EPSILON || motion <= PREVIEW_CLOCK_EPSILON) return HELD_SCENE_PREVIEW_BARS
+  const barsPerSign = 1 / (cadence * motion)
   return Math.max(MINIMUM_CYCLING_PREVIEW_BARS, barsPerSign * MARQUEE_SIGN_FRAME_COUNT)
 }
 
@@ -106,15 +111,24 @@ function isMarqueeSelectedScene(state: PixGridState): boolean {
     || (state.selectedSceneId ?? '').startsWith(`${MARQUEE_PRESET_ID}-`)
 }
 
-function resolveSelectedScenePreviewLoopBars(state: PixGridState, sectionType: ReactSectionType): number {
+function resolveSelectedScenePreviewLoopBars(
+  state: PixGridState,
+  sectionType: ReactSectionType,
+  motionMultiplier = 1,
+): number {
   return isMarqueeSelectedScene(state)
-    ? resolvePixGridSelectedScenePreviewLoopBars(sectionType)
+    ? resolvePixGridSelectedScenePreviewLoopBars(sectionType, motionMultiplier)
     : LEGACY_SELECTED_SCENE_PREVIEW_BARS
 }
 
-function selectedScenePreviewLoops(state: PixGridState, sectionType: ReactSectionType): boolean {
+function selectedScenePreviewLoops(
+  state: PixGridState,
+  sectionType: ReactSectionType,
+  motionMultiplier = 1,
+): boolean {
   if (!isMarqueeSelectedScene(state)) return true
   return (PIX_GRID_NEON_MARQUEE_SIGN_CADENCE[sectionType] ?? 0) > PREVIEW_CLOCK_EPSILON
+    && motionMultiplier > PREVIEW_CLOCK_EPSILON
 }
 
 interface ApplyPixGridSelectedScenePreviewFrameOptions {
@@ -143,8 +157,9 @@ export function applyPixGridSelectedScenePreviewFrame(
       ?? frame.motionClockBar
       ?? rawAbsoluteBar(frame),
   )
-  const loopBars = resolveSelectedScenePreviewLoopBars(state, sectionType)
-  const previewLoops = selectedScenePreviewLoops(state, sectionType)
+  const motionMultiplier = Math.max(0, Number.isFinite(frame.motionMultiplier) ? frame.motionMultiplier! : 1)
+  const loopBars = resolveSelectedScenePreviewLoopBars(state, sectionType, motionMultiplier)
+  const previewLoops = selectedScenePreviewLoops(state, sectionType, motionMultiplier)
   const loopIndex = previewLoops ? Math.floor(elapsedBar / loopBars + PREVIEW_CLOCK_EPSILON) : 0
   const sectionBar = previewLoops
     ? positiveModulo(elapsedBar, loopBars)
@@ -197,12 +212,16 @@ export class PixGridSelectedScenePreviewClock {
   private lastSourceBar: number | null = null
   private elapsedBar = 0
   private loopIndex = 0
+  private sectionType: ReactSectionType | null = null
+  private restorationIdentity: string | null = null
 
   reset(): void {
     this.identity = null
     this.lastSourceBar = null
     this.elapsedBar = 0
     this.loopIndex = 0
+    this.sectionType = null
+    this.restorationIdentity = null
   }
 
   apply(frame: PixGridAudioFrame, state: PixGridState): PixGridAudioFrame {
@@ -225,26 +244,40 @@ export class PixGridSelectedScenePreviewClock {
     const advances = frame.isPlaying !== false
       && frame.transportState !== 'paused'
       && frame.transportState !== 'stopped'
+    const restoringFromTransparency = identityChanged
+      && this.sectionType === 'outro'
+      && this.elapsedBar >= MARQUEE_POWER_TRANSITION_BARS
+      && sectionType !== 'outro'
 
-    if (identityChanged || discontinuity || this.lastSourceBar == null) {
-      this.elapsedBar = 0
+    if (identityChanged || this.lastSourceBar == null) {
+      this.elapsedBar = restoringFromTransparency || advances ? 0 : MARQUEE_POWER_TRANSITION_BARS
       this.loopIndex = 0
-    } else if (advances) {
+      this.restorationIdentity = restoringFromTransparency ? identity : null
+    } else if (!discontinuity && advances) {
       this.elapsedBar += Math.max(0, sourceBar - this.lastSourceBar)
     }
 
-    const loopBars = resolveSelectedScenePreviewLoopBars(state, sectionType)
-    const previewLoops = selectedScenePreviewLoops(state, sectionType)
+    const motionMultiplier = Math.max(0, Number.isFinite(frame.motionMultiplier) ? frame.motionMultiplier! : 1)
+    const loopBars = resolveSelectedScenePreviewLoopBars(state, sectionType, motionMultiplier)
+    const previewLoops = selectedScenePreviewLoops(state, sectionType, motionMultiplier)
     const nextLoopIndex = previewLoops
       ? Math.floor(this.elapsedBar / loopBars + PREVIEW_CLOCK_EPSILON)
       : 0
-    const loopBoundary = identityChanged || discontinuity || nextLoopIndex !== this.loopIndex
+    const loopBoundary = identityChanged || nextLoopIndex !== this.loopIndex
 
     this.identity = identity
     this.lastSourceBar = sourceBar
     this.loopIndex = nextLoopIndex
+    this.sectionType = sectionType
+    const restorationActive = this.restorationIdentity === identity
+      && this.elapsedBar < MARQUEE_POWER_TRANSITION_BARS
+    if (!restorationActive && this.restorationIdentity === identity) this.restorationIdentity = null
 
-    return applyPixGridSelectedScenePreviewFrame(frame, state, {
+    return applyPixGridSelectedScenePreviewFrame({
+      ...frame,
+      restoringFromTransparency: restorationActive,
+      restorationElapsedBar: restorationActive ? this.elapsedBar : undefined,
+    }, state, {
       elapsedBar: this.elapsedBar,
       loopBoundary,
     })

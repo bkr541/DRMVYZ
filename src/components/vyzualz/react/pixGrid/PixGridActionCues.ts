@@ -154,7 +154,7 @@ const LOOP_BEHAVIORS = new Set<PixGridCueLoopBehavior>(['retrigger', 'once'])
 const CLOCKS = new Set<PixGridCueAnimationClock>(['time', 'beat', 'bar', 'cue'])
 const ANIMATIONS = new Set<PixGridAnimationMode>([
   'static', 'pulse', 'bounce', 'horizontalScroll', 'verticalScroll', 'pingPong', 'rotate',
-  'paletteCycle', 'blink', 'revealRow', 'revealColumn', 'checkerAlternate', 'frameCycle',
+  'paletteCycle', 'blink', 'revealRow', 'revealColumn', 'checkerAlternate', 'columnMeter', 'frameCycle',
   'audioAmplitudeScale', 'beatStepMovement',
 ])
 const BOUNDARIES = new Set<PixGridAnimationBoundary>(['wrap', 'clamp', 'bounce'])

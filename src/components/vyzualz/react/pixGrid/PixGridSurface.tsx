@@ -418,6 +418,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
     let resolution: CanvasResolution | null = null
     let previousPerformanceContext: SharedPerformanceContext | null = null
+    let restorationSectionIdentity: string | null = null
+    let restorationElapsedBar = 0
+    let restorationLastAbsoluteBar: number | null = null
     let previousTrackIdentity: string | null = propsRef.current.trackIdentity ?? null
     let previousPresetIdentity: string | null = preset.id
     let previousSceneOwnershipIdentity = propsRef.current.pixGridState.editor.scenePreviewMode === 'selectedScene'
@@ -637,10 +640,14 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previousPerformanceContext = null
         unifiedPerformanceRuntime.reset(current.trackIdentity ?? null)
         unifiedReactionRuntime.reset()
-        // Selected Scene owns a local preview timeline. Manual scene changes
-        // restart it from a held frame instead of inheriting an unrelated sign.
-        motionClock.reset(current.trackIdentity ?? null)
+        // Scene ownership changes restart only the local preview clocks. The
+        // actual sign epoch remains continuous so selecting scenes or returning
+        // to Follow Track cannot silently jump back to MARYS.
+        motionClock.reset(current.trackIdentity ?? null, { preserveSign: sceneOwnershipChanged && !presetChanged && !transportBoundary })
         selectedScenePreviewClock.reset()
+        restorationSectionIdentity = null
+        restorationElapsedBar = 0
+        restorationLastAbsoluteBar = null
         fallbackGroupCompiler.reset()
         perceptualTracker.reset()
         latestGroupCoverage = new Map()
@@ -665,6 +672,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         unifiedReactionRuntime.reset()
         motionClock.reset(trackIdentity)
         selectedScenePreviewClock.reset()
+        restorationSectionIdentity = null
+        restorationElapsedBar = 0
+        restorationLastAbsoluteBar = null
         fallbackGroupCompiler.reset()
         perceptualTracker.reset()
         latestGroupCoverage = new Map()
@@ -694,6 +704,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         && publicationAgeMs <= 250
         && intelligenceFrame.frameId > 0
       const deltaTimeSec = shouldAnimate ? Math.max(0, Math.min(0.25, audioTime - lastAudioTime)) : 0
+      const priorPerformanceContext = previousPerformanceContext
       const context = buildSharedPerformanceContext({
         audioTimeSec: audioTime,
         frame: intelligenceFrame,
@@ -701,15 +712,46 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         resolvedSections: current.trackSections ?? intelligenceFrame.resolvedSections ?? null,
         durationSec: current.durationSec,
         trackIdentity: current.trackIdentity ?? intelligenceFrame.trackId ?? intelligenceFrame.sourceId,
-        previous: previousPerformanceContext,
+        previous: priorPerformanceContext,
       })
       previousPerformanceContext = context
       lastAudioTime = audioTime
-      const liveAudioFrame = createPixGridAudioFrame(context, {
+      const baseLiveAudioFrame = createPixGridAudioFrame(context, {
         isPlaying: shouldAnimate,
         deltaTimeSec,
         autoPerformanceEnabled: current.pixGridState.performance.enabled,
       })
+      const absoluteBar = Number.isFinite(baseLiveAudioFrame.absoluteBar)
+        ? Math.max(0, baseLiveAudioFrame.absoluteBar!)
+        : Math.max(0, (baseLiveAudioFrame.barIndex ?? 0) + (baseLiveAudioFrame.barProgress ?? 0))
+      const sectionIdentity = `${trackIdentity ?? 'none'}:${context.sectionIdentity ?? context.sectionId ?? context.sectionType ?? 'unknown'}`
+      const leavingTransparentOutro = activePreset.id === 'pix-grid-neon-marquee-cycle'
+        && priorPerformanceContext?.sectionType === 'outro'
+        && priorPerformanceContext.barsSinceSectionStart >= 0.75
+        && context.sectionType !== 'outro'
+      if (leavingTransparentOutro) {
+        restorationSectionIdentity = sectionIdentity
+        restorationElapsedBar = shouldAnimate ? 0 : 0.75
+        restorationLastAbsoluteBar = absoluteBar
+      } else if (restorationSectionIdentity && restorationSectionIdentity !== sectionIdentity) {
+        restorationSectionIdentity = null
+        restorationElapsedBar = 0
+        restorationLastAbsoluteBar = null
+      } else if (restorationSectionIdentity === sectionIdentity && shouldAnimate && restorationLastAbsoluteBar != null) {
+        restorationElapsedBar += Math.max(0, absoluteBar - restorationLastAbsoluteBar)
+        restorationLastAbsoluteBar = absoluteBar
+      }
+      const restoringFromTransparency = restorationSectionIdentity === sectionIdentity
+        && restorationElapsedBar < 0.75
+      if (!restoringFromTransparency && restorationSectionIdentity === sectionIdentity) {
+        restorationSectionIdentity = null
+        restorationLastAbsoluteBar = null
+      }
+      const liveAudioFrame: PixGridAudioFrame = {
+        ...baseLiveAudioFrame,
+        restoringFromTransparency,
+        restorationElapsedBar: restoringFromTransparency ? restorationElapsedBar : undefined,
+      }
       const authoredAudioFrame = transportState === 'stopped'
         ? createSilentPixGridAudioFrame({
             audioTime,
@@ -745,7 +787,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         : usingFreshBusFrame
           ? 'shared-bus'
           : 'neutral'
-      const previewSourceFrame = selectedScenePreviewClock.apply({
+      const controlledSourceFrame = applyPixGridRuntimeControls({
         ...authoredAudioFrame,
         transportState,
         inputSource,
@@ -759,15 +801,15 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           : 0,
         stemAvailability: (['bassStemActivity', 'drumActivity', 'melodyActivity', 'vocalActivity'] as const)
           .filter(source => authoredAudioFrame.capabilities?.[source] !== false),
-      }, current.pixGridState)
-      const audioFrame = motionClock.apply(applyPixGridRuntimeControls(applyPixGridEditorPreview(applyPixGridPresetSignClock(
-        previewSourceFrame,
-        activePreset.id,
-        current.motion,
-      )), {
+      }, {
         bassReactivity: current.bassReactivity,
         motion: current.motion,
-      }))
+      })
+      const previewSourceFrame = selectedScenePreviewClock.apply(controlledSourceFrame, current.pixGridState)
+      const audioFrame = motionClock.apply(applyPixGridEditorPreview(applyPixGridPresetSignClock(
+        previewSourceFrame,
+        activePreset.id,
+      )))
       const qualityProfile = adaptiveProfileRef.current
       const runtimeState: PixGridState = {
         ...current.pixGridState,

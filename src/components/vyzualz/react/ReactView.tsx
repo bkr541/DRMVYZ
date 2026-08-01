@@ -11,8 +11,9 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from './ReactCanvasEngineShell'
-import { PixGridSurface } from './pixGrid/PixGridSurface'
+import { PixGridSurface, type PixGridSurfaceRuntimeFrame } from './pixGrid/PixGridSurface'
 import { PixGridEditorOverlay, shouldShowPixGridEditorOverlay } from './pixGrid/PixGridEditorOverlay'
+import { PixGridSemanticTargetOverlay } from './pixGrid/PixGridSemanticTargetOverlay'
 import { addPixGridMediaLayer } from './pixGrid/PixGridAuthoring'
 import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
@@ -299,6 +300,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const { isActive: hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [pixGridOutputCanvas, setPixGridOutputCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [pixGridSignFrameIndex, setPixGridSignFrameIndex] = useState<number | null>(null)
+  const handlePixGridRuntimeFrame = useCallback((frame: PixGridSurfaceRuntimeFrame) => {
+    setPixGridSignFrameIndex(previous => previous === frame.signFrameIndex ? previous : frame.signFrameIndex)
+  }, [])
   const handlePixGridCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
     setOutputCanvas(canvas)
     setPixGridOutputCanvas(canvas)
@@ -653,6 +658,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 effectiveBpm={engine.currentEffectiveBpm ?? undefined}
                 onCanvasReady={handlePixGridCanvasReady}
                 onLiveFps={setLiveFps}
+                onRuntimeFrame={handlePixGridRuntimeFrame}
               />
             ) : (
               <ReactPlaceholderCanvas
@@ -695,8 +701,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 activeAudioTrackId={engine.currentAudioTrackId}
               />
             )}
+            {activeReactEngineId === 'pixGrid' && !pixGridState.authoringOverlayVisible && (
+              <PixGridSemanticTargetOverlay signFrameIndex={pixGridSignFrameIndex} />
+            )}
             {shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
-              <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} />
+              <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} signFrameIndex={pixGridSignFrameIndex} />
             )}
             {showDirectorStageEditorVisible && (
               <div className="rv-show-director-stage-overlay" aria-label="Show Director center visualizer editor">

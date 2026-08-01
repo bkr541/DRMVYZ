@@ -44,12 +44,13 @@ export function resolvePixGridSurfacePerformanceFrame(
     input.presetId ?? input.authoredState.selectedPresetId,
   )
   const mappedState = resolvePixGridPreviewState(canonicalAuthoredState, input.trackSceneId)
-  const projectedPreviewFrame = applyPixGridSelectedScenePreviewFrame(input.audioFrame, mappedState)
-  const previewAudioFrame = applyPixGridPresetSignClock(
-    projectedPreviewFrame,
-    input.presetId ?? '',
-    projectedPreviewFrame.motionMultiplier ?? 1,
-  )
+  const projectedPreviewFrame = Number.isFinite(input.audioFrame.previewElapsedBar)
+    ? input.audioFrame
+    : applyPixGridSelectedScenePreviewFrame(input.audioFrame, mappedState)
+  const previewAudioFrame = Number.isFinite(projectedPreviewFrame.signClock)
+    || Number.isFinite(projectedPreviewFrame.motionClockSign)
+    ? projectedPreviewFrame
+    : applyPixGridPresetSignClock(projectedPreviewFrame, input.presetId ?? '')
   const previewContext = resolvePixGridPreviewPerformanceContext(input.context, mappedState, previewAudioFrame)
   const performanceContext = applyPixGridBassGainToPerformanceContext(
     previewContext,
@@ -63,7 +64,9 @@ export function resolvePixGridSurfacePerformanceFrame(
     context: performanceContext,
     audioFrame: previewAudioFrame,
     presetId: input.presetId,
-    cues: input.cues,
+    // Manual scene preview owns transition and power state as well as scene ID.
+    // Track-map cues resume only when Follow Track restores performance ownership.
+    cues: sceneOwnership === 'editingContext' ? [] : input.cues,
     trackId: input.trackId,
     sceneOwnership,
   })

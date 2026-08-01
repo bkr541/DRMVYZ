@@ -68,7 +68,7 @@ export const PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES: readonly PixGridMarqueeS
     visibleLayerIds: ['marquee-structure'],
     freezeAnimatedMasks: true,
     expectedBeforeHashes: [207_775_016, 3_938_269_786, 1_916_625_077, 1_591_766_667],
-    expectedAfterHashes: [3_173_658_545, 2_567_637_377, 1_841_788_870, 776_444_625],
+    expectedAfterHashes: [3_278_466_392, 460_460_980, 3_405_630_392, 1_009_547_698],
   },
   {
     id: 'one-letter-bank-active',
@@ -76,26 +76,26 @@ export const PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES: readonly PixGridMarqueeS
     visibleLayerIds: ['marquee-structure', 'marquee-letter-lights-a'],
     freezeAnimatedMasks: true,
     expectedBeforeHashes: [1_268_641_305, 2_193_036_626, 2_642_290_211, 1_591_766_667],
-    expectedAfterHashes: [4_109_688_237, 3_680_667_225, 2_941_173_955, 776_444_625],
+    expectedAfterHashes: [1_924_515_840, 3_393_491_548, 2_089_323_305, 1_009_547_698],
   },
   {
     id: 'all-letter-banks-off',
     sectionType: 'drop',
     hideLetterBanks: true,
-    expectedBeforeHashes: [2_156_617_189, 1_318_030_588, 3_014_989_498, 3_865_887_052],
-    expectedAfterHashes: [2_087_761_754, 378_700_275, 4_130_643_464, 2_757_925_803],
+    expectedBeforeHashes: [2_823_485_131, 3_812_627_755, 1_669_473_487, 1_126_779_096],
+    expectedAfterHashes: [1_708_836_698, 2_610_465_733, 784_150_535, 1_046_750_482],
   },
   {
     id: 'pre-drop-scene',
     sectionType: 'preDrop',
-    expectedBeforeHashes: [908_667_131, 3_477_055_917, 1_557_000_025, 2_276_081_657],
-    expectedAfterHashes: [861_514_074, 954_221_750, 1_728_039_270, 3_960_922_515],
+    expectedBeforeHashes: [1_563_833_318, 3_280_044_073, 3_938_197_304, 2_276_081_657],
+    expectedAfterHashes: [1_696_908_219, 3_043_210_954, 1_191_306_984, 2_159_798_994],
   },
   {
     id: 'drop-scene',
     sectionType: 'drop',
-    expectedBeforeHashes: [2_318_065_217, 3_887_303_792, 2_754_008_102, 3_865_887_052],
-    expectedAfterHashes: [3_814_809_702, 2_169_518_685, 3_127_465_757, 2_757_925_803],
+    expectedBeforeHashes: [1_771_302_035, 3_097_549_197, 1_903_124_482, 1_126_779_096],
+    expectedAfterHashes: [1_255_794_166, 945_622_793, 2_190_100_851, 1_046_750_482],
   },
 ] as const
 

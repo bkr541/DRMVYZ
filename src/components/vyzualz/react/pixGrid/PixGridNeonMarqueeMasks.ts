@@ -1230,26 +1230,54 @@ export function samplePixGridNeonMarqueeComponent(
  * asset used by the current Marquee preset.
  */
 export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS = [
+  'bulbs-a',
+  'bulbs-b',
+  'bulbs-c',
+  'bulbs-d',
   'letter-a',
   'letter-b',
   'letter-c',
+  'equalizer',
   'trim',
   'focal',
+  'sparkle',
 ] as const satisfies readonly PixGridNeonMarqueeComponentId[]
 
 export type PixGridNeonMarqueeStableUnderlayComponentId =
   typeof PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS[number]
 
-/** Exact deterministic source-color multiplier. No interpolation or smoothing is applied. */
+/**
+ * Exact deterministic source-color multipliers for the physical emitter bed.
+ * Every semantic emitter retains a dim source-derived copy beneath its bright
+ * animation layer, while authored structure remains byte-exact and full-strength.
+ */
 export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE = 0.28 as const
+export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE_BY_COMPONENT: Readonly<Record<
+  PixGridNeonMarqueeStableUnderlayComponentId,
+  number
+>> = Object.freeze({
+  'bulbs-a': 0.2,
+  'bulbs-b': 0.2,
+  'bulbs-c': 0.2,
+  'bulbs-d': 0.2,
+  'letter-a': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
+  'letter-b': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
+  'letter-c': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
+  equalizer: 0.14,
+  trim: 0.22,
+  focal: 0.24,
+  sparkle: 0.08,
+})
 
 function dimPixGridNeonMarqueeSourceColor(
   source: readonly [number, number, number],
+  componentId: PixGridNeonMarqueeStableUnderlayComponentId,
 ): readonly [number, number, number] {
+  const scale = PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE_BY_COMPONENT[componentId]
   return [
-    Math.round(source[0] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
-    Math.round(source[1] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
-    Math.round(source[2] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
+    Math.round(source[0] * scale),
+    Math.round(source[1] * scale),
+    Math.round(source[2] * scale),
   ]
 }
 
@@ -1279,9 +1307,10 @@ export function pixGridNeonMarqueeStableUnderlayContainsCell(
 
 /**
  * Samples the current stable structure layer. Authored structure cells retain
- * their exact source RGB. Letter, trim, and focal cells overlap that structure
- * as dim source-derived colors, allowing their bright layers to blink/reveal
- * without punching destructive black holes into the sign or Frenchie artwork.
+ * their exact source RGB. Every physical emitter overlaps that structure as a
+ * dim source-derived color, so authored visibility gates reveal an unlit bulb,
+ * letter lamp, equalizer segment, trim lamp, focal lamp, or sparkle instead of
+ * exposing the opaque black presentation background.
  */
 export function samplePixGridNeonMarqueeStableUnderlay(
   u: number,
@@ -1297,10 +1326,12 @@ export function samplePixGridNeonMarqueeStableUnderlay(
   const frameId = PIX_GRID_NEON_MARQUEE_FRAME_ORDER[normalized].id
   const bit = 1 << (cellIndex & 7)
   const isAuthoredStructure = (decodeMask('structure', frameId)[cellIndex >> 3] & bit) !== 0
-  const isDimUnderlay = !isAuthoredStructure && PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS.some(componentId => (
-    (decodeMask(componentId, frameId)[cellIndex >> 3] & bit) !== 0
-  ))
-  if (!isAuthoredStructure && !isDimUnderlay) return { alpha: 0, role: 'primary', color: [0, 0, 0] }
+  const underlayComponent = !isAuthoredStructure
+    ? PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS.find(componentId => (
+        (decodeMask(componentId, frameId)[cellIndex >> 3] & bit) !== 0
+      )) ?? null
+    : null
+  if (!isAuthoredStructure && !underlayComponent) return { alpha: 0, role: 'primary', color: [0, 0, 0] }
 
   const rgb = getPixGridNeonMarqueeFrames()[normalized]
   const offset = cellIndex * 3
@@ -1308,6 +1339,8 @@ export function samplePixGridNeonMarqueeStableUnderlay(
   return {
     alpha: 1,
     role: 'primary',
-    color: isAuthoredStructure ? source : dimPixGridNeonMarqueeSourceColor(source),
+    color: isAuthoredStructure
+      ? source
+      : dimPixGridNeonMarqueeSourceColor(source, underlayComponent!),
   }
 }

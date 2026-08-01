@@ -9,7 +9,8 @@ import {
 } from '../PixGridNeonMarqueeFrames'
 import {
   PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS,
-  PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
+  PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE_BY_COMPONENT,
+  type PixGridNeonMarqueeStableUnderlayComponentId,
   pixGridNeonMarqueeComponentContainsCell,
   pixGridNeonMarqueeStableUnderlayContainsCell,
   samplePixGridNeonMarqueeComponent,
@@ -27,7 +28,6 @@ import {
 
 const PRESET_ID = 'pix-grid-neon-marquee-cycle'
 const PRESET = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
-const DISAPPEARING_COMPONENTS = ['bulbs-a', 'bulbs-b', 'bulbs-c', 'bulbs-d', 'equalizer', 'sparkle'] as const
 const LETTER_COMPONENTS = ['letter-a', 'letter-b', 'letter-c'] as const
 
 function sourceColor(frameIndex: number, x: number, y: number): readonly [number, number, number] {
@@ -36,11 +36,15 @@ function sourceColor(frameIndex: number, x: number, y: number): readonly [number
   return [rgb[offset], rgb[offset + 1], rgb[offset + 2]]
 }
 
-function dimmed(color: readonly [number, number, number]): readonly [number, number, number] {
+function dimmed(
+  color: readonly [number, number, number],
+  component: PixGridNeonMarqueeStableUnderlayComponentId,
+): readonly [number, number, number] {
+  const scale = PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE_BY_COMPONENT[component]
   return [
-    Math.round(color[0] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
-    Math.round(color[1] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
-    Math.round(color[2] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
+    Math.round(color[0] * scale),
+    Math.round(color[1] * scale),
+    Math.round(color[2] * scale),
   ]
 }
 
@@ -93,10 +97,10 @@ describe('Marquee stable structural underlays', () => {
     expect(migrated.configuration.presetConfigurationVersion).toBe(PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION)
   })
 
-  it('overlaps dim source-derived letters, trim, and focal artwork while leaving bulbs, equalizers, and sparkles fully removable', () => {
+  it('uses sparse alpha for every semantic layer and overlaps a dim source-derived physical emitter bed', () => {
     let membershipMismatches = 0
     let colorMismatches = 0
-    let disappearingLeaks = 0
+    let nonMemberOpaqueCells = 0
     let underlayCellCount = 0
     for (let frameIndex = 0; frameIndex < 4; frameIndex += 1) {
       for (let y = 0; y < PIX_GRID_NEON_MARQUEE_FRAME_HEIGHT; y += 1) {
@@ -111,12 +115,19 @@ describe('Marquee stable structural underlays', () => {
           const expectedMembership = pixGridNeonMarqueeStableUnderlayContainsCell(frameIndex, x, y)
           membershipMismatches += Number((stable.alpha > 0) !== expectedMembership)
 
+          for (const component of PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS) {
+            const semantic = samplePixGridNeonMarqueeComponent(component, u, v, frameIndex)
+            const member = pixGridNeonMarqueeComponentContainsCell(component, frameIndex, x, y)
+            membershipMismatches += Number((semantic.alpha > 0) !== member)
+            nonMemberOpaqueCells += Number(!member && semantic.alpha > 0)
+          }
+
           if (authoredStructure) {
             const expected = sourceColor(frameIndex, x, y)
             colorMismatches += Number(stable.alpha !== 1 || stable.color.some((channel, index) => channel !== expected[index]))
           } else if (underlayComponent) {
             underlayCellCount += 1
-            const expectedDim = dimmed(sourceColor(frameIndex, x, y))
+            const expectedDim = dimmed(sourceColor(frameIndex, x, y), underlayComponent)
             const bright = samplePixGridNeonMarqueeComponent(underlayComponent, u, v, frameIndex)
             const expectedBright = sourceColor(frameIndex, x, y)
             colorMismatches += Number(
@@ -127,20 +138,16 @@ describe('Marquee stable structural underlays', () => {
           } else {
             membershipMismatches += Number(stable.alpha !== 0)
           }
-
-          if (DISAPPEARING_COMPONENTS.some(component => pixGridNeonMarqueeComponentContainsCell(component, frameIndex, x, y))) {
-            disappearingLeaks += Number(stable.alpha !== 0)
-          }
         }
       }
     }
     expect(membershipMismatches).toBe(0)
     expect(colorMismatches).toBe(0)
-    expect(disappearingLeaks).toBe(0)
-    expect(underlayCellCount).toBeGreaterThan(3_000)
+    expect(nonMemberOpaqueCells).toBe(0)
+    expect(underlayCellCount).toBeGreaterThan(10_000)
   })
 
-  it('keeps every authored letter, trim, and Frenchie/focal cell present in structure-only frames', () => {
+  it('keeps every authored bulb, letter, equalizer, trim, focal, and sparkle cell present in structure-only frames', () => {
     const fixture = PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES.find(candidate => candidate.id === 'only-structure-active')!
     let missingOrIncorrectCells = 0
     let checkedCells = 0
@@ -156,7 +163,7 @@ describe('Marquee stable structural underlays', () => {
             if (!pixGridNeonMarqueeComponentContainsCell(component, frameIndex, x, y)) continue
             checkedCells += 1
             const pixel = logicalColor(logical.pixels, x, y)
-            const expected = dimmed(sourceColor(frameIndex, x, y))
+            const expected = dimmed(sourceColor(frameIndex, x, y), component)
             missingOrIncorrectCells += Number(
               pixel[3] !== 255 || pixel.slice(0, 3).some((channel, index) => channel !== expected[index]),
             )
@@ -190,7 +197,7 @@ describe('Marquee stable structural underlays', () => {
       for (const component of LETTER_COMPONENTS) {
         const cell = firstCell(component, frameIndex)
         if (!cell) continue
-        expect(logicalColor(allOffFrame.pixels, ...cell)).toEqual([...dimmed(sourceColor(frameIndex, ...cell)), 255])
+        expect(logicalColor(allOffFrame.pixels, ...cell)).toEqual([...dimmed(sourceColor(frameIndex, ...cell), component), 255])
       }
     }
   })

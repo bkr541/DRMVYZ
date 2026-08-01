@@ -80,6 +80,7 @@ export type PixGridAnimationMode =
   | 'revealRow'
   | 'revealColumn'
   | 'checkerAlternate'
+  | 'columnMeter'
   | 'frameCycle'
   | 'audioAmplitudeScale'
   | 'beatStepMovement'
@@ -687,6 +688,10 @@ export interface PixGridAudioFrame {
   autoPerformanceEnabled?: boolean
   deltaTimeSec?: number
   timingDiscontinuity?: boolean
+  /** Reconstructs a deterministic power-on after a completed transparent terminal state. */
+  restoringFromTransparency?: boolean
+  /** Local deterministic elapsed bars for the restoration power-on lifecycle. */
+  restorationElapsedBar?: number
   trackIdentity?: string | null
   sourceValues?: Partial<Record<PixGridReactionSource, number>>
   /** Source values before PixGrid-local Bass Reactivity is applied. */

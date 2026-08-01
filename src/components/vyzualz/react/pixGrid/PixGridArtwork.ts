@@ -16,7 +16,7 @@ export interface PixGridAssetSample {
   color?: readonly [number, number, number]
 }
 
-const COMMON_STATIC = ['static', 'pulse', 'bounce', 'horizontalScroll', 'verticalScroll', 'pingPong', 'rotate', 'paletteCycle', 'blink', 'revealRow', 'revealColumn', 'checkerAlternate', 'audioAmplitudeScale', 'beatStepMovement'] as const
+const COMMON_STATIC = ['static', 'pulse', 'bounce', 'horizontalScroll', 'verticalScroll', 'pingPong', 'rotate', 'paletteCycle', 'blink', 'revealRow', 'revealColumn', 'checkerAlternate', 'columnMeter', 'audioAmplitudeScale', 'beatStepMovement'] as const
 const COMMON_PROCEDURAL = COMMON_STATIC
 const COMMON_ANIMATED_PROCEDURAL = [...COMMON_STATIC, 'frameCycle'] as const
 

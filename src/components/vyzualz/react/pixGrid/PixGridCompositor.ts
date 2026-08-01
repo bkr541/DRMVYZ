@@ -1,9 +1,10 @@
 import type { ReactPalette, ReactPreset } from '../ReactTypes'
-import { resolvePixGridLayerAnimation } from './PixGridAnimation'
+import { resolvePixGridLayerAnimation, type PixGridResolvedLayerAnimation } from './PixGridAnimation'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID, samplePixGridBuiltInAsset, type PixGridAssetSample } from './PixGridArtwork'
 import type {
   PixGridAudioFrame,
   PixGridBlendMode,
+  PixGridBuiltInAssetManifestEntry,
   PixGridLayer,
   PixGridPaletteRole,
   PixGridSceneSettings,
@@ -201,6 +202,66 @@ function transparentSample(reference: PixGridAssetSample): PixGridAssetSample {
   return { alpha: 0, role: reference.role, ...(reference.color ? { color: reference.color } : {}) }
 }
 
+interface PixGridColumnExtent { minRow: number; maxRow: number }
+const columnExtentCache = new Map<string, readonly (PixGridColumnExtent | null)[]>()
+
+function columnExtentsFor(
+  layer: PixGridLayer,
+  asset: PixGridBuiltInAssetManifestEntry,
+  frameIndex: number,
+): readonly (PixGridColumnExtent | null)[] {
+  const normalizedFrame = ((Math.floor(frameIndex) % Math.max(1, asset.frameCount ?? 1)) + Math.max(1, asset.frameCount ?? 1))
+    % Math.max(1, asset.frameCount ?? 1)
+  const key = `${layer.assetId}:${layer.maskAssetId ?? 'none'}:${layer.seed}:${normalizedFrame}`
+  const cached = columnExtentCache.get(key)
+  if (cached) return cached
+
+  const extents: (PixGridColumnExtent | null)[] = []
+  for (let column = 0; column < asset.nativeSize.width; column += 1) {
+    let minRow = asset.nativeSize.height
+    let maxRow = -1
+    const u = (column + 0.5) / asset.nativeSize.width
+    for (let row = 0; row < asset.nativeSize.height; row += 1) {
+      const v = (row + 0.5) / asset.nativeSize.height
+      if (sampleLayerFrame(layer, u, v, normalizedFrame).alpha <= 0) continue
+      minRow = Math.min(minRow, row)
+      maxRow = Math.max(maxRow, row)
+    }
+    extents.push(maxRow >= minRow ? { minRow, maxRow } : null)
+  }
+  columnExtentCache.set(key, extents)
+  return extents
+}
+
+function columnMeterContains(
+  layer: PixGridLayer,
+  asset: PixGridBuiltInAssetManifestEntry,
+  animation: PixGridResolvedLayerAnimation,
+  u: number,
+  v: number,
+): boolean {
+  if (animation.columnMeterPhase == null) return true
+  const column = Math.max(0, Math.min(asset.nativeSize.width - 1, Math.floor(u * asset.nativeSize.width)))
+  const row = Math.max(0, Math.min(asset.nativeSize.height - 1, Math.floor(v * asset.nativeSize.height)))
+  const extent = columnExtentsFor(layer, asset, animation.frameIndex)[column]
+  if (!extent || row < extent.minRow || row > extent.maxRow) return false
+
+  const height = Math.max(1, extent.maxRow - extent.minRow + 1)
+  const heightFromBottom = (extent.maxRow - row + 1) / height
+  const phase = animation.columnMeterPhase * Math.PI * 2
+  const primaryWave = 0.5 + 0.5 * Math.sin(phase + column * 0.83)
+  const secondaryWave = 0.5 + 0.5 * Math.sin(phase * 0.61 - column * 1.37)
+  const authoredLevel = 0.16 + primaryWave * 0.48 + secondaryWave * 0.2
+  const horizontal = (column + 0.5) / Math.max(1, asset.nativeSize.width)
+  const audioLevel = horizontal < 1 / 3
+    ? animation.columnMeterLow
+    : horizontal < 2 / 3
+      ? animation.columnMeterMid
+      : animation.columnMeterHigh
+  const level = clamp01((authoredLevel + audioLevel * 0.5) * animation.columnMeterAmount)
+  return heightFromBottom <= level
+}
+
 function interpolateColor(
   source: readonly [number, number, number],
   target: readonly [number, number, number],
@@ -304,6 +365,7 @@ function renderLayer(
         continue
       if (animation.checkerAlternate && (Math.floor(u * asset.nativeSize.width) + Math.floor(v * asset.nativeSize.height)) % 2 !== 0)
         continue
+      if (!columnMeterContains(layer, asset, animation, u, v)) continue
 
       const alpha = transitionAlpha * layerOpacity
       if (alpha <= 0) continue

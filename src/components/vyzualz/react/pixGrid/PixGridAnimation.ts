@@ -23,6 +23,11 @@ export interface PixGridResolvedLayerAnimation {
   revealRowFrom: 'start' | 'end' | 'center'
   revealColumnFrom: 'start' | 'end' | 'center'
   checkerAlternate: boolean
+  columnMeterPhase: number | null
+  columnMeterAmount: number
+  columnMeterLow: number
+  columnMeterMid: number
+  columnMeterHigh: number
   frameIndex: number
   previousFrameIndex: number
   frameTransitionType: PixGridProgramTransitionOverride
@@ -157,6 +162,15 @@ function animationTime(frame: PixGridAudioFrame, animation: PixGridLayerAnimatio
 }
 
 function transitionConfig(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): PixGridFrameTransitionConfig | null {
+  if (frame.restoringFromTransparency === true && animation.clock === 'sign') {
+    return {
+      type: 'powerOn',
+      durationFraction: 0.75,
+      easing: 'easeOut',
+      seedMode: 'section',
+      onSectionEntry: true,
+    }
+  }
   const sectionType = animationSectionType(frame)
   return (sectionType ? animation.sectionFrameTransitions?.[sectionType] : animation.sectionFrameTransitions?.unknown)
     ?? animation.frameTransition
@@ -230,11 +244,12 @@ function resolveFrameCycle(
   if (hasExplicitSignTransition) {
     if (explicitSignTransition == null) {
       if (!config.onSectionEntry) return
-      const entryClock = Math.max(0, (
-        frame.motionClockSectionBar
-        ?? frame.barsSinceSectionStart
-        ?? 0
-      ) * effectiveMotion(frame, motionMultiplier))
+      const entryClock = config.type === 'powerOn' || config.type === 'powerOff'
+        ? Math.max(0, frame.restoringFromTransparency === true
+            ? frame.restorationElapsedBar ?? 0
+            : frame.barsSinceSectionStart ?? 0)
+        : Math.max(0, frame.motionClockSectionBar ?? frame.barsSinceSectionStart ?? 0)
+          * Math.max(0, Number.isFinite(motionMultiplier) ? motionMultiplier : 1)
       rawProgress = duration <= 0 ? 1 : clamp01(entryClock / duration)
       resolved.previousFrameIndex = frameIndex
       entryTransition = true
@@ -249,11 +264,12 @@ function resolveFrameCycle(
     const rate = Math.abs(animation.speed * animationClockRate(frame, animation) * effectiveMotion(frame, motionMultiplier) * frameRate)
     if (rate <= 1e-10) {
       if (!config.onSectionEntry) return
-      const entryClock = Math.max(0, (
-        frame.motionClockSectionBar
-        ?? frame.barsSinceSectionStart
-        ?? 0
-      ) * effectiveMotion(frame, motionMultiplier))
+      const entryClock = config.type === 'powerOn' || config.type === 'powerOff'
+        ? Math.max(0, frame.restoringFromTransparency === true
+            ? frame.restorationElapsedBar ?? 0
+            : frame.barsSinceSectionStart ?? 0)
+        : Math.max(0, frame.motionClockSectionBar ?? frame.barsSinceSectionStart ?? 0)
+          * Math.max(0, Number.isFinite(motionMultiplier) ? motionMultiplier : 1)
       rawProgress = duration <= 0 ? 1 : clamp01(entryClock / duration)
       resolved.previousFrameIndex = frameIndex
       entryTransition = true
@@ -292,6 +308,11 @@ export function resolvePixGridLayerAnimation(
     revealRowFrom: 'start',
     revealColumnFrom: 'start',
     checkerAlternate: false,
+    columnMeterPhase: null,
+    columnMeterAmount: 1,
+    columnMeterLow: 0,
+    columnMeterMid: 0,
+    columnMeterHigh: 0,
     frameIndex: 0,
     previousFrameIndex: 0,
     frameTransitionType: 'cut',
@@ -362,6 +383,19 @@ export function resolvePixGridLayerAnimation(
         break
       case 'checkerAlternate':
         resolved.checkerAlternate = Math.floor(time) % 2 !== 0
+        break
+      case 'columnMeter':
+        resolved.columnMeterPhase = time
+        resolved.columnMeterAmount = clamp01(Math.abs(amount || 1))
+        resolved.columnMeterLow = frame.autoPerformanceEnabled === false
+          ? 0
+          : clamp01(frame.sourceValues?.bass ?? frame.bass ?? 0)
+        resolved.columnMeterMid = frame.autoPerformanceEnabled === false
+          ? 0
+          : clamp01(frame.sourceValues?.mid ?? frame.mid ?? 0)
+        resolved.columnMeterHigh = frame.autoPerformanceEnabled === false
+          ? 0
+          : clamp01(frame.sourceValues?.high ?? frame.high ?? 0)
         break
       case 'frameCycle':
         resolveFrameCycle(resolved, layer, asset, frame, animation, time, motionMultiplier)
