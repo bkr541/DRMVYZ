@@ -169,6 +169,15 @@ export function applyPixGridPresetSignClock(
     ? finiteNonNegative(frame.previewElapsedBar)
     : null
   const previewType = previewBar != null ? frame.sectionType : null
+  const absoluteBar = rawAbsoluteBar(frame)
+  const sectionTimeline = frame.sectionBarTimeline ?? []
+  const terminalOutro = previewBar == null && frame.sectionType === 'outro'
+    ? normalizedSpans(sectionTimeline).find(span => (
+        span.type === 'outro'
+        && absoluteBar >= span.startBar - SIGN_CLOCK_EPSILON
+        && absoluteBar <= span.endBar + SIGN_CLOCK_EPSILON
+      )) ?? null
+    : null
   const state = previewBar != null && previewType
     ? resolvePixGridSectionCadenceClockState(
         previewBar,
@@ -181,12 +190,25 @@ export function applyPixGridPresetSignClock(
         PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
         motionScale,
       )
-    : resolvePixGridSectionCadenceClockState(
-        rawAbsoluteBar(frame),
-        frame.sectionBarTimeline ?? [],
-        PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
-        motionScale,
-      )
+    : terminalOutro
+      ? {
+          ...resolvePixGridSectionCadenceClockState(
+            Math.max(0, terminalOutro.startBar - 1e-7),
+            sectionTimeline,
+            PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
+            motionScale,
+          ),
+          transitionClock: null,
+          transitionRate: 0,
+          sourceFrame: null,
+          targetFrame: null,
+        }
+      : resolvePixGridSectionCadenceClockState(
+          absoluteBar,
+          sectionTimeline,
+          PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
+          motionScale,
+        )
   return {
     ...frame,
     signClock: state.clock,

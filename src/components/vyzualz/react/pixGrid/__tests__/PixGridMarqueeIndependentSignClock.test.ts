@@ -138,8 +138,9 @@ describe('Marquee independent sign clock', () => {
     expect(signedFrameAt(24).signClock).toBe(2.5)
     expect(signedFrameAt(26).signClock).toBe(2.5)
     expect(signedFrameAt(34).signClock).toBe(4.5)
-    expect(signedFrameAt(42).signClock).toBe(5)
-    expect(signedFrameAt(49).signClock).toBe(5)
+    const beforeOutro = signedFrameAt(42 - 1e-6).signClock!
+    expect(signedFrameAt(42).signClock).toBeCloseTo(beforeOutro, 5)
+    expect(signedFrameAt(49).signClock).toBe(signedFrameAt(42).signClock)
   })
 
   it('does not invent a sign transition when Intro enters Verse at clock zero', () => {
@@ -186,8 +187,20 @@ describe('Marquee independent sign clock', () => {
     expect(middle.frameTransitionProgress).toBeGreaterThan(0)
     expect(middle.frameTransitionProgress).toBeLessThan(1)
 
-    const outroBoundary = resolve(structure, signedFrameAt(42))
-    expect(outroBoundary).toMatchObject({ frameIndex: 1, previousFrameIndex: 0, frameTransitionProgress: 0 })
+    const beforeOutro = resolve(structure, signedFrameAt(42 - 1e-6))
+    const outroFrame = signedFrameAt(42)
+    const outroBoundary = resolve(structure, outroFrame)
+    expect(outroFrame).toMatchObject({
+      signTransitionClock: null,
+      signTransitionSourceFrame: null,
+      signTransitionTargetFrame: null,
+    })
+    expect(outroBoundary).toMatchObject({
+      frameIndex: beforeOutro.frameIndex,
+      previousFrameIndex: beforeOutro.frameIndex,
+      frameTransitionType: 'powerOff',
+      frameTransitionProgress: 0,
+    })
   })
 
   it('is deterministic after seek, loop, pause, restart, and remount', () => {

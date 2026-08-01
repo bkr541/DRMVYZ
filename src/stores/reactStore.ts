@@ -195,7 +195,7 @@ import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/P
 import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from '../components/vyzualz/react/pixGrid/PixGridState'
 import type { PixGridPerformanceProgramId, PixGridQualityMode, PixGridQualityTier, PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import { normalizePixGridPresetSettings, normalizePixGridState } from '../components/vyzualz/react/pixGrid/PixGridValidation'
-import { markPixGridStateCustomized, migratePixGridState } from '../components/vyzualz/react/pixGrid/PixGridStateMigration'
+import { ensurePixGridCanonicalPresetIntegrity, markPixGridStateCustomized } from '../components/vyzualz/react/pixGrid/PixGridStateMigration'
 import {
   applyPixGridPerformancePatch,
   applyPixGridPresentationPatch,
@@ -207,6 +207,7 @@ import {
   type PixGridPresentationPatch,
 } from '../components/vyzualz/react/pixGrid/PixGridControlContract'
 import { PIX_GRID_PRESET_ID_BY_PROGRAM } from '../components/vyzualz/react/pixGrid/PixGridPerformancePrograms'
+import { PIX_GRID_PRESET_BY_ID } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import {
   MAX_PIX_GRID_ACTION_CUES_PER_TRACK,
   MAX_PIX_GRID_ACTION_CUE_TRACKS,
@@ -1624,7 +1625,7 @@ function buildPixGridHistoryPatch(
   nextState: PixGridState,
 ) {
   const current = normalizePixGridState(storeState.pixGridState)
-  const next = markPixGridStateCustomized(normalizePixGridState(nextState))
+  const next = ensurePixGridCanonicalPresetIntegrity(markPixGridStateCustomized(normalizePixGridState(nextState)))
   if (pixGridSnapshotsEqual(current, next)) return {}
   if (storeState.pixGridHistoryTransaction) return { pixGridState: next }
   return {
@@ -1805,21 +1806,43 @@ function buildPresetPatchForState(
   preset: ReactPreset,
   state: ReactStoreState,
 ) {
-  const patch = buildPresetPatch(
-    preset,
+  // Built-in PixGrid preset objects are authored application code. A persisted
+  // collection can contain an older object with the same ID, so activation must
+  // resolve through the source registry before constructing the live document.
+  const resolvedPreset = preset.engine === 'pixGrid'
+    ? PIX_GRID_PRESET_BY_ID.get(preset.id) ?? preset
+    : preset
+  const presetPatch = buildPresetPatch(
+    resolvedPreset,
     state.oscillatorSettings,
     state.laserDmxSettings,
   )
+  const samePixGridPreset = resolvedPreset.engine === 'pixGrid'
+    && state.pixGridState.selectedPresetId === resolvedPreset.id
+  const patch = samePixGridPreset
+    ? {
+        ...presetPatch,
+        reactIntensity: state.reactIntensity,
+        reactMotion: state.reactMotion,
+        reactGlow: state.reactGlow,
+        reactBassReactivity: state.reactBassReactivity,
+        reactTrailDecay: state.reactTrailDecay,
+        reactFogDensity: state.reactFogDensity,
+        reactParticleDensity: state.reactParticleDensity,
+      }
+    : presetPatch
   const geometryChanged = [...TEXT_GEOMETRY_SETTING_KEYS].some(
     key => patch.oscillatorSettings[key] !== state.oscillatorSettings[key],
   )
-  const pixGridPatch = preset.engine === 'pixGrid'
+  const pixGridPatch = resolvedPreset.engine === 'pixGrid'
     ? {
-        pixGridState: applyPixGridPresetSettings(
-          state.pixGridState,
-          preset.id,
-          preset.pixGridSettings,
-        ),
+        pixGridState: samePixGridPreset
+          ? ensurePixGridCanonicalPresetIntegrity(state.pixGridState, resolvedPreset.id)
+          : applyPixGridPresetSettings(
+              state.pixGridState,
+              resolvedPreset.id,
+              resolvedPreset.pixGridSettings,
+            ),
       }
     : {}
   const trailLock = state.soundDrawingPerformanceSettings.trailLockContract
@@ -3320,6 +3343,19 @@ function mergeCollectionsById<T extends { id: string }>(
 }
 
 
+function mergeReactPresetCollection(
+  current: ReactPreset[],
+  persisted: ReactPreset[] | undefined,
+): ReactPreset[] {
+  const merged = mergeCollectionsById(current, persisted)
+  return merged.map((preset) => (
+    preset.engine === 'pixGrid' && PIX_GRID_PRESET_BY_ID.has(preset.id)
+      ? PIX_GRID_PRESET_BY_ID.get(preset.id)!
+      : preset
+  ))
+}
+
+
 export function normalizeCinematicPresetConfiguration(preset: ReactPreset): ReactPreset {
   if (preset.engine !== 'cinematicPortal') return preset
 
@@ -4020,6 +4056,14 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       }),
     }
   }
+  if (version < 61) {
+    // Production integration: canonical PixGrid built-ins are repaired from the
+    // source registry after older serialized preset objects have been decoded.
+    state = {
+      ...state,
+      pixGridState: ensurePixGridCanonicalPresetIntegrity(state.pixGridState),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -4050,7 +4094,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     ),
     laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
     laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
-    pixGridState: normalizePixGridState(state.pixGridState),
+    pixGridState: ensurePixGridCanonicalPresetIntegrity(state.pixGridState),
     pixGridActionCuesByTrackId: normalizePixGridActionCueMap(state.pixGridActionCuesByTrackId),
   }
   // Imported/current-version snapshots do not necessarily pass through a
@@ -4216,7 +4260,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     activeReactPresetId:                persistedSelection.activeReactPresetId,
     activeReactEngineId:                persistedSelection.activeReactEngineId,
     reactPresets:                       s.reactPresets,
-    pixGridState:                       normalizePixGridState(s.pixGridState),
+    pixGridState:                       ensurePixGridCanonicalPresetIntegrity(s.pixGridState),
     cinematicConfigsByPresetId:         s.cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
@@ -4310,7 +4354,7 @@ export function mergeReactStoreState(
     ? removeRetiredReactPresets(persisted.reactPresets)
     : undefined
   const reactPresets = normalizeCinematicPresetCollection(
-    removeRetiredReactPresets(mergeCollectionsById(currentState.reactPresets, persistedPresets)),
+    removeRetiredReactPresets(mergeReactPresetCollection(currentState.reactPresets, persistedPresets)),
   )
   sanitizeReactPresetFavorites(
     reactPresets
@@ -4409,15 +4453,27 @@ export function mergeReactStoreState(
   const persistedPixGridPreset = merged.pixGridState.selectedPresetId
     ? reactPresets.find(preset => preset.id === merged.pixGridState.selectedPresetId && preset.engine === 'pixGrid') ?? null
     : null
-  const preserveCustomPixGridState = merged.pixGridState.configuration.origin === 'custom'
-    || merged.pixGridState.selectedPresetId == null
-  const pixGridState = activePixGridPreset
+  const canonicalActivePixGridPreset = activePixGridPreset
+    ? PIX_GRID_PRESET_BY_ID.get(activePixGridPreset.id) ?? activePixGridPreset
+    : null
+  const canonicalPersistedPixGridPreset = persistedPixGridPreset
+    ? PIX_GRID_PRESET_BY_ID.get(persistedPixGridPreset.id) ?? persistedPixGridPreset
+    : null
+  const preserveCustomPixGridState = merged.pixGridState.selectedPresetId == null
+    || (merged.pixGridState.configuration.origin === 'custom' && !canonicalPersistedPixGridPreset)
+  const pixGridState = canonicalActivePixGridPreset
     && !preserveCustomPixGridState
-    && merged.pixGridState.selectedPresetId !== activePixGridPreset.id
-    ? applyPixGridPresetSettings(merged.pixGridState, activePixGridPreset.id, activePixGridPreset.pixGridSettings)
-    : migratePixGridState(
+    && merged.pixGridState.selectedPresetId !== canonicalActivePixGridPreset.id
+    ? applyPixGridPresetSettings(
+        merged.pixGridState,
+        canonicalActivePixGridPreset.id,
+        canonicalActivePixGridPreset.pixGridSettings,
+      )
+    : ensurePixGridCanonicalPresetIntegrity(
         rawPixGridState,
-        preserveCustomPixGridState ? null : activePixGridPreset ?? persistedPixGridPreset,
+        preserveCustomPixGridState
+          ? null
+          : canonicalActivePixGridPreset?.id ?? canonicalPersistedPixGridPreset?.id ?? null,
       )
 
   return {
@@ -4547,7 +4603,8 @@ export const useReactStore = create<ReactStoreState>()(
           || key === 'diagnostics'
           || key === 'selectedSceneId'
         ))
-        return { pixGridState: onlyTransientKeys ? normalized : markPixGridStateCustomized(normalized) }
+        const authored = onlyTransientKeys ? normalized : markPixGridStateCustomized(normalized)
+        return { pixGridState: ensurePixGridCanonicalPresetIntegrity(authored) }
       }),
 
       setPixGridRequestedQuality: (quality) => set(state => buildPixGridHistoryPatch(
@@ -4639,14 +4696,14 @@ export const useReactStore = create<ReactStoreState>()(
       }),
 
       cancelPixGridHistoryTransaction: () => set(state => state.pixGridHistoryTransaction
-        ? { pixGridState: normalizePixGridState(state.pixGridHistoryTransaction), pixGridHistoryTransaction: null }
+        ? { pixGridState: ensurePixGridCanonicalPresetIntegrity(state.pixGridHistoryTransaction), pixGridHistoryTransaction: null }
         : {}),
 
       undoPixGridEdit: () => set(state => {
         const previous = state.pixGridUndoStack[state.pixGridUndoStack.length - 1]
         if (!previous) return {}
         const current = normalizePixGridState(state.pixGridState)
-        const restored = normalizePixGridState({
+        const restored = ensurePixGridCanonicalPresetIntegrity({
           ...previous,
           authoringOverlayVisible: current.authoringOverlayVisible,
           editorTool: current.editorTool,
@@ -4664,7 +4721,7 @@ export const useReactStore = create<ReactStoreState>()(
         const next = state.pixGridRedoStack[state.pixGridRedoStack.length - 1]
         if (!next) return {}
         const current = normalizePixGridState(state.pixGridState)
-        const restored = normalizePixGridState({
+        const restored = ensurePixGridCanonicalPresetIntegrity({
           ...next,
           authoringOverlayVisible: current.authoringOverlayVisible,
           editorTool: current.editorTool,
@@ -8406,7 +8463,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 60,
+      version: 61,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

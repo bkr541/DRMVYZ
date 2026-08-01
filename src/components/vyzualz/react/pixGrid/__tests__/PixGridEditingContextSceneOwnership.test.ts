@@ -109,6 +109,46 @@ function resolve(input: {
 }
 
 describe('PixGrid Editing Context production scene ownership', () => {
+  it('repairs a stale one-layer Marquee document before the unified runtime resolves', () => {
+    const canonical = stateForPreset(MARQUEE_ID)
+    const structure = canonical.layers.find(layer => layer.id === 'marquee-structure')!
+    const legacyLayer = {
+      ...structure,
+      id: 'neon-marquee-frame',
+      name: 'Neon Marquee Frame',
+      assetId: 'pix-neon-marquee-cycle' as const,
+      animations: [],
+    }
+    const stale = normalizePixGridState({
+      ...canonical,
+      configuration: {
+        ...canonical.configuration,
+        metadataVersion: 0 as never,
+        origin: 'custom',
+        sourcePresetId: MARQUEE_ID,
+        presetConfigurationVersion: 1,
+        layerGraphVersion: 1,
+        smartGroupConfigurationVersion: 0,
+        performanceProgramConfigurationVersion: 0,
+        canonicalMigrationCompleted: false,
+        legacyOfficialLayerGraph: true,
+      },
+      layers: [legacyLayer],
+      scenes: canonical.scenes.map(scene => ({ ...scene, layerIds: [legacyLayer.id] })),
+      groups: [],
+      audioAssignments: [],
+      performance: { ...canonical.performance, sharedPerformanceProgramId: null },
+      editor: { ...canonical.editor, selectedLayerId: legacyLayer.id },
+    })
+    const frame = resolve({ state: stale, trackSceneId: `${MARQUEE_ID}-verse` })
+
+    expect(frame.mappedState.layers).toHaveLength(12)
+    expect(frame.mappedState.groups).toHaveLength(14)
+    expect(frame.mappedState.layers.some(layer => layer.id === legacyLayer.id)).toBe(false)
+    expect(frame.mappedState.performance.sharedPerformanceProgramId).toBe('pix-grid-neon-marquee-performance')
+    expect(frame.resolvedRuntime.state.layers).toHaveLength(12)
+  })
+
   it('keeps Intro selected over a real Verse while running the Intro program plan', () => {
     const introId = `${MARQUEE_ID}-intro`
     const state = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID), introId)

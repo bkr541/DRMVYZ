@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { PIX_GRID_PRESET_IDS } from '../components/vyzualz/react/pixGrid/PixGridPresets'
+import { PIX_GRID_PRESET_BY_ID, PIX_GRID_PRESET_IDS } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
+import { applyPixGridPresetSettings } from '../components/vyzualz/react/pixGrid/PixGridState'
+import { inspectPixGridCanonicalPresetIntegrity, migratePixGridState } from '../components/vyzualz/react/pixGrid/PixGridStateMigration'
 import { PIX_GRID_STATE_VERSION, type PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import {
   mergeReactStoreState,
@@ -53,6 +55,134 @@ describe('PixGrid persistence and selection invariants', () => {
     expect(merged.pixGridState.configuration.lastMigration?.applied).toBe(true)
     const repeated = mergeReactStoreState({ pixGridState: merged.pixGridState }, current)
     expect(repeated.pixGridState).toEqual(merged.pixGridState)
+  })
+
+  it('repairs the real persisted one-layer Marquee document after stale preset hydration and remains idempotent', () => {
+    const current = useReactStore.getState()
+    const presetId = 'pix-grid-neon-marquee-cycle'
+    const canonicalPreset = PIX_GRID_PRESET_BY_ID.get(presetId)!
+    const structure = canonicalPreset.pixGridSettings!.layers!.find(layer => layer.id === 'marquee-structure')!
+    const legacyLayer = {
+      ...structure,
+      id: 'neon-marquee-frame',
+      name: 'Neon Marquee Frame',
+      assetId: 'pix-neon-marquee-cycle' as const,
+      animations: [],
+    }
+    const stalePreset = {
+      ...canonicalPreset,
+      pixGridSettings: {
+        ...canonicalPreset.pixGridSettings!,
+        authoredConfigurationVersion: 1,
+        layers: [legacyLayer],
+        groups: [],
+        audioAssignments: [],
+        performanceProgramId: null,
+      },
+    }
+    const legacyBase = applyPixGridPresetSettings(
+      createDefaultPixGridState(),
+      presetId,
+      stalePreset.pixGridSettings,
+    )
+    const overlay = {
+      ...structure,
+      id: 'user-marquee-overlay',
+      name: 'User Marquee Overlay',
+      mediaId: 'user-media-1',
+      animations: [],
+    }
+    const legacyState: PixGridState = {
+      ...legacyBase,
+      configuration: {
+        ...legacyBase.configuration,
+        metadataVersion: 0 as never,
+        origin: 'custom',
+        sourcePresetId: presetId,
+        presetConfigurationVersion: 1,
+        layerGraphVersion: 1,
+        smartGroupConfigurationVersion: 0,
+        audioRouteConfigurationVersion: 0,
+        performanceProgramConfigurationVersion: 0,
+        musicReactiveConfigurationVersion: 0,
+        userCustomized: true,
+        legacyOfficialLayerGraph: true,
+        genuineUserLayers: true,
+        canonicalMigrationCompleted: false,
+      },
+      layers: [legacyLayer, overlay],
+      scenes: legacyBase.scenes.map(scene => ({ ...scene, layerIds: [legacyLayer.id, overlay.id] })),
+      groups: [],
+      audioAssignments: [],
+      performance: {
+        ...legacyBase.performance,
+        enabled: true,
+        sharedPerformanceProgramId: null,
+      },
+      editor: {
+        ...legacyBase.editor,
+        selectedLayerId: legacyLayer.id,
+        scenePreviewMode: 'selectedScene',
+      },
+    }
+
+    const directMigration = migratePixGridState(legacyState, stalePreset)
+    expect(inspectPixGridCanonicalPresetIntegrity(directMigration, presetId).complete).toBe(true)
+
+    const merged = mergeReactStoreState({
+      activeReactEngineId: 'pixGrid',
+      activeReactPresetId: presetId,
+      reactPresets: [stalePreset],
+      pixGridState: legacyState,
+      reactMotion: 0.73,
+    }, current)
+    const integrity = inspectPixGridCanonicalPresetIntegrity(merged.pixGridState, presetId)
+
+    expect(integrity).toMatchObject({
+      complete: true,
+      canonicalLayerCount: 12,
+      requiredLayerCount: 12,
+      canonicalGroupCount: 14,
+      requiredGroupCount: 14,
+      obsoleteOfficialLayerIds: [],
+      performanceProgramMatches: true,
+    })
+    expect(merged.reactPresets.find(preset => preset.id === presetId)?.pixGridSettings?.layers).toHaveLength(12)
+    expect(merged.pixGridState.layers.some(layer => layer.id === 'neon-marquee-frame')).toBe(false)
+    expect(merged.pixGridState.layers.find(layer => layer.id === overlay.id)).toMatchObject({ mediaId: overlay.mediaId })
+    expect(merged.pixGridState.scenes).toHaveLength(7)
+    expect(merged.pixGridState.scenes.every(scene => scene.layerIds.includes('marquee-structure'))).toBe(true)
+    expect(merged.pixGridState.performance.sharedPerformanceProgramId).toBe('pix-grid-neon-marquee-performance')
+    expect(merged.pixGridState.editor.selectedLayerId).toBe('marquee-structure')
+    expect(merged.pixGridState.layers.map(layer => layer.name)).toEqual(expect.arrayContaining([
+      'Stable Sign Structure',
+      'Perimeter Bulbs A',
+      'Perimeter Bulbs B',
+      'Perimeter Bulbs C',
+      'Perimeter Bulbs D',
+      'Letter Lights A',
+      'Letter Lights B',
+      'Letter Lights C',
+      'Equalizer and Halo Lights',
+      'Trim and Underline Lights',
+      'Frenchie and Focal Lights',
+      'Sparse Accent Bulbs',
+    ]))
+    expect(merged.reactMotion).toBe(0.73)
+
+    useReactStore.setState(merged)
+    useReactStore.getState().selectReactPreset(presetId)
+    const selected = useReactStore.getState().pixGridState
+    expect(inspectPixGridCanonicalPresetIntegrity(selected, presetId).complete).toBe(true)
+    expect(selected.layers.find(layer => layer.id === overlay.id)).toMatchObject({ mediaId: overlay.mediaId })
+    expect(useReactStore.getState().reactMotion).toBe(0.73)
+
+    const persistedAgain = reactStorePartialize(useReactStore.getState())
+    const reloaded = mergeReactStoreState(persistedAgain, current)
+    expect(inspectPixGridCanonicalPresetIntegrity(reloaded.pixGridState, presetId).complete).toBe(true)
+    expect(reloaded.pixGridState.layers.filter(layer => layer.id === 'marquee-structure')).toHaveLength(1)
+    expect(reloaded.pixGridState.groups.filter(group => group.id === 'marquee-perimeter-group')).toHaveLength(1)
+    expect(reloaded.pixGridState.layers.find(layer => layer.id === overlay.id)).toMatchObject({ mediaId: overlay.mediaId })
   })
 
   it('does not replace an explicitly custom PixGrid scene with the active built-in preset during hydration', () => {

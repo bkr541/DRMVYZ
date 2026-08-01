@@ -8,6 +8,7 @@ import {
   resolvePixGridPreviewState,
 } from './PixGridScenePreview'
 import { applyPixGridPresetSignClock } from './PixGridSignClock'
+import { ensurePixGridCanonicalPresetIntegrity } from './PixGridStateMigration'
 import { PixGridUnifiedPerformanceRuntime, type PixGridUnifiedFrame } from './PixGridUnifiedPerformanceRuntime'
 import type { PixGridAudioFrame, PixGridState } from './PixGridTypes'
 
@@ -38,7 +39,11 @@ export interface PixGridSurfacePerformanceFrame {
 export function resolvePixGridSurfacePerformanceFrame(
   input: ResolvePixGridSurfacePerformanceFrameInput,
 ): PixGridSurfacePerformanceFrame {
-  const mappedState = resolvePixGridPreviewState(input.authoredState, input.trackSceneId)
+  const canonicalAuthoredState = ensurePixGridCanonicalPresetIntegrity(
+    input.authoredState,
+    input.presetId ?? input.authoredState.selectedPresetId,
+  )
+  const mappedState = resolvePixGridPreviewState(canonicalAuthoredState, input.trackSceneId)
   const projectedPreviewFrame = applyPixGridSelectedScenePreviewFrame(input.audioFrame, mappedState)
   const previewAudioFrame = applyPixGridPresetSignClock(
     projectedPreviewFrame,

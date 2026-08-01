@@ -239,25 +239,6 @@ function renderLayer(
       const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
 
-      // Canonical semantic membership follows the resolved transform and sign
-      // frame, but intentionally precedes blink, reveal, checker, and animated
-      // opacity gates. Recruitment can therefore restore the exact component
-      // color even while authored animation currently hides the cell.
-      const canonicalSample = sampleLayerFrame(layer, u, v, animation.frameIndex)
-      if (canonicalSample.alpha > 0) {
-        const canonicalRole = resolveRole(layer, canonicalSample.role, scene.paletteOffset + animation.paletteOffset)
-        const canonicalColor = canonicalSample.color ?? resolveColor(palette, canonicalRole)
-        groupCompiler?.recordPixel(layer.id, y * width + x, canonicalColor, canonicalSample.alpha * finalLayerOpacity, 'canonical')
-      }
-      if (layerOpacity <= 0) continue
-      if (
-        !revealContains(v, animation.revealRow, animation.revealRowFrom) ||
-        !revealContains(u, animation.revealColumn, animation.revealColumnFrom)
-      )
-        continue
-      if (animation.checkerAlternate && (Math.floor(u * asset.nativeSize.width) + Math.floor(v * asset.nativeSize.height)) % 2 !== 0)
-        continue
-
       let target = sampleLayerFrame(layer, u, v, animation.frameIndex)
       let source = target
       let mix = 1
@@ -286,10 +267,10 @@ function renderLayer(
         )
       }
 
-      let alpha: number
+      let transitionAlpha: number
       let color: readonly [number, number, number]
       if (usesTransitionSamples && animation.frameTransitionType === 'paletteFade' && mix > 0 && mix < 1) {
-        alpha = (source.alpha + (target.alpha - source.alpha) * mix) * layerOpacity
+        transitionAlpha = source.alpha + (target.alpha - source.alpha) * mix
         const sourceRole = resolveRole(layer, source.role, scene.paletteOffset + animation.paletteOffset)
         const targetRole = resolveRole(layer, target.role, scene.paletteOffset + animation.paletteOffset)
         const sourceColor = source.color ?? resolveColor(palette, sourceRole)
@@ -297,10 +278,34 @@ function renderLayer(
         color = interpolateColor(sourceColor, targetColor, mix)
       } else {
         const sample = mix >= 0.5 ? target : source
-        alpha = sample.alpha * layerOpacity
+        transitionAlpha = sample.alpha
         const role = resolveRole(layer, sample.role, scene.paletteOffset + animation.paletteOffset)
         color = sample.color ?? resolveColor(palette, role)
       }
+
+      // Canonical membership still precedes blink/reveal/animated-opacity gates,
+      // but it is sampled from the same source/target transition cell as the
+      // visible frame. Recruitment can restore hidden banks without leaking the
+      // next sign ahead of a wipe or resurrecting a completed power-off.
+      if (transitionAlpha > 0) {
+        groupCompiler?.recordPixel(
+          layer.id,
+          y * width + x,
+          color,
+          transitionAlpha * finalLayerOpacity,
+          'canonical',
+        )
+      }
+      if (layerOpacity <= 0) continue
+      if (
+        !revealContains(v, animation.revealRow, animation.revealRowFrom) ||
+        !revealContains(u, animation.revealColumn, animation.revealColumnFrom)
+      )
+        continue
+      if (animation.checkerAlternate && (Math.floor(u * asset.nativeSize.width) + Math.floor(v * asset.nativeSize.height)) % 2 !== 0)
+        continue
+
+      const alpha = transitionAlpha * layerOpacity
       if (alpha <= 0) continue
       const index = y * width + x
       groupCompiler?.recordPixel(layer.id, index, color, alpha)

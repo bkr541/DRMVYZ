@@ -24,7 +24,7 @@ const PRESET = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
 const WIDTH = 160
 const HEIGHT = 90
 
-function state(scene: 'intro' | 'drop' | 'build' = 'drop'): PixGridState {
+function state(scene: 'intro' | 'drop' | 'build' | 'outro' = 'drop'): PixGridState {
   const applied = applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, PRESET.pixGridSettings)
   return {
     ...applied,
@@ -414,6 +414,82 @@ describe('PixGrid canonical Smart Group recruitment', () => {
     expect(recruitedComponentCells(baseline, kick, 'bulbs-b')).toBe(0)
     expect(recruitedComponentCells(baseline, kick, 'bulbs-c')).toBeGreaterThan(100)
     expect(recruitedComponentCells(baseline, kick, 'bulbs-d')).toBeGreaterThan(100)
+  })
+
+  it('keeps canonical recruitment behind the active source-target transition mask', () => {
+    const sourceState = state()
+    const targetGroup = group(sourceState, 'marquee-bulb-b-group')
+    const effect: PixGridGroupFrameEffect = {
+      id: 'test-transition-aware-recruitment',
+      groupId: targetGroup.id,
+      kind: 'visibility',
+      source: 'manual',
+      stage: 'manual',
+      priority: 1_000,
+      amount: 1,
+      blend: 'replace',
+      membership: 'canonical',
+      recruitHidden: true,
+    }
+    const source = render(
+      frame({ signClock: 0, motionClockSign: 0, autoPerformanceEnabled: false }),
+      sourceState,
+      new PixGridReactionRuntime(),
+      [effect],
+    )
+    const boundary = render(
+      frame({
+        signClock: 1,
+        motionClockSign: 1,
+        signTransitionClock: 0,
+        motionClockSignTransition: 0,
+        signTransitionSourceFrame: 0,
+        signTransitionTargetFrame: 1,
+        motionClockSignTransitionSourceFrame: 0,
+        motionClockSignTransitionTargetFrame: 1,
+        autoPerformanceEnabled: false,
+      }),
+      sourceState,
+      new PixGridReactionRuntime(),
+      [effect],
+    )
+
+    expect(boundary).toEqual(source)
+  })
+
+  it('does not let canonical recruitment resurrect a completed Outro power-off', () => {
+    const outroState = state('outro')
+    const targetGroup = group(outroState, 'marquee-perimeter-group')
+    const effect: PixGridGroupFrameEffect = {
+      id: 'test-power-off-recruitment-clamp',
+      groupId: targetGroup.id,
+      kind: 'visibility',
+      source: 'manual',
+      stage: 'manual',
+      priority: 1_000,
+      amount: 1,
+      blend: 'replace',
+      membership: 'canonical',
+      recruitHidden: true,
+    }
+    const poweredOff = render(
+      frame({
+        sectionType: 'outro',
+        motionClockSectionType: 'outro',
+        motionClockSectionBar: 0.25,
+        barsSinceSectionStart: 0.25,
+        signClock: 2.5,
+        motionClockSign: 2.5,
+        signTransitionClock: null,
+        motionClockSignTransition: null,
+        autoPerformanceEnabled: false,
+      }),
+      outroState,
+      new PixGridReactionRuntime(),
+      [effect],
+    )
+
+    expect(activeCells(poweredOff)).toBe(0)
   })
 
   it('protects scene-hidden layers from canonical recruitment', () => {

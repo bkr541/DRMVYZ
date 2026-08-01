@@ -268,7 +268,9 @@ function mergeCanonicalGroups(
 }
 
 function canonicalPresetFor(state: PixGridState, explicitPreset?: ReactPreset | null): ReactPreset | null {
-  if (explicitPreset?.engine === 'pixGrid') return explicitPreset
+  if (explicitPreset?.engine === 'pixGrid') {
+    return PIX_GRID_PRESET_BY_ID.get(explicitPreset.id) ?? explicitPreset
+  }
   if (!state.selectedPresetId) return null
   return PIX_GRID_PRESET_BY_ID.get(state.selectedPresetId) ?? null
 }
@@ -666,6 +668,155 @@ export function migratePixGridState(
       lastMigration: report,
     },
   })
+}
+
+
+const PIX_GRID_OBSOLETE_OFFICIAL_LAYER_IDS: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze({
+  'pix-grid-neon-marquee-cycle': new Set(['neon-marquee-frame']),
+})
+
+export interface PixGridCanonicalPresetIntegrity {
+  presetId: string | null
+  complete: boolean
+  canonicalLayerCount: number
+  canonicalGroupCount: number
+  requiredLayerCount: number
+  requiredGroupCount: number
+  missingLayerIds: string[]
+  duplicateLayerIds: string[]
+  missingGroupIds: string[]
+  duplicateGroupIds: string[]
+  obsoleteOfficialLayerIds: string[]
+  missingSceneIds: string[]
+  invalidSceneIds: string[]
+  performanceProgramMatches: boolean
+  selectedLayerReferenceValid: boolean
+}
+
+/**
+ * Production-safe integrity inspection for the live PixGrid document. The
+ * canonical contract comes only from the source registry, never from a
+ * persisted React preset object that may predate the current application.
+ */
+export function inspectPixGridCanonicalPresetIntegrity(
+  rawState: unknown,
+  presetId?: string | null,
+): PixGridCanonicalPresetIntegrity {
+  const state = normalizePixGridState(rawState)
+  const resolvedPresetId = presetId ?? state.selectedPresetId ?? state.configuration.sourcePresetId
+  const preset = resolvedPresetId ? PIX_GRID_PRESET_BY_ID.get(resolvedPresetId) ?? null : null
+  if (!preset?.pixGridSettings) {
+    return {
+      presetId: resolvedPresetId ?? null,
+      complete: false,
+      canonicalLayerCount: 0,
+      canonicalGroupCount: 0,
+      requiredLayerCount: 0,
+      requiredGroupCount: 0,
+      missingLayerIds: [],
+      duplicateLayerIds: [],
+      missingGroupIds: [],
+      duplicateGroupIds: [],
+      obsoleteOfficialLayerIds: [],
+      missingSceneIds: [],
+      invalidSceneIds: [],
+      performanceProgramMatches: false,
+      selectedLayerReferenceValid: state.editor.selectedLayerId == null,
+    }
+  }
+
+  const requiredLayerIds = (preset.pixGridSettings.layers ?? []).map(layer => layer.id)
+  const requiredGroupIds = (preset.pixGridSettings.groups ?? []).map(group => group.id)
+  const requiredSceneIds = Object.keys(preset.pixGridSettings.sceneSettings ?? {})
+  const layerCounts = new Map<string, number>()
+  const groupCounts = new Map<string, number>()
+  for (const layer of state.layers) layerCounts.set(layer.id, (layerCounts.get(layer.id) ?? 0) + 1)
+  for (const group of state.groups) groupCounts.set(group.id, (groupCounts.get(group.id) ?? 0) + 1)
+  const missingLayerIds = requiredLayerIds.filter(id => (layerCounts.get(id) ?? 0) === 0)
+  const duplicateLayerIds = requiredLayerIds.filter(id => (layerCounts.get(id) ?? 0) > 1)
+  const missingGroupIds = requiredGroupIds.filter(id => (groupCounts.get(id) ?? 0) === 0)
+  const duplicateGroupIds = requiredGroupIds.filter(id => (groupCounts.get(id) ?? 0) > 1)
+  const obsoleteOfficialLayerIds = state.layers
+    .filter(layer => PIX_GRID_OBSOLETE_OFFICIAL_LAYER_IDS[preset.id]?.has(layer.id))
+    .map(layer => layer.id)
+  const liveLayerIds = new Set(state.layers.map(layer => layer.id))
+  const sceneCounts = new Map<string, number>()
+  const sceneById = new Map<string, PixGridState['scenes'][number]>()
+  for (const scene of state.scenes) {
+    sceneCounts.set(scene.id, (sceneCounts.get(scene.id) ?? 0) + 1)
+    sceneById.set(scene.id, scene)
+  }
+  const missingSceneIds = requiredSceneIds.filter(id => (sceneCounts.get(id) ?? 0) === 0)
+  const invalidSceneIds = requiredSceneIds.filter(id => {
+    const scene = sceneById.get(id)
+    return Boolean(
+      scene
+      && (
+        (sceneCounts.get(id) ?? 0) !== 1
+        || requiredLayerIds.some(layerId => !scene.layerIds.includes(layerId))
+        || scene.layerIds.some(layerId => !liveLayerIds.has(layerId))
+      )
+    )
+  })
+  const expectedProgramId = preset.pixGridSettings.performanceProgramId ?? null
+  const performanceProgramMatches = state.performance.sharedPerformanceProgramId === expectedProgramId
+  const selectedLayerReferenceValid = state.editor.selectedLayerId == null
+    || state.layers.some(layer => layer.id === state.editor.selectedLayerId)
+  const canonicalLayerCount = requiredLayerIds.filter(id => (layerCounts.get(id) ?? 0) === 1).length
+  const canonicalGroupCount = requiredGroupIds.filter(id => (groupCounts.get(id) ?? 0) === 1).length
+  const complete = state.selectedPresetId === preset.id
+    && canonicalLayerCount === requiredLayerIds.length
+    && canonicalGroupCount === requiredGroupIds.length
+    && missingLayerIds.length === 0
+    && duplicateLayerIds.length === 0
+    && missingGroupIds.length === 0
+    && duplicateGroupIds.length === 0
+    && obsoleteOfficialLayerIds.length === 0
+    && missingSceneIds.length === 0
+    && invalidSceneIds.length === 0
+    && performanceProgramMatches
+    && selectedLayerReferenceValid
+    && state.configuration.canonicalMigrationCompleted
+    && state.configuration.presetConfigurationVersion >= (preset.pixGridSettings.authoredConfigurationVersion ?? 1)
+    && state.configuration.layerGraphVersion >= PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION
+    && state.configuration.smartGroupConfigurationVersion >= PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION
+    && state.configuration.performanceProgramConfigurationVersion >= PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION
+
+  return {
+    presetId: preset.id,
+    complete,
+    canonicalLayerCount,
+    canonicalGroupCount,
+    requiredLayerCount: requiredLayerIds.length,
+    requiredGroupCount: requiredGroupIds.length,
+    missingLayerIds,
+    duplicateLayerIds,
+    missingGroupIds,
+    duplicateGroupIds,
+    obsoleteOfficialLayerIds,
+    missingSceneIds,
+    invalidSceneIds,
+    performanceProgramMatches,
+    selectedLayerReferenceValid,
+  }
+}
+
+/**
+ * Canonical activation guard used by hydration, preset selection, project
+ * restoration, history restoration, and persistence. It is deliberately
+ * idempotent and preserves compatible user overlays through the normal graph
+ * migration path.
+ */
+export function ensurePixGridCanonicalPresetIntegrity(
+  rawState: unknown,
+  presetId?: string | null,
+): PixGridState {
+  const normalized = normalizePixGridState(rawState)
+  const resolvedPresetId = presetId ?? normalized.selectedPresetId ?? normalized.configuration.sourcePresetId
+  const canonicalPreset = resolvedPresetId ? PIX_GRID_PRESET_BY_ID.get(resolvedPresetId) ?? null : null
+  return canonicalPreset?.pixGridSettings
+    ? migratePixGridState(normalized, canonicalPreset)
+    : normalized
 }
 
 export function markPixGridStateCustomized(state: PixGridState): PixGridState {
