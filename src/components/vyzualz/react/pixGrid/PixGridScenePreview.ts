@@ -19,7 +19,6 @@ const MINIMUM_CYCLING_PREVIEW_BARS = 16
 const MARQUEE_SIGN_FRAME_COUNT = 4
 const LEGACY_SELECTED_SCENE_PREVIEW_BARS = 4
 const MARQUEE_PRESET_ID = 'pix-grid-neon-marquee-cycle'
-const MARQUEE_POWER_TRANSITION_BARS = 0.75
 
 export const PIX_GRID_FOLLOW_TRACK_SCENE_VALUE = 'followTrack' as const
 
@@ -138,8 +137,8 @@ interface ApplyPixGridSelectedScenePreviewFrameOptions {
 
 /**
  * Projects a frame onto the deterministic timeline for its manually selected
- * scene. Callers with a runtime clock should provide elapsedBar; stateless
- * callers fall back to the frame's absolute musical bar.
+ * scene. The authoritative transport position is projected directly onto the
+ * preview timeline so seeks reconstruct without prior rendered-frame history.
  */
 export function applyPixGridSelectedScenePreviewFrame(
   frame: PixGridAudioFrame,
@@ -150,11 +149,9 @@ export function applyPixGridSelectedScenePreviewFrame(
   const sectionType = resolvePixGridSceneSectionType(state)
   if (!sectionType) return frame
 
-  const alreadyProjected = Number.isFinite(frame.previewElapsedBar)
   const elapsedBar = finiteNonNegative(
     options.elapsedBar
       ?? frame.previewElapsedBar
-      ?? frame.motionClockBar
       ?? rawAbsoluteBar(frame),
   )
   const motionMultiplier = Math.max(0, Number.isFinite(frame.motionMultiplier) ? frame.motionMultiplier! : 1)
@@ -165,25 +162,64 @@ export function applyPixGridSelectedScenePreviewFrame(
     ? positiveModulo(elapsedBar, loopBars)
     : Math.min(elapsedBar, loopBars)
   const sectionProgress = Math.max(0, Math.min(1, sectionBar / loopBars))
-  const inferredStatelessBoundary = options.loopBoundary === undefined
-    && frame.previewLoopBoundary === undefined
-    && sectionBar <= PREVIEW_CLOCK_EPSILON
   const loopBoundary = options.loopBoundary === true
-    || frame.previewLoopBoundary === true
-    || inferredStatelessBoundary
+    || (options.loopBoundary === undefined && sectionBar <= PREVIEW_CLOCK_EPSILON)
+  const previewBeat = elapsedBar * 4
+  const beatIndex = Math.floor(previewBeat + PREVIEW_CLOCK_EPSILON)
+  const beatPhase = positiveModulo(previewBeat, 1)
+  const barIndex = Math.floor(elapsedBar + PREVIEW_CLOCK_EPSILON)
+  const barProgress = positiveModulo(elapsedBar, 1)
+  const barBoundary = barProgress <= PREVIEW_CLOCK_EPSILON
+  const phraseBar = positiveModulo(sectionBar, 4)
+  const phraseProgress = phraseBar / 4
 
   return {
     ...frame,
+    absoluteBar: elapsedBar,
+    barIndex,
+    barProgress,
+    beatIndex,
+    beatPhase,
+    sectionBarTimeline: [{
+      id: `editor-preview:${state.selectedSceneId ?? sectionType}`,
+      type: sectionType,
+      startBar: 0,
+      endBar: Math.max(loopBars, elapsedBar + 1),
+    }],
     sectionType,
-    motionClockSectionType: alreadyProjected ? frame.motionClockSectionType ?? sectionType : sectionType,
+    motionClockSectionType: undefined,
     sectionProgress,
-    motionClockSectionProgress: alreadyProjected ? frame.motionClockSectionProgress : undefined,
+    motionClockSectionProgress: undefined,
     barsSinceSectionStart: sectionBar,
     beatsSinceSectionStart: sectionBar * 4,
-    motionClockSectionBar: alreadyProjected ? frame.motionClockSectionBar : undefined,
-    motionClockSectionBeat: alreadyProjected ? frame.motionClockSectionBeat : undefined,
+    motionClockSectionBar: undefined,
+    motionClockSectionBeat: undefined,
     sectionOccurrence: loopIndex,
+    dropOccurrence: sectionType === 'drop' ? loopIndex : 0,
+    phraseIndex: Math.floor(sectionBar / 4),
+    phraseProgress,
+    phraseSegment: phraseProgress < 0.125
+      ? 'entry'
+      : phraseProgress > 0.875
+        ? 'exit'
+        : phraseProgress < 0.375
+          ? 'early'
+          : phraseProgress > 0.625
+            ? 'late'
+            : 'middle',
     sectionPhase: previewSectionPhase(sectionProgress),
+    sectionEntry: loopBoundary,
+    sectionExit: false,
+    barEntry: barBoundary,
+    fourBarBoundary: barBoundary && Math.floor(sectionBar + PREVIEW_CLOCK_EPSILON) % 4 === 0,
+    eightBarBoundary: barBoundary && Math.floor(sectionBar + PREVIEW_CLOCK_EPSILON) % 8 === 0,
+    sixteenBarBoundary: barBoundary && Math.floor(sectionBar + PREVIEW_CLOCK_EPSILON) % 16 === 0,
+    phraseEntry: barBoundary && phraseBar <= PREVIEW_CLOCK_EPSILON,
+    dropImpactHit: sectionType === 'drop' && loopBoundary,
+    dropOccurrenceChange: sectionType === 'drop' && loopBoundary,
+    semanticMomentHit: false,
+    trackMapCueEvent: false,
+    trackMapCueIdentity: null,
     previewElapsedBar: elapsedBar,
     previewLoopBars: loopBars,
     previewLoopIndex: loopIndex,
@@ -192,94 +228,35 @@ export function applyPixGridSelectedScenePreviewFrame(
     inputSource: 'editor-preview',
     sourceValues: { ...frame.sourceValues, sectionProgress },
     unscaledSourceValues: { ...frame.unscaledSourceValues, sectionProgress },
-    ...(!alreadyProjected ? {
-      signClock: undefined,
-      signTransitionClock: undefined,
-      signTransitionRate: undefined,
-      motionClockSign: undefined,
-      motionClockSignTransition: undefined,
-    } : {}),
+    signClock: undefined,
+    signTransitionClock: undefined,
+    signTransitionRate: undefined,
+    signTransitionSourceFrame: undefined,
+    signTransitionTargetFrame: undefined,
+    motionClockTime: undefined,
+    motionClockBeat: undefined,
+    motionClockBar: undefined,
+    motionClockSign: undefined,
+    motionClockSignTransition: undefined,
+    motionClockSignTransitionSourceFrame: undefined,
+    motionClockSignTransitionTargetFrame: undefined,
+    restoringFromTransparency: false,
+    restorationElapsedBar: undefined,
   }
 }
 
 /**
- * Stateful production preview clock. It starts at zero whenever the selected
- * scene or track changes, advances only while transport is playing, and keeps
- * its source anchor current while paused so resume never jumps forward.
+ * Stateless production preview projection. The transport bar is converted into
+ * the selected scene's deterministic preview timeline on every frame, including
+ * direct seeks, so no previous source, target, transition, or power state survives.
  */
 export class PixGridSelectedScenePreviewClock {
-  private identity: string | null = null
-  private lastSourceBar: number | null = null
-  private elapsedBar = 0
-  private loopIndex = 0
-  private sectionType: ReactSectionType | null = null
-  private restorationIdentity: string | null = null
-
-  reset(): void {
-    this.identity = null
-    this.lastSourceBar = null
-    this.elapsedBar = 0
-    this.loopIndex = 0
-    this.sectionType = null
-    this.restorationIdentity = null
-  }
+  reset(): void {}
 
   apply(frame: PixGridAudioFrame, state: PixGridState): PixGridAudioFrame {
-    if (state.editor.scenePreviewMode !== 'selectedScene') {
-      this.reset()
-      return frame
-    }
-    const scene = state.scenes.find(candidate => candidate.id === state.selectedSceneId)
-    const sectionType = resolvePixGridSceneSectionType(state)
-    if (!scene || !sectionType) {
-      this.reset()
-      return frame
-    }
-
-    const sourceBar = rawAbsoluteBar(frame)
-    const identity = `${frame.trackIdentity ?? 'none'}:${scene.id}`
-    const identityChanged = identity !== this.identity
-    const movedBackward = this.lastSourceBar != null && sourceBar + PREVIEW_CLOCK_EPSILON < this.lastSourceBar
-    const discontinuity = frame.timingDiscontinuity === true || movedBackward
-    const advances = frame.isPlaying !== false
-      && frame.transportState !== 'paused'
-      && frame.transportState !== 'stopped'
-    const restoringFromTransparency = identityChanged
-      && this.sectionType === 'outro'
-      && this.elapsedBar >= MARQUEE_POWER_TRANSITION_BARS
-      && sectionType !== 'outro'
-
-    if (identityChanged || this.lastSourceBar == null) {
-      this.elapsedBar = restoringFromTransparency || advances ? 0 : MARQUEE_POWER_TRANSITION_BARS
-      this.loopIndex = 0
-      this.restorationIdentity = restoringFromTransparency ? identity : null
-    } else if (!discontinuity && advances) {
-      this.elapsedBar += Math.max(0, sourceBar - this.lastSourceBar)
-    }
-
-    const motionMultiplier = Math.max(0, Number.isFinite(frame.motionMultiplier) ? frame.motionMultiplier! : 1)
-    const loopBars = resolveSelectedScenePreviewLoopBars(state, sectionType, motionMultiplier)
-    const previewLoops = selectedScenePreviewLoops(state, sectionType, motionMultiplier)
-    const nextLoopIndex = previewLoops
-      ? Math.floor(this.elapsedBar / loopBars + PREVIEW_CLOCK_EPSILON)
-      : 0
-    const loopBoundary = identityChanged || nextLoopIndex !== this.loopIndex
-
-    this.identity = identity
-    this.lastSourceBar = sourceBar
-    this.loopIndex = nextLoopIndex
-    this.sectionType = sectionType
-    const restorationActive = this.restorationIdentity === identity
-      && this.elapsedBar < MARQUEE_POWER_TRANSITION_BARS
-    if (!restorationActive && this.restorationIdentity === identity) this.restorationIdentity = null
-
-    return applyPixGridSelectedScenePreviewFrame({
-      ...frame,
-      restoringFromTransparency: restorationActive,
-      restorationElapsedBar: restorationActive ? this.elapsedBar : undefined,
-    }, state, {
-      elapsedBar: this.elapsedBar,
-      loopBoundary,
+    if (state.editor.scenePreviewMode !== 'selectedScene') return frame
+    return applyPixGridSelectedScenePreviewFrame(frame, state, {
+      elapsedBar: rawAbsoluteBar(frame),
     })
   }
 }

@@ -184,19 +184,20 @@ function transitionSeed(
   previousFrameIndex: number,
   frameIndex: number,
 ): number {
-  if (config.seedMode === 'fixed') return Math.round(config.seed ?? layer.seed) >>> 0
-  if (config.seedMode === 'layer') return Math.round(layer.seed) >>> 0
+  const seed = config.seed ?? layer.seed
+  if (config.seedMode === 'fixed') return Math.round(seed) >>> 0
+  if (config.seedMode === 'layer') return Math.round(seed) >>> 0
   if (config.seedMode === 'section') {
     const sectionType = animationSectionType(frame) ?? 'unknown'
     return deterministicHash(
-      layer.seed,
+      seed,
       SECTION_SEED[sectionType],
       frame.sectionOccurrence ?? 0,
       frame.dropOccurrence ?? 0,
       frame.phraseIndex ?? 0,
     )
   }
-  return deterministicHash(layer.seed, previousFrameIndex, frameIndex)
+  return deterministicHash(seed, previousFrameIndex, frameIndex)
 }
 
 function transitionCompletedState(config: PixGridFrameTransitionConfig): PixGridFrameTransitionCompletedState {

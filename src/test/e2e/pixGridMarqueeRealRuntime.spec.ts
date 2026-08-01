@@ -5,10 +5,11 @@ const PRESET_ID = 'pix-grid-neon-marquee-cycle'
 const INTRO_SCENE_ID = `${PRESET_ID}-intro`
 const VERSE_SCENE_ID = `${PRESET_ID}-verse`
 const DROP_SCENE_ID = `${PRESET_ID}-drop`
+const OUTRO_SCENE_ID = `${PRESET_ID}-outro`
 // The deterministic 120 BPM fixture reaches the first Drop sign boundary here.
 const DROP_INTERMEDIATE_TRANSITION_TIME_SEC = 55.02
-// Selected Drop preview starts at 20s; +8.0625s reaches the middle of its first four-bar sign transition.
-const SELECTED_DROP_PREVIEW_TRANSITION_TIME_SEC = 28.0625
+// At 120 BPM, 8.5s maps to preview bar 4.25, the middle of Drop's first sign transition.
+const SELECTED_DROP_PREVIEW_TRANSITION_TIME_SEC = 8.5
 
 interface RuntimeReadback {
   ready: boolean
@@ -301,7 +302,66 @@ test.describe('Marquee Sign Cycle real production browser acceptance', () => {
     await expect(page.getByTestId('selected-layer-highlight')).toHaveCount(0)
     expect((await readRuntime(page)).selectedLayerId).toBeNull()
 
+    await choose(page, 'Active Scene', 'Verse')
+    await page.waitForFunction(sceneId => (window as MarqueeBrowserWindow).__PIXGRID_MARQUEE_REAL_BROWSER__?.runtimeFrame?.sceneId === sceneId, VERSE_SCENE_ID)
+    const selectedVerseHashes = new Map<number, string>()
+    for (const timeSec of [4, 20, 72, 88, 100, 120, 145]) {
+      await setMusicalTime(page, timeSec)
+      const selectedVerse = await readRuntime(page)
+      expect(selectedVerse.previewMode).toBe('selectedScene')
+      expect(selectedVerse.runtimeFrame).toMatchObject({
+        sceneId: VERSE_SCENE_ID,
+        sectionType: 'verse',
+        logicalWidth: 160,
+        logicalHeight: 90,
+      })
+      expect(selectedVerse.runtimeFrame!.activeCellCount).toBeGreaterThan(8_000)
+      selectedVerseHashes.set(timeSec, selectedVerse.runtimeFrame!.pixelHash)
+    }
+
+    await setMusicalTime(page, 12)
+    await setMusicalTime(page, 145)
+    const repeatedOutroSeek = await readRuntime(page)
+    expect(repeatedOutroSeek.runtimeFrame?.sceneId).toBe(VERSE_SCENE_ID)
+    expect(repeatedOutroSeek.runtimeFrame?.sectionType).toBe('verse')
+    expect(repeatedOutroSeek.runtimeFrame?.pixelHash).toBe(selectedVerseHashes.get(145))
+    expect(repeatedOutroSeek.runtimeFrame!.activeCellCount).toBeGreaterThan(8_000)
+
+    await page.reload()
+    await page.waitForSelector('[aria-label^="Selected React engine:"]')
+    await page.waitForFunction(() => document.documentElement.dataset.pixGridMarqueeRealReady === 'true')
+    const reloadedSelectedVerse = await readRuntime(page)
+    expect(reloadedSelectedVerse).toMatchObject({
+      activeReactEngineId: 'pixGrid',
+      selectedPresetId: PRESET_ID,
+      selectedSceneId: VERSE_SCENE_ID,
+      previewMode: 'selectedScene',
+    })
+    expect(reloadedSelectedVerse.runtimeFrame?.sceneId).toBe(VERSE_SCENE_ID)
+    expect(reloadedSelectedVerse.runtimeFrame!.activeCellCount).toBeGreaterThan(8_000)
+
+    for (const [label, presetId] of [
+      ['Bass Beacon', 'pix-grid-bass-beacon'],
+      ['Geometric Reactor', 'pix-grid-geometric-reactor'],
+      ['Pixel Parade', 'pix-grid-pixel-parade'],
+    ] as const) {
+      await choose(page, 'PixGrid Preset', label)
+      await page.waitForFunction(id => (window as MarqueeBrowserWindow).__PIXGRID_MARQUEE_REAL_BROWSER__?.selectedPresetId === id, presetId)
+    }
+    await choose(page, 'PixGrid Preset', 'Marquee Sign Cycle')
+    await page.waitForFunction(id => (window as MarqueeBrowserWindow).__PIXGRID_MARQUEE_REAL_BROWSER__?.selectedPresetId === id, PRESET_ID)
+    await choose(page, 'Active Scene', 'Verse')
+
+    await setMusicalTime(page, 145)
     await choose(page, 'Active Scene', 'Follow Track')
+    await page.waitForFunction(sceneId => (window as MarqueeBrowserWindow).__PIXGRID_MARQUEE_REAL_BROWSER__?.runtimeFrame?.sceneId === sceneId, OUTRO_SCENE_ID)
+    const followedOutro = await readRuntime(page)
+    expect(followedOutro.previewMode).toBe('followTrack')
+    expect(followedOutro.runtimeFrame?.sceneId).toBe(OUTRO_SCENE_ID)
+    expect(followedOutro.runtimeFrame?.sectionType).toBe('outro')
+    expect(followedOutro.performance.activeSectionPlanId).toBe('marquee-outro')
+
+    await setMusicalTime(page, 20)
     await page.waitForFunction(sceneId => (window as MarqueeBrowserWindow).__PIXGRID_MARQUEE_REAL_BROWSER__?.runtimeFrame?.sceneId === sceneId, VERSE_SCENE_ID)
     const followedVerse = await readRuntime(page)
     expect(followedVerse.previewMode).toBe('followTrack')

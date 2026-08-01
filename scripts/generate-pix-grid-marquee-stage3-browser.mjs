@@ -74,7 +74,6 @@ try {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>DRMVYZ PixGrid Marquee Real Runtime Acceptance</title>
   ${stylesheet}
-  <script>localStorage.removeItem('drmvyz:react-store');</script>
 </head>
 <body>
   <div id="root"></div>

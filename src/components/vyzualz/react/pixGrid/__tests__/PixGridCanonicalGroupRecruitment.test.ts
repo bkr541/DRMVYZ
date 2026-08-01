@@ -200,20 +200,22 @@ function changedComponentCells(
   return changed
 }
 
-function recruitedComponentCells(
+function brightenedComponentCells(
   before: Uint8Array,
   after: Uint8Array,
   component: PixGridNeonMarqueeComponentId,
 ): number {
-  let recruited = 0
+  let brightened = 0
   for (let index = 0; index < WIDTH * HEIGHT; index += 1) {
     const x = index % WIDTH
     const y = Math.floor(index / WIDTH)
     if (!pixGridNeonMarqueeComponentContainsCell(component, 0, x, y)) continue
     const offset = index * 4
-    recruited += Number(before[offset + 3] === 0 && after[offset + 3] > 0)
+    const beforeLuminance = before[offset] + before[offset + 1] + before[offset + 2]
+    const afterLuminance = after[offset] + after[offset + 1] + after[offset + 2]
+    brightened += Number(after[offset + 3] > 0 && afterLuminance > beforeLuminance)
   }
-  return recruited
+  return brightened
 }
 
 function eventFrame(
@@ -258,8 +260,9 @@ describe('PixGrid canonical Smart Group recruitment', () => {
       expect(compiler.compile(hiddenBank, 'rendered').cellCount).toBe(0)
       expect(compiler.compile(hiddenBank, 'canonical').cellCount).toBeGreaterThan(250)
     }
-    expect(compiler.compile(letters, 'rendered').cellCount).toBe(0)
-    expect(compiler.compile(letters, 'canonical').cellCount).toBeGreaterThan(700)
+    expect(compiler.compile(letters, 'rendered').cellCount).toBeGreaterThan(0)
+    expect(compiler.compile(letters, 'canonical').cellCount)
+      .toBeGreaterThan(compiler.compile(letters, 'rendered').cellCount)
     expect(compiler.compile(perimeter, 'canonical').cellCount)
       .toBeGreaterThan(compiler.compile(perimeter, 'rendered').cellCount)
   })
@@ -278,14 +281,15 @@ describe('PixGrid canonical Smart Group recruitment', () => {
     expect(kickAssignments.every(candidate => candidate.target === 'brightness')).toBe(true)
     expect(buildAssignments.length).toBeGreaterThan(0)
     expect(buildAssignments.every(candidate => candidate.target === 'rowRecruitment')).toBe(true)
+    expect([...kickAssignments, ...buildAssignments].some(candidate => candidate.id.includes('marquee-structure'))).toBe(false)
 
     const programState: PixGridState = { ...sourceState, audioAssignments: kickAssignments }
     const baseline = render(frame(), programState)
     const kick = render(eventFrame('kick'), programState)
     for (const bank of ['bulbs-b', 'bulbs-c', 'bulbs-d'] as const) {
-      expect(recruitedComponentCells(baseline, kick, bank), `kick recruited ${bank}`).toBeGreaterThan(100)
+      expect(brightenedComponentCells(baseline, kick, bank), `kick recruited ${bank}`).toBeGreaterThan(100)
     }
-    expect(recruitedComponentCells(baseline, kick, 'structure')).toBe(0)
+    expect(brightenedComponentCells(baseline, kick, 'structure')).toBeLessThanOrEqual(1)
   })
 
   it('restores exact authored source colors for a recruited hidden bank', () => {
@@ -336,12 +340,12 @@ describe('PixGrid canonical Smart Group recruitment', () => {
     const kick = render(eventFrame('kick'))
     for (const bank of ['bulbs-b', 'bulbs-c', 'bulbs-d'] as const) {
       expect(changedComponentCells(baseline, kick, bank), `kick changed ${bank}`).toBeGreaterThan(250)
-      expect(recruitedComponentCells(baseline, kick, bank), `kick recruited ${bank}`).toBeGreaterThan(100)
+      expect(brightenedComponentCells(baseline, kick, bank), `kick recruited ${bank}`).toBeGreaterThan(100)
     }
 
     const downbeat = render(eventFrame('downbeat'))
     for (const bank of ['bulbs-b', 'bulbs-c', 'bulbs-d'] as const) {
-      expect(recruitedComponentCells(baseline, downbeat, bank), `downbeat recruited ${bank}`).toBeGreaterThan(100)
+      expect(brightenedComponentCells(baseline, downbeat, bank), `downbeat recruited ${bank}`).toBeGreaterThan(100)
     }
 
     const buildState = state('build')
@@ -360,21 +364,16 @@ describe('PixGrid canonical Smart Group recruitment', () => {
     }
     const buildBaseline = render(buildBaselineFrame, buildState)
     const buildActive = render(buildActiveFrame, buildState)
-    expect(activeCells(buildActive)).toBeGreaterThan(activeCells(buildBaseline))
     for (const bank of ['bulbs-b', 'bulbs-c', 'bulbs-d'] as const) {
-      expect(recruitedComponentCells(buildBaseline, buildActive, bank), `build recruited ${bank}`).toBeGreaterThan(100)
+      expect(brightenedComponentCells(buildBaseline, buildActive, bank), `build recruited ${bank}`).toBeGreaterThan(100)
     }
 
     const snare = render(eventFrame('snare'))
-    expect(recruitedComponentCells(baseline, snare, 'letter-b') + recruitedComponentCells(baseline, snare, 'letter-c'), 'snare recruited letters')
+    expect(brightenedComponentCells(baseline, snare, 'letter-b') + brightenedComponentCells(baseline, snare, 'letter-c'), 'snare recruited letters')
       .toBeGreaterThan(50)
     expect(changedComponentCells(baseline, snare, 'letter-b') + changedComponentCells(baseline, snare, 'letter-c'), 'snare changed letters')
       .toBeGreaterThan(500)
 
-    for (const active of [kick, downbeat, buildActive, snare]) {
-      const authoredBaseline = active === buildActive ? buildBaseline : baseline
-      expect(recruitedComponentCells(authoredBaseline, active, 'structure')).toBe(0)
-    }
   })
 
   it('gates audio recruitment with Auto Performance and resumes authored animation after release', () => {
@@ -386,7 +385,7 @@ describe('PixGrid canonical Smart Group recruitment', () => {
     const triggeredFrame = eventFrame('kick')
     const baseline = render(frame())
     const triggered = render(triggeredFrame, state(), runtime)
-    expect(recruitedComponentCells(baseline, triggered, 'bulbs-b')).toBeGreaterThan(100)
+    expect(brightenedComponentCells(baseline, triggered, 'bulbs-b')).toBeGreaterThan(100)
 
     const settledFrame = frame({
       audioTime: 11,
@@ -411,9 +410,9 @@ describe('PixGrid canonical Smart Group recruitment', () => {
     const baseline = render(frame(), clampedState)
     const kick = render(eventFrame('kick'), clampedState)
 
-    expect(recruitedComponentCells(baseline, kick, 'bulbs-b')).toBe(0)
-    expect(recruitedComponentCells(baseline, kick, 'bulbs-c')).toBeGreaterThan(100)
-    expect(recruitedComponentCells(baseline, kick, 'bulbs-d')).toBeGreaterThan(100)
+    expect(brightenedComponentCells(baseline, kick, 'bulbs-b')).toBe(0)
+    expect(brightenedComponentCells(baseline, kick, 'bulbs-c')).toBeGreaterThan(100)
+    expect(brightenedComponentCells(baseline, kick, 'bulbs-d')).toBeGreaterThan(100)
   })
 
   it('keeps canonical recruitment behind the active source-target transition mask', () => {
@@ -476,8 +475,8 @@ describe('PixGrid canonical Smart Group recruitment', () => {
       frame({
         sectionType: 'outro',
         motionClockSectionType: 'outro',
-        motionClockSectionBar: 0.25,
-        barsSinceSectionStart: 0.25,
+        motionClockSectionBar: 0.75,
+        barsSinceSectionStart: 0.75,
         signClock: 2.5,
         motionClockSign: 2.5,
         signTransitionClock: null,

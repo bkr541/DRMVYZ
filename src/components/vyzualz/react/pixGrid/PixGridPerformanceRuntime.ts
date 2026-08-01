@@ -736,18 +736,17 @@ export class PixGridPerformanceExecutionRuntime {
     this.lastAudioTime = 0;
   }
 
-  synchronize(context: SharedPerformanceContext): void {
+  synchronize(context: SharedPerformanceContext, reconstructOnDiscontinuity = false): void {
     const trackChanged =
       this.trackIdentity !== null &&
       this.trackIdentity !== context.trackIdentity;
     if (trackChanged || context.trackReplacementDetected) this.reset();
-    if (context.loopWrapDetected) {
+    const discontinuity = context.seekDetected
+      || context.audioTimeSec + 0.001 < this.lastAudioTime;
+    if (context.loopWrapDetected || (reconstructOnDiscontinuity && discontinuity)) {
       this.events = [];
       this.transition = null;
-    } else if (
-      context.seekDetected ||
-      context.audioTimeSec + 0.001 < this.lastAudioTime
-    ) {
+    } else if (discontinuity) {
       this.events = this.events.filter(
         (event) => event.startSec <= context.audioTimeSec + 0.001,
       );
@@ -920,7 +919,7 @@ export function resolvePixGridPerformanceFrame(
 ): PixGridResolvedPerformanceFrame {
   const base = normalizePixGridState(rawState);
   const runtime = options.runtime ?? new PixGridPerformanceExecutionRuntime();
-  runtime.synchronize(context);
+  runtime.synchronize(context, options.sceneOwnership === "editingContext");
   const attachedProgramId = presetId
     ? PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID[presetId]
     : null;
@@ -1006,6 +1005,7 @@ export function resolvePixGridPerformanceFrame(
       * (EVENT_REASONS.has(intent.reason) ? arcState.impactStrength : 1)
       * (intent.reason === "kick" ? clamp(options.bassReactivityGain ?? 1) : 1);
     if (intent.action.type === "setTransition") {
+      if (options.sceneOwnership === "editingContext") continue;
       transitionLabel = intent.action.transition;
       transition =
         runtime.resolveTransition(intent, intent.action, context, base) ??

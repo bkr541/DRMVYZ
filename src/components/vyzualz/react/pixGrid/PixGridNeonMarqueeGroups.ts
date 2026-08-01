@@ -39,6 +39,6 @@ export const PIX_GRID_NEON_MARQUEE_GROUPS: PixGridGroup[] = [
   marqueeGroup('marquee-trim-group', 'Trim and Underline Lights', ['marquee-trim-lights'], '#ff76bd', 44),
   marqueeGroup('marquee-focal-group', 'Frenchie and Focal Lights', ['marquee-focal-lights'], '#74f0c1', 48),
   marqueeGroup('marquee-sparkle-group', 'Sparse Accent Bulbs', ['marquee-sparkle-lights'], '#ffffff', 50),
-  marqueeGroup('marquee-transition-group', 'Sign Transition Structure', ['marquee-structure', 'marquee-trim-lights', 'marquee-bulbs-a', 'marquee-bulbs-c'], '#b7c6d8', 55),
+  marqueeGroup('marquee-transition-group', 'Sign Transition Lights', ['marquee-trim-lights', 'marquee-bulbs-a', 'marquee-bulbs-c'], '#b7c6d8', 55),
   marqueeGroup('marquee-impact-group', 'Marquee Impact Lights', ['marquee-focal-lights', 'marquee-equalizer-lights', 'marquee-trim-lights'], '#fff0a8', 60),
 ]

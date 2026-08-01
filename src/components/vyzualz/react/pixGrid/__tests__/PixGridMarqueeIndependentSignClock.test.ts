@@ -300,14 +300,14 @@ describe('Marquee independent sign clock', () => {
       previewClock.apply(rawFrameAt(22.5), selected),
       PRESET_ID,
     )
-    expect(previewStart).toMatchObject({ sectionType: 'drop', previewElapsedBar: 0, signClock: 0 })
-    expect(previewFrame).toMatchObject({ sectionType: 'drop', previewElapsedBar: 4, signClock: 1 })
+    expect(previewStart).toMatchObject({ sectionType: 'drop', previewElapsedBar: 18.5, signClock: 4.625 })
+    expect(previewFrame).toMatchObject({ sectionType: 'drop', previewElapsedBar: 22.5, signClock: 5.625 })
     expect(resolve(structure, previewFrame).frameIndex).toBe(1)
 
     const motionClock = new PixGridMotionClock()
     const afterSceneChange = motionClock.apply(applyPixGridRuntimeControls(previewStart, { bassReactivity: 1, motion: 0.5 }))
-    expect(afterSceneChange.motionClockSign).toBe(0)
-    expect(resolve(structure, afterSceneChange).frameIndex).toBe(0)
+    expect(afterSceneChange.motionClockSign).toBe(2.3125)
+    expect(resolve(structure, afterSceneChange).frameIndex).toBe(2)
 
     const verseScene = marqueeState(`${PRESET_ID}-verse`)
     const breakdownScene = marqueeState(`${PRESET_ID}-breakdown`)

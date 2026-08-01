@@ -640,10 +640,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previousPerformanceContext = null
         unifiedPerformanceRuntime.reset(current.trackIdentity ?? null)
         unifiedReactionRuntime.reset()
-        // Scene ownership changes restart only the local preview clocks. The
-        // actual sign epoch remains continuous so selecting scenes or returning
-        // to Follow Track cannot silently jump back to MARYS.
-        motionClock.reset(current.trackIdentity ?? null, { preserveSign: sceneOwnershipChanged && !presetChanged && !transportBoundary })
+        // Scene ownership changes reconstruct every local clock from the new
+        // owner. Reusing the previous sign epoch would leak track source/target
+        // and transition state into a manually selected scene.
+        motionClock.reset(current.trackIdentity ?? null)
         selectedScenePreviewClock.reset()
         restorationSectionIdentity = null
         restorationElapsedBar = 0

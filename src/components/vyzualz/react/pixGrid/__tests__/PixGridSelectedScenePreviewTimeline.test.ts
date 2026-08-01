@@ -85,9 +85,8 @@ function resolvedPreviewFrames(
   const state = selectedState(scene)
   const previewClock = new PixGridSelectedScenePreviewClock()
   const motionClock = new PixGridMotionClock()
-  const anchorBar = 100
   return elapsedBars.map((elapsedBar, index) => {
-    const controlled = applyPixGridRuntimeControls(rawFrameAt(anchorBar + elapsedBar, {
+    const controlled = applyPixGridRuntimeControls(rawFrameAt(elapsedBar, {
       timingDiscontinuity: index === 0,
     }), { bassReactivity: 1, motion })
     const projected = previewClock.apply(controlled, state)
@@ -265,98 +264,117 @@ describe('Selected Scene deterministic preview timeline', () => {
     expect(middleAnimation.frameTransitionProgress).toBeLessThan(1)
   })
 
-  it('resets manual scene switches to a safe held preview start', () => {
-    const clock = new PixGridSelectedScenePreviewClock()
+  it('reconstructs scene switches from the selected preview position instead of preserving a prior sign epoch', () => {
+    const sharedClock = new PixGridSelectedScenePreviewClock()
     const verse = selectedState('verse')
     const drop = selectedState('drop')
-    clock.apply(rawFrameAt(100, { timingDiscontinuity: true }), verse)
-    const progressed = applyPixGridPresetSignClock(clock.apply(rawFrameAt(109), verse), PRESET_ID)
-    const switched = applyPixGridPresetSignClock(clock.apply(rawFrameAt(109), drop), PRESET_ID)
+    sharedClock.apply(rawFrameAt(9, { timingDiscontinuity: true }), verse)
+    const switched = applyPixGridPresetSignClock(sharedClock.apply(rawFrameAt(9, {
+      timingDiscontinuity: true,
+      signClock: 99,
+      signTransitionClock: 0.04,
+      signTransitionSourceFrame: 2,
+      signTransitionTargetFrame: 3,
+      restoringFromTransparency: true,
+      restorationElapsedBar: 0.2,
+    }), drop), PRESET_ID)
+    const direct = applyPixGridPresetSignClock(
+      new PixGridSelectedScenePreviewClock().apply(rawFrameAt(9, { timingDiscontinuity: true }), drop),
+      PRESET_ID,
+    )
 
-    expect(progressed.previewElapsedBar).toBe(9)
-    expect(progressed.signClock).toBeGreaterThanOrEqual(1)
     expect(switched).toMatchObject({
       sectionType: 'drop',
-      previewElapsedBar: 0,
-      previewLoopIndex: 0,
-      previewLoopBoundary: true,
-      barsSinceSectionStart: 0,
-      signClock: 0,
-      signTransitionClock: null,
+      previewElapsedBar: 9,
+      restoringFromTransparency: false,
+      signClock: direct.signClock,
+      signTransitionClock: direct.signTransitionClock,
+      signTransitionSourceFrame: direct.signTransitionSourceFrame,
+      signTransitionTargetFrame: direct.signTransitionTargetFrame,
     })
   })
 
-  it('keeps the selected preview timeline through seeks instead of reconstructing track Outro transparency', () => {
+  it('reconstructs repeated seeks from the absolute preview position without track Outro power leakage', () => {
     const clock = new PixGridSelectedScenePreviewClock()
     const motionClock = new PixGridMotionClock()
-    const state = selectedState('intro')
-    const project = (absoluteBar: number, timingDiscontinuity = false) => {
-      const controlled = applyPixGridRuntimeControls(rawFrameAt(absoluteBar, { timingDiscontinuity }), {
-        bassReactivity: 1,
-        motion: 1,
-      })
-      const preview = clock.apply(controlled, state)
-      return motionClock.apply(applyPixGridPresetSignClock(preview, PRESET_ID))
+    const state = selectedState('verse')
+    const project = (absoluteBar: number, stale: Partial<PixGridAudioFrame> = {}) => {
+      const controlled = applyPixGridRuntimeControls(rawFrameAt(absoluteBar, {
+        timingDiscontinuity: true,
+        sectionType: 'outro',
+        barsSinceSectionStart: 16,
+        sectionProgress: 1,
+        signClock: 99,
+        signTransitionClock: 0.04,
+        signTransitionSourceFrame: 2,
+        signTransitionTargetFrame: 3,
+        restoringFromTransparency: true,
+        restorationElapsedBar: 0.75,
+        ...stale,
+      }), { bassReactivity: 1, motion: 1 })
+      return motionClock.apply(applyPixGridPresetSignClock(clock.apply(controlled, state), PRESET_ID))
     }
 
-    project(100, true)
-    const visible = project(104)
-    const sought = project(60, true)
-    const soughtPixels = composePixGridLogicalFrame(preset, state, sought).pixels
+    project(4)
+    const first = project(60)
+    project(12)
+    const repeated = project(60)
+    const firstPixels = composePixGridLogicalFrame(preset, state, first).pixels
+    const repeatedPixels = composePixGridLogicalFrame(preset, state, repeated).pixels
 
-    expect(visible.previewElapsedBar).toBe(4)
-    expect(sought).toMatchObject({
-      sectionType: 'intro',
-      previewElapsedBar: 4,
+    expect(first).toMatchObject({
+      sectionType: 'verse',
+      previewElapsedBar: 60,
       restoringFromTransparency: false,
     })
-    expect(activeCellCount(soughtPixels)).toBeGreaterThan(9_000)
+    expect(first.signClock).toBe(repeated.signClock)
+    expect(first.motionClockSign).toBe(repeated.motionClockSign)
+    expect(first.signTransitionSourceFrame).toBe(repeated.signTransitionSourceFrame)
+    expect(first.signTransitionTargetFrame).toBe(repeated.signTransitionTargetFrame)
+    expect(firstPixels).toEqual(repeatedPixels)
+    expect(activeCellCount(firstPixels)).toBeGreaterThan(9_000)
   })
 
-  it('restores from a completed manual Outro through a controlled power-on', () => {
+  it('does not synthesize restoration state when switching away from a completed manual Outro', () => {
     const clock = new PixGridSelectedScenePreviewClock()
     const outro = selectedState('outro')
     const intro = selectedState('intro')
-    clock.apply(applyPixGridRuntimeControls(rawFrameAt(100, { timingDiscontinuity: true }), {
-      bassReactivity: 1,
-      motion: 1,
-    }), outro)
-    clock.apply(applyPixGridRuntimeControls(rawFrameAt(101), { bassReactivity: 1, motion: 1 }), outro)
-
-    const start = clock.apply(applyPixGridRuntimeControls(rawFrameAt(101), { bassReactivity: 1, motion: 1 }), intro)
-    const middle = clock.apply(applyPixGridRuntimeControls(rawFrameAt(101.375), { bassReactivity: 1, motion: 1 }), intro)
-    const startAnimation = resolvePixGridLayerAnimation(
+    clock.apply(rawFrameAt(20, { timingDiscontinuity: true }), outro)
+    const switched = applyPixGridPresetSignClock(clock.apply(rawFrameAt(20, {
+      timingDiscontinuity: true,
+      restoringFromTransparency: true,
+      restorationElapsedBar: 0.1,
+    }), intro), PRESET_ID)
+    const animation = resolvePixGridLayerAnimation(
       structure,
       PIX_GRID_BUILT_IN_ASSET_BY_ID.get(structure.assetId)!,
-      applyPixGridPresetSignClock(start, PRESET_ID),
-      1,
-    )
-    const middleAnimation = resolvePixGridLayerAnimation(
-      structure,
-      PIX_GRID_BUILT_IN_ASSET_BY_ID.get(structure.assetId)!,
-      applyPixGridPresetSignClock(middle, PRESET_ID),
+      switched,
       1,
     )
 
-    expect(start).toMatchObject({ restoringFromTransparency: true, restorationElapsedBar: 0 })
-    expect(startAnimation).toMatchObject({ frameTransitionType: 'powerOn', frameTransitionProgress: 0 })
-    expect(middleAnimation.frameTransitionProgress).toBeGreaterThan(0)
-    expect(middleAnimation.frameTransitionProgress).toBeLessThan(1)
+    expect(switched).toMatchObject({
+      sectionType: 'intro',
+      previewElapsedBar: 20,
+      restoringFromTransparency: false,
+      restorationElapsedBar: undefined,
+    })
+    expect(animation).toMatchObject({ frameTransitionType: 'powerOn', frameTransitionProgress: 1 })
   })
 
-  it('freezes while paused and resumes without consuming the paused playhead jump', () => {
+  it('maps paused and playing frames to the same deterministic transport coordinate', () => {
     const clock = new PixGridSelectedScenePreviewClock()
     const state = selectedState('verse')
-    const start = clock.apply(rawFrameAt(100, { timingDiscontinuity: true }), state)
-    const paused = clock.apply(rawFrameAt(104, {
+    const playing = clock.apply(rawFrameAt(12, { timingDiscontinuity: true }), state)
+    const paused = clock.apply(rawFrameAt(12, {
       isPlaying: false,
       transportState: 'paused',
     }), state)
-    const resumed = clock.apply(rawFrameAt(105), state)
+    const resumed = clock.apply(rawFrameAt(13), state)
 
-    expect(start.previewElapsedBar).toBe(0)
-    expect(paused.previewElapsedBar).toBe(0)
-    expect(resumed.previewElapsedBar).toBe(1)
+    expect(playing.previewElapsedBar).toBe(12)
+    expect(paused.previewElapsedBar).toBe(12)
+    expect(paused.barsSinceSectionStart).toBe(playing.barsSinceSectionStart)
+    expect(resumed.previewElapsedBar).toBe(13)
   })
 
   it('lets Motion scale preview cadence without changing the authored raw clock', () => {
@@ -373,8 +391,8 @@ describe('Selected Scene deterministic preview timeline', () => {
   it('projects the Shared Performance section over the full authored preview loop', () => {
     const state = selectedState('breakdown')
     const clock = new PixGridSelectedScenePreviewClock()
-    clock.apply(rawFrameAt(100, { timingDiscontinuity: true }), state)
-    const frame = clock.apply(rawFrameAt(116), state)
+    clock.apply(rawFrameAt(0, { timingDiscontinuity: true }), state)
+    const frame = clock.apply(rawFrameAt(16), state)
     const context = resolvePixGridPreviewPerformanceContext(contextAt(32), state, frame)
 
     expect(context.sectionType).toBe('breakdown')

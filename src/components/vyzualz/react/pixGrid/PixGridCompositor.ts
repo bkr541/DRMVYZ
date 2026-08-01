@@ -237,13 +237,14 @@ function columnMeterContains(
   layer: PixGridLayer,
   asset: PixGridBuiltInAssetManifestEntry,
   animation: PixGridResolvedLayerAnimation,
+  selectedFrameIndex: number,
   u: number,
   v: number,
 ): boolean {
   if (animation.columnMeterPhase == null) return true
   const column = Math.max(0, Math.min(asset.nativeSize.width - 1, Math.floor(u * asset.nativeSize.width)))
   const row = Math.max(0, Math.min(asset.nativeSize.height - 1, Math.floor(v * asset.nativeSize.height)))
-  const extent = columnExtentsFor(layer, asset, animation.frameIndex)[column]
+  const extent = columnExtentsFor(layer, asset, selectedFrameIndex)[column]
   if (!extent || row < extent.minRow || row > extent.maxRow) return false
 
   const height = Math.max(1, extent.maxRow - extent.minRow + 1)
@@ -365,7 +366,8 @@ function renderLayer(
         continue
       if (animation.checkerAlternate && (Math.floor(u * asset.nativeSize.width) + Math.floor(v * asset.nativeSize.height)) % 2 !== 0)
         continue
-      if (!columnMeterContains(layer, asset, animation, u, v)) continue
+      const selectedFrameIndex = mix >= 0.5 ? animation.frameIndex : animation.previousFrameIndex
+      if (!columnMeterContains(layer, asset, animation, selectedFrameIndex, u, v)) continue
 
       const alpha = transitionAlpha * layerOpacity
       if (alpha <= 0) continue
@@ -480,6 +482,7 @@ function composePixGridBaseFrame(
     || state.groups.some((group) => group.enabled && group.reactions.some((assignment) => assignment.enabled))
   const runtime = reactionRuntime
   for (const layer of visibleLayers) {
+    compiler.captureLayerBackdrop(layer.id, pixels)
     const layerFrame = runtime
       ? resolvePixGridLayerReactionFrame(layer, state.groups, frame, runtime, state.editor.previewReactionAssignmentId)
       : frame

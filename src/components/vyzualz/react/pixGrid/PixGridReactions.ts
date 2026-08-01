@@ -137,6 +137,15 @@ function stableSeed(frame: PixGridAudioFrame, group: PixGridGroup, assignment: P
   ].join(':')
 }
 
+function preservesComposedBackdrop(
+  group: PixGridGroup,
+  maskResolver?: PixGridCompiledGroupMaskResolver,
+): maskResolver is PixGridCompiledGroupMaskResolver {
+  if (!maskResolver || !group.id.startsWith('marquee-')) return false
+  const scope = group.layerScope?.length ? group.layerScope : group.layerId ? [group.layerId] : []
+  return !scope.includes('marquee-structure')
+}
+
 function transformMaskedPixels(
   pixels: Uint8Array,
   width: number,
@@ -147,6 +156,7 @@ function transformMaskedPixels(
   strength: number,
   frame: PixGridAudioFrame,
   group: PixGridGroup,
+  maskResolver?: PixGridCompiledGroupMaskResolver,
 ): void {
   const source = new Uint8Array(pixels)
   const selected: number[] = []
@@ -157,9 +167,14 @@ function transformMaskedPixels(
     selected.push(index)
     sumX += index % width
     sumY += Math.floor(index / width)
-    pixels[index * 4 + 3] = 0
   }
   if (selected.length === 0) return
+  const preserveBackdrop = preservesComposedBackdrop(group, maskResolver)
+  if (preserveBackdrop) {
+    maskResolver.restoreBackdrop(group, pixels, bits, 0)
+  } else {
+    for (const index of selected) pixels[index * 4 + 3] = 0
+  }
   const centerX = sumX / selected.length
   const centerY = sumY / selected.length
   const target = compiled.target.id
@@ -184,7 +199,9 @@ function transformMaskedPixels(
       targetY += Math.round(Math.sin(angle) * distance)
     }
     if (targetX < 0 || targetX >= width || targetY < 0 || targetY >= height) continue
-    const targetOffset = (targetY * width + targetX) * 4
+    const targetIndex = targetY * width + targetX
+    if (preserveBackdrop && !pixGridMaskHasCell(bits, targetIndex)) continue
+    const targetOffset = targetIndex * 4
     const sourceOffset = sourceIndex * 4
     pixels[targetOffset] = source[sourceOffset]
     pixels[targetOffset + 1] = source[sourceOffset + 1]
@@ -206,10 +223,11 @@ function applyPixelReaction(
   palette: ReactPalette,
   claimed: Uint32Array,
   claim: boolean,
+  maskResolver?: PixGridCompiledGroupMaskResolver,
 ): void {
   const target = compiled.target.id
   if (compiled.target.runtimeHandler === 'transform') {
-    transformMaskedPixels(pixels, width, height, bits, assignment, compiled, strength, frame, group)
+    transformMaskedPixels(pixels, width, height, bits, assignment, compiled, strength, frame, group, maskResolver)
     if (claim)
       for (let index = 0; index < width * height; index += 1) if (pixGridMaskHasCell(bits, index)) pixGridSetMaskCell(claimed, index)
     return
@@ -219,6 +237,7 @@ function applyPixelReaction(
       ? paletteColor(palette, assignment.paletteRole)
       : hexRgb(assignment.color, paletteColor(palette, assignment.paletteRole))
   const absoluteStrength = Math.abs(strength)
+  const preserveBackdrop = preservesComposedBackdrop(group, maskResolver)
   for (let index = 0; index < width * height; index += 1) {
     if (!pixGridMaskHasCell(bits, index) || pixGridMaskHasCell(claimed, index)) continue
     const x = index % width
@@ -251,7 +270,11 @@ function applyPixelReaction(
         break
       }
       case 'opacity':
-        pixels[offset + 3] = Math.round(clamp(blendScalar(alpha, strength, assignment)) * 255)
+        if (preserveBackdrop) {
+          maskResolver.restoreBackdropPixel(group, pixels, index, clamp(blendScalar(1, strength, assignment)))
+        } else {
+          pixels[offset + 3] = Math.round(clamp(blendScalar(alpha, strength, assignment)) * 255)
+        }
         break
       case 'color':
       case 'highlightColor':
@@ -263,13 +286,20 @@ function applyPixelReaction(
         break
       }
       case 'reveal':
-        if ((y + 0.5) / height > clamp(absoluteStrength)) pixels[offset + 3] = 0
+        if ((y + 0.5) / height > clamp(absoluteStrength)) {
+          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
+          else pixels[offset + 3] = 0
+        }
         break
       case 'hide':
-        pixels[offset + 3] = Math.round(alpha * (1 - clamp(absoluteStrength)) * 255)
+        if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 1 - clamp(absoluteStrength))
+        else pixels[offset + 3] = Math.round(alpha * (1 - clamp(absoluteStrength)) * 255)
         break
       case 'blink':
-        if (absoluteStrength < 0.5) pixels[offset + 3] = 0
+        if (absoluteStrength < 0.5) {
+          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
+          else pixels[offset + 3] = 0
+        }
         break
       case 'outlineFlash':
       case 'outlineIntensity': {
@@ -297,7 +327,10 @@ function applyPixelReaction(
         break
       }
       case 'dissolveThreshold': {
-        if (randomUnit(stableSeed(frame, group, assignment, index)) > clamp(absoluteStrength)) pixels[offset + 3] = 0
+        if (randomUnit(stableSeed(frame, group, assignment, index)) > clamp(absoluteStrength)) {
+          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
+          else pixels[offset + 3] = 0
+        }
         break
       }
       case 'hueOffset': {
@@ -344,13 +377,22 @@ function applyPixelReaction(
         break
       }
       case 'checkerAlternation':
-        if (((x + y) & 1) !== (absoluteStrength >= 0.5 ? 1 : 0)) pixels[offset + 3] = 0
+        if (((x + y) & 1) !== (absoluteStrength >= 0.5 ? 1 : 0)) {
+          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
+          else pixels[offset + 3] = 0
+        }
         break
       case 'rowRecruitment':
-        if ((y + 0.5) / height > clamp(absoluteStrength)) pixels[offset + 3] = 0
+        if ((y + 0.5) / height > clamp(absoluteStrength)) {
+          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
+          else pixels[offset + 3] = 0
+        }
         break
       case 'columnRecruitment':
-        if ((x + 0.5) / width > clamp(absoluteStrength)) pixels[offset + 3] = 0
+        if ((x + 0.5) / width > clamp(absoluteStrength)) {
+          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
+          else pixels[offset + 3] = 0
+        }
         break
       default:
         break
@@ -429,7 +471,7 @@ export function applyPixGridGroupReactions(
           recruitmentOpacityScale(compiledAssignment.target.id, strength),
         )
       }
-      applyPixelReaction(pixels, width, height, compiled.bits, assignment, compiledAssignment, strength, frame, group, palette, claimed, claim)
+      applyPixelReaction(pixels, width, height, compiled.bits, assignment, compiledAssignment, strength, frame, group, palette, claimed, claim, maskResolver)
     }
   }
 }

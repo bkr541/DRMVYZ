@@ -427,14 +427,17 @@ describe('Marquee logical visual acceptance', () => {
     })
     expect(resolvePixGridPreviewState(selected, `${PRESET_ID}-intro`).selectedSceneId).toBe(`${PRESET_ID}-drop`)
     const previewFrame = applyPixGridSelectedScenePreviewFrame(audio({
-      motionClockBar: 5.25,
-      motionClockBeat: 21,
+      absoluteBar: 5.25,
+      barIndex: 5,
+      barProgress: 0.25,
+      beatIndex: 21,
+      beatPhase: 0,
       motionClockSectionBar: 99,
       motionClockSectionBeat: 396,
     }), selected)
     expect(previewFrame).toMatchObject({
       sectionType: 'drop',
-      motionClockSectionType: 'drop',
+      motionClockSectionType: undefined,
       barsSinceSectionStart: 5.25,
       beatsSinceSectionStart: 21,
       previewElapsedBar: 5.25,

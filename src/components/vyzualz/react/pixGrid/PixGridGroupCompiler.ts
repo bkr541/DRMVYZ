@@ -13,7 +13,20 @@ const SOURCE_MASK_KINDS = new Set<PixGridGroup['mask']['kind']>([
 export type PixGridGroupMembership = 'rendered' | 'canonical'
 
 export interface PixGridCompiledGroupMaskResolver {
+  captureLayerBackdrop(layerId: string, pixels: Uint8Array): void
   compile(group: PixGridGroup, membership?: PixGridGroupMembership): PixGridCompiledMask
+  restoreBackdrop(
+    group: PixGridGroup,
+    targetPixels: Uint8Array,
+    bits: Uint32Array,
+    foregroundScale?: number,
+  ): number
+  restoreBackdropPixel(
+    group: PixGridGroup,
+    targetPixels: Uint8Array,
+    index: number,
+    foregroundScale?: number,
+  ): boolean
   restorePixels(
     group: PixGridGroup,
     targetPixels: Uint8Array,
@@ -27,6 +40,8 @@ interface SourceTarget {
   group: PixGridGroup
   renderedPixels: Uint8Array
   canonicalPixels: Uint8Array
+  backdropPixels: Uint8Array
+  backdropCaptured: boolean
 }
 
 let nextFrameGroupCompilerInstanceId = 1
@@ -70,6 +85,7 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
   private revision = 0
   private readonly renderedSourceBuffers = new Map<string, Uint8Array>()
   private readonly canonicalSourceBuffers = new Map<string, Uint8Array>()
+  private readonly backdropSourceBuffers = new Map<string, Uint8Array>()
   private readonly sourceTargets = new Map<string, SourceTarget>()
   private readonly targetsByLayerId = new Map<string, SourceTarget[]>()
   private globalTargets: SourceTarget[] = []
@@ -104,7 +120,14 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
       } else {
         canonicalPixels.fill(0)
       }
-      const target = { group, renderedPixels, canonicalPixels }
+      let backdropPixels = this.backdropSourceBuffers.get(group.id)
+      if (!backdropPixels || backdropPixels.length !== requiredBytes) {
+        backdropPixels = new Uint8Array(requiredBytes)
+        this.backdropSourceBuffers.set(group.id, backdropPixels)
+      } else {
+        backdropPixels.fill(0)
+      }
+      const target = { group, renderedPixels, canonicalPixels, backdropPixels, backdropCaptured: false }
       activeIds.add(group.id)
       this.sourceTargets.set(group.id, target)
       if (scope.length === 0) {
@@ -124,6 +147,21 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
     for (const groupId of this.canonicalSourceBuffers.keys()) {
       if (!activeIds.has(groupId)) this.canonicalSourceBuffers.delete(groupId)
     }
+    for (const groupId of this.backdropSourceBuffers.keys()) {
+      if (!activeIds.has(groupId)) this.backdropSourceBuffers.delete(groupId)
+    }
+  }
+
+  captureLayerBackdrop(layerId: string, pixels: Uint8Array): void {
+    if (pixels.length !== this.width * this.height * 4) return
+    const targets = this.targetsByLayerId.get(layerId) ?? []
+    const capture = (target: SourceTarget) => {
+      if (target.backdropCaptured) return
+      target.backdropPixels.set(pixels)
+      target.backdropCaptured = true
+    }
+    for (const target of targets) capture(target)
+    for (const target of this.globalTargets) capture(target)
   }
 
   recordPixel(
@@ -206,6 +244,59 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
     return recruited
   }
 
+  restoreBackdrop(
+    group: PixGridGroup,
+    targetPixels: Uint8Array,
+    bits: Uint32Array,
+    foregroundScale = 0,
+  ): number {
+    const target = this.sourceTargets.get(group.id)
+    const backdrop = target?.backdropPixels
+    if (!target?.backdropCaptured || !backdrop || backdrop.length !== targetPixels.length) return 0
+    const scale = clamp01(foregroundScale)
+    let restored = 0
+    for (let index = 0; index < this.width * this.height; index += 1) {
+      if (!pixGridMaskHasCell(bits, index)) continue
+      const offset = index * 4
+      let changed = false
+      for (let channel = 0; channel < 4; channel += 1) {
+        const previous = targetPixels[offset + channel]
+        const next = Math.round(backdrop[offset + channel] + (previous - backdrop[offset + channel]) * scale)
+        changed ||= next !== previous
+        targetPixels[offset + channel] = next
+      }
+      if (changed) restored += 1
+    }
+    return restored
+  }
+
+  restoreBackdropPixel(
+    group: PixGridGroup,
+    targetPixels: Uint8Array,
+    index: number,
+    foregroundScale = 0,
+  ): boolean {
+    const target = this.sourceTargets.get(group.id)
+    const backdrop = target?.backdropPixels
+    if (
+      !target?.backdropCaptured
+      || !backdrop
+      || backdrop.length !== targetPixels.length
+      || index < 0
+      || index >= this.width * this.height
+    ) return false
+    const scale = clamp01(foregroundScale)
+    const offset = index * 4
+    let changed = false
+    for (let channel = 0; channel < 4; channel += 1) {
+      const previous = targetPixels[offset + channel]
+      const next = Math.round(backdrop[offset + channel] + (previous - backdrop[offset + channel]) * scale)
+      changed ||= next !== previous
+      targetPixels[offset + channel] = next
+    }
+    return changed
+  }
+
   get compiledGroupIds(): readonly string[] {
     return [...new Set(
       [...this.compiled.entries()]
@@ -217,6 +308,7 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
   reset(): void {
     this.renderedSourceBuffers.clear()
     this.canonicalSourceBuffers.clear()
+    this.backdropSourceBuffers.clear()
     this.sourceTargets.clear()
     this.targetsByLayerId.clear()
     this.globalTargets = []
