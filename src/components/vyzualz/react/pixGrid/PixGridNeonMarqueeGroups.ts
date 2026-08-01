@@ -1,4 +1,5 @@
 import type { PixGridGroup } from './PixGridTypes'
+import { PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT } from './PixGridNeonMarqueeMasks'
 
 function marqueeGroup(
   id: string,
@@ -29,10 +30,10 @@ function marqueeGroup(
 export const PIX_GRID_NEON_MARQUEE_GROUPS: PixGridGroup[] = [
   marqueeGroup('marquee-structure-group', 'Stable Sign Structure', ['marquee-structure'], '#8aa0b8', 0),
   marqueeGroup('marquee-perimeter-group', 'Complete Perimeter Chase', ['marquee-bulbs-a', 'marquee-bulbs-b', 'marquee-bulbs-c', 'marquee-bulbs-d'], '#ffd36b', 20),
-  marqueeGroup('marquee-bulb-a-group', 'Perimeter Bulb Phase A', ['marquee-bulbs-a'], '#fff4b0', 24),
-  marqueeGroup('marquee-bulb-b-group', 'Perimeter Bulb Phase B', ['marquee-bulbs-b'], '#ffe074', 25),
-  marqueeGroup('marquee-bulb-c-group', 'Perimeter Bulb Phase C', ['marquee-bulbs-c'], '#ffc857', 26),
-  marqueeGroup('marquee-bulb-d-group', 'Perimeter Bulb Phase D', ['marquee-bulbs-d'], '#ffad42', 27),
+  marqueeGroup('marquee-bulb-a-group', 'Perimeter Bulb Phase A', ['marquee-bulbs-a'], PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT['bulbs-a'], 24),
+  marqueeGroup('marquee-bulb-b-group', 'Perimeter Bulb Phase B', ['marquee-bulbs-b'], PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT['bulbs-b'], 25),
+  marqueeGroup('marquee-bulb-c-group', 'Perimeter Bulb Phase C', ['marquee-bulbs-c'], PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT['bulbs-c'], 26),
+  marqueeGroup('marquee-bulb-d-group', 'Perimeter Bulb Phase D', ['marquee-bulbs-d'], PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT['bulbs-d'], 27),
   marqueeGroup('marquee-letter-group', 'Interior Letter Lights', ['marquee-letter-lights-a', 'marquee-letter-lights-b', 'marquee-letter-lights-c'], '#58d8ff', 35),
   marqueeGroup('marquee-letter-travel-group', 'Letter Light Travel Bank', ['marquee-letter-lights-a', 'marquee-letter-lights-b', 'marquee-letter-lights-c'], '#8cecff', 36),
   marqueeGroup('marquee-equalizer-group', 'Equalizer and Halo Lights', ['marquee-equalizer-lights'], '#7d8cff', 42),

@@ -334,6 +334,7 @@ function normalizeAnimation(value: unknown): PixGridLayerAnimation | null {
       ? { clock: value.clock as PixGridLayerAnimation['clock'] }
       : {}),
     amount: clamp(value.amount, -4, 4, 0),
+    ...(value.inactiveOpacity != null ? { inactiveOpacity: clamp(value.inactiveOpacity, 0, 1, 0) } : {}),
     phase: clamp(value.phase, -1000, 1000, 0),
     boundary: ANIMATION_BOUNDARIES.has(value.boundary as PixGridAnimationBoundary) ? (value.boundary as PixGridAnimationBoundary) : 'wrap',
     ...(value.axis === 'x' || value.axis === 'y' ? { axis: value.axis } : {}),

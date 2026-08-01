@@ -11,7 +11,8 @@ export interface PixGridSemanticTargetCell {
 
 export function isPixGridSemanticTargetActive(state: PixGridState): boolean {
   const selectedLayerId = state.editor.selectedLayerId
-  return state.selectedPresetId === MARQUEE_PRESET_ID
+  return state.authoringOverlayVisible
+    && state.selectedPresetId === MARQUEE_PRESET_ID
     && selectedLayerId != null
     && selectedLayerId.startsWith(MARQUEE_LAYER_PREFIX)
     && state.layers.some(layer => layer.id === selectedLayerId)

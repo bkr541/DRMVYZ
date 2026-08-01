@@ -367,7 +367,7 @@ export function resolvePixGridLayerAnimation(
         break
       case 'blink': {
         const on = fract(time) < clamp01(amount || 0.5)
-        resolved.opacity *= on ? 1 : 0
+        resolved.opacity *= on ? 1 : clamp01(animation.inactiveOpacity ?? 0)
         break
       }
       case 'revealRow':

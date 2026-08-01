@@ -296,6 +296,15 @@ test.describe('Marquee Sign Cycle real production browser acceptance', () => {
     await expect(page.getByRole('slider', { name: 'Opacity', exact: true })).toBeVisible()
     await expect(page.getByTestId('selected-layer-highlight')).toHaveText('Perimeter Bulbs A')
     expect((await readRuntime(page)).selectedLayerId).toBe('marquee-bulbs-a')
+    await expect(page.getByTestId('pix-grid-semantic-target-overlay')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Edit PixGrid', exact: true }).first().click()
+    await expect(page.getByTestId('pix-grid-editor-overlay')).toBeVisible()
+    expect((await readRuntime(page)).selectedLayerId).toBe('marquee-bulbs-a')
+    await page.getByRole('button', { name: 'Done', exact: true }).click()
+    await expect(page.getByTestId('pix-grid-editor-overlay')).toHaveCount(0)
+    await expect(page.getByTestId('pix-grid-semantic-target-overlay')).toHaveCount(0)
+    expect((await readRuntime(page)).selectedLayerId).toBe('marquee-bulbs-a')
 
     await choose(page, 'Edit Target', 'Scene Pixels')
     await expect(page.getByRole('tab', { name: 'Scene', exact: true })).toHaveAttribute('aria-selected', 'true')

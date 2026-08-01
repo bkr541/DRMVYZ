@@ -255,16 +255,46 @@ describe('Marquee Sign Cycle canonical authored animation', () => {
     expect(applied.audioAssignments).toEqual([])
   })
 
-  it('runs the deterministic A → B → C → D perimeter chase on the section-beat Motion clock', () => {
+  it('runs the deterministic overlapping A → B → C → D perimeter chase on the section-beat Motion clock', () => {
     const bulbs = ['marquee-bulbs-a', 'marquee-bulbs-b', 'marquee-bulbs-c', 'marquee-bulbs-d'].map(layer)
     const activeAtBeat = [0, 1, 2, 3].map(beat => bulbs.map(candidate => (
       resolved(candidate, audio({ motionClockSectionBeat: beat })).opacity
     )))
+    const activeIndices = activeAtBeat.map(values => values
+      .map((value, index) => value > 0.9 ? index : -1)
+      .filter(index => index >= 0))
 
-    expect(activeAtBeat.map(values => values.findIndex(value => value > 0.9))).toEqual([0, 1, 2, 3])
-    expect(activeAtBeat.every(values => values.filter(value => value > 0.9).length === 1)).toBe(true)
+    expect(activeIndices).toEqual([[0, 3], [0, 1], [1, 2], [2, 3]])
+    expect(activeAtBeat.every(values => values.filter(value => value > 0.9).length === 2)).toBe(true)
+    expect(activeAtBeat.every(values => values.filter(value => value === 0.18).length === 2)).toBe(true)
     expect(bulbs.map(candidate => resolved(candidate, audio({ motionClockSectionBeat: 4 }),).frameIndex))
       .toEqual([0, 0, 0, 0])
+  })
+
+  it('keeps all four physical bulb banks present in every authored scene', () => {
+    const bulbLayerIds = ['marquee-bulbs-a', 'marquee-bulbs-b', 'marquee-bulbs-c', 'marquee-bulbs-d'] as const
+    const minimumDensity = Math.max(...bulbLayerIds.map(id => layer(id).densityRank))
+
+    for (const sectionType of ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro'] as const) {
+      const scene = PRESET.pixGridSettings!.sceneSettings![`${PRESET_ID}-${sectionType}`]
+      expect(scene.density, sectionType).toBeGreaterThanOrEqual(minimumDensity)
+      for (const layerId of bulbLayerIds) {
+        expect(scene.hiddenLayerIds ?? [], `${sectionType}:${layerId}`).not.toContain(layerId)
+        expect(scene.layerOpacity?.[layerId] ?? 1, `${sectionType}:${layerId}`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('freezes PreDrop as a deliberate paired A + D bulb pattern instead of one surviving bank', () => {
+    const bulbs = ['marquee-bulbs-a', 'marquee-bulbs-b', 'marquee-bulbs-c', 'marquee-bulbs-d'].map(layer)
+    const opacities = bulbs.map(candidate => resolved(candidate, audio({
+      sectionType: 'preDrop',
+      motionClockSectionType: 'preDrop',
+      motionClockSectionBeat: 37,
+      motionClockSectionBar: 9.25,
+    })).opacity)
+
+    expect(opacities).toEqual([1, 0.18, 0.18, 1])
   })
 
   it('accelerates the authored bulb chase progressively through builds without accelerating sign identity', () => {
@@ -277,12 +307,13 @@ describe('Marquee Sign Cycle canonical authored animation', () => {
       motionClockSectionProgress: progress,
       sectionProgress: progress,
     })
-    const activeBank = (progress: number) => bulbs
+    const activeBanks = (progress: number) => bulbs
       .map(candidate => resolved(candidate, buildAt(progress)).opacity)
-      .findIndex(value => value > 0.9)
+      .map((value, index) => value > 0.9 ? index : -1)
+      .filter(index => index >= 0)
 
-    expect(activeBank(0)).toBe(1)
-    expect(activeBank(1)).toBe(2)
+    expect(activeBanks(0)).toEqual([0, 3])
+    expect(activeBanks(1)).toEqual([1, 2])
     expect(resolved(layer('marquee-structure'), buildAt(0)).frameIndex).toBe(0)
     expect(resolved(layer('marquee-structure'), buildAt(1)).frameIndex).toBe(0)
   })

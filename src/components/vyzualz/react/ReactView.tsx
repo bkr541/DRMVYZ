@@ -13,7 +13,6 @@ import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from './ReactCanvasEngineShell'
 import { PixGridSurface, type PixGridSurfaceRuntimeFrame } from './pixGrid/PixGridSurface'
 import { PixGridEditorOverlay, shouldShowPixGridEditorOverlay } from './pixGrid/PixGridEditorOverlay'
-import { PixGridSemanticTargetOverlay } from './pixGrid/PixGridSemanticTargetOverlay'
 import { addPixGridMediaLayer } from './pixGrid/PixGridAuthoring'
 import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
@@ -700,9 +699,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 soundDrawingClips={activeSdClips}
                 activeAudioTrackId={engine.currentAudioTrackId}
               />
-            )}
-            {activeReactEngineId === 'pixGrid' && !pixGridState.authoringOverlayVisible && (
-              <PixGridSemanticTargetOverlay signFrameIndex={pixGridSignFrameIndex} />
             )}
             {shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
               <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} signFrameIndex={pixGridSignFrameIndex} />

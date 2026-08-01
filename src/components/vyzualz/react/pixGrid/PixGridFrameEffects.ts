@@ -164,9 +164,15 @@ function applyEffect(
     switch (effect.kind) {
       case 'brightness': {
         const factor = effect.blend === 'replace' ? amount : effect.blend === 'add' ? 1 + amount : amount
-        pixels[offset] = Math.min(255, Math.round(pixels[offset] * clamp(factor, 0, 4)))
-        pixels[offset + 1] = Math.min(255, Math.round(pixels[offset + 1] * clamp(factor, 0, 4)))
-        pixels[offset + 2] = Math.min(255, Math.round(pixels[offset + 2] * clamp(factor, 0, 4)))
+        const safeFactor = clamp(factor, 0, 4)
+        if (
+          preserveBackdrop
+          && safeFactor <= 1
+          && maskResolver.restoreBackdropPixel(group, pixels, index, safeFactor)
+        ) break
+        pixels[offset] = Math.min(255, Math.round(pixels[offset] * safeFactor))
+        pixels[offset + 1] = Math.min(255, Math.round(pixels[offset + 1] * safeFactor))
+        pixels[offset + 2] = Math.min(255, Math.round(pixels[offset + 2] * safeFactor))
         break
       }
       case 'opacity':

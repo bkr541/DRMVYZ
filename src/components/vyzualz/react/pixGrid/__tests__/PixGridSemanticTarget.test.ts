@@ -8,6 +8,7 @@ import {
   resolvePixGridSemanticTargetCells,
 } from '../PixGridSemanticTarget'
 import { applyPixGridPresetSettings } from '../PixGridState'
+import { normalizePixGridState } from '../PixGridValidation'
 import type { PixGridAudioFrame, PixGridState } from '../PixGridTypes'
 
 const PRESET_ID = 'pix-grid-neon-marquee-cycle'
@@ -45,20 +46,37 @@ function frame(): PixGridAudioFrame {
   }
 }
 
-function selected(base: PixGridState, layerId: string): PixGridState {
+function selected(base: PixGridState, layerId: string, authoringOverlayVisible = base.authoringOverlayVisible): PixGridState {
   return {
     ...base,
+    authoringOverlayVisible,
     editor: { ...base.editor, selectedLayerId: layerId },
   }
 }
 
 describe('PixGrid Marquee semantic Edit Target visualization', () => {
-  it('resolves exact nonempty source-alpha membership for every canonical target', () => {
+  it('requires the intentional authoring overlay even when a semantic layer remains selected', () => {
+    const base = selected(state(), 'marquee-bulbs-a', false)
+
+    expect(isPixGridSemanticTargetActive(base)).toBe(false)
+    expect(resolvePixGridSemanticTargetCells(base, 0)).toEqual([])
+
+    const preview = { ...base, authoringOverlayVisible: true }
+    expect(isPixGridSemanticTargetActive(preview)).toBe(true)
+    expect(resolvePixGridSemanticTargetCells(preview, 0).length).toBeGreaterThan(0)
+
+    const closedAgain = { ...preview, authoringOverlayVisible: false }
+    expect(closedAgain.editor.selectedLayerId).toBe('marquee-bulbs-a')
+    expect(isPixGridSemanticTargetActive(closedAgain)).toBe(false)
+    expect(resolvePixGridSemanticTargetCells(closedAgain, 0)).toEqual([])
+  })
+
+  it('resolves exact nonempty source-alpha membership for every canonical target while authoring is open', () => {
     const base = state()
     expect(base.layers).toHaveLength(12)
 
     for (const layer of base.layers) {
-      const targetState = selected(base, layer.id)
+      const targetState = selected(base, layer.id, true)
       expect(isPixGridSemanticTargetActive(targetState), layer.id).toBe(true)
       const cells = resolvePixGridSemanticTargetCells(targetState, 0)
       expect(cells.length, layer.id).toBeGreaterThan(0)
@@ -79,19 +97,33 @@ describe('PixGrid Marquee semantic Edit Target visualization', () => {
     }
   })
 
-  it('does not change compositor output or saved layer content when selection changes', () => {
+  it('does not change compositor output or saved layer content when selection or preview visibility changes', () => {
     const base = state()
     const before = composePixGridLogicalFrame(PRESET, base, frame()).pixels
-    const selectedPerimeter = selected(base, 'marquee-bulbs-a')
-    const after = composePixGridLogicalFrame(PRESET, selectedPerimeter, frame()).pixels
+    const selectedPerimeter = selected(base, 'marquee-bulbs-a', false)
+    const previewPerimeter = { ...selectedPerimeter, authoringOverlayVisible: true }
+    const selectedOutput = composePixGridLogicalFrame(PRESET, selectedPerimeter, frame()).pixels
+    const previewOutput = composePixGridLogicalFrame(PRESET, previewPerimeter, frame()).pixels
 
-    expect(after).toEqual(before)
+    expect(selectedOutput).toEqual(before)
+    expect(previewOutput).toEqual(before)
     expect(selectedPerimeter.layers).toEqual(base.layers)
-    expect(resolvePixGridSemanticTargetCells(selectedPerimeter, 0).length).toBeGreaterThan(0)
+    expect(resolvePixGridSemanticTargetCells(selectedPerimeter, 0)).toEqual([])
+    expect(resolvePixGridSemanticTargetCells(previewPerimeter, 0).length).toBeGreaterThan(0)
+  })
+
+  it('keeps hydrated selected-layer state separate from preview visibility', () => {
+    const selectedClosed = selected(state(), 'marquee-bulbs-a', false)
+    const hydrated = normalizePixGridState(JSON.parse(JSON.stringify(selectedClosed)))
+
+    expect(hydrated.editor.selectedLayerId).toBe('marquee-bulbs-a')
+    expect(hydrated.authoringOverlayVisible).toBe(false)
+    expect(isPixGridSemanticTargetActive(hydrated)).toBe(false)
+    expect(resolvePixGridSemanticTargetCells(hydrated, 0)).toEqual([])
   })
 
   it('stays disabled for unrelated presets and nonexistent targets', () => {
-    const base = state()
+    const base = selected(state(), 'marquee-bulbs-a', true)
     expect(isPixGridSemanticTargetActive({
       ...base,
       selectedPresetId: 'pix-grid-bass-beacon',

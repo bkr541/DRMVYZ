@@ -172,6 +172,8 @@ export interface PixGridLayerAnimation {
   clock?: 'time' | 'beat' | 'bar' | 'sectionBeat' | 'sectionBar' | 'sectionProgress' | 'sign' | 'cue'
   speed: number
   amount: number
+  /** Minimum opacity retained during the inactive half of a blink cycle. */
+  inactiveOpacity?: number
   phase: number
   boundary: PixGridAnimationBoundary
   axis?: 'x' | 'y'

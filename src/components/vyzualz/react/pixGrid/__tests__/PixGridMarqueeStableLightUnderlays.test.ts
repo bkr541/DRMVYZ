@@ -13,11 +13,13 @@ import {
   type PixGridNeonMarqueeStableUnderlayComponentId,
   pixGridNeonMarqueeComponentContainsCell,
   pixGridNeonMarqueeStableUnderlayContainsCell,
+  resolvePixGridNeonMarqueeEmitterColor,
   samplePixGridNeonMarqueeComponent,
   samplePixGridNeonMarqueeStableUnderlay,
 } from '../PixGridNeonMarqueeMasks'
 import { PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION, PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { migratePixGridState } from '../PixGridStateMigration'
+import type { PixGridGroupFrameEffect } from '../PixGridFrameEffects'
 import {
   PIX_GRID_MARQUEE_LETTER_LAYER_IDS,
   PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES,
@@ -36,6 +38,15 @@ function sourceColor(frameIndex: number, x: number, y: number): readonly [number
   return [rgb[offset], rgb[offset + 1], rgb[offset + 2]]
 }
 
+function emitterColor(
+  component: PixGridNeonMarqueeStableUnderlayComponentId,
+  frameIndex: number,
+  x: number,
+  y: number,
+): readonly [number, number, number] {
+  return resolvePixGridNeonMarqueeEmitterColor(component, sourceColor(frameIndex, x, y))
+}
+
 function dimmed(
   color: readonly [number, number, number],
   component: PixGridNeonMarqueeStableUnderlayComponentId,
@@ -51,6 +62,10 @@ function dimmed(
 function logicalColor(pixels: Uint8Array, x: number, y: number): readonly [number, number, number, number] {
   const offset = (y * PIX_GRID_NEON_MARQUEE_FRAME_WIDTH + x) * 4
   return [pixels[offset], pixels[offset + 1], pixels[offset + 2], pixels[offset + 3]]
+}
+
+function luminance(color: readonly [number, number, number, number]): number {
+  return color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722
 }
 
 function firstCell(component: Parameters<typeof pixGridNeonMarqueeComponentContainsCell>[0], frameIndex: number): readonly [number, number] | null {
@@ -97,7 +112,7 @@ describe('Marquee stable structural underlays', () => {
     expect(migrated.configuration.presetConfigurationVersion).toBe(PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION)
   })
 
-  it('uses sparse alpha for every semantic layer and overlaps a dim source-derived physical emitter bed', () => {
+  it('uses sparse alpha for every semantic layer and overlaps a dim physical emitter bed', () => {
     let membershipMismatches = 0
     let colorMismatches = 0
     let nonMemberOpaqueCells = 0
@@ -127,9 +142,9 @@ describe('Marquee stable structural underlays', () => {
             colorMismatches += Number(stable.alpha !== 1 || stable.color.some((channel, index) => channel !== expected[index]))
           } else if (underlayComponent) {
             underlayCellCount += 1
-            const expectedDim = dimmed(sourceColor(frameIndex, x, y), underlayComponent)
+            const expectedBright = emitterColor(underlayComponent, frameIndex, x, y)
+            const expectedDim = dimmed(expectedBright, underlayComponent)
             const bright = samplePixGridNeonMarqueeComponent(underlayComponent, u, v, frameIndex)
-            const expectedBright = sourceColor(frameIndex, x, y)
             colorMismatches += Number(
               stable.alpha !== 1
               || stable.color.some((channel, index) => channel !== expectedDim[index])
@@ -163,7 +178,7 @@ describe('Marquee stable structural underlays', () => {
             if (!pixGridNeonMarqueeComponentContainsCell(component, frameIndex, x, y)) continue
             checkedCells += 1
             const pixel = logicalColor(logical.pixels, x, y)
-            const expected = dimmed(sourceColor(frameIndex, x, y), component)
+            const expected = dimmed(emitterColor(component, frameIndex, x, y), component)
             missingOrIncorrectCells += Number(
               pixel[3] !== 255 || pixel.slice(0, 3).some((channel, index) => channel !== expected[index]),
             )
@@ -197,13 +212,92 @@ describe('Marquee stable structural underlays', () => {
       for (const component of LETTER_COMPONENTS) {
         const cell = firstCell(component, frameIndex)
         if (!cell) continue
-        expect(logicalColor(allOffFrame.pixels, ...cell)).toEqual([...dimmed(sourceColor(frameIndex, ...cell), component), 255])
+        expect(logicalColor(allOffFrame.pixels, ...cell)).toEqual([
+          ...dimmed(emitterColor(component, frameIndex, ...cell), component),
+          255,
+        ])
       }
     }
   })
 
-  it('matches the exact source frame with every lighting layer active', () => {
+  it('keeps silent inactive bulbs visible and makes their active phase clearly brighter', () => {
+    const fixture = PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES.find(candidate => candidate.id === 'drop-scene')!
+    const inactiveFrame = createPixGridMarqueeStableUnderlayFixtureFrame(fixture, 0)
+    inactiveFrame.motionClockSectionBeat = 0
+    inactiveFrame.beatsSinceSectionStart = 0
+    const activeFrame = { ...inactiveFrame, motionClockSectionBeat: 1, beatsSinceSectionStart: 1 }
+    const fixtureState = createPixGridMarqueeStableUnderlayFixtureState(
+      PRESET,
+      fixture,
+      'pix-neon-marquee-stable-underlay',
+    )
+    const inactive = composePixGridLogicalFrame(PRESET, fixtureState, inactiveFrame)
+    const active = composePixGridLogicalFrame(PRESET, fixtureState, activeFrame)
+    const bulbB = firstCell('bulbs-b', 0)!
+    const inactiveColor = logicalColor(inactive.pixels, ...bulbB)
+    const activeColor = logicalColor(active.pixels, ...bulbB)
+
+    expect(inactiveColor[3]).toBe(255)
+    expect(luminance(inactiveColor)).toBeGreaterThan(40)
+    expect(luminance(activeColor)).toBeGreaterThan(luminance(inactiveColor) * 1.35)
+  })
+
+  it('preserves the physical bulb underlay when performance brightness scales a bank to zero', () => {
     const fixture = PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES.find(candidate => candidate.id === 'all-lighting-active')!
+    const fixtureState = createPixGridMarqueeStableUnderlayFixtureState(
+      PRESET,
+      fixture,
+      'pix-neon-marquee-stable-underlay',
+    )
+    const frame = createPixGridMarqueeStableUnderlayFixtureFrame(fixture, 0)
+    const effect: PixGridGroupFrameEffect = {
+      id: 'test:zero-bulb-a-brightness',
+      groupId: 'marquee-bulb-a-group',
+      kind: 'brightness',
+      source: 'performance',
+      stage: 'persistent',
+      priority: 0,
+      amount: 0,
+      blend: 'multiply',
+    }
+    const logical = composePixGridLogicalFrame(
+      PRESET,
+      fixtureState,
+      frame,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [effect],
+    )
+    const bulbA = firstCell('bulbs-a', 0)!
+
+    expect(logicalColor(logical.pixels, ...bulbA)).toEqual([
+      ...dimmed(emitterColor('bulbs-a', 0, ...bulbA), 'bulbs-a'),
+      255,
+    ])
+  })
+
+  it('renders four distinct authored bulb colors through the final compositor output', () => {
+    const fixture = PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES.find(candidate => candidate.id === 'all-lighting-active')!
+    const logical = composePixGridLogicalFrame(
+      PRESET,
+      createPixGridMarqueeStableUnderlayFixtureState(PRESET, fixture, 'pix-neon-marquee-stable-underlay'),
+      createPixGridMarqueeStableUnderlayFixtureFrame(fixture, 0),
+    )
+    const colors = (['bulbs-a', 'bulbs-b', 'bulbs-c', 'bulbs-d'] as const).map(component => {
+      const cell = firstCell(component, 0)!
+      const rendered = logicalColor(logical.pixels, ...cell)
+      expect(rendered).toEqual([...emitterColor(component, 0, ...cell), 255])
+      return rendered.slice(0, 3).join(',')
+    })
+
+    expect(new Set(colors).size).toBe(4)
+  })
+
+  it('matches the source artwork with authored RGB applied only to the four bulb banks', () => {
+    const fixture = PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES.find(candidate => candidate.id === 'all-lighting-active')!
+    const bulbComponents = ['bulbs-a', 'bulbs-b', 'bulbs-c', 'bulbs-d'] as const
     for (let frameIndex = 0; frameIndex < 4; frameIndex += 1) {
       const logical = composePixGridLogicalFrame(
         PRESET,
@@ -213,12 +307,21 @@ describe('Marquee stable structural underlays', () => {
       const source = getPixGridNeonMarqueeFrames()[frameIndex]
       const expected = new Uint8Array(PIX_GRID_NEON_MARQUEE_FRAME_CELL_COUNT * 4)
       for (let cell = 0; cell < PIX_GRID_NEON_MARQUEE_FRAME_CELL_COUNT; cell += 1) {
+        const x = cell % PIX_GRID_NEON_MARQUEE_FRAME_WIDTH
+        const y = Math.floor(cell / PIX_GRID_NEON_MARQUEE_FRAME_WIDTH)
         const sourceOffset = cell * 3
         const outputOffset = cell * 4
-        expected[outputOffset] = source[sourceOffset]
-        expected[outputOffset + 1] = source[sourceOffset + 1]
-        expected[outputOffset + 2] = source[sourceOffset + 2]
-        expected[outputOffset + 3] = source[sourceOffset] || source[sourceOffset + 1] || source[sourceOffset + 2] ? 255 : 0
+        const sourceRgb = [source[sourceOffset], source[sourceOffset + 1], source[sourceOffset + 2]] as const
+        const bulbComponent = bulbComponents.find(component => (
+          pixGridNeonMarqueeComponentContainsCell(component, frameIndex, x, y)
+        ))
+        const expectedRgb = bulbComponent
+          ? resolvePixGridNeonMarqueeEmitterColor(bulbComponent, sourceRgb)
+          : sourceRgb
+        expected[outputOffset] = expectedRgb[0]
+        expected[outputOffset + 1] = expectedRgb[1]
+        expected[outputOffset + 2] = expectedRgb[2]
+        expected[outputOffset + 3] = sourceRgb[0] || sourceRgb[1] || sourceRgb[2] ? 255 : 0
       }
       expect(logical.pixels).toEqual(expected)
     }

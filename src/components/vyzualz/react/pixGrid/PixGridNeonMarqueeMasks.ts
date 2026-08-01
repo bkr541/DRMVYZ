@@ -34,8 +34,9 @@ const EXPECTED_MASK_BYTE_LENGTH = PIX_GRID_NEON_MARQUEE_FRAME_CELL_COUNT / 8
  * connected-component inference. Perimeter phases follow the source contour in
  * clockwise A/B/C/D order; letter banks progress left-to-right; structure is the
  * stable remainder after explicit emitters, trim, focal accents, and sparkles.
- * Source RGB always comes from PixGridNeonMarqueeFrames. Only alpha comes from
- * these masks, so selected cells retain their exact original byte values.
+ * Source RGB comes from PixGridNeonMarqueeFrames for artwork components. The
+ * four perimeter banks resolve to authored lamp colors after mask membership is
+ * established, so editor geometry remains exact while final bulb RGB is explicit.
  */
 const ENCODED_MASK_BY_COMPONENT: Readonly<Record<
   PixGridNeonMarqueeComponentId,
@@ -1196,6 +1197,40 @@ export interface PixGridNeonMarqueeComponentSample {
   color: readonly [number, number, number]
 }
 
+export const PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT = Object.freeze({
+  'bulbs-a': '#fff4b0',
+  'bulbs-b': '#ffe074',
+  'bulbs-c': '#ffc857',
+  'bulbs-d': '#ffad42',
+} as const)
+
+export type PixGridNeonMarqueeBulbComponentId = keyof typeof PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT
+
+const PIX_GRID_NEON_MARQUEE_BULB_COLOR_RGB_BY_COMPONENT: Readonly<Record<
+  PixGridNeonMarqueeBulbComponentId,
+  readonly [number, number, number]
+>> = Object.freeze({
+  'bulbs-a': [255, 244, 176],
+  'bulbs-b': [255, 224, 116],
+  'bulbs-c': [255, 200, 87],
+  'bulbs-d': [255, 173, 66],
+})
+
+function isPixGridNeonMarqueeBulbComponent(
+  componentId: PixGridNeonMarqueeComponentId,
+): componentId is PixGridNeonMarqueeBulbComponentId {
+  return componentId in PIX_GRID_NEON_MARQUEE_BULB_COLOR_RGB_BY_COMPONENT
+}
+
+export function resolvePixGridNeonMarqueeEmitterColor(
+  componentId: PixGridNeonMarqueeComponentId,
+  source: readonly [number, number, number],
+): readonly [number, number, number] {
+  return isPixGridNeonMarqueeBulbComponent(componentId)
+    ? PIX_GRID_NEON_MARQUEE_BULB_COLOR_RGB_BY_COMPONENT[componentId]
+    : source
+}
+
 export function samplePixGridNeonMarqueeComponent(
   componentId: PixGridNeonMarqueeComponentId,
   u: number,
@@ -1215,19 +1250,22 @@ export function samplePixGridNeonMarqueeComponent(
 
   const rgb = getPixGridNeonMarqueeFrames()[normalized]
   const offset = cellIndex * 3
+  const source = [rgb[offset], rgb[offset + 1], rgb[offset + 2]] as const
   return {
     alpha: 1,
     role: 'primary',
-    color: [rgb[offset], rgb[offset + 1], rgb[offset + 2]],
+    color: resolvePixGridNeonMarqueeEmitterColor(componentId, source),
   }
 }
 
 /**
- * Structural regions that keep a source-derived dim copy beneath their bright,
- * independently animated component layer. The original exclusive component
- * masks remain available for compatibility, auditing, and exact emitter
- * recruitment; overlap is introduced only by the authored structure-underlay
- * asset used by the current Marquee preset.
+ * Structural regions that keep a dim physical-emitter copy beneath their
+ * bright, independently animated component layer. Bulb banks use authored lamp
+ * colors so dark source pixels cannot collapse into black holes; the remaining
+ * emitters retain source-derived color. The original exclusive component masks
+ * remain available for compatibility, auditing, and exact emitter recruitment;
+ * overlap is introduced only by the authored structure-underlay asset used by
+ * the current Marquee preset.
  */
 export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS = [
   'bulbs-a',
@@ -1247,19 +1285,19 @@ export type PixGridNeonMarqueeStableUnderlayComponentId =
   typeof PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS[number]
 
 /**
- * Exact deterministic source-color multipliers for the physical emitter bed.
- * Every semantic emitter retains a dim source-derived copy beneath its bright
- * animation layer, while authored structure remains byte-exact and full-strength.
+ * Exact deterministic emitter-color multipliers for the physical emitter bed.
+ * Bulb banks use their authored chase colors and all other emitters retain a
+ * dim source-derived copy beneath their bright animation layer.
  */
 export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE = 0.28 as const
 export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE_BY_COMPONENT: Readonly<Record<
   PixGridNeonMarqueeStableUnderlayComponentId,
   number
 >> = Object.freeze({
-  'bulbs-a': 0.2,
-  'bulbs-b': 0.2,
-  'bulbs-c': 0.2,
-  'bulbs-d': 0.2,
+  'bulbs-a': 0.34,
+  'bulbs-b': 0.34,
+  'bulbs-c': 0.34,
+  'bulbs-d': 0.34,
   'letter-a': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
   'letter-b': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
   'letter-c': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
@@ -1308,9 +1346,10 @@ export function pixGridNeonMarqueeStableUnderlayContainsCell(
 /**
  * Samples the current stable structure layer. Authored structure cells retain
  * their exact source RGB. Every physical emitter overlaps that structure as a
- * dim source-derived color, so authored visibility gates reveal an unlit bulb,
- * letter lamp, equalizer segment, trim lamp, focal lamp, or sparkle instead of
- * exposing the opaque black presentation background.
+ * dim physical copy, using authored lamp RGB for bulbs and source-derived RGB
+ * for the remaining emitters. Authored visibility gates therefore reveal an
+ * unlit bulb, letter lamp, equalizer segment, trim lamp, focal lamp, or sparkle
+ * instead of exposing the opaque black presentation background.
  */
 export function samplePixGridNeonMarqueeStableUnderlay(
   u: number,
@@ -1341,6 +1380,9 @@ export function samplePixGridNeonMarqueeStableUnderlay(
     role: 'primary',
     color: isAuthoredStructure
       ? source
-      : dimPixGridNeonMarqueeSourceColor(source, underlayComponent!),
+      : dimPixGridNeonMarqueeSourceColor(
+          resolvePixGridNeonMarqueeEmitterColor(underlayComponent!, source),
+          underlayComponent!,
+        ),
   }
 }
