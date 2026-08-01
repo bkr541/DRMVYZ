@@ -661,6 +661,9 @@ export interface PixGridAudioFrame {
   signTransitionClock?: number | null
   /** Raw sign units per bar at the latest real sign boundary. */
   signTransitionRate?: number
+  /** Deterministic source/target sign epochs at the latest real sign boundary. */
+  signTransitionSourceFrame?: number | null
+  signTransitionTargetFrame?: number | null
   /** Selected Scene's unwrapped deterministic preview position in bars. */
   previewElapsedBar?: number
   /** Length of the selected scene's authored preview loop in bars. */
@@ -703,6 +706,9 @@ export interface PixGridAudioFrame {
   motionClockSign?: number
   /** Motion-integrated distance since the latest real sign boundary. */
   motionClockSignTransition?: number | null
+  /** Source/target sign epochs owned by the motion-integrated transition. */
+  motionClockSignTransitionSourceFrame?: number | null
+  motionClockSignTransitionTargetFrame?: number | null
   /** Motion-scaled clocks measured from the resolved section start. */
   motionClockSectionBeat?: number
   motionClockSectionBar?: number

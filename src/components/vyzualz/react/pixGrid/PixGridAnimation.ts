@@ -218,6 +218,12 @@ function resolveFrameCycle(
   const explicitSignTransition = frame.motionClockSignTransition !== undefined
     ? frame.motionClockSignTransition
     : frame.signTransitionClock
+  const explicitSourceFrame = frame.motionClockSignTransitionSourceFrame !== undefined
+    ? frame.motionClockSignTransitionSourceFrame
+    : frame.signTransitionSourceFrame
+  const explicitTargetFrame = frame.motionClockSignTransitionTargetFrame !== undefined
+    ? frame.motionClockSignTransitionTargetFrame
+    : frame.signTransitionTargetFrame
   let rawProgress = duration <= 0 ? 1 : clamp01(fract(framePosition) / duration)
   let entryTransition = false
 
@@ -234,6 +240,10 @@ function resolveFrameCycle(
       entryTransition = true
     } else {
       rawProgress = duration <= 0 ? 1 : clamp01(Math.max(0, explicitSignTransition) / duration)
+      if (Number.isFinite(explicitSourceFrame) && Number.isFinite(explicitTargetFrame)) {
+        resolved.previousFrameIndex = positiveModulo(Math.floor(explicitSourceFrame!), count)
+        resolved.frameIndex = positiveModulo(Math.floor(explicitTargetFrame!), count)
+      }
     }
   } else {
     const rate = Math.abs(animation.speed * animationClockRate(frame, animation) * effectiveMotion(frame, motionMultiplier) * frameRate)
@@ -253,7 +263,7 @@ function resolveFrameCycle(
   resolved.frameTransitionType = config.type
   resolved.frameTransitionProgress = easePixGridTransition(rawProgress, config.easing)
   resolved.frameTransitionDuration = duration
-  resolved.frameTransitionSeed = transitionSeed(layer, frame, config, resolved.previousFrameIndex, frameIndex)
+  resolved.frameTransitionSeed = transitionSeed(layer, frame, config, resolved.previousFrameIndex, resolved.frameIndex)
   resolved.frameTransitionDirection = config.direction ?? 'forward'
   resolved.frameTransitionOrigin = {
     x: clamp01(config.origin?.x ?? 0.5),

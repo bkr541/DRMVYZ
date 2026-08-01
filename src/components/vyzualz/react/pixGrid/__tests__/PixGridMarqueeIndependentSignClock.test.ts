@@ -162,6 +162,20 @@ describe('Marquee independent sign clock', () => {
     expect(boundary.frameTransitionProgress).toBe(1)
   })
 
+  it('publishes deterministic source and target epochs from the authoritative schedule', () => {
+    const before = signedFrameAt(20)
+    const transition = signedFrameAt(20.125)
+    expect(before).toMatchObject({
+      signClock: 1.5,
+      signTransitionSourceFrame: 0,
+      signTransitionTargetFrame: 1,
+    })
+    expect(transition).toMatchObject({
+      signTransitionSourceFrame: 0,
+      signTransitionTargetFrame: 1,
+    })
+  })
+
   it('uses the actual prior displayed sign at a real sign transition', () => {
     const boundary = resolve(structure, signedFrameAt(16))
     const middle = resolve(structure, signedFrameAt(16.0625))

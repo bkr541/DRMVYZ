@@ -29,6 +29,9 @@ export interface PixGridSectionCadenceClockState {
   transitionClock: number | null
   /** Raw sign units per bar at the latest real sign boundary. */
   transitionRate: number
+  /** Absolute sign epochs on either side of the latest real boundary. */
+  sourceFrame: number | null
+  targetFrame: number | null
 }
 
 function finiteNonNegative(value: number | undefined): number {
@@ -116,7 +119,7 @@ export function resolvePixGridSectionCadenceClockState(
   const scaledClock = resolved.clock * safeScale
   const targetIndex = Math.floor(scaledClock + SIGN_CLOCK_EPSILON)
   if (safeScale <= SIGN_CLOCK_EPSILON || targetIndex <= 0) {
-    return { clock: resolved.clock, transitionClock: null, transitionRate: 0 }
+    return { clock: resolved.clock, transitionClock: null, transitionRate: 0, sourceFrame: null, targetFrame: null }
   }
 
   const rawThreshold = targetIndex / safeScale
@@ -132,10 +135,12 @@ export function resolvePixGridSectionCadenceClockState(
       clock: resolved.clock,
       transitionClock: Math.max(0, resolved.targetBar - crossingBar) * transitionRate * safeScale,
       transitionRate,
+      sourceFrame: targetIndex - 1,
+      targetFrame: targetIndex,
     }
   }
 
-  return { clock: resolved.clock, transitionClock: null, transitionRate: 0 }
+  return { clock: resolved.clock, transitionClock: null, transitionRate: 0, sourceFrame: null, targetFrame: null }
 }
 
 export function resolvePixGridSectionCadenceClock(
@@ -187,5 +192,7 @@ export function applyPixGridPresetSignClock(
     signClock: state.clock,
     signTransitionClock: state.transitionClock,
     signTransitionRate: state.transitionRate,
+    signTransitionSourceFrame: state.sourceFrame,
+    signTransitionTargetFrame: state.targetFrame,
   }
 }

@@ -136,6 +136,25 @@ describe('frameCycle transition resolution', () => {
     expect(resolved(structure, audio({ signClock: 1.0078125, motionClockSign: 1.0078125 })).frameTransitionSeed).toBe(middle.frameTransitionSeed)
   })
 
+  it('prefers an authoritative transition source over local frame subtraction', () => {
+    const sectionReset = resolved(structure, audio({
+      signClock: 0,
+      motionClockSign: 0,
+      signTransitionClock: 0,
+      motionClockSignTransition: 0,
+      signTransitionSourceFrame: 2,
+      signTransitionTargetFrame: 0,
+      motionClockSignTransitionSourceFrame: 2,
+      motionClockSignTransitionTargetFrame: 0,
+    }))
+    expect(sectionReset).toMatchObject({
+      previousFrameIndex: 2,
+      frameIndex: 0,
+      frameTransitionProgress: 0,
+    })
+    expect(sectionReset.previousFrameIndex).not.toBe(3)
+  })
+
   it('uses section-authored transition language without changing sign cadence', () => {
     const build = resolved(structure, audio({ sectionType: 'build', motionClockSectionType: 'build', signClock: 1, motionClockSign: 1 }))
     const preDrop = resolved(structure, audio({ sectionType: 'preDrop', motionClockSectionType: 'preDrop', signClock: 1.5, motionClockSign: 1.5 }))

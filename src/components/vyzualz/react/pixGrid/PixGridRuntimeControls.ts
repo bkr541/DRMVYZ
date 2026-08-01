@@ -110,6 +110,8 @@ export class PixGridMotionClock {
   private motionSign = 0
   private motionSignTransition: number | null = null
   private motionSignTransitionRate = 0
+  private motionSignTransitionSourceFrame: number | null = null
+  private motionSignTransitionTargetFrame: number | null = null
   private motionSignFrameIndex = 0
   private motionSectionBeat = 0
   private motionSectionBar = 0
@@ -124,6 +126,8 @@ export class PixGridMotionClock {
     const preservedMotionSign = this.motionSign
     const preservedMotionSignTransition = this.motionSignTransition
     const preservedMotionSignTransitionRate = this.motionSignTransitionRate
+    const preservedMotionSignTransitionSourceFrame = this.motionSignTransitionSourceFrame
+    const preservedMotionSignTransitionTargetFrame = this.motionSignTransitionTargetFrame
     const preservedMotionSignFrameIndex = this.motionSignFrameIndex
     const preservedLastSignClock = this.lastSignClock
     this.trackIdentity = trackIdentity
@@ -141,6 +145,8 @@ export class PixGridMotionClock {
     this.motionSign = 0
     this.motionSignTransition = null
     this.motionSignTransitionRate = 0
+    this.motionSignTransitionSourceFrame = null
+    this.motionSignTransitionTargetFrame = null
     this.motionSignFrameIndex = 0
     this.motionSectionBeat = 0
     this.motionSectionBar = 0
@@ -151,6 +157,8 @@ export class PixGridMotionClock {
       this.motionSign = preservedMotionSign
       this.motionSignTransition = preservedMotionSignTransition
       this.motionSignTransitionRate = preservedMotionSignTransitionRate
+      this.motionSignTransitionSourceFrame = preservedMotionSignTransitionSourceFrame
+      this.motionSignTransitionTargetFrame = preservedMotionSignTransitionTargetFrame
       this.motionSignFrameIndex = preservedMotionSignFrameIndex
       this.lastSignClock = preservedLastSignClock
     }
@@ -191,6 +199,12 @@ export class PixGridMotionClock {
         this.motionSignTransitionRate = this.motionSignTransition != null && Number.isFinite(frame.signTransitionRate)
           ? Math.max(0, frame.signTransitionRate!)
           : 0
+        this.motionSignTransitionSourceFrame = this.motionSignTransition != null
+          ? Math.max(0, this.motionSignFrameIndex - 1)
+          : null
+        this.motionSignTransitionTargetFrame = this.motionSignTransition != null
+          ? this.motionSignFrameIndex
+          : null
       }
       this.motionSectionBeat = sectionBeatClock * motion
       this.motionSectionBar = sectionBarClock * motion
@@ -211,6 +225,8 @@ export class PixGridMotionClock {
         if (nextFrameIndex > this.motionSignFrameIndex) {
           this.motionSignFrameIndex = nextFrameIndex
           this.motionSignTransition = Math.max(0, this.motionSign - nextFrameIndex)
+          this.motionSignTransitionSourceFrame = this.motionSignFrameIndex - 1
+          this.motionSignTransitionTargetFrame = this.motionSignFrameIndex
           this.motionSignTransitionRate = barDelta > 1e-9 && motion > 1e-9
             ? Math.max(0, (this.motionSign - previousMotionSign) / (barDelta * motion))
             : Math.max(0, Number.isFinite(frame.signTransitionRate) ? frame.signTransitionRate! : 0)
@@ -249,6 +265,8 @@ export class PixGridMotionClock {
       ...(signClock != null ? {
         motionClockSign: this.motionSign,
         motionClockSignTransition: this.motionSignTransition,
+        motionClockSignTransitionSourceFrame: this.motionSignTransitionSourceFrame,
+        motionClockSignTransitionTargetFrame: this.motionSignTransitionTargetFrame,
       } : {}),
       motionClockSectionBeat: this.motionSectionBeat,
       motionClockSectionBar: this.motionSectionBar,
