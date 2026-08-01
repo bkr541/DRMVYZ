@@ -24,7 +24,7 @@ const CANONICAL_RECRUITMENT_TARGETS = new Set([
   'sparkleDensity',
 ])
 
-const EVENT_OVERRIDE_TARGETS = new Set([
+const CANONICAL_OVERRIDE_TARGETS = new Set([
   'brightness',
   'color',
   'highlightColor',
@@ -37,7 +37,10 @@ function reactionMembership(
   compiled: PixGridCompiledAssignment,
 ): PixGridGroupMembership {
   if (CANONICAL_RECRUITMENT_TARGETS.has(compiled.target.id)) return 'canonical'
-  if (!isPixGridContinuousReactionSource(assignment.source) && EVENT_OVERRIDE_TARGETS.has(compiled.target.id)) return 'canonical'
+  if (CANONICAL_OVERRIDE_TARGETS.has(compiled.target.id) && (
+    assignment.conditions?.autoPerformanceOnly === true
+    || !isPixGridContinuousReactionSource(assignment.source)
+  )) return 'canonical'
   return 'rendered'
 }
 
@@ -408,7 +411,6 @@ export function applyPixGridGroupReactions(
         compiledMasks.set(membership, compiled)
       }
       if (compiled.cellCount === 0) continue
-      activeReactionCount += 1
       const resolved = runtime.resolveCompiled(
         compiledAssignment,
         frame,
@@ -417,7 +419,9 @@ export function applyPixGridGroupReactions(
       )
       if (!resolved.active) continue
       const strength = resolvePixGridPerceptualStrength(compiledAssignment, resolved.value, compiled.cellCount, width * height)
-      if (membership === 'canonical' && Math.abs(strength) > 0) {
+      if (Math.abs(strength) <= 1e-6 && assignment.id !== previewReactionAssignmentId) continue
+      activeReactionCount += 1
+      if (membership === 'canonical') {
         maskResolver?.restorePixels(
           group,
           pixels,

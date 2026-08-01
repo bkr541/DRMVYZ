@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
+import { buildSharedPerformanceContext } from '../../../../../features/performanceCore'
 import { resolvePixGridLayerAnimation } from '../PixGridAnimation'
 import { PixGridReactionRuntime } from '../PixGridAudioRouting'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
+import { resolvePixGridPerformanceFrame } from '../PixGridPerformanceRuntime'
 import { PIX_GRID_NEON_MARQUEE_SIGN_CADENCE } from '../PixGridSignClock'
 import { pixGridNeonMarqueeComponentContainsCell } from '../PixGridNeonMarqueeMasks'
 import { PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION, PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
@@ -61,7 +64,82 @@ function layer(id: string): PixGridLayer {
 }
 
 function rendered(frame: PixGridAudioFrame, runtime?: PixGridReactionRuntime): Uint8Array {
-  return composePixGridLogicalFrame(PRESET, state(true), frame, undefined, undefined, runtime).pixels
+  const sectionType = frame.sectionType ?? 'verse'
+  const section = [{
+    id: `marquee-${sectionType}`,
+    label: sectionType,
+    type: sectionType,
+    startSec: 0,
+    endSec: 128,
+    intensity: sectionType === 'drop' ? 1 : 0.72,
+    source: 'auto' as const,
+    confidence: 1,
+  }]
+  const context = buildSharedPerformanceContext({
+    audioTimeSec: frame.audioTime,
+    frame: {
+      ...DEFAULT_MI_FRAME,
+      timeSec: frame.audioTime,
+      frameId: Math.max(1, Math.round(frame.audioTime * 60)),
+      trackId: 'marquee-test-track',
+      bands: {
+        ...DEFAULT_MI_FRAME.bands,
+        sub: frame.sub ?? 0,
+        bass: frame.bass,
+        mid: frame.mid,
+        high: frame.high,
+        air: frame.air ?? 0,
+        volume: frame.volume,
+        normalizedSub: frame.sub ?? 0,
+        normalizedBass: frame.bass,
+        normalizedMid: frame.mid,
+        normalizedHigh: frame.high,
+        normalizedAir: frame.air ?? 0,
+      },
+      rhythm: {
+        ...DEFAULT_MI_FRAME.rhythm,
+        bpm: 120,
+        beatIndex: frame.beatIndex ?? 0,
+        beatPhase: frame.beatPhase,
+        beatInBar: (frame.beatIndex ?? 0) % 4,
+        barIndex: frame.barIndex ?? 0,
+        beatHit: frame.beatHit,
+        downbeatHit: frame.downbeatHit ?? false,
+        kickHit: frame.kickHit ?? false,
+        snareHit: frame.snareHit ?? false,
+        hatHit: frame.hatHit ?? false,
+      },
+      energy: {
+        ...DEFAULT_MI_FRAME.energy,
+        instant: frame.volume,
+        percentile: frame.trackRelativeEnergy ?? frame.volume,
+        buildProgress: frame.buildProgress ?? 0,
+      },
+      stems: { ...DEFAULT_MI_FRAME.stems, vocalEnergy: frame.sourceValues?.vocalEnergy ?? 0 },
+      capabilities: { ...DEFAULT_MI_FRAME.capabilities!, liveBands: true, rhythmEvents: true, beatGrid: true, sections: true, trackEnergyCurve: true },
+      confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 1, rhythm: 1, section: 1 },
+    },
+    resolvedSections: section,
+    durationSec: 128,
+    trackIdentity: 'marquee-test-track',
+    previous: null,
+  })
+  const performance = resolvePixGridPerformanceFrame(
+    state(frame.autoPerformanceEnabled === true),
+    context,
+    PRESET_ID,
+    { capabilities: frame.capabilities },
+  )
+  return composePixGridLogicalFrame(
+    PRESET,
+    performance.state,
+    frame,
+    undefined,
+    undefined,
+    runtime,
+    performance.transition,
+    performance.groupEffects,
+  ).pixels
 }
 
 function changedStructureCells(a: Uint8Array, b: Uint8Array): number {
@@ -100,7 +178,7 @@ describe('Marquee Sign Cycle canonical authored animation', () => {
     expect(applied.layers).toHaveLength(12)
     expect(applied.groups).toHaveLength(14)
     expect(applied.layers.map(candidate => candidate.id)).not.toContain('neon-marquee-frame')
-    expect(applied.audioAssignments.every(route => route.conditions?.autoPerformanceOnly === true)).toBe(true)
+    expect(applied.audioAssignments).toEqual([])
   })
 
   it('runs the deterministic A → B → C → D perimeter chase on the section-beat Motion clock', () => {

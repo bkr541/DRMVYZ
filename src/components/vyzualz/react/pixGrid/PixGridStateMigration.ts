@@ -17,6 +17,7 @@ import {
   mergePixGridCanonicalLayerGraph,
   repairPixGridLayerReferences,
 } from './PixGridCanonicalGraph'
+import { PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS } from './PixGridNeonMarqueeAudioOwnership'
 import { PixGridPerformanceProgramCompiler } from './PixGridPerformanceProgramCompiler'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
 import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
@@ -99,10 +100,14 @@ function strongLegacyCustomization(state: PixGridState, preset: ReactPreset): bo
   const canonicalLayerIds = new Set((preset.pixGridSettings?.layers ?? []).map(layer => layer.id))
   const canonicalGroupIds = new Set((preset.pixGridSettings?.groups ?? []).map(group => group.id))
   const canonicalAssignmentIds = new Set((preset.pixGridSettings?.audioAssignments ?? []).map(assignment => assignment.id))
+  const isRetiredBuiltInAssignment = (assignmentId: string) => (
+    preset.id === 'pix-grid-neon-marquee-cycle'
+    && PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS.has(assignmentId)
+  )
   return state.layers.some(layer => Boolean(layer.mediaId) || !canonicalLayerIds.has(layer.id))
     || state.scenes.some(scene => scene.pixelOverrides.length > 0)
     || state.groups.some(group => !canonicalGroupIds.has(group.id))
-    || state.audioAssignments.some(assignment => !canonicalAssignmentIds.has(assignment.id))
+    || state.audioAssignments.some(assignment => !canonicalAssignmentIds.has(assignment.id) && !isRetiredBuiltInAssignment(assignment.id))
     || state.performance.lockedRoutes.length > 0
     || Object.keys(state.performance.programOverrides.routes).length > 0
     || Object.keys(state.performance.programOverrides.sections).length > 0
@@ -318,7 +323,7 @@ function builtInMigrationIntegrity(
       if (!isPixGridAudioAssignmentEffective(state, assignment, group.id)) ineffectiveAssignments.push(`${group.id}:${assignment.id}`)
     }
   }
-  const effectiveLiveRouteCount = [
+  let effectiveLiveRouteCount = [
     ...state.audioAssignments.map(assignment => ({ assignment, ownerGroupId: undefined as string | undefined })),
     ...state.groups.flatMap(group => group.reactions.map(assignment => ({ assignment, ownerGroupId: group.id }))),
   ].filter(({ assignment, ownerGroupId }) => (
@@ -333,6 +338,10 @@ function builtInMigrationIntegrity(
   if (canonicalProgramId && !program) conflicts.push('Performance program does not resolve from the canonical registry.')
   else if (program) {
     const compiledProgram = new PixGridPerformanceProgramCompiler().compile(program, state)
+    effectiveLiveRouteCount += compiledProgram.assignments.filter(assignment => (
+      ['kick', 'snare', 'bass', 'beat', 'energy'].includes(assignment.source)
+      && isPixGridAudioAssignmentEffective(state, assignment)
+    )).length
     for (const missing of compiledProgram.missingBindings) conflicts.push(`Performance program target is missing: ${missing}.`)
     for (const validationIssue of compiledProgram.validationIssues) {
       if (validationIssue.severity === 'error') conflicts.push(`Performance program ${validationIssue.code}: ${validationIssue.message}`)
@@ -493,7 +502,12 @@ export function migratePixGridState(
     allowBlindUpgrade,
     previousSignatures: previousCanonicalSignatures,
   })
-  const assignmentMerge = mergeCanonicalAssignments(normalized.audioAssignments, canonicalAssignments, {
+  const assignmentsEligibleForMerge = preset.id === 'pix-grid-neon-marquee-cycle'
+    ? normalized.audioAssignments.filter(assignment => (
+        !PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS.has(assignment.id)
+      ))
+    : normalized.audioAssignments
+  const assignmentMerge = mergeCanonicalAssignments(assignmentsEligibleForMerge, canonicalAssignments, {
     upgradeRequested: presetUpgradeRequested || graphUpgradeRequested,
     allowBlindUpgrade,
     previousSignatures: previousCanonicalSignatures.assignments,
@@ -811,6 +825,14 @@ function countEffectiveNonFallbackAssignments(
     count += group.reactions.filter(assignment => (
       !PIX_GRID_BASELINE_FALLBACK_IDS.has(assignment.id)
       && isPixGridAudioAssignmentEffective(state, assignment, group.id, capabilities)
+    )).length
+  }
+  const programId = state.performance.sharedPerformanceProgramId
+  const program = programId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId) : null
+  if (program) {
+    const compiled = new PixGridPerformanceProgramCompiler().compile(program, state, capabilities)
+    count += compiled.assignments.filter(assignment => (
+      isPixGridAudioAssignmentEffective(state, assignment, undefined, capabilities)
     )).length
   }
   return count

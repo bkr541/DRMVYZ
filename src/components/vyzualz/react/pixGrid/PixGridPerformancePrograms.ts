@@ -1,11 +1,13 @@
 import type { SharedPerformanceProgramValidationIssue } from "../../../../features/performanceCore";
 import { validatePixGridPerformanceProgramCollection } from "./PixGridPerformanceProgramCompiler";
 import { calibratePixGridBuiltInContinuousRoute, calibratePixGridBuiltInEventRoute } from "./PixGridPerceptualCalibration";
-import type { PixGridPerformanceProgramId } from "./PixGridTypes";
+import type { PixGridPerformanceProgramId, PixGridReactionSource, PixGridReactionTarget } from "./PixGridTypes";
 import {
   PIX_GRID_PERFORMANCE_PROGRAM_SCHEMA_VERSION,
   type PixGridPerformanceAction,
   type PixGridPerformanceProgram,
+  type PixGridProgramRouteConditions,
+  type PixGridProgramRouteTarget,
   type PixGridSectionPlan,
 } from "./PixGridPerformanceTypes";
 
@@ -2145,36 +2147,41 @@ const MARQUEE_ARCHITECTURE = {
     { id: 'marquee-sparkle-bank', roles: ['sparkle'], members: [{ kind: 'group', id: 'marquee-sparkle-group' }] },
     { id: 'marquee-recruitment-bank', roles: ['transition'], members: [{ kind: 'group', id: 'marquee-bulb-a-group' }, { kind: 'group', id: 'marquee-bulb-b-group' }, { kind: 'group', id: 'marquee-bulb-c-group' }, { kind: 'group', id: 'marquee-bulb-d-group' }, { kind: 'group', id: 'marquee-letter-group' }, { kind: 'group', id: 'marquee-equalizer-group' }] },
     { id: 'marquee-transition-bank', roles: ['transition'], members: [{ kind: 'group', id: 'marquee-transition-group' }] },
-    { id: 'marquee-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'marquee-impact-group' }, { kind: 'group', id: 'marquee-perimeter-group' }, { kind: 'group', id: 'marquee-letter-group' }] },
+    { id: 'marquee-impact-bank', roles: ['impact'], members: [{ kind: 'group', id: 'marquee-impact-group' }] },
   ],
   continuousRoutes: [
-    { id: 'marquee-sub-perimeter', target: { bankId: 'marquee-perimeter-bank' }, source: 'sub', operation: 'brightness', amount: 0.28, curve: 'logarithmic', blend: 'add', capabilityFallback: 'energy', conditions: { sectionTypes: ['verse', 'build', 'drop', 'breakdown'] }, priority: -240 },
-    { id: 'marquee-bass-perimeter-expansion', target: { bankId: 'marquee-perimeter-bank' }, source: 'bass', operation: 'rowRecruitment', amount: 1, curve: 'smoothstep', blend: 'replace', clamp: [0, 1], capabilityFallback: 'energy', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -238 },
-    { id: 'marquee-bass-equalizer', target: { bankId: 'marquee-equalizer-bank' }, source: 'bass', operation: 'brightness', amount: 0.22, curve: 'easeOut', blend: 'add', capabilityFallback: 'energy', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -236 },
-    { id: 'marquee-mid-letter-light', target: { bankId: 'marquee-letter-bank' }, source: 'mid', operation: 'brightness', amount: 0.24, curve: 'easeInOut', blend: 'add', capabilityFallback: 'energy', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -234 },
-    { id: 'marquee-vocal-focal-light', target: { bankId: 'marquee-focal-bank' }, source: 'vocalEnergy', operation: 'brightness', amount: 0.28, curve: 'easeInOut', blend: 'add', minimumConfidence: 0.35, capabilityFallback: 'energy', conditions: { sectionTypes: ['verse', 'build', 'drop', 'breakdown'] }, priority: -232 },
-    { id: 'marquee-high-equalizer-height', target: { bankId: 'marquee-equalizer-bank' }, source: 'high', operation: 'rowRecruitment', amount: 1, curve: 'easeOut', blend: 'replace', clamp: [0, 1], capabilityFallback: 'midHighActivity', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -230 },
-    { id: 'marquee-air-sparse-detail', target: { bankId: 'marquee-sparkle-bank' }, source: 'air', operation: 'sparkleDensity', amount: 0.28, curve: 'exponential', blend: 'max', capabilityFallback: 'midHighActivity', conditions: { sectionTypes: ['build', 'drop'] }, priority: -228 },
-    { id: 'marquee-build-bulb-recruitment', target: { bankId: 'marquee-bulb-bank' }, source: 'buildProgress', operation: 'rowRecruitment', amount: 1, curve: 'easeInOut', blend: 'replace', clamp: [0, 1], capabilityFallback: 'energy', conditions: { sectionTypes: ['build'] }, priority: -226 },
-    { id: 'marquee-build-equalizer-rise', target: { bankId: 'marquee-equalizer-bank' }, source: 'buildProgress', operation: 'rowRecruitment', amount: 1, curve: 'easeInOut', blend: 'replace', clamp: [0, 1], capabilityFallback: 'energy', conditions: { sectionTypes: ['build'] }, priority: -224 },
-    { id: 'marquee-phrase-letter-travel', target: { bankId: 'marquee-letter-bank' }, source: 'phraseProgress', operation: 'columnRecruitment', amount: 1, curve: 'linear', blend: 'replace', clamp: [0, 1], conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -222 },
-    { id: 'marquee-phrase-perimeter-direction', target: { bankId: 'marquee-perimeter-bank' }, source: 'phraseProgress', operation: 'columnRecruitment', amount: 1, curve: 'linear', blend: 'replace', clamp: [0, 1], conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -220 },
-    { id: 'marquee-section-trim-readiness', target: { bankId: 'marquee-trim-bank' }, source: 'sectionProgress', operation: 'columnRecruitment', amount: 1, curve: 'easeInOut', blend: 'replace', clamp: [0, 1], conditions: { sectionTypes: ['build', 'drop'] }, priority: -218 },
+    { id: 'marquee-sub-perimeter', target: { bankId: 'marquee-perimeter-bank' }, source: 'sub', operation: 'brightness', amount: 0.2, curve: 'logarithmic', attack: 0.09, release: 0.34, smoothing: 0.09, blend: 'add', clamp: [0, 0.2], capabilityFallback: 'energy', conditions: { sectionTypes: ['verse', 'build', 'drop', 'breakdown'] }, priority: -244 },
+    { id: 'marquee-bass-perimeter-glow', target: { bankId: 'marquee-perimeter-bank' }, source: 'bass', operation: 'brightness', amount: 0.26, curve: 'smoothstep', attack: 0.07, release: 0.3, smoothing: 0.08, perceptualGain: 1.1, minimumEffectiveStrength: 0.08, minimumConfidence: 0.25, blend: 'add', clamp: [0, 0.26], capabilityFallback: 'energy', paletteRole: 'highlight', color: '#ffd37a', conditions: { sectionTypes: ['verse', 'build', 'drop', 'breakdown'] }, priority: -242 },
+    { id: 'marquee-bass-perimeter-expansion', target: { bankId: 'marquee-perimeter-bank' }, source: 'bass', operation: 'rowRecruitment', amount: 1, curve: 'smoothstep', attack: 0.07, release: 0.24, smoothing: 0.06, blend: 'replace', clamp: [0, 1], capabilityFallback: 'energy', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -240 },
+    { id: 'marquee-bass-equalizer', target: { bankId: 'marquee-equalizer-bank' }, source: 'bass', operation: 'brightness', amount: 0.2, curve: 'easeOut', attack: 0.065, release: 0.24, smoothing: 0.07, perceptualGain: 1.1, minimumEffectiveStrength: 0.08, blend: 'add', clamp: [0, 0.2], capabilityFallback: 'energy', paletteRole: 'highlight', color: '#ffd37a', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -238 },
+    { id: 'marquee-bass-focal-halo', target: { bankId: 'marquee-focal-bank' }, source: 'bass', operation: 'brightness', amount: 0.2, curve: 'easeOut', attack: 0.08, release: 0.3, smoothing: 0.08, perceptualGain: 1.15, minimumEffectiveStrength: 0.08, blend: 'add', clamp: [0, 0.2], capabilityFallback: 'energy', paletteRole: 'highlight', color: '#ffd37a', conditions: { sectionTypes: ['verse', 'build', 'drop', 'breakdown'] }, priority: -236 },
+    { id: 'marquee-mid-letter-light', target: { bankId: 'marquee-letter-bank' }, source: 'mid', operation: 'brightness', amount: 0.22, curve: 'easeInOut', attack: 0.12, release: 0.28, smoothing: 0.08, perceptualGain: 1.2, minimumEffectiveStrength: 0.1, blend: 'add', clamp: [0, 0.22], capabilityFallback: 'energy', paletteRole: 'highlight', color: '#fff0b8', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -234 },
+    { id: 'marquee-vocal-letter-light', target: { bankId: 'marquee-letter-bank' }, source: 'vocalEnergy', operation: 'brightness', amount: 0.18, curve: 'easeInOut', attack: 0.16, release: 0.38, smoothing: 0.11, perceptualGain: 1.15, minimumEffectiveStrength: 0.1, minimumConfidence: 0.35, blend: 'add', clamp: [0, 0.18], capabilityFallback: 'energy', paletteRole: 'highlight', color: '#8cf4ff', conditions: { sectionTypes: ['verse', 'build', 'drop', 'breakdown'] }, priority: -232 },
+    { id: 'marquee-vocal-focal-light', target: { bankId: 'marquee-focal-bank' }, source: 'vocalEnergy', operation: 'brightness', amount: 0.24, curve: 'easeInOut', attack: 0.14, release: 0.36, smoothing: 0.1, perceptualGain: 1.2, minimumEffectiveStrength: 0.1, minimumConfidence: 0.35, blend: 'add', clamp: [0, 0.24], capabilityFallback: 'energy', paletteRole: 'highlight', color: '#8cf4ff', conditions: { sectionTypes: ['verse', 'build', 'drop', 'breakdown'] }, priority: -230 },
+    { id: 'marquee-high-equalizer-height', target: { bankId: 'marquee-equalizer-bank' }, source: 'high', operation: 'rowRecruitment', amount: 1, curve: 'easeOut', attack: 0.035, release: 0.12, smoothing: 0.035, blend: 'replace', clamp: [0, 1], capabilityFallback: 'midHighActivity', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -228 },
+    { id: 'marquee-high-equalizer-shimmer', target: { bankId: 'marquee-equalizer-bank' }, source: 'high', operation: 'brightness', amount: 0.18, curve: 'easeOut', attack: 0.045, release: 0.14, smoothing: 0.04, perceptualGain: 1.15, minimumEffectiveStrength: 0.08, blend: 'add', clamp: [0, 0.18], capabilityFallback: 'midHighActivity', paletteRole: 'highlight', color: '#c8b8ff', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -226 },
+    { id: 'marquee-air-sparse-detail', target: { bankId: 'marquee-sparkle-bank' }, source: 'air', operation: 'sparkleDensity', amount: 0.24, curve: 'exponential', attack: 0.04, release: 0.13, smoothing: 0.04, blend: 'max', clamp: [0, 0.24], capabilityFallback: 'midHighActivity', conditions: { sectionTypes: ['build', 'drop'] }, priority: -224 },
+    { id: 'marquee-build-bulb-recruitment', target: { bankId: 'marquee-bulb-bank' }, source: 'buildProgress', operation: 'rowRecruitment', amount: 1, curve: 'easeInOut', attack: 0.08, release: 0.2, smoothing: 0.05, blend: 'replace', clamp: [0, 1], capabilityFallback: 'energy', conditions: { sectionTypes: ['build'] }, priority: -222 },
+    { id: 'marquee-build-equalizer-rise', target: { bankId: 'marquee-equalizer-bank' }, source: 'buildProgress', operation: 'rowRecruitment', amount: 1, curve: 'easeInOut', attack: 0.08, release: 0.2, smoothing: 0.05, blend: 'replace', clamp: [0, 1], capabilityFallback: 'energy', conditions: { sectionTypes: ['build'] }, priority: -220 },
+    { id: 'marquee-build-perimeter-chase', target: { bankId: 'marquee-perimeter-bank' }, source: 'buildProgress', operation: 'columnRecruitment', amount: 1, curve: 'easeInOut', attack: 0.08, release: 0.2, smoothing: 0.05, blend: 'replace', clamp: [0, 1], capabilityFallback: 'energy', conditions: { sectionTypes: ['build'] }, priority: -218 },
+    { id: 'marquee-phrase-letter-travel', target: { bankId: 'marquee-letter-bank' }, source: 'phraseProgress', operation: 'columnRecruitment', amount: 1, curve: 'linear', attack: 0.06, release: 0.16, smoothing: 0.04, blend: 'replace', clamp: [0, 1], conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -216 },
+    { id: 'marquee-phrase-perimeter-direction', target: { bankId: 'marquee-perimeter-bank' }, source: 'phraseProgress', operation: 'columnRecruitment', amount: 1, curve: 'linear', attack: 0.06, release: 0.16, smoothing: 0.04, blend: 'replace', clamp: [0, 1], conditions: { sectionTypes: ['verse', 'drop'] }, priority: -214 },
+    { id: 'marquee-section-trim-readiness', target: { bankId: 'marquee-trim-bank' }, source: 'sectionProgress', operation: 'columnRecruitment', amount: 1, curve: 'easeInOut', attack: 0.08, release: 0.2, smoothing: 0.05, blend: 'replace', clamp: [0, 1], conditions: { sectionTypes: ['build', 'drop'] }, priority: -212 },
   ],
   eventRoutes: [
-    { id: 'marquee-kick-perimeter', target: { bankId: 'marquee-perimeter-bank' }, event: 'kick', operation: 'brightness', amount: 0.46, envelope: { attack: 0, hold: 0.045, release: 0.17, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 2, blend: 'add', capabilityFallback: 'beat', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -170 },
-    { id: 'marquee-kick-focal-ring', target: { bankId: 'marquee-focal-bank' }, event: 'kick', operation: 'brightness', amount: 0.38, envelope: { attack: 0, hold: 0.04, release: 0.18, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, blend: 'add', capabilityFallback: 'beat', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -168 },
-    { id: 'marquee-snare-letter-emphasis', target: { bankId: 'marquee-letter-bank' }, event: 'snare', operation: 'brightness', amount: 0.42, envelope: { attack: 0, hold: 0.04, release: 0.16, curve: 'easeOut' }, retrigger: 'extend', maximumStacking: 2, blend: 'add', capabilityFallback: 'transient', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -166 },
-    { id: 'marquee-snare-trim-sweep', target: { bankId: 'marquee-trim-bank' }, event: 'snare', operation: 'outlineFlash', amount: 0.62, envelope: { attack: 0, hold: 0.035, release: 0.15, curve: 'easeOut' }, retrigger: 'extend', maximumStacking: 2, blend: 'max', capabilityFallback: 'transient', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -164 },
-    { id: 'marquee-hat-equalizer-tick', target: { bankId: 'marquee-equalizer-bank' }, event: 'hat', operation: 'sparkle', amount: 0.22, envelope: { attack: 0, hold: 0.01, release: 0.07, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 3, blend: 'max', capabilityFallback: 'midHighActivity', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -162 },
-    { id: 'marquee-hat-sparse-bulb', target: { bankId: 'marquee-sparkle-bank' }, event: 'hat', operation: 'sparkle', amount: 0.28, envelope: { attack: 0, hold: 0.01, release: 0.065, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 3, blend: 'max', capabilityFallback: 'midHighActivity', conditions: { sectionTypes: ['build', 'drop'] }, priority: -160 },
-    { id: 'marquee-downbeat-perimeter-convergence', target: { bankId: 'marquee-perimeter-bank' }, event: 'downbeat', operation: 'brightness', amount: 0.62, envelope: { attack: 0, hold: 0.055, release: 0.24, curve: 'overshoot' }, retrigger: 'restart', maximumStacking: 1, blend: 'add', capabilityFallback: 'beat', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -158 },
-    { id: 'marquee-downbeat-letter-convergence', target: { bankId: 'marquee-letter-bank' }, event: 'downbeat', operation: 'brightness', amount: 0.48, envelope: { attack: 0, hold: 0.05, release: 0.22, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, blend: 'add', capabilityFallback: 'beat', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -156 },
-    { id: 'marquee-downbeat-focal-convergence', target: { bankId: 'marquee-focal-bank' }, event: 'downbeat', operation: 'brightness', amount: 0.52, envelope: { attack: 0, hold: 0.05, release: 0.23, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, blend: 'add', capabilityFallback: 'beat', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -154 },
-    { id: 'marquee-four-bar-trim-motif', target: { bankId: 'marquee-trim-bank' }, event: 'fourBarBoundary', operation: 'reveal', amount: 1, envelope: { attack: 0, hold: 0.08, release: 0.28, curve: 'easeOut' }, quantization: 'fourBars', retrigger: 'restart', maximumStacking: 1, blend: 'max', capabilityFallback: 'beat', conditions: { sectionTypes: ['build', 'drop'] }, priority: -152 },
-    { id: 'marquee-phrase-letter-recruitment', target: { bankId: 'marquee-letter-bank' }, event: 'phraseEntry', operation: 'reveal', amount: 1, envelope: { attack: 0, hold: 0.08, release: 0.34, curve: 'easeOut' }, quantization: 'bar', retrigger: 'restart', maximumStacking: 1, blend: 'max', capabilityFallback: 'beat', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -150 },
-    { id: 'marquee-section-transition', target: { bankId: 'marquee-transition-bank' }, event: 'sectionEntry', operation: 'reveal', amount: 1, envelope: { attack: 0, hold: 0.06, release: 0.38, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, blend: 'max', capabilityFallback: 'beat', priority: -148 },
-    { id: 'marquee-drop-power-impact', target: { bankId: 'marquee-impact-bank' }, event: 'dropImpact', operation: 'brightness', amount: 0.9, envelope: { attack: 0, hold: 0.07, release: 0.34, curve: 'overshoot' }, retrigger: 'restart', maximumStacking: 1, blend: 'add', capabilityFallback: 'transient', conditions: { sectionTypes: ['drop'] }, priority: -140 },
+    { id: 'marquee-kick-perimeter', target: { bankId: 'marquee-perimeter-bank' }, event: 'kick', operation: 'brightness', amount: 0.4, envelope: { attack: 0, hold: 0.045, release: 0.17, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, perceptualGain: 1.25, minimumEffectiveStrength: 0.12, blend: 'add', clamp: [0, 0.4], capabilityFallback: 'beat', paletteRole: 'highlight', color: '#ffd37a', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -170 },
+    { id: 'marquee-kick-focal-ring', target: { bankId: 'marquee-focal-bank' }, event: 'kick', operation: 'brightness', amount: 0.34, envelope: { attack: 0, hold: 0.04, release: 0.18, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, perceptualGain: 1.25, minimumEffectiveStrength: 0.12, blend: 'add', clamp: [0, 0.34], capabilityFallback: 'beat', paletteRole: 'highlight', color: '#ffd37a', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -168 },
+    { id: 'marquee-snare-letter-emphasis', target: { bankId: 'marquee-letter-bank' }, event: 'snare', operation: 'brightness', amount: 0.38, envelope: { attack: 0, hold: 0.04, release: 0.16, curve: 'easeOut' }, retrigger: 'extend', maximumStacking: 1, perceptualGain: 1.2, minimumEffectiveStrength: 0.1, blend: 'add', clamp: [0, 0.38], capabilityFallback: 'transient', paletteRole: 'highlight', color: '#8cf4ff', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -166 },
+    { id: 'marquee-snare-trim-sweep', target: { bankId: 'marquee-trim-bank' }, event: 'snare', operation: 'outlineFlash', amount: 0.58, envelope: { attack: 0, hold: 0.035, release: 0.15, curve: 'easeOut' }, retrigger: 'extend', maximumStacking: 1, blend: 'max', clamp: [0, 0.58], capabilityFallback: 'transient', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -164 },
+    { id: 'marquee-hat-equalizer-tick', target: { bankId: 'marquee-equalizer-bank' }, event: 'hat', operation: 'sparkle', amount: 0.2, envelope: { attack: 0, hold: 0.01, release: 0.07, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, blend: 'max', clamp: [0, 0.2], capabilityFallback: 'midHighActivity', conditions: { sectionTypes: ['verse', 'build', 'drop'] }, priority: -162 },
+    { id: 'marquee-hat-sparse-bulb', target: { bankId: 'marquee-sparkle-bank' }, event: 'hat', operation: 'sparkle', amount: 0.26, envelope: { attack: 0, hold: 0.01, release: 0.065, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, blend: 'max', clamp: [0, 0.26], capabilityFallback: 'midHighActivity', conditions: { sectionTypes: ['build', 'drop'] }, priority: -160 },
+    { id: 'marquee-downbeat-perimeter-convergence', target: { bankId: 'marquee-perimeter-bank' }, event: 'downbeat', operation: 'brightness', amount: 0.52, envelope: { attack: 0, hold: 0.055, release: 0.24, curve: 'overshoot' }, retrigger: 'restart', maximumStacking: 1, perceptualGain: 1.3, minimumEffectiveStrength: 0.14, blend: 'add', clamp: [0, 0.52], capabilityFallback: 'beat', paletteRole: 'highlight', color: '#8cf4ff', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -158 },
+    { id: 'marquee-downbeat-letter-convergence', target: { bankId: 'marquee-letter-bank' }, event: 'downbeat', operation: 'brightness', amount: 0.4, envelope: { attack: 0, hold: 0.05, release: 0.22, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, perceptualGain: 1.25, minimumEffectiveStrength: 0.12, blend: 'add', clamp: [0, 0.4], capabilityFallback: 'beat', paletteRole: 'highlight', color: '#8cf4ff', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -156 },
+    { id: 'marquee-downbeat-focal-convergence', target: { bankId: 'marquee-focal-bank' }, event: 'downbeat', operation: 'brightness', amount: 0.44, envelope: { attack: 0, hold: 0.05, release: 0.23, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, perceptualGain: 1.25, minimumEffectiveStrength: 0.12, blend: 'add', clamp: [0, 0.44], capabilityFallback: 'beat', paletteRole: 'highlight', color: '#8cf4ff', conditions: { excludeSectionTypes: ['outro'] }, priority: -154 },
+    { id: 'marquee-four-bar-trim-motif', target: { bankId: 'marquee-trim-bank' }, event: 'fourBarBoundary', operation: 'reveal', amount: 1, envelope: { attack: 0, hold: 0.08, release: 0.28, curve: 'easeOut' }, quantization: 'fourBars', retrigger: 'restart', maximumStacking: 1, blend: 'max', clamp: [0, 1], capabilityFallback: 'beat', conditions: { sectionTypes: ['build', 'drop'] }, priority: -152 },
+    { id: 'marquee-phrase-letter-recruitment', target: { bankId: 'marquee-letter-bank' }, event: 'phraseEntry', operation: 'reveal', amount: 1, envelope: { attack: 0, hold: 0.08, release: 0.34, curve: 'easeOut' }, quantization: 'bar', retrigger: 'restart', maximumStacking: 1, blend: 'max', clamp: [0, 1], capabilityFallback: 'beat', conditions: { excludeSectionTypes: ['preDrop', 'outro'] }, priority: -150 },
+    { id: 'marquee-section-transition', target: { bankId: 'marquee-transition-bank' }, event: 'sectionEntry', operation: 'reveal', amount: 1, envelope: { attack: 0, hold: 0.06, release: 0.38, curve: 'easeOut' }, retrigger: 'restart', maximumStacking: 1, blend: 'max', clamp: [0, 1], capabilityFallback: 'beat', priority: -148 },
+    { id: 'marquee-drop-power-impact', target: { bankId: 'marquee-impact-bank' }, event: 'dropImpact', operation: 'brightness', amount: 0.76, envelope: { attack: 0, hold: 0.07, release: 0.34, curve: 'overshoot' }, retrigger: 'restart', maximumStacking: 1, perceptualGain: 1.4, minimumEffectiveStrength: 0.16, blend: 'add', clamp: [0, 0.76], capabilityFallback: 'transient', paletteRole: 'highlight', color: '#fff0b8', conditions: { sectionTypes: ['drop'] }, priority: -140 },
   ],
   musicalArcs: MARQUEE_ARCS,
 } satisfies Pick<PixGridPerformanceProgram, 'visualRoles' | 'bindings' | 'banks' | 'continuousRoutes' | 'eventRoutes' | 'musicalArcs'>;
@@ -2257,9 +2264,6 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
         { type: 'setGroupBrightness', groupId: 'marquee-focal-group', brightness: 0.46 },
         { type: 'setGroupActive', groupId: 'marquee-sparkle-group', active: false },
       ]),
-      eventActions: {
-        downbeat: [{ type: 'flashGroup', groupId: 'marquee-focal-group', amount: 0.24 }],
-      },
     },
     {
       id: 'marquee-drop', sectionTypes: ['drop'], priority: 30,
@@ -2271,15 +2275,6 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
         { type: 'setGroupBrightness', groupId: 'marquee-focal-group', brightness: 1 },
         { type: 'setGroupBrightness', groupId: 'marquee-sparkle-group', brightness: 0.62 },
       ]),
-      eventActions: {
-        downbeat: [
-          { type: 'flashGroup', groupId: 'marquee-perimeter-group', amount: 0.42 },
-          { type: 'flashGroup', groupId: 'marquee-letter-group', amount: 0.3 },
-          { type: 'flashGroup', groupId: 'marquee-focal-group', amount: 0.34 },
-        ],
-        snare: [{ type: 'flashGroup', groupId: 'marquee-trim-group', amount: 0.24 }],
-        hat: [{ type: 'flashGroup', groupId: 'marquee-sparkle-group', amount: 0.14 }],
-      },
       fourBarActions: [
         [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-a-group', brightness: 1 }, { type: 'setGroupBrightness', groupId: 'marquee-bulb-c-group', brightness: 0.88 }],
         [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-b-group', brightness: 1 }, { type: 'setGroupBrightness', groupId: 'marquee-bulb-d-group', brightness: 0.88 }],
@@ -2323,6 +2318,59 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
     },
   ],
 });
+
+
+export interface PixGridMarqueeAudioRoutingMatrixRow {
+  routeId: string;
+  source: PixGridReactionSource;
+  target: string;
+  property: PixGridReactionTarget;
+  owner: "pix-grid-neon-marquee-performance";
+  attack: number;
+  release: number;
+  clamp: readonly [number, number];
+  autoPerformanceGating: "performance.enabled";
+  conditions?: PixGridProgramRouteConditions;
+}
+
+function pixGridProgramRouteTargetLabel(target: PixGridProgramRouteTarget): string {
+  if ("bankId" in target) return target.bankId;
+  if ("role" in target) return `role:${target.role}`;
+  if ("target" in target) return `${target.target.kind}:${target.target.id}`;
+  return target.scope;
+}
+
+/**
+ * Auditable routing matrix for the Marquee Performance Program. It is derived
+ * from the actual calibrated routes, so documentation and runtime ownership
+ * cannot drift into separate sources of truth.
+ */
+export const PIX_GRID_NEON_MARQUEE_AUDIO_ROUTING_MATRIX: readonly PixGridMarqueeAudioRoutingMatrixRow[] = Object.freeze([
+  ...NEON_MARQUEE_PERFORMANCE_PROGRAM.continuousRoutes.map((route) => ({
+    routeId: route.id,
+    source: route.source,
+    target: pixGridProgramRouteTargetLabel(route.target),
+    property: route.operation,
+    owner: "pix-grid-neon-marquee-performance" as const,
+    attack: route.attack ?? 0.03,
+    release: route.release ?? 0.12,
+    clamp: route.clamp ?? [0, 1] as const,
+    autoPerformanceGating: "performance.enabled" as const,
+    ...(route.conditions ? { conditions: route.conditions } : {}),
+  })),
+  ...NEON_MARQUEE_PERFORMANCE_PROGRAM.eventRoutes.map((route) => ({
+    routeId: route.id,
+    source: route.event,
+    target: pixGridProgramRouteTargetLabel(route.target),
+    property: route.operation,
+    owner: "pix-grid-neon-marquee-performance" as const,
+    attack: route.envelope.attack,
+    release: route.envelope.release,
+    clamp: route.clamp ?? [0, 1] as const,
+    autoPerformanceGating: "performance.enabled" as const,
+    ...(route.conditions ? { conditions: route.conditions } : {}),
+  })),
+]);
 
 export const PIX_GRID_PERFORMANCE_PROGRAMS: readonly PixGridPerformanceProgram[] =
   [

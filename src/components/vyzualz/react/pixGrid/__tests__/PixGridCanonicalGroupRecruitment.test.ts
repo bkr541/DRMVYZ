@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
+import { buildSharedPerformanceContext } from '../../../../../features/performanceCore'
 import { PixGridReactionRuntime } from '../PixGridAudioRouting'
 import { samplePixGridBuiltInAsset } from '../PixGridArtwork'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
@@ -6,6 +8,7 @@ import { createDefaultPixGridState } from '../PixGridDefaults'
 import type { PixGridGroupFrameEffect } from '../PixGridFrameEffects'
 import { PixGridFrameGroupCompiler } from '../PixGridGroupCompiler'
 import { PixGridPerformanceProgramCompiler } from '../PixGridPerformanceProgramCompiler'
+import { resolvePixGridPerformanceFrame } from '../PixGridPerformanceRuntime'
 import { NEON_MARQUEE_PERFORMANCE_PROGRAM } from '../PixGridPerformancePrograms'
 import { pixGridMaskHasCell } from '../PixGridGroups'
 import {
@@ -61,6 +64,84 @@ function frame(overrides: Partial<PixGridAudioFrame> = {}): PixGridAudioFrame {
   }
 }
 
+function resolvePerformance(
+  sourceFrame: PixGridAudioFrame,
+  sourceState: PixGridState,
+) {
+  const sectionType = sourceFrame.sectionType ?? 'verse'
+  const context = buildSharedPerformanceContext({
+    audioTimeSec: sourceFrame.audioTime,
+    frame: {
+      ...DEFAULT_MI_FRAME,
+      timeSec: sourceFrame.audioTime,
+      frameId: Math.max(1, Math.round(sourceFrame.audioTime * 60)),
+      trackId: 'marquee-recruitment-test-track',
+      bands: {
+        ...DEFAULT_MI_FRAME.bands,
+        sub: sourceFrame.sub ?? 0,
+        bass: sourceFrame.bass,
+        mid: sourceFrame.mid,
+        high: sourceFrame.high,
+        air: sourceFrame.air ?? 0,
+        volume: sourceFrame.volume,
+        normalizedSub: sourceFrame.sub ?? 0,
+        normalizedBass: sourceFrame.bass,
+        normalizedMid: sourceFrame.mid,
+        normalizedHigh: sourceFrame.high,
+        normalizedAir: sourceFrame.air ?? 0,
+      },
+      rhythm: {
+        ...DEFAULT_MI_FRAME.rhythm,
+        bpm: 120,
+        beatIndex: sourceFrame.beatIndex ?? 0,
+        beatPhase: sourceFrame.beatPhase,
+        beatInBar: (sourceFrame.beatIndex ?? 0) % 4,
+        barIndex: sourceFrame.barIndex ?? 0,
+        beatHit: sourceFrame.beatHit,
+        downbeatHit: sourceFrame.downbeatHit ?? false,
+        kickHit: sourceFrame.kickHit ?? false,
+        snareHit: sourceFrame.snareHit ?? false,
+        hatHit: sourceFrame.hatHit ?? false,
+      },
+      energy: {
+        ...DEFAULT_MI_FRAME.energy,
+        instant: sourceFrame.volume,
+        percentile: sourceFrame.trackRelativeEnergy ?? sourceFrame.volume,
+        buildProgress: sourceFrame.buildProgress ?? 0,
+      },
+      stems: { ...DEFAULT_MI_FRAME.stems, vocalEnergy: sourceFrame.sourceValues?.vocalEnergy ?? 0 },
+      capabilities: {
+        ...DEFAULT_MI_FRAME.capabilities!,
+        liveBands: true,
+        rhythmEvents: true,
+        beatGrid: true,
+        sections: true,
+        trackEnergyCurve: true,
+      },
+      confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 1, rhythm: 1, section: 1 },
+    },
+    resolvedSections: [{
+      id: `marquee-${sectionType}`,
+      label: sectionType,
+      type: sectionType,
+      startSec: 0,
+      endSec: 128,
+      intensity: sectionType === 'drop' ? 1 : 0.72,
+      source: 'auto' as const,
+      confidence: 1,
+    }],
+    durationSec: 128,
+    trackIdentity: 'marquee-recruitment-test-track',
+    previous: null,
+  })
+  return resolvePixGridPerformanceFrame(
+    sourceState,
+    context,
+    PRESET_ID,
+    { capabilities: sourceFrame.capabilities },
+  )
+}
+
 function render(
   sourceFrame: PixGridAudioFrame,
   sourceState = state(),
@@ -68,15 +149,20 @@ function render(
   effects: readonly PixGridGroupFrameEffect[] = [],
   compiler?: PixGridFrameGroupCompiler,
 ): Uint8Array {
+  const performance = sourceState.audioAssignments.length === 0
+    && sourceState.performance.enabled
+    && sourceFrame.autoPerformanceEnabled === true
+    ? resolvePerformance(sourceFrame, sourceState)
+    : null
   return composePixGridLogicalFrame(
     PRESET,
-    sourceState,
+    performance?.state ?? sourceState,
     sourceFrame,
     undefined,
     undefined,
     runtime,
-    undefined,
-    effects,
+    performance?.transition,
+    [...(performance?.groupEffects ?? []), ...effects],
     compiler,
   ).pixels
 }
@@ -197,7 +283,7 @@ describe('PixGrid canonical Smart Group recruitment', () => {
     const baseline = render(frame(), programState)
     const kick = render(eventFrame('kick'), programState)
     for (const bank of ['bulbs-b', 'bulbs-c', 'bulbs-d'] as const) {
-      expect(recruitedComponentCells(baseline, kick, bank)).toBeGreaterThan(100)
+      expect(recruitedComponentCells(baseline, kick, bank), `kick recruited ${bank}`).toBeGreaterThan(100)
     }
     expect(recruitedComponentCells(baseline, kick, 'structure')).toBe(0)
   })
@@ -249,13 +335,13 @@ describe('PixGrid canonical Smart Group recruitment', () => {
 
     const kick = render(eventFrame('kick'))
     for (const bank of ['bulbs-b', 'bulbs-c', 'bulbs-d'] as const) {
-      expect(changedComponentCells(baseline, kick, bank)).toBeGreaterThan(250)
-      expect(recruitedComponentCells(baseline, kick, bank)).toBeGreaterThan(100)
+      expect(changedComponentCells(baseline, kick, bank), `kick changed ${bank}`).toBeGreaterThan(250)
+      expect(recruitedComponentCells(baseline, kick, bank), `kick recruited ${bank}`).toBeGreaterThan(100)
     }
 
     const downbeat = render(eventFrame('downbeat'))
     for (const bank of ['bulbs-b', 'bulbs-c', 'bulbs-d'] as const) {
-      expect(recruitedComponentCells(baseline, downbeat, bank)).toBeGreaterThan(100)
+      expect(recruitedComponentCells(baseline, downbeat, bank), `downbeat recruited ${bank}`).toBeGreaterThan(100)
     }
 
     const buildState = state('build')
@@ -276,13 +362,13 @@ describe('PixGrid canonical Smart Group recruitment', () => {
     const buildActive = render(buildActiveFrame, buildState)
     expect(activeCells(buildActive)).toBeGreaterThan(activeCells(buildBaseline))
     for (const bank of ['bulbs-b', 'bulbs-c', 'bulbs-d'] as const) {
-      expect(recruitedComponentCells(buildBaseline, buildActive, bank)).toBeGreaterThan(100)
+      expect(recruitedComponentCells(buildBaseline, buildActive, bank), `build recruited ${bank}`).toBeGreaterThan(100)
     }
 
     const snare = render(eventFrame('snare'))
-    expect(recruitedComponentCells(baseline, snare, 'letter-b') + recruitedComponentCells(baseline, snare, 'letter-c'))
+    expect(recruitedComponentCells(baseline, snare, 'letter-b') + recruitedComponentCells(baseline, snare, 'letter-c'), 'snare recruited letters')
       .toBeGreaterThan(50)
-    expect(changedComponentCells(baseline, snare, 'letter-b') + changedComponentCells(baseline, snare, 'letter-c'))
+    expect(changedComponentCells(baseline, snare, 'letter-b') + changedComponentCells(baseline, snare, 'letter-c'), 'snare changed letters')
       .toBeGreaterThan(500)
 
     for (const active of [kick, downbeat, buildActive, snare]) {

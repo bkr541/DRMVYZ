@@ -4,6 +4,7 @@ import { getPixGridAudioIntelligenceSource } from './PixGridAudioIntelligenceReg
 import type { PixGridRouteActivity } from './PixGridAudioRouting'
 import { compilePixGridGroupMask, pixGridMaskHasCell } from './PixGridGroups'
 import { inspectPixGridGroupTarget, type PixGridGroupTargetStatus } from './PixGridCanonicalGraph'
+import { PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS } from './PixGridNeonMarqueeAudioOwnership'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
 import { isPixGridMusicReactivePreset, PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 import { PixGridPerformanceProgramCompiler, validatePixGridPerformanceProgram } from './PixGridPerformanceProgramCompiler'
@@ -287,6 +288,12 @@ export function validatePixGridState(
   const requiresMusicReactiveContract = Boolean(builtIn && builtInPreset && isPixGridMusicReactivePreset(builtInPreset))
   const requiresPerformanceProgram = Boolean(requiresMusicReactiveContract && builtInPreset?.pixGridSettings?.performanceProgramId)
   const requiresSmartGroups = Boolean(requiresMusicReactiveContract && (builtInPreset?.pixGridSettings?.groups?.length ?? 0) > 0)
+  const programId = state.performance.sharedPerformanceProgramId
+  const program = programId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId) : null
+  const compiledPerformanceProgram = program
+    ? new PixGridPerformanceProgramCompiler().compile(program, state, options.capabilities)
+    : null
+  const hasProgramRoutes = (compiledPerformanceProgram?.assignments.length ?? 0) > 0
   const severityForWeakConfig: PixGridValidationSeverity = requiresMusicReactiveContract ? 'error' : 'warning'
   const locations = assignmentLocations(state)
   const compiler = new PixGridAssignmentCompiler()
@@ -297,7 +304,16 @@ export function validatePixGridState(
   for (const location of locations) assignmentIdCounts.set(location.assignment.id, (assignmentIdCounts.get(location.assignment.id) ?? 0) + 1)
 
   if (requiresSmartGroups && state.groups.length === 0) issues.push(issue('error', 'built-in-no-groups', 'Built-in PixGrid preset has no smart groups.', 'groups', 'Restore the canonical smart groups through preset migration.'))
-  if (requiresMusicReactiveContract && locations.length === 0) issues.push(issue('error', 'built-in-no-routes', 'Built-in PixGrid preset has no audio assignments.', 'audioAssignments', 'Restore the canonical audio routes through preset migration.'))
+  if (requiresMusicReactiveContract && locations.length === 0 && !hasProgramRoutes) issues.push(issue('error', 'built-in-no-routes', 'Built-in PixGrid preset has no audio assignments.', 'audioAssignments', 'Restore the canonical audio routes through preset migration.'))
+  if (builtInPresetId === 'pix-grid-neon-marquee-cycle') for (const location of locations) {
+    if (PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS.has(location.assignment.id)) issues.push(issue(
+      'error',
+      'retired-marquee-direct-route',
+      `Retired direct Marquee route ${location.assignment.id} is still active beside the Performance Program.`,
+      location.path,
+      'Run preset migration to remove the obsolete direct route and keep the Performance Program as the sole owner.',
+    ))
+  }
 
   const fallbackIds = new Set(PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(route => route.id))
   const effectiveAuthoredRoutes = locations.filter(location => (
@@ -461,8 +477,12 @@ export function validatePixGridState(
     'layers',
     'Restore an authored animation or a motion-sensitive route so Motion 0, 0.5, and 1 have bounded, visible behavior.',
   ))
-  if (requiresMusicReactiveContract && autonomousAnimationCount > 0 && musicRouteCount === 0) issues.push(issue('error', 'autonomous-only-built-in', 'Built-in preset only contains autonomous animation.', 'layers', 'Restore authored music routes and performance choreography.'))
-  if (requiresMusicReactiveContract && !locations.some(location => COMMON_LIVE_SOURCES.has(location.assignment.source) || ['energy', 'beat', 'transient'].includes(location.assignment.capabilityFallback))) issues.push(issue(
+  if (requiresMusicReactiveContract && autonomousAnimationCount > 0 && musicRouteCount === 0 && !hasProgramRoutes) issues.push(issue('error', 'autonomous-only-built-in', 'Built-in preset only contains autonomous animation.', 'layers', 'Restore authored music routes and performance choreography.'))
+  const hasCommonLiveProgramRoute = compiledPerformanceProgram?.assignments.some(assignment => (
+    COMMON_LIVE_SOURCES.has(assignment.source)
+    || ['energy', 'beat', 'transient'].includes(assignment.capabilityFallback)
+  )) ?? false
+  if (requiresMusicReactiveContract && !hasCommonLiveProgramRoute && !locations.some(location => COMMON_LIVE_SOURCES.has(location.assignment.source) || ['energy', 'beat', 'transient'].includes(location.assignment.capabilityFallback))) issues.push(issue(
     severityForWeakConfig,
     'missing-common-live-source-fallback',
     'Built-in preset has no kick, snare, bass, beat, or energy path.',
@@ -482,7 +502,7 @@ export function validatePixGridState(
     && state.configuration.canonicalMigrationCompleted
   if (builtIn && state.configuration.legacyOfficialLayerGraph) issues.push(issue('error', 'built-in-legacy-layer-graph', 'Built-in PixGrid state still declares the legacy official layer graph after migration.', 'configuration.legacyOfficialLayerGraph', 'Run canonical layer-graph migration and clear the legacy marker only after layer, scene, group, and route references are repaired.'))
   if (builtIn && !state.configuration.canonicalMigrationCompleted) issues.push(issue('error', 'canonical-migration-incomplete', 'Built-in PixGrid state has not completed canonical graph and route integrity migration.', 'configuration.canonicalMigrationCompleted', 'Run canonical migration and keep the state incomplete until layers, scenes, groups, routes, and the performance program pass structural integrity.'))
-  if (requiresMusicReactiveContract && stateMarkedCurrent && ((requiresSmartGroups && state.groups.length === 0) || locations.length === 0)) issues.push(issue('error', 'current-state-missing-required-configuration', 'State is marked current but required built-in reaction configuration is missing.', 'configuration', 'Run built-in preset migration even when legacy layers are non-empty.'))
+  if (requiresMusicReactiveContract && stateMarkedCurrent && ((requiresSmartGroups && state.groups.length === 0) || (locations.length === 0 && !hasProgramRoutes))) issues.push(issue('error', 'current-state-missing-required-configuration', 'State is marked current but required built-in reaction configuration is missing.', 'configuration', 'Run built-in preset migration even when legacy layers are non-empty.'))
   if (builtInPreset?.pixGridSettings) {
     const layerIds = new Set(state.layers.map(layer => layer.id))
     for (const requiredLayer of builtInPreset.pixGridSettings.layers ?? []) if (!layerIds.has(requiredLayer.id)) issues.push(issue('error', 'missing-canonical-layer', `Built-in preset is missing canonical layer ${requiredLayer.id}.`, 'layers', 'Restore the current canonical layer graph before marking migration complete.'))
@@ -495,8 +515,6 @@ export function validatePixGridState(
     'Re-run custom-state migration so fallback routing is persisted before marking the configuration current.',
   ))
 
-  const programId = state.performance.sharedPerformanceProgramId
-  const program = programId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId) : null
   if (requiresPerformanceProgram && !program) issues.push(issue('error', 'missing-performance-program', 'Built-in preset does not resolve a performance program.', 'performance.sharedPerformanceProgramId', 'Restore the preset performance-program binding.'))
   if (program) {
     for (const programIssue of validatePixGridPerformanceProgram(program)) issues.push(issue(
@@ -509,7 +527,7 @@ export function validatePixGridState(
     if (!program.sectionPlans.some(plan => (plan.actions?.length ?? 0) + (plan.entryActions?.length ?? 0) + (plan.bodyActions?.length ?? 0) + (plan.exitActions?.length ?? 0) + (plan.continuousRouteIds?.length ?? 0) + (plan.eventRouteIds?.length ?? 0) > 0)) issues.push(issue('error', 'program-no-section-behavior', 'Performance program defines no section behavior.', 'performance', 'Author at least one section action or route binding.'))
     const sceneIds = new Set(state.scenes.map(scene => scene.id))
     for (const plan of program.sectionPlans) for (const sceneId of plan.scenePreference ?? []) if (!sceneIds.has(sceneId)) issues.push(issue('error', 'program-missing-scene', `Performance plan ${plan.id} references missing scene ${sceneId}.`, `performance.sectionPlans.${plan.id}`, 'Restore the scene or update the plan preference.'))
-    const compiledProgram = new PixGridPerformanceProgramCompiler().compile(program, state, options.capabilities)
+    const compiledProgram = compiledPerformanceProgram ?? new PixGridPerformanceProgramCompiler().compile(program, state, options.capabilities)
     for (const missingBinding of compiledProgram.missingBindings) issues.push(issue(
       builtIn ? 'error' : 'warning',
       'program-missing-state-target',
