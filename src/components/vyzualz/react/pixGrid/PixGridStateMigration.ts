@@ -524,11 +524,21 @@ export function migratePixGridState(
       pixGridLayerAnimationSignature(layer),
     ) ? [layer.id] : []
   }))
+  const layerAssetUpgradeIds = new Set(layerMerge.layers.flatMap(layer => (
+    preset.id === 'pix-grid-neon-marquee-cycle'
+    && layer.id === 'marquee-structure'
+    && layer.assetId === 'pix-neon-marquee-structure'
+      ? [layer.id]
+      : []
+  )))
   const layers = layerMerge.layers.map(layer => {
     const canonicalLayer = canonicalLayerById.get(layer.id)
-    return canonicalLayer && layerAnimationUpgradeIds.has(layer.id)
-      ? mergeCanonicalLayerAnimationMetadata(layer, canonicalLayer)
+    const assetUpgraded = canonicalLayer && layerAssetUpgradeIds.has(layer.id)
+      ? { ...clonePixGridLayer(layer), assetId: canonicalLayer.assetId }
       : clonePixGridLayer(layer)
+    return canonicalLayer && layerAnimationUpgradeIds.has(layer.id)
+      ? mergeCanonicalLayerAnimationMetadata(assetUpgraded, canonicalLayer)
+      : assetUpgraded
   })
   const repaired = repairPixGridLayerReferences(
     normalized,
@@ -582,6 +592,7 @@ export function migratePixGridState(
     || assignmentMerge.added > 0
     || assignmentMerge.upgraded > 0
     || layerAnimationUpgradeIds.size > 0
+    || layerAssetUpgradeIds.size > 0
     || programConfigurationMismatch
     || normalized.selectedPresetId !== preset.id
     || !canonicalSignaturesEqual(previousCanonicalSignatures, targetCanonicalSignatures)

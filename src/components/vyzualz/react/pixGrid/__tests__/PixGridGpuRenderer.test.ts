@@ -18,6 +18,11 @@ import {
   PIX_GRID_LOGICAL_FRAGMENT_SHADER,
   PIX_GRID_PRESENTATION_FRAGMENT_SHADER,
 } from '../../renderers/pixGrid/PixGridGpuShaderSources'
+import {
+  PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES,
+  createPixGridMarqueeStableUnderlayFixtureFrame,
+  createPixGridMarqueeStableUnderlayFixtureState,
+} from './__fixtures__/PixGridMarqueeStableUnderlayFixture'
 
 type Listener = (event: Event) => void
 
@@ -288,6 +293,56 @@ describe('PixGridGpuRenderer', () => {
     }
   })
 
+  it('keeps every stable-underlay logical fixture identical across WebGL and Canvas paths', () => {
+    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const base = renderInput('high')
+
+    for (const fixture of PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES) {
+      for (let frameIndex = 0; frameIndex < 4; frameIndex += 1) {
+        const gl = createFakeWebGL2()
+        const canvas = createCanvas(gl)
+        const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
+        const state = normalizePixGridState(
+          createPixGridMarqueeStableUnderlayFixtureState(preset, fixture, 'pix-neon-marquee-stable-underlay'),
+        )
+        const frame = {
+          ...base.frame,
+          ...createPixGridMarqueeStableUnderlayFixtureFrame(fixture, frameIndex),
+          width: base.frame.width,
+          height: base.frame.height,
+        }
+        const expected = composePixGridLogicalFrame(preset, state, frame)
+
+        expect(renderer.render({ ...base, preset, state, frame })).toBe(true)
+        const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
+
+        const image = { data: new Uint8ClampedArray(state.matrixWidth * state.matrixHeight * 4) }
+        const logicalContext = {
+          createImageData: vi.fn(() => image),
+          putImageData: vi.fn(),
+        }
+        const outputContext = {
+          save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), strokeRect: vi.fn(),
+          fillStyle: '', strokeStyle: '', globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true, lineWidth: 1,
+        }
+        const fallback = renderPixGridCanvasFallback(
+          outputContext as unknown as CanvasRenderingContext2D,
+          {
+            canvas: { width: state.matrixWidth, height: state.matrixHeight } as HTMLCanvasElement,
+            context: logicalContext as unknown as CanvasRenderingContext2D,
+          },
+          frame,
+          preset,
+          state,
+        )
+
+        expect(Array.from(gpuUpload)).toEqual(Array.from(expected.pixels))
+        expect(Array.from(fallback.logicalFrame.pixels)).toEqual(Array.from(expected.pixels))
+        expect(Array.from(image.data)).toEqual(Array.from(expected.pixels))
+      }
+    }
+  })
+
   it('keeps canonical Marquee recruitment identical across WebGL and Canvas logical paths', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)
@@ -326,12 +381,26 @@ describe('PixGridGpuRenderer', () => {
       glow: 0,
     }
 
+    const recruitmentEffect = {
+      id: 'marquee-canonical-letter-recruitment',
+      groupId: 'marquee-letter-group',
+      kind: 'flash' as const,
+      source: 'performance' as const,
+      stage: 'event' as const,
+      priority: 100,
+      amount: 1,
+      paletteRole: 'highlight' as const,
+      membership: 'canonical' as const,
+      recruitHidden: true,
+    }
+
     expect(renderer.render({
       ...base,
       preset,
       state,
       frame: recruitmentFrame,
       reactionRuntime: new PixGridReactionRuntime(),
+      groupEffects: [recruitmentEffect],
     })).toBe(true)
     const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
 
@@ -355,6 +424,8 @@ describe('PixGridGpuRenderer', () => {
       state,
       undefined,
       new PixGridReactionRuntime(),
+      undefined,
+      [recruitmentEffect],
     )
     const calm = composePixGridLogicalFrame(
       preset,
@@ -370,8 +441,13 @@ describe('PixGridGpuRenderer', () => {
       new PixGridReactionRuntime(),
     )
     let recruited = 0
-    for (let offset = 3; offset < gpuUpload.length; offset += 4) {
-      recruited += Number(calm.pixels[offset] === 0 && gpuUpload[offset] > 0)
+    for (let offset = 0; offset < gpuUpload.length; offset += 4) {
+      recruited += Number(
+        calm.pixels[offset] !== gpuUpload[offset]
+        || calm.pixels[offset + 1] !== gpuUpload[offset + 1]
+        || calm.pixels[offset + 2] !== gpuUpload[offset + 2]
+        || calm.pixels[offset + 3] !== gpuUpload[offset + 3],
+      )
     }
 
     expect(Array.from(gpuUpload)).toEqual(Array.from(fallback.logicalFrame.pixels))

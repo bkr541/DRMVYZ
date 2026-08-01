@@ -1221,3 +1221,93 @@ export function samplePixGridNeonMarqueeComponent(
     color: [rgb[offset], rgb[offset + 1], rgb[offset + 2]],
   }
 }
+
+/**
+ * Structural regions that keep a source-derived dim copy beneath their bright,
+ * independently animated component layer. The original exclusive component
+ * masks remain available for compatibility, auditing, and exact emitter
+ * recruitment; overlap is introduced only by the authored structure-underlay
+ * asset used by the current Marquee preset.
+ */
+export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS = [
+  'letter-a',
+  'letter-b',
+  'letter-c',
+  'trim',
+  'focal',
+] as const satisfies readonly PixGridNeonMarqueeComponentId[]
+
+export type PixGridNeonMarqueeStableUnderlayComponentId =
+  typeof PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS[number]
+
+/** Exact deterministic source-color multiplier. No interpolation or smoothing is applied. */
+export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE = 0.28 as const
+
+function dimPixGridNeonMarqueeSourceColor(
+  source: readonly [number, number, number],
+): readonly [number, number, number] {
+  return [
+    Math.round(source[0] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
+    Math.round(source[1] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
+    Math.round(source[2] * PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE),
+  ]
+}
+
+export function pixGridNeonMarqueeStableUnderlayContainsCell(
+  frameIndex: number,
+  x: number,
+  y: number,
+): boolean {
+  if (
+    !Number.isInteger(x)
+    || !Number.isInteger(y)
+    || x < 0
+    || x >= PIX_GRID_NEON_MARQUEE_FRAME_WIDTH
+    || y < 0
+    || y >= PIX_GRID_NEON_MARQUEE_FRAME_HEIGHT
+  ) return false
+
+  const normalized = normalizedFrameIndex(frameIndex)
+  const frameId = PIX_GRID_NEON_MARQUEE_FRAME_ORDER[normalized].id
+  const cellIndex = y * PIX_GRID_NEON_MARQUEE_FRAME_WIDTH + x
+  const bit = 1 << (cellIndex & 7)
+  if ((decodeMask('structure', frameId)[cellIndex >> 3] & bit) !== 0) return true
+  return PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS.some(componentId => (
+    (decodeMask(componentId, frameId)[cellIndex >> 3] & bit) !== 0
+  ))
+}
+
+/**
+ * Samples the current stable structure layer. Authored structure cells retain
+ * their exact source RGB. Letter, trim, and focal cells overlap that structure
+ * as dim source-derived colors, allowing their bright layers to blink/reveal
+ * without punching destructive black holes into the sign or Frenchie artwork.
+ */
+export function samplePixGridNeonMarqueeStableUnderlay(
+  u: number,
+  v: number,
+  frameIndex: number,
+): PixGridNeonMarqueeComponentSample {
+  if (u < 0 || u >= 1 || v < 0 || v >= 1) return { alpha: 0, role: 'primary', color: [0, 0, 0] }
+
+  const normalized = normalizedFrameIndex(frameIndex)
+  const x = Math.max(0, Math.min(PIX_GRID_NEON_MARQUEE_FRAME_WIDTH - 1, Math.floor(u * PIX_GRID_NEON_MARQUEE_FRAME_WIDTH)))
+  const y = Math.max(0, Math.min(PIX_GRID_NEON_MARQUEE_FRAME_HEIGHT - 1, Math.floor(v * PIX_GRID_NEON_MARQUEE_FRAME_HEIGHT)))
+  const cellIndex = y * PIX_GRID_NEON_MARQUEE_FRAME_WIDTH + x
+  const frameId = PIX_GRID_NEON_MARQUEE_FRAME_ORDER[normalized].id
+  const bit = 1 << (cellIndex & 7)
+  const isAuthoredStructure = (decodeMask('structure', frameId)[cellIndex >> 3] & bit) !== 0
+  const isDimUnderlay = !isAuthoredStructure && PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_COMPONENT_IDS.some(componentId => (
+    (decodeMask(componentId, frameId)[cellIndex >> 3] & bit) !== 0
+  ))
+  if (!isAuthoredStructure && !isDimUnderlay) return { alpha: 0, role: 'primary', color: [0, 0, 0] }
+
+  const rgb = getPixGridNeonMarqueeFrames()[normalized]
+  const offset = cellIndex * 3
+  const source = [rgb[offset], rgb[offset + 1], rgb[offset + 2]] as const
+  return {
+    alpha: 1,
+    role: 'primary',
+    color: isAuthoredStructure ? source : dimPixGridNeonMarqueeSourceColor(source),
+  }
+}

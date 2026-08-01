@@ -276,6 +276,11 @@ describe('Marquee frame-aware semantic masks', () => {
   })
 
   it('registers component assets at the exact native frame geometry', () => {
+    expect(PIX_GRID_BUILT_IN_ASSET_BY_ID.get('pix-neon-marquee-stable-underlay')).toMatchObject({
+      nativeSize: { width: 160, height: 90 },
+      kind: 'frameBased',
+      frameCount: 4,
+    })
     for (const [component, assetId] of Object.entries(COMPONENT_ASSET_IDS) as Array<[PixGridNeonMarqueeComponentId, PixGridLayer['assetId']]>) {
       expect(PIX_GRID_BUILT_IN_ASSET_BY_ID.get(assetId)).toMatchObject({
         nativeSize: { width: 160, height: 90 },

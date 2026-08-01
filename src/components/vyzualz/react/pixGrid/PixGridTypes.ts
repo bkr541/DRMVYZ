@@ -105,6 +105,7 @@ export type PixGridBuiltInAssetId =
   | 'pix-geometric-tunnel'
   | 'pix-neon-marquee-cycle'
   | 'pix-neon-marquee-structure'
+  | 'pix-neon-marquee-stable-underlay'
   | 'pix-neon-marquee-bulbs-a'
   | 'pix-neon-marquee-bulbs-b'
   | 'pix-neon-marquee-bulbs-c'

@@ -21,7 +21,7 @@ export const PIX_GRID_PRESET_IDS = [
 export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
 
 export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 8 as const
-export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 17 as const
+export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 18 as const
 
 const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro']
 
@@ -532,7 +532,7 @@ function marqueeLetterAnimations(phase: number, revealFrom: 'start' | 'end' | 'c
 }
 
 const NEON_MARQUEE_CYCLE_LAYERS: PixGridLayer[] = [
-  layer('marquee-structure', 'Stable Sign Structure', 'pix-neon-marquee-structure', {
+  layer('marquee-structure', 'Stable Sign Structure', 'pix-neon-marquee-stable-underlay', {
     scale: { x: 1, y: 1 },
     animations: [marqueeSignFrameAnimation('structure')],
     zIndex: 0,

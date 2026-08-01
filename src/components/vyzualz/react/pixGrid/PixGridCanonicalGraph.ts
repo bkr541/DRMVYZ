@@ -26,6 +26,12 @@ interface LegacyLayerAlias {
   preserveName?: boolean
 }
 
+const CANONICAL_LAYER_ASSET_UPGRADES: Readonly<Record<string, Readonly<Record<string, readonly PixGridLayer['assetId'][]>>>> = {
+  'pix-grid-neon-marquee-cycle': {
+    'marquee-structure': ['pix-neon-marquee-structure'],
+  },
+}
+
 const LEGACY_LAYER_ALIASES: Readonly<Record<string, readonly LegacyLayerAlias[]>> = {
   'pix-grid-geometric-reactor': [
     { canonicalId: 'reactor-checker', ids: ['bass', 'reactor-bass', 'geometric-bass'], names: ['bass', 'bass field', 'reactor bass field'] },
@@ -172,7 +178,12 @@ export function mergePixGridCanonicalLayerGraph(state: PixGridState, preset: Rea
         layerIdMap.set(layer.id, layer.id)
         continue
       }
-      mappedByCanonicalId.set(layer.id, clonePixGridLayer(layer))
+      const canonicalLayer = canonicalById.get(layer.id)!
+      const authoredAssetUpgrade = CANONICAL_LAYER_ASSET_UPGRADES[preset.id]?.[layer.id]?.includes(layer.assetId) === true
+      mappedByCanonicalId.set(layer.id, {
+        ...clonePixGridLayer(layer),
+        ...(authoredAssetUpgrade ? { assetId: canonicalLayer.assetId } : {}),
+      })
       layerIdMap.set(layer.id, layer.id)
       continue
     }

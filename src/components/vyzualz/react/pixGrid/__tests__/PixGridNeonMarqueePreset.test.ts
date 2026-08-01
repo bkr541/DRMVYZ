@@ -29,6 +29,10 @@ const STATIC_FRAME: PixGridAudioFrame = {
   beatHit: false,
   beatPhase: 0,
   isPlaying: false,
+  signClock: 0,
+  motionClockSign: 0,
+  signTransitionClock: null,
+  motionClockSignTransition: null,
 }
 
 function fnv1a(bytes: Uint8Array): number {
@@ -95,7 +99,7 @@ describe('PixGrid Neon Marquee Cycle native preset foundation', () => {
     expect(state.layers.map(layer => layer.id)).not.toContain('neon-marquee-frame')
     expect(state.layers[0]).toMatchObject({
       id: 'marquee-structure',
-      assetId: 'pix-neon-marquee-structure',
+      assetId: 'pix-neon-marquee-stable-underlay',
       position: { x: 0.5, y: 0.5 },
       scale: { x: 1, y: 1 },
       rotation: 0,

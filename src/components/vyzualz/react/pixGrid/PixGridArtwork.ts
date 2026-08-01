@@ -4,7 +4,10 @@ import type {
   PixGridPaletteRole,
 } from './PixGridTypes'
 import { samplePixGridNeonMarqueeFrame } from './PixGridNeonMarqueeFrames'
-import { samplePixGridNeonMarqueeComponent } from './PixGridNeonMarqueeMasks'
+import {
+  samplePixGridNeonMarqueeComponent,
+  samplePixGridNeonMarqueeStableUnderlay,
+} from './PixGridNeonMarqueeMasks'
 
 export interface PixGridAssetSample {
   alpha: number
@@ -61,7 +64,8 @@ export const PIX_GRID_BUILT_IN_ASSETS: readonly PixGridBuiltInAssetManifestEntry
   asset('pix-pixel-burst', 'Pixel Burst', 'geometry', 24, 24, 'procedural', ['accent', 'highlight'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 16 }),
   asset('pix-geometric-tunnel', 'Geometric Tunnel', 'geometry', 32, 18, 'procedural', ['primary', 'secondary', 'accent'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 16 }),
   asset('pix-neon-marquee-cycle', 'Neon Marquee Cycle', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['full-frame'] }),
-  asset('pix-neon-marquee-structure', 'Marquee Structure', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['structure'] }),
+  asset('pix-neon-marquee-structure', 'Marquee Structure (Exclusive Compatibility)', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['structure', 'compatibility'] }),
+  asset('pix-neon-marquee-stable-underlay', 'Marquee Stable Structure Underlay', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['structure', 'letter-underlay', 'trim-underlay', 'focal-underlay'] }),
   asset('pix-neon-marquee-bulbs-a', 'Marquee Bulbs A', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['perimeter', 'chase-a'] }),
   asset('pix-neon-marquee-bulbs-b', 'Marquee Bulbs B', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['perimeter', 'chase-b'] }),
   asset('pix-neon-marquee-bulbs-c', 'Marquee Bulbs C', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['perimeter', 'chase-c'] }),
@@ -282,6 +286,8 @@ export function samplePixGridBuiltInAsset(
       return samplePixGridNeonMarqueeFrame(u, v, frameIndex)
     case 'pix-neon-marquee-structure':
       return samplePixGridNeonMarqueeComponent('structure', u, v, frameIndex)
+    case 'pix-neon-marquee-stable-underlay':
+      return samplePixGridNeonMarqueeStableUnderlay(u, v, frameIndex)
     case 'pix-neon-marquee-bulbs-a':
       return samplePixGridNeonMarqueeComponent('bulbs-a', u, v, frameIndex)
     case 'pix-neon-marquee-bulbs-b':
