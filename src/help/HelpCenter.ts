@@ -6,7 +6,9 @@
  * It is UI-neutral so a later HelpTrigger can adapt entries to InfoPopover.
  */
 
-export type HelpPriority = 1 | 2 | 3 | 4
+export const HELP_PRIORITIES = [1, 2, 3, 4] as const
+
+export type HelpPriority = (typeof HELP_PRIORITIES)[number]
 
 export type HelpView = 'react' | 'visualizer' | 'lyricManager' | 'mediaManager'
 
@@ -21,24 +23,27 @@ export type HelpEngine =
   | 'laserDmx.showDirector'
   | 'pixGrid'
 
-export type HelpComponentType =
-  | 'group'
-  | 'select'
-  | 'dropdown'
-  | 'toggle'
-  | 'slider'
-  | 'field'
-  | 'button'
-  | 'timeline'
-  | 'trackSection'
-  | 'visualization'
-  | 'inspector'
-  | 'editor'
-  | 'upload'
-  | 'color'
-  | 'numeric'
-  | 'diagnostic'
-  | 'selection'
+export const HELP_COMPONENT_TYPES = [
+  'group',
+  'select',
+  'dropdown',
+  'toggle',
+  'slider',
+  'field',
+  'button',
+  'timeline',
+  'trackSection',
+  'visualization',
+  'inspector',
+  'editor',
+  'upload',
+  'color',
+  'numeric',
+  'diagnostic',
+  'selection',
+] as const
+
+export type HelpComponentType = (typeof HELP_COMPONENT_TYPES)[number]
 
 export interface HelpEntry {
   id: string
@@ -49,15 +54,17 @@ export interface HelpEntry {
   title: string
   componentType: HelpComponentType
   summary: string
-  whatItDoes: readonly string[]
-  whenToUse: string
-  affects: readonly string[]
+  whatItDoes?: readonly string[]
+  whenToUse?: string
+  affects?: readonly string[]
   doesNotAffect?: readonly string[]
   defaultValue?: string
+  range?: string
   recommendedRange?: string
   tip?: string
   relatedHelpIds?: readonly string[]
   tags?: readonly string[]
+  auditMismatch?: string
 }
 
 export const PRIORITY_ONE_HELP_ENTRIES = [
@@ -69,14 +76,18 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Engine and workspace selection",
     "title": "Engine",
     "componentType": "select",
-    "summary": "Switches the React workspace to a different visual engine.",
+    "summary": "Selects which React visual engine is active in the workspace.",
     "whatItDoes": [
-      "Updates the active React engine ID.",
-      "The available source and control panels change with the selected engine."
+      "Changes the active engine and the controls shown for that engine.",
+      "Keeps engine-owned presets, scenes, and worlds in their own registries."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Switch engines when moving to a different visual workflow, such as Sound Drawing, CANVAS, LaserDMX, or PixGrid.",
     "affects": [
-      "Engine selection in the active React engine workspace"
+      "active React engine",
+      "visible engine controls and source browser"
+    ],
+    "doesNotAffect": [
+      "descriptions owned by engine presets, scenes, or worlds"
     ],
     "relatedHelpIds": [
       "react.shared.engine.sourceSelection"
@@ -90,14 +101,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Engine and workspace selection",
     "title": "Engine source / scene / world selection",
     "componentType": "selection",
-    "summary": "Selects the active preset, world, shader scene, media source, or workspace item for the current engine.",
+    "summary": "Selects the active preset, scene, world, media source, or workspace item for the current engine.",
     "whatItDoes": [
-      "Selects one domain object owned by the current engine.",
-      "Descriptions remain in the preset, scene, world, or media definition rather than the help registry."
+      "Activates one engine-owned object in the current workspace.",
+      "Uses the selected object’s own registry for its short description and identity."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Use the selection area to audition or activate the source that the current engine should render.",
     "affects": [
-      "Engine source / scene / world selection selection in the active React engine workspace"
+      "active engine source or authored object"
     ],
     "relatedHelpIds": [
       "react.shared.engine.engineSelection"
@@ -111,12 +122,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Track Map",
     "componentType": "group",
-    "summary": "Shows the track-aligned map used by section-aware engines, cues, and authored performance.",
+    "summary": "Maps beats, energy, sections, cues, and visual assignments against the loaded track.",
     "whatItDoes": [
-      "Displays waveform, beat grid, sections, cues, and section preset assignments on one playhead.",
-      "Manual edits feed the resolved section context used by compatible engines."
+      "Provides one timeline for reviewing and editing manual track sections.",
+      "Supplies section context and section-linked preset assignments to compatible performance systems."
     ],
-    "whenToUse": "Use this section when configuring the loaded track's authored section map.",
+    "whenToUse": "Use Track Map when section timing or visual changes must follow the structure of the loaded track.",
     "affects": [
       "manual track sections",
       "section-aware performance context",
@@ -139,16 +150,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "componentType": "toggle",
     "summary": "Shows or hides beat-grid lines on the Track Map.",
     "whatItDoes": [
-      "Changes Track Map presentation only.",
-      "Section timing and beat analysis are not modified."
+      "Changes the editing overlay without changing beat analysis or section timing."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Show it while placing boundaries on beats; hide it when the timeline becomes crowded.",
     "affects": [
-      "Beat Grid state in the loaded track's authored section map"
+      "Track Map beat-grid visibility"
     ],
     "doesNotAffect": [
-      "section timing",
-      "beat-grid analysis"
+      "beat analysis",
+      "section timing"
     ],
     "tip": "Use the beat grid while placing or reviewing boundaries, then hide it when the map becomes visually crowded."
   },
@@ -160,18 +170,17 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Energy Curve",
     "componentType": "select",
-    "summary": "Chooses which analyzed energy curve is displayed behind the Track Map.",
+    "summary": "Chooses which analyzed energy curve is visible behind the Track Map.",
     "whatItDoes": [
-      "Changes only the displayed energy visualization.",
-      "The underlying analysis remains unchanged."
+      "Changes the displayed analysis channel only; stored analysis and section data remain unchanged."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Switch curves when a different energy view makes section boundaries easier to judge.",
     "affects": [
-      "Energy Curve selection in the loaded track's authored section map"
+      "displayed Track Map energy curve"
     ],
     "doesNotAffect": [
-      "audio analysis",
-      "section data"
+      "audio analysis data",
+      "manual sections"
     ]
   },
   {
@@ -182,16 +191,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Section Editor",
     "componentType": "group",
-    "summary": "Edits the selected section’s identity, timing, and intensity.",
+    "summary": "Edits the selected track section’s type, label, timing, and intensity.",
     "whatItDoes": [
-      "Groups the controls that configure the loaded track's authored section map.",
-      "Each child control remains independently documented and editable."
+      "Writes changes to the selected manual section and updates section-aware context."
     ],
-    "whenToUse": "Use this section when configuring the loaded track's authored section map.",
+    "whenToUse": "Use it after selecting a section that needs corrected boundaries, identity, or authored energy.",
     "affects": [
-      "manual track sections",
-      "section-aware performance context",
-      "track-linked preset assignments"
+      "selected manual track section"
     ],
     "relatedHelpIds": [
       "react.shared.trackMap.overview",
@@ -206,14 +212,17 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Type",
     "componentType": "select",
-    "summary": "Sets the musical section type used by section-aware behavior.",
+    "summary": "Sets the musical role of the selected section.",
     "whatItDoes": [
-      "Stores the selected Type option in the loaded track's authored section map.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
+      "Changes the section type consumed by section-aware engines and authored performance logic."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Change it when the selected region is classified as the wrong song section.",
     "affects": [
-      "Type selection in the loaded track's authored section map"
+      "selected section type",
+      "section-aware behavior"
+    ],
+    "doesNotAffect": [
+      "section start or end time"
     ]
   },
   {
@@ -224,14 +233,17 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Label",
     "componentType": "field",
-    "summary": "Sets the section’s user-facing name without changing its type.",
+    "summary": "Sets an optional display name for the selected section.",
     "whatItDoes": [
-      "Writes the edited Label data to the loaded track's authored section map.",
-      "The value remains owned by the current item or document."
+      "Changes the user-facing label without changing the section type or timing."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Add a label when two sections share a type but need distinct names, such as Drop 1 and Drop 2.",
     "affects": [
-      "Label data in the loaded track's authored section map"
+      "selected section label"
+    ],
+    "doesNotAffect": [
+      "section type",
+      "section timing"
     ]
   },
   {
@@ -244,14 +256,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "componentType": "numeric",
     "summary": "Sets where the selected section begins on the track.",
     "whatItDoes": [
-      "Writes a precise Start (s) value to the loaded track's authored section map.",
-      "The field’s implemented bounds and step constrain accepted values when defined."
+      "Moves the section start while preserving valid section ordering and duration constraints."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Correct it when the section begins before or after the intended musical boundary.",
     "affects": [
-      "Start (s) value in the loaded track's authored section map"
+      "selected section start boundary"
     ],
-    "recommendedRange": "0 seconds to track duration"
+    "range": "0 seconds to track duration"
   },
   {
     "id": "react.shared.trackMap.sectionEditor.endSeconds",
@@ -263,14 +274,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "componentType": "numeric",
     "summary": "Sets where the selected section ends on the track.",
     "whatItDoes": [
-      "Writes a precise End (s) value to the loaded track's authored section map.",
-      "The field’s implemented bounds and step constrain accepted values when defined."
+      "Moves the section end while preserving valid section ordering and duration constraints."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Correct it when the following musical section starts earlier or later than mapped.",
     "affects": [
-      "End (s) value in the loaded track's authored section map"
+      "selected section end boundary"
     ],
-    "recommendedRange": "0 seconds to track duration"
+    "range": "0 seconds to track duration"
   },
   {
     "id": "react.shared.trackMap.sectionEditor.intensity",
@@ -282,15 +292,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "componentType": "slider",
     "summary": "Sets the selected section’s authored energy level.",
     "whatItDoes": [
-      "Writes the Intensity value to the loaded track's authored section map as the control moves.",
-      "The implemented minimum, maximum, and step constrain the value."
+      "Stores a normalized intensity that compatible performance systems can use as section context."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Lower it for restrained passages and raise it for sections that should drive stronger authored behavior.",
     "affects": [
-      "Intensity value in the loaded track's authored section map"
+      "selected section intensity"
     ],
     "defaultValue": "70%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.shared.trackMap.boundaryTools.overview",
@@ -300,16 +309,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Boundary Tools",
     "componentType": "group",
-    "summary": "Moves section boundaries using the beat grid or analyzed boundary suggestions.",
+    "summary": "Moves the selected section boundary with grid snapping or analyzed alternatives.",
     "whatItDoes": [
-      "Groups the controls that configure the loaded track's authored section map.",
-      "Each child control remains independently documented and editable."
+      "Applies the chosen snap resolution to boundary edits.",
+      "The previous and next alternative buttons use analyzed suggestions and are documented by this group."
     ],
-    "whenToUse": "Use this section when configuring the loaded track's authored section map.",
+    "whenToUse": "Use Boundary Tools when a section edge is close to the right location but needs musical alignment.",
     "affects": [
-      "manual track sections",
-      "section-aware performance context",
-      "track-linked preset assignments"
+      "selected section boundary"
     ],
     "relatedHelpIds": [
       "react.shared.trackMap.sectionEditor.overview",
@@ -324,54 +331,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Snap",
     "componentType": "select",
-    "summary": "Chooses the timing grid used when moving section boundaries.",
+    "summary": "Chooses the musical grid used when a section boundary is moved.",
     "whatItDoes": [
-      "Stores the selected Snap option in the loaded track's authored section map.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
+      "Quantizes boundary edits to the selected beat or bar resolution."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Use a tighter grid for small corrections and a bar-based grid for structural section changes.",
     "affects": [
-      "Snap selection in the loaded track's authored section map"
+      "boundary-edit quantization"
     ],
     "tip": "Use Bar or Four Bar for phrase-aligned edits; use Free only when a deliberate off-grid boundary is required."
-  },
-  {
-    "id": "react.shared.trackMap.boundaryTools.startAlternative",
-    "priority": 1,
-    "view": "react",
-    "engine": "shared",
-    "group": "Track Map",
-    "title": "Start Boundary Alternative",
-    "componentType": "selection",
-    "summary": "Moves the section start to another analyzed boundary candidate.",
-    "whatItDoes": [
-      "Chooses the active Start Boundary Alternative option for the loaded track's authored section map.",
-      "The selected item becomes the current value for this context."
-    ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
-    "affects": [
-      "Start Boundary Alternative selection in the loaded track's authored section map"
-    ],
-    "tip": "Cycle alternatives before manually typing a time when the analyzer found several plausible starts."
-  },
-  {
-    "id": "react.shared.trackMap.boundaryTools.endAlternative",
-    "priority": 1,
-    "view": "react",
-    "engine": "shared",
-    "group": "Track Map",
-    "title": "End Boundary Alternative",
-    "componentType": "selection",
-    "summary": "Moves the section end to another analyzed boundary candidate.",
-    "whatItDoes": [
-      "Chooses the active End Boundary Alternative option for the loaded track's authored section map.",
-      "The selected item becomes the current value for this context."
-    ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
-    "affects": [
-      "End Boundary Alternative selection in the loaded track's authored section map"
-    ],
-    "tip": "Keep End after Start and avoid collapsing the section below its minimum duration."
   },
   {
     "id": "react.shared.trackMap.visualAssignment.overview",
@@ -381,16 +349,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Visual Assignment",
     "componentType": "group",
-    "summary": "Links the selected track section to a React preset and shows the preset’s owning engine.",
+    "summary": "Assigns a React preset to the selected track section and reports its owning engine.",
     "whatItDoes": [
-      "Groups the controls that configure the loaded track's authored section map.",
-      "Each child control remains independently documented and editable."
+      "Stores the section-to-preset link used by compatible section-following workflows."
     ],
-    "whenToUse": "Use this section when configuring the loaded track's authored section map.",
+    "whenToUse": "Use it when a specific section should recall a particular visual preset.",
     "affects": [
-      "manual track sections",
-      "section-aware performance context",
-      "track-linked preset assignments"
+      "selected section preset assignment"
     ],
     "relatedHelpIds": [
       "react.shared.trackMap.overview",
@@ -405,14 +370,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Preset",
     "componentType": "select",
-    "summary": "Assigns a React preset to the selected track section.",
+    "summary": "Selects the React preset assigned to the selected track section.",
     "whatItDoes": [
-      "Stores the selected Preset option in the loaded track's authored section map.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
+      "Changes the stored preset ID for that section; preset descriptions remain in the preset registry."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose a preset when the selected section should recall a different authored visual state.",
     "affects": [
-      "Preset selection in the loaded track's authored section map"
+      "selected section preset assignment"
     ],
     "tip": "Assign presets only where a deliberate section-specific visual override is needed."
   },
@@ -424,17 +388,17 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "Engine",
     "componentType": "diagnostic",
-    "summary": "Shows which React engine owns the assigned preset.",
+    "summary": "Reports which React engine owns the assigned preset.",
     "whatItDoes": [
-      "Reports the current Engine state for the loaded track's authored section map.",
-      "It is informational and is not itself a runtime parameter."
+      "Updates automatically from the selected preset and is not directly editable."
     ],
-    "whenToUse": "Use it to understand the current state before changing related controls.",
+    "whenToUse": "Check it before assigning a preset when engine ownership is not obvious from the preset name.",
     "affects": [
-      "Engine status in the loaded track's authored section map"
+      "displayed preset ownership"
     ],
     "doesNotAffect": [
-      "the assigned preset"
+      "active engine",
+      "preset assignment"
     ]
   },
   {
@@ -445,16 +409,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Track Map",
     "title": "New Section",
     "componentType": "group",
-    "summary": "Creates a new manual section on the loaded track.",
+    "summary": "Creates a new manual section from the entered type, label, boundaries, and intensity.",
     "whatItDoes": [
-      "Groups the controls that configure the loaded track's authored section map.",
-      "Each child control remains independently documented and editable."
+      "Adds a validated section to the loaded track’s manual section map."
     ],
-    "whenToUse": "Use this section when configuring the loaded track's authored section map.",
+    "whenToUse": "Use it when the track contains a meaningful region that is missing from the section map.",
     "affects": [
-      "manual track sections",
-      "section-aware performance context",
-      "track-linked preset assignments"
+      "manual track sections"
     ]
   },
   {
@@ -470,7 +431,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Type option in the loaded track's authored section map.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Type when track map needs a different active option.",
     "affects": [
       "Type selection in the loaded track's authored section map"
     ],
@@ -489,7 +450,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Label data to the loaded track's authored section map.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Label when the track map item needs different text or metadata.",
     "affects": [
       "Label data in the loaded track's authored section map"
     ],
@@ -508,12 +469,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Start (s) value to the loaded track's authored section map.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Start (s) value when track map needs precise timing or quantity.",
     "affects": [
       "Start (s) value in the loaded track's authored section map"
     ],
     "defaultValue": "0 seconds",
-    "recommendedRange": "0 seconds or later"
+    "range": "0 seconds or later"
   },
   {
     "id": "react.shared.trackMap.newSection.endSeconds",
@@ -528,12 +489,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise End (s) value to the loaded track's authored section map.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact End (s) value when track map needs precise timing or quantity.",
     "affects": [
       "End (s) value in the loaded track's authored section map"
     ],
-    "defaultValue": "30 seconds",
-    "recommendedRange": "Greater than Start"
+    "defaultValue": "30 seconds"
   },
   {
     "id": "react.shared.trackMap.newSection.intensity",
@@ -548,12 +508,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Intensity value to the loaded track's authored section map as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Intensity while previewing track map so the result remains readable in motion.",
     "affects": [
       "Intensity value in the loaded track's authored section map"
     ],
     "defaultValue": "70%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.soundDrawing.authoredPerformance.overview",
@@ -563,14 +523,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Authored Performance",
     "title": "Authored Performance",
     "componentType": "group",
-    "summary": "Loads a Sound Drawing Performance Show and optionally runs its section-aware choreography.",
+    "summary": "Selects a Sound Drawing Performance Show and controls whether its section choreography runs.",
     "whatItDoes": [
-      "Selecting a show loads its stable base design.",
-      "Auto Performance separately enables section choreography."
+      "Performance Show loads the authored base design.",
+      "Auto Performance enables the show’s track-aware choreography."
     ],
-    "whenToUse": "Use this section when configuring the selected Sound Drawing Performance Show.",
+    "whenToUse": "Use this section to choose an authored show, compare its stable base state, and then enable choreography when needed.",
     "affects": [
-      "Sound Drawing authored show state",
+      "Sound Drawing authored show selection",
       "section-aware choreography"
     ]
   },
@@ -582,14 +542,17 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Authored Performance",
     "title": "Auto Performance",
     "componentType": "toggle",
-    "summary": "Runs section-aware choreography for the selected Sound Drawing Performance Show.",
+    "summary": "Enables section-aware choreography for the selected Sound Drawing Performance Show.",
     "whatItDoes": [
-      "Requires a Performance Show to be selected.",
-      "Turning it off keeps the show loaded in its stable base-design state."
+      "Requires a selected Performance Show.",
+      "When off, the selected show remains loaded in its stable base state."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn it on for hands-free, track-structured performance; turn it off while manually evaluating the show’s base design.",
     "affects": [
-      "Auto Performance state in the selected Sound Drawing Performance Show"
+      "selected show choreography"
+    ],
+    "doesNotAffect": [
+      "selected Performance Show"
     ],
     "defaultValue": "Off",
     "tip": "Select a show first, then enable Auto Performance only when section choreography is desired.",
@@ -606,14 +569,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Authored Performance",
     "title": "Performance Show",
     "componentType": "select",
-    "summary": "Loads an authored Sound Drawing show’s stable base design.",
+    "summary": "Selects the authored Sound Drawing show loaded into the engine.",
     "whatItDoes": [
-      "Loads the show’s base design and authored program identity.",
-      "Selection does not turn Auto Performance on."
+      "Loads the show’s base design and program identity.",
+      "Does not enable Auto Performance by itself."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose a show before enabling Auto Performance or tuning its choreography controls.",
     "affects": [
-      "Performance Show selection in the selected Sound Drawing Performance Show"
+      "selected Sound Drawing Performance Show"
     ],
     "doesNotAffect": [
       "Auto Performance state"
@@ -633,18 +596,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Show Choreography",
     "title": "Show Choreography",
     "componentType": "group",
-    "summary": "Shapes the density, motion, response, trails, and scale of an active authored Sound Drawing show.",
+    "summary": "Shapes the overall complexity, motion, reactivity, trails, and scale of the selected authored show.",
     "whatItDoes": [
-      "Groups the controls that configure the active Sound Drawing show choreography.",
-      "Each child control remains independently documented and editable."
+      "Applies high-level trims to the show runtime without replacing the selected show definition."
     ],
-    "whenToUse": "Use this section when configuring the active Sound Drawing show choreography.",
+    "whenToUse": "Use these macros to adapt an authored show to the track or performance space without editing its underlying program.",
     "affects": [
-      "authored show density",
-      "motion",
-      "audio response",
-      "trails",
-      "composition scale"
+      "selected Sound Drawing show runtime"
+    ],
+    "doesNotAffect": [
+      "Performance Show descriptions or registry data"
     ],
     "relatedHelpIds": [
       "react.soundDrawing.authoredPerformance.performanceShow",
@@ -664,12 +625,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Complexity value to the active Sound Drawing show choreography as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Complexity while previewing show choreography so the result remains readable in motion.",
     "affects": [
       "Complexity value in the active Sound Drawing show choreography"
     ],
     "defaultValue": "70%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Raise Complexity after the base motion and reaction levels are already readable."
   },
   {
@@ -685,12 +646,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Motion Intensity value to the active Sound Drawing show choreography as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Motion Intensity while previewing show choreography so the result remains readable in motion.",
     "affects": [
       "Motion Intensity value in the active Sound Drawing show choreography"
     ],
     "defaultValue": "65%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.soundDrawing.showChoreography.reactionIntensity",
@@ -705,12 +666,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Reaction Intensity value to the active Sound Drawing show choreography as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Reaction Intensity while previewing show choreography so the result remains readable in motion.",
     "affects": [
       "Reaction Intensity value in the active Sound Drawing show choreography"
     ],
     "defaultValue": "80%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.soundDrawing.showChoreography.trailIntensity",
@@ -725,12 +686,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Trail Intensity value to the active Sound Drawing show choreography as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Trail Intensity while previewing show choreography so the result remains readable in motion.",
     "affects": [
       "Trail Intensity value in the active Sound Drawing show choreography"
     ],
     "defaultValue": "55%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.soundDrawing.showChoreography.showSize",
@@ -745,7 +706,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Multiplies the composition scale.",
       "Generator, layers, and source identity stay unchanged."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Show Size while previewing show choreography so the result remains readable in motion.",
     "affects": [
       "Show Size value in the active Sound Drawing show choreography"
     ],
@@ -753,7 +714,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "show generator or source identity"
     ],
     "defaultValue": "78%",
-    "recommendedRange": "0.10–2.50×",
+    "range": "0.10–2.50×",
     "tip": "Use Show Size for framing; use choreography sliders for behavior."
   },
   {
@@ -769,12 +730,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Audio Reaction Depth value to the Living Ribbon simulation as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Audio Reaction Depth while previewing living ribbon controls so the result remains readable in motion.",
     "affects": [
       "Audio Reaction Depth value in the Living Ribbon simulation"
     ],
     "defaultValue": "80%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.soundDrawing.engineMode.showSize",
@@ -789,7 +750,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Show Size value to the manual or stable-base Sound Drawing design as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Show Size while previewing base design and engine mode so the result remains readable in motion.",
     "affects": [
       "Show Size value in the manual or stable-base Sound Drawing design"
     ],
@@ -797,7 +758,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Auto Performance state"
     ],
     "defaultValue": "78%",
-    "recommendedRange": "0.10–2.50×"
+    "range": "0.10–2.50×"
   },
   {
     "id": "react.soundDrawing.engineMode.overview",
@@ -832,7 +793,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Visual Size value to the manual or stable-base Sound Drawing design as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Visual Size while previewing base design and engine mode so the result remains readable in motion.",
     "affects": [
       "Visual Size value in the manual or stable-base Sound Drawing design"
     ],
@@ -840,7 +801,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "signal calibration"
     ],
     "defaultValue": "78%",
-    "recommendedRange": "0.10–2.50×"
+    "range": "0.10–2.50×"
   },
   {
     "id": "react.soundDrawing.engineMode.followTrackSections",
@@ -855,7 +816,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Resolves manual Classic Scope topology from the analyzed section under the playhead.",
       "The control is available only while manual Sound Drawing owns the output."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Follow Track Sections on when base design and engine mode should include this behavior; leave it off otherwise.",
     "affects": [
       "Follow Track Sections state in the manual or stable-base Sound Drawing design"
     ],
@@ -874,7 +835,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Classic Mode option in the manual or stable-base Sound Drawing design.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Classic Mode when base design and engine mode needs a different active option.",
     "affects": [
       "Classic Mode selection in the manual or stable-base Sound Drawing design"
     ],
@@ -893,7 +854,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Copies preset values into the editable Pro Scope state.",
       "All child controls remain adjustable afterward."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Preset when pro scope needs a different active option.",
     "affects": [
       "Preset selection in the Sound Drawing professional oscilloscope"
     ],
@@ -918,14 +879,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Changes presentation scale immediately.",
       "Advanced signal conditioning keeps its calibration."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Visual Size while previewing pro scope so the result remains readable in motion.",
     "affects": [
       "Visual Size value in the Sound Drawing professional oscilloscope"
     ],
     "doesNotAffect": [
       "Pro Scope signal calibration"
     ],
-    "recommendedRange": "0.10–2.50×",
+    "range": "0.10–2.50×",
     "relatedHelpIds": [
       "react.soundDrawing.proScope.preset"
     ]
@@ -943,14 +904,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Uses detected beats to modulate presentation bloom.",
       "It does not change the ordered X/Y trace geometry."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Beat Bloom while previewing pro scope music reactivity so the result remains readable in motion.",
     "affects": [
       "Beat Bloom value in the Pro Scope presentation response"
     ],
     "doesNotAffect": [
       "trace geometry"
     ],
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Keep Beat Bloom moderate when phosphor persistence is already high."
   },
   {
@@ -961,15 +922,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "FX",
     "title": "Bass React",
     "componentType": "slider",
-    "summary": "Sets the engine-level bass-response trim for Sound Drawing.",
+    "summary": "Sets the engine-level amount of Sound Drawing response driven by bass energy.",
     "whatItDoes": [
-      "Scales bass-driven response within the active Sound Drawing ownership rules."
+      "Scales bass-driven movement and intensity within the active Sound Drawing output path."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Raise it when low-end hits should be more visible; reduce it when bass movement overwhelms the source shape.",
     "affects": [
-      "Bass React value in the active engine output"
+      "Sound Drawing bass response"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.soundDrawing.audioReactivity.overview",
@@ -979,14 +940,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Audio routing and reactivity",
     "title": "Audio Reactivity",
     "componentType": "group",
-    "summary": "Groups the Sound Drawing controls that translate audio analysis into visual deformation.",
+    "summary": "Controls how Sound Drawing converts analyzed audio into displacement and frequency-specific movement.",
     "whatItDoes": [
-      "Collects displacement and frequency-response controls.",
-      "The group does not itself change a parameter until a child control is edited."
+      "Groups the routing, displacement, and frequency-response controls used by the engine."
     ],
-    "whenToUse": "Use this section when configuring Sound Drawing audio routing.",
+    "whenToUse": "Use it when the visual should react differently to bass, mids, highs, beats, or text-specific motion.",
     "affects": [
-      "audio-driven displacement and frequency response"
+      "Sound Drawing audio-driven deformation and frequency response"
     ]
   },
   {
@@ -1021,12 +981,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Z-Index value to the selected Sound Drawing timeline clip as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Z-Index while previewing timeline clip so the result remains readable in motion.",
     "affects": [
       "Z-Index value in the selected Sound Drawing timeline clip"
     ],
     "defaultValue": "0",
-    "recommendedRange": "0–10",
+    "range": "0–10",
     "tip": "Use higher Z-Index values only for clips that must render above others."
   },
   {
@@ -1042,12 +1002,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Fade In (ms) value to the selected Sound Drawing timeline clip as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Fade In (ms) while previewing timeline clip so the result remains readable in motion.",
     "affects": [
       "Fade In (ms) value in the selected Sound Drawing timeline clip"
     ],
     "defaultValue": "0 ms",
-    "recommendedRange": "0–2000 ms",
+    "range": "0–2000 ms",
     "tip": "Keep the fade shorter than the clip duration."
   },
   {
@@ -1063,12 +1023,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Fade Out (ms) value to the selected Sound Drawing timeline clip as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Fade Out (ms) while previewing timeline clip so the result remains readable in motion.",
     "affects": [
       "Fade Out (ms) value in the selected Sound Drawing timeline clip"
     ],
     "defaultValue": "0 ms",
-    "recommendedRange": "0–2000 ms",
+    "range": "0–2000 ms",
     "tip": "Keep the fade shorter than the clip duration."
   },
   {
@@ -1104,7 +1064,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Layer Enabled participates in the selected Sound Drawing timeline layer.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Layer Enabled on when timeline layer should include this behavior; leave it off otherwise.",
     "affects": [
       "Layer Enabled state in the selected Sound Drawing timeline layer"
     ],
@@ -1123,7 +1083,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Name data to the selected Sound Drawing timeline layer.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Name when the timeline layer item needs different text or metadata.",
     "affects": [
       "Name data in the selected Sound Drawing timeline layer"
     ]
@@ -1141,7 +1101,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Source option in the selected Sound Drawing timeline layer.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Source when timeline layer needs a different active option.",
     "affects": [
       "Source selection in the selected Sound Drawing timeline layer"
     ],
@@ -1160,7 +1120,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Text Source option in the selected Sound Drawing timeline layer.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Text Source when timeline layer needs a different active option.",
     "affects": [
       "Text Source selection in the selected Sound Drawing timeline layer"
     ],
@@ -1179,7 +1139,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected When No Lyric Is Active option in the selected Sound Drawing timeline layer.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose When No Lyric Is Active when timeline layer needs a different active option.",
     "affects": [
       "When No Lyric Is Active selection in the selected Sound Drawing timeline layer"
     ],
@@ -1199,7 +1159,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Fallback Text data to the selected Sound Drawing timeline layer.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Fallback Text when the timeline layer item needs different text or metadata.",
     "affects": [
       "Fallback Text data in the selected Sound Drawing timeline layer"
     ],
@@ -1218,7 +1178,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Font option in the selected Sound Drawing timeline layer.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Font when timeline layer needs a different active option.",
     "affects": [
       "Font selection in the selected Sound Drawing timeline layer"
     ],
@@ -1239,7 +1199,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Alignment option in the selected Sound Drawing timeline layer.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Alignment when timeline layer needs a different active option.",
     "affects": [
       "Alignment selection in the selected Sound Drawing timeline layer"
     ],
@@ -1258,12 +1218,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Line Height value to the selected Sound Drawing timeline layer as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Line Height while previewing timeline layer so the result remains readable in motion.",
     "affects": [
       "Line Height value in the selected Sound Drawing timeline layer"
     ],
     "defaultValue": "1.2",
-    "recommendedRange": "0.80–3.00",
+    "range": "0.80–3.00",
     "tip": "Adjust Line Height after selecting the final font."
   },
   {
@@ -1279,12 +1239,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Letter Spacing value to the selected Sound Drawing timeline layer as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Letter Spacing while previewing timeline layer so the result remains readable in motion.",
     "affects": [
       "Letter Spacing value in the selected Sound Drawing timeline layer"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−20 to 80",
+    "range": "−20 to 80",
     "tip": "Large positive spacing can break long lyric lines; check the widest expected text."
   },
   {
@@ -1300,7 +1260,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Shape option in the selected Sound Drawing timeline layer.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Shape when timeline layer needs a different active option.",
     "affects": [
       "Shape selection in the selected Sound Drawing timeline layer"
     ],
@@ -1319,7 +1279,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected SVG File option in the selected Sound Drawing timeline layer.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose SVG File when timeline layer needs a different active option.",
     "affects": [
       "SVG File selection in the selected Sound Drawing timeline layer"
     ]
@@ -1357,12 +1317,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the X value to the selected Sound Drawing timeline layer transform as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust X while previewing timeline transform so the result remains readable in motion.",
     "affects": [
       "X value in the selected Sound Drawing timeline layer transform"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−1.00 to 1.00"
+    "range": "−1.00 to 1.00"
   },
   {
     "id": "react.soundDrawing.timeline.transform.positionY",
@@ -1377,12 +1337,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Y value to the selected Sound Drawing timeline layer transform as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Y while previewing timeline transform so the result remains readable in motion.",
     "affects": [
       "Y value in the selected Sound Drawing timeline layer transform"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−1.00 to 1.00"
+    "range": "−1.00 to 1.00"
   },
   {
     "id": "react.soundDrawing.timeline.transform.scale",
@@ -1397,12 +1357,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Scale value to the selected Sound Drawing timeline layer transform as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Scale while previewing timeline transform so the result remains readable in motion.",
     "affects": [
       "Scale value in the selected Sound Drawing timeline layer transform"
     ],
     "defaultValue": "1",
-    "recommendedRange": "0.10–5.00×"
+    "range": "0.10–5.00×"
   },
   {
     "id": "react.soundDrawing.timeline.transform.rotation",
@@ -1417,12 +1377,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Rotation value to the selected Sound Drawing timeline layer transform as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Rotation while previewing timeline transform so the result remains readable in motion.",
     "affects": [
       "Rotation value in the selected Sound Drawing timeline layer transform"
     ],
     "defaultValue": "0°",
-    "recommendedRange": "−180° to 180°"
+    "range": "−180° to 180°"
   },
   {
     "id": "react.cinematicWorlds.worlds.overview",
@@ -1456,7 +1416,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses the active World option for the active Cinematic World.",
       "The selected item becomes the current value for this context."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose World when selecting the active item for world selection and visual dna.",
     "affects": [
       "World selection in the active Cinematic World"
     ],
@@ -1500,7 +1460,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Clones and normalizes the profile.",
       "Macros and advanced controls remain editable."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Starting Profile when world selection and visual dna needs a different active option.",
     "affects": [
       "Starting Profile selection in the active Cinematic World"
     ],
@@ -1549,11 +1509,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Structure value to the Reactive Constellation performance character as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Structure while previewing performance macros so the result remains readable in motion.",
     "affects": [
       "Structure value in the Reactive Constellation performance character"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.performanceMacros.motion",
@@ -1568,11 +1528,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Motion value to the Reactive Constellation performance character as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Motion while previewing performance macros so the result remains readable in motion.",
     "affects": [
       "Motion value in the Reactive Constellation performance character"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.performanceMacros.impact",
@@ -1587,11 +1547,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Impact value to the Reactive Constellation performance character as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Impact while previewing performance macros so the result remains readable in motion.",
     "affects": [
       "Impact value in the Reactive Constellation performance character"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.performanceMacros.trails",
@@ -1606,11 +1566,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Trails value to the Reactive Constellation performance character as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Trails while previewing performance macros so the result remains readable in motion.",
     "affects": [
       "Trails value in the Reactive Constellation performance character"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.performanceMacros.material",
@@ -1625,11 +1585,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Material value to the Reactive Constellation performance character as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Material while previewing performance macros so the result remains readable in motion.",
     "affects": [
       "Material value in the Reactive Constellation performance character"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.performanceMacros.camera",
@@ -1644,14 +1604,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Camera value to the Reactive Constellation performance character as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Camera while previewing performance macros so the result remains readable in motion.",
     "affects": [
       "Camera value in the Reactive Constellation performance character"
     ],
     "doesNotAffect": [
       "manual camera lock"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.autoDirector.variation.overview",
@@ -1708,11 +1668,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Strength value to Cinematic Worlds variation and automatic direction as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Strength while previewing variation and auto director so the result remains readable in motion.",
     "affects": [
       "Strength value in Cinematic Worlds variation and automatic direction"
     ],
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Start low and increase until automatic choices remain musically legible."
   },
   {
@@ -1728,11 +1688,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Camera Activity value to Cinematic Worlds variation and automatic direction as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Camera Activity while previewing variation and auto director so the result remains readable in motion.",
     "affects": [
       "Camera Activity value in Cinematic Worlds variation and automatic direction"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.autoDirector.autoDirector.transitionFrequency",
@@ -1747,11 +1707,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Transition Frequency value to Cinematic Worlds variation and automatic direction as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Transition Frequency while previewing variation and auto director so the result remains readable in motion.",
     "affects": [
       "Transition Frequency value in Cinematic Worlds variation and automatic direction"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.autoDirector.autoDirector.dropImpact",
@@ -1766,11 +1726,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Drop Impact value to Cinematic Worlds variation and automatic direction as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Drop Impact while previewing variation and auto director so the result remains readable in motion.",
     "affects": [
       "Drop Impact value in Cinematic Worlds variation and automatic direction"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.liveControls.audioReaction",
@@ -1785,14 +1745,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Audio Reaction value to the active Cinematic World output as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Audio Reaction while previewing live controls, quality, environment, material so the result remains readable in motion.",
     "affects": [
       "Audio Reaction value in the active Cinematic World output"
     ],
     "doesNotAffect": [
       "world route definitions"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.cinematicWorlds.audioMapping.audioReaction.overview",
@@ -1826,11 +1786,10 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "When off, configured audio routes stop modulating world parameters.",
       "The base world still renders."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn World Audio Mapping on when world audio mapping should include this behavior; leave it off otherwise.",
     "affects": [
       "World Audio Mapping state in the active world audio-routing configuration"
-    ],
-    "defaultValue": "Defined by the active world"
+    ]
   },
   {
     "id": "react.cinematicWorlds.audioMapping.audioReaction.globalSmoothingMs",
@@ -1845,11 +1804,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Global Smoothing value to the active world audio-routing configuration as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Global Smoothing while previewing world audio mapping so the result remains readable in motion.",
     "affects": [
       "Global Smoothing value in the active world audio-routing configuration"
     ],
-    "recommendedRange": "0–2000 ms",
+    "range": "0–2000 ms",
     "tip": "Use more smoothing for stable ambience and less for sharp rhythmic response."
   },
   {
@@ -1885,7 +1844,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses the active Active Scene option for the Shader Pads scene library and renderer.",
       "The selected item becomes the current value for this context."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Active Scene when selecting the active item for scene library and renderer.",
     "affects": [
       "Active Scene selection in the Shader Pads scene library and renderer"
     ]
@@ -1903,7 +1862,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Changes renderer quality preference.",
       "It does not change the active scene definition."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Quality when scene library and renderer needs a different active option.",
     "affects": [
       "Quality selection in the Shader Pads scene library and renderer"
     ],
@@ -1917,14 +1876,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "view": "react",
     "engine": "shaderPads",
     "group": "Scene library and renderer",
-    "title": "Category Filter",
+    "title": "Filter by category",
     "componentType": "select",
     "summary": "Filters the Shader Scene library by scene category.",
     "whatItDoes": [
       "Changes which scene cards are visible.",
       "It does not unload the active scene."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Filter by category when scene library and renderer needs a different active option.",
     "affects": [
       "Category Filter selection in the Shader Pads scene library and renderer"
     ],
@@ -1967,14 +1926,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Applies a scene-wide trim when supported.",
       "Scene-local authored parameters remain intact."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Intensity while previewing shader master so the result remains readable in motion.",
     "affects": [
       "Intensity value in the active Shader Pads scene"
     ],
     "doesNotAffect": [
       "scene-local parameters"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.shaderPads.shaderMaster.motion",
@@ -1989,14 +1948,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Applies a scene-wide animation-rate trim when supported.",
       "Scene-local motion controls retain their relative behavior."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Motion while previewing shader master so the result remains readable in motion.",
     "affects": [
       "Motion value in the active Shader Pads scene"
     ],
     "doesNotAffect": [
       "scene-local motion values"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.shaderPads.shaderMaster.glow",
@@ -2011,14 +1970,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Glow value to the active Shader Pads scene as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Glow while previewing shader master so the result remains readable in motion.",
     "affects": [
       "Glow value in the active Shader Pads scene"
     ],
     "doesNotAffect": [
       "scene-local glow values"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.shaderPads.shaderMaster.bassReact",
@@ -2033,14 +1992,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Applies a scene-wide bass trim when supported.",
       "Scene-local audio sensitivity remains authored."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Bass React while previewing shader master so the result remains readable in motion.",
     "affects": [
       "Bass React value in the active Shader Pads scene"
     ],
     "doesNotAffect": [
       "scene-local audio parameters"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.canvas.sourceAndDisplay.overview",
@@ -2097,7 +2056,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Track analysis may choose a preset.",
       "A manual media override can keep the selected source locked."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Auto Select on when canvas source link and display should include this behavior; leave it off otherwise.",
     "affects": [
       "Auto Select state in the active CANVAS media output"
     ],
@@ -2141,7 +2100,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Fit Mode option in the active CANVAS media output.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Fit Mode when canvas source link and display needs a different active option.",
     "affects": [
       "Fit Mode selection in the active CANVAS media output"
     ],
@@ -2164,12 +2123,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Scale value to the active CANVAS media output as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Scale while previewing canvas source link and display so the result remains readable in motion.",
     "affects": [
       "Scale value in the active CANVAS media output"
     ],
     "defaultValue": "1",
-    "recommendedRange": "0.10–4.00×"
+    "range": "0.10–4.00×"
   },
   {
     "id": "react.canvas.sourceAndDisplay.display.positionX",
@@ -2184,12 +2143,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Position X value to the active CANVAS media output as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Position X while previewing canvas source link and display so the result remains readable in motion.",
     "affects": [
       "Position X value in the active CANVAS media output"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−100 to 100"
+    "range": "−100 to 100"
   },
   {
     "id": "react.canvas.sourceAndDisplay.display.positionY",
@@ -2204,12 +2163,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Position Y value to the active CANVAS media output as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Position Y while previewing canvas source link and display so the result remains readable in motion.",
     "affects": [
       "Position Y value in the active CANVAS media output"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−100 to 100"
+    "range": "−100 to 100"
   },
   {
     "id": "react.canvas.sourceAndDisplay.display.rotation",
@@ -2224,12 +2183,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Rotation value to the active CANVAS media output as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Rotation while previewing canvas source link and display so the result remains readable in motion.",
     "affects": [
       "Rotation value in the active CANVAS media output"
     ],
     "defaultValue": "0°",
-    "recommendedRange": "−180° to 180°"
+    "range": "−180° to 180°"
   },
   {
     "id": "react.canvas.sourceAndDisplay.display.outputOpacity",
@@ -2244,7 +2203,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Applies after the CANVAS source and recipe are rendered.",
       "It is separate from Dry Source Mix."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Canvas Output Opacity while previewing canvas source link and display so the result remains readable in motion.",
     "affects": [
       "Canvas Output Opacity value in the active CANVAS media output"
     ],
@@ -2252,7 +2211,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Dry Source Mix"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Use Output Opacity for final compositing, not to rebalance dry versus processed content."
   },
   {
@@ -2263,17 +2222,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Video Timing",
     "title": "Video Timing",
     "componentType": "group",
-    "summary": "Controls saved video playback ranges, looping, and music-driven restarts inside CANVAS.",
+    "summary": "Defines the playable video range and the events that restart or retrigger the active CANVAS source.",
     "whatItDoes": [
-      "Groups the controls that configure the active CANVAS video source.",
-      "Each child control remains independently documented and editable."
+      "Combines clip in/out timing, loop behavior, restart rules, and section-trigger mapping."
     ],
-    "whenToUse": "Use this section when configuring the active CANVAS video source.",
+    "whenToUse": "Use it when a video must loop a specific range or restart at musical events.",
     "affects": [
-      "clip range",
-      "looping",
-      "musical restarts",
-      "section-trigger mapping"
+      "active CANVAS video playback timing"
     ]
   },
   {
@@ -2284,14 +2239,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Video Timing",
     "title": "Trigger On",
     "componentType": "select",
-    "summary": "Chooses the musical event that restarts the active CANVAS video clip.",
+    "summary": "Chooses the primary event that restarts the active CANVAS video range.",
     "whatItDoes": [
-      "Available only for a saved video source.",
-      "Manual Only prevents automatic musical restarts."
+      "Supports manual-only, track-start, section, drop, and recurring bar triggers."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose a trigger when video playback should realign automatically with track structure.",
     "affects": [
-      "Trigger On selection in the active CANVAS video source"
+      "CANVAS video restart trigger"
     ],
     "defaultValue": "Manual Only",
     "tip": "Use Manual Only while testing clip ranges before enabling musical restarts.",
@@ -2312,12 +2266,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Clip Start Time value to the active CANVAS video source.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Clip Start Time value when video timing needs precise timing or quantity.",
     "affects": [
       "Clip Start Time value in the active CANVAS video source"
     ],
     "defaultValue": "0 seconds",
-    "recommendedRange": "0–21,600 seconds"
+    "range": "0–21,600 seconds"
   },
   {
     "id": "react.canvas.videoTiming.clipEndSeconds",
@@ -2332,12 +2286,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "A value of 0 means video end.",
       "The end must remain after the start for a useful range."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Clip End Time value when video timing needs precise timing or quantity.",
     "affects": [
       "Clip End Time value in the active CANVAS video source"
     ],
     "defaultValue": "0 seconds (video end)",
-    "recommendedRange": "0–21,600 seconds",
+    "range": "0–21,600 seconds",
     "tip": "Leave End at 0 when the clip should continue to the natural video end."
   },
   {
@@ -2353,7 +2307,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Uses Clip Start Time and Clip End Time.",
       "If end is 0, the range continues to video end."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Loop Clip Range on when video timing should include this behavior; leave it off otherwise.",
     "affects": [
       "Loop Clip Range state in the active CANVAS video source"
     ],
@@ -2372,7 +2326,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Loop Full Video participates in the active CANVAS video source.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Loop Full Video on when video timing should include this behavior; leave it off otherwise.",
     "affects": [
       "Loop Full Video state in the active CANVAS video source"
     ],
@@ -2391,7 +2345,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Restart on Drop participates in the active CANVAS video source.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Restart on Drop on when video timing should include this behavior; leave it off otherwise.",
     "affects": [
       "Restart on Drop state in the active CANVAS video source"
     ],
@@ -2410,7 +2364,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Restart on Section Change participates in the active CANVAS video source.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Restart on Section Change on when video timing should include this behavior; leave it off otherwise.",
     "affects": [
       "Restart on Section Change state in the active CANVAS video source"
     ],
@@ -2429,7 +2383,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Restart on Manual Preset Change participates in the active CANVAS video source.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Restart on Manual Preset Change on when video timing should include this behavior; leave it off otherwise.",
     "affects": [
       "Restart on Manual Preset Change state in the active CANVAS video source"
     ],
@@ -2443,17 +2397,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Video Timing",
     "title": "Section Trigger Mapping",
     "componentType": "group",
-    "summary": "Chooses which analyzed section categories are allowed to restart the active CANVAS video.",
+    "summary": "Chooses which supported track-section types may trigger CANVAS video playback.",
     "whatItDoes": [
-      "Maps analyzed section types to restart eligibility.",
-      "It does not edit the Track Map itself."
+      "Maps Intro, Build, Drop, Breakdown, and Outro to the section-change trigger path."
     ],
-    "whenToUse": "Use this section when configuring the active CANVAS video source.",
+    "whenToUse": "Enable only the section types where the video should restart or retrigger.",
     "affects": [
-      "clip range",
-      "looping",
-      "musical restarts",
-      "section-trigger mapping"
+      "CANVAS section-trigger eligibility"
     ],
     "doesNotAffect": [
       "Track Map section definitions"
@@ -2477,30 +2427,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses the active Intro option for the active CANVAS video source.",
       "The selected item becomes the current value for this context."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Intro when selecting the active item for video timing.",
     "affects": [
       "Intro selection in the active CANVAS video source"
     ],
     "defaultValue": "On"
-  },
-  {
-    "id": "react.canvas.videoTiming.sectionTriggerMapping.verse",
-    "priority": 1,
-    "view": "react",
-    "engine": "canvas",
-    "group": "Video Timing",
-    "title": "Verse",
-    "componentType": "selection",
-    "summary": "Represents the audit’s Verse section-trigger target.",
-    "whatItDoes": [
-      "The current CANVAS section-trigger mapping does not expose or normalize Verse.",
-      "This registry entry preserves audit coverage but does not correspond to a current selectable chip."
-    ],
-    "whenToUse": "Do not configure this separately; the current code has no Verse section-trigger category.",
-    "affects": [],
-    "tags": [
-      "auditMismatch"
-    ]
   },
   {
     "id": "react.canvas.videoTiming.sectionTriggerMapping.build",
@@ -2515,32 +2446,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses the active Build option for the active CANVAS video source.",
       "The selected item becomes the current value for this context."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Build when selecting the active item for video timing.",
     "affects": [
       "Build selection in the active CANVAS video source"
     ],
     "defaultValue": "On"
-  },
-  {
-    "id": "react.canvas.videoTiming.sectionTriggerMapping.preDrop",
-    "priority": 1,
-    "view": "react",
-    "engine": "canvas",
-    "group": "Video Timing",
-    "title": "Pre-Drop",
-    "componentType": "selection",
-    "summary": "Represents pre-drop timing, which the current CANVAS implementation normalizes to Build.",
-    "whatItDoes": [
-      "Pre-drop analysis is normalized to the Build trigger category in current code.",
-      "This registry entry preserves the audit’s contextual target without implying a separate runtime control."
-    ],
-    "whenToUse": "Use the Build trigger category when pre-drop playback should restart the clip.",
-    "affects": [
-      "Build section-trigger mapping"
-    ],
-    "tags": [
-      "auditMismatch"
-    ]
   },
   {
     "id": "react.canvas.videoTiming.sectionTriggerMapping.drop",
@@ -2555,7 +2465,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses the active Drop option for the active CANVAS video source.",
       "The selected item becomes the current value for this context."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Drop when selecting the active item for video timing.",
     "affects": [
       "Drop selection in the active CANVAS video source"
     ],
@@ -2574,32 +2484,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses the active Breakdown option for the active CANVAS video source.",
       "The selected item becomes the current value for this context."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Breakdown when selecting the active item for video timing.",
     "affects": [
       "Breakdown selection in the active CANVAS video source"
     ],
     "defaultValue": "On"
-  },
-  {
-    "id": "react.canvas.videoTiming.sectionTriggerMapping.bridge",
-    "priority": 1,
-    "view": "react",
-    "engine": "canvas",
-    "group": "Video Timing",
-    "title": "Bridge",
-    "componentType": "selection",
-    "summary": "Represents bridge timing, which the current CANVAS implementation normalizes to Breakdown.",
-    "whatItDoes": [
-      "Bridge analysis is normalized to the Breakdown trigger category in current code.",
-      "This registry entry preserves the audit’s contextual target without implying a separate runtime control."
-    ],
-    "whenToUse": "Use the Breakdown trigger category when bridge playback should restart the clip.",
-    "affects": [
-      "Breakdown section-trigger mapping"
-    ],
-    "tags": [
-      "auditMismatch"
-    ]
   },
   {
     "id": "react.canvas.videoTiming.sectionTriggerMapping.outro",
@@ -2614,7 +2503,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses the active Outro option for the active CANVAS video source.",
       "The selected item becomes the current value for this context."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Outro when selecting the active item for video timing.",
     "affects": [
       "Outro selection in the active CANVAS video source"
     ],
@@ -2628,20 +2517,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Performance Orchestration",
     "title": "Performance Orchestration",
     "componentType": "group",
-    "summary": "Uses the Shared Performance Core to arrange a CANVAS media pool across musical sections.",
+    "summary": "Controls the authored CANVAS performance program that arranges media, roles, transitions, effects, motion, and cuts.",
     "whatItDoes": [
-      "Arranges media from the CANVAS performance pool.",
-      "Uses roles, composition templates, and section-aware density controls."
+      "Combines the selected Performance Show with high-level orchestration macros.",
+      "Uses the current media pool as source material."
     ],
-    "whenToUse": "Use this section when configuring the CANVAS performance program.",
+    "whenToUse": "Use it when CANVAS should arrange available media automatically around the track.",
     "affects": [
-      "media-pool arrangement",
-      "layer roles",
-      "composition",
-      "transitions",
-      "effects",
-      "motion",
-      "cuts"
+      "CANVAS authored performance runtime"
     ]
   },
   {
@@ -2652,16 +2535,19 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Performance Orchestration",
     "title": "Auto Performance",
     "componentType": "toggle",
-    "summary": "Enables Shared Performance Core arrangement for the CANVAS media pool.",
+    "summary": "Enables track-aware CANVAS orchestration for the selected performance program.",
     "whatItDoes": [
-      "Uses the Shared Performance Core and the selected media pool.",
-      "Manual playback and presets remain fallback behavior when disabled."
+      "Uses Shared Performance Core context and the current CANVAS media pool.",
+      "When off, manual playback and preset behavior remain available."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn it on for automatic, music-structured media arrangement after the media pool is prepared.",
     "affects": [
-      "Auto Performance state in the CANVAS performance program"
+      "CANVAS automatic orchestration"
     ],
-    "defaultValue": "Defined by saved orchestration state",
+    "doesNotAffect": [
+      "selected Performance Show",
+      "stored media"
+    ],
     "tip": "Build the media pool first; orchestration has nothing to arrange when the pool is empty.",
     "relatedHelpIds": [
       "react.canvas.performanceOrchestration.performanceShow",
@@ -2677,14 +2563,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Performance Orchestration",
     "title": "Performance Show",
     "componentType": "select",
-    "summary": "Selects the authored CANVAS performance program.",
+    "summary": "Selects the authored program used by CANVAS performance orchestration.",
     "whatItDoes": [
-      "Changes the program definition used by orchestration.",
-      "The program’s own description stays in its domain definition."
+      "Changes the active program definition without duplicating its domain-owned description."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose a program when CANVAS should use a different authored arrangement strategy.",
     "affects": [
-      "Performance Show selection in the CANVAS performance program"
+      "selected CANVAS Performance Show"
     ],
     "doesNotAffect": [
       "Performance Show descriptions"
@@ -2707,7 +2592,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Uses media type, alpha, duration, aspect, tags, and library organization.",
       "Explicit roles continue to take precedence."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Auto Role on when performance orchestration should include this behavior; leave it off otherwise.",
     "affects": [
       "Auto Role state in the CANVAS performance program"
     ],
@@ -2726,7 +2611,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Composition option in the CANVAS performance program.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Composition when performance orchestration needs a different active option.",
     "affects": [
       "Composition selection in the CANVAS performance program"
     ]
@@ -2744,11 +2629,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Layer Complexity value to the CANVAS performance program as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Layer Complexity while previewing performance orchestration so the result remains readable in motion.",
     "affects": [
       "Layer Complexity value in the CANVAS performance program"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.canvas.performanceOrchestration.transitionDensity",
@@ -2763,11 +2648,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Transition Density value to the CANVAS performance program as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Transition Density while previewing performance orchestration so the result remains readable in motion.",
     "affects": [
       "Transition Density value in the CANVAS performance program"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.canvas.performanceOrchestration.effectIntensity",
@@ -2782,11 +2667,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Effect Intensity value to the CANVAS performance program as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Effect Intensity while previewing performance orchestration so the result remains readable in motion.",
     "affects": [
       "Effect Intensity value in the CANVAS performance program"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.canvas.performanceOrchestration.motionIntensity",
@@ -2801,11 +2686,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Motion Intensity value to the CANVAS performance program as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Motion Intensity while previewing performance orchestration so the result remains readable in motion.",
     "affects": [
       "Motion Intensity value in the CANVAS performance program"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.canvas.performanceOrchestration.cutDensity",
@@ -2820,11 +2705,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Cut Density value to the CANVAS performance program as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Cut Density while previewing performance orchestration so the result remains readable in motion.",
     "affects": [
       "Cut Density value in the CANVAS performance program"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.canvas.reactControls.overview",
@@ -2855,17 +2740,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "CANVAS React Controls — Source + Reactivity",
     "title": "Source + Reactivity",
     "componentType": "group",
-    "summary": "Balances the untreated source against coordinated effect and audio-reactive behavior.",
+    "summary": "Balances the original CANVAS source against generated treatment and audio-driven response.",
     "whatItDoes": [
-      "Groups the controls that configure the selected CANVAS recipe.",
-      "Each child control remains independently documented and editable."
+      "Controls dry-source visibility, overall visual intensity, bass response, and beat pulses."
     ],
-    "whenToUse": "Use this section when configuring the selected CANVAS recipe.",
+    "whenToUse": "Use it to keep the source recognizable while adding the desired amount of reactive treatment.",
     "affects": [
-      "untreated source mix",
-      "coordinated effect strength",
-      "bass response",
-      "beat response"
+      "CANVAS source mix and audio reactivity"
     ]
   },
   {
@@ -2876,21 +2757,20 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "CANVAS React Controls — Source + Reactivity",
     "title": "Dry Source Mix",
     "componentType": "slider",
-    "summary": "Sets only the untreated source contribution in the selected CANVAS recipe.",
+    "summary": "Sets how much of the original CANVAS media remains visible in the reactive output.",
     "whatItDoes": [
-      "Controls the untreated pass only.",
-      "Processed layers and effects remain independent."
+      "Blends the dry source into the selected CANVAS recipe output."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Keep it high for recognizable media; lower it when generated treatment should dominate.",
     "affects": [
-      "Dry Source Mix value in the selected CANVAS recipe"
+      "CANVAS dry-source contribution"
     ],
     "doesNotAffect": [
       "processed effects",
       "CANVAS Output Opacity"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Lower Dry Source Mix to reveal processed layers without dimming the entire CANVAS engine."
   },
   {
@@ -2901,20 +2781,19 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "CANVAS React Controls — Source + Reactivity",
     "title": "Visual Intensity",
     "componentType": "slider",
-    "summary": "Scales coordinated recipe effects without replacing their individual settings.",
+    "summary": "Sets the overall strength of the selected CANVAS reactive recipe.",
     "whatItDoes": [
-      "Scales a coordinated recipe macro.",
-      "Individual Glow, Trail, Glitch, Particle Density, Motion, Dry Source Mix, and Output Opacity values are not replaced."
+      "Scales the recipe’s visual treatment before the individual bass and beat controls are applied."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Raise it when the treatment is too subtle or lower it when the source loses clarity.",
     "affects": [
-      "Visual Intensity value in the selected CANVAS recipe"
+      "CANVAS reactive treatment intensity"
     ],
     "doesNotAffect": [
       "individual recipe parameter values"
     ],
     "defaultValue": "8%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.canvas.reactControls.sourceAndReactivity.bassReactivity",
@@ -2924,17 +2803,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "CANVAS React Controls — Source + Reactivity",
     "title": "Bass Reactivity",
     "componentType": "slider",
-    "summary": "Scales how bass pushes CANVAS scale, glow, and particle spread.",
+    "summary": "Sets how strongly bass energy expands and brightens the CANVAS treatment.",
     "whatItDoes": [
-      "Writes the Bass Reactivity value to the selected CANVAS recipe as the control moves.",
-      "The implemented minimum, maximum, and step constrain the value."
+      "Scales bass-driven size, glow, and particle response in the selected recipe."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Raise it for stronger low-end movement; reduce it when sustained bass makes the image pulse constantly.",
     "affects": [
-      "Bass Reactivity value in the selected CANVAS recipe"
+      "CANVAS bass-driven response"
     ],
     "defaultValue": "0%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Balance Bass Reactivity against Beat Pulse so both low-end movement and discrete hits remain readable."
   },
   {
@@ -2945,17 +2823,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "CANVAS React Controls — Source + Reactivity",
     "title": "Beat Pulse",
     "componentType": "slider",
-    "summary": "Scales beat-driven pulse, scale, and frame energy.",
+    "summary": "Sets the strength of discrete beat-driven pulses in the CANVAS treatment.",
     "whatItDoes": [
-      "Writes the Beat Pulse value to the selected CANVAS recipe as the control moves.",
-      "The implemented minimum, maximum, and step constrain the value."
+      "Scales beat-triggered bursts separately from continuous bass response."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Use it to emphasize individual hits without increasing all low-frequency movement.",
     "affects": [
-      "Beat Pulse value in the selected CANVAS recipe"
+      "CANVAS beat-driven response"
     ],
     "defaultValue": "0%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.laserDmx.workspace.overview",
@@ -2993,7 +2870,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets LaserDMX authoring mode to manual.",
       "Show Director content remains available when switching back."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Matrix when selecting the active item for workspace mode.",
     "affects": [
       "Matrix selection in the LaserDMX authoring surface"
     ]
@@ -3011,7 +2888,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets LaserDMX authoring mode to Show Director.",
       "Beam Matrix content is not deleted."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Show Director when selecting the active item for workspace mode.",
     "affects": [
       "Show Director selection in the LaserDMX authoring surface"
     ]
@@ -3029,7 +2906,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Bass React value to the LaserDMX preview output as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Bass React while previewing fx and fog so the result remains readable in motion.",
     "affects": [
       "Bass React value in the LaserDMX preview output"
     ]
@@ -3110,14 +2987,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Controls editor visibility only.",
       "Live laser output is not changed."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Show Beam Editor on when program and canvas should include this behavior; leave it off otherwise.",
     "affects": [
       "Show Beam Editor state in the LaserDMX Beam Matrix workspace"
     ],
     "doesNotAffect": [
       "live laser output"
-    ],
-    "defaultValue": "Defined by workspace state"
+    ]
   },
   {
     "id": "react.laserDmx.beamMatrix.programAndCanvas.canvas.snapToGrid",
@@ -3132,11 +3008,10 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Snap to Grid participates in the LaserDMX Beam Matrix workspace.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Snap to Grid on when program and canvas should include this behavior; leave it off otherwise.",
     "affects": [
       "Snap to Grid state in the LaserDMX Beam Matrix workspace"
-    ],
-    "defaultValue": "Defined by workspace state"
+    ]
   },
   {
     "id": "react.laserDmx.beamMatrix.programAndCanvas.canvas.showGrid",
@@ -3151,14 +3026,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Controls an editor guide only.",
       "Beam geometry and output are unchanged."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Show Grid on when program and canvas should include this behavior; leave it off otherwise.",
     "affects": [
       "Show Grid state in the LaserDMX Beam Matrix workspace"
     ],
     "doesNotAffect": [
       "beam output"
-    ],
-    "defaultValue": "Defined by workspace state"
+    ]
   },
   {
     "id": "react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamPaths",
@@ -3173,14 +3047,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Controls editor path guides only.",
       "Beam execution is unchanged."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Show Beam Paths on when program and canvas should include this behavior; leave it off otherwise.",
     "affects": [
       "Show Beam Paths state in the LaserDMX Beam Matrix workspace"
     ],
     "doesNotAffect": [
       "beam output"
-    ],
-    "defaultValue": "Defined by workspace state"
+    ]
   },
   {
     "id": "react.laserDmx.beamMatrix.programAndCanvas.canvas.overscan",
@@ -3195,12 +3068,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Overscan value to the LaserDMX Beam Matrix workspace as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Overscan while previewing program and canvas so the result remains readable in motion.",
     "affects": [
       "Overscan value in the LaserDMX Beam Matrix workspace"
     ],
     "defaultValue": "0",
-    "recommendedRange": "0–0.50",
+    "range": "0–0.50",
     "tip": "Use the smallest overscan that accommodates the intended off-stage beam origins."
   },
   {
@@ -3279,7 +3152,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "When disabled, the immutable authored rig remains visible.",
       "The program definition is not deleted."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Performance Program on when performance program should include this behavior; leave it off otherwise.",
     "affects": [
       "Performance Program state in the active authored performance program"
     ],
@@ -3302,12 +3175,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Program Intensity value to the active authored performance program as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Program Intensity while previewing performance program so the result remains readable in motion.",
     "affects": [
       "Program Intensity value in the active authored performance program"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "0–2.00×",
+    "range": "0–2.00×",
     "tip": "Values above 1 amplify the authored program; verify output safety and readability."
   },
   {
@@ -3323,12 +3196,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Variation Amount value to the active authored performance program as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Variation Amount while previewing performance program so the result remains readable in motion.",
     "affects": [
       "Variation Amount value in the active authored performance program"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "0–2.00×",
+    "range": "0–2.00×",
     "tip": "Set Variation Amount to 0 when deterministic repeatability is more important than authored alternates."
   },
   {
@@ -3344,7 +3217,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "When off, program execution uses non-Audio-Intelligence fallback behavior.",
       "The performance program can remain enabled."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Audio Intelligence Response on when performance program should include this behavior; leave it off otherwise.",
     "affects": [
       "Audio Intelligence Response state in the active authored performance program"
     ]
@@ -3383,7 +3256,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Auto Performance participates in the PixGrid live performance and LED presentation.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Auto Performance on when performance and led matrix should include this behavior; leave it off otherwise.",
     "affects": [
       "Auto Performance state in the PixGrid live performance and LED presentation"
     ],
@@ -3406,12 +3279,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Performance Intensity value to the PixGrid live performance and LED presentation as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Performance Intensity while previewing performance and led matrix so the result remains readable in motion.",
     "affects": [
       "Performance Intensity value in the PixGrid live performance and LED presentation"
     ],
     "defaultValue": "85%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Use Performance Intensity as a final program trim after routes and section plans are correct."
   },
   {
@@ -3427,7 +3300,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Applies the preset’s artwork, presentation, and performance configuration together.",
       "Use Change Performance Program Only when those other settings must stay unchanged."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Load Program Preset when performance and led matrix needs a different active option.",
     "affects": [
       "Load Program Preset selection in the PixGrid live performance and LED presentation"
     ],
@@ -3458,8 +3331,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "LED glow",
       "diffusion",
       "subpixel preview"
-    ],
-    "defaultValue": ""
+    ]
   },
   {
     "id": "react.pixGrid.performanceAndMatrix.ledMatrix.glow",
@@ -3474,7 +3346,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Changes halo strength around emitters.",
       "It does not soften the emitter core."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Glow while previewing performance and led matrix so the result remains readable in motion.",
     "affects": [
       "Glow value in the PixGrid live performance and LED presentation"
     ],
@@ -3482,7 +3354,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "diffusion"
     ],
     "defaultValue": "34%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Pair Glow with lower Diffusion for a defined emitter core."
   },
   {
@@ -3498,7 +3370,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Softens emitter edges.",
       "It does not change Glow’s halo radius."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Diffusion while previewing performance and led matrix so the result remains readable in motion.",
     "affects": [
       "Diffusion value in the PixGrid live performance and LED presentation"
     ],
@@ -3506,7 +3378,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "glow radius"
     ],
     "defaultValue": "12%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Increase Diffusion when cells look too hard-edged, not when the halo is too weak."
   },
   {
@@ -3522,7 +3394,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Changes LED preview presentation.",
       "Logical artwork pixels and matrix resolution are unchanged."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn RGB Subpixel Mode on when performance and led matrix should include this behavior; leave it off otherwise.",
     "affects": [
       "RGB Subpixel Mode state in the PixGrid live performance and LED presentation"
     ],
@@ -3565,7 +3437,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Fit is applied before position and scale.",
       "The selected source file is unchanged."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Fit when user artwork needs a different active option.",
     "affects": [
       "Fit selection in the selected PixGrid artwork conversion"
     ],
@@ -3587,12 +3459,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Position X value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Position X while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Position X value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "50%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Center the source before judging Scale."
   },
   {
@@ -3608,12 +3480,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Position Y value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Position Y while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Position Y value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "50%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Center the source before judging Scale."
   },
   {
@@ -3629,12 +3501,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Scale value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Scale while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Scale value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "1",
-    "recommendedRange": "0.10–4.00×",
+    "range": "0.10–4.00×",
     "tip": "Use Fit first, then refine Scale and position."
   },
   {
@@ -3650,7 +3522,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Pixel Preparation option in the selected PixGrid artwork conversion.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Pixel Preparation when user artwork needs a different active option.",
     "affects": [
       "Pixel Preparation selection in the selected PixGrid artwork conversion"
     ],
@@ -3668,7 +3540,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Original preserves source colors; other modes may quantize or apply the brand palette."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Color Mode when user artwork needs a different active option.",
     "affects": [
       "Color Mode selection in the selected PixGrid artwork conversion"
     ],
@@ -3690,12 +3562,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Alpha Threshold value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Alpha Threshold while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Alpha Threshold value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "4%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Raise the threshold to remove faint background pixels; lower it to preserve soft edges."
   },
   {
@@ -3711,7 +3583,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Retains source transparency during conversion.",
       "Artwork Background can still determine how remaining empty areas are prepared."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Preserve Alpha on when user artwork should include this behavior; leave it off otherwise.",
     "affects": [
       "Preserve Alpha state in the selected PixGrid artwork conversion"
     ],
@@ -3730,12 +3602,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Contrast value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Contrast while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Contrast value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "1",
-    "recommendedRange": "0.25–2.00×",
+    "range": "0.25–2.00×",
     "tip": "Use moderate contrast before Edge Enhancement to avoid brittle silhouettes."
   },
   {
@@ -3751,12 +3623,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Brightness value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Brightness while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Brightness value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "1",
-    "recommendedRange": "0.25–2.00×"
+    "range": "0.25–2.00×"
   },
   {
     "id": "react.pixGrid.userArtwork.saturation",
@@ -3771,12 +3643,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Saturation value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Saturation while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Saturation value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "1",
-    "recommendedRange": "0–2.00×"
+    "range": "0–2.00×"
   },
   {
     "id": "react.pixGrid.userArtwork.edgeEnhancement",
@@ -3791,12 +3663,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Edge Enhancement value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Edge Enhancement while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Edge Enhancement value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "0%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Check thin details at the actual matrix resolution before increasing further."
   },
   {
@@ -3812,7 +3684,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Controls conversion-time background handling.",
       "The PixGrid output background is a separate setting."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Artwork Background when user artwork needs a different active option.",
     "affects": [
       "Artwork Background selection in the selected PixGrid artwork conversion"
     ],
@@ -3834,7 +3706,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Artwork Background Color data to the selected PixGrid artwork conversion.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Artwork Background Color when the user artwork item needs different text or metadata.",
     "affects": [
       "Artwork Background Color data in the selected PixGrid artwork conversion"
     ],
@@ -3853,12 +3725,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Brand Strength value to the selected PixGrid artwork conversion as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Brand Strength while previewing user artwork so the result remains readable in motion.",
     "affects": [
       "Brand Strength value in the selected PixGrid artwork conversion"
     ],
     "defaultValue": "80%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Preserve Black and Preserve White can protect neutral areas while Brand Strength recolors the rest."
   },
   {
@@ -3874,7 +3746,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Preserve Black participates in the selected PixGrid artwork conversion.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Preserve Black on when user artwork should include this behavior; leave it off otherwise.",
     "affects": [
       "Preserve Black state in the selected PixGrid artwork conversion"
     ],
@@ -3893,7 +3765,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Preserve White participates in the selected PixGrid artwork conversion.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Preserve White on when user artwork should include this behavior; leave it off otherwise.",
     "affects": [
       "Preserve White state in the selected PixGrid artwork conversion"
     ],
@@ -3912,7 +3784,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Active Scene option in the PixGrid authoring scene context.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Active Scene when design editing context and grid presentation needs a different active option.",
     "affects": [
       "Active Scene selection in the PixGrid authoring scene context"
     ]
@@ -3969,7 +3841,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Preserves artwork and presentation settings.",
       "Only the performance program and its overrides change."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Change Performance Program Only when performance program and banks needs a different active option.",
     "affects": [
       "Change Performance Program Only selection in the PixGrid authored performance program"
     ],
@@ -3992,7 +3864,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Auto Performance participates in the PixGrid authored performance program.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Auto Performance on when performance program and banks should include this behavior; leave it off otherwise.",
     "affects": [
       "Auto Performance state in the PixGrid authored performance program"
     ],
@@ -4011,12 +3883,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Performance Intensity value to the PixGrid authored performance program as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Performance Intensity while previewing performance program and banks so the result remains readable in motion.",
     "affects": [
       "Performance Intensity value in the PixGrid authored performance program"
     ],
     "defaultValue": "85%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "react.pixGrid.performanceProgram.sectionPlan",
@@ -4031,7 +3903,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses one plan from the active program.",
       "It does not change the Track Map sections."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Section Plan when performance program and banks needs a different active option.",
     "affects": [
       "Section Plan selection in the PixGrid authored performance program"
     ],
@@ -4069,11 +3941,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Master Intensity value to the Visualizer global effect layer as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Master Intensity while previewing effect controls global so the result remains readable in motion.",
     "affects": [
       "Master Intensity value in the Visualizer global effect layer"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.effects.global.bassReactivity",
@@ -4082,16 +3954,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Effect Controls — Global",
     "title": "Bass Reactivity",
     "componentType": "slider",
-    "summary": "Scales global bass-driven effect response.",
+    "summary": "Sets how strongly the Visualizer’s global effects respond to bass energy.",
     "whatItDoes": [
-      "Writes the Bass Reactivity value to the Visualizer global effect layer as the control moves.",
-      "The implemented minimum, maximum, and step constrain the value."
+      "Scales bass-driven modulation applied through the global effect controls."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Raise it when bass should drive the effect stack more visibly; lower it when global motion becomes unstable.",
     "affects": [
-      "Bass Reactivity value in the Visualizer global effect layer"
+      "global effect bass response"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.effects.global.reactiveScale",
@@ -4105,15 +3976,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Works only for media with Audio Reactivity enabled.",
       "The control is dimmed when global Audio Reactivity is off."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Reactive Scale while previewing effect controls global so the result remains readable in motion.",
     "affects": [
       "Reactive Scale value in the Visualizer global effect layer"
     ],
     "doesNotAffect": [
       "clip timing"
     ],
-    "defaultValue": "Defined by Visualizer state",
-    "recommendedRange": "0–2.00×",
+    "range": "0–2.00×",
     "tip": "Enable Audio Reactivity on the target media or layer item before troubleshooting Reactive Scale."
   },
   {
@@ -4128,11 +3998,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Color Shift value to the Visualizer global effect layer as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Color Shift while previewing effect controls global so the result remains readable in motion.",
     "affects": [
       "Color Shift value in the Visualizer global effect layer"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.effects.audioReactive.overview",
@@ -4163,11 +4033,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Spectrum Bars value to the Visualizer audio-reactive effect group as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Spectrum Bars while previewing effect controls audio reactive so the result remains readable in motion.",
     "affects": [
       "Spectrum Bars value in the Visualizer audio-reactive effect group"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.effects.audioReactive.barCount",
@@ -4181,12 +4051,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Bar Count value to the Visualizer audio-reactive effect group.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Bar Count value when effect controls audio reactive needs precise timing or quantity.",
     "affects": [
       "Bar Count value in the Visualizer audio-reactive effect group"
     ],
-    "defaultValue": "Defined by effect parameters",
-    "recommendedRange": "8–120 bars"
+    "range": "8–120 bars"
   },
   {
     "id": "visualizer.effects.audioReactive.smoothing",
@@ -4200,12 +4069,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Smoothing value to the Visualizer audio-reactive effect group.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Smoothing value when effect controls audio reactive needs precise timing or quantity.",
     "affects": [
       "Smoothing value in the Visualizer audio-reactive effect group"
     ],
-    "defaultValue": "Defined by effect parameters",
-    "recommendedRange": "0–0.95",
+    "range": "0–0.95",
     "tip": "Higher smoothing is steadier; lower smoothing follows transients more closely."
   },
   {
@@ -4220,14 +4088,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Applies to Spectrum Bars only.",
       "It does not mirror other audio-reactive effects."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Mirror on when effect controls audio reactive should include this behavior; leave it off otherwise.",
     "affects": [
       "Mirror state in the Visualizer audio-reactive effect group"
     ],
     "doesNotAffect": [
       "other audio-reactive effects"
-    ],
-    "defaultValue": "Defined by effect parameters"
+    ]
   },
   {
     "id": "visualizer.effects.audioReactive.circularSpectrum",
@@ -4241,11 +4108,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Circular Spectrum value to the Visualizer audio-reactive effect group as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Circular Spectrum while previewing effect controls audio reactive so the result remains readable in motion.",
     "affects": [
       "Circular Spectrum value in the Visualizer audio-reactive effect group"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.effects.audioReactive.oscilloscope",
@@ -4259,11 +4126,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Oscilloscope value to the Visualizer audio-reactive effect group as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Oscilloscope while previewing effect controls audio reactive so the result remains readable in motion.",
     "affects": [
       "Oscilloscope value in the Visualizer audio-reactive effect group"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.effects.audioReactive.beatRing",
@@ -4277,11 +4144,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Beat Ring value to the Visualizer audio-reactive effect group as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Beat Ring while previewing effect controls audio reactive so the result remains readable in motion.",
     "affects": [
       "Beat Ring value in the Visualizer audio-reactive effect group"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.effects.audioReactive.particleBurst",
@@ -4295,11 +4162,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Particle Burst value to the Visualizer audio-reactive effect group as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Particle Burst while previewing effect controls audio reactive so the result remains readable in motion.",
     "affects": [
       "Particle Burst value in the Visualizer audio-reactive effect group"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.effects.audioReactive.maxParticles",
@@ -4313,12 +4180,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Max Particles value to the Visualizer audio-reactive effect group.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Max Particles value when effect controls audio reactive needs precise timing or quantity.",
     "affects": [
       "Max Particles value in the Visualizer audio-reactive effect group"
     ],
-    "defaultValue": "Defined by effect parameters",
-    "recommendedRange": "10–200 particles",
+    "range": "10–200 particles",
     "tip": "Lower Max Particles before reducing effect strength when performance drops."
   },
   {
@@ -4333,11 +4199,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Reactive Grid value to the Visualizer audio-reactive effect group as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Reactive Grid while previewing effect controls audio reactive so the result remains readable in motion.",
     "affects": [
       "Reactive Grid value in the Visualizer audio-reactive effect group"
     ],
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.layers.rendering.overview",
@@ -4431,7 +4297,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Layer Visibility participates in the Visualizer rendering stack.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Layer Visibility on when layers rendering stack should include this behavior; leave it off otherwise.",
     "affects": [
       "Layer Visibility state in the Visualizer rendering stack"
     ],
@@ -4451,7 +4317,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Layer Blend Mode option in the Visualizer rendering stack.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Layer Blend Mode when layers rendering stack needs a different active option.",
     "affects": [
       "Layer Blend Mode selection in the Visualizer rendering stack"
     ],
@@ -4472,12 +4338,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Layer Opacity value to the Visualizer rendering stack as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Layer Opacity while previewing layers rendering stack so the result remains readable in motion.",
     "affects": [
       "Layer Opacity value in the Visualizer rendering stack"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Set blend mode before fine-tuning opacity."
   },
   {
@@ -4492,7 +4358,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the item’s global-FX/audio-reactive participation state.",
       "The global Audio Reactivity master can still disable the response."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Global FX / Audio Reactivity on when layers layer item should include this behavior; leave it off otherwise.",
     "affects": [
       "Global FX / Audio Reactivity state in the selected Visualizer layer item"
     ],
@@ -4512,7 +4378,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "When off, beat-driven movement and modulation are bypassed globally.",
       "Per-item enable flags are retained."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Audio Reactivity on when modulation should include this behavior; leave it off otherwise.",
     "affects": [
       "Audio Reactivity state in the Visualizer modulation system"
     ],
@@ -4551,7 +4417,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Bypasses or applies the complete source grade.",
       "The grade values remain stored while bypassed."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Enable on when timeline color grade should include this behavior; leave it off otherwise.",
     "affects": [
       "Enable state in the selected timeline source color grade"
     ],
@@ -4578,27 +4444,6 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "look preset",
       "basic color and tone"
     ]
-  },
-  {
-    "id": "visualizer.timeline.colorGrade.looks.lookPreset",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Color Grade",
-    "title": "Look Preset",
-    "componentType": "select",
-    "summary": "Applies a predefined look to the selected source’s color-grade values.",
-    "whatItDoes": [
-      "Stores the selected Look Preset option in the selected timeline source color grade.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
-    ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
-    "affects": [
-      "Look Preset selection in the selected timeline source color grade"
-    ],
-    "doesNotAffect": [
-      "source media"
-    ],
-    "tip": "Apply a look first, then make small Basic and Tone adjustments."
   },
   {
     "id": "visualizer.timeline.colorGrade.basic.overview",
@@ -4631,12 +4476,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Brightness value to the selected timeline source color grade as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Brightness while previewing timeline color grade so the result remains readable in motion.",
     "affects": [
       "Brightness value in the selected timeline source color grade"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−100 to 100"
+    "range": "−100 to 100"
   },
   {
     "id": "visualizer.timeline.colorGrade.basic.contrast",
@@ -4650,12 +4495,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Contrast value to the selected timeline source color grade as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Contrast while previewing timeline color grade so the result remains readable in motion.",
     "affects": [
       "Contrast value in the selected timeline source color grade"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−100 to 100"
+    "range": "−100 to 100"
   },
   {
     "id": "visualizer.timeline.colorGrade.basic.saturation",
@@ -4669,12 +4514,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Saturation value to the selected timeline source color grade as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Saturation while previewing timeline color grade so the result remains readable in motion.",
     "affects": [
       "Saturation value in the selected timeline source color grade"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−100 to 100"
+    "range": "−100 to 100"
   },
   {
     "id": "visualizer.timeline.colorGrade.basic.hue",
@@ -4688,12 +4533,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Hue value to the selected timeline source color grade as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Hue while previewing timeline color grade so the result remains readable in motion.",
     "affects": [
       "Hue value in the selected timeline source color grade"
     ],
     "defaultValue": "0°",
-    "recommendedRange": "−180° to 180°"
+    "range": "−180° to 180°"
   },
   {
     "id": "visualizer.timeline.colorGrade.tone.overview",
@@ -4726,12 +4571,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Requires WebGL2 for rendered output.",
       "Canvas 2D does not apply temperature."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Temperature while previewing timeline color grade so the result remains readable in motion.",
     "affects": [
       "Temperature value in the selected timeline source color grade"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−100 to 100",
+    "range": "−100 to 100",
     "tip": "Confirm the GPU renderer is active before judging Temperature."
   },
   {
@@ -4746,12 +4591,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Requires WebGL2 for rendered output.",
       "Canvas 2D does not apply tint."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Tint while previewing timeline color grade so the result remains readable in motion.",
     "affects": [
       "Tint value in the selected timeline source color grade"
     ],
     "defaultValue": "0",
-    "recommendedRange": "−100 to 100",
+    "range": "−100 to 100",
     "tip": "Confirm the GPU renderer is active before judging Tint."
   },
   {
@@ -4788,7 +4633,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Role option in the selected background timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Role when timeline background clip inspector needs a different active option.",
     "affects": [
       "Role selection in the selected background timeline clip"
     ]
@@ -4805,12 +4650,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Start (s) value to the selected background timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Start (s) value when timeline background clip inspector needs precise timing or quantity.",
     "affects": [
       "Start (s) value in the selected background timeline clip"
     ],
     "defaultValue": "0 seconds",
-    "recommendedRange": "0 seconds or later"
+    "range": "0 seconds or later"
   },
   {
     "id": "visualizer.timeline.backgroundClip.info.durationSeconds",
@@ -4824,12 +4669,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Dur (s) value to the selected background timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Dur (s) value when timeline background clip inspector needs precise timing or quantity.",
     "affects": [
       "Dur (s) value in the selected background timeline clip"
     ],
-    "defaultValue": "At least the minimum clip duration",
-    "recommendedRange": "Minimum clip duration to 3600 seconds"
+    "range": "Minimum clip duration to 3600 seconds"
   },
   {
     "id": "visualizer.timeline.backgroundClip.info.mediaInSeconds",
@@ -4843,12 +4687,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise In value to the selected background timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact In value when timeline background clip inspector needs precise timing or quantity.",
     "affects": [
       "In value in the selected background timeline clip"
     ],
     "defaultValue": "0 seconds",
-    "recommendedRange": "0 seconds or later"
+    "range": "0 seconds or later"
   },
   {
     "id": "visualizer.timeline.backgroundClip.info.mediaOutSeconds",
@@ -4862,12 +4706,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Out value to the selected background timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Out value when timeline background clip inspector needs precise timing or quantity.",
     "affects": [
       "Out value in the selected background timeline clip"
     ],
     "defaultValue": "Media end",
-    "recommendedRange": "0 seconds or later"
+    "range": "0 seconds or later"
   },
   {
     "id": "visualizer.timeline.backgroundClip.info.mode",
@@ -4881,7 +4725,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Mode option in the selected background timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Mode when timeline background clip inspector needs a different active option.",
     "affects": [
       "Mode selection in the selected background timeline clip"
     ],
@@ -4899,7 +4743,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Fit option in the selected background timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Fit when timeline background clip inspector needs a different active option.",
     "affects": [
       "Fit selection in the selected background timeline clip"
     ],
@@ -4917,12 +4761,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Size value to the selected background timeline clip as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Size while previewing timeline background clip inspector so the result remains readable in motion.",
     "affects": [
       "Size value in the selected background timeline clip"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "10–300%"
+    "range": "10–300%"
   },
   {
     "id": "visualizer.timeline.backgroundClip.info.snapToBpm",
@@ -4936,7 +4780,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Changes video playback timing relative to BPM.",
       "It does not move the clip’s timeline start."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Snap to BPM on when timeline background clip inspector should include this behavior; leave it off otherwise.",
     "affects": [
       "Snap to BPM state in the selected background timeline clip"
     ],
@@ -4958,7 +4802,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Controls global effects and audio modulation participation.",
       "The clip still renders when this is off."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Enable Global FX on when timeline background clip inspector should include this behavior; leave it off otherwise.",
     "affects": [
       "Enable Global FX state in the selected background timeline clip"
     ],
@@ -4973,51 +4817,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "visualizer",
     "group": "Timeline — Background Clip Inspector",
-    "title": "Transition In",
+    "title": "Tx In",
     "componentType": "select",
     "summary": "Chooses the transition used when the background clip begins.",
     "whatItDoes": [
       "Stores the selected Transition In option in the selected background timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Tx In when timeline background clip inspector needs a different active option.",
     "affects": [
       "Transition In selection in the selected background timeline clip"
-    ]
-  },
-  {
-    "id": "visualizer.timeline.backgroundClip.info.transitionInDuration",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Background Clip Inspector",
-    "title": "Transition In Duration",
-    "componentType": "numeric",
-    "summary": "Sets the duration of the background clip’s entrance transition.",
-    "whatItDoes": [
-      "Writes a precise Transition In Duration value to the selected background timeline clip.",
-      "The field’s implemented bounds and step constrain accepted values when defined."
-    ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
-    "affects": [
-      "Transition In Duration value in the selected background timeline clip"
-    ],
-    "recommendedRange": "0 seconds or later"
-  },
-  {
-    "id": "visualizer.timeline.backgroundClip.info.transitionInEasing",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Background Clip Inspector",
-    "title": "Transition In Easing",
-    "componentType": "select",
-    "summary": "Chooses the timing curve of the entrance transition.",
-    "whatItDoes": [
-      "Stores the selected Transition In Easing option in the selected background timeline clip.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
-    ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
-    "affects": [
-      "Transition In Easing selection in the selected background timeline clip"
     ]
   },
   {
@@ -5025,51 +4834,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "visualizer",
     "group": "Timeline — Background Clip Inspector",
-    "title": "Transition Out",
+    "title": "Tx Out",
     "componentType": "select",
     "summary": "Chooses the transition used when the background clip ends.",
     "whatItDoes": [
       "Stores the selected Transition Out option in the selected background timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Tx Out when timeline background clip inspector needs a different active option.",
     "affects": [
       "Transition Out selection in the selected background timeline clip"
-    ]
-  },
-  {
-    "id": "visualizer.timeline.backgroundClip.info.transitionOutDuration",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Background Clip Inspector",
-    "title": "Transition Out Duration",
-    "componentType": "numeric",
-    "summary": "Sets the duration of the background clip’s exit transition.",
-    "whatItDoes": [
-      "Writes a precise Transition Out Duration value to the selected background timeline clip.",
-      "The field’s implemented bounds and step constrain accepted values when defined."
-    ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
-    "affects": [
-      "Transition Out Duration value in the selected background timeline clip"
-    ],
-    "recommendedRange": "0 seconds or later"
-  },
-  {
-    "id": "visualizer.timeline.backgroundClip.info.transitionOutEasing",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Background Clip Inspector",
-    "title": "Transition Out Easing",
-    "componentType": "select",
-    "summary": "Chooses the timing curve of the exit transition.",
-    "whatItDoes": [
-      "Stores the selected Transition Out Easing option in the selected background timeline clip.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
-    ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
-    "affects": [
-      "Transition Out Easing selection in the selected background timeline clip"
     ]
   },
   {
@@ -5128,7 +4902,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Role option in the selected overlay timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Role when timeline overlay clip inspector needs a different active option.",
     "affects": [
       "Role selection in the selected overlay timeline clip"
     ]
@@ -5145,12 +4919,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Start (s) value to the selected overlay timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Start (s) value when timeline overlay clip inspector needs precise timing or quantity.",
     "affects": [
       "Start (s) value in the selected overlay timeline clip"
     ],
     "defaultValue": "0 seconds",
-    "recommendedRange": "0 seconds or later"
+    "range": "0 seconds or later"
   },
   {
     "id": "visualizer.timeline.overlayClip.info.durationSeconds",
@@ -5164,12 +4938,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Dur (s) value to the selected overlay timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Dur (s) value when timeline overlay clip inspector needs precise timing or quantity.",
     "affects": [
       "Dur (s) value in the selected overlay timeline clip"
     ],
-    "defaultValue": "At least the minimum clip duration",
-    "recommendedRange": "Minimum clip duration to 3600 seconds"
+    "range": "Minimum clip duration to 3600 seconds"
   },
   {
     "id": "visualizer.timeline.overlayClip.info.mode",
@@ -5183,7 +4956,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Mode option in the selected overlay timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Mode when timeline overlay clip inspector needs a different active option.",
     "affects": [
       "Mode selection in the selected overlay timeline clip"
     ],
@@ -5201,7 +4974,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Fit option in the selected overlay timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Fit when timeline overlay clip inspector needs a different active option.",
     "affects": [
       "Fit selection in the selected overlay timeline clip"
     ],
@@ -5219,7 +4992,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Snap to BPM participates in the selected overlay timeline clip.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Snap to BPM on when timeline overlay clip inspector should include this behavior; leave it off otherwise.",
     "affects": [
       "Snap to BPM state in the selected overlay timeline clip"
     ],
@@ -5237,7 +5010,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Controls global effects and audio modulation participation.",
       "The overlay still renders when this is off."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Enable Global FX on when timeline overlay clip inspector should include this behavior; leave it off otherwise.",
     "affects": [
       "Enable Global FX state in the selected overlay timeline clip"
     ],
@@ -5281,12 +5054,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise X value to the selected overlay timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact X value when timeline overlay clip inspector needs precise timing or quantity.",
     "affects": [
       "X value in the selected overlay timeline clip"
     ],
     "defaultValue": "0.5",
-    "recommendedRange": "Normalized canvas position"
+    "range": "0–1"
   },
   {
     "id": "visualizer.timeline.overlayClip.compositing.y",
@@ -5300,12 +5073,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Y value to the selected overlay timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Y value when timeline overlay clip inspector needs precise timing or quantity.",
     "affects": [
       "Y value in the selected overlay timeline clip"
     ],
     "defaultValue": "0.5",
-    "recommendedRange": "Normalized canvas position"
+    "range": "0–1"
   },
   {
     "id": "visualizer.timeline.overlayClip.compositing.scale",
@@ -5319,12 +5092,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Scale value to the selected overlay timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Scale value when timeline overlay clip inspector needs precise timing or quantity.",
     "affects": [
       "Scale value in the selected overlay timeline clip"
     ],
     "defaultValue": "1",
-    "recommendedRange": "Positive scale"
+    "range": "0.01–8×"
   },
   {
     "id": "visualizer.timeline.overlayClip.compositing.rotation",
@@ -5338,12 +5111,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Rotation value to the selected overlay timeline clip.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Rotation value when timeline overlay clip inspector needs precise timing or quantity.",
     "affects": [
       "Rotation value in the selected overlay timeline clip"
     ],
     "defaultValue": "0°",
-    "recommendedRange": "Degrees"
+    "range": "−360° to 360°"
   },
   {
     "id": "visualizer.timeline.overlayClip.compositing.opacity",
@@ -5357,12 +5130,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Opacity value to the selected overlay timeline clip as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Opacity while previewing timeline overlay clip inspector so the result remains readable in motion.",
     "affects": [
       "Opacity value in the selected overlay timeline clip"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Set Blend Mode before finalizing opacity."
   },
   {
@@ -5377,7 +5150,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Blend Mode option in the selected overlay timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Blend Mode when timeline overlay clip inspector needs a different active option.",
     "affects": [
       "Blend Mode selection in the selected overlay timeline clip"
     ]
@@ -5387,51 +5160,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "visualizer",
     "group": "Timeline — Overlay Clip Inspector",
-    "title": "Transition In",
+    "title": "Tx In",
     "componentType": "select",
     "summary": "Chooses the transition used when the overlay begins.",
     "whatItDoes": [
       "Stores the selected Transition In option in the selected overlay timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Tx In when timeline overlay clip inspector needs a different active option.",
     "affects": [
       "Transition In selection in the selected overlay timeline clip"
-    ]
-  },
-  {
-    "id": "visualizer.timeline.overlayClip.compositing.transitionInDuration",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Overlay Clip Inspector",
-    "title": "Transition In Duration",
-    "componentType": "numeric",
-    "summary": "Sets the duration of the overlay’s entrance transition.",
-    "whatItDoes": [
-      "Writes a precise Transition In Duration value to the selected overlay timeline clip.",
-      "The field’s implemented bounds and step constrain accepted values when defined."
-    ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
-    "affects": [
-      "Transition In Duration value in the selected overlay timeline clip"
-    ],
-    "recommendedRange": "0 seconds or later"
-  },
-  {
-    "id": "visualizer.timeline.overlayClip.compositing.transitionInEasing",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Overlay Clip Inspector",
-    "title": "Transition In Easing",
-    "componentType": "select",
-    "summary": "Chooses the timing curve of the overlay’s entrance transition.",
-    "whatItDoes": [
-      "Stores the selected Transition In Easing option in the selected overlay timeline clip.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
-    ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
-    "affects": [
-      "Transition In Easing selection in the selected overlay timeline clip"
     ]
   },
   {
@@ -5439,51 +5177,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "visualizer",
     "group": "Timeline — Overlay Clip Inspector",
-    "title": "Transition Out",
+    "title": "Tx Out",
     "componentType": "select",
     "summary": "Chooses the transition used when the overlay ends.",
     "whatItDoes": [
       "Stores the selected Transition Out option in the selected overlay timeline clip.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Tx Out when timeline overlay clip inspector needs a different active option.",
     "affects": [
       "Transition Out selection in the selected overlay timeline clip"
-    ]
-  },
-  {
-    "id": "visualizer.timeline.overlayClip.compositing.transitionOutDuration",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Overlay Clip Inspector",
-    "title": "Transition Out Duration",
-    "componentType": "numeric",
-    "summary": "Sets the duration of the overlay’s exit transition.",
-    "whatItDoes": [
-      "Writes a precise Transition Out Duration value to the selected overlay timeline clip.",
-      "The field’s implemented bounds and step constrain accepted values when defined."
-    ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
-    "affects": [
-      "Transition Out Duration value in the selected overlay timeline clip"
-    ],
-    "recommendedRange": "0 seconds or later"
-  },
-  {
-    "id": "visualizer.timeline.overlayClip.compositing.transitionOutEasing",
-    "priority": 1,
-    "view": "visualizer",
-    "group": "Timeline — Overlay Clip Inspector",
-    "title": "Transition Out Easing",
-    "componentType": "select",
-    "summary": "Chooses the timing curve of the overlay’s exit transition.",
-    "whatItDoes": [
-      "Stores the selected Transition Out Easing option in the selected overlay timeline clip.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
-    ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
-    "affects": [
-      "Transition Out Easing selection in the selected overlay timeline clip"
     ]
   },
   {
@@ -5541,7 +5244,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Effect option in the selected timeline effect region.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Effect when timeline effect region inspector needs a different active option.",
     "affects": [
       "Effect selection in the selected timeline effect region"
     ]
@@ -5558,7 +5261,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Enabled participates in the selected timeline effect region.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Enabled on when timeline effect region inspector should include this behavior; leave it off otherwise.",
     "affects": [
       "Enabled state in the selected timeline effect region"
     ],
@@ -5576,12 +5279,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Start value to the selected timeline effect region.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Start value when timeline effect region inspector needs precise timing or quantity.",
     "affects": [
       "Start value in the selected timeline effect region"
     ],
     "defaultValue": "0 seconds",
-    "recommendedRange": "0 seconds or later"
+    "range": "0 seconds or later"
   },
   {
     "id": "visualizer.timeline.effectRegion.info.durationSeconds",
@@ -5595,11 +5298,11 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Dur (s) value to the selected timeline effect region.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Dur (s) value when timeline effect region inspector needs precise timing or quantity.",
     "affects": [
       "Dur (s) value in the selected timeline effect region"
     ],
-    "recommendedRange": "Positive duration"
+    "range": "0.25 seconds or longer"
   },
   {
     "id": "visualizer.timeline.effectRegion.info.intensity",
@@ -5613,12 +5316,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Intensity value to the selected timeline effect region.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Intensity value when timeline effect region inspector needs precise timing or quantity.",
     "affects": [
       "Intensity value in the selected timeline effect region"
     ],
     "defaultValue": "1",
-    "recommendedRange": "Numeric effect strength"
+    "range": "0–1"
   },
   {
     "id": "visualizer.timeline.effectRegion.info.target",
@@ -5632,7 +5335,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Determines whether routing is global, layer, item, or clip scoped.",
       "Narrow target selectors apply only to matching scopes."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Target when timeline effect region inspector needs a different active option.",
     "affects": [
       "Target selection in the selected timeline effect region"
     ],
@@ -5650,7 +5353,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Layer option in the selected timeline effect region.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Layer when timeline effect region inspector needs a different active option.",
     "affects": [
       "Layer selection in the selected timeline effect region"
     ]
@@ -5667,7 +5370,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Item option in the selected timeline effect region.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Item when timeline effect region inspector needs a different active option.",
     "affects": [
       "Item selection in the selected timeline effect region"
     ]
@@ -5684,7 +5387,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Clip option in the selected timeline effect region.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Clip when timeline effect region inspector needs a different active option.",
     "affects": [
       "Clip selection in the selected timeline effect region"
     ]
@@ -5717,17 +5420,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Timeline — Master and transport concepts",
     "title": "Timeline",
     "componentType": "group",
-    "summary": "Coordinates synchronized audio, media, lyric, and effect lanes around one playhead.",
+    "summary": "Aligns audio, background media, overlays, lyrics, effects, and master output controls to one playhead.",
     "whatItDoes": [
-      "The audio lane anchors time while other lanes schedule visual content.",
-      "Loop and zoom change transport behavior and editing scale."
+      "Uses the audio lane as the timing reference.",
+      "Provides shared loop and zoom controls for editing the arrangement."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer master timeline.",
+    "whenToUse": "Use the timeline to schedule and align visual content against the loaded track.",
     "affects": [
-      "timeline looping",
-      "zoom",
-      "audio, media, lyric, and effect lanes",
-      "master dimmer"
+      "timeline transport and editing scale",
+      "audio, media, lyric, and effect lanes"
     ],
     "relatedHelpIds": [
       "visualizer.timeline.audioLane",
@@ -5744,19 +5445,17 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Timeline — Master and transport concepts",
     "title": "Loop",
     "componentType": "toggle",
-    "summary": "Repeats timeline playback inside the active timeline duration.",
+    "summary": "Repeats timeline playback within the active loop behavior.",
     "whatItDoes": [
-      "Loops transport playback.",
-      "It does not duplicate timeline content."
+      "Changes transport repetition without altering clip placement or duration."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Enable it while rehearsing or refining a section that needs repeated playback.",
     "affects": [
-      "Loop state in the Visualizer master timeline"
+      "timeline transport looping"
     ],
     "doesNotAffect": [
-      "timeline content"
-    ],
-    "defaultValue": "Defined by timeline state"
+      "timeline content or clip timing"
+    ]
   },
   {
     "id": "visualizer.timeline.zoom",
@@ -5764,25 +5463,22 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "view": "visualizer",
     "group": "Timeline — Master and transport concepts",
     "title": "Timeline Zoom",
-    "componentType": "slider",
-    "summary": "Changes the horizontal editing scale of the timeline.",
+    "componentType": "selection",
+    "summary": "Changes the timeline’s horizontal editing scale with the minus and plus controls.",
     "whatItDoes": [
-      "Current code uses zoom-in and zoom-out buttons with a percentage readout.",
-      "Timeline timing and clip durations are unchanged."
+      "Zooms between 25% and 800% while leaving all clip times and durations unchanged."
     ],
-    "whenToUse": "Use the zoom buttons to change timeline scale while trimming or aligning clips.",
+    "whenToUse": "Zoom in for precise trims and cue alignment; zoom out to review more of the arrangement.",
     "affects": [
       "timeline horizontal scale"
     ],
     "doesNotAffect": [
-      "clip timing or duration"
+      "clip timing",
+      "clip duration"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "25–800%",
-    "tip": "Zoom in for precise trims and cue alignment; zoom out to review the full arrangement.",
-    "tags": [
-      "auditMismatch"
-    ]
+    "range": "25–800%",
+    "tip": "Zoom in for precise trims and cue alignment; zoom out to review the full arrangement."
   },
   {
     "id": "visualizer.timeline.audioLane",
@@ -5791,17 +5487,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Timeline — Master and transport concepts",
     "title": "Audio Lane",
     "componentType": "group",
-    "summary": "Displays the loaded audio track and waveform that anchor timeline timing.",
+    "summary": "Displays the loaded track that anchors the Visualizer timeline.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer master timeline.",
-      "Each child control remains independently documented and editable."
+      "Provides the shared time reference for media, lyric, cue, and effect lanes."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer master timeline.",
+    "whenToUse": "Use it to align visual events with the track waveform and playhead.",
     "affects": [
-      "timeline looping",
-      "zoom",
-      "audio, media, lyric, and effect lanes",
-      "master dimmer"
+      "timeline time reference"
     ]
   },
   {
@@ -5809,19 +5501,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "visualizer",
     "group": "Timeline — Master and transport concepts",
-    "title": "Background Lane",
+    "title": "Video / BG Lane",
     "componentType": "group",
-    "summary": "Holds full-frame video and background clips.",
+    "summary": "Holds full-frame video and background media clips on the timeline.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer master timeline.",
-      "Each child control remains independently documented and editable."
+      "Schedules background clips beneath overlay, lyric, and effect content."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer master timeline.",
+    "whenToUse": "Place clips here when they should serve as the visual base layer.",
     "affects": [
-      "timeline looping",
-      "zoom",
-      "audio, media, lyric, and effect lanes",
-      "master dimmer"
+      "background media schedule"
     ]
   },
   {
@@ -5831,17 +5519,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Timeline — Master and transport concepts",
     "title": "Overlays Lane",
     "componentType": "group",
-    "summary": "Holds composited media rendered above the background lane.",
+    "summary": "Holds composited overlay media clips above the background lane.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer master timeline.",
-      "Each child control remains independently documented and editable."
+      "Schedules positioned, scaled, blended, and opacity-controlled overlay clips."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer master timeline.",
+    "whenToUse": "Use it for logos, textures, foreground videos, and other layered media.",
     "affects": [
-      "timeline looping",
-      "zoom",
-      "audio, media, lyric, and effect lanes",
-      "master dimmer"
+      "overlay media schedule"
     ]
   },
   {
@@ -5851,17 +5535,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Timeline — Master and transport concepts",
     "title": "Lyrics Lane",
     "componentType": "group",
-    "summary": "Displays lyric cues on the shared timeline.",
+    "summary": "Displays timed lyric cues against the shared timeline.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer master timeline.",
-      "Each child control remains independently documented and editable."
+      "Keeps lyric cue timing aligned with the audio playhead."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer master timeline.",
+    "whenToUse": "Use it to review lyric timing alongside media and effects.",
     "affects": [
-      "timeline looping",
-      "zoom",
-      "audio, media, lyric, and effect lanes",
-      "master dimmer"
+      "timed lyric cue display"
     ]
   },
   {
@@ -5871,17 +5551,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Timeline — Master and transport concepts",
     "title": "Effects Lane",
     "componentType": "group",
-    "summary": "Holds time-bounded effect regions.",
+    "summary": "Schedules effect regions that activate over defined timeline ranges.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer master timeline.",
-      "Each child control remains independently documented and editable."
+      "Shows when targeted or global effect regions begin, end, and overlap."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer master timeline.",
+    "whenToUse": "Use it to place effects at specific musical moments instead of leaving them active continuously.",
     "affects": [
-      "timeline looping",
-      "zoom",
-      "audio, media, lyric, and effect lanes",
-      "master dimmer"
+      "timeline effect-region schedule"
     ]
   },
   {
@@ -5889,19 +5565,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "visualizer",
     "group": "Timeline — Master and transport concepts",
-    "title": "Master Color",
+    "title": "Color (Master Output)",
     "componentType": "group",
-    "summary": "Contains the timeline’s overall color output control.",
+    "summary": "Groups color grading and dimmer controls applied to the final Visualizer output.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer master timeline.",
-      "Each child control remains independently documented and editable."
+      "Adjusts master-output color treatment after the timeline layers are composed."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer master timeline.",
+    "whenToUse": "Use it for final output balancing rather than correcting one individual clip.",
     "affects": [
-      "timeline looping",
-      "zoom",
-      "audio, media, lyric, and effect lanes",
-      "master dimmer"
+      "final Visualizer output color and brightness"
     ]
   },
   {
@@ -5916,12 +5588,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the Master Dimmer value to the Visualizer master timeline as the control moves.",
       "The implemented minimum, maximum, and step constrain the value."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust Master Dimmer while previewing timeline master and transport concepts so the result remains readable in motion.",
     "affects": [
       "Master Dimmer value in the Visualizer master timeline"
     ],
     "defaultValue": "100%",
-    "recommendedRange": "0–100%"
+    "range": "0–100%"
   },
   {
     "id": "visualizer.recording.record.overview",
@@ -5930,16 +5602,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Recording",
     "title": "Record",
     "componentType": "group",
-    "summary": "Records clean canvas output at the selected frame rate.",
+    "summary": "Records the clean visual canvas at the selected frame rate.",
     "whatItDoes": [
-      "Captures the clean visual canvas, not application panels.",
-      "Audio is included only when an active program-audio stream is available."
+      "Captures the canvas without editor panels.",
+      "Includes audio only when an active program-audio stream is available."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer recording and frame-export workflow.",
+    "whenToUse": "Use it to capture a performance-ready video file from the current visual output.",
     "affects": [
       "recording frame rate",
-      "program-audio availability",
-      "clean canvas export"
+      "recording mode",
+      "clean canvas capture"
     ]
   },
   {
@@ -5949,16 +5621,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Recording",
     "title": "Target FPS",
     "componentType": "selection",
-    "summary": "Chooses 30 or 60 frames per second for recording.",
+    "summary": "Chooses whether the recording targets 30 or 60 frames per second.",
     "whatItDoes": [
-      "Chooses the active Target FPS option for the Visualizer recording and frame-export workflow.",
-      "The selected item becomes the current value for this context."
+      "Sets the requested capture frame rate before recording starts."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Use 30 FPS for lighter capture load or 60 FPS when smoother motion is worth the additional performance cost.",
     "affects": [
-      "Target FPS selection in the Visualizer recording and frame-export workflow"
+      "recording target frame rate"
     ],
     "defaultValue": "30 or 60 FPS",
+    "range": "30 or 60 FPS",
     "tip": "Choose 30 FPS for lighter capture load and 60 FPS for fast motion when the live frame rate can sustain it."
   },
   {
@@ -5967,23 +5639,20 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "view": "visualizer",
     "group": "Recording",
     "title": "Audio",
-    "componentType": "toggle",
-    "summary": "Reports whether program audio is available to the recorder.",
+    "componentType": "diagnostic",
+    "summary": "Reports whether program audio is currently available to the recorder.",
     "whatItDoes": [
-      "The panel derives this status from the connected audio graph.",
-      "It is not a user-settable toggle in the current code."
+      "Shows Available when an active program-audio source is connected; otherwise prompts playback first.",
+      "This is a read-only status, not a toggle."
     ],
-    "whenToUse": "Use this status to confirm audio is available before starting a recording.",
+    "whenToUse": "Check it before recording when the exported video should include audio.",
     "affects": [
-      "recording audio availability status"
+      "recording audio-availability status"
     ],
     "doesNotAffect": [
-      "audio routing"
+      "audio routing or playback"
     ],
-    "tip": "Start playback before recording when audio should be included.",
-    "tags": [
-      "auditMismatch"
-    ]
+    "tip": "Start playback before recording when audio should be included."
   },
   {
     "id": "visualizer.recording.export.overview",
@@ -6016,7 +5685,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Preset Name data to the preset snapshot being saved.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Preset Name when the save preset item needs different text or metadata.",
     "affects": [
       "Preset Name data in the preset snapshot being saved"
     ],
@@ -6034,7 +5703,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Look selects effect-oriented fields; Scene adds media and playback state.",
       "Individual checkboxes can refine either scope."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Look / Scene Scope when selecting the active item for save preset.",
     "affects": [
       "Look / Scene Scope selection in the preset snapshot being saved"
     ],
@@ -6078,7 +5747,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Effects participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Effects on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "Effects state in the preset snapshot being saved"
     ],
@@ -6096,7 +5765,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether FX Chain participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn FX Chain on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "FX Chain state in the preset snapshot being saved"
     ],
@@ -6114,7 +5783,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Modulation participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Modulation on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "Modulation state in the preset snapshot being saved"
     ],
@@ -6150,7 +5819,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Active Media participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Active Media on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "Active Media state in the preset snapshot being saved"
     ],
@@ -6168,7 +5837,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Media Order participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Media Order on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "Media Order state in the preset snapshot being saved"
     ],
@@ -6186,7 +5855,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Audio Source participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Audio Source on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "Audio Source state in the preset snapshot being saved"
     ],
@@ -6204,7 +5873,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether BPM participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn BPM on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "BPM state in the preset snapshot being saved"
     ],
@@ -6222,7 +5891,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether BPM Sync participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn BPM Sync on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "BPM Sync state in the preset snapshot being saved"
     ],
@@ -6240,7 +5909,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Sets whether Quality participates in the preset snapshot being saved.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Quality on when save preset should include this behavior; leave it off otherwise.",
     "affects": [
       "Quality state in the preset snapshot being saved"
     ],
@@ -6253,16 +5922,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Audio Deck",
     "title": "Track Volume",
     "componentType": "slider",
-    "summary": "Sets the loaded track’s playback level.",
+    "summary": "Sets the playback level of the loaded track.",
     "whatItDoes": [
-      "Writes the Track Volume value to the shared audio deck as the control moves.",
-      "The implemented minimum, maximum, and step constrain the value."
+      "Changes the shared audio deck output level used during playback and capture."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Adjust it to balance the track against monitoring or recording headroom.",
     "affects": [
-      "Track Volume value in the shared audio deck"
+      "track playback level"
     ],
-    "recommendedRange": "0–100%",
+    "range": "0–100%",
     "tip": "Leave headroom when effects or recording can add gain later in the output chain."
   },
   {
@@ -6272,20 +5940,19 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Audio Deck",
     "title": "BPM",
     "componentType": "numeric",
-    "summary": "Shows or overrides the effective track tempo used by timing systems.",
+    "summary": "Shows or manually overrides the effective tempo used by synchronized timing systems.",
     "whatItDoes": [
-      "A manual override remains separate from the analyzed BPM and can be reset.",
-      "Timing systems use the effective BPM."
+      "Keeps the manual override separate from analyzed BPM.",
+      "Uses the effective BPM for beat-synced timeline and visual behavior."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter a manual value when analysis is wrong or when a known tempo must drive synchronization.",
     "affects": [
-      "BPM value in the shared audio deck"
+      "effective BPM used by timing systems"
     ],
     "doesNotAffect": [
-      "analyzed BPM"
+      "stored analyzed BPM"
     ],
-    "defaultValue": "Analyzed BPM when available",
-    "recommendedRange": "40–300 BPM",
+    "range": "40–300 BPM",
     "tip": "Reset the override after correcting analysis if the manual tempo is no longer needed.",
     "relatedHelpIds": [
       "visualizer.audioDeck.bpmSync"
@@ -6296,16 +5963,16 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "visualizer",
     "group": "Audio Deck",
-    "title": "Rekordbox Action",
+    "title": "Rekordbox",
     "componentType": "select",
-    "summary": "Imports Rekordbox XML, scans a Rekordbox USB source, or arms USB Mode.",
+    "summary": "Chooses a Rekordbox import or USB-library action for the Audio Deck.",
     "whatItDoes": [
-      "XML/native matches can import cue metadata.",
-      "USB Mode alone does not import cues without a metadata match."
+      "Starts the selected Rekordbox library, XML, or USB workflow.",
+      "Imported metadata and cues are handled by the Rekordbox integration."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Use it when preparing a track from an existing Rekordbox library or USB export.",
     "affects": [
-      "Rekordbox Action selection in the shared audio deck"
+      "Rekordbox import workflow"
     ],
     "doesNotAffect": [
       "audio files"
@@ -6319,14 +5986,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Audio Deck",
     "title": "Sync / BPM Sync",
     "componentType": "toggle",
-    "summary": "Enables or disables BPM-synchronized playback behavior.",
+    "summary": "Enables beat-synchronized timing for compatible Visualizer behavior.",
     "whatItDoes": [
-      "Sets whether Sync / BPM Sync participates in the shared audio deck.",
-      "The owning renderer, editor, or runtime reads the enabled state on its next update."
+      "Uses the effective BPM as the shared synchronization reference when enabled."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn it on when effects or media timing should follow the track tempo.",
     "affects": [
-      "Sync / BPM Sync state in the shared audio deck"
+      "BPM-synchronized Visualizer behavior"
     ],
     "defaultValue": "Off unless enabled",
     "relatedHelpIds": [
@@ -6383,7 +6049,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "The resulting lyric document always belongs to the stored full mix.",
       "Only the transcription source changes."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Source Mode when ai extraction source needs a different active option.",
     "affects": [
       "Source Mode selection in the lyric extraction source"
     ],
@@ -6409,7 +6075,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Saved Vocal Track option in the lyric extraction source.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Saved Vocal Track when ai extraction source needs a different active option.",
     "affects": [
       "Saved Vocal Track selection in the lyric extraction source"
     ],
@@ -6430,7 +6096,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Positive values mean the vocal starts later on the full-mix timeline.",
       "The offset is applied once to provider timestamps."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Vocal Reference Offset (Seconds) value when ai extraction source needs precise timing or quantity.",
     "affects": [
       "Vocal Reference Offset (Seconds) value in the lyric extraction source"
     ],
@@ -6438,7 +6104,6 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "source audio"
     ],
     "defaultValue": "0 seconds",
-    "recommendedRange": "Any finite offset; 0.05-second steps",
     "tip": "Use waveform landmarks to verify the offset before starting extraction."
   },
   {
@@ -6453,7 +6118,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Chooses the active Add Vocal Track option for the lyric extraction source.",
       "The selected item becomes the current value for this context."
     ],
-    "whenToUse": "Use it when choosing the active option for this part of the workflow.",
+    "whenToUse": "Choose Add Vocal Track when selecting the active item for ai extraction source.",
     "affects": [
       "Add Vocal Track selection in the lyric extraction source"
     ]
@@ -6470,7 +6135,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Required only when compatibility checks report a significant mismatch.",
       "It does not bypass a blocked or invalid source."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn I reviewed the arrangement and confirm this vocal reference belongs to the selected full mix on when ai extraction source should include this behavior; leave it off otherwise.",
     "affects": [
       "I reviewed the arrangement and confirm this vocal reference belongs to the selected full mix state in the lyric extraction source"
     ]
@@ -6508,7 +6173,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Language option in the lyric extraction request.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Language when ai extraction settings needs a different active option.",
     "affects": [
       "Language selection in the lyric extraction request"
     ],
@@ -6526,7 +6191,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Timing Detail option in the lyric extraction request.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Timing Detail when ai extraction settings needs a different active option.",
     "affects": [
       "Timing Detail selection in the lyric extraction request"
     ],
@@ -6544,7 +6209,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Cue Style option in the lyric extraction request.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Cue Style when ai extraction settings needs a different active option.",
     "affects": [
       "Cue Style selection in the lyric extraction request"
     ],
@@ -6563,7 +6228,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Shifts extraction timing.",
       "Canonical manual cue and word timestamps remain integer milliseconds after editing."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Global Offset ms value when ai extraction settings needs precise timing or quantity.",
     "affects": [
       "Global Offset ms value in the lyric extraction request"
     ],
@@ -6571,7 +6236,6 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "source audio"
     ],
     "defaultValue": "0 ms",
-    "recommendedRange": "Integer milliseconds",
     "tip": "Use Global Offset for a consistent timing shift; edit individual cues for local errors."
   },
   {
@@ -6628,7 +6292,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Title data to the lyric document.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Title when the manual editor document info item needs different text or metadata.",
     "affects": [
       "Title data in the lyric document"
     ]
@@ -6645,7 +6309,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Artist data to the lyric document.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Artist when the manual editor document info item needs different text or metadata.",
     "affects": [
       "Artist data in the lyric document"
     ]
@@ -6692,14 +6356,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Cue Editor Toolbar and Filters",
     "title": "Snap",
     "componentType": "select",
-    "summary": "Chooses how cue edits snap to timing references.",
+    "summary": "Chooses the timing grid used when moving or resizing lyric cues.",
     "whatItDoes": [
-      "Stores the selected Snap option in the lyric cue editor timeline.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
+      "Quantizes cue edits to the selected timing resolution."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Use snapping for beat-aligned lyrics; choose None for free timing adjustments.",
     "affects": [
-      "Snap selection in the lyric cue editor timeline"
+      "lyric cue edit quantization"
     ],
     "defaultValue": "None",
     "tip": "Use beat or grid snapping for musical alignment and None for exact spoken timing."
@@ -6711,20 +6374,19 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Cue Editor Toolbar and Filters",
     "title": "Shared Waveform Zoom",
     "componentType": "slider",
-    "summary": "Changes the horizontal scale of the shared lyric waveform.",
+    "summary": "Sets the shared waveform scale used by the lyric cue editor.",
     "whatItDoes": [
-      "The same zoom value is shared by waveform-based cue editing.",
-      "Cue timestamps do not change."
+      "Changes editing magnification without changing cue timestamps."
     ],
-    "whenToUse": "Adjust it while previewing the result, then stop when the response remains readable at performance scale.",
+    "whenToUse": "Zoom in for word-level timing and out for phrase or section-level review.",
     "affects": [
-      "Shared Waveform Zoom value in the lyric cue editor timeline"
+      "lyric editor waveform scale"
     ],
     "doesNotAffect": [
-      "cue timestamps"
+      "cue timing"
     ],
     "defaultValue": "1×",
-    "recommendedRange": "1×–16×",
+    "range": "1×–16×",
     "tip": "Zoom in before editing short words or tightly packed cues."
   },
   {
@@ -6734,17 +6396,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Cue Editor Toolbar and Filters",
     "title": "Overlays",
     "componentType": "group",
-    "summary": "Shows or hides analysis layers over the lyric waveform without changing cue data.",
+    "summary": "Controls which timing and analysis overlays are visible in the lyric cue editor.",
     "whatItDoes": [
-      "Overlay visibility is editor-only.",
-      "Analysis and cue data remain stored."
+      "Groups Beat Grid, Sections, Words, Energy, and Cue Points display toggles."
     ],
-    "whenToUse": "Use this section when configuring the lyric cue editor timeline.",
+    "whenToUse": "Show only the overlays needed for the current timing task to keep the waveform readable.",
     "affects": [
-      "snap behavior",
-      "waveform zoom",
-      "analysis overlays",
-      "cue-list filtering"
+      "lyric editor overlay visibility"
     ]
   },
   {
@@ -6752,105 +6410,100 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "lyricManager",
     "group": "Cue Editor Toolbar and Filters",
-    "title": "Beat Grid Overlay",
+    "title": "Beat Grid",
     "componentType": "toggle",
     "summary": "Shows or hides beat-grid lines over the lyric waveform.",
     "whatItDoes": [
       "Sets whether Beat Grid Overlay participates in the lyric cue editor timeline.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Beat Grid on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
     "affects": [
       "Beat Grid Overlay state in the lyric cue editor timeline"
     ],
     "doesNotAffect": [
       "beat analysis"
-    ],
-    "defaultValue": "Defined by overlay defaults"
+    ]
   },
   {
     "id": "lyricManager.cueEditor.overlays.sections",
     "priority": 1,
     "view": "lyricManager",
     "group": "Cue Editor Toolbar and Filters",
-    "title": "Sections Overlay",
+    "title": "Sections",
     "componentType": "toggle",
     "summary": "Shows or hides track-section regions over the lyric waveform.",
     "whatItDoes": [
       "Sets whether Sections Overlay participates in the lyric cue editor timeline.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Sections on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
     "affects": [
       "Sections Overlay state in the lyric cue editor timeline"
     ],
     "doesNotAffect": [
       "section analysis"
-    ],
-    "defaultValue": "Defined by overlay defaults"
+    ]
   },
   {
     "id": "lyricManager.cueEditor.overlays.words",
     "priority": 1,
     "view": "lyricManager",
     "group": "Cue Editor Toolbar and Filters",
-    "title": "Words Overlay",
+    "title": "Words",
     "componentType": "toggle",
     "summary": "Shows or hides word-timing regions over the lyric waveform.",
     "whatItDoes": [
       "Sets whether Words Overlay participates in the lyric cue editor timeline.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Words on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
     "affects": [
       "Words Overlay state in the lyric cue editor timeline"
     ],
     "doesNotAffect": [
       "word timing data"
-    ],
-    "defaultValue": "Defined by overlay defaults"
+    ]
   },
   {
     "id": "lyricManager.cueEditor.overlays.energy",
     "priority": 1,
     "view": "lyricManager",
     "group": "Cue Editor Toolbar and Filters",
-    "title": "Energy Overlay",
+    "title": "Energy",
     "componentType": "toggle",
     "summary": "Shows or hides the analyzed energy curve over the lyric waveform.",
     "whatItDoes": [
       "Sets whether Energy Overlay participates in the lyric cue editor timeline.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Energy on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
     "affects": [
       "Energy Overlay state in the lyric cue editor timeline"
     ],
     "doesNotAffect": [
       "energy analysis"
-    ],
-    "defaultValue": "Defined by overlay defaults"
+    ]
   },
   {
     "id": "lyricManager.cueEditor.overlays.cuePoints",
     "priority": 1,
     "view": "lyricManager",
     "group": "Cue Editor Toolbar and Filters",
-    "title": "Cue Points Overlay",
+    "title": "Cue Points",
     "componentType": "toggle",
     "summary": "Shows or hides cue-point markers over the lyric waveform.",
     "whatItDoes": [
       "Sets whether Cue Points Overlay participates in the lyric cue editor timeline.",
       "The owning renderer, editor, or runtime reads the enabled state on its next update."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Turn Cue Points on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
     "affects": [
       "Cue Points Overlay state in the lyric cue editor timeline"
     ],
     "doesNotAffect": [
       "cue-point data"
-    ],
-    "defaultValue": "Defined by overlay defaults"
+    ]
   },
   {
     "id": "lyricManager.cueEditor.filters.filter",
@@ -6864,7 +6517,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Filter option in the lyric cue editor timeline.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Filter when cue editor toolbar and filters needs a different active option.",
     "affects": [
       "Filter selection in the lyric cue editor timeline"
     ],
@@ -6881,20 +6534,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Selected Cue",
     "title": "Selected Cue",
     "componentType": "group",
-    "summary": "Edits the selected lyric cue’s text, timing, provenance, review state, and warnings.",
+    "summary": "Edits the selected lyric cue’s text, timing, confidence, source, review state, and section association.",
     "whatItDoes": [
-      "Groups the controls that configure the selected lyric cue.",
-      "Each child control remains independently documented and editable."
+      "Writes validated changes to the selected cue and surfaces any timing warnings."
     ],
-    "whenToUse": "Use this section when configuring the selected lyric cue.",
+    "whenToUse": "Use it when one cue needs correction after extraction or manual timing.",
     "affects": [
-      "cue text",
-      "cue timing",
-      "confidence",
-      "provenance",
-      "review state",
-      "section link",
-      "warnings"
+      "selected lyric cue"
     ]
   },
   {
@@ -6909,7 +6555,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Text data to the selected lyric cue.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Text when the selected cue item needs different text or metadata.",
     "affects": [
       "Text data in the selected lyric cue"
     ]
@@ -6926,11 +6572,10 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Start (ms) value to the selected lyric cue.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Start (ms) value when selected cue needs precise timing or quantity.",
     "affects": [
       "Start (ms) value in the selected lyric cue"
     ],
-    "recommendedRange": "Integer milliseconds",
     "relatedHelpIds": [
       "lyricManager.cueInspector.selectedCue.endMs",
       "lyricManager.cueInspector.selectedCue.durationMs"
@@ -6948,11 +6593,10 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise End (ms) value to the selected lyric cue.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact End (ms) value when selected cue needs precise timing or quantity.",
     "affects": [
       "End (ms) value in the selected lyric cue"
     ],
-    "recommendedRange": "Integer milliseconds",
     "relatedHelpIds": [
       "lyricManager.cueInspector.selectedCue.startMs",
       "lyricManager.cueInspector.selectedCue.durationMs"
@@ -6970,11 +6614,10 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Duration is constrained by cue start and end.",
       "Invalid negative or inverted bounds are rejected by cue editing logic."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Duration (ms) value when selected cue needs precise timing or quantity.",
     "affects": [
       "Duration (ms) value in the selected lyric cue"
     ],
-    "recommendedRange": "Derived from End minus Start",
     "relatedHelpIds": [
       "lyricManager.cueInspector.selectedCue.startMs",
       "lyricManager.cueInspector.selectedCue.endMs"
@@ -6992,12 +6635,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise Confidence (0–1) value to the selected lyric cue.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact Confidence (0–1) value when selected cue needs precise timing or quantity.",
     "affects": [
       "Confidence (0–1) value in the selected lyric cue"
     ],
     "defaultValue": "Unset when unavailable",
-    "recommendedRange": "0–1",
+    "range": "0–1",
     "tip": "Treat confidence as review metadata, not proof that timing is correct."
   },
   {
@@ -7012,7 +6655,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Source option in the selected lyric cue.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Source when selected cue needs a different active option.",
     "affects": [
       "Source selection in the selected lyric cue"
     ]
@@ -7029,7 +6672,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Review Status option in the selected lyric cue.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Review Status when selected cue needs a different active option.",
     "affects": [
       "Review Status selection in the selected lyric cue"
     ]
@@ -7039,16 +6682,15 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "lyricManager",
     "group": "Selected Cue",
-    "title": "Section",
+    "title": "Section association",
     "componentType": "select",
-    "summary": "Links the cue to a track section.",
+    "summary": "Associates the selected lyric cue with a track section.",
     "whatItDoes": [
-      "Stores the selected Section option in the selected lyric cue.",
-      "The owning renderer, editor, or runtime reads the selection on its next update."
+      "Stores the cue-to-section relationship used for organization and section-aware workflows."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose a section when the cue should be grouped with a specific part of the song.",
     "affects": [
-      "Section selection in the selected lyric cue"
+      "selected cue section association"
     ]
   },
   {
@@ -7056,19 +6698,19 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "lyricManager",
     "group": "Selected Cue",
-    "title": "Warning Flags",
-    "componentType": "toggle",
-    "summary": "Adds or removes warning flags used during lyric review.",
+    "title": "Warnings",
+    "componentType": "group",
+    "summary": "Summarizes validation warnings for the selected lyric cue.",
     "whatItDoes": [
-      "Warnings support review and filtering.",
-      "They do not change rendered cue text by themselves."
+      "Reports timing or data conditions that may require review.",
+      "The heading is read-only; corrections are made in the cue fields."
     ],
-    "whenToUse": "Use it when this behavior should be explicitly included or excluded from the current performance or edit.",
+    "whenToUse": "Review it before approving a cue that was imported or automatically extracted.",
     "affects": [
-      "Warning Flags state in the selected lyric cue"
+      "displayed cue validation status"
     ],
     "doesNotAffect": [
-      "rendered text"
+      "cue timing or text"
     ],
     "tip": "Use warning flags to preserve review context instead of placing notes inside lyric text."
   },
@@ -7079,75 +6721,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Word Timing",
     "title": "Word Timing",
     "componentType": "group",
-    "summary": "Edits word text and integer-millisecond timing inside the selected cue.",
+    "summary": "Edits the repeated word-level text and timing rows for the selected cue.",
     "whatItDoes": [
-      "Groups the controls that configure the selected cue’s word-level timing.",
-      "Each child control remains independently documented and editable."
+      "Provides one shared explanation for each word’s text, start, and end fields."
     ],
-    "whenToUse": "Use this section when configuring the selected cue’s word-level timing.",
+    "whenToUse": "Use it when phrase timing is correct but individual words need tighter alignment.",
     "affects": [
-      "word text and millisecond bounds"
-    ]
-  },
-  {
-    "id": "lyricManager.cueInspector.wordTiming.text",
-    "priority": 1,
-    "view": "lyricManager",
-    "group": "Word Timing",
-    "title": "Word Text",
-    "componentType": "field",
-    "summary": "Edits the text of one timed word inside the cue.",
-    "whatItDoes": [
-      "Writes the edited Word Text data to the selected cue’s word-level timing.",
-      "The value remains owned by the current item or document."
-    ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
-    "affects": [
-      "Word Text data in the selected cue’s word-level timing"
-    ]
-  },
-  {
-    "id": "lyricManager.cueInspector.wordTiming.startMs",
-    "priority": 1,
-    "view": "lyricManager",
-    "group": "Word Timing",
-    "title": "Word Start Milliseconds",
-    "componentType": "numeric",
-    "summary": "Sets the word’s start time in integer milliseconds.",
-    "whatItDoes": [
-      "Word bounds remain inside the cue and use integer milliseconds."
-    ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
-    "affects": [
-      "Word Start Milliseconds value in the selected cue’s word-level timing"
-    ],
-    "recommendedRange": "Integer milliseconds",
-    "tip": "Keep word timing ordered and inside the parent cue.",
-    "relatedHelpIds": [
-      "lyricManager.cueInspector.wordTiming.endMs",
-      "lyricManager.cueInspector.wordTiming.text"
-    ]
-  },
-  {
-    "id": "lyricManager.cueInspector.wordTiming.endMs",
-    "priority": 1,
-    "view": "lyricManager",
-    "group": "Word Timing",
-    "title": "Word End Milliseconds",
-    "componentType": "numeric",
-    "summary": "Sets the word’s end time in integer milliseconds.",
-    "whatItDoes": [
-      "Word bounds remain inside the cue and use integer milliseconds."
-    ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
-    "affects": [
-      "Word End Milliseconds value in the selected cue’s word-level timing"
-    ],
-    "recommendedRange": "Integer milliseconds",
-    "tip": "Keep word timing ordered and inside the parent cue.",
-    "relatedHelpIds": [
-      "lyricManager.cueInspector.wordTiming.startMs",
-      "lyricManager.cueInspector.wordTiming.text"
+      "selected cue word timings"
     ]
   },
   {
@@ -7162,7 +6742,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Track Title data to the media item being uploaded or edited.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Track Title when the upload / edit media core metadata item needs different text or metadata.",
     "affects": [
       "Track Title data in the media item being uploaded or edited"
     ]
@@ -7179,7 +6759,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Title data to the media item being uploaded or edited.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Title when the upload / edit media core metadata item needs different text or metadata.",
     "affects": [
       "Title data in the media item being uploaded or edited"
     ]
@@ -7196,7 +6776,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Artist data to the media item being uploaded or edited.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Artist when the upload / edit media core metadata item needs different text or metadata.",
     "affects": [
       "Artist data in the media item being uploaded or edited"
     ]
@@ -7213,7 +6793,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Genre data to the media item being uploaded or edited.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Genre when the upload / edit media core metadata item needs different text or metadata.",
     "affects": [
       "Genre data in the media item being uploaded or edited"
     ]
@@ -7230,12 +6810,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise BPM value to the media item being uploaded or edited.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact BPM value when upload / edit media core metadata needs precise timing or quantity.",
     "affects": [
       "BPM value in the media item being uploaded or edited"
     ],
     "defaultValue": "Unset",
-    "recommendedRange": "Use the track’s known BPM",
+    "recommendedRange": "Match the verified track BPM.",
     "tip": "Use the analyzed or verified track BPM rather than estimating from genre."
   },
   {
@@ -7250,12 +6830,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise BPM value to the media item’s additional metadata.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact BPM value when upload / edit media additional info needs precise timing or quantity.",
     "affects": [
       "BPM value in the media item’s additional metadata"
     ],
     "defaultValue": "Unset",
-    "recommendedRange": "Use the track’s known BPM"
+    "recommendedRange": "Match the verified track BPM."
   },
   {
     "id": "mediaManager.editAudioTrack.title",
@@ -7269,7 +6849,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Title data to the saved audio track metadata.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Title when the edit audio track item needs different text or metadata.",
     "affects": [
       "Title data in the saved audio track metadata"
     ]
@@ -7286,7 +6866,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Artist data to the saved audio track metadata.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Artist when the edit audio track item needs different text or metadata.",
     "affects": [
       "Artist data in the saved audio track metadata"
     ]
@@ -7303,7 +6883,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes the edited Genre data to the saved audio track metadata.",
       "The value remains owned by the current item or document."
     ],
-    "whenToUse": "Edit it when the current label, text, or metadata no longer describes the item accurately.",
+    "whenToUse": "Edit Genre when the edit audio track item needs different text or metadata.",
     "affects": [
       "Genre data in the saved audio track metadata"
     ]
@@ -7320,12 +6900,12 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Writes a precise BPM value to the saved audio track metadata.",
       "The field’s implemented bounds and step constrain accepted values when defined."
     ],
-    "whenToUse": "Use it when an exact timing, quantity, or metadata value is more useful than approximate adjustment.",
+    "whenToUse": "Enter an exact BPM value when edit audio track needs precise timing or quantity.",
     "affects": [
       "BPM value in the saved audio track metadata"
     ],
     "defaultValue": "Unset",
-    "recommendedRange": "Use the track’s known BPM",
+    "recommendedRange": "Match the verified track BPM.",
     "tip": "Use the analyzed or verified track BPM rather than estimating from genre."
   },
   {
@@ -7340,7 +6920,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Stores the selected Musical Key option in the saved audio track metadata.",
       "The owning renderer, editor, or runtime reads the selection on its next update."
     ],
-    "whenToUse": "Use it when the current mode, source, role, or preset does not match the workflow you need.",
+    "whenToUse": "Choose Musical Key when edit audio track needs a different active option.",
     "affects": [
       "Musical Key selection in the saved audio track metadata"
     ],
@@ -7354,20 +6934,20 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Library Browser",
     "title": "Media Library",
     "componentType": "group",
-    "summary": "Browses saved visual media, audio tracks, and collections.",
+    "summary": "Browses saved media by type and collection context.",
     "whatItDoes": [
-      "Groups the controls that configure the Media Library browser.",
-      "Each child control remains independently documented and editable."
+      "Uses media-type tabs to filter the browser.",
+      "Opening a collection changes the visible browsing context."
     ],
-    "whenToUse": "Use this section when configuring the Media Library browser.",
+    "whenToUse": "Use it to locate media for editing, selection, or assignment elsewhere in DRMVYZ.",
     "affects": [
-      "visible media category",
-      "role-filtered results",
-      "collection-filtered results"
+      "visible Media Library results and collection context"
+    ],
+    "doesNotAffect": [
+      "stored media metadata or collection membership"
     ],
     "relatedHelpIds": [
       "mediaManager.library.mediaTypeFilter",
-      "mediaManager.library.mediaRoleFilter",
       "mediaManager.library.collectionFilter"
     ]
   },
@@ -7376,76 +6956,66 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "priority": 1,
     "view": "mediaManager",
     "group": "Library Browser",
-    "title": "Media Type Filter",
-    "componentType": "select",
-    "summary": "Chooses the broad Media Library view or media type.",
+    "title": "Media Type Tabs",
+    "componentType": "selection",
+    "summary": "Filters the Media Library using the displayed media-type tabs.",
     "whatItDoes": [
-      "Current code renders media-type filters as tabs rather than a select control.",
-      "Changing the active tab only filters visible library items."
+      "Changes which broad category of library items is visible.",
+      "Selecting a tab does not edit the matching media."
     ],
-    "whenToUse": "Use the Media Library tabs to narrow the browser to a media type.",
+    "whenToUse": "Choose a tab to narrow the browser before searching or opening a collection.",
     "affects": [
-      "visible Media Library type tab"
+      "visible Media Library category"
     ],
     "doesNotAffect": [
-      "library metadata"
+      "media metadata"
     ],
-    "tip": "Clear filters before concluding that a media item is missing.",
-    "tags": [
-      "auditMismatch"
-    ]
-  },
-  {
-    "id": "mediaManager.library.mediaRoleFilter",
-    "priority": 1,
-    "view": "mediaManager",
-    "group": "Library Browser",
-    "title": "Media Role Filter",
-    "componentType": "select",
-    "summary": "Limits the library to media assigned a compatible role or role-aware view.",
-    "whatItDoes": [
-      "Current code does not expose a dedicated media-role dropdown in this browser.",
-      "Role filtering is handled by the available views and contexts."
-    ],
-    "whenToUse": "Use role-aware library views where available; this component has no standalone role dropdown.",
-    "affects": [
-      "role-aware Media Library view"
-    ],
-    "doesNotAffect": [
-      "stored media roles"
-    ],
-    "tip": "Assign roles in media metadata when role-based browsing is important.",
-    "tags": [
-      "auditMismatch"
-    ]
+    "tip": "Clear filters before concluding that a media item is missing."
   },
   {
     "id": "mediaManager.library.collectionFilter",
     "priority": 1,
     "view": "mediaManager",
     "group": "Library Browser",
-    "title": "Collection Filter",
-    "componentType": "select",
-    "summary": "Shows collections or the contents of the active collection.",
+    "title": "Collection Browser Context",
+    "componentType": "selection",
+    "summary": "Shows the collection list or the contents of the collection currently opened in the browser.",
     "whatItDoes": [
-      "Current code opens collection contexts rather than exposing a dedicated collection dropdown.",
-      "Choosing a collection changes the visible browser scope, not the stored media item."
+      "Changes browser scope through collection navigation rather than a standalone dropdown."
     ],
-    "whenToUse": "Open a collection context to browse one collection; this component has no standalone collection dropdown.",
+    "whenToUse": "Open a collection when you need to browse only the media grouped inside it.",
     "affects": [
       "active Media Library collection context"
     ],
     "doesNotAffect": [
       "collection membership"
     ],
-    "tip": "Open the collection itself to review its contents; changing the view does not change membership.",
-    "tags": [
-      "auditMismatch"
-    ]
+    "tip": "Open the collection itself to review its contents; changing the view does not change membership."
   }
 ] as const satisfies readonly HelpEntry[]
 
 export type HelpId = (typeof PRIORITY_ONE_HELP_ENTRIES)[number]['id']
+
+export type HelpRegistryValidationCode =
+  | 'duplicate-id'
+  | 'registry-key-mismatch'
+  | 'registry-entry-missing'
+  | 'invalid-priority'
+  | 'invalid-component-type'
+  | 'empty-required-string'
+  | 'empty-optional-string'
+  | 'empty-optional-array'
+  | 'empty-array-item'
+  | 'invalid-related-help-id'
+  | 'self-related-help-id'
+  | 'duplicate-related-help-id'
+  | 'unresolved-audit-mismatch'
+
+export interface HelpRegistryValidationIssue {
+  code: HelpRegistryValidationCode
+  message: string
+  helpId?: string
+}
 
 const warnedMissingHelpIds = new Set<string>()
 
@@ -7453,10 +7023,6 @@ function buildHelpRegistry(entries: readonly HelpEntry[]): Readonly<Record<HelpI
   const registry = {} as Record<HelpId, HelpEntry>
 
   for (const entry of entries) {
-    if (import.meta.env.DEV && Object.prototype.hasOwnProperty.call(registry, entry.id)) {
-      console.warn(`[HelpCenter] Duplicate help id: ${entry.id}`)
-    }
-
     registry[entry.id as HelpId] = entry
   }
 
@@ -7494,38 +7060,176 @@ export function getHelpEntriesByEngine(engine: HelpEngine): readonly HelpEntry[]
   )
 }
 
-function validateHelpRegistry(): void {
-  const validPriorities = new Set<HelpPriority>([1, 2, 3, 4])
+function buildLooseRegistry(entries: readonly HelpEntry[]): Readonly<Record<string, HelpEntry>> {
+  const registry: Record<string, HelpEntry> = {}
+  for (const entry of entries) registry[entry.id] = entry
+  return registry
+}
 
-  for (const [registryKey, entry] of Object.entries(HELP_CENTER)) {
+export function validateHelpRegistry(
+  entries: readonly HelpEntry[] = PRIORITY_ONE_HELP_ENTRIES,
+  registry: Readonly<Record<string, HelpEntry>> = buildLooseRegistry(entries),
+): readonly HelpRegistryValidationIssue[] {
+  const issues: HelpRegistryValidationIssue[] = []
+  const validPriorities = new Set<number>(HELP_PRIORITIES)
+  const validComponentTypes = new Set<string>(HELP_COMPONENT_TYPES)
+  const ids = new Set<string>()
+  const duplicateIds = new Set<string>()
+  const optionalStringFields = [
+    'whenToUse',
+    'defaultValue',
+    'range',
+    'recommendedRange',
+    'tip',
+    'auditMismatch',
+  ] as const
+  const optionalArrayFields = [
+    'whatItDoes',
+    'affects',
+    'doesNotAffect',
+    'relatedHelpIds',
+    'tags',
+  ] as const
+
+  const addIssue = (
+    code: HelpRegistryValidationCode,
+    message: string,
+    helpId?: string,
+  ) => issues.push({ code, message, helpId })
+
+  for (const entry of entries) {
+    if (ids.has(entry.id)) duplicateIds.add(entry.id)
+    ids.add(entry.id)
+  }
+
+  for (const duplicateId of duplicateIds) {
+    addIssue('duplicate-id', `Duplicate help id: ${duplicateId}`, duplicateId)
+  }
+
+  for (const [registryKey, entry] of Object.entries(registry)) {
     if (registryKey !== entry.id) {
-      console.warn(
-        `[HelpCenter] Registry key "${registryKey}" does not match entry id "${entry.id}".`,
+      addIssue(
+        'registry-key-mismatch',
+        `Registry key "${registryKey}" does not match entry id "${entry.id}".`,
+        entry.id,
+      )
+    }
+  }
+
+  for (const entry of entries) {
+    if (!Object.prototype.hasOwnProperty.call(registry, entry.id)) {
+      addIssue(
+        'registry-entry-missing',
+        `Registry does not contain entry "${entry.id}".`,
+        entry.id,
       )
     }
 
     if (!validPriorities.has(entry.priority)) {
-      console.warn(`[HelpCenter] Invalid priority for ${entry.id}: ${entry.priority}`)
+      addIssue(
+        'invalid-priority',
+        `Invalid priority for ${entry.id}: ${String(entry.priority)}`,
+        entry.id,
+      )
     }
 
-    if (!entry.title.trim()) {
-      console.warn(`[HelpCenter] Empty title for ${entry.id}`)
+    if (!validComponentTypes.has(entry.componentType)) {
+      addIssue(
+        'invalid-component-type',
+        `Invalid component type for ${entry.id}: ${String(entry.componentType)}`,
+        entry.id,
+      )
     }
 
-    if (!entry.summary.trim()) {
-      console.warn(`[HelpCenter] Empty summary for ${entry.id}`)
-    }
-
-    for (const relatedHelpId of entry.relatedHelpIds ?? []) {
-      if (!hasHelpEntry(relatedHelpId)) {
-        console.warn(
-          `[HelpCenter] Invalid relatedHelpId "${relatedHelpId}" referenced by "${entry.id}".`,
+    for (const [field, value] of [
+      ['id', entry.id],
+      ['group', entry.group],
+      ['title', entry.title],
+      ['summary', entry.summary],
+    ] as const) {
+      if (!value.trim()) {
+        addIssue(
+          'empty-required-string',
+          `Empty required field "${field}" for ${entry.id || '(missing id)'}.`,
+          entry.id || undefined,
         )
       }
     }
+
+    for (const field of optionalStringFields) {
+      const value = entry[field]
+      if (value !== undefined && !value.trim()) {
+        addIssue(
+          'empty-optional-string',
+          `Optional field "${field}" is empty for ${entry.id}.`,
+          entry.id,
+        )
+      }
+    }
+
+    for (const field of optionalArrayFields) {
+      const values = entry[field]
+      if (values === undefined) continue
+      if (values.length === 0) {
+        addIssue(
+          'empty-optional-array',
+          `Optional field "${field}" is an empty array for ${entry.id}.`,
+          entry.id,
+        )
+      }
+      if (values.some((value) => !value.trim())) {
+        addIssue(
+          'empty-array-item',
+          `Optional field "${field}" contains an empty item for ${entry.id}.`,
+          entry.id,
+        )
+      }
+    }
+
+    const relatedHelpIds = entry.relatedHelpIds ?? []
+    const seenRelatedHelpIds = new Set<string>()
+    for (const relatedHelpId of relatedHelpIds) {
+      if (relatedHelpId === entry.id) {
+        addIssue(
+          'self-related-help-id',
+          `Entry "${entry.id}" references itself in relatedHelpIds.`,
+          entry.id,
+        )
+      }
+      if (seenRelatedHelpIds.has(relatedHelpId)) {
+        addIssue(
+          'duplicate-related-help-id',
+          `Entry "${entry.id}" repeats relatedHelpId "${relatedHelpId}".`,
+          entry.id,
+        )
+      }
+      seenRelatedHelpIds.add(relatedHelpId)
+      if (!ids.has(relatedHelpId)) {
+        addIssue(
+          'invalid-related-help-id',
+          `Invalid relatedHelpId "${relatedHelpId}" referenced by "${entry.id}".`,
+          entry.id,
+        )
+      }
+    }
+
+    const unresolvedAuditTag = entry.tags?.some(
+      (tag) => tag === 'auditMismatch' || tag.startsWith('auditMismatch:'),
+    )
+    if (entry.auditMismatch !== undefined || unresolvedAuditTag) {
+      addIssue(
+        'unresolved-audit-mismatch',
+        `Entry "${entry.id}" carries an unresolved auditMismatch marker.`,
+        entry.id,
+      )
+    }
   }
+
+  return issues
 }
 
 if (import.meta.env.DEV) {
-  validateHelpRegistry()
+  for (const issue of validateHelpRegistry(PRIORITY_ONE_HELP_ENTRIES, HELP_CENTER)) {
+    console.warn(`[HelpCenter] ${issue.message}`)
+  }
 }
