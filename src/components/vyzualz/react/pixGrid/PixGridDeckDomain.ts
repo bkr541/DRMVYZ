@@ -17,7 +17,7 @@ export type PixGridDeckPlaybackOrder =
   | 'sectionAssigned'
 
 export type PixGridDeckTransitionStyle = 'cut' | 'crossfade' | 'pixelDissolve' | 'wipe' | 'blackout'
-export type PixGridDeckPreDropBehavior = 'inherit' | 'hold' | 'accelerate' | 'blackout'
+export type PixGridDeckPreDropBehavior = 'hold' | 'dim' | 'disperse' | 'previewNext' | 'continue'
 
 export interface PixGridDeckTransitionPolicy {
   style: PixGridDeckTransitionStyle
@@ -48,11 +48,13 @@ export interface PixGridDeckItemDefinition {
 
 export interface PixGridDeckConfiguration {
   playbackOrder: PixGridDeckPlaybackOrder
+  loop: boolean
   reactionProfileId: string | null
   transitionPolicy: PixGridDeckTransitionPolicy
   defaultItemDurationBeats: number
   sectionTimingBeats: Partial<Record<ReactSectionType, number>>
   sectionItemAssignments: Partial<Record<ReactSectionType, string[]>>
+  sceneItemAssignments: Record<string, string[]>
   preDropBehavior: PixGridDeckPreDropBehavior
 }
 
@@ -149,7 +151,7 @@ const TRANSITION_STYLES = new Set<PixGridDeckTransitionStyle>([
   'cut', 'crossfade', 'pixelDissolve', 'wipe', 'blackout',
 ])
 const PRE_DROP_BEHAVIORS = new Set<PixGridDeckPreDropBehavior>([
-  'inherit', 'hold', 'accelerate', 'blackout',
+  'hold', 'dim', 'disperse', 'previewNext', 'continue',
 ])
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 const MAX_REVISION = 2_147_483_647
@@ -158,12 +160,14 @@ const MAX_DURATION_BEATS = 1024
 
 export const DEFAULT_PIX_GRID_DECK_CONFIGURATION: Readonly<PixGridDeckConfiguration> = Object.freeze({
   playbackOrder: 'forward',
+  loop: true,
   reactionProfileId: null,
   transitionPolicy: Object.freeze({ style: 'cut', durationBeats: 0 }),
   defaultItemDurationBeats: 4,
   sectionTimingBeats: Object.freeze({}),
   sectionItemAssignments: Object.freeze({}),
-  preDropBehavior: 'inherit',
+  sceneItemAssignments: Object.freeze({}),
+  preDropBehavior: 'hold',
 })
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -317,6 +321,39 @@ function normalizeSectionAssignments(
   return normalized
 }
 
+function normalizeSceneAssignments(
+  value: unknown,
+  itemIds: ReadonlySet<string>,
+): Record<string, string[]> {
+  if (!isRecord(value)) return {}
+  const normalized: Record<string, string[]> = {}
+  for (const [rawSceneId, rawItemIds] of Object.entries(value)) {
+    const sceneId = normalizeIdentifier(rawSceneId)
+    if (!sceneId || !Array.isArray(rawItemIds)) continue
+    const seen = new Set<string>()
+    const assignment = rawItemIds.flatMap(rawItemId => {
+      const itemId = normalizeIdentifier(rawItemId)
+      if (!itemId || !itemIds.has(itemId) || seen.has(itemId)) return []
+      seen.add(itemId)
+      return [itemId]
+    })
+    if (assignment.length > 0) normalized[sceneId] = assignment
+  }
+  return normalized
+}
+
+function normalizePreDropBehavior(value: unknown): PixGridDeckPreDropBehavior {
+  if (PRE_DROP_BEHAVIORS.has(value as PixGridDeckPreDropBehavior)) {
+    return value as PixGridDeckPreDropBehavior
+  }
+  // Stage 1–3 documents used these provisional values. Normalize them into the
+  // canonical Stage 4 policy without rejecting or version-bumping saved Decks.
+  if (value === 'inherit') return 'hold'
+  if (value === 'accelerate') return 'continue'
+  if (value === 'blackout') return 'dim'
+  return DEFAULT_PIX_GRID_DECK_CONFIGURATION.preDropBehavior
+}
+
 export function normalizePixGridDeckConfiguration(
   value: unknown,
   itemIds: ReadonlySet<string> = new Set(),
@@ -333,6 +370,7 @@ export function normalizePixGridDeckConfiguration(
     playbackOrder: PLAYBACK_ORDERS.has(source.playbackOrder as PixGridDeckPlaybackOrder)
       ? source.playbackOrder as PixGridDeckPlaybackOrder
       : DEFAULT_PIX_GRID_DECK_CONFIGURATION.playbackOrder,
+    loop: typeof source.loop === 'boolean' ? source.loop : DEFAULT_PIX_GRID_DECK_CONFIGURATION.loop,
     reactionProfileId: normalizeNullableIdentifier(source.reactionProfileId),
     transitionPolicy: { style, durationBeats },
     defaultItemDurationBeats: clamp(
@@ -343,9 +381,8 @@ export function normalizePixGridDeckConfiguration(
     ),
     sectionTimingBeats: normalizeSectionTiming(source.sectionTimingBeats),
     sectionItemAssignments: normalizeSectionAssignments(source.sectionItemAssignments, itemIds),
-    preDropBehavior: PRE_DROP_BEHAVIORS.has(source.preDropBehavior as PixGridDeckPreDropBehavior)
-      ? source.preDropBehavior as PixGridDeckPreDropBehavior
-      : DEFAULT_PIX_GRID_DECK_CONFIGURATION.preDropBehavior,
+    sceneItemAssignments: normalizeSceneAssignments(source.sceneItemAssignments, itemIds),
+    preDropBehavior: normalizePreDropBehavior(source.preDropBehavior),
   }
 }
 

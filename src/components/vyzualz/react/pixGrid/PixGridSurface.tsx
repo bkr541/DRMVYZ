@@ -68,11 +68,15 @@ import { resolvePixGridPresentation, resolvePixGridPublishedQuality } from './Pi
 import { resolvePixGridSurfacePerformanceFrame } from './PixGridSurfaceRuntime'
 import { applyPixGridPresetSignClock } from './PixGridSignClock'
 import { PixGridSelectedScenePreviewClock } from './PixGridScenePreview'
+import type { PixGridDeckDefinition } from './PixGridDeckDomain'
+import { getPixGridPreparedFrameSet } from './PixGridDeckCompilerRuntime'
+import type { PixGridSequencePlan } from './PixGridSequenceClock'
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
   activePreset: ReactPreset | null
   pixGridState: PixGridState
+  pixGridDecks?: readonly PixGridDeckDefinition[]
   pixGridActionCues?: readonly PixGridActionCue[]
   intensity: number
   motion: number
@@ -108,6 +112,10 @@ export interface PixGridSurfaceRuntimeFrame {
   signTransitionType: string | null
   signTransitionProgress: number
   authoredAnimationPhase: number
+  deckSequenceFrameId: string | null
+  deckSequenceNextFrameId: string | null
+  deckSequenceEpoch: number | null
+  deckSequenceBoundaryIdentity: string | null
   authoredBulbStates: readonly Readonly<{ layerId: string; opacity: number; frameIndex: number }>[]
   visibleComponentIds: readonly string[]
   activeCellCount: number
@@ -621,6 +629,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       transition: PixGridResolvedTransition | null
       groupEffects: readonly PixGridGroupFrameEffect[]
       audioFrame: PixGridAudioFrame
+      deckSequencePlan: PixGridSequencePlan | null
     } | null => {
       const current = propsRef.current
       const activePreset = current.activePreset
@@ -880,6 +889,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         current.trackSections ?? intelligenceFrame.resolvedSections ?? [],
         audioTime,
       )
+      const activeDeck = current.pixGridDecks?.find(deck => deck.generatedPresetId === activePreset.id) ?? null
       const surfacePerformanceFrame = resolvePixGridSurfacePerformanceFrame({
         authoredState: runtimeState,
         trackSceneId: selectedSceneId,
@@ -889,11 +899,14 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         cues: current.pixGridActionCues ?? [],
         runtime: unifiedPerformanceRuntime,
         trackId: current.trackIdentity ?? null,
+        deck: activeDeck,
+        preparedFrameSet: activeDeck ? getPixGridPreparedFrameSet(activeDeck.id) : null,
       })
       const {
         mappedState,
         previewAudioFrame,
         performanceContext: pixGridPerformanceContext,
+        deckSequencePlan,
         resolvedRuntime,
       } = surfacePerformanceFrame
       const state = transportState === 'stopped' ? mappedState : resolvedRuntime.state
@@ -983,6 +996,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         transition: transportState === 'stopped' ? null : resolvedRuntime.transition,
         groupEffects: transportState === 'stopped' ? [] : resolvedRuntime.groupEffects,
         audioFrame: routedAudioFrame,
+        deckSequencePlan,
         blackout: !current.isPlaying && !current.isPaused && state.stoppedBehavior === 'blackout',
         frame: {
           width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
@@ -1119,6 +1133,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         signTransitionType: signAnimation?.frameTransitionType ?? null,
         signTransitionProgress: signAnimation?.frameTransitionProgress ?? 1,
         authoredAnimationPhase: input.audioFrame.motionClockSectionBeat ?? 0,
+        deckSequenceFrameId: input.deckSequencePlan?.activeFrameId ?? null,
+        deckSequenceNextFrameId: input.deckSequencePlan?.nextFrameId ?? null,
+        deckSequenceEpoch: input.deckSequencePlan?.frameEpoch ?? null,
+        deckSequenceBoundaryIdentity: input.deckSequencePlan?.boundaryIdentity ?? null,
         authoredBulbStates,
         visibleComponentIds,
         activeCellCount,

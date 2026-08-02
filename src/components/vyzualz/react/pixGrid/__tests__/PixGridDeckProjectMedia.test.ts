@@ -83,12 +83,14 @@ async function deckFor(first: File, second: File): Promise<PixGridDeckDefinition
     ],
     configuration: {
       playbackOrder: 'forward',
+      loop: true,
       reactionProfileId: null,
       transitionPolicy: { style: 'cut', durationBeats: 0 },
       defaultItemDurationBeats: 4,
       sectionTimingBeats: {},
       sectionItemAssignments: {},
-      preDropBehavior: 'inherit',
+      sceneItemAssignments: {},
+      preDropBehavior: 'hold',
     },
   }
 }

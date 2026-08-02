@@ -1,5 +1,7 @@
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { PixGridActionCue } from './PixGridActionCues'
+import type { PixGridPreparedFrameSet } from './PixGridDeckCompilerContracts'
+import type { PixGridDeckDefinition } from './PixGridDeckDomain'
 import type { PixGridPerformanceSceneOwnership } from './PixGridPerformanceRuntime'
 import { applyPixGridBassGainToPerformanceContext } from './PixGridRuntimeControls'
 import {
@@ -8,6 +10,13 @@ import {
   resolvePixGridPreviewState,
 } from './PixGridScenePreview'
 import { applyPixGridPresetSignClock } from './PixGridSignClock'
+import {
+  createPixGridPreparedSequenceFrames,
+  createPixGridSequenceBoundarySignals,
+  resolvePixGridDeckSequencePosition,
+  resolvePixGridSequencePlan,
+  type PixGridSequencePlan,
+} from './PixGridSequenceClock'
 import { ensurePixGridCanonicalPresetIntegrity } from './PixGridStateMigration'
 import { PixGridUnifiedPerformanceRuntime, type PixGridUnifiedFrame } from './PixGridUnifiedPerformanceRuntime'
 import type { PixGridAudioFrame, PixGridState } from './PixGridTypes'
@@ -21,6 +30,8 @@ export interface ResolvePixGridSurfacePerformanceFrameInput {
   cues: readonly PixGridActionCue[]
   runtime: PixGridUnifiedPerformanceRuntime
   trackId?: string | null
+  deck?: PixGridDeckDefinition | null
+  preparedFrameSet?: PixGridPreparedFrameSet | null
 }
 
 export interface PixGridSurfacePerformanceFrame {
@@ -28,6 +39,7 @@ export interface PixGridSurfacePerformanceFrame {
   previewAudioFrame: PixGridAudioFrame
   performanceContext: SharedPerformanceContext
   sceneOwnership: PixGridPerformanceSceneOwnership
+  deckSequencePlan: PixGridSequencePlan | null
   resolvedRuntime: PixGridUnifiedFrame
 }
 
@@ -59,6 +71,47 @@ export function resolvePixGridSurfacePerformanceFrame(
   const sceneOwnership: PixGridPerformanceSceneOwnership = mappedState.editor.scenePreviewMode === 'selectedScene'
     ? 'editingContext'
     : 'performance'
+  const sequencePosition = resolvePixGridDeckSequencePosition(previewAudioFrame, performanceContext)
+  const previewTimeline = Number.isFinite(previewAudioFrame.previewElapsedBar)
+    ? [{
+        id: `editor-preview:${mappedState.selectedSceneId ?? previewAudioFrame.sectionType ?? 'unknown'}`,
+        type: previewAudioFrame.sectionType ?? 'unknown',
+        startBar: 0,
+        endBar: Math.max(sequencePosition.sequenceBar + 1, previewAudioFrame.previewLoopBars ?? 1),
+      }]
+    : performanceContext.sectionBarTimeline
+  const deckSequencePlan = input.deck
+    ? resolvePixGridSequencePlan({
+        deck: input.deck,
+        preparedFrames: createPixGridPreparedSequenceFrames(input.deck, input.preparedFrameSet),
+        timeline: {
+          absoluteBar: sequencePosition.absoluteBar,
+          sequenceBar: sequencePosition.sequenceBar,
+          sectionType: previewAudioFrame.sectionType ?? performanceContext.sectionType ?? 'unknown',
+          sectionId: sceneOwnership === 'editingContext'
+            ? mappedState.selectedSceneId
+            : performanceContext.sectionId,
+          sectionOccurrence: performanceContext.sectionOccurrence,
+          sectionBarTimeline: previewTimeline,
+          sceneId: mappedState.selectedSceneId,
+          trackIdentity: performanceContext.trackIdentity,
+          presetId: input.presetId ?? input.deck.generatedPresetId,
+          timelineRevision: performanceContext.timelineRevision,
+          phraseIndex: performanceContext.phraseIndex,
+          phraseLengthBars: performanceContext.phraseLengthBars,
+          phraseProgress: performanceContext.phraseProgress,
+        },
+        boundarySignals: createPixGridSequenceBoundarySignals(
+          performanceContext,
+          sceneOwnership === 'editingContext' ? [] : input.cues,
+          sceneOwnership === 'editingContext'
+            ? { includePhrases: false, includeSections: false, includeTrackMapCues: false }
+            : undefined,
+        ),
+        motion: previewAudioFrame.motionMultiplier,
+        transportMode: sequencePosition.transportMode,
+      })
+    : null
   const resolvedRuntime = input.runtime.resolve({
     authoredState: mappedState,
     context: performanceContext,
@@ -75,6 +128,7 @@ export function resolvePixGridSurfacePerformanceFrame(
     previewAudioFrame,
     performanceContext,
     sceneOwnership,
+    deckSequencePlan,
     resolvedRuntime,
   }
 }

@@ -54,6 +54,9 @@ describe('PixGrid Deck domain normalization', () => {
         sectionItemAssignments: {
           intro: ['item-2', 'missing', 'item-2', 'item-1'],
         },
+        sceneItemAssignments: {
+          'scene-1': ['item-1', 'missing', 'item-3', 'item-1'],
+        },
         preDropBehavior: 'accelerate',
       },
     })
@@ -71,13 +74,29 @@ describe('PixGrid Deck domain normalization', () => {
         defaultItemDurationBeats: 0.25,
         sectionTimingBeats: { intro: 8 },
         sectionItemAssignments: { intro: ['item-2', 'item-1'] },
-        preDropBehavior: 'accelerate',
+        sceneItemAssignments: { 'scene-1': ['item-1', 'item-3'] },
+        loop: true,
+        preDropBehavior: 'continue',
       },
     })
     expect(result.deck?.items.map(item => item.id)).toEqual(['item-3', 'item-2', 'item-1'])
     expect(result.deck?.items.map(item => item.order)).toEqual([0, 1, 2])
     expect(generatedPixGridDeckPresetId('deck-stable')).toBe('pix-grid-deck:deck-stable')
     expect(normalizePixGridDeckName(` ${'A'.repeat(100)} `)).toHaveLength(80)
+  })
+
+  it.each([
+    ['inherit', 'hold'],
+    ['accelerate', 'continue'],
+    ['blackout', 'dim'],
+  ] as const)('migrates the provisional %s PreDrop value to %s', (legacy, expected) => {
+    const result = normalizePixGridDeckDefinition({
+      id: `legacy-${legacy}`,
+      name: `Legacy ${legacy}`,
+      items: items(2),
+      configuration: { preDropBehavior: legacy },
+    })
+    expect(result.deck?.configuration.preDropBehavior).toBe(expected)
   })
 
   it('repairs deterministic legacy aliases without inventing random migration IDs', () => {

@@ -179,6 +179,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector,
     pixGridState,
+    pixGridDecks,
     pixGridActionCuesByTrackId,
     setPixGridState,
     applyPixGridAuthoringState,
@@ -218,6 +219,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrixAuthoringMode: s.laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector:           s.laserDmxShowDirector,
     pixGridState:                    s.pixGridState,
+    pixGridDecks:                    s.pixGridDecks,
     pixGridActionCuesByTrackId:       s.pixGridActionCuesByTrackId,
     setPixGridState:                  s.setPixGridState,
     applyPixGridAuthoringState:       s.applyPixGridAuthoringState,
@@ -641,6 +643,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 analyser={analyser}
                 activePreset={renderPreset}
                 pixGridState={pixGridState}
+                pixGridDecks={pixGridDecks}
                 pixGridActionCues={activePixGridActionCues}
                 intensity={reactIntensity}
                 motion={reactMotion}

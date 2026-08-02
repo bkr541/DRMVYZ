@@ -74,6 +74,7 @@ export function ShowManagerView() {
   const reactPresets = useReactStore(state => state.reactPresets)
   const activeReactPresetId = useReactStore(state => state.activeReactPresetId)
   const pixGridState = useReactStore(state => state.pixGridState)
+  const pixGridDecks = useReactStore(state => state.pixGridDecks)
   const reactIntensity = useReactStore(state => state.reactIntensity)
   const reactMotion = useReactStore(state => state.reactMotion)
   const reactGlow = useReactStore(state => state.reactGlow)
@@ -255,6 +256,7 @@ export function ShowManagerView() {
               analyser={engine.analyserMaster}
               activePreset={activePreset}
               pixGridState={pixGridState}
+              pixGridDecks={pixGridDecks}
               pixGridActionCues={activeCues}
               intensity={reactIntensity}
               motion={reactMotion}
