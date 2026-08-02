@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import learnIconUrl from '../../../assets/help/learn-svgrepo-com.svg'
 import { getHelpEntry, type HelpId } from '../../../help/HelpCenter'
 import {
@@ -15,7 +15,14 @@ export interface HelpInfoTriggerProps {
   placement?: 'auto' | 'right' | 'left' | 'above' | 'below'
 }
 
+export interface HelpLabelProps extends HelpInfoTriggerProps {
+  children: ReactNode
+  className?: string
+}
+
 type SectionGlyphKind = 'value' | 'behavior' | 'range' | 'use' | 'tip'
+
+const HELP_POPOVER_OPEN_EVENT = 'drm-help-popover-open'
 
 function SectionGlyph({ kind }: { kind: SectionGlyphKind }) {
   if (kind === 'value') {
@@ -69,12 +76,6 @@ function renderLines(lines: readonly string[]): ReactNode {
   )
 }
 
-function optionalString(entry: object, key: string): string | undefined {
-  if (!(key in entry)) return undefined
-  const value = (entry as Record<string, unknown>)[key]
-  return typeof value === 'string' && value.trim() ? value : undefined
-}
-
 export function HelpInfoTrigger({
   helpId,
   currentValue,
@@ -84,7 +85,17 @@ export function HelpInfoTrigger({
 }: HelpInfoTriggerProps) {
   const entry = getHelpEntry(helpId)
   const anchorRef = useRef<HTMLButtonElement>(null)
+  const triggerToken = useId()
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const closeOtherPopover = (event: Event) => {
+      const requestedTrigger = (event as CustomEvent<string>).detail
+      if (requestedTrigger !== triggerToken) setOpen(false)
+    }
+    window.addEventListener(HELP_POPOVER_OPEN_EVENT, closeOtherPopover)
+    return () => window.removeEventListener(HELP_POPOVER_OPEN_EVENT, closeOtherPopover)
+  }, [triggerToken])
 
   const sections = useMemo<readonly InfoPopoverSection[]>(() => {
     if (!entry) return []
@@ -108,18 +119,15 @@ export function HelpInfoTrigger({
       })
     }
 
-    const implementedRange = optionalString(entry, 'range')
-    const legacyRange = implementedRange ? undefined : entry.recommendedRange
-    const range = implementedRange ?? legacyRange
-    if (range) {
+    if (entry.range) {
       nextSections.push({
         label: 'Range',
-        content: range,
+        content: entry.range,
         icon: <SectionGlyph kind="range" />,
       })
     }
 
-    if (implementedRange && entry.recommendedRange) {
+    if (entry.recommendedRange) {
       nextSections.push({
         label: 'Recommended range',
         content: entry.recommendedRange,
@@ -163,7 +171,13 @@ export function HelpInfoTrigger({
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          setOpen((value) => !value)
+          setOpen((value) => {
+            const nextOpen = !value
+            if (nextOpen) {
+              window.dispatchEvent(new CustomEvent<string>(HELP_POPOVER_OPEN_EVENT, { detail: triggerToken }))
+            }
+            return nextOpen
+          })
         }}
       >
         <img src={learnIconUrl} alt="" aria-hidden="true" />
@@ -182,5 +196,18 @@ export function HelpInfoTrigger({
         onOpenChange={setOpen}
       />
     </>
+  )
+}
+
+export function HelpLabel({
+  children,
+  className,
+  ...triggerProps
+}: HelpLabelProps) {
+  return (
+    <span className={['drm-help-label', className].filter(Boolean).join(' ')}>
+      <span className="drm-help-label__text">{children}</span>
+      <HelpInfoTrigger {...triggerProps} />
+    </span>
   )
 }

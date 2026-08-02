@@ -6,5 +6,8 @@ export type {
   InfoPopoverSection,
   InfoPopoverTone,
 } from './InfoPopover'
-export { HelpInfoTrigger } from './HelpInfoTrigger'
-export type { HelpInfoTriggerProps } from './HelpInfoTrigger'
+export { HelpInfoTrigger, HelpLabel } from './HelpInfoTrigger'
+export type { HelpInfoTriggerProps, HelpLabelProps } from './HelpInfoTrigger'
+
+export { PriorityOneHelpLayer, resolvePriorityOneHelpMatches } from './PriorityOneHelpLayer'
+export type { PriorityOneHelpLayerProps } from './PriorityOneHelpLayer'

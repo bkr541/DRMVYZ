@@ -102,7 +102,13 @@ function SoundDrawingSourceGrid({
   description?: string
 }) {
   return (
-    <div>
+    <div className="drm-help-target">
+      <span className="rv-source-selection-help">
+        <HelpInfoTrigger
+          helpId="react.shared.engine.sourceSelection"
+          currentValue={SOUND_DRAWING_SOURCE_OPTIONS.find(option => option.value === value)?.label ?? value}
+        />
+      </span>
       <div
         className="rv-sound-source-grid"
         role="radiogroup"
@@ -227,47 +233,55 @@ function CinematicWorldSourceGrid({
   )
 
   return (
-    <div
-      className="rv-sound-source-grid rv-cinematic-world-source-grid"
-      role="radiogroup"
-      aria-label="Cinematic worlds"
-      data-cinematic-world-grid
-      data-grid-columns="2"
-    >
-      {orderedGroups.map((group, optionIndex) => {
-        const isActive = group.world.id === activeWorldMode
-        const activePresetInWorld = group.presets.find((preset) => preset.id === activePresetId)
-        const targetPreset = activePresetInWorld ?? group.presets[0]
-        return (
-          <button
-            id={`cinematic-world-group-${group.world.id}`}
-            key={group.world.id}
-            type="button"
-            role="radio"
-            aria-checked={isActive}
-            tabIndex={isActive || (!hasActiveWorld && optionIndex === 0) ? 0 : -1}
-            aria-label={`${group.world.label}, ${group.world.category} category, ${group.presets.length} presets`}
-            className={`rv-sound-source-card rv-cinematic-world-source-card${isActive ? ' is-active' : ''}`}
-            title={group.world.description}
-            data-cinematic-world-option
-            data-cinematic-world-category={group.world.category}
-            onKeyDown={handleCinematicWorldKeyDown}
-            onClick={() => {
-              if (targetPreset && !isActive) onSelect(targetPreset.id)
-            }}
-          >
-            <span className="rv-cinematic-world-source-category-badge">{group.world.category}</span>
-            <span className="rv-sound-source-card-icon">
-              <CinematicWorldIcon mode={group.world.id} />
-            </span>
-            <span className="rv-sound-source-card-label">{group.world.label}</span>
-            <span className="rv-cinematic-world-source-count">
-              {group.presets.length} preset
-              {group.presets.length === 1 ? '' : 's'}
-            </span>
-          </button>
-        )
-      })}
+    <div className="drm-help-target">
+      <span className="rv-source-selection-help">
+        <HelpInfoTrigger
+          helpId="react.cinematicWorlds.worlds.worldSelection"
+          currentValue={orderedGroups.find(group => group.world.id === activeWorldMode)?.world.label ?? 'No world selected'}
+        />
+      </span>
+      <div
+        className="rv-sound-source-grid rv-cinematic-world-source-grid"
+        role="radiogroup"
+        aria-label="Cinematic worlds"
+        data-cinematic-world-grid
+        data-grid-columns="2"
+      >
+        {orderedGroups.map((group, optionIndex) => {
+          const isActive = group.world.id === activeWorldMode
+          const activePresetInWorld = group.presets.find((preset) => preset.id === activePresetId)
+          const targetPreset = activePresetInWorld ?? group.presets[0]
+          return (
+            <button
+              id={`cinematic-world-group-${group.world.id}`}
+              key={group.world.id}
+              type="button"
+              role="radio"
+              aria-checked={isActive}
+              tabIndex={isActive || (!hasActiveWorld && optionIndex === 0) ? 0 : -1}
+              aria-label={`${group.world.label}, ${group.world.category} category, ${group.presets.length} presets`}
+              className={`rv-sound-source-card rv-cinematic-world-source-card${isActive ? ' is-active' : ''}`}
+              title={group.world.description}
+              data-cinematic-world-option
+              data-cinematic-world-category={group.world.category}
+              onKeyDown={handleCinematicWorldKeyDown}
+              onClick={() => {
+                if (targetPreset && !isActive) onSelect(targetPreset.id)
+              }}
+            >
+              <span className="rv-cinematic-world-source-category-badge">{group.world.category}</span>
+              <span className="rv-sound-source-card-icon">
+                <CinematicWorldIcon mode={group.world.id} />
+              </span>
+              <span className="rv-sound-source-card-label">{group.world.label}</span>
+              <span className="rv-cinematic-world-source-count">
+                {group.presets.length} preset
+                {group.presets.length === 1 ? '' : 's'}
+              </span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -438,7 +452,7 @@ export function ReactEnginePanel() {
       {/* Cinematic Worlds source selection lives in the left rail. */}
       {activeReactEngineId === 'cinematicPortal' && (
         <>
-          <CtrlSection label="Worlds" />
+          <CtrlSection label="Worlds" helpId="react.cinematicWorlds.worlds.overview" />
           <CinematicWorldSourceGrid
             groups={cinematicWorldGroups}
             activeWorldMode={activeCinematicWorldMode}
@@ -450,7 +464,7 @@ export function ReactEnginePanel() {
 
       {/* ── Engine Mode: GLSL Shader ──────────────────────────────────── */}
       {activeReactEngineId === 'shaderPads' && (
-        <Collapsible label="Shader Scenes" defaultOpen>
+        <Collapsible label="Shader Scenes" defaultOpen helpId="react.shaderPads.sceneLibrary.scenes.overview">
           <div className="rv-ctrl-info rv-control-helper-copy">
             Shader uses Scenes rather than React presets. Choose and manage the active scene from the SCENES tab in the
             right rail.
@@ -470,17 +484,10 @@ export function ReactEnginePanel() {
       {/* ── Engine Mode: Oscilloscope ──────────────────────────────────── */}
       {activeReactEngineId === 'oscilloscope' && (
         <>
-          <CtrlSection label="Authored Performance" />
+          <CtrlSection label="Authored Performance" helpId="react.soundDrawing.authoredPerformance.overview" />
           <ToggleRow
             label="Auto Performance"
-            labelAccessory={
-              <HelpInfoTrigger
-                helpId="react.soundDrawing.authoredPerformance.autoPerformance"
-                currentValue={soundDrawingPerformanceSettings.autoPerformance ? 'On' : 'Off'}
-                currentValueLabel="Status"
-                currentValueTone={soundDrawingPerformanceSettings.autoPerformance ? 'success' : 'default'}
-              />
-            }
+            helpId="react.soundDrawing.authoredPerformance.autoPerformance"
             keepLabelAccessoryInteractiveWhenDisabled
             value={soundDrawingPerformanceSettings.autoPerformance}
             disabled={soundDrawingPerformanceSettings.selectedShowId == null}
@@ -548,15 +555,10 @@ export function ReactEnginePanel() {
           </div>
           {soundDrawingPerformanceSettings.autoPerformance && (
             <>
-              <CtrlSection label="Show Choreography" />
+              <CtrlSection label="Show Choreography" helpId="react.soundDrawing.showChoreography.overview" />
               <SliderRow
                 label="Complexity"
-                labelAccessory={
-                  <HelpInfoTrigger
-                    helpId="react.soundDrawing.showChoreography.complexity"
-                    currentValue={`${Math.round(soundDrawingPerformanceSettings.complexity * 100)}%`}
-                  />
-                }
+                helpId="react.soundDrawing.showChoreography.complexity"
                 value={soundDrawingPerformanceSettings.complexity}
                 onChange={(value) => setSoundDrawingPerformanceSettings({ complexity: value })}
                 min={0}
@@ -566,6 +568,7 @@ export function ReactEnginePanel() {
               />
               <SliderRow
                 label="Motion Intensity"
+                helpId="react.soundDrawing.showChoreography.motionIntensity"
                 value={soundDrawingPerformanceSettings.motionIntensity}
                 onChange={(value) => setSoundDrawingPerformanceSettings({ motionIntensity: value })}
                 min={0}
@@ -575,6 +578,7 @@ export function ReactEnginePanel() {
               />
               <SliderRow
                 label="Reaction Intensity"
+                helpId="react.soundDrawing.showChoreography.reactionIntensity"
                 value={soundDrawingPerformanceSettings.reactionIntensity}
                 onChange={(value) =>
                   setSoundDrawingPerformanceSettings({
@@ -588,6 +592,7 @@ export function ReactEnginePanel() {
               />
               <SliderRow
                 label="Trail Intensity"
+                helpId="react.soundDrawing.showChoreography.trailIntensity"
                 value={soundDrawingPerformanceSettings.trailIntensity}
                 onChange={(value) => setSoundDrawingPerformanceSettings({ trailIntensity: value })}
                 min={0}
@@ -597,6 +602,7 @@ export function ReactEnginePanel() {
               />
               <SliderRow
                 label="Show Size"
+                helpId="react.soundDrawing.showChoreography.showSize"
                 value={osc.pathScale}
                 onChange={(value) => set({ pathScale: value })}
                 min={SOUND_DRAWING_VISUAL_SIZE_MIN}
@@ -684,6 +690,7 @@ export function ReactEnginePanel() {
                     />
                     <SliderRow
                       label="Audio Reaction Depth"
+                      helpId="react.soundDrawing.livingRibbon.audioReactionDepth"
                       value={ribbon.audioReactionDepth}
                       onChange={(value) => setRibbon({ audioReactionDepth: value })}
                       min={0}
@@ -708,6 +715,7 @@ export function ReactEnginePanel() {
               <CtrlSection label="Base Design" />
               <SliderRow
                 label="Show Size"
+                helpId="react.soundDrawing.engineMode.showSize"
                 value={osc.pathScale}
                 onChange={(value) => set({ pathScale: value })}
                 min={SOUND_DRAWING_VISUAL_SIZE_MIN}
@@ -729,7 +737,7 @@ export function ReactEnginePanel() {
 
           {soundDrawingPerformanceSettings.selectedShowId == null && (
             <>
-          <CtrlSection label="Engine Mode" />
+          <CtrlSection label="Engine Mode" helpId="react.soundDrawing.engineMode.overview" />
 
           {glyphLostNotice && (
             <div className="rv-glyph-lost-notice">
@@ -764,6 +772,7 @@ export function ReactEnginePanel() {
 
           <SliderRow
             label="Visual Size"
+            helpId="react.soundDrawing.engineMode.visualSize"
             value={osc.pathScale}
             onChange={value => set({ pathScale: value })}
             min={SOUND_DRAWING_VISUAL_SIZE_MIN}
@@ -785,6 +794,7 @@ export function ReactEnginePanel() {
                 <>
                   <ToggleRow
                     label="Follow Track Sections"
+                    helpId="react.soundDrawing.engineMode.followTrackSections"
                     value={osc.autoSectionMode}
                     onChange={(v) => set({ autoSectionMode: v })}
                     description="Automatically changes the manual Classic Scope topology from the analyzed section at the playhead."
@@ -801,6 +811,7 @@ export function ReactEnginePanel() {
               {(!osc.autoSectionMode || soundDrawingPerformanceSettings.autoPerformance) && (
                 <SelectRow
                   label="Classic Mode"
+                  helpId="react.soundDrawing.engineMode.classicMode"
                   value={osc.classicMode === 'sectionAuto' ? 'waveform' : osc.classicMode}
                   onChange={(v) => set({ classicMode: v as ClassicScopeMode })}
                   options={[

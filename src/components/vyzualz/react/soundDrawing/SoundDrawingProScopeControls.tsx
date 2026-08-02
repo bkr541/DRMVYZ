@@ -113,6 +113,7 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
 
       <SelectRow
         label="Preset"
+        helpId="react.soundDrawing.proScope.preset"
         value={activePreset?.id ?? ''}
         onChange={v => { if (v) set({ scope: resolveScopePresetState(v) }) }}
         description="A complete recipe — signal, timebase, trigger, beam, phosphor, and tube. Everything below stays adjustable afterwards."
@@ -153,6 +154,7 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
       {!hideTraceSize && (
         <SliderRow
           label="Visual Size"
+          helpId="react.soundDrawing.proScope.visualSize"
           value={osc.pathScale}
           onChange={v => set({ pathScale: v })}
           min={SOUND_DRAWING_VISUAL_SIZE_MIN}
@@ -398,6 +400,7 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
         </p>
         <SliderRow
           label="Beat Bloom"
+          helpId="react.soundDrawing.proScope.musicReactivity.beatBloom"
           value={scope.music.beatBloom}
           onChange={v => patchMusic({ beatBloom: v })}
         />

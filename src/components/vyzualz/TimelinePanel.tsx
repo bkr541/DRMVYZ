@@ -386,7 +386,7 @@ function BgClipInspector({
 }) {
   const grade = clip.colorGrade ?? DEFAULT_COLOR_GRADE
   return (
-    <div className="vz-ml-insp-body">
+    <div className="vz-ml-insp-body" data-help-context="Timeline Background Clip Inspector">
       <div className="vz-ml-insp-group">
         <div className="vz-ml-insp-group-hd">
           <span className="vz-ml-insp-group-chevron">▸</span>
@@ -610,7 +610,7 @@ function OverlayClipInspector({
   }
 
   return (
-    <div className="vz-ml-insp-body">
+    <div className="vz-ml-insp-body" data-help-context="Timeline Overlay Clip Inspector">
       <div className="vz-ml-insp-group">
         <div className="vz-ml-insp-group-hd">
           <span className="vz-ml-insp-group-chevron">▸</span>
@@ -839,7 +839,7 @@ function EffectInspector({
   const targetId   = region.targetIds?.[0] ?? ''
 
   return (
-    <div className="vz-ml-insp-body">
+    <div className="vz-ml-insp-body" data-help-context="Timeline Effect Region Inspector">
       <div className="vz-ml-insp-group">
         <div className="vz-ml-insp-group-hd">
           <span className="vz-ml-insp-group-chevron">▸</span>

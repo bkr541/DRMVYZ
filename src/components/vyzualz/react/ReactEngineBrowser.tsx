@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactEngineId } from './ReactTypes'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 /**
  * Header-level engine-family switcher. The old vertical ENGINE column is now a
@@ -47,7 +48,7 @@ export function ReactEngineBrowser() {
   }
 
   return (
-    <div className="rv-engine-dropdown" ref={rootRef}>
+    <div className="rv-engine-dropdown drm-help-target" ref={rootRef}>
       <button
         type="button"
         className="rv-engine-dropdown-trigger"
@@ -68,6 +69,14 @@ export function ReactEngineBrowser() {
           </svg>
         </span>
       </button>
+
+      <span className="rv-engine-dropdown-help">
+        <HelpInfoTrigger
+          helpId="react.shared.engine.engineSelection"
+          currentValue={activeEngine.label}
+          placement="below"
+        />
+      </span>
 
       {open && (
         <div className="rv-engine-dropdown-menu" role="listbox" aria-label="React visual engines">

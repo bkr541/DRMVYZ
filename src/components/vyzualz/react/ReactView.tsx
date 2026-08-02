@@ -508,7 +508,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const showDirectorStageEditorVisible = laserDmxAuthoringOverlayVisibility.showDirectorStageEditor
 
   return (
-    <div className="rv-shell" data-stage-focus={stageFocus ? 'true' : undefined}>
+    <div className="rv-shell" data-help-engine={activeReactEngineId} data-stage-focus={stageFocus ? 'true' : undefined}>
       <div className="vz-header">
         <div className="vz-header-title-group">
           <div className="vz-header-title">REACT</div>

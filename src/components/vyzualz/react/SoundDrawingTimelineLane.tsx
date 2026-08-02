@@ -191,7 +191,7 @@ function LayerEditor({
 
       <div className="rv-sd-layer-editor-body">
         {/* ── Clip controls ── */}
-        <CtrlSection label="Clip" />
+        <CtrlSection label="Clip" helpId="react.soundDrawing.timeline.clip.overview" />
 
         <div className="rv-ctrl-row">
           <span className="rv-ctrl-label" id={`${idPrefix}-enabled-label`}>Enabled</span>
@@ -232,6 +232,7 @@ function LayerEditor({
 
         <SliderRow
           label="Z-Index"
+          helpId="react.soundDrawing.timeline.clip.zIndex"
           value={clip.zIndex}
           onChange={v => pc({ zIndex: Math.round(v) })}
           min={0} max={10} step={1}
@@ -239,6 +240,7 @@ function LayerEditor({
         />
         <SliderRow
           label="Fade In (ms)"
+          helpId="react.soundDrawing.timeline.clip.fadeInMs"
           value={clip.fadeInMs}
           onChange={v => pc({ fadeInMs: Math.round(v) })}
           min={0} max={2000} step={50}
@@ -246,6 +248,7 @@ function LayerEditor({
         />
         <SliderRow
           label="Fade Out (ms)"
+          helpId="react.soundDrawing.timeline.clip.fadeOutMs"
           value={clip.fadeOutMs}
           onChange={v => pc({ fadeOutMs: Math.round(v) })}
           min={0} max={2000} step={50}
@@ -253,16 +256,18 @@ function LayerEditor({
         />
 
         {/* ── Layer controls ── */}
-        <CtrlSection label="Layer" />
+        <CtrlSection label="Layer" helpId="react.soundDrawing.timeline.layer.overview" />
 
         <ToggleRow
           label="Layer Enabled"
+          helpId="react.soundDrawing.timeline.layer.enabled"
           value={layer.enabled}
           onChange={v => pl({ enabled: v })}
         />
 
         <TextInputRow
           label="Name"
+          helpId="react.soundDrawing.timeline.layer.name"
           value={layer.name}
           onChange={v => pl({ name: v })}
           maxLength={48}
@@ -270,6 +275,7 @@ function LayerEditor({
 
         <SelectRow
           label="Source"
+          helpId="react.soundDrawing.timeline.layer.source"
           value={layer.sourceType}
           onChange={v => pl({ sourceType: v as SoundDrawingLayerSourceType })}
           options={[
@@ -284,6 +290,7 @@ function LayerEditor({
           <>
             <SelectRow
               label="Text Source"
+              helpId="react.soundDrawing.timeline.layer.textSource"
               value={layer.textSource ?? 'static'}
               onChange={value => pl({ textSource: value as SoundDrawingTextSource })}
               options={[
@@ -325,6 +332,7 @@ function LayerEditor({
                 </div>
                 <SelectRow
                   label="When No Lyric Is Active"
+                  helpId="react.soundDrawing.timeline.layer.lyricGapBehavior"
                   value={layer.lyricGapBehavior ?? 'hide'}
                   onChange={value => pl({ lyricGapBehavior: value as SoundDrawingLyricGapBehavior })}
                   options={[
@@ -336,6 +344,7 @@ function LayerEditor({
                 {layer.lyricGapBehavior === 'fallback' && (
                   <TextInputRow
                     label="Fallback Text"
+                    helpId="react.soundDrawing.timeline.layer.fallbackText"
                     value={layer.lyricFallbackText ?? ''}
                     onChange={value => pl({ lyricFallbackText: value })}
                     maxLength={128}
@@ -347,6 +356,7 @@ function LayerEditor({
             {fontAssets.length > 0 && (
               <SelectRow
                 label="Font"
+                helpId="react.soundDrawing.timeline.layer.font"
                 value={layer.fontId ?? ''}
                 onChange={v => pl({ fontId: v || null })}
                 options={[
@@ -357,6 +367,7 @@ function LayerEditor({
             )}
             <SelectRow
               label="Alignment"
+              helpId="react.soundDrawing.timeline.layer.alignment"
               value={layer.alignment}
               onChange={v => pl({ alignment: v as 'left' | 'center' | 'right' })}
               options={[
@@ -367,6 +378,7 @@ function LayerEditor({
             />
             <SliderRow
               label="Line Height"
+              helpId="react.soundDrawing.timeline.layer.lineHeight"
               value={layer.lineHeight}
               onChange={v => pl({ lineHeight: v })}
               min={0.8} max={3.0} step={0.05}
@@ -374,6 +386,7 @@ function LayerEditor({
             />
             <SliderRow
               label="Letter Spacing"
+              helpId="react.soundDrawing.timeline.layer.letterSpacing"
               value={layer.letterSpacing}
               onChange={v => pl({ letterSpacing: Math.round(v) })}
               min={-20} max={80} step={1}
@@ -386,6 +399,7 @@ function LayerEditor({
         {layer.sourceType === 'builtinShape' && (
           <SelectRow
             label="Shape"
+            helpId="react.soundDrawing.timeline.layer.shape"
             value={layer.shape}
             onChange={v => pl({ shape: v as BuiltinOscillatorShape })}
             options={[
@@ -408,6 +422,7 @@ function LayerEditor({
           ) : (
             <SelectRow
               label="SVG File"
+              helpId="react.soundDrawing.timeline.layer.svgFile"
               value={layer.svgId ?? ''}
               onChange={v => pl({ svgId: v || null })}
               options={[
@@ -419,9 +434,10 @@ function LayerEditor({
         )}
 
         {/* Position / transform */}
-        <CtrlSection label="Transform" />
+        <CtrlSection label="Transform" helpId="react.soundDrawing.timeline.transform.overview" />
         <SliderRow
           label="X"
+          helpId="react.soundDrawing.timeline.transform.positionX"
           value={layer.x}
           onChange={v => pl({ x: v })}
           min={-1} max={1} step={0.01}
@@ -429,6 +445,7 @@ function LayerEditor({
         />
         <SliderRow
           label="Y"
+          helpId="react.soundDrawing.timeline.transform.positionY"
           value={layer.y}
           onChange={v => pl({ y: v })}
           min={-1} max={1} step={0.01}
@@ -436,6 +453,7 @@ function LayerEditor({
         />
         <SliderRow
           label="Scale"
+          helpId="react.soundDrawing.timeline.transform.scale"
           value={layer.scale}
           onChange={v => pl({ scale: v })}
           min={0.1} max={5} step={0.05}
@@ -443,6 +461,7 @@ function LayerEditor({
         />
         <SliderRow
           label="Rotation"
+          helpId="react.soundDrawing.timeline.transform.rotation"
           value={layer.rotation}
           onChange={v => pl({ rotation: Math.round(v) })}
           min={-180} max={180} step={1}

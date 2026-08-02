@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import type { HelpId } from '../../../help/HelpCenter'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 export type EffectGroupId = 'global' | 'motion' | 'audioReactive' | 'distortion' | 'lighting'
 
@@ -9,11 +11,12 @@ type EffectGroupProps = {
   isOpen: boolean
   onToggle: (id: EffectGroupId) => void
   children: ReactNode
+  helpId?: HelpId
 }
 
-export function EffectGroup({ id, title, count, isOpen, onToggle, children }: EffectGroupProps) {
+export function EffectGroup({ id, title, count, isOpen, onToggle, children, helpId }: EffectGroupProps) {
   return (
-    <section className={`vz-effect-accordion${isOpen ? ' is-open' : ''}`}>
+    <section className={`vz-effect-accordion drm-help-target${isOpen ? ' is-open' : ''}`}>
       <button
         type="button"
         className="vz-effect-accordion__header"
@@ -24,6 +27,7 @@ export function EffectGroup({ id, title, count, isOpen, onToggle, children }: Ef
         <span className="vz-effect-accordion__title">{title}</span>
         <span className="vz-effect-accordion__count">{count}</span>
       </button>
+      {helpId && <span className="vz-effect-accordion__help"><HelpInfoTrigger helpId={helpId} /></span>}
       {isOpen && (
         <div className="vz-effect-accordion__body">
           {children}

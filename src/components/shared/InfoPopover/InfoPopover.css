@@ -304,7 +304,35 @@
   }
 }
 
-/* Hover-revealed contextual-help trigger used by the first React integration. */
+/* Hover-revealed contextual-help trigger shared by all Priority 1 integrations. */
+
+.drm-help-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.drm-help-label__text {
+  min-width: 0;
+}
+
+.drm-help-target {
+  position: relative;
+}
+
+.drm-help-target--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drm-help-target--row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .drm-help-info-trigger {
   appearance: none;
   -webkit-appearance: none;
@@ -337,7 +365,30 @@
   opacity: 0.78;
 }
 
-:is(.rv-ctrl-row, .rv-ctrl-toggle-row, .drm-dropdown):hover .drm-help-info-trigger,
+:is(
+  .drm-help-target,
+  .drm-help-label,
+  .rv-ctrl-row,
+  .rv-ctrl-toggle-row,
+  .drm-dropdown,
+  .rv-ctrl-section-label,
+  .rv-ctrl-collapsible-hdr,
+  .vz-help-target,
+  .lyric-help-target,
+  .media-help-target
+):hover .drm-help-info-trigger,
+:is(
+  .drm-help-target,
+  .drm-help-label,
+  .rv-ctrl-row,
+  .rv-ctrl-toggle-row,
+  .drm-dropdown,
+  .rv-ctrl-section-label,
+  .rv-ctrl-collapsible-hdr,
+  .vz-help-target,
+  .lyric-help-target,
+  .media-help-target
+):focus-within .drm-help-info-trigger,
 .drm-help-info-trigger:focus-visible,
 .drm-help-info-trigger[data-open='true'] {
   opacity: 1;
@@ -368,4 +419,67 @@
   stroke-width: 1.45;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Priority-one registry bindings add a sibling slot without changing control behavior. */
+.drm-priority-help-bound {
+  position: relative;
+}
+
+.drm-priority-help-slot {
+  position: absolute;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.drm-priority-help-slot:empty {
+  display: none;
+}
+
+.vz-effect-accordion__help {
+  position: absolute;
+  top: 10px;
+  right: 34px;
+  z-index: 2;
+  display: inline-flex;
+}
+
+.vz-effect-accordion__header {
+  padding-right: 58px;
+}
+
+/* Compact Priority 1 bindings for Visualizer layers and lyric overlays. */
+.vz-layer-inline-help,
+.vz-layer-blend-help {
+  flex: 0 0 auto;
+}
+
+.vz-layer-blend-help {
+  min-width: 0;
+  margin-left: auto;
+}
+
+.vz-layer-blend-help .vz-layer-blend-select {
+  margin-left: 0;
+}
+
+.vz-layer-opacity-help {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
+.vz-layer-opacity-help .vz-layer-opacity-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lyric-cue-editor-overlays > summary.drm-help-target--inline {
+  display: flex;
 }

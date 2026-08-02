@@ -13,6 +13,8 @@ import {
 import { VzSlider } from './VzSlider'
 import { EffectGroup } from './EffectGroup'
 import type { EffectGroupId } from './EffectGroup'
+import type { HelpId } from '../../../help/HelpCenter'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 type EffectControlsPanelProps = {
   effects:       VzEffects
@@ -23,6 +25,19 @@ type EffectControlsPanelProps = {
   effectParams:  VzEffectParams
   onParamChange: <K extends keyof VzEffectParams>(key: K, patch: Partial<NonNullable<VzEffectParams[K]>>) => void
   audioReactivityEnabled?: boolean
+}
+
+const PRIORITY_ONE_EFFECT_HELP_IDS: Partial<Record<keyof VzEffects, HelpId>> = {
+  masterIntensity: 'visualizer.effects.global.masterIntensity',
+  bassReactivity: 'visualizer.effects.global.bassReactivity',
+  logoScale: 'visualizer.effects.global.reactiveScale',
+  colorShift: 'visualizer.effects.global.colorShift',
+  spectrumBars: 'visualizer.effects.audioReactive.spectrumBars',
+  circularSpectrum: 'visualizer.effects.audioReactive.circularSpectrum',
+  oscilloscope: 'visualizer.effects.audioReactive.oscilloscope',
+  beatRing: 'visualizer.effects.audioReactive.beatRing',
+  particleBurst: 'visualizer.effects.audioReactive.particleBurst',
+  reactiveGrid: 'visualizer.effects.audioReactive.reactiveGrid',
 }
 
 export const EffectControlsPanel = memo(function EffectControlsPanel({
@@ -61,6 +76,7 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
         chainEnabled={effectiveChainEnabled}
         tooltip={opts?.tooltip}
         offHint={opts?.offHint}
+        helpId={PRIORITY_ONE_EFFECT_HELP_IDS[key]}
         onChange={v => onChange(key, v)}
       />
     )
@@ -71,10 +87,11 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
     label: string,
     value: number,
     onChange: (v: number) => void,
-    opts: { min: number; max: number; step?: number; isInt?: boolean },
+    opts: { min: number; max: number; step?: number; isInt?: boolean; helpId?: HelpId },
   ) => (
-    <div className="vz-param-row">
+    <div className="vz-param-row drm-help-target">
       <span className="vz-param-label">{label}</span>
+      {opts.helpId && <HelpInfoTrigger helpId={opts.helpId} currentValue={String(value)} />}
       <input
         className="vz-param-input"
         type="number"
@@ -91,9 +108,17 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
   )
 
   // Boolean toggle for rendering params
-  const b = (label: string, value: boolean, onChange: (v: boolean) => void) => (
-    <div className="vz-param-row">
+  const b = (label: string, value: boolean, onChange: (v: boolean) => void, helpId?: HelpId) => (
+    <div className="vz-param-row drm-help-target">
       <span className="vz-param-label">{label}</span>
+      {helpId && (
+        <HelpInfoTrigger
+          helpId={helpId}
+          currentValue={value ? 'On' : 'Off'}
+          currentValueLabel="Status"
+          currentValueTone={value ? 'success' : 'default'}
+        />
+      )}
       <button
         type="button"
         className={`vz-param-toggle${value ? ' vz-param-toggle--on' : ''}`}
@@ -126,7 +151,7 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
         <button className="vz-reset-btn" onClick={onReset}>Reset</button>
       </div>
       <div className="vz-effects-scroll">
-        <EffectGroup id="global" title="Global" count={4} isOpen={openGroups.global} onToggle={toggleGroup}>
+        <EffectGroup id="global" title="Global" helpId="visualizer.effects.global.overview" count={4} isOpen={openGroups.global} onToggle={toggleGroup}>
           {s('masterIntensity', 'Master Intensity')}
           {s('bassReactivity',  'Bass Reactivity')}
           {s('logoScale', 'Reactive Scale', {
@@ -166,19 +191,19 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
           {s('mirrorSplit',  'Mirror Split')}
         </EffectGroup>
 
-        <EffectGroup id="audioReactive" title="Audio Reactive" count={6} isOpen={openGroups.audioReactive} onToggle={toggleGroup}>
+        <EffectGroup id="audioReactive" title="Audio Reactive" helpId="visualizer.effects.audioReactive.overview" count={6} isOpen={openGroups.audioReactive} onToggle={toggleGroup}>
           {s('spectrumBars', 'Spectrum Bars')}
           {isEffectEnabled('spectrumBars') && <div className="vz-param-group">
-            {p('Bar Count', sp.barCount, v => onParamChange('spectrumBars', { barCount: v }), { min: 8, max: 120, isInt: true })}
-            {p('Smoothing', sp.smoothing, v => onParamChange('spectrumBars', { smoothing: v }), { min: 0, max: 0.95, step: 0.05 })}
-            {b('Mirror', sp.mirrorMode, v => onParamChange('spectrumBars', { mirrorMode: v }))}
+            {p('Bar Count', sp.barCount, v => onParamChange('spectrumBars', { barCount: v }), { min: 8, max: 120, isInt: true, helpId: 'visualizer.effects.audioReactive.barCount' })}
+            {p('Smoothing', sp.smoothing, v => onParamChange('spectrumBars', { smoothing: v }), { min: 0, max: 0.95, step: 0.05, helpId: 'visualizer.effects.audioReactive.smoothing' })}
+            {b('Mirror', sp.mirrorMode, v => onParamChange('spectrumBars', { mirrorMode: v }), 'visualizer.effects.audioReactive.mirror')}
           </div>}
           {s('circularSpectrum', 'Circular Spectrum')}
           {s('oscilloscope',     'Oscilloscope')}
           {s('beatRing',         'Beat Ring')}
           {s('particleBurst',    'Particle Burst')}
           {isEffectEnabled('particleBurst') && <div className="vz-param-group">
-            {p('Max Particles', pp.maxParticles, v => onParamChange('particleBurst', { maxParticles: v }), { min: 10, max: 200, isInt: true })}
+            {p('Max Particles', pp.maxParticles, v => onParamChange('particleBurst', { maxParticles: v }), { min: 10, max: 200, isInt: true, helpId: 'visualizer.effects.audioReactive.maxParticles' })}
           </div>}
           {s('reactiveGrid', 'Reactive Grid')}
         </EffectGroup>

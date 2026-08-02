@@ -4212,57 +4212,68 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Layers — Rendering stack",
     "title": "Rendering",
     "componentType": "group",
-    "summary": "Defines how the background, main, and overlay layers are combined.",
+    "summary": "Defines how the texture, character, logo, and overlay layers are composited above the primary media path.",
     "whatItDoes": [
-      "Layers render in background, main, then overlay order.",
-      "Each layer has independent visibility, blend mode, and opacity."
+      "Renders the four overlay layers in Texture, Character, Logo, then Overlay order.",
+      "Each layer has independent visibility, opacity, blend mode, and assigned media items."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer rendering stack.",
+    "whenToUse": "Use this stack to organize role-based artwork that should render above the primary background media.",
     "affects": [
-      "background, main, and overlay layer order",
+      "overlay-layer render order",
       "layer visibility",
-      "blend mode",
-      "opacity"
+      "layer blend modes and opacity",
+      "assigned layer items"
     ]
   },
   {
-    "id": "visualizer.layers.rendering.backgroundLayer",
+    "id": "visualizer.layers.rendering.textureLayer",
     "priority": 1,
     "view": "visualizer",
     "group": "Layers — Rendering stack",
-    "title": "Background Layer",
+    "title": "Texture Layer",
     "componentType": "group",
-    "summary": "Holds media rendered behind the main visual layer.",
+    "summary": "Holds texture-role media at the bottom of the overlay layer stack.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer rendering stack.",
-      "Each child control remains independently documented and editable."
+      "Renders texture media before the Character, Logo, and Overlay layers.",
+      "Uses the layer’s visibility, opacity, blend mode, and assigned items."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer rendering stack.",
+    "whenToUse": "Use this layer for surface detail or full-frame texture artwork that should sit beneath the other overlay layers.",
     "affects": [
-      "background, main, and overlay layer order",
-      "layer visibility",
-      "blend mode",
-      "opacity"
+      "texture-role media in the overlay compositor"
     ]
   },
   {
-    "id": "visualizer.layers.rendering.mainLayer",
+    "id": "visualizer.layers.rendering.characterLayer",
     "priority": 1,
     "view": "visualizer",
     "group": "Layers — Rendering stack",
-    "title": "Main Layer",
+    "title": "Character Layer",
     "componentType": "group",
-    "summary": "Holds the primary visual content in the layer stack.",
+    "summary": "Holds character art and transparent-element media above the Texture layer.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer rendering stack.",
-      "Each child control remains independently documented and editable."
+      "Renders character-role and transparent-element media after Texture and before Logo.",
+      "Uses the layer’s visibility, opacity, blend mode, and assigned items."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer rendering stack.",
+    "whenToUse": "Use this layer for people, mascots, cutouts, or other transparent focal artwork.",
     "affects": [
-      "background, main, and overlay layer order",
-      "layer visibility",
-      "blend mode",
-      "opacity"
+      "character-art and transparent-element media in the overlay compositor"
+    ]
+  },
+  {
+    "id": "visualizer.layers.rendering.logoLayer",
+    "priority": 1,
+    "view": "visualizer",
+    "group": "Layers — Rendering stack",
+    "title": "Logo Layer",
+    "componentType": "group",
+    "summary": "Holds logo-role media above the Texture and Character layers.",
+    "whatItDoes": [
+      "Renders logo media after Character and before the final Overlay layer.",
+      "Uses the layer’s visibility, opacity, blend mode, and assigned items."
+    ],
+    "whenToUse": "Use this layer for branding that should remain above character artwork but below final overlays.",
+    "affects": [
+      "logo-role media in the overlay compositor"
     ]
   },
   {
@@ -4272,17 +4283,14 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Layers — Rendering stack",
     "title": "Overlay Layer",
     "componentType": "group",
-    "summary": "Holds logos, textures, and other content rendered above the main layer.",
+    "summary": "Holds overlay-role media at the top of the overlay layer stack.",
     "whatItDoes": [
-      "Groups the controls that configure the Visualizer rendering stack.",
-      "Each child control remains independently documented and editable."
+      "Renders overlay media after Texture, Character, and Logo.",
+      "Uses the layer’s visibility, opacity, blend mode, and assigned items."
     ],
-    "whenToUse": "Use this section when configuring the Visualizer rendering stack.",
+    "whenToUse": "Use this layer for frames, accents, or finishing artwork that should render above every other overlay layer.",
     "affects": [
-      "background, main, and overlay layer order",
-      "layer visibility",
-      "blend mode",
-      "opacity"
+      "overlay-role media at the top of the overlay compositor"
     ]
   },
   {
@@ -6396,34 +6404,119 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Cue Editor Toolbar and Filters",
     "title": "Overlays",
     "componentType": "group",
-    "summary": "Controls which timing and analysis overlays are visible in the lyric cue editor.",
+    "summary": "Controls which structural timing markers and ranges are visible in the lyric cue editor.",
     "whatItDoes": [
-      "Groups Beat Grid, Sections, Words, Energy, and Cue Points display toggles."
+      "Groups the Beats, Downbeats, Bars, Landmarks, Phrases, and Sections visibility toggles.",
+      "Changes only the editing overlay, not the underlying track analysis."
     ],
-    "whenToUse": "Show only the overlays needed for the current timing task to keep the waveform readable.",
+    "whenToUse": "Show the marker types needed for the current timing task and hide the rest when the waveform becomes crowded.",
     "affects": [
-      "lyric editor overlay visibility"
+      "lyric editor timeline overlay visibility"
+    ],
+    "doesNotAffect": [
+      "stored music-intelligence analysis",
+      "lyric cue timestamps"
     ]
   },
   {
-    "id": "lyricManager.cueEditor.overlays.beatGrid",
+    "id": "lyricManager.cueEditor.overlays.beats",
     "priority": 1,
     "view": "lyricManager",
     "group": "Cue Editor Toolbar and Filters",
-    "title": "Beat Grid",
+    "title": "Beats",
     "componentType": "toggle",
-    "summary": "Shows or hides beat-grid lines over the lyric waveform.",
+    "summary": "Shows or hides individual beat markers over the lyric timeline.",
     "whatItDoes": [
-      "Sets whether Beat Grid Overlay participates in the lyric cue editor timeline.",
-      "The owning renderer, editor, or runtime reads the enabled state on its next update."
+      "Filters beat markers from the timeline overlay without changing the detected beat grid."
     ],
-    "whenToUse": "Turn Beat Grid on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
+    "whenToUse": "Show beats while aligning cue starts or word timing to the pulse.",
     "affects": [
-      "Beat Grid Overlay state in the lyric cue editor timeline"
+      "beat-marker visibility in the lyric cue editor"
     ],
     "doesNotAffect": [
-      "beat analysis"
-    ]
+      "detected beat timing"
+    ],
+    "defaultValue": "On"
+  },
+  {
+    "id": "lyricManager.cueEditor.overlays.downbeats",
+    "priority": 1,
+    "view": "lyricManager",
+    "group": "Cue Editor Toolbar and Filters",
+    "title": "Downbeats",
+    "componentType": "toggle",
+    "summary": "Shows or hides downbeat markers over the lyric timeline.",
+    "whatItDoes": [
+      "Filters detected downbeats from the timeline overlay without changing their analysis."
+    ],
+    "whenToUse": "Show downbeats when aligning lyrics to bar starts or phrase entrances.",
+    "affects": [
+      "downbeat-marker visibility in the lyric cue editor"
+    ],
+    "doesNotAffect": [
+      "detected downbeat timing"
+    ],
+    "defaultValue": "On"
+  },
+  {
+    "id": "lyricManager.cueEditor.overlays.bars",
+    "priority": 1,
+    "view": "lyricManager",
+    "group": "Cue Editor Toolbar and Filters",
+    "title": "Bars",
+    "componentType": "toggle",
+    "summary": "Shows or hides bar markers over the lyric timeline.",
+    "whatItDoes": [
+      "Filters bar markers from the timeline overlay without changing the analyzed bar grid."
+    ],
+    "whenToUse": "Show bars when checking phrase lengths or placing cues on measure boundaries.",
+    "affects": [
+      "bar-marker visibility in the lyric cue editor"
+    ],
+    "doesNotAffect": [
+      "analyzed bar timing"
+    ],
+    "defaultValue": "On"
+  },
+  {
+    "id": "lyricManager.cueEditor.overlays.landmarks",
+    "priority": 1,
+    "view": "lyricManager",
+    "group": "Cue Editor Toolbar and Filters",
+    "title": "Landmarks",
+    "componentType": "toggle",
+    "summary": "Shows or hides four-, eight-, and sixteen-bar structural landmarks.",
+    "whatItDoes": [
+      "Filters multi-bar landmark markers from the timeline overlay."
+    ],
+    "whenToUse": "Show landmarks when reviewing larger musical blocks or planning phrase-level cue timing.",
+    "affects": [
+      "multi-bar landmark visibility in the lyric cue editor"
+    ],
+    "doesNotAffect": [
+      "landmark analysis"
+    ],
+    "defaultValue": "On"
+  },
+  {
+    "id": "lyricManager.cueEditor.overlays.phrases",
+    "priority": 1,
+    "view": "lyricManager",
+    "group": "Cue Editor Toolbar and Filters",
+    "title": "Phrases",
+    "componentType": "toggle",
+    "summary": "Shows or hides analyzed phrase markers over the lyric timeline.",
+    "whatItDoes": [
+      "Filters phrase markers from the timeline overlay without changing phrase analysis."
+    ],
+    "whenToUse": "Show phrases when aligning lyric sections and cues to musical phrase boundaries.",
+    "affects": [
+      "phrase-marker visibility in the lyric cue editor"
+    ],
+    "doesNotAffect": [
+      "analyzed phrase timing"
+    ],
+    "defaultValue": "On"
   },
   {
     "id": "lyricManager.cueEditor.overlays.sections",
@@ -6432,78 +6525,18 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "Cue Editor Toolbar and Filters",
     "title": "Sections",
     "componentType": "toggle",
-    "summary": "Shows or hides track-section regions over the lyric waveform.",
+    "summary": "Shows or hides analyzed track-section ranges over the lyric timeline.",
     "whatItDoes": [
-      "Sets whether Sections Overlay participates in the lyric cue editor timeline.",
-      "The owning renderer, editor, or runtime reads the enabled state on its next update."
+      "Filters section ranges from the timeline overlay without changing section analysis."
     ],
-    "whenToUse": "Turn Sections on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
+    "whenToUse": "Show sections when reviewing cue placement across intros, builds, drops, breakdowns, and outros.",
     "affects": [
-      "Sections Overlay state in the lyric cue editor timeline"
+      "track-section range visibility in the lyric cue editor"
     ],
     "doesNotAffect": [
-      "section analysis"
-    ]
-  },
-  {
-    "id": "lyricManager.cueEditor.overlays.words",
-    "priority": 1,
-    "view": "lyricManager",
-    "group": "Cue Editor Toolbar and Filters",
-    "title": "Words",
-    "componentType": "toggle",
-    "summary": "Shows or hides word-timing regions over the lyric waveform.",
-    "whatItDoes": [
-      "Sets whether Words Overlay participates in the lyric cue editor timeline.",
-      "The owning renderer, editor, or runtime reads the enabled state on its next update."
+      "section boundaries or labels"
     ],
-    "whenToUse": "Turn Words on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
-    "affects": [
-      "Words Overlay state in the lyric cue editor timeline"
-    ],
-    "doesNotAffect": [
-      "word timing data"
-    ]
-  },
-  {
-    "id": "lyricManager.cueEditor.overlays.energy",
-    "priority": 1,
-    "view": "lyricManager",
-    "group": "Cue Editor Toolbar and Filters",
-    "title": "Energy",
-    "componentType": "toggle",
-    "summary": "Shows or hides the analyzed energy curve over the lyric waveform.",
-    "whatItDoes": [
-      "Sets whether Energy Overlay participates in the lyric cue editor timeline.",
-      "The owning renderer, editor, or runtime reads the enabled state on its next update."
-    ],
-    "whenToUse": "Turn Energy on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
-    "affects": [
-      "Energy Overlay state in the lyric cue editor timeline"
-    ],
-    "doesNotAffect": [
-      "energy analysis"
-    ]
-  },
-  {
-    "id": "lyricManager.cueEditor.overlays.cuePoints",
-    "priority": 1,
-    "view": "lyricManager",
-    "group": "Cue Editor Toolbar and Filters",
-    "title": "Cue Points",
-    "componentType": "toggle",
-    "summary": "Shows or hides cue-point markers over the lyric waveform.",
-    "whatItDoes": [
-      "Sets whether Cue Points Overlay participates in the lyric cue editor timeline.",
-      "The owning renderer, editor, or runtime reads the enabled state on its next update."
-    ],
-    "whenToUse": "Turn Cue Points on when cue editor toolbar and filters should include this behavior; leave it off otherwise.",
-    "affects": [
-      "Cue Points Overlay state in the lyric cue editor timeline"
-    ],
-    "doesNotAffect": [
-      "cue-point data"
-    ]
+    "defaultValue": "On"
   },
   {
     "id": "lyricManager.cueEditor.filters.filter",

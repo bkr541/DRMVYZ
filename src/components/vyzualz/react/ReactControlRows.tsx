@@ -1,5 +1,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
+import type { HelpId } from '../../../help/HelpCenter'
 
 // ── Slider row ────────────────────────────────────────────────────────────────
 
@@ -15,12 +17,13 @@ export interface SliderRowProps {
   id?: string
   disabled?: boolean
   description?: string
+  helpId?: HelpId
 }
 
 export function SliderRow({
   label, labelAccessory, value, onChange,
   min = 0, max = 1, step = 0.01,
-  color = '#4ac7db', id, disabled = false, description,
+  color = '#4ac7db', id, disabled = false, description, helpId,
 }: SliderRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -35,6 +38,7 @@ export function SliderRow({
         <span className="rv-ctrl-label-cluster">
           <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
           {labelAccessory}
+          {helpId && <HelpInfoTrigger helpId={helpId} currentValue={display} />}
         </span>
         <span className="rv-ctrl-val">{display}</span>
       </div>
@@ -68,16 +72,20 @@ export interface NumberInputRowProps {
   id?: string
   placeholder?: string
   onEmpty?: () => void
+  helpId?: HelpId
 }
 
 export function NumberInputRow({
-  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id, placeholder, onEmpty,
+  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id, placeholder, onEmpty, helpId,
 }: NumberInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
     <div className="rv-ctrl-row">
-      <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+      <span className="rv-ctrl-label-cluster">
+        <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+        {helpId && <HelpInfoTrigger helpId={helpId} currentValue={value === '' ? 'Empty' : `${value}${unit ? ` ${unit}` : ''}`} />}
+      </span>
       <div className={`rv-ctrl-number-field${unit ? ' rv-ctrl-number-field--with-unit' : ''}`}>
         <input
           id={inputId}
@@ -116,14 +124,18 @@ export interface SelectRowProps {
   disabled?: boolean
   id?: string
   description?: string
+  helpId?: HelpId
 }
 
-export function SelectRow({ label, value, onChange, options, disabled, id, description }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled, id, description, helpId }: SelectRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
     <div className="rv-ctrl-row">
-      <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+      <span className="rv-ctrl-label-cluster">
+        <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+        {helpId && <HelpInfoTrigger helpId={helpId} currentValue={options.find(option => option.value === value)?.label ?? value} />}
+      </span>
       <Dropdown
         id={`${inputId}-dropdown`}
         triggerId={inputId}
@@ -155,6 +167,7 @@ export interface ToggleRowProps {
   id?: string
   description?: string
   keepLabelAccessoryInteractiveWhenDisabled?: boolean
+  helpId?: HelpId
 }
 
 export function ToggleRow({
@@ -167,6 +180,7 @@ export function ToggleRow({
   id,
   description,
   keepLabelAccessoryInteractiveWhenDisabled = false,
+  helpId,
 }: ToggleRowProps) {
   const generatedId = useId()
   const labelId = `${id ?? generatedId}-label`
@@ -183,6 +197,14 @@ export function ToggleRow({
         <span className="rv-ctrl-label-cluster">
           <span className="rv-ctrl-label" id={labelId}>{label}</span>
           {labelAccessory}
+          {helpId && (
+            <HelpInfoTrigger
+              helpId={helpId}
+              currentValue={value ? 'On' : 'Off'}
+              currentValueLabel="Status"
+              currentValueTone={value ? 'success' : 'default'}
+            />
+          )}
         </span>
         <button
           id={buttonId}
@@ -216,16 +238,20 @@ export interface TextInputRowProps {
   onBlur?: (value: string) => void
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
   autoComplete?: string
+  helpId?: HelpId
 }
 
 export function TextInputRow({
-  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur, inputMode, autoComplete = 'off',
+  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur, inputMode, autoComplete = 'off', helpId,
 }: TextInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
     <div className="rv-ctrl-row">
-      <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+      <span className="rv-ctrl-label-cluster">
+        <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+        {helpId && <HelpInfoTrigger helpId={helpId} currentValue={value || 'Empty'} />}
+      </span>
       <input
         id={inputId}
         type="text"
@@ -252,14 +278,18 @@ export interface ColorRowProps {
   disabled?: boolean
   id?: string
   description?: string
+  helpId?: HelpId
 }
 
-export function ColorRow({ label, value, onChange, disabled = false, id, description }: ColorRowProps) {
+export function ColorRow({ label, value, onChange, disabled = false, id, description, helpId }: ColorRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
     <div className="rv-ctrl-row">
-      <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+      <span className="rv-ctrl-label-cluster">
+        <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+        {helpId && <HelpInfoTrigger helpId={helpId} currentValue={value.toUpperCase()} />}
+      </span>
       <div className="rv-ctrl-color-field">
         <input
           id={inputId}
@@ -279,8 +309,13 @@ export function ColorRow({ label, value, onChange, disabled = false, id, descrip
 
 // ── Section label ─────────────────────────────────────────────────────────────
 
-export function CtrlSection({ label }: { label: string }) {
-  return <div className="rv-ctrl-section-label">{label}</div>
+export function CtrlSection({ label, helpId }: { label: string; helpId?: HelpId }) {
+  return (
+    <div className="rv-ctrl-section-label drm-help-target drm-help-target--row">
+      <span>{label}</span>
+      {helpId && <HelpInfoTrigger helpId={helpId} />}
+    </div>
+  )
 }
 
 // ── Collapsible sub-section ───────────────────────────────────────────────────
@@ -289,13 +324,14 @@ export interface CollapsibleProps {
   label: string
   defaultOpen?: boolean
   children: React.ReactNode
+  helpId?: HelpId
 }
 
-export function Collapsible({ label, defaultOpen = true, children }: CollapsibleProps) {
+export function Collapsible({ label, defaultOpen = true, children, helpId }: CollapsibleProps) {
   const [open, setOpen] = useState(defaultOpen)
   const contentId = useId()
   return (
-    <div className={`rv-ctrl-collapsible${open ? ' rv-ctrl-collapsible--open' : ' rv-ctrl-collapsible--closed'}`}>
+    <div className={`rv-ctrl-collapsible drm-help-target${open ? ' rv-ctrl-collapsible--open' : ' rv-ctrl-collapsible--closed'}`}>
       <button
         type="button"
         className="rv-ctrl-collapsible-hdr"
@@ -306,6 +342,7 @@ export function Collapsible({ label, defaultOpen = true, children }: Collapsible
         <span className="rv-ctrl-collapsible-label">{label}</span>
         <span className="rv-ctrl-collapsible-arrow" aria-hidden="true">▾</span>
       </button>
+      {helpId && <span className="rv-ctrl-collapsible-help"><HelpInfoTrigger helpId={helpId} /></span>}
       {open && <div id={contentId} className="rv-ctrl-collapsible-body">{children}</div>}
     </div>
   )

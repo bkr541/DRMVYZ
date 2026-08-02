@@ -721,6 +721,7 @@
 
 /* ── Collapsible sub-section ─────────────────────────────────────────────────── */
 .rv-ctrl-collapsible {
+  position: relative;
   display: flex;
   flex-direction: column;
   margin: 8px 0;
@@ -742,7 +743,7 @@
   width: 100%;
   background: rgba(255, 255, 255, 0.012);
   border: none;
-  padding: 10px 11px 9px;
+  padding: 10px 38px 9px 11px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.15em;
@@ -756,6 +757,14 @@
 .rv-ctrl-collapsible-hdr:hover {
   color: rgba(245, 248, 250, 0.85);
   background: rgba(74, 199, 219, 0.035);
+}
+
+.rv-ctrl-collapsible-help {
+  position: absolute;
+  z-index: 2;
+  top: 7px;
+  right: 24px;
+  display: inline-flex;
 }
 
 .rv-ctrl-collapsible-label {
@@ -12564,4 +12573,25 @@
 .rv-ctrl-toggle-row--disabled.rv-ctrl-toggle-row--interactive-accessory .rv-ctrl-toggle,
 .rv-ctrl-toggle-row--disabled.rv-ctrl-toggle-row--interactive-accessory > .rv-ctrl-description {
   opacity: 0.35;
+}
+
+/* Contextual help for the compact React engine switcher. */
+.rv-engine-dropdown-help {
+  position: absolute;
+  z-index: 4;
+  top: 9px;
+  right: 30px;
+  display: inline-flex;
+}
+
+.rv-engine-dropdown-trigger {
+  padding-right: 52px;
+}
+
+.rv-source-selection-help {
+  position: absolute;
+  z-index: 3;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
 }
