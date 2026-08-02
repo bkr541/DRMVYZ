@@ -165,11 +165,17 @@ function applyEffect(
       case 'brightness': {
         const factor = effect.blend === 'replace' ? amount : effect.blend === 'add' ? 1 + amount : amount
         const safeFactor = clamp(factor, 0, 4)
-        if (
-          preserveBackdrop
-          && safeFactor <= 1
-          && maskResolver.restoreBackdropPixel(group, pixels, index, safeFactor)
-        ) break
+        if (preserveBackdrop && safeFactor <= 1) {
+          // This group is scoped beneath the marquee stable underlay, so any
+          // dim must land on its captured backdrop, not on whatever earlier
+          // group effect already touched this cell this frame. If the
+          // backdrop genuinely wasn't captured, skip the dim entirely rather
+          // than falling through to a raw multiply — that fallback is what
+          // let overlapping perimeter/bulb-phase/transition groups compound
+          // toward opaque black instead of the authored unlit-bulb color.
+          maskResolver.restoreBackdropPixel(group, pixels, index, safeFactor)
+          break
+        }
         pixels[offset] = Math.min(255, Math.round(pixels[offset] * safeFactor))
         pixels[offset + 1] = Math.min(255, Math.round(pixels[offset + 1] * safeFactor))
         pixels[offset + 2] = Math.min(255, Math.round(pixels[offset + 2] * safeFactor))

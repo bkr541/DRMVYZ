@@ -248,6 +248,18 @@ function applyPixelReaction(
     switch (target) {
       case 'brightness': {
         const factor = clamp(blendScalar(1, strength, assignment), 0, 4)
+        // Dimming (factor <= 1) on a group that overlaps the marquee stable
+        // underlay must interpolate toward that group's captured backdrop,
+        // never multiply the live composited RGB directly. Multiple groups
+        // (perimeter + bulb-phase + transition) can share the same cell and
+        // each apply their own brightness in the same frame; without this
+        // floor those factors compound past the authored "unlit bulb" dim
+        // color and collapse to opaque black instead of the dim underlay.
+        if (
+          factor <= 1
+          && preserveBackdrop
+          && maskResolver.restoreBackdropPixel(group, pixels, index, factor)
+        ) break
         const red = Math.min(255, pixels[offset] * factor)
         const green = Math.min(255, pixels[offset + 1] * factor)
         const blue = Math.min(255, pixels[offset + 2] * factor)
