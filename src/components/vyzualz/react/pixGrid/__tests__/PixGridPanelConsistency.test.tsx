@@ -43,13 +43,14 @@ describe('PixGrid panel consistency', () => {
     expect(sharedBlock).toContain('padding: 7px 11px 10px')
   })
 
-  it('uses the standard control group and wrapping workspace subtabs', () => {
+  it('uses the standard control group and horizontally scrolling workspace subtabs', () => {
     act(() => root.render(<PixGridDesignPanel />))
     const panel = host.querySelector('.rv-pix-grid-design-panel')!
     const tabs = host.querySelector('[role="tablist"][aria-label="PixGrid design sections"]')!
     expect(panel.classList.contains('rv-ctrl-group')).toBe(true)
     expect(tabs.classList.contains('rv-right-subtabs')).toBe(true)
-    expect(tabs.classList.contains('rv-right-subtabs--wrap')).toBe(true)
+    expect(tabs.classList.contains('rv-right-subtabs--scroll')).toBe(true)
+    expect(tabs.classList.contains('rv-right-subtabs--wrap')).toBe(false)
     expect(tabs.querySelectorAll('[role="tab"]')).toHaveLength(5)
     expect(host.querySelector('.rv-ctrl-action-row')).not.toBeNull()
     expect(host.textContent).toContain('Active Scene')

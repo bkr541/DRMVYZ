@@ -69,6 +69,15 @@ vi.mock('../react/pixGrid/PixGridDesignPanel', () => ({
   ),
 }))
 
+vi.mock('../shared/VyzualzHeaderActions', () => ({
+  VyzualzHeaderActions: () => (
+    <>
+      <button type="button" className="vsm-settings-btn" aria-label="Settings" />
+      <div className="vz-header-avatar" aria-label="Profile" />
+    </>
+  ),
+}))
+
 import { ShowManagerView } from './ShowManagerView'
 
 let container: HTMLDivElement | null = null
@@ -111,6 +120,24 @@ describe('ShowManagerView PixGrid-first shell', () => {
     expect(container.querySelector('[data-testid="pix-grid-surface"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="pix-grid-design-panel"]')?.getAttribute('data-grouped')).toBe('true')
     expect(container.querySelector('[aria-label="Show Manager track map preview"]')).not.toBeNull()
+  })
+
+  it('keeps panel headings inside their rails and moves stage tools plus account actions into the top bar', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('.sm-stage-header')).toBeNull()
+    expect(container.querySelector('.sm-library > .sm-panel-heading')?.textContent).toContain('COMPONENT LIBRARY')
+    expect(container.querySelector('.sm-inspector > .sm-panel-heading')?.textContent).toContain('INSPECTOR')
+    expect(container.querySelector('[aria-label="Show Manager stage tools"]')?.closest('.sm-topbar')).not.toBeNull()
+    expect(container.querySelector('.sm-topbar > .vsm-settings-btn')).not.toBeNull()
+    expect(container.querySelector('.sm-topbar > .vz-header-avatar')).not.toBeNull()
   })
 
   it('moves the preset chooser into the inspector and expands or collapses library groups independently', async () => {

@@ -5255,6 +5255,38 @@
   flex: 1 1 72px;
 }
 
+/* Keep PixGrid's five design surfaces in the same segmented-control language
+   as the canonical Engine / Selection switcher without squeezing labels into
+   a second row. The strip scrolls horizontally when the inspector is narrow. */
+.rv-right-subtabs--scroll {
+  display: flex;
+  grid-auto-flow: unset;
+  grid-auto-columns: unset;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-color: rgba(74, 199, 219, 0.28) transparent;
+  scrollbar-width: thin;
+}
+
+.rv-right-subtabs--scroll button {
+  flex: 0 0 104px;
+}
+
+.rv-right-subtabs--scroll::-webkit-scrollbar {
+  height: 5px;
+}
+
+.rv-right-subtabs--scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rv-right-subtabs--scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(74, 199, 219, 0.24);
+}
+
 .rv-right-subtabs--embedded {
   position: sticky;
   top: 0;

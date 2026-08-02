@@ -9,7 +9,7 @@ export interface PanelSubtabsProps<T extends string> {
   options: Array<PanelSubtabOption<T>>
   onChange: (value: T) => void
   ariaLabel: string
-  layout?: 'equal' | 'wrap'
+  layout?: 'equal' | 'wrap' | 'scroll'
   className?: string
 }
 
@@ -24,6 +24,7 @@ export function PanelSubtabs<T extends string>({
   const classes = [
     'rv-right-subtabs',
     layout === 'wrap' ? 'rv-right-subtabs--wrap' : '',
+    layout === 'scroll' ? 'rv-right-subtabs--scroll' : '',
     className,
   ].filter(Boolean).join(' ')
 

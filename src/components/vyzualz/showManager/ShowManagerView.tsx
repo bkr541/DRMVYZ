@@ -8,6 +8,7 @@ import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
 import type { ReactPreset } from '../react/ReactTypes'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
+import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import '../../../styles/reactView.css'
 import '../../../styles/showManager.css'
 
@@ -125,11 +126,17 @@ export function ShowManagerView() {
         </div>
 
         <div className="sm-topbar-spacer" />
+        <div className="sm-stage-tools sm-stage-tools--header" aria-label="Show Manager stage tools">
+          {['↖', '✥', '↻', '⌗', '▦', '◫', '20'].map(tool => (
+            <button key={tool} type="button" disabled>{tool}</button>
+          ))}
+        </div>
         <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
         <button type="button" className="sm-header-button" disabled>Save</button>
         <button type="button" className="sm-header-button sm-header-button--primary" disabled>
           Save + Make Active
         </button>
+        <VyzualzHeaderActions />
       </header>
 
       <div className="sm-workspace">
@@ -142,12 +149,12 @@ export function ShowManagerView() {
             <Dropdown
               id="show-manager-engine"
               ariaLabel="Show Manager engine"
-              menuLabel="Show Manager engines"
               value="pixGrid"
               options={SHOW_MANAGER_ENGINE_OPTIONS}
               size="compact"
               maxMenuHeight={360}
               className="sm-engine-dropdown"
+              menuClassName="sm-engine-dropdown-menu"
             />
           </div>
           <label className="sm-search-field">
@@ -207,18 +214,6 @@ export function ShowManagerView() {
         </aside>
 
         <main className="sm-center">
-          <div className="sm-stage-header">
-            <div>
-              <strong>PixGrid</strong>
-              <span>{activePreset?.name ?? 'Preset preview'}</span>
-            </div>
-            <div className="sm-stage-tools" aria-label="Show Manager stage tools">
-              {['↖', '✥', '↻', '⌗', '▦', '◫', '20'].map(tool => (
-                <button key={tool} type="button" disabled>{tool}</button>
-              ))}
-            </div>
-          </div>
-
           <div className="sm-stage-frame">
             <PixGridSurface
               analyser={engine.analyserMaster}

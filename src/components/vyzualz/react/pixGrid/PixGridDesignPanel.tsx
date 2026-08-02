@@ -122,7 +122,7 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
         options={surfaceOptions}
         onChange={setSurface}
         ariaLabel="PixGrid design sections"
-        layout="wrap"
+        layout="scroll"
         className="rv-right-subtabs--embedded"
       />
 
