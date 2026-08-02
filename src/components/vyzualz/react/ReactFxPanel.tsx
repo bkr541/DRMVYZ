@@ -89,7 +89,6 @@ export function ReactFxPanel() {
       {showMasterIntensity && (
         <SliderRow
           label={isLaserDmx ? 'Preview Output Trim' : isPixGrid ? 'Authored Performance Trim' : 'Intensity'}
-          helpId={isShader ? 'react.shaderPads.shaderMaster.intensity' : undefined}
           value={reactIntensity}
           onChange={setReactIntensity}
           disabled={isShader && shaderMasterCapabilities?.intensity === false}
@@ -110,7 +109,6 @@ export function ReactFxPanel() {
       {showMasterMotion && (
         <SliderRow
           label="Motion"
-          helpId={isShader ? 'react.shaderPads.shaderMaster.motion' : undefined}
           value={reactMotion}
           onChange={setReactMotion}
           disabled={isShader && shaderMasterCapabilities?.motion === false}
@@ -125,7 +123,6 @@ export function ReactFxPanel() {
       {showMasterGlow && (
         <SliderRow
           label={isLaserDmx ? 'Preview Glow Trim' : isPixGrid ? 'Halo Radius' : 'Glow'}
-          helpId={isShader ? 'react.shaderPads.shaderMaster.glow' : undefined}
           value={reactGlow}
           onChange={setReactGlow}
           disabled={isShader && shaderMasterCapabilities?.glow === false}
@@ -146,15 +143,6 @@ export function ReactFxPanel() {
       {showMasterBassReactivity && (
         <SliderRow
           label="Bass React"
-          helpId={
-            isShader
-              ? 'react.shaderPads.shaderMaster.bassReact'
-              : isSoundDrawing
-                ? 'react.soundDrawing.fx.bassReact'
-                : isLaserDmx
-                  ? 'react.laserDmx.fx.bassReact'
-                  : undefined
-          }
           value={reactBassReactivity}
           onChange={setReactBassReactivity}
           disabled={isShader && shaderMasterCapabilities?.bassReactivity === false}
@@ -210,7 +198,7 @@ export function ReactFxPanel() {
     return (
       <>
         <div className="rv-ctrl-group">
-          <Collapsible label="Shader Master" defaultOpen helpId="react.shaderPads.shaderMaster.overview">
+          <Collapsible label="Shader Master" defaultOpen>
             {masterControlRows}
           </Collapsible>
         </div>

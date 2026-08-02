@@ -234,11 +234,10 @@ function ReactiveConstellationProfileControls({
   const selected = REACTIVE_CONSTELLATION_VISUAL_DNA_OPTIONS.find(option => option.value === settings.visualDnaProfile)
   return (
     <>
-      <CtrlSection label="Visual DNA" helpId="react.cinematicWorlds.worlds.visualDna.overview" />
+      <CtrlSection label="Visual DNA" />
       <SelectRow
         id="constellation-visual-dna-profile"
         label="Starting Profile"
-        helpId="react.cinematicWorlds.worlds.visualDna.startingProfile"
         value={settings.visualDnaProfile}
         options={REACTIVE_CONSTELLATION_VISUAL_DNA_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
         onChange={profileId => onChange(applyReactiveConstellationVisualDnaProfile(config, profileId as typeof settings.visualDnaProfile))}
@@ -253,12 +252,12 @@ function ReactiveConstellationProfileControls({
 }
 
 const CONSTELLATION_MACROS = [
-  { key: 'macroStructure', label: 'Structure', helpId: 'react.cinematicWorlds.performanceMacros.structure', description: 'Moves from sparse and compact to broad, connected, and morph-ready.' },
-  { key: 'macroMotion', label: 'Motion', helpId: 'react.cinematicWorlds.performanceMacros.motion', description: 'Scales elastic travel, spin, and recovery energy without replacing physics values.' },
-  { key: 'macroImpact', label: 'Impact', helpId: 'react.cinematicWorlds.performanceMacros.impact', description: 'Shapes beam hits, collapse pressure, and burst force.' },
-  { key: 'macroTrails', label: 'Trails', helpId: 'react.cinematicWorlds.performanceMacros.trails', description: 'Controls historical beam density and luminous memory.' },
-  { key: 'macroMaterial', label: 'Material', helpId: 'react.cinematicWorlds.performanceMacros.material', description: 'Moves from transparent and restrained to bright, solid, and emissive.' },
-  { key: 'macroCamera', label: 'Camera', helpId: 'react.cinematicWorlds.performanceMacros.camera', description: 'Adds bounded world orbit and motion energy while preserving the selected camera rig.' },
+  { key: 'macroStructure', label: 'Structure', description: 'Moves from sparse and compact to broad, connected, and morph-ready.' },
+  { key: 'macroMotion', label: 'Motion', description: 'Scales elastic travel, spin, and recovery energy without replacing physics values.' },
+  { key: 'macroImpact', label: 'Impact', description: 'Shapes beam hits, collapse pressure, and burst force.' },
+  { key: 'macroTrails', label: 'Trails', description: 'Controls historical beam density and luminous memory.' },
+  { key: 'macroMaterial', label: 'Material', description: 'Moves from transparent and restrained to bright, solid, and emissive.' },
+  { key: 'macroCamera', label: 'Camera', description: 'Adds bounded world orbit and motion energy while preserving the selected camera rig.' },
 ] as const
 
 function ReactiveConstellationMacroControls({
@@ -271,14 +270,13 @@ function ReactiveConstellationMacroControls({
   if (config.worldMode !== 'reactiveConstellation' || config.worldSettings.mode !== 'reactiveConstellation') return null
   const settings = resolveReactiveConstellationSettings(config.worldSettings)
   return (
-    <Collapsible label="Performance Macros" helpId="react.cinematicWorlds.performanceMacros.overview" defaultOpen>
+    <Collapsible label="Performance Macros" defaultOpen>
       <div className="rv-constellation-macro-grid" role="group" aria-label="Reactive Constellation performance macros">
         {CONSTELLATION_MACROS.map(macro => (
           <SliderRow
             key={macro.key}
             id={`constellation-${macro.key.replace('macro', '').toLowerCase()}-macro`}
             label={macro.label}
-            helpId={macro.helpId}
             description={macro.description}
             value={settings[macro.key]}
             min={0}
@@ -317,7 +315,7 @@ function VariationControls({ config, presetId, locked, onChange, onLock, onReset
   const setSeed = (seed: number) => onChange(updateConfig(config, { seed }))
   return (
     <>
-      <CtrlSection label="Variation" helpId="react.cinematicWorlds.autoDirector.variation.overview" />
+      <CtrlSection label="Variation" />
       <div className="rv-cinematic-seed-readout" aria-live="polite">
         <span>Seed</span><output id={`cinematic-seed-${presetId}`}>{config.seed >>> 0}</output>
       </div>
@@ -344,14 +342,14 @@ function AutoDirectorControls({ config, onChange, advanced }: { config: Cinemati
   })
   return (
     <>
-      <CtrlSection label="Auto Director" helpId="react.cinematicWorlds.autoDirector.autoDirector.overview" />
+      <CtrlSection label="Auto Director" />
       <div className="rv-ctrl-info">Auto Director is selected through Camera Mode. Its settings never rewrite the last manual rig.</div>
-      <SliderRow id="cinematic-auto-director-strength" label="Strength" helpId="react.cinematicWorlds.autoDirector.autoDirector.strength" value={auto.strength} onChange={strength => setAuto({ strength })} />
+      <SliderRow id="cinematic-auto-director-strength" label="Strength" value={auto.strength} onChange={strength => setAuto({ strength })} />
       {advanced && (
         <>
-          <SliderRow id="cinematic-auto-director-activity" label="Camera Activity" helpId="react.cinematicWorlds.autoDirector.autoDirector.cameraActivity" value={auto.cameraActivity} onChange={cameraActivity => setAuto({ cameraActivity })} />
-          <SliderRow id="cinematic-auto-director-frequency" label="Transition Frequency" helpId="react.cinematicWorlds.autoDirector.autoDirector.transitionFrequency" value={auto.transitionFrequency} onChange={transitionFrequency => setAuto({ transitionFrequency })} />
-          <SliderRow id="cinematic-auto-director-drop" label="Drop Impact" helpId="react.cinematicWorlds.autoDirector.autoDirector.dropImpact" value={auto.dropImpact} onChange={dropImpact => setAuto({ dropImpact })} />
+          <SliderRow id="cinematic-auto-director-activity" label="Camera Activity" value={auto.cameraActivity} onChange={cameraActivity => setAuto({ cameraActivity })} />
+          <SliderRow id="cinematic-auto-director-frequency" label="Transition Frequency" value={auto.transitionFrequency} onChange={transitionFrequency => setAuto({ transitionFrequency })} />
+          <SliderRow id="cinematic-auto-director-drop" label="Drop Impact" value={auto.dropImpact} onChange={dropImpact => setAuto({ dropImpact })} />
           <SliderRow id="cinematic-auto-director-build" label="Build Intensity" value={auto.buildIntensity} onChange={buildIntensity => setAuto({ buildIntensity })} />
           <SliderRow id="cinematic-auto-director-min-shot" label="Minimum Shot Duration" value={auto.minimumShotDurationSec} min={1} max={16} step={0.5} onChange={minimumShotDurationSec => setAuto({ minimumShotDurationSec })} description="Seconds before Auto Director may choose another shot." />
           <ToggleRow id="cinematic-auto-director-lock" label="Manual Camera Lock" value={auto.manualCameraLock} onChange={manualCameraLock => setAuto({ manualCameraLock })} />
@@ -469,7 +467,7 @@ export function CinematicWorldsFxControls() {
       <Collapsible label="Live Controls" defaultOpen>
         <SliderRow id="cinematic-live-intensity" label="Intensity" value={reactIntensity} onChange={setReactIntensity} />
         <SliderRow id="cinematic-live-motion" label="Motion" value={reactMotion} onChange={setReactMotion} />
-        <SliderRow id="cinematic-live-audio" label="Audio Reaction" helpId="react.cinematicWorlds.liveControls.audioReaction" value={reactBassReactivity} onChange={setReactBassReactivity} />
+        <SliderRow id="cinematic-live-audio" label="Audio Reaction" value={reactBassReactivity} onChange={setReactBassReactivity} />
       </Collapsible>
 
       <Collapsible label="Output Quality" defaultOpen>
@@ -544,8 +542,8 @@ export function CinematicWorldsModulationControls() {
   return (
     <div className="rv-cinematic-controls">
       <CinematicModeSwitch />
-      <Collapsible label="Audio Reaction" helpId="react.cinematicWorlds.audioMapping.audioReaction.overview" defaultOpen>
-        <ToggleRow id="cinematic-audio-enabled" label="World Audio Mapping" helpId="react.cinematicWorlds.audioMapping.audioReaction.enabled" value={config.audioMapping.enabled} onChange={enabled => save({ ...config, audioMapping: { ...config.audioMapping, enabled } })} />
+      <Collapsible label="Audio Reaction" defaultOpen>
+        <ToggleRow id="cinematic-audio-enabled" label="World Audio Mapping" value={config.audioMapping.enabled} onChange={enabled => save({ ...config, audioMapping: { ...config.audioMapping, enabled } })} />
         {inputDiagnostics.unavailableRoutes.length > 0 && (
           <div className="rv-cinematic-capability" role="status">
             <strong>Unavailable Music Intelligence inputs</strong>
@@ -557,7 +555,7 @@ export function CinematicWorldsModulationControls() {
           <div className="rv-ctrl-info">This world is using {config.audioMapping.routes.length} curated source-to-target mappings. Advanced mode unlocks individual assignments, attack and release.</div>
         ) : (
           <>
-            <SliderRow id="cinematic-audio-smoothing" label="Global Smoothing" helpId="react.cinematicWorlds.audioMapping.audioReaction.globalSmoothingMs" value={config.audioMapping.smoothingMs} min={0} max={2000} step={10} onChange={smoothingMs => save({ ...config, audioMapping: { ...config.audioMapping, smoothingMs } })} />
+            <SliderRow id="cinematic-audio-smoothing" label="Global Smoothing" value={config.audioMapping.smoothingMs} min={0} max={2000} step={10} onChange={smoothingMs => save({ ...config, audioMapping: { ...config.audioMapping, smoothingMs } })} />
             <div className="rv-cinematic-route-list" aria-label="Audio mappings">
               {config.audioMapping.routes.map((route, index) => {
                 const currentSourceUnavailable = !isCinematicSourceAvailable(route.source, capabilities)

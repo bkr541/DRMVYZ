@@ -688,7 +688,7 @@ export function ReactModulationPanel() {
   // ── Oscilloscope: full per-frequency routing ──────────────────────────────
   return (
     <div className="rv-ctrl-group">
-      <Collapsible label="Audio Reactivity" defaultOpen helpId="react.soundDrawing.audioReactivity.overview">
+      <Collapsible label="Audio Reactivity" defaultOpen>
         <div className="rv-ctrl-row">
           <Dropdown
             id="sound-drawing-displace-mode"

@@ -8,6 +8,3 @@ export type {
 } from './InfoPopover'
 export { HelpInfoTrigger, HelpLabel } from './HelpInfoTrigger'
 export type { HelpInfoTriggerProps, HelpLabelProps } from './HelpInfoTrigger'
-
-export { PriorityOneHelpLayer, resolvePriorityOneHelpMatches } from './PriorityOneHelpLayer'
-export type { PriorityOneHelpLayerProps } from './PriorityOneHelpLayer'

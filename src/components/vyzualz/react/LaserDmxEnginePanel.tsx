@@ -1,4 +1,3 @@
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { useReactStore } from '../../../stores/reactStore'
 import { LaserDmxBeamMatrixPanel } from './LaserDmxBeamMatrixPanel'
 import { LaserDmxShowDirector } from './LaserDmxShowDirector'
@@ -21,8 +20,7 @@ export function LaserDmxEnginePanel() {
 
   return (
     <div className="rv-laser-workspace">
-      <div className="rv-laser-rig-toolbar drm-help-target">
-        <HelpInfoTrigger helpId="react.laserDmx.workspace.overview" />
+      <div className="rv-laser-rig-toolbar">
         <div className="rv-segmented-control rv-laser-rig-surfaces" role="tablist" aria-label="LaserDMX Beam Matrix surfaces">
           {SURFACE_OPTIONS.map(option => (
             <button

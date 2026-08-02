@@ -9,7 +9,6 @@ import {
 } from './appView'
 import type { AppView, PerformanceAppView } from './appView'
 import type { LyricManagerNavigationIntent } from '../../features/lyrics/lyricNavigation'
-import { PriorityOneHelpLayer } from '../shared/InfoPopover'
 
 const VisualizerWorkspace = lazy(() =>
   import('./VisualizerWorkspace').then(module => ({ default: module.VisualizerWorkspace })),
@@ -115,7 +114,6 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   if (appView === 'visualizer') {
     return (
       <>
-        <PriorityOneHelpLayer view="visualizer" />
         <Suspense fallback={<WorkspaceLoading label="Visualizer" standalone />}>
           <VisualizerWorkspace
             onAppViewChange={requestAppViewChange}
@@ -130,7 +128,6 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   if (appView === 'react') {
     return (
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
-        <PriorityOneHelpLayer view="react" />
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <Suspense fallback={<WorkspaceLoading label="React View" />}>
@@ -148,7 +145,6 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   if (appView === 'media') {
     return (
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
-        <PriorityOneHelpLayer view="mediaManager" />
         <Suspense fallback={<WorkspaceLoading label="Media Manager" />}>
           <MediaManagerView
             returnView={originatingPerformanceView}
@@ -163,7 +159,6 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   return (
     <>
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
-        <PriorityOneHelpLayer view="lyricManager" />
         <Suspense fallback={<WorkspaceLoading label="Lyric Manager" />}>
           <LyricManagerView
             returnView={originatingPerformanceView}

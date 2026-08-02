@@ -24,8 +24,6 @@ import {
   type LyricSnapMode,
 } from './lyricCueEditorModel'
 import { LyricCueInspector, type LyricSectionOption } from './LyricCueInspector'
-import { HelpInfoTrigger } from '../../../components/shared/InfoPopover'
-import type { HelpId } from '../../../help/HelpCenter'
 import { LyricCueTimeline, type LyricCueContextAction } from './LyricCueTimeline'
 import {
   buildTimelineOverlaySource,
@@ -35,16 +33,6 @@ import {
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
 import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 import { isKeyboardInputTarget } from '../../../utils/keyboardTargets'
-
-
-const OVERLAY_HELP_IDS: Record<keyof TimelineOverlayVisibility, HelpId> = {
-  beats: 'lyricManager.cueEditor.overlays.beats',
-  downbeats: 'lyricManager.cueEditor.overlays.downbeats',
-  bars: 'lyricManager.cueEditor.overlays.bars',
-  landmarks: 'lyricManager.cueEditor.overlays.landmarks',
-  phrases: 'lyricManager.cueEditor.overlays.phrases',
-  sections: 'lyricManager.cueEditor.overlays.sections',
-}
 
 export type LyricCueFilter = 'all' | 'unreviewed' | 'low-confidence' | 'warnings' | 'empty-text'
 export type LyricBeatGridStatus = 'trusted' | 'temporary' | 'not-loaded' | 'analyzing' | 'failed' | 'missing' | 'no-track'
@@ -261,7 +249,6 @@ export function LyricCueEditor({
     focusCue(fallback)
   }, [deleteCue, focusCue, orderedCues, selectCue, selectedCue, selectedIndex])
 
-
   const handleCueContextAction = useCallback((cueId: string, action: LyricCueContextAction, displayedTimeMs: number) => {
     const cue = orderedCues.find(item => item.id === cueId)
     if (!cue) return
@@ -375,25 +362,18 @@ export function LyricCueEditor({
           <input type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
         </label>
         <details className="lyric-cue-editor-overlays">
-          <summary className="drm-help-target drm-help-target--inline">
+          <summary>
             <span>Overlays</span>
-            <HelpInfoTrigger helpId="lyricManager.cueEditor.overlays.overview" />
           </summary>
           <div>
             {(Object.keys(overlayVisibility) as Array<keyof TimelineOverlayVisibility>).map(key => (
-              <label key={key} className="drm-help-target drm-help-target--inline">
+              <label key={key}>
                 <input
                   type="checkbox"
                   checked={overlayVisibility[key]}
                   onChange={event => setOverlayVisibility(current => ({ ...current, [key]: event.target.checked }))}
                 />
                 <span>{key.replace(/([A-Z])/g, ' $1')}</span>
-                <HelpInfoTrigger
-                  helpId={OVERLAY_HELP_IDS[key]}
-                  currentValue={overlayVisibility[key] ? 'On' : 'Off'}
-                  currentValueLabel="Status"
-                  currentValueTone={overlayVisibility[key] ? 'success' : 'default'}
-                />
               </label>
             ))}
           </div>

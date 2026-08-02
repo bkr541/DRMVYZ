@@ -10,16 +10,6 @@ import {
 import type { VzLayerConfigId, VzLayerItem } from '../../../types/vzLayers'
 import { MEDIA_ROLE_BADGE_LABELS } from '../../../lib/mediaRoles'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
-import type { HelpId } from '../../../help/HelpCenter'
-
-
-const LAYER_HELP_IDS: Record<VzLayerConfigId, HelpId> = {
-  texture: 'visualizer.layers.rendering.textureLayer',
-  character: 'visualizer.layers.rendering.characterLayer',
-  logo: 'visualizer.layers.rendering.logoLayer',
-  overlay: 'visualizer.layers.rendering.overlayLayer',
-}
 
 export function VzLayersPanel() {
   const {
@@ -79,10 +69,7 @@ export function VzLayersPanel() {
 
       {/* Render stack: shows what's currently on the canvas per layer */}
       <div className="vz-layer-render-stack">
-        <span className="vz-layer-stack-label drm-help-target drm-help-target--inline">
-          <span>Rendering</span>
-          <HelpInfoTrigger helpId="visualizer.layers.rendering.overview" />
-        </span>
+        <span className="vz-layer-stack-label">Rendering</span>
         {renderStack.map(({ layerId, label, name, extraCount }) => (
           <span key={layerId} className={`vz-layer-stack-item${name ? ' vz-layer-stack-item--active' : ''}`}>
             <span className="vz-layer-stack-id">{label}:</span>
@@ -115,42 +102,28 @@ export function VzLayersPanel() {
                 onClick={() => setSelectedLayerItem(layerId, null)}
                 title="Click to select this layer as effect target"
               >
-                <span className="vz-layer-inline-help drm-help-target drm-help-target--inline">
-                  <button
-                    type="button"
-                    className={`vz-layer-toggle${cfg.enabled ? ' vz-layer-toggle--on' : ''}`}
-                    onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
-                    aria-pressed={cfg.enabled}
-                    aria-label={`${cfg.enabled ? 'Hide' : 'Show'} ${LAYER_LABELS[layerId]} layer`}
-                    title={cfg.enabled ? 'Hide layer' : 'Show layer'}
-                  />
-                  <HelpInfoTrigger
-                    helpId="visualizer.layers.rendering.visibility"
-                    currentValue={cfg.enabled ? 'On' : 'Off'}
-                    currentValueLabel="Status"
-                    currentValueTone={cfg.enabled ? 'success' : 'default'}
-                  />
-                </span>
-                <span className="vz-layer-inline-help drm-help-target drm-help-target--inline">
-                  <span className="vz-slider-label">{LAYER_LABELS[layerId]}</span>
-                  <HelpInfoTrigger helpId={LAYER_HELP_IDS[layerId]} />
-                </span>
+                <button
+                  type="button"
+                  className={`vz-layer-toggle${cfg.enabled ? ' vz-layer-toggle--on' : ''}`}
+                  onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
+                  aria-pressed={cfg.enabled}
+                  aria-label={`${cfg.enabled ? 'Hide' : 'Show'} ${LAYER_LABELS[layerId]} layer`}
+                  title={cfg.enabled ? 'Hide layer' : 'Show layer'}
+                />
+                <span className="vz-slider-label">{LAYER_LABELS[layerId]}</span>
                 {hasItems && <span className="vz-layer-count">{lItems.length}</span>}
                 <span className="vz-slider-val">{Math.round(cfg.opacity * 100)}%</span>
-                <span className="vz-layer-blend-help drm-help-target drm-help-target--inline">
-                  <DropdownSelect
-                    className="az-select vz-layer-blend-select"
-                    value={cfg.blendMode}
-                    disabled={!cfg.enabled || !hasItems}
-                    title={hasItems ? 'Layer blend mode' : 'Add media to this layer to use blend modes'}
-                    onChange={e => setLayerConfig(layerId, { blendMode: e.target.value as GlobalCompositeOperation })}
-                  >
-                    {LAYER_BLEND_MODES.map(bm => (
-                      <option key={bm} value={bm}>{bm}</option>
-                    ))}
-                  </DropdownSelect>
-                  <HelpInfoTrigger helpId="visualizer.layers.rendering.blendMode" currentValue={cfg.blendMode} />
-                </span>
+                <DropdownSelect
+                  className="az-select vz-layer-blend-select"
+                  value={cfg.blendMode}
+                  disabled={!cfg.enabled || !hasItems}
+                  title={hasItems ? 'Layer blend mode' : 'Add media to this layer to use blend modes'}
+                  onChange={e => setLayerConfig(layerId, { blendMode: e.target.value as GlobalCompositeOperation })}
+                >
+                  {LAYER_BLEND_MODES.map(bm => (
+                    <option key={bm} value={bm}>{bm}</option>
+                  ))}
+                </DropdownSelect>
               </div>
 
               {/* Assigned items list */}
@@ -342,8 +315,7 @@ export function VzLayersPanel() {
               </div>
 
               {/* Layer opacity — disabled when nothing assigned (would have no effect) */}
-              <span className="vz-layer-opacity-help drm-help-target drm-help-target--inline">
-                <input
+              <input
                   type="range"
                   className="vz-slider vz-layer-opacity-slider"
                   style={{ '--pct': pct } as React.CSSProperties}
@@ -352,9 +324,7 @@ export function VzLayersPanel() {
                   disabled={!hasItems}
                   title={hasItems ? `Layer opacity: ${Math.round(cfg.opacity * 100)}%` : 'Add media to this layer to adjust opacity'}
                   onChange={e => setLayerConfig(layerId, { opacity: parseFloat(e.target.value) })}
-                />
-                <HelpInfoTrigger helpId="visualizer.layers.rendering.opacity" currentValue={`${Math.round(cfg.opacity * 100)}%`} />
-              </span>
+              />
             </div>
           )
         })}

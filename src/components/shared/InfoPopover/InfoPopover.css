@@ -319,7 +319,7 @@
   }
 }
 
-/* Hover-revealed contextual-help trigger shared by all Priority 1 integrations. */
+/* Reusable explicit help trigger. No production view mounts one during the clean-reset stage. */
 
 .drm-help-label {
   display: inline-flex;
@@ -330,22 +330,6 @@
 
 .drm-help-label__text {
   min-width: 0;
-}
-
-.drm-help-target {
-  position: relative;
-}
-
-.drm-help-target--inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.drm-help-target--row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .drm-help-info-trigger {
@@ -361,12 +345,9 @@
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
-  opacity: 0;
-  pointer-events: none;
   cursor: pointer;
   transform: translateY(-1px);
   transition:
-    opacity 120ms ease,
     border-color 120ms ease,
     background-color 120ms ease,
     box-shadow 120ms ease;
@@ -378,40 +359,6 @@
   height: 14px;
   filter: invert(82%) sepia(11%) saturate(338%) hue-rotate(153deg) brightness(92%);
   opacity: 0.78;
-}
-
-/*
- * Reveal only the trigger owned by the hovered control. These selectors are
- * intentionally scoped through direct control branches; a broad descendant
- * selector makes a hovered section or grid reveal every nested help trigger.
- */
-:is(
-  .drm-help-target,
-  .drm-help-label,
-  .rv-ctrl-section-label,
-  .vz-help-target,
-  .lyric-help-target,
-  .media-help-target
-):is(:hover, :focus-within) > .drm-help-info-trigger,
-:is(
-  .drm-help-target,
-  .rv-engine-dropdown
-):is(:hover, :focus-within) > :is(
-  .rv-source-selection-help,
-  .rv-engine-dropdown-help
-) > .drm-help-info-trigger,
-.rv-ctrl-row:is(:hover, :focus-within) > .rv-ctrl-label-cluster .drm-help-info-trigger,
-.rv-ctrl-row:is(:hover, :focus-within) > .rv-ctrl-slider-hdr > .rv-ctrl-label-cluster .drm-help-info-trigger,
-.rv-ctrl-toggle-row:is(:hover, :focus-within) > .rv-ctrl-toggle-line > .rv-ctrl-label-cluster .drm-help-info-trigger,
-.rv-ctrl-collapsible:has(> .rv-ctrl-collapsible-hdr:is(:hover, :focus-visible))
-  > .rv-ctrl-collapsible-help > .drm-help-info-trigger,
-.vz-effect-accordion:has(> .vz-effect-accordion__header:is(:hover, :focus-visible))
-  > .vz-effect-accordion__help > .drm-help-info-trigger,
-.drm-priority-help-slot[data-active='true'] > .drm-help-info-trigger,
-.drm-help-info-trigger:focus-visible,
-.drm-help-info-trigger[data-open='true'] {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .drm-help-info-trigger:hover,
@@ -438,67 +385,4 @@
   stroke-width: 1.45;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-/* Priority-one registry bindings add a sibling slot without changing control behavior. */
-.drm-priority-help-bound {
-  position: relative;
-}
-
-.drm-priority-help-slot {
-  position: absolute;
-  z-index: 6;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.drm-priority-help-slot:empty {
-  display: none;
-}
-
-.vz-effect-accordion__help {
-  position: absolute;
-  top: 10px;
-  right: 34px;
-  z-index: 2;
-  display: inline-flex;
-}
-
-.vz-effect-accordion__header {
-  padding-right: 58px;
-}
-
-/* Compact Priority 1 bindings for Visualizer layers and lyric overlays. */
-.vz-layer-inline-help,
-.vz-layer-blend-help {
-  flex: 0 0 auto;
-}
-
-.vz-layer-blend-help {
-  min-width: 0;
-  margin-left: auto;
-}
-
-.vz-layer-blend-help .vz-layer-blend-select {
-  margin-left: 0;
-}
-
-.vz-layer-opacity-help {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-}
-
-.vz-layer-opacity-help .vz-layer-opacity-slider {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.lyric-cue-editor-overlays > summary.drm-help-target--inline {
-  display: flex;
 }
