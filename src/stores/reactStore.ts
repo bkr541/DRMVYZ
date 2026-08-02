@@ -209,6 +209,20 @@ import {
 import { PIX_GRID_PRESET_ID_BY_PROGRAM } from '../components/vyzualz/react/pixGrid/PixGridPerformancePrograms'
 import { PIX_GRID_PRESET_BY_ID } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import {
+  createPixGridDeckDefinition,
+  findPixGridDeckNameConflict,
+  generatedPixGridDeckPresetId,
+  normalizePixGridDeckCollection,
+  normalizePixGridDeckDefinition,
+  normalizePixGridDeckName,
+  pixGridDeckCollectionsEqual,
+  type PixGridDeckCreateInput,
+  type PixGridDeckDefinition,
+  type PixGridDeckMutationResult,
+  type PixGridDeckUpdatePatch,
+  type PixGridDeckValidationError,
+} from '../components/vyzualz/react/pixGrid/PixGridDeckDomain'
+import {
   MAX_PIX_GRID_ACTION_CUES_PER_TRACK,
   MAX_PIX_GRID_ACTION_CUE_TRACKS,
   MAX_PIX_GRID_HISTORY,
@@ -1635,6 +1649,41 @@ function buildPixGridHistoryPatch(
   }
 }
 
+const PIX_GRID_DECK_HISTORY_LIMIT = 48
+
+function trimPixGridDeckHistory(
+  stack: PixGridDeckDefinition[][],
+): PixGridDeckDefinition[][] {
+  return stack.slice(Math.max(0, stack.length - PIX_GRID_DECK_HISTORY_LIMIT))
+}
+
+function buildPixGridDeckHistoryPatch(
+  storeState: Pick<ReactStoreState, 'pixGridDecks' | 'pixGridDeckUndoStack' | 'pixGridDeckRedoStack' | 'pixGridDeckHistoryTransaction'>,
+  nextDecks: readonly PixGridDeckDefinition[],
+) {
+  const current = normalizePixGridDeckCollection(storeState.pixGridDecks)
+  const next = normalizePixGridDeckCollection(nextDecks)
+  if (pixGridDeckCollectionsEqual(current, next)) return {}
+  if (storeState.pixGridDeckHistoryTransaction) return { pixGridDecks: next }
+  return {
+    pixGridDecks: next,
+    pixGridDeckUndoStack: trimPixGridDeckHistory([...storeState.pixGridDeckUndoStack, current]),
+    pixGridDeckRedoStack: [],
+  }
+}
+
+function pixGridDeckFailure(error: PixGridDeckValidationError): PixGridDeckMutationResult {
+  return { ok: false, error }
+}
+
+function firstPixGridDeckValidationError(
+  fallback: PixGridDeckValidationError,
+  issues: readonly PixGridDeckValidationError[],
+): PixGridDeckValidationError {
+  const rejected = issues.find(issue => 'severity' in issue && issue.severity === 'rejected')
+  return rejected ?? issues[0] ?? fallback
+}
+
 // ── Beam Matrix local helpers ─────────────────────────────────────────────────
 
 function clampCol(v: number): number { return Math.max(1, Math.min(LASER_DMX_MATRIX_COLUMNS, Math.round(v))) }
@@ -1981,6 +2030,21 @@ interface ReactStoreState {
   cancelPixGridHistoryTransaction: () => void
   undoPixGridEdit: () => void
   redoPixGridEdit: () => void
+
+  // Project-scoped PixGrid Deck definitions. Drafts and compiled/runtime data stay outside persistence.
+  pixGridDecks: PixGridDeckDefinition[]
+  pixGridDeckUndoStack: PixGridDeckDefinition[][]
+  pixGridDeckRedoStack: PixGridDeckDefinition[][]
+  pixGridDeckHistoryTransaction: PixGridDeckDefinition[] | null
+  createPixGridDeck: (input: PixGridDeckCreateInput) => PixGridDeckMutationResult
+  renamePixGridDeck: (deckId: string, name: string) => PixGridDeckMutationResult
+  updatePixGridDeck: (deckId: string, patch: PixGridDeckUpdatePatch) => PixGridDeckMutationResult
+  deletePixGridDeck: (deckId: string) => PixGridDeckMutationResult
+  beginPixGridDeckHistoryTransaction: () => void
+  commitPixGridDeckHistoryTransaction: () => void
+  cancelPixGridDeckHistoryTransaction: () => void
+  undoPixGridDeckEdit: () => void
+  redoPixGridDeckEdit: () => void
 
   // Cinematic Worlds live authoring state. Preset definitions remain immutable baselines.
   cinematicConfigsByPresetId: Record<string, CinematicWorldConfig>
@@ -4064,6 +4128,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       pixGridState: ensurePixGridCanonicalPresetIntegrity(state.pixGridState),
     }
   }
+  if (version < 62) {
+    // Decks are project-scoped normalized documents. Missing legacy fields become
+    // an empty collection; malformed entries are discarded without touching the
+    // rest of the imported project snapshot.
+    state = {
+      ...state,
+      pixGridDecks: normalizePixGridDeckCollection(state.pixGridDecks),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -4095,6 +4168,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     laserDmxShowDirector: normalizeLaserDmxShowDirectorState(state.laserDmxShowDirector),
     laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
     pixGridState: ensurePixGridCanonicalPresetIntegrity(state.pixGridState),
+    pixGridDecks: normalizePixGridDeckCollection(state.pixGridDecks),
     pixGridActionCuesByTrackId: normalizePixGridActionCueMap(state.pixGridActionCuesByTrackId),
   }
   // Imported/current-version snapshots do not necessarily pass through a
@@ -4261,6 +4335,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     activeReactEngineId:                persistedSelection.activeReactEngineId,
     reactPresets:                       s.reactPresets,
     pixGridState:                       ensurePixGridCanonicalPresetIntegrity(s.pixGridState),
+    pixGridDecks:                       normalizePixGridDeckCollection(s.pixGridDecks),
     cinematicConfigsByPresetId:         s.cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
@@ -4318,6 +4393,7 @@ export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
 export const REACT_PROJECT_STATE_KEYS = [
   'reactPresets',
   'pixGridState',
+  'pixGridDecks',
   'cinematicConfigsByPresetId',
   'cinematicSeedLocksByPresetId',
   'cinematicWorldsUiMode',
@@ -4384,6 +4460,7 @@ export function mergeReactStoreState(
     cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode,
     pixGridState: normalizePixGridState(rawPixGridState),
+    pixGridDecks: normalizePixGridDeckCollection(persisted.pixGridDecks),
     pixGridActionCuesByTrackId: normalizePixGridActionCueMap(
       persisted.pixGridActionCuesByTrackId ?? currentState.pixGridActionCuesByTrackId,
     ),
@@ -4501,6 +4578,9 @@ export function mergeReactStoreState(
     pixGridUndoStack: [],
     pixGridRedoStack: [],
     pixGridHistoryTransaction: null,
+    pixGridDeckUndoStack: [],
+    pixGridDeckRedoStack: [],
+    pixGridDeckHistoryTransaction: null,
     performanceActionEvent: null,
     performanceActionEvents: [],
     performanceActionSeq: currentState.performanceActionSeq,
@@ -4523,6 +4603,10 @@ export const useReactStore = create<ReactStoreState>()(
       pixGridUndoStack: [],
       pixGridRedoStack: [],
       pixGridHistoryTransaction: null,
+      pixGridDecks: [],
+      pixGridDeckUndoStack: [],
+      pixGridDeckRedoStack: [],
+      pixGridDeckHistoryTransaction: null,
       cinematicConfigsByPresetId: {},
       cinematicSeedLocksByPresetId: {},
       cinematicWorldsUiMode: 'simple',
@@ -4732,6 +4816,159 @@ export const useReactStore = create<ReactStoreState>()(
           pixGridUndoStack: trimPixGridHistory([...state.pixGridUndoStack, current]),
           pixGridRedoStack: state.pixGridRedoStack.slice(0, -1),
           pixGridHistoryTransaction: null,
+        }
+      }),
+
+      createPixGridDeck: (input) => {
+        const state = get()
+        const name = normalizePixGridDeckName(input.name)
+        if (!name) {
+          return pixGridDeckFailure({ code: 'invalid-name', message: 'Deck name is required.', path: 'name' })
+        }
+        if (findPixGridDeckNameConflict(state.pixGridDecks, name)) {
+          return pixGridDeckFailure({
+            code: 'duplicate-name',
+            message: `A PixGrid Deck named "${name}" already exists.`,
+            path: 'name',
+          })
+        }
+
+        const normalized = createPixGridDeckDefinition({ ...input, name })
+        if (!normalized.deck) {
+          return pixGridDeckFailure(firstPixGridDeckValidationError(
+            { code: 'invalid-deck', message: 'The PixGrid Deck could not be normalized.' },
+            normalized.issues,
+          ))
+        }
+        if (state.pixGridDecks.some(deck => deck.id === normalized.deck?.id)) {
+          return pixGridDeckFailure({
+            code: 'invalid-id',
+            message: `A PixGrid Deck with ID "${normalized.deck.id}" already exists.`,
+            path: 'id',
+          })
+        }
+
+        set(buildPixGridDeckHistoryPatch(state, [...state.pixGridDecks, normalized.deck]))
+        return { ok: true, deckId: normalized.deck.id }
+      },
+
+      renamePixGridDeck: (deckId, name) => get().updatePixGridDeck(deckId, { name }),
+
+      updatePixGridDeck: (deckId, patch) => {
+        const state = get()
+        const current = state.pixGridDecks.find(deck => deck.id === deckId)
+        if (!current) {
+          return pixGridDeckFailure({
+            code: 'deck-not-found',
+            message: `PixGrid Deck "${deckId}" was not found.`,
+            path: 'id',
+          })
+        }
+
+        const nextName = normalizePixGridDeckName(patch.name ?? current.name)
+        if (!nextName) {
+          return pixGridDeckFailure({ code: 'invalid-name', message: 'Deck name is required.', path: 'name' })
+        }
+        if (findPixGridDeckNameConflict(state.pixGridDecks, nextName, deckId)) {
+          return pixGridDeckFailure({
+            code: 'duplicate-name',
+            message: `A PixGrid Deck named "${nextName}" already exists.`,
+            path: 'name',
+          })
+        }
+
+        const nextConfiguration = patch.configuration
+          ? {
+              ...current.configuration,
+              ...patch.configuration,
+              transitionPolicy: {
+                ...current.configuration.transitionPolicy,
+                ...patch.configuration.transitionPolicy,
+              },
+            }
+          : current.configuration
+        const normalized = normalizePixGridDeckDefinition({
+          ...current,
+          ...patch,
+          id: current.id,
+          name: nextName,
+          revision: current.revision + 1,
+          generatedPresetId: generatedPixGridDeckPresetId(current.id),
+          items: patch.items ?? current.items,
+          configuration: nextConfiguration,
+        })
+        if (!normalized.deck) {
+          return pixGridDeckFailure(firstPixGridDeckValidationError(
+            { code: 'invalid-deck', message: 'The PixGrid Deck update is invalid.' },
+            normalized.issues,
+          ))
+        }
+
+        const nextDecks = state.pixGridDecks.map(deck => deck.id === deckId ? normalized.deck! : deck)
+        set(buildPixGridDeckHistoryPatch(state, nextDecks))
+        return { ok: true, deckId }
+      },
+
+      deletePixGridDeck: (deckId) => {
+        const state = get()
+        if (!state.pixGridDecks.some(deck => deck.id === deckId)) {
+          return pixGridDeckFailure({
+            code: 'deck-not-found',
+            message: `PixGrid Deck "${deckId}" was not found.`,
+            path: 'id',
+          })
+        }
+        set(buildPixGridDeckHistoryPatch(
+          state,
+          state.pixGridDecks.filter(deck => deck.id !== deckId),
+        ))
+        return { ok: true, deckId }
+      },
+
+      beginPixGridDeckHistoryTransaction: () => set(state => state.pixGridDeckHistoryTransaction
+        ? {}
+        : { pixGridDeckHistoryTransaction: normalizePixGridDeckCollection(state.pixGridDecks) }),
+
+      commitPixGridDeckHistoryTransaction: () => set(state => {
+        const base = state.pixGridDeckHistoryTransaction
+        if (!base) return {}
+        const current = normalizePixGridDeckCollection(state.pixGridDecks)
+        if (pixGridDeckCollectionsEqual(base, current)) return { pixGridDeckHistoryTransaction: null }
+        return {
+          pixGridDeckUndoStack: trimPixGridDeckHistory([...state.pixGridDeckUndoStack, base]),
+          pixGridDeckRedoStack: [],
+          pixGridDeckHistoryTransaction: null,
+        }
+      }),
+
+      cancelPixGridDeckHistoryTransaction: () => set(state => state.pixGridDeckHistoryTransaction
+        ? {
+            pixGridDecks: normalizePixGridDeckCollection(state.pixGridDeckHistoryTransaction),
+            pixGridDeckHistoryTransaction: null,
+          }
+        : {}),
+
+      undoPixGridDeckEdit: () => set(state => {
+        const previous = state.pixGridDeckUndoStack[state.pixGridDeckUndoStack.length - 1]
+        if (!previous) return {}
+        const current = normalizePixGridDeckCollection(state.pixGridDecks)
+        return {
+          pixGridDecks: normalizePixGridDeckCollection(previous),
+          pixGridDeckUndoStack: state.pixGridDeckUndoStack.slice(0, -1),
+          pixGridDeckRedoStack: trimPixGridDeckHistory([...state.pixGridDeckRedoStack, current]),
+          pixGridDeckHistoryTransaction: null,
+        }
+      }),
+
+      redoPixGridDeckEdit: () => set(state => {
+        const next = state.pixGridDeckRedoStack[state.pixGridDeckRedoStack.length - 1]
+        if (!next) return {}
+        const current = normalizePixGridDeckCollection(state.pixGridDecks)
+        return {
+          pixGridDecks: normalizePixGridDeckCollection(next),
+          pixGridDeckUndoStack: trimPixGridDeckHistory([...state.pixGridDeckUndoStack, current]),
+          pixGridDeckRedoStack: state.pixGridDeckRedoStack.slice(0, -1),
+          pixGridDeckHistoryTransaction: null,
         }
       }),
 
@@ -8357,6 +8594,10 @@ export const useReactStore = create<ReactStoreState>()(
             pixGridUndoStack: [],
             pixGridRedoStack: [],
             pixGridHistoryTransaction: null,
+            pixGridDecks: [],
+            pixGridDeckUndoStack: [],
+            pixGridDeckRedoStack: [],
+            pixGridDeckHistoryTransaction: null,
             cinematicConfigsByPresetId: {},
             cinematicSeedLocksByPresetId: {},
             canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
@@ -8405,6 +8646,10 @@ export const useReactStore = create<ReactStoreState>()(
           pixGridUndoStack:             [],
           pixGridRedoStack:             [],
           pixGridHistoryTransaction:    null,
+          pixGridDecks:                 [],
+          pixGridDeckUndoStack:         [],
+          pixGridDeckRedoStack:         [],
+          pixGridDeckHistoryTransaction: null,
           cinematicConfigsByPresetId:   {},
           cinematicSeedLocksByPresetId: {},
           cinematicWorldsUiMode:        'simple',
@@ -8463,7 +8708,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 61,
+      version: 62,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
