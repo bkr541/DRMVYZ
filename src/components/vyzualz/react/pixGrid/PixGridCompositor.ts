@@ -331,7 +331,11 @@ function renderLayer(
 
       let transitionAlpha: number
       let color: readonly [number, number, number]
-      if (usesTransitionSamples && animation.frameTransitionType === 'paletteFade' && mix > 0 && mix < 1) {
+      const interpolatesSamples = animation.frameTransitionType === 'paletteFade'
+        || animation.frameTransitionType === 'crossfade'
+        || animation.frameTransitionType === 'powerOn'
+        || animation.frameTransitionType === 'powerOff'
+      if (usesTransitionSamples && interpolatesSamples && mix > 0 && mix < 1) {
         transitionAlpha = source.alpha + (target.alpha - source.alpha) * mix
         const sourceRole = resolveRole(layer, source.role, scene.paletteOffset + animation.paletteOffset)
         const targetRole = resolveRole(layer, target.role, scene.paletteOffset + animation.paletteOffset)

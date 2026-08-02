@@ -21,7 +21,7 @@ export const PIX_GRID_PRESET_IDS = [
 export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
 
 export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 8 as const
-export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 22 as const
+export const PIX_GRID_NEON_MARQUEE_CONFIGURATION_VERSION = 23 as const
 
 const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro']
 
@@ -478,14 +478,14 @@ function marqueeSignFrameAnimation(): PixGridLayer['animations'][number] {
     clock: 'sign',
     stepped: true,
     sectionSpeeds: PIX_GRID_NEON_MARQUEE_SIGN_CADENCE,
-    frameTransition: { type: 'pixelDissolve', durationFraction: 1 / 8, easing: 'easeOut', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED },
+    frameTransition: { type: 'crossfade', durationFraction: 1 / 8, easing: 'easeOut', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED },
     sectionFrameTransitions: {
       intro: { type: 'powerOn', durationFraction: 0.75, easing: 'easeOut', seedMode: 'section', seed: MARQUEE_SIGN_TRANSITION_SEED, onSectionEntry: true },
-      verse: { type: 'pixelDissolve', durationFraction: 1 / 8, easing: 'easeOut', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED },
+      verse: { type: 'crossfade', durationFraction: 1 / 8, easing: 'easeOut', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED },
       build: { type: 'rowWipe', durationFraction: 1 / 8, easing: 'easeInOut', seedMode: 'section', seed: MARQUEE_SIGN_TRANSITION_SEED, direction: 'forward' },
       preDrop: { type: 'cut', durationFraction: 0, seedMode: 'fixed', seed: MARQUEE_SIGN_TRANSITION_SEED },
       drop: { type: 'radialReveal', durationFraction: 1 / 8, easing: 'easeOut', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED, origin: { x: 0.5, y: 0.5 } },
-      breakdown: { type: 'pixelDissolve', durationFraction: 1 / 8, easing: 'easeInOut', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED },
+      breakdown: { type: 'crossfade', durationFraction: 1 / 8, easing: 'easeInOut', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED },
       bridge: { type: 'columnWipe', durationFraction: 1 / 8, easing: 'easeInOut', seedMode: 'section', seed: MARQUEE_SIGN_TRANSITION_SEED },
       outro: {
         type: 'powerOff',
@@ -496,7 +496,7 @@ function marqueeSignFrameAnimation(): PixGridLayer['animations'][number] {
         onSectionEntry: true,
         holdAfterCompletion: true,
       },
-      unknown: { type: 'pixelDissolve', durationFraction: 1 / 8, easing: 'linear', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED },
+      unknown: { type: 'crossfade', durationFraction: 1 / 8, easing: 'linear', seedMode: 'frame', seed: MARQUEE_SIGN_TRANSITION_SEED },
     },
   })
 }
@@ -505,7 +505,7 @@ function marqueeBulbAnimation(phase: number): PixGridLayer['animations'][number]
   return animation('blink', 0.25, 0.5, {
     clock: 'sectionBeat',
     phase,
-    inactiveOpacity: 0.18,
+    inactiveOpacity: 0,
     stepped: true,
     sectionSpeeds: MARQUEE_BULB_CHASE_SPEED,
     sectionProgressSpeed: { build: 1 },
@@ -856,24 +856,24 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
           density: 0.54,
           motionMultiplier: 1,
           hiddenLayerIds: ['marquee-letter-lights-b', 'marquee-letter-lights-c', 'marquee-equalizer-lights', 'marquee-sparkle-lights'],
-          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.62, 'marquee-bulbs-b': 0.52, 'marquee-bulbs-c': 0.42, 'marquee-bulbs-d': 0.34, 'marquee-letter-lights-a': 0.26, 'marquee-trim-lights': 0.12, 'marquee-focal-lights': 0.18 },
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.58, 'marquee-bulbs-b': 0.58, 'marquee-bulbs-c': 0.58, 'marquee-bulbs-d': 0.58, 'marquee-letter-lights-a': 0.26, 'marquee-trim-lights': 0.12, 'marquee-focal-lights': 0.18 },
         },
         verse: {
           density: 0.8,
           motionMultiplier: 1,
           hiddenLayerIds: ['marquee-letter-lights-c'],
-          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.78, 'marquee-bulbs-b': 0.7, 'marquee-bulbs-c': 0.62, 'marquee-bulbs-d': 0.54, 'marquee-letter-lights-a': 0.58, 'marquee-letter-lights-b': 0.42, 'marquee-equalizer-lights': 0.18, 'marquee-trim-lights': 0.2, 'marquee-focal-lights': 0.32, 'marquee-sparkle-lights': 0.08 },
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.82, 'marquee-bulbs-b': 0.82, 'marquee-bulbs-c': 0.82, 'marquee-bulbs-d': 0.82, 'marquee-letter-lights-a': 0.58, 'marquee-letter-lights-b': 0.42, 'marquee-equalizer-lights': 0.18, 'marquee-trim-lights': 0.2, 'marquee-focal-lights': 0.32, 'marquee-sparkle-lights': 0.08 },
         },
         build: {
           density: 0.9,
           motionMultiplier: 1,
-          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.88, 'marquee-bulbs-b': 0.9, 'marquee-bulbs-c': 0.92, 'marquee-bulbs-d': 0.94, 'marquee-letter-lights-a': 0.72, 'marquee-letter-lights-b': 0.78, 'marquee-letter-lights-c': 0.84, 'marquee-equalizer-lights': 0.66, 'marquee-trim-lights': 0.56, 'marquee-focal-lights': 0.58, 'marquee-sparkle-lights': 0.2 },
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.94, 'marquee-bulbs-b': 0.94, 'marquee-bulbs-c': 0.94, 'marquee-bulbs-d': 0.94, 'marquee-letter-lights-a': 0.72, 'marquee-letter-lights-b': 0.78, 'marquee-letter-lights-c': 0.84, 'marquee-equalizer-lights': 0.66, 'marquee-trim-lights': 0.56, 'marquee-focal-lights': 0.58, 'marquee-sparkle-lights': 0.2 },
         },
         preDrop: {
           density: 0.5,
           motionMultiplier: 1,
           hiddenLayerIds: ['marquee-letter-lights-a', 'marquee-letter-lights-c', 'marquee-equalizer-lights', 'marquee-trim-lights', 'marquee-sparkle-lights'],
-          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.56, 'marquee-bulbs-b': 0.34, 'marquee-bulbs-c': 0.34, 'marquee-bulbs-d': 0.56, 'marquee-letter-lights-b': 0.24, 'marquee-focal-lights': 0.28 },
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.64, 'marquee-bulbs-b': 0.64, 'marquee-bulbs-c': 0.64, 'marquee-bulbs-d': 0.64, 'marquee-letter-lights-b': 0.24, 'marquee-focal-lights': 0.28 },
         },
         drop: {
           density: 1,
@@ -884,13 +884,13 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
           density: 0.48,
           motionMultiplier: 1,
           hiddenLayerIds: ['marquee-letter-lights-a', 'marquee-letter-lights-c', 'marquee-trim-lights', 'marquee-sparkle-lights'],
-          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.52, 'marquee-bulbs-b': 0.38, 'marquee-bulbs-c': 0.46, 'marquee-bulbs-d': 0.34, 'marquee-letter-lights-b': 0.2, 'marquee-equalizer-lights': 0.16, 'marquee-focal-lights': 0.68 },
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.56, 'marquee-bulbs-b': 0.56, 'marquee-bulbs-c': 0.56, 'marquee-bulbs-d': 0.56, 'marquee-letter-lights-b': 0.2, 'marquee-equalizer-lights': 0.16, 'marquee-focal-lights': 0.68 },
         },
         outro: {
           density: 0.42,
           motionMultiplier: 1,
           hiddenLayerIds: ['marquee-letter-lights-b', 'marquee-letter-lights-c', 'marquee-equalizer-lights', 'marquee-trim-lights', 'marquee-focal-lights', 'marquee-sparkle-lights'],
-          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.42, 'marquee-bulbs-b': 0.34, 'marquee-bulbs-c': 0.28, 'marquee-bulbs-d': 0.22, 'marquee-letter-lights-a': 0.2 },
+          layerOpacity: { 'marquee-structure': 1, 'marquee-bulbs-a': 0.46, 'marquee-bulbs-b': 0.46, 'marquee-bulbs-c': 0.46, 'marquee-bulbs-d': 0.46, 'marquee-letter-lights-a': 0.2 },
         },
       }),
     },

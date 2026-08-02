@@ -10,6 +10,7 @@ import type {
   PixGridState,
 } from './PixGridTypes'
 import { normalizePixGridState } from './PixGridValidation'
+import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 
 export interface PixGridViewport {
   viewportWidth: number
@@ -289,7 +290,16 @@ export function updatePixGridLayer(state: PixGridState, layerId: string, patch: 
     animations: patch.animations ? patch.animations.map(animation => ({ ...animation })) : current.animations,
   })
   const referenceCount = safe.scenes.reduce((count, candidate) => count + (candidate.layerIds.includes(layerId) ? 1 : 0), 0)
-  if (referenceCount <= 1) {
+  const presetId = safe.selectedPresetId ?? safe.configuration.sourcePresetId
+  const canonicalLayerIds = new Set(
+    (presetId ? PIX_GRID_PRESET_BY_ID.get(presetId)?.pixGridSettings?.layers : undefined)
+      ?.map(candidate => candidate.id)
+      ?? [],
+  )
+  // Canonical first-party layers are shared by design. Editing one mutates the
+  // stable canonical layer instead of entering generic scene-local copy-on-write,
+  // which would otherwise manufacture a new layer on every slider input event.
+  if (referenceCount <= 1 || canonicalLayerIds.has(layerId)) {
     return normalizePixGridState({ ...safe, layers: safe.layers.map(layer => layer.id === layerId ? next : layer) })
   }
   if (safe.layers.length >= MAX_PIX_GRID_LAYERS) return safe

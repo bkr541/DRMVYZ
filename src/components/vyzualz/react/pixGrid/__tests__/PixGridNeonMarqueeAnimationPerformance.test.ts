@@ -266,7 +266,7 @@ describe('Marquee Sign Cycle canonical authored animation', () => {
 
     expect(activeIndices).toEqual([[0, 3], [0, 1], [1, 2], [2, 3]])
     expect(activeAtBeat.every(values => values.filter(value => value > 0.9).length === 2)).toBe(true)
-    expect(activeAtBeat.every(values => values.filter(value => value === 0.18).length === 2)).toBe(true)
+    expect(activeAtBeat.every(values => values.filter(value => value === 0).length === 2)).toBe(true)
     expect(bulbs.map(candidate => resolved(candidate, audio({ motionClockSectionBeat: 4 }),).frameIndex))
       .toEqual([0, 0, 0, 0])
   })
@@ -294,7 +294,7 @@ describe('Marquee Sign Cycle canonical authored animation', () => {
       motionClockSectionBar: 9.25,
     })).opacity)
 
-    expect(opacities).toEqual([1, 0.18, 0.18, 1])
+    expect(opacities).toEqual([1, 0, 0, 1])
   })
 
   it('accelerates the authored bulb chase progressively through builds without accelerating sign identity', () => {

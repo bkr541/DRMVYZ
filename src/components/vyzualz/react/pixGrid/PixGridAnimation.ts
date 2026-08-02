@@ -223,10 +223,23 @@ function resolveFrameCycle(
   const config = transitionConfig(frame, animation)
   resolved.frameIndex = frameIndex
   resolved.previousFrameIndex = positiveModulo(rawFrame - 1, count)
+  if (frame.stableInspectionFrame === true) {
+    resolved.previousFrameIndex = frameIndex
+    return
+  }
+  // A transport seek suppresses stale sign-to-sign source/target state, but
+  // section-entry lifecycle transitions still reconstruct from the destination
+  // section clock. This keeps direct Outro seeks capable of reaching authored
+  // power-off while ordinary sign seeks land on a complete stable target.
+  const suppressSignTransition = frame.suppressFrameTransitions === true
+  if (suppressSignTransition && config?.onSectionEntry !== true) {
+    resolved.previousFrameIndex = frameIndex
+    return
+  }
   if (!config || config.type === 'cut' || count <= 1) return
 
   const duration = clamp01(config.durationFraction)
-  const hasExplicitSignTransition = animation.clock === 'sign' && (
+  const hasExplicitSignTransition = !suppressSignTransition && animation.clock === 'sign' && (
     Object.prototype.hasOwnProperty.call(frame, 'motionClockSignTransition')
     || Object.prototype.hasOwnProperty.call(frame, 'signTransitionClock')
   )

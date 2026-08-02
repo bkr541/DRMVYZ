@@ -80,9 +80,9 @@ void main() {
   float radius = halfSizeScalar * clamp(uRoundness, 0.0, 0.5) * 2.0;
   float distanceToCell = roundedRectDistance(local, halfSize, radius);
   float aa = max(fwidth(distanceToCell), 0.0008);
-  float diffuserWidth = aa + clamp(uDiffusion, 0.0, 1.0) * 0.045;
+  float diffuserWidth = aa + clamp(uDiffusion, 0.0, 1.0) * 0.09;
   float cellMask = 1.0 - smoothstep(-diffuserWidth, diffuserWidth, distanceToCell);
-  float glowWidth = 0.015 + clamp(uHaloRadius, 0.0, 1.0) * 0.16;
+  float glowWidth = 0.02 + clamp(uHaloRadius, 0.0, 1.0) * 0.26;
   float glowMask = exp(-max(distanceToCell, 0.0) / glowWidth) * clamp(uGlow, 0.0, 1.0);
   float center = clamp(1.0 - length(local / halfSize) * 0.62, 0.0, 1.0);
   float edgeFalloff = mix(0.86, 1.08, center);

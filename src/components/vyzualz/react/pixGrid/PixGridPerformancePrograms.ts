@@ -2203,7 +2203,7 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
     {
       id: 'marquee-intro', sectionTypes: ['intro'], priority: 30,
       actions: intro('pix-grid-neon-marquee-cycle-intro', [
-        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.58 },
+        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.66 },
         { type: 'setGroupBrightness', groupId: 'marquee-letter-group', brightness: 0.34 },
         { type: 'setGroupBrightness', groupId: 'marquee-equalizer-group', brightness: 0.12 },
         { type: 'setGroupBrightness', groupId: 'marquee-focal-group', brightness: 0.24 },
@@ -2217,7 +2217,7 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
     {
       id: 'marquee-verse', sectionTypes: ['verse', 'bridge'], priority: 30,
       actions: verse('pix-grid-neon-marquee-cycle-verse', [
-        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.78 },
+        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.86 },
         { type: 'setGroupBrightness', groupId: 'marquee-letter-group', brightness: 0.7 },
         { type: 'setGroupBrightness', groupId: 'marquee-equalizer-group', brightness: 0.34 },
         { type: 'setGroupBrightness', groupId: 'marquee-trim-group', brightness: 0.4 },
@@ -2236,7 +2236,7 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
     {
       id: 'marquee-build', sectionTypes: ['build'], priority: 30,
       actions: build('pix-grid-neon-marquee-cycle-build', [
-        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.9 },
+        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.95 },
         { type: 'setGroupBrightness', groupId: 'marquee-letter-group', brightness: 0.84 },
         { type: 'setGroupBrightness', groupId: 'marquee-equalizer-group', brightness: 0.76 },
         { type: 'setGroupBrightness', groupId: 'marquee-trim-group', brightness: 0.7 },
@@ -2257,7 +2257,7 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
     {
       id: 'marquee-pre-drop', sectionTypes: ['preDrop'], priority: 30,
       actions: preDrop('pix-grid-neon-marquee-cycle-preDrop', [
-        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.28 },
+        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.56 },
         { type: 'setGroupBrightness', groupId: 'marquee-letter-group', brightness: 0.2 },
         { type: 'setGroupActive', groupId: 'marquee-equalizer-group', active: false },
         { type: 'setGroupActive', groupId: 'marquee-trim-group', active: false },
@@ -2283,7 +2283,7 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
     {
       id: 'marquee-breakdown', sectionTypes: ['breakdown'], priority: 30,
       actions: breakdown('pix-grid-neon-marquee-cycle-breakdown', [
-        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.46 },
+        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.62 },
         { type: 'setGroupBrightness', groupId: 'marquee-letter-group', brightness: 0.3 },
         { type: 'setGroupBrightness', groupId: 'marquee-equalizer-group', brightness: 0.16 },
         { type: 'setGroupBrightness', groupId: 'marquee-focal-group', brightness: 0.68 },
@@ -2293,7 +2293,7 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
     {
       id: 'marquee-outro', sectionTypes: ['outro'], priority: 30,
       actions: outro('pix-grid-neon-marquee-cycle-outro', [
-        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.32 },
+        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.5 },
         { type: 'setGroupBrightness', groupId: 'marquee-letter-group', brightness: 0.24 },
         { type: 'setGroupActive', groupId: 'marquee-equalizer-group', active: false },
         { type: 'setGroupActive', groupId: 'marquee-trim-group', active: false },
@@ -2301,17 +2301,17 @@ export const NEON_MARQUEE_PERFORMANCE_PROGRAM = defineProgram({
         { type: 'setGroupActive', groupId: 'marquee-sparkle-group', active: false },
       ]),
       fourBarActions: [
-        [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-d-group', brightness: 0.18 }],
-        [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-c-group', brightness: 0.14 }],
-        [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-b-group', brightness: 0.1 }],
-        [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-a-group', brightness: 0.08 }],
+        [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-d-group', brightness: 0.48 }],
+        [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-c-group', brightness: 0.44 }],
+        [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-b-group', brightness: 0.4 }],
+        [{ type: 'setGroupBrightness', groupId: 'marquee-bulb-a-group', brightness: 0.36 }],
       ],
       exitActions: [{ type: 'restore' }],
     },
     {
       id: 'marquee-fallback', sectionTypes: ['unknown'], priority: 1,
       actions: verse('pix-grid-neon-marquee-cycle-verse', [
-        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.68 },
+        { type: 'setGroupBrightness', groupId: 'marquee-perimeter-group', brightness: 0.78 },
         { type: 'setGroupBrightness', groupId: 'marquee-letter-group', brightness: 0.58 },
         { type: 'setGroupBrightness', groupId: 'marquee-focal-group', brightness: 0.42 },
       ]),

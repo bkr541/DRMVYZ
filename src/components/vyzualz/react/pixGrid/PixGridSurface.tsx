@@ -434,6 +434,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let lastValidatedState: PixGridState | null = null
     let lastValidationCounts = { errors: 0, warnings: 0 }
     let lastAudioTime = 0
+    let lastTransportSampleAtMs = globalThis.performance.now()
+    let seekIdentityRevision = 0
+    let loopIdentityRevision = 0
+    let timingDiscontinuityRevision = 0
     const analyserFramePump = new MusicIntelligenceAnalyserFramePump({ publisherId: 'react:pixGrid' })
     const unifiedReactionRuntime = new PixGridReactionRuntime()
     const unifiedPerformanceRuntime = new PixGridUnifiedPerformanceRuntime()
@@ -668,6 +672,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previousTrackIdentity = trackIdentity
         previousPerformanceContext = null
         lastAudioTime = audioTime
+        lastTransportSampleAtMs = globalThis.performance.now()
+        seekIdentityRevision = 0
+        loopIdentityRevision = 0
+        timingDiscontinuityRevision = 0
         unifiedPerformanceRuntime.reset(trackIdentity)
         unifiedReactionRuntime.reset()
         motionClock.reset(trackIdentity)
@@ -681,6 +689,43 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         latestVisibleFrameCellCount = 0
         lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
       }
+
+      const transportSampleAtMs = globalThis.performance.now()
+      const wallDeltaSec = Math.max(0, (transportSampleAtMs - lastTransportSampleAtMs) / 1_000)
+      const audioDeltaSec = audioTime - lastAudioTime
+      const hasPreviousTransportSample = previousPerformanceContext != null
+      const expectedAdvanceSec = shouldAnimate ? wallDeltaSec : 0
+      const movedBackward = hasPreviousTransportSample && audioDeltaSec < -0.05
+      const forwardSeek = hasPreviousTransportSample && (
+        shouldAnimate
+          ? audioDeltaSec - expectedAdvanceSec > Math.max(0.35, wallDeltaSec * 2 + 0.1)
+          : audioDeltaSec > 0.02
+      )
+      const pausedOrStoppedSeek = hasPreviousTransportSample
+        && !shouldAnimate
+        && Math.abs(audioDeltaSec) > 0.02
+      const durationSec = Math.max(0, current.durationSec ?? 0)
+      const loopWrap = movedBackward
+        && durationSec > 0
+        && lastAudioTime >= durationSec * 0.7
+        && audioTime <= durationSec * 0.3
+      const transportDiscontinuity = movedBackward || forwardSeek || pausedOrStoppedSeek
+      if (transportDiscontinuity) {
+        timingDiscontinuityRevision += 1
+        if (loopWrap) loopIdentityRevision += 1
+        else seekIdentityRevision += 1
+        unifiedReactionRuntime.reset()
+        fallbackGroupCompiler.reset()
+        perceptualTracker.reset()
+        restorationSectionIdentity = null
+        restorationElapsedBar = 0
+        restorationLastAbsoluteBar = null
+        latestGroupCoverage = new Map()
+        latestVisibleFrameCellCount = 0
+        lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
+      }
+      lastTransportSampleAtMs = transportSampleAtMs
+
       const busPublication = current.analyser ? null : AudioFeatureBus.getFramePublicationMeta()
       const intelligenceFrame = current.analyser
         ? analyserFramePump.sample({
@@ -712,6 +757,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         resolvedSections: current.trackSections ?? intelligenceFrame.resolvedSections ?? null,
         durationSec: current.durationSec,
         trackIdentity: current.trackIdentity ?? intelligenceFrame.trackId ?? intelligenceFrame.sourceId,
+        seekIdentity: `pix-grid-seek:${seekIdentityRevision}`,
+        loopIdentity: `pix-grid-loop:${loopIdentityRevision}`,
+        timingDiscontinuityIdentity: `pix-grid-timing:${timingDiscontinuityRevision}`,
         previous: priorPerformanceContext,
       })
       previousPerformanceContext = context
@@ -752,7 +800,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         restoringFromTransparency,
         restorationElapsedBar: restoringFromTransparency ? restorationElapsedBar : undefined,
       }
-      const authoredAudioFrame = transportState === 'stopped'
+      const authoredAudioFrameBase = transportState === 'stopped'
         ? createSilentPixGridAudioFrame({
             audioTime,
             deltaTimeSec: 0,
@@ -774,6 +822,10 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             isPlaying: false,
           })
         : liveAudioFrame
+      const authoredAudioFrame: PixGridAudioFrame = {
+        ...authoredAudioFrameBase,
+        stableInspectionFrame: transportState !== 'playing',
+      }
       const confidenceValues = Object.entries(authoredAudioFrame.confidence ?? {})
         .filter(([, value]) => typeof value === 'number')
         .map(([, value]) => value as number)

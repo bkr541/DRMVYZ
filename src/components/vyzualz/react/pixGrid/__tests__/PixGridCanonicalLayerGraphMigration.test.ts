@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { ReactPreset } from '../../ReactTypes'
 import { createSilentPixGridAudioFrame, PixGridReactionRuntime } from '../PixGridAudioRouting'
 import { inspectPixGridGroupTarget } from '../PixGridCanonicalGraph'
+import { updatePixGridLayer } from '../PixGridAuthoring'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createEmptyPixGridCanonicalSignatures } from '../PixGridConfiguration'
 import { clonePixGridLayer, createDefaultPixGridState } from '../PixGridDefaults'
 import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import {
+  ensurePixGridCanonicalPresetIntegrity,
   ensurePixGridRuntimeAudioRoutes,
   isPixGridAudioAssignmentEffective,
   migratePixGridState,
@@ -30,6 +32,7 @@ import { validatePixGridState } from '../PixGridValidationAudit'
 const GEOMETRIC = PIX_GRID_PRESET_BY_ID.get('pix-grid-geometric-reactor')!
 const BASS_BEACON = PIX_GRID_PRESET_BY_ID.get('pix-grid-bass-beacon')!
 const PIXEL_PARADE = PIX_GRID_PRESET_BY_ID.get('pix-grid-pixel-parade')!
+const MARQUEE = PIX_GRID_PRESET_BY_ID.get('pix-grid-neon-marquee-cycle')!
 
 function stateForPreset(preset: ReactPreset): PixGridState {
   return applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings)
@@ -335,4 +338,81 @@ describe('PixGrid canonical layer-graph migration', () => {
     expect(ensurePixGridRuntimeAudioRoutes({ ...invisible, audioAssignments: [] }).fallbackActive).toBe(true)
     expect(validatePixGridState(invisible, { builtInPresetId: GEOMETRIC.id }).issues.some(issue => issue.code === 'ineffective-assignment-target')).toBe(true)
   })
+
+  it('keeps shared Marquee canonical layers stable through continuous transform editing and repairs prior clone pollution', () => {
+    const canonicalLayerId = 'marquee-letter-lights-a'
+    const canonicalLayerCount = MARQUEE.pixGridSettings?.layers?.length ?? 0
+    let edited = stateForPreset(MARQUEE)
+
+    for (let index = 0; index < 100; index += 1) {
+      edited = updatePixGridLayer(edited, canonicalLayerId, {
+        position: { x: 0.5, y: 0.25 + index / 400 },
+      })
+    }
+
+    expect(edited.layers).toHaveLength(canonicalLayerCount)
+    expect(edited.layers.find(layer => layer.id === canonicalLayerId)?.position.y).toBeCloseTo(0.4975)
+    for (const scene of edited.scenes) {
+      expect(scene.layerIds).toHaveLength(canonicalLayerCount)
+      expect(scene.layerIds.filter(id => id === canonicalLayerId)).toHaveLength(1)
+      expect(scene.layerIds.some(id => id.startsWith('pix-grid-layer-'))).toBe(false)
+    }
+
+    const canonical = edited.layers.find(layer => layer.id === canonicalLayerId)!
+    const staleCopy = layerWithIdentity(canonical, 'pix-grid-layer-stale-marquee-copy', canonical.name, {
+      position: { x: 0.5, y: 0.31 },
+    })
+    const selectedCopy = layerWithIdentity(canonical, 'pix-grid-layer-selected-marquee-copy', canonical.name, {
+      position: { x: 0.5, y: 0.72 },
+    })
+    const polluted = normalizePixGridState({
+      ...edited,
+      layers: [...edited.layers, staleCopy, selectedCopy],
+      scenes: edited.scenes.map(scene => ({
+        ...scene,
+        layerIds: [...scene.layerIds, staleCopy.id, selectedCopy.id],
+        pixelOverrides: [...scene.pixelOverrides],
+      })),
+      editor: { ...edited.editor, selectedLayerId: selectedCopy.id },
+    })
+
+    const repaired = ensurePixGridCanonicalPresetIntegrity(polluted, MARQUEE.id)
+    expect(repaired.layers).toHaveLength(canonicalLayerCount)
+    expect(repaired.layers.find(layer => layer.id === canonicalLayerId)?.position.y).toBeCloseTo(0.72)
+    expect(repaired.editor.selectedLayerId).toBe(canonicalLayerId)
+    expect(repaired.configuration.lastMigration?.obsoleteOfficialLayersRemoved).toEqual(expect.arrayContaining([
+      staleCopy.id,
+      selectedCopy.id,
+    ]))
+    for (const scene of repaired.scenes) {
+      expect(scene.layerIds).toHaveLength(canonicalLayerCount)
+      expect(scene.layerIds.some(id => id.startsWith('pix-grid-layer-'))).toBe(false)
+    }
+  })
+
+  it('preserves explicit scene membership for genuine overlays during canonical repair', () => {
+    const base = stateForPreset(MARQUEE)
+    const source = base.layers.find(layer => layer.id === 'marquee-focal-lights')!
+    const overlay = layerWithIdentity(source, 'user-marquee-overlay', 'My Scene Overlay', {
+      mediaId: 'user-marquee-media',
+      position: { x: 0.2, y: 0.3 },
+    })
+    const ownerSceneId = base.scenes[0]!.id
+    const customized = normalizePixGridState({
+      ...base,
+      layers: [...base.layers, overlay],
+      scenes: base.scenes.map(scene => ({
+        ...scene,
+        layerIds: scene.id === ownerSceneId ? [...scene.layerIds, overlay.id] : [...scene.layerIds],
+        pixelOverrides: [...scene.pixelOverrides],
+      })),
+    })
+
+    const repaired = ensurePixGridCanonicalPresetIntegrity(customized, MARQUEE.id)
+    expect(repaired.scenes.find(scene => scene.id === ownerSceneId)?.layerIds).toContain(overlay.id)
+    for (const scene of repaired.scenes.filter(scene => scene.id !== ownerSceneId)) {
+      expect(scene.layerIds).not.toContain(overlay.id)
+    }
+  })
+
 })

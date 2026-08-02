@@ -1198,10 +1198,10 @@ export interface PixGridNeonMarqueeComponentSample {
 }
 
 export const PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT = Object.freeze({
-  'bulbs-a': '#fff4b0',
-  'bulbs-b': '#ffe074',
-  'bulbs-c': '#ffc857',
-  'bulbs-d': '#ffad42',
+  'bulbs-a': '#fff7d1',
+  'bulbs-b': '#ffb31f',
+  'bulbs-c': '#fff0a3',
+  'bulbs-d': '#ff7a18',
 } as const)
 
 export type PixGridNeonMarqueeBulbComponentId = keyof typeof PIX_GRID_NEON_MARQUEE_BULB_COLOR_HEX_BY_COMPONENT
@@ -1210,10 +1210,10 @@ const PIX_GRID_NEON_MARQUEE_BULB_COLOR_RGB_BY_COMPONENT: Readonly<Record<
   PixGridNeonMarqueeBulbComponentId,
   readonly [number, number, number]
 >> = Object.freeze({
-  'bulbs-a': [255, 244, 176],
-  'bulbs-b': [255, 224, 116],
-  'bulbs-c': [255, 200, 87],
-  'bulbs-d': [255, 173, 66],
+  'bulbs-a': [255, 247, 209],
+  'bulbs-b': [255, 179, 31],
+  'bulbs-c': [255, 240, 163],
+  'bulbs-d': [255, 122, 24],
 })
 
 function isPixGridNeonMarqueeBulbComponent(
@@ -1294,10 +1294,10 @@ export const PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE_BY_COMPONENT: Reado
   PixGridNeonMarqueeStableUnderlayComponentId,
   number
 >> = Object.freeze({
-  'bulbs-a': 0.34,
-  'bulbs-b': 0.34,
-  'bulbs-c': 0.34,
-  'bulbs-d': 0.34,
+  'bulbs-a': 0.26,
+  'bulbs-b': 0.26,
+  'bulbs-c': 0.26,
+  'bulbs-d': 0.26,
   'letter-a': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
   'letter-b': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,
   'letter-c': PIX_GRID_NEON_MARQUEE_STABLE_UNDERLAY_DIM_SCALE,

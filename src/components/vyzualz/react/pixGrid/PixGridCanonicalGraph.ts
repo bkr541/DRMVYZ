@@ -152,6 +152,89 @@ function mergeMappedLayer(canonical: PixGridLayer, legacy: PixGridLayer, preserv
   }
 }
 
+
+export interface PixGridAccidentalCanonicalCopyRepair {
+  state: PixGridState
+  removedLayerIds: string[]
+  mergedIntoCanonicalLayerIds: string[]
+}
+
+/**
+ * Repairs the exact copy-on-write pollution produced when a shared canonical
+ * layer was cloned during a slider gesture and canonical graph repair then
+ * inserted that clone into every first-party scene. The signature is
+ * deliberately strict so genuine user overlays and explicit "Copy" layers are
+ * preserved.
+ */
+export function repairPixGridAccidentalCanonicalLayerCopies(
+  state: PixGridState,
+  preset: ReactPreset,
+): PixGridAccidentalCanonicalCopyRepair {
+  const canonicalLayers = canonicalLayersFor(preset)
+  const canonicalScenes = Object.keys(preset.pixGridSettings?.sceneSettings ?? {})
+    .map(sceneId => state.scenes.find(scene => scene.id === sceneId))
+    .filter((scene): scene is PixGridScene => Boolean(scene))
+  if (canonicalLayers.length === 0 || canonicalScenes.length < 2) {
+    return { state, removedLayerIds: [], mergedIntoCanonicalLayerIds: [] }
+  }
+
+  const currentById = new Map(state.layers.map(layer => [layer.id, layer]))
+  const selectedLayerId = state.editor.selectedLayerId
+  const removed = new Set<string>()
+  const replacements = new Map<string, PixGridLayer>()
+  const mergedIntoCanonicalLayerIds: string[] = []
+
+  for (const canonical of canonicalLayers) {
+    const currentCanonical = currentById.get(canonical.id)
+    if (!currentCanonical) continue
+    const candidates = state.layers.filter(layer => (
+      layer.id.startsWith('pix-grid-layer-')
+      && !layer.mediaId
+      && layer.name === canonical.name
+      && layer.assetId === canonical.assetId
+      && canonicalScenes.every(scene => scene.layerIds.includes(layer.id))
+    ))
+    if (candidates.length === 0) continue
+
+    const winner = candidates.find(layer => layer.id === selectedLayerId)
+      ?? candidates[candidates.length - 1]!
+    replacements.set(canonical.id, mergeMappedLayer(currentCanonical, winner, false))
+    for (const candidate of candidates) removed.add(candidate.id)
+    mergedIntoCanonicalLayerIds.push(canonical.id)
+  }
+
+  if (removed.size === 0) {
+    return { state, removedLayerIds: [], mergedIntoCanonicalLayerIds: [] }
+  }
+
+  const layers = state.layers
+    .filter(layer => !removed.has(layer.id))
+    .map(layer => replacements.get(layer.id) ?? layer)
+  const scenes = state.scenes.map(scene => ({
+    ...scene,
+    layerIds: scene.layerIds.filter(layerId => !removed.has(layerId)),
+    pixelOverrides: [...scene.pixelOverrides],
+  }))
+  const selectedCanonicalId = canonicalLayers.find(canonical => {
+    const selected = selectedLayerId ? currentById.get(selectedLayerId) : null
+    return Boolean(selected && removed.has(selected.id) && selected.name === canonical.name && selected.assetId === canonical.assetId)
+  })?.id ?? null
+
+  return {
+    state: {
+      ...state,
+      layers,
+      scenes,
+      editor: {
+        ...state.editor,
+        selectedLayerId: selectedCanonicalId ?? state.editor.selectedLayerId,
+      },
+    },
+    removedLayerIds: [...removed],
+    mergedIntoCanonicalLayerIds,
+  }
+}
+
 export interface PixGridCanonicalLayerMerge {
   layers: PixGridLayer[]
   layerIdMap: ReadonlyMap<string, string>
@@ -278,7 +361,6 @@ export function repairPixGridLayerReferences(
   const layerIds = new Set(layers.map(layer => layer.id))
   const canonicalLayerIds = canonicalLayersFor(preset).map(layer => layer.id)
   const canonicalLayerIdSet = new Set(canonicalLayerIds)
-  const preservedOverlayIds = layers.filter(layer => !canonicalLayerIdSet.has(layer.id)).map(layer => layer.id)
   const canonicalSceneIds = Object.keys(preset.pixGridSettings?.sceneSettings ?? {})
   const canonicalSceneSet = new Set(canonicalSceneIds)
   let sceneReferencesRepaired = 0
@@ -286,7 +368,14 @@ export function repairPixGridLayerReferences(
   for (const scene of state.scenes) {
     const remapped = scene.layerIds.map(id => remapId(id, layerIdMap)).filter(id => layerIds.has(id))
     let repaired = [...new Set(remapped)]
-    if (canonicalSceneSet.has(scene.id)) repaired = [...new Set([...canonicalLayerIds, ...repaired, ...preservedOverlayIds])]
+    if (canonicalSceneSet.has(scene.id)) {
+      const sceneOverlayIds = repaired.filter(layerId => !canonicalLayerIdSet.has(layerId))
+      // Canonical layers are shared by every first-party scene, but user
+      // overlays retain their explicit scene membership. Spreading every
+      // noncanonical layer to every scene is what turned one slider drag into a
+      // graph-wide layer explosion.
+      repaired = [...new Set([...canonicalLayerIds, ...sceneOverlayIds])]
+    }
     if (repaired.length === 0) repaired = [...canonicalLayerIds]
     if (JSON.stringify(repaired) !== JSON.stringify(scene.layerIds)) sceneReferencesRepaired += 1
     scenesById.set(scene.id, { ...scene, layerIds: repaired, pixelOverrides: [...scene.pixelOverrides] })

@@ -73,20 +73,11 @@ export function pixGridCellTransitionMix(
       return Math.hypot(rawU - origin.x, rawV - origin.y) / Math.max(0.000001, maxRadius) <= p ? 1 : 0
     }
     case 'powerOn':
-    case 'powerOff': {
-      // Electrical startup and shutdown use a deterministic distributed order,
-      // not the former center-row collapse. A small radial bias keeps the
-      // sequence coherent while individual logical lamps recruit or release.
-      const maxRadius = Math.max(
-        Math.hypot(origin.x, origin.y),
-        Math.hypot(1 - origin.x, origin.y),
-        Math.hypot(origin.x, 1 - origin.y),
-        Math.hypot(1 - origin.x, 1 - origin.y),
-      )
-      const radius = Math.hypot(rawU - origin.x, rawV - origin.y) / Math.max(0.000001, maxRadius)
-      const threshold = clamp01(p * 1.14 - radius * 0.14)
-      return pixGridTransitionNoise(x, y, seed) <= threshold ? 1 : 0
-    }
+    case 'powerOff':
+      // Lifecycle power transitions are coherent whole-sign fades. The prior
+      // per-cell noise threshold made a healthy sign look like corrupt or
+      // missing pixels during startup, shutdown, and seek reconstruction.
+      return p
     default:
       return 1
   }

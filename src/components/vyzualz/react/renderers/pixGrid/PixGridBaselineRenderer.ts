@@ -123,7 +123,7 @@ export function renderPixGridBaseline(
   ctx.fillRect(0, 0, W, H)
   ctx.globalAlpha = 1
   ctx.filter = presentation.diffusion > 0.01
-    ? `blur(${Math.max(0.1, presentation.diffusion * Math.min(cellWidth, cellHeight) * 0.35)}px)`
+    ? `blur(${Math.max(0.1, presentation.diffusion * Math.min(cellWidth, cellHeight) * 0.7)}px)`
     : 'none'
 
   for (let y = 0; y < state.matrixHeight; y += 1) {
@@ -138,7 +138,7 @@ export function renderPixGridBaseline(
       const py = offsetY + y * cellHeight + gapY
       if (presentation.glow > 0.02 && alpha > 0.45) {
         ctx.shadowColor = `rgba(${r},${g},${b},${presentation.glow})`
-        ctx.shadowBlur = Math.min(18, Math.max(cellWidth, cellHeight) * (1 + presentation.haloRadius * 3))
+        ctx.shadowBlur = Math.min(18, Math.max(cellWidth, cellHeight) * (1 + presentation.haloRadius * 4.5))
       } else {
         ctx.shadowBlur = 0
       }
@@ -233,12 +233,12 @@ export function renderPixGridCanvasFallback(
     output.save()
     output.globalCompositeOperation = 'lighter'
     output.globalAlpha = presentation.glow * 0.55
-    output.filter = `blur(${Math.max(0.5, Math.max(drawWidth / state.matrixWidth, drawHeight / state.matrixHeight) * presentation.haloRadius * 2.5)}px)`
+    output.filter = `blur(${Math.max(0.5, Math.max(drawWidth / state.matrixWidth, drawHeight / state.matrixHeight) * presentation.haloRadius * 4)}px)`
     output.drawImage(logicalCanvas, offsetX, offsetY, drawWidth, drawHeight)
     output.restore()
   }
   output.filter = presentation.diffusion > 0.01
-    ? `blur(${Math.max(0.1, presentation.diffusion * 0.75)}px)`
+    ? `blur(${Math.max(0.1, presentation.diffusion * 1.5)}px)`
     : 'none'
   output.drawImage(logicalCanvas, offsetX, offsetY, drawWidth, drawHeight)
   output.filter = 'none'

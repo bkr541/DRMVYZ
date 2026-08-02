@@ -260,7 +260,14 @@ describe('Marquee independent sign clock', () => {
       controlled(31, left)
       looped = controlled(bar, left, true)
       expect(looped.motionClockSign).toBe(initial.motionClockSign)
-      expect(looped.motionClockSignTransition).toBe(initial.motionClockSignTransition)
+      expect(looped.motionClockSignTransition).toBeNull()
+      expect(looped.suppressFrameTransitions).toBe(true)
+      expect(resolve(structure, looped)).toMatchObject({
+        frameIndex: resolve(structure, initial).frameIndex,
+        previousFrameIndex: resolve(structure, initial).frameIndex,
+        frameTransitionType: 'cut',
+        frameTransitionProgress: 1,
+      })
     }
     const remounted = controlled(bar, right, true)
     const restartedClock = new PixGridMotionClock()
@@ -273,8 +280,12 @@ describe('Marquee independent sign clock', () => {
       PRESET_ID,
     ))
     expect(stopped.motionClockSign).toBe(initial.motionClockSign)
+    expect(stopped.suppressFrameTransitions).toBe(true)
     expect(restarted.motionClockSign).toBe(initial.motionClockSign)
+    expect(restarted.suppressFrameTransitions).toBe(true)
     expect(looped.motionClockSign).toBe(remounted.motionClockSign)
+    expect(remounted.motionClockSignTransition).toBeNull()
+    expect(remounted.suppressFrameTransitions).toBe(true)
     expect(resolve(structure, looped)).toEqual(resolve(structure, remounted))
   })
 

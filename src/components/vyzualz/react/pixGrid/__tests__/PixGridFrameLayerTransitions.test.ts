@@ -88,13 +88,19 @@ function activeCellCount(pixels: Uint8Array): number {
   return count
 }
 
+function totalAlpha(pixels: Uint8Array): number {
+  let total = 0
+  for (let offset = 3; offset < pixels.length; offset += 4) total += pixels[offset]
+  return total
+}
+
 function resolved(layer: PixGridLayer, frame: PixGridAudioFrame) {
   return resolvePixGridLayerAnimation(layer, PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)!, frame, 1)
 }
 
 describe('generic PixGrid cell transition grammar', () => {
   it('resolves every supported cell transition deterministically', () => {
-    const types = ['cut', 'pixelDissolve', 'rowWipe', 'columnWipe', 'checkerWipe', 'radialReveal', 'paletteFade', 'powerOn', 'powerOff'] as const
+    const types = ['cut', 'crossfade', 'pixelDissolve', 'rowWipe', 'columnWipe', 'checkerWipe', 'radialReveal', 'paletteFade', 'powerOn', 'powerOff'] as const
     for (const type of types) {
       const first = Array.from({ length: 32 }, (_, index) => pixGridCellTransitionMix(type, index % 8, Math.floor(index / 8), 8, 4, 0.5, 917))
       const second = Array.from({ length: 32 }, (_, index) => pixGridCellTransitionMix(type, index % 8, Math.floor(index / 8), 8, 4, 0.5, 917))
@@ -103,19 +109,12 @@ describe('generic PixGrid cell transition grammar', () => {
     }
   })
 
-  it('distributes power transitions across the sign instead of collapsing a horizontal band', () => {
+  it('resolves power transitions as coherent whole-sign fades rather than noisy cell recruitment', () => {
     for (const type of ['powerOn', 'powerOff'] as const) {
-      const activeRows = new Set<number>()
-      const activeColumns = new Set<number>()
-      for (let y = 0; y < 16; y += 1) {
-        for (let x = 0; x < 32; x += 1) {
-          if (pixGridCellTransitionMix(type, x, y, 32, 16, 0.5, 917) <= 0) continue
-          activeRows.add(y)
-          activeColumns.add(x)
-        }
-      }
-      expect(activeRows.size).toBe(16)
-      expect(activeColumns.size).toBe(32)
+      const values = Array.from({ length: 512 }, (_, index) => (
+        pixGridCellTransitionMix(type, index % 32, Math.floor(index / 32), 32, 16, 0.5, 917)
+      ))
+      expect(new Set(values)).toEqual(new Set([0.5]))
     }
   })
 
@@ -126,7 +125,7 @@ describe('generic PixGrid cell transition grammar', () => {
   })
 
   it('resolves exact start and completion masks for every non-cut transition', () => {
-    const types = ['pixelDissolve', 'rowWipe', 'columnWipe', 'checkerWipe', 'radialReveal', 'paletteFade', 'powerOn', 'powerOff'] as const
+    const types = ['crossfade', 'pixelDissolve', 'rowWipe', 'columnWipe', 'checkerWipe', 'radialReveal', 'paletteFade', 'powerOn', 'powerOff'] as const
     for (const type of types) {
       const start = Array.from({ length: 32 }, (_, index) => pixGridCellTransitionMix(type, index % 8, Math.floor(index / 8), 8, 4, 0, 917))
       const complete = Array.from({ length: 32 }, (_, index) => pixGridCellTransitionMix(type, index % 8, Math.floor(index / 8), 8, 4, 1, 917))
@@ -144,7 +143,7 @@ describe('frameCycle transition resolution', () => {
     const boundary = resolved(structure, audio({ signClock: 1, motionClockSign: 1 }))
     const middle = resolved(structure, audio({ signClock: 1.0625, motionClockSign: 1.0625 }))
     const complete = resolved(structure, audio({ signClock: 1.125, motionClockSign: 1.125 }))
-    expect(boundary).toMatchObject({ previousFrameIndex: 0, frameIndex: 1, frameTransitionType: 'pixelDissolve', frameTransitionProgress: 0 })
+    expect(boundary).toMatchObject({ previousFrameIndex: 0, frameIndex: 1, frameTransitionType: 'crossfade', frameTransitionProgress: 0 })
     expect(middle.frameTransitionProgress).toBeGreaterThan(0)
     expect(middle.frameTransitionProgress).toBeLessThan(1)
     expect(complete.frameTransitionProgress).toBe(1)
@@ -190,6 +189,33 @@ describe('frameCycle transition resolution', () => {
     expect(introComplete.frameTransitionCompletedState).toBe('target')
     expect(outroStart.frameTransitionType).toBe('powerOff')
     expect(outroStart.frameTransitionCompletedState).toBe('transparent')
+  })
+
+  it('renders a stable destination frame while stopped or immediately after transport reconstruction', () => {
+    const stoppedIntro = resolved(structure, audio({
+      sectionType: 'intro',
+      motionClockSectionType: 'intro',
+      barsSinceSectionStart: 0,
+      stableInspectionFrame: true,
+      isPlaying: false,
+      transportState: 'stopped',
+    }))
+    const seekDestination = resolved(structure, audio({
+      signClock: 2.0625,
+      motionClockSign: 2.0625,
+      suppressFrameTransitions: true,
+      timingDiscontinuity: true,
+    }))
+
+    expect(stoppedIntro).toMatchObject({
+      frameIndex: 0,
+      previousFrameIndex: 0,
+      frameTransitionType: 'cut',
+      frameTransitionProgress: 1,
+    })
+    expect(seekDestination.previousFrameIndex).toBe(seekDestination.frameIndex)
+    expect(seekDestination.frameTransitionType).toBe('cut')
+    expect(seekDestination.frameTransitionProgress).toBe(1)
   })
 
   it('is seek, loop, pause, and remount deterministic', () => {
@@ -259,19 +285,25 @@ describe('Marquee logical visual acceptance', () => {
     const onMiddle = render('intro', 0.375)
     const onComplete = render('intro', 0.75)
     const onAfter = render('intro', 1.5)
+    const stoppedInspection = render('intro', 0, {
+      stableInspectionFrame: true,
+      isPlaying: false,
+      transportState: 'stopped',
+    })
     const seekBackward = render('verse', 0.5)
 
     expect(activeCellCount(offStart)).toBeGreaterThan(0)
-    expect(activeCellCount(offMiddle)).toBeGreaterThan(0)
-    expect(activeCellCount(offMiddle)).toBeLessThan(activeCellCount(offStart))
-    expect(activeCellCount(offJustBefore)).toBeLessThanOrEqual(activeCellCount(offMiddle))
-    expect(activeCellCount(offComplete)).toBe(0)
+    expect(totalAlpha(offMiddle)).toBeGreaterThan(0)
+    expect(totalAlpha(offMiddle)).toBeLessThan(totalAlpha(offStart))
+    expect(totalAlpha(offJustBefore)).toBeLessThanOrEqual(totalAlpha(offMiddle))
+    expect(totalAlpha(offComplete)).toBe(0)
     expect(offAfter).toEqual(offComplete)
 
-    expect(activeCellCount(onStart)).toBe(0)
-    expect(activeCellCount(onMiddle)).toBeGreaterThan(0)
-    expect(activeCellCount(onComplete)).toBeGreaterThan(activeCellCount(onMiddle))
+    expect(totalAlpha(onStart)).toBe(0)
+    expect(totalAlpha(onMiddle)).toBeGreaterThan(0)
+    expect(totalAlpha(onComplete)).toBeGreaterThan(totalAlpha(onMiddle))
     expect(onAfter).toEqual(onComplete)
+    expect(stoppedInspection).toEqual(onComplete)
     expect(render('intro', 0.75, { motionMultiplier: 0, motionClockSectionBar: 0 })).toEqual(onComplete)
     expect(render('outro', 0.75, { motionMultiplier: 0, motionClockSectionBar: 0 })).toEqual(offComplete)
     expect(activeCellCount(seekBackward)).toBeGreaterThan(0)
@@ -333,6 +365,7 @@ describe('Marquee logical visual acceptance', () => {
   it('completes non-power-off transitions on the target frame without stale source state', () => {
     const base = structureOnly()
     const transitionTypes = [
+      'crossfade',
       'pixelDissolve',
       'rowWipe',
       'columnWipe',
@@ -369,7 +402,7 @@ describe('Marquee logical visual acceptance', () => {
     }
   })
 
-  it('renders at least one exact-cell intermediate state and completes exactly on the target frame', () => {
+  it('renders a coherent interpolated crossfade and completes exactly on the target frame', () => {
     const base = structureOnly()
     const sourceFrame = composePixGridLogicalFrame(preset, base, audio({ signClock: 0.99875, motionClockSign: 0.99875 })).pixels
     const intermediate = composePixGridLogicalFrame(preset, base, audio({ signClock: 1.0625, motionClockSign: 1.0625 })).pixels
@@ -383,12 +416,14 @@ describe('Marquee logical visual acceptance', () => {
     expect(hash(intermediate)).not.toBe(hash(sourceFrame))
     expect(hash(intermediate)).not.toBe(hash(target))
     expect(target).toEqual(exactTarget)
+    let interpolatedCells = 0
     for (let offset = 0; offset < intermediate.length; offset += 4) {
       const pixel = Array.from(intermediate.slice(offset, offset + 4)).join(',')
       const source = Array.from(sourceFrame.slice(offset, offset + 4)).join(',')
       const destination = Array.from(target.slice(offset, offset + 4)).join(',')
-      expect(pixel === source || pixel === destination).toBe(true)
+      if (pixel !== source && pixel !== destination) interpolatedCells += 1
     }
+    expect(interpolatedCells).toBeGreaterThan(0)
   })
 
   it('keeps stable structure fixed while authored light layers animate at one sign identity', () => {

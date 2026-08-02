@@ -59,8 +59,8 @@ export const PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES: readonly PixGridMarqueeS
     sectionType: 'drop',
     visibleLayerIds: ALL_LAYER_IDS,
     freezeAnimatedMasks: true,
-    expectedBeforeHashes: [3_466_301_319, 2_521_418_112, 1_998_938_143, 270_271_290],
-    expectedAfterHashes: [3_466_301_319, 2_521_418_112, 1_998_938_143, 270_271_290],
+    expectedBeforeHashes: [3_476_907_863, 153_787_772, 876_482_146, 3_867_350_619],
+    expectedAfterHashes: [3_476_907_863, 153_787_772, 876_482_146, 3_867_350_619],
   },
   {
     id: 'only-structure-active',
@@ -68,7 +68,7 @@ export const PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES: readonly PixGridMarqueeS
     visibleLayerIds: ['marquee-structure'],
     freezeAnimatedMasks: true,
     expectedBeforeHashes: [207_775_016, 3_938_269_786, 1_916_625_077, 1_591_766_667],
-    expectedAfterHashes: [102_769_215, 2_930_654_855, 3_049_056_917, 3_177_289_667],
+    expectedAfterHashes: [558_525_756, 924_059_490, 3_359_182_170, 1_771_597_700],
   },
   {
     id: 'one-letter-bank-active',
@@ -76,26 +76,26 @@ export const PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES: readonly PixGridMarqueeS
     visibleLayerIds: ['marquee-structure', 'marquee-letter-lights-a'],
     freezeAnimatedMasks: true,
     expectedBeforeHashes: [1_268_641_305, 2_193_036_626, 2_642_290_211, 1_591_766_667],
-    expectedAfterHashes: [1_032_530_343, 388_174_635, 3_812_588_360, 3_177_289_667],
+    expectedAfterHashes: [615_915_708, 259_690_258, 1_495_250_103, 1_771_597_700],
   },
   {
     id: 'all-letter-banks-off',
     sectionType: 'drop',
     hideLetterBanks: true,
-    expectedBeforeHashes: [987_915_843, 3_026_225_916, 1_889_159_630, 1_967_094_780],
-    expectedAfterHashes: [3_504_026_267, 1_428_975_814, 413_870_698, 2_171_274_660],
+    expectedBeforeHashes: [3_949_288_467, 2_860_773_161, 1_088_039_048, 554_673_486],
+    expectedAfterHashes: [3_621_309_695, 476_486_970, 2_640_669_343, 2_973_804_649],
   },
   {
     id: 'pre-drop-scene',
     sectionType: 'preDrop',
-    expectedBeforeHashes: [2_343_350_925, 3_619_320_276, 245_238_680, 51_300_855],
-    expectedAfterHashes: [3_713_517_697, 2_994_919_989, 3_140_279_703, 389_099_846],
+    expectedBeforeHashes: [618_896_069, 3_802_689_964, 1_299_027_060, 2_973_262_435],
+    expectedAfterHashes: [807_917_559, 1_757_726_021, 2_948_969_978, 1_038_694_475],
   },
   {
     id: 'drop-scene',
     sectionType: 'drop',
-    expectedBeforeHashes: [4_119_009_155, 2_872_499_614, 2_536_230_211, 1_967_094_780],
-    expectedAfterHashes: [4_283_618_091, 2_670_605_434, 2_463_763_342, 2_171_274_660],
+    expectedBeforeHashes: [1_937_125_919, 1_943_782_283, 725_058_165, 554_673_486],
+    expectedAfterHashes: [4_174_514_651, 2_857_918_434, 1_129_849_895, 2_973_804_649],
   },
 ] as const
 

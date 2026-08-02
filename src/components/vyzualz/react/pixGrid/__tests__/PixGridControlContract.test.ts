@@ -77,7 +77,7 @@ describe('PixGrid canonical control contract', () => {
       globalIntensity: 0.8,
       cellBrightness: 0.5,
       glowAmount: 0.25,
-      diffusion: 0.1,
+      diffusion: Math.pow(0.1, 0.72),
     })
     const resolved = resolvePixGridPresentation(state, { intensity: 0.5, glow: 0.75 })
     expect(resolved).toMatchObject({
@@ -103,8 +103,13 @@ describe('PixGrid canonical control contract', () => {
     const reloaded = normalizePixGridState(JSON.parse(JSON.stringify(state)))
     expect(resolvePixGridPresentation(reloaded, { intensity: 0.5, glow: 0.75 }).resolvedOutputIntensity).toBeCloseTo(0.2)
 
-    expect(resolvePixGridPresentation(state, { intensity: 0.5, glow: 0.2 })).toMatchObject({ glow: 0.25, haloRadius: 0.2 })
-    expect(resolvePixGridPresentation({ ...state, glowAmount: 0.9 }, { intensity: 0.5, glow: 0.2 })).toMatchObject({ glow: 0.9, haloRadius: 0.2 })
+    const lowGlow = resolvePixGridPresentation(state, { intensity: 0.5, glow: 0.2 })
+    const highGlow = resolvePixGridPresentation({ ...state, glowAmount: 0.9 }, { intensity: 0.5, glow: 0.2 })
+    expect(lowGlow.glow).toBe(0.25)
+    expect(lowGlow.haloRadius).toBeGreaterThan(0.2)
+    expect(highGlow.glow).toBe(0.9)
+    expect(highGlow.haloRadius).toBeGreaterThan(lowGlow.haloRadius)
+    expect(resolvePixGridPresentation({ ...state, diffusion: 0.48 }, { intensity: 0.5, glow: 0 }).diffusion).toBeGreaterThan(0.55)
     expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).toContain('clamp(uHaloRadius')
     expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).toContain('clamp(uGlow')
     expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).toContain('clamp(uDiffusion')

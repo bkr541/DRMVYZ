@@ -207,7 +207,7 @@ const PROGRAM_TRANSITIONS = new Set<PixGridProgramTransitionOverride>([
   'pixelDissolve', 'radialReveal', 'paletteFade', 'powerOn', 'powerOff',
 ])
 const FRAME_TRANSITIONS = new Set<PixGridFrameTransitionType>([
-  'cut', 'rowWipe', 'columnWipe', 'checkerWipe', 'pixelDissolve',
+  'cut', 'crossfade', 'rowWipe', 'columnWipe', 'checkerWipe', 'pixelDissolve',
   'radialReveal', 'paletteFade', 'powerOn', 'powerOff',
 ])
 const FRAME_TRANSITION_EASINGS = new Set(['linear', 'easeIn', 'easeOut', 'easeInOut', 'step'] as const)

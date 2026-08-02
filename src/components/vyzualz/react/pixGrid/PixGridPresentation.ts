@@ -35,14 +35,23 @@ export function resolvePixGridPresentation(
   const outputIntensity = clamp01(state.globalIntensity)
   const authoredPerformanceTrim = clamp01(frame.intensity)
   const cellCalibration = clamp01(state.cellBrightness)
+  const glow = clamp01(state.glowAmount)
+  const authoredHaloRadius = clamp01(frame.glow)
+  const userHaloRadius = glow <= 0 ? 0 : Math.pow(glow, 0.85) * 0.72
+  const rawDiffusion = clamp01(state.diffusion)
+  const diffusion = rawDiffusion <= 0 ? 0 : Math.pow(rawDiffusion, 0.72)
   return {
     outputIntensity,
     authoredPerformanceTrim,
     cellCalibration,
     resolvedOutputIntensity: clamp01(outputIntensity * authoredPerformanceTrim * cellCalibration),
-    glow: clamp01(state.glowAmount),
-    haloRadius: clamp01(frame.glow),
-    diffusion: clamp01(state.diffusion),
+    glow,
+    // Glow is a useful user control even when a preset authors almost no halo
+    // radius. Authored radius remains a floor for performance choreography.
+    haloRadius: Math.max(authoredHaloRadius, userHaloRadius),
+    // A perceptual curve gives the upper half of the slider visible range while
+    // preserving precision close to zero.
+    diffusion,
   }
 }
 

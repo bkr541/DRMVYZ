@@ -33,7 +33,7 @@ export type PixGridFrameTransitionSeedMode = 'fixed' | 'layer' | 'frame' | 'sect
 export type PixGridFrameTransitionDirection = 'forward' | 'reverse'
 export type PixGridFrameTransitionCompletedState = 'target' | 'transparent'
 
-export type PixGridFrameTransitionType = Exclude<PixGridProgramTransitionOverride, 'crossfade'>
+export type PixGridFrameTransitionType = PixGridProgramTransitionOverride
 
 export interface PixGridFrameTransitionConfig {
   type: PixGridFrameTransitionType
@@ -690,6 +690,10 @@ export interface PixGridAudioFrame {
   autoPerformanceEnabled?: boolean
   deltaTimeSec?: number
   timingDiscontinuity?: boolean
+  /** Static editor inspection resolves the stable destination artwork, never an in-flight lifecycle transition. */
+  stableInspectionFrame?: boolean
+  /** Transport reconstruction suppresses stale sign-to-sign source/target transitions until a new real sign boundary occurs. */
+  suppressFrameTransitions?: boolean
   /** Reconstructs a deterministic power-on after a completed transparent terminal state. */
   restoringFromTransparency?: boolean
   /** Local deterministic elapsed bars for the restoration power-on lifecycle. */

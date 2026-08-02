@@ -316,7 +316,7 @@ describe('Marquee coherent source-target transition composition', () => {
     for (const { layerId: _layerId, ...descriptor } of rest) expect(descriptor).toEqual(expected)
   })
 
-  it('selects every intermediate logical cell from either the fully resolved source or fully resolved target', () => {
+  it('interpolates coherent source and target colors instead of recruiting random logical cells', () => {
     const sourceState = state('verse')
     const sourceFrame = frame({ signClock: 0, motionClockSign: 0 })
     const targetFrame = frame({ signClock: 1, motionClockSign: 1 })
@@ -336,14 +336,14 @@ describe('Marquee coherent source-target transition composition', () => {
 
     let selectedSource = 0
     let selectedTarget = 0
-    let accidental = 0
+    let interpolated = 0
     for (let index = 0; index < WIDTH * HEIGHT; index += 1) {
       if (pixelEquals(middle, source, index)) selectedSource += 1
       else if (pixelEquals(middle, target, index)) selectedTarget += 1
-      else accidental += 1
+      else interpolated += 1
     }
 
-    expect(accidental).toBe(0)
+    expect(interpolated).toBeGreaterThan(0)
     expect(selectedSource).toBeGreaterThan(0)
     expect(selectedTarget).toBeGreaterThan(0)
   })

@@ -15,6 +15,7 @@ import {
   detectPixGridPresetLineage,
   inspectPixGridGroupTarget,
   mergePixGridCanonicalLayerGraph,
+  repairPixGridAccidentalCanonicalLayerCopies,
   repairPixGridLayerReferences,
 } from './PixGridCanonicalGraph'
 import { PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS } from './PixGridNeonMarqueeAudioOwnership'
@@ -380,8 +381,12 @@ export function migratePixGridState(
   const fromSmartGroupConfigurationVersion = finiteVersion(rawConfiguration?.smartGroupConfigurationVersion)
   const fromAudioRouteConfigurationVersion = finiteVersion(rawConfiguration?.audioRouteConfigurationVersion)
   const fromPerformanceProgramConfigurationVersion = finiteVersion(rawConfiguration?.performanceProgramConfigurationVersion)
-  const normalized = normalizePixGridState(rawState)
-  const preset = canonicalPresetFor(normalized, explicitPreset)
+  const normalizedBeforeCopyRepair = normalizePixGridState(rawState)
+  const preset = canonicalPresetFor(normalizedBeforeCopyRepair, explicitPreset)
+  const accidentalCopyRepair = preset?.pixGridSettings
+    ? repairPixGridAccidentalCanonicalLayerCopies(normalizedBeforeCopyRepair, preset)
+    : { state: normalizedBeforeCopyRepair, removedLayerIds: [] as string[], mergedIntoCanonicalLayerIds: [] as string[] }
+  const normalized = normalizePixGridState(accidentalCopyRepair.state)
 
   if (!preset?.pixGridSettings) {
     const emptyCanonicalSignatures = createEmptyPixGridCanonicalSignatures()
@@ -595,6 +600,7 @@ export function migratePixGridState(
     || assignmentMerge.upgraded > 0
     || layerAnimationUpgradeIds.size > 0
     || layerAssetUpgradeIds.size > 0
+    || accidentalCopyRepair.removedLayerIds.length > 0
     || programConfigurationMismatch
     || normalized.selectedPresetId !== preset.id
     || !canonicalSignaturesEqual(previousCanonicalSignatures, targetCanonicalSignatures)
@@ -636,7 +642,10 @@ export function migratePixGridState(
     canonicalLayersAdded: layerMerge.canonicalLayersAdded,
     legacyLayersMapped: layerMerge.legacyLayersMapped,
     legacyLayersPreservedAsOverlays: layerMerge.legacyLayersPreservedAsOverlays,
-    obsoleteOfficialLayersRemoved: layerMerge.obsoleteOfficialLayersRemoved,
+    obsoleteOfficialLayersRemoved: [
+      ...layerMerge.obsoleteOfficialLayersRemoved,
+      ...accidentalCopyRepair.removedLayerIds,
+    ],
     sceneReferencesRepaired: repaired.sceneReferencesRepaired,
     groupsRepaired: repaired.groupsRepaired,
     emptyGroups: integrity.emptyGroups,
