@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PRIORITY_ONE_HELP_ENTRIES } from '../../../help/HelpCenter'
-import { resolvePriorityOneHelpMatches } from './PriorityOneHelpLayer'
+import { bindPriorityHelpActivation, resolvePriorityOneHelpMatches } from './PriorityOneHelpLayer'
 
 function entries(...ids: string[]) {
   return PRIORITY_ONE_HELP_ENTRIES.filter(entry => ids.includes(entry.id))
@@ -73,6 +73,42 @@ describe('PriorityOneHelpLayer matching', () => {
 
     expect(ids).toContain('visualizer.layers.rendering.backgroundLayer')
     expect(ids).toContain('visualizer.layers.rendering.visibility')
+  })
+
+  it('activates only the injected icon owned by the hovered control when slots share a host', () => {
+    vi.useFakeTimers()
+    const host = document.createElement('div')
+    const firstButton = document.createElement('button')
+    const firstLabel = document.createElement('span')
+    firstLabel.textContent = 'Text'
+    firstButton.appendChild(firstLabel)
+    const secondButton = document.createElement('button')
+    const secondLabel = document.createElement('span')
+    secondLabel.textContent = 'SVG'
+    secondButton.appendChild(secondLabel)
+    const firstSlot = document.createElement('span')
+    const secondSlot = document.createElement('span')
+    host.append(firstButton, secondButton, firstSlot, secondSlot)
+    document.body.appendChild(host)
+
+    const disposeFirst = bindPriorityHelpActivation(firstSlot, firstLabel, host)
+    const disposeSecond = bindPriorityHelpActivation(secondSlot, secondLabel, host)
+
+    firstButton.dispatchEvent(new Event('pointerenter'))
+    expect(firstSlot.dataset.active).toBe('true')
+    expect(secondSlot.dataset.active).toBe('false')
+
+    firstButton.dispatchEvent(new Event('pointerleave'))
+    vi.advanceTimersByTime(120)
+    expect(firstSlot.dataset.active).toBe('false')
+
+    secondButton.dispatchEvent(new Event('pointerenter'))
+    expect(firstSlot.dataset.active).toBe('false')
+    expect(secondSlot.dataset.active).toBe('true')
+
+    disposeFirst()
+    disposeSecond()
+    vi.useRealTimers()
   })
 
   it('does not duplicate an explicitly wired help trigger', () => {

@@ -72,6 +72,7 @@ interface BoundHelpTarget {
   candidate: HTMLElement
   host: HTMLElement
   slot: HTMLElement
+  disposeActivation: () => void
   currentValue?: string
   currentValueLabel?: 'Current value' | 'Status'
   currentValueTone?: 'default' | 'accent' | 'success' | 'warning'
@@ -212,6 +213,93 @@ function positionSlot(slot: HTMLElement, candidate: HTMLElement, host: HTMLEleme
   slot.style.top = `${Math.round(top)}px`
 }
 
+function activationTargetFor(candidate: HTMLElement, host: HTMLElement): HTMLElement {
+  const interactive = candidate.closest<HTMLElement>(
+    'button, a, label, input, select, textarea, [role="button"], [role="radio"], [role="tab"], [role="switch"], [role="checkbox"], [role="slider"]',
+  )
+  return interactive && host.contains(interactive) ? interactive : candidate
+}
+
+/**
+ * Keeps a registry-injected help trigger tied to its matched control rather
+ * than to the potentially shared positioning host. A short leave delay lets
+ * the pointer travel from the control to its floating icon without the icon
+ * disappearing underneath it.
+ */
+export function bindPriorityHelpActivation(
+  slot: HTMLElement,
+  candidate: HTMLElement,
+  host: HTMLElement,
+): () => void {
+  const activationTarget = activationTargetFor(candidate, host)
+  let targetPointer = false
+  let slotPointer = false
+  let targetFocus = false
+  let slotFocus = false
+  let deactivateTimer: number | null = null
+
+  const clearDeactivateTimer = () => {
+    if (deactivateTimer == null) return
+    window.clearTimeout(deactivateTimer)
+    deactivateTimer = null
+  }
+
+  const update = () => {
+    const active = targetPointer || slotPointer || targetFocus || slotFocus
+    if (active) {
+      clearDeactivateTimer()
+      slot.dataset.active = 'true'
+      return
+    }
+    clearDeactivateTimer()
+    deactivateTimer = window.setTimeout(() => {
+      deactivateTimer = null
+      if (!targetPointer && !slotPointer && !targetFocus && !slotFocus) {
+        slot.dataset.active = 'false'
+      }
+    }, 120)
+  }
+
+  const onTargetPointerEnter = () => { targetPointer = true; update() }
+  const onTargetPointerLeave = () => { targetPointer = false; update() }
+  const onSlotPointerEnter = () => { slotPointer = true; update() }
+  const onSlotPointerLeave = () => { slotPointer = false; update() }
+  const onTargetFocusIn = () => { targetFocus = true; update() }
+  const onTargetFocusOut = (event: FocusEvent) => {
+    if (event.relatedTarget instanceof Node && activationTarget.contains(event.relatedTarget)) return
+    targetFocus = false
+    update()
+  }
+  const onSlotFocusIn = () => { slotFocus = true; update() }
+  const onSlotFocusOut = (event: FocusEvent) => {
+    if (event.relatedTarget instanceof Node && slot.contains(event.relatedTarget)) return
+    slotFocus = false
+    update()
+  }
+
+  slot.dataset.active = 'false'
+  activationTarget.addEventListener('pointerenter', onTargetPointerEnter)
+  activationTarget.addEventListener('pointerleave', onTargetPointerLeave)
+  activationTarget.addEventListener('focusin', onTargetFocusIn)
+  activationTarget.addEventListener('focusout', onTargetFocusOut)
+  slot.addEventListener('pointerenter', onSlotPointerEnter)
+  slot.addEventListener('pointerleave', onSlotPointerLeave)
+  slot.addEventListener('focusin', onSlotFocusIn)
+  slot.addEventListener('focusout', onSlotFocusOut)
+
+  return () => {
+    clearDeactivateTimer()
+    activationTarget.removeEventListener('pointerenter', onTargetPointerEnter)
+    activationTarget.removeEventListener('pointerleave', onTargetPointerLeave)
+    activationTarget.removeEventListener('focusin', onTargetFocusIn)
+    activationTarget.removeEventListener('focusout', onTargetFocusOut)
+    slot.removeEventListener('pointerenter', onSlotPointerEnter)
+    slot.removeEventListener('pointerleave', onSlotPointerLeave)
+    slot.removeEventListener('focusin', onSlotFocusIn)
+    slot.removeEventListener('focusout', onSlotFocusOut)
+  }
+}
+
 function hasExistingExplicitBinding(candidate: HTMLElement, helpId: string): boolean {
   const host = findTargetHost(candidate)
   return Array.from(host.querySelectorAll<HTMLElement>(`.drm-help-info-trigger[data-help-id="${helpId}"]`))
@@ -254,13 +342,10 @@ function extractCurrentValue(candidate: HTMLElement): Pick<BoundHelpTarget, 'cur
 function disposeTargets(targets: readonly BoundHelpTarget[]): void {
   for (const target of targets) {
     const host = target.slot.parentElement
+    target.disposeActivation()
     target.slot.remove()
     if (host && !host.querySelector(`.${HELP_SLOT_CLASS}`)) {
       host.classList.remove(HELP_BOUND_CLASS)
-      if (host.dataset.priorityHelpOwnedTarget === 'true') {
-        host.classList.remove('drm-help-target')
-        delete host.dataset.priorityHelpOwnedTarget
-      }
     }
   }
 }
@@ -346,17 +431,15 @@ export function PriorityOneHelpLayer({ view }: PriorityOneHelpLayerProps) {
         slot.dataset.helpId = entry.id
         slot.dataset.helpDecoration = 'slot'
         host.classList.add(HELP_BOUND_CLASS)
-        if (!host.classList.contains('drm-help-target')) {
-          host.classList.add('drm-help-target')
-          host.dataset.priorityHelpOwnedTarget = 'true'
-        }
         host.appendChild(slot)
         positionSlot(slot, candidate, host)
+        const disposeActivation = bindPriorityHelpActivation(slot, candidate, host)
         return {
           helpId: entry.id as HelpId,
           candidate,
           host,
           slot,
+          disposeActivation,
           ...extractCurrentValue(candidate),
         }
       })

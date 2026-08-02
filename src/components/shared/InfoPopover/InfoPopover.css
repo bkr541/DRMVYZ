@@ -365,30 +365,34 @@
   opacity: 0.78;
 }
 
+/*
+ * Reveal only the trigger owned by the hovered control. These selectors are
+ * intentionally scoped through direct control branches; a broad descendant
+ * selector makes a hovered section or grid reveal every nested help trigger.
+ */
 :is(
   .drm-help-target,
   .drm-help-label,
-  .rv-ctrl-row,
-  .rv-ctrl-toggle-row,
-  .drm-dropdown,
   .rv-ctrl-section-label,
-  .rv-ctrl-collapsible-hdr,
   .vz-help-target,
   .lyric-help-target,
   .media-help-target
-):hover .drm-help-info-trigger,
+):is(:hover, :focus-within) > .drm-help-info-trigger,
 :is(
   .drm-help-target,
-  .drm-help-label,
-  .rv-ctrl-row,
-  .rv-ctrl-toggle-row,
-  .drm-dropdown,
-  .rv-ctrl-section-label,
-  .rv-ctrl-collapsible-hdr,
-  .vz-help-target,
-  .lyric-help-target,
-  .media-help-target
-):focus-within .drm-help-info-trigger,
+  .rv-engine-dropdown
+):is(:hover, :focus-within) > :is(
+  .rv-source-selection-help,
+  .rv-engine-dropdown-help
+) > .drm-help-info-trigger,
+.rv-ctrl-row:is(:hover, :focus-within) > .rv-ctrl-label-cluster .drm-help-info-trigger,
+.rv-ctrl-row:is(:hover, :focus-within) > .rv-ctrl-slider-hdr > .rv-ctrl-label-cluster .drm-help-info-trigger,
+.rv-ctrl-toggle-row:is(:hover, :focus-within) > .rv-ctrl-toggle-line > .rv-ctrl-label-cluster .drm-help-info-trigger,
+.rv-ctrl-collapsible:has(> .rv-ctrl-collapsible-hdr:is(:hover, :focus-visible))
+  > .rv-ctrl-collapsible-help > .drm-help-info-trigger,
+.vz-effect-accordion:has(> .vz-effect-accordion__header:is(:hover, :focus-visible))
+  > .vz-effect-accordion__help > .drm-help-info-trigger,
+.drm-priority-help-slot[data-active='true'] > .drm-help-info-trigger,
 .drm-help-info-trigger:focus-visible,
 .drm-help-info-trigger[data-open='true'] {
   opacity: 1;
