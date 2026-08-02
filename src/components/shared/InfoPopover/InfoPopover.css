@@ -5,6 +5,14 @@
  * Labels and future info-icon triggers remain owned by their calling controls.
  */
 
+.drm-info-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12190;
+  background: rgba(1, 5, 8, 0.48);
+  animation: drm-info-popover-backdrop-enter 145ms ease-out;
+}
+
 .drm-info-popover {
   --drm-info-accent: var(--color-primary, var(--az-cyan, #4ac7db));
   --drm-info-accent-rgb: var(--color-primary-rgb, var(--az-cyan-rgb, 74, 199, 219));
@@ -39,10 +47,11 @@
   color: var(--drm-info-text);
   font-family: var(--drm-info-font);
   box-shadow:
-    0 18px 54px rgba(0, 0, 0, 0.52),
-    0 0 0 1px rgba(var(--drm-info-accent-rgb), 0.07),
-    0 0 26px rgba(var(--drm-info-accent-rgb), 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    0 22px 72px rgba(0, 0, 0, 0.68),
+    0 0 0 1px rgba(var(--drm-info-accent-rgb), 0.22),
+    0 0 42px rgba(var(--drm-info-accent-rgb), 0.3),
+    0 0 82px rgba(var(--drm-info-accent-rgb), 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
   animation: drm-info-popover-enter 145ms cubic-bezier(0.2, 0.82, 0.2, 1);
   isolation: isolate;
 }
@@ -287,6 +296,11 @@
   color: inherit;
 }
 
+@keyframes drm-info-popover-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes drm-info-popover-enter {
   from {
     opacity: 0;
@@ -299,7 +313,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drm-info-popover {
+  .drm-info-popover,
+  .drm-info-popover-backdrop {
     animation: none;
   }
 }

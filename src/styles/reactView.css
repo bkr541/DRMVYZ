@@ -12575,19 +12575,6 @@
   opacity: 0.35;
 }
 
-/* Contextual help for the compact React engine switcher. */
-.rv-engine-dropdown-help {
-  position: absolute;
-  z-index: 4;
-  top: 9px;
-  right: 30px;
-  display: inline-flex;
-}
-
-.rv-engine-dropdown-trigger {
-  padding-right: 52px;
-}
-
 .rv-source-selection-help {
   position: absolute;
   z-index: 3;

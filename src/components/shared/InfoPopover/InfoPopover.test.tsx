@@ -56,6 +56,7 @@ describe('InfoPopover', () => {
     expect(dialog?.textContent).toContain('Current value')
     expect(dialog?.textContent).toContain('70%')
     expect(document.body.querySelector('[aria-label="More information"]')).toBeNull()
+    expect(document.body.querySelector('.drm-info-popover-backdrop')).not.toBeNull()
   })
 
   it('requests closure from the close button', () => {

@@ -10,6 +10,19 @@ import { HelpInfoTrigger } from './HelpInfoTrigger'
 
 const HELP_SLOT_CLASS = 'drm-priority-help-slot'
 const HELP_BOUND_CLASS = 'drm-priority-help-bound'
+
+// These entries are intentionally not eligible for registry-driven placement.
+// The compact engine switcher carries no help icon, while the generic Pro Scope
+// "Preset" entry is rendered only by its explicitly wired control so it cannot
+// attach to an unrelated preset label at the visualizer boundary.
+const AUTO_BIND_DISABLED_HELP_IDS = new Set<HelpId>([
+  'react.shared.engine.engineSelection',
+  'react.soundDrawing.proScope.preset',
+])
+
+export function isPriorityHelpAutoBindable(helpId: HelpId): boolean {
+  return !AUTO_BIND_DISABLED_HELP_IDS.has(helpId)
+}
 const CANDIDATE_SELECTOR = [
   'label',
   'legend',
@@ -385,7 +398,9 @@ export function resolvePriorityOneHelpMatches(
 
 export function PriorityOneHelpLayer({ view }: PriorityOneHelpLayerProps) {
   const entries = useMemo(
-    () => PRIORITY_ONE_HELP_ENTRIES.filter(entry => entry.view === view),
+    () => PRIORITY_ONE_HELP_ENTRIES.filter(
+      entry => entry.view === view && isPriorityHelpAutoBindable(entry.id),
+    ),
     [view],
   )
   const [targets, setTargets] = useState<readonly BoundHelpTarget[]>([])

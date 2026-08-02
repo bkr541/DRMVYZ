@@ -316,6 +316,8 @@ export function InfoPopover({
   } as CSSProperties
 
   return createPortal((
+    <>
+      <div className="drm-info-popover-backdrop" aria-hidden="true" />
     <div
       ref={popoverRef}
       id={baseId}
@@ -385,5 +387,6 @@ export function InfoPopover({
         <div className="drm-info-popover__footer">{footer}</div>
       )}
     </div>
+    </>
   ), document.body)
 }

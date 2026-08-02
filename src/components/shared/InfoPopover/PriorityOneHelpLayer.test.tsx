@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PRIORITY_ONE_HELP_ENTRIES } from '../../../help/HelpCenter'
-import { bindPriorityHelpActivation, resolvePriorityOneHelpMatches } from './PriorityOneHelpLayer'
+import { bindPriorityHelpActivation, isPriorityHelpAutoBindable, resolvePriorityOneHelpMatches } from './PriorityOneHelpLayer'
 
 function entries(...ids: string[]) {
   return PRIORITY_ONE_HELP_ENTRIES.filter(entry => ids.includes(entry.id))
@@ -109,6 +109,23 @@ describe('PriorityOneHelpLayer matching', () => {
     disposeFirst()
     disposeSecond()
     vi.useRealTimers()
+  })
+
+  it('does not auto-bind the engine switcher or an ambiguous Pro Scope Preset label', () => {
+    document.body.innerHTML = `
+      <div class="rv-shell" data-help-engine="oscilloscope">
+        <div class="rv-engine-dropdown"><span class="rv-engine-dropdown-eyebrow">Engine</span></div>
+        <div class="visualizer-boundary"><span class="test-control-label">Preset</span><button aria-checked="true"></button></div>
+      </div>
+    `
+    const root = document.querySelector('.rv-shell')!
+    const autoBindableEntries = entries(
+      'react.shared.engine.engineSelection',
+      'react.soundDrawing.proScope.preset',
+    ).filter(entry => isPriorityHelpAutoBindable(entry.id))
+
+    expect(autoBindableEntries).toHaveLength(0)
+    expect(resolvePriorityOneHelpMatches(root, autoBindableEntries)).toHaveLength(0)
   })
 
   it('does not duplicate an explicitly wired help trigger', () => {
