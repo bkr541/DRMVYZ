@@ -9,6 +9,7 @@ import type {
   PixGridScene,
   PixGridState,
 } from './PixGridTypes'
+import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
 
 const SOURCE_BACKED_MASKS = new Set<PixGridGroup['mask']['kind']>([
   'layerAlpha',
@@ -122,7 +123,7 @@ export function detectPixGridPresetLineage(state: PixGridState, preset: ReactPre
   }
   const allCanonical = canonicalIds.size > 0 && [...canonicalIds].every(id => state.layers.some(layer => layer.id === id))
   const hasPresetLineage = state.selectedPresetId === preset.id || state.configuration.sourcePresetId === preset.id
-  const genuineUserLayers = customLayerCount > 0 || state.layers.some(layer => Boolean(layer.mediaId))
+  const genuineUserLayers = customLayerCount > 0 || state.layers.some(layer => resolvePixGridLayerFrameSource(layer).kind !== 'asset')
   const legacyOfficialLayerGraph = !allCanonical && mappedLegacyLayerCount > 0
   let lineage: PixGridPresetLineage
   if (allCanonical) lineage = 'current-canonical-built-in'
@@ -189,7 +190,7 @@ export function repairPixGridAccidentalCanonicalLayerCopies(
     if (!currentCanonical) continue
     const candidates = state.layers.filter(layer => (
       layer.id.startsWith('pix-grid-layer-')
-      && !layer.mediaId
+      && resolvePixGridLayerFrameSource(layer).kind === 'asset'
       && layer.name === canonical.name
       && layer.assetId === canonical.assetId
       && canonicalScenes.every(scene => scene.layerIds.includes(layer.id))
@@ -256,21 +257,28 @@ export function mergePixGridCanonicalLayerGraph(state: PixGridState, preset: Rea
 
   for (const layer of state.layers) {
     if (canonicalById.has(layer.id)) {
-      if (layer.mediaId) {
-        overlays.push({ ...clonePixGridLayer(layer), id: `${layer.id}-user-overlay` })
-        layerIdMap.set(layer.id, layer.id)
+      if (resolvePixGridLayerFrameSource(layer).kind !== 'asset') {
+        const overlayId = `${layer.id}-user-overlay`
+        overlays.push({ ...clonePixGridLayer(layer), id: overlayId })
+        layerIdMap.set(layer.id, overlayId)
         continue
       }
       const canonicalLayer = canonicalById.get(layer.id)!
       const authoredAssetUpgrade = CANONICAL_LAYER_ASSET_UPGRADES[preset.id]?.[layer.id]?.includes(layer.assetId) === true
+      const clonedLayer = clonePixGridLayer(layer)
       mappedByCanonicalId.set(layer.id, {
-        ...clonePixGridLayer(layer),
-        ...(authoredAssetUpgrade ? { assetId: canonicalLayer.assetId } : {}),
+        ...clonedLayer,
+        ...(authoredAssetUpgrade
+          ? {
+              assetId: canonicalLayer.assetId,
+              frameSource: { kind: 'asset' as const, assetId: canonicalLayer.assetId },
+            }
+          : {}),
       })
       layerIdMap.set(layer.id, layer.id)
       continue
     }
-    const alias = layer.mediaId ? null : aliasForLayer(preset, layer)
+    const alias = resolvePixGridLayerFrameSource(layer).kind === 'asset' ? aliasForLayer(preset, layer) : null
     if (alias && canonicalById.has(alias.canonicalId) && !mappedByCanonicalId.has(alias.canonicalId)) {
       mappedByCanonicalId.set(alias.canonicalId, mergeMappedLayer(canonicalById.get(alias.canonicalId)!, layer, alias.preserveName !== false))
       layerIdMap.set(layer.id, alias.canonicalId)
@@ -300,7 +308,9 @@ export function mergePixGridCanonicalLayerGraph(state: PixGridState, preset: Rea
     let suffix = index + 1
     while (usedIds.has(id)) id = `${base}-${suffix++}`
     usedIds.add(id)
-    if (layerIdMap.get(layer.id) !== layer.id) layerIdMap.set(layer.id, id)
+    for (const [sourceId, mappedId] of layerIdMap) {
+      if (mappedId === layer.id) layerIdMap.set(sourceId, id)
+    }
     return { ...layer, id }
   })
   return {

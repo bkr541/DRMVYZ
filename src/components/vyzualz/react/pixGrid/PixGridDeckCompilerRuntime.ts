@@ -39,6 +39,8 @@ export const usePixGridDeckCompilerStore = create<PixGridDeckCompilerRuntimeStat
 let coordinator: PixGridDeckCompileCoordinator | null = null
 let transitionCoordinator: PixGridDeckTransitionCoordinator | null = null
 let stopRuntime: (() => void) | null = null
+let synchronizeRuntime: (() => void) | null = null
+let runtimeResolution: Readonly<{ owner: object; width: number; height: number }> | null = null
 
 function statusRecord<T>(statuses: ReadonlyMap<string, T>): Readonly<Record<string, T>> {
   return Object.freeze(Object.fromEntries(statuses))
@@ -63,11 +65,12 @@ export function startPixGridDeckCompilerRuntime(): () => void {
     const state = useReactStore.getState()
     coordinator.synchronize(
       state.pixGridDecks,
-      state.pixGridState.matrixWidth,
-      state.pixGridState.matrixHeight,
+      runtimeResolution?.width ?? state.pixGridState.matrixWidth,
+      runtimeResolution?.height ?? state.pixGridState.matrixHeight,
     )
     syncTransitions()
   }
+  synchronizeRuntime = sync
   const unsubscribeStatus = coordinator.subscribe(statuses => {
     usePixGridDeckCompilerStore.getState().setStatuses(statusRecord(statuses))
     syncTransitions()
@@ -90,9 +93,34 @@ export function startPixGridDeckCompilerRuntime(): () => void {
     pixGridDeckPreparedFrameCache.clear()
     pixGridDeckTransitionPlanCache.clear()
     stopRuntime = null
+    synchronizeRuntime = null
     usePixGridDeckCompilerStore.getState().clear()
   }
   return stopRuntime
+}
+
+
+/**
+ * The live surface owns the effective logical matrix when adaptive quality is
+ * active. This runtime-only projection keeps the canonical compiler aligned
+ * without writing quality changes into project state.
+ */
+export function setPixGridDeckRuntimeResolution(owner: object, width: number, height: number): void {
+  const nextWidth = Math.max(1, Math.floor(width))
+  const nextHeight = Math.max(1, Math.floor(height))
+  if (
+    runtimeResolution?.owner === owner
+    && runtimeResolution.width === nextWidth
+    && runtimeResolution.height === nextHeight
+  ) return
+  runtimeResolution = { owner, width: nextWidth, height: nextHeight }
+  synchronizeRuntime?.()
+}
+
+export function clearPixGridDeckRuntimeResolution(owner: object): void {
+  if (runtimeResolution?.owner !== owner) return
+  runtimeResolution = null
+  synchronizeRuntime?.()
 }
 
 export function getPixGridDeckCompileStatus(deckId: string): PixGridDeckCompileStatus | null {

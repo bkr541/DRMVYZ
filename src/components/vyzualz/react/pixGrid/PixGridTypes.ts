@@ -13,7 +13,7 @@ export type PixGridQualityMode = 'adaptive' | 'fixed'
 export type PixGridBackgroundMode = 'preset' | 'black' | 'custom'
 export type PixGridScenePreviewMode = 'followTrack' | 'selectedScene'
 export type PixGridEditorTool = 'select' | 'pan' | 'pencil' | 'eraser' | 'fill' | 'eyedropper' | 'rectangle' | 'line' | 'marquee' | 'move'
-export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade' | 'neonMarqueeCycle'
+export type PixGridPatternId = 'bassBeacon' | 'geometricReactor' | 'pixelParade' | 'neonMarqueeCycle' | 'mediaDeck'
 export type PixGridPerformanceProgramId =
   | 'pix-grid-bass-beacon-performance'
   | 'pix-grid-geometric-reactor-performance'
@@ -198,10 +198,17 @@ export interface PixGridLayerAudioReactivity {
   beatImpact?: number
 }
 
+export type PixGridLayerFrameSource =
+  | { kind: 'asset'; assetId: PixGridBuiltInAssetId }
+  | { kind: 'media'; mediaId: string }
+  | { kind: 'deck'; deckId: string }
+
 export interface PixGridLayer {
   id: string
   name: string
   assetId: PixGridBuiltInAssetId
+  /** Canonical source identity. Legacy assetId/mediaId aliases remain for saved-project compatibility. */
+  frameSource?: PixGridLayerFrameSource
   /** Media layers keep their library reference without embedding blobs. */
   mediaId?: string | null
   locked?: boolean

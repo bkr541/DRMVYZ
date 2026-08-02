@@ -22,6 +22,7 @@ import { PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS } from './PixGridNeo
 import { PixGridPerformanceProgramCompiler } from './PixGridPerformanceProgramCompiler'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
 import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
+import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
 import {
   PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION,
   PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,
@@ -105,7 +106,7 @@ function strongLegacyCustomization(state: PixGridState, preset: ReactPreset): bo
     preset.id === 'pix-grid-neon-marquee-cycle'
     && PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS.has(assignmentId)
   )
-  return state.layers.some(layer => Boolean(layer.mediaId) || !canonicalLayerIds.has(layer.id))
+  return state.layers.some(layer => resolvePixGridLayerFrameSource(layer).kind !== 'asset' || !canonicalLayerIds.has(layer.id))
     || state.scenes.some(scene => scene.pixelOverrides.length > 0)
     || state.groups.some(group => !canonicalGroupIds.has(group.id))
     || state.audioAssignments.some(assignment => !canonicalAssignmentIds.has(assignment.id) && !isRetiredBuiltInAssignment(assignment.id))
@@ -540,9 +541,16 @@ export function migratePixGridState(
   )))
   const layers = layerMerge.layers.map(layer => {
     const canonicalLayer = canonicalLayerById.get(layer.id)
+    const clonedLayer = clonePixGridLayer(layer)
     const assetUpgraded = canonicalLayer && layerAssetUpgradeIds.has(layer.id)
-      ? { ...clonePixGridLayer(layer), assetId: canonicalLayer.assetId }
-      : clonePixGridLayer(layer)
+      ? {
+          ...clonedLayer,
+          assetId: canonicalLayer.assetId,
+          frameSource: resolvePixGridLayerFrameSource(clonedLayer).kind === 'asset'
+            ? { kind: 'asset' as const, assetId: canonicalLayer.assetId }
+            : clonedLayer.frameSource,
+        }
+      : clonedLayer
     return canonicalLayer && layerAnimationUpgradeIds.has(layer.id)
       ? mergeCanonicalLayerAnimationMetadata(assetUpgraded, canonicalLayer)
       : assetUpgraded

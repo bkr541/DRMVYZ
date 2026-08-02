@@ -20,6 +20,8 @@ import {
   PIX_GRID_LOGICAL_FRAGMENT_SHADER,
   PIX_GRID_PRESENTATION_FRAGMENT_SHADER,
 } from './PixGridGpuShaderSources'
+import type { PixGridDeckRuntimeFrameSource } from '../../pixGrid/PixGridDeckRuntime'
+import { createPixGridDeckCompositorScratch } from '../../pixGrid/PixGridDeckCompositor'
 
 
 export function buildPixGridGpuSemanticPlan(
@@ -50,6 +52,7 @@ interface PixGridGpuRenderInput {
   groupEffects?: readonly PixGridGroupFrameEffect[]
   reactionRuntime?: PixGridReactionRuntime
   choreography?: PixGridStructuralChoreography | null
+  deckFrameSource?: PixGridDeckRuntimeFrameSource | null
 }
 
 interface SavedWebGLState {
@@ -172,6 +175,7 @@ export class PixGridGpuRenderer {
   private lastLogicalFrame: PixGridLogicalFrame | null = null
   private readonly reactionRuntime = new PixGridReactionRuntime()
   private readonly groupCompiler = new PixGridFrameGroupCompiler()
+  private readonly deckScratch = createPixGridDeckCompositorScratch()
   private maskAtlas: PixGridGpuMaskAtlas | null = null
   private contextState: PixGridRendererDiagnostics['contextState'] = 'ready'
   private disposed = false
@@ -393,6 +397,8 @@ export class PixGridGpuRenderer {
       input.groupEffects ?? [],
       this.groupCompiler,
       input.choreography ?? null,
+      input.deckFrameSource ?? null,
+      this.deckScratch,
     )
     this.logicalPixels = logical.pixels
     this.lastLogicalFrame = logical

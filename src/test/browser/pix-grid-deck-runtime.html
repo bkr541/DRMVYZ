@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PixGrid Deck Runtime Acceptance</title>
+  <style>
+    html, body { margin: 0; background: #020617; color: #e2e8f0; font-family: sans-serif; }
+    [data-pix-grid-deck-runtime-host] { width: 640px; height: 360px; position: relative; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PixGrid Deck Runtime Acceptance</h1>
+    <div data-pix-grid-deck-runtime-host></div>
+    <pre data-pix-grid-deck-runtime-status data-result="pending">pending</pre>
+  </main>
+  <script type="module" src="./PixGridDeckRuntimeBrowserHarness.tsx"></script>
+</body>
+</html>

@@ -13,6 +13,8 @@ import type { PixGridFrameGroupCompiler } from '../../pixGrid/PixGridGroupCompil
 import { buildPixGridRendererSemanticPlan, type PixGridRendererSemanticPlan } from '../../pixGrid/PixGridValidationAudit'
 import type { PixGridUnifiedRuntimeDiagnostics } from '../../pixGrid/PixGridUnifiedPerformanceRuntime'
 import { resolvePixGridPresentation } from '../../pixGrid/PixGridPresentation'
+import type { PixGridDeckRuntimeFrameSource } from '../../pixGrid/PixGridDeckRuntime'
+import type { PixGridDeckCompositorScratch } from '../../pixGrid/PixGridDeckCompositor'
 
 
 export function buildPixGridCanvasSemanticPlan(
@@ -80,6 +82,8 @@ export function renderPixGridBaseline(
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
   choreography?: PixGridStructuralChoreography | null,
+  deckFrameSource?: PixGridDeckRuntimeFrameSource | null,
+  deckScratch?: PixGridDeckCompositorScratch,
 ): void {
   const state = normalizePixGridState(rawState)
   const logical = composePixGridLogicalFrame(
@@ -93,6 +97,8 @@ export function renderPixGridBaseline(
     groupEffects,
     groupCompiler,
     choreography,
+    deckFrameSource,
+    deckScratch,
   )
   const W = Math.max(1, frame.width)
   const H = Math.max(1, frame.height)
@@ -181,6 +187,8 @@ export function renderPixGridCanvasFallback(
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
   choreography?: PixGridStructuralChoreography | null,
+  deckFrameSource?: PixGridDeckRuntimeFrameSource | null,
+  deckScratch?: PixGridDeckCompositorScratch,
 ): Readonly<{ logicalWidth: number; logicalHeight: number; logicalFrame: ReturnType<typeof composePixGridLogicalFrame> }> {
   const requested = normalizePixGridState(rawState)
   const state = requested.quality === 'draft' ? normalizePixGridState({ ...requested, quality: 'low' }) : requested
@@ -200,6 +208,8 @@ export function renderPixGridCanvasFallback(
     groupEffects,
     groupCompiler,
     choreography,
+    deckFrameSource,
+    deckScratch,
   )
   const image = fallbackImageData(logicalCanvas, logicalContext, state.matrixWidth, state.matrixHeight)
   const presentation = resolvePixGridPresentation(state, frame)

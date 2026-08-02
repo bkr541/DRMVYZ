@@ -1,5 +1,5 @@
 import { MAX_PIX_GRID_ACTIVE_GROUPS } from './PixGridLimits'
-import { activePixGridGroups, compilePixGridGroupMask, pixGridMaskHasCell, type PixGridCompiledMask, type PixGridMaskPixelSource } from './PixGridGroups'
+import { activePixGridGroups, compilePixGridGroupMask, pixGridMaskHasCell, pixGridRunsFromBitset, type PixGridCompiledMask, type PixGridMaskPixelSource } from './PixGridGroups'
 import type { PixGridGroup } from './PixGridTypes'
 
 const SOURCE_MASK_KINDS = new Set<PixGridGroup['mask']['kind']>([
@@ -13,6 +13,7 @@ const SOURCE_MASK_KINDS = new Set<PixGridGroup['mask']['kind']>([
 export type PixGridGroupMembership = 'rendered' | 'canonical'
 
 export interface PixGridCompiledGroupMaskResolver {
+  registerCompiledMask(groupId: string, bits: Uint32Array): void
   captureLayerBackdrop(layerId: string, pixels: Uint8Array): void
   compile(group: PixGridGroup, membership?: PixGridGroupMembership): PixGridCompiledMask
   restoreBackdrop(
@@ -90,6 +91,7 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
   private readonly targetsByLayerId = new Map<string, SourceTarget[]>()
   private globalTargets: SourceTarget[] = []
   private readonly compiled = new Map<string, PixGridCompiledMask>()
+  private readonly externalMasks = new Map<string, PixGridCompiledMask>()
 
   beginFrame(groups: readonly PixGridGroup[], width: number, height: number, activeLayerIds?: ReadonlySet<string>): void {
     this.width = Math.max(1, Math.floor(width))
@@ -99,6 +101,7 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
     this.targetsByLayerId.clear()
     this.globalTargets = []
     this.compiled.clear()
+    this.externalMasks.clear()
 
     const requiredBytes = this.width * this.height * 4
     const activeIds = new Set<string>()
@@ -152,6 +155,41 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
     }
   }
 
+  registerCompiledMask(groupId: string, bits: Uint32Array): void {
+    const expectedWords = Math.ceil(this.width * this.height / 32)
+    if (!groupId || bits.length !== expectedWords) return
+    // External masks are frame-scoped scratch owned by this compiler's caller.
+    // beginFrame clears all references before that scratch is reused.
+    const retained = bits
+    let cellCount = 0
+    let minX = this.width
+    let minY = this.height
+    let maxX = -1
+    let maxY = -1
+    for (let index = 0; index < this.width * this.height; index += 1) {
+      if (!pixGridMaskHasCell(retained, index)) continue
+      cellCount += 1
+      const x = index % this.width
+      const y = Math.floor(index / this.width)
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
+    }
+    const compiled: PixGridCompiledMask = {
+      key: `pix-grid-runtime-mask:${this.instanceId}:${this.revision}:${groupId}`,
+      width: this.width,
+      height: this.height,
+      bits: retained,
+      cellCount,
+      bounds: cellCount > 0 ? { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 } : null,
+      runs: pixGridRunsFromBitset(retained, this.width, this.height),
+    }
+    this.externalMasks.set(groupId, compiled)
+    this.compiled.set(`rendered:${groupId}`, compiled)
+    this.compiled.set(`canonical:${groupId}`, compiled)
+  }
+
   captureLayerBackdrop(layerId: string, pixels: Uint8Array): void {
     if (pixels.length !== this.width * this.height * 4) return
     const targets = this.targetsByLayerId.get(layerId) ?? []
@@ -188,6 +226,8 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
 
   compile(group: PixGridGroup, membership: PixGridGroupMembership = 'rendered'): PixGridCompiledMask {
     const cacheKey = `${membership}:${group.id}`
+    const external = this.externalMasks.get(group.id)
+    if (external) return external
     const cached = this.compiled.get(cacheKey)
     if (cached) return cached
     const target = this.sourceTargets.get(group.id)
@@ -313,6 +353,7 @@ export class PixGridFrameGroupCompiler implements PixGridCompiledGroupMaskResolv
     this.targetsByLayerId.clear()
     this.globalTargets = []
     this.compiled.clear()
+    this.externalMasks.clear()
     this.revision = 0
   }
 }

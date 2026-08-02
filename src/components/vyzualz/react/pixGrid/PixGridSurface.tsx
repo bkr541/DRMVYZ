@@ -69,8 +69,33 @@ import { resolvePixGridSurfacePerformanceFrame } from './PixGridSurfaceRuntime'
 import { applyPixGridPresetSignClock } from './PixGridSignClock'
 import { PixGridSelectedScenePreviewClock } from './PixGridScenePreview'
 import type { PixGridDeckDefinition } from './PixGridDeckDomain'
-import { getPixGridDeckTransitionPlan, getPixGridPreparedFrameSet } from './PixGridDeckCompilerRuntime'
+import {
+  clearPixGridDeckRuntimeResolution,
+  getPixGridDeckTransitionPlan,
+  getPixGridPreparedFrameSet,
+  setPixGridDeckRuntimeResolution,
+  usePixGridDeckCompilerStore,
+} from './PixGridDeckCompilerRuntime'
 import type { PixGridSequencePlan } from './PixGridSequenceClock'
+import {
+  createPixGridDeckGeneratedGroups,
+  resolvePixGridDeckRuntimeFrameSource,
+  type PixGridDeckRuntimeFrameSource,
+  type PixGridDeckRuntimeStatus,
+} from './PixGridDeckRuntime'
+import { createPixGridDeckCompositorScratch } from './PixGridDeckCompositor'
+import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
+
+function activeDeckSourceId(state: PixGridState, sceneId?: string | null): string | null {
+  const scene = state.scenes.find(candidate => candidate.id === (sceneId ?? state.selectedSceneId))
+    ?? state.scenes.find(candidate => candidate.id === state.selectedSceneId)
+    ?? state.scenes[0]
+  const activeLayerIds = new Set(scene?.layerIds ?? state.layers.map(layer => layer.id))
+  return state.layers
+    .filter(layer => layer.visible && activeLayerIds.has(layer.id))
+    .map(resolvePixGridLayerFrameSource)
+    .find(source => source.kind === 'deck')?.deckId ?? null
+}
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -116,6 +141,12 @@ export interface PixGridSurfaceRuntimeFrame {
   deckSequenceNextFrameId: string | null
   deckSequenceEpoch: number | null
   deckSequenceBoundaryIdentity: string | null
+  deckRuntimeStatus: PixGridDeckRuntimeStatus | null
+  deckRuntimeDiagnostic: string | null
+  deckTransitionMode: string | null
+  deckTransitionProgress: number
+  deckFrameSourceIdentity: string | null
+  deckGeneratedGroupIds: readonly string[]
   authoredBulbStates: readonly Readonly<{ layerId: string; opacity: number; frameIndex: number }>[]
   visibleComponentIds: readonly string[]
   activeCellCount: number
@@ -292,7 +323,38 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const runtimeQualityRef = useRef<PixGridQualityTier>(initialProfile.logicalQuality)
   const [runtimeQuality, setRuntimeQuality] = useState<PixGridQualityTier>(initialProfile.logicalQuality)
   const runtimeDimensions = resolvePixGridMatrixDimensions(runtimeQuality)
+  const deckRuntimeResolutionOwner = useRef<object>({})
+  useEffect(() => {
+    setPixGridDeckRuntimeResolution(deckRuntimeResolutionOwner.current, runtimeDimensions.width, runtimeDimensions.height)
+  }, [runtimeDimensions.height, runtimeDimensions.width])
+  useEffect(() => () => {
+    clearPixGridDeckRuntimeResolution(deckRuntimeResolutionOwner.current)
+  }, [])
   const [diagnostics, setDiagnostics] = useState<PixGridRendererDiagnostics>(EMPTY_DIAGNOSTICS)
+  const configuredDeckId = useMemo(() => {
+    const layerDeckId = activeDeckSourceId(props.pixGridState)
+    if (layerDeckId) return layerDeckId
+    return props.activePreset
+      ? props.pixGridDecks?.find(deck => deck.generatedPresetId === props.activePreset?.id)?.id ?? null
+      : null
+  }, [props.activePreset, props.pixGridDecks, props.pixGridState])
+  const deckCompilerRuntimeRevision = usePixGridDeckCompilerStore((store) => {
+    if (!configuredDeckId) return 'none'
+    const compile = store.statuses[configuredDeckId]
+    const transitions = store.transitionStatuses[configuredDeckId]
+    return [
+      configuredDeckId,
+      compile?.deckRevision ?? 'none',
+      compile?.width ?? 'none',
+      compile?.height ?? 'none',
+      compile?.phase ?? 'none',
+      compile?.ready ? 1 : 0,
+      transitions?.deckRevision ?? 'none',
+      transitions?.readyPairCount ?? 0,
+      transitions?.failedPairCount ?? 0,
+      transitions?.ready ? 1 : 0,
+    ].join(':')
+  })
   const activeScene =
     props.pixGridState.scenes.find((scene) => scene.id === props.pixGridState.selectedSceneId) ?? props.pixGridState.scenes[0]
   const mediaIds = useMemo(() => {
@@ -452,6 +514,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     const motionClock = new PixGridMotionClock()
     const selectedScenePreviewClock = new PixGridSelectedScenePreviewClock()
     const fallbackGroupCompiler = new PixGridFrameGroupCompiler()
+    const fallbackDeckScratch = createPixGridDeckCompositorScratch()
     const perceptualTracker = new PixGridPerceptualResponseTracker()
     let animationFrame = 0
     let gpuRenderer: PixGridGpuRenderer | null = null
@@ -630,6 +693,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       groupEffects: readonly PixGridGroupFrameEffect[]
       audioFrame: PixGridAudioFrame
       deckSequencePlan: PixGridSequencePlan | null
+      deckFrameSource: PixGridDeckRuntimeFrameSource | null
+      deckRuntimeStatus: PixGridDeckRuntimeStatus | null
+      deckRuntimeDiagnostic: string | null
     } | null => {
       const current = propsRef.current
       const activePreset = current.activePreset
@@ -889,7 +955,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         current.trackSections ?? intelligenceFrame.resolvedSections ?? [],
         audioTime,
       )
-      const activeDeck = current.pixGridDecks?.find(deck => deck.generatedPresetId === activePreset.id) ?? null
+      const authoredDeckId = activeDeckSourceId(runtimeState, selectedSceneId)
+      const activeDeck = current.pixGridDecks?.find(deck => deck.id === authoredDeckId)
+        ?? current.pixGridDecks?.find(deck => deck.generatedPresetId === activePreset.id)
+        ?? null
+      const preparedFrameSet = activeDeck ? getPixGridPreparedFrameSet(activeDeck.id) : null
       const surfacePerformanceFrame = resolvePixGridSurfacePerformanceFrame({
         authoredState: runtimeState,
         trackSceneId: selectedSceneId,
@@ -900,7 +970,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         runtime: unifiedPerformanceRuntime,
         trackId: current.trackIdentity ?? null,
         deck: activeDeck,
-        preparedFrameSet: activeDeck ? getPixGridPreparedFrameSet(activeDeck.id) : null,
+        preparedFrameSet,
         transitionModeResolver: activeDeck
           ? (sourceItemId, targetItemId) => getPixGridDeckTransitionPlan(activeDeck.id, sourceItemId, targetItemId)?.mode ?? null
           : undefined,
@@ -913,6 +983,20 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         resolvedRuntime,
       } = surfacePerformanceFrame
       const state = transportState === 'stopped' ? mappedState : resolvedRuntime.state
+      const expectedDeckId = activeDeckSourceId(state)
+      const deckTransitionPlan = activeDeck && deckSequencePlan
+        ? getPixGridDeckTransitionPlan(activeDeck.id, deckSequencePlan.sourceItemId, deckSequencePlan.targetItemId)
+        : null
+      const deckRuntimeResolution = activeDeck || expectedDeckId
+        ? resolvePixGridDeckRuntimeFrameSource({
+            deck: activeDeck,
+            preparedFrameSet,
+            sequencePlan: deckSequencePlan,
+            transitionPlan: deckTransitionPlan,
+            width: state.matrixWidth,
+            height: state.matrixHeight,
+          })
+        : null
       latestRuntimeDiagnostics = transportState === 'stopped'
         ? {
             ...resolvedRuntime.diagnostics,
@@ -1000,6 +1084,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         groupEffects: transportState === 'stopped' ? [] : resolvedRuntime.groupEffects,
         audioFrame: routedAudioFrame,
         deckSequencePlan,
+        deckFrameSource: deckRuntimeResolution?.source ?? null,
+        deckRuntimeStatus: deckRuntimeResolution?.status ?? null,
+        deckRuntimeDiagnostic: deckRuntimeResolution?.diagnostic ?? null,
         blackout: !current.isPlaying && !current.isPaused && state.stoppedBehavior === 'blackout',
         frame: {
           width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
@@ -1140,6 +1227,19 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         deckSequenceNextFrameId: input.deckSequencePlan?.nextFrameId ?? null,
         deckSequenceEpoch: input.deckSequencePlan?.frameEpoch ?? null,
         deckSequenceBoundaryIdentity: input.deckSequencePlan?.boundaryIdentity ?? null,
+        deckRuntimeStatus: input.deckRuntimeStatus,
+        deckRuntimeDiagnostic: input.deckRuntimeDiagnostic,
+        deckTransitionMode: input.deckFrameSource?.transitionMode ?? null,
+        deckTransitionProgress: input.deckFrameSource?.transitionProgress ?? 0,
+        deckFrameSourceIdentity: input.deckFrameSource?.identity ?? null,
+        deckGeneratedGroupIds: input.deckFrameSource
+          ? input.state.layers.flatMap(layer => {
+              const frameSource = resolvePixGridLayerFrameSource(layer)
+              return frameSource.kind === 'deck' && frameSource.deckId === input.deckFrameSource?.deckId
+                ? createPixGridDeckGeneratedGroups(frameSource.deckId, layer.id).map(group => group.id)
+                : []
+            })
+          : [],
         authoredBulbStates,
         visibleComponentIds,
         activeCellCount,
@@ -1161,6 +1261,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         input.transition,
         input.groupEffects,
         fallbackGroupCompiler,
+        null,
+        input.deckFrameSource,
+        fallbackDeckScratch,
       )
       if (latestRuntimeDiagnostics) {
         latestRuntimeDiagnostics = { ...latestRuntimeDiagnostics, compiledMaskGroups: fallbackGroupCompiler.compiledGroupIds }
@@ -1226,6 +1329,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             transition: input.transition,
             groupEffects: input.groupEffects,
             reactionRuntime: unifiedReactionRuntime,
+            deckFrameSource: input.deckFrameSource,
           })
           if (rendered) {
             const gpuDiagnostics = gpuRenderer.diagnostics
@@ -1419,6 +1523,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     props.isPlaying,
     props.motion,
     props.pixGridState,
+    props.pixGridDecks,
     props.pixGridActionCues,
     props.trackSections,
     props.trackAnalysis,
@@ -1426,6 +1531,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     props.durationSec,
     props.audioTimeSec,
     preparedAssets,
+    deckCompilerRuntimeRevision,
   ])
 
   const fallbackActive = diagnostics.path === 'canvas2d-fallback'

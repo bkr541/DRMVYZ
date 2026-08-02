@@ -226,6 +226,7 @@ function createLayer(assetId: PixGridBuiltInAssetId, name: string, index: number
     id: generatedId('pix-grid-layer'),
     name: name.slice(0, 96),
     assetId,
+    frameSource: mediaId ? { kind: 'media', mediaId } : { kind: 'asset', assetId },
     mediaId,
     locked: false,
     visible: true,
@@ -281,9 +282,25 @@ export function updatePixGridLayer(state: PixGridState, layerId: string, patch: 
   const scene = activeScene(safe)
   const current = safe.layers.find(layer => layer.id === layerId)
   if (!current || !scene.layerIds.includes(layerId) || current.locked && !Object.prototype.hasOwnProperty.call(patch, 'locked')) return safe
+  const patchesMediaAlias = Object.prototype.hasOwnProperty.call(patch, 'mediaId')
+  const patchesAssetAlias = Object.prototype.hasOwnProperty.call(patch, 'assetId')
+  const patchesFrameSource = Object.prototype.hasOwnProperty.call(patch, 'frameSource')
+  const patchedAssetId = patch.assetId ?? current.assetId
+  const frameSource = patchesFrameSource
+    ? patch.frameSource
+    : patchesMediaAlias
+      ? patch.mediaId
+        ? { kind: 'media' as const, mediaId: patch.mediaId }
+        : { kind: 'asset' as const, assetId: patchedAssetId }
+      : patchesAssetAlias && current.frameSource?.kind !== 'deck'
+        ? { kind: 'asset' as const, assetId: patchedAssetId }
+        : current.frameSource
   const next = clonePixGridLayer({
     ...current,
     ...patch,
+    assetId: frameSource?.kind === 'asset' ? frameSource.assetId : patchedAssetId,
+    frameSource,
+    mediaId: frameSource?.kind === 'media' ? frameSource.mediaId : null,
     position: patch.position ? { ...patch.position } : current.position,
     scale: patch.scale ? { ...patch.scale } : current.scale,
     paletteMap: patch.paletteMap ? { ...patch.paletteMap } : current.paletteMap,

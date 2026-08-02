@@ -75,6 +75,7 @@ export function resolvePixGridMatrixDimensions(quality: PixGridQualityTier): Rea
 export function clonePixGridLayer(layer: PixGridLayer): PixGridLayer {
   return {
     ...layer,
+    frameSource: layer.frameSource ? { ...layer.frameSource } : undefined,
     mediaId: layer.mediaId ?? null,
     locked: layer.locked === true,
     position: { ...layer.position },

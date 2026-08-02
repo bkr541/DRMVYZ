@@ -7,6 +7,7 @@ import {
   resolvePixGridMatrixDimensions,
 } from './PixGridDefaults'
 import { hasPixGridBuiltInAsset } from './PixGridArtwork'
+import { normalizePixGridLayerFrameSource } from './PixGridFrameSources'
 import { PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID } from './PixGridPerformancePrograms'
 import { PIX_GRID_AUDIO_INTELLIGENCE_SOURCES, getPixGridAudioIntelligenceSource } from './PixGridAudioIntelligenceRegistry'
 import { PIX_GRID_ASSIGNMENT_TARGET_BY_ID, PIX_GRID_ASSIGNMENT_TARGETS } from './PixGridAssignmentCompiler'
@@ -413,12 +414,21 @@ export function normalizePixGridLayers(value: unknown, fallback: PixGridLayer[])
         : raw.maskAssetId == null
           ? (template?.maskAssetId ?? null)
           : null
+    const legacyMediaId = raw.mediaId === undefined
+      ? (template?.mediaId ?? null)
+      : nullableId(raw.mediaId)
+    const frameSource = normalizePixGridLayerFrameSource(
+      raw.frameSource === undefined ? template?.frameSource : raw.frameSource,
+      candidateAssetId,
+      legacyMediaId,
+    )
     return [
       {
         id,
         name: text(raw.name, template?.name ?? `Layer ${index + 1}`),
-        assetId: candidateAssetId,
-        mediaId: nullableId(raw.mediaId),
+        assetId: frameSource.kind === 'asset' ? frameSource.assetId : candidateAssetId,
+        frameSource,
+        mediaId: frameSource.kind === 'media' ? frameSource.mediaId : null,
         locked: raw.locked === true,
         visible,
         opacity: clamp(raw.opacity, 0, 1, template?.opacity ?? 1),
@@ -501,7 +511,7 @@ function normalizeSceneSettings(value: unknown): Record<string, PixGridSceneSett
 
 export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSettings | undefined {
   if (!isRecord(value)) return undefined
-  const pattern = value.pattern === 'geometricReactor' || value.pattern === 'pixelParade' || value.pattern === 'neonMarqueeCycle'
+  const pattern = value.pattern === 'geometricReactor' || value.pattern === 'pixelParade' || value.pattern === 'neonMarqueeCycle' || value.pattern === 'mediaDeck'
     ? value.pattern
     : 'bassBeacon'
   const quality = value.quality == null ? undefined : normalizePixGridQuality(value.quality)

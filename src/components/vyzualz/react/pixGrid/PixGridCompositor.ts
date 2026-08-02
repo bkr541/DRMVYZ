@@ -16,7 +16,7 @@ import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { unpackPixGridOverride } from './PixGridAuthoring'
 import { PixGridReactionRuntime, resolveLegacyPixGridLayerAudioReactivity } from './PixGridAudioRouting'
 import { applyPixGridGroupReactions, resolvePixGridLayerReactionFrame } from './PixGridReactions'
-import { pixGridMaskHasCell } from './PixGridGroups'
+import { pixGridMaskHasCell, pixGridSetMaskCell } from './PixGridGroups'
 import { applyPixGridGroupFrameEffects, type PixGridGroupFrameEffect } from './PixGridFrameEffects'
 import type { PixGridResolvedTransition } from './PixGridActionCues'
 import { PixGridFrameGroupCompiler } from './PixGridGroupCompiler'
@@ -31,6 +31,19 @@ import {
 } from './PixGridVisualEffectStack'
 import type { PixGridStructuralChoreography } from './PixGridStructuralChoreographer'
 import { pixGridCellTransitionMix } from './PixGridCellTransitions'
+import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
+import {
+  createPixGridDeckGeneratedGroups,
+  pixGridDeckGeneratedGroupId,
+  type PixGridDeckRuntimeFrameSource,
+} from './PixGridDeckRuntime'
+import {
+  createPixGridDeckCompositorScratch,
+  composePixGridDeckRuntimeFrame,
+  type PixGridComposedDeckFrame,
+  type PixGridDeckCompositorScratch,
+} from './PixGridDeckCompositor'
+import { PIX_GRID_DECK_GENERATED_MASK_NAMES, type PixGridDeckGeneratedMaskName } from './PixGridDeckCompilerContracts'
 
 export interface PixGridLogicalFrame {
   width: number
@@ -381,6 +394,109 @@ function renderLayer(
     }
   }
 }
+type PixGridDeckLayerMaskBits = Record<PixGridDeckGeneratedMaskName, Uint32Array>
+
+const deckLayerMaskScratch = new WeakMap<PixGridFrameGroupCompiler, Map<string, PixGridDeckLayerMaskBits>>()
+
+function preparedDeckLayerMaskBits(
+  compiler: PixGridFrameGroupCompiler | undefined,
+  layerId: string,
+  cellCount: number,
+): PixGridDeckLayerMaskBits | null {
+  if (!compiler) return null
+  let byLayer = deckLayerMaskScratch.get(compiler)
+  if (!byLayer) {
+    byLayer = new Map()
+    deckLayerMaskScratch.set(compiler, byLayer)
+  }
+  const wordCount = Math.ceil(cellCount / 32)
+  let masks = byLayer.get(layerId)
+  if (!masks || PIX_GRID_DECK_GENERATED_MASK_NAMES.some(name => masks![name].length !== wordCount)) {
+    masks = Object.fromEntries(
+      PIX_GRID_DECK_GENERATED_MASK_NAMES.map(name => [name, new Uint32Array(wordCount)]),
+    ) as PixGridDeckLayerMaskBits
+    byLayer.set(layerId, masks)
+  }
+  for (const name of PIX_GRID_DECK_GENERATED_MASK_NAMES) masks[name].fill(0)
+  return masks
+}
+
+function withPixGridDeckGeneratedGroups(
+  state: PixGridState,
+  source: PixGridDeckRuntimeFrameSource | null | undefined,
+): PixGridState {
+  if (!source) return state
+  const existing = new Set(state.groups.map(group => group.id))
+  const generated = state.layers.flatMap(layer => {
+    const frameSource = resolvePixGridLayerFrameSource(layer)
+    if (frameSource.kind !== 'deck' || frameSource.deckId !== source.deckId) return []
+    return createPixGridDeckGeneratedGroups(source.deckId, layer.id).filter(group => !existing.has(group.id))
+  })
+  return generated.length > 0 ? { ...state, groups: [...state.groups, ...generated] } : state
+}
+
+function renderPreparedDeckLayer(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  layer: PixGridLayer,
+  source: PixGridDeckRuntimeFrameSource,
+  preparedDeck: PixGridComposedDeckFrame,
+  frame: PixGridAudioFrame,
+  scene: PixGridSceneSettings,
+  groupCompiler?: PixGridFrameGroupCompiler,
+): void {
+  const asset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)
+  if (!asset || preparedDeck.width !== width || preparedDeck.height !== height) return
+  const animation = resolvePixGridLayerAnimation(layer, asset, frame, scene.motionMultiplier)
+  const audioScale = effectiveScale(layer, frame)
+  const scaleX = composedLayerScale(animation.scaleX, audioScale)
+  const scaleY = composedLayerScale(animation.scaleY, audioScale)
+  const finalLayerOpacity = effectiveOpacity(layer, scene, frame)
+  const opacity = clamp01(animation.opacity * finalLayerOpacity)
+  const maskBits = preparedDeckLayerMaskBits(groupCompiler, layer.id, width * height)
+  for (let y = 0; y < height; y += 1) {
+    const outputV = (y + 0.5) / height
+    for (let x = 0; x < width; x += 1) {
+      const outputU = (x + 0.5) / width
+      const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
+      if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
+      const sx = Math.max(0, Math.min(preparedDeck.width - 1, Math.floor(u * preparedDeck.width)))
+      const sy = Math.max(0, Math.min(preparedDeck.height - 1, Math.floor(v * preparedDeck.height)))
+      const sourceCell = sy * preparedDeck.width + sx
+      const sourceOffset = sourceCell * 4
+      const outputCell = y * width + x
+      const sourceAlpha = preparedDeck.pixels[sourceOffset + 3] / 255
+      const color = [
+        preparedDeck.pixels[sourceOffset],
+        preparedDeck.pixels[sourceOffset + 1],
+        preparedDeck.pixels[sourceOffset + 2],
+      ] as const
+      if (sourceAlpha > 0) groupCompiler?.recordPixel(layer.id, outputCell, color, sourceAlpha * finalLayerOpacity, 'canonical')
+      if (maskBits) {
+        for (const name of PIX_GRID_DECK_GENERATED_MASK_NAMES) {
+          if (preparedDeck.masks[name][sourceCell] > 0) pixGridSetMaskCell(maskBits[name], outputCell)
+        }
+      }
+      if (opacity <= 0) continue
+      if (
+        !revealContains(v, animation.revealRow, animation.revealRowFrom)
+        || !revealContains(u, animation.revealColumn, animation.revealColumnFrom)
+      ) continue
+      if (animation.checkerAlternate && (sx + sy) % 2 !== 0) continue
+      const alpha = sourceAlpha * opacity
+      if (alpha <= 0) continue
+      groupCompiler?.recordPixel(layer.id, outputCell, color, alpha)
+      blendPixel(pixels, outputCell * 4, color, alpha, layer.blendMode)
+    }
+  }
+  if (maskBits && groupCompiler) {
+    for (const name of PIX_GRID_DECK_GENERATED_MASK_NAMES) {
+      groupCompiler.registerCompiledMask(pixGridDeckGeneratedGroupId(source.deckId, layer.id, name), maskBits[name])
+    }
+  }
+}
+
 function renderPreparedAssetLayer(
   pixels: Uint8Array,
   width: number,
@@ -452,8 +568,10 @@ function composePixGridBaseFrame(
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
   choreography?: PixGridStructuralChoreography | null,
+  deckFrameSource?: PixGridDeckRuntimeFrameSource | null,
+  composedDeckFrame?: PixGridComposedDeckFrame | null,
 ): PixGridLogicalFrame {
-  const normalizedState = normalizePixGridState(rawState)
+  const normalizedState = withPixGridDeckGeneratedGroups(normalizePixGridState(rawState), deckFrameSource)
   const state = reactionRuntime
     ? resolvePixGridAuthoredAssignmentState(normalizedState, frame, reactionRuntime)
     : normalizedState
@@ -485,14 +603,24 @@ function composePixGridBaseFrame(
   const hasReactions = state.audioAssignments.some(assignment => assignment.enabled)
     || state.groups.some((group) => group.enabled && group.reactions.some((assignment) => assignment.enabled))
   const runtime = reactionRuntime
+  const composedDeck = composedDeckFrame ?? (deckFrameSource
+    ? composePixGridDeckRuntimeFrame(deckFrameSource, createPixGridDeckCompositorScratch())
+    : null)
   for (const layer of visibleLayers) {
     compiler.captureLayerBackdrop(layer.id, pixels)
     const layerFrame = runtime
       ? resolvePixGridLayerReactionFrame(layer, state.groups, frame, runtime, state.editor.previewReactionAssignmentId)
       : frame
-    const mediaAsset = layer.mediaId ? preparedAssetFor(preparedAsset, layer.mediaId) : null
+    const frameSource = resolvePixGridLayerFrameSource(layer)
+    if (frameSource.kind === 'deck') {
+      if (composedDeck && deckFrameSource?.deckId === frameSource.deckId) {
+        renderPreparedDeckLayer(pixels, width, height, layer, deckFrameSource, composedDeck, layerFrame, scene, compiler)
+      }
+      continue
+    }
+    const mediaAsset = frameSource.kind === 'media' ? preparedAssetFor(preparedAsset, frameSource.mediaId) : null
     if (mediaAsset) renderPreparedAssetLayer(pixels, width, height, layer, mediaAsset, layerFrame, scene, compiler)
-    else if (!layer.mediaId) renderLayer(pixels, width, height, layer, preset.palette, layerFrame, scene, compiler)
+    else if (frameSource.kind === 'asset') renderLayer(pixels, width, height, layer, preset.palette, layerFrame, scene, compiler)
   }
 
   if (
@@ -619,6 +747,8 @@ export function composePixGridLogicalFrame(
   groupEffects: readonly PixGridGroupFrameEffect[] = [],
   groupCompiler?: PixGridFrameGroupCompiler,
   choreography?: PixGridStructuralChoreography | null,
+  deckFrameSource?: PixGridDeckRuntimeFrameSource | null,
+  deckScratch?: PixGridDeckCompositorScratch,
 ): PixGridLogicalFrame {
   const normalizedTargetState = normalizePixGridState(rawState)
   const normalizedSourceState = transition ? normalizePixGridState(transition.fromState) : null
@@ -631,7 +761,10 @@ export function composePixGridLogicalFrame(
   const effectiveTransition = runtime
     ? resolvePixGridTransitionAssignment(transition, normalizedTargetState, frame, runtime)
     : transition
-  const target = composePixGridBaseFrame(preset, normalizedTargetState, frame, reusable, preparedAsset, runtime, groupEffects, groupCompiler, choreography)
+  const composedDeck = deckFrameSource
+    ? composePixGridDeckRuntimeFrame(deckFrameSource, deckScratch ?? createPixGridDeckCompositorScratch())
+    : null
+  const target = composePixGridBaseFrame(preset, normalizedTargetState, frame, reusable, preparedAsset, runtime, groupEffects, groupCompiler, choreography, deckFrameSource, composedDeck)
   if (!effectiveTransition || effectiveTransition.type === 'cut' || effectiveTransition.progress >= 1) {
     applyStructuralVisualEffects(target, choreography)
     return target
@@ -646,6 +779,8 @@ export function composePixGridLogicalFrame(
     [],
     new PixGridFrameGroupCompiler(),
     choreography,
+    deckFrameSource,
+    composedDeck,
   )
   if (source.width === target.width && source.height === target.height) {
     applyLogicalTransition(target.pixels, source.pixels, target.width, target.height, effectiveTransition)

@@ -23,6 +23,9 @@ import {
   createPixGridMarqueeStableUnderlayFixtureFrame,
   createPixGridMarqueeStableUnderlayFixtureState,
 } from './__fixtures__/PixGridMarqueeStableUnderlayFixture'
+import { compilePixGridDeckRasterFrame } from '../PixGridDeckCompilerCore'
+import type { PixGridDeckRuntimeFrameSource } from '../PixGridDeckRuntime'
+import { createPixGridDeckCompositorScratch } from '../PixGridDeckCompositor'
 
 type Listener = (event: Event) => void
 
@@ -291,6 +294,141 @@ describe('PixGridGpuRenderer', () => {
       expect(Array.from(gpuUpload)).toEqual(Array.from(expected.pixels))
       expect(Array.from(image.data)).toEqual(Array.from(expected.pixels))
     }
+  })
+
+  it('presents the same Deck transition framebuffer through WebGL and Canvas', () => {
+    const gl = createFakeWebGL2()
+    const canvas = createCanvas(gl)
+    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
+    const canonicalPreset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-bass-beacon')!
+    const applied = applyPixGridPresetSettings(createDefaultPixGridState(), canonicalPreset.id, canonicalPreset.pixGridSettings)
+    const baseLayer = applied.layers[0]!
+    const layerId = 'gpu-deck-layer'
+    const sceneId = 'gpu-deck-scene'
+    const deckLayer = {
+      ...baseLayer,
+      id: layerId,
+      frameSource: { kind: 'deck' as const, deckId: 'gpu-deck' },
+      mediaId: null,
+      opacity: 1,
+      position: { x: 0.5, y: 0.5 },
+      scale: { x: 1, y: 1 },
+      rotation: 0,
+      animations: [],
+      audioReactivity: undefined,
+      densityRank: 0,
+    }
+    const state = normalizePixGridState({
+      ...applied,
+      quality: 'draft',
+      selectedPresetId: 'pix-grid-deck:gpu-deck',
+      selectedSceneId: sceneId,
+      pattern: 'mediaDeck',
+      layers: [deckLayer],
+      scenes: [{ id: sceneId, name: 'GPU Deck Scene', layerIds: [layerId], pixelOverrides: [] }],
+      groups: [],
+      audioAssignments: [],
+      performance: { ...applied.performance, enabled: false },
+    })
+    const preset = {
+      ...canonicalPreset,
+      id: 'pix-grid-deck:gpu-deck',
+      pixGridSettings: {
+        ...canonicalPreset.pixGridSettings,
+        pattern: 'mediaDeck' as const,
+        layers: [deckLayer],
+        groups: [],
+        audioAssignments: [],
+      },
+    }
+    const raster = (left: boolean) => {
+      const pixels = new Uint8Array(state.matrixWidth * state.matrixHeight * 4)
+      const alpha = new Uint8Array(state.matrixWidth * state.matrixHeight)
+      for (let y = 8; y < 28; y += 1) {
+        for (let x = left ? 6 : 42; x < (left ? 18 : 54); x += 1) {
+          const cell = y * state.matrixWidth + x
+          const offset = cell * 4
+          pixels[offset] = left ? 0 : 20
+          pixels[offset + 1] = 217
+          pixels[offset + 2] = left ? 255 : 130
+          pixels[offset + 3] = 255
+          alpha[cell] = 255
+        }
+      }
+      return compilePixGridDeckRasterFrame({
+        cacheKey: `gpu-deck:${left ? 'source' : 'target'}`,
+        mediaId: `gpu-media:${left ? 'source' : 'target'}`,
+        sourceFingerprint: `sha256:${left ? 'source' : 'target'}`,
+        sourceRevision: 1,
+        rasterPixels: pixels,
+        sourceAlpha: alpha,
+        width: state.matrixWidth,
+        height: state.matrixHeight,
+        transparentBackground: '#000000',
+        hasAlpha: true,
+      })
+    }
+    const sourceFrame = raster(true)
+    const targetFrame = raster(false)
+    const deckFrameSource: PixGridDeckRuntimeFrameSource = {
+      kind: 'deck',
+      deckId: 'gpu-deck',
+      deckRevision: 1,
+      width: state.matrixWidth,
+      height: state.matrixHeight,
+      sourceItemId: 'source-item',
+      targetItemId: 'target-item',
+      sourceFrame,
+      targetFrame,
+      transitionPlan: null,
+      transitionMode: 'crossfade',
+      transitionProgress: 0.5,
+      transitionActive: true,
+      boundaryIdentity: 'gpu-boundary',
+      frameEpoch: 1,
+      identity: 'gpu-deck:1:source:target',
+      fallbackReason: null,
+    }
+    const base = renderInput('high')
+    const frame = { ...base.frame, motion: 0, intensity: 1, glow: 0, bassReactivity: 0 }
+
+    expect(renderer.render({
+      frame,
+      preset,
+      state,
+      presentationWidth: 640,
+      presentationHeight: 360,
+      deckFrameSource,
+    })).toBe(true)
+    const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
+
+    const image = { data: new Uint8ClampedArray(state.matrixWidth * state.matrixHeight * 4) }
+    const logicalContext = { createImageData: vi.fn(() => image), putImageData: vi.fn() }
+    const outputContext = {
+      save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), strokeRect: vi.fn(),
+      fillStyle: '', strokeStyle: '', globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true, lineWidth: 1,
+    }
+    const fallback = renderPixGridCanvasFallback(
+      outputContext as unknown as CanvasRenderingContext2D,
+      {
+        canvas: { width: state.matrixWidth, height: state.matrixHeight } as HTMLCanvasElement,
+        context: logicalContext as unknown as CanvasRenderingContext2D,
+      },
+      frame,
+      preset,
+      state,
+      undefined,
+      undefined,
+      null,
+      [],
+      undefined,
+      null,
+      deckFrameSource,
+      createPixGridDeckCompositorScratch(),
+    )
+
+    expect(Array.from(gpuUpload)).toEqual(Array.from(fallback.logicalFrame.pixels))
+    expect(Array.from(image.data)).toEqual(Array.from(fallback.logicalFrame.pixels))
   })
 
   it('keeps every stable-underlay logical fixture identical across WebGL and Canvas paths', () => {
