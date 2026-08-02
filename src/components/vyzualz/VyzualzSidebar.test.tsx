@@ -16,7 +16,7 @@ afterEach(() => {
   container = null
 })
 
-describe('VyzualzSidebar Media Manager navigation', () => {
+describe('VyzualzSidebar workspace navigation', () => {
   it('renders Media Manager directly beneath Lyric Manager and navigates to media', () => {
     const onAppViewChange = vi.fn()
     container = document.createElement('div')
@@ -35,7 +35,13 @@ describe('VyzualzSidebar Media Manager navigation', () => {
 
     const navItems = [...container.querySelectorAll<HTMLElement>('.az-nav-item')]
     const labels = navItems.map(item => item.getAttribute('aria-label'))
+    expect(labels.indexOf('Show Manager')).toBe(labels.indexOf('Visualizer') + 1)
     expect(labels.indexOf('Media Manager')).toBe(labels.indexOf('Lyric Manager') + 1)
+
+    const showManagerItem = navItems.find(item => item.getAttribute('aria-label') === 'Show Manager')
+    expect(showManagerItem).toBeInstanceOf(HTMLButtonElement)
+    act(() => showManagerItem?.click())
+    expect(onAppViewChange).toHaveBeenCalledWith('showManager')
 
     const mediaItem = navItems.find(item => item.getAttribute('aria-label') === 'Media Manager')
     expect(mediaItem).toBeInstanceOf(HTMLButtonElement)

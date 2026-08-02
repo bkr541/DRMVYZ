@@ -2202,7 +2202,7 @@ export function LyricManagerView({
             globalOffsetMs={globalOffsetMs}
             onNavigateToIssue={handleNavigateToValidationIssue}
             onPreviewInVisualizer={handlePreviewInPerformanceView}
-            previewDestination={returnView === 'react' ? 'React' : 'Visualizer'}
+            previewDestination={returnView === 'react' ? 'React' : returnView === 'showManager' ? 'Show Manager' : 'Visualizer'}
             extractionConsole={
               <LyricWorkflowStatus
                 selectedTrack={selectedTrack}

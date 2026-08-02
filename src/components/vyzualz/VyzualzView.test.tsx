@@ -35,6 +35,7 @@ vi.mock('./VisualizerWorkspace', () => ({
     return (
       <div data-testid="visualizer-workspace">
         <button aria-label="React" onClick={() => onAppViewChange('react')}>React</button>
+        <button aria-label="Show Manager" onClick={() => onAppViewChange('showManager')}>Show Manager</button>
         <button aria-label="Lyric Manager" onClick={() => onAppViewChange('lyrics')}>Lyrics</button>
         <button aria-label="Media Manager" onClick={() => onAppViewChange('media')}>Media</button>
       </div>
@@ -49,6 +50,10 @@ vi.mock('./react/ReactView', () => ({
       <button onClick={onOpenMediaManager}>Open Media Manager</button>
     </div>
   ),
+}))
+
+vi.mock('./showManager/ShowManagerView', () => ({
+  ShowManagerView: () => <div data-testid="show-manager">Show Manager workspace</div>,
 }))
 
 vi.mock('../../features/media/MediaManagerView', () => ({
@@ -132,11 +137,16 @@ afterEach(() => {
 })
 
 describe('Vyzualz application-view lifecycle isolation', () => {
-  it('keeps Visualizer hotkeys inactive in React, Media Manager, and Lyric Manager', async () => {
+  it('keeps Visualizer hotkeys inactive in React, Show Manager, Media Manager, and Lyric Manager', async () => {
     await renderView('react')
     press('f')
     press(' ')
     press('1')
+    expect(lifecycle.hotkeys).not.toHaveBeenCalled()
+
+    await clickLabel('Show Manager')
+    expect(container?.querySelector('[data-testid="show-manager"]')).not.toBeNull()
+    press('f')
     expect(lifecycle.hotkeys).not.toHaveBeenCalled()
 
     await clickLabel('Visualizer')
@@ -174,6 +184,12 @@ describe('Vyzualz application-view lifecycle isolation', () => {
     expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('visualizer')
     await clickLabel('Back')
     expect(container?.querySelector('[data-testid="visualizer-workspace"]')).not.toBeNull()
+
+    await clickLabel('Show Manager')
+    await clickLabel('Lyric Manager')
+    expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('showManager')
+    await clickLabel('Back')
+    expect(container?.querySelector('[data-testid="show-manager"]')).not.toBeNull()
   })
 
   it('preserves manager origin across manager-to-manager navigation', async () => {

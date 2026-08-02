@@ -16,6 +16,9 @@ const VisualizerWorkspace = lazy(() =>
 const ReactView = lazy(() =>
   import('./react/ReactView').then(module => ({ default: module.ReactView })),
 )
+const ShowManagerView = lazy(() =>
+  import('./showManager/ShowManagerView').then(module => ({ default: module.ShowManagerView })),
+)
 const MediaManagerView = lazy(() =>
   import('../../features/media/MediaManagerView').then(module => ({ default: module.MediaManagerView })),
 )
@@ -135,6 +138,20 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
                 onOpenMediaManager={() => requestAppViewChange('media')}
                 onOpenLyricManager={openLyricManager}
               />
+            </Suspense>
+          </div>
+        </main>
+      </ManagedWorkspaceShell>
+    )
+  }
+
+  if (appView === 'showManager') {
+    return (
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+        <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <Suspense fallback={<WorkspaceLoading label="Show Manager" />}>
+              <ShowManagerView />
             </Suspense>
           </div>
         </main>

@@ -17,7 +17,7 @@ interface Props {
   globalOffsetMs?: number
   onNavigateToIssue?: (issue: LyricValidationIssue) => void
   onPreviewInVisualizer: () => void
-  previewDestination?: 'React' | 'Visualizer'
+  previewDestination?: 'React' | 'Visualizer' | 'Show Manager'
   extractionConsole?: ReactNode
 }
 

@@ -75,6 +75,27 @@ export function VyzualzSidebar({
           <span className="az-nav-label">Visualizer</span>
         </button>
 
+        {/* Show Manager icon */}
+        <button
+          type="button"
+          className={`az-nav-item${appView === 'showManager' ? ' az-nav-item--active' : ''}`}
+          onClick={() => onAppViewChange?.('showManager')}
+          title="Show Manager"
+          aria-label="Show Manager"
+          aria-current={appView === 'showManager' ? 'page' : undefined}
+        >
+          <svg viewBox="0 0 28 28" width="28" height="28" fill="none" aria-hidden="true">
+            <rect x="3.5" y="4" width="21" height="20" rx="2.5" fill="#0d1820" />
+            <rect x="3.5" y="4" width="21" height="20" rx="2.5" stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.48" />
+            <path d="M10 4v20M18 4v20" stroke="currentColor" strokeWidth="1" strokeOpacity="0.3" />
+            <path d="M3.5 15.5h21" stroke="currentColor" strokeWidth="1" strokeOpacity="0.3" />
+            <rect x="11.5" y="7" width="5" height="5" rx="1" fill="currentColor" fillOpacity="0.82" />
+            <path d="M5.8 19h2.2M11.2 19h2.2M16.6 19h2.2M22 19h.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            <path d="M6 21.5h16" stroke="currentColor" strokeWidth="1" strokeOpacity="0.45" />
+          </svg>
+          <span className="az-nav-label">Show Manager</span>
+        </button>
+
         {/* Lyric Manager icon */}
         <button
           type="button"
