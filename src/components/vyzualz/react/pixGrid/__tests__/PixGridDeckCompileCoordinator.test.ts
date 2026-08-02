@@ -271,6 +271,49 @@ describe('PixGrid Deck compile coordinator', () => {
     coordinator.dispose()
   })
 
+  it('returns prepared-frame diagnostics to baseline after a compiled Deck is removed', async () => {
+    const cache = new PixGridDeckPreparedFrameCache()
+    const coordinator = new PixGridDeckCompileCoordinator({
+      cache,
+      sourceResolver,
+      compile: async request => frame(request),
+    })
+    coordinator.synchronize([deck('deck-cleanup', [item(0), item(1)])], 16, 9)
+    await waitUntil(() => coordinator.getStatus('deck-cleanup')?.ready === true)
+    expect(coordinator.getDiagnostics()).toMatchObject({
+      trackedDeckCount: 1,
+      cacheEntryCount: 2,
+    })
+
+    coordinator.synchronize([], 16, 9)
+    expect(coordinator.getDiagnostics()).toMatchObject({
+      trackedDeckCount: 0,
+      cacheEntryCount: 0,
+      cacheBytes: 0,
+    })
+    coordinator.dispose()
+  })
+
+  it('keeps the prepared-frame cache bounded across twenty create-delete cycles', async () => {
+    const cache = new PixGridDeckPreparedFrameCache()
+    const coordinator = new PixGridDeckCompileCoordinator({
+      cache,
+      sourceResolver,
+      compile: async request => frame(request),
+    })
+
+    for (let cycle = 0; cycle < 20; cycle += 1) {
+      const deckId = `deck-cycle-${cycle}`
+      coordinator.synchronize([deck(deckId, [item(0, `${deckId}-a`), item(1, `${deckId}-b`)])], 16, 9)
+      await waitUntil(() => coordinator.getStatus(deckId)?.ready === true)
+      expect(coordinator.getDiagnostics().cacheEntryCount).toBe(2)
+      coordinator.synchronize([], 16, 9)
+      expect(coordinator.getDiagnostics()).toMatchObject({ cacheEntryCount: 0, cacheBytes: 0 })
+    }
+
+    coordinator.dispose()
+  })
+
   it('aborts orphaned jobs when a Deck is deleted', async () => {
     let aborted = false
     const resolvingSource = (_item: PixGridDeckItemDefinition, signal: AbortSignal) => new Promise<Blob>((_resolve, reject) => {

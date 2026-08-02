@@ -1,12 +1,16 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { AudioEngineProvider } from '../../context/AudioEngineContext'
+import { AudioEngineProvider, useSharedAudio } from '../../context/AudioEngineContext'
 import { VyzualzView } from '../../components/vyzualz/VyzualzView'
 import {
   startPixGridDeckCompilerRuntime,
   usePixGridDeckCompilerStore,
 } from '../../components/vyzualz/react/pixGrid/PixGridDeckCompilerRuntime'
 import { useReactStore } from '../../stores/reactStore'
+import {
+  exportCurrentPixGridDeckProjectMediaBundle,
+  importPixGridDeckProjectMediaBundleIntoStore,
+} from '../../components/vyzualz/react/pixGrid/PixGridDeckProjectPortability'
 import {
   useMediaStore,
   type CanonicalVisualUploadOptions,
@@ -16,7 +20,7 @@ import {
 
 const statusTarget = document.querySelector<HTMLElement>('[data-pix-grid-deck-show-manager-status]')
 const rootTarget = document.getElementById('root')
-if (!statusTarget || !rootTarget) throw new Error('Stage 8 Show Manager browser harness is incomplete.')
+if (!statusTarget || !rootTarget) throw new Error('PixGrid Deck release browser harness is incomplete.')
 const statusElement = statusTarget
 const rootElement = rootTarget
 
@@ -32,6 +36,19 @@ useMediaStore.setState({ items: [], queryItemIds: [], loadError: null })
 
 let uploadCounter = 0
 const localUrls = new Set<string>()
+let audioSnapshot = {
+  trackId: null as string | null,
+  trackName: null as string | null,
+  analysisStatus: 'not_analyzed' as string,
+  analyzedBpm: null as number | null,
+}
+let portabilitySnapshot: {
+  exportedSourceCount: number
+  importedMediaCount: number
+  missingMediaIds: string[]
+  errorCount: number
+  sourceIdsChanged: boolean
+} | null = null
 
 function fileMeta(file: File, metadata: CanonicalVisualUploadOptions['metadata']): string {
   const width = metadata?.width
@@ -53,7 +70,7 @@ async function uploadLocalVisual(
   options.onPhase?.('preparing')
   await Promise.resolve()
   options.onPhase?.('uploading_original')
-  const id = `browser-stage8-media-${++uploadCounter}`
+  const id = `browser-release-media-${++uploadCounter}`
   const url = URL.createObjectURL(file)
   localUrls.add(url)
   const item: UploadedMedia = {
@@ -75,7 +92,7 @@ async function uploadLocalVisual(
     lifecycleStatus: 'complete',
     uploadPhase: 'complete',
     uploadSourceFile: file,
-    localObjectUrlKey: `browser-stage8:${id}`,
+    localObjectUrlKey: `browser-release:${id}`,
   }
   useMediaStore.setState(state => ({
     items: [item, ...state.items.filter(candidate => candidate.id !== id)],
@@ -112,6 +129,8 @@ function snapshot() {
     mediaCount: useMediaStore.getState().items.length,
     compile: deck ? compiler.statuses[deck.id] ?? null : null,
     transitions: deck ? compiler.transitionStatuses[deck.id] ?? null : null,
+    audio: audioSnapshot,
+    portability: portabilitySnapshot,
   }
 }
 
@@ -120,20 +139,68 @@ function publishStatus(result = 'ready') {
   statusElement.textContent = JSON.stringify(snapshot())
 }
 
+async function roundTripProject() {
+  const beforeMediaIds = useReactStore.getState().pixGridDecks
+    .flatMap(deck => deck.items.map(item => item.mediaId))
+  const bundle = await exportCurrentPixGridDeckProjectMediaBundle({
+    readSource: async item => {
+      if (item.uploadSourceFile) return item.uploadSourceFile
+      const response = await fetch(item.url)
+      if (!response.ok) throw new Error(`Harness source read failed with status ${response.status}.`)
+      return new File([await response.blob()], item.name, { type: item.mimeType ?? undefined })
+    },
+  })
+
+  useReactStore.getState().replacePixGridDeckProject([])
+  for (const item of useMediaStore.getState().items) {
+    if (item.url.startsWith('blob:')) {
+      URL.revokeObjectURL(item.url)
+      localUrls.delete(item.url)
+    }
+  }
+  useMediaStore.setState({ items: [], queryItemIds: [], loadError: null })
+
+  const result = await importPixGridDeckProjectMediaBundleIntoStore(bundle)
+  const afterMediaIds = result.decks.flatMap(deck => deck.items.map(item => item.mediaId))
+  portabilitySnapshot = {
+    exportedSourceCount: bundle.manifest.sources.length,
+    importedMediaCount: Object.keys(result.mediaIdMap).length,
+    missingMediaIds: result.missingMediaIds,
+    errorCount: result.errors.length,
+    sourceIdsChanged: beforeMediaIds.length === afterMediaIds.length
+      && beforeMediaIds.some((mediaId, index) => mediaId !== afterMediaIds[index]),
+  }
+  publishStatus()
+  return portabilitySnapshot
+}
+
+function HarnessContent() {
+  const audio = useSharedAudio()
+  React.useEffect(() => {
+    audioSnapshot = {
+      trackId: audio.currentTrackId,
+      trackName: audio.currentTrack?.name ?? null,
+      analysisStatus: audio.currentAnalysisStatus,
+      analyzedBpm: audio.currentAnalyzedBpm,
+    }
+    publishStatus()
+  }, [audio.currentAnalysisStatus, audio.currentAnalyzedBpm, audio.currentTrack?.name, audio.currentTrackId])
+  return <VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView="showManager" />
+}
+
 const unsubscribeReact = useReactStore.subscribe(() => publishStatus())
 const unsubscribeCompiler = usePixGridDeckCompilerStore.subscribe(() => publishStatus())
 const unsubscribeMedia = useMediaStore.subscribe(() => publishStatus())
 
+const releaseApi = { snapshot, roundTripProject }
 Object.assign(window, {
-  __DRMVYZ_PIX_GRID_DECK_STAGE8__: {
-    snapshot,
-  },
+  __DRMVYZ_PIX_GRID_DECK_RELEASE__: releaseApi,
 })
 
 createRoot(rootElement).render(
   <React.StrictMode>
     <AudioEngineProvider>
-      <VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView="showManager" />
+      <HarnessContent />
     </AudioEngineProvider>
   </React.StrictMode>,
 )

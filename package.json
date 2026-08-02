@@ -49,6 +49,7 @@
     "verify:laser-dmx:programming": "npm run typecheck && npm run test:laser-dmx:programming && npm run test:webgl",
     "test:pix-grid:final": "npm run test:pix-grid:unit && npm run test:e2e:pix-grid-marquee-real && npm run test:e2e:pix-grid-deck-compiler && npm run test:e2e:pix-grid-deck-runtime && npm run test:e2e:pix-grid-deck-show-manager",
     "verify:pix-grid:final": "npm run repo:hygiene && npm run typecheck && npm run test:pix-grid:final && npm run build",
+    "verify:pix-grid:deck": "npm run verify:pix-grid:final",
     "test:pix-grid:perceptual": "vitest run src/components/vyzualz/react/pixGrid/__tests__/PixGridPerceptualAudioIntelligence.test.ts src/components/vyzualz/react/pixGrid/__tests__/PixGridRenderedPixelRegression.test.ts src/components/vyzualz/react/pixGrid/__tests__/PixGridPerformanceProgramArchitecture.test.ts src/components/vyzualz/react/pixGrid/__tests__/PixGridPerceptualMagnitude.test.ts",
     "verify:pix-grid:recording": "node scripts/verify-pix-grid-screen-recording.mjs",
     "verify:pix-grid:release": "npm run verify:pix-grid:final && npm run verify:pix-grid:recording --",

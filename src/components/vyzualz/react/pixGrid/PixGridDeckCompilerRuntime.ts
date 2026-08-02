@@ -94,6 +94,7 @@ export function startPixGridDeckCompilerRuntime(): () => void {
     pixGridDeckTransitionPlanCache.clear()
     stopRuntime = null
     synchronizeRuntime = null
+    runtimeResolution = null
     usePixGridDeckCompilerStore.getState().clear()
   }
   return stopRuntime

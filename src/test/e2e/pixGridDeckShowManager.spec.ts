@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
+
 function statusPayload(text: string | null) {
   return JSON.parse(text ?? '{}') as {
     deckCount?: number
@@ -9,11 +11,19 @@ function statusPayload(text: string | null) {
     mediaCount?: number
     compile?: { ready?: boolean; progress?: number } | null
     transitions?: { ready?: boolean; progress?: number } | null
+    audio?: { trackId?: string | null; trackName?: string | null; analysisStatus?: string; analyzedBpm?: number | null }
+    portability?: {
+      exportedSourceCount?: number
+      importedMediaCount?: number
+      missingMediaIds?: string[]
+      errorCount?: number
+      sourceIdsChanged?: boolean
+    } | null
   }
 }
 
-test('real Show Manager builds a Deck, explicitly creates a Preset, and selects it in React', async ({ page }) => {
-  test.skip(process.env.DRMVYZ_PIX_GRID_DECK_SHOW_MANAGER_BROWSER !== '1', 'Run through the Stage 8 browser harness script.')
+test('release Show Manager creates, plays, exports, and imports a 12-image Deck with selected-track intelligence', async ({ page }) => {
+  test.skip(process.env.DRMVYZ_PIX_GRID_DECK_SHOW_MANAGER_BROWSER !== '1', 'Run through the PixGrid Deck release browser harness script.')
   const pageErrors: string[] = []
   page.on('pageerror', error => pageErrors.push(error.message))
 
@@ -26,6 +36,7 @@ test('real Show Manager builds a Deck, explicitly creates a Preset, and selects 
     'src/test/fixtures/pixGridDeck/stage-8-selected-track.wav',
   )
   await expect(page.locator('.vz-dock-track-title')).toContainText('stage-8-selected-track', { timeout: 30_000 })
+  await expect.poll(async () => statusPayload(await status.textContent()).audio?.trackName, { timeout: 30_000 }).toContain('stage-8-selected-track')
 
   const createDeck = page.getByRole('button', { name: 'Create Deck' })
   await expect(createDeck).toHaveCount(1)
@@ -34,34 +45,41 @@ test('real Show Manager builds a Deck, explicitly creates a Preset, and selects 
   await expect(page.getByLabel('Show Manager Deck Builder inspector')).toBeVisible()
   await expect(page.locator('.vz-dock-track-title')).toContainText('stage-8-selected-track')
 
-  await page.locator('.sm-deck-text-input').fill('Browser Stage 8 Deck')
-  await page.locator('input[type="file"][accept="image/png,image/jpeg,image/svg+xml,image/webp"]').setInputFiles([
-    'src/test/fixtures/pixGridDeck/opaque.png',
-    'src/test/fixtures/pixGridDeck/transparent.png',
-  ])
+  await page.locator('.sm-deck-text-input').fill('Browser Release Deck')
+  const opaque = readFileSync('src/test/fixtures/pixGridDeck/opaque.png')
+  const transparent = readFileSync('src/test/fixtures/pixGridDeck/transparent.png')
+  await page.locator('input[type="file"][accept="image/png,image/jpeg,image/svg+xml,image/webp"]').setInputFiles(
+    Array.from({ length: 12 }, (_, index) => ({
+      name: `release-deck-${String(index + 1).padStart(2, '0')}.png`,
+      mimeType: 'image/png',
+      buffer: index % 2 === 0 ? opaque : transparent,
+    })),
+  )
 
-  await expect(page.locator('.sm-deck-image-card')).toHaveCount(2, { timeout: 30_000 })
+  await expect(page.locator('.sm-deck-image-card')).toHaveCount(12, { timeout: 45_000 })
   const createPreset = page.getByRole('button', { name: 'Create Preset' })
-  await expect(createPreset).toBeEnabled({ timeout: 45_000 })
+  await expect(createPreset).toBeEnabled({ timeout: 90_000 })
 
   const onButtons = page.locator('.sm-deck-image-actions button', { hasText: 'On' })
   await onButtons.first().click()
+  await expect(createPreset).toBeEnabled()
+  for (let index = 0; index < 10; index += 1) await onButtons.first().click()
   await expect(createPreset).toBeDisabled()
   await page.locator('.sm-deck-image-actions button', { hasText: 'Off' }).first().click()
-  await expect(createPreset).toBeEnabled({ timeout: 45_000 })
+  await expect(createPreset).toBeEnabled({ timeout: 90_000 })
 
   await page.getByLabel('Move image later').first().click()
   await createPreset.click()
   await expect(page.getByLabel('Show Manager workspace')).toBeVisible()
   await expect(page.getByLabel('Show Manager Deck Builder inspector')).toHaveCount(0)
-  await expect(page.getByLabel('Show Manager PixGrid preset')).toContainText('Browser Stage 8 Deck')
-  await expect(page.getByLabel('Browser Stage 8 Deck Deck summary')).toBeVisible()
+  await expect(page.getByLabel('Show Manager PixGrid preset')).toContainText('Browser Release Deck')
+  await expect(page.getByLabel('Browser Release Deck Deck summary')).toBeVisible()
   await expect(page.locator('.vz-dock-track-title')).toContainText('stage-8-selected-track')
 
   const afterCreate = statusPayload(await status.textContent())
   expect(afterCreate.deck).toMatchObject({
-    name: 'Browser Stage 8 Deck',
-    itemCount: 2,
+    name: 'Browser Release Deck',
+    itemCount: 12,
     enabledItemCount: 2,
     presetCreated: true,
   })
@@ -79,5 +97,31 @@ test('real Show Manager builds a Deck, explicitly creates a Preset, and selects 
   const afterSelect = statusPayload(await status.textContent())
   expect(afterSelect.activeReactPresetId).toBe(afterCreate.deck?.generatedPresetId)
   expect(afterSelect.pixGridOrigin).toBe('custom')
+
+  const portability = await page.evaluate(async () => {
+    const api = (window as typeof window & {
+      __DRMVYZ_PIX_GRID_DECK_RELEASE__?: { roundTripProject(): Promise<unknown> }
+    }).__DRMVYZ_PIX_GRID_DECK_RELEASE__
+    if (!api) throw new Error('PixGrid Deck release harness API is unavailable.')
+    return api.roundTripProject()
+  })
+  expect(portability).toMatchObject({
+    exportedSourceCount: 12,
+    importedMediaCount: 12,
+    missingMediaIds: [],
+    errorCount: 0,
+    sourceIdsChanged: true,
+  })
+  await expect.poll(async () => statusPayload(await status.textContent()).compile?.ready, { timeout: 90_000 }).toBe(true)
+  await expect.poll(async () => statusPayload(await status.textContent()).transitions?.ready, { timeout: 90_000 }).toBe(true)
+  const afterImport = statusPayload(await status.textContent())
+  expect(afterImport.deck).toMatchObject({
+    name: 'Browser Release Deck',
+    itemCount: 12,
+    enabledItemCount: 2,
+    presetCreated: true,
+  })
+  expect(afterImport.generatedPreset).toMatchObject({ deckId: afterImport.deck?.generatedPresetId?.replace('pix-grid-deck:', '') })
+  expect(afterImport.portability).toEqual(portability)
   expect(pageErrors.filter(error => !error.includes('ResizeObserver'))).toEqual([])
 })

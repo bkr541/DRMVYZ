@@ -141,6 +141,16 @@ Beat and downbeat routes now have explicit pulse and recruitment roles. Autonomo
 
 The perceptual contract measures material changed-cell ratio, channel/color distance, luminance contrast, spatial localization, envelope duration, onset-to-pixel correlation, section contrast, Bass Reactivity scaling, Motion scaling, deterministic replay, and shared Canvas/GPU semantic inputs. A nonzero byte difference alone is not a passing result.
 
+## PixGrid Deck production ownership
+
+PixGrid Decks use one project-persisted definition and one generated Preset ID per Deck. Source bytes remain owned by the Media system; project export packages normalized Deck definitions plus validated source files and excludes signed URLs, object URLs, compiled frames, transition plans, workers, canvases, and renderer resources. Import validates source fingerprints, reuses an existing canonical media item when the bytes already exist, remaps every successfully restored Deck item, and then replaces the project Deck collection and generated Preset references atomically. Missing or conflicting sources remain explicit in the import result.
+
+The compiler coordinator owns prepared frames at the effective logical matrix resolution. Concurrency remains bounded at three, obsolete expectations abort their jobs, and prepared-frame entries are retained only while reachable from the active Deck collection. Runtime shutdown clears prepared frames, transition plans, compiler status, and the surface-owned adaptive resolution. The sequence clock and transition planner remain independent of renderer FPS and presentation path; Canvas2D and WebGL consume the same logical Deck frame.
+
+Generated Preset deletion and project replacement remove stale Performance Pad assignments, Track Map preset cues, and favorite IDs. Runtime-only Deck editor changes are rebuilt from the generated Preset when it is selected again. The release browser harness exercises the real Show Manager upload, validation, compiler worker, selected-track Audio Intelligence, explicit Preset creation, React selection, source-media export/import, recompilation, and transition readiness path.
+
+Production budgets are intentionally bounded rather than wall-clock promises: at most three image compile jobs run concurrently; prepared-frame and transition caches enforce entry and byte ceilings; no heavy pixel loop or per-frame project-store write belongs on the main thread; and removing, replacing, or closing a project must return cache diagnostics to the reachable working set. Run `npm run verify:pix-grid:deck` for the canonical automated gate.
+
 ## Verification
 
 PixGrid coverage includes versioned and idempotent state migration, customized-state preservation, empty-route fallback, Bass Reactivity and Motion control wiring, normalization, media conversion, SVG lifecycle, smart groups, audio routing, performance choreography, structural magnitude, post-composite effects, Track Map actions, renderer ownership, WebGL shader/resource behavior, adaptive quality, deterministic logical framebuffer scenarios, and browser WebGL pixel readback. The pixel suite covers all three presets, imported raster/SVG content, Brand Kit conversion, percussion reactions, four-bar evolution, Track Map transitions, pause, and seek reconstruction.

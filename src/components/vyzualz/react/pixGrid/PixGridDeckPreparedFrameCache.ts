@@ -51,6 +51,19 @@ export class PixGridDeckPreparedFrameCache {
     return true
   }
 
+  /** Removes prepared frames that are no longer reachable from the active project. */
+  retain(keys: Iterable<string>): readonly string[] {
+    const retained = new Set(keys)
+    const removed: string[] = []
+    for (const [key, entry] of this.entries) {
+      if (retained.has(key)) continue
+      this.entries.delete(key)
+      this.bytes -= entry.approximateBytes
+      removed.push(key)
+    }
+    return removed
+  }
+
   invalidateSource(fingerprint: string, keepRevision?: number): void {
     for (const [key, entry] of this.entries) {
       if (entry.sourceFingerprint !== fingerprint) continue

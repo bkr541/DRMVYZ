@@ -90,8 +90,11 @@ The WebGL visual-review scripts generate evidence but do not replace human revie
 
 ```bash
 npm run verify:pix-grid:final
+npm run verify:pix-grid:deck
 npm run test:pix-grid:perceptual
 ```
+
+`verify:pix-grid:deck` is the stable release alias for the full PixGrid verification chain. Its real Show Manager harness creates a 12-image Deck, loads a selected Audio Track, compiles through the worker/runtime path, creates and selects the generated Preset, then exports and imports source media before revalidating compiler and transition readiness.
 
 The perceptual suite includes rendered-pixel response and the structural-choreography magnitude contract.
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { splitStorageValue, mergeStorageValues } from '../lib/splitPersistStorage'
 import { PIX_GRID_PRESET_IDS } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import type { PixGridDeckItemDefinition } from '../components/vyzualz/react/pixGrid/PixGridDeckDomain'
@@ -42,6 +42,7 @@ function createDeck(id: string, name: string, count = 2) {
 
 describe('PixGrid Deck project persistence and history', () => {
   beforeEach(() => useReactStore.getState().resetReactView())
+  afterEach(() => vi.unstubAllGlobals())
 
   it('rejects case-folded duplicate names with a deterministic validation error', () => {
     expect(createDeck('deck-a', 'Deck A')).toEqual({ ok: true, deckId: 'deck-a' })
@@ -365,6 +366,76 @@ describe('PixGrid Deck project persistence and history', () => {
       id: initial.generatedPresetId,
       name: 'Renamed Lifecycle',
     })
+  })
+
+  it('atomically clears generated Preset references on delete and project replacement', () => {
+    const storage = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => { storage.set(key, value) },
+      removeItem: (key: string) => { storage.delete(key) },
+      clear: () => storage.clear(),
+      key: (index: number) => [...storage.keys()][index] ?? null,
+      get length() { return storage.size },
+    } satisfies Storage)
+
+    createDeck('referenced-deck', 'Referenced Deck')
+    const deck = useReactStore.getState().pixGridDecks[0]!
+    useReactStore.getState().createPixGridDeckPreset(deck.id, {
+      deckId: deck.id,
+      deckRevision: deck.revision,
+      enabledItemCount: 2,
+      frameProgress: 1,
+      transitionProgress: 1,
+      ready: true,
+      errorCount: 0,
+      message: 'Ready to create Preset.',
+    })
+    localStorage.setItem('drmvyz.reactPresetFavorites.v1', JSON.stringify([deck.generatedPresetId]))
+    useReactStore.setState(state => ({
+      performancePads: state.performancePads.map((pad, index) => index === 0
+        ? { ...pad, presetId: deck.generatedPresetId, label: deck.name, color: '#abcdef' }
+        : pad),
+      presetAutomationCuesByTrackId: {
+        'track-1': [{
+          id: 'deck-cue',
+          timeSec: 4,
+          presetId: deck.generatedPresetId,
+          label: deck.name,
+          enabled: true,
+          transitionMs: 0,
+        }],
+      },
+    }))
+
+    expect(useReactStore.getState().deletePixGridDeck(deck.id)).toEqual({ ok: true, deckId: deck.id })
+    expect(useReactStore.getState().performancePads[0]).toMatchObject({
+      presetId: null,
+      label: 'Empty',
+      color: '#3a4650',
+    })
+    expect(useReactStore.getState().presetAutomationCuesByTrackId['track-1']).toEqual([])
+    expect(JSON.parse(localStorage.getItem('drmvyz.reactPresetFavorites.v1') ?? '[]')).toEqual([])
+
+    createDeck('old-project-deck', 'Old Project Deck')
+    const replacement = {
+      ...useReactStore.getState().pixGridDecks[0]!,
+      id: 'imported-project-deck',
+      name: 'Imported Project Deck',
+      generatedPresetId: 'pix-grid-deck:imported-project-deck',
+      presetCreated: true,
+      items: itemDefinitions('imported-project-deck'),
+    }
+    useReactStore.getState().replacePixGridDeckProject([replacement])
+    expect(useReactStore.getState().pixGridDecks).toEqual([replacement])
+    expect(useReactStore.getState().reactPresets).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: replacement.generatedPresetId,
+        pixGridDeck: { deckId: replacement.id, deckRevision: replacement.revision },
+      }),
+    ]))
+    expect(useReactStore.getState().pixGridDeckUndoStack).toEqual([])
+    expect(useReactStore.getState().pixGridDeckRedoStack).toEqual([])
   })
 
   it('reconstructs explicit generated Preset linkage from persisted project state', () => {

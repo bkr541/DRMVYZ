@@ -58,6 +58,18 @@ describe('PixGrid Deck prepared frame cache', () => {
     expect(cache.keys).toEqual(['current', 'other'])
   })
 
+  it('releases entries that are no longer reachable from the active project', () => {
+    const cache = new PixGridDeckPreparedFrameCache()
+    cache.set(frame('keep', 'source-a', 1, 120))
+    cache.set(frame('remove', 'source-b', 1, 180))
+
+    expect(cache.retain(['keep'])).toEqual(['remove'])
+    expect(cache.keys).toEqual(['keep'])
+    expect(cache.approximateBytes).toBe(120)
+    expect(cache.retain([])).toEqual(['keep'])
+    expect(cache.approximateBytes).toBe(0)
+  })
+
   it('reports and removes an entry that alone exceeds the hard byte bound', () => {
     const cache = new PixGridDeckPreparedFrameCache(4, 50)
     expect(cache.set(frame('oversized', 'source', 1, 100))).toEqual(['oversized'])

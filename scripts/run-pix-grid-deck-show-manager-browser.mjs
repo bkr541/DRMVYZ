@@ -47,8 +47,8 @@ async function waitForServer(url, timeoutMs = 15_000) {
 let server = null
 let status = 1
 try {
-  requireDependency(playwrightCli, 'Run npm ci before the Stage 8 browser suite.')
-  requireDependency(viteCli, 'Run npm ci before the Stage 8 browser suite.')
+  requireDependency(playwrightCli, 'Run npm ci before the PixGrid Deck release browser suite.')
+  requireDependency(viteCli, 'Run npm ci before the PixGrid Deck release browser suite.')
   const { build } = await import('vite')
   await rm(output, { recursive: true, force: true })
   await mkdir(output, { recursive: true })

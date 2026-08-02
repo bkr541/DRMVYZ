@@ -240,6 +240,7 @@ export class PixGridDeckCompileCoordinator {
     for (const [token, expectation] of nextExpectations) this.expectations.set(token, expectation)
     const expectedKeys = new Set([...nextExpectations.values()].map(expectation => expectation.cacheKey))
     for (const key of this.failures.keys()) if (!expectedKeys.has(key)) this.failures.delete(key)
+    this.cache.retain(expectedKeys)
 
     for (const expectation of nextExpectations.values()) {
       if (this.cache.peek(expectation.cacheKey) || this.failures.has(expectation.cacheKey)) continue
@@ -299,6 +300,9 @@ export class PixGridDeckCompileCoordinator {
     }
     this.decks.delete(deckId)
     this.statuses.delete(deckId)
+    const retainedKeys = new Set([...this.expectations.values()].map(expectation => expectation.cacheKey))
+    for (const key of this.failures.keys()) if (!retainedKeys.has(key)) this.failures.delete(key)
+    this.cache.retain(retainedKeys)
     this.emit()
   }
 
@@ -311,6 +315,7 @@ export class PixGridDeckCompileCoordinator {
     this.statuses.clear()
     this.failures.clear()
     this.decks.clear()
+    this.cache.clear()
     this.listeners.clear()
   }
 

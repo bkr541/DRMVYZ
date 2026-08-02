@@ -183,6 +183,62 @@ describe('PixGrid Deck project source-media portability', () => {
     expect([firstBackground, secondBackground]).toEqual(['#000000', '#ABCDEF'])
   })
 
+  it('reuses canonical media with the same fingerprint instead of duplicating bytes on repeat import', async () => {
+    const first = fixture('opaque.png', 'image/png')
+    const second = fixture('safe.svg', 'image/svg+xml')
+    const deck = await deckFor(first, second)
+    const exported = await exportPixGridDeckProjectMediaBundle([deck], {
+      mediaItems: [media('db-one', first), media('db-two', second)],
+      readSource: async item => item.id === 'db-one' ? first : second,
+    })
+    const reusable = media('db-existing-one', first)
+    reusable.metadata = {
+      ...reusable.metadata,
+      contentFingerprint: deck.items[0].source.fingerprint,
+    }
+    runtime.state.items = [reusable]
+    runtime.state.uploadCanonicalVisualFile.mockResolvedValue({
+      ok: true,
+      item: { ...media('db-restored-two', second), revision: 9 },
+    })
+
+    const restored = await importPixGridDeckProjectMediaBundle(exported)
+
+    expect(restored.mediaIdMap).toEqual({
+      'db-one': 'db-existing-one',
+      'db-two': 'db-restored-two',
+    })
+    expect(runtime.state.uploadCanonicalVisualFile).toHaveBeenCalledTimes(1)
+    expect(restored.missingMediaIds).toEqual([])
+  })
+
+  it('is idempotent when the same source bundle is imported twice', async () => {
+    const first = fixture('opaque.png', 'image/png')
+    const second = fixture('safe.svg', 'image/svg+xml')
+    const deck = await deckFor(first, second)
+    const exported = await exportPixGridDeckProjectMediaBundle([deck], {
+      mediaItems: [media('db-one', first), media('db-two', second)],
+      readSource: async item => item.id === 'db-one' ? first : second,
+    })
+    let uploadIndex = 0
+    runtime.state.uploadCanonicalVisualFile.mockImplementation(async (file: File, options: { metadata?: UploadedMedia['metadata'] }) => {
+      const uploaded = {
+        ...media(`db-repeat-${++uploadIndex}`, file),
+        metadata: { ...options.metadata },
+      }
+      runtime.state.items = [uploaded, ...runtime.state.items]
+      return { ok: true as const, item: uploaded }
+    })
+
+    const firstImport = await importPixGridDeckProjectMediaBundle(exported)
+    const secondImport = await importPixGridDeckProjectMediaBundle(exported)
+
+    expect(runtime.state.uploadCanonicalVisualFile).toHaveBeenCalledTimes(2)
+    expect(secondImport.mediaIdMap).toEqual(firstImport.mediaIdMap)
+    expect(secondImport.missingMediaIds).toEqual([])
+    expect(secondImport.errors).toEqual([])
+  })
+
   it('reconnects restored media IDs and reports a missing source without dropping unrelated Deck items', async () => {
     const first = fixture('opaque.png', 'image/png')
     const second = fixture('safe.svg', 'image/svg+xml')

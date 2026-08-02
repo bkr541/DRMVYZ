@@ -2083,6 +2083,7 @@ interface ReactStoreState {
   renamePixGridDeck: (deckId: string, name: string) => PixGridDeckMutationResult
   updatePixGridDeck: (deckId: string, patch: PixGridDeckUpdatePatch) => PixGridDeckMutationResult
   deletePixGridDeck: (deckId: string) => PixGridDeckMutationResult
+  replacePixGridDeckProject: (decks: readonly PixGridDeckDefinition[]) => void
   beginPixGridDeckHistoryTransaction: () => void
   commitPixGridDeckHistoryTransaction: () => void
   cancelPixGridDeckHistoryTransaction: () => void
@@ -2908,10 +2909,27 @@ function removeRetiredReactPresets(presets: ReactPreset[]): ReactPreset[] {
   return presets.filter(preset => !RETIRED_REACT_PRESET_IDS.has(preset.id))
 }
 
-function clearRetiredReactPresetPadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
-  return pads.map(pad => pad.presetId && RETIRED_REACT_PRESET_IDS.has(pad.presetId)
+function clearReactPresetPadAssignments(
+  pads: ReactPerformancePad[],
+  removedPresetIds: ReadonlySet<string>,
+): ReactPerformancePad[] {
+  return pads.map(pad => pad.presetId && removedPresetIds.has(pad.presetId)
     ? { ...pad, presetId: null, label: 'Empty', color: '#3a4650' }
     : pad)
+}
+
+function clearRetiredReactPresetPadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
+  return clearReactPresetPadAssignments(pads, RETIRED_REACT_PRESET_IDS)
+}
+
+function removeReactPresetAutomationCueAssignments(
+  cuesByTrackId: Record<string, ReactPresetAutomationCue[]>,
+  removedPresetIds: ReadonlySet<string>,
+): Record<string, ReactPresetAutomationCue[]> {
+  return Object.fromEntries(Object.entries(cuesByTrackId).map(([trackId, cues]) => [
+    trackId,
+    cues.filter(cue => !removedPresetIds.has(cue.presetId)),
+  ]))
 }
 
 function removeRetiredPresetAutomationCues(value: unknown): unknown {
@@ -5037,13 +5055,59 @@ export const useReactStore = create<ReactStoreState>()(
         const historyPatch = buildPixGridDeckHistoryPatch(state, nextDecks)
         const nextPresets = historyPatch.reactPresets
           ?? reconcilePixGridDeckGeneratedPresets(state.reactPresets, nextDecks)
+        const removedPresetIds = new Set([deletingDeck.generatedPresetId])
         const fallbackPreset = nextPresets.find(preset => preset.engine === 'pixGrid') ?? null
-        const selectionPatch = state.activeReactPresetId === deletingDeck.generatedPresetId && fallbackPreset
-          ? buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
+        const selectionPatch = state.activeReactPresetId === deletingDeck.generatedPresetId
+          ? fallbackPreset
+            ? buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
+            : { activeReactPresetId: null }
           : {}
-        set({ ...historyPatch, ...selectionPatch })
+        sanitizeReactPresetFavorites(nextPresets.map(preset => preset.id))
+        set({
+          ...historyPatch,
+          performancePads: clearReactPresetPadAssignments(state.performancePads, removedPresetIds),
+          presetAutomationCuesByTrackId: removeReactPresetAutomationCueAssignments(
+            state.presetAutomationCuesByTrackId,
+            removedPresetIds,
+          ),
+          ...selectionPatch,
+        })
         return { ok: true, deckId }
       },
+
+      replacePixGridDeckProject: (decks) => set(state => {
+        const nextDecks = normalizePixGridDeckCollection(decks)
+        const nextPresets = reconcilePixGridDeckGeneratedPresets(state.reactPresets, nextDecks)
+        const nextPresetIds = new Set(nextPresets.map(preset => preset.id))
+        const removedPresetIds = new Set(state.reactPresets
+          .map(preset => preset.id)
+          .filter(presetId => !nextPresetIds.has(presetId)))
+        const activePreset = state.activeReactPresetId
+          ? nextPresets.find(preset => preset.id === state.activeReactPresetId) ?? null
+          : null
+        const fallbackPreset = nextPresets.find(preset => preset.engine === 'pixGrid') ?? null
+        const selectionPatch = activePreset?.pixGridDeck
+          ? buildPresetPatchForState(activePreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
+          : state.activeReactPresetId && removedPresetIds.has(state.activeReactPresetId)
+            ? fallbackPreset
+              ? buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
+              : { activeReactPresetId: null }
+            : {}
+        sanitizeReactPresetFavorites(nextPresets.map(preset => preset.id))
+        return {
+          pixGridDecks: nextDecks,
+          reactPresets: nextPresets,
+          pixGridDeckUndoStack: [],
+          pixGridDeckRedoStack: [],
+          pixGridDeckHistoryTransaction: null,
+          performancePads: clearReactPresetPadAssignments(state.performancePads, removedPresetIds),
+          presetAutomationCuesByTrackId: removeReactPresetAutomationCueAssignments(
+            state.presetAutomationCuesByTrackId,
+            removedPresetIds,
+          ),
+          ...selectionPatch,
+        }
+      }),
 
       beginPixGridDeckHistoryTransaction: () => set(state => state.pixGridDeckHistoryTransaction
         ? {}

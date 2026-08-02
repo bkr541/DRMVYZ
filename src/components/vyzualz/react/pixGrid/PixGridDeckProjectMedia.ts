@@ -54,6 +54,37 @@ export interface PixGridDeckProjectImportResult {
   errors: Array<{ mediaId: string; message: string }>
 }
 
+function reusableMediaForSource(
+  items: readonly UploadedMedia[],
+  source: PixGridDeckProjectMediaManifestEntry,
+): UploadedMedia | null {
+  const candidates = items
+    .filter(item => (
+      item.type === 'image'
+      && item.lifecycleStatus !== 'deletion_pending'
+      && item.metadata.contentFingerprint === source.fingerprint
+    ))
+    .sort((left, right) => left.id.localeCompare(right.id))
+  const exactName = candidates.find(item => item.name === source.fileName)
+  if (exactName) return exactName
+  return candidates.length === 1 ? candidates[0] : null
+}
+
+function restoredSourceForMedia(
+  item: UploadedMedia,
+  source: Pick<PixGridDeckSourceSnapshot, 'fingerprint' | 'mimeType' | 'width' | 'height' | 'hasAlpha'>,
+): Omit<PixGridDeckSourceSnapshot, 'transparentBackground'> {
+  return {
+    mediaRevision: item.revision ?? 1,
+    fingerprint: source.fingerprint,
+    fileName: item.name,
+    mimeType: source.mimeType,
+    width: source.width,
+    height: source.height,
+    hasAlpha: source.hasAlpha,
+  }
+}
+
 function sourceByMediaId(decks: readonly PixGridDeckDefinition[]): Map<string, {
   source: PixGridDeckSourceSnapshot
   deckIds: string[]
@@ -176,6 +207,7 @@ export async function importPixGridDeckProjectMediaBundle(
   const fileByMediaId = new Map(bundle.files.map(entry => [entry.mediaId, entry.file]))
   const mediaIdMap: Record<string, string> = {}
   const restoredSources = new Map<string, Omit<PixGridDeckSourceSnapshot, 'transparentBackground'>>()
+  const existingMedia = useMediaStore.getState().items
   const conflictingMediaIds = new Set(bundle.manifest.conflictingMediaIds ?? [])
   const missingMediaIds = new Set([
     ...bundle.manifest.missingMediaIds,
@@ -205,6 +237,14 @@ export async function importPixGridDeckProjectMediaBundle(
       continue
     }
 
+    const reusable = reusableMediaForSource(existingMedia, entry)
+    if (reusable) {
+      mediaIdMap[entry.mediaId] = reusable.id
+      restoredSources.set(entry.mediaId, restoredSourceForMedia(reusable, validated.source))
+      missingMediaIds.delete(entry.mediaId)
+      continue
+    }
+
     const uploaded = await useMediaStore.getState().uploadCanonicalVisualFile(file, {
       metadata: {
         width: validated.source.width ?? undefined,
@@ -220,15 +260,7 @@ export async function importPixGridDeckProjectMediaBundle(
       continue
     }
     mediaIdMap[entry.mediaId] = uploaded.item.id
-    restoredSources.set(entry.mediaId, {
-      mediaRevision: uploaded.item.revision ?? 1,
-      fingerprint: validated.source.fingerprint,
-      fileName: uploaded.item.name,
-      mimeType: validated.source.mimeType,
-      width: validated.source.width,
-      height: validated.source.height,
-      hasAlpha: validated.source.hasAlpha,
-    })
+    restoredSources.set(entry.mediaId, restoredSourceForMedia(uploaded.item, validated.source))
     missingMediaIds.delete(entry.mediaId)
   }
 
