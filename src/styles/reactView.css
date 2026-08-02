@@ -535,6 +535,22 @@
   gap: 3px;
 }
 
+/*
+ * Semantic fieldsets should not interrupt the shared control rhythm. Keeping
+ * the reset and stack behavior in one class prevents inline margin resets from
+ * cancelling the parent panel's spacing, while matching the 10px cadence used
+ * by collapsible control groups.
+ */
+.rv-ctrl-fieldset-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+}
+
 .rv-ctrl-slider-hdr {
   display: flex;
   justify-content: space-between;

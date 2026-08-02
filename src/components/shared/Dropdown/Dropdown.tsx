@@ -213,6 +213,8 @@ export function Dropdown({
     () => options.find(option => option.value === selectedValue) ?? null,
     [options, selectedValue],
   )
+  const hasVisibleOptionDescriptions = showDescriptions
+    && options.some(option => Boolean(option.description))
 
   const setOpen = useCallback((nextOpen: boolean) => {
     if (disabled && nextOpen) return
@@ -498,7 +500,14 @@ export function Dropdown({
   const triggerClassNames = ['drm-dropdown__trigger', triggerClassName]
     .filter(Boolean)
     .join(' ')
-  const menuClassNames = ['drm-dropdown__menu', `drm-dropdown__menu--${size}`, menuClassName]
+  const menuClassNames = [
+    'drm-dropdown__menu',
+    `drm-dropdown__menu--${size}`,
+    hasVisibleOptionDescriptions
+      ? 'drm-dropdown__menu--described-options'
+      : 'drm-dropdown__menu--plain-options',
+    menuClassName,
+  ]
     .filter(Boolean)
     .join(' ')
 

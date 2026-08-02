@@ -366,6 +366,45 @@
     opacity 120ms ease;
 }
 
+/*
+ * Single-line menus are intentionally tighter than descriptive menus. The
+ * menu-level class keeps every option in a descriptive dropdown on the
+ * original roomy rhythm, even if a future menu mixes described and plain
+ * entries.
+ */
+.drm-dropdown__menu--plain-options {
+  --drm-dropdown-plain-option-min-height: 36px;
+  --drm-dropdown-plain-option-padding-block: 5px;
+}
+
+.drm-dropdown__menu--plain-options.drm-dropdown__menu--compact {
+  --drm-dropdown-plain-option-min-height: 34px;
+  --drm-dropdown-plain-option-padding-block: 4px;
+}
+
+.drm-dropdown__menu--plain-options.drm-dropdown__menu--dense {
+  --drm-dropdown-plain-option-min-height: 30px;
+  --drm-dropdown-plain-option-padding-block: 4px;
+}
+
+.drm-dropdown__menu--plain-options.drm-dropdown__menu--large {
+  --drm-dropdown-plain-option-min-height: 40px;
+  --drm-dropdown-plain-option-padding-block: 6px;
+}
+
+.drm-dropdown__menu--plain-options .drm-dropdown__options {
+  padding-block: 5px;
+}
+
+.drm-dropdown__menu--plain-options .drm-dropdown__option {
+  min-height: var(--drm-dropdown-plain-option-min-height);
+  padding-block: var(--drm-dropdown-plain-option-padding-block);
+}
+
+.drm-dropdown__menu--plain-options .drm-dropdown__option + .drm-dropdown__option {
+  margin-top: 0;
+}
+
 .drm-dropdown__menu--dense .drm-dropdown__options {
   padding: 6px;
 }

@@ -177,6 +177,22 @@ describe('Sound Drawing authored-show ownership', () => {
     expect(container.textContent).not.toContain('Follow Track Sections')
     expect(container.textContent).not.toContain('Classic Mode')
   })
+
+  it('keeps transparent Sound Drawing fieldsets on the shared control-stack rhythm', async () => {
+    useReactStore.getState().setOscillatorSettings({
+      sourceType: 'classic',
+      autoSectionMode: false,
+      classicMode: 'professionalScope',
+    })
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: false })
+
+    await act(async () => root.render(<ReactEnginePanel />))
+
+    const stackedFieldsets = container.querySelectorAll('fieldset.rv-ctrl-fieldset-stack')
+    expect(stackedFieldsets).toHaveLength(2)
+    expect(stackedFieldsets[0].getAttribute('style')).toBeNull()
+    expect(stackedFieldsets[1].getAttribute('style')).toBeNull()
+  })
 })
 
 describe('Sound Drawing size controls', () => {

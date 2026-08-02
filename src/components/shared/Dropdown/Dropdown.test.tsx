@@ -79,6 +79,48 @@ describe('Dropdown', () => {
     expect(listbox?.textContent).toContain('Camera Modes')
     expect(listbox?.textContent).toContain('Manual orbit camera')
     expect(listbox?.querySelector('[aria-selected="true"]')?.textContent).toContain('Orbit')
+    expect(listbox?.classList.contains('drm-dropdown__menu--described-options')).toBe(true)
+    expect(listbox?.classList.contains('drm-dropdown__menu--plain-options')).toBe(false)
+  })
+
+  it('marks single-line menus for compact option spacing', () => {
+    renderDropdown(
+      <Dropdown
+        ariaLabel="Presentation mode"
+        defaultValue="edit"
+        options={[
+          { value: 'edit', label: 'Edit' },
+          { value: 'hybrid', label: 'Hybrid' },
+          { value: 'live', label: 'Live' },
+          { value: 'capture', label: 'Capture' },
+        ]}
+        size="compact"
+      />,
+    )
+
+    click(container?.querySelector('[role="combobox"]') as Element)
+
+    const listbox = document.body.querySelector('[role="listbox"]')
+    expect(listbox?.classList.contains('drm-dropdown__menu--plain-options')).toBe(true)
+    expect(listbox?.classList.contains('drm-dropdown__menu--described-options')).toBe(false)
+    expect(listbox?.querySelector('.drm-dropdown__option--described')).toBeNull()
+  })
+
+  it('uses compact single-line spacing when descriptions are explicitly hidden', () => {
+    renderDropdown(
+      <Dropdown
+        ariaLabel="Camera mode"
+        defaultValue="orbit"
+        options={OPTIONS}
+        showDescriptions={false}
+      />,
+    )
+
+    click(container?.querySelector('[role="combobox"]') as Element)
+
+    const listbox = document.body.querySelector('[role="listbox"]')
+    expect(listbox?.classList.contains('drm-dropdown__menu--plain-options')).toBe(true)
+    expect(listbox?.textContent).not.toContain('Manual orbit camera')
   })
 
   it('selects an option and closes the menu', () => {

@@ -774,9 +774,9 @@ export function ReactEnginePanel() {
           />
 
           <fieldset
+            className="rv-ctrl-fieldset-stack"
             disabled={!soundDrawingOwnership.domains.source.editable}
             aria-describedby="sound-drawing-source-ownership"
-            style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
           >
             {/* Classic Scope mode */}
             {osc.sourceType === 'classic' && (
@@ -818,9 +818,9 @@ export function ReactEnginePanel() {
               {(!osc.autoSectionMode || soundDrawingPerformanceSettings.autoPerformance) && osc.classicMode === 'professionalScope' && (
                 <>
                   <fieldset
+                    className="rv-ctrl-fieldset-stack"
                     disabled={authoredScopeOwnsControls}
                     aria-describedby="sound-drawing-performance-ownership"
-                    style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
                   >
                     {authoredScopeOwnsControls && (
                       <div className="rv-ctrl-info rv-control-helper-copy">
