@@ -6,6 +6,37 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
+  audio: {
+    analyserMaster: null,
+    currentTrackId: 'audio-track-1',
+    currentTrack: {
+      id: 'audio-track-1',
+      displayName: 'Selected Audio Track',
+      artist: 'DVYDRM',
+    },
+    currentTime: 42,
+    duration: 240,
+    isPlaying: false,
+    getCurrentTime: () => 42,
+    currentEffectiveBpm: 128,
+    currentEffectiveBeatGrid: [
+      { timeSec: 0, beatIndex: 0, isDownbeat: true },
+      { timeSec: 0.46875, beatIndex: 1, isDownbeat: false },
+    ],
+    currentAnalysis: {
+      beatGridOffsetSec: 0.02,
+      sections: [{
+        id: 'section-1',
+        label: 'Intro',
+        type: 'intro',
+        startSec: 0,
+        endSec: 64,
+        intensity: 0.35,
+        confidence: 0.9,
+        source: 'automatic',
+      }],
+    },
+  },
   state: {
     reactPresets: [{
       id: 'pix-grid-test',
@@ -30,6 +61,8 @@ const fixture = vi.hoisted(() => ({
     reactGlow: 0.5,
     reactBassReactivity: 0.5,
     pixGridActionCuesByTrackId: {},
+    manualTrackSectionsByTrackId: {},
+    suppressedAutoSectionsByTrackId: {},
     pixGridState: {
       matrixWidth: 160,
       matrixHeight: 90,
@@ -42,15 +75,7 @@ const fixture = vi.hoisted(() => ({
 }))
 
 vi.mock('../../../context/AudioEngineContext', () => ({
-  useSharedAudio: () => ({
-    analyserMaster: null,
-    currentTrackId: null,
-    currentTime: 0,
-    duration: 180,
-    isPlaying: false,
-    getCurrentTime: () => 0,
-    currentEffectiveBpm: 128,
-  }),
+  useSharedAudio: () => fixture.audio,
 }))
 
 vi.mock('../../../stores/reactStore', () => ({
@@ -58,13 +83,59 @@ vi.mock('../../../stores/reactStore', () => ({
 }))
 
 vi.mock('../react/pixGrid/PixGridSurface', () => ({
-  PixGridSurface: () => <div data-testid="pix-grid-surface">PixGrid preview</div>,
+  PixGridSurface: ({
+    trackIdentity,
+    durationSec,
+    audioTimeSec,
+    trackSections,
+    trackAnalysis,
+  }: {
+    trackIdentity?: string | null
+    durationSec?: number
+    audioTimeSec?: number
+    trackSections?: readonly unknown[]
+    trackAnalysis?: unknown
+  }) => (
+    <div
+      data-testid="pix-grid-surface"
+      data-track-identity={trackIdentity ?? ''}
+      data-duration-sec={durationSec}
+      data-audio-time-sec={audioTimeSec}
+      data-track-section-count={trackSections?.length ?? 0}
+      data-has-track-analysis={trackAnalysis ? 'true' : 'false'}
+    >
+      PixGrid preview
+    </div>
+  ),
 }))
 
 vi.mock('../react/pixGrid/PixGridDesignPanel', () => ({
   PixGridDesignPanel: ({ groupedSections }: { groupedSections?: boolean }) => (
     <div data-testid="pix-grid-design-panel" data-grouped={groupedSections ? 'true' : 'false'}>
       PixGrid design controls
+    </div>
+  ),
+}))
+
+vi.mock('../shared/VyzualzAudioDock', () => ({
+  VyzualzAudioDock: ({
+    expandable,
+    unifiedTimeline,
+    waveformAppearance,
+  }: {
+    expandable?: boolean
+    unifiedTimeline?: boolean
+    waveformAppearance?: string
+  }) => (
+    <div
+      data-testid="show-manager-audio-dock"
+      data-expandable={expandable ? 'true' : 'false'}
+      data-unified-timeline={unifiedTimeline ? 'true' : 'false'}
+      data-waveform-appearance={waveformAppearance}
+      data-track-id={fixture.audio.currentTrackId ?? ''}
+    >
+      <span>{fixture.audio.currentTrack?.displayName}</span>
+      <span>{fixture.audio.currentTrack?.artist}</span>
     </div>
   ),
 }))
@@ -120,6 +191,36 @@ describe('ShowManagerView PixGrid-first shell', () => {
     expect(container.querySelector('[data-testid="pix-grid-surface"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="pix-grid-design-panel"]')?.getAttribute('data-grouped')).toBe('true')
     expect(container.querySelector('[aria-label="Show Manager track map preview"]')).not.toBeNull()
+  })
+
+  it('mounts the shared Audio Dock and feeds the selected track into Show Manager rendering', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const workspace = container.querySelector<HTMLElement>('[aria-label="Show Manager workspace"]')
+    const dock = container.querySelector<HTMLElement>('[data-testid="show-manager-audio-dock"]')
+    const surface = container.querySelector<HTMLElement>('[data-testid="pix-grid-surface"]')
+
+    expect(workspace?.classList.contains('rv-shell')).toBe(true)
+    expect(dock?.parentElement).toBe(workspace)
+    expect(dock?.getAttribute('data-expandable')).toBe('true')
+    expect(dock?.getAttribute('data-unified-timeline')).toBe('true')
+    expect(dock?.getAttribute('data-waveform-appearance')).toBe('deck')
+    expect(dock?.getAttribute('data-track-id')).toBe('audio-track-1')
+    expect(dock?.textContent).toContain('Selected Audio Track')
+    expect(dock?.textContent).toContain('DVYDRM')
+
+    expect(surface?.getAttribute('data-track-identity')).toBe('audio-track-1')
+    expect(surface?.getAttribute('data-duration-sec')).toBe('240')
+    expect(surface?.getAttribute('data-audio-time-sec')).toBe('42')
+    expect(surface?.getAttribute('data-track-section-count')).toBe('1')
+    expect(surface?.getAttribute('data-has-track-analysis')).toBe('true')
   })
 
   it('keeps panel headings inside their rails and moves stage tools plus account actions into the top bar', async () => {

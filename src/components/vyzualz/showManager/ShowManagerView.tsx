@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
+import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
+import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useReactStore } from '../../../stores/reactStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { Collapsible } from '../react/ReactControlRows'
@@ -8,6 +10,7 @@ import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
 import type { ReactPreset } from '../react/ReactTypes'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
+import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import '../../../styles/reactView.css'
 import '../../../styles/showManager.css'
@@ -76,6 +79,8 @@ export function ShowManagerView() {
   const reactGlow = useReactStore(state => state.reactGlow)
   const reactBassReactivity = useReactStore(state => state.reactBassReactivity)
   const pixGridActionCuesByTrackId = useReactStore(state => state.pixGridActionCuesByTrackId)
+  const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
+  const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
   const [liveFps, setLiveFps] = useState(0)
 
@@ -107,7 +112,38 @@ export function ShowManagerView() {
   const activeCues = engine.currentTrackId
     ? (pixGridActionCuesByTrackId[engine.currentTrackId] ?? [])
     : []
-  const durationSec = Number.isFinite(engine.duration) && engine.duration > 0 ? engine.duration : 180
+  const durationSec = resolvePositiveDuration(engine.duration, 180)
+  const activeManualTrackSections = useMemo(() => {
+    const trackId = engine.currentTrackId
+    return trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : []
+  }, [engine.currentTrackId, manualTrackSectionsByTrackId])
+  const resolvedTrackSections = useMemo(() => resolveTrackSections({
+    analyzedSections: engine.currentAnalysis ? adaptMIAnalysis(engine.currentAnalysis) : [],
+    manualSections: activeManualTrackSections,
+    suppressedIds: engine.currentTrackId
+      ? (suppressedAutoSectionsByTrackId[engine.currentTrackId] ?? [])
+      : [],
+    durationSec,
+  }), [
+    activeManualTrackSections,
+    durationSec,
+    engine.currentAnalysis,
+    engine.currentTrackId,
+    suppressedAutoSectionsByTrackId,
+  ])
+  const effectiveTrackAnalysis = useMemo(() => {
+    const analysis = engine.currentAnalysis
+    const beatGrid = engine.currentEffectiveBeatGrid
+    const bpm = engine.currentEffectiveBpm
+    if (!analysis || !beatGrid || bpm == null || bpm <= 0) return analysis
+    return {
+      ...analysis,
+      bpmUsedForGrid: bpm,
+      beatGridOffsetSec: beatGrid[0]?.timeSec ?? analysis.beatGridOffsetSec,
+      beatGrid,
+      downbeats: beatGrid.filter(marker => marker.isDownbeat),
+    }
+  }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
   const playheadPercent = Math.min(100, Math.max(0, (engine.currentTime / durationSec) * 100))
   const sceneLabels = pixGridState.scenes.slice(0, 4).map(scene => scene.name)
   const matrixLabel = `${pixGridState.matrixWidth}×${pixGridState.matrixHeight}`
@@ -118,7 +154,7 @@ export function ShowManagerView() {
   }))
 
   return (
-    <section className="sm-root" aria-label="Show Manager workspace">
+    <section className="sm-root rv-shell" aria-label="Show Manager workspace">
       <header className="sm-topbar">
         <div className="sm-title-block">
           <strong>SHOW MANAGER</strong>
@@ -226,6 +262,8 @@ export function ShowManagerView() {
               bassReactivity={reactBassReactivity}
               isPlaying={engine.isPlaying}
               isPaused={!engine.isPlaying}
+              trackSections={resolvedTrackSections}
+              trackAnalysis={effectiveTrackAnalysis}
               trackIdentity={engine.currentTrackId}
               durationSec={durationSec}
               audioTimeSec={engine.currentTime}
@@ -316,6 +354,14 @@ export function ShowManagerView() {
           </div>
         </aside>
       </div>
+
+      {/* Shared application Audio Dock. Loading or selecting a track here updates
+          the same AudioEngineContext consumed by the Show Manager preview. */}
+      <VyzualzAudioDock
+        expandable
+        unifiedTimeline
+        waveformAppearance="deck"
+      />
     </section>
   )
 }
