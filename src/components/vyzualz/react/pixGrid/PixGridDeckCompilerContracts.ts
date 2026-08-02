@@ -1,5 +1,9 @@
+import type { PixGridDeckTransitionMode } from './PixGridDeckDomain'
+import type { PixGridProgramTransitionOverride } from './PixGridTypes'
+
 export const PIX_GRID_DECK_COMPILER_SCHEMA_VERSION = 1 as const
 export const PIX_GRID_DECK_COMPILE_CONCURRENCY = 3
+export const PIX_GRID_DECK_TRANSITION_ALGORITHM_VERSION = 1 as const
 
 export const PIX_GRID_DECK_GENERATED_MASK_NAMES = [
   'foreground',
@@ -23,6 +27,7 @@ export type PixGridDeckCompileErrorCode =
   | 'decode-failed'
   | 'canvas-unavailable'
   | 'compile-failed'
+  | 'transition-failed'
   | 'invalid-result'
   | 'cancelled'
 
@@ -75,6 +80,54 @@ export interface PixGridPreparedFrameSet {
   height: number
   frameCacheKeys: readonly string[]
   frames: readonly PixGridPreparedFrame[]
+}
+
+export type PixGridDeckCellTransitionMode = Extract<
+  PixGridProgramTransitionOverride,
+  'pixelDissolve' | 'crossfade' | 'rowWipe' | 'columnWipe' | 'checkerWipe' | 'radialReveal'
+>
+export type PixGridDeckConcreteTransitionMode = 'pixelTransport' | 'hardCut' | PixGridDeckCellTransitionMode
+
+export interface PixGridDeckTransitionDiagnostics {
+  sourceForegroundCount: number
+  targetForegroundCount: number
+  matchedCount: number
+  birthCount: number
+  deathCount: number
+  sourceComponentCount: number
+  targetComponentCount: number
+  sourceColorEntropy: number
+  targetColorEntropy: number
+  candidateComparisons: number
+  maxCandidatesPerSource: number
+}
+
+/** Renderer-independent Stage 5 contract. Stage 6 consumes these buffers. */
+export interface PixGridDeckTransitionPlan {
+  schemaVersion: typeof PIX_GRID_DECK_COMPILER_SCHEMA_VERSION
+  algorithmVersion: typeof PIX_GRID_DECK_TRANSITION_ALGORITHM_VERSION
+  cacheKey: string
+  requestedMode: PixGridDeckTransitionMode
+  mode: PixGridDeckConcreteTransitionMode
+  automaticReason: string | null
+  fallbackReason: string | null
+  sourceFrameCacheKey: string
+  targetFrameCacheKey: string
+  width: number
+  height: number
+  matchedSourceIndices: Uint32Array
+  matchedTargetIndices: Uint32Array
+  deathSourceIndices: Uint32Array
+  birthTargetIndices: Uint32Array
+  diagnostics: PixGridDeckTransitionDiagnostics
+  approximateBytes: number
+}
+
+export interface PixGridDeckTransitionCompileSettings {
+  requestedMode: PixGridDeckTransitionMode
+  sourceItemId: string
+  targetItemId: string
+  durationFraction: number
 }
 
 export interface PixGridDeckItemCompileStatus {
@@ -134,7 +187,27 @@ export interface PixGridDeckWorkerCancelRequest {
   jobId: string
 }
 
-export type PixGridDeckWorkerRequest = PixGridDeckWorkerCompileRequest | PixGridDeckWorkerCancelRequest
+export interface PixGridDeckWorkerTransitionRequest {
+  type: 'compile-transition'
+  jobId: string
+  cacheKey: string
+  sourceFrameCacheKey: string
+  targetFrameCacheKey: string
+  width: number
+  height: number
+  settings: PixGridDeckTransitionCompileSettings
+  sourcePixels: ArrayBuffer
+  targetPixels: ArrayBuffer
+  sourceForeground: ArrayBuffer
+  targetForeground: ArrayBuffer
+  sourceMetrics: PixGridPreparedFrameMetrics
+  targetMetrics: PixGridPreparedFrameMetrics
+}
+
+export type PixGridDeckWorkerRequest =
+  | PixGridDeckWorkerCompileRequest
+  | PixGridDeckWorkerTransitionRequest
+  | PixGridDeckWorkerCancelRequest
 
 export interface PixGridDeckWorkerProgressMessage {
   type: 'progress'
@@ -157,6 +230,25 @@ export interface PixGridDeckWorkerResultMessage {
   metrics: PixGridPreparedFrameMetrics
 }
 
+export interface PixGridDeckWorkerTransitionResultMessage {
+  type: 'transition-result'
+  jobId: string
+  cacheKey: string
+  requestedMode: PixGridDeckTransitionMode
+  mode: PixGridDeckConcreteTransitionMode
+  automaticReason: string | null
+  fallbackReason: string | null
+  sourceFrameCacheKey: string
+  targetFrameCacheKey: string
+  width: number
+  height: number
+  matchedSourceIndices: ArrayBuffer
+  matchedTargetIndices: ArrayBuffer
+  deathSourceIndices: ArrayBuffer
+  birthTargetIndices: ArrayBuffer
+  diagnostics: PixGridDeckTransitionDiagnostics
+}
+
 export interface PixGridDeckWorkerErrorMessage {
   type: 'error'
   jobId: string
@@ -166,4 +258,5 @@ export interface PixGridDeckWorkerErrorMessage {
 export type PixGridDeckWorkerMessage =
   | PixGridDeckWorkerProgressMessage
   | PixGridDeckWorkerResultMessage
+  | PixGridDeckWorkerTransitionResultMessage
   | PixGridDeckWorkerErrorMessage

@@ -16,11 +16,38 @@ export type PixGridDeckPlaybackOrder =
   | 'shuffle'
   | 'sectionAssigned'
 
+/** Legacy Stage 1–4 persistence vocabulary. Kept only for saved-project compatibility. */
 export type PixGridDeckTransitionStyle = 'cut' | 'crossfade' | 'pixelDissolve' | 'wipe' | 'blackout'
+export type PixGridDeckTransitionMode =
+  | 'auto'
+  | 'pixelTransport'
+  | 'pixelDissolve'
+  | 'crossfade'
+  | 'rowWipe'
+  | 'columnWipe'
+  | 'checkerWipe'
+  | 'radialReveal'
+  | 'hardCut'
+
+export interface PixGridDeckTransitionPairOverride {
+  sourceItemId: string
+  targetItemId: string
+  mode: PixGridDeckTransitionMode
+  durationFraction?: number
+}
+
 export type PixGridDeckPreDropBehavior = 'hold' | 'dim' | 'disperse' | 'previewNext' | 'continue'
 
 export interface PixGridDeckTransitionPolicy {
+  /** Canonical Stage 5 mode. Missing values are normalized from legacy `style`. */
+  mode?: PixGridDeckTransitionMode
+  /** Fraction of the source image duration, clamped to 0–0.75. */
+  durationFraction?: number
+  /** Directed, pair-local overrides. These never mutate source frame data. */
+  pairOverrides?: readonly PixGridDeckTransitionPairOverride[]
+  /** @deprecated Legacy Stage 1–4 compatibility projection. */
   style: PixGridDeckTransitionStyle
+  /** @deprecated Legacy Stage 1–4 compatibility projection. */
   durationBeats: number
 }
 
@@ -150,6 +177,10 @@ const PLAYBACK_ORDERS = new Set<PixGridDeckPlaybackOrder>([
 const TRANSITION_STYLES = new Set<PixGridDeckTransitionStyle>([
   'cut', 'crossfade', 'pixelDissolve', 'wipe', 'blackout',
 ])
+const TRANSITION_MODES = new Set<PixGridDeckTransitionMode>([
+  'auto', 'pixelTransport', 'pixelDissolve', 'crossfade', 'rowWipe', 'columnWipe',
+  'checkerWipe', 'radialReveal', 'hardCut',
+])
 const PRE_DROP_BEHAVIORS = new Set<PixGridDeckPreDropBehavior>([
   'hold', 'dim', 'disperse', 'previewNext', 'continue',
 ])
@@ -162,7 +193,13 @@ export const DEFAULT_PIX_GRID_DECK_CONFIGURATION: Readonly<PixGridDeckConfigurat
   playbackOrder: 'forward',
   loop: true,
   reactionProfileId: null,
-  transitionPolicy: Object.freeze({ style: 'cut', durationBeats: 0 }),
+  transitionPolicy: Object.freeze({
+    mode: 'auto',
+    durationFraction: 0.25,
+    pairOverrides: Object.freeze([]),
+    style: 'wipe',
+    durationBeats: 1,
+  }),
   defaultItemDurationBeats: 4,
   sectionTimingBeats: Object.freeze({}),
   sectionItemAssignments: Object.freeze({}),
@@ -354,31 +391,141 @@ function normalizePreDropBehavior(value: unknown): PixGridDeckPreDropBehavior {
   return DEFAULT_PIX_GRID_DECK_CONFIGURATION.preDropBehavior
 }
 
+function transitionModeFromLegacyStyle(style: PixGridDeckTransitionStyle): PixGridDeckTransitionMode {
+  if (style === 'cut' || style === 'blackout') return 'hardCut'
+  if (style === 'crossfade') return 'crossfade'
+  if (style === 'pixelDissolve') return 'pixelDissolve'
+  return 'rowWipe'
+}
+
+function legacyStyleFromTransitionMode(mode: PixGridDeckTransitionMode): PixGridDeckTransitionStyle {
+  if (mode === 'hardCut') return 'cut'
+  if (mode === 'crossfade') return 'crossfade'
+  if (mode === 'pixelDissolve') return 'pixelDissolve'
+  return 'wipe'
+}
+
+function normalizeTransitionMode(value: unknown, legacyStyle: PixGridDeckTransitionStyle): PixGridDeckTransitionMode {
+  if (TRANSITION_MODES.has(value as PixGridDeckTransitionMode)) return value as PixGridDeckTransitionMode
+  return transitionModeFromLegacyStyle(legacyStyle)
+}
+
+function normalizeTransitionPairOverrides(
+  value: unknown,
+  itemIds: ReadonlySet<string>,
+): PixGridDeckTransitionPairOverride[] {
+  if (!Array.isArray(value)) return []
+  const normalized = new Map<string, PixGridDeckTransitionPairOverride>()
+  for (const raw of value) {
+    if (!isRecord(raw)) continue
+    const sourceItemId = normalizeIdentifier(raw.sourceItemId ?? raw.sourceId)
+    const targetItemId = normalizeIdentifier(raw.targetItemId ?? raw.targetId)
+    if (!sourceItemId || !targetItemId || sourceItemId === targetItemId) continue
+    if (itemIds.size > 0 && (!itemIds.has(sourceItemId) || !itemIds.has(targetItemId))) continue
+    const mode = TRANSITION_MODES.has(raw.mode as PixGridDeckTransitionMode)
+      ? raw.mode as PixGridDeckTransitionMode
+      : null
+    if (!mode) continue
+    const durationFraction = raw.durationFraction == null
+      ? undefined
+      : (mode === 'hardCut' ? 0 : clamp(raw.durationFraction, 0, 0.75, 0.25))
+    normalized.set(`${sourceItemId}\u0000${targetItemId}`, {
+      sourceItemId,
+      targetItemId,
+      mode,
+      ...(durationFraction == null ? {} : { durationFraction }),
+    })
+  }
+  return [...normalized.values()].sort((left, right) => (
+    left.sourceItemId.localeCompare(right.sourceItemId)
+    || left.targetItemId.localeCompare(right.targetItemId)
+  ))
+}
+
+export interface PixGridDeckResolvedTransitionPolicy {
+  mode: PixGridDeckTransitionMode
+  durationFraction: number
+  pairOverrides: readonly PixGridDeckTransitionPairOverride[]
+}
+
+export function resolvePixGridDeckTransitionPolicy(
+  policy: PixGridDeckTransitionPolicy,
+): PixGridDeckResolvedTransitionPolicy {
+  const legacyStyle = TRANSITION_STYLES.has(policy.style) ? policy.style : 'cut'
+  const mode = normalizeTransitionMode(policy.mode, legacyStyle)
+  const durationFraction = mode === 'hardCut'
+    ? 0
+    : clamp(policy.durationFraction, 0, 0.75, 0.25)
+  return {
+    mode,
+    durationFraction,
+    pairOverrides: Array.isArray(policy.pairOverrides) ? policy.pairOverrides : [],
+  }
+}
+
+export function resolvePixGridDeckTransitionPairPolicy(
+  policy: PixGridDeckTransitionPolicy,
+  sourceItemId: string,
+  targetItemId: string,
+): Readonly<{ mode: PixGridDeckTransitionMode; durationFraction: number; overridden: boolean }> {
+  const resolved = resolvePixGridDeckTransitionPolicy(policy)
+  const override = resolved.pairOverrides.find(candidate => (
+    candidate.sourceItemId === sourceItemId && candidate.targetItemId === targetItemId
+  ))
+  const mode = override?.mode ?? resolved.mode
+  return {
+    mode,
+    durationFraction: mode === 'hardCut'
+      ? 0
+      : clamp(override?.durationFraction, 0, 0.75, resolved.durationFraction),
+    overridden: override != null,
+  }
+}
+
 export function normalizePixGridDeckConfiguration(
   value: unknown,
   itemIds: ReadonlySet<string> = new Set(),
 ): PixGridDeckConfiguration {
   const source = isRecord(value) ? value : {}
-  const rawTransition = isRecord(source.transitionPolicy) ? source.transitionPolicy : {}
+  const hasTransitionPolicy = isRecord(source.transitionPolicy)
+  const rawTransition = hasTransitionPolicy ? source.transitionPolicy as Record<string, unknown> : {}
+  const defaultItemDurationBeats = clamp(
+    source.defaultItemDurationBeats,
+    MIN_DURATION_BEATS,
+    MAX_DURATION_BEATS,
+    DEFAULT_PIX_GRID_DECK_CONFIGURATION.defaultItemDurationBeats,
+  )
   const style = TRANSITION_STYLES.has(rawTransition.style as PixGridDeckTransitionStyle)
     ? rawTransition.style as PixGridDeckTransitionStyle
-    : DEFAULT_PIX_GRID_DECK_CONFIGURATION.transitionPolicy.style
-  const durationBeats = style === 'cut'
+    : (hasTransitionPolicy && Object.keys(rawTransition).length > 0
+      ? DEFAULT_PIX_GRID_DECK_CONFIGURATION.transitionPolicy.style
+      : 'cut')
+  const mode = normalizeTransitionMode(rawTransition.mode, style)
+  const legacyDurationBeats = style === 'cut' || style === 'blackout'
     ? 0
     : clamp(rawTransition.durationBeats, MIN_DURATION_BEATS, 32, 0.5)
+  const durationFraction = mode === 'hardCut'
+    ? 0
+    : rawTransition.durationFraction == null
+      ? clamp(legacyDurationBeats / Math.max(MIN_DURATION_BEATS, defaultItemDurationBeats), 0, 0.75, 0.25)
+      : clamp(rawTransition.durationFraction, 0, 0.75, 0.25)
+  const durationBeats = mode === 'hardCut'
+    ? 0
+    : Math.max(0, Math.min(32, defaultItemDurationBeats * durationFraction))
   return {
     playbackOrder: PLAYBACK_ORDERS.has(source.playbackOrder as PixGridDeckPlaybackOrder)
       ? source.playbackOrder as PixGridDeckPlaybackOrder
       : DEFAULT_PIX_GRID_DECK_CONFIGURATION.playbackOrder,
     loop: typeof source.loop === 'boolean' ? source.loop : DEFAULT_PIX_GRID_DECK_CONFIGURATION.loop,
     reactionProfileId: normalizeNullableIdentifier(source.reactionProfileId),
-    transitionPolicy: { style, durationBeats },
-    defaultItemDurationBeats: clamp(
-      source.defaultItemDurationBeats,
-      MIN_DURATION_BEATS,
-      MAX_DURATION_BEATS,
-      DEFAULT_PIX_GRID_DECK_CONFIGURATION.defaultItemDurationBeats,
-    ),
+    transitionPolicy: {
+      mode,
+      durationFraction,
+      pairOverrides: normalizeTransitionPairOverrides(rawTransition.pairOverrides, itemIds),
+      style: legacyStyleFromTransitionMode(mode),
+      durationBeats,
+    },
+    defaultItemDurationBeats,
     sectionTimingBeats: normalizeSectionTiming(source.sectionTimingBeats),
     sectionItemAssignments: normalizeSectionAssignments(source.sectionItemAssignments, itemIds),
     sceneItemAssignments: normalizeSceneAssignments(source.sceneItemAssignments, itemIds),

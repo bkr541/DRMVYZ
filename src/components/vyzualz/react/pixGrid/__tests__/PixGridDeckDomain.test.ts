@@ -70,7 +70,13 @@ describe('PixGrid Deck domain normalization', () => {
       configuration: {
         playbackOrder: DEFAULT_PIX_GRID_DECK_CONFIGURATION.playbackOrder,
         reactionProfileId: 'profile-1',
-        transitionPolicy: { style: 'crossfade', durationBeats: 0.5 },
+        transitionPolicy: {
+          mode: 'crossfade',
+          durationFraction: 0.75,
+          pairOverrides: [],
+          style: 'crossfade',
+          durationBeats: 0.1875,
+        },
         defaultItemDurationBeats: 0.25,
         sectionTimingBeats: { intro: 8 },
         sectionItemAssignments: { intro: ['item-2', 'item-1'] },
@@ -97,6 +103,21 @@ describe('PixGrid Deck domain normalization', () => {
       configuration: { preDropBehavior: legacy },
     })
     expect(result.deck?.configuration.preDropBehavior).toBe(expected)
+  })
+
+  it('preserves the pre-Stage-5 hard-cut default when a saved Deck has no transition policy', () => {
+    const result = normalizePixGridDeckDefinition({
+      id: 'legacy-no-transition',
+      name: 'Legacy no transition',
+      items: items(2),
+      configuration: { playbackOrder: 'forward' },
+    })
+    expect(result.deck?.configuration.transitionPolicy).toMatchObject({
+      mode: 'hardCut',
+      durationFraction: 0,
+      style: 'cut',
+      durationBeats: 0,
+    })
   })
 
   it('repairs deterministic legacy aliases without inventing random migration IDs', () => {
@@ -168,6 +189,7 @@ describe('PixGrid Deck domain normalization', () => {
   it('allows an incomplete transient draft without weakening committed validation', () => {
     const draft = createPixGridDeckDraft(' New Deck ')
     expect(draft.name).toBe('New Deck')
+    expect(draft.configuration.transitionPolicy).toMatchObject({ mode: 'auto', durationFraction: 0.25 })
     expect(draft.items).toEqual([])
     draft.items.push({ mediaId: 'draft-media-1' })
     expect(draft.items).toHaveLength(1)

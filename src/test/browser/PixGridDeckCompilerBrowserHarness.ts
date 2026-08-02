@@ -1,10 +1,12 @@
 import { PixGridDeckCompileCoordinator } from '../../components/vyzualz/react/pixGrid/PixGridDeckCompileCoordinator'
+import { PixGridDeckTransitionCoordinator } from '../../components/vyzualz/react/pixGrid/PixGridDeckTransitionCoordinator'
 import { PIX_GRID_DECK_GENERATED_MASK_NAMES } from '../../components/vyzualz/react/pixGrid/PixGridDeckCompilerContracts'
 import {
   DEFAULT_PIX_GRID_DECK_CONFIGURATION,
   type PixGridDeckDefinition,
   type PixGridDeckItemDefinition,
 } from '../../components/vyzualz/react/pixGrid/PixGridDeckDomain'
+import { reconstructPixGridDeckTransitionEndpoint } from '../../components/vyzualz/react/pixGrid/PixGridDeckTransitionPlanner'
 
 const output = document.querySelector<HTMLElement>('[data-pix-grid-deck-worker-status]')
 const transparentFixtureUrl = new URL('../fixtures/pixGridDeck/transparent.png', import.meta.url).href
@@ -53,6 +55,41 @@ const coordinator = new PixGridDeckCompileCoordinator({
     return response.blob()
   },
 })
+const transitionCoordinator = new PixGridDeckTransitionCoordinator()
+let transitionStarted = false
+
+transitionCoordinator.subscribe(statuses => {
+  const status = statuses.get(deck.id)
+  if (!status || !status.ready) return
+  const frameSet = coordinator.getPreparedFrameSet(deck.id)
+  const plan = transitionCoordinator.getPlan(deck.id, deck.items[0]!.id, deck.items[1]!.id)
+  const endpointsValid = Boolean(
+    frameSet
+    && plan
+    && reconstructPixGridDeckTransitionEndpoint(plan, frameSet.frames[0]!.pixels, frameSet.frames[1]!.pixels, 0)
+      .every((value, index) => value === frameSet.frames[0]!.pixels[index])
+    && reconstructPixGridDeckTransitionEndpoint(plan, frameSet.frames[0]!.pixels, frameSet.frames[1]!.pixels, 1)
+      .every((value, index) => value === frameSet.frames[1]!.pixels[index]),
+  )
+  output.dataset.result = endpointsValid ? 'ready' : 'invalid'
+  output.textContent = JSON.stringify({
+    status: coordinator.getStatus(deck.id),
+    transitionStatus: status,
+    frameCount: frameSet?.frames.length ?? 0,
+    masks: frameSet ? Object.keys(frameSet.frames[0]!.masks).sort() : [],
+    diagnostics: coordinator.getDiagnostics(),
+    transitionDiagnostics: transitionCoordinator.getDiagnostics(),
+    endpointsValid,
+    plan: plan ? {
+      mode: plan.mode,
+      matchedCount: plan.diagnostics.matchedCount,
+      birthCount: plan.diagnostics.birthCount,
+      deathCount: plan.diagnostics.deathCount,
+      sourceForegroundCount: plan.diagnostics.sourceForegroundCount,
+      targetForegroundCount: plan.diagnostics.targetForegroundCount,
+    } : null,
+  })
+})
 
 coordinator.subscribe(statuses => {
   const status = statuses.get(deck.id)
@@ -76,14 +113,18 @@ coordinator.subscribe(statuses => {
       && PIX_GRID_DECK_GENERATED_MASK_NAMES.every(name => frame.masks[name].byteLength === 16 * 9)
     )),
   )
-  output.dataset.result = valid ? 'ready' : 'invalid'
-  output.textContent = JSON.stringify({
-    status,
-    frameCount: frameSet?.frames.length ?? 0,
-    masks: frameSet ? Object.keys(frameSet.frames[0].masks).sort() : [],
-    diagnostics: coordinator.getDiagnostics(),
-  })
+  if (!valid) {
+    output.dataset.result = 'invalid'
+    return
+  }
+  if (!transitionStarted && frameSet) {
+    transitionStarted = true
+    transitionCoordinator.synchronize([deck], new Map([[deck.id, frameSet]]))
+  }
 })
 
 coordinator.synchronize([deck], 16, 9)
-window.addEventListener('pagehide', () => coordinator.dispose(), { once: true })
+window.addEventListener('pagehide', () => {
+  coordinator.dispose()
+  transitionCoordinator.dispose()
+}, { once: true })

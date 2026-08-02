@@ -2,13 +2,16 @@ import type { SharedPerformanceContext } from '../../../../features/performanceC
 import { createPerformanceDeterministicSeed } from '../../../../features/performanceCore/determinism'
 import type { ReactSectionType } from '../ReactTypes'
 import type { PixGridActionCue, PixGridCueQuantization } from './PixGridActionCues'
-import type { PixGridPreparedFrameSet } from './PixGridDeckCompilerContracts'
+import type { PixGridDeckConcreteTransitionMode, PixGridPreparedFrameSet } from './PixGridDeckCompilerContracts'
 import type {
   PixGridDeckDefinition,
   PixGridDeckItemDefinition,
   PixGridDeckPlaybackOrder,
   PixGridDeckPreDropBehavior,
+  PixGridDeckTransitionMode,
 } from './PixGridDeckDomain'
+import { resolvePixGridDeckTransitionPairPolicy } from './PixGridDeckDomain'
+import { quantizePixGridDeckTransitionDuration } from './PixGridDeckTransitionPlanner'
 import type { PixGridAudioFrame, PixGridSectionBarSpan } from './PixGridTypes'
 
 const EPSILON = 1e-8
@@ -71,6 +74,8 @@ export interface PixGridSequencePlannerInput {
   boundarySignals?: readonly PixGridSequenceBoundarySignal[]
   motion?: number
   transportMode?: 'live' | 'reconstruct'
+  /** Optional Stage 5 plan lookup. Automatic hard cuts become instantaneous once compiled. */
+  transitionModeResolver?: (sourceItemId: string, targetItemId: string) => PixGridDeckConcreteTransitionMode | null
 }
 
 export type PixGridSequenceHoldReason = 'preDrop' | 'motionZero' | 'terminal' | 'singleFrame' | null
@@ -84,6 +89,10 @@ export interface PixGridSequenceTransitionWindow {
   progress: number
   boundaryIdentity: string | null
   quantization: PixGridSequenceBoundaryQuantization | null
+  mode: PixGridDeckTransitionMode
+  durationBeats: number
+  durationFraction: number
+  pairOverride: boolean
 }
 
 export interface PixGridSequencePlan {
@@ -591,8 +600,34 @@ export function resolvePixGridSequencePlan(input: PixGridSequencePlannerInput): 
         : singleFrame
           ? 'singleFrame'
           : null
-  const transitionDurationBars = Math.max(0, input.deck.configuration.transitionPolicy.durationBeats / BEATS_PER_BAR)
   const transition = state.lastTransition
+  const recordedTransitionSource = transition
+    ? available.find(frame => frame.item.id === transition.sourceItemId) ?? active
+    : active
+  const recordedTransitionTarget = transition
+    ? available.find(frame => frame.item.id === transition.targetItemId) ?? active
+    : active
+  const pairPolicy = resolvePixGridDeckTransitionPairPolicy(
+    input.deck.configuration.transitionPolicy,
+    recordedTransitionSource.item.id,
+    recordedTransitionTarget.item.id,
+  )
+  const sourceDurationBars = durationBarsFor(
+    recordedTransitionSource,
+    input.deck,
+    currentSection.type,
+    state.previousDurationBars,
+  ) ?? Math.max(EPSILON, input.deck.configuration.defaultItemDurationBeats / BEATS_PER_BAR)
+  const plannedMode = pairPolicy.mode === 'auto'
+    ? input.transitionModeResolver?.(recordedTransitionSource.item.id, recordedTransitionTarget.item.id) ?? 'auto'
+    : pairPolicy.mode
+  const transitionDurationBeats = quantizePixGridDeckTransitionDuration({
+    itemDurationBeats: sourceDurationBars * BEATS_PER_BAR,
+    durationFraction: pairPolicy.durationFraction,
+    beatGridBeats: 0.25,
+    mode: plannedMode,
+  })
+  const transitionDurationBars = transitionDurationBeats / BEATS_PER_BAR
   const transitionActive = Boolean(
     transition
     && !preDropHold
@@ -652,6 +687,10 @@ export function resolvePixGridSequencePlan(input: PixGridSequencePlannerInput): 
       progress: transitionProgress,
       boundaryIdentity: transition?.boundaryIdentity ?? null,
       quantization: transition?.quantization ?? null,
+      mode: plannedMode,
+      durationBeats: transitionDurationBeats,
+      durationFraction: pairPolicy.durationFraction,
+      pairOverride: pairPolicy.overridden,
     },
     hold: {
       active: holdReason != null,

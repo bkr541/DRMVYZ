@@ -1,6 +1,6 @@
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { PixGridActionCue } from './PixGridActionCues'
-import type { PixGridPreparedFrameSet } from './PixGridDeckCompilerContracts'
+import type { PixGridDeckConcreteTransitionMode, PixGridPreparedFrameSet } from './PixGridDeckCompilerContracts'
 import type { PixGridDeckDefinition } from './PixGridDeckDomain'
 import type { PixGridPerformanceSceneOwnership } from './PixGridPerformanceRuntime'
 import { applyPixGridBassGainToPerformanceContext } from './PixGridRuntimeControls'
@@ -32,6 +32,7 @@ export interface ResolvePixGridSurfacePerformanceFrameInput {
   trackId?: string | null
   deck?: PixGridDeckDefinition | null
   preparedFrameSet?: PixGridPreparedFrameSet | null
+  transitionModeResolver?: (sourceItemId: string, targetItemId: string) => PixGridDeckConcreteTransitionMode | null
 }
 
 export interface PixGridSurfacePerformanceFrame {
@@ -110,6 +111,7 @@ export function resolvePixGridSurfacePerformanceFrame(
         ),
         motion: previewAudioFrame.motionMultiplier,
         transportMode: sequencePosition.transportMode,
+        transitionModeResolver: input.transitionModeResolver,
       })
     : null
   const resolvedRuntime = input.runtime.resolve({

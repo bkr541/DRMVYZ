@@ -102,6 +102,7 @@ function planAt(
     sequenceBar?: number
     motion?: number
     transportMode?: 'live' | 'reconstruct'
+    transitionModeResolver?: (sourceItemId: string, targetItemId: string) => 'pixelTransport' | 'pixelDissolve' | 'crossfade' | 'rowWipe' | 'columnWipe' | 'checkerWipe' | 'radialReveal' | 'hardCut' | null
   } = {},
 ): PixGridSequencePlan {
   const result = resolvePixGridSequencePlan({
@@ -121,6 +122,7 @@ function planAt(
     boundarySignals: options.signals,
     motion: options.motion ?? 1,
     transportMode: options.transportMode ?? 'reconstruct',
+    transitionModeResolver: options.transitionModeResolver,
   })
   expect(result).not.toBeNull()
   return result!
@@ -390,7 +392,15 @@ describe('PixGridSequenceClock pure deterministic planning', () => {
   })
 
   it('publishes deterministic source/target and transition progress around a quantized boundary', () => {
-    const targetDeck = deck('forward', { transitionPolicy: { style: 'crossfade', durationBeats: 2 } })
+    const targetDeck = deck('forward', {
+      transitionPolicy: {
+        mode: 'crossfade',
+        durationFraction: 0.0625,
+        pairOverrides: [],
+        style: 'crossfade',
+        durationBeats: 2,
+      },
+    })
     const result = planAt(targetDeck, 1.25, {
       sectionType: 'intro',
       signals: [{ id: 'bar-cutover', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar' }],
@@ -407,6 +417,84 @@ describe('PixGridSequenceClock pure deterministic planning', () => {
         progress: 0.5,
         boundaryIdentity: 'bar-cutover',
       },
+    })
+  })
+
+  it('quantizes percentage timing and applies a directed hard-cut override without changing other pairs', () => {
+    const targetDeck = deck('forward', {
+      transitionPolicy: {
+        mode: 'crossfade',
+        durationFraction: 0.25,
+        pairOverrides: [{
+          sourceItemId: 'item-a',
+          targetItemId: 'item-b',
+          mode: 'hardCut',
+          durationFraction: 0.75,
+        }],
+        style: 'crossfade',
+        durationBeats: 1,
+      },
+    })
+    const hardCut = planAt(targetDeck, 1, {
+      sectionType: 'intro',
+      signals: [{ id: 'cut-a-b', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar' }],
+    })
+    expect(hardCut.transitionWindow).toMatchObject({
+      mode: 'hardCut',
+      durationBeats: 0,
+      durationFraction: 0,
+      pairOverride: true,
+      active: false,
+      startBar: 1,
+      endBar: 1,
+    })
+
+    const percentage = deck('forward', {
+      transitionPolicy: {
+        mode: 'crossfade',
+        durationFraction: 0.26,
+        pairOverrides: [],
+        style: 'crossfade',
+        durationBeats: 1,
+      },
+    }, [item('item-a', 0, 3), item('item-b', 1, 3)])
+    const quantized = planAt(percentage, 1.125, {
+      sectionType: 'intro',
+      signals: [{ id: 'cut-a-b', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar' }],
+    })
+    expect(quantized.transitionWindow).toMatchObject({
+      mode: 'crossfade',
+      durationBeats: 0.75,
+      durationFraction: 0.26,
+      pairOverride: false,
+      active: true,
+      startBar: 1,
+      endBar: 1.1875,
+    })
+    expect(quantized.transitionWindow.progress).toBeCloseTo(2 / 3)
+
+    const automatic = deck('forward', {
+      transitionPolicy: {
+        mode: 'auto',
+        durationFraction: 0.25,
+        pairOverrides: [],
+        style: 'wipe',
+        durationBeats: 1,
+      },
+    })
+    const plannedHardCut = planAt(automatic, 1, {
+      sectionType: 'intro',
+      signals: [{ id: 'auto-cut-a-b', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar' }],
+      transitionModeResolver: (sourceItemId, targetItemId) => (
+        sourceItemId === 'item-a' && targetItemId === 'item-b' ? 'hardCut' : null
+      ),
+    })
+    expect(plannedHardCut.transitionWindow).toMatchObject({
+      mode: 'hardCut',
+      durationBeats: 0,
+      active: false,
+      startBar: 1,
+      endBar: 1,
     })
   })
 
@@ -428,7 +516,15 @@ describe('PixGridSequenceClock pure deterministic planning', () => {
   })
 
   it('reconstructs direct seeks identically to uninterrupted sampling and remains FPS independent', () => {
-    const targetDeck = deck('shuffle', { transitionPolicy: { style: 'crossfade', durationBeats: 1 } })
+    const targetDeck = deck('shuffle', {
+      transitionPolicy: {
+        mode: 'crossfade',
+        durationFraction: 0.03125,
+        pairOverrides: [],
+        style: 'crossfade',
+        durationBeats: 1,
+      },
+    })
     const sampleBars = Array.from({ length: 121 }, (_, index) => index / 12)
     const uninterrupted = sampleBars.map(bar => planAt(targetDeck, bar))
     const seeks = sampleBars.map(bar => planAt(structuredClone(targetDeck), bar))
@@ -549,6 +645,13 @@ describe('PixGridSequenceClock production adapters', () => {
     const targetDeck = {
       ...deck('forward', {
         sceneItemAssignments: { [selectedSceneId]: ['item-d', 'item-b'] },
+        transitionPolicy: {
+          mode: 'auto',
+          durationFraction: 0.25,
+          pairOverrides: [],
+          style: 'wipe',
+          durationBeats: 1,
+        },
       }),
       generatedPresetId: presetId,
     }
@@ -569,6 +672,7 @@ describe('PixGridSequenceClock production adapters', () => {
       trackId: 'deck-sequence-track',
       deck: targetDeck,
       preparedFrameSet: preparedFrameSet(targetDeck),
+      transitionModeResolver: () => 'hardCut',
     })
 
     expect(frame.sceneOwnership).toBe('editingContext')
@@ -576,6 +680,7 @@ describe('PixGridSequenceClock production adapters', () => {
       activeItemId: 'item-d',
       eligibleItemIds: ['item-d', 'item-b'],
       transitionArmedBy: null,
+      transitionWindow: { mode: 'hardCut', durationBeats: 0 },
     })
     expect(frame.deckSequencePlan?.boundaryIdentity).not.toBe('track-map:track-map-cue')
     expect(frame.resolvedRuntime.state.selectedSceneId).toBe(selectedSceneId)

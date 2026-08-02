@@ -1,11 +1,14 @@
 import {
   PIX_GRID_DECK_COMPILER_SCHEMA_VERSION,
+  PIX_GRID_DECK_TRANSITION_ALGORITHM_VERSION,
   PIX_GRID_DECK_GENERATED_MASK_NAMES,
   type PixGridDeckCompileError,
   type PixGridDeckCompilePhase,
   type PixGridDeckWorkerCompileRequest,
   type PixGridDeckWorkerMessage,
   type PixGridDeckWorkerRequest,
+  type PixGridDeckTransitionCompileSettings,
+  type PixGridDeckTransitionPlan,
   type PixGridPreparedFrame,
 } from './PixGridDeckCompilerContracts'
 import { createPixGridDeckConversionSettings } from './PixGridDeckCompilerCore'
@@ -38,6 +41,16 @@ export interface PixGridDeckBlobCompileRequest {
   onProgress?: (phase: Extract<PixGridDeckCompilePhase, 'decoding' | 'compiling'>, progress: number) => void
 }
 
+export interface PixGridDeckTransitionCompileRequest {
+  jobId: string
+  cacheKey: string
+  source: PixGridPreparedFrame
+  target: PixGridPreparedFrame
+  settings: PixGridDeckTransitionCompileSettings
+  signal?: AbortSignal
+  onProgress?: (progress: number) => void
+}
+
 export function createPixGridDeckCompilerWorker(): PixGridDeckCompilerWorkerPort {
   if (typeof Worker === 'undefined') {
     throw Object.assign(new Error('PixGrid Deck compilation requires Web Worker support.'), {
@@ -49,6 +62,30 @@ export function createPixGridDeckCompilerWorker(): PixGridDeckCompilerWorkerPort
 
 function abortError(): PixGridDeckCompileError {
   return { code: 'cancelled', message: 'PixGrid Deck compilation was cancelled.', retryable: true }
+}
+
+const PIX_GRID_DECK_CONCRETE_TRANSITION_MODES = new Set([
+  'pixelTransport', 'pixelDissolve', 'crossfade', 'rowWipe', 'columnWipe',
+  'checkerWipe', 'radialReveal', 'hardCut',
+])
+
+function transitionIndexPartitionIsValid(
+  matched: Uint32Array,
+  unmatched: Uint32Array,
+  expectedCount: number,
+  cellCount: number,
+): boolean {
+  if (expectedCount < 0 || expectedCount > cellCount || matched.length + unmatched.length !== expectedCount) return false
+  const seen = new Set<number>()
+  for (const index of matched) {
+    if (index >= cellCount || seen.has(index)) return false
+    seen.add(index)
+  }
+  for (const index of unmatched) {
+    if (index >= cellCount || seen.has(index)) return false
+    seen.add(index)
+  }
+  return true
 }
 
 function normalizeExecutorError(error: unknown): PixGridDeckCompileError {
@@ -229,6 +266,7 @@ export async function compilePixGridDeckBlob(
         finish(() => reject(message.error))
         return
       }
+      if (message.type !== 'result') return
       const expectedPixelBytes = request.width * request.height * 4
       const expectedMaskBytes = request.width * request.height
       if (
@@ -270,6 +308,161 @@ export async function compilePixGridDeckBlob(
     worker.addEventListener('error', handleWorkerError)
     try {
       worker.postMessage(workerRequest.message, workerRequest.transfer)
+    } catch (error) {
+      finish(() => reject(normalizeExecutorError(error)))
+    }
+  })
+}
+
+export async function compilePixGridDeckTransition(
+  request: PixGridDeckTransitionCompileRequest,
+  workerFactory: PixGridDeckCompilerWorkerFactory = createPixGridDeckCompilerWorker,
+): Promise<PixGridDeckTransitionPlan> {
+  if (request.signal?.aborted) throw abortError()
+  if (request.source.width !== request.target.width || request.source.height !== request.target.height) {
+    throw {
+      code: 'invalid-result',
+      message: 'PixGrid Deck transition frames must share one matrix size.',
+      retryable: false,
+    } satisfies PixGridDeckCompileError
+  }
+  let worker: PixGridDeckCompilerWorkerPort
+  try {
+    worker = workerFactory()
+  } catch (error) {
+    throw normalizeExecutorError(error)
+  }
+
+  const sourcePixels = request.source.pixels.slice().buffer as ArrayBuffer
+  const targetPixels = request.target.pixels.slice().buffer as ArrayBuffer
+  const sourceForeground = request.source.masks.foreground.slice().buffer as ArrayBuffer
+  const targetForeground = request.target.masks.foreground.slice().buffer as ArrayBuffer
+  const message = {
+    type: 'compile-transition' as const,
+    jobId: request.jobId,
+    cacheKey: request.cacheKey,
+    sourceFrameCacheKey: request.source.cacheKey,
+    targetFrameCacheKey: request.target.cacheKey,
+    width: request.source.width,
+    height: request.source.height,
+    settings: request.settings,
+    sourcePixels,
+    targetPixels,
+    sourceForeground,
+    targetForeground,
+    sourceMetrics: request.source.metrics,
+    targetMetrics: request.target.metrics,
+  }
+
+  return new Promise<PixGridDeckTransitionPlan>((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      request.signal?.removeEventListener('abort', handleAbort)
+      worker.removeEventListener('message', handleMessage)
+      worker.removeEventListener('error', handleWorkerError)
+      worker.terminate()
+      callback()
+    }
+    const handleAbort = () => {
+      try { worker.postMessage({ type: 'cancel', jobId: request.jobId }) } catch { /* worker is already unavailable */ }
+      finish(() => reject(abortError()))
+    }
+    const handleWorkerError = (event: ErrorEvent) => finish(() => reject({
+      code: 'worker-startup-failed',
+      message: event.message || 'PixGrid Deck transition worker failed.',
+      retryable: true,
+    } satisfies PixGridDeckCompileError))
+    const handleMessage = (event: MessageEvent<PixGridDeckWorkerMessage>) => {
+      const result = event.data
+      if (result.jobId !== request.jobId) return
+      if (result.type === 'progress') {
+        request.onProgress?.(Math.max(0, Math.min(1, result.progress)))
+        return
+      }
+      if (result.type === 'error') {
+        finish(() => reject(result.error))
+        return
+      }
+      if (result.type !== 'transition-result') return
+      const validShape = result.cacheKey === request.cacheKey
+        && result.requestedMode === request.settings.requestedMode
+        && PIX_GRID_DECK_CONCRETE_TRANSITION_MODES.has(result.mode)
+        && result.sourceFrameCacheKey === request.source.cacheKey
+        && result.targetFrameCacheKey === request.target.cacheKey
+        && result.width === request.source.width
+        && result.height === request.source.height
+        && result.matchedSourceIndices.byteLength === result.matchedTargetIndices.byteLength
+        && result.matchedSourceIndices.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
+        && result.deathSourceIndices.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
+        && result.birthTargetIndices.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
+      if (!validShape) {
+        finish(() => reject({
+          code: 'invalid-result',
+          message: 'The PixGrid Deck transition worker returned an invalid plan shape.',
+          retryable: true,
+        } satisfies PixGridDeckCompileError))
+        return
+      }
+      const matchedSourceIndices = new Uint32Array(result.matchedSourceIndices)
+      const matchedTargetIndices = new Uint32Array(result.matchedTargetIndices)
+      const deathSourceIndices = new Uint32Array(result.deathSourceIndices)
+      const birthTargetIndices = new Uint32Array(result.birthTargetIndices)
+      const cellCount = result.width * result.height
+      const validContent = result.diagnostics.matchedCount === matchedSourceIndices.length
+        && result.diagnostics.birthCount === birthTargetIndices.length
+        && result.diagnostics.deathCount === deathSourceIndices.length
+        && transitionIndexPartitionIsValid(
+          matchedSourceIndices,
+          deathSourceIndices,
+          result.diagnostics.sourceForegroundCount,
+          cellCount,
+        )
+        && transitionIndexPartitionIsValid(
+          matchedTargetIndices,
+          birthTargetIndices,
+          result.diagnostics.targetForegroundCount,
+          cellCount,
+        )
+      if (!validContent) {
+        finish(() => reject({
+          code: 'invalid-result',
+          message: 'The PixGrid Deck transition worker returned invalid mapping content.',
+          retryable: true,
+        } satisfies PixGridDeckCompileError))
+        return
+      }
+      finish(() => resolve({
+        schemaVersion: PIX_GRID_DECK_COMPILER_SCHEMA_VERSION,
+        algorithmVersion: PIX_GRID_DECK_TRANSITION_ALGORITHM_VERSION,
+        cacheKey: result.cacheKey,
+        requestedMode: result.requestedMode,
+        mode: result.mode,
+        automaticReason: result.automaticReason,
+        fallbackReason: result.fallbackReason,
+        sourceFrameCacheKey: result.sourceFrameCacheKey,
+        targetFrameCacheKey: result.targetFrameCacheKey,
+        width: result.width,
+        height: result.height,
+        matchedSourceIndices,
+        matchedTargetIndices,
+        deathSourceIndices,
+        birthTargetIndices,
+        diagnostics: result.diagnostics,
+        approximateBytes: matchedSourceIndices.byteLength
+          + matchedTargetIndices.byteLength
+          + deathSourceIndices.byteLength
+          + birthTargetIndices.byteLength
+          + 512,
+      }))
+    }
+
+    request.signal?.addEventListener('abort', handleAbort, { once: true })
+    worker.addEventListener('message', handleMessage)
+    worker.addEventListener('error', handleWorkerError)
+    try {
+      worker.postMessage(message, [sourcePixels, targetPixels, sourceForeground, targetForeground])
     } catch (error) {
       finish(() => reject(normalizeExecutorError(error)))
     }

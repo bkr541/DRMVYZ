@@ -5,8 +5,10 @@ import {
   type PixGridDeckWorkerCompileRequest,
   type PixGridDeckWorkerMessage,
   type PixGridDeckWorkerRequest,
+  type PixGridDeckWorkerTransitionRequest,
 } from './PixGridDeckCompilerContracts'
 import { resolvePixGridFitRect } from './PixGridPixelPreparation'
+import { compilePixGridDeckTransitionPlan } from './PixGridDeckTransitionPlanner'
 
 interface PixGridDeckWorkerScope {
   onmessage: ((event: MessageEvent<PixGridDeckWorkerRequest>) => void) | null
@@ -118,6 +120,55 @@ async function decodeBlob(message: Extract<PixGridDeckWorkerCompileRequest, { so
   }
 }
 
+function compileTransition(message: PixGridDeckWorkerTransitionRequest): void {
+  const { jobId } = message
+  postProgress(jobId, 'compiling', 0.08)
+  const plan = compilePixGridDeckTransitionPlan({
+    cacheKey: message.cacheKey,
+    source: {
+      cacheKey: message.sourceFrameCacheKey,
+      width: message.width,
+      height: message.height,
+      pixels: new Uint8Array(message.sourcePixels),
+      foreground: new Uint8Array(message.sourceForeground),
+      metrics: message.sourceMetrics,
+    },
+    target: {
+      cacheKey: message.targetFrameCacheKey,
+      width: message.width,
+      height: message.height,
+      pixels: new Uint8Array(message.targetPixels),
+      foreground: new Uint8Array(message.targetForeground),
+      metrics: message.targetMetrics,
+    },
+    settings: message.settings,
+  })
+  if (cancelledJobs.has(jobId)) return
+  postProgress(jobId, 'compiling', 0.92)
+  const matchedSourceIndices = plan.matchedSourceIndices.buffer as ArrayBuffer
+  const matchedTargetIndices = plan.matchedTargetIndices.buffer as ArrayBuffer
+  const deathSourceIndices = plan.deathSourceIndices.buffer as ArrayBuffer
+  const birthTargetIndices = plan.birthTargetIndices.buffer as ArrayBuffer
+  workerScope.postMessage({
+    type: 'transition-result',
+    jobId,
+    cacheKey: plan.cacheKey,
+    requestedMode: plan.requestedMode,
+    mode: plan.mode,
+    automaticReason: plan.automaticReason,
+    fallbackReason: plan.fallbackReason,
+    sourceFrameCacheKey: plan.sourceFrameCacheKey,
+    targetFrameCacheKey: plan.targetFrameCacheKey,
+    width: plan.width,
+    height: plan.height,
+    matchedSourceIndices,
+    matchedTargetIndices,
+    deathSourceIndices,
+    birthTargetIndices,
+    diagnostics: plan.diagnostics,
+  }, [matchedSourceIndices, matchedTargetIndices, deathSourceIndices, birthTargetIndices])
+}
+
 workerScope.onmessage = event => {
   const message = event.data
   if (message.type === 'cancel') {
@@ -126,7 +177,9 @@ workerScope.onmessage = event => {
   }
 
   const run = async () => {
-    if (message.sourceKind === 'raster') {
+    if (message.type === 'compile-transition') {
+      compileTransition(message)
+    } else if (message.sourceKind === 'raster') {
       compileRaster(message, new Uint8ClampedArray(message.rasterPixels))
     } else {
       await decodeBlob(message)
@@ -138,7 +191,10 @@ workerScope.onmessage = event => {
     if (cancelledJobs.has(message.jobId)) return
     const compileError = error && typeof error === 'object' && 'code' in error && 'message' in error
       ? error as PixGridDeckCompileError
-      : workerError('compile-failed', error instanceof Error ? error.message : 'PixGrid Deck compilation failed.')
+      : workerError(
+          message.type === 'compile-transition' ? 'transition-failed' : 'compile-failed',
+          error instanceof Error ? error.message : 'PixGrid Deck compilation failed.',
+        )
     workerScope.postMessage({ type: 'error', jobId: message.jobId, error: compileError })
     cancelledJobs.delete(message.jobId)
   })

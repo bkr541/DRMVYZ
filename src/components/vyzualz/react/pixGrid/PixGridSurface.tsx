@@ -69,7 +69,7 @@ import { resolvePixGridSurfacePerformanceFrame } from './PixGridSurfaceRuntime'
 import { applyPixGridPresetSignClock } from './PixGridSignClock'
 import { PixGridSelectedScenePreviewClock } from './PixGridScenePreview'
 import type { PixGridDeckDefinition } from './PixGridDeckDomain'
-import { getPixGridPreparedFrameSet } from './PixGridDeckCompilerRuntime'
+import { getPixGridDeckTransitionPlan, getPixGridPreparedFrameSet } from './PixGridDeckCompilerRuntime'
 import type { PixGridSequencePlan } from './PixGridSequenceClock'
 
 export interface PixGridSurfaceProps {
@@ -901,6 +901,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         trackId: current.trackIdentity ?? null,
         deck: activeDeck,
         preparedFrameSet: activeDeck ? getPixGridPreparedFrameSet(activeDeck.id) : null,
+        transitionModeResolver: activeDeck
+          ? (sourceItemId, targetItemId) => getPixGridDeckTransitionPlan(activeDeck.id, sourceItemId, targetItemId)?.mode ?? null
+          : undefined,
       })
       const {
         mappedState,
