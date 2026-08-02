@@ -1676,6 +1676,42 @@ function pixGridDeckFailure(error: PixGridDeckValidationError): PixGridDeckMutat
   return { ok: false, error }
 }
 
+function hasCanonicalPixGridDeckSource(item: PixGridDeckDefinition['items'][number]): boolean {
+  return /^sha256:[0-9a-f]{64}$/.test(item.source.fingerprint)
+}
+
+function pixGridDeckSourceSnapshotsEqual(
+  left: PixGridDeckDefinition['items'][number]['source'],
+  right: PixGridDeckDefinition['items'][number]['source'],
+): boolean {
+  return left.mediaRevision === right.mediaRevision
+    && left.fingerprint === right.fingerprint
+    && left.fileName === right.fileName
+    && left.mimeType === right.mimeType
+    && left.width === right.width
+    && left.height === right.height
+    && left.hasAlpha === right.hasAlpha
+    && left.transparentBackground === right.transparentBackground
+}
+
+function isAllowedPixGridDeckSourceUpdate(
+  item: PixGridDeckDefinition['items'][number],
+  current: readonly PixGridDeckDefinition['items'][number][],
+): boolean {
+  const previous = current.find(candidate => candidate.id === item.id)
+  if (!previous) return hasCanonicalPixGridDeckSource(item)
+  return previous.mediaId === item.mediaId
+    && pixGridDeckSourceSnapshotsEqual(previous.source, item.source)
+}
+
+function pixGridDeckSourceValidationFailure(): PixGridDeckMutationResult {
+  return pixGridDeckFailure({
+    code: 'invalid-deck',
+    message: 'PixGrid Deck images must be linked through the validated media-ingestion service.',
+    path: 'items',
+  })
+}
+
 function firstPixGridDeckValidationError(
   fallback: PixGridDeckValidationError,
   issues: readonly PixGridDeckValidationError[],
@@ -4137,6 +4173,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       pixGridDecks: normalizePixGridDeckCollection(state.pixGridDecks),
     }
   }
+  if (version < 63) {
+    // Stage 2 adds immutable source-media snapshots to committed Deck items.
+    // Existing Stage 1 Decks receive deterministic legacy fingerprints and no
+    // runtime URLs or bytes are introduced into project state.
+    state = {
+      ...state,
+      pixGridDecks: normalizePixGridDeckCollection(state.pixGridDecks),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -4840,6 +4885,9 @@ export const useReactStore = create<ReactStoreState>()(
             normalized.issues,
           ))
         }
+        if (normalized.deck.items.some(item => !hasCanonicalPixGridDeckSource(item))) {
+          return pixGridDeckSourceValidationFailure()
+        }
         if (state.pixGridDecks.some(deck => deck.id === normalized.deck?.id)) {
           return pixGridDeckFailure({
             code: 'invalid-id',
@@ -4902,6 +4950,12 @@ export const useReactStore = create<ReactStoreState>()(
             { code: 'invalid-deck', message: 'The PixGrid Deck update is invalid.' },
             normalized.issues,
           ))
+        }
+
+        if (patch.items && normalized.deck.items.some(item => (
+          !isAllowedPixGridDeckSourceUpdate(item, current.items)
+        ))) {
+          return pixGridDeckSourceValidationFailure()
         }
 
         const nextDecks = state.pixGridDecks.map(deck => deck.id === deckId ? normalized.deck! : deck)
@@ -8708,7 +8762,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 62,
+      version: 63,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

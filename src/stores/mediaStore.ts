@@ -179,6 +179,56 @@ export interface UploadQueuedMediaOptions {
   signal?: AbortSignal
 }
 
+export interface CanonicalVisualUploadOptions {
+  role?: MediaRole
+  title?: string
+  description?: string
+  tags?: string[]
+  collectionIds?: string[]
+  metadata?: MediaMetadata
+  operationId?: string
+  signal?: AbortSignal
+  onPhase?: (phase: UploadWorkflowPhase) => void
+}
+
+export type CanonicalVisualUploadResult =
+  | { ok: true; item: UploadedMedia }
+  | { ok: false; error: string; phase: UploadWorkflowPhase; cleanupPending?: boolean }
+
+export type MediaDeletionConfirmation = 'remove-deck-references' | 'delete-affected-decks'
+
+export interface MediaDeletionAffectedDeck {
+  id: string
+  name: string
+  remainingItemCount: number
+}
+
+export interface MediaDeletionWarning {
+  itemId: string
+  affectedDecks: MediaDeletionAffectedDeck[]
+  action: 'confirm-reference-removal' | 'confirm-deck-deletion'
+  message: string
+  confirmationCopy: string
+}
+
+export type MediaDeletionGuardResult =
+  | { allowed: true; apply?: () => boolean; rollback?: () => void }
+  | { allowed: false; warning: MediaDeletionWarning }
+
+export type MediaDeletionGuard = (
+  item: UploadedMedia,
+  confirmation?: MediaDeletionConfirmation,
+) => MediaDeletionGuardResult
+
+let mediaDeletionGuard: MediaDeletionGuard | null = null
+
+export function registerMediaDeletionGuard(guard: MediaDeletionGuard | null): () => void {
+  mediaDeletionGuard = guard
+  return () => {
+    if (mediaDeletionGuard === guard) mediaDeletionGuard = null
+  }
+}
+
 export interface UploadDraft {
   role: MediaRole
   title: string
@@ -218,10 +268,10 @@ export const MEDIA_LIBRARY_PAGE_SIZE = 48
 export const MEDIA_LIBRARY_STALE_AFTER_MS = 2 * 60 * 1000
 const MEDIA_STORAGE_BUCKET = 'media-items'
 const DEFAULT_LIBRARY_QUERY: MediaLibraryQuery = { search: '', filter: 'all', scope: 'all', collectionId: null, sort: 'created_desc' }
-const MEDIA_BATCH_CONCURRENCY = 4
+export const MEDIA_BATCH_CONCURRENCY = 4
 
 /** Run input-sized media work through a fixed worker pool instead of spawning one promise per item. */
-async function mapWithConcurrency<T, R>(
+export async function mapWithConcurrency<T, R>(
   values: readonly T[],
   concurrency: number,
   worker: (value: T, index: number) => Promise<R>,
@@ -451,7 +501,7 @@ async function buildLocalItem(file: File, opts?: BuildItemOptions): Promise<Loca
 
   const mimeType = svgValidation?.isValidSvg
     ? 'image/svg+xml'
-    : (file.type || null)
+    : (baseMeta.detectedMimeType || file.type || null)
   const metadataWithSvg = mergeMediaMetadata(baseMeta, svgValidation ? { svgValidation } : {})
 
   if (isVideo) {
@@ -1020,6 +1070,7 @@ interface MediaState {
   collectionsLoading: boolean
   loadError: string | null
   deleteError: string | null
+  pendingDeletionWarning: MediaDeletionWarning | null
   authRequired: boolean
   storageAvailable: boolean
   lastRestored: number | null
@@ -1057,6 +1108,7 @@ interface MediaState {
 
   // Upload
   uploadQueuedMedia(options?: UploadQueuedMediaOptions): Promise<UploadBatchResult>
+  uploadCanonicalVisualFile(file: File, options?: CanonicalVisualUploadOptions): Promise<CanonicalVisualUploadResult>
   addFiles(files: File[]): Promise<void>   // quick drag-drop path (no modal)
 
   // Load
@@ -1071,7 +1123,7 @@ interface MediaState {
   markMediaAssetLoaded(itemId: string, variant: 'original' | 'thumbnail'): void
 
   // Item mutations
-  removeItem(id: string): Promise<boolean>
+  removeItem(id: string, options?: { confirmation?: MediaDeletionConfirmation }): Promise<boolean>
   retryUpload(id: string): Promise<boolean>
   retryDeletion(itemId: string): Promise<boolean>
   retryUploadCleanup(jobId: string): Promise<boolean>
@@ -1134,6 +1186,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   collectionsLoading: false,
   loadError: null,
   deleteError: null,
+  pendingDeletionWarning: null,
   authRequired: false,
   storageAvailable: supabaseConfigured,
   lastRestored: null,
@@ -1211,6 +1264,81 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   setUploadDraftAudioBpm(v)        { set(s => ({ uploadDraft: { ...s.uploadDraft, audioBpm: v } })) },
   setUploadDraftAudioMusicalKey(v) { set(s => ({ uploadDraft: { ...s.uploadDraft, audioMusicalKey: v } })) },
   resetUploadDraft()               { set({ uploadDraft: { ...DEFAULT_DRAFT } }) },
+
+  // ── Canonical visual upload service ──────────────────────────────────────
+
+  async uploadCanonicalVisualFile(file, options = {}) {
+    if (file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(file.name)) {
+      return { ok: false, error: 'The canonical visual upload path requires an image file.', phase: 'failed' }
+    }
+    if (uploadCancelled(options.signal)) {
+      return { ok: false, error: 'Upload cancelled.', phase: 'cancelled' }
+    }
+
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      const error = supabaseConfigured ? 'Sign in to upload media.' : 'Supabase is not configured.'
+      set({ authRequired: supabaseConfigured, loadError: error })
+      return { ok: false, error, phase: 'failed' }
+    }
+
+    const operationId = options.operationId ?? generateOperationId()
+    let localItem: LocalItem
+    try {
+      localItem = await buildLocalItem(file, {
+        role: options.role ?? suggestMediaRole(file),
+        title: options.title,
+        description: options.description,
+        tags: options.tags ?? [],
+        collectionIds: options.collectionIds ?? [],
+        metadata: options.metadata ?? {},
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Image preparation failed.'
+      return { ok: false, error: message, phase: 'preparing' }
+    }
+
+    const result = await uploadToSupabase(file, localItem, userId, operationId, {
+      signal: options.signal,
+      onPhase: options.onPhase,
+    })
+    if (!result.ok) {
+      releaseManagedObjectUrl(localItem.localObjectUrlKey, localItem.url)
+      return result
+    }
+
+    const stableId = `db-${result.mediaItem.id}`
+    const uploadedItem = reconcileCanonicalMediaItem({
+      ...localItem,
+      id: stableId,
+      uploading: false,
+      uploadError: undefined,
+      derivativeWarning: result.derivativeWarning,
+      uploadSourceFile: result.derivativeWarning ? file : undefined,
+      uploadOperationId: operationId,
+    }, result.mediaItem)
+    set(state => ({
+      items: [uploadedItem, ...state.items.filter(item => item.id !== stableId)],
+      queryItemIds: itemMatchesLibraryQuery(uploadedItem, state.libraryQuery)
+        ? [stableId, ...state.queryItemIds.filter(id => id !== stableId)]
+        : state.queryItemIds.filter(id => id !== stableId),
+      invalidated: true,
+      loadError: result.derivativeWarning ?? null,
+    }))
+
+    if (isSvgFile(file)) {
+      void (async () => {
+        try {
+          const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
+          await precacheUploadedSvgGlyph({ file, mediaId: stableId, title: localItem.title, name: localItem.name })
+        } catch (error) {
+          console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', error)
+        }
+      })()
+    }
+
+    return { ok: true, item: uploadedItem }
+  },
 
   // ── Upload: queue-based (modal path) ─────────────────────────────────────
 
@@ -1851,20 +1979,33 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
   // ── Item mutations ────────────────────────────────────────────────────────
 
-  async removeItem(id) {
+  async removeItem(id, options = {}) {
     const item = get().items.find(candidate => candidate.id === id)
     if (!item) {
-      set({ deleteError: 'That media item is no longer available.' })
+      set({ deleteError: 'That media item is no longer available.', pendingDeletionWarning: null })
       return false
     }
 
+    const guardResult = mediaDeletionGuard?.(item, options.confirmation) ?? { allowed: true as const }
+    if (!guardResult.allowed) {
+      set({ deleteError: guardResult.warning.message, pendingDeletionWarning: guardResult.warning })
+      return false
+    }
+    const applyGuard = (): boolean => guardResult.apply ? guardResult.apply() : true
+    const rollbackGuard = (): void => guardResult.rollback?.()
+
     if (!item.dbId) {
+      if (!applyGuard()) {
+        set({ deleteError: 'Deck references could not be updated, so the media item was not deleted.' })
+        return false
+      }
       const remaining = get().items.filter(candidate => candidate.id !== id)
       set(state => ({
         items: remaining,
         queryItemIds: state.queryItemIds.filter(itemId => itemId !== id),
         invalidated: true,
         deleteError: null,
+        pendingDeletionWarning: null,
         mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([, mutation]) => mutation.itemId !== id)),
       }))
       purgeRuntimeMedia(item, remaining)
@@ -1881,13 +2022,22 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       return false
     }
 
+    if (!applyGuard()) {
+      set({ deleteError: 'Deck references could not be updated, so the media item was not deleted.' })
+      return false
+    }
+
     const requested = await requestMediaDeletion(item.dbId)
     if (!requested.ok) {
+      rollbackGuard()
       set({ deleteError: interpretError(requested.message) })
       return false
     }
     const deletion = cleanupJobToDeletionState(requested.cleanupJob)
     if (!deletion) {
+      // The canonical delete request has already committed at this point. Restoring
+      // Deck references here would create dangling references to media scheduled for
+      // deletion, so keep the coherent cross-store mutation and surface recovery.
       set({ deleteError: 'The deletion request returned incomplete cleanup state.' })
       return false
     }
@@ -1898,6 +2048,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       queryItemIds: state.queryItemIds.filter(itemId => itemId !== id),
       invalidated: true,
       deleteError: null,
+      pendingDeletionWarning: null,
       deletionStates: { ...state.deletionStates, [id]: deletion },
       mutationStates: Object.fromEntries(Object.entries(state.mutationStates).filter(([, mutation]) => mutation.itemId !== id)),
     }))
@@ -2410,7 +2561,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   // ── Error / status ────────────────────────────────────────────────────────
 
   clearLoadError()   { set({ loadError: null }) },
-  clearDeleteError() { set({ deleteError: null }) },
+  clearDeleteError() { set({ deleteError: null, pendingDeletionWarning: null }) },
   clearRestored()    { set({ lastRestored: null }) },
 
   clear() {
@@ -2439,6 +2590,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       loadError: null,
       queryError: null,
       deleteError: null,
+      pendingDeletionWarning: null,
       authRequired: false,
       lastRestored: null,
       lastSuccessfulLoad: null,

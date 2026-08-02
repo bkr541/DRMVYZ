@@ -9,6 +9,7 @@ import { applyBrandAppAccent, restoreStandardAppAccent } from './features/person
 import { productionOutputController } from './components/vyzualz/react/output/ProductionOutput'
 import { useMediaStore } from './stores/mediaStore'
 import { useAppearanceStore } from './features/appearance/appearanceStore'
+import './stores/mediaDeletionGuardBootstrap'
 
 const VyzualzView = lazy(() =>
   import('./components/vyzualz/VyzualzView').then(module => ({ default: module.VyzualzView })),

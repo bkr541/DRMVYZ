@@ -11,6 +11,9 @@ import {
   MAX_PIX_GRID_MEDIA_SOURCE_BYTES,
   MAX_PIX_GRID_SVG_SOURCE_CHARACTERS,
 } from './PixGridLimits'
+import { isAnimatedPixGridWebP } from './PixGridWebP'
+
+export { isAnimatedPixGridWebP } from './PixGridWebP'
 
 export interface PixGridPreparedAsset {
   key: string
@@ -347,31 +350,6 @@ export function preparePixGridPixelData(input: PixGridPixelPreparationInput): Ui
 }
 
 
-function fourCc(bytes: Uint8Array, offset: number): string {
-  return String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3])
-}
-
-export async function isAnimatedPixGridWebP(blob: Blob): Promise<boolean> {
-  const scanLength = Math.min(blob.size, 256 * 1024)
-  if (scanLength < 16) return false
-  const bytes = new Uint8Array(await blob.slice(0, scanLength).arrayBuffer())
-  if (fourCc(bytes, 0) !== 'RIFF' || fourCc(bytes, 8) !== 'WEBP') return false
-  for (let offset = 12; offset + 8 <= bytes.length;) {
-    const chunk = fourCc(bytes, offset)
-    const size = bytes[offset + 4]
-      | (bytes[offset + 5] << 8)
-      | (bytes[offset + 6] << 16)
-      | (bytes[offset + 7] << 24)
-    const payloadOffset = offset + 8
-    if (chunk === 'ANIM' || chunk === 'ANMF') return true
-    if (chunk === 'VP8X' && payloadOffset < bytes.length && (bytes[payloadOffset] & 0x02) !== 0) return true
-    const safeSize = Math.max(0, size >>> 0)
-    const next = payloadOffset + safeSize + (safeSize & 1)
-    if (next <= offset || next > bytes.length) break
-    offset = next
-  }
-  return false
-}
 
 interface DecodedPixGridImage {
   source: ImageBitmap | HTMLImageElement

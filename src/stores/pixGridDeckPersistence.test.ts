@@ -18,6 +18,16 @@ function itemDefinitions(prefix: string, count = 2): PixGridDeckItemDefinition[]
     order: index,
     revision: 1,
     timingOverrideBeats: null,
+    source: {
+      mediaRevision: 1,
+      fingerprint: `sha256:${String(index + 1).padStart(64, '0')}`,
+      fileName: `${prefix}-${index + 1}.png`,
+      mimeType: 'image/png',
+      width: 640,
+      height: 360,
+      hasAlpha: false,
+      transparentBackground: '#000000',
+    },
   }))
 }
 
@@ -93,6 +103,44 @@ describe('PixGrid Deck project persistence and history', () => {
     })
   })
 
+
+  it('requires committed source links to enter through the validated ingestion contract', () => {
+    const result = useReactStore.getState().createPixGridDeck({
+      id: 'unvalidated-source',
+      name: 'Unvalidated Source',
+      items: [
+        { mediaId: 'media-a' },
+        { mediaId: 'media-b' },
+      ],
+    })
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid-deck',
+        message: 'PixGrid Deck images must be linked through the validated media-ingestion service.',
+        path: 'items',
+      },
+    })
+    expect(useReactStore.getState().pixGridDecks).toEqual([])
+  })
+
+  it('keeps committed media identity and source snapshots immutable during normal Deck edits', () => {
+    expect(createDeck('immutable-source', 'Immutable Source')).toEqual({ ok: true, deckId: 'immutable-source' })
+    const current = useReactStore.getState().pixGridDecks[0]
+    const editedItems = current.items.map((item, index) => index === 0
+      ? { ...item, mediaId: 'media-replacement', source: { ...item.source, fileName: 'replacement.png' } }
+      : item)
+
+    expect(useReactStore.getState().updatePixGridDeck(current.id, { items: editedItems })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-deck', path: 'items' },
+    })
+    expect(useReactStore.getState().updatePixGridDeck(current.id, {
+      items: current.items.map(item => ({ ...item, enabled: !item.enabled })),
+    })).toEqual({ ok: true, deckId: current.id })
+    expect(useReactStore.getState().pixGridDecks[0].items[0].mediaId).toBe(current.items[0].mediaId)
+  })
+
   it('prevents invalid item bounds from entering canonical store state', () => {
     expect(createDeck('one-item', 'One item', 1)).toMatchObject({
       ok: false,
@@ -128,7 +176,7 @@ describe('PixGrid Deck project persistence and history', () => {
     const expected = useReactStore.getState().pixGridDecks
     const partialized = reactStorePartialize(useReactStore.getState())
     const split = splitStorageValue(
-      { state: partialized, version: 62 },
+      { state: partialized, version: 63 },
       REACT_PROJECT_STATE_KEYS,
     )
     const reconstructedEnvelope = mergeStorageValues(split.local, split.project)!
@@ -188,6 +236,30 @@ describe('PixGrid Deck project persistence and history', () => {
     expect(merged.reactPresets.find(preset => preset.id === 'custom-pix-grid-preset')).toEqual(customPixGridPreset)
   })
 
+
+  it('migrates Stage 1 Deck items to deterministic source snapshots without persisting runtime URLs', () => {
+    const legacyItems = itemDefinitions('legacy').map(({ source: _source, ...item }) => ({
+      ...item,
+      signedUrl: 'https://signed.example/temporary',
+      objectUrl: 'blob:temporary',
+    }))
+    const migrated = migrateReactStore({
+      pixGridDecks: [{ id: 'legacy-deck', name: 'Legacy Deck', items: legacyItems }],
+    }, 62)
+    const merged = mergeReactStoreState(migrated, useReactStore.getState())
+
+    expect(merged.pixGridDecks[0].items).toHaveLength(2)
+    expect(merged.pixGridDecks[0].items[0].source).toMatchObject({
+      mediaRevision: 1,
+      fingerprint: expect.stringMatching(/^legacy:/),
+      fileName: null,
+      mimeType: null,
+      transparentBackground: '#000000',
+    })
+    expect(merged.pixGridDecks[0].items[0]).not.toHaveProperty('signedUrl')
+    expect(merged.pixGridDecks[0].items[0]).not.toHaveProperty('objectUrl')
+  })
+
   it('loads old projects with no Deck field as empty and persists deletion across reload', () => {
     const current = useReactStore.getState()
     expect(mergeReactStoreState(migrateReactStore({}, 61), current).pixGridDecks).toEqual([])
@@ -195,7 +267,7 @@ describe('PixGrid Deck project persistence and history', () => {
     createDeck('delete-me', 'Delete Me')
     expect(useReactStore.getState().deletePixGridDeck('delete-me')).toEqual({ ok: true, deckId: 'delete-me' })
     const savedAfterDelete = reactStorePartialize(useReactStore.getState())
-    const reloaded = mergeReactStoreState(migrateReactStore(savedAfterDelete, 62), current)
+    const reloaded = mergeReactStoreState(migrateReactStore(savedAfterDelete, 63), current)
     expect(reloaded.pixGridDecks).toEqual([])
   })
 })

@@ -76,6 +76,10 @@ export interface MediaMetadata {
   }
   /** Content-inspected SVG classification. Filename alone is never authoritative. */
   svgValidation?:  SvgMediaValidationMetadata
+  /** Stable source-byte identity used by project portability and immutable Deck links. */
+  contentFingerprint?: string
+  /** MIME detected from source bytes rather than trusted filename metadata. */
+  detectedMimeType?: string
 }
 
 // ── Shared ────────────────────────────────────────────────────────────────────

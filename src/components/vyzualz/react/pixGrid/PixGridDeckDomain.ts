@@ -24,6 +24,17 @@ export interface PixGridDeckTransitionPolicy {
   durationBeats: number
 }
 
+export interface PixGridDeckSourceSnapshot {
+  mediaRevision: number
+  fingerprint: string
+  fileName: string | null
+  mimeType: string | null
+  width: number | null
+  height: number | null
+  hasAlpha: boolean
+  transparentBackground: string
+}
+
 export interface PixGridDeckItemDefinition {
   id: string
   mediaId: string
@@ -31,6 +42,8 @@ export interface PixGridDeckItemDefinition {
   order: number
   revision: number
   timingOverrideBeats: number | null
+  /** Immutable source identity captured when this Deck item is linked. */
+  source: PixGridDeckSourceSnapshot
 }
 
 export interface PixGridDeckConfiguration {
@@ -67,6 +80,7 @@ export interface PixGridDeckItemInput {
   enabled?: boolean
   timingOverrideBeats?: number | null
   revision?: number
+  source?: Partial<PixGridDeckSourceSnapshot>
 }
 
 export interface PixGridDeckCreateInput {
@@ -229,6 +243,32 @@ function recoveredItemId(deckId: string, mediaId: string, index: number): string
   return `deck-item:${fnv1a(`${deckId}\u0000${mediaId}\u0000${index}`)}`
 }
 
+function normalizeSourceSnapshot(value: unknown, mediaId: string, itemRevision: number): PixGridDeckSourceSnapshot {
+  const source = isRecord(value) ? value : {}
+  const width = finiteNumber(source.width, Number.NaN)
+  const height = finiteNumber(source.height, Number.NaN)
+  const rawFingerprint = typeof source.fingerprint === 'string' ? source.fingerprint.trim() : ''
+  const fingerprint = /^sha256:[0-9a-f]{64}$/i.test(rawFingerprint)
+    ? rawFingerprint.toLowerCase()
+    : /^legacy:[A-Za-z0-9._:-]{1,128}$/.test(rawFingerprint)
+      ? rawFingerprint
+      : `legacy:${fnv1a(`${mediaId}\u0000${itemRevision}`)}`
+  const transparentBackground = typeof source.transparentBackground === 'string'
+    && /^#[0-9a-f]{6}$/i.test(source.transparentBackground.trim())
+      ? source.transparentBackground.trim().toUpperCase()
+      : '#000000'
+  return {
+    mediaRevision: normalizeRevision(source.mediaRevision ?? source.revision ?? itemRevision),
+    fingerprint,
+    fileName: typeof source.fileName === 'string' && source.fileName.trim() ? source.fileName.trim().slice(0, 255) : null,
+    mimeType: typeof source.mimeType === 'string' && source.mimeType.trim() ? source.mimeType.trim().toLowerCase().slice(0, 120) : null,
+    width: Number.isFinite(width) && width > 0 ? Math.round(width) : null,
+    height: Number.isFinite(height) && height > 0 ? Math.round(height) : null,
+    hasAlpha: source.hasAlpha === true,
+    transparentBackground,
+  }
+}
+
 function rejectedIssue(
   code: PixGridDeckValidationCode,
   message: string,
@@ -330,6 +370,7 @@ function normalizeDeckItems(
       issues.push(repairedIssue('invalid-deck', 'Recovered a stable Deck item ID.', `items.${sourceIndex}.id`))
     }
     const rawOrder = finiteNumber(rawItem.order, sourceIndex)
+    const revision = normalizeRevision(rawItem.revision)
     return [{
       sourceIndex,
       rawOrder,
@@ -338,7 +379,7 @@ function normalizeDeckItems(
         mediaId,
         enabled: typeof rawItem.enabled === 'boolean' ? rawItem.enabled : true,
         order: 0,
-        revision: normalizeRevision(rawItem.revision),
+        revision,
         timingOverrideBeats: rawItem.timingOverrideBeats == null && rawItem.durationBeats == null
           ? null
           : clamp(
@@ -347,6 +388,7 @@ function normalizeDeckItems(
               MAX_DURATION_BEATS,
               4,
             ),
+        source: normalizeSourceSnapshot(rawItem.source ?? rawItem.sourceSnapshot, mediaId, revision),
       } satisfies PixGridDeckItemDefinition,
     }]
   })

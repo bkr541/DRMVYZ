@@ -75,7 +75,9 @@ vi.mock('../components/vyzualz/react/renderers/svgCapabilityAnalysis', () => ({
 
 import type { SaveMediaItemAtomicInput } from '../lib/mediaDb'
 import type { UploadedMedia } from './mediaStore'
-import { mediaMutationKey, useMediaStore } from './mediaStore'
+import { mediaMutationKey, registerMediaDeletionGuard, useMediaStore } from './mediaStore'
+import { createPixGridDeckMediaDeletionGuard } from '../components/vyzualz/react/pixGrid/PixGridDeckMediaDeletion'
+import type { PixGridDeckDefinition } from '../components/vyzualz/react/pixGrid/PixGridDeckDomain'
 import { supabase } from '../lib/supabase'
 
 function mediaItem(overrides: Partial<UploadedMedia> = {}): UploadedMedia {
@@ -147,7 +149,7 @@ function resetStore() {
     hasMore: true, cursor: null, libraryQuery: { search: '', filter: 'all', scope: 'all', collectionId: null, sort: 'created_desc' },
     libraryQueryKey: JSON.stringify({ search: '', filter: 'all', scope: 'all', collectionId: null, sort: 'created_desc' }),
     queryError: null, lastSuccessfulLoad: null, invalidated: true, accountId: null, collectionsLoading: false,
-    loadError: null, deleteError: null, authRequired: false, storageAvailable: true,
+    loadError: null, deleteError: null, pendingDeletionWarning: null, authRequired: false, storageAvailable: true,
     lastRestored: null, activeFilter: 'all', mutationStates: {}, collectionOrderMutations: {}, deletionStates: {}, uploadCleanupStates: {},
     importModalOpen: false, uploadQueue: [],
     uploadDraft: {
@@ -461,6 +463,28 @@ describe('Media Manager canonical workflows', () => {
     expect(useMediaStore.getState().uploadQueue.map(item => item.file.name)).toEqual(['two.wav'])
   })
 
+  it('exposes the canonical visual upload/finalization path for Deck ingestion without a second uploader', async () => {
+    const file = new File(['png'], 'deck-source.png', { type: 'image/png' })
+    const result = await useMediaStore.getState().uploadCanonicalVisualFile(file, {
+      metadata: {
+        width: 640,
+        height: 360,
+        hasAlpha: true,
+        contentFingerprint: 'sha256:deck-source',
+        detectedMimeType: 'image/png',
+      },
+    })
+
+    expect(result).toMatchObject({ ok: true, item: { id: 'db-uploaded-media', revision: 1 } })
+    expect(mediaDbMocks.finalizeMediaUploadAtomic).toHaveBeenCalledWith(expect.objectContaining({
+      media: expect.objectContaining({
+        name: 'deck-source.png',
+        metadata: expect.objectContaining({ contentFingerprint: 'sha256:deck-source', detectedMimeType: 'image/png' }),
+      }),
+    }))
+    expect(useMediaStore.getState().items).toHaveLength(1)
+  })
+
   it('creates one canonical visual item with role, tags, collections, and stable upload identity', async () => {
     const file = new File(['png'], 'visual.png', { type: 'image/png' })
     expect(useMediaStore.getState().addFilesToUploadQueue([file])).toBe(1)
@@ -519,6 +543,110 @@ describe('Media Manager canonical workflows', () => {
     expect(mediaDbMocks.uploadMediaFile).not.toHaveBeenCalled()
     expect(mediaDbMocks.finalizeMediaUploadAtomic).not.toHaveBeenCalled()
     expect(useMediaStore.getState().items.map(item => item.dbId)).toEqual(['uploaded-media'])
+  })
+
+  it('enters Deck reference protection through the real media-store deletion action', async () => {
+    const source = mediaItem()
+    useMediaStore.setState({ items: [source] })
+    const makeItem = (id: string, mediaId: string, order: number) => ({
+      id, mediaId, enabled: true, order, revision: 1, timingOverrideBeats: null,
+      source: {
+        mediaRevision: 1, fingerprint: `sha256:${id.padEnd(64, '0').slice(0, 64)}`,
+        fileName: `${id}.png`, mimeType: 'image/png', width: 2, height: 2,
+        hasAlpha: false, transparentBackground: '#000000',
+      },
+    })
+    let decks: PixGridDeckDefinition[] = [{
+      schemaVersion: 1, id: 'deck-1', name: 'Deck One', revision: 1,
+      generatedPresetId: 'pix-grid-deck:deck-1',
+      items: [makeItem('a', source.id, 0), makeItem('b', 'db-other-1', 1), makeItem('c', 'db-other-2', 2)],
+      configuration: {
+        playbackOrder: 'forward', reactionProfileId: null,
+        transitionPolicy: { style: 'cut', durationBeats: 0 }, defaultItemDurationBeats: 4,
+        sectionTimingBeats: {}, sectionItemAssignments: {}, preDropBehavior: 'inherit',
+      },
+    }]
+    let transaction: PixGridDeckDefinition[] | null = null
+    const undo: PixGridDeckDefinition[][] = []
+    let commits = 0
+    const fakeStore = () => ({
+      pixGridDecks: decks,
+      pixGridDeckHistoryTransaction: transaction,
+      beginPixGridDeckHistoryTransaction() { transaction = structuredClone(decks) },
+      commitPixGridDeckHistoryTransaction() { if (transaction) undo.push(transaction); transaction = null; commits += 1 },
+      cancelPixGridDeckHistoryTransaction() { if (transaction) decks = transaction; transaction = null },
+      undoPixGridDeckEdit() { const previous = undo.pop(); if (previous) decks = previous },
+      updatePixGridDeck(deckId: string, patch: { items: PixGridDeckDefinition['items'] }) {
+        decks = decks.map(deck => deck.id === deckId ? { ...deck, revision: deck.revision + 1, items: patch.items } : deck)
+        return { ok: true as const, deckId }
+      },
+      deletePixGridDeck(deckId: string) {
+        decks = decks.filter(deck => deck.id !== deckId)
+        return { ok: true as const, deckId }
+      },
+    })
+    const unregister = registerMediaDeletionGuard(createPixGridDeckMediaDeletionGuard(fakeStore))
+    try {
+      expect(await useMediaStore.getState().removeItem(source.id)).toBe(false)
+      expect(useMediaStore.getState().pendingDeletionWarning).toMatchObject({
+        action: 'confirm-reference-removal', affectedDecks: [{ id: 'deck-1', remainingItemCount: 2 }],
+      })
+      expect(mediaDbMocks.requestMediaDeletion).not.toHaveBeenCalled()
+
+      expect(await useMediaStore.getState().removeItem(source.id, { confirmation: 'remove-deck-references' })).toBe(true)
+      expect(decks[0].items.map(item => item.mediaId)).toEqual(['db-other-1', 'db-other-2'])
+      expect(commits).toBe(1)
+      expect(mediaDbMocks.requestMediaDeletion).toHaveBeenCalledWith(source.dbId)
+    } finally {
+      unregister()
+    }
+  })
+
+  it('escalates a two-image Deck to explicit Deck deletion confirmation', async () => {
+    const source = mediaItem()
+    useMediaStore.setState({ items: [source] })
+    const baseItem = (id: string, mediaId: string, order: number) => ({
+      id, mediaId, enabled: true, order, revision: 1, timingOverrideBeats: null,
+      source: { mediaRevision: 1, fingerprint: `legacy:${id}`, fileName: `${id}.png`, mimeType: 'image/png', width: 2, height: 2, hasAlpha: false, transparentBackground: '#000000' },
+    })
+    const configuration = { playbackOrder: 'forward' as const, reactionProfileId: null, transitionPolicy: { style: 'cut' as const, durationBeats: 0 }, defaultItemDurationBeats: 4, sectionTimingBeats: {}, sectionItemAssignments: {}, preDropBehavior: 'inherit' as const }
+    let decks: PixGridDeckDefinition[] = [{
+      schemaVersion: 1, id: 'minimum-deck', name: 'Minimum Deck', revision: 1,
+      generatedPresetId: 'pix-grid-deck:minimum-deck',
+      items: [baseItem('a', source.id, 0), baseItem('b', 'db-other', 1)],
+      configuration,
+    }, {
+      schemaVersion: 1, id: 'shared-deck', name: 'Shared Deck', revision: 1,
+      generatedPresetId: 'pix-grid-deck:shared-deck',
+      items: [baseItem('c', source.id, 0), baseItem('d', 'db-other-2', 1), baseItem('e', 'db-other-3', 2)],
+      configuration,
+    }]
+    let transaction: PixGridDeckDefinition[] | null = null
+    const fakeStore = () => ({
+      pixGridDecks: decks, pixGridDeckHistoryTransaction: transaction,
+      beginPixGridDeckHistoryTransaction() { transaction = structuredClone(decks) },
+      commitPixGridDeckHistoryTransaction() { transaction = null },
+      cancelPixGridDeckHistoryTransaction() { if (transaction) decks = transaction; transaction = null },
+      undoPixGridDeckEdit() {},
+      updatePixGridDeck(deckId: string, patch: { items: PixGridDeckDefinition['items'] }) { decks = decks.map(deck => deck.id === deckId ? { ...deck, items: patch.items } : deck); return { ok: true as const, deckId } },
+      deletePixGridDeck(deckId: string) { decks = decks.filter(deck => deck.id !== deckId); return { ok: true as const, deckId } },
+    })
+    const unregister = registerMediaDeletionGuard(createPixGridDeckMediaDeletionGuard(fakeStore))
+    try {
+      expect(await useMediaStore.getState().removeItem(source.id, { confirmation: 'remove-deck-references' })).toBe(false)
+      expect(useMediaStore.getState().pendingDeletionWarning).toMatchObject({
+        action: 'confirm-deck-deletion',
+        confirmationCopy: 'Deleting this Deck will delete the Preset too. Are you sure?',
+      })
+      expect(useMediaStore.getState().pendingDeletionWarning?.affectedDecks).toHaveLength(2)
+      expect(decks).toHaveLength(2)
+
+      expect(await useMediaStore.getState().removeItem(source.id, { confirmation: 'delete-affected-decks' })).toBe(true)
+      expect(decks.map(deck => deck.id)).toEqual(['shared-deck'])
+      expect(decks[0].items.map(item => item.mediaId)).toEqual(['db-other-2', 'db-other-3'])
+    } finally {
+      unregister()
+    }
   })
 
   it('keeps partial deletion cleanup visible and retries only unfinished exact paths', async () => {
