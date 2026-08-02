@@ -7,6 +7,7 @@ import {
   type UploadedMedia,
 } from '../../../../stores/mediaStore'
 import { useReactStore } from '../../../../stores/reactStore'
+import { preflightPixGridDeckSources } from './PixGridDeckCompilerPreflight'
 import {
   PIX_GRID_DECK_MAX_ITEMS,
   PIX_GRID_DECK_MIN_ITEMS,
@@ -28,6 +29,7 @@ export type PixGridDeckIngestionErrorCode =
   | 'deck-not-found'
   | 'invalid-item-count'
   | 'upload-failed'
+  | 'compile-failed'
   | 'deck-mutation-failed'
   | 'rollback-incomplete'
   | 'cancelled'
@@ -51,7 +53,7 @@ export interface PixGridDeckIngestionRequest {
 }
 
 export type PixGridDeckIngestionResult =
-  | { ok: true; deckId: string; mediaIds: string[] }
+  | { ok: true; deckId: string; mediaIds: string[]; rejected?: Array<{ fileName: string; message: string }> }
   | { ok: false; error: PixGridDeckIngestionError }
 
 interface UploadedDeckSource {
@@ -117,7 +119,8 @@ function validateRequestedCount(target: PixGridDeckIngestionTarget, fileCount: n
 
 /**
  * Validates every source before upload, then uses mediaStore as the sole byte
- * owner and commits exactly one Deck mutation only after every upload succeeds.
+ * owner, preflights new sources through the compiler, and commits one Deck
+ * mutation containing only successfully prepared images.
  */
 export async function ingestPixGridDeckSourceFiles(
   request: PixGridDeckIngestionRequest,
@@ -196,33 +199,96 @@ export async function ingestPixGridDeckSourceFiles(
   }
 
   const state = useReactStore.getState()
+  const appendDeckId = request.target.kind === 'append' ? request.target.deckId : null
+  const existingDeck = appendDeckId
+    ? state.pixGridDecks.find(candidate => candidate.id === appendDeckId) ?? null
+    : null
+  if (request.target.kind === 'append' && !existingDeck) {
+    await rollbackUploads(uploaded.map(entry => entry.media))
+    return { ok: false, error: { code: 'deck-not-found', message: `PixGrid Deck "${request.target.deckId}" was not found.` } }
+  }
+
+  const baseOrder = existingDeck?.items.length ?? 0
+  const candidates = uploaded.map((entry, index) => ({
+    entry,
+    item: itemDefinition(entry, baseOrder + index, transparentBackground),
+  }))
+  const preflight = await preflightPixGridDeckSources(
+    candidates.map(candidate => ({ item: candidate.item, source: candidate.entry.validated.file })),
+    state.pixGridState.matrixWidth,
+    state.pixGridState.matrixHeight,
+    {
+      signal: request.signal,
+      onProgress: itemId => {
+        const candidate = candidates.find(value => value.item.id === itemId)
+        if (candidate) request.onUploadPhase?.(candidate.entry.validated.file.name, 'compiling')
+      },
+    },
+  )
+  if (request.signal?.aborted) {
+    const rolledBack = await rollbackUploads(uploaded.map(entry => entry.media))
+    return {
+      ok: false,
+      error: {
+        code: rolledBack ? 'cancelled' : 'rollback-incomplete',
+        message: rolledBack
+          ? 'Deck image preparation was cancelled.'
+          : 'Deck image preparation was cancelled, but uploaded media cleanup is incomplete.',
+      },
+    }
+  }
+  const acceptedIds = new Set(preflight.acceptedItemIds)
+  const accepted = candidates.filter(candidate => acceptedIds.has(candidate.item.id))
+  const rejected = candidates.filter(candidate => !acceptedIds.has(candidate.item.id))
+  if (rejected.length > 0) {
+    const rejectedCleaned = await rollbackUploads(rejected.map(candidate => candidate.entry.media))
+    if (!rejectedCleaned) {
+      await rollbackUploads(accepted.map(candidate => candidate.entry.media))
+      return {
+        ok: false,
+        error: {
+          code: 'rollback-incomplete',
+          message: 'One or more failed Deck sources could not be removed from the media library.',
+          fileName: rejected[0]?.entry.validated.file.name,
+        },
+      }
+    }
+  }
+
+  const committedCount = (existingDeck?.items.length ?? 0) + accepted.length
+  if (accepted.length === 0 || (request.target.kind === 'create' && committedCount < PIX_GRID_DECK_MIN_ITEMS)) {
+    await rollbackUploads(accepted.map(candidate => candidate.entry.media))
+    const firstFailure = preflight.rejected[0]
+    const firstRejected = rejected[0]
+    return {
+      ok: false,
+      error: {
+        code: firstFailure?.error.code === 'cancelled' ? 'cancelled' : 'compile-failed',
+        message: firstFailure?.error.message ?? 'The Deck images could not be prepared for PixGrid.',
+        fileName: firstRejected?.entry.validated.file.name,
+      },
+    }
+  }
+
   let mutation: PixGridDeckMutationResult
   let deckId: string
   if (request.target.kind === 'create') {
-    const items = uploaded.map((entry, order) => itemDefinition(entry, order, transparentBackground))
     mutation = state.createPixGridDeck({
       id: request.target.id,
       name: request.target.name,
-      items,
+      items: accepted.map(candidate => candidate.item),
     })
     deckId = mutation.ok ? mutation.deckId : request.target.id ?? ''
   } else {
-    const targetDeckId = request.target.deckId
-    const deck = state.pixGridDecks.find(candidate => candidate.id === targetDeckId)
-    if (!deck) {
-      await rollbackUploads(uploaded.map(entry => entry.media))
-      return { ok: false, error: { code: 'deck-not-found', message: `PixGrid Deck "${targetDeckId}" was not found.` } }
-    }
-    const items = [
-      ...deck.items,
-      ...uploaded.map((entry, index) => itemDefinition(entry, deck.items.length + index, transparentBackground)),
-    ]
-    mutation = state.updatePixGridDeck(deck.id, { items })
+    const deck = existingDeck!
+    mutation = state.updatePixGridDeck(deck.id, {
+      items: [...deck.items, ...accepted.map(candidate => candidate.item)],
+    })
     deckId = deck.id
   }
 
   if (!mutation.ok) {
-    const rolledBack = await rollbackUploads(uploaded.map(entry => entry.media))
+    const rolledBack = await rollbackUploads(accepted.map(candidate => candidate.entry.media))
     return {
       ok: false,
       error: {
@@ -235,5 +301,17 @@ export async function ingestPixGridDeckSourceFiles(
     }
   }
 
-  return { ok: true, deckId, mediaIds: uploaded.map(entry => entry.media.id) }
+  const warnings = preflight.rejected.map(failure => {
+    const candidate = rejected.find(value => value.item.id === failure.itemId)
+    return {
+      fileName: candidate?.entry.validated.file.name ?? failure.mediaId,
+      message: failure.error.message,
+    }
+  })
+  return {
+    ok: true,
+    deckId,
+    mediaIds: accepted.map(candidate => candidate.entry.media.id),
+    ...(warnings.length > 0 ? { rejected: warnings } : {}),
+  }
 }

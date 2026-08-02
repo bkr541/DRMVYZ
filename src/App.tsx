@@ -7,6 +7,7 @@ import { ActiveTrackLyricsBridge } from './features/lyrics/ActiveTrackLyricsBrid
 import { useBrandKitStore } from './features/personalization/brandKitStore'
 import { applyBrandAppAccent, restoreStandardAppAccent } from './features/personalization/appAccentPersonalization'
 import { productionOutputController } from './components/vyzualz/react/output/ProductionOutput'
+import { startPixGridDeckCompilerRuntime } from './components/vyzualz/react/pixGrid/PixGridDeckCompilerRuntime'
 import { useMediaStore } from './stores/mediaStore'
 import { useAppearanceStore } from './features/appearance/appearanceStore'
 import './stores/mediaDeletionGuardBootstrap'
@@ -41,6 +42,10 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (authGate !== 'authenticated') return
+    return startPixGridDeckCompilerRuntime()
+  }, [authGate])
 
   useEffect(() => {
     let activeUserId: string | null = null

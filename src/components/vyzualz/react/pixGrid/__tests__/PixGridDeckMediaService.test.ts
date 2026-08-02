@@ -9,9 +9,11 @@ const runtime = vi.hoisted(() => ({
   },
   reactState: {
     pixGridDecks: [] as any[],
+    pixGridState: { matrixWidth: 160, matrixHeight: 90 },
     createPixGridDeck: vi.fn(),
     updatePixGridDeck: vi.fn(),
   },
+  preflight: vi.fn(),
   brandState: {
     activeKit: { palette: { background: '#112233', primary: '#445566' } },
   },
@@ -29,6 +31,9 @@ vi.mock('../../../../../stores/reactStore', () => ({
 }))
 vi.mock('../../../../../features/personalization/brandKitStore', () => ({
   useBrandKitStore: { getState: () => runtime.brandState },
+}))
+vi.mock('../PixGridDeckCompilerPreflight', () => ({
+  preflightPixGridDeckSources: runtime.preflight,
 }))
 
 import { ingestPixGridDeckSourceFiles } from '../PixGridDeckMediaService'
@@ -55,6 +60,11 @@ describe('PixGrid Deck media ingestion service', () => {
     runtime.reactState.pixGridDecks = []
     runtime.brandState.activeKit = { palette: { background: '#112233', primary: '#445566' } }
     runtime.mediaState.removeItem.mockResolvedValue(true)
+    runtime.preflight.mockImplementation(async (entries: Array<{ item: { id: string } }>) => ({
+      acceptedItemIds: entries.map(entry => entry.item.id),
+      rejected: [],
+    }))
+    runtime.reactState.pixGridState = { matrixWidth: 160, matrixHeight: 90 }
     runtime.mediaState.uploadCanonicalVisualFile
       .mockResolvedValueOnce({ ok: true, item: uploaded('db-one', 'opaque.png') })
       .mockResolvedValueOnce({ ok: true, item: uploaded('db-two', 'safe.svg') })
@@ -111,6 +121,33 @@ describe('PixGrid Deck media ingestion service', () => {
     expect(result).toMatchObject({ ok: false, error: { code: 'cancelled' } })
     expect(runtime.mediaState.removeItem).toHaveBeenCalledWith('db-one')
     expect(runtime.reactState.createPixGridDeck).not.toHaveBeenCalled()
+  })
+
+  it('removes a failed new image from the pending mutation while preserving compiled successes', async () => {
+    runtime.mediaState.uploadCanonicalVisualFile.mockReset()
+      .mockResolvedValueOnce({ ok: true, item: uploaded('db-one', 'opaque.png') })
+      .mockResolvedValueOnce({ ok: true, item: uploaded('db-two', 'safe.svg') })
+      .mockResolvedValueOnce({ ok: true, item: uploaded('db-three', 'transparent.png') })
+    runtime.preflight.mockImplementationOnce(async (entries: Array<{ item: { id: string; mediaId: string } }>) => ({
+      acceptedItemIds: [entries[0].item.id, entries[2].item.id],
+      rejected: [{
+        itemId: entries[1].item.id,
+        mediaId: entries[1].item.mediaId,
+        error: { code: 'decode-failed', message: 'The SVG could not be decoded.', retryable: false },
+      }],
+    }))
+    const result = await ingestPixGridDeckSourceFiles({
+      target: { kind: 'create', id: 'deck-new', name: 'Partial Deck' },
+      files: [fixture('opaque.png', 'image/png'), fixture('safe.svg', 'image/svg+xml'), fixture('transparent.png', 'image/png')],
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      mediaIds: ['db-one', 'db-three'],
+      rejected: [{ fileName: 'safe.svg', message: 'The SVG could not be decoded.' }],
+    })
+    expect(runtime.mediaState.removeItem).toHaveBeenCalledWith('db-two')
+    expect(runtime.reactState.createPixGridDeck.mock.calls[0][0].items.map((item: { mediaId: string }) => item.mediaId))
+      .toEqual(['db-one', 'db-three'])
   })
 
   it('rolls back canonical uploads when the Stage 1 name contract rejects the Deck', async () => {

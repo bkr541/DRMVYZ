@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { splitStorageValue, mergeStorageValues } from '../lib/splitPersistStorage'
 import { PIX_GRID_PRESET_IDS } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import type { PixGridDeckItemDefinition } from '../components/vyzualz/react/pixGrid/PixGridDeckDomain'
+import { usePixGridDeckCompilerStore } from '../components/vyzualz/react/pixGrid/PixGridDeckCompilerRuntime'
 import {
   REACT_PROJECT_STATE_KEYS,
   mergeReactStoreState,
@@ -189,6 +190,31 @@ describe('PixGrid Deck project persistence and history', () => {
     expect(reloaded.pixGridDeckUndoStack).toEqual([])
     expect(reloaded.pixGridDeckRedoStack).toEqual([])
     expect(reloaded.pixGridDeckHistoryTransaction).toBeNull()
+  })
+
+  it('keeps compile progress and prepared buffers outside project persistence', () => {
+    createDeck('runtime-only', 'Runtime Only')
+    usePixGridDeckCompilerStore.getState().setStatuses({
+      'runtime-only': {
+        deckId: 'runtime-only',
+        deckRevision: 1,
+        width: 160,
+        height: 90,
+        phase: 'compiling',
+        progress: 0.5,
+        ready: false,
+        enabledItemCount: 2,
+        readyItemCount: 1,
+        failedItemCount: 0,
+        items: [],
+      },
+    })
+    const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
+    const serialized = JSON.stringify(persisted)
+    expect(persisted).not.toHaveProperty('pixGridDeckCompiler')
+    expect(serialized).not.toContain('runtime-only":{"deckId"')
+    expect(serialized).not.toContain('Uint8Array')
+    usePixGridDeckCompilerStore.getState().clear()
   })
 
   it('strips runtime-only fields and quarantines malformed imported Decks without damaging unrelated state', () => {
