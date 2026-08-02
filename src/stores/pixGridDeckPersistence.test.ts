@@ -296,4 +296,99 @@ describe('PixGrid Deck project persistence and history', () => {
     const reloaded = mergeReactStoreState(migrateReactStore(savedAfterDelete, 63), current)
     expect(reloaded.pixGridDecks).toEqual([])
   })
+
+  it('gates explicit Preset creation, preserves custom provenance, and synchronizes rename/delete through undo', () => {
+    expect(createDeck('preset-lifecycle', 'Preset Lifecycle')).toEqual({ ok: true, deckId: 'preset-lifecycle' })
+    const initial = useReactStore.getState().pixGridDecks[0]!
+    const staleReadiness = {
+      deckId: initial.id,
+      deckRevision: initial.revision - 1,
+      enabledItemCount: 2,
+      frameProgress: 1,
+      transitionProgress: 1,
+      ready: true,
+      errorCount: 0,
+      message: 'Ready to create Preset.',
+    }
+    expect(useReactStore.getState().createPixGridDeckPreset(initial.id, staleReadiness)).toMatchObject({
+      ok: false,
+      error: { code: 'deck-not-ready', path: 'readiness' },
+    })
+    expect(useReactStore.getState().reactPresets.some(preset => preset.id === initial.generatedPresetId)).toBe(false)
+
+    const readiness = { ...staleReadiness, deckRevision: initial.revision }
+    expect(useReactStore.getState().createPixGridDeckPreset(initial.id, readiness)).toEqual({
+      ok: true,
+      deckId: initial.id,
+    })
+    const createdDeck = useReactStore.getState().pixGridDecks[0]!
+    expect(createdDeck).toMatchObject({ presetCreated: true, revision: initial.revision })
+    expect(useReactStore.getState().reactPresets.find(preset => preset.id === initial.generatedPresetId)).toMatchObject({
+      id: initial.generatedPresetId,
+      name: 'Preset Lifecycle',
+      pixGridDeck: { deckId: initial.id, deckRevision: initial.revision },
+    })
+
+    useReactStore.getState().selectReactPreset(initial.generatedPresetId)
+    expect(useReactStore.getState().pixGridState.configuration).toMatchObject({
+      origin: 'custom',
+      sourcePresetId: initial.generatedPresetId,
+    })
+
+    const selectedState = useReactStore.getState().pixGridState
+    useReactStore.setState({
+      pixGridState: {
+        ...selectedState,
+        layers: selectedState.layers.map((layer, index) => index === 0 ? { ...layer, opacity: 0.17 } : layer),
+      },
+    })
+    useReactStore.getState().selectReactPreset(initial.generatedPresetId)
+    expect(useReactStore.getState().pixGridState.layers[0]?.opacity).toBe(1)
+
+    expect(useReactStore.getState().renamePixGridDeck(initial.id, 'Renamed Lifecycle')).toEqual({
+      ok: true,
+      deckId: initial.id,
+    })
+    expect(useReactStore.getState().reactPresets.find(preset => preset.id === initial.generatedPresetId)).toMatchObject({
+      id: initial.generatedPresetId,
+      name: 'Renamed Lifecycle',
+    })
+
+    expect(useReactStore.getState().deletePixGridDeck(initial.id)).toEqual({ ok: true, deckId: initial.id })
+    expect(useReactStore.getState().pixGridDecks).toEqual([])
+    expect(useReactStore.getState().reactPresets.some(preset => preset.id === initial.generatedPresetId)).toBe(false)
+    expect(useReactStore.getState().activeReactPresetId).not.toBe(initial.generatedPresetId)
+
+    useReactStore.getState().undoPixGridDeckEdit()
+    expect(useReactStore.getState().pixGridDecks[0]).toMatchObject({ id: initial.id, name: 'Renamed Lifecycle' })
+    expect(useReactStore.getState().reactPresets.find(preset => preset.id === initial.generatedPresetId)).toMatchObject({
+      id: initial.generatedPresetId,
+      name: 'Renamed Lifecycle',
+    })
+  })
+
+  it('reconstructs explicit generated Preset linkage from persisted project state', () => {
+    createDeck('reload-preset', 'Reload Preset')
+    const deck = useReactStore.getState().pixGridDecks[0]!
+    const readiness = {
+      deckId: deck.id,
+      deckRevision: deck.revision,
+      enabledItemCount: 2,
+      frameProgress: 1,
+      transitionProgress: 1,
+      ready: true,
+      errorCount: 0,
+      message: 'Ready to create Preset.',
+    }
+    useReactStore.getState().createPixGridDeckPreset(deck.id, readiness)
+    const partialized = reactStorePartialize(useReactStore.getState())
+    const reloaded = mergeReactStoreState(migrateReactStore(partialized, 63), useReactStore.getState())
+
+    expect(reloaded.pixGridDecks[0]).toMatchObject({ id: deck.id, presetCreated: true })
+    expect(reloaded.reactPresets.find(preset => preset.id === deck.generatedPresetId)).toMatchObject({
+      id: deck.generatedPresetId,
+      pixGridDeck: { deckId: deck.id },
+    })
+  })
+
 })

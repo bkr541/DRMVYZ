@@ -223,6 +223,10 @@ import {
   type PixGridDeckValidationError,
 } from '../components/vyzualz/react/pixGrid/PixGridDeckDomain'
 import {
+  reconcilePixGridDeckGeneratedPresets,
+  type PixGridDeckPresetReadiness,
+} from '../components/vyzualz/react/pixGrid/PixGridDeckPreset'
+import {
   MAX_PIX_GRID_ACTION_CUES_PER_TRACK,
   MAX_PIX_GRID_ACTION_CUE_TRACKS,
   MAX_PIX_GRID_HISTORY,
@@ -1658,15 +1662,17 @@ function trimPixGridDeckHistory(
 }
 
 function buildPixGridDeckHistoryPatch(
-  storeState: Pick<ReactStoreState, 'pixGridDecks' | 'pixGridDeckUndoStack' | 'pixGridDeckRedoStack' | 'pixGridDeckHistoryTransaction'>,
+  storeState: Pick<ReactStoreState, 'reactPresets' | 'pixGridDecks' | 'pixGridDeckUndoStack' | 'pixGridDeckRedoStack' | 'pixGridDeckHistoryTransaction'>,
   nextDecks: readonly PixGridDeckDefinition[],
 ) {
   const current = normalizePixGridDeckCollection(storeState.pixGridDecks)
   const next = normalizePixGridDeckCollection(nextDecks)
   if (pixGridDeckCollectionsEqual(current, next)) return {}
-  if (storeState.pixGridDeckHistoryTransaction) return { pixGridDecks: next }
+  const reactPresets = reconcilePixGridDeckGeneratedPresets(storeState.reactPresets, next)
+  if (storeState.pixGridDeckHistoryTransaction) return { pixGridDecks: next, reactPresets }
   return {
     pixGridDecks: next,
+    reactPresets,
     pixGridDeckUndoStack: trimPixGridDeckHistory([...storeState.pixGridDeckUndoStack, current]),
     pixGridDeckRedoStack: [],
   }
@@ -2073,6 +2079,7 @@ interface ReactStoreState {
   pixGridDeckRedoStack: PixGridDeckDefinition[][]
   pixGridDeckHistoryTransaction: PixGridDeckDefinition[] | null
   createPixGridDeck: (input: PixGridDeckCreateInput) => PixGridDeckMutationResult
+  createPixGridDeckPreset: (deckId: string, readiness: PixGridDeckPresetReadiness) => PixGridDeckMutationResult
   renamePixGridDeck: (deckId: string, name: string) => PixGridDeckMutationResult
   updatePixGridDeck: (deckId: string, patch: PixGridDeckUpdatePatch) => PixGridDeckMutationResult
   deletePixGridDeck: (deckId: string) => PixGridDeckMutationResult
@@ -4474,9 +4481,14 @@ export function mergeReactStoreState(
   const persistedPresets = Array.isArray(persisted.reactPresets)
     ? removeRetiredReactPresets(persisted.reactPresets)
     : undefined
-  const reactPresets = normalizeCinematicPresetCollection(
+  const normalizedDecks = normalizePixGridDeckCollection(persisted.pixGridDecks).map(deck => (
+    deck.presetCreated || persistedPresets?.some(preset => preset.id === deck.generatedPresetId)
+      ? { ...deck, presetCreated: true }
+      : deck
+  ))
+  const reactPresets = reconcilePixGridDeckGeneratedPresets(normalizeCinematicPresetCollection(
     removeRetiredReactPresets(mergeReactPresetCollection(currentState.reactPresets, persistedPresets)),
-  )
+  ), normalizedDecks)
   sanitizeReactPresetFavorites(
     reactPresets
       .filter(preset => !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id))
@@ -4505,7 +4517,7 @@ export function mergeReactStoreState(
     cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode,
     pixGridState: normalizePixGridState(rawPixGridState),
-    pixGridDecks: normalizePixGridDeckCollection(persisted.pixGridDecks),
+    pixGridDecks: normalizedDecks,
     pixGridActionCuesByTrackId: normalizePixGridActionCueMap(
       persisted.pixGridActionCuesByTrackId ?? currentState.pixGridActionCuesByTrackId,
     ),
@@ -4900,6 +4912,54 @@ export const useReactStore = create<ReactStoreState>()(
         return { ok: true, deckId: normalized.deck.id }
       },
 
+      createPixGridDeckPreset: (deckId, readiness) => {
+        const state = get()
+        const current = state.pixGridDecks.find(deck => deck.id === deckId)
+        if (!current) {
+          return pixGridDeckFailure({
+            code: 'deck-not-found',
+            message: `PixGrid Deck "${deckId}" was not found.`,
+            path: 'id',
+          })
+        }
+        const enabledItemCount = current.items.filter(item => item.enabled).length
+        if (
+          !readiness.ready
+          || readiness.deckId !== current.id
+          || readiness.deckRevision !== current.revision
+          || enabledItemCount < 2
+          || readiness.enabledItemCount !== enabledItemCount
+          || readiness.frameProgress < 1
+          || readiness.transitionProgress < 1
+          || readiness.errorCount !== 0
+        ) {
+          return pixGridDeckFailure({
+            code: 'deck-not-ready',
+            message: 'Every enabled Deck image and transition must be ready before creating a Preset.',
+            path: 'readiness',
+          })
+        }
+        if (current.presetCreated) return { ok: true, deckId }
+        const nextDeck = normalizePixGridDeckDefinition({
+          ...current,
+          revision: current.revision,
+          presetCreated: true,
+        }).deck
+        if (!nextDeck) {
+          return pixGridDeckFailure({ code: 'invalid-deck', message: 'The PixGrid Deck Preset could not be created.' })
+        }
+        const nextDecks = state.pixGridDecks.map(deck => deck.id === deckId ? nextDeck : deck)
+        const patch = buildPixGridDeckHistoryPatch(state, nextDecks)
+        set({
+          ...patch,
+          reactPresets: reconcilePixGridDeckGeneratedPresets(
+            state.reactPresets.filter(preset => preset.id !== current.generatedPresetId),
+            nextDecks,
+          ),
+        })
+        return { ok: true, deckId }
+      },
+
       renamePixGridDeck: (deckId, name) => get().updatePixGridDeck(deckId, { name }),
 
       updatePixGridDeck: (deckId, patch) => {
@@ -4965,17 +5025,23 @@ export const useReactStore = create<ReactStoreState>()(
 
       deletePixGridDeck: (deckId) => {
         const state = get()
-        if (!state.pixGridDecks.some(deck => deck.id === deckId)) {
+        const deletingDeck = state.pixGridDecks.find(deck => deck.id === deckId)
+        if (!deletingDeck) {
           return pixGridDeckFailure({
             code: 'deck-not-found',
             message: `PixGrid Deck "${deckId}" was not found.`,
             path: 'id',
           })
         }
-        set(buildPixGridDeckHistoryPatch(
-          state,
-          state.pixGridDecks.filter(deck => deck.id !== deckId),
-        ))
+        const nextDecks = state.pixGridDecks.filter(deck => deck.id !== deckId)
+        const historyPatch = buildPixGridDeckHistoryPatch(state, nextDecks)
+        const nextPresets = historyPatch.reactPresets
+          ?? reconcilePixGridDeckGeneratedPresets(state.reactPresets, nextDecks)
+        const fallbackPreset = nextPresets.find(preset => preset.engine === 'pixGrid') ?? null
+        const selectionPatch = state.activeReactPresetId === deletingDeck.generatedPresetId && fallbackPreset
+          ? buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
+          : {}
+        set({ ...historyPatch, ...selectionPatch })
         return { ok: true, deckId }
       },
 
@@ -4998,6 +5064,10 @@ export const useReactStore = create<ReactStoreState>()(
       cancelPixGridDeckHistoryTransaction: () => set(state => state.pixGridDeckHistoryTransaction
         ? {
             pixGridDecks: normalizePixGridDeckCollection(state.pixGridDeckHistoryTransaction),
+            reactPresets: reconcilePixGridDeckGeneratedPresets(
+              state.reactPresets,
+              normalizePixGridDeckCollection(state.pixGridDeckHistoryTransaction),
+            ),
             pixGridDeckHistoryTransaction: null,
           }
         : {}),
@@ -5008,6 +5078,7 @@ export const useReactStore = create<ReactStoreState>()(
         const current = normalizePixGridDeckCollection(state.pixGridDecks)
         return {
           pixGridDecks: normalizePixGridDeckCollection(previous),
+          reactPresets: reconcilePixGridDeckGeneratedPresets(state.reactPresets, previous),
           pixGridDeckUndoStack: state.pixGridDeckUndoStack.slice(0, -1),
           pixGridDeckRedoStack: trimPixGridDeckHistory([...state.pixGridDeckRedoStack, current]),
           pixGridDeckHistoryTransaction: null,
@@ -5020,6 +5091,7 @@ export const useReactStore = create<ReactStoreState>()(
         const current = normalizePixGridDeckCollection(state.pixGridDecks)
         return {
           pixGridDecks: normalizePixGridDeckCollection(next),
+          reactPresets: reconcilePixGridDeckGeneratedPresets(state.reactPresets, next),
           pixGridDeckUndoStack: trimPixGridDeckHistory([...state.pixGridDeckUndoStack, current]),
           pixGridDeckRedoStack: state.pixGridDeckRedoStack.slice(0, -1),
           pixGridDeckHistoryTransaction: null,

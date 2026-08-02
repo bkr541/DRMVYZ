@@ -44,6 +44,7 @@ export interface ReactPresetCardProps {
   className?: string
   shellClassName?: string
   titleText?: string
+  disabled?: boolean
 }
 
 export function resolvePresetCardNavigationIndex(
@@ -71,7 +72,7 @@ export function resolvePresetCardNavigationIndex(
 export function handlePresetCardKeyDown(event: KeyboardEvent<HTMLButtonElement>): void {
   const group = event.currentTarget.closest<HTMLElement>('[data-preset-grid]')
   if (!group) return
-  const cards = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-preset-card]'))
+  const cards = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-preset-card]:not(:disabled)'))
   const currentIndex = cards.indexOf(event.currentTarget)
   const columns = group.clientWidth >= 720 ? 2 : 1
   const nextIndex = resolvePresetCardNavigationIndex(currentIndex, event.key, cards.length, columns)
@@ -96,6 +97,7 @@ export function ReactPresetCard({
   className = '',
   shellClassName = '',
   titleText = description,
+  disabled = false,
 }: ReactPresetCardProps) {
   const hasThumbnail = Boolean(thumbnail)
   const hasActions = Boolean(onToggleFavorite) || secondaryActions.length > 0
@@ -110,8 +112,9 @@ export function ReactPresetCard({
       <button
         type="button"
         className={`rv-preset-card rv-shader-scene-card rv-compact-preset-card${hasThumbnail ? ' rv-preset-card--with-thumb' : ''}${isActive ? ' rv-preset-card--active rv-shader-scene-card--active' : ''}${className ? ` ${className}` : ''}`}
-        onClick={onActivate}
+        onClick={disabled ? undefined : onActivate}
         onKeyDown={handlePresetCardKeyDown}
+        disabled={disabled}
         data-preset-card
         data-preset-card-id={id}
         aria-pressed={isActive}

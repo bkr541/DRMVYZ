@@ -3121,6 +3121,13 @@ export interface ReactSectionMapping {
   sceneId: string
 }
 
+export interface ReactPixGridDeckPresetMetadata {
+  deckId: string
+  deckRevision: number
+  firstEnabledItemId: string | null
+  thumbnailFingerprint: string
+}
+
 export interface ReactPreset {
   id: string
   name: string
@@ -3144,6 +3151,8 @@ export interface ReactPreset {
   cinematicConfig?: CinematicWorldConfig
   /** PixGrid-only compact matrix and baseline-art settings. */
   pixGridSettings?: PixGridPresetSettings
+  /** Lightweight linkage for an explicitly generated project Deck Preset. */
+  pixGridDeck?: ReactPixGridDeckPresetMetadata
 }
 
 export function resolveReactPresetLaserDmxWorkspace(

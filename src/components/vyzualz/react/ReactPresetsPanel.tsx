@@ -42,6 +42,8 @@ import { resolveBrandedReactPreset } from '../../../features/personalization/res
 import type { ProductionFixtureKind } from './LaserDmxProductionRig'
 import { isSelectableReactEngineId, REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
 import { resolveReactPresetProvenance } from './ReactPresetProvenance'
+import { usePixGridDeckCompilerStore } from './pixGrid/PixGridDeckCompilerRuntime'
+import { resolvePixGridDeckPresetReadiness } from './pixGrid/PixGridDeckPreset'
 import { resolveCanvasPresetProvenance } from './canvasPerformance/CanvasPresetProvenance'
 import {
   filterReactPresetLibrary,
@@ -160,6 +162,11 @@ function StandardReactPresetCard({
   modeHintOverride?: string | null
   showMore?: boolean
 }) {
+  const deck = useReactStore(state => preset.pixGridDeck
+    ? state.pixGridDecks.find(candidate => candidate.id === preset.pixGridDeck?.deckId) ?? null
+    : null)
+  const compileStatus = usePixGridDeckCompilerStore(state => deck ? state.statuses[deck.id] : undefined)
+  const transitionStatus = usePixGridDeckCompilerStore(state => deck ? state.transitionStatuses[deck.id] : undefined)
   if (!isSelectableReactEngineId(preset.engine)) return null
   const modeHint = modeHintOverride ?? getModeHint(preset)
   const production = preset.productionPreset
@@ -169,6 +176,10 @@ function StandardReactPresetCard({
     ...(modeHint ? [{ label: modeHint }] : []),
     ...(switchesContext ? [{ label: 'Switch & Load', tone: 'switch' as const }] : []),
   ]
+  const deckReadiness = deck
+    ? resolvePixGridDeckPresetReadiness(deck, compileStatus, transitionStatus)
+    : null
+  const disabled = Boolean(preset.pixGridDeck && (!deck || !deckReadiness?.ready))
 
   return (
     <ReactPresetCard
@@ -183,8 +194,11 @@ function StandardReactPresetCard({
       isActive={isActive}
       isModified={modified}
       isFavorite={isFavorite}
-      activateLabel={`${switchesContext ? `Switch to ${destinationLabel} and load` : 'Load'} ${preset.name}`}
+      activateLabel={disabled
+        ? `${preset.name} is unavailable while its Deck is compiling`
+        : `${switchesContext ? `Switch to ${destinationLabel} and load` : 'Load'} ${preset.name}`}
       onActivate={() => onSelect(preset.id)}
+      disabled={disabled}
       onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(preset.id) : undefined}
       titleText={isActive && modified ? `Modified from ${preset.name}. ${preset.description}` : preset.description}
       contentBeforeDescription={detailsOpen => production ? (

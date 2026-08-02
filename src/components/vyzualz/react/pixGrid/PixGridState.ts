@@ -66,7 +66,7 @@ export function applyPixGridPresetSettings(
     selectedPresetId: presetId,
     configuration: {
       metadataVersion: PIX_GRID_CONFIGURATION_METADATA_VERSION,
-      origin: 'builtInPreset',
+      origin: PIX_GRID_PRESET_BY_ID.has(presetId) ? 'builtInPreset' : 'custom',
       sourcePresetId: presetId,
       presetConfigurationVersion: settings.authoredConfigurationVersion ?? 1,
       layerGraphVersion: PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION,

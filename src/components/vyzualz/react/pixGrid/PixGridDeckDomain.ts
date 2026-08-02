@@ -93,6 +93,8 @@ export interface PixGridDeckDefinition {
   name: string
   revision: number
   generatedPresetId: string
+  /** The catalog record exists only after the user explicitly creates it. */
+  presetCreated?: boolean
   items: PixGridDeckItemDefinition[]
   configuration: PixGridDeckConfiguration
 }
@@ -141,6 +143,7 @@ export type PixGridDeckValidationCode =
   | 'duplicate-item-id'
   | 'duplicate-media-id'
   | 'deck-not-found'
+  | 'deck-not-ready'
 
 export interface PixGridDeckValidationError {
   code: PixGridDeckValidationCode
@@ -655,6 +658,7 @@ export function normalizePixGridDeckDefinition(value: unknown): PixGridDeckNorma
     name,
     revision: normalizeRevision(value.revision),
     generatedPresetId: generatedPixGridDeckPresetId(id),
+    presetCreated: value.presetCreated === true,
     items,
     configuration: normalizePixGridDeckConfiguration(rawConfiguration, itemIds),
   }
@@ -737,6 +741,7 @@ export function createPixGridDeckDefinition(
     name: input.name,
     revision: 1,
     generatedPresetId: generatedPixGridDeckPresetId(id),
+    presetCreated: false,
     items: input.items.map((item, order) => ({
       ...item,
       id: item.id ?? createPixGridDeckItemId(),

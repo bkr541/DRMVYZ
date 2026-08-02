@@ -27,6 +27,14 @@ import {
   subscribeReactLiveEngineOwnership,
   waitForReactLiveEngineStable,
 } from './ReactLiveEngineOwnership'
+import { useReactStore } from '../../../../stores/reactStore'
+import { getPixGridPreparedFrameSet } from '../pixGrid/PixGridDeckCompilerRuntime'
+import { createSilentPixGridAudioFrame } from '../pixGrid/PixGridAudioRouting'
+import type { PixGridDeckRuntimeFrameSource } from '../pixGrid/PixGridDeckRuntime'
+import {
+  createPixGridStateForPreset,
+  renderPixGridBaseline,
+} from './pixGrid/PixGridBaselineRenderer'
 
 const DEFAULT_W = 192
 const DEFAULT_H = 108
@@ -35,7 +43,7 @@ const PREVIEW_START_TIME_SEC = 31.5
 const PREVIEW_SECONDS = 2.4
 const MAX_CONCURRENT_WEBGL_THUMBNAILS = 1
 const MAX_THUMBNAIL_CACHE_ENTRIES = 256
-const THUMBNAIL_FINGERPRINT_VERSION = 7
+const THUMBNAIL_FINGERPRINT_VERSION = 8
 const THUMBNAIL_QUALITY_MODE = 'low-cost-v1'
 const MIN_THUMBNAIL_DIMENSION = 16
 const MAX_THUMBNAIL_DIMENSION = 1024
@@ -154,6 +162,7 @@ export function fingerprintReactPresetThumbnail(preset: ReactPreset): string {
     productionPreset: preset.productionPreset ?? null,
     cinematicConfig: preset.cinematicConfig ?? null,
     pixGridSettings: preset.pixGridSettings ?? null,
+    pixGridDeck: preset.pixGridDeck ?? null,
     sectionMappings: preset.sectionMappings,
     scenes: preset.scenes,
   })
@@ -427,13 +436,37 @@ async function renderThumbnailOnceWithExclusiveContextAccess(
       source: 'manual' as const,
     }] : []
     const frameBudget = resolveThumbnailFrameBudget(thumbnailPreset)
+    const deckThumbnail = resolveDeckThumbnailSource(thumbnailPreset)
 
     for (let index = 0; index < frameBudget; index += 1) {
       if (signal.aborted) return null
       const frame = buildFrame(index, frameBudget, width, height, sectionType)
-      renderReactEngine(ctx, frame, thumbnailPreset, renderParams, sections, {
-        webglLifetime: 'transient-thumbnail',
-      })
+      if (deckThumbnail) {
+        const audioFrame = createSilentPixGridAudioFrame({
+          audioTime: frame.audioTime,
+          bass: frame.audio.bass,
+          mid: frame.audio.mid,
+          high: frame.audio.high,
+          volume: frame.audio.volume,
+          beatHit: frame.beatHit,
+          beatPhase: frame.beatPhase,
+          isPlaying: true,
+          sectionType: sectionType ?? 'unknown',
+        })
+        renderPixGridBaseline(ctx, {
+          ...audioFrame,
+          width,
+          height,
+          motion: thumbnailPreset.params.motion,
+          intensity: thumbnailPreset.params.intensity,
+          glow: thumbnailPreset.params.glow,
+          bassReactivity: thumbnailPreset.params.bassReactivity,
+        }, thumbnailPreset, deckThumbnail.state, null, undefined, null, [], undefined, null, deckThumbnail.source)
+      } else {
+        renderReactEngine(ctx, frame, thumbnailPreset, renderParams, sections, {
+          webglLifetime: 'transient-thumbnail',
+        })
+      }
       if (index < frameBudget - 1) {
         if (isReactLiveEngineInitializing()) await waitForReactLiveEngineStable(signal)
         await thumbnailScheduler.yield(signal)
@@ -451,6 +484,49 @@ async function renderThumbnailOnceWithExclusiveContextAccess(
       if (!completed || signal.aborted) invalidateThumbnailRendererPool(pool)
       else resetThumbnailRendererPoolAfterJob(pool)
     }
+  }
+}
+
+function resolveDeckThumbnailSource(preset: ReactPreset): Readonly<{
+  state: ReturnType<typeof createPixGridStateForPreset>
+  source: PixGridDeckRuntimeFrameSource
+}> | null {
+  const deckId = preset.pixGridDeck?.deckId
+  if (!deckId || preset.engine !== 'pixGrid') return null
+  const deck = useReactStore.getState().pixGridDecks.find(candidate => candidate.id === deckId)
+  const frameSet = getPixGridPreparedFrameSet(deckId)
+  if (!deck || !frameSet || frameSet.deckRevision !== deck.revision) return null
+  const firstEnabled = deck.items.find(item => item.enabled)
+  if (!firstEnabled) return null
+  const frameIndex = deck.items.filter(item => item.enabled).findIndex(item => item.id === firstEnabled.id)
+  const frame = frameSet.frames[frameIndex] ?? frameSet.frames.find(candidate => candidate.mediaId === firstEnabled.mediaId)
+  if (!frame) return null
+  const state = {
+    ...createPixGridStateForPreset(preset),
+    matrixWidth: frameSet.width,
+    matrixHeight: frameSet.height,
+  }
+  return {
+    state,
+    source: {
+      kind: 'deck',
+      deckId,
+      deckRevision: deck.revision,
+      width: frameSet.width,
+      height: frameSet.height,
+      sourceItemId: firstEnabled.id,
+      targetItemId: firstEnabled.id,
+      sourceFrame: frame,
+      targetFrame: frame,
+      transitionPlan: null,
+      transitionMode: 'hardCut',
+      transitionProgress: 1,
+      transitionActive: false,
+      boundaryIdentity: null,
+      frameEpoch: 0,
+      identity: `${deck.id}:${deck.revision}:${frame.cacheKey}:thumbnail`,
+      fallbackReason: null,
+    },
   }
 }
 

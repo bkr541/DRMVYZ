@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
@@ -10,8 +10,22 @@ import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
 import type { ReactPreset } from '../react/ReactTypes'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
+import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
+import {
+  createPixGridDeckGeneratedPreset,
+  resolvePixGridDeckPresetReadiness,
+} from '../react/pixGrid/PixGridDeckPreset'
+import { usePixGridDeckCompilerStore } from '../react/pixGrid/PixGridDeckCompilerRuntime'
+import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaService'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import {
+  PixGridDeckBuilderInspector,
+  PixGridDeckBuilderLibrary,
+  PixGridDeckPresetSummary,
+  PixGridDeckSequenceStrip,
+  type PixGridDeckUploadUiState,
+} from './PixGridDeckBuilder'
 import '../../../styles/reactView.css'
 import '../../../styles/showManager.css'
 
@@ -54,6 +68,8 @@ const STAGE_SCALE_OPTIONS = [
   { value: '100', label: '100%' },
 ] as const
 
+const SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE = 'showManager:pixGridDeckBuilder' as const
+
 function formatClock(value: number): string {
   const safe = Number.isFinite(value) && value > 0 ? value : 0
   const minutes = Math.floor(safe / 60)
@@ -75,6 +91,10 @@ export function ShowManagerView() {
   const activeReactPresetId = useReactStore(state => state.activeReactPresetId)
   const pixGridState = useReactStore(state => state.pixGridState)
   const pixGridDecks = useReactStore(state => state.pixGridDecks)
+  const renamePixGridDeck = useReactStore(state => state.renamePixGridDeck)
+  const updatePixGridDeck = useReactStore(state => state.updatePixGridDeck)
+  const deletePixGridDeck = useReactStore(state => state.deletePixGridDeck)
+  const createPixGridDeckPreset = useReactStore(state => state.createPixGridDeckPreset)
   const reactIntensity = useReactStore(state => state.reactIntensity)
   const reactMotion = useReactStore(state => state.reactMotion)
   const reactGlow = useReactStore(state => state.reactGlow)
@@ -84,11 +104,57 @@ export function ShowManagerView() {
   const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
   const [liveFps, setLiveFps] = useState(0)
+  const [workspaceMode, setWorkspaceMode] = useState<'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE>('default')
+  const [editingDeckId, setEditingDeckId] = useState<string | null>(null)
+  const [deckDraftName, setDeckDraftName] = useState('Untitled Deck')
+  const [deckNameError, setDeckNameError] = useState<string | null>(null)
+  const [previewDeckItemId, setPreviewDeckItemId] = useState<string | null>(null)
+  const [uploadState, setUploadState] = useState<PixGridDeckUploadUiState>({
+    active: false,
+    phase: 'Ready',
+    error: null,
+    warnings: [],
+  })
+  const deckBuilderHeadingRef = useRef<HTMLDivElement | null>(null)
+  const deckBuilderReturnTargetRef = useRef<'create' | 'edit'>('create')
+  const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
+  const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
 
   const pixGridPresets = useMemo(
     () => reactPresets.filter(preset => preset.engine === 'pixGrid'),
     [reactPresets],
   )
+  const editingDeck = useMemo(
+    () => pixGridDecks.find(deck => deck.id === editingDeckId) ?? null,
+    [editingDeckId, pixGridDecks],
+  )
+  const deckReadiness = useMemo(() => editingDeck
+    ? resolvePixGridDeckPresetReadiness(
+        editingDeck,
+        compilerStatuses[editingDeck.id],
+        transitionStatuses[editingDeck.id],
+      )
+    : null, [compilerStatuses, editingDeck, transitionStatuses])
+  const deckPreviewPreset = useMemo(
+    () => editingDeck ? createPixGridDeckGeneratedPreset(editingDeck) : null,
+    [editingDeck],
+  )
+
+  useEffect(() => {
+    if (workspaceMode !== SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE) return
+    setDeckDraftName(editingDeck?.name ?? 'Untitled Deck')
+    setDeckNameError(null)
+    setPreviewDeckItemId(current => (
+      editingDeck?.items.some(item => item.id === current && item.enabled)
+        ? current
+        : editingDeck?.items.find(item => item.enabled)?.id ?? null
+    ))
+  }, [editingDeck, workspaceMode])
+
+  useEffect(() => {
+    if (workspaceMode !== SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE) return
+    deckBuilderHeadingRef.current?.focus()
+  }, [workspaceMode])
 
   useEffect(() => {
     const preferred = findPixGridPreset(reactPresets, activeReactPresetId)
@@ -102,12 +168,20 @@ export function ShowManagerView() {
     () => findPixGridPreset(reactPresets, previewPresetId),
     [previewPresetId, reactPresets],
   )
-  const selectedScene = pixGridState.scenes.find(scene => scene.id === pixGridState.selectedSceneId)
-    ?? pixGridState.scenes[0]
+  const displayedPreset = workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && deckPreviewPreset
+    ? deckPreviewPreset
+    : activePreset
+  const displayedPixGridState = useMemo(() => (
+    workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && deckPreviewPreset
+      ? applyPixGridPresetSettings(pixGridState, deckPreviewPreset.id, deckPreviewPreset.pixGridSettings)
+      : pixGridState
+  ), [deckPreviewPreset, pixGridState, workspaceMode])
+  const selectedScene = displayedPixGridState.scenes.find(scene => scene.id === displayedPixGridState.selectedSceneId)
+    ?? displayedPixGridState.scenes[0]
     ?? null
   const selectedLayers = selectedScene
     ? selectedScene.layerIds
-      .map(layerId => pixGridState.layers.find(layer => layer.id === layerId))
+      .map(layerId => displayedPixGridState.layers.find(layer => layer.id === layerId))
       .filter((layer): layer is PixGridLayer => Boolean(layer))
     : []
   const activeCues = engine.currentTrackId
@@ -146,20 +220,138 @@ export function ShowManagerView() {
     }
   }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
   const playheadPercent = Math.min(100, Math.max(0, (engine.currentTime / durationSec) * 100))
-  const sceneLabels = pixGridState.scenes.slice(0, 4).map(scene => scene.name)
-  const matrixLabel = `${pixGridState.matrixWidth}×${pixGridState.matrixHeight}`
-  const presetOptions = pixGridPresets.map(preset => ({
-    value: preset.id,
-    label: preset.name,
-    description: preset.description,
-  }))
+  const sceneLabels = displayedPixGridState.scenes.slice(0, 4).map(scene => scene.name)
+  const matrixLabel = `${displayedPixGridState.matrixWidth}×${displayedPixGridState.matrixHeight}`
+  const activeDeck = activePreset?.pixGridDeck
+    ? pixGridDecks.find(deck => deck.id === activePreset.pixGridDeck?.deckId) ?? null
+    : null
+  const activeDeckReadiness = activeDeck
+    ? resolvePixGridDeckPresetReadiness(
+        activeDeck,
+        compilerStatuses[activeDeck.id],
+        transitionStatuses[activeDeck.id],
+      )
+    : null
+  const presetOptions = pixGridPresets.map(preset => {
+    const deck = preset.pixGridDeck
+      ? pixGridDecks.find(candidate => candidate.id === preset.pixGridDeck?.deckId) ?? null
+      : null
+    return {
+      value: preset.id,
+      label: preset.name,
+      description: preset.description,
+      disabled: Boolean(preset.pixGridDeck && (!deck || !resolvePixGridDeckPresetReadiness(
+        deck,
+        compilerStatuses[deck.id],
+        transitionStatuses[deck.id],
+      ).ready)),
+    }
+  })
+  const previewEnabledItems = editingDeck?.items.filter(item => item.enabled) ?? []
+  const previewDeckIndex = Math.max(0, previewEnabledItems.findIndex(item => item.id === previewDeckItemId))
+  const previewBpm = engine.currentEffectiveBpm && engine.currentEffectiveBpm > 0 ? engine.currentEffectiveBpm : 120
+  const builderPreviewTime = editingDeck
+    ? (previewDeckIndex * editingDeck.configuration.defaultItemDurationBeats * 60) / previewBpm + 0.01
+    : engine.currentTime
+
+  const enterDeckBuilder = (deckId: string | null) => {
+    deckBuilderReturnTargetRef.current = deckId ? 'edit' : 'create'
+    setEditingDeckId(deckId)
+    setWorkspaceMode(SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE)
+    setUploadState({ active: false, phase: 'Ready', error: null, warnings: [] })
+  }
+
+  const exitDeckBuilder = () => {
+    const returnTarget = deckBuilderReturnTargetRef.current
+    setWorkspaceMode('default')
+    setEditingDeckId(null)
+    setPreviewDeckItemId(null)
+    window.setTimeout(() => {
+      const preferred = returnTarget === 'edit'
+        ? document.querySelector<HTMLButtonElement>('.sm-deck-preset-summary button')
+        : document.querySelector<HTMLButtonElement>('.sm-create-deck-button')
+      ;(preferred ?? document.querySelector<HTMLButtonElement>('.sm-create-deck-button'))?.focus()
+    }, 0)
+  }
+
+  const handleDeckFiles = async (files: File[]) => {
+    const name = deckDraftName.trim()
+    if (!editingDeck && !name) {
+      setDeckNameError('Deck name is required.')
+      return
+    }
+    setUploadState({ active: true, phase: 'Validating…', error: null, warnings: [] })
+    const result = await ingestPixGridDeckSourceFiles({
+      target: editingDeck
+        ? { kind: 'append', deckId: editingDeck.id }
+        : { kind: 'create', name },
+      files,
+      onUploadPhase: (fileName, phase) => setUploadState(current => ({
+        ...current,
+        phase: `${fileName}: ${phase}`,
+      })),
+    })
+    if (!result.ok) {
+      setUploadState({ active: false, phase: 'Failed', error: result.error.message, warnings: [] })
+      return
+    }
+    setEditingDeckId(result.deckId)
+    setDeckNameError(null)
+    setUploadState({
+      active: false,
+      phase: 'Ready',
+      error: null,
+      warnings: result.rejected?.map(entry => `${entry.fileName}: ${entry.message}`) ?? [],
+    })
+  }
+
+  const handleDeckRename = () => {
+    if (!editingDeck || deckDraftName.trim() === editingDeck.name) return
+    const result = renamePixGridDeck(editingDeck.id, deckDraftName)
+    if (!result.ok) setDeckNameError(result.error.message)
+    else setDeckNameError(null)
+  }
+
+  const handleDeckUpdate = (patch: Parameters<typeof updatePixGridDeck>[1]) => {
+    if (!editingDeck) return
+    const result = updatePixGridDeck(editingDeck.id, patch)
+    if (!result.ok) setUploadState(current => ({ ...current, error: result.error.message }))
+  }
+
+  const moveDeckItem = (itemId: string, direction: -1 | 1) => {
+    if (!editingDeck) return
+    const items = [...editingDeck.items].sort((left, right) => left.order - right.order)
+    const index = items.findIndex(item => item.id === itemId)
+    const target = index + direction
+    if (index < 0 || target < 0 || target >= items.length) return
+    ;[items[index], items[target]] = [items[target], items[index]]
+    handleDeckUpdate({ items: items.map((item, order) => ({ ...item, order })) })
+  }
+
+  const toggleDeckItem = (itemId: string) => {
+    if (!editingDeck) return
+    handleDeckUpdate({
+      items: editingDeck.items.map(item => item.id === itemId ? { ...item, enabled: !item.enabled } : item),
+    })
+  }
+
+  const removeDeckItem = (itemId: string) => {
+    if (!editingDeck || editingDeck.items.length <= 2) return
+    handleDeckUpdate({ items: editingDeck.items.filter(item => item.id !== itemId) })
+  }
+
+  const stepPreview = (direction: -1 | 1) => {
+    if (previewEnabledItems.length === 0) return
+    const nextIndex = (previewDeckIndex + direction + previewEnabledItems.length) % previewEnabledItems.length
+    setPreviewDeckItemId(previewEnabledItems[nextIndex]?.id ?? null)
+  }
 
   return (
     <section className="sm-root rv-shell" aria-label="Show Manager workspace">
       <header className="sm-topbar">
-        <div className="sm-title-block">
-          <strong>SHOW MANAGER</strong>
-          <span>Preset authoring workspace</span>
+        <div className="sm-title-block" tabIndex={-1} ref={deckBuilderHeadingRef}>
+          <strong>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'DECK BUILDER' : 'SHOW MANAGER'}</strong>
+          <span>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'PixGrid image sequence authoring' : 'Preset authoring workspace'}</span>
         </div>
 
         <div className="sm-topbar-spacer" />
@@ -168,6 +360,9 @@ export function ShowManagerView() {
             <button key={tool} type="button" disabled>{tool}</button>
           ))}
         </div>
+        {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && (
+          <button type="button" className="sm-header-button" onClick={exitDeckBuilder}>Back to Show Manager</button>
+        )}
         <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
         <button type="button" className="sm-header-button" disabled>Save</button>
         <button type="button" className="sm-header-button sm-header-button--primary" disabled>
@@ -177,6 +372,32 @@ export function ShowManagerView() {
       </header>
 
       <div className="sm-workspace">
+        {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? (
+          <aside className="sm-library sm-library--deck" aria-label="Show Manager Deck images">
+            <PixGridDeckBuilderLibrary
+              deck={editingDeck}
+              draftName={deckDraftName}
+              upload={uploadState}
+              previewItemId={previewDeckItemId}
+              onFiles={handleDeckFiles}
+              onPreview={setPreviewDeckItemId}
+              onMove={moveDeckItem}
+              onReorder={(sourceItemId, targetItemId) => {
+                if (!editingDeck) return
+                const items = [...editingDeck.items].sort((left, right) => left.order - right.order)
+                const sourceIndex = items.findIndex(item => item.id === sourceItemId)
+                if (sourceIndex < 0 || !items.some(item => item.id === targetItemId)) return
+                const [sourceItem] = items.splice(sourceIndex, 1)
+                const targetIndex = items.findIndex(item => item.id === targetItemId)
+                if (!sourceItem || targetIndex < 0) return
+                items.splice(targetIndex, 0, sourceItem)
+                handleDeckUpdate({ items: items.map((item, order) => ({ ...item, order })) })
+              }}
+              onToggle={toggleDeckItem}
+              onRemove={removeDeckItem}
+            />
+          </aside>
+        ) : (
         <aside className="sm-library" aria-label="Show Manager component library">
           <div className="sm-panel-heading">
             <strong>COMPONENT LIBRARY</strong>
@@ -249,13 +470,14 @@ export function ShowManagerView() {
             {selectedLayers.length === 0 && <div className="sm-library-empty">No layers in this scene.</div>}
           </LibrarySection>
         </aside>
+        )}
 
         <main className="sm-center">
           <div className="sm-stage-frame">
             <PixGridSurface
               analyser={engine.analyserMaster}
-              activePreset={activePreset}
-              pixGridState={pixGridState}
+              activePreset={displayedPreset}
+              pixGridState={displayedPixGridState}
               pixGridDecks={pixGridDecks}
               pixGridActionCues={activeCues}
               intensity={reactIntensity}
@@ -268,8 +490,8 @@ export function ShowManagerView() {
               trackAnalysis={effectiveTrackAnalysis}
               trackIdentity={engine.currentTrackId}
               durationSec={durationSec}
-              audioTimeSec={engine.currentTime}
-              getAudioTime={engine.getCurrentTime}
+              audioTimeSec={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? builderPreviewTime : engine.currentTime}
+              getAudioTime={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? () => builderPreviewTime : engine.getCurrentTime}
               effectiveBpm={engine.currentEffectiveBpm ?? undefined}
               onLiveFps={setLiveFps}
             />
@@ -289,14 +511,58 @@ export function ShowManagerView() {
             />
           </div>
 
-          <ShowManagerTimeline
-            currentTime={engine.currentTime}
-            duration={durationSec}
-            playheadPercent={playheadPercent}
-            sceneLabels={sceneLabels}
-          />
+          {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && editingDeck ? (
+            <PixGridDeckSequenceStrip
+              deck={editingDeck}
+              previewItemId={previewDeckItemId}
+              onPreview={setPreviewDeckItemId}
+              onPrevious={() => stepPreview(-1)}
+              onNext={() => stepPreview(1)}
+            />
+          ) : (
+            <ShowManagerTimeline
+              currentTime={engine.currentTime}
+              duration={durationSec}
+              playheadPercent={playheadPercent}
+              sceneLabels={sceneLabels}
+            />
+          )}
         </main>
 
+        {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? (
+          <aside className="sm-inspector sm-inspector--deck" aria-label="Show Manager Deck Builder inspector">
+            <PixGridDeckBuilderInspector
+              deck={editingDeck}
+              draftName={deckDraftName}
+              readiness={deckReadiness}
+              upload={uploadState}
+              nameError={deckNameError}
+              onDraftName={setDeckDraftName}
+              onRename={handleDeckRename}
+              onUpdate={handleDeckUpdate}
+              onCreatePreset={() => {
+                if (!editingDeck || !deckReadiness) return
+                const result = createPixGridDeckPreset(editingDeck.id, deckReadiness)
+                if (!result.ok) {
+                  setUploadState(current => ({ ...current, error: result.error.message }))
+                  return
+                }
+                setPreviewPresetId(editingDeck.generatedPresetId)
+                exitDeckBuilder()
+              }}
+              onDelete={() => {
+                if (!editingDeck) return
+                if (!window.confirm('Deleting this Deck will delete the Preset too. Are you sure?')) return
+                const result = deletePixGridDeck(editingDeck.id)
+                if (!result.ok) {
+                  setUploadState(current => ({ ...current, error: result.error.message }))
+                  return
+                }
+                exitDeckBuilder()
+              }}
+            />
+          </aside>
+        ) : (
         <aside className="sm-inspector" aria-label="Show Manager PixGrid inspector">
           <div className="sm-panel-heading sm-panel-heading--inspector">
             <strong>INSPECTOR</strong>
@@ -317,7 +583,19 @@ export function ShowManagerView() {
                   ariaLabel="Show Manager PixGrid preset"
                   menuLabel="PixGrid presets"
                   value={activePreset?.id ?? null}
-                  onChange={value => setPreviewPresetId(value)}
+                  onChange={value => {
+                    const preset = pixGridPresets.find(candidate => candidate.id === value)
+                    if (!preset) return
+                    if (preset.pixGridDeck) {
+                      const deck = pixGridDecks.find(candidate => candidate.id === preset.pixGridDeck?.deckId)
+                      if (!deck || !resolvePixGridDeckPresetReadiness(
+                        deck,
+                        compilerStatuses[deck.id],
+                        transitionStatuses[deck.id],
+                      ).ready) return
+                    }
+                    setPreviewPresetId(value)
+                  }}
                   options={presetOptions}
                   placeholder="No PixGrid presets"
                   emptyMessage="No PixGrid presets"
@@ -325,6 +603,17 @@ export function ShowManagerView() {
                   size="compact"
                   className="sm-preset-dropdown"
                 />
+                <button type="button" className="sm-create-deck-button" onClick={() => enterDeckBuilder(null)}>
+                  Create Deck
+                </button>
+                {activeDeck && activePreset && activeDeckReadiness && (
+                  <PixGridDeckPresetSummary
+                    deck={activeDeck}
+                    preset={activePreset}
+                    readiness={activeDeckReadiness}
+                    onEdit={() => enterDeckBuilder(activeDeck.id)}
+                  />
+                )}
               </div>
             </Collapsible>
             <div className="sm-inspector-context">
@@ -347,14 +636,15 @@ export function ShowManagerView() {
             </Collapsible>
             <Collapsible label="Document Stats" defaultOpen={false}>
               <section className="sm-document-stats">
-                <div><span>Scenes</span><strong>{pixGridState.scenes.length}</strong></div>
-                <div><span>Layers</span><strong>{pixGridState.layers.length}</strong></div>
-                <div><span>Groups</span><strong>{pixGridState.groups.length}</strong></div>
+                <div><span>Scenes</span><strong>{displayedPixGridState.scenes.length}</strong></div>
+                <div><span>Layers</span><strong>{displayedPixGridState.layers.length}</strong></div>
+                <div><span>Groups</span><strong>{displayedPixGridState.groups.length}</strong></div>
                 <div><span>Cues</span><strong>{activeCues.length}</strong></div>
               </section>
             </Collapsible>
           </div>
         </aside>
+        )}
       </div>
 
       {/* Shared application Audio Dock. Loading or selecting a track here updates

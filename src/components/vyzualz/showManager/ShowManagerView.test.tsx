@@ -56,6 +56,11 @@ const fixture = vi.hoisted(() => ({
       sectionMappings: [],
     }],
     activeReactPresetId: 'pix-grid-test',
+    pixGridDecks: [],
+    renamePixGridDeck: vi.fn(),
+    updatePixGridDeck: vi.fn(),
+    deletePixGridDeck: vi.fn(),
+    createPixGridDeckPreset: vi.fn(),
     reactIntensity: 1,
     reactMotion: 0.5,
     reactGlow: 0.5,
@@ -115,6 +120,22 @@ vi.mock('../react/pixGrid/PixGridDesignPanel', () => ({
       PixGrid design controls
     </div>
   ),
+}))
+
+vi.mock('../react/pixGrid/PixGridDeckCompilerRuntime', () => ({
+  usePixGridDeckCompilerStore: (selector: (state: { statuses: {}; transitionStatuses: {} }) => unknown) => selector({
+    statuses: {},
+    transitionStatuses: {},
+  }),
+  getPixGridPreparedFrameSet: () => null,
+}))
+
+vi.mock('../react/pixGrid/PixGridDeckMediaService', () => ({
+  ingestPixGridDeckSourceFiles: vi.fn(),
+}))
+
+vi.mock('../react/ReactPresetThumbnail', () => ({
+  ReactPresetThumbnail: () => <div data-testid="preset-thumbnail" />,
 }))
 
 vi.mock('../shared/VyzualzAudioDock', () => ({
@@ -277,4 +298,48 @@ describe('ShowManagerView PixGrid-first shell', () => {
     expect(componentsToggle?.getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelector('.sm-library-row.is-active')).not.toBeNull()
   })
+
+  it('places Create Deck in the PixGrid Preset inspector and enters Builder mode without replacing the shared shell', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const createButtons = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .filter(button => button.textContent?.trim() === 'Create Deck')
+    expect(createButtons).toHaveLength(1)
+    expect(createButtons[0]?.closest('.sm-inspector')).not.toBeNull()
+    expect(createButtons[0]?.closest('.sm-library')).toBeNull()
+    expect(container.querySelector('[aria-label="Previous Deck image"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Next Deck image"]')).toBeNull()
+
+    await act(async () => {
+      createButtons[0]?.click()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('.sm-title-block')?.textContent).toContain('DECK BUILDER')
+    expect(container.querySelector('[aria-label="Show Manager Deck images"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Show Manager Deck Builder inspector"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="pix-grid-surface"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="show-manager-audio-dock"]')?.textContent).toContain('Selected Audio Track')
+    expect(container.querySelector('input[type="file"][accept="image/png,image/jpeg,image/svg+xml,image/webp"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Previous Deck image"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Next Deck image"]')).toBeNull()
+
+    const backButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === 'Back to Show Manager')
+    await act(async () => {
+      backButton?.click()
+      await new Promise(resolve => window.setTimeout(resolve, 0))
+    })
+    const restoredCreateButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === 'Create Deck')
+    expect(document.activeElement).toBe(restoredCreateButton)
+  })
+
 })
