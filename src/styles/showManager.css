@@ -43,35 +43,12 @@
 }
 
 .sm-title-block span,
-.sm-topbar-field > span,
 .sm-panel-heading span {
   font-size: 8px;
   color: rgba(196, 212, 220, 0.42);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-
-.sm-topbar-field {
-  width: 178px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.sm-topbar-field--preset { width: 220px; }
-.sm-topbar-field select {
-  width: 100%;
-  height: 30px;
-  padding: 0 28px 0 9px;
-  border: 1px solid rgba(154, 178, 188, 0.16);
-  border-radius: 5px;
-  background: #11171b;
-  color: rgba(232, 244, 248, 0.82);
-  font: inherit;
-  font-size: 10px;
-}
-
-.sm-topbar-field option:disabled { color: rgba(196, 212, 220, 0.35); }
 .sm-topbar-spacer { flex: 1; }
 
 .sm-header-button {
@@ -127,6 +104,75 @@
   color: rgba(232, 244, 248, 0.74);
 }
 
+.sm-engine-picker {
+  padding: 9px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.09);
+  background:
+    linear-gradient(180deg, rgba(74, 199, 219, 0.035), transparent),
+    rgba(4, 9, 13, 0.26);
+}
+
+/* Mirrors the React workspace engine card while using the shared Dropdown. */
+.sm-engine-dropdown {
+  --drm-dropdown-trigger-height: 52px;
+  --drm-dropdown-trigger-padding: 9px;
+  --drm-dropdown-radius: 11px;
+}
+
+.sm-engine-dropdown .drm-dropdown__trigger {
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr) 18px;
+  gap: 10px;
+  border-width: 1px;
+  border-color: rgba(103, 247, 255, 0.72);
+  background:
+    linear-gradient(135deg, rgba(74, 199, 219, 0.18), rgba(97, 214, 170, 0.045) 44%, rgba(255, 255, 255, 0.025)),
+    rgba(5, 12, 18, 0.96);
+  box-shadow:
+    inset 0 0 0 1px rgba(103, 247, 255, 0.08),
+    0 0 18px rgba(74, 199, 219, 0.12);
+}
+
+.sm-engine-dropdown .drm-dropdown__trigger::before {
+  content: '▦';
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(74, 199, 219, 0.32);
+  border-radius: 6px;
+  background: rgba(74, 199, 219, 0.105);
+  color: #67f7ff;
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: inset 0 0 18px rgba(74, 199, 219, 0.07);
+}
+
+.sm-engine-dropdown .drm-dropdown__value {
+  display: grid;
+  gap: 3px;
+  color: rgba(232, 244, 248, 0.96);
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  line-height: 1.05;
+}
+
+.sm-engine-dropdown .drm-dropdown__value::before {
+  content: 'Engine';
+  color: rgba(232, 244, 248, 0.36);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.sm-engine-dropdown .drm-dropdown__chevron {
+  width: 18px;
+  height: 18px;
+}
+
 .sm-search-field {
   display: block;
   padding: 8px 9px;
@@ -152,23 +198,41 @@
 }
 
 .sm-library-section { border-bottom: 1px solid rgba(154, 178, 188, 0.09); }
-.sm-library-section > header {
+.sm-library-section-toggle {
+  width: 100%;
   height: 29px;
   padding: 0 9px;
   display: grid;
   grid-template-columns: 12px 1fr auto;
   align-items: center;
   gap: 5px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.008);
   color: rgba(196, 212, 220, 0.52);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
 }
 
-.sm-library-section > header strong {
+.sm-library-section-toggle:hover,
+.sm-library-section-toggle:focus-visible {
+  background: rgba(74, 199, 219, 0.035);
+  color: rgba(232, 244, 248, 0.78);
+  outline: none;
+}
+
+.sm-library-section-toggle:focus-visible {
+  box-shadow: inset 2px 0 0 rgba(103, 247, 255, 0.74);
+}
+
+.sm-library-section-toggle strong {
   font-size: 9px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.sm-library-section > header small {
+.sm-library-section-toggle small {
   min-width: 21px;
   padding: 2px 4px;
   border-radius: 4px;
@@ -176,6 +240,19 @@
   background: rgba(255, 255, 255, 0.035);
   color: rgba(196, 212, 220, 0.38);
   font-size: 8px;
+}
+
+.sm-library-section-chevron {
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  opacity: 0.64;
+  transform: rotate(0deg);
+  transition: transform 150ms ease, opacity 120ms ease;
+}
+
+.sm-library-section.is-collapsed .sm-library-section-chevron {
+  transform: rotate(-90deg);
 }
 
 .sm-library-section-body { padding: 0 7px 6px; }
@@ -280,27 +357,43 @@
   pointer-events: none;
 }
 
-.sm-fit-button {
+.sm-fit-dropdown {
   position: absolute;
   right: 9px;
   bottom: 8px;
   z-index: 3;
-  height: 24px;
-  min-width: 50px;
-  border: 1px solid rgba(154, 178, 188, 0.16);
-  border-radius: 4px;
-  background: rgba(3, 8, 10, 0.75);
-  color: rgba(196, 212, 220, 0.52);
-  font: inherit;
-  font-size: 8px;
+  width: 58px;
+  --drm-dropdown-trigger-height: 24px;
+  --drm-dropdown-trigger-padding: 7px;
+  --drm-dropdown-value-size: 8px;
+  --drm-dropdown-radius: 4px;
 }
-.sm-fit-button:disabled { opacity: 1; }
+
+.sm-fit-dropdown.drm-dropdown--disabled,
+.sm-fit-dropdown .drm-dropdown__trigger:disabled {
+  opacity: 1;
+}
+
+.sm-fit-dropdown .drm-dropdown__trigger {
+  border-width: 1px;
+  border-color: rgba(154, 178, 188, 0.16);
+  background: rgba(3, 8, 10, 0.75);
+  box-shadow: none;
+  color: rgba(196, 212, 220, 0.52);
+}
+
+.sm-fit-dropdown .drm-dropdown__chevron {
+  width: 12px;
+  height: 12px;
+  color: rgba(196, 212, 220, 0.42);
+  filter: none;
+}
 
 .sm-inspector-scroll {
   height: calc(100% - 42px);
   min-height: 0;
   overflow-y: auto;
-  padding: 0 8px 12px;
+  padding: 8px 8px 12px;
   scrollbar-width: thin;
   scrollbar-color: rgba(74, 199, 219, 0.24) transparent;
 }
@@ -309,7 +402,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
-  padding: 8px 0;
+  padding: 0 0 2px;
 }
 .sm-inspector-context > div {
   padding: 7px 8px;
@@ -328,20 +421,100 @@
   flex-direction: column;
   gap: 7px;
   overflow: visible;
-  padding: 0 2px 8px;
+  padding: 0 0 2px;
 }
 
 .sm-inspector .rv-ctrl-section-label { margin-top: 3px; }
 .sm-inspector .rv-ctrl-row { min-height: 31px; }
 .sm-inspector .rv-ctrl-info { margin: 0; }
 
+.sm-inspector .rv-ctrl-collapsible {
+  margin: 7px 0;
+  border-color: rgba(74, 199, 219, 0.14);
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 0 0, rgba(74, 199, 219, 0.055), transparent 36%),
+    rgba(5, 10, 16, 0.62);
+}
+
+.sm-inspector .rv-ctrl-collapsible-hdr {
+  min-height: 31px;
+  padding: 8px 9px 7px;
+  color: rgba(196, 212, 220, 0.62);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+}
+
+.sm-inspector .rv-ctrl-collapsible-body {
+  gap: 8px;
+  padding: 8px 9px 10px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.sm-preset-browser {
+  display: grid;
+  gap: 8px;
+}
+
+.sm-preset-browser-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sm-preset-browser-heading > span {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(74, 199, 219, 0.24);
+  border-radius: 7px;
+  background: rgba(74, 199, 219, 0.08);
+  color: #67f7ff;
+  font-size: 14px;
+}
+
+.sm-preset-browser-heading > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.sm-preset-browser-heading strong {
+  color: rgba(232, 244, 248, 0.92);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.sm-preset-browser-heading small {
+  color: rgba(232, 244, 248, 0.38);
+  font-size: 8px;
+}
+
+.sm-preset-dropdown {
+  --drm-dropdown-trigger-height: 34px;
+  --drm-dropdown-trigger-padding: 10px;
+  --drm-dropdown-value-size: 10px;
+  --drm-dropdown-radius: 6px;
+}
+
+.sm-preset-dropdown .drm-dropdown__trigger {
+  border-width: 1px;
+  box-shadow:
+    0 0 0 1px rgba(74, 199, 219, 0.06),
+    0 0 14px rgba(74, 199, 219, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
 .sm-validation-card,
 .sm-document-stats {
-  margin-top: 10px;
-  padding: 9px;
-  border: 1px solid rgba(154, 178, 188, 0.1);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .sm-validation-card header { display: flex; align-items: center; justify-content: space-between; }
 .sm-validation-card header strong,
@@ -491,6 +664,4 @@
 @media (max-width: 1180px) {
   .sm-workspace { grid-template-columns: 220px minmax(430px, 1fr) 300px; }
   .sm-title-block { min-width: 150px; }
-  .sm-topbar-field { width: 150px; }
-  .sm-topbar-field--preset { width: 180px; }
 }

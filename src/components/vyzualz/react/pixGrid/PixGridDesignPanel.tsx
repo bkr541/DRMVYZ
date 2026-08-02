@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
-import { ColorRow, CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { PanelSubtabs, type PanelSubtabOption } from '../PanelSubtabs'
 import {
   applyPixGridPoints,
@@ -53,7 +53,28 @@ function selectionPoints(state: PixGridState) {
   }))
 }
 
-export function PixGridDesignPanel() {
+function DesignSection({
+  label,
+  grouped,
+  children,
+}: {
+  label: string
+  grouped: boolean
+  children: ReactNode
+}) {
+  if (grouped) {
+    return <Collapsible label={label}>{children}</Collapsible>
+  }
+
+  return (
+    <>
+      <CtrlSection label={label} />
+      {children}
+    </>
+  )
+}
+
+export function PixGridDesignPanel({ groupedSections = false }: { groupedSections?: boolean } = {}) {
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
   const applyState = useReactStore(store => store.applyPixGridAuthoringState)
@@ -105,39 +126,39 @@ export function PixGridDesignPanel() {
         className="rv-right-subtabs--embedded"
       />
 
-      <CtrlSection label="Editing Context" />
-      <SelectRow
-        label="Active Scene"
-        value={activeSceneValue}
-        options={[
-          { value: PIX_GRID_FOLLOW_TRACK_SCENE_VALUE, label: 'Follow Track' },
-          ...state.scenes.map(candidate => ({ value: candidate.id, label: candidate.name })),
-        ]}
-        onChange={value => {
-          setState(selectPixGridPreviewScene(state, value))
-        }}
-        description={state.editor.scenePreviewMode === 'followTrack' ? 'Track analysis owns the live scene.' : 'Editing Context owns the live preview scene.'}
-      />
-      <SelectRow
-        label="Edit Target"
-        value={targetValue}
-        options={targetOptions}
-        onChange={value => {
-          const selectedLayerId = value === 'scene' ? null : value
-          setState(selectPixGridEditingTarget(state, selectedLayerId))
-          setSurface(selectedLayerId ? 'layer' : 'scene')
-        }}
-        description={layer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
-      />
-      <div className="rv-ctrl-action-row rv-pix-grid-history-row" aria-label="PixGrid edit history">
-        <button type="button" className="rv-reset-btn" disabled={undoCount === 0} onClick={undo}>Undo</button>
-        <button type="button" className="rv-reset-btn" disabled={redoCount === 0} onClick={redo}>Redo</button>
-        <span className="rv-ctrl-info" aria-label={`${undoCount} undo steps and ${redoCount} redo steps`}>{undoCount} / {redoCount}</span>
-      </div>
+      <DesignSection label="Editing Context" grouped={groupedSections}>
+        <SelectRow
+          label="Active Scene"
+          value={activeSceneValue}
+          options={[
+            { value: PIX_GRID_FOLLOW_TRACK_SCENE_VALUE, label: 'Follow Track' },
+            ...state.scenes.map(candidate => ({ value: candidate.id, label: candidate.name })),
+          ]}
+          onChange={value => {
+            setState(selectPixGridPreviewScene(state, value))
+          }}
+          description={state.editor.scenePreviewMode === 'followTrack' ? 'Track analysis owns the live scene.' : 'Editing Context owns the live preview scene.'}
+        />
+        <SelectRow
+          label="Edit Target"
+          value={targetValue}
+          options={targetOptions}
+          onChange={value => {
+            const selectedLayerId = value === 'scene' ? null : value
+            setState(selectPixGridEditingTarget(state, selectedLayerId))
+            setSurface(selectedLayerId ? 'layer' : 'scene')
+          }}
+          description={layer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
+        />
+        <div className="rv-ctrl-action-row rv-pix-grid-history-row" aria-label="PixGrid edit history">
+          <button type="button" className="rv-reset-btn" disabled={undoCount === 0} onClick={undo}>Undo</button>
+          <button type="button" className="rv-reset-btn" disabled={redoCount === 0} onClick={redo}>Redo</button>
+          <span className="rv-ctrl-info" aria-label={`${undoCount} undo steps and ${redoCount} redo steps`}>{undoCount} / {redoCount}</span>
+        </div>
+      </DesignSection>
 
       {surface === 'grid' && (
-        <>
-          <CtrlSection label="Grid Presentation" />
+        <DesignSection label="Grid Presentation" grouped={groupedSections}>
           <SelectRow label={state.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'} value={state.quality} options={PIX_GRID_QUALITY_OPTIONS} onChange={value => setRequestedQuality(value as typeof state.quality)} />
           <PixGridHistoryGesture><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setPresentation({ cellGap: value })} /></PixGridHistoryGesture>
           <PixGridHistoryGesture><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setPresentation({ cellRoundness: value })} /></PixGridHistoryGesture>
@@ -146,12 +167,11 @@ export function PixGridDesignPanel() {
           <PixGridHistoryGesture><SliderRow label="Diffusion" value={state.diffusion} onChange={value => setPresentation({ diffusion: value })} description="Emitter edge softness." /></PixGridHistoryGesture>
           <ToggleRow label="RGB Subpixels" value={state.rgbSubpixelMode} onChange={value => setPresentation({ rgbSubpixelMode: value })} />
           <ToggleRow label="Cell Guides" value={state.editor.guidesVisible} onChange={value => updateEditor({ guidesVisible: value })} />
-        </>
+        </DesignSection>
       )}
 
       {surface === 'scene' && (
-        <>
-          <CtrlSection label="Scene" />
+        <DesignSection label="Scene" grouped={groupedSections}>
           <TextInputRow
             label="Name"
             value={sceneName}
@@ -163,12 +183,11 @@ export function PixGridDesignPanel() {
             }}
           />
           <div className="rv-ctrl-info">{scene.layerIds.length} layers · {scene.pixelOverrides.length} sparse pixel overrides</div>
-        </>
+        </DesignSection>
       )}
 
       {surface === 'layer' && layer && (
-        <>
-          <CtrlSection label="Layer" />
+        <DesignSection label="Layer" grouped={groupedSections}>
           <div className="rv-ctrl-info"><strong>{layer.name}</strong><br />{layer.mediaId ? 'Media Library artwork' : layer.assetId}</div>
           <ToggleRow label="Visible" value={layer.visible} onChange={value => updateLayer({ visible: value })} />
           <ToggleRow label="Locked" value={layer.locked === true} onChange={value => applyState(updatePixGridLayer(state, layer.id, { locked: value }))} />
@@ -183,12 +202,11 @@ export function PixGridDesignPanel() {
             <button type="button" className="rv-reset-btn" disabled={layer.locked} onClick={() => applyState(duplicatePixGridLayer(state, layer.id))}>Duplicate</button>
             <button type="button" className="rv-reset-btn" disabled={layer.locked} onClick={() => applyState(deletePixGridLayer(state, layer.id))}>Delete</button>
           </div>
-        </>
+        </DesignSection>
       )}
 
       {surface === 'selection' && state.editor.selection && (
-        <>
-          <CtrlSection label="Selection" />
+        <DesignSection label="Selection" grouped={groupedSections}>
           <div className="rv-ctrl-info">X {state.editor.selection.x} · Y {state.editor.selection.y} · {state.editor.selection.width} × {state.editor.selection.height}</div>
           <div className="rv-ctrl-action-row">
             <button type="button" className="rv-reset-btn" onClick={() => {
@@ -199,12 +217,11 @@ export function PixGridDesignPanel() {
             }}>Clear / Off</button>
             <button type="button" className="rv-reset-btn" onClick={() => updateEditor({ selection: null })}>Deselect</button>
           </div>
-        </>
+        </DesignSection>
       )}
 
       {surface === 'tool' && (
-        <>
-          <CtrlSection label="Tool Settings" />
+        <DesignSection label="Tool Settings" grouped={groupedSections}>
           <SelectRow label="Tool" value={state.editorTool} options={TOOL_OPTIONS} onChange={value => setState({ editorTool: value as PixGridEditorTool })} />
           <ColorRow
             label="Paint Color"
@@ -223,7 +240,7 @@ export function PixGridDesignPanel() {
           <div className="rv-ctrl-action-row">
             <button type="button" className="rv-reset-btn" onClick={() => updateEditor({ zoom: 1, panX: 0, panY: 0 })}>Reset View</button>
           </div>
-        </>
+        </DesignSection>
       )}
     </div>
   )

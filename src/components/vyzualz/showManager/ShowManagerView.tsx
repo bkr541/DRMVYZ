@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
+import { Dropdown } from '../../shared/Dropdown/Dropdown'
+import { Collapsible } from '../react/ReactControlRows'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
@@ -31,6 +33,21 @@ const SECTION_SEGMENTS = [
   { label: 'Build', className: 'is-build' },
   { label: 'Drop', className: 'is-drop' },
   { label: 'Breakdown', className: 'is-breakdown' },
+] as const
+
+const SHOW_MANAGER_ENGINE_OPTIONS = REACT_ENGINE_IDS.map(engineId => ({
+  value: engineId,
+  label: REACT_ENGINE_CATALOG[engineId].label,
+  description: engineId === 'pixGrid'
+    ? REACT_ENGINE_CATALOG[engineId].description
+    : `${REACT_ENGINE_CATALOG[engineId].description} Coming to Show Manager later.`,
+  disabled: engineId !== 'pixGrid',
+}))
+
+const STAGE_SCALE_OPTIONS = [
+  { value: 'fit', label: 'Fit' },
+  { value: 'fill', label: 'Fill' },
+  { value: '100', label: '100%' },
 ] as const
 
 function formatClock(value: number): string {
@@ -93,6 +110,11 @@ export function ShowManagerView() {
   const playheadPercent = Math.min(100, Math.max(0, (engine.currentTime / durationSec) * 100))
   const sceneLabels = pixGridState.scenes.slice(0, 4).map(scene => scene.name)
   const matrixLabel = `${pixGridState.matrixWidth}×${pixGridState.matrixHeight}`
+  const presetOptions = pixGridPresets.map(preset => ({
+    value: preset.id,
+    label: preset.name,
+    description: preset.description,
+  }))
 
   return (
     <section className="sm-root" aria-label="Show Manager workspace">
@@ -101,30 +123,6 @@ export function ShowManagerView() {
           <strong>SHOW MANAGER</strong>
           <span>Preset authoring workspace</span>
         </div>
-
-        <label className="sm-topbar-field">
-          <span>Engine</span>
-          <select aria-label="Show Manager engine" value="pixGrid" onChange={() => undefined}>
-            {REACT_ENGINE_IDS.map(engineId => (
-              <option key={engineId} value={engineId} disabled={engineId !== 'pixGrid'}>
-                {REACT_ENGINE_CATALOG[engineId].label}{engineId === 'pixGrid' ? '' : ' · Coming later'}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="sm-topbar-field sm-topbar-field--preset">
-          <span>Preset</span>
-          <select
-            aria-label="Show Manager PixGrid preset"
-            value={activePreset?.id ?? ''}
-            onChange={event => setPreviewPresetId(event.target.value)}
-            disabled={pixGridPresets.length === 0}
-          >
-            {pixGridPresets.length === 0 && <option value="">No PixGrid presets</option>}
-            {pixGridPresets.map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-          </select>
-        </label>
 
         <div className="sm-topbar-spacer" />
         <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
@@ -139,6 +137,18 @@ export function ShowManagerView() {
           <div className="sm-panel-heading">
             <strong>COMPONENT LIBRARY</strong>
             <span>PixGrid</span>
+          </div>
+          <div className="sm-engine-picker">
+            <Dropdown
+              id="show-manager-engine"
+              ariaLabel="Show Manager engine"
+              menuLabel="Show Manager engines"
+              value="pixGrid"
+              options={SHOW_MANAGER_ENGINE_OPTIONS}
+              size="compact"
+              maxMenuHeight={360}
+              className="sm-engine-dropdown"
+            />
           </div>
           <label className="sm-search-field">
             <span className="sr-only">Search Show Manager components</span>
@@ -183,7 +193,7 @@ export function ShowManagerView() {
             ))}
           </LibrarySection>
 
-          <LibrarySection title="Layers" count={selectedLayers.length} collapsed={false}>
+          <LibrarySection title="Layers" count={selectedLayers.length}>
             {selectedLayers.slice(0, 6).map(layer => (
               <button key={layer.id} type="button" className="sm-library-row" disabled>
                 <span className="sm-library-grip">⋮⋮</span>
@@ -232,7 +242,16 @@ export function ShowManagerView() {
               <span>PixGrid {matrixLabel}</span>
               <span>FPS {liveFps > 0 ? liveFps.toFixed(1) : '—'}</span>
             </div>
-            <button type="button" className="sm-fit-button" disabled>Fit⌄</button>
+            <Dropdown
+              id="show-manager-stage-scale"
+              ariaLabel="Show Manager stage scale"
+              value="fit"
+              options={STAGE_SCALE_OPTIONS}
+              size="dense"
+              showDescriptions={false}
+              disabled
+              className="sm-fit-dropdown"
+            />
           </div>
 
           <ShowManagerTimeline
@@ -249,6 +268,30 @@ export function ShowManagerView() {
             <span>PixGrid parameters</span>
           </div>
           <div className="sm-inspector-scroll">
+            <Collapsible label="Preset" defaultOpen>
+              <div className="sm-preset-browser">
+                <div className="sm-preset-browser-heading">
+                  <span aria-hidden="true">{REACT_ENGINE_CATALOG.pixGrid.icon}</span>
+                  <div>
+                    <strong>PixGrid Presets</strong>
+                    <small>{pixGridPresets.length} preset{pixGridPresets.length === 1 ? '' : 's'} available</small>
+                  </div>
+                </div>
+                <Dropdown
+                  id="show-manager-pix-grid-preset"
+                  ariaLabel="Show Manager PixGrid preset"
+                  menuLabel="PixGrid presets"
+                  value={activePreset?.id ?? null}
+                  onChange={value => setPreviewPresetId(value)}
+                  options={presetOptions}
+                  placeholder="No PixGrid presets"
+                  emptyMessage="No PixGrid presets"
+                  disabled={pixGridPresets.length === 0}
+                  size="compact"
+                  className="sm-preset-dropdown"
+                />
+              </div>
+            </Collapsible>
             <div className="sm-inspector-context">
               <div>
                 <span>Component</span>
@@ -259,19 +302,22 @@ export function ShowManagerView() {
                 <strong>{matrixLabel}</strong>
               </div>
             </div>
-            <PixGridDesignPanel />
-            <section className="sm-validation-card">
-              <header><strong>VALIDATION</strong><span>OK</span></header>
-              <p>No blocking PixGrid issues detected.</p>
-              <p>Preset controls are connected to the existing PixGrid state.</p>
-            </section>
-            <section className="sm-document-stats">
-              <header>DOCUMENT STATS</header>
-              <div><span>Scenes</span><strong>{pixGridState.scenes.length}</strong></div>
-              <div><span>Layers</span><strong>{pixGridState.layers.length}</strong></div>
-              <div><span>Groups</span><strong>{pixGridState.groups.length}</strong></div>
-              <div><span>Cues</span><strong>{activeCues.length}</strong></div>
-            </section>
+            <PixGridDesignPanel groupedSections />
+            <Collapsible label="Validation" defaultOpen={false}>
+              <section className="sm-validation-card">
+                <header><strong>PixGrid document</strong><span>OK</span></header>
+                <p>No blocking PixGrid issues detected.</p>
+                <p>Preset controls are connected to the existing PixGrid state.</p>
+              </section>
+            </Collapsible>
+            <Collapsible label="Document Stats" defaultOpen={false}>
+              <section className="sm-document-stats">
+                <div><span>Scenes</span><strong>{pixGridState.scenes.length}</strong></div>
+                <div><span>Layers</span><strong>{pixGridState.layers.length}</strong></div>
+                <div><span>Groups</span><strong>{pixGridState.groups.length}</strong></div>
+                <div><span>Cues</span><strong>{activeCues.length}</strong></div>
+              </section>
+            </Collapsible>
           </div>
         </aside>
       </div>
@@ -282,22 +328,31 @@ export function ShowManagerView() {
 function LibrarySection({
   title,
   count,
-  collapsed = false,
+  defaultCollapsed = false,
   children,
 }: {
   title: string
   count: number
-  collapsed?: boolean
+  defaultCollapsed?: boolean
   children: ReactNode
 }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const contentId = useId()
+
   return (
-    <section className="sm-library-section">
-      <header>
-        <span>{collapsed ? '›' : '⌄'}</span>
+    <section className={`sm-library-section${collapsed ? ' is-collapsed' : ''}`}>
+      <button
+        type="button"
+        className="sm-library-section-toggle"
+        aria-expanded={!collapsed}
+        aria-controls={contentId}
+        onClick={() => setCollapsed(value => !value)}
+      >
+        <span className="sm-library-section-chevron" aria-hidden="true">⌄</span>
         <strong>{title}</strong>
         <small>{count}</small>
-      </header>
-      {!collapsed && <div className="sm-library-section-body">{children}</div>}
+      </button>
+      {!collapsed && <div id={contentId} className="sm-library-section-body">{children}</div>}
     </section>
   )
 }

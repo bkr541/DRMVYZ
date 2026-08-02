@@ -62,7 +62,11 @@ vi.mock('../react/pixGrid/PixGridSurface', () => ({
 }))
 
 vi.mock('../react/pixGrid/PixGridDesignPanel', () => ({
-  PixGridDesignPanel: () => <div data-testid="pix-grid-design-panel">PixGrid design controls</div>,
+  PixGridDesignPanel: ({ groupedSections }: { groupedSections?: boolean }) => (
+    <div data-testid="pix-grid-design-panel" data-grouped={groupedSections ? 'true' : 'false'}>
+      PixGrid design controls
+    </div>
+  ),
 }))
 
 import { ShowManagerView } from './ShowManagerView'
@@ -78,7 +82,7 @@ afterEach(() => {
 })
 
 describe('ShowManagerView PixGrid-first shell', () => {
-  it('keeps PixGrid selectable while exposing the other engines as disabled future options', async () => {
+  it('uses the shared dropdown in the left rail and keeps future engines disabled', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -88,15 +92,61 @@ describe('ShowManagerView PixGrid-first shell', () => {
       await Promise.resolve()
     })
 
-    const engineSelect = container.querySelector<HTMLSelectElement>('select[aria-label="Show Manager engine"]')
-    expect(engineSelect?.value).toBe('pixGrid')
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    expect(engineTrigger?.textContent).toContain('PixGrid')
+    expect(engineTrigger?.closest('.sm-library')).not.toBeNull()
+    expect(engineTrigger?.closest('.sm-topbar')).toBeNull()
+    expect(container.querySelectorAll('select')).toHaveLength(0)
 
-    const options = [...(engineSelect?.options ?? [])]
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+
+    const engineMenu = document.body.querySelector('.drm-dropdown__menu[role="listbox"]')
+    const options = [...(engineMenu?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
     expect(options).toHaveLength(6)
-    expect(options.find(option => option.value === 'pixGrid')?.disabled).toBe(false)
-    expect(options.filter(option => option.value !== 'pixGrid').every(option => option.disabled)).toBe(true)
+    expect(options.find(option => option.textContent?.includes('PixGrid'))?.getAttribute('aria-disabled')).toBeNull()
+    expect(options.filter(option => !option.textContent?.includes('PixGrid')).every(option => option.getAttribute('aria-disabled') === 'true')).toBe(true)
     expect(container.querySelector('[data-testid="pix-grid-surface"]')).not.toBeNull()
-    expect(container.querySelector('[data-testid="pix-grid-design-panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="pix-grid-design-panel"]')?.getAttribute('data-grouped')).toBe('true')
     expect(container.querySelector('[aria-label="Show Manager track map preview"]')).not.toBeNull()
+  })
+
+  it('moves the preset chooser into the inspector and expands or collapses library groups independently', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const presetTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager PixGrid preset"]')
+    expect(presetTrigger?.textContent).toContain('Test PixGrid')
+    expect(presetTrigger?.closest('.sm-inspector')).not.toBeNull()
+    expect(presetTrigger?.closest('.sm-topbar')).toBeNull()
+
+    const componentsToggle = [...container.querySelectorAll<HTMLButtonElement>('.sm-library-section-toggle')]
+      .find(button => button.textContent?.includes('Components'))
+    expect(componentsToggle?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('.sm-library-row.is-active')).not.toBeNull()
+
+    await act(async () => {
+      componentsToggle?.click()
+      await Promise.resolve()
+    })
+
+    expect(componentsToggle?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('.sm-library-row.is-active')).toBeNull()
+
+    await act(async () => {
+      componentsToggle?.click()
+      await Promise.resolve()
+    })
+
+    expect(componentsToggle?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('.sm-library-row.is-active')).not.toBeNull()
   })
 })
