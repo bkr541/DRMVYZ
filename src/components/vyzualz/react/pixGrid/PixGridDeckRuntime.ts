@@ -12,7 +12,8 @@ import { createPixGridDeckItemCompilerCacheKey } from './PixGridDeckCompilerCore
 import type { PixGridDeckDefinition, PixGridDeckItemDefinition } from './PixGridDeckDomain'
 import { createPixGridDeckTransitionCacheKey } from './PixGridDeckTransitionPlanner'
 import type { PixGridSequencePlan } from './PixGridSequenceClock'
-import type { PixGridGroup } from './PixGridTypes'
+import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
+import type { PixGridGroup, PixGridState } from './PixGridTypes'
 
 export type PixGridDeckRuntimeStatus =
   | 'ready'
@@ -292,4 +293,14 @@ export function createPixGridDeckGeneratedGroups(deckId: string, layerId: string
     generatedGroupCache.delete(generatedGroupCache.keys().next().value as string)
   }
   return groups
+}
+
+export function withPixGridDeckGeneratedGroups(state: PixGridState, deckId: string): PixGridState {
+  const existing = new Set(state.groups.map(group => group.id))
+  const generated = state.layers.flatMap(layer => {
+    const frameSource = resolvePixGridLayerFrameSource(layer)
+    if (frameSource.kind !== 'deck' || frameSource.deckId !== deckId) return []
+    return createPixGridDeckGeneratedGroups(deckId, layer.id).filter(group => !existing.has(group.id))
+  })
+  return generated.length > 0 ? { ...state, groups: [...state.groups, ...generated] } : state
 }

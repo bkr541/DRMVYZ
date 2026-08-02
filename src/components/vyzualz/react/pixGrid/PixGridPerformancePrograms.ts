@@ -1,4 +1,5 @@
 import type { SharedPerformanceProgramValidationIssue } from "../../../../features/performanceCore";
+import { PIX_GRID_MEDIA_DECK_PERFORMANCE_PROGRAM } from "./PixGridDeckPerformanceProgram";
 import { validatePixGridPerformanceProgramCollection } from "./PixGridPerformanceProgramCompiler";
 import { calibratePixGridBuiltInContinuousRoute, calibratePixGridBuiltInEventRoute } from "./PixGridPerceptualCalibration";
 import type { PixGridPerformanceProgramId, PixGridReactionSource, PixGridReactionTarget } from "./PixGridTypes";
@@ -2378,6 +2379,7 @@ export const PIX_GRID_PERFORMANCE_PROGRAMS: readonly PixGridPerformanceProgram[]
     GEOMETRIC_REACTOR_PERFORMANCE_PROGRAM,
     PIXEL_PARADE_PERFORMANCE_PROGRAM,
     NEON_MARQUEE_PERFORMANCE_PROGRAM,
+    PIX_GRID_MEDIA_DECK_PERFORMANCE_PROGRAM,
   ];
 
 export const PIX_GRID_PERFORMANCE_PROGRAM_BY_ID = new Map<
@@ -2400,7 +2402,7 @@ export const PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID: Readonly<
 };
 
 export const PIX_GRID_PRESET_ID_BY_PROGRAM: Readonly<
-  Record<PixGridPerformanceProgramId, string>
+  Partial<Record<PixGridPerformanceProgramId, string>>
 > = {
   "pix-grid-bass-beacon-performance": "pix-grid-bass-beacon",
   "pix-grid-geometric-reactor-performance": "pix-grid-geometric-reactor",

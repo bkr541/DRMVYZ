@@ -32,7 +32,7 @@ export const PIX_GRID_DECK_SECTION_CADENCE_BARS: Readonly<Record<ReactSectionTyp
   unknown: 4,
 })
 
-export type PixGridSequenceBoundaryKind = 'phrase' | 'section' | 'trackMap'
+export type PixGridSequenceBoundaryKind = 'phrase' | 'section' | 'audio' | 'trackMap'
 export type PixGridSequenceBoundaryBehavior = 'force' | 'arm'
 export type PixGridSequenceBoundaryQuantization = 'beat' | 'bar' | 'fourBars' | 'phrase' | 'section'
 
@@ -72,6 +72,8 @@ export interface PixGridSequencePlannerInput {
   preparedFrames: readonly PixGridSequencePreparedFrameIdentity[]
   timeline: PixGridSequencePlannerTimeline
   boundarySignals?: readonly PixGridSequenceBoundarySignal[]
+  /** Auto Performance owns section cadence and pre-drop choreography when enabled. */
+  autoPerformanceEnabled?: boolean
   motion?: number
   transportMode?: 'live' | 'reconstruct'
   /** Optional Stage 5 plan lookup. Automatic hard cuts become instantaneous once compiled. */
@@ -340,7 +342,12 @@ function durationBarsFor(
   deck: PixGridDeckDefinition,
   sectionType: ReactSectionType,
   previousDurationBars: number,
+  autoPerformanceEnabled = true,
 ): number | null {
+  if (!autoPerformanceEnabled) {
+    if (frame.item.timingOverrideBeats != null) return Math.max(EPSILON, frame.item.timingOverrideBeats / BEATS_PER_BAR)
+    return Math.max(EPSILON, deck.configuration.defaultItemDurationBeats / BEATS_PER_BAR)
+  }
   if (sectionType === 'preDrop' && deck.configuration.preDropBehavior !== 'continue') return null
   if (frame.item.timingOverrideBeats != null) {
     return Math.max(EPSILON, frame.item.timingOverrideBeats / BEATS_PER_BAR)
@@ -427,11 +434,12 @@ function processDuration(
   section: ResolvedSectionSegment,
   eligible: readonly ResolvedFrameItem[],
   includeEndBoundary = true,
+  autoPerformanceEnabled = true,
 ): void {
   let cursor = fromBar
   while (cursor < toBar - EPSILON && state.transitionCount < MAX_SEQUENCE_TRANSITIONS) {
     const current = eligible.find(frame => frame.item.id === state.itemId) ?? eligible[0]!
-    const durationBars = durationBarsFor(current, deck, section.type, state.previousDurationBars)
+    const durationBars = durationBarsFor(current, deck, section.type, state.previousDurationBars, autoPerformanceEnabled)
     if (durationBars == null) return
     state.previousDurationBars = durationBars
     const remainingFraction = Math.max(EPSILON, 1 - state.phase)
@@ -446,7 +454,15 @@ function processDuration(
       state.phase = 0
       return
     }
-    recordTransition(state, transitionBar, target.item.id, `cadence:${section.id}:${state.epoch + 1}`, null)
+    const armedIdentity = state.armedBoundaryIdentity
+    recordTransition(
+      state,
+      transitionBar,
+      target.item.id,
+      armedIdentity ?? `cadence:${section.id}:${state.epoch + 1}`,
+      armedIdentity ? 'beat' : null,
+    )
+    state.armedBoundaryIdentity = null
     cursor = transitionBar
   }
 }
@@ -471,13 +487,14 @@ function applyForcedBoundary(
   timeline: PixGridSequencePlannerTimeline,
   section: ResolvedSectionSegment,
   eligible: readonly ResolvedFrameItem[],
+  autoPerformanceEnabled = true,
 ): void {
   state.latestBoundaryIdentity = signal.id
   if (signal.behavior === 'arm') {
     state.armedBoundaryIdentity = signal.id
     return
   }
-  if (section.type === 'preDrop' && deck.configuration.preDropBehavior !== 'continue') {
+  if (autoPerformanceEnabled && section.type === 'preDrop' && deck.configuration.preDropBehavior !== 'continue') {
     state.armedBoundaryIdentity = signal.id
     return
   }
@@ -529,7 +546,7 @@ export function resolvePixGridSequencePlan(input: PixGridSequencePlannerInput): 
   const firstSection = sectionAt(sections, 0)
   const firstEligible = eligibleItemsFor(input.deck, available, firstSection.type, input.timeline.sceneId ?? null)
   const firstItem = itemAtEpoch(input.deck.configuration.playbackOrder, firstEligible, input.deck, input.timeline, firstSection, 0)
-  const initialDuration = durationBarsFor(firstItem, input.deck, firstSection.type, input.deck.configuration.defaultItemDurationBeats / BEATS_PER_BAR)
+  const initialDuration = durationBarsFor(firstItem, input.deck, firstSection.type, input.deck.configuration.defaultItemDurationBeats / BEATS_PER_BAR, input.autoPerformanceEnabled !== false)
   const state: PlannerState = {
     epoch: 0,
     itemId: firstItem.item.id,
@@ -562,8 +579,8 @@ export function resolvePixGridSequencePlan(input: PixGridSequencePlannerInput): 
       if (nextSectionStartsHere
         && segmentEnd >= section.endBar - EPSILON
         && signal.bar >= section.endBar - EPSILON) break
-      processDuration(state, localCursor, signal.bar, input.deck, input.timeline, section, eligible)
-      applyForcedBoundary(state, signal, input.deck, input.timeline, section, eligible)
+      processDuration(state, localCursor, signal.bar, input.deck, input.timeline, section, eligible, true, input.autoPerformanceEnabled !== false)
+      applyForcedBoundary(state, signal, input.deck, input.timeline, section, eligible, input.autoPerformanceEnabled !== false)
       localCursor = signal.bar
       signalIndex += 1
     }
@@ -576,6 +593,7 @@ export function resolvePixGridSequencePlan(input: PixGridSequencePlannerInput): 
       section,
       eligible,
       !(nextSectionStartsHere && segmentEnd >= section.endBar - EPSILON),
+      input.autoPerformanceEnabled !== false,
     )
     cursor = segmentEnd
     if (cursor >= sequenceBar - EPSILON
@@ -587,7 +605,9 @@ export function resolvePixGridSequencePlan(input: PixGridSequencePlannerInput): 
   applyEligibilityBoundary(state, sequenceBar, input.deck, input.timeline, currentSection, eligible)
   const active = eligible.find(frame => frame.item.id === state.itemId) ?? eligible[0]!
   const next = nextItem(active.item.id, state.epoch, input.deck.configuration.playbackOrder, eligible, input.deck, input.timeline, currentSection)
-  const preDropHold = currentSection.type === 'preDrop' && input.deck.configuration.preDropBehavior !== 'continue'
+  const preDropHold = input.autoPerformanceEnabled !== false
+    && currentSection.type === 'preDrop'
+    && input.deck.configuration.preDropBehavior !== 'continue'
   const motionFrozen = input.transportMode === 'live' && finiteNonNegative(input.motion, 1) <= EPSILON
   const terminal = input.deck.configuration.loop === false && next.item.id === active.item.id
   const singleFrame = eligible.length === 1
@@ -617,6 +637,7 @@ export function resolvePixGridSequencePlan(input: PixGridSequencePlannerInput): 
     input.deck,
     currentSection.type,
     state.previousDurationBars,
+    input.autoPerformanceEnabled !== false,
   ) ?? Math.max(EPSILON, input.deck.configuration.defaultItemDurationBeats / BEATS_PER_BAR)
   const plannedMode = pairPolicy.mode === 'auto'
     ? input.transitionModeResolver?.(recordedTransitionSource.item.id, recordedTransitionTarget.item.id) ?? 'auto'
@@ -697,7 +718,7 @@ export function resolvePixGridSequencePlan(input: PixGridSequencePlannerInput): 
       reason: holdReason,
       behavior: preDropHold ? input.deck.configuration.preDropBehavior : null,
     },
-    effect: currentSection.type === 'preDrop'
+    effect: input.autoPerformanceEnabled !== false && currentSection.type === 'preDrop'
       ? effectForPreDrop(input.deck.configuration.preDropBehavior)
       : 'none',
   }
@@ -725,9 +746,9 @@ export function createPixGridSequenceBoundarySignals(
     for (const section of context.sectionBarTimeline) {
       if (section.startBar <= EPSILON) continue
       signals.push({
-        id: `section:${section.id}`,
+        id: section.type === 'drop' ? `drop-impact:${section.id}` : `section:${section.id}`,
         bar: section.startBar,
-        kind: 'section',
+        kind: section.type === 'drop' ? 'audio' : 'section',
         behavior: 'force',
         quantization: 'section',
       })

@@ -167,7 +167,7 @@ describe('PixGrid Deck project persistence and history', () => {
       configuration: {
         ...useReactStore.getState().pixGridDecks[0]!.configuration,
         playbackOrder: 'sectionAssigned',
-        reactionProfileId: 'react-profile-1',
+        reactionProfileId: 'highEnergy',
         sectionTimingBeats: { intro: 8, drop: 2 },
         sectionItemAssignments: {
           intro: ['deck-round-trip-item-2', 'deck-round-trip-item-1'],

@@ -970,10 +970,12 @@ function effectivePixGridProgram(
 }
 
 function programSignature(
+  program: PixGridPerformanceProgram,
   state: PixGridState,
   capabilities: Partial<Record<PixGridReactionSource, boolean>>,
 ): string {
   return JSON.stringify({
+    program,
     presetId: state.selectedPresetId,
     scenes: state.scenes.map((scene) => [scene.id, scene.layerIds]),
     layers: state.layers.map((layer) => layer.id),
@@ -1385,7 +1387,7 @@ export class PixGridPerformanceProgramCompiler {
     state: PixGridState,
     capabilities: Partial<Record<PixGridReactionSource, boolean>> = {},
   ): PixGridCompiledPerformanceProgram {
-    const rawSignature = programSignature(state, capabilities);
+    const rawSignature = programSignature(program, state, capabilities);
     const signature = `${stableHash(rawSignature).toString(16)}:${rawSignature.length}`;
     const cached = this.cache.get(program.id);
     if (cached?.signature === signature) return cached;

@@ -33,7 +33,7 @@ import type { PixGridStructuralChoreography } from './PixGridStructuralChoreogra
 import { pixGridCellTransitionMix } from './PixGridCellTransitions'
 import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
 import {
-  createPixGridDeckGeneratedGroups,
+  withPixGridDeckGeneratedGroups,
   pixGridDeckGeneratedGroupId,
   type PixGridDeckRuntimeFrameSource,
 } from './PixGridDeckRuntime'
@@ -421,20 +421,6 @@ function preparedDeckLayerMaskBits(
   return masks
 }
 
-function withPixGridDeckGeneratedGroups(
-  state: PixGridState,
-  source: PixGridDeckRuntimeFrameSource | null | undefined,
-): PixGridState {
-  if (!source) return state
-  const existing = new Set(state.groups.map(group => group.id))
-  const generated = state.layers.flatMap(layer => {
-    const frameSource = resolvePixGridLayerFrameSource(layer)
-    if (frameSource.kind !== 'deck' || frameSource.deckId !== source.deckId) return []
-    return createPixGridDeckGeneratedGroups(source.deckId, layer.id).filter(group => !existing.has(group.id))
-  })
-  return generated.length > 0 ? { ...state, groups: [...state.groups, ...generated] } : state
-}
-
 function renderPreparedDeckLayer(
   pixels: Uint8Array,
   width: number,
@@ -571,7 +557,9 @@ function composePixGridBaseFrame(
   deckFrameSource?: PixGridDeckRuntimeFrameSource | null,
   composedDeckFrame?: PixGridComposedDeckFrame | null,
 ): PixGridLogicalFrame {
-  const normalizedState = withPixGridDeckGeneratedGroups(normalizePixGridState(rawState), deckFrameSource)
+  const normalizedState = deckFrameSource
+    ? withPixGridDeckGeneratedGroups(normalizePixGridState(rawState), deckFrameSource.deckId)
+    : normalizePixGridState(rawState)
   const state = reactionRuntime
     ? resolvePixGridAuthoredAssignmentState(normalizedState, frame, reactionRuntime)
     : normalizedState

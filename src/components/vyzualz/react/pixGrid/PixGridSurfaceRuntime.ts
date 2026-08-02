@@ -1,7 +1,9 @@
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { PixGridActionCue } from './PixGridActionCues'
 import type { PixGridDeckConcreteTransitionMode, PixGridPreparedFrameSet } from './PixGridDeckCompilerContracts'
-import type { PixGridDeckDefinition } from './PixGridDeckDomain'
+import { PIX_GRID_DECK_PERFORMANCE_PROGRAM_ID, type PixGridDeckDefinition } from './PixGridDeckDomain'
+import { applyPixGridDeckManualAudioReactions, createPixGridDeckPerformanceProgram } from './PixGridDeckPerformanceProgram'
+import { withPixGridDeckGeneratedGroups } from './PixGridDeckRuntime'
 import type { PixGridPerformanceSceneOwnership } from './PixGridPerformanceRuntime'
 import { applyPixGridBassGainToPerformanceContext } from './PixGridRuntimeControls'
 import {
@@ -56,7 +58,25 @@ export function resolvePixGridSurfacePerformanceFrame(
     input.authoredState,
     input.presetId ?? input.authoredState.selectedPresetId,
   )
-  const mappedState = resolvePixGridPreviewState(canonicalAuthoredState, input.trackSceneId)
+  const previewMappedState = resolvePixGridPreviewState(canonicalAuthoredState, input.trackSceneId)
+  const deckState = input.deck
+    ? withPixGridDeckGeneratedGroups(previewMappedState, input.deck.id)
+    : previewMappedState
+  const deckProgramState = input.deck
+    ? {
+        ...deckState,
+        performance: {
+          ...deckState.performance,
+          sharedPerformanceProgramId: PIX_GRID_DECK_PERFORMANCE_PROGRAM_ID,
+        },
+      }
+    : deckState
+  const mappedState = input.deck && !deckProgramState.performance.enabled
+    ? applyPixGridDeckManualAudioReactions(deckProgramState, input.deck.id)
+    : deckProgramState
+  const deckPerformanceProgram = input.deck && mappedState.performance.enabled
+    ? createPixGridDeckPerformanceProgram(mappedState, input.deck)
+    : null
   const projectedPreviewFrame = Number.isFinite(input.audioFrame.previewElapsedBar)
     ? input.audioFrame
     : applyPixGridSelectedScenePreviewFrame(input.audioFrame, mappedState)
@@ -105,10 +125,11 @@ export function resolvePixGridSurfacePerformanceFrame(
         boundarySignals: createPixGridSequenceBoundarySignals(
           performanceContext,
           sceneOwnership === 'editingContext' ? [] : input.cues,
-          sceneOwnership === 'editingContext'
+          sceneOwnership === 'editingContext' || !mappedState.performance.enabled
             ? { includePhrases: false, includeSections: false, includeTrackMapCues: false }
-            : undefined,
+            : { includeTrackMapCues: false },
         ),
+        autoPerformanceEnabled: mappedState.performance.enabled,
         motion: previewAudioFrame.motionMultiplier,
         transportMode: sequencePosition.transportMode,
         transitionModeResolver: input.transitionModeResolver,
@@ -124,6 +145,7 @@ export function resolvePixGridSurfacePerformanceFrame(
     cues: sceneOwnership === 'editingContext' ? [] : input.cues,
     trackId: input.trackId,
     sceneOwnership,
+    performanceProgram: deckPerformanceProgram,
   })
   return {
     mappedState,

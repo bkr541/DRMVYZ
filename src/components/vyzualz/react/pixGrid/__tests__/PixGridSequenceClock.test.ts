@@ -61,7 +61,7 @@ function configuration(
   return {
     playbackOrder,
     loop: true,
-    reactionProfileId: null,
+    reactionProfileId: 'balanced',
     transitionPolicy: { style: 'cut', durationBeats: 0 },
     defaultItemDurationBeats: 4,
     sectionTimingBeats: {},
@@ -102,6 +102,7 @@ function planAt(
     sequenceBar?: number
     motion?: number
     transportMode?: 'live' | 'reconstruct'
+    autoPerformanceEnabled?: boolean
     transitionModeResolver?: (sourceItemId: string, targetItemId: string) => 'pixelTransport' | 'pixelDissolve' | 'crossfade' | 'rowWipe' | 'columnWipe' | 'checkerWipe' | 'radialReveal' | 'hardCut' | null
   } = {},
 ): PixGridSequencePlan {
@@ -120,6 +121,7 @@ function planAt(
       timelineRevision: options.timelineRevision ?? 'timeline-1',
     },
     boundarySignals: options.signals,
+    autoPerformanceEnabled: options.autoPerformanceEnabled,
     motion: options.motion ?? 1,
     transportMode: options.transportMode ?? 'reconstruct',
     transitionModeResolver: options.transitionModeResolver,
@@ -391,6 +393,28 @@ describe('PixGridSequenceClock pure deterministic planning', () => {
     expect(result).toMatchObject({ activeItemId: 'item-a', frameEpoch: 0, transitionArmedBy: 'armed-cue' })
   })
 
+
+  it('uses Motion cadence without section choreography when Auto Performance is off', () => {
+    const targetDeck = deck('forward', {
+      defaultItemDurationBeats: 4,
+      sectionTimingBeats: { drop: 8 },
+      preDropBehavior: 'dim',
+    })
+    const drop = planAt(targetDeck, 1, { sectionType: 'drop', autoPerformanceEnabled: false })
+    const preDrop = planAt(targetDeck, 1, { sectionType: 'preDrop', autoPerformanceEnabled: false })
+    expect(drop.activeItemId).toBe('item-b')
+    expect(preDrop).toMatchObject({ activeItemId: 'item-b', effect: 'none' })
+    expect(preDrop.hold.reason).not.toBe('preDrop')
+  })
+
+  it('consumes an armed audio boundary at the next permitted cadence without skipping frames', () => {
+    const result = planAt(deck(), 8, {
+      sectionType: 'intro',
+      signals: [{ id: 'drop-impact:fixture', bar: 1, kind: 'audio', behavior: 'arm', quantization: 'beat' }],
+    })
+    expect(result).toMatchObject({ activeItemId: 'item-b', frameEpoch: 1, boundaryIdentity: 'drop-impact:fixture' })
+  })
+
   it('publishes deterministic source/target and transition progress around a quantized boundary', () => {
     const targetDeck = deck('forward', {
       transitionPolicy: {
@@ -641,7 +665,7 @@ describe('PixGridSequenceClock production adapters', () => {
     const preset = PIX_GRID_PRESET_BY_ID.get(presetId)!
     const applied = applyPixGridPresetSettings(createDefaultPixGridState(), presetId, preset.pixGridSettings)
     const selectedSceneId = `${presetId}-drop`
-    const authoredState = selectPixGridPreviewScene(normalizePixGridState(applied), selectedSceneId)
+    const previewState = selectPixGridPreviewScene(normalizePixGridState(applied), selectedSceneId)
     const targetDeck = {
       ...deck('forward', {
         sceneItemAssignments: { [selectedSceneId]: ['item-d', 'item-b'] },
@@ -655,12 +679,21 @@ describe('PixGridSequenceClock production adapters', () => {
       }),
       generatedPresetId: presetId,
     }
+    const deckLayer = {
+      ...previewState.layers[0]!,
+      frameSource: { kind: 'deck' as const, deckId: targetDeck.id },
+    }
+    const authoredState = {
+      ...previewState,
+      layers: [deckLayer, ...previewState.layers.slice(1)],
+    }
     const context = contextAt(12, 'verse')
     const audioFrame = createPixGridAudioFrame(context, {
       isPlaying: true,
       deltaTimeSec: 1 / 60,
       autoPerformanceEnabled: true,
     })
+    const runtime = new PixGridUnifiedPerformanceRuntime()
     const frame = resolvePixGridSurfacePerformanceFrame({
       authoredState,
       trackSceneId: `${presetId}-verse`,
@@ -668,7 +701,7 @@ describe('PixGridSequenceClock production adapters', () => {
       audioFrame,
       presetId,
       cues: [cue('track-map-cue', 4, 'bar')],
-      runtime: new PixGridUnifiedPerformanceRuntime(),
+      runtime,
       trackId: 'deck-sequence-track',
       deck: targetDeck,
       preparedFrameSet: preparedFrameSet(targetDeck),
@@ -684,6 +717,33 @@ describe('PixGridSequenceClock production adapters', () => {
     })
     expect(frame.deckSequencePlan?.boundaryIdentity).not.toBe('track-map:track-map-cue')
     expect(frame.resolvedRuntime.state.selectedSceneId).toBe(selectedSceneId)
+    expect(frame.resolvedRuntime.performance.snapshot.programId).toBe('pix-grid-media-deck-performance')
+    expect(frame.resolvedRuntime.state.groups.some(group => group.smartRuleId?.startsWith(`deck:${targetDeck.id}:`))).toBe(true)
+
+    const manualFrame = resolvePixGridSurfacePerformanceFrame({
+      authoredState: {
+        ...authoredState,
+        performance: { ...authoredState.performance, enabled: false },
+      },
+      trackSceneId: `${presetId}-verse`,
+      context,
+      audioFrame,
+      presetId,
+      cues: [cue('track-map-cue', 4, 'bar')],
+      runtime,
+      trackId: 'deck-sequence-track',
+      deck: targetDeck,
+      preparedFrameSet: preparedFrameSet(targetDeck),
+      transitionModeResolver: () => 'hardCut',
+    })
+    expect(manualFrame.resolvedRuntime.performance).toMatchObject({
+      snapshot: { active: false, activeSectionPlanId: null },
+      appliedActions: [],
+    })
+    expect(manualFrame.deckSequencePlan).toMatchObject({ effect: 'none', transitionArmedBy: null })
+    expect(manualFrame.mappedState.groups.flatMap(group => group.reactions).map(reaction => reaction.target)).toEqual(
+      expect.arrayContaining(['brightness', 'glow', 'scale']),
+    )
   })
 
   it('preserves the existing Marquee Sign Clock contract beside Deck planning', () => {

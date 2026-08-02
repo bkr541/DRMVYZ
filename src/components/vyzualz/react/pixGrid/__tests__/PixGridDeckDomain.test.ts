@@ -47,7 +47,7 @@ describe('PixGrid Deck domain normalization', () => {
       items: items(3),
       configuration: {
         playbackOrder: 'not-real',
-        reactionProfileId: ' profile-1 ',
+        reactionProfileId: ' graphicLogo ',
         transitionPolicy: { style: 'crossfade', durationBeats: Number.NaN },
         defaultItemDurationBeats: -20,
         sectionTimingBeats: { intro: 8, drop: Number.NaN, bogus: 4 },
@@ -69,7 +69,7 @@ describe('PixGrid Deck domain normalization', () => {
       generatedPresetId: 'pix-grid-deck:deck-stable',
       configuration: {
         playbackOrder: DEFAULT_PIX_GRID_DECK_CONFIGURATION.playbackOrder,
-        reactionProfileId: 'profile-1',
+        reactionProfileId: 'graphicLogo',
         transitionPolicy: {
           mode: 'crossfade',
           durationFraction: 0.75,

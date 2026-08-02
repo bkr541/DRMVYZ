@@ -6,7 +6,7 @@ export const PIX_GRID_MUSIC_REACTIVE_CONFIGURATION_VERSION = 5 as const
 export const PIX_GRID_BUILT_IN_LAYER_GRAPH_VERSION = 4 as const
 export const PIX_GRID_SMART_GROUP_CONFIGURATION_VERSION = 4 as const
 export const PIX_GRID_AUDIO_ROUTE_CONFIGURATION_VERSION = 5 as const
-export const PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION = 4 as const
+export const PIX_GRID_PERFORMANCE_PROGRAM_CONFIGURATION_VERSION = 5 as const
 
 export type PixGridQualityTier = 'draft' | 'low' | 'high' | 'ultra'
 export type PixGridQualityMode = 'adaptive' | 'fixed'
@@ -19,6 +19,7 @@ export type PixGridPerformanceProgramId =
   | 'pix-grid-geometric-reactor-performance'
   | 'pix-grid-pixel-parade-performance'
   | 'pix-grid-neon-marquee-performance'
+  | 'pix-grid-media-deck-performance'
 export type PixGridBlendMode = 'normal' | 'add' | 'multiply'
 export type PixGridStoppedBehavior = 'baseline' | 'blackout'
 export type PixGridRendererPath = 'webgl2' | 'canvas2d-fallback'

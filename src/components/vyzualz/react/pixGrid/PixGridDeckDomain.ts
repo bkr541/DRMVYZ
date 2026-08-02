@@ -8,6 +8,8 @@ export const PIX_GRID_DECK_GENERATED_PRESET_ID_PREFIX = 'pix-grid-deck:' as cons
 export const PIX_GRID_DECK_PATTERN_ID = 'mediaDeck' as const
 export const PIX_GRID_DECK_FRAME_SOURCE_KIND = 'deck' as const
 export const PIX_GRID_DECK_PERFORMANCE_PROGRAM_ID = 'pix-grid-media-deck-performance' as const
+export const PIX_GRID_DECK_REACTION_PROFILE_IDS = ['balanced', 'graphicLogo', 'photoArtwork', 'highEnergy'] as const
+export type PixGridDeckReactionProfileId = typeof PIX_GRID_DECK_REACTION_PROFILE_IDS[number]
 
 export type PixGridDeckPlaybackOrder =
   | 'forward'
@@ -76,7 +78,7 @@ export interface PixGridDeckItemDefinition {
 export interface PixGridDeckConfiguration {
   playbackOrder: PixGridDeckPlaybackOrder
   loop: boolean
-  reactionProfileId: string | null
+  reactionProfileId: PixGridDeckReactionProfileId
   transitionPolicy: PixGridDeckTransitionPolicy
   defaultItemDurationBeats: number
   sectionTimingBeats: Partial<Record<ReactSectionType, number>>
@@ -181,6 +183,7 @@ const TRANSITION_MODES = new Set<PixGridDeckTransitionMode>([
   'auto', 'pixelTransport', 'pixelDissolve', 'crossfade', 'rowWipe', 'columnWipe',
   'checkerWipe', 'radialReveal', 'hardCut',
 ])
+const REACTION_PROFILE_IDS = new Set<PixGridDeckReactionProfileId>(PIX_GRID_DECK_REACTION_PROFILE_IDS)
 const PRE_DROP_BEHAVIORS = new Set<PixGridDeckPreDropBehavior>([
   'hold', 'dim', 'disperse', 'previewNext', 'continue',
 ])
@@ -192,7 +195,7 @@ const MAX_DURATION_BEATS = 1024
 export const DEFAULT_PIX_GRID_DECK_CONFIGURATION: Readonly<PixGridDeckConfiguration> = Object.freeze({
   playbackOrder: 'forward',
   loop: true,
-  reactionProfileId: null,
+  reactionProfileId: 'balanced',
   transitionPolicy: Object.freeze({
     mode: 'auto',
     durationFraction: 0.25,
@@ -232,9 +235,12 @@ function normalizeIdentifier(value: unknown): string | null {
   return SAFE_ID.test(trimmed) ? trimmed : null
 }
 
-function normalizeNullableIdentifier(value: unknown): string | null {
-  if (value == null || value === '') return null
-  return normalizeIdentifier(value)
+function normalizeReactionProfileId(value: unknown): PixGridDeckReactionProfileId {
+  if (typeof value !== 'string') return DEFAULT_PIX_GRID_DECK_CONFIGURATION.reactionProfileId
+  const normalized = value.trim() as PixGridDeckReactionProfileId
+  return REACTION_PROFILE_IDS.has(normalized)
+    ? normalized
+    : DEFAULT_PIX_GRID_DECK_CONFIGURATION.reactionProfileId
 }
 
 export function normalizePixGridDeckName(value: unknown): string {
@@ -517,7 +523,7 @@ export function normalizePixGridDeckConfiguration(
       ? source.playbackOrder as PixGridDeckPlaybackOrder
       : DEFAULT_PIX_GRID_DECK_CONFIGURATION.playbackOrder,
     loop: typeof source.loop === 'boolean' ? source.loop : DEFAULT_PIX_GRID_DECK_CONFIGURATION.loop,
-    reactionProfileId: normalizeNullableIdentifier(source.reactionProfileId),
+    reactionProfileId: normalizeReactionProfileId(source.reactionProfileId),
     transitionPolicy: {
       mode,
       durationFraction,

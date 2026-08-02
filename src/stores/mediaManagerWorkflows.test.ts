@@ -561,7 +561,7 @@ describe('Media Manager canonical workflows', () => {
       generatedPresetId: 'pix-grid-deck:deck-1',
       items: [makeItem('a', source.id, 0), makeItem('b', 'db-other-1', 1), makeItem('c', 'db-other-2', 2)],
       configuration: {
-        playbackOrder: 'forward', reactionProfileId: null,
+        playbackOrder: 'forward', reactionProfileId: 'balanced',
         transitionPolicy: { style: 'cut', durationBeats: 0 }, defaultItemDurationBeats: 4,
         sectionTimingBeats: {}, sectionItemAssignments: {}, sceneItemAssignments: {}, loop: true, preDropBehavior: 'hold',
       },
@@ -609,7 +609,7 @@ describe('Media Manager canonical workflows', () => {
       id, mediaId, enabled: true, order, revision: 1, timingOverrideBeats: null,
       source: { mediaRevision: 1, fingerprint: `legacy:${id}`, fileName: `${id}.png`, mimeType: 'image/png', width: 2, height: 2, hasAlpha: false, transparentBackground: '#000000' },
     })
-    const configuration = { playbackOrder: 'forward' as const, reactionProfileId: null, transitionPolicy: { style: 'cut' as const, durationBeats: 0 }, defaultItemDurationBeats: 4, sectionTimingBeats: {}, sectionItemAssignments: {}, sceneItemAssignments: {}, loop: true, preDropBehavior: 'hold' as const }
+    const configuration = { playbackOrder: 'forward' as const, reactionProfileId: 'balanced' as const, transitionPolicy: { style: 'cut' as const, durationBeats: 0 }, defaultItemDurationBeats: 4, sectionTimingBeats: {}, sectionItemAssignments: {}, sceneItemAssignments: {}, loop: true, preDropBehavior: 'hold' as const }
     let decks: PixGridDeckDefinition[] = [{
       schemaVersion: 1, id: 'minimum-deck', name: 'Minimum Deck', revision: 1,
       generatedPresetId: 'pix-grid-deck:minimum-deck',

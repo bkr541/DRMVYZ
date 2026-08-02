@@ -50,7 +50,7 @@ const DITHER_OPTIONS = [
 
 const PERFORMANCE_PROGRAM_OPTIONS = [
   { value: '', label: 'Choose preset to load…', disabled: true },
-  ...PIX_GRID_PERFORMANCE_PROGRAMS.map(program => ({
+  ...PIX_GRID_PERFORMANCE_PROGRAMS.filter(program => program.id !== 'pix-grid-media-deck-performance').map(program => ({
     value: program.id,
     label: program.metadata?.name ?? program.id,
   })),

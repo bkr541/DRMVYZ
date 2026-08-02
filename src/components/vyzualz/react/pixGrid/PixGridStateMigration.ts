@@ -20,6 +20,7 @@ import {
 } from './PixGridCanonicalGraph'
 import { PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS } from './PixGridNeonMarqueeAudioOwnership'
 import { PixGridPerformanceProgramCompiler } from './PixGridPerformanceProgramCompiler'
+import type { PixGridPerformanceProgram } from './PixGridPerformanceTypes'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
 import { PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
@@ -939,6 +940,13 @@ function assignmentTargetCanRender(state: PixGridState, assignment: PixGridReact
   if (!targetId) return true
   const group = state.groups.find(candidate => candidate.id === targetId)
   if (!group) return false
+  if (group.smartRuleId?.startsWith('deck:')) {
+    const layerIds = group.layerScope?.length ? group.layerScope : group.layerId ? [group.layerId] : []
+    return group.enabled
+      && group.visible !== false
+      && group.contentVisible !== false
+      && layerIds.some(layerId => state.layers.some(layer => layer.id === layerId && layer.visible && layer.opacity > 0))
+  }
   return inspectPixGridGroupTarget(state, group).usable
 }
 
@@ -994,6 +1002,7 @@ export function isPixGridAudioAssignmentEffective(
 function countEffectiveNonFallbackAssignments(
   state: PixGridState,
   capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+  performanceProgram?: PixGridPerformanceProgram | null,
 ): number {
   let count = state.audioAssignments.filter(assignment => (
     !PIX_GRID_BASELINE_FALLBACK_IDS.has(assignment.id)
@@ -1007,7 +1016,11 @@ function countEffectiveNonFallbackAssignments(
     )).length
   }
   const programId = state.performance.sharedPerformanceProgramId
-  const program = programId ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId) : null
+  const program = performanceProgram !== undefined
+    ? performanceProgram
+    : programId
+      ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(programId)
+      : null
   if (program) {
     const compiled = new PixGridPerformanceProgramCompiler().compile(program, state, capabilities)
     count += compiled.assignments.filter(assignment => (
@@ -1035,8 +1048,9 @@ function fallbackAssignmentsMatch(
 function reconcilePixGridFallbackAssignments(
   state: PixGridState,
   capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+  performanceProgram?: PixGridPerformanceProgram | null,
 ): PixGridFallbackReconciliation {
-  const validNonFallbackCount = countEffectiveNonFallbackAssignments(state, capabilities)
+  const validNonFallbackCount = countEffectiveNonFallbackAssignments(state, capabilities, performanceProgram)
   const fallbackActive = validNonFallbackCount === 0
   const existingNonFallback = state.audioAssignments.filter(assignment => !PIX_GRID_BASELINE_FALLBACK_IDS.has(assignment.id))
   const existingFallback = state.audioAssignments.filter(assignment => PIX_GRID_BASELINE_FALLBACK_IDS.has(assignment.id))
@@ -1077,12 +1091,13 @@ export function countValidPixGridAudioAssignments(
 export function ensurePixGridRuntimeAudioRoutes(
   state: PixGridState,
   capabilities?: Partial<Record<PixGridReactionSource, boolean>>,
+  performanceProgram?: PixGridPerformanceProgram | null,
 ): {
   state: PixGridState
   fallbackActive: boolean
   validAssignmentCount: number
 } {
-  const reconciled = reconcilePixGridFallbackAssignments(state, capabilities)
+  const reconciled = reconcilePixGridFallbackAssignments(state, capabilities, performanceProgram)
   if (!reconciled.fallbackActive && reconciled.state === state) {
     return { state, fallbackActive: false, validAssignmentCount: reconciled.validAssignmentCount }
   }

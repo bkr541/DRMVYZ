@@ -614,7 +614,7 @@ function ChoreographyPanel() {
   return (
     <div data-testid="pix-grid-choreography-workspace">
       <Collapsible label="PERFORMANCE PROGRAM" defaultOpen>
-        <SelectRow label="Change Performance Program Only" value={program.id} options={PIX_GRID_PERFORMANCE_PROGRAMS.map(item => ({ value: item.id, label: item.metadata.name }))} onChange={value => changeProgramOnly(value as PixGridPerformanceProgramId)} description="Changes only the authored performance program and its overrides. Artwork and presentation settings remain unchanged." />
+        <SelectRow label="Change Performance Program Only" value={program.id} options={PIX_GRID_PERFORMANCE_PROGRAMS.filter(item => item.id !== 'pix-grid-media-deck-performance').map(item => ({ value: item.id, label: item.metadata.name }))} onChange={value => changeProgramOnly(value as PixGridPerformanceProgramId)} description="Changes only the authored performance program and its overrides. Artwork and presentation settings remain unchanged." />
         <ToggleRow label="Auto Performance" value={state.performance.enabled} onChange={enabled => setPerformance({ enabled })} />
         <PixGridHistoryGesture><SliderRow label="Performance Intensity" value={state.performance.intensity} onChange={intensity => setPerformance({ intensity })} /></PixGridHistoryGesture>
         <div className="rv-pix-grid-origin-card"><strong>{program.metadata.name}</strong><span>{program.metadata.description}</span><small>{program.visualRoles.length} visual roles · {program.bindings.length} bindings · {program.banks.length} banks</small></div>

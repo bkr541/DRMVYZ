@@ -20,6 +20,7 @@ import {
 import type {
   PixGridPerformanceAction,
   PixGridPerformanceArcState,
+  PixGridPerformanceProgram,
   PixGridPerformanceRuntimeSnapshot,
   PixGridResolvedPerformanceFrame,
 } from "./PixGridPerformanceTypes";
@@ -915,6 +916,7 @@ export function resolvePixGridPerformanceFrame(
     bassReactivityGain?: number;
     motionMultiplier?: number;
     sceneOwnership?: PixGridPerformanceSceneOwnership;
+    program?: PixGridPerformanceProgram | null;
   } = {},
 ): PixGridResolvedPerformanceFrame {
   const base = normalizePixGridState(rawState);
@@ -925,9 +927,11 @@ export function resolvePixGridPerformanceFrame(
     : null;
   const configuredId =
     attachedProgramId ?? base.performance.sharedPerformanceProgramId;
-  const program = configuredId
-    ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(configuredId)
-    : null;
+  const program = options.program !== undefined
+    ? options.program
+    : configuredId
+      ? PIX_GRID_PERFORMANCE_PROGRAM_BY_ID.get(configuredId)
+      : null;
   if (!base.performance.enabled || !program) {
     return {
       state: base,

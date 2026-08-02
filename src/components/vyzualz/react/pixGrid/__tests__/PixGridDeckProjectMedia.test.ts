@@ -84,7 +84,7 @@ async function deckFor(first: File, second: File): Promise<PixGridDeckDefinition
     configuration: {
       playbackOrder: 'forward',
       loop: true,
-      reactionProfileId: null,
+      reactionProfileId: 'balanced',
       transitionPolicy: { style: 'cut', durationBeats: 0 },
       defaultItemDurationBeats: 4,
       sectionTimingBeats: {},

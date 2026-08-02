@@ -255,7 +255,7 @@ function renderPerformance(preset: ReactPreset, timeSec: number): PixGridLogical
 describe('rebuilt first-party PixGrid preset contracts', () => {
   it('ships bounded, editable, versioned assignments and complete choreography plans', () => {
     expect(validatePixGridPerformancePrograms().filter(issue => issue.severity === 'error')).toEqual([])
-    expect(PIX_GRID_PERFORMANCE_PROGRAMS).toHaveLength(4)
+    expect(PIX_GRID_PERFORMANCE_PROGRAMS.filter(program => program.id !== 'pix-grid-media-deck-performance')).toHaveLength(4)
 
     for (const preset of LEGACY_REBUILT_PROGRAM_BACKED_PRESETS) {
       const settings = preset.pixGridSettings!

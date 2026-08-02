@@ -17,6 +17,7 @@ import {
 } from "./PixGridAudioRouting";
 import { PIX_GRID_AUDIO_INTELLIGENCE_SOURCES } from "./PixGridAudioIntelligenceRegistry";
 import type { PixGridGroupFrameEffect } from "./PixGridFrameEffects";
+import type { PixGridPerformanceProgram } from './PixGridPerformanceTypes';
 import {
   PixGridStructuralChoreographer,
   type PixGridStructuralChoreography,
@@ -327,10 +328,12 @@ export class PixGridUnifiedPerformanceRuntime {
     cues: readonly PixGridActionCue[];
     trackId?: string | null;
     sceneOwnership?: PixGridPerformanceSceneOwnership;
+    performanceProgram?: PixGridPerformanceProgram | null;
   }): PixGridUnifiedFrame {
     const runtimeRoutes = ensurePixGridRuntimeAudioRoutes(
       input.authoredState,
       input.audioFrame.capabilities,
+      input.performanceProgram,
     );
     const authoredState = runtimeRoutes.state;
     const performance = resolvePixGridPerformanceFrame(
@@ -343,6 +346,7 @@ export class PixGridUnifiedPerformanceRuntime {
         bassReactivityGain: input.audioFrame.bassReactivityGain,
         motionMultiplier: input.audioFrame.motionMultiplier,
         sceneOwnership: input.sceneOwnership,
+        program: input.performanceProgram,
       },
     );
     const cueFrame = resolvePixGridActionCueFrame(
