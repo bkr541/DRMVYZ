@@ -364,8 +364,8 @@ function renderLayer(
 
       // Canonical membership still precedes blink/reveal/animated-opacity gates,
       // but it is sampled from the same source/target transition cell as the
-      // visible frame. Recruitment can restore hidden banks without leaking the
-      // next sign ahead of a wipe or resurrecting a completed power-off.
+      // visible frame. Recruitment can restore hidden banks without leaking a
+      // future frame ahead of a wipe or resurrecting a completed power-off.
       if (transitionAlpha > 0) {
         groupCompiler?.recordPixel(
           layer.id,
@@ -595,7 +595,6 @@ function composePixGridBaseFrame(
     ? composePixGridDeckRuntimeFrame(deckFrameSource, createPixGridDeckCompositorScratch())
     : null)
   for (const layer of visibleLayers) {
-    compiler.captureLayerBackdrop(layer.id, pixels)
     const layerFrame = runtime
       ? resolvePixGridLayerReactionFrame(layer, state.groups, frame, runtime, state.editor.previewReactionAssignmentId)
       : frame

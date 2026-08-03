@@ -74,9 +74,9 @@ export function pixGridCellTransitionMix(
     }
     case 'powerOn':
     case 'powerOff':
-      // Lifecycle power transitions are coherent whole-sign fades. The prior
-      // per-cell noise threshold made a healthy sign look like corrupt or
-      // missing pixels during startup, shutdown, and seek reconstruction.
+      // Lifecycle power transitions are coherent whole-frame fades. The prior
+      // per-cell noise threshold made healthy content look corrupt or incomplete
+      // during startup, shutdown, and seek reconstruction.
       return p
     default:
       return 1

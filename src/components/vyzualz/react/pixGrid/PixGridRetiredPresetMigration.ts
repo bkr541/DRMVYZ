@@ -15,9 +15,9 @@ export const RETIRED_PIX_GRID_MARQUEE_ASSET_PREFIX = 'pix-neon-marquee-' as cons
 /**
  * Direct assignments shipped before the retired preset's Performance Program
  * became its sole audio owner. These frozen IDs exist only for legacy-state
- * detection and migration; they are not active routing definitions.
+ * detection and retirement; they are not active routing definitions.
  */
-export const RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS: ReadonlySet<string> = new Set([
+const RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS: ReadonlySet<string> = new Set([
   'neon-marquee-bass-perimeter',
   'neon-marquee-sub-focal',
   'neon-marquee-mid-letters',

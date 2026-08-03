@@ -18,7 +18,6 @@ import {
   repairPixGridAccidentalCanonicalLayerCopies,
   repairPixGridLayerReferences,
 } from './PixGridCanonicalGraph'
-import { RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS } from './PixGridRetiredPresetMigration'
 import { PixGridPerformanceProgramCompiler } from './PixGridPerformanceProgramCompiler'
 import type { PixGridPerformanceProgram } from './PixGridPerformanceTypes'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
@@ -103,14 +102,10 @@ function strongLegacyCustomization(state: PixGridState, preset: ReactPreset): bo
   const canonicalLayerIds = new Set((preset.pixGridSettings?.layers ?? []).map(layer => layer.id))
   const canonicalGroupIds = new Set((preset.pixGridSettings?.groups ?? []).map(group => group.id))
   const canonicalAssignmentIds = new Set((preset.pixGridSettings?.audioAssignments ?? []).map(assignment => assignment.id))
-  const isRetiredBuiltInAssignment = (assignmentId: string) => (
-    preset.id === 'pix-grid-neon-marquee-cycle'
-    && RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS.has(assignmentId)
-  )
   return state.layers.some(layer => resolvePixGridLayerFrameSource(layer).kind !== 'asset' || !canonicalLayerIds.has(layer.id))
     || state.scenes.some(scene => scene.pixelOverrides.length > 0)
     || state.groups.some(group => !canonicalGroupIds.has(group.id))
-    || state.audioAssignments.some(assignment => !canonicalAssignmentIds.has(assignment.id) && !isRetiredBuiltInAssignment(assignment.id))
+    || state.audioAssignments.some(assignment => !canonicalAssignmentIds.has(assignment.id))
     || state.performance.lockedRoutes.length > 0
     || Object.keys(state.performance.programOverrides.routes).length > 0
     || Object.keys(state.performance.programOverrides.sections).length > 0
@@ -511,12 +506,7 @@ export function migratePixGridState(
     allowBlindUpgrade,
     previousSignatures: previousCanonicalSignatures,
   })
-  const assignmentsEligibleForMerge = preset.id === 'pix-grid-neon-marquee-cycle'
-    ? normalized.audioAssignments.filter(assignment => (
-        !RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS.has(assignment.id)
-      ))
-    : normalized.audioAssignments
-  const assignmentMerge = mergeCanonicalAssignments(assignmentsEligibleForMerge, canonicalAssignments, {
+  const assignmentMerge = mergeCanonicalAssignments(normalized.audioAssignments, canonicalAssignments, {
     upgradeRequested: presetUpgradeRequested || graphUpgradeRequested,
     allowBlindUpgrade,
     previousSignatures: previousCanonicalSignatures.assignments,
@@ -533,28 +523,12 @@ export function migratePixGridState(
       pixGridLayerAnimationSignature(layer),
     ) ? [layer.id] : []
   }))
-  const layerAssetUpgradeIds = new Set(layerMerge.layers.flatMap(layer => (
-    preset.id === 'pix-grid-neon-marquee-cycle'
-    && layer.id === 'marquee-structure'
-    && String(layer.assetId) === 'pix-neon-marquee-structure'
-      ? [layer.id]
-      : []
-  )))
   const layers = layerMerge.layers.map(layer => {
     const canonicalLayer = canonicalLayerById.get(layer.id)
     const clonedLayer = clonePixGridLayer(layer)
-    const assetUpgraded = canonicalLayer && layerAssetUpgradeIds.has(layer.id)
-      ? {
-          ...clonedLayer,
-          assetId: canonicalLayer.assetId,
-          frameSource: resolvePixGridLayerFrameSource(clonedLayer).kind === 'asset'
-            ? { kind: 'asset' as const, assetId: canonicalLayer.assetId }
-            : clonedLayer.frameSource,
-        }
-      : clonedLayer
     return canonicalLayer && layerAnimationUpgradeIds.has(layer.id)
-      ? mergeCanonicalLayerAnimationMetadata(assetUpgraded, canonicalLayer)
-      : assetUpgraded
+      ? mergeCanonicalLayerAnimationMetadata(clonedLayer, canonicalLayer)
+      : clonedLayer
   })
   const repaired = repairPixGridLayerReferences(
     normalized,
@@ -608,7 +582,6 @@ export function migratePixGridState(
     || assignmentMerge.added > 0
     || assignmentMerge.upgraded > 0
     || layerAnimationUpgradeIds.size > 0
-    || layerAssetUpgradeIds.size > 0
     || accidentalCopyRepair.removedLayerIds.length > 0
     || programConfigurationMismatch
     || normalized.selectedPresetId !== preset.id
@@ -689,10 +662,6 @@ export function migratePixGridState(
 }
 
 
-const PIX_GRID_OBSOLETE_OFFICIAL_LAYER_IDS: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze({
-  'pix-grid-neon-marquee-cycle': new Set(['neon-marquee-frame']),
-})
-
 export interface PixGridCanonicalPresetIntegrity {
   presetId: string | null
   complete: boolean
@@ -704,7 +673,6 @@ export interface PixGridCanonicalPresetIntegrity {
   duplicateLayerIds: string[]
   missingGroupIds: string[]
   duplicateGroupIds: string[]
-  obsoleteOfficialLayerIds: string[]
   missingSceneIds: string[]
   invalidSceneIds: string[]
   performanceProgramMatches: boolean
@@ -735,7 +703,6 @@ export function inspectPixGridCanonicalPresetIntegrity(
       duplicateLayerIds: [],
       missingGroupIds: [],
       duplicateGroupIds: [],
-      obsoleteOfficialLayerIds: [],
       missingSceneIds: [],
       invalidSceneIds: [],
       performanceProgramMatches: false,
@@ -754,9 +721,6 @@ export function inspectPixGridCanonicalPresetIntegrity(
   const duplicateLayerIds = requiredLayerIds.filter(id => (layerCounts.get(id) ?? 0) > 1)
   const missingGroupIds = requiredGroupIds.filter(id => (groupCounts.get(id) ?? 0) === 0)
   const duplicateGroupIds = requiredGroupIds.filter(id => (groupCounts.get(id) ?? 0) > 1)
-  const obsoleteOfficialLayerIds = state.layers
-    .filter(layer => PIX_GRID_OBSOLETE_OFFICIAL_LAYER_IDS[preset.id]?.has(layer.id))
-    .map(layer => layer.id)
   const liveLayerIds = new Set(state.layers.map(layer => layer.id))
   const sceneCounts = new Map<string, number>()
   const sceneById = new Map<string, PixGridState['scenes'][number]>()
@@ -789,7 +753,6 @@ export function inspectPixGridCanonicalPresetIntegrity(
     && duplicateLayerIds.length === 0
     && missingGroupIds.length === 0
     && duplicateGroupIds.length === 0
-    && obsoleteOfficialLayerIds.length === 0
     && missingSceneIds.length === 0
     && invalidSceneIds.length === 0
     && performanceProgramMatches
@@ -811,7 +774,6 @@ export function inspectPixGridCanonicalPresetIntegrity(
     duplicateLayerIds,
     missingGroupIds,
     duplicateGroupIds,
-    obsoleteOfficialLayerIds,
     missingSceneIds,
     invalidSceneIds,
     performanceProgramMatches,

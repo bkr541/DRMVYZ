@@ -115,7 +115,7 @@ const ANIMATION_MODES = new Set<PixGridAnimationMode>([
   'beatStepMovement',
 ])
 const ANIMATION_BOUNDARIES = new Set<PixGridAnimationBoundary>(['wrap', 'clamp', 'bounce'])
-const ANIMATION_CLOCKS = new Set(['time', 'beat', 'bar', 'sectionBeat', 'sectionBar', 'sectionProgress', 'sign', 'cue'] as const)
+const ANIMATION_CLOCKS = new Set(['time', 'beat', 'bar', 'sectionBeat', 'sectionBar', 'sectionProgress', 'cue'] as const)
 const AUDIO_SOURCES = new Set<PixGridAudioSource>(PIX_GRID_AUDIO_INTELLIGENCE_SOURCES.map(source => source.id))
 const STOPPED_BEHAVIORS = new Set(['baseline', 'blackout'])
 const GROUP_SOURCES = new Set<PixGridGroupSource>([

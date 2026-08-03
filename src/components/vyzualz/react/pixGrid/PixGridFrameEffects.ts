@@ -84,23 +84,12 @@ function effectAppliesToActiveLayers(group: PixGridGroup, activeLayerIds?: Reado
   return scope.length === 0 || scope.some((layerId) => activeLayerIds.has(layerId))
 }
 
-function preservesComposedBackdrop(
-  group: PixGridGroup,
-  maskResolver?: PixGridCompiledGroupMaskResolver,
-): maskResolver is PixGridCompiledGroupMaskResolver {
-  if (!maskResolver || !group.id.startsWith('marquee-')) return false
-  const scope = group.layerScope?.length ? group.layerScope : group.layerId ? [group.layerId] : []
-  return !scope.includes('marquee-structure')
-}
-
 function applyShift(
   pixels: Uint8Array,
   width: number,
   height: number,
   bits: Uint32Array,
   effect: PixGridGroupFrameEffect,
-  group: PixGridGroup,
-  maskResolver?: PixGridCompiledGroupMaskResolver,
 ): void {
   let count = 0
   for (let index = 0; index < width * height; index += 1) {
@@ -110,14 +99,9 @@ function applyShift(
   const source = new Uint8Array(pixels)
   const dx = Math.round((effect.x ?? 0) * width)
   const dy = Math.round((effect.y ?? 0) * height)
-  const preserveBackdrop = preservesComposedBackdrop(group, maskResolver)
-  if (preserveBackdrop) {
-    maskResolver.restoreBackdrop(group, pixels, bits, 0)
-  } else {
-    for (let index = 0; index < width * height; index += 1) {
-      if (!pixGridMaskHasCell(bits, index)) continue
-      pixels[index * 4 + 3] = 0
-    }
+  for (let index = 0; index < width * height; index += 1) {
+    if (!pixGridMaskHasCell(bits, index)) continue
+    pixels[index * 4 + 3] = 0
   }
   for (let index = 0; index < width * height; index += 1) {
     if (!pixGridMaskHasCell(bits, index)) continue
@@ -145,16 +129,13 @@ function applyEffect(
   effect: PixGridGroupFrameEffect,
   palette: ReactPalette,
   frame: PixGridAudioFrame,
-  group: PixGridGroup,
-  maskResolver?: PixGridCompiledGroupMaskResolver,
 ): void {
   if (effect.kind === 'shift') {
-    applyShift(pixels, width, height, bits, effect, group, maskResolver)
+    applyShift(pixels, width, height, bits, effect)
     return
   }
   const amount = Math.max(0, Number.isFinite(effect.amount) ? effect.amount : 0)
   const tint = rgb(effect.color, paletteRgb(palette, effect.paletteRole))
-  const preserveBackdrop = preservesComposedBackdrop(group, maskResolver)
   for (let index = 0; index < width * height; index += 1) {
     if (!pixGridMaskHasCell(bits, index)) continue
     const x = index % width
@@ -165,25 +146,13 @@ function applyEffect(
       case 'brightness': {
         const factor = effect.blend === 'replace' ? amount : effect.blend === 'add' ? 1 + amount : amount
         const safeFactor = clamp(factor, 0, 4)
-        if (preserveBackdrop && safeFactor <= 1) {
-          // This group is scoped beneath the marquee stable underlay, so any
-          // dim must land on its captured backdrop, not on whatever earlier
-          // group effect already touched this cell this frame. If the
-          // backdrop genuinely wasn't captured, skip the dim entirely rather
-          // than falling through to a raw multiply — that fallback is what
-          // let overlapping perimeter/bulb-phase/transition groups compound
-          // toward opaque black instead of the authored unlit-bulb color.
-          maskResolver.restoreBackdropPixel(group, pixels, index, safeFactor)
-          break
-        }
         pixels[offset] = Math.min(255, Math.round(pixels[offset] * safeFactor))
         pixels[offset + 1] = Math.min(255, Math.round(pixels[offset + 1] * safeFactor))
         pixels[offset + 2] = Math.min(255, Math.round(pixels[offset + 2] * safeFactor))
         break
       }
       case 'opacity':
-        if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, clamp(amount))
-        else pixels[offset + 3] = Math.round(clamp(effect.blend === 'replace' ? amount : alpha * amount) * 255)
+        pixels[offset + 3] = Math.round(clamp(effect.blend === 'replace' ? amount : alpha * amount) * 255)
         break
       case 'flash': {
         const mix = clamp(amount)
@@ -194,10 +163,7 @@ function applyEffect(
         break
       }
       case 'visibility':
-        if (amount < 0.5) {
-          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
-          else pixels[offset + 3] = 0
-        }
+        if (amount < 0.5) pixels[offset + 3] = 0
         break
       case 'color': {
         const mix = clamp(amount)
@@ -208,28 +174,19 @@ function applyEffect(
       }
       case 'dissolve': {
         const identity = `${frame.trackIdentity ?? 'none'}:${effect.seed ?? 0}:${index}`
-        if (randomUnit(identity) < clamp(amount)) {
-          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
-          else pixels[offset + 3] = 0
-        }
+        if (randomUnit(identity) < clamp(amount)) pixels[offset + 3] = 0
         break
       }
       case 'revealRows': {
         const coordinate = (y + 0.5) / Math.max(1, height)
         const distance = effect.from === 'center' ? Math.abs(coordinate - 0.5) * 2 : effect.from === 'end' ? 1 - coordinate : coordinate
-        if (distance > clamp(amount)) {
-          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
-          else pixels[offset + 3] = 0
-        }
+        if (distance > clamp(amount)) pixels[offset + 3] = 0
         break
       }
       case 'revealColumns': {
         const coordinate = (x + 0.5) / Math.max(1, width)
         const distance = effect.from === 'center' ? Math.abs(coordinate - 0.5) * 2 : effect.from === 'end' ? 1 - coordinate : coordinate
-        if (distance > clamp(amount)) {
-          if (preserveBackdrop) maskResolver.restoreBackdropPixel(group, pixels, index, 0)
-          else pixels[offset + 3] = 0
-        }
+        if (distance > clamp(amount)) pixels[offset + 3] = 0
         break
       }
       case 'invert': {
@@ -314,6 +271,6 @@ export function applyPixGridGroupFrameEffects(
         : 1
       maskResolver?.restorePixels(group, pixels, compiled.bits, opacityScale)
     }
-    applyEffect(pixels, width, height, compiled.bits, effect, palette, frame, group, maskResolver)
+    applyEffect(pixels, width, height, compiled.bits, effect, palette, frame)
   }
 }

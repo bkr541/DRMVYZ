@@ -115,7 +115,7 @@ describe('PixGrid persistence and selection invariants', () => {
     expect(repeated.pixGridState).toEqual(merged.pixGridState)
   })
 
-  it('keeps direct Marquee migration intact but atomically retires the persisted graph', () => {
+  it('retires the persisted Marquee graph before generic canonical migration can rebuild it', () => {
     const current = useReactStore.getState()
     const presetId = RETIRED_MARQUEE_PRESET_ID
     const canonicalPreset = retiredMarqueePresetFixture()
