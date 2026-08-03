@@ -1182,8 +1182,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         .filter(layer => layer.visible && !hiddenLayerIds.has(layer.id) && (activeScene?.layerIds.includes(layer.id) ?? true))
         .map(layer => layer.id)
       const signLayer = input.state.layers.find(layer => layer.id === 'marquee-structure')
-        ?? input.state.layers.find(layer => layer.assetId === 'pix-neon-marquee-stable-underlay')
-        ?? input.state.layers.find(layer => layer.assetId === 'pix-neon-marquee-structure')
+        ?? input.state.layers.find(layer => String(layer.assetId) === 'pix-neon-marquee-stable-underlay')
+        ?? input.state.layers.find(layer => String(layer.assetId) === 'pix-neon-marquee-structure')
         ?? null
       const signAsset = signLayer ? PIX_GRID_BUILT_IN_ASSET_BY_ID.get(signLayer.assetId) : null
       const signAnimation = signLayer && signAsset

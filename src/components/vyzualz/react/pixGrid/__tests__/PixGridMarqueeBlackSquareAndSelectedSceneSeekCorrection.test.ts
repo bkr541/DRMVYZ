@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import {
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET as PRESET,
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET_ID as PRESET_ID,
+} from './__fixtures__/PixGridLegacySignRuntimeFixture'
 import { resolvePixGridLayerAnimation } from '../PixGridAnimation'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
@@ -6,7 +10,6 @@ import { createDefaultPixGridState } from '../PixGridDefaults'
 import type { PixGridGroupFrameEffect } from '../PixGridFrameEffects'
 import { PixGridFrameGroupCompiler } from '../PixGridGroupCompiler'
 import { pixGridMaskHasCell } from '../PixGridGroups'
-import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridRuntimeControls, PixGridMotionClock } from '../PixGridRuntimeControls'
 import { PixGridSelectedScenePreviewClock } from '../PixGridScenePreview'
 import { applyPixGridPresetSignClock } from '../PixGridSignClock'
@@ -14,8 +17,7 @@ import { applyPixGridPresetSettings } from '../PixGridState'
 import type { PixGridAudioFrame, PixGridGroup, PixGridState } from '../PixGridTypes'
 import { normalizePixGridState } from '../PixGridValidation'
 
-const PRESET_ID = 'pix-grid-neon-marquee-cycle'
-const PRESET = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
+
 const WIDTH = 160
 const HEIGHT = 90
 

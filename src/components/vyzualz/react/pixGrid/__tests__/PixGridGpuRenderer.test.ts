@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET } from './__fixtures__/PixGridLegacySignRuntimeFixture'
 import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
@@ -18,11 +19,6 @@ import {
   PIX_GRID_LOGICAL_FRAGMENT_SHADER,
   PIX_GRID_PRESENTATION_FRAGMENT_SHADER,
 } from '../../renderers/pixGrid/PixGridGpuShaderSources'
-import {
-  PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES,
-  createPixGridMarqueeStableUnderlayFixtureFrame,
-  createPixGridMarqueeStableUnderlayFixtureState,
-} from './__fixtures__/PixGridMarqueeStableUnderlayFixture'
 import { compilePixGridDeckRasterFrame } from '../PixGridDeckCompilerCore'
 import type { PixGridDeckRuntimeFrameSource } from '../PixGridDeckRuntime'
 import { createPixGridDeckCompositorScratch } from '../PixGridDeckCompositor'
@@ -145,7 +141,7 @@ describe('PixGridGpuRenderer', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)
     const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const preset = PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET
     const baseInput = renderInput('high')
     const state = normalizePixGridState(
       applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
@@ -166,7 +162,7 @@ describe('PixGridGpuRenderer', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)
     const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const preset = PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET
     const state = normalizePixGridState(
       applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
     )
@@ -241,7 +237,7 @@ describe('PixGridGpuRenderer', () => {
     }
     const presets = [
       PIX_GRID_PRESETS[0],
-      PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!,
+      PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET,
     ]
 
     for (const preset of presets) {
@@ -431,61 +427,11 @@ describe('PixGridGpuRenderer', () => {
     expect(Array.from(image.data)).toEqual(Array.from(fallback.logicalFrame.pixels))
   })
 
-  it('keeps every stable-underlay logical fixture identical across WebGL and Canvas paths', () => {
-    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
-    const base = renderInput('high')
-
-    for (const fixture of PIX_GRID_MARQUEE_STABLE_UNDERLAY_FIXTURES) {
-      for (let frameIndex = 0; frameIndex < 4; frameIndex += 1) {
-        const gl = createFakeWebGL2()
-        const canvas = createCanvas(gl)
-        const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-        const state = normalizePixGridState(
-          createPixGridMarqueeStableUnderlayFixtureState(preset, fixture, 'pix-neon-marquee-stable-underlay'),
-        )
-        const frame = {
-          ...base.frame,
-          ...createPixGridMarqueeStableUnderlayFixtureFrame(fixture, frameIndex),
-          width: base.frame.width,
-          height: base.frame.height,
-        }
-        const expected = composePixGridLogicalFrame(preset, state, frame)
-
-        expect(renderer.render({ ...base, preset, state, frame })).toBe(true)
-        const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
-
-        const image = { data: new Uint8ClampedArray(state.matrixWidth * state.matrixHeight * 4) }
-        const logicalContext = {
-          createImageData: vi.fn(() => image),
-          putImageData: vi.fn(),
-        }
-        const outputContext = {
-          save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), strokeRect: vi.fn(),
-          fillStyle: '', strokeStyle: '', globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true, lineWidth: 1,
-        }
-        const fallback = renderPixGridCanvasFallback(
-          outputContext as unknown as CanvasRenderingContext2D,
-          {
-            canvas: { width: state.matrixWidth, height: state.matrixHeight } as HTMLCanvasElement,
-            context: logicalContext as unknown as CanvasRenderingContext2D,
-          },
-          frame,
-          preset,
-          state,
-        )
-
-        expect(Array.from(gpuUpload)).toEqual(Array.from(expected.pixels))
-        expect(Array.from(fallback.logicalFrame.pixels)).toEqual(Array.from(expected.pixels))
-        expect(Array.from(image.data)).toEqual(Array.from(expected.pixels))
-      }
-    }
-  })
-
   it('keeps canonical Marquee recruitment identical across WebGL and Canvas logical paths', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)
     const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const preset = PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET
     const state = normalizePixGridState({
       ...applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
       selectedSceneId: `${preset.id}-drop`,
@@ -596,7 +542,7 @@ describe('PixGridGpuRenderer', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)
     const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-    const preset = PIX_GRID_PRESETS.find(candidate => candidate.id === 'pix-grid-neon-marquee-cycle')!
+    const preset = PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET
     const state = normalizePixGridState({
       ...applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
       selectedSceneId: `${preset.id}-outro`,

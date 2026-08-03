@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import {
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET as PRESET,
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET_ID as PRESET_ID,
+} from './__fixtures__/PixGridLegacySignRuntimeFixture'
 import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
 import type { MusicIntelligenceFrame } from '../../../../../features/musicIntelligence/types'
 import { buildSharedPerformanceContext } from '../../../../../features/performanceCore'
@@ -22,8 +26,7 @@ import { applyPixGridPresetSettings } from '../PixGridState'
 import type { PixGridAudioFrame, PixGridState } from '../PixGridTypes'
 import { normalizePixGridState } from '../PixGridValidation'
 
-const PRESET_ID = 'pix-grid-neon-marquee-cycle'
-const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
+const preset = PRESET
 const structure = preset.pixGridSettings!.layers!.find(layer => layer.id === 'marquee-structure')!
 
 function selectedState(scene: 'intro' | 'verse' | 'build' | 'drop' | 'breakdown' | 'outro'): PixGridState {

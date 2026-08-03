@@ -12,6 +12,31 @@ export const RETIRED_PIX_GRID_MARQUEE_LAYER_PREFIX = 'marquee-' as const
 export const RETIRED_PIX_GRID_MARQUEE_GROUP_PREFIX = 'marquee-' as const
 export const RETIRED_PIX_GRID_MARQUEE_ASSET_PREFIX = 'pix-neon-marquee-' as const
 
+/**
+ * Direct assignments shipped before the retired preset's Performance Program
+ * became its sole audio owner. These frozen IDs exist only for legacy-state
+ * detection and migration; they are not active routing definitions.
+ */
+export const RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS: ReadonlySet<string> = new Set([
+  'neon-marquee-bass-perimeter',
+  'neon-marquee-sub-focal',
+  'neon-marquee-mid-letters',
+  'neon-marquee-vocal-focal',
+  'neon-marquee-vocal-letters',
+  'neon-marquee-high-equalizer',
+  'neon-marquee-high-equalizer-brightness',
+  'neon-marquee-build-recruitment',
+  'neon-marquee-kick-perimeter',
+  'neon-marquee-kick-focal',
+  'neon-marquee-snare-letters',
+  'neon-marquee-snare-trim',
+  'neon-marquee-hat-sparkle',
+  'neon-marquee-hat-equalizer',
+  'neon-marquee-downbeat-perimeter',
+  'neon-marquee-downbeat-convergence',
+  'neon-marquee-drop-power-on',
+] as const)
+
 const RETIRED_CUE_TARGET_ID_KEYS = new Set([
   'sceneId',
   'layerId',
@@ -63,6 +88,7 @@ function recordHasRetiredScopedKey(value: unknown): boolean {
 function reactionReferencesRetiredDescendant(value: unknown): boolean {
   if (!isRecord(value)) return false
   if (isRetiredDescendantId(value.id) || isRetiredDescendantId(value.targetId)) return true
+  if (typeof value.id === 'string' && RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS.has(value.id)) return true
   const conditions = isRecord(value.conditions) ? value.conditions : null
   return isRetiredLayerId(conditions?.activeLayerId)
     || isRetiredGroupId(conditions?.activeGroupId)

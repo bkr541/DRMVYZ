@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import {
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET as PRESET,
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET_ID as PRESET_ID,
+} from './__fixtures__/PixGridLegacySignRuntimeFixture'
 import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
 import type { MusicIntelligenceFrame } from '../../../../../features/musicIntelligence/types'
 import { buildSharedPerformanceContext } from '../../../../../features/performanceCore'
@@ -16,8 +20,7 @@ import {
 import { applyPixGridPresetSettings } from '../PixGridState'
 import type { PixGridAudioFrame, PixGridLayer, PixGridSectionBarSpan, PixGridState } from '../PixGridTypes'
 
-const PRESET_ID = 'pix-grid-neon-marquee-cycle'
-const PRESET = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
+
 const TIMELINE: readonly PixGridSectionBarSpan[] = [
   { id: 'intro-1', type: 'intro', startBar: 0, endBar: 8 },
   { id: 'verse-1', type: 'verse', startBar: 8, endBar: 20 },

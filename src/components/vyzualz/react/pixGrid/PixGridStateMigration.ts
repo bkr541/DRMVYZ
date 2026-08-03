@@ -18,7 +18,7 @@ import {
   repairPixGridAccidentalCanonicalLayerCopies,
   repairPixGridLayerReferences,
 } from './PixGridCanonicalGraph'
-import { PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS } from './PixGridNeonMarqueeAudioOwnership'
+import { RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS } from './PixGridRetiredPresetMigration'
 import { PixGridPerformanceProgramCompiler } from './PixGridPerformanceProgramCompiler'
 import type { PixGridPerformanceProgram } from './PixGridPerformanceTypes'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
@@ -105,7 +105,7 @@ function strongLegacyCustomization(state: PixGridState, preset: ReactPreset): bo
   const canonicalAssignmentIds = new Set((preset.pixGridSettings?.audioAssignments ?? []).map(assignment => assignment.id))
   const isRetiredBuiltInAssignment = (assignmentId: string) => (
     preset.id === 'pix-grid-neon-marquee-cycle'
-    && PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS.has(assignmentId)
+    && RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS.has(assignmentId)
   )
   return state.layers.some(layer => resolvePixGridLayerFrameSource(layer).kind !== 'asset' || !canonicalLayerIds.has(layer.id))
     || state.scenes.some(scene => scene.pixelOverrides.length > 0)
@@ -513,7 +513,7 @@ export function migratePixGridState(
   })
   const assignmentsEligibleForMerge = preset.id === 'pix-grid-neon-marquee-cycle'
     ? normalized.audioAssignments.filter(assignment => (
-        !PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS.has(assignment.id)
+        !RETIRED_PIX_GRID_MARQUEE_DIRECT_ASSIGNMENT_IDS.has(assignment.id)
       ))
     : normalized.audioAssignments
   const assignmentMerge = mergeCanonicalAssignments(assignmentsEligibleForMerge, canonicalAssignments, {
@@ -536,7 +536,7 @@ export function migratePixGridState(
   const layerAssetUpgradeIds = new Set(layerMerge.layers.flatMap(layer => (
     preset.id === 'pix-grid-neon-marquee-cycle'
     && layer.id === 'marquee-structure'
-    && layer.assetId === 'pix-neon-marquee-structure'
+    && String(layer.assetId) === 'pix-neon-marquee-structure'
       ? [layer.id]
       : []
   )))

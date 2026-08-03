@@ -32,13 +32,7 @@ const PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS = PIX_GRID_MUSIC_REACTIVE_PRESETS.fi
   preset => Boolean(preset.pixGridSettings?.performanceProgramId),
 )
 
-// These three presets share the earlier rebuilt-authored contract (v8, per-group
-// reactions, and paired geometric impact masks). Marquee uses its preserved
-// Stage 1 semantic graph plus preset-owned routes and is covered by the focused
-// Marquee architecture/animation suites below the shared runtime contracts.
-const LEGACY_REBUILT_PROGRAM_BACKED_PRESETS = PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS.filter(
-  preset => preset.id !== 'pix-grid-neon-marquee-cycle',
-)
+const LEGACY_REBUILT_PROGRAM_BACKED_PRESETS = PROGRAM_BACKED_MUSIC_REACTIVE_PRESETS
 
 const SECTIONS: ReactTrackSection[] = [
   { id: 'intro', label: 'Intro', type: 'intro', startSec: 0, endSec: 8, intensity: 0.25, source: 'auto', confidence: 0.98 },

@@ -15,8 +15,8 @@ import { PixGridUnifiedPerformanceRuntime } from '../PixGridUnifiedPerformanceRu
 import { normalizePixGridState } from '../PixGridValidation'
 import type { PixGridState } from '../PixGridTypes'
 
-const MARQUEE_ID = 'pix-grid-neon-marquee-cycle'
-const BASS_ID = 'pix-grid-bass-beacon'
+const PRIMARY_ID = 'pix-grid-bass-beacon'
+const SECONDARY_ID = 'pix-grid-geometric-reactor'
 
 function intelligence(timeSec: number): MusicIntelligenceFrame {
   const absoluteBeat = timeSec * 2
@@ -129,62 +129,23 @@ function resolve(input: {
 }
 
 describe('PixGrid Editing Context production scene ownership', () => {
-  it('repairs a stale one-layer Marquee document before the unified runtime resolves', () => {
-    const canonical = stateForPreset(MARQUEE_ID)
-    const structure = canonical.layers.find(layer => layer.id === 'marquee-structure')!
-    const legacyLayer = {
-      ...structure,
-      id: 'neon-marquee-frame',
-      name: 'Neon Marquee Frame',
-      assetId: 'pix-neon-marquee-cycle' as const,
-      animations: [],
-    }
-    const stale = normalizePixGridState({
-      ...canonical,
-      configuration: {
-        ...canonical.configuration,
-        metadataVersion: 0 as never,
-        origin: 'custom',
-        sourcePresetId: MARQUEE_ID,
-        presetConfigurationVersion: 1,
-        layerGraphVersion: 1,
-        smartGroupConfigurationVersion: 0,
-        performanceProgramConfigurationVersion: 0,
-        canonicalMigrationCompleted: false,
-        legacyOfficialLayerGraph: true,
-      },
-      layers: [legacyLayer],
-      scenes: canonical.scenes.map(scene => ({ ...scene, layerIds: [legacyLayer.id] })),
-      groups: [],
-      audioAssignments: [],
-      performance: { ...canonical.performance, sharedPerformanceProgramId: null },
-      editor: { ...canonical.editor, selectedLayerId: legacyLayer.id },
-    })
-    const frame = resolve({ state: stale, trackSceneId: `${MARQUEE_ID}-verse` })
-
-    expect(frame.mappedState.layers).toHaveLength(12)
-    expect(frame.mappedState.groups).toHaveLength(14)
-    expect(frame.mappedState.layers.some(layer => layer.id === legacyLayer.id)).toBe(false)
-    expect(frame.mappedState.performance.sharedPerformanceProgramId).toBe('pix-grid-neon-marquee-performance')
-    expect(frame.resolvedRuntime.state.layers).toHaveLength(12)
-  })
 
   it('keeps Intro selected over a real Verse while running the Intro program plan', () => {
-    const introId = `${MARQUEE_ID}-intro`
-    const state = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID), introId)
-    const frame = resolve({ state, trackSceneId: `${MARQUEE_ID}-verse` })
+    const introId = `${PRIMARY_ID}-intro`
+    const state = selectPixGridPreviewScene(stateForPreset(PRIMARY_ID), introId)
+    const frame = resolve({ state, trackSceneId: `${PRIMARY_ID}-verse` })
 
     expect(frame.sceneOwnership).toBe('editingContext')
     expect(frame.performanceContext.sectionType).toBe('intro')
     expect(frame.performanceContext.macroSectionType).toBe('intro')
     expect(frame.resolvedRuntime.state.selectedSceneId).toBe(introId)
-    expect(frame.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('marquee-intro')
+    expect(frame.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('bass-intro')
     expect(frame.resolvedRuntime.performance.appliedActions.some(action => action.type === 'setScene')).toBe(true)
   })
 
   it('blocks Performance Program setScene actions at the runtime ownership boundary', () => {
-    const introId = `${MARQUEE_ID}-intro`
-    const state = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID), introId)
+    const introId = `${PRIMARY_ID}-intro`
+    const state = selectPixGridPreviewScene(stateForPreset(PRIMARY_ID), introId)
     const context = contextAt('verse')
     const resolved = new PixGridUnifiedPerformanceRuntime().resolve({
       authoredState: state,
@@ -194,46 +155,46 @@ describe('PixGrid Editing Context production scene ownership', () => {
         deltaTimeSec: 1 / 60,
         autoPerformanceEnabled: true,
       }),
-      presetId: MARQUEE_ID,
+      presetId: PRIMARY_ID,
       cues: [],
       trackId: 'editing-context-track',
       sceneOwnership: 'editingContext',
     })
 
-    expect(resolved.performance.snapshot.activeSectionPlanId).toBe('marquee-verse')
+    expect(resolved.performance.snapshot.activeSectionPlanId).toBe('bass-verse')
     expect(resolved.performance.appliedActions.some(action => action.type === 'setScene')).toBe(true)
     expect(resolved.state.selectedSceneId).toBe(introId)
   })
 
   it('keeps Drop selected over a real Verse and runs the Drop plan, not Verse', () => {
-    const dropId = `${MARQUEE_ID}-drop`
-    const state = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID), dropId)
-    const frame = resolve({ state, trackSceneId: `${MARQUEE_ID}-verse` })
+    const dropId = `${PRIMARY_ID}-drop`
+    const state = selectPixGridPreviewScene(stateForPreset(PRIMARY_ID), dropId)
+    const frame = resolve({ state, trackSceneId: `${PRIMARY_ID}-verse` })
 
     expect(frame.previewAudioFrame.sectionType).toBe('drop')
     expect(frame.performanceContext.sectionType).toBe('drop')
     expect(frame.resolvedRuntime.state.selectedSceneId).toBe(dropId)
-    expect(frame.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('marquee-drop')
-    expect(frame.resolvedRuntime.performance.snapshot.activeSectionPlanId).not.toBe('marquee-verse')
+    expect(frame.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('bass-drop-one')
+    expect(frame.resolvedRuntime.performance.snapshot.activeSectionPlanId).not.toBe('bass-verse')
   })
 
-  it('routes every manually selected Marquee scene through a distinct live renderer state', () => {
-    const preset = PIX_GRID_PRESET_BY_ID.get(MARQUEE_ID)!
+  it('routes every manually selected program-backed scene through a distinct live renderer state', () => {
+    const preset = PIX_GRID_PRESET_BY_ID.get(PRIMARY_ID)!
     const expectedPlans = new Map<string, string>([
-      ['intro', 'marquee-intro'],
-      ['verse', 'marquee-verse'],
-      ['build', 'marquee-build'],
-      ['preDrop', 'marquee-pre-drop'],
-      ['drop', 'marquee-drop'],
-      ['breakdown', 'marquee-breakdown'],
-      ['outro', 'marquee-outro'],
+      ['intro', 'bass-intro'],
+      ['verse', 'bass-verse'],
+      ['build', 'bass-build'],
+      ['preDrop', 'bass-pre-drop'],
+      ['drop', 'bass-drop-one'],
+      ['breakdown', 'bass-breakdown'],
+      ['outro', 'bass-outro'],
     ])
     const hashes = new Set<string>()
 
     for (const [suffix, planId] of expectedPlans) {
-      const sceneId = `${MARQUEE_ID}-${suffix}`
-      const state = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID), sceneId)
-      const frame = resolve({ state, trackSceneId: `${MARQUEE_ID}-verse` })
+      const sceneId = `${PRIMARY_ID}-${suffix}`
+      const state = selectPixGridPreviewScene(stateForPreset(PRIMARY_ID), sceneId)
+      const frame = resolve({ state, trackSceneId: `${PRIMARY_ID}-verse` })
       const logical = composePixGridLogicalFrame(
         preset,
         frame.resolvedRuntime.state,
@@ -261,11 +222,11 @@ describe('PixGrid Editing Context production scene ownership', () => {
 
   it('suppresses track-derived transition and power cues while Selected Scene owns the preview', () => {
     const cue = blackoutCue(11.9)
-    const introId = `${MARQUEE_ID}-intro`
-    const selectedIntro = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID), introId)
+    const introId = `${PRIMARY_ID}-intro`
+    const selectedIntro = selectPixGridPreviewScene(stateForPreset(PRIMARY_ID), introId)
     const manual = resolve({
       state: selectedIntro,
-      trackSceneId: `${MARQUEE_ID}-outro`,
+      trackSceneId: `${PRIMARY_ID}-outro`,
       context: contextAt('outro', 12),
       cues: [cue],
     })
@@ -278,7 +239,7 @@ describe('PixGrid Editing Context production scene ownership', () => {
     const followTrack = selectPixGridPreviewScene(selectedIntro, PIX_GRID_FOLLOW_TRACK_SCENE_VALUE)
     const automatic = resolve({
       state: followTrack,
-      trackSceneId: `${MARQUEE_ID}-outro`,
+      trackSceneId: `${PRIMARY_ID}-outro`,
       context: contextAt('outro', 12),
       cues: [cue],
     })
@@ -289,41 +250,41 @@ describe('PixGrid Editing Context production scene ownership', () => {
 
   it('restores Follow Track ownership and does not retain stale selected-scene state', () => {
     const runtime = new PixGridUnifiedPerformanceRuntime()
-    const base = stateForPreset(MARQUEE_ID)
-    const selectedDrop = selectPixGridPreviewScene(base, `${MARQUEE_ID}-drop`)
-    const manual = resolve({ state: selectedDrop, trackSceneId: `${MARQUEE_ID}-verse`, runtime })
-    expect(manual.resolvedRuntime.state.selectedSceneId).toBe(`${MARQUEE_ID}-drop`)
+    const base = stateForPreset(PRIMARY_ID)
+    const selectedDrop = selectPixGridPreviewScene(base, `${PRIMARY_ID}-drop`)
+    const manual = resolve({ state: selectedDrop, trackSceneId: `${PRIMARY_ID}-verse`, runtime })
+    expect(manual.resolvedRuntime.state.selectedSceneId).toBe(`${PRIMARY_ID}-drop`)
 
     const followTrack = selectPixGridPreviewScene(selectedDrop, PIX_GRID_FOLLOW_TRACK_SCENE_VALUE)
     runtime.reset('editing-context-track')
-    const followed = resolve({ state: followTrack, trackSceneId: `${MARQUEE_ID}-verse`, runtime })
+    const followed = resolve({ state: followTrack, trackSceneId: `${PRIMARY_ID}-verse`, runtime })
     expect(followed.sceneOwnership).toBe('performance')
-    expect(followed.resolvedRuntime.state.selectedSceneId).toBe(`${MARQUEE_ID}-verse`)
-    expect(followed.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('marquee-verse')
+    expect(followed.resolvedRuntime.state.selectedSceneId).toBe(`${PRIMARY_ID}-verse`)
+    expect(followed.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('bass-verse')
 
-    const selectedIntro = selectPixGridPreviewScene(followTrack, `${MARQUEE_ID}-intro`)
+    const selectedIntro = selectPixGridPreviewScene(followTrack, `${PRIMARY_ID}-intro`)
     runtime.reset('editing-context-track')
-    const manualAgain = resolve({ state: selectedIntro, trackSceneId: `${MARQUEE_ID}-verse`, runtime })
-    expect(manualAgain.resolvedRuntime.state.selectedSceneId).toBe(`${MARQUEE_ID}-intro`)
-    expect(manualAgain.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('marquee-intro')
+    const manualAgain = resolve({ state: selectedIntro, trackSceneId: `${PRIMARY_ID}-verse`, runtime })
+    expect(manualAgain.resolvedRuntime.state.selectedSceneId).toBe(`${PRIMARY_ID}-intro`)
+    expect(manualAgain.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('bass-intro')
   })
 
   it('clears stale manual ownership on preset switching and preserves existing preset behavior', () => {
-    const selectedDrop = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID), `${MARQUEE_ID}-drop`)
-    const bassPreset = PIX_GRID_PRESET_BY_ID.get(BASS_ID)!
-    const switched = normalizePixGridState(applyPixGridPresetSettings(selectedDrop, BASS_ID, bassPreset.pixGridSettings))
+    const selectedDrop = selectPixGridPreviewScene(stateForPreset(PRIMARY_ID), `${PRIMARY_ID}-drop`)
+    const secondaryPreset = PIX_GRID_PRESET_BY_ID.get(SECONDARY_ID)!
+    const switched = normalizePixGridState(applyPixGridPresetSettings(selectedDrop, SECONDARY_ID, secondaryPreset.pixGridSettings))
     expect(switched.editor.scenePreviewMode).toBe('followTrack')
 
-    const frame = resolve({ state: switched, trackSceneId: `${BASS_ID}-verse` })
+    const frame = resolve({ state: switched, trackSceneId: `${SECONDARY_ID}-verse` })
     expect(frame.sceneOwnership).toBe('performance')
-    expect(frame.resolvedRuntime.state.selectedSceneId).toBe(`${BASS_ID}-verse`)
-    expect(frame.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('bass-verse')
+    expect(frame.resolvedRuntime.state.selectedSceneId).toBe(`${SECONDARY_ID}-verse`)
+    expect(frame.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('reactor-verse')
   })
 
   it('honors manual scene ownership with Auto Performance both off and on', () => {
-    const dropId = `${MARQUEE_ID}-drop`
-    const disabledState = selectPixGridPreviewScene(stateForPreset(MARQUEE_ID, false), dropId)
-    const disabled = resolve({ state: disabledState, trackSceneId: `${MARQUEE_ID}-verse` })
+    const dropId = `${PRIMARY_ID}-drop`
+    const disabledState = selectPixGridPreviewScene(stateForPreset(PRIMARY_ID, false), dropId)
+    const disabled = resolve({ state: disabledState, trackSceneId: `${PRIMARY_ID}-verse` })
     expect(disabled.resolvedRuntime.state.selectedSceneId).toBe(dropId)
     expect(disabled.resolvedRuntime.performance.snapshot.active).toBe(false)
 
@@ -331,8 +292,8 @@ describe('PixGrid Editing Context production scene ownership', () => {
       ...disabledState,
       performance: { ...disabledState.performance, enabled: true },
     })
-    const enabled = resolve({ state: enabledState, trackSceneId: `${MARQUEE_ID}-verse` })
+    const enabled = resolve({ state: enabledState, trackSceneId: `${PRIMARY_ID}-verse` })
     expect(enabled.resolvedRuntime.state.selectedSceneId).toBe(dropId)
-    expect(enabled.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('marquee-drop')
+    expect(enabled.resolvedRuntime.performance.snapshot.activeSectionPlanId).toBe('bass-drop-one')
   })
 })

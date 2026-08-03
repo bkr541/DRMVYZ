@@ -661,7 +661,7 @@ describe('PixGridSequenceClock production adapters', () => {
   })
 
   it('enters through the real PixGrid surface runtime seam and keeps Selected Scene ownership separate', () => {
-    const presetId = 'pix-grid-neon-marquee-cycle'
+    const presetId = 'pix-grid-bass-beacon'
     const preset = PIX_GRID_PRESET_BY_ID.get(presetId)!
     const applied = applyPixGridPresetSettings(createDefaultPixGridState(), presetId, preset.pixGridSettings)
     const selectedSceneId = `${presetId}-drop`
@@ -746,7 +746,7 @@ describe('PixGridSequenceClock production adapters', () => {
     )
   })
 
-  it('preserves the existing Marquee Sign Clock contract beside Deck planning', () => {
+  it('preserves the existing sign-clock fields beside Deck planning', () => {
     const context = contextAt(16, 'verse')
     const frame = createPixGridAudioFrame(context, { isPlaying: true, deltaTimeSec: 1 / 60 })
     const before = { signClock: frame.signClock, motionClockSign: frame.motionClockSign }

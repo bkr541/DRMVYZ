@@ -192,7 +192,6 @@ const PERFORMANCE_PROGRAM_IDS = new Set<PixGridPerformanceProgramId>([
   'pix-grid-bass-beacon-performance',
   'pix-grid-geometric-reactor-performance',
   'pix-grid-pixel-parade-performance',
-  'pix-grid-neon-marquee-performance',
 ])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -511,7 +510,7 @@ function normalizeSceneSettings(value: unknown): Record<string, PixGridSceneSett
 
 export function normalizePixGridPresetSettings(value: unknown): PixGridPresetSettings | undefined {
   if (!isRecord(value)) return undefined
-  const pattern = value.pattern === 'geometricReactor' || value.pattern === 'pixelParade' || value.pattern === 'neonMarqueeCycle' || value.pattern === 'mediaDeck'
+  const pattern = value.pattern === 'geometricReactor' || value.pattern === 'pixelParade' || value.pattern === 'mediaDeck'
     ? value.pattern
     : 'bassBeacon'
   const quality = value.quality == null ? undefined : normalizePixGridQuality(value.quality)

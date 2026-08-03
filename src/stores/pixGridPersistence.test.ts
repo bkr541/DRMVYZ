@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_PERFORMANCE_PADS } from '../components/vyzualz/react/ReactTypes'
+import { DEFAULT_PERFORMANCE_PADS, type ReactPreset } from '../components/vyzualz/react/ReactTypes'
 import { PIX_GRID_PRESET_BY_ID, PIX_GRID_PRESET_IDS } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import { createDefaultPixGridState, DEFAULT_PIX_GRID_PRESET_ID } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
 import { applyPixGridPresetSettings } from '../components/vyzualz/react/pixGrid/PixGridState'
-import { inspectPixGridCanonicalPresetIntegrity, migratePixGridState } from '../components/vyzualz/react/pixGrid/PixGridStateMigration'
-import { PIX_GRID_STATE_VERSION, type PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
+import { PIX_GRID_STATE_VERSION, type PixGridLayer, type PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import type { PixGridActionCue, PixGridActionCueAction } from '../components/vyzualz/react/pixGrid/PixGridActionCues'
 import {
   mergeReactStoreState,
@@ -14,6 +13,39 @@ import {
 } from './reactStore'
 
 const RETIRED_MARQUEE_PRESET_ID = 'pix-grid-neon-marquee-cycle'
+
+function retiredMarqueePresetFixture(): ReactPreset {
+  const fallback = PIX_GRID_PRESET_BY_ID.get(DEFAULT_PIX_GRID_PRESET_ID)!
+  const sourceLayer = fallback.pixGridSettings!.layers![0]!
+  const legacyLayer = {
+    ...sourceLayer,
+    id: 'marquee-structure',
+    name: 'Retired Marquee Structure',
+    assetId: 'pix-neon-marquee-cycle',
+    animations: [],
+  } as unknown as PixGridLayer
+  return {
+    ...fallback,
+    id: RETIRED_MARQUEE_PRESET_ID,
+    name: 'Retired Marquee Fixture',
+    pixGridSettings: {
+      ...fallback.pixGridSettings!,
+      selectedSceneId: `${RETIRED_MARQUEE_PRESET_ID}-intro`,
+      layers: [legacyLayer],
+      groups: [],
+      audioAssignments: [],
+      performanceProgramId: null,
+    },
+    scenes: fallback.scenes.map(scene => ({
+      ...scene,
+      id: `${RETIRED_MARQUEE_PRESET_ID}-${scene.sectionType}`,
+    })),
+    sectionMappings: fallback.sectionMappings.map(mapping => ({
+      ...mapping,
+      sceneId: `${RETIRED_MARQUEE_PRESET_ID}-${mapping.sectionType}`,
+    })),
+  }
+}
 
 function makePixGridCue(id: string, action: PixGridActionCueAction): PixGridActionCue {
   return {
@@ -43,13 +75,13 @@ describe('PixGrid persistence and selection invariants', () => {
 
   it('merges live PixGrid presets without reviving the retired Marquee definition', () => {
     const current = useReactStore.getState()
-    const retiredDefinition = PIX_GRID_PRESET_BY_ID.get('pix-grid-neon-marquee-cycle')!
+    const retiredDefinition = retiredMarqueePresetFixture()
     const merged = mergeReactStoreState({ reactPresets: [retiredDefinition] }, current)
     const pixGridPresetIds = merged.reactPresets
       .filter(preset => preset.engine === 'pixGrid')
       .map(preset => preset.id)
     expect(pixGridPresetIds).toEqual(
-      PIX_GRID_PRESET_IDS.filter(id => id !== 'pix-grid-neon-marquee-cycle'),
+      PIX_GRID_PRESET_IDS,
     )
     expect(merged.reactPresets.some(preset => preset.id === 'pix-grid-neon-marquee-cycle')).toBe(false)
   })
@@ -86,15 +118,15 @@ describe('PixGrid persistence and selection invariants', () => {
   it('keeps direct Marquee migration intact but atomically retires the persisted graph', () => {
     const current = useReactStore.getState()
     const presetId = RETIRED_MARQUEE_PRESET_ID
-    const canonicalPreset = PIX_GRID_PRESET_BY_ID.get(presetId)!
+    const canonicalPreset = retiredMarqueePresetFixture()
     const structure = canonicalPreset.pixGridSettings!.layers!.find(layer => layer.id === 'marquee-structure')!
     const legacyLayer = {
       ...structure,
       id: 'neon-marquee-frame',
       name: 'Neon Marquee Frame',
-      assetId: 'pix-neon-marquee-cycle' as const,
+      assetId: 'pix-neon-marquee-cycle',
       animations: [],
-    }
+    } as unknown as PixGridLayer
     const stalePreset = {
       ...canonicalPreset,
       pixGridSettings: {
@@ -165,10 +197,6 @@ describe('PixGrid persistence and selection invariants', () => {
         scenePreviewMode: 'selectedScene',
       },
     }
-
-    // Stage 1 does not alter the Marquee implementation or its direct migration harness.
-    const directMigration = migratePixGridState(legacyState, stalePreset)
-    expect(inspectPixGridCanonicalPresetIntegrity(directMigration, presetId).complete).toBe(true)
 
     const merged = mergeReactStoreState({
       activeReactEngineId: 'pixGrid',
@@ -330,7 +358,7 @@ describe('PixGrid persistence and selection invariants', () => {
 
 
   it('repairs an active Marquee selection to the default PixGrid preset', () => {
-    const marqueePreset = PIX_GRID_PRESET_BY_ID.get(RETIRED_MARQUEE_PRESET_ID)!
+    const marqueePreset = retiredMarqueePresetFixture()
     const migrated = migrateReactStore({
       activeReactEngineId: 'pixGrid',
       activeReactPresetId: RETIRED_MARQUEE_PRESET_ID,
@@ -491,7 +519,7 @@ describe('PixGrid persistence and selection invariants', () => {
   })
 
   it('sanitizes current-version project imports and remains idempotent', () => {
-    const marqueePreset = PIX_GRID_PRESET_BY_ID.get(RETIRED_MARQUEE_PRESET_ID)!
+    const marqueePreset = retiredMarqueePresetFixture()
     const imported = {
       activeReactEngineId: 'pixGrid',
       activeReactPresetId: RETIRED_MARQUEE_PRESET_ID,
@@ -516,7 +544,7 @@ describe('PixGrid persistence and selection invariants', () => {
   })
 
   it('shields normal persistence writes as well as hydration and imports', () => {
-    const marqueePreset = PIX_GRID_PRESET_BY_ID.get(RETIRED_MARQUEE_PRESET_ID)!
+    const marqueePreset = retiredMarqueePresetFixture()
     useReactStore.setState({
       activeReactEngineId: 'pixGrid',
       activeReactPresetId: RETIRED_MARQUEE_PRESET_ID,
@@ -550,9 +578,9 @@ describe('PixGrid persistence and selection invariants', () => {
     const deckLayer = {
       ...base.layers[0]!,
       id: 'deck-generated-layer',
-      assetId: 'pix-neon-marquee-cycle' as const,
+      assetId: 'pix-neon-marquee-cycle',
       frameSource: { kind: 'deck' as const, deckId: 'deck-1' },
-    }
+    } as unknown as PixGridLayer
     const deckState: PixGridState = {
       ...base,
       selectedPresetId: null,

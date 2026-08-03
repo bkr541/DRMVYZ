@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import {
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET as PRESET,
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET_ID as PRESET_ID,
+} from './__fixtures__/PixGridLegacySignRuntimeFixture'
 import { samplePixGridBuiltInAsset } from '../PixGridArtwork'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
-import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import {
   isPixGridSemanticTargetActive,
   resolvePixGridSemanticTargetCells,
@@ -11,8 +14,7 @@ import { applyPixGridPresetSettings } from '../PixGridState'
 import { normalizePixGridState } from '../PixGridValidation'
 import type { PixGridAudioFrame, PixGridState } from '../PixGridTypes'
 
-const PRESET_ID = 'pix-grid-neon-marquee-cycle'
-const PRESET = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
+
 
 function state(): PixGridState {
   return applyPixGridPresetSettings(createDefaultPixGridState(), PRESET_ID, PRESET.pixGridSettings)

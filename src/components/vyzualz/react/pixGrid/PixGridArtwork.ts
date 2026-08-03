@@ -3,11 +3,6 @@ import type {
   PixGridBuiltInAssetManifestEntry,
   PixGridPaletteRole,
 } from './PixGridTypes'
-import { samplePixGridNeonMarqueeFrame } from './PixGridNeonMarqueeFrames'
-import {
-  samplePixGridNeonMarqueeComponent,
-  samplePixGridNeonMarqueeStableUnderlay,
-} from './PixGridNeonMarqueeMasks'
 
 export interface PixGridAssetSample {
   alpha: number
@@ -63,20 +58,6 @@ export const PIX_GRID_BUILT_IN_ASSETS: readonly PixGridBuiltInAssetManifestEntry
   asset('pix-orbiting-dots', 'Orbiting Dots', 'motion', 20, 20, 'frameBased', ['primary', 'secondary', 'accent'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 12 }),
   asset('pix-pixel-burst', 'Pixel Burst', 'geometry', 24, 24, 'procedural', ['accent', 'highlight'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 16 }),
   asset('pix-geometric-tunnel', 'Geometric Tunnel', 'geometry', 32, 18, 'procedural', ['primary', 'secondary', 'accent'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 16 }),
-  asset('pix-neon-marquee-cycle', 'Neon Marquee Cycle', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['full-frame'] }),
-  asset('pix-neon-marquee-structure', 'Marquee Structure (Exclusive Compatibility)', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['structure', 'compatibility'] }),
-  asset('pix-neon-marquee-stable-underlay', 'Marquee Stable Structure Underlay', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['structure', 'letter-underlay', 'trim-underlay', 'focal-underlay'] }),
-  asset('pix-neon-marquee-bulbs-a', 'Marquee Bulbs A', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['perimeter', 'chase-a'] }),
-  asset('pix-neon-marquee-bulbs-b', 'Marquee Bulbs B', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['perimeter', 'chase-b'] }),
-  asset('pix-neon-marquee-bulbs-c', 'Marquee Bulbs C', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['perimeter', 'chase-c'] }),
-  asset('pix-neon-marquee-bulbs-d', 'Marquee Bulbs D', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['perimeter', 'chase-d'] }),
-  asset('pix-neon-marquee-letter-lights-a', 'Marquee Letter Lights A', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['letter-lights', 'travel-a'] }),
-  asset('pix-neon-marquee-letter-lights-b', 'Marquee Letter Lights B', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['letter-lights', 'travel-b'] }),
-  asset('pix-neon-marquee-letter-lights-c', 'Marquee Letter Lights C', 'typography', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['letter-lights', 'travel-c'] }),
-  asset('pix-neon-marquee-equalizer-lights', 'Marquee Equalizer Lights', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['equalizer'] }),
-  asset('pix-neon-marquee-trim-lights', 'Marquee Trim Lights', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['trim'] }),
-  asset('pix-neon-marquee-focal-lights', 'Marquee Focal Lights', 'character', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['focal'] }),
-  asset('pix-neon-marquee-sparkle-lights', 'Marquee Sparkle Lights', 'motion', 160, 90, 'frameBased', ['primary'], COMMON_ANIMATED_PROCEDURAL, { frameCount: 4, defaultGroups: ['sparkles'] }),
 ] as const
 
 export const PIX_GRID_BUILT_IN_ASSET_BY_ID = new Map(PIX_GRID_BUILT_IN_ASSETS.map(item => [item.id, item]))
@@ -282,34 +263,6 @@ export function samplePixGridBuiltInAsset(
       const rails = Math.min(Math.abs(Math.abs(x) - Math.abs(y)), Math.abs(x), Math.abs(y))
       return { alpha: Math.max(lineBand(band, 0.11), lineBand(rails, 0.025)), role: Math.floor(diamond * 8) % 3 === 0 ? 'accent' : diamond > 0.28 ? 'secondary' : 'primary' }
     }
-    case 'pix-neon-marquee-cycle':
-      return samplePixGridNeonMarqueeFrame(u, v, frameIndex)
-    case 'pix-neon-marquee-structure':
-      return samplePixGridNeonMarqueeComponent('structure', u, v, frameIndex)
-    case 'pix-neon-marquee-stable-underlay':
-      return samplePixGridNeonMarqueeStableUnderlay(u, v, frameIndex)
-    case 'pix-neon-marquee-bulbs-a':
-      return samplePixGridNeonMarqueeComponent('bulbs-a', u, v, frameIndex)
-    case 'pix-neon-marquee-bulbs-b':
-      return samplePixGridNeonMarqueeComponent('bulbs-b', u, v, frameIndex)
-    case 'pix-neon-marquee-bulbs-c':
-      return samplePixGridNeonMarqueeComponent('bulbs-c', u, v, frameIndex)
-    case 'pix-neon-marquee-bulbs-d':
-      return samplePixGridNeonMarqueeComponent('bulbs-d', u, v, frameIndex)
-    case 'pix-neon-marquee-letter-lights-a':
-      return samplePixGridNeonMarqueeComponent('letter-a', u, v, frameIndex)
-    case 'pix-neon-marquee-letter-lights-b':
-      return samplePixGridNeonMarqueeComponent('letter-b', u, v, frameIndex)
-    case 'pix-neon-marquee-letter-lights-c':
-      return samplePixGridNeonMarqueeComponent('letter-c', u, v, frameIndex)
-    case 'pix-neon-marquee-equalizer-lights':
-      return samplePixGridNeonMarqueeComponent('equalizer', u, v, frameIndex)
-    case 'pix-neon-marquee-trim-lights':
-      return samplePixGridNeonMarqueeComponent('trim', u, v, frameIndex)
-    case 'pix-neon-marquee-focal-lights':
-      return samplePixGridNeonMarqueeComponent('focal', u, v, frameIndex)
-    case 'pix-neon-marquee-sparkle-lights':
-      return samplePixGridNeonMarqueeComponent('sparkle', u, v, frameIndex)
   }
 }
 

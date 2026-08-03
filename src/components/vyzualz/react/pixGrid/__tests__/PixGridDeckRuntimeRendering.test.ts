@@ -33,7 +33,7 @@ import { mergePixGridCanonicalLayerGraph, repairPixGridLayerReferences } from '.
 import { PixGridFrameGroupCompiler } from '../PixGridGroupCompiler'
 import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridPresetSettings } from '../PixGridState'
-import type { PixGridAudioFrame, PixGridGroup, PixGridState } from '../PixGridTypes'
+import type { PixGridAudioFrame, PixGridGroup, PixGridLayer, PixGridState } from '../PixGridTypes'
 import { normalizePixGridState } from '../PixGridValidation'
 import type { PixGridSequencePlan } from '../PixGridSequenceClock'
 
@@ -255,13 +255,17 @@ function audioFrame(): PixGridAudioFrame {
   }
 }
 
-function deckState(group?: PixGridGroup): Readonly<{ preset: ReactPreset; state: PixGridState; layerId: string }> {
+function deckState(
+  group?: PixGridGroup,
+  compatibilityAssetId: string = 'pix-checkerboard',
+): Readonly<{ preset: ReactPreset; state: PixGridState; layerId: string }> {
   const canonicalPreset = PIX_GRID_PRESET_BY_ID.get('pix-grid-bass-beacon')!
   const applied = applyPixGridPresetSettings(createDefaultPixGridState(), canonicalPreset.id, canonicalPreset.pixGridSettings)
   const baseLayer = applied.layers[0]!
   const layerId = 'runtime-deck-layer'
   const layer = {
     ...baseLayer,
+    assetId: compatibilityAssetId,
     id: layerId,
     name: 'Runtime Deck Layer',
     frameSource: { kind: 'deck' as const, deckId: DECK_ID },
@@ -279,7 +283,7 @@ function deckState(group?: PixGridGroup): Readonly<{ preset: ReactPreset; state:
     animations: [],
     audioReactivity: undefined,
     densityRank: 0,
-  }
+  } as unknown as PixGridLayer
   const sceneId = 'runtime-deck-scene'
   const state = normalizePixGridState({
     ...applied,
@@ -457,6 +461,32 @@ describe('PixGrid Deck Stage 6 runtime rendering', () => {
     expect(fallback.status).toBe('ready-fallback')
     expect(fallback.source?.transitionMode).toBe('pixelDissolve')
     expect(fallback.source?.fallbackReason).toBe('invalid-transition-plan')
+  })
+
+  it('keeps Deck runtime pixels independent of the legacy compatibility asset alias', () => {
+    const source = resolveSource(0.5, 'crossfade')
+    const render = (compatibilityAssetId: string) => {
+      const { preset, state } = deckState(undefined, compatibilityAssetId)
+      return composePixGridLogicalFrame(
+        preset,
+        state,
+        audioFrame(),
+        undefined,
+        undefined,
+        undefined,
+        null,
+        [],
+        undefined,
+        null,
+        source,
+        createPixGridDeckCompositorScratch(),
+      ).pixels
+    }
+
+    const neutral = render('pix-checkerboard')
+    const legacyAlias = render('pix-neon-marquee-cycle')
+    expect(Array.from(legacyAlias)).toEqual(Array.from(neutral))
+    expect(hash(neutral)).toBe(hash(composePixGridDeckRuntimeFrame(source).pixels))
   })
 
   it('renders through the canonical logical compositor and registers generated Smart Group masks', () => {

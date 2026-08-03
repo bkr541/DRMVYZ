@@ -4,7 +4,6 @@ import { getPixGridAudioIntelligenceSource } from './PixGridAudioIntelligenceReg
 import type { PixGridRouteActivity } from './PixGridAudioRouting'
 import { compilePixGridGroupMask, pixGridMaskHasCell } from './PixGridGroups'
 import { inspectPixGridGroupTarget, type PixGridGroupTargetStatus } from './PixGridCanonicalGraph'
-import { PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS } from './PixGridNeonMarqueeAudioOwnership'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID } from './PixGridPerformancePrograms'
 import { isPixGridMusicReactivePreset, PIX_GRID_PRESET_BY_ID } from './PixGridPresets'
 import { PixGridPerformanceProgramCompiler, validatePixGridPerformanceProgram } from './PixGridPerformanceProgramCompiler'
@@ -305,15 +304,6 @@ export function validatePixGridState(
 
   if (requiresSmartGroups && state.groups.length === 0) issues.push(issue('error', 'built-in-no-groups', 'Built-in PixGrid preset has no smart groups.', 'groups', 'Restore the canonical smart groups through preset migration.'))
   if (requiresMusicReactiveContract && locations.length === 0 && !hasProgramRoutes) issues.push(issue('error', 'built-in-no-routes', 'Built-in PixGrid preset has no audio assignments.', 'audioAssignments', 'Restore the canonical audio routes through preset migration.'))
-  if (builtInPresetId === 'pix-grid-neon-marquee-cycle') for (const location of locations) {
-    if (PIX_GRID_NEON_MARQUEE_LEGACY_DIRECT_ASSIGNMENT_IDS.has(location.assignment.id)) issues.push(issue(
-      'error',
-      'retired-marquee-direct-route',
-      `Retired direct Marquee route ${location.assignment.id} is still active beside the Performance Program.`,
-      location.path,
-      'Run preset migration to remove the obsolete direct route and keep the Performance Program as the sole owner.',
-    ))
-  }
 
   const fallbackIds = new Set(PIX_GRID_BASELINE_FALLBACK_ASSIGNMENTS.map(route => route.id))
   const effectiveAuthoredRoutes = locations.filter(location => (

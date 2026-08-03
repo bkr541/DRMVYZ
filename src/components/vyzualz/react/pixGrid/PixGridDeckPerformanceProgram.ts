@@ -227,7 +227,7 @@ function canonicalPlaceholderState(): PixGridState {
     selectedSceneId: 'deck-canonical-scene', authoringOverlayVisible: false, editorTool: 'select',
     editor: { hasEnteredAuthoring: false, scenePreviewMode: 'followTrack', guidesVisible: false, zoom: 1, panX: 0, panY: 0, paintColor: '#ffffff', paintOpacity: 1, eraserMode: 'off', selectedLayerId: null, selectedGroupId: null, previewReactionAssignmentId: null, selection: null },
     scenes: [{ id: 'deck-canonical-scene', name: 'Deck', layerIds: [layerId], pixelOverrides: [] }],
-    layers: [{ id: layerId, name: 'Deck', assetId: 'pix-neon-marquee-cycle', frameSource: { kind: 'deck', deckId }, mediaId: null, visible: true, opacity: 1, position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, flipX: false, flipY: false, blendMode: 'normal', paletteMap: {}, zIndex: 0, clipMode: 'clip', maskAssetId: null, animations: [], densityRank: 0, seed: 1 }],
+    layers: [{ id: layerId, name: 'Deck', assetId: 'pix-checkerboard', frameSource: { kind: 'deck', deckId }, mediaId: null, visible: true, opacity: 1, position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, flipX: false, flipY: false, blendMode: 'normal', paletteMap: {}, zIndex: 0, clipMode: 'clip', maskAssetId: null, animations: [], densityRank: 0, seed: 1 }],
     groups: [...createPixGridDeckGeneratedGroups(deckId, layerId)], audioAssignments: [], pixelOverrides: [],
     performance: { enabled: true, intensity: 1, sharedPerformanceProgramId: PIX_GRID_DECK_PERFORMANCE_PROGRAM_ID, seed: 1, lockedRoutes: [], programOverrides: { routes: {}, sections: {} } },
     conversion: {} as PixGridState['conversion'], diagnostics: {} as PixGridState['diagnostics'],

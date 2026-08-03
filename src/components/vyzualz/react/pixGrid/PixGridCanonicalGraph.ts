@@ -28,9 +28,6 @@ interface LegacyLayerAlias {
 }
 
 const CANONICAL_LAYER_ASSET_UPGRADES: Readonly<Record<string, Readonly<Record<string, readonly PixGridLayer['assetId'][]>>>> = {
-  'pix-grid-neon-marquee-cycle': {
-    'marquee-structure': ['pix-neon-marquee-structure'],
-  },
 }
 
 const LEGACY_LAYER_ALIASES: Readonly<Record<string, readonly LegacyLayerAlias[]>> = {
@@ -46,15 +43,6 @@ const LEGACY_LAYER_ALIASES: Readonly<Record<string, readonly LegacyLayerAlias[]>
     { canonicalId: 'bass-rings', ids: ['bass-rings-v1', 'concentric-rings', 'sub-rings'], names: ['concentric rings', 'bass rings', 'sub rings'], assetIds: ['pix-concentric-rings'] },
     { canonicalId: 'bass-outline', ids: ['bass-outline-v1', 'bass-border'], names: ['bass outline', 'typography outline'] },
     { canonicalId: 'bass-sparkles', ids: ['bass-stars', 'star-field'], names: ['star field', 'sparkles'], assetIds: ['pix-multi-star-field'] },
-  ],
-  'pix-grid-neon-marquee-cycle': [
-    {
-      canonicalId: 'marquee-structure',
-      ids: ['neon-marquee-frame'],
-      names: ['Neon Marquee Frame'],
-      assetIds: ['pix-neon-marquee-cycle'],
-      preserveName: false,
-    },
   ],
   'pix-grid-pixel-parade': [
     { canonicalId: 'parade-pal', ids: ['pixel-pal', 'mascot', 'parade-mascot'], names: ['pixel pal', 'mascot', 'hero pixel pal'], assetIds: ['pix-mascot-face'] },

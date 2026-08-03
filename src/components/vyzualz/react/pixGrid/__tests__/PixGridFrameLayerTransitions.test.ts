@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import {
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET as PRESET,
+  PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET_ID as PRESET_ID,
+} from './__fixtures__/PixGridLegacySignRuntimeFixture'
 import { resolvePixGridLayerAnimation } from '../PixGridAnimation'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from '../PixGridArtwork'
 import { pixGridCellTransitionMix } from '../PixGridCellTransitions'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
-import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import {
   applyPixGridSelectedScenePreviewFrame,
   resolvePixGridPreviewState,
@@ -14,8 +17,7 @@ import { migratePixGridState } from '../PixGridStateMigration'
 import type { PixGridAudioFrame, PixGridLayer, PixGridState } from '../PixGridTypes'
 import { normalizePixGridState } from '../PixGridValidation'
 
-const PRESET_ID = 'pix-grid-neon-marquee-cycle'
-const preset = PIX_GRID_PRESET_BY_ID.get(PRESET_ID)!
+const preset = PRESET
 
 function audio(overrides: Partial<PixGridAudioFrame> = {}): PixGridAudioFrame {
   return {

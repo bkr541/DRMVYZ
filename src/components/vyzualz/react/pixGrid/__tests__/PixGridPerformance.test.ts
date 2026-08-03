@@ -160,14 +160,12 @@ describe('PixGrid Shared Performance choreography', () => {
       'pix-grid-bass-beacon-performance',
       'pix-grid-geometric-reactor-performance',
       'pix-grid-pixel-parade-performance',
-      'pix-grid-neon-marquee-performance',
       'pix-grid-media-deck-performance',
     ])
     expect(Object.values(PIX_GRID_PRESET_ID_BY_PROGRAM)).toEqual([
       'pix-grid-bass-beacon',
       'pix-grid-geometric-reactor',
       'pix-grid-pixel-parade',
-      'pix-grid-neon-marquee-cycle',
     ])
     expect(validatePixGridPerformancePrograms()).toEqual([])
   })
