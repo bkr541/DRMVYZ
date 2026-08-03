@@ -79,6 +79,7 @@ import { mediaMutationKey, registerMediaDeletionGuard, useMediaStore } from './m
 import { createPixGridDeckMediaDeletionGuard } from '../components/vyzualz/react/pixGrid/PixGridDeckMediaDeletion'
 import type { PixGridDeckDefinition } from '../components/vyzualz/react/pixGrid/PixGridDeckDomain'
 import { supabase } from '../lib/supabase'
+import { useReactStore } from './reactStore'
 
 function mediaItem(overrides: Partial<UploadedMedia> = {}): UploadedMedia {
   return {
@@ -597,6 +598,90 @@ describe('Media Manager canonical workflows', () => {
       expect(decks[0].items.map(item => item.mediaId)).toEqual(['db-other-1', 'db-other-2'])
       expect(commits).toBe(1)
       expect(mediaDbMocks.requestMediaDeletion).toHaveBeenCalledWith(source.dbId)
+    } finally {
+      unregister()
+    }
+  })
+
+  it('rolls back the complete production Deck graph when the canonical media delete request fails', async () => {
+    useReactStore.getState().resetReactView()
+    localStorage.clear()
+    const source = mediaItem()
+    useMediaStore.setState({ items: [source] })
+    const deckItems = ['source', 'other'].map((suffix, order) => ({
+      id: `rollback-${suffix}`,
+      mediaId: order === 0 ? source.id : 'db-other-media',
+      enabled: true,
+      order,
+      revision: 1,
+      timingOverrideBeats: null,
+      source: {
+        mediaRevision: 1,
+        fingerprint: `sha256:${String(order + 1).padStart(64, '0')}`,
+        fileName: `${suffix}.png`,
+        mimeType: 'image/png',
+        width: 640,
+        height: 360,
+        hasAlpha: false,
+        transparentBackground: '#000000',
+      },
+    }))
+    expect(useReactStore.getState().createPixGridDeck({
+      id: 'media-request-rollback',
+      name: 'Media Request Rollback',
+      items: deckItems,
+    })).toEqual({ ok: true, deckId: 'media-request-rollback' })
+    const deck = useReactStore.getState().pixGridDecks[0]!
+    expect(useReactStore.getState().createPixGridDeckPreset(deck.id, {
+      deckId: deck.id,
+      deckRevision: deck.revision,
+      enabledItemCount: 2,
+      frameProgress: 1,
+      transitionProgress: 1,
+      ready: true,
+      errorCount: 0,
+      message: 'Ready to create Preset.',
+    })).toEqual({ ok: true, deckId: deck.id })
+    useReactStore.getState().selectReactPreset(deck.generatedPresetId)
+    localStorage.setItem('drmvyz.reactPresetFavorites.v1', JSON.stringify([deck.generatedPresetId]))
+    useReactStore.setState(state => ({
+      performancePads: state.performancePads.map((pad, index) => index < 2
+        ? { ...pad, presetId: deck.generatedPresetId, label: deck.name, color: '#abcdef' }
+        : pad),
+      presetAutomationCuesByTrackId: {
+        track: [
+          { id: 'request-rollback-1', label: 'Rollback 1', timeSec: 1, presetId: deck.generatedPresetId, enabled: true, transitionMs: 0 },
+          { id: 'request-rollback-2', label: 'Rollback 2', timeSec: 2, presetId: deck.generatedPresetId, enabled: true, transitionMs: 0 },
+        ],
+      },
+    }))
+    const before = {
+      decks: useReactStore.getState().pixGridDecks,
+      presets: useReactStore.getState().reactPresets.filter(preset => preset.pixGridDeck),
+      pads: useReactStore.getState().performancePads,
+      cues: useReactStore.getState().presetAutomationCuesByTrackId,
+      activePresetId: useReactStore.getState().activeReactPresetId,
+      pixGridState: useReactStore.getState().pixGridState,
+      favorites: localStorage.getItem('drmvyz.reactPresetFavorites.v1'),
+      undo: useReactStore.getState().pixGridDeckUndoStack,
+      redo: useReactStore.getState().pixGridDeckRedoStack,
+    }
+    mediaDbMocks.requestMediaDeletion.mockResolvedValueOnce({ ok: false, message: 'database refused deletion' })
+    const unregister = registerMediaDeletionGuard(createPixGridDeckMediaDeletionGuard(() => useReactStore.getState()))
+    try {
+      expect(await useMediaStore.getState().removeItem(source.id, { confirmation: 'delete-affected-decks' })).toBe(false)
+      expect(useMediaStore.getState().items).toEqual([source])
+      expect({
+        decks: useReactStore.getState().pixGridDecks,
+        presets: useReactStore.getState().reactPresets.filter(preset => preset.pixGridDeck),
+        pads: useReactStore.getState().performancePads,
+        cues: useReactStore.getState().presetAutomationCuesByTrackId,
+        activePresetId: useReactStore.getState().activeReactPresetId,
+        pixGridState: useReactStore.getState().pixGridState,
+        favorites: localStorage.getItem('drmvyz.reactPresetFavorites.v1'),
+        undo: useReactStore.getState().pixGridDeckUndoStack,
+        redo: useReactStore.getState().pixGridDeckRedoStack,
+      }).toEqual(before)
     } finally {
       unregister()
     }

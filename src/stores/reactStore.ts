@@ -190,7 +190,11 @@ import {
   evictSvgVisual,
   isCurrentSvgVisualGeneration,
 } from '../components/vyzualz/react/renderers/svgVisualCache'
-import { sanitizeReactPresetFavorites } from '../components/vyzualz/react/reactPresetLibraryState'
+import {
+  readReactPresetFavorites,
+  sanitizeReactPresetFavorites,
+  writeReactPresetFavorites,
+} from '../components/vyzualz/react/reactPresetLibraryState'
 import { createDefaultPixGridState, DEFAULT_PIX_GRID_PRESET_ID } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
 import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from '../components/vyzualz/react/pixGrid/PixGridState'
 import type { PixGridPerformanceProgramId, PixGridQualityMode, PixGridQualityTier, PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
@@ -1659,27 +1663,334 @@ function buildPixGridHistoryPatch(
 }
 
 const PIX_GRID_DECK_HISTORY_LIMIT = 48
+const PIX_GRID_DECK_PRESET_ID_PREFIX = 'pix-grid-deck:'
+
+type PixGridDeckSelectionSnapshot = Pick<ReactStoreState,
+  | 'activeReactPresetId'
+  | 'activeReactEngineId'
+  | 'reactIntensity'
+  | 'reactMotion'
+  | 'reactGlow'
+  | 'reactBassReactivity'
+  | 'reactTrailDecay'
+  | 'reactFogDensity'
+  | 'reactParticleDensity'
+  | 'oscillatorSettings'
+  | 'pixGridState'
+  | 'soundDrawingPerformanceSettings'
+  | 'oscillatorTextPointCache'
+  | 'performanceActionEvent'
+  | 'performanceActionEvents'
+  | 'performanceActionToggleStates'
+>
+
+interface PixGridDeckStateGraphSnapshot {
+  schemaVersion: 1
+  pixGridDecks: PixGridDeckDefinition[]
+  performancePads: ReactPerformancePad[]
+  presetAutomationCuesByTrackId: Record<string, ReactPresetAutomationCue[]>
+  favoritePresetIds: string[]
+  selection: PixGridDeckSelectionSnapshot
+}
+
+type PixGridDeckHistoryEntry = PixGridDeckStateGraphSnapshot | PixGridDeckDefinition[]
+
+function isPixGridDeckStateGraphSnapshot(value: PixGridDeckHistoryEntry): value is PixGridDeckStateGraphSnapshot {
+  return !Array.isArray(value)
+    && value.schemaVersion === 1
+    && Array.isArray(value.pixGridDecks)
+    && Array.isArray(value.performancePads)
+    && typeof value.presetAutomationCuesByTrackId === 'object'
+    && value.presetAutomationCuesByTrackId !== null
+    && Array.isArray(value.favoritePresetIds)
+    && typeof value.selection === 'object'
+    && value.selection !== null
+}
+
+function capturePixGridDeckSelectionSnapshot(state: ReactStoreState): PixGridDeckSelectionSnapshot {
+  return {
+    activeReactPresetId: state.activeReactPresetId,
+    activeReactEngineId: state.activeReactEngineId,
+    reactIntensity: state.reactIntensity,
+    reactMotion: state.reactMotion,
+    reactGlow: state.reactGlow,
+    reactBassReactivity: state.reactBassReactivity,
+    reactTrailDecay: state.reactTrailDecay,
+    reactFogDensity: state.reactFogDensity,
+    reactParticleDensity: state.reactParticleDensity,
+    oscillatorSettings: state.oscillatorSettings,
+    pixGridState: state.pixGridState,
+    soundDrawingPerformanceSettings: state.soundDrawingPerformanceSettings,
+    oscillatorTextPointCache: state.oscillatorTextPointCache,
+    performanceActionEvent: state.performanceActionEvent,
+    performanceActionEvents: state.performanceActionEvents,
+    performanceActionToggleStates: state.performanceActionToggleStates,
+  }
+}
+
+function capturePixGridDeckStateGraph(
+  state: ReactStoreState,
+  favoritePresetIds = readReactPresetFavorites(),
+): PixGridDeckStateGraphSnapshot {
+  return {
+    schemaVersion: 1,
+    pixGridDecks: normalizePixGridDeckCollection(state.pixGridDecks),
+    performancePads: state.performancePads,
+    presetAutomationCuesByTrackId: state.presetAutomationCuesByTrackId,
+    favoritePresetIds: [...favoritePresetIds],
+    selection: capturePixGridDeckSelectionSnapshot(state),
+  }
+}
+
+function validPixGridDeckGeneratedPresetIds(decks: readonly PixGridDeckDefinition[]): Set<string> {
+  return new Set(decks.filter(deck => deck.presetCreated).map(deck => deck.generatedPresetId))
+}
+
+function reconcilePixGridDeckPixGridStateReference(
+  state: PixGridState,
+  presets: readonly ReactPreset[],
+  validGeneratedPresetIds: ReadonlySet<string>,
+): PixGridState {
+  const references = [state.selectedPresetId, state.configuration.sourcePresetId]
+  const hasDanglingGeneratedReference = references.some(presetId => (
+    presetId?.startsWith(PIX_GRID_DECK_PRESET_ID_PREFIX)
+    && !validGeneratedPresetIds.has(presetId)
+  ))
+  if (!hasDanglingGeneratedReference) return ensurePixGridCanonicalPresetIntegrity(state)
+  const fallbackPreset = presets.find(preset => preset.engine === 'pixGrid' && !preset.pixGridDeck)
+    ?? presets.find(preset => preset.engine === 'pixGrid')
+    ?? null
+  return fallbackPreset
+    ? applyPixGridPresetSettings(state, fallbackPreset.id, fallbackPreset.pixGridSettings)
+    : normalizePixGridState({
+        ...state,
+        selectedPresetId: null,
+        configuration: {
+          ...state.configuration,
+          sourcePresetId: null,
+        },
+      })
+}
+
+function collectInvalidPixGridDeckGeneratedPresetIds(
+  validPresetIds: ReadonlySet<string>,
+  pads: readonly ReactPerformancePad[],
+  cuesByTrackId: Readonly<Record<string, readonly ReactPresetAutomationCue[]>>,
+  favoritePresetIds: readonly string[],
+  activePresetId: string | null,
+): Set<string> {
+  const invalid = new Set<string>()
+  const inspect = (presetId: string | null | undefined) => {
+    if (presetId?.startsWith(PIX_GRID_DECK_PRESET_ID_PREFIX) && !validPresetIds.has(presetId)) {
+      invalid.add(presetId)
+    }
+  }
+  pads.forEach(pad => inspect(pad.presetId))
+  Object.values(cuesByTrackId).forEach(cues => cues.forEach(cue => inspect(cue.presetId)))
+  favoritePresetIds.forEach(inspect)
+  inspect(activePresetId)
+  return invalid
+}
+
+function filterPixGridDeckFavoritePresetIds(
+  favoritePresetIds: readonly string[],
+  removedPresetIds: ReadonlySet<string>,
+): string[] {
+  return favoritePresetIds.filter(presetId => !removedPresetIds.has(presetId))
+}
+
+export interface PixGridDeckReferenceState {
+  performancePads: ReactPerformancePad[]
+  presetAutomationCuesByTrackId: Record<string, ReactPresetAutomationCue[]>
+  favoritePresetIds: string[]
+  activePresetId: string | null
+}
+
+export interface PixGridDeckReferenceReconciliation extends PixGridDeckReferenceState {
+  removedPresetIds: Set<string>
+  activePresetRemoved: boolean
+}
+
+export function reconcilePixGridDeckReferenceState(
+  validGeneratedPresetIds: ReadonlySet<string>,
+  state: PixGridDeckReferenceState,
+  managedGeneratedPresetIds: Iterable<string> = [],
+): PixGridDeckReferenceReconciliation {
+  const removedPresetIds = collectInvalidPixGridDeckGeneratedPresetIds(
+    validGeneratedPresetIds,
+    state.performancePads,
+    state.presetAutomationCuesByTrackId,
+    state.favoritePresetIds,
+    state.activePresetId,
+  )
+  for (const presetId of managedGeneratedPresetIds) {
+    if (!validGeneratedPresetIds.has(presetId)) removedPresetIds.add(presetId)
+  }
+  return {
+    performancePads: clearReactPresetPadAssignments(state.performancePads, removedPresetIds),
+    presetAutomationCuesByTrackId: removeReactPresetAutomationCueAssignments(
+      state.presetAutomationCuesByTrackId,
+      removedPresetIds,
+    ),
+    favoritePresetIds: filterPixGridDeckFavoritePresetIds(state.favoritePresetIds, removedPresetIds),
+    activePresetId: state.activePresetId,
+    removedPresetIds,
+    activePresetRemoved: state.activePresetId != null && removedPresetIds.has(state.activePresetId),
+  }
+}
 
 function trimPixGridDeckHistory(
-  stack: PixGridDeckDefinition[][],
-): PixGridDeckDefinition[][] {
+  stack: PixGridDeckHistoryEntry[],
+): PixGridDeckHistoryEntry[] {
   return stack.slice(Math.max(0, stack.length - PIX_GRID_DECK_HISTORY_LIMIT))
 }
 
+function pixGridDeckStateGraphSnapshotsEqual(
+  left: PixGridDeckStateGraphSnapshot,
+  right: PixGridDeckStateGraphSnapshot,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function buildPixGridDeckReconciliationPatch(
+  state: ReactStoreState,
+  nextDecksInput: readonly PixGridDeckDefinition[],
+  options: { refreshActiveDeckPreset?: boolean } = {},
+): { patch: Partial<ReactStoreState>; favoritePresetIds: string[] } {
+  const nextDecks = normalizePixGridDeckCollection(nextDecksInput)
+  const nextPresets = reconcilePixGridDeckGeneratedPresets(state.reactPresets, nextDecks)
+  const currentFavorites = readReactPresetFavorites()
+  const validGeneratedPresetIds = validPixGridDeckGeneratedPresetIds(nextDecks)
+  const references = reconcilePixGridDeckReferenceState(
+    validGeneratedPresetIds,
+    {
+      performancePads: state.performancePads,
+      presetAutomationCuesByTrackId: state.presetAutomationCuesByTrackId,
+      favoritePresetIds: currentFavorites,
+      activePresetId: state.activeReactPresetId,
+    },
+    state.pixGridDecks.map(deck => deck.generatedPresetId),
+  )
+
+  const activePreset = state.activeReactPresetId
+    ? nextPresets.find(preset => preset.id === state.activeReactPresetId) ?? null
+    : null
+  const fallbackPreset = nextPresets.find(preset => preset.engine === 'pixGrid') ?? null
+  const selectionPatch = references.activePresetRemoved
+    ? fallbackPreset
+      ? buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
+      : { activeReactPresetId: null }
+    : options.refreshActiveDeckPreset && activePreset?.pixGridDeck
+      ? buildPresetPatchForState(activePreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
+      : {}
+
+  return {
+    patch: {
+      pixGridDecks: nextDecks,
+      reactPresets: nextPresets,
+      performancePads: references.performancePads,
+      presetAutomationCuesByTrackId: references.presetAutomationCuesByTrackId,
+      ...selectionPatch,
+    },
+    favoritePresetIds: references.favoritePresetIds,
+  }
+}
+
+function legacyPixGridDeckHistoryEntryToSnapshot(
+  entry: PixGridDeckDefinition[],
+  state: ReactStoreState,
+): PixGridDeckStateGraphSnapshot {
+  const nextDecks = normalizePixGridDeckCollection(entry)
+  const nextPresets = reconcilePixGridDeckGeneratedPresets(state.reactPresets, nextDecks)
+  const validGeneratedPresetIds = validPixGridDeckGeneratedPresetIds(nextDecks)
+  const favoritePresetIds = readReactPresetFavorites()
+  const removedPresetIds = collectInvalidPixGridDeckGeneratedPresetIds(
+    validGeneratedPresetIds,
+    state.performancePads,
+    state.presetAutomationCuesByTrackId,
+    favoritePresetIds,
+    state.activeReactPresetId,
+  )
+  const fallbackPreset = nextPresets.find(preset => preset.engine === 'pixGrid') ?? null
+  const selection = state.activeReactPresetId && removedPresetIds.has(state.activeReactPresetId) && fallbackPreset
+    ? { ...capturePixGridDeckSelectionSnapshot(state), ...buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks }) }
+    : capturePixGridDeckSelectionSnapshot(state)
+  return {
+    schemaVersion: 1,
+    pixGridDecks: nextDecks,
+    performancePads: clearReactPresetPadAssignments(state.performancePads, removedPresetIds),
+    presetAutomationCuesByTrackId: removeReactPresetAutomationCueAssignments(state.presetAutomationCuesByTrackId, removedPresetIds),
+    favoritePresetIds: filterPixGridDeckFavoritePresetIds(favoritePresetIds, removedPresetIds),
+    selection,
+  }
+}
+
+function normalizePixGridDeckHistoryEntry(
+  entry: PixGridDeckHistoryEntry,
+  state: ReactStoreState,
+): PixGridDeckStateGraphSnapshot {
+  return isPixGridDeckStateGraphSnapshot(entry)
+    ? { ...entry, pixGridDecks: normalizePixGridDeckCollection(entry.pixGridDecks) }
+    : legacyPixGridDeckHistoryEntryToSnapshot(entry, state)
+}
+
+function buildPixGridDeckSnapshotRestorePatch(
+  state: ReactStoreState,
+  snapshotInput: PixGridDeckHistoryEntry,
+): { patch: Partial<ReactStoreState>; favoritePresetIds: string[] } {
+  const snapshot = normalizePixGridDeckHistoryEntry(snapshotInput, state)
+  const nextDecks = snapshot.pixGridDecks
+  const nextPresets = reconcilePixGridDeckGeneratedPresets(state.reactPresets, nextDecks)
+  const validGeneratedPresetIds = validPixGridDeckGeneratedPresetIds(nextDecks)
+  const removedPresetIds = collectInvalidPixGridDeckGeneratedPresetIds(
+    validGeneratedPresetIds,
+    snapshot.performancePads,
+    snapshot.presetAutomationCuesByTrackId,
+    snapshot.favoritePresetIds,
+    snapshot.selection.activeReactPresetId,
+  )
+  const restoredPads = clearReactPresetPadAssignments(snapshot.performancePads, removedPresetIds)
+  const restoredCues = removeReactPresetAutomationCueAssignments(snapshot.presetAutomationCuesByTrackId, removedPresetIds)
+  const restoredFavorites = filterPixGridDeckFavoritePresetIds(snapshot.favoritePresetIds, removedPresetIds)
+  const activePresetExists = snapshot.selection.activeReactPresetId == null
+    || nextPresets.some(preset => preset.id === snapshot.selection.activeReactPresetId)
+  const fallbackPreset = nextPresets.find(preset => preset.engine === 'pixGrid') ?? null
+  const selectionPatch = activePresetExists
+    ? snapshot.selection
+    : fallbackPreset
+      ? buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
+      : { activeReactPresetId: null }
+  return {
+    patch: {
+      pixGridDecks: nextDecks,
+      reactPresets: nextPresets,
+      performancePads: restoredPads,
+      presetAutomationCuesByTrackId: restoredCues,
+      ...selectionPatch,
+    },
+    favoritePresetIds: restoredFavorites,
+  }
+}
+
 function buildPixGridDeckHistoryPatch(
-  storeState: Pick<ReactStoreState, 'reactPresets' | 'pixGridDecks' | 'pixGridDeckUndoStack' | 'pixGridDeckRedoStack' | 'pixGridDeckHistoryTransaction'>,
+  storeState: ReactStoreState,
   nextDecks: readonly PixGridDeckDefinition[],
 ) {
   const current = normalizePixGridDeckCollection(storeState.pixGridDecks)
   const next = normalizePixGridDeckCollection(nextDecks)
-  if (pixGridDeckCollectionsEqual(current, next)) return {}
-  const reactPresets = reconcilePixGridDeckGeneratedPresets(storeState.reactPresets, next)
-  if (storeState.pixGridDeckHistoryTransaction) return { pixGridDecks: next, reactPresets }
+  if (pixGridDeckCollectionsEqual(current, next)) return { patch: {}, favoritePresetIds: readReactPresetFavorites() }
+  const reconciled = buildPixGridDeckReconciliationPatch(storeState, next)
+  if (storeState.pixGridDeckHistoryTransaction) return reconciled
   return {
-    pixGridDecks: next,
-    reactPresets,
-    pixGridDeckUndoStack: trimPixGridDeckHistory([...storeState.pixGridDeckUndoStack, current]),
-    pixGridDeckRedoStack: [],
+    patch: {
+      ...reconciled.patch,
+      pixGridDeckUndoStack: trimPixGridDeckHistory([
+        ...storeState.pixGridDeckUndoStack,
+        capturePixGridDeckStateGraph(storeState),
+      ]),
+      pixGridDeckRedoStack: [],
+    },
+    favoritePresetIds: reconciled.favoritePresetIds,
   }
 }
 
@@ -2080,9 +2391,9 @@ interface ReactStoreState {
 
   // Project-scoped PixGrid Deck definitions. Drafts and compiled/runtime data stay outside persistence.
   pixGridDecks: PixGridDeckDefinition[]
-  pixGridDeckUndoStack: PixGridDeckDefinition[][]
-  pixGridDeckRedoStack: PixGridDeckDefinition[][]
-  pixGridDeckHistoryTransaction: PixGridDeckDefinition[] | null
+  pixGridDeckUndoStack: PixGridDeckHistoryEntry[]
+  pixGridDeckRedoStack: PixGridDeckHistoryEntry[]
+  pixGridDeckHistoryTransaction: PixGridDeckStateGraphSnapshot | null
   createPixGridDeck: (input: PixGridDeckCreateInput) => PixGridDeckMutationResult
   createPixGridDeckPreset: (deckId: string, readiness: PixGridDeckPresetReadiness) => PixGridDeckMutationResult
   renamePixGridDeck: (deckId: string, name: string) => PixGridDeckMutationResult
@@ -4428,10 +4739,25 @@ export function normalizeSoundDrawingClipsByTrackId(
 }
 
 export function reactStorePartialize(s: ReactStoreState) {
+  const persistedDecks = normalizePixGridDeckCollection(s.pixGridDecks)
+  const coherentReactPresets = reconcilePixGridDeckGeneratedPresets(s.reactPresets, persistedDecks)
+  const validGeneratedPresetIds = validPixGridDeckGeneratedPresetIds(persistedDecks)
+  const danglingGeneratedPresetIds = collectInvalidPixGridDeckGeneratedPresetIds(
+    validGeneratedPresetIds,
+    s.performancePads,
+    s.presetAutomationCuesByTrackId,
+    [],
+    s.activeReactPresetId,
+  )
+  const coherentPixGridState = reconcilePixGridDeckPixGridStateReference(
+    s.pixGridState,
+    coherentReactPresets,
+    validGeneratedPresetIds,
+  )
   const repairedSelection = repairReactEnginePresetSelection(
     s.activeReactPresetId,
     s.activeReactEngineId,
-    s.reactPresets,
+    coherentReactPresets,
   )
   const soundDrawingPresetIsActive = s.activeReactEngineId === 'oscilloscope'
     && s.activeReactPresetId != null
@@ -4441,9 +4767,9 @@ export function reactStorePartialize(s: ReactStoreState) {
   const persisted = {
     activeReactPresetId:                persistedSelection.activeReactPresetId,
     activeReactEngineId:                persistedSelection.activeReactEngineId,
-    reactPresets:                       s.reactPresets,
-    pixGridState:                       ensurePixGridCanonicalPresetIntegrity(s.pixGridState),
-    pixGridDecks:                       normalizePixGridDeckCollection(s.pixGridDecks),
+    reactPresets:                       coherentReactPresets,
+    pixGridState:                       coherentPixGridState,
+    pixGridDecks:                       persistedDecks,
     cinematicConfigsByPresetId:         s.cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId:       s.cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode:              s.cinematicWorldsUiMode,
@@ -4455,10 +4781,13 @@ export function reactStorePartialize(s: ReactStoreState) {
     canvasPresetSettings:               normalizeCanvasPresetSettings(s.canvasPresetSettings),
     canvasPresetOverride:               s.canvasPresetOverride,
     canvasOrchestrationSettings:         normalizeCanvasOrchestrationSettings(s.canvasOrchestrationSettings),
-    performancePads:                    s.performancePads,
+    performancePads:                    clearReactPresetPadAssignments(s.performancePads, danglingGeneratedPresetIds),
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
-    presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
+    presetAutomationCuesByTrackId:      removeReactPresetAutomationCueAssignments(
+      s.presetAutomationCuesByTrackId,
+      danglingGeneratedPresetIds,
+    ),
     pixGridActionCuesByTrackId:          normalizePixGridActionCueMap(
       sanitizeRetiredPixGridMarqueeActionCueMap(s.pixGridActionCuesByTrackId),
     ),
@@ -4552,9 +4881,25 @@ export function mergeReactStoreState(
       .filter(preset => !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id))
       .map(preset => preset.id),
   )
-  const performancePads = normalizeLockedLaserDmxPadAssignments(repairRetiredReactPresetPadAssignments(
+  const mergedPerformancePads = normalizeLockedLaserDmxPadAssignments(repairRetiredReactPresetPadAssignments(
     mergeCollectionsById(currentState.performancePads, persisted.performancePads),
   ))
+  const mergedPresetAutomationCues = persisted.presetAutomationCuesByTrackId
+    ?? currentState.presetAutomationCuesByTrackId
+  const danglingGeneratedPresetIds = collectInvalidPixGridDeckGeneratedPresetIds(
+    validPixGridDeckGeneratedPresetIds(normalizedDecks),
+    mergedPerformancePads,
+    mergedPresetAutomationCues,
+    [],
+    typeof persisted.activeReactPresetId === 'string'
+      ? persisted.activeReactPresetId
+      : currentState.activeReactPresetId,
+  )
+  const performancePads = clearReactPresetPadAssignments(mergedPerformancePads, danglingGeneratedPresetIds)
+  const presetAutomationCuesByTrackId = removeReactPresetAutomationCueAssignments(
+    mergedPresetAutomationCues,
+    danglingGeneratedPresetIds,
+  )
   const cinematicConfigsByPresetId = normalizeCinematicConfigOverrides(
     persisted.cinematicConfigsByPresetId ?? currentState.cinematicConfigsByPresetId,
     reactPresets,
@@ -4565,12 +4910,17 @@ export function mergeReactStoreState(
   )
   const persistedUiMode = persisted.cinematicWorldsUiMode ?? currentState.cinematicWorldsUiMode
   const cinematicWorldsUiMode: CinematicWorldsUiMode = persistedUiMode === 'advanced' ? 'advanced' : 'simple'
-  const rawPixGridState = persisted.pixGridState ?? currentState.pixGridState
+  const rawPixGridState = reconcilePixGridDeckPixGridStateReference(
+    persisted.pixGridState ?? currentState.pixGridState,
+    reactPresets,
+    validPixGridDeckGeneratedPresetIds(normalizedDecks),
+  )
   const merged = {
     ...currentState,
     ...persisted,
     reactPresets,
     performancePads,
+    presetAutomationCuesByTrackId,
     cinematicConfigsByPresetId,
     cinematicSeedLocksByPresetId,
     cinematicWorldsUiMode,
@@ -4966,7 +5316,9 @@ export const useReactStore = create<ReactStoreState>()(
           })
         }
 
-        set(buildPixGridDeckHistoryPatch(state, [...state.pixGridDecks, normalized.deck]))
+        const transition = buildPixGridDeckHistoryPatch(state, [...state.pixGridDecks, normalized.deck])
+        writeReactPresetFavorites(transition.favoritePresetIds)
+        set(transition.patch)
         return { ok: true, deckId: normalized.deck.id }
       },
 
@@ -5007,14 +5359,9 @@ export const useReactStore = create<ReactStoreState>()(
           return pixGridDeckFailure({ code: 'invalid-deck', message: 'The PixGrid Deck Preset could not be created.' })
         }
         const nextDecks = state.pixGridDecks.map(deck => deck.id === deckId ? nextDeck : deck)
-        const patch = buildPixGridDeckHistoryPatch(state, nextDecks)
-        set({
-          ...patch,
-          reactPresets: reconcilePixGridDeckGeneratedPresets(
-            state.reactPresets.filter(preset => preset.id !== current.generatedPresetId),
-            nextDecks,
-          ),
-        })
+        const transition = buildPixGridDeckHistoryPatch(state, nextDecks)
+        writeReactPresetFavorites(transition.favoritePresetIds)
+        set(transition.patch)
         return { ok: true, deckId }
       },
 
@@ -5076,8 +5423,17 @@ export const useReactStore = create<ReactStoreState>()(
           return pixGridDeckSourceValidationFailure()
         }
 
+        if (pixGridDeckCollectionsEqual(
+          [current],
+          [{ ...normalized.deck, revision: current.revision }],
+        )) {
+          return { ok: true, deckId }
+        }
+
         const nextDecks = state.pixGridDecks.map(deck => deck.id === deckId ? normalized.deck! : deck)
-        set(buildPixGridDeckHistoryPatch(state, nextDecks))
+        const transition = buildPixGridDeckHistoryPatch(state, nextDecks)
+        writeReactPresetFavorites(transition.favoritePresetIds)
+        set(transition.patch)
         return { ok: true, deckId }
       },
 
@@ -5091,73 +5447,37 @@ export const useReactStore = create<ReactStoreState>()(
             path: 'id',
           })
         }
-        const nextDecks = state.pixGridDecks.filter(deck => deck.id !== deckId)
-        const historyPatch = buildPixGridDeckHistoryPatch(state, nextDecks)
-        const nextPresets = historyPatch.reactPresets
-          ?? reconcilePixGridDeckGeneratedPresets(state.reactPresets, nextDecks)
-        const removedPresetIds = new Set([deletingDeck.generatedPresetId])
-        const fallbackPreset = nextPresets.find(preset => preset.engine === 'pixGrid') ?? null
-        const selectionPatch = state.activeReactPresetId === deletingDeck.generatedPresetId
-          ? fallbackPreset
-            ? buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
-            : { activeReactPresetId: null }
-          : {}
-        sanitizeReactPresetFavorites(nextPresets.map(preset => preset.id))
-        set({
-          ...historyPatch,
-          performancePads: clearReactPresetPadAssignments(state.performancePads, removedPresetIds),
-          presetAutomationCuesByTrackId: removeReactPresetAutomationCueAssignments(
-            state.presetAutomationCuesByTrackId,
-            removedPresetIds,
-          ),
-          ...selectionPatch,
-        })
+        const transition = buildPixGridDeckHistoryPatch(
+          state,
+          state.pixGridDecks.filter(deck => deck.id !== deckId),
+        )
+        writeReactPresetFavorites(transition.favoritePresetIds)
+        set(transition.patch)
         return { ok: true, deckId }
       },
 
       replacePixGridDeckProject: (decks) => set(state => {
-        const nextDecks = normalizePixGridDeckCollection(decks)
-        const nextPresets = reconcilePixGridDeckGeneratedPresets(state.reactPresets, nextDecks)
-        const nextPresetIds = new Set(nextPresets.map(preset => preset.id))
-        const removedPresetIds = new Set(state.reactPresets
-          .map(preset => preset.id)
-          .filter(presetId => !nextPresetIds.has(presetId)))
-        const activePreset = state.activeReactPresetId
-          ? nextPresets.find(preset => preset.id === state.activeReactPresetId) ?? null
-          : null
-        const fallbackPreset = nextPresets.find(preset => preset.engine === 'pixGrid') ?? null
-        const selectionPatch = activePreset?.pixGridDeck
-          ? buildPresetPatchForState(activePreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
-          : state.activeReactPresetId && removedPresetIds.has(state.activeReactPresetId)
-            ? fallbackPreset
-              ? buildPresetPatchForState(fallbackPreset, { ...state, reactPresets: nextPresets, pixGridDecks: nextDecks })
-              : { activeReactPresetId: null }
-            : {}
-        sanitizeReactPresetFavorites(nextPresets.map(preset => preset.id))
+        const reconciled = buildPixGridDeckReconciliationPatch(state, decks, { refreshActiveDeckPreset: true })
+        writeReactPresetFavorites(reconciled.favoritePresetIds)
         return {
-          pixGridDecks: nextDecks,
-          reactPresets: nextPresets,
+          ...reconciled.patch,
           pixGridDeckUndoStack: [],
           pixGridDeckRedoStack: [],
           pixGridDeckHistoryTransaction: null,
-          performancePads: clearReactPresetPadAssignments(state.performancePads, removedPresetIds),
-          presetAutomationCuesByTrackId: removeReactPresetAutomationCueAssignments(
-            state.presetAutomationCuesByTrackId,
-            removedPresetIds,
-          ),
-          ...selectionPatch,
         }
       }),
 
       beginPixGridDeckHistoryTransaction: () => set(state => state.pixGridDeckHistoryTransaction
         ? {}
-        : { pixGridDeckHistoryTransaction: normalizePixGridDeckCollection(state.pixGridDecks) }),
+        : { pixGridDeckHistoryTransaction: capturePixGridDeckStateGraph(state) }),
 
       commitPixGridDeckHistoryTransaction: () => set(state => {
         const base = state.pixGridDeckHistoryTransaction
         if (!base) return {}
-        const current = normalizePixGridDeckCollection(state.pixGridDecks)
-        if (pixGridDeckCollectionsEqual(base, current)) return { pixGridDeckHistoryTransaction: null }
+        const current = capturePixGridDeckStateGraph(state)
+        if (pixGridDeckStateGraphSnapshotsEqual(base, current)) {
+          return { pixGridDeckHistoryTransaction: null }
+        }
         return {
           pixGridDeckUndoStack: trimPixGridDeckHistory([...state.pixGridDeckUndoStack, base]),
           pixGridDeckRedoStack: [],
@@ -5165,42 +5485,44 @@ export const useReactStore = create<ReactStoreState>()(
         }
       }),
 
-      cancelPixGridDeckHistoryTransaction: () => set(state => state.pixGridDeckHistoryTransaction
-        ? {
-            pixGridDecks: normalizePixGridDeckCollection(state.pixGridDeckHistoryTransaction),
-            reactPresets: reconcilePixGridDeckGeneratedPresets(
-              state.reactPresets,
-              normalizePixGridDeckCollection(state.pixGridDeckHistoryTransaction),
-            ),
-            pixGridDeckHistoryTransaction: null,
-          }
-        : {}),
+      cancelPixGridDeckHistoryTransaction: () => {
+        const state = get()
+        const base = state.pixGridDeckHistoryTransaction
+        if (!base) return
+        const restored = buildPixGridDeckSnapshotRestorePatch(state, base)
+        writeReactPresetFavorites(restored.favoritePresetIds)
+        set({ ...restored.patch, pixGridDeckHistoryTransaction: null })
+      },
 
-      undoPixGridDeckEdit: () => set(state => {
+      undoPixGridDeckEdit: () => {
+        const state = get()
         const previous = state.pixGridDeckUndoStack[state.pixGridDeckUndoStack.length - 1]
-        if (!previous) return {}
-        const current = normalizePixGridDeckCollection(state.pixGridDecks)
-        return {
-          pixGridDecks: normalizePixGridDeckCollection(previous),
-          reactPresets: reconcilePixGridDeckGeneratedPresets(state.reactPresets, previous),
+        if (!previous) return
+        const current = capturePixGridDeckStateGraph(state)
+        const restored = buildPixGridDeckSnapshotRestorePatch(state, previous)
+        writeReactPresetFavorites(restored.favoritePresetIds)
+        set({
+          ...restored.patch,
           pixGridDeckUndoStack: state.pixGridDeckUndoStack.slice(0, -1),
           pixGridDeckRedoStack: trimPixGridDeckHistory([...state.pixGridDeckRedoStack, current]),
           pixGridDeckHistoryTransaction: null,
-        }
-      }),
+        })
+      },
 
-      redoPixGridDeckEdit: () => set(state => {
+      redoPixGridDeckEdit: () => {
+        const state = get()
         const next = state.pixGridDeckRedoStack[state.pixGridDeckRedoStack.length - 1]
-        if (!next) return {}
-        const current = normalizePixGridDeckCollection(state.pixGridDecks)
-        return {
-          pixGridDecks: normalizePixGridDeckCollection(next),
-          reactPresets: reconcilePixGridDeckGeneratedPresets(state.reactPresets, next),
+        if (!next) return
+        const current = capturePixGridDeckStateGraph(state)
+        const restored = buildPixGridDeckSnapshotRestorePatch(state, next)
+        writeReactPresetFavorites(restored.favoritePresetIds)
+        set({
+          ...restored.patch,
           pixGridDeckUndoStack: trimPixGridDeckHistory([...state.pixGridDeckUndoStack, current]),
           pixGridDeckRedoStack: state.pixGridDeckRedoStack.slice(0, -1),
           pixGridDeckHistoryTransaction: null,
-        }
-      }),
+        })
+      },
 
       setCinematicConfigForPreset: (presetId, config) =>
         set((state) => {

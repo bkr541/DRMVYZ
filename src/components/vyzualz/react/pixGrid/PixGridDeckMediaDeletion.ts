@@ -12,11 +12,10 @@ import {
 
 interface PixGridDeckDeletionStoreState {
   pixGridDecks: PixGridDeckDefinition[]
-  pixGridDeckHistoryTransaction: PixGridDeckDefinition[] | null
+  pixGridDeckHistoryTransaction: unknown | null
   beginPixGridDeckHistoryTransaction(): void
   commitPixGridDeckHistoryTransaction(): void
   cancelPixGridDeckHistoryTransaction(): void
-  undoPixGridDeckEdit(): void
   updatePixGridDeck(deckId: string, patch: { items: PixGridDeckDefinition['items'] }): PixGridDeckMutationResult
   deletePixGridDeck(deckId: string): PixGridDeckMutationResult
 }
@@ -34,10 +33,6 @@ function affectedDecks(state: PixGridDeckDeletionStoreState, mediaId: string): A
       .map((item, order) => ({ ...item, order }))
     return [{ deck, remainingItems }]
   })
-}
-
-function deckSnapshotKey(decks: readonly PixGridDeckDefinition[]): string {
-  return JSON.stringify(decks)
 }
 
 function warningFor(item: UploadedMedia, affected: readonly AffectedDeck[]): MediaDeletionWarning {
@@ -88,7 +83,6 @@ export function createPixGridDeckMediaDeletionGuard(
     if (!confirmed) return { allowed: false, warning: warningFor(item, affected) }
 
     let applied = false
-    let appliedSnapshot: string | null = null
     return {
       allowed: true,
       apply: () => {
@@ -109,20 +103,18 @@ export function createPixGridDeckMediaDeletionGuard(
             return false
           }
         }
-        getDeckState().commitPixGridDeckHistoryTransaction()
         applied = true
-        appliedSnapshot = deckSnapshotKey(getDeckState().pixGridDecks)
         return true
+      },
+      commit: () => {
+        if (!applied) return
+        getDeckState().commitPixGridDeckHistoryTransaction()
+        applied = false
       },
       rollback: () => {
         if (!applied) return
-        // Do not undo a later, unrelated Deck edit if the media request fails
-        // after another interaction has changed the project snapshot.
-        if (appliedSnapshot === deckSnapshotKey(getDeckState().pixGridDecks)) {
-          getDeckState().undoPixGridDeckEdit()
-        }
+        getDeckState().cancelPixGridDeckHistoryTransaction()
         applied = false
-        appliedSnapshot = null
       },
     }
   }

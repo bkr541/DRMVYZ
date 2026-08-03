@@ -3,11 +3,13 @@ import { splitStorageValue, mergeStorageValues } from '../lib/splitPersistStorag
 import { PIX_GRID_PRESET_IDS } from '../components/vyzualz/react/pixGrid/PixGridPresets'
 import type { PixGridDeckItemDefinition } from '../components/vyzualz/react/pixGrid/PixGridDeckDomain'
 import { usePixGridDeckCompilerStore } from '../components/vyzualz/react/pixGrid/PixGridDeckCompilerRuntime'
+import { createPixGridDeckMediaDeletionGuard } from '../components/vyzualz/react/pixGrid/PixGridDeckMediaDeletion'
 import {
   REACT_PROJECT_STATE_KEYS,
   mergeReactStoreState,
   migrateReactStore,
   reactStorePartialize,
+  reconcilePixGridDeckReferenceState,
   useReactStore,
 } from './reactStore'
 
@@ -40,9 +42,86 @@ function createDeck(id: string, name: string, count = 2) {
   })
 }
 
+function createDeckPreset(deckId: string) {
+  const deck = useReactStore.getState().pixGridDecks.find(candidate => candidate.id === deckId)!
+  return useReactStore.getState().createPixGridDeckPreset(deck.id, {
+    deckId: deck.id,
+    deckRevision: deck.revision,
+    enabledItemCount: deck.items.filter(item => item.enabled).length,
+    frameProgress: 1,
+    transitionProgress: 1,
+    ready: true,
+    errorCount: 0,
+    message: 'Ready to create Preset.',
+  })
+}
+
+function installFavoriteStorage() {
+  const storage = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => { storage.set(key, value) },
+    removeItem: (key: string) => { storage.delete(key) },
+    clear: () => storage.clear(),
+    key: (index: number) => [...storage.keys()][index] ?? null,
+    get length() { return storage.size },
+  } satisfies Storage)
+  return storage
+}
+
+function deckGraphState() {
+  const state = useReactStore.getState()
+  return {
+    pixGridDecks: state.pixGridDecks,
+    generatedPresets: state.reactPresets.filter(preset => preset.pixGridDeck),
+    performancePads: state.performancePads,
+    presetAutomationCuesByTrackId: state.presetAutomationCuesByTrackId,
+    activeReactPresetId: state.activeReactPresetId,
+    activeReactEngineId: state.activeReactEngineId,
+    pixGridState: state.pixGridState,
+    reactControls: {
+      intensity: state.reactIntensity,
+      motion: state.reactMotion,
+      glow: state.reactGlow,
+      bass: state.reactBassReactivity,
+      trail: state.reactTrailDecay,
+      fog: state.reactFogDensity,
+      particles: state.reactParticleDensity,
+    },
+    favorites: JSON.parse(localStorage.getItem('drmvyz.reactPresetFavorites.v1') ?? '[]'),
+  }
+}
+
 describe('PixGrid Deck project persistence and history', () => {
   beforeEach(() => useReactStore.getState().resetReactView())
   afterEach(() => vi.unstubAllGlobals())
+
+  it('reconciles only invalid Deck-generated references in the pure state-graph helper', () => {
+    const pads = useReactStore.getState().performancePads.map((pad, index) => index === 0
+      ? { ...pad, presetId: 'pix-grid-deck:removed', label: 'Removed', color: '#111111' }
+      : index === 1
+        ? { ...pad, presetId: 'preset-unrelated', label: 'Unrelated', color: '#222222' }
+        : pad)
+    const result = reconcilePixGridDeckReferenceState(new Set(['pix-grid-deck:survivor']), {
+      performancePads: pads,
+      presetAutomationCuesByTrackId: {
+        track: [
+          { id: 'removed-1', label: 'Removed 1', timeSec: 1, presetId: 'pix-grid-deck:removed', enabled: true, transitionMs: 0 },
+          { id: 'unrelated', label: 'Unrelated', timeSec: 2, presetId: 'preset-unrelated', enabled: true, transitionMs: 0 },
+          { id: 'removed-2', label: 'Removed 2', timeSec: 3, presetId: 'pix-grid-deck:removed', enabled: true, transitionMs: 0 },
+        ],
+      },
+      favoritePresetIds: ['pix-grid-deck:removed', 'preset-unrelated'],
+      activePresetId: 'pix-grid-deck:removed',
+    }, ['pix-grid-deck:removed'])
+
+    expect([...result.removedPresetIds]).toEqual(['pix-grid-deck:removed'])
+    expect(result.activePresetRemoved).toBe(true)
+    expect(result.performancePads[0]).toMatchObject({ presetId: null, label: 'Empty', color: '#3a4650' })
+    expect(result.performancePads[1]).toMatchObject({ presetId: 'preset-unrelated', label: 'Unrelated' })
+    expect(result.presetAutomationCuesByTrackId.track.map(cue => cue.id)).toEqual(['unrelated'])
+    expect(result.favoritePresetIds).toEqual(['preset-unrelated'])
+  })
 
   it('rejects case-folded duplicate names with a deterministic validation error', () => {
     expect(createDeck('deck-a', 'Deck A')).toEqual({ ok: true, deckId: 'deck-a' })
@@ -153,6 +232,10 @@ describe('PixGrid Deck project persistence and history', () => {
       error: { code: 'invalid-item-count' },
     })
     expect(createDeck('valid-first', 'Valid First')).toEqual({ ok: true, deckId: 'valid-first' })
+    const historyBeforeRejectedEdit = {
+      undo: useReactStore.getState().pixGridDeckUndoStack,
+      redo: useReactStore.getState().pixGridDeckRedoStack,
+    }
     expect(useReactStore.getState().updatePixGridDeck('valid-first', {
       items: itemDefinitions('valid-first', 1),
     })).toMatchObject({
@@ -160,6 +243,23 @@ describe('PixGrid Deck project persistence and history', () => {
       error: { code: 'invalid-item-count' },
     })
     expect(useReactStore.getState().pixGridDecks[0]?.items).toHaveLength(2)
+    expect({
+      undo: useReactStore.getState().pixGridDeckUndoStack,
+      redo: useReactStore.getState().pixGridDeckRedoStack,
+    }).toEqual(historyBeforeRejectedEdit)
+
+    const historyBeforeNoOp = {
+      undo: useReactStore.getState().pixGridDeckUndoStack,
+      redo: useReactStore.getState().pixGridDeckRedoStack,
+    }
+    expect(useReactStore.getState().renamePixGridDeck('valid-first', 'Valid First')).toEqual({
+      ok: true,
+      deckId: 'valid-first',
+    })
+    expect({
+      undo: useReactStore.getState().pixGridDeckUndoStack,
+      redo: useReactStore.getState().pixGridDeckRedoStack,
+    }).toEqual(historyBeforeNoOp)
   })
 
   it('round-trips the actual partialized and split production store shape through migration and merge', () => {
@@ -436,6 +536,207 @@ describe('PixGrid Deck project persistence and history', () => {
     ]))
     expect(useReactStore.getState().pixGridDeckUndoStack).toEqual([])
     expect(useReactStore.getState().pixGridDeckRedoStack).toEqual([])
+  })
+
+  it('undoes and redoes Deck creation plus generated Preset state without losing dependent references', () => {
+    installFavoriteStorage()
+    createDeck('creation-graph', 'Creation Graph')
+    createDeckPreset('creation-graph')
+    const deck = useReactStore.getState().pixGridDecks[0]!
+    useReactStore.getState().selectReactPreset(deck.generatedPresetId)
+    localStorage.setItem('drmvyz.reactPresetFavorites.v1', JSON.stringify([deck.generatedPresetId]))
+    useReactStore.setState(state => ({
+      performancePads: state.performancePads.map((pad, index) => index < 2
+        ? { ...pad, presetId: deck.generatedPresetId, label: deck.name, color: '#abcdef' }
+        : pad),
+      presetAutomationCuesByTrackId: {
+        track: [
+          { id: 'creation-cue-1', label: 'Creation Cue 1', timeSec: 1, presetId: deck.generatedPresetId, enabled: true, transitionMs: 0 },
+          { id: 'creation-cue-2', label: 'Creation Cue 2', timeSec: 2, presetId: deck.generatedPresetId, enabled: true, transitionMs: 0 },
+        ],
+      },
+    }))
+    const afterPresetCreation = deckGraphState()
+
+    useReactStore.getState().undoPixGridDeckEdit()
+    expect(useReactStore.getState().pixGridDecks[0]).toMatchObject({ id: deck.id, presetCreated: false })
+    expect(useReactStore.getState().reactPresets.some(preset => preset.id === deck.generatedPresetId)).toBe(false)
+    expect(useReactStore.getState().performancePads.slice(0, 2).every(pad => pad.presetId == null)).toBe(true)
+    expect(useReactStore.getState().presetAutomationCuesByTrackId.track).toEqual([])
+    expect(JSON.parse(localStorage.getItem('drmvyz.reactPresetFavorites.v1') ?? '[]')).toEqual([])
+
+    useReactStore.getState().undoPixGridDeckEdit()
+    expect(useReactStore.getState().pixGridDecks).toEqual([])
+    useReactStore.getState().redoPixGridDeckEdit()
+    expect(useReactStore.getState().pixGridDecks[0]).toMatchObject({ id: deck.id, presetCreated: false })
+    useReactStore.getState().redoPixGridDeckEdit()
+    expect(deckGraphState()).toEqual(afterPresetCreation)
+  })
+
+  it('restores the complete dependent graph through delete, undo, redo, and repeated cycles', () => {
+    installFavoriteStorage()
+    createDeck('graph-deck', 'Graph Deck')
+    expect(createDeckPreset('graph-deck')).toEqual({ ok: true, deckId: 'graph-deck' })
+    const deck = useReactStore.getState().pixGridDecks[0]!
+    const unrelatedPreset = useReactStore.getState().reactPresets.find(preset => preset.engine === 'pixGrid' && !preset.pixGridDeck)!
+    useReactStore.getState().selectReactPreset(deck.generatedPresetId)
+    localStorage.setItem('drmvyz.reactPresetFavorites.v1', JSON.stringify([deck.generatedPresetId, unrelatedPreset.id]))
+    useReactStore.setState(state => ({
+      performancePads: state.performancePads.map((pad, index) => index < 2
+        ? { ...pad, presetId: deck.generatedPresetId, label: deck.name, color: '#abcdef' }
+        : index === 2
+          ? { ...pad, presetId: unrelatedPreset.id, label: unrelatedPreset.name, color: '#fedcba' }
+          : pad),
+      presetAutomationCuesByTrackId: {
+        track: [
+          { id: 'deck-cue-1', label: 'Deck Cue 1', timeSec: 1, presetId: deck.generatedPresetId, enabled: true, transitionMs: 0 },
+          { id: 'unrelated-cue', label: 'Unrelated Cue', timeSec: 2, presetId: unrelatedPreset.id, enabled: true, transitionMs: 0 },
+          { id: 'deck-cue-2', label: 'Deck Cue 2', timeSec: 3, presetId: deck.generatedPresetId, enabled: true, transitionMs: 100 },
+        ],
+      },
+    }))
+    const beforeDelete = deckGraphState()
+
+    expect(useReactStore.getState().deletePixGridDeck(deck.id)).toEqual({ ok: true, deckId: deck.id })
+    const afterDelete = deckGraphState()
+    expect(afterDelete.generatedPresets).toEqual([])
+    expect(afterDelete.performancePads.slice(0, 2).every(pad => pad.presetId == null)).toBe(true)
+    expect(afterDelete.performancePads[2]?.presetId).toBe(unrelatedPreset.id)
+    expect(afterDelete.presetAutomationCuesByTrackId.track.map(cue => cue.id)).toEqual(['unrelated-cue'])
+    expect(afterDelete.favorites).toEqual([unrelatedPreset.id])
+    expect(afterDelete.activeReactPresetId).not.toBe(deck.generatedPresetId)
+
+    useReactStore.getState().undoPixGridDeckEdit()
+    expect(deckGraphState()).toEqual(beforeDelete)
+    useReactStore.getState().redoPixGridDeckEdit()
+    expect(deckGraphState()).toEqual(afterDelete)
+    useReactStore.getState().undoPixGridDeckEdit()
+    expect(deckGraphState()).toEqual(beforeDelete)
+  })
+
+  it('deletes one Deck without damaging another Deck generated Preset or its references', () => {
+    installFavoriteStorage()
+    createDeck('deck-one', 'Deck One')
+    createDeckPreset('deck-one')
+    createDeck('deck-two', 'Deck Two')
+    createDeckPreset('deck-two')
+    const [deckOne, deckTwo] = useReactStore.getState().pixGridDecks
+    localStorage.setItem('drmvyz.reactPresetFavorites.v1', JSON.stringify([
+      deckOne!.generatedPresetId,
+      deckTwo!.generatedPresetId,
+    ]))
+    useReactStore.setState(state => ({
+      performancePads: state.performancePads.map((pad, index) => index === 0
+        ? { ...pad, presetId: deckOne!.generatedPresetId, label: deckOne!.name, color: '#111111' }
+        : index === 1
+          ? { ...pad, presetId: deckTwo!.generatedPresetId, label: deckTwo!.name, color: '#222222' }
+          : pad),
+      presetAutomationCuesByTrackId: {
+        track: [
+          { id: 'deck-one-cue', label: 'Deck One Cue', timeSec: 1, presetId: deckOne!.generatedPresetId, enabled: true, transitionMs: 0 },
+          { id: 'deck-two-cue', label: 'Deck Two Cue', timeSec: 2, presetId: deckTwo!.generatedPresetId, enabled: true, transitionMs: 0 },
+        ],
+      },
+    }))
+
+    useReactStore.getState().deletePixGridDeck(deckOne!.id)
+
+    expect(useReactStore.getState().reactPresets.some(preset => preset.id === deckTwo!.generatedPresetId)).toBe(true)
+    expect(useReactStore.getState().performancePads[1]?.presetId).toBe(deckTwo!.generatedPresetId)
+    expect(useReactStore.getState().presetAutomationCuesByTrackId.track.map(cue => cue.id)).toEqual(['deck-two-cue'])
+    expect(JSON.parse(localStorage.getItem('drmvyz.reactPresetFavorites.v1') ?? '[]')).toEqual([deckTwo!.generatedPresetId])
+  })
+
+  it('restores the complete pre-transaction graph when a Deck history transaction is cancelled', () => {
+    installFavoriteStorage()
+    createDeck('cancel-deck', 'Cancel Deck')
+    createDeckPreset('cancel-deck')
+    const deck = useReactStore.getState().pixGridDecks[0]!
+    useReactStore.getState().selectReactPreset(deck.generatedPresetId)
+    localStorage.setItem('drmvyz.reactPresetFavorites.v1', JSON.stringify([deck.generatedPresetId]))
+    useReactStore.setState(state => ({
+      performancePads: state.performancePads.map((pad, index) => index === 0
+        ? { ...pad, presetId: deck.generatedPresetId, label: deck.name, color: '#abcdef' }
+        : pad),
+      presetAutomationCuesByTrackId: {
+        track: [{ id: 'cancel-cue', label: 'Cancel Cue', timeSec: 4, presetId: deck.generatedPresetId, enabled: true, transitionMs: 0 }],
+      },
+    }))
+    const before = deckGraphState()
+
+    useReactStore.getState().beginPixGridDeckHistoryTransaction()
+    useReactStore.getState().deletePixGridDeck(deck.id)
+    expect(useReactStore.getState().pixGridDecks).toEqual([])
+    useReactStore.getState().cancelPixGridDeckHistoryTransaction()
+
+    expect(deckGraphState()).toEqual(before)
+  })
+
+  it('restores the exact pre-deletion graph when downstream media deletion rolls back', () => {
+    installFavoriteStorage()
+    const mediaId = 'db-media-rollback'
+    const items = itemDefinitions('media-rollback')
+    items[0] = { ...items[0]!, mediaId }
+    expect(useReactStore.getState().createPixGridDeck({
+      id: 'media-rollback-deck',
+      name: 'Media Rollback Deck',
+      items,
+    })).toEqual({ ok: true, deckId: 'media-rollback-deck' })
+    createDeckPreset('media-rollback-deck')
+    const deck = useReactStore.getState().pixGridDecks[0]!
+    useReactStore.getState().selectReactPreset(deck.generatedPresetId)
+    localStorage.setItem('drmvyz.reactPresetFavorites.v1', JSON.stringify([deck.generatedPresetId]))
+    useReactStore.setState(state => ({
+      performancePads: state.performancePads.map((pad, index) => index < 2
+        ? { ...pad, presetId: deck.generatedPresetId, label: deck.name, color: '#abcdef' }
+        : pad),
+      presetAutomationCuesByTrackId: {
+        track: [
+          { id: 'rollback-cue-1', label: 'Rollback Cue 1', timeSec: 1, presetId: deck.generatedPresetId, enabled: true, transitionMs: 0 },
+          { id: 'rollback-cue-2', label: 'Rollback Cue 2', timeSec: 2, presetId: deck.generatedPresetId, enabled: true, transitionMs: 0 },
+        ],
+      },
+    }))
+    const before = deckGraphState()
+    const guard = createPixGridDeckMediaDeletionGuard(() => useReactStore.getState())
+    const decision = guard({ id: mediaId, name: 'rollback.png' } as never, 'delete-affected-decks')
+    expect(decision.allowed).toBe(true)
+    if (!decision.allowed) throw new Error('Expected confirmed media deletion to be allowed.')
+
+    expect(decision.apply?.()).toBe(true)
+    expect(useReactStore.getState().pixGridDecks).toEqual([])
+    decision.rollback?.()
+
+    expect(deckGraphState()).toEqual(before)
+  })
+
+  it('sanitizes dangling generated Deck references during serialization and project replacement', () => {
+    installFavoriteStorage()
+    const danglingId = 'pix-grid-deck:missing'
+    const unrelatedPreset = useReactStore.getState().reactPresets.find(preset => preset.engine === 'pixGrid')!
+    useReactStore.setState(state => ({
+      performancePads: state.performancePads.map((pad, index) => index === 0
+        ? { ...pad, presetId: danglingId, label: 'Missing', color: '#111111' }
+        : index === 1
+          ? { ...pad, presetId: unrelatedPreset.id, label: unrelatedPreset.name, color: '#222222' }
+          : pad),
+      presetAutomationCuesByTrackId: {
+        track: [
+          { id: 'dangling', label: 'Dangling', timeSec: 1, presetId: danglingId, enabled: true, transitionMs: 0 },
+          { id: 'unrelated', label: 'Unrelated', timeSec: 2, presetId: unrelatedPreset.id, enabled: true, transitionMs: 0 },
+        ],
+      },
+    }))
+
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted.performancePads[0]).toMatchObject({ presetId: null, label: 'Empty' })
+    expect(persisted.performancePads[1]?.presetId).toBe(unrelatedPreset.id)
+    expect(persisted.presetAutomationCuesByTrackId.track.map(cue => cue.id)).toEqual(['unrelated'])
+
+    useReactStore.getState().replacePixGridDeckProject([])
+    expect(useReactStore.getState().performancePads[0]).toMatchObject({ presetId: null, label: 'Empty' })
+    expect(useReactStore.getState().performancePads[1]?.presetId).toBe(unrelatedPreset.id)
+    expect(useReactStore.getState().presetAutomationCuesByTrackId.track.map(cue => cue.id)).toEqual(['unrelated'])
   })
 
   it('reconstructs explicit generated Preset linkage from persisted project state', () => {

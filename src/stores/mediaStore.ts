@@ -212,7 +212,7 @@ export interface MediaDeletionWarning {
 }
 
 export type MediaDeletionGuardResult =
-  | { allowed: true; apply?: () => boolean; rollback?: () => void }
+  | { allowed: true; apply?: () => boolean; commit?: () => void; rollback?: () => void }
   | { allowed: false; warning: MediaDeletionWarning }
 
 export type MediaDeletionGuard = (
@@ -1992,6 +1992,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       return false
     }
     const applyGuard = (): boolean => guardResult.apply ? guardResult.apply() : true
+    const commitGuard = (): void => guardResult.commit?.()
     const rollbackGuard = (): void => guardResult.rollback?.()
 
     if (!item.dbId) {
@@ -1999,6 +2000,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         set({ deleteError: 'Deck references could not be updated, so the media item was not deleted.' })
         return false
       }
+      commitGuard()
       const remaining = get().items.filter(candidate => candidate.id !== id)
       set(state => ({
         items: remaining,
@@ -2033,6 +2035,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       set({ deleteError: interpretError(requested.message) })
       return false
     }
+    commitGuard()
     const deletion = cleanupJobToDeletionState(requested.cleanupJob)
     if (!deletion) {
       // The canonical delete request has already committed at this point. Restoring
