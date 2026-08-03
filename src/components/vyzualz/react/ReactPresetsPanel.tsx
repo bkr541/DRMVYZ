@@ -711,6 +711,7 @@ export function ReactPresetsPanel() {
     reactPresets,
     activeReactPresetId,
     activeReactEngineId,
+    selectedCanvasPresetId,
     laserDmxBeamMatrixAuthoringMode,
     cinematicConfigsByPresetId,
     reactIntensity,
@@ -726,6 +727,7 @@ export function ReactPresetsPanel() {
     reactPresets: state.reactPresets,
     activeReactPresetId: state.activeReactPresetId,
     activeReactEngineId: state.activeReactEngineId,
+    selectedCanvasPresetId: state.selectedCanvasPresetId,
     laserDmxBeamMatrixAuthoringMode: state.laserDmxBeamMatrixAuthoringMode,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     reactIntensity: state.reactIntensity,
@@ -835,6 +837,7 @@ export function ReactPresetsPanel() {
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
   const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx' && libraryView === 'current'
   const isCanvasCurrentLibrary = activeReactEngineId === 'canvas' && libraryView === 'current'
+  const selectedCanvasPreset = CANVAS_PRESETS.find(preset => preset.id === selectedCanvasPresetId) ?? CANVAS_PRESETS[0]
   const laserDmxPresetCount = laserDmxBeamMatrixAuthoringMode === 'showDirector'
     ? LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length + LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length
     : LASER_DMX_BEAM_MATRIX_PRESETS.length
@@ -979,6 +982,16 @@ export function ReactPresetsPanel() {
             helpId="react.pixGrid.presetLibrary"
             currentValue={`${active?.engine === 'pixGrid' ? active.name : 'No PixGrid preset selected'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${visiblePresets.length} shown`}
             currentValueTone={active?.engine === 'pixGrid' ? 'accent' : 'default'}
+            placement="left"
+          />
+        </div>
+      ) : activeReactEngineId === 'canvas' ? (
+        <div className="rv-canvas-presets-help drm-help-overlay-anchor">
+          {presetLibraryContent}
+          <HelpInfoTrigger
+            helpId="react.canvas.presetLibrary"
+            currentValue={`${selectedCanvasPreset?.name ?? 'No CANVAS preset selected'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${libraryView === 'current' ? `${CANVAS_PRESETS.length} CANVAS presets` : `${visiblePresets.length} shown`}`}
+            currentValueTone={selectedCanvasPreset ? 'accent' : 'default'}
             placement="left"
           />
         </div>

@@ -578,6 +578,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 ? 'rv-sound-drawing-workspace-tabs-help drm-help-overlay-anchor'
                 : activeReactEngineId === 'pixGrid'
                   ? 'rv-pix-grid-workspace-tabs-help drm-help-overlay-anchor'
+                  : activeReactEngineId === 'canvas'
+                    ? 'rv-canvas-workspace-tabs-help drm-help-overlay-anchor'
                   : 'rv-workspace-tabs-wrap'}>
                 <RailTabs
                   tabs={leftTabs}
@@ -597,6 +599,13 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   <HelpInfoTrigger
                     helpId="react.pixGrid.workspace.tabs"
                     currentValue={leftTabs.find((tab) => tab.id === leftTab)?.label ?? 'Setup'}
+                    placement="right"
+                  />
+                )}
+                {activeReactEngineId === 'canvas' && (
+                  <HelpInfoTrigger
+                    helpId="react.canvas.workspace.tabs"
+                    currentValue={leftTabs.find((tab) => tab.id === leftTab)?.label ?? 'Source'}
                     placement="right"
                   />
                 )}

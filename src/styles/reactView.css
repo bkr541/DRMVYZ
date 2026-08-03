@@ -4987,6 +4987,44 @@
   flex: 0 0 auto;
 }
 
+/* CANVAS help anchors keep media, display, orchestration, recipe, and timing
+   icons outside normal layout flow while preserving the compact rail geometry. */
+.rv-canvas-workspace-tabs-help,
+.rv-canvas-source-help,
+.rv-canvas-presets-help,
+.rv-canvas-control-help,
+.rv-canvas-react-control-help,
+.rv-canvas-section-trigger-help {
+  min-width: 0;
+}
+
+.rv-canvas-workspace-tabs-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -7px;
+  --drm-help-overlay-right: -3px;
+  --drm-help-overlay-z: 30;
+}
+
+.rv-canvas-source-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -5px;
+  --drm-help-overlay-z: 28;
+}
+
+.rv-canvas-presets-help {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rv-canvas-presets-help.drm-help-overlay-anchor,
+.rv-canvas-control-help.drm-help-overlay-anchor,
+.rv-canvas-react-control-help.drm-help-overlay-anchor,
+.rv-canvas-section-trigger-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -7px;
+  --drm-help-overlay-z: 28;
+}
+
 .rv-context-workspace > .rv-left-tab-body {
   padding: 0;
   gap: 0;

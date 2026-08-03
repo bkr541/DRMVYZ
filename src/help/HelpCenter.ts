@@ -2258,6 +2258,85 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "range": "0–100%"
   },
   {
+    "id": "react.canvas.workspace.tabs",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS workspace",
+    "title": "CANVAS Source",
+    "componentType": "selection",
+    "summary": "Opens the CANVAS source workspace where saved media, the performance pool, and media roles are managed.",
+    "whatItDoes": [
+      "Keeps CANVAS media ownership in the left rail while the center remains a render surface.",
+      "Shows the media sources that presets, Auto Select, and Performance Orchestration may use."
+    ],
+    "whenToUse": "Use Source before adjusting CANVAS presets or reactive controls so the engine has media to render.",
+    "affects": [
+      "active CANVAS media",
+      "performance media pool",
+      "media role assignments"
+    ],
+    "doesNotAffect": [
+      "the source files stored in the shared media library"
+    ],
+    "relatedHelpIds": [
+      "react.canvas.source.mediaLibrary",
+      "react.canvas.presetLibrary"
+    ]
+  },
+  {
+    "id": "react.canvas.source.mediaLibrary",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS workspace",
+    "title": "CANVAS Media Library",
+    "componentType": "selection",
+    "summary": "Selects the saved video, image, or SVG that CANVAS renders and manages for authored performances.",
+    "whatItDoes": [
+      "Filters the shared media library to formats supported by CANVAS.",
+      "Lets a source become active, join the deterministic performance pool, and receive explicit layer roles."
+    ],
+    "whenToUse": "Choose media here before loading a CANVAS preset, enabling particles, or starting Auto Performance.",
+    "affects": [
+      "active CANVAS source",
+      "performance pool membership",
+      "automatic and explicit media roles"
+    ],
+    "doesNotAffect": [
+      "the original uploaded file",
+      "media used by other engines"
+    ],
+    "tip": "Add several compatible sources to the Performance Pool when Performance Orchestration should cut or transition between media."
+  },
+  {
+    "id": "react.canvas.presetLibrary",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS presets",
+    "title": "CANVAS Presets",
+    "componentType": "selection",
+    "summary": "Loads a CANVAS visual recipe that transforms the active media without replacing the media itself.",
+    "whatItDoes": [
+      "Selects a built-in CANVAS recipe such as clean playback, bass bloom, trails, glitch, luma treatment, stutter, or particles.",
+      "Updates the CANVAS React Controls to the selected recipe values."
+    ],
+    "whenToUse": "Choose a preset after selecting media, then refine the recipe in the React tab.",
+    "affects": [
+      "selected CANVAS recipe",
+      "CANVAS reactive and effect parameters"
+    ],
+    "doesNotAffect": [
+      "active media selection",
+      "Display transform and output opacity"
+    ],
+    "relatedHelpIds": [
+      "react.canvas.reactControls.overview",
+      "react.canvas.source.mediaLibrary"
+    ]
+  },
+  {
     "id": "react.canvas.sourceAndDisplay.overview",
     "priority": 1,
     "view": "react",
@@ -3089,6 +3168,254 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     ],
     "defaultValue": "0%",
     "range": "0–100%"
+  },
+  {
+    "id": "react.canvas.reactControls.fx.glowAmount",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — FX",
+    "title": "Glow Amount",
+    "componentType": "slider",
+    "summary": "Sets the strength of the luminous aura and highlight bloom around the processed CANVAS source.",
+    "whatItDoes": [
+      "Raises the recipe glow and particle-aura brightness without changing the source file.",
+      "Works with Visual Intensity and audio reactivity to determine the final visible glow."
+    ],
+    "whenToUse": "Increase Glow Amount when the source needs a brighter halo or reduce it when edges lose definition.",
+    "affects": [
+      "CANVAS glow and aura strength"
+    ],
+    "doesNotAffect": [
+      "Canvas Output Opacity"
+    ],
+    "range": "0–100%",
+    "tip": "Pair moderate glow with Trail Amount for motion that remains crisp instead of becoming a foggy smear."
+  },
+  {
+    "id": "react.canvas.reactControls.fx.trailAmount",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — FX",
+    "title": "Trail Amount",
+    "componentType": "slider",
+    "summary": "Controls how strongly previous source positions remain visible as motion trails.",
+    "whatItDoes": [
+      "Adds offset echo layers behind the current CANVAS frame.",
+      "Scales the persistence and distance of the recipe trail treatment."
+    ],
+    "whenToUse": "Raise it for flowing echoes and lower it when fast motion becomes difficult to read.",
+    "affects": [
+      "CANVAS frame trails and echo layers"
+    ],
+    "range": "0–100%"
+  },
+  {
+    "id": "react.canvas.reactControls.fx.rgbSplit",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — FX",
+    "title": "RGB Split",
+    "componentType": "slider",
+    "summary": "Offsets color channels around the CANVAS source to create chromatic edge separation.",
+    "whatItDoes": [
+      "Separates cyan and magenta edge layers from the original frame.",
+      "Leaves the selected source and its media metadata unchanged."
+    ],
+    "whenToUse": "Use small values for dimensional edges and larger values for an intentionally fractured digital look.",
+    "affects": [
+      "CANVAS chromatic channel offset"
+    ],
+    "range": "0–100%",
+    "tip": "RGB Split reads most clearly on high-contrast edges and transparent media."
+  },
+  {
+    "id": "react.canvas.reactControls.fx.glitchAmount",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — FX",
+    "title": "Glitch Amount",
+    "componentType": "slider",
+    "summary": "Sets the strength of digital displacement and glitch overlays in the selected CANVAS recipe.",
+    "whatItDoes": [
+      "Scales frame offsets, glitch layers, and related contrast treatment.",
+      "Can combine with Beat Pulse and Stutter Rate for rhythm-driven interruption."
+    ],
+    "whenToUse": "Raise it for deliberate digital breakup and reduce it when the source identity is being lost.",
+    "affects": [
+      "CANVAS glitch displacement and overlays"
+    ],
+    "range": "0–100%"
+  },
+  {
+    "id": "react.canvas.reactControls.fx.stutterRate",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — FX",
+    "title": "Stutter Rate",
+    "componentType": "slider",
+    "summary": "Sets how many stepped frame holds CANVAS may apply each second.",
+    "whatItDoes": [
+      "Quantizes visible source updates into repeated frame holds.",
+      "A value of zero disables the stutter treatment."
+    ],
+    "whenToUse": "Use low rates for chunky freezes and higher rates for rapid rhythmic stepping.",
+    "affects": [
+      "CANVAS frame-hold cadence"
+    ],
+    "defaultValue": "Off",
+    "range": "0–12 holds per second",
+    "tip": "Combine Stutter Rate with Beat Pulse rather than maxing both controls when the rhythm should remain legible."
+  },
+  {
+    "id": "react.canvas.reactControls.fx.lumaThreshold",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — FX",
+    "title": "Luma Threshold",
+    "componentType": "slider",
+    "summary": "Sets the brightness cutoff used by CANVAS luma smear and melt treatments.",
+    "whatItDoes": [
+      "Determines which bright or dark areas participate in luma-driven processing.",
+      "Changes the mask threshold without editing the source media."
+    ],
+    "whenToUse": "Move the threshold until the desired highlights or silhouettes drive the effect.",
+    "affects": [
+      "CANVAS luma mask and smear response"
+    ],
+    "range": "0–100%"
+  },
+  {
+    "id": "react.canvas.reactControls.motionAndParticles.motionAmount",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — Motion + Particles",
+    "title": "Motion Amount",
+    "componentType": "slider",
+    "summary": "Sets the overall strength of recipe-driven movement and motion treatment.",
+    "whatItDoes": [
+      "Scales source motion, luma movement, and related recipe animation.",
+      "Works independently from the static Display position and rotation controls."
+    ],
+    "whenToUse": "Raise it when the media feels static or lower it when authored motion in the source should remain dominant.",
+    "affects": [
+      "CANVAS recipe motion strength"
+    ],
+    "doesNotAffect": [
+      "Display Position X",
+      "Display Position Y",
+      "Display Rotation"
+    ],
+    "range": "0–100%"
+  },
+  {
+    "id": "react.canvas.reactControls.motionAndParticles.turbulence",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — Motion + Particles",
+    "title": "Turbulence",
+    "componentType": "slider",
+    "summary": "Adds irregular flow and displacement to CANVAS motion and particle movement.",
+    "whatItDoes": [
+      "Introduces non-uniform motion so particles and processed layers do not move as a rigid block.",
+      "Scales the amount of procedural variation in the selected recipe."
+    ],
+    "whenToUse": "Use moderate values for organic drift and higher values for chaotic motion.",
+    "affects": [
+      "CANVAS procedural motion variation"
+    ],
+    "range": "0–100%"
+  },
+  {
+    "id": "react.canvas.reactControls.motionAndParticles.particleDensity",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — Motion + Particles",
+    "title": "Particle Density",
+    "componentType": "slider",
+    "summary": "Controls how densely Particle Aura reconstructs and emits points from the active CANVAS source.",
+    "whatItDoes": [
+      "Increases or decreases the sampled particle grid used to represent source pixels.",
+      "A value near zero disables the Particle Aura layer."
+    ],
+    "whenToUse": "Raise density for a fuller holographic reconstruction and lower it to improve clarity or performance.",
+    "affects": [
+      "CANVAS particle count and reconstruction density"
+    ],
+    "range": "0–100%",
+    "tip": "Particle Density requires an active compatible CANVAS media source."
+  },
+  {
+    "id": "react.canvas.reactControls.motionAndParticles.particleSize",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — Motion + Particles",
+    "title": "Particle Size",
+    "componentType": "slider",
+    "summary": "Sets the rendered size of individual CANVAS particles.",
+    "whatItDoes": [
+      "Scales each sampled particle without changing the number of particles.",
+      "Works with density and glow to define the final particle texture."
+    ],
+    "whenToUse": "Use smaller particles for detailed reconstruction and larger particles for a bold LED or hologram texture.",
+    "affects": [
+      "individual CANVAS particle size"
+    ],
+    "doesNotAffect": [
+      "Particle Density"
+    ],
+    "range": "0.35–8.00×"
+  },
+  {
+    "id": "react.canvas.reactControls.motionAndParticles.particleColorMode",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — Motion + Particles",
+    "title": "Particle Color Mode",
+    "componentType": "select",
+    "summary": "Chooses whether CANVAS particles use source colors, the DRMVYZ palette, or audio-reactive recoloring.",
+    "whatItDoes": [
+      "Original samples colors from the active media.",
+      "Palette uses the cyan and emerald visual palette, while Audio Reactive lets audio features influence particle color."
+    ],
+    "whenToUse": "Choose Original for faithful reconstruction, Palette for brand consistency, or Audio Reactive for music-driven color movement.",
+    "affects": [
+      "CANVAS particle color source"
+    ],
+    "defaultValue": "Original"
+  },
+  {
+    "id": "react.canvas.reactControls.motionAndParticles.particleQuality",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS React Controls — Motion + Particles",
+    "title": "Particle Quality",
+    "componentType": "select",
+    "summary": "Chooses the Particle Aura resolution and rendering budget.",
+    "whatItDoes": [
+      "Adjusts particle-grid resolution, render scale, and compatibility sampling.",
+      "The adaptive renderer may temporarily reduce load and recover after slow frames."
+    ],
+    "whenToUse": "Use High for powerful hardware and detailed output, Balanced for normal use, or Low when performance headroom is limited.",
+    "affects": [
+      "CANVAS particle rendering quality and cost"
+    ],
+    "doesNotAffect": [
+      "the source file resolution"
+    ],
+    "defaultValue": "Balanced",
+    "tip": "Lower quality before reducing the creative Particle Density value when the goal is only to recover frame rate."
   },
   {
     "id": "react.laserDmx.workspace.overview",

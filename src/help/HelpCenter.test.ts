@@ -167,6 +167,41 @@ describe('Help Center registry', () => {
     })
   })
 
+  it('documents the explicit CANVAS source, preset, display, performance, timing, and React controls', () => {
+    expect(getHelpEntry('react.canvas.workspace.tabs')).toMatchObject({
+      title: 'CANVAS Source',
+      componentType: 'selection',
+    })
+    expect(getHelpEntry('react.canvas.source.mediaLibrary')).toMatchObject({
+      title: 'CANVAS Media Library',
+      componentType: 'selection',
+    })
+    expect(getHelpEntry('react.canvas.presetLibrary')).toMatchObject({
+      title: 'CANVAS Presets',
+      componentType: 'selection',
+    })
+    expect(getHelpEntry('react.canvas.sourceAndDisplay.display.fitMode')).toMatchObject({
+      title: 'Fit Mode',
+      componentType: 'select',
+    })
+    expect(getHelpEntry('react.canvas.performanceOrchestration.autoPerformance')).toMatchObject({
+      title: 'Auto Performance',
+      componentType: 'toggle',
+    })
+    expect(getHelpEntry('react.canvas.videoTiming.sectionTriggerMapping.overview')).toMatchObject({
+      title: 'Section Trigger Mapping',
+      componentType: 'group',
+    })
+    expect(getHelpEntry('react.canvas.reactControls.fx.glowAmount')).toMatchObject({
+      title: 'Glow Amount',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.canvas.reactControls.motionAndParticles.particleQuality')).toMatchObject({
+      title: 'Particle Quality',
+      componentType: 'select',
+    })
+  })
+
   it('documents the explicit LaserDMX workspace, preset, design, and performance controls', () => {
     expect(getHelpEntry('react.laserDmx.workspace.overview')).toMatchObject({
       title: 'LaserDMX Workspace',

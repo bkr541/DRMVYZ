@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -8,6 +8,7 @@ import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIn
 import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
@@ -104,6 +105,39 @@ const CANVAS_TIMING_MAX_SECONDS = 60 * 60 * 6
 type CanvasMediaLoadState = { mediaId: string | null; message: string | null }
 
 const EMPTY_CANVAS_MEDIA_LOAD_STATE: CanvasMediaLoadState = { mediaId: null, message: null }
+
+interface CanvasHelpControlProps {
+  helpId: HelpInfoTriggerProps['helpId']
+  currentValue?: ReactNode
+  currentValueLabel?: HelpInfoTriggerProps['currentValueLabel']
+  currentValueTone?: HelpInfoTriggerProps['currentValueTone']
+  placement?: HelpInfoTriggerProps['placement']
+  className?: string
+  children: ReactNode
+}
+
+function CanvasHelpControl({
+  helpId,
+  currentValue,
+  currentValueLabel,
+  currentValueTone,
+  placement = 'left',
+  className = 'rv-canvas-control-help',
+  children,
+}: CanvasHelpControlProps) {
+  return (
+    <div className={`${className} drm-help-overlay-anchor`}>
+      {children}
+      <HelpInfoTrigger
+        helpId={helpId}
+        currentValue={currentValue}
+        currentValueLabel={currentValueLabel}
+        currentValueTone={currentValueTone}
+        placement={placement}
+      />
+    </div>
+  )
+}
 
 function CanvasMediaTokens() {
   return (
@@ -2292,6 +2326,36 @@ export const CANVAS_REACT_CONTROL_GROUPS: Array<{
   },
 ]
 
+const CANVAS_REACT_CONTROL_HELP_IDS: Record<CanvasPresetControlKey, HelpInfoTriggerProps['helpId']> = {
+  drySourceMix: 'react.canvas.reactControls.sourceAndReactivity.drySourceMix',
+  sourceVisibility: 'react.canvas.reactControls.sourceAndReactivity.drySourceMix',
+  intensity: 'react.canvas.reactControls.sourceAndReactivity.visualIntensity',
+  bassReactivity: 'react.canvas.reactControls.sourceAndReactivity.bassReactivity',
+  beatPulse: 'react.canvas.reactControls.sourceAndReactivity.beatPulse',
+  glow: 'react.canvas.reactControls.fx.glowAmount',
+  trailAmount: 'react.canvas.reactControls.fx.trailAmount',
+  rgbSplit: 'react.canvas.reactControls.fx.rgbSplit',
+  glitchAmount: 'react.canvas.reactControls.fx.glitchAmount',
+  stutterRate: 'react.canvas.reactControls.fx.stutterRate',
+  lumaThreshold: 'react.canvas.reactControls.fx.lumaThreshold',
+  motionAmount: 'react.canvas.reactControls.motionAndParticles.motionAmount',
+  turbulence: 'react.canvas.reactControls.motionAndParticles.turbulence',
+  particleDensity: 'react.canvas.reactControls.motionAndParticles.particleDensity',
+  particleSize: 'react.canvas.reactControls.motionAndParticles.particleSize',
+  particleColorMode: 'react.canvas.reactControls.motionAndParticles.particleColorMode',
+  particleQuality: 'react.canvas.reactControls.motionAndParticles.particleQuality',
+}
+
+function formatCanvasPercentage(value: number): string {
+  return `${Math.round(value * 100)}%`
+}
+
+function formatCanvasReactControlValue(control: CanvasPresetControlKey, value: number): string {
+  if (control === 'stutterRate') return value <= 0 ? 'Off' : `${Math.round(value)} holds/sec`
+  if (control === 'particleSize') return `${value.toFixed(2)}×`
+  return formatCanvasPercentage(value)
+}
+
 
 function CanvasAutoSelectControl() {
   const engine = useSharedAudio()
@@ -2361,12 +2425,19 @@ function CanvasAutoSelectControl() {
 
   return (
     <div className="rv-canvas-auto-select-block">
-      <ToggleRow
-        label="Auto Select"
-        value={settings.autoSelectEnabled}
-        onChange={setCanvasAutoSelectEnabled}
-        description={description}
-      />
+      <CanvasHelpControl
+        helpId="react.canvas.sourceAndDisplay.sourceLink.autoSelect"
+        currentValue={settings.autoSelectEnabled ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={settings.autoSelectEnabled ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Auto Select"
+          value={settings.autoSelectEnabled}
+          onChange={setCanvasAutoSelectEnabled}
+          description={description}
+        />
+      </CanvasHelpControl>
       {manualOverrideActive && (
         <CanvasOverrideStatus
           message={`Manual override: ${selectedPreset.name} is selected.`}
@@ -2466,95 +2537,160 @@ function CanvasTimingControls() {
   return (
     <Collapsible label="Video Timing" defaultOpen>
       <div className="rv-canvas-engine-note">{timingDescription}</div>
-      <SelectRow
-        label="Trigger On"
-        value={timing.triggerOn}
-        onChange={value => setTiming({ triggerOn: value as CanvasTriggerOn })}
-        disabled={!hasActiveVideo}
-        options={CANVAS_TRIGGER_OPTIONS}
-        description="Choose the musical moment that restarts the active CANVAS video clip."
-      />
-      <NumberInputRow
-        label="Clip Start Time"
-        value={timing.clipStartSec}
-        onChange={value => setTiming({ clipStartSec: value })}
-        min={0}
-        max={CANVAS_TIMING_MAX_SECONDS}
-        step={0.1}
-        unit="sec"
-        disabled={!hasActiveVideo}
-      />
-      <NumberInputRow
-        label="Clip End Time"
-        value={timing.clipEndSec}
-        onChange={value => setTiming({ clipEndSec: value })}
-        min={0}
-        max={CANVAS_TIMING_MAX_SECONDS}
-        step={0.1}
-        unit="sec"
-        disabled={!hasActiveVideo}
-      />
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.triggerOn"
+        currentValue={CANVAS_TRIGGER_OPTIONS.find(option => option.value === timing.triggerOn)?.label ?? 'Manual Only'}
+        currentValueTone={hasActiveVideo ? 'accent' : 'default'}
+      >
+        <SelectRow
+          label="Trigger On"
+          value={timing.triggerOn}
+          onChange={value => setTiming({ triggerOn: value as CanvasTriggerOn })}
+          disabled={!hasActiveVideo}
+          options={CANVAS_TRIGGER_OPTIONS}
+          description="Choose the musical moment that restarts the active CANVAS video clip."
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.clipStartSeconds"
+        currentValue={formatCanvasTimingSeconds(timing.clipStartSec)}
+        currentValueTone={hasActiveVideo ? 'accent' : 'default'}
+      >
+        <NumberInputRow
+          label="Clip Start Time"
+          value={timing.clipStartSec}
+          onChange={value => setTiming({ clipStartSec: value })}
+          min={0}
+          max={CANVAS_TIMING_MAX_SECONDS}
+          step={0.1}
+          unit="sec"
+          disabled={!hasActiveVideo}
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.clipEndSeconds"
+        currentValue={timing.clipEndSec > 0 ? formatCanvasTimingSeconds(timing.clipEndSec) : 'Video end'}
+        currentValueTone={hasActiveVideo ? 'accent' : 'default'}
+      >
+        <NumberInputRow
+          label="Clip End Time"
+          value={timing.clipEndSec}
+          onChange={value => setTiming({ clipEndSec: value })}
+          min={0}
+          max={CANVAS_TIMING_MAX_SECONDS}
+          step={0.1}
+          unit="sec"
+          disabled={!hasActiveVideo}
+        />
+      </CanvasHelpControl>
       <div className="rv-canvas-engine-note">
         End time 0 uses the full video. Active range: {formatCanvasTimingSeconds(timing.clipStartSec)} → {timing.clipEndSec > 0 ? formatCanvasTimingSeconds(timing.clipEndSec) : 'video end'}.
       </div>
-      <ToggleRow
-        label="Loop Clip Range"
-        value={timing.loopClipRange}
-        onChange={value => setTiming({ loopClipRange: value })}
-        disabled={!hasActiveVideo}
-        description="Loops from Clip Start Time to Clip End Time, or to video end when end time is 0."
-      />
-      <ToggleRow
-        label="Loop Full Video"
-        value={settings.loopVideo}
-        onChange={value => setCanvasEngineSettings({ loopVideo: value })}
-        disabled={!hasActiveVideo}
-        description="Fallback full-video loop when no clip end time is set."
-      />
-      <ToggleRow
-        label="Restart on Drop"
-        value={timing.restartOnDrop}
-        onChange={value => setTiming({ restartOnDrop: value })}
-        disabled={!hasActiveVideo}
-        description="Restarts the clip when CANVAS detects a drop section or high-confidence drop moment."
-      />
-      <ToggleRow
-        label="Restart on Section Change"
-        value={timing.restartOnSectionChange}
-        onChange={value => setTiming({ restartOnSectionChange: value })}
-        disabled={!hasActiveVideo}
-        description="Restarts when the current Audio Intelligence section changes into one of the mapped section types below."
-      />
-      <ToggleRow
-        label="Restart on Manual Preset Change"
-        value={timing.restartOnManualPresetChange}
-        onChange={value => setTiming({ restartOnManualPresetChange: value })}
-        disabled={!hasActiveVideo}
-        description="Restarts the clip when the user manually changes the CANVAS preset."
-      />
-      <div className="rv-canvas-section-trigger-block" aria-label="CANVAS section trigger mapping">
-        <div className="rv-canvas-section-trigger-head">
-          <span>Section Trigger Mapping</span>
-          <em>{sectionDescription}</em>
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.loopClipRange"
+        currentValue={timing.loopClipRange ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={timing.loopClipRange ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Loop Clip Range"
+          value={timing.loopClipRange}
+          onChange={value => setTiming({ loopClipRange: value })}
+          disabled={!hasActiveVideo}
+          description="Loops from Clip Start Time to Clip End Time, or to video end when end time is 0."
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.loopFullVideo"
+        currentValue={settings.loopVideo ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={settings.loopVideo ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Loop Full Video"
+          value={settings.loopVideo}
+          onChange={value => setCanvasEngineSettings({ loopVideo: value })}
+          disabled={!hasActiveVideo}
+          description="Fallback full-video loop when no clip end time is set."
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.restartOnDrop"
+        currentValue={timing.restartOnDrop ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={timing.restartOnDrop ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Restart on Drop"
+          value={timing.restartOnDrop}
+          onChange={value => setTiming({ restartOnDrop: value })}
+          disabled={!hasActiveVideo}
+          description="Restarts the clip when CANVAS detects a drop section or high-confidence drop moment."
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.restartOnSectionChange"
+        currentValue={timing.restartOnSectionChange ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={timing.restartOnSectionChange ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Restart on Section Change"
+          value={timing.restartOnSectionChange}
+          onChange={value => setTiming({ restartOnSectionChange: value })}
+          disabled={!hasActiveVideo}
+          description="Restarts when the current Audio Intelligence section changes into one of the mapped section types below."
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.restartOnManualPresetChange"
+        currentValue={timing.restartOnManualPresetChange ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={timing.restartOnManualPresetChange ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Restart on Manual Preset Change"
+          value={timing.restartOnManualPresetChange}
+          onChange={value => setTiming({ restartOnManualPresetChange: value })}
+          disabled={!hasActiveVideo}
+          description="Restarts the clip when the user manually changes the CANVAS preset."
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.videoTiming.sectionTriggerMapping.overview"
+        currentValue={timing.sectionTriggerTypes.length > 0
+          ? CANVAS_SECTION_TRIGGER_OPTIONS
+              .filter(option => timing.sectionTriggerTypes.includes(option.value))
+              .map(option => option.label)
+              .join(', ')
+          : 'No mapped sections'}
+        currentValueTone={timing.sectionTriggerTypes.length > 0 ? 'accent' : 'default'}
+        className="rv-canvas-section-trigger-help"
+      >
+        <div className="rv-canvas-section-trigger-block" aria-label="CANVAS section trigger mapping">
+          <div className="rv-canvas-section-trigger-head">
+            <span>Section Trigger Mapping</span>
+            <em>{sectionDescription}</em>
+          </div>
+          <div className="rv-canvas-section-trigger-grid">
+            {CANVAS_SECTION_TRIGGER_OPTIONS.map(option => {
+              const active = timing.sectionTriggerTypes.includes(option.value)
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`rv-canvas-section-trigger-chip${active ? ' rv-canvas-section-trigger-chip--active' : ''}`}
+                  onClick={() => toggleSectionTrigger(option.value)}
+                  disabled={!hasActiveVideo}
+                  aria-pressed={active}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
-        <div className="rv-canvas-section-trigger-grid">
-          {CANVAS_SECTION_TRIGGER_OPTIONS.map(option => {
-            const active = timing.sectionTriggerTypes.includes(option.value)
-            return (
-              <button
-                key={option.value}
-                type="button"
-                className={`rv-canvas-section-trigger-chip${active ? ' rv-canvas-section-trigger-chip--active' : ''}`}
-                onClick={() => toggleSectionTrigger(option.value)}
-                disabled={!hasActiveVideo}
-                aria-pressed={active}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      </CanvasHelpControl>
       <button
         type="button"
         className="rv-reset-btn rv-canvas-restart-btn"
@@ -2594,12 +2730,19 @@ function CanvasOrchestrationControls() {
 
   return (
     <Collapsible label="Performance Orchestration" defaultOpen>
-      <ToggleRow
-        label="Auto Performance"
-        value={settings.enabled}
-        onChange={enabled => setSettings({ enabled })}
-        description="Uses the Shared Performance Core to arrange the selected pool. Existing presets and manual playback remain the fallback when disabled."
-      />
+      <CanvasHelpControl
+        helpId="react.canvas.performanceOrchestration.autoPerformance"
+        currentValue={settings.enabled ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={settings.enabled ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Auto Performance"
+          value={settings.enabled}
+          onChange={enabled => setSettings({ enabled })}
+          description="Uses the Shared Performance Core to arrange the selected pool. Existing presets and manual playback remain the fallback when disabled."
+        />
+      </CanvasHelpControl>
       <div className="rv-canvas-orchestration-summary" role="status">
         <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
         <span>{selectedShow.label}</span>
@@ -2608,33 +2751,64 @@ function CanvasOrchestrationControls() {
       {settings.enabled && poolItems.length === 0 && (
         <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">Select media in the left SOURCE panel to build the performance pool.</div>
       )}
-      <SelectRow
-        label="Performance Show"
-        value={settings.programId}
-        onChange={value => setSettings({ programId: value as CanvasPerformanceShowId })}
-        options={CANVAS_PERFORMANCE_SHOW_OPTIONS}
-        description={selectedShow.description}
-      />
-      <ToggleRow
-        label="Auto Role"
-        value={settings.autoRoleEnabled}
-        onChange={autoRoleEnabled => setSettings({ autoRoleEnabled })}
-        description="Derives conservative roles from type, alpha, duration, aspect, tags, and media-library organization when no explicit role exists."
-      />
-      <SelectRow
-        label="Composition"
-        value={settings.compositionPreference}
-        onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
-        options={[
-          { value: 'auto', label: 'Auto · Section Aware' },
-          ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
-        ]}
-      />
-      <SliderRow label="Layer Complexity" value={settings.complexity} onChange={complexity => setSettings({ complexity })} min={0} max={1} step={0.01} color="#61d6aa" />
-      <SliderRow label="Transition Density" value={settings.transitionDensity} onChange={transitionDensity => setSettings({ transitionDensity })} min={0} max={1} step={0.01} color="#4ac7db" />
-      <SliderRow label="Effect Intensity" value={settings.effectIntensity} onChange={effectIntensity => setSettings({ effectIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
-      <SliderRow label="Motion Intensity" value={settings.motionIntensity} onChange={motionIntensity => setSettings({ motionIntensity })} min={0} max={1} step={0.01} color="#d8b95a" />
-      <SliderRow label="Cut Density" value={settings.cutDensity} onChange={cutDensity => setSettings({ cutDensity })} min={0} max={1} step={0.01} color="#f09c5a" />
+      <CanvasHelpControl
+        helpId="react.canvas.performanceOrchestration.performanceShow"
+        currentValue={selectedShow.label}
+        currentValueTone="accent"
+      >
+        <SelectRow
+          label="Performance Show"
+          value={settings.programId}
+          onChange={value => setSettings({ programId: value as CanvasPerformanceShowId })}
+          options={CANVAS_PERFORMANCE_SHOW_OPTIONS}
+          description={selectedShow.description}
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.performanceOrchestration.autoRole"
+        currentValue={settings.autoRoleEnabled ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={settings.autoRoleEnabled ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Auto Role"
+          value={settings.autoRoleEnabled}
+          onChange={autoRoleEnabled => setSettings({ autoRoleEnabled })}
+          description="Derives conservative roles from type, alpha, duration, aspect, tags, and media-library organization when no explicit role exists."
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl
+        helpId="react.canvas.performanceOrchestration.composition"
+        currentValue={settings.compositionPreference === 'auto'
+          ? 'Auto · Section Aware'
+          : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
+        currentValueTone="accent"
+      >
+        <SelectRow
+          label="Composition"
+          value={settings.compositionPreference}
+          onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
+          options={[
+            { value: 'auto', label: 'Auto · Section Aware' },
+            ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
+          ]}
+        />
+      </CanvasHelpControl>
+      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.layerComplexity" currentValue={formatCanvasPercentage(settings.complexity)}>
+        <SliderRow label="Layer Complexity" value={settings.complexity} onChange={complexity => setSettings({ complexity })} min={0} max={1} step={0.01} color="#61d6aa" />
+      </CanvasHelpControl>
+      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.transitionDensity" currentValue={formatCanvasPercentage(settings.transitionDensity)}>
+        <SliderRow label="Transition Density" value={settings.transitionDensity} onChange={transitionDensity => setSettings({ transitionDensity })} min={0} max={1} step={0.01} color="#4ac7db" />
+      </CanvasHelpControl>
+      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.effectIntensity" currentValue={formatCanvasPercentage(settings.effectIntensity)}>
+        <SliderRow label="Effect Intensity" value={settings.effectIntensity} onChange={effectIntensity => setSettings({ effectIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
+      </CanvasHelpControl>
+      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.motionIntensity" currentValue={formatCanvasPercentage(settings.motionIntensity)}>
+        <SliderRow label="Motion Intensity" value={settings.motionIntensity} onChange={motionIntensity => setSettings({ motionIntensity })} min={0} max={1} step={0.01} color="#d8b95a" />
+      </CanvasHelpControl>
+      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.cutDensity" currentValue={formatCanvasPercentage(settings.cutDensity)}>
+        <SliderRow label="Cut Density" value={settings.cutDensity} onChange={cutDensity => setSettings({ cutDensity })} min={0} max={1} step={0.01} color="#f09c5a" />
+      </CanvasHelpControl>
       <Collapsible label="Locks" defaultOpen={false}>
         <ToggleRow
           label="Media Lock"
@@ -2685,14 +2859,21 @@ function CanvasPresetControls() {
   const renderControl = (control: CanvasPresetControlKey) => {
     if (control === 'particleColorMode') {
       return (
-        <SelectRow
+        <CanvasHelpControl
           key={control}
-          label="Particle Color Mode"
-          value={canvasPresetSettings.particleColorMode}
-          onChange={value => setCanvasPresetSettings({ particleColorMode: value as CanvasPresetColorMode })}
-          options={CANVAS_PARTICLE_COLOR_MODE_OPTIONS}
-          description="Original samples source color, Palette uses the DRMVYZ cyan/emerald palette, and Audio Reactive lets highs and bass recolor the particles."
-        />
+          helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
+          currentValue={CANVAS_PARTICLE_COLOR_MODE_OPTIONS.find(option => option.value === canvasPresetSettings.particleColorMode)?.label ?? 'Original'}
+          currentValueTone="accent"
+          className="rv-canvas-react-control-help"
+        >
+          <SelectRow
+            label="Particle Color Mode"
+            value={canvasPresetSettings.particleColorMode}
+            onChange={value => setCanvasPresetSettings({ particleColorMode: value as CanvasPresetColorMode })}
+            options={CANVAS_PARTICLE_COLOR_MODE_OPTIONS}
+            description="Original samples source color, Palette uses the DRMVYZ cyan/emerald palette, and Audio Reactive lets highs and bass recolor the particles."
+          />
+        </CanvasHelpControl>
       )
     }
 
@@ -2700,31 +2881,44 @@ function CanvasPresetControls() {
 
     if (control === 'particleQuality') {
       return (
-        <SelectRow
+        <CanvasHelpControl
           key={control}
-          label="Particle Quality"
-          value={canvasPresetSettings.particleQuality}
-          onChange={value => setCanvasPresetSettings({ particleQuality: value as CanvasParticleQuality })}
-          options={CANVAS_PARTICLE_QUALITY_OPTIONS}
-          description="Controls hologram grid resolution, render scale, and compatibility sampling. Adaptive quality can recover after temporary slowdowns."
-        />
+          helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
+          currentValue={CANVAS_PARTICLE_QUALITY_OPTIONS.find(option => option.value === canvasPresetSettings.particleQuality)?.label ?? 'Balanced'}
+          currentValueTone="accent"
+          className="rv-canvas-react-control-help"
+        >
+          <SelectRow
+            label="Particle Quality"
+            value={canvasPresetSettings.particleQuality}
+            onChange={value => setCanvasPresetSettings({ particleQuality: value as CanvasParticleQuality })}
+            options={CANVAS_PARTICLE_QUALITY_OPTIONS}
+            description="Controls hologram grid resolution, render scale, and compatibility sampling. Adaptive quality can recover after temporary slowdowns."
+          />
+        </CanvasHelpControl>
       )
     }
 
     if (!isCanvasPresetSliderControlKey(control)) return null
     const meta = CANVAS_PRESET_CONTROL_META[control]
     return (
-      <SliderRow
+      <CanvasHelpControl
         key={control}
-        label={meta.label}
-        value={canvasPresetSettings[control]}
-        onChange={value => setCanvasPresetSettings({ [control]: value } as Partial<CanvasPresetSettings>)}
-        min={meta.min}
-        max={meta.max}
-        step={meta.step}
-        color={meta.color}
-        description={meta.description}
-      />
+        helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
+        currentValue={formatCanvasReactControlValue(control, canvasPresetSettings[control])}
+        className="rv-canvas-react-control-help"
+      >
+        <SliderRow
+          label={meta.label}
+          value={canvasPresetSettings[control]}
+          onChange={value => setCanvasPresetSettings({ [control]: value } as Partial<CanvasPresetSettings>)}
+          min={meta.min}
+          max={meta.max}
+          step={meta.step}
+          color={meta.color}
+          description={meta.description}
+        />
+      </CanvasHelpControl>
     )
   }
 
@@ -2766,14 +2960,25 @@ function CanvasPresetControls() {
 
 export function CanvasEnginePanel() {
   const libraryMediaCount = useMediaStore(s => s.items.length)
-  const canvasReadyCount = useCanvasRuntimeMediaItems().length
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const canvasReadyCount = mediaItems.length
+  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
+  const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   return (
     <>
       <CtrlSection label="CANVAS" />
       <div className="rv-canvas-engine-panel">
-        <CanvasMediaLibrary compact />
+        <CanvasHelpControl
+          helpId="react.canvas.source.mediaLibrary"
+          currentValue={activeItem ? `${activeItem.name} · ${TYPE_LABELS[activeItem.type]}` : 'No active media'}
+          currentValueTone={activeItem ? 'accent' : 'default'}
+          placement="right"
+          className="rv-canvas-source-help"
+        >
+          <CanvasMediaLibrary compact />
+        </CanvasHelpControl>
         <div className="rv-canvas-panel-status">
           <span>Saved media</span>
           <strong>{libraryMediaCount}</strong>
@@ -2807,61 +3012,77 @@ export function CanvasEngineFxPanel() {
       </Collapsible>
 
       <Collapsible label="Display" defaultOpen>
-        <SelectRow
-          label="Fit Mode"
-          value={settings.fitMode}
-          onChange={value => setSettings({ fitMode: value as CanvasFitMode })}
-          options={[
-            { value: 'contain', label: 'Contain' },
-            { value: 'cover', label: 'Cover' },
-            { value: 'stretch', label: 'Stretch' },
-          ]}
-        />
-        <SliderRow
-          label="Scale"
-          value={settings.scale}
-          onChange={value => setSettings({ scale: value })}
-          min={0.1}
-          max={4}
-          step={0.01}
-          color="#61d6aa"
-        />
-        <SliderRow
-          label="Position X"
-          value={settings.positionX}
-          onChange={value => setSettings({ positionX: value })}
-          min={-100}
-          max={100}
-          step={1}
-          color="#4ac7db"
-        />
-        <SliderRow
-          label="Position Y"
-          value={settings.positionY}
-          onChange={value => setSettings({ positionY: value })}
-          min={-100}
-          max={100}
-          step={1}
-          color="#4ac7db"
-        />
-        <SliderRow
-          label="Rotation"
-          value={settings.rotation}
-          onChange={value => setSettings({ rotation: value })}
-          min={-180}
-          max={180}
-          step={1}
-          color="#d8b95a"
-        />
-        <SliderRow
-          label="Canvas Output Opacity"
-          value={settings.opacity}
-          onChange={value => setSettings({ opacity: value })}
-          min={0}
-          max={1}
-          step={0.01}
-          color="#b84fc9"
-        />
+        <CanvasHelpControl
+          helpId="react.canvas.sourceAndDisplay.display.fitMode"
+          currentValue={settings.fitMode === 'contain' ? 'Contain' : settings.fitMode === 'cover' ? 'Cover' : 'Stretch'}
+          currentValueTone="accent"
+        >
+          <SelectRow
+            label="Fit Mode"
+            value={settings.fitMode}
+            onChange={value => setSettings({ fitMode: value as CanvasFitMode })}
+            options={[
+              { value: 'contain', label: 'Contain' },
+              { value: 'cover', label: 'Cover' },
+              { value: 'stretch', label: 'Stretch' },
+            ]}
+          />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.scale" currentValue={`${settings.scale.toFixed(2)}×`}>
+          <SliderRow
+            label="Scale"
+            value={settings.scale}
+            onChange={value => setSettings({ scale: value })}
+            min={0.1}
+            max={4}
+            step={0.01}
+            color="#61d6aa"
+          />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.positionX" currentValue={`${Math.round(settings.positionX)}%`}>
+          <SliderRow
+            label="Position X"
+            value={settings.positionX}
+            onChange={value => setSettings({ positionX: value })}
+            min={-100}
+            max={100}
+            step={1}
+            color="#4ac7db"
+          />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.positionY" currentValue={`${Math.round(settings.positionY)}%`}>
+          <SliderRow
+            label="Position Y"
+            value={settings.positionY}
+            onChange={value => setSettings({ positionY: value })}
+            min={-100}
+            max={100}
+            step={1}
+            color="#4ac7db"
+          />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.rotation" currentValue={`${Math.round(settings.rotation)}°`}>
+          <SliderRow
+            label="Rotation"
+            value={settings.rotation}
+            onChange={value => setSettings({ rotation: value })}
+            min={-180}
+            max={180}
+            step={1}
+            color="#d8b95a"
+          />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.outputOpacity" currentValue={formatCanvasPercentage(settings.opacity)}>
+          <SliderRow
+            label="Canvas Output Opacity"
+            value={settings.opacity}
+            onChange={value => setSettings({ opacity: value })}
+            min={0}
+            max={1}
+            step={0.01}
+            color="#b84fc9"
+          />
+        </CanvasHelpControl>
       </Collapsible>
 
 
