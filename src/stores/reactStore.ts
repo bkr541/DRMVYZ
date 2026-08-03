@@ -191,7 +191,7 @@ import {
   isCurrentSvgVisualGeneration,
 } from '../components/vyzualz/react/renderers/svgVisualCache'
 import { sanitizeReactPresetFavorites } from '../components/vyzualz/react/reactPresetLibraryState'
-import { createDefaultPixGridState } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
+import { createDefaultPixGridState, DEFAULT_PIX_GRID_PRESET_ID } from '../components/vyzualz/react/pixGrid/PixGridDefaults'
 import { applyPixGridPresetSettings, resetPixGridStatePreservingSelection } from '../components/vyzualz/react/pixGrid/PixGridState'
 import type { PixGridPerformanceProgramId, PixGridQualityMode, PixGridQualityTier, PixGridState } from '../components/vyzualz/react/pixGrid/PixGridTypes'
 import { normalizePixGridPresetSettings, normalizePixGridState } from '../components/vyzualz/react/pixGrid/PixGridValidation'
@@ -208,6 +208,11 @@ import {
 } from '../components/vyzualz/react/pixGrid/PixGridControlContract'
 import { PIX_GRID_PRESET_ID_BY_PROGRAM } from '../components/vyzualz/react/pixGrid/PixGridPerformancePrograms'
 import { PIX_GRID_PRESET_BY_ID } from '../components/vyzualz/react/pixGrid/PixGridPresets'
+import {
+  RETIRED_PIX_GRID_MARQUEE_PRESET_ID,
+  sanitizeRetiredPixGridMarqueeActionCueMap,
+  sanitizeRetiredPixGridMarqueeState,
+} from '../components/vyzualz/react/pixGrid/PixGridRetiredPresetMigration'
 import {
   createPixGridDeckDefinition,
   findPixGridDeckNameConflict,
@@ -2602,6 +2607,7 @@ const RETIRED_REACT_PRESET_REPLACEMENTS = new Map<string, string>([
   ['preset-magenta-cyan-festival-fan', 'preset-red-club-crossfire'],
   ['preset-blinder-cryo-drop', 'preset-red-club-crossfire'],
   ['preset-white-fog-cathedral', 'preset-red-club-crossfire'],
+  [RETIRED_PIX_GRID_MARQUEE_PRESET_ID, DEFAULT_PIX_GRID_PRESET_ID],
 ])
 
 const RETIRED_REACT_PRESET_IDS = new Set(RETIRED_REACT_PRESET_REPLACEMENTS.keys())
@@ -2918,8 +2924,14 @@ function clearReactPresetPadAssignments(
     : pad)
 }
 
-function clearRetiredReactPresetPadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
-  return clearReactPresetPadAssignments(pads, RETIRED_REACT_PRESET_IDS)
+function repairRetiredReactPresetPadAssignments(pads: ReactPerformancePad[]): ReactPerformancePad[] {
+  return pads.map((pad) => {
+    if (!pad.presetId || !RETIRED_REACT_PRESET_IDS.has(pad.presetId)) return pad
+    if (pad.presetId === RETIRED_PIX_GRID_MARQUEE_PRESET_ID) {
+      return { ...pad, presetId: DEFAULT_PIX_GRID_PRESET_ID }
+    }
+    return { ...pad, presetId: null, label: 'Empty', color: '#3a4650' }
+  })
 }
 
 function removeReactPresetAutomationCueAssignments(
@@ -2932,16 +2944,18 @@ function removeReactPresetAutomationCueAssignments(
   ]))
 }
 
-function removeRetiredPresetAutomationCues(value: unknown): unknown {
+function repairRetiredPresetAutomationCues(value: unknown): unknown {
   if (!isRecord(value)) return value
   return Object.fromEntries(Object.entries(value).map(([trackId, rawCues]) => [
     trackId,
     Array.isArray(rawCues)
-      ? rawCues.filter(cue => (
-          !isRecord(cue)
-          || typeof cue.presetId !== 'string'
-          || !RETIRED_REACT_PRESET_IDS.has(cue.presetId)
-        ))
+      ? rawCues.flatMap((cue) => {
+          if (!isRecord(cue) || typeof cue.presetId !== 'string') return [cue]
+          if (cue.presetId === RETIRED_PIX_GRID_MARQUEE_PRESET_ID) {
+            return [{ ...cue, presetId: DEFAULT_PIX_GRID_PRESET_ID }]
+          }
+          return RETIRED_REACT_PRESET_IDS.has(cue.presetId) ? [] : [cue]
+        })
       : rawCues,
   ]))
 }
@@ -2951,7 +2965,16 @@ function removeRetiredPresetAutomationCues(value: unknown): unknown {
  * that could otherwise revive them after an upgrade or project import.
  */
 export function sanitizeRetiredReactPresetState(persistedState: unknown): Record<string, unknown> {
-  const rawState = isRecord(persistedState) ? persistedState : {}
+  const sourceState = isRecord(persistedState) ? persistedState : {}
+  const rawState: Record<string, unknown> = {
+    ...sourceState,
+    ...(sourceState.pixGridState !== undefined
+      ? { pixGridState: sanitizeRetiredPixGridMarqueeState(sourceState.pixGridState) }
+      : {}),
+    ...(sourceState.pixGridActionCuesByTrackId !== undefined
+      ? { pixGridActionCuesByTrackId: sanitizeRetiredPixGridMarqueeActionCueMap(sourceState.pixGridActionCuesByTrackId) }
+      : {}),
+  }
   const activePresetId = typeof rawState.activeReactPresetId === 'string'
     ? rawState.activeReactPresetId
     : null
@@ -2966,10 +2989,10 @@ export function sanitizeRetiredReactPresetState(persistedState: unknown): Record
       ? { reactPresets: removeRetiredReactPresets(rawState.reactPresets as ReactPreset[]) }
       : {}),
     ...(Array.isArray(rawState.performancePads)
-      ? { performancePads: clearRetiredReactPresetPadAssignments(rawState.performancePads as ReactPerformancePad[]) }
+      ? { performancePads: repairRetiredReactPresetPadAssignments(rawState.performancePads as ReactPerformancePad[]) }
       : {}),
     ...(rawState.presetAutomationCuesByTrackId !== undefined
-      ? { presetAutomationCuesByTrackId: removeRetiredPresetAutomationCues(rawState.presetAutomationCuesByTrackId) }
+      ? { presetAutomationCuesByTrackId: repairRetiredPresetAutomationCues(rawState.presetAutomationCuesByTrackId) }
       : {}),
     ...(rawState.cinematicConfigsByPresetId !== undefined
       ? { cinematicConfigsByPresetId: removeRetiredPresetRecordEntries(rawState.cinematicConfigsByPresetId, RETIRED_REACT_PRESET_IDS) }
@@ -3535,7 +3558,16 @@ export function normalizeCinematicPresetCollection(presets: ReactPreset[]): Reac
 
 // ── Exported migration function (for testing) ─────────────────────────────────
 export function migrateReactStore(persistedState: unknown, version: number): Record<string, unknown> {
-  let state = (persistedState ?? {}) as Record<string, unknown>
+  const rawState = (persistedState ?? {}) as Record<string, unknown>
+  let state: Record<string, unknown> = {
+    ...rawState,
+    ...(rawState.pixGridState !== undefined
+      ? { pixGridState: sanitizeRetiredPixGridMarqueeState(rawState.pixGridState) }
+      : {}),
+    ...(rawState.pixGridActionCuesByTrackId !== undefined
+      ? { pixGridActionCuesByTrackId: sanitizeRetiredPixGridMarqueeActionCueMap(rawState.pixGridActionCuesByTrackId) }
+      : {}),
+  }
   if (version < 1) {
     state = {
       ...state,
@@ -4000,7 +4032,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
         ? state.reactPresets as ReactPreset[]
         : DEFAULT_REACT_PRESETS,
     )
-    const pads = clearRetiredReactPresetPadAssignments(
+    const pads = repairRetiredReactPresetPadAssignments(
       Array.isArray(state.performancePads)
         ? state.performancePads as ReactPerformancePad[]
         : DEFAULT_PERFORMANCE_PADS,
@@ -4206,6 +4238,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ...state,
       pixGridDecks: normalizePixGridDeckCollection(state.pixGridDecks),
     }
+  }
+  if (version < 64) {
+    // Marquee Sign Cycle retirement shield. The same sanitizer also runs below
+    // for current-version imports, so old project files cannot bypass this
+    // migration after local persistence has already advanced.
+    state = sanitizeRetiredReactPresetState(state)
   }
   if (Array.isArray(state.reactPresets)) {
     state = {
@@ -4421,7 +4459,9 @@ export function reactStorePartialize(s: ReactStoreState) {
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
     presetAutomationCuesByTrackId:      s.presetAutomationCuesByTrackId,
-    pixGridActionCuesByTrackId:          normalizePixGridActionCueMap(s.pixGridActionCuesByTrackId),
+    pixGridActionCuesByTrackId:          normalizePixGridActionCueMap(
+      sanitizeRetiredPixGridMarqueeActionCueMap(s.pixGridActionCuesByTrackId),
+    ),
     oscillatorSettings:                 soundDrawingPresetIsActive
       ? { ...DEFAULT_OSCILLATOR_SETTINGS }
       : s.oscillatorSettings,
@@ -4512,7 +4552,7 @@ export function mergeReactStoreState(
       .filter(preset => !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id))
       .map(preset => preset.id),
   )
-  const performancePads = normalizeLockedLaserDmxPadAssignments(clearRetiredReactPresetPadAssignments(
+  const performancePads = normalizeLockedLaserDmxPadAssignments(repairRetiredReactPresetPadAssignments(
     mergeCollectionsById(currentState.performancePads, persisted.performancePads),
   ))
   const cinematicConfigsByPresetId = normalizeCinematicConfigOverrides(
@@ -8898,7 +8938,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 63,
+      version: 64,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,
