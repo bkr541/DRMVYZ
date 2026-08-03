@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MutableRefObject,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   getNativeOutputBridge,
@@ -25,10 +34,62 @@ function CastIcon() {
   )
 }
 
-function CloseIcon() {
+function WindowModeIcon({ mode }: { mode: OutputWindowMode }) {
+  if (mode === 'windowed') {
+    return (
+      <svg viewBox="0 0 28 22" aria-hidden="true">
+        <rect x="3" y="4" width="22" height="15" rx="1.5" />
+        <path d="M3 8h22M6 6h.01M9 6h.01" />
+      </svg>
+    )
+  }
+
+  if (mode === 'borderless') {
+    return (
+      <svg viewBox="0 0 28 22" aria-hidden="true">
+        <path d="M4 8V4h4M20 4h4v4M24 14v4h-4M8 18H4v-4" />
+        <rect x="6.5" y="6.5" width="15" height="9" rx=".8" />
+      </svg>
+    )
+  }
+
   return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="m5 5 10 10M15 5 5 15" />
+    <svg viewBox="0 0 28 22" aria-hidden="true">
+      <path d="M4 9V4h5M19 4h5v5M24 13v5h-5M9 18H4v-5M10 8 6 4M18 8l4-4M18 14l4 4M10 14l-4 4" />
+    </svg>
+  )
+}
+
+const ASPECT_ICON_SIZES: Record<OutputAspectRatio, { width: number; height: number }> = {
+  '16:9': { width: 27, height: 15 },
+  '16:10': { width: 27, height: 17 },
+  '4:3': { width: 24, height: 18 },
+  '3:2': { width: 24, height: 16 },
+  '1:1': { width: 18, height: 18 },
+  '9:16': { width: 12, height: 21 },
+}
+
+function AspectRatioIcon({ ratio }: { ratio: OutputAspectRatio }) {
+  const size = ASPECT_ICON_SIZES[ratio]
+  return (
+    <svg viewBox="0 0 32 24" aria-hidden="true">
+      <rect
+        x={(32 - size.width) / 2}
+        y={(24 - size.height) / 2}
+        width={size.width}
+        height={size.height}
+        rx="1"
+      />
+    </svg>
+  )
+}
+
+function AvailableDevicesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="8" cy="7" r="2.5" />
+      <circle cx="17" cy="8" r="2" />
+      <path d="M3.5 18v-2.2A3.8 3.8 0 0 1 7.3 12h1.4a3.8 3.8 0 0 1 3.8 3.8V18M14 18v-1.6a3 3 0 0 1 3-3h.8a2.7 2.7 0 0 1 2.7 2.7V18" />
     </svg>
   )
 }
@@ -184,7 +245,21 @@ function groupTargets(targets: OutputTarget[]) {
   }
 }
 
-interface OutputCastModalProps {
+type CastPopoverPlacement = 'top' | 'bottom'
+
+interface CastPopoverPosition {
+  top: number
+  left: number
+  arrowLeft: number
+  placement: CastPopoverPlacement
+}
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(Math.max(value, minimum), Math.max(minimum, maximum))
+}
+
+interface OutputCastPopoverProps {
+  anchor: HTMLElement | null
   bridge: NativeOutputBridge | null
   canvasReady: boolean
   targets: OutputTarget[]
@@ -197,7 +272,8 @@ interface OutputCastModalProps {
   onStop: () => void
 }
 
-function OutputCastModal({
+function OutputCastPopover({
+  anchor,
   bridge,
   canvasReady,
   targets,
@@ -208,10 +284,12 @@ function OutputCastModal({
   onRefresh,
   onCast,
   onStop,
-}: OutputCastModalProps) {
+}: OutputCastPopoverProps) {
   const [windowMode, setWindowMode] = useState<OutputWindowMode | null>(null)
   const [aspectRatio, setAspectRatio] = useState<OutputAspectRatio | null>(null)
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null)
+  const [position, setPosition] = useState<CastPopoverPosition | null>(null)
+  const popoverRef = useRef<HTMLElement | null>(null)
   const titleId = 'rv-output-cast-title'
   const groups = useMemo(() => groupTargets(targets), [targets])
   const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge)
@@ -224,9 +302,57 @@ function OutputCastModal({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (popoverRef.current?.contains(target) || anchor?.contains(target)) return
+      onClose()
+    }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+    document.addEventListener('mousedown', handleMouseDown, true)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('mousedown', handleMouseDown, true)
+    }
+  }, [anchor, onClose])
+
+  const updatePosition = useCallback(() => {
+    const popover = popoverRef.current
+    if (!anchor || !popover) return
+
+    const viewportMargin = 12
+    const anchorGap = 11
+    const anchorRect = anchor.getBoundingClientRect()
+    const popoverRect = popover.getBoundingClientRect()
+    const availableAbove = anchorRect.top - viewportMargin - anchorGap
+    const availableBelow = window.innerHeight - anchorRect.bottom - viewportMargin - anchorGap
+    const placement: CastPopoverPlacement =
+      popoverRect.height <= availableAbove || availableAbove >= availableBelow ? 'top' : 'bottom'
+    const preferredTop = placement === 'top'
+      ? anchorRect.top - popoverRect.height - anchorGap
+      : anchorRect.bottom + anchorGap
+    const preferredLeft = anchorRect.left + anchorRect.width / 2 - popoverRect.width / 2
+    const top = clamp(preferredTop, viewportMargin, window.innerHeight - popoverRect.height - viewportMargin)
+    const left = clamp(preferredLeft, viewportMargin, window.innerWidth - popoverRect.width - viewportMargin)
+    const arrowLeft = clamp(anchorRect.left + anchorRect.width / 2 - left, 18, popoverRect.width - 18)
+
+    setPosition({ top, left, arrowLeft, placement })
+  }, [anchor])
+
+  useLayoutEffect(() => {
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(updatePosition)
+    if (popoverRef.current) observer?.observe(popoverRef.current)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+      observer?.disconnect()
+    }
+  }, [updatePosition])
 
   const start = (target: OutputTarget) => {
     if (!windowMode || !aspectRatio || !readyToCast) return
@@ -265,97 +391,116 @@ function OutputCastModal({
     )
   }
 
+  const popoverStyle = {
+    top: position?.top ?? 0,
+    left: position?.left ?? 0,
+    visibility: position ? 'visible' : 'hidden',
+    '--rv-cast-arrow-left': `${position?.arrowLeft ?? 24}px`,
+  } as CSSProperties
+  const placement = position?.placement ?? 'top'
+
   return createPortal(
-    <div className="rv-cast-overlay" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="rv-cast-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <header className="rv-cast-header">
-          <div>
-            <span className="rv-cast-eyebrow">Live Visual Output</span>
-            <h2 id={titleId}>Cast Output</h2>
-          </div>
-          <button type="button" className="rv-cast-icon-btn" onClick={onClose} aria-label="Close output devices">
-            <CloseIcon />
-          </button>
-        </header>
+    <section
+      ref={popoverRef}
+      className={`rv-cast-popover rv-cast-popover--${placement}`}
+      style={popoverStyle}
+      role="dialog"
+      aria-labelledby={titleId}
+    >
+      <div className="rv-cast-popover-surface">
+        <div className="rv-cast-popover-grid">
+          <div className="rv-cast-config-panel">
+            <header className="rv-cast-compact-title">
+              <span className="rv-cast-compact-title-icon"><CastIcon /></span>
+              <h2 id={titleId}>Cast Output</h2>
+            </header>
 
-        {session && (
-          <div className={`rv-cast-session rv-cast-session--${session.state}`}>
-            <div>
-              <span>{session.state === 'connected' ? 'Now casting' : 'Output session'}</span>
-              <strong>{session.targetName}</strong>
-              <small>{session.windowMode} · {session.aspectRatio}</small>
-            </div>
-            <button type="button" className="rv-cast-stop" onClick={onStop}>Stop Output</button>
-          </div>
-        )}
+            <fieldset className="rv-cast-fieldset">
+              <legend>Window</legend>
+              <div className="rv-cast-option-grid rv-cast-option-grid--window">
+                {WINDOW_OPTIONS.map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={windowMode === option.id ? 'is-selected' : ''}
+                    aria-label={`${option.label}: ${option.description}`}
+                    aria-pressed={windowMode === option.id}
+                    title={option.description}
+                    onClick={() => setWindowMode(option.id)}
+                  >
+                    <span className="rv-cast-option-icon"><WindowModeIcon mode={option.id} /></span>
+                    <strong>{option.label}</strong>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
 
-        <div className="rv-cast-scroll">
-          <fieldset className="rv-cast-fieldset">
-            <legend>Window</legend>
-            <div className="rv-cast-option-grid rv-cast-option-grid--window">
-              {WINDOW_OPTIONS.map(option => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={windowMode === option.id ? 'is-selected' : ''}
-                  aria-pressed={windowMode === option.id}
-                  onClick={() => setWindowMode(option.id)}
-                >
-                  <strong>{option.label}</strong>
-                  <span>{option.description}</span>
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="rv-cast-fieldset">
-            <legend>Aspect Ratio</legend>
-            <div className="rv-cast-option-grid rv-cast-option-grid--aspect">
-              {ASPECT_OPTIONS.map(option => (
-                <button
-                  key={option}
-                  type="button"
-                  className={aspectRatio === option ? 'is-selected' : ''}
-                  aria-pressed={aspectRatio === option}
-                  onClick={() => setAspectRatio(option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <div className="rv-cast-device-heading">
-            <div>
-              <span>Available Devices</span>
-              <small>Select both options above, then choose a device.</small>
-            </div>
-            <button type="button" className="rv-cast-icon-btn" onClick={onRefresh} aria-label="Refresh output devices">
-              <RefreshIcon />
-            </button>
+            <fieldset className="rv-cast-fieldset rv-cast-fieldset--aspect">
+              <legend>Aspect Ratio</legend>
+              <div className="rv-cast-option-grid rv-cast-option-grid--aspect">
+                {ASPECT_OPTIONS.map(option => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={aspectRatio === option ? 'is-selected' : ''}
+                    aria-pressed={aspectRatio === option}
+                    onClick={() => setAspectRatio(option)}
+                  >
+                    <span className="rv-cast-aspect-icon"><AspectRatioIcon ratio={option} /></span>
+                    <strong>{option}</strong>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           </div>
 
-          {!bridge && (
-            <div className="rv-cast-notice">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</div>
-          )}
-          {bridge && !canvasReady && (
-            <div className="rv-cast-notice">The active engine is still preparing its live output canvas.</div>
-          )}
-          {error && <div className="rv-cast-error" role="alert">{error}</div>}
+          <div className="rv-cast-devices-panel">
+            <div className="rv-cast-device-heading">
+              <div>
+                <span className="rv-cast-device-heading-title">
+                  <AvailableDevicesIcon />
+                  <span>Available Devices</span>
+                </span>
+                <small>Select both options, then choose a device.</small>
+              </div>
+              <button type="button" className="rv-cast-icon-btn" onClick={onRefresh} aria-label="Refresh output devices">
+                <RefreshIcon />
+              </button>
+            </div>
 
-          <section className="rv-cast-device-group" aria-label="Connected displays">
-            <h3>Displays</h3>
-            {renderTargets(groups.displays, 'No displays are currently available.')}
-          </section>
+            {session && (
+              <div className={`rv-cast-session rv-cast-session--${session.state}`}>
+                <div>
+                  <span>{session.state === 'connected' ? 'Now casting' : 'Output session'}</span>
+                  <strong>{session.targetName}</strong>
+                  <small>{session.windowMode} · {session.aspectRatio}</small>
+                </div>
+                <button type="button" className="rv-cast-stop" onClick={onStop}>Stop Output</button>
+              </div>
+            )}
 
-          <section className="rv-cast-device-group" aria-label="Network receivers">
-            <h3>Network Receivers</h3>
-            {renderTargets(groups.network, 'No DRMVYZ receivers were found on this network.')}
-            <p>Open DRMVYZ on another computer to make it discoverable. AirPlay and Miracast screens appear under Displays after the operating system connects them.</p>
-          </section>
+            {!bridge && (
+              <div className="rv-cast-notice">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</div>
+            )}
+            {bridge && !canvasReady && (
+              <div className="rv-cast-notice">The active engine is still preparing its live output canvas.</div>
+            )}
+            {error && <div className="rv-cast-error" role="alert">{error}</div>}
+
+            <section className="rv-cast-device-group" aria-label="Connected displays">
+              <h3>Displays</h3>
+              {renderTargets(groups.displays, 'No displays are currently available.')}
+            </section>
+
+            <section className="rv-cast-device-group" aria-label="Network receivers">
+              <h3>Network Receivers</h3>
+              {renderTargets(groups.network, 'No DRMVYZ receivers were found on this network.')}
+              <p>Open DRMVYZ on another computer to make it discoverable. AirPlay and Miracast screens appear under Displays after the operating system connects them.</p>
+            </section>
+          </div>
         </div>
-      </section>
-    </div>,
+      </div>
+    </section>,
     document.body,
   )
 }
@@ -366,6 +511,7 @@ export interface OutputCastControlProps {
 
 export function OutputCastControl({ canvas }: OutputCastControlProps) {
   const bridge = useMemo(() => getNativeOutputBridge(), [])
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
   const [targets, setTargets] = useState<OutputTarget[]>([])
   const [session, setSession] = useState<OutputCastSession | null>(null)
@@ -432,19 +578,21 @@ export function OutputCastControl({ canvas }: OutputCastControlProps) {
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         className={`rv-cast-trigger${session?.state === 'connected' ? ' is-active' : ''}`}
         aria-label={session?.state === 'connected' ? `Output casting to ${session.targetName}` : 'Cast visual output'}
         aria-haspopup="dialog"
         aria-expanded={open}
         title={session?.state === 'connected' ? `Casting to ${session.targetName}` : 'Cast visual output'}
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen(value => !value)}
       >
         <CastIcon />
         {session?.state === 'connected' && <span className="rv-cast-live-dot" aria-hidden="true" />}
       </button>
       {open && (
-        <OutputCastModal
+        <OutputCastPopover
+          anchor={triggerRef.current}
           bridge={bridge}
           canvasReady={canvas !== null}
           targets={targets}

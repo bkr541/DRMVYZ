@@ -73,7 +73,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  document.querySelector('.rv-cast-overlay')?.remove()
+  document.querySelector('.rv-cast-popover')?.remove()
   delete window.drmvyzNative
   vi.restoreAllMocks()
 })
@@ -86,6 +86,9 @@ describe('OutputCastControl', () => {
 
     const dialog = document.body.querySelector('[role="dialog"]')
     expect(dialog?.textContent).toContain('Cast Output')
+    expect(dialog?.classList.contains('rv-cast-popover')).toBe(true)
+    expect(dialog?.getAttribute('aria-modal')).toBeNull()
+    expect(document.body.querySelector('.rv-cast-overlay')).toBeNull()
     const device = buttonWithText('Stage Screen')
     expect(device.disabled).toBe(true)
 
@@ -107,5 +110,20 @@ describe('OutputCastControl', () => {
     await act(async () => trigger?.click())
     expect(document.body.textContent).toContain('Booth Mac · DRMVYZ')
     expect(document.body.textContent).toContain('Network Receivers')
+  })
+
+  it('closes the anchored popover when the trigger is clicked again or the page is clicked', async () => {
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
+    await act(async () => trigger?.click())
+    expect(document.body.querySelector('.rv-cast-popover')).not.toBeNull()
+
+    await act(async () => trigger?.click())
+    expect(document.body.querySelector('.rv-cast-popover')).toBeNull()
+
+    await act(async () => trigger?.click())
+    await act(async () => {
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+    expect(document.body.querySelector('.rv-cast-popover')).toBeNull()
   })
 })
