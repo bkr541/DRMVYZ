@@ -117,6 +117,8 @@ export function ShowManagerView() {
   })
   const deckBuilderHeadingRef = useRef<HTMLDivElement | null>(null)
   const deckBuilderReturnTargetRef = useRef<'create' | 'edit'>('create')
+  const uploadAbortRef = useRef<AbortController | null>(null)
+  const uploadOperationRef = useRef(0)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
   const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
 
@@ -163,6 +165,12 @@ export function ShowManagerView() {
       return preferred?.id ?? null
     })
   }, [activeReactPresetId, pixGridPresets, reactPresets])
+
+  useEffect(() => () => {
+    uploadOperationRef.current += 1
+    uploadAbortRef.current?.abort()
+    uploadAbortRef.current = null
+  }, [])
 
   const activePreset = useMemo(
     () => findPixGridPreset(reactPresets, previewPresetId),
@@ -255,6 +263,9 @@ export function ShowManagerView() {
     : engine.currentTime
 
   const enterDeckBuilder = (deckId: string | null) => {
+    uploadOperationRef.current += 1
+    uploadAbortRef.current?.abort()
+    uploadAbortRef.current = null
     deckBuilderReturnTargetRef.current = deckId ? 'edit' : 'create'
     setEditingDeckId(deckId)
     setWorkspaceMode(SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE)
@@ -262,6 +273,9 @@ export function ShowManagerView() {
   }
 
   const exitDeckBuilder = () => {
+    uploadOperationRef.current += 1
+    uploadAbortRef.current?.abort()
+    uploadAbortRef.current = null
     const returnTarget = deckBuilderReturnTargetRef.current
     setWorkspaceMode('default')
     setEditingDeckId(null)
@@ -280,28 +294,45 @@ export function ShowManagerView() {
       setDeckNameError('Deck name is required.')
       return
     }
+
+    uploadAbortRef.current?.abort()
+    const controller = new AbortController()
+    const operationId = uploadOperationRef.current + 1
+    uploadOperationRef.current = operationId
+    uploadAbortRef.current = controller
     setUploadState({ active: true, phase: 'Validating…', error: null, warnings: [] })
+
     const result = await ingestPixGridDeckSourceFiles({
       target: editingDeck
         ? { kind: 'append', deckId: editingDeck.id }
         : { kind: 'create', name },
       files,
-      onUploadPhase: (fileName, phase) => setUploadState(current => ({
-        ...current,
-        phase: `${fileName}: ${phase}`,
-      })),
+      signal: controller.signal,
+      onUploadPhase: (fileName, phase) => {
+        if (uploadOperationRef.current !== operationId || controller.signal.aborted) return
+        setUploadState(current => ({ ...current, phase: `${fileName}: ${phase}` }))
+      },
     })
+    if (uploadOperationRef.current !== operationId) return
+    uploadAbortRef.current = null
+
     if (!result.ok) {
-      setUploadState({ active: false, phase: 'Failed', error: result.error.message, warnings: [] })
+      const phase = result.error.code === 'cancelled'
+        ? 'Cancelled'
+        : result.error.code === 'project-replaced' || result.error.code === 'deck-conflict'
+          ? 'Conflict'
+          : 'Failed'
+      setUploadState({ active: false, phase, error: result.error.message, warnings: [] })
       return
     }
     setEditingDeckId(result.deckId)
     setDeckNameError(null)
+    const resultWarnings = result.rejected?.map(entry => `${entry.fileName}: ${entry.message}`) ?? []
     setUploadState({
       active: false,
-      phase: 'Ready',
+      phase: resultWarnings.length > 0 ? 'Ready with warnings' : 'Ready',
       error: null,
-      warnings: result.rejected?.map(entry => `${entry.fileName}: ${entry.message}`) ?? [],
+      warnings: resultWarnings,
     })
   }
 

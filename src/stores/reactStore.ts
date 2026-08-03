@@ -2391,6 +2391,8 @@ interface ReactStoreState {
 
   // Project-scoped PixGrid Deck definitions. Drafts and compiled/runtime data stay outside persistence.
   pixGridDecks: PixGridDeckDefinition[]
+  /** Transient generation token for whole-project replacement during async Deck work. */
+  pixGridDeckProjectEpoch: number
   pixGridDeckUndoStack: PixGridDeckHistoryEntry[]
   pixGridDeckRedoStack: PixGridDeckHistoryEntry[]
   pixGridDeckHistoryTransaction: PixGridDeckStateGraphSnapshot | null
@@ -5046,6 +5048,7 @@ export function mergeReactStoreState(
     pixGridDeckUndoStack: [],
     pixGridDeckRedoStack: [],
     pixGridDeckHistoryTransaction: null,
+    pixGridDeckProjectEpoch: currentState.pixGridDeckProjectEpoch + 1,
     performanceActionEvent: null,
     performanceActionEvents: [],
     performanceActionSeq: currentState.performanceActionSeq,
@@ -5069,6 +5072,7 @@ export const useReactStore = create<ReactStoreState>()(
       pixGridRedoStack: [],
       pixGridHistoryTransaction: null,
       pixGridDecks: [],
+      pixGridDeckProjectEpoch: 0,
       pixGridDeckUndoStack: [],
       pixGridDeckRedoStack: [],
       pixGridDeckHistoryTransaction: null,
@@ -5461,6 +5465,7 @@ export const useReactStore = create<ReactStoreState>()(
         writeReactPresetFavorites(reconciled.favoritePresetIds)
         return {
           ...reconciled.patch,
+          pixGridDeckProjectEpoch: state.pixGridDeckProjectEpoch + 1,
           pixGridDeckUndoStack: [],
           pixGridDeckRedoStack: [],
           pixGridDeckHistoryTransaction: null,
@@ -9147,6 +9152,7 @@ export const useReactStore = create<ReactStoreState>()(
             pixGridRedoStack: [],
             pixGridHistoryTransaction: null,
             pixGridDecks: [],
+            pixGridDeckProjectEpoch: s.pixGridDeckProjectEpoch + 1,
             pixGridDeckUndoStack: [],
             pixGridDeckRedoStack: [],
             pixGridDeckHistoryTransaction: null,
@@ -9199,6 +9205,7 @@ export const useReactStore = create<ReactStoreState>()(
           pixGridRedoStack:             [],
           pixGridHistoryTransaction:    null,
           pixGridDecks:                 [],
+          pixGridDeckProjectEpoch:       get().pixGridDeckProjectEpoch + 1,
           pixGridDeckUndoStack:         [],
           pixGridDeckRedoStack:         [],
           pixGridDeckHistoryTransaction: null,

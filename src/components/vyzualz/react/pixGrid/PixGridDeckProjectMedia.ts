@@ -207,7 +207,6 @@ export async function importPixGridDeckProjectMediaBundle(
   const fileByMediaId = new Map(bundle.files.map(entry => [entry.mediaId, entry.file]))
   const mediaIdMap: Record<string, string> = {}
   const restoredSources = new Map<string, Omit<PixGridDeckSourceSnapshot, 'transparentBackground'>>()
-  const existingMedia = useMediaStore.getState().items
   const conflictingMediaIds = new Set(bundle.manifest.conflictingMediaIds ?? [])
   const missingMediaIds = new Set([
     ...bundle.manifest.missingMediaIds,
@@ -237,7 +236,7 @@ export async function importPixGridDeckProjectMediaBundle(
       continue
     }
 
-    const reusable = reusableMediaForSource(existingMedia, entry)
+    const reusable = reusableMediaForSource(useMediaStore.getState().items, entry)
     if (reusable) {
       mediaIdMap[entry.mediaId] = reusable.id
       restoredSources.set(entry.mediaId, restoredSourceForMedia(reusable, validated.source))

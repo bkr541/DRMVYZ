@@ -27,6 +27,8 @@ import {
 export type PixGridDeckIngestionErrorCode =
   | PixGridDeckMediaValidationError['code']
   | 'deck-not-found'
+  | 'project-replaced'
+  | 'deck-conflict'
   | 'invalid-item-count'
   | 'upload-failed'
   | 'compile-failed'
@@ -52,8 +54,13 @@ export interface PixGridDeckIngestionRequest {
   onUploadPhase?: (fileName: string, phase: string) => void
 }
 
+export interface PixGridDeckIngestionWarning {
+  fileName: string
+  message: string
+}
+
 export type PixGridDeckIngestionResult =
-  | { ok: true; deckId: string; mediaIds: string[]; rejected?: Array<{ fileName: string; message: string }> }
+  | { ok: true; deckId: string; mediaIds: string[]; rejected?: PixGridDeckIngestionWarning[] }
   | { ok: false; error: PixGridDeckIngestionError }
 
 interface UploadedDeckSource {
@@ -61,12 +68,64 @@ interface UploadedDeckSource {
   media: UploadedMedia
 }
 
+interface CandidateDeckSource {
+  entry: UploadedDeckSource
+  item: PixGridDeckItemDefinition
+}
+
+const ingestionQueues = new Map<string, Promise<void>>()
+
+function ingestionQueueKey(target: PixGridDeckIngestionTarget): string {
+  return target.kind === 'append'
+    ? `append:${target.deckId}`
+    : `create:${target.id ?? target.name.trim().toLocaleLowerCase('en-US')}`
+}
+
+function enqueueIngestion(
+  key: string,
+  work: () => Promise<PixGridDeckIngestionResult>,
+): Promise<PixGridDeckIngestionResult> {
+  const previous = ingestionQueues.get(key) ?? Promise.resolve()
+  const run = previous.then(work, work)
+  const tail = run.then(() => undefined, () => undefined)
+  ingestionQueues.set(key, tail)
+  return run.finally(() => {
+    if (ingestionQueues.get(key) === tail) ingestionQueues.delete(key)
+  })
+}
+
 function validationFailure(error: PixGridDeckMediaValidationError): PixGridDeckIngestionResult {
   return { ok: false, error: { code: error.code, message: error.message, fileName: error.fileName } }
 }
 
+function projectMediaReferences(): Set<string> {
+  const state = useReactStore.getState()
+  const references = new Set(state.pixGridDecks.flatMap(deck => deck.items.map(item => item.mediaId)))
+  for (const mediaId of [
+    ...state.canvasEngineSettings.mediaIds,
+    state.canvasEngineSettings.selectedMediaId,
+    state.canvasEngineSettings.manualMediaOverrideId,
+    ...state.canvasMediaItems.map(item => item.id),
+    state.selectedCanvasMediaId,
+    state.activeCanvasMediaId,
+    ...state.canvasOrchestrationSettings.mediaPoolIds,
+    ...Object.values(state.canvasOrchestrationSettings.mediaLocksByLayer),
+  ]) {
+    if (mediaId) references.add(mediaId)
+  }
+  return references
+}
+
+/**
+ * Removes only transaction-created media that is still unowned. A concurrent
+ * project feature may legitimately adopt a canonical media record while this
+ * transaction is finishing, so a current project reference always wins.
+ */
 async function rollbackUploads(items: readonly UploadedMedia[]): Promise<boolean> {
-  const results = await mapWithConcurrency(items, MEDIA_BATCH_CONCURRENCY, item => (
+  if (items.length === 0) return true
+  const referenced = projectMediaReferences()
+  const removable = items.filter(item => !referenced.has(item.id))
+  const results = await mapWithConcurrency(removable, MEDIA_BATCH_CONCURRENCY, item => (
     useMediaStore.getState().removeItem(item.id)
   ))
   return results.every(Boolean)
@@ -93,19 +152,62 @@ function itemDefinition(source: UploadedDeckSource, order: number, transparentBa
   }
 }
 
-function targetDeck(target: PixGridDeckIngestionTarget): PixGridDeckDefinition | null {
+function cancelledResult(message: string, rolledBack: boolean): PixGridDeckIngestionResult {
+  return {
+    ok: false,
+    error: {
+      code: rolledBack ? 'cancelled' : 'rollback-incomplete',
+      message: rolledBack
+        ? message
+        : `${message} One or more uploaded media items still require cleanup.`,
+    },
+  }
+}
+
+function operationStartDeck(target: PixGridDeckIngestionTarget): PixGridDeckDefinition | null {
   if (target.kind !== 'append') return null
   return useReactStore.getState().pixGridDecks.find(deck => deck.id === target.deckId) ?? null
 }
 
-function validateRequestedCount(target: PixGridDeckIngestionTarget, fileCount: number): PixGridDeckIngestionResult | null {
-  const existing = targetDeck(target)
-  if (target.kind === 'append' && !existing) {
-    return { ok: false, error: { code: 'deck-not-found', message: `PixGrid Deck "${target.deckId}" was not found.` } }
+function availableSlots(target: PixGridDeckIngestionTarget, deck: PixGridDeckDefinition | null): number {
+  return target.kind === 'create'
+    ? PIX_GRID_DECK_MAX_ITEMS
+    : Math.max(0, PIX_GRID_DECK_MAX_ITEMS - (deck?.items.length ?? PIX_GRID_DECK_MAX_ITEMS))
+}
+
+function capacityWarning(fileName: string): PixGridDeckIngestionWarning {
+  return {
+    fileName,
+    message: `The Deck already has the maximum of ${PIX_GRID_DECK_MAX_ITEMS} images for this upload.`,
   }
-  const total = (existing?.items.length ?? 0) + fileCount
-  const minimum = target.kind === 'create' ? PIX_GRID_DECK_MIN_ITEMS : existing?.items.length ?? PIX_GRID_DECK_MIN_ITEMS
-  if (fileCount <= 0 || total < minimum || total > PIX_GRID_DECK_MAX_ITEMS) {
+}
+
+function duplicateWarning(fileName: string): PixGridDeckIngestionWarning {
+  return {
+    fileName,
+    message: 'This source is already present in the latest Deck state.',
+  }
+}
+
+/**
+ * Validates source files, uploads through the canonical media store, compiles
+ * transient candidates, and finally merges only those new items into the
+ * latest Deck state. No operation-start Deck snapshot is ever written back.
+ */
+export function ingestPixGridDeckSourceFiles(
+  request: PixGridDeckIngestionRequest,
+): Promise<PixGridDeckIngestionResult> {
+  const requestedProjectEpoch = useReactStore.getState().pixGridDeckProjectEpoch
+  return enqueueIngestion(ingestionQueueKey(request.target), () => (
+    ingestPixGridDeckSourceFilesTransaction(request, requestedProjectEpoch)
+  ))
+}
+
+async function ingestPixGridDeckSourceFilesTransaction(
+  request: PixGridDeckIngestionRequest,
+  requestedProjectEpoch: number,
+): Promise<PixGridDeckIngestionResult> {
+  if (request.files.length === 0) {
     return {
       ok: false,
       error: {
@@ -114,46 +216,80 @@ function validateRequestedCount(target: PixGridDeckIngestionTarget, fileCount: n
       },
     }
   }
-  return null
-}
+  if (request.signal?.aborted) {
+    return { ok: false, error: { code: 'cancelled', message: 'Deck image upload was cancelled.' } }
+  }
 
-/**
- * Validates every source before upload, then uses mediaStore as the sole byte
- * owner, preflights new sources through the compiler, and commits one Deck
- * mutation containing only successfully prepared images.
- */
-export async function ingestPixGridDeckSourceFiles(
-  request: PixGridDeckIngestionRequest,
-): Promise<PixGridDeckIngestionResult> {
-  const countFailure = validateRequestedCount(request.target, request.files.length)
-  if (countFailure) return countFailure
-  if (request.signal?.aborted) return { ok: false, error: { code: 'cancelled', message: 'Deck image upload was cancelled.' } }
+  const startState = useReactStore.getState()
+  if (startState.pixGridDeckProjectEpoch !== requestedProjectEpoch) {
+    return {
+      ok: false,
+      error: {
+        code: 'project-replaced',
+        message: 'The active project changed before this Deck upload could start.',
+      },
+    }
+  }
+  const startProjectEpoch = requestedProjectEpoch
+  const startDeck = operationStartDeck(request.target)
+  if (request.target.kind === 'append' && !startDeck) {
+    return { ok: false, error: { code: 'deck-not-found', message: `PixGrid Deck "${request.target.deckId}" was not found.` } }
+  }
+  const slotsAtStart = availableSlots(request.target, startDeck)
+  if (slotsAtStart === 0) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid-item-count',
+        message: `A PixGrid Deck cannot contain more than ${PIX_GRID_DECK_MAX_ITEMS} images.`,
+      },
+    }
+  }
 
   const validationResults = await mapWithConcurrency(
     request.files,
     MEDIA_BATCH_CONCURRENCY,
     validatePixGridDeckSourceFile,
   )
-  const invalid = validationResults.find(result => !result.ok)
-  if (invalid && !invalid.ok) return validationFailure(invalid.error)
-  const validated = validationResults.flatMap(result => result.ok ? [result.source] : [])
+  if (request.signal?.aborted) {
+    return { ok: false, error: { code: 'cancelled', message: 'Deck image upload was cancelled.' } }
+  }
+
+  const warnings: PixGridDeckIngestionWarning[] = []
+  const validated: PixGridDeckValidatedSource[] = []
+  let firstValidationError: PixGridDeckMediaValidationError | null = null
+  for (const result of validationResults) {
+    if (result.ok) {
+      validated.push(result.source)
+    } else {
+      firstValidationError ??= result.error
+      warnings.push({ fileName: result.error.fileName, message: result.error.message })
+    }
+  }
+
+  const selected = validated.slice(0, slotsAtStart)
+  for (const source of validated.slice(slotsAtStart)) warnings.push(capacityWarning(source.file.name))
+  if (selected.length === 0 && firstValidationError) return validationFailure(firstValidationError)
+  if (request.target.kind === 'create' && selected.length < PIX_GRID_DECK_MIN_ITEMS) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid-item-count',
+        message: `At least ${PIX_GRID_DECK_MIN_ITEMS} valid images are required to create a PixGrid Deck.`,
+      },
+    }
+  }
 
   const activeKit = useBrandKitStore.getState().activeKit
   const transparentBackground = resolvePixGridDeckTransparentBackground(activeKit)
   const uploaded: UploadedDeckSource[] = []
 
-  for (const source of validated) {
+  for (const source of selected) {
     if (request.signal?.aborted) {
-      const rolledBack = await rollbackUploads(uploaded.map(entry => entry.media))
-      return {
-        ok: false,
-        error: {
-          code: rolledBack ? 'cancelled' : 'rollback-incomplete',
-          message: rolledBack
-            ? 'Deck image upload was cancelled.'
-            : 'Deck image upload was cancelled, but one or more uploaded media items still require cleanup.',
-        },
-      }
+      return cancelledResult(
+        'Deck image upload was cancelled.',
+        await rollbackUploads(uploaded.map(entry => entry.media)),
+      )
     }
 
     const upload: CanonicalVisualUploadResult = await useMediaStore.getState().uploadCanonicalVisualFile(source.file, {
@@ -186,37 +322,21 @@ export async function ingestPixGridDeckSourceFiles(
   }
 
   if (request.signal?.aborted) {
-    const rolledBack = await rollbackUploads(uploaded.map(entry => entry.media))
-    return {
-      ok: false,
-      error: {
-        code: rolledBack ? 'cancelled' : 'rollback-incomplete',
-        message: rolledBack
-          ? 'Deck image upload was cancelled.'
-          : 'Deck image upload was cancelled, but one or more uploaded media items still require cleanup.',
-      },
-    }
+    return cancelledResult(
+      'Deck image upload was cancelled.',
+      await rollbackUploads(uploaded.map(entry => entry.media)),
+    )
   }
 
-  const state = useReactStore.getState()
-  const appendDeckId = request.target.kind === 'append' ? request.target.deckId : null
-  const existingDeck = appendDeckId
-    ? state.pixGridDecks.find(candidate => candidate.id === appendDeckId) ?? null
-    : null
-  if (request.target.kind === 'append' && !existingDeck) {
-    await rollbackUploads(uploaded.map(entry => entry.media))
-    return { ok: false, error: { code: 'deck-not-found', message: `PixGrid Deck "${request.target.deckId}" was not found.` } }
-  }
-
-  const baseOrder = existingDeck?.items.length ?? 0
-  const candidates = uploaded.map((entry, index) => ({
+  const preflightState = useReactStore.getState()
+  const candidates: CandidateDeckSource[] = uploaded.map((entry, index) => ({
     entry,
-    item: itemDefinition(entry, baseOrder + index, transparentBackground),
+    item: itemDefinition(entry, index, transparentBackground),
   }))
   const preflight = await preflightPixGridDeckSources(
     candidates.map(candidate => ({ item: candidate.item, source: candidate.entry.validated.file })),
-    state.pixGridState.matrixWidth,
-    state.pixGridState.matrixHeight,
+    preflightState.pixGridState.matrixWidth,
+    preflightState.pixGridState.matrixHeight,
     {
       signal: request.signal,
       onProgress: itemId => {
@@ -226,69 +346,157 @@ export async function ingestPixGridDeckSourceFiles(
     },
   )
   if (request.signal?.aborted) {
-    const rolledBack = await rollbackUploads(uploaded.map(entry => entry.media))
-    return {
-      ok: false,
-      error: {
-        code: rolledBack ? 'cancelled' : 'rollback-incomplete',
-        message: rolledBack
-          ? 'Deck image preparation was cancelled.'
-          : 'Deck image preparation was cancelled, but uploaded media cleanup is incomplete.',
-      },
-    }
+    return cancelledResult(
+      'Deck image preparation was cancelled.',
+      await rollbackUploads(uploaded.map(entry => entry.media)),
+    )
   }
+
   const acceptedIds = new Set(preflight.acceptedItemIds)
-  const accepted = candidates.filter(candidate => acceptedIds.has(candidate.item.id))
-  const rejected = candidates.filter(candidate => !acceptedIds.has(candidate.item.id))
-  if (rejected.length > 0) {
-    const rejectedCleaned = await rollbackUploads(rejected.map(candidate => candidate.entry.media))
+  const compiled = candidates.filter(candidate => acceptedIds.has(candidate.item.id))
+  const compileRejected = candidates.filter(candidate => !acceptedIds.has(candidate.item.id))
+  for (const failure of preflight.rejected) {
+    const candidate = compileRejected.find(value => value.item.id === failure.itemId)
+    warnings.push({
+      fileName: candidate?.entry.validated.file.name ?? failure.mediaId,
+      message: failure.error.message,
+    })
+  }
+  if (compileRejected.length > 0) {
+    const rejectedCleaned = await rollbackUploads(compileRejected.map(candidate => candidate.entry.media))
     if (!rejectedCleaned) {
-      await rollbackUploads(accepted.map(candidate => candidate.entry.media))
+      await rollbackUploads(compiled.map(candidate => candidate.entry.media))
       return {
         ok: false,
         error: {
           code: 'rollback-incomplete',
           message: 'One or more failed Deck sources could not be removed from the media library.',
-          fileName: rejected[0]?.entry.validated.file.name,
+          fileName: compileRejected[0]?.entry.validated.file.name,
         },
       }
     }
   }
 
-  const committedCount = (existingDeck?.items.length ?? 0) + accepted.length
-  if (accepted.length === 0 || (request.target.kind === 'create' && committedCount < PIX_GRID_DECK_MIN_ITEMS)) {
-    await rollbackUploads(accepted.map(candidate => candidate.entry.media))
+  if (compiled.length === 0) {
     const firstFailure = preflight.rejected[0]
-    const firstRejected = rejected[0]
     return {
       ok: false,
       error: {
         code: firstFailure?.error.code === 'cancelled' ? 'cancelled' : 'compile-failed',
         message: firstFailure?.error.message ?? 'The Deck images could not be prepared for PixGrid.',
-        fileName: firstRejected?.entry.validated.file.name,
+        fileName: compileRejected[0]?.entry.validated.file.name,
+      },
+    }
+  }
+
+  // This is the concurrency boundary. Re-read the project and Deck immediately
+  // before the synchronous Zustand mutation, then merge only transaction-owned
+  // candidates. There is deliberately no await between this read and mutation.
+  const latestState = useReactStore.getState()
+  if (latestState.pixGridDeckProjectEpoch !== startProjectEpoch) {
+    const rolledBack = await rollbackUploads(compiled.map(candidate => candidate.entry.media))
+    return {
+      ok: false,
+      error: {
+        code: rolledBack ? 'project-replaced' : 'rollback-incomplete',
+        message: rolledBack
+          ? 'The active project changed while Deck images were being prepared. The upload was not committed.'
+          : 'The active project changed and uploaded media cleanup is incomplete.',
       },
     }
   }
 
   let mutation: PixGridDeckMutationResult
   let deckId: string
+  let committed: CandidateDeckSource[]
+  let rejectedAtCommit: CandidateDeckSource[] = []
   if (request.target.kind === 'create') {
-    mutation = state.createPixGridDeck({
+    if (compiled.length < PIX_GRID_DECK_MIN_ITEMS) {
+      await rollbackUploads(compiled.map(candidate => candidate.entry.media))
+      return {
+        ok: false,
+        error: {
+          code: 'compile-failed',
+          message: `At least ${PIX_GRID_DECK_MIN_ITEMS} prepared images are required to create a PixGrid Deck.`,
+        },
+      }
+    }
+    committed = compiled.map((candidate, order) => ({
+      ...candidate,
+      item: { ...candidate.item, order },
+    }))
+    mutation = latestState.createPixGridDeck({
       id: request.target.id,
       name: request.target.name,
-      items: accepted.map(candidate => candidate.item),
+      items: committed.map(candidate => candidate.item),
     })
     deckId = mutation.ok ? mutation.deckId : request.target.id ?? ''
   } else {
-    const deck = existingDeck!
-    mutation = state.updatePixGridDeck(deck.id, {
-      items: [...deck.items, ...accepted.map(candidate => candidate.item)],
+    const targetDeckId = request.target.deckId
+    const latestDeck = latestState.pixGridDecks.find(deck => deck.id === targetDeckId) ?? null
+    if (!latestDeck) {
+      const rolledBack = await rollbackUploads(compiled.map(candidate => candidate.entry.media))
+      return {
+        ok: false,
+        error: {
+          code: rolledBack ? 'deck-not-found' : 'rollback-incomplete',
+          message: rolledBack
+            ? `PixGrid Deck "${targetDeckId}" was deleted before the upload completed.`
+            : 'The Deck was deleted and uploaded media cleanup is incomplete.',
+        },
+      }
+    }
+
+    const existingMediaIds = new Set(latestDeck.items.map(item => item.mediaId))
+    const existingFingerprints = new Set(latestDeck.items.map(item => item.source.fingerprint))
+    const unique: CandidateDeckSource[] = []
+    const duplicates: CandidateDeckSource[] = []
+    for (const candidate of compiled) {
+      if (
+        existingMediaIds.has(candidate.item.mediaId)
+        || existingFingerprints.has(candidate.item.source.fingerprint)
+      ) {
+        duplicates.push(candidate)
+        warnings.push(duplicateWarning(candidate.entry.validated.file.name))
+        continue
+      }
+      existingMediaIds.add(candidate.item.mediaId)
+      existingFingerprints.add(candidate.item.source.fingerprint)
+      unique.push(candidate)
+    }
+
+    const latestSlots = Math.max(0, PIX_GRID_DECK_MAX_ITEMS - latestDeck.items.length)
+    committed = unique.slice(0, latestSlots).map((candidate, index) => ({
+      ...candidate,
+      item: { ...candidate.item, order: latestDeck.items.length + index },
+    }))
+    const overflow = unique.slice(latestSlots)
+    for (const candidate of overflow) warnings.push(capacityWarning(candidate.entry.validated.file.name))
+    rejectedAtCommit = [...duplicates, ...overflow]
+    if (committed.length === 0) {
+      const rolledBack = await rollbackUploads(rejectedAtCommit.map(candidate => candidate.entry.media))
+      return {
+        ok: false,
+        error: {
+          code: rolledBack ? 'deck-conflict' : 'rollback-incomplete',
+          message: rolledBack
+            ? 'No uploaded images could be merged into the latest Deck state.'
+            : 'No uploaded images could be merged and media cleanup is incomplete.',
+        },
+      }
+    }
+
+    const currentItems = [...latestDeck.items]
+      .sort((left, right) => left.order - right.order)
+      .map((item, order) => ({ ...item, order }))
+    mutation = latestState.updatePixGridDeck(latestDeck.id, {
+      items: [...currentItems, ...committed.map(candidate => candidate.item)],
     })
-    deckId = deck.id
+    deckId = latestDeck.id
   }
 
   if (!mutation.ok) {
-    const rolledBack = await rollbackUploads(accepted.map(candidate => candidate.entry.media))
+    const rolledBack = await rollbackUploads(compiled.map(candidate => candidate.entry.media))
     return {
       ok: false,
       error: {
@@ -301,17 +509,22 @@ export async function ingestPixGridDeckSourceFiles(
     }
   }
 
-  const warnings = preflight.rejected.map(failure => {
-    const candidate = rejected.find(value => value.item.id === failure.itemId)
-    return {
-      fileName: candidate?.entry.validated.file.name ?? failure.mediaId,
-      message: failure.error.message,
+  if (rejectedAtCommit.length > 0) {
+    const cleaned = await rollbackUploads(rejectedAtCommit.map(candidate => candidate.entry.media))
+    if (!cleaned) {
+      for (const candidate of rejectedAtCommit) {
+        warnings.push({
+          fileName: candidate.entry.validated.file.name,
+          message: 'The source was not committed and its automatic media cleanup is incomplete.',
+        })
+      }
     }
-  })
+  }
+
   return {
     ok: true,
     deckId,
-    mediaIds: accepted.map(candidate => candidate.entry.media.id),
+    mediaIds: committed.map(candidate => candidate.entry.media.id),
     ...(warnings.length > 0 ? { rejected: warnings } : {}),
   }
 }

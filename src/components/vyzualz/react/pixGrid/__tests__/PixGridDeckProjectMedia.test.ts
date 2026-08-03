@@ -212,6 +212,40 @@ describe('PixGrid Deck project source-media portability', () => {
     expect(restored.missingMediaIds).toEqual([])
   })
 
+  it('deduplicates identical source bytes within one import transaction', async () => {
+    const first = fixture('opaque.png', 'image/png')
+    const second = fixture('safe.svg', 'image/svg+xml')
+    const deck = await deckFor(first, second)
+    const duplicateSourceDeck: PixGridDeckDefinition = {
+      ...structuredClone(deck),
+      id: 'deck-duplicate-source',
+      generatedPresetId: 'pix-grid-deck:deck-duplicate-source',
+      items: deck.items.map((item, index) => index === 1 ? {
+        ...item,
+        mediaId: 'db-duplicate-bytes',
+        source: { ...item.source, fingerprint: deck.items[0].source.fingerprint, fileName: first.name, mimeType: first.type },
+      } : item),
+    }
+    const exported = await exportPixGridDeckProjectMediaBundle([duplicateSourceDeck], {
+      mediaItems: [media('db-one', first), media('db-duplicate-bytes', first)],
+      readSource: async () => first,
+    })
+    runtime.state.uploadCanonicalVisualFile.mockImplementation(async (file: File, options: { metadata?: UploadedMedia['metadata'] }) => {
+      const uploaded = { ...media('db-single-restored', file), metadata: { ...options.metadata } }
+      runtime.state.items = [uploaded, ...runtime.state.items]
+      return { ok: true as const, item: uploaded }
+    })
+
+    const restored = await importPixGridDeckProjectMediaBundle(exported)
+
+    expect(runtime.state.uploadCanonicalVisualFile).toHaveBeenCalledTimes(1)
+    expect(restored.mediaIdMap).toEqual({
+      'db-one': 'db-single-restored',
+      'db-duplicate-bytes': 'db-single-restored',
+    })
+    expect(restored.missingMediaIds).toEqual([])
+  })
+
   it('is idempotent when the same source bundle is imported twice', async () => {
     const first = fixture('opaque.png', 'image/png')
     const second = fixture('safe.svg', 'image/svg+xml')

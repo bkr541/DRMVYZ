@@ -16,23 +16,27 @@ import { defineConfig, devices } from '@playwright/test'
 const pixGridBrowserSmoke = process.env.DRMVYZ_PIX_GRID_BROWSER_SMOKE === '1'
 const deckCompilerBrowser = process.env.DRMVYZ_PIX_GRID_DECK_COMPILER_BROWSER === '1'
 const deckRuntimeBrowser = process.env.DRMVYZ_PIX_GRID_DECK_RUNTIME_BROWSER === '1'
+const authenticatedDeckBrowser = process.env.DRMVYZ_PIX_GRID_DECK_AUTHENTICATED_BROWSER === '1'
+const authenticatedStorageState = process.env.DRMVYZ_E2E_AUTH_STORAGE_STATE
 const offlineVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1'
   || process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
   || pixGridBrowserSmoke
   || deckCompilerBrowser
   || deckRuntimeBrowser
 const webglVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
-const forceWebglBrowser = webglVisualReview || pixGridBrowserSmoke || deckCompilerBrowser || deckRuntimeBrowser
+const forceWebglBrowser = webglVisualReview || pixGridBrowserSmoke || deckCompilerBrowser || deckRuntimeBrowser || authenticatedDeckBrowser
 const recordFailureVideo = !!process.env.CI || process.env.DRMVYZ_PLAYWRIGHT_VIDEO === '1'
 
 export default defineConfig({
   testDir: 'src/test/e2e',
   testMatch: '**/*.spec.ts',
-  outputDir: deckRuntimeBrowser
-    ? 'artifacts/pix-grid-deck-runtime-browser/results'
-    : deckCompilerBrowser
-      ? 'artifacts/pix-grid-deck-compiler-browser/results'
-      : 'test-results',
+  outputDir: authenticatedDeckBrowser
+    ? 'artifacts/pix-grid-deck-authenticated-browser/results'
+    : deckRuntimeBrowser
+      ? 'artifacts/pix-grid-deck-runtime-browser/results'
+      : deckCompilerBrowser
+        ? 'artifacts/pix-grid-deck-compiler-browser/results'
+        : 'test-results',
 
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -86,5 +90,23 @@ export default defineConfig({
         },
       },
     },
+    ...(authenticatedDeckBrowser && authenticatedStorageState ? [{
+      name: 'authenticated-chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: authenticatedStorageState,
+        launchOptions: {
+          ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+            ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+            : {}),
+          args: [
+            '--enable-webgl',
+            '--ignore-gpu-blocklist',
+            '--enable-unsafe-swiftshader',
+            '--use-angle=swiftshader',
+          ],
+        },
+      },
+    }] : []),
   ],
 })

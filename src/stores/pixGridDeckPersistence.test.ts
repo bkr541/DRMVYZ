@@ -526,7 +526,9 @@ describe('PixGrid Deck project persistence and history', () => {
       presetCreated: true,
       items: itemDefinitions('imported-project-deck'),
     }
+    const projectEpochBeforeReplacement = useReactStore.getState().pixGridDeckProjectEpoch
     useReactStore.getState().replacePixGridDeckProject([replacement])
+    expect(useReactStore.getState().pixGridDeckProjectEpoch).toBe(projectEpochBeforeReplacement + 1)
     expect(useReactStore.getState().pixGridDecks).toEqual([replacement])
     expect(useReactStore.getState().reactPresets).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -754,7 +756,10 @@ describe('PixGrid Deck project persistence and history', () => {
     }
     useReactStore.getState().createPixGridDeckPreset(deck.id, readiness)
     const partialized = reactStorePartialize(useReactStore.getState())
+    expect(partialized).not.toHaveProperty('pixGridDeckProjectEpoch')
+    const epochBeforeReload = useReactStore.getState().pixGridDeckProjectEpoch
     const reloaded = mergeReactStoreState(migrateReactStore(partialized, 63), useReactStore.getState())
+    expect(reloaded.pixGridDeckProjectEpoch).toBe(epochBeforeReload + 1)
 
     expect(reloaded.pixGridDecks[0]).toMatchObject({ id: deck.id, presetCreated: true })
     expect(reloaded.reactPresets.find(preset => preset.id === deck.generatedPresetId)).toMatchObject({
