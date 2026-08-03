@@ -40,6 +40,7 @@ const approvedExplicitHelpPlacements = new Map<string, readonly string[]>([
     join(srcDir, 'components', 'vyzualz', 'react', 'ReactPresetsPanel.tsx'),
     [
       'react.soundDrawing.presetLibrary',
+      'react.laserDmx.presetLibrary',
     ],
   ],
   [
@@ -52,6 +53,42 @@ const approvedExplicitHelpPlacements = new Map<string, readonly string[]>([
       'react.soundDrawing.audioReactivity.alternate',
       'react.soundDrawing.audioReactivity.highJitter',
       'react.soundDrawing.audioReactivity.beatBloom',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'LaserDmxEnginePanel.tsx'),
+    [
+      'react.laserDmx.workspace.overview',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'LaserDmxBeamMatrixPanel.tsx'),
+    [
+      'react.laserDmx.beamMatrix.programAndCanvas.program.overview',
+      'react.laserDmx.beamMatrix.programAndCanvas.design.overview',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamEditor',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.snapToGrid',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showGrid',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamPaths',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.overscan',
+      'react.laserDmx.beamMatrix.programAndCanvas.reactionGroups.overview',
+      'react.laserDmx.beamMatrix.programAndCanvas.cueList.overview',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'ReactFxPanel.tsx'),
+    [
+      'react.laserDmx.design.previewOutputTrim',
+      'react.laserDmx.design.previewGlowTrim',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'LaserDmxShowDirectorControls.tsx'),
+    [
+      'react.laserDmx.showDirector.performanceProgram.enabled',
+      'react.laserDmx.showDirector.performanceProgram.programIntensity',
+      'react.laserDmx.showDirector.performanceProgram.variationAmount',
+      'react.laserDmx.showDirector.performanceProgram.audioIntelligenceResponse',
     ],
   ],
   [

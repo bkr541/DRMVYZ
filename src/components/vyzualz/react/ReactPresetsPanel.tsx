@@ -962,6 +962,16 @@ export function ReactPresetsPanel() {
             placement="left"
           />
         </div>
+      ) : activeReactEngineId === 'laserDmx' ? (
+        <div className="rv-laser-presets-help drm-help-overlay-anchor">
+          {presetLibraryContent}
+          <HelpInfoTrigger
+            helpId="react.laserDmx.presetLibrary"
+            currentValue={`${laserDmxBeamMatrixAuthoringMode === 'showDirector' ? 'Show Director' : 'Matrix'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${laserDmxPresetScopeLabel}`}
+            currentValueTone="accent"
+            placement="left"
+          />
+        </div>
       ) : presetLibraryContent}
     </div>
   )

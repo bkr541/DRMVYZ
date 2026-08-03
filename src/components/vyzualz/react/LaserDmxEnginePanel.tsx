@@ -1,6 +1,7 @@
 import { useReactStore } from '../../../stores/reactStore'
 import { LaserDmxBeamMatrixPanel } from './LaserDmxBeamMatrixPanel'
 import { LaserDmxShowDirector } from './LaserDmxShowDirector'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 type LaserDmxRigSurface = 'workspace' | 'showDirector'
 
@@ -20,7 +21,7 @@ export function LaserDmxEnginePanel() {
 
   return (
     <div className="rv-laser-workspace">
-      <div className="rv-laser-rig-toolbar">
+      <div className="rv-laser-rig-toolbar rv-laser-workspace-mode-help drm-help-overlay-anchor">
         <div className="rv-segmented-control rv-laser-rig-surfaces" role="tablist" aria-label="LaserDMX Beam Matrix surfaces">
           {SURFACE_OPTIONS.map(option => (
             <button
@@ -35,6 +36,12 @@ export function LaserDmxEnginePanel() {
             </button>
           ))}
         </div>
+        <HelpInfoTrigger
+          helpId="react.laserDmx.workspace.overview"
+          currentValue={surface === 'showDirector' ? 'Show Director' : 'Matrix'}
+          currentValueTone="accent"
+          placement="right"
+        />
       </div>
 
       <div className="rv-laser-workspace-surface" role="tabpanel">

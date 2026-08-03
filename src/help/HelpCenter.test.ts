@@ -167,6 +167,33 @@ describe('Help Center registry', () => {
     })
   })
 
+  it('documents the explicit LaserDMX workspace, preset, design, and performance controls', () => {
+    expect(getHelpEntry('react.laserDmx.workspace.overview')).toMatchObject({
+      title: 'LaserDMX Workspace',
+      componentType: 'group',
+    })
+    expect(getHelpEntry('react.laserDmx.presetLibrary')).toMatchObject({
+      title: 'LaserDMX Presets',
+      componentType: 'selection',
+    })
+    expect(getHelpEntry('react.laserDmx.design.previewOutputTrim')).toMatchObject({
+      title: 'Preview Output Trim',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.laserDmx.design.previewGlowTrim')).toMatchObject({
+      title: 'Preview Glow Trim',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.laserDmx.beamMatrix.programAndCanvas.canvas.overscan')).toMatchObject({
+      title: 'Overscan',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.laserDmx.showDirector.performanceProgram.audioIntelligenceResponse')).toMatchObject({
+      title: 'Audio Intelligence Response',
+      componentType: 'toggle',
+    })
+  })
+
   it('reports malformed synthetic entries without a new validation dependency', () => {
     const base: HelpEntry = {
       id: 'test.entry',

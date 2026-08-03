@@ -142,6 +142,19 @@ describe('React right-rail groups', () => {
       'react.soundDrawing.audioReactivity.beatBloom',
     ])
   })
+
+  it('renders LaserDMX preview help beside the two active React Master trims', async () => {
+    useReactStore.setState({ activeReactEngineId: 'laserDmx' })
+
+    await act(async () => root.render(<ReactFxPanel />))
+
+    const helpIds = [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
+      .map(button => button.dataset.helpId)
+    expect(helpIds).toEqual([
+      'react.laserDmx.design.previewOutputTrim',
+      'react.laserDmx.design.previewGlowTrim',
+    ])
+  })
 })
 
 describe('LaserDMX Beam Matrix accessibility', () => {
@@ -152,6 +165,20 @@ describe('LaserDMX Beam Matrix accessibility', () => {
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Add beam"]')).not.toBeNull()
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Select all beams"]')).not.toBeNull()
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Reset Beam Matrix"]')).not.toBeNull()
+
+    const helpIds = [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
+      .map(button => button.dataset.helpId)
+    expect(helpIds).toEqual([
+      'react.laserDmx.beamMatrix.programAndCanvas.program.overview',
+      'react.laserDmx.beamMatrix.programAndCanvas.design.overview',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamEditor',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.snapToGrid',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showGrid',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamPaths',
+      'react.laserDmx.beamMatrix.programAndCanvas.canvas.overscan',
+      'react.laserDmx.beamMatrix.programAndCanvas.reactionGroups.overview',
+      'react.laserDmx.beamMatrix.programAndCanvas.cueList.overview',
+    ])
   })
 })
 
@@ -179,6 +206,19 @@ describe('React preset accessibility', () => {
     const layout = activeButton.querySelector('.rv-preset-card-layout')
     expect(layout?.firstElementChild?.classList.contains('rv-preset-thumb')).toBe(true)
     expect(layout?.lastElementChild?.classList.contains('rv-preset-card-content')).toBe(true)
+  })
+})
+
+describe('LaserDMX preset contextual help', () => {
+  it('anchors one preset-library popover to the active LaserDMX collection', async () => {
+    useReactStore.setState({
+      activeReactEngineId: 'laserDmx',
+      laserDmxBeamMatrixAuthoringMode: 'manual',
+    })
+
+    await act(async () => root.render(<ReactPresetsPanel />))
+
+    expect(container.querySelector('[data-help-id="react.laserDmx.presetLibrary"]')).not.toBeNull()
   })
 })
 

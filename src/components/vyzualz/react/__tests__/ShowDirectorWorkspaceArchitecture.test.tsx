@@ -3,7 +3,9 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
+import { useContextualHelpStore } from '../../../../features/contextualHelp/contextualHelpStore'
 import { LaserDmxBeamMatrixPanel } from '../LaserDmxBeamMatrixPanel'
+import { LaserDmxEnginePanel } from '../LaserDmxEnginePanel'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { LaserDmxShowDirectorPalette } from '../LaserDmxShowDirectorPalette'
 import { ReactFxPanel } from '../ReactFxPanel'
@@ -25,6 +27,7 @@ describe('LaserDMX workspace architecture', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
+    useContextualHelpStore.setState({ infoEnabled: true })
     useReactStore.getState().resetReactView()
     useReactStore.getState().applyLaserDmxShowDirectorTemplate('small-club-rig')
   })
@@ -34,6 +37,12 @@ describe('LaserDMX workspace architecture', () => {
     container.remove()
     mounted = false
     vi.unstubAllGlobals()
+  })
+
+  it('anchors workspace help to the Matrix and Show Director surface switch', async () => {
+    await render(<LaserDmxEnginePanel />)
+
+    expect(container.querySelector('[data-help-id="react.laserDmx.workspace.overview"]')).not.toBeNull()
   })
 
   it('places stage-wide design controls below Lighting Components in the left palette', async () => {
@@ -75,5 +84,14 @@ describe('LaserDMX workspace architecture', () => {
     expect(container.textContent).not.toContain('Show Director Design')
     expect(container.textContent).not.toContain('Snap to Grid')
     expect(container.textContent).not.toContain('Show Beams')
+
+    const helpIds = [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
+      .map(button => button.dataset.helpId)
+    expect(helpIds).toEqual([
+      'react.laserDmx.showDirector.performanceProgram.enabled',
+      'react.laserDmx.showDirector.performanceProgram.programIntensity',
+      'react.laserDmx.showDirector.performanceProgram.variationAmount',
+      'react.laserDmx.showDirector.performanceProgram.audioIntelligenceResponse',
+    ])
   })
 })

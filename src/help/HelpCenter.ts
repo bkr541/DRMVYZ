@@ -3150,6 +3150,81 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     ]
   },
   {
+    "id": "react.laserDmx.presetLibrary",
+    "priority": 1,
+    "view": "react",
+    "engine": "laserDmx",
+    "group": "Preset library",
+    "title": "LaserDMX Presets",
+    "componentType": "selection",
+    "summary": "Browses the preset collection for the active LaserDMX authoring surface.",
+    "whatItDoes": [
+      "Matrix mode shows Beam Matrix looks.",
+      "Show Director mode shows Performance Shows and reusable rig layouts."
+    ],
+    "whenToUse": "Use the library to load a complete LaserDMX starting point before refining beams, fixtures, or performance behavior.",
+    "affects": [
+      "active Beam Matrix preset",
+      "active Show Director Performance Show or rig layout"
+    ],
+    "doesNotAffect": [
+      "presets belonging to other React engines"
+    ],
+    "tip": "Switch Matrix and Show Director from the left workspace to change which LaserDMX preset families appear."
+  },
+  {
+    "id": "react.laserDmx.design.previewOutputTrim",
+    "priority": 1,
+    "view": "react",
+    "engine": "laserDmx",
+    "group": "React Master",
+    "title": "Preview Output Trim",
+    "componentType": "slider",
+    "summary": "Adjusts LaserDMX brightness in the visualizer preview without changing production hardware output.",
+    "whatItDoes": [
+      "Scales the rendered WebGL and Canvas2D preview after the authored show output is resolved.",
+      "Keeps preview calibration separate from LaserDMX production dimmer and safety controls."
+    ],
+    "whenToUse": "Lower it when the on-screen preview is too bright for editing or recording while the authored production values should remain untouched.",
+    "affects": [
+      "LaserDMX visualizer preview brightness"
+    ],
+    "doesNotAffect": [
+      "production hardware output",
+      "Authored Show Dimmer",
+      "Safety Clamp"
+    ],
+    "defaultValue": "100%",
+    "range": "0–100%",
+    "tip": "Treat this as monitor calibration, not as part of the authored lighting show."
+  },
+  {
+    "id": "react.laserDmx.design.previewGlowTrim",
+    "priority": 1,
+    "view": "react",
+    "engine": "laserDmx",
+    "group": "React Master",
+    "title": "Preview Glow Trim",
+    "componentType": "slider",
+    "summary": "Adjusts the amount of post-render glow visible in the LaserDMX preview.",
+    "whatItDoes": [
+      "Scales preview glow after Authored Show Glow has been applied.",
+      "Applies consistently to the supported LaserDMX preview renderers."
+    ],
+    "whenToUse": "Reduce it when bloom obscures beam edges in the editor, or increase it when preview beams need more atmospheric presence.",
+    "affects": [
+      "LaserDMX visualizer preview glow"
+    ],
+    "doesNotAffect": [
+      "production hardware output",
+      "Authored Show Glow",
+      "beam geometry"
+    ],
+    "defaultValue": "50%",
+    "range": "0–100%",
+    "tip": "Use Authored Show Glow for the saved look and Preview Glow Trim only for local display calibration."
+  },
+  {
     "id": "react.laserDmx.fx.bassReact",
     "priority": 1,
     "view": "react",

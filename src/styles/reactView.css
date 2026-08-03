@@ -4899,6 +4899,47 @@
   --drm-help-overlay-z: 28;
 }
 
+/* LaserDMX contextual-help anchors follow the same overlay model as Sound
+   Drawing: the icon floats outside the control's layout box and appears only
+   while its owning region is hovered, focused, or has an open popover. */
+.rv-laser-workspace-mode-help,
+.rv-laser-section-help,
+.rv-laser-section-heading-help,
+.rv-laser-control-help,
+.rv-laser-presets-help,
+.rv-laser-design-control-help,
+.rv-laser-performance-control-help {
+  min-width: 0;
+}
+
+.rv-laser-workspace-mode-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -5px;
+  --drm-help-overlay-z: 30;
+}
+
+.rv-laser-section-help.drm-help-overlay-anchor,
+.rv-laser-section-heading-help.drm-help-overlay-anchor,
+.rv-laser-control-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -5px;
+  --drm-help-overlay-z: 28;
+}
+
+.rv-laser-presets-help {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rv-laser-presets-help.drm-help-overlay-anchor,
+.rv-laser-design-control-help.drm-help-overlay-anchor,
+.rv-laser-performance-control-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -7px;
+  --drm-help-overlay-z: 28;
+}
+
 .rv-context-workspace > .rv-left-tab-body {
   padding: 0;
   gap: 0;

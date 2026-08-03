@@ -14,6 +14,7 @@ import { useLaserDmxShowDirectorPerformanceRuntimeStatus } from './LaserDmxShowD
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { LaserDmxRendererDiagnosticsPanel } from './LaserDmxRendererDiagnosticsPanel'
 import { validateLaserDmxShowDirectorPresetRealism } from './LaserDmxShowDirectorPresetRealismValidation'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 const GRID_PRESETS = [
   { label: '10 × 6', value: '10x6', columns: 10, rows: 6 },
@@ -282,37 +283,69 @@ function PerformanceProgramControls() {
 
   return (
     <Collapsible label="Performance Program" defaultOpen>
-      <ToggleRow
-        label="Performance Program"
-        value={performance.enabled}
-        onChange={setEnabled}
-        disabled={!program}
-        description="Disabling reveals the immutable authored rig without deleting the program."
-      />
-      <SliderRow
-        label="Program Intensity"
-        value={performance.tuning.intensity}
-        onChange={value => updateTuning({ intensity: value })}
-        min={0}
-        max={2}
-        step={0.05}
-        disabled={!program}
-      />
-      <SliderRow
-        label="Variation Amount"
-        value={performance.tuning.variation}
-        onChange={value => updateTuning({ variation: value })}
-        min={0}
-        max={2}
-        step={0.05}
-        disabled={!program || !supportsVariation}
-      />
-      <ToggleRow
-        label="Audio Intelligence Response"
-        value={performance.audioIntelligenceEnabled}
-        onChange={setAudioIntelligenceEnabled}
-        disabled={!program}
-      />
+      <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
+        <ToggleRow
+          label="Performance Program"
+          value={performance.enabled}
+          onChange={setEnabled}
+          disabled={!program}
+          description="Disabling reveals the immutable authored rig without deleting the program."
+        />
+        <HelpInfoTrigger
+          helpId="react.laserDmx.showDirector.performanceProgram.enabled"
+          currentValue={performance.enabled ? 'On' : 'Off'}
+          currentValueLabel="Status"
+          currentValueTone={performance.enabled ? 'accent' : 'default'}
+          placement="left"
+        />
+      </div>
+      <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
+        <SliderRow
+          label="Program Intensity"
+          value={performance.tuning.intensity}
+          onChange={value => updateTuning({ intensity: value })}
+          min={0}
+          max={2}
+          step={0.05}
+          disabled={!program}
+        />
+        <HelpInfoTrigger
+          helpId="react.laserDmx.showDirector.performanceProgram.programIntensity"
+          currentValue={`${performance.tuning.intensity.toFixed(2)}×`}
+          placement="left"
+        />
+      </div>
+      <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
+        <SliderRow
+          label="Variation Amount"
+          value={performance.tuning.variation}
+          onChange={value => updateTuning({ variation: value })}
+          min={0}
+          max={2}
+          step={0.05}
+          disabled={!program || !supportsVariation}
+        />
+        <HelpInfoTrigger
+          helpId="react.laserDmx.showDirector.performanceProgram.variationAmount"
+          currentValue={`${performance.tuning.variation.toFixed(2)}×`}
+          placement="left"
+        />
+      </div>
+      <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
+        <ToggleRow
+          label="Audio Intelligence Response"
+          value={performance.audioIntelligenceEnabled}
+          onChange={setAudioIntelligenceEnabled}
+          disabled={!program}
+        />
+        <HelpInfoTrigger
+          helpId="react.laserDmx.showDirector.performanceProgram.audioIntelligenceResponse"
+          currentValue={performance.audioIntelligenceEnabled ? 'On' : 'Off'}
+          currentValueLabel="Status"
+          currentValueTone={performance.audioIntelligenceEnabled ? 'accent' : 'default'}
+          placement="left"
+        />
+      </div>
       <NumberInputRow
         label="Variation Seed"
         value={performance.deterministicSeed}

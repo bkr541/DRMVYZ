@@ -17,6 +17,7 @@ import { ReactResetActions } from './ReactResetActions'
 import { CinematicWorldsDesignControls, CinematicWorldsFxControls } from './CinematicWorldsControls'
 import { CanvasEngineFxPanel } from './ReactCanvasEngineShell'
 import { resolveSoundDrawingOwnership, soundDrawingOwnershipTooltip } from './soundDrawing/SoundDrawingOwnership'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -87,16 +88,30 @@ export function ReactFxPanel() {
   const masterControlRows = (
     <>
       {showMasterIntensity && (
-        <SliderRow
-          label={isLaserDmx ? 'Preview Output Trim' : isPixGrid ? 'Authored Performance Trim' : 'Intensity'}
-          value={reactIntensity}
-          onChange={setReactIntensity}
-          disabled={isShader && shaderMasterCapabilities?.intensity === false}
-          color="#4ac7db"
-          description={isPixGrid
-            ? 'Trims the authored React performance output after PixGrid Output Intensity. Kept separate for automation and legacy preset compatibility.'
-            : isLaserDmx
-              ? 'Preview-only trim applied consistently to WebGL and Canvas2D. It never changes production hardware output.'
+        isLaserDmx ? (
+          <div className="rv-laser-design-control-help drm-help-overlay-anchor">
+            <SliderRow
+              label="Preview Output Trim"
+              value={reactIntensity}
+              onChange={setReactIntensity}
+              color="#4ac7db"
+              description="Preview-only trim applied consistently to WebGL and Canvas2D. It never changes production hardware output."
+            />
+            <HelpInfoTrigger
+              helpId="react.laserDmx.design.previewOutputTrim"
+              currentValue={`${Math.round(reactIntensity * 100)}%`}
+              placement="left"
+            />
+          </div>
+        ) : (
+          <SliderRow
+            label={isPixGrid ? 'Authored Performance Trim' : 'Intensity'}
+            value={reactIntensity}
+            onChange={setReactIntensity}
+            disabled={isShader && shaderMasterCapabilities?.intensity === false}
+            color="#4ac7db"
+            description={isPixGrid
+              ? 'Trims the authored React performance output after PixGrid Output Intensity. Kept separate for automation and legacy preset compatibility.'
               : isShader && shaderMasterCapabilities?.intensity === false
                 ? 'Not used by this scene.'
                 : isShader
@@ -104,7 +119,8 @@ export function ReactFxPanel() {
                   : isSoundDrawing
                     ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.performanceIntensity)
                     : undefined}
-        />
+          />
+        )
       )}
       {showMasterMotion && (
         <SliderRow
@@ -121,16 +137,30 @@ export function ReactFxPanel() {
         />
       )}
       {showMasterGlow && (
-        <SliderRow
-          label={isLaserDmx ? 'Preview Glow Trim' : isPixGrid ? 'Halo Radius' : 'Glow'}
-          value={reactGlow}
-          onChange={setReactGlow}
-          disabled={isShader && shaderMasterCapabilities?.glow === false}
-          color="#b84fc9"
-          description={isPixGrid
-            ? 'Controls the spatial radius of the PixGrid halo. Emitter Glow controls halo strength.'
-            : isLaserDmx
-              ? 'Preview-only glow trim applied after Authored Show Glow. Production hardware output never inherits it.'
+        isLaserDmx ? (
+          <div className="rv-laser-design-control-help drm-help-overlay-anchor">
+            <SliderRow
+              label="Preview Glow Trim"
+              value={reactGlow}
+              onChange={setReactGlow}
+              color="#b84fc9"
+              description="Preview-only glow trim applied after Authored Show Glow. Production hardware output never inherits it."
+            />
+            <HelpInfoTrigger
+              helpId="react.laserDmx.design.previewGlowTrim"
+              currentValue={`${Math.round(reactGlow * 100)}%`}
+              placement="left"
+            />
+          </div>
+        ) : (
+          <SliderRow
+            label={isPixGrid ? 'Halo Radius' : 'Glow'}
+            value={reactGlow}
+            onChange={setReactGlow}
+            disabled={isShader && shaderMasterCapabilities?.glow === false}
+            color="#b84fc9"
+            description={isPixGrid
+              ? 'Controls the spatial radius of the PixGrid halo. Emitter Glow controls halo strength.'
               : isShader && shaderMasterCapabilities?.glow === false
                 ? 'Not used by this scene.'
                 : isShader
@@ -138,7 +168,8 @@ export function ReactFxPanel() {
                   : isSoundDrawing
                     ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.glow)
                     : undefined}
-        />
+          />
+        )
       )}
       {showMasterBassReactivity && (
         <SliderRow
