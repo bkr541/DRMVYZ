@@ -2,8 +2,9 @@
 
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
-const { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, shell } = require('electron')
 const { installRekordboxUsbBridge } = require('../native/rekordbox/rekordboxUsbBridge.cjs')
+const { installOutputCastBridge } = require('../native/output/outputCastBridge.cjs')
 
 const DEV_SERVER_URL = process.env.DRMVYZ_VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
 const forceBuiltRenderer = process.argv.includes('--production')
@@ -143,7 +144,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow) return
+    if (!mainWindow) {
+      createMainWindow()
+      return
+    }
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
@@ -153,10 +157,11 @@ if (!app.requestSingleInstanceLock()) {
     if (!useDevServer) registerAppProtocol()
     configureSessionSecurity()
     installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow })
+    installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTrustedAppUrl })
     createMainWindow()
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+      if (!mainWindow) createMainWindow()
     })
   })
 

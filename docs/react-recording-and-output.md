@@ -2,12 +2,13 @@
 
 ## Scope
 
-DRMVYZ has two distinct output paths:
+DRMVYZ has three distinct output paths:
 
 1. Browser recording and still capture of the visible React View canvas.
-2. LaserDMX Production Output, which compiles normalized fixture frames for a virtual adapter and protocol-ready trusted-host adapters.
+2. Visual-output casting to a local display or another DRMVYZ desktop receiver.
+3. LaserDMX Production Output, which compiles normalized fixture frames for a virtual adapter and protocol-ready trusted-host adapters.
 
-These paths must not be conflated. Recording captures pixels and optional program audio. Production Output compiles fixture-channel intent and applies fail-dark safety rules.
+These paths must not be conflated. Recording captures pixels and optional program audio. Visual casting publishes the clean live canvas over a dedicated WebRTC session. Production Output compiles fixture-channel intent and applies fail-dark safety rules.
 
 ## Browser recording
 
@@ -58,6 +59,40 @@ Recording must:
 
 Browser recording availability depends on browser support. Chrome or Edge is the expected fallback recommendation when WebM recording is unavailable.
 
+## Visual-output casting
+
+### Canonical implementation
+
+| Responsibility | Current authority |
+| --- | --- |
+| Visualizer cast button, chooser, and WebRTC broadcaster | `src/components/vyzualz/react/output/OutputCastControl.tsx` |
+| Trusted native bridge types | `src/native/outputBridge.ts` |
+| Electron display routing, LAN discovery, receiver server, and output windows | `native/output/outputCastBridge.cjs` |
+| Preload exposure | `native/rekordbox/preloadRekordboxBridge.cjs` |
+
+The cast icon lives in the lower visualizer toolbar beside Stage Focus. The chooser requires an explicit window mode and aspect ratio before any target can be selected.
+
+Local display targets come from Electron's display inventory. Network targets are other running DRMVYZ desktop instances discovered on the local network. The receiving instance opens a sandboxed output-only window and loads a token-scoped receiver page from the sender. The live canvas is copied into one stable relay canvas and transmitted with WebRTC so engine canvas replacement does not create a second rendering source of truth.
+
+AirPlay and Miracast remain operating-system display connections. Once the operating system exposes one as a display, it appears in the local display list. This bridge does not claim direct control of proprietary AirPlay, Chromecast, or Miracast device protocols.
+
+Receiver HTTP endpoints require random session tokens. LAN cast-start requests require the receiver token advertised by discovery, must originate from a private-network address, and may load only the requesting sender's `/receiver` URL. Output windows keep Node integration disabled, context isolation enabled, and sandboxing enabled.
+
+### Window and aspect ownership
+
+The chooser owns only the output-window presentation contract:
+
+- Window
+- Borderless
+- Full Screen
+- 16:9, 16:10, 4:3, 3:2, 1:1, or 9:16
+
+The renderer remains responsible for the visual content. The receiver uses contained scaling and a black surround instead of mutating authored engine state or introducing an output-specific engine configuration.
+
+### Browser fallback
+
+Browser builds show the casting control and explain that device discovery and output-window creation require the DRMVYZ desktop bridge. They do not fabricate devices or claim a cast session has started.
+
 ## LaserDMX Production Output
 
 ### Canonical implementation
@@ -100,11 +135,13 @@ Virtual rendering and Production Output must compile from the same normalized ri
 
 ## UI placement
 
-Browser recording is available under **OUTPUT → RECORDING** for React engines.
+Browser recording is available under **OUTPUT → RECORDING** for React engines. Visual-output casting is opened from the cast icon in the lower visualizer toolbar.
 
 LaserDMX additionally exposes **OUTPUT → PRODUCTION**. Other engines must not display physical fixture-output controls unless they adopt the normalized rig and safety architecture.
 
 ## Verification
+
+Casting changes require native validation coverage for target requests, window geometry, local-network restrictions, and receiver URL ownership, plus UI coverage for the required window/aspect gating.
 
 Recording changes require unit coverage for MIME selection, combined-stream construction, track cleanup, errors, and active-canvas ownership.
 

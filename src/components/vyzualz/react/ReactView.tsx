@@ -18,6 +18,7 @@ import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { ReactGlobalOutputControls } from './ReactGlobalOutputControls'
+import { OutputCastControl } from './output/OutputCastControl'
 import {
   ReactDesignWorkspacePanel,
   ReactOutputWorkspacePanel,
@@ -755,6 +756,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   ))}
                 </div>
                 <div className="rv-lower-workspace-actions">
+                  <OutputCastControl canvas={outputCanvas} />
                   <button
                     type="button"
                     className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}

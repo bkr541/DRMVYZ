@@ -71,6 +71,7 @@ The lower workspace owns:
 - Track Map
 - Sound Drawing timeline
 - Performance Pads
+- Visual-output cast control beside Stage Focus
 
 The audio dock is mounted outside the grid:
 
@@ -237,7 +238,7 @@ The audio dock owns a separate collapse preference.
 
 ## Stage Focus
 
-Stage Focus maximizes the live stage by hiding rail and lower-workspace presentation through React View state and CSS behavior.
+Stage Focus maximizes the live stage by hiding rail and lower-workspace presentation through React View state and CSS behavior. The adjacent cast control opens the output-window and device chooser without changing Stage Focus state.
 
 It also switches the audio dock to compact mode.
 
@@ -251,7 +252,7 @@ Stage Focus must not:
 
 ## Recording and output
 
-`useRecorder` lives in React View and records the active output canvas.
+`useRecorder` lives in React View and records the active output canvas. `OutputCastControl` consumes that same published canvas and relays it to a local display or discovered DRMVYZ receiver without creating a second renderer.
 
 The selected engine must publish the actual visible live canvas. Preview and thumbnail canvases must not replace it.
 

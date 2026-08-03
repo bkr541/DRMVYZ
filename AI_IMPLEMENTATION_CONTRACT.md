@@ -163,7 +163,7 @@ Rules:
 
 ### Lower workspace and audio dock
 
-The lower workspace owns Track Map, Sound Drawing timeline lanes, and Performance Pads. Its composition is controlled by `reactWorkspaceComposition.ts`.
+The lower workspace owns Track Map, Sound Drawing timeline lanes, Performance Pads, and the shared visual-output cast action beside Stage Focus. Its engine-specific composition is controlled by `reactWorkspaceComposition.ts`; the cast action consumes the canonical published output canvas and is not engine-specific.
 
 The shared audio dock is mounted outside the main grid through `src/components/vyzualz/shared/VyzualzAudioDock.tsx`.
 
@@ -172,6 +172,7 @@ Rules:
 - Timeline editors may use compact, timeline-specific controls.
 - Do not copy `.rv-form-*`, `.rv-sd-*`, or timeline lane controls into ordinary right-rail panels.
 - Stage Focus is session-only. It hides workspace surfaces and switches the audio dock to compact mode without rewriting persisted collapse preferences.
+- Visual-output casting belongs beside Stage Focus and must reuse the active canvas published to React View. Device discovery and output-window creation remain behind the trusted Electron preload/main-process bridge.
 - The audio dock may persist its own user-collapse preference independently.
 
 ## Canonical engine and workspace composition
