@@ -40,6 +40,7 @@ describe('InfoPopover', () => {
           open
           anchorRef={anchorRef}
           title="Complexity"
+          headerIcon={<span data-testid="header-icon">i</span>}
           description="Controls the intricacy and density of the visual."
           sections={[
             { label: 'Current value', content: '70%' },
@@ -55,6 +56,7 @@ describe('InfoPopover', () => {
     expect(dialog?.textContent).toContain('Complexity')
     expect(dialog?.textContent).toContain('Current value')
     expect(dialog?.textContent).toContain('70%')
+    expect(document.body.querySelector('.drm-info-popover__header-icon')).not.toBeNull()
     expect(document.body.querySelector('[aria-label="More information"]')).toBeNull()
     expect(document.body.querySelector('.drm-info-popover-backdrop')).not.toBeNull()
   })

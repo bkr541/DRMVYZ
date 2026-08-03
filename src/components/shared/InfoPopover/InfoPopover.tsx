@@ -37,6 +37,7 @@ export interface InfoPopoverProps {
   open: boolean
   anchorRef: RefObject<HTMLElement | null>
   title: ReactNode
+  headerIcon?: ReactNode
   description?: ReactNode
   sections?: readonly InfoPopoverSection[]
   children?: ReactNode
@@ -125,6 +126,7 @@ export function InfoPopover({
   open,
   anchorRef,
   title,
+  headerIcon,
   description,
   sections = [],
   children,
@@ -331,25 +333,31 @@ export function InfoPopover({
       onPointerDown={event => event.stopPropagation()}
     >
       <div className="drm-info-popover__header">
-        <div className="drm-info-popover__heading-copy">
-          <h3 id={titleId} className="drm-info-popover__title">{title}</h3>
-          {description != null && (
-            <div id={descriptionId} className="drm-info-popover__description">
-              {description}
-            </div>
+        <div className="drm-info-popover__header-row">
+          {headerIcon != null && (
+            <span className="drm-info-popover__header-icon" aria-hidden="true">
+              {headerIcon}
+            </span>
           )}
+          <h3 id={titleId} className="drm-info-popover__title">{title}</h3>
+
+          <button
+            type="button"
+            className="drm-info-popover__close"
+            aria-label={closeLabel}
+            onClick={() => requestClose(true)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
         </div>
 
-        <button
-          type="button"
-          className="drm-info-popover__close"
-          aria-label={closeLabel}
-          onClick={() => requestClose(true)}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 6l12 12M18 6 6 18" />
-          </svg>
-        </button>
+        {description != null && (
+          <div id={descriptionId} className="drm-info-popover__description">
+            {description}
+          </div>
+        )}
       </div>
 
       {(sections.length > 0 || children != null) && (

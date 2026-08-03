@@ -402,6 +402,26 @@ body,
   color: var(--color-text-faint);
 }
 
+.vsm-settings-detail--error > span:first-child {
+  color: var(--color-danger, #ef7373);
+}
+
+.vsm-settings-inline-link {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.vsm-settings-inline-link:hover {
+  color: var(--color-text-strong);
+}
+
 .vsm-media-sync-dot {
   width: 8px;
   height: 8px;

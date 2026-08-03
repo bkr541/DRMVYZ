@@ -7,6 +7,7 @@ import { getProfile, updateProfile, uploadAvatar } from '../../../lib/profileDb'
 import type { Profile } from '../../../types/database'
 import { BrandKitSettingsPanel } from '../../../features/personalization/components/BrandKitSettingsPanel'
 import { AppearanceSettingsPanel } from '../../../features/appearance/AppearanceSettingsPanel'
+import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
 
 // ── AccountPanel ──────────────────────────────────────────────────────────────
 
@@ -246,6 +247,25 @@ function SystemSettingsPanel() {
     storageAvailable: state.storageAvailable,
     authRequired: state.authRequired,
   })))
+  const {
+    infoEnabled,
+    loading: infoLoading,
+    syncing: infoSyncing,
+    error: infoError,
+    currentUserId: infoUserId,
+    setInfoEnabled,
+    retrySync: retryInfoSync,
+  } = useContextualHelpStore()
+
+  const infoPreferenceStatus = infoLoading
+    ? 'Loading your saved preference…'
+    : infoSyncing
+      ? 'Saving to your account…'
+      : infoError
+        ? 'Saved on this device. Cloud sync needs attention.'
+        : infoUserId
+          ? 'Saved to your account.'
+          : 'Saved on this device.'
 
   return (
     <div className="vsm-system-settings">
@@ -310,6 +330,35 @@ function SystemSettingsPanel() {
             </div>
           </div>
         )}
+      </section>
+
+      <section className="vsm-settings-group" aria-labelledby="vsm-contextual-info-heading">
+        <div className="vsm-settings-group-heading vsm-settings-group-heading--action">
+          <div>
+            <h2 id="vsm-contextual-info-heading">Contextual Info</h2>
+            <p>Show an info icon when hovering over supported controls and workspace elements.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            className={`vz-settings-seg-btn vsm-settings-toggle${infoEnabled ? ' vz-settings-seg-btn--active' : ''}`}
+            aria-checked={infoEnabled}
+            disabled={infoLoading}
+            onClick={() => void setInfoEnabled(!infoEnabled)}
+          >{infoEnabled ? 'ON' : 'OFF'}</button>
+        </div>
+        <div
+          className={`vsm-settings-detail${infoError ? ' vsm-settings-detail--error' : ''}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span>{infoPreferenceStatus}</span>
+          {infoError && (
+            <button type="button" className="vsm-settings-inline-link" onClick={() => void retryInfoSync()}>
+              Retry
+            </button>
+          )}
+        </div>
       </section>
 
       <section className="vsm-settings-group">

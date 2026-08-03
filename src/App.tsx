@@ -10,6 +10,7 @@ import { productionOutputController } from './components/vyzualz/react/output/Pr
 import { startPixGridDeckCompilerRuntime } from './components/vyzualz/react/pixGrid/PixGridDeckCompilerRuntime'
 import { useMediaStore } from './stores/mediaStore'
 import { useAppearanceStore } from './features/appearance/appearanceStore'
+import { useContextualHelpStore } from './features/contextualHelp/contextualHelpStore'
 import './stores/mediaDeletionGuardBootstrap'
 
 const VyzualzView = lazy(() =>
@@ -55,6 +56,7 @@ export default function App() {
     if (!supabaseConfigured) {
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
+      useContextualHelpStore.getState().clearForSignedOut()
       useMediaStore.getState().clear()
       setAuthGate('configuration-required')
       return
@@ -68,9 +70,11 @@ export default function App() {
       if (userId) {
         void useBrandKitStore.getState().initializeForUser(userId)
         void useAppearanceStore.getState().initializeForUser(userId)
+        void useContextualHelpStore.getState().initializeForUser(userId)
       } else {
         useBrandKitStore.getState().clearForSignedOut()
         useAppearanceStore.getState().clearForSignedOut()
+        useContextualHelpStore.getState().clearForSignedOut()
       }
     })
 
@@ -85,9 +89,11 @@ export default function App() {
       if (userId) {
         void useBrandKitStore.getState().initializeForUser(userId)
         void useAppearanceStore.getState().initializeForUser(userId)
+        void useContextualHelpStore.getState().initializeForUser(userId)
       } else {
         useBrandKitStore.getState().clearForSignedOut()
         useAppearanceStore.getState().clearForSignedOut()
+        useContextualHelpStore.getState().clearForSignedOut()
       }
     })
 

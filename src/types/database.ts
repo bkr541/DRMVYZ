@@ -109,6 +109,7 @@ export interface UserSettings {
   fft_size: 512 | 1024 | 2048 | 4096 | 8192 | 16384
   smoothing: number
   default_volume: number
+  info_enabled: boolean
   active_brand_kit_id: string | null
   updated_at: string
 }

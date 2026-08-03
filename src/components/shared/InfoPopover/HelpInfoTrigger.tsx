@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import learnIconUrl from '../../../assets/help/learn-svgrepo-com.svg'
+import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
 import { getHelpEntry, type HelpId } from '../../../help/HelpCenter'
 import {
   InfoPopover,
@@ -83,6 +84,7 @@ export function HelpInfoTrigger({
   currentValueTone = 'default',
   placement = 'auto',
 }: HelpInfoTriggerProps) {
+  const infoEnabled = useContextualHelpStore(state => state.infoEnabled)
   const entry = getHelpEntry(helpId)
   const anchorRef = useRef<HTMLButtonElement>(null)
   const triggerToken = useId()
@@ -96,6 +98,10 @@ export function HelpInfoTrigger({
     window.addEventListener(HELP_POPOVER_OPEN_EVENT, closeOtherPopover)
     return () => window.removeEventListener(HELP_POPOVER_OPEN_EVENT, closeOtherPopover)
   }, [triggerToken])
+
+  useEffect(() => {
+    if (!infoEnabled) setOpen(false)
+  }, [infoEnabled])
 
   const sections = useMemo<readonly InfoPopoverSection[]>(() => {
     if (!entry) return []
@@ -154,7 +160,7 @@ export function HelpInfoTrigger({
     return nextSections
   }, [currentValue, currentValueLabel, currentValueTone, entry])
 
-  if (!entry) return null
+  if (!entry || !infoEnabled) return null
 
   return (
     <>
@@ -187,12 +193,13 @@ export function HelpInfoTrigger({
         open={open}
         anchorRef={anchorRef}
         title={entry.title}
+        headerIcon={<img src={learnIconUrl} alt="" />}
         description={entry.summary}
         sections={sections}
         placement={placement}
         align="center"
-        width={340}
-        maxHeight={520}
+        width={460}
+        maxHeight={660}
         onOpenChange={setOpen}
       />
     </>
