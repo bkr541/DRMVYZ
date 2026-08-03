@@ -484,7 +484,7 @@ describe('PixGrid Deck Stage 6 runtime rendering', () => {
     }
 
     const neutral = render('pix-checkerboard')
-    const legacyAlias = render('pix-neon-marquee-cycle')
+    const legacyAlias = render('pix-removed-legacy-frame')
     expect(Array.from(legacyAlias)).toEqual(Array.from(neutral))
     expect(hash(neutral)).toBe(hash(composePixGridDeckRuntimeFrame(source).pixels))
   })

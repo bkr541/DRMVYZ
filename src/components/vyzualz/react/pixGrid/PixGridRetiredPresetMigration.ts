@@ -5,12 +5,12 @@ import type { PixGridState } from './PixGridTypes'
 import { normalizePixGridState } from './PixGridValidation'
 
 export const RETIRED_PIX_GRID_MARQUEE_PRESET_ID = 'pix-grid-neon-marquee-cycle' as const
-export const RETIRED_PIX_GRID_MARQUEE_PERFORMANCE_PROGRAM_ID = 'pix-grid-neon-marquee-performance' as const
+const RETIRED_PIX_GRID_MARQUEE_PERFORMANCE_PROGRAM_ID = 'pix-grid-neon-marquee-performance' as const
 
-export const RETIRED_PIX_GRID_MARQUEE_SCENE_PREFIX = `${RETIRED_PIX_GRID_MARQUEE_PRESET_ID}-` as const
-export const RETIRED_PIX_GRID_MARQUEE_LAYER_PREFIX = 'marquee-' as const
-export const RETIRED_PIX_GRID_MARQUEE_GROUP_PREFIX = 'marquee-' as const
-export const RETIRED_PIX_GRID_MARQUEE_ASSET_PREFIX = 'pix-neon-marquee-' as const
+const RETIRED_PIX_GRID_MARQUEE_SCENE_PREFIX = `${RETIRED_PIX_GRID_MARQUEE_PRESET_ID}-` as const
+const RETIRED_PIX_GRID_MARQUEE_LAYER_PREFIX = 'marquee-' as const
+const RETIRED_PIX_GRID_MARQUEE_GROUP_PREFIX = 'marquee-' as const
+const RETIRED_PIX_GRID_MARQUEE_ASSET_PREFIX = 'pix-neon-marquee-' as const
 
 /**
  * Direct assignments shipped before the retired preset's Performance Program
@@ -114,7 +114,7 @@ function layerReferencesRetiredAsset(layer: Record<string, unknown>): boolean {
  * Display names are intentionally ignored so the unrelated rectangular
  * Marquee Selection editor tool and user-authored labels remain untouched.
  */
-export function isRetiredPixGridMarqueeState(value: unknown): boolean {
+function isRetiredPixGridMarqueeState(value: unknown): boolean {
   if (!isRecord(value)) return false
 
   if (value.selectedPresetId === RETIRED_PIX_GRID_MARQUEE_PRESET_ID) return true
@@ -222,7 +222,7 @@ function actionTargetsRetiredMarquee(value: unknown, key: string | null = null):
   ))
 }
 
-export function isRetiredPixGridMarqueeActionCue(value: unknown): boolean {
+function isRetiredPixGridMarqueeActionCue(value: unknown): boolean {
   return isRecord(value)
     && isRecord(value.action)
     && actionTargetsRetiredMarquee(value.action)

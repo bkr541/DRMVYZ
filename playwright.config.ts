@@ -13,16 +13,16 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * CI: browsers are installed by the e2e job in .github/workflows/ci.yml.
  */
-const marqueeRealBrowser = process.env.DRMVYZ_PIX_GRID_MARQUEE_REAL_BROWSER === '1'
+const pixGridBrowserSmoke = process.env.DRMVYZ_PIX_GRID_BROWSER_SMOKE === '1'
 const deckCompilerBrowser = process.env.DRMVYZ_PIX_GRID_DECK_COMPILER_BROWSER === '1'
 const deckRuntimeBrowser = process.env.DRMVYZ_PIX_GRID_DECK_RUNTIME_BROWSER === '1'
 const offlineVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1'
   || process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
-  || marqueeRealBrowser
+  || pixGridBrowserSmoke
   || deckCompilerBrowser
   || deckRuntimeBrowser
 const webglVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
-const forceWebglBrowser = webglVisualReview || marqueeRealBrowser || deckCompilerBrowser || deckRuntimeBrowser
+const forceWebglBrowser = webglVisualReview || pixGridBrowserSmoke || deckCompilerBrowser || deckRuntimeBrowser
 const recordFailureVideo = !!process.env.CI || process.env.DRMVYZ_PLAYWRIGHT_VIDEO === '1'
 
 export default defineConfig({
@@ -32,7 +32,7 @@ export default defineConfig({
     ? 'artifacts/pix-grid-deck-runtime-browser/results'
     : deckCompilerBrowser
       ? 'artifacts/pix-grid-deck-compiler-browser/results'
-      : marqueeRealBrowser ? 'artifacts/pix-grid-marquee-real-browser/results' : 'test-results',
+      : 'test-results',
 
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
