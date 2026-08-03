@@ -568,6 +568,51 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "range": "0–100%"
   },
   {
+    "id": "react.soundDrawing.workspace.tabs",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Sound Drawing workspace",
+    "title": "Source, Media, and Fonts",
+    "componentType": "selection",
+    "summary": "Switches the left Sound Drawing workspace between engine controls, compatible media, and uploaded fonts.",
+    "whatItDoes": [
+      "Source shows Sound Drawing performance, Engine Mode, and source controls.",
+      "Media shows compatible SVG media, while Fonts opens the font library used by text-driven Sound Drawing visuals."
+    ],
+    "whenToUse": "Move between these tabs when configuring the visual source, choosing reusable media, or preparing typography for Text mode.",
+    "affects": [
+      "visible left-workspace panel"
+    ],
+    "doesNotAffect": [
+      "the active Sound Drawing preset or rendered output by itself"
+    ],
+    "tip": "Changing tabs only changes the editor surface. Existing Sound Drawing settings remain loaded."
+  },
+  {
+    "id": "react.soundDrawing.presetLibrary",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Sound Drawing presets",
+    "title": "Sound Drawing Presets",
+    "componentType": "selection",
+    "summary": "Browses and loads saved Sound Drawing looks from the current, favorite, or all-engine preset library view.",
+    "whatItDoes": [
+      "Selecting a preset loads its Sound Drawing source type and stored visual settings.",
+      "The star action adds or removes a preset from Favorites without loading it."
+    ],
+    "whenToUse": "Use the preset list to audition complete Sound Drawing looks before refining their source or design controls.",
+    "affects": [
+      "active React preset",
+      "active engine when a preset is selected from All Engines"
+    ],
+    "doesNotAffect": [
+      "the preset registry entry when merely browsing or favoriting"
+    ],
+    "tip": "Use Current Engine to stay inside Sound Drawing, or All Engines when intentionally switching visual engines."
+  },
+  {
     "id": "react.soundDrawing.authoredPerformance.overview",
     "priority": 1,
     "view": "react",

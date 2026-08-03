@@ -53,6 +53,7 @@ import {
   writeReactPresetFavorites,
   type ReactPresetLibraryView,
 } from './reactPresetLibraryState'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 const ENGINE_ORDER: ReactEngineId[] = REACT_ENGINE_IDS.filter(engine => engine !== 'shaderPads')
 function getModeHint(preset: ReactPreset): string | null {
@@ -865,6 +866,38 @@ export function ReactPresetsPanel() {
     thumbnailGenerationKey,
   }
 
+  const presetLibraryContent = isCanvasCurrentLibrary ? (
+    <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} />
+  ) : isLaserDmxCurrentLibrary ? (
+    laserDmxBeamMatrixAuthoringMode === 'showDirector'
+      ? (
+          <>
+            <ShowDirectorPerformancePresets />
+            <ShowDirectorTemplatePresets />
+          </>
+        )
+      : <BeamMatrixRuntimePresets />
+  ) : visiblePresets.length === 0 ? (
+    <div className="rv-preset-library-empty">
+      <strong>{libraryView === 'favorites' ? 'No favorite presets yet' : `No ${activeEngine.label} presets found`}</strong>
+      <span>{libraryView === 'favorites' ? 'Choose ☆ on a preset to pin it here.' : 'Use the Design tab to edit the active engine look.'}</span>
+    </div>
+  ) : libraryView === 'current' ? (
+    activeReactEngineId === 'cinematicPortal'
+      ? <CinematicCurrentPresetBrowser presets={visiblePresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
+      : <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{visiblePresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
+  ) : (
+    grouped.map(({ engine, presets }) => (
+      <EngineSection
+        key={`${libraryView}-${engine}`}
+        engineId={engine}
+        presets={presets}
+        expandedByDefault={libraryView === 'favorites'}
+        {...collectionProps}
+      />
+    ))
+  )
+
   return (
     <div className="rv-presets-panel">
       <header className="rv-preset-library-header">
@@ -919,37 +952,17 @@ export function ReactPresetsPanel() {
             : 'Selecting another engine’s preset switches that engine and loads the look.'}
       </p>
 
-      {isCanvasCurrentLibrary ? (
-        <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} />
-      ) : isLaserDmxCurrentLibrary ? (
-        laserDmxBeamMatrixAuthoringMode === 'showDirector'
-          ? (
-              <>
-                <ShowDirectorPerformancePresets />
-                <ShowDirectorTemplatePresets />
-              </>
-            )
-          : <BeamMatrixRuntimePresets />
-      ) : visiblePresets.length === 0 ? (
-        <div className="rv-preset-library-empty">
-          <strong>{libraryView === 'favorites' ? 'No favorite presets yet' : `No ${activeEngine.label} presets found`}</strong>
-          <span>{libraryView === 'favorites' ? 'Choose ☆ on a preset to pin it here.' : 'Use the Design tab to edit the active engine look.'}</span>
-        </div>
-      ) : libraryView === 'current' ? (
-        activeReactEngineId === 'cinematicPortal'
-          ? <CinematicCurrentPresetBrowser presets={visiblePresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
-          : <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{visiblePresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
-      ) : (
-        grouped.map(({ engine, presets }) => (
-          <EngineSection
-            key={`${libraryView}-${engine}`}
-            engineId={engine}
-            presets={presets}
-            expandedByDefault={libraryView === 'favorites'}
-            {...collectionProps}
+      {activeReactEngineId === 'oscilloscope' ? (
+        <div className="rv-sound-drawing-presets-help drm-help-overlay-anchor">
+          {presetLibraryContent}
+          <HelpInfoTrigger
+            helpId="react.soundDrawing.presetLibrary"
+            currentValue={`${active?.name ?? 'No preset selected'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${visiblePresets.length} shown`}
+            currentValueTone={active ? 'accent' : 'default'}
+            placement="left"
           />
-        ))
-      )}
+        </div>
+      ) : presetLibraryContent}
     </div>
   )
 }

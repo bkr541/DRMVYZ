@@ -12,9 +12,33 @@ const approvedExplicitHelpPlacements = new Map<string, readonly string[]>([
   [
     join(srcDir, 'components', 'vyzualz', 'react', 'ReactView.tsx'),
     [
+      'react.shared.header.audioInput',
       'react.shared.trackMap.overview',
       'react.shared.performancePads.overview',
       'react.shared.lowerWorkspace.outputActions',
+      'react.soundDrawing.workspace.tabs',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'ReactGlobalOutputControls.tsx'),
+    [
+      'react.shared.header.productionOutput',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'ReactEnginePanel.tsx'),
+    [
+      'react.soundDrawing.authoredPerformance.autoPerformance',
+      'react.soundDrawing.authoredPerformance.performanceShow',
+      'react.soundDrawing.engineMode.overview',
+      'react.soundDrawing.engineMode.followTrackSections',
+      'react.soundDrawing.engineMode.classicMode',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'ReactPresetsPanel.tsx'),
+    [
+      'react.soundDrawing.presetLibrary',
     ],
   ],
   [

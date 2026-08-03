@@ -4857,6 +4857,41 @@
   flex: 1 1 auto;
 }
 
+/* Explicit Sound Drawing help anchors mirror the highlighted control bounds
+   without adding columns, padding, or interactive space to the controls. */
+.rv-workspace-tabs-wrap,
+.rv-sound-drawing-workspace-tabs-help,
+.rv-sound-drawing-control-help,
+.rv-sound-drawing-source-grid-help,
+.rv-sound-drawing-presets-help {
+  min-width: 0;
+}
+
+.rv-sound-drawing-workspace-tabs-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -7px;
+  --drm-help-overlay-right: -3px;
+  --drm-help-overlay-z: 30;
+}
+
+.rv-sound-drawing-control-help.drm-help-overlay-anchor,
+.rv-sound-drawing-source-grid-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -5px;
+  --drm-help-overlay-z: 28;
+}
+
+.rv-sound-drawing-presets-help {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rv-sound-drawing-presets-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -9px;
+  --drm-help-overlay-right: -7px;
+  --drm-help-overlay-z: 28;
+}
+
 .rv-context-workspace > .rv-left-tab-body {
   padding: 0;
   gap: 0;

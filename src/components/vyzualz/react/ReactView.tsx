@@ -574,13 +574,24 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               <header className="rv-context-workspace-header">
                 <ReactEngineBrowser />
               </header>
-              <RailTabs
-                tabs={leftTabs}
-                activeTab={leftTab}
-                onChange={setLeftTab}
-                ariaLabel={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace tabs`}
-                className="rv-context-workspace-tabs"
-              />
+              <div className={activeReactEngineId === 'oscilloscope'
+                ? 'rv-sound-drawing-workspace-tabs-help drm-help-overlay-anchor'
+                : 'rv-workspace-tabs-wrap'}>
+                <RailTabs
+                  tabs={leftTabs}
+                  activeTab={leftTab}
+                  onChange={setLeftTab}
+                  ariaLabel={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace tabs`}
+                  className="rv-context-workspace-tabs"
+                />
+                {activeReactEngineId === 'oscilloscope' && (
+                  <HelpInfoTrigger
+                    helpId="react.soundDrawing.workspace.tabs"
+                    currentValue={leftTabs.find((tab) => tab.id === leftTab)?.label ?? 'Source'}
+                    placement="right"
+                  />
+                )}
+              </div>
               <div className="rv-left-tab-body">
                 <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
                   {leftTab === 'workspace' && <ReactEnginePanel />}

@@ -121,6 +121,17 @@ describe('Help Center registry', () => {
     })
   })
 
+  it('documents the explicit Sound Drawing workspace and preset-library regions', () => {
+    expect(getHelpEntry('react.soundDrawing.workspace.tabs')).toMatchObject({
+      title: 'Source, Media, and Fonts',
+      componentType: 'selection',
+    })
+    expect(getHelpEntry('react.soundDrawing.presetLibrary')).toMatchObject({
+      title: 'Sound Drawing Presets',
+      componentType: 'selection',
+    })
+  })
+
   it('reports malformed synthetic entries without a new validation dependency', () => {
     const base: HelpEntry = {
       id: 'test.entry',
