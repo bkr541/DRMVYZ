@@ -115,6 +115,58 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     ]
   },
   {
+    "id": "react.shared.header.audioInput",
+    "priority": 1,
+    "view": "react",
+    "engine": "shared",
+    "group": "Main app header",
+    "title": "Audio Input",
+    "componentType": "select",
+    "summary": "Chooses the audio source that drives playback, analysis, and audio-reactive visual behavior in React.",
+    "whatItDoes": [
+      "Track Input uses the loaded audio track and its available analysis data.",
+      "Microphone listens to live input, while Demo Signal provides a generated source for testing without a track."
+    ],
+    "whenToUse": "Choose the source that matches the current performance or setup workflow before configuring audio-reactive visuals.",
+    "affects": [
+      "shared audio-engine source",
+      "audio analysis and modulation available to React engines"
+    ],
+    "doesNotAffect": [
+      "the selected React engine or preset",
+      "saved visual parameter values"
+    ],
+    "tip": "Use Demo Signal to confirm that a visual reacts before troubleshooting a track file or microphone connection.",
+    "relatedHelpIds": [
+      "visualizer.audioDeck.trackPlayer"
+    ]
+  },
+  {
+    "id": "react.shared.header.productionOutput",
+    "priority": 1,
+    "view": "react",
+    "engine": "shared",
+    "group": "Main app header",
+    "title": "Production Output",
+    "componentType": "group",
+    "summary": "Provides always-visible safety controls for arming, revealing, or blacking out the active LaserDMX production output.",
+    "whatItDoes": [
+      "Power arms or disarms the selected production-output adapter when LaserDMX is active and the adapter is available.",
+      "Reveal clears visual and emergency blackout state, and can restore an output that was armed before blackout.",
+      "Blackout immediately darkens the LaserDMX output and engages the emergency-blackout path."
+    ],
+    "whenToUse": "Use these controls while preparing or running LaserDMX output when a fast, persistent safety action must remain available from any React workspace.",
+    "affects": [
+      "LaserDMX production-output armed state",
+      "LaserDMX visual and emergency blackout state"
+    ],
+    "doesNotAffect": [
+      "non-LaserDMX engine rendering",
+      "the selected preset or authored show data"
+    ],
+    "tip": "Keep output disarmed while configuring the rig, then arm only after the destination and safety state have been verified."
+  },
+  {
     "id": "react.shared.trackMap.overview",
     "priority": 1,
     "view": "react",

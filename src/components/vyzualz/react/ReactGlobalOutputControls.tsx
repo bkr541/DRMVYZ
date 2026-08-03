@@ -2,6 +2,7 @@ import { useRef, useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { productionOutputController } from './output/ProductionOutput'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 
 function OutputArmIcon() {
@@ -105,44 +106,57 @@ export function ReactGlobalOutputControls() {
   }
 
   return (
-    <div className="rv-global-output" aria-label="Global performance output">
-      <button
-        type="button"
-        className={`rv-global-output-status${snapshot.status.armed && !blackout ? ' is-armed' : ''}${blackout ? ' is-dark' : ''}`}
-        onClick={toggleArmed}
-        disabled={!canControl}
-        aria-pressed={snapshot.status.armed}
-        aria-label={statusLabel}
-        title={isLaserDmx
-          ? `${statusLabel}: ${selected?.label ?? 'Production output'} · click to ${snapshot.status.armed ? 'disarm' : 'arm'}`
-          : 'Production output controls become available when LaserDMX is active'}
-      >
-        <span className="rv-global-output-dot" aria-hidden="true" />
-        <OutputArmIcon />
-        <span className="rv-global-output-label">{statusLabel}</span>
-      </button>
-      <button
-        type="button"
-        className="rv-global-output-reveal"
-        onClick={reveal}
-        disabled={!isLaserDmx || (!blackout && !snapshot.emergencyBlackout)}
-        aria-label="Reveal output"
-        title="Reveal output"
-      >
-        <RevealIcon />
-        <span className="rv-global-output-label">Reveal</span>
-      </button>
-      <button
-        type="button"
-        className="rv-global-output-blackout"
-        onClick={blackoutNow}
-        disabled={!isLaserDmx || (visualBlackout && snapshot.emergencyBlackout)}
-        aria-label="Blackout output"
-        title="Blackout output"
-      >
-        <BlackoutIcon />
-        <span className="rv-global-output-label">Blackout</span>
-      </button>
+    <div className="rv-header-output-help drm-help-overlay-anchor">
+      <div className="rv-global-output" aria-label="Global performance output">
+        <button
+          type="button"
+          className={`rv-global-output-status${snapshot.status.armed && !blackout ? ' is-armed' : ''}${blackout ? ' is-dark' : ''}`}
+          onClick={toggleArmed}
+          disabled={!canControl}
+          aria-pressed={snapshot.status.armed}
+          aria-label={statusLabel}
+          title={isLaserDmx
+            ? `${statusLabel}: ${selected?.label ?? 'Production output'} · click to ${snapshot.status.armed ? 'disarm' : 'arm'}`
+            : 'Production output controls become available when LaserDMX is active'}
+        >
+          <span className="rv-global-output-dot" aria-hidden="true" />
+          <OutputArmIcon />
+          <span className="rv-global-output-label">{statusLabel}</span>
+        </button>
+        <button
+          type="button"
+          className="rv-global-output-reveal"
+          onClick={reveal}
+          disabled={!isLaserDmx || (!blackout && !snapshot.emergencyBlackout)}
+          aria-label="Reveal output"
+          title="Reveal output"
+        >
+          <RevealIcon />
+          <span className="rv-global-output-label">Reveal</span>
+        </button>
+        <button
+          type="button"
+          className="rv-global-output-blackout"
+          onClick={blackoutNow}
+          disabled={!isLaserDmx || (visualBlackout && snapshot.emergencyBlackout)}
+          aria-label="Blackout output"
+          title="Blackout output"
+        >
+          <BlackoutIcon />
+          <span className="rv-global-output-label">Blackout</span>
+        </button>
+      </div>
+      <HelpInfoTrigger
+        helpId="react.shared.header.productionOutput"
+        currentValue={statusLabel}
+        currentValueLabel="Status"
+        currentValueTone={isLaserDmx && (blackout || unavailable)
+          ? 'warning'
+          : isLaserDmx && snapshot.status.armed
+            ? 'success'
+            : 'default'}
+        placement="below"
+      />
     </div>
   )
 }

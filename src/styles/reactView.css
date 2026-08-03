@@ -5073,6 +5073,23 @@
    compact lower workspace, and Stage Focus.
 ════════════════════════════════════════════════════════════════════════════ */
 
+/* Header help anchors float over their owning controls without changing the
+   header's flex measurements. The negative top offset matches the existing
+   lower-workspace contextual-help placement while keeping the icon inside the
+   Electron content viewport. */
+.rv-header-input-help.drm-help-overlay-anchor,
+.rv-header-output-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -12px;
+  --drm-help-overlay-right: -9px;
+  --drm-help-overlay-z: 30;
+}
+
+.rv-header-output-help {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 /* ── Persistent global performance controls ───────────────────────────────── */
 .rv-global-output {
   display: flex;

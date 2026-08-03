@@ -110,6 +110,17 @@ describe('Help Center registry', () => {
     expect(validateHelpRegistry(entries, HELP_CENTER)).toEqual([])
   })
 
+  it('documents both contextual-help regions in the React main header', () => {
+    expect(getHelpEntry('react.shared.header.audioInput')).toMatchObject({
+      title: 'Audio Input',
+      componentType: 'select',
+    })
+    expect(getHelpEntry('react.shared.header.productionOutput')).toMatchObject({
+      title: 'Production Output',
+      componentType: 'group',
+    })
+  })
+
   it('reports malformed synthetic entries without a new validation dependency', () => {
     const base: HelpEntry = {
       id: 'test.entry',

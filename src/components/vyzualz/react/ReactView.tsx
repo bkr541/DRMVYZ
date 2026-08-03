@@ -524,7 +524,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
 
         <div className="vz-header-sep" />
 
-        <div className="vz-input-group">
+        <div className="vz-input-group rv-header-input-help drm-help-overlay-anchor">
           <label className="vz-input-label" htmlFor={audioSourceId}>
             Input
           </label>
@@ -538,6 +538,15 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             <option value="microphone">Microphone</option>
             <option value="demo">Demo Signal</option>
           </DropdownSelect>
+          <HelpInfoTrigger
+            helpId="react.shared.header.audioInput"
+            currentValue={engine.source === 'file'
+              ? 'Track Input'
+              : engine.source === 'microphone'
+                ? 'Microphone'
+                : 'Demo Signal'}
+            placement="below"
+          />
         </div>
 
         <span className="az-spacer" />
