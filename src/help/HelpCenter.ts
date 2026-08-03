@@ -7024,6 +7024,215 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "collection membership"
     ],
     "tip": "Open the collection itself to review its contents; changing the view does not change membership."
+  },
+  {
+    "id": "react.shared.performancePads.overview",
+    "priority": 1,
+    "view": "react",
+    "engine": "shared",
+    "group": "Lower workspace",
+    "title": "Performance Pads",
+    "componentType": "group",
+    "summary": "Provides immediate performance actions for the active visual engine.",
+    "whatItDoes": [
+      "Presents the momentary actions and latchable performance controls supported by the current engine.",
+      "Routes each pad through the active engine's existing performance-action system rather than creating a separate automation path."
+    ],
+    "whenToUse": "Open Performance Pads during rehearsal or live playback when you want to trigger accents, transitions, or temporary visual states by hand.",
+    "affects": [
+      "active engine performance actions",
+      "latched performance-pad states"
+    ],
+    "doesNotAffect": [
+      "Track Map section boundaries",
+      "audio playback position"
+    ],
+    "relatedHelpIds": [
+      "react.shared.trackMap.overview"
+    ]
+  },
+  {
+    "id": "react.shared.lowerWorkspace.outputActions",
+    "priority": 1,
+    "view": "react",
+    "engine": "shared",
+    "group": "Lower workspace",
+    "title": "Output and Stage Focus",
+    "componentType": "group",
+    "summary": "Controls where the live visual output is shown and how much workspace chrome remains visible.",
+    "whatItDoes": [
+      "The output control opens the app's display-sharing or casting workflow for the live visual canvas.",
+      "Stage Focus enlarges the live output area by temporarily hiding workspace rails and timeline surfaces."
+    ],
+    "whenToUse": "Use these controls when sending the visualizer to another display or when you need an uncluttered performance view.",
+    "affects": [
+      "live-output presentation",
+      "React workspace visibility"
+    ],
+    "doesNotAffect": [
+      "the selected engine or preset",
+      "saved visual parameters"
+    ]
+  },
+  {
+    "id": "react.shared.trackMap.beatGridLane",
+    "priority": 1,
+    "view": "react",
+    "engine": "shared",
+    "group": "Track Map",
+    "title": "Beat Grid Lane",
+    "componentType": "timeline",
+    "summary": "Displays the analyzed beat positions across the current Track Map viewport.",
+    "whatItDoes": [
+      "Provides a musical timing reference for section boundaries, cues, and other timeline edits.",
+      "The On or Off control changes only whether the beat markers are visible in this lane."
+    ],
+    "whenToUse": "Use the beat lane while aligning edits to beats, bars, and rhythmic changes in the loaded track.",
+    "affects": [
+      "visible Track Map timing reference"
+    ],
+    "doesNotAffect": [
+      "the analyzed beat data",
+      "audio playback timing"
+    ],
+    "relatedHelpIds": [
+      "react.shared.trackMap.beatGrid",
+      "react.shared.trackMap.overview"
+    ]
+  },
+  {
+    "id": "react.shared.trackMap.sectionsLane",
+    "priority": 1,
+    "view": "react",
+    "engine": "shared",
+    "group": "Track Map",
+    "title": "Track Sections Lane",
+    "componentType": "trackSection",
+    "summary": "Shows the analyzed and manually authored song sections across the current timeline range.",
+    "whatItDoes": [
+      "Selecting a section opens its editing controls and exposes its type, label, boundaries, intensity, and visual assignment.",
+      "The lane tools undo the latest section edit, clear sections, or create a new manual section."
+    ],
+    "whenToUse": "Use this lane to correct song structure, define performance regions, or inspect which section is active at a given time.",
+    "affects": [
+      "manual Track Map sections",
+      "section-aware engine context"
+    ],
+    "doesNotAffect": [
+      "the source audio file",
+      "beat-analysis results"
+    ],
+    "relatedHelpIds": [
+      "react.shared.trackMap.sectionEditor.overview",
+      "react.shared.trackMap.newSection.overview",
+      "react.shared.trackMap.overview"
+    ]
+  },
+  {
+    "id": "react.shared.trackMap.cuesLane",
+    "priority": 1,
+    "view": "react",
+    "engine": "shared",
+    "group": "Track Map",
+    "title": "Cues and Presets Lane",
+    "componentType": "timeline",
+    "summary": "Collects cue points, section-linked preset assignments, musical landmarks, and PixGrid action cues on one lane.",
+    "whatItDoes": [
+      "Shows when authored or imported cue events occur relative to the track.",
+      "Cue interactions can seek playback, open an editable cue, or create a PixGrid action cue when that workflow is available."
+    ],
+    "whenToUse": "Use this lane to review performance triggers and visual handoffs without changing the section timeline above it.",
+    "affects": [
+      "cue markers and cue-driven visual actions"
+    ],
+    "doesNotAffect": [
+      "Track Map section boundaries",
+      "the underlying audio analysis"
+    ],
+    "relatedHelpIds": [
+      "react.shared.trackMap.visualAssignment.overview",
+      "react.shared.trackMap.overview"
+    ]
+  },
+  {
+    "id": "visualizer.audioDeck.trackPlayer",
+    "priority": 1,
+    "view": "visualizer",
+    "group": "Audio Deck",
+    "title": "Track Player",
+    "componentType": "group",
+    "summary": "Loads the active audio track and provides its primary transport and volume controls.",
+    "whatItDoes": [
+      "Shows the current track identity and lets you load or replace the track from the artwork area.",
+      "Provides previous, play or pause, next, and track-volume controls for the shared audio engine."
+    ],
+    "whenToUse": "Use the player whenever you need to load a track, control playback, or balance the track level feeding DRMVYZ.",
+    "affects": [
+      "active audio track",
+      "shared playback state",
+      "track volume"
+    ],
+    "doesNotAffect": [
+      "master visual intensity",
+      "saved preset parameters"
+    ],
+    "relatedHelpIds": [
+      "visualizer.audioDeck.trackVolume"
+    ]
+  },
+  {
+    "id": "visualizer.audioDeck.waveform",
+    "priority": 1,
+    "view": "visualizer",
+    "group": "Audio Deck",
+    "title": "Track Waveform",
+    "componentType": "visualization",
+    "summary": "Displays the current track, playhead, and cue markers in a navigable waveform view.",
+    "whatItDoes": [
+      "Provides a visual reference for playback position and the track's changing amplitude or frequency content.",
+      "Supports seeking and cue-point authoring, and follows the same centered viewport as Track Map when unified-timeline mode is active.",
+      "The plus and minus controls change waveform zoom without changing the audio itself."
+    ],
+    "whenToUse": "Use the waveform to navigate the track precisely, inspect cue placement, or zoom into a smaller musical region.",
+    "affects": [
+      "playback position when seeking",
+      "waveform zoom",
+      "manual cue markers when edited"
+    ],
+    "doesNotAffect": [
+      "audio-file content",
+      "Track Map section definitions"
+    ]
+  },
+  {
+    "id": "visualizer.audioDeck.tempoAndSync",
+    "priority": 1,
+    "view": "visualizer",
+    "group": "Audio Deck",
+    "title": "Tempo, Rekordbox, Cue, and Sync",
+    "componentType": "group",
+    "summary": "Groups the timing and DJ-integration controls used to align the active track with DRMVYZ.",
+    "whatItDoes": [
+      "Shows the effective BPM and provides BPM stepping, direct editing, tap tempo, and reset or reanalysis actions when available.",
+      "Rekordbox tools import or scan compatible metadata without replacing the app's shared audio engine.",
+      "Cue stores or recalls the deck cue point, while Sync enables the app's BPM-synchronized visual timing."
+    ],
+    "whenToUse": "Use this area when the detected tempo needs correction, when importing Rekordbox metadata, or when enabling beat-synchronized visuals.",
+    "affects": [
+      "effective track BPM",
+      "deck cue point",
+      "BPM Sync state",
+      "matched Rekordbox metadata"
+    ],
+    "doesNotAffect": [
+      "the original audio file",
+      "unrelated visual parameters"
+    ],
+    "relatedHelpIds": [
+      "visualizer.audioDeck.bpm",
+      "visualizer.audioDeck.rekordboxAction",
+      "visualizer.audioDeck.bpmSync"
+    ]
   }
 ] as const satisfies readonly HelpEntry[]
 

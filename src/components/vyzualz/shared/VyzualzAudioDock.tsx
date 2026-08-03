@@ -22,6 +22,7 @@ import type { WaveformCueCreateRequest } from '../../../features/timeline/wavefo
 import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { cueMarkerBelongsToTrack } from '../../../types/cue'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
 
@@ -557,6 +558,7 @@ export function VyzualzAudioDock({
       )}
 
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
+      <div className="vz-dock-help-region drm-help-overlay-anchor">
       <div className="vz-dock-left vz-dock-card">
         {deckLabel && <div className="vz-dock-card-label">{deckLabel}</div>}
         <label
@@ -637,8 +639,15 @@ export function VyzualzAudioDock({
         </label>
 
       </div>
+      <HelpInfoTrigger
+        helpId="visualizer.audioDeck.trackPlayer"
+        currentValue={title}
+        placement="above"
+      />
+      </div>
 
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
+      <div className="vz-dock-help-region drm-help-overlay-anchor">
       <div className="vz-dock-center vz-dock-card">
         <div className="vz-dock-waveform-wrap">
           <PeaksWaveformView
@@ -661,8 +670,15 @@ export function VyzualzAudioDock({
           <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={waveformZoom <= 1} title="Zoom out">−</button>
         </div>
       </div>
+      <HelpInfoTrigger
+        helpId="visualizer.audioDeck.waveform"
+        currentValue={`${waveformZoom}× zoom`}
+        placement="above"
+      />
+      </div>
 
       {/* ── RIGHT: BPM + TAP / CUE / SYNC ───────────────────────────── */}
+      <div className="vz-dock-help-region drm-help-overlay-anchor">
       <div className="vz-dock-right vz-dock-card">
         <div className="vz-dock-right-main">
         {/* Column wrapper so the stale banner sits below the BPM block */}
@@ -862,6 +878,14 @@ export function VyzualzAudioDock({
             <span className="vz-dock-sync-master-label">SYNC</span>
           </button>
         </div>
+      </div>
+      <HelpInfoTrigger
+        helpId="visualizer.audioDeck.tempoAndSync"
+        currentValue={bpmState.kind === 'value'
+          ? `${bpmState.bpm.toFixed(2)} BPM · Sync ${bpmSync ? 'on' : 'off'}`
+          : `BPM ${bpmState.kind} · Sync ${bpmSync ? 'on' : 'off'}`}
+        placement="above"
+      />
       </div>
 
       <input

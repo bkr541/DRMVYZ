@@ -53,6 +53,7 @@ import {
   isReactLeftTabAvailable,
   resolveReactWorkspaceComposition,
   type ReactLeftTab,
+  type ReactLowerSurface,
 } from './reactWorkspaceComposition'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { useActiveBrandOverlay } from '../../../features/personalization/useActiveBrandOverlay'
@@ -66,6 +67,7 @@ import { resolveBrandedReactPreset } from '../../../features/personalization/res
 import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 // These workspaces carry large, engine-specific renderers and authoring tools.
 // Keep them outside the initial React-view graph and load them only when their
@@ -120,6 +122,12 @@ function StageFocusIcon() {
       <path d="M12 7.5v1.25M12 15.25v1.25M7.5 12h1.25M15.25 12h1.25" />
     </svg>
   )
+}
+
+function getLowerSurfaceHelpId(surface: ReactLowerSurface) {
+  if (surface === 'trackMap') return 'react.shared.trackMap.overview' as const
+  if (surface === 'performancePads') return 'react.shared.performancePads.overview' as const
+  return null
 }
 
 // Four top-level destinations keep the right rail compact and role-based.
@@ -734,34 +742,52 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   onClick={() => setLowerWorkspaceCollapsed((value) => !value)}
                 />
                 <div className="rv-lower-workspace-tabs" role="tablist" aria-label="Timeline surfaces">
-                  {lowerSurfaces.map((surface) => (
-                    <button
-                      key={surface}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeLowerSurface === surface}
-                      className={activeLowerSurface === surface ? 'is-active' : ''}
-                      onClick={() => {
-                        setLowerSurface(surface)
-                        setLowerWorkspaceCollapsed(false)
-                      }}
-                    >
-                      {getReactLowerSurfaceLabel(surface)}
-                    </button>
-                  ))}
+                  {lowerSurfaces.map((surface) => {
+                    const helpId = getLowerSurfaceHelpId(surface)
+                    const tab = (
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeLowerSurface === surface}
+                        className={activeLowerSurface === surface ? 'is-active' : ''}
+                        onClick={() => {
+                          setLowerSurface(surface)
+                          setLowerWorkspaceCollapsed(false)
+                        }}
+                      >
+                        {getReactLowerSurfaceLabel(surface)}
+                      </button>
+                    )
+
+                    if (!helpId) return <span key={surface} className="rv-lower-workspace-tab-wrap">{tab}</span>
+
+                    return (
+                      <span
+                        key={surface}
+                        className="rv-lower-workspace-tab-wrap drm-help-overlay-anchor"
+                        role="presentation"
+                      >
+                        {tab}
+                        <HelpInfoTrigger helpId={helpId} />
+                      </span>
+                    )
+                  })}
                 </div>
                 <div className="rv-lower-workspace-actions">
-                  <OutputCastControl canvas={outputCanvas} />
-                  <button
-                    type="button"
-                    className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}
-                    aria-label={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
-                    aria-pressed={stageFocus}
-                    onClick={() => setStageFocus((value) => !value)}
-                    title={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
-                  >
-                    <StageFocusIcon />
-                  </button>
+                  <div className="rv-lower-workspace-output-actions drm-help-overlay-anchor">
+                    <OutputCastControl canvas={outputCanvas} />
+                    <button
+                      type="button"
+                      className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}
+                      aria-label={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
+                      aria-pressed={stageFocus}
+                      onClick={() => setStageFocus((value) => !value)}
+                      title={stageFocus ? 'Restore workspace rails and timeline' : 'Maximize the live output stage'}
+                    >
+                      <StageFocusIcon />
+                    </button>
+                    <HelpInfoTrigger helpId="react.shared.lowerWorkspace.outputActions" placement="left" />
+                  </div>
                   <span className="rv-lower-workspace-chevron" aria-hidden="true">
                     <LowerWorkspaceChevron expanded={!lowerWorkspaceCollapsed} />
                   </span>

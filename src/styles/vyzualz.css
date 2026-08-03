@@ -3095,6 +3095,28 @@ input[type='range'].vz-slider--color {
     0 0 22px rgba(0, 0, 0, 0.24);
 }
 
+/* The help region owns the grid cell while the card remains visually
+   unchanged. Its absolutely positioned trigger floats over the card corner
+   and therefore cannot consume dock width or height. */
+.vz-dock-help-region {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.vz-dock-help-region > .vz-dock-card {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+}
+
+.vz-dock-help-region.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -8px;
+  --drm-help-overlay-z: 16;
+}
+
 /* LEFT: sidebar + left-inspector footprint */
 .vz-dock-left {
   display: grid;

@@ -319,7 +319,7 @@
   }
 }
 
-/* Reusable explicit help trigger. No production view mounts one during the clean-reset stage. */
+/* Reusable explicit help trigger. */
 
 .drm-help-label {
   display: inline-flex;
@@ -377,6 +377,32 @@
 .drm-help-info-trigger:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-ring, var(--drm-info-accent, #4ac7db)) 78%, white 22%);
   outline-offset: 2px;
+}
+
+/*
+ * Opt-in overlay anchor for contextual-help icons.
+ *
+ * The trigger is absolutely positioned over the owning control's top-right
+ * edge, so enabling help never changes grid, flex, or text measurements. Each
+ * surface may tune the two custom properties without changing the trigger.
+ */
+.drm-help-overlay-anchor {
+  position: relative;
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -8px;
+  --drm-help-overlay-z: 24;
+}
+
+.drm-help-overlay-anchor > .drm-help-info-trigger {
+  position: absolute;
+  z-index: var(--drm-help-overlay-z);
+  top: var(--drm-help-overlay-top);
+  right: var(--drm-help-overlay-right);
+  margin: 0;
+  transform: none;
+  border-color: rgba(var(--color-primary-rgb, var(--az-cyan-rgb, 74, 199, 219)), 0.2);
+  background: color-mix(in srgb, var(--color-popover, #12191d) 92%, transparent);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.34);
 }
 
 .drm-info-popover__section-icon svg {

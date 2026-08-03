@@ -8,6 +8,33 @@ import { InfoPopover } from './InfoPopover'
 const infoPopoverDir = dirname(fileURLToPath(import.meta.url))
 const srcDir = join(infoPopoverDir, '..', '..', '..')
 
+const approvedExplicitHelpPlacements = new Map<string, readonly string[]>([
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'ReactView.tsx'),
+    [
+      'react.shared.trackMap.overview',
+      'react.shared.performancePads.overview',
+      'react.shared.lowerWorkspace.outputActions',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'ReactTrackMapStrip.tsx'),
+    [
+      'react.shared.trackMap.beatGridLane',
+      'react.shared.trackMap.sectionsLane',
+      'react.shared.trackMap.cuesLane',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'shared', 'VyzualzAudioDock.tsx'),
+    [
+      'visualizer.audioDeck.trackPlayer',
+      'visualizer.audioDeck.waveform',
+      'visualizer.audioDeck.tempoAndSync',
+    ],
+  ],
+])
+
 function productionTsxFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry: Dirent) => {
     const path = join(directory, entry.name)
@@ -28,14 +55,28 @@ describe('contextual help clean reset', () => {
     expect(viewSource).not.toContain('drm-priority-help-slot')
   })
 
-  it('has no production TSX render path for a help trigger during the reset stage', () => {
+  it('limits production help triggers to the explicitly approved first rollout', () => {
     for (const file of productionTsxFiles(srcDir)) {
       const source = readFileSync(file, 'utf8')
-      expect(source, file).not.toContain('HelpInfoTrigger')
       expect(source, file).not.toContain('<HelpLabel')
       expect(source, file).not.toContain('drm-help-info-trigger')
-      expect(source, file).not.toMatch(/\bhelpId\s*=/)
       expect(source, file).not.toContain('<PriorityOneHelpLayer')
+
+      const approvedHelpIds = approvedExplicitHelpPlacements.get(file)
+      if (!approvedHelpIds) {
+        expect(source, file).not.toContain('HelpInfoTrigger')
+        expect(source, file).not.toMatch(/\bhelpId\s*=/)
+        continue
+      }
+
+      expect(source, file).toContain('HelpInfoTrigger')
+      for (const helpId of approvedHelpIds) {
+        expect(source, file).toContain(helpId)
+      }
+    }
+
+    for (const approvedFile of approvedExplicitHelpPlacements.keys()) {
+      expect(existsSync(approvedFile), approvedFile).toBe(true)
     }
   })
 

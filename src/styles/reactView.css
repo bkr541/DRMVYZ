@@ -5359,6 +5359,18 @@
   gap: 4px;
 }
 
+.rv-lower-workspace-tab-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.rv-lower-workspace-tab-wrap.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -10px;
+  --drm-help-overlay-right: -9px;
+}
+
 .rv-lower-workspace-tabs button,
 .rv-stage-focus-btn {
   min-height: 26px;
@@ -5388,6 +5400,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.rv-lower-workspace-output-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rv-lower-workspace-output-actions.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -10px;
+  --drm-help-overlay-right: -9px;
 }
 
 .rv-lower-workspace-chevron {
@@ -5460,6 +5484,7 @@
 
 .rv-lower-workspace-surface--track-map {
   height: auto;
+  overflow-x: visible;
 }
 
 .rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded {
@@ -5500,7 +5525,7 @@
   grid-template-rows: 32px 44px 38px 24px;
   min-height: 138px;
   padding: 0 var(--rv-timeline-inline-pad);
-  overflow: hidden;
+  overflow: visible;
   isolation: isolate;
   background:
     linear-gradient(180deg, rgba(74, 199, 219, 0.032), transparent 30%),
@@ -5509,6 +5534,13 @@
   border-right: 1px solid rgba(74, 199, 219, 0.18);
   border-bottom: 1px solid rgba(74, 199, 219, 0.22);
   box-shadow: inset 0 -10px 22px rgba(0, 0, 0, 0.16);
+}
+
+.rv-track-map-strip--embedded .rv-timeline-lane.drm-help-overlay-anchor {
+  overflow: visible;
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -8px;
+  --drm-help-overlay-z: 12;
 }
 
 .rv-timeline-detail-overview {
@@ -6218,6 +6250,7 @@
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-card-label,
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-help-region > .drm-help-info-trigger,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-track-row,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-addtrack-btn,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-reset-btn,

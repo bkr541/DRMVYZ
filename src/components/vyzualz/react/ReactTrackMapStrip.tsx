@@ -46,6 +46,7 @@ import { cueMarkerBelongsToTrack, type VzCueMarker } from '../../../types/cue'
 import type { WaveformCueCreateRequest } from '../../../features/timeline/waveformCuePoint'
 import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { CuePointContextMenu, type CuePointContextMenuTarget } from '../transport/CuePointContextMenu'
+import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import {
   captureTrackSectionUndoSnapshot,
   restoreTrackSectionUndoSnapshot,
@@ -2331,7 +2332,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                 ) : (
                 <div className="rv-timeline-lanes" aria-label="Expandable Track Map timeline lanes">
                   <div
-                    className="rv-timeline-lane rv-timeline-lane--beats"
+                    className="rv-timeline-lane rv-timeline-lane--beats drm-help-overlay-anchor"
                     role="group"
                     aria-label="Beat Grid"
                   >
@@ -2353,10 +2354,17 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                         {beatGridEnabled ? 'On' : 'Off'}
                       </button>
                     </div>
+                    <HelpInfoTrigger
+                      helpId="react.shared.trackMap.beatGridLane"
+                      currentValue={beatGridEnabled ? 'On' : 'Off'}
+                      currentValueLabel="Status"
+                      currentValueTone={beatGridEnabled ? 'accent' : 'default'}
+                      placement="left"
+                    />
                   </div>
 
                   <div
-                    className="rv-timeline-lane rv-timeline-lane--sections"
+                    className="rv-timeline-lane rv-timeline-lane--sections drm-help-overlay-anchor"
                     role="group"
                     aria-label="Sections"
                   >
@@ -2422,6 +2430,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                         disabled={!activeTrackId}
                       >{editorMode === 'create' ? '−' : '+'}</button>
                     </div>
+                    <HelpInfoTrigger
+                      helpId="react.shared.trackMap.sectionsLane"
+                      currentValue={`${resolvedSections.length} section${resolvedSections.length === 1 ? '' : 's'}`}
+                      placement="left"
+                    />
                   </div>
 
                   {SHOW_ENERGY_LANE && (
@@ -2450,7 +2463,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                   )}
 
                   <div
-                    className="rv-timeline-lane rv-timeline-lane--cues"
+                    className="rv-timeline-lane rv-timeline-lane--cues drm-help-overlay-anchor"
                     role="group"
                     aria-label="Cues and Presets"
                   >
@@ -2529,6 +2542,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     >
                       {trackPixGridCues.length > 0 ? `P${trackPixGridCues.length} · ${timelineCueItems.length}` : timelineCueItems.length}
                     </div>
+                    <HelpInfoTrigger
+                      helpId="react.shared.trackMap.cuesLane"
+                      currentValue={`${timelineCueItems.length} marker${timelineCueItems.length === 1 ? '' : 's'}`}
+                      placement="left"
+                    />
                   </div>
 
                   <div
