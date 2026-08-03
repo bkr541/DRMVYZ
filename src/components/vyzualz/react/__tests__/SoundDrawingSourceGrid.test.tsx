@@ -5,6 +5,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { migrateReactStore, useReactStore } from '../../../../stores/reactStore'
+import { useContextualHelpStore } from '../../../../features/contextualHelp/contextualHelpStore'
 import { ReactEnginePanel } from '../ReactEnginePanel'
 import { ReactFxPanel } from '../ReactFxPanel'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
@@ -28,6 +29,7 @@ let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
 beforeEach(() => {
+  useContextualHelpStore.setState({ infoEnabled: true })
   useReactStore.getState().resetReactView()
   useReactStore.getState().setActiveReactEngineId('oscilloscope')
   container = document.createElement('div')
@@ -205,6 +207,7 @@ describe('Sound Drawing size controls', () => {
     expect(controls).toHaveLength(1)
     expect(controls[0].max).toBe('2.5')
     expect(controls[0].min).toBe('0.1')
+    expect(container.querySelector('[data-help-id="react.soundDrawing.engineMode.visualSize"]')).not.toBeNull()
   }
 
   it('shows one Visual Size control for every manual source family', async () => {

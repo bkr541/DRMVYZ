@@ -130,6 +130,10 @@ describe('Help Center registry', () => {
       title: 'Sound Drawing Presets',
       componentType: 'selection',
     })
+    expect(getHelpEntry('react.soundDrawing.engineMode.visualSize')).toMatchObject({
+      title: 'Visual Size',
+      componentType: 'slider',
+    })
   })
 
   it('documents the Sound Drawing React-tab audio controls', () => {
@@ -148,6 +152,10 @@ describe('Help Center registry', () => {
     expect(getHelpEntry('react.soundDrawing.audioReactivity.midTwist')).toMatchObject({
       title: 'Mid → Twist',
       componentType: 'slider',
+    })
+    expect(getHelpEntry('react.soundDrawing.audioReactivity.alternate')).toMatchObject({
+      title: 'Alternate',
+      componentType: 'toggle',
     })
     expect(getHelpEntry('react.soundDrawing.audioReactivity.highJitter')).toMatchObject({
       title: 'High → Jitter',

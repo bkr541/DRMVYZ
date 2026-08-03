@@ -796,7 +796,21 @@ export function ReactModulationPanel() {
             placement="left"
           />
         </div>
-        <ToggleRow  label="Alternate"    value={osc.altTwist}   onChange={v => set({ altTwist:   v })} title="Randomly alternate twist direction on each beat" />
+        <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
+          <ToggleRow
+            label="Alternate"
+            value={osc.altTwist}
+            onChange={v => set({ altTwist: v })}
+            title="Randomly alternate twist direction on each beat"
+          />
+          <HelpInfoTrigger
+            helpId="react.soundDrawing.audioReactivity.alternate"
+            currentValue={osc.altTwist ? 'On' : 'Off'}
+            currentValueLabel="Status"
+            currentValueTone={osc.altTwist ? 'accent' : 'default'}
+            placement="left"
+          />
+        </div>
         <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
           <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
           <HelpInfoTrigger

@@ -1140,6 +1140,30 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "tip": "Use moderate values for readable shapes, then enable Alternate when beat-to-beat direction changes are desired."
   },
   {
+    "id": "react.soundDrawing.audioReactivity.alternate",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Frequency Response",
+    "title": "Alternate",
+    "componentType": "toggle",
+    "summary": "Reverses the Mid → Twist direction on each detected beat while preserving the selected twist amount.",
+    "whatItDoes": [
+      "Flips the twist sign on every beat and holds that direction until the next beat.",
+      "Uses beat detection with beat-phase wraparound as a fallback so the left-right alternation remains stable."
+    ],
+    "whenToUse": "Turn it on when mid-frequency twist should move back and forth rhythmically instead of rotating in one direction.",
+    "affects": [
+      "direction of the Mid → Twist response"
+    ],
+    "doesNotAffect": [
+      "Mid → Twist amount",
+      "bass, high-frequency, or beat-bloom response amounts"
+    ],
+    "defaultValue": "Off",
+    "tip": "Alternate is easiest to read with a moderate Mid → Twist amount; very high values can make each reversal feel abrupt."
+  },
+  {
     "id": "react.soundDrawing.audioReactivity.highJitter",
     "priority": 1,
     "view": "react",

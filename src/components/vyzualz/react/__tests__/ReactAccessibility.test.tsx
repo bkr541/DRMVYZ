@@ -137,6 +137,7 @@ describe('React right-rail groups', () => {
       'react.soundDrawing.audioReactivity.displacement',
       'react.soundDrawing.audioReactivity.bassScale',
       'react.soundDrawing.audioReactivity.midTwist',
+      'react.soundDrawing.audioReactivity.alternate',
       'react.soundDrawing.audioReactivity.highJitter',
       'react.soundDrawing.audioReactivity.beatBloom',
     ])

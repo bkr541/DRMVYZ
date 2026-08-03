@@ -779,16 +779,23 @@ export function ReactEnginePanel() {
             />
           </div>
 
-          <SliderRow
-            label="Visual Size"
-            value={osc.pathScale}
-            onChange={value => set({ pathScale: value })}
-            min={SOUND_DRAWING_VISUAL_SIZE_MIN}
-            max={SOUND_DRAWING_VISUAL_SIZE_MAX}
-            step={0.01}
-            disabled={!soundDrawingOwnership.domains.geometry.editable}
-            description={`Sets the base size for the selected manual Engine Mode. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
-          />
+          <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
+            <SliderRow
+              label="Visual Size"
+              value={osc.pathScale}
+              onChange={value => set({ pathScale: value })}
+              min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+              max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+              step={0.01}
+              disabled={!soundDrawingOwnership.domains.geometry.editable}
+              description={`Sets the base size for the selected manual Engine Mode. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
+            />
+            <HelpInfoTrigger
+              helpId="react.soundDrawing.engineMode.visualSize"
+              currentValue={`${osc.pathScale.toFixed(2)}×`}
+              placement="right"
+            />
+          </div>
 
           <fieldset
             className="rv-ctrl-fieldset-stack"
