@@ -3554,6 +3554,357 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     ]
   },
   {
+    "id": "react.pixGrid.workspace.tabs",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid workspace navigation",
+    "title": "Setup and Media",
+    "componentType": "selection",
+    "summary": "Switches the PixGrid left rail between scene-and-layer setup and compatible Media Library artwork.",
+    "whatItDoes": [
+      "Setup manages PixGrid scenes, layers, built-in artwork, and the center-canvas editor.",
+      "Media selects still images or SVG artwork that PixGrid can convert or add as layers."
+    ],
+    "whenToUse": "Use Setup to organize the authored grid, then use Media when the visual needs uploaded artwork.",
+    "affects": [
+      "visible PixGrid left-rail workspace"
+    ],
+    "doesNotAffect": [
+      "the active PixGrid preset",
+      "live output until a setup or media action is performed"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.authoring.editOverlay",
+      "react.pixGrid.presetLibrary"
+    ]
+  },
+  {
+    "id": "react.pixGrid.authoring.editOverlay",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid setup and authoring",
+    "title": "Edit PixGrid",
+    "componentType": "toggle",
+    "summary": "Opens or closes the interactive PixGrid authoring overlay on the center canvas.",
+    "whatItDoes": [
+      "Shows PixGrid drawing, selection, view, and editing tools over the live matrix.",
+      "Keeps the selected scene and layer context synchronized with the Design workspace."
+    ],
+    "whenToUse": "Open it when painting pixels, transforming layers, selecting cells, or editing smart-group masks directly on the matrix.",
+    "affects": [
+      "PixGrid authoring-overlay visibility"
+    ],
+    "doesNotAffect": [
+      "stored artwork until an edit is made",
+      "the selected performance program"
+    ],
+    "tip": "Close the overlay before judging the clean live-output presentation."
+  },
+  {
+    "id": "react.pixGrid.authoring.scenes",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid setup and authoring",
+    "title": "Scenes",
+    "componentType": "group",
+    "summary": "Creates and selects the PixGrid scene containers used by presets, performance programs, and Track Map actions.",
+    "whatItDoes": [
+      "Selects the scene being edited in Setup.",
+      "Supports renaming, adding, duplicating, and deleting scenes while preserving at least one scene."
+    ],
+    "whenToUse": "Use scenes when a PixGrid look needs multiple authored visual states or section-specific arrangements.",
+    "affects": [
+      "selected PixGrid scene",
+      "scene collection and scene names"
+    ],
+    "doesNotAffect": [
+      "layers owned by other scenes unless a scene is deleted"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.design.editingContext.activeScene",
+      "react.pixGrid.authoring.layers"
+    ]
+  },
+  {
+    "id": "react.pixGrid.authoring.layers",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid setup and authoring",
+    "title": "Layers",
+    "componentType": "group",
+    "summary": "Organizes the artwork layers that compose the selected PixGrid scene.",
+    "whatItDoes": [
+      "Selects a layer for Design and canvas editing.",
+      "Controls visibility, locking, order, duplication, and deletion for scene layers."
+    ],
+    "whenToUse": "Use layers to separate artwork elements that need independent transforms, visibility, animation, or performance targeting.",
+    "affects": [
+      "selected scene layer",
+      "layer order and layer lifecycle"
+    ],
+    "tip": "Lock finished layers before painting or transforming another part of the composition.",
+    "relatedHelpIds": [
+      "react.pixGrid.design.editingContext.editTarget",
+      "react.pixGrid.authoring.builtIns"
+    ]
+  },
+  {
+    "id": "react.pixGrid.authoring.builtIns",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid setup and authoring",
+    "title": "Built-in Artwork",
+    "componentType": "selection",
+    "summary": "Adds a bundled PixGrid artwork source as a new layer in the selected scene.",
+    "whatItDoes": [
+      "Creates a layer from the selected built-in asset.",
+      "Leaves uploaded image and SVG selection in the separate Media workspace."
+    ],
+    "whenToUse": "Use built-ins for fast LED-native shapes, patterns, and starting points that do not require an uploaded file.",
+    "affects": [
+      "layers in the selected scene"
+    ],
+    "doesNotAffect": [
+      "the shared Media Library"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.authoring.layers",
+      "react.pixGrid.workspace.tabs"
+    ]
+  },
+  {
+    "id": "react.pixGrid.presetLibrary",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid preset selection",
+    "title": "PixGrid Presets",
+    "componentType": "selection",
+    "summary": "Browses and loads PixGrid looks, including their artwork, presentation, and authored performance configuration.",
+    "whatItDoes": [
+      "Current Engine filters the library to PixGrid presets.",
+      "Favorites and All Engines retain the shared cross-engine library behavior.",
+      "Deck-backed presets remain unavailable until their prepared media and transitions are ready."
+    ],
+    "whenToUse": "Use the preset library to load a complete PixGrid starting point before refining its Setup, Design, or React controls.",
+    "affects": [
+      "active React preset",
+      "PixGrid state loaded by the selected preset"
+    ],
+    "doesNotAffect": [
+      "the original preset definition when controls are edited afterward"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.performanceAndMatrix.performance.loadProgramPreset",
+      "react.pixGrid.performanceProgram.programSelection"
+    ]
+  },
+  {
+    "id": "react.pixGrid.design.editingContext.editTarget",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "Design — Editing Context",
+    "title": "Edit Target",
+    "componentType": "select",
+    "summary": "Chooses whether authoring edits apply to sparse scene pixels or to one selected layer.",
+    "whatItDoes": [
+      "Scene Pixels stores non-destructive sparse pixel overrides above inherited artwork.",
+      "Choosing a layer exposes that layer’s visibility, lock, opacity, transform, and lifecycle controls."
+    ],
+    "whenToUse": "Choose Scene Pixels for direct cell painting, or choose a layer when transforming or managing one artwork source.",
+    "affects": [
+      "PixGrid editor target",
+      "available Design surface controls"
+    ],
+    "doesNotAffect": [
+      "the active preview scene"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.design.editingContext.activeScene",
+      "react.pixGrid.authoring.layers"
+    ]
+  },
+  {
+    "id": "react.pixGrid.design.grid.quality",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "Design — Grid Presentation",
+    "title": "Grid Quality",
+    "componentType": "select",
+    "summary": "Selects the requested logical LED-matrix resolution used by PixGrid rendering.",
+    "whatItDoes": [
+      "In Adaptive mode, the selection is the starting quality and the runtime may reduce secondary cost to protect frame rate.",
+      "In Fixed mode, PixGrid keeps the selected logical matrix tier."
+    ],
+    "whenToUse": "Choose a lower tier for performance headroom or a higher tier when the source artwork and output size benefit from additional cells.",
+    "affects": [
+      "requested PixGrid logical resolution",
+      "rendering cost and cell density"
+    ],
+    "doesNotAffect": [
+      "the source artwork stored in scenes and layers"
+    ],
+    "tip": "Judge quality from the intended output distance, not only while zoomed into the editor."
+  },
+  {
+    "id": "react.pixGrid.design.grid.cellGap",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "Design — Grid Presentation",
+    "title": "Cell Gap",
+    "componentType": "slider",
+    "summary": "Controls the empty spacing between logical PixGrid LED cells.",
+    "whatItDoes": [
+      "Increases or decreases separation between cells without changing the underlying logical artwork."
+    ],
+    "whenToUse": "Increase the gap for a discrete LED-panel look, or reduce it for a denser pixel-display surface.",
+    "affects": [
+      "rendered spacing between PixGrid cells"
+    ],
+    "doesNotAffect": [
+      "matrix resolution",
+      "scene pixel values"
+    ],
+    "defaultValue": "Preset-defined",
+    "range": "0–45% of each logical cell"
+  },
+  {
+    "id": "react.pixGrid.design.grid.cellRoundness",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "Design — Grid Presentation",
+    "title": "Cell Roundness",
+    "componentType": "slider",
+    "summary": "Rounds the corners of each rendered PixGrid LED cell.",
+    "whatItDoes": [
+      "Moves the emitter shape from a square cell toward a softer rounded cell while preserving the logical pixel data."
+    ],
+    "whenToUse": "Use lower values for rigid panel pixels and higher values for bulb-like or softened emitter styling.",
+    "affects": [
+      "rendered PixGrid cell shape"
+    ],
+    "doesNotAffect": [
+      "cell positions",
+      "scene artwork"
+    ],
+    "defaultValue": "Preset-defined",
+    "range": "0–50% corner roundness"
+  },
+  {
+    "id": "react.pixGrid.reactivity.workspace.tabs",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid React workspace",
+    "title": "Routing, Events, Choreography, and Analysis",
+    "componentType": "selection",
+    "summary": "Switches among PixGrid’s continuous routing, event routing, authored choreography, and live diagnostic surfaces.",
+    "whatItDoes": [
+      "Routing edits continuous audio-response paths.",
+      "Events edits transient and boundary-triggered routes.",
+      "Choreography selects the authored performance program and section plan.",
+      "Analysis explains live source availability, route activity, perceptual change, and configuration health."
+    ],
+    "whenToUse": "Move between these surfaces when tracing a reaction from audio input through route execution to visible pixel output.",
+    "affects": [
+      "visible PixGrid React workspace"
+    ],
+    "doesNotAffect": [
+      "route or program values until a control is edited"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.reactivity.continuousRoutes",
+      "react.pixGrid.reactivity.eventRoutes",
+      "react.pixGrid.performanceProgram.overview"
+    ]
+  },
+  {
+    "id": "react.pixGrid.reactivity.continuousRoutes",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid continuous routing",
+    "title": "Continuous Routes",
+    "componentType": "group",
+    "summary": "Maps continuously changing audio and musical-analysis values to PixGrid output, scene, layer, group, and presentation targets.",
+    "whatItDoes": [
+      "Combines authored preset routes with editable user routes.",
+      "Exposes source shaping, ranges, thresholds, smoothing, eligibility, fallback, priority, and blend behavior for the selected route."
+    ],
+    "whenToUse": "Use continuous routes for behavior that should track energy, frequency bands, progress, stems, confidence, or other changing signals.",
+    "affects": [
+      "continuous PixGrid reaction assignments and program-route overrides"
+    ],
+    "doesNotAffect": [
+      "event-triggered routes"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.reactivity.eventRoutes",
+      "react.pixGrid.reactivity.smartGroupIntegration"
+    ]
+  },
+  {
+    "id": "react.pixGrid.reactivity.eventRoutes",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid event routing",
+    "title": "Event Routes",
+    "componentType": "group",
+    "summary": "Maps beats, transients, boundaries, section changes, semantic moments, and Track Map cues to triggered PixGrid actions.",
+    "whatItDoes": [
+      "Combines authored preset events with editable user event routes.",
+      "Adds attack, hold, release, cooldown, quantization, and retrigger behavior to discrete reactions."
+    ],
+    "whenToUse": "Use event routes for flashes, reveals, palette changes, transitions, or other actions that should fire at a specific musical moment.",
+    "affects": [
+      "event-driven PixGrid reaction assignments and program-route overrides"
+    ],
+    "doesNotAffect": [
+      "continuous routes"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.reactivity.continuousRoutes",
+      "react.pixGrid.reactivity.smartGroupIntegration"
+    ]
+  },
+  {
+    "id": "react.pixGrid.reactivity.smartGroupIntegration",
+    "priority": 1,
+    "view": "react",
+    "engine": "pixGrid",
+    "group": "PixGrid smart-group routing",
+    "title": "Smart Group Integration",
+    "componentType": "group",
+    "summary": "Connects a selected PixGrid smart-group mask to its live route coverage and authoring tools.",
+    "whatItDoes": [
+      "Shows the selected group’s materialized cells, mask type, targeting-route count, and live compilation state.",
+      "Can reveal the mask overlay, open the group in the editor, or create a route targeted to that group."
+    ],
+    "whenToUse": "Use this section when a reaction should affect a meaningful region of the matrix instead of the entire output.",
+    "affects": [
+      "selected smart group",
+      "group mask visibility",
+      "new group-targeted reaction routes"
+    ],
+    "doesNotAffect": [
+      "the group mask until edited in the authoring overlay"
+    ],
+    "relatedHelpIds": [
+      "react.pixGrid.reactivity.continuousRoutes",
+      "react.pixGrid.reactivity.eventRoutes"
+    ]
+  },
+  {
     "id": "react.pixGrid.performanceAndMatrix.performance.overview",
     "priority": 1,
     "view": "react",

@@ -17,6 +17,7 @@ const approvedExplicitHelpPlacements = new Map<string, readonly string[]>([
       'react.shared.performancePads.overview',
       'react.shared.lowerWorkspace.outputActions',
       'react.soundDrawing.workspace.tabs',
+      'react.pixGrid.workspace.tabs',
     ],
   ],
   [
@@ -41,6 +42,7 @@ const approvedExplicitHelpPlacements = new Map<string, readonly string[]>([
     [
       'react.soundDrawing.presetLibrary',
       'react.laserDmx.presetLibrary',
+      'react.pixGrid.presetLibrary',
     ],
   ],
   [
@@ -89,6 +91,46 @@ const approvedExplicitHelpPlacements = new Map<string, readonly string[]>([
       'react.laserDmx.showDirector.performanceProgram.programIntensity',
       'react.laserDmx.showDirector.performanceProgram.variationAmount',
       'react.laserDmx.showDirector.performanceProgram.audioIntelligenceResponse',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'pixGrid', 'PixGridAuthoringPanel.tsx'),
+    [
+      'react.pixGrid.authoring.editOverlay',
+      'react.pixGrid.authoring.scenes',
+      'react.pixGrid.authoring.layers',
+      'react.pixGrid.authoring.builtIns',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'pixGrid', 'PixGridDesignPanel.tsx'),
+    [
+      'react.pixGrid.design.editingContext.activeScene',
+      'react.pixGrid.design.editingContext.editTarget',
+      'react.pixGrid.design.grid.quality',
+      'react.pixGrid.design.grid.cellGap',
+      'react.pixGrid.design.grid.cellRoundness',
+      'react.pixGrid.performanceAndMatrix.ledMatrix.glow',
+      'react.pixGrid.performanceAndMatrix.ledMatrix.diffusion',
+      'react.pixGrid.performanceAndMatrix.ledMatrix.rgbSubpixelMode',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'panels', 'ReactWorkspacePanels.tsx'),
+    [
+      'react.pixGrid.reactivity.workspace.tabs',
+    ],
+  ],
+  [
+    join(srcDir, 'components', 'vyzualz', 'react', 'pixGrid', 'PixGridReactivityWorkspace.tsx'),
+    [
+      'react.pixGrid.reactivity.continuousRoutes',
+      'react.pixGrid.reactivity.eventRoutes',
+      'react.pixGrid.reactivity.smartGroupIntegration',
+      'react.pixGrid.performanceProgram.programSelection',
+      'react.pixGrid.performanceProgram.autoPerformance',
+      'react.pixGrid.performanceProgram.performanceIntensity',
+      'react.pixGrid.performanceProgram.sectionPlan',
     ],
   ],
   [

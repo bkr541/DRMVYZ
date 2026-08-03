@@ -4940,6 +4940,53 @@
   --drm-help-overlay-z: 28;
 }
 
+/* PixGrid contextual-help anchors keep the same visual language as the
+   Sound Drawing and LaserDMX rollouts while respecting the narrower rail
+   layouts used by authoring, design, presets, and reactivity controls. */
+.rv-pix-grid-workspace-tabs-help,
+.rv-pix-grid-authoring-control-help,
+.rv-pix-grid-authoring-section-help,
+.rv-pix-grid-presets-help,
+.rv-pix-grid-design-control-help,
+.rv-pix-grid-reactivity-tabs-help,
+.rv-pix-grid-route-section-help,
+.rv-pix-grid-react-control-help {
+  min-width: 0;
+}
+
+.rv-pix-grid-workspace-tabs-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -7px;
+  --drm-help-overlay-right: -3px;
+  --drm-help-overlay-z: 30;
+}
+
+.rv-pix-grid-authoring-control-help.drm-help-overlay-anchor,
+.rv-pix-grid-authoring-section-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -5px;
+  --drm-help-overlay-z: 28;
+}
+
+.rv-pix-grid-presets-help {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rv-pix-grid-presets-help.drm-help-overlay-anchor,
+.rv-pix-grid-design-control-help.drm-help-overlay-anchor,
+.rv-pix-grid-reactivity-tabs-help.drm-help-overlay-anchor,
+.rv-pix-grid-route-section-help.drm-help-overlay-anchor,
+.rv-pix-grid-react-control-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -7px;
+  --drm-help-overlay-z: 28;
+}
+
+.rv-pix-grid-reactivity-tabs-help {
+  flex: 0 0 auto;
+}
+
 .rv-context-workspace > .rv-left-tab-body {
   padding: 0;
   gap: 0;
@@ -12050,7 +12097,8 @@
   padding-top: 9px;
 }
 
-.rv-pix-grid-reactivity-workspace > [data-testid] > .rv-ctrl-collapsible:first-child {
+.rv-pix-grid-reactivity-workspace > [data-testid] > .rv-ctrl-collapsible:first-child,
+.rv-pix-grid-reactivity-workspace > [data-testid] > .rv-pix-grid-route-section-help:first-child > .rv-ctrl-collapsible {
   margin-top: 0;
 }
 

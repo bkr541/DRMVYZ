@@ -194,6 +194,45 @@ describe('Help Center registry', () => {
     })
   })
 
+  it('documents the explicit PixGrid authoring, design, preset, and reactivity controls', () => {
+    expect(getHelpEntry('react.pixGrid.workspace.tabs')).toMatchObject({
+      title: 'Setup and Media',
+      componentType: 'selection',
+    })
+    expect(getHelpEntry('react.pixGrid.authoring.editOverlay')).toMatchObject({
+      title: 'Edit PixGrid',
+      componentType: 'toggle',
+    })
+    expect(getHelpEntry('react.pixGrid.presetLibrary')).toMatchObject({
+      title: 'PixGrid Presets',
+      componentType: 'selection',
+    })
+    expect(getHelpEntry('react.pixGrid.design.editingContext.editTarget')).toMatchObject({
+      title: 'Edit Target',
+      componentType: 'select',
+    })
+    expect(getHelpEntry('react.pixGrid.design.grid.cellGap')).toMatchObject({
+      title: 'Cell Gap',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.pixGrid.reactivity.workspace.tabs')).toMatchObject({
+      title: 'Routing, Events, Choreography, and Analysis',
+      componentType: 'selection',
+    })
+    expect(getHelpEntry('react.pixGrid.reactivity.continuousRoutes')).toMatchObject({
+      title: 'Continuous Routes',
+      componentType: 'group',
+    })
+    expect(getHelpEntry('react.pixGrid.reactivity.smartGroupIntegration')).toMatchObject({
+      title: 'Smart Group Integration',
+      componentType: 'group',
+    })
+    expect(getHelpEntry('react.pixGrid.performanceProgram.sectionPlan')).toMatchObject({
+      title: 'Section Plan',
+      componentType: 'select',
+    })
+  })
+
   it('reports malformed synthetic entries without a new validation dependency', () => {
     const base: HelpEntry = {
       id: 'test.entry',

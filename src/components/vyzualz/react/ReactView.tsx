@@ -576,7 +576,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               </header>
               <div className={activeReactEngineId === 'oscilloscope'
                 ? 'rv-sound-drawing-workspace-tabs-help drm-help-overlay-anchor'
-                : 'rv-workspace-tabs-wrap'}>
+                : activeReactEngineId === 'pixGrid'
+                  ? 'rv-pix-grid-workspace-tabs-help drm-help-overlay-anchor'
+                  : 'rv-workspace-tabs-wrap'}>
                 <RailTabs
                   tabs={leftTabs}
                   activeTab={leftTab}
@@ -588,6 +590,13 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   <HelpInfoTrigger
                     helpId="react.soundDrawing.workspace.tabs"
                     currentValue={leftTabs.find((tab) => tab.id === leftTab)?.label ?? 'Source'}
+                    placement="right"
+                  />
+                )}
+                {activeReactEngineId === 'pixGrid' && (
+                  <HelpInfoTrigger
+                    helpId="react.pixGrid.workspace.tabs"
+                    currentValue={leftTabs.find((tab) => tab.id === leftTab)?.label ?? 'Setup'}
                     placement="right"
                   />
                 )}

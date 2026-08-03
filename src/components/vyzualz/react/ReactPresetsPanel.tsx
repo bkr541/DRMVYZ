@@ -972,6 +972,16 @@ export function ReactPresetsPanel() {
             placement="left"
           />
         </div>
+      ) : activeReactEngineId === 'pixGrid' ? (
+        <div className="rv-pix-grid-presets-help drm-help-overlay-anchor">
+          {presetLibraryContent}
+          <HelpInfoTrigger
+            helpId="react.pixGrid.presetLibrary"
+            currentValue={`${active?.engine === 'pixGrid' ? active.name : 'No PixGrid preset selected'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${visiblePresets.length} shown`}
+            currentValueTone={active?.engine === 'pixGrid' ? 'accent' : 'default'}
+            placement="left"
+          />
+        </div>
       ) : presetLibraryContent}
     </div>
   )

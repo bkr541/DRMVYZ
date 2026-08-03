@@ -12,10 +12,18 @@ import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
 import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pixGrid/PixGridReactivityWorkspace'
 import { PanelSubtabs } from '../PanelSubtabs'
 import { getRequestedPixGridWorkspace, subscribePixGridWorkspace } from '../pixGrid/PixGridWorkspaceNavigation'
+import { HelpInfoTrigger } from '../../../shared/InfoPopover'
 
 type DesignSurface = 'engine' | 'selection'
 type ReactivitySurface = 'routing' | 'analysis'
 type OutputSurface = 'recording' | 'production'
+
+const PIX_GRID_REACTIVITY_SURFACE_LABELS: Record<PixGridReactivitySurface, string> = {
+  routing: 'Routing',
+  events: 'Events',
+  choreography: 'Choreography',
+  analysis: 'Analysis',
+}
 
 export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: boolean }) {
   const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
@@ -83,19 +91,27 @@ export function ReactReactivityWorkspacePanel() {
   if (pixGridActive) {
     return (
       <div className="rv-workspace-panel">
-        <PanelSubtabs
-          value={pixGridSurface}
-          onChange={value => setPixGridSurface(value)}
-          ariaLabel="PixGrid reactivity surfaces"
-          layout="wrap"
-          className="rv-pix-grid-reactivity-tabs"
-          options={[
-            { id: 'routing', label: 'ROUTING' },
-            { id: 'events', label: 'EVENTS' },
-            { id: 'choreography', label: 'CHOREOGRAPHY' },
-            { id: 'analysis', label: 'ANALYSIS' },
-          ]}
-        />
+        <div className="rv-pix-grid-reactivity-tabs-help drm-help-overlay-anchor">
+          <PanelSubtabs
+            value={pixGridSurface}
+            onChange={value => setPixGridSurface(value)}
+            ariaLabel="PixGrid reactivity surfaces"
+            layout="wrap"
+            className="rv-pix-grid-reactivity-tabs"
+            options={[
+              { id: 'routing', label: 'ROUTING' },
+              { id: 'events', label: 'EVENTS' },
+              { id: 'choreography', label: 'CHOREOGRAPHY' },
+              { id: 'analysis', label: 'ANALYSIS' },
+            ]}
+          />
+          <HelpInfoTrigger
+            helpId="react.pixGrid.reactivity.workspace.tabs"
+            currentValue={PIX_GRID_REACTIVITY_SURFACE_LABELS[pixGridSurface]}
+            currentValueTone="accent"
+            placement="left"
+          />
+        </div>
         <div className="rv-workspace-panel-body"><div className="rv-inspector rv-inspector-scroll"><PixGridReactivityWorkspace surface={pixGridSurface} /></div></div>
       </div>
     )
