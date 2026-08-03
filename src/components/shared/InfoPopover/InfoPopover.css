@@ -17,8 +17,8 @@
 .drm-info-popover {
   --drm-info-accent: var(--az-cyan, #20def3);
   --drm-info-accent-rgb: var(--az-cyan-rgb, 32, 222, 243);
-  --drm-info-surface: #00131b;
-  --drm-info-surface-deep: #000b11;
+  --drm-info-surface: #080c13;
+  --drm-info-surface-deep: #080c13;
   --drm-info-border: rgba(var(--drm-info-accent-rgb), 0.9);
   --drm-info-divider: rgba(var(--drm-info-accent-rgb), 0.26);
   --drm-info-text: rgba(248, 252, 255, 0.98);
@@ -60,7 +60,7 @@
   z-index: -1;
   width: 14px;
   height: 14px;
-  background: #00131b;
+  background: #080c13;
   box-shadow: 3px 3px 9px rgba(var(--drm-info-accent-rgb), 0.13);
   transform: rotate(45deg);
 }

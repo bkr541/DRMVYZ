@@ -198,7 +198,7 @@ export function HelpInfoTrigger({
         sections={sections}
         placement={placement}
         align="center"
-        width={400}
+        width={376}
         maxHeight={540}
         onOpenChange={setOpen}
       />
