@@ -357,8 +357,8 @@
   display: block;
   width: 14px;
   height: 14px;
-  filter: invert(82%) sepia(11%) saturate(338%) hue-rotate(153deg) brightness(92%);
-  opacity: 0.78;
+  filter: none;
+  opacity: 1;
 }
 
 .drm-help-info-trigger:hover,
@@ -370,7 +370,7 @@
 
 .drm-help-info-trigger:hover img,
 .drm-help-info-trigger[data-open='true'] img {
-  filter: invert(75%) sepia(75%) saturate(588%) hue-rotate(142deg) brightness(93%);
+  filter: none;
   opacity: 1;
 }
 
@@ -403,6 +403,27 @@
   border-color: rgba(var(--color-primary-rgb, var(--az-cyan-rgb, 74, 199, 219)), 0.2);
   background: color-mix(in srgb, var(--color-popover, #12191d) 92%, transparent);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.34);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 100ms ease,
+    visibility 0s linear 100ms,
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/* Reveal contextual help only while the owning text/control region is being
+   inspected. Focus support preserves keyboard access, and an open trigger
+   remains visible after the pointer leaves its owner. */
+.drm-help-overlay-anchor:hover > .drm-help-info-trigger,
+.drm-help-overlay-anchor:focus-within > .drm-help-info-trigger,
+.drm-help-overlay-anchor > .drm-help-info-trigger[data-open='true'] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
 }
 
 .drm-info-popover__section-icon svg {
