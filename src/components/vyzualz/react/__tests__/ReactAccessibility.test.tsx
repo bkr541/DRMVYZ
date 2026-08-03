@@ -22,6 +22,7 @@ import { LaserDmxBeamMatrixPanel } from '../LaserDmxBeamMatrixPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import { isSelectableReactEngineId } from '../reactEngineCatalog'
 import { useReactStore } from '../../../../stores/reactStore'
+import { useContextualHelpStore } from '../../../../features/contextualHelp/contextualHelpStore'
 import { useShaderPanelStore } from '../shaders/ui/shaderPanelStore'
 import { DEFAULT_SHADER_SCENE_ID } from '../shaders/scenes'
 
@@ -29,6 +30,7 @@ let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
 beforeEach(() => {
+  useContextualHelpStore.setState({ infoEnabled: true })
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -127,6 +129,17 @@ describe('React right-rail groups', () => {
       .map(button => button.textContent?.trim())
     expect(modGroups).toContain('Audio Reactivity▾')
     expect(modGroups).toContain('Frequency Response▾')
+
+    const soundDrawingHelpIds = [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
+      .map(button => button.dataset.helpId)
+    expect(soundDrawingHelpIds).toEqual([
+      'react.soundDrawing.audioReactivity.displaceMode',
+      'react.soundDrawing.audioReactivity.displacement',
+      'react.soundDrawing.audioReactivity.bassScale',
+      'react.soundDrawing.audioReactivity.midTwist',
+      'react.soundDrawing.audioReactivity.highJitter',
+      'react.soundDrawing.audioReactivity.beatBloom',
+    ])
   })
 })
 

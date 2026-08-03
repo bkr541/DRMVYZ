@@ -42,6 +42,17 @@ const approvedExplicitHelpPlacements = new Map<string, readonly string[]>([
     ],
   ],
   [
+    join(srcDir, 'components', 'vyzualz', 'react', 'ReactModulationPanel.tsx'),
+    [
+      'react.soundDrawing.audioReactivity.displaceMode',
+      'react.soundDrawing.audioReactivity.displacement',
+      'react.soundDrawing.audioReactivity.bassScale',
+      'react.soundDrawing.audioReactivity.midTwist',
+      'react.soundDrawing.audioReactivity.highJitter',
+      'react.soundDrawing.audioReactivity.beatBloom',
+    ],
+  ],
+  [
     join(srcDir, 'components', 'vyzualz', 'react', 'ReactTrackMapStrip.tsx'),
     [
       'react.shared.trackMap.beatGridLane',

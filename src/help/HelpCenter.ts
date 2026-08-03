@@ -1047,6 +1047,141 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     ]
   },
   {
+    "id": "react.soundDrawing.audioReactivity.displaceMode",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Audio routing and reactivity",
+    "title": "Displace Mode",
+    "componentType": "select",
+    "summary": "Chooses the direction used when the audio waveform displaces points along the active Sound Drawing path.",
+    "whatItDoes": [
+      "Normal pushes points along the path normal, Radial pushes from the visual center, and Tangent moves along the contour.",
+      "XY uses separate waveform samples for horizontal and vertical movement."
+    ],
+    "whenToUse": "Change the mode when the same displacement amount needs a different motion character without changing its strength.",
+    "affects": [
+      "direction of waveform-driven Sound Drawing path deformation"
+    ],
+    "doesNotAffect": [
+      "Displacement amount",
+      "bass, mid, high, or beat response amounts"
+    ],
+    "defaultValue": "Normal",
+    "tip": "Normal usually preserves the source silhouette most clearly; XY produces the loosest two-axis motion."
+  },
+  {
+    "id": "react.soundDrawing.audioReactivity.displacement",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Audio routing and reactivity",
+    "title": "Displacement",
+    "componentType": "slider",
+    "summary": "Sets how strongly the live audio waveform deforms the active Sound Drawing path.",
+    "whatItDoes": [
+      "Scales time-domain waveform movement before the selected Displace Mode determines its direction.",
+      "Bass energy can add a small amount of extra displacement at runtime."
+    ],
+    "whenToUse": "Raise it when the path should visibly ripple with the waveform; lower it when the source outline becomes difficult to read.",
+    "affects": [
+      "waveform-driven Sound Drawing path deformation"
+    ],
+    "doesNotAffect": [
+      "selected Displace Mode"
+    ],
+    "defaultValue": "18%",
+    "range": "0–100%",
+    "tip": "Tune the direction first, then increase Displacement until the contour moves without collapsing its recognizable shape."
+  },
+  {
+    "id": "react.soundDrawing.audioReactivity.bassScale",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Frequency Response",
+    "title": "Bass → Scale",
+    "componentType": "slider",
+    "summary": "Controls how much low-frequency energy expands and contracts the Sound Drawing visual.",
+    "whatItDoes": [
+      "Maps analyzed bass energy to the visual scale pulse.",
+      "The response is applied continuously, so stronger bass produces a larger expansion."
+    ],
+    "whenToUse": "Raise it for pronounced low-end breathing or impact; reduce it when the visual changes size too aggressively.",
+    "affects": [
+      "bass-driven Sound Drawing scale response"
+    ],
+    "defaultValue": "25%",
+    "range": "0–100%",
+    "tip": "Balance Bass → Scale against Beat → Bloom so sustained bass and individual beats remain visually distinct."
+  },
+  {
+    "id": "react.soundDrawing.audioReactivity.midTwist",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Frequency Response",
+    "title": "Mid → Twist",
+    "componentType": "slider",
+    "summary": "Controls how much mid-frequency energy twists or rotates the active Sound Drawing path.",
+    "whatItDoes": [
+      "Maps analyzed mid energy to an additional path rotation or per-point twist.",
+      "The separate Alternate toggle can reverse the twist direction on detected beats."
+    ],
+    "whenToUse": "Raise it when melodic and vocal mids should create visible rotational motion; lower it when the contour feels unstable.",
+    "affects": [
+      "mid-driven Sound Drawing twist response"
+    ],
+    "doesNotAffect": [
+      "Alternate direction state"
+    ],
+    "defaultValue": "15%",
+    "range": "0–100%",
+    "tip": "Use moderate values for readable shapes, then enable Alternate when beat-to-beat direction changes are desired."
+  },
+  {
+    "id": "react.soundDrawing.audioReactivity.highJitter",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Frequency Response",
+    "title": "High → Jitter",
+    "componentType": "slider",
+    "summary": "Controls how much high-frequency energy adds fine, rapid movement to the Sound Drawing contour.",
+    "whatItDoes": [
+      "Maps analyzed high-frequency energy to deterministic jitter along the path.",
+      "The movement adds texture without changing the selected source or preset."
+    ],
+    "whenToUse": "Raise it for sparkling percussion and high-end texture; reduce it when edges appear noisy or unstable.",
+    "affects": [
+      "high-frequency Sound Drawing contour jitter"
+    ],
+    "defaultValue": "8%",
+    "range": "0–100%",
+    "tip": "Small values usually read best because high-frequency energy updates quickly."
+  },
+  {
+    "id": "react.soundDrawing.audioReactivity.beatBloom",
+    "priority": 1,
+    "view": "react",
+    "engine": "soundDrawing",
+    "group": "Frequency Response",
+    "title": "Beat → Bloom",
+    "componentType": "slider",
+    "summary": "Controls the burst of scale, glow, and line emphasis applied when a beat is detected.",
+    "whatItDoes": [
+      "Maps the beat envelope to short visual blooms around detected beats.",
+      "Depending on the active source, the response can increase scale, glow, or line width."
+    ],
+    "whenToUse": "Raise it when individual beats need stronger accents; lower it when the visual pumps too heavily or obscures detail.",
+    "affects": [
+      "beat-driven Sound Drawing bloom response"
+    ],
+    "defaultValue": "35%",
+    "range": "0–100%",
+    "tip": "Use Bass → Scale for sustained low-end motion and Beat → Bloom for short transient accents."
+  },
+  {
     "id": "react.soundDrawing.timeline.clip.overview",
     "priority": 1,
     "view": "react",

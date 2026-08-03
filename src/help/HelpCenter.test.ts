@@ -132,6 +132,33 @@ describe('Help Center registry', () => {
     })
   })
 
+  it('documents the Sound Drawing React-tab audio controls', () => {
+    expect(getHelpEntry('react.soundDrawing.audioReactivity.displaceMode')).toMatchObject({
+      title: 'Displace Mode',
+      componentType: 'select',
+    })
+    expect(getHelpEntry('react.soundDrawing.audioReactivity.displacement')).toMatchObject({
+      title: 'Displacement',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.soundDrawing.audioReactivity.bassScale')).toMatchObject({
+      title: 'Bass → Scale',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.soundDrawing.audioReactivity.midTwist')).toMatchObject({
+      title: 'Mid → Twist',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.soundDrawing.audioReactivity.highJitter')).toMatchObject({
+      title: 'High → Jitter',
+      componentType: 'slider',
+    })
+    expect(getHelpEntry('react.soundDrawing.audioReactivity.beatBloom')).toMatchObject({
+      title: 'Beat → Bloom',
+      componentType: 'slider',
+    })
+  })
+
   it('reports malformed synthetic entries without a new validation dependency', () => {
     const base: HelpEntry = {
       id: 'test.entry',

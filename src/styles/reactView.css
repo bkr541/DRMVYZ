@@ -4863,7 +4863,8 @@
 .rv-sound-drawing-workspace-tabs-help,
 .rv-sound-drawing-control-help,
 .rv-sound-drawing-source-grid-help,
-.rv-sound-drawing-presets-help {
+.rv-sound-drawing-presets-help,
+.rv-sound-drawing-react-control-help {
   min-width: 0;
 }
 
@@ -4877,6 +4878,12 @@
 .rv-sound-drawing-source-grid-help.drm-help-overlay-anchor {
   --drm-help-overlay-top: -8px;
   --drm-help-overlay-right: -5px;
+  --drm-help-overlay-z: 28;
+}
+
+.rv-sound-drawing-react-control-help.drm-help-overlay-anchor {
+  --drm-help-overlay-top: -8px;
+  --drm-help-overlay-right: -7px;
   --drm-help-overlay-z: 28;
 }
 
