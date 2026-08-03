@@ -11,7 +11,7 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from './ReactCanvasEngineShell'
-import { PixGridSurface, type PixGridSurfaceRuntimeFrame } from './pixGrid/PixGridSurface'
+import { PixGridSurface } from './pixGrid/PixGridSurface'
 import { PixGridEditorOverlay, shouldShowPixGridEditorOverlay } from './pixGrid/PixGridEditorOverlay'
 import { addPixGridMediaLayer } from './pixGrid/PixGridAuthoring'
 import { isReactTransportPaused }  from './reactTransportState'
@@ -302,10 +302,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const { isActive: hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [pixGridOutputCanvas, setPixGridOutputCanvas] = useState<HTMLCanvasElement | null>(null)
-  const [pixGridSignFrameIndex, setPixGridSignFrameIndex] = useState<number | null>(null)
-  const handlePixGridRuntimeFrame = useCallback((frame: PixGridSurfaceRuntimeFrame) => {
-    setPixGridSignFrameIndex(previous => previous === frame.signFrameIndex ? previous : frame.signFrameIndex)
-  }, [])
   const handlePixGridCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
     setOutputCanvas(canvas)
     setPixGridOutputCanvas(canvas)
@@ -661,7 +657,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 effectiveBpm={engine.currentEffectiveBpm ?? undefined}
                 onCanvasReady={handlePixGridCanvasReady}
                 onLiveFps={setLiveFps}
-                onRuntimeFrame={handlePixGridRuntimeFrame}
               />
             ) : (
               <ReactPlaceholderCanvas
@@ -705,7 +700,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               />
             )}
             {shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
-              <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} signFrameIndex={pixGridSignFrameIndex} />
+              <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} />
             )}
             {showDirectorStageEditorVisible && (
               <div className="rv-show-director-stage-overlay" aria-label="Show Director center visualizer editor">

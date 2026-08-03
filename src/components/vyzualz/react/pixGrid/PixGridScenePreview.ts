@@ -1,6 +1,5 @@
 import type { SharedPerformanceContext, SharedPerformanceSectionPhase } from '../../../../features/performanceCore'
 import type { ReactSectionType } from '../ReactTypes'
-import { PIX_GRID_NEON_MARQUEE_SIGN_CADENCE } from './PixGridSignClock'
 import type { PixGridAudioFrame, PixGridState } from './PixGridTypes'
 
 const SCENE_SUFFIXES: ReadonlyArray<readonly [string, ReactSectionType]> = [
@@ -14,11 +13,7 @@ const SCENE_SUFFIXES: ReadonlyArray<readonly [string, ReactSectionType]> = [
 ]
 
 const PREVIEW_CLOCK_EPSILON = 1e-9
-const HELD_SCENE_PREVIEW_BARS = 16
-const MINIMUM_CYCLING_PREVIEW_BARS = 16
-const MARQUEE_SIGN_FRAME_COUNT = 4
-const LEGACY_SELECTED_SCENE_PREVIEW_BARS = 4
-const MARQUEE_PRESET_ID = 'pix-grid-neon-marquee-cycle'
+const SELECTED_SCENE_PREVIEW_BARS = 4
 
 export const PIX_GRID_FOLLOW_TRACK_SCENE_VALUE = 'followTrack' as const
 
@@ -89,45 +84,27 @@ function rawAbsoluteBar(frame: PixGridAudioFrame): number {
   return (beatIndex + Math.max(0, Math.min(1, Number.isFinite(frame.beatPhase) ? frame.beatPhase : 0))) / 4
 }
 
-/**
- * Selected Scene loops are aligned to a complete four-sign cycle. That makes
- * the final sign transition naturally return to the first sign instead of
- * fabricating a previous frame when the authored section animation repeats.
- */
 export function resolvePixGridSelectedScenePreviewLoopBars(
-  sectionType: ReactSectionType,
-  motionMultiplier = 1,
+  _sectionType: ReactSectionType,
+  _motionMultiplier = 1,
 ): number {
-  const cadence = Math.max(0, PIX_GRID_NEON_MARQUEE_SIGN_CADENCE[sectionType] ?? 0)
-  const motion = Math.max(0, Number.isFinite(motionMultiplier) ? motionMultiplier : 1)
-  if (cadence <= PREVIEW_CLOCK_EPSILON || motion <= PREVIEW_CLOCK_EPSILON) return HELD_SCENE_PREVIEW_BARS
-  const barsPerSign = 1 / (cadence * motion)
-  return Math.max(MINIMUM_CYCLING_PREVIEW_BARS, barsPerSign * MARQUEE_SIGN_FRAME_COUNT)
-}
-
-function isMarqueeSelectedScene(state: PixGridState): boolean {
-  return state.selectedPresetId === MARQUEE_PRESET_ID
-    || (state.selectedSceneId ?? '').startsWith(`${MARQUEE_PRESET_ID}-`)
+  return SELECTED_SCENE_PREVIEW_BARS
 }
 
 function resolveSelectedScenePreviewLoopBars(
-  state: PixGridState,
+  _state: PixGridState,
   sectionType: ReactSectionType,
   motionMultiplier = 1,
 ): number {
-  return isMarqueeSelectedScene(state)
-    ? resolvePixGridSelectedScenePreviewLoopBars(sectionType, motionMultiplier)
-    : LEGACY_SELECTED_SCENE_PREVIEW_BARS
+  return resolvePixGridSelectedScenePreviewLoopBars(sectionType, motionMultiplier)
 }
 
 function selectedScenePreviewLoops(
-  state: PixGridState,
-  sectionType: ReactSectionType,
-  motionMultiplier = 1,
+  _state: PixGridState,
+  _sectionType: ReactSectionType,
+  _motionMultiplier = 1,
 ): boolean {
-  if (!isMarqueeSelectedScene(state)) return true
-  return (PIX_GRID_NEON_MARQUEE_SIGN_CADENCE[sectionType] ?? 0) > PREVIEW_CLOCK_EPSILON
-    && motionMultiplier > PREVIEW_CLOCK_EPSILON
+  return true
 }
 
 interface ApplyPixGridSelectedScenePreviewFrameOptions {
@@ -228,20 +205,9 @@ export function applyPixGridSelectedScenePreviewFrame(
     inputSource: 'editor-preview',
     sourceValues: { ...frame.sourceValues, sectionProgress },
     unscaledSourceValues: { ...frame.unscaledSourceValues, sectionProgress },
-    signClock: undefined,
-    signTransitionClock: undefined,
-    signTransitionRate: undefined,
-    signTransitionSourceFrame: undefined,
-    signTransitionTargetFrame: undefined,
     motionClockTime: undefined,
     motionClockBeat: undefined,
     motionClockBar: undefined,
-    motionClockSign: undefined,
-    motionClockSignTransition: undefined,
-    motionClockSignTransitionSourceFrame: undefined,
-    motionClockSignTransitionTargetFrame: undefined,
-    restoringFromTransparency: false,
-    restorationElapsedBar: undefined,
   }
 }
 

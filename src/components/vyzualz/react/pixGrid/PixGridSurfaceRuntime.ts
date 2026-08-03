@@ -11,7 +11,6 @@ import {
   resolvePixGridPreviewPerformanceContext,
   resolvePixGridPreviewState,
 } from './PixGridScenePreview'
-import { applyPixGridPresetSignClock } from './PixGridSignClock'
 import {
   createPixGridPreparedSequenceFrames,
   createPixGridSequenceBoundarySignals,
@@ -80,10 +79,7 @@ export function resolvePixGridSurfacePerformanceFrame(
   const projectedPreviewFrame = Number.isFinite(input.audioFrame.previewElapsedBar)
     ? input.audioFrame
     : applyPixGridSelectedScenePreviewFrame(input.audioFrame, mappedState)
-  const previewAudioFrame = Number.isFinite(projectedPreviewFrame.signClock)
-    || Number.isFinite(projectedPreviewFrame.motionClockSign)
-    ? projectedPreviewFrame
-    : applyPixGridPresetSignClock(projectedPreviewFrame, input.presetId ?? '')
+  const previewAudioFrame = projectedPreviewFrame
   const previewContext = resolvePixGridPreviewPerformanceContext(input.context, mappedState, previewAudioFrame)
   const performanceContext = applyPixGridBassGainToPerformanceContext(
     previewContext,

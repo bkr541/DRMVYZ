@@ -58,15 +58,12 @@ import {
 } from './PixGridPerceptualResponse'
 import { pixGridMaskHasCell, type PixGridCompiledMask } from './PixGridGroups'
 import type { PixGridLogicalFrame } from './PixGridCompositor'
-import { resolvePixGridLayerAnimation } from './PixGridAnimation'
-import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from './PixGridArtwork'
 import {
   PixGridMotionClock,
   applyPixGridRuntimeControls,
 } from './PixGridRuntimeControls'
 import { resolvePixGridPresentation, resolvePixGridPublishedQuality } from './PixGridPresentation'
 import { resolvePixGridSurfacePerformanceFrame } from './PixGridSurfaceRuntime'
-import { applyPixGridPresetSignClock } from './PixGridSignClock'
 import { PixGridSelectedScenePreviewClock } from './PixGridScenePreview'
 import type { PixGridDeckDefinition } from './PixGridDeckDomain'
 import {
@@ -132,10 +129,6 @@ export interface PixGridSurfaceRuntimeFrame {
   audioTimeSec: number
   sectionType: PixGridAudioFrame['sectionType']
   autoPerformanceEnabled: boolean
-  signFrameIndex: number | null
-  previousSignFrameIndex: number | null
-  signTransitionType: string | null
-  signTransitionProgress: number
   authoredAnimationPhase: number
   deckSequenceFrameId: string | null
   deckSequenceNextFrameId: string | null
@@ -147,7 +140,6 @@ export interface PixGridSurfaceRuntimeFrame {
   deckTransitionProgress: number
   deckFrameSourceIdentity: string | null
   deckGeneratedGroupIds: readonly string[]
-  authoredBulbStates: readonly Readonly<{ layerId: string; opacity: number; frameIndex: number }>[]
   visibleComponentIds: readonly string[]
   activeCellCount: number
   pixelHash: string
@@ -488,9 +480,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
     let resolution: CanvasResolution | null = null
     let previousPerformanceContext: SharedPerformanceContext | null = null
-    let restorationSectionIdentity: string | null = null
-    let restorationElapsedBar = 0
-    let restorationLastAbsoluteBar: number | null = null
     let previousTrackIdentity: string | null = propsRef.current.trackIdentity ?? null
     let previousPresetIdentity: string | null = preset.id
     let previousSceneOwnershipIdentity = propsRef.current.pixGridState.editor.scenePreviewMode === 'selectedScene'
@@ -720,13 +709,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         unifiedPerformanceRuntime.reset(current.trackIdentity ?? null)
         unifiedReactionRuntime.reset()
         // Scene ownership changes reconstruct every local clock from the new
-        // owner. Reusing the previous sign epoch would leak track source/target
-        // and transition state into a manually selected scene.
+        // owner so track timing cannot leak into a manually selected scene.
         motionClock.reset(current.trackIdentity ?? null)
         selectedScenePreviewClock.reset()
-        restorationSectionIdentity = null
-        restorationElapsedBar = 0
-        restorationLastAbsoluteBar = null
         fallbackGroupCompiler.reset()
         perceptualTracker.reset()
         latestGroupCoverage = new Map()
@@ -755,9 +740,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         unifiedReactionRuntime.reset()
         motionClock.reset(trackIdentity)
         selectedScenePreviewClock.reset()
-        restorationSectionIdentity = null
-        restorationElapsedBar = 0
-        restorationLastAbsoluteBar = null
         fallbackGroupCompiler.reset()
         perceptualTracker.reset()
         latestGroupCoverage = new Map()
@@ -792,9 +774,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         unifiedReactionRuntime.reset()
         fallbackGroupCompiler.reset()
         perceptualTracker.reset()
-        restorationSectionIdentity = null
-        restorationElapsedBar = 0
-        restorationLastAbsoluteBar = null
         latestGroupCoverage = new Map()
         latestVisibleFrameCellCount = 0
         lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
@@ -844,37 +823,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         deltaTimeSec,
         autoPerformanceEnabled: current.pixGridState.performance.enabled,
       })
-      const absoluteBar = Number.isFinite(baseLiveAudioFrame.absoluteBar)
-        ? Math.max(0, baseLiveAudioFrame.absoluteBar!)
-        : Math.max(0, (baseLiveAudioFrame.barIndex ?? 0) + (baseLiveAudioFrame.barProgress ?? 0))
-      const sectionIdentity = `${trackIdentity ?? 'none'}:${context.sectionIdentity ?? context.sectionId ?? context.sectionType ?? 'unknown'}`
-      const leavingTransparentOutro = activePreset.id === 'pix-grid-neon-marquee-cycle'
-        && priorPerformanceContext?.sectionType === 'outro'
-        && priorPerformanceContext.barsSinceSectionStart >= 0.75
-        && context.sectionType !== 'outro'
-      if (leavingTransparentOutro) {
-        restorationSectionIdentity = sectionIdentity
-        restorationElapsedBar = shouldAnimate ? 0 : 0.75
-        restorationLastAbsoluteBar = absoluteBar
-      } else if (restorationSectionIdentity && restorationSectionIdentity !== sectionIdentity) {
-        restorationSectionIdentity = null
-        restorationElapsedBar = 0
-        restorationLastAbsoluteBar = null
-      } else if (restorationSectionIdentity === sectionIdentity && shouldAnimate && restorationLastAbsoluteBar != null) {
-        restorationElapsedBar += Math.max(0, absoluteBar - restorationLastAbsoluteBar)
-        restorationLastAbsoluteBar = absoluteBar
-      }
-      const restoringFromTransparency = restorationSectionIdentity === sectionIdentity
-        && restorationElapsedBar < 0.75
-      if (!restoringFromTransparency && restorationSectionIdentity === sectionIdentity) {
-        restorationSectionIdentity = null
-        restorationLastAbsoluteBar = null
-      }
-      const liveAudioFrame: PixGridAudioFrame = {
-        ...baseLiveAudioFrame,
-        restoringFromTransparency,
-        restorationElapsedBar: restoringFromTransparency ? restorationElapsedBar : undefined,
-      }
+      const liveAudioFrame = baseLiveAudioFrame
       const authoredAudioFrameBase = transportState === 'stopped'
         ? createSilentPixGridAudioFrame({
             audioTime,
@@ -933,10 +882,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         motion: current.motion,
       })
       const previewSourceFrame = selectedScenePreviewClock.apply(controlledSourceFrame, current.pixGridState)
-      const audioFrame = motionClock.apply(applyPixGridEditorPreview(applyPixGridPresetSignClock(
-        previewSourceFrame,
-        activePreset.id,
-      )))
+      const audioFrame = motionClock.apply(applyPixGridEditorPreview(previewSourceFrame))
       const qualityProfile = adaptiveProfileRef.current
       const runtimeState: PixGridState = {
         ...current.pixGridState,
@@ -1181,22 +1127,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const visibleComponentIds = input.state.layers
         .filter(layer => layer.visible && !hiddenLayerIds.has(layer.id) && (activeScene?.layerIds.includes(layer.id) ?? true))
         .map(layer => layer.id)
-      const signLayer = input.state.layers.find(layer => layer.id === 'marquee-structure')
-        ?? input.state.layers.find(layer => String(layer.assetId) === 'pix-neon-marquee-stable-underlay')
-        ?? input.state.layers.find(layer => String(layer.assetId) === 'pix-neon-marquee-structure')
-        ?? null
-      const signAsset = signLayer ? PIX_GRID_BUILT_IN_ASSET_BY_ID.get(signLayer.assetId) : null
-      const signAnimation = signLayer && signAsset
-        ? resolvePixGridLayerAnimation(signLayer, signAsset, input.audioFrame, sceneSettings?.motionMultiplier ?? 1)
-        : null
-      const authoredBulbStates = input.state.layers
-        .filter(layer => layer.id.startsWith('marquee-bulbs-'))
-        .flatMap(layer => {
-          const asset = PIX_GRID_BUILT_IN_ASSET_BY_ID.get(layer.assetId)
-          if (!asset) return []
-          const animation = resolvePixGridLayerAnimation(layer, asset, input.audioFrame, sceneSettings?.motionMultiplier ?? 1)
-          return [{ layerId: layer.id, opacity: animation.opacity, frameIndex: animation.frameIndex }]
-        })
       let activeCellCount = 0
       let hash = 0x811c9dc5
       for (let offset = 0; offset < logicalFrame.pixels.length; offset += 1) {
@@ -1218,10 +1148,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         audioTimeSec: input.audioFrame.audioTime,
         sectionType: input.audioFrame.sectionType,
         autoPerformanceEnabled: input.audioFrame.autoPerformanceEnabled === true,
-        signFrameIndex: signAnimation?.frameIndex ?? null,
-        previousSignFrameIndex: signAnimation?.previousFrameIndex ?? null,
-        signTransitionType: signAnimation?.frameTransitionType ?? null,
-        signTransitionProgress: signAnimation?.frameTransitionProgress ?? 1,
         authoredAnimationPhase: input.audioFrame.motionClockSectionBeat ?? 0,
         deckSequenceFrameId: input.deckSequencePlan?.activeFrameId ?? null,
         deckSequenceNextFrameId: input.deckSequencePlan?.nextFrameId ?? null,
@@ -1240,7 +1166,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
                 : []
             })
           : [],
-        authoredBulbStates,
         visibleComponentIds,
         activeCellCount,
         pixelHash: (hash >>> 0).toString(16).padStart(8, '0'),

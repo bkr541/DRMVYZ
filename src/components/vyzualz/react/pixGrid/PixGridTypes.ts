@@ -155,7 +155,7 @@ export interface PixGridBuiltInAssetManifestEntry {
 export interface PixGridLayerAnimation {
   mode: PixGridAnimationMode
   /** Selects the authoritative musical clock used by frame sequences and motion. */
-  clock?: 'time' | 'beat' | 'bar' | 'sectionBeat' | 'sectionBar' | 'sectionProgress' | 'sign' | 'cue'
+  clock?: 'time' | 'beat' | 'bar' | 'sectionBeat' | 'sectionBar' | 'sectionProgress' | 'cue'
   speed: number
   amount: number
   /** Minimum opacity retained during the inactive half of a blink cycle. */
@@ -172,7 +172,7 @@ export interface PixGridLayerAnimation {
   sectionProgressSpeed?: Partial<Record<ReactSectionType, number>>
   /** Generic deterministic transition applied when a frameCycle advances. */
   frameTransition?: PixGridFrameTransitionConfig
-  /** Section-authored overrides without changing sign cadence ownership. */
+  /** Section-authored overrides for the shared frame-transition grammar. */
   sectionFrameTransitions?: Partial<Record<ReactSectionType, PixGridFrameTransitionConfig>>
 }
 
@@ -651,15 +651,6 @@ export interface PixGridAudioFrame {
   absoluteBar?: number
   /** Non-overlapping authoritative section spans on the same absolute bar grid. */
   sectionBarTimeline?: readonly PixGridSectionBarSpan[]
-  /** Preset-authored deterministic sign cadence before Motion integration. */
-  signClock?: number
-  /** Deterministic scaled distance since the latest real sign boundary, or null before one occurs. */
-  signTransitionClock?: number | null
-  /** Raw sign units per bar at the latest real sign boundary. */
-  signTransitionRate?: number
-  /** Deterministic source/target sign epochs at the latest real sign boundary. */
-  signTransitionSourceFrame?: number | null
-  signTransitionTargetFrame?: number | null
   /** Selected Scene's unwrapped deterministic preview position in bars. */
   previewElapsedBar?: number
   /** Length of the selected scene's authored preview loop in bars. */
@@ -685,12 +676,6 @@ export interface PixGridAudioFrame {
   timingDiscontinuity?: boolean
   /** Static editor inspection resolves the stable destination artwork, never an in-flight lifecycle transition. */
   stableInspectionFrame?: boolean
-  /** Transport reconstruction suppresses stale sign-to-sign source/target transitions until a new real sign boundary occurs. */
-  suppressFrameTransitions?: boolean
-  /** Reconstructs a deterministic power-on after a completed transparent terminal state. */
-  restoringFromTransparency?: boolean
-  /** Local deterministic elapsed bars for the restoration power-on lifecycle. */
-  restorationElapsedBar?: number
   trackIdentity?: string | null
   sourceValues?: Partial<Record<PixGridReactionSource, number>>
   /** Source values before PixGrid-local Bass Reactivity is applied. */
@@ -706,13 +691,6 @@ export interface PixGridAudioFrame {
   motionClockTime?: number
   motionClockBeat?: number
   motionClockBar?: number
-  /** Motion-integrated sign cadence. The raw deterministic source remains signClock. */
-  motionClockSign?: number
-  /** Motion-integrated distance since the latest real sign boundary. */
-  motionClockSignTransition?: number | null
-  /** Source/target sign epochs owned by the motion-integrated transition. */
-  motionClockSignTransitionSourceFrame?: number | null
-  motionClockSignTransitionTargetFrame?: number | null
   /** Motion-scaled clocks measured from the resolved section start. */
   motionClockSectionBeat?: number
   motionClockSectionBar?: number

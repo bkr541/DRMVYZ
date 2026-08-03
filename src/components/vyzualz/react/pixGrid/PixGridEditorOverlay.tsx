@@ -20,7 +20,6 @@ import { activePixGridGroups, compilePixGridGroupMask } from './PixGridGroups'
 import { samplePixGridCanvasColor } from './PixGridLiveCanvas'
 import { DropdownSelect } from '../../../shared/Dropdown/Dropdown'
 import { isKeyboardInputTarget } from '../../../../utils/keyboardTargets'
-import { resolvePixGridSemanticTargetCells } from './PixGridSemanticTarget'
 import {
   PIX_GRID_FOLLOW_TRACK_SCENE_VALUE,
   selectPixGridEditingTarget,
@@ -102,10 +101,9 @@ export function shouldShowPixGridEditorOverlay(activeEngineId: string, authoring
 
 export interface PixGridEditorOverlayProps {
   liveCanvas: HTMLCanvasElement | null
-  signFrameIndex?: number | null
 }
 
-export function PixGridEditorOverlay({ liveCanvas, signFrameIndex = null }: PixGridEditorOverlayProps) {
+export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sampleCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const operationRef = useRef<PointerOperation | null>(null)
@@ -205,22 +203,6 @@ export function PixGridEditorOverlay({ liveCanvas, signFrameIndex = null }: PixG
         ? getPixGridActiveLayers(current).find(layer => layer.id === current.editor.selectedLayerId) ?? null
         : null
       if (selectedComponent) {
-        const semanticCells = resolvePixGridSemanticTargetCells(current, signFrameIndex ?? 0)
-        if (semanticCells.length > 0) {
-          const cellWidth = output.width / current.matrixWidth
-          const cellHeight = output.height / current.matrixHeight
-          context.save()
-          context.fillStyle = 'rgba(74,199,219,0.5)'
-          context.strokeStyle = 'rgba(255,255,255,0.9)'
-          context.lineWidth = Math.max(0.5, Math.min(1.5, Math.min(cellWidth, cellHeight) * 0.2))
-          for (const cell of semanticCells) {
-            const left = output.left + cell.x * cellWidth
-            const top = output.top + cell.y * cellHeight
-            context.fillRect(left, top, cellWidth, cellHeight)
-            if (cellWidth >= 3 && cellHeight >= 3) context.strokeRect(left + 0.5, top + 0.5, cellWidth - 1, cellHeight - 1)
-          }
-          context.restore()
-        }
         context.save()
         context.setLineDash([6, 4])
         context.strokeStyle = selectedComponent.visible === false
@@ -298,7 +280,7 @@ export function PixGridEditorOverlay({ liveCanvas, signFrameIndex = null }: PixG
     }
     animationFrame = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(animationFrame)
-  }, [liveCanvas, signFrameIndex, size, viewport])
+  }, [liveCanvas, size, viewport])
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {

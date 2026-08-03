@@ -32,12 +32,7 @@ interface RuntimeReadback {
     audioTimeSec: number
     sectionType: string | null
     autoPerformanceEnabled: boolean
-    signFrameIndex: number | null
-    previousSignFrameIndex: number | null
-    signTransitionType: string | null
-    signTransitionProgress: number
     authoredAnimationPhase: number
-    authoredBulbStates: Array<{ layerId: string; opacity: number; frameIndex: number }>
     visibleComponentIds: string[]
     activeCellCount: number
     pixelHash: string
@@ -144,7 +139,6 @@ async function readRuntime(page: Page): Promise<RuntimeReadback> {
       performanceEnabled: snapshot.performanceEnabled,
       runtimeFrame: snapshot.runtimeFrame ? {
         ...snapshot.runtimeFrame,
-        authoredBulbStates: snapshot.runtimeFrame.authoredBulbStates.map(state => ({ ...state })),
         visibleComponentIds: [...snapshot.runtimeFrame.visibleComponentIds],
       } : null,
       performance: {
@@ -284,11 +278,6 @@ test.describe('Marquee Sign Cycle real production browser acceptance', () => {
     const selectedDropTransition = await readRuntime(page)
     expect(selectedDropTransition.previewMode).toBe('selectedScene')
     expect(selectedDropTransition.runtimeFrame?.sceneId).toBe(DROP_SCENE_ID)
-    expect(selectedDropTransition.runtimeFrame?.signTransitionType).not.toBe('cut')
-    expect(selectedDropTransition.runtimeFrame?.previousSignFrameIndex).toBe(0)
-    expect(selectedDropTransition.runtimeFrame?.signFrameIndex).toBe(1)
-    expect(selectedDropTransition.runtimeFrame!.signTransitionProgress).toBeGreaterThan(0)
-    expect(selectedDropTransition.runtimeFrame!.signTransitionProgress).toBeLessThan(1)
 
     await choose(page, 'Edit Target', 'Perimeter Bulbs A')
     await expect(page.getByRole('tab', { name: 'Layer', exact: true })).toHaveAttribute('aria-selected', 'true')
@@ -296,14 +285,12 @@ test.describe('Marquee Sign Cycle real production browser acceptance', () => {
     await expect(page.getByRole('slider', { name: 'Opacity', exact: true })).toBeVisible()
     await expect(page.getByTestId('selected-layer-highlight')).toHaveText('Perimeter Bulbs A')
     expect((await readRuntime(page)).selectedLayerId).toBe('marquee-bulbs-a')
-    await expect(page.getByTestId('pix-grid-semantic-target-overlay')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Edit PixGrid', exact: true }).first().click()
     await expect(page.getByTestId('pix-grid-editor-overlay')).toBeVisible()
     expect((await readRuntime(page)).selectedLayerId).toBe('marquee-bulbs-a')
     await page.getByRole('button', { name: 'Done', exact: true }).click()
     await expect(page.getByTestId('pix-grid-editor-overlay')).toHaveCount(0)
-    await expect(page.getByTestId('pix-grid-semantic-target-overlay')).toHaveCount(0)
     expect((await readRuntime(page)).selectedLayerId).toBe('marquee-bulbs-a')
 
     await choose(page, 'Edit Target', 'Scene Pixels')
@@ -385,20 +372,12 @@ test.describe('Marquee Sign Cycle real production browser acceptance', () => {
     const motionB = await readRuntime(page)
     expect(motionA.runtimeFrame?.sceneId).toBe(DROP_SCENE_ID)
     expect(motionB.runtimeFrame?.sceneId).toBe(DROP_SCENE_ID)
-    expect(motionB.runtimeFrame?.signFrameIndex).toBe(motionA.runtimeFrame?.signFrameIndex)
     expect(motionB.runtimeFrame?.authoredAnimationPhase).not.toBe(motionA.runtimeFrame?.authoredAnimationPhase)
-    expect(motionB.runtimeFrame?.authoredBulbStates).not.toEqual(motionA.runtimeFrame?.authoredBulbStates)
-    expect(motionB.runtimeFrame?.authoredBulbStates.find(state => state.layerId === 'marquee-bulbs-a')?.opacity)
-      .not.toBe(motionA.runtimeFrame?.authoredBulbStates.find(state => state.layerId === 'marquee-bulbs-a')?.opacity)
     expect(motionB.runtimeFrame?.pixelHash).not.toBe(motionA.runtimeFrame?.pixelHash)
 
     await setMusicalTime(page, DROP_INTERMEDIATE_TRANSITION_TIME_SEC)
     const transition = await readRuntime(page)
     expect(transition.runtimeFrame?.sceneId).toBe(DROP_SCENE_ID)
-    expect(transition.runtimeFrame?.signTransitionType).not.toBe('cut')
-    expect(transition.runtimeFrame!.signTransitionProgress).toBeGreaterThan(0)
-    expect(transition.runtimeFrame!.signTransitionProgress).toBeLessThan(1)
-    expect(transition.runtimeFrame?.previousSignFrameIndex).not.toBe(transition.runtimeFrame?.signFrameIndex)
 
     await setAudioLevel(page, 1)
     await setMusicalTime(page, 41.25)
@@ -421,12 +400,8 @@ test.describe('Marquee Sign Cycle real production browser acceptance', () => {
 
     await setMusicalTime(page, 41.375)
     const autoOffB = await readRuntime(page)
-    expect(autoOffB.runtimeFrame?.signFrameIndex).toBe(autoOffA.runtimeFrame?.signFrameIndex)
     expect(autoOffB.runtimeFrame?.sceneId).toBe(autoOffA.runtimeFrame?.sceneId)
     expect(autoOffB.runtimeFrame?.authoredAnimationPhase).not.toBe(autoOffA.runtimeFrame?.authoredAnimationPhase)
-    expect(autoOffB.runtimeFrame?.authoredBulbStates).not.toEqual(autoOffA.runtimeFrame?.authoredBulbStates)
-    expect(autoOffB.runtimeFrame?.authoredBulbStates.find(state => state.layerId === 'marquee-bulbs-a')?.opacity)
-      .not.toBe(autoOffA.runtimeFrame?.authoredBulbStates.find(state => state.layerId === 'marquee-bulbs-a')?.opacity)
     expect(autoOffB.runtimeFrame?.pixelHash).not.toBe(autoOffA.runtimeFrame?.pixelHash)
 
     await setToggle(page, 'Auto Performance', true)
@@ -444,16 +419,9 @@ test.describe('Marquee Sign Cycle real production browser acceptance', () => {
         logicalWidth: 160,
         logicalHeight: 90,
         sceneId: primaryParityFrame.runtimeFrame?.sceneId,
-        signFrameIndex: primaryParityFrame.runtimeFrame?.signFrameIndex,
-        previousSignFrameIndex: primaryParityFrame.runtimeFrame?.previousSignFrameIndex,
-        signTransitionType: primaryParityFrame.runtimeFrame?.signTransitionType,
       })
-      expect(canvasParityFrame.runtimeFrame?.signTransitionProgress)
-        .toBeCloseTo(primaryParityFrame.runtimeFrame!.signTransitionProgress, 6)
       expect(canvasParityFrame.runtimeFrame?.authoredAnimationPhase)
         .toBeCloseTo(primaryParityFrame.runtimeFrame!.authoredAnimationPhase, 6)
-      expect(canvasParityFrame.runtimeFrame?.authoredBulbStates)
-        .toEqual(primaryParityFrame.runtimeFrame?.authoredBulbStates)
       expect(canvasParityFrame.runtimeFrame?.visibleComponentIds)
         .toEqual(primaryParityFrame.runtimeFrame?.visibleComponentIds)
       expect(canvasParityFrame.runtimeFrame?.activeCellCount)

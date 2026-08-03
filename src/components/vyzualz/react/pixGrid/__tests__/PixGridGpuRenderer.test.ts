@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET } from './__fixtures__/PixGridLegacySignRuntimeFixture'
 import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
 import { composePixGridLogicalFrame } from '../PixGridCompositor'
 import { createDefaultPixGridState } from '../PixGridDefaults'
@@ -137,32 +136,11 @@ describe('PixGridGpuRenderer', () => {
     expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).not.toContain('uGlobalIntensity')
   })
 
-  it('binds the Marquee Sign Cycle LED-cell presentation through the existing WebGL uniforms', () => {
+  it('skips unchanged logical texture uploads and uploads the next authored phase exactly once', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)
     const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-    const preset = PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET
-    const baseInput = renderInput('high')
-    const state = normalizePixGridState(
-      applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
-    )
-
-    expect(renderer.render({ ...baseInput, preset, state, frame: { ...baseInput.frame, glow: 0 } })).toBe(true)
-    const uniformValue = (name: string): number | undefined => {
-      const call = gl.uniform1f.mock.calls.find((entry: unknown[]) => (entry[0] as { name?: string } | null)?.name === name)
-      return typeof call?.[1] === 'number' ? call[1] : undefined
-    }
-    expect(uniformValue('uGap')).toBeCloseTo(0.1)
-    expect(uniformValue('uRoundness')).toBeCloseTo(0.1)
-    expect(uniformValue('uGlow')).toBeCloseTo(0.08)
-    expect(uniformValue('uDiffusion')).toBeCloseTo(0.04)
-  })
-
-  it('skips unchanged logical texture uploads and uploads the next authored Marquee phase exactly once', () => {
-    const gl = createFakeWebGL2()
-    const canvas = createCanvas(gl)
-    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-    const preset = PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET
+    const preset = PIX_GRID_PRESETS[0]
     const state = normalizePixGridState(
       applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
     )
@@ -235,10 +213,7 @@ describe('PixGridGpuRenderer', () => {
       glow: 0,
       bassReactivity: 1,
     }
-    const presets = [
-      PIX_GRID_PRESETS[0],
-      PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET,
-    ]
+    const presets = PIX_GRID_PRESETS.slice(0, 2)
 
     for (const preset of presets) {
       const state = normalizePixGridState({
@@ -425,176 +400,6 @@ describe('PixGridGpuRenderer', () => {
 
     expect(Array.from(gpuUpload)).toEqual(Array.from(fallback.logicalFrame.pixels))
     expect(Array.from(image.data)).toEqual(Array.from(fallback.logicalFrame.pixels))
-  })
-
-  it('keeps canonical Marquee recruitment identical across WebGL and Canvas logical paths', () => {
-    const gl = createFakeWebGL2()
-    const canvas = createCanvas(gl)
-    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-    const preset = PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET
-    const state = normalizePixGridState({
-      ...applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
-      selectedSceneId: `${preset.id}-drop`,
-      globalIntensity: 1,
-      cellBrightness: 1,
-    })
-    const base = renderInput('high')
-    const recruitmentFrame = {
-      ...base.frame,
-      audioTime: 10,
-      beatHit: true,
-      downbeatHit: true,
-      beatPhase: 0,
-      beatIndex: 0,
-      barIndex: 0,
-      beatsSinceSectionStart: 0,
-      barsSinceSectionStart: 0,
-      sectionType: 'drop' as const,
-      motionClockSectionType: 'drop' as const,
-      motionClockSectionBeat: 0,
-      motionClockSectionBar: 0,
-      signClock: 0,
-      motionClockSign: 0,
-      signTransitionClock: null,
-      motionClockSignTransition: null,
-      autoPerformanceEnabled: true,
-      sourceValues: { downbeat: 1 },
-      capabilities: { downbeat: true },
-      confidence: { downbeat: 1 },
-      intensity: 1,
-      glow: 0,
-    }
-
-    const recruitmentEffect = {
-      id: 'marquee-canonical-letter-recruitment',
-      groupId: 'marquee-letter-group',
-      kind: 'flash' as const,
-      source: 'performance' as const,
-      stage: 'event' as const,
-      priority: 100,
-      amount: 1,
-      paletteRole: 'highlight' as const,
-      membership: 'canonical' as const,
-      recruitHidden: true,
-    }
-
-    expect(renderer.render({
-      ...base,
-      preset,
-      state,
-      frame: recruitmentFrame,
-      reactionRuntime: new PixGridReactionRuntime(),
-      groupEffects: [recruitmentEffect],
-    })).toBe(true)
-    const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
-
-    const image = { data: new Uint8ClampedArray(state.matrixWidth * state.matrixHeight * 4) }
-    const logicalContext = {
-      createImageData: vi.fn(() => image),
-      putImageData: vi.fn(),
-    }
-    const outputContext = {
-      save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), strokeRect: vi.fn(),
-      fillStyle: '', strokeStyle: '', globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true, lineWidth: 1,
-    }
-    const fallback = renderPixGridCanvasFallback(
-      outputContext as unknown as CanvasRenderingContext2D,
-      {
-        canvas: { width: state.matrixWidth, height: state.matrixHeight } as HTMLCanvasElement,
-        context: logicalContext as unknown as CanvasRenderingContext2D,
-      },
-      recruitmentFrame,
-      preset,
-      state,
-      undefined,
-      new PixGridReactionRuntime(),
-      undefined,
-      [recruitmentEffect],
-    )
-    const calm = composePixGridLogicalFrame(
-      preset,
-      state,
-      {
-        ...recruitmentFrame,
-        beatHit: false,
-        downbeatHit: false,
-        sourceValues: { downbeat: 0 },
-      },
-      undefined,
-      undefined,
-      new PixGridReactionRuntime(),
-    )
-    let recruited = 0
-    for (let offset = 0; offset < gpuUpload.length; offset += 4) {
-      recruited += Number(
-        calm.pixels[offset] !== gpuUpload[offset]
-        || calm.pixels[offset + 1] !== gpuUpload[offset + 1]
-        || calm.pixels[offset + 2] !== gpuUpload[offset + 2]
-        || calm.pixels[offset + 3] !== gpuUpload[offset + 3],
-      )
-    }
-
-    expect(Array.from(gpuUpload)).toEqual(Array.from(fallback.logicalFrame.pixels))
-    expect(recruited).toBeGreaterThan(500)
-  })
-
-  it('keeps completed Marquee power-off transparent across WebGL and Canvas logical paths', () => {
-    const gl = createFakeWebGL2()
-    const canvas = createCanvas(gl)
-    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement).renderer!
-    const preset = PIX_GRID_LEGACY_SIGN_RUNTIME_PRESET
-    const state = normalizePixGridState({
-      ...applyPixGridPresetSettings(createDefaultPixGridState(), preset.id, preset.pixGridSettings),
-      selectedSceneId: `${preset.id}-outro`,
-      globalIntensity: 1,
-      cellBrightness: 1,
-    })
-    const base = renderInput('high')
-    const completedOutro = {
-      ...base.frame,
-      sectionType: 'outro' as const,
-      motionClockSectionType: 'outro' as const,
-      motionClockSectionBar: 0.75,
-      barsSinceSectionStart: 0.75,
-      signClock: 0,
-      motionClockSign: 0,
-      signTransitionClock: null,
-      motionClockSignTransition: null,
-      intensity: 1,
-      glow: 0,
-    }
-
-    expect(renderer.render({
-      ...base,
-      preset,
-      state,
-      frame: completedOutro,
-    })).toBe(true)
-    const gpuUpload = gl.texSubImage2D.mock.calls.at(-1)?.[8] as Uint8Array
-
-    const image = { data: new Uint8ClampedArray(state.matrixWidth * state.matrixHeight * 4) }
-    const logicalContext = {
-      createImageData: vi.fn(() => image),
-      putImageData: vi.fn(),
-    }
-    const outputContext = {
-      save: vi.fn(), restore: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), strokeRect: vi.fn(),
-      fillStyle: '', strokeStyle: '', globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true, lineWidth: 1,
-    }
-    const fallback = renderPixGridCanvasFallback(
-      outputContext as unknown as CanvasRenderingContext2D,
-      {
-        canvas: { width: state.matrixWidth, height: state.matrixHeight } as HTMLCanvasElement,
-        context: logicalContext as unknown as CanvasRenderingContext2D,
-      },
-      completedOutro,
-      preset,
-      state,
-    )
-
-    expect(Array.from(gpuUpload)).toEqual(Array.from(fallback.logicalFrame.pixels))
-    expect(Array.from(image.data)).toEqual(Array.from(fallback.logicalFrame.pixels))
-    expect(gpuUpload.every(value => value === 0)).toBe(true)
   })
 
   it('disposes every owned GPU resource idempotently', () => {

@@ -746,15 +746,15 @@ describe('PixGridSequenceClock production adapters', () => {
     )
   })
 
-  it('preserves the existing sign-clock fields beside Deck planning', () => {
+  it('plans Deck sequencing without mutating the shared audio frame', () => {
     const context = contextAt(16, 'verse')
     const frame = createPixGridAudioFrame(context, { isPlaying: true, deltaTimeSec: 1 / 60 })
-    const before = { signClock: frame.signClock, motionClockSign: frame.motionClockSign }
+    const before = structuredClone(frame)
     resolvePixGridSequencePlan({
       deck: deck(),
       preparedFrames: ITEM_IDS.map((id, index) => ({ itemId: id, frameId: FRAME_IDS[index]! })),
       timeline: { absoluteBar: context.absoluteBar, sectionType: 'verse' },
     })
-    expect({ signClock: frame.signClock, motionClockSign: frame.motionClockSign }).toEqual(before)
+    expect(frame).toEqual(before)
   })
 })

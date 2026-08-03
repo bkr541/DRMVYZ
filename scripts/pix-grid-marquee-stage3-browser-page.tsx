@@ -464,8 +464,6 @@ function RealPixGridBrowserShell() {
           <output data-testid="runtime-logical-size">{runtimeFrame ? `${runtimeFrame.logicalWidth}x${runtimeFrame.logicalHeight}` : 'pending'}</output>
           <output data-testid="runtime-active-cells">{runtimeFrame?.activeCellCount ?? 0}</output>
           <output data-testid="runtime-pixel-hash">{runtimeFrame?.pixelHash ?? 'pending'}</output>
-          <output data-testid="runtime-sign-frame">{runtimeFrame?.signFrameIndex ?? -1}</output>
-          <output data-testid="runtime-transition-progress">{runtimeFrame?.signTransitionProgress ?? -1}</output>
         </div>
       </section>
     </main>

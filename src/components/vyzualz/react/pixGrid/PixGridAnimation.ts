@@ -110,7 +110,6 @@ function animationClockValue(frame: PixGridAudioFrame, animation: PixGridLayerAn
     case 'sectionBeat': return frame.motionClockSectionBeat ?? frame.beatsSinceSectionStart ?? ((frame.beatIndex ?? 0) + clamp01(frame.beatPhase))
     case 'sectionBar': return frame.motionClockSectionBar ?? frame.barsSinceSectionStart ?? ((frame.barIndex ?? 0) + ((frame.beatIndex ?? 0) % 4 + clamp01(frame.beatPhase)) / 4)
     case 'sectionProgress': return frame.motionClockSectionProgress ?? clamp01(frame.sectionProgress ?? 0)
-    case 'sign': return frame.motionClockSign ?? frame.signClock ?? frame.motionClockBar ?? frame.absoluteBar ?? (frame.barIndex ?? 0)
     case 'cue': return 0
     case 'time':
     default: return frame.motionClockTime ?? frame.audioTime
@@ -122,7 +121,6 @@ function animationSectionType(frame: PixGridAudioFrame) {
 }
 
 function animationSectionSpeed(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): number {
-  if (animation.clock === 'sign') return 1
   const sectionType = animationSectionType(frame)
   const speed = sectionType ? animation.sectionSpeeds?.[sectionType] : animation.sectionSpeeds?.unknown
   const baseSpeed = Math.max(0, Number.isFinite(speed) ? speed! : 1)
@@ -133,18 +131,10 @@ function animationSectionSpeed(frame: PixGridAudioFrame, animation: PixGridLayer
   return baseSpeed * (1 + progress * Math.max(0, Number.isFinite(progressAmount) ? progressAmount! : 0))
 }
 
-function animationClockRate(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): number {
-  if (animation.clock !== 'sign') return animationSectionSpeed(frame, animation)
-  const sectionType = animationSectionType(frame)
-  const cadence = sectionType ? animation.sectionSpeeds?.[sectionType] : animation.sectionSpeeds?.unknown
-  return Math.max(0, Number.isFinite(cadence) ? cadence! : 0)
-}
-
 function effectiveMotion(frame: PixGridAudioFrame, sceneMotionMultiplier: number): number {
   const hasIntegratedClock = frame.motionClockTime != null
     || frame.motionClockBeat != null
     || frame.motionClockBar != null
-    || frame.motionClockSign != null
     || frame.motionClockSectionBeat != null
     || frame.motionClockSectionBar != null
     || frame.motionClockSectionProgress != null
@@ -162,15 +152,6 @@ function animationTime(frame: PixGridAudioFrame, animation: PixGridLayerAnimatio
 }
 
 function transitionConfig(frame: PixGridAudioFrame, animation: PixGridLayerAnimation): PixGridFrameTransitionConfig | null {
-  if (frame.restoringFromTransparency === true && animation.clock === 'sign') {
-    return {
-      type: 'powerOn',
-      durationFraction: 0.75,
-      easing: 'easeOut',
-      seedMode: 'section',
-      onSectionEntry: true,
-    }
-  }
   const sectionType = animationSectionType(frame)
   return (sectionType ? animation.sectionFrameTransitions?.[sectionType] : animation.sectionFrameTransitions?.unknown)
     ?? animation.frameTransition
@@ -227,67 +208,24 @@ function resolveFrameCycle(
     resolved.previousFrameIndex = frameIndex
     return
   }
-  // A transport seek suppresses stale sign-to-sign source/target state, but
-  // section-entry lifecycle transitions still reconstruct from the destination
-  // section clock. This keeps direct Outro seeks capable of reaching authored
-  // power-off while ordinary sign seeks land on a complete stable target.
-  const suppressSignTransition = frame.suppressFrameTransitions === true
-  if (suppressSignTransition && config?.onSectionEntry !== true) {
-    resolved.previousFrameIndex = frameIndex
-    return
-  }
   if (!config || config.type === 'cut' || count <= 1) return
 
   const duration = clamp01(config.durationFraction)
-  const hasExplicitSignTransition = !suppressSignTransition && animation.clock === 'sign' && (
-    Object.prototype.hasOwnProperty.call(frame, 'motionClockSignTransition')
-    || Object.prototype.hasOwnProperty.call(frame, 'signTransitionClock')
-  )
-  const explicitSignTransition = frame.motionClockSignTransition !== undefined
-    ? frame.motionClockSignTransition
-    : frame.signTransitionClock
-  const explicitSourceFrame = frame.motionClockSignTransitionSourceFrame !== undefined
-    ? frame.motionClockSignTransitionSourceFrame
-    : frame.signTransitionSourceFrame
-  const explicitTargetFrame = frame.motionClockSignTransitionTargetFrame !== undefined
-    ? frame.motionClockSignTransitionTargetFrame
-    : frame.signTransitionTargetFrame
   let rawProgress = duration <= 0 ? 1 : clamp01(fract(framePosition) / duration)
   let entryTransition = false
-
-  if (hasExplicitSignTransition) {
-    if (explicitSignTransition == null) {
-      if (!config.onSectionEntry) return
-      const entryClock = config.type === 'powerOn' || config.type === 'powerOff'
-        ? Math.max(0, frame.restoringFromTransparency === true
-            ? frame.restorationElapsedBar ?? 0
-            : frame.barsSinceSectionStart ?? 0)
-        : Math.max(0, frame.motionClockSectionBar ?? frame.barsSinceSectionStart ?? 0)
-          * Math.max(0, Number.isFinite(motionMultiplier) ? motionMultiplier : 1)
-      rawProgress = duration <= 0 ? 1 : clamp01(entryClock / duration)
-      resolved.previousFrameIndex = frameIndex
-      entryTransition = true
-    } else {
-      rawProgress = duration <= 0 ? 1 : clamp01(Math.max(0, explicitSignTransition) / duration)
-      if (Number.isFinite(explicitSourceFrame) && Number.isFinite(explicitTargetFrame)) {
-        resolved.previousFrameIndex = positiveModulo(Math.floor(explicitSourceFrame!), count)
-        resolved.frameIndex = positiveModulo(Math.floor(explicitTargetFrame!), count)
-      }
-    }
-  } else {
-    const rate = Math.abs(animation.speed * animationClockRate(frame, animation) * effectiveMotion(frame, motionMultiplier) * frameRate)
-    if (rate <= 1e-10) {
-      if (!config.onSectionEntry) return
-      const entryClock = config.type === 'powerOn' || config.type === 'powerOff'
-        ? Math.max(0, frame.restoringFromTransparency === true
-            ? frame.restorationElapsedBar ?? 0
-            : frame.barsSinceSectionStart ?? 0)
-        : Math.max(0, frame.motionClockSectionBar ?? frame.barsSinceSectionStart ?? 0)
-          * Math.max(0, Number.isFinite(motionMultiplier) ? motionMultiplier : 1)
-      rawProgress = duration <= 0 ? 1 : clamp01(entryClock / duration)
-      resolved.previousFrameIndex = frameIndex
-      entryTransition = true
-    }
+  const rate = Math.abs(
+    animation.speed
+      * animationSectionSpeed(frame, animation)
+      * effectiveMotion(frame, motionMultiplier)
+      * frameRate,
+  )
+  if (rate <= 1e-10) {
+    if (!config.onSectionEntry) return
+    const entryClock = Math.max(0, frame.motionClockSectionBar ?? frame.barsSinceSectionStart ?? 0)
+      * Math.max(0, Number.isFinite(motionMultiplier) ? motionMultiplier : 1)
+    rawProgress = duration <= 0 ? 1 : clamp01(entryClock / duration)
+    resolved.previousFrameIndex = frameIndex
+    entryTransition = true
   }
 
   resolved.frameTransitionType = config.type
