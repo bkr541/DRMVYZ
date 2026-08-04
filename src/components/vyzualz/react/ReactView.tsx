@@ -822,7 +822,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                         type="button"
                         className="rv-canvas-cast-deferred"
                         disabled
-                        title="Fractures cast and production output support is not included in Stage 1."
+                        title="Fractures cast and production output are intentionally unavailable in the current MVP."
                       >
                         Cast unavailable for Fractures
                       </button>

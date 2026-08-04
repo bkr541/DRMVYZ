@@ -98,6 +98,7 @@ function createAuxiliaryCanvas(): { canvas: HTMLCanvasElement | null; context: C
 }
 
 export class CanvasFracturesCanvas2DRenderer {
+  readonly health = 'ready' as const
   private readonly context: CanvasRenderingContext2D
   private readonly effectCanvas: HTMLCanvasElement | null
   private readonly effectContext: CanvasRenderingContext2D | null

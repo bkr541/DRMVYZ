@@ -3798,7 +3798,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Controls the spread between individual fragment transition start times.",
       "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
       "The value changes immediately for subsequent transitions.",
-      "Per-fragment stagger order will be assigned deterministically."
+      "Per-fragment stagger order is assigned deterministically."
     ],
     "whenToUse": "Adjust Stagger while Fractures is the active CANVAS preset.",
     "affects": [
@@ -3943,8 +3943,8 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Controls the master weighting applied across Fractures fragment effects.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
-      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+      "The value changes immediately in the specialized fragment-collage renderer.",
+      "Effect assignment is derived from deterministic fragment roles and the saved weights."
     ],
     "whenToUse": "Adjust Effects Intensity while Fractures is the active CANVAS preset.",
     "affects": [
@@ -3968,8 +3968,8 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Weights glow assignment on automatically selected fragment roles.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
-      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+      "The value changes immediately in the specialized fragment-collage renderer.",
+      "Effect assignment is derived from deterministic fragment roles and the saved weights."
     ],
     "whenToUse": "Adjust Glow while Fractures is the active CANVAS preset.",
     "affects": [
@@ -3993,8 +3993,8 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Weights glitch treatment on automatically selected fragment roles.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
-      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+      "The value changes immediately in the specialized fragment-collage renderer.",
+      "Effect assignment is derived from deterministic fragment roles and the saved weights."
     ],
     "whenToUse": "Adjust Glitch while Fractures is the active CANVAS preset.",
     "affects": [
@@ -4018,8 +4018,8 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Weights surface texture treatment on automatically selected fragment roles.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
-      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+      "The value changes immediately in the specialized fragment-collage renderer.",
+      "Effect assignment is derived from deterministic fragment roles and the saved weights."
     ],
     "whenToUse": "Adjust Texture while Fractures is the active CANVAS preset.",
     "affects": [
@@ -4043,8 +4043,8 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Weights fragment trail treatment on automatically selected fragment roles.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
-      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+      "The value changes immediately in the specialized fragment-collage renderer.",
+      "Effect assignment is derived from deterministic fragment roles and the saved weights."
     ],
     "whenToUse": "Adjust Trails while Fractures is the active CANVAS preset.",
     "affects": [
@@ -4068,8 +4068,8 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Weights simulated fragment depth and parallax treatment.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
-      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+      "The value changes immediately in the specialized fragment-collage renderer.",
+      "Effect assignment is derived from deterministic fragment roles and the saved weights."
     ],
     "whenToUse": "Adjust Depth while Fractures is the active CANVAS preset.",
     "affects": [
@@ -4093,8 +4093,8 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Weights duplicate or echo fragment treatment.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
-      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+      "The value changes immediately in the specialized fragment-collage renderer.",
+      "Effect assignment is derived from deterministic fragment roles and the saved weights."
     ],
     "whenToUse": "Adjust Duplication while Fractures is the active CANVAS preset.",
     "affects": [
@@ -4118,8 +4118,8 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Weights color remapping across automatically assigned fragment roles.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
-      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+      "The value changes immediately in the specialized fragment-collage renderer.",
+      "Effect assignment is derived from deterministic fragment roles and the saved weights."
     ],
     "whenToUse": "Adjust Color Treatment while Fractures is the active CANVAS preset.",
     "affects": [
@@ -4143,7 +4143,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Chooses source-sampled colors, Brand Kit colors, or manual override colors.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The selection changes immediately; visible color processing is deferred to a later renderer stage.",
+      "The selection changes immediately in the specialized fragment-collage renderer.",
       "The selected color source is persisted, does not alter topology identity, and is replayed during deterministic reconstruction."
     ],
     "whenToUse": "Adjust Color Source while Fractures is the active CANVAS preset.",
@@ -4167,7 +4167,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Sets the primary manual color used when Color Source is Manual Override.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The color changes immediately in canonical state; visible processing is deferred.",
+      "The color changes immediately in canonical state and the specialized renderer consumes it on the next frame.",
       "The normalized hex color is persisted for deterministic reload."
     ],
     "whenToUse": "Adjust Manual Primary Color while Fractures is the active CANVAS preset.",
@@ -4191,7 +4191,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "whatItDoes": [
       "Sets the supporting manual color used when Color Source is Manual Override.",
       "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The color changes immediately in canonical state; visible processing is deferred.",
+      "The color changes immediately in canonical state and the specialized renderer consumes it on the next frame.",
       "The normalized hex color is persisted for deterministic reload."
     ],
     "whenToUse": "Adjust Manual Supporting Color while Fractures is the active CANVAS preset.",
@@ -4204,129 +4204,186 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "defaultValue": "#61D6AA"
   },
   {
-    "id": "react.canvas.fractures.effects.roleWeight.anchor",
+    "id": "react.canvas.fractures.effects.roleWeight.clean",
     "priority": 1,
     "view": "react",
     "engine": "canvas",
-    "group": "CANVAS Fractures \u2014 Effects",
-    "title": "Anchor Role Weight",
+    "group": "CANVAS Fractures — Effects",
+    "title": "Clean Role Weight",
     "componentType": "slider",
-    "summary": "Controls how strongly the automatic anchor fragment role participates in effect assignment.",
+    "summary": "Controls the deterministic probability of the clean effect role.",
     "whatItDoes": [
-      "Controls how strongly the automatic anchor fragment role participates in effect assignment.",
-      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
-      "Role membership and weighting will be assigned from the deterministic fragment plan."
+      "Controls the deterministic probability of the clean effect role.",
+      "Writes the canonical Fractures role-weight map consumed by topology planning.",
+      "Changing the value deterministically reassigns roles without introducing frame-order state.",
+      "All-zero role weights safely normalize to the canonical fallback distribution."
     ],
-    "whenToUse": "Adjust Anchor Role Weight while Fractures is the active CANVAS preset.",
+    "whenToUse": "Adjust Clean Role Weight while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures effects planning"
+      "per-fragment effect-role assignment"
     ],
     "doesNotAffect": [
+      "fragment crops",
       "other CANVAS presets"
     ],
-    "defaultValue": "100%",
-    "range": "0\u2013100%"
+    "defaultValue": "34%",
+    "range": "0–100%"
   },
   {
-    "id": "react.canvas.fractures.effects.roleWeight.primary",
+    "id": "react.canvas.fractures.effects.roleWeight.glow",
     "priority": 1,
     "view": "react",
     "engine": "canvas",
-    "group": "CANVAS Fractures \u2014 Effects",
-    "title": "Primary Role Weight",
+    "group": "CANVAS Fractures — Effects",
+    "title": "Glow Role Weight",
     "componentType": "slider",
-    "summary": "Controls how strongly the automatic primary fragment role participates in effect assignment.",
+    "summary": "Controls the deterministic probability of the glow effect role.",
     "whatItDoes": [
-      "Controls how strongly the automatic primary fragment role participates in effect assignment.",
-      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
-      "Role membership and weighting will be assigned from the deterministic fragment plan."
+      "Controls the deterministic probability of the glow effect role.",
+      "Writes the canonical Fractures role-weight map consumed by topology planning.",
+      "Changing the value deterministically reassigns roles without introducing frame-order state.",
+      "All-zero role weights safely normalize to the canonical fallback distribution."
     ],
-    "whenToUse": "Adjust Primary Role Weight while Fractures is the active CANVAS preset.",
+    "whenToUse": "Adjust Glow Role Weight while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures effects planning"
+      "per-fragment effect-role assignment"
     ],
     "doesNotAffect": [
+      "fragment crops",
       "other CANVAS presets"
     ],
-    "defaultValue": "80%",
-    "range": "0\u2013100%"
+    "defaultValue": "14%",
+    "range": "0–100%"
   },
   {
-    "id": "react.canvas.fractures.effects.roleWeight.support",
+    "id": "react.canvas.fractures.effects.roleWeight.outline",
     "priority": 1,
     "view": "react",
     "engine": "canvas",
-    "group": "CANVAS Fractures \u2014 Effects",
-    "title": "Support Role Weight",
+    "group": "CANVAS Fractures — Effects",
+    "title": "Outline Role Weight",
     "componentType": "slider",
-    "summary": "Controls how strongly the automatic support fragment role participates in effect assignment.",
+    "summary": "Controls the deterministic probability of the outline effect role.",
     "whatItDoes": [
-      "Controls how strongly the automatic support fragment role participates in effect assignment.",
-      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
-      "Role membership and weighting will be assigned from the deterministic fragment plan."
+      "Controls the deterministic probability of the outline effect role.",
+      "Writes the canonical Fractures role-weight map consumed by topology planning.",
+      "Changing the value deterministically reassigns roles without introducing frame-order state.",
+      "All-zero role weights safely normalize to the canonical fallback distribution."
     ],
-    "whenToUse": "Adjust Support Role Weight while Fractures is the active CANVAS preset.",
+    "whenToUse": "Adjust Outline Role Weight while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures effects planning"
+      "per-fragment effect-role assignment"
     ],
     "doesNotAffect": [
+      "fragment crops",
       "other CANVAS presets"
     ],
-    "defaultValue": "55%",
-    "range": "0\u2013100%"
+    "defaultValue": "14%",
+    "range": "0–100%"
   },
   {
-    "id": "react.canvas.fractures.effects.roleWeight.accent",
+    "id": "react.canvas.fractures.effects.roleWeight.glitch",
     "priority": 1,
     "view": "react",
     "engine": "canvas",
-    "group": "CANVAS Fractures \u2014 Effects",
-    "title": "Accent Role Weight",
+    "group": "CANVAS Fractures — Effects",
+    "title": "Glitch Role Weight",
     "componentType": "slider",
-    "summary": "Controls how strongly the automatic accent fragment role participates in effect assignment.",
+    "summary": "Controls the deterministic probability of the glitch effect role.",
     "whatItDoes": [
-      "Controls how strongly the automatic accent fragment role participates in effect assignment.",
-      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
-      "Role membership and weighting will be assigned from the deterministic fragment plan."
+      "Controls the deterministic probability of the glitch effect role.",
+      "Writes the canonical Fractures role-weight map consumed by topology planning.",
+      "Changing the value deterministically reassigns roles without introducing frame-order state.",
+      "All-zero role weights safely normalize to the canonical fallback distribution."
     ],
-    "whenToUse": "Adjust Accent Role Weight while Fractures is the active CANVAS preset.",
+    "whenToUse": "Adjust Glitch Role Weight while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures effects planning"
+      "per-fragment effect-role assignment"
     ],
     "doesNotAffect": [
+      "fragment crops",
       "other CANVAS presets"
     ],
-    "defaultValue": "35%",
-    "range": "0\u2013100%"
+    "defaultValue": "10%",
+    "range": "0–100%"
   },
   {
-    "id": "react.canvas.fractures.effects.roleWeight.echo",
+    "id": "react.canvas.fractures.effects.roleWeight.luma",
     "priority": 1,
     "view": "react",
     "engine": "canvas",
-    "group": "CANVAS Fractures \u2014 Effects",
-    "title": "Echo Role Weight",
+    "group": "CANVAS Fractures — Effects",
+    "title": "Luma Role Weight",
     "componentType": "slider",
-    "summary": "Controls how strongly the automatic echo fragment role participates in effect assignment.",
+    "summary": "Controls the deterministic probability of the luma isolation effect role.",
     "whatItDoes": [
-      "Controls how strongly the automatic echo fragment role participates in effect assignment.",
-      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
-      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
-      "Role membership and weighting will be assigned from the deterministic fragment plan."
+      "Controls the deterministic probability of the luma isolation effect role.",
+      "Writes the canonical Fractures role-weight map consumed by topology planning.",
+      "Changing the value deterministically reassigns roles without introducing frame-order state.",
+      "All-zero role weights safely normalize to the canonical fallback distribution."
     ],
-    "whenToUse": "Adjust Echo Role Weight while Fractures is the active CANVAS preset.",
+    "whenToUse": "Adjust Luma Role Weight while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures effects planning"
+      "per-fragment effect-role assignment"
     ],
     "doesNotAffect": [
+      "fragment crops",
       "other CANVAS presets"
     ],
-    "defaultValue": "20%",
-    "range": "0\u2013100%"
+    "defaultValue": "8%",
+    "range": "0–100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.roleWeight.displacement",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures — Effects",
+    "title": "Displacement Role Weight",
+    "componentType": "slider",
+    "summary": "Controls the deterministic probability of the slice displacement effect role.",
+    "whatItDoes": [
+      "Controls the deterministic probability of the slice displacement effect role.",
+      "Writes the canonical Fractures role-weight map consumed by topology planning.",
+      "Changing the value deterministically reassigns roles without introducing frame-order state.",
+      "All-zero role weights safely normalize to the canonical fallback distribution."
+    ],
+    "whenToUse": "Adjust Displacement Role Weight while Fractures is the active CANVAS preset.",
+    "affects": [
+      "per-fragment effect-role assignment"
+    ],
+    "doesNotAffect": [
+      "fragment crops",
+      "other CANVAS presets"
+    ],
+    "defaultValue": "10%",
+    "range": "0–100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.roleWeight.texture",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures — Effects",
+    "title": "Texture Role Weight",
+    "componentType": "slider",
+    "summary": "Controls the deterministic probability of the texture effect role.",
+    "whatItDoes": [
+      "Controls the deterministic probability of the texture effect role.",
+      "Writes the canonical Fractures role-weight map consumed by topology planning.",
+      "Changing the value deterministically reassigns roles without introducing frame-order state.",
+      "All-zero role weights safely normalize to the canonical fallback distribution."
+    ],
+    "whenToUse": "Adjust Texture Role Weight while Fractures is the active CANVAS preset.",
+    "affects": [
+      "per-fragment effect-role assignment"
+    ],
+    "doesNotAffect": [
+      "fragment crops",
+      "other CANVAS presets"
+    ],
+    "defaultValue": "10%",
+    "range": "0–100%"
   },
   {
     "id": "react.canvas.fractures.audio.response",

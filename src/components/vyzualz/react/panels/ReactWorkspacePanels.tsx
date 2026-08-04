@@ -180,8 +180,8 @@ export function ReactOutputWorkspacePanel({
             <div className="rv-ctrl-group"><ProductionOutputPanel /></div>
           ) : fracturesOutputDeferred ? (
             <div className="rv-canvas-output-deferred-placeholder" role="status" aria-label="Fractures recording unavailable">
-              <strong>Fractures recording is not included yet</strong>
-              <span>The specialized fragment renderer is available as a safe preview foundation, but capture is intentionally disabled for this preset in Stage 1.</span>
+              <strong>Fractures recording is unavailable</strong>
+              <span>The specialized fragment renderer is active for preview and performance, but capture is intentionally disabled for this preset in the current MVP.</span>
               <button type="button" className="rv-reset-btn" disabled>Recording unavailable</button>
             </div>
           ) : (

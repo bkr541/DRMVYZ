@@ -143,7 +143,7 @@ describe('Fractures CANVAS foundation', () => {
       fractureTopologyInterval: DEFAULT_CANVAS_PRESET_SETTINGS.fractureTopologyInterval,
       fractureLayoutInterval: DEFAULT_CANVAS_PRESET_SETTINGS.fractureLayoutInterval,
       fractureVariationSeed: 999999,
-      fractureQuality: DEFAULT_CANVAS_PRESET_SETTINGS.fractureQuality,
+      fractureQuality: 'ultra',
       fractureMotionAmount: DEFAULT_CANVAS_PRESET_SETTINGS.fractureMotionAmount,
       fractureTransitionMode: DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransitionMode,
       fractureTransitionSpeed: 1,
@@ -184,6 +184,9 @@ describe('Fractures CANVAS foundation', () => {
       displacement: 1,
       texture: 1,
     })
+    expect(normalizeCanvasPresetSettings({ fractureQuality: 'auto' }).fractureQuality).toBe('auto')
+    expect(normalizeCanvasPresetSettings({ particleQuality: 'ultra' }).particleQuality)
+      .toBe(DEFAULT_CANVAS_PRESET_SETTINGS.particleQuality)
   })
 
   it('migrates a pre-Fractures project lazily without replacing existing CANVAS values', () => {

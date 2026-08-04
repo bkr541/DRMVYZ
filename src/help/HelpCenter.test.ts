@@ -236,18 +236,20 @@ describe('Help Center registry', () => {
       'react.canvas.fractures.effects.colorSource',
       'react.canvas.fractures.effects.manualPrimaryColor',
       'react.canvas.fractures.effects.manualSupportingColor',
-      'react.canvas.fractures.effects.roleWeight.anchor',
-      'react.canvas.fractures.effects.roleWeight.primary',
-      'react.canvas.fractures.effects.roleWeight.support',
-      'react.canvas.fractures.effects.roleWeight.accent',
-      'react.canvas.fractures.effects.roleWeight.echo',
+      'react.canvas.fractures.effects.roleWeight.clean',
+      'react.canvas.fractures.effects.roleWeight.glow',
+      'react.canvas.fractures.effects.roleWeight.outline',
+      'react.canvas.fractures.effects.roleWeight.glitch',
+      'react.canvas.fractures.effects.roleWeight.luma',
+      'react.canvas.fractures.effects.roleWeight.displacement',
+      'react.canvas.fractures.effects.roleWeight.texture',
       'react.canvas.fractures.audio.response',
       'react.canvas.fractures.audio.bassMotion',
       'react.canvas.fractures.audio.transientGlitch',
       'react.canvas.fractures.audio.structuralResponse',
     ] as const
 
-    expect(expectedIds).toHaveLength(41)
+    expect(expectedIds).toHaveLength(43)
     for (const helpId of expectedIds) {
       expect(getHelpEntry(helpId)).toMatchObject({ engine: 'canvas' })
     }

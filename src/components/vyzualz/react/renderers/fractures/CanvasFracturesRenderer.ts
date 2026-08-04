@@ -6,11 +6,18 @@ import type {
   CanvasFracturesRendererBackend,
 } from './CanvasFracturesTypes'
 
+export type CanvasFracturesRendererHealth = 'ready' | 'recovering' | 'failed'
+
+export interface CanvasFracturesRendererCreateOptions {
+  forceCanvas2D?: boolean
+}
+
 export type CanvasFracturesRendererCreateResult =
   | { renderer: CanvasFracturesRenderer; error: null }
   | { renderer: null; error: string }
 
 interface CanvasFracturesRendererImplementation {
+  readonly health: CanvasFracturesRendererHealth
   setPlan(plan: CanvasFracturesPlan): void
   readonly planIdentity: string | null
   resize(width: number, height: number, dpr: number): void
@@ -24,8 +31,11 @@ interface CanvasFracturesRendererImplementation {
  * shader suite; Canvas2D remains the reduced functional fallback.
  */
 export class CanvasFracturesRenderer {
-  static create(canvas: HTMLCanvasElement): CanvasFracturesRendererCreateResult {
-    const webgl2 = CanvasFracturesWebGLRenderer.create(canvas)
+  static create(
+    canvas: HTMLCanvasElement,
+    options: CanvasFracturesRendererCreateOptions = {},
+  ): CanvasFracturesRendererCreateResult {
+    const webgl2 = options.forceCanvas2D ? null : CanvasFracturesWebGLRenderer.create(canvas)
     if (webgl2) return { renderer: new CanvasFracturesRenderer('webgl2', webgl2), error: null }
     const canvas2d = CanvasFracturesCanvas2DRenderer.create(canvas)
     if (canvas2d) return { renderer: new CanvasFracturesRenderer('canvas2d', canvas2d), error: null }
@@ -39,6 +49,10 @@ export class CanvasFracturesRenderer {
 
   setPlan(plan: CanvasFracturesPlan): void {
     this.implementation.setPlan(plan)
+  }
+
+  get health(): CanvasFracturesRendererHealth {
+    return this.implementation.health
   }
 
   get planIdentity(): string | null {

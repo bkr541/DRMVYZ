@@ -98,6 +98,7 @@ function makeGl() {
     blendEquationSeparate: ReturnType<typeof vi.fn>
     blendFuncSeparate: ReturnType<typeof vi.fn>
     clear: ReturnType<typeof vi.fn>
+    createBuffer: ReturnType<typeof vi.fn>
     createFramebuffer: ReturnType<typeof vi.fn>
     drawArrays: ReturnType<typeof vi.fn>
     texImage2D: ReturnType<typeof vi.fn>
@@ -288,9 +289,26 @@ describe('Canvas Fractures WebGL2 renderer', () => {
     canvas.getContext = vi.fn((kind: string) => kind === 'webgl2' ? gl : null) as typeof canvas.getContext
     const result = CanvasFracturesRenderer.create(canvas)
     if (!result.renderer) throw new Error(result.error)
+    expect(result.renderer.health).toBe('ready')
     const lost = new Event('webglcontextlost', { cancelable: true })
     expect(canvas.dispatchEvent(lost)).toBe(false)
+    expect(result.renderer.health).toBe('recovering')
     expect(() => canvas.dispatchEvent(new Event('webglcontextrestored'))).not.toThrow()
+    expect(result.renderer.health).toBe('ready')
     expect(() => result.renderer?.dispose()).not.toThrow()
+  })
+
+  it('reports failed health when WebGL resources cannot be rebuilt', () => {
+    const canvas = document.createElement('canvas')
+    const gl = makeGl()
+    canvas.getContext = vi.fn((kind: string) => kind === 'webgl2' ? gl : null) as typeof canvas.getContext
+    const result = CanvasFracturesRenderer.create(canvas)
+    if (!result.renderer) throw new Error(result.error)
+
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }))
+    gl.createBuffer.mockReturnValueOnce(null)
+    expect(() => canvas.dispatchEvent(new Event('webglcontextrestored'))).not.toThrow()
+    expect(result.renderer.health).toBe('failed')
+    result.renderer.dispose()
   })
 })

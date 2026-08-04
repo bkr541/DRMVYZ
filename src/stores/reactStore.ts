@@ -3630,7 +3630,7 @@ function normalizeCanvasPresetColorMode(value: unknown): CanvasPresetColorMode {
 }
 
 function normalizeCanvasParticleQuality(value: unknown): CanvasParticleQuality {
-  return value === 'auto' || value === 'low' || value === 'high' || value === 'ultra' || value === 'balanced'
+  return value === 'low' || value === 'balanced' || value === 'high'
     ? value
     : DEFAULT_CANVAS_PRESET_SETTINGS.particleQuality
 }
@@ -3671,7 +3671,7 @@ function normalizeCanvasFractureColorSourceMode(value: unknown): CanvasFractureC
 }
 
 function normalizeCanvasFractureQuality(value: unknown): CanvasFractureQualityMode {
-  return value === 'low' || value === 'high' || value === 'balanced'
+  return value === 'auto' || value === 'low' || value === 'balanced' || value === 'high' || value === 'ultra'
     ? value
     : DEFAULT_CANVAS_PRESET_SETTINGS.fractureQuality
 }

@@ -92,13 +92,14 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
   } = props
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [rendererBackend, setRendererBackend] = useState<'webgl2' | 'canvas2d'>('canvas2d')
+  const [rendererMode, setRendererMode] = useState<'auto' | 'canvas2d'>('auto')
   const livePropsRef = useRef(props)
   livePropsRef.current = props
 
   useEffect(() => {
     props.onCanvasReady?.(active ? canvasRef.current : null)
     return () => props.onCanvasReady?.(null)
-  }, [active, props.onCanvasReady])
+  }, [active, props.onCanvasReady, rendererMode])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -106,14 +107,25 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     onStatusChange?.(null)
     if (!active || !canvas) return
 
-    const result = CanvasFracturesRenderer.create(canvas)
+    const result = CanvasFracturesRenderer.create(canvas, { forceCanvas2D: rendererMode === 'canvas2d' })
     if (!result.renderer) {
-      onStatusChange?.(result.error)
+      if (rendererMode === 'auto') {
+        onStatusChange?.(`${result.error}. Retrying with a fresh Canvas2D surface.`)
+        setRendererMode('canvas2d')
+      } else {
+        onStatusChange?.(result.error)
+      }
       return
     }
     const renderer = result.renderer
     canvas.dataset.rendererBackend = renderer.backend
     setRendererBackend(renderer.backend)
+    canvas.dataset.fracturesContextState = 'ready'
+    if (rendererMode === 'canvas2d') {
+      onStatusChange?.('Fractures recovered with the Canvas2D compatibility renderer after WebGL became unavailable.')
+    } else if (renderer.backend === 'canvas2d') {
+      onStatusChange?.('WebGL2 is unavailable. Fractures is using the Canvas2D compatibility renderer.')
+    }
     const runtime = new CanvasFracturesRuntime()
     const audioAdapter = new CanvasFracturesAudioAdapter()
     const qualityController = new CanvasFracturesAdaptiveQualityController()
@@ -127,10 +139,33 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     let lastPlanIdentity = ''
     let fpsFrames = 0
     let fpsStartedAt = performance.now()
+    let contextRecoveryStartedAtMs: number | null = null
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
     const draw = (frameNowMs = performance.now()) => {
       const live = livePropsRef.current
+      if (renderer.health === 'failed') {
+        onStatusChange?.('Fractures WebGL recovery failed. Switching to the Canvas2D compatibility renderer.')
+        setRendererMode('canvas2d')
+        return
+      }
+      if (renderer.health === 'recovering') {
+        contextRecoveryStartedAtMs ??= frameNowMs
+        canvas.dataset.fracturesContextState = 'recovering'
+        if (frameNowMs - contextRecoveryStartedAtMs >= 1500) {
+          onStatusChange?.('Fractures WebGL recovery timed out. Switching to the Canvas2D compatibility renderer.')
+          setRendererMode('canvas2d')
+          return
+        }
+        frameId = window.requestAnimationFrame(draw)
+        return
+      }
+      if (contextRecoveryStartedAtMs !== null) {
+        contextRecoveryStartedAtMs = null
+        canvas.dataset.fracturesContextState = 'ready'
+        onStatusChange?.(null)
+        renderer.invalidateFeedback()
+      }
       const frameMs = previousFrameNowMs === null ? 16.67 : Math.max(1, Math.min(100, frameNowMs - previousFrameNowMs))
       previousFrameNowMs = frameNowMs
       if (live.settings.fractureQuality !== lastQualityMode) {
@@ -338,12 +373,13 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       onPreviewReady?.(false)
       onStatusChange?.(null)
     }
-  }, [active, mediaRevision, mediaType, onPreviewReady, onStatusChange, sourceIdentity, sourceRef, trackIdentity])
+  }, [active, mediaRevision, mediaType, onPreviewReady, onStatusChange, rendererMode, sourceIdentity, sourceRef, trackIdentity])
 
   if (!active) return null
 
   return (
     <canvas
+      key={rendererMode}
       ref={canvasRef}
       className="rv-canvas-fractures-renderer-layer"
       data-renderer-kind="fragmentCollage"

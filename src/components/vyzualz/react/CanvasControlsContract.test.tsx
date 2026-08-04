@@ -123,10 +123,12 @@ describe('CANVAS right-panel control contract', () => {
     const create = vi.spyOn(CanvasFracturesRenderer, 'create').mockReturnValue({
       renderer: {
         backend: 'canvas2d',
+        health: 'ready',
         planIdentity: null,
         setPlan: vi.fn(),
         resize: vi.fn(),
         render,
+        invalidateFeedback: vi.fn(),
         dispose: vi.fn(),
       } as unknown as CanvasFracturesRenderer,
       error: null,
@@ -207,6 +209,12 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.fractures.motion.refracture',
       'react.canvas.fractures.effects.colorSource',
       'react.canvas.fractures.effects.glow',
+      'react.canvas.fractures.effects.trails',
+      'react.canvas.fractures.effects.depth',
+      'react.canvas.fractures.effects.duplication',
+      'react.canvas.fractures.effects.colorTreatment',
+      'react.canvas.fractures.effects.roleWeight.clean',
+      'react.canvas.fractures.effects.roleWeight.texture',
     ]))
 
     const intensityLabel = [...host.querySelectorAll<HTMLLabelElement>('label')]
@@ -221,6 +229,19 @@ describe('CANVAS right-panel control contract', () => {
       intensityInput.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(useReactStore.getState().canvasPresetSettings.fractureIntensity).toBe(0.73)
+
+    const cleanRoleLabel = [...host.querySelectorAll<HTMLLabelElement>('label')]
+      .find(label => label.textContent === 'Clean Role')
+    const cleanRoleInput = cleanRoleLabel?.htmlFor
+      ? host.ownerDocument.getElementById(cleanRoleLabel.htmlFor) as HTMLInputElement | null
+      : null
+    expect(cleanRoleInput).not.toBeNull()
+    act(() => {
+      if (!cleanRoleInput) return
+      cleanRoleInput.value = '0.61'
+      cleanRoleInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(useReactStore.getState().canvasPresetSettings.fractureEffectRoleWeights.clean).toBe(0.61)
 
     act(() => {
       useReactStore.getState().selectCanvasPreset('canvas-clean-playback')

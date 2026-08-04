@@ -167,6 +167,17 @@ function forceRole(
 }
 
 describe('Canvas Fractures Canvas2D renderer', () => {
+
+  it('can force a fresh Canvas2D context after WebGL becomes unusable', () => {
+    const canvas = document.createElement('canvas')
+    const { context } = makeContext()
+    const getContext = vi.fn((kind: string) => kind === '2d' ? context : null)
+    canvas.getContext = getContext as typeof canvas.getContext
+    const result = CanvasFracturesRenderer.create(canvas, { forceCanvas2D: true })
+    expect(result.renderer?.backend).toBe('canvas2d')
+    expect(result.renderer?.health).toBe('ready')
+    expect(getContext.mock.calls.some((call: unknown[]) => call[0] === 'webgl2')).toBe(false)
+  })
   it('reuses one decoded image source across every independent fragment draw', () => {
     const canvas = document.createElement('canvas')
     const { context, drawImage } = makeContext()

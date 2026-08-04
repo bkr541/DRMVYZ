@@ -88,6 +88,7 @@ describe('Canvas Fractures real audio routing integration', () => {
     vi.spyOn(CanvasFracturesRenderer, 'create').mockReturnValue({
       renderer: {
         backend: 'canvas2d',
+        health: 'ready',
         planIdentity: null,
         setPlan: vi.fn(),
         resize: vi.fn(),

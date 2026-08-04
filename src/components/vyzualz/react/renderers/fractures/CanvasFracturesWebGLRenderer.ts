@@ -446,6 +446,7 @@ export class CanvasFracturesWebGLRenderer {
   private dpr = 1
   private disposed = false
   private contextLost = false
+  private restoreFailed = false
   private uploadedSource: CanvasImageSource | null = null
   private uploadedIdentity = ''
   private readonly vertexData = new Float32Array(36)
@@ -480,6 +481,7 @@ export class CanvasFracturesWebGLRenderer {
   private readonly handleContextLost = (event: Event) => {
     event.preventDefault()
     this.contextLost = true
+    this.restoreFailed = false
     this.program = null
     this.buffer = null
     this.vao = null
@@ -494,6 +496,7 @@ export class CanvasFracturesWebGLRenderer {
   private readonly handleContextRestored = () => {
     if (this.disposed) return
     this.contextLost = false
+    this.restoreFailed = false
     this.uploadedSource = null
     this.uploadedIdentity = ''
     this.historyWidth = 0
@@ -504,7 +507,13 @@ export class CanvasFracturesWebGLRenderer {
       this.initializeResources()
     } catch {
       this.contextLost = true
+      this.restoreFailed = true
     }
+  }
+
+  get health(): 'ready' | 'recovering' | 'failed' {
+    if (this.restoreFailed) return 'failed'
+    return this.contextLost ? 'recovering' : 'ready'
   }
 
   setPlan(plan: CanvasFracturesPlan): void {
