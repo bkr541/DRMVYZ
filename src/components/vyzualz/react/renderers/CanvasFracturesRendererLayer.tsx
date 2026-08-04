@@ -12,6 +12,7 @@ import type {
 import { CanvasFracturesRenderer } from './fractures/CanvasFracturesRenderer'
 import { CanvasFracturesRuntime } from './fractures/CanvasFracturesRuntime'
 import { CanvasFracturesAudioAdapter } from './fractures/CanvasFracturesAudio'
+import { CanvasFracturesAdaptiveQualityController, resolveCanvasFracturesQualityProfile } from './fractures/CanvasFracturesAdaptiveQuality'
 import type {
   CanvasFracturesSourceElement,
   CanvasFracturesSourceTransform,
@@ -115,10 +116,14 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     setRendererBackend(renderer.backend)
     const runtime = new CanvasFracturesRuntime()
     const audioAdapter = new CanvasFracturesAudioAdapter()
+    const qualityController = new CanvasFracturesAdaptiveQualityController()
+    let resolvedQuality = qualityController.reset(livePropsRef.current.settings.fractureQuality)
     let frameId = 0
     let previewReady = false
     let fallbackPositionSec = 0
     let previousFrameNowSec: number | null = null
+    let previousFrameNowMs: number | null = null
+    let lastQualityMode = livePropsRef.current.settings.fractureQuality
     let lastPlanIdentity = ''
     let fpsFrames = 0
     let fpsStartedAt = performance.now()
@@ -126,10 +131,26 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
 
     const draw = (frameNowMs = performance.now()) => {
       const live = livePropsRef.current
+      const frameMs = previousFrameNowMs === null ? 16.67 : Math.max(1, Math.min(100, frameNowMs - previousFrameNowMs))
+      previousFrameNowMs = frameNowMs
+      if (live.settings.fractureQuality !== lastQualityMode) {
+        lastQualityMode = live.settings.fractureQuality
+        resolvedQuality = qualityController.reset(lastQualityMode)
+        renderer.invalidateFeedback()
+      } else {
+        const nextQuality = qualityController.sample(lastQualityMode, frameMs)
+        if (nextQuality !== resolvedQuality) {
+          resolvedQuality = nextQuality
+          renderer.invalidateFeedback()
+        }
+      }
+      const qualityProfile = resolveCanvasFracturesQualityProfile(resolvedQuality)
+      canvas.dataset.fracturesRequestedQuality = lastQualityMode
+      canvas.dataset.fracturesResolvedQuality = resolvedQuality
       const bounds = canvas.parentElement?.getBoundingClientRect()
       const cssWidth = Math.max(1, Math.round(bounds?.width || 1280))
       const cssHeight = Math.max(1, Math.round(bounds?.height || 720))
-      renderer.resize(cssWidth, cssHeight, window.devicePixelRatio || 1)
+      renderer.resize(cssWidth, cssHeight, Math.min(window.devicePixelRatio || 1, qualityProfile.dprCap))
 
       const frameNowSec = finitePosition(frameNowMs / 1000)
       if (previousFrameNowSec !== null && !live.trackIdentity && live.isPlaying && !live.isPaused) {
@@ -190,7 +211,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
           focusY: settings.fractureFocusY,
           composition: settings.fractureComposition,
           placementMode: settings.fracturePlacementMode,
-          quality: settings.fractureQuality,
+          quality: 'ultra',
           anchorMode: settings.fractureAnchorMode,
           returnToAnchor: settings.fractureReturnToAnchor,
           effectRoleWeights: settings.fractureEffectRoleWeights,
@@ -278,7 +299,8 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
           noise: clamp01(settings.fractureNoiseAmount
             + audioFrame.render.highShimmer * 0.18
             + audioFrame.render.distortion * 0.34),
-          quality: settings.fractureQuality,
+          quality: resolvedQuality,
+          activeFragmentCap: qualityProfile.fragmentCap,
           colorSourceMode: settings.fractureColorSourceMode,
           manualPrimaryColor: settings.fractureManualPrimaryColor,
           manualSupportingColor: settings.fractureManualSupportingColor,
@@ -309,6 +331,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     draw()
     return () => {
       window.cancelAnimationFrame(frameId)
+      previousFrameNowMs = null
       runtime.clear()
       audioAdapter.reset()
       renderer.dispose()

@@ -227,7 +227,8 @@ export type CanvasFracturePlacementMode = 'balanced' | 'offscreenSpill' | 'heavy
 export type CanvasFractureTransitionMode = 'hardGlitchCut' | 'staggeredAssembly' | 'zoomInOut'
 export type CanvasFractureColorSourceMode = 'imageSampled' | 'brandKit' | 'manualOverride'
 export type CanvasFractureLumaMode = 'highlights' | 'shadows' | 'band'
-export type CanvasFractureQualityMode = 'low' | 'balanced' | 'high'
+export type CanvasFractureQualityMode = 'auto' | 'low' | 'balanced' | 'high' | 'ultra'
+export type CanvasFractureResolvedQualityTier = Exclude<CanvasFractureQualityMode, 'auto'>
 export type CanvasFractureQuantizeInterval = 'manualOnly' | 'bar' | '4bars' | '8bars' | '16bars' | 'section' | 'beat' | '2bars'
 /** Persisted command identity for deterministic manual transition reconstruction. */
 export type CanvasFractureManualAction = 'none' | 'refracture' | 'shuffleLayout' | 'returnToAnchor' | 'releaseFreeze'

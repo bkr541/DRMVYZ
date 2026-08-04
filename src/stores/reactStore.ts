@@ -3630,7 +3630,7 @@ function normalizeCanvasPresetColorMode(value: unknown): CanvasPresetColorMode {
 }
 
 function normalizeCanvasParticleQuality(value: unknown): CanvasParticleQuality {
-  return value === 'low' || value === 'high' || value === 'balanced'
+  return value === 'auto' || value === 'low' || value === 'high' || value === 'ultra' || value === 'balanced'
     ? value
     : DEFAULT_CANVAS_PRESET_SETTINGS.particleQuality
 }

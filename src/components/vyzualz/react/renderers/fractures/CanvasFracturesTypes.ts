@@ -8,6 +8,7 @@ import type {
   CanvasFractureMode,
   CanvasFracturePlacementMode,
   CanvasFractureQualityMode,
+  CanvasFractureResolvedQualityTier,
   CanvasFractureQuantizeInterval,
   CanvasFractureTransitionMode,
   CanvasMediaItemType,
@@ -268,7 +269,8 @@ export interface CanvasFracturesEffectSettings {
   pixelation: number
   scanlines: number
   noise: number
-  quality: CanvasFractureQualityMode
+  quality: CanvasFractureResolvedQualityTier
+  activeFragmentCap?: number
   colorSourceMode: CanvasFractureColorSourceMode
   manualPrimaryColor: string
   manualSupportingColor: string
@@ -321,7 +323,7 @@ export interface CanvasFracturesResolvedEffectSettings {
   blur: number
   sharpen: number
   dissolve: number
-  quality: CanvasFractureQualityMode
+  quality: CanvasFractureResolvedQualityTier
   budget: CanvasFracturesQualityBudget
 }
 

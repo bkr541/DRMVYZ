@@ -16,6 +16,7 @@ import {
   modulateCanvasFracturesFragmentTransform,
   protectCanvasFracturesFragmentEffects,
 } from './CanvasFracturesAudio'
+import { selectCanvasFracturesStableSubset } from './CanvasFracturesAdaptiveQuality'
 import type {
   CanvasFractureBlendMode,
   CanvasFractureFragment,
@@ -202,6 +203,7 @@ export class CanvasFracturesCanvas2DRenderer {
       if (delta < -0.05 || delta > 1) this.invalidateFeedback()
     }
     const resolved = resolveCanvasFracturesEffectMacros(params.effects)
+    const activeFragments = selectCanvasFracturesStableSubset(this.orderedFragments, params.effects.activeFragmentCap ?? this.orderedFragments.length)
     const trailsEnabled = resolved.trailOpacity > 1e-4 && this.ensureHistorySurfaces(resolved)
     if (!trailsEnabled && this.trailsPreviouslyEnabled) this.invalidateFeedback()
     this.trailsPreviouslyEnabled = trailsEnabled
@@ -260,9 +262,9 @@ export class CanvasFracturesCanvas2DRenderer {
       context.restore()
     }
 
-    for (let ordinal = 0; ordinal < this.orderedFragments.length; ordinal += 1) {
+    for (let ordinal = 0; ordinal < activeFragments.length; ordinal += 1) {
       this.drawFragment(
-        this.orderedFragments[ordinal],
+        activeFragments[ordinal],
         ordinal,
         source,
         dimensions.width,

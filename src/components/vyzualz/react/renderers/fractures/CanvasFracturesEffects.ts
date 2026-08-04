@@ -3,7 +3,7 @@ import type {
   CanvasFractureColorSourceMode,
   CanvasFractureEffectRole,
   CanvasFractureLumaMode,
-  CanvasFractureQualityMode,
+  CanvasFractureResolvedQualityTier,
 } from '../../ReactTypes'
 import type {
   CanvasFractureEffectAssignment,
@@ -55,7 +55,7 @@ export function canvasFracturesHasModifier(mask: number, modifier: CanvasFractur
   return (mask & CANVAS_FRACTURES_EFFECT_MODIFIERS[modifier]) !== 0
 }
 
-const QUALITY_BUDGETS: Readonly<Record<CanvasFractureQualityMode, CanvasFracturesQualityBudget>> = {
+const QUALITY_BUDGETS: Readonly<Record<CanvasFractureResolvedQualityTier, CanvasFracturesQualityBudget>> = {
   low: {
     trailScale: 0.45,
     trailMaxWidth: 640,
@@ -92,9 +92,21 @@ const QUALITY_BUDGETS: Readonly<Record<CanvasFractureQualityMode, CanvasFracture
     shadowQuality: 2,
     maxExpensiveFragments: 14,
   },
+  ultra: {
+    trailScale: 0.9,
+    trailMaxWidth: 1600,
+    trailMaxHeight: 900,
+    maxDuplicateCopies: 4,
+    maxBlurFragments: 10,
+    maxSharpenFragments: 6,
+    maxBlurPasses: 1,
+    maxSharpenPasses: 1,
+    shadowQuality: 2,
+    maxExpensiveFragments: 20,
+  },
 }
 
-export function resolveCanvasFracturesQualityBudget(quality: CanvasFractureQualityMode): CanvasFracturesQualityBudget {
+export function resolveCanvasFracturesQualityBudget(quality: CanvasFractureResolvedQualityTier): CanvasFracturesQualityBudget {
   return { ...QUALITY_BUDGETS[quality] }
 }
 
@@ -530,10 +542,11 @@ const LUMA_MODE_INDEX: Record<CanvasFractureLumaMode, number> = {
   band: 2,
 }
 
-const QUALITY_INDEX: Record<CanvasFractureQualityMode, number> = {
+const QUALITY_INDEX: Record<CanvasFractureResolvedQualityTier, number> = {
   low: 0,
   balanced: 1,
   high: 2,
+  ultra: 2,
 }
 
 export function packCanvasFracturesEffectParams(input: {

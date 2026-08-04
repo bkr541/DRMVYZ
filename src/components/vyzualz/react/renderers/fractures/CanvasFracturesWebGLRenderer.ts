@@ -16,6 +16,7 @@ import {
   modulateCanvasFracturesFragmentTransform,
   protectCanvasFracturesFragmentEffects,
 } from './CanvasFracturesAudio'
+import { selectCanvasFracturesStableSubset } from './CanvasFracturesAdaptiveQuality'
 import type {
   CanvasFractureBlendMode,
   CanvasFractureEffectAssignment,
@@ -448,6 +449,7 @@ export class CanvasFracturesWebGLRenderer {
   private uploadedSource: CanvasImageSource | null = null
   private uploadedIdentity = ''
   private readonly vertexData = new Float32Array(36)
+  private activeFragments: readonly CanvasFractureFragment[] = []
 
   static create(canvas: HTMLCanvasElement): CanvasFracturesWebGLRenderer | null {
     const gl = canvas.getContext('webgl2', {
@@ -552,6 +554,7 @@ export class CanvasFracturesWebGLRenderer {
     if (!this.uploadSource(source, dimensions.width, dimensions.height)) return false
 
     const resolved = resolveCanvasFracturesEffectMacros(params.effects)
+    this.activeFragments = selectCanvasFracturesStableSubset(this.orderedFragments, params.effects.activeFragmentCap ?? this.orderedFragments.length)
     const gl = this.gl
     const fitRect = resolveCanvasFracturesFitRect({
       outputWidth: this.cssWidth,
@@ -862,7 +865,7 @@ export class CanvasFracturesWebGLRenderer {
       })
     }
 
-    this.orderedFragments.forEach((fragment, ordinal) => {
+    this.activeFragments.forEach((fragment, ordinal) => {
       this.drawFragment(fragment, ordinal, fitRect, outputOpacity, params, palette, resolved)
     })
   }

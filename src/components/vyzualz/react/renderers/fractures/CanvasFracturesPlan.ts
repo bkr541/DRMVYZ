@@ -33,6 +33,8 @@ const QUALITY_CAPS: Record<CanvasFractureQualityMode, number> = {
   low: 24,
   balanced: 48,
   high: 80,
+  ultra: 112,
+  auto: 48,
 }
 
 const RECT_CORNERS = [
@@ -120,7 +122,6 @@ function serializeTopologyIdentity(input: CanvasFracturesPlanInput): string {
     roundFractures(clampFracturesUnit(input.focusProtection)),
     roundFractures(clampFracturesUnit(input.focusX)),
     roundFractures(clampFracturesUnit(input.focusY)),
-    input.quality,
   ].join('|')
 }
 

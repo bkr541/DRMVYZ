@@ -2315,9 +2315,11 @@ const CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS: Array<{ value: CanvasFractureColorSo
 ]
 
 const CANVAS_FRACTURE_QUALITY_OPTIONS: Array<{ value: CanvasFractureQualityMode; label: string }> = [
+  { value: 'auto', label: 'Auto' },
   { value: 'low', label: 'Low' },
   { value: 'balanced', label: 'Balanced' },
   { value: 'high', label: 'High' },
+  { value: 'ultra', label: 'Ultra' },
 ]
 
 function isCanvasPresetSliderControlKey(control: CanvasPresetControlKey): control is CanvasPresetSliderControlKey {
