@@ -52,7 +52,7 @@ import {
   resolveCanvasOutputContract,
   getCanvasPerformancePreloadCandidates,
   getCanvasPerformanceShow,
-  isCanvasFracturesProcessor,
+  canRenderCanvasOrchestrationFrame,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   type CanvasCompositionPreference,
@@ -1537,14 +1537,9 @@ export function CanvasEngineSurface({
     }
   }, [activeAudioTrackId, fragmentCollageActive, particleReconstructionActive])
 
-  const orchestrationHasFractures = Boolean(
-    orchestrationFrame?.layers.some(layer => isCanvasFracturesProcessor(layer.processor)),
-  )
-  const orchestrationRenderable = Boolean(
-    (rendererKind !== 'fragmentCollage' || orchestrationHasFractures)
-      && orchestrationSettings.enabled
-      && orchestrationFrame?.orchestrationActive
-      && orchestrationFrame.readyMediaIds.length > 0,
+  const orchestrationRenderable = canRenderCanvasOrchestrationFrame(
+    orchestrationSettings,
+    orchestrationFrame,
   )
 
   useEffect(() => {
