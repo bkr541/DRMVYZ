@@ -221,10 +221,20 @@ export interface CanvasFracturesRuntimeSettings {
   zoomAmount: number
 }
 
+export interface CanvasFracturesStructuralIdentityFrame {
+  topologyIdentity: string | null
+  previousTopologyIdentity: string | null
+  topologyBoundarySec: number
+  layoutIdentity: string | null
+  previousLayoutIdentity: string | null
+  layoutBoundarySec: number
+}
+
 export interface CanvasFracturesRuntimeFrameInput {
   planInput: Omit<CanvasFracturesPlanInput, 'topologyIdentityKey' | 'layoutIdentityKey' | 'transportPositionSec'>
   timelineInput: CanvasFracturesTimelineInput
   runtimeSettings: CanvasFracturesRuntimeSettings
+  structuralIdentity?: CanvasFracturesStructuralIdentityFrame | null
   isPlaying: boolean
   isPaused: boolean
 }
@@ -262,7 +272,7 @@ export interface CanvasFracturesEffectSettings {
   colorSourceMode: CanvasFractureColorSourceMode
   manualPrimaryColor: string
   manualSupportingColor: string
-  /** Stable transition/manual flash envelope; audio routing remains deferred. */
+  /** Stable transition/manual or Fractures-local audio flash envelope. */
   flashTrigger?: number
   reducedMotion?: boolean
 }
@@ -348,5 +358,6 @@ export interface CanvasFracturesRenderParams {
   /** Used only to invalidate temporal feedback after seeks or long frame gaps. */
   framePositionSec?: number
   effects: CanvasFracturesEffectSettings
+  audio?: import('./CanvasFracturesAudio').CanvasFracturesAudioRenderState | null
   brandKit?: import('../../../../../features/personalization/BrandKitTypes').BrandKit | null
 }

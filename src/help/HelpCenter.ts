@@ -4339,13 +4339,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "summary": "Controls the master amount of shared audio intelligence applied to Fractures.",
     "whatItDoes": [
       "Controls the master amount of shared audio intelligence applied to Fractures.",
-      "Writes to the canonical Fractures audio state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; audio-driven drawing is deferred to a later stage.",
-      "Audio features remain external inputs, while visual reconstruction stays timeline- and seed-derived."
+      "Scales every Fractures-local continuous, transient, and structural audio route without changing shared analysis.",
+      "At zero, audio modulation is disabled while user-selected non-audio timing and the base visual remain active.",
+      "Audio features remain temporary inputs, while topology and layout identities stay timeline- and seed-derived."
     ],
     "whenToUse": "Adjust Audio Response while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures audio planning"
+      "Fractures audio rendering"
     ],
     "doesNotAffect": [
       "other CANVAS presets"
@@ -4364,13 +4364,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "summary": "Controls how strongly bass energy drives fragment motion.",
     "whatItDoes": [
       "Controls how strongly bass energy drives fragment motion.",
-      "Writes to the canonical Fractures audio state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; future rendering reads the shared bass signal each frame.",
-      "Backward seeking performs deterministic reconstruction of plan state before applying the current shared audio frame."
+      "Scales smoothed bass-driven spread, fragment scale, faux depth, and slow anchor breathing.",
+      "Attack and release smoothing reduce frame-to-frame chatter without modifying shared audio values.",
+      "Backward seeking reconstructs plan state before applying the current temporary bass modulation."
     ],
     "whenToUse": "Adjust Bass Motion while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures audio planning"
+      "Fractures audio rendering"
     ],
     "doesNotAffect": [
       "other CANVAS presets"
@@ -4389,13 +4389,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "summary": "Controls how strongly transient events trigger fragment glitch treatment.",
     "whatItDoes": [
       "Controls how strongly transient events trigger fragment glitch treatment.",
-      "Writes to the canonical Fractures audio state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; event response is deferred to a later renderer stage.",
-      "Transient responses will use shared event timing and deterministic fragment-role selection."
+      "Scales kick impulses and bloom, snare slice displacement and RGB separation, and high-frequency shimmer.",
+      "Spectral flux adds temporary distortion while transient envelopes decay predictably.",
+      "Transient responses use shared event timing and deterministic fragment-role selection without regenerating layouts."
     ],
     "whenToUse": "Adjust Transient Glitch while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures audio planning"
+      "Fractures audio rendering"
     ],
     "doesNotAffect": [
       "other CANVAS presets"
@@ -4414,13 +4414,13 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "summary": "Controls how strongly bars, phrases, and section boundaries influence structural changes.",
     "whatItDoes": [
       "Controls how strongly bars, phrases, and section boundaries influence structural changes.",
-      "Writes to the canonical Fractures audio state used by the specialized fragment-collage renderer.",
-      "The value changes immediately; topology and layout still obey their selected quantized boundaries.",
-      "Structural changes are reconstructed from shared timeline boundaries, seed, and revisions."
+      "Scales section topology, phrase layout, build separation, drop impact, downbeat commitment, and vocal focus protection.",
+      "Analyzed section changes commit on the musical downbeat while phrases retain deterministic timeline identities.",
+      "Structural changes reconstruct from shared timeline boundaries, seed, and revisions without mutating user settings."
     ],
     "whenToUse": "Adjust Structural Response while Fractures is the active CANVAS preset.",
     "affects": [
-      "Fractures audio planning"
+      "Fractures audio rendering"
     ],
     "doesNotAffect": [
       "other CANVAS presets"

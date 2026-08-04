@@ -5,6 +5,7 @@ import type {
   CanvasFracturesPlan,
   CanvasFracturesPlanInput,
   CanvasFracturesRuntimeFrameInput,
+  CanvasFracturesStructuralIdentityFrame,
   CanvasFracturesTimelinePoint,
 } from './CanvasFracturesTypes'
 
@@ -16,10 +17,17 @@ export function deriveCanvasFracturesPlanIdentityKeys(
   timeline: CanvasFracturesTimelinePoint,
   topologyRevision: number,
   layoutRevision: number,
+  structuralIdentity?: CanvasFracturesStructuralIdentityFrame | null,
 ): { topologyIdentityKey: string; layoutIdentityKey: string } {
+  const topologySuffix = structuralIdentity?.topologyIdentity
+    ? `|structural:${structuralIdentity.topologyIdentity}`
+    : ''
+  const layoutSuffix = structuralIdentity?.layoutIdentity
+    ? `|structural:${structuralIdentity.layoutIdentity}`
+    : ''
   return {
-    topologyIdentityKey: `auto-topology:${timeline.topologyBucket}|manual:${Math.max(0, Math.floor(topologyRevision))}`,
-    layoutIdentityKey: `auto-layout:${timeline.layoutBucket}|manual:${Math.max(0, Math.floor(layoutRevision))}`,
+    topologyIdentityKey: `auto-topology:${timeline.topologyBucket}|manual:${Math.max(0, Math.floor(topologyRevision))}${topologySuffix}`,
+    layoutIdentityKey: `auto-layout:${timeline.layoutBucket}|manual:${Math.max(0, Math.floor(layoutRevision))}${layoutSuffix}`,
   }
 }
 
@@ -75,11 +83,47 @@ function previousManualRevisions(input: CanvasFracturesRuntimeFrameInput) {
   }
 }
 
-function latestAutomaticBoundary(timeline: CanvasFracturesTimelinePoint): number {
+function latestAutomaticBoundary(
+  timeline: CanvasFracturesTimelinePoint,
+  structuralIdentity?: CanvasFracturesStructuralIdentityFrame | null,
+): number {
+  const structuralTopologyBoundary = structuralIdentity
+    && structuralIdentity.topologyIdentity !== structuralIdentity.previousTopologyIdentity
+    && structuralIdentity.topologyBoundarySec <= timeline.positionSec + 1e-6
+    ? structuralIdentity.topologyBoundarySec
+    : 0
+  const structuralLayoutBoundary = structuralIdentity
+    && structuralIdentity.layoutIdentity !== structuralIdentity.previousLayoutIdentity
+    && structuralIdentity.layoutBoundarySec <= timeline.positionSec + 1e-6
+    ? structuralIdentity.layoutBoundarySec
+    : 0
   return Math.max(
     timeline.topologyBucket > 0 ? timeline.topologyBoundarySec : 0,
     timeline.layoutBucket > 0 ? timeline.layoutBoundarySec : 0,
+    structuralTopologyBoundary,
+    structuralLayoutBoundary,
   )
+}
+
+function previousStructuralIdentity(
+  structuralIdentity: CanvasFracturesStructuralIdentityFrame | null | undefined,
+  transitionStartSec: number,
+): CanvasFracturesStructuralIdentityFrame | null | undefined {
+  if (!structuralIdentity) return structuralIdentity
+  const topologyAtBoundary = structuralIdentity.topologyIdentity !== structuralIdentity.previousTopologyIdentity
+    && Math.abs(structuralIdentity.topologyBoundarySec - transitionStartSec) <= 1e-4
+  const layoutAtBoundary = structuralIdentity.layoutIdentity !== structuralIdentity.previousLayoutIdentity
+    && Math.abs(structuralIdentity.layoutBoundarySec - transitionStartSec) <= 1e-4
+  if (!topologyAtBoundary && !layoutAtBoundary) return structuralIdentity
+  return {
+    ...structuralIdentity,
+    topologyIdentity: topologyAtBoundary
+      ? structuralIdentity.previousTopologyIdentity
+      : structuralIdentity.topologyIdentity,
+    layoutIdentity: layoutAtBoundary
+      ? structuralIdentity.previousLayoutIdentity
+      : structuralIdentity.layoutIdentity,
+  }
 }
 
 export class CanvasFracturesRuntime {
@@ -92,8 +136,8 @@ export class CanvasFracturesRuntime {
       topologyRevision: input.runtimeSettings.topologyRevision,
       layoutRevision: input.runtimeSettings.layoutRevision,
       returnToAnchor: input.runtimeSettings.returnToAnchor,
-    })
-    const automaticBoundarySec = latestAutomaticBoundary(timeline)
+    }, input.structuralIdentity)
+    const automaticBoundarySec = latestAutomaticBoundary(timeline, input.structuralIdentity)
     const manualBoundarySec = input.runtimeSettings.lastManualAction !== 'none'
       && input.runtimeSettings.manualTransitionPositionSec <= livePositionSec + 1e-6
       ? finitePosition(input.runtimeSettings.manualTransitionPositionSec)
@@ -143,7 +187,7 @@ export class CanvasFracturesRuntime {
         topologyRevision: input.runtimeSettings.topologyRevision,
         layoutRevision: input.runtimeSettings.layoutRevision,
         returnToAnchor: input.runtimeSettings.returnToAnchor,
-      })
+      }, previousStructuralIdentity(input.structuralIdentity, transitionStartSec))
     }
 
     if (previousPlan.id === targetPlan.id) return targetPlan
@@ -174,7 +218,7 @@ export class CanvasFracturesRuntime {
 
   getTransitionEndSec(input: CanvasFracturesRuntimeFrameInput): number {
     const timeline = resolveCanvasFracturesTimeline(input.timelineInput)
-    const automatic = latestAutomaticBoundary(timeline)
+    const automatic = latestAutomaticBoundary(timeline, input.structuralIdentity)
     const manual = input.runtimeSettings.lastManualAction !== 'none'
       ? finitePosition(input.runtimeSettings.manualTransitionPositionSec)
       : 0
@@ -191,10 +235,15 @@ export class CanvasFracturesRuntime {
     positionSec: number,
   ): CanvasFracturesPlan {
     const targetPlan = this.resolvePlan(input, timeline, revisions)
-    const transitionStartSec = latestAutomaticBoundary(timeline)
+    const transitionStartSec = latestAutomaticBoundary(timeline, input.structuralIdentity)
     if (transitionStartSec <= 0) return targetPlan
     const previousTimeline = resolveCanvasFracturesPreviousTimeline(input.timelineInput, transitionStartSec)
-    const previousPlan = this.resolvePlan(input, previousTimeline, revisions)
+    const previousPlan = this.resolvePlan(
+      input,
+      previousTimeline,
+      revisions,
+      previousStructuralIdentity(input.structuralIdentity, transitionStartSec),
+    )
     if (previousPlan.id === targetPlan.id) return targetPlan
     const progressPositionSec = input.timelineInput.freezeLayout
       ? finitePosition(input.timelineInput.freezePositionSec)
@@ -226,8 +275,14 @@ export class CanvasFracturesRuntime {
     input: CanvasFracturesRuntimeFrameInput,
     timeline: CanvasFracturesTimelinePoint,
     revisions: { topologyRevision: number; layoutRevision: number; returnToAnchor: boolean },
+    structuralIdentity: CanvasFracturesStructuralIdentityFrame | null | undefined = input.structuralIdentity,
   ): CanvasFracturesPlan {
-    const keys = deriveCanvasFracturesPlanIdentityKeys(timeline, revisions.topologyRevision, revisions.layoutRevision)
+    const keys = deriveCanvasFracturesPlanIdentityKeys(
+      timeline,
+      revisions.topologyRevision,
+      revisions.layoutRevision,
+      structuralIdentity,
+    )
     const planInput: CanvasFracturesPlanInput = {
       ...input.planInput,
       topologyIdentityKey: keys.topologyIdentityKey,

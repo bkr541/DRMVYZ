@@ -12,6 +12,10 @@ import {
   isCanvasFracturesSourceReady,
   resolveCanvasFracturesFitRect,
 } from './CanvasFracturesTransforms'
+import {
+  modulateCanvasFracturesFragmentTransform,
+  protectCanvasFracturesFragmentEffects,
+} from './CanvasFracturesAudio'
 import type {
   CanvasFractureBlendMode,
   CanvasFractureEffectAssignment,
@@ -830,6 +834,7 @@ export class CanvasFracturesWebGLRenderer {
   ): void {
     if (!this.plan) return
     if (this.plan.anchor.visible && this.plan.anchor.opacity > 0) {
+      const vocalProtection = clamp01(params.audio?.vocalProtection ?? 0)
       this.drawQuad({
         corners: [
           { x: 0, y: 0 },
@@ -842,14 +847,14 @@ export class CanvasFracturesWebGLRenderer {
         centerY: fitRect.y + fitRect.height * 0.5,
         destinationWidth: fitRect.width,
         destinationHeight: fitRect.height,
-        scale: this.plan.anchor.scale,
+        scale: this.plan.anchor.scale * (1 + vocalProtection * 0.025),
         rotationDeg: 0,
         mirrorX: false,
         mirrorY: false,
         assignment: CLEAN_ASSIGNMENT,
         fragmentEffects: CLEAN_FRAGMENT_EFFECTS,
         resolved,
-        opacity: outputOpacity * this.plan.anchor.opacity,
+        opacity: outputOpacity * clamp01(this.plan.anchor.opacity + vocalProtection * 0.18),
         params,
         palette,
         shadowOnly: false,
@@ -871,10 +876,14 @@ export class CanvasFracturesWebGLRenderer {
     palette: CanvasFracturesResolvedPalette,
     resolved: CanvasFracturesResolvedEffectSettings,
   ): void {
-    const effects = resolveCanvasFracturesFragmentEffects({
-      assignment: fragment.effectAssignment,
-      settings: resolved,
-      fragmentOrdinal: ordinal,
+    const effects = protectCanvasFracturesFragmentEffects({
+      fragment,
+      effects: resolveCanvasFracturesFragmentEffects({
+        assignment: fragment.effectAssignment,
+        settings: resolved,
+        fragmentOrdinal: ordinal,
+      }),
+      audio: params.audio,
     })
     const depthSpan = Math.max(1, this.maxDepth - this.minDepth)
     const depthNorm = clamp01((fragment.depth - this.minDepth) / depthSpan)
@@ -884,6 +893,16 @@ export class CanvasFracturesWebGLRenderer {
     const baseCenterY = fitRect.y + fragment.currentTransform.centerY * fitRect.height
       + fragment.effectAssignment.directionY * resolved.parallaxPx * depthBias
     const baseScale = fragment.currentTransform.scale * (1 + depthBias * resolved.depthScale)
+    const audioTransform = modulateCanvasFracturesFragmentTransform({
+      fragment,
+      centerX: baseCenterX,
+      centerY: baseCenterY,
+      scale: baseScale,
+      fitWidth: fitRect.width,
+      fitHeight: fitRect.height,
+      framePositionSec: params.framePositionSec,
+      audio: params.audio,
+    })
     const baseOpacity = outputOpacity * fragment.opacity
     const common = {
       corners: fragment.localCorners,
@@ -902,9 +921,9 @@ export class CanvasFracturesWebGLRenderer {
     if (effects.shadow > 1e-4) {
       this.drawQuad({
         ...common,
-        centerX: baseCenterX + fragment.effectAssignment.directionX * effects.shadowOffsetPx,
-        centerY: baseCenterY + fragment.effectAssignment.directionY * effects.shadowOffsetPx,
-        scale: baseScale * (1 + effects.shadow * 0.02),
+        centerX: audioTransform.centerX + fragment.effectAssignment.directionX * effects.shadowOffsetPx,
+        centerY: audioTransform.centerY + fragment.effectAssignment.directionY * effects.shadowOffsetPx,
+        scale: audioTransform.scale * (1 + effects.shadow * 0.02),
         fragmentEffects: effects,
         opacity: baseOpacity * resolved.shadowOpacity * effects.shadow,
         shadowOnly: true,
@@ -919,9 +938,9 @@ export class CanvasFracturesWebGLRenderer {
       const side = (fragment.effectAssignment.seed + copy) % 2 === 0 ? 1 : -1
       this.drawQuad({
         ...common,
-        centerX: baseCenterX + fragment.effectAssignment.directionX * distance + perpendicularX * distance * 0.25 * side,
-        centerY: baseCenterY + fragment.effectAssignment.directionY * distance + perpendicularY * distance * 0.25 * side,
-        scale: baseScale * Math.max(0.82, 1 - copy * 0.035),
+        centerX: audioTransform.centerX + fragment.effectAssignment.directionX * distance + perpendicularX * distance * 0.25 * side,
+        centerY: audioTransform.centerY + fragment.effectAssignment.directionY * distance + perpendicularY * distance * 0.25 * side,
+        scale: audioTransform.scale * Math.max(0.82, 1 - copy * 0.035),
         fragmentEffects: effects,
         opacity: baseOpacity * effects.copyOpacity / (1 + copy * 0.32),
         shadowOnly: false,
@@ -931,9 +950,9 @@ export class CanvasFracturesWebGLRenderer {
 
     this.drawQuad({
       ...common,
-      centerX: baseCenterX,
-      centerY: baseCenterY,
-      scale: baseScale,
+      centerX: audioTransform.centerX,
+      centerY: audioTransform.centerY,
+      scale: audioTransform.scale,
       fragmentEffects: effects,
       opacity: baseOpacity,
       shadowOnly: false,

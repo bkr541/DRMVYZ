@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { BrandKit } from '../../../../features/personalization/BrandKitTypes'
+import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type {
   CanvasFitMode,
   CanvasMediaItemType,
@@ -10,6 +11,7 @@ import type {
 } from '../ReactTypes'
 import { CanvasFracturesRenderer } from './fractures/CanvasFracturesRenderer'
 import { CanvasFracturesRuntime } from './fractures/CanvasFracturesRuntime'
+import { CanvasFracturesAudioAdapter } from './fractures/CanvasFracturesAudio'
 import type {
   CanvasFracturesSourceElement,
   CanvasFracturesSourceTransform,
@@ -25,6 +27,8 @@ export interface CanvasFracturesRendererLayerProps {
   trackAnalysis?: TrackIntelligenceAnalysis | null
   trackSections?: readonly ReactTrackSection[]
   getAudioTime?: () => number
+  analyser?: AnalyserNode | null
+  performanceContextRef?: RefObject<SharedPerformanceContext | null>
   isPlaying: boolean
   isPaused: boolean
   fitMode: CanvasFitMode
@@ -38,6 +42,10 @@ export interface CanvasFracturesRendererLayerProps {
 
 function finitePosition(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
 }
 
 export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayerProps) {
@@ -71,6 +79,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     canvas.dataset.rendererBackend = renderer.backend
     setRendererBackend(renderer.backend)
     const runtime = new CanvasFracturesRuntime()
+    const audioAdapter = new CanvasFracturesAudioAdapter()
     let frameId = 0
     let previewReady = false
     let fallbackPositionSec = 0
@@ -101,6 +110,23 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       const bpm = live.trackAnalysis?.bpm
         ?? (frameMatchesTrack && intelligenceFrame.rhythm.bpm > 0 ? intelligenceFrame.rhythm.bpm : null)
       const settings = live.settings
+      const audioFrame = audioAdapter.update({
+        context: live.performanceContextRef?.current ?? null,
+        analyser: live.analyser,
+        isPlaying: live.isPlaying,
+        isPaused: live.isPaused,
+        nowSec: frameNowSec,
+        positionSec: transportPositionSec,
+        trackIdentity: live.trackIdentity,
+        controls: {
+          audioResponse: settings.fractureAudioResponse,
+          bassMotion: settings.fractureBassMotion,
+          transientGlitch: settings.fractureTransientGlitch,
+          structuralResponse: settings.fractureStructuralResponse,
+          reducedMotion,
+        },
+      })
+      if (audioFrame.resetReason) renderer.invalidateFeedback()
       const plan = runtime.resolveFrame({
         planInput: {
           presetId: 'canvas-fractures',
@@ -150,6 +176,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
           staggerAmount: settings.fractureStaggerAmount,
           zoomAmount: settings.fractureZoomAmount,
         },
+        structuralIdentity: settings.fractureFreezeLayout ? null : audioFrame.structure,
         isPlaying: live.isPlaying,
         isPaused: live.isPaused,
       })
@@ -170,37 +197,54 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       const rendered = renderer.render({
         source: live.sourceRef.current,
         fitMode: live.fitMode,
-        sourceTransform: live.sourceTransform,
+        sourceTransform: {
+          ...live.sourceTransform,
+          scale: Math.max(0.01, live.sourceTransform.scale * (1 + audioFrame.render.anchorBreathing * 0.022)),
+        },
         outputOpacity: live.outputOpacity ?? 1,
         framePositionSec: transportPositionSec,
         effects: {
           intensity: settings.fractureEffectsIntensity,
-          glow: settings.fractureGlowAmount,
-          glitch: settings.fractureGlitchAmount,
-          texture: settings.fractureTextureAmount,
+          glow: clamp01(settings.fractureGlowAmount
+            + audioFrame.render.kickImpulse * 0.34
+            + audioFrame.render.highShimmer * 0.08),
+          glitch: clamp01(settings.fractureGlitchAmount
+            + audioFrame.render.snareImpulse * 0.42
+            + audioFrame.render.distortion * 0.3),
+          texture: clamp01(settings.fractureTextureAmount
+            + audioFrame.render.highShimmer * 0.2
+            + audioFrame.render.distortion * 0.14),
           trails: settings.fractureTrailsAmount,
-          depth: settings.fractureDepthAmount,
+          depth: clamp01(settings.fractureDepthAmount + audioFrame.render.bassMotion * 0.38),
           duplication: settings.fractureDuplicationAmount,
           colorTreatment: settings.fractureColorTreatmentAmount,
-          outlineIntensity: settings.fractureOutlineAmount,
+          outlineIntensity: clamp01(settings.fractureOutlineAmount + audioFrame.render.highShimmer * 0.32),
           outlineThickness: settings.fractureOutlineThickness,
-          bloomIntensity: settings.fractureGlowAmount,
-          rgbSplit: settings.fractureRgbSplitAmount,
+          bloomIntensity: clamp01(settings.fractureGlowAmount + audioFrame.render.kickImpulse * 0.5),
+          rgbSplit: clamp01(settings.fractureRgbSplitAmount + audioFrame.render.snareImpulse * 0.55),
           lumaMode: settings.fractureLumaMode,
           lumaThreshold: settings.fractureLumaThreshold,
-          displacement: settings.fractureSliceDisplacementAmount,
+          displacement: clamp01(settings.fractureSliceDisplacementAmount
+            + audioFrame.render.snareImpulse * 0.54
+            + audioFrame.render.distortion * 0.34),
           pixelation: settings.fracturePixelationAmount,
-          scanlines: settings.fractureScanlineAmount,
-          noise: settings.fractureNoiseAmount,
+          scanlines: clamp01(settings.fractureScanlineAmount + audioFrame.render.highShimmer * 0.44),
+          noise: clamp01(settings.fractureNoiseAmount
+            + audioFrame.render.highShimmer * 0.18
+            + audioFrame.render.distortion * 0.34),
           quality: settings.fractureQuality,
           colorSourceMode: settings.fractureColorSourceMode,
           manualPrimaryColor: settings.fractureManualPrimaryColor,
           manualSupportingColor: settings.fractureManualSupportingColor,
           flashTrigger: reducedMotion
             ? 0
-            : Math.max(0, Math.min(1, 1 - (plan.transition?.progress ?? 1) / 0.18)),
+            : Math.max(
+                audioFrame.render.flash,
+                Math.max(0, Math.min(1, 1 - (plan.transition?.progress ?? 1) / 0.18)),
+              ),
           reducedMotion,
         },
+        audio: audioFrame.render,
         brandKit: live.brandKit ?? null,
       })
       if (rendered && !previewReady) {
@@ -214,6 +258,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     return () => {
       window.cancelAnimationFrame(frameId)
       runtime.clear()
+      audioAdapter.reset()
       renderer.dispose()
       onPreviewReady?.(false)
       onStatusChange?.(null)

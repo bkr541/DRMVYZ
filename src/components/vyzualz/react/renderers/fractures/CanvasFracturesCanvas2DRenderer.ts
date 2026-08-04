@@ -12,6 +12,10 @@ import {
   isCanvasFracturesSourceReady,
   resolveCanvasFracturesFitRect,
 } from './CanvasFracturesTransforms'
+import {
+  modulateCanvasFracturesFragmentTransform,
+  protectCanvasFracturesFragmentEffects,
+} from './CanvasFracturesAudio'
 import type {
   CanvasFractureBlendMode,
   CanvasFractureFragment,
@@ -240,10 +244,12 @@ export class CanvasFracturesCanvas2DRenderer {
 
     const anchor = this.plan.anchor
     if (anchor.visible && anchor.opacity > 0) {
+      const vocalProtection = clamp01(params.audio?.vocalProtection ?? 0)
       context.save()
-      context.globalAlpha = outputOpacity * anchor.opacity
+      context.globalAlpha = outputOpacity * clamp01(anchor.opacity + vocalProtection * 0.18)
       context.translate(fitRect.x + fitRect.width * 0.5, fitRect.y + fitRect.height * 0.5)
-      context.scale(anchor.scale, anchor.scale)
+      const anchorScale = anchor.scale * (1 + vocalProtection * 0.025)
+      context.scale(anchorScale, anchorScale)
       try {
         context.drawImage(source, -fitRect.width * 0.5, -fitRect.height * 0.5, fitRect.width, fitRect.height)
       } catch {
@@ -265,6 +271,7 @@ export class CanvasFracturesCanvas2DRenderer {
         outputOpacity,
         palette,
         resolved,
+        params,
       )
     }
     context.restore()
@@ -396,6 +403,7 @@ export class CanvasFracturesCanvas2DRenderer {
     outputOpacity: number,
     palette: CanvasFracturesResolvedPalette,
     resolved: CanvasFracturesResolvedEffectSettings,
+    params: CanvasFracturesRenderParams,
   ): void {
     const crop = fragment.crop
     const transform = fragment.currentTransform
@@ -409,20 +417,37 @@ export class CanvasFracturesCanvas2DRenderer {
     }
     geometry.sourceWidth = Math.max(1e-4, Math.min(sourceWidth - geometry.sourceX, crop.width * sourceWidth))
     geometry.sourceHeight = Math.max(1e-4, Math.min(sourceHeight - geometry.sourceY, crop.height * sourceHeight))
-    const effects = resolveCanvasFracturesFragmentEffects({
-      assignment: fragment.effectAssignment,
-      settings: resolved,
-      fragmentOrdinal: ordinal,
+    const effects = protectCanvasFracturesFragmentEffects({
+      fragment,
+      effects: resolveCanvasFracturesFragmentEffects({
+        assignment: fragment.effectAssignment,
+        settings: resolved,
+        fragmentOrdinal: ordinal,
+      }),
+      audio: params.audio,
     })
     const prepared = this.prepareTreatmentSource(source, geometry, fragment, effects, palette, resolved)
     const depthSpan = Math.max(1, this.maxDepth - this.minDepth)
     const depthNorm = clamp01((fragment.depth - this.minDepth) / depthSpan)
     const depthBias = depthNorm - 0.5
-    const centerX = fitRect.x + transform.centerX * fitRect.width
+    const baseCenterX = fitRect.x + transform.centerX * fitRect.width
       + fragment.effectAssignment.directionX * resolved.parallaxPx * depthBias
-    const centerY = fitRect.y + transform.centerY * fitRect.height
+    const baseCenterY = fitRect.y + transform.centerY * fitRect.height
       + fragment.effectAssignment.directionY * resolved.parallaxPx * depthBias
-    const scale = transform.scale * (1 + depthBias * resolved.depthScale)
+    const baseScale = transform.scale * (1 + depthBias * resolved.depthScale)
+    const audioTransform = modulateCanvasFracturesFragmentTransform({
+      fragment,
+      centerX: baseCenterX,
+      centerY: baseCenterY,
+      scale: baseScale,
+      fitWidth: fitRect.width,
+      fitHeight: fitRect.height,
+      framePositionSec: params.framePositionSec,
+      audio: params.audio,
+    })
+    const centerX = audioTransform.centerX
+    const centerY = audioTransform.centerY
+    const scale = audioTransform.scale
     const baseOpacity = outputOpacity * fragment.opacity
 
     if (effects.shadow > 1e-4) {

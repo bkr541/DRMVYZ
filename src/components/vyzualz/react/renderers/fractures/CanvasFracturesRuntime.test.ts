@@ -578,3 +578,64 @@ describe('Canvas Fractures manual actions, pause, and freeze', () => {
     })
   })
 })
+
+describe('Canvas Fractures audio structural identities', () => {
+  it('adds section and phrase identities without replacing user timing buckets', () => {
+    const input = frameInput(8.2, {
+      timelineInput: timelineInput(8.2, {
+        topologyInterval: 'manualOnly',
+        layoutInterval: 'manualOnly',
+      }),
+      runtimeSettings: {
+        ...frameInput(8.2).runtimeSettings,
+        topologyInterval: 'manualOnly',
+        layoutInterval: 'manualOnly',
+      },
+      structuralIdentity: {
+        topologyIdentity: 'audio-section:drop',
+        previousTopologyIdentity: 'audio-section:build',
+        topologyBoundarySec: 8,
+        layoutIdentity: 'audio-phrase:1',
+        previousLayoutIdentity: 'audio-phrase:0',
+        layoutBoundarySec: 8,
+      },
+    })
+    const identityKeys = deriveCanvasFracturesPlanIdentityKeys(
+      resolveCanvasFracturesTimeline(input.timelineInput),
+      input.runtimeSettings.topologyRevision,
+      input.runtimeSettings.layoutRevision,
+      input.structuralIdentity,
+    )
+    const resolved = new CanvasFracturesRuntime().resolveFrame(input)
+    const withoutAudioStructure = new CanvasFracturesRuntime().resolveFrame({
+      ...input,
+      structuralIdentity: null,
+    })
+
+    expect(identityKeys.topologyIdentityKey).toContain('structural:audio-section:drop')
+    expect(identityKeys.layoutIdentityKey).toContain('structural:audio-phrase:1')
+    expect(resolved.topologyIdentity).not.toBe(withoutAudioStructure.topologyIdentity)
+    expect(resolved.layoutIdentity).not.toBe(withoutAudioStructure.layoutIdentity)
+    expect(resolved.transition?.source).toBe('automatic')
+    expect(resolved.transition?.startSec).toBe(8)
+    expect(resolved.transition?.progress).toBeGreaterThan(0)
+    expect(resolved.transition?.progress).toBeLessThan(1)
+  })
+
+  it('reconstructs the same audio-structural plan after direct seeks', () => {
+    const input = frameInput(12.5, {
+      structuralIdentity: {
+        topologyIdentity: 'audio-section:drop',
+        previousTopologyIdentity: 'audio-section:build',
+        topologyBoundarySec: 8,
+        layoutIdentity: 'audio-phrase:2',
+        previousLayoutIdentity: 'audio-phrase:1',
+        layoutBoundarySec: 12,
+      },
+    })
+    const first = new CanvasFracturesRuntime().resolveFrame(input)
+    const reconstructed = new CanvasFracturesRuntime().resolveFrame(input)
+
+    expect(reconstructed).toEqual(first)
+  })
+})

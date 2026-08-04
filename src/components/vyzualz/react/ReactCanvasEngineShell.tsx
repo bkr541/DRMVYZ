@@ -1503,7 +1503,7 @@ export function CanvasEngineSurface({
   }, [orchestrationPreloadManager])
 
   useEffect(() => {
-    if (!particleReconstructionActive) {
+    if (!particleReconstructionActive && !fragmentCollageActive) {
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
       return
@@ -1533,7 +1533,7 @@ export function CanvasEngineSurface({
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
     }
-  }, [activeAudioTrackId, particleReconstructionActive])
+  }, [activeAudioTrackId, fragmentCollageActive, particleReconstructionActive])
 
   // The current orchestration stage is a generic whole-image compositor.
   // Keep Fractures on its explicit renderer boundary; later Performance Show
@@ -2213,6 +2213,8 @@ export function CanvasEngineSurface({
             trackAnalysis={trackAnalysis}
             trackSections={trackSections}
             getAudioTime={getAudioTime}
+            analyser={analyser}
+            performanceContextRef={particlePerformanceContextRef}
             isPlaying={isPlaying}
             isPaused={isPaused}
             fitMode={settings.fitMode}
