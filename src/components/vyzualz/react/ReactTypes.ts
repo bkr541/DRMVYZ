@@ -226,18 +226,21 @@ export type CanvasFractureMode = 'mixed' | 'rectangles' | 'horizontalSlices' | '
 export type CanvasFracturePlacementMode = 'balanced' | 'offscreenSpill' | 'heavyOverlap' | 'anchorCover' | 'repeatedCrops' | 'mirrorFlip' | 'randomMix'
 export type CanvasFractureTransitionMode = 'hardGlitchCut' | 'staggeredAssembly' | 'zoomInOut'
 export type CanvasFractureColorSourceMode = 'imageSampled' | 'brandKit' | 'manualOverride'
+export type CanvasFractureLumaMode = 'highlights' | 'shadows' | 'band'
 export type CanvasFractureQualityMode = 'low' | 'balanced' | 'high'
 export type CanvasFractureQuantizeInterval = 'manualOnly' | 'bar' | '4bars' | '8bars' | '16bars' | 'section' | 'beat' | '2bars'
 /** Persisted command identity for deterministic manual transition reconstruction. */
 export type CanvasFractureManualAction = 'none' | 'refracture' | 'shuffleLayout' | 'returnToAnchor' | 'releaseFreeze'
-export type CanvasFractureEffectRole = 'anchor' | 'primary' | 'support' | 'accent' | 'echo'
+export type CanvasFractureEffectRole = 'clean' | 'glow' | 'outline' | 'glitch' | 'luma' | 'displacement' | 'texture'
 
 export const CANVAS_FRACTURE_EFFECT_ROLES: readonly CanvasFractureEffectRole[] = [
-  'anchor',
-  'primary',
-  'support',
-  'accent',
-  'echo',
+  'clean',
+  'glow',
+  'outline',
+  'glitch',
+  'luma',
+  'displacement',
+  'texture',
 ] as const
 /**
  * `legacyComposite` preserves the pre-v2 Source Visibility product for loaded
@@ -298,7 +301,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 4 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 5 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -348,6 +351,15 @@ export interface CanvasPresetSettings {
   fractureLayoutRevision: number
   fractureEffectsIntensity: number
   fractureGlowAmount: number
+  fractureOutlineAmount: number
+  fractureOutlineThickness: number
+  fractureRgbSplitAmount: number
+  fractureLumaMode: CanvasFractureLumaMode
+  fractureLumaThreshold: number
+  fractureSliceDisplacementAmount: number
+  fracturePixelationAmount: number
+  fractureScanlineAmount: number
+  fractureNoiseAmount: number
   fractureGlitchAmount: number
   fractureTextureAmount: number
   fractureTrailsAmount: number
@@ -495,6 +507,15 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   fractureLayoutRevision: 0,
   fractureEffectsIntensity: 0.25,
   fractureGlowAmount: 0.18,
+  fractureOutlineAmount: 0.45,
+  fractureOutlineThickness: 0.32,
+  fractureRgbSplitAmount: 0.32,
+  fractureLumaMode: 'highlights',
+  fractureLumaThreshold: 0.62,
+  fractureSliceDisplacementAmount: 0.28,
+  fracturePixelationAmount: 0.22,
+  fractureScanlineAmount: 0.18,
+  fractureNoiseAmount: 0.16,
   fractureGlitchAmount: 0.12,
   fractureTextureAmount: 0.2,
   fractureTrailsAmount: 0.08,
@@ -502,11 +523,13 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   fractureDuplicationAmount: 0.1,
   fractureColorTreatmentAmount: 0.18,
   fractureEffectRoleWeights: {
-    anchor: 1,
-    primary: 0.8,
-    support: 0.55,
-    accent: 0.35,
-    echo: 0.2,
+    clean: 0.34,
+    glow: 0.14,
+    outline: 0.14,
+    glitch: 0.1,
+    luma: 0.08,
+    displacement: 0.1,
+    texture: 0.1,
   },
   fractureColorSourceMode: 'imageSampled',
   fractureManualPrimaryColor: '#4AC7DB',

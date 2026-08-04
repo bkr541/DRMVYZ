@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
+import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
@@ -68,6 +69,7 @@ import {
   type CanvasFractureAnchorMode,
   type CanvasFractureColorSourceMode,
   type CanvasFractureEffectRole,
+  type CanvasFractureLumaMode,
   type CanvasFractureMode,
   type CanvasFracturePlacementMode,
   type CanvasFractureQualityMode,
@@ -1340,6 +1342,7 @@ export function CanvasEngineSurface({
   onLiveFps?: (fps: number) => void
 }) {
   const settings = useReactStore(s => s.canvasEngineSettings)
+  const activeBrandKit = useBrandKitStore(s => s.activeKit)
   const orchestrationSettings = useReactStore(s => s.canvasOrchestrationSettings)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useCanvasRuntimeMediaItems()
@@ -2223,6 +2226,7 @@ export function CanvasEngineSurface({
               rotation: settings.rotation,
             }}
             settings={canvasPresetSettings}
+            brandKit={activeBrandKit}
             onPreviewReady={handleFracturesPreviewReady}
             onStatusChange={setFracturesRendererNotice}
           />
@@ -2310,12 +2314,20 @@ const CANVAS_FRACTURE_QUALITY_OPTIONS: Array<{ value: CanvasFractureQualityMode;
 ]
 
 const CANVAS_FRACTURE_ROLE_LABELS: Record<CanvasFractureEffectRole, string> = {
-  anchor: 'Anchor Role Weight',
-  primary: 'Primary Role Weight',
-  support: 'Support Role Weight',
-  accent: 'Accent Role Weight',
-  echo: 'Echo Role Weight',
+  clean: 'Clean Weight',
+  glow: 'Glow Weight',
+  outline: 'Outline Weight',
+  glitch: 'Glitch Weight',
+  luma: 'Luma Weight',
+  displacement: 'Displacement Weight',
+  texture: 'Texture Weight',
 }
+
+const CANVAS_FRACTURE_LUMA_MODE_OPTIONS: Array<{ value: CanvasFractureLumaMode; label: string }> = [
+  { value: 'highlights', label: 'Highlights' },
+  { value: 'shadows', label: 'Shadows' },
+  { value: 'band', label: 'Threshold Band' },
+]
 
 function isCanvasPresetSliderControlKey(control: CanvasPresetControlKey): control is CanvasPresetSliderControlKey {
   return control !== 'particleColorMode' && control !== 'particleQuality'
@@ -3173,26 +3185,21 @@ function CanvasFracturesControls({
           <SliderRow label="Effects Intensity" value={settings.fractureEffectsIntensity} onChange={fractureEffectsIntensity => setSettings({ fractureEffectsIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.effects.glow" currentValue={formatCanvasPercentage(settings.fractureGlowAmount)} className="rv-canvas-react-control-help">
-          <SliderRow label="Glow" value={settings.fractureGlowAmount} onChange={fractureGlowAmount => setSettings({ fractureGlowAmount })} min={0} max={1} step={0.01} color="#8de7ff" />
+          <SliderRow label="Bloom" value={settings.fractureGlowAmount} onChange={fractureGlowAmount => setSettings({ fractureGlowAmount })} min={0} max={1} step={0.01} color="#8de7ff" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.glitch" currentValue={formatCanvasPercentage(settings.fractureGlitchAmount)} className="rv-canvas-react-control-help">
-          <SliderRow label="Glitch" value={settings.fractureGlitchAmount} onChange={fractureGlitchAmount => setSettings({ fractureGlitchAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
+        <SliderRow label="Outline Intensity" value={settings.fractureOutlineAmount} onChange={fractureOutlineAmount => setSettings({ fractureOutlineAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
+        <SliderRow label="Outline Thickness" value={settings.fractureOutlineThickness} onChange={fractureOutlineThickness => setSettings({ fractureOutlineThickness })} min={0} max={1} step={0.01} color="#61d6aa" />
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.glitch" currentValue={formatCanvasPercentage(settings.fractureRgbSplitAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="RGB Split" value={settings.fractureRgbSplitAmount} onChange={fractureRgbSplitAmount => setSettings({ fractureRgbSplitAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.texture" currentValue={formatCanvasPercentage(settings.fractureTextureAmount)} className="rv-canvas-react-control-help">
-          <SliderRow label="Texture" value={settings.fractureTextureAmount} onChange={fractureTextureAmount => setSettings({ fractureTextureAmount })} min={0} max={1} step={0.01} color="#d8b95a" />
+        <SelectRow label="Luma Isolation" value={settings.fractureLumaMode} onChange={value => setSettings({ fractureLumaMode: value as CanvasFractureLumaMode })} options={CANVAS_FRACTURE_LUMA_MODE_OPTIONS} />
+        <SliderRow label="Luma Threshold" value={settings.fractureLumaThreshold} onChange={fractureLumaThreshold => setSettings({ fractureLumaThreshold })} min={0} max={1} step={0.01} color="#d8b95a" />
+        <SliderRow label="Slice Displacement" value={settings.fractureSliceDisplacementAmount} onChange={fractureSliceDisplacementAmount => setSettings({ fractureSliceDisplacementAmount })} min={0} max={1} step={0.01} color="#4ac7db" />
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.texture" currentValue={formatCanvasPercentage(settings.fracturePixelationAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Pixelation" value={settings.fracturePixelationAmount} onChange={fracturePixelationAmount => setSettings({ fracturePixelationAmount })} min={0} max={1} step={0.01} color="#d8b95a" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.trails" currentValue={formatCanvasPercentage(settings.fractureTrailsAmount)} className="rv-canvas-react-control-help">
-          <SliderRow label="Trails" value={settings.fractureTrailsAmount} onChange={fractureTrailsAmount => setSettings({ fractureTrailsAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
-        </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.depth" currentValue={formatCanvasPercentage(settings.fractureDepthAmount)} className="rv-canvas-react-control-help">
-          <SliderRow label="Depth" value={settings.fractureDepthAmount} onChange={fractureDepthAmount => setSettings({ fractureDepthAmount })} min={0} max={1} step={0.01} color="#4ac7db" />
-        </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.duplication" currentValue={formatCanvasPercentage(settings.fractureDuplicationAmount)} className="rv-canvas-react-control-help">
-          <SliderRow label="Duplication" value={settings.fractureDuplicationAmount} onChange={fractureDuplicationAmount => setSettings({ fractureDuplicationAmount })} min={0} max={1} step={0.01} color="#b84fc9" />
-        </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.colorTreatment" currentValue={formatCanvasPercentage(settings.fractureColorTreatmentAmount)} className="rv-canvas-react-control-help">
-          <SliderRow label="Color Treatment" value={settings.fractureColorTreatmentAmount} onChange={fractureColorTreatmentAmount => setSettings({ fractureColorTreatmentAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
-        </CanvasHelpControl>
+        <SliderRow label="Scanlines" value={settings.fractureScanlineAmount} onChange={fractureScanlineAmount => setSettings({ fractureScanlineAmount })} min={0} max={1} step={0.01} color="#9ddcff" />
+        <SliderRow label="Digital Noise" value={settings.fractureNoiseAmount} onChange={fractureNoiseAmount => setSettings({ fractureNoiseAmount })} min={0} max={1} step={0.01} color="#b84fc9" />
         <CanvasHelpControl helpId="react.canvas.fractures.effects.colorSource" currentValue={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS.find(option => option.value === settings.fractureColorSourceMode)?.label ?? 'Image Sampled'} currentValueTone="accent" className="rv-canvas-react-control-help">
           <SelectRow label="Color Source" value={settings.fractureColorSourceMode} onChange={value => setSettings({ fractureColorSourceMode: value as CanvasFractureColorSourceMode })} options={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS} />
         </CanvasHelpControl>
@@ -3203,9 +3210,7 @@ function CanvasFracturesControls({
           <ColorRow label="Manual Supporting Color" value={settings.fractureManualSupportingColor} onChange={fractureManualSupportingColor => setSettings({ fractureManualSupportingColor })} disabled={!manualColorsEnabled} />
         </CanvasHelpControl>
         {CANVAS_FRACTURE_EFFECT_ROLES.map(role => (
-          <CanvasHelpControl key={role} helpId={`react.canvas.fractures.effects.roleWeight.${role}` as HelpInfoTriggerProps['helpId']} currentValue={formatCanvasPercentage(settings.fractureEffectRoleWeights[role])} className="rv-canvas-react-control-help">
-            <SliderRow label={CANVAS_FRACTURE_ROLE_LABELS[role]} value={settings.fractureEffectRoleWeights[role]} onChange={value => setRoleWeight(role, value)} min={0} max={1} step={0.01} color="#9ddcff" />
-          </CanvasHelpControl>
+          <SliderRow key={role} label={CANVAS_FRACTURE_ROLE_LABELS[role]} value={settings.fractureEffectRoleWeights[role]} onChange={value => setRoleWeight(role, value)} min={0} max={1} step={0.01} color="#9ddcff" />
         ))}
       </Collapsible>
 
@@ -3225,7 +3230,7 @@ function CanvasFracturesControls({
       </Collapsible>
 
       <div className="rv-canvas-engine-note">
-        Fractures topology, quantized layouts, placement modes, and transitions are deterministic across playback, seeking, and looping. Effects, audio impulses, recording, and cast output remain deferred.
+        Fractures topology, layout, transitions, effect roles, and source-derived colors are deterministic across playback, seeking, and looping. Audio modulation, recording, and cast output remain deferred.
       </div>
     </Collapsible>
   )

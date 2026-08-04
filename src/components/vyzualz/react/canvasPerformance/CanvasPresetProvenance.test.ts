@@ -22,7 +22,7 @@ describe('CANVAS preset provenance', () => {
       fractureMode: 'angledQuads',
       fractureEffectRoleWeights: {
         ...exact.fractureEffectRoleWeights,
-        accent: exact.fractureEffectRoleWeights.accent + 0.1,
+        glitch: exact.fractureEffectRoleWeights.glitch + 0.1,
       },
     })
 

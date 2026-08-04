@@ -1,4 +1,5 @@
 import { CanvasFracturesCanvas2DRenderer } from './CanvasFracturesCanvas2DRenderer'
+import { CanvasFracturesWebGLRenderer } from './CanvasFracturesWebGLRenderer'
 import type {
   CanvasFracturesPlan,
   CanvasFracturesRenderParams,
@@ -9,38 +10,49 @@ export type CanvasFracturesRendererCreateResult =
   | { renderer: CanvasFracturesRenderer; error: null }
   | { renderer: null; error: string }
 
+interface CanvasFracturesRendererImplementation {
+  setPlan(plan: CanvasFracturesPlan): void
+  readonly planIdentity: string | null
+  resize(width: number, height: number, dpr: number): void
+  render(params: CanvasFracturesRenderParams): boolean
+  dispose(): void
+}
+
 /**
- * Fractures renderer lifecycle. Canvas2D is the functional baseline and fallback
- * for this stage; a later WebGL backend can be added behind the same contract.
+ * Fractures renderer lifecycle. WebGL2 is preferred for the full per-fragment
+ * shader suite; Canvas2D remains the reduced functional fallback.
  */
 export class CanvasFracturesRenderer {
-  readonly backend: CanvasFracturesRendererBackend = 'canvas2d'
-
   static create(canvas: HTMLCanvasElement): CanvasFracturesRendererCreateResult {
+    const webgl2 = CanvasFracturesWebGLRenderer.create(canvas)
+    if (webgl2) return { renderer: new CanvasFracturesRenderer('webgl2', webgl2), error: null }
     const canvas2d = CanvasFracturesCanvas2DRenderer.create(canvas)
-    if (!canvas2d) return { renderer: null, error: 'Canvas2D unavailable for CANVAS Fractures' }
-    return { renderer: new CanvasFracturesRenderer(canvas2d), error: null }
+    if (canvas2d) return { renderer: new CanvasFracturesRenderer('canvas2d', canvas2d), error: null }
+    return { renderer: null, error: 'WebGL2 and Canvas2D are unavailable for CANVAS Fractures' }
   }
 
-  private constructor(private readonly canvas2d: CanvasFracturesCanvas2DRenderer) {}
+  private constructor(
+    readonly backend: CanvasFracturesRendererBackend,
+    private readonly implementation: CanvasFracturesRendererImplementation,
+  ) {}
 
   setPlan(plan: CanvasFracturesPlan): void {
-    this.canvas2d.setPlan(plan)
+    this.implementation.setPlan(plan)
   }
 
   get planIdentity(): string | null {
-    return this.canvas2d.planIdentity
+    return this.implementation.planIdentity
   }
 
   resize(width: number, height: number, dpr: number): void {
-    this.canvas2d.resize(width, height, dpr)
+    this.implementation.resize(width, height, dpr)
   }
 
   render(params: CanvasFracturesRenderParams): boolean {
-    return this.canvas2d.render(params)
+    return this.implementation.render(params)
   }
 
   dispose(): void {
-    this.canvas2d.dispose()
+    this.implementation.dispose()
   }
 }

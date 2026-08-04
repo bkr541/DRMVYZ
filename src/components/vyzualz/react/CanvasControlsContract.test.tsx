@@ -6,7 +6,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../stores/reactStore'
 import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
+import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
+import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
 import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface } from './ReactCanvasEngineShell'
+import { CanvasFracturesRenderer } from './renderers/fractures/CanvasFracturesRenderer'
 
 vi.mock('../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({
@@ -23,6 +26,7 @@ let root: Root
 
 beforeEach(() => {
   useContextualHelpStore.setState({ infoEnabled: true })
+  useBrandKitStore.setState({ activeKit: null })
   useReactStore.getState().resetReactView()
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -89,6 +93,62 @@ describe('CANVAS right-panel control contract', () => {
     }
   })
 
+  it('passes the canonical active Brand Kit into the real Fractures render path', () => {
+    const activeKit = {
+      id: 'brand-kit-fractures',
+      palette: {
+        primary: '#102030',
+        secondary: '#204060',
+        accent: '#4080A0',
+        background: '#000000',
+        highlight: '#80C0E0',
+        text: '#FFFFFF',
+      },
+    } as BrandKit
+    useBrandKitStore.setState({ activeKit })
+    useReactStore.setState({
+      canvasMediaItems: [{
+        id: 'fractures-brand-image',
+        name: 'Fractures Brand Image',
+        type: 'image',
+        objectUrl: 'data:image/png;base64,AA==',
+        createdAt: '2026-08-04T00:00:00.000Z',
+        mediaRevision: 1,
+      }],
+      activeCanvasMediaId: 'fractures-brand-image',
+    })
+    useReactStore.getState().selectCanvasPreset('canvas-fractures')
+    useReactStore.getState().setCanvasPresetSettings({ fractureColorSourceMode: 'brandKit' })
+    const render = vi.fn(() => true)
+    const create = vi.spyOn(CanvasFracturesRenderer, 'create').mockReturnValue({
+      renderer: {
+        backend: 'canvas2d',
+        planIdentity: null,
+        setPlan: vi.fn(),
+        resize: vi.fn(),
+        render,
+        dispose: vi.fn(),
+      } as unknown as CanvasFracturesRenderer,
+      error: null,
+    })
+    const originalRequestAnimationFrame = window.requestAnimationFrame
+    const originalCancelAnimationFrame = window.cancelAnimationFrame
+    window.requestAnimationFrame = vi.fn(() => 1)
+    window.cancelAnimationFrame = vi.fn()
+    try {
+      act(() => root.render(<CanvasEngineSurface isPlaying={false} isPaused />))
+      expect(render).toHaveBeenCalled()
+      expect(render.mock.calls[0]?.[0]).toMatchObject({
+        brandKit: activeKit,
+        effects: { colorSourceMode: 'brandKit' },
+      })
+    } finally {
+      create.mockRestore()
+      window.requestAnimationFrame = originalRequestAnimationFrame
+      window.cancelAnimationFrame = originalCancelAnimationFrame
+    }
+  })
+
   it('exposes Particle Quality with the other particle controls', () => {
     const particleGroup = CANVAS_REACT_CONTROL_GROUPS.find(group => group.title === 'Motion + Particles')
 
@@ -146,7 +206,7 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.fractures.motion.transition',
       'react.canvas.fractures.motion.refracture',
       'react.canvas.fractures.effects.colorSource',
-      'react.canvas.fractures.effects.roleWeight.anchor',
+      'react.canvas.fractures.effects.glow',
     ]))
 
     const intensityLabel = [...host.querySelectorAll<HTMLLabelElement>('label')]

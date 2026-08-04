@@ -1,6 +1,7 @@
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
+import type { BrandKit } from '../../../../features/personalization/BrandKitTypes'
 import type {
   CanvasFitMode,
   CanvasMediaItemType,
@@ -29,6 +30,7 @@ export interface CanvasFracturesRendererLayerProps {
   fitMode: CanvasFitMode
   sourceTransform: CanvasFracturesSourceTransform
   settings: CanvasPresetSettings
+  brandKit?: Readonly<BrandKit> | null
   outputOpacity?: number
   onPreviewReady?: (ready: boolean) => void
   onStatusChange?: (message: string | null) => void
@@ -50,6 +52,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     onStatusChange,
   } = props
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [rendererBackend, setRendererBackend] = useState<'webgl2' | 'canvas2d'>('canvas2d')
   const livePropsRef = useRef(props)
   livePropsRef.current = props
 
@@ -65,6 +68,8 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       return
     }
     const renderer = result.renderer
+    canvas.dataset.rendererBackend = renderer.backend
+    setRendererBackend(renderer.backend)
     const runtime = new CanvasFracturesRuntime()
     let frameId = 0
     let previewReady = false
@@ -115,6 +120,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
           quality: settings.fractureQuality,
           anchorMode: settings.fractureAnchorMode,
           returnToAnchor: settings.fractureReturnToAnchor,
+          effectRoleWeights: settings.fractureEffectRoleWeights,
         },
         timelineInput: {
           positionSec: transportPositionSec,
@@ -158,12 +164,31 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
         canvas.dataset.fracturesTransitionMode = plan.transition?.mode ?? 'settled'
         canvas.dataset.fracturesTransitionProgress = String(plan.transition?.progress ?? 1)
         canvas.dataset.fracturesReturnToAnchor = String(plan.returnToAnchor)
+        canvas.dataset.fracturesEffectRoles = plan.fragments.map(fragment => fragment.effectRole).join(',')
       }
       const rendered = renderer.render({
         source: live.sourceRef.current,
         fitMode: live.fitMode,
         sourceTransform: live.sourceTransform,
         outputOpacity: live.outputOpacity ?? 1,
+        effects: {
+          intensity: settings.fractureEffectsIntensity,
+          outlineIntensity: settings.fractureOutlineAmount,
+          outlineThickness: settings.fractureOutlineThickness,
+          bloomIntensity: settings.fractureGlowAmount,
+          rgbSplit: settings.fractureRgbSplitAmount,
+          lumaMode: settings.fractureLumaMode,
+          lumaThreshold: settings.fractureLumaThreshold,
+          displacement: settings.fractureSliceDisplacementAmount,
+          pixelation: settings.fracturePixelationAmount,
+          scanlines: settings.fractureScanlineAmount,
+          noise: settings.fractureNoiseAmount,
+          quality: settings.fractureQuality,
+          colorSourceMode: settings.fractureColorSourceMode,
+          manualPrimaryColor: settings.fractureManualPrimaryColor,
+          manualSupportingColor: settings.fractureManualSupportingColor,
+        },
+        brandKit: live.brandKit ?? null,
       })
       if (rendered && !previewReady) {
         previewReady = true
@@ -189,7 +214,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       ref={canvasRef}
       className="rv-canvas-fractures-renderer-layer"
       data-renderer-kind="fragmentCollage"
-      data-renderer-backend="canvas2d"
+      data-renderer-backend={rendererBackend}
       data-fractures-source-path={mediaType === 'video' ? 'video-frame' : mediaType === 'svg' ? 'svg-raster-image' : 'raster-image'}
       data-fractures-media-revision={mediaRevision}
       data-fractures-anchor-mode={props.settings.fractureAnchorMode}

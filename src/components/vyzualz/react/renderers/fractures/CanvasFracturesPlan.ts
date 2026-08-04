@@ -4,10 +4,10 @@ import {
 } from '../cinematic/worlds/reactiveConstellation/ConstellationMath'
 import type {
   CanvasFractureAnchorMode,
-  CanvasFractureEffectRole,
   CanvasFracturePlacementMode,
   CanvasFractureQualityMode,
 } from '../../ReactTypes'
+import { resolveCanvasFracturesEffectAssignment } from './CanvasFracturesEffects'
 import {
   clampFracturesUnit,
   resolveCanvasFracturesSourcePath,
@@ -309,13 +309,6 @@ function makeTransform(centerX: number, centerY: number, scale = 1, rotationDeg 
   }
 }
 
-function resolveEffectRole(index: number, family: CanvasFractureShapeFamily): CanvasFractureEffectRole {
-  if (index === 0) return 'primary'
-  if (family === 'angledQuads') return 'accent'
-  if (family === 'horizontalSlices' || family === 'verticalSlices') return index % 3 === 0 ? 'echo' : 'support'
-  return index % 4 === 0 ? 'accent' : 'support'
-}
-
 function fragmentId(topologyIdentity: string, index: number): string {
   return `fracture-${index.toString(36).padStart(2, '0')}-${stableCanvasFracturesHash(`${topologyIdentity}:${index}`).toString(36)}`
 }
@@ -346,6 +339,14 @@ export function generateCanvasFracturesTopology(input: CanvasFracturesPlanInput)
         ? createFocusCrop(family, focusX, focusY, protection)
         : randomCropForFamily(family, intensity, focusX, focusY, protection, random)
     const localCorners = makeLocalCorners(family, random)
+    const effectAssignment = resolveCanvasFracturesEffectAssignment({
+      presetId: input.presetId,
+      sourceIdentity: input.sourceIdentity,
+      topologyIdentity: identity,
+      fragmentId: id,
+      variationSeed: input.variationSeed,
+      roleWeights: input.effectRoleWeights,
+    })
     fragments.push({
       id,
       crop,
@@ -354,7 +355,8 @@ export function generateCanvasFracturesTopology(input: CanvasFracturesPlanInput)
       localCorners,
       homeTransform: makeTransform(crop.x + crop.width * 0.5, crop.y + crop.height * 0.5),
       anchorRole: index === 0 ? 'focus' : 'fragment',
-      effectRole: resolveEffectRole(index, family),
+      effectRole: effectAssignment.role,
+      effectAssignment,
       repeatedFromFragmentId: repeatedSource?.id ?? null,
     })
   }
@@ -752,8 +754,12 @@ export function composeCanvasFracturesPlan(
     }
   })
 
+  const effectIdentity = topology.fragments
+    .map(fragment => `${fragment.id}:${fragment.effectRole}:${fragment.effectAssignment.seed}`)
+    .join('|')
+
   return {
-    id: identityHash('fractures-plan', `${topology.identity}|${layout.identity}`),
+    id: identityHash('fractures-plan', `${topology.identity}|${layout.identity}|${effectIdentity}`),
     topologyIdentity: topology.identity,
     layoutIdentity: layout.identity,
     seed: stableCanvasFracturesHash(`${topology.seed}:${layout.seed}`),

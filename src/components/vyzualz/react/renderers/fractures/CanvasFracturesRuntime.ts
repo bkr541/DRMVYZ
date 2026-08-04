@@ -45,6 +45,7 @@ function planCacheKey(input: CanvasFracturesPlanInput): string {
     input.quality,
     input.anchorMode,
     input.returnToAnchor === true ? 1 : 0,
+    Object.entries(input.effectRoleWeights ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([role, weight]) => `${role}:${weight}`).join(','),
   ].join('|')
 }
 

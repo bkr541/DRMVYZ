@@ -67,6 +67,7 @@ import type {
   CanvasFractureAnchorMode,
   CanvasFractureColorSourceMode,
   CanvasFractureEffectRole,
+  CanvasFractureLumaMode,
   CanvasFractureMode,
   CanvasFractureManualAction,
   CanvasFracturePlacementMode,
@@ -3673,6 +3674,12 @@ function normalizeCanvasFractureQuality(value: unknown): CanvasFractureQualityMo
     : DEFAULT_CANVAS_PRESET_SETTINGS.fractureQuality
 }
 
+function normalizeCanvasFractureLumaMode(value: unknown): CanvasFractureLumaMode {
+  return value === 'shadows' || value === 'band' || value === 'highlights'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.fractureLumaMode
+}
+
 function normalizeCanvasFractureInterval(value: unknown, fallback: CanvasFractureQuantizeInterval): CanvasFractureQuantizeInterval {
   return value === 'manualOnly' || value === 'beat' || value === 'bar' || value === '2bars' || value === '4bars' || value === '8bars' || value === '16bars' || value === 'section'
     ? value
@@ -3693,12 +3700,26 @@ function normalizeCanvasHexColor(value: unknown, fallback: string): string {
 
 function normalizeCanvasFractureRoleWeights(value: unknown): Record<CanvasFractureEffectRole, number> {
   const source = isRecord(value) ? value : DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights
+  const legacy = 'anchor' in source || 'primary' in source || 'support' in source || 'accent' in source || 'echo' in source
+  if (legacy) {
+    return {
+      clean: clampCanvasNumber(source.anchor, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.clean, 0, 1),
+      glow: clampCanvasNumber(source.primary, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.glow, 0, 1),
+      outline: clampCanvasNumber(source.support, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.outline, 0, 1),
+      glitch: clampCanvasNumber(source.accent, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.glitch, 0, 1),
+      luma: clampCanvasNumber(source.support, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.luma, 0, 1) * 0.5,
+      displacement: clampCanvasNumber(source.echo, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.displacement, 0, 1),
+      texture: clampCanvasNumber(source.echo, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.texture, 0, 1),
+    }
+  }
   return {
-    anchor: clampCanvasNumber(source.anchor, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.anchor, 0, 1),
-    primary: clampCanvasNumber(source.primary, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.primary, 0, 1),
-    support: clampCanvasNumber(source.support, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.support, 0, 1),
-    accent: clampCanvasNumber(source.accent, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.accent, 0, 1),
-    echo: clampCanvasNumber(source.echo, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.echo, 0, 1),
+    clean: clampCanvasNumber(source.clean, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.clean, 0, 1),
+    glow: clampCanvasNumber(source.glow, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.glow, 0, 1),
+    outline: clampCanvasNumber(source.outline, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.outline, 0, 1),
+    glitch: clampCanvasNumber(source.glitch, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.glitch, 0, 1),
+    luma: clampCanvasNumber(source.luma, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.luma, 0, 1),
+    displacement: clampCanvasNumber(source.displacement, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.displacement, 0, 1),
+    texture: clampCanvasNumber(source.texture, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.texture, 0, 1),
   }
 }
 
@@ -3807,6 +3828,15 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     fractureLayoutRevision: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(finiteCanvasNumber(source.fractureLayoutRevision, 0)))),
     fractureEffectsIntensity: clampCanvasNumber(source.fractureEffectsIntensity, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectsIntensity, 0, 1),
     fractureGlowAmount: clampCanvasNumber(source.fractureGlowAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureGlowAmount, 0, 1),
+    fractureOutlineAmount: clampCanvasNumber(source.fractureOutlineAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureOutlineAmount, 0, 1),
+    fractureOutlineThickness: clampCanvasNumber(source.fractureOutlineThickness, DEFAULT_CANVAS_PRESET_SETTINGS.fractureOutlineThickness, 0, 1),
+    fractureRgbSplitAmount: clampCanvasNumber(source.fractureRgbSplitAmount ?? source.fractureGlitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureRgbSplitAmount, 0, 1),
+    fractureLumaMode: normalizeCanvasFractureLumaMode(source.fractureLumaMode),
+    fractureLumaThreshold: clampCanvasNumber(source.fractureLumaThreshold ?? source.lumaThreshold, DEFAULT_CANVAS_PRESET_SETTINGS.fractureLumaThreshold, 0, 1),
+    fractureSliceDisplacementAmount: clampCanvasNumber(source.fractureSliceDisplacementAmount ?? source.fractureGlitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureSliceDisplacementAmount, 0, 1),
+    fracturePixelationAmount: clampCanvasNumber(source.fracturePixelationAmount ?? source.fractureTextureAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fracturePixelationAmount, 0, 1),
+    fractureScanlineAmount: clampCanvasNumber(source.fractureScanlineAmount ?? source.fractureTextureAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureScanlineAmount, 0, 1),
+    fractureNoiseAmount: clampCanvasNumber(source.fractureNoiseAmount ?? source.fractureTextureAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureNoiseAmount, 0, 1),
     fractureGlitchAmount: clampCanvasNumber(source.fractureGlitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureGlitchAmount, 0, 1),
     fractureTextureAmount: clampCanvasNumber(source.fractureTextureAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTextureAmount, 0, 1),
     fractureTrailsAmount: clampCanvasNumber(source.fractureTrailsAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTrailsAmount, 0, 1),

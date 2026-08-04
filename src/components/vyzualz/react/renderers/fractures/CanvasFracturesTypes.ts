@@ -3,6 +3,8 @@ import type {
   CanvasFractureAnchorMode,
   CanvasFractureEffectRole,
   CanvasFractureManualAction,
+  CanvasFractureColorSourceMode,
+  CanvasFractureLumaMode,
   CanvasFractureMode,
   CanvasFracturePlacementMode,
   CanvasFractureQualityMode,
@@ -17,7 +19,7 @@ import type { BarMarkerMI } from '../../../../../features/musicIntelligence/type
 export type CanvasFracturesSourceElement = HTMLVideoElement | HTMLImageElement
 export type CanvasFractureShapeFamily = Exclude<CanvasFractureMode, 'mixed'>
 export type CanvasFractureAnchorRole = 'focus' | 'fragment'
-export type CanvasFracturesRendererBackend = 'canvas2d'
+export type CanvasFracturesRendererBackend = 'webgl2' | 'canvas2d'
 export type CanvasFracturesSourcePath = 'video-frame' | 'raster-image' | 'svg-raster-image'
 export type CanvasFractureResolvedPlacementMode = Exclude<CanvasFracturePlacementMode, 'randomMix'>
 
@@ -44,6 +46,14 @@ export interface CanvasFractureTransform {
   rotationDeg: number
 }
 
+export interface CanvasFractureEffectAssignment {
+  role: CanvasFractureEffectRole
+  seed: number
+  directionX: number
+  directionY: number
+  phase: number
+}
+
 export interface CanvasFractureTopologyFragment {
   id: string
   crop: CanvasFractureCrop
@@ -52,7 +62,8 @@ export interface CanvasFractureTopologyFragment {
   localCorners: readonly [CanvasFracturePoint, CanvasFracturePoint, CanvasFracturePoint, CanvasFracturePoint]
   homeTransform: CanvasFractureTransform
   anchorRole: CanvasFractureAnchorRole
-  effectRole: CanvasFractureEffectRole | null
+  effectRole: CanvasFractureEffectRole
+  effectAssignment: CanvasFractureEffectAssignment
   repeatedFromFragmentId: string | null
 }
 
@@ -155,6 +166,7 @@ export interface CanvasFracturesPlanInput {
   quality: CanvasFractureQualityMode
   anchorMode: CanvasFractureAnchorMode
   returnToAnchor?: boolean
+  effectRoleWeights?: Record<CanvasFractureEffectRole, number>
 }
 
 export interface CanvasFracturesTimelineInput {
@@ -216,9 +228,37 @@ export interface CanvasFracturesSourceTransform {
   rotation: number
 }
 
+
+export interface CanvasFracturesEffectSettings {
+  intensity: number
+  outlineIntensity: number
+  outlineThickness: number
+  bloomIntensity: number
+  rgbSplit: number
+  lumaMode: CanvasFractureLumaMode
+  lumaThreshold: number
+  displacement: number
+  pixelation: number
+  scanlines: number
+  noise: number
+  quality: CanvasFractureQualityMode
+  colorSourceMode: CanvasFractureColorSourceMode
+  manualPrimaryColor: string
+  manualSupportingColor: string
+}
+
+export interface CanvasFracturesResolvedPalette {
+  primary: string
+  supporting: string
+  accent: string
+  source: 'imageSampled' | 'brandKit' | 'manualOverride' | 'fallback'
+}
+
 export interface CanvasFracturesRenderParams {
   source: CanvasFracturesSourceElement | null
   fitMode: CanvasFitMode
   sourceTransform: CanvasFracturesSourceTransform
   outputOpacity?: number
+  effects: CanvasFracturesEffectSettings
+  brandKit?: import('../../../../../features/personalization/BrandKitTypes').BrandKit | null
 }
