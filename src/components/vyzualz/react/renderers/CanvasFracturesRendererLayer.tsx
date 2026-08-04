@@ -76,6 +76,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     let fallbackPositionSec = 0
     let previousFrameNowSec: number | null = null
     let lastPlanIdentity = ''
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
     const draw = (frameNowMs = performance.now()) => {
       const live = livePropsRef.current
@@ -171,8 +172,16 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
         fitMode: live.fitMode,
         sourceTransform: live.sourceTransform,
         outputOpacity: live.outputOpacity ?? 1,
+        framePositionSec: transportPositionSec,
         effects: {
           intensity: settings.fractureEffectsIntensity,
+          glow: settings.fractureGlowAmount,
+          glitch: settings.fractureGlitchAmount,
+          texture: settings.fractureTextureAmount,
+          trails: settings.fractureTrailsAmount,
+          depth: settings.fractureDepthAmount,
+          duplication: settings.fractureDuplicationAmount,
+          colorTreatment: settings.fractureColorTreatmentAmount,
           outlineIntensity: settings.fractureOutlineAmount,
           outlineThickness: settings.fractureOutlineThickness,
           bloomIntensity: settings.fractureGlowAmount,
@@ -187,6 +196,10 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
           colorSourceMode: settings.fractureColorSourceMode,
           manualPrimaryColor: settings.fractureManualPrimaryColor,
           manualSupportingColor: settings.fractureManualSupportingColor,
+          flashTrigger: reducedMotion
+            ? 0
+            : Math.max(0, Math.min(1, 1 - (plan.transition?.progress ?? 1) / 0.18)),
+          reducedMotion,
         },
         brandKit: live.brandKit ?? null,
       })

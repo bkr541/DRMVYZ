@@ -22,6 +22,7 @@ export type CanvasFractureAnchorRole = 'focus' | 'fragment'
 export type CanvasFracturesRendererBackend = 'webgl2' | 'canvas2d'
 export type CanvasFracturesSourcePath = 'video-frame' | 'raster-image' | 'svg-raster-image'
 export type CanvasFractureResolvedPlacementMode = Exclude<CanvasFracturePlacementMode, 'randomMix'>
+export type CanvasFractureBlendMode = 'normal' | 'additive' | 'screen' | 'difference' | 'exclusion'
 
 export interface CanvasFracturePoint {
   x: number
@@ -46,12 +47,19 @@ export interface CanvasFractureTransform {
   rotationDeg: number
 }
 
+/**
+ * Fractures keeps one primary role for authoring clarity and a compact,
+ * deterministic modifier bitset for secondary treatments. This avoids a role
+ * explosion while preserving stable seek/loop reconstruction.
+ */
 export interface CanvasFractureEffectAssignment {
   role: CanvasFractureEffectRole
   seed: number
   directionX: number
   directionY: number
   phase: number
+  modifiers: number
+  blendMode: CanvasFractureBlendMode
 }
 
 export interface CanvasFractureTopologyFragment {
@@ -230,7 +238,16 @@ export interface CanvasFracturesSourceTransform {
 
 
 export interface CanvasFracturesEffectSettings {
+  /** User-facing effect macros. */
   intensity: number
+  glow: number
+  glitch: number
+  texture: number
+  trails: number
+  depth: number
+  duplication: number
+  colorTreatment: number
+  /** Persisted core-stage tuning retained for backward-compatible resolution. */
   outlineIntensity: number
   outlineThickness: number
   bloomIntensity: number
@@ -245,6 +262,75 @@ export interface CanvasFracturesEffectSettings {
   colorSourceMode: CanvasFractureColorSourceMode
   manualPrimaryColor: string
   manualSupportingColor: string
+  /** Stable transition/manual flash envelope; audio routing remains deferred. */
+  flashTrigger?: number
+  reducedMotion?: boolean
+}
+
+export interface CanvasFracturesQualityBudget {
+  trailScale: number
+  trailMaxWidth: number
+  trailMaxHeight: number
+  maxDuplicateCopies: number
+  maxBlurFragments: number
+  maxSharpenFragments: number
+  maxBlurPasses: number
+  maxSharpenPasses: number
+  shadowQuality: 0 | 1 | 2
+  maxExpensiveFragments: number
+}
+
+export interface CanvasFracturesResolvedEffectSettings {
+  intensity: number
+  outlineIntensity: number
+  outlineThickness: number
+  bloomIntensity: number
+  rgbSplit: number
+  lumaMode: CanvasFractureLumaMode
+  lumaThreshold: number
+  displacement: number
+  pixelation: number
+  scanlines: number
+  noise: number
+  posterization: number
+  posterizeLevels: number
+  trailOpacity: number
+  trailPersistence: number
+  hueShift: number
+  duotone: number
+  depth: number
+  shadowOffsetPx: number
+  shadowBlurPx: number
+  shadowOpacity: number
+  parallaxPx: number
+  depthScale: number
+  duplication: number
+  copyOpacity: number
+  copyOffsetPx: number
+  flash: number
+  blur: number
+  sharpen: number
+  dissolve: number
+  quality: CanvasFractureQualityMode
+  budget: CanvasFracturesQualityBudget
+}
+
+export interface CanvasFracturesResolvedFragmentEffects {
+  blendMode: CanvasFractureBlendMode
+  posterization: number
+  posterizeLevels: number
+  hueShift: number
+  duotone: number
+  shadow: number
+  shadowOffsetPx: number
+  shadowBlurPx: number
+  duplicateCount: number
+  copyOpacity: number
+  copyOffsetPx: number
+  flash: number
+  blur: number
+  sharpen: number
+  dissolve: number
 }
 
 export interface CanvasFracturesResolvedPalette {
@@ -259,6 +345,8 @@ export interface CanvasFracturesRenderParams {
   fitMode: CanvasFitMode
   sourceTransform: CanvasFracturesSourceTransform
   outputOpacity?: number
+  /** Used only to invalidate temporal feedback after seeks or long frame gaps. */
+  framePositionSec?: number
   effects: CanvasFracturesEffectSettings
   brandKit?: import('../../../../../features/personalization/BrandKitTypes').BrandKit | null
 }

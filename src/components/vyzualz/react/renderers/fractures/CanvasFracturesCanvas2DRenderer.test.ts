@@ -1,11 +1,18 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from 'vitest'
+import { CANVAS_FRACTURES_EFFECT_MODIFIERS } from './CanvasFracturesEffects'
 import { generateCanvasFracturesPlan } from './CanvasFracturesPlan'
 import { CanvasFracturesRenderer } from './CanvasFracturesRenderer'
-import type { CanvasFracturesPlanInput, CanvasFracturesRenderParams } from './CanvasFracturesTypes'
+import type {
+  CanvasFracturesPlan,
+  CanvasFracturesPlanInput,
+  CanvasFracturesRenderParams,
+} from './CanvasFracturesTypes'
 
 function makeContext() {
   const drawImage = vi.fn()
+  const compositeOperations: GlobalCompositeOperation[] = []
+  let compositeOperation: GlobalCompositeOperation = 'source-over'
   const context = {
     setTransform: vi.fn(),
     clearRect: vi.fn(),
@@ -20,22 +27,43 @@ function makeContext() {
     lineTo: vi.fn(),
     closePath: vi.fn(),
     clip: vi.fn(),
+    fill: vi.fn(),
     fillRect: vi.fn(),
+    getImageData: vi.fn((_x: number, _y: number, width: number, height: number) => ({
+      data: new Uint8ClampedArray(width * height * 4),
+      width,
+      height,
+    } as ImageData)),
+    putImageData: vi.fn(),
     imageSmoothingEnabled: false,
     imageSmoothingQuality: 'low',
-    globalCompositeOperation: 'source-over',
     globalAlpha: 1,
     filter: 'none',
     fillStyle: '#000000',
     shadowColor: '#000000',
     shadowBlur: 0,
   } as unknown as CanvasRenderingContext2D
-  return { context, drawImage }
+  Object.defineProperty(context, 'globalCompositeOperation', {
+    configurable: true,
+    get: () => compositeOperation,
+    set: (value: GlobalCompositeOperation) => {
+      compositeOperation = value
+      compositeOperations.push(value)
+    },
+  })
+  return { context, drawImage, compositeOperations }
 }
 
-function makeEffects(): CanvasFracturesRenderParams['effects'] {
+function makeEffects(patch: Partial<CanvasFracturesRenderParams['effects']> = {}): CanvasFracturesRenderParams['effects'] {
   return {
     intensity: 0.8,
+    glow: 0,
+    glitch: 0,
+    texture: 0,
+    trails: 0,
+    depth: 0,
+    duplication: 0,
+    colorTreatment: 0,
     outlineIntensity: 0.6,
     outlineThickness: 0.4,
     bloomIntensity: 0.5,
@@ -50,10 +78,16 @@ function makeEffects(): CanvasFracturesRenderParams['effects'] {
     colorSourceMode: 'manualOverride',
     manualPrimaryColor: '#4AC7DB',
     manualSupportingColor: '#61D6AA',
+    flashTrigger: 0,
+    reducedMotion: false,
+    ...patch,
   }
 }
 
-function makePlan(anchorMode: CanvasFracturesPlanInput['anchorMode'] = 'fullyFragmented') {
+function makePlan(
+  anchorMode: CanvasFracturesPlanInput['anchorMode'] = 'fullyFragmented',
+  patch: Partial<CanvasFracturesPlanInput> = {},
+) {
   return generateCanvasFracturesPlan({
     presetId: 'canvas-fractures',
     sourceIdentity: 'renderer-source',
@@ -74,11 +108,62 @@ function makePlan(anchorMode: CanvasFracturesPlanInput['anchorMode'] = 'fullyFra
     quality: 'low',
     anchorMode,
     effectRoleWeights: { clean: 1, glow: 0, outline: 0, glitch: 0, luma: 0, displacement: 0, texture: 0 },
+    ...patch,
   })
 }
 
 function installCanvasContexts(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) {
   canvas.getContext = vi.fn((kind: string) => kind === '2d' ? context : null) as typeof canvas.getContext
+}
+
+function installAuxiliaryCanvases() {
+  const originalCreateElement = document.createElement.bind(document)
+  const entries = Array.from({ length: 5 }, () => {
+    const canvas = originalCreateElement('canvas')
+    const contextState = makeContext()
+    installCanvasContexts(canvas, contextState.context)
+    return { canvas, ...contextState }
+  })
+  let canvasIndex = 0
+  const createElement = vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+    if (tagName.toLowerCase() === 'canvas' && canvasIndex < entries.length) {
+      return entries[canvasIndex++].canvas
+    }
+    return originalCreateElement(tagName, options)
+  }) as typeof document.createElement)
+  return { entries, restore: () => createElement.mockRestore() }
+}
+
+function makeImage() {
+  const image = document.createElement('img')
+  Object.defineProperties(image, {
+    complete: { value: true },
+    naturalWidth: { value: 1920 },
+    naturalHeight: { value: 1080 },
+  })
+  return image
+}
+
+function forceRole(
+  plan: CanvasFracturesPlan,
+  role: 'outline' | 'luma' | 'glitch',
+  modifiers = 0,
+  blendMode: 'normal' | 'difference' = 'normal',
+): CanvasFracturesPlan {
+  return {
+    ...plan,
+    id: `${plan.id}:${role}:${modifiers}:${blendMode}`,
+    fragments: plan.fragments.map(fragment => ({
+      ...fragment,
+      effectRole: role,
+      effectAssignment: {
+        ...fragment.effectAssignment,
+        role,
+        modifiers,
+        blendMode,
+      },
+    })),
+  }
 }
 
 describe('Canvas Fractures Canvas2D renderer', () => {
@@ -93,12 +178,7 @@ describe('Canvas Fractures Canvas2D renderer', () => {
     const plan = makePlan('fullyFragmented')
     result.renderer.setPlan(plan)
     result.renderer.resize(960, 540, 2)
-    const image = document.createElement('img')
-    Object.defineProperties(image, {
-      complete: { value: true },
-      naturalWidth: { value: 1920 },
-      naturalHeight: { value: 1080 },
-    })
+    const image = makeImage()
 
     expect(result.renderer.render({
       source: image,
@@ -142,67 +222,131 @@ describe('Canvas Fractures Canvas2D renderer', () => {
     expect(drawImage.mock.calls.every((call: unknown[]) => call[0] === video)).toBe(true)
   })
 
-  it('uses reusable pixel readback for content-derived outline and luma fallback effects', () => {
+  it('uses reusable pixel readback for core outline and luma fallback effects', () => {
     const canvas = document.createElement('canvas')
-    const scratchCanvas = document.createElement('canvas')
     const { context, drawImage } = makeContext()
-    const scratchPixels = new Uint8ClampedArray(64 * 64 * 4)
-    for (let index = 0; index < scratchPixels.length; index += 4) {
-      scratchPixels[index] = index % 17 === 0 ? 255 : 32
-      scratchPixels[index + 1] = 96
-      scratchPixels[index + 2] = 192
-      scratchPixels[index + 3] = index % 29 === 0 ? 0 : 255
-    }
-    const scratchContext = {
-      ...makeContext().context,
-      getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(scratchPixels) })),
-      putImageData: vi.fn(),
-    } as unknown as CanvasRenderingContext2D
     installCanvasContexts(canvas, context)
-    scratchCanvas.getContext = vi.fn((kind: string) => kind === '2d' ? scratchContext : null) as typeof scratchCanvas.getContext
-    const originalCreateElement = document.createElement.bind(document)
-    const createElement = vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
-      if (tagName.toLowerCase() === 'canvas') return scratchCanvas
-      return originalCreateElement(tagName, options)
-    }) as typeof document.createElement)
+    const auxiliary = installAuxiliaryCanvases()
+    const effectContext = auxiliary.entries[1].context
+    effectContext.getImageData = vi.fn((_x: number, _y: number, width: number, height: number) => {
+      const pixels = new Uint8ClampedArray(width * height * 4)
+      for (let index = 0; index < pixels.length; index += 4) {
+        pixels[index] = index % 17 === 0 ? 255 : 32
+        pixels[index + 1] = 96
+        pixels[index + 2] = 192
+        pixels[index + 3] = index % 29 === 0 ? 0 : 255
+      }
+      return { data: pixels, width, height } as ImageData
+    })
     const result = CanvasFracturesRenderer.create(canvas)
-    createElement.mockRestore()
+    auxiliary.restore()
     if (!result.renderer) throw new Error(result.error)
 
-    const image = document.createElement('img')
-    Object.defineProperties(image, {
-      complete: { value: true },
-      naturalWidth: { value: 640 },
-      naturalHeight: { value: 360 },
-    })
+    const image = makeImage()
     const base = makePlan('fullyFragmented')
-    const forceRole = (role: 'outline' | 'luma') => ({
-      ...base,
-      id: `${base.id}:${role}`,
-      fragments: base.fragments.map(fragment => ({
-        ...fragment,
-        effectRole: role,
-        effectAssignment: { ...fragment.effectAssignment, role },
-      })),
-    })
     result.renderer.resize(640, 360, 1)
-    result.renderer.setPlan(forceRole('outline'))
+    result.renderer.setPlan(forceRole(base, 'outline'))
+    expect(result.renderer.render({
+      source: image,
+      fitMode: 'contain',
+      sourceTransform: { scale: 1, positionX: 0, positionY: 0, rotation: 0 },
+      effects: makeEffects({ glow: 1 }),
+    })).toBe(true)
+    result.renderer.setPlan(forceRole(base, 'luma'))
     expect(result.renderer.render({
       source: image,
       fitMode: 'contain',
       sourceTransform: { scale: 1, positionX: 0, positionY: 0, rotation: 0 },
       effects: makeEffects(),
     })).toBe(true)
-    result.renderer.setPlan(forceRole('luma'))
-    expect(result.renderer.render({
-      source: image,
-      fitMode: 'contain',
-      sourceTransform: { scale: 1, positionX: 0, positionY: 0, rotation: 0 },
-      effects: makeEffects(),
-    })).toBe(true)
-    expect(scratchContext.getImageData).toHaveBeenCalled()
-    expect(scratchContext.putImageData).toHaveBeenCalled()
-    expect(drawImage.mock.calls.some((call: unknown[]) => call[0] === scratchCanvas)).toBe(true)
+    expect(effectContext.getImageData).toHaveBeenCalled()
+    expect(effectContext.putImageData).toHaveBeenCalled()
+    expect(drawImage.mock.calls.some((call: unknown[]) => call[0] === auxiliary.entries[1].canvas)).toBe(true)
   })
 
+  it('bounds Canvas2D trails and clears history on explicit, resize, and topology invalidation', () => {
+    const canvas = document.createElement('canvas')
+    const { context } = makeContext()
+    installCanvasContexts(canvas, context)
+    const auxiliary = installAuxiliaryCanvases()
+    const result = CanvasFracturesRenderer.create(canvas)
+    auxiliary.restore()
+    if (!result.renderer) throw new Error(result.error)
+    result.renderer.setPlan(makePlan())
+    result.renderer.resize(1280, 720, 1)
+    const source = makeImage()
+    const trailParams: CanvasFracturesRenderParams = {
+      source,
+      fitMode: 'cover',
+      sourceTransform: { scale: 1, positionX: 0, positionY: 0, rotation: 0 },
+      framePositionSec: 10,
+      effects: makeEffects({ intensity: 1, trails: 1, quality: 'low' }),
+    }
+    expect(result.renderer.render(trailParams)).toBe(true)
+
+    const historyA = auxiliary.entries[3]
+    const historyB = auxiliary.entries[4]
+    const lowWidth = historyA.canvas.width
+    expect(lowWidth).toBeLessThanOrEqual(640)
+    expect(historyA.canvas.height).toBeLessThanOrEqual(360)
+    let clearHistoryA = vi.fn()
+    let clearHistoryB = vi.fn()
+    historyA.context.clearRect = clearHistoryA
+    historyB.context.clearRect = clearHistoryB
+
+    expect(result.renderer.render({ ...trailParams, framePositionSec: 10.02 })).toBe(true)
+    expect(clearHistoryA.mock.calls.length + clearHistoryB.mock.calls.length).toBe(1)
+    clearHistoryA = vi.fn()
+    clearHistoryB = vi.fn()
+    historyA.context.clearRect = clearHistoryA
+    historyB.context.clearRect = clearHistoryB
+    expect(result.renderer.render({ ...trailParams, framePositionSec: 5 })).toBe(true)
+    expect(clearHistoryA.mock.calls.length + clearHistoryB.mock.calls.length).toBe(3)
+
+    expect(result.renderer.render({
+      ...trailParams,
+      framePositionSec: 5.02,
+      effects: makeEffects({ intensity: 1, trails: 1, quality: 'high' }),
+    })).toBe(true)
+    expect(historyA.canvas.width).toBeGreaterThan(lowWidth)
+
+    clearHistoryA = vi.fn()
+    clearHistoryB = vi.fn()
+    historyA.context.clearRect = clearHistoryA
+    historyB.context.clearRect = clearHistoryB
+    result.renderer.invalidateFeedback()
+    expect(clearHistoryA).toHaveBeenCalledTimes(1)
+    expect(clearHistoryB).toHaveBeenCalledTimes(1)
+
+    result.renderer.resize(960, 540, 1)
+    expect(clearHistoryA).toHaveBeenCalledTimes(2)
+    expect(clearHistoryB).toHaveBeenCalledTimes(2)
+
+    result.renderer.setPlan(makePlan('fullyFragmented', { topologyRevision: 1 }))
+    expect(clearHistoryA).toHaveBeenCalledTimes(3)
+    expect(clearHistoryB).toHaveBeenCalledTimes(3)
+  })
+
+  it('isolates Difference blend state per fragment and resets the context after rendering', () => {
+    const canvas = document.createElement('canvas')
+    const { context, compositeOperations } = makeContext()
+    installCanvasContexts(canvas, context)
+    const result = CanvasFracturesRenderer.create(canvas)
+    if (!result.renderer) throw new Error(result.error)
+    result.renderer.setPlan(forceRole(
+      makePlan(),
+      'glitch',
+      CANVAS_FRACTURES_EFFECT_MODIFIERS.dissolve,
+      'difference',
+    ))
+    result.renderer.resize(640, 360, 1)
+    expect(result.renderer.render({
+      source: makeImage(),
+      fitMode: 'cover',
+      sourceTransform: { scale: 1, positionX: 0, positionY: 0, rotation: 0 },
+      effects: makeEffects({ intensity: 1, glitch: 1 }),
+    })).toBe(true)
+    expect(compositeOperations).toContain('difference')
+    expect(compositeOperations[compositeOperations.length - 1]).toBe('source-over')
+  })
 })

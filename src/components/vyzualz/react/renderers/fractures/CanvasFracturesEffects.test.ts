@@ -6,6 +6,8 @@ import {
   CanvasFracturesImagePaletteCache,
   normalizeCanvasFracturesRoleWeights,
   packCanvasFracturesEffectParams,
+  resolveCanvasFracturesEffectMacros,
+  resolveCanvasFracturesFragmentEffects,
   resolveCanvasFracturesEffectAssignment,
   resolveCanvasFracturesFallbackEffect,
   resolveCanvasFracturesPalette,
@@ -25,6 +27,13 @@ const weights = {
 
 const effectSettings: CanvasFracturesEffectSettings = {
   intensity: 0.8,
+  glow: 0.7,
+  glitch: 0.6,
+  texture: 0.5,
+  trails: 0.4,
+  depth: 0.5,
+  duplication: 0.4,
+  colorTreatment: 0.6,
   outlineIntensity: 0.7,
   outlineThickness: 0.6,
   bloomIntensity: 0.5,
@@ -122,9 +131,15 @@ describe('Canvas Fractures core effects', () => {
       variationSeed: 1,
       roleWeights: { clean: 0, glow: 0, outline: 1, glitch: 0, luma: 0, displacement: 0, texture: 0 },
     })
+    const resolved = resolveCanvasFracturesEffectMacros(effectSettings)
     const packed = packCanvasFracturesEffectParams({
       assignment,
-      settings: effectSettings,
+      settings: resolved,
+      fragmentEffects: resolveCanvasFracturesFragmentEffects({
+        assignment,
+        settings: resolved,
+        fragmentOrdinal: 0,
+      }),
       palette: { primary: '#FF0000', supporting: '#00FF00', accent: '#0000FF', source: 'manualOverride' },
     })
     expect(packed).toMatchObject({ role: 1, lumaMode: 2, quality: 2, intensity: 0.8 })

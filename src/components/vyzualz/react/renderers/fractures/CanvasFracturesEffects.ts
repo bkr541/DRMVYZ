@@ -8,8 +8,12 @@ import type {
 import type {
   CanvasFractureEffectAssignment,
   CanvasFracturesEffectSettings,
+  CanvasFracturesQualityBudget,
+  CanvasFracturesResolvedEffectSettings,
+  CanvasFracturesResolvedFragmentEffects,
   CanvasFracturesResolvedPalette,
   CanvasFracturesSourceElement,
+  CanvasFractureBlendMode,
 } from './CanvasFracturesTypes'
 
 export const CANVAS_FRACTURES_EFFECT_ROLE_ORDER: readonly CanvasFractureEffectRole[] = [
@@ -30,6 +34,68 @@ export const SAFE_CANVAS_FRACTURES_ROLE_WEIGHTS: Readonly<Record<CanvasFractureE
   luma: 0.08,
   displacement: 0.1,
   texture: 0.1,
+}
+
+/** Compact deterministic secondary-effect capabilities. */
+export const CANVAS_FRACTURES_EFFECT_MODIFIERS = {
+  posterize: 1 << 0,
+  hueShift: 1 << 1,
+  duotone: 1 << 2,
+  shadow: 1 << 3,
+  duplicate: 1 << 4,
+  flash: 1 << 5,
+  blur: 1 << 6,
+  sharpen: 1 << 7,
+  dissolve: 1 << 8,
+} as const
+
+export type CanvasFracturesEffectModifierName = keyof typeof CANVAS_FRACTURES_EFFECT_MODIFIERS
+
+export function canvasFracturesHasModifier(mask: number, modifier: CanvasFracturesEffectModifierName): boolean {
+  return (mask & CANVAS_FRACTURES_EFFECT_MODIFIERS[modifier]) !== 0
+}
+
+const QUALITY_BUDGETS: Readonly<Record<CanvasFractureQualityMode, CanvasFracturesQualityBudget>> = {
+  low: {
+    trailScale: 0.45,
+    trailMaxWidth: 640,
+    trailMaxHeight: 360,
+    maxDuplicateCopies: 1,
+    maxBlurFragments: 2,
+    maxSharpenFragments: 1,
+    maxBlurPasses: 1,
+    maxSharpenPasses: 1,
+    shadowQuality: 0,
+    maxExpensiveFragments: 4,
+  },
+  balanced: {
+    trailScale: 0.65,
+    trailMaxWidth: 960,
+    trailMaxHeight: 540,
+    maxDuplicateCopies: 2,
+    maxBlurFragments: 4,
+    maxSharpenFragments: 2,
+    maxBlurPasses: 1,
+    maxSharpenPasses: 1,
+    shadowQuality: 1,
+    maxExpensiveFragments: 8,
+  },
+  high: {
+    trailScale: 0.8,
+    trailMaxWidth: 1280,
+    trailMaxHeight: 720,
+    maxDuplicateCopies: 3,
+    maxBlurFragments: 7,
+    maxSharpenFragments: 4,
+    maxBlurPasses: 1,
+    maxSharpenPasses: 1,
+    shadowQuality: 2,
+    maxExpensiveFragments: 14,
+  },
+}
+
+export function resolveCanvasFracturesQualityBudget(quality: CanvasFractureQualityMode): CanvasFracturesQualityBudget {
+  return { ...QUALITY_BUDGETS[quality] }
 }
 
 
@@ -82,6 +148,45 @@ function deterministicUnit(value: string): number {
   return stableEffectsHash(value) / 0x100000000
 }
 
+function resolveDeterministicModifierMask(role: CanvasFractureEffectRole, identity: string): number {
+  if (role === 'clean') return 0
+  let mask = 0
+  const include = (modifier: CanvasFracturesEffectModifierName, threshold: number) => {
+    if (deterministicUnit(`${identity}|modifier:${modifier}`) < threshold) {
+      mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS[modifier]
+    }
+  }
+  if (role === 'texture') mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.posterize
+  else include('posterize', 0.28)
+  if (role === 'glow' || role === 'luma') mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.hueShift
+  else include('hueShift', 0.34)
+  if (role === 'luma') mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.duotone
+  else include('duotone', 0.3)
+  if (role === 'outline' || role === 'displacement') mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.shadow
+  else include('shadow', 0.44)
+  if (role === 'glitch' || role === 'displacement') mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.duplicate
+  else include('duplicate', 0.3)
+  if (role === 'glitch') mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.flash
+  else include('flash', 0.16)
+  if (role === 'glow') mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.blur
+  else include('blur', role === 'texture' ? 0.4 : 0.2)
+  if (role === 'texture' && !canvasFracturesHasModifier(mask, 'blur')) mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.sharpen
+  else include('sharpen', 0.2)
+  if (role === 'glitch' || role === 'texture') mask |= CANVAS_FRACTURES_EFFECT_MODIFIERS.dissolve
+  else include('dissolve', 0.22)
+  return mask
+}
+
+function resolveDeterministicBlendMode(role: CanvasFractureEffectRole, identity: string): CanvasFractureBlendMode {
+  if (role === 'clean' || role === 'outline') return 'normal'
+  const pick = deterministicUnit(`${identity}|blend-mode`)
+  if (role === 'glow') return pick < 0.5 ? 'screen' : 'additive'
+  if (role === 'glitch') return pick < 0.4 ? 'difference' : pick < 0.75 ? 'exclusion' : 'screen'
+  if (role === 'luma') return pick < 0.7 ? 'screen' : 'normal'
+  if (role === 'displacement') return pick < 0.35 ? 'difference' : 'normal'
+  return pick < 0.28 ? 'exclusion' : 'normal'
+}
+
 export function resolveCanvasFracturesEffectAssignment(input: {
   presetId: string
   sourceIdentity: string
@@ -116,6 +221,8 @@ export function resolveCanvasFracturesEffectAssignment(input: {
     directionX: Math.cos(angle),
     directionY: Math.sin(angle),
     phase: deterministicUnit(`${identity}|phase`),
+    modifiers: resolveDeterministicModifierMask(role, identity),
+    blendMode: resolveDeterministicBlendMode(role, identity),
   }
 }
 
@@ -164,6 +271,219 @@ function hexToRgb(hex: string): readonly [number, number, number] {
   ]
 }
 
+function mixNumber(a: number, b: number, amount: number): number {
+  return a + (b - a) * clamp01(amount)
+}
+
+/**
+ * The one canonical macro resolver. Render backends consume only this resolved
+ * structure and never independently reinterpret user-facing macro values.
+ */
+export function resolveCanvasFracturesEffectMacros(
+  settings: CanvasFracturesEffectSettings,
+): CanvasFracturesResolvedEffectSettings {
+  const intensity = clamp01(settings.intensity)
+  const glow = intensity * clamp01(settings.glow)
+  const glitch = intensity * clamp01(settings.glitch)
+  const texture = intensity * clamp01(settings.texture)
+  const trails = intensity * clamp01(settings.trails)
+  const depth = intensity * clamp01(settings.depth)
+  const duplication = intensity * clamp01(settings.duplication)
+  const colorTreatment = intensity * clamp01(settings.colorTreatment)
+  const posterization = clamp01(Math.max(texture * 0.82, colorTreatment * 0.5))
+  const quality = settings.quality
+  const budget = resolveCanvasFracturesQualityBudget(quality)
+  const levelSpan = quality === 'low' ? 8 : quality === 'high' ? 13 : 10
+  const flashTrigger = settings.reducedMotion ? 0 : clamp01(settings.flashTrigger ?? 0)
+  return {
+    intensity,
+    outlineIntensity: clamp01(glow * (0.3 + clamp01(settings.outlineIntensity) * 0.7)),
+    outlineThickness: clamp01(0.15 + clamp01(settings.outlineThickness) * 0.85),
+    bloomIntensity: clamp01(glow * (0.35 + clamp01(settings.bloomIntensity) * 0.65)),
+    rgbSplit: clamp01(glitch * (0.3 + clamp01(settings.rgbSplit) * 0.7)),
+    lumaMode: settings.lumaMode,
+    lumaThreshold: clamp01(settings.lumaThreshold),
+    displacement: clamp01(glitch * (0.28 + clamp01(settings.displacement) * 0.72)),
+    pixelation: clamp01(texture * (0.25 + clamp01(settings.pixelation) * 0.75)),
+    scanlines: clamp01(texture * (0.25 + clamp01(settings.scanlines) * 0.75)),
+    noise: clamp01(texture * (0.25 + clamp01(settings.noise) * 0.75)),
+    posterization,
+    posterizeLevels: Math.max(2, Math.min(16, Math.round(16 - posterization * levelSpan))),
+    trailOpacity: clamp01(trails * 0.72),
+    trailPersistence: trails <= 1e-4 ? 0 : Math.min(0.9, mixNumber(0.28, 0.88, trails)),
+    hueShift: colorTreatment * 0.34,
+    duotone: colorTreatment * 0.86,
+    depth,
+    shadowOffsetPx: depth * 18,
+    shadowBlurPx: depth * (quality === 'low' ? 5 : quality === 'high' ? 18 : 11),
+    shadowOpacity: depth * 0.58,
+    parallaxPx: depth * 12,
+    depthScale: depth * 0.08,
+    duplication,
+    copyOpacity: duplication * 0.62,
+    copyOffsetPx: duplication * (quality === 'low' ? 10 : quality === 'high' ? 28 : 18),
+    flash: Math.min(0.52, glitch * flashTrigger * 0.65),
+    blur: texture * 0.52,
+    sharpen: texture * 0.62,
+    dissolve: clamp01(Math.max(glitch * 0.64, texture * 0.38)),
+    quality,
+    budget,
+  }
+}
+
+export function resolveCanvasFracturesFragmentEffects(input: {
+  assignment: CanvasFractureEffectAssignment
+  settings: CanvasFracturesResolvedEffectSettings
+  fragmentOrdinal: number
+}): CanvasFracturesResolvedFragmentEffects {
+  const { assignment, settings } = input
+  const clean = assignment.role === 'clean' || settings.intensity <= 1e-5
+  if (clean) {
+    return {
+      blendMode: 'normal',
+      posterization: 0,
+      posterizeLevels: settings.posterizeLevels,
+      hueShift: 0,
+      duotone: 0,
+      shadow: 0,
+      shadowOffsetPx: 0,
+      shadowBlurPx: 0,
+      duplicateCount: 0,
+      copyOpacity: 0,
+      copyOffsetPx: 0,
+      flash: 0,
+      blur: 0,
+      sharpen: 0,
+      dissolve: 0,
+    }
+  }
+  const ordinal = Math.max(0, Math.floor(input.fragmentOrdinal))
+  const budget = settings.budget
+  const expensiveAllowed = ordinal < budget.maxExpensiveFragments
+  const blurAllowed = expensiveAllowed && budget.maxBlurPasses > 0 && ordinal < budget.maxBlurFragments
+  const sharpenAllowed = expensiveAllowed && budget.maxSharpenPasses > 0 && ordinal < budget.maxSharpenFragments
+  const duplicateCount = canvasFracturesHasModifier(assignment.modifiers, 'duplicate')
+    ? Math.min(budget.maxDuplicateCopies, Math.floor(settings.duplication * (budget.maxDuplicateCopies + 0.999)))
+    : 0
+  const hueSign = (assignment.seed & 1) === 0 ? -1 : 1
+  let blur = blurAllowed && canvasFracturesHasModifier(assignment.modifiers, 'blur') ? settings.blur : 0
+  let sharpen = sharpenAllowed && canvasFracturesHasModifier(assignment.modifiers, 'sharpen') ? settings.sharpen : 0
+  if (blur > 0 && sharpen > 0) {
+    if ((assignment.seed & 2) === 0) sharpen = 0
+    else blur = 0
+  }
+  return {
+    blendMode: assignment.blendMode,
+    posterization: canvasFracturesHasModifier(assignment.modifiers, 'posterize') ? settings.posterization : 0,
+    posterizeLevels: settings.posterizeLevels,
+    hueShift: canvasFracturesHasModifier(assignment.modifiers, 'hueShift')
+      ? settings.hueShift * hueSign * (0.55 + assignment.phase * 0.45)
+      : 0,
+    duotone: canvasFracturesHasModifier(assignment.modifiers, 'duotone')
+      ? settings.duotone * (0.6 + assignment.phase * 0.4)
+      : 0,
+    shadow: expensiveAllowed && canvasFracturesHasModifier(assignment.modifiers, 'shadow') ? settings.depth : 0,
+    shadowOffsetPx: settings.shadowOffsetPx * (0.7 + assignment.phase * 0.6),
+    shadowBlurPx: settings.shadowBlurPx * (budget.shadowQuality === 0 ? 0.25 : budget.shadowQuality === 1 ? 0.65 : 1),
+    duplicateCount,
+    copyOpacity: settings.copyOpacity * (0.7 + assignment.phase * 0.3),
+    copyOffsetPx: settings.copyOffsetPx * (0.65 + assignment.phase * 0.7),
+    flash: canvasFracturesHasModifier(assignment.modifiers, 'flash') ? settings.flash : 0,
+    blur,
+    sharpen,
+    dissolve: canvasFracturesHasModifier(assignment.modifiers, 'dissolve')
+      ? settings.dissolve * (0.62 + assignment.phase * 0.38)
+      : 0,
+  }
+}
+
+export function resolveCanvasFracturesTrailBufferSize(input: {
+  pixelWidth: number
+  pixelHeight: number
+  budget: CanvasFracturesQualityBudget
+}): { width: number; height: number } {
+  const sourceWidth = Math.max(1, Math.round(input.pixelWidth))
+  const sourceHeight = Math.max(1, Math.round(input.pixelHeight))
+  const scale = Math.min(
+    1,
+    input.budget.trailScale,
+    input.budget.trailMaxWidth / sourceWidth,
+    input.budget.trailMaxHeight / sourceHeight,
+  )
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale)),
+  }
+}
+
+export function resolveCanvasFracturesUvTransform(
+  localX: number,
+  localY: number,
+  mirrorX: boolean,
+  mirrorY: boolean,
+): { x: number; y: number } {
+  const x = clamp01(localX)
+  const y = clamp01(localY)
+  return { x: mirrorX ? 1 - x : x, y: mirrorY ? 1 - y : y }
+}
+
+export function resolveCanvasFracturesDissolveSample(seed: number, x: number, y: number): number {
+  const xi = Math.floor(Number.isFinite(x) ? x : 0)
+  const yi = Math.floor(Number.isFinite(y) ? y : 0)
+  let hash = Math.imul((seed >>> 0) ^ Math.imul(xi, 0x45d9f3b), 0x45d9f3b)
+  hash = Math.imul(hash ^ Math.imul(yi, 0x27d4eb2d), 0x27d4eb2d)
+  return ((hash ^ (hash >>> 15)) >>> 0) / 0x100000000
+}
+
+function rotateHue(color: readonly [number, number, number], amount: number): readonly [number, number, number] {
+  const angle = amount * Math.PI * 2
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const [r, g, b] = color
+  return [
+    clamp01((0.213 + cos * 0.787 - sin * 0.213) * r + (0.715 - cos * 0.715 - sin * 0.715) * g + (0.072 - cos * 0.072 + sin * 0.928) * b),
+    clamp01((0.213 - cos * 0.213 + sin * 0.143) * r + (0.715 + cos * 0.285 + sin * 0.14) * g + (0.072 - cos * 0.072 - sin * 0.283) * b),
+    clamp01((0.213 - cos * 0.213 - sin * 0.787) * r + (0.715 - cos * 0.715 + sin * 0.715) * g + (0.072 + cos * 0.928 + sin * 0.072) * b),
+  ]
+}
+
+export function applyCanvasFracturesPixelTreatment(input: {
+  rgba: readonly [number, number, number, number]
+  posterization: number
+  posterizeLevels: number
+  hueShift: number
+  duotone: number
+  primary: readonly [number, number, number]
+  supporting: readonly [number, number, number]
+  dissolveMask?: number
+}): readonly [number, number, number, number] {
+  const originalAlpha = Math.min(255, Math.max(0, Math.round(input.rgba[3])))
+  let color: readonly [number, number, number] = [
+    clamp01(input.rgba[0] / 255),
+    clamp01(input.rgba[1] / 255),
+    clamp01(input.rgba[2] / 255),
+  ]
+  const posterization = clamp01(input.posterization)
+  if (posterization > 0) {
+    const levels = Math.max(2, Math.min(32, Math.round(input.posterizeLevels)))
+    color = color.map(value => mixNumber(value, Math.round(value * (levels - 1)) / (levels - 1), posterization)) as [number, number, number]
+  }
+  if (Math.abs(input.hueShift) > 1e-6) color = rotateHue(color, input.hueShift)
+  const duotone = clamp01(input.duotone)
+  if (duotone > 0) {
+    const luma = clamp01(color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722)
+    const mapped = input.primary.map((component, index) => mixNumber(component, input.supporting[index], luma)) as [number, number, number]
+    color = color.map((component, index) => mixNumber(component, mapped[index], duotone)) as [number, number, number]
+  }
+  const dissolveMask = clamp01(input.dissolveMask ?? 1)
+  return [
+    Math.round(color[0] * 255),
+    Math.round(color[1] * 255),
+    Math.round(color[2] * 255),
+    Math.round(originalAlpha * dissolveMask),
+  ]
+}
+
 export interface CanvasFracturesPackedEffectParams {
   role: number
   intensity: number
@@ -177,6 +497,14 @@ export interface CanvasFracturesPackedEffectParams {
   pixelation: number
   scanlines: number
   noise: number
+  posterization: number
+  posterizeLevels: number
+  hueShift: number
+  duotone: number
+  flash: number
+  blur: number
+  sharpen: number
+  dissolve: number
   quality: number
   directionX: number
   directionY: number
@@ -210,13 +538,13 @@ const QUALITY_INDEX: Record<CanvasFractureQualityMode, number> = {
 
 export function packCanvasFracturesEffectParams(input: {
   assignment: CanvasFractureEffectAssignment
-  settings: CanvasFracturesEffectSettings
+  settings: CanvasFracturesResolvedEffectSettings
+  fragmentEffects: CanvasFracturesResolvedFragmentEffects
   palette: CanvasFracturesResolvedPalette
 }): CanvasFracturesPackedEffectParams {
-  const intensity = clamp01(input.settings.intensity)
   return {
     role: ROLE_INDEX[input.assignment.role],
-    intensity,
+    intensity: clamp01(input.settings.intensity),
     outlineThickness: clamp01(input.settings.outlineThickness),
     outlineIntensity: clamp01(input.settings.outlineIntensity),
     bloomIntensity: clamp01(input.settings.bloomIntensity),
@@ -227,6 +555,14 @@ export function packCanvasFracturesEffectParams(input: {
     pixelation: clamp01(input.settings.pixelation),
     scanlines: clamp01(input.settings.scanlines),
     noise: clamp01(input.settings.noise),
+    posterization: clamp01(input.fragmentEffects.posterization),
+    posterizeLevels: Math.max(2, Math.min(32, input.fragmentEffects.posterizeLevels)),
+    hueShift: Math.max(-1, Math.min(1, input.fragmentEffects.hueShift)),
+    duotone: clamp01(input.fragmentEffects.duotone),
+    flash: clamp01(input.fragmentEffects.flash),
+    blur: clamp01(input.fragmentEffects.blur),
+    sharpen: clamp01(input.fragmentEffects.sharpen),
+    dissolve: clamp01(input.fragmentEffects.dissolve),
     quality: QUALITY_INDEX[input.settings.quality],
     directionX: Number.isFinite(input.assignment.directionX) ? input.assignment.directionX : 1,
     directionY: Number.isFinite(input.assignment.directionY) ? input.assignment.directionY : 0,

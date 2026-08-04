@@ -755,7 +755,7 @@ export function composeCanvasFracturesPlan(
   })
 
   const effectIdentity = topology.fragments
-    .map(fragment => `${fragment.id}:${fragment.effectRole}:${fragment.effectAssignment.seed}`)
+    .map(fragment => `${fragment.id}:${fragment.effectRole}:${fragment.effectAssignment.seed}:${fragment.effectAssignment.modifiers}:${fragment.effectAssignment.blendMode}`)
     .join('|')
 
   return {

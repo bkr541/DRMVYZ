@@ -15,6 +15,7 @@ interface CanvasFracturesRendererImplementation {
   readonly planIdentity: string | null
   resize(width: number, height: number, dpr: number): void
   render(params: CanvasFracturesRenderParams): boolean
+  invalidateFeedback(): void
   dispose(): void
 }
 
@@ -50,6 +51,10 @@ export class CanvasFracturesRenderer {
 
   render(params: CanvasFracturesRenderParams): boolean {
     return this.implementation.render(params)
+  }
+
+  invalidateFeedback(): void {
+    this.implementation.invalidateFeedback()
   }
 
   dispose(): void {
