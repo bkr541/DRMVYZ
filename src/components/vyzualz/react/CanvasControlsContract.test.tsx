@@ -13,6 +13,8 @@ vi.mock('../../../context/AudioEngineContext', () => ({
     currentTrackId: null,
     currentAnalysis: null,
     duration: 0,
+    currentTime: 12.5,
+    getCurrentTime: () => 12.5,
   }),
 }))
 
@@ -35,7 +37,21 @@ afterEach(() => {
 describe('CANVAS right-panel control contract', () => {
   it('switches the active surface through the explicit renderer-kind contract', () => {
     const originalGetContext = HTMLCanvasElement.prototype.getContext
-    HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as typeof HTMLCanvasElement.prototype.getContext
+    const originalRequestAnimationFrame = window.requestAnimationFrame
+    const originalCancelAnimationFrame = window.cancelAnimationFrame
+    const fracturesContext = {
+      imageSmoothingEnabled: false,
+      imageSmoothingQuality: 'low',
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D
+    HTMLCanvasElement.prototype.getContext = vi.fn(function getContext(this: HTMLCanvasElement, contextId: string) {
+      return contextId === '2d' && this.classList.contains('rv-canvas-fractures-renderer-layer')
+        ? fracturesContext
+        : null
+    }) as typeof HTMLCanvasElement.prototype.getContext
+    window.requestAnimationFrame = vi.fn(() => 1)
+    window.cancelAnimationFrame = vi.fn()
 
     try {
       useReactStore.setState({
@@ -53,7 +69,12 @@ describe('CANVAS right-panel control contract', () => {
       act(() => root.render(<CanvasEngineSurface isPlaying={false} isPaused />))
       expect(host.querySelector('[data-renderer-kind="fragmentCollage"]')).not.toBeNull()
       expect(host.querySelector('canvas.rv-canvas-fractures-renderer-layer[data-renderer-backend="canvas2d"]')).not.toBeNull()
-      expect(host.querySelector('[data-fractures-source-path="raster-image"]')).not.toBeNull()
+      const fracturesCanvas = host.querySelector<HTMLCanvasElement>('canvas.rv-canvas-fractures-renderer-layer')
+      expect(fracturesCanvas?.dataset.fracturesSourcePath).toBe('raster-image')
+      expect(fracturesCanvas?.dataset.fracturesTopologyId).toBeTruthy()
+      expect(fracturesCanvas?.dataset.fracturesLayoutId).toBeTruthy()
+      expect(fracturesCanvas?.dataset.fracturesPlacementMode).toBe('balanced')
+      expect(fracturesCanvas?.dataset.fracturesTransitionProgress).toBe('1')
 
       act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
       expect(host.querySelector('[data-renderer-kind="particleAura"]')).not.toBeNull()
@@ -63,6 +84,8 @@ describe('CANVAS right-panel control contract', () => {
       expect(host.querySelector('canvas.rv-canvas-fractures-renderer-layer')).toBeNull()
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext
+      window.requestAnimationFrame = originalRequestAnimationFrame
+      window.cancelAnimationFrame = originalCancelAnimationFrame
     }
   })
 
@@ -146,6 +169,70 @@ describe('CANVAS right-panel control contract', () => {
       .map(button => button.textContent?.trim())
     expect(standardLabels).toContain('CANVAS React Controls')
     expect(standardLabels).not.toContain('Fractures Controls')
+  })
+
+  it('wires Fractures manual commands into persisted canonical state', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-fractures')
+    act(() => root.render(<CanvasEngineFxPanel />))
+
+    const findAction = (label: string) => {
+      const labelNode = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+        .find(node => node.textContent?.trim() === label)
+      return labelNode?.closest('.rv-canvas-react-control-help')
+        ?.querySelector<HTMLButtonElement>('button.rv-canvas-fractures-action') ?? null
+    }
+
+    const initial = useReactStore.getState().canvasPresetSettings
+    act(() => findAction('Shuffle Layout')?.click())
+    let settings = useReactStore.getState().canvasPresetSettings
+    expect(settings).toMatchObject({
+      fractureTopologyRevision: initial.fractureTopologyRevision,
+      fractureLayoutRevision: initial.fractureLayoutRevision + 1,
+      fractureLastManualAction: 'shuffleLayout',
+      fractureManualTransitionPositionSec: 12.5,
+      fractureReturnToAnchor: false,
+    })
+
+    act(() => findAction('Refracture')?.click())
+    settings = useReactStore.getState().canvasPresetSettings
+    expect(settings).toMatchObject({
+      fractureTopologyRevision: initial.fractureTopologyRevision + 1,
+      fractureLayoutRevision: initial.fractureLayoutRevision + 2,
+      fractureLastManualAction: 'refracture',
+      fractureManualTransitionPositionSec: 12.5,
+    })
+
+    act(() => findAction('Return to Anchor')?.click())
+    settings = useReactStore.getState().canvasPresetSettings
+    expect(settings).toMatchObject({
+      fractureTopologyRevision: initial.fractureTopologyRevision + 1,
+      fractureLayoutRevision: initial.fractureLayoutRevision + 3,
+      fractureLastManualAction: 'returnToAnchor',
+      fractureReturnToAnchor: true,
+    })
+
+    const freezeLabel = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+      .find(node => node.textContent?.trim() === 'Freeze Layout')
+    const freezeToggle = freezeLabel?.closest('.rv-canvas-react-control-help')
+      ?.querySelector<HTMLButtonElement>('button.rv-ctrl-toggle') ?? null
+    act(() => freezeToggle?.click())
+    settings = useReactStore.getState().canvasPresetSettings
+    expect(settings).toMatchObject({
+      fractureFreezeLayout: true,
+      fractureFreezePositionSec: 12.5,
+    })
+
+    const liveFreezeToggle = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+      .find(node => node.textContent?.trim() === 'Freeze Layout')
+      ?.closest('.rv-canvas-react-control-help')
+      ?.querySelector<HTMLButtonElement>('button.rv-ctrl-toggle') ?? null
+    act(() => liveFreezeToggle?.click())
+    settings = useReactStore.getState().canvasPresetSettings
+    expect(settings).toMatchObject({
+      fractureFreezeLayout: false,
+      fractureLastManualAction: 'releaseFreeze',
+      fractureManualTransitionPositionSec: 12.5,
+    })
   })
 
   it('places explicit info triggers beside CANVAS controls without changing the control contract', () => {

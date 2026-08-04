@@ -20,7 +20,7 @@ function planInput(overrides: Partial<CanvasFracturesPlanInput> = {}): CanvasFra
     focusX: 0.5,
     focusY: 0.5,
     composition: 0.25,
-    placementMode: 'editorialGrid',
+    placementMode: 'balanced',
     quality: 'balanced',
     anchorMode: 'alwaysVisible',
     ...overrides,

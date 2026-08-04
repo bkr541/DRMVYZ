@@ -68,6 +68,7 @@ import type {
   CanvasFractureColorSourceMode,
   CanvasFractureEffectRole,
   CanvasFractureMode,
+  CanvasFractureManualAction,
   CanvasFracturePlacementMode,
   CanvasFractureQualityMode,
   CanvasFractureQuantizeInterval,
@@ -3644,9 +3645,14 @@ function normalizeCanvasFractureAnchorMode(value: unknown): CanvasFractureAnchor
 }
 
 function normalizeCanvasFracturePlacementMode(value: unknown): CanvasFracturePlacementMode {
-  return value === 'centerBurst' || value === 'layeredScatter' || value === 'randomMix' || value === 'editorialGrid'
-    ? value
-    : DEFAULT_CANVAS_PRESET_SETTINGS.fracturePlacementMode
+  if (value === 'balanced' || value === 'offscreenSpill' || value === 'heavyOverlap' || value === 'anchorCover' || value === 'repeatedCrops' || value === 'mirrorFlip' || value === 'randomMix') {
+    return value
+  }
+  // Lazy migration for the Stage 1 placement identifiers.
+  if (value === 'editorialGrid') return 'balanced'
+  if (value === 'centerBurst') return 'anchorCover'
+  if (value === 'layeredScatter') return 'offscreenSpill'
+  return DEFAULT_CANVAS_PRESET_SETTINGS.fracturePlacementMode
 }
 
 function normalizeCanvasFractureTransitionMode(value: unknown): CanvasFractureTransitionMode {
@@ -3668,9 +3674,15 @@ function normalizeCanvasFractureQuality(value: unknown): CanvasFractureQualityMo
 }
 
 function normalizeCanvasFractureInterval(value: unknown, fallback: CanvasFractureQuantizeInterval): CanvasFractureQuantizeInterval {
-  return value === 'beat' || value === 'bar' || value === '2bars' || value === '4bars' || value === '8bars' || value === 'section'
+  return value === 'manualOnly' || value === 'beat' || value === 'bar' || value === '2bars' || value === '4bars' || value === '8bars' || value === '16bars' || value === 'section'
     ? value
     : fallback
+}
+
+function normalizeCanvasFractureManualAction(value: unknown): CanvasFractureManualAction {
+  return value === 'refracture' || value === 'shuffleLayout' || value === 'returnToAnchor' || value === 'releaseFreeze' || value === 'none'
+    ? value
+    : 'none'
 }
 
 function normalizeCanvasHexColor(value: unknown, fallback: string): string {
@@ -3782,8 +3794,15 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     fractureTransitionSpeed: clampCanvasNumber(source.fractureTransitionSpeed, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransitionSpeed, 0, 1),
     fractureStaggerAmount: clampCanvasNumber(source.fractureStaggerAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureStaggerAmount, 0, 1),
     fractureZoomAmount: clampCanvasNumber(source.fractureZoomAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureZoomAmount, 0, 1),
-    fractureFreezeLayout: source.fractureFreezeLayout === true,
-    fractureReturnToAnchor: source.fractureReturnToAnchor !== false,
+    fractureFreezeLayout: sourceSchemaVersion >= 4 && source.fractureFreezeLayout === true,
+    fractureFreezePositionSec: sourceSchemaVersion >= 4
+      ? Math.max(0, finiteCanvasNumber(source.fractureFreezePositionSec, 0))
+      : 0,
+    fractureReturnToAnchor: sourceSchemaVersion >= 4 && source.fractureReturnToAnchor === true,
+    fractureLastManualAction: sourceSchemaVersion >= 4 ? normalizeCanvasFractureManualAction(source.fractureLastManualAction) : 'none',
+    fractureManualTransitionPositionSec: sourceSchemaVersion >= 4
+      ? Math.max(0, finiteCanvasNumber(source.fractureManualTransitionPositionSec, 0))
+      : 0,
     fractureTopologyRevision: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(finiteCanvasNumber(source.fractureTopologyRevision, 0)))),
     fractureLayoutRevision: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(finiteCanvasNumber(source.fractureLayoutRevision, 0)))),
     fractureEffectsIntensity: clampCanvasNumber(source.fractureEffectsIntensity, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectsIntensity, 0, 1),

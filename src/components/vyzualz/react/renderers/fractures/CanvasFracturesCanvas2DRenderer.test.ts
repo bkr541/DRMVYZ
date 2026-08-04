@@ -46,7 +46,7 @@ function makePlan(anchorMode: CanvasFracturesPlanInput['anchorMode'] = 'fullyFra
     focusX: 0.5,
     focusY: 0.5,
     composition: 0.4,
-    placementMode: 'editorialGrid',
+    placementMode: 'balanced',
     quality: 'low',
     anchorMode,
   })

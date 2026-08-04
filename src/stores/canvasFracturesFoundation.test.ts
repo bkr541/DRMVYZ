@@ -68,7 +68,10 @@ describe('Fractures CANVAS foundation', () => {
       fractureStaggerAmount: -1,
       fractureZoomAmount: 3,
       fractureFreezeLayout: 'yes',
-      fractureReturnToAnchor: false,
+      fractureFreezePositionSec: -3,
+      fractureReturnToAnchor: true,
+      fractureLastManualAction: 'explode',
+      fractureManualTransitionPositionSec: -5,
       fractureTopologyRevision: -9,
       fractureLayoutRevision: Number.MAX_SAFE_INTEGER * 2,
       fractureEffectsIntensity: 3,
@@ -109,7 +112,10 @@ describe('Fractures CANVAS foundation', () => {
       fractureStaggerAmount: 0,
       fractureZoomAmount: 1,
       fractureFreezeLayout: false,
+      fractureFreezePositionSec: 0,
       fractureReturnToAnchor: false,
+      fractureLastManualAction: 'none',
+      fractureManualTransitionPositionSec: 0,
       fractureTopologyRevision: 0,
       fractureLayoutRevision: Number.MAX_SAFE_INTEGER,
       fractureEffectsIntensity: 1,
@@ -159,6 +165,26 @@ describe('Fractures CANVAS foundation', () => {
     })
   })
 
+  it('migrates the Stage 1 placement identifiers lazily without preserving command state', () => {
+    const editorial = normalizeCanvasPresetSettings({
+      schemaVersion: 3,
+      fracturePlacementMode: 'editorialGrid',
+      fractureReturnToAnchor: true,
+      fractureFreezeLayout: true,
+      fractureFreezePositionSec: 41,
+    })
+    const burst = normalizeCanvasPresetSettings({ schemaVersion: 3, fracturePlacementMode: 'centerBurst' })
+    const scatter = normalizeCanvasPresetSettings({ schemaVersion: 3, fracturePlacementMode: 'layeredScatter' })
+
+    expect(editorial.fracturePlacementMode).toBe('balanced')
+    expect(burst.fracturePlacementMode).toBe('anchorCover')
+    expect(scatter.fracturePlacementMode).toBe('offscreenSpill')
+    expect(editorial.fractureReturnToAnchor).toBe(false)
+    expect(editorial.fractureFreezeLayout).toBe(false)
+    expect(editorial.fractureFreezePositionSec).toBe(0)
+    expect(editorial.fractureLastManualAction).toBe('none')
+  })
+
   it('round-trips every Fractures choice through the persisted project merge path', () => {
     useReactStore.getState().selectCanvasPreset('canvas-fractures')
     useReactStore.getState().setCanvasPresetSettings({
@@ -171,7 +197,7 @@ describe('Fractures CANVAS foundation', () => {
       fractureComposition: 0.88,
       fracturePlacementMode: 'randomMix',
       fractureTopologyInterval: '8bars',
-      fractureLayoutInterval: '2bars',
+      fractureLayoutInterval: '16bars',
       fractureVariationSeed: 424242,
       fractureQuality: 'high',
       fractureMotionAmount: 0.77,
@@ -180,7 +206,10 @@ describe('Fractures CANVAS foundation', () => {
       fractureStaggerAmount: 0.31,
       fractureZoomAmount: 0.52,
       fractureFreezeLayout: true,
-      fractureReturnToAnchor: false,
+      fractureFreezePositionSec: 37.25,
+      fractureReturnToAnchor: true,
+      fractureLastManualAction: 'returnToAnchor',
+      fractureManualTransitionPositionSec: 37.25,
       fractureTopologyRevision: 4,
       fractureLayoutRevision: 7,
       fractureEffectsIntensity: 0.81,

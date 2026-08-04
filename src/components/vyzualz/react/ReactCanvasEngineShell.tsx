@@ -2210,6 +2210,11 @@ export function CanvasEngineSurface({
             mediaType={activeItem.type}
             mediaRevision={activeItem.mediaRevision ?? 0}
             trackIdentity={activeAudioTrackId}
+            trackAnalysis={trackAnalysis}
+            trackSections={trackSections}
+            getAudioTime={getAudioTime}
+            isPlaying={isPlaying}
+            isPaused={isPaused}
             fitMode={settings.fitMode}
             sourceTransform={{
               scale: settings.scale,
@@ -2264,19 +2269,26 @@ const CANVAS_FRACTURE_ANCHOR_OPTIONS: Array<{ value: CanvasFractureAnchorMode; l
 ]
 
 const CANVAS_FRACTURE_PLACEMENT_OPTIONS: Array<{ value: CanvasFracturePlacementMode; label: string }> = [
-  { value: 'editorialGrid', label: 'Editorial Grid' },
-  { value: 'centerBurst', label: 'Center Burst' },
-  { value: 'layeredScatter', label: 'Layered Scatter' },
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'offscreenSpill', label: 'Offscreen Spill' },
+  { value: 'heavyOverlap', label: 'Heavy Overlap' },
+  { value: 'anchorCover', label: 'Anchor Cover' },
+  { value: 'repeatedCrops', label: 'Repeated Crops' },
+  { value: 'mirrorFlip', label: 'Mirror and Flip' },
   { value: 'randomMix', label: 'Random Mix' },
 ]
 
-const CANVAS_FRACTURE_INTERVAL_OPTIONS: Array<{ value: CanvasFractureQuantizeInterval; label: string }> = [
-  { value: 'beat', label: 'Every Beat' },
-  { value: 'bar', label: 'Every Bar' },
-  { value: '2bars', label: 'Every 2 Bars' },
-  { value: '4bars', label: 'Every 4 Bars' },
+const CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS: Array<{ value: CanvasFractureQuantizeInterval; label: string }> = [
+  { value: 'manualOnly', label: 'Manual Only' },
+  { value: 'section', label: 'Every Section' },
+  { value: '16bars', label: 'Every 16 Bars' },
   { value: '8bars', label: 'Every 8 Bars' },
-  { value: 'section', label: 'Section Change' },
+  { value: '4bars', label: 'Every 4 Bars' },
+]
+
+const CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS: Array<{ value: CanvasFractureQuantizeInterval; label: string }> = [
+  ...CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS,
+  { value: 'bar', label: 'Every Bar' },
 ]
 
 const CANVAS_FRACTURE_TRANSITION_OPTIONS: Array<{ value: CanvasFractureTransitionMode; label: string }> = [
@@ -3011,7 +3023,15 @@ function CanvasFracturesControls({
   resetSettings: () => void
   customized: boolean
 }) {
+  const audioEngine = useSharedAudio()
   const manualColorsEnabled = settings.fractureColorSourceMode === 'manualOverride'
+  const getActionPositionSec = () => {
+    const direct = audioEngine.getCurrentTime?.()
+    if (typeof direct === 'number' && Number.isFinite(direct)) return Math.max(0, direct)
+    return typeof audioEngine.currentTime === 'number' && Number.isFinite(audioEngine.currentTime)
+      ? Math.max(0, audioEngine.currentTime)
+      : 0
+  }
   const setRoleWeight = (role: CanvasFractureEffectRole, value: number) => {
     setSettings({
       fractureEffectRoleWeights: {
@@ -3060,14 +3080,14 @@ function CanvasFracturesControls({
         <CanvasHelpControl helpId="react.canvas.fractures.structure.composition" currentValue={formatCanvasPercentage(settings.fractureComposition)} className="rv-canvas-react-control-help">
           <SliderRow label="Composition" value={settings.fractureComposition} onChange={fractureComposition => setSettings({ fractureComposition })} min={0} max={1} step={0.01} color="#d8b95a" description="0% is editorial and restrained; 100% is chaotic." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.placementMode" currentValue={CANVAS_FRACTURE_PLACEMENT_OPTIONS.find(option => option.value === settings.fracturePlacementMode)?.label ?? 'Editorial Grid'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.placementMode" currentValue={CANVAS_FRACTURE_PLACEMENT_OPTIONS.find(option => option.value === settings.fracturePlacementMode)?.label ?? 'Balanced'} currentValueTone="accent" className="rv-canvas-react-control-help">
           <SelectRow label="Placement Mode" value={settings.fracturePlacementMode} onChange={value => setSettings({ fracturePlacementMode: value as CanvasFracturePlacementMode })} options={CANVAS_FRACTURE_PLACEMENT_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.topologyInterval" currentValue={CANVAS_FRACTURE_INTERVAL_OPTIONS.find(option => option.value === settings.fractureTopologyInterval)?.label ?? 'Every 4 Bars'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Topology Change" value={settings.fractureTopologyInterval} onChange={value => setSettings({ fractureTopologyInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_INTERVAL_OPTIONS} />
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.topologyInterval" currentValue={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS.find(option => option.value === settings.fractureTopologyInterval)?.label ?? 'Every 4 Bars'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Topology Change" value={settings.fractureTopologyInterval} onChange={value => setSettings({ fractureTopologyInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.layoutInterval" currentValue={CANVAS_FRACTURE_INTERVAL_OPTIONS.find(option => option.value === settings.fractureLayoutInterval)?.label ?? 'Every Bar'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Layout Change" value={settings.fractureLayoutInterval} onChange={value => setSettings({ fractureLayoutInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_INTERVAL_OPTIONS} />
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.layoutInterval" currentValue={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS.find(option => option.value === settings.fractureLayoutInterval)?.label ?? 'Every Bar'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Layout Change" value={settings.fractureLayoutInterval} onChange={value => setSettings({ fractureLayoutInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.variationSeed" currentValue={settings.fractureVariationSeed} className="rv-canvas-react-control-help">
           <NumberInputRow label="Variation Seed" value={settings.fractureVariationSeed} onChange={fractureVariationSeed => setSettings({ fractureVariationSeed })} min={0} max={999999} step={1} />
@@ -3093,14 +3113,59 @@ function CanvasFracturesControls({
         <CanvasHelpControl helpId="react.canvas.fractures.motion.zoom" currentValue={formatCanvasPercentage(settings.fractureZoomAmount)} className="rv-canvas-react-control-help">
           <SliderRow label="Zoom" value={settings.fractureZoomAmount} onChange={fractureZoomAmount => setSettings({ fractureZoomAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
         </CanvasHelpControl>
-        <CanvasFracturesActionControl helpId="react.canvas.fractures.motion.refracture" label="Refracture" value={settings.fractureTopologyRevision} description="Generates a new deterministic fragment topology without changing the user seed." onClick={() => setSettings({ fractureTopologyRevision: settings.fractureTopologyRevision + 1 })} />
-        <CanvasFracturesActionControl helpId="react.canvas.fractures.motion.shuffleLayout" label="Shuffle Layout" value={settings.fractureLayoutRevision} description="Generates a new deterministic arrangement while preserving the current fragment crops." onClick={() => setSettings({ fractureLayoutRevision: settings.fractureLayoutRevision + 1 })} />
+        <CanvasFracturesActionControl
+          helpId="react.canvas.fractures.motion.refracture"
+          label="Refracture"
+          value={settings.fractureTopologyRevision}
+          description="Creates a new deterministic topology and establishes a matching layout."
+          onClick={() => setSettings({
+            fractureTopologyRevision: settings.fractureTopologyRevision + 1,
+            fractureLayoutRevision: settings.fractureLayoutRevision + 1,
+            fractureReturnToAnchor: false,
+            fractureLastManualAction: 'refracture',
+            fractureManualTransitionPositionSec: getActionPositionSec(),
+          })}
+        />
+        <CanvasFracturesActionControl
+          helpId="react.canvas.fractures.motion.shuffleLayout"
+          label="Shuffle Layout"
+          value={settings.fractureLayoutRevision}
+          description="Creates a new deterministic placement plan while preserving every source crop."
+          onClick={() => setSettings({
+            fractureLayoutRevision: settings.fractureLayoutRevision + 1,
+            fractureReturnToAnchor: false,
+            fractureLastManualAction: 'shuffleLayout',
+            fractureManualTransitionPositionSec: getActionPositionSec(),
+          })}
+        />
         <CanvasHelpControl helpId="react.canvas.fractures.motion.freezeLayout" currentValue={settings.fractureFreezeLayout ? 'On' : 'Off'} currentValueLabel="Status" className="rv-canvas-react-control-help">
-          <ToggleRow label="Freeze Layout" value={settings.fractureFreezeLayout} onChange={fractureFreezeLayout => setSettings({ fractureFreezeLayout })} />
+          <ToggleRow
+            label="Freeze Layout"
+            value={settings.fractureFreezeLayout}
+            onChange={fractureFreezeLayout => {
+              const positionSec = getActionPositionSec()
+              setSettings(fractureFreezeLayout
+                ? { fractureFreezeLayout: true, fractureFreezePositionSec: positionSec }
+                : {
+                    fractureFreezeLayout: false,
+                    fractureLastManualAction: 'releaseFreeze',
+                    fractureManualTransitionPositionSec: positionSec,
+                  })
+            }}
+          />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.motion.returnToAnchor" currentValue={settings.fractureReturnToAnchor ? 'On' : 'Off'} currentValueLabel="Status" className="rv-canvas-react-control-help">
-          <ToggleRow label="Return to Anchor" value={settings.fractureReturnToAnchor} onChange={fractureReturnToAnchor => setSettings({ fractureReturnToAnchor })} />
-        </CanvasHelpControl>
+        <CanvasFracturesActionControl
+          helpId="react.canvas.fractures.motion.returnToAnchor"
+          label="Return to Anchor"
+          value={settings.fractureLayoutRevision}
+          description="Resolves an anchor-oriented target layout without replacing the current topology."
+          onClick={() => setSettings({
+            fractureLayoutRevision: settings.fractureLayoutRevision + 1,
+            fractureReturnToAnchor: true,
+            fractureLastManualAction: 'returnToAnchor',
+            fractureManualTransitionPositionSec: getActionPositionSec(),
+          })}
+        />
       </Collapsible>
 
       <Collapsible label="Effects" defaultOpen={false}>
@@ -3160,7 +3225,7 @@ function CanvasFracturesControls({
       </Collapsible>
 
       <div className="rv-canvas-engine-note">
-        Stage 1 uses a neutral synchronized-source placeholder. Fragment geometry, effects, audio animation, recording, and cast output arrive in later stages.
+        Fractures topology, quantized layouts, placement modes, and transitions are deterministic across playback, seeking, and looping. Effects, audio impulses, recording, and cast output remain deferred.
       </div>
     </Collapsible>
   )

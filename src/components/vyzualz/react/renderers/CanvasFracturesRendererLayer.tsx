@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useRef, type RefObject } from 'react'
-import type { CanvasFitMode, CanvasMediaItemType, CanvasPresetSettings } from '../ReactTypes'
-import { generateCanvasFracturesPlan } from './fractures/CanvasFracturesPlan'
+import { useEffect, useRef, type RefObject } from 'react'
+import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
+import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
+import type {
+  CanvasFitMode,
+  CanvasMediaItemType,
+  CanvasPresetSettings,
+  ReactTrackSection,
+} from '../ReactTypes'
 import { CanvasFracturesRenderer } from './fractures/CanvasFracturesRenderer'
+import { CanvasFracturesRuntime } from './fractures/CanvasFracturesRuntime'
 import type {
   CanvasFracturesSourceElement,
   CanvasFracturesSourceTransform,
@@ -14,6 +21,11 @@ export interface CanvasFracturesRendererLayerProps {
   mediaType: CanvasMediaItemType
   mediaRevision: number
   trackIdentity?: string | null
+  trackAnalysis?: TrackIntelligenceAnalysis | null
+  trackSections?: readonly ReactTrackSection[]
+  getAudioTime?: () => number
+  isPlaying: boolean
+  isPaused: boolean
   fitMode: CanvasFitMode
   sourceTransform: CanvasFracturesSourceTransform
   settings: CanvasPresetSettings
@@ -22,62 +34,24 @@ export interface CanvasFracturesRendererLayerProps {
   onStatusChange?: (message: string | null) => void
 }
 
-export function CanvasFracturesRendererLayer({
-  active,
-  sourceRef,
-  sourceIdentity,
-  mediaType,
-  mediaRevision,
-  trackIdentity,
-  fitMode,
-  sourceTransform,
-  settings,
-  outputOpacity = 1,
-  onPreviewReady,
-  onStatusChange,
-}: CanvasFracturesRendererLayerProps) {
+function finitePosition(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0
+}
+
+export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayerProps) {
+  const {
+    active,
+    sourceRef,
+    sourceIdentity,
+    mediaType,
+    mediaRevision,
+    trackIdentity,
+    onPreviewReady,
+    onStatusChange,
+  } = props
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const renderParamsRef = useRef({ fitMode, sourceTransform, outputOpacity })
-  renderParamsRef.current = { fitMode, sourceTransform, outputOpacity }
-  const plan = useMemo(() => generateCanvasFracturesPlan({
-    presetId: 'canvas-fractures',
-    sourceIdentity,
-    mediaType,
-    mediaRevision,
-    trackIdentity,
-    // Stage two intentionally keeps one arrangement across transport time. The
-    // topology/layout revisions are the deterministic reconstruction identity.
-    transportPositionSec: 0,
-    variationSeed: settings.fractureVariationSeed,
-    topologyRevision: settings.fractureTopologyRevision,
-    layoutRevision: settings.fractureLayoutRevision,
-    mode: settings.fractureMode,
-    intensity: settings.fractureIntensity,
-    focusProtection: settings.fractureFocusProtection,
-    focusX: settings.fractureFocusX,
-    focusY: settings.fractureFocusY,
-    composition: settings.fractureComposition,
-    placementMode: settings.fracturePlacementMode,
-    quality: settings.fractureQuality,
-    anchorMode: settings.fractureAnchorMode,
-  }), [
-    mediaRevision,
-    mediaType,
-    settings.fractureAnchorMode,
-    settings.fractureComposition,
-    settings.fractureFocusProtection,
-    settings.fractureFocusX,
-    settings.fractureFocusY,
-    settings.fractureIntensity,
-    settings.fractureLayoutRevision,
-    settings.fractureMode,
-    settings.fracturePlacementMode,
-    settings.fractureQuality,
-    settings.fractureTopologyRevision,
-    settings.fractureVariationSeed,
-    sourceIdentity,
-    trackIdentity,
-  ])
+  const livePropsRef = useRef(props)
+  livePropsRef.current = props
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -91,21 +65,105 @@ export function CanvasFracturesRendererLayer({
       return
     }
     const renderer = result.renderer
-    renderer.setPlan(plan)
+    const runtime = new CanvasFracturesRuntime()
     let frameId = 0
     let previewReady = false
+    let fallbackPositionSec = 0
+    let previousFrameNowSec: number | null = null
+    let lastPlanIdentity = ''
 
-    const draw = () => {
+    const draw = (frameNowMs = performance.now()) => {
+      const live = livePropsRef.current
       const bounds = canvas.parentElement?.getBoundingClientRect()
       const cssWidth = Math.max(1, Math.round(bounds?.width || 1280))
       const cssHeight = Math.max(1, Math.round(bounds?.height || 720))
       renderer.resize(cssWidth, cssHeight, window.devicePixelRatio || 1)
-      const renderParams = renderParamsRef.current
+
+      const frameNowSec = finitePosition(frameNowMs / 1000)
+      if (previousFrameNowSec !== null && !live.trackIdentity && live.isPlaying && !live.isPaused) {
+        fallbackPositionSec += Math.max(0, Math.min(0.25, frameNowSec - previousFrameNowSec))
+      }
+      previousFrameNowSec = frameNowSec
+      const transportPositionSec = live.trackIdentity
+        ? finitePosition(live.getAudioTime?.())
+        : fallbackPositionSec
+      const intelligenceFrame = AudioFeatureBus.getFrame()
+      const frameMatchesTrack = Boolean(
+        live.trackIdentity
+        && (intelligenceFrame.trackId === live.trackIdentity || intelligenceFrame.sourceId === live.trackIdentity),
+      )
+      const bpm = live.trackAnalysis?.bpm
+        ?? (frameMatchesTrack && intelligenceFrame.rhythm.bpm > 0 ? intelligenceFrame.rhythm.bpm : null)
+      const settings = live.settings
+      const plan = runtime.resolveFrame({
+        planInput: {
+          presetId: 'canvas-fractures',
+          sourceIdentity: live.sourceIdentity,
+          mediaType: live.mediaType,
+          mediaRevision: live.mediaRevision,
+          trackIdentity: live.trackIdentity,
+          variationSeed: settings.fractureVariationSeed,
+          topologyRevision: settings.fractureTopologyRevision,
+          layoutRevision: settings.fractureLayoutRevision,
+          mode: settings.fractureMode,
+          intensity: settings.fractureIntensity,
+          focusProtection: settings.fractureFocusProtection,
+          focusX: settings.fractureFocusX,
+          focusY: settings.fractureFocusY,
+          composition: settings.fractureComposition,
+          placementMode: settings.fracturePlacementMode,
+          quality: settings.fractureQuality,
+          anchorMode: settings.fractureAnchorMode,
+          returnToAnchor: settings.fractureReturnToAnchor,
+        },
+        timelineInput: {
+          positionSec: transportPositionSec,
+          bpm,
+          timeSignature: live.trackAnalysis?.timeSignature,
+          beatGridOffsetSec: live.trackAnalysis?.beatGridOffsetSec,
+          barMarkers: live.trackAnalysis?.barMarkers,
+          sections: live.trackSections,
+          topologyInterval: settings.fractureTopologyInterval,
+          layoutInterval: settings.fractureLayoutInterval,
+          freezeLayout: settings.fractureFreezeLayout,
+          freezePositionSec: settings.fractureFreezePositionSec,
+        },
+        runtimeSettings: {
+          topologyInterval: settings.fractureTopologyInterval,
+          layoutInterval: settings.fractureLayoutInterval,
+          freezeLayout: settings.fractureFreezeLayout,
+          freezePositionSec: settings.fractureFreezePositionSec,
+          topologyRevision: settings.fractureTopologyRevision,
+          layoutRevision: settings.fractureLayoutRevision,
+          returnToAnchor: settings.fractureReturnToAnchor,
+          lastManualAction: settings.fractureLastManualAction,
+          manualTransitionPositionSec: settings.fractureManualTransitionPositionSec,
+          transitionMode: settings.fractureTransitionMode,
+          transitionSpeed: settings.fractureTransitionSpeed,
+          staggerAmount: settings.fractureStaggerAmount,
+          zoomAmount: settings.fractureZoomAmount,
+        },
+        isPlaying: live.isPlaying,
+        isPaused: live.isPaused,
+      })
+      renderer.setPlan(plan)
+      if (plan.id !== lastPlanIdentity) {
+        lastPlanIdentity = plan.id
+        canvas.dataset.fracturesPlanId = plan.id
+        canvas.dataset.fracturesTopologyId = plan.topologyIdentity
+        canvas.dataset.fracturesLayoutId = plan.layoutIdentity
+        canvas.dataset.fracturesPlacementMode = plan.placementMode
+        canvas.dataset.fracturesFragmentCount = String(plan.fragments.length)
+        canvas.dataset.fracturesAnchorMode = plan.anchor.mode
+        canvas.dataset.fracturesTransitionMode = plan.transition?.mode ?? 'settled'
+        canvas.dataset.fracturesTransitionProgress = String(plan.transition?.progress ?? 1)
+        canvas.dataset.fracturesReturnToAnchor = String(plan.returnToAnchor)
+      }
       const rendered = renderer.render({
-        source: sourceRef.current,
-        fitMode: renderParams.fitMode,
-        sourceTransform: renderParams.sourceTransform,
-        outputOpacity: renderParams.outputOpacity,
+        source: live.sourceRef.current,
+        fitMode: live.fitMode,
+        sourceTransform: live.sourceTransform,
+        outputOpacity: live.outputOpacity ?? 1,
       })
       if (rendered && !previewReady) {
         previewReady = true
@@ -117,11 +175,12 @@ export function CanvasFracturesRendererLayer({
     draw()
     return () => {
       window.cancelAnimationFrame(frameId)
+      runtime.clear()
       renderer.dispose()
       onPreviewReady?.(false)
       onStatusChange?.(null)
     }
-  }, [active, onPreviewReady, onStatusChange, plan, sourceRef])
+  }, [active, mediaRevision, mediaType, onPreviewReady, onStatusChange, sourceIdentity, sourceRef, trackIdentity])
 
   if (!active) return null
 
@@ -131,13 +190,9 @@ export function CanvasFracturesRendererLayer({
       className="rv-canvas-fractures-renderer-layer"
       data-renderer-kind="fragmentCollage"
       data-renderer-backend="canvas2d"
-      data-fractures-plan-id={plan.id}
-      data-fractures-topology-id={plan.topologyIdentity}
-      data-fractures-layout-id={plan.layoutIdentity}
-      data-fractures-source-path={plan.sourcePath}
-      data-fractures-media-revision={plan.mediaRevision}
-      data-fractures-fragment-count={plan.fragments.length}
-      data-fractures-anchor-mode={plan.anchor.mode}
+      data-fractures-source-path={mediaType === 'video' ? 'video-frame' : mediaType === 'svg' ? 'svg-raster-image' : 'raster-image'}
+      data-fractures-media-revision={mediaRevision}
+      data-fractures-anchor-mode={props.settings.fractureAnchorMode}
       aria-hidden="true"
     />
   )

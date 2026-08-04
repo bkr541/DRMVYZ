@@ -1,0 +1,249 @@
+import { generateCanvasFracturesPlan } from './CanvasFracturesPlan'
+import { resolveCanvasFracturesTimeline, resolveCanvasFracturesPreviousTimeline } from './CanvasFracturesTimeline'
+import { evaluateCanvasFracturesTransition, resolveCanvasFracturesTransitionDuration } from './CanvasFracturesTransition'
+import type {
+  CanvasFracturesPlan,
+  CanvasFracturesPlanInput,
+  CanvasFracturesRuntimeFrameInput,
+  CanvasFracturesTimelinePoint,
+} from './CanvasFracturesTypes'
+
+function finitePosition(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0
+}
+
+export function deriveCanvasFracturesPlanIdentityKeys(
+  timeline: CanvasFracturesTimelinePoint,
+  topologyRevision: number,
+  layoutRevision: number,
+): { topologyIdentityKey: string; layoutIdentityKey: string } {
+  return {
+    topologyIdentityKey: `auto-topology:${timeline.topologyBucket}|manual:${Math.max(0, Math.floor(topologyRevision))}`,
+    layoutIdentityKey: `auto-layout:${timeline.layoutBucket}|manual:${Math.max(0, Math.floor(layoutRevision))}`,
+  }
+}
+
+function planCacheKey(input: CanvasFracturesPlanInput): string {
+  return [
+    input.presetId,
+    input.sourceIdentity,
+    input.mediaType,
+    input.mediaRevision ?? 0,
+    input.trackIdentity ?? 'none',
+    input.topologyIdentityKey ?? input.transportPositionSec ?? 0,
+    input.layoutIdentityKey ?? input.transportPositionSec ?? 0,
+    input.variationSeed,
+    input.topologyRevision,
+    input.layoutRevision,
+    input.mode,
+    input.intensity,
+    input.focusProtection,
+    input.focusX,
+    input.focusY,
+    input.composition,
+    input.placementMode,
+    input.quality,
+    input.anchorMode,
+    input.returnToAnchor === true ? 1 : 0,
+  ].join('|')
+}
+
+function previousManualRevisions(input: CanvasFracturesRuntimeFrameInput) {
+  const settings = input.runtimeSettings
+  switch (settings.lastManualAction) {
+    case 'refracture':
+      return {
+        topologyRevision: Math.max(0, settings.topologyRevision - 1),
+        layoutRevision: Math.max(0, settings.layoutRevision - 1),
+        returnToAnchor: false,
+      }
+    case 'shuffleLayout':
+    case 'returnToAnchor':
+      return {
+        topologyRevision: settings.topologyRevision,
+        layoutRevision: Math.max(0, settings.layoutRevision - 1),
+        returnToAnchor: false,
+      }
+    case 'releaseFreeze':
+    case 'none':
+      return {
+        topologyRevision: settings.topologyRevision,
+        layoutRevision: settings.layoutRevision,
+        returnToAnchor: settings.returnToAnchor,
+      }
+  }
+}
+
+function latestAutomaticBoundary(timeline: CanvasFracturesTimelinePoint): number {
+  return Math.max(
+    timeline.topologyBucket > 0 ? timeline.topologyBoundarySec : 0,
+    timeline.layoutBucket > 0 ? timeline.layoutBoundarySec : 0,
+  )
+}
+
+export class CanvasFracturesRuntime {
+  private readonly planCache = new Map<string, CanvasFracturesPlan>()
+
+  resolveFrame(input: CanvasFracturesRuntimeFrameInput): CanvasFracturesPlan {
+    const livePositionSec = finitePosition(input.timelineInput.positionSec)
+    const timeline = resolveCanvasFracturesTimeline(input.timelineInput)
+    const targetPlan = this.resolvePlan(input, timeline, {
+      topologyRevision: input.runtimeSettings.topologyRevision,
+      layoutRevision: input.runtimeSettings.layoutRevision,
+      returnToAnchor: input.runtimeSettings.returnToAnchor,
+    })
+    const automaticBoundarySec = latestAutomaticBoundary(timeline)
+    const manualBoundarySec = input.runtimeSettings.lastManualAction !== 'none'
+      && input.runtimeSettings.manualTransitionPositionSec <= livePositionSec + 1e-6
+      ? finitePosition(input.runtimeSettings.manualTransitionPositionSec)
+      : -1
+    const manualWins = manualBoundarySec >= automaticBoundarySec && manualBoundarySec >= 0
+    const transitionStartSec = manualWins ? manualBoundarySec : automaticBoundarySec
+
+    if (transitionStartSec <= 0) return targetPlan
+
+    let previousPlan: CanvasFracturesPlan | null = null
+    let transitionSource: NonNullable<CanvasFracturesPlan['transition']>['source'] = 'automatic'
+
+    if (manualWins) {
+      const previous = previousManualRevisions(input)
+      if (input.runtimeSettings.lastManualAction === 'releaseFreeze') {
+        const frozenTimelineInput = {
+          ...input.timelineInput,
+          positionSec: input.runtimeSettings.freezePositionSec,
+          freezeLayout: true,
+          freezePositionSec: input.runtimeSettings.freezePositionSec,
+        }
+        const frozenTimeline = resolveCanvasFracturesTimeline(frozenTimelineInput)
+        previousPlan = this.resolveAutomaticFrame(
+          { ...input, timelineInput: frozenTimelineInput },
+          frozenTimeline,
+          previous,
+          input.runtimeSettings.freezePositionSec,
+        )
+        transitionSource = 'freezeRelease'
+      } else {
+        const manualTimelineInput = {
+          ...input.timelineInput,
+          positionSec: manualBoundarySec,
+        }
+        const manualTimeline = resolveCanvasFracturesTimeline(manualTimelineInput)
+        previousPlan = this.resolveAutomaticFrame(
+          { ...input, timelineInput: manualTimelineInput },
+          manualTimeline,
+          previous,
+          manualBoundarySec,
+        )
+        transitionSource = 'manual'
+      }
+    } else {
+      const previousTimeline = resolveCanvasFracturesPreviousTimeline(input.timelineInput, transitionStartSec)
+      previousPlan = this.resolvePlan(input, previousTimeline, {
+        topologyRevision: input.runtimeSettings.topologyRevision,
+        layoutRevision: input.runtimeSettings.layoutRevision,
+        returnToAnchor: input.runtimeSettings.returnToAnchor,
+      })
+    }
+
+    if (previousPlan.id === targetPlan.id) return targetPlan
+
+    const progressPositionSec = input.runtimeSettings.freezeLayout && transitionSource === 'automatic'
+      ? finitePosition(input.runtimeSettings.freezePositionSec)
+      : livePositionSec
+    const forceComplete = transitionSource !== 'automatic' && (input.isPaused || !input.isPlaying)
+    return evaluateCanvasFracturesTransition({
+      previousPlan,
+      targetPlan,
+      transitionIdentity: [
+        previousPlan.layoutIdentity,
+        targetPlan.layoutIdentity,
+        transitionStartSec,
+        input.runtimeSettings.transitionMode,
+      ].join('|'),
+      mode: input.runtimeSettings.transitionMode,
+      source: transitionSource,
+      startSec: transitionStartSec,
+      positionSec: progressPositionSec,
+      transitionSpeed: input.runtimeSettings.transitionSpeed,
+      staggerAmount: input.runtimeSettings.staggerAmount,
+      zoomAmount: input.runtimeSettings.zoomAmount,
+      forceComplete,
+    })
+  }
+
+  getTransitionEndSec(input: CanvasFracturesRuntimeFrameInput): number {
+    const timeline = resolveCanvasFracturesTimeline(input.timelineInput)
+    const automatic = latestAutomaticBoundary(timeline)
+    const manual = input.runtimeSettings.lastManualAction !== 'none'
+      ? finitePosition(input.runtimeSettings.manualTransitionPositionSec)
+      : 0
+    return Math.max(automatic, manual) + resolveCanvasFracturesTransitionDuration(
+      input.runtimeSettings.transitionMode,
+      input.runtimeSettings.transitionSpeed,
+    )
+  }
+
+  private resolveAutomaticFrame(
+    input: CanvasFracturesRuntimeFrameInput,
+    timeline: CanvasFracturesTimelinePoint,
+    revisions: { topologyRevision: number; layoutRevision: number; returnToAnchor: boolean },
+    positionSec: number,
+  ): CanvasFracturesPlan {
+    const targetPlan = this.resolvePlan(input, timeline, revisions)
+    const transitionStartSec = latestAutomaticBoundary(timeline)
+    if (transitionStartSec <= 0) return targetPlan
+    const previousTimeline = resolveCanvasFracturesPreviousTimeline(input.timelineInput, transitionStartSec)
+    const previousPlan = this.resolvePlan(input, previousTimeline, revisions)
+    if (previousPlan.id === targetPlan.id) return targetPlan
+    const progressPositionSec = input.timelineInput.freezeLayout
+      ? finitePosition(input.timelineInput.freezePositionSec)
+      : finitePosition(positionSec)
+    return evaluateCanvasFracturesTransition({
+      previousPlan,
+      targetPlan,
+      transitionIdentity: [
+        previousPlan.layoutIdentity,
+        targetPlan.layoutIdentity,
+        transitionStartSec,
+        input.runtimeSettings.transitionMode,
+      ].join('|'),
+      mode: input.runtimeSettings.transitionMode,
+      source: 'automatic',
+      startSec: transitionStartSec,
+      positionSec: progressPositionSec,
+      transitionSpeed: input.runtimeSettings.transitionSpeed,
+      staggerAmount: input.runtimeSettings.staggerAmount,
+      zoomAmount: input.runtimeSettings.zoomAmount,
+    })
+  }
+
+  clear(): void {
+    this.planCache.clear()
+  }
+
+  private resolvePlan(
+    input: CanvasFracturesRuntimeFrameInput,
+    timeline: CanvasFracturesTimelinePoint,
+    revisions: { topologyRevision: number; layoutRevision: number; returnToAnchor: boolean },
+  ): CanvasFracturesPlan {
+    const keys = deriveCanvasFracturesPlanIdentityKeys(timeline, revisions.topologyRevision, revisions.layoutRevision)
+    const planInput: CanvasFracturesPlanInput = {
+      ...input.planInput,
+      topologyIdentityKey: keys.topologyIdentityKey,
+      layoutIdentityKey: keys.layoutIdentityKey,
+      topologyRevision: revisions.topologyRevision,
+      layoutRevision: revisions.layoutRevision,
+      returnToAnchor: revisions.returnToAnchor,
+    }
+    const key = planCacheKey(planInput)
+    const cached = this.planCache.get(key)
+    if (cached) return cached
+    const plan = generateCanvasFracturesPlan(planInput)
+    this.planCache.set(key, plan)
+    if (this.planCache.size > 12) {
+      const first = this.planCache.keys().next().value as string | undefined
+      if (first) this.planCache.delete(first)
+    }
+    return plan
+  }
+}

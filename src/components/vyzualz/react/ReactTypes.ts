@@ -223,11 +223,13 @@ export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
 export type CanvasFractureAnchorMode = 'alwaysVisible' | 'reactive' | 'fadeWithMusic' | 'fullyFragmented'
 export type CanvasFractureMode = 'mixed' | 'rectangles' | 'horizontalSlices' | 'verticalSlices' | 'angledQuads'
-export type CanvasFracturePlacementMode = 'editorialGrid' | 'centerBurst' | 'layeredScatter' | 'randomMix'
+export type CanvasFracturePlacementMode = 'balanced' | 'offscreenSpill' | 'heavyOverlap' | 'anchorCover' | 'repeatedCrops' | 'mirrorFlip' | 'randomMix'
 export type CanvasFractureTransitionMode = 'hardGlitchCut' | 'staggeredAssembly' | 'zoomInOut'
 export type CanvasFractureColorSourceMode = 'imageSampled' | 'brandKit' | 'manualOverride'
 export type CanvasFractureQualityMode = 'low' | 'balanced' | 'high'
-export type CanvasFractureQuantizeInterval = 'beat' | 'bar' | '2bars' | '4bars' | '8bars' | 'section'
+export type CanvasFractureQuantizeInterval = 'manualOnly' | 'bar' | '4bars' | '8bars' | '16bars' | 'section' | 'beat' | '2bars'
+/** Persisted command identity for deterministic manual transition reconstruction. */
+export type CanvasFractureManualAction = 'none' | 'refracture' | 'shuffleLayout' | 'returnToAnchor' | 'releaseFreeze'
 export type CanvasFractureEffectRole = 'anchor' | 'primary' | 'support' | 'accent' | 'echo'
 
 export const CANVAS_FRACTURE_EFFECT_ROLES: readonly CanvasFractureEffectRole[] = [
@@ -296,7 +298,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 3 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 4 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -338,7 +340,10 @@ export interface CanvasPresetSettings {
   fractureStaggerAmount: number
   fractureZoomAmount: number
   fractureFreezeLayout: boolean
+  fractureFreezePositionSec: number
   fractureReturnToAnchor: boolean
+  fractureLastManualAction: CanvasFractureManualAction
+  fractureManualTransitionPositionSec: number
   fractureTopologyRevision: number
   fractureLayoutRevision: number
   fractureEffectsIntensity: number
@@ -471,7 +476,7 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   fractureFocusX: 0.5,
   fractureFocusY: 0.5,
   fractureComposition: 0.25,
-  fracturePlacementMode: 'editorialGrid',
+  fracturePlacementMode: 'balanced',
   fractureTopologyInterval: '4bars',
   fractureLayoutInterval: 'bar',
   fractureVariationSeed: 1337,
@@ -482,7 +487,10 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   fractureStaggerAmount: 0.28,
   fractureZoomAmount: 0.18,
   fractureFreezeLayout: false,
-  fractureReturnToAnchor: true,
+  fractureFreezePositionSec: 0,
+  fractureReturnToAnchor: false,
+  fractureLastManualAction: 'none',
+  fractureManualTransitionPositionSec: 0,
   fractureTopologyRevision: 0,
   fractureLayoutRevision: 0,
   fractureEffectsIntensity: 0.25,
