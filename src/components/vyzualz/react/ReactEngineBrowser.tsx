@@ -3,6 +3,12 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactEngineId } from './ReactTypes'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
+import { getReactEngineIconComponent } from './reactEngineIcons'
+
+function ReactEngineIcon({ engineId, glyph }: { engineId: ReactEngineId, glyph: string }) {
+  const IconComponent = getReactEngineIconComponent(engineId)
+  return IconComponent ? <IconComponent /> : <>{glyph}</>
+}
 
 /**
  * Header-level engine-family switcher. The old vertical ENGINE column is now a
@@ -57,10 +63,13 @@ export function ReactEngineBrowser() {
         title="Choose React engine"
         onClick={() => setOpen(value => !value)}
       >
-        <span className="rv-engine-dropdown-icon" aria-hidden="true">{activeEngine.icon}</span>
+        <span className="rv-engine-dropdown-icon" aria-hidden="true">
+          <ReactEngineIcon engineId={activeReactEngineId} glyph={activeEngine.icon} />
+        </span>
         <span className="rv-engine-dropdown-copy">
           <span className="rv-engine-dropdown-eyebrow">Engine</span>
           <span className="rv-engine-dropdown-label">{activeEngine.label}</span>
+          <span className="rv-engine-dropdown-description">{activeEngine.description}</span>
         </span>
         <span className="rv-engine-dropdown-chevron" aria-hidden="true">
           <svg viewBox="0 0 20 20" focusable="false">
@@ -83,7 +92,9 @@ export function ReactEngineBrowser() {
                 className={`rv-engine-dropdown-option${active ? ' is-active' : ''}`}
                 onClick={() => handleSelect(engineId)}
               >
-                <span className="rv-engine-dropdown-option-icon" aria-hidden="true">{engine.icon}</span>
+                <span className="rv-engine-dropdown-option-icon" aria-hidden="true">
+                  <ReactEngineIcon engineId={engineId} glyph={engine.icon} />
+                </span>
                 <span className="rv-engine-dropdown-option-copy">
                   <span>{engine.label}</span>
                   <small className="rv-control-helper-copy">{engine.description}</small>
