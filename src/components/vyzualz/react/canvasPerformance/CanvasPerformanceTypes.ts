@@ -2,7 +2,15 @@ import type {
   SharedPerformanceContext,
   SharedPerformanceEnvelopeCurve,
 } from '../../../../features/performanceCore'
-import type { CanvasFitMode, CanvasMediaItem } from '../ReactTypes'
+import type {
+  CanvasFitMode,
+  CanvasFractureAnchorMode,
+  CanvasFractureEffectRole,
+  CanvasFracturePlacementMode,
+  CanvasFractureQuantizeInterval,
+  CanvasFractureTransitionMode,
+  CanvasMediaItem,
+} from '../ReactTypes'
 
 export const CANVAS_PERFORMANCE_PROGRAM_ID = 'canvas-cinematic-bass-editor'
 
@@ -12,6 +20,7 @@ export const CANVAS_PERFORMANCE_SHOW_IDS = [
   'canvas-dreamstate-media-tunnel',
   'canvas-impact-cut-system',
   'canvas-layered-luma-journey',
+  'canvas-fractures-performance',
 ] as const
 
 export type CanvasPerformanceShowId = typeof CANVAS_PERFORMANCE_SHOW_IDS[number]
@@ -295,6 +304,57 @@ export interface CanvasResolvedPlayback {
   releaseOnDropImpact: boolean
 }
 
+export type CanvasFracturesNumericOverrideKey =
+  | 'fractureIntensity'
+  | 'fractureComposition'
+  | 'fractureFocusProtection'
+  | 'fractureMotionAmount'
+  | 'fractureEffectsIntensity'
+  | 'fractureAudioResponse'
+  | 'fractureBassMotion'
+  | 'fractureTransientGlitch'
+  | 'fractureStructuralResponse'
+  | 'fractureGlowAmount'
+  | 'fractureGlitchAmount'
+  | 'fractureDuplicationAmount'
+
+export interface CanvasFracturesOverridePatch {
+  fractureAnchorMode?: CanvasFractureAnchorMode
+  fractureIntensity?: number
+  fractureComposition?: number
+  fractureFocusProtection?: number
+  fracturePlacementMode?: CanvasFracturePlacementMode
+  fractureTopologyInterval?: CanvasFractureQuantizeInterval
+  fractureLayoutInterval?: CanvasFractureQuantizeInterval
+  fractureTransitionMode?: CanvasFractureTransitionMode
+  fractureMotionAmount?: number
+  fractureEffectsIntensity?: number
+  fractureEffectRoleWeights?: Partial<Record<CanvasFractureEffectRole, number>>
+  fractureAudioResponse?: number
+  fractureBassMotion?: number
+  fractureTransientGlitch?: number
+  fractureStructuralResponse?: number
+  fractureGlowAmount?: number
+  fractureGlitchAmount?: number
+  fractureDuplicationAmount?: number
+  fractureReturnToAnchor?: boolean
+}
+
+export interface CanvasFracturesOverrideProfile {
+  values: CanvasFracturesOverridePatch
+  /** Numeric deltas applied over deterministic section progress. */
+  ramp?: Partial<Record<CanvasFracturesNumericOverrideKey, number>>
+}
+
+export interface CanvasFracturesLayerProcessor {
+  kind: 'fractures'
+  presetId: 'canvas-fractures'
+  identity: string
+  overrides: CanvasFracturesOverridePatch
+}
+
+export type CanvasSpecializedLayerProcessor = CanvasFracturesLayerProcessor
+
 export interface CanvasResolvedLayer {
   id: string
   role: CanvasLayerRole
@@ -319,6 +379,7 @@ export interface CanvasResolvedLayer {
   effectChain: readonly CanvasEffectNode[]
   modulationRoutes: readonly CanvasModulationRoute[]
   userLocked: boolean
+  processor?: CanvasSpecializedLayerProcessor
 }
 
 export interface CanvasResolvedTransition {
@@ -353,6 +414,8 @@ export interface CanvasOrchestrationSettings {
   compositionPreference: CanvasCompositionPreference
   poolRevision: number
   programId: CanvasPerformanceShowId
+  /** Optional compact authoring payload. It is applied only by the Fractures show. */
+  fracturesShowOverrides: CanvasFracturesOverrideProfile | null
 }
 
 export const DEFAULT_CANVAS_ORCHESTRATION_SETTINGS: CanvasOrchestrationSettings = {
@@ -371,6 +434,7 @@ export const DEFAULT_CANVAS_ORCHESTRATION_SETTINGS: CanvasOrchestrationSettings 
   compositionPreference: 'auto',
   poolRevision: 0,
   programId: CANVAS_PERFORMANCE_PROGRAM_ID,
+  fracturesShowOverrides: null,
 }
 
 export interface CanvasLayerTreatment {
@@ -394,6 +458,7 @@ export type CanvasPerformanceAction =
   | { type: 'layerTreatment'; treatment: CanvasLayerTreatment }
   | { type: 'advanceMedia'; roles: readonly CanvasLayerRole[] }
   | { type: 'effectBoost'; amount: number }
+  | { type: 'specializedRenderer'; kind: 'fractures'; profile: CanvasFracturesOverrideProfile }
 
 export interface CanvasResolvedPerformanceFrame {
   programId: string

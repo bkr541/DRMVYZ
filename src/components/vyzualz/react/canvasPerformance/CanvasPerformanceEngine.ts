@@ -13,6 +13,10 @@ import { resolveCanvasPlayback } from './CanvasPlayback'
 import { resolveCanvasContextualTransitionIds, resolveCanvasTransition } from './CanvasTransitions'
 import { getCanvasPerformanceShow } from './CanvasPerformanceShows'
 import {
+  makeCanvasFracturesProcessorIdentity,
+  resolveCanvasFracturesShowOverrides,
+} from './CanvasFracturesPerformance'
+import {
   CANVAS_PERFORMANCE_PROGRAM_ID,
   MAX_CANVAS_ACTIVE_VIDEO_DECODERS,
   MAX_CANVAS_EFFECT_CHAIN_DEPTH,
@@ -22,6 +26,7 @@ import {
   type CanvasCompositionSlot,
   type CanvasCompositionTemplateId,
   type CanvasEffectRecipeId,
+  type CanvasFracturesOverrideProfile,
   type CanvasLayerRole,
   type CanvasLayerTreatment,
   type CanvasMediaRole,
@@ -50,6 +55,7 @@ interface CanvasResolvedProgramState {
   nextSectionType: string | null
   anticipatoryStage: CanvasAnticipatoryStage
   diagnostics: string[]
+  fracturesProfile: CanvasFracturesOverrideProfile | null
 }
 
 function nextSectionForContext(context: SharedPerformanceContext) {
@@ -257,6 +263,7 @@ export function resolveCanvasAuthoredProgramState(
   const selectionIdentities: string[] = []
   let effectBoost = 0
   let frameHold = false
+  let fracturesProfile: CanvasFracturesOverrideProfile | null = null
 
   for (const intent of resolution.intents) {
     const action = intent.action
@@ -268,6 +275,7 @@ export function resolveCanvasAuthoredProgramState(
     else if (action.type === 'frameHold') frameHold = action.enabled
     else if (action.type === 'layerTreatment') treatments.push(action.treatment)
     else if (action.type === 'effectBoost') effectBoost += action.amount
+    else if (action.type === 'specializedRenderer' && action.kind === 'fractures') fracturesProfile = action.profile
     else if (action.type === 'advanceMedia' && shouldApplyAdvanceIntent(context, settings, intent)) {
       action.roles.forEach(role => advanceRoles.add(role))
       selectionIdentities.push(intent.identity)
@@ -324,6 +332,7 @@ export function resolveCanvasAuthoredProgramState(
     nextSectionType,
     anticipatoryStage,
     diagnostics,
+    fracturesProfile,
   }
 }
 
@@ -516,6 +525,95 @@ function attachMaskSources(layers: CanvasResolvedLayer[]): CanvasResolvedLayer[]
     : layer)
 }
 
+function resolveCanvasFracturesPerformanceFrame({
+  context,
+  settings,
+  selection,
+  program,
+  previousFrame,
+  isMediaReady,
+}: {
+  context: SharedPerformanceContext
+  settings: CanvasOrchestrationSettings
+  selection: { items: CanvasMediaItem[]; fallbackUsed: boolean }
+  program: CanvasResolvedProgramState
+  previousFrame: CanvasResolvedPerformanceFrame | null
+  isMediaReady?: (mediaId: string) => boolean
+}): CanvasResolvedPerformanceFrame {
+  const template = getCanvasCompositionTemplate('fullScreenHero')
+  const heroSlot = template.slots.find(slot => slot.role === 'hero') ?? template.slots[0]
+  const result = resolveSlotLayer({
+    slot: heroSlot,
+    pool: selection.items,
+    settings,
+    context,
+    previousFrame,
+    effectRecipeId: 'none',
+    isMediaReady,
+    frameHold: false,
+    treatment: null,
+    forceAdvance: program.advanceRoles.has('hero'),
+    selectionIdentity: program.selectionIdentity || program.sceneId,
+    effectBoost: 0,
+  })
+  const overrides = resolveCanvasFracturesShowOverrides({
+    authoredProfile: program.fracturesProfile!,
+    persistedProfile: settings.fracturesShowOverrides,
+    context,
+  })
+  const processorIdentity = makeCanvasFracturesProcessorIdentity({
+    programId: settings.programId,
+    sceneId: program.sceneId,
+    context,
+    overrides,
+  })
+  const layer: CanvasResolvedLayer = {
+    ...result.layer,
+    id: 'canvas-fractures-logical-layer',
+    role: 'hero',
+    effectChain: [],
+    modulationRoutes: [],
+    processor: {
+      kind: 'fractures',
+      presetId: 'canvas-fractures',
+      identity: processorIdentity,
+      overrides,
+    },
+  }
+  const frameIdentity = frameIdentityFor(context, settings, template.id, [layer]) + `|${processorIdentity}`
+  const sourceMediaId = layer.sourceMediaId
+  const readyMediaIds = sourceMediaId && (!isMediaReady || isMediaReady(sourceMediaId)) ? [sourceMediaId] : []
+  const pendingMediaIds = result.pendingMediaId ? [result.pendingMediaId] : []
+  const diagnostics = [...program.diagnostics, 'specialized:fractures', 'fractures-one-logical-layer']
+  if (selection.fallbackUsed) diagnostics.push('media-pool-fallback')
+  if (selection.items.length === 0) diagnostics.push('no-media-available')
+  else if (selection.items.length === 1) diagnostics.push('single-media-safe-mode')
+  if (selection.items.length > 0 && selection.items.every(item => item.type !== 'video')) diagnostics.push('image-only-safe-mode')
+  if (pendingMediaIds.length > 0) diagnostics.push('late-media-current-clip-retained')
+
+  return {
+    programId: settings.programId || CANVAS_PERFORMANCE_PROGRAM_ID,
+    frameIdentity,
+    sceneId: program.sceneId,
+    showLabel: program.showLabel,
+    context,
+    template,
+    layers: [layer],
+    transition: null,
+    effectRecipeId: 'none',
+    fallbackUsed: selection.fallbackUsed || result.fallbackUsed,
+    readyMediaIds,
+    pendingMediaIds,
+    decoderCount: layer.enabled && layer.source?.type === 'video' ? 1 : 0,
+    textureHandleCount: layer.enabled && layer.sourceMediaId ? 1 : 0,
+    feedbackPasses: 0,
+    orchestrationActive: settings.enabled && layer.enabled,
+    nextSectionType: program.nextSectionType,
+    anticipatoryStage: program.anticipatoryStage,
+    diagnostics: [...new Set(diagnostics)],
+  }
+}
+
 function frameIdentityFor(
   context: SharedPerformanceContext,
   settings: CanvasOrchestrationSettings,
@@ -550,6 +648,16 @@ export function resolveCanvasPerformanceFrame({
 }): CanvasResolvedPerformanceFrame {
   const selection = selectPool(mediaItems, settings)
   const program = resolveCanvasAuthoredProgramState(context, settings)
+  if (program.fracturesProfile) {
+    return resolveCanvasFracturesPerformanceFrame({
+      context,
+      settings,
+      selection,
+      program,
+      previousFrame,
+      isMediaReady,
+    })
+  }
   const templateId = settings.globalLocks.composition && previousFrame
     ? previousFrame.template.id
     : program.templateId

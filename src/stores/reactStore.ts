@@ -122,6 +122,7 @@ import {
 } from '../components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes'
 import { normalizeCanvasMediaRoleMap } from '../components/vyzualz/react/canvasPerformance/CanvasMediaRoles'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
+import { normalizeCanvasFracturesOverrideProfile } from '../components/vyzualz/react/canvasPerformance/CanvasFracturesPerformance'
 import {
   DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS,
   DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
@@ -3610,6 +3611,7 @@ export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrch
     programId: typeof source.programId === 'string' && CANVAS_PERFORMANCE_SHOW_IDS.includes(source.programId as typeof CANVAS_PERFORMANCE_SHOW_IDS[number])
       ? source.programId as typeof CANVAS_PERFORMANCE_SHOW_IDS[number]
       : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
+    fracturesShowOverrides: normalizeCanvasFracturesOverrideProfile(source.fracturesShowOverrides),
   }
 }
 

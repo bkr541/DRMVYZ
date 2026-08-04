@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { CanvasEngineSettings, CanvasMediaItem, CanvasPresetSettings } from '../ReactTypes'
+import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
+import type { BrandKit } from '../../../../features/personalization/BrandKitTypes'
+import type { SharedPerformanceContext } from '../../../../features/performanceCore'
+import type {
+  CanvasEngineSettings,
+  CanvasMediaItem,
+  CanvasPresetId,
+  CanvasPresetSettings,
+  ReactTrackSection,
+} from '../ReactTypes'
+import { CanvasFracturesRendererLayer } from '../renderers/CanvasFracturesRendererLayer'
+import type { CanvasFracturesSourceElement } from '../renderers/fractures/CanvasFracturesTypes'
+import { isCanvasFracturesProcessor, resolveCanvasFracturesPresetSettings } from './CanvasFracturesPerformance'
 import { resolveCanvasEffectVisualState } from './CanvasEffectRecipes'
 import type { CanvasPreloadHandle, CanvasPreloadManager } from './CanvasPreloadManager'
 import { resolveCanvasTransitionVisualState } from './CanvasTransitions'
@@ -19,6 +31,13 @@ interface CanvasOrchestrationStageProps {
   isPlaying: boolean
   isPaused: boolean
   motionIntensity: number
+  selectedPresetId: CanvasPresetId
+  trackIdentity?: string | null
+  trackAnalysis?: TrackIntelligenceAnalysis | null
+  trackSections?: readonly ReactTrackSection[]
+  getAudioTime?: () => number
+  analyser?: AnalyserNode | null
+  brandKit?: Readonly<BrandKit> | null
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
 }
@@ -273,7 +292,7 @@ function activeMedia(frame: CanvasResolvedPerformanceFrame): CanvasMediaItem[] {
   return [...byId.values()]
 }
 
-export function CanvasOrchestrationStage({
+function CanvasGenericOrchestrationStage({
   frame,
   preloadManager,
   engineSettings,
@@ -468,4 +487,97 @@ export function CanvasOrchestrationStage({
       </div>
     </div>
   )
+}
+
+function CanvasFracturesOrchestrationStage({
+  frame,
+  preloadManager,
+  engineSettings,
+  presetSettings,
+  selectedPresetId,
+  trackIdentity,
+  trackAnalysis,
+  trackSections,
+  getAudioTime,
+  analyser,
+  brandKit,
+  isPlaying,
+  isPaused,
+  onCanvasReady,
+  onLiveFps,
+}: CanvasOrchestrationStageProps) {
+  const layer = frame.layers.find(candidate => isCanvasFracturesProcessor(candidate.processor)) ?? null
+  const processor = layer?.processor && isCanvasFracturesProcessor(layer.processor) ? layer.processor : null
+  const sourceHandle = layer?.sourceMediaId ? preloadManager.getHandle(layer.sourceMediaId) : null
+  const sourceRef = useRef<CanvasFracturesSourceElement | null>(null)
+  const performanceContextRef = useRef<SharedPerformanceContext | null>(frame.context)
+  performanceContextRef.current = frame.context
+  sourceRef.current = sourceReady(sourceHandle) ? sourceHandle : null
+
+  const resolvedSettings = useMemo(() => resolveCanvasFracturesPresetSettings({
+    selectedPresetId,
+    userSettings: presetSettings,
+    autoPerformance: frame.orchestrationActive,
+    processor,
+  }), [frame.orchestrationActive, presetSettings, processor, selectedPresetId])
+
+  const source = layer?.source ?? null
+  const sourceIdentity = source && processor
+    ? `${source.id}:${source.type}:${source.mediaRevision ?? 0}`
+    : 'canvas-fractures:pending'
+  const active = Boolean(source && processor && sourceRef.current)
+
+  return (
+    <div
+      className="rv-canvas-engine-surface rv-canvas-orchestration-stage rv-canvas-orchestration-stage--fractures"
+      role="region"
+      aria-label="CANVAS orchestrated Fractures surface"
+      data-specialized-processor="fractures"
+      data-logical-layer-count={frame.layers.length}
+    >
+      {source && processor && (
+        <CanvasFracturesRendererLayer
+          active={active}
+          sourceRef={sourceRef}
+          sourceIdentity={sourceIdentity}
+          mediaType={source.type}
+          mediaRevision={source.mediaRevision ?? 0}
+          trackIdentity={trackIdentity}
+          trackAnalysis={trackAnalysis}
+          trackSections={trackSections}
+          getAudioTime={getAudioTime}
+          analyser={analyser}
+          performanceContextRef={performanceContextRef}
+          isPlaying={isPlaying}
+          isPaused={isPaused}
+          fitMode={engineSettings.fitMode}
+          sourceTransform={{
+            scale: engineSettings.scale,
+            positionX: engineSettings.positionX,
+            positionY: engineSettings.positionY,
+            rotation: engineSettings.rotation,
+          }}
+          settings={resolvedSettings}
+          brandKit={brandKit}
+          outputOpacity={engineSettings.opacity * (layer?.opacity ?? 1)}
+          orchestrationIdentity={processor.identity}
+          sourcePlayback={layer?.playback ?? null}
+          onCanvasReady={onCanvasReady}
+          onLiveFps={onLiveFps}
+        />
+      )}
+      <div className="rv-canvas-orchestration-status" role="status">
+        <strong>{frame.showLabel} · Fractures</strong>
+        <span>1 logical layer · {frame.decoderCount} video decoder{frame.decoderCount === 1 ? '' : 's'} · internal fragment compositor</span>
+        {!active && <span>Preloading the Fractures source</span>}
+        {frame.anticipatoryStage !== 'none' && <span>Queued: {frame.anticipatoryStage}{frame.nextSectionType ? ` → ${frame.nextSectionType}` : ''}</span>}
+      </div>
+    </div>
+  )
+}
+
+export function CanvasOrchestrationStage(props: CanvasOrchestrationStageProps) {
+  const fracturesLayer = props.frame.layers.find(layer => isCanvasFracturesProcessor(layer.processor))
+  if (fracturesLayer) return <CanvasFracturesOrchestrationStage {...props} />
+  return <CanvasGenericOrchestrationStage {...props} />
 }

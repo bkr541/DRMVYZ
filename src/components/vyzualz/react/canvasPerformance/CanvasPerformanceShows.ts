@@ -9,6 +9,7 @@ import type {
   CanvasLayerRole,
   CanvasPerformanceAction,
   CanvasPerformanceShowId,
+  CanvasFracturesOverrideProfile,
   CanvasTransitionId,
 } from './CanvasPerformanceTypes'
 
@@ -35,6 +36,7 @@ type SectionRecipe = {
   evolutions?: readonly (readonly CanvasPerformanceAction[])[]
   priority?: number
   minConfidence?: number
+  fractures?: CanvasFracturesOverrideProfile
 }
 
 const composition = (templateId: CanvasCompositionTemplateId): CanvasPerformanceAction => ({ type: 'composition', templateId })
@@ -45,6 +47,11 @@ const retire = (...roles: CanvasLayerRole[]): CanvasPerformanceAction => ({ type
 const hold = (enabled: boolean): CanvasPerformanceAction => ({ type: 'frameHold', enabled })
 const advance = (...roles: CanvasLayerRole[]): CanvasPerformanceAction => ({ type: 'advanceMedia', roles })
 const boost = (amount: number): CanvasPerformanceAction => ({ type: 'effectBoost', amount })
+const fractures = (profile: CanvasFracturesOverrideProfile): CanvasPerformanceAction => ({
+  type: 'specializedRenderer',
+  kind: 'fractures',
+  profile,
+})
 const treatment = (
   roles: readonly CanvasLayerRole[],
   patch: Omit<Extract<CanvasPerformanceAction, { type: 'layerTreatment' }>['treatment'], 'roles'>,
@@ -61,6 +68,7 @@ function scene(id: string, recipe: SectionRecipe): SharedPerformanceProgramScene
       effect(recipe.effect),
       { type: 'transition', transitionIds: recipe.transitions },
       { type: 'recruit', roles: recipe.recruit },
+      ...(recipe.fractures ? [fractures(recipe.fractures)] : []),
     ],
     entryActions: recipe.entry,
     bodyActions: recipe.body,
@@ -251,6 +259,125 @@ const lumaScenes = withEvents([
   scene('luma-outro-opacity-retirement', { sectionTypes: ['outro'], composition: 'heroPlusTexture', effect: 'dreamBreakdown', transitions: ['lumaDissolve', 'dipToBlack'], recruit: ['background', 'hero'], body: [retire('foregroundAccent', 'mask')], exit: [retire('texture'), hold(true)] }),
 ], 'luma')
 
+const fracturesScenes = [
+  scene('fractures-intro-stable-anchor', {
+    sectionTypes: ['intro'], composition: 'fullScreenHero', effect: 'none', transitions: ['crossfade'], recruit: ['hero'],
+    fractures: {
+      values: {
+        fractureAnchorMode: 'alwaysVisible', fractureIntensity: 0.22, fractureComposition: 0.18,
+        fractureFocusProtection: 0.86, fracturePlacementMode: 'balanced', fractureTopologyInterval: '8bars',
+        fractureLayoutInterval: '4bars', fractureTransitionMode: 'staggeredAssembly', fractureMotionAmount: 0.12,
+        fractureEffectsIntensity: 0.12, fractureAudioResponse: 0.24, fractureBassMotion: 0.18,
+        fractureTransientGlitch: 0.08, fractureStructuralResponse: 0.2, fractureGlowAmount: 0.12,
+        fractureGlitchAmount: 0.05, fractureDuplicationAmount: 0.02,
+        fractureEffectRoleWeights: { clean: 0.62, glow: 0.12, outline: 0.12, glitch: 0.03, luma: 0.05, displacement: 0.03, texture: 0.03 },
+      },
+    },
+  }),
+  scene('fractures-verse-editorial-motion', {
+    sectionTypes: ['verse', 'unknown'], composition: 'fullScreenHero', effect: 'none', transitions: ['crossfade'], recruit: ['hero'],
+    fractures: {
+      values: {
+        fractureAnchorMode: 'reactive', fractureIntensity: 0.38, fractureComposition: 0.34,
+        fractureFocusProtection: 0.74, fracturePlacementMode: 'balanced', fractureTopologyInterval: '8bars',
+        fractureLayoutInterval: '2bars', fractureTransitionMode: 'staggeredAssembly', fractureMotionAmount: 0.28,
+        fractureEffectsIntensity: 0.25, fractureAudioResponse: 0.4, fractureBassMotion: 0.34,
+        fractureTransientGlitch: 0.22, fractureStructuralResponse: 0.4, fractureGlowAmount: 0.2,
+        fractureGlitchAmount: 0.16, fractureDuplicationAmount: 0.08,
+      },
+    },
+  }),
+  scene('fractures-build-separation', {
+    sectionTypes: ['build'], composition: 'fullScreenHero', effect: 'none', transitions: ['zoomThrough'], recruit: ['hero'],
+    fractures: {
+      values: {
+        fractureAnchorMode: 'reactive', fractureIntensity: 0.42, fractureComposition: 0.42,
+        fractureFocusProtection: 0.72, fracturePlacementMode: 'offscreenSpill', fractureTopologyInterval: '4bars',
+        fractureLayoutInterval: 'bar', fractureTransitionMode: 'staggeredAssembly', fractureMotionAmount: 0.38,
+        fractureEffectsIntensity: 0.32, fractureAudioResponse: 0.5, fractureBassMotion: 0.42,
+        fractureTransientGlitch: 0.3, fractureStructuralResponse: 0.52, fractureGlowAmount: 0.28,
+        fractureGlitchAmount: 0.22, fractureDuplicationAmount: 0.1,
+      },
+      ramp: {
+        fractureIntensity: 0.24, fractureComposition: 0.2, fractureMotionAmount: 0.28,
+        fractureEffectsIntensity: 0.25, fractureAudioResponse: 0.18, fractureBassMotion: 0.2,
+        fractureTransientGlitch: 0.28, fractureStructuralResponse: 0.3,
+      },
+    },
+  }),
+  scene('fractures-predrop-topology-prep', {
+    sectionTypes: ['preDrop'], composition: 'fullScreenHero', effect: 'none', transitions: ['frameHoldRelease'], recruit: ['hero'],
+    fractures: {
+      values: {
+        fractureAnchorMode: 'reactive', fractureIntensity: 0.7, fractureComposition: 0.62,
+        fractureFocusProtection: 0.68, fracturePlacementMode: 'anchorCover', fractureTopologyInterval: 'bar',
+        fractureLayoutInterval: 'bar', fractureTransitionMode: 'zoomInOut', fractureMotionAmount: 0.72,
+        fractureEffectsIntensity: 0.62, fractureAudioResponse: 0.68, fractureBassMotion: 0.58,
+        fractureTransientGlitch: 0.74, fractureStructuralResponse: 0.82, fractureGlowAmount: 0.54,
+        fractureGlitchAmount: 0.64, fractureDuplicationAmount: 0.28,
+      },
+    },
+  }),
+  scene('fractures-drop-impact', {
+    sectionTypes: ['drop'], composition: 'fullScreenHero', effect: 'none', transitions: ['hardCut'], recruit: ['hero'],
+    fractures: {
+      values: {
+        fractureAnchorMode: 'fullyFragmented', fractureIntensity: 0.9, fractureComposition: 0.84,
+        fractureFocusProtection: 0.5, fracturePlacementMode: 'randomMix', fractureTopologyInterval: '4bars',
+        fractureLayoutInterval: 'bar', fractureTransitionMode: 'hardGlitchCut', fractureMotionAmount: 0.86,
+        fractureEffectsIntensity: 0.88, fractureAudioResponse: 0.86, fractureBassMotion: 0.82,
+        fractureTransientGlitch: 0.9, fractureStructuralResponse: 0.88, fractureGlowAmount: 0.78,
+        fractureGlitchAmount: 0.86, fractureDuplicationAmount: 0.46,
+        fractureEffectRoleWeights: { clean: 0.12, glow: 0.2, outline: 0.12, glitch: 0.24, luma: 0.08, displacement: 0.16, texture: 0.08 },
+      },
+    },
+  }),
+  {
+    ...scene('fractures-drop-two-reconstruction', {
+      sectionTypes: ['drop'], composition: 'fullScreenHero', effect: 'none', transitions: ['displacementBurst'], recruit: ['hero'], priority: 20,
+      fractures: {
+        values: {
+          fractureAnchorMode: 'reactive', fractureIntensity: 0.96, fractureComposition: 0.92,
+          fractureFocusProtection: 0.44, fracturePlacementMode: 'heavyOverlap', fractureTopologyInterval: '2bars',
+          fractureLayoutInterval: 'bar', fractureTransitionMode: 'zoomInOut', fractureMotionAmount: 0.92,
+          fractureEffectsIntensity: 0.94, fractureAudioResponse: 0.9, fractureBassMotion: 0.88,
+          fractureTransientGlitch: 0.94, fractureStructuralResponse: 0.94, fractureGlowAmount: 0.82,
+          fractureGlitchAmount: 0.92, fractureDuplicationAmount: 0.56,
+          fractureEffectRoleWeights: { clean: 0.08, glow: 0.22, outline: 0.1, glitch: 0.26, luma: 0.06, displacement: 0.2, texture: 0.08 },
+        },
+      },
+    }),
+    dropOccurrence: { minOccurrence: 2 },
+  },
+  scene('fractures-breakdown-readable', {
+    sectionTypes: ['breakdown', 'bridge'], composition: 'fullScreenHero', effect: 'none', transitions: ['lumaDissolve'], recruit: ['hero'],
+    fractures: {
+      values: {
+        fractureAnchorMode: 'alwaysVisible', fractureIntensity: 0.3, fractureComposition: 0.24,
+        fractureFocusProtection: 0.9, fracturePlacementMode: 'balanced', fractureTopologyInterval: '16bars',
+        fractureLayoutInterval: '4bars', fractureTransitionMode: 'staggeredAssembly', fractureMotionAmount: 0.14,
+        fractureEffectsIntensity: 0.18, fractureAudioResponse: 0.3, fractureBassMotion: 0.2,
+        fractureTransientGlitch: 0.1, fractureStructuralResponse: 0.24, fractureGlowAmount: 0.22,
+        fractureGlitchAmount: 0.06, fractureDuplicationAmount: 0.04,
+        fractureEffectRoleWeights: { clean: 0.58, glow: 0.15, outline: 0.12, glitch: 0.03, luma: 0.06, displacement: 0.03, texture: 0.03 },
+      },
+    },
+  }),
+  scene('fractures-outro-reassembly', {
+    sectionTypes: ['outro'], composition: 'fullScreenHero', effect: 'none', transitions: ['dipToBlack'], recruit: ['hero'],
+    fractures: {
+      values: {
+        fractureAnchorMode: 'alwaysVisible', fractureIntensity: 0.18, fractureComposition: 0.12,
+        fractureFocusProtection: 0.94, fracturePlacementMode: 'balanced', fractureTopologyInterval: '16bars',
+        fractureLayoutInterval: '4bars', fractureTransitionMode: 'staggeredAssembly', fractureMotionAmount: 0.08,
+        fractureEffectsIntensity: 0.08, fractureAudioResponse: 0.2, fractureBassMotion: 0.1,
+        fractureTransientGlitch: 0.04, fractureStructuralResponse: 0.14, fractureGlowAmount: 0.08,
+        fractureGlitchAmount: 0.03, fractureDuplicationAmount: 0, fractureReturnToAnchor: true,
+      },
+    },
+  }),
+]
+
 function show(
   id: CanvasPerformanceShowId,
   label: string,
@@ -281,6 +408,7 @@ export const CANVAS_PERFORMANCE_SHOWS: readonly CanvasPerformanceShowDefinition[
   show('canvas-dreamstate-media-tunnel', 'Dreamstate Media Tunnel', 'Layered depth, echo-tunnel compositions, atmospheric builds, and expansive drops.', 'Continuous depth travel with soft feedback and cinematic breathing room.', dreamScenes, 'dream-verse-orbit'),
   show('canvas-impact-cut-system', 'Impact Cut System', 'Precise hard cuts, strong kick and snare separation, restrained effects, and aggressive drop editing.', 'Editorial percussion with minimal processing between musical events.', impactScenes, 'impact-verse-clean'),
   show('canvas-layered-luma-journey', 'Layered Luma Journey', 'Luma masks, texture blending, organic transitions, and long-form repeated-section evolution.', 'Slow-blooming compositing where masks and textures carry the narrative.', lumaScenes, 'luma-verse-organic'),
+  show('canvas-fractures-performance', 'Fractures Performance', 'Section-aware Fractures choreography that preserves one logical Canvas layer and the preset’s local audio response.', 'Authored macro direction outside, deterministic fragment planning inside.', fracturesScenes, 'fractures-verse-editorial-motion'),
 ]
 
 export const CANVAS_PERFORMANCE_SHOW_BY_ID = Object.fromEntries(

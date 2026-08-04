@@ -188,16 +188,17 @@ function showSignature(showId: CanvasPerformanceShowId): string {
 }
 
 describe('authored CANVAS Performance Shows', () => {
-  it('publishes all five selectable, structurally distinct shows', () => {
+  it('publishes all six selectable, structurally distinct shows', () => {
     expect(CANVAS_PERFORMANCE_SHOWS.map(show => show.label)).toEqual([
       'Cinematic Bass Editor',
       'Glitch Collage Reactor',
       'Dreamstate Media Tunnel',
       'Impact Cut System',
       'Layered Luma Journey',
+      'Fractures Performance',
     ])
-    expect(new Set(CANVAS_PERFORMANCE_SHOWS.map(show => show.id)).size).toBe(5)
-    expect(new Set(CANVAS_PERFORMANCE_SHOWS.map(show => showSignature(show.id))).size).toBe(5)
+    expect(new Set(CANVAS_PERFORMANCE_SHOWS.map(show => show.id)).size).toBe(6)
+    expect(new Set(CANVAS_PERFORMANCE_SHOWS.map(show => showSignature(show.id))).size).toBe(6)
   })
 
   it.each(CANVAS_PERFORMANCE_SHOWS.map(show => [show.id, show.label] as const))(

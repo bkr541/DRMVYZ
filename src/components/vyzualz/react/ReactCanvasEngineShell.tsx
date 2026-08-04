@@ -52,6 +52,7 @@ import {
   resolveCanvasOutputContract,
   getCanvasPerformancePreloadCandidates,
   getCanvasPerformanceShow,
+  isCanvasFracturesProcessor,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   type CanvasCompositionPreference,
@@ -1535,18 +1536,18 @@ export function CanvasEngineSurface({
     }
   }, [activeAudioTrackId, fragmentCollageActive, particleReconstructionActive])
 
-  // The current orchestration stage is a generic whole-image compositor.
-  // Keep Fractures on its explicit renderer boundary; later Performance Show
-  // work can feed authored context into fragmentCollage without replacing it.
+  const orchestrationHasFractures = Boolean(
+    orchestrationFrame?.layers.some(layer => isCanvasFracturesProcessor(layer.processor)),
+  )
   const orchestrationRenderable = Boolean(
-    rendererKind !== 'fragmentCollage'
+    (rendererKind !== 'fragmentCollage' || orchestrationHasFractures)
       && orchestrationSettings.enabled
       && orchestrationFrame?.orchestrationActive
       && orchestrationFrame.readyMediaIds.length > 0,
   )
 
   useEffect(() => {
-    if (fragmentCollageActive) {
+    if (fragmentCollageActive && !orchestrationRenderable) {
       onCanvasReady?.(null)
       return
     }
@@ -2086,6 +2087,13 @@ export function CanvasEngineSurface({
         isPlaying={isPlaying}
         isPaused={isPaused}
         motionIntensity={orchestrationSettings.motionIntensity}
+        selectedPresetId={selectedCanvasPresetId}
+        trackIdentity={activeAudioTrackId}
+        trackAnalysis={trackAnalysis}
+        trackSections={trackSections}
+        getAudioTime={getAudioTime}
+        analyser={analyser}
+        brandKit={activeBrandKit}
         onCanvasReady={onCanvasReady}
         onLiveFps={onLiveFps}
       />

@@ -9,6 +9,7 @@ import {
 import {
   mergeReactStoreState,
   migrateReactStore,
+  normalizeCanvasOrchestrationSettings,
   normalizeCanvasPresetSettings,
   useReactStore,
 } from './reactStore'
@@ -19,6 +20,34 @@ beforeEach(() => {
 })
 
 describe('Fractures CANVAS foundation', () => {
+  it('migrates compact Fractures show overrides without changing legacy orchestration state', () => {
+    const legacy = normalizeCanvasOrchestrationSettings({
+      enabled: true,
+      programId: 'canvas-cinematic-bass-editor',
+      mediaPoolIds: ['hero'],
+    })
+    expect(legacy.fracturesShowOverrides).toBeNull()
+
+    const migrated = normalizeCanvasOrchestrationSettings({
+      ...legacy,
+      programId: 'canvas-fractures-performance',
+      fracturesShowOverrides: {
+        values: {
+          fractureIntensity: 3,
+          fractureAnchorMode: 'invalid',
+          fractureTransitionMode: 'zoomInOut',
+          unknownField: true,
+        },
+        ramp: { fractureAudioResponse: -4 },
+      },
+    })
+    expect(migrated.fracturesShowOverrides).toEqual({
+      values: { fractureIntensity: 1, fractureTransitionMode: 'zoomInOut' },
+      ramp: { fractureAudioResponse: -1 },
+    })
+    expect(normalizeCanvasOrchestrationSettings(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated)
+  })
+
   it('registers Fractures and selects it through the production CANVAS store action', () => {
     const fractures = CANVAS_PRESET_BY_ID['canvas-fractures']
 

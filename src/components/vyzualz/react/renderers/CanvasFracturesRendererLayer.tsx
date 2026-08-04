@@ -36,6 +36,15 @@ export interface CanvasFracturesRendererLayerProps {
   settings: CanvasPresetSettings
   brandKit?: Readonly<BrandKit> | null
   outputOpacity?: number
+  orchestrationIdentity?: string | null
+  sourcePlayback?: {
+    playbackRate: number
+    phaseSec: number
+    loopRange: { startSec: number; endSec: number }
+    frameHold: boolean
+  } | null
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  onLiveFps?: (fps: number) => void
   onPreviewReady?: (ready: boolean) => void
   onStatusChange?: (message: string | null) => void
 }
@@ -46,6 +55,27 @@ function finitePosition(value: unknown): number {
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
+}
+
+function syncOrchestratedSourcePlayback(
+  source: CanvasFracturesSourceElement | null,
+  playback: CanvasFracturesRendererLayerProps['sourcePlayback'],
+  isPlaying: boolean,
+  isPaused: boolean,
+): void {
+  if (!playback || typeof HTMLVideoElement === 'undefined' || !(source instanceof HTMLVideoElement)) return
+  source.muted = true
+  source.playsInline = true
+  source.loop = false
+  source.playbackRate = playback.playbackRate
+  if (playback.loopRange.endSec > playback.loopRange.startSec && source.currentTime >= playback.loopRange.endSec - 0.035) {
+    source.currentTime = playback.loopRange.startSec
+  }
+  if (!source.seeking && Math.abs(source.currentTime - playback.phaseSec) > 0.22) {
+    try { source.currentTime = playback.phaseSec } catch { /* metadata may still be settling */ }
+  }
+  if (!isPlaying || isPaused || playback.frameHold) source.pause()
+  else if (source.paused) void source.play().catch(() => undefined)
 }
 
 export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayerProps) {
@@ -63,6 +93,11 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
   const [rendererBackend, setRendererBackend] = useState<'webgl2' | 'canvas2d'>('canvas2d')
   const livePropsRef = useRef(props)
   livePropsRef.current = props
+
+  useEffect(() => {
+    props.onCanvasReady?.(active ? canvasRef.current : null)
+    return () => props.onCanvasReady?.(null)
+  }, [active, props.onCanvasReady])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -85,6 +120,8 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
     let fallbackPositionSec = 0
     let previousFrameNowSec: number | null = null
     let lastPlanIdentity = ''
+    let fpsFrames = 0
+    let fpsStartedAt = performance.now()
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
     const draw = (frameNowMs = performance.now()) => {
@@ -110,6 +147,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       const bpm = live.trackAnalysis?.bpm
         ?? (frameMatchesTrack && intelligenceFrame.rhythm.bpm > 0 ? intelligenceFrame.rhythm.bpm : null)
       const settings = live.settings
+      syncOrchestratedSourcePlayback(live.sourceRef.current, live.sourcePlayback, live.isPlaying, live.isPaused)
       const audioFrame = audioAdapter.update({
         context: live.performanceContextRef?.current ?? null,
         analyser: live.analyser,
@@ -127,6 +165,14 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
         },
       })
       if (audioFrame.resetReason) renderer.invalidateFeedback()
+      const motionAmount = clamp01(settings.fractureMotionAmount)
+      const motionAudio = {
+        ...audioFrame.render,
+        bassMotion: audioFrame.render.bassMotion * motionAmount,
+        anchorBreathing: audioFrame.render.anchorBreathing * motionAmount,
+        buildSeparation: audioFrame.render.buildSeparation * motionAmount,
+        dropImpact: audioFrame.render.dropImpact * motionAmount,
+      }
       const plan = runtime.resolveFrame({
         planInput: {
           presetId: 'canvas-fractures',
@@ -199,7 +245,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
         fitMode: live.fitMode,
         sourceTransform: {
           ...live.sourceTransform,
-          scale: Math.max(0.01, live.sourceTransform.scale * (1 + audioFrame.render.anchorBreathing * 0.022)),
+          scale: Math.max(0.01, live.sourceTransform.scale * (1 + motionAudio.anchorBreathing * 0.022)),
         },
         outputOpacity: live.outputOpacity ?? 1,
         framePositionSec: transportPositionSec,
@@ -244,12 +290,18 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
               ),
           reducedMotion,
         },
-        audio: audioFrame.render,
+        audio: motionAudio,
         brandKit: live.brandKit ?? null,
       })
       if (rendered && !previewReady) {
         previewReady = true
         onPreviewReady?.(true)
+      }
+      fpsFrames += 1
+      if (frameNowMs - fpsStartedAt >= 1000) {
+        live.onLiveFps?.(fpsFrames * 1000 / (frameNowMs - fpsStartedAt))
+        fpsFrames = 0
+        fpsStartedAt = frameNowMs
       }
       frameId = window.requestAnimationFrame(draw)
     }
@@ -276,6 +328,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       data-fractures-source-path={mediaType === 'video' ? 'video-frame' : mediaType === 'svg' ? 'svg-raster-image' : 'raster-image'}
       data-fractures-media-revision={mediaRevision}
       data-fractures-anchor-mode={props.settings.fractureAnchorMode}
+      data-fractures-orchestration-identity={props.orchestrationIdentity ?? undefined}
       aria-hidden="true"
     />
   )
