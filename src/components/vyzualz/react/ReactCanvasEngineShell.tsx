@@ -39,7 +39,7 @@ import {
   type CanvasParticleAudioFrame,
   type CanvasParticlePoint,
 } from './renderers/CanvasParticleAuraRenderer'
-import { CanvasFracturesPlaceholderRenderer } from './renderers/CanvasFracturesPlaceholderRenderer'
+import { CanvasFracturesRendererLayer } from './renderers/CanvasFracturesRendererLayer'
 import {
   buildCanvasPreloadRequests,
   CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
@@ -1364,6 +1364,7 @@ export function CanvasEngineSurface({
   const [orchestrationFrame, setOrchestrationFrame] = useState<CanvasResolvedPerformanceFrame | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
+  const [fracturesRendererNotice, setFracturesRendererNotice] = useState<string | null>(null)
   const [fracturesReadySourceKey, setFracturesReadySourceKey] = useState<string | null>(null)
   const [detectedBackgroundMode, setDetectedBackgroundMode] = useState<{
     mediaKey: string
@@ -1376,7 +1377,9 @@ export function CanvasEngineSurface({
     () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
     [activeCanvasMediaId, mediaItems],
   )
-  const fracturesSourceKey = activeItem ? `${activeItem.id}:${activeItem.objectUrl}` : null
+  const fracturesSourceKey = activeItem
+    ? `${activeItem.id}:${activeItem.type}:${activeItem.mediaRevision ?? 0}:${activeItem.objectUrl}`
+    : null
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const rendererKind = selectedPreset.rendererKind
@@ -2198,22 +2201,32 @@ export function CanvasEngineSurface({
           onStatusChange={setParticleRendererNotice}
           outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
         />
-        <CanvasFracturesPlaceholderRenderer
-          key={fracturesSourceKey ?? activeItem.id}
-          active={fragmentCollageActive}
-          sourceRef={particleSourceRef}
-          fitMode={settings.fitMode}
-          sourceTransform={{
-            scale: settings.scale,
-            positionX: settings.positionX,
-            positionY: settings.positionY,
-            rotation: settings.rotation,
-          }}
-          settings={canvasPresetSettings}
-          onPreviewReady={handleFracturesPreviewReady}
-        />
+        {fragmentCollageActive && (
+          <CanvasFracturesRendererLayer
+            key={fracturesSourceKey ?? activeItem.id}
+            active
+            sourceRef={particleSourceRef}
+            sourceIdentity={fracturesSourceKey ?? activeItem.id}
+            mediaType={activeItem.type}
+            mediaRevision={activeItem.mediaRevision ?? 0}
+            trackIdentity={activeAudioTrackId}
+            fitMode={settings.fitMode}
+            sourceTransform={{
+              scale: settings.scale,
+              positionX: settings.positionX,
+              positionY: settings.positionY,
+              rotation: settings.rotation,
+            }}
+            settings={canvasPresetSettings}
+            onPreviewReady={handleFracturesPreviewReady}
+            onStatusChange={setFracturesRendererNotice}
+          />
+        )}
         {particleRendererNotice && particleReconstructionActive && (
           <div className="rv-canvas-render-notice" role="status">{particleRendererNotice}</div>
+        )}
+        {fracturesRendererNotice && fragmentCollageActive && (
+          <div className="rv-canvas-render-notice" role="status">{fracturesRendererNotice}</div>
         )}
       </div>
     </div>
@@ -3080,8 +3093,8 @@ function CanvasFracturesControls({
         <CanvasHelpControl helpId="react.canvas.fractures.motion.zoom" currentValue={formatCanvasPercentage(settings.fractureZoomAmount)} className="rv-canvas-react-control-help">
           <SliderRow label="Zoom" value={settings.fractureZoomAmount} onChange={fractureZoomAmount => setSettings({ fractureZoomAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
         </CanvasHelpControl>
-        <CanvasFracturesActionControl helpId="react.canvas.fractures.motion.refracture" label="Refracture" value={settings.fractureTopologyRevision} description="Queues a deterministic topology identity change for the future planner." onClick={() => setSettings({ fractureTopologyRevision: settings.fractureTopologyRevision + 1 })} />
-        <CanvasFracturesActionControl helpId="react.canvas.fractures.motion.shuffleLayout" label="Shuffle Layout" value={settings.fractureLayoutRevision} description="Queues a deterministic placement identity change without altering topology." onClick={() => setSettings({ fractureLayoutRevision: settings.fractureLayoutRevision + 1 })} />
+        <CanvasFracturesActionControl helpId="react.canvas.fractures.motion.refracture" label="Refracture" value={settings.fractureTopologyRevision} description="Generates a new deterministic fragment topology without changing the user seed." onClick={() => setSettings({ fractureTopologyRevision: settings.fractureTopologyRevision + 1 })} />
+        <CanvasFracturesActionControl helpId="react.canvas.fractures.motion.shuffleLayout" label="Shuffle Layout" value={settings.fractureLayoutRevision} description="Generates a new deterministic arrangement while preserving the current fragment crops." onClick={() => setSettings({ fractureLayoutRevision: settings.fractureLayoutRevision + 1 })} />
         <CanvasHelpControl helpId="react.canvas.fractures.motion.freezeLayout" currentValue={settings.fractureFreezeLayout ? 'On' : 'Off'} currentValueLabel="Status" className="rv-canvas-react-control-help">
           <ToggleRow label="Freeze Layout" value={settings.fractureFreezeLayout} onChange={fractureFreezeLayout => setSettings({ fractureFreezeLayout })} />
         </CanvasHelpControl>

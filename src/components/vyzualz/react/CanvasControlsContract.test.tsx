@@ -38,15 +38,29 @@ describe('CANVAS right-panel control contract', () => {
     HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as typeof HTMLCanvasElement.prototype.getContext
 
     try {
+      useReactStore.setState({
+        canvasMediaItems: [{
+          id: 'fractures-contract-image',
+          name: 'Fractures Contract Image',
+          type: 'image',
+          objectUrl: 'data:image/png;base64,AA==',
+          createdAt: '2026-08-04T00:00:00.000Z',
+          mediaRevision: 4,
+        }],
+        activeCanvasMediaId: 'fractures-contract-image',
+      })
       useReactStore.getState().selectCanvasPreset('canvas-fractures')
       act(() => root.render(<CanvasEngineSurface isPlaying={false} isPaused />))
       expect(host.querySelector('[data-renderer-kind="fragmentCollage"]')).not.toBeNull()
+      expect(host.querySelector('canvas.rv-canvas-fractures-renderer-layer[data-renderer-backend="canvas2d"]')).not.toBeNull()
+      expect(host.querySelector('[data-fractures-source-path="raster-image"]')).not.toBeNull()
 
       act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
       expect(host.querySelector('[data-renderer-kind="particleAura"]')).not.toBeNull()
 
       act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
       expect(host.querySelector('[data-renderer-kind="standard"]')).not.toBeNull()
+      expect(host.querySelector('canvas.rv-canvas-fractures-renderer-layer')).toBeNull()
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext
     }

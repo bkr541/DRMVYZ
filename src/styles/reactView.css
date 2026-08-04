@@ -10332,7 +10332,7 @@
   filter: none;
 }
 
-.rv-canvas-fractures-placeholder-layer {
+.rv-canvas-fractures-renderer-layer {
   position: absolute;
   inset: 0;
   z-index: 3;

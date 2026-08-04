@@ -709,7 +709,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-fractures',
     name: 'Fractures',
-    description: 'An editorial fragment-collage foundation with deterministic topology, placement, motion, effects, and audio contracts.',
+    description: 'A deterministic fragment collage with protected focal regions, independent source crops, and editorial-to-chaotic composition.',
     accent: '#8de7ff',
     rendererKind: 'fragmentCollage',
     settings: {
