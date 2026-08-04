@@ -13,7 +13,10 @@ import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pi
 import { PanelSubtabs } from '../PanelSubtabs'
 import { getRequestedPixGridWorkspace, subscribePixGridWorkspace } from '../pixGrid/PixGridWorkspaceNavigation'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
-import { isCanvasFracturesOutputDeferred } from '../canvasFracturesOutputContract'
+import {
+  isCanvasFracturesOutputDeferred,
+  type CanvasOutputCapability,
+} from '../canvasFracturesOutputContract'
 
 type DesignSurface = 'engine' | 'selection'
 type ReactivitySurface = 'routing' | 'analysis'
@@ -140,6 +143,7 @@ export function ReactReactivityWorkspacePanel() {
 
 interface ReactOutputWorkspacePanelProps {
   canvas: HTMLCanvasElement | null
+  outputCapability: CanvasOutputCapability
   recorder: Recorder
   liveFps: number
   hasActiveProgramAudio: boolean
@@ -148,15 +152,15 @@ interface ReactOutputWorkspacePanelProps {
 
 export function ReactOutputWorkspacePanel({
   canvas,
+  outputCapability,
   recorder,
   liveFps,
   hasActiveProgramAudio,
   onStartRecording,
 }: ReactOutputWorkspacePanelProps) {
   const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
-  const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
   const isLaserDmx = activeReactEngineId === 'laserDmx'
-  const fracturesOutputDeferred = isCanvasFracturesOutputDeferred(activeReactEngineId, selectedCanvasPresetId)
+  const fracturesOutputDeferred = isCanvasFracturesOutputDeferred(outputCapability)
   const [surface, setSurface] = useState<OutputSurface>('recording')
 
   useEffect(() => {
@@ -181,7 +185,7 @@ export function ReactOutputWorkspacePanel({
           ) : fracturesOutputDeferred ? (
             <div className="rv-canvas-output-deferred-placeholder" role="status" aria-label="Fractures recording unavailable">
               <strong>Fractures recording is unavailable</strong>
-              <span>The specialized fragment renderer is active for preview and performance, but capture is intentionally disabled for this preset in the current MVP.</span>
+              <span>The effective Fractures renderer is active for preview and performance, but capture is intentionally disabled in the current MVP.</span>
               <button type="button" className="rv-reset-btn" disabled>Recording unavailable</button>
             </div>
           ) : (

@@ -10,6 +10,12 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  CANVAS_OUTPUT_AVAILABLE,
+  isCanvasFracturesOutputDeferred,
+  isCanvasOutputAvailable,
+  type CanvasOutputCapability,
+} from '../canvasFracturesOutputContract'
+import {
   getNativeOutputBridge,
   type NativeOutputBridge,
   type OutputAspectRatio,
@@ -185,7 +191,7 @@ function useOutputBroadcaster(
   const canvasRef = useRef(canvas)
   const activeRef = useRef<{ sessionId: string; peer: RTCPeerConnection; relay: RelayCapture } | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     canvasRef.current = canvas
   }, [canvas])
 
@@ -197,7 +203,7 @@ function useOutputBroadcaster(
     activeRef.current = null
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (session) return
     closeActive()
   }, [closeActive, session])
@@ -507,10 +513,17 @@ function OutputCastPopover({
 
 export interface OutputCastControlProps {
   canvas: HTMLCanvasElement | null
+  capability?: CanvasOutputCapability
 }
 
-export function OutputCastControl({ canvas }: OutputCastControlProps) {
+export function OutputCastControl({
+  canvas,
+  capability = CANVAS_OUTPUT_AVAILABLE,
+}: OutputCastControlProps) {
   const bridge = useMemo(() => getNativeOutputBridge(), [])
+  const outputAvailable = isCanvasOutputAvailable(capability)
+  const safeCanvas = outputAvailable ? canvas : null
+  const outputAvailableRef = useRef(outputAvailable)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
   const [targets, setTargets] = useState<OutputTarget[]>([])
@@ -518,51 +531,77 @@ export function OutputCastControl({ canvas }: OutputCastControlProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useOutputBroadcaster(bridge, canvas, session)
+  useOutputBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null)
+
+  useLayoutEffect(() => {
+    outputAvailableRef.current = outputAvailable
+    if (outputAvailable) return
+    setOpen(false)
+    setTargets([])
+    setLoading(false)
+    setError(null)
+    setSession(null)
+    if (bridge) void bridge.stopCast().catch(() => null)
+  }, [bridge, outputAvailable])
 
   const refresh = useCallback(async () => {
-    if (!bridge) return
+    if (!bridge || !outputAvailable) return
     setLoading(true)
     setError(null)
     try {
-      setTargets(await bridge.listTargets())
-      setSession(await bridge.getSession())
+      const nextTargets = await bridge.listTargets()
+      const nextSession = await bridge.getSession()
+      if (!outputAvailableRef.current) return
+      setTargets(nextTargets)
+      setSession(nextSession)
     } catch (value) {
-      setError(value instanceof Error ? value.message : 'Could not discover output devices')
+      if (outputAvailableRef.current) {
+        setError(value instanceof Error ? value.message : 'Could not discover output devices')
+      }
     } finally {
-      setLoading(false)
+      if (outputAvailableRef.current) setLoading(false)
     }
-  }, [bridge])
+  }, [bridge, outputAvailable])
 
   useEffect(() => {
-    if (!bridge) return
-    const unsubscribeTargets = bridge.onTargetsChanged(setTargets)
-    const unsubscribeSession = bridge.onSessionChanged(setSession)
+    if (!bridge || !outputAvailable) return
+    const unsubscribeTargets = bridge.onTargetsChanged((nextTargets) => {
+      if (outputAvailableRef.current) setTargets(nextTargets)
+    })
+    const unsubscribeSession = bridge.onSessionChanged((nextSession) => {
+      if (outputAvailableRef.current) setSession(nextSession)
+    })
     void refresh()
     return () => {
       unsubscribeTargets()
       unsubscribeSession()
     }
-  }, [bridge, refresh])
+  }, [bridge, outputAvailable, refresh])
 
   useEffect(() => {
-    if (open) void refresh()
-  }, [open, refresh])
+    if (open && outputAvailable) void refresh()
+  }, [open, outputAvailable, refresh])
 
   const startCast = useCallback(async (
     target: OutputTarget,
     windowMode: OutputWindowMode,
     aspectRatio: OutputAspectRatio,
   ) => {
-    if (!bridge) return
+    if (!bridge || !outputAvailable || !safeCanvas) return
     setError(null)
     try {
       const nextSession = await bridge.startCast({ targetId: target.id, windowMode, aspectRatio })
+      if (!outputAvailableRef.current) {
+        await bridge.stopCast().catch(() => null)
+        return
+      }
       setSession(nextSession)
     } catch (value) {
-      setError(value instanceof Error ? value.message : 'Could not start output')
+      if (outputAvailableRef.current) {
+        setError(value instanceof Error ? value.message : 'Could not start output')
+      }
     }
-  }, [bridge])
+  }, [bridge, outputAvailable, safeCanvas])
 
   const stopCast = useCallback(async () => {
     if (!bridge) return
@@ -574,6 +613,23 @@ export function OutputCastControl({ canvas }: OutputCastControlProps) {
       setError(value instanceof Error ? value.message : 'Could not stop output')
     }
   }, [bridge])
+
+  if (!outputAvailable) {
+    const fracturesDeferred = isCanvasFracturesOutputDeferred(capability)
+    return (
+      <button
+        type="button"
+        className={fracturesDeferred ? 'rv-canvas-cast-deferred' : 'rv-cast-trigger'}
+        disabled
+        aria-label={fracturesDeferred ? 'Fractures cast unavailable' : 'Cast output unavailable'}
+        title={fracturesDeferred
+          ? 'Fractures cast and production output are intentionally unavailable in the current MVP.'
+          : 'The active Canvas renderer has not published a supported output.'}
+      >
+        {fracturesDeferred ? 'Cast unavailable for Fractures' : <CastIcon />}
+      </button>
+    )
+  }
 
   return (
     <>
@@ -594,7 +650,7 @@ export function OutputCastControl({ canvas }: OutputCastControlProps) {
         <OutputCastPopover
           anchor={triggerRef.current}
           bridge={bridge}
-          canvasReady={canvas !== null}
+          canvasReady={safeCanvas !== null}
           targets={targets}
           session={session}
           loading={loading}

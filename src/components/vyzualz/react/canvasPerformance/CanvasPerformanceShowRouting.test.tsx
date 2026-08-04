@@ -3,6 +3,7 @@
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Recorder } from '../../../../hooks/useRecorder'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { useReactStore } from '../../../../stores/reactStore'
 import {
@@ -16,8 +17,20 @@ import {
   type CanvasPerformanceShowId,
 } from '.'
 
+import {
+  CANVAS_OUTPUT_AVAILABLE,
+  isCanvasOutputAvailable,
+  type CanvasOutputCapability,
+} from '../canvasFracturesOutputContract'
+import { ReactOutputWorkspacePanel } from '../panels/ReactWorkspacePanels'
+import { OutputCastControl } from '../output/OutputCastControl'
+
 vi.mock('../renderers/CanvasFracturesRendererLayer', () => ({
-  CanvasFracturesRendererLayer: () => <div data-testid="fractures-renderer" />,
+  CanvasFracturesRendererLayer: ({
+    onCanvasReady,
+  }: {
+    onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  }) => <canvas data-testid="fractures-renderer" ref={onCanvasReady} />,
 }))
 
 import { CanvasEngineSurface } from '../ReactCanvasEngineShell'
@@ -40,6 +53,19 @@ const media: CanvasMediaItem = {
   width: 1920,
   height: 1080,
   tags: ['hero', 'background'],
+}
+
+const recorder: Recorder = {
+  recorderState: 'idle',
+  recordingMode: null,
+  recordingTime: 0,
+  recorderError: null,
+  fps: 30,
+  setFps: vi.fn(),
+  startVideoRecording: vi.fn(),
+  stopRecording: vi.fn(),
+  exportRingBuffer: vi.fn(),
+  exportPNG: vi.fn(),
 }
 
 function canvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
@@ -106,7 +132,13 @@ function setCanvasRoutingState({
   }))
 }
 
-async function renderSurface() {
+async function renderSurface({
+  onCanvasReady,
+  onOutputCapabilityChange,
+}: {
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  onOutputCapabilityChange?: (capability: CanvasOutputCapability) => void
+} = {}) {
   await act(async () => {
     root?.render(
       <CanvasEngineSurface
@@ -115,11 +147,50 @@ async function renderSurface() {
         analyser={null}
         activeAudioTrackId="routing-track"
         getAudioTime={() => 0}
+        onCanvasReady={onCanvasReady}
+        onOutputCapabilityChange={onOutputCapabilityChange}
       />,
     )
     await Promise.resolve()
     await Promise.resolve()
   })
+}
+
+function OutputSafetyHarness() {
+  const [canvas, setCanvas] = React.useState<HTMLCanvasElement | null>(null)
+  const [capability, setCapability] = React.useState<CanvasOutputCapability>(CANVAS_OUTPUT_AVAILABLE)
+  const handleCapability = React.useCallback((next: CanvasOutputCapability) => {
+    setCapability(next)
+    if (!isCanvasOutputAvailable(next)) setCanvas(null)
+  }, [])
+
+  return (
+    <>
+      <CanvasEngineSurface
+        isPlaying={false}
+        isPaused={false}
+        analyser={null}
+        activeAudioTrackId="routing-track"
+        getAudioTime={() => 0}
+        onCanvasReady={setCanvas}
+        onOutputCapabilityChange={handleCapability}
+      />
+      <div
+        data-testid="output-safety-state"
+        data-capability={capability.status}
+        data-canvas-ready={canvas ? 'true' : 'false'}
+      />
+      <ReactOutputWorkspacePanel
+        canvas={canvas}
+        outputCapability={capability}
+        recorder={recorder}
+        liveFps={60}
+        hasActiveProgramAudio={false}
+        onStartRecording={vi.fn()}
+      />
+      <OutputCastControl canvas={canvas} capability={capability} />
+    </>
+  )
 }
 
 async function updateRoutingState(input: Parameters<typeof setCanvasRoutingState>[0]) {
@@ -185,6 +256,33 @@ afterEach(async () => {
 })
 
 describe('CanvasEngineSurface Performance Show routing', () => {
+  it('suppresses direct Fractures publication and restores direct generic output', async () => {
+    const onCanvasReady = vi.fn()
+    const onOutputCapabilityChange = vi.fn()
+    setCanvasRoutingState({
+      presetId: 'canvas-fractures',
+      showId: 'canvas-fractures-performance',
+      enabled: false,
+    })
+    await renderSurface({ onCanvasReady, onOutputCapabilityChange })
+
+    expect(onOutputCapabilityChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'deferred',
+      reason: 'fractures-mvp',
+    }))
+    expect(onCanvasReady).toHaveBeenLastCalledWith(null)
+    expect(onCanvasReady.mock.calls.some((call: unknown[]) => call[0] instanceof HTMLCanvasElement)).toBe(false)
+
+    await updateRoutingState({
+      presetId: 'canvas-clean-playback',
+      showId: 'canvas-fractures-performance',
+      enabled: false,
+    })
+
+    expect(onOutputCapabilityChange).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'available' }))
+    expect(onCanvasReady.mock.calls.some((call: unknown[]) => call[0] instanceof HTMLCanvasElement)).toBe(true)
+  })
+
   it('waits for canonical media readiness before activating a generic show over direct Fractures fallback', async () => {
     mediaReady = false
     setCanvasRoutingState({
@@ -249,4 +347,47 @@ describe('CanvasEngineSurface Performance Show routing', () => {
     expect(host?.querySelector('.rv-canvas-orchestration-stage')).toBeNull()
     expect(host?.querySelector('[data-testid="fractures-renderer"]')).not.toBeNull()
   })
+
+  it('drives the real Recording and Cast paths from effective renderer capability and clears stale output', async () => {
+    setCanvasRoutingState({
+      presetId: 'canvas-clean-playback',
+      showId: 'canvas-cinematic-bass-editor',
+      enabled: true,
+    })
+    await act(async () => {
+      root?.render(<OutputSafetyHarness />)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const state = () => host?.querySelector<HTMLElement>('[data-testid="output-safety-state"]')
+    expect(state()?.dataset.capability).toBe('available')
+    expect(state()?.dataset.canvasReady).toBe('true')
+    expect(host?.querySelector('[aria-label="Fractures recording unavailable"]')).toBeNull()
+    expect(host?.querySelector<HTMLButtonElement>('.vz-rec-start-btn')?.disabled).toBe(false)
+    expect(host?.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')?.disabled).toBe(false)
+
+    await updateRoutingState({
+      presetId: 'canvas-clean-playback',
+      showId: 'canvas-fractures-performance',
+      enabled: true,
+    })
+
+    expect(state()?.dataset.capability).toBe('deferred')
+    expect(state()?.dataset.canvasReady).toBe('false')
+    expect(host?.querySelector('[aria-label="Fractures recording unavailable"]')).not.toBeNull()
+    expect(host?.querySelector<HTMLButtonElement>('[aria-label="Fractures cast unavailable"]')?.disabled).toBe(true)
+
+    await updateRoutingState({
+      presetId: 'canvas-fractures',
+      showId: 'canvas-cinematic-bass-editor',
+      enabled: true,
+    })
+
+    expect(state()?.dataset.capability).toBe('available')
+    expect(state()?.dataset.canvasReady).toBe('true')
+    expect(host?.querySelector('[aria-label="Fractures recording unavailable"]')).toBeNull()
+    expect(host?.querySelector<HTMLButtonElement>('.vz-rec-start-btn')?.disabled).toBe(false)
+  })
+
 })

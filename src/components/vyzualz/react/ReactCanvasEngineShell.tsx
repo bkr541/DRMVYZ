@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -41,6 +41,11 @@ import {
   type CanvasParticlePoint,
 } from './renderers/CanvasParticleAuraRenderer'
 import { CanvasFracturesRendererLayer } from './renderers/CanvasFracturesRendererLayer'
+import {
+  isCanvasOutputAvailable,
+  resolveCanvasOutputCapability,
+  type CanvasOutputCapability,
+} from './canvasFracturesOutputContract'
 import {
   buildCanvasPreloadRequests,
   CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
@@ -1328,6 +1333,7 @@ export function CanvasEngineSurface({
   getAudioTime,
   activeAudioTrackId = null,
   onCanvasReady,
+  onOutputCapabilityChange,
   onLiveFps,
 }: {
   isPlaying: boolean
@@ -1338,6 +1344,7 @@ export function CanvasEngineSurface({
   getAudioTime?: () => number
   activeAudioTrackId?: string | null
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  onOutputCapabilityChange?: (capability: CanvasOutputCapability) => void
   onLiveFps?: (fps: number) => void
 }) {
   const settings = useReactStore(s => s.canvasEngineSettings)
@@ -1541,17 +1548,27 @@ export function CanvasEngineSurface({
     orchestrationSettings,
     orchestrationFrame,
   )
+  const outputCapability = useMemo(() => resolveCanvasOutputCapability({
+    selectedPresetId: selectedCanvasPresetId,
+    orchestrationRenderable,
+    orchestrationFrame,
+  }), [orchestrationFrame, orchestrationRenderable, selectedCanvasPresetId])
+  const outputAvailable = isCanvasOutputAvailable(outputCapability)
+
+  // Resolve output policy from the renderer that actually owns this frame. A layout
+  // effect clears stale publication before the browser can expose controls for a
+  // newly deferred Fractures frame.
+  useLayoutEffect(() => {
+    onOutputCapabilityChange?.(outputCapability)
+    if (!outputAvailable) onCanvasReady?.(null)
+  }, [onCanvasReady, onOutputCapabilityChange, outputAvailable, outputCapability])
 
   useEffect(() => {
-    if (fragmentCollageActive && !orchestrationRenderable) {
-      onCanvasReady?.(null)
-      return
-    }
-    if (orchestrationRenderable) return
+    if (orchestrationRenderable || !outputAvailable) return
     const captureCanvas = outputCaptureCanvasRef.current
     onCanvasReady?.(captureCanvas)
     return () => onCanvasReady?.(null)
-  }, [fragmentCollageActive, onCanvasReady, orchestrationRenderable])
+  }, [onCanvasReady, orchestrationRenderable, outputAvailable])
 
   useEffect(() => {
     if (orchestrationRenderable || fragmentCollageActive) return
@@ -2090,7 +2107,7 @@ export function CanvasEngineSurface({
         getAudioTime={getAudioTime}
         analyser={analyser}
         brandKit={activeBrandKit}
-        onCanvasReady={onCanvasReady}
+        onCanvasReady={outputAvailable ? onCanvasReady : undefined}
         onLiveFps={onLiveFps}
       />
     )

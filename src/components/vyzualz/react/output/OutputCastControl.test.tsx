@@ -4,7 +4,8 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NativeOutputBridge, OutputCastRequest, OutputTarget } from '../../../../native/outputBridge'
+import type { NativeOutputBridge, OutputCastRequest, OutputCastSession, OutputTarget } from '../../../../native/outputBridge'
+import { CANVAS_FRACTURES_OUTPUT_DEFERRED } from '../canvasFracturesOutputContract'
 import { OutputCastControl } from './OutputCastControl'
 
 const targets: OutputTarget[] = [
@@ -27,6 +28,8 @@ const targets: OutputTarget[] = [
 let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 let startCast: ReturnType<typeof vi.fn>
+let stopCast: ReturnType<typeof vi.fn>
+let canvas: HTMLCanvasElement
 
 function buttonWithText(text: string): HTMLButtonElement {
   const button = [...document.body.querySelectorAll<HTMLButtonElement>('button')]
@@ -45,11 +48,12 @@ beforeEach(async () => {
     state: 'connecting' as const,
     error: null,
   }))
+  stopCast = vi.fn(async () => null)
   const bridge: NativeOutputBridge = {
     listTargets: vi.fn(async () => targets),
     getSession: vi.fn(async () => null),
     startCast,
-    stopCast: vi.fn(async () => null),
+    stopCast,
     publishOffer: vi.fn(async () => true),
     waitForAnswer: vi.fn(async () => ({ type: 'answer', sdp: 'answer' })),
     failSession: vi.fn(async () => true),
@@ -64,7 +68,7 @@ beforeEach(async () => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  const canvas = document.createElement('canvas')
+  canvas = document.createElement('canvas')
   canvas.width = 1280
   canvas.height = 720
   await act(async () => root.render(<OutputCastControl canvas={canvas} />))
@@ -110,6 +114,60 @@ describe('OutputCastControl', () => {
     await act(async () => trigger?.click())
     expect(document.body.textContent).toContain('Booth Mac · DRMVYZ')
     expect(document.body.textContent).toContain('Network Receivers')
+  })
+
+
+  it('rejects a cast that finishes starting after output becomes deferred', async () => {
+    let resolveStartCast: ((session: OutputCastSession) => void) | null = null
+    startCast.mockImplementation((request: OutputCastRequest) => new Promise<OutputCastSession>((resolve) => {
+      resolveStartCast = resolve
+      expect(request.targetId).toBe('display:2')
+    }))
+
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
+    await act(async () => trigger?.click())
+    await act(async () => buttonWithText('Full Screen').click())
+    await act(async () => buttonWithText('16:9').click())
+    await act(async () => buttonWithText('Stage Screen').click())
+
+    await act(async () => root.render(
+      <OutputCastControl canvas={canvas} capability={CANVAS_FRACTURES_OUTPUT_DEFERRED} />,
+    ))
+    stopCast.mockClear()
+
+    await act(async () => {
+      resolveStartCast?.({
+        id: 'late-session',
+        targetId: 'display:2',
+        targetName: 'Stage Screen',
+        windowMode: 'fullscreen',
+        aspectRatio: '16:9',
+        state: 'connecting',
+        error: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(stopCast).toHaveBeenCalledTimes(1)
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Fractures cast unavailable"]')?.disabled).toBe(true)
+  })
+
+  it('stops and disables casting when the canonical capability becomes deferred', async () => {
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
+    await act(async () => trigger?.click())
+    expect(document.body.querySelector('.rv-cast-popover')).not.toBeNull()
+
+    await act(async () => root.render(
+      <OutputCastControl canvas={canvas} capability={CANVAS_FRACTURES_OUTPUT_DEFERRED} />,
+    ))
+
+    const disabled = container.querySelector<HTMLButtonElement>('[aria-label="Fractures cast unavailable"]')
+    expect(disabled?.disabled).toBe(true)
+    expect(disabled?.textContent).toContain('Cast unavailable for Fractures')
+    expect(document.body.querySelector('.rv-cast-popover')).toBeNull()
+    expect(stopCast).toHaveBeenCalled()
+    expect(startCast).not.toHaveBeenCalled()
   })
 
   it('closes the anchored popover when the trigger is clicked again or the page is clicked', async () => {

@@ -6,7 +6,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Recorder } from '../../../hooks/useRecorder'
 import { useReactStore } from '../../../stores/reactStore'
-import { isCanvasFracturesOutputDeferred } from './canvasFracturesOutputContract'
+import {
+  CANVAS_FRACTURES_OUTPUT_DEFERRED,
+  CANVAS_OUTPUT_AVAILABLE,
+  CANVAS_OUTPUT_UNAVAILABLE,
+  isCanvasFracturesOutputDeferred,
+  resolveCanvasOutputCapability,
+  type CanvasOutputCapability,
+} from './canvasFracturesOutputContract'
 import { ReactOutputWorkspacePanel } from './panels/ReactWorkspacePanels'
 
 vi.mock('./ReactRecordingPanel', () => ({
@@ -30,6 +37,21 @@ const recorder: Recorder = {
   exportPNG: vi.fn(),
 }
 
+const genericFrame = {
+  layers: [{ processor: null }],
+}
+
+const fracturesFrame = {
+  layers: [{
+    processor: {
+      kind: 'fractures',
+      presetId: 'canvas-fractures',
+      identity: 'fractures-output-test',
+      overrides: {},
+    },
+  }],
+}
+
 let host: HTMLDivElement
 let root: Root
 
@@ -46,35 +68,71 @@ afterEach(() => {
   host.remove()
 })
 
-describe('Fractures output deferral', () => {
-  it('derives recording and cast deferral from the explicit renderer contract', () => {
-    expect(isCanvasFracturesOutputDeferred('canvas', 'canvas-fractures')).toBe(true)
-    expect(isCanvasFracturesOutputDeferred('canvas', 'canvas-particle-aura')).toBe(false)
-    expect(isCanvasFracturesOutputDeferred('canvas', 'canvas-clean-playback')).toBe(false)
-    expect(isCanvasFracturesOutputDeferred('pixGrid', 'canvas-fractures')).toBe(false)
+function renderOutputPanel(outputCapability: CanvasOutputCapability) {
+  act(() => root.render(
+    <ReactOutputWorkspacePanel
+      canvas={null}
+      outputCapability={outputCapability}
+      recorder={recorder}
+      liveFps={60}
+      hasActiveProgramAudio={false}
+      onStartRecording={vi.fn()}
+    />,
+  ))
+}
+
+describe('effective Canvas output capability', () => {
+  it('derives direct and orchestrated capability from the renderer that owns the frame', () => {
+    expect(resolveCanvasOutputCapability({
+      selectedPresetId: 'canvas-fractures',
+      orchestrationRenderable: false,
+      orchestrationFrame: null,
+    })).toBe(CANVAS_FRACTURES_OUTPUT_DEFERRED)
+
+    expect(resolveCanvasOutputCapability({
+      selectedPresetId: 'canvas-clean-playback',
+      orchestrationRenderable: false,
+      orchestrationFrame: null,
+    })).toBe(CANVAS_OUTPUT_AVAILABLE)
+
+    expect(resolveCanvasOutputCapability({
+      selectedPresetId: 'canvas-clean-playback',
+      orchestrationRenderable: true,
+      orchestrationFrame: fracturesFrame as never,
+    })).toBe(CANVAS_FRACTURES_OUTPUT_DEFERRED)
+
+    expect(resolveCanvasOutputCapability({
+      selectedPresetId: 'canvas-fractures',
+      orchestrationRenderable: true,
+      orchestrationFrame: genericFrame as never,
+    })).toBe(CANVAS_OUTPUT_AVAILABLE)
   })
 
-  it('shows the disabled recording placeholder only for Fractures', () => {
-    useReactStore.getState().selectCanvasPreset('canvas-fractures')
-    act(() => root.render(
-      <ReactOutputWorkspacePanel
-        canvas={null}
-        recorder={recorder}
-        liveFps={60}
-        hasActiveProgramAudio={false}
-        onStartRecording={vi.fn()}
-      />,
-    ))
+  it('fails safely for an unrecognized specialized renderer', () => {
+    expect(resolveCanvasOutputCapability({
+      selectedPresetId: 'canvas-clean-playback',
+      orchestrationRenderable: true,
+      orchestrationFrame: { layers: [{ processor: { kind: 'future-renderer' } }] } as never,
+    })).toBe(CANVAS_OUTPUT_UNAVAILABLE)
+  })
 
+  it('fails safely when orchestration claims ownership without a resolved frame', () => {
+    expect(resolveCanvasOutputCapability({
+      selectedPresetId: 'canvas-clean-playback',
+      orchestrationRenderable: true,
+      orchestrationFrame: null,
+    })).toBe(CANVAS_OUTPUT_UNAVAILABLE)
+  })
+
+  it('shows the deferred recording placeholder from the canonical runtime capability', () => {
+    renderOutputPanel(CANVAS_FRACTURES_OUTPUT_DEFERRED)
+
+    expect(isCanvasFracturesOutputDeferred(CANVAS_FRACTURES_OUTPUT_DEFERRED)).toBe(true)
     expect(host.querySelector('[aria-label="Fractures recording unavailable"]')).not.toBeNull()
     expect(host.querySelector<HTMLButtonElement>('button[disabled]')?.textContent).toContain('Recording unavailable')
     expect(host.querySelector('[aria-label="standard recording controls"]')).toBeNull()
 
-    act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
-    expect(host.querySelector('[aria-label="Fractures recording unavailable"]')).toBeNull()
-    expect(host.querySelector('[aria-label="standard recording controls"]')).not.toBeNull()
-
-    act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
+    renderOutputPanel(CANVAS_OUTPUT_AVAILABLE)
     expect(host.querySelector('[aria-label="Fractures recording unavailable"]')).toBeNull()
     expect(host.querySelector('[aria-label="standard recording controls"]')).not.toBeNull()
   })

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useMemo, useEffect, useCallback, useId } from 'react'
+import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useId } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { useShallow } from 'zustand/react/shallow'
@@ -68,7 +68,11 @@ import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
-import { isCanvasFracturesOutputDeferred } from './canvasFracturesOutputContract'
+import {
+  CANVAS_OUTPUT_AVAILABLE,
+  isCanvasOutputAvailable,
+  type CanvasOutputCapability,
+} from './canvasFracturesOutputContract'
 
 // These workspaces carry large, engine-specific renderers and authoring tools.
 // Keep them outside the initial React-view graph and load them only when their
@@ -239,7 +243,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     })),
   )
   const activeShaderId = useShaderPanelStore((s) => s.activeShaderId)
-  const fracturesOutputDeferred = isCanvasFracturesOutputDeferred(activeReactEngineId, selectedCanvasPresetId)
   const activeBrandKit = useBrandKitStore((s) => s.activeKit)
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
@@ -313,6 +316,14 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const { startVideoRecording } = recorder
   const { isActive: hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [canvasOutputCapability, setCanvasOutputCapability] = useState<CanvasOutputCapability>(CANVAS_OUTPUT_AVAILABLE)
+  const outputCapability = activeReactEngineId === 'canvas'
+    ? canvasOutputCapability
+    : CANVAS_OUTPUT_AVAILABLE
+  const handleCanvasOutputCapabilityChange = useCallback((capability: CanvasOutputCapability) => {
+    setCanvasOutputCapability(capability)
+    if (!isCanvasOutputAvailable(capability)) setOutputCanvas(null)
+  }, [])
   const [pixGridOutputCanvas, setPixGridOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const handlePixGridCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
     setOutputCanvas(canvas)
@@ -351,12 +362,19 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     )
   }, [activeReactEngineId])
 
+  useLayoutEffect(() => {
+    if (activeReactEngineId !== 'canvas') return
+    if (isCanvasOutputAvailable(outputCapability)) return
+    if (recorder.recorderState === 'recording') recorder.stopRecording()
+  }, [activeReactEngineId, outputCapability, recorder.recorderState, recorder.stopRecording])
+
   const handleStartRecording = useCallback(
     (canvas: HTMLCanvasElement) => {
-    const audioStream = hasActiveProgramAudio ? getRecordingStream() : null
-    startVideoRecording(canvas, audioStream)
+      if (!isCanvasOutputAvailable(outputCapability) || canvas !== outputCanvas) return
+      const audioStream = hasActiveProgramAudio ? getRecordingStream() : null
+      startVideoRecording(canvas, audioStream)
     },
-    [getRecordingStream, hasActiveProgramAudio, startVideoRecording],
+    [getRecordingStream, hasActiveProgramAudio, outputCanvas, outputCapability, startVideoRecording],
   )
 
   // Right tab — persisted to localStorage after runtime validation.
@@ -682,6 +700,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 getAudioTime={engine.getCurrentTime}
                 activeAudioTrackId={engine.currentTrackId}
                 onCanvasReady={setOutputCanvas}
+                onOutputCapabilityChange={handleCanvasOutputCapabilityChange}
                 onLiveFps={setLiveFps}
               />
             ) : activeReactEngineId === 'pixGrid' ? (
@@ -817,18 +836,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 </div>
                 <div className="rv-lower-workspace-actions">
                   <div className="rv-lower-workspace-output-actions drm-help-overlay-anchor">
-                    {fracturesOutputDeferred ? (
-                      <button
-                        type="button"
-                        className="rv-canvas-cast-deferred"
-                        disabled
-                        title="Fractures cast and production output are intentionally unavailable in the current MVP."
-                      >
-                        Cast unavailable for Fractures
-                      </button>
-                    ) : (
-                      <OutputCastControl canvas={outputCanvas} />
-                    )}
+                    <OutputCastControl canvas={outputCanvas} capability={outputCapability} />
                     <button
                       type="button"
                       className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}
@@ -913,6 +921,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             {activeRightPanel === 'output' && (
               <ReactOutputWorkspacePanel
                 canvas={outputCanvas}
+                outputCapability={outputCapability}
                 recorder={recorder}
                 liveFps={liveFps}
                 hasActiveProgramAudio={hasActiveProgramAudio}
