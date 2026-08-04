@@ -7,7 +7,7 @@ import { musicIntelligenceEngine } from '../../../features/musicIntelligence/Mus
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
@@ -39,6 +39,7 @@ import {
   type CanvasParticleAudioFrame,
   type CanvasParticlePoint,
 } from './renderers/CanvasParticleAuraRenderer'
+import { CanvasFracturesPlaceholderRenderer } from './renderers/CanvasFracturesPlaceholderRenderer'
 import {
   buildCanvasPreloadRequests,
   CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
@@ -60,9 +61,18 @@ import {
 } from './canvasPerformance'
 import {
   CANVAS_PRESET_BY_ID,
+  CANVAS_FRACTURE_EFFECT_ROLES,
   DEFAULT_CANVAS_PRESET_ID,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
   type CanvasFitMode,
+  type CanvasFractureAnchorMode,
+  type CanvasFractureColorSourceMode,
+  type CanvasFractureEffectRole,
+  type CanvasFractureMode,
+  type CanvasFracturePlacementMode,
+  type CanvasFractureQualityMode,
+  type CanvasFractureQuantizeInterval,
+  type CanvasFractureTransitionMode,
   type CanvasMediaItem,
   type CanvasMediaItemType,
   type CanvasParticleQuality,
@@ -1354,6 +1364,7 @@ export function CanvasEngineSurface({
   const [orchestrationFrame, setOrchestrationFrame] = useState<CanvasResolvedPerformanceFrame | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
+  const [fracturesReadySourceKey, setFracturesReadySourceKey] = useState<string | null>(null)
   const [detectedBackgroundMode, setDetectedBackgroundMode] = useState<{
     mediaKey: string
     mode: CanvasBackgroundMode
@@ -1365,13 +1376,17 @@ export function CanvasEngineSurface({
     () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
     [activeCanvasMediaId, mediaItems],
   )
+  const fracturesSourceKey = activeItem ? `${activeItem.id}:${activeItem.objectUrl}` : null
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
+  const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+  const rendererKind = selectedPreset.rendererKind
   const outputContract = useMemo(() => resolveCanvasOutputContract({
     canvasOutputOpacity: settings.opacity,
     presetSettings: canvasPresetSettings,
   }), [canvasPresetSettings, settings.opacity])
-  const particleReconstructionActive = canvasPresetSettings.particleDensity > 0.02
-  const effectPassActive = hasCanvasEffectPass(canvasPresetSettings) && !particleReconstructionActive
+  const particleReconstructionActive = rendererKind === 'particleAura'
+  const fragmentCollageActive = rendererKind === 'fragmentCollage'
+  const effectPassActive = rendererKind === 'standard' && hasCanvasEffectPass(canvasPresetSettings)
   const activeVideo = activeItem?.type === 'video'
   const activeMediaTransparencyKey = activeItem ? getCanvasMediaTransparencyKey(activeItem) : null
   const activeMediaTransparencyKeyRef = useRef<string | null>(activeMediaTransparencyKey)
@@ -1382,13 +1397,19 @@ export function CanvasEngineSurface({
   const transparentStage = effectiveBackgroundMode === 'transparent'
   const activeTiming = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
   const mediaStyle = useMemo(
-    () => makeCanvasMediaStyle(settings, outputContract.drySourceMix),
-    [outputContract.drySourceMix, settings],
+    () => makeCanvasMediaStyle(
+      settings,
+      fragmentCollageActive && fracturesReadySourceKey === fracturesSourceKey ? 0 : outputContract.drySourceMix,
+    ),
+    [fracturesReadySourceKey, fracturesSourceKey, fragmentCollageActive, outputContract.drySourceMix, settings],
   )
   const particleSourceRef = activeVideo ? videoRef : imageRef
   const handleParticleCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
     particleOutputCanvasRef.current = canvas
   }, [])
+  const handleFracturesPreviewReady = useCallback((ready: boolean) => {
+    setFracturesReadySourceKey(ready ? fracturesSourceKey : null)
+  }, [fracturesSourceKey])
 
   trackAnalysisRef.current = trackAnalysis
   trackSectionsRef.current = trackSections
@@ -1511,21 +1532,29 @@ export function CanvasEngineSurface({
     }
   }, [activeAudioTrackId, particleReconstructionActive])
 
+  // The current orchestration stage is a generic whole-image compositor.
+  // Keep Fractures on its explicit renderer boundary; later Performance Show
+  // work can feed authored context into fragmentCollage without replacing it.
   const orchestrationRenderable = Boolean(
-    orchestrationSettings.enabled
+    rendererKind !== 'fragmentCollage'
+      && orchestrationSettings.enabled
       && orchestrationFrame?.orchestrationActive
       && orchestrationFrame.readyMediaIds.length > 0,
   )
 
   useEffect(() => {
+    if (fragmentCollageActive) {
+      onCanvasReady?.(null)
+      return
+    }
     if (orchestrationRenderable) return
     const captureCanvas = outputCaptureCanvasRef.current
     onCanvasReady?.(captureCanvas)
     return () => onCanvasReady?.(null)
-  }, [onCanvasReady, orchestrationRenderable])
+  }, [fragmentCollageActive, onCanvasReady, orchestrationRenderable])
 
   useEffect(() => {
-    if (orchestrationRenderable) return
+    if (orchestrationRenderable || fragmentCollageActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     const effectsCanvas = sourceEffectsCanvasRef.current
     if (!captureCanvas || !effectsCanvas) return
@@ -1640,8 +1669,10 @@ export function CanvasEngineSurface({
         context.restore()
       }
 
-      // The capture/export source begins with the same pristine, unfiltered
-      // fidelity anchor shown by the browser-owned video/image element.
+      // Standard and Particle Aura capture begins with the same pristine,
+      // unfiltered fidelity anchor shown by the browser-owned source. Fractures
+      // exits this effect above because recording/output is intentionally
+      // deferred until its final renderer contract is implemented.
       drawMediaFrame({
         context: compositionContext,
         alpha: drySourceAlpha,
@@ -1665,14 +1696,16 @@ export function CanvasEngineSurface({
         compositionContext.restore()
       }
 
-      compositeCanvasParticleLayerToCapture({
-        context: compositionContext,
-        particleCanvas: particleOutputCanvasRef.current,
-        settings: canvasPresetSettings,
-        outputAlpha: processedAlpha,
-        width: cssWidth,
-        height: cssHeight,
-      })
+      if (particleReconstructionActive) {
+        compositeCanvasParticleLayerToCapture({
+          context: compositionContext,
+          particleCanvas: particleOutputCanvasRef.current,
+          settings: canvasPresetSettings,
+          outputAlpha: processedAlpha,
+          width: cssWidth,
+          height: cssHeight,
+        })
+      }
 
       captureContext.setTransform(1, 0, 0, 1, 0, 0)
       captureContext.clearRect(0, 0, targetWidth, targetHeight)
@@ -1700,7 +1733,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, isPaused, isPlaying, onLiveFps, orchestrationRenderable, outputContract, particleSourceRef, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, fragmentCollageActive, isPaused, isPlaying, onLiveFps, orchestrationRenderable, outputContract, particleReconstructionActive, particleSourceRef, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2059,7 +2092,12 @@ export function CanvasEngineSurface({
   if (!activeItem) {
     const hasSelectableMedia = mediaItems.length > 0
     return (
-      <div className="rv-canvas-engine-surface rv-canvas-engine-surface--empty" role="region" aria-label="CANVAS engine render surface">
+      <div
+        className="rv-canvas-engine-surface rv-canvas-engine-surface--empty"
+        role="region"
+        aria-label="CANVAS engine render surface"
+        data-renderer-kind={rendererKind}
+      >
         {captureCanvasNode}
         {sourceEffectsCanvasNode}
         <div className="rv-canvas-live-empty-card rv-canvas-live-empty-card--render-only">
@@ -2068,7 +2106,9 @@ export function CanvasEngineSurface({
             {hasSelectableMedia ? 'No source selected' : 'Choose a CANVAS source'}
           </h2>
           <p className="rv-canvas-engine-desc">
-            {canvasPresetSettings.particleDensity > 0.02
+            {fragmentCollageActive
+              ? 'Fractures needs an active video, image, or SVG before its specialized fragment renderer can sample the source.'
+              : particleReconstructionActive
               ? 'Particle Aura needs an active video, image, or SVG before it can sample pixels.'
               : hasSelectableMedia
                 ? 'Select media in the left SOURCE panel to render it here.'
@@ -2095,6 +2135,7 @@ export function CanvasEngineSurface({
         data-background-mode={effectiveBackgroundMode}
         data-source-effect-active={effectPassActive ? 'true' : 'false'}
         data-particle-reconstruction-active={particleReconstructionActive ? 'true' : 'false'}
+        data-renderer-kind={rendererKind}
         style={{ ...presetStyle, opacity: outputContract.canvasOutputOpacity }}
       >
         {!transparentStage && <div className="rv-canvas-live-grid" aria-hidden="true" />}
@@ -2102,7 +2143,7 @@ export function CanvasEngineSurface({
         <div className="rv-canvas-live-media-shell">
           {activeVideo ? (
             <video
-              key={activeItem.id}
+              key={`${activeItem.id}:${activeItem.objectUrl}`}
               ref={videoRef}
               crossOrigin="anonymous"
               src={activeItem.objectUrl}
@@ -2117,7 +2158,7 @@ export function CanvasEngineSurface({
             />
           ) : (
             <img
-              key={activeItem.id}
+              key={`${activeItem.id}:${activeItem.objectUrl}`}
               ref={imageRef}
               crossOrigin="anonymous"
               src={activeItem.objectUrl}
@@ -2138,7 +2179,7 @@ export function CanvasEngineSurface({
           </div>
         )}
         <CanvasParticleAuraLayer
-          active={canvasPresetSettings.particleDensity > 0.02}
+          active={particleReconstructionActive}
           activeItem={activeItem}
           sourceRef={particleSourceRef}
           settings={canvasPresetSettings}
@@ -2157,7 +2198,21 @@ export function CanvasEngineSurface({
           onStatusChange={setParticleRendererNotice}
           outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
         />
-        {particleRendererNotice && canvasPresetSettings.particleDensity > 0.02 && (
+        <CanvasFracturesPlaceholderRenderer
+          key={fracturesSourceKey ?? activeItem.id}
+          active={fragmentCollageActive}
+          sourceRef={particleSourceRef}
+          fitMode={settings.fitMode}
+          sourceTransform={{
+            scale: settings.scale,
+            positionX: settings.positionX,
+            positionY: settings.positionY,
+            rotation: settings.rotation,
+          }}
+          settings={canvasPresetSettings}
+          onPreviewReady={handleFracturesPreviewReady}
+        />
+        {particleRendererNotice && particleReconstructionActive && (
           <div className="rv-canvas-render-notice" role="status">{particleRendererNotice}</div>
         )}
       </div>
@@ -2179,6 +2234,63 @@ const CANVAS_PARTICLE_QUALITY_OPTIONS: Array<{ value: CanvasParticleQuality; lab
   { value: 'balanced', label: 'Balanced' },
   { value: 'high', label: 'High' },
 ]
+
+const CANVAS_FRACTURE_MODE_OPTIONS: Array<{ value: CanvasFractureMode; label: string }> = [
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'rectangles', label: 'Rectangles' },
+  { value: 'horizontalSlices', label: 'Horizontal Slices' },
+  { value: 'verticalSlices', label: 'Vertical Slices' },
+  { value: 'angledQuads', label: 'Angled Quadrilaterals' },
+]
+
+const CANVAS_FRACTURE_ANCHOR_OPTIONS: Array<{ value: CanvasFractureAnchorMode; label: string }> = [
+  { value: 'alwaysVisible', label: 'Always Visible' },
+  { value: 'reactive', label: 'Reactive' },
+  { value: 'fadeWithMusic', label: 'Fade With Music' },
+  { value: 'fullyFragmented', label: 'Fully Fragmented' },
+]
+
+const CANVAS_FRACTURE_PLACEMENT_OPTIONS: Array<{ value: CanvasFracturePlacementMode; label: string }> = [
+  { value: 'editorialGrid', label: 'Editorial Grid' },
+  { value: 'centerBurst', label: 'Center Burst' },
+  { value: 'layeredScatter', label: 'Layered Scatter' },
+  { value: 'randomMix', label: 'Random Mix' },
+]
+
+const CANVAS_FRACTURE_INTERVAL_OPTIONS: Array<{ value: CanvasFractureQuantizeInterval; label: string }> = [
+  { value: 'beat', label: 'Every Beat' },
+  { value: 'bar', label: 'Every Bar' },
+  { value: '2bars', label: 'Every 2 Bars' },
+  { value: '4bars', label: 'Every 4 Bars' },
+  { value: '8bars', label: 'Every 8 Bars' },
+  { value: 'section', label: 'Section Change' },
+]
+
+const CANVAS_FRACTURE_TRANSITION_OPTIONS: Array<{ value: CanvasFractureTransitionMode; label: string }> = [
+  { value: 'hardGlitchCut', label: 'Hard Glitch Cut' },
+  { value: 'staggeredAssembly', label: 'Staggered Assembly' },
+  { value: 'zoomInOut', label: 'Zoom In and Out' },
+]
+
+const CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS: Array<{ value: CanvasFractureColorSourceMode; label: string }> = [
+  { value: 'imageSampled', label: 'Image Sampled' },
+  { value: 'brandKit', label: 'Brand Kit' },
+  { value: 'manualOverride', label: 'Manual Override' },
+]
+
+const CANVAS_FRACTURE_QUALITY_OPTIONS: Array<{ value: CanvasFractureQualityMode; label: string }> = [
+  { value: 'low', label: 'Low' },
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'high', label: 'High' },
+]
+
+const CANVAS_FRACTURE_ROLE_LABELS: Record<CanvasFractureEffectRole, string> = {
+  anchor: 'Anchor Role Weight',
+  primary: 'Primary Role Weight',
+  support: 'Support Role Weight',
+  accent: 'Accent Role Weight',
+  echo: 'Echo Role Weight',
+}
 
 function isCanvasPresetSliderControlKey(control: CanvasPresetControlKey): control is CanvasPresetSliderControlKey {
   return control !== 'particleColorMode' && control !== 'particleQuality'
@@ -2843,6 +2955,204 @@ function CanvasOrchestrationControls() {
   )
 }
 
+function CanvasFracturesActionControl({
+  helpId,
+  label,
+  value,
+  description,
+  onClick,
+}: {
+  helpId: HelpInfoTriggerProps['helpId']
+  label: string
+  value: number
+  description: string
+  onClick: () => void
+}) {
+  return (
+    <CanvasHelpControl
+      helpId={helpId}
+      currentValue={`Revision ${value}`}
+      className="rv-canvas-react-control-help"
+    >
+      <div className="rv-ctrl-toggle-row">
+        <div className="rv-ctrl-toggle-line">
+          <span className="rv-ctrl-label">{label}</span>
+          <button type="button" className="rv-reset-btn rv-canvas-fractures-action" onClick={onClick}>
+            Trigger
+          </button>
+        </div>
+        <span className="rv-ctrl-description">{description}</span>
+      </div>
+    </CanvasHelpControl>
+  )
+}
+
+function CanvasFracturesControls({
+  settings,
+  setSettings,
+  resetSettings,
+  customized,
+}: {
+  settings: CanvasPresetSettings
+  setSettings: (patch: Partial<CanvasPresetSettings>) => void
+  resetSettings: () => void
+  customized: boolean
+}) {
+  const manualColorsEnabled = settings.fractureColorSourceMode === 'manualOverride'
+  const setRoleWeight = (role: CanvasFractureEffectRole, value: number) => {
+    setSettings({
+      fractureEffectRoleWeights: {
+        ...settings.fractureEffectRoleWeights,
+        [role]: value,
+      },
+    })
+  }
+
+  return (
+    <Collapsible label="Fractures Controls" defaultOpen>
+      <div className="rv-ctrl-toggle-row rv-canvas-recipe-status">
+        <div className="rv-ctrl-toggle-line">
+          <span className="rv-ctrl-label">Fractures</span>
+          <button
+            type="button"
+            className="rv-ctrl-toggle rv-canvas-recipe-reset"
+            onClick={resetSettings}
+            aria-label="Reset Fractures settings"
+          >
+            Reset
+          </button>
+        </div>
+        {customized && <span className="rv-ctrl-description">Customized Fractures settings active.</span>}
+      </div>
+
+      <Collapsible label="Structure" defaultOpen>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.intensity" currentValue={formatCanvasPercentage(settings.fractureIntensity)} className="rv-canvas-react-control-help">
+          <SliderRow label="Fracture Intensity" value={settings.fractureIntensity} onChange={fractureIntensity => setSettings({ fractureIntensity })} min={0} max={1} step={0.01} color="#8de7ff" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.mode" currentValue={CANVAS_FRACTURE_MODE_OPTIONS.find(option => option.value === settings.fractureMode)?.label ?? 'Mixed'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Fracture Mode" value={settings.fractureMode} onChange={value => setSettings({ fractureMode: value as CanvasFractureMode })} options={CANVAS_FRACTURE_MODE_OPTIONS} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.anchorMode" currentValue={CANVAS_FRACTURE_ANCHOR_OPTIONS.find(option => option.value === settings.fractureAnchorMode)?.label ?? 'Always Visible'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Anchor Mode" value={settings.fractureAnchorMode} onChange={value => setSettings({ fractureAnchorMode: value as CanvasFractureAnchorMode })} options={CANVAS_FRACTURE_ANCHOR_OPTIONS} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.focusProtection" currentValue={formatCanvasPercentage(settings.fractureFocusProtection)} className="rv-canvas-react-control-help">
+          <SliderRow label="Focus Protection" value={settings.fractureFocusProtection} onChange={fractureFocusProtection => setSettings({ fractureFocusProtection })} min={0} max={1} step={0.01} color="#61d6aa" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.focusX" currentValue={formatCanvasPercentage(settings.fractureFocusX)} className="rv-canvas-react-control-help">
+          <SliderRow label="Focus X" value={settings.fractureFocusX} onChange={fractureFocusX => setSettings({ fractureFocusX })} min={0} max={1} step={0.01} color="#4ac7db" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.focusY" currentValue={formatCanvasPercentage(settings.fractureFocusY)} className="rv-canvas-react-control-help">
+          <SliderRow label="Focus Y" value={settings.fractureFocusY} onChange={fractureFocusY => setSettings({ fractureFocusY })} min={0} max={1} step={0.01} color="#4ac7db" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.composition" currentValue={formatCanvasPercentage(settings.fractureComposition)} className="rv-canvas-react-control-help">
+          <SliderRow label="Composition" value={settings.fractureComposition} onChange={fractureComposition => setSettings({ fractureComposition })} min={0} max={1} step={0.01} color="#d8b95a" description="0% is editorial and restrained; 100% is chaotic." />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.placementMode" currentValue={CANVAS_FRACTURE_PLACEMENT_OPTIONS.find(option => option.value === settings.fracturePlacementMode)?.label ?? 'Editorial Grid'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Placement Mode" value={settings.fracturePlacementMode} onChange={value => setSettings({ fracturePlacementMode: value as CanvasFracturePlacementMode })} options={CANVAS_FRACTURE_PLACEMENT_OPTIONS} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.topologyInterval" currentValue={CANVAS_FRACTURE_INTERVAL_OPTIONS.find(option => option.value === settings.fractureTopologyInterval)?.label ?? 'Every 4 Bars'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Topology Change" value={settings.fractureTopologyInterval} onChange={value => setSettings({ fractureTopologyInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_INTERVAL_OPTIONS} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.layoutInterval" currentValue={CANVAS_FRACTURE_INTERVAL_OPTIONS.find(option => option.value === settings.fractureLayoutInterval)?.label ?? 'Every Bar'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Layout Change" value={settings.fractureLayoutInterval} onChange={value => setSettings({ fractureLayoutInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_INTERVAL_OPTIONS} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.variationSeed" currentValue={settings.fractureVariationSeed} className="rv-canvas-react-control-help">
+          <NumberInputRow label="Variation Seed" value={settings.fractureVariationSeed} onChange={fractureVariationSeed => setSettings({ fractureVariationSeed })} min={0} max={999999} step={1} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.quality" currentValue={CANVAS_FRACTURE_QUALITY_OPTIONS.find(option => option.value === settings.fractureQuality)?.label ?? 'Balanced'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Quality" value={settings.fractureQuality} onChange={value => setSettings({ fractureQuality: value as CanvasFractureQualityMode })} options={CANVAS_FRACTURE_QUALITY_OPTIONS} />
+        </CanvasHelpControl>
+      </Collapsible>
+
+      <Collapsible label="Motion" defaultOpen>
+        <CanvasHelpControl helpId="react.canvas.fractures.motion.amount" currentValue={formatCanvasPercentage(settings.fractureMotionAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Motion" value={settings.fractureMotionAmount} onChange={fractureMotionAmount => setSettings({ fractureMotionAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.motion.transition" currentValue={CANVAS_FRACTURE_TRANSITION_OPTIONS.find(option => option.value === settings.fractureTransitionMode)?.label ?? 'Staggered Assembly'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Transition" value={settings.fractureTransitionMode} onChange={value => setSettings({ fractureTransitionMode: value as CanvasFractureTransitionMode })} options={CANVAS_FRACTURE_TRANSITION_OPTIONS} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.motion.transitionSpeed" currentValue={formatCanvasPercentage(settings.fractureTransitionSpeed)} className="rv-canvas-react-control-help">
+          <SliderRow label="Transition Speed" value={settings.fractureTransitionSpeed} onChange={fractureTransitionSpeed => setSettings({ fractureTransitionSpeed })} min={0} max={1} step={0.01} color="#4ac7db" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.motion.stagger" currentValue={formatCanvasPercentage(settings.fractureStaggerAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Stagger" value={settings.fractureStaggerAmount} onChange={fractureStaggerAmount => setSettings({ fractureStaggerAmount })} min={0} max={1} step={0.01} color="#d8b95a" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.motion.zoom" currentValue={formatCanvasPercentage(settings.fractureZoomAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Zoom" value={settings.fractureZoomAmount} onChange={fractureZoomAmount => setSettings({ fractureZoomAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
+        </CanvasHelpControl>
+        <CanvasFracturesActionControl helpId="react.canvas.fractures.motion.refracture" label="Refracture" value={settings.fractureTopologyRevision} description="Queues a deterministic topology identity change for the future planner." onClick={() => setSettings({ fractureTopologyRevision: settings.fractureTopologyRevision + 1 })} />
+        <CanvasFracturesActionControl helpId="react.canvas.fractures.motion.shuffleLayout" label="Shuffle Layout" value={settings.fractureLayoutRevision} description="Queues a deterministic placement identity change without altering topology." onClick={() => setSettings({ fractureLayoutRevision: settings.fractureLayoutRevision + 1 })} />
+        <CanvasHelpControl helpId="react.canvas.fractures.motion.freezeLayout" currentValue={settings.fractureFreezeLayout ? 'On' : 'Off'} currentValueLabel="Status" className="rv-canvas-react-control-help">
+          <ToggleRow label="Freeze Layout" value={settings.fractureFreezeLayout} onChange={fractureFreezeLayout => setSettings({ fractureFreezeLayout })} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.motion.returnToAnchor" currentValue={settings.fractureReturnToAnchor ? 'On' : 'Off'} currentValueLabel="Status" className="rv-canvas-react-control-help">
+          <ToggleRow label="Return to Anchor" value={settings.fractureReturnToAnchor} onChange={fractureReturnToAnchor => setSettings({ fractureReturnToAnchor })} />
+        </CanvasHelpControl>
+      </Collapsible>
+
+      <Collapsible label="Effects" defaultOpen={false}>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.intensity" currentValue={formatCanvasPercentage(settings.fractureEffectsIntensity)} className="rv-canvas-react-control-help">
+          <SliderRow label="Effects Intensity" value={settings.fractureEffectsIntensity} onChange={fractureEffectsIntensity => setSettings({ fractureEffectsIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.glow" currentValue={formatCanvasPercentage(settings.fractureGlowAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Glow" value={settings.fractureGlowAmount} onChange={fractureGlowAmount => setSettings({ fractureGlowAmount })} min={0} max={1} step={0.01} color="#8de7ff" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.glitch" currentValue={formatCanvasPercentage(settings.fractureGlitchAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Glitch" value={settings.fractureGlitchAmount} onChange={fractureGlitchAmount => setSettings({ fractureGlitchAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.texture" currentValue={formatCanvasPercentage(settings.fractureTextureAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Texture" value={settings.fractureTextureAmount} onChange={fractureTextureAmount => setSettings({ fractureTextureAmount })} min={0} max={1} step={0.01} color="#d8b95a" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.trails" currentValue={formatCanvasPercentage(settings.fractureTrailsAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Trails" value={settings.fractureTrailsAmount} onChange={fractureTrailsAmount => setSettings({ fractureTrailsAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.depth" currentValue={formatCanvasPercentage(settings.fractureDepthAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Depth" value={settings.fractureDepthAmount} onChange={fractureDepthAmount => setSettings({ fractureDepthAmount })} min={0} max={1} step={0.01} color="#4ac7db" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.duplication" currentValue={formatCanvasPercentage(settings.fractureDuplicationAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Duplication" value={settings.fractureDuplicationAmount} onChange={fractureDuplicationAmount => setSettings({ fractureDuplicationAmount })} min={0} max={1} step={0.01} color="#b84fc9" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.colorTreatment" currentValue={formatCanvasPercentage(settings.fractureColorTreatmentAmount)} className="rv-canvas-react-control-help">
+          <SliderRow label="Color Treatment" value={settings.fractureColorTreatmentAmount} onChange={fractureColorTreatmentAmount => setSettings({ fractureColorTreatmentAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.colorSource" currentValue={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS.find(option => option.value === settings.fractureColorSourceMode)?.label ?? 'Image Sampled'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <SelectRow label="Color Source" value={settings.fractureColorSourceMode} onChange={value => setSettings({ fractureColorSourceMode: value as CanvasFractureColorSourceMode })} options={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.manualPrimaryColor" currentValue={settings.fractureManualPrimaryColor} className="rv-canvas-react-control-help">
+          <ColorRow label="Manual Primary Color" value={settings.fractureManualPrimaryColor} onChange={fractureManualPrimaryColor => setSettings({ fractureManualPrimaryColor })} disabled={!manualColorsEnabled} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.effects.manualSupportingColor" currentValue={settings.fractureManualSupportingColor} className="rv-canvas-react-control-help">
+          <ColorRow label="Manual Supporting Color" value={settings.fractureManualSupportingColor} onChange={fractureManualSupportingColor => setSettings({ fractureManualSupportingColor })} disabled={!manualColorsEnabled} />
+        </CanvasHelpControl>
+        {CANVAS_FRACTURE_EFFECT_ROLES.map(role => (
+          <CanvasHelpControl key={role} helpId={`react.canvas.fractures.effects.roleWeight.${role}` as HelpInfoTriggerProps['helpId']} currentValue={formatCanvasPercentage(settings.fractureEffectRoleWeights[role])} className="rv-canvas-react-control-help">
+            <SliderRow label={CANVAS_FRACTURE_ROLE_LABELS[role]} value={settings.fractureEffectRoleWeights[role]} onChange={value => setRoleWeight(role, value)} min={0} max={1} step={0.01} color="#9ddcff" />
+          </CanvasHelpControl>
+        ))}
+      </Collapsible>
+
+      <Collapsible label="Audio" defaultOpen={false}>
+        <CanvasHelpControl helpId="react.canvas.fractures.audio.response" currentValue={formatCanvasPercentage(settings.fractureAudioResponse)} className="rv-canvas-react-control-help">
+          <SliderRow label="Audio Response" value={settings.fractureAudioResponse} onChange={fractureAudioResponse => setSettings({ fractureAudioResponse })} min={0} max={1} step={0.01} color="#d8b95a" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.audio.bassMotion" currentValue={formatCanvasPercentage(settings.fractureBassMotion)} className="rv-canvas-react-control-help">
+          <SliderRow label="Bass Motion" value={settings.fractureBassMotion} onChange={fractureBassMotion => setSettings({ fractureBassMotion })} min={0} max={1} step={0.01} color="#61d6aa" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.audio.transientGlitch" currentValue={formatCanvasPercentage(settings.fractureTransientGlitch)} className="rv-canvas-react-control-help">
+          <SliderRow label="Transient Glitch" value={settings.fractureTransientGlitch} onChange={fractureTransientGlitch => setSettings({ fractureTransientGlitch })} min={0} max={1} step={0.01} color="#ff4fd8" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.audio.structuralResponse" currentValue={formatCanvasPercentage(settings.fractureStructuralResponse)} className="rv-canvas-react-control-help">
+          <SliderRow label="Structural Response" value={settings.fractureStructuralResponse} onChange={fractureStructuralResponse => setSettings({ fractureStructuralResponse })} min={0} max={1} step={0.01} color="#4ac7db" />
+        </CanvasHelpControl>
+      </Collapsible>
+
+      <div className="rv-canvas-engine-note">
+        Stage 1 uses a neutral synchronized-source placeholder. Fragment geometry, effects, audio animation, recording, and cast output arrive in later stages.
+      </div>
+    </Collapsible>
+  )
+}
+
 function CanvasPresetControls() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -2855,6 +3165,17 @@ function CanvasPresetControls() {
   const mediaItems = useCanvasRuntimeMediaItems()
   const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
   const customized = canvasPresetOverride?.source === 'manual' && canvasPresetOverride.label === 'User-adjusted preset'
+
+  if (selectedPreset.rendererKind === 'fragmentCollage') {
+    return (
+      <CanvasFracturesControls
+        settings={canvasPresetSettings}
+        setSettings={setCanvasPresetSettings}
+        resetSettings={resetCanvasPresetSettings}
+        customized={customized}
+      />
+    )
+  }
 
   const renderControl = (control: CanvasPresetControlKey) => {
     if (control === 'particleColorMode') {

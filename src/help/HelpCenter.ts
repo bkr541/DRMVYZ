@@ -3418,6 +3418,1017 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "tip": "Lower quality before reducing the creative Particle Density value when the goal is only to recover frame rate."
   },
   {
+    "id": "react.canvas.fractures.structure.intensity",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Fracture Intensity",
+    "componentType": "slider",
+    "summary": "Controls how much of the source is divided into visible fragments rather than exposing a raw fragment count.",
+    "whatItDoes": [
+      "Controls how much of the source is divided into visible fragments rather than exposing a raw fragment count.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The setting changes immediately; topology regeneration still waits for the selected topology boundary.",
+      "The normalized intensity is part of deterministic plan reconstruction."
+    ],
+    "whenToUse": "Adjust Fracture Intensity while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "34%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.structure.mode",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Fracture Mode",
+    "componentType": "select",
+    "summary": "Chooses mixed fragments, rectangles, horizontal slices, vertical slices, or limited angled quadrilaterals.",
+    "whatItDoes": [
+      "Chooses mixed fragments, rectangles, horizontal slices, vertical slices, or limited angled quadrilaterals.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The selection is stored immediately and takes effect at the next topology boundary.",
+      "The selected shape family is an explicit deterministic planner input."
+    ],
+    "whenToUse": "Adjust Fracture Mode while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Mixed"
+  },
+  {
+    "id": "react.canvas.fractures.structure.anchorMode",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Anchor Mode",
+    "componentType": "select",
+    "summary": "Chooses whether the source anchor stays visible, reacts, fades with music, or becomes fully fragmented.",
+    "whatItDoes": [
+      "Chooses whether the source anchor stays visible, reacts, fades with music, or becomes fully fragmented.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The selection changes immediately for the active plan and future boundaries.",
+      "The mode is persisted and reconstructed identically after backward seeking."
+    ],
+    "whenToUse": "Adjust Anchor Mode while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Always Visible"
+  },
+  {
+    "id": "react.canvas.fractures.structure.focusProtection",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Focus Protection",
+    "componentType": "slider",
+    "summary": "Protects the focus area from aggressive fragmentation and displacement.",
+    "whatItDoes": [
+      "Protects the focus area from aggressive fragmentation and displacement.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; geometry updates occur at the next applicable topology or layout boundary.",
+      "The protection radius is a deterministic geometry input."
+    ],
+    "whenToUse": "Adjust Focus Protection while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "70%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.structure.focusX",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Focus X",
+    "componentType": "slider",
+    "summary": "Moves the protected focus point horizontally across the source.",
+    "whatItDoes": [
+      "Moves the protected focus point horizontally across the source.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The value changes immediately and is consumed by the next geometry plan.",
+      "The normalized focus coordinate is persisted for exact reconstruction."
+    ],
+    "whenToUse": "Adjust Focus X while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "50%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.structure.focusY",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Focus Y",
+    "componentType": "slider",
+    "summary": "Moves the protected focus point vertically across the source.",
+    "whatItDoes": [
+      "Moves the protected focus point vertically across the source.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The value changes immediately and is consumed by the next geometry plan.",
+      "The normalized focus coordinate is persisted for exact reconstruction."
+    ],
+    "whenToUse": "Adjust Focus Y while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "50%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.structure.composition",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Composition",
+    "componentType": "slider",
+    "summary": "Moves the composition from restrained editorial spacing toward chaotic overlap and displacement.",
+    "whatItDoes": [
+      "Moves the composition from restrained editorial spacing toward chaotic overlap and displacement.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; layout changes resolve at the selected layout boundary.",
+      "The composition value is a deterministic placement input."
+    ],
+    "whenToUse": "Adjust Composition while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "25%",
+    "range": "Editorial to Chaotic"
+  },
+  {
+    "id": "react.canvas.fractures.structure.placementMode",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Placement Mode",
+    "componentType": "select",
+    "summary": "Chooses editorial grid, center burst, layered scatter, or a deterministic random mix.",
+    "whatItDoes": [
+      "Chooses editorial grid, center burst, layered scatter, or a deterministic random mix.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The selection is stored immediately and applies at the next layout boundary.",
+      "Random Mix uses the saved seed and revisions rather than Math.random()."
+    ],
+    "whenToUse": "Adjust Placement Mode while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Editorial Grid"
+  },
+  {
+    "id": "react.canvas.fractures.structure.topologyInterval",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Topology Change",
+    "componentType": "select",
+    "summary": "Chooses the beat, bar, phrase, or section boundary where fragment shapes may be regenerated.",
+    "whatItDoes": [
+      "Chooses the beat, bar, phrase, or section boundary where fragment shapes may be regenerated.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The dropdown changes immediately; topology itself changes only on the selected quantized boundary.",
+      "Quantized identity is reconstructed from timeline position, seed, and topology revision."
+    ],
+    "whenToUse": "Adjust Topology Change while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Every 4 Bars"
+  },
+  {
+    "id": "react.canvas.fractures.structure.layoutInterval",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Layout Change",
+    "componentType": "select",
+    "summary": "Chooses the beat, bar, phrase, or section boundary where fragment placement may change.",
+    "whatItDoes": [
+      "Chooses the beat, bar, phrase, or section boundary where fragment placement may change.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The dropdown changes immediately; placement changes only on the selected quantized boundary.",
+      "Quantized layout identity is reconstructed from timeline position, seed, and layout revision."
+    ],
+    "whenToUse": "Adjust Layout Change while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Every Bar"
+  },
+  {
+    "id": "react.canvas.fractures.structure.variationSeed",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Variation Seed",
+    "componentType": "numeric",
+    "summary": "Sets the stable integer seed used by future Fractures topology, layout, role, and transition planning.",
+    "whatItDoes": [
+      "Sets the stable integer seed used by future Fractures topology, layout, role, and transition planning.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The seed changes immediately and affects the next planned boundary.",
+      "Using the same seed, revisions, settings, and timeline position must reproduce the same state."
+    ],
+    "whenToUse": "Adjust Variation Seed while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "1337",
+    "range": "0\u2013999999"
+  },
+  {
+    "id": "react.canvas.fractures.structure.quality",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Structure",
+    "title": "Quality",
+    "componentType": "select",
+    "summary": "Chooses the future fragment-planning and rendering budget.",
+    "whatItDoes": [
+      "Chooses the future fragment-planning and rendering budget.",
+      "Writes to the canonical Fractures structure state used by the specialized fragment-collage renderer.",
+      "The selection changes immediately; the placeholder remains source-safe in this foundation stage.",
+      "Quality changes resource limits, not deterministic fragment identity."
+    ],
+    "whenToUse": "Adjust Quality while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures structure planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Balanced"
+  },
+  {
+    "id": "react.canvas.fractures.motion.amount",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Motion",
+    "componentType": "slider",
+    "summary": "Controls the overall amount of fragment movement.",
+    "whatItDoes": [
+      "Controls the overall amount of fragment movement.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The value changes immediately and future interpolation will read it every frame.",
+      "Motion is derived from stable plan state and timeline time, preserving deterministic reconstruction after backward seeks."
+    ],
+    "whenToUse": "Adjust Motion while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "24%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.motion.transition",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Transition",
+    "componentType": "select",
+    "summary": "Chooses Hard Glitch Cut, Staggered Assembly, or Zoom In and Out.",
+    "whatItDoes": [
+      "Chooses Hard Glitch Cut, Staggered Assembly, or Zoom In and Out.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The selection changes immediately and is used at the next transition boundary.",
+      "Transition identity and timing are reconstructed from the saved mode and quantized plan."
+    ],
+    "whenToUse": "Adjust Transition while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Staggered Assembly"
+  },
+  {
+    "id": "react.canvas.fractures.motion.transitionSpeed",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Transition Speed",
+    "componentType": "slider",
+    "summary": "Controls how quickly fragments complete the selected transition.",
+    "whatItDoes": [
+      "Controls how quickly fragments complete the selected transition.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The value changes immediately for subsequent interpolation.",
+      "Speed changes interpolation only and preserves deterministic reconstruction without introducing random state."
+    ],
+    "whenToUse": "Adjust Transition Speed while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "45%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.motion.stagger",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Stagger",
+    "componentType": "slider",
+    "summary": "Controls the spread between individual fragment transition start times.",
+    "whatItDoes": [
+      "Controls the spread between individual fragment transition start times.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The value changes immediately for subsequent transitions.",
+      "Per-fragment stagger order will be assigned deterministically."
+    ],
+    "whenToUse": "Adjust Stagger while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "28%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.motion.zoom",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Zoom",
+    "componentType": "slider",
+    "summary": "Controls fragment-scale travel used by the Zoom In and Out transition.",
+    "whatItDoes": [
+      "Controls fragment-scale travel used by the Zoom In and Out transition.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The value changes immediately for subsequent transitions.",
+      "Zoom interpolation is timeline-derived and preserves deterministic reconstruction after seeking."
+    ],
+    "whenToUse": "Adjust Zoom while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "18%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.motion.refracture",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Refracture",
+    "componentType": "button",
+    "summary": "Increments the persisted topology revision to request a new deterministic fragment plan.",
+    "whatItDoes": [
+      "Increments the persisted topology revision to request a new deterministic fragment plan.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The revision changes immediately; topology is adopted at the next allowed topology boundary.",
+      "Repeating the same revision, seed, and boundary reconstructs the same topology."
+    ],
+    "whenToUse": "Adjust Refracture while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Revision 0"
+  },
+  {
+    "id": "react.canvas.fractures.motion.shuffleLayout",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Shuffle Layout",
+    "componentType": "button",
+    "summary": "Increments the persisted layout revision without changing the fragment topology.",
+    "whatItDoes": [
+      "Increments the persisted layout revision without changing the fragment topology.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The revision changes immediately; placement is adopted at the next allowed layout boundary.",
+      "Repeating the same revision, seed, and boundary reconstructs the same layout."
+    ],
+    "whenToUse": "Adjust Shuffle Layout while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Revision 0"
+  },
+  {
+    "id": "react.canvas.fractures.motion.freezeLayout",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Freeze Layout",
+    "componentType": "toggle",
+    "summary": "Prevents automatic layout-boundary changes while preserving the current deterministic plan identity.",
+    "whatItDoes": [
+      "Prevents automatic layout-boundary changes while preserving the current deterministic plan identity.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The preference changes immediately.",
+      "Unfreezing resumes from timeline-derived deterministic boundaries rather than accumulated frame state."
+    ],
+    "whenToUse": "Adjust Freeze Layout while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Off"
+  },
+  {
+    "id": "react.canvas.fractures.motion.returnToAnchor",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Motion",
+    "title": "Return to Anchor",
+    "componentType": "toggle",
+    "summary": "Allows displaced fragments to return toward the protected source anchor between transitions.",
+    "whatItDoes": [
+      "Allows displaced fragments to return toward the protected source anchor between transitions.",
+      "Writes to the canonical Fractures motion state used by the specialized fragment-collage renderer.",
+      "The preference changes immediately for future interpolation.",
+      "Anchor return uses deterministic interpolation and saved anchor settings."
+    ],
+    "whenToUse": "Adjust Return to Anchor while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures motion planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "On"
+  },
+  {
+    "id": "react.canvas.fractures.effects.intensity",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Effects Intensity",
+    "componentType": "slider",
+    "summary": "Controls the master weighting applied across Fractures fragment effects.",
+    "whatItDoes": [
+      "Controls the master weighting applied across Fractures fragment effects.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
+      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+    ],
+    "whenToUse": "Adjust Effects Intensity while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "25%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.glow",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Glow",
+    "componentType": "slider",
+    "summary": "Weights glow assignment on automatically selected fragment roles.",
+    "whatItDoes": [
+      "Weights glow assignment on automatically selected fragment roles.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
+      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+    ],
+    "whenToUse": "Adjust Glow while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "18%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.glitch",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Glitch",
+    "componentType": "slider",
+    "summary": "Weights glitch treatment on automatically selected fragment roles.",
+    "whatItDoes": [
+      "Weights glitch treatment on automatically selected fragment roles.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
+      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+    ],
+    "whenToUse": "Adjust Glitch while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "12%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.texture",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Texture",
+    "componentType": "slider",
+    "summary": "Weights surface texture treatment on automatically selected fragment roles.",
+    "whatItDoes": [
+      "Weights surface texture treatment on automatically selected fragment roles.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
+      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+    ],
+    "whenToUse": "Adjust Texture while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "20%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.trails",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Trails",
+    "componentType": "slider",
+    "summary": "Weights fragment trail treatment on automatically selected fragment roles.",
+    "whatItDoes": [
+      "Weights fragment trail treatment on automatically selected fragment roles.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
+      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+    ],
+    "whenToUse": "Adjust Trails while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "8%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.depth",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Depth",
+    "componentType": "slider",
+    "summary": "Weights simulated fragment depth and parallax treatment.",
+    "whatItDoes": [
+      "Weights simulated fragment depth and parallax treatment.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
+      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+    ],
+    "whenToUse": "Adjust Depth while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "22%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.duplication",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Duplication",
+    "componentType": "slider",
+    "summary": "Weights duplicate or echo fragment treatment.",
+    "whatItDoes": [
+      "Weights duplicate or echo fragment treatment.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
+      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+    ],
+    "whenToUse": "Adjust Duplication while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "10%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.colorTreatment",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Color Treatment",
+    "componentType": "slider",
+    "summary": "Weights color remapping across automatically assigned fragment roles.",
+    "whatItDoes": [
+      "Weights color remapping across automatically assigned fragment roles.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; visible processing is deferred to a later Fractures renderer stage.",
+      "Effect assignment will be derived from deterministic fragment roles and the saved weights."
+    ],
+    "whenToUse": "Adjust Color Treatment while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "18%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.colorSource",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Color Source",
+    "componentType": "select",
+    "summary": "Chooses source-sampled colors, Brand Kit colors, or manual override colors.",
+    "whatItDoes": [
+      "Chooses source-sampled colors, Brand Kit colors, or manual override colors.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The selection changes immediately; visible color processing is deferred to a later renderer stage.",
+      "The selected color source is persisted, does not alter topology identity, and is replayed during deterministic reconstruction."
+    ],
+    "whenToUse": "Adjust Color Source while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "Image Sampled"
+  },
+  {
+    "id": "react.canvas.fractures.effects.manualPrimaryColor",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Manual Primary Color",
+    "componentType": "color",
+    "summary": "Sets the primary manual color used when Color Source is Manual Override.",
+    "whatItDoes": [
+      "Sets the primary manual color used when Color Source is Manual Override.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The color changes immediately in canonical state; visible processing is deferred.",
+      "The normalized hex color is persisted for deterministic reload."
+    ],
+    "whenToUse": "Adjust Manual Primary Color while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "#4AC7DB"
+  },
+  {
+    "id": "react.canvas.fractures.effects.manualSupportingColor",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Manual Supporting Color",
+    "componentType": "color",
+    "summary": "Sets the supporting manual color used when Color Source is Manual Override.",
+    "whatItDoes": [
+      "Sets the supporting manual color used when Color Source is Manual Override.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The color changes immediately in canonical state; visible processing is deferred.",
+      "The normalized hex color is persisted for deterministic reload."
+    ],
+    "whenToUse": "Adjust Manual Supporting Color while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "#61D6AA"
+  },
+  {
+    "id": "react.canvas.fractures.effects.roleWeight.anchor",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Anchor Role Weight",
+    "componentType": "slider",
+    "summary": "Controls how strongly the automatic anchor fragment role participates in effect assignment.",
+    "whatItDoes": [
+      "Controls how strongly the automatic anchor fragment role participates in effect assignment.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
+      "Role membership and weighting will be assigned from the deterministic fragment plan."
+    ],
+    "whenToUse": "Adjust Anchor Role Weight while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "100%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.roleWeight.primary",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Primary Role Weight",
+    "componentType": "slider",
+    "summary": "Controls how strongly the automatic primary fragment role participates in effect assignment.",
+    "whatItDoes": [
+      "Controls how strongly the automatic primary fragment role participates in effect assignment.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
+      "Role membership and weighting will be assigned from the deterministic fragment plan."
+    ],
+    "whenToUse": "Adjust Primary Role Weight while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "80%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.roleWeight.support",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Support Role Weight",
+    "componentType": "slider",
+    "summary": "Controls how strongly the automatic support fragment role participates in effect assignment.",
+    "whatItDoes": [
+      "Controls how strongly the automatic support fragment role participates in effect assignment.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
+      "Role membership and weighting will be assigned from the deterministic fragment plan."
+    ],
+    "whenToUse": "Adjust Support Role Weight while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "55%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.roleWeight.accent",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Accent Role Weight",
+    "componentType": "slider",
+    "summary": "Controls how strongly the automatic accent fragment role participates in effect assignment.",
+    "whatItDoes": [
+      "Controls how strongly the automatic accent fragment role participates in effect assignment.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
+      "Role membership and weighting will be assigned from the deterministic fragment plan."
+    ],
+    "whenToUse": "Adjust Accent Role Weight while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "35%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.effects.roleWeight.echo",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Effects",
+    "title": "Echo Role Weight",
+    "componentType": "slider",
+    "summary": "Controls how strongly the automatic echo fragment role participates in effect assignment.",
+    "whatItDoes": [
+      "Controls how strongly the automatic echo fragment role participates in effect assignment.",
+      "Writes to the canonical Fractures effects state used by the specialized fragment-collage renderer.",
+      "The weight changes immediately; role treatment is deferred to a later renderer stage.",
+      "Role membership and weighting will be assigned from the deterministic fragment plan."
+    ],
+    "whenToUse": "Adjust Echo Role Weight while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures effects planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "20%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.audio.response",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Audio",
+    "title": "Audio Response",
+    "componentType": "slider",
+    "summary": "Controls the master amount of shared audio intelligence applied to Fractures.",
+    "whatItDoes": [
+      "Controls the master amount of shared audio intelligence applied to Fractures.",
+      "Writes to the canonical Fractures audio state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; audio-driven drawing is deferred to a later stage.",
+      "Audio features remain external inputs, while visual reconstruction stays timeline- and seed-derived."
+    ],
+    "whenToUse": "Adjust Audio Response while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures audio planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "35%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.audio.bassMotion",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Audio",
+    "title": "Bass Motion",
+    "componentType": "slider",
+    "summary": "Controls how strongly bass energy drives fragment motion.",
+    "whatItDoes": [
+      "Controls how strongly bass energy drives fragment motion.",
+      "Writes to the canonical Fractures audio state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; future rendering reads the shared bass signal each frame.",
+      "Backward seeking performs deterministic reconstruction of plan state before applying the current shared audio frame."
+    ],
+    "whenToUse": "Adjust Bass Motion while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures audio planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "30%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.audio.transientGlitch",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Audio",
+    "title": "Transient Glitch",
+    "componentType": "slider",
+    "summary": "Controls how strongly transient events trigger fragment glitch treatment.",
+    "whatItDoes": [
+      "Controls how strongly transient events trigger fragment glitch treatment.",
+      "Writes to the canonical Fractures audio state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; event response is deferred to a later renderer stage.",
+      "Transient responses will use shared event timing and deterministic fragment-role selection."
+    ],
+    "whenToUse": "Adjust Transient Glitch while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures audio planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "25%",
+    "range": "0\u2013100%"
+  },
+  {
+    "id": "react.canvas.fractures.audio.structuralResponse",
+    "priority": 1,
+    "view": "react",
+    "engine": "canvas",
+    "group": "CANVAS Fractures \u2014 Audio",
+    "title": "Structural Response",
+    "componentType": "slider",
+    "summary": "Controls how strongly bars, phrases, and section boundaries influence structural changes.",
+    "whatItDoes": [
+      "Controls how strongly bars, phrases, and section boundaries influence structural changes.",
+      "Writes to the canonical Fractures audio state used by the specialized fragment-collage renderer.",
+      "The value changes immediately; topology and layout still obey their selected quantized boundaries.",
+      "Structural changes are reconstructed from shared timeline boundaries, seed, and revisions."
+    ],
+    "whenToUse": "Adjust Structural Response while Fractures is the active CANVAS preset.",
+    "affects": [
+      "Fractures audio planning"
+    ],
+    "doesNotAffect": [
+      "other CANVAS presets"
+    ],
+    "defaultValue": "35%",
+    "range": "0\u2013100%"
+  },
+  {
     "id": "react.laserDmx.workspace.overview",
     "priority": 1,
     "view": "react",

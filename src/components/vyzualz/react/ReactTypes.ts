@@ -216,9 +216,27 @@ export type CanvasPresetId =
   | 'canvas-luma-melt'
   | 'canvas-frame-stutter'
   | 'canvas-particle-aura'
+  | 'canvas-fractures'
 
+export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage'
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
+export type CanvasFractureAnchorMode = 'alwaysVisible' | 'reactive' | 'fadeWithMusic' | 'fullyFragmented'
+export type CanvasFractureMode = 'mixed' | 'rectangles' | 'horizontalSlices' | 'verticalSlices' | 'angledQuads'
+export type CanvasFracturePlacementMode = 'editorialGrid' | 'centerBurst' | 'layeredScatter' | 'randomMix'
+export type CanvasFractureTransitionMode = 'hardGlitchCut' | 'staggeredAssembly' | 'zoomInOut'
+export type CanvasFractureColorSourceMode = 'imageSampled' | 'brandKit' | 'manualOverride'
+export type CanvasFractureQualityMode = 'low' | 'balanced' | 'high'
+export type CanvasFractureQuantizeInterval = 'beat' | 'bar' | '2bars' | '4bars' | '8bars' | 'section'
+export type CanvasFractureEffectRole = 'anchor' | 'primary' | 'support' | 'accent' | 'echo'
+
+export const CANVAS_FRACTURE_EFFECT_ROLES: readonly CanvasFractureEffectRole[] = [
+  'anchor',
+  'primary',
+  'support',
+  'accent',
+  'echo',
+] as const
 /**
  * `legacyComposite` preserves the pre-v2 Source Visibility product for loaded
  * projects. New presets use `dryOnly`, where Dry Source Mix owns only the
@@ -278,7 +296,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 2 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 3 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -302,6 +320,43 @@ export interface CanvasPresetSettings {
   particleSize: number
   particleColorMode: CanvasPresetColorMode
   particleQuality: CanvasParticleQuality
+  fractureIntensity: number
+  fractureMode: CanvasFractureMode
+  fractureAnchorMode: CanvasFractureAnchorMode
+  fractureFocusProtection: number
+  fractureFocusX: number
+  fractureFocusY: number
+  fractureComposition: number
+  fracturePlacementMode: CanvasFracturePlacementMode
+  fractureTopologyInterval: CanvasFractureQuantizeInterval
+  fractureLayoutInterval: CanvasFractureQuantizeInterval
+  fractureVariationSeed: number
+  fractureQuality: CanvasFractureQualityMode
+  fractureMotionAmount: number
+  fractureTransitionMode: CanvasFractureTransitionMode
+  fractureTransitionSpeed: number
+  fractureStaggerAmount: number
+  fractureZoomAmount: number
+  fractureFreezeLayout: boolean
+  fractureReturnToAnchor: boolean
+  fractureTopologyRevision: number
+  fractureLayoutRevision: number
+  fractureEffectsIntensity: number
+  fractureGlowAmount: number
+  fractureGlitchAmount: number
+  fractureTextureAmount: number
+  fractureTrailsAmount: number
+  fractureDepthAmount: number
+  fractureDuplicationAmount: number
+  fractureColorTreatmentAmount: number
+  fractureEffectRoleWeights: Record<CanvasFractureEffectRole, number>
+  fractureColorSourceMode: CanvasFractureColorSourceMode
+  fractureManualPrimaryColor: string
+  fractureManualSupportingColor: string
+  fractureAudioResponse: number
+  fractureBassMotion: number
+  fractureTransientGlitch: number
+  fractureStructuralResponse: number
   /** @deprecated Read/write compatibility for persisted pre-recipe CANVAS sessions only. */
   motionTrailAmount: number
   particleAmount: number
@@ -315,6 +370,7 @@ export interface CanvasPresetDefinition {
   name: string
   description: string
   accent: string
+  rendererKind: CanvasPresetRendererKind
   settings: Partial<CanvasPresetSettings>
   controls: CanvasPresetControlKey[]
 }
@@ -408,6 +464,49 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   particleSize: 2.4,
   particleColorMode: 'original',
   particleQuality: 'balanced',
+  fractureIntensity: 0.34,
+  fractureMode: 'mixed',
+  fractureAnchorMode: 'alwaysVisible',
+  fractureFocusProtection: 0.7,
+  fractureFocusX: 0.5,
+  fractureFocusY: 0.5,
+  fractureComposition: 0.25,
+  fracturePlacementMode: 'editorialGrid',
+  fractureTopologyInterval: '4bars',
+  fractureLayoutInterval: 'bar',
+  fractureVariationSeed: 1337,
+  fractureQuality: 'balanced',
+  fractureMotionAmount: 0.24,
+  fractureTransitionMode: 'staggeredAssembly',
+  fractureTransitionSpeed: 0.45,
+  fractureStaggerAmount: 0.28,
+  fractureZoomAmount: 0.18,
+  fractureFreezeLayout: false,
+  fractureReturnToAnchor: true,
+  fractureTopologyRevision: 0,
+  fractureLayoutRevision: 0,
+  fractureEffectsIntensity: 0.25,
+  fractureGlowAmount: 0.18,
+  fractureGlitchAmount: 0.12,
+  fractureTextureAmount: 0.2,
+  fractureTrailsAmount: 0.08,
+  fractureDepthAmount: 0.22,
+  fractureDuplicationAmount: 0.1,
+  fractureColorTreatmentAmount: 0.18,
+  fractureEffectRoleWeights: {
+    anchor: 1,
+    primary: 0.8,
+    support: 0.55,
+    accent: 0.35,
+    echo: 0.2,
+  },
+  fractureColorSourceMode: 'imageSampled',
+  fractureManualPrimaryColor: '#4AC7DB',
+  fractureManualSupportingColor: '#61D6AA',
+  fractureAudioResponse: 0.35,
+  fractureBassMotion: 0.3,
+  fractureTransientGlitch: 0.25,
+  fractureStructuralResponse: 0.35,
   motionTrailAmount: 0,
   particleAmount: 0,
   dissolveAmount: 0,
@@ -423,6 +522,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     name: 'Clean Playback',
     description: 'A clean source-forward recipe with high source visibility, neutral motion, and minimal reactive FX.',
     accent: '#e8f4f8',
+    rendererKind: 'standard',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
       drySourceMix: 1,
@@ -446,6 +546,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     name: 'Bass Bloom',
     description: 'A glow-forward recipe that swells source scale, bloom, and exposure with bass energy.',
     accent: '#61d6aa',
+    rendererKind: 'standard',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
       drySourceMix: 0.94,
@@ -469,6 +570,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     name: 'Ghost Echo',
     description: 'A soft echo recipe with visible source blend, trails, slow motion drift, and light glow.',
     accent: '#9ddcff',
+    rendererKind: 'standard',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
       drySourceMix: 0.76,
@@ -492,6 +594,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     name: 'Glitch Pulse',
     description: 'A high-energy recipe with RGB split, glitch shake, beat pulse, and tight stutter accents.',
     accent: '#ff4fd8',
+    rendererKind: 'standard',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
       drySourceMix: 0.92,
@@ -516,6 +619,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     name: 'Luma Melt',
     description: 'A liquid highlight recipe that uses luma threshold, blur, glow, and motion smear as one look.',
     accent: '#d8b95a',
+    rendererKind: 'standard',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
       drySourceMix: 0.84,
@@ -540,6 +644,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     name: 'Frame Stutter',
     description: 'A rhythmic frame-hold recipe with beat sync, stutter rate, RGB edge split, and frame shake.',
     accent: '#4ac7db',
+    rendererKind: 'standard',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
       drySourceMix: 0.95,
@@ -563,6 +668,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     name: 'Particle Aura',
     description: 'A dense particle hologram that reconstructs media with audio-reactive diffusion, chromatic slicing, and scanline detail.',
     accent: '#dffcff',
+    rendererKind: 'particleAura',
     settings: {
       ...DEFAULT_CANVAS_PRESET_SETTINGS,
       drySourceMix: 0.04,
@@ -600,6 +706,30 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       'particleQuality',
     ],
   },
+  {
+    id: 'canvas-fractures',
+    name: 'Fractures',
+    description: 'An editorial fragment-collage foundation with deterministic topology, placement, motion, effects, and audio contracts.',
+    accent: '#8de7ff',
+    rendererKind: 'fragmentCollage',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 1,
+      sourceVisibility: 1,
+      intensity: 0,
+      bassReactivity: 0,
+      beatPulse: 0,
+      glow: 0,
+      trailAmount: 0,
+      rgbSplit: 0,
+      glitchAmount: 0,
+      stutterRate: 0,
+      motionAmount: 0,
+      turbulence: 0,
+      particleDensity: 0,
+    },
+    controls: [],
+  },
 ]
 
 
@@ -607,6 +737,10 @@ export const CANVAS_PRESET_BY_ID: Record<CanvasPresetId, CanvasPresetDefinition>
   acc[preset.id] = preset
   return acc
 }, {} as Record<CanvasPresetId, CanvasPresetDefinition>)
+
+export function resolveCanvasPresetRendererKind(presetId: CanvasPresetId): CanvasPresetRendererKind {
+  return CANVAS_PRESET_BY_ID[presetId]?.rendererKind ?? 'standard'
+}
 
 export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   sourceType:          'classic',

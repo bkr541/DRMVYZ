@@ -14,6 +14,22 @@ describe('CANVAS preset provenance', () => {
     expect(resolveCanvasPresetProvenance(preset, exact).label).toBe(preset.name)
   })
 
+  it('tracks Fractures-owned settings without leaking them into another preset identity', () => {
+    const preset = CANVAS_PRESET_BY_ID['canvas-fractures']
+    const exact = normalizeCanvasPresetSettings(preset.settings)
+    const modified = normalizeCanvasPresetSettings({
+      ...exact,
+      fractureMode: 'angledQuads',
+      fractureEffectRoleWeights: {
+        ...exact.fractureEffectRoleWeights,
+        accent: exact.fractureEffectRoleWeights.accent + 0.1,
+      },
+    })
+
+    expect(resolveCanvasPresetProvenance(preset, exact).status).toBe('exact')
+    expect(resolveCanvasPresetProvenance(preset, modified).status).toBe('modified')
+  })
+
   it('ignores the synchronized legacy alias when canonical values match', () => {
     const preset = CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
     const exact = normalizeCanvasPresetSettings(preset.settings)

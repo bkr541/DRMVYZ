@@ -13,6 +13,7 @@ import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pi
 import { PanelSubtabs } from '../PanelSubtabs'
 import { getRequestedPixGridWorkspace, subscribePixGridWorkspace } from '../pixGrid/PixGridWorkspaceNavigation'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
+import { isCanvasFracturesOutputDeferred } from '../canvasFracturesOutputContract'
 
 type DesignSurface = 'engine' | 'selection'
 type ReactivitySurface = 'routing' | 'analysis'
@@ -152,7 +153,10 @@ export function ReactOutputWorkspacePanel({
   hasActiveProgramAudio,
   onStartRecording,
 }: ReactOutputWorkspacePanelProps) {
-  const isLaserDmx = useReactStore(state => state.activeReactEngineId === 'laserDmx')
+  const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
+  const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
+  const isLaserDmx = activeReactEngineId === 'laserDmx'
+  const fracturesOutputDeferred = isCanvasFracturesOutputDeferred(activeReactEngineId, selectedCanvasPresetId)
   const [surface, setSurface] = useState<OutputSurface>('recording')
 
   useEffect(() => {
@@ -174,6 +178,12 @@ export function ReactOutputWorkspacePanel({
         <div className="rv-inspector rv-inspector-scroll">
           {surface === 'production' && isLaserDmx ? (
             <div className="rv-ctrl-group"><ProductionOutputPanel /></div>
+          ) : fracturesOutputDeferred ? (
+            <div className="rv-canvas-output-deferred-placeholder" role="status" aria-label="Fractures recording unavailable">
+              <strong>Fractures recording is not included yet</strong>
+              <span>The specialized fragment renderer is available as a safe preview foundation, but capture is intentionally disabled for this preset in Stage 1.</span>
+              <button type="button" className="rv-reset-btn" disabled>Recording unavailable</button>
+            </div>
           ) : (
             <ReactRecordingPanel
               canvas={canvas}

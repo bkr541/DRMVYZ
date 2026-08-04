@@ -13,6 +13,7 @@ import {
   type CanvasPresetDefinition,
   type CanvasPresetId,
   CANVAS_PRESETS,
+  DEFAULT_CANVAS_PRESET_SETTINGS,
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import {
@@ -100,11 +101,17 @@ const CANVAS_PRESET_CHIP_LABELS: Record<CanvasPresetId, string> = {
   'canvas-luma-melt': 'Luma Treatment',
   'canvas-frame-stutter': 'Rhythm Stutter',
   'canvas-particle-aura': 'Particle System',
+  'canvas-fractures': 'Fragment Collage',
 }
 
 function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPreset {
-  const intensity = preset.settings.intensity ?? 0.5
+  const intensity = preset.rendererKind === 'fragmentCollage'
+    ? preset.settings.fractureIntensity ?? DEFAULT_CANVAS_PRESET_SETTINGS.fractureIntensity
+    : preset.settings.intensity ?? 0.5
   const motion = Math.max(
+    preset.rendererKind === 'fragmentCollage'
+      ? preset.settings.fractureMotionAmount ?? DEFAULT_CANVAS_PRESET_SETTINGS.fractureMotionAmount
+      : 0,
     preset.settings.motionAmount ?? 0,
     preset.settings.trailAmount ?? preset.settings.motionTrailAmount ?? 0,
     preset.settings.rgbSplit ?? 0,
@@ -112,7 +119,9 @@ function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPres
     preset.settings.turbulence ?? 0,
     preset.settings.stutterRate ? Math.min(1, preset.settings.stutterRate / 8) : 0,
   )
-  const glow = preset.settings.glow ?? 0.3
+  const glow = preset.rendererKind === 'fragmentCollage'
+    ? preset.settings.fractureGlowAmount ?? DEFAULT_CANVAS_PRESET_SETTINGS.fractureGlowAmount
+    : preset.settings.glow ?? 0.3
   const bassReactivity = Math.max(
     preset.settings.bassReactivity ?? preset.settings.bassBurst ?? 0,
     preset.settings.beatPulse ?? 0,

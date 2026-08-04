@@ -18,6 +18,7 @@ describe('CANVAS orchestration persistence and compatibility', () => {
       'canvas-luma-melt',
       'canvas-frame-stutter',
       'canvas-particle-aura',
+      'canvas-fractures',
     ]))
   })
 

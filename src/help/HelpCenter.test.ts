@@ -202,6 +202,57 @@ describe('Help Center registry', () => {
     })
   })
 
+  it('documents every Fractures structure, motion, effects, and audio control', () => {
+    const expectedIds = [
+      'react.canvas.fractures.structure.intensity',
+      'react.canvas.fractures.structure.mode',
+      'react.canvas.fractures.structure.anchorMode',
+      'react.canvas.fractures.structure.focusProtection',
+      'react.canvas.fractures.structure.focusX',
+      'react.canvas.fractures.structure.focusY',
+      'react.canvas.fractures.structure.composition',
+      'react.canvas.fractures.structure.placementMode',
+      'react.canvas.fractures.structure.topologyInterval',
+      'react.canvas.fractures.structure.layoutInterval',
+      'react.canvas.fractures.structure.variationSeed',
+      'react.canvas.fractures.structure.quality',
+      'react.canvas.fractures.motion.amount',
+      'react.canvas.fractures.motion.transition',
+      'react.canvas.fractures.motion.transitionSpeed',
+      'react.canvas.fractures.motion.stagger',
+      'react.canvas.fractures.motion.zoom',
+      'react.canvas.fractures.motion.refracture',
+      'react.canvas.fractures.motion.shuffleLayout',
+      'react.canvas.fractures.motion.freezeLayout',
+      'react.canvas.fractures.motion.returnToAnchor',
+      'react.canvas.fractures.effects.intensity',
+      'react.canvas.fractures.effects.glow',
+      'react.canvas.fractures.effects.glitch',
+      'react.canvas.fractures.effects.texture',
+      'react.canvas.fractures.effects.trails',
+      'react.canvas.fractures.effects.depth',
+      'react.canvas.fractures.effects.duplication',
+      'react.canvas.fractures.effects.colorTreatment',
+      'react.canvas.fractures.effects.colorSource',
+      'react.canvas.fractures.effects.manualPrimaryColor',
+      'react.canvas.fractures.effects.manualSupportingColor',
+      'react.canvas.fractures.effects.roleWeight.anchor',
+      'react.canvas.fractures.effects.roleWeight.primary',
+      'react.canvas.fractures.effects.roleWeight.support',
+      'react.canvas.fractures.effects.roleWeight.accent',
+      'react.canvas.fractures.effects.roleWeight.echo',
+      'react.canvas.fractures.audio.response',
+      'react.canvas.fractures.audio.bassMotion',
+      'react.canvas.fractures.audio.transientGlitch',
+      'react.canvas.fractures.audio.structuralResponse',
+    ] as const
+
+    expect(expectedIds).toHaveLength(41)
+    for (const helpId of expectedIds) {
+      expect(getHelpEntry(helpId)).toMatchObject({ engine: 'canvas' })
+    }
+  })
+
   it('documents the explicit LaserDMX workspace, preset, design, and performance controls', () => {
     expect(getHelpEntry('react.laserDmx.workspace.overview')).toMatchObject({
       title: 'LaserDMX Workspace',

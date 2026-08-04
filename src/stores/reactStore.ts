@@ -64,6 +64,14 @@ import type {
   CanvasEngineSettings,
   CanvasFitMode,
   CanvasMediaItem,
+  CanvasFractureAnchorMode,
+  CanvasFractureColorSourceMode,
+  CanvasFractureEffectRole,
+  CanvasFractureMode,
+  CanvasFracturePlacementMode,
+  CanvasFractureQualityMode,
+  CanvasFractureQuantizeInterval,
+  CanvasFractureTransitionMode,
   CanvasPresetColorMode,
   CanvasParticleQuality,
   CanvasPresetId,
@@ -3623,6 +3631,65 @@ function normalizeCanvasParticleQuality(value: unknown): CanvasParticleQuality {
     : DEFAULT_CANVAS_PRESET_SETTINGS.particleQuality
 }
 
+function normalizeCanvasFractureMode(value: unknown): CanvasFractureMode {
+  return value === 'rectangles' || value === 'horizontalSlices' || value === 'verticalSlices' || value === 'angledQuads' || value === 'mixed'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.fractureMode
+}
+
+function normalizeCanvasFractureAnchorMode(value: unknown): CanvasFractureAnchorMode {
+  return value === 'reactive' || value === 'fadeWithMusic' || value === 'fullyFragmented' || value === 'alwaysVisible'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.fractureAnchorMode
+}
+
+function normalizeCanvasFracturePlacementMode(value: unknown): CanvasFracturePlacementMode {
+  return value === 'centerBurst' || value === 'layeredScatter' || value === 'randomMix' || value === 'editorialGrid'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.fracturePlacementMode
+}
+
+function normalizeCanvasFractureTransitionMode(value: unknown): CanvasFractureTransitionMode {
+  return value === 'hardGlitchCut' || value === 'zoomInOut' || value === 'staggeredAssembly'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransitionMode
+}
+
+function normalizeCanvasFractureColorSourceMode(value: unknown): CanvasFractureColorSourceMode {
+  return value === 'brandKit' || value === 'manualOverride' || value === 'imageSampled'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.fractureColorSourceMode
+}
+
+function normalizeCanvasFractureQuality(value: unknown): CanvasFractureQualityMode {
+  return value === 'low' || value === 'high' || value === 'balanced'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.fractureQuality
+}
+
+function normalizeCanvasFractureInterval(value: unknown, fallback: CanvasFractureQuantizeInterval): CanvasFractureQuantizeInterval {
+  return value === 'beat' || value === 'bar' || value === '2bars' || value === '4bars' || value === '8bars' || value === 'section'
+    ? value
+    : fallback
+}
+
+function normalizeCanvasHexColor(value: unknown, fallback: string): string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim())
+    ? value.trim().toUpperCase()
+    : fallback
+}
+
+function normalizeCanvasFractureRoleWeights(value: unknown): Record<CanvasFractureEffectRole, number> {
+  const source = isRecord(value) ? value : DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights
+  return {
+    anchor: clampCanvasNumber(source.anchor, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.anchor, 0, 1),
+    primary: clampCanvasNumber(source.primary, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.primary, 0, 1),
+    support: clampCanvasNumber(source.support, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.support, 0, 1),
+    accent: clampCanvasNumber(source.accent, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.accent, 0, 1),
+    echo: clampCanvasNumber(source.echo, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectRoleWeights.echo, 0, 1),
+  }
+}
+
 export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSettings {
   const source = isRecord(value) ? value : DEFAULT_CANVAS_PRESET_SETTINGS
   const trailAmount = clampCanvasNumber(
@@ -3689,6 +3756,58 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     particleSize: clampCanvasNumber(source.particleSize, DEFAULT_CANVAS_PRESET_SETTINGS.particleSize, 0.35, 8),
     particleColorMode: normalizeCanvasPresetColorMode(source.particleColorMode),
     particleQuality: normalizeCanvasParticleQuality(source.particleQuality),
+    fractureIntensity: clampCanvasNumber(source.fractureIntensity, DEFAULT_CANVAS_PRESET_SETTINGS.fractureIntensity, 0, 1),
+    fractureMode: normalizeCanvasFractureMode(source.fractureMode),
+    fractureAnchorMode: normalizeCanvasFractureAnchorMode(source.fractureAnchorMode),
+    fractureFocusProtection: clampCanvasNumber(source.fractureFocusProtection, DEFAULT_CANVAS_PRESET_SETTINGS.fractureFocusProtection, 0, 1),
+    fractureFocusX: clampCanvasNumber(source.fractureFocusX, DEFAULT_CANVAS_PRESET_SETTINGS.fractureFocusX, 0, 1),
+    fractureFocusY: clampCanvasNumber(source.fractureFocusY, DEFAULT_CANVAS_PRESET_SETTINGS.fractureFocusY, 0, 1),
+    fractureComposition: clampCanvasNumber(source.fractureComposition, DEFAULT_CANVAS_PRESET_SETTINGS.fractureComposition, 0, 1),
+    fracturePlacementMode: normalizeCanvasFracturePlacementMode(source.fracturePlacementMode),
+    fractureTopologyInterval: normalizeCanvasFractureInterval(
+      source.fractureTopologyInterval,
+      DEFAULT_CANVAS_PRESET_SETTINGS.fractureTopologyInterval,
+    ),
+    fractureLayoutInterval: normalizeCanvasFractureInterval(
+      source.fractureLayoutInterval,
+      DEFAULT_CANVAS_PRESET_SETTINGS.fractureLayoutInterval,
+    ),
+    fractureVariationSeed: Math.max(0, Math.min(999999, Math.floor(finiteCanvasNumber(
+      source.fractureVariationSeed,
+      DEFAULT_CANVAS_PRESET_SETTINGS.fractureVariationSeed,
+    )))),
+    fractureQuality: normalizeCanvasFractureQuality(source.fractureQuality),
+    fractureMotionAmount: clampCanvasNumber(source.fractureMotionAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureMotionAmount, 0, 1),
+    fractureTransitionMode: normalizeCanvasFractureTransitionMode(source.fractureTransitionMode),
+    fractureTransitionSpeed: clampCanvasNumber(source.fractureTransitionSpeed, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransitionSpeed, 0, 1),
+    fractureStaggerAmount: clampCanvasNumber(source.fractureStaggerAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureStaggerAmount, 0, 1),
+    fractureZoomAmount: clampCanvasNumber(source.fractureZoomAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureZoomAmount, 0, 1),
+    fractureFreezeLayout: source.fractureFreezeLayout === true,
+    fractureReturnToAnchor: source.fractureReturnToAnchor !== false,
+    fractureTopologyRevision: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(finiteCanvasNumber(source.fractureTopologyRevision, 0)))),
+    fractureLayoutRevision: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(finiteCanvasNumber(source.fractureLayoutRevision, 0)))),
+    fractureEffectsIntensity: clampCanvasNumber(source.fractureEffectsIntensity, DEFAULT_CANVAS_PRESET_SETTINGS.fractureEffectsIntensity, 0, 1),
+    fractureGlowAmount: clampCanvasNumber(source.fractureGlowAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureGlowAmount, 0, 1),
+    fractureGlitchAmount: clampCanvasNumber(source.fractureGlitchAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureGlitchAmount, 0, 1),
+    fractureTextureAmount: clampCanvasNumber(source.fractureTextureAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTextureAmount, 0, 1),
+    fractureTrailsAmount: clampCanvasNumber(source.fractureTrailsAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTrailsAmount, 0, 1),
+    fractureDepthAmount: clampCanvasNumber(source.fractureDepthAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureDepthAmount, 0, 1),
+    fractureDuplicationAmount: clampCanvasNumber(source.fractureDuplicationAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureDuplicationAmount, 0, 1),
+    fractureColorTreatmentAmount: clampCanvasNumber(source.fractureColorTreatmentAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureColorTreatmentAmount, 0, 1),
+    fractureEffectRoleWeights: normalizeCanvasFractureRoleWeights(source.fractureEffectRoleWeights),
+    fractureColorSourceMode: normalizeCanvasFractureColorSourceMode(source.fractureColorSourceMode),
+    fractureManualPrimaryColor: normalizeCanvasHexColor(
+      source.fractureManualPrimaryColor,
+      DEFAULT_CANVAS_PRESET_SETTINGS.fractureManualPrimaryColor,
+    ),
+    fractureManualSupportingColor: normalizeCanvasHexColor(
+      source.fractureManualSupportingColor,
+      DEFAULT_CANVAS_PRESET_SETTINGS.fractureManualSupportingColor,
+    ),
+    fractureAudioResponse: clampCanvasNumber(source.fractureAudioResponse, DEFAULT_CANVAS_PRESET_SETTINGS.fractureAudioResponse, 0, 1),
+    fractureBassMotion: clampCanvasNumber(source.fractureBassMotion, DEFAULT_CANVAS_PRESET_SETTINGS.fractureBassMotion, 0, 1),
+    fractureTransientGlitch: clampCanvasNumber(source.fractureTransientGlitch, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransientGlitch, 0, 1),
+    fractureStructuralResponse: clampCanvasNumber(source.fractureStructuralResponse, DEFAULT_CANVAS_PRESET_SETTINGS.fractureStructuralResponse, 0, 1),
     motionTrailAmount: trailAmount,
     particleAmount: particleDensity,
     dissolveAmount: turbulence,
@@ -4557,6 +4676,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     // for current-version imports, so old project files cannot bypass this
     // migration after local persistence has already advanced.
     state = sanitizeRetiredReactPresetState(state)
+  }
+  if (version < 65) {
+    // Fractures extends the canonical CANVAS settings document without
+    // replacing existing preset values. Missing fields are added lazily on
+    // hydration and malformed enum/numeric values are repaired here.
+    state = {
+      ...state,
+      canvasPresetSettings: normalizeCanvasPresetSettings(state.canvasPresetSettings),
+    }
   }
   if (Array.isArray(state.reactPresets)) {
     state = {
@@ -9267,7 +9395,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 64,
+      version: 65,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

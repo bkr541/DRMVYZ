@@ -68,6 +68,7 @@ import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
+import { isCanvasFracturesOutputDeferred } from './canvasFracturesOutputContract'
 
 // These workspaces carry large, engine-specific renderers and authoring tools.
 // Keep them outside the initial React-view graph and load them only when their
@@ -159,6 +160,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     cinematicConfigsByPresetId,
     activeReactPresetId,
     activeReactEngineId,
+    selectedCanvasPresetId,
     laserDmxWorkspaceMode,
     reactIntensity,
     reactMotion,
@@ -199,6 +201,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     cinematicConfigsByPresetId: s.cinematicConfigsByPresetId,
     activeReactPresetId:    s.activeReactPresetId,
     activeReactEngineId:    s.activeReactEngineId,
+    selectedCanvasPresetId: s.selectedCanvasPresetId,
     laserDmxWorkspaceMode:  s.laserDmxWorkspaceMode,
     reactIntensity:         s.reactIntensity,
     reactMotion:            s.reactMotion,
@@ -236,6 +239,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     })),
   )
   const activeShaderId = useShaderPanelStore((s) => s.activeShaderId)
+  const fracturesOutputDeferred = isCanvasFracturesOutputDeferred(activeReactEngineId, selectedCanvasPresetId)
   const activeBrandKit = useBrandKitStore((s) => s.activeKit)
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
@@ -813,7 +817,18 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 </div>
                 <div className="rv-lower-workspace-actions">
                   <div className="rv-lower-workspace-output-actions drm-help-overlay-anchor">
-                    <OutputCastControl canvas={outputCanvas} />
+                    {fracturesOutputDeferred ? (
+                      <button
+                        type="button"
+                        className="rv-canvas-cast-deferred"
+                        disabled
+                        title="Fractures cast and production output support is not included in Stage 1."
+                      >
+                        Cast unavailable for Fractures
+                      </button>
+                    ) : (
+                      <OutputCastControl canvas={outputCanvas} />
+                    )}
                     <button
                       type="button"
                       className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}

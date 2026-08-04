@@ -9,6 +9,16 @@ const CANONICAL_CANVAS_PRESET_FIELDS: ReadonlyArray<keyof CanvasPresetSettings> 
   'sourceMixMode', 'drySourceMix', 'intensity', 'bassReactivity', 'beatPulse', 'glow', 'trailAmount',
   'rgbSplit', 'glitchAmount', 'stutterRate', 'lumaThreshold', 'motionAmount',
   'turbulence', 'particleDensity', 'particleSize', 'particleColorMode', 'particleQuality',
+  'fractureIntensity', 'fractureMode', 'fractureAnchorMode', 'fractureFocusProtection',
+  'fractureFocusX', 'fractureFocusY', 'fractureComposition', 'fracturePlacementMode',
+  'fractureTopologyInterval', 'fractureLayoutInterval', 'fractureVariationSeed', 'fractureQuality',
+  'fractureMotionAmount', 'fractureTransitionMode', 'fractureTransitionSpeed', 'fractureStaggerAmount',
+  'fractureZoomAmount', 'fractureFreezeLayout', 'fractureReturnToAnchor', 'fractureTopologyRevision',
+  'fractureLayoutRevision', 'fractureEffectsIntensity', 'fractureGlowAmount', 'fractureGlitchAmount',
+  'fractureTextureAmount', 'fractureTrailsAmount', 'fractureDepthAmount', 'fractureDuplicationAmount',
+  'fractureColorTreatmentAmount', 'fractureEffectRoleWeights', 'fractureColorSourceMode',
+  'fractureManualPrimaryColor', 'fractureManualSupportingColor', 'fractureAudioResponse',
+  'fractureBassMotion', 'fractureTransientGlitch', 'fractureStructuralResponse',
 ]
 
 function canonicalValues(value: Partial<CanvasPresetSettings>): Record<string, unknown> {

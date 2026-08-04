@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../stores/reactStore'
 import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
-import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel } from './ReactCanvasEngineShell'
+import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface } from './ReactCanvasEngineShell'
 
 vi.mock('../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({
@@ -33,6 +33,25 @@ afterEach(() => {
 })
 
 describe('CANVAS right-panel control contract', () => {
+  it('switches the active surface through the explicit renderer-kind contract', () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as typeof HTMLCanvasElement.prototype.getContext
+
+    try {
+      useReactStore.getState().selectCanvasPreset('canvas-fractures')
+      act(() => root.render(<CanvasEngineSurface isPlaying={false} isPaused />))
+      expect(host.querySelector('[data-renderer-kind="fragmentCollage"]')).not.toBeNull()
+
+      act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
+      expect(host.querySelector('[data-renderer-kind="particleAura"]')).not.toBeNull()
+
+      act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
+      expect(host.querySelector('[data-renderer-kind="standard"]')).not.toBeNull()
+    } finally {
+      HTMLCanvasElement.prototype.getContext = originalGetContext
+    }
+  })
+
   it('exposes Particle Quality with the other particle controls', () => {
     const particleGroup = CANVAS_REACT_CONTROL_GROUPS.find(group => group.title === 'Motion + Particles')
 
@@ -59,6 +78,60 @@ describe('CANVAS right-panel control contract', () => {
     expect(orchestrationIndex).toBeGreaterThan(displayIndex)
     expect(reactControlsIndex).toBeGreaterThan(orchestrationIndex)
     expect(timingIndex).toBeGreaterThan(reactControlsIndex)
+  })
+
+  it('shows the Fractures-only groups, canonical controls, and help ownership only when selected', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-fractures')
+    act(() => root.render(<CanvasEngineFxPanel />))
+
+    const labels = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .map(button => button.textContent?.trim())
+    expect(labels).toEqual(expect.arrayContaining([
+      'Fractures Controls',
+      'Structure',
+      'Motion',
+      'Effects',
+      'Audio',
+    ]))
+    expect(labels).not.toContain('CANVAS React Controls')
+
+    const effectsGroup = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .find(button => button.textContent?.trim() === 'Effects')
+    act(() => effectsGroup?.click())
+
+    const helpIds = [...host.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
+      .map(button => button.dataset.helpId)
+    expect(helpIds).toEqual(expect.arrayContaining([
+      'react.canvas.fractures.structure.intensity',
+      'react.canvas.fractures.structure.mode',
+      'react.canvas.fractures.structure.anchorMode',
+      'react.canvas.fractures.structure.topologyInterval',
+      'react.canvas.fractures.motion.transition',
+      'react.canvas.fractures.motion.refracture',
+      'react.canvas.fractures.effects.colorSource',
+      'react.canvas.fractures.effects.roleWeight.anchor',
+    ]))
+
+    const intensityLabel = [...host.querySelectorAll<HTMLLabelElement>('label')]
+      .find(label => label.textContent === 'Fracture Intensity')
+    const intensityInput = intensityLabel?.htmlFor
+      ? host.ownerDocument.getElementById(intensityLabel.htmlFor) as HTMLInputElement | null
+      : null
+    expect(intensityInput).not.toBeNull()
+    act(() => {
+      if (!intensityInput) return
+      intensityInput.value = '0.73'
+      intensityInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(useReactStore.getState().canvasPresetSettings.fractureIntensity).toBe(0.73)
+
+    act(() => {
+      useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
+    })
+    const standardLabels = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .map(button => button.textContent?.trim())
+    expect(standardLabels).toContain('CANVAS React Controls')
+    expect(standardLabels).not.toContain('Fractures Controls')
   })
 
   it('places explicit info triggers beside CANVAS controls without changing the control contract', () => {
