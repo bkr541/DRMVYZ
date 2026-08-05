@@ -511,7 +511,7 @@ const DEFAULT_ASSIGNMENT: Omit<LetterReactionAssignment, 'characterIndex'> = {
   source: 'bass', target: 'scale', amount: 0.5, invert: false, phaseOffset: 0,
 }
 
-function LetterAssignmentEditor({
+export function LetterAssignmentEditor({
   text,
   assignments,
   onChange,

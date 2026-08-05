@@ -29,6 +29,7 @@ import { LaserDmxShowDirectorCanvas } from './LaserDmxShowDirectorCanvas'
 import { resolveLaserDmxAuthoringOverlayVisibility } from './renderers/laserDmx/LaserDmxRendererBackend'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import { LayoutLabModal } from './LayoutLabModal'
 import { RailTabs } from '../layout/RailTabs'
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
@@ -281,6 +282,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     : (lowerSurfaces[0] ?? 'trackMap')
   const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
+  const [layoutLabOpen, setLayoutLabOpen] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
   const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings, pixGridState)
   const getMediaDisabledReason = useCallback(
@@ -574,8 +576,20 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         <span className="az-spacer" />
         <ReactPersistenceStatus />
         <ReactGlobalOutputControls />
+        <button
+          type="button"
+          className="vsm-settings-btn"
+          title="Layout Lab"
+          aria-label="Layout Lab"
+          onClick={() => setLayoutLabOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M21 7h-2V3c0-1.105-.895-2-2-2H7c-1.105 0-2 .895-2 2v2H3c-1.105 0-2 .895-2 2v4c0 1.105.895 2 2 2h2v8c0 1.105.895 2 2 2h10c1.105 0 2-.895 2-2v-2h2c1.105 0 2-.895 2-2V9c0-1.105-.895-2-2-2zm-4 14H7v-8h2c1.105 0 2-.895 2-2V7c0-1.105-.895-2-2-2H7V3h10v4h-2c-1.105 0-2 .895-2 2v8c0 1.105.895 2 2 2h2v2zm4-4h-6V9h6v8z" />
+          </svg>
+        </button>
         <VyzualzHeaderActions />
       </div>
+      {layoutLabOpen && <LayoutLabModal onClose={() => setLayoutLabOpen(false)} />}
       <div
         className="rv-layout"
         data-left-collapsed={leftCollapsed ? 'true' : undefined}

@@ -115,7 +115,27 @@ function createMainWindow() {
 
   window.once('ready-to-show', () => window.show())
 
-  window.webContents.setWindowOpenHandler(({ url }) => {
+  window.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    if (frameName === 'drmvyz-layout-lab') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 1600,
+          height: 1000,
+          minWidth: 1180,
+          minHeight: 760,
+          backgroundColor: '#060d10',
+          title: 'DRMVYZ — Layout Lab',
+          autoHideMenuBar: process.platform !== 'darwin',
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            webSecurity: true,
+          },
+        },
+      }
+    }
     openExternalUrl(url)
     return { action: 'deny' }
   })
