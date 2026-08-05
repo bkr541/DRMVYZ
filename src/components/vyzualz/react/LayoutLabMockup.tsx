@@ -2,39 +2,24 @@ import { useState } from 'react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { MockEngineDropdown } from './layoutLab/MockEngineDropdown'
+import { PixGridMockup } from './layoutLab/PixGridMockup'
+import { PixGridRightRailMockup } from './layoutLab/PixGridRightRailMockup'
 import { SoundDrawingMockup } from './layoutLab/SoundDrawingMockup'
 import { SoundDrawingRightRailMockup } from './layoutLab/SoundDrawingRightRailMockup'
+import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
+import { usePixGridMockState, type PixGridMockState } from './layoutLab/usePixGridMockState'
 import { useSoundDrawingMockState } from './layoutLab/useSoundDrawingMockState'
 import type { ReactEngineId } from './ReactTypes'
+import type { ReactLowerSurface } from './reactWorkspaceComposition'
 
 // ── LayoutLabMockup ────────────────────────────────────────────────────────
 //
-// A static, disconnected preview of the React View shell for trying out
-// layout ideas before building a real engine. Every piece of state here is
-// local to this component — there is no store, persistence, audio,
-// analyser, or renderer wiring, and the surface-visibility table below is a
-// plain copied snapshot of resolveReactWorkspaceComposition's rules
-// (reactWorkspaceComposition.ts), not an import of it. Nothing in this file
-// is reachable from production navigation.
+// A disconnected preview of the React View shell for trying out layout ideas
+// without mounting production stores, renderers, media services, audio, or
+// output runtimes. Pure workspace composition is shared with production so
+// engine tabs and lower surfaces cannot drift.
 
-type MockLowerSurface = 'trackMap' | 'soundDrawing' | 'performancePads'
-
-const MOCK_LOWER_SURFACE_LABELS: Record<MockLowerSurface, string> = {
-  trackMap: 'Track Map',
-  soundDrawing: 'Sound Drawing',
-  performancePads: 'Performance Pads',
-}
-
-const MOCK_LOWER_SURFACES_BY_ENGINE: Record<ReactEngineId, MockLowerSurface[]> = {
-  shaderPads: ['trackMap'],
-  cinematicPortal: ['trackMap', 'performancePads'],
-  oscilloscope: ['trackMap', 'soundDrawing', 'performancePads'],
-  canvas: ['trackMap', 'performancePads'],
-  laserDmx: ['trackMap', 'performancePads'],
-  pixGrid: ['trackMap', 'performancePads'],
-}
-
-const MOCK_SURFACE_PLACEHOLDER: Record<MockLowerSurface, string> = {
+const MOCK_SURFACE_PLACEHOLDER: Record<ReactLowerSurface, string> = {
   trackMap: 'Load a track to generate its beat grid, energy map, sections, and cue lanes.',
   soundDrawing: 'Sound Drawing timeline placeholder.',
   performancePads: 'Performance pads placeholder.',
@@ -73,18 +58,51 @@ function MockStageFocusIcon() {
   )
 }
 
+function PixGridCanvasMockup({ state }: { state: PixGridMockState }) {
+  const activePreset = state.presets.find(preset => preset.id === state.activePresetId)
+  return (
+    <div className="rv-layout-lab-pix-grid-canvas" aria-label="PixGrid visual mockup">
+      <div className="rv-layout-lab-pix-grid-stage" aria-hidden="true">
+        <div className="rv-layout-lab-pix-grid-matrix" />
+        <div className="rv-layout-lab-pix-grid-artwork">
+          <span>PIX</span>
+          <strong>GRID</strong>
+        </div>
+        {state.selection && (
+          <div
+            className="rv-layout-lab-pix-grid-selection"
+            style={{
+              left: `${Math.min(80, state.selection.x / 1.6)}%`,
+              top: `${Math.min(70, state.selection.y / 0.9)}%`,
+              width: `${Math.max(8, state.selection.width / 1.6)}%`,
+              height: `${Math.max(8, state.selection.height / 0.9)}%`,
+            }}
+          />
+        )}
+      </div>
+      <div className="rv-layout-lab-pix-grid-canvas-status">
+        <span>{state.editOpen ? 'PIXGRID EDIT ACTIVE' : 'PIXGRID PREVIEW'}</span>
+        <strong>{state.activeScene.name}</strong>
+        <small>{state.selectedLayer?.name ?? 'Scene Pixels'} · {activePreset?.name ?? 'No preset'}</small>
+      </div>
+    </div>
+  )
+}
+
 export function LayoutLabMockup() {
   const [engineId, setEngineId] = useState<ReactEngineId>('cinematicPortal')
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [dockCollapsed, setDockCollapsed] = useState(false)
-  const surfaces = MOCK_LOWER_SURFACES_BY_ENGINE[engineId]
-  const [activeSurface, setActiveSurface] = useState<MockLowerSurface>(surfaces[0])
+  const composition = resolveLayoutLabComposition(engineId)
+  const [activeSurface, setActiveSurface] = useState<ReactLowerSurface>(composition.lowerSurfaces[0]?.id ?? 'trackMap')
   const soundDrawingState = useSoundDrawingMockState()
+  const pixGridState = usePixGridMockState()
 
   const handleSelectEngine = (id: ReactEngineId) => {
+    const nextComposition = resolveLayoutLabComposition(id)
     setEngineId(id)
-    setActiveSurface(MOCK_LOWER_SURFACES_BY_ENGINE[id][0])
+    setActiveSurface(nextComposition.lowerSurfaces[0]?.id ?? 'trackMap')
   }
 
   return (
@@ -102,6 +120,8 @@ export function LayoutLabMockup() {
         >
           {engineId === 'oscilloscope' ? (
             <SoundDrawingMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={soundDrawingState} />
+          ) : engineId === 'pixGrid' ? (
+            <PixGridMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={pixGridState} />
           ) : (
             <div className="rv-left-workspace-shell" data-description-density="compact">
               <section className="rv-context-workspace">
@@ -114,7 +134,9 @@ export function LayoutLabMockup() {
         </WorkspaceRail>
 
         <div className="rv-center-col">
-          <div className="rv-canvas-wrap" />
+          <div className="rv-canvas-wrap">
+            {engineId === 'pixGrid' && <PixGridCanvasMockup state={pixGridState} />}
+          </div>
 
           <section className="rv-lower-workspace" data-collapsed={dockCollapsed ? 'true' : undefined}>
             <div className="rv-lower-workspace-toolbar">
@@ -126,19 +148,20 @@ export function LayoutLabMockup() {
                 onClick={() => setDockCollapsed(value => !value)}
               />
               <div className="rv-lower-workspace-tabs" role="tablist" aria-label="Timeline surfaces (mockup)">
-                {surfaces.map(surface => (
-                  <span key={surface} className="rv-lower-workspace-tab-wrap">
+                {composition.lowerSurfaces.map(surface => (
+                  <span key={surface.id} className="rv-lower-workspace-tab-wrap">
                     <button
                       type="button"
                       role="tab"
-                      aria-selected={activeSurface === surface}
-                      className={activeSurface === surface ? 'is-active' : ''}
+                      aria-selected={activeSurface === surface.id}
+                      data-lower-surface={surface.id}
+                      className={activeSurface === surface.id ? 'is-active' : ''}
                       onClick={() => {
-                        setActiveSurface(surface)
+                        setActiveSurface(surface.id)
                         setDockCollapsed(false)
                       }}
                     >
-                      {MOCK_LOWER_SURFACE_LABELS[surface]}
+                      {surface.label}
                     </button>
                   </span>
                 ))}
@@ -158,17 +181,18 @@ export function LayoutLabMockup() {
               </div>
             </div>
 
-            {surfaces.map(surface => (
+            {composition.lowerSurfaces.map(surface => (
               <div
-                key={surface}
-                hidden={activeSurface !== surface || dockCollapsed}
+                key={surface.id}
+                hidden={activeSurface !== surface.id || dockCollapsed}
+                data-lower-surface-panel={surface.id}
                 className={
                   'rv-lower-workspace-surface'
-                  + (surface === 'trackMap' ? ' rv-lower-workspace-surface--track-map' : '')
-                  + (surface === 'soundDrawing' ? ' rv-lower-workspace-surface--sound-drawing' : '')
+                  + (surface.id === 'trackMap' ? ' rv-lower-workspace-surface--track-map' : '')
+                  + (surface.id === 'soundDrawing' ? ' rv-lower-workspace-surface--sound-drawing' : '')
                 }
               >
-                <div className="rv-strip-empty">{MOCK_SURFACE_PLACEHOLDER[surface]}</div>
+                <div className="rv-strip-empty">{MOCK_SURFACE_PLACEHOLDER[surface.id]}</div>
               </div>
             ))}
           </section>
@@ -182,6 +206,8 @@ export function LayoutLabMockup() {
         >
           {engineId === 'oscilloscope' ? (
             <SoundDrawingRightRailMockup state={soundDrawingState} />
+          ) : engineId === 'pixGrid' ? (
+            <PixGridRightRailMockup state={pixGridState} onSelectEngine={handleSelectEngine} />
           ) : (
             <>
               <RailTabs
