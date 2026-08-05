@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from 'react'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { RgbWaveformAnalysis } from '../../../../features/waveform/rgbWaveformTypes'
 import { useSharedAudio } from '../../../../context/AudioEngineContext'
@@ -22,6 +32,16 @@ import {
   clampTrackTimelinePlayheadTime,
   resolveTrackTimelinePlayheadRatio,
 } from './trackTimelinePlayhead'
+import {
+  createTrackTimelineViewport,
+  estimateTrackTimelineBarDuration,
+  moveTrackTimelineViewport,
+  normalizeTrackTimelineViewport,
+  resolveTrackTimelineViewportRatio,
+  TRACK_TIMELINE_ZOOM_PRESETS,
+  type TrackTimelineViewport,
+  type TrackTimelineZoomPreset,
+} from './trackTimelineViewport'
 import './trackTimeline.css'
 
 interface TrackTimelineVisualizerProps {
@@ -319,15 +339,37 @@ function TrackTimelineCanvas({ model, spec, height }: {
   )
 }
 
-function TimelineRow({ model, label, count, height, spec }: RowDefinition & { model: TrackTimelineModel }) {
+type PlayheadScope = 'overview' | 'detail'
+
+function TimelineRow({
+  model,
+  label,
+  count,
+  height,
+  spec,
+  viewport,
+  playheadScope = 'detail',
+  playheadAnchor = false,
+  stickyLabel = false,
+}: RowDefinition & {
+  model: TrackTimelineModel
+  viewport?: TrackTimelineViewport
+  playheadScope?: PlayheadScope
+  playheadAnchor?: boolean
+  stickyLabel?: boolean
+}) {
+  const rangedSpec = useMemo<TrackTimelineCanvasSpec>(() => (
+    viewport ? { ...spec, viewport } as TrackTimelineCanvasSpec : spec
+  ), [spec, viewport])
+
   return (
     <div className="ttv-timeline-row">
-      <div className="ttv-row-label" title={label}>
+      <div className={`ttv-row-label${stickyLabel ? ' ttv-row-label--sticky' : ''}`} title={label}>
         <span className="ttv-label-text">{label}</span>
-        <small>{count.toLocaleString()}</small>
+        {count > 0 && <small>{count.toLocaleString()}</small>}
       </div>
-      <div className="ttv-canvas-wrap">
-        <TrackTimelineCanvas model={model} spec={spec} height={height} />
+      <div className={`ttv-canvas-wrap ttv-canvas-wrap--${playheadScope}${playheadAnchor ? ' ttv-canvas-wrap--playhead-anchor' : ''}`}>
+        <TrackTimelineCanvas model={model} spec={rangedSpec} height={height} />
       </div>
     </div>
   )
@@ -337,10 +379,12 @@ function TrackTimelinePlayheadController({
   appShellRef,
   playheadTimeRef,
   durationSec,
+  viewport,
 }: {
   appShellRef: RefObject<HTMLDivElement>
   playheadTimeRef: RefObject<HTMLSpanElement>
   durationSec: number
+  viewport: TrackTimelineViewport
 }) {
   const engine = useSharedAudio()
   const engineRef = useRef(engine)
@@ -357,9 +401,12 @@ function TrackTimelinePlayheadController({
           engineRef.current.getCurrentTime(),
           durationSec,
         )
-        const ratio = resolveTrackTimelinePlayheadRatio(currentTimeSec, durationSec)
-        appShell.style.setProperty('--ttv-playhead-ratio', String(ratio))
-        appShell.dataset.playheadVisible = 'true'
+        const overviewRatio = resolveTrackTimelinePlayheadRatio(currentTimeSec, durationSec)
+        const detailRatio = resolveTrackTimelineViewportRatio(currentTimeSec, viewport)
+        appShell.style.setProperty('--ttv-overview-playhead-ratio', String(overviewRatio))
+        appShell.style.setProperty('--ttv-detail-playhead-ratio', String(detailRatio ?? 0))
+        appShell.dataset.overviewPlayheadVisible = 'true'
+        appShell.dataset.detailPlayheadVisible = detailRatio === null ? 'false' : 'true'
 
         if (playheadTimeRef.current && (
           !Number.isFinite(lastRenderedTime) || Math.abs(currentTimeSec - lastRenderedTime) >= 0.025
@@ -373,15 +420,172 @@ function TrackTimelinePlayheadController({
 
     animationFrame = requestAnimationFrame(updatePlayhead)
     return () => cancelAnimationFrame(animationFrame)
-  }, [appShellRef, durationSec, playheadTimeRef])
+  }, [appShellRef, durationSec, playheadTimeRef, viewport])
 
   return null
 }
 
-function TimelineGroup({ group, model, collapsed, onToggle }: {
+interface OverviewDragState {
+  pointerId: number
+  mode: 'move' | 'start' | 'end'
+  anchorTimeSec: number
+  initialViewport: TrackTimelineViewport
+}
+
+function OverviewViewportNavigator({
+  viewport,
+  durationSec,
+  minimumDurationSec,
+  label,
+  onChange,
+}: {
+  viewport: TrackTimelineViewport
+  durationSec: number
+  minimumDurationSec: number
+  label: string
+  onChange: (viewport: TrackTimelineViewport) => void
+}) {
+  const layerRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<OverviewDragState | null>(null)
+  const duration = Math.max(0.001, durationSec)
+  const left = (viewport.startSec / duration) * 100
+  const width = ((viewport.endSec - viewport.startSec) / duration) * 100
+
+  const pointerTime = useCallback((clientX: number) => {
+    const layer = layerRef.current
+    if (!layer) return 0
+    const rect = layer.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)))
+    return ratio * durationSec
+  }, [durationSec])
+
+  const beginDrag = useCallback((
+    event: ReactPointerEvent<HTMLElement>,
+    mode: OverviewDragState['mode'],
+    initialViewport = viewport,
+  ) => {
+    if (durationSec <= 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    layerRef.current?.setPointerCapture(event.pointerId)
+    dragRef.current = {
+      pointerId: event.pointerId,
+      mode,
+      anchorTimeSec: pointerTime(event.clientX),
+      initialViewport,
+    }
+  }, [durationSec, pointerTime, viewport])
+
+  const handleLayerPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || durationSec <= 0) return
+    const centerSec = pointerTime(event.clientX)
+    const nextViewport = moveTrackTimelineViewport(
+      viewport,
+      centerSec - (viewport.endSec - viewport.startSec) / 2,
+      durationSec,
+    )
+    onChange(nextViewport)
+    beginDrag(event, 'move', nextViewport)
+  }, [beginDrag, durationSec, onChange, pointerTime, viewport])
+
+  const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const deltaSec = pointerTime(event.clientX) - drag.anchorTimeSec
+    let nextViewport: TrackTimelineViewport
+
+    if (drag.mode === 'move') {
+      nextViewport = moveTrackTimelineViewport(
+        drag.initialViewport,
+        drag.initialViewport.startSec + deltaSec,
+        durationSec,
+      )
+    } else if (drag.mode === 'start') {
+      nextViewport = {
+        startSec: Math.max(0, Math.min(
+          drag.initialViewport.startSec + deltaSec,
+          drag.initialViewport.endSec - minimumDurationSec,
+        )),
+        endSec: drag.initialViewport.endSec,
+      }
+    } else {
+      nextViewport = {
+        startSec: drag.initialViewport.startSec,
+        endSec: Math.min(durationSec, Math.max(
+          drag.initialViewport.startSec + minimumDurationSec,
+          drag.initialViewport.endSec + deltaSec,
+        )),
+      }
+    }
+
+    onChange(nextViewport)
+  }, [durationSec, minimumDurationSec, onChange, pointerTime])
+
+  const endDrag = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return
+    dragRef.current = null
+    if (layerRef.current?.hasPointerCapture(event.pointerId)) {
+      layerRef.current.releasePointerCapture(event.pointerId)
+    }
+  }, [])
+
+  const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const viewportDuration = viewport.endSec - viewport.startSec
+    const step = Math.max(minimumDurationSec / 4, viewportDuration * 0.1)
+    let nextStart: number | null = null
+    if (event.key === 'ArrowLeft') nextStart = viewport.startSec - step
+    if (event.key === 'ArrowRight') nextStart = viewport.startSec + step
+    if (event.key === 'Home') nextStart = 0
+    if (event.key === 'End') nextStart = durationSec - viewportDuration
+    if (nextStart === null) return
+    event.preventDefault()
+    onChange(moveTrackTimelineViewport(viewport, nextStart, durationSec))
+  }, [durationSec, minimumDurationSec, onChange, viewport])
+
+  return (
+    <div
+      ref={layerRef}
+      className="ttv-overview-viewport-layer"
+      onPointerDown={handleLayerPointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
+      <div
+        className="ttv-overview-viewport"
+        style={{ left: `${left}%`, width: `${width}%` }}
+        role="slider"
+        tabIndex={0}
+        aria-label={`Zoomed detail range, ${formatTime(viewport.startSec)} to ${formatTime(viewport.endSec)}`}
+        aria-valuemin={0}
+        aria-valuemax={Math.round(durationSec * 1000)}
+        aria-valuenow={Math.round(viewport.startSec * 1000)}
+        onKeyDown={handleKeyDown}
+        onPointerDown={event => beginDrag(event, 'move')}
+      >
+        <button
+          type="button"
+          className="ttv-viewport-handle ttv-viewport-handle--start"
+          aria-label="Resize detail range start"
+          onPointerDown={event => beginDrag(event, 'start')}
+        />
+        <span className="ttv-viewport-label">{label}</span>
+        <button
+          type="button"
+          className="ttv-viewport-handle ttv-viewport-handle--end"
+          aria-label="Resize detail range end"
+          onPointerDown={event => beginDrag(event, 'end')}
+        />
+      </div>
+    </div>
+  )
+}
+
+function TimelineGroup({ group, model, collapsed, viewport, onToggle }: {
   group: GroupDefinition
   model: TrackTimelineModel
   collapsed: boolean
+  viewport: TrackTimelineViewport
   onToggle: () => void
 }) {
   return (
@@ -404,7 +608,15 @@ function TimelineGroup({ group, model, collapsed, onToggle }: {
       {!collapsed && (
         <div className="ttv-group-content">
           {group.rows.length > 0
-            ? group.rows.map(row => <TimelineRow key={`${group.id}:${row.label}`} {...row} model={model} />)
+            ? group.rows.map(row => (
+              <TimelineRow
+                key={`${group.id}:${row.label}`}
+                {...row}
+                model={model}
+                viewport={viewport}
+                playheadScope="detail"
+              />
+            ))
             : <div className="ttv-empty-row">No compatible data was found for this group.</div>}
         </div>
       )}
@@ -412,18 +624,97 @@ function TimelineGroup({ group, model, collapsed, onToggle }: {
   )
 }
 
+function zoomPresetLabel(preset: TrackTimelineZoomPreset): string {
+  return preset === 'full' ? 'FULL TRACK' : `${preset} BARS`
+}
+
 export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const appShellRef = useRef<HTMLDivElement>(null)
   const playheadTimeRef = useRef<HTMLSpanElement>(null)
-  const model = useMemo(() => buildTrackTimelineModel(props), [props])
+  const engine = useSharedAudio()
+  const engineRef = useRef(engine)
+  engineRef.current = engine
+  const model = useMemo(() => buildTrackTimelineModel(props), [
+    props.analysis,
+    props.channels,
+    props.filename,
+    props.rgbWaveform,
+  ])
   const groups = useMemo(() => buildGroups(model), [model])
+  const barDuration = useMemo(() => estimateTrackTimelineBarDuration(
+    model.bars,
+    model.meta.bpm,
+    model.meta.timeSignature,
+  ), [model.bars, model.meta.bpm, model.meta.timeSignature])
+  const minimumViewportDuration = Math.min(model.durationSec || 1, Math.max(1, barDuration * 4))
+  const [activeZoom, setActiveZoom] = useState<TrackTimelineZoomPreset | 'custom'>(32)
+  const [viewport, setViewport] = useState<TrackTimelineViewport>(() => createTrackTimelineViewport(
+    model.durationSec,
+    model.bars,
+    model.meta.bpm,
+    model.meta.timeSignature,
+    32,
+    0,
+  ))
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => Object.fromEntries(
     groups.map(group => [group.id, group.defaultCollapsed]),
   ))
 
+  useEffect(() => {
+    const currentTime = clampTrackTimelinePlayheadTime(engineRef.current.getCurrentTime(), model.durationSec)
+    setActiveZoom(32)
+    setViewport(createTrackTimelineViewport(
+      model.durationSec,
+      model.bars,
+      model.meta.bpm,
+      model.meta.timeSignature,
+      32,
+      currentTime,
+    ))
+  }, [model.bars, model.durationSec, model.meta.bpm, model.meta.filename, model.meta.timeSignature])
+
+  useEffect(() => {
+    setCollapsed(current => Object.fromEntries(groups.map(group => [
+      group.id,
+      current[group.id] ?? group.defaultCollapsed,
+    ])))
+  }, [groups])
+
   const setAllCollapsed = useCallback((value: boolean) => {
     setCollapsed(Object.fromEntries(groups.map(group => [group.id, value])))
   }, [groups])
+
+  const applyZoomPreset = useCallback((preset: TrackTimelineZoomPreset) => {
+    const currentTime = clampTrackTimelinePlayheadTime(engineRef.current.getCurrentTime(), model.durationSec)
+    setActiveZoom(preset)
+    setViewport(createTrackTimelineViewport(
+      model.durationSec,
+      model.bars,
+      model.meta.bpm,
+      model.meta.timeSignature,
+      preset,
+      currentTime,
+    ))
+  }, [model.bars, model.durationSec, model.meta.bpm, model.meta.timeSignature])
+
+  const updateViewport = useCallback((nextViewport: TrackTimelineViewport) => {
+    setActiveZoom('custom')
+    setViewport(normalizeTrackTimelineViewport(nextViewport, model.durationSec, minimumViewportDuration))
+  }, [minimumViewportDuration, model.durationSec])
+
+  const centerDetailOnPlayhead = useCallback(() => {
+    const currentTime = clampTrackTimelinePlayheadTime(engineRef.current.getCurrentTime(), model.durationSec)
+    const width = viewport.endSec - viewport.startSec
+    setViewport(moveTrackTimelineViewport(viewport, currentTime - width / 2, model.durationSec))
+  }, [model.durationSec, viewport])
+
+  const visibleBars = useMemo(() => model.bars.filter(bar => (
+    bar.end > viewport.startSec && bar.start < viewport.endSec
+  )).length, [model.bars, viewport])
+
+  const viewportLabel = activeZoom === 'custom'
+    ? `VIEWPORT · ${visibleBars || 'CUSTOM'}${visibleBars ? ' BARS' : ''}`
+    : `VIEWPORT · ${zoomPresetLabel(activeZoom)}`
 
   const metaValues = [
     formatTime(model.durationSec),
@@ -436,11 +727,17 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   ].filter((value): value is string => Boolean(value))
 
   return (
-    <div ref={appShellRef} className="ttv-app-shell az-root rv-shell" data-playhead-visible="false">
+    <div
+      ref={appShellRef}
+      className="ttv-app-shell az-root rv-shell"
+      data-overview-playhead-visible="false"
+      data-detail-playhead-visible="false"
+    >
       <TrackTimelinePlayheadController
         appShellRef={appShellRef}
         playheadTimeRef={playheadTimeRef}
         durationSec={model.durationSec}
+        viewport={viewport}
       />
 
       <header className="ttv-window-header">
@@ -467,22 +764,67 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   {formatTime(0)} / {formatTime(model.durationSec)}
                 </span>
               </div>
-              <div className="ttv-toolbar-actions">
-                <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
-                <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
+              <div className="ttv-toolbar-cluster">
+                <div className="ttv-zoom-controls" role="group" aria-label="Detail zoom range">
+                  {TRACK_TIMELINE_ZOOM_PRESETS.map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      className={`ttv-zoom-btn${activeZoom === preset ? ' ttv-zoom-btn--active' : ''}`}
+                      aria-pressed={activeZoom === preset}
+                      onClick={() => applyZoomPreset(preset)}
+                    >
+                      {zoomPresetLabel(preset)}
+                    </button>
+                  ))}
+                </div>
+                <div className="ttv-toolbar-actions">
+                  <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
+                  <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
+                </div>
               </div>
             </div>
-            <div className="ttv-timeline-row">
-              <div className="ttv-row-label ttv-row-label--sticky"><span className="ttv-label-text">WAVEFORM</span></div>
-              <div className="ttv-canvas-wrap ttv-canvas-wrap--playhead-anchor">
-                <TrackTimelineCanvas model={model} spec={{ kind: 'waveform' }} height={82} />
-              </div>
+
+            <div className="ttv-overview-heading">
+              <span>OVERVIEW</span>
+              <small>Drag the cyan viewport or its handles to change the detail range.</small>
             </div>
-            <div className="ttv-timeline-row">
-              <div className="ttv-row-label ttv-row-label--sticky"><span className="ttv-label-text">BEAT GRID</span></div>
-              <div className="ttv-canvas-wrap">
-                <TrackTimelineCanvas model={model} spec={{ kind: 'beatGrid' }} height={54} />
-              </div>
+            <div className="ttv-overview-stack">
+              <TimelineRow
+                model={model}
+                label="WAVEFORM"
+                count={0}
+                height={64}
+                spec={{ kind: 'waveform' }}
+                playheadScope="overview"
+                playheadAnchor
+                stickyLabel
+              />
+              <TimelineRow
+                model={model}
+                label="BEAT GRID"
+                count={0}
+                height={42}
+                spec={{ kind: 'beatGrid' }}
+                playheadScope="overview"
+                stickyLabel
+              />
+              <TimelineRow
+                model={model}
+                label="TRACK SECTIONS"
+                count={model.sections.length}
+                height={48}
+                spec={{ kind: 'sections', sections: model.sections }}
+                playheadScope="overview"
+                stickyLabel
+              />
+              <OverviewViewportNavigator
+                viewport={viewport}
+                durationSec={model.durationSec}
+                minimumDurationSec={minimumViewportDuration}
+                label={viewportLabel}
+                onChange={updateViewport}
+              />
             </div>
           </div>
 
@@ -491,24 +833,61 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
           )}
 
           <main className="ttv-content-area">
-            <section className="ttv-sections-block">
+            <section className="ttv-detail-workspace">
+              <header className="ttv-detail-header">
+                <div>
+                  <span className="ttv-detail-kicker">DETAIL VIEW (ZOOMED)</span>
+                  <strong>{formatTime(viewport.startSec)} → {formatTime(viewport.endSec)}</strong>
+                  <small>{visibleBars || 'Custom'}{visibleBars ? ' bars' : ' range'} · {(viewport.endSec - viewport.startSec).toFixed(2)} seconds</small>
+                </div>
+                <button type="button" className="ttv-center-playhead-btn" onClick={centerDetailOnPlayhead}>
+                  Center on playhead
+                </button>
+              </header>
+
+              <TimelineRow
+                model={model}
+                label="WAVEFORM DETAIL"
+                count={model.waveform.length}
+                height={88}
+                spec={{ kind: 'waveform' }}
+                viewport={viewport}
+                playheadScope="detail"
+                playheadAnchor
+                stickyLabel
+              />
+              <TimelineRow
+                model={model}
+                label="BEAT GRID DETAIL"
+                count={model.beats.length}
+                height={58}
+                spec={{ kind: 'beatGrid' }}
+                viewport={viewport}
+                playheadScope="detail"
+                stickyLabel
+              />
               <TimelineRow
                 model={model}
                 label="TRACK SECTIONS"
                 count={model.sections.length}
                 height={64}
                 spec={{ kind: 'sections', sections: model.sections }}
+                viewport={viewport}
+                playheadScope="detail"
+                stickyLabel
               />
+
+              {groups.map(group => (
+                <TimelineGroup
+                  key={group.id}
+                  group={group}
+                  model={model}
+                  viewport={viewport}
+                  collapsed={collapsed[group.id] ?? group.defaultCollapsed}
+                  onToggle={() => setCollapsed(current => ({ ...current, [group.id]: !current[group.id] }))}
+                />
+              ))}
             </section>
-            {groups.map(group => (
-              <TimelineGroup
-                key={group.id}
-                group={group}
-                model={model}
-                collapsed={collapsed[group.id] ?? group.defaultCollapsed}
-                onToggle={() => setCollapsed(current => ({ ...current, [group.id]: !current[group.id] }))}
-              />
-            ))}
           </main>
         </div>
       </section>

@@ -5,6 +5,7 @@ import type {
   TrackTimelineSection,
   TrackTimelineWaveformBin,
 } from './trackTimelineModel'
+import type { TrackTimelineViewport } from './trackTimelineViewport'
 
 export interface TrackTimelineHitRegion {
   x1: number
@@ -14,14 +15,16 @@ export interface TrackTimelineHitRegion {
   text: string
 }
 
+type WithViewport<T> = T & { viewport?: TrackTimelineViewport }
+
 export type TrackTimelineCanvasSpec =
-  | { kind: 'waveform' }
-  | { kind: 'beatGrid' }
-  | { kind: 'sections'; sections: TrackTimelineSection[] }
-  | { kind: 'line'; points: TrackTimelinePoint[]; color: PaletteKey; curveName: string; fill: boolean }
-  | { kind: 'heat'; points: TrackTimelinePoint[]; color: PaletteKey; metric: string }
-  | { kind: 'events'; events: TrackTimelineEvent[]; eventType: string; color: PaletteKey }
-  | { kind: 'extrema'; points: TrackTimelinePoint[]; color: PaletteKey; metric: string; style: 'line' | 'heat' }
+  | WithViewport<{ kind: 'waveform' }>
+  | WithViewport<{ kind: 'beatGrid' }>
+  | WithViewport<{ kind: 'sections'; sections: TrackTimelineSection[] }>
+  | WithViewport<{ kind: 'line'; points: TrackTimelinePoint[]; color: PaletteKey; curveName: string; fill: boolean }>
+  | WithViewport<{ kind: 'heat'; points: TrackTimelinePoint[]; color: PaletteKey; metric: string }>
+  | WithViewport<{ kind: 'events'; events: TrackTimelineEvent[]; eventType: string; color: PaletteKey }>
+  | WithViewport<{ kind: 'extrema'; points: TrackTimelinePoint[]; color: PaletteKey; metric: string; style: 'line' | 'heat' }>
 
 export type PaletteKey = keyof TrackTimelinePalette
 
@@ -57,6 +60,7 @@ interface DrawContext {
   palette: TrackTimelinePalette
   fonts: CanvasFonts
   hits: TrackTimelineHitRegion[]
+  viewport: TrackTimelineViewport
 }
 
 const EVENT_COLOR_KEYS: Record<string, PaletteKey> = {
@@ -189,6 +193,7 @@ export function drawTrackTimelineCanvas(
     palette: resolvePalette(canvas),
     fonts: resolveFonts(canvas),
     hits: [],
+    viewport: resolveViewport(spec.viewport, model.durationSec),
   }
 
   switch (spec.kind) {
@@ -232,17 +237,46 @@ function drawBackground(draw: DrawContext) {
   }
 }
 
-function timeToX(time: number, width: number, model: TrackTimelineModel): number {
-  return clamp((finite(time) / Math.max(model.durationSec, 0.001)) * width, 0, width)
+function resolveViewport(viewport: TrackTimelineViewport | undefined, durationSec: number): TrackTimelineViewport {
+  const duration = Math.max(0, finite(durationSec))
+  if (!viewport || duration <= 0) return { startSec: 0, endSec: duration }
+  const startSec = clamp(finite(viewport.startSec), 0, duration)
+  const endSec = clamp(finite(viewport.endSec, duration), startSec, duration)
+  if (endSec - startSec < 0.001) return { startSec: 0, endSec: duration }
+  return { startSec, endSec }
+}
+
+function timeToX(time: number, width: number, viewport: TrackTimelineViewport): number {
+  const duration = Math.max(viewport.endSec - viewport.startSec, 0.001)
+  return clamp(((finite(time) - viewport.startSec) / duration) * width, 0, width)
+}
+
+function overlapsViewport(startSec: number, endSec: number, viewport: TrackTimelineViewport): boolean {
+  return endSec >= viewport.startSec && startSec <= viewport.endSec
+}
+
+function pointsInViewport(points: TrackTimelinePoint[], viewport: TrackTimelineViewport): TrackTimelinePoint[] {
+  if (!points.length) return []
+  const firstVisible = points.findIndex(point => point.time >= viewport.startSec)
+  if (firstVisible === -1) return []
+  if (points[firstVisible]!.time > viewport.endSec) {
+    return firstVisible > 0 ? points.slice(firstVisible - 1, firstVisible + 1) : []
+  }
+  let lastVisible = firstVisible
+  while (lastVisible < points.length && points[lastVisible]!.time <= viewport.endSec) lastVisible += 1
+  const start = Math.max(0, firstVisible - 1)
+  const end = Math.min(points.length, lastVisible + 1)
+  return points.slice(start, end)
 }
 
 function drawMasterGrid(draw: DrawContext, includeBeats = false) {
-  const { ctx, width, height, model, palette } = draw
+  const { ctx, width, height, model, palette, viewport } = draw
   if (!model.beats.length) {
-    const step = niceTimeStep(model.durationSec, width)
+    const step = niceTimeStep(viewport.endSec - viewport.startSec, width)
+    const first = Math.ceil(viewport.startSec / step) * step
     ctx.strokeStyle = rgba(palette.border, 0.45)
-    for (let time = 0; time <= model.durationSec; time += step) {
-      const x = timeToX(time, width, model) + 0.5
+    for (let time = first; time <= viewport.endSec; time += step) {
+      const x = timeToX(time, width, viewport) + 0.5
       ctx.beginPath()
       ctx.moveTo(x, 0)
       ctx.lineTo(x, height)
@@ -253,7 +287,8 @@ function drawMasterGrid(draw: DrawContext, includeBeats = false) {
 
   let lastMinorX = -10
   model.beats.forEach(beat => {
-    const x = timeToX(beat.time, width, model) + 0.5
+    if (beat.time < viewport.startSec || beat.time > viewport.endSec) return
+    const x = timeToX(beat.time, width, viewport) + 0.5
     if (beat.isDownbeat) {
       ctx.strokeStyle = rgba(palette.cyan, 0.22)
     } else {
@@ -270,7 +305,7 @@ function drawMasterGrid(draw: DrawContext, includeBeats = false) {
 }
 
 function drawWaveform(draw: DrawContext) {
-  const { ctx, width, height, model, palette, hits } = draw
+  const { ctx, width, height, model, palette, hits, viewport } = draw
   drawBackground(draw)
   drawMasterGrid(draw)
   const center = height / 2
@@ -285,7 +320,8 @@ function drawWaveform(draw: DrawContext) {
     return
   }
 
-  const columns = aggregateWaveformToPixels(model.waveform, width)
+  const visibleWaveform = model.waveform.filter(bin => overlapsViewport(bin.start, bin.end, viewport))
+  const columns = aggregateWaveformToPixels(visibleWaveform, width)
   columns.forEach((column, x) => {
     if (!column) return
     const positive = clamp(column.positive, 0, 1)
@@ -316,7 +352,7 @@ function drawWaveform(draw: DrawContext) {
     x2: width,
     y1: 0,
     y2: height,
-    text: `Waveform\n${model.waveform.length.toLocaleString()} bins · ${formatTime(model.durationSec)}`,
+    text: `Waveform\n${visibleWaveform.length.toLocaleString()} visible bins · ${formatTime(viewport.startSec)} → ${formatTime(viewport.endSec)}`,
   })
 }
 
@@ -370,7 +406,7 @@ function dominantBandColor(draw: DrawContext, low: number, mid: number, high: nu
 }
 
 function drawBeatGrid(draw: DrawContext) {
-  const { ctx, width, height, model, palette, fonts, hits } = draw
+  const { ctx, width, height, model, palette, fonts, hits, viewport } = draw
   drawBackground(draw)
   drawMasterGrid(draw)
   if (!model.beats.length) {
@@ -382,7 +418,8 @@ function drawBeatGrid(draw: DrawContext) {
   const labelY = height - 7
   let lastLabelX = -100
   model.beats.forEach((beat, index) => {
-    const x = timeToX(beat.time, width, model) + 0.5
+    if (beat.time < viewport.startSec || beat.time > viewport.endSec) return
+    const x = timeToX(beat.time, width, viewport) + 0.5
     const isAccent = beat.beatWithinBar === Math.max(0, (model.meta.timeSignature ?? 4) - 1)
     const tickHeight = beat.isDownbeat ? 31 : isAccent ? 23 : 17
     ctx.strokeStyle = beat.isDownbeat ? palette.cyan : isAccent ? palette.red : palette.teal
@@ -414,13 +451,14 @@ function drawBeatGrid(draw: DrawContext) {
 }
 
 function drawTimeLabels(draw: DrawContext, y: number) {
-  const { ctx, width, model, palette, fonts } = draw
-  const step = niceTimeStep(model.durationSec, width)
+  const { ctx, width, palette, fonts, viewport } = draw
+  const step = niceTimeStep(viewport.endSec - viewport.startSec, width)
+  const first = Math.ceil(viewport.startSec / step) * step
   ctx.font = `9px ${fonts.data}`
   ctx.fillStyle = rgba(palette.muted, 0.8)
   ctx.textBaseline = 'top'
-  for (let time = 0; time <= model.durationSec + 0.001; time += step) {
-    const x = timeToX(time, width, model)
+  for (let time = first; time <= viewport.endSec + 0.001; time += step) {
+    const x = timeToX(time, width, viewport)
     const label = formatTime(time, false)
     const textWidth = ctx.measureText(label).width
     ctx.fillText(label, clamp(x + 3, 2, width - textWidth - 2), y)
@@ -435,7 +473,7 @@ function niceTimeStep(duration: number, width: number): number {
 }
 
 function drawSections(draw: DrawContext, sections: TrackTimelineSection[]) {
-  const { ctx, width, height, model, palette, fonts, hits } = draw
+  const { ctx, width, height, palette, fonts, hits, viewport } = draw
   drawBackground(draw)
   drawMasterGrid(draw)
   if (!sections.length) {
@@ -444,8 +482,9 @@ function drawSections(draw: DrawContext, sections: TrackTimelineSection[]) {
   }
 
   sections.forEach((section, index) => {
-    const x1 = timeToX(section.start, width, model)
-    const x2 = Math.max(x1 + 1, timeToX(section.end, width, model))
+    if (!overlapsViewport(section.start, section.end, viewport)) return
+    const x1 = timeToX(section.start, width, viewport)
+    const x2 = Math.max(x1 + 1, timeToX(section.end, width, viewport))
     const color = sectionColor(palette, section.type, index)
     const barY = height - 18
     const intensity = clamp(finite(section.intensity, 0.5), 0, 1)
@@ -489,10 +528,10 @@ function sectionColor(palette: TrackTimelinePalette, type: string, index: number
 }
 
 function drawLineRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'line' }>) {
-  const { ctx, width, height, model, palette, hits } = draw
+  const { ctx, width, height, palette, hits, viewport } = draw
   drawBackground(draw)
   drawMasterGrid(draw)
-  const points = spec.points
+  const points = pointsInViewport(spec.points, viewport)
   if (!points.length) {
     drawCenteredMessage(draw, 'No curve points')
     return
@@ -504,7 +543,7 @@ function drawLineRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, {
 
   ctx.beginPath()
   points.forEach((point, index) => {
-    const x = timeToX(point.time, width, model)
+    const x = timeToX(point.time, width, viewport)
     const y = valueToY(point.value, range, top, bottom)
     if (index === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
@@ -512,8 +551,8 @@ function drawLineRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, {
   if (spec.fill) {
     const first = points[0]!
     const last = points[points.length - 1]!
-    ctx.lineTo(timeToX(last.time, width, model), bottom)
-    ctx.lineTo(timeToX(first.time, width, model), bottom)
+    ctx.lineTo(timeToX(last.time, width, viewport), bottom)
+    ctx.lineTo(timeToX(first.time, width, viewport), bottom)
     ctx.closePath()
     const gradient = ctx.createLinearGradient(0, top, 0, bottom)
     gradient.addColorStop(0, rgba(color, 0.24))
@@ -524,7 +563,7 @@ function drawLineRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, {
 
   ctx.beginPath()
   points.forEach((point, index) => {
-    const x = timeToX(point.time, width, model)
+    const x = timeToX(point.time, width, viewport)
     const y = valueToY(point.value, range, top, bottom)
     if (index === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
@@ -540,16 +579,16 @@ function drawLineRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, {
 }
 
 function drawHeatRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'heat' }>) {
-  const { ctx, width, height, model, palette } = draw
+  const { ctx, width, height, palette, viewport } = draw
   drawBackground(draw)
   drawMasterGrid(draw)
-  const points = spec.points
+  const points = pointsInViewport(spec.points, viewport)
   if (!points.length) {
     drawCenteredMessage(draw, 'No heat-map points')
     return
   }
   const range = valueRange(points)
-  const pixels = aggregateTimePoints(points, width, model.durationSec)
+  const pixels = aggregateTimePoints(points, width, viewport)
   const color = palette[spec.color]
   pixels.forEach((entry, x) => {
     if (!entry) return
@@ -567,15 +606,16 @@ function drawHeatRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, {
 }
 
 function drawEventRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'events' }>) {
-  const { ctx, width, height, model, palette, fonts, hits } = draw
+  const { ctx, width, height, palette, fonts, hits, viewport } = draw
   drawBackground(draw)
   drawMasterGrid(draw)
   if (!spec.events.length) return
   let lastLabelRight = -100
 
   spec.events.forEach((item, index) => {
-    const x = timeToX(item.time, width, model)
-    const x2 = item.duration > 0 ? Math.max(x + 2, timeToX(item.time + item.duration, width, model)) : x
+    if (!overlapsViewport(item.time, item.time + Math.max(0, item.duration), viewport)) return
+    const x = timeToX(item.time, width, viewport)
+    const x2 = item.duration > 0 ? Math.max(x + 2, timeToX(item.time + item.duration, width, viewport)) : x
     const color = palette[EVENT_COLOR_KEYS[item.type] ?? spec.color]
     if (item.duration > 0) {
       ctx.fillStyle = rgba(color, 0.15)
@@ -617,17 +657,18 @@ function drawEventRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, 
 }
 
 function drawExtremaRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'extrema' }>) {
-  const { ctx, width, height, model, palette } = draw
+  const { ctx, width, height, palette, viewport } = draw
   drawBackground(draw)
   drawMasterGrid(draw)
-  if (!spec.points.length) return
-  const range = valueRange(spec.points)
+  const points = pointsInViewport(spec.points, viewport)
+  if (!points.length) return
+  const range = valueRange(points)
   const color = palette[spec.color]
 
   if (spec.style === 'line') {
     ctx.beginPath()
-    spec.points.forEach((point, index) => {
-      const x = timeToX(point.time, width, model)
+    points.forEach((point, index) => {
+      const x = timeToX(point.time, width, viewport)
       const y = valueToY(point.value, range, 8, height - 9)
       if (index === 0) ctx.moveTo(x, y)
       else ctx.lineTo(x, y)
@@ -636,7 +677,7 @@ function drawExtremaRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec
     ctx.lineWidth = 1
     ctx.stroke()
   } else {
-    const pixels = aggregateTimePoints(spec.points, width, model.durationSec)
+    const pixels = aggregateTimePoints(points, width, viewport)
     pixels.forEach((entry, x) => {
       if (!entry) return
       const normalized = normalizeValue(entry.value, range)
@@ -645,7 +686,7 @@ function drawExtremaRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec
     })
   }
 
-  const rangePoints = calculateExtrema(spec.points)
+  const rangePoints = calculateExtrema(points)
   drawExtremaBadge(draw, rangePoints.min, 'MIN', 'cyan', 8)
   drawExtremaBadge(draw, rangePoints.max, 'MAX', 'red', height - 23)
 }
@@ -657,8 +698,8 @@ function drawExtremaBadge(
   colorKey: PaletteKey,
   y: number,
 ) {
-  const { ctx, width, height, model, palette, fonts, hits } = draw
-  const x = timeToX(point.time, width, model)
+  const { ctx, width, height, palette, fonts, hits, viewport } = draw
+  const x = timeToX(point.time, width, viewport)
   const color = palette[colorKey]
   const text = `${label} ${formatValue(point.value)}`
   ctx.font = `700 9px ${fonts.data}`
@@ -699,10 +740,11 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.closePath()
 }
 
-function aggregateTimePoints(points: TrackTimelinePoint[], width: number, duration: number) {
+function aggregateTimePoints(points: TrackTimelinePoint[], width: number, viewport: TrackTimelineViewport) {
   const columns = Array.from({ length: Math.max(1, Math.floor(width)) }, () => null as { value: number; count: number } | null)
   points.forEach(point => {
-    const index = clamp(Math.floor((point.time / Math.max(duration, 0.001)) * columns.length), 0, columns.length - 1)
+    if (point.time < viewport.startSec || point.time > viewport.endSec) return
+    const index = clamp(Math.floor(((point.time - viewport.startSec) / Math.max(viewport.endSec - viewport.startSec, 0.001)) * columns.length), 0, columns.length - 1)
     const existing = columns[index] ?? { value: 0, count: 0 }
     existing.value += point.value
     existing.count += 1
@@ -756,7 +798,7 @@ function drawRangeLabels(draw: DrawContext, range: { min: number; max: number })
 }
 
 function addPointHit(draw: DrawContext, point: TrackTimelinePoint, label: string) {
-  const x = timeToX(point.time, draw.width, draw.model)
+  const x = timeToX(point.time, draw.width, draw.viewport)
   draw.hits.push({
     x1: x - 7,
     x2: x + 7,
