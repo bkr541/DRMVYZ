@@ -3,6 +3,7 @@ import { RailTabs } from '../../layout/RailTabs'
 import { Collapsible, CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import type { ReactEngineId } from '../ReactTypes'
 import { MockEngineDropdown } from './MockEngineDropdown'
+import type { LayoutLabEngineId } from './layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLabComposition'
 import {
   LASER_DMX_MOCK_FIXTURE_LABELS,
@@ -288,7 +289,7 @@ function BeamLayerRow({ beam, state }: { beam: LaserDmxMockBeam; state: LaserDmx
   )
 }
 
-export function LaserDmxMockup({ engineId, onSelectEngine, state }: { engineId: ReactEngineId; onSelectEngine: (id: ReactEngineId) => void; state: LaserDmxMockState }) {
+export function LaserDmxMockup({ engineId, onSelectEngine, state }: { engineId: ReactEngineId; onSelectEngine: (id: LayoutLabEngineId) => void; state: LaserDmxMockState }) {
   const composition = useMemo(() => resolveLayoutLabComposition(engineId), [engineId])
   return (
     <div className="rv-left-workspace-shell" data-description-density="compact" data-layout-lab-laserdmx="left">

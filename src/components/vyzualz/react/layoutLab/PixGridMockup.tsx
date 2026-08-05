@@ -4,6 +4,7 @@ import { HelpInfoTrigger } from '../../../shared/InfoPopover'
 import { PIX_GRID_BUILT_IN_ASSETS } from '../pixGrid/PixGridArtwork'
 import type { ReactEngineId } from '../ReactTypes'
 import { MockEngineDropdown } from './MockEngineDropdown'
+import type { LayoutLabEngineId } from './layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLabComposition'
 import type { PixGridMockMediaFilter, PixGridMockState } from './usePixGridMockState'
 
@@ -268,7 +269,7 @@ export function PixGridMockup({
   state,
 }: {
   engineId: ReactEngineId
-  onSelectEngine: (id: ReactEngineId) => void
+  onSelectEngine: (id: LayoutLabEngineId) => void
   state: PixGridMockState
 }) {
   const composition = resolveLayoutLabComposition('pixGrid')

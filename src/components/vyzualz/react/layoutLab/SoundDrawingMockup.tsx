@@ -15,6 +15,7 @@ import {
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from '../soundDrawing/SoundDrawingPerformanceTypes'
 import { SoundDrawingProScopeMockup } from './SoundDrawingProScopeMockup'
 import { MockEngineDropdown } from './MockEngineDropdown'
+import type { LayoutLabEngineId } from './layoutLabEngineCatalog'
 import type { SoundDrawingMockState } from './useSoundDrawingMockState'
 import {
   type SvgRenderMode,
@@ -150,7 +151,7 @@ export function SoundDrawingMockup({
   state,
 }: {
   engineId: ReactEngineId
-  onSelectEngine: (id: ReactEngineId) => void
+  onSelectEngine: (id: LayoutLabEngineId) => void
   state: SoundDrawingMockState
 }) {
   const [leftTab, setLeftTab] = useState<'workspace' | 'media' | 'fonts'>('workspace')

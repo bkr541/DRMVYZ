@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../reactEngineCatalog'
 import { getReactEngineIconComponent } from '../reactEngineIcons'
-import type { ReactEngineId } from '../ReactTypes'
+import {
+  LAYOUT_LAB_ENGINE_CATALOG,
+  LAYOUT_LAB_ENGINE_IDS,
+  type LayoutLabEngineId,
+} from './layoutLabEngineCatalog'
 
 // Shared by LayoutLabMockup (generic engines) and SoundDrawingMockup (the
 // Sound Drawing full-fidelity preview) so both use the exact same dropdown
 // instead of two drifting copies.
 
-function MockEngineIcon({ engineId, glyph }: { engineId: ReactEngineId, glyph: string }) {
-  const IconComponent = getReactEngineIconComponent(engineId)
+function MockEngineIcon({ engineId, glyph }: { engineId: LayoutLabEngineId, glyph: string }) {
+  const IconComponent = engineId === 'template' ? null : getReactEngineIconComponent(engineId)
   return IconComponent ? <IconComponent /> : <>{glyph}</>
 }
 
@@ -16,11 +19,11 @@ export function MockEngineDropdown({
   engineId,
   onSelect,
 }: {
-  engineId: ReactEngineId
-  onSelect: (id: ReactEngineId) => void
+  engineId: LayoutLabEngineId
+  onSelect: (id: LayoutLabEngineId) => void
 }) {
   const [open, setOpen] = useState(false)
-  const activeEngine = REACT_ENGINE_CATALOG[engineId]
+  const activeEngine = LAYOUT_LAB_ENGINE_CATALOG[engineId]
 
   return (
     <div className="rv-engine-dropdown">
@@ -44,8 +47,8 @@ export function MockEngineDropdown({
 
       {open && (
         <div className="rv-engine-dropdown-menu" role="listbox" aria-label="Engine (mockup)">
-          {REACT_ENGINE_IDS.map(id => {
-            const engine = REACT_ENGINE_CATALOG[id]
+          {LAYOUT_LAB_ENGINE_IDS.map(id => {
+            const engine = LAYOUT_LAB_ENGINE_CATALOG[id]
             const active = id === engineId
             return (
               <button

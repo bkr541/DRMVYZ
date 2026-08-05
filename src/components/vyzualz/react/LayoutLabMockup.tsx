@@ -10,12 +10,12 @@ import { PixGridMockup } from './layoutLab/PixGridMockup'
 import { PixGridRightRailMockup } from './layoutLab/PixGridRightRailMockup'
 import { SoundDrawingMockup } from './layoutLab/SoundDrawingMockup'
 import { SoundDrawingRightRailMockup } from './layoutLab/SoundDrawingRightRailMockup'
+import type { LayoutLabEngineId } from './layoutLab/layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
 import { useCanvasMockState, type CanvasMockState } from './layoutLab/useCanvasMockState'
 import { useLaserDmxMockState, type LaserDmxMockState } from './layoutLab/useLaserDmxMockState'
 import { usePixGridMockState, type PixGridMockState } from './layoutLab/usePixGridMockState'
 import { useSoundDrawingMockState } from './layoutLab/useSoundDrawingMockState'
-import type { ReactEngineId } from './ReactTypes'
 import type { ReactLowerSurface } from './reactWorkspaceComposition'
 
 // ── LayoutLabMockup ────────────────────────────────────────────────────────
@@ -169,18 +169,23 @@ function PixGridCanvasMockup({ state }: { state: PixGridMockState }) {
 }
 
 export function LayoutLabMockup() {
-  const [engineId, setEngineId] = useState<ReactEngineId>('cinematicPortal')
+  const [engineId, setEngineId] = useState<LayoutLabEngineId>('cinematicPortal')
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [dockCollapsed, setDockCollapsed] = useState(false)
-  const composition = resolveLayoutLabComposition(engineId)
-  const [activeSurface, setActiveSurface] = useState<ReactLowerSurface>(composition.lowerSurfaces[0]?.id ?? 'trackMap')
+  const [templateRightTab, setTemplateRightTab] = useState<'presets' | 'design' | 'react' | 'output'>('design')
+  const composition = engineId === 'template' ? null : resolveLayoutLabComposition(engineId)
+  const [activeSurface, setActiveSurface] = useState<ReactLowerSurface>('trackMap')
   const soundDrawingState = useSoundDrawingMockState()
   const pixGridState = usePixGridMockState()
   const laserDmxState = useLaserDmxMockState()
   const canvasState = useCanvasMockState()
 
-  const handleSelectEngine = (id: ReactEngineId) => {
+  const handleSelectEngine = (id: LayoutLabEngineId) => {
+    if (id === 'template') {
+      setEngineId(id)
+      return
+    }
     const nextComposition = resolveLayoutLabComposition(id)
     setEngineId(id)
     setActiveSurface(nextComposition.lowerSurfaces[0]?.id ?? 'trackMap')
@@ -225,7 +230,7 @@ export function LayoutLabMockup() {
             {engineId === 'canvas' && <CanvasCanvasMockup state={canvasState} />}
           </div>
 
-          <section className="rv-lower-workspace" data-collapsed={dockCollapsed ? 'true' : undefined}>
+          {composition && <section className="rv-lower-workspace" data-collapsed={dockCollapsed ? 'true' : undefined}>
             <div className="rv-lower-workspace-toolbar">
               <button
                 type="button"
@@ -282,7 +287,7 @@ export function LayoutLabMockup() {
                 <div className="rv-strip-empty">{MOCK_SURFACE_PLACEHOLDER[surface.id]}</div>
               </div>
             ))}
-          </section>
+          </section>}
         </div>
 
         <WorkspaceRail
@@ -291,7 +296,14 @@ export function LayoutLabMockup() {
           collapsed={rightCollapsed}
           onToggleCollapsed={() => setRightCollapsed(value => !value)}
         >
-          {engineId === 'oscilloscope' ? (
+          {engineId === 'template' ? (
+            <RailTabs
+              tabs={MOCK_RIGHT_TABS}
+              activeTab={templateRightTab}
+              onChange={setTemplateRightTab}
+              ariaLabel="Layout Lab inspector tabs"
+            />
+          ) : engineId === 'oscilloscope' ? (
             <SoundDrawingRightRailMockup state={soundDrawingState} />
           ) : engineId === 'pixGrid' ? (
             <PixGridRightRailMockup state={pixGridState} onSelectEngine={handleSelectEngine} />

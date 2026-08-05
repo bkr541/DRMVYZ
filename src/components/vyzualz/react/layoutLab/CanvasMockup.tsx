@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
 import type { ReactEngineId } from '../ReactTypes'
 import { MockEngineDropdown } from './MockEngineDropdown'
+import type { LayoutLabEngineId } from './layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLabComposition'
 import type { CanvasMockMediaRole, CanvasMockState } from './useCanvasMockState'
 
@@ -61,7 +62,7 @@ export function CanvasMockup({
   state,
 }: {
   engineId: ReactEngineId
-  onSelectEngine: (id: ReactEngineId) => void
+  onSelectEngine: (id: LayoutLabEngineId) => void
   state: CanvasMockState
 }) {
   const composition = resolveLayoutLabComposition(engineId)
