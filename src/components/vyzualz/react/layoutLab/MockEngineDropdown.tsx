@@ -32,18 +32,13 @@ export function MockEngineDropdown({
         aria-label={`Selected engine: ${activeEngine.label}`}
         onClick={() => setOpen(value => !value)}
       >
-        <span className="rv-engine-dropdown-icon" aria-hidden="true">
-          <MockEngineIcon engineId={engineId} glyph={activeEngine.icon} />
-        </span>
         <span className="rv-engine-dropdown-copy">
           <span className="rv-engine-dropdown-eyebrow">Engine</span>
           <span className="rv-engine-dropdown-label">{activeEngine.label}</span>
           <span className="rv-engine-dropdown-description">{activeEngine.description}</span>
         </span>
-        <span className="rv-engine-dropdown-chevron" aria-hidden="true">
-          <svg viewBox="0 0 20 20" focusable="false">
-            <path d="m5 7.5 5 5 5-5" />
-          </svg>
+        <span className="rv-engine-dropdown-icon" aria-hidden="true">
+          <MockEngineIcon engineId={engineId} glyph={activeEngine.icon} />
         </span>
       </button>
 

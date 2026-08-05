@@ -44,14 +44,14 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     label: 'CANVAS',
     shortLabel: 'Canvas',
     icon: '▣',
-    description: 'User-uploaded videos, images, SVGs and visual assets for audio-reactive shows.',
+    description: 'Uploaded videos, images, and SVGs for audio-reactive shows.',
   },
   laserDmx: {
     id: 'laserDmx',
     label: 'LaserDMX',
     shortLabel: 'Laser',
     icon: '✦',
-    description: 'DMX Beam Matrix control with production-ready cues, fog, and audio-reactive laser looks.',
+    description: 'DMX Beam Matrix control with cues, fog, and audio-reactive looks.',
   },
   pixGrid: {
     id: 'pixGrid',
