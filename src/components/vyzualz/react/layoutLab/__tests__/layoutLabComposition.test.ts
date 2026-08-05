@@ -30,5 +30,6 @@ describe('Layout Lab production composition parity', () => {
     expect(resolveLayoutLabComposition('shaderPads').lowerSurfaces.map(surface => surface.id)).toEqual(['trackMap'])
     expect(resolveLayoutLabComposition('oscilloscope').lowerSurfaces.map(surface => surface.id)).toEqual(['trackMap', 'soundDrawing', 'performancePads'])
     expect(resolveLayoutLabComposition('pixGrid').lowerSurfaces.map(surface => surface.id)).toEqual(['trackMap', 'performancePads'])
+    expect(resolveLayoutLabComposition('laserDmx').lowerSurfaces.map(surface => surface.id)).toEqual(['trackMap', 'performancePads'])
   })
 })

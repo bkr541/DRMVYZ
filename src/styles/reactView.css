@@ -13624,3 +13624,227 @@
   cursor: not-allowed;
   opacity: 0.72;
 }
+
+/* Layout Lab: disconnected LaserDMX production-parity mock surfaces. */
+.rv-layout-lab-laser-canvas {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(43, 207, 232, 0.12), transparent 38%),
+    linear-gradient(180deg, rgba(2, 7, 12, 0.8), rgba(1, 4, 7, 0.97));
+}
+
+.rv-layout-lab-laser-stage {
+  position: relative;
+  width: min(74%, 780px);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid rgba(103, 247, 255, 0.2);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(5, 13, 20, 0.98), rgba(1, 5, 9, 0.98));
+  box-shadow: 0 28px 74px rgba(0, 0, 0, 0.55), inset 0 0 46px rgba(46, 210, 235, 0.05);
+}
+
+.rv-layout-lab-laser-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(103, 247, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 247, 255, 0.055) 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 100%, rgba(81, 222, 246, 0.12), transparent 52%);
+  background-size: 6.25% 11.11%, 6.25% 11.11%, 100% 100%;
+}
+
+.rv-layout-lab-laser-beam {
+  position: absolute;
+  z-index: 2;
+  height: 2px;
+  min-width: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgba(103, 247, 255, 0.98), rgba(103, 247, 255, 0));
+  box-shadow: 0 0 8px rgba(103, 247, 255, 0.72), 0 0 22px rgba(103, 247, 255, 0.34);
+  cursor: pointer;
+}
+
+.rv-layout-lab-laser-beam::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dffcff;
+  box-shadow: 0 0 12px rgba(103, 247, 255, 0.92);
+  transform: translateY(-50%);
+}
+
+.rv-layout-lab-laser-beam.is-selected {
+  height: 3px;
+  outline: 1px solid rgba(255, 226, 112, 0.72);
+  outline-offset: 5px;
+  box-shadow: 0 0 9px rgba(255, 226, 112, 0.75), 0 0 28px rgba(103, 247, 255, 0.48);
+}
+
+.rv-layout-lab-laser-fixture {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(103, 247, 255, 0.3);
+  border-radius: 5px;
+  background: rgba(5, 20, 27, 0.92);
+  color: rgba(166, 244, 255, 0.86);
+  box-shadow: 0 0 14px rgba(41, 202, 230, 0.18);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.rv-layout-lab-laser-fixture.is-selected {
+  border-color: rgba(255, 226, 112, 0.92);
+  color: #fff4b5;
+  box-shadow: 0 0 0 2px rgba(255, 226, 112, 0.15), 0 0 20px rgba(255, 226, 112, 0.28);
+}
+
+.rv-layout-lab-laser-canvas-status {
+  position: absolute;
+  left: 50%;
+  bottom: 7%;
+  min-width: 250px;
+  display: grid;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid rgba(103, 247, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(1, 8, 12, 0.88);
+  text-align: center;
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.rv-layout-lab-laser-canvas-status span {
+  color: rgba(103, 247, 255, 0.72);
+  font: 800 7px/1.2 var(--az-font);
+  letter-spacing: 0.14em;
+}
+
+.rv-layout-lab-laser-canvas-status strong {
+  color: #eafcff;
+  font: 800 11px/1.25 var(--az-font);
+}
+
+.rv-layout-lab-laser-canvas-status small {
+  color: rgba(220, 241, 244, 0.5);
+  font: 600 8px/1.25 var(--az-font);
+}
+
+.rv-layout-lab-laserdmx-preset-thumb {
+  position: relative;
+  min-height: 76px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 100%, rgba(69, 220, 241, 0.18), transparent 60%),
+    #02070b;
+}
+
+.rv-layout-lab-laserdmx-preset-thumb > span {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 2px;
+  height: 62px;
+  transform-origin: bottom center;
+  background: linear-gradient(180deg, rgba(103, 247, 255, 0), rgba(103, 247, 255, 0.92));
+  box-shadow: 0 0 9px rgba(103, 247, 255, 0.62);
+}
+
+.rv-layout-lab-laserdmx-preset-thumb > span:nth-child(1) { transform: rotate(-48deg); }
+.rv-layout-lab-laserdmx-preset-thumb > span:nth-child(2) { transform: rotate(-18deg); }
+.rv-layout-lab-laserdmx-preset-thumb > span:nth-child(3) { transform: rotate(18deg); }
+.rv-layout-lab-laserdmx-preset-thumb > span:nth-child(4) { transform: rotate(48deg); }
+
+.rv-layout-lab-laserdmx-preset-card-shell {
+  position: relative;
+}
+
+.rv-layout-lab-laserdmx-preset-card-shell .rv-preset-card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+}
+
+.rv-layout-lab-laserdmx-preset-card-shell .rv-preset-card-copy {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 28px 9px 0;
+}
+
+.rv-layout-lab-laserdmx-preset-card-shell .rv-preset-card-copy strong,
+.rv-layout-lab-laserdmx-preset-card-shell .rv-preset-card-copy span,
+.rv-layout-lab-laserdmx-preset-card-shell .rv-preset-card-copy small {
+  display: block;
+}
+
+.rv-layout-lab-laserdmx-favorite {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(103, 247, 255, 0.18);
+  border-radius: 4px;
+  background: rgba(1, 8, 12, 0.82);
+  color: rgba(255, 226, 112, 0.82);
+  cursor: pointer;
+}
+
+.rv-layout-lab-laser-group-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px 24px;
+  gap: 3px;
+  align-items: stretch;
+}
+
+.rv-layout-lab-laser-group-main {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.rv-layout-lab-laser-group-state {
+  padding: 0;
+  border: 1px solid rgba(103, 247, 255, 0.12);
+  border-radius: 3px;
+  background: rgba(2, 10, 14, 0.72);
+  color: rgba(220, 241, 244, 0.52);
+  font: 800 7px/1 var(--az-font);
+}
+
+.rv-layout-lab-laser-group-state.is-active {
+  border-color: rgba(255, 226, 112, 0.55);
+  color: #ffe270;
+  background: rgba(255, 226, 112, 0.1);
+}

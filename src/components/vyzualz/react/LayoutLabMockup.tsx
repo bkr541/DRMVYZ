@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { MockEngineDropdown } from './layoutLab/MockEngineDropdown'
+import { LaserDmxMockup } from './layoutLab/LaserDmxMockup'
+import { LaserDmxRightRailMockup } from './layoutLab/LaserDmxRightRailMockup'
 import { PixGridMockup } from './layoutLab/PixGridMockup'
 import { PixGridRightRailMockup } from './layoutLab/PixGridRightRailMockup'
 import { SoundDrawingMockup } from './layoutLab/SoundDrawingMockup'
 import { SoundDrawingRightRailMockup } from './layoutLab/SoundDrawingRightRailMockup'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
+import { useLaserDmxMockState, type LaserDmxMockState } from './layoutLab/useLaserDmxMockState'
 import { usePixGridMockState, type PixGridMockState } from './layoutLab/usePixGridMockState'
 import { useSoundDrawingMockState } from './layoutLab/useSoundDrawingMockState'
 import type { ReactEngineId } from './ReactTypes'
@@ -58,6 +61,56 @@ function MockStageFocusIcon() {
   )
 }
 
+function LaserDmxCanvasMockup({ state }: { state: LaserDmxMockState }) {
+  return (
+    <div className="rv-layout-lab-laser-canvas" aria-label="LaserDMX visual mockup">
+      <div className="rv-layout-lab-laser-stage">
+        <div className="rv-layout-lab-laser-grid" aria-hidden="true" />
+        {state.mode === 'matrix' ? state.beams.map((beam, index) => {
+          const selected = state.selectedBeamIds.includes(beam.id)
+          return (
+            <button
+              key={beam.id}
+              type="button"
+              className={selected ? 'rv-layout-lab-laser-beam is-selected' : 'rv-layout-lab-laser-beam'}
+              aria-label={`Select beam ${beam.name}`}
+              aria-pressed={selected}
+              style={{
+                left: `${10 + beam.origin.column * 4.9}%`,
+                top: `${72 - index * 3}%`,
+                width: `${30 + Math.abs(beam.target.column - beam.origin.column) * 2.5}%`,
+                transform: `rotate(${beam.target.column >= beam.origin.column ? -24 : -156}deg)`,
+              }}
+              onClick={event => state.selectBeam(beam.id, event.ctrlKey || event.metaKey || event.shiftKey)}
+            />
+          )
+        }) : state.fixtures.map(fixture => {
+          const selected = state.selectedFixtureIds.includes(fixture.id)
+          return (
+            <button
+              key={fixture.id}
+              type="button"
+              className={selected ? 'rv-layout-lab-laser-fixture is-selected' : 'rv-layout-lab-laser-fixture'}
+              aria-label={`Select fixture ${fixture.name}`}
+              aria-pressed={selected}
+              title={fixture.name}
+              style={{ left: `${fixture.position.x * 100}%`, top: `${fixture.position.y * 100}%` }}
+              onClick={event => state.selectFixture(fixture.id, event.ctrlKey || event.metaKey || event.shiftKey)}
+            >
+              <span aria-hidden="true">{fixture.kind === 'laser' ? '⌁' : fixture.kind === 'movingHead' ? '◉' : fixture.kind === 'videoWall' ? '▦' : fixture.kind === 'haze' ? '≋' : '◆'}</span>
+            </button>
+          )
+        })}
+      </div>
+      <div className="rv-layout-lab-laser-canvas-status">
+        <span>{state.mode === 'matrix' ? 'BEAM MATRIX MOCK' : 'SHOW DIRECTOR MOCK'}</span>
+        <strong>{state.mode === 'matrix' ? `${state.beams.length} beams · ${state.groups.length} groups` : `${state.fixtures.length} fixtures · local rig`}</strong>
+        <small>{state.mode === 'matrix' ? state.selectedBeams.length ? `${state.selectedBeams.length} beam${state.selectedBeams.length === 1 ? '' : 's'} selected` : state.selectedGroup?.name ?? 'Global Matrix' : state.selectedFixtures.length ? `${state.selectedFixtures.length} fixture${state.selectedFixtures.length === 1 ? '' : 's'} selected` : 'No fixture selected'}</small>
+      </div>
+    </div>
+  )
+}
+
 function PixGridCanvasMockup({ state }: { state: PixGridMockState }) {
   const activePreset = state.presets.find(preset => preset.id === state.activePresetId)
   return (
@@ -98,6 +151,7 @@ export function LayoutLabMockup() {
   const [activeSurface, setActiveSurface] = useState<ReactLowerSurface>(composition.lowerSurfaces[0]?.id ?? 'trackMap')
   const soundDrawingState = useSoundDrawingMockState()
   const pixGridState = usePixGridMockState()
+  const laserDmxState = useLaserDmxMockState()
 
   const handleSelectEngine = (id: ReactEngineId) => {
     const nextComposition = resolveLayoutLabComposition(id)
@@ -122,6 +176,8 @@ export function LayoutLabMockup() {
             <SoundDrawingMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={soundDrawingState} />
           ) : engineId === 'pixGrid' ? (
             <PixGridMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={pixGridState} />
+          ) : engineId === 'laserDmx' ? (
+            <LaserDmxMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={laserDmxState} />
           ) : (
             <div className="rv-left-workspace-shell" data-description-density="compact">
               <section className="rv-context-workspace">
@@ -136,6 +192,7 @@ export function LayoutLabMockup() {
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
             {engineId === 'pixGrid' && <PixGridCanvasMockup state={pixGridState} />}
+            {engineId === 'laserDmx' && <LaserDmxCanvasMockup state={laserDmxState} />}
           </div>
 
           <section className="rv-lower-workspace" data-collapsed={dockCollapsed ? 'true' : undefined}>
@@ -208,6 +265,8 @@ export function LayoutLabMockup() {
             <SoundDrawingRightRailMockup state={soundDrawingState} />
           ) : engineId === 'pixGrid' ? (
             <PixGridRightRailMockup state={pixGridState} onSelectEngine={handleSelectEngine} />
+          ) : engineId === 'laserDmx' ? (
+            <LaserDmxRightRailMockup state={laserDmxState} />
           ) : (
             <>
               <RailTabs
