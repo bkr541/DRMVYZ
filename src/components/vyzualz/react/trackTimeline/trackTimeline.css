@@ -1,6 +1,8 @@
 .ttv-popup-root,
 .ttv-app-shell {
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   background:
     radial-gradient(circle at 15% -20%, rgba(var(--color-primary-rgb, 74, 199, 219), 0.1), transparent 34%),
     linear-gradient(180deg, var(--color-panel, #0b1012) 0%, var(--color-background, #090d0f) 360px);
@@ -9,12 +11,27 @@
   color-scheme: dark;
 }
 
+.ttv-popup-root {
+  overflow: hidden;
+}
+
+.ttv-app-shell.rv-shell {
+  --ttv-playhead-ratio: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 15% -20%, rgba(var(--color-primary-rgb, 74, 199, 219), 0.1), transparent 34%),
+    linear-gradient(180deg, var(--color-panel, #0b1012) 0%, var(--color-background, #090d0f) 360px);
+}
+
 .ttv-app-shell,
 .ttv-app-shell * {
   box-sizing: border-box;
 }
 
 .ttv-window-header {
+  flex: 0 0 auto;
   min-height: 76px;
   padding: 16px 20px;
   display: flex;
@@ -91,7 +108,40 @@
 }
 
 .ttv-visualization-shell {
-  min-height: calc(100vh - 76px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ttv-scroll-region {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-color: rgba(var(--color-primary-rgb, 74, 199, 219), 0.34) transparent;
+}
+
+.ttv-scroll-region::-webkit-scrollbar {
+  width: 10px;
+}
+
+.ttv-scroll-region::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.ttv-scroll-region::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(var(--color-primary-rgb, 74, 199, 219), 0.28);
+  background-clip: padding-box;
+}
+
+.ttv-scroll-region::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--color-primary-rgb, 74, 199, 219), 0.44);
+  background-clip: padding-box;
 }
 
 .ttv-sticky-timeline {
@@ -217,13 +267,59 @@
   background: var(--color-background, #090d0f);
 }
 
+.ttv-canvas-wrap::after {
+  content: '';
+  position: absolute;
+  z-index: 12;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--ttv-playhead-ratio, 0) * 100%);
+  width: 1px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-0.5px);
+  background: var(--color-primary, #4ac7db);
+  box-shadow:
+    0 0 5px rgba(var(--color-primary-rgb, 74, 199, 219), 0.95),
+    0 0 12px rgba(var(--color-primary-rgb, 74, 199, 219), 0.42);
+}
+
+.ttv-canvas-wrap--playhead-anchor::before {
+  content: '';
+  position: absolute;
+  z-index: 13;
+  top: 0;
+  left: calc(var(--ttv-playhead-ratio, 0) * 100%);
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--color-primary, #4ac7db);
+  filter: drop-shadow(0 0 4px rgba(var(--color-primary-rgb, 74, 199, 219), 0.8));
+}
+
+.ttv-app-shell[data-playhead-visible='true'] .ttv-canvas-wrap::after,
+.ttv-app-shell[data-playhead-visible='true'] .ttv-canvas-wrap--playhead-anchor::before {
+  opacity: 1;
+}
+
 .ttv-canvas {
   width: 100%;
   display: block;
 }
 
 .ttv-content-area {
-  padding-bottom: 64px;
+  padding-bottom: 24px;
+}
+
+.ttv-playhead-time {
+  min-width: 106px;
+  color: var(--color-secondary, #61d6aa);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .ttv-sections-block {

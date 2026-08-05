@@ -48,8 +48,13 @@ export function TrackTimelineModal({
     popupRef.current = popup
     popup.document.title = 'DRMVYZ — Track Timeline Visualizer'
     popup.document.documentElement.style.background = 'var(--color-background, #090d0f)'
+    popup.document.documentElement.style.height = '100%'
+    popup.document.documentElement.style.overflow = 'hidden'
     popup.document.body.style.margin = '0'
-    popup.document.body.style.minHeight = '100vh'
+    popup.document.body.style.width = '100%'
+    popup.document.body.style.height = '100%'
+    popup.document.body.style.minHeight = '0'
+    popup.document.body.style.overflow = 'hidden'
     cloneAppStylesInto(popup.document)
 
     const root = popup.document.createElement('div')

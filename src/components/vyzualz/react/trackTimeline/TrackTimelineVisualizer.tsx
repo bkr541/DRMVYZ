@@ -1,6 +1,8 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { RgbWaveformAnalysis } from '../../../../features/waveform/rgbWaveformTypes'
+import { useSharedAudio } from '../../../../context/AudioEngineContext'
+import { VyzualzAudioDock } from '../../shared/VyzualzAudioDock'
 import {
   drawTrackTimelineCanvas,
   formatTime,
@@ -16,6 +18,10 @@ import {
   type TrackTimelinePoint,
 } from './trackTimelineModel'
 import { TrackTimelineIcon } from './TrackTimelineIcon'
+import {
+  clampTrackTimelinePlayheadTime,
+  resolveTrackTimelinePlayheadRatio,
+} from './trackTimelinePlayhead'
 import './trackTimeline.css'
 
 interface TrackTimelineVisualizerProps {
@@ -327,6 +333,51 @@ function TimelineRow({ model, label, count, height, spec }: RowDefinition & { mo
   )
 }
 
+function TrackTimelinePlayheadController({
+  appShellRef,
+  playheadTimeRef,
+  durationSec,
+}: {
+  appShellRef: RefObject<HTMLDivElement>
+  playheadTimeRef: RefObject<HTMLSpanElement>
+  durationSec: number
+}) {
+  const engine = useSharedAudio()
+  const engineRef = useRef(engine)
+  engineRef.current = engine
+
+  useEffect(() => {
+    let animationFrame = 0
+    let lastRenderedTime = Number.NaN
+
+    const updatePlayhead = () => {
+      const appShell = appShellRef.current
+      if (appShell && durationSec > 0) {
+        const currentTimeSec = clampTrackTimelinePlayheadTime(
+          engineRef.current.getCurrentTime(),
+          durationSec,
+        )
+        const ratio = resolveTrackTimelinePlayheadRatio(currentTimeSec, durationSec)
+        appShell.style.setProperty('--ttv-playhead-ratio', String(ratio))
+        appShell.dataset.playheadVisible = 'true'
+
+        if (playheadTimeRef.current && (
+          !Number.isFinite(lastRenderedTime) || Math.abs(currentTimeSec - lastRenderedTime) >= 0.025
+        )) {
+          playheadTimeRef.current.textContent = `${formatTime(currentTimeSec)} / ${formatTime(durationSec)}`
+          lastRenderedTime = currentTimeSec
+        }
+      }
+      animationFrame = requestAnimationFrame(updatePlayhead)
+    }
+
+    animationFrame = requestAnimationFrame(updatePlayhead)
+    return () => cancelAnimationFrame(animationFrame)
+  }, [appShellRef, durationSec, playheadTimeRef])
+
+  return null
+}
+
 function TimelineGroup({ group, model, collapsed, onToggle }: {
   group: GroupDefinition
   model: TrackTimelineModel
@@ -362,6 +413,8 @@ function TimelineGroup({ group, model, collapsed, onToggle }: {
 }
 
 export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
+  const appShellRef = useRef<HTMLDivElement>(null)
+  const playheadTimeRef = useRef<HTMLSpanElement>(null)
   const model = useMemo(() => buildTrackTimelineModel(props), [props])
   const groups = useMemo(() => buildGroups(model), [model])
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => Object.fromEntries(
@@ -383,7 +436,13 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   ].filter((value): value is string => Boolean(value))
 
   return (
-    <div className="ttv-app-shell">
+    <div ref={appShellRef} className="ttv-app-shell az-root rv-shell" data-playhead-visible="false">
+      <TrackTimelinePlayheadController
+        appShellRef={appShellRef}
+        playheadTimeRef={playheadTimeRef}
+        durationSec={model.durationSec}
+      />
+
       <header className="ttv-window-header">
         <div className="ttv-title-row">
           <div className="ttv-logo-mark"><TrackTimelineIcon /></div>
@@ -398,52 +457,67 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
       </header>
 
       <section className="ttv-visualization-shell">
-        <div className="ttv-sticky-timeline">
-          <div className="ttv-track-toolbar">
-            <div className="ttv-track-meta">
-              <span className="ttv-track-name" title={model.meta.filename}>{model.meta.filename}</span>
-              {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
+        <div className="ttv-scroll-region">
+          <div className="ttv-sticky-timeline">
+            <div className="ttv-track-toolbar">
+              <div className="ttv-track-meta">
+                <span className="ttv-track-name" title={model.meta.filename}>{model.meta.filename}</span>
+                {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
+                <span ref={playheadTimeRef} className="ttv-meta-pill ttv-playhead-time">
+                  {formatTime(0)} / {formatTime(model.durationSec)}
+                </span>
+              </div>
+              <div className="ttv-toolbar-actions">
+                <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
+                <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
+              </div>
             </div>
-            <div className="ttv-toolbar-actions">
-              <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
-              <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
+            <div className="ttv-timeline-row">
+              <div className="ttv-row-label ttv-row-label--sticky"><span className="ttv-label-text">WAVEFORM</span></div>
+              <div className="ttv-canvas-wrap ttv-canvas-wrap--playhead-anchor">
+                <TrackTimelineCanvas model={model} spec={{ kind: 'waveform' }} height={82} />
+              </div>
+            </div>
+            <div className="ttv-timeline-row">
+              <div className="ttv-row-label ttv-row-label--sticky"><span className="ttv-label-text">BEAT GRID</span></div>
+              <div className="ttv-canvas-wrap">
+                <TrackTimelineCanvas model={model} spec={{ kind: 'beatGrid' }} height={54} />
+              </div>
             </div>
           </div>
-          <div className="ttv-timeline-row">
-            <div className="ttv-row-label ttv-row-label--sticky"><span className="ttv-label-text">WAVEFORM</span></div>
-            <div className="ttv-canvas-wrap"><TrackTimelineCanvas model={model} spec={{ kind: 'waveform' }} height={82} /></div>
-          </div>
-          <div className="ttv-timeline-row">
-            <div className="ttv-row-label ttv-row-label--sticky"><span className="ttv-label-text">BEAT GRID</span></div>
-            <div className="ttv-canvas-wrap"><TrackTimelineCanvas model={model} spec={{ kind: 'beatGrid' }} height={54} /></div>
-          </div>
+
+          {model.warnings.length > 0 && (
+            <div className="ttv-warning-banner">{model.warnings.slice(0, 3).join(' ')}</div>
+          )}
+
+          <main className="ttv-content-area">
+            <section className="ttv-sections-block">
+              <TimelineRow
+                model={model}
+                label="TRACK SECTIONS"
+                count={model.sections.length}
+                height={64}
+                spec={{ kind: 'sections', sections: model.sections }}
+              />
+            </section>
+            {groups.map(group => (
+              <TimelineGroup
+                key={group.id}
+                group={group}
+                model={model}
+                collapsed={collapsed[group.id] ?? group.defaultCollapsed}
+                onToggle={() => setCollapsed(current => ({ ...current, [group.id]: !current[group.id] }))}
+              />
+            ))}
+          </main>
         </div>
-
-        {model.warnings.length > 0 && (
-          <div className="ttv-warning-banner">{model.warnings.slice(0, 3).join(' ')}</div>
-        )}
-
-        <main className="ttv-content-area">
-          <section className="ttv-sections-block">
-            <TimelineRow
-              model={model}
-              label="TRACK SECTIONS"
-              count={model.sections.length}
-              height={64}
-              spec={{ kind: 'sections', sections: model.sections }}
-            />
-          </section>
-          {groups.map(group => (
-            <TimelineGroup
-              key={group.id}
-              group={group}
-              model={model}
-              collapsed={collapsed[group.id] ?? group.defaultCollapsed}
-              onToggle={() => setCollapsed(current => ({ ...current, [group.id]: !current[group.id] }))}
-            />
-          ))}
-        </main>
       </section>
+
+      <VyzualzAudioDock
+        deckLabel="TRACK TIMELINE"
+        expandable
+        waveformAppearance="deck"
+      />
     </div>
   )
 }
