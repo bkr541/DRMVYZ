@@ -7,6 +7,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
   type RefObject,
 } from 'react'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
@@ -28,6 +29,7 @@ import {
   type TrackTimelinePoint,
 } from './trackTimelineModel'
 import { TrackTimelineIcon } from './TrackTimelineIcon'
+import { WorkspaceRail } from '../../layout/WorkspaceRail'
 import {
   clampTrackTimelinePlayheadTime,
   resolveTrackTimelinePlayheadRatio,
@@ -38,6 +40,7 @@ import {
   moveTrackTimelineViewport,
   normalizeTrackTimelineViewport,
   resolveTrackTimelineViewportRatio,
+  zoomTrackTimelineViewport,
   TRACK_TIMELINE_ZOOM_PRESETS,
   type TrackTimelineViewport,
   type TrackTimelineZoomPreset,
@@ -488,6 +491,14 @@ function OverviewViewportNavigator({
     beginDrag(event, 'move', nextViewport)
   }, [beginDrag, durationSec, onChange, pointerTime, viewport])
 
+  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    if (durationSec <= 0 || event.deltaY === 0) return
+    event.preventDefault()
+    const centerSec = pointerTime(event.clientX)
+    const factor = Math.pow(1.0015, event.deltaY)
+    onChange(zoomTrackTimelineViewport(viewport, durationSec, factor, centerSec, minimumDurationSec))
+  }, [durationSec, minimumDurationSec, onChange, pointerTime, viewport])
+
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
@@ -550,6 +561,7 @@ function OverviewViewportNavigator({
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onWheel={handleWheel}
     >
       <div
         className="ttv-overview-viewport"
@@ -648,6 +660,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   ), [model.bars, model.meta.bpm, model.meta.timeSignature])
   const minimumViewportDuration = Math.min(model.durationSec || 1, Math.max(1, barDuration * 4))
   const [activeZoom, setActiveZoom] = useState<TrackTimelineZoomPreset | 'custom'>(32)
+  const [infoRailCollapsed, setInfoRailCollapsed] = useState(false)
   const [viewport, setViewport] = useState<TrackTimelineViewport>(() => createTrackTimelineViewport(
     model.durationSec,
     model.bars,
@@ -744,44 +757,47 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
         <div className="ttv-title-row">
           <div className="ttv-logo-mark"><TrackTimelineIcon /></div>
           <div>
-            <h1>DRMVYZ Track Timeline Visualizer</h1>
-            <p>Live Audio Intelligence from the currently loaded track. No JSON or Excel import layer.</p>
+            <h1>Track Timeline</h1>
           </div>
         </div>
-        <div className="ttv-ready-pill">
-          <span /> Analysis ready · {model.meta.analysisVersion}
-        </div>
       </header>
+
+      <div className="ttv-body">
+        <WorkspaceRail
+          side="left"
+          label="Track info"
+          collapsed={infoRailCollapsed}
+          onToggleCollapsed={() => setInfoRailCollapsed(value => !value)}
+        >
+          <div className="ttv-info-rail-body">
+            <div className="rv-ctrl-section-label">Track</div>
+            <span className="ttv-track-name" title={model.meta.filename}>{model.meta.filename}</span>
+            <div className="ttv-info-rail-pills">
+              {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
+              <span ref={playheadTimeRef} className="ttv-meta-pill ttv-playhead-time">
+                {formatTime(0)} / {formatTime(model.durationSec)}
+              </span>
+            </div>
+
+          </div>
+        </WorkspaceRail>
 
       <section className="ttv-visualization-shell">
         <div className="ttv-scroll-region">
           <div className="ttv-sticky-timeline">
-            <div className="ttv-track-toolbar">
-              <div className="ttv-track-meta">
-                <span className="ttv-track-name" title={model.meta.filename}>{model.meta.filename}</span>
-                {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
-                <span ref={playheadTimeRef} className="ttv-meta-pill ttv-playhead-time">
-                  {formatTime(0)} / {formatTime(model.durationSec)}
-                </span>
-              </div>
-              <div className="ttv-toolbar-cluster">
-                <div className="ttv-zoom-controls" role="group" aria-label="Detail zoom range">
-                  {TRACK_TIMELINE_ZOOM_PRESETS.map(preset => (
-                    <button
-                      key={preset}
-                      type="button"
-                      className={`ttv-zoom-btn${activeZoom === preset ? ' ttv-zoom-btn--active' : ''}`}
-                      aria-pressed={activeZoom === preset}
-                      onClick={() => applyZoomPreset(preset)}
-                    >
-                      {zoomPresetLabel(preset)}
-                    </button>
-                  ))}
-                </div>
-                <div className="ttv-toolbar-actions">
-                  <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
-                  <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
-                </div>
+            <div className="ttv-zoom-row">
+              <div className="ttv-zoom-controls" role="group" aria-label="Detail zoom range">
+                {TRACK_TIMELINE_ZOOM_PRESETS.map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={`ttv-zoom-btn${activeZoom === preset ? ' ttv-zoom-btn--active' : ''}`}
+                    aria-pressed={activeZoom === preset}
+                    onClick={() => applyZoomPreset(preset)}
+                  >
+                    {zoomPresetLabel(preset)}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -840,9 +856,15 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   <strong>{formatTime(viewport.startSec)} → {formatTime(viewport.endSec)}</strong>
                   <small>{visibleBars || 'Custom'}{visibleBars ? ' bars' : ' range'} · {(viewport.endSec - viewport.startSec).toFixed(2)} seconds</small>
                 </div>
-                <button type="button" className="ttv-center-playhead-btn" onClick={centerDetailOnPlayhead}>
-                  Center on playhead
-                </button>
+                <div className="ttv-detail-header-actions">
+                  <div className="ttv-toolbar-actions">
+                    <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
+                    <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
+                  </div>
+                  <button type="button" className="ttv-center-playhead-btn" onClick={centerDetailOnPlayhead}>
+                    Center on playhead
+                  </button>
+                </div>
               </header>
 
               <TimelineRow
@@ -891,6 +913,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
           </main>
         </div>
       </section>
+      </div>
 
       <VyzualzAudioDock
         deckLabel="TRACK TIMELINE"

@@ -126,6 +126,35 @@ export function moveTrackTimelineViewport(
   }, durationSec, Math.min(width, 0.25))
 }
 
+/**
+ * Scales the viewport width by `factor` (<1 zooms in, >1 zooms out) while
+ * holding `centerSec` at the same relative position within the viewport —
+ * the point under the cursor stays put as the user zooms.
+ */
+export function zoomTrackTimelineViewport(
+  viewport: TrackTimelineViewport,
+  durationSec: number,
+  factor: number,
+  centerSec: number,
+  minimumDurationSec = 0.25,
+): TrackTimelineViewport {
+  const duration = Math.max(0, finite(durationSec, 0))
+  if (duration <= 0) return viewport
+
+  const width = Math.max(0.001, viewport.endSec - viewport.startSec)
+  const safeFactor = finite(factor, 1)
+  const minDuration = Math.min(duration, Math.max(0.001, finite(minimumDurationSec, 0.25)))
+  const nextWidth = clamp(width * safeFactor, minDuration, duration)
+  const center = clamp(finite(centerSec, viewport.startSec + width / 2), 0, duration)
+  const ratio = clamp((center - viewport.startSec) / width, 0, 1)
+  const nextStart = center - nextWidth * ratio
+
+  return normalizeTrackTimelineViewport({
+    startSec: nextStart,
+    endSec: nextStart + nextWidth,
+  }, duration, minDuration)
+}
+
 export function resolveTrackTimelineViewportRatio(
   timeSec: number,
   viewport: TrackTimelineViewport,
