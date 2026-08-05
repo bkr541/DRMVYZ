@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { MockEngineDropdown } from './layoutLab/MockEngineDropdown'
+import { CanvasMockup } from './layoutLab/CanvasMockup'
+import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
 import { LaserDmxMockup } from './layoutLab/LaserDmxMockup'
 import { LaserDmxRightRailMockup } from './layoutLab/LaserDmxRightRailMockup'
 import { PixGridMockup } from './layoutLab/PixGridMockup'
@@ -9,6 +11,7 @@ import { PixGridRightRailMockup } from './layoutLab/PixGridRightRailMockup'
 import { SoundDrawingMockup } from './layoutLab/SoundDrawingMockup'
 import { SoundDrawingRightRailMockup } from './layoutLab/SoundDrawingRightRailMockup'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
+import { useCanvasMockState, type CanvasMockState } from './layoutLab/useCanvasMockState'
 import { useLaserDmxMockState, type LaserDmxMockState } from './layoutLab/useLaserDmxMockState'
 import { usePixGridMockState, type PixGridMockState } from './layoutLab/usePixGridMockState'
 import { useSoundDrawingMockState } from './layoutLab/useSoundDrawingMockState'
@@ -111,6 +114,29 @@ function LaserDmxCanvasMockup({ state }: { state: LaserDmxMockState }) {
   )
 }
 
+function CanvasCanvasMockup({ state }: { state: CanvasMockState }) {
+  return (
+    <div className="rv-layout-lab-canvas-canvas" aria-label="Canvas visual mockup">
+      <div className={`rv-layout-lab-canvas-stage${state.isFractures ? ' is-fractures' : ''}`} aria-hidden="true">
+        {state.isFractures ? (
+          <div className="rv-layout-lab-canvas-fragments">
+            {Array.from({ length: 12 }, (_, index) => <span key={index} style={{ '--fragment-index': index } as CSSProperties} />)}
+          </div>
+        ) : (
+          <div className={`rv-layout-lab-canvas-media-preview is-${state.activeMedia?.type ?? 'empty'}`}>
+            <span>{state.activeMedia?.type === 'video' ? '▶' : state.activeMedia?.type === 'svg' ? 'DVYDRM' : state.activeMedia ? 'CANVAS' : 'NO SOURCE'}</span>
+          </div>
+        )}
+      </div>
+      <div className="rv-layout-lab-canvas-canvas-status">
+        <span>{state.isFractures ? 'FRACTURES MOCK' : 'CANVAS MEDIA MOCK'}</span>
+        <strong>{state.activeMedia?.name ?? 'No active media'}</strong>
+        <small>{state.activePreset.name} · local deterministic preview</small>
+      </div>
+    </div>
+  )
+}
+
 function PixGridCanvasMockup({ state }: { state: PixGridMockState }) {
   const activePreset = state.presets.find(preset => preset.id === state.activePresetId)
   return (
@@ -152,6 +178,7 @@ export function LayoutLabMockup() {
   const soundDrawingState = useSoundDrawingMockState()
   const pixGridState = usePixGridMockState()
   const laserDmxState = useLaserDmxMockState()
+  const canvasState = useCanvasMockState()
 
   const handleSelectEngine = (id: ReactEngineId) => {
     const nextComposition = resolveLayoutLabComposition(id)
@@ -178,6 +205,8 @@ export function LayoutLabMockup() {
             <PixGridMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={pixGridState} />
           ) : engineId === 'laserDmx' ? (
             <LaserDmxMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={laserDmxState} />
+          ) : engineId === 'canvas' ? (
+            <CanvasMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={canvasState} />
           ) : (
             <div className="rv-left-workspace-shell" data-description-density="compact">
               <section className="rv-context-workspace">
@@ -193,6 +222,7 @@ export function LayoutLabMockup() {
           <div className="rv-canvas-wrap">
             {engineId === 'pixGrid' && <PixGridCanvasMockup state={pixGridState} />}
             {engineId === 'laserDmx' && <LaserDmxCanvasMockup state={laserDmxState} />}
+            {engineId === 'canvas' && <CanvasCanvasMockup state={canvasState} />}
           </div>
 
           <section className="rv-lower-workspace" data-collapsed={dockCollapsed ? 'true' : undefined}>
@@ -267,6 +297,8 @@ export function LayoutLabMockup() {
             <PixGridRightRailMockup state={pixGridState} onSelectEngine={handleSelectEngine} />
           ) : engineId === 'laserDmx' ? (
             <LaserDmxRightRailMockup state={laserDmxState} />
+          ) : engineId === 'canvas' ? (
+            <CanvasRightRailMockup state={canvasState} onSelectEngine={handleSelectEngine} />
           ) : (
             <>
               <RailTabs
