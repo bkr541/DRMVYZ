@@ -61,7 +61,9 @@
     "verify:pix-grid:deck-compiler": "npm run typecheck && npm run test:pix-grid:deck-compiler && npm run test:e2e:pix-grid-deck-compiler && npm run build",
     "test:e2e:pix-grid-deck-show-manager": "node scripts/run-pix-grid-deck-show-manager-browser.mjs",
     "test:e2e:pix-grid-deck-authenticated": "node scripts/run-pix-grid-deck-authenticated-browser.mjs",
-    "verify:pix-grid:deck-authenticated": "npm run repo:hygiene && npm run typecheck && npm run test:e2e:pix-grid-deck-authenticated"
+    "verify:pix-grid:deck-authenticated": "npm run repo:hygiene && npm run typecheck && npm run test:e2e:pix-grid-deck-authenticated",
+    "audio:golden:generate": "node scripts/browser-audio-intelligence-golden.mjs generate",
+    "audio:golden:verify": "node scripts/browser-audio-intelligence-golden.mjs verify"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",
