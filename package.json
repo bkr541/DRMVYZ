@@ -63,7 +63,9 @@
     "test:e2e:pix-grid-deck-authenticated": "node scripts/run-pix-grid-deck-authenticated-browser.mjs",
     "verify:pix-grid:deck-authenticated": "npm run repo:hygiene && npm run typecheck && npm run test:e2e:pix-grid-deck-authenticated",
     "audio:golden:generate": "node scripts/browser-audio-intelligence-golden.mjs generate",
-    "audio:golden:verify": "node scripts/browser-audio-intelligence-golden.mjs verify"
+    "audio:golden:verify": "node scripts/browser-audio-intelligence-golden.mjs verify",
+    "audio:batch": "node scripts/browser-audio-intelligence-batch.mjs",
+    "test:audio:batch": "node --test scripts/audio-intelligence-batch-core.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",
