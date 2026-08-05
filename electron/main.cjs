@@ -116,7 +116,13 @@ function createMainWindow() {
   window.once('ready-to-show', () => window.show())
 
   window.webContents.setWindowOpenHandler(({ url, frameName }) => {
-    if (frameName === 'drmvyz-layout-lab') {
+    const popupConfig = frameName === 'drmvyz-layout-lab'
+      ? { title: 'DRMVYZ — Layout Lab', backgroundColor: '#060d10' }
+      : frameName === 'drmvyz-track-timeline'
+        ? { title: 'DRMVYZ — Track Timeline Visualizer', backgroundColor: '#090d0f' }
+        : null
+
+    if (popupConfig) {
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
@@ -124,8 +130,8 @@ function createMainWindow() {
           height: 1000,
           minWidth: 1180,
           minHeight: 760,
-          backgroundColor: '#060d10',
-          title: 'DRMVYZ — Layout Lab',
+          backgroundColor: popupConfig.backgroundColor,
+          title: popupConfig.title,
           autoHideMenuBar: process.platform !== 'darwin',
           webPreferences: {
             contextIsolation: true,

@@ -30,6 +30,9 @@ import { resolveLaserDmxAuthoringOverlayVisibility } from './renderers/laserDmx/
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { LayoutLabModal } from './LayoutLabModal'
+import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStorage'
+import { TrackTimelineIcon } from './trackTimeline/TrackTimelineIcon'
+import { resolveTrackTimelineAvailability } from './trackTimeline/trackTimelineAvailability'
 import { RailTabs } from '../layout/RailTabs'
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
@@ -101,6 +104,11 @@ const LaserDmxLayersPanel = lazy(() =>
 const ShaderLibraryPanel = lazy(() =>
   import('./shaders/ui/ShaderLibraryPanel').then((module) => ({
     default: module.ShaderLibraryPanel,
+  })),
+)
+const TrackTimelineModal = lazy(() =>
+  import('./trackTimeline/TrackTimelineModal').then((module) => ({
+    default: module.TrackTimelineModal,
   })),
 )
 
@@ -283,6 +291,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
   const [layoutLabOpen, setLayoutLabOpen] = useState(false)
+  const [trackTimelineOpen, setTrackTimelineOpen] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
   const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings, pixGridState)
   const getMediaDisabledReason = useCallback(
@@ -517,6 +526,22 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     }
   }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
 
+  const trackTimelineAnalysisKey = engine.currentTrack?.analysisRuntime.analysisKey ?? ''
+  const trackTimelineWaveformEntry = useRgbWaveformStore((state) =>
+    trackTimelineAnalysisKey ? state.waveforms[trackTimelineAnalysisKey] : undefined,
+  )
+  const trackTimelineAvailability = resolveTrackTimelineAvailability({
+    hasTrack: engine.currentTrack != null,
+    analysisStatus: engine.currentAnalysisStatus,
+    analysis: effectiveTrackAnalysis,
+    waveformEntry: trackTimelineWaveformEntry,
+    progress: engine.currentTrack?.analysisRuntime.analysisProgress,
+  })
+
+  useEffect(() => {
+    if (!trackTimelineAvailability.enabled) setTrackTimelineOpen(false)
+  }, [trackTimelineAvailability.enabled])
+
   // Sound Drawing layers and clips for the active track — forwarded to canvas for per-frame rendering
   const activeTrackId        = engine.currentTrack?.id ?? null
   const activeSdLayers       = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
@@ -578,6 +603,17 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         <ReactGlobalOutputControls />
         <button
           type="button"
+          className="vsm-settings-btn vsm-settings-btn--track-timeline"
+          data-state={trackTimelineAvailability.state}
+          title={trackTimelineAvailability.title}
+          aria-label={trackTimelineAvailability.title}
+          disabled={!trackTimelineAvailability.enabled}
+          onClick={() => setTrackTimelineOpen(true)}
+        >
+          <TrackTimelineIcon />
+        </button>
+        <button
+          type="button"
           className="vsm-settings-btn"
           title="Layout Lab"
           aria-label="Layout Lab"
@@ -589,6 +625,24 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         </button>
         <VyzualzHeaderActions />
       </div>
+      {trackTimelineOpen
+        && trackTimelineAvailability.enabled
+        && effectiveTrackAnalysis
+        && trackTimelineWaveformEntry?.analysis && (
+          <Suspense fallback={null}>
+            <TrackTimelineModal
+              onClose={() => setTrackTimelineOpen(false)}
+              analysis={effectiveTrackAnalysis}
+              rgbWaveform={trackTimelineWaveformEntry.analysis}
+              filename={engine.currentTrack?.displayName ?? engine.currentTrack?.name ?? 'Track'}
+              channels={engine.currentTrack
+                ? engine.getDecodedBuffer(engine.currentTrack.id)?.numberOfChannels
+                  ?? engine.currentTrack.persistedMetadata?.channels
+                  ?? null
+                : null}
+            />
+          </Suspense>
+        )}
       {layoutLabOpen && <LayoutLabModal onClose={() => setLayoutLabOpen(false)} />}
       <div
         className="rv-layout"
