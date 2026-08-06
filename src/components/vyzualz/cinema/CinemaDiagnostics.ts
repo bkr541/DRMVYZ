@@ -38,6 +38,11 @@ export type CinemaDiagnosticCode =
   | 'CINEMA_NODE_UNREACHABLE'
   | 'CINEMA_FEEDBACK_CONTRACT_INVALID'
   | 'CINEMA_PARAMETER_MISSING'
+  | 'CINEMA_PARAMETER_SCHEMA_INVALID'
+  | 'CINEMA_PARAMETER_VALUE_INVALID'
+  | 'CINEMA_PARAMETER_DESTINATION_UNAVAILABLE'
+  | 'CINEMA_MASTER_BINDING_INVALID'
+  | 'CINEMA_PARAMETER_RESOLUTION_FAILED'
   | 'CINEMA_ASSET_BINDING_MISSING'
   | 'CINEMA_QUALITY_DECLARATION_INVALID'
   | 'CINEMA_VALIDATION_FAILED'
@@ -61,6 +66,7 @@ export interface CinemaDiagnosticAttribution {
   compositionId?: string
   instanceId?: string
   nodeId?: string
+  cameraId?: string
   connectionId?: string
   portId?: string
   parameterPath?: string

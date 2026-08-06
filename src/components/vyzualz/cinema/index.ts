@@ -1,7 +1,11 @@
-/** Production-intended public boundary for the Cinema domain. Stage 1 exports contracts only. */
+/** Production-intended public boundary for Cinema domain, compilation, and parameter contracts. */
 export * from './CinemaDiagnostics'
 export * from './CinemaDomain'
 export * from './CinemaIdentifiers'
 export * from './CinemaNodeRegistry'
 export * from './CinemaGraphCompiler'
 export * from './CinemaRendererContracts'
+export * from './CinemaParameterSchema'
+export * from './CinemaMasterParameters'
+export * from './CinemaParameterResolver'
+export * from './CinemaControlDescriptors'

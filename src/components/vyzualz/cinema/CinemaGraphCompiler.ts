@@ -20,18 +20,25 @@ import {
   type CinemaDiagnosticSnapshot,
 } from './CinemaDiagnostics'
 import {
+  createCinemaParameterPath,
   parseCinemaNamespacedId,
   parseCinemaParameterPath,
   parseCinemaStableId,
   type CinemaAssetId,
   type CinemaConnectionId,
   type CinemaNodeId,
+  type CinemaParameterId,
   type CinemaPortId,
 } from './CinemaIdentifiers'
 import {
   CinemaNodeDefinitionRegistry,
   type CinemaNodeRegistryEntry,
 } from './CinemaNodeRegistry'
+import {
+  normalizeCinemaParameterValue,
+  validateCinemaMasterParameterBinding,
+  validateCinemaParameterSchemas,
+} from './CinemaParameterSchema'
 
 export const CINEMA_COMPILED_GRAPH_VERSION = 1 as const
 
@@ -685,16 +692,39 @@ function validateNodeParameters(
   diagnostics: CinemaDiagnostic[],
 ): void {
   appendDuplicateDiagnostics(composition.masterParameters.map(parameter => String(parameter.id)), 'master parameter', diagnostics)
-  const masterIds = new Set(composition.masterParameters.map(parameter => String(parameter.id)))
+  diagnostics.push(...validateCinemaParameterSchemas(composition.masterParameters, { owner: 'master' }))
+  const masterById = new Map(composition.masterParameters.map(parameter => [String(parameter.id), parameter]))
   for (const parameterId of Object.keys(composition.masterValues ?? {})) {
-    if (!masterIds.has(parameterId)) diagnostics.push(parameterMissingDiagnostic(parameterId, 'master', composition.id))
+    const schema = masterById.get(parameterId)
+    if (!schema) {
+      diagnostics.push(parameterMissingDiagnostic(parameterId, 'master', composition.id))
+      continue
+    }
+    diagnostics.push(...normalizeCinemaParameterValue(
+      schema,
+      composition.masterValues[parameterId as CinemaParameterId],
+      { parameterPath: createCinemaParameterPath('master', schema.id) },
+    ).diagnostics)
   }
   for (const node of nodes) {
     const entry = entriesByNodeId.get(node.id)
     if (!entry) continue
-    const parameterIds = new Set(entry.definition.parameters.map(parameter => String(parameter.id)))
+    const parameterById = new Map(entry.definition.parameters.map(parameter => [String(parameter.id), parameter]))
+    for (const parameter of entry.definition.parameters) {
+      diagnostics.push(...validateCinemaMasterParameterBinding(parameter, masterById.get(String(parameter.masterBinding?.masterParameterId))))
+    }
     for (const parameterId of Object.keys(node.parameterValues ?? {})) {
-      if (!parameterIds.has(parameterId)) diagnostics.push(parameterMissingDiagnostic(parameterId, node.id, composition.id, node.id))
+      const schema = parameterById.get(parameterId)
+      if (!schema) {
+        diagnostics.push(parameterMissingDiagnostic(parameterId, node.id, composition.id, node.id))
+        continue
+      }
+      const namespace = node.family === 'effect' ? 'effects' : 'nodes'
+      diagnostics.push(...normalizeCinemaParameterValue(
+        schema,
+        node.parameterValues[parameterId as CinemaParameterId],
+        { parameterPath: createCinemaParameterPath(namespace, schema.id, node.id) },
+      ).diagnostics)
     }
   }
 }

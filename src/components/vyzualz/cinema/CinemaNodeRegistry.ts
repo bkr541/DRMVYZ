@@ -11,6 +11,7 @@ import {
   type CinemaRendererPluginId,
 } from './CinemaIdentifiers'
 import type { CinemaNodeTypeDefinition } from './CinemaRendererContracts'
+import { validateCinemaParameterSchemas } from './CinemaParameterSchema'
 
 export type CinemaQualityTier = 'low' | 'medium' | 'high' | 'ultra'
 
@@ -219,8 +220,10 @@ function validateCinemaNodeRegistryEntryInternal(entry: CinemaNodeRegistryEntry)
     if (port.direction !== 'output') diagnostics.push(portDirectionDiagnostic(typeId, String(port.id), 'output', port.direction))
   }
 
+  const parameters = Array.isArray(definition.parameters) ? definition.parameters : []
+  diagnostics.push(...validateCinemaParameterSchemas(parameters, { owner: 'node' }))
   const parameterIds = new Set<string>()
-  for (const parameter of Array.isArray(definition.parameters) ? definition.parameters : []) {
+  for (const parameter of parameters) {
     const parameterId = String(parameter?.id ?? '<missing>')
     diagnostics.push(...parseCinemaStableId(parameter?.id, 'parameter').diagnostics)
     if (parameterIds.has(parameterId)) {

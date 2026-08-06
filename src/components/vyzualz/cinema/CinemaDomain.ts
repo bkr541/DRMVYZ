@@ -98,13 +98,48 @@ export type CinemaParameterValue =
   | readonly CinemaCurvePoint[]
   | CinemaAssetReference
 
-interface CinemaParameterBase {
+export type CinemaParameterControlHint =
+  | 'slider'
+  | 'number'
+  | 'toggle'
+  | 'select'
+  | 'button'
+  | 'color'
+  | 'gradient'
+  | 'vector'
+  | 'curve'
+  | 'texture'
+  | 'asset-picker'
+
+export interface CinemaParameterUiHints {
+  control?: CinemaParameterControlHint
+  order?: number
+  precision?: number
+  compact?: boolean
+  placeholder?: string
+  helpText?: string
+}
+
+export type CinemaMasterBindingOperation = 'scale' | 'add' | 'replace'
+
+export interface CinemaMasterParameterBinding {
+  masterParameterId: CinemaParameterId
+  /** Scale is the default influence operation when omitted. */
+  operation?: CinemaMasterBindingOperation
+  /** Blend strength in the inclusive 0..1 range. */
+  influence?: number
+}
+
+export interface CinemaParameterBase {
   id: CinemaParameterId
   label: string
   description?: string
   group?: string
   advanced?: boolean
   modulatable?: boolean
+  ui?: CinemaParameterUiHints
+  /** Optional registry metadata. Master parameters themselves must not declare a master binding. */
+  masterBinding?: CinemaMasterParameterBinding
 }
 
 export interface CinemaFloatParameterDefinition extends CinemaParameterBase {
@@ -173,7 +208,8 @@ export interface CinemaTextureParameterDefinition extends CinemaParameterBase {
 }
 
 export interface CinemaAssetParameterDefinition extends CinemaParameterBase {
-  type: 'asset'
+  /** `asset` is retained as a Stage 1 compatibility alias. New schemas should use `asset-reference`. */
+  type: 'asset' | 'asset-reference'
   default: CinemaAssetReference | null
   acceptedRoles: readonly CinemaAssetRole[]
 }
