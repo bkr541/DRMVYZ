@@ -138,6 +138,11 @@
   min-height: 0;
 }
 
+.sm-panel-engine-content {
+  padding: 12px 10px;
+  overflow-y: auto;
+}
+
 /* Exact React workspace engine-card geometry, applied to the shared Dropdown. */
 .sm-engine-dropdown {
   --drm-dropdown-trigger-height: 42px;

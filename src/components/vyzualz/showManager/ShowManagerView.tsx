@@ -9,6 +9,11 @@ import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCata
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
 import type { ReactEngineId, ReactPreset } from '../react/ReactTypes'
+import {
+  LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS,
+  LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
+} from '../react/ReactTypes'
+import { FixtureIcon } from '../react/LaserDmxShowDirectorPalette'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
 import {
@@ -100,6 +105,7 @@ export function ShowManagerView() {
   const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
   const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
+  const [lightingGroupOpen, setLightingGroupOpen] = useState(true)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
   const [liveFps, setLiveFps] = useState(0)
   const [workspaceMode, setWorkspaceMode] = useState<'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE>('default')
@@ -503,6 +509,37 @@ export function ShowManagerView() {
                 {selectedLayers.length === 0 && <div className="sm-library-empty">No layers in this scene.</div>}
               </LibrarySection>
             </>
+          ) : selectedEngineId === 'laserDmx' ? (
+            <div className="sm-panel-engine-content">
+              <div className={`llcg-accent${lightingGroupOpen ? ' is-open' : ''}`}>
+                <button
+                  type="button"
+                  className="llcg-accent-header"
+                  onClick={() => setLightingGroupOpen(value => !value)}
+                  aria-expanded={lightingGroupOpen}
+                >
+                  <span className="llcg-accent-dot" aria-hidden="true" />
+                  <span>Lighting Components</span>
+                  <span className={`llcg-caret${lightingGroupOpen ? ' is-open' : ''}`} aria-hidden="true">⌄</span>
+                </button>
+                {lightingGroupOpen && (
+                  <div className="llcg-accent-body">
+                    <div className="llcg-accent-fixture-grid">
+                      {LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS.map(kind => (
+                        <button key={kind} type="button" className="llcg-accent-fixture-card" disabled>
+                          <span className="llcg-accent-fixture-card-icon" aria-hidden="true">
+                            <FixtureIcon kind={kind} />
+                          </span>
+                          <span className="llcg-accent-fixture-card-label">
+                            {LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="sm-panel-blank" />
           )}

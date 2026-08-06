@@ -27,7 +27,7 @@ function normalizeSearch(value: string): string {
   return value.trim().toLowerCase()
 }
 
-function FixtureIcon({ kind }: { kind: LaserDmxShowDirectorFixtureKind }) {
+export function FixtureIcon({ kind }: { kind: LaserDmxShowDirectorFixtureKind }) {
   switch (kind) {
     case 'laser':
       return <img src="/laser-dmx-icons/Laser.svg" alt="" />
