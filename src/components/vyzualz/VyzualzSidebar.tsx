@@ -17,11 +17,20 @@ export function VyzualzSidebar({
 
   return (
     <aside className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}`}>
-      <div className="az-logo">
+      <button
+        type="button"
+        className="az-logo"
+        onClick={() => { if (!compact) setCollapsed(value => !value) }}
+        title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!isCollapsed}
+      >
         <div className="az-logo-icon">
-          <img src="/drmvyz_logo2.png" alt="DRMVYZ" />
+          <img src="/drmvyz_logo_icon.png" alt="DRMVYZ" />
         </div>
-      </div>
+        <div className="az-logo-text">
+          <span className="az-logo-mark">DRMVYZ</span>
+        </div>
+      </button>
 
       <nav className="az-nav">
         {/* React performance mode icon — default/top view */}
