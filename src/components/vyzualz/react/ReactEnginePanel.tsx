@@ -3,6 +3,7 @@ import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { CinemaWorkspace } from './CinemaWorkspace'
+import type { CinemaFrameBuildResult } from '../cinema'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -345,7 +346,11 @@ function OscillatorSourceDiagnostics({
 
 // ── Contextual engine workspace ──────────────────────────────────────────────────────────────
 
-export function ReactEnginePanel() {
+export function ReactEnginePanel({
+  cinemaFrameBridge = null,
+}: {
+  cinemaFrameBridge?: CinemaFrameBuildResult | null
+} = {}) {
   const engine = useSharedAudio()
   const {
     activeReactEngineId,
@@ -450,7 +455,7 @@ export function ReactEnginePanel() {
 
   return (
     <div className="rv-ctrl-group">
-      {activeReactEngineId === 'cinema' && <CinemaWorkspace surface="panel" />}
+      {activeReactEngineId === 'cinema' && <CinemaWorkspace surface="panel" frameBridge={cinemaFrameBridge} />}
 
       {/* Cinematic Worlds source selection lives in the left rail. */}
       {activeReactEngineId === 'cinematicPortal' && (

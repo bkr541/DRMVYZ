@@ -1,5 +1,6 @@
 import type {
   CinemaActionId,
+  CinemaEventId,
   CinemaAssetId,
   CinemaCameraId,
   CinemaNodeId,
@@ -97,6 +98,26 @@ export interface CinemaViewport {
   dpr: number
 }
 
+export type CinemaFrameDiscontinuityReason =
+  | 'activation'
+  | 'track-change'
+  | 'playback-restart'
+  | 'seek'
+  | 'loop-wrap'
+  | 'resume'
+  | 'visibility-suspension'
+  | 'backwards-time'
+  | 'timing-discontinuity'
+
+export interface CinemaFrameResetSignal {
+  required: boolean
+  reconstruct: boolean
+  generation: number
+  reasons: readonly CinemaFrameDiscontinuityReason[]
+  actionIds: readonly CinemaStateResetActionId[]
+  identity: string | null
+}
+
 export interface CinemaTransportFrame {
   trackId: string | null
   audioTimeSec: number
@@ -105,7 +126,10 @@ export interface CinemaTransportFrame {
   paused: boolean
   seeking: boolean
   looped: boolean
+  visibilitySuspended: boolean
   discontinuity: boolean
+  discontinuityReasons: readonly CinemaFrameDiscontinuityReason[]
+  reset: Readonly<CinemaFrameResetSignal>
 }
 
 export interface CinemaDeterministicSeedFrame {
@@ -143,6 +167,17 @@ export interface CinemaAudioFrame {
   waveform: Uint8Array | null
 }
 
+export type CinemaMusicalClockId = 'beat' | 'beat2' | 'beat4' | 'bar' | 'bar4' | 'bar8' | 'phrase'
+
+export interface CinemaClockFrame {
+  available: boolean
+  spanBeats: number
+  index: number | null
+  phase: number
+  hit: boolean
+  eventId: CinemaEventId | null
+}
+
 export interface CinemaMusicalClockFrame {
   beat: boolean
   beat2: boolean
@@ -151,13 +186,16 @@ export interface CinemaMusicalClockFrame {
   bar4: boolean
   bar8: boolean
   phrase: boolean
+  states: Readonly<Record<CinemaMusicalClockId, Readonly<CinemaClockFrame>>>
 }
 
 export interface CinemaMusicalFrame {
   available: boolean
+  source: 'music-intelligence' | 'react-frame' | 'bpm-derived' | 'unavailable'
   bpm: number | null
   beatIndex: number | null
   beatPhase: number
+  beatInBar: number | null
   barIndex: number | null
   phraseIndex: number | null
   sectionId: string | null
@@ -178,10 +216,24 @@ export interface CinemaImpulseFrame {
   lyricWord: boolean
   phrase4: boolean
   phrase8: boolean
+  eventIds: Readonly<{
+    beat: CinemaEventId | null
+    downbeat: CinemaEventId | null
+    kick: CinemaEventId | null
+    snare: CinemaEventId | null
+    transient: CinemaEventId | null
+    sectionStart: CinemaEventId | null
+    dropStart: CinemaEventId | null
+    lyricCue: CinemaEventId | null
+    lyricWord: CinemaEventId | null
+    phrase4: CinemaEventId | null
+    phrase8: CinemaEventId | null
+  }>
 }
 
 export interface CinemaLyricFrame {
   available: boolean
+  sourceIdentity: string | null
   lineId: string | null
   lineText: string | null
   wordId: string | null
@@ -204,6 +256,7 @@ export interface CinemaBrandFrame {
 export interface CinemaFrameCapabilities {
   analyser: boolean
   musicIntelligence: boolean
+  beatGrid: boolean
   authoritativeSections: boolean
   lyrics: boolean
   brandKit: boolean
@@ -213,6 +266,7 @@ export interface CinemaFrameCapabilities {
 
 /** One immutable snapshot delivered to every node. Nodes must not poll application stores. */
 export interface CinemaFrameContext {
+  version: 1
   viewport: CinemaViewport
   timing: CinemaTimingFrame
   transport: CinemaTransportFrame
@@ -310,6 +364,9 @@ export const CINEMA_STATE_RESET_ACTION_IDS = Object.freeze({
   resolutionChange: 'cinema.reset.resolution-change',
   contextRestore: 'cinema.reset.context-restore',
   manual: 'cinema.reset.manual',
+  resume: 'cinema.reset.resume',
+  visibilityRestore: 'cinema.reset.visibility-restore',
+  timingDiscontinuity: 'cinema.reset.timing-discontinuity',
 } as const)
 
 export type CinemaStateResetActionId = typeof CINEMA_STATE_RESET_ACTION_IDS[keyof typeof CINEMA_STATE_RESET_ACTION_IDS]

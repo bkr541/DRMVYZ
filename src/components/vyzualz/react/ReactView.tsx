@@ -1,6 +1,7 @@
-import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useId } from 'react'
+import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useId, useRef } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
+import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
@@ -40,6 +41,8 @@ import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { CinemaWorkspace } from './CinemaWorkspace'
+import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
+import type { CinemaFrameBuilderState } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
@@ -62,6 +65,7 @@ import {
 } from './reactWorkspaceComposition'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { useActiveBrandOverlay } from '../../../features/personalization/useActiveBrandOverlay'
+import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
 import { useReactWorkspacePreferences } from './reactWorkspacePreferences'
 import {
   getReactMediaDisabledReason,
@@ -254,6 +258,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   )
   const activeShaderId = useShaderPanelStore((s) => s.activeShaderId)
   const activeBrandKit = useBrandKitStore((s) => s.activeKit)
+  const mediaAssetCount = useMediaStore((s) => s.items.length)
+  const lyricPlayback = useLyricPlaybackSelector((state) => state)
+  const cinemaFrameStateRef = useRef<CinemaFrameBuilderState | null>(null)
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
   const workspaceComposition = useMemo(
@@ -530,6 +537,56 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     }
   }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
 
+
+  const cinemaFrameBridge = useMemo(() => {
+    if (activeReactEngineId !== 'cinema') return null
+    return buildCinemaWorkspaceFrameBridge({
+      width: 1,
+      height: 1,
+      dpr: typeof window === 'undefined' ? 1 : window.devicePixelRatio,
+      audioTimeSec: engine.currentTime,
+      durationSec: audioDurationSec,
+      elapsedTimeSec: engine.currentTime,
+      deltaTimeSec: 1 / 60,
+      trackId: engine.currentAudioTrackId ?? engine.currentTrackId,
+      playing: engine.isPlaying,
+      paused: transportPaused,
+      bpm: engine.currentEffectiveBpm,
+      visibilitySuspended: typeof document !== 'undefined' && document.visibilityState === 'hidden',
+      musicIntelligence: AudioFeatureBus.getFrame(),
+      authoritativeSections: resolvedTrackSections,
+      lyrics: lyricPlayback,
+      performanceEvents: performanceActionEvents,
+      performanceToggleStates: performanceActionToggleStates,
+      brandKit: activeBrandKit,
+      mediaAssetsAvailable: mediaAssetCount > 0,
+      previousState: cinemaFrameStateRef.current,
+    })
+  }, [
+    activeBrandKit,
+    activeReactEngineId,
+    audioDurationSec,
+    engine.currentAudioTrackId,
+    engine.currentEffectiveBpm,
+    engine.currentTime,
+    engine.currentTrackId,
+    engine.isPlaying,
+    lyricPlayback,
+    mediaAssetCount,
+    performanceActionEvents,
+    performanceActionToggleStates,
+    resolvedTrackSections,
+    transportPaused,
+  ])
+
+  useLayoutEffect(() => {
+    if (activeReactEngineId !== 'cinema') {
+      cinemaFrameStateRef.current = null
+      return
+    }
+    if (cinemaFrameBridge) cinemaFrameStateRef.current = cinemaFrameBridge.state
+  }, [activeReactEngineId, cinemaFrameBridge])
+
   const trackTimelineAnalysisKey = engine.currentTrack?.analysisRuntime.analysisKey ?? ''
   const trackTimelineWaveformEntry = useRgbWaveformStore((state) =>
     trackTimelineAnalysisKey ? state.waveforms[trackTimelineAnalysisKey] : undefined,
@@ -706,7 +763,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               </div>
               <div className="rv-left-tab-body">
                 <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
-                  {leftTab === 'workspace' && <ReactEnginePanel />}
+                  {leftTab === 'workspace' && <ReactEnginePanel cinemaFrameBridge={cinemaFrameBridge} />}
                   {leftTab === 'media' && (
                     <MediaDeckPanel
                       mode={mediaSourceCapability === 'pixGridStill' ? 'pixGrid' : 'react'}
@@ -738,7 +795,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
             {activeReactEngineId === 'cinema' ? (
-              <CinemaWorkspace surface="stage" />
+              <CinemaWorkspace surface="stage" frameBridge={cinemaFrameBridge} />
             ) : activeReactEngineId === 'shaderPads' ? (
               <Suspense fallback={<LazyWorkspaceFallback label="Shader renderer" />}>
                 <ReactShaderCanvas

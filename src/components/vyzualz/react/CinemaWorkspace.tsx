@@ -11,6 +11,7 @@ import {
   type CinemaCompositionInstance,
   type CinemaCompositionInstanceId,
   type CinemaDiagnosticSnapshot,
+  type CinemaFrameBuildResult,
 } from '../cinema'
 
 export type CinemaWorkspaceSurface = 'panel' | 'stage'
@@ -23,6 +24,9 @@ export interface CinemaWorkspaceModel {
   diagnostics: CinemaDiagnosticSnapshot
   statusLabel: 'Foundation ready' | 'No active composition' | 'Needs attention'
   runtimeAvailable: false
+  frameAvailable: boolean
+  frameTrackId: string | null
+  frameCapabilities: number
 }
 
 interface CinemaWorkspaceStateInput {
@@ -31,12 +35,13 @@ interface CinemaWorkspaceStateInput {
   compositions: readonly CinemaCompositionDefinition[]
   instances: readonly CinemaCompositionInstance[]
   lastDiagnostics: CinemaDiagnosticSnapshot
+  frameBridge?: CinemaFrameBuildResult | null
 }
 
 /**
  * Builds a read-only workspace snapshot from canonical Cinema state.
  *
- * Stage 5 deliberately adds a capability diagnostic instead of constructing a
+ * Stage 6 adds normalized frame status while retaining the capability diagnostic instead of constructing a
  * renderer, canvas, WebGL context, animation loop, or fallback runtime.
  */
 export function resolveCinemaWorkspaceModel(input: CinemaWorkspaceStateInput): CinemaWorkspaceModel {
@@ -47,11 +52,11 @@ export function resolveCinemaWorkspaceModel(input: CinemaWorkspaceStateInput): C
     ? null
     : input.instances.find(instance => instance.id === input.activeInstanceId) ?? null
 
-  const diagnostics = [...input.lastDiagnostics.diagnostics]
+  const diagnostics = [...input.lastDiagnostics.diagnostics, ...(input.frameBridge?.diagnostics.diagnostics ?? [])]
   diagnostics.push(createCinemaDiagnostic({
     code: 'CINEMA_CAPABILITY_UNAVAILABLE',
     severity: 'info',
-    message: 'Cinema rendering runtime is not installed by Stage 5.',
+    message: 'Cinema rendering runtime is reserved for Stage 7; Stage 6 provides normalized frame input only.',
     attribution: { stage: 'workspace-shell' },
     details: { runtimeAvailable: false },
   }))
@@ -94,6 +99,11 @@ export function resolveCinemaWorkspaceModel(input: CinemaWorkspaceStateInput): C
         ? 'Foundation ready'
         : 'No active composition',
     runtimeAvailable: false,
+    frameAvailable: input.frameBridge != null,
+    frameTrackId: input.frameBridge?.frame.transport.trackId ?? null,
+    frameCapabilities: input.frameBridge
+      ? Object.values(input.frameBridge.frame.capabilities).filter(Boolean).length
+      : 0,
   }
 }
 
@@ -104,7 +114,13 @@ function diagnosticSummary(diagnostics: CinemaDiagnosticSnapshot): string {
   return `${noticeCount} notice${noticeCount === 1 ? '' : 's'}`
 }
 
-export function CinemaWorkspace({ surface }: { surface: CinemaWorkspaceSurface }) {
+export function CinemaWorkspace({
+  surface,
+  frameBridge = null,
+}: {
+  surface: CinemaWorkspaceSurface
+  frameBridge?: CinemaFrameBuildResult | null
+}) {
   const state = useCinemaStore(useShallow(store => ({
     activeCompositionId: store.activeCompositionId,
     activeInstanceId: store.activeInstanceId,
@@ -112,7 +128,7 @@ export function CinemaWorkspace({ surface }: { surface: CinemaWorkspaceSurface }
     instances: store.instances,
     lastDiagnostics: store.lastDiagnostics,
   })))
-  const model = useMemo(() => resolveCinemaWorkspaceModel(state), [state])
+  const model = useMemo(() => resolveCinemaWorkspaceModel({ ...state, frameBridge }), [frameBridge, state])
   const compositionName = model.activeComposition?.metadata.name ?? 'None selected'
   const compositionId = model.activeComposition?.id ?? 'No composition ID'
   const instanceLabel = model.activeInstance?.label ?? 'Base composition'
@@ -129,6 +145,7 @@ export function CinemaWorkspace({ surface }: { surface: CinemaWorkspaceSurface }
           <div><dt>Schema</dt><dd>v{CINEMA_COMPOSITION_SCHEMA_VERSION}</dd></div>
           <div><dt>Store</dt><dd>v{CINEMA_PERSISTED_STORE_SCHEMA_VERSION}</dd></div>
           <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd></div>
+          <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
           <strong>Runtime unavailable</strong>
@@ -144,9 +161,10 @@ export function CinemaWorkspace({ surface }: { surface: CinemaWorkspaceSurface }
       aria-label="Cinema workspace"
       data-cinema-workspace="foundation"
       data-runtime-available="false"
+      data-cinema-frame-available={model.frameAvailable ? 'true' : 'false'}
     >
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 5</div>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 6</div>
         <h2>Composition workspace foundation</h2>
         <p className="rv-cinema-workspace__lead">
           Cinema is selected through the production engine path. The canonical graph store is mounted, while visual execution remains safely offline.
@@ -156,10 +174,11 @@ export function CinemaWorkspace({ surface }: { surface: CinemaWorkspaceSurface }
           <div><dt>Active instance</dt><dd>{instanceLabel}</dd><small>{model.instanceCount} saved instance{model.instanceCount === 1 ? '' : 's'}</small></div>
           <div><dt>Compositions</dt><dd>{model.compositionCount}</dd><small>Schema v{CINEMA_COMPOSITION_SCHEMA_VERSION}</small></div>
           <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd><small>{model.statusLabel}</small></div>
+          <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? 'Normalized' : 'Unavailable'}</dd><small>{model.frameTrackId ?? 'No active track'}</small></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status" aria-live="polite">
-          <strong>Runtime not installed by this stage</strong>
-          <span>Safe output is active. No canvas, WebGL context, animation frame, renderer ownership, or GPU resource is created.</span>
+          <strong>Renderer runtime begins in Stage 7</strong>
+          <span>{model.frameAvailable ? 'The normalized frame bridge is active. ' : 'The normalized frame bridge is awaiting production input. '}Safe output remains active with no canvas, WebGL context, animation frame, renderer ownership, or GPU resource.</span>
         </div>
         {firstDiagnostic && (
           <div className="rv-cinema-workspace__diagnostic" role="note">

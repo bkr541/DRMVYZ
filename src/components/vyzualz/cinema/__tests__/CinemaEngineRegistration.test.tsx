@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
 import { ReactEngineBrowser } from '../../react/ReactEngineBrowser'
 import { CinemaWorkspace, resolveCinemaWorkspaceModel } from '../../react/CinemaWorkspace'
+import { buildCinemaWorkspaceFrameBridge } from '../../react/CinemaWorkspaceFrameBridge'
 import {
   acquireReactLiveEngineOwnership,
   getReactLiveEngineOwnershipDiagnosticsForTests,
@@ -29,13 +30,25 @@ function LegacyOwnershipProbe({ retire }: { retire: () => void }) {
   return null
 }
 
+const productionFrameBridge = buildCinemaWorkspaceFrameBridge({
+  width: 1,
+  height: 1,
+  dpr: 1,
+  audioTimeSec: 0,
+  durationSec: null,
+  trackId: null,
+  playing: false,
+  paused: false,
+  bpm: null,
+})
+
 function ProductionSelectionHarness({ retire }: { retire: () => void }) {
   const engineId = useReactStore(state => state.activeReactEngineId)
   return (
     <>
       <ReactEngineBrowser />
       <LegacyOwnershipProbe retire={retire} />
-      {engineId === 'cinema' ? <CinemaWorkspace surface="stage" /> : <div data-legacy-engine={engineId} />}
+      {engineId === 'cinema' ? <CinemaWorkspace surface="stage" frameBridge={productionFrameBridge} /> : <div data-legacy-engine={engineId} />}
     </>
   )
 }
@@ -85,6 +98,7 @@ describe('Cinema production engine registration', () => {
     expect(state.activeReactEngineId).toBe('cinema')
     expect(state.activeReactPresetId).toBeNull()
     expect(host?.querySelector('[data-cinema-workspace="foundation"]')).not.toBeNull()
+    expect(host?.querySelector('[data-cinema-frame-available="true"]')).not.toBeNull()
     expect(host?.querySelector('canvas')).toBeNull()
     expect(retire).toHaveBeenCalledTimes(1)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
