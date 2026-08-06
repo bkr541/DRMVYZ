@@ -6,10 +6,13 @@ import {
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema Stage 1 production boundary', () => {
+describe('Cinema production boundary through Stage 2', () => {
   it('enters through the production-intended Cinema public module without registering a renderer or engine', () => {
     expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(1)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
+    expect(Cinema.CINEMA_COMPILED_GRAPH_VERSION).toBe(1)
+    expect(typeof Cinema.compileCinemaCompositionGraph).toBe('function')
+    expect(typeof Cinema.createCinemaNodeDefinitionRegistry).toBe('function')
     expect(REACT_ENGINE_IDS).toEqual([
       'shaderPads',
       'cinematicPortal',

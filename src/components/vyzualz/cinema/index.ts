@@ -2,4 +2,6 @@
 export * from './CinemaDiagnostics'
 export * from './CinemaDomain'
 export * from './CinemaIdentifiers'
+export * from './CinemaNodeRegistry'
+export * from './CinemaGraphCompiler'
 export * from './CinemaRendererContracts'

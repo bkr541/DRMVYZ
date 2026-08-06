@@ -12,6 +12,7 @@ export type CinemaCompositionInstanceId = CinemaStableId<'composition-instance'>
 export type CinemaCollectionId = CinemaStableId<'collection'>
 export type CinemaNodeId = CinemaStableId<'node'>
 export type CinemaNodeTypeId = CinemaStableId<'node-type'>
+export type CinemaRendererPluginId = CinemaStableId<'renderer-plugin'>
 export type CinemaPortId = CinemaStableId<'port'>
 export type CinemaConnectionId = CinemaStableId<'connection'>
 export type CinemaParameterId = CinemaStableId<'parameter'>
