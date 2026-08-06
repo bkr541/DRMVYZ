@@ -2,6 +2,9 @@ import { useState, type CSSProperties } from 'react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { MockEngineDropdown } from './layoutLab/MockEngineDropdown'
+import { DropdownStyleGallery } from './layoutLab/DropdownStyleGallery'
+import { CollapsibleGroupStyleGallery } from './layoutLab/CollapsibleGroupStyleGallery'
+import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
 import { LaserDmxMockup } from './layoutLab/LaserDmxMockup'
@@ -218,6 +221,14 @@ export function LayoutLabMockup() {
                 <header className="rv-context-workspace-header">
                   <MockEngineDropdown engineId={engineId} onSelect={handleSelectEngine} />
                 </header>
+                {engineId === 'template' && (
+                  <div className="rv-left-tab-body">
+                    <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
+                      <DropdownStyleGallery />
+                      <CollapsibleGroupStyleGallery />
+                    </div>
+                  </div>
+                )}
               </section>
             </div>
           )}
@@ -297,12 +308,21 @@ export function LayoutLabMockup() {
           onToggleCollapsed={() => setRightCollapsed(value => !value)}
         >
           {engineId === 'template' ? (
-            <RailTabs
-              tabs={MOCK_RIGHT_TABS}
-              activeTab={templateRightTab}
-              onChange={setTemplateRightTab}
-              ariaLabel="Layout Lab inspector tabs"
-            />
+            <>
+              <RailTabs
+                tabs={MOCK_RIGHT_TABS}
+                activeTab={templateRightTab}
+                onChange={setTemplateRightTab}
+                ariaLabel="Layout Lab inspector tabs"
+              />
+              <div className="vz-panel-body">
+                {templateRightTab === 'output' && (
+                  <div className="rv-inspector rv-inspector-scroll">
+                    <TemplateOutputDiagnosticsMockup />
+                  </div>
+                )}
+              </div>
+            </>
           ) : engineId === 'oscilloscope' ? (
             <SoundDrawingRightRailMockup state={soundDrawingState} />
           ) : engineId === 'pixGrid' ? (

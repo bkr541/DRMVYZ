@@ -14246,3 +14246,471 @@
   color: #8de7ff;
   font-size: 24px;
 }
+
+/* ── Layout Lab / Template — dropdown style gallery ───────────────────────── */
+
+@keyframes lldd-fade-scale {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.lldd-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px 16px 32px;
+}
+
+.lldd-gallery-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lldd-gallery-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lldd-gallery-title {
+  color: #67f7ff;
+  font: 800 10px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.lldd-gallery-blurb {
+  color: rgba(196, 207, 211, 0.45);
+  font: 500 10px/1.4 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lldd-gallery-sample {
+  position: relative;
+}
+
+.lldd-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: currentColor;
+  transition: transform 160ms ease;
+}
+
+.lldd-chevron path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lldd-chevron--open {
+  transform: rotate(180deg);
+}
+
+/* Underline dropdown */
+
+.lldd-underline {
+  position: relative;
+}
+
+.lldd-underline-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 2px 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.22);
+  background: transparent;
+  cursor: pointer;
+  color: rgba(232, 238, 240, 0.9);
+  transition: border-color 140ms ease;
+}
+
+.lldd-underline-trigger:hover,
+.lldd-underline-trigger.is-open {
+  border-bottom-color: #4ac7db;
+}
+
+.lldd-underline-eyebrow {
+  color: rgba(196, 207, 211, 0.4);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lldd-underline-value {
+  flex: 1;
+  text-align: left;
+  color: rgba(232, 238, 240, 0.94);
+  font: 700 13px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lldd-underline-trigger .lldd-chevron {
+  color: rgba(196, 207, 211, 0.5);
+}
+
+.lldd-underline-trigger.is-open .lldd-chevron {
+  color: #4ac7db;
+}
+
+.lldd-underline-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 4px 0;
+  border-radius: 8px;
+  background: #0d1417;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+  animation: lldd-fade-scale 140ms ease;
+}
+
+.lldd-underline-option {
+  position: relative;
+  width: 100%;
+  padding: 9px 14px 9px 18px;
+  border: 0;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.65);
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lldd-underline-option::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: #4ac7db;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.lldd-underline-option:hover {
+  color: rgba(245, 248, 250, 0.92);
+}
+
+.lldd-underline-option:hover::before,
+.lldd-underline-option.is-active::before {
+  opacity: 1;
+}
+
+.lldd-underline-option.is-active {
+  color: #8ef4ff;
+}
+
+/* ── Layout Lab / Template — collapsible group style gallery ──────────────── */
+
+.llcg-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 16px 32px;
+}
+
+.llcg-caret {
+  display: inline-block;
+  font-size: 11px;
+  color: rgba(196, 207, 211, 0.45);
+  transition: transform 140ms ease;
+}
+
+.llcg-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.llcg-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--llcg-accent, #4ac7db) var(--llcg-pct, 50%), rgba(255, 255, 255, 0.08) var(--llcg-pct, 50%));
+  outline: none;
+  cursor: pointer;
+}
+
+.llcg-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--llcg-accent, #4ac7db);
+  box-shadow: 0 0 8px var(--llcg-accent, #4ac7db), 0 0 0 2px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.llcg-slider::-moz-range-track {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.llcg-slider::-moz-range-progress {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--llcg-accent, #4ac7db);
+}
+
+.llcg-slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--llcg-accent, #4ac7db);
+  box-shadow: 0 0 8px var(--llcg-accent, #4ac7db);
+}
+
+.llcg-toggle {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(154, 178, 188, 0.22);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(196, 207, 211, 0.55);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.llcg-toggle.is-on {
+  border-color: rgba(74, 199, 219, 0.5);
+  background: rgba(74, 199, 219, 0.14);
+  color: #67f7ff;
+}
+
+.llcg-select,
+.llcg-text-input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(154, 178, 188, 0.2);
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(232, 238, 240, 0.88);
+  font: 600 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.llcg-select {
+  cursor: pointer;
+}
+
+.llcg-text-input::placeholder {
+  color: rgba(196, 207, 211, 0.35);
+}
+
+.llcg-select:focus-visible,
+.llcg-text-input:focus-visible {
+  outline: none;
+  border-color: var(--llcg-accent, #4ac7db);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--llcg-accent, #4ac7db) 30%, transparent);
+}
+
+/* 1 — Accent card: left accent bar, gradient wash */
+
+.llcg-accent {
+  border-radius: 0 10px 10px 0;
+  border-left: 3px solid #4ac7db;
+  background: linear-gradient(120deg, rgba(74, 199, 219, 0.08), rgba(255, 255, 255, 0.015) 60%);
+  overflow: hidden;
+}
+
+.llcg-accent--right {
+  border-radius: 10px 0 0 10px;
+  border-left: 0;
+  border-right: 3px solid #4ac7db;
+  background: linear-gradient(240deg, rgba(74, 199, 219, 0.08), rgba(255, 255, 255, 0.015) 60%);
+}
+
+.llcg-accent-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: rgba(245, 248, 250, 0.9);
+  font: 800 11px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.llcg-accent-header > span:nth-child(2) {
+  flex: 1;
+  text-align: left;
+}
+
+.llcg-accent-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #4ac7db;
+  box-shadow: 0 0 8px #4ac7db;
+}
+
+.llcg-accent-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 14px 14px;
+}
+
+.llcg-accent-row {
+  --llcg-accent: #61d6aa;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.llcg-accent-row-hdr {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(232, 238, 240, 0.85);
+  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.llcg-accent-row--toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.llcg-accent-row--toggle > span {
+  color: rgba(232, 238, 240, 0.8);
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+/* ── Layout Lab / Template — Output tab renderer diagnostics mockup ───────── */
+
+.lltd-effect-card {
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px solid rgba(74, 199, 219, 0.22);
+  border-radius: 10px;
+  background: rgba(74, 199, 219, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lltd-effect-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lltd-effect-header > span:first-child {
+  color: rgba(245, 248, 250, 0.94);
+  font: 800 13px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.02em;
+}
+
+.lltd-effect-header > span:last-child {
+  flex-shrink: 0;
+  color: rgba(196, 207, 211, 0.4);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lltd-effect-desc {
+  margin: 0;
+  color: #67c9db;
+  font: 500 11px/1.5 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lltd-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+.lltd-grid dt {
+  margin: 0 0 3px;
+  color: rgba(196, 207, 211, 0.42);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.lltd-grid dd {
+  margin: 0;
+  color: rgba(245, 248, 250, 0.92);
+  font: 700 13px/1.25 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lltd-grid dd.lltd-value--ok {
+  color: #61d6aa;
+}
+
+.lltd-note {
+  margin: 0;
+  color: #61d6aa;
+  font: 600 11px/1.4 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lltd-passes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 4px;
+  border-top: 1px solid rgba(154, 178, 188, 0.14);
+  color: rgba(196, 207, 211, 0.5);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lltd-pass-card {
+  padding: 12px;
+  border: 1px solid rgba(74, 199, 219, 0.18);
+  border-radius: 9px;
+  background: rgba(74, 199, 219, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lltd-pass-card-header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.lltd-pass-order {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(74, 199, 219, 0.4);
+  color: #67f7ff;
+  font: 800 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lltd-pass-card-header strong {
+  flex: 1;
+  color: rgba(245, 248, 250, 0.94);
+  font: 700 12px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lltd-pass-state {
+  flex-shrink: 0;
+  color: rgba(196, 207, 211, 0.42);
+  font: 600 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
