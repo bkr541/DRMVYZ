@@ -84,6 +84,8 @@ export function VyzualzSidebar({
           <span className="az-nav-label">Visualizer</span>
         </button>
 
+        <div className="az-nav-section-label">Managers</div>
+
         {/* Show Manager icon */}
         <button
           type="button"
@@ -125,7 +127,7 @@ export function VyzualzSidebar({
             <line x1="21.2" y1="22" x2="21.2" y2="19.6" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
             <line x1="21.2" y1="19.6" x2="23" y2="20.4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
           </svg>
-          <span className="az-nav-label">Lyrics</span>
+          <span className="az-nav-label">Lyric Manager</span>
         </button>
 
         {/* Media Manager icon */}
