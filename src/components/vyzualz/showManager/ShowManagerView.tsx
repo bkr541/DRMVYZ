@@ -8,7 +8,7 @@ import { Collapsible } from '../react/ReactControlRows'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
-import type { ReactPreset } from '../react/ReactTypes'
+import type { ReactEngineId, ReactPreset } from '../react/ReactTypes'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
 import {
@@ -56,10 +56,7 @@ const SECTION_SEGMENTS = [
 const SHOW_MANAGER_ENGINE_OPTIONS = REACT_ENGINE_IDS.map(engineId => ({
   value: engineId,
   label: REACT_ENGINE_CATALOG[engineId].label,
-  description: engineId === 'pixGrid'
-    ? REACT_ENGINE_CATALOG[engineId].description
-    : `${REACT_ENGINE_CATALOG[engineId].description} Coming to Show Manager later.`,
-  disabled: engineId !== 'pixGrid',
+  description: REACT_ENGINE_CATALOG[engineId].description,
 }))
 
 const STAGE_SCALE_OPTIONS = [
@@ -102,6 +99,7 @@ export function ShowManagerView() {
   const pixGridActionCuesByTrackId = useReactStore(state => state.pixGridActionCuesByTrackId)
   const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
   const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
+  const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
   const [liveFps, setLiveFps] = useState(0)
   const [workspaceMode, setWorkspaceMode] = useState<'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE>('default')
@@ -432,13 +430,14 @@ export function ShowManagerView() {
         <aside className="sm-library" aria-label="Show Manager component library">
           <div className="sm-panel-heading">
             <strong>COMPONENT LIBRARY</strong>
-            <span>PixGrid</span>
+            <span>{REACT_ENGINE_CATALOG[selectedEngineId].label}</span>
           </div>
           <div className="sm-engine-picker">
             <Dropdown
               id="show-manager-engine"
               ariaLabel="Show Manager engine"
-              value="pixGrid"
+              value={selectedEngineId}
+              onChange={value => setSelectedEngineId(value as ReactEngineId)}
               options={SHOW_MANAGER_ENGINE_OPTIONS}
               size="compact"
               maxMenuHeight={360}
@@ -446,60 +445,67 @@ export function ShowManagerView() {
               menuClassName="sm-engine-dropdown-menu"
             />
           </div>
-          <label className="sm-search-field">
-            <span className="sr-only">Search Show Manager components</span>
-            <input type="search" placeholder="Search components…" disabled />
-          </label>
 
-          <LibrarySection title="Components" count={COMPONENTS.length}>
-            {COMPONENTS.map(([icon, label, count], index) => (
-              <button key={label} type="button" className={`sm-library-row${index === 0 ? ' is-active' : ''}`} disabled>
-                <span className="sm-library-grip">⋮⋮</span>
-                <span className="sm-library-icon">{icon}</span>
-                <span>{label}</span>
-                <small>{count}</small>
-              </button>
-            ))}
-          </LibrarySection>
+          {selectedEngineId === 'pixGrid' ? (
+            <>
+              <label className="sm-search-field">
+                <span className="sr-only">Search Show Manager components</span>
+                <input type="search" placeholder="Search components…" disabled />
+              </label>
 
-          <LibrarySection title="Assets" count={ASSETS.length}>
-            {ASSETS.map(([icon, label, count]) => (
-              <button key={label} type="button" className="sm-library-row" disabled>
-                <span className="sm-library-grip">⋮⋮</span>
-                <span className="sm-library-icon">{icon}</span>
-                <span>{label}</span>
-                <small>{count}</small>
-              </button>
-            ))}
-          </LibrarySection>
+              <LibrarySection title="Components" count={COMPONENTS.length}>
+                {COMPONENTS.map(([icon, label, count], index) => (
+                  <button key={label} type="button" className={`sm-library-row${index === 0 ? ' is-active' : ''}`} disabled>
+                    <span className="sm-library-grip">⋮⋮</span>
+                    <span className="sm-library-icon">{icon}</span>
+                    <span>{label}</span>
+                    <small>{count}</small>
+                  </button>
+                ))}
+              </LibrarySection>
 
-          <LibrarySection title="Scenes" count={pixGridState.scenes.length}>
-            {pixGridState.scenes.map((scene, index) => (
-              <button
-                key={scene.id}
-                type="button"
-                className={`sm-library-row sm-scene-row${scene.id === selectedScene?.id ? ' is-active' : ''}`}
-                disabled
-              >
-                <span className="sm-library-grip">⋮⋮</span>
-                <span className="sm-scene-index">{String(index + 1).padStart(2, '0')}</span>
-                <span>{scene.name}</span>
-                <small>{scene.layerIds.length}</small>
-              </button>
-            ))}
-          </LibrarySection>
+              <LibrarySection title="Assets" count={ASSETS.length}>
+                {ASSETS.map(([icon, label, count]) => (
+                  <button key={label} type="button" className="sm-library-row" disabled>
+                    <span className="sm-library-grip">⋮⋮</span>
+                    <span className="sm-library-icon">{icon}</span>
+                    <span>{label}</span>
+                    <small>{count}</small>
+                  </button>
+                ))}
+              </LibrarySection>
 
-          <LibrarySection title="Layers" count={selectedLayers.length}>
-            {selectedLayers.slice(0, 6).map(layer => (
-              <button key={layer.id} type="button" className="sm-library-row" disabled>
-                <span className="sm-library-grip">⋮⋮</span>
-                <span className="sm-layer-dot" />
-                <span>{layer.name}</span>
-                <small>{layer.visible ? '●' : '○'}</small>
-              </button>
-            ))}
-            {selectedLayers.length === 0 && <div className="sm-library-empty">No layers in this scene.</div>}
-          </LibrarySection>
+              <LibrarySection title="Scenes" count={pixGridState.scenes.length}>
+                {pixGridState.scenes.map((scene, index) => (
+                  <button
+                    key={scene.id}
+                    type="button"
+                    className={`sm-library-row sm-scene-row${scene.id === selectedScene?.id ? ' is-active' : ''}`}
+                    disabled
+                  >
+                    <span className="sm-library-grip">⋮⋮</span>
+                    <span className="sm-scene-index">{String(index + 1).padStart(2, '0')}</span>
+                    <span>{scene.name}</span>
+                    <small>{scene.layerIds.length}</small>
+                  </button>
+                ))}
+              </LibrarySection>
+
+              <LibrarySection title="Layers" count={selectedLayers.length}>
+                {selectedLayers.slice(0, 6).map(layer => (
+                  <button key={layer.id} type="button" className="sm-library-row" disabled>
+                    <span className="sm-library-grip">⋮⋮</span>
+                    <span className="sm-layer-dot" />
+                    <span>{layer.name}</span>
+                    <small>{layer.visible ? '●' : '○'}</small>
+                  </button>
+                ))}
+                {selectedLayers.length === 0 && <div className="sm-library-empty">No layers in this scene.</div>}
+              </LibrarySection>
+            </>
+          ) : (
+            <div className="sm-panel-blank" />
+          )}
         </aside>
         )}
 
@@ -597,83 +603,87 @@ export function ShowManagerView() {
         <aside className="sm-inspector" aria-label="Show Manager PixGrid inspector">
           <div className="sm-panel-heading sm-panel-heading--inspector">
             <strong>INSPECTOR</strong>
-            <span>PixGrid parameters</span>
+            <span>{REACT_ENGINE_CATALOG[selectedEngineId].label} parameters</span>
           </div>
-          <div className="sm-inspector-scroll">
-            <Collapsible label="Preset" defaultOpen>
-              <div className="sm-preset-browser">
-                <div className="sm-preset-browser-heading">
-                  <span aria-hidden="true">{REACT_ENGINE_CATALOG.pixGrid.icon}</span>
-                  <div>
-                    <strong>PixGrid Presets</strong>
-                    <small>{pixGridPresets.length} preset{pixGridPresets.length === 1 ? '' : 's'} available</small>
+          {selectedEngineId === 'pixGrid' ? (
+            <div className="sm-inspector-scroll">
+              <Collapsible label="Preset" defaultOpen>
+                <div className="sm-preset-browser">
+                  <div className="sm-preset-browser-heading">
+                    <span aria-hidden="true">{REACT_ENGINE_CATALOG.pixGrid.icon}</span>
+                    <div>
+                      <strong>PixGrid Presets</strong>
+                      <small>{pixGridPresets.length} preset{pixGridPresets.length === 1 ? '' : 's'} available</small>
+                    </div>
                   </div>
-                </div>
-                <Dropdown
-                  id="show-manager-pix-grid-preset"
-                  ariaLabel="Show Manager PixGrid preset"
-                  menuLabel="PixGrid presets"
-                  value={activePreset?.id ?? null}
-                  onChange={value => {
-                    const preset = pixGridPresets.find(candidate => candidate.id === value)
-                    if (!preset) return
-                    if (preset.pixGridDeck) {
-                      const deck = pixGridDecks.find(candidate => candidate.id === preset.pixGridDeck?.deckId)
-                      if (!deck || !resolvePixGridDeckPresetReadiness(
-                        deck,
-                        compilerStatuses[deck.id],
-                        transitionStatuses[deck.id],
-                      ).ready) return
-                    }
-                    setPreviewPresetId(value)
-                  }}
-                  options={presetOptions}
-                  placeholder="No PixGrid presets"
-                  emptyMessage="No PixGrid presets"
-                  disabled={pixGridPresets.length === 0}
-                  size="compact"
-                  className="sm-preset-dropdown"
-                />
-                <button type="button" className="sm-create-deck-button" onClick={() => enterDeckBuilder(null)}>
-                  Create Deck
-                </button>
-                {activeDeck && activePreset && activeDeckReadiness && (
-                  <PixGridDeckPresetSummary
-                    deck={activeDeck}
-                    preset={activePreset}
-                    readiness={activeDeckReadiness}
-                    onEdit={() => enterDeckBuilder(activeDeck.id)}
+                  <Dropdown
+                    id="show-manager-pix-grid-preset"
+                    ariaLabel="Show Manager PixGrid preset"
+                    menuLabel="PixGrid presets"
+                    value={activePreset?.id ?? null}
+                    onChange={value => {
+                      const preset = pixGridPresets.find(candidate => candidate.id === value)
+                      if (!preset) return
+                      if (preset.pixGridDeck) {
+                        const deck = pixGridDecks.find(candidate => candidate.id === preset.pixGridDeck?.deckId)
+                        if (!deck || !resolvePixGridDeckPresetReadiness(
+                          deck,
+                          compilerStatuses[deck.id],
+                          transitionStatuses[deck.id],
+                        ).ready) return
+                      }
+                      setPreviewPresetId(value)
+                    }}
+                    options={presetOptions}
+                    placeholder="No PixGrid presets"
+                    emptyMessage="No PixGrid presets"
+                    disabled={pixGridPresets.length === 0}
+                    size="compact"
+                    className="sm-preset-dropdown"
                   />
-                )}
+                  <button type="button" className="sm-create-deck-button" onClick={() => enterDeckBuilder(null)}>
+                    Create Deck
+                  </button>
+                  {activeDeck && activePreset && activeDeckReadiness && (
+                    <PixGridDeckPresetSummary
+                      deck={activeDeck}
+                      preset={activePreset}
+                      readiness={activeDeckReadiness}
+                      onEdit={() => enterDeckBuilder(activeDeck.id)}
+                    />
+                  )}
+                </div>
+              </Collapsible>
+              <div className="sm-inspector-context">
+                <div>
+                  <span>Component</span>
+                  <strong>Pixel Grid</strong>
+                </div>
+                <div>
+                  <span>Matrix</span>
+                  <strong>{matrixLabel}</strong>
+                </div>
               </div>
-            </Collapsible>
-            <div className="sm-inspector-context">
-              <div>
-                <span>Component</span>
-                <strong>Pixel Grid</strong>
-              </div>
-              <div>
-                <span>Matrix</span>
-                <strong>{matrixLabel}</strong>
-              </div>
+              <PixGridDesignPanel groupedSections />
+              <Collapsible label="Validation" defaultOpen={false}>
+                <section className="sm-validation-card">
+                  <header><strong>PixGrid document</strong><span>OK</span></header>
+                  <p>No blocking PixGrid issues detected.</p>
+                  <p>Preset controls are connected to the existing PixGrid state.</p>
+                </section>
+              </Collapsible>
+              <Collapsible label="Document Stats" defaultOpen={false}>
+                <section className="sm-document-stats">
+                  <div><span>Scenes</span><strong>{displayedPixGridState.scenes.length}</strong></div>
+                  <div><span>Layers</span><strong>{displayedPixGridState.layers.length}</strong></div>
+                  <div><span>Groups</span><strong>{displayedPixGridState.groups.length}</strong></div>
+                  <div><span>Cues</span><strong>{activeCues.length}</strong></div>
+                </section>
+              </Collapsible>
             </div>
-            <PixGridDesignPanel groupedSections />
-            <Collapsible label="Validation" defaultOpen={false}>
-              <section className="sm-validation-card">
-                <header><strong>PixGrid document</strong><span>OK</span></header>
-                <p>No blocking PixGrid issues detected.</p>
-                <p>Preset controls are connected to the existing PixGrid state.</p>
-              </section>
-            </Collapsible>
-            <Collapsible label="Document Stats" defaultOpen={false}>
-              <section className="sm-document-stats">
-                <div><span>Scenes</span><strong>{displayedPixGridState.scenes.length}</strong></div>
-                <div><span>Layers</span><strong>{displayedPixGridState.layers.length}</strong></div>
-                <div><span>Groups</span><strong>{displayedPixGridState.groups.length}</strong></div>
-                <div><span>Cues</span><strong>{activeCues.length}</strong></div>
-              </section>
-            </Collapsible>
-          </div>
+          ) : (
+            <div className="sm-panel-blank" />
+          )}
         </aside>
         )}
       </div>

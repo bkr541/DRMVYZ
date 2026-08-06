@@ -133,6 +133,11 @@
   background: rgba(8, 12, 18, 0.96);
 }
 
+.sm-panel-blank {
+  height: 100%;
+  min-height: 0;
+}
+
 /* Exact React workspace engine-card geometry, applied to the shared Dropdown. */
 .sm-engine-dropdown {
   --drm-dropdown-trigger-height: 42px;
