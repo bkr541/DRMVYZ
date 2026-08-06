@@ -30,6 +30,7 @@ import {
 } from './trackTimelineModel'
 import { TrackTimelineIcon } from './TrackTimelineIcon'
 import { WorkspaceRail } from '../../layout/WorkspaceRail'
+import { MusicIntelligenceDiagnosticsPanel } from '../../modulation/MusicIntelligenceDiagnosticsPanel'
 import {
   clampTrackTimelinePlayheadTime,
   resolveTrackTimelinePlayheadRatio,
@@ -779,6 +780,8 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
               </span>
             </div>
 
+            <div className="rv-ctrl-section-label">Audio Intelligence</div>
+            <MusicIntelligenceDiagnosticsPanel />
           </div>
         </WorkspaceRail>
 
