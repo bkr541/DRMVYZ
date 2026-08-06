@@ -12,15 +12,15 @@ export function VyzualzSidebar({
   appView,
   onAppViewChange,
 }: Props) {
-  const [collapsed, setCollapsed] = useState(false)
-  const isCollapsed = compact || collapsed
+  const [collapsed, setCollapsed] = useState(compact)
+  const isCollapsed = collapsed
 
   return (
     <aside className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}`}>
       <button
         type="button"
         className="az-logo"
-        onClick={() => { if (!compact) setCollapsed(value => !value) }}
+        onClick={() => setCollapsed(value => !value)}
         title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-expanded={!isCollapsed}
       >
@@ -158,21 +158,19 @@ export function VyzualzSidebar({
             <span className="az-status-dot" />
           </div>
         </div>
-        {!compact && (
-          <button
-            className="az-sidebar-toggle"
-            onClick={() => setCollapsed(c => !c)}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <svg viewBox="0 0 20 20" width="13" height="13" fill="currentColor">
-              <path d={collapsed
-                ? 'M8 4l6 6-6 6-1.4-1.4L11.2 10 6.6 5.4z'
-                : 'M12 4L6 10l6 6 1.4-1.4L8.8 10l4.6-4.6z'
-              }/>
-            </svg>
-            <span className="az-nav-label az-toggle-label">{collapsed ? 'Expand' : 'Collapse'}</span>
-          </button>
-        )}
+        <button
+          className="az-sidebar-toggle"
+          onClick={() => setCollapsed(c => !c)}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <svg viewBox="0 0 20 20" width="13" height="13" fill="currentColor">
+            <path d={collapsed
+              ? 'M8 4l6 6-6 6-1.4-1.4L11.2 10 6.6 5.4z'
+              : 'M12 4L6 10l6 6 1.4-1.4L8.8 10l4.6-4.6z'
+            }/>
+          </svg>
+          <span className="az-nav-label az-toggle-label">{collapsed ? 'Expand' : 'Collapse'}</span>
+        </button>
       </div>
     </aside>
   )
