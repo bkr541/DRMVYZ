@@ -1,6 +1,6 @@
 import type { ReactPreset } from '../ReactTypes'
 
-export type ReactLiveEngineId = Exclude<ReactPreset['engine'], 'cinema'>
+export type ReactLiveEngineId = ReactPreset['engine']
 export type ReactLiveEngineRetireReason = 'superseded' | 'unmount' | 'setup-failed' | 'render-failed' | 'test-reset'
 export type ReactLiveEnginePhase = 'idle' | 'initializing' | 'stable'
 

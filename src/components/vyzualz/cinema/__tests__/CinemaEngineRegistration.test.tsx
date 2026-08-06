@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
 import { ReactEngineBrowser } from '../../react/ReactEngineBrowser'
 import { CinemaWorkspace, resolveCinemaWorkspaceModel } from '../../react/CinemaWorkspace'
+import { CinemaResizeObserverMock, createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 import { buildCinemaWorkspaceFrameBridge } from '../../react/CinemaWorkspaceFrameBridge'
 import {
   acquireReactLiveEngineOwnership,
@@ -14,6 +15,10 @@ import {
 } from '../../react/renderers/ReactLiveEngineOwnership'
 import { createEmptyCinemaPersistedState } from '../CinemaPersistence'
 import { createCinemaDiagnosticSnapshot } from '../CinemaDiagnostics'
+import {
+  getDrmvyzWebGLContextDiagnosticsForTests,
+  resetDrmvyzWebGLContextDiagnosticsForTests,
+} from '../../react/shaders/runtime/WebGLContextLifecycle'
 import { useCinemaStore } from '../CinemaStore'
 
 let root: Root | null = null
@@ -42,20 +47,35 @@ const productionFrameBridge = buildCinemaWorkspaceFrameBridge({
   bpm: null,
 })
 
-function ProductionSelectionHarness({ retire }: { retire: () => void }) {
+function ProductionSelectionHarness({
+  retire,
+  onCanvasReady,
+}: {
+  retire: () => void
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+}) {
   const engineId = useReactStore(state => state.activeReactEngineId)
   return (
     <>
       <ReactEngineBrowser />
       <LegacyOwnershipProbe retire={retire} />
-      {engineId === 'cinema' ? <CinemaWorkspace surface="stage" frameBridge={productionFrameBridge} /> : <div data-legacy-engine={engineId} />}
+      {engineId === 'cinema' ? (
+        <CinemaWorkspace
+          surface="stage"
+          frameBridge={productionFrameBridge}
+          onCanvasReady={onCanvasReady}
+        />
+      ) : <div data-legacy-engine={engineId} />}
     </>
   )
 }
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  CinemaResizeObserverMock.reset()
+  vi.stubGlobal('ResizeObserver', CinemaResizeObserverMock)
   resetReactLiveEngineOwnershipForTests()
+  resetDrmvyzWebGLContextDiagnosticsForTests()
   useReactStore.getState().resetReactView()
   useCinemaStore.getState().hydrateCinemaState(createEmptyCinemaPersistedState())
   host = document.createElement('div')
@@ -69,17 +89,41 @@ afterEach(async () => {
   host?.remove()
   host = null
   resetReactLiveEngineOwnershipForTests()
+  resetDrmvyzWebGLContextDiagnosticsForTests()
   vi.unstubAllGlobals()
 })
 
 describe('Cinema production engine registration', () => {
-  it('selects Cinema through the real engine dropdown, clears legacy preset state, and mounts no renderer owner', async () => {
+  it('selects Cinema through the real engine dropdown, claims one runtime owner, and synchronously retires it on engine switch', async () => {
     const retire = vi.fn()
-    const requestAnimationFrame = vi.fn()
+    const onCanvasReady = vi.fn()
+    const gl = createCinemaMockWebGL()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    })
+    const cancelAnimationFrame = vi.fn((id: number) => { callbacks.delete(id) })
     vi.stubGlobal('requestAnimationFrame', requestAnimationFrame)
-    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+    vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrame)
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? gl : null
+    ) as RenderingContext | null)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960,
+      height: 540,
+      top: 0,
+      left: 0,
+      right: 960,
+      bottom: 540,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
 
-    await act(async () => root?.render(<ProductionSelectionHarness retire={retire} />))
+    await act(async () => root?.render(<ProductionSelectionHarness retire={retire} onCanvasReady={onCanvasReady} />))
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
       activeEngine: 'cinematicPortal',
       activeOwnerCount: 1,
@@ -95,19 +139,23 @@ describe('Cinema production engine registration', () => {
     await act(async () => cinemaOption?.click())
 
     const state = useReactStore.getState()
+    const canvas = host?.querySelector<HTMLCanvasElement>('[data-cinema-output-canvas="true"]') ?? null
     expect(state.activeReactEngineId).toBe('cinema')
     expect(state.activeReactPresetId).toBeNull()
-    expect(host?.querySelector('[data-cinema-workspace="foundation"]')).not.toBeNull()
+    expect(host?.querySelector('[data-cinema-workspace="runtime"]')).not.toBeNull()
     expect(host?.querySelector('[data-cinema-frame-available="true"]')).not.toBeNull()
-    expect(host?.querySelector('canvas')).toBeNull()
+    expect(canvas).not.toBeNull()
     expect(retire).toHaveBeenCalledTimes(1)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
-      activeEngine: null,
-      activeOwnerCount: 0,
-      phase: 'idle',
+      activeEngine: 'cinema',
+      activeOwnerCount: 1,
+      phase: 'stable',
     })
-    expect(requestAnimationFrame).not.toHaveBeenCalled()
-    expect(getContext).not.toHaveBeenCalled()
+    expect(getContext).toHaveBeenCalledTimes(1)
+    expect(getContext).toHaveBeenCalledWith('webgl2', expect.objectContaining({ premultipliedAlpha: true }))
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(1)
+    expect(callbacks.size).toBe(1)
+    expect(onCanvasReady).toHaveBeenCalledWith(canvas)
 
     await act(async () => trigger?.click())
     const cinematicOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
@@ -117,10 +165,62 @@ describe('Cinema production engine registration', () => {
 
     expect(useReactStore.getState().activeReactEngineId).toBe('cinematicPortal')
     expect(host?.querySelector('[data-legacy-engine="cinematicPortal"]')).not.toBeNull()
+    expect(cancelAnimationFrame).toHaveBeenCalledTimes(1)
+    expect(callbacks.size).toBe(0)
+    expect(onCanvasReady).toHaveBeenLastCalledWith(null)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
       activeEngine: 'cinematicPortal',
       activeOwnerCount: 1,
       phase: 'stable',
+    })
+  })
+
+  it('keeps only one active Cinema context and loop through a Strict Mode effect replay', async () => {
+    const gl = createCinemaMockWebGL()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    })
+    const cancelAnimationFrame = vi.fn((id: number) => { callbacks.delete(id) })
+    vi.stubGlobal('requestAnimationFrame', requestAnimationFrame)
+    vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrame)
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? gl : null
+    ) as RenderingContext | null)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 640,
+      height: 360,
+      top: 0,
+      left: 0,
+      right: 640,
+      bottom: 360,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+
+    await act(async () => root?.render(
+      <React.StrictMode>
+        <CinemaWorkspace surface="stage" frameBridge={productionFrameBridge} />
+      </React.StrictMode>,
+    ))
+
+    expect(getContext).toHaveBeenCalledTimes(2)
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(2)
+    expect(cancelAnimationFrame).toHaveBeenCalledTimes(1)
+    expect(callbacks.size).toBe(1)
+    expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
+      activeEngine: 'cinema',
+      activeOwnerCount: 1,
+      phase: 'stable',
+    })
+    expect(getDrmvyzWebGLContextDiagnosticsForTests()).toMatchObject({
+      activeCount: 1,
+      duplicateOwnershipCount: 0,
+      activeLiveByEngine: { cinema: 1 },
     })
   })
 
@@ -134,14 +234,14 @@ describe('Cinema production engine registration', () => {
     })
 
     expect(model.activeComposition).toBeNull()
-    expect(model.runtimeAvailable).toBe(false)
+    expect(model.runtimeAvailable).toBe(true)
     expect(model.statusLabel).toBe('Needs attention')
     expect(model.diagnostics.diagnostics.some(diagnostic => (
       diagnostic.code === 'CINEMA_VALIDATION_FAILED'
       && diagnostic.attribution?.compositionId === 'cinema.composition.missing'
     ))).toBe(true)
     expect(model.diagnostics.diagnostics.some(diagnostic => (
-      diagnostic.code === 'CINEMA_CAPABILITY_UNAVAILABLE'
-    ))).toBe(true)
+      diagnostic.code === 'CINEMA_SAFE_OUTPUT_ACTIVE'
+    ))).toBe(false)
   })
 })

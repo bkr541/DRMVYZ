@@ -218,7 +218,7 @@ export interface DrmvyzWebGLContextOwnershipValidation {
  * DRMVYZ ownership, not Chromium's process-wide context accounting.
  */
 export function validateDrmvyzWebGLContextOwnershipBounds(
-  expectedLiveEngine: 'shader-engine' | 'cinematic-worlds' | null,
+  expectedLiveEngine: 'shader-engine' | 'cinematic-worlds' | 'cinema' | null,
 ): DrmvyzWebGLContextOwnershipValidation {
   const snapshot = getDrmvyzWebGLContextDiagnosticsForTests()
   const violations: string[] = []
@@ -253,7 +253,7 @@ export function validateDrmvyzWebGLContextOwnershipBounds(
 }
 
 export function assertDrmvyzWebGLContextOwnershipBoundsForDevelopment(
-  expectedLiveEngine: 'shader-engine' | 'cinematic-worlds' | null,
+  expectedLiveEngine: 'shader-engine' | 'cinematic-worlds' | 'cinema' | null,
 ): void {
   if (!diagnosticsEnabled) return
   const validation = validateDrmvyzWebGLContextOwnershipBounds(expectedLiveEngine)

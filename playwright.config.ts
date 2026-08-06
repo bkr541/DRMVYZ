@@ -16,6 +16,7 @@ import { defineConfig, devices } from '@playwright/test'
 const pixGridBrowserSmoke = process.env.DRMVYZ_PIX_GRID_BROWSER_SMOKE === '1'
 const deckCompilerBrowser = process.env.DRMVYZ_PIX_GRID_DECK_COMPILER_BROWSER === '1'
 const deckRuntimeBrowser = process.env.DRMVYZ_PIX_GRID_DECK_RUNTIME_BROWSER === '1'
+const cinemaRuntimeBrowser = process.env.DRMVYZ_CINEMA_RUNTIME_BROWSER === '1'
 const authenticatedDeckBrowser = process.env.DRMVYZ_PIX_GRID_DECK_AUTHENTICATED_BROWSER === '1'
 const authenticatedStorageState = process.env.DRMVYZ_E2E_AUTH_STORAGE_STATE
 const offlineVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1'
@@ -23,14 +24,17 @@ const offlineVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '
   || pixGridBrowserSmoke
   || deckCompilerBrowser
   || deckRuntimeBrowser
+  || cinemaRuntimeBrowser
 const webglVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
-const forceWebglBrowser = webglVisualReview || pixGridBrowserSmoke || deckCompilerBrowser || deckRuntimeBrowser || authenticatedDeckBrowser
+const forceWebglBrowser = webglVisualReview || pixGridBrowserSmoke || deckCompilerBrowser || deckRuntimeBrowser || cinemaRuntimeBrowser || authenticatedDeckBrowser
 const recordFailureVideo = !!process.env.CI || process.env.DRMVYZ_PLAYWRIGHT_VIDEO === '1'
 
 export default defineConfig({
   testDir: 'src/test/e2e',
   testMatch: '**/*.spec.ts',
-  outputDir: authenticatedDeckBrowser
+  outputDir: cinemaRuntimeBrowser
+    ? 'artifacts/cinema-runtime-browser/results'
+    : authenticatedDeckBrowser
     ? 'artifacts/pix-grid-deck-authenticated-browser/results'
     : deckRuntimeBrowser
       ? 'artifacts/pix-grid-deck-runtime-browser/results'

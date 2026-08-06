@@ -14752,7 +14752,7 @@
 }
 
 
-/* ── Cinema engine registration and non-rendering workspace shell ─────────── */
+/* ── Cinema engine registration and single-owner runtime workspace ───────── */
 .rv-cinema-workspace {
   box-sizing: border-box;
   color: rgba(232, 248, 250, .94);
@@ -14847,18 +14847,31 @@
 }
 
 .rv-cinema-workspace--stage {
+  position: relative;
   display: grid;
   width: 100%;
   min-height: 100%;
   place-items: center;
   padding: clamp(16px, 4vw, 48px);
-  overflow: auto;
+  overflow: hidden;
+  isolation: isolate;
   background:
     radial-gradient(circle at 50% 12%, rgba(41, 173, 181, .13), transparent 35%),
     linear-gradient(155deg, #061014, #03080b 68%);
 }
 
+.rv-cinema-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .rv-cinema-workspace__stage-card {
+  position: relative;
+  z-index: 1;
   display: grid;
   width: min(760px, 100%);
   gap: 16px;

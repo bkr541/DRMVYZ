@@ -356,9 +356,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setLiveFps(0)
   }, [activeReactEngineId])
   useEffect(() => {
-    if (activeReactEngineId === 'cinema') setOutputCanvas(null)
-  }, [activeReactEngineId])
-  useEffect(() => {
     if (activeReactEngineId !== 'pixGrid') {
       setPixGridOutputCanvas(null)
       if (pixGridState.authoringOverlayVisible) setPixGridState({ authoringOverlayVisible: false })
@@ -795,7 +792,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
             {activeReactEngineId === 'cinema' ? (
-              <CinemaWorkspace surface="stage" frameBridge={cinemaFrameBridge} />
+              <CinemaWorkspace
+                surface="stage"
+                frameBridge={cinemaFrameBridge}
+                onCanvasReady={setOutputCanvas}
+                onLiveFps={setLiveFps}
+              />
             ) : activeReactEngineId === 'shaderPads' ? (
               <Suspense fallback={<LazyWorkspaceFallback label="Shader renderer" />}>
                 <ReactShaderCanvas

@@ -25,6 +25,7 @@
     "playwright:install:ci": "playwright install --with-deps chromium",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test src/test/e2e/smoke.spec.ts --project=chromium",
+    "test:e2e:cinema-runtime": "node scripts/run-cinema-runtime-browser.mjs",
     "audit": "npm audit --audit-level=high",
     "verify:fast": "npm run repo:hygiene && npm run lint && npm run typecheck && npm run test:native && npm run test && npm run build",
     "verify": "npm run verify:fast && npm run playwright:install && npm run test:e2e:smoke && npm run audit",
