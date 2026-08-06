@@ -268,7 +268,15 @@ export interface CinemaLyricFrame {
   vocalsActive: boolean
 }
 
+export interface CinemaPerformanceEventFrame {
+  actionId: CinemaActionId
+  sequence: number
+}
+
 export interface CinemaPerformanceFrame {
+  /** Ordered manual events consumed exactly once by sequence identity. */
+  events?: readonly Readonly<CinemaPerformanceEventFrame>[]
+  /** Compatibility projection retained for shader trigger parameters and legacy adapters. */
   actionIds: readonly CinemaActionId[]
   toggleStates: Readonly<Partial<Record<CinemaActionId, boolean>>>
 }
@@ -395,6 +403,22 @@ export const CINEMA_STATE_RESET_ACTION_IDS = Object.freeze({
 } as const)
 
 export type CinemaStateResetActionId = typeof CINEMA_STATE_RESET_ACTION_IDS[keyof typeof CINEMA_STATE_RESET_ACTION_IDS]
+
+export const CINEMA_PERFORMANCE_STATE_ACTION_IDS = Object.freeze({
+  resetNodeState: 'cinema.action.reset-node-state',
+  resetFeedback: 'cinema.action.reset-feedback',
+  reseedSimulation: 'cinema.action.reseed-simulation',
+  clearTrailHistory: 'cinema.action.clear-trail-history',
+} as const)
+
+export type CinemaPerformanceStateActionId = typeof CINEMA_PERFORMANCE_STATE_ACTION_IDS[keyof typeof CINEMA_PERFORMANCE_STATE_ACTION_IDS]
+
+export interface CinemaNodeStateCommand {
+  type: 'resetNodeState' | 'resetFeedback' | 'reseedSimulation' | 'clearTrailHistory' | 'seekReconstruction'
+  eventIdentity?: string
+  seed?: number
+  reconstructionMode?: CinemaSeekReconstructionPolicy['mode']
+}
 
 export interface CinemaShaderSourceMetadata {
   language: 'glsl-es-300'
@@ -563,9 +587,10 @@ export interface CinemaNodeRenderContext {
 
 export interface CinemaNodeResetContext {
   nodeId: CinemaNodeId
-  actionId: CinemaStateResetActionId | CinemaActionId
+  actionId: CinemaStateResetActionId | CinemaActionId | CinemaPerformanceStateActionId
   frame: Readonly<CinemaFrameContext> | null
   seekTargetSec?: number
+  command?: Readonly<CinemaNodeStateCommand>
   webgl: CinemaWebGLRenderService
   diagnostics: CinemaRuntimeDiagnosticSink
 }

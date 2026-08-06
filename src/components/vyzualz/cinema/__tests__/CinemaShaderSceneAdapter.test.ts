@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
+  type CinemaCompositionDefinition,
+} from '../CinemaDomain'
+import {
   CINEMA_FOUNDATION_COMPOSITION_ID,
   CINEMA_FOUNDATION_INPUT_PORT_ID,
   CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
@@ -17,7 +22,13 @@ import {
   createCinemaShaderSceneAdapterBundle,
   createCinemaShaderSceneComposition,
 } from '../CinemaShaderSceneAdapter'
-import { cinemaStableId, type CinemaActionId, type CinemaCompositionId } from '../CinemaIdentifiers'
+import {
+  cinemaStableId,
+  type CinemaActionId,
+  type CinemaCompositionId,
+  type CinemaEventId,
+  type CinemaPerformanceRuleId,
+} from '../CinemaIdentifiers'
 import type { CinemaFrameContext } from '../CinemaRendererContracts'
 import { CinemaGraphExecutor } from '../runtime/CinemaGraphExecutor'
 import { CinemaRenderTargetPool } from '../runtime/CinemaRenderTargetPool'
@@ -128,6 +139,49 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     harness.dispose()
   })
 
+  it('dispatches Stage 12 feedback reset commands through an adapter-backed shader node', () => {
+    const state = createCinemaFoundationPersistedState()
+    const base = createCinemaShaderSceneComposition(
+      REACTOR_SCENE_ID,
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+      { compositionId: cinemaStableId<CinemaCompositionId>('reactor-performance-reset-test', 'composition') },
+    )
+    const shaderNode = base.nodes.find(node => node.family === 'shader')
+    expect(shaderNode).toBeDefined()
+    if (!shaderNode) return
+    const composition: CinemaCompositionDefinition = {
+      ...base,
+      revision: base.revision + 1,
+      performanceRules: [{
+        schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
+        id: 'reactor-drop-reset-rule' as CinemaPerformanceRuleId,
+        label: 'Reactor Drop Reset',
+        priority: 100,
+        enabled: true,
+        condition: { schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION, event: 'dropStart' },
+        actions: [{
+          schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+          id: 'reactor-reset-feedback' as CinemaActionId,
+          type: 'resetFeedback',
+          nodeId: shaderNode.id,
+        }],
+      }],
+    }
+    const harness = createExecutorHarness()
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+
+    expect(harness.executor.render(frame(0, false, true))).toBe(true)
+    expect(harness.executor.getSnapshot()).toMatchObject({
+      activePerformanceRuleCount: 1,
+      failedNodeCount: 0,
+    })
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RESET_FAILED')
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
+  })
+
   it('reconciles Stage 8 persisted state with built-in adapter contracts without changing the active composition', () => {
     const current = createCinemaFoundationPersistedState()
     const stage8Like = {
@@ -186,7 +240,7 @@ function createExecutorHarness() {
   }
 }
 
-function frame(generation: number, reset = false): Readonly<CinemaFrameContext> {
+function frame(generation: number, reset = false, dropStart = false): Readonly<CinemaFrameContext> {
   const clock = (spanBeats: number) => ({ available: true, spanBeats, index: 0, phase: 0.25, hit: false, eventId: null })
   return {
     version: 1,
@@ -232,7 +286,7 @@ function frame(generation: number, reset = false): Readonly<CinemaFrameContext> 
       complexity: 0.4,
       tension: 0.3,
       buildProgress: 0.2,
-      dropImpact: 0,
+      dropImpact: dropStart ? 1 : 0,
       vocalPresence: 0.1,
       fft: new Uint8Array(512).fill(96),
       waveform: new Uint8Array(1024).fill(128),
@@ -274,8 +328,8 @@ function frame(generation: number, reset = false): Readonly<CinemaFrameContext> 
       kick: false,
       snare: false,
       transient: false,
-      sectionStart: false,
-      dropStart: false,
+      sectionStart: dropStart,
+      dropStart,
       lyricCue: false,
       lyricWord: false,
       phrase4: false,
@@ -286,8 +340,8 @@ function frame(generation: number, reset = false): Readonly<CinemaFrameContext> 
         kick: null,
         snare: null,
         transient: null,
-        sectionStart: null,
-        dropStart: null,
+        sectionStart: dropStart ? 'music:drop-section' as CinemaEventId : null,
+        dropStart: dropStart ? 'music:drop-section' as CinemaEventId : null,
         lyricCue: null,
         lyricWord: null,
         phrase4: null,

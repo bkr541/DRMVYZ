@@ -163,6 +163,7 @@ describe('Cinema production engine registration', () => {
     expect(gl.__calls.drawCount).toBe(2)
     expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
     expect(host?.textContent).toContain('Output rendered')
+    expect(host?.textContent).toContain('Performance rules')
 
     await act(async () => trigger?.click())
     const cinematicOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]

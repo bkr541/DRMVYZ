@@ -54,6 +54,7 @@ describe('Cinema production frame bridge', () => {
       },
       performanceEvents: [
         { actionId: 'cinema.test', sequence: 2, target: { engineId: 'cinema' }, triggeredAtMs: 10 },
+        { actionId: 'cinema.test', sequence: 4, target: { engineId: 'cinema' }, triggeredAtMs: 10.5 },
         { actionId: 'laserDmx.blackout', sequence: 3, target: { engineId: 'laserDmx' }, triggeredAtMs: 11 },
       ],
       brandKit: BRAND_KIT,
@@ -69,7 +70,11 @@ describe('Cinema production frame bridge', () => {
       mediaAssets: true,
     })
     expect(result.frame.music.source).toBe('bpm-derived')
-    expect(result.frame.performance.actionIds).toEqual(['cinema.test'])
+    expect(result.frame.performance.events).toEqual([
+      { actionId: 'cinema.test', sequence: 2 },
+      { actionId: 'cinema.test', sequence: 4 },
+    ])
+    expect(result.frame.performance.actionIds).toEqual(['cinema.test', 'cinema.test'])
     expect(result.frame.brand.colors.primary).toEqual([0.2, 0.4, 0.6, 1])
   })
 

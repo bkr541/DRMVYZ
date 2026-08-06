@@ -177,8 +177,8 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 9 Shader adapters wired</strong>
-          <span>Active Shader Pads scenes now compile as Cinema plugins while the Cinema canvas, WebGL2 context, frame loop, targets, and output remain single-owned.</span>
+          <strong>Stage 12 performance choreography wired</strong>
+          <span>Versioned rules now coordinate transient parameter, node, camera, palette, and state-reset actions without writing runtime values into saved compositions.</span>
         </div>
       </section>
     )
@@ -205,22 +205,23 @@ export function CinemaWorkspace({
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 9</div>
-        <h2>Shader scene adapter</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 12</div>
+        <h2>Performance choreography runtime</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema can now execute active Shader Pads scenes as graph nodes, including multi-pass feedback and media inputs, without nesting the legacy canvas runtime.
+          Cinema now evaluates musical and manual rules deterministically, applies priority-ranked transient overrides, and dispatches explicit reset commands through the shared node lifecycle.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>
           <div><dt>Active instance</dt><dd>{instanceLabel}</dd><small>{model.instanceCount} saved instance{model.instanceCount === 1 ? '' : 's'}</small></div>
           <div><dt>Runtime</dt><dd>{runtimeStatusLabel(runtimeSnapshot)}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.viewport.width} × ${runtimeSnapshot.viewport.height}` : 'Preparing canvas'}</small></div>
           <div><dt>Graph</dt><dd>{runtimeSnapshot?.graph.outputRendered ? 'Output rendered' : 'Safe output'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.initializedNodeCount}/${runtimeSnapshot.graph.activeNodeCount} nodes ready` : 'Compiling'}</small></div>
+          <div><dt>Performance</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.graph.activePerformanceRuleCount}/${runtimeSnapshot.graph.performanceRuleCount} rules active` : 'Preparing'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.activePerformanceTransientCount} timed overrides` : 'No runtime snapshot'}</small></div>
           <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd><small>{model.statusLabel}</small></div>
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? 'Normalized' : 'Unavailable'}</dd><small>{model.frameTrackId ?? 'No active track'}</small></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status" aria-live="polite">
           <strong>{runtimeSnapshot?.phase === 'unavailable' ? 'Safe output only' : 'Cinema runtime owns the stage'}</strong>
-          <span>Shader programs and adapter-local resources remain runtime-only. Persistent feedback uses Cinema target leases, and a failed adapter is retired diagnostically while the engine keeps a defined safe output.</span>
+          <span>Performance envelopes, consumed event identities, reset counters, feedback history, and renderer resources remain runtime-only. Seek reconstruction follows each node’s declared policy while legacy engines retain their standalone ownership.</span>
         </div>
         {firstDiagnostic && (
           <div className="rv-cinema-workspace__diagnostic" role="note">

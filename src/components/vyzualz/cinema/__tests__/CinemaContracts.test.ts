@@ -4,6 +4,8 @@ import {
   CINEMA_COMPOSITION_SCHEMA_VERSION,
   CINEMA_PACKAGE_SCHEMA_ID,
   CINEMA_PACKAGE_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
   CINEMA_SAFE_OUTPUT_DESCRIPTOR,
   CINEMA_STATE_RESET_ACTION_IDS,
   cinemaNamespacedId,
@@ -19,6 +21,7 @@ import {
   parseCinemaParameterPath,
   parseCinemaStableId,
   sortCinemaDiagnostics,
+  type CinemaActionId,
   type CinemaAssetBindingId,
   type CinemaAssetId,
   type CinemaCameraId,
@@ -167,15 +170,23 @@ function createRepresentativeComposition(): CinemaCompositionDefinition {
       enabled: true,
     }],
     performanceRules: [{
+      schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
       id: id<CinemaPerformanceRuleId>('drop-bloom-rule', 'performance rule'),
       label: 'Drop Bloom',
       priority: 100,
       enabled: true,
       condition: {
+        schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
         event: cinemaNamespacedId<CinemaEventId>('music.drop-start', 'event'),
         sectionTypes: ['drop'],
       },
-      actions: [{ type: 'set-parameter', destination: effectOpacityPath, value: 1 }],
+      actions: [{
+        schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+        id: id<CinemaActionId>('drop-bloom-action', 'performance action'),
+        type: 'set-parameter',
+        destination: effectOpacityPath,
+        value: 1,
+      }],
     }],
   }
 }

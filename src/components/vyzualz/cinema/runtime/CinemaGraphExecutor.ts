@@ -21,6 +21,7 @@ import type { CinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import {
   CINEMA_STATE_RESET_ACTION_IDS,
   type CinemaFrameContext,
+  type CinemaNodeResetContext,
   type CinemaPlatformCapabilities,
   type CinemaRenderNode,
   type CinemaRenderTargetLease,
@@ -38,6 +39,11 @@ import {
 } from '../CinemaDiagnostics'
 import { resolveCinemaParameterSnapshot } from '../CinemaParameterResolver'
 import { CinemaModulationRuntime } from '../CinemaModulationRuntime'
+import {
+  CinemaPerformanceRuntime,
+  type CinemaPerformanceEvaluation,
+  type CinemaPerformanceStateCommand,
+} from '../CinemaPerformanceRuntime'
 import type { CinemaPersistedDefinition } from '../CinemaPersistence'
 import { createCinemaDefinitionRegistryFromPersistedDefinitions } from '../CinemaDefinitionRegistry'
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
@@ -56,6 +62,9 @@ export interface CinemaGraphExecutorSnapshot {
   safeOutputActive: boolean
   modulationRouteCount: number
   activeModulationRouteCount: number
+  performanceRuleCount: number
+  activePerformanceRuleCount: number
+  activePerformanceTransientCount: number
   diagnostics: CinemaDiagnosticSnapshot
 }
 
@@ -114,7 +123,11 @@ export class CinemaGraphExecutor {
   private parameterRegistry: CinemaNodeDefinitionRegistry | null = null
   private baseParameterValues: Readonly<Record<string, CinemaParameterValue>> = Object.freeze({})
   private modulationRuntime: CinemaModulationRuntime | null = null
+  private performanceRuntime: CinemaPerformanceRuntime | null = null
   private activeModulationRouteCount = 0
+  private activePerformanceRuleCount = 0
+  private activePerformanceTransientCount = 0
+  private readonly seekDisabledNodes = new Set<CinemaNodeId>()
   private plan: CinemaCompiledGraphPlan | null = null
   private planCacheKey: string | null = null
   private configurationKey: string | null = null
@@ -178,13 +191,16 @@ export class CinemaGraphExecutor {
 
     if (frame.transport.reset.required && frame.transport.reset.generation !== this.lastResetGeneration) {
       this.lastResetGeneration = frame.transport.reset.generation
-      const actions = frame.transport.reset.actionIds.length > 0
-        ? frame.transport.reset.actionIds
-        : [CINEMA_STATE_RESET_ACTION_IDS.timingDiscontinuity]
-      for (const actionId of actions) this.resetAll(actionId, frame)
+      this.handleTransportReset(frame)
     }
 
-    this.updateFrameParameterValues(frame)
+    const performance = this.performanceRuntime?.evaluate(frame) ?? emptyPerformanceEvaluation()
+    this.activePerformanceRuleCount = performance.activeRuleCount
+    this.activePerformanceTransientCount = performance.activeTransientCount
+    for (const diagnostic of performance.diagnostics.diagnostics) this.reportOnce(diagnostic)
+    this.dispatchPerformanceCommands(performance.stateCommands, frame)
+    const renderFrame = applyPerformanceFrameOverrides(frame, performance)
+    this.updateFrameParameterValues(renderFrame, performance)
 
     const frameLeases: CinemaRenderTargetLease[] = []
     let frameFallbackUsed = false
@@ -193,7 +209,10 @@ export class CinemaGraphExecutor {
       for (const nodeId of this.plan.nodeOrder) {
         const record = this.records.get(nodeId)
         const outputNode = nodeId === this.plan.output.nodeId
-        if (!record || record.status !== 'ready') {
+        const enabled = record
+          ? (performance.nodeEnabledOverrides[nodeId] ?? record.authored.enabled)
+          : false
+        if (!record || record.status !== 'ready' || !enabled || this.seekDisabledNodes.has(nodeId)) {
           frameFallbackUsed = true
           this.renderNodeFallback(record?.authored ?? null, outputNode, frameLeases)
           continue
@@ -204,7 +223,7 @@ export class CinemaGraphExecutor {
         try {
           record.renderer.render({
             nodeId,
-            frame,
+            frame: renderFrame,
             viewport: this.viewport,
             values: record.values,
             assets: record.assets,
@@ -276,6 +295,9 @@ export class CinemaGraphExecutor {
       safeOutputActive: this.safeOutputActive,
       modulationRouteCount: this.modulationRuntime?.routeCount ?? 0,
       activeModulationRouteCount: this.activeModulationRouteCount,
+      performanceRuleCount: this.performanceRuntime?.ruleCount ?? 0,
+      activePerformanceRuleCount: this.activePerformanceRuleCount,
+      activePerformanceTransientCount: this.activePerformanceTransientCount,
       diagnostics: createCinemaDiagnosticSnapshot(this.diagnostics),
     }
   }
@@ -302,7 +324,11 @@ export class CinemaGraphExecutor {
     this.parameterRegistry = null
     this.baseParameterValues = Object.freeze({})
     this.modulationRuntime = null
+    this.performanceRuntime = null
     this.activeModulationRouteCount = 0
+    this.activePerformanceRuleCount = 0
+    this.activePerformanceTransientCount = 0
+    this.seekDisabledNodes.clear()
     this.outputRendered = false
     this.safeOutputActive = true
     this.lastResetGeneration = -1
@@ -330,7 +356,7 @@ export class CinemaGraphExecutor {
     this.planCacheKey = key
     let compilation = this.planCache.get(key)
     if (!compilation) {
-      compilation = compileCinemaCompositionGraph(composition, definitionResult.registry)
+      compilation = compileCinemaCompositionGraph(createRuntimeCompilationComposition(composition), definitionResult.registry)
       this.cachePlan(key, compilation)
     }
     for (const diagnostic of compilation.diagnostics.diagnostics) this.report(diagnostic)
@@ -354,6 +380,8 @@ export class CinemaGraphExecutor {
       composition,
       registry: definitionResult.registry,
     })
+    this.performanceRuntime = new CinemaPerformanceRuntime(composition)
+    for (const diagnostic of this.performanceRuntime.snapshot.diagnostics.diagnostics) this.report(diagnostic)
     for (const diagnostic of this.modulationRuntime.diagnostics.diagnostics) this.report(diagnostic)
     const valuesByNode = collectNodeValues(resolution.values)
     const assetsByNode = resolveNodeAssetBindings(composition, this.configuration.instance)
@@ -582,8 +610,9 @@ export class CinemaGraphExecutor {
     }
   }
 
-  private clearFeedbackHistory(): void {
+  private clearFeedbackHistory(nodeId?: CinemaNodeId): void {
     for (const state of this.feedbackSources.values()) {
+      if (nodeId != null && state.sourceNodeId !== nodeId) continue
       for (const lease of state.leases) this.targets.clear(lease)
       state.cursor = -1
       state.framesWritten = 0
@@ -597,14 +626,88 @@ export class CinemaGraphExecutor {
     this.feedbackSources.clear()
   }
 
-  private resetAll(actionId: string, frame: Readonly<CinemaFrameContext> | null): void {
+  private resetAll(actionId: CinemaNodeResetContext['actionId'], frame: Readonly<CinemaFrameContext> | null): void {
     this.clearFeedbackHistory()
     this.modulationRuntime?.reset()
     this.activeModulationRouteCount = 0
     for (const record of this.records.values()) this.resetRecord(record, actionId, frame)
   }
 
-  private updateFrameParameterValues(frame: Readonly<CinemaFrameContext>): void {
+  private handleTransportReset(frame: Readonly<CinemaFrameContext>): void {
+    this.clearFeedbackHistory()
+    this.modulationRuntime?.reset()
+    this.activeModulationRouteCount = 0
+    const reasons = frame.transport.reset.reasons
+    if (reasons.includes('track-change') || reasons.includes('activation')) {
+      this.seekDisabledNodes.clear()
+      const actionId = frame.transport.reset.actionIds[0] ?? CINEMA_STATE_RESET_ACTION_IDS.timingDiscontinuity
+      for (const record of this.records.values()) this.resetRecord(record, actionId, frame)
+      return
+    }
+
+    const actionId = frame.transport.reset.actionIds[0] ?? CINEMA_STATE_RESET_ACTION_IDS.seek
+    for (const record of this.records.values()) {
+      const policy = record.registryEntry.definition.seekPolicy
+      switch (policy.mode) {
+        case 'stateless':
+          break
+        case 'reset-at-position':
+        case 'deterministic-replay':
+        case 'checkpoint-replay':
+          this.resetRecord(record, actionId, frame, {
+            type: 'seekReconstruction',
+            reconstructionMode: policy.mode,
+            seed: frame.timing.seeds.musicalPosition,
+            eventIdentity: frame.transport.reset.identity ?? undefined,
+          })
+          break
+        case 'unsupported':
+          if (policy.fallback === 'safe-output') {
+            this.seekDisabledNodes.add(record.authored.id)
+            this.reportOnce(createCinemaDiagnostic({
+              code: 'CINEMA_CAPABILITY_UNAVAILABLE',
+              severity: 'warning',
+              message: `Cinema node "${record.authored.id}" entered safe output because its seek policy is unsupported.`,
+              attribution: {
+                compositionId: this.configuration.composition?.id,
+                nodeId: record.authored.id,
+                stage: 'performance-runtime',
+              },
+              details: { policy: policy.mode, fallback: policy.fallback },
+            }))
+          } else {
+            this.resetRecord(record, actionId, frame, {
+              type: 'seekReconstruction',
+              reconstructionMode: policy.mode,
+              seed: frame.timing.seeds.musicalPosition,
+              eventIdentity: frame.transport.reset.identity ?? undefined,
+            })
+          }
+          break
+      }
+    }
+  }
+
+  private dispatchPerformanceCommands(
+    commands: readonly CinemaPerformanceStateCommand[],
+    frame: Readonly<CinemaFrameContext>,
+  ): void {
+    for (const command of commands) {
+      const record = this.records.get(command.nodeId)
+      if (!record || record.status !== 'ready') continue
+      if (command.type === 'resetFeedback') this.clearFeedbackHistory(command.nodeId)
+      this.resetRecord(record, command.actionId, frame, {
+        type: command.type,
+        eventIdentity: command.eventIdentity,
+        seed: command.seed,
+      })
+    }
+  }
+
+  private updateFrameParameterValues(
+    frame: Readonly<CinemaFrameContext>,
+    performance: Readonly<CinemaPerformanceEvaluation>,
+  ): void {
     const composition = this.configuration.composition
     const registry = this.parameterRegistry
     const modulationRuntime = this.modulationRuntime
@@ -619,6 +722,7 @@ export class CinemaGraphExecutor {
       registry,
       instance: this.configuration.instance,
       modulationSnapshot: modulation.values,
+      performanceOverrides: performance.parameterOverrides,
     })
     for (const diagnostic of resolution.diagnostics.diagnostics) this.report(diagnostic)
     const valuesByNode = collectNodeValues(resolution.values)
@@ -629,16 +733,18 @@ export class CinemaGraphExecutor {
 
   private resetRecord(
     record: RuntimeNodeRecord,
-    actionId: string,
+    actionId: CinemaNodeResetContext['actionId'],
     frame: Readonly<CinemaFrameContext> | null,
+    command?: Readonly<import('../CinemaRendererContracts').CinemaNodeStateCommand>,
   ): void {
     if (record.status !== 'ready') return
     try {
       record.renderer.reset({
         nodeId: record.authored.id,
-        actionId: actionId as import('../CinemaRendererContracts').CinemaStateResetActionId,
+        actionId,
         frame,
         ...(frame ? { seekTargetSec: frame.transport.audioTimeSec } : {}),
+        ...(command ? { command } : {}),
         webgl: this.webgl,
         diagnostics: this.diagnosticsSink,
       })
@@ -771,6 +877,60 @@ function resolveNodeAssetBindings(
     byNode.set(node.id, Object.freeze(assets))
   }
   return byNode
+}
+
+function createRuntimeCompilationComposition(
+  composition: Readonly<CinemaCompositionDefinition>,
+): CinemaCompositionDefinition {
+  const runtimeEnabledNodeIds = new Set<CinemaNodeId>()
+  for (const rule of composition.performanceRules) {
+    if (!rule.enabled) continue
+    for (const action of rule.actions) {
+      if ((action.type === 'set-node-enabled' || action.type === 'set-effect-enabled') && action.enabled) {
+        runtimeEnabledNodeIds.add(action.nodeId)
+      }
+    }
+  }
+  if (runtimeEnabledNodeIds.size === 0) return composition as CinemaCompositionDefinition
+  return {
+    ...composition,
+    nodes: composition.nodes.map(node => runtimeEnabledNodeIds.has(node.id) ? { ...node, enabled: true } : node),
+  }
+}
+
+function applyPerformanceFrameOverrides(
+  frame: Readonly<CinemaFrameContext>,
+  performance: Readonly<CinemaPerformanceEvaluation>,
+): Readonly<CinemaFrameContext> {
+  const hasPaletteOverride = Object.keys(performance.paletteOverrides).length > 0
+  const hasCameraOverride = performance.activeCameraId != null
+  if (!hasPaletteOverride && !hasCameraOverride) return frame
+  return Object.freeze({
+    ...frame,
+    ...(hasCameraOverride ? { activeCameraId: performance.activeCameraId } : {}),
+    ...(hasPaletteOverride
+      ? {
+          brand: Object.freeze({
+            available: true,
+            colors: Object.freeze({ ...frame.brand.colors, ...performance.paletteOverrides }),
+          }),
+        }
+      : {}),
+  })
+}
+
+function emptyPerformanceEvaluation(): CinemaPerformanceEvaluation {
+  return Object.freeze({
+    parameterOverrides: Object.freeze({}),
+    nodeEnabledOverrides: Object.freeze({}),
+    activeCameraId: null,
+    paletteOverrides: Object.freeze({}),
+    stateCommands: Object.freeze([]),
+    emittedEvents: Object.freeze([]),
+    activeRuleCount: 0,
+    activeTransientCount: 0,
+    diagnostics: createCinemaDiagnosticSnapshot([]),
+  })
 }
 
 function positiveModulo(value: number, divisor: number): number {

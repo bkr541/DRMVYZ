@@ -892,12 +892,15 @@ function createReactParams(
   values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
   authoredOpacity: number,
 ): ReactRenderParams {
-  const events: ReactPerformanceActionEvent[] = frame.performance.actionIds.map((actionId, index) => ({
-    actionId: String(actionId),
-    sequence: frame.timing.frameIndex * 100 + index,
+  const events: ReactPerformanceActionEvent[] = (frame.performance.events ?? frame.performance.actionIds.map((actionId, index) => ({
+    actionId,
+    sequence: frame.timing.frameIndex * 1000 + index,
+  }))).map(event => ({
+    actionId: String(event.actionId),
+    sequence: event.sequence,
     target: { engineId: 'cinematicPortal' },
     triggeredAtMs: frame.timing.elapsedTimeSec * 1000,
-    toggleState: frame.performance.toggleStates[actionId],
+    toggleState: frame.performance.toggleStates[event.actionId],
   }))
   return {
     ...DEFAULT_REACT_RENDER_PARAMS,

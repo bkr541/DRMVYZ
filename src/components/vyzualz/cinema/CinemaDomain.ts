@@ -21,9 +21,9 @@ import type {
 } from './CinemaIdentifiers'
 
 export const CINEMA_COMPOSITION_SCHEMA_ID = 'drmvyz.cinema.composition' as const
-export const CINEMA_COMPOSITION_SCHEMA_VERSION = 1 as const
+export const CINEMA_COMPOSITION_SCHEMA_VERSION = 2 as const
 export const CINEMA_PACKAGE_SCHEMA_ID = 'drmvyz.cinema.package' as const
-export const CINEMA_PACKAGE_SCHEMA_VERSION = 1 as const
+export const CINEMA_PACKAGE_SCHEMA_VERSION = 2 as const
 
 export type CinemaJsonPrimitive = string | number | boolean | null
 export type CinemaJsonValue = CinemaJsonPrimitive | CinemaJsonObject | readonly CinemaJsonValue[]
@@ -379,23 +379,86 @@ export interface CinemaModulationRouteDefinition {
   enabled: boolean
 }
 
+export const CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION = 1 as const
+export const CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION = 1 as const
+
+export type CinemaPerformanceEventCondition =
+  | 'beat'
+  | 'bar'
+  | 'phrase'
+  | 'sectionStart'
+  | 'dropStart'
+  | 'lyricCue'
+  | 'lyricWord'
+  | 'manual'
+  | CinemaEventId
+
 export interface CinemaPerformanceCondition {
-  event?: CinemaEventId
+  schemaVersion: typeof CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION
+  event?: CinemaPerformanceEventCondition
   sectionTypes?: readonly string[]
   minimumEnergy?: number
   maximumEnergy?: number
   vocalsActive?: boolean
   playing?: boolean
+  buildActive?: boolean
+  dropActive?: boolean
+  manualActionIds?: readonly CinemaActionId[]
+  toggleActionId?: CinemaActionId
+  toggleState?: boolean
+}
+
+export interface CinemaPerformanceDuration {
+  value: number
+  unit: 'beats' | 'bars'
+}
+
+export interface CinemaPerformanceActionBase {
+  schemaVersion: typeof CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION
+  id: CinemaActionId
 }
 
 export type CinemaPerformanceAction =
-  | { type: 'set-parameter'; destination: CinemaParameterPath; value: CinemaParameterValue }
-  | { type: 'trigger-parameter'; destination: CinemaParameterPath }
-  | { type: 'reset-node-state'; nodeId: CinemaNodeId; actionId: CinemaActionId }
-  | { type: 'select-camera'; cameraId: CinemaCameraId }
-  | { type: 'emit-event'; eventId: CinemaEventId; payload?: CinemaJsonObject }
+  | (CinemaPerformanceActionBase & {
+      type: 'set-parameter'
+      destination: CinemaParameterPath
+      value: CinemaParameterValue
+      duration?: CinemaPerformanceDuration
+    })
+  | (CinemaPerformanceActionBase & {
+      type: 'trigger-parameter'
+      destination: CinemaParameterPath
+    })
+  | (CinemaPerformanceActionBase & {
+      type: 'set-node-enabled'
+      nodeId: CinemaNodeId
+      enabled: boolean
+      duration?: CinemaPerformanceDuration
+    })
+  | (CinemaPerformanceActionBase & {
+      type: 'set-effect-enabled'
+      nodeId: CinemaNodeId
+      enabled: boolean
+      duration?: CinemaPerformanceDuration
+    })
+  | (CinemaPerformanceActionBase & {
+      type: 'select-camera'
+      cameraId: CinemaCameraId
+      duration?: CinemaPerformanceDuration
+    })
+  | (CinemaPerformanceActionBase & {
+      type: 'set-palette'
+      colors: Readonly<Partial<Record<CinemaBrandRole, CinemaColor>>>
+      duration?: CinemaPerformanceDuration
+    })
+  | (CinemaPerformanceActionBase & { type: 'resetNodeState'; nodeId: CinemaNodeId })
+  | (CinemaPerformanceActionBase & { type: 'resetFeedback'; nodeId: CinemaNodeId })
+  | (CinemaPerformanceActionBase & { type: 'reseedSimulation'; nodeId: CinemaNodeId })
+  | (CinemaPerformanceActionBase & { type: 'clearTrailHistory'; nodeId: CinemaNodeId })
+  | (CinemaPerformanceActionBase & { type: 'emit-event'; eventId: CinemaEventId; payload?: CinemaJsonObject })
 
 export interface CinemaPerformanceRuleDefinition {
+  schemaVersion: typeof CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION
   id: CinemaPerformanceRuleId
   label: string
   priority: number

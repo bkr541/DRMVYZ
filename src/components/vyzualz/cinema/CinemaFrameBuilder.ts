@@ -754,7 +754,11 @@ function resolvePerformanceSnapshot(
   const events = [...(performance?.events ?? [])]
     .filter(event => Number.isFinite(event.sequence) && event.sequence > (previous?.lastPerformanceSequence ?? -1))
     .sort((left, right) => left.sequence - right.sequence)
-  const actionIds = Object.freeze(events.map(event => event.actionId as CinemaActionId))
+  const normalizedEvents = Object.freeze(events.map(event => Object.freeze({
+    actionId: event.actionId as CinemaActionId,
+    sequence: event.sequence,
+  })))
+  const actionIds = Object.freeze(normalizedEvents.map(event => event.actionId))
   const toggleStates = Object.freeze(Object.fromEntries(
     Object.entries(performance?.toggleStates ?? {}).map(([id, value]) => [id as CinemaActionId, value === true]),
   ) as Partial<Record<CinemaActionId, boolean>>)
@@ -763,7 +767,7 @@ function resolvePerformanceSnapshot(
     ...((performance?.events ?? []).map(event => Number.isFinite(event.sequence) ? event.sequence : -1)),
   )
   return {
-    frame: Object.freeze({ actionIds, toggleStates }),
+    frame: Object.freeze({ events: normalizedEvents, actionIds, toggleStates }),
     lastSequence,
   }
 }

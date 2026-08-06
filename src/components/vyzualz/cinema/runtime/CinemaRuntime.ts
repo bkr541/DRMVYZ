@@ -58,9 +58,9 @@ export type CinemaRuntimeCreateResult =
 /**
  * Single-owner Cinema WebGL2 runtime.
  *
- * Stage 9 executes native Cinema nodes and adapted Shader scenes through
- * runtime-only renderer plugins, Cinema-owned targets, one authorized output
- * node, and the existing single-context/single-loop lifecycle.
+ * Stage 12 executes native and adapter-backed nodes through runtime-only
+ * plugins, deterministic performance choreography, Cinema-owned targets, one
+ * authorized output node, and the existing single-context/single-loop lifecycle.
  */
 export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   static create(canvas: HTMLCanvasElement, options: CinemaRuntimeCreateOptions = {}): CinemaRuntimeCreateResult {
@@ -121,6 +121,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     compositionId: null, compositionRevision: null, planCacheKey: null, planCacheSize: 0,
     activeNodeCount: 0, initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null,
     outputRendered: false, safeOutputActive: true, modulationRouteCount: 0, activeModulationRouteCount: 0, diagnostics: createCinemaDiagnosticSnapshot([]),
+    performanceRuleCount: 0, activePerformanceRuleCount: 0, activePerformanceTransientCount: 0,
   }
   private fpsFrameCount = 0
   private fpsWindowStartedMs = 0
@@ -204,7 +205,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.report(createCinemaDiagnostic({
       code: 'CINEMA_SAFE_OUTPUT_ACTIVE',
       severity: 'info',
-      message: 'Cinema runtime is active with Stage 9 Shader-scene adapters, compiled graph execution, and safe-output isolation.',
+      message: 'Cinema runtime is active with deterministic performance choreography, compiled graph execution, adapter-backed state commands, and safe-output isolation.',
       attribution: { stage: 'cinema-runtime' },
     }))
   }

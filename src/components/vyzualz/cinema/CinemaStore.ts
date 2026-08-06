@@ -35,7 +35,7 @@ import {
 } from './CinemaPersistence'
 
 export const CINEMA_PERSIST_STORAGE_NAME = 'drmvyz:cinema-store' as const
-export const CINEMA_PERSIST_MIDDLEWARE_VERSION = 2 as const
+export const CINEMA_PERSIST_MIDDLEWARE_VERSION = 3 as const
 
 export interface CinemaHistoryEntry {
   label: string

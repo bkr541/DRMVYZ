@@ -19,6 +19,8 @@ import {
   type CinemaCompositionInstanceId,
 } from './CinemaIdentifiers'
 import {
+  CINEMA_STAGE_12_MIGRATION_TIMESTAMP,
+  migrateCinemaCompositionInput,
   normalizeCinemaPersistedState,
   persistedStateFromCinemaPackage,
   type CinemaMigrationProvenance,
@@ -56,42 +58,43 @@ export function preflightCinemaPackage(input: unknown): CinemaPackageDecodeResul
     if (!isCinemaJsonValue(input)) {
       return failure([importDiagnostic('Cinema package contains a runtime resource or non-JSON value.')])
     }
-    if (input.schemaId !== CINEMA_PACKAGE_SCHEMA_ID) {
+    const migratedInput = migrateCinemaPackageInput(input)
+    if (migratedInput.schemaId !== CINEMA_PACKAGE_SCHEMA_ID) {
       return failure([importDiagnostic(
         `Cinema package schema must be "${CINEMA_PACKAGE_SCHEMA_ID}".`,
-        { schemaId: String(input.schemaId ?? '<missing>') },
+        { schemaId: String(migratedInput.schemaId ?? '<missing>') },
       )])
     }
-    if (input.schemaVersion !== CINEMA_PACKAGE_SCHEMA_VERSION) {
+    if (migratedInput.schemaVersion !== CINEMA_PACKAGE_SCHEMA_VERSION) {
       return failure([createCinemaDiagnostic({
         code: 'CINEMA_SCHEMA_VERSION_UNSUPPORTED',
         severity: 'error',
-        message: `Cinema package schema version "${String(input.schemaVersion)}" is unsupported.`,
+        message: `Cinema package schema version "${String(migratedInput.schemaVersion)}" is unsupported.`,
         details: {
-          receivedVersion: typeof input.schemaVersion === 'number' ? input.schemaVersion : -1,
+          receivedVersion: typeof migratedInput.schemaVersion === 'number' ? migratedInput.schemaVersion : -1,
           supportedVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
         },
       })])
     }
 
     const diagnostics: CinemaDiagnostic[] = []
-    const unknownKeys = Object.keys(input).filter(key => !PACKAGE_KEYS.has(key)).sort(compareStrings)
+    const unknownKeys = Object.keys(migratedInput).filter(key => !PACKAGE_KEYS.has(key)).sort(compareStrings)
     if (unknownKeys.length > 0) {
       diagnostics.push(importDiagnostic('Cinema package contains unknown root fields.', {
         fields: unknownKeys.join(','),
       }))
     }
-    const exportedAt = typeof input.exportedAt === 'string' && Number.isFinite(Date.parse(input.exportedAt))
-      ? input.exportedAt
+    const exportedAt = typeof migratedInput.exportedAt === 'string' && Number.isFinite(Date.parse(migratedInput.exportedAt))
+      ? migratedInput.exportedAt
       : ''
     if (!exportedAt) diagnostics.push(importDiagnostic('Cinema package exportedAt must be a valid ISO date string.'))
 
-    const definitions = readArray<CinemaPersistedDefinition>(input, 'definitions', diagnostics, true)
-    const compositions = readArray<CinemaCompositionDefinition>(input, 'compositions', diagnostics)
-    const instances = readArray<CinemaCompositionInstance>(input, 'instances', diagnostics)
-    const collections = readArray<CinemaCollectionDefinition>(input, 'collections', diagnostics)
-    const assetIds = readArray<CinemaAssetId>(input, 'assetIds', diagnostics)
-    const migrationProvenance = readArray<CinemaMigrationProvenance>(input, 'migrationProvenance', diagnostics, true)
+    const definitions = readArray<CinemaPersistedDefinition>(migratedInput, 'definitions', diagnostics, true)
+    const compositions = readArray<CinemaCompositionDefinition>(migratedInput, 'compositions', diagnostics)
+    const instances = readArray<CinemaCompositionInstance>(migratedInput, 'instances', diagnostics)
+    const collections = readArray<CinemaCollectionDefinition>(migratedInput, 'collections', diagnostics)
+    const assetIds = readArray<CinemaAssetId>(migratedInput, 'assetIds', diagnostics)
+    const migrationProvenance = readArray<CinemaMigrationProvenance>(migratedInput, 'migrationProvenance', diagnostics, true)
 
     const assetIdSet = new Set<string>()
     for (const assetId of assetIds) {
@@ -127,19 +130,19 @@ export function preflightCinemaPackage(input: unknown): CinemaPackageDecodeResul
       instances,
       collections,
       assetIds,
-      ...(input.activeCompositionId === undefined
+      ...(migratedInput.activeCompositionId === undefined
         ? {}
-        : { activeCompositionId: input.activeCompositionId as CinemaCompositionId | null }),
-      ...(input.activeInstanceId === undefined
+        : { activeCompositionId: migratedInput.activeCompositionId as CinemaCompositionId | null }),
+      ...(migratedInput.activeInstanceId === undefined
         ? {}
-        : { activeInstanceId: input.activeInstanceId as CinemaCompositionInstanceId | null }),
-      ...(isPlainRecord(input.editorMetadata)
-        ? { editorMetadata: input.editorMetadata as CinemaJsonObject }
+        : { activeInstanceId: migratedInput.activeInstanceId as CinemaCompositionInstanceId | null }),
+      ...(isPlainRecord(migratedInput.editorMetadata)
+        ? { editorMetadata: migratedInput.editorMetadata as CinemaJsonObject }
         : {}),
-      ...(input.migrationProvenance === undefined ? {} : { migrationProvenance }),
+      ...(migratedInput.migrationProvenance === undefined ? {} : { migrationProvenance }),
     }
 
-    if (input.editorMetadata !== undefined && !isPlainRecord(input.editorMetadata)) {
+    if (migratedInput.editorMetadata !== undefined && !isPlainRecord(migratedInput.editorMetadata)) {
       diagnostics.push(importDiagnostic('Cinema package editorMetadata must be a plain JSON object.'))
     }
 
@@ -151,6 +154,23 @@ export function preflightCinemaPackage(input: unknown): CinemaPackageDecodeResul
     return failure([importDiagnostic('Cinema package could not be preflighted safely.', {
       reason: error instanceof Error ? error.message : String(error),
     })])
+  }
+}
+
+function migrateCinemaPackageInput(input: Record<string, unknown>): Record<string, unknown> {
+  if (input.schemaVersion !== 1) return input
+  const provenance = Array.isArray(input.migrationProvenance) ? input.migrationProvenance : []
+  return {
+    ...input,
+    schemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
+    compositions: Array.isArray(input.compositions)
+      ? input.compositions.map(migrateCinemaCompositionInput)
+      : input.compositions,
+    migrationProvenance: [...provenance, {
+      fromSchemaVersion: 1,
+      toSchemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
+      migratedAt: CINEMA_STAGE_12_MIGRATION_TIMESTAMP,
+    }],
   }
 }
 

@@ -39,6 +39,7 @@ import {
   validateCinemaMasterParameterBinding,
   validateCinemaParameterSchemas,
 } from './CinemaParameterSchema'
+import { validateCinemaPerformanceRules } from './CinemaPerformanceRuntime'
 
 export const CINEMA_COMPILED_GRAPH_VERSION = 1 as const
 
@@ -257,6 +258,7 @@ function analyzeGraph(
   validateNodeParameters(composition, allNodes, entriesByNodeId, diagnostics)
   validateAssets(composition, allNodes, options.availableAssetIds, diagnostics)
   validateParameterDestinations(composition, allNodes, entriesByNodeId, diagnostics)
+  diagnostics.push(...validateCinemaPerformanceRules(composition))
 
   const activeOutputNodeId = validateOutput(composition, activeNodes, entriesByNodeId, diagnostics)
   const resolvedConnections = resolveConnections(

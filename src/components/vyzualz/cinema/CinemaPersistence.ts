@@ -3,6 +3,8 @@ import {
   CINEMA_COMPOSITION_SCHEMA_VERSION,
   CINEMA_PACKAGE_SCHEMA_ID,
   CINEMA_PACKAGE_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
   isCinemaJsonValue,
   type CinemaCollectionDefinition,
   type CinemaCompositionDefinition,
@@ -38,9 +40,10 @@ import { validateCinemaCompositionGraph } from './CinemaGraphCompiler'
 import { validateCinemaParameterSchemas } from './CinemaParameterSchema'
 
 export const CINEMA_PERSISTED_STORE_SCHEMA_ID = 'drmvyz.cinema.store' as const
-export const CINEMA_PERSISTED_STORE_SCHEMA_VERSION = 1 as const
+export const CINEMA_PERSISTED_STORE_SCHEMA_VERSION = 2 as const
 export const CINEMA_DEFAULT_HISTORY_LIMIT = 50 as const
 export const CINEMA_MAX_HISTORY_LIMIT = 200 as const
+export const CINEMA_STAGE_12_MIGRATION_TIMESTAMP = '2026-08-06T00:00:00.000Z' as const
 
 export interface CinemaMigrationProvenance {
   fromSchemaVersion: number
@@ -128,6 +131,61 @@ export function cloneCinemaSerializable<Value>(value: Value): Value {
   return JSON.parse(JSON.stringify(value)) as Value
 }
 
+/** Migrates only known Stage 4/11 JSON contracts. Future versions remain rejected. */
+export function migrateCinemaPersistedStateInput(input: Record<string, unknown>): Record<string, unknown> {
+  if (input.schemaVersion !== 1) return input
+  const provenance = Array.isArray(input.migrationProvenance) ? input.migrationProvenance : []
+  return {
+    ...input,
+    schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+    compositions: Array.isArray(input.compositions)
+      ? input.compositions.map(migrateCinemaCompositionInput)
+      : input.compositions,
+    migrationProvenance: [...provenance, {
+      fromSchemaVersion: 1,
+      toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+      migratedAt: CINEMA_STAGE_12_MIGRATION_TIMESTAMP,
+    }],
+  }
+}
+
+export function migrateCinemaCompositionInput(input: unknown): unknown {
+  if (!isPlainRecord(input) || input.schemaVersion !== 1) return input
+  return {
+    ...input,
+    schemaVersion: CINEMA_COMPOSITION_SCHEMA_VERSION,
+    performanceRules: Array.isArray(input.performanceRules)
+      ? input.performanceRules.map(migrateCinemaPerformanceRuleInput)
+      : input.performanceRules,
+  }
+}
+
+function migrateCinemaPerformanceRuleInput(input: unknown): unknown {
+  if (!isPlainRecord(input)) return input
+  const ruleId = typeof input.id === 'string' ? input.id : 'performance-rule'
+  return {
+    ...input,
+    schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
+    condition: isPlainRecord(input.condition)
+      ? { ...input.condition, schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION }
+      : input.condition,
+    actions: Array.isArray(input.actions)
+      ? input.actions.map((action, index) => migrateCinemaPerformanceActionInput(action, ruleId, index))
+      : input.actions,
+  }
+}
+
+function migrateCinemaPerformanceActionInput(input: unknown, ruleId: string, index: number): unknown {
+  if (!isPlainRecord(input)) return input
+  const { actionId: _legacyResetActionId, ...action } = input
+  return {
+    ...action,
+    schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+    id: typeof input.id === 'string' ? input.id : `${ruleId}-action-${index + 1}`,
+    type: action.type === 'reset-node-state' ? 'resetNodeState' : action.type,
+  }
+}
+
 export function snapshotCinemaPersistedState(
   state: Pick<CinemaPersistedState, keyof CinemaPersistedState>,
 ): CinemaPersistedState {
@@ -157,8 +215,9 @@ export function normalizeCinemaPersistedState(input: unknown): CinemaPersistence
       return failure([schemaDiagnostic('Cinema persisted state contains a runtime resource or non-JSON value.')])
     }
 
-    const schemaId = input.schemaId
-    const schemaVersion = input.schemaVersion
+    const migratedInput = migrateCinemaPersistedStateInput(input)
+    const schemaId = migratedInput.schemaId
+    const schemaVersion = migratedInput.schemaVersion
     if (schemaId !== CINEMA_PERSISTED_STORE_SCHEMA_ID) {
       return failure([schemaDiagnostic(
         `Cinema persisted state schema must be "${CINEMA_PERSISTED_STORE_SCHEMA_ID}".`,
@@ -178,7 +237,7 @@ export function normalizeCinemaPersistedState(input: unknown): CinemaPersistence
     }
 
     const diagnostics: CinemaDiagnostic[] = []
-    const unknownKeys = Object.keys(input).filter(key => !ROOT_KEYS.has(key)).sort(compareStrings)
+    const unknownKeys = Object.keys(migratedInput).filter(key => !ROOT_KEYS.has(key)).sort(compareStrings)
     if (unknownKeys.length > 0) {
       diagnostics.push(schemaDiagnostic('Cinema persisted state contains unknown root fields.', {
         fields: unknownKeys.join(','),
@@ -188,23 +247,23 @@ export function normalizeCinemaPersistedState(input: unknown): CinemaPersistence
     const candidate: CinemaPersistedState = {
       schemaId: CINEMA_PERSISTED_STORE_SCHEMA_ID,
       schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
-      definitions: readArray(input, 'definitions', diagnostics) as unknown as readonly CinemaPersistedDefinition[],
-      compositions: readArray(input, 'compositions', diagnostics) as unknown as readonly CinemaCompositionDefinition[],
-      instances: readArray(input, 'instances', diagnostics) as unknown as readonly CinemaCompositionInstance[],
-      collections: readArray(input, 'collections', diagnostics) as unknown as readonly CinemaCollectionDefinition[],
-      activeCompositionId: input.activeCompositionId == null
+      definitions: readArray(migratedInput, 'definitions', diagnostics) as unknown as readonly CinemaPersistedDefinition[],
+      compositions: readArray(migratedInput, 'compositions', diagnostics) as unknown as readonly CinemaCompositionDefinition[],
+      instances: readArray(migratedInput, 'instances', diagnostics) as unknown as readonly CinemaCompositionInstance[],
+      collections: readArray(migratedInput, 'collections', diagnostics) as unknown as readonly CinemaCollectionDefinition[],
+      activeCompositionId: migratedInput.activeCompositionId == null
         ? null
-        : input.activeCompositionId as CinemaCompositionId,
-      activeInstanceId: input.activeInstanceId == null
+        : migratedInput.activeCompositionId as CinemaCompositionId,
+      activeInstanceId: migratedInput.activeInstanceId == null
         ? null
-        : input.activeInstanceId as CinemaCompositionInstanceId,
-      editorMetadata: isPlainRecord(input.editorMetadata)
-        ? input.editorMetadata as CinemaJsonObject
+        : migratedInput.activeInstanceId as CinemaCompositionInstanceId,
+      editorMetadata: isPlainRecord(migratedInput.editorMetadata)
+        ? migratedInput.editorMetadata as CinemaJsonObject
         : {},
-      migrationProvenance: readArray(input, 'migrationProvenance', diagnostics) as unknown as readonly CinemaMigrationProvenance[],
+      migrationProvenance: readArray(migratedInput, 'migrationProvenance', diagnostics) as unknown as readonly CinemaMigrationProvenance[],
     }
 
-    if (input.editorMetadata !== undefined && !isPlainRecord(input.editorMetadata)) {
+    if (migratedInput.editorMetadata !== undefined && !isPlainRecord(migratedInput.editorMetadata)) {
       diagnostics.push(schemaDiagnostic('Cinema editor metadata must be a plain JSON object.'))
     }
 
@@ -691,6 +750,7 @@ function validateCinemaCompositionEnvelope(
   }
 
   const ruleIds = new Set<string>()
+  const performanceActionIds = new Set<string>()
   for (const rule of composition.performanceRules) {
     if (!isPlainRecord(rule) || !Array.isArray(rule.actions)) {
       diagnostics.push(schemaDiagnostic('Cinema performance rule must include an action list.', {
@@ -700,6 +760,13 @@ function validateCinemaCompositionEnvelope(
     }
     diagnostics.push(...parseCinemaStableId(rule.id, 'performance rule').diagnostics)
     const ruleId = String(rule.id)
+    if (rule.schemaVersion !== CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION
+      || !isPlainRecord(rule.condition)
+      || rule.condition.schemaVersion !== CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION) {
+      diagnostics.push(schemaDiagnostic('Cinema performance rule or condition schema version is unsupported.', {
+        compositionId: String(composition.id), ruleId,
+      }))
+    }
     if (ruleIds.has(ruleId)) diagnostics.push(duplicateDiagnostic('performance rule', ruleId))
     ruleIds.add(ruleId)
     for (const action of rule.actions) {
@@ -710,7 +777,21 @@ function validateCinemaCompositionEnvelope(
         }))
         continue
       }
-      if (action.type === 'reset-node-state' && !nodeIds.has(String(action.nodeId))) {
+      diagnostics.push(...parseCinemaStableId(action.id, 'performance action').diagnostics)
+      const actionId = String(action.id)
+      if (performanceActionIds.has(actionId)) diagnostics.push(duplicateDiagnostic('performance action', actionId))
+      performanceActionIds.add(actionId)
+      if (action.schemaVersion !== CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION) {
+        diagnostics.push(schemaDiagnostic('Cinema performance action schema version is unsupported.', {
+          compositionId: String(composition.id), ruleId, actionId: String(action.id),
+        }))
+      }
+      if ((action.type === 'resetNodeState'
+        || action.type === 'resetFeedback'
+        || action.type === 'reseedSimulation'
+        || action.type === 'clearTrailHistory'
+        || action.type === 'set-node-enabled'
+        || action.type === 'set-effect-enabled') && !nodeIds.has(String(action.nodeId))) {
         diagnostics.push(schemaDiagnostic('Cinema performance action references a missing node.', {
           compositionId: String(composition.id),
           ruleId,

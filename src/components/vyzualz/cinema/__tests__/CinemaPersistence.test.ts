@@ -4,6 +4,8 @@ import {
   CINEMA_COMPOSITION_SCHEMA_VERSION,
   CINEMA_PACKAGE_SCHEMA_ID,
   CINEMA_PACKAGE_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
   CINEMA_PERSISTED_STORE_SCHEMA_ID,
   CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
   CINEMA_SAFE_OUTPUT_DESCRIPTOR,
@@ -21,6 +23,7 @@ import {
   normalizeCinemaPersistedState,
   preflightCinemaPackage,
   snapshotCinemaPersistedState,
+  type CinemaActionId,
   type CinemaAssetBindingId,
   type CinemaAssetId,
   type CinemaCollectionDefinition,
@@ -183,12 +186,18 @@ function composition(id: CinemaCompositionId = compositionId): CinemaComposition
       enabled: true,
     }],
     performanceRules: [{
+      schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
       id: stable<CinemaPerformanceRuleId>('drop-rule', 'performance rule'),
       label: 'Drop Rule',
       priority: 10,
       enabled: true,
-      condition: { event: namespaced<CinemaEventId>('music.drop-start', 'event') },
+      condition: {
+        schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
+        event: namespaced<CinemaEventId>('music.drop-start', 'event'),
+      },
       actions: [{
+        schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+        id: stable<CinemaActionId>('drop-intensity-action', 'performance action'),
         type: 'set-parameter',
         destination: createCinemaParameterPath('master', intensityId),
         value: 1.5,
@@ -234,10 +243,10 @@ function populatedState() {
 }
 
 describe('Cinema persisted state and migrations', () => {
-  it('initializes and reloads a valid schema-v1 canonical state', () => {
+  it('initializes and reloads the current canonical state', () => {
     const fresh = createCinemaStore()
     expect(fresh.getState().schemaId).toBe(CINEMA_PERSISTED_STORE_SCHEMA_ID)
-    expect(fresh.getState().schemaVersion).toBe(1)
+    expect(fresh.getState().schemaVersion).toBe(CINEMA_PERSISTED_STORE_SCHEMA_VERSION)
     expect(fresh.getState().activeCompositionId).toBe(CINEMA_SHADER_REFERENCE_COMPOSITION.id)
     expect(fresh.getState().compositions).toHaveLength(3)
     expect(fresh.getState().compositions.some(candidate => candidate.id === CINEMA_SHADER_REFERENCE_COMPOSITION.id)).toBe(true)
@@ -274,6 +283,44 @@ describe('Cinema persisted state and migrations', () => {
     expect(result.value.editorMetadata).toEqual({})
     expect(result.value.migrationProvenance).toEqual([])
     expect(result.value.compositions).toEqual(candidate.compositions)
+  })
+
+  it('migrates Stage 4 schema-v1 rules and actions to the Stage 12 contract', () => {
+    const legacy = JSON.parse(JSON.stringify(populatedState())) as {
+      schemaVersion: number
+      compositions: Array<{
+        schemaVersion: number
+        performanceRules: Array<{
+          schemaVersion?: number
+          condition: { schemaVersion?: number }
+          actions: Array<{ schemaVersion?: number; id?: string }>
+        }>
+      }>
+    }
+    legacy.schemaVersion = 1
+    legacy.compositions[0].schemaVersion = 1
+    delete legacy.compositions[0].performanceRules[0].schemaVersion
+    delete legacy.compositions[0].performanceRules[0].condition.schemaVersion
+    delete legacy.compositions[0].performanceRules[0].actions[0].schemaVersion
+    delete legacy.compositions[0].performanceRules[0].actions[0].id
+
+    const result = normalizeCinemaPersistedState(legacy)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const migratedRule = result.value.compositions[0].performanceRules[0]
+    expect(result.value.schemaVersion).toBe(CINEMA_PERSISTED_STORE_SCHEMA_VERSION)
+    expect(result.value.compositions[0].schemaVersion).toBe(CINEMA_COMPOSITION_SCHEMA_VERSION)
+    expect(migratedRule.schemaVersion).toBe(CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION)
+    expect(migratedRule.condition.schemaVersion).toBe(CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION)
+    expect(migratedRule.actions[0]).toMatchObject({
+      schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+      id: 'drop-rule-action-1',
+    })
+    expect(result.value.migrationProvenance).toContainEqual({
+      fromSchemaVersion: 1,
+      toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+      migratedAt: '2026-08-06T00:00:00.000Z',
+    })
   })
 })
 
@@ -354,7 +401,46 @@ describe('Cinema package preflight and atomic import/export', () => {
     expect(snapshotCinemaPersistedState(target.getState())).toEqual(snapshotCinemaPersistedState(store.getState()))
   })
 
-  it('accepts schema-v1 packages that rely on external runtime definitions', () => {
+  it('migrates schema-v1 packages before atomic preflight', () => {
+    const current = createCinemaPackageFromPersistedState(populatedState(), {
+      exportedAt: '2026-08-06T11:00:00.000Z',
+    })
+    const legacy = JSON.parse(JSON.stringify(current)) as {
+      schemaVersion: number
+      migrationProvenance?: Array<{ fromSchemaVersion: number; toSchemaVersion: number; migratedAt: string }>
+      compositions: Array<{
+        schemaVersion: number
+        performanceRules: Array<{
+          schemaVersion?: number
+          condition: { schemaVersion?: number }
+          actions: Array<{ schemaVersion?: number; id?: string }>
+        }>
+      }>
+    }
+    legacy.schemaVersion = 1
+    legacy.compositions[0].schemaVersion = 1
+    delete legacy.compositions[0].performanceRules[0].schemaVersion
+    delete legacy.compositions[0].performanceRules[0].condition.schemaVersion
+    delete legacy.compositions[0].performanceRules[0].actions[0].schemaVersion
+    delete legacy.compositions[0].performanceRules[0].actions[0].id
+
+    const preflight = preflightCinemaPackage(legacy)
+    expect(preflight.ok).toBe(true)
+    if (!preflight.ok) return
+    expect(preflight.value.schemaVersion).toBe(CINEMA_PACKAGE_SCHEMA_VERSION)
+    expect(preflight.value.compositions[0].schemaVersion).toBe(CINEMA_COMPOSITION_SCHEMA_VERSION)
+    expect(preflight.value.compositions[0].performanceRules[0].actions[0]).toMatchObject({
+      schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+      id: 'drop-rule-action-1',
+    })
+    expect(preflight.value.migrationProvenance).toContainEqual({
+      fromSchemaVersion: 1,
+      toSchemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
+      migratedAt: '2026-08-06T00:00:00.000Z',
+    })
+  })
+
+  it('accepts packages that rely on external runtime definitions', () => {
     const canonical = createCinemaPackageFromPersistedState(populatedState(), {
       exportedAt: '2026-08-06T11:00:00.000Z',
     })

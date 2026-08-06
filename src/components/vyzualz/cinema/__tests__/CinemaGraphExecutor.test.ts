@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import {
   CINEMA_COMPOSITION_SCHEMA_ID,
   CINEMA_COMPOSITION_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
   type CinemaCompositionDefinition,
   type CinemaCompositionInstance,
 } from '../CinemaDomain'
@@ -21,6 +23,7 @@ import {
 } from '../CinemaFoundation'
 import type {
   CinemaAssetBindingId,
+  CinemaActionId,
   CinemaAssetId,
   CinemaCompositionId,
   CinemaCompositionInstanceId,
@@ -29,6 +32,7 @@ import type {
   CinemaNodeTypeId,
   CinemaPortId,
   CinemaRendererPluginId,
+  CinemaPerformanceRuleId,
 } from '../CinemaIdentifiers'
 import type { CinemaPersistedDefinition } from '../CinemaPersistence'
 import { CINEMA_MODULATION_SOURCE_IDS } from '../CinemaModulationSources'
@@ -250,6 +254,87 @@ describe('CinemaGraphExecutor', () => {
     targets.dispose()
     textures.dispose()
   })
+
+  it('evaluates coordinated performance actions through the production graph executor', () => {
+    const observedAngles: number[] = []
+    const resetCommands: string[] = []
+    const gradientPlugin: CinemaNodePlugin = {
+      definition: CINEMA_FOUNDATION_GRADIENT_DEFINITION,
+      createNode: node => ({
+        ...renderTargetNode(node, context => {
+          observedAngles.push(Number(context.values[CINEMA_FOUNDATION_ANGLE_PARAMETER_ID]))
+        }),
+        reset(context) {
+          if (context.command) resetCommands.push(context.command.type)
+        },
+      }),
+    }
+    const outputRegistration = CINEMA_FOUNDATION_RUNTIME_REGISTRY.getByPluginId(CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID)
+    expect(outputRegistration).toBeDefined()
+    if (!outputRegistration) return
+
+    const runtimeRegistry = createCinemaRuntimeNodeRegistry([
+      { pluginId: CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID, plugin: gradientPlugin },
+      outputRegistration,
+    ]).registry
+    const composition = structuredClone(CINEMA_FOUNDATION_COMPOSITION) as CinemaCompositionDefinition
+    composition.revision = 3
+    composition.performanceRules = [{
+      schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
+      id: 'drop-choreography' as CinemaPerformanceRuleId,
+      label: 'Drop Choreography',
+      priority: 100,
+      enabled: true,
+      condition: { schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION, event: 'dropStart' },
+      actions: [{
+        schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+        id: 'drop-angle' as CinemaActionId,
+        type: 'set-parameter',
+        destination: createCinemaParameterPath(
+          'nodes',
+          CINEMA_FOUNDATION_ANGLE_PARAMETER_ID,
+          CINEMA_FOUNDATION_GRADIENT_NODE_ID,
+        ),
+        value: 80,
+      }, {
+        schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+        id: 'drop-reset' as CinemaActionId,
+        type: 'resetNodeState',
+        nodeId: CINEMA_FOUNDATION_GRADIENT_NODE_ID,
+      }],
+    }]
+
+    const gl = createCinemaMockWebGL()
+    const sink = { report: () => {} }
+    const viewport = { width: 320, height: 180, dpr: 1 }
+    const textures = new CinemaTextureManager()
+    const targets = new CinemaRenderTargetPool(gl, textures, viewport, sink)
+    const webgl = new CinemaWebGLRenderServiceImpl(gl, targets, textures)
+    const executor = new CinemaGraphExecutor({
+      runtimeRegistry,
+      platform: {
+        webgl2: true, canvas2d: false, floatColorTargets: false, floatBlending: false,
+        textureArrays: true, instancing: true, timerQueries: false,
+        maximumTextureSize: 8192, maximumTextureUnits: 16,
+      },
+      targets,
+      textures,
+      webgl,
+      diagnostics: sink,
+    })
+
+    executor.resize({ width: 1, height: 1, dpr: 1 }, viewport)
+    executor.setGraph({ composition, instance: null, definitions: CINEMA_FOUNDATION_PERSISTED_DEFINITIONS })
+    expect(executor.render(performanceFrame())).toBe(true)
+    expect(observedAngles).toEqual([80])
+    expect(resetCommands).toEqual(['resetNodeState'])
+    expect(executor.getSnapshot()).toMatchObject({ performanceRuleCount: 1, activePerformanceRuleCount: 1 })
+    expect(composition.nodes[0].parameterValues[CINEMA_FOUNDATION_ANGLE_PARAMETER_ID]).toBe(25)
+
+    executor.dispose()
+    targets.dispose()
+    textures.dispose()
+  })
 })
 
 function renderTargetNode(
@@ -400,7 +485,7 @@ function modulationFrame(bass: number): Readonly<CinemaFrameContext> {
       fft: null,
       waveform: null,
     },
-  } as Readonly<CinemaFrameContext>
+  } as unknown as Readonly<CinemaFrameContext>
 }
 
 function frame(reset: boolean): Readonly<CinemaFrameContext> {
@@ -425,6 +510,39 @@ function frame(reset: boolean): Readonly<CinemaFrameContext> {
         actionIds: reset ? ['cinema.reset.seek'] : [],
         identity: null,
       },
+    },
+  } as unknown as Readonly<CinemaFrameContext>
+}
+
+function performanceFrame(): Readonly<CinemaFrameContext> {
+  const clock = { available: true, spanBeats: 1, index: 32, phase: 0, hit: false, eventId: null }
+  return {
+    ...modulationFrame(0),
+    version: 1,
+    music: {
+      available: true, source: 'music-intelligence', bpm: 120, beatIndex: 32, beatPhase: 0,
+      beatInBar: 0, barIndex: 8, phraseIndex: 2, sectionId: 'drop-section', sectionType: 'drop', sectionProgress: 0,
+      clocks: {
+        beat: false, beat2: false, beat4: false, bar: false, bar4: false, bar8: false, phrase: false,
+        states: { beat: clock, beat2: clock, beat4: clock, bar: clock, bar4: clock, bar8: clock, phrase: clock },
+      },
+    },
+    lyrics: { available: false, vocalsActive: false, cue: null, word: null },
+    impulses: {
+      beat: false, downbeat: false, kick: false, snare: false, transient: false,
+      sectionStart: true, dropStart: true, lyricCue: false, lyricWord: false, phrase4: false, phrase8: false,
+      eventIds: {
+        beat: null, downbeat: null, kick: null, snare: null, transient: null,
+        sectionStart: 'music:drop-section' as import('../CinemaIdentifiers').CinemaEventId,
+        dropStart: 'music:drop-section' as import('../CinemaIdentifiers').CinemaEventId,
+        lyricCue: null, lyricWord: null, phrase4: null, phrase8: null,
+      },
+    },
+    performance: { events: [], actionIds: [], toggleStates: {} },
+    brand: { available: false, palette: {}, logoAssetId: null },
+    capabilities: {
+      analyser: true, musicIntelligence: true, authoritativeSections: true,
+      lyrics: false, sharedPerformance: true, brandKit: false,
     },
   } as unknown as Readonly<CinemaFrameContext>
 }

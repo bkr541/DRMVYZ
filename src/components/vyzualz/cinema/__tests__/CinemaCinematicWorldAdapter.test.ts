@@ -7,12 +7,19 @@ import {
   CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
   CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
   CINEMA_FOUNDATION_RUNTIME_REGISTRY,
+  CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
+  CINEMA_PERFORMANCE_STATE_ACTION_IDS,
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   cinemaCinematicResetReason,
   cinemaCinematicWorldTypeId,
   createCinemaCinematicWorldAdapterBundle,
   createCinemaCinematicWorldComposition,
   createCinemaFoundationPersistedState,
+  type CinemaActionId,
+  type CinemaCompositionDefinition,
+  type CinemaEventId,
+  type CinemaPerformanceRuleId,
 } from '..'
 import { cinemaStableId, type CinemaCompositionId } from '../CinemaIdentifiers'
 import type { CinemaFrameContext } from '../CinemaRendererContracts'
@@ -26,6 +33,13 @@ import { cinematicWorldDefinitions } from '../../react/renderers/cinematic/world
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 
 describe('Cinema Cinematic World adapters', () => {
+  it('maps Stage 12 stateful commands through the shared reset contract', () => {
+    expect(cinemaCinematicResetReason(CINEMA_PERFORMANCE_STATE_ACTION_IDS.resetNodeState)).toBe('manualReset')
+    expect(cinemaCinematicResetReason(CINEMA_PERFORMANCE_STATE_ACTION_IDS.resetFeedback)).toBe('manualReset')
+    expect(cinemaCinematicResetReason(CINEMA_PERFORMANCE_STATE_ACTION_IDS.reseedSimulation)).toBe('manualReset')
+    expect(cinemaCinematicResetReason(CINEMA_PERFORMANCE_STATE_ACTION_IDS.clearTrailHistory)).toBe('manualReset')
+  })
+
   it('maps every built-in WebGL world and legacyPortal into stable Cinema procedural nodes', () => {
     expect(CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries).toHaveLength(cinematicWorldDefinitions.length + 1)
 
@@ -111,6 +125,48 @@ describe('Cinema Cinematic World adapters', () => {
     expect(first.gl.__calls.deletedVertexArrays).toBe(first.gl.__calls.createdVertexArrays)
     expect(second.gl.__calls.deletedBuffers).toBe(second.gl.__calls.createdBuffers)
     expect(second.gl.__calls.deletedVertexArrays).toBe(second.gl.__calls.createdVertexArrays)
+  })
+
+  it('dispatches Stage 12 reseed commands through an adapter-backed cinematic node', () => {
+    const state = createCinemaFoundationPersistedState()
+    const base = createCinemaCinematicWorldComposition(
+      'reactiveConstellation',
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+      { compositionId: cinemaStableId<CinemaCompositionId>('constellation-performance-reseed-test', 'composition') },
+    )
+    const cinematicNode = base.nodes.find(node => node.family === 'procedural')
+    expect(cinematicNode).toBeDefined()
+    if (!cinematicNode) return
+    const composition: CinemaCompositionDefinition = {
+      ...base,
+      revision: base.revision + 1,
+      performanceRules: [{
+        schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
+        id: 'constellation-drop-reseed-rule' as CinemaPerformanceRuleId,
+        label: 'Constellation Drop Reseed',
+        priority: 100,
+        enabled: true,
+        condition: { schemaVersion: CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION, event: 'dropStart' },
+        actions: [{
+          schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+          id: 'constellation-reseed' as CinemaActionId,
+          type: 'reseedSimulation',
+          nodeId: cinematicNode.id,
+        }],
+      }],
+    }
+    const harness = createExecutorHarness(CINEMA_PRODUCTION_RUNTIME_REGISTRY, state.definitions, false)
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+
+    expect(harness.executor.render(frame(0, false, true))).toBe(true)
+    expect(harness.executor.getSnapshot()).toMatchObject({
+      activePerformanceRuleCount: 1,
+      failedNodeCount: 0,
+    })
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RESET_FAILED')
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
   })
 
   it('renders a representative WebGL world through the production Cinema graph executor', () => {
@@ -298,7 +354,7 @@ function createCanvas2DStub(): HTMLCanvasElement {
   return canvas
 }
 
-function frame(generation: number, reset = false): Readonly<CinemaFrameContext> {
+function frame(generation: number, reset = false, dropStart = false): Readonly<CinemaFrameContext> {
   const clock = (spanBeats: number) => ({ available: true, spanBeats, index: 0, phase: 0.25, hit: false, eventId: null })
   return {
     version: 1,
@@ -344,7 +400,7 @@ function frame(generation: number, reset = false): Readonly<CinemaFrameContext> 
       complexity: 0.4,
       tension: 0.3,
       buildProgress: 0.2,
-      dropImpact: 0,
+      dropImpact: dropStart ? 1 : 0,
       vocalPresence: 0.1,
       fft: new Uint8Array([0, 64, 128, 255]),
       waveform: new Uint8Array([128, 160, 96, 128]),
@@ -386,8 +442,8 @@ function frame(generation: number, reset = false): Readonly<CinemaFrameContext> 
       kick: generation === 0,
       snare: false,
       transient: generation === 0,
-      sectionStart: false,
-      dropStart: false,
+      sectionStart: dropStart,
+      dropStart,
       lyricCue: false,
       lyricWord: false,
       phrase4: false,
@@ -398,8 +454,8 @@ function frame(generation: number, reset = false): Readonly<CinemaFrameContext> 
         kick: null,
         snare: null,
         transient: null,
-        sectionStart: null,
-        dropStart: null,
+        sectionStart: dropStart ? 'music:drop-section' as CinemaEventId : null,
+        dropStart: dropStart ? 'music:drop-section' as CinemaEventId : null,
         lyricCue: null,
         lyricWord: null,
         phrase4: null,
