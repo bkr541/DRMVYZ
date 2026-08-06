@@ -13,7 +13,6 @@ import {
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { RgbWaveformAnalysis } from '../../../../features/waveform/rgbWaveformTypes'
 import { useSharedAudio } from '../../../../context/AudioEngineContext'
-import { VyzualzAudioDock } from '../../shared/VyzualzAudioDock'
 import {
   drawTrackTimelineCanvas,
   formatTime,
@@ -29,7 +28,6 @@ import {
   type TrackTimelinePoint,
 } from './trackTimelineModel'
 import { TrackTimelineIcon } from './TrackTimelineIcon'
-import { WorkspaceRail } from '../../layout/WorkspaceRail'
 import { MusicIntelligenceDiagnosticsPanel } from '../../modulation/MusicIntelligenceDiagnosticsPanel'
 import {
   clampTrackTimelinePlayheadTime,
@@ -138,7 +136,8 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
   const energyRows: RowDefinition[] = [
     ['Instant Energy', 'energyCurves.instant', 'cyan'],
     ['Short-Term Energy', 'energyCurves.shortTerm', 'teal'],
-    ['Bass Energy', 'energyCurves.bass', 'orange'],
+    ['Low-Frequency Energy', 'energyCurves.bass', 'orange'],
+    ['Dynamic Range', 'barFeatures.dynamicRange', 'yellow'],
     ['Mid Energy', 'energyCurves.mid', 'magenta'],
     ['High Energy', 'energyCurves.high', 'purple'],
   ].flatMap(([label, key, color]) => {
@@ -355,12 +354,14 @@ function TimelineRow({
   playheadScope = 'detail',
   playheadAnchor = false,
   stickyLabel = false,
+  nested = false,
 }: RowDefinition & {
   model: TrackTimelineModel
   viewport?: TrackTimelineViewport
   playheadScope?: PlayheadScope
   playheadAnchor?: boolean
   stickyLabel?: boolean
+  nested?: boolean
 }) {
   const rangedSpec = useMemo<TrackTimelineCanvasSpec>(() => (
     viewport ? { ...spec, viewport } as TrackTimelineCanvasSpec : spec
@@ -368,14 +369,144 @@ function TimelineRow({
 
   return (
     <div className="ttv-timeline-row">
-      <div className={`ttv-row-label${stickyLabel ? ' ttv-row-label--sticky' : ''}`} title={label}>
+      <div className={`ttv-row-label${stickyLabel ? ' ttv-row-label--sticky' : ''}${nested ? ' ttv-row-label--nested' : ''}`} title={label}>
         <span className="ttv-label-text">{label}</span>
+        {nested && <span className="ttv-row-info" aria-hidden="true">i</span>}
         {count > 0 && <small>{count.toLocaleString()}</small>}
       </div>
       <div className={`ttv-canvas-wrap ttv-canvas-wrap--${playheadScope}${playheadAnchor ? ' ttv-canvas-wrap--playhead-anchor' : ''}`}>
         <TrackTimelineCanvas model={model} spec={rangedSpec} height={height} />
       </div>
     </div>
+  )
+}
+
+function OverviewTimelineRow({
+  model,
+  height,
+  spec,
+  playheadAnchor = false,
+}: {
+  model: TrackTimelineModel
+  height: number
+  spec: TrackTimelineCanvasSpec
+  playheadAnchor?: boolean
+}) {
+  return (
+    <div className="ttv-overview-row">
+      <div className={`ttv-canvas-wrap ttv-canvas-wrap--overview${playheadAnchor ? ' ttv-canvas-wrap--playhead-anchor' : ''}`}>
+        <TrackTimelineCanvas model={model} spec={spec} height={height} />
+      </div>
+    </div>
+  )
+}
+
+function DetailRuler({ model, viewport }: {
+  model: TrackTimelineModel
+  viewport: TrackTimelineViewport
+}) {
+  return (
+    <div className="ttv-detail-ruler-row">
+      <div className="ttv-detail-ruler-label" aria-hidden="true">
+        <span>BARS</span>
+        <span>BEATS</span>
+      </div>
+      <div className="ttv-canvas-wrap">
+        <TrackTimelineCanvas
+          model={model}
+          spec={{ kind: 'detailRuler', viewport }}
+          height={58}
+        />
+      </div>
+    </div>
+  )
+}
+
+type RailIconName = 'timeline' | 'detail' | 'expand' | 'collapse' | 'center' | 'settings'
+
+function RailIcon({ name }: { name: RailIconName }) {
+  if (name === 'timeline') return <TrackTimelineIcon />
+  if (name === 'detail') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 4v16M12 4v16M19 4v16M3 8h4M10 15h4M17 10h4" />
+        <circle cx="5" cy="8" r="1.6" /><circle cx="12" cy="15" r="1.6" /><circle cx="19" cy="10" r="1.6" />
+      </svg>
+    )
+  }
+  if (name === 'expand' || name === 'collapse') {
+    const inward = name === 'collapse'
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d={inward ? 'M8 4v5H3M16 4v5h5M8 20v-5H3M16 20v-5h5' : 'M3 9h5V4M21 9h-5V4M3 15h5v5M21 15h-5v5'} />
+      </svg>
+    )
+  }
+  if (name === 'center') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
+        <circle cx="12" cy="12" r="4.5" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.8v2.1M12 19.1v2.1M2.8 12h2.1M19.1 12h2.1M5.5 5.5 7 7M17 17l1.5 1.5M18.5 5.5 17 7M7 17l-1.5 1.5" />
+    </svg>
+  )
+}
+
+function TrackTimelineRail({
+  onOverview,
+  onDetail,
+  onExpand,
+  onCollapse,
+  onCenter,
+  onSettings,
+}: {
+  onOverview: () => void
+  onDetail: () => void
+  onExpand: () => void
+  onCollapse: () => void
+  onCenter: () => void
+  onSettings: () => void
+}) {
+  const actions: Array<{ name: RailIconName; label: string; onClick: () => void; active?: boolean }> = [
+    { name: 'timeline', label: 'Overview', onClick: onOverview, active: true },
+    { name: 'detail', label: 'Detail view', onClick: onDetail },
+    { name: 'expand', label: 'Expand all groups', onClick: onExpand },
+    { name: 'collapse', label: 'Collapse all groups', onClick: onCollapse },
+    { name: 'center', label: 'Center detail on playhead', onClick: onCenter },
+  ]
+
+  return (
+    <nav className="ttv-tool-rail" aria-label="Track timeline navigation">
+      <div className="ttv-tool-rail-main">
+        {actions.map(action => (
+          <button
+            key={action.name}
+            type="button"
+            className={`ttv-rail-btn${action.active ? ' ttv-rail-btn--active' : ''}`}
+            onClick={action.onClick}
+            aria-label={action.label}
+            title={action.label}
+          >
+            <RailIcon name={action.name} />
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="ttv-rail-btn"
+        onClick={onSettings}
+        aria-label="Analysis settings and track information"
+        title="Analysis settings and track information"
+      >
+        <RailIcon name="settings" />
+      </button>
+    </nav>
   )
 }
 
@@ -607,16 +738,15 @@ function TimelineGroup({ group, model, collapsed, viewport, onToggle }: {
         type="button"
         className="ttv-group-header"
         aria-expanded={!collapsed}
+        title={group.summary}
         onClick={onToggle}
       >
         <span className="ttv-group-title">
           <span className="ttv-chevron">⌄</span>
           <span>{group.title}</span>
+          <span className="ttv-group-toggle-mark" aria-hidden="true">{collapsed ? '+' : '−'}</span>
         </span>
-        <span className="ttv-group-summary">
-          <span className="ttv-summary-copy">{group.summary}</span>
-          <span className="ttv-count-badge">{group.rows.length}</span>
-        </span>
+        <span className="ttv-group-track" aria-hidden="true" />
       </button>
       {!collapsed && (
         <div className="ttv-group-content">
@@ -628,6 +758,7 @@ function TimelineGroup({ group, model, collapsed, viewport, onToggle }: {
                 model={model}
                 viewport={viewport}
                 playheadScope="detail"
+                nested
               />
             ))
             : <div className="ttv-empty-row">No compatible data was found for this group.</div>}
@@ -643,6 +774,8 @@ function zoomPresetLabel(preset: TrackTimelineZoomPreset): string {
 
 export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const appShellRef = useRef<HTMLDivElement>(null)
+  const overviewRef = useRef<HTMLDivElement>(null)
+  const detailRef = useRef<HTMLElement>(null)
   const playheadTimeRef = useRef<HTMLSpanElement>(null)
   const engine = useSharedAudio()
   const engineRef = useRef(engine)
@@ -661,7 +794,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   ), [model.bars, model.meta.bpm, model.meta.timeSignature])
   const minimumViewportDuration = Math.min(model.durationSec || 1, Math.max(1, barDuration * 4))
   const [activeZoom, setActiveZoom] = useState<TrackTimelineZoomPreset | 'custom'>(32)
-  const [infoRailCollapsed, setInfoRailCollapsed] = useState(false)
+  const [analysisPanelOpen, setAnalysisPanelOpen] = useState(false)
   const [viewport, setViewport] = useState<TrackTimelineViewport>(() => createTrackTimelineViewport(
     model.durationSec,
     model.bars,
@@ -740,6 +873,20 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
     model.meta.sampleRate ? `${Math.round(model.meta.sampleRate).toLocaleString()} Hz` : null,
   ].filter((value): value is string => Boolean(value))
 
+  const downbeatAvailable = model.beats.some(beat => beat.isDownbeat)
+  const analysisStatusText = downbeatAvailable
+    ? (model.warnings[0] ?? 'Analysis ready')
+    : 'Downbeat unavailable'
+  const analysisHasWarning = !downbeatAvailable || model.warnings.length > 0
+
+  const scrollToOverview = useCallback(() => {
+    overviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  const scrollToDetail = useCallback(() => {
+    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   return (
     <div
       ref={appShellRef}
@@ -754,175 +901,176 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
         viewport={viewport}
       />
 
-      <header className="ttv-window-header">
-        <div className="ttv-title-row">
-          <div className="ttv-logo-mark"><TrackTimelineIcon /></div>
-          <div>
-            <h1>Track Timeline</h1>
-          </div>
-        </div>
-      </header>
-
       <div className="ttv-body">
-        <WorkspaceRail
-          side="left"
-          label="Track info"
-          collapsed={infoRailCollapsed}
-          onToggleCollapsed={() => setInfoRailCollapsed(value => !value)}
-        >
-          <div className="ttv-info-rail-body">
-            <div className="rv-ctrl-section-label">Track</div>
-            <span className="ttv-track-name" title={model.meta.filename}>{model.meta.filename}</span>
-            <div className="ttv-info-rail-pills">
-              {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
-              <span ref={playheadTimeRef} className="ttv-meta-pill ttv-playhead-time">
-                {formatTime(0)} / {formatTime(model.durationSec)}
-              </span>
-            </div>
+        <TrackTimelineRail
+          onOverview={scrollToOverview}
+          onDetail={scrollToDetail}
+          onExpand={() => setAllCollapsed(false)}
+          onCollapse={() => setAllCollapsed(true)}
+          onCenter={centerDetailOnPlayhead}
+          onSettings={() => setAnalysisPanelOpen(value => !value)}
+        />
 
-            <div className="rv-ctrl-section-label">Audio Intelligence</div>
-            <MusicIntelligenceDiagnosticsPanel />
-          </div>
-        </WorkspaceRail>
-
-      <section className="ttv-visualization-shell">
-        <div className="ttv-scroll-region">
-          <div className="ttv-sticky-timeline">
-            <div className="ttv-zoom-row">
-              <div className="ttv-zoom-controls" role="group" aria-label="Detail zoom range">
-                {TRACK_TIMELINE_ZOOM_PRESETS.map(preset => (
+        <section className="ttv-visualization-shell">
+          <div className="ttv-scroll-region">
+            <div ref={overviewRef} className="ttv-sticky-timeline">
+              <div className="ttv-overview-heading">
+                <div className="ttv-overview-copy">
+                  <span>OVERVIEW</span>
+                  <small>Drag the cyan viewport or its handles to change the detail range.</small>
+                </div>
+                <div className="ttv-overview-actions">
                   <button
-                    key={preset}
                     type="button"
-                    className={`ttv-zoom-btn${activeZoom === preset ? ' ttv-zoom-btn--active' : ''}`}
-                    aria-pressed={activeZoom === preset}
-                    onClick={() => applyZoomPreset(preset)}
+                    className={`ttv-analysis-status${analysisHasWarning ? ' ttv-analysis-status--warning' : ''}`}
+                    onClick={() => setAnalysisPanelOpen(value => !value)}
+                    title={model.warnings.length ? model.warnings.join('\n') : analysisStatusText}
                   >
-                    {zoomPresetLabel(preset)}
+                    <span className="ttv-analysis-status-label">Analysis Status</span>
+                    <span className="ttv-analysis-status-value">
+                      {analysisHasWarning && <span className="ttv-warning-icon" aria-hidden="true">△</span>}
+                      {analysisStatusText}
+                    </span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    className="ttv-icon-btn"
+                    onClick={() => setAnalysisPanelOpen(value => !value)}
+                    aria-label="Open analysis settings"
+                    title="Open analysis settings"
+                  >
+                    <RailIcon name="settings" />
+                  </button>
+                  <details className="ttv-overflow-menu">
+                    <summary className="ttv-icon-btn" aria-label="Open track information menu" title="Track information">•••</summary>
+                    <div className="ttv-overflow-popover ttv-overflow-popover--overview">
+                      <strong title={model.meta.filename}>{model.meta.filename}</strong>
+                      <div className="ttv-info-rail-pills">
+                        {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
+                      </div>
+                      {model.warnings.length > 0 && (
+                        <div className="ttv-menu-warning">{model.warnings.slice(0, 3).join(' ')}</div>
+                      )}
+                    </div>
+                  </details>
+                </div>
+              </div>
+
+              <div className="ttv-overview-stack">
+                <OverviewTimelineRow
+                  model={model}
+                  height={86}
+                  spec={{ kind: 'beatGrid' }}
+                  playheadAnchor
+                />
+                <OverviewTimelineRow
+                  model={model}
+                  height={44}
+                  spec={{ kind: 'sections', sections: model.sections }}
+                />
+                <OverviewTimelineRow
+                  model={model}
+                  height={72}
+                  spec={{ kind: 'waveform' }}
+                />
+                <OverviewViewportNavigator
+                  viewport={viewport}
+                  durationSec={model.durationSec}
+                  minimumDurationSec={minimumViewportDuration}
+                  label={viewportLabel}
+                  onChange={updateViewport}
+                />
               </div>
             </div>
 
-            <div className="ttv-overview-heading">
-              <span>OVERVIEW</span>
-              <small>Drag the cyan viewport or its handles to change the detail range.</small>
-            </div>
-            <div className="ttv-overview-stack">
-              <TimelineRow
-                model={model}
-                label="WAVEFORM"
-                count={0}
-                height={64}
-                spec={{ kind: 'waveform' }}
-                playheadScope="overview"
-                playheadAnchor
-                stickyLabel
-              />
-              <TimelineRow
-                model={model}
-                label="BEAT GRID"
-                count={0}
-                height={42}
-                spec={{ kind: 'beatGrid' }}
-                playheadScope="overview"
-                stickyLabel
-              />
-              <TimelineRow
-                model={model}
-                label="TRACK SECTIONS"
-                count={model.sections.length}
-                height={48}
-                spec={{ kind: 'sections', sections: model.sections }}
-                playheadScope="overview"
-                stickyLabel
-              />
-              <OverviewViewportNavigator
-                viewport={viewport}
-                durationSec={model.durationSec}
-                minimumDurationSec={minimumViewportDuration}
-                label={viewportLabel}
-                onChange={updateViewport}
-              />
-            </div>
+            <main className="ttv-content-area">
+              <section ref={detailRef} className="ttv-detail-workspace">
+                <header className="ttv-detail-header">
+                  <div className="ttv-detail-heading-copy">
+                    <span className="ttv-detail-kicker">DETAIL VIEW (ZOOMED)</span>
+                    <strong>{formatTime(viewport.startSec)} → {formatTime(viewport.endSec)}</strong>
+                    <small>{visibleBars || 'Custom'}{visibleBars ? ' bars' : ' range'}</small>
+                    <small>{(viewport.endSec - viewport.startSec).toFixed(2)} seconds</small>
+                  </div>
+                  <div className="ttv-detail-header-actions">
+                    <div className="ttv-toolbar-actions">
+                      <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
+                      <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
+                    </div>
+                    <button type="button" className="ttv-center-playhead-btn" onClick={centerDetailOnPlayhead}>
+                      Center on playhead
+                    </button>
+                    <details className="ttv-overflow-menu ttv-overflow-menu--detail">
+                      <summary className="ttv-icon-btn" aria-label="Open detail range menu" title="Detail range">•••</summary>
+                      <div className="ttv-overflow-popover ttv-overflow-popover--detail">
+                        <span className="ttv-menu-label">Detail range</span>
+                        <div className="ttv-zoom-controls" role="group" aria-label="Detail zoom range">
+                          {TRACK_TIMELINE_ZOOM_PRESETS.map(preset => (
+                            <button
+                              key={preset}
+                              type="button"
+                              className={`ttv-zoom-btn${activeZoom === preset ? ' ttv-zoom-btn--active' : ''}`}
+                              aria-pressed={activeZoom === preset}
+                              onClick={() => applyZoomPreset(preset)}
+                            >
+                              {zoomPresetLabel(preset)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                </header>
+
+                <DetailRuler model={model} viewport={viewport} />
+                <div className="ttv-detail-playhead-line" aria-hidden="true" />
+
+                {groups.map(group => (
+                  <TimelineGroup
+                    key={group.id}
+                    group={group}
+                    model={model}
+                    viewport={viewport}
+                    collapsed={collapsed[group.id] ?? group.defaultCollapsed}
+                    onToggle={() => setCollapsed(current => ({ ...current, [group.id]: !current[group.id] }))}
+                  />
+                ))}
+              </section>
+            </main>
           </div>
 
-          {model.warnings.length > 0 && (
-            <div className="ttv-warning-banner">{model.warnings.slice(0, 3).join(' ')}</div>
-          )}
-
-          <main className="ttv-content-area">
-            <section className="ttv-detail-workspace">
-              <header className="ttv-detail-header">
+          {analysisPanelOpen && (
+            <aside className="ttv-analysis-panel" aria-label="Track analysis details">
+              <header className="ttv-analysis-panel-header">
                 <div>
-                  <span className="ttv-detail-kicker">DETAIL VIEW (ZOOMED)</span>
-                  <strong>{formatTime(viewport.startSec)} → {formatTime(viewport.endSec)}</strong>
-                  <small>{visibleBars || 'Custom'}{visibleBars ? ' bars' : ' range'} · {(viewport.endSec - viewport.startSec).toFixed(2)} seconds</small>
+                  <span>TRACK ANALYSIS</span>
+                  <strong title={model.meta.filename}>{model.meta.filename}</strong>
                 </div>
-                <div className="ttv-detail-header-actions">
-                  <div className="ttv-toolbar-actions">
-                    <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
-                    <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
-                  </div>
-                  <button type="button" className="ttv-center-playhead-btn" onClick={centerDetailOnPlayhead}>
-                    Center on playhead
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="ttv-icon-btn"
+                  onClick={() => setAnalysisPanelOpen(false)}
+                  aria-label="Close track analysis details"
+                >
+                  ×
+                </button>
               </header>
-
-              <TimelineRow
-                model={model}
-                label="WAVEFORM DETAIL"
-                count={model.waveform.length}
-                height={88}
-                spec={{ kind: 'waveform' }}
-                viewport={viewport}
-                playheadScope="detail"
-                playheadAnchor
-                stickyLabel
-              />
-              <TimelineRow
-                model={model}
-                label="BEAT GRID DETAIL"
-                count={model.beats.length}
-                height={58}
-                spec={{ kind: 'beatGrid' }}
-                viewport={viewport}
-                playheadScope="detail"
-                stickyLabel
-              />
-              <TimelineRow
-                model={model}
-                label="TRACK SECTIONS"
-                count={model.sections.length}
-                height={64}
-                spec={{ kind: 'sections', sections: model.sections }}
-                viewport={viewport}
-                playheadScope="detail"
-                stickyLabel
-              />
-
-              {groups.map(group => (
-                <TimelineGroup
-                  key={group.id}
-                  group={group}
-                  model={model}
-                  viewport={viewport}
-                  collapsed={collapsed[group.id] ?? group.defaultCollapsed}
-                  onToggle={() => setCollapsed(current => ({ ...current, [group.id]: !current[group.id] }))}
-                />
-              ))}
-            </section>
-          </main>
-        </div>
-      </section>
+              <div className="ttv-analysis-panel-body">
+                <div className="ttv-info-rail-pills">
+                  {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
+                  <span ref={playheadTimeRef} className="ttv-meta-pill ttv-playhead-time">
+                    {formatTime(0)} / {formatTime(model.durationSec)}
+                  </span>
+                </div>
+                {model.warnings.length > 0 && (
+                  <div className="ttv-warning-banner">{model.warnings.slice(0, 3).join(' ')}</div>
+                )}
+                <MusicIntelligenceDiagnosticsPanel />
+              </div>
+            </aside>
+          )}
+        </section>
       </div>
-
-      <VyzualzAudioDock
-        deckLabel="TRACK TIMELINE"
-        expandable
-        waveformAppearance="deck"
-      />
     </div>
   )
 }

@@ -20,6 +20,7 @@ type WithViewport<T> = T & { viewport?: TrackTimelineViewport }
 export type TrackTimelineCanvasSpec =
   | WithViewport<{ kind: 'waveform' }>
   | WithViewport<{ kind: 'beatGrid' }>
+  | WithViewport<{ kind: 'detailRuler' }>
   | WithViewport<{ kind: 'sections'; sections: TrackTimelineSection[] }>
   | WithViewport<{ kind: 'line'; points: TrackTimelinePoint[]; color: PaletteKey; curveName: string; fill: boolean }>
   | WithViewport<{ kind: 'heat'; points: TrackTimelinePoint[]; color: PaletteKey; metric: string }>
@@ -203,6 +204,9 @@ export function drawTrackTimelineCanvas(
     case 'beatGrid':
       drawBeatGrid(draw)
       break
+    case 'detailRuler':
+      drawDetailRuler(draw)
+      break
     case 'sections':
       drawSections(draw, spec.sections)
       break
@@ -300,6 +304,24 @@ function drawMasterGrid(draw: DrawContext, includeBeats = false) {
     ctx.beginPath()
     ctx.moveTo(x, 0)
     ctx.lineTo(x, height)
+    ctx.stroke()
+  })
+}
+
+function drawSectionContext(draw: DrawContext) {
+  const { ctx, width, height, model, palette, viewport } = draw
+  model.sections.forEach((section, index) => {
+    if (!overlapsViewport(section.start, section.end, viewport)) return
+    const x1 = timeToX(section.start, width, viewport)
+    const x2 = Math.max(x1 + 1, timeToX(section.end, width, viewport))
+    const color = sectionColor(palette, section.type, index)
+    ctx.fillStyle = rgba(color, 0.055)
+    ctx.fillRect(x1, 0, x2 - x1, height)
+    ctx.strokeStyle = rgba(color, 0.34)
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(x1 + 0.5, 0)
+    ctx.lineTo(x1 + 0.5, height)
     ctx.stroke()
   })
 }
@@ -450,6 +472,77 @@ function drawBeatGrid(draw: DrawContext) {
   })
 }
 
+function drawDetailRuler(draw: DrawContext) {
+  const { ctx, width, height, model, palette, fonts, hits, viewport } = draw
+  drawBackground(draw)
+  drawSectionContext(draw)
+
+  const dividerY = Math.round(height * 0.54) + 0.5
+  ctx.strokeStyle = rgba(palette.border, 0.52)
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(0, dividerY)
+  ctx.lineTo(width, dividerY)
+  ctx.stroke()
+
+  if (!model.bars.length) {
+    drawMasterGrid(draw, true)
+    drawTimeLabels(draw, 8)
+    drawCenteredMessage(draw, 'Bar ruler unavailable')
+    return
+  }
+
+  const visibleBars = model.bars.filter(bar => overlapsViewport(bar.start, bar.end, viewport))
+  ctx.textBaseline = 'top'
+
+  visibleBars.forEach(bar => {
+    const x1 = timeToX(bar.start, width, viewport)
+    const x2 = timeToX(bar.end, width, viewport)
+    ctx.strokeStyle = rgba(palette.cyan, 0.35)
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(x1 + 0.5, 0)
+    ctx.lineTo(x1 + 0.5, height)
+    ctx.stroke()
+
+    if (x2 - x1 > 20) {
+      ctx.fillStyle = rgba(palette.text, 0.86)
+      ctx.font = `700 9px ${fonts.data}`
+      ctx.fillText(String(bar.barNumber), x1 + 6, 7)
+    }
+  })
+
+  let lastBeatLabelX = -20
+  model.beats.forEach(beat => {
+    if (beat.time < viewport.startSec || beat.time > viewport.endSec) return
+    const x = timeToX(beat.time, width, viewport)
+    ctx.strokeStyle = beat.isDownbeat
+      ? rgba(palette.cyan, 0.42)
+      : rgba(palette.border, 0.26)
+    ctx.lineWidth = beat.isDownbeat ? 1 : 0.8
+    ctx.beginPath()
+    ctx.moveTo(x + 0.5, dividerY)
+    ctx.lineTo(x + 0.5, height)
+    ctx.stroke()
+
+    if (x - lastBeatLabelX > 10) {
+      lastBeatLabelX = x
+      ctx.fillStyle = beat.isDownbeat ? rgba(palette.cyan, 0.85) : rgba(palette.muted, 0.66)
+      ctx.font = `8px ${fonts.data}`
+      ctx.fillText(String(beat.beatWithinBar + 1), x + 3, dividerY + 7)
+    }
+  })
+
+  ctx.textBaseline = 'alphabetic'
+  hits.push({
+    x1: 0,
+    x2: width,
+    y1: 0,
+    y2: height,
+    text: `Detail ruler\n${visibleBars.length} visible bars · ${formatTime(viewport.startSec)} → ${formatTime(viewport.endSec)}`,
+  })
+}
+
 function drawTimeLabels(draw: DrawContext, y: number) {
   const { ctx, width, palette, fonts, viewport } = draw
   const step = niceTimeStep(viewport.endSec - viewport.startSec, width)
@@ -530,6 +623,7 @@ function sectionColor(palette: TrackTimelinePalette, type: string, index: number
 function drawLineRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'line' }>) {
   const { ctx, width, height, palette, hits, viewport } = draw
   drawBackground(draw)
+  drawSectionContext(draw)
   drawMasterGrid(draw)
   const points = pointsInViewport(spec.points, viewport)
   if (!points.length) {
@@ -581,6 +675,7 @@ function drawLineRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, {
 function drawHeatRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'heat' }>) {
   const { ctx, width, height, palette, viewport } = draw
   drawBackground(draw)
+  drawSectionContext(draw)
   drawMasterGrid(draw)
   const points = pointsInViewport(spec.points, viewport)
   if (!points.length) {
@@ -608,6 +703,7 @@ function drawHeatRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, {
 function drawEventRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'events' }>) {
   const { ctx, width, height, palette, fonts, hits, viewport } = draw
   drawBackground(draw)
+  drawSectionContext(draw)
   drawMasterGrid(draw)
   if (!spec.events.length) return
   let lastLabelRight = -100
@@ -659,6 +755,7 @@ function drawEventRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, 
 function drawExtremaRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'extrema' }>) {
   const { ctx, width, height, palette, viewport } = draw
   drawBackground(draw)
+  drawSectionContext(draw)
   drawMasterGrid(draw)
   const points = pointsInViewport(spec.points, viewport)
   if (!points.length) return
