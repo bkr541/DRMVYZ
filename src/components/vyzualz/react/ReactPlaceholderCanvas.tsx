@@ -52,6 +52,7 @@ import {
 const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader',
   cinematicPortal: 'Cinematic Worlds',
+  cinema:          'Cinema',
   oscilloscope:    'Sound Drawing',
   canvas:          'CANVAS',
   laserDmx:        'LaserDMX',
@@ -66,7 +67,7 @@ interface Props {
    */
   scopeStereoTap?:    StereoScopeAudioTap | null
   /** Stable ownership boundary for the mounted live renderer. */
-  engine:             Exclude<ReactEngineId, 'shaderPads' | 'canvas' | 'pixGrid'>
+  engine:             Exclude<ReactEngineId, 'shaderPads' | 'canvas' | 'pixGrid' | 'cinema'>
   activePreset:       ReactPreset | null
   intensity:          number
   motion:             number

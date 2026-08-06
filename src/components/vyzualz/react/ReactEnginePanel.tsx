@@ -2,6 +2,7 @@ import React, { useMemo, useSyncExternalStore } from 'react'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
+import { CinemaWorkspace } from './CinemaWorkspace'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -449,6 +450,8 @@ export function ReactEnginePanel() {
 
   return (
     <div className="rv-ctrl-group">
+      {activeReactEngineId === 'cinema' && <CinemaWorkspace surface="panel" />}
+
       {/* Cinematic Worlds source selection lives in the left rail. */}
       {activeReactEngineId === 'cinematicPortal' && (
         <>

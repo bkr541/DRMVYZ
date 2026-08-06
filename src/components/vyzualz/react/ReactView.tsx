@@ -39,6 +39,7 @@ import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
+import { CinemaWorkspace } from './CinemaWorkspace'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
@@ -348,6 +349,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setLiveFps(0)
   }, [activeReactEngineId])
   useEffect(() => {
+    if (activeReactEngineId === 'cinema') setOutputCanvas(null)
+  }, [activeReactEngineId])
+  useEffect(() => {
     if (activeReactEngineId !== 'pixGrid') {
       setPixGridOutputCanvas(null)
       if (pixGridState.authoringOverlayVisible) setPixGridState({ authoringOverlayVisible: false })
@@ -449,7 +453,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
   const activePreset =
-    activeReactEngineId === 'shaderPads' || activeReactEngineId === 'canvas'
+    activeReactEngineId === 'shaderPads' || activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema'
     ? null
       : (selectedPresetForEngine ?? reactPresets.find((p) => p.engine === activeReactEngineId) ?? null)
 
@@ -733,7 +737,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         {/* Center — canvas + pads + track map */}
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
-            {activeReactEngineId === 'shaderPads' ? (
+            {activeReactEngineId === 'cinema' ? (
+              <CinemaWorkspace surface="stage" />
+            ) : activeReactEngineId === 'shaderPads' ? (
               <Suspense fallback={<LazyWorkspaceFallback label="Shader renderer" />}>
                 <ReactShaderCanvas
                   key="react-live-shaderPads"

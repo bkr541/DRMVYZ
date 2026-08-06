@@ -11,6 +11,7 @@ export interface ReactEngineCatalogEntry {
 export const REACT_ENGINE_IDS: ReactEngineId[] = [
   'shaderPads',
   'cinematicPortal',
+  'cinema',
   'oscilloscope',
   'canvas',
   'laserDmx',
@@ -31,6 +32,13 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     shortLabel: 'Worlds',
     icon: '◎',
     description: 'Immersive cinematic environments, portals, media worlds and directed cameras.',
+  },
+  cinema: {
+    id: 'cinema',
+    label: 'Cinema',
+    shortLabel: 'Cinema',
+    icon: '◇',
+    description: 'Composition-native visual graphs with one canonical Cinema runtime.',
   },
   oscilloscope: {
     id: 'oscilloscope',

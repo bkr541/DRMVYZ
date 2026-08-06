@@ -15,6 +15,7 @@ import {
 } from '../shaderParameterUiTypes'
 import { getParamDefault } from '../../registry/ShaderParameterSchema'
 import { ShaderRegistry } from '../../registry/ShaderRegistry'
+import { REACT_ENGINE_IDS } from '../../../reactEngineCatalog'
 import type {
   FloatParamDef, IntegerParamDef, BooleanParamDef, ColorParamDef,
   GradientParamDef, EnumParamDef, Vec2ParamDef, TriggerParamDef,
@@ -467,15 +468,14 @@ describe('I: Internal development scenes hidden', () => {
 
 describe('J: Other engine branches not affected', () => {
   it('ENGINE_IDS list shape check — each engine has its own id', () => {
-    // Verify the known set of engine IDs includes 'shaderPads'
-    const ENGINE_IDS = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid']
-    expect(ENGINE_IDS).toContain('shaderPads')
-    expect(ENGINE_IDS).toContain('cinematicPortal')
-    expect(ENGINE_IDS).toContain('oscilloscope')
-    expect(ENGINE_IDS).toContain('laserDmx')
-    expect(ENGINE_IDS).toContain('canvas')
-    expect(ENGINE_IDS).toContain('pixGrid')
-    expect(ENGINE_IDS).not.toContain('neonLattice')
+    expect(REACT_ENGINE_IDS).toContain('shaderPads')
+    expect(REACT_ENGINE_IDS).toContain('cinematicPortal')
+    expect(REACT_ENGINE_IDS).toContain('cinema')
+    expect(REACT_ENGINE_IDS).toContain('oscilloscope')
+    expect(REACT_ENGINE_IDS).toContain('laserDmx')
+    expect(REACT_ENGINE_IDS).toContain('canvas')
+    expect(REACT_ENGINE_IDS).toContain('pixGrid')
+    expect(REACT_ENGINE_IDS).not.toContain('neonLattice')
   })
 
   it('groupParams for shader params does not influence oscilloscope params', () => {

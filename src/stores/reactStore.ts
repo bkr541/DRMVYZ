@@ -2496,7 +2496,7 @@ interface ReactStoreState {
   /**
    * Compatibility setter. Selecting a real preset applies it through the same
    * invariant-preserving path as selectReactPreset. Null is valid only for the
-   * standalone Shader engine; preset-backed engines fall back to a compatible
+   * standalone Shader, CANVAS, or Cinema engine; preset-backed engines fall back to a compatible
    * preset instead of entering an invalid state.
    */
   setActiveReactPresetId: (id: string | null) => void
@@ -3349,7 +3349,7 @@ function normalizeLockedLaserDmxPadAssignments(pads: ReactPerformancePad[]): Rea
 
 const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>(REACT_ENGINE_IDS)
 
-const STANDALONE_REACT_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas'])
+const STANDALONE_REACT_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas', 'cinema'])
 
 function isStandaloneReactEngineId(engineId: ReactEngineId): boolean {
   return STANDALONE_REACT_ENGINE_IDS.has(engineId)
@@ -3893,7 +3893,8 @@ export interface RepairedReactSelection {
  * The engine is authoritative when it is valid because the ENGINE tab is the
  * user's top-level selection. Sound Drawing may intentionally run without a
  * preset so its manual Classic Scope, Built-in Shape, Text, or SVG source owns
- * the stage. Other preset-backed engines receive a preset from the same family.
+ * the stage. Shader Pads, CANVAS, and Cinema are standalone shells. Other
+ * preset-backed engines receive a preset from the same family.
  * When the engine itself is invalid, a valid preset may recover it; otherwise
  * the explicit startup pair is used.
  */
@@ -4735,6 +4736,17 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     state = {
       ...state,
       canvasPresetSettings: normalizeCanvasPresetSettings(state.canvasPresetSettings),
+    }
+  }
+  if (version < 66) {
+    // Cinema is a preset-free production engine. Preserve an imported Cinema
+    // selection while removing any stale legacy preset association that older
+    // or hand-authored snapshots may carry.
+    if (state.activeReactEngineId === 'cinema') {
+      state = {
+        ...state,
+        activeReactPresetId: null,
+      }
     }
   }
   if (Array.isArray(state.reactPresets)) {
@@ -6267,7 +6279,7 @@ export const useReactStore = create<ReactStoreState>()(
             }
           }
 
-          // Shader Pads and CANVAS are standalone shells with no React presets.
+          // Shader Pads, CANVAS, and Cinema are standalone shells with no React presets.
           if (isStandaloneReactEngineId(engineId)) {
             return {
               activeReactEngineId: engineId,
@@ -9446,7 +9458,7 @@ export const useReactStore = create<ReactStoreState>()(
     }),
     {
       name: 'drmvyz:react-store',
-      version: 65,
+      version: 66,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

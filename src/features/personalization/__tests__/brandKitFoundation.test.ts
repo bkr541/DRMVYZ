@@ -45,10 +45,12 @@ describe('Brand Kit normalization and cache', () => {
   it('drops unknown engine rules and clamps valid rules', () => {
     expect(normalizeBrandKitEngineRules({
       laserDmx: { mode: 'brand', strength: 0.4, preserveTriggerSemantics: false, semanticRoleMapping: { bass: 'accent', invalid: 'primary' } },
+      cinema: { mode: 'hybrid', strength: 0.65 },
       reactiveConstellation: { mode: 'custom', strength: 2, customPalette: { primary: '#abc' } },
       unknownEngine: { mode: 'brand', strength: 1 },
     })).toEqual({
       laserDmx: { mode: 'brand', strength: 0.4, preserveTriggerSemantics: false, semanticRoleMapping: { bass: 'accent' } },
+      cinema: { mode: 'hybrid', strength: 0.65 },
       reactiveConstellation: {
         mode: 'custom', strength: 1,
         customPalette: expect.objectContaining({ primary: '#AABBCC' }),

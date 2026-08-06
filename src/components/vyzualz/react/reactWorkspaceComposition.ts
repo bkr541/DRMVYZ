@@ -34,6 +34,7 @@ export function resolveReactWorkspaceComposition(
   const isShader = engineId === 'shaderPads'
   const isSoundDrawing = engineId === 'oscilloscope'
   const isCinematic = engineId === 'cinematicPortal'
+  const isCinema = engineId === 'cinema'
   const isLaser = engineId === 'laserDmx'
   const isCanvas = engineId === 'canvas'
   const isPixGrid = engineId === 'pixGrid'
@@ -42,7 +43,12 @@ export function resolveReactWorkspaceComposition(
   let leftTabs: ReactLeftTab[] = ['workspace']
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
-  if (isCinematic) {
+  if (isCinema) {
+    // Stage 5 exposes the canonical Cinema foundation shell. It has no legacy
+    // preset, media, or renderer-owned setup surface.
+    leftTabs = ['workspace']
+    workspaceTabLabel = 'SETUP'
+  } else if (isCinematic) {
     // Cinematic Worlds chooses its World in the left source rail while preset
     // cards remain in the right rail. It does not consume generic media.
     leftTabs = ['workspace']
@@ -64,7 +70,7 @@ export function resolveReactWorkspaceComposition(
   return {
     // React performance pads target live React presets and contextual production actions.
     // Shader uses its independent scene system and has no compatible React presets.
-    showPerformancePads: !isShader,
+    showPerformancePads: !isShader && !isCinema,
     showSoundDrawingTimeline: isSoundDrawing,
     // Track sections and transport context are shared by every React engine.
     showTrackMap: true,

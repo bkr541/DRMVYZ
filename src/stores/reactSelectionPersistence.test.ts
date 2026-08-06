@@ -54,6 +54,14 @@ describe('repairReactEnginePresetSelection', () => {
     })
   })
 
+  it('keeps the standalone Cinema engine preset-free', () => {
+    const stalePreset = firstFor('cinematicPortal')
+    expect(repairReactEnginePresetSelection(stalePreset.id, 'cinema')).toEqual({
+      activeReactPresetId: null,
+      activeReactEngineId: 'cinema',
+    })
+  })
+
   it('keeps the standalone Shader engine preset-free', () => {
     const stalePreset = firstFor('cinematicPortal')
     expect(repairReactEnginePresetSelection(stalePreset.id, 'shaderPads')).toEqual({
@@ -91,6 +99,16 @@ describe('React selection persistence invariant', () => {
 
     expect(result.activeReactEngineId).toBe('laserDmx')
     expect(result.activeReactPresetId).toBe(firstFor('laserDmx').id)
+  })
+
+  it('migrates a version-65 Cinema selection without retaining a legacy preset', () => {
+    const result = migrateReactStore({
+      activeReactPresetId: firstFor('cinematicPortal').id,
+      activeReactEngineId: 'cinema',
+    }, 65)
+
+    expect(result.activeReactEngineId).toBe('cinema')
+    expect(result.activeReactPresetId).toBeNull()
   })
 
   it('partialize retires a Neon selection even if external code corrupts memory', () => {
@@ -144,6 +162,17 @@ describe('React selection persistence invariant', () => {
     expect(migrated.reactIntensity).toBe(0.7)
     expect(migrated.reactMotion).toBe(0.5)
     expect(migrated.reactGlow).toBe(0.65)
+  })
+
+  it('persists and restores Cinema selection without a legacy preset', () => {
+    useReactStore.getState().selectReactEngine('cinema')
+    const persisted = reactStorePartialize(useReactStore.getState())
+    expect(persisted.activeReactEngineId).toBe('cinema')
+    expect(persisted.activeReactPresetId).toBeNull()
+
+    const merged = mergeReactStoreState(persisted, useReactStore.getState())
+    expect(merged.activeReactEngineId).toBe('cinema')
+    expect(merged.activeReactPresetId).toBeNull()
   })
 
   it('compatibility engine setter routes through the invariant-preserving selector', () => {

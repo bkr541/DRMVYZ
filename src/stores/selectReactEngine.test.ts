@@ -29,7 +29,7 @@ const oscPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'oscillosco
 const enhancedOscPreset = DEFAULT_REACT_PRESETS.find(
   p => p.engine === 'oscilloscope' && p.oscillatorSettings != null,
 )
-const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas', 'oscilloscope'])
+const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas', 'cinema', 'oscilloscope'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -151,6 +151,13 @@ describe('selectReactEngine', () => {
     const preset = activePreset(reactPresets, activeReactPresetId)
     expect(activeReactEngineId).toBe('cinematicPortal')
     expect(preset?.engine).toBe(activeReactEngineId)
+  })
+
+  it('selecting cinema: sets the standalone foundation engine with no legacy preset', () => {
+    useReactStore.getState().selectReactEngine('cinema')
+    const { activeReactEngineId, activeReactPresetId } = useReactStore.getState()
+    expect(activeReactEngineId).toBe('cinema')
+    expect(activeReactPresetId).toBeNull()
   })
 
   it('selecting canvas: sets a standalone engine with no preset', () => {
