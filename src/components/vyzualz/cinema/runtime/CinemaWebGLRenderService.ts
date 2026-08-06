@@ -2,6 +2,7 @@ import type {
   CinemaRenderTargetLease,
   CinemaTextureView,
   CinemaViewport,
+  CinemaWebGLTargetBinding,
   CinemaWebGLRenderService as CinemaWebGLRenderServiceContract,
 } from '../CinemaRendererContracts'
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
@@ -15,7 +16,7 @@ export class CinemaWebGLRenderServiceImpl implements CinemaWebGLRenderServiceCon
     private readonly textures: CinemaTextureManager,
   ) {}
 
-  bindTarget(lease: CinemaRenderTargetLease): Readonly<{ width: number; height: number }> {
+  bindTarget(lease: CinemaRenderTargetLease): Readonly<CinemaWebGLTargetBinding> {
     return this.targets.bindDrawTarget(lease)
   }
 

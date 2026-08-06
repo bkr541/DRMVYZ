@@ -18,3 +18,5 @@ export * from './CinemaStore'
 export * from './runtime'
 
 export * from './CinemaShaderSceneAdapter'
+
+export * from './CinemaCinematicWorldAdapter'

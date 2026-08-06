@@ -14,6 +14,11 @@ export interface CinemaMockWebGL extends WebGL2RenderingContext {
     createdShaders: number
     deletedShaders: number
     drawCount: number
+    drawInstancedCount: number
+    createdBuffers: number
+    deletedBuffers: number
+    createdVertexArrays: number
+    deletedVertexArrays: number
   }
 }
 
@@ -32,6 +37,11 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     createdShaders: 0,
     deletedShaders: 0,
     drawCount: 0,
+    drawInstancedCount: 0,
+    createdBuffers: 0,
+    deletedBuffers: 0,
+    createdVertexArrays: 0,
+    deletedVertexArrays: 0,
   }
   let boundFramebuffer: WebGLFramebuffer | null = null
   const gl = {
@@ -85,10 +95,19 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     COMPILE_STATUS: 0x8b81,
     LINK_STATUS: 0x8b82,
     TRIANGLES: 0x0004,
+    TRIANGLE_STRIP: 0x0005,
+    ARRAY_BUFFER: 0x8892,
+    STATIC_DRAW: 0x88e4,
+    DYNAMIC_DRAW: 0x88e8,
+    CULL_FACE: 0x0b44,
+    BACK: 0x0405,
+    LEQUAL: 0x0203,
     TEXTURE0: 0x84c0,
     MAX_TEXTURE_SIZE: 0x0d33,
     MAX_TEXTURE_IMAGE_UNITS: 0x8872,
     FRAMEBUFFER_BINDING: 0x8ca6,
+    UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
+    UNPACK_FLIP_Y_WEBGL: 0x9240,
     createShader: vi.fn(() => { calls.createdShaders += 1; return { id: objectId++ } as unknown as WebGLShader }),
     deleteShader: vi.fn(() => { calls.deletedShaders += 1 }),
     shaderSource: vi.fn(),
@@ -113,9 +132,23 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     bindAttribLocation: vi.fn(),
     getAttribLocation: vi.fn(() => 0),
     blendFunc: vi.fn(),
+    cullFace: vi.fn(),
+    depthFunc: vi.fn(),
+    depthMask: vi.fn(),
     activeTexture: vi.fn(),
+    createVertexArray: vi.fn(() => { calls.createdVertexArrays += 1; return { id: objectId++ } as unknown as WebGLVertexArrayObject }),
+    deleteVertexArray: vi.fn(() => { calls.deletedVertexArrays += 1 }),
     bindVertexArray: vi.fn(),
+    createBuffer: vi.fn(() => { calls.createdBuffers += 1; return { id: objectId++ } as unknown as WebGLBuffer }),
+    deleteBuffer: vi.fn(() => { calls.deletedBuffers += 1 }),
+    bindBuffer: vi.fn(),
+    bufferData: vi.fn(),
+    bufferSubData: vi.fn(),
+    enableVertexAttribArray: vi.fn(),
+    vertexAttribPointer: vi.fn(),
+    vertexAttribDivisor: vi.fn(),
     drawArrays: vi.fn(() => { calls.drawCount += 1 }),
+    drawArraysInstanced: vi.fn(() => { calls.drawInstancedCount += 1 }),
     createFramebuffer: vi.fn(() => {
       calls.createdFramebuffers += 1
       return { id: objectId++ } as unknown as WebGLFramebuffer
@@ -132,6 +165,7 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     texParameteri: vi.fn(),
     texImage2D: vi.fn(),
     texSubImage2D: vi.fn(),
+    pixelStorei: vi.fn(),
     framebufferTexture2D: vi.fn(),
     drawBuffers: vi.fn(),
     readBuffer: vi.fn(),
@@ -151,6 +185,8 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     disable: vi.fn(),
     colorMask: vi.fn(),
     flush: vi.fn(),
+    isContextLost: vi.fn(() => false),
+    getError: vi.fn(() => 0),
     getExtension: vi.fn((name: string) => name === 'EXT_color_buffer_float' ? {} : null),
     getParameter: vi.fn((name: number) => name === 0x0d33 ? 8192 : name === 0x8872 ? 16 : name === 0x8ca6 ? boundFramebuffer : 0),
   }

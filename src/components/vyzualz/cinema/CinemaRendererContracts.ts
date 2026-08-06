@@ -96,9 +96,18 @@ export interface CinemaTextureGraphService {
  * context, but they must never create another canvas, context, or animation
  * loop. Framebuffer and texture resolution stays behind Cinema-owned handles.
  */
+export interface CinemaWebGLTargetBinding {
+  /** Cinema-owned framebuffer. Nodes may bind/use it for the current render call but never retain or delete it. */
+  readonly framebuffer: WebGLFramebuffer | null
+  /** Cinema-owned color attachment. Nodes may sample it only when their renderer contract requires the current target texture. */
+  readonly texture: WebGLTexture | null
+  readonly width: number
+  readonly height: number
+}
+
 export interface CinemaWebGLRenderService {
   readonly gl: WebGL2RenderingContext
-  bindTarget(lease: CinemaRenderTargetLease): Readonly<{ width: number; height: number }>
+  bindTarget(lease: CinemaRenderTargetLease): Readonly<CinemaWebGLTargetBinding>
   bindDefaultFramebuffer(viewport: CinemaViewport): void
   resolveTexture(view: CinemaTextureView): WebGLTexture | null
   resetState(): void

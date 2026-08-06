@@ -7,6 +7,8 @@ import {
   CINEMA_PERSISTED_STORE_SCHEMA_ID,
   CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
   CINEMA_SAFE_OUTPUT_DESCRIPTOR,
+  CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE,
+  CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
   CINEMA_SHADER_REFERENCE_COMPOSITION,
   CINEMA_SHADER_SCENE_ADAPTER_BUNDLE,
   cinemaNamespacedId,
@@ -237,9 +239,12 @@ describe('Cinema persisted state and migrations', () => {
     expect(fresh.getState().schemaId).toBe(CINEMA_PERSISTED_STORE_SCHEMA_ID)
     expect(fresh.getState().schemaVersion).toBe(1)
     expect(fresh.getState().activeCompositionId).toBe(CINEMA_SHADER_REFERENCE_COMPOSITION.id)
-    expect(fresh.getState().compositions).toHaveLength(2)
+    expect(fresh.getState().compositions).toHaveLength(3)
     expect(fresh.getState().compositions.some(candidate => candidate.id === CINEMA_SHADER_REFERENCE_COMPOSITION.id)).toBe(true)
-    expect(fresh.getState().definitions).toHaveLength(2 + CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.length)
+    expect(fresh.getState().compositions.some(candidate => candidate.id === CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id)).toBe(true)
+    expect(fresh.getState().definitions).toHaveLength(
+      2 + CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.length + CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.length,
+    )
 
     const first = createCinemaStore({ initialState: populatedState() })
     const saved = snapshotCinemaPersistedState(first.getState())

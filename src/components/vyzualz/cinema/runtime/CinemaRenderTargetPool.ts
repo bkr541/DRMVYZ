@@ -154,12 +154,12 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
   }
 
   /** Runtime-internal draw binding used by the Cinema-owned WebGL service. */
-  bindDrawTarget(lease: CinemaRenderTargetLease): Readonly<{ width: number; height: number }> {
+  bindDrawTarget(lease: CinemaRenderTargetLease): Readonly<{ framebuffer: WebGLFramebuffer | null; texture: WebGLTexture | null; width: number; height: number }> {
     const record = this.requireActiveRecord(lease)
     const attachment = record.attachments[record.readIndex]
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, attachment.framebuffer)
     this.gl.viewport(0, 0, record.width, record.height)
-    return { width: record.width, height: record.height }
+    return { framebuffer: attachment.framebuffer, texture: attachment.colorTexture, width: record.width, height: record.height }
   }
 
   release(lease: CinemaRenderTargetLease): void {

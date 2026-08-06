@@ -41,6 +41,11 @@ import {
 } from './CinemaShaderSceneAdapter'
 import { DEFAULT_SHADER_SCENE_ID } from '../react/shaders/scenes'
 import {
+  CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE,
+  CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+  createCinemaCinematicWorldComposition,
+} from './CinemaCinematicWorldAdapter'
+import {
   CINEMA_PERSISTED_STORE_SCHEMA_ID,
   CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
   type CinemaPersistedDefinition,
@@ -228,6 +233,7 @@ export const CINEMA_FOUNDATION_PERSISTED_DEFINITIONS: readonly CinemaPersistedDe
 export const CINEMA_PRODUCTION_PERSISTED_DEFINITIONS: readonly CinemaPersistedDefinition[] = deepFreeze([
   ...CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
   ...CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.persistedDefinitions,
+  ...CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.persistedDefinitions,
 ])
 
 export const CINEMA_FOUNDATION_COMPOSITION_ID = cinemaStableId<CinemaCompositionId>('foundation-gradient', 'composition')
@@ -303,17 +309,37 @@ export const CINEMA_SHADER_REFERENCE_COMPOSITION: Readonly<CinemaCompositionDefi
   ),
 )
 
+export const CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION: Readonly<CinemaCompositionDefinition> = deepFreeze(
+  createCinemaCinematicWorldComposition(
+    'eventHorizon',
+    CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+    CINEMA_FOUNDATION_INPUT_PORT_ID,
+    {
+      compositionId: cinemaStableId<CinemaCompositionId>('cinematic-world-reference', 'composition'),
+      worldNodeId: cinemaStableId<CinemaNodeId>('cinematic-world-reference', 'node'),
+      outputNodeId: cinemaStableId<CinemaNodeId>('cinematic-world-reference-output', 'node'),
+      name: 'Cinema Cinematic World Reference',
+      description: 'Stage 10 production reference composition rendered by CinematicWorldNodeAdapter.',
+    },
+  ),
+)
+
 export function createCinemaFoundationPersistedState(): CinemaPersistedState {
   return JSON.parse(JSON.stringify({
     schemaId: CINEMA_PERSISTED_STORE_SCHEMA_ID,
     schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
     definitions: CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
-    compositions: [CINEMA_FOUNDATION_COMPOSITION, CINEMA_SHADER_REFERENCE_COMPOSITION],
+    compositions: [CINEMA_FOUNDATION_COMPOSITION, CINEMA_SHADER_REFERENCE_COMPOSITION, CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION],
     instances: [],
     collections: [],
     activeCompositionId: CINEMA_SHADER_REFERENCE_COMPOSITION.id,
     activeInstanceId: null,
-    editorMetadata: { foundationInitialized: true, shaderSceneAdapterVersion: 1 },
+    editorMetadata: {
+      foundationInitialized: true,
+      shaderSceneAdapterVersion: 1,
+      cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+      canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+    },
     migrationProvenance: [],
   })) as CinemaPersistedState
 }
@@ -333,8 +359,12 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
     ...CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
   ]
   const compositions = [
-    ...state.compositions.filter(composition => composition.id !== CINEMA_SHADER_REFERENCE_COMPOSITION.id),
+    ...state.compositions.filter(composition => (
+      composition.id !== CINEMA_SHADER_REFERENCE_COMPOSITION.id
+      && composition.id !== CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id
+    )),
     CINEMA_SHADER_REFERENCE_COMPOSITION,
+    CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
   ]
   return JSON.parse(JSON.stringify({
     ...state,
@@ -343,6 +373,8 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
     editorMetadata: {
       ...state.editorMetadata,
       shaderSceneAdapterVersion: 1,
+      cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+      canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
     },
   })) as CinemaPersistedState
 }
@@ -482,6 +514,7 @@ export const CINEMA_FOUNDATION_RUNTIME_REGISTRY = createCinemaRuntimeNodeRegistr
 export const CINEMA_PRODUCTION_RUNTIME_REGISTRY = createCinemaRuntimeNodeRegistry([
   ...CINEMA_FOUNDATION_RUNTIME_REGISTRY.list(),
   ...CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.runtimeRegistrations,
+  ...CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.runtimeRegistrations,
 ]).registry
 
 const FULLSCREEN_VERTEX_SHADER = `#version 300 es

@@ -6,8 +6,8 @@ import {
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema production boundary through Stage 9', () => {
-  it('keeps prior Cinema contracts public while exposing Shader scene adapters through production runtime ownership', () => {
+describe('Cinema production boundary through Stage 10', () => {
+  it('keeps prior contracts public while exposing Shader and Cinematic World adapters through production ownership', () => {
     expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(1)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
     expect(Cinema.CINEMA_COMPILED_GRAPH_VERSION).toBe(1)
@@ -15,9 +15,17 @@ describe('Cinema production boundary through Stage 9', () => {
     expect(typeof Cinema.createCinemaNodeDefinitionRegistry).toBe('function')
     expect(typeof Cinema.createCinemaRuntimeNodeRegistry).toBe('function')
     expect(Cinema.CINEMA_FOUNDATION_RUNTIME_REGISTRY.size).toBe(2)
-    expect(Cinema.CINEMA_PRODUCTION_RUNTIME_REGISTRY.size).toBeGreaterThan(2)
-    expect(Cinema.CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries).toHaveLength(8)
+    expect(Cinema.CINEMA_PRODUCTION_RUNTIME_REGISTRY.size).toBe(
+      2
+        + Cinema.CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.length
+        + Cinema.CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.length,
+    )
+    expect(Cinema.CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries).toHaveLength(9)
+    expect(Cinema.CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries).toHaveLength(11)
     expect(typeof Cinema.createCinemaShaderSceneComposition).toBe('function')
+    expect(typeof Cinema.createCinemaCinematicWorldComposition).toBe('function')
+    expect(typeof Cinema.CinematicWorldNodeAdapter).toBe('function')
+    expect(typeof Cinema.CinemaCanvas2DNodeAdapter).toBe('function')
     expect(typeof Cinema.CinemaGraphExecutor).toBe('function')
     expect(typeof Cinema.createCinemaFoundationPersistedState).toBe('function')
     expect(typeof Cinema.normalizeCinemaParameterValue).toBe('function')
