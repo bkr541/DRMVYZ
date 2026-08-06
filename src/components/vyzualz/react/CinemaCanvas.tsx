@@ -31,7 +31,7 @@ const INITIAL_RUNTIME_SNAPSHOT: CinemaRuntimeSnapshot = {
   diagnostics: createCinemaDiagnosticSnapshot([]),
   graph: {
     compositionId: null, compositionRevision: null, planCacheKey: null, planCacheSize: 0, activeNodeCount: 0,
-    initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null, outputRendered: false, safeOutputActive: true,
+    initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null, outputRendered: false, safeOutputActive: true, modulationRouteCount: 0, activeModulationRouteCount: 0,
     diagnostics: createCinemaDiagnosticSnapshot([]),
   },
   capabilities: {

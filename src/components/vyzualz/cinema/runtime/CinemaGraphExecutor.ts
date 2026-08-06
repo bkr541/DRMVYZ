@@ -16,7 +16,7 @@ import type {
   CinemaNodeId,
   CinemaPortId,
 } from '../CinemaIdentifiers'
-import type { CinemaNodeRegistryEntry } from '../CinemaNodeRegistry'
+import type { CinemaNodeDefinitionRegistry, CinemaNodeRegistryEntry } from '../CinemaNodeRegistry'
 import type { CinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import {
   CINEMA_STATE_RESET_ACTION_IDS,
@@ -37,8 +37,9 @@ import {
   type CinemaDiagnosticSnapshot,
 } from '../CinemaDiagnostics'
 import { resolveCinemaParameterSnapshot } from '../CinemaParameterResolver'
+import { CinemaModulationRuntime } from '../CinemaModulationRuntime'
 import type { CinemaPersistedDefinition } from '../CinemaPersistence'
-import { createCinemaDefinitionRegistryFromPersisted } from '../CinemaFoundation'
+import { createCinemaDefinitionRegistryFromPersistedDefinitions } from '../CinemaDefinitionRegistry'
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
 import { CinemaTextureManager } from './CinemaTextureManager'
 
@@ -53,6 +54,8 @@ export interface CinemaGraphExecutorSnapshot {
   outputNodeId: string | null
   outputRendered: boolean
   safeOutputActive: boolean
+  modulationRouteCount: number
+  activeModulationRouteCount: number
   diagnostics: CinemaDiagnosticSnapshot
 }
 
@@ -108,6 +111,10 @@ export class CinemaGraphExecutor {
   private readonly feedbackSources = new Map<CinemaNodeId, FeedbackSourceState>()
 
   private configuration: GraphConfiguration = { composition: null, instance: null, definitions: [] }
+  private parameterRegistry: CinemaNodeDefinitionRegistry | null = null
+  private baseParameterValues: Readonly<Record<string, CinemaParameterValue>> = Object.freeze({})
+  private modulationRuntime: CinemaModulationRuntime | null = null
+  private activeModulationRouteCount = 0
   private plan: CinemaCompiledGraphPlan | null = null
   private planCacheKey: string | null = null
   private configurationKey: string | null = null
@@ -176,6 +183,8 @@ export class CinemaGraphExecutor {
         : [CINEMA_STATE_RESET_ACTION_IDS.timingDiscontinuity]
       for (const actionId of actions) this.resetAll(actionId, frame)
     }
+
+    this.updateFrameParameterValues(frame)
 
     const frameLeases: CinemaRenderTargetLease[] = []
     let frameFallbackUsed = false
@@ -265,6 +274,8 @@ export class CinemaGraphExecutor {
       outputNodeId: this.plan?.output.nodeId ?? null,
       outputRendered: this.outputRendered,
       safeOutputActive: this.safeOutputActive,
+      modulationRouteCount: this.modulationRuntime?.routeCount ?? 0,
+      activeModulationRouteCount: this.activeModulationRouteCount,
       diagnostics: createCinemaDiagnosticSnapshot(this.diagnostics),
     }
   }
@@ -288,6 +299,10 @@ export class CinemaGraphExecutor {
     this.releaseFeedbackTargets()
     this.plan = null
     this.planCacheKey = null
+    this.parameterRegistry = null
+    this.baseParameterValues = Object.freeze({})
+    this.modulationRuntime = null
+    this.activeModulationRouteCount = 0
     this.outputRendered = false
     this.safeOutputActive = true
     this.lastResetGeneration = -1
@@ -305,7 +320,7 @@ export class CinemaGraphExecutor {
       return
     }
 
-    const definitionResult = createCinemaDefinitionRegistryFromPersisted(
+    const definitionResult = createCinemaDefinitionRegistryFromPersistedDefinitions(
       this.configuration.definitions,
       this.runtimeRegistry,
     )
@@ -333,6 +348,13 @@ export class CinemaGraphExecutor {
       instance: this.configuration.instance,
     })
     for (const diagnostic of resolution.diagnostics.diagnostics) this.report(diagnostic)
+    this.parameterRegistry = definitionResult.registry
+    this.baseParameterValues = resolution.values
+    this.modulationRuntime = new CinemaModulationRuntime({
+      composition,
+      registry: definitionResult.registry,
+    })
+    for (const diagnostic of this.modulationRuntime.diagnostics.diagnostics) this.report(diagnostic)
     const valuesByNode = collectNodeValues(resolution.values)
     const assetsByNode = resolveNodeAssetBindings(composition, this.configuration.instance)
     const authoredById = new Map(composition.nodes.map(node => [node.id, node]))
@@ -577,7 +599,32 @@ export class CinemaGraphExecutor {
 
   private resetAll(actionId: string, frame: Readonly<CinemaFrameContext> | null): void {
     this.clearFeedbackHistory()
+    this.modulationRuntime?.reset()
+    this.activeModulationRouteCount = 0
     for (const record of this.records.values()) this.resetRecord(record, actionId, frame)
+  }
+
+  private updateFrameParameterValues(frame: Readonly<CinemaFrameContext>): void {
+    const composition = this.configuration.composition
+    const registry = this.parameterRegistry
+    const modulationRuntime = this.modulationRuntime
+    if (!composition || !registry || !modulationRuntime) return
+
+    const modulation = modulationRuntime.evaluate(frame, this.baseParameterValues)
+    this.activeModulationRouteCount = modulation.activeRouteCount
+    for (const diagnostic of modulation.diagnostics.diagnostics) this.reportOnce(diagnostic)
+
+    const resolution = resolveCinemaParameterSnapshot({
+      composition,
+      registry,
+      instance: this.configuration.instance,
+      modulationSnapshot: modulation.values,
+    })
+    for (const diagnostic of resolution.diagnostics.diagnostics) this.report(diagnostic)
+    const valuesByNode = collectNodeValues(resolution.values)
+    for (const [nodeId, record] of this.records) {
+      record.values = valuesByNode.get(nodeId) ?? Object.freeze({})
+    }
   }
 
   private resetRecord(
@@ -667,6 +714,11 @@ export class CinemaGraphExecutor {
       if (oldest == null) break
       this.planCache.delete(oldest)
     }
+  }
+
+  private reportOnce(diagnostic: CinemaDiagnostic): void {
+    if (this.diagnostics.some(existing => existing.id === diagnostic.id)) return
+    this.report(diagnostic)
   }
 
   private report(diagnostic: CinemaDiagnostic): void {

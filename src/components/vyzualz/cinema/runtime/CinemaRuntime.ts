@@ -120,7 +120,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   private graphSnapshot: CinemaGraphExecutorSnapshot = {
     compositionId: null, compositionRevision: null, planCacheKey: null, planCacheSize: 0,
     activeNodeCount: 0, initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null,
-    outputRendered: false, safeOutputActive: true, diagnostics: createCinemaDiagnosticSnapshot([]),
+    outputRendered: false, safeOutputActive: true, modulationRouteCount: 0, activeModulationRouteCount: 0, diagnostics: createCinemaDiagnosticSnapshot([]),
   }
   private fpsFrameCount = 0
   private fpsWindowStartedMs = 0

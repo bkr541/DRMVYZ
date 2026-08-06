@@ -8,7 +8,11 @@ import {
   type CinemaCompositionInstance,
 } from '../CinemaDomain'
 import {
+  CINEMA_FOUNDATION_ANGLE_PARAMETER_ID,
+  CINEMA_FOUNDATION_COMPOSITION,
   CINEMA_FOUNDATION_GRADIENT_DEFINITION,
+  CINEMA_FOUNDATION_GRADIENT_NODE_ID,
+  CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID,
   CINEMA_FOUNDATION_INPUT_PORT_ID,
   CINEMA_FOUNDATION_OUTPUT_DEFINITION,
   CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID,
@@ -27,6 +31,8 @@ import type {
   CinemaRendererPluginId,
 } from '../CinemaIdentifiers'
 import type { CinemaPersistedDefinition } from '../CinemaPersistence'
+import { CINEMA_MODULATION_SOURCE_IDS } from '../CinemaModulationSources'
+import { createCinemaParameterPath } from '../CinemaIdentifiers'
 import { createCinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import type {
   CinemaFrameContext,
@@ -176,6 +182,74 @@ describe('CinemaGraphExecutor', () => {
     targets.dispose()
     textures.dispose()
   })
+
+  it('evaluates persisted routes through the production graph executor before node render', () => {
+    const observedAngles: number[] = []
+    const gradientPlugin: CinemaNodePlugin = {
+      definition: CINEMA_FOUNDATION_GRADIENT_DEFINITION,
+      createNode: node => renderTargetNode(node, context => {
+        observedAngles.push(Number(context.values[CINEMA_FOUNDATION_ANGLE_PARAMETER_ID]))
+      }),
+    }
+    const outputRegistration = CINEMA_FOUNDATION_RUNTIME_REGISTRY.getByPluginId(CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID)
+    expect(outputRegistration).toBeDefined()
+    if (!outputRegistration) return
+
+    const runtimeRegistry = createCinemaRuntimeNodeRegistry([
+      { pluginId: CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID, plugin: gradientPlugin },
+      outputRegistration,
+    ]).registry
+    const composition = structuredClone(CINEMA_FOUNDATION_COMPOSITION) as CinemaCompositionDefinition
+    composition.revision = 2
+    composition.modulationRoutes = [{
+      id: 'bass-angle' as import('../CinemaIdentifiers').CinemaModulationRouteId,
+      sourceId: CINEMA_MODULATION_SOURCE_IDS.audioBass,
+      destination: createCinemaParameterPath(
+        'nodes',
+        CINEMA_FOUNDATION_ANGLE_PARAMETER_ID,
+        CINEMA_FOUNDATION_GRADIENT_NODE_ID,
+      ),
+      mode: 'add',
+      amount: 10,
+      enabled: true,
+    }]
+
+    const gl = createCinemaMockWebGL()
+    const sink = { report: () => {} }
+    const viewport = { width: 320, height: 180, dpr: 1 }
+    const textures = new CinemaTextureManager()
+    const targets = new CinemaRenderTargetPool(gl, textures, viewport, sink)
+    const webgl = new CinemaWebGLRenderServiceImpl(gl, targets, textures)
+    const executor = new CinemaGraphExecutor({
+      runtimeRegistry,
+      platform: {
+        webgl2: true,
+        canvas2d: false,
+        floatColorTargets: false,
+        floatBlending: false,
+        textureArrays: true,
+        instancing: true,
+        timerQueries: false,
+        maximumTextureSize: 8192,
+        maximumTextureUnits: 16,
+      },
+      targets,
+      textures,
+      webgl,
+      diagnostics: sink,
+    })
+
+    executor.resize({ width: 1, height: 1, dpr: 1 }, viewport)
+    executor.setGraph({ composition, instance: null, definitions: CINEMA_FOUNDATION_PERSISTED_DEFINITIONS })
+    expect(executor.render(modulationFrame(0.5))).toBe(true)
+    expect(observedAngles).toEqual([30])
+    expect(executor.getSnapshot()).toMatchObject({ modulationRouteCount: 1, activeModulationRouteCount: 1 })
+    expect(composition.nodes[0].parameterValues[CINEMA_FOUNDATION_ANGLE_PARAMETER_ID]).toBe(25)
+
+    executor.dispose()
+    targets.dispose()
+    textures.dispose()
+  })
 })
 
 function renderTargetNode(
@@ -295,6 +369,38 @@ function connection(
     to: { nodeId: toNodeId, portId: toPortId },
     enabled: true,
   }
+}
+
+function modulationFrame(bass: number): Readonly<CinemaFrameContext> {
+  return {
+    ...frame(false),
+    timing: {
+      frameIndex: 1,
+      elapsedTimeSec: 1,
+      deltaTimeSec: 1 / 60,
+      seeds: { composition: 1, track: 2, musicalPosition: 3, event: 4 },
+    },
+    audio: {
+      available: true,
+      volume: 0.5,
+      rms: 0.5,
+      energy: 0.5,
+      bass,
+      mid: 0,
+      high: 0,
+      sub: 0,
+      centroid: 0,
+      flux: 0,
+      harmonicity: 0,
+      complexity: 0,
+      tension: 0,
+      buildProgress: 0,
+      dropImpact: 0,
+      vocalPresence: 0,
+      fft: null,
+      waveform: null,
+    },
+  } as Readonly<CinemaFrameContext>
 }
 
 function frame(reset: boolean): Readonly<CinemaFrameContext> {

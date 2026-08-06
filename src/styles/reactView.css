@@ -15055,12 +15055,12 @@
   gap: 12px;
   padding: 10px 16px 10px 14px;
   border: none;
+  border-left: 3px solid transparent;
   background: rgba(13, 24, 32, 0.5);
-  border-left: 2px solid rgba(74, 199, 219, 0.12);
   color: rgba(196, 207, 211, 0.55);
   cursor: pointer;
   overflow: hidden;
-  transition: background 200ms ease, color 200ms ease;
+  transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 
 .llnv-rail-fill {
@@ -15074,9 +15074,12 @@
   transition: height 260ms ease;
 }
 
-.llnv-rail:hover .llnv-rail-fill,
-.llnv-rail.is-active .llnv-rail-fill {
+.llnv-rail:hover .llnv-rail-fill {
   height: 100%;
+}
+
+.llnv-rail.is-active .llnv-rail-fill {
+  opacity: 0;
 }
 
 .llnv-rail-icon {
@@ -15097,7 +15100,8 @@
 }
 
 .llnv-rail.is-active {
-  background: rgba(74, 199, 219, 0.08);
+  border-left-color: #4ac7db;
+  background: linear-gradient(120deg, rgba(74, 199, 219, 0.08), rgba(255, 255, 255, 0.015) 60%);
 }
 
 /* 5 — Holographic card stack */

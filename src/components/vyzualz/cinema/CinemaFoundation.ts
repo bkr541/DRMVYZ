@@ -17,14 +17,8 @@ import {
   type CinemaPortId,
   type CinemaRendererPluginId,
 } from './CinemaIdentifiers'
-import {
-  createCinemaNodeDefinitionRegistry,
-  type CinemaNodeRegistryEntry,
-} from './CinemaNodeRegistry'
-import {
-  createCinemaRuntimeNodeRegistry,
-  type CinemaRuntimeNodeRegistry,
-} from './CinemaRuntimeNodeRegistry'
+import { createCinemaRuntimeNodeRegistry } from './CinemaRuntimeNodeRegistry'
+import { createCinemaDefinitionRegistryFromPersistedDefinitions } from './CinemaDefinitionRegistry'
 import type {
   CinemaNodeDisposeContext,
   CinemaNodeInitializeContext,
@@ -381,19 +375,9 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
 
 export function createCinemaDefinitionRegistryFromPersisted(
   definitions: readonly CinemaPersistedDefinition[],
-  runtimeRegistry: CinemaRuntimeNodeRegistry = CINEMA_PRODUCTION_RUNTIME_REGISTRY,
+  runtimeRegistry = CINEMA_PRODUCTION_RUNTIME_REGISTRY,
 ) {
-  const registrations: CinemaNodeRegistryEntry[] = definitions.map(definition => ({
-    definition: definition.definition,
-    rendererPlugin: {
-      id: definition.rendererPluginId,
-      available: runtimeRegistry.hasPlugin(definition.rendererPluginId),
-    },
-    source: definition.source,
-    ...(definition.feedback ? { feedback: definition.feedback } : {}),
-    quality: definition.quality,
-  }))
-  return createCinemaNodeDefinitionRegistry(registrations)
+  return createCinemaDefinitionRegistryFromPersistedDefinitions(definitions, runtimeRegistry)
 }
 
 class FoundationGradientNode implements CinemaRenderNode {
