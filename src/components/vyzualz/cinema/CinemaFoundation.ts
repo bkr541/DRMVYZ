@@ -36,6 +36,11 @@ import type {
   CinemaRenderNode,
 } from './CinemaRendererContracts'
 import {
+  CINEMA_SHADER_SCENE_ADAPTER_BUNDLE,
+  createCinemaShaderSceneComposition,
+} from './CinemaShaderSceneAdapter'
+import { DEFAULT_SHADER_SCENE_ID } from '../react/shaders/scenes'
+import {
   CINEMA_PERSISTED_STORE_SCHEMA_ID,
   CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
   type CinemaPersistedDefinition,
@@ -220,6 +225,11 @@ export const CINEMA_FOUNDATION_PERSISTED_DEFINITIONS: readonly CinemaPersistedDe
   },
 ])
 
+export const CINEMA_PRODUCTION_PERSISTED_DEFINITIONS: readonly CinemaPersistedDefinition[] = deepFreeze([
+  ...CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
+  ...CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.persistedDefinitions,
+])
+
 export const CINEMA_FOUNDATION_COMPOSITION_ID = cinemaStableId<CinemaCompositionId>('foundation-gradient', 'composition')
 export const CINEMA_FOUNDATION_GRADIENT_NODE_ID = cinemaStableId<CinemaNodeId>('foundation-gradient', 'node')
 export const CINEMA_FOUNDATION_OUTPUT_NODE_ID = cinemaStableId<CinemaNodeId>('foundation-output', 'node')
@@ -278,24 +288,68 @@ export const CINEMA_FOUNDATION_COMPOSITION: Readonly<CinemaCompositionDefinition
   performanceRules: [],
 })
 
+export const CINEMA_SHADER_REFERENCE_COMPOSITION: Readonly<CinemaCompositionDefinition> = deepFreeze(
+  createCinemaShaderSceneComposition(
+    DEFAULT_SHADER_SCENE_ID,
+    CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+    CINEMA_FOUNDATION_INPUT_PORT_ID,
+    {
+      compositionId: cinemaStableId<CinemaCompositionId>('shader-scene-reference', 'composition'),
+      sceneNodeId: cinemaStableId<CinemaNodeId>('shader-scene-reference', 'node'),
+      outputNodeId: cinemaStableId<CinemaNodeId>('shader-scene-reference-output', 'node'),
+      name: 'Cinema Shader Scene Reference',
+      description: 'Stage 9 production reference composition rendered by the ShaderSceneNodeAdapter.',
+    },
+  ),
+)
+
 export function createCinemaFoundationPersistedState(): CinemaPersistedState {
   return JSON.parse(JSON.stringify({
     schemaId: CINEMA_PERSISTED_STORE_SCHEMA_ID,
     schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
-    definitions: CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
-    compositions: [CINEMA_FOUNDATION_COMPOSITION],
+    definitions: CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
+    compositions: [CINEMA_FOUNDATION_COMPOSITION, CINEMA_SHADER_REFERENCE_COMPOSITION],
     instances: [],
     collections: [],
-    activeCompositionId: CINEMA_FOUNDATION_COMPOSITION_ID,
+    activeCompositionId: CINEMA_SHADER_REFERENCE_COMPOSITION.id,
     activeInstanceId: null,
-    editorMetadata: { foundationInitialized: true },
+    editorMetadata: { foundationInitialized: true, shaderSceneAdapterVersion: 1 },
     migrationProvenance: [],
+  })) as CinemaPersistedState
+}
+
+export function reconcileCinemaBuiltInState(state: CinemaPersistedState): CinemaPersistedState {
+  const foundationState = state.editorMetadata.foundationInitialized === true
+    || state.definitions.some(definition => (
+      definition.id === CINEMA_FOUNDATION_GRADIENT_TYPE_ID
+      || definition.id === CINEMA_FOUNDATION_OUTPUT_TYPE_ID
+    ))
+    || state.compositions.some(composition => composition.id === CINEMA_FOUNDATION_COMPOSITION_ID)
+  if (!foundationState) return state
+
+  const canonicalDefinitionIds = new Set(CINEMA_PRODUCTION_PERSISTED_DEFINITIONS.map(definition => String(definition.id)))
+  const definitions = [
+    ...state.definitions.filter(definition => !canonicalDefinitionIds.has(String(definition.id))),
+    ...CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
+  ]
+  const compositions = [
+    ...state.compositions.filter(composition => composition.id !== CINEMA_SHADER_REFERENCE_COMPOSITION.id),
+    CINEMA_SHADER_REFERENCE_COMPOSITION,
+  ]
+  return JSON.parse(JSON.stringify({
+    ...state,
+    definitions,
+    compositions,
+    editorMetadata: {
+      ...state.editorMetadata,
+      shaderSceneAdapterVersion: 1,
+    },
   })) as CinemaPersistedState
 }
 
 export function createCinemaDefinitionRegistryFromPersisted(
   definitions: readonly CinemaPersistedDefinition[],
-  runtimeRegistry: CinemaRuntimeNodeRegistry = CINEMA_FOUNDATION_RUNTIME_REGISTRY,
+  runtimeRegistry: CinemaRuntimeNodeRegistry = CINEMA_PRODUCTION_RUNTIME_REGISTRY,
 ) {
   const registrations: CinemaNodeRegistryEntry[] = definitions.map(definition => ({
     definition: definition.definition,
@@ -423,6 +477,11 @@ const OUTPUT_PLUGIN: CinemaNodePlugin = Object.freeze({
 export const CINEMA_FOUNDATION_RUNTIME_REGISTRY = createCinemaRuntimeNodeRegistry([
   { pluginId: CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID, plugin: GRADIENT_PLUGIN },
   { pluginId: CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID, plugin: OUTPUT_PLUGIN },
+]).registry
+
+export const CINEMA_PRODUCTION_RUNTIME_REGISTRY = createCinemaRuntimeNodeRegistry([
+  ...CINEMA_FOUNDATION_RUNTIME_REGISTRY.list(),
+  ...CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.runtimeRegistrations,
 ]).registry
 
 const FULLSCREEN_VERTEX_SHADER = `#version 300 es

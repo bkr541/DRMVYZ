@@ -6,7 +6,7 @@ import {
 } from '../CinemaDiagnostics'
 import type { CinemaCompositionDefinition, CinemaCompositionInstance } from '../CinemaDomain'
 import type { CinemaPersistedDefinition } from '../CinemaPersistence'
-import { CINEMA_FOUNDATION_RUNTIME_REGISTRY } from '../CinemaFoundation'
+import { CINEMA_PRODUCTION_RUNTIME_REGISTRY } from '../CinemaFoundation'
 import type { CinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import type {
   CinemaFrameContext,
@@ -58,9 +58,9 @@ export type CinemaRuntimeCreateResult =
 /**
  * Single-owner Cinema WebGL2 runtime.
  *
- * Stage 8 executes the canonical compiled composition through runtime-only
- * renderer plugins, Cinema-owned targets, one authorized output node, and the
- * existing single-context/single-loop lifecycle.
+ * Stage 9 executes native Cinema nodes and adapted Shader scenes through
+ * runtime-only renderer plugins, Cinema-owned targets, one authorized output
+ * node, and the existing single-context/single-loop lifecycle.
  */
 export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   static create(canvas: HTMLCanvasElement, options: CinemaRuntimeCreateOptions = {}): CinemaRuntimeCreateResult {
@@ -139,7 +139,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.targets = new CinemaRenderTargetPool(gl, this.textures, this.viewport, this)
     this.webgl = new CinemaWebGLRenderServiceImpl(gl, this.targets, this.textures)
     this.executor = new CinemaGraphExecutor({
-      runtimeRegistry: options.runtimeRegistry ?? CINEMA_FOUNDATION_RUNTIME_REGISTRY,
+      runtimeRegistry: options.runtimeRegistry ?? CINEMA_PRODUCTION_RUNTIME_REGISTRY,
       platform: this.capabilities, targets: this.targets, textures: this.textures, webgl: this.webgl, diagnostics: this,
       onSnapshot: snapshot => {
         this.graphSnapshot = snapshot
@@ -204,7 +204,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.report(createCinemaDiagnostic({
       code: 'CINEMA_SAFE_OUTPUT_ACTIVE',
       severity: 'info',
-      message: 'Cinema runtime is active with Stage 8 compiled graph execution and safe-output isolation.',
+      message: 'Cinema runtime is active with Stage 9 Shader-scene adapters, compiled graph execution, and safe-output isolation.',
       attribution: { stage: 'cinema-runtime' },
     }))
   }

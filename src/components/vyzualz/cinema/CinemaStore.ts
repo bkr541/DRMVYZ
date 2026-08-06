@@ -6,7 +6,7 @@ import {
   createCinemaDiagnosticSnapshot,
   type CinemaDiagnosticSnapshot,
 } from './CinemaDiagnostics'
-import { createCinemaFoundationPersistedState } from './CinemaFoundation'
+import { createCinemaFoundationPersistedState, reconcileCinemaBuiltInState } from './CinemaFoundation'
 import type {
   CinemaCollectionDefinition,
   CinemaCompositionDefinition,
@@ -35,7 +35,7 @@ import {
 } from './CinemaPersistence'
 
 export const CINEMA_PERSIST_STORAGE_NAME = 'drmvyz:cinema-store' as const
-export const CINEMA_PERSIST_MIDDLEWARE_VERSION = 1 as const
+export const CINEMA_PERSIST_MIDDLEWARE_VERSION = 2 as const
 
 export interface CinemaHistoryEntry {
   label: string
@@ -110,7 +110,9 @@ const EMPTY_DIAGNOSTICS = createCinemaDiagnosticSnapshot([])
 export function createCinemaStore(options: CreateCinemaStoreOptions = {}): CinemaStoreApi {
   const source = options.initialState === undefined ? createCinemaFoundationPersistedState() : options.initialState
   const initialResult = normalizeCinemaPersistedState(source)
-  const initialState = initialResult.ok ? initialResult.value : createEmptyCinemaPersistedState()
+  const initialState = initialResult.ok
+    ? reconcileCinemaBuiltInState(initialResult.value)
+    : createEmptyCinemaPersistedState()
   return createStore<CinemaStoreState>()(createCinemaStoreInitializer(
     initialState,
     normalizeCinemaHistoryLimit(options.historyLimit),
@@ -147,7 +149,7 @@ export const useCinemaStore = create<CinemaStoreState>()(
       merge: (persistedState, currentState) => {
         const normalized = normalizeCinemaPersistedState(persistedState)
         return normalized.ok
-          ? { ...currentState, ...normalized.value, lastDiagnostics: normalized.diagnostics }
+          ? { ...currentState, ...reconcileCinemaBuiltInState(normalized.value), lastDiagnostics: normalized.diagnostics }
           : { ...currentState, lastDiagnostics: normalized.diagnostics }
       },
     },
@@ -226,7 +228,7 @@ function createCinemaStoreInitializer(
           set({ lastDiagnostics: normalized.diagnostics })
           return { ok: false, diagnostics: normalized.diagnostics }
         }
-        return applyDocument(normalized.value, 'Hydrate Cinema state', {
+        return applyDocument(reconcileCinemaBuiltInState(normalized.value), 'Hydrate Cinema state', {
           recordHistory: false,
           clearHistory: true,
         })
@@ -238,7 +240,7 @@ function createCinemaStoreInitializer(
           set({ lastDiagnostics: normalized.diagnostics })
           return { ok: false, diagnostics: normalized.diagnostics }
         }
-        return applyDocument(normalized.value, label)
+        return applyDocument(reconcileCinemaBuiltInState(normalized.value), label)
       },
 
       resetCinemaState: () => applyDocument(createCinemaFoundationPersistedState(), 'Reset Cinema state'),

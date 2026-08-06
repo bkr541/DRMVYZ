@@ -16,3 +16,5 @@ export * from './CinemaPersistence'
 export * from './CinemaPackageIO'
 export * from './CinemaStore'
 export * from './runtime'
+
+export * from './CinemaShaderSceneAdapter'

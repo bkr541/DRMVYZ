@@ -3,7 +3,9 @@ import {
   CINEMA_FOUNDATION_GRADIENT_DEFINITION,
   CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID,
   CINEMA_FOUNDATION_RUNTIME_REGISTRY,
+  CINEMA_PRODUCTION_RUNTIME_REGISTRY,
 } from '../CinemaFoundation'
+import { CINEMA_SHADER_SCENE_ADAPTER_BUNDLE } from '../CinemaShaderSceneAdapter'
 import { createCinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import type { CinemaNodePlugin, CinemaRenderNode } from '../CinemaRendererContracts'
 
@@ -53,11 +55,15 @@ describe('Cinema runtime node registry', () => {
     expect(malformed.diagnostics.some(diagnostic => diagnostic.code === 'CINEMA_ID_INVALID')).toBe(true)
   })
 
-  it('exposes the two built-in Stage 8 plugins through the production registry', () => {
+  it('keeps the two Stage 8 foundation plugins and adds every Stage 9 Shader adapter to production', () => {
     expect(CINEMA_FOUNDATION_RUNTIME_REGISTRY.size).toBe(2)
     expect(CINEMA_FOUNDATION_RUNTIME_REGISTRY.list().map(registration => registration.plugin.definition.family)).toEqual([
       'procedural',
       'output',
     ])
+    expect(CINEMA_PRODUCTION_RUNTIME_REGISTRY.size).toBe(2 + CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.length)
+    expect(CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.every(entry => (
+      CINEMA_PRODUCTION_RUNTIME_REGISTRY.hasPlugin(entry.pluginId)
+    ))).toBe(true)
   })
 })

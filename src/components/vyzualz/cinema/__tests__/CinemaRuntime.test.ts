@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CinemaNodeId, CinemaPortId } from '../CinemaIdentifiers'
 import {
+  CINEMA_FOUNDATION_COMPOSITION_ID,
   CINEMA_FOUNDATION_GRADIENT_DEFINITION,
   CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID,
   CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID,
@@ -257,7 +258,8 @@ describe('CinemaRuntime', () => {
 
     const state = createCinemaFoundationPersistedState()
     runtime.resize(resolution(640, 360))
-    runtime.setGraph(state.compositions[0] ?? null, null, state.definitions)
+    const activeComposition = state.compositions.find(composition => composition.id === state.activeCompositionId) ?? null
+    runtime.setGraph(activeComposition, null, state.definitions)
     runtime.setFrame(frame(640, 360))
     runtime.start()
     const scheduled = [...callbacks.entries()][0]
@@ -318,7 +320,8 @@ describe('CinemaRuntime', () => {
     if (!runtime) return
     const state = createCinemaFoundationPersistedState()
     runtime.resize(resolution(320, 180))
-    runtime.setGraph(state.compositions[0] ?? null, null, state.definitions)
+    const foundationComposition = state.compositions.find(composition => composition.id === CINEMA_FOUNDATION_COMPOSITION_ID) ?? null
+    runtime.setGraph(foundationComposition, null, state.definitions)
     runtime.setFrame(frame(320, 180))
     runtime.start()
     const callback = callbacks.get(1)
@@ -374,7 +377,8 @@ describe('CinemaRuntime', () => {
       : definition)
 
     runtime.resize(resolution(320, 180))
-    runtime.setGraph(foundation.compositions[0] ?? null, null, definitions)
+    const foundationComposition = foundation.compositions.find(composition => composition.id === CINEMA_FOUNDATION_COMPOSITION_ID) ?? null
+    runtime.setGraph(foundationComposition, null, definitions)
 
     expect(createNode).not.toHaveBeenCalled()
     expect(runtime.getSnapshot().graph.diagnostics.diagnostics.some(diagnostic => (

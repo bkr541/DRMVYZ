@@ -6,8 +6,8 @@ import {
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema production boundary through Stage 8', () => {
-  it('keeps prior Cinema contracts public while registering the non-rendering engine shell', () => {
+describe('Cinema production boundary through Stage 9', () => {
+  it('keeps prior Cinema contracts public while exposing Shader scene adapters through production runtime ownership', () => {
     expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(1)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
     expect(Cinema.CINEMA_COMPILED_GRAPH_VERSION).toBe(1)
@@ -15,6 +15,9 @@ describe('Cinema production boundary through Stage 8', () => {
     expect(typeof Cinema.createCinemaNodeDefinitionRegistry).toBe('function')
     expect(typeof Cinema.createCinemaRuntimeNodeRegistry).toBe('function')
     expect(Cinema.CINEMA_FOUNDATION_RUNTIME_REGISTRY.size).toBe(2)
+    expect(Cinema.CINEMA_PRODUCTION_RUNTIME_REGISTRY.size).toBeGreaterThan(2)
+    expect(Cinema.CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries).toHaveLength(8)
+    expect(typeof Cinema.createCinemaShaderSceneComposition).toBe('function')
     expect(typeof Cinema.CinemaGraphExecutor).toBe('function')
     expect(typeof Cinema.createCinemaFoundationPersistedState).toBe('function')
     expect(typeof Cinema.normalizeCinemaParameterValue).toBe('function')
@@ -27,6 +30,7 @@ describe('Cinema production boundary through Stage 8', () => {
     expect(typeof Cinema.preflightCinemaPackage).toBe('function')
     expect(typeof Cinema.encodeCinemaPackage).toBe('function')
     expect(Cinema.CINEMA_PERSISTED_STORE_SCHEMA_VERSION).toBe(1)
+    expect(Cinema.CINEMA_PERSIST_MIDDLEWARE_VERSION).toBe(2)
     expect(Cinema.CINEMA_PARAMETER_RESOLUTION_ORDER).toEqual([
       'definition-default',
       'saved-preset',

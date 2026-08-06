@@ -177,8 +177,8 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 8 graph execution wired</strong>
-          <span>The canonical composition now compiles into runtime plugins, Cinema-owned targets, and exactly one authorized output node.</span>
+          <strong>Stage 9 Shader adapters wired</strong>
+          <span>Active Shader Pads scenes now compile as Cinema plugins while the Cinema canvas, WebGL2 context, frame loop, targets, and output remain single-owned.</span>
         </div>
       </section>
     )
@@ -205,10 +205,10 @@ export function CinemaWorkspace({
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 8</div>
-        <h2>Node registry and graph execution</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 9</div>
+        <h2>Shader scene adapter</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema now executes the active persisted composition through registered render nodes, fault-isolated targets, and one output node on the production canvas.
+          Cinema can now execute active Shader Pads scenes as graph nodes, including multi-pass feedback and media inputs, without nesting the legacy canvas runtime.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>
@@ -220,7 +220,7 @@ export function CinemaWorkspace({
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status" aria-live="polite">
           <strong>{runtimeSnapshot?.phase === 'unavailable' ? 'Safe output only' : 'Cinema runtime owns the stage'}</strong>
-          <span>Render targets, programs, texture handles, compiled plans, and plugin instances remain runtime-only. A failed node is retired diagnostically while the engine keeps a defined safe output.</span>
+          <span>Shader programs and adapter-local resources remain runtime-only. Persistent feedback uses Cinema target leases, and a failed adapter is retired diagnostically while the engine keeps a defined safe output.</span>
         </div>
         {firstDiagnostic && (
           <div className="rv-cinema-workspace__diagnostic" role="note">
