@@ -1,6 +1,7 @@
 import { CinemaRuntime } from '../../components/vyzualz/cinema/runtime/CinemaRuntime'
 import type { CinemaNodeId } from '../../components/vyzualz/cinema/CinemaIdentifiers'
-import type { CinemaTargetDescriptor } from '../../components/vyzualz/cinema/CinemaRendererContracts'
+import type { CinemaFrameContext, CinemaTargetDescriptor } from '../../components/vyzualz/cinema/CinemaRendererContracts'
+import { createCinemaFoundationPersistedState } from '../../components/vyzualz/cinema/CinemaFoundation'
 
 const canvasElement = document.querySelector<HTMLCanvasElement>('[data-cinema-runtime-canvas]')
 const statusElement = document.querySelector<HTMLElement>('[data-cinema-runtime-status]')
@@ -31,6 +32,8 @@ async function waitFor(predicate: () => boolean, timeoutMs = 15_000): Promise<vo
 
 async function run(): Promise<void> {
   const phases: string[] = []
+  let gl: WebGL2RenderingContext | null = null
+  let centerPixel = [0, 0, 0, 0]
   const nativeGetContext = canvas.getContext.bind(canvas)
   let webgl2GetContextCount = 0
   canvas.getContext = ((contextId: string, options?: unknown) => {
@@ -60,10 +63,19 @@ async function run(): Promise<void> {
   const created = CinemaRuntime.create(canvas, {
     requestAnimationFrame: requestRuntimeFrame,
     cancelAnimationFrame: cancelRuntimeFrame,
-    onSnapshot: snapshot => phases.push(snapshot.phase),
+    onSnapshot: snapshot => {
+      phases.push(snapshot.phase)
+      if (snapshot.graph.outputRendered && gl) {
+        const pixel = new Uint8Array(4)
+        gl.readPixels(480, 270, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel)
+        centerPixel = [...pixel]
+      }
+    },
   })
   if (!created.runtime) throw new Error(created.error)
   const runtime = created.runtime
+  gl = nativeGetContext('webgl2') as WebGL2RenderingContext | null
+  if (!gl) throw new Error('Cinema browser harness lost its WebGL2 context reference.')
 
   runtime.resize({
     valid: true,
@@ -78,9 +90,12 @@ async function run(): Promise<void> {
     cappedByPixelBudget: false,
     cappedByDimension: false,
   })
+  const foundation = createCinemaFoundationPersistedState()
+  runtime.setGraph(foundation.compositions[0] ?? null, null, foundation.definitions)
+  runtime.setFrame(createFrame(960, 540))
   runtime.start()
   runtime.start()
-  await waitFor(() => runtime.getSnapshot().frameCount >= 2)
+  await waitFor(() => runtime.getSnapshot().frameCount >= 2 && runtime.getSnapshot().graph.outputRendered)
 
   const owner = 'cinema.node.browser-runtime' as CinemaNodeId
   const firstLease = runtime.targets.acquire(owner, targetDescriptor, 'frame')
@@ -91,15 +106,13 @@ async function run(): Promise<void> {
   const secondView = runtime.targets.getReadTexture(secondLease)
   const reusedTarget = firstView?.textureViewId === secondView?.textureViewId
 
-  const gl = nativeGetContext('webgl2') as WebGL2RenderingContext | null
-  if (!gl) throw new Error('Cinema browser harness lost its WebGL2 context reference.')
   const loseContext = gl.getExtension('WEBGL_lose_context')
   if (!loseContext) throw new Error('WEBGL_lose_context is unavailable; context recovery was not exercised.')
   loseContext.loseContext()
   await waitFor(() => runtime.getSnapshot().phase === 'context-lost')
   loseContext.restoreContext()
   await waitFor(() => runtime.getSnapshot().phase === 'running' && runtime.getSnapshot().contextGeneration === 2)
-  await waitFor(() => runtime.getSnapshot().frameCount >= 3)
+  await waitFor(() => runtime.getSnapshot().frameCount >= 3 && runtime.getSnapshot().graph.outputRendered)
 
   runtime.targets.release(secondLease)
   const poolBeforeDispose = runtime.targets.getDiagnostics()
@@ -117,6 +130,8 @@ async function run(): Promise<void> {
     frameCount: finalSnapshot.frameCount,
     phases,
     poolBeforeDispose,
+    graph: finalSnapshot.graph,
+    centerPixel,
     webgl2GetContextCount,
     maximumPendingRuntimeFrames,
     pendingRuntimeFrameCountAfterDispose: pendingRuntimeFrames.size,
@@ -129,3 +144,15 @@ run().catch(error => {
   status.dataset.result = 'failed'
   status.textContent = error instanceof Error ? error.stack ?? error.message : String(error)
 })
+
+
+function createFrame(width: number, height: number): Readonly<CinemaFrameContext> {
+  return {
+    viewport: { width, height, dpr: 1 },
+    transport: {
+      trackId: 'cinema-stage-8-browser', audioTimeSec: 0, durationSec: 60, playing: true, paused: false,
+      seeking: false, looped: false, visibilitySuspended: false, discontinuity: false,
+      discontinuityReasons: [], reset: { required: false, reconstruct: false, generation: 0, reasons: [], actionIds: [], identity: null },
+    },
+  } as unknown as Readonly<CinemaFrameContext>
+}

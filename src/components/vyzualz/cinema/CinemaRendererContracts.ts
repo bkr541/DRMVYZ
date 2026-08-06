@@ -14,6 +14,7 @@ import type {
   CinemaStableId,
 } from './CinemaIdentifiers'
 import type {
+  CinemaAssetBindingDefinition,
   CinemaBrandRole,
   CinemaColor,
   CinemaJsonObject,
@@ -86,6 +87,21 @@ export interface CinemaRenderTargetService {
 export interface CinemaTextureGraphService {
   resolveInput(nodeId: CinemaNodeId, portId: CinemaPortId): CinemaTextureView | null
   publishOutput(nodeId: CinemaNodeId, portId: CinemaPortId, texture: CinemaTextureView): void
+}
+
+/**
+ * Runtime-owned WebGL2 access granted to renderer plugins.
+ *
+ * Nodes may create node-local programs, buffers, and uniforms against this
+ * context, but they must never create another canvas, context, or animation
+ * loop. Framebuffer and texture resolution stays behind Cinema-owned handles.
+ */
+export interface CinemaWebGLRenderService {
+  readonly gl: WebGL2RenderingContext
+  bindTarget(lease: CinemaRenderTargetLease): Readonly<{ width: number; height: number }>
+  bindDefaultFramebuffer(viewport: CinemaViewport): void
+  resolveTexture(view: CinemaTextureView): WebGLTexture | null
+  resetState(): void
 }
 
 export interface CinemaRuntimeDiagnosticSink {
@@ -503,6 +519,9 @@ export interface CinemaNodeInitializeContext {
   platform: Readonly<CinemaPlatformCapabilities>
   targets: CinemaRenderTargetService
   textures: CinemaTextureGraphService
+  webgl: CinemaWebGLRenderService
+  /** Authored stable asset bindings resolved with the active instance overrides. */
+  assets: readonly Readonly<CinemaAssetBindingDefinition>[]
   diagnostics: CinemaRuntimeDiagnosticSink
   signal: AbortSignal
 }
@@ -512,17 +531,24 @@ export interface CinemaNodeResizeContext {
   previousViewport: CinemaViewport
   viewport: CinemaViewport
   targets: CinemaRenderTargetService
+  webgl: CinemaWebGLRenderService
   diagnostics: CinemaRuntimeDiagnosticSink
 }
 
 export interface CinemaNodeRenderContext {
   nodeId: CinemaNodeId
   frame: Readonly<CinemaFrameContext>
+  viewport: Readonly<CinemaViewport>
   values: Readonly<CinemaParameterValues>
+  /** Authored stable asset bindings resolved with the active instance overrides. */
+  assets: readonly Readonly<CinemaAssetBindingDefinition>[]
   inputs: Readonly<Partial<Record<CinemaPortId, CinemaTextureView | null>>>
-  target: CinemaRenderTargetLease
+  /** Null only for the one compiled output node, which is authorized to bind the default framebuffer. */
+  target: CinemaRenderTargetLease | null
+  outputNode: boolean
   targets: CinemaRenderTargetService
   textures: CinemaTextureGraphService
+  webgl: CinemaWebGLRenderService
   diagnostics: CinemaRuntimeDiagnosticSink
 }
 
@@ -531,12 +557,14 @@ export interface CinemaNodeResetContext {
   actionId: CinemaStateResetActionId | CinemaActionId
   frame: Readonly<CinemaFrameContext> | null
   seekTargetSec?: number
+  webgl: CinemaWebGLRenderService
   diagnostics: CinemaRuntimeDiagnosticSink
 }
 
 export interface CinemaNodeDisposeContext {
   nodeId: CinemaNodeId
   reason: 'unmount' | 'superseded' | 'setup-failed' | 'render-failed' | 'context-lost' | 'registry-change'
+  webgl: CinemaWebGLRenderService
   diagnostics: CinemaRuntimeDiagnosticSink
 }
 

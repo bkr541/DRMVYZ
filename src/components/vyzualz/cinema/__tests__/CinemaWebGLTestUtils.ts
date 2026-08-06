@@ -9,6 +9,11 @@ export interface CinemaMockWebGL extends WebGL2RenderingContext {
     createdRenderbuffers: number
     deletedRenderbuffers: number
     clearCount: number
+    createdPrograms: number
+    deletedPrograms: number
+    createdShaders: number
+    deletedShaders: number
+    drawCount: number
   }
 }
 
@@ -22,6 +27,11 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     createdRenderbuffers: 0,
     deletedRenderbuffers: 0,
     clearCount: 0,
+    createdPrograms: 0,
+    deletedPrograms: 0,
+    createdShaders: 0,
+    deletedShaders: 0,
+    drawCount: 0,
   }
   const gl = {
     __calls: calls,
@@ -63,8 +73,34 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     SCISSOR_TEST: 0x0c11,
     BLEND: 0x0be2,
     DEPTH_TEST: 0x0b71,
+    VERTEX_SHADER: 0x8b31,
+    FRAGMENT_SHADER: 0x8b30,
+    COMPILE_STATUS: 0x8b81,
+    LINK_STATUS: 0x8b82,
+    TRIANGLES: 0x0004,
+    TEXTURE0: 0x84c0,
     MAX_TEXTURE_SIZE: 0x0d33,
     MAX_TEXTURE_IMAGE_UNITS: 0x8872,
+    createShader: vi.fn(() => { calls.createdShaders += 1; return { id: objectId++ } as unknown as WebGLShader }),
+    deleteShader: vi.fn(() => { calls.deletedShaders += 1 }),
+    shaderSource: vi.fn(),
+    compileShader: vi.fn(),
+    getShaderParameter: vi.fn(() => true),
+    getShaderInfoLog: vi.fn(() => ''),
+    createProgram: vi.fn(() => { calls.createdPrograms += 1; return { id: objectId++ } as unknown as WebGLProgram }),
+    deleteProgram: vi.fn(() => { calls.deletedPrograms += 1 }),
+    attachShader: vi.fn(),
+    linkProgram: vi.fn(),
+    getProgramParameter: vi.fn(() => true),
+    getProgramInfoLog: vi.fn(() => ''),
+    getUniformLocation: vi.fn(() => ({ id: objectId++ } as unknown as WebGLUniformLocation)),
+    uniform4fv: vi.fn(),
+    uniform1f: vi.fn(),
+    uniform1i: vi.fn(),
+    useProgram: vi.fn(),
+    activeTexture: vi.fn(),
+    bindVertexArray: vi.fn(),
+    drawArrays: vi.fn(() => { calls.drawCount += 1 }),
     createFramebuffer: vi.fn(() => {
       calls.createdFramebuffers += 1
       return { id: objectId++ } as unknown as WebGLFramebuffer

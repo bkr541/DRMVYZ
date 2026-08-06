@@ -6,6 +6,7 @@ import {
   createCinemaDiagnosticSnapshot,
   type CinemaDiagnosticSnapshot,
 } from './CinemaDiagnostics'
+import { createCinemaFoundationPersistedState } from './CinemaFoundation'
 import type {
   CinemaCollectionDefinition,
   CinemaCompositionDefinition,
@@ -107,7 +108,8 @@ export type CinemaStoreApi = StoreApi<CinemaStoreState>
 const EMPTY_DIAGNOSTICS = createCinemaDiagnosticSnapshot([])
 
 export function createCinemaStore(options: CreateCinemaStoreOptions = {}): CinemaStoreApi {
-  const initialResult = normalizeCinemaPersistedState(options.initialState)
+  const source = options.initialState === undefined ? createCinemaFoundationPersistedState() : options.initialState
+  const initialResult = normalizeCinemaPersistedState(source)
   const initialState = initialResult.ok ? initialResult.value : createEmptyCinemaPersistedState()
   return createStore<CinemaStoreState>()(createCinemaStoreInitializer(
     initialState,
@@ -130,7 +132,7 @@ function resolveCinemaStorage(): StateStorage {
 export const useCinemaStore = create<CinemaStoreState>()(
   persist(
     createCinemaStoreInitializer(
-      createEmptyCinemaPersistedState(),
+      createCinemaFoundationPersistedState(),
       CINEMA_DEFAULT_HISTORY_LIMIT,
       EMPTY_DIAGNOSTICS,
     ),
@@ -239,7 +241,7 @@ function createCinemaStoreInitializer(
         return applyDocument(normalized.value, label)
       },
 
-      resetCinemaState: () => applyDocument(createEmptyCinemaPersistedState(), 'Reset Cinema state'),
+      resetCinemaState: () => applyDocument(createCinemaFoundationPersistedState(), 'Reset Cinema state'),
 
       upsertCinemaDefinition: definition => mutateDocument('Update Cinema definition', current => ({
         ...current,

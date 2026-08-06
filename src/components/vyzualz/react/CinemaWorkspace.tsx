@@ -121,6 +121,16 @@ function runtimeStatusLabel(snapshot: CinemaRuntimeSnapshot | null): string {
   }
 }
 
+
+function diagnosticSeverityRank(severity: 'info' | 'warning' | 'error' | 'fatal'): number {
+  switch (severity) {
+    case 'fatal': return 3
+    case 'error': return 2
+    case 'warning': return 1
+    case 'info': return 0
+  }
+}
+
 export function CinemaWorkspace({
   surface,
   frameBridge = null,
@@ -138,6 +148,7 @@ export function CinemaWorkspace({
     activeInstanceId: store.activeInstanceId,
     compositions: store.compositions,
     instances: store.instances,
+    definitions: store.definitions,
     lastDiagnostics: store.lastDiagnostics,
   })))
   const model = useMemo(() => resolveCinemaWorkspaceModel({
@@ -148,7 +159,9 @@ export function CinemaWorkspace({
   const compositionName = model.activeComposition?.metadata.name ?? 'None selected'
   const compositionId = model.activeComposition?.id ?? 'No composition ID'
   const instanceLabel = model.activeInstance?.label ?? 'Base composition'
-  const firstDiagnostic = model.diagnostics.diagnostics[0]
+  const firstDiagnostic = [...model.diagnostics.diagnostics].sort((left, right) => (
+    diagnosticSeverityRank(right.severity) - diagnosticSeverityRank(left.severity)
+  ))[0]
 
   if (surface === 'panel') {
     return (
@@ -164,8 +177,8 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 7 runtime wired</strong>
-          <span>One visible canvas, one WebGL2 context, one animation loop, pooled targets, opaque textures, and context recovery are active. Graph execution begins in Stage 8.</span>
+          <strong>Stage 8 graph execution wired</strong>
+          <span>The canonical composition now compiles into runtime plugins, Cinema-owned targets, and exactly one authorized output node.</span>
         </div>
       </section>
     )
@@ -179,29 +192,35 @@ export function CinemaWorkspace({
       data-runtime-available={runtimeSnapshot?.phase === 'unavailable' ? 'false' : 'true'}
       data-runtime-phase={runtimeSnapshot?.phase ?? 'initializing'}
       data-cinema-frame-available={model.frameAvailable ? 'true' : 'false'}
+      data-cinema-output-rendered={runtimeSnapshot?.graph.outputRendered ? 'true' : 'false'}
+      data-cinema-active-node-count={runtimeSnapshot?.graph.activeNodeCount ?? 0}
     >
       <CinemaCanvas
         frameBridge={frameBridge}
+        composition={model.activeComposition}
+        instance={model.activeInstance}
+        definitions={state.definitions}
         onCanvasReady={onCanvasReady}
         onLiveFps={onLiveFps}
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 7</div>
-        <h2>Single-owner WebGL runtime</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 8</div>
+        <h2>Node registry and graph execution</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema now owns the live output canvas and GPU lifecycle. The current frame is intentionally neutral while node execution remains reserved for Stage 8.
+          Cinema now executes the active persisted composition through registered render nodes, fault-isolated targets, and one output node on the production canvas.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>
           <div><dt>Active instance</dt><dd>{instanceLabel}</dd><small>{model.instanceCount} saved instance{model.instanceCount === 1 ? '' : 's'}</small></div>
           <div><dt>Runtime</dt><dd>{runtimeStatusLabel(runtimeSnapshot)}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.viewport.width} × ${runtimeSnapshot.viewport.height}` : 'Preparing canvas'}</small></div>
+          <div><dt>Graph</dt><dd>{runtimeSnapshot?.graph.outputRendered ? 'Output rendered' : 'Safe output'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.initializedNodeCount}/${runtimeSnapshot.graph.activeNodeCount} nodes ready` : 'Compiling'}</small></div>
           <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd><small>{model.statusLabel}</small></div>
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? 'Normalized' : 'Unavailable'}</dd><small>{model.frameTrackId ?? 'No active track'}</small></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status" aria-live="polite">
           <strong>{runtimeSnapshot?.phase === 'unavailable' ? 'Safe output only' : 'Cinema runtime owns the stage'}</strong>
-          <span>Render targets and texture handles are runtime-only and never enter persisted Cinema state. Context loss pauses advancement and restoration rebuilds owned resources without starting a duplicate loop.</span>
+          <span>Render targets, programs, texture handles, compiled plans, and plugin instances remain runtime-only. A failed node is retired diagnostically while the engine keeps a defined safe output.</span>
         </div>
         {firstDiagnostic && (
           <div className="rv-cinema-workspace__diagnostic" role="note">

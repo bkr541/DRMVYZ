@@ -13,6 +13,8 @@ test('Cinema owns one real WebGL2 runtime and recovers its target pool', async (
     frameCount?: number
     phases?: string[]
     poolBeforeDispose?: { activeLeaseCount?: number; pooledAllocationCount?: number }
+    graph?: { activeNodeCount?: number; initializedNodeCount?: number; failedNodeCount?: number; outputRendered?: boolean; safeOutputActive?: boolean }
+    centerPixel?: number[]
     webgl2GetContextCount?: number
     maximumPendingRuntimeFrames?: number
     pendingRuntimeFrameCountAfterDispose?: number
@@ -25,7 +27,13 @@ test('Cinema owns one real WebGL2 runtime and recovers its target pool', async (
   expect(payload.contextGeneration).toBe(2)
   expect(payload.frameCount).toBeGreaterThanOrEqual(3)
   expect(payload.phases).toEqual(expect.arrayContaining(['running', 'context-lost']))
-  expect(payload.poolBeforeDispose).toMatchObject({ activeLeaseCount: 0, pooledAllocationCount: 1 })
+  expect(payload.poolBeforeDispose?.activeLeaseCount).toBe(0)
+  expect(payload.poolBeforeDispose?.pooledAllocationCount).toBeGreaterThanOrEqual(1)
+  expect(payload.graph).toMatchObject({
+    activeNodeCount: 2, initializedNodeCount: 2, failedNodeCount: 0, outputRendered: true, safeOutputActive: false,
+  })
+  expect(payload.centerPixel?.[3]).toBeGreaterThan(0)
+  expect((payload.centerPixel?.[0] ?? 0) + (payload.centerPixel?.[1] ?? 0) + (payload.centerPixel?.[2] ?? 0)).toBeGreaterThan(0)
   expect(payload.webgl2GetContextCount).toBe(1)
   expect(payload.maximumPendingRuntimeFrames).toBe(1)
   expect(payload.pendingRuntimeFrameCountAfterDispose).toBe(0)

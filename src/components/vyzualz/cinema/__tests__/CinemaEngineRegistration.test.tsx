@@ -13,7 +13,7 @@ import {
   getReactLiveEngineOwnershipDiagnosticsForTests,
   resetReactLiveEngineOwnershipForTests,
 } from '../../react/renderers/ReactLiveEngineOwnership'
-import { createEmptyCinemaPersistedState } from '../CinemaPersistence'
+import { createCinemaFoundationPersistedState } from '../CinemaFoundation'
 import { createCinemaDiagnosticSnapshot } from '../CinemaDiagnostics'
 import {
   getDrmvyzWebGLContextDiagnosticsForTests,
@@ -77,7 +77,7 @@ beforeEach(() => {
   resetReactLiveEngineOwnershipForTests()
   resetDrmvyzWebGLContextDiagnosticsForTests()
   useReactStore.getState().resetReactView()
-  useCinemaStore.getState().hydrateCinemaState(createEmptyCinemaPersistedState())
+  useCinemaStore.getState().hydrateCinemaState(createCinemaFoundationPersistedState())
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -156,6 +156,13 @@ describe('Cinema production engine registration', () => {
     expect(requestAnimationFrame).toHaveBeenCalledTimes(1)
     expect(callbacks.size).toBe(1)
     expect(onCanvasReady).toHaveBeenCalledWith(canvas)
+
+    const runtimeFrame = [...callbacks.entries()][0]
+    callbacks.delete(runtimeFrame[0])
+    await act(async () => runtimeFrame[1](16.67))
+    expect(gl.__calls.drawCount).toBe(2)
+    expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+    expect(host?.textContent).toContain('Output rendered')
 
     await act(async () => trigger?.click())
     const cinematicOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]

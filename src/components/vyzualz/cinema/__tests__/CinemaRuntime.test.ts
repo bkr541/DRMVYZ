@@ -2,6 +2,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CinemaNodeId, CinemaPortId } from '../CinemaIdentifiers'
+import {
+  CINEMA_FOUNDATION_GRADIENT_DEFINITION,
+  CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID,
+  CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID,
+  CINEMA_FOUNDATION_RUNTIME_REGISTRY,
+  createCinemaFoundationPersistedState,
+} from '../CinemaFoundation'
+import { createCinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
+import type { CinemaFrameContext, CinemaNodePlugin, CinemaRenderNode } from '../CinemaRendererContracts'
 import type { CinemaTargetDescriptor } from '../CinemaRendererContracts'
 import { CinemaRuntime } from '../runtime/CinemaRuntime'
 import {
@@ -230,6 +239,151 @@ describe('CinemaRuntime', () => {
     runtime.dispose()
   })
 
+
+
+  it('executes the persisted foundation graph through registered nodes and one output', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: callback => { const id = nextRaf++; callbacks.set(id, callback); return id },
+      cancelAnimationFrame: id => { callbacks.delete(id) },
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    const state = createCinemaFoundationPersistedState()
+    runtime.resize(resolution(640, 360))
+    runtime.setGraph(state.compositions[0] ?? null, null, state.definitions)
+    runtime.setFrame(frame(640, 360))
+    runtime.start()
+    const scheduled = [...callbacks.entries()][0]
+    callbacks.delete(scheduled[0])
+    scheduled[1](16.67)
+
+    expect(runtime.getSnapshot().graph).toMatchObject({
+      compositionId: state.activeCompositionId,
+      activeNodeCount: 2,
+      initializedNodeCount: 2,
+      failedNodeCount: 0,
+      outputRendered: true,
+      safeOutputActive: false,
+    })
+    expect(gl.__calls.drawCount).toBe(2)
+    expect(gl.bindFramebuffer).toHaveBeenCalledWith(gl.FRAMEBUFFER, null)
+
+    runtime.setGraph(null, null, state.definitions)
+    expect(runtime.getSnapshot().graph).toMatchObject({ activeNodeCount: 0, safeOutputActive: true })
+    runtime.dispose()
+    expect(gl.__calls.deletedPrograms).toBe(gl.__calls.createdPrograms)
+  })
+
+  it('isolates a throwing node and keeps the output path alive diagnostically', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const outputRegistration = CINEMA_FOUNDATION_RUNTIME_REGISTRY.getByPluginId(CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID)
+    expect(outputRegistration).toBeDefined()
+    if (!outputRegistration) return
+
+    const throwingPlugin: CinemaNodePlugin = {
+      definition: CINEMA_FOUNDATION_GRADIENT_DEFINITION,
+      createNode(node): CinemaRenderNode {
+        return {
+          nodeId: node.id,
+          typeId: node.typeId,
+          initialize() {},
+          resize() {},
+          render() { throw new Error('intentional renderer failure') },
+          reset() {},
+          dispose() {},
+        }
+      },
+    }
+    const runtimeRegistry = createCinemaRuntimeNodeRegistry([
+      { pluginId: CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID, plugin: throwingPlugin },
+      outputRegistration,
+    ]).registry
+    const callbacks = new Map<number, FrameRequestCallback>()
+    const created = CinemaRuntime.create(canvas, {
+      runtimeRegistry,
+      requestAnimationFrame: callback => { callbacks.set(1, callback); return 1 },
+      cancelAnimationFrame: () => { callbacks.clear() },
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+    const state = createCinemaFoundationPersistedState()
+    runtime.resize(resolution(320, 180))
+    runtime.setGraph(state.compositions[0] ?? null, null, state.definitions)
+    runtime.setFrame(frame(320, 180))
+    runtime.start()
+    const callback = callbacks.get(1)
+    expect(callback).toBeDefined()
+    callback?.(16.67)
+
+    expect(runtime.getSnapshot().graph).toMatchObject({ failedNodeCount: 1, outputRendered: true, safeOutputActive: true })
+    expect(runtime.getSnapshot().diagnostics.diagnostics.some(diagnostic => (
+      diagnostic.code === 'CINEMA_NODE_RENDER_FAILED'
+      && diagnostic.message.includes('foundation-gradient')
+    ))).toBe(true)
+    expect(runtime.getSnapshot().phase).toBe('running')
+    runtime.dispose()
+  })
+
+
+  it('honors runtime capability declarations before renderer initialization', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const outputRegistration = CINEMA_FOUNDATION_RUNTIME_REGISTRY.getByPluginId(CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID)
+    expect(outputRegistration).toBeDefined()
+    if (!outputRegistration) return
+
+    const constrainedDefinition = {
+      ...CINEMA_FOUNDATION_GRADIENT_DEFINITION,
+      capabilities: {
+        ...CINEMA_FOUNDATION_GRADIENT_DEFINITION.capabilities,
+        requires: { webgl2: true, timerQueries: true },
+      },
+    }
+    const createNode = vi.fn((): CinemaRenderNode => ({
+      nodeId: 'foundation-gradient' as CinemaNodeId,
+      typeId: CINEMA_FOUNDATION_GRADIENT_DEFINITION.typeId,
+      initialize() {}, resize() {}, render() {}, reset() {}, dispose() {},
+    }))
+    const constrainedPlugin: CinemaNodePlugin = { definition: constrainedDefinition, createNode }
+    const runtimeRegistry = createCinemaRuntimeNodeRegistry([
+      { pluginId: CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID, plugin: constrainedPlugin },
+      outputRegistration,
+    ]).registry
+    const created = CinemaRuntime.create(canvas, {
+      runtimeRegistry,
+      requestAnimationFrame: vi.fn(() => 1),
+      cancelAnimationFrame: vi.fn(),
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+    const foundation = createCinemaFoundationPersistedState()
+    const definitions = foundation.definitions.map(definition => definition.id === constrainedDefinition.typeId
+      ? { ...definition, definition: constrainedDefinition }
+      : definition)
+
+    runtime.resize(resolution(320, 180))
+    runtime.setGraph(foundation.compositions[0] ?? null, null, definitions)
+
+    expect(createNode).not.toHaveBeenCalled()
+    expect(runtime.getSnapshot().graph.diagnostics.diagnostics.some(diagnostic => (
+      diagnostic.code === 'CINEMA_CAPABILITY_UNAVAILABLE'
+      && diagnostic.attribution?.nodeId === 'foundation-gradient'
+    ))).toBe(true)
+    runtime.dispose()
+  })
+
   it('returns structured safe-output diagnostics when WebGL2 is unavailable', () => {
     const canvas = document.createElement('canvas')
     vi.spyOn(canvas, 'getContext').mockReturnValue(null)
@@ -256,4 +410,16 @@ function resolution(width: number, height: number) {
     cappedByPixelBudget: false,
     cappedByDimension: false,
   }
+}
+
+
+function frame(width: number, height: number): Readonly<CinemaFrameContext> {
+  return {
+    viewport: { width, height, dpr: 1 },
+    transport: {
+      trackId: 'stage-8-test', audioTimeSec: 0, durationSec: 60, playing: true, paused: false,
+      seeking: false, looped: false, visibilitySuspended: false, discontinuity: false,
+      discontinuityReasons: [], reset: { required: false, reconstruct: false, generation: 0, reasons: [], actionIds: [], identity: null },
+    },
+  } as unknown as Readonly<CinemaFrameContext>
 }

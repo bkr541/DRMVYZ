@@ -1,3 +1,5 @@
 export * from './CinemaRuntime'
 export * from './CinemaRenderTargetPool'
+export * from './CinemaGraphExecutor'
 export * from './CinemaTextureManager'
+export * from './CinemaWebGLRenderService'

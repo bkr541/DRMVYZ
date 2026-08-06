@@ -234,6 +234,9 @@ describe('Cinema persisted state and migrations', () => {
     const fresh = createCinemaStore()
     expect(fresh.getState().schemaId).toBe(CINEMA_PERSISTED_STORE_SCHEMA_ID)
     expect(fresh.getState().schemaVersion).toBe(1)
+    expect(fresh.getState().activeCompositionId).toBe('foundation-gradient')
+    expect(fresh.getState().compositions).toHaveLength(1)
+    expect(fresh.getState().definitions).toHaveLength(2)
 
     const first = createCinemaStore({ initialState: populatedState() })
     const saved = snapshotCinemaPersistedState(first.getState())

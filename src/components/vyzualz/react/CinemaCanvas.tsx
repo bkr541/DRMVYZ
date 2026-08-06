@@ -3,7 +3,10 @@ import {
   CinemaRuntime,
   createCinemaDiagnostic,
   createCinemaDiagnosticSnapshot,
+  type CinemaCompositionDefinition,
+  type CinemaCompositionInstance,
   type CinemaFrameBuildResult,
+  type CinemaPersistedDefinition,
   type CinemaRuntimeSnapshot,
 } from '../cinema'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
@@ -12,6 +15,9 @@ import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders
 
 export interface CinemaCanvasProps {
   frameBridge: CinemaFrameBuildResult | null
+  composition: Readonly<CinemaCompositionDefinition> | null
+  instance: Readonly<CinemaCompositionInstance> | null
+  definitions: readonly CinemaPersistedDefinition[]
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
   onRuntimeSnapshot?: (snapshot: CinemaRuntimeSnapshot) => void
@@ -23,6 +29,11 @@ const INITIAL_RUNTIME_SNAPSHOT: CinemaRuntimeSnapshot = {
   frameCount: 0,
   contextGeneration: 1,
   diagnostics: createCinemaDiagnosticSnapshot([]),
+  graph: {
+    compositionId: null, compositionRevision: null, planCacheKey: null, planCacheSize: 0, activeNodeCount: 0,
+    initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null, outputRendered: false, safeOutputActive: true,
+    diagnostics: createCinemaDiagnosticSnapshot([]),
+  },
   capabilities: {
     webgl2: false,
     canvas2d: typeof CanvasRenderingContext2D !== 'undefined',
@@ -39,6 +50,9 @@ const INITIAL_RUNTIME_SNAPSHOT: CinemaRuntimeSnapshot = {
 /** Production Cinema canvas. It is the only component allowed to own Cinema's live runtime. */
 export function CinemaCanvas({
   frameBridge,
+  composition,
+  instance,
+  definitions,
   onCanvasReady,
   onLiveFps,
   onRuntimeSnapshot,
@@ -46,11 +60,13 @@ export function CinemaCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const runtimeRef = useRef<CinemaRuntime | null>(null)
   const frameRef = useRef(frameBridge?.frame ?? null)
+  const graphRef = useRef({ composition, instance, definitions })
   const onCanvasReadyRef = useRef(onCanvasReady)
   const onLiveFpsRef = useRef(onLiveFps)
   const onRuntimeSnapshotRef = useRef(onRuntimeSnapshot)
 
   frameRef.current = frameBridge?.frame ?? null
+  graphRef.current = { composition, instance, definitions }
   onCanvasReadyRef.current = onCanvasReady
   onLiveFpsRef.current = onLiveFps
   onRuntimeSnapshotRef.current = onRuntimeSnapshot
@@ -58,6 +74,11 @@ export function CinemaCanvas({
   useEffect(() => {
     runtimeRef.current?.setFrame(frameRef.current)
   }, [frameBridge])
+
+  useEffect(() => {
+    const graph = graphRef.current
+    runtimeRef.current?.setGraph(graph.composition, graph.instance, graph.definitions)
+  }, [composition, instance, definitions])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -136,6 +157,7 @@ export function CinemaCanvas({
       runtime = created.runtime
       runtimeRef.current = runtime
       runtime.setFrame(frameRef.current)
+      runtime.setGraph(graphRef.current.composition, graphRef.current.instance, graphRef.current.definitions)
       if (lastResolution) runtime.resize(lastResolution)
       runtime.setVisibilitySuspended(document.visibilityState === 'hidden')
       runtime.start()

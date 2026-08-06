@@ -4,6 +4,10 @@ import {
   type CinemaDiagnostic,
   type CinemaDiagnosticSnapshot,
 } from '../CinemaDiagnostics'
+import type { CinemaCompositionDefinition, CinemaCompositionInstance } from '../CinemaDomain'
+import type { CinemaPersistedDefinition } from '../CinemaPersistence'
+import { CINEMA_FOUNDATION_RUNTIME_REGISTRY } from '../CinemaFoundation'
+import type { CinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import type {
   CinemaFrameContext,
   CinemaPlatformCapabilities,
@@ -18,6 +22,8 @@ import {
 } from '../../react/shaders/runtime/WebGLContextLifecycle'
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
 import { CinemaTextureManager } from './CinemaTextureManager'
+import { CinemaGraphExecutor, type CinemaGraphExecutorSnapshot } from './CinemaGraphExecutor'
+import { CinemaWebGLRenderServiceImpl } from './CinemaWebGLRenderService'
 
 export type CinemaRuntimePhase =
   | 'initializing'
@@ -34,6 +40,7 @@ export interface CinemaRuntimeSnapshot {
   contextGeneration: number
   diagnostics: CinemaDiagnosticSnapshot
   capabilities: CinemaPlatformCapabilities
+  graph: CinemaGraphExecutorSnapshot
 }
 
 export interface CinemaRuntimeCreateOptions {
@@ -41,6 +48,7 @@ export interface CinemaRuntimeCreateOptions {
   cancelAnimationFrame?: typeof cancelAnimationFrame
   onSnapshot?: (snapshot: CinemaRuntimeSnapshot) => void
   onLiveFps?: (fps: number) => void
+  runtimeRegistry?: CinemaRuntimeNodeRegistry
 }
 
 export type CinemaRuntimeCreateResult =
@@ -50,9 +58,9 @@ export type CinemaRuntimeCreateResult =
 /**
  * Single-owner Cinema WebGL2 runtime.
  *
- * Stage 7 intentionally renders only a neutral clear frame. The target pool,
- * texture graph, resize, ownership, and context-recovery seams are the stable
- * foundation consumed by graph execution in Stage 8.
+ * Stage 8 executes the canonical compiled composition through runtime-only
+ * renderer plugins, Cinema-owned targets, one authorized output node, and the
+ * existing single-context/single-loop lifecycle.
  */
 export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   static create(canvas: HTMLCanvasElement, options: CinemaRuntimeCreateOptions = {}): CinemaRuntimeCreateResult {
@@ -86,6 +94,8 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   readonly textures: CinemaTextureManager
   readonly targets: CinemaRenderTargetPool
   readonly capabilities: CinemaPlatformCapabilities
+  readonly webgl: CinemaWebGLRenderServiceImpl
+  readonly executor: CinemaGraphExecutor
 
   private readonly requestFrame: typeof requestAnimationFrame
   private readonly cancelFrame: typeof cancelAnimationFrame
@@ -107,6 +117,11 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   private disposed = false
   private frameCount = 0
   private contextGeneration = 1
+  private graphSnapshot: CinemaGraphExecutorSnapshot = {
+    compositionId: null, compositionRevision: null, planCacheKey: null, planCacheSize: 0,
+    activeNodeCount: 0, initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null,
+    outputRendered: false, safeOutputActive: true, diagnostics: createCinemaDiagnosticSnapshot([]),
+  }
   private fpsFrameCount = 0
   private fpsWindowStartedMs = 0
 
@@ -122,6 +137,15 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.capabilities = detectPlatformCapabilities(gl)
     this.textures = new CinemaTextureManager()
     this.targets = new CinemaRenderTargetPool(gl, this.textures, this.viewport, this)
+    this.webgl = new CinemaWebGLRenderServiceImpl(gl, this.targets, this.textures)
+    this.executor = new CinemaGraphExecutor({
+      runtimeRegistry: options.runtimeRegistry ?? CINEMA_FOUNDATION_RUNTIME_REGISTRY,
+      platform: this.capabilities, targets: this.targets, textures: this.textures, webgl: this.webgl, diagnostics: this,
+      onSnapshot: snapshot => {
+        this.graphSnapshot = snapshot
+        if (!this.disposed) this.emitSnapshot()
+      },
+    })
     this.contextDiagnosticHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
       role: 'react-live-canvas',
@@ -135,6 +159,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       this.contextLost = true
       this.phase = 'context-lost'
       this.cancelScheduledFrame()
+      this.executor.handleContextLost()
       this.targets.abandonContext()
       this.report(createCinemaDiagnostic({
         code: 'CINEMA_CONTEXT_LOST',
@@ -151,6 +176,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       try {
         this.targets.rebuildAfterContextRestore()
         if (this.lastResolution) this.applyResolution(this.lastResolution)
+        this.executor.rebuildAfterContextRestore()
         this.report(createCinemaDiagnostic({
           code: 'CINEMA_CONTEXT_RESTORED',
           severity: 'info',
@@ -178,9 +204,18 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.report(createCinemaDiagnostic({
       code: 'CINEMA_SAFE_OUTPUT_ACTIVE',
       severity: 'info',
-      message: 'Cinema runtime is active with the Stage 7 neutral clear-frame output.',
+      message: 'Cinema runtime is active with Stage 8 compiled graph execution and safe-output isolation.',
       attribution: { stage: 'cinema-runtime' },
     }))
+  }
+
+  setGraph(
+    composition: Readonly<CinemaCompositionDefinition> | null,
+    instance: Readonly<CinemaCompositionInstance> | null,
+    definitions: readonly CinemaPersistedDefinition[],
+  ): void {
+    if (this.disposed) return
+    this.executor.setGraph({ composition, instance, definitions })
   }
 
   setFrame(frame: Readonly<CinemaFrameContext> | null): void {
@@ -262,6 +297,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       contextGeneration: this.contextGeneration,
       diagnostics: createCinemaDiagnosticSnapshot(this.diagnostics),
       capabilities: { ...this.capabilities },
+      graph: this.graphSnapshot,
     }
   }
 
@@ -272,6 +308,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.cancelScheduledFrame()
     this.canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestoredHandler)
+    try { this.executor.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { this.targets.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { this.textures.dispose() } catch { /* Continue deterministic cleanup. */ }
     retireDrmvyzWebGLContext(this.contextDiagnosticHandle, 'release-resources')
@@ -287,11 +324,15 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       height: resolution.backingHeight,
       dpr: resolution.effectiveDpr,
     }
-    const viewportChanged = !sameViewport(this.viewport, nextViewport)
+    const previousViewport = this.viewport
+    const viewportChanged = !sameViewport(previousViewport, nextViewport)
     this.viewport = nextViewport
     if (!this.contextLost) {
       this.gl.viewport(0, 0, nextViewport.width, nextViewport.height)
-      if (viewportChanged) this.targets.resize(nextViewport)
+      if (viewportChanged) {
+        this.targets.resize(nextViewport)
+        this.executor.resize(previousViewport, nextViewport)
+      }
     }
     if (viewportChanged || storageChanged) this.emitSnapshot()
     return viewportChanged || storageChanged
@@ -313,10 +354,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.animationFrameId = 0
     if (this.disposed || !this.runningRequested || this.contextLost || this.visibilitySuspended) return
     try {
-      // Stage 8 will execute the compiled graph here. Stage 7 proves the one-loop
-      // ownership boundary with a deterministic premultiplied transparent clear.
-      void this.frame
-      this.renderNeutralFrame()
+      this.executor.render(this.frame)
       this.frameCount += 1
       this.fpsFrameCount += 1
       const elapsed = nowMs - this.fpsWindowStartedMs
@@ -331,7 +369,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       this.report(createCinemaDiagnostic({
         code: 'CINEMA_CAPABILITY_UNAVAILABLE',
         severity: 'error',
-        message: `Cinema stopped its render loop after a clear-frame failure: ${errorMessage(error)}`,
+        message: `Cinema stopped its render loop after a graph-execution failure: ${errorMessage(error)}`,
         attribution: { stage: 'cinema-runtime' },
       }))
       this.emitSnapshot()
