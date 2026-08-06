@@ -6,7 +6,7 @@ import {
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema production boundary through Stage 3', () => {
+describe('Cinema production boundary through Stage 4', () => {
   it('enters through the production-intended Cinema public module without registering a renderer or engine', () => {
     expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(1)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
@@ -16,6 +16,10 @@ describe('Cinema production boundary through Stage 3', () => {
     expect(typeof Cinema.normalizeCinemaParameterValue).toBe('function')
     expect(typeof Cinema.resolveCinemaParameterSnapshot).toBe('function')
     expect(typeof Cinema.createCinemaControlDescriptors).toBe('function')
+    expect(typeof Cinema.createCinemaStore).toBe('function')
+    expect(typeof Cinema.preflightCinemaPackage).toBe('function')
+    expect(typeof Cinema.encodeCinemaPackage).toBe('function')
+    expect(Cinema.CINEMA_PERSISTED_STORE_SCHEMA_VERSION).toBe(1)
     expect(Cinema.CINEMA_PARAMETER_RESOLUTION_ORDER).toEqual([
       'definition-default',
       'saved-preset',
