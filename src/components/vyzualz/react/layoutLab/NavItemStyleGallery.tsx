@@ -2,8 +2,8 @@ import { useState, type ComponentType } from 'react'
 
 // ── NavItemStyleGallery ─────────────────────────────────────────────────────
 //
-// Layout Lab / Template engine only. Five full replicas of the real
-// left-nav shell (VyzualzSidebar) — same destinations, same grouping, same
+// Layout Lab / Template engine only. Full replicas of the real left-nav
+// shell (VyzualzSidebar) — same destinations, same grouping, same
 // collapse/expand behavior, single-select active state — each skinned with
 // a different, deliberately out-of-the-box item style. Because each replica
 // mirrors the real shell's actual behavior (not just a static button), the
@@ -86,17 +86,7 @@ interface NavItemProps {
   onSelect: () => void
 }
 
-// 1 — Neon glass pill: floating capsule, blurred glass fill, glow ring when active
-function GlassPillItem({ label, Icon, active, collapsed, onSelect }: NavItemProps) {
-  return (
-    <button type="button" className={`llnv-glass${active ? ' is-active' : ''}`} onClick={onSelect} aria-pressed={active} title={label}>
-      <span className="llnv-glass-icon"><Icon /></span>
-      {!collapsed && <span className="llnv-glass-label">{label}</span>}
-    </button>
-  )
-}
-
-// 2 — Bracket tab: monospace label, brackets close in around it on active/hover
+// 1 — Bracket tab: monospace label, brackets close in around it on active/hover
 function BracketTabItem({ label, Icon, active, collapsed, onSelect }: NavItemProps) {
   return (
     <button type="button" className={`llnv-bracket${active ? ' is-active' : ''}`} onClick={onSelect} aria-pressed={active} title={label}>
@@ -108,35 +98,13 @@ function BracketTabItem({ label, Icon, active, collapsed, onSelect }: NavItemPro
   )
 }
 
-// 3 — Magnetic dock: icon lifts + glows on active, label reveals inline
-function DockItem({ label, Icon, active, collapsed, onSelect }: NavItemProps) {
-  return (
-    <button type="button" className={`llnv-dock${active ? ' is-active' : ''}`} onClick={onSelect} aria-pressed={active} title={label}>
-      <span className="llnv-dock-well"><Icon /></span>
-      <span className="llnv-dock-reflection" aria-hidden="true" />
-      {!collapsed && <span className="llnv-dock-label">{label}</span>}
-    </button>
-  )
-}
-
-// 4 — Vertical progress rail: fill bar climbs the left edge, letter-spaced caps label
+// 2 — Vertical progress rail: fill bar climbs the left edge, letter-spaced caps label
 function RailItem({ label, Icon, active, collapsed, onSelect }: NavItemProps) {
   return (
     <button type="button" className={`llnv-rail${active ? ' is-active' : ''}`} onClick={onSelect} aria-pressed={active} title={label}>
       <span className="llnv-rail-fill" aria-hidden="true" />
       <span className="llnv-rail-icon"><Icon /></span>
       {!collapsed && <span className="llnv-rail-label">{label}</span>}
-    </button>
-  )
-}
-
-// 5 — Holographic card stack: layered shadow depth, diagonal sheen sweep on active
-function HoloItem({ label, Icon, active, collapsed, onSelect }: NavItemProps) {
-  return (
-    <button type="button" className={`llnv-holo${active ? ' is-active' : ''}`} onClick={onSelect} aria-pressed={active} title={label}>
-      <span className="llnv-holo-sheen" aria-hidden="true" />
-      <span className="llnv-holo-icon"><Icon /></span>
-      {!collapsed && <span className="llnv-holo-label">{label}</span>}
     </button>
   )
 }
@@ -209,11 +177,8 @@ function MockSidebar({ ItemComponent }: { ItemComponent: ComponentType<NavItemPr
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'glass', title: '01 · Neon Glass Pill', blurb: 'Floating blurred-glass capsule, glow ring when active.', ItemComponent: GlassPillItem },
-  { id: 'bracket', title: '02 · Bracket Tab', blurb: 'Monospace label, terminal-style brackets close in on active.', ItemComponent: BracketTabItem },
-  { id: 'dock', title: '03 · Magnetic Dock', blurb: 'Icon lifts and glows dock-style, label reveals inline.', ItemComponent: DockItem },
-  { id: 'rail', title: '04 · Progress Rail', blurb: 'Vertical fill bar climbs the left edge, wide-tracked caps label.', ItemComponent: RailItem },
-  { id: 'holo', title: '05 · Holographic Card', blurb: 'Layered stacked-card shadow depth, diagonal sheen sweep on active.', ItemComponent: HoloItem },
+  { id: 'bracket', title: '01 · Bracket Tab', blurb: 'Monospace label, terminal-style brackets close in on active.', ItemComponent: BracketTabItem },
+  { id: 'rail', title: '02 · Progress Rail', blurb: 'Vertical fill bar climbs the left edge, wide-tracked caps label.', ItemComponent: RailItem },
 ] satisfies { id: string, title: string, blurb: string, ItemComponent: ComponentType<NavItemProps> }[]
 
 export function NavItemStyleGallery() {
