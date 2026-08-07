@@ -42,6 +42,7 @@ export function VyzualzSidebar({
           aria-label="React"
           aria-current={appView === 'react' || !appView ? 'page' : undefined}
         >
+          <span className="az-nav-fill" aria-hidden="true" />
           <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
             {/* Atom-style orbit rings */}
             <ellipse cx="14" cy="14" rx="11" ry="4.5"
@@ -67,6 +68,7 @@ export function VyzualzSidebar({
           aria-label="Visualizer"
           aria-current={appView === 'visualizer' ? 'page' : undefined}
         >
+          <span className="az-nav-fill" aria-hidden="true" />
           <svg viewBox="0 0 1024 1024" width="28" height="28">
             {/* Monitor frame */}
             <path d="M960 1002.666667H64a42.666667 42.666667 0 0 1-42.666667-42.666667V64a42.666667 42.666667 0 0 1 42.666667-42.666667h896a42.666667 42.666667 0 0 1 42.666667 42.666667v896a42.666667 42.666667 0 0 1-42.666667 42.666667z" fill="#0d1820"/>
@@ -95,6 +97,7 @@ export function VyzualzSidebar({
           aria-label="Show Manager"
           aria-current={appView === 'showManager' ? 'page' : undefined}
         >
+          <span className="az-nav-fill" aria-hidden="true" />
           <svg viewBox="0 0 28 28" width="28" height="28" fill="none" aria-hidden="true">
             <rect x="3.5" y="4" width="21" height="20" rx="2.5" fill="#0d1820" />
             <rect x="3.5" y="4" width="21" height="20" rx="2.5" stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.48" />
@@ -116,6 +119,7 @@ export function VyzualzSidebar({
           aria-label="Lyric Manager"
           aria-current={appView === 'lyrics' ? 'page' : undefined}
         >
+          <span className="az-nav-fill" aria-hidden="true" />
           <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
             <rect x="4" y="2" width="16" height="21" rx="2.5" fill="#0d1820"/>
             <rect x="4" y="2" width="16" height="21" rx="2.5" stroke="currentColor" strokeWidth="1.2" strokeOpacity="0.45"/>
@@ -139,6 +143,7 @@ export function VyzualzSidebar({
           aria-label="Media Manager"
           aria-current={appView === 'media' ? 'page' : undefined}
         >
+          <span className="az-nav-fill" aria-hidden="true" />
           <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
             <rect x="3.5" y="5" width="21" height="17" rx="2.5" fill="#0d1820" />
             <rect x="3.5" y="5" width="21" height="17" rx="2.5" stroke="currentColor" strokeWidth="1.2" strokeOpacity="0.5" />

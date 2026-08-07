@@ -14983,6 +14983,351 @@
   background: linear-gradient(120deg, rgba(74, 199, 219, 0.08), rgba(255, 255, 255, 0.015) 60%);
 }
 
+/* ── Layout Lab / Template — slider style gallery (mimics dropdown_v2) ────── */
+
+@keyframes lls-fade-scale {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.92); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+.lls-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px 16px 32px;
+}
+
+.lls-underline-track,
+.lls-bubble-track,
+.lls-rail-track,
+.lls-menurow-track {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  margin: 0;
+  outline: none;
+  cursor: pointer;
+  background: transparent;
+}
+
+/* 1 — Underline fill */
+
+.lls-underline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lls-underline-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.lls-underline-eyebrow {
+  color: rgba(196, 207, 211, 0.4);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lls-underline-value {
+  color: rgba(232, 238, 240, 0.94);
+  font: 700 13px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lls-underline-track {
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #4ac7db var(--lls-pct, 50%), rgba(154, 178, 188, 0.22) var(--lls-pct, 50%));
+  transition: background 140ms ease;
+}
+
+.lls-underline-track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4ac7db;
+  box-shadow: 0 0 0 3px rgba(13, 20, 23, 0.9);
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.lls-underline-track:hover::-webkit-slider-thumb,
+.lls-underline-track:focus-visible::-webkit-slider-thumb,
+.lls-underline-track:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+.lls-underline-track::-moz-range-track {
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(154, 178, 188, 0.22);
+}
+
+.lls-underline-track::-moz-range-progress {
+  height: 2px;
+  border-radius: 999px;
+  background: #4ac7db;
+}
+
+.lls-underline-track::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-radius: 50%;
+  background: #4ac7db;
+  opacity: 0;
+}
+
+.lls-underline-track:hover::-moz-range-thumb,
+.lls-underline-track:focus-visible::-moz-range-thumb {
+  opacity: 1;
+}
+
+/* 2 — Bubble reveal */
+
+.lls-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lls-bubble-eyebrow {
+  color: rgba(196, 207, 211, 0.4);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lls-bubble-track-wrap {
+  position: relative;
+  padding-top: 22px;
+}
+
+.lls-bubble-pop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #0d1417;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+  color: #8ef4ff;
+  font: 700 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+  animation: lls-fade-scale 140ms ease;
+  pointer-events: none;
+}
+
+.lls-bubble-pop::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  background: #0d1417;
+  border-right: 1px solid rgba(154, 178, 188, 0.14);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.lls-bubble-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #4ac7db var(--lls-pct, 50%), rgba(255, 255, 255, 0.08) var(--lls-pct, 50%));
+}
+
+.lls-bubble-track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #4ac7db;
+  box-shadow: 0 0 8px #4ac7db, 0 0 0 2px rgba(0, 0, 0, 0.4);
+}
+
+.lls-bubble-track::-moz-range-track {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lls-bubble-track::-moz-range-progress {
+  height: 3px;
+  border-radius: 999px;
+  background: #4ac7db;
+}
+
+.lls-bubble-track::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: #4ac7db;
+  box-shadow: 0 0 8px #4ac7db;
+}
+
+/* 3 — Tick rail */
+
+.lls-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lls-rail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.lls-rail-eyebrow {
+  color: rgba(196, 207, 211, 0.4);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lls-rail-value {
+  color: #8ef4ff;
+  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lls-rail-track-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lls-rail-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1px;
+}
+
+.lls-rail-tick {
+  width: 2px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(154, 178, 188, 0.22);
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.lls-rail-tick.is-filled {
+  background: #4ac7db;
+  box-shadow: 0 0 6px rgba(74, 199, 219, 0.5);
+}
+
+.lls-rail-track {
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #4ac7db var(--lls-pct, 50%), rgba(154, 178, 188, 0.22) var(--lls-pct, 50%));
+}
+
+.lls-rail-track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #4ac7db;
+  box-shadow: 0 0 6px rgba(74, 199, 219, 0.6);
+}
+
+.lls-rail-track::-moz-range-track {
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(154, 178, 188, 0.22);
+}
+
+.lls-rail-track::-moz-range-progress {
+  height: 2px;
+  border-radius: 999px;
+  background: #4ac7db;
+}
+
+.lls-rail-track::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 50%;
+  background: #4ac7db;
+  box-shadow: 0 0 6px rgba(74, 199, 219, 0.6);
+}
+
+/* 4 — Menu row gauge */
+
+.lls-menurow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 10px 18px;
+  border-radius: 6px;
+  background: rgba(13, 20, 23, 0.6);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.lls-menurow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: #4ac7db;
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+  z-index: 1;
+}
+
+.lls-menurow:hover::before,
+.lls-menurow:focus-within::before {
+  opacity: 1;
+}
+
+.lls-menurow-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(74, 199, 219, 0.16), transparent);
+  transition: width 80ms linear;
+}
+
+.lls-menurow-label {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  color: rgba(196, 207, 211, 0.75);
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lls-menurow:hover .lls-menurow-label,
+.lls-menurow:focus-within .lls-menurow-label {
+  color: rgba(245, 248, 250, 0.92);
+}
+
+.lls-menurow-value {
+  position: relative;
+  z-index: 2;
+  color: #8ef4ff;
+  font: 700 12px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lls-menurow-track {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  opacity: 0;
+  z-index: 3;
+}
+
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */
 .rv-cinema-workspace {
   box-sizing: border-box;
