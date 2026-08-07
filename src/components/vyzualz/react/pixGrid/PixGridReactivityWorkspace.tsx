@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import type { ReactSectionType } from '../ReactTypes'
-import { Collapsible, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { Collapsible, NumberInputRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
 import { PIX_GRID_ASSIGNMENT_TARGETS } from './PixGridAssignmentCompiler'
 import {

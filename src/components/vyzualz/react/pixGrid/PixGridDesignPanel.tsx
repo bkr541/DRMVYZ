@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
-import { Collapsible, ColorRow, CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
 import { PanelSubtabs, type PanelSubtabOption } from '../PanelSubtabs'
 import {
   applyPixGridPoints,

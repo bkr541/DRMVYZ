@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
-import { CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { CtrlSection, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
 import { composePixGridLogicalFrame } from './PixGridCompositor'
 import { pixGridPreparedAssetCache } from './PixGridAssetPreparation'
 import { createSilentPixGridAudioFrame } from './PixGridAudioRouting'
