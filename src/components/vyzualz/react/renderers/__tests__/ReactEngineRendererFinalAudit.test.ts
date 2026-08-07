@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ReactEngineId, ReactPreset } from '../../ReactTypes'
 import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
-import { REACT_ENGINE_IDS } from '../../reactEngineCatalog'
 import { DEFAULT_REACT_RENDER_PARAMS, disposeReactEngineRenderer, renderReactEngine } from '../ReactEngineRenderer'
 import type { ReactFrameContext } from '../reactRenderUtils'
 
@@ -70,6 +69,8 @@ function mockContext(): CanvasRenderingContext2D {
   } as unknown as CanvasRenderingContext2D
 }
 
+const INTERNAL_COMPAT_RENDERER_ENGINE_IDS: ReactEngineId[] = ['shaderPads', 'cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid']
+
 function samplePreset(engine: ReactEngineId): ReactPreset {
   const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === engine)
   if (preset) return preset
@@ -103,16 +104,7 @@ describe('React engine renderer final audit', () => {
   })
 
   it('dispatches and disposes every currently registered engine family', () => {
-    expect([...REACT_ENGINE_IDS].sort()).toEqual([
-      'canvas',
-      'cinematicPortal',
-      'laserDmx',
-      'oscilloscope',
-      'pixGrid',
-      'shaderPads',
-    ].sort())
-
-    for (const engine of REACT_ENGINE_IDS) {
+    for (const engine of INTERNAL_COMPAT_RENDERER_ENGINE_IDS) {
       const ctx = mockContext()
       expect(() => renderReactEngine(ctx, frame, samplePreset(engine), DEFAULT_REACT_RENDER_PARAMS)).not.toThrow()
       expect(() => disposeReactEngineRenderer(ctx, engine, { affectProductionOutput: true })).not.toThrow()

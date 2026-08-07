@@ -118,7 +118,7 @@ const CROSS_ENGINE_PRESET_GROUPS: Array<{
   presetName: string
   description: string
 }> = [
-  { engineId: 'cinematicPortal', label: 'Cinematic Worlds', icon: '◉', presetName: 'Singularity Crown', description: 'Event Horizon world preset.' },
+  { engineId: 'cinema', label: 'Cinema', icon: '◉', presetName: 'Visual Composition', description: 'Composition-native visual performance engine.' },
   { engineId: 'oscilloscope', label: 'Sound Drawing', icon: '〰', presetName: 'XY Cyan Scope', description: 'Classic cyan scope preset.' },
   { engineId: 'laserDmx', label: 'LaserDMX', icon: '⌬', presetName: 'Beam Matrix', description: 'Beam Matrix look.' },
   { engineId: 'canvas', label: 'CANVAS', icon: '▣', presetName: 'Clean Playback', description: 'Clean uploaded-media playback.' },

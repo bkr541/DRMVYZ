@@ -51,9 +51,9 @@ describe('retired React presets', () => {
 
   it('repairs persisted selections to a live preset without reviving retired definitions', () => {
     expect(repairReactEnginePresetSelection('preset-dream-gate', 'cinematicPortal'))
-      .toEqual({ activeReactPresetId: 'preset-singularity-crown', activeReactEngineId: 'cinematicPortal' })
+      .toEqual({ activeReactPresetId: null, activeReactEngineId: 'cinema' })
     expect(repairReactEnginePresetSelection('preset-placid-veil', 'cinematicPortal'))
-      .toEqual({ activeReactPresetId: 'preset-singularity-crown', activeReactEngineId: 'cinematicPortal' })
+      .toEqual({ activeReactPresetId: null, activeReactEngineId: 'cinema' })
     expect(repairReactEnginePresetSelection('preset-white-fog-cathedral', 'laserDmx'))
       .toEqual({ activeReactPresetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID, activeReactEngineId: 'laserDmx' })
   })
@@ -98,8 +98,8 @@ describe('retired React presets', () => {
 
     const presets = migrated.reactPresets as ReactPreset[]
     const pads = migrated.performancePads as ReactPerformancePad[]
-    expect(migrated.activeReactPresetId).toBe('preset-singularity-crown')
-    expect(migrated.activeReactEngineId).toBe('cinematicPortal')
+    expect(migrated.activeReactPresetId).toBeNull()
+    expect(migrated.activeReactEngineId).toBe('cinema')
     expect(presets.some(preset => RETIRED_IDS.includes(preset.id))).toBe(false)
     expect(pads).toEqual([expect.objectContaining({ id: 'pad-6', presetId: null, label: 'Empty' })])
     expect(migrated.presetAutomationCuesByTrackId).toEqual({

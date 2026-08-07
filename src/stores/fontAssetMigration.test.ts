@@ -111,7 +111,7 @@ describe('fontAssetMigration — v10 → v11', () => {
       reactIntensity:       0.8,
     }
     const result = migrateReactStore(state, 10)
-    expect(result.activeReactEngineId).toBe('cinematicPortal')
+    expect(result.activeReactEngineId).toBe('cinema')
     expect(result.reactIntensity).toBe(0.8)
   })
 })

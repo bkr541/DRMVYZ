@@ -15,7 +15,7 @@ import {
 } from '../shaderParameterUiTypes'
 import { getParamDefault } from '../../registry/ShaderParameterSchema'
 import { ShaderRegistry } from '../../registry/ShaderRegistry'
-import { REACT_ENGINE_IDS } from '../../../reactEngineCatalog'
+import { REACT_ENGINE_IDS, REACT_KNOWN_ENGINE_IDS } from '../../../reactEngineCatalog'
 import type {
   FloatParamDef, IntegerParamDef, BooleanParamDef, ColorParamDef,
   GradientParamDef, EnumParamDef, Vec2ParamDef, TriggerParamDef,
@@ -468,8 +468,10 @@ describe('I: Internal development scenes hidden', () => {
 
 describe('J: Other engine branches not affected', () => {
   it('ENGINE_IDS list shape check — each engine has its own id', () => {
-    expect(REACT_ENGINE_IDS).toContain('shaderPads')
-    expect(REACT_ENGINE_IDS).toContain('cinematicPortal')
+    expect(REACT_ENGINE_IDS).not.toContain('shaderPads')
+    expect(REACT_ENGINE_IDS).not.toContain('cinematicPortal')
+    expect(REACT_KNOWN_ENGINE_IDS).toContain('shaderPads')
+    expect(REACT_KNOWN_ENGINE_IDS).toContain('cinematicPortal')
     expect(REACT_ENGINE_IDS).toContain('cinema')
     expect(REACT_ENGINE_IDS).toContain('oscilloscope')
     expect(REACT_ENGINE_IDS).toContain('laserDmx')

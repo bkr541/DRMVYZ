@@ -3126,6 +3126,8 @@ export function createDefaultLaserDmxBeamMatrixSettings(): LaserDmxBeamMatrixSet
 export interface ReactPerformancePad {
   id: string
   presetId: string | null
+  /** Stage 23 destination for retired Cinematic Worlds pad assignments. */
+  cinemaCompositionId?: string | null
   label: string
   color: string
   keyBinding: string
@@ -3337,7 +3339,10 @@ export function resolveReactPresetLaserDmxWorkspace(
 export interface ReactPresetAutomationCue {
   id:           string
   timeSec:      number
-  presetId:     string
+  /** Legacy/React preset destination. Null when Stage 23 migrated the cue to Cinema. */
+  presetId:     string | null
+  /** Stable Cinema composition destination for retired Cinematic Worlds cues. */
+  cinemaCompositionId?: string | null
   label:        string
   enabled:      boolean
   transitionMs: number

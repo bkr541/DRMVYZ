@@ -79,9 +79,9 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "summary": "Selects which React visual engine is active in the workspace.",
     "whatItDoes": [
       "Changes the active engine and the controls shown for that engine.",
-      "Keeps engine-owned presets, scenes, and worlds in their own registries."
+      "Cinema is the public home for former Shader Pads scenes and Cinematic Worlds content."
     ],
-    "whenToUse": "Switch engines when moving to a different visual workflow, such as Sound Drawing, CANVAS, LaserDMX, or PixGrid.",
+    "whenToUse": "Switch engines when moving to a different visual workflow, such as Cinema, Sound Drawing, CANVAS, LaserDMX, or PixGrid. Use Cinema for former Shader Pads and Cinematic Worlds content.",
     "affects": [
       "active React engine",
       "visible engine controls and source browser"

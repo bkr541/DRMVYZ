@@ -205,8 +205,8 @@ describe('scoped React reset actions', () => {
     before.resetReactViewPreferences()
     const after = useReactStore.getState()
 
-    expect(after.activeReactPresetId).toBe('preset-singularity-crown')
-    expect(after.activeReactEngineId).toBe('cinematicPortal')
+    expect(after.activeReactPresetId).toBeNull()
+    expect(after.activeReactEngineId).toBe('cinema')
     expect(after.laserDmxWorkspaceMode).toBe('beamMatrix')
     expect(after.selectedSectionId).toBeNull()
     expect(after.selectedSectionByTrackId).toEqual({})

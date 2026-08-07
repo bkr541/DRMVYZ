@@ -40,3 +40,4 @@ export * from './CinemaComposerStage19'
 
 export * from './CinemaGraphEditorMetadata'
 export * from './CinemaGraphEditor'
+export * from './CinemaLegacyRetirement'

@@ -163,13 +163,13 @@ describe('LaserDMX Layout Lab through the real shell', () => {
     expect(container.textContent).toContain('DISARMED · Virtual Output')
   })
 
-  it('preserves lower-tray parity for LaserDMX, Shader Pads, Sound Drawing, and PixGrid', async () => {
+  it('preserves lower-tray parity for LaserDMX, Cinema, Sound Drawing, and PixGrid', async () => {
     await selectEngine('LaserDMX')
     expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map', 'Performance Pads'])
     await click(exactButton('Performance Pads'))
     expect(exactButton('Performance Pads').getAttribute('aria-selected')).toBe('true')
 
-    await selectEngine('Shader Pads')
+    await selectEngine('Cinema')
     expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map'])
     expect(exactButton('Track Map').getAttribute('aria-selected')).toBe('true')
 

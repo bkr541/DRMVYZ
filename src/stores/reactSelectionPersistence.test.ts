@@ -49,8 +49,8 @@ describe('repairReactEnginePresetSelection', () => {
 
   it('retires a stale Neon engine selection to the explicit startup pair', () => {
     expect(repairReactEnginePresetSelection('removed-preset', 'neonLattice' as never)).toEqual({
-      activeReactPresetId: 'preset-singularity-crown',
-      activeReactEngineId: 'cinematicPortal',
+      activeReactPresetId: null,
+      activeReactEngineId: 'cinema',
     })
   })
 
@@ -62,11 +62,11 @@ describe('repairReactEnginePresetSelection', () => {
     })
   })
 
-  it('keeps the standalone Shader engine preset-free', () => {
+  it('retires the standalone Shader compatibility identity to Cinema', () => {
     const stalePreset = firstFor('cinematicPortal')
     expect(repairReactEnginePresetSelection(stalePreset.id, 'shaderPads')).toEqual({
       activeReactPresetId: null,
-      activeReactEngineId: 'shaderPads',
+      activeReactEngineId: 'cinema',
     })
   })
 
@@ -80,8 +80,8 @@ describe('repairReactEnginePresetSelection', () => {
 
   it('falls back to the explicit startup pair when both values are invalid', () => {
     expect(repairReactEnginePresetSelection('removed-preset', 'removed-engine')).toEqual({
-      activeReactPresetId: 'preset-singularity-crown',
-      activeReactEngineId: 'cinematicPortal',
+      activeReactPresetId: null,
+      activeReactEngineId: 'cinema',
     })
   })
 })
@@ -118,8 +118,8 @@ describe('React selection persistence invariant', () => {
     } as never)
 
     const persisted = reactStorePartialize(useReactStore.getState())
-    expect(persisted.activeReactEngineId).toBe('cinematicPortal')
-    expect(persisted.activeReactPresetId).toBe('preset-singularity-crown')
+    expect(persisted.activeReactEngineId).toBe('cinema')
+    expect(persisted.activeReactPresetId).toBeNull()
   })
 
   it('does not persist a selected Sound Drawing preset or its display payload', () => {

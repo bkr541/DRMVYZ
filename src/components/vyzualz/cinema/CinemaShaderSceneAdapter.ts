@@ -193,6 +193,22 @@ export function cinemaShaderParameterId(parameterId: string): CinemaParameterId 
   return cinemaStableId<CinemaParameterId>(normalizeStableId(parameterId), 'parameter')
 }
 
+export function createCinemaShaderSceneParameterValues(
+  sceneId: string,
+  values: Readonly<Record<string, unknown>>,
+): Record<CinemaParameterId, CinemaParameterValue> {
+  const shader = shaderRegistry.get(sceneId)
+  if (!shader) throw new Error(`Shader scene \"${sceneId}\" is not registered.`)
+  const result: Record<CinemaParameterId, CinemaParameterValue> = {}
+  for (const parameter of shader.params) {
+    if (parameter.type === 'trigger') continue
+    const mapping = createParameterMapping(parameter)
+    const raw = Object.prototype.hasOwnProperty.call(values, parameter.id) ? values[parameter.id] : defaultShaderValue(parameter)
+    result[mapping.cinemaId] = shaderValueToCinemaValue(mapping, raw as ShaderParamValue)
+  }
+  return result
+}
+
 export function cinemaShaderTriggerActionId(sceneId: string, parameterId: string): CinemaActionId {
   return cinemaNamespacedId<CinemaActionId>(
     `drmvyz.cinema.shader-action.${normalizeNamespacedSegment(sceneId)}.${normalizeNamespacedSegment(parameterId)}`,
@@ -1213,6 +1229,36 @@ function applyParameterUniform(
     }
     case 'texture':
       break
+  }
+}
+
+function shaderValueToCinemaValue(mapping: ShaderParameterMapping, value: ShaderParamValue): CinemaParameterValue {
+  const parameter = mapping.shader
+  switch (parameter.type) {
+    case 'float':
+    case 'integer':
+      return numberValue(value, parameter.default)
+    case 'boolean':
+      return value === true
+    case 'enum':
+      return mapping.enumValues?.find(option => option.shaderValue === value)?.cinemaId
+        ?? mapping.enumValues?.find(option => option.shaderValue === parameter.default)?.cinemaId
+        ?? mapping.enumValues?.[0]?.cinemaId
+        ?? cinemaStableId<CinemaEnumOptionId>('default', 'enum option')
+    case 'trigger':
+      return value === true
+    case 'color':
+      return [...colorValue(value, parameter.default)] as CinemaColor
+    case 'gradient':
+      return gradientValue(value, parameter.default).map((stop, index) => ({
+        id: cinemaStableId<CinemaControlPointId>(`stop-${index + 1}`, 'control point'),
+        position: stop.position,
+        color: [...stop.color] as CinemaColor,
+      }))
+    case 'vec2':
+      return [...vector2Value(value, parameter.default)] as Vec2
+    case 'texture':
+      return typeof value === 'string' ? value : null
   }
 }
 

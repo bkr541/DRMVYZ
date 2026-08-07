@@ -4,7 +4,7 @@ import { BrandKitEngineControls } from '../../../../features/personalization/com
 import { useReactStore } from '../../../../stores/reactStore'
 import { REACT_VISUAL_PERFORMANCE_ACTIONS } from '../ReactPerformanceActions'
 import { DEFAULT_REACT_PRESETS, type ReactEngineId, type ReactPreset } from '../ReactTypes'
-import { REACT_ENGINE_IDS } from '../reactEngineCatalog'
+import { REACT_ENGINE_IDS, isSelectableReactEngineId } from '../reactEngineCatalog'
 import { filterReactPresetLibrary, sanitizeReactPresetFavorites, writeReactPresetFavorites } from '../reactPresetLibraryState'
 import { getReactPresetThumbnailFrameBudgetForTests } from '../renderers/ReactPresetThumbnailRenderer'
 
@@ -75,26 +75,27 @@ describe('Neon Lattice secondary integration retirement', () => {
 
   it('keeps preset thumbnails budgeted for every remaining engine without Neon-specific frame budgets', () => {
     const sampleByEngine = new Map<ReactEngineId, ReactPreset>()
-    for (const preset of DEFAULT_REACT_PRESETS) sampleByEngine.set(preset.engine, preset)
-
-    const shaderPreset: ReactPreset = {
-      ...DEFAULT_REACT_PRESETS[0],
-      id: 'test-shader-thumbnail',
-      engine: 'shaderPads',
+    for (const preset of DEFAULT_REACT_PRESETS) {
+      if (isSelectableReactEngineId(preset.engine)) sampleByEngine.set(preset.engine, preset)
     }
+
     const canvasPreset: ReactPreset = {
       ...DEFAULT_REACT_PRESETS[0],
       id: 'test-canvas-thumbnail',
       engine: 'canvas',
     }
-    sampleByEngine.set('shaderPads', shaderPreset)
     sampleByEngine.set('canvas', canvasPreset)
+    sampleByEngine.set('cinema', {
+      ...DEFAULT_REACT_PRESETS[0],
+      id: 'test-cinema-thumbnail',
+      engine: 'cinema',
+    })
 
     expect([...sampleByEngine.keys()].sort()).toEqual([...REACT_ENGINE_IDS].sort())
     for (const engineId of REACT_ENGINE_IDS) {
       const budget = getReactPresetThumbnailFrameBudgetForTests(sampleByEngine.get(engineId)!)
       expect(budget).toBeGreaterThan(0)
-      expect(budget).toBeLessThanOrEqual(engineId === 'cinematicPortal' ? 10 : 5)
+      expect(budget).toBeLessThanOrEqual(5)
     }
   })
 

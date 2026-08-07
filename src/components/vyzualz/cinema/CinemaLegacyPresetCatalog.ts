@@ -18,6 +18,7 @@ import {
 } from './CinemaCinematicWorldAdapter'
 import { PRODUCTION_SCENES, SHADER_SCENE_REGISTRY_AUDIT } from '../react/shaders/scenes'
 import { DEFAULT_REACT_PRESETS } from '../react/ReactTypes'
+import type { CinematicWorldMode } from '../react/CinematicWorldConfig'
 
 export const CINEMA_LEGACY_PRESET_CATALOG_VERSION = 1 as const
 
@@ -27,7 +28,7 @@ export interface CinemaLegacyPresetManifestEntry {
   sourceKind: CinemaLegacyPresetSourceKind
   legacyEngineId: 'shaderPads' | 'cinematicPortal'
   legacySourceId: string
-  worldId?: string
+  worldId?: CinematicWorldMode
   compositionId: CinemaCompositionId
   adapterNodeTypeId: CinemaNodeTypeId
 }

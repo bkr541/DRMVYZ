@@ -69,7 +69,7 @@ describe('Cinema Stage 21 legacy preset catalog', () => {
     expect(CINEMA_LEGACY_PRESET_CATALOG.compositions.every(composition => reconciled.compositions.some(candidate => candidate.id === composition.id))).toBe(true)
   })
 
-  it('enters the production-intended Cinema store and selects a catalog composition while legacy engines stay selectable', () => {
+  it('enters the production-intended Cinema store while legacy engine identities remain compatibility-only', () => {
     const store = createCinemaStore()
     const target = CINEMA_LEGACY_PRESET_CATALOG.manifest[0]
     expect(target).toBeDefined()
@@ -77,8 +77,8 @@ describe('Cinema Stage 21 legacy preset catalog', () => {
 
     expect(store.getState().setActiveCinemaComposition(target.compositionId).ok).toBe(true)
     expect(store.getState().activeCompositionId).toBe(target.compositionId)
-    expect(isSelectableReactEngineId('shaderPads')).toBe(true)
-    expect(isSelectableReactEngineId('cinematicPortal')).toBe(true)
+    expect(isSelectableReactEngineId('shaderPads')).toBe(false)
+    expect(isSelectableReactEngineId('cinematicPortal')).toBe(false)
     expect(REACT_ENGINE_CATALOG.shaderPads.label).toBe('Shader Pads')
     expect(REACT_ENGINE_CATALOG.cinematicPortal.label).toBe('Cinematic Worlds')
   })

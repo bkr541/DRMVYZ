@@ -8,7 +8,7 @@ export interface ReactEngineCatalogEntry {
   description: string
 }
 
-export const REACT_ENGINE_IDS: ReactEngineId[] = [
+export const REACT_KNOWN_ENGINE_IDS: ReactEngineId[] = [
   'shaderPads',
   'cinematicPortal',
   'cinema',
@@ -17,6 +17,11 @@ export const REACT_ENGINE_IDS: ReactEngineId[] = [
   'laserDmx',
   'pixGrid',
 ]
+
+/** User-facing engine choices. Legacy Shader Pads/Cinematic Worlds IDs remain known only for restore/import compatibility. */
+export const REACT_ENGINE_IDS: ReactEngineId[] = REACT_KNOWN_ENGINE_IDS.filter(
+  engineId => engineId !== 'shaderPads' && engineId !== 'cinematicPortal',
+)
 
 export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry> = {
   shaderPads: {
@@ -71,6 +76,11 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
 }
 
 const REACT_ENGINE_ID_SET = new Set<string>(REACT_ENGINE_IDS)
+const REACT_KNOWN_ENGINE_ID_SET = new Set<string>(REACT_KNOWN_ENGINE_IDS)
+
+export function isKnownReactEngineId(value: unknown): value is ReactEngineId {
+  return typeof value === 'string' && REACT_KNOWN_ENGINE_ID_SET.has(value)
+}
 
 export function isSelectableReactEngineId(value: unknown): value is ReactEngineId {
   return typeof value === 'string' && REACT_ENGINE_ID_SET.has(value)

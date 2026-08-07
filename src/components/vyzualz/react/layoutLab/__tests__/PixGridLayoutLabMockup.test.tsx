@@ -188,7 +188,7 @@ describe('PixGrid Layout Lab through the real shell', () => {
     expect(container.textContent).toContain('never reads the canvas')
   })
 
-  it('normalizes lower surfaces while switching between PixGrid, Sound Drawing, and Shader Pads', async () => {
+  it('normalizes lower surfaces while switching between PixGrid, Sound Drawing, and Cinema', async () => {
     await selectEngine('PixGrid')
     await act(async () => exactButton('Performance Pads').click())
     expect(exactButton('Performance Pads').getAttribute('aria-selected')).toBe('true')
@@ -197,7 +197,7 @@ describe('PixGrid Layout Lab through the real shell', () => {
     expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map', 'Sound Drawing', 'Performance Pads'])
     expect(exactButton('Track Map').getAttribute('aria-selected')).toBe('true')
 
-    await selectEngine('Shader Pads')
+    await selectEngine('Cinema')
     expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map'])
     expect(exactButton('Track Map').getAttribute('aria-selected')).toBe('true')
 

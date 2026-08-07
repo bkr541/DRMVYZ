@@ -81,16 +81,17 @@ This keeps transport, waveform, cue, BPM, Rekordbox, and track controls shared a
 
 ## Selectable engine registry
 
-`REACT_ENGINE_IDS` and `REACT_ENGINE_CATALOG` are the only selectable-engine registry.
+`REACT_ENGINE_IDS` is the user-facing engine registry. `REACT_KNOWN_ENGINE_IDS` additionally contains the retired `shaderPads` and `cinematicPortal` identifiers for persisted-project and import compatibility; those aliases must not be rendered as selector choices. `REACT_ENGINE_CATALOG` retains metadata for both public and compatibility IDs.
 
 | ID | Label | Live renderer ownership |
 | --- | --- | --- |
-| `shaderPads` | Shader Pads | `ReactShaderCanvas` |
-| `cinematicPortal` | Cinematic Worlds | `ReactPlaceholderCanvas` → cinematic renderer |
+| `cinema` | Cinema | `CinemaWorkspace` → single Cinema canvas/WebGL runtime |
 | `oscilloscope` | Sound Drawing | `ReactPlaceholderCanvas` → Sound Drawing renderer |
 | `canvas` | CANVAS | `CanvasEngineSurface` from `ReactCanvasEngineShell.tsx` |
 | `laserDmx` | LaserDMX | `ReactPlaceholderCanvas` → LaserDMX renderer |
 | `pixGrid` | PixGrid | `PixGridSurface` |
+
+Shader Pads and Cinematic Worlds content is cataloged as stable Cinema compositions. Their old IDs remain restore aliases only; neither owns a public canvas, animation loop, or selectable workspace after Cinema Stage 23.
 
 Adding an engine requires updating the typed engine ID, catalog, workspace composition, state defaults and migrations, renderer routing, controls, presets or scene surface, diagnostics, tests, and documentation.
 
@@ -100,8 +101,7 @@ Current composition is resolved centrally:
 
 | Engine | Left rail | Preset surface | Lower workspace | Authoring overlay |
 | --- | --- | --- | --- | --- |
-| Shader Pads | SETUP | SCENES | Track Map | None |
-| Cinematic Worlds | SOURCE | PRESETS | Track Map + Performance Pads | None |
+| Cinema | Composer Visuals/Library | Cinema library + Composer | Track Map + Performance context | Graph editor when selected |
 | Sound Drawing | SOURCE + MEDIA + FONTS | PRESETS | Sound Drawing timeline + Track Map + Performance Pads | None |
 | CANVAS | SOURCE | PRESETS | Track Map + Performance Pads | None |
 | LaserDMX | RIG + LAYERS | PRESETS | Track Map + Performance Pads | Show Director stage editor or Beam Matrix editor when enabled |
@@ -109,16 +109,16 @@ Current composition is resolved centrally:
 
 Track Map is shared by every React engine.
 
-Shader Pads intentionally omit React Performance Pads because Shader scenes have their own scene system.
+Former Shader Pads and Cinematic Worlds visuals are selected from Cinema rather than separate React-engine surfaces.
 
 ## Right-rail composition
 
 ### PRESETS / SCENES
 
 - Standard engine presets use `ReactPresetsPanel` and `ReactPresetCard`.
-- Shader Pads use `ShaderLibraryPanel` and Shader scene cards.
-- Preset resolution remains within the active engine family.
-- CANVAS and Shader Pads own separate live state and do not use a fallback preset from another engine.
+- Cinema uses its canonical composition library and Composer surfaces.
+- Preset resolution remains within the active public engine family.
+- Legacy Shader/Cinematic identifiers resolve through the Stage-23 compatibility migration instead of activating a legacy preset surface.
 
 ### DESIGN
 

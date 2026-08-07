@@ -46,6 +46,8 @@ import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
 import type { CinemaFrameBuilderState } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
+import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
+import { useCinemaLegacyRetirement } from './useCinemaLegacyRetirement'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
@@ -88,11 +90,6 @@ import {
 // These workspaces carry large, engine-specific renderers and authoring tools.
 // Keep them outside the initial React-view graph and load them only when their
 // engine/workspace is actually visible.
-const ReactShaderCanvas = lazy(() =>
-  import('./ReactShaderCanvas').then((module) => ({
-    default: module.ReactShaderCanvas,
-  })),
-)
 const ReactTrackMapStrip = lazy(() =>
   import('./ReactTrackMapStrip').then((module) => ({
     default: module.ReactTrackMapStrip,
@@ -173,6 +170,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Placed here so it runs regardless of which right-panel tab is open.
   useSvgVisualRehydration()
   useFontLibraryHydration()
+  useCinemaLegacyRetirement()
   useReactPresetAutomation()
 
   const {
@@ -462,8 +460,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
   const activePreset =
-    activeReactEngineId === 'shaderPads' || activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema'
-    ? null
+    isCinemaLegacyEngineId(activeReactEngineId) || activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema'
+      ? null
       : (selectedPresetForEngine ?? reactPresets.find((p) => p.engine === activeReactEngineId) ?? null)
 
   const renderPreset = useMemo(
@@ -541,7 +539,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
 
 
   const cinemaFrameBridge = useMemo(() => {
-    if (activeReactEngineId !== 'cinema') return null
+    if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) return null
     return buildCinemaWorkspaceFrameBridge({
       width: 1,
       height: 1,
@@ -590,7 +588,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   ])
 
   useLayoutEffect(() => {
-    if (activeReactEngineId !== 'cinema') {
+    if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) {
       cinemaFrameStateRef.current = null
       return
     }
@@ -804,7 +802,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         {/* Center — canvas + pads + track map */}
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
-            {activeReactEngineId === 'cinema' ? (
+            {activeReactEngineId === 'cinema' || isCinemaLegacyEngineId(activeReactEngineId) ? (
               <CinemaWorkspace
                 surface="stage"
                 frameBridge={cinemaFrameBridge}
@@ -812,31 +810,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 onCanvasReady={setOutputCanvas}
                 onLiveFps={setLiveFps}
               />
-            ) : activeReactEngineId === 'shaderPads' ? (
-              <Suspense fallback={<LazyWorkspaceFallback label="Shader renderer" />}>
-                <ReactShaderCanvas
-                  key="react-live-shaderPads"
-                  analyser={analyser}
-                  intensity={reactIntensity}
-                  motion={reactMotion}
-                  glow={reactGlow}
-                  bassReactivity={reactBassReactivity}
-                  trailDecay={reactTrailDecay}
-                  fogDensity={reactFogDensity}
-                  particleDensity={reactParticleDensity}
-                  performancePadTransition={performancePadTransition}
-                  isPlaying={engine.isPlaying}
-                  isPaused={transportPaused}
-                  getAudioTime={engine.getCurrentTime}
-                  effectiveBpm={engine.currentEffectiveBpm}
-                  trackKey={engine.currentTrackId}
-                  durationSec={audioDurationSec}
-                  trackSections={resolvedTrackSections}
-                  onCanvasReady={setOutputCanvas}
-                  onLiveFps={setLiveFps}
-                  brandOverlay={activeBrandOverlay}
-                />
-              </Suspense>
             ) : activeReactEngineId === 'canvas' ? (
               <CanvasEngineSurface
                 isPlaying={engine.isPlaying}

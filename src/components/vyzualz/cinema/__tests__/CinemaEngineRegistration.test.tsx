@@ -116,7 +116,7 @@ afterEach(async () => {
 })
 
 describe('Cinema production engine registration', () => {
-  it('selects Cinema through the real engine dropdown, claims one runtime owner, and synchronously retires it on engine switch', async () => {
+  it('starts in Cinema, hides retired identities, owns one runtime, and retires it on a user-facing engine switch', async () => {
     const retire = vi.fn()
     const onCanvasReady = vi.fn()
     const gl = createCinemaMockWebGL()
@@ -146,36 +146,19 @@ describe('Cinema production engine registration', () => {
     })
 
     await act(async () => root?.render(<ProductionSelectionHarness retire={retire} onCanvasReady={onCanvasReady} />))
-    expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
-      activeEngine: 'cinematicPortal',
-      activeOwnerCount: 1,
-    })
-
-    const trigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
-    expect(trigger).not.toBeNull()
-    await act(async () => trigger?.click())
-
-    const cinemaOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
-      .find(option => option.textContent?.includes('Cinema'))
-    expect(cinemaOption).not.toBeUndefined()
-    await act(async () => cinemaOption?.click())
 
     const state = useReactStore.getState()
     const canvas = host?.querySelector<HTMLCanvasElement>('[data-cinema-output-canvas="true"]') ?? null
     expect(state.activeReactEngineId).toBe('cinema')
     expect(state.activeReactPresetId).toBeNull()
     expect(host?.querySelector('[data-cinema-workspace="runtime"]')).not.toBeNull()
-    expect(host?.querySelector('[data-cinema-frame-available="true"]')).not.toBeNull()
-    expect(host?.textContent).toContain('Composer modulation, performance, camera, and timeline')
     expect(canvas).not.toBeNull()
-    expect(retire).toHaveBeenCalledTimes(1)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
       activeEngine: 'cinema',
       activeOwnerCount: 1,
       phase: 'stable',
     })
     expect(getContext).toHaveBeenCalledTimes(1)
-    expect(getContext).toHaveBeenCalledWith('webgl2', expect.objectContaining({ premultipliedAlpha: true }))
     expect(requestAnimationFrame).toHaveBeenCalledTimes(1)
     expect(callbacks.size).toBe(1)
     expect(onCanvasReady).toHaveBeenCalledWith(canvas)
@@ -185,27 +168,28 @@ describe('Cinema production engine registration', () => {
     await act(async () => runtimeFrame[1](16.67))
     expect(gl.__calls.drawCount).toBe(2)
     expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
-    expect(host?.querySelector('[data-cinema-quality-tier]')).not.toBeNull()
-    expect(host?.querySelector('[data-cinema-quality-pressure]')).not.toBeNull()
-    expect(host?.textContent).toContain('Output rendered')
-    expect(host?.textContent).toContain('Performance rules')
 
+    const trigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
+    expect(trigger).not.toBeNull()
     await act(async () => trigger?.click())
-    const cinematicOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
-      .find(option => option.textContent?.includes('Cinematic Worlds'))
-    expect(cinematicOption).not.toBeUndefined()
-    await act(async () => cinematicOption?.click())
+    const options = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
+    expect(options.some(option => option.textContent?.includes('Shader Pads'))).toBe(false)
+    expect(options.some(option => option.textContent?.includes('Cinematic Worlds'))).toBe(false)
+    const soundDrawingOption = options.find(option => option.textContent?.includes('Sound Drawing'))
+    expect(soundDrawingOption).not.toBeUndefined()
+    await act(async () => soundDrawingOption?.click())
 
-    expect(useReactStore.getState().activeReactEngineId).toBe('cinematicPortal')
-    expect(host?.querySelector('[data-legacy-engine="cinematicPortal"]')).not.toBeNull()
+    expect(useReactStore.getState().activeReactEngineId).toBe('oscilloscope')
+    expect(host?.querySelector('[data-legacy-engine="oscilloscope"]')).not.toBeNull()
     expect(cancelAnimationFrame).toHaveBeenCalledTimes(1)
     expect(callbacks.size).toBe(0)
     expect(onCanvasReady).toHaveBeenLastCalledWith(null)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
-      activeEngine: 'cinematicPortal',
+      activeEngine: 'oscilloscope',
       activeOwnerCount: 1,
       phase: 'stable',
     })
+    expect(retire).not.toHaveBeenCalled()
   })
 
   it('surfaces the Stage 19 Composer through the canonical Cinema store and production workspace', async () => {

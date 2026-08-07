@@ -2,7 +2,8 @@
  * Tests for the React store's engine/preset synchronisation invariant:
  *
  * Preset-backed engines keep engine/preset IDs synchronized. Sound Drawing,
- * Shader Pads, and CANVAS may intentionally run with no active preset.
+ * CANVAS, and Cinema may intentionally run with no active preset. Legacy
+ * Shader Pads/Cinematic Worlds selections retire through Cinema aliases.
  *
  * Covers:
  *   1. buildPresetPatch pure-function correctness
@@ -29,7 +30,7 @@ const oscPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'oscillosco
 const enhancedOscPreset = DEFAULT_REACT_PRESETS.find(
   p => p.engine === 'oscilloscope' && p.oscillatorSettings != null,
 )
-const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['shaderPads', 'canvas', 'cinema', 'oscilloscope'])
+const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema', 'oscilloscope'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -50,22 +51,21 @@ beforeEach(() => {
 
 describe('buildPresetPatch', () => {
   it('returns matching activeReactPresetId and activeReactEngineId', () => {
-    const patch = buildPresetPatch(cinPreset, DEFAULT_OSCILLATOR_SETTINGS)
-    expect(patch.activeReactPresetId).toBe(cinPreset.id)
-    expect(patch.activeReactEngineId).toBe('cinematicPortal')
+    const patch = buildPresetPatch(oscPreset, DEFAULT_OSCILLATOR_SETTINGS)
+    expect(patch.activeReactPresetId).toBe(oscPreset.id)
+    expect(patch.activeReactEngineId).toBe('oscilloscope')
   })
 
   it('copies intensity/motion/glow/bassReactivity from preset params', () => {
-    const patch = buildPresetPatch(cinPreset, DEFAULT_OSCILLATOR_SETTINGS)
-    expect(patch.reactIntensity).toBe(cinPreset.params.intensity)
-    expect(patch.reactMotion).toBe(cinPreset.params.motion)
-    expect(patch.reactGlow).toBe(cinPreset.params.glow)
-    expect(patch.reactBassReactivity).toBe(cinPreset.params.bassReactivity)
+    const patch = buildPresetPatch(oscPreset, DEFAULT_OSCILLATOR_SETTINGS)
+    expect(patch.reactIntensity).toBe(oscPreset.params.intensity)
+    expect(patch.reactMotion).toBe(oscPreset.params.motion)
+    expect(patch.reactGlow).toBe(oscPreset.params.glow)
+    expect(patch.reactBassReactivity).toBe(oscPreset.params.bassReactivity)
   })
 
   it('leaves oscillatorSettings unchanged for non-oscilloscope presets', () => {
-    const patch = buildPresetPatch(cinPreset, DEFAULT_OSCILLATOR_SETTINGS)
-    expect(patch.oscillatorSettings).toBe(DEFAULT_OSCILLATOR_SETTINGS) // same reference
+    expect(() => buildPresetPatch(cinPreset, DEFAULT_OSCILLATOR_SETTINGS)).toThrow(/retired engine/)
   })
 
   it('resolves oscillatorSettings from DEFAULT for oscilloscope presets', () => {
@@ -92,16 +92,12 @@ describe('buildPresetPatch', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('selectReactEngine', () => {
-  it('selecting cinematicPortal: sets activeReactEngineId to cinematicPortal', () => {
+  it('routes the retired Cinematic Worlds engine identity to Cinema', () => {
     useReactStore.getState().selectReactEngine('cinematicPortal')
-    expect(useReactStore.getState().activeReactEngineId).toBe('cinematicPortal')
-  })
-
-  it('selecting cinematicPortal: active preset belongs to cinematicPortal', () => {
-    useReactStore.getState().selectReactEngine('cinematicPortal')
-    const { activeReactPresetId, reactPresets } = useReactStore.getState()
-    const preset = activePreset(reactPresets, activeReactPresetId)
-    expect(preset?.engine).toBe('cinematicPortal')
+    const state = useReactStore.getState()
+    expect(state.activeReactEngineId).toBe('cinema')
+    expect(state.activeReactPresetId).toBeNull()
+    expect(state.pendingCinemaLegacySelectionMigration?.legacyEngineId).toBe('cinematicPortal')
   })
 
   it('selecting oscilloscope: sets activeReactEngineId to oscilloscope', () => {
@@ -128,28 +124,24 @@ describe('selectReactEngine', () => {
     expect(oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
   })
 
-  it('re-selecting the current engine does not change the active preset', () => {
-    useReactStore.getState().selectReactEngine('cinematicPortal')
-    const presetIdBefore = useReactStore.getState().activeReactPresetId
-
-    useReactStore.getState().selectReactEngine('cinematicPortal')
-    expect(useReactStore.getState().activeReactPresetId).toBe(presetIdBefore)
+  it('re-selecting Cinema keeps it preset-free', () => {
+    useReactStore.getState().selectReactEngine('cinema')
+    useReactStore.getState().selectReactEngine('cinema')
+    expect(useReactStore.getState().activeReactPresetId).toBeNull()
   })
 
-  it("applying params: intensity from the selected engine's first preset", () => {
-    // Prime a different engine first so selectReactEngine('cinematicPortal') is a real switch.
-    useReactStore.getState().selectReactEngine('oscilloscope')
-    useReactStore.getState().selectReactEngine('cinematicPortal')
+  it("applying params: intensity from a selectable preset-backed engine's first preset", () => {
+    useReactStore.getState().selectReactEngine('laserDmx')
     const { reactIntensity, activeReactPresetId, reactPresets } = useReactStore.getState()
     const preset = activePreset(reactPresets, activeReactPresetId)
     expect(reactIntensity).toBe(preset?.params.intensity)
   })
 
-  it('invariant: preset-backed engines keep the active preset in the same family', () => {
-    useReactStore.getState().selectReactEngine('cinematicPortal')
+  it('invariant: selectable preset-backed engines keep the active preset in the same family', () => {
+    useReactStore.getState().selectReactEngine('laserDmx')
     const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
     const preset = activePreset(reactPresets, activeReactPresetId)
-    expect(activeReactEngineId).toBe('cinematicPortal')
+    expect(activeReactEngineId).toBe('laserDmx')
     expect(preset?.engine).toBe(activeReactEngineId)
   })
 
@@ -186,8 +178,8 @@ describe('selectReactEngine', () => {
   it('rejects the retired Neon engine and restores the startup pair', () => {
     useReactStore.getState().selectReactEngine('neonLattice' as never)
     const { activeReactPresetId, activeReactEngineId } = useReactStore.getState()
-    expect(activeReactEngineId).toBe('cinematicPortal')
-    expect(activeReactPresetId).toBe('preset-singularity-crown')
+    expect(activeReactEngineId).toBe('cinema')
+    expect(activeReactPresetId).toBeNull()
   })
 })
 
@@ -196,14 +188,16 @@ describe('selectReactEngine', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('selectReactPreset', () => {
-  it('updates activeReactEngineId to match the selected preset engine', () => {
+  it('routes a retired Cinematic Worlds preset selection to its Cinema handoff', () => {
     useReactStore.getState().selectReactPreset(cinPreset.id)
-    expect(useReactStore.getState().activeReactEngineId).toBe('cinematicPortal')
-    expect(useReactStore.getState().activeReactPresetId).toBe(cinPreset.id)
+    const state = useReactStore.getState()
+    expect(state.activeReactEngineId).toBe('cinema')
+    expect(state.activeReactPresetId).toBeNull()
+    expect(state.pendingCinemaLegacySelectionMigration).toMatchObject({ legacyEngineId: 'cinematicPortal', legacySourceId: cinPreset.id })
   })
 
   it('invariant: activePreset.engine === activeReactEngineId after any preset selection', () => {
-    for (const preset of [cinPreset, oscPreset]) {
+    for (const preset of [oscPreset]) {
       useReactStore.getState().selectReactPreset(preset.id)
       const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
       const active = activePreset(reactPresets, activeReactPresetId)

@@ -38,14 +38,14 @@ describe('React preset contracts', () => {
   })
 
   it('resets every global render control when a preset is selected', () => {
-    const patch = buildPresetPatch(cinematicPreset, DEFAULT_OSCILLATOR_SETTINGS)
+    const patch = buildPresetPatch(laserPreset, DEFAULT_OSCILLATOR_SETTINGS, createDefaultLaserDmxSettings())
     expect(patch.reactTrailDecay).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.trailDecay)
     expect(patch.reactFogDensity).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.fogDensity)
     expect(patch.reactParticleDensity).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.particleDensity)
   })
 
   it('keeps stable preset provenance while manual masters diverge', () => {
-    useReactStore.getState().selectReactPreset(cinematicPreset.id)
+    useReactStore.getState().selectReactPreset(laserPreset.id)
     const selectedId = useReactStore.getState().activeReactPresetId
     useReactStore.getState().setReactIntensity(0.11)
     useReactStore.getState().setReactMotion(0.22)
@@ -56,14 +56,14 @@ describe('React preset contracts', () => {
     useReactStore.getState().setReactParticleDensity(0.77)
     expect(useReactStore.getState().activeReactPresetId).toBe(selectedId)
 
-    useReactStore.getState().selectReactPreset(cinematicPreset.id)
-    expect(useReactStore.getState().activeReactPresetId).toBe(cinematicPreset.id)
-    expect(useReactStore.getState().reactIntensity).toBe(cinematicPreset.params.intensity)
+    useReactStore.getState().selectReactPreset(laserPreset.id)
+    expect(useReactStore.getState().activeReactPresetId).toBe(laserPreset.id)
+    expect(useReactStore.getState().reactIntensity).toBe(laserPreset.params.intensity)
   })
 
 
   it('preserves modified preset provenance across save and reload', () => {
-    useReactStore.getState().selectReactPreset(cinematicPreset.id)
+    useReactStore.getState().selectReactPreset(laserPreset.id)
     useReactStore.getState().setReactGlow(0.19)
     const saved = reactStorePartialize(useReactStore.getState())
     const merged = mergeReactStoreState(saved, useReactStore.getState())
@@ -82,14 +82,14 @@ describe('React preset contracts', () => {
       },
       oscillatorSettings: merged.oscillatorSettings,
     })
-    expect(merged.activeReactPresetId).toBe(cinematicPreset.id)
+    expect(merged.activeReactPresetId).toBe(laserPreset.id)
     expect(provenance.status).toBe('modified')
     expect(provenance.changedFields).toContain('glow')
   })
 
   it('keeps a corrected Sound Drawing trail lock synchronized with preset-owned Trail Decay', () => {
     useReactStore.getState().setSoundDrawingPerformanceLock('trail', true)
-    useReactStore.getState().selectReactPreset(cinematicPreset.id)
+    useReactStore.getState().selectReactPreset(laserPreset.id)
     const state = useReactStore.getState()
     expect(state.soundDrawingPerformanceSettings.trailLockContract.mode).toBe('manualResolved')
     expect(state.soundDrawingPerformanceSettings.trailLockContract.snapshot?.trailDecay)

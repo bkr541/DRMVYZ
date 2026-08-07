@@ -45,7 +45,7 @@ describe('fallback invariant', () => {
 
 // ── Legacy preset migration ───────────────────────────────────────────────────
 
-describe('legacy preset migration — each removed ID falls back to Singularity Crown', () => {
+describe('legacy preset migration — each removed Shader preset retires through Cinema', () => {
   const LEGACY_IDS = [
     'preset-neon-energy-cloud',
     'preset-lava-tunnel',
@@ -55,14 +55,14 @@ describe('legacy preset migration — each removed ID falls back to Singularity 
   ]
 
   it.each(LEGACY_IDS)(
-    'version-18 state with activeReactPresetId=%s → preset-singularity-crown / cinematicPortal',
-    (legacyId) => {
+    'version-18 state with activeReactPresetId=%s → Cinema compatibility handoff',
+    (legacyId: string) => {
       const result = migrate18({
         activeReactPresetId: legacyId,
         activeReactEngineId: 'shaderPads',
       })
-      expect(result.activeReactPresetId).toBe('preset-singularity-crown')
-      expect(result.activeReactEngineId).toBe('cinematicPortal')
+      expect(result.activeReactPresetId).toBeNull()
+      expect(result.activeReactEngineId).toBe('cinema')
     },
   )
 })
@@ -75,8 +75,8 @@ describe('legacy engine without valid preset → Singularity Crown fallback', ()
       activeReactPresetId: null,
       activeReactEngineId: 'shaderPads',
     })
-    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
-    expect(result.activeReactEngineId).toBe('cinematicPortal')
+    expect(result.activeReactPresetId).toBeNull()
+    expect(result.activeReactEngineId).toBe('cinema')
   })
 
   it('shaderPads engine with unknown preset ID falls back to Singularity Crown', () => {
@@ -84,8 +84,8 @@ describe('legacy engine without valid preset → Singularity Crown fallback', ()
       activeReactPresetId: 'unknown-preset',
       activeReactEngineId: 'shaderPads',
     })
-    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
-    expect(result.activeReactEngineId).toBe('cinematicPortal')
+    expect(result.activeReactPresetId).toBeNull()
+    expect(result.activeReactEngineId).toBe('cinema')
   })
 })
 
@@ -137,8 +137,8 @@ describe('valid non-Shader state is not modified', () => {
       activeReactPresetId: 'preset-nl-acid-magenta',
       activeReactEngineId: 'neonLattice',
     })
-    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
-    expect(result.activeReactEngineId).toBe('cinematicPortal')
+    expect(result.activeReactPresetId).toBeNull()
+    expect(result.activeReactEngineId).toBe('cinema')
   })
 
   it('Cinematic Portal state is preserved', () => {
@@ -146,8 +146,8 @@ describe('valid non-Shader state is not modified', () => {
       activeReactPresetId: 'preset-singularity-crown',
       activeReactEngineId: 'cinematicPortal',
     })
-    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
-    expect(result.activeReactEngineId).toBe('cinematicPortal')
+    expect(result.activeReactPresetId).toBeNull()
+    expect(result.activeReactEngineId).toBe('cinema')
   })
 })
 
@@ -202,8 +202,8 @@ describe('unrelated state fields survive migration unchanged', () => {
     const result = migrate18(input)
 
     // Active IDs must be migrated
-    expect(result.activeReactPresetId).toBe('preset-singularity-crown')
-    expect(result.activeReactEngineId).toBe('cinematicPortal')
+    expect(result.activeReactPresetId).toBeNull()
+    expect(result.activeReactEngineId).toBe('cinema')
 
     // Unrelated values are preserved while Patch 8 adds safe lyric-source defaults.
     expect(result.oscillatorSettings).toEqual({
@@ -238,18 +238,19 @@ describe('version 20 selection normalization', () => {
       activeReactEngineId: 'shaderPads',
     }
     const result = migrate19(state)
-    // Shader is a standalone engine and must not carry a React preset.
+    // Stage 23 keeps Shader Pads as an import alias but retires its public engine identity.
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('shaderPads')
+    expect(result.activeReactEngineId).toBe('cinema')
+    expect(result.pendingCinemaLegacySelectionMigration).toEqual({ legacyEngineId: 'shaderPads', legacySourceId: null })
   })
 })
 
 // ── Reset behavior ────────────────────────────────────────────────────────────
 
 describe('resetReactView', () => {
-  it('lands on preset-singularity-crown / cinematicPortal after reset', () => {
+  it('lands on Cinema with no legacy preset after reset', () => {
     const { activeReactPresetId, activeReactEngineId } = useReactStore.getState()
-    expect(activeReactPresetId).toBe('preset-singularity-crown')
-    expect(activeReactEngineId).toBe('cinematicPortal')
+    expect(activeReactPresetId).toBeNull()
+    expect(activeReactEngineId).toBe('cinema')
   })
 })

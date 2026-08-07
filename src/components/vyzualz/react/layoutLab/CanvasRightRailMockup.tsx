@@ -52,8 +52,7 @@ const SECTION_OPTIONS: Array<{ value: CanvasSectionTriggerType; label: string }>
 
 
 const CROSS_ENGINE_PRESETS: Array<{ engineId: Exclude<ReactEngineId, 'canvas'>; label: string; icon: string; preset: string; description: string }> = [
-  { engineId: 'shaderPads', label: 'Shader Pads', icon: '◈', preset: 'Reactor', description: 'GPU shader performance preset.' },
-  { engineId: 'cinematicPortal', label: 'Cinematic Worlds', icon: '◉', preset: 'Singularity Crown', description: 'Cinematic world preset.' },
+  { engineId: 'cinema', label: 'Cinema', icon: '◉', preset: 'Visual Composition', description: 'Composition-native visual performance engine.' },
   { engineId: 'oscilloscope', label: 'Sound Drawing', icon: '〰', preset: 'XY Cyan Scope', description: 'Classic scope preset.' },
   { engineId: 'laserDmx', label: 'LaserDMX', icon: '⌬', preset: 'Beam Matrix', description: 'LaserDMX performance preset.' },
   { engineId: 'pixGrid', label: 'PixGrid', icon: '▦', preset: 'Bass Beacon', description: 'Pixel-grid performance preset.' },

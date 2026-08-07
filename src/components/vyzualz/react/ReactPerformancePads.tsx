@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { resolveActivePerformanceActionTarget, useReactStore } from '../../../stores/reactStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveEffectiveReactPresets } from '../../../features/personalization/effectivePalette'
+import { useCinemaStore } from '../cinema/CinemaStore'
 import {
   getReactPerformanceActionsForTarget,
   isFormFieldKeyboardTarget,
@@ -77,6 +78,7 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
   )
 
   const activeBrandKit = useBrandKitStore(state => state.activeKit)
+  const activeCinemaCompositionId = useCinemaStore(state => state.activeCompositionId)
   const effectivePresets = useMemo(
     () => resolveEffectiveReactPresets(reactPresets, activeBrandKit),
     [reactPresets, activeBrandKit],
@@ -92,8 +94,9 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
       activeReactPresetId,
       reactPresets,
       cinematicConfigsByPresetId,
+      activeCinemaCompositionId,
     }),
-    [activeReactEngineId, activeReactPresetId, reactPresets, cinematicConfigsByPresetId],
+    [activeCinemaCompositionId, activeReactEngineId, activeReactPresetId, reactPresets, cinematicConfigsByPresetId],
   )
   const contextualActions = useMemo(() => getReactPerformanceActionsForTarget(target), [target])
   const actionsByPadId = useMemo(
@@ -190,13 +193,14 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
             }
 
             const isActive = pad.id === activePadId
+            const hasDestination = Boolean(pad.presetId || pad.cinemaCompositionId)
             return (
               <button
                 key={pad.id}
-                className={`rv-pad${isActive ? ' rv-pad--active' : ''}${!pad.presetId ? ' rv-pad--empty' : ''}`}
-                onClick={() => pad.presetId && setActivePadId(pad.id)}
-                disabled={!pad.presetId}
-                title={pad.presetId ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}
+                className={`rv-pad${isActive ? ' rv-pad--active' : ''}${!hasDestination ? ' rv-pad--empty' : ''}`}
+                onClick={() => hasDestination && setActivePadId(pad.id)}
+                disabled={!hasDestination}
+                title={hasDestination ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}
                 style={{ '--pad-color': (pad.presetId ? (effectivePresetById.get(pad.presetId)?.palette.accent ?? pad.color) : pad.color) } as React.CSSProperties}
               >
                 <span className="rv-pad-label">{pad.label}</span>

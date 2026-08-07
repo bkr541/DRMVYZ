@@ -769,13 +769,13 @@ export function ReactPresetsPanel() {
   )
 
   useEffect(() => {
-    const sanitized = sanitizeReactPresetFavorites(displayPresets.filter(isReactPresetVisibleForLockedLaserDmx).map(preset => preset.id))
+    const sanitized = sanitizeReactPresetFavorites(reactPresets.filter(isReactPresetVisibleForLockedLaserDmx).map(preset => preset.id))
     setFavoritePresetIds(current => (
       current.length === sanitized.length && current.every((presetId, index) => presetId === sanitized[index])
         ? current
         : sanitized
     ))
-  }, [displayPresets])
+  }, [displayPresets, reactPresets])
 
   const favoriteIds = useMemo(() => new Set(favoritePresetIds), [favoritePresetIds])
   const active = displayPresets.find(preset => preset.id === activeReactPresetId)

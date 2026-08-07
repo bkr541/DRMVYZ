@@ -3,10 +3,11 @@ import * as Cinema from '../index'
 import {
   REACT_ENGINE_CATALOG,
   REACT_ENGINE_IDS,
+  REACT_KNOWN_ENGINE_IDS,
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema production boundary through Stage 22', () => {
+describe('Cinema production boundary through Stage 23', () => {
   it('keeps prior contracts public while exposing Shader and Cinematic World adapters through production ownership', () => {
     expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(3)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
@@ -73,8 +74,6 @@ describe('Cinema production boundary through Stage 22', () => {
       'final-runtime-value',
     ])
     expect(REACT_ENGINE_IDS).toEqual([
-      'shaderPads',
-      'cinematicPortal',
       'cinema',
       'oscilloscope',
       'canvas',
@@ -85,9 +84,11 @@ describe('Cinema production boundary through Stage 22', () => {
     expect(REACT_ENGINE_CATALOG.cinema.label).toBe('Cinema')
   })
 
-  it('preserves the complete legacy production catalog and selection guards', () => {
-    expect(Object.values(REACT_ENGINE_CATALOG).map(entry => entry.id)).toEqual(REACT_ENGINE_IDS)
+  it('preserves legacy compatibility identities without exposing them as selectable engines', () => {
+    expect(Object.values(REACT_ENGINE_CATALOG).map(entry => entry.id)).toEqual(REACT_KNOWN_ENGINE_IDS)
     expect(REACT_ENGINE_IDS.every(isSelectableReactEngineId)).toBe(true)
+    expect(isSelectableReactEngineId('shaderPads')).toBe(false)
+    expect(isSelectableReactEngineId('cinematicPortal')).toBe(false)
     expect(REACT_ENGINE_CATALOG.shaderPads.label).toBe('Shader Pads')
     expect(REACT_ENGINE_CATALOG.cinematicPortal.label).toBe('Cinematic Worlds')
   })

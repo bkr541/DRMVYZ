@@ -3,7 +3,7 @@
  *
  * Tests the complete data flow from store → renderer → graph → uniforms,
  * including texture selections, transitions, quality resize, context loss,
- * manual sections, trigger params, and the selectReactEngine('shaderPads') path.
+ * manual sections, trigger params, and the retired selectReactEngine('shaderPads') compatibility path.
  *
  * Uses mock GL objects — no real browser or canvas.
  */
@@ -544,11 +544,12 @@ describe('H: ShaderDefinitionValidator — production scenes', () => {
 
 // ── I: selectReactEngine — shaderPads branch ─────────────────────────────────
 
-describe('I: selectReactEngine — shaderPads branch', () => {
-  it('I1: selecting shaderPads sets activeReactEngineId correctly', () => {
+describe('I: selectReactEngine — retired shaderPads alias', () => {
+  it('I1: selecting shaderPads routes to Cinema and records a compatibility handoff', () => {
     useReactStore.getState().selectReactEngine('shaderPads')
     const state = useReactStore.getState()
-    expect(state.activeReactEngineId).toBe('shaderPads')
+    expect(state.activeReactEngineId).toBe('cinema')
     expect(state.activeReactPresetId).toBeNull()
+    expect(state.pendingCinemaLegacySelectionMigration).toEqual({ legacyEngineId: 'shaderPads', legacySourceId: null })
   })
 })

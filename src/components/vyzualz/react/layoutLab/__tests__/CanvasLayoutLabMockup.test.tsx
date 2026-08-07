@@ -102,7 +102,7 @@ describe('Canvas Layout Lab through the real shell', () => {
       expect(container.textContent).toContain(preset)
     }
     await act(async () => exactButton('All Engines').click())
-    for (const engine of ['Shader Pads', 'Cinematic Worlds', 'Sound Drawing', 'LaserDMX', 'PixGrid']) {
+    for (const engine of ['Cinema', 'Sound Drawing', 'LaserDMX', 'PixGrid']) {
       expect(container.textContent).toContain(engine)
     }
     await act(async () => exactButton('Current Engine').click())
@@ -161,7 +161,7 @@ describe('Canvas Layout Lab through the real shell', () => {
     expect(container.textContent).toContain('static sample')
   })
 
-  it('normalizes lower surfaces across Canvas, Sound Drawing, Shader Pads, PixGrid, and LaserDMX', async () => {
+  it('normalizes lower surfaces across Canvas, Sound Drawing, Cinema, PixGrid, and LaserDMX', async () => {
     await selectEngine('CANVAS')
     await act(async () => exactButton('Performance Pads').click())
     expect(exactButton('Performance Pads').getAttribute('aria-selected')).toBe('true')
@@ -170,7 +170,7 @@ describe('Canvas Layout Lab through the real shell', () => {
     expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map', 'Sound Drawing', 'Performance Pads'])
     expect(exactButton('Track Map').getAttribute('aria-selected')).toBe('true')
 
-    await selectEngine('Shader Pads')
+    await selectEngine('Cinema')
     expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map'])
 
     await selectEngine('PixGrid')

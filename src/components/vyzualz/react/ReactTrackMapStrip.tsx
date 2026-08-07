@@ -1956,8 +1956,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       const cueUpdate: Partial<ReactTrackSection> & { timeSec?: number; label?: string } = {}
       if (patch.startSec != null) cueUpdate.timeSec = patch.startSec
       if (patch.label != null) {
-        const preset = reactPresets.find(p => p.id === linkedCue.presetId)
-        cueUpdate.label = buildPresetCueLabel(patch.label, preset?.name ?? linkedCue.presetId)
+        const preset = linkedCue.presetId
+          ? reactPresets.find(p => p.id === linkedCue.presetId)
+          : null
+        const destinationLabel = preset?.name ?? (linkedCue.cinemaCompositionId ? 'Cinema' : linkedCue.label)
+        cueUpdate.label = buildPresetCueLabel(patch.label, destinationLabel)
       }
       if (cueUpdate.timeSec != null || cueUpdate.label != null) {
         updatePresetAutomationCue(activeTrackId, cueId, cueUpdate)
@@ -2279,9 +2282,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
             const selectedSectionPresetCue = selectedSection
               ? trackCues.find(c => c.id === buildPresetCueId(selectedSection.id)) ?? null
               : null
-            const selectedSectionPreset = selectedSectionPresetCue
+            const selectedSectionPreset = selectedSectionPresetCue?.presetId
               ? reactPresets.find(p => p.id === selectedSectionPresetCue.presetId) ?? null
               : null
+            const selectedSectionPresetLabel = selectedSectionPreset?.name
+              ?? (selectedSectionPresetCue?.cinemaCompositionId ? 'Cinema composition' : null)
             const selectedSectionConfidence = selectedSection
               ? buildSectionConfidenceDisplayData(selectedSection)
               : null
@@ -2315,7 +2320,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                       <span>{selectedSectionDuration.toFixed(1)}s</span>
                       {selectedSectionBars && <span>Bars {selectedSectionBars}</span>}
                       <span>{Math.round(selectedSection.intensity * 100)}%</span>
-                      <span>{selectedSectionPreset?.name ?? 'No preset'}</span>
+                      <span>{selectedSectionPresetLabel ?? 'No preset'}</span>
                       {selectedSectionConfidence && (
                         <span
                           className={`rv-confidence-badge rv-confidence-badge--${selectedSectionConfidence.tier}`}
