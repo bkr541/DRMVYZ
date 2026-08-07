@@ -110,6 +110,8 @@ const fixture = vi.hoisted(() => ({
     removeLaserDmxShowManagerSection: vi.fn(),
     reorderLaserDmxShowManagerSection: vi.fn(),
     addLaserDmxShowManagerFixture: vi.fn(() => 'laser-fixture-new'),
+    updateLaserDmxShowManagerFixture: vi.fn(),
+    removeLaserDmxShowManagerFixture: vi.fn(),
     pixGridState: {
       matrixWidth: 160,
       matrixHeight: 90,
@@ -220,6 +222,8 @@ vi.mock('../shared/VyzualzHeaderActions', () => ({
   ),
 }))
 
+import { createDefaultLaserDmxShowDirectorFixture } from '../react/ReactTypes'
+import { removeLaserDmxShowManagerFixtureFromSection } from './LaserDmxShowManagerDomain'
 import { ShowManagerView } from './ShowManagerView'
 
 let container: HTMLDivElement | null = null
@@ -485,8 +489,8 @@ describe('ShowManagerView production shell', () => {
     const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
     const originalFixtures = intro.fixtures
     intro.fixtures = [
-      { id: 'fixture-a', kind: 'laser', label: 'Laser 1', x: 4, y: 5, beam: { beamEnabled: false, targetX: null, targetY: null } },
-      { id: 'fixture-b', kind: 'strobe', label: 'Strobe 1', x: 4, y: 5, beam: { beamEnabled: false, targetX: null, targetY: null } },
+      { ...createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-a'), x: 4, y: 5, label: 'Laser 1' },
+      { ...createDefaultLaserDmxShowDirectorFixture('strobe', 'fixture-b'), x: 4, y: 5, label: 'Strobe 1' },
     ] as never[]
 
     try {
@@ -516,6 +520,7 @@ describe('ShowManagerView production shell', () => {
         fixtureButtons[0]?.click()
         await Promise.resolve()
       })
+      expect(container.querySelector('[data-testid="laser-dmx-fixture-inspector"]')).not.toBeNull()
       expect(fixtureButtons[0]?.getAttribute('aria-pressed')).toBe('true')
       expect(fixtureButtons[1]?.getAttribute('aria-pressed')).toBe('false')
 
@@ -534,6 +539,171 @@ describe('ShowManagerView production shell', () => {
       expect(fixtureButtons.every(button => button.getAttribute('aria-pressed') === 'false')).toBe(true)
     } finally {
       intro.fixtures = originalFixtures
+    }
+  })
+
+  it('binds the Part 1 fixture Inspector to the selected production fixture and exposes only the approved trigger list', async () => {
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    intro.fixtures = [{
+      ...createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-inspector'),
+      x: 4,
+      y: 5,
+      label: 'Inspector Laser',
+    }] as never[]
+    fixture.state.updateLaserDmxShowManagerFixture.mockClear()
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      const fixtureButton = container.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-inspector"]')
+      await act(async () => {
+        fixtureButton?.click()
+        await Promise.resolve()
+      })
+
+      const inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      expect(inspector).not.toBeNull()
+      expect(inspector?.textContent).toContain('Inspector Laser')
+      for (const approved of ['Position', 'X', 'Y', 'Z', 'Rotation', 'Color', 'Color Mode', 'Brightness', 'Beam Configuration', 'Trigger Configuration']) {
+        expect(inspector?.textContent).toContain(approved)
+      }
+      for (const deferred of ['Gobo', 'Prism', 'Diffraction', 'Scanner', 'Modulation']) {
+        expect(inspector?.textContent).not.toContain(deferred)
+      }
+
+      const colorMode = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Color Mode"]')
+      expect(colorMode?.disabled).toBe(true)
+      expect(colorMode?.textContent).toContain('Static')
+
+      const trigger = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Trigger"]')
+      await act(async () => {
+        trigger?.click()
+        await Promise.resolve()
+      })
+      const triggerOptions = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .map(option => option.textContent?.trim())
+      expect(triggerOptions).toEqual([
+        'None', 'Beat', 'Downbeat', 'Bar', '4 Bars', '8 Bars', '16 Bars', '24 Bars', 'Kick Hit', 'Snare Hit',
+      ])
+
+      const xLabel = [...(inspector?.querySelectorAll<HTMLLabelElement>('label') ?? [])]
+        .find(label => label.textContent?.trim() === 'X')
+      const xInput = xLabel?.htmlFor ? inspector?.querySelector<HTMLInputElement>(`#${xLabel.htmlFor}`) : null
+      expect(xInput).not.toBeNull()
+      await act(async () => {
+        if (!xInput) return
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        setter?.call(xInput, '17')
+        xInput.dispatchEvent(new Event('input', { bubbles: true }))
+        xInput.dispatchEvent(new Event('change', { bubbles: true }))
+        await Promise.resolve()
+      })
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-inspector',
+        { x: 17 },
+      )
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
+  it('deletes only the selected fixture and restores that exact fixture through production Undo/Redo', async () => {
+    const show = fixture.state.laserDmxShowManagerShows[0]!
+    const intro = show.sections[0]!
+    const originalFixtures = intro.fixtures
+    intro.fixtures = [
+      { ...createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-delete'), x: 4, y: 5 },
+      { ...createDefaultLaserDmxShowDirectorFixture('strobe', 'fixture-neighbor'), x: 4, y: 5 },
+    ] as never[]
+    fixture.state.removeLaserDmxShowManagerFixture.mockReset()
+    fixture.state.removeLaserDmxShowManagerFixture.mockImplementation((showId: string, sectionId: string, fixtureId: string) => {
+      fixture.state.laserDmxShowManagerShows = fixture.state.laserDmxShowManagerShows.map((candidate: typeof fixture.state.laserDmxShowManagerShows[number]) => (
+        candidate.id === showId
+          ? removeLaserDmxShowManagerFixtureFromSection(candidate, sectionId, fixtureId)
+          : candidate
+      )) as typeof fixture.state.laserDmxShowManagerShows
+    })
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+      const selected = container.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-delete"]')
+      await act(async () => {
+        selected?.click()
+        await Promise.resolve()
+      })
+      const deleteButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
+        .find(button => button.textContent?.trim() === 'Delete Fixture')
+      await act(async () => {
+        deleteButton?.click()
+        await Promise.resolve()
+      })
+
+      expect(fixture.state.removeLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-delete',
+      )
+      expect(container.querySelector('button[data-fixture-id="fixture-delete"]')).toBeNull()
+      expect(container.querySelector('button[data-fixture-id="fixture-neighbor"]')).not.toBeNull()
+
+      const undo = container.querySelector<HTMLButtonElement>('button[title="Undo section edit"]')
+      await act(async () => {
+        undo?.click()
+        await Promise.resolve()
+      })
+      expect(container.querySelector('button[data-fixture-id="fixture-delete"]')).not.toBeNull()
+      expect(container.querySelector('button[data-fixture-id="fixture-neighbor"]')).not.toBeNull()
+
+      const redo = container.querySelector<HTMLButtonElement>('button[title="Redo section edit"]')
+      await act(async () => {
+        redo?.click()
+        await Promise.resolve()
+      })
+      expect(container.querySelector('button[data-fixture-id="fixture-delete"]')).toBeNull()
+      expect(container.querySelector('button[data-fixture-id="fixture-neighbor"]')).not.toBeNull()
+    } finally {
+      const currentIntro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+      currentIntro.fixtures = originalFixtures
+      fixture.state.removeLaserDmxShowManagerFixture.mockReset()
     }
   })
 

@@ -89,6 +89,31 @@ export type LaserDmxShowManagerSectionPatch = Partial<Omit<LaserDmxShowManagerSe
   fixtures?: readonly LaserDmxShowDirectorFixture[]
 }
 
+export type LaserDmxShowManagerTriggerOption =
+  | 'none'
+  | 'beat'
+  | 'downbeat'
+  | 'bar'
+  | '4bars'
+  | '8bars'
+  | '16bars'
+  | '24bars'
+  | 'kickHit'
+  | 'snareHit'
+
+export const LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: 'beat', label: 'Beat' },
+  { value: 'downbeat', label: 'Downbeat' },
+  { value: 'bar', label: 'Bar' },
+  { value: '4bars', label: '4 Bars' },
+  { value: '8bars', label: '8 Bars' },
+  { value: '16bars', label: '16 Bars' },
+  { value: '24bars', label: '24 Bars' },
+  { value: 'kickHit', label: 'Kick Hit' },
+  { value: 'snareHit', label: 'Snare Hit' },
+] as const satisfies readonly { value: LaserDmxShowManagerTriggerOption; label: string }[]
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -260,6 +285,58 @@ export function createLaserDmxShowManagerFixture(
     component: patch.component ? { ...base.component, ...patch.component } : base.component,
     optics: patch.optics ? { ...base.optics, ...patch.optics } : base.optics,
   }, index)
+}
+
+export function triggerPatchForLaserDmxShowManagerOption(
+  option: LaserDmxShowManagerTriggerOption,
+): NonNullable<LaserDmxShowDirectorFixturePatch['trigger']> {
+  switch (option) {
+    case 'beat':
+      return { mode: 'beat', quantize: 'beat', retrigger: 'oncePerBeat', beatDivision: 1, fadeInMs: 0, fadeOutMs: 140 }
+    case 'downbeat':
+      // The canonical Show Director runtime represents a downbeat as a one-bar trigger.
+      // `quantize: beat` preserves the authoring distinction from the explicit Bar option.
+      return { mode: 'bar', quantize: 'beat', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 1, fadeInMs: 0, fadeOutMs: 220 }
+    case 'bar':
+      return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 1, fadeInMs: 0, fadeOutMs: 220 }
+    case '4bars':
+      return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 4, fadeInMs: 0, fadeOutMs: 360 }
+    case '8bars':
+      return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 8, fadeInMs: 0, fadeOutMs: 360 }
+    case '16bars':
+      return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 16, fadeInMs: 0, fadeOutMs: 360 }
+    case '24bars':
+      return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 24, fadeInMs: 0, fadeOutMs: 360 }
+    case 'kickHit':
+      return { mode: 'bassHit', quantize: 'none', retrigger: 'allow', audioBand: 'bass', audioThreshold: 0.65, fadeInMs: 0, fadeOutMs: 160 }
+    case 'snareHit':
+      return { mode: 'snareTransient', quantize: 'none', retrigger: 'allow', audioBand: 'highMid', audioThreshold: 0.58, fadeInMs: 0, fadeOutMs: 120 }
+    case 'none':
+    default:
+      return { mode: 'alwaysOn', quantize: 'none', retrigger: 'allow', beatDivision: 1, barInterval: 1, fadeInMs: 0, fadeOutMs: 0 }
+  }
+}
+
+export function resolveLaserDmxShowManagerTriggerOption(
+  trigger: LaserDmxShowDirectorFixture['trigger'],
+): LaserDmxShowManagerTriggerOption {
+  switch (trigger.mode) {
+    case 'beat':
+      return 'beat'
+    case 'bar':
+      if (trigger.barInterval === 24) return '24bars'
+      if (trigger.barInterval === 16) return '16bars'
+      if (trigger.barInterval === 8) return '8bars'
+      if (trigger.barInterval === 4) return '4bars'
+      return trigger.quantize === 'beat' ? 'downbeat' : 'bar'
+    case 'bassHit':
+      return 'kickHit'
+    case 'snareTransient':
+      return 'snareHit'
+    case 'alwaysOn':
+    default:
+      return 'none'
+  }
 }
 
 export function createDefaultLaserDmxShowManagerSections(
@@ -495,4 +572,46 @@ export function addLaserDmxShowManagerFixtureToSection(
     }),
     fixtureId: fixture.id,
   }
+}
+
+export function updateLaserDmxShowManagerFixtureInSection(
+  show: LaserDmxShowManagerShow,
+  sectionId: string,
+  fixtureId: string,
+  patch: LaserDmxShowDirectorFixturePatch,
+): LaserDmxShowManagerShow {
+  const section = show.sections.find(candidate => candidate.id === sectionId)
+  if (!section) return show
+  const fixtureIndex = section.fixtures.findIndex(candidate => candidate.id === fixtureId)
+  const fixture = section.fixtures[fixtureIndex]
+  if (!fixture) return show
+
+  const normalized = normalizeLaserDmxShowManagerFixture({
+    ...fixture,
+    ...patch,
+    id: fixture.id,
+    kind: fixture.kind,
+    groupId: null,
+    colorMode: 'fixed',
+    beam: patch.beam ? { ...fixture.beam, ...patch.beam } : fixture.beam,
+    trigger: patch.trigger ? { ...fixture.trigger, ...patch.trigger } : fixture.trigger,
+    component: patch.component ? { ...fixture.component, ...patch.component } : fixture.component,
+    optics: patch.optics ? { ...fixture.optics, ...patch.optics } : fixture.optics,
+  }, fixtureIndex)
+
+  return updateLaserDmxShowManagerSection(show, sectionId, {
+    fixtures: section.fixtures.map((candidate, index) => index === fixtureIndex ? normalized : candidate),
+  })
+}
+
+export function removeLaserDmxShowManagerFixtureFromSection(
+  show: LaserDmxShowManagerShow,
+  sectionId: string,
+  fixtureId: string,
+): LaserDmxShowManagerShow {
+  const section = show.sections.find(candidate => candidate.id === sectionId)
+  if (!section || !section.fixtures.some(candidate => candidate.id === fixtureId)) return show
+  return updateLaserDmxShowManagerSection(show, sectionId, {
+    fixtures: section.fixtures.filter(candidate => candidate.id !== fixtureId),
+  })
 }

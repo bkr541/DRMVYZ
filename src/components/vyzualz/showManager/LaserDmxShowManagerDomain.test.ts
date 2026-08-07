@@ -3,12 +3,17 @@ import {
   DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS,
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
   LASER_DMX_SHOW_MANAGER_QUALITY,
+  LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS,
   addLaserDmxShowManagerFixtureToSection,
   createLaserDmxShowManagerShow,
   normalizeLaserDmxShowManagerShow,
   parseLaserDmxShowManagerFixtureKind,
+  removeLaserDmxShowManagerFixtureFromSection,
   reorderLaserDmxShowManagerSection,
   resolveLaserDmxShowManagerGridCell,
+  resolveLaserDmxShowManagerTriggerOption,
+  triggerPatchForLaserDmxShowManagerOption,
+  updateLaserDmxShowManagerFixtureInSection,
   updateLaserDmxShowManagerSection,
   updateLaserDmxShowManagerWorkspaceSettings,
 } from './LaserDmxShowManagerDomain'
@@ -184,6 +189,59 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     show = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'laser', { x: 1, y: 1 }).show
     expect(show.sections[0]!.fixtures.map(fixture => fixture.label)).toEqual(['Laser 1', 'Strobe 1', 'Laser 2'])
     expect(new Set(show.sections[0]!.fixtures.map(fixture => fixture.id)).size).toBe(3)
+  })
+
+  it('updates and deletes exactly one section-local fixture while preserving colocated neighbors', () => {
+    let show = createLaserDmxShowManagerShow()
+    const introId = show.sections[0]!.id
+    const verseId = show.sections[1]!.id
+    const first = addLaserDmxShowManagerFixtureToSection(show, introId, 'laser', { x: 4, y: 5 })
+    show = first.show
+    const colocated = addLaserDmxShowManagerFixtureToSection(show, introId, 'strobe', { x: 4, y: 5 })
+    show = colocated.show
+    const otherSection = addLaserDmxShowManagerFixtureToSection(show, verseId, 'laser', { x: 4, y: 5 })
+    show = otherSection.show
+
+    show = updateLaserDmxShowManagerFixtureInSection(show, introId, first.fixtureId!, {
+      x: 999,
+      y: -5,
+      z: 4,
+      rotation: 999,
+      color: '#ff00aa',
+      brightness: 3,
+      colorMode: 'music',
+      beam: { targetX: 999, targetY: -10, beamSpread: 999, focus: -1 },
+      optics: { zoom: 9 },
+    })
+
+    const updated = show.sections[0]!.fixtures.find(fixture => fixture.id === first.fixtureId)!
+    expect(updated).toMatchObject({ x: 17, y: 0, z: 1, rotation: 360, color: '#ff00aa', brightness: 1, colorMode: 'fixed' })
+    expect(updated.beam).toMatchObject({ targetX: 17, targetY: 0, beamSpread: 180, focus: 0 })
+    expect(updated.optics.zoom).toBe(1)
+
+    const removed = removeLaserDmxShowManagerFixtureFromSection(show, introId, first.fixtureId!)
+    expect(removed.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual([colocated.fixtureId])
+    expect(removed.sections[1]!.fixtures.map(fixture => fixture.id)).toEqual([otherSection.fixtureId])
+  })
+
+  it('centralizes the exact ten Part 1 trigger choices onto canonical trigger fields', () => {
+    expect(LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS.map(option => option.label)).toEqual([
+      'None', 'Beat', 'Downbeat', 'Bar', '4 Bars', '8 Bars', '16 Bars', '24 Bars', 'Kick Hit', 'Snare Hit',
+    ])
+
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    const added = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'laser')
+    show = added.show
+    const fixtureId = added.fixtureId!
+
+    for (const option of LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS) {
+      show = updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, {
+        trigger: triggerPatchForLaserDmxShowManagerOption(option.value),
+      })
+      const fixture = show.sections[0]!.fixtures.find(candidate => candidate.id === fixtureId)!
+      expect(resolveLaserDmxShowManagerTriggerOption(fixture.trigger)).toBe(option.value)
+    }
   })
 
   it('reorders canonical sections while keeping deterministic non-overlapping timing windows', () => {

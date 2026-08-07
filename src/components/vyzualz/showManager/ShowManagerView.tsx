@@ -4,7 +4,7 @@ import { resolvePositiveDuration, type TimelineViewport } from '../../../feature
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useReactStore } from '../../../stores/reactStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
-import { Collapsible, SelectRow, ToggleRow } from '../react/ReactControlRows'
+import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, ToggleRow } from '../react/ReactControlRows'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
@@ -12,6 +12,8 @@ import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS,
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
   LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS,
+  type LaserDmxShowDirectorFixture,
+  type LaserDmxShowDirectorFixturePatch,
   type LaserDmxShowDirectorFixtureKind,
   type ReactEngineId,
   type ReactPreset,
@@ -38,11 +40,15 @@ import {
 import {
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
   LASER_DMX_SHOW_MANAGER_QUALITY,
+  LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS,
   cloneLaserDmxShowManagerShow,
   isLaserDmxShowManagerFixtureKindEnabled,
   parseLaserDmxShowManagerFixtureKind,
   resolveLaserDmxShowManagerGridCell,
+  resolveLaserDmxShowManagerTriggerOption,
+  triggerPatchForLaserDmxShowManagerOption,
   updateLaserDmxShowManagerSection as updateLaserDmxShowManagerSectionDocument,
+  type LaserDmxShowManagerTriggerOption,
   type LaserDmxShowManagerSection,
   type LaserDmxShowManagerShow,
   type LaserDmxShowManagerWorkspaceSettingsPatch,
@@ -133,6 +139,8 @@ export function ShowManagerView() {
   const removeLaserDmxShowManagerSection = useReactStore(state => state.removeLaserDmxShowManagerSection)
   const reorderLaserDmxShowManagerSection = useReactStore(state => state.reorderLaserDmxShowManagerSection)
   const addLaserDmxShowManagerFixture = useReactStore(state => state.addLaserDmxShowManagerFixture)
+  const updateLaserDmxShowManagerFixture = useReactStore(state => state.updateLaserDmxShowManagerFixture)
+  const removeLaserDmxShowManagerFixture = useReactStore(state => state.removeLaserDmxShowManagerFixture)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
@@ -559,6 +567,22 @@ export function ShowManagerView() {
     if (!cell || !recordLaserShowUndo()) return
     const fixtureId = addLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, kind, cell)
     if (fixtureId) setSelectedLaserFixtureId(fixtureId)
+  }
+
+  const commitLaserFixturePatch = (patch: LaserDmxShowDirectorFixturePatch) => {
+    if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedLaserFixture || !recordLaserShowUndo()) return
+    updateLaserDmxShowManagerFixture(
+      activeLaserDmxShow.id,
+      activeLaserDmxSection.id,
+      selectedLaserFixture.id,
+      patch,
+    )
+  }
+
+  const deleteSelectedLaserFixture = () => {
+    if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedLaserFixture || !recordLaserShowUndo()) return
+    removeLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, selectedLaserFixture.id)
+    setSelectedLaserFixtureId(null)
   }
 
   const selectLaserSectionForEditing = (sectionId: string) => {
@@ -1041,7 +1065,13 @@ export function ShowManagerView() {
                 <div><span>Grid</span><strong>{LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</strong></div>
               </div>
               {activeLaserDmxShow && activeLaserDmxSection ? (
-                <>
+                selectedLaserFixture ? (
+                  <LaserDmxShowManagerFixtureInspector
+                    fixture={selectedLaserFixture}
+                    onPatch={commitLaserFixturePatch}
+                    onDelete={deleteSelectedLaserFixture}
+                  />
+                ) : <>
                   <div className="sm-laser-section-actions">
                     <button
                       type="button"
@@ -1093,7 +1123,7 @@ export function ShowManagerView() {
                   />
                   <section className="sm-validation-card">
                     <header><strong>Section fixture ownership</strong><span>READY</span></header>
-                    <p>{activeLaserDmxSection.fixtures.length} fixture{activeLaserDmxSection.fixtures.length === 1 ? '' : 's'} owned by this section. Fixture placement UI arrives in a later stage.</p>
+                    <p>{activeLaserDmxSection.fixtures.length} fixture{activeLaserDmxSection.fixtures.length === 1 ? '' : 's'} owned by this section. Select a fixture on the grid to edit its Part 1 controls.</p>
                   </section>
                 </>
               ) : activeLaserDmxShow ? (
@@ -1126,6 +1156,116 @@ export function ShowManagerView() {
         waveformAppearance="deck"
       />
     </section>
+  )
+}
+
+function LaserDmxShowManagerFixtureInspector({
+  fixture,
+  onPatch,
+  onDelete,
+}: {
+  fixture: LaserDmxShowDirectorFixture
+  onPatch: (patch: LaserDmxShowDirectorFixturePatch) => void
+  onDelete: () => void
+}) {
+  const triggerOption = resolveLaserDmxShowManagerTriggerOption(fixture.trigger)
+  const beamPatternOptions = [
+    { value: 'fixed', label: 'Fixed' },
+    { value: 'fan', label: 'Fan' },
+    { value: 'sweep', label: 'Sweep' },
+    { value: 'cross', label: 'Cross' },
+    { value: 'mirror', label: 'Mirror' },
+    { value: 'audioReactive', label: 'Audio Reactive' },
+  ]
+
+  return (
+    <div className="sm-laser-fixture-inspector" data-testid="laser-dmx-fixture-inspector">
+      <div className="sm-inspector-context sm-laser-fixture-context">
+        <div><span>Fixture</span><strong>{fixture.label}</strong></div>
+        <div><span>Type</span><strong>{LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]}</strong></div>
+      </div>
+
+      <Collapsible label="Position" defaultOpen>
+        <NumberInputRow
+          label="X"
+          value={fixture.x}
+          min={0}
+          max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
+          step={1}
+          onChange={x => onPatch({ x })}
+        />
+        <NumberInputRow
+          label="Y"
+          value={fixture.y}
+          min={0}
+          max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
+          step={1}
+          onChange={y => onPatch({ y })}
+        />
+        <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
+        <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
+      </Collapsible>
+
+      <Collapsible label="Color & Brightness" defaultOpen>
+        <ColorRow label="Color" value={fixture.color} onChange={color => onPatch({ color })} />
+        <SelectRow
+          label="Color Mode"
+          value="fixed"
+          disabled
+          options={[{ value: 'fixed', label: 'Static' }]}
+          onChange={() => undefined}
+        />
+        <SliderRow label="Brightness" value={fixture.brightness} min={0} max={1} step={0.01} onChange={brightness => onPatch({ brightness })} />
+      </Collapsible>
+
+      <Collapsible label="Beam Configuration" defaultOpen>
+        <SelectRow
+          label="Beam Type / Pattern"
+          value={fixture.beam.targetMode}
+          options={beamPatternOptions}
+          onChange={targetMode => onPatch({ beam: { targetMode: targetMode as LaserDmxShowDirectorFixture['beam']['targetMode'] } })}
+        />
+        <NumberInputRow
+          label="Target X"
+          value={fixture.beam.targetX ?? fixture.x}
+          min={0}
+          max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
+          step={1}
+          onChange={targetX => onPatch({ beam: { targetX } })}
+        />
+        <NumberInputRow
+          label="Target Y"
+          value={fixture.beam.targetY ?? fixture.y}
+          min={0}
+          max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
+          step={1}
+          onChange={targetY => onPatch({ beam: { targetY } })}
+        />
+        <SliderRow
+          label="Width"
+          value={fixture.optics.zoom}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={zoom => onPatch({ optics: { zoom } })}
+        />
+        <SliderRow label="Spread" value={fixture.beam.beamSpread} min={0} max={180} step={1} onChange={beamSpread => onPatch({ beam: { beamSpread } })} />
+        <SliderRow label="Focus" value={fixture.beam.focus} min={0} max={1} step={0.01} onChange={focus => onPatch({ beam: { focus } })} />
+      </Collapsible>
+
+      <Collapsible label="Trigger Configuration" defaultOpen>
+        <SelectRow
+          label="Trigger"
+          value={triggerOption}
+          options={LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS.map(option => ({ ...option }))}
+          onChange={value => onPatch({ trigger: triggerPatchForLaserDmxShowManagerOption(value as LaserDmxShowManagerTriggerOption) })}
+        />
+      </Collapsible>
+
+      <button type="button" className="sm-laser-delete-fixture" onClick={onDelete} aria-label={`Delete ${fixture.label}`}>
+        Delete Fixture
+      </button>
+    </div>
   )
 }
 
@@ -1177,7 +1317,18 @@ function LaserDmxShowManagerStage({
               const y1 = ((fixture.y + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100
               const x2 = ((fixture.beam.targetX + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100
               const y2 = ((fixture.beam.targetY + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100
-              return [<line key={fixture.id} x1={x1} y1={y1} x2={x2} y2={y2} />]
+              return [<line
+                key={fixture.id}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                style={{
+                  stroke: fixture.color,
+                  strokeOpacity: Math.max(0.08, fixture.brightness * 0.45),
+                  strokeWidth: 0.12 + fixture.optics.zoom * 0.38,
+                }}
+              />]
             })}
           </svg>
         )}

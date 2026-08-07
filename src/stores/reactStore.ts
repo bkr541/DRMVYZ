@@ -114,8 +114,10 @@ import {
   addLaserDmxShowManagerSection,
   createLaserDmxShowManagerShow,
   normalizeLaserDmxShowManagerShows,
+  removeLaserDmxShowManagerFixtureFromSection,
   removeLaserDmxShowManagerSection,
   reorderLaserDmxShowManagerSection,
+  updateLaserDmxShowManagerFixtureInSection,
   updateLaserDmxShowManagerSection,
   updateLaserDmxShowManagerWorkspaceSettings,
   type LaserDmxShowManagerSectionPatch,
@@ -2591,6 +2593,13 @@ interface ReactStoreState {
     kind: LaserDmxShowDirectorFixtureKind,
     initial?: LaserDmxShowDirectorFixturePatch,
   ) => string | null
+  updateLaserDmxShowManagerFixture: (
+    showId: string,
+    sectionId: string,
+    fixtureId: string,
+    patch: LaserDmxShowDirectorFixturePatch,
+  ) => void
+  removeLaserDmxShowManagerFixture: (showId: string, sectionId: string, fixtureId: string) => void
 
   /** Returns cues for a track sorted ascending by timeSec. Empty array if none. */
   getPresetAutomationCuesForTrack: (trackId: string) => ReactPresetAutomationCue[]
@@ -6737,6 +6746,20 @@ export const useReactStore = create<ReactStoreState>()(
         }))
         return fixtureId
       },
+
+      updateLaserDmxShowManagerFixture: (showId, sectionId, fixtureId, patch) =>
+        set(s => ({
+          laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
+            ? updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, patch)
+            : show),
+        })),
+
+      removeLaserDmxShowManagerFixture: (showId, sectionId, fixtureId) =>
+        set(s => ({
+          laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
+            ? removeLaserDmxShowManagerFixtureFromSection(show, sectionId, fixtureId)
+            : show),
+        })),
 
       commitAutomaticSectionOverride: (trackId, originalSection, patch) =>
         set((s) => {

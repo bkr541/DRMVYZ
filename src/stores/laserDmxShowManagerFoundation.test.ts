@@ -131,4 +131,45 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     expect(persistedShows[0]!.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual([firstId, secondId])
     expect(persistedShows[0]!.sections[1]!.fixtures.map(fixture => fixture.id)).toEqual([verseFixtureId])
   })
+
+  it('updates and removes one fixture through the canonical Show store without touching PixGrid or colocated fixtures', () => {
+    const beforePixGrid = useReactStore.getState().pixGridState
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Inspector')
+    const created = useReactStore.getState().laserDmxShowManagerShows[0]!
+    const introId = created.sections[0]!.id
+    const verseId = created.sections[1]!.id
+    const selectedId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, introId, 'laser', { x: 4, y: 5 })!
+    const colocatedId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, introId, 'strobe', { x: 4, y: 5 })!
+    const otherSectionId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, verseId, 'laser', { x: 4, y: 5 })!
+
+    useReactStore.getState().updateLaserDmxShowManagerFixture(showId, introId, selectedId, {
+      x: 99,
+      y: -1,
+      brightness: 0.42,
+      color: '#ff00aa',
+    })
+
+    let state = useReactStore.getState()
+    let show = state.laserDmxShowManagerShows.find(candidate => candidate.id === showId)!
+    expect(show.sections[0]!.fixtures.find(fixture => fixture.id === selectedId)).toMatchObject({
+      x: 17,
+      y: 0,
+      brightness: 0.42,
+      color: '#ff00aa',
+      colorMode: 'fixed',
+    })
+    expect(show.sections[0]!.fixtures.find(fixture => fixture.id === colocatedId)).toMatchObject({ x: 4, y: 5 })
+    expect(show.sections[1]!.fixtures.find(fixture => fixture.id === otherSectionId)).toMatchObject({ x: 4, y: 5 })
+
+    useReactStore.getState().removeLaserDmxShowManagerFixture(showId, introId, selectedId)
+    state = useReactStore.getState()
+    show = state.laserDmxShowManagerShows.find(candidate => candidate.id === showId)!
+    expect(show.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual([colocatedId])
+    expect(show.sections[1]!.fixtures.map(fixture => fixture.id)).toEqual([otherSectionId])
+    expect(state.pixGridState).toBe(beforePixGrid)
+
+    const persisted = reactStorePartialize(state) as Record<string, unknown>
+    const persistedShows = persisted.laserDmxShowManagerShows as typeof state.laserDmxShowManagerShows
+    expect(persistedShows[0]!.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual([colocatedId])
+  })
 })

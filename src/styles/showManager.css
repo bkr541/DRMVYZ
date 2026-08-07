@@ -1263,3 +1263,28 @@
 .sm-laser-section-actions button:disabled { opacity: 0.35; }
 .sm-laser-empty-section { display: grid; gap: 8px; padding: 12px 2px; color: rgba(196, 212, 220, 0.48); font-size: 9px; }
 .sm-laser-section-inspector .rv-add-section-form { margin-top: 7px; }
+
+.sm-laser-fixture-inspector {
+  display: grid;
+  gap: 1px;
+}
+
+.sm-laser-fixture-context { margin-top: 7px; }
+
+.sm-laser-delete-fixture {
+  min-height: 30px;
+  margin-top: 4px;
+  border: 1px solid rgba(255, 96, 112, 0.34);
+  border-radius: 5px;
+  background: rgba(255, 72, 92, 0.08);
+  color: rgba(255, 174, 184, 0.9);
+  font: inherit;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.sm-laser-delete-fixture:hover {
+  border-color: rgba(255, 118, 132, 0.58);
+  background: rgba(255, 72, 92, 0.12);
+}
