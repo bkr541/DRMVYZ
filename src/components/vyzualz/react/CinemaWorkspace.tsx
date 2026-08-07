@@ -12,11 +12,11 @@ import {
   type CinemaCompositionInstanceId,
   type CinemaDiagnosticSnapshot,
   type CinemaExternalAssetSnapshot,
-  type CinemaFrameBuildResult,
   type CinemaRuntimeSnapshot,
 } from '../cinema'
 import { CinemaCanvas } from './CinemaCanvas'
 import { CinemaComposerPanel } from './CinemaComposerPanel'
+import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 
 export type CinemaWorkspaceSurface = 'panel' | 'stage'
 
@@ -39,7 +39,7 @@ interface CinemaWorkspaceStateInput {
   compositions: readonly CinemaCompositionDefinition[]
   instances: readonly CinemaCompositionInstance[]
   lastDiagnostics: CinemaDiagnosticSnapshot
-  frameBridge?: CinemaFrameBuildResult | null
+  frameBridge?: CinemaWorkspaceFrameBridgeResult | null
   runtimeDiagnostics?: CinemaDiagnosticSnapshot | null
 }
 
@@ -141,7 +141,7 @@ export function CinemaWorkspace({
   onLiveFps,
 }: {
   surface: CinemaWorkspaceSurface
-  frameBridge?: CinemaFrameBuildResult | null
+  frameBridge?: CinemaWorkspaceFrameBridgeResult | null
   assetSources?: readonly Readonly<CinemaExternalAssetSnapshot>[]
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
@@ -181,10 +181,10 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 18 Composer wired to canonical Cinema state</strong>
-          <span>Structured visuals, the registered node library, transactional history, and schema-generated Inspector now edit the same composition graph used by the Cinema runtime.</span>
+          <strong>Stage 19 Composer authoring wired to canonical Cinema state</strong>
+          <span>Structured visuals now share one authored model with modulation routes, performance rules, cameras, and authoritative musical/lyric timeline context. Runtime previews remain transient.</span>
         </div>
-        <CinemaComposerPanel />
+        <CinemaComposerPanel frameBridge={frameBridge} />
       </section>
     )
   }
@@ -215,10 +215,10 @@ export function CinemaWorkspace({
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 18</div>
-        <h2>Composer visuals, library, and schema Inspector</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 19</div>
+        <h2>Composer modulation, performance, camera, and timeline</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema now exposes graph-backed visual layers, registered node discovery, and schema-generated authored controls while preserving the Stage 17 single-runtime quality, diagnostics, and context-recovery foundation.
+          Cinema now adds structured modulation, performance choreography, camera direction, and authoritative musical/lyric timing to the same graph-backed Composer while preserving single-runtime ownership, quality, diagnostics, and context recovery.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>

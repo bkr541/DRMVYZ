@@ -33,3 +33,5 @@ export * from './CinemaCompositorMath'
 export * from './CinemaCompositorNodes'
 
 export * from './CinemaComposer'
+
+export * from './CinemaComposerStage19'

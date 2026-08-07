@@ -11,6 +11,7 @@ import {
   type CinemaFrameBuildResult,
   type CinemaPersistedDefinition,
   type CinemaRuntimeSnapshot,
+  useCinemaStore,
 } from '../cinema'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
@@ -65,6 +66,7 @@ export function CinemaCanvas({
   onLiveFps,
   onRuntimeSnapshot,
 }: CinemaCanvasProps) {
+  const composerRuntimePreview = useCinemaStore(store => store.composerRuntimePreview)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const runtimeRef = useRef<CinemaRuntime | null>(null)
   const frameRef = useRef(frameBridge?.frame ?? null)
@@ -84,6 +86,10 @@ export function CinemaCanvas({
   useEffect(() => {
     runtimeRef.current?.setFrame(frameRef.current)
   }, [frameBridge])
+
+  useEffect(() => {
+    runtimeRef.current?.setComposerRuntimePreview(composerRuntimePreview)
+  }, [composerRuntimePreview])
 
   useEffect(() => {
     runtimeRef.current?.setAssetSources(assetSourcesRef.current)
@@ -171,6 +177,7 @@ export function CinemaCanvas({
       runtime = created.runtime
       runtimeRef.current = runtime
       runtime.setFrame(frameRef.current)
+      runtime.setComposerRuntimePreview(useCinemaStore.getState().composerRuntimePreview)
       runtime.setAssetSources(assetSourcesRef.current)
       runtime.setGraph(graphRef.current.composition, graphRef.current.instance, graphRef.current.definitions)
       if (lastResolution) runtime.resize(lastResolution)

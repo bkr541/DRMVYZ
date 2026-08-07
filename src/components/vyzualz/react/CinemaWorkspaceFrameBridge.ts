@@ -1,12 +1,14 @@
 import type { LyricPlaybackState } from '../../../features/lyrics/runtime/lyricPlaybackResolver'
-import type { MusicIntelligenceFrame } from '../../../features/musicIntelligence/types'
+import type { BeatMarkerMI, MusicIntelligenceFrame, PhraseMarker } from '../../../features/musicIntelligence/types'
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
+import type { LyricCue } from '../../../types/lyrics'
 import {
   bridgeCinemaBrandKit,
   buildCinemaFrameContext,
   createCinemaDiagnosticSnapshot,
   type CinemaFrameBuildResult,
   type CinemaFrameBuilderState,
+  type CinemaComposerTimelineSource,
 } from '../cinema'
 import type { CinemaBrandRole, CinemaColor } from '../cinema'
 import { getReactPerformanceAction, type ReactPerformanceActionEvent } from './ReactPerformanceActions'
@@ -31,12 +33,21 @@ export interface CinemaWorkspaceFrameBridgeInput {
   visibilitySuspended?: boolean
   musicIntelligence?: Readonly<MusicIntelligenceFrame> | null
   authoritativeSections?: readonly ReactTrackSection[]
+  beatGrid?: readonly Readonly<BeatMarkerMI>[]
+  phraseMarkers?: readonly Readonly<PhraseMarker>[]
+  lyricCues?: readonly Readonly<LyricCue>[]
+  lyricGlobalOffsetMs?: number
   lyrics?: Readonly<LyricPlaybackState> | null
   performanceEvents?: readonly ReactPerformanceActionEvent[]
   performanceToggleStates?: Readonly<Record<string, boolean>>
   brandKit?: Readonly<BrandKit> | null
   mediaAssetsAvailable?: boolean
   previousState?: Readonly<CinemaFrameBuilderState> | null
+}
+
+
+export interface CinemaWorkspaceFrameBridgeResult extends CinemaFrameBuildResult {
+  timeline: Readonly<CinemaComposerTimelineSource>
 }
 
 /**
@@ -46,7 +57,7 @@ export interface CinemaWorkspaceFrameBridgeInput {
  */
 export function buildCinemaWorkspaceFrameBridge(
   input: CinemaWorkspaceFrameBridgeInput,
-): CinemaFrameBuildResult {
+): CinemaWorkspaceFrameBridgeResult {
   const mi = currentMusicFrame(input.musicIntelligence ?? null, input.trackId, input.audioTimeSec)
   const lyrics = currentLyricFrame(input.lyrics ?? null, input.trackId)
   const reactFrame = createCinemaReactFrameSnapshot(input, mi)
@@ -58,6 +69,7 @@ export function buildCinemaWorkspaceFrameBridge(
   )
 
   const brand = bridgeCinemaBrandKit(input.brandKit)
+  const timeline = buildCinemaTimelineSource(input)
 
   const result = buildCinemaFrameContext({
     reactFrame,
@@ -83,13 +95,41 @@ export function buildCinemaWorkspaceFrameBridge(
     mediaAssetsAvailable: input.mediaAssetsAvailable === true,
     previousState: input.previousState ?? null,
   })
-  if (brand.diagnostics.diagnostics.length === 0) return result
+  if (brand.diagnostics.diagnostics.length === 0) return Object.freeze({ ...result, timeline })
   return Object.freeze({
     ...result,
+    timeline,
     diagnostics: createCinemaDiagnosticSnapshot([
       ...result.diagnostics.diagnostics,
       ...brand.diagnostics.diagnostics,
     ]),
+  })
+}
+
+
+function buildCinemaTimelineSource(input: CinemaWorkspaceFrameBridgeInput): Readonly<CinemaComposerTimelineSource> {
+  const lyricOffsetSec = (Number.isFinite(input.lyricGlobalOffsetMs) ? input.lyricGlobalOffsetMs ?? 0 : 0) / 1000
+  return Object.freeze({
+    trackId: input.trackId,
+    durationSec: input.durationSec,
+    beatGrid: input.beatGrid ?? [],
+    phrases: (input.phraseMarkers ?? []).map((phrase, index) => Object.freeze({
+      id: phrase.id ?? `phrase-${index}`,
+      timeSec: Math.max(0, finiteOr(phrase.timeSec, 0)),
+      lengthBars: phrase.lengthBars ?? phrase.phraseLength,
+    })),
+    sections: (input.authoritativeSections ?? []).map(section => Object.freeze({
+      id: String(section.id),
+      type: String(section.type ?? section.label ?? 'section'),
+      startSec: Math.max(0, finiteOr(section.startSec, 0)),
+      endSec: Math.max(0, finiteOr(section.endSec, section.startSec)),
+    })),
+    lyrics: (input.lyricCues ?? []).map(cue => Object.freeze({
+      id: cue.id,
+      text: cue.text,
+      startSec: Math.max(0, cue.startMs / 1000 + lyricOffsetSec),
+      endSec: Math.max(0, cue.endMs / 1000 + lyricOffsetSec),
+    })),
   })
 }
 

@@ -3,7 +3,7 @@ import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { CinemaWorkspace } from './CinemaWorkspace'
-import type { CinemaFrameBuildResult } from '../cinema'
+import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -349,7 +349,7 @@ function OscillatorSourceDiagnostics({
 export function ReactEnginePanel({
   cinemaFrameBridge = null,
 }: {
-  cinemaFrameBridge?: CinemaFrameBuildResult | null
+  cinemaFrameBridge?: CinemaWorkspaceFrameBridgeResult | null
 } = {}) {
   const engine = useSharedAudio()
   const {

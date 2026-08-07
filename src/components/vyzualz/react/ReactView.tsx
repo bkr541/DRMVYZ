@@ -9,6 +9,7 @@ import { ReactPersistenceStatus } from './ReactPersistenceStatus'
 import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDiagnosticsStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
+import { useLyricsStore } from '../../../stores/lyricsStore'
 import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from './ReactCanvasEngineShell'
@@ -262,6 +263,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const mediaAssets = useMediaStore((s) => s.items)
   const cinemaAssetSources = useMemo(() => createCinemaMediaLibrarySnapshot(mediaAssets), [mediaAssets])
   const lyricPlayback = useLyricPlaybackSelector((state) => state)
+  const runtimeLyricCues = useLyricsStore((state) => state.runtimeCues)
+  const runtimeLyricGlobalOffsetMs = useLyricsStore((state) => state.runtimeGlobalOffsetMs)
   const cinemaFrameStateRef = useRef<CinemaFrameBuilderState | null>(null)
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
@@ -554,6 +557,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       visibilitySuspended: typeof document !== 'undefined' && document.visibilityState === 'hidden',
       musicIntelligence: AudioFeatureBus.getFrame(),
       authoritativeSections: resolvedTrackSections,
+      beatGrid: engine.currentEffectiveBeatGrid ?? [],
+      phraseMarkers: effectiveTrackAnalysis?.phrases ?? [],
+      lyricCues: runtimeLyricCues,
+      lyricGlobalOffsetMs: runtimeLyricGlobalOffsetMs,
       lyrics: lyricPlayback,
       performanceEvents: performanceActionEvents,
       performanceToggleStates: performanceActionToggleStates,
@@ -567,10 +574,14 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     audioDurationSec,
     engine.currentAudioTrackId,
     engine.currentEffectiveBpm,
+    engine.currentEffectiveBeatGrid,
+    effectiveTrackAnalysis,
     engine.currentTime,
     engine.currentTrackId,
     engine.isPlaying,
     lyricPlayback,
+    runtimeLyricCues,
+    runtimeLyricGlobalOffsetMs,
     cinemaAssetSources.length,
     performanceActionEvents,
     performanceActionToggleStates,

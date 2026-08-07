@@ -7,6 +7,7 @@ import {
 import type { CinemaCompositionDefinition, CinemaCompositionInstance } from '../CinemaDomain'
 import type { CinemaExternalAssetSnapshot } from '../CinemaAssets'
 import type { CinemaPersistedDefinition } from '../CinemaPersistence'
+import type { CinemaComposerRuntimePreview } from '../CinemaComposerStage19'
 import { CINEMA_PRODUCTION_RUNTIME_REGISTRY } from '../CinemaFoundation'
 import type { CinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import type {
@@ -252,6 +253,11 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.instance = instance
     if (composition) this.assets.validateAuthoredBindings(composition, instance)
     this.executor.setGraph({ composition, instance, definitions })
+  }
+
+  setComposerRuntimePreview(preview: Readonly<CinemaComposerRuntimePreview>): void {
+    if (this.disposed) return
+    this.executor.setComposerRuntimePreview(preview)
   }
 
   setAssetSources(sources: readonly Readonly<CinemaExternalAssetSnapshot>[]): void {

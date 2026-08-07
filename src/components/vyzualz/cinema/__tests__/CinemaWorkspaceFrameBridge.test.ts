@@ -78,6 +78,39 @@ describe('Cinema production frame bridge', () => {
     expect(result.frame.brand.colors.primary).toEqual([0.2, 0.4, 0.6, 1])
   })
 
+  it('exposes authoritative beat, section, and runtime lyric timing without creating another source of truth', () => {
+    const beatGrid = [
+      { timeSec: 1, confidence: 1, isDownbeat: true, beatIndex: 1, barIndex: 1 },
+      { timeSec: 1.5, confidence: 1, isDownbeat: false, beatIndex: 2, barIndex: 1 },
+    ]
+    const phrases = [{ id: 'phrase-a', timeSec: 8, phraseLength: 8 as const, lengthBars: 8 as const, confidence: 0.95 }]
+    const sections = [{ id: 'drop-a', label: 'Drop', type: 'drop' as const, startSec: 4, endSec: 12, intensity: 0.9 }]
+    const lyricCues = [{ id: 'cue-a', startMs: 2000, endMs: 3000, text: 'Cue A' }]
+    const result = buildCinemaWorkspaceFrameBridge({
+      width: 1280,
+      height: 720,
+      dpr: 1,
+      audioTimeSec: 4.25,
+      durationSec: 20,
+      trackId: 'track-a',
+      playing: true,
+      paused: false,
+      bpm: 120,
+      beatGrid,
+      phraseMarkers: phrases,
+      authoritativeSections: sections,
+      lyricCues,
+      lyricGlobalOffsetMs: 250,
+    })
+
+    expect(result.timeline.trackId).toBe('track-a')
+    expect(result.timeline.beatGrid).toBe(beatGrid)
+    expect(result.timeline.phrases).toEqual([{ id: 'phrase-a', timeSec: 8, lengthBars: 8 }])
+    expect(result.timeline.sections).toEqual([{ id: 'drop-a', type: 'drop', startSec: 4, endSec: 12 }])
+    expect(result.timeline.lyrics).toEqual([{ id: 'cue-a', text: 'Cue A', startSec: 2.25, endSec: 3.25 }])
+    expect(result.frame.transport.audioTimeSec).toBe(4.25)
+  })
+
   it('returns a neutral no-track snapshot instead of leaking a previous publication', () => {
     const result = buildCinemaWorkspaceFrameBridge({
       width: 1,

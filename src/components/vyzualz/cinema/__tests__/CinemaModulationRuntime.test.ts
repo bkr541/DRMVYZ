@@ -311,6 +311,22 @@ describe('Cinema modulation runtime', () => {
     expect(JSON.stringify(fixture)).toBe(before)
   })
 
+  it('auditions only the selected compiled route with a runtime-only full test signal', () => {
+    const previewRoute = route('composer-preview', {
+      sourceId: CINEMA_MODULATION_SOURCE_IDS.impulseSnare,
+      amount: 1,
+      condition: { vocalsActive: true },
+    })
+    const fixture = composition([previewRoute])
+    const before = JSON.stringify(fixture)
+    const runtime = new CinemaModulationRuntime({ composition: fixture, registry: REGISTRY })
+    const baseline = baseValues(fixture)
+
+    expect(runtime.evaluate(frame({ snare: false, vocalsActive: false }), baseline).values[AMOUNT_PATH]).toBeUndefined()
+    expect(runtime.evaluate(frame({ snare: false, vocalsActive: false }), baseline, previewRoute.id).values[AMOUNT_PATH]).toBe(3)
+    expect(JSON.stringify(fixture)).toBe(before)
+  })
+
   it('resolves authored route order across ranges, curves, replace, multiply, add, and clamps', () => {
     const curve = [
       { id: cinemaStableId<CinemaControlPointId>('curve-start', 'control point'), position: 0, value: 0, interpolation: 'smooth' as const },

@@ -49,6 +49,12 @@ import {
   type CinemaPerformanceStateCommand,
 } from '../CinemaPerformanceRuntime'
 import type { CinemaPersistedDefinition } from '../CinemaPersistence'
+import {
+  applyCinemaComposerPerformancePreview,
+  EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW,
+  filterCinemaFrameCameraForNode,
+  type CinemaComposerRuntimePreview,
+} from '../CinemaComposerStage19'
 import { createCinemaDefinitionRegistryFromPersistedDefinitions } from '../CinemaDefinitionRegistry'
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
 import { CinemaTextureManager } from './CinemaTextureManager'
@@ -178,6 +184,8 @@ export class CinemaGraphExecutor {
   private outputRendered = false
   private safeOutputActive = true
   private disposed = false
+  private composerRuntimePreview: Readonly<CinemaComposerRuntimePreview> = EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW
+  private consumedComposerManualPreviewSequence = 0
 
   constructor(options: CinemaGraphExecutorOptions) {
     this.runtimeRegistry = options.runtimeRegistry
@@ -203,6 +211,11 @@ export class CinemaGraphExecutor {
     if (nextKey === this.configurationKey) return
     this.configurationKey = nextKey
     this.rebuild('superseded')
+  }
+
+  setComposerRuntimePreview(preview: Readonly<CinemaComposerRuntimePreview>): void {
+    if (this.disposed) return
+    this.composerRuntimePreview = preview
   }
 
   resize(previousViewport: CinemaViewport, viewport: CinemaViewport): void {
@@ -243,13 +256,26 @@ export class CinemaGraphExecutor {
       this.prepareTransportReset()
     }
 
-    const performance = this.performanceRuntime?.evaluate(frame) ?? emptyPerformanceEvaluation()
+    const currentCompositionId = this.configuration.composition?.id ?? null
+    const manualPreviewPending = this.performanceRuntime != null
+      && currentCompositionId != null
+      && this.composerRuntimePreview.compositionId === String(currentCompositionId)
+      && this.composerRuntimePreview.manualActionId != null
+      && this.composerRuntimePreview.manualActionSequence > this.consumedComposerManualPreviewSequence
+    const previewFrame = applyCinemaComposerPerformancePreview(
+      frame,
+      this.composerRuntimePreview,
+      currentCompositionId,
+      this.consumedComposerManualPreviewSequence,
+    )
+    const performance = this.performanceRuntime?.evaluate(previewFrame) ?? emptyPerformanceEvaluation()
+    if (manualPreviewPending) this.consumedComposerManualPreviewSequence = this.composerRuntimePreview.manualActionSequence
     this.activePerformanceRuleCount = performance.activeRuleCount
     this.activePerformanceTransientCount = performance.activeTransientCount
     for (const diagnostic of performance.diagnostics.diagnostics) this.reportOnce(diagnostic)
     const quality = this.evaluateQuality(performance.nodeEnabledOverrides)
     this.reportQualityDiagnostics(quality)
-    const performanceFrame = applyPerformanceFrameOverrides(frame, performance)
+    const performanceFrame = applyPerformanceFrameOverrides(previewFrame, performance)
     const resolvedParameterValues = this.updateFrameParameterValues(performanceFrame, performance)
     const cameraResolution = this.configuration.composition?.cameras.length
       ? resolveCinemaCameraFrame({
@@ -295,9 +321,13 @@ export class CinemaGraphExecutor {
         const target = outputNode ? null : this.acquireFrameTarget(record, frameLeases, qualityDecision)
         const inputs = this.resolveInputs(nodeId)
         try {
-          const nodeFrame = cameraFrameForCapability(
-            renderFrame,
-            record.registryEntry.definition.capabilities.camera.mode,
+          const capability = record.registryEntry.definition.capabilities.camera.mode
+          const capabilityFrame = cameraFrameForCapability(renderFrame, capability)
+          const nodeFrame = filterCinemaFrameCameraForNode(
+            capabilityFrame,
+            this.configuration.composition,
+            nodeId,
+            capability,
           )
           record.renderer.render({
             nodeId,
@@ -856,7 +886,10 @@ export class CinemaGraphExecutor {
     const modulationRuntime = this.modulationRuntime
     if (!composition || !registry || !modulationRuntime) return this.baseParameterValues
 
-    const modulation = modulationRuntime.evaluate(frame, this.baseParameterValues)
+    const previewRouteId = this.composerRuntimePreview.compositionId === String(composition.id)
+      ? this.composerRuntimePreview.modulationRouteId
+      : null
+    const modulation = modulationRuntime.evaluate(frame, this.baseParameterValues, previewRouteId)
     this.activeModulationRouteCount = modulation.activeRouteCount
     for (const diagnostic of modulation.diagnostics.diagnostics) this.reportOnce(diagnostic)
 

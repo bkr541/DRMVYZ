@@ -164,7 +164,7 @@ describe('Cinema production engine registration', () => {
     expect(state.activeReactPresetId).toBeNull()
     expect(host?.querySelector('[data-cinema-workspace="runtime"]')).not.toBeNull()
     expect(host?.querySelector('[data-cinema-frame-available="true"]')).not.toBeNull()
-    expect(host?.textContent).toContain('Composer visuals, library, and schema Inspector')
+    expect(host?.textContent).toContain('Composer modulation, performance, camera, and timeline')
     expect(canvas).not.toBeNull()
     expect(retire).toHaveBeenCalledTimes(1)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
@@ -206,7 +206,7 @@ describe('Cinema production engine registration', () => {
     })
   })
 
-  it('surfaces the Stage 18 Composer through the canonical Cinema store and production workspace', async () => {
+  it('surfaces the Stage 19 Composer through the canonical Cinema store and production workspace', async () => {
     const selected = useCinemaStore.getState().setActiveCinemaComposition(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
     expect(selected.ok).toBe(true)
 
@@ -216,7 +216,7 @@ describe('Cinema production engine registration', () => {
 
     expect(useCinemaStore.getState().activeCompositionId).toBe(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
     expect(host?.textContent).toContain('Cinema Layer Compositor Reference')
-    expect(host?.textContent).toContain('Stage 18 Composer wired to canonical Cinema state')
+    expect(host?.textContent).toContain('Stage 19 Composer authoring wired to canonical Cinema state')
   })
 
   it('enters the real Cinema workspace from the engine selector and mutates canonical Composer state', async () => {
@@ -239,6 +239,10 @@ describe('Cinema production engine registration', () => {
     const active = useCinemaStore.getState().compositions.find(composition => composition.id === activeId)
     expect(active?.metadata.provenance?.composerStructured).toBe(true)
     expect(active ? getCinemaComposerLayers(active) : []).toHaveLength(2)
+    expect(host?.textContent).toContain('Modulation (0)')
+    expect(host?.textContent).toContain('Performance (0)')
+    expect(host?.textContent).toContain('Camera (0)')
+    expect(host?.textContent).toContain('Timeline')
 
     const firstLayerButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-composer__layer-select')
     firstLayerButton?.focus()

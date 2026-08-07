@@ -107,6 +107,7 @@ export class CinemaModulationRuntime {
   evaluate(
     frame: Readonly<CinemaFrameContext>,
     baseValues: Readonly<Record<string, CinemaParameterValue>>,
+    previewRouteId: CinemaModulationRouteId | null = null,
   ): Readonly<CinemaModulationSnapshot> {
     const frameTrackIdentity = frame.transport.trackId
     if (frame.transport.reset.required || frameTrackIdentity !== this.trackIdentity) {
@@ -119,16 +120,19 @@ export class CinemaModulationRuntime {
     let activeRouteCount = 0
 
     for (const route of this.compiledRoutes) {
+      const previewing = previewRouteId === route.definition.id
       const sample = resolveCinemaModulationSourceSample(route.definition.sourceId, frame)
       if (!sample) continue
-      if (!sample.available) {
+      if (!previewing && !sample.available) {
         diagnostics.push(sourceUnavailableDiagnostic(route, sample))
         this.routeStates.delete(route.definition.id)
         continue
       }
 
       const state = this.getRouteState(route.definition.id, frameTrackIdentity)
-      const routeSignal = evaluateRouteSignal(route.definition, sample, frame, state)
+      const routeSignal = previewing
+        ? { apply: true, signal: 1, triggered: route.source.kind === 'impulse' }
+        : evaluateRouteSignal(route.definition, sample, frame, state)
       if (!routeSignal.apply) continue
 
       const path = route.definition.destination

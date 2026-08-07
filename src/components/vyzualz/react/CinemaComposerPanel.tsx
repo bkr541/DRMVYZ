@@ -28,12 +28,14 @@ import {
   type CinemaNodeId,
 } from '../cinema'
 import { Collapsible, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
+import { CinemaComposerStage19Panel } from './CinemaComposerStage19Panel'
 
 const BLEND_OPTIONS: readonly CinemaComposerBlendMode[] = [
   'normal', 'add', 'screen', 'multiply', 'lighten', 'darken', 'difference', 'overlay', 'masked',
 ]
 
-export function CinemaComposerPanel() {
+export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: CinemaWorkspaceFrameBridgeResult | null }) {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<'All' | CinemaComposerLibraryItem['category']>('All')
   const state = useCinemaStore(useShallow(store => ({
@@ -200,6 +202,15 @@ export function CinemaComposerPanel() {
             </Collapsible>
           )}
         </>
+      )}
+
+      {structured && active && (
+        <CinemaComposerStage19Panel
+          composition={active}
+          definitions={state.definitions}
+          frameBridge={frameBridge}
+          edit={edit}
+        />
       )}
 
       <Collapsible label="Library">

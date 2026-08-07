@@ -7,6 +7,10 @@ import {
   type CinemaDiagnosticSnapshot,
 } from './CinemaDiagnostics'
 import { createCinemaFoundationPersistedState, reconcileCinemaBuiltInState } from './CinemaFoundation'
+import {
+  EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW,
+  type CinemaComposerRuntimePreview,
+} from './CinemaComposerStage19'
 import type {
   CinemaCollectionDefinition,
   CinemaCompositionDefinition,
@@ -15,10 +19,12 @@ import type {
   CinemaJsonObject,
 } from './CinemaDomain'
 import type {
+  CinemaActionId,
   CinemaAssetBindingId,
   CinemaCollectionId,
   CinemaCompositionId,
   CinemaCompositionInstanceId,
+  CinemaModulationRouteId,
   CinemaNodeTypeId,
   CinemaNodeId,
 } from './CinemaIdentifiers'
@@ -73,6 +79,12 @@ export interface CinemaStoreState extends CinemaPersistedState {
   redoStack: readonly CinemaHistoryEntry[]
   historyTransaction: CinemaHistoryTransaction | null
   lastDiagnostics: CinemaDiagnosticSnapshot
+  /** Runtime-only Composer audition state. It is deliberately excluded from persistence/history snapshots. */
+  composerRuntimePreview: Readonly<CinemaComposerRuntimePreview>
+
+  setCinemaComposerModulationPreview: (compositionId: CinemaCompositionId, routeId: CinemaModulationRouteId | null) => void
+  triggerCinemaComposerManualAction: (compositionId: CinemaCompositionId, actionId: CinemaActionId) => void
+  clearCinemaComposerRuntimePreview: () => void
 
   hydrateCinemaState: (input: unknown) => CinemaStoreOperationResult
   replaceCinemaState: (input: unknown, label?: string) => CinemaStoreOperationResult
@@ -182,7 +194,7 @@ function createCinemaStoreInitializer(
     const applyDocument = (
       candidate: CinemaPersistedState,
       label: string,
-      options: { recordHistory?: boolean; clearHistory?: boolean } = {},
+      options: { recordHistory?: boolean; clearHistory?: boolean; clearRuntimePreview?: boolean } = {},
     ): CinemaStoreOperationResult => {
       const normalized = normalizeCinemaPersistedState(candidate)
       if (!normalized.ok) {
@@ -209,6 +221,7 @@ function createCinemaStoreInitializer(
               }
             : {}),
         lastDiagnostics: normalized.diagnostics,
+        ...(options.clearRuntimePreview ? { composerRuntimePreview: EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW } : {}),
       })
       return { ok: true, diagnostics: normalized.diagnostics }
     }
@@ -238,6 +251,26 @@ function createCinemaStoreInitializer(
       redoStack: [],
       historyTransaction: null,
       lastDiagnostics: initialDiagnostics,
+      composerRuntimePreview: EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW,
+
+      setCinemaComposerModulationPreview: (compositionId, routeId) => set(current => ({
+        composerRuntimePreview: Object.freeze({
+          ...current.composerRuntimePreview,
+          compositionId: String(compositionId),
+          modulationRouteId: routeId,
+        }),
+      })),
+
+      triggerCinemaComposerManualAction: (compositionId, actionId) => set(current => ({
+        composerRuntimePreview: Object.freeze({
+          ...current.composerRuntimePreview,
+          compositionId: String(compositionId),
+          manualActionId: actionId,
+          manualActionSequence: current.composerRuntimePreview.manualActionSequence + 1,
+        }),
+      })),
+
+      clearCinemaComposerRuntimePreview: () => set({ composerRuntimePreview: EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW }),
 
       hydrateCinemaState: input => {
         const normalized = normalizeCinemaPersistedState(input)
@@ -248,6 +281,7 @@ function createCinemaStoreInitializer(
         return applyDocument(reconcileCinemaBuiltInState(normalized.value), 'Hydrate Cinema state', {
           recordHistory: false,
           clearHistory: true,
+          clearRuntimePreview: true,
         })
       },
 
@@ -257,10 +291,10 @@ function createCinemaStoreInitializer(
           set({ lastDiagnostics: normalized.diagnostics })
           return { ok: false, diagnostics: normalized.diagnostics }
         }
-        return applyDocument(reconcileCinemaBuiltInState(normalized.value), label)
+        return applyDocument(reconcileCinemaBuiltInState(normalized.value), label, { clearRuntimePreview: true })
       },
 
-      resetCinemaState: () => applyDocument(createCinemaFoundationPersistedState(), 'Reset Cinema state'),
+      resetCinemaState: () => applyDocument(createCinemaFoundationPersistedState(), 'Reset Cinema state', { clearRuntimePreview: true }),
 
       upsertCinemaDefinition: definition => mutateDocument('Update Cinema definition', current => ({
         ...current,
@@ -404,27 +438,31 @@ function createCinemaStoreInitializer(
         },
       ),
 
-      deleteCinemaComposition: compositionId => mutateDocument('Delete Cinema composition', current => {
-        const removedInstanceIds = new Set(
-          current.instances
-            .filter(instance => instance.compositionId === compositionId)
-            .map(instance => instance.id),
-        )
-        return {
-          ...current,
-          compositions: current.compositions.filter(composition => composition.id !== compositionId),
-          instances: current.instances.filter(instance => instance.compositionId !== compositionId),
-          collections: current.collections.map(collection => ({
-            ...collection,
-            compositionIds: collection.compositionIds.filter(id => id !== compositionId),
-          })),
-          activeCompositionId: current.activeCompositionId === compositionId ? null : current.activeCompositionId,
-          activeInstanceId: current.activeInstanceId != null && removedInstanceIds.has(current.activeInstanceId)
-            ? null
-            : current.activeInstanceId,
-          editorMetadata: withCinemaEditorSelection(current.editorMetadata, compositionId, null),
-        }
-      }),
+      deleteCinemaComposition: compositionId => {
+        const result = mutateDocument('Delete Cinema composition', current => {
+          const removedInstanceIds = new Set(
+            current.instances
+              .filter(instance => instance.compositionId === compositionId)
+              .map(instance => instance.id),
+          )
+          return {
+            ...current,
+            compositions: current.compositions.filter(composition => composition.id !== compositionId),
+            instances: current.instances.filter(instance => instance.compositionId !== compositionId),
+            collections: current.collections.map(collection => ({
+              ...collection,
+              compositionIds: collection.compositionIds.filter(id => id !== compositionId),
+            })),
+            activeCompositionId: current.activeCompositionId === compositionId ? null : current.activeCompositionId,
+            activeInstanceId: current.activeInstanceId != null && removedInstanceIds.has(current.activeInstanceId)
+              ? null
+              : current.activeInstanceId,
+            editorMetadata: withCinemaEditorSelection(current.editorMetadata, compositionId, null),
+          }
+        })
+        if (result.ok && get().composerRuntimePreview.compositionId === String(compositionId)) set({ composerRuntimePreview: EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW })
+        return result
+      },
 
       upsertCinemaInstance: instance => mutateDocument('Update Cinema instance', current => ({
         ...current,
@@ -447,14 +485,19 @@ function createCinemaStoreInitializer(
         collections: current.collections.filter(collection => collection.id !== collectionId),
       })),
 
-      setActiveCinemaComposition: (compositionId, instanceId = null) => mutateDocument(
-        'Select active Cinema composition',
-        current => ({
-          ...current,
-          activeCompositionId: compositionId,
-          activeInstanceId: compositionId == null ? null : instanceId,
-        }),
-      ),
+      setActiveCinemaComposition: (compositionId, instanceId = null) => {
+        const previousCompositionId = get().activeCompositionId
+        const result = mutateDocument(
+          'Select active Cinema composition',
+          current => ({
+            ...current,
+            activeCompositionId: compositionId,
+            activeInstanceId: compositionId == null ? null : instanceId,
+          }),
+        )
+        if (result.ok && previousCompositionId !== compositionId) set({ composerRuntimePreview: EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW })
+        return result
+      },
 
       beginCinemaHistoryTransaction: (label = 'Cinema edit transaction') => {
         const current = get()
@@ -586,7 +629,7 @@ function createCinemaStoreInitializer(
 
         const imported = persistedStateFromCinemaPackage(preflight.value)
         if ((options.mode ?? 'replace') === 'replace') {
-          return applyDocument(imported, 'Import Cinema package')
+          return applyDocument(imported, 'Import Cinema package', { clearRuntimePreview: true })
         }
 
         const current = snapshotCinemaPersistedState(get())
@@ -614,7 +657,7 @@ function createCinemaStoreInitializer(
           editorMetadata: { ...current.editorMetadata, ...imported.editorMetadata },
           migrationProvenance: [...current.migrationProvenance, ...imported.migrationProvenance],
         }
-        return applyDocument(merged, 'Merge Cinema package')
+        return applyDocument(merged, 'Merge Cinema package', { clearRuntimePreview: true })
       },
     }
   }

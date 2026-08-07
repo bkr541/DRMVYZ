@@ -15693,3 +15693,170 @@
   text-transform: uppercase;
   letter-spacing: .04em;
 }
+
+/* Cinema Composer Stage 19: structured modulation, performance, camera, and timeline authoring. */
+.rv-cinema-stage19 {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.rv-cinema-stage19__toolbar,
+.rv-cinema-stage19__actions,
+.rv-cinema-stage19__duration {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.rv-cinema-stage19__editor,
+.rv-cinema-stage19__conditions,
+.rv-cinema-stage19__card {
+  display: grid;
+  gap: 7px;
+}
+
+.rv-cinema-stage19__card {
+  padding: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.rv-cinema-stage19__subheading,
+.rv-cinema-stage19__manual > span,
+.rv-cinema-stage19__range > span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-cinema-stage19__hint,
+.rv-cinema-stage19__manual small,
+.rv-cinema-timeline > small {
+  color: rgba(255, 255, 255, 0.52);
+  line-height: 1.45;
+}
+
+.rv-cinema-stage19__manual {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.rv-cinema-stage19__manual small {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+
+.rv-cinema-stage19__range {
+  display: grid;
+  grid-template-columns: minmax(84px, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  align-items: end;
+}
+
+.rv-cinema-stage19__range--vector {
+  grid-template-columns: minmax(70px, 1fr) repeat(3, minmax(0, 1fr));
+}
+
+.rv-cinema-timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.rv-cinema-timeline__summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-cinema-timeline__viewport {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 4px 0;
+  overflow: hidden;
+}
+
+.rv-cinema-timeline__playhead {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: currentColor;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.rv-cinema-timeline__lane {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 6px;
+  min-height: 18px;
+  align-items: center;
+}
+
+.rv-cinema-timeline__lane-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.rv-cinema-timeline__lane-track {
+  position: relative;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.rv-cinema-timeline__marker {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  min-width: 1px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.62;
+}
+
+.rv-cinema-timeline__lane--section .rv-cinema-timeline__marker,
+.rv-cinema-timeline__lane--lyric .rv-cinema-timeline__marker {
+  min-width: 2px;
+  opacity: 0.3;
+}
+
+.rv-cinema-timeline__marker i {
+  display: block;
+  padding: 1px 3px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 8px;
+  font-style: normal;
+  line-height: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .rv-cinema-stage19__toolbar,
+  .rv-cinema-stage19__actions,
+  .rv-cinema-stage19__duration,
+  .rv-cinema-stage19__range,
+  .rv-cinema-stage19__range--vector {
+    grid-template-columns: 1fr;
+  }
+
+  .rv-cinema-timeline__lane {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+}
