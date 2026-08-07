@@ -11,6 +11,7 @@ import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
 import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS,
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
+  DEFAULT_REACT_PRESETS,
   LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixturePatch,
@@ -19,6 +20,7 @@ import {
   type ReactPreset,
 } from '../react/ReactTypes'
 import { FixtureIcon } from '../react/LaserDmxShowDirectorPalette'
+import { ReactPlaceholderCanvas } from '../react/ReactPlaceholderCanvas'
 import { EditSectionForm, SectionTimeline } from '../react/ReactTrackMapStrip'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
@@ -42,6 +44,8 @@ import {
   LASER_DMX_SHOW_MANAGER_QUALITY,
   LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS,
   cloneLaserDmxShowManagerShow,
+  createLaserDmxShowManagerEmptyRuntimeShowDirector,
+  createLaserDmxShowManagerRuntimeSectionPrograms,
   getEligibleLaserDmxShowManagerFixtureCopySources,
   isLaserDmxShowManagerFixtureKindEnabled,
   parseLaserDmxShowManagerFixtureKind,
@@ -131,6 +135,7 @@ export function ShowManagerView() {
   const laserDmxShowManagerShows = useReactStore(state => state.laserDmxShowManagerShows)
   const laserDmxShowManagerEditingShowId = useReactStore(state => state.laserDmxShowManagerEditingShowId)
   const laserDmxShowManagerEditingSectionId = useReactStore(state => state.laserDmxShowManagerEditingSectionId)
+  const laserDmxShowManagerPlaybackSectionId = useReactStore(state => state.laserDmxShowManagerPlaybackSectionId)
   const createLaserDmxShowManagerShow = useReactStore(state => state.createLaserDmxShowManagerShow)
   const ensureLaserDmxShowManagerShow = useReactStore(state => state.ensureLaserDmxShowManagerShow)
   const selectLaserDmxShowManagerSection = useReactStore(state => state.selectLaserDmxShowManagerSection)
@@ -183,6 +188,24 @@ export function ShowManagerView() {
       ?? null,
     [activeLaserDmxShow, laserDmxShowManagerEditingSectionId],
   )
+  const playbackLaserDmxSection = useMemo(
+    () => activeLaserDmxShow?.sections.find(section => section.id === laserDmxShowManagerPlaybackSectionId) ?? null,
+    [activeLaserDmxShow, laserDmxShowManagerPlaybackSectionId],
+  )
+  const laserDmxRuntimePrograms = useMemo(
+    () => createLaserDmxShowManagerRuntimeSectionPrograms(activeLaserDmxShow),
+    [activeLaserDmxShow],
+  )
+  const laserDmxEmptyRuntimeShowDirector = useMemo(
+    () => activeLaserDmxShow ? createLaserDmxShowManagerEmptyRuntimeShowDirector(activeLaserDmxShow) : null,
+    [activeLaserDmxShow],
+  )
+  const laserDmxRuntimePreset = useMemo(
+    () => reactPresets.find(preset => preset.engine === 'laserDmx')
+      ?? DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'laserDmx')
+      ?? null,
+    [reactPresets],
+  )
   const selectedLaserFixture = useMemo(
     () => activeLaserDmxSection?.fixtures.find(fixture => fixture.id === selectedLaserFixtureId) ?? null,
     [activeLaserDmxSection, selectedLaserFixtureId],
@@ -218,6 +241,24 @@ export function ShowManagerView() {
     setLaserShowUndoDepth(laserShowUndoRef.current[activeLaserDmxShow.id]?.length ?? 0)
     setLaserShowRedoDepth(laserShowRedoRef.current[activeLaserDmxShow.id]?.length ?? 0)
   }, [activeLaserDmxShow])
+
+  useEffect(() => {
+    if (selectedEngineId === 'laserDmx' && engine.isPlaying) return
+    if (useReactStore.getState().laserDmxShowManagerPlaybackSectionId !== null) {
+      useReactStore.setState({ laserDmxShowManagerPlaybackSectionId: null })
+    }
+  }, [engine.isPlaying, selectedEngineId])
+
+  useEffect(() => () => {
+    if (useReactStore.getState().laserDmxShowManagerPlaybackSectionId !== null) {
+      useReactStore.setState({ laserDmxShowManagerPlaybackSectionId: null })
+    }
+  }, [])
+
+  const handleLaserDmxPlaybackSectionChange = (sectionId: string | null) => {
+    if (useReactStore.getState().laserDmxShowManagerPlaybackSectionId === sectionId) return
+    useReactStore.setState({ laserDmxShowManagerPlaybackSectionId: sectionId })
+  }
 
   useEffect(() => {
     if (selectedLaserFixtureId && !activeLaserDmxSection?.fixtures.some(fixture => fixture.id === selectedLaserFixtureId)) {
@@ -900,6 +941,29 @@ export function ShowManagerView() {
                 showLabels={activeLaserDmxShow?.settings?.showLabels ?? true}
                 showBeams={activeLaserDmxShow?.settings?.showBeams ?? true}
                 highlightGrid={activeLaserDmxShow?.settings?.highlightGrid ?? true}
+                playbackSectionLabel={engine.isPlaying ? playbackLaserDmxSection?.label ?? 'No active section' : null}
+                runtimePreview={engine.isPlaying && laserDmxRuntimePreset && activeLaserDmxShow ? (
+                  <ReactPlaceholderCanvas
+                    analyser={engine.analyserMaster}
+                    engine="laserDmx"
+                    activePreset={laserDmxRuntimePreset}
+                    intensity={reactIntensity}
+                    motion={reactMotion}
+                    glow={reactGlow}
+                    bassReactivity={reactBassReactivity}
+                    isPlaying={engine.isPlaying}
+                    isPaused={false}
+                    trackSections={resolvedTrackSections}
+                    trackAnalysis={effectiveTrackAnalysis}
+                    laserDmxSectionRuntimePrograms={laserDmxRuntimePrograms}
+                    laserDmxEmptyRuntimeShowDirector={laserDmxEmptyRuntimeShowDirector}
+                    onLaserDmxPlaybackSectionChange={handleLaserDmxPlaybackSectionChange}
+                    getAudioTime={engine.getCurrentTime}
+                    effectiveBpm={engine.currentEffectiveBpm ?? undefined}
+                    activeAudioTrackId={engine.currentTrackId}
+                    durationSec={durationSec}
+                  />
+                ) : null}
                 onDropFixture={commitLaserFixtureDrop}
                 onSelectFixture={setSelectedLaserFixtureId}
               />
@@ -930,7 +994,8 @@ export function ShowManagerView() {
               {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
                 <>
                   <span>LaserDMX {LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</span>
-                  <span>{activeLaserDmxSection?.fixtures.length ?? 0} fixtures</span>
+                  <span>{activeLaserDmxSection?.fixtures.length ?? 0} editing fixtures</span>
+                  <span>{engine.isPlaying ? `Playback: ${playbackLaserDmxSection?.label ?? 'None'}` : 'Playback stopped'}</span>
                   <span>{selectedLaserFixture?.label ?? 'No selection'}</span>
                 </>
               ) : (
@@ -1356,6 +1421,8 @@ function LaserDmxShowManagerStage({
   showLabels,
   showBeams,
   highlightGrid,
+  playbackSectionLabel,
+  runtimePreview,
   onDropFixture,
   onSelectFixture,
 }: {
@@ -1366,6 +1433,8 @@ function LaserDmxShowManagerStage({
   showLabels: boolean
   showBeams: boolean
   highlightGrid: boolean
+  playbackSectionLabel: string | null
+  runtimePreview: ReactNode
   onDropFixture: (event: DragEvent<HTMLDivElement>) => void
   onSelectFixture: (fixtureId: string | null) => void
 }) {
@@ -1376,7 +1445,8 @@ function LaserDmxShowManagerStage({
     <div className="sm-laser-stage" aria-label="LaserDMX Part 1 authoring grid">
       <div className="sm-laser-stage-heading">
         <span>{show?.name ?? 'Untitled Show'}</span>
-        <strong>{section ? section.label : 'No section selected'}</strong>
+        <strong>{section ? `Editing: ${section.label}` : 'No section selected'}</strong>
+        {playbackSectionLabel && <em>Playback: {playbackSectionLabel}</em>}
       </div>
       <div
         className={`sm-laser-stage-grid-surface${showGrid ? ' is-grid-visible' : ''}${highlightGrid ? ' is-highlighted' : ''}`}
@@ -1388,7 +1458,12 @@ function LaserDmxShowManagerStage({
         onDrop={onDropFixture}
         onClick={() => onSelectFixture(null)}
       >
-        {showBeams && fixtures.length > 0 && (
+        {runtimePreview && (
+          <div className={`sm-laser-runtime-preview${showBeams ? '' : ' is-hidden'}`} aria-hidden="true">
+            {runtimePreview}
+          </div>
+        )}
+        {showBeams && !runtimePreview && fixtures.length > 0 && (
           <svg className="sm-laser-stage-beams" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             {fixtures.flatMap(fixture => {
               if (!fixture.beam.beamEnabled || fixture.beam.targetX == null || fixture.beam.targetY == null) return []

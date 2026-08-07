@@ -28,10 +28,16 @@ function compile(mode: 'bar' | 'phrase', bars: number) {
 }
 
 describe('Show Director musical-bar trigger compilation', () => {
-  it('compiles bar intervals as bars instead of raw beats', () => {
-    const compiled = compile('bar', 4)
-    expect(compiled.groups[0]?.launch).toMatchObject({ trigger: 'downbeat', cooldownBeats: 0, cooldownBars: 4 })
-    expect(compiled.groups[0]?.modulationRoutes[0]?.timingFilter).toMatchObject({ mode: 'barInterval', intervalBars: 4 })
+  it('compiles the Part 1 4/8/16/24-bar intervals as position-derived musical bars', () => {
+    for (const bars of [4, 8, 16, 24]) {
+      const compiled = compile('bar', bars)
+      expect(compiled.groups[0]?.launch).toMatchObject({ trigger: 'downbeat', cooldownBeats: 0, cooldownBars: bars })
+      expect(compiled.groups[0]?.modulationRoutes[0]?.timingFilter).toMatchObject({
+        mode: 'barInterval',
+        intervalBars: bars,
+        intervalAnchorBar: 1,
+      })
+    }
   })
 
   it('compiles phraseLengthBars as musical bars without using beat-based phrase8', () => {

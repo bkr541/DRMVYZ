@@ -7,6 +7,7 @@ import type {
   OscillatorGlyphAsset,
   OscillatorGlyphPoint,
   LaserDmxSettings,
+  LaserDmxShowDirectorState,
 } from '../ReactTypes'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
@@ -137,6 +138,8 @@ export interface ReactRenderParams {
   soundDrawingRuntimeMode?: VisualSimulationRuntimeMode
   /** Isolated preset-preview override. Never persisted and never read by the live control surface. */
   thumbnailLaserDmxSettings?: LaserDmxSettings
+  /** Isolated Show Manager runtime preview rig. Never persisted and never allowed to affect physical output. */
+  laserDmxPreviewShowDirector?: LaserDmxShowDirectorState
   /** Generic transient event. Renderers consume each sequence at most once. */
   performanceActionEvent?: ReactPerformanceActionEvent | null
   /** Bounded transient event buffer so rapid pad hits are not collapsed between frames. */

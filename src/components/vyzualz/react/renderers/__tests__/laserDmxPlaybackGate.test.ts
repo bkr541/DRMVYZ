@@ -153,9 +153,19 @@ describe('pauseLaserDmxRenderer', () => {
 })
 
 describe('production output boundary selection', () => {
-  it('keeps thumbnail renders virtual-only', () => {
-    expect(shouldAffectLaserDmxProductionOutput({ thumbnailLaserDmxSettings: undefined })).toBe(true)
-    expect(shouldAffectLaserDmxProductionOutput({ thumbnailLaserDmxSettings: {} as never })).toBe(false)
+  it('keeps thumbnail and Show Manager runtime previews virtual-only', () => {
+    expect(shouldAffectLaserDmxProductionOutput({
+      thumbnailLaserDmxSettings: undefined,
+      laserDmxPreviewShowDirector: undefined,
+    })).toBe(true)
+    expect(shouldAffectLaserDmxProductionOutput({
+      thumbnailLaserDmxSettings: {} as never,
+      laserDmxPreviewShowDirector: undefined,
+    })).toBe(false)
+    expect(shouldAffectLaserDmxProductionOutput({
+      thumbnailLaserDmxSettings: undefined,
+      laserDmxPreviewShowDirector: {} as never,
+    })).toBe(false)
   })
 })
 

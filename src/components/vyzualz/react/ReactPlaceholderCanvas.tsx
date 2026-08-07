@@ -2,10 +2,12 @@ import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { LyricPlaybackBus } from '../../../features/lyrics/runtime/LyricPlaybackBus'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
+import { resolveSectionAtTime as resolveAuthoritativeSectionAtTime } from '../../../features/trackIntelligence/authoritativeTimeline'
 import type {
   ReactEngineId,
   ReactPreset,
   ReactTrackSection,
+  LaserDmxShowDirectorState,
   OscillatorSettings,
   OscillatorFontAsset,
   OscillatorGlyphAsset,
@@ -59,6 +61,20 @@ const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   pixGrid:         'PixGrid',
 }
 
+export interface LaserDmxSectionRuntimeProgram {
+  section: ReactTrackSection
+  showDirector: LaserDmxShowDirectorState
+}
+
+export function resolveLaserDmxSectionRuntimeProgram(
+  programs: readonly LaserDmxSectionRuntimeProgram[],
+  audioTimeSec: number,
+): LaserDmxSectionRuntimeProgram | null {
+  const section = resolveAuthoritativeSectionAtTime(programs.map(program => program.section), audioTimeSec)
+  if (!section) return null
+  return programs.find(program => program.section.id === section.id) ?? null
+}
+
 interface Props {
   analyser:           AnalyserNode | null
   /**
@@ -93,6 +109,12 @@ interface Props {
   isPaused?:                    boolean
   trackSections?:               ReactTrackSection[]
   trackAnalysis?:               TrackIntelligenceAnalysis | null
+  /** Runtime-only section programs used by the Show Manager LaserDMX preview. */
+  laserDmxSectionRuntimePrograms?: readonly LaserDmxSectionRuntimeProgram[]
+  /** Empty rig used while playback is outside every authored Show section. */
+  laserDmxEmptyRuntimeShowDirector?: LaserDmxShowDirectorState | null
+  /** Receives boundary changes only; never drives editing selection. */
+  onLaserDmxPlaybackSectionChange?: (sectionId: string | null) => void
   getAudioTime?:                () => number
   /**
    * Canonical effective BPM from the audio engine.  When provided and > 0 this
@@ -140,6 +162,9 @@ export function ReactPlaceholderCanvas({
   isPaused                    = false,
   trackSections              = [],
   trackAnalysis              = null,
+  laserDmxSectionRuntimePrograms = [],
+  laserDmxEmptyRuntimeShowDirector = null,
+  onLaserDmxPlaybackSectionChange,
   getAudioTime,
   effectiveBpm               = null,
   onCanvasReady,
@@ -189,6 +214,10 @@ export function ReactPlaceholderCanvas({
   const presetRef             = useRef<ReactPreset | null>(activePreset)
   const trackSectionsRef      = useRef<ReactTrackSection[]>(trackSections)
   const trackAnalysisRef      = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
+  const laserDmxSectionRuntimeProgramsRef = useRef<readonly LaserDmxSectionRuntimeProgram[]>(laserDmxSectionRuntimePrograms)
+  const laserDmxEmptyRuntimeShowDirectorRef = useRef<LaserDmxShowDirectorState | null>(laserDmxEmptyRuntimeShowDirector)
+  const onLaserDmxPlaybackSectionChangeRef = useRef(onLaserDmxPlaybackSectionChange)
+  const lastLaserDmxPlaybackSectionIdRef = useRef<string | null>(null)
   const audioTimeRef          = useRef(0)
   const getAudioTimeRef        = useRef(getAudioTime)
   const effectiveBpmRef        = useRef<number | null>(effectiveBpm)
@@ -225,6 +254,9 @@ export function ReactPlaceholderCanvas({
   presetRef.current             = activePreset
   trackSectionsRef.current      = trackSections
   trackAnalysisRef.current      = trackAnalysis
+  laserDmxSectionRuntimeProgramsRef.current = laserDmxSectionRuntimePrograms
+  laserDmxEmptyRuntimeShowDirectorRef.current = laserDmxEmptyRuntimeShowDirector
+  onLaserDmxPlaybackSectionChangeRef.current = onLaserDmxPlaybackSectionChange
   getAudioTimeRef.current        = getAudioTime
   effectiveBpmRef.current        = effectiveBpm
   onCanvasReadyRef.current       = onCanvasReady
@@ -237,6 +269,13 @@ export function ReactPlaceholderCanvas({
   scopeTapRef.current             = scopeStereoTap
 
   // Update analyser buffers when analyser changes
+  useEffect(() => () => {
+    if (lastLaserDmxPlaybackSectionIdRef.current !== null) {
+      lastLaserDmxPlaybackSectionIdRef.current = null
+      onLaserDmxPlaybackSectionChangeRef.current?.(null)
+    }
+  }, [])
+
   useEffect(() => {
     analyserRef.current = analyser
     if (analyser) {
@@ -285,10 +324,12 @@ export function ReactPlaceholderCanvas({
       animRef.current = 0
       ro?.disconnect()
       try {
+        const isolatedLaserDmxPreview = ownedEngine === 'laserDmx'
+          && (laserDmxSectionRuntimeProgramsRef.current.length > 0 || laserDmxEmptyRuntimeShowDirectorRef.current != null)
         disposeReactEngineRenderer(ctx, ownedEngine, {
           width: canvas.width,
           height: canvas.height,
-          affectProductionOutput: true,
+          affectProductionOutput: !isolatedLaserDmxPreview,
         })
       } catch (error) {
         if (import.meta.env.DEV) console.error('[ReactPlaceholderCanvas] renderer disposal failed:', error)
@@ -640,6 +681,26 @@ export function ReactPlaceholderCanvas({
         now,
       )
 
+      let laserDmxPreviewShowDirector: LaserDmxShowDirectorState | undefined
+      if (preset.engine === 'laserDmx' && (laserDmxSectionRuntimeProgramsRef.current.length > 0 || laserDmxEmptyRuntimeShowDirectorRef.current)) {
+        const runtimeProgram = isPlayingRef.current
+          ? resolveLaserDmxSectionRuntimeProgram(laserDmxSectionRuntimeProgramsRef.current, canonicalAudioTime)
+          : null
+        const playbackSectionId = runtimeProgram?.section.id ?? null
+        if (playbackSectionId !== lastLaserDmxPlaybackSectionIdRef.current) {
+          lastLaserDmxPlaybackSectionIdRef.current = playbackSectionId
+          onLaserDmxPlaybackSectionChangeRef.current?.(playbackSectionId)
+        }
+        if (isPlayingRef.current) {
+          laserDmxPreviewShowDirector = runtimeProgram?.showDirector
+            ?? laserDmxEmptyRuntimeShowDirectorRef.current
+            ?? undefined
+        }
+      } else if (lastLaserDmxPlaybackSectionIdRef.current !== null) {
+        lastLaserDmxPlaybackSectionIdRef.current = null
+        onLaserDmxPlaybackSectionChangeRef.current?.(null)
+      }
+
       const renderParams: ReactRenderParams = {
         ...DEFAULT_REACT_RENDER_PARAMS,
         ...transitionedControls,
@@ -654,6 +715,7 @@ export function ReactPlaceholderCanvas({
         performanceActionEvent:    performanceActionEventRef.current,
         performanceActionEvents:   performanceActionEventsRef.current,
         performanceActionToggleStates: performanceActionToggleStatesRef.current,
+        laserDmxPreviewShowDirector,
       }
 
       const lyricPlayback = isPlayingRef.current || isPausedRef.current ? LyricPlaybackBus.getState() : undefined

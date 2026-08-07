@@ -1158,6 +1158,7 @@
 }
 .sm-laser-stage-heading span { color: rgba(196, 212, 220, 0.4); font-size: 8px; }
 .sm-laser-stage-heading strong { color: rgba(232, 244, 248, 0.78); font-size: 10px; }
+.sm-laser-stage-heading em { color: rgba(103, 247, 255, 0.62); font-size: 8px; font-style: normal; }
 
 .sm-laser-stage-grid-surface {
   position: absolute;
@@ -1178,6 +1179,15 @@
   border-color: rgba(103, 247, 255, 0.34);
   box-shadow: inset 0 0 34px rgba(74, 199, 219, 0.07), 0 0 14px rgba(74, 199, 219, 0.05);
 }
+
+.sm-laser-runtime-preview {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sm-laser-runtime-preview.is-hidden { opacity: 0; }
 
 .sm-laser-stage-beams {
   position: absolute;

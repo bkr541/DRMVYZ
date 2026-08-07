@@ -6,12 +6,16 @@ import {
   LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS,
   addLaserDmxShowManagerFixtureToSection,
   copyLaserDmxShowManagerFixturesBetweenSections,
+  createLaserDmxShowManagerEmptyRuntimeShowDirector,
+  createLaserDmxShowManagerRuntimeSectionPrograms,
+  createLaserDmxShowManagerRuntimeShowDirector,
   createLaserDmxShowManagerShow,
   getEligibleLaserDmxShowManagerFixtureCopySources,
   normalizeLaserDmxShowManagerShow,
   parseLaserDmxShowManagerFixtureKind,
   removeLaserDmxShowManagerFixtureFromSection,
   reorderLaserDmxShowManagerSection,
+  resolveLaserDmxShowManagerPlaybackSection,
   resolveLaserDmxShowManagerGridCell,
   resolveLaserDmxShowManagerTriggerOption,
   triggerPatchForLaserDmxShowManagerOption,
@@ -290,6 +294,60 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     const removed = removeLaserDmxShowManagerFixtureFromSection(show, introId, first.fixtureId!)
     expect(removed.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual([colocated.fixtureId])
     expect(removed.sections[1]!.fixtures.map(fixture => fixture.id)).toEqual([otherSection.fixtureId])
+  })
+
+  it('resolves playback sections with the canonical Track Map boundary convention across seeks', () => {
+    const show = createLaserDmxShowManagerShow()
+    const intro = show.sections[0]!
+    const verse = show.sections[1]!
+    const outro = show.sections[show.sections.length - 1]!
+
+    expect(resolveLaserDmxShowManagerPlaybackSection(show, 0)?.id).toBe(intro.id)
+    expect(resolveLaserDmxShowManagerPlaybackSection(show, 0.999)?.id).toBe(intro.id)
+    expect(resolveLaserDmxShowManagerPlaybackSection(show, 1)?.id).toBe(verse.id)
+    expect(resolveLaserDmxShowManagerPlaybackSection(show, 5.25)?.label).toBe('Breakdown')
+    expect(resolveLaserDmxShowManagerPlaybackSection(show, 1)?.id).toBe(verse.id)
+    expect(resolveLaserDmxShowManagerPlaybackSection(show, outro.endSec)?.id).toBe(outro.id)
+    expect(resolveLaserDmxShowManagerPlaybackSection(show, outro.endSec + 0.001)).toBeNull()
+  })
+
+  it('projects only the playback section fixtures into an isolated 18x12 Show Director runtime rig', () => {
+    let show = createLaserDmxShowManagerShow()
+    const introId = show.sections[0]!.id
+    const dropId = show.sections[4]!.id
+    show = addLaserDmxShowManagerFixtureToSection(show, introId, 'laser', {
+      label: 'Editing Laser',
+      trigger: triggerPatchForLaserDmxShowManagerOption('beat'),
+    }).show
+    show = addLaserDmxShowManagerFixtureToSection(show, dropId, 'strobe', {
+      label: 'Playback Strobe',
+      trigger: triggerPatchForLaserDmxShowManagerOption('24bars'),
+    }).show
+    show = updateLaserDmxShowManagerWorkspaceSettings(show, { rendererMode: 'webgl', showBeams: false })
+
+    const drop = show.sections.find(section => section.id === dropId)!
+    const runtime = createLaserDmxShowManagerRuntimeShowDirector(show, drop)
+    const programs = createLaserDmxShowManagerRuntimeSectionPrograms(show)
+    const empty = createLaserDmxShowManagerEmptyRuntimeShowDirector(show)
+
+    expect(runtime.sourceTemplateId).toBe(`show-manager:${show.id}:${dropId}`)
+    expect(runtime.fixtures.map(fixture => fixture.label)).toEqual(['Playback Strobe'])
+    expect(runtime.fixtures[0]).not.toBe(drop.fixtures[0])
+    expect(resolveLaserDmxShowManagerTriggerOption(runtime.fixtures[0]!.trigger)).toBe('24bars')
+    expect(runtime.selectedFixtureId).toBeNull()
+    expect(runtime.selectedFixtureIds).toEqual([])
+    expect(runtime.settings).toMatchObject({
+      gridSize: { columns: 18, rows: 12 },
+      rendererMode: 'webgl',
+      webglQuality: 'high',
+      showBeams: false,
+      presentationMode: 'live',
+    })
+    expect(programs).toHaveLength(show.sections.length)
+    expect(programs.find(program => program.section.id === introId)?.showDirector.fixtures.map(fixture => fixture.label))
+      .toEqual(['Editing Laser'])
+    expect(empty.fixtures).toEqual([])
+    expect(empty.sourceTemplateId).toBe(`show-manager:${show.id}:empty`)
   })
 
   it('centralizes the exact ten Part 1 trigger choices onto canonical trigger fields', () => {

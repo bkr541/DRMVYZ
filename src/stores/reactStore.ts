@@ -2506,7 +2506,7 @@ interface ReactStoreState {
   laserDmxShowManagerShows: LaserDmxShowManagerShow[]
   laserDmxShowManagerEditingShowId: string | null
   laserDmxShowManagerEditingSectionId: string | null
-  /** Runtime-only extension point. Part 1 does not drive this from playback yet. */
+  /** Runtime-derived section under the playhead. Transient and independent of editing selection. */
   laserDmxShowManagerPlaybackSectionId: string | null
 
   // React preset automation cues — stored per stable track ID.

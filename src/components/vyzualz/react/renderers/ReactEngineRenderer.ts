@@ -4,7 +4,13 @@ import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { disposeCinematicPortalRenderer, renderCinematicPortal } from './CinematicPortalRenderer'
 import { disposeSoundDrawingRenderer, pauseSoundDrawingRenderer, renderSoundDrawing } from './SoundDrawingRenderer'
-import { renderLaserDmx, clearLaserDmxVisualState, disposeLaserDmxRenderer, pauseLaserDmxRenderer } from './LaserDmxRenderer'
+import {
+  clearLaserDmxVisualState,
+  disposeLaserDmxRenderer,
+  pauseLaserDmxRenderer,
+  renderLaserDmx,
+  shouldAffectLaserDmxProductionOutput,
+} from './LaserDmxRenderer'
 import type { WebGLContextLifetime } from '../shaders/runtime/WebGLContextLifecycle'
 import { createPixGridStateForPreset, disposePixGridBaselineRenderer, renderPixGridBaseline } from './pixGrid/PixGridBaselineRenderer'
 
@@ -153,7 +159,11 @@ export function renderReactEngine(
   // A user pause is a true frame hold across every React engine. Do not clear
   // gated engines and do not let idle/random animation mutate the last frame.
   if (frame.isPaused === true) {
-    if (preset.engine === 'laserDmx') pauseLaserDmxRenderer(ctx, frame.audioTime)
+    if (preset.engine === 'laserDmx') {
+      pauseLaserDmxRenderer(ctx, frame.audioTime, {
+        affectProductionOutput: shouldAffectLaserDmxProductionOutput(params),
+      })
+    }
     if (preset.engine === 'oscilloscope') pauseSoundDrawingRenderer(ctx)
     return
   }
@@ -246,7 +256,9 @@ export function renderReactEngine(
       // Level-1 gate: skip compilation entirely when not playing.
       // clearLaserDmxVisualState wipes trail persistence and resets compiler dt.
       if (frame.isPlaying === false) {
-        clearLaserDmxVisualState(ctx, frame.W, frame.H)
+        clearLaserDmxVisualState(ctx, frame.W, frame.H, {
+          affectProductionOutput: shouldAffectLaserDmxProductionOutput(effectiveParams),
+        })
       } else {
         renderLaserDmx(ctx, frame, preset, effectiveParams, sectionType)
       }

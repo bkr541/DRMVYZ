@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
+  laserRuntimePreviewProps: [] as Array<Record<string, unknown>>,
   audio: {
     analyserMaster: null,
     currentTrackId: 'audio-track-1',
@@ -101,6 +102,7 @@ const fixture = vi.hoisted(() => ({
     }],
     laserDmxShowManagerEditingShowId: 'laser-show-1',
     laserDmxShowManagerEditingSectionId: 'laser-show-1:section:intro:1',
+    laserDmxShowManagerPlaybackSectionId: null as string | null,
     createLaserDmxShowManagerShow: vi.fn(() => 'laser-show-2'),
     ensureLaserDmxShowManagerShow: vi.fn(() => 'laser-show-1'),
     selectLaserDmxShowManagerSection: vi.fn(),
@@ -187,6 +189,22 @@ vi.mock('../react/pixGrid/PixGridDeckMediaService', () => ({
   ingestPixGridDeckSourceFiles: vi.fn(),
 }))
 
+vi.mock('../react/ReactPlaceholderCanvas', () => ({
+  ReactPlaceholderCanvas: (props: Record<string, unknown>) => {
+    fixture.laserRuntimePreviewProps.push(props)
+    const programs = Array.isArray(props.laserDmxSectionRuntimePrograms)
+      ? props.laserDmxSectionRuntimePrograms as Array<{ section: { id: string }; showDirector: { fixtures: Array<{ id: string }> } }>
+      : []
+    return (
+      <div
+        data-testid="laser-dmx-runtime-preview"
+        data-program-count={programs.length}
+        data-runtime-section-ids={programs.map(program => program.section.id).join(',')}
+      />
+    )
+  },
+}))
+
 vi.mock('../react/ReactPresetThumbnail', () => ({
   ReactPresetThumbnail: () => <div data-testid="preset-thumbnail" />,
 }))
@@ -234,6 +252,9 @@ let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
 
 afterEach(() => {
+  fixture.laserRuntimePreviewProps.length = 0
+  fixture.state.laserDmxShowManagerPlaybackSectionId = null
+  fixture.audio.isPlaying = false
   if (root) act(() => root?.unmount())
   container?.remove()
   root = null
@@ -328,6 +349,78 @@ describe('ShowManagerView production shell', () => {
       expect(container.querySelector('[data-testid="show-manager-audio-dock"]')?.getAttribute('data-track-id')).toBe('')
     } finally {
       Object.assign(fixture.audio, originalAudio)
+    }
+  })
+
+  it('keeps the editing section selected while playback feeds a different section into the real LaserDMX runtime preview', async () => {
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const drop = fixture.state.laserDmxShowManagerShows[0]!.sections[4]!
+    const originalIntroFixtures = intro.fixtures
+    const originalDropFixtures = drop.fixtures
+    const originalCurrentTime = fixture.audio.currentTime
+    const originalGetCurrentTime = fixture.audio.getCurrentTime
+    const editingFixture = { ...createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-editing'), label: 'Editing Laser' }
+    const playbackFixture = { ...createDefaultLaserDmxShowDirectorFixture('strobe', 'fixture-playback'), label: 'Playback Strobe' }
+    intro.fixtures = [editingFixture] as never[]
+    drop.fixtures = [playbackFixture] as never[]
+    fixture.audio.currentTime = 4.25
+    fixture.audio.getCurrentTime = () => 4.25
+    fixture.audio.isPlaying = true
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      expect(container.querySelector('[data-testid="laser-dmx-runtime-preview"]')?.getAttribute('data-program-count')).toBe('7')
+      expect(container.querySelector('[data-fixture-id="fixture-editing"]')).not.toBeNull()
+      expect(container.querySelector('[data-fixture-id="fixture-playback"]')).toBeNull()
+      expect(fixture.state.laserDmxShowManagerEditingSectionId).toBe(intro.id)
+
+      const previewProps = fixture.laserRuntimePreviewProps[fixture.laserRuntimePreviewProps.length - 1]!
+      const programs = previewProps.laserDmxSectionRuntimePrograms as Array<{
+        section: { id: string }
+        showDirector: { fixtures: Array<{ id: string; label: string }> }
+      }>
+      expect(programs.find(program => program.section.id === intro.id)?.showDirector.fixtures.map(item => item.id))
+        .toEqual(['fixture-editing'])
+      expect(programs.find(program => program.section.id === drop.id)?.showDirector.fixtures.map(item => item.id))
+        .toEqual(['fixture-playback'])
+      expect((previewProps.getAudioTime as () => number)()).toBe(4.25)
+
+      await act(async () => {
+        ;(previewProps.onLaserDmxPlaybackSectionChange as (sectionId: string | null) => void)(drop.id)
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      expect(fixture.state.laserDmxShowManagerPlaybackSectionId).toBe(drop.id)
+      expect(fixture.state.laserDmxShowManagerEditingSectionId).toBe(intro.id)
+      expect(container.textContent).toContain('Editing: Intro')
+      expect(container.textContent).toContain('Playback: Drop')
+      expect(container.querySelector('[data-fixture-id="fixture-editing"]')).not.toBeNull()
+    } finally {
+      intro.fixtures = originalIntroFixtures
+      drop.fixtures = originalDropFixtures
+      fixture.audio.currentTime = originalCurrentTime
+      fixture.audio.getCurrentTime = originalGetCurrentTime
+      fixture.audio.isPlaying = false
+      fixture.state.laserDmxShowManagerPlaybackSectionId = null
     }
   })
 

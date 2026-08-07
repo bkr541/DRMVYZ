@@ -14,6 +14,8 @@ const rendererMocks = vi.hoisted(() => ({
   clearLaserDmxVisualState: vi.fn(),
   disposeLaserDmxRenderer: vi.fn(),
   pauseLaserDmxRenderer: vi.fn(),
+  shouldAffectLaserDmxProductionOutput: vi.fn((params: { thumbnailLaserDmxSettings?: unknown; laserDmxPreviewShowDirector?: unknown }) =>
+    params.thumbnailLaserDmxSettings == null && params.laserDmxPreviewShowDirector == null),
   renderPixGridBaseline: vi.fn(),
   disposePixGridBaselineRenderer: vi.fn(),
 }))
@@ -32,6 +34,7 @@ vi.mock('../LaserDmxRenderer', () => ({
   clearLaserDmxVisualState: rendererMocks.clearLaserDmxVisualState,
   disposeLaserDmxRenderer: rendererMocks.disposeLaserDmxRenderer,
   pauseLaserDmxRenderer: rendererMocks.pauseLaserDmxRenderer,
+  shouldAffectLaserDmxProductionOutput: rendererMocks.shouldAffectLaserDmxProductionOutput,
 }))
 vi.mock('../pixGrid/PixGridBaselineRenderer', () => ({
   renderPixGridBaseline: rendererMocks.renderPixGridBaseline,
@@ -101,6 +104,39 @@ describe('React engine renderer final audit', () => {
     expect(rendererMocks.pauseSoundDrawingRenderer).toHaveBeenCalledWith(ctx)
     expect(rendererMocks.renderSoundDrawing).not.toHaveBeenCalled()
     rendererMocks.pauseSoundDrawingRenderer.mockClear()
+  })
+
+  it('keeps Show Manager LaserDMX preview stop and pause gates isolated from production output', () => {
+    const ctx = mockContext()
+    const previewParams = {
+      ...DEFAULT_REACT_RENDER_PARAMS,
+      laserDmxPreviewShowDirector: {} as never,
+    }
+
+    renderReactEngine(
+      ctx,
+      { ...frame, isPaused: true, isPlaying: false },
+      samplePreset('laserDmx'),
+      previewParams,
+    )
+    expect(rendererMocks.pauseLaserDmxRenderer).toHaveBeenCalledWith(
+      ctx,
+      0,
+      expect.objectContaining({ affectProductionOutput: false }),
+    )
+
+    renderReactEngine(
+      ctx,
+      { ...frame, isPaused: false, isPlaying: false },
+      samplePreset('laserDmx'),
+      previewParams,
+    )
+    expect(rendererMocks.clearLaserDmxVisualState).toHaveBeenCalledWith(
+      ctx,
+      frame.W,
+      frame.H,
+      expect.objectContaining({ affectProductionOutput: false }),
+    )
   })
 
   it('dispatches and disposes every currently registered engine family', () => {

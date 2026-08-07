@@ -1,5 +1,6 @@
 import {
   createDefaultLaserDmxShowDirectorFixture,
+  createDefaultLaserDmxShowDirectorState,
   DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS,
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
   normalizeLaserDmxShowDirectorFixture,
@@ -7,9 +8,11 @@ import {
   type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorFixturePatch,
   type LaserDmxShowDirectorRendererMode,
+  type LaserDmxShowDirectorState,
   type ReactSectionType,
   type ReactTrackSection,
 } from '../react/ReactTypes'
+import { resolveSectionAtTime as resolveAuthoritativeSectionAtTime } from '../../../features/trackIntelligence/authoritativeTimeline'
 
 export const LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION = 2 as const
 
@@ -83,6 +86,81 @@ export interface LaserDmxShowManagerShow {
   name: string
   settings: LaserDmxShowManagerWorkspaceSettings
   sections: LaserDmxShowManagerSection[]
+}
+
+/** Runtime-only projection of one Show-owned section into the canonical Show Director renderer contract. */
+export interface LaserDmxShowManagerRuntimeSectionProgram {
+  section: LaserDmxShowManagerSection
+  showDirector: LaserDmxShowDirectorState
+}
+
+/**
+ * Resolve the section under the transport playhead using the shared Track Map
+ * boundary convention. Playback selection is derived and never persisted.
+ */
+export function resolveLaserDmxShowManagerPlaybackSection(
+  show: LaserDmxShowManagerShow | null | undefined,
+  audioTimeSec: number,
+): LaserDmxShowManagerSection | null {
+  if (!show) return null
+  const resolved = resolveAuthoritativeSectionAtTime(show.sections, audioTimeSec)
+  if (!resolved) return null
+  return show.sections.find(section => section.id === resolved.id) ?? null
+}
+
+/**
+ * Adapt section-owned fixtures to the existing Show Director runtime. The
+ * returned object is transient: it deliberately carries no editing selection
+ * and cannot become a second persisted source of truth.
+ */
+function createLaserDmxShowManagerRuntimeRig(
+  show: LaserDmxShowManagerShow,
+  identity: string,
+  fixtures: readonly LaserDmxShowDirectorFixture[],
+): LaserDmxShowDirectorState {
+  const base = createDefaultLaserDmxShowDirectorState()
+  return {
+    ...base,
+    sourceTemplateId: `show-manager:${show.id}:${identity}`,
+    fixtures: fixtures.map((fixture, index) => cloneFixture(fixture, index)),
+    selectedFixtureId: null,
+    selectedFixtureIds: [],
+    settings: {
+      ...base.settings,
+      gridSize: { ...LASER_DMX_SHOW_MANAGER_GRID_SIZE },
+      snapEnabled: true,
+      showLabels: show.settings.showLabels,
+      showBeams: show.settings.showBeams,
+      showGrid: show.settings.showGrid,
+      highlightFixtures: show.settings.highlightGrid,
+      presentationMode: 'live',
+      rendererMode: show.settings.rendererMode,
+      webglQuality: LASER_DMX_SHOW_MANAGER_QUALITY,
+    },
+  }
+}
+
+export function createLaserDmxShowManagerRuntimeShowDirector(
+  show: LaserDmxShowManagerShow,
+  section: LaserDmxShowManagerSection,
+): LaserDmxShowDirectorState {
+  return createLaserDmxShowManagerRuntimeRig(show, section.id, section.fixtures)
+}
+
+export function createLaserDmxShowManagerEmptyRuntimeShowDirector(
+  show: LaserDmxShowManagerShow,
+): LaserDmxShowDirectorState {
+  return createLaserDmxShowManagerRuntimeRig(show, 'empty', [])
+}
+
+export function createLaserDmxShowManagerRuntimeSectionPrograms(
+  show: LaserDmxShowManagerShow | null | undefined,
+): LaserDmxShowManagerRuntimeSectionProgram[] {
+  if (!show) return []
+  return show.sections.map(section => ({
+    section,
+    showDirector: createLaserDmxShowManagerRuntimeShowDirector(show, section),
+  }))
 }
 
 export type LaserDmxShowManagerSectionPatch = Partial<Omit<LaserDmxShowManagerSection, 'id' | 'fixtures'>> & {

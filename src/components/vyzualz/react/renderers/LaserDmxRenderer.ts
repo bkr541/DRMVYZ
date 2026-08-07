@@ -392,8 +392,10 @@ export interface LaserDmxRendererBoundaryOptions {
   affectProductionOutput?: boolean
 }
 
-export function shouldAffectLaserDmxProductionOutput(params: Pick<ReactRenderParams, 'thumbnailLaserDmxSettings'>): boolean {
-  return params.thumbnailLaserDmxSettings == null
+export function shouldAffectLaserDmxProductionOutput(
+  params: Pick<ReactRenderParams, 'thumbnailLaserDmxSettings' | 'laserDmxPreviewShowDirector'>,
+): boolean {
+  return params.thumbnailLaserDmxSettings == null && params.laserDmxPreviewShowDirector == null
 }
 
 function getShowDirectorRuntime(ctx: CanvasRenderingContext2D): ShowDirectorRuntime {
@@ -481,7 +483,11 @@ function resetLaserDmxTransientRuntimeState(): void {
   prevFogTimeSec = -1
 }
 
-function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: CanvasRenderingContext2D): void {
+function resetLaserDmxRuntimeState(
+  reason?: LaserDmxRendererResetReason,
+  ctx?: CanvasRenderingContext2D,
+  affectProductionOutput = true,
+): void {
   resetLaserDmxTransientRuntimeState()
   if (ctx) {
     resetShowDirectorRuntime(getShowDirectorRuntime(ctx))
@@ -494,7 +500,7 @@ function resetLaserDmxRuntimeState(reason?: LaserDmxRendererResetReason, ctx?: C
       clearLaserDmxShowDirectorPerformanceRuntimeStatus()
     }
   }
-  if (reason === 'contextLost') {
+  if (reason === 'contextLost' && affectProductionOutput) {
     productionOutputController.handleRendererCrash('LaserDMX canvas context lost')
   }
 }
@@ -515,11 +521,11 @@ export function clearLaserDmxVisualState(
   ctx.globalCompositeOperation = 'source-over'
   ctx.clearRect(0, 0, W, H)
   ctx.restore()
-  getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx)).pause()
+  getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx, options.affectProductionOutput !== false)).pause()
   if (options.affectProductionOutput !== false) {
     productionOutputController.transportStopped('LaserDMX rendering stopped')
   }
-  resetLaserDmxRuntimeState(undefined, ctx)
+  resetLaserDmxRuntimeState(undefined, ctx, options.affectProductionOutput !== false)
   if (options.affectProductionOutput !== false) clearLaserDmxRendererDiagnostics()
 }
 
@@ -539,7 +545,7 @@ export function pauseLaserDmxRenderer(
     pendingPausedDiscontinuityByContext.add(ctx)
   }
   pausedAudioTimeByContext.set(ctx, canonicalAudioTime)
-  getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx)).pause()
+  getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx, options.affectProductionOutput !== false)).pause()
   if (options.affectProductionOutput !== false) {
     productionOutputController.transportStopped('LaserDMX playback paused')
     clearLaserDmxRendererDiagnostics()
@@ -566,7 +572,7 @@ export function disposeLaserDmxRenderer(
     productionOutputController.transportStopped('LaserDMX renderer disposed')
   }
   disposeLaserDmxRendererLifecycle(ctx)
-  resetLaserDmxRuntimeState(undefined, ctx)
+  resetLaserDmxRuntimeState(undefined, ctx, options.affectProductionOutput !== false)
   disposeLaserDmxWebGLRuntime(ctx)
   laserDmxWebGLRecoveryByContext.delete(ctx)
   laserDmxWebGLManualRetrySequenceByContext.delete(ctx)
@@ -624,24 +630,27 @@ export function renderLaserDmx(
   const { W, H } = frame
   if (!W || !H) return
 
+  const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
   if (!shouldRenderLaserDmx(frame.isPlaying)) {
-    clearLaserDmxVisualState(ctx, W, H)
+    clearLaserDmxVisualState(ctx, W, H, { affectProductionOutput })
     return
   }
 
   const state = useReactStore.getState()
-  const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
   const busMi = AudioFeatureBus.getFrame()
   const mi = resolveLaserDmxMusicIntelligenceFrame(frame, busMi)
   const authoritativeSections = mi.resolvedSections?.length ? mi.resolvedSections : frame.trackSections
   const trackKey = frame.trackKey ?? mi.trackId ?? mi.sourceId
-  const beamMatrixAuthoringMode = state.laserDmxBeamMatrixAuthoringMode === 'showDirector'
+  const previewShowDirector = params.laserDmxPreviewShowDirector
+  const beamMatrixAuthoringMode = previewShowDirector
     ? 'showDirector'
-    : 'manual'
+    : state.laserDmxBeamMatrixAuthoringMode === 'showDirector'
+      ? 'showDirector'
+      : 'manual'
   // The audio engine playhead is the only Show Director clock. Wall time is intentionally excluded.
   const timeSec = Math.max(0, frame.audioTime)
   const authoredSettings = params.thumbnailLaserDmxSettings ?? state.laserDmxSettings
-  const actionEvents = params.thumbnailLaserDmxSettings
+  const actionEvents = !affectProductionOutput
     ? []
     : params.performanceActionEvents && params.performanceActionEvents.length > 0
       ? params.performanceActionEvents
@@ -649,8 +658,9 @@ export function renderLaserDmx(
   const actionResult = applyLaserDmxPerformanceActions(authoredSettings, actionEvents)
   const resolvedAuthoredSettings = resolveProductionLookTransitionRuntime(actionResult.settings)
   const performanceState = state.laserDmxShowDirectorPerformance
-  const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${performanceState.activeProgramId ?? 'show:none'}:${performanceState.runtimeInvalidationId}:${resolvedAuthoredSettings.rigId ?? 'rig'}`
-  const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx))
+  const previewRigIdentity = previewShowDirector?.sourceTemplateId ?? 'preview:none'
+  const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${performanceState.activeProgramId ?? 'show:none'}:${performanceState.runtimeInvalidationId}:${resolvedAuthoredSettings.rigId ?? 'rig'}:${previewRigIdentity}`
+  const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx, affectProductionOutput))
   if (!lifecycle.sync({
     isPlaying: frame.isPlaying,
     trackKey,
@@ -678,7 +688,7 @@ export function renderLaserDmx(
   performanceContextByCanvas.set(ctx, performanceContext)
 
   const shouldResolvePerformance = beamMatrixAuthoringMode === 'showDirector'
-    && params.thumbnailLaserDmxSettings == null
+    && affectProductionOutput
     && performanceState.enabled
     && performanceState.activeProgramDefinition != null
   const performanceResolution = shouldResolvePerformance
@@ -695,7 +705,7 @@ export function renderLaserDmx(
         transportDiscontinuityIdentity: `${performanceContext.seekIdentity}:${performanceContext.loopIdentity}:${performanceContext.timingDiscontinuityIdentity}`,
       })
     : null
-  const showDirectorRuntimeRig = performanceResolution?.showDirector ?? state.laserDmxShowDirector
+  const showDirectorRuntimeRig = previewShowDirector ?? performanceResolution?.showDirector ?? state.laserDmxShowDirector
   const historyIdentity = `${trackKey ?? 'track:none'}:${directorPresetKey}:${showDirectorRuntimeRig.sourceTemplateId ?? 'template:none'}`
   const sceneDeltaTimeSec = previousPerformanceContext && !loopWrapped
     ? Math.max(0, Math.min(0.1, timeSec - previousPerformanceContext.audioTimeSec))
@@ -758,7 +768,7 @@ export function renderLaserDmx(
       performanceContext,
     )
     performanceStatusCanvas.add(ctx)
-  } else if (params.thumbnailLaserDmxSettings == null && performanceStatusCanvas.has(ctx)) {
+  } else if (affectProductionOutput && performanceStatusCanvas.has(ctx)) {
     performanceStatusCanvas.delete(ctx)
     clearLaserDmxShowDirectorPerformanceRuntimeStatus()
   }
@@ -874,7 +884,7 @@ export function renderLaserDmx(
           ))
           laserDmxWebGLInitializationPendingByContext.delete(ctx)
         }
-        publishLaserDmxRendererDiagnostics({
+        if (affectProductionOutput) publishLaserDmxRendererDiagnostics({
           activeRenderer: 'webgl',
           requestedRenderer,
           presentationMode: sceneFrame.presentationMode,
@@ -951,7 +961,7 @@ export function renderLaserDmx(
     : null
   const suppressedLegacyBeamIds = new Set(canvasScannerPlan?.validation.suppressedLegacyBeamIds ?? [])
   const canvasBeams = compiled.beams.filter(beam => !suppressedLegacyBeamIds.has(beam.beamId))
-  if (params.thumbnailLaserDmxSettings == null && sceneFrame) {
+  if (affectProductionOutput && sceneFrame) {
     publishLaserDmxRendererDiagnostics({
       activeRenderer: 'canvas2d',
       requestedRenderer,
