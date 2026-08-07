@@ -78,7 +78,7 @@ export interface CinemaParameterValueResolutionResult {
 export interface CinemaParameterDestinationContext {
   composition: CinemaCompositionDefinition
   registry: CinemaNodeDefinitionRegistry
-  /** Camera schemas remain runtime-neutral metadata until the camera registry arrives in a later stage. */
+  /** Runtime-neutral schemas supplied by the shared Cinema camera service. */
   cameraParameterSchemas?: Readonly<Record<string, readonly CinemaParameterDefinition[]>>
 }
 

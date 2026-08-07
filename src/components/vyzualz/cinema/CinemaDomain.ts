@@ -341,11 +341,56 @@ export type CinemaBlendMode =
   | 'overlay'
   | 'masked'
 
+export type CinemaCameraMode = 'locked' | 'dolly' | 'orbit' | 'fly' | 'handheld' | 'path' | 'auto-director'
+
+export interface CinemaCameraPoseDefinition {
+  position?: CinemaVector3
+  rotation?: CinemaVector3
+  target?: CinemaVector3
+  fovDegrees?: number
+  rollRadians?: number
+  near?: number
+  far?: number
+}
+
+export interface CinemaCameraSafeRangeDefinition {
+  minPosition: CinemaVector3
+  maxPosition: CinemaVector3
+  minFovDegrees: number
+  maxFovDegrees: number
+  minNear: number
+  maxFar: number
+}
+
+export interface CinemaCameraInvalidRegionDefinition {
+  id: string
+  shape: 'box' | 'sphere'
+  center: CinemaVector3
+  size?: CinemaVector3
+  radius?: number
+  fallbackPosition?: CinemaVector3
+}
+
+export interface CinemaCameraAuthoredShotDefinition extends CinemaCameraPoseDefinition {
+  id: string
+  label?: string
+  mode: Exclude<CinemaCameraMode, 'auto-director'>
+  sections?: readonly string[]
+  weight?: number
+  minimumDurationSec?: number
+  path?: readonly CinemaCameraPoseDefinition[]
+  metadata?: CinemaJsonObject
+}
+
 export interface CinemaCameraResourceDefinition {
   id: CinemaCameraId
   label: string
-  mode: 'locked' | 'dolly' | 'orbit' | 'fly' | 'handheld' | 'path' | 'auto-director'
+  mode: CinemaCameraMode
   parameterValues: CinemaParameterValues
+  path?: readonly CinemaCameraPoseDefinition[]
+  safeRange?: CinemaCameraSafeRangeDefinition
+  invalidRegions?: readonly CinemaCameraInvalidRegionDefinition[]
+  authoredShots?: readonly CinemaCameraAuthoredShotDefinition[]
   metadata?: CinemaJsonObject
 }
 

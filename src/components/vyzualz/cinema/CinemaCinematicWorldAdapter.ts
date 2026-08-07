@@ -1,6 +1,7 @@
 import {
   CINEMA_COMPOSITION_SCHEMA_ID,
   CINEMA_COMPOSITION_SCHEMA_VERSION,
+  type CinemaCameraResourceDefinition,
   type CinemaColor,
   type CinemaCompositionDefinition,
   type CinemaJsonObject,
@@ -12,6 +13,7 @@ import { createCinemaDiagnostic } from './CinemaDiagnostics'
 import {
   cinemaNamespacedId,
   cinemaStableId,
+  type CinemaCameraId,
   type CinemaCompositionId,
   type CinemaConnectionId,
   type CinemaEnumOptionId,
@@ -74,6 +76,7 @@ import type {
   CinematicNormalizedAudioFrame,
 } from '../react/renderers/cinematic/CinematicAudioModulation'
 import type { CinematicCameraFrame } from '../react/renderers/cinematic/CinematicCameraDirector'
+import type { CinematicWorldDirection } from '../react/renderers/cinematic/CinematicWorldDirection'
 import { cinematicWorldDefinitions } from '../react/renderers/cinematic/worlds'
 import { FullscreenPass, FULLSCREEN_VERT_SRC } from '../react/shaders/runtime/FullscreenPass'
 import { ShaderCompiler } from '../react/shaders/runtime/ShaderCompiler'
@@ -257,11 +260,103 @@ export function createCinemaCinematicWorldComposition(
     outputNodeId,
     masterParameters: [],
     masterValues: {},
-    cameras: [],
+    cameras: createCinemaCameraResources(worldId),
     assetBindings: [],
     modulationRoutes: [],
     performanceRules: [],
   })
+}
+
+function createCinemaCameraResources(worldId: CinematicWorldMode): readonly CinemaCameraResourceDefinition[] {
+  const definition = cinematicWorldDefinitions.find(candidate => candidate.id === worldId)
+  if (!definition?.direction) return []
+  const defaults = createBaseConfig(worldId)
+  const direction = definition.direction
+  const cameraId = cinemaStableId<CinemaCameraId>(stableSegment(`${worldId}-shared-camera`), 'camera')
+  return [deepFreeze({
+    id: cameraId,
+    label: `${definition.label} Shared Camera`,
+    mode: direction.supportedCameraRigs.includes('autoDirector') ? 'auto-director' : 'locked',
+    parameterValues: {
+      [cinemaCinematicWorldParameterId('position')]: [
+        defaults.camera.locked.position.x,
+        defaults.camera.locked.position.y,
+        defaults.camera.locked.position.z,
+      ],
+      [cinemaCinematicWorldParameterId('rotation')]: [
+        defaults.camera.locked.rotation.x,
+        defaults.camera.locked.rotation.y,
+        defaults.camera.locked.rotation.z,
+      ],
+      [cinemaCinematicWorldParameterId('target')]: [0, 0, 0],
+      [cinemaCinematicWorldParameterId('fov-degrees')]: defaults.camera.locked.fieldOfView,
+      [cinemaCinematicWorldParameterId('roll-radians')]: 0,
+      [cinemaCinematicWorldParameterId('near')]: 0.05,
+      [cinemaCinematicWorldParameterId('far')]: Math.max(100, direction.safeCameraRange.maxDistance * 25),
+      [cinemaCinematicWorldParameterId('orbit-radius')]: defaults.camera.orbit.radius,
+      [cinemaCinematicWorldParameterId('orbit-speed')]: defaults.camera.orbit.angularSpeed,
+      [cinemaCinematicWorldParameterId('orbit-elevation')]: defaults.camera.orbit.elevation,
+      [cinemaCinematicWorldParameterId('dolly-range')]: defaults.camera.dolly.range,
+      [cinemaCinematicWorldParameterId('dolly-speed')]: defaults.camera.dolly.speed,
+      [cinemaCinematicWorldParameterId('fly-speed')]: defaults.camera.flyThrough.speed,
+      [cinemaCinematicWorldParameterId('banking')]: defaults.camera.flyThrough.banking,
+      [cinemaCinematicWorldParameterId('shake')]: defaults.camera.handheld.impactShake,
+      [cinemaCinematicWorldParameterId('beat-punch')]: defaults.camera.locked.beatPunch,
+      [cinemaCinematicWorldParameterId('handheld')]: defaults.camera.handheld.strength,
+      [cinemaCinematicWorldParameterId('focus-distance')]: 4,
+      [cinemaCinematicWorldParameterId('aperture')]: 0,
+    },
+    safeRange: {
+      minPosition: [-direction.safeCameraRange.maxLateral, direction.safeCameraRange.minElevation, direction.safeCameraRange.minDistance],
+      maxPosition: [direction.safeCameraRange.maxLateral, direction.safeCameraRange.maxElevation, direction.safeCameraRange.maxDistance],
+      minFovDegrees: direction.safeCameraRange.minFieldOfView,
+      maxFovDegrees: direction.safeCameraRange.maxFieldOfView,
+      minNear: 0.01,
+      maxFar: Math.max(100, direction.safeCameraRange.maxDistance * 25),
+    },
+    authoredShots: direction.shots.map(shot => {
+      const position = shot.pose?.position
+        ? [shot.pose.position.x ?? defaults.camera.locked.position.x, shot.pose.position.y ?? defaults.camera.locked.position.y, shot.pose.position.z ?? defaults.camera.locked.position.z] as const
+        : null
+      const rotation = shot.pose?.rotation
+        ? [shot.pose.rotation.x ?? defaults.camera.locked.rotation.x, shot.pose.rotation.y ?? defaults.camera.locked.rotation.y, shot.pose.rotation.z ?? defaults.camera.locked.rotation.z] as const
+        : null
+      const path = shot.rig === 'flyThrough'
+        ? direction.flyThroughPaths?.[0]?.map(point => ({
+            position: [point.position.x, point.position.y, point.position.z] as const,
+            ...(point.rotation
+              ? { rotation: [point.rotation.x ?? 0, point.rotation.y ?? 0, point.rotation.z ?? 0] as const }
+              : {}),
+            ...(point.fieldOfView != null ? { fovDegrees: point.fieldOfView } : {}),
+          }))
+        : null
+      return {
+        id: shot.id,
+        mode: cinemaCameraModeForRig(shot.rig),
+        sections: [...shot.sections],
+        ...(shot.weight != null ? { weight: shot.weight } : {}),
+        ...(shot.minimumDurationSec != null ? { minimumDurationSec: shot.minimumDurationSec } : {}),
+        ...(position ? { position } : {}),
+        ...(rotation ? { rotation } : {}),
+        ...(shot.pose?.fieldOfView != null ? { fovDegrees: shot.pose.fieldOfView } : {}),
+        ...(path ? { path } : {}),
+        metadata: { legacyAction: shot.action ?? 'hold' },
+      }
+    }),
+    metadata: {
+      source: 'cinematic-world-direction',
+      worldId,
+      supportedCameraRigs: [...direction.supportedCameraRigs],
+    },
+  })]
+}
+
+function cinemaCameraModeForRig(
+  rig: CinematicWorldDirection['supportedCameraRigs'][number],
+): Exclude<CinemaCameraResourceDefinition['mode'], 'auto-director'> {
+  if (rig === 'flyThrough') return 'fly'
+  if (rig === 'autoDirector') return 'locked'
+  return rig
 }
 
 function createWebGLAdapterEntry(definition: CinematicWebGLWorldDefinition): CinemaCinematicWorldAdapterEntry {
@@ -343,7 +438,7 @@ function createNodeDefinition(
         preservesPremultipliedAlpha: true,
       },
       camera: {
-        mode: direction ? 'world' : 'none',
+        mode: direction ? 'worldCamera' : 'none',
         controls: direction ? ['position', 'rotation', 'fov', 'orbit', 'dolly', 'speed', 'banking', 'handheld', 'beat-punch', 'shake'] : [],
         autoDirector: direction?.supportedCameraRigs.includes('autoDirector') ?? false,
       },
@@ -1026,8 +1121,15 @@ function createCameraFrame(
 ): CinematicCameraFrame | undefined {
   const camera = frame.camera
   if (!camera) return undefined
-  const requestedRig = config.cameraRig
-  const rig = requestedRig === 'autoDirector' ? 'locked' : requestedRig
+  const requestedRig = camera.mode === 'auto-director'
+    ? 'autoDirector'
+    : camera.mode === 'fly' || camera.mode === 'path'
+      ? 'flyThrough'
+      : camera.mode ?? config.cameraRig
+  const resolvedMode = camera.resolvedMode ?? (camera.mode === 'auto-director' ? 'locked' : camera.mode)
+  const rig = resolvedMode === 'fly' || resolvedMode === 'path'
+    ? 'flyThrough'
+    : resolvedMode ?? (requestedRig === 'autoDirector' ? 'locked' : requestedRig)
   return {
     rig,
     requestedRig,
@@ -1036,13 +1138,13 @@ function createCameraFrame(
       rotation: { x: camera.rotation[0], y: camera.rotation[1], z: camera.rotation[2] + camera.rollRadians },
       fieldOfView: camera.fovDegrees,
     },
-    shotId: String(camera.cameraId),
+    shotId: camera.shotId ?? String(camera.cameraId),
     action: frame.impulses.dropStart ? 'impact' : frame.impulses.sectionStart ? 'establish' : 'hold',
     routeProgress: frame.music.sectionProgress,
     transitionProgress: 1,
     sectionType: normalizeSectionType(frame.music.sectionType),
     sectionSource: frame.capabilities.authoritativeSections ? 'analyzed' : 'none',
-    usedFallbackRig: requestedRig === 'autoDirector',
+    usedFallbackRig: requestedRig === 'autoDirector' && camera.shotId == null,
   }
 }
 

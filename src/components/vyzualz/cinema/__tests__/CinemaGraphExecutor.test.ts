@@ -12,6 +12,7 @@ import {
 import {
   CINEMA_FOUNDATION_ANGLE_PARAMETER_ID,
   CINEMA_FOUNDATION_COMPOSITION,
+  CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID,
   CINEMA_FOUNDATION_GRADIENT_DEFINITION,
   CINEMA_FOUNDATION_GRADIENT_NODE_ID,
   CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID,
@@ -25,6 +26,7 @@ import type {
   CinemaAssetBindingId,
   CinemaActionId,
   CinemaAssetId,
+  CinemaCameraId,
   CinemaCompositionId,
   CinemaCompositionInstanceId,
   CinemaConnectionId,
@@ -44,6 +46,7 @@ import type {
   CinemaNodeTypeDefinition,
   CinemaRenderNode,
 } from '../CinemaRendererContracts'
+import { CINEMA_CAMERA_PARAMETER_IDS } from '../CinemaCameraRuntime'
 import { CinemaGraphExecutor } from '../runtime/CinemaGraphExecutor'
 import { CinemaRenderTargetPool } from '../runtime/CinemaRenderTargetPool'
 import { CinemaTextureManager } from '../runtime/CinemaTextureManager'
@@ -335,6 +338,175 @@ describe('CinemaGraphExecutor', () => {
     targets.dispose()
     textures.dispose()
   })
+
+  it('resolves one shared camera through the production executor and gates incompatible nodes', () => {
+    const sourceTypeId = 'drmvyz.cinema.procedural.camera-source-test' as CinemaNodeTypeId
+    const effectTypeId = 'drmvyz.cinema.effect.camera-effect-test' as CinemaNodeTypeId
+    const nativeTypeId = 'drmvyz.cinema.effect.native-camera-test' as CinemaNodeTypeId
+    const sourcePluginId = 'drmvyz.cinema.renderer.camera-source-test' as CinemaRendererPluginId
+    const effectPluginId = 'drmvyz.cinema.renderer.camera-effect-test' as CinemaRendererPluginId
+    const nativePluginId = 'drmvyz.cinema.renderer.native-camera-test' as CinemaRendererPluginId
+    const sourceNodeId = 'camera-source-node' as CinemaNodeId
+    const effectNodeId = 'camera-effect-node' as CinemaNodeId
+    const nativeNodeId = 'native-camera-node' as CinemaNodeId
+    const outputNodeId = 'camera-output-node' as CinemaNodeId
+    const effectInput = 'camera-effect-input' as CinemaPortId
+    const effectOutput = 'camera-effect-output' as CinemaPortId
+    const nativeInput = 'native-camera-input' as CinemaPortId
+    const nativeOutput = 'native-camera-output' as CinemaPortId
+    const cameraId = 'shared-stage-13-camera' as CinemaCameraId
+    const observed: Record<string, Readonly<CinemaFrameContext>['camera']> = {}
+    const resetObserved: Record<string, Readonly<CinemaFrameContext>['camera']> = {}
+
+    const sourceDefinition: CinemaNodeTypeDefinition = {
+      ...CINEMA_FOUNDATION_GRADIENT_DEFINITION,
+      typeId: sourceTypeId,
+      capabilities: {
+        ...CINEMA_FOUNDATION_GRADIENT_DEFINITION.capabilities,
+        camera: { mode: 'uniformCamera', controls: ['position', 'target', 'fov'], autoDirector: true },
+      },
+    }
+    const effectDefinition: CinemaNodeTypeDefinition = {
+      ...EFFECT_DEFINITION,
+      typeId: effectTypeId,
+      inputPorts: [{ id: effectInput, label: 'Input', direction: 'input', dataType: 'color-texture', required: true }],
+      outputPorts: [{ id: effectOutput, label: 'Output', direction: 'output', dataType: 'color-texture' }],
+      capabilities: {
+        ...EFFECT_DEFINITION.capabilities,
+        camera: { mode: 'worldCamera', controls: ['position', 'rotation', 'target', 'fov'], autoDirector: true },
+      },
+    }
+    const nativeDefinition: CinemaNodeTypeDefinition = {
+      ...EFFECT_DEFINITION,
+      typeId: nativeTypeId,
+      inputPorts: [{ id: nativeInput, label: 'Input', direction: 'input', dataType: 'color-texture', required: true }],
+      outputPorts: [{ id: nativeOutput, label: 'Output', direction: 'output', dataType: 'color-texture' }],
+      capabilities: {
+        ...EFFECT_DEFINITION.capabilities,
+        camera: { mode: 'nativeCamera', controls: [], autoDirector: false },
+      },
+    }
+    const plugin = (definition: CinemaNodeTypeDefinition): CinemaNodePlugin => ({
+      definition,
+      createNode: authored => ({
+        ...renderTargetNode(authored, context => { observed[String(authored.id)] = context.frame.camera }),
+        reset(context) {
+          resetObserved[String(authored.id)] = context.frame?.camera ?? null
+        },
+      }),
+    })
+    const outputRegistration = CINEMA_FOUNDATION_RUNTIME_REGISTRY.getByPluginId(CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID)
+    expect(outputRegistration).toBeDefined()
+    if (!outputRegistration) return
+    const runtimeRegistry = createCinemaRuntimeNodeRegistry([
+      { pluginId: sourcePluginId, plugin: plugin(sourceDefinition) },
+      { pluginId: effectPluginId, plugin: plugin(effectDefinition) },
+      { pluginId: nativePluginId, plugin: plugin(nativeDefinition) },
+      outputRegistration,
+    ]).registry
+    const baseMetadata = CINEMA_FOUNDATION_PERSISTED_DEFINITIONS.find(
+      definition => definition.id === CINEMA_FOUNDATION_GRADIENT_DEFINITION.typeId,
+    )!
+    const definitions: CinemaPersistedDefinition[] = [
+      { ...baseMetadata, id: sourceTypeId, definition: sourceDefinition, rendererPluginId: sourcePluginId },
+      { ...baseMetadata, id: effectTypeId, definition: effectDefinition, rendererPluginId: effectPluginId },
+      { ...baseMetadata, id: nativeTypeId, definition: nativeDefinition, rendererPluginId: nativePluginId },
+      CINEMA_FOUNDATION_PERSISTED_DEFINITIONS.find(definition => definition.id === CINEMA_FOUNDATION_OUTPUT_DEFINITION.typeId)!,
+    ]
+    const composition: CinemaCompositionDefinition = {
+      ...structuredClone(CINEMA_FOUNDATION_COMPOSITION),
+      id: 'shared-camera-executor-composition' as CinemaCompositionId,
+      revision: 13,
+      nodes: [
+        { id: sourceNodeId, typeId: sourceTypeId, typeVersion: 1, family: 'procedural', enabled: true, opacity: 1, parameterValues: {} },
+        { id: effectNodeId, typeId: effectTypeId, typeVersion: 1, family: 'effect', enabled: true, opacity: 1, parameterValues: {} },
+        { id: nativeNodeId, typeId: nativeTypeId, typeVersion: 1, family: 'effect', enabled: true, opacity: 1, parameterValues: {} },
+        { id: outputNodeId, typeId: CINEMA_FOUNDATION_OUTPUT_DEFINITION.typeId, typeVersion: 1, family: 'output', enabled: true, opacity: 1, parameterValues: {} },
+      ],
+      connections: [
+        connection('camera-source-effect', sourceNodeId, CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID, effectNodeId, effectInput),
+        connection('camera-effect-native', effectNodeId, effectOutput, nativeNodeId, nativeInput),
+        connection('camera-native-output', nativeNodeId, nativeOutput, outputNodeId, CINEMA_FOUNDATION_INPUT_PORT_ID),
+      ],
+      outputNodeId,
+      cameras: [{
+        id: cameraId,
+        label: 'Shared Stage 13 Camera',
+        mode: 'locked',
+        parameterValues: {
+          [CINEMA_CAMERA_PARAMETER_IDS.position]: [1, 2, 3],
+          [CINEMA_CAMERA_PARAMETER_IDS.rotation]: [0, 0, 0],
+          [CINEMA_CAMERA_PARAMETER_IDS.target]: [0, 0, 0],
+          [CINEMA_CAMERA_PARAMETER_IDS.fovDegrees]: 60,
+        },
+      }],
+      modulationRoutes: [{
+        id: 'bass-camera-fov' as import('../CinemaIdentifiers').CinemaModulationRouteId,
+        sourceId: CINEMA_MODULATION_SOURCE_IDS.audioBass,
+        destination: createCinemaParameterPath('cameras', CINEMA_CAMERA_PARAMETER_IDS.fovDegrees, cameraId),
+        mode: 'add',
+        amount: 10,
+        enabled: true,
+      }],
+    }
+
+    const gl = createCinemaMockWebGL()
+    const sink = { report: () => {} }
+    const viewport = { width: 320, height: 180, dpr: 1 }
+    const textures = new CinemaTextureManager()
+    const targets = new CinemaRenderTargetPool(gl, textures, viewport, sink)
+    const webgl = new CinemaWebGLRenderServiceImpl(gl, targets, textures)
+    const executor = new CinemaGraphExecutor({
+      runtimeRegistry,
+      platform: {
+        webgl2: true, canvas2d: false, floatColorTargets: false, floatBlending: false,
+        textureArrays: true, instancing: true, timerQueries: false,
+        maximumTextureSize: 8192, maximumTextureUnits: 16,
+      },
+      targets,
+      textures,
+      webgl,
+      diagnostics: sink,
+    })
+
+    executor.resize({ width: 1, height: 1, dpr: 1 }, viewport)
+    executor.setGraph({ composition, instance: null, definitions })
+    const cameraFrame = performanceFrame()
+    expect(executor.render({ ...cameraFrame, audio: { ...cameraFrame.audio, bass: 0.5 } })).toBe(true)
+    expect(observed[sourceNodeId]?.cameraId).toBe(cameraId)
+    expect(observed[sourceNodeId]?.fovDegrees).toBe(65)
+    expect(observed[effectNodeId]).toBe(observed[sourceNodeId])
+    expect(observed[nativeNodeId]).toBeNull()
+    expect(executor.getSnapshot()).toMatchObject({ modulationRouteCount: 1, activeModulationRouteCount: 1 })
+
+    const seekFrame = {
+      ...cameraFrame,
+      audio: { ...cameraFrame.audio, bass: 0.5 },
+      transport: {
+        ...cameraFrame.transport,
+        seeking: true,
+        discontinuity: true,
+        discontinuityReasons: ['seek'],
+        reset: {
+          required: true,
+          reconstruct: true,
+          generation: 1,
+          reasons: ['seek'],
+          actionIds: ['cinema.reset.seek'],
+          identity: 'seek:24',
+        },
+      },
+    } as unknown as Readonly<CinemaFrameContext>
+    expect(executor.render(seekFrame)).toBe(true)
+    expect(resetObserved[sourceNodeId]?.cameraId).toBe(cameraId)
+    expect(resetObserved[effectNodeId]).toBe(resetObserved[sourceNodeId])
+    expect(resetObserved[nativeNodeId]).toBeNull()
+
+    executor.dispose()
+    targets.dispose()
+    textures.dispose()
+  })
+
 })
 
 function renderTargetNode(

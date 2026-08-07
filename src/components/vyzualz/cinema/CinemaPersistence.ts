@@ -714,6 +714,7 @@ function validateCinemaCompositionEnvelope(
     const cameraId = String(camera.id)
     if (cameraIds.has(cameraId)) diagnostics.push(duplicateDiagnostic('camera', cameraId))
     cameraIds.add(cameraId)
+    diagnostics.push(...validateCinemaCameraResource(camera, String(composition.id), cameraId))
   }
 
   const routeIds = new Set<string>()
@@ -812,6 +813,137 @@ function validateCinemaCompositionEnvelope(
   }
 
   return diagnostics
+}
+
+function validateCinemaCameraResource(
+  camera: Record<string, unknown>,
+  compositionId: string,
+  cameraId: string,
+): CinemaDiagnostic[] {
+  const diagnostics: CinemaDiagnostic[] = []
+  const modes = new Set(['locked', 'dolly', 'orbit', 'fly', 'handheld', 'path', 'auto-director'])
+  if (typeof camera.label !== 'string' || camera.label.trim().length === 0
+    || typeof camera.mode !== 'string' || !modes.has(camera.mode)
+    || !isPlainRecord(camera.parameterValues)) {
+    diagnostics.push(createCinemaDiagnostic({
+      code: 'CINEMA_CAMERA_INVALID',
+      severity: 'error',
+      message: 'Cinema camera label, mode, or parameter values are invalid.',
+      attribution: { compositionId, cameraId, stage: 'persistence' },
+    }))
+  }
+  if (camera.safeRange !== undefined && !isValidCameraSafeRange(camera.safeRange)) {
+    diagnostics.push(createCinemaDiagnostic({
+      code: 'CINEMA_CAMERA_INVALID',
+      severity: 'error',
+      message: 'Cinema camera safe range is malformed or internally inconsistent.',
+      attribution: { compositionId, cameraId, stage: 'persistence' },
+    }))
+  }
+  if (camera.path !== undefined && (!Array.isArray(camera.path) || camera.path.some(point => !isValidCameraPose(point)))) {
+    diagnostics.push(createCinemaDiagnostic({
+      code: 'CINEMA_CAMERA_INVALID',
+      severity: 'error',
+      message: 'Cinema camera path metadata is malformed.',
+      attribution: { compositionId, cameraId, stage: 'persistence' },
+    }))
+  }
+  if (camera.invalidRegions !== undefined) {
+    if (!Array.isArray(camera.invalidRegions) || camera.invalidRegions.some(region => !isValidCameraInvalidRegion(region))) {
+      diagnostics.push(createCinemaDiagnostic({
+        code: 'CINEMA_CAMERA_INVALID',
+        severity: 'error',
+        message: 'Cinema camera invalid-region metadata is malformed.',
+        attribution: { compositionId, cameraId, stage: 'persistence' },
+      }))
+    }
+  }
+  if (camera.authoredShots !== undefined) {
+    if (!Array.isArray(camera.authoredShots) || camera.authoredShots.some(shot => !isValidCameraAuthoredShot(shot))) {
+      diagnostics.push(createCinemaDiagnostic({
+        code: 'CINEMA_CAMERA_INVALID',
+        severity: 'error',
+        message: 'Cinema camera authored-shot metadata is malformed.',
+        attribution: { compositionId, cameraId, stage: 'persistence' },
+      }))
+    } else {
+      const ids = new Set<string>()
+      for (const shot of camera.authoredShots) {
+        const id = String((shot as Record<string, unknown>).id)
+        if (ids.has(id)) diagnostics.push(duplicateDiagnostic('camera authored shot', id))
+        ids.add(id)
+      }
+    }
+  }
+  return diagnostics
+}
+
+function isValidCameraSafeRange(value: unknown): boolean {
+  if (!isPlainRecord(value)
+    || !isFiniteVector3(value.minPosition)
+    || !isFiniteVector3(value.maxPosition)
+    || !isFiniteNumber(value.minFovDegrees)
+    || !isFiniteNumber(value.maxFovDegrees)
+    || !isFiniteNumber(value.minNear)
+    || !isFiniteNumber(value.maxFar)) return false
+  const min = value.minPosition
+  const max = value.maxPosition
+  return min[0] <= max[0] && min[1] <= max[1] && min[2] <= max[2]
+    && value.minFovDegrees <= value.maxFovDegrees
+    && value.minFovDegrees > 0
+    && value.minNear > 0
+    && value.maxFar > value.minNear
+}
+
+function isValidCameraInvalidRegion(value: unknown): boolean {
+  if (!isPlainRecord(value)
+    || typeof value.id !== 'string' || value.id.trim().length === 0
+    || (value.shape !== 'box' && value.shape !== 'sphere')
+    || !isFiniteVector3(value.center)) return false
+  if (value.fallbackPosition !== undefined && !isFiniteVector3(value.fallbackPosition)) return false
+  return value.shape === 'box'
+    ? isFiniteVector3(value.size) && value.size.every(component => component > 0)
+    : isFiniteNumber(value.radius) && value.radius > 0
+}
+
+function isValidCameraAuthoredShot(value: unknown): boolean {
+  if (!isPlainRecord(value)
+    || typeof value.id !== 'string' || value.id.trim().length === 0
+    || !['locked', 'dolly', 'orbit', 'fly', 'handheld', 'path'].includes(String(value.mode))) return false
+  if (value.sections !== undefined && (!Array.isArray(value.sections) || value.sections.some(section => typeof section !== 'string'))) return false
+  if (value.position !== undefined && !isFiniteVector3(value.position)) return false
+  if (value.rotation !== undefined && !isFiniteVector3(value.rotation)) return false
+  if (value.target !== undefined && !isFiniteVector3(value.target)) return false
+  if (value.path !== undefined && (!Array.isArray(value.path) || value.path.some(point => !isValidCameraPose(point)))) return false
+  if (!['fovDegrees', 'rollRadians', 'near', 'far', 'weight', 'minimumDurationSec']
+    .every(key => value[key] === undefined || isFiniteNumber(value[key]))) return false
+  const weight = value.weight
+  const minimumDurationSec = value.minimumDurationSec
+  const near = value.near
+  const far = value.far
+  if (weight !== undefined && (!isFiniteNumber(weight) || weight <= 0)) return false
+  if (minimumDurationSec !== undefined && (!isFiniteNumber(minimumDurationSec) || minimumDurationSec < 0)) return false
+  return !(isFiniteNumber(near) && isFiniteNumber(far) && far <= near)
+}
+
+function isValidCameraPose(value: unknown): boolean {
+  if (!isPlainRecord(value)) return false
+  if (value.position !== undefined && !isFiniteVector3(value.position)) return false
+  if (value.rotation !== undefined && !isFiniteVector3(value.rotation)) return false
+  if (value.target !== undefined && !isFiniteVector3(value.target)) return false
+  if (!['fovDegrees', 'rollRadians', 'near', 'far']
+    .every(key => value[key] === undefined || isFiniteNumber(value[key]))) return false
+  const near = value.near
+  const far = value.far
+  return !(isFiniteNumber(near) && isFiniteNumber(far) && far <= near)
+}
+
+function isFiniteVector3(value: unknown): value is readonly [number, number, number] {
+  return Array.isArray(value) && value.length === 3 && value.every(isFiniteNumber)
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
 }
 
 function validateOverrideReferences(

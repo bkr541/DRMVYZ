@@ -11,6 +11,7 @@ import {
   CINEMA_SAFE_OUTPUT_DESCRIPTOR,
   CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE,
   CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
+  CINEMA_CAMERA_PARAMETER_IDS,
   CINEMA_SHADER_REFERENCE_COMPOSITION,
   CINEMA_SHADER_SCENE_ADAPTER_BUNDLE,
   cinemaNamespacedId,
@@ -26,6 +27,7 @@ import {
   type CinemaActionId,
   type CinemaAssetBindingId,
   type CinemaAssetId,
+  type CinemaCameraId,
   type CinemaCollectionDefinition,
   type CinemaCollectionId,
   type CinemaCompositionDefinition,
@@ -67,6 +69,7 @@ const instanceId = stable<CinemaCompositionInstanceId>('instance-one', 'composit
 const collectionId = stable<CinemaCollectionId>('collection-one', 'collection')
 const bindingId = stable<CinemaAssetBindingId>('binding-one', 'asset binding')
 const assetId = stable<CinemaAssetId>('asset-one', 'asset')
+const cameraId = stable<CinemaCameraId>('shared-camera', 'camera')
 
 function definition(
   id: CinemaNodeTypeId,
@@ -283,6 +286,82 @@ describe('Cinema persisted state and migrations', () => {
     expect(result.value.editorMetadata).toEqual({})
     expect(result.value.migrationProvenance).toEqual([])
     expect(result.value.compositions).toEqual(candidate.compositions)
+  })
+
+  it('round-trips Stage 13 camera resources and instance overrides through canonical hydration', () => {
+    const candidate = JSON.parse(JSON.stringify(populatedState()))
+    candidate.compositions[0].cameras = [{
+      id: cameraId,
+      label: 'Shared Camera',
+      mode: 'path',
+      parameterValues: {
+        [CINEMA_CAMERA_PARAMETER_IDS.position]: [0, 0, 2],
+        [CINEMA_CAMERA_PARAMETER_IDS.rotation]: [0, 0, 0],
+        [CINEMA_CAMERA_PARAMETER_IDS.target]: [0, 0, 0],
+        [CINEMA_CAMERA_PARAMETER_IDS.fovDegrees]: 58,
+      },
+      path: [{ position: [0, 0, 2] }, { position: [1, 0.25, 1] }],
+      safeRange: {
+        minPosition: [-2, -1, 0.25],
+        maxPosition: [2, 2, 5],
+        minFovDegrees: 30,
+        maxFovDegrees: 90,
+        minNear: 0.01,
+        maxFar: 250,
+      },
+      invalidRegions: [{
+        id: 'world-core',
+        shape: 'sphere',
+        center: [0, 0, 0],
+        radius: 0.2,
+        fallbackPosition: [0, 0, 0.5],
+      }],
+      authoredShots: [{
+        id: 'verse-orbit',
+        mode: 'orbit',
+        sections: ['verse'],
+        weight: 1,
+        minimumDurationSec: 4,
+        position: [0, 0.5, 2],
+      }],
+    }]
+    candidate.instances[0].cameraOverrides = [{
+      cameraId,
+      values: { [CINEMA_CAMERA_PARAMETER_IDS.fovDegrees]: 64 },
+    }]
+
+    const result = normalizeCinemaPersistedState(candidate)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.compositions[0].cameras[0]).toEqual(candidate.compositions[0].cameras[0])
+    expect(result.value.instances[0].cameraOverrides[0]).toEqual(candidate.instances[0].cameraOverrides[0])
+  })
+
+  it('rejects malformed Stage 13 camera safety and authored-shot metadata atomically', () => {
+    const candidate = JSON.parse(JSON.stringify(populatedState()))
+    candidate.compositions[0].cameras = [{
+      id: cameraId,
+      label: 'Unsafe Camera',
+      mode: 'auto-director',
+      parameterValues: {},
+      safeRange: {
+        minPosition: [2, 0, 1],
+        maxPosition: [-2, 1, 4],
+        minFovDegrees: 90,
+        maxFovDegrees: 30,
+        minNear: 1,
+        maxFar: 0.5,
+      },
+      invalidRegions: [{ id: 'empty-region', shape: 'sphere', center: [0, 0, 0], radius: 0 }],
+      authoredShots: [
+        { id: 'duplicate-shot', mode: 'orbit', weight: -1 },
+        { id: 'duplicate-shot', mode: 'locked' },
+      ],
+    }]
+
+    const result = normalizeCinemaPersistedState(candidate)
+    expect(result.ok).toBe(false)
+    expect(result.diagnostics.diagnostics.some(diagnostic => diagnostic.code === 'CINEMA_CAMERA_INVALID')).toBe(true)
   })
 
   it('migrates Stage 4 schema-v1 rules and actions to the Stage 12 contract', () => {

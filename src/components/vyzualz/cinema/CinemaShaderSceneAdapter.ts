@@ -352,7 +352,7 @@ function createAdapterEntry(shader: ShaderDefinition): CinemaShaderSceneAdapterE
     capabilities: {
       backends: ['webgl2'],
       canvas2d: { compatibility: 'unsupported', preservesPremultipliedAlpha: true },
-      camera: { mode: 'uniform', controls: [], autoDirector: false },
+      camera: { mode: 'uniformCamera', controls: [], autoDirector: false },
       requires: { webgl2: true },
       fallbacks: [
         {

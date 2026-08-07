@@ -63,6 +63,32 @@ const QUALITY_RANK: Readonly<Record<CinemaQualityTier, number>> = {
   ultra: 3,
 }
 
+const CAMERA_CAPABILITY_MODES = new Set([
+  'none',
+  'uniformCamera',
+  'worldCamera',
+  'nativeCamera',
+  'uniform',
+  'world',
+  'native',
+])
+const CAMERA_CONTROLS = new Set([
+  'position',
+  'rotation',
+  'target',
+  'fov',
+  'roll',
+  'orbit',
+  'dolly',
+  'speed',
+  'look-ahead',
+  'banking',
+  'handheld',
+  'beat-punch',
+  'shake',
+  'depth-of-field',
+])
+
 const CINEMA_REGISTRY_CONSTRUCTION_TOKEN = Symbol('CinemaNodeDefinitionRegistry')
 
 export class CinemaNodeDefinitionRegistry {
@@ -237,6 +263,8 @@ function validateCinemaNodeRegistryEntryInternal(entry: CinemaNodeRegistryEntry)
     parameterIds.add(parameterId)
   }
 
+  diagnostics.push(...validateCameraCapability(typeId, definition.capabilities?.camera))
+
   if (entry.feedback) {
     const input = inputPorts.find(port => port.id === entry.feedback?.inputPortId)
     const output = outputPorts.find(port => port.id === entry.feedback?.outputPortId)
@@ -271,6 +299,42 @@ function validateCinemaNodeRegistryEntryInternal(entry: CinemaNodeRegistryEntry)
 
   diagnostics.push(...validateQualityLimits(entry))
   return deduplicateCinemaDiagnostics(diagnostics)
+}
+
+function validateCameraCapability(typeId: string, value: unknown): CinemaDiagnostic[] {
+  if (!value || typeof value !== 'object') {
+    return [cameraCapabilityDiagnostic(typeId, 'Cinema node definitions must declare a camera capability descriptor.')]
+  }
+  const camera = value as Record<string, unknown>
+  const diagnostics: CinemaDiagnostic[] = []
+  const mode = typeof camera.mode === 'string' ? camera.mode : '<missing>'
+  const controls = Array.isArray(camera.controls) ? camera.controls : null
+  if (!CAMERA_CAPABILITY_MODES.has(mode)) {
+    diagnostics.push(cameraCapabilityDiagnostic(typeId, `Cinema node camera capability mode "${mode}" is unsupported.`))
+  }
+  if (!controls || controls.some(control => typeof control !== 'string' || !CAMERA_CONTROLS.has(control))) {
+    diagnostics.push(cameraCapabilityDiagnostic(typeId, 'Cinema node camera controls contain an unsupported value.'))
+  }
+  if (typeof camera.autoDirector !== 'boolean') {
+    diagnostics.push(cameraCapabilityDiagnostic(typeId, 'Cinema node camera Auto Director support must be boolean.'))
+  }
+  const ownsNativeCamera = mode === 'none' || mode === 'nativeCamera' || mode === 'native'
+  if (ownsNativeCamera && ((controls?.length ?? 0) > 0 || camera.autoDirector === true)) {
+    diagnostics.push(cameraCapabilityDiagnostic(
+      typeId,
+      `Cinema node camera capability "${mode}" cannot advertise shared controls or Auto Director support.`,
+    ))
+  }
+  return diagnostics
+}
+
+function cameraCapabilityDiagnostic(typeId: string, message: string): CinemaDiagnostic {
+  return createCinemaDiagnostic({
+    code: 'CINEMA_CAMERA_CAPABILITY_MISMATCH',
+    severity: 'error',
+    message,
+    details: { typeId },
+  })
 }
 
 function validateQualityLimits(entry: CinemaNodeRegistryEntry): CinemaDiagnostic[] {

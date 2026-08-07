@@ -314,7 +314,7 @@ export interface CinemaFrameContext {
   camera: CinemaCameraUniformSnapshot | null
 }
 
-export type CinemaCameraCapability = 'none' | 'uniform' | 'world' | 'native'
+export type CinemaCameraCapability = 'none' | 'uniformCamera' | 'worldCamera' | 'nativeCamera' | 'uniform' | 'world' | 'native'
 export type CinemaCameraControl =
   | 'position'
   | 'rotation'
@@ -629,6 +629,9 @@ export interface CinemaAssetAvailability {
 
 export interface CinemaCameraUniformSnapshot {
   cameraId: CinemaCameraId
+  mode?: import('./CinemaDomain').CinemaCameraMode
+  resolvedMode?: Exclude<import('./CinemaDomain').CinemaCameraMode, 'auto-director'>
+  shotId?: string | null
   position: CinemaVector3
   rotation: CinemaVector3
   target: CinemaVector3
@@ -636,6 +639,14 @@ export interface CinemaCameraUniformSnapshot {
   rollRadians: number
   near: number
   far: number
+  orbitProgress?: number
+  dollyProgress?: number
+  banking?: number
+  shake?: number
+  beatPunch?: number
+  handheld?: number
+  focusDistance?: number
+  aperture?: number
 }
 
 export interface CinemaResolvedParameterSnapshot {
