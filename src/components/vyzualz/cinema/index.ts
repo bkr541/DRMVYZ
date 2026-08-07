@@ -26,6 +26,7 @@ export * from './runtime'
 export * from './CinemaShaderSceneAdapter'
 
 export * from './CinemaCinematicWorldAdapter'
+export * from './CinemaLegacyPresetCatalog'
 export * from './CinemaAssets'
 export * from './CinemaBrandKitBridge'
 

@@ -6,7 +6,7 @@ import {
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema production boundary through Stage 16', () => {
+describe('Cinema production boundary through Stage 21', () => {
   it('keeps prior contracts public while exposing Shader and Cinematic World adapters through production ownership', () => {
     expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(3)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
@@ -26,6 +26,9 @@ describe('Cinema production boundary through Stage 16', () => {
     expect(Cinema.CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries).toHaveLength(11)
     expect(typeof Cinema.createCinemaShaderSceneComposition).toBe('function')
     expect(typeof Cinema.createCinemaCinematicWorldComposition).toBe('function')
+    expect(typeof Cinema.createCinemaCinematicPresetComposition).toBe('function')
+    expect(Cinema.CINEMA_LEGACY_PRESET_CATALOG.version).toBe(Cinema.CINEMA_LEGACY_PRESET_CATALOG_VERSION)
+    expect(Cinema.CINEMA_LEGACY_PRESET_CATALOG.manifest.length).toBe(Cinema.CINEMA_LEGACY_PRESET_CATALOG.compositions.length)
     expect(typeof Cinema.CinematicWorldNodeAdapter).toBe('function')
     expect(typeof Cinema.CinemaCanvas2DNodeAdapter).toBe('function')
     expect(typeof Cinema.CinemaGraphExecutor).toBe('function')

@@ -35,6 +35,10 @@ import {
 } from './CinemaShaderSceneAdapter'
 import { DEFAULT_SHADER_SCENE_ID } from '../react/shaders/scenes'
 import {
+  CINEMA_LEGACY_PRESET_CATALOG_VERSION,
+  createCinemaLegacyPresetCatalog,
+} from './CinemaLegacyPresetCatalog'
+import {
   CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE,
   CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
   CINEMA_CINEMATIC_WORLD_COLOR_OUTPUT_PORT_ID,
@@ -102,6 +106,11 @@ export const CINEMA_FOUNDATION_ANGLE_PARAMETER_ID = cinemaStableId<CinemaParamet
 export const CINEMA_FOUNDATION_OPACITY_PARAMETER_ID = cinemaStableId<CinemaParameterId>('opacity', 'parameter')
 export const CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID = cinemaStableId<CinemaPortId>('color', 'port')
 export const CINEMA_FOUNDATION_INPUT_PORT_ID = cinemaStableId<CinemaPortId>('input', 'port')
+
+export const CINEMA_LEGACY_PRESET_CATALOG = deepFreeze(createCinemaLegacyPresetCatalog(
+  CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+  CINEMA_FOUNDATION_INPUT_PORT_ID,
+))
 
 const OUTPUT_DESCRIPTOR = Object.freeze({
   colorSpace: 'srgb' as const,
@@ -457,6 +466,7 @@ export function createCinemaFoundationPersistedState(): CinemaPersistedState {
       CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
       CINEMA_STAGE15_REFERENCE_COMPOSITION,
       CINEMA_STAGE16_REFERENCE_COMPOSITION,
+      ...CINEMA_LEGACY_PRESET_CATALOG.compositions,
     ],
     instances: [],
     collections: [],
@@ -469,6 +479,7 @@ export function createCinemaFoundationPersistedState(): CinemaPersistedState {
       canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
       mediaTextNodeVersion: 1,
       compositorNodeVersion: 1,
+      legacyPresetCatalogVersion: CINEMA_LEGACY_PRESET_CATALOG_VERSION,
     },
     migrationProvenance: [],
   })) as CinemaPersistedState
@@ -484,6 +495,7 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
   if (!foundationState) return state
 
   const canonicalDefinitionIds = new Set(CINEMA_PRODUCTION_PERSISTED_DEFINITIONS.map(definition => String(definition.id)))
+  const canonicalCatalogCompositionIds = new Set(CINEMA_LEGACY_PRESET_CATALOG.compositions.map(composition => String(composition.id)))
   const definitions = [
     ...state.definitions.filter(definition => !canonicalDefinitionIds.has(String(definition.id))),
     ...CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
@@ -494,11 +506,13 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
       && composition.id !== CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id
       && composition.id !== CINEMA_STAGE15_REFERENCE_COMPOSITION_ID
       && composition.id !== CINEMA_STAGE16_REFERENCE_COMPOSITION_ID
+      && !canonicalCatalogCompositionIds.has(String(composition.id))
     )),
     CINEMA_SHADER_REFERENCE_COMPOSITION,
     CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
     CINEMA_STAGE15_REFERENCE_COMPOSITION,
     CINEMA_STAGE16_REFERENCE_COMPOSITION,
+    ...CINEMA_LEGACY_PRESET_CATALOG.compositions,
   ]
   return JSON.parse(JSON.stringify({
     ...state,
@@ -511,6 +525,7 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
       canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
       mediaTextNodeVersion: 1,
       compositorNodeVersion: 1,
+      legacyPresetCatalogVersion: CINEMA_LEGACY_PRESET_CATALOG_VERSION,
     },
   })) as CinemaPersistedState
 }

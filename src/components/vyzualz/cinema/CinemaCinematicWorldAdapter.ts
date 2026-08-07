@@ -47,6 +47,7 @@ import {
   createCinematicWorldConfig,
   createLegacyPortalCinematicConfig,
   normalizeCinematicWorldConfig,
+  resolveSupportedCinematicCameraRig,
   type CinematicAudioEventSource,
   type CinematicAudioSource,
   type CinematicAudioTarget,
@@ -55,7 +56,7 @@ import {
   type CinematicWorldMode,
 } from '../react/CinematicWorldConfig'
 import * as WorldSettings from '../react/CinematicWorldSettings'
-import type { ReactPalette, ReactPreset, ReactSectionType } from '../react/ReactTypes'
+import { DEFAULT_REACT_PRESET_RENDER_SETTINGS, type ReactPalette, type ReactPreset, type ReactSectionType } from '../react/ReactTypes'
 import type { ReactPerformanceActionEvent } from '../react/ReactPerformanceActions'
 import { DEFAULT_REACT_RENDER_PARAMS, type ReactRenderParams } from '../react/renderers/reactRenderUtils'
 import {
@@ -71,9 +72,10 @@ import type {
   CinematicWorldDefinition,
   CinematicWorldRenderer,
 } from '../react/renderers/CinematicWorldRenderer'
-import type {
-  CinematicModulationSnapshot,
-  CinematicNormalizedAudioFrame,
+import {
+  CinematicModulationEngine,
+  type CinematicModulationSnapshot,
+  type CinematicNormalizedAudioFrame,
 } from '../react/renderers/cinematic/CinematicAudioModulation'
 import type { CinematicCameraFrame } from '../react/renderers/cinematic/CinematicCameraDirector'
 import type { CinematicWorldDirection } from '../react/renderers/cinematic/CinematicWorldDirection'
@@ -267,16 +269,98 @@ export function createCinemaCinematicWorldComposition(
   })
 }
 
-function createCinemaCameraResources(worldId: CinematicWorldMode): readonly CinemaCameraResourceDefinition[] {
+
+export function createCinemaCinematicPresetComposition(
+  preset: ReactPreset,
+  outputTypeId: CinemaNodeTypeId,
+  outputInputPortId: CinemaPortId,
+  options: {
+    compositionId?: CinemaCompositionId
+    worldNodeId?: CinemaNodeId
+    outputNodeId?: CinemaNodeId
+    outputNodeFamily?: CinemaNodeDefinition['family']
+  } = {},
+): CinemaCompositionDefinition {
+  if (preset.engine !== 'cinematicPortal') {
+    throw new Error(`React preset "${preset.id}" is not a Cinematic Worlds preset.`)
+  }
+  const config = normalizeCinematicWorldConfig(preset.cinematicConfig ?? createLegacyPortalCinematicConfig({
+    ...preset.params,
+    ...DEFAULT_REACT_PRESET_RENDER_SETTINGS,
+    ...preset.renderSettings,
+  }))
+  const entry = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(candidate => candidate.worldId === config.worldMode)
+  if (!entry) throw new Error(`Cinematic World "${config.worldMode}" is not registered for Cinema.`)
+  const compositionId = options.compositionId ?? cinemaStableId<CinemaCompositionId>(stableSegment(`cinematic-preset-${preset.id}`), 'composition')
+  const worldNodeId = options.worldNodeId ?? cinemaStableId<CinemaNodeId>(stableSegment(`${preset.id}-world`), 'node')
+  const outputNodeId = options.outputNodeId ?? cinemaStableId<CinemaNodeId>(stableSegment(`${preset.id}-output`), 'node')
+  const base = createCinemaCinematicWorldComposition(config.worldMode, outputTypeId, outputInputPortId, {
+    compositionId,
+    worldNodeId,
+    outputNodeId,
+    outputNodeFamily: options.outputNodeFamily,
+    name: preset.name,
+    description: preset.description,
+  })
+  return deepFreeze({
+    ...base,
+    metadata: {
+      ...base.metadata,
+      name: preset.name,
+      description: preset.description,
+      tags: ['built-in', 'legacy-catalog', 'cinematic-worlds', config.worldMode],
+      provenance: {
+        builtIn: true,
+        stage: 21,
+        catalogVersion: 1,
+        sourceEngine: 'cinematicPortal',
+        sourceId: preset.id,
+        worldId: config.worldMode,
+        adapter: 'cinematic-world',
+        adapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+      },
+    },
+    nodes: base.nodes.map(node => node.id === worldNodeId ? {
+      ...node,
+      label: preset.name,
+      parameterValues: createCinematicPresetParameterValues(entry.definition.parameters, preset, config),
+      metadata: {
+        ...node.metadata,
+        legacyCinematicPreset: cloneJson({
+          id: preset.id,
+          name: preset.name,
+          description: preset.description,
+          palette: preset.palette,
+          params: preset.params,
+          renderSettings: {
+            ...DEFAULT_REACT_PRESET_RENDER_SETTINGS,
+            ...preset.renderSettings,
+          },
+          scenes: preset.scenes,
+          sectionMappings: preset.sectionMappings,
+          cinematicConfig: config,
+        }) as unknown as CinemaJsonObject,
+      },
+    } : node),
+    cameras: createCinemaCameraResources(config.worldMode, config),
+  })
+}
+
+function createCinemaCameraResources(
+  worldId: CinematicWorldMode,
+  authoredConfig?: CinematicWorldConfig,
+): readonly CinemaCameraResourceDefinition[] {
   const definition = cinematicWorldDefinitions.find(candidate => candidate.id === worldId)
   if (!definition?.direction) return []
-  const defaults = createBaseConfig(worldId)
+  const defaults = authoredConfig ? normalizeCinematicWorldConfig(authoredConfig) : createBaseConfig(worldId)
   const direction = definition.direction
   const cameraId = cinemaStableId<CinemaCameraId>(stableSegment(`${worldId}-shared-camera`), 'camera')
   return [deepFreeze({
     id: cameraId,
     label: `${definition.label} Shared Camera`,
-    mode: direction.supportedCameraRigs.includes('autoDirector') ? 'auto-director' : 'locked',
+    mode: authoredConfig
+      ? cameraResourceMode(resolveSupportedCinematicCameraRig(defaults.cameraRig, direction.supportedCameraRigs, 'locked'))
+      : direction.supportedCameraRigs.includes('autoDirector') ? 'auto-director' : 'locked',
     parameterValues: {
       [cinemaCinematicWorldParameterId('position')]: [
         defaults.camera.locked.position.x,
@@ -359,6 +443,38 @@ function cinemaCameraModeForRig(
   return rig
 }
 
+
+function cameraResourceMode(
+  rig: CinematicWorldDirection['supportedCameraRigs'][number],
+): CinemaCameraResourceDefinition['mode'] {
+  return rig === 'autoDirector' ? 'auto-director' : cinemaCameraModeForRig(rig)
+}
+
+function createCinematicPresetParameterValues(
+  definitions: readonly CinemaParameterDefinition[],
+  preset: ReactPreset,
+  config: CinematicWorldConfig,
+): Record<CinemaParameterId, CinemaParameterValue> {
+  const values = Object.fromEntries(definitions.filter(parameter => 'default' in parameter).map(parameter => [parameter.id, parameter.default])) as Record<CinemaParameterId, CinemaParameterValue>
+  const renderSettings = { ...DEFAULT_REACT_PRESET_RENDER_SETTINGS, ...preset.renderSettings }
+  values[INTENSITY_PARAMETER_ID] = preset.params.intensity
+  values[MOTION_PARAMETER_ID] = preset.params.motion
+  values[GLOW_PARAMETER_ID] = preset.params.glow
+  values[BASS_REACTIVITY_PARAMETER_ID] = preset.params.bassReactivity
+  values[TRAIL_DECAY_PARAMETER_ID] = renderSettings.trailDecay
+  values[FOG_DENSITY_PARAMETER_ID] = renderSettings.fogDensity
+  values[PARTICLE_DENSITY_PARAMETER_ID] = renderSettings.particleDensity
+  values[SEED_PARAMETER_ID] = config.seed
+  values[QUALITY_PARAMETER_ID] = qualityOptionId(config.qualityTier)
+  for (const [key] of ENVIRONMENT_PARAMETER_SPECS) values[cinemaCinematicWorldParameterId(`environment-${key}`)] = config.environment[key]
+  for (const [key] of MATERIAL_PARAMETER_SPECS) values[cinemaCinematicWorldParameterId(`material-${key}`)] = config.material[key]
+  for (const [key, value] of Object.entries(config.worldSettings.settings as Record<string, unknown>)) {
+    if (typeof value === 'number') values[worldParameterId(key)] = value
+    else if (typeof value === 'string') values[worldParameterId(key)] = worldEnumOptionId(key, value)
+  }
+  return values
+}
+
 function createWebGLAdapterEntry(definition: CinematicWebGLWorldDefinition): CinemaCinematicWorldAdapterEntry {
   const typeId = cinemaCinematicWorldTypeId(definition.id)
   const pluginId = cinemaCinematicWorldPluginId(definition.id)
@@ -366,7 +482,7 @@ function createWebGLAdapterEntry(definition: CinematicWebGLWorldDefinition): Cin
   const plugin: CinemaNodePlugin = Object.freeze({
     definition: nodeDefinition,
     createNode(node: Readonly<CinemaNodeDefinition>) {
-      return new CinematicWorldNodeAdapter(node.id, node.opacity, definition, nodeDefinition)
+      return new CinematicWorldNodeAdapter(node.id, node.opacity, definition, nodeDefinition, readLegacyCinematicPreset(node))
     },
   })
   return deepFreeze({
@@ -390,7 +506,7 @@ function createCanvas2DAdapterEntry(
   const plugin: CinemaNodePlugin = Object.freeze({
     definition: nodeDefinition,
     createNode(node: Readonly<CinemaNodeDefinition>) {
-      return new CinemaCanvas2DNodeAdapter(node.id, node.opacity, definition, nodeDefinition, createCanvas)
+      return new CinemaCanvas2DNodeAdapter(node.id, node.opacity, definition, nodeDefinition, createCanvas, readLegacyCinematicPreset(node))
     },
   })
   return deepFreeze({
@@ -588,12 +704,14 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
   private scope: CinematicWebGLServiceScope | null = null
   private configKey = ''
   private disposed = false
+  private readonly modulationEngine = new CinematicModulationEngine()
 
   constructor(
     readonly nodeId: CinemaNodeId,
     private readonly authoredOpacity: number,
     private readonly legacyDefinition: CinematicWebGLWorldDefinition,
     definition: Readonly<CinemaNodeTypeDefinition>,
+    private readonly sourcePreset: ReactPreset | null = null,
   ) {
     this.typeId = definition.typeId
   }
@@ -601,7 +719,7 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
   initialize(context: CinemaNodeInitializeContext): void {
     if (context.signal.aborted) throw new DOMException('Cinema node initialization was cancelled.', 'AbortError')
     this.disposed = false
-    const config = createBaseConfig(this.legacyDefinition.id as CinematicWorldMode)
+    const config = this.sourcePreset?.cinematicConfig ?? createBaseConfig(this.legacyDefinition.id as CinematicWorldMode)
     this.replaceRenderer(context.webgl.gl, context.viewport, config)
   }
 
@@ -614,7 +732,7 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
       throw new Error(`Cinematic World ${this.legacyDefinition.id} is not ready for a Cinema-owned target.`)
     }
     const runtimeValues = applyRuntimeQualityValues(context.values, context.quality)
-    const nextConfig = resolveConfig(this.legacyDefinition.id as CinematicWorldMode, runtimeValues)
+    const nextConfig = resolveConfig(this.legacyDefinition.id as CinematicWorldMode, runtimeValues, this.sourcePreset?.cinematicConfig)
     const nextKey = configStructuralKey(nextConfig)
     if (nextKey !== this.configKey) {
       this.replaceRenderer(context.webgl.gl, context.viewport, nextConfig, 'structuralConfigurationChanged')
@@ -624,7 +742,15 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     }
     const target = context.webgl.bindTarget(context.target)
     context.webgl.resetState()
-    const frame = adaptCinemaFrame(context.frame, nextConfig, runtimeValues, this.authoredOpacity)
+    const frame = adaptCinemaFrame(
+      context.frame,
+      nextConfig,
+      runtimeValues,
+      this.authoredOpacity,
+      this.sourcePreset,
+      this.modulationEngine,
+      this.legacyDefinition.capabilities.modulationTargets,
+    )
     this.renderer.render(frame, {
       framebuffer: target.framebuffer,
       texture: target.texture,
@@ -643,7 +769,9 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
   }
 
   reset(context: CinemaNodeResetContext): void {
-    this.renderer?.reset(cinemaCinematicResetReason(context.actionId))
+    const reason = cinemaCinematicResetReason(context.actionId)
+    this.modulationEngine.reset(cinematicAudioResetReason(reason))
+    this.renderer?.reset(reason)
   }
 
   dispose(_context: CinemaNodeDisposeContext): void {
@@ -667,7 +795,7 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     const scope = new CinematicWebGLServiceScope(gl)
     const renderer = this.legacyDefinition.create()
     try {
-      renderer.initialize({ services: scope.services, config, presetId: this.nodeId })
+      renderer.initialize({ services: scope.services, config, presetId: this.sourcePreset?.id ?? this.nodeId })
       renderer.resize(viewport)
     } catch (error) {
       try { renderer.dispose() } catch { /* Initialization failure cleanup continues. */ }
@@ -682,6 +810,7 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
   private retireResources(reason: CinematicRendererResetReason): void {
     if (this.disposed) return
     this.disposed = true
+    this.modulationEngine.reset('manual')
     try { this.renderer?.reset(reason) } catch { /* Cleanup continues. */ }
     try { this.renderer?.dispose() } catch { /* Cleanup continues. */ }
     this.renderer = null
@@ -701,6 +830,7 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
   private pass: FullscreenPass | null = null
   private configKey = ''
   private disposed = false
+  private readonly modulationEngine = new CinematicModulationEngine()
 
   constructor(
     readonly nodeId: CinemaNodeId,
@@ -708,6 +838,7 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
     private readonly legacyDefinition: CinematicCanvasWorldDefinition,
     definition: Readonly<CinemaNodeTypeDefinition>,
     private readonly createCanvas?: () => HTMLCanvasElement,
+    private readonly sourcePreset: ReactPreset | null = null,
   ) {
     this.typeId = definition.typeId
   }
@@ -728,7 +859,7 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
     this.disposed = false
     this.canvas = canvas
     this.canvasContext = canvasContext
-    const config = createBaseConfig('legacyPortal')
+    const config = this.sourcePreset?.cinematicConfig ?? createBaseConfig('legacyPortal')
     this.replaceRenderer(config, context.viewport.dpr)
     this.resizeCanvas(context.viewport.width, context.viewport.height, context.viewport.dpr)
     const gl = context.webgl.gl
@@ -756,7 +887,7 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
       throw new Error('Legacy Portal Canvas2D compatibility resources are unavailable.')
     }
     const runtimeValues = applyRuntimeQualityValues(context.values, context.quality)
-    const config = resolveConfig('legacyPortal', runtimeValues)
+    const config = resolveConfig('legacyPortal', runtimeValues, this.sourcePreset?.cinematicConfig)
     if (configStructuralKey(config) !== this.configKey) {
       this.replaceRenderer(config, context.viewport.dpr, 'structuralConfigurationChanged')
     }
@@ -764,7 +895,15 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
     if (this.canvas.width !== target.width || this.canvas.height !== target.height) {
       this.resizeCanvas(target.width, target.height, context.viewport.dpr)
     }
-    const frame = adaptCinemaFrame(context.frame, config, runtimeValues, this.authoredOpacity)
+    const frame = adaptCinemaFrame(
+      context.frame,
+      config,
+      runtimeValues,
+      this.authoredOpacity,
+      this.sourcePreset,
+      this.modulationEngine,
+      this.legacyDefinition.capabilities.modulationTargets,
+    )
     this.renderer.render(frame)
     const gl = context.webgl.gl
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
@@ -785,7 +924,9 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
   }
 
   reset(context: CinemaNodeResetContext): void {
-    this.renderer?.reset(cinemaCinematicResetReason(context.actionId))
+    const reason = cinemaCinematicResetReason(context.actionId)
+    this.modulationEngine.reset(cinematicAudioResetReason(reason))
+    this.renderer?.reset(reason)
   }
 
   dispose(_context: CinemaNodeDisposeContext): void {
@@ -804,7 +945,7 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
     try { this.renderer?.dispose() } catch { /* Replacement continues. */ }
     const renderer = this.legacyDefinition.create()
     try {
-      renderer.initialize({ context: this.canvasContext, config, presetId: this.nodeId })
+      renderer.initialize({ context: this.canvasContext, config, presetId: this.sourcePreset?.id ?? this.nodeId })
       renderer.resize({ width: Math.max(1, this.canvas.width), height: Math.max(1, this.canvas.height), dpr: Math.max(0.1, dpr) })
     } catch (error) {
       try { renderer.dispose() } catch { /* Initialization failure cleanup continues. */ }
@@ -826,6 +967,7 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
   private retireResources(): void {
     if (this.disposed) return
     this.disposed = true
+    this.modulationEngine.reset('manual')
     try { this.renderer?.reset('dispose') } catch { /* Cleanup continues. */ }
     try { this.renderer?.dispose() } catch { /* Cleanup continues. */ }
     this.renderer = null
@@ -895,6 +1037,20 @@ class CinematicWebGLServiceScope {
   }
 }
 
+
+function cinematicAudioResetReason(reason: CinematicRendererResetReason): Parameters<CinematicModulationEngine['reset']>[0] {
+  switch (reason) {
+    case 'seek':
+    case 'trackReplacement':
+    case 'transportRestart':
+    case 'worldReplacement':
+    case 'presetReplacement':
+      return reason
+    default:
+      return 'manual'
+  }
+}
+
 export function cinemaCinematicResetReason(
   actionId: CinemaStateResetActionId | string,
 ): CinematicRendererResetReason {
@@ -917,13 +1073,26 @@ function adaptCinemaFrame(
   config: CinematicWorldConfig,
   values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
   authoredOpacity: number,
+  sourcePreset: ReactPreset | null = null,
+  modulationEngine: CinematicModulationEngine | null = null,
+  supportedModulationTargets: readonly CinematicAudioTarget[] = CINEMATIC_AUDIO_TARGETS,
 ): CinematicFrameContext {
   const sectionType = normalizeSectionType(frame.music.sectionType)
   const params = createReactParams(frame, values, authoredOpacity)
-  const presetId = `cinema-${config.worldMode}`
-  const preset = createPreset(presetId, config, params, frame)
+  const presetId = sourcePreset?.id ?? `cinema-${config.worldMode}`
+  const preset = createPreset(presetId, config, params, frame, sourcePreset)
   const musicalAudio = createMusicalAudioFrame(frame, sectionType, presetId)
-  const modulation = createModulationSnapshot(frame, params)
+  const authoredMapping = sourcePreset?.cinematicConfig?.audioMapping
+  const modulation = authoredMapping?.enabled && modulationEngine
+    ? modulationEngine.update(
+        musicalAudio,
+        authoredMapping.routes,
+        supportedModulationTargets,
+        frame.timing.deltaTimeSec,
+        authoredMapping.smoothingMs,
+        sourcePreset?.cinematicConfig?.seed ?? config.seed,
+      )
+    : createModulationSnapshot(frame, params)
   const camera = createCameraFrame(frame, config)
   return {
     elapsedTimeSec: frame.timing.elapsedTimeSec,
@@ -1019,13 +1188,14 @@ function createPreset(
   config: CinematicWorldConfig,
   params: ReactRenderParams,
   frame: Readonly<CinemaFrameContext>,
+  sourcePreset: ReactPreset | null = null,
 ): ReactPreset {
   return {
     id: presetId,
-    name: `Cinema ${titleCase(config.worldMode)}`,
-    description: 'Runtime-only compatibility view for a Cinema-owned Cinematic World node.',
+    name: sourcePreset?.name ?? `Cinema ${titleCase(config.worldMode)}`,
+    description: sourcePreset?.description ?? 'Runtime-only compatibility view for a Cinema-owned Cinematic World node.',
     engine: 'cinematicPortal',
-    palette: createPalette(frame),
+    palette: sourcePreset?.palette ?? createPalette(frame),
     params: {
       intensity: params.intensity,
       motion: params.motion,
@@ -1037,8 +1207,8 @@ function createPreset(
       fogDensity: params.fogDensity,
       particleDensity: params.particleDensity,
     },
-    scenes: [],
-    sectionMappings: [],
+    scenes: sourcePreset?.scenes ? cloneJson(sourcePreset.scenes) as unknown as ReactPreset['scenes'] : [],
+    sectionMappings: sourcePreset?.sectionMappings ? cloneJson(sourcePreset.sectionMappings) as unknown as ReactPreset['sectionMappings'] : [],
     cinematicConfig: config,
   }
 }
@@ -1170,8 +1340,9 @@ function applyRuntimeQualityValues(
 function resolveConfig(
   worldId: CinematicWorldMode,
   values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
+  authoredConfig?: CinematicWorldConfig,
 ): CinematicWorldConfig {
-  const defaults = createBaseConfig(worldId)
+  const defaults = authoredConfig ? normalizeCinematicWorldConfig(authoredConfig) : createBaseConfig(worldId)
   const environment = { ...defaults.environment }
   const material = { ...defaults.material }
   for (const [key] of ENVIRONMENT_PARAMETER_SPECS) {
@@ -1192,13 +1363,25 @@ function resolveConfig(
       fogDensity: numberValue(values[FOG_DENSITY_PARAMETER_ID], 0.5),
       particleDensity: numberValue(values[PARTICLE_DENSITY_PARAMETER_ID], 0.5),
     }, { cinemaAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION })
-    return normalizeCinematicWorldConfig({ ...legacy, seed, qualityTier, environment, material })
+    return normalizeCinematicWorldConfig(authoredConfig
+      ? { ...defaults, seed, qualityTier, environment, material }
+      : { ...legacy, seed, qualityTier, environment, material })
   }
   const settings = { ...(defaults.worldSettings.settings as Record<string, unknown>) }
   for (const [key, defaultValue] of Object.entries(settings)) {
     const value = values[worldParameterId(key)]
     if (typeof defaultValue === 'number') settings[key] = numberValue(value, defaultValue)
     else if (typeof defaultValue === 'string') settings[key] = readWorldEnum(key, value, defaultValue)
+  }
+  if (authoredConfig) {
+    return normalizeCinematicWorldConfig({
+      ...defaults,
+      worldSettings: { mode: worldId, settings },
+      environment,
+      material,
+      seed,
+      qualityTier,
+    })
   }
   return createCinematicWorldConfig(worldId, settings, {
     environment,
@@ -1214,6 +1397,33 @@ function createBaseConfig(worldId: CinematicWorldMode): CinematicWorldConfig {
   return worldId === 'legacyPortal'
     ? createLegacyPortalCinematicConfig({})
     : createCinematicWorldConfig(worldId, {})
+}
+
+function readLegacyCinematicPreset(node: Readonly<CinemaNodeDefinition>): ReactPreset | null {
+  const raw = node.metadata?.legacyCinematicPreset
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const source = raw as Record<string, unknown>
+  if (typeof source.id !== 'string' || typeof source.name !== 'string' || typeof source.description !== 'string') return null
+  const palette = source.palette
+  const params = source.params
+  if (!palette || typeof palette !== 'object' || Array.isArray(palette) || !params || typeof params !== 'object' || Array.isArray(params)) return null
+  const renderSettings = source.renderSettings
+  const scenes = Array.isArray(source.scenes) ? source.scenes : []
+  const sectionMappings = Array.isArray(source.sectionMappings) ? source.sectionMappings : []
+  return {
+    id: source.id,
+    name: source.name,
+    description: source.description,
+    engine: 'cinematicPortal',
+    palette: cloneJson(palette) as unknown as ReactPalette,
+    params: cloneJson(params) as unknown as ReactPreset['params'],
+    ...(renderSettings && typeof renderSettings === 'object' && !Array.isArray(renderSettings)
+      ? { renderSettings: cloneJson(renderSettings) as unknown as ReactPreset['renderSettings'] }
+      : {}),
+    scenes: cloneJson(scenes) as unknown as ReactPreset['scenes'],
+    sectionMappings: cloneJson(sectionMappings) as unknown as ReactPreset['sectionMappings'],
+    cinematicConfig: normalizeCinematicWorldConfig(source.cinematicConfig),
+  }
 }
 
 function resolveLegacyPortalDefinition(): CinematicCanvasWorldDefinition | null {

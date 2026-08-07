@@ -1,10 +1,12 @@
 import {
   CINEMA_FOUNDATION_INPUT_PORT_ID,
   CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+  CINEMA_LEGACY_PRESET_CATALOG,
   CINEMA_SHADER_REFERENCE_COMPOSITION,
   createCinemaFoundationPersistedState,
 } from '../../components/vyzualz/cinema/CinemaFoundation'
 import { createCinemaShaderSceneComposition } from '../../components/vyzualz/cinema/CinemaShaderSceneAdapter'
+import { createCinemaCinematicWorldComposition } from '../../components/vyzualz/cinema/CinemaCinematicWorldAdapter'
 import { cinemaStableId, type CinemaActionId, type CinemaCompositionId, type CinemaNodeId } from '../../components/vyzualz/cinema/CinemaIdentifiers'
 import type { CinemaFrameContext, CinemaTargetDescriptor } from '../../components/vyzualz/cinema/CinemaRendererContracts'
 import { CinemaRuntime } from '../../components/vyzualz/cinema/runtime/CinemaRuntime'
@@ -114,8 +116,46 @@ async function run(): Promise<void> {
   const reactorPixel = [...centerPixel]
   const reactorLeaseCount = runtime.targets.getDiagnostics().activeLeaseCount
 
+
+  const representativeCinematicEntry = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => (
+    entry.sourceKind === 'cinematic-preset' && entry.worldId === 'eventHorizon'
+  ))
+  const representativeCinematic = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(composition => composition.id === representativeCinematicEntry?.compositionId)
+  if (!representativeCinematic) throw new Error('Stage 21 Event Horizon catalog composition is unavailable.')
+  const beforeCinematicFrame = runtime.getSnapshot().frameCount
+  runtime.setGraph(representativeCinematic, null, foundation.definitions)
+  runtime.setFrame(createFrame(960, 540, 2))
+  await waitFor(() => runtime.getSnapshot().frameCount >= beforeCinematicFrame + 2 && runtime.getSnapshot().graph.outputRendered)
+  const representativeCinematicPixel = [...centerPixel]
+  const representativeCinematicFailedNodeCount = runtime.getSnapshot().graph.failedNodeCount
+
+  const constellationEntry = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => (
+    entry.sourceKind === 'cinematic-preset' && entry.worldId === 'reactiveConstellation'
+  ))
+  const constellationComposition = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(composition => composition.id === constellationEntry?.compositionId)
+  if (!constellationComposition) throw new Error('Stage 21 Reactive Constellation catalog composition is unavailable.')
+  const beforeConstellationFrame = runtime.getSnapshot().frameCount
+  runtime.setGraph(constellationComposition, null, foundation.definitions)
+  runtime.setFrame(createFrame(960, 540, 3))
+  await waitFor(() => runtime.getSnapshot().frameCount >= beforeConstellationFrame + 2 && runtime.getSnapshot().graph.outputRendered)
+  const reactiveConstellationPixel = [...centerPixel]
+  const reactiveConstellationFailedNodeCount = runtime.getSnapshot().graph.failedNodeCount
+
+  const legacyPortalComposition = createCinemaCinematicWorldComposition(
+    'legacyPortal',
+    CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+    CINEMA_FOUNDATION_INPUT_PORT_ID,
+    { compositionId: cinemaStableId<CinemaCompositionId>('legacy-portal-browser-adapter', 'composition') },
+  )
+  const beforeLegacyPortalFrame = runtime.getSnapshot().frameCount
+  runtime.setGraph(legacyPortalComposition, null, foundation.definitions)
+  runtime.setFrame(createFrame(960, 540, 4))
+  await waitFor(() => runtime.getSnapshot().frameCount >= beforeLegacyPortalFrame + 2 && runtime.getSnapshot().graph.outputRendered)
+  const legacyPortalPixel = [...centerPixel]
+  const legacyPortalFailedNodeCount = runtime.getSnapshot().graph.failedNodeCount
+
   const beforeResetFrame = runtime.getSnapshot().frameCount
-  runtime.setFrame(createFrame(960, 540, 2, true))
+  runtime.setFrame(createFrame(960, 540, 5, true))
   await waitFor(() => runtime.getSnapshot().frameCount > beforeResetFrame && runtime.getSnapshot().graph.outputRendered)
 
   const loseContext = gl.getExtension('WEBGL_lose_context')
@@ -125,13 +165,13 @@ async function run(): Promise<void> {
   loseContext.restoreContext()
   await waitFor(() => runtime.getSnapshot().phase === 'running' && runtime.getSnapshot().contextGeneration === 2)
   const beforeRestoredFrame = runtime.getSnapshot().frameCount
-  runtime.setFrame(createFrame(960, 540, 3))
+  runtime.setFrame(createFrame(960, 540, 6))
   await waitFor(() => runtime.getSnapshot().frameCount > beforeRestoredFrame && runtime.getSnapshot().graph.outputRendered)
   const postRestorePixel = [...centerPixel]
 
   const beforeReferenceReturn = runtime.getSnapshot().frameCount
   runtime.setGraph(CINEMA_SHADER_REFERENCE_COMPOSITION, null, foundation.definitions)
-  runtime.setFrame(createFrame(960, 540, 4))
+  runtime.setFrame(createFrame(960, 540, 7))
   await waitFor(() => runtime.getSnapshot().frameCount > beforeReferenceReturn && runtime.getSnapshot().graph.outputRendered)
 
   const owner = 'cinema.node.browser-runtime' as CinemaNodeId
@@ -164,6 +204,12 @@ async function run(): Promise<void> {
     singlePassPixel,
     reactorPixel,
     reactorLeaseCount,
+    representativeCinematicPixel,
+    representativeCinematicFailedNodeCount,
+    reactiveConstellationPixel,
+    reactiveConstellationFailedNodeCount,
+    legacyPortalPixel,
+    legacyPortalFailedNodeCount,
     postRestorePixel,
     webgl2GetContextCount,
     maximumPendingRuntimeFrames,
