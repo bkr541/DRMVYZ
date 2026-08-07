@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
+import { SliderRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
+import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
 import type {
   LaserDmxMatrixBeam, LaserDmxReactionGroup,
   LaserDmxMatrixBeamGeometry, LaserDmxMatrixTarget,

@@ -27,7 +27,8 @@ import {
   type LaserDmxShowDirectorTriggerMode,
   type LaserDmxShowDirectorVideoWallSource,
 } from './ReactTypes'
-import { CtrlSection, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { CtrlSection, NumberInputRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
 import { LaserDmxShowDirectorFixtureIcon } from './LaserDmxShowDirectorFixtureIcon'
 import {
   LASER_DMX_SCANNER_PATTERN_OPTIONS,

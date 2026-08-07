@@ -20,7 +20,8 @@ import {
   resolveScopeStabilityMacro,
   scopeSignalModeUsesXGain,
 } from '../../../../audio/scope'
-import { SliderRow, SelectRow, ToggleRow, ColorRow, CtrlSection, Collapsible } from '../ReactControlRows'
+import { SliderRow, ToggleRow, ColorRow, CtrlSection, Collapsible } from '../ReactControlRows'
+import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
 import type { OscillatorSettings } from '../ReactTypes'
 import { SOUND_DRAWING_VISUAL_SIZE_MAX, SOUND_DRAWING_VISUAL_SIZE_MIN } from './SoundDrawingVisualSize'
 

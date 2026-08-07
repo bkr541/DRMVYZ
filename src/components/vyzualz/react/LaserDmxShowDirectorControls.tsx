@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, CtrlSection, NumberInputRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
 import { LaserDmxShowDirectorInspector } from './LaserDmxShowDirectorInspector'
 import type {
   LaserDmxShowDirectorPresentationMode,

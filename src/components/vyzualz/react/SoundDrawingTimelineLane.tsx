@@ -9,8 +9,9 @@ import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import {
-  SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection,
+  SliderRow, ToggleRow, TextInputRow, CtrlSection,
 } from './ReactControlRows'
+import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
 import {
   computeViewportRangeLayout,
   computeWaveformViewport,

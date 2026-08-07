@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -8,8 +8,8 @@ import { musicIntelligenceEngine } from '../../../features/musicIntelligence/Mus
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SliderRow, ToggleRow, type SelectRowProps } from './ReactControlRows'
-import { DropdownV2 } from '../../shared/Dropdown/dropdown_v2'
+import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { SelectRowV2 as CanvasSelectRow } from './ReactControlRowsV2'
 import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
@@ -93,33 +93,6 @@ import {
   type ReactSectionType,
   type ReactTrackSection,
 } from './ReactTypes'
-
-// CANVAS-only trial of the restyled Underline dropdown (dropdown_v2). Same
-// row layout/props as ReactControlRows' SelectRow — only the widget itself
-// differs — scoped to this engine while the rest of the app still uses the
-// current Dropdown.
-function CanvasSelectRow({ label, value, onChange, options, disabled, id, description }: SelectRowProps) {
-  const generatedId = useId()
-  const inputId = id ?? generatedId
-  return (
-    <div className="rv-ctrl-row">
-      <span className="rv-ctrl-label-cluster">
-        <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
-      </span>
-      <DropdownV2
-        id={`${inputId}-dropdown`}
-        triggerId={inputId}
-        value={value}
-        onChange={onChange}
-        options={options}
-        disabled={disabled}
-        ariaLabel={label}
-        className="rv-ctrl-dropdown-v2"
-      />
-      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
-    </div>
-  )
-}
 
 const TYPE_LABELS: Record<CanvasMediaItemType, string> = {
   video: 'Video',
