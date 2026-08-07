@@ -42,6 +42,7 @@ import {
   LASER_DMX_SHOW_MANAGER_QUALITY,
   LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS,
   cloneLaserDmxShowManagerShow,
+  getEligibleLaserDmxShowManagerFixtureCopySources,
   isLaserDmxShowManagerFixtureKindEnabled,
   parseLaserDmxShowManagerFixtureKind,
   resolveLaserDmxShowManagerGridCell,
@@ -141,9 +142,12 @@ export function ShowManagerView() {
   const addLaserDmxShowManagerFixture = useReactStore(state => state.addLaserDmxShowManagerFixture)
   const updateLaserDmxShowManagerFixture = useReactStore(state => state.updateLaserDmxShowManagerFixture)
   const removeLaserDmxShowManagerFixture = useReactStore(state => state.removeLaserDmxShowManagerFixture)
+  const copyLaserDmxShowManagerFixturesFromSection = useReactStore(state => state.copyLaserDmxShowManagerFixturesFromSection)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
+  const [copyLaserFixturesEnabled, setCopyLaserFixturesEnabled] = useState(false)
+  const [copyLaserFixturesSourceSectionId, setCopyLaserFixturesSourceSectionId] = useState<string | null>(null)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
   const [liveFps, setLiveFps] = useState(0)
   const [workspaceMode, setWorkspaceMode] = useState<'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE>('default')
@@ -183,6 +187,12 @@ export function ShowManagerView() {
     () => activeLaserDmxSection?.fixtures.find(fixture => fixture.id === selectedLaserFixtureId) ?? null,
     [activeLaserDmxSection, selectedLaserFixtureId],
   )
+  const eligibleLaserFixtureCopySources = useMemo(
+    () => activeLaserDmxShow && activeLaserDmxSection
+      ? getEligibleLaserDmxShowManagerFixtureCopySources(activeLaserDmxShow, activeLaserDmxSection.id)
+      : [],
+    [activeLaserDmxSection, activeLaserDmxShow],
+  )
   const laserTimelineDuration = useMemo(
     () => Math.max(1, ...(activeLaserDmxShow?.sections.map(section => section.endSec) ?? [1])),
     [activeLaserDmxShow],
@@ -214,6 +224,18 @@ export function ShowManagerView() {
       setSelectedLaserFixtureId(null)
     }
   }, [activeLaserDmxSection, selectedLaserFixtureId])
+
+  useEffect(() => {
+    setCopyLaserFixturesEnabled(false)
+    setCopyLaserFixturesSourceSectionId(null)
+  }, [activeLaserDmxSection?.id, activeLaserDmxShow?.id])
+
+  useEffect(() => {
+    if (copyLaserFixturesSourceSectionId
+      && !eligibleLaserFixtureCopySources.some(section => section.id === copyLaserFixturesSourceSectionId)) {
+      setCopyLaserFixturesSourceSectionId(null)
+    }
+  }, [copyLaserFixturesSourceSectionId, eligibleLaserFixtureCopySources])
 
   const pixGridPresets = useMemo(
     () => reactPresets.filter(preset => preset.engine === 'pixGrid'),
@@ -470,18 +492,22 @@ export function ShowManagerView() {
     setPreviewDeckItemId(previewEnabledItems[nextIndex]?.id ?? null)
   }
 
-  const recordLaserShowUndo = () => {
-    if (!activeLaserDmxShow) return false
-    const showId = activeLaserDmxShow.id
+  const pushLaserShowUndoSnapshot = (snapshot: LaserDmxShowManagerShow) => {
+    const showId = snapshot.id
     const undo = [
       ...(laserShowUndoRef.current[showId] ?? []),
-      cloneLaserDmxShowManagerShow(activeLaserDmxShow),
+      cloneLaserDmxShowManagerShow(snapshot),
     ].slice(-50)
     laserShowUndoRef.current = { ...laserShowUndoRef.current, [showId]: undo }
     laserShowRedoRef.current = { ...laserShowRedoRef.current, [showId]: [] }
     setLaserShowUndoDepth(undo.length)
     setLaserShowRedoDepth(0)
     return true
+  }
+
+  const recordLaserShowUndo = () => {
+    if (!activeLaserDmxShow) return false
+    return pushLaserShowUndoSnapshot(activeLaserDmxShow)
   }
 
   const restoreLaserShowSnapshot = (snapshot: LaserDmxShowManagerShow) => {
@@ -583,6 +609,21 @@ export function ShowManagerView() {
     if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedLaserFixture || !recordLaserShowUndo()) return
     removeLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, selectedLaserFixture.id)
     setSelectedLaserFixtureId(null)
+  }
+
+  const commitLaserFixtureCopy = (sourceSectionId: string) => {
+    if (!activeLaserDmxShow || !activeLaserDmxSection) return
+    if (!eligibleLaserFixtureCopySources.some(section => section.id === sourceSectionId)) return
+    const before = cloneLaserDmxShowManagerShow(activeLaserDmxShow)
+    const copiedFixtureIds = copyLaserDmxShowManagerFixturesFromSection(
+      activeLaserDmxShow.id,
+      sourceSectionId,
+      activeLaserDmxSection.id,
+    )
+    if (copiedFixtureIds.length === 0) return
+    pushLaserShowUndoSnapshot(before)
+    setSelectedLaserFixtureId(null)
+    setCopyLaserFixturesSourceSectionId(null)
   }
 
   const selectLaserSectionForEditing = (sectionId: string) => {
@@ -1105,6 +1146,44 @@ export function ShowManagerView() {
                       }}
                     >Add Section</button>
                   </div>
+                  <section className="sm-laser-copy-fixtures" data-testid="laser-dmx-copy-fixtures-controls">
+                    <ToggleRow
+                      id="show-manager-laser-copy-fixtures"
+                      label="Copy Fixtures From Another Section"
+                      value={copyLaserFixturesEnabled}
+                      onChange={enabled => {
+                        setCopyLaserFixturesEnabled(enabled)
+                        if (!enabled) setCopyLaserFixturesSourceSectionId(null)
+                      }}
+                    />
+                    {copyLaserFixturesEnabled && (
+                      <div className="sm-laser-copy-fixtures-picker">
+                        <Dropdown
+                          id="show-manager-laser-copy-fixtures-source"
+                          ariaLabel="Copy fixtures source section"
+                          menuLabel="Sections with LaserDMX fixtures"
+                          value={copyLaserFixturesSourceSectionId}
+                          onChange={sourceSectionId => {
+                            setCopyLaserFixturesSourceSectionId(sourceSectionId)
+                            commitLaserFixtureCopy(sourceSectionId)
+                          }}
+                          options={eligibleLaserFixtureCopySources.map(section => ({
+                            value: section.id,
+                            label: section.label,
+                            description: `${section.fixtures.length} fixture${section.fixtures.length === 1 ? '' : 's'}`,
+                          }))}
+                          placeholder={eligibleLaserFixtureCopySources.length > 0 ? 'Choose source section' : 'No eligible sections'}
+                          emptyMessage="No other sections contain fixtures"
+                          disabled={eligibleLaserFixtureCopySources.length === 0}
+                          size="compact"
+                          className="sm-laser-copy-fixtures-dropdown"
+                        />
+                        {eligibleLaserFixtureCopySources.length === 0 && (
+                          <p>No other section in this Show currently contains LaserDMX fixtures.</p>
+                        )}
+                      </div>
+                    )}
+                  </section>
                   <EditSectionForm
                     key={activeLaserDmxSection.id}
                     section={activeLaserDmxSection}

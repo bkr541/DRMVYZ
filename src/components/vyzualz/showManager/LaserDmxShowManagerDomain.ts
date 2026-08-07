@@ -89,6 +89,11 @@ export type LaserDmxShowManagerSectionPatch = Partial<Omit<LaserDmxShowManagerSe
   fixtures?: readonly LaserDmxShowDirectorFixture[]
 }
 
+export interface LaserDmxShowManagerFixtureCopyResult {
+  show: LaserDmxShowManagerShow
+  fixtureIds: string[]
+}
+
 export type LaserDmxShowManagerTriggerOption =
   | 'none'
   | 'beat'
@@ -550,6 +555,57 @@ export function reorderLaserDmxShowManagerSection(
   return { ...show, sections }
 }
 
+function nextLaserDmxShowManagerKindOrdinal(
+  fixtures: readonly LaserDmxShowDirectorFixture[],
+  kind: LaserDmxShowDirectorFixtureKind,
+): number {
+  const labelPrefix = `${LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]} `
+  return fixtures.reduce((maximum, fixture) => {
+    if (fixture.kind !== kind || !fixture.label.startsWith(labelPrefix)) return maximum
+    const ordinal = Number.parseInt(fixture.label.slice(labelPrefix.length), 10)
+    return Number.isFinite(ordinal) ? Math.max(maximum, ordinal) : maximum
+  }, 0) + 1
+}
+
+function allocateLaserDmxShowManagerFixtureLabel(
+  fixtures: readonly LaserDmxShowDirectorFixture[],
+  kind: LaserDmxShowDirectorFixtureKind,
+  preferredLabel?: string | null,
+): string {
+  const familyLabel = LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]
+  const used = new Set(fixtures.map(fixture => fixture.label.trim().toLocaleLowerCase()))
+  const preferred = typeof preferredLabel === 'string' ? preferredLabel.trim() : ''
+  const escapedFamily = familyLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const canonicalFamilyLabel = preferred.length > 0
+    && new RegExp(`^${escapedFamily}\\s+\\d+$`, 'i').test(preferred)
+
+  if (!preferred || canonicalFamilyLabel) {
+    let ordinal = nextLaserDmxShowManagerKindOrdinal(fixtures, kind)
+    let candidate = `${familyLabel} ${ordinal}`
+    while (used.has(candidate.toLocaleLowerCase())) {
+      ordinal += 1
+      candidate = `${familyLabel} ${ordinal}`
+    }
+    return candidate
+  }
+
+  if (!used.has(preferred.toLocaleLowerCase())) return preferred
+  let suffix = 2
+  let candidate = `${preferred} ${suffix}`
+  while (used.has(candidate.toLocaleLowerCase())) {
+    suffix += 1
+    candidate = `${preferred} ${suffix}`
+  }
+  return candidate
+}
+
+export function getEligibleLaserDmxShowManagerFixtureCopySources(
+  show: LaserDmxShowManagerShow,
+  destinationSectionId: string,
+): LaserDmxShowManagerSection[] {
+  return show.sections.filter(section => section.id !== destinationSectionId && section.fixtures.length > 0)
+}
+
 export function addLaserDmxShowManagerFixtureToSection(
   show: LaserDmxShowManagerShow,
   sectionId: string,
@@ -558,19 +614,114 @@ export function addLaserDmxShowManagerFixtureToSection(
 ): { show: LaserDmxShowManagerShow; fixtureId: string | null } {
   const section = show.sections.find(candidate => candidate.id === sectionId)
   if (!section) return { show, fixtureId: null }
-  const labelPrefix = `${LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]} `
-  const nextKindOrdinal = section.fixtures.reduce((maximum, fixture) => {
-    if (fixture.kind !== kind || !fixture.label.startsWith(labelPrefix)) return maximum
-    const ordinal = Number.parseInt(fixture.label.slice(labelPrefix.length), 10)
-    return Number.isFinite(ordinal) ? Math.max(maximum, ordinal) : maximum
-  }, 0) + 1
-  const fixture = createLaserDmxShowManagerFixture(kind, nextKindOrdinal - 1, patch)
+  const nextKindOrdinal = nextLaserDmxShowManagerKindOrdinal(section.fixtures, kind)
+  const label = allocateLaserDmxShowManagerFixtureLabel(
+    section.fixtures,
+    kind,
+    typeof patch.label === 'string' ? patch.label : `${LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]} ${nextKindOrdinal}`,
+  )
+  const fixture = createLaserDmxShowManagerFixture(kind, nextKindOrdinal - 1, { ...patch, label })
   if (!fixture) return { show, fixtureId: null }
   return {
     show: updateLaserDmxShowManagerSection(show, sectionId, {
       fixtures: [...section.fixtures.map((item, index) => cloneFixture(item, index)), fixture],
     }),
     fixtureId: fixture.id,
+  }
+}
+
+function createLaserDmxShowManagerFixtureCopy(
+  source: LaserDmxShowDirectorFixture,
+  destinationFixtures: readonly LaserDmxShowDirectorFixture[],
+  usedFixtureIds: Set<string>,
+  index: number,
+): LaserDmxShowDirectorFixture {
+  let id = createId('laser-dmx-fixture')
+  while (usedFixtureIds.has(id)) id = createId('laser-dmx-fixture')
+  usedFixtureIds.add(id)
+
+  const label = allocateLaserDmxShowManagerFixtureLabel(destinationFixtures, source.kind, source.label)
+  const targetIdMap = new Map<string, string>()
+  const targets = (source.beam.targets ?? []).map((target, targetIndex) => {
+    const nextTargetId = `${id}-target-${targetIndex + 1}`
+    targetIdMap.set(target.id, nextTargetId)
+    return { ...target, id: nextTargetId }
+  })
+  const scanner = source.scanner
+    ? {
+        ...source.scanner,
+        path: {
+          ...source.scanner.path,
+          points: source.scanner.path.points.map((point, pointIndex) => ({
+            ...point,
+            id: `${id}-scan-point-${pointIndex + 1}`,
+          })),
+        },
+        migration: {
+          ...source.scanner.migration,
+          sourceTargetIds: source.scanner.migration.sourceTargetIds.map(targetId => targetIdMap.get(targetId) ?? targetId),
+          warnings: [...source.scanner.migration.warnings],
+          ...(source.scanner.migration.backupTargets
+            ? {
+                backupTargets: source.scanner.migration.backupTargets.map((target, targetIndex) => ({
+                  ...target,
+                  id: `${id}-scanner-backup-${targetIndex + 1}`,
+                })),
+              }
+            : {}),
+        },
+      }
+    : undefined
+
+  return normalizeLaserDmxShowManagerFixture({
+    ...source,
+    id,
+    semanticKey: undefined,
+    label,
+    groupId: null,
+    linkedPairId: null,
+    mirrorAxis: null,
+    beam: {
+      ...source.beam,
+      targetX: targets[0]?.x ?? source.beam.targetX,
+      targetY: targets[0]?.y ?? source.beam.targetY,
+      targets,
+    },
+    ...(scanner ? { scanner } : {}),
+  }, index)
+}
+
+export function copyLaserDmxShowManagerFixturesBetweenSections(
+  show: LaserDmxShowManagerShow,
+  sourceSectionId: string,
+  destinationSectionId: string,
+): LaserDmxShowManagerFixtureCopyResult {
+  if (sourceSectionId === destinationSectionId) return { show, fixtureIds: [] }
+  const source = show.sections.find(section => section.id === sourceSectionId)
+  const destination = show.sections.find(section => section.id === destinationSectionId)
+  if (!source || !destination || source.fixtures.length === 0) return { show, fixtureIds: [] }
+  if (!source.fixtures.every(fixture => isLaserDmxShowManagerFixtureKindEnabled(fixture.kind))) {
+    return { show, fixtureIds: [] }
+  }
+
+  try {
+    const usedFixtureIds = new Set(show.sections.flatMap(section => section.fixtures.map(fixture => fixture.id)))
+    const copies: LaserDmxShowDirectorFixture[] = []
+    for (const sourceFixture of source.fixtures) {
+      copies.push(createLaserDmxShowManagerFixtureCopy(
+        sourceFixture,
+        [...destination.fixtures, ...copies],
+        usedFixtureIds,
+        destination.fixtures.length + copies.length,
+      ))
+    }
+    if (copies.length !== source.fixtures.length) return { show, fixtureIds: [] }
+    const nextShow = updateLaserDmxShowManagerSection(show, destinationSectionId, {
+      fixtures: [...destination.fixtures, ...copies],
+    })
+    return { show: nextShow, fixtureIds: copies.map(fixture => fixture.id) }
+  } catch {
+    return { show, fixtureIds: [] }
   }
 }
 

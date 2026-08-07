@@ -5,7 +5,9 @@ import {
   LASER_DMX_SHOW_MANAGER_QUALITY,
   LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS,
   addLaserDmxShowManagerFixtureToSection,
+  copyLaserDmxShowManagerFixturesBetweenSections,
   createLaserDmxShowManagerShow,
+  getEligibleLaserDmxShowManagerFixtureCopySources,
   normalizeLaserDmxShowManagerShow,
   parseLaserDmxShowManagerFixtureKind,
   removeLaserDmxShowManagerFixtureFromSection,
@@ -189,6 +191,72 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     show = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'laser', { x: 1, y: 1 }).show
     expect(show.sections[0]!.fixtures.map(fixture => fixture.label)).toEqual(['Laser 1', 'Strobe 1', 'Laser 2'])
     expect(new Set(show.sections[0]!.fixtures.map(fixture => fixture.id)).size).toBe(3)
+  })
+
+  it('deep-copies eligible source fixtures once, appends them with unique identities, and keeps sections independent', () => {
+    let show = createLaserDmxShowManagerShow()
+    const introId = show.sections[0]!.id
+    const verseId = show.sections[1]!.id
+
+    const sourceLaser = addLaserDmxShowManagerFixtureToSection(show, introId, 'laser', {
+      label: 'Front Laser',
+      x: 17,
+      y: 11,
+      z: 0.35,
+      rotation: 27,
+      color: '#00ffaa',
+      brightness: 0.43,
+      beam: { beamSpread: 71, focus: 0.22 },
+      trigger: triggerPatchForLaserDmxShowManagerOption('4bars'),
+    })
+    show = sourceLaser.show
+    const sourceStrobe = addLaserDmxShowManagerFixtureToSection(show, introId, 'strobe', { x: 17, y: 11 })
+    show = sourceStrobe.show
+    const destinationExisting = addLaserDmxShowManagerFixtureToSection(show, verseId, 'laser', { label: 'Front Laser', x: 0, y: 0 })
+    show = destinationExisting.show
+
+    expect(getEligibleLaserDmxShowManagerFixtureCopySources(show, verseId).map(section => section.id)).toEqual([introId])
+    expect(getEligibleLaserDmxShowManagerFixtureCopySources(show, verseId).every(section => section.id !== verseId)).toBe(true)
+
+    const sourceBefore = show.sections[0]!.fixtures
+    const result = copyLaserDmxShowManagerFixturesBetweenSections(show, introId, verseId)
+    show = result.show
+
+    expect(result.fixtureIds).toHaveLength(2)
+    expect(new Set(result.fixtureIds).size).toBe(2)
+    expect(result.fixtureIds).not.toContain(sourceLaser.fixtureId)
+    expect(result.fixtureIds).not.toContain(sourceStrobe.fixtureId)
+    expect(show.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual(sourceBefore.map(fixture => fixture.id))
+    expect(show.sections[1]!.fixtures.map(fixture => fixture.label)).toEqual(['Front Laser', 'Front Laser 2', 'Strobe 1'])
+    expect(show.sections[1]!.fixtures[0]!.id).toBe(destinationExisting.fixtureId)
+
+    const copiedLaser = show.sections[1]!.fixtures.find(fixture => fixture.id === result.fixtureIds[0])!
+    const originalLaser = show.sections[0]!.fixtures.find(fixture => fixture.id === sourceLaser.fixtureId)!
+    expect(copiedLaser).toMatchObject({
+      kind: 'laser',
+      x: 17,
+      y: 11,
+      z: 0.35,
+      rotation: 27,
+      color: '#00ffaa',
+      brightness: 0.43,
+      groupId: null,
+      linkedPairId: null,
+    })
+    expect(copiedLaser.beam).not.toBe(originalLaser.beam)
+    expect(copiedLaser.trigger).not.toBe(originalLaser.trigger)
+    expect(copiedLaser.beam.targets?.[0]).not.toBe(originalLaser.beam.targets?.[0])
+    expect(copiedLaser.beam.targets?.[0]?.id).not.toBe(originalLaser.beam.targets?.[0]?.id)
+    expect(resolveLaserDmxShowManagerTriggerOption(copiedLaser.trigger)).toBe('4bars')
+
+    show = updateLaserDmxShowManagerFixtureInSection(show, introId, sourceLaser.fixtureId!, { brightness: 0.91 })
+    expect(show.sections[1]!.fixtures.find(fixture => fixture.id === copiedLaser.id)?.brightness).toBe(0.43)
+    show = updateLaserDmxShowManagerFixtureInSection(show, verseId, copiedLaser.id, { color: '#ff0055' })
+    expect(show.sections[0]!.fixtures.find(fixture => fixture.id === sourceLaser.fixtureId)?.color).toBe('#00ffaa')
+
+    const failed = copyLaserDmxShowManagerFixturesBetweenSections(show, verseId, verseId)
+    expect(failed.show).toBe(show)
+    expect(failed.fixtureIds).toEqual([])
   })
 
   it('updates and deletes exactly one section-local fixture while preserving colocated neighbors', () => {

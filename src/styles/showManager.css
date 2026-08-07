@@ -1261,6 +1261,31 @@
   font-size: 8px;
 }
 .sm-laser-section-actions button:disabled { opacity: 0.35; }
+
+.sm-laser-copy-fixtures {
+  margin: 7px 0;
+  padding: 8px;
+  display: grid;
+  gap: 7px;
+  border: 1px solid rgba(74, 199, 219, 0.12);
+  border-radius: 6px;
+  background: rgba(74, 199, 219, 0.035);
+}
+.sm-laser-copy-fixtures .rv-ctrl-toggle-row { padding: 0; }
+.sm-laser-copy-fixtures-picker { display: grid; gap: 6px; }
+.sm-laser-copy-fixtures-dropdown {
+  --drm-dropdown-trigger-height: 29px;
+  --drm-dropdown-trigger-padding: 8px;
+  --drm-dropdown-value-size: 8px;
+  --drm-dropdown-radius: 4px;
+}
+.sm-laser-copy-fixtures-picker p {
+  margin: 0;
+  color: rgba(196, 212, 220, 0.48);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
 .sm-laser-empty-section { display: grid; gap: 8px; padding: 12px 2px; color: rgba(196, 212, 220, 0.48); font-size: 9px; }
 .sm-laser-section-inspector .rv-add-section-form { margin-top: 7px; }
 

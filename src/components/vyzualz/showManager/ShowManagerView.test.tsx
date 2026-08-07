@@ -112,6 +112,7 @@ const fixture = vi.hoisted(() => ({
     addLaserDmxShowManagerFixture: vi.fn(() => 'laser-fixture-new'),
     updateLaserDmxShowManagerFixture: vi.fn(),
     removeLaserDmxShowManagerFixture: vi.fn(),
+    copyLaserDmxShowManagerFixturesFromSection: vi.fn((_showId: string, _sourceSectionId: string, _destinationSectionId: string) => [] as string[]),
     pixGridState: {
       matrixWidth: 160,
       matrixHeight: 90,
@@ -223,7 +224,10 @@ vi.mock('../shared/VyzualzHeaderActions', () => ({
 }))
 
 import { createDefaultLaserDmxShowDirectorFixture } from '../react/ReactTypes'
-import { removeLaserDmxShowManagerFixtureFromSection } from './LaserDmxShowManagerDomain'
+import {
+  copyLaserDmxShowManagerFixturesBetweenSections,
+  removeLaserDmxShowManagerFixtureFromSection,
+} from './LaserDmxShowManagerDomain'
 import { ShowManagerView } from './ShowManagerView'
 
 let container: HTMLDivElement | null = null
@@ -704,6 +708,120 @@ describe('ShowManagerView production shell', () => {
       const currentIntro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
       currentIntro.fixtures = originalFixtures
       fixture.state.removeLaserDmxShowManagerFixture.mockReset()
+    }
+  })
+
+  it('copies fixtures through the production section toggle/dropdown and treats the entire copy as one Undo/Redo action', async () => {
+    const originalShows = fixture.state.laserDmxShowManagerShows
+    const originalEditingSectionId = fixture.state.laserDmxShowManagerEditingSectionId
+    const testShow = structuredClone(originalShows[0]!)
+    const intro = testShow.sections[0]!
+    const verse = testShow.sections[1]!
+    intro.fixtures = [{
+      ...createDefaultLaserDmxShowDirectorFixture('laser', 'copy-source-laser'),
+      label: 'Source Laser',
+      x: 8,
+      y: 6,
+      brightness: 0.41,
+    }]
+    verse.fixtures = [{
+      ...createDefaultLaserDmxShowDirectorFixture('strobe', 'copy-destination-strobe'),
+      label: 'Destination Strobe',
+      x: 8,
+      y: 6,
+    }]
+    fixture.state.laserDmxShowManagerShows = [testShow] as typeof fixture.state.laserDmxShowManagerShows
+    fixture.state.laserDmxShowManagerEditingSectionId = verse.id
+    fixture.state.copyLaserDmxShowManagerFixturesFromSection.mockReset()
+    fixture.state.copyLaserDmxShowManagerFixturesFromSection.mockImplementation((showId: string, sourceSectionId: string, destinationSectionId: string) => {
+      let copiedIds: string[] = []
+      fixture.state.laserDmxShowManagerShows = fixture.state.laserDmxShowManagerShows.map(candidate => {
+        if (candidate.id !== showId) return candidate
+        const result = copyLaserDmxShowManagerFixturesBetweenSections(candidate, sourceSectionId, destinationSectionId)
+        copiedIds = result.fixtureIds
+        return result.show
+      }) as typeof fixture.state.laserDmxShowManagerShows
+      return copiedIds
+    })
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      expect(container.querySelector('button[aria-label="Copy fixtures source section"]')).toBeNull()
+      const toggle = container.querySelector<HTMLButtonElement>('#show-manager-laser-copy-fixtures')
+      await act(async () => {
+        toggle?.click()
+        await Promise.resolve()
+      })
+
+      const sourceTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Copy fixtures source section"]')
+      expect(sourceTrigger?.disabled).toBe(false)
+      await act(async () => {
+        sourceTrigger?.click()
+        await Promise.resolve()
+      })
+      const sourceOptions = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+      expect(sourceOptions).toHaveLength(1)
+      expect(sourceOptions[0]?.textContent).toContain('Intro')
+      expect(sourceOptions[0]?.textContent).not.toContain('Verse')
+      expect(sourceOptions[0]?.textContent).not.toContain('Build')
+
+      await act(async () => {
+        sourceOptions[0]?.click()
+        await Promise.resolve()
+      })
+      expect(fixture.state.copyLaserDmxShowManagerFixturesFromSection).toHaveBeenCalledWith(
+        'laser-show-1',
+        intro.id,
+        verse.id,
+      )
+      let currentVerse = fixture.state.laserDmxShowManagerShows[0]!.sections.find(section => section.id === verse.id)!
+      expect(currentVerse.fixtures).toHaveLength(2)
+      const copiedId = currentVerse.fixtures[1]!.id
+      expect(copiedId).not.toBe('copy-source-laser')
+      expect(currentVerse.fixtures[1]).toMatchObject({ label: 'Source Laser', x: 8, y: 6, brightness: 0.41 })
+
+      const undo = container.querySelector<HTMLButtonElement>('button[title="Undo section edit"]')
+      expect(undo?.disabled).toBe(false)
+      await act(async () => {
+        undo?.click()
+        await Promise.resolve()
+      })
+      currentVerse = fixture.state.laserDmxShowManagerShows[0]!.sections.find(section => section.id === verse.id)!
+      expect(currentVerse.fixtures.map(item => item.id)).toEqual(['copy-destination-strobe'])
+      expect(fixture.state.laserDmxShowManagerShows[0]!.sections[0]!.fixtures.map(item => item.id)).toEqual(['copy-source-laser'])
+
+      const redo = container.querySelector<HTMLButtonElement>('button[title="Redo section edit"]')
+      expect(redo?.disabled).toBe(false)
+      await act(async () => {
+        redo?.click()
+        await Promise.resolve()
+      })
+      currentVerse = fixture.state.laserDmxShowManagerShows[0]!.sections.find(section => section.id === verse.id)!
+      expect(currentVerse.fixtures.map(item => item.id)).toEqual(['copy-destination-strobe', copiedId])
+    } finally {
+      fixture.state.laserDmxShowManagerShows = originalShows
+      fixture.state.laserDmxShowManagerEditingSectionId = originalEditingSectionId
+      fixture.state.copyLaserDmxShowManagerFixturesFromSection.mockReset()
+      fixture.state.copyLaserDmxShowManagerFixturesFromSection.mockReturnValue([])
     }
   })
 

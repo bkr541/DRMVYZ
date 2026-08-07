@@ -172,4 +172,45 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     const persistedShows = persisted.laserDmxShowManagerShows as typeof state.laserDmxShowManagerShows
     expect(persistedShows[0]!.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual([colocatedId])
   })
+  it('copies section fixtures atomically through the canonical store and persists independent appended clones', () => {
+    const beforePixGrid = useReactStore.getState().pixGridState
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Copy')
+    const initial = useReactStore.getState().laserDmxShowManagerShows[0]!
+    const introId = initial.sections[0]!.id
+    const verseId = initial.sections[1]!.id
+
+    const sourceId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, introId, 'laser', {
+      label: 'Hero Laser',
+      x: 9,
+      y: 6,
+      brightness: 0.37,
+      beam: { beamSpread: 64 },
+    })!
+    const destinationId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, verseId, 'strobe', { x: 9, y: 6 })!
+
+    const copiedIds = useReactStore.getState().copyLaserDmxShowManagerFixturesFromSection(showId, introId, verseId)
+    expect(copiedIds).toHaveLength(1)
+    expect(copiedIds[0]).not.toBe(sourceId)
+
+    let state = useReactStore.getState()
+    let show = state.laserDmxShowManagerShows.find(candidate => candidate.id === showId)!
+    expect(show.sections[1]!.fixtures.map(fixture => fixture.id)).toEqual([destinationId, copiedIds[0]])
+    expect(show.sections[1]!.fixtures[1]).toMatchObject({ label: 'Hero Laser', x: 9, y: 6, brightness: 0.37 })
+    expect(show.sections[1]!.fixtures[1]!.beam).not.toBe(show.sections[0]!.fixtures[0]!.beam)
+    expect(state.pixGridState).toBe(beforePixGrid)
+
+    useReactStore.getState().updateLaserDmxShowManagerFixture(showId, verseId, copiedIds[0]!, { brightness: 0.8 })
+    state = useReactStore.getState()
+    show = state.laserDmxShowManagerShows.find(candidate => candidate.id === showId)!
+    expect(show.sections[0]!.fixtures.find(fixture => fixture.id === sourceId)?.brightness).toBe(0.37)
+
+    const beforeFailedCopy = show
+    expect(useReactStore.getState().copyLaserDmxShowManagerFixturesFromSection(showId, verseId, verseId)).toEqual([])
+    expect(useReactStore.getState().laserDmxShowManagerShows.find(candidate => candidate.id === showId)).toBe(beforeFailedCopy)
+
+    const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
+    const persistedShows = persisted.laserDmxShowManagerShows as typeof state.laserDmxShowManagerShows
+    expect(persistedShows[0]!.sections[1]!.fixtures.map(fixture => fixture.id)).toEqual([destinationId, copiedIds[0]])
+  })
+
 })
