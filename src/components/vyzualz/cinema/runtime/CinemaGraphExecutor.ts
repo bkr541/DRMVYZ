@@ -267,9 +267,25 @@ export class CinemaGraphExecutor {
         const enabled = record
           ? (performance.nodeEnabledOverrides[nodeId] ?? record.authored.enabled)
           : false
-        if (!record || record.status !== 'ready' || !enabled || this.seekDisabledNodes.has(nodeId)) {
+        const transparentSource = record != null
+          && record.authored.opacity <= 0
+          && (record.authored.family === 'media'
+            || record.authored.family === 'logo'
+            || record.authored.family === 'text'
+            || record.authored.family === 'lyrics'
+            || record.authored.family === 'procedural')
+        if (!record || record.status !== 'ready' || this.seekDisabledNodes.has(nodeId)) {
           frameFallbackUsed = true
           this.renderNodeFallback(record?.authored ?? null, outputNode, frameLeases)
+          continue
+        }
+        if (!enabled) {
+          if (outputNode) frameFallbackUsed = true
+          this.renderNodeFallback(record.authored, outputNode, frameLeases)
+          continue
+        }
+        if (transparentSource) {
+          this.renderNodeFallback(record.authored, outputNode, frameLeases)
           continue
         }
 
@@ -620,7 +636,7 @@ export class CinemaGraphExecutor {
     const feedback = this.feedbackSources.get(edge.sourceNodeId)
     const historyFrames = Math.max(1, Math.floor(edge.historyFrames))
     if (!feedback || feedback.cursor < 0 || feedback.framesWritten < historyFrames) return null
-    const index = positiveModulo(feedback.cursor - (historyFrames - 1), feedback.leases.length)
+    const index = positiveModulo(feedback.cursor - historyFrames, feedback.leases.length)
     return this.targets.getReadTexture(feedback.leases[index])
   }
 

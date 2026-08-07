@@ -13,7 +13,10 @@ import {
   getReactLiveEngineOwnershipDiagnosticsForTests,
   resetReactLiveEngineOwnershipForTests,
 } from '../../react/renderers/ReactLiveEngineOwnership'
-import { createCinemaFoundationPersistedState } from '../CinemaFoundation'
+import {
+  CINEMA_STAGE16_REFERENCE_COMPOSITION_ID,
+  createCinemaFoundationPersistedState,
+} from '../CinemaFoundation'
 import { createCinemaDiagnosticSnapshot } from '../CinemaDiagnostics'
 import {
   getDrmvyzWebGLContextDiagnosticsForTests,
@@ -144,7 +147,7 @@ describe('Cinema production engine registration', () => {
     expect(state.activeReactPresetId).toBeNull()
     expect(host?.querySelector('[data-cinema-workspace="runtime"]')).not.toBeNull()
     expect(host?.querySelector('[data-cinema-frame-available="true"]')).not.toBeNull()
-    expect(host?.textContent).toContain('Media, text, lyrics, and masks')
+    expect(host?.textContent).toContain('Layer compositing, effects, and transitions')
     expect(canvas).not.toBeNull()
     expect(retire).toHaveBeenCalledTimes(1)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
@@ -182,6 +185,19 @@ describe('Cinema production engine registration', () => {
       activeOwnerCount: 1,
       phase: 'stable',
     })
+  })
+
+  it('surfaces the Stage 16 reference through the canonical Cinema store and production workspace', async () => {
+    const selected = useCinemaStore.getState().setActiveCinemaComposition(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
+    expect(selected.ok).toBe(true)
+
+    await act(async () => root?.render(
+      <CinemaWorkspace surface="panel" frameBridge={productionFrameBridge} />,
+    ))
+
+    expect(useCinemaStore.getState().activeCompositionId).toBe(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
+    expect(host?.textContent).toContain('Cinema Layer Compositor Reference')
+    expect(host?.textContent).toContain('Stage 16 compositor, masks, effects, and transitions wired')
   })
 
   it('keeps only one active Cinema context and loop through a Strict Mode effect replay', async () => {

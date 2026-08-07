@@ -1,17 +1,44 @@
 /** @vitest-environment jsdom */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CinemaNodeId, CinemaPortId } from '../CinemaIdentifiers'
+import { cinemaStableId, type CinemaCompositionId, type CinemaConnectionId, type CinemaNodeId, type CinemaPortId } from '../CinemaIdentifiers'
 import {
+  CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID,
   CINEMA_FOUNDATION_COMPOSITION_ID,
   CINEMA_FOUNDATION_GRADIENT_DEFINITION,
   CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID,
+  CINEMA_FOUNDATION_GRADIENT_TYPE_ID,
+  CINEMA_FOUNDATION_INPUT_PORT_ID,
+  CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
   CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID,
   CINEMA_FOUNDATION_RUNTIME_REGISTRY,
   createCinemaFoundationPersistedState,
 } from '../CinemaFoundation'
 import { createCinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
-import { CINEMA_STAGE15_REFERENCE_COMPOSITION_ID } from '../CinemaMediaTextNodes'
+import {
+  CINEMA_GENERATED_MASK_NODE_TYPE_ID,
+  CINEMA_MEDIA_MASK_OUTPUT_PORT_ID,
+  CINEMA_STAGE15_REFERENCE_COMPOSITION_ID,
+} from '../CinemaMediaTextNodes'
+import {
+  CINEMA_COMPOSITOR_BACKGROUND_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID,
+  CINEMA_COMPOSITOR_EFFECT_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_FOREGROUND_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_HISTORY_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_MASK_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_TRANSITION_FROM_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_TRANSITION_PROGRESS_PARAMETER_ID,
+  CINEMA_COMPOSITOR_TRANSITION_TO_INPUT_PORT_ID,
+  CINEMA_EFFECT_NODE_TYPE_IDS,
+  CINEMA_MASKED_COMPOSITE_NODE_TYPE_ID,
+  CINEMA_TRANSITION_NODE_TYPE_ID,
+} from '../CinemaCompositorNodes'
+import {
+  CINEMA_COMPOSITION_SCHEMA_ID,
+  CINEMA_COMPOSITION_SCHEMA_VERSION,
+  type CinemaCompositionDefinition,
+} from '../CinemaDomain'
 import type { CinemaFrameContext, CinemaNodePlugin, CinemaRenderNode } from '../CinemaRendererContracts'
 import type { CinemaTargetDescriptor } from '../CinemaRendererContracts'
 import { CinemaRuntime } from '../runtime/CinemaRuntime'
@@ -330,7 +357,7 @@ describe('CinemaRuntime', () => {
       fillStyle: '',
     } as unknown as CanvasRenderingContext2D
     vi.stubGlobal('CanvasRenderingContext2D', class CanvasRenderingContext2D {})
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (kind: string) {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement, kind: string) {
       if (this === canvas && kind === 'webgl2') return gl as unknown as RenderingContext
       if (kind === '2d') return context2d
       return null
@@ -372,6 +399,88 @@ describe('CinemaRuntime', () => {
     expect(gl.__calls.drawCount).toBe(2)
 
     runtime.dispose()
+  })
+
+  it('executes Stage 16 masks, effects, and transitions through one production runtime and skips transparent or disabled sources cleanly', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: callback => { const id = nextRaf++; callbacks.set(id, callback); return id },
+      cancelAnimationFrame: id => { callbacks.delete(id) },
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    const state = createCinemaFoundationPersistedState()
+    runtime.resize(resolution(640, 360))
+    runtime.setGraph(stage16RuntimeComposition(), null, state.definitions)
+    runtime.setFrame(frame(640, 360))
+    runtime.start()
+    const scheduled = [...callbacks.entries()][0]
+    callbacks.delete(scheduled[0])
+    scheduled[1](16.67)
+
+    expect(runtime.getSnapshot().graph).toMatchObject({
+      activeNodeCount: 7,
+      initializedNodeCount: 7,
+      failedNodeCount: 0,
+      outputRendered: true,
+      safeOutputActive: false,
+    })
+    expect(gl.__calls.drawCount).toBe(6)
+    expect(gl.drawBuffers).toHaveBeenCalledWith([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1])
+    expect(gl.bindFramebuffer).toHaveBeenCalledWith(gl.FRAMEBUFFER, null)
+
+    runtime.dispose()
+    expect(gl.__calls.deletedPrograms).toBe(gl.__calls.createdPrograms)
+    expect(gl.__calls.deletedTextures).toBe(gl.__calls.createdTextures)
+  })
+
+  it('keeps feedback history in Cinema-owned persistent targets and releases it on disposal', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: callback => { const id = nextRaf++; callbacks.set(id, callback); return id },
+      cancelAnimationFrame: id => { callbacks.delete(id) },
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    const state = createCinemaFoundationPersistedState()
+    runtime.resize(resolution(320, 180))
+    runtime.setGraph(stage16FeedbackComposition(), null, state.definitions)
+    runtime.setFrame(frame(320, 180))
+    runtime.start()
+
+    const first = [...callbacks.entries()][0]
+    callbacks.delete(first[0])
+    first[1](16.67)
+    const allocationsAfterFirstFrame = gl.__calls.createdTextures
+    const second = [...callbacks.entries()][0]
+    callbacks.delete(second[0])
+    second[1](33.34)
+
+    expect(runtime.getSnapshot().graph).toMatchObject({
+      activeNodeCount: 3,
+      initializedNodeCount: 3,
+      failedNodeCount: 0,
+      outputRendered: true,
+      safeOutputActive: false,
+    })
+    expect(gl.__calls.drawCount).toBe(6)
+    expect(gl.__calls.createdTextures).toBe(allocationsAfterFirstFrame)
+
+    runtime.dispose()
+    expect(gl.__calls.deletedPrograms).toBe(gl.__calls.createdPrograms)
+    expect(gl.__calls.deletedTextures).toBe(gl.__calls.createdTextures)
   })
 
   it('isolates a throwing node and keeps the output path alive diagnostically', () => {
@@ -490,6 +599,106 @@ describe('CinemaRuntime', () => {
     )
   })
 })
+
+
+function stage16RuntimeComposition(): CinemaCompositionDefinition {
+  const backgroundId = cinemaStableId<CinemaNodeId>('stage16-runtime-background', 'node')
+  const transparentForegroundId = cinemaStableId<CinemaNodeId>('stage16-runtime-transparent-foreground', 'node')
+  const maskId = cinemaStableId<CinemaNodeId>('stage16-runtime-mask', 'node')
+  const maskedId = cinemaStableId<CinemaNodeId>('stage16-runtime-masked', 'node')
+  const blurId = cinemaStableId<CinemaNodeId>('stage16-runtime-blur', 'node')
+  const transitionTargetId = cinemaStableId<CinemaNodeId>('stage16-runtime-transition-target', 'node')
+  const transitionId = cinemaStableId<CinemaNodeId>('stage16-runtime-transition', 'node')
+  const outputId = cinemaStableId<CinemaNodeId>('stage16-runtime-output', 'node')
+  const connection = (
+    id: string,
+    fromNodeId: CinemaNodeId,
+    fromPortId: CinemaPortId,
+    toNodeId: CinemaNodeId,
+    toPortId: CinemaPortId,
+  ) => ({
+    id: cinemaStableId<CinemaConnectionId>(id, 'connection'),
+    from: { nodeId: fromNodeId, portId: fromPortId },
+    to: { nodeId: toNodeId, portId: toPortId },
+    enabled: true,
+  })
+  return {
+    schemaId: CINEMA_COMPOSITION_SCHEMA_ID,
+    schemaVersion: CINEMA_COMPOSITION_SCHEMA_VERSION,
+    id: cinemaStableId<CinemaCompositionId>('stage16-runtime-compositor-test', 'composition'),
+    revision: 1,
+    metadata: { name: 'Stage 16 Runtime Compositor Test' },
+    nodes: [
+      { id: backgroundId, typeId: CINEMA_FOUNDATION_GRADIENT_TYPE_ID, typeVersion: 1, family: 'procedural', label: 'Background', enabled: true, opacity: 1, parameterValues: {} },
+      { id: transparentForegroundId, typeId: CINEMA_FOUNDATION_GRADIENT_TYPE_ID, typeVersion: 1, family: 'procedural', label: 'Transparent Foreground', enabled: true, opacity: 0, parameterValues: {} },
+      { id: maskId, typeId: CINEMA_GENERATED_MASK_NODE_TYPE_ID, typeVersion: 1, family: 'procedural', label: 'Mask', enabled: true, opacity: 1, parameterValues: {} },
+      { id: maskedId, typeId: CINEMA_MASKED_COMPOSITE_NODE_TYPE_ID, typeVersion: 1, family: 'mixer', label: 'Masked Composite', enabled: true, opacity: 1, parameterValues: {} },
+      { id: blurId, typeId: CINEMA_EFFECT_NODE_TYPE_IDS.blur, typeVersion: 1, family: 'effect', label: 'Layer Blur', enabled: true, opacity: 1, parameterValues: {} },
+      { id: transitionTargetId, typeId: CINEMA_FOUNDATION_GRADIENT_TYPE_ID, typeVersion: 1, family: 'procedural', label: 'Disabled Transition Target', enabled: false, opacity: 1, parameterValues: {} },
+      { id: transitionId, typeId: CINEMA_TRANSITION_NODE_TYPE_ID, typeVersion: 1, family: 'mixer', label: 'Transition', enabled: true, opacity: 1, parameterValues: { [CINEMA_COMPOSITOR_TRANSITION_PROGRESS_PARAMETER_ID]: 0.5 } },
+      { id: outputId, typeId: CINEMA_FOUNDATION_OUTPUT_TYPE_ID, typeVersion: 1, family: 'output', label: 'Output', enabled: true, opacity: 1, parameterValues: {} },
+    ],
+    connections: [
+      connection('runtime-background-masked', backgroundId, CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID, maskedId, CINEMA_COMPOSITOR_BACKGROUND_INPUT_PORT_ID),
+      connection('runtime-foreground-masked', transparentForegroundId, CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID, maskedId, CINEMA_COMPOSITOR_FOREGROUND_INPUT_PORT_ID),
+      connection('runtime-mask-masked', maskId, CINEMA_MEDIA_MASK_OUTPUT_PORT_ID, maskedId, CINEMA_COMPOSITOR_MASK_INPUT_PORT_ID),
+      connection('runtime-masked-blur', maskedId, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, blurId, CINEMA_COMPOSITOR_EFFECT_INPUT_PORT_ID),
+      connection('runtime-blur-transition', blurId, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, transitionId, CINEMA_COMPOSITOR_TRANSITION_FROM_INPUT_PORT_ID),
+      { ...connection('runtime-target-transition', transitionTargetId, CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID, transitionId, CINEMA_COMPOSITOR_TRANSITION_TO_INPUT_PORT_ID), enabled: false },
+      connection('runtime-transition-output', transitionId, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, outputId, CINEMA_FOUNDATION_INPUT_PORT_ID),
+    ],
+    outputNodeId: outputId,
+    masterParameters: [],
+    masterValues: {},
+    cameras: [],
+    assetBindings: [],
+    modulationRoutes: [],
+    performanceRules: [],
+  }
+}
+
+
+function stage16FeedbackComposition(): CinemaCompositionDefinition {
+  const sourceId = cinemaStableId<CinemaNodeId>('stage16-runtime-feedback-source', 'node')
+  const feedbackId = cinemaStableId<CinemaNodeId>('stage16-runtime-feedback-effect', 'node')
+  const outputId = cinemaStableId<CinemaNodeId>('stage16-runtime-feedback-output', 'node')
+  const connection = (
+    id: string,
+    fromNodeId: CinemaNodeId,
+    fromPortId: CinemaPortId,
+    toNodeId: CinemaNodeId,
+    toPortId: CinemaPortId,
+  ) => ({
+    id: cinemaStableId<CinemaConnectionId>(id, 'connection'),
+    from: { nodeId: fromNodeId, portId: fromPortId },
+    to: { nodeId: toNodeId, portId: toPortId },
+    enabled: true,
+  })
+  return {
+    schemaId: CINEMA_COMPOSITION_SCHEMA_ID,
+    schemaVersion: CINEMA_COMPOSITION_SCHEMA_VERSION,
+    id: cinemaStableId<CinemaCompositionId>('stage16-runtime-feedback-test', 'composition'),
+    revision: 1,
+    metadata: { name: 'Stage 16 Runtime Feedback Test' },
+    nodes: [
+      { id: sourceId, typeId: CINEMA_FOUNDATION_GRADIENT_TYPE_ID, typeVersion: 1, family: 'procedural', label: 'Source', enabled: true, opacity: 1, parameterValues: {} },
+      { id: feedbackId, typeId: CINEMA_EFFECT_NODE_TYPE_IDS.feedback, typeVersion: 1, family: 'effect', label: 'Feedback', enabled: true, opacity: 1, parameterValues: {} },
+      { id: outputId, typeId: CINEMA_FOUNDATION_OUTPUT_TYPE_ID, typeVersion: 1, family: 'output', label: 'Output', enabled: true, opacity: 1, parameterValues: {} },
+    ],
+    connections: [
+      connection('runtime-feedback-source', sourceId, CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID, feedbackId, CINEMA_COMPOSITOR_EFFECT_INPUT_PORT_ID),
+      connection('runtime-feedback-history', feedbackId, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, feedbackId, CINEMA_COMPOSITOR_HISTORY_INPUT_PORT_ID),
+      connection('runtime-feedback-output', feedbackId, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, outputId, CINEMA_FOUNDATION_INPUT_PORT_ID),
+    ],
+    outputNodeId: outputId,
+    masterParameters: [],
+    masterValues: {},
+    cameras: [],
+    assetBindings: [],
+    modulationRoutes: [],
+    performanceRules: [],
+  }
+}
 
 function resolution(width: number, height: number) {
   return {

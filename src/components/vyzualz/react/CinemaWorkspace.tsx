@@ -180,8 +180,8 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 15 media, text, lyrics, and mask nodes wired</strong>
-          <span>Native image, video, logo, text, timed-lyric, and generated-mask nodes now render through the Cinema graph while media decoders, text surfaces, object URLs, and GPU textures remain runtime-only.</span>
+          <strong>Stage 16 compositor, masks, effects, and transitions wired</strong>
+          <span>Layer mixers, deterministic masks, reusable post effects, explicit alpha/color conversion, and composition transitions now run inside the single Cinema context and target pool.</span>
         </div>
       </section>
     )
@@ -209,10 +209,10 @@ export function CinemaWorkspace({
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 15</div>
-        <h2>Media, text, lyrics, and masks</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 16</div>
+        <h2>Layer compositing, effects, and transitions</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema now renders canonical media assets and timed lyrics as native graph sources, synchronizes video to transport, and exposes mask-compatible text and lyric output without creating another canvas, WebGL context, or animation loop.
+          Cinema now combines multiple graph sources with premultiplied-alpha blend and mask nodes, applies reusable layer or master effects, and transitions between composites without creating another canvas, WebGL context, or animation loop.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>

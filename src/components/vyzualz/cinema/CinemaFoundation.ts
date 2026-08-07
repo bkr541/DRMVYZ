@@ -37,14 +37,41 @@ import { DEFAULT_SHADER_SCENE_ID } from '../react/shaders/scenes'
 import {
   CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE,
   CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+  CINEMA_CINEMATIC_WORLD_COLOR_OUTPUT_PORT_ID,
   createCinemaCinematicWorldComposition,
 } from './CinemaCinematicWorldAdapter'
 import {
+  CINEMA_GENERATED_MASK_NODE_TYPE_ID,
+  CINEMA_LOGO_NODE_TYPE_ID,
+  CINEMA_LYRIC_NODE_TYPE_ID,
+  CINEMA_MASK_SHAPE_PARAMETER_ID,
+  CINEMA_MEDIA_COLOR_OUTPUT_PORT_ID,
+  CINEMA_MEDIA_MASK_OUTPUT_PORT_ID,
   CINEMA_MEDIA_TEXT_PERSISTED_DEFINITIONS,
   CINEMA_MEDIA_TEXT_RUNTIME_REGISTRATIONS,
   CINEMA_STAGE15_REFERENCE_COMPOSITION_ID,
+  CINEMA_TEXT_FALLBACK_CONTENT_PARAMETER_ID,
+  CINEMA_TEXT_FALLBACK_PARAMETER_ID,
   createCinemaStage15ReferenceComposition,
 } from './CinemaMediaTextNodes'
+import {
+  CINEMA_BLEND_NODE_TYPE_IDS,
+  CINEMA_COLOR_CONVERSION_GLSL,
+  CINEMA_COMPOSITOR_BACKGROUND_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID,
+  CINEMA_COMPOSITOR_EFFECT_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_FOREGROUND_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_MASK_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_PERSISTED_DEFINITIONS,
+  CINEMA_COMPOSITOR_RUNTIME_REGISTRATIONS,
+  CINEMA_COMPOSITOR_TRANSITION_FROM_INPUT_PORT_ID,
+  CINEMA_COMPOSITOR_TRANSITION_KIND_PARAMETER_ID,
+  CINEMA_COMPOSITOR_TRANSITION_PROGRESS_PARAMETER_ID,
+  CINEMA_COMPOSITOR_TRANSITION_TO_INPUT_PORT_ID,
+  CINEMA_EFFECT_NODE_TYPE_IDS,
+  CINEMA_MASKED_COMPOSITE_NODE_TYPE_ID,
+  CINEMA_TRANSITION_NODE_TYPE_ID,
+} from './CinemaCompositorNodes'
 import {
   CINEMA_PERSISTED_STORE_SCHEMA_ID,
   CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
@@ -235,6 +262,7 @@ export const CINEMA_PRODUCTION_PERSISTED_DEFINITIONS: readonly CinemaPersistedDe
   ...CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.persistedDefinitions,
   ...CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.persistedDefinitions,
   ...CINEMA_MEDIA_TEXT_PERSISTED_DEFINITIONS,
+  ...CINEMA_COMPOSITOR_PERSISTED_DEFINITIONS,
 ])
 
 export const CINEMA_FOUNDATION_COMPOSITION_ID = cinemaStableId<CinemaCompositionId>('foundation-gradient', 'composition')
@@ -332,6 +360,92 @@ export const CINEMA_STAGE15_REFERENCE_COMPOSITION: Readonly<CinemaCompositionDef
   ),
 )
 
+export const CINEMA_STAGE16_REFERENCE_COMPOSITION_ID = cinemaStableId<CinemaCompositionId>('stage16-compositor-reference', 'composition')
+
+export const CINEMA_STAGE16_REFERENCE_COMPOSITION: Readonly<CinemaCompositionDefinition> = deepFreeze(
+  createCinemaStage16ReferenceComposition(),
+)
+
+function createCinemaStage16ReferenceComposition(): CinemaCompositionDefinition {
+  const worldTemplate = CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.nodes.find(node => node.family !== 'output')
+  if (!worldTemplate) throw new Error('Cinema Stage 16 reference composition requires the registered Cinematic World adapter.')
+  const ids = {
+    world: cinemaStableId<CinemaNodeId>('stage16-world', 'node'),
+    bloom: cinemaStableId<CinemaNodeId>('stage16-world-bloom', 'node'),
+    logo: cinemaStableId<CinemaNodeId>('stage16-logo', 'node'),
+    mask: cinemaStableId<CinemaNodeId>('stage16-mask', 'node'),
+    masked: cinemaStableId<CinemaNodeId>('stage16-masked-logo', 'node'),
+    lyrics: cinemaStableId<CinemaNodeId>('stage16-lyrics', 'node'),
+    lyricGrade: cinemaStableId<CinemaNodeId>('stage16-lyrics-grade', 'node'),
+    screen: cinemaStableId<CinemaNodeId>('stage16-screen-mix', 'node'),
+    generator: cinemaStableId<CinemaNodeId>('stage16-test-generator', 'node'),
+    pixelation: cinemaStableId<CinemaNodeId>('stage16-pixelation', 'node'),
+    transition: cinemaStableId<CinemaNodeId>('stage16-transition', 'node'),
+    tone: cinemaStableId<CinemaNodeId>('stage16-master-tone', 'node'),
+    output: cinemaStableId<CinemaNodeId>('stage16-output', 'node'),
+  }
+  const connection = (
+    id: string,
+    fromNodeId: CinemaNodeId,
+    fromPortId: CinemaPortId,
+    toNodeId: CinemaNodeId,
+    toPortId: CinemaPortId,
+  ) => ({
+    id: cinemaStableId<CinemaConnectionId>(id, 'connection'),
+    from: { nodeId: fromNodeId, portId: fromPortId },
+    to: { nodeId: toNodeId, portId: toPortId },
+    enabled: true,
+  })
+  return {
+    schemaId: CINEMA_COMPOSITION_SCHEMA_ID,
+    schemaVersion: CINEMA_COMPOSITION_SCHEMA_VERSION,
+    id: CINEMA_STAGE16_REFERENCE_COMPOSITION_ID,
+    revision: 1,
+    metadata: {
+      name: 'Cinema Layer Compositor Reference',
+      description: 'Production-path Stage 16 graph combining a world, transparent logo, lyrics, generated mask, test generator, per-layer effects, master tone mapping, and a composition transition.',
+      tags: ['stage-16', 'compositor', 'masks', 'effects', 'transitions'],
+      provenance: { builtIn: true, stage: 16 },
+    },
+    nodes: [
+      { ...worldTemplate, id: ids.world, label: 'Cinematic World Layer' },
+      { id: ids.bloom, typeId: CINEMA_EFFECT_NODE_TYPE_IDS.bloom, typeVersion: 1, family: 'effect', label: 'World Bloom', enabled: true, opacity: 1, parameterValues: {} },
+      { id: ids.logo, typeId: CINEMA_LOGO_NODE_TYPE_ID, typeVersion: 1, family: 'logo', label: 'Transparent Logo Layer', enabled: true, opacity: 1, parameterValues: {} },
+      { id: ids.mask, typeId: CINEMA_GENERATED_MASK_NODE_TYPE_ID, typeVersion: 1, family: 'procedural', label: 'Logo Diamond Mask', enabled: true, opacity: 1, parameterValues: { [CINEMA_MASK_SHAPE_PARAMETER_ID]: 'diamond' } },
+      { id: ids.masked, typeId: CINEMA_MASKED_COMPOSITE_NODE_TYPE_ID, typeVersion: 1, family: 'mixer', label: 'Masked Logo Composite', enabled: true, opacity: 1, parameterValues: {} },
+      { id: ids.lyrics, typeId: CINEMA_LYRIC_NODE_TYPE_ID, typeVersion: 1, family: 'lyrics', label: 'Canonical Lyrics Layer', enabled: true, opacity: 1, parameterValues: { [CINEMA_TEXT_FALLBACK_PARAMETER_ID]: 'static-fallback', [CINEMA_TEXT_FALLBACK_CONTENT_PARAMETER_ID]: 'CINEMA · LAYERS · EFFECTS' } },
+      { id: ids.lyricGrade, typeId: CINEMA_EFFECT_NODE_TYPE_IDS['color-grading'], typeVersion: 1, family: 'effect', label: 'Lyrics Color Grade', enabled: true, opacity: 1, parameterValues: {} },
+      { id: ids.screen, typeId: CINEMA_BLEND_NODE_TYPE_IDS.screen, typeVersion: 1, family: 'mixer', label: 'World + Lyrics Screen', enabled: true, opacity: 1, parameterValues: {} },
+      { id: ids.generator, typeId: CINEMA_FOUNDATION_GRADIENT_TYPE_ID, typeVersion: 1, family: 'procedural', label: 'Particle/Test Generator', enabled: true, opacity: 0.75, parameterValues: { [CINEMA_FOUNDATION_ANGLE_PARAMETER_ID]: 55 } },
+      { id: ids.pixelation, typeId: CINEMA_EFFECT_NODE_TYPE_IDS.pixelation, typeVersion: 1, family: 'effect', label: 'Generator Pixelation', enabled: true, opacity: 1, parameterValues: {} },
+      { id: ids.transition, typeId: CINEMA_TRANSITION_NODE_TYPE_ID, typeVersion: 1, family: 'mixer', label: 'Composition Transition', enabled: true, opacity: 1, parameterValues: { [CINEMA_COMPOSITOR_TRANSITION_KIND_PARAMETER_ID]: 'wipe', [CINEMA_COMPOSITOR_TRANSITION_PROGRESS_PARAMETER_ID]: 0.25 } },
+      { id: ids.tone, typeId: CINEMA_EFFECT_NODE_TYPE_IDS['tone-mapping'], typeVersion: 1, family: 'effect', label: 'Master Tone Mapping', enabled: true, opacity: 1, parameterValues: {} },
+      { id: ids.output, typeId: CINEMA_FOUNDATION_OUTPUT_TYPE_ID, typeVersion: 1, family: 'output', label: 'Cinema Output', enabled: true, opacity: 1, parameterValues: {} },
+    ],
+    connections: [
+      connection('stage16-world-bloom', ids.world, CINEMA_CINEMATIC_WORLD_COLOR_OUTPUT_PORT_ID, ids.bloom, CINEMA_COMPOSITOR_EFFECT_INPUT_PORT_ID),
+      connection('stage16-bloom-masked-background', ids.bloom, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, ids.masked, CINEMA_COMPOSITOR_BACKGROUND_INPUT_PORT_ID),
+      connection('stage16-logo-masked-foreground', ids.logo, CINEMA_MEDIA_COLOR_OUTPUT_PORT_ID, ids.masked, CINEMA_COMPOSITOR_FOREGROUND_INPUT_PORT_ID),
+      connection('stage16-mask-masked-mask', ids.mask, CINEMA_MEDIA_MASK_OUTPUT_PORT_ID, ids.masked, CINEMA_COMPOSITOR_MASK_INPUT_PORT_ID),
+      connection('stage16-lyrics-grade', ids.lyrics, CINEMA_MEDIA_COLOR_OUTPUT_PORT_ID, ids.lyricGrade, CINEMA_COMPOSITOR_EFFECT_INPUT_PORT_ID),
+      connection('stage16-masked-screen-background', ids.masked, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, ids.screen, CINEMA_COMPOSITOR_BACKGROUND_INPUT_PORT_ID),
+      connection('stage16-lyrics-screen-foreground', ids.lyricGrade, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, ids.screen, CINEMA_COMPOSITOR_FOREGROUND_INPUT_PORT_ID),
+      connection('stage16-generator-pixelation', ids.generator, CINEMA_FOUNDATION_COLOR_OUTPUT_PORT_ID, ids.pixelation, CINEMA_COMPOSITOR_EFFECT_INPUT_PORT_ID),
+      connection('stage16-screen-transition-from', ids.screen, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, ids.transition, CINEMA_COMPOSITOR_TRANSITION_FROM_INPUT_PORT_ID),
+      connection('stage16-pixel-transition-to', ids.pixelation, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, ids.transition, CINEMA_COMPOSITOR_TRANSITION_TO_INPUT_PORT_ID),
+      connection('stage16-transition-tone', ids.transition, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, ids.tone, CINEMA_COMPOSITOR_EFFECT_INPUT_PORT_ID),
+      connection('stage16-tone-output', ids.tone, CINEMA_COMPOSITOR_COLOR_OUTPUT_PORT_ID, ids.output, CINEMA_FOUNDATION_INPUT_PORT_ID),
+    ],
+    outputNodeId: ids.output,
+    masterParameters: [],
+    masterValues: {},
+    cameras: CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.cameras,
+    assetBindings: [],
+    modulationRoutes: [],
+    performanceRules: [],
+  }
+}
+
 export function createCinemaFoundationPersistedState(): CinemaPersistedState {
   return JSON.parse(JSON.stringify({
     schemaId: CINEMA_PERSISTED_STORE_SCHEMA_ID,
@@ -342,6 +456,7 @@ export function createCinemaFoundationPersistedState(): CinemaPersistedState {
       CINEMA_SHADER_REFERENCE_COMPOSITION,
       CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
       CINEMA_STAGE15_REFERENCE_COMPOSITION,
+      CINEMA_STAGE16_REFERENCE_COMPOSITION,
     ],
     instances: [],
     collections: [],
@@ -353,6 +468,7 @@ export function createCinemaFoundationPersistedState(): CinemaPersistedState {
       cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
       canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
       mediaTextNodeVersion: 1,
+      compositorNodeVersion: 1,
     },
     migrationProvenance: [],
   })) as CinemaPersistedState
@@ -377,10 +493,12 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
       composition.id !== CINEMA_SHADER_REFERENCE_COMPOSITION.id
       && composition.id !== CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id
       && composition.id !== CINEMA_STAGE15_REFERENCE_COMPOSITION_ID
+      && composition.id !== CINEMA_STAGE16_REFERENCE_COMPOSITION_ID
     )),
     CINEMA_SHADER_REFERENCE_COMPOSITION,
     CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
     CINEMA_STAGE15_REFERENCE_COMPOSITION,
+    CINEMA_STAGE16_REFERENCE_COMPOSITION,
   ]
   return JSON.parse(JSON.stringify({
     ...state,
@@ -392,6 +510,7 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
       cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
       canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
       mediaTextNodeVersion: 1,
+      compositorNodeVersion: 1,
     },
   })) as CinemaPersistedState
 }
@@ -453,6 +572,8 @@ class FoundationOutputNode implements CinemaRenderNode {
   readonly typeId = CINEMA_FOUNDATION_OUTPUT_TYPE_ID
   private program: WebGLProgram | null = null
   private textureLocation: WebGLUniformLocation | null = null
+  private colorSpaceLocation: WebGLUniformLocation | null = null
+  private alphaModeLocation: WebGLUniformLocation | null = null
 
   constructor(readonly nodeId: CinemaNodeId) {}
 
@@ -460,6 +581,8 @@ class FoundationOutputNode implements CinemaRenderNode {
     const gl = context.webgl.gl
     this.program = createProgram(gl, FULLSCREEN_VERTEX_SHADER, OUTPUT_FRAGMENT_SHADER)
     this.textureLocation = gl.getUniformLocation(this.program, 'uTexture')
+    this.colorSpaceLocation = gl.getUniformLocation(this.program, 'uColorSpace')
+    this.alphaModeLocation = gl.getUniformLocation(this.program, 'uAlphaMode')
   }
 
   resize(_context: CinemaNodeResizeContext): void {}
@@ -487,6 +610,8 @@ class FoundationOutputNode implements CinemaRenderNode {
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.uniform1i(this.textureLocation, 0)
+    gl.uniform1i(this.colorSpaceLocation, input.descriptor.colorSpace === 'linear-srgb' ? 1 : input.descriptor.colorSpace === 'display-p3' ? 2 : 0)
+    gl.uniform1i(this.alphaModeLocation, input.descriptor.alphaMode === 'straight' ? 1 : input.descriptor.alphaMode === 'opaque' ? 2 : 0)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
     gl.bindTexture(gl.TEXTURE_2D, null)
   }
@@ -523,6 +648,7 @@ export const CINEMA_PRODUCTION_RUNTIME_REGISTRY = createCinemaRuntimeNodeRegistr
   ...CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.runtimeRegistrations,
   ...CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.runtimeRegistrations,
   ...CINEMA_MEDIA_TEXT_RUNTIME_REGISTRATIONS,
+  ...CINEMA_COMPOSITOR_RUNTIME_REGISTRATIONS,
 ]).registry
 
 const FULLSCREEN_VERTEX_SHADER = `#version 300 es
@@ -554,9 +680,14 @@ const OUTPUT_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec2 vUv;
 uniform sampler2D uTexture;
+uniform int uColorSpace;
+uniform int uAlphaMode;
 out vec4 outColor;
+${CINEMA_COLOR_CONVERSION_GLSL}
 void main() {
-  outColor = texture(uTexture, vUv);
+  vec4 normalized = cinemaNormalizeSample(texture(uTexture, vUv), uColorSpace, uAlphaMode);
+  vec3 encoded = cinemaLinearToSrgb(cinemaStraight(normalized));
+  outColor = vec4(encoded * normalized.a, normalized.a);
 }`
 
 function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram {

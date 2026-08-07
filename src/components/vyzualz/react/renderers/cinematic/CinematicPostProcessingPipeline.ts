@@ -5,6 +5,10 @@ import { ShaderFramebuffer } from '../../shaders/runtime/ShaderFramebuffer'
 import { ShaderProgram } from '../../shaders/runtime/ShaderProgram'
 import { cinematicModulationValue } from './CinematicAudioModulation'
 import {
+  CINEMATIC_POST_PROCESS_PASS_SOURCES,
+  type CinematicPostProcessProgramName,
+} from '../../../shared/CinematicPostProcessPasses'
+import {
   cinematicQualityProfile,
   resolveEventHorizonSettings,
   resolveMirrorDimensionSettings,
@@ -61,93 +65,6 @@ export function resolveCinematicPostProcessSettings(
   }
 }
 
-const COMMON_HEADER = `#version 300 es
-precision highp float;
-in vec2 v_uv;
-out vec4 outColor;
-uniform sampler2D uSource;
-uniform vec2 uResolution;
-uniform float uAmount;
-uniform float uTime;
-`
-
-const PASS_SOURCES = {
-  copy: `${COMMON_HEADER}
-void main() { outColor = texture(uSource, v_uv); }
-`,
-  bloom: `${COMMON_HEADER}
-void main() {
-  vec2 px = 1.0 / max(uResolution, vec2(1.0));
-  vec3 base = texture(uSource, v_uv).rgb;
-  vec3 glow = vec3(0.0);
-  glow += texture(uSource, v_uv + vec2( px.x, 0.0) * 2.0).rgb;
-  glow += texture(uSource, v_uv + vec2(-px.x, 0.0) * 2.0).rgb;
-  glow += texture(uSource, v_uv + vec2(0.0,  px.y) * 2.0).rgb;
-  glow += texture(uSource, v_uv + vec2(0.0, -px.y) * 2.0).rgb;
-  glow *= 0.25;
-  glow = max(glow - vec3(0.28), vec3(0.0));
-  outColor = vec4(base + glow * (0.5 + uAmount * 1.7), 1.0);
-}
-`,
-  vignette: `${COMMON_HEADER}
-void main() {
-  vec2 p = v_uv * 2.0 - 1.0;
-  float edge = smoothstep(1.25, 0.2, dot(p, p));
-  vec3 color = texture(uSource, v_uv).rgb;
-  outColor = vec4(color * mix(1.0, edge, uAmount), 1.0);
-}
-`,
-  chromatic: `${COMMON_HEADER}
-void main() {
-  vec2 p = v_uv - 0.5;
-  vec2 shift = normalize(p + vec2(0.0001)) * (uAmount * 0.008);
-  float r = texture(uSource, v_uv + shift).r;
-  float g = texture(uSource, v_uv).g;
-  float b = texture(uSource, v_uv - shift).b;
-  outColor = vec4(r, g, b, 1.0);
-}
-`,
-  grain: `${COMMON_HEADER}
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7)) + uTime * 19.19) * 43758.5453);
-}
-void main() {
-  vec3 color = texture(uSource, v_uv).rgb;
-  float grain = (hash(gl_FragCoord.xy) - 0.5) * uAmount;
-  outColor = vec4(color + grain, 1.0);
-}
-`,
-  feedback: `${COMMON_HEADER}
-uniform sampler2D uHistory;
-void main() {
-  vec2 centered = v_uv - 0.5;
-  vec2 drift = vec2(sin(uTime * 0.17), cos(uTime * 0.13)) * 0.0012 * uAmount;
-  vec2 historyUv = 0.5 + centered * (1.0 + 0.008 * uAmount) + drift;
-  vec3 current = texture(uSource, v_uv).rgb;
-  vec3 history = texture(uHistory, clamp(historyUv, vec2(0.001), vec2(0.999))).rgb * 0.925;
-  float currentLuma = dot(current, vec3(0.2126, 0.7152, 0.0722));
-  float historyLuma = dot(history, vec3(0.2126, 0.7152, 0.0722));
-  float readability = smoothstep(0.02, 0.22, currentLuma + historyLuma * 0.35);
-  float blend = uAmount * 0.72 * readability;
-  outColor = vec4(mix(current, current + history * 0.62, blend), 1.0);
-}
-`,
-  tone: `${COMMON_HEADER}
-uniform float uExposure;
-void main() {
-  vec3 color = max(texture(uSource, v_uv).rgb * uExposure, vec3(0.0));
-  color = color / (color + vec3(1.0));
-  color = pow(color, vec3(1.0 / 2.2));
-  outColor = vec4(color, 1.0);
-}
-`,
-  final: `${COMMON_HEADER}
-void main() { outColor = vec4(texture(uSource, v_uv).rgb, 1.0); }
-`,
-} as const
-
-type ProgramName = keyof typeof PASS_SOURCES
-
 /**
  * Reusable lazy post stack. Programs compile only when their pass is first
  * enabled, while framebuffers are retained and resized only when dimensions
@@ -156,7 +73,7 @@ type ProgramName = keyof typeof PASS_SOURCES
 export class CinematicPostProcessingPipeline {
   private readonly fullscreen: FullscreenPass
   private readonly compiler: ShaderCompiler
-  private readonly programs = new Map<ProgramName, ShaderProgram>()
+  private readonly programs = new Map<CinematicPostProcessProgramName, ShaderProgram>()
   private readonly workA: ShaderFramebuffer
   private readonly workB: ShaderFramebuffer
   private readonly feedbackHistory: ShaderFramebuffer
@@ -278,7 +195,7 @@ export class CinematicPostProcessingPipeline {
   }
 
   private runSingle(
-    name: ProgramName,
+    name: CinematicPostProcessProgramName,
     source: WebGLTexture,
     target: ShaderFramebuffer,
     amount: number,
@@ -306,12 +223,12 @@ export class CinematicPostProcessingPipeline {
     ], { clear: true })
   }
 
-  private getProgram(name: ProgramName): ShaderProgram {
+  private getProgram(name: CinematicPostProcessProgramName): ShaderProgram {
     const existing = this.programs.get(name)
     if (existing) return existing
     const result = ShaderProgram.create(this.gl, this.compiler, {
       vertSrc: FULLSCREEN_VERT_SRC,
-      fragSrc: PASS_SOURCES[name],
+      fragSrc: CINEMATIC_POST_PROCESS_PASS_SOURCES[name],
       label: `cinematic/post/${name}`,
     })
     if (!result.program) {
