@@ -103,6 +103,9 @@ const fixture = vi.hoisted(() => ({
     laserDmxShowManagerEditingShowId: 'laser-show-1',
     laserDmxShowManagerEditingSectionId: 'laser-show-1:section:intro:1',
     laserDmxShowManagerPlaybackSectionId: null as string | null,
+    laserDmxShowManagerActiveShowId: null as string | null,
+    showManagerUndoStack: [] as unknown[],
+    showManagerRedoStack: [] as unknown[],
     createLaserDmxShowManagerShow: vi.fn(() => 'laser-show-2'),
     ensureLaserDmxShowManagerShow: vi.fn(() => 'laser-show-1'),
     selectLaserDmxShowManagerSection: vi.fn(),
@@ -115,6 +118,10 @@ const fixture = vi.hoisted(() => ({
     updateLaserDmxShowManagerFixture: vi.fn(),
     removeLaserDmxShowManagerFixture: vi.fn(),
     copyLaserDmxShowManagerFixturesFromSection: vi.fn((_showId: string, _sourceSectionId: string, _destinationSectionId: string) => [] as string[]),
+    updateLaserDmxShowManagerSectionBoundary: vi.fn(),
+    undoLaserDmxShowManagerEdit: vi.fn(),
+    redoLaserDmxShowManagerEdit: vi.fn(),
+    saveLaserDmxShowManagerShow: vi.fn(async () => true),
     pixGridState: {
       matrixWidth: 160,
       matrixHeight: 90,
@@ -254,6 +261,11 @@ let root: ReturnType<typeof createRoot> | null = null
 afterEach(() => {
   fixture.laserRuntimePreviewProps.length = 0
   fixture.state.laserDmxShowManagerPlaybackSectionId = null
+  fixture.state.showManagerUndoStack = []
+  fixture.state.showManagerRedoStack = []
+  fixture.state.undoLaserDmxShowManagerEdit.mockClear()
+  fixture.state.redoLaserDmxShowManagerEdit.mockClear()
+  fixture.state.saveLaserDmxShowManagerShow.mockClear()
   fixture.audio.isPlaying = false
   if (root) act(() => root?.unmount())
   container?.remove()
@@ -350,6 +362,49 @@ describe('ShowManagerView production shell', () => {
     } finally {
       Object.assign(fixture.audio, originalAudio)
     }
+  })
+
+  it('routes Save and Save + Make Active from the production Show Manager header into canonical persistence', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+    const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+      .find(option => option.textContent?.includes('LaserDMX'))
+    await act(async () => {
+      laserOption?.click()
+      await Promise.resolve()
+    })
+
+    const save = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === 'Save')
+    const activate = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === 'Save + Make Active')
+    expect(save?.disabled).toBe(false)
+    expect(activate?.disabled).toBe(false)
+
+    await act(async () => {
+      save?.click()
+      await Promise.resolve()
+    })
+    expect(fixture.state.saveLaserDmxShowManagerShow).toHaveBeenCalledWith('laser-show-1', { makeActive: false })
+    expect(container.querySelector('.sm-header-save-status')?.textContent).toContain('Saved.')
+
+    await act(async () => {
+      activate?.click()
+      await Promise.resolve()
+    })
+    expect(fixture.state.saveLaserDmxShowManagerShow).toHaveBeenCalledWith('laser-show-1', { makeActive: true })
+    expect(container.querySelector('.sm-header-save-status')?.textContent).toContain('Saved and made active.')
   })
 
   it('keeps the editing section selected while playback feeds a different section into the real LaserDMX runtime preview', async () => {
@@ -725,7 +780,7 @@ describe('ShowManagerView production shell', () => {
     }
   })
 
-  it('deletes only the selected fixture and restores that exact fixture through production Undo/Redo', async () => {
+  it('deletes only the selected fixture and routes Undo/Redo through the shared Show Manager history', async () => {
     const show = fixture.state.laserDmxShowManagerShows[0]!
     const intro = show.sections[0]!
     const originalFixtures = intro.fixtures
@@ -783,20 +838,20 @@ describe('ShowManagerView production shell', () => {
       expect(container.querySelector('button[data-fixture-id="fixture-neighbor"]')).not.toBeNull()
 
       const undo = container.querySelector<HTMLButtonElement>('button[title="Undo section edit"]')
+      expect(undo?.disabled).toBe(false)
       await act(async () => {
         undo?.click()
         await Promise.resolve()
       })
-      expect(container.querySelector('button[data-fixture-id="fixture-delete"]')).not.toBeNull()
-      expect(container.querySelector('button[data-fixture-id="fixture-neighbor"]')).not.toBeNull()
+      expect(fixture.state.undoLaserDmxShowManagerEdit).toHaveBeenCalledTimes(1)
 
       const redo = container.querySelector<HTMLButtonElement>('button[title="Redo section edit"]')
+      expect(redo?.disabled).toBe(false)
       await act(async () => {
         redo?.click()
         await Promise.resolve()
       })
-      expect(container.querySelector('button[data-fixture-id="fixture-delete"]')).toBeNull()
-      expect(container.querySelector('button[data-fixture-id="fixture-neighbor"]')).not.toBeNull()
+      expect(fixture.state.redoLaserDmxShowManagerEdit).toHaveBeenCalledTimes(1)
     } finally {
       const currentIntro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
       currentIntro.fixtures = originalFixtures
@@ -898,9 +953,7 @@ describe('ShowManagerView production shell', () => {
         undo?.click()
         await Promise.resolve()
       })
-      currentVerse = fixture.state.laserDmxShowManagerShows[0]!.sections.find(section => section.id === verse.id)!
-      expect(currentVerse.fixtures.map(item => item.id)).toEqual(['copy-destination-strobe'])
-      expect(fixture.state.laserDmxShowManagerShows[0]!.sections[0]!.fixtures.map(item => item.id)).toEqual(['copy-source-laser'])
+      expect(fixture.state.undoLaserDmxShowManagerEdit).toHaveBeenCalledTimes(1)
 
       const redo = container.querySelector<HTMLButtonElement>('button[title="Redo section edit"]')
       expect(redo?.disabled).toBe(false)
@@ -908,6 +961,7 @@ describe('ShowManagerView production shell', () => {
         redo?.click()
         await Promise.resolve()
       })
+      expect(fixture.state.redoLaserDmxShowManagerEdit).toHaveBeenCalledTimes(1)
       currentVerse = fixture.state.laserDmxShowManagerShows[0]!.sections.find(section => section.id === verse.id)!
       expect(currentVerse.fixtures.map(item => item.id)).toEqual(['copy-destination-strobe', copiedId])
     } finally {
@@ -972,6 +1026,7 @@ describe('ShowManagerView production shell', () => {
       undo?.click()
       await Promise.resolve()
     })
+    expect(fixture.state.undoLaserDmxShowManagerEdit).toHaveBeenCalled()
     expect(redo?.disabled).toBe(false)
   })
 

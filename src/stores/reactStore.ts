@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
-import { handleReactPersistenceStatus } from './reactPersistenceStatusStore'
+import { handleReactPersistenceStatus, useReactPersistenceStatusStore } from './reactPersistenceStatusStore'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import { resolveCinematicPresetBaseConfig, resolveCinematicPresetProvenance } from '../components/vyzualz/react/CinematicPresetProvenance'
 import { isLaserDmxBeamMatrixPresetModified } from '../components/vyzualz/react/LaserDmxBeamMatrixPresetProvenance'
@@ -113,6 +113,7 @@ import {
   addLaserDmxShowManagerFixtureToSection,
   addLaserDmxShowManagerSection,
   copyLaserDmxShowManagerFixturesBetweenSections,
+  cloneLaserDmxShowManagerShow,
   createLaserDmxShowManagerShow,
   normalizeLaserDmxShowManagerShows,
   removeLaserDmxShowManagerFixtureFromSection,
@@ -2398,6 +2399,13 @@ function normalizeCinematicSeedLocks(
   return normalized
 }
 
+// Show Manager history snapshots canonical authored project state only; renderer/runtime state stays derived.
+interface ShowManagerHistorySnapshot {
+  laserDmxShowManagerShows: LaserDmxShowManagerShow[]
+  laserDmxShowManagerEditingShowId: string | null
+  laserDmxShowManagerEditingSectionId: string | null
+}
+
 interface ReactStoreState {
   activeReactPresetId: string | null
   activeReactEngineId: ReactEngineId
@@ -2502,12 +2510,15 @@ interface ReactStoreState {
   /** Per-track suppressed auto section IDs. Suppressed sections are hidden from the timeline. */
   suppressedAutoSectionsByTrackId: Record<string, string[]>
 
-  // Show Manager LaserDMX authoring. Shows persist; editing/playback selection is transient.
+  // Show Manager LaserDMX authoring. Shows and active identity persist; editing/playback selection and history are transient.
   laserDmxShowManagerShows: LaserDmxShowManagerShow[]
+  laserDmxShowManagerActiveShowId: string | null
   laserDmxShowManagerEditingShowId: string | null
   laserDmxShowManagerEditingSectionId: string | null
   /** Runtime-derived section under the playhead. Transient and independent of editing selection. */
   laserDmxShowManagerPlaybackSectionId: string | null
+  showManagerUndoStack: ShowManagerHistorySnapshot[]
+  showManagerRedoStack: ShowManagerHistorySnapshot[]
 
   // React preset automation cues — stored per stable track ID.
   // `presetId` is the authoritative assignment; no Engine ID is stored here.
@@ -2606,6 +2617,18 @@ interface ReactStoreState {
     sourceSectionId: string,
     destinationSectionId: string,
   ) => string[]
+  updateLaserDmxShowManagerSectionBoundary: (
+    showId: string,
+    sectionId: string,
+    edge: 'start' | 'end',
+    newTime: number,
+    neighborId: string | null,
+    neighborTime: number | null,
+  ) => void
+  undoLaserDmxShowManagerEdit: () => void
+  redoLaserDmxShowManagerEdit: () => void
+  clearShowManagerHistory: () => void
+  saveLaserDmxShowManagerShow: (showId: string, options?: { makeActive?: boolean }) => Promise<boolean>
 
   /** Returns cues for a track sorted ascending by timeSec. Empty array if none. */
   getPresetAutomationCuesForTrack: (trackId: string) => ReactPresetAutomationCue[]
@@ -2900,6 +2923,86 @@ interface ReactStoreState {
   /** Clones an existing clip with a new ID. */
   duplicateSoundDrawingClip: (trackId: string, clipId: string) => void
   removeSoundDrawingClip: (trackId: string, clipId: string) => void
+}
+
+const SHOW_MANAGER_HISTORY_LIMIT = 50
+
+function cloneLaserDmxShowManagerShows(shows: readonly LaserDmxShowManagerShow[]): LaserDmxShowManagerShow[] {
+  return shows.map(show => cloneLaserDmxShowManagerShow(show))
+}
+
+function captureShowManagerHistorySnapshot(
+  state: Pick<ReactStoreState, 'laserDmxShowManagerShows' | 'laserDmxShowManagerEditingShowId' | 'laserDmxShowManagerEditingSectionId'>,
+): ShowManagerHistorySnapshot {
+  return {
+    laserDmxShowManagerShows: cloneLaserDmxShowManagerShows(state.laserDmxShowManagerShows),
+    laserDmxShowManagerEditingShowId: state.laserDmxShowManagerEditingShowId,
+    laserDmxShowManagerEditingSectionId: state.laserDmxShowManagerEditingSectionId,
+  }
+}
+
+function trimShowManagerHistory(stack: ShowManagerHistorySnapshot[]): ShowManagerHistorySnapshot[] {
+  return stack.slice(Math.max(0, stack.length - SHOW_MANAGER_HISTORY_LIMIT))
+}
+
+function laserDmxShowManagerShowsEqual(
+  left: readonly LaserDmxShowManagerShow[],
+  right: readonly LaserDmxShowManagerShow[],
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function buildShowManagerHistoryMutationPatch(
+  state: Pick<ReactStoreState,
+    | 'laserDmxShowManagerShows'
+    | 'laserDmxShowManagerEditingShowId'
+    | 'laserDmxShowManagerEditingSectionId'
+    | 'showManagerUndoStack'
+    | 'showManagerRedoStack'
+  >,
+  patch: Partial<Pick<ReactStoreState,
+    | 'laserDmxShowManagerShows'
+    | 'laserDmxShowManagerEditingShowId'
+    | 'laserDmxShowManagerEditingSectionId'
+  >>,
+) {
+  const nextShows = patch.laserDmxShowManagerShows ?? state.laserDmxShowManagerShows
+  if (laserDmxShowManagerShowsEqual(state.laserDmxShowManagerShows, nextShows)) return patch
+  return {
+    ...patch,
+    showManagerUndoStack: trimShowManagerHistory([
+      ...state.showManagerUndoStack,
+      captureShowManagerHistorySnapshot(state),
+    ]),
+    showManagerRedoStack: [],
+  }
+}
+
+function normalizeLaserDmxShowManagerActiveShowId(
+  raw: unknown,
+  shows: readonly LaserDmxShowManagerShow[],
+): string | null {
+  return typeof raw === 'string' && shows.some(show => show.id === raw) ? raw : null
+}
+
+function restoreShowManagerHistorySnapshot(
+  state: Pick<ReactStoreState, 'laserDmxShowManagerActiveShowId'>,
+  snapshot: ShowManagerHistorySnapshot,
+) {
+  const shows = cloneLaserDmxShowManagerShows(snapshot.laserDmxShowManagerShows)
+  const editingShow = shows.find(show => show.id === snapshot.laserDmxShowManagerEditingShowId) ?? null
+  const editingSectionId = editingShow?.sections.some(section => section.id === snapshot.laserDmxShowManagerEditingSectionId)
+    ? snapshot.laserDmxShowManagerEditingSectionId
+    : editingShow?.sections[0]?.id ?? null
+  return {
+    laserDmxShowManagerShows: shows,
+    laserDmxShowManagerActiveShowId: shows.some(show => show.id === state.laserDmxShowManagerActiveShowId)
+      ? state.laserDmxShowManagerActiveShowId
+      : null,
+    laserDmxShowManagerEditingShowId: editingShow?.id ?? null,
+    laserDmxShowManagerEditingSectionId: editingSectionId,
+    laserDmxShowManagerPlaybackSectionId: null,
+  }
 }
 
 export function resolveActivePerformanceActionTarget(
@@ -4881,6 +4984,19 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxShowManagerShows: normalizeLaserDmxShowManagerShows(state.laserDmxShowManagerShows),
     }
   }
+  if (version < 69) {
+    // Stage 7 persists only the canonical active Show identity. Editing and
+    // playback selection remain transient and are reconstructed on entry.
+    const shows = normalizeLaserDmxShowManagerShows(state.laserDmxShowManagerShows)
+    state = {
+      ...state,
+      laserDmxShowManagerShows: shows,
+      laserDmxShowManagerActiveShowId: normalizeLaserDmxShowManagerActiveShowId(
+        state.laserDmxShowManagerActiveShowId,
+        shows,
+      ),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -4897,10 +5013,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   if (isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)) {
     state = { ...state, laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix) }
   }
+  const normalizedLaserDmxShowManagerShows = normalizeLaserDmxShowManagerShows(state.laserDmxShowManagerShows)
   state = {
     ...state,
     canvasEngineSettings: normalizeCanvasEngineSettings(state.canvasEngineSettings),
-    laserDmxShowManagerShows: normalizeLaserDmxShowManagerShows(state.laserDmxShowManagerShows),
+    laserDmxShowManagerShows: normalizedLaserDmxShowManagerShows,
+    laserDmxShowManagerActiveShowId: normalizeLaserDmxShowManagerActiveShowId(
+      state.laserDmxShowManagerActiveShowId,
+      normalizedLaserDmxShowManagerShows,
+    ),
     selectedCanvasPresetId: normalizeCanvasPresetId(state.selectedCanvasPresetId),
     canvasPresetSettings: normalizeCanvasPresetSettings(state.canvasPresetSettings),
     soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
@@ -5135,6 +5256,10 @@ export function reactStorePartialize(s: ReactStoreState) {
     laserDmxShowDirector:               normalizeLaserDmxShowDirectorState(s.laserDmxShowDirector),
     laserDmxShowDirectorPerformance:    normalizeLaserDmxShowDirectorPerformanceState(s.laserDmxShowDirectorPerformance),
     laserDmxShowManagerShows:           normalizeLaserDmxShowManagerShows(s.laserDmxShowManagerShows),
+    laserDmxShowManagerActiveShowId:    normalizeLaserDmxShowManagerActiveShowId(
+      s.laserDmxShowManagerActiveShowId,
+      s.laserDmxShowManagerShows,
+    ),
     activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
     laserDmxBeamMatrixPresetDirty:      s.laserDmxBeamMatrixPresetDirty,
     soundDrawingLayersByTrackId:        normalizeSoundDrawingLayersByTrackId(s.soundDrawingLayersByTrackId),
@@ -5185,6 +5310,7 @@ export const REACT_PROJECT_STATE_KEYS = [
   'laserDmxShowDirector',
   'laserDmxShowDirectorPerformance',
   'laserDmxShowManagerShows',
+  'laserDmxShowManagerActiveShowId',
   'soundDrawingLayersByTrackId',
   'soundDrawingClipsByTrackId',
 ] as const satisfies readonly (keyof ReactPersistedState)[]
@@ -5318,6 +5444,7 @@ export function mergeReactStoreState(
     laserDmxShowManagerShows: normalizeLaserDmxShowManagerShows(
       persisted.laserDmxShowManagerShows ?? currentState.laserDmxShowManagerShows,
     ),
+    laserDmxShowManagerActiveShowId: null,
   } as ReactStoreState
   const repairedSelection = repairReactEnginePresetSelection(
     merged.activeReactPresetId,
@@ -5363,6 +5490,10 @@ export function mergeReactStoreState(
     ...merged,
     ...repairedSelection,
     pixGridState,
+    laserDmxShowManagerActiveShowId: normalizeLaserDmxShowManagerActiveShowId(
+      persisted.laserDmxShowManagerActiveShowId,
+      merged.laserDmxShowManagerShows,
+    ),
     oscillatorSettings: normalizeOscillatorSettings({
       ...DEFAULT_OSCILLATOR_SETTINGS,
       ...merged.oscillatorSettings,
@@ -5384,6 +5515,8 @@ export function mergeReactStoreState(
     laserDmxShowManagerEditingShowId: null,
     laserDmxShowManagerEditingSectionId: null,
     laserDmxShowManagerPlaybackSectionId: null,
+    showManagerUndoStack: [],
+    showManagerRedoStack: [],
     pixGridUndoStack: [],
     pixGridRedoStack: [],
     pixGridHistoryTransaction: null,
@@ -5397,6 +5530,9 @@ export function mergeReactStoreState(
     performanceActionToggleStates: {},
   }
 }
+
+const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
+const REACT_STORE_PERSISTENCE_VERSION = 69
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
@@ -5438,9 +5574,12 @@ export const useReactStore = create<ReactStoreState>()(
       selectedSectionByTrackId: {},
       suppressedAutoSectionsByTrackId: {},
       laserDmxShowManagerShows: [],
+      laserDmxShowManagerActiveShowId: null,
       laserDmxShowManagerEditingShowId: null,
       laserDmxShowManagerEditingSectionId: null,
       laserDmxShowManagerPlaybackSectionId: null,
+      showManagerUndoStack: [],
+      showManagerRedoStack: [],
       presetAutomationCuesByTrackId: {},
       pixGridActionCuesByTrackId: {},
       soundDrawingLayersByTrackId: {},
@@ -6641,6 +6780,8 @@ export const useReactStore = create<ReactStoreState>()(
           laserDmxShowManagerEditingShowId: show.id,
           laserDmxShowManagerEditingSectionId: show.sections[0]?.id ?? null,
           laserDmxShowManagerPlaybackSectionId: null,
+          showManagerUndoStack: [],
+          showManagerRedoStack: [],
         }))
         return show.id
       },
@@ -6691,14 +6832,14 @@ export const useReactStore = create<ReactStoreState>()(
         }),
 
       updateLaserDmxShowManagerSection: (showId, sectionId, patch) =>
-        set(s => ({
+        set(s => buildShowManagerHistoryMutationPatch(s, {
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? updateLaserDmxShowManagerSection(show, sectionId, patch)
             : show),
         })),
 
       updateLaserDmxShowManagerWorkspaceSettings: (showId, patch) =>
-        set(s => ({
+        set(s => buildShowManagerHistoryMutationPatch(s, {
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? updateLaserDmxShowManagerWorkspaceSettings(show, patch)
             : show),
@@ -6706,15 +6847,18 @@ export const useReactStore = create<ReactStoreState>()(
 
       addLaserDmxShowManagerSection: (showId, seed = {}) => {
         let sectionId: string | null = null
-        set(s => ({
-          laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => {
+        set(s => {
+          const shows = s.laserDmxShowManagerShows.map(show => {
             if (show.id !== showId) return show
             const result = addLaserDmxShowManagerSection(show, seed)
             sectionId = result.sectionId
             return result.show
-          }),
-          ...(sectionId ? { laserDmxShowManagerEditingSectionId: sectionId } : {}),
-        }))
+          })
+          return buildShowManagerHistoryMutationPatch(s, {
+            laserDmxShowManagerShows: shows,
+            ...(sectionId ? { laserDmxShowManagerEditingSectionId: sectionId } : {}),
+          })
+        })
         return sectionId
       },
 
@@ -6727,14 +6871,14 @@ export const useReactStore = create<ReactStoreState>()(
             && s.laserDmxShowManagerEditingSectionId === sectionId
             ? nextShow.sections[0]?.id ?? null
             : s.laserDmxShowManagerEditingSectionId
-          return {
+          return buildShowManagerHistoryMutationPatch(s, {
             laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId ? nextShow : show),
             laserDmxShowManagerEditingSectionId: nextSelectedSectionId,
-          }
+          })
         }),
 
       reorderLaserDmxShowManagerSection: (showId, sectionId, direction) =>
-        set(s => ({
+        set(s => buildShowManagerHistoryMutationPatch(s, {
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? reorderLaserDmxShowManagerSection(show, sectionId, direction)
             : show),
@@ -6742,26 +6886,27 @@ export const useReactStore = create<ReactStoreState>()(
 
       addLaserDmxShowManagerFixture: (showId, sectionId, kind, initial = {}) => {
         let fixtureId: string | null = null
-        set(s => ({
-          laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => {
+        set(s => {
+          const shows = s.laserDmxShowManagerShows.map(show => {
             if (show.id !== showId) return show
             const result = addLaserDmxShowManagerFixtureToSection(show, sectionId, kind, initial)
             fixtureId = result.fixtureId
             return result.show
-          }),
-        }))
+          })
+          return buildShowManagerHistoryMutationPatch(s, { laserDmxShowManagerShows: shows })
+        })
         return fixtureId
       },
 
       updateLaserDmxShowManagerFixture: (showId, sectionId, fixtureId, patch) =>
-        set(s => ({
+        set(s => buildShowManagerHistoryMutationPatch(s, {
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, patch)
             : show),
         })),
 
       removeLaserDmxShowManagerFixture: (showId, sectionId, fixtureId) =>
-        set(s => ({
+        set(s => buildShowManagerHistoryMutationPatch(s, {
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? removeLaserDmxShowManagerFixtureFromSection(show, sectionId, fixtureId)
             : show),
@@ -6769,15 +6914,91 @@ export const useReactStore = create<ReactStoreState>()(
 
       copyLaserDmxShowManagerFixturesFromSection: (showId, sourceSectionId, destinationSectionId) => {
         let copiedFixtureIds: string[] = []
-        set(s => ({
-          laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => {
+        set(s => {
+          const shows = s.laserDmxShowManagerShows.map(show => {
             if (show.id !== showId) return show
             const result = copyLaserDmxShowManagerFixturesBetweenSections(show, sourceSectionId, destinationSectionId)
             copiedFixtureIds = result.fixtureIds
             return result.show
-          }),
-        }))
+          })
+          return buildShowManagerHistoryMutationPatch(s, { laserDmxShowManagerShows: shows })
+        })
         return copiedFixtureIds
+      },
+
+      updateLaserDmxShowManagerSectionBoundary: (showId, sectionId, edge, newTime, neighborId, neighborTime) =>
+        set(s => {
+          const shows = s.laserDmxShowManagerShows.map(show => {
+            if (show.id !== showId) return show
+            let next = updateLaserDmxShowManagerSection(show, sectionId, {
+              [edge === 'start' ? 'startSec' : 'endSec']: newTime,
+            })
+            if (neighborId && neighborTime != null) {
+              next = updateLaserDmxShowManagerSection(next, neighborId, {
+                [edge === 'start' ? 'endSec' : 'startSec']: neighborTime,
+              })
+            }
+            return next
+          })
+          return buildShowManagerHistoryMutationPatch(s, { laserDmxShowManagerShows: shows })
+        }),
+
+      undoLaserDmxShowManagerEdit: () =>
+        set(s => {
+          const previous = s.showManagerUndoStack[s.showManagerUndoStack.length - 1]
+          if (!previous) return {}
+          const current = captureShowManagerHistorySnapshot(s)
+          return {
+            ...restoreShowManagerHistorySnapshot(s, previous),
+            showManagerUndoStack: s.showManagerUndoStack.slice(0, -1),
+            showManagerRedoStack: trimShowManagerHistory([...s.showManagerRedoStack, current]),
+          }
+        }),
+
+      redoLaserDmxShowManagerEdit: () =>
+        set(s => {
+          const next = s.showManagerRedoStack[s.showManagerRedoStack.length - 1]
+          if (!next) return {}
+          const current = captureShowManagerHistorySnapshot(s)
+          return {
+            ...restoreShowManagerHistorySnapshot(s, next),
+            showManagerUndoStack: trimShowManagerHistory([...s.showManagerUndoStack, current]),
+            showManagerRedoStack: s.showManagerRedoStack.slice(0, -1),
+          }
+        }),
+
+      clearShowManagerHistory: () => set({ showManagerUndoStack: [], showManagerRedoStack: [] }),
+
+      saveLaserDmxShowManagerShow: async (showId, options = {}) => {
+        const persistCurrentState = async (): Promise<boolean> => {
+          try {
+            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
+              state: reactStorePartialize(get()) as unknown as Record<string, unknown>,
+              version: REACT_STORE_PERSISTENCE_VERSION,
+            })
+            return useReactPersistenceStatusStore.getState().phase !== 'error'
+          } catch (error) {
+            useReactPersistenceStatusStore.setState({
+              phase: 'error',
+              error: error instanceof Error ? error.message : 'The Show could not be saved.',
+              retryPending: false,
+            })
+            return false
+          }
+        }
+
+        if (!get().laserDmxShowManagerShows.some(show => show.id === showId)) return false
+        if (!(await persistCurrentState())) return false
+        if (!options.makeActive) return true
+
+        const previousActiveShowId = get().laserDmxShowManagerActiveShowId
+        get().selectReactEngine('laserDmx')
+        if (get().activeReactEngineId !== 'laserDmx') return false
+        if (!get().laserDmxShowManagerShows.some(show => show.id === showId)) return false
+        set({ laserDmxShowManagerActiveShowId: showId })
+        if (await persistCurrentState()) return true
+        set({ laserDmxShowManagerActiveShowId: previousActiveShowId })
+        return false
       },
 
       commitAutomaticSectionOverride: (trackId, originalSection, patch) =>
@@ -9726,9 +9947,12 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowDirector: createDefaultLaserDmxShowDirectorState(),
             laserDmxShowDirectorPerformance: createDefaultLaserDmxShowDirectorPerformanceState(),
             laserDmxShowManagerShows: [],
+            laserDmxShowManagerActiveShowId: null,
             laserDmxShowManagerEditingShowId: null,
             laserDmxShowManagerEditingSectionId: null,
             laserDmxShowManagerPlaybackSectionId: null,
+            showManagerUndoStack: [],
+            showManagerRedoStack: [],
             activeLaserDmxBeamMatrixPresetId: null,
             laserDmxBeamMatrixPresetDirty: false,
             performancePadTransition: null,
@@ -9772,9 +9996,12 @@ export const useReactStore = create<ReactStoreState>()(
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},
           laserDmxShowManagerShows:      [],
+          laserDmxShowManagerActiveShowId:  null,
           laserDmxShowManagerEditingShowId: null,
           laserDmxShowManagerEditingSectionId: null,
           laserDmxShowManagerPlaybackSectionId: null,
+          showManagerUndoStack:          [],
+          showManagerRedoStack:          [],
           suppressedAutoSectionsByTrackId: {},
           presetAutomationCuesByTrackId: {},
           pixGridActionCuesByTrackId: {},
@@ -9816,8 +10043,8 @@ export const useReactStore = create<ReactStoreState>()(
       },
     }),
     {
-      name: 'drmvyz:react-store',
-      version: 68,
+      name: REACT_STORE_PERSISTENCE_NAME,
+      version: REACT_STORE_PERSISTENCE_VERSION,
       storage: reactPersistStorage,
       migrate: migrateReactStore,
       partialize: reactStorePartialize,

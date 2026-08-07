@@ -21,6 +21,7 @@ import {
 } from '../react/ReactTypes'
 import { FixtureIcon } from '../react/LaserDmxShowDirectorPalette'
 import { ReactPlaceholderCanvas } from '../react/ReactPlaceholderCanvas'
+import { ReactPersistenceStatus } from '../react/ReactPersistenceStatus'
 import { EditSectionForm, SectionTimeline } from '../react/ReactTrackMapStrip'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
@@ -43,7 +44,6 @@ import {
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
   LASER_DMX_SHOW_MANAGER_QUALITY,
   LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS,
-  cloneLaserDmxShowManagerShow,
   createLaserDmxShowManagerEmptyRuntimeShowDirector,
   createLaserDmxShowManagerRuntimeSectionPrograms,
   getEligibleLaserDmxShowManagerFixtureCopySources,
@@ -52,7 +52,6 @@ import {
   resolveLaserDmxShowManagerGridCell,
   resolveLaserDmxShowManagerTriggerOption,
   triggerPatchForLaserDmxShowManagerOption,
-  updateLaserDmxShowManagerSection as updateLaserDmxShowManagerSectionDocument,
   type LaserDmxShowManagerTriggerOption,
   type LaserDmxShowManagerSection,
   type LaserDmxShowManagerShow,
@@ -148,6 +147,10 @@ export function ShowManagerView() {
   const updateLaserDmxShowManagerFixture = useReactStore(state => state.updateLaserDmxShowManagerFixture)
   const removeLaserDmxShowManagerFixture = useReactStore(state => state.removeLaserDmxShowManagerFixture)
   const copyLaserDmxShowManagerFixturesFromSection = useReactStore(state => state.copyLaserDmxShowManagerFixturesFromSection)
+  const updateLaserDmxShowManagerSectionBoundary = useReactStore(state => state.updateLaserDmxShowManagerSectionBoundary)
+  const undoLaserDmxShowManagerEdit = useReactStore(state => state.undoLaserDmxShowManagerEdit)
+  const redoLaserDmxShowManagerEdit = useReactStore(state => state.redoLaserDmxShowManagerEdit)
+  const saveLaserDmxShowManagerShow = useReactStore(state => state.saveLaserDmxShowManagerShow)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
@@ -170,10 +173,10 @@ export function ShowManagerView() {
   const deckBuilderReturnTargetRef = useRef<'create' | 'edit'>('create')
   const uploadAbortRef = useRef<AbortController | null>(null)
   const uploadOperationRef = useRef(0)
-  const laserShowUndoRef = useRef<Record<string, LaserDmxShowManagerShow[]>>({})
-  const laserShowRedoRef = useRef<Record<string, LaserDmxShowManagerShow[]>>({})
   const [laserShowUndoDepth, setLaserShowUndoDepth] = useState(0)
   const [laserShowRedoDepth, setLaserShowRedoDepth] = useState(0)
+  const [laserSavePending, setLaserSavePending] = useState<'save' | 'active' | null>(null)
+  const [laserSaveStatus, setLaserSaveStatus] = useState<string | null>(null)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
   const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
   const activeLaserDmxShow = useMemo(
@@ -238,9 +241,10 @@ export function ShowManagerView() {
       setLaserShowRedoDepth(0)
       return
     }
-    setLaserShowUndoDepth(laserShowUndoRef.current[activeLaserDmxShow.id]?.length ?? 0)
-    setLaserShowRedoDepth(laserShowRedoRef.current[activeLaserDmxShow.id]?.length ?? 0)
-  }, [activeLaserDmxShow])
+    const history = useReactStore.getState()
+    setLaserShowUndoDepth(history.showManagerUndoStack.length)
+    setLaserShowRedoDepth(history.showManagerRedoStack.length)
+  }, [activeLaserDmxShow?.id])
 
   useEffect(() => {
     if (selectedEngineId === 'laserDmx' && engine.isPlaying) return
@@ -533,77 +537,57 @@ export function ShowManagerView() {
     setPreviewDeckItemId(previewEnabledItems[nextIndex]?.id ?? null)
   }
 
-  const pushLaserShowUndoSnapshot = (snapshot: LaserDmxShowManagerShow) => {
-    const showId = snapshot.id
-    const undo = [
-      ...(laserShowUndoRef.current[showId] ?? []),
-      cloneLaserDmxShowManagerShow(snapshot),
-    ].slice(-50)
-    laserShowUndoRef.current = { ...laserShowUndoRef.current, [showId]: undo }
-    laserShowRedoRef.current = { ...laserShowRedoRef.current, [showId]: [] }
-    setLaserShowUndoDepth(undo.length)
+  const recordLaserShowHistoryCommit = () => {
+    setLaserShowUndoDepth(depth => Math.min(50, depth + 1))
     setLaserShowRedoDepth(0)
-    return true
-  }
-
-  const recordLaserShowUndo = () => {
-    if (!activeLaserDmxShow) return false
-    return pushLaserShowUndoSnapshot(activeLaserDmxShow)
-  }
-
-  const restoreLaserShowSnapshot = (snapshot: LaserDmxShowManagerShow) => {
-    useReactStore.setState(state => {
-      const nextShow = cloneLaserDmxShowManagerShow(snapshot)
-      const selectedSectionId = nextShow.sections.some(section => section.id === state.laserDmxShowManagerEditingSectionId)
-        ? state.laserDmxShowManagerEditingSectionId
-        : nextShow.sections[0]?.id ?? null
-      return {
-        laserDmxShowManagerShows: state.laserDmxShowManagerShows.map(show => show.id === nextShow.id ? nextShow : show),
-        laserDmxShowManagerEditingShowId: nextShow.id,
-        laserDmxShowManagerEditingSectionId: selectedSectionId,
-      }
-    })
   }
 
   const undoLaserShowEdit = () => {
-    if (!activeLaserDmxShow) return
-    const showId = activeLaserDmxShow.id
-    const undo = laserShowUndoRef.current[showId] ?? []
-    const snapshot = undo[undo.length - 1]
-    if (!snapshot) return
-    const redo = [
-      ...(laserShowRedoRef.current[showId] ?? []),
-      cloneLaserDmxShowManagerShow(activeLaserDmxShow),
-    ].slice(-50)
-    const nextUndo = undo.slice(0, -1)
-    laserShowUndoRef.current = { ...laserShowUndoRef.current, [showId]: nextUndo }
-    laserShowRedoRef.current = { ...laserShowRedoRef.current, [showId]: redo }
-    restoreLaserShowSnapshot(snapshot)
-    setLaserShowUndoDepth(nextUndo.length)
-    setLaserShowRedoDepth(redo.length)
+    if (laserShowUndoDepth === 0) return
+    undoLaserDmxShowManagerEdit()
+    setLaserShowUndoDepth(depth => Math.max(0, depth - 1))
+    setLaserShowRedoDepth(depth => Math.min(50, depth + 1))
+    setSelectedLaserFixtureId(current => {
+      if (!current) return null
+      const state = useReactStore.getState()
+      const show = state.laserDmxShowManagerShows.find(candidate => candidate.id === state.laserDmxShowManagerEditingShowId)
+      const section = show?.sections.find(candidate => candidate.id === state.laserDmxShowManagerEditingSectionId)
+      return section?.fixtures.some(fixture => fixture.id === current) ? current : null
+    })
   }
 
   const redoLaserShowEdit = () => {
-    if (!activeLaserDmxShow) return
-    const showId = activeLaserDmxShow.id
-    const redo = laserShowRedoRef.current[showId] ?? []
-    const snapshot = redo[redo.length - 1]
-    if (!snapshot) return
-    const undo = [
-      ...(laserShowUndoRef.current[showId] ?? []),
-      cloneLaserDmxShowManagerShow(activeLaserDmxShow),
-    ].slice(-50)
-    const nextRedo = redo.slice(0, -1)
-    laserShowUndoRef.current = { ...laserShowUndoRef.current, [showId]: undo }
-    laserShowRedoRef.current = { ...laserShowRedoRef.current, [showId]: nextRedo }
-    restoreLaserShowSnapshot(snapshot)
-    setLaserShowUndoDepth(undo.length)
-    setLaserShowRedoDepth(nextRedo.length)
+    if (laserShowRedoDepth === 0) return
+    redoLaserDmxShowManagerEdit()
+    setLaserShowUndoDepth(depth => Math.min(50, depth + 1))
+    setLaserShowRedoDepth(depth => Math.max(0, depth - 1))
+    setSelectedLaserFixtureId(current => {
+      if (!current) return null
+      const state = useReactStore.getState()
+      const show = state.laserDmxShowManagerShows.find(candidate => candidate.id === state.laserDmxShowManagerEditingShowId)
+      const section = show?.sections.find(candidate => candidate.id === state.laserDmxShowManagerEditingSectionId)
+      return section?.fixtures.some(fixture => fixture.id === current) ? current : null
+    })
   }
 
   const commitLaserWorkspaceSettings = (patch: LaserDmxShowManagerWorkspaceSettingsPatch) => {
-    if (!activeLaserDmxShow || !recordLaserShowUndo()) return
+    if (!activeLaserDmxShow) return
     updateLaserDmxShowManagerWorkspaceSettings(activeLaserDmxShow.id, patch)
+    recordLaserShowHistoryCommit()
+  }
+
+  const commitLaserShowSave = async (makeActive: boolean) => {
+    if (!activeLaserDmxShow || laserSavePending) return
+    setLaserSavePending(makeActive ? 'active' : 'save')
+    setLaserSaveStatus(null)
+    try {
+      const saved = await saveLaserDmxShowManagerShow(activeLaserDmxShow.id, { makeActive })
+      setLaserSaveStatus(saved
+        ? (makeActive ? 'Saved and made active.' : 'Saved.')
+        : (makeActive ? 'Could not complete Save + Make Active.' : 'Could not save Show.'))
+    } finally {
+      setLaserSavePending(null)
+    }
   }
 
   const activateLaserComponent = (kind: LaserDmxShowDirectorFixtureKind) => {
@@ -631,38 +615,42 @@ export function ShowManagerView() {
     if (!kind) return
     const bounds = event.currentTarget.getBoundingClientRect()
     const cell = resolveLaserDmxShowManagerGridCell(event.clientX, event.clientY, bounds)
-    if (!cell || !recordLaserShowUndo()) return
+    if (!cell) return
     const fixtureId = addLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, kind, cell)
-    if (fixtureId) setSelectedLaserFixtureId(fixtureId)
+    if (fixtureId) {
+      recordLaserShowHistoryCommit()
+      setSelectedLaserFixtureId(fixtureId)
+    }
   }
 
   const commitLaserFixturePatch = (patch: LaserDmxShowDirectorFixturePatch) => {
-    if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedLaserFixture || !recordLaserShowUndo()) return
+    if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedLaserFixture) return
     updateLaserDmxShowManagerFixture(
       activeLaserDmxShow.id,
       activeLaserDmxSection.id,
       selectedLaserFixture.id,
       patch,
     )
+    recordLaserShowHistoryCommit()
   }
 
   const deleteSelectedLaserFixture = () => {
-    if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedLaserFixture || !recordLaserShowUndo()) return
+    if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedLaserFixture) return
     removeLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, selectedLaserFixture.id)
+    recordLaserShowHistoryCommit()
     setSelectedLaserFixtureId(null)
   }
 
   const commitLaserFixtureCopy = (sourceSectionId: string) => {
     if (!activeLaserDmxShow || !activeLaserDmxSection) return
     if (!eligibleLaserFixtureCopySources.some(section => section.id === sourceSectionId)) return
-    const before = cloneLaserDmxShowManagerShow(activeLaserDmxShow)
     const copiedFixtureIds = copyLaserDmxShowManagerFixturesFromSection(
       activeLaserDmxShow.id,
       sourceSectionId,
       activeLaserDmxSection.id,
     )
     if (copiedFixtureIds.length === 0) return
-    pushLaserShowUndoSnapshot(before)
+    recordLaserShowHistoryCommit()
     setSelectedLaserFixtureId(null)
     setCopyLaserFixturesSourceSectionId(null)
   }
@@ -679,21 +667,16 @@ export function ShowManagerView() {
     neighborId: string | null,
     neighborTime: number | null,
   ) => {
-    if (!activeLaserDmxShow || !recordLaserShowUndo()) return
-    useReactStore.setState(state => ({
-      laserDmxShowManagerShows: state.laserDmxShowManagerShows.map(show => {
-        if (show.id !== activeLaserDmxShow.id) return show
-        let next = updateLaserDmxShowManagerSectionDocument(show, sectionId, {
-          [edge === 'start' ? 'startSec' : 'endSec']: newTime,
-        })
-        if (neighborId && neighborTime != null) {
-          next = updateLaserDmxShowManagerSectionDocument(next, neighborId, {
-            [edge === 'start' ? 'endSec' : 'startSec']: neighborTime,
-          })
-        }
-        return next
-      }),
-    }))
+    if (!activeLaserDmxShow) return
+    updateLaserDmxShowManagerSectionBoundary(
+      activeLaserDmxShow.id,
+      sectionId,
+      edge,
+      newTime,
+      neighborId,
+      neighborTime,
+    )
+    recordLaserShowHistoryCommit()
   }
 
   return (
@@ -727,10 +710,26 @@ export function ShowManagerView() {
           <button type="button" className="sm-header-button" onClick={() => createLaserDmxShowManagerShow()}>New Show</button>
         )}
         <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
-        <button type="button" className="sm-header-button" disabled>Save</button>
-        <button type="button" className="sm-header-button sm-header-button--primary" disabled>
-          Save + Make Active
-        </button>
+        <button
+          type="button"
+          className="sm-header-button"
+          onClick={() => void commitLaserShowSave(false)}
+          disabled={selectedEngineId !== 'laserDmx' || !activeLaserDmxShow || laserSavePending !== null}
+        >{laserSavePending === 'save' ? 'Saving…' : 'Save'}</button>
+        <button
+          type="button"
+          className="sm-header-button sm-header-button--primary"
+          onClick={() => void commitLaserShowSave(true)}
+          disabled={selectedEngineId !== 'laserDmx' || !activeLaserDmxShow || laserSavePending !== null}
+        >{laserSavePending === 'active' ? 'Activating…' : 'Save + Make Active'}</button>
+        {selectedEngineId === 'laserDmx' && (
+          <>
+            <ReactPersistenceStatus />
+            {laserSaveStatus && (
+              <span className="sm-header-save-status" role="status">{laserSaveStatus}</span>
+            )}
+          </>
+        )}
         <VyzualzHeaderActions />
       </header>
 
@@ -1034,8 +1033,9 @@ export function ShowManagerView() {
               viewportRef={laserTimelineViewportRef}
               onSelect={selectLaserSectionForEditing}
               onRemove={sectionId => {
-                if (!activeLaserDmxShow || !recordLaserShowUndo()) return
+                if (!activeLaserDmxShow) return
                 removeLaserDmxShowManagerSection(activeLaserDmxShow.id, sectionId)
+                recordLaserShowHistoryCommit()
               }}
               onCommitBoundary={commitLaserSectionBoundary}
             />
@@ -1183,8 +1183,9 @@ export function ShowManagerView() {
                       type="button"
                       onClick={() => {
                         const index = activeLaserDmxShow.sections.findIndex(section => section.id === activeLaserDmxSection.id)
-                        if (index <= 0 || !recordLaserShowUndo()) return
+                        if (index <= 0) return
                         reorderLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, -1)
+                        recordLaserShowHistoryCommit()
                       }}
                       disabled={activeLaserDmxShow.sections[0]?.id === activeLaserDmxSection.id}
                     >Move Earlier</button>
@@ -1192,22 +1193,23 @@ export function ShowManagerView() {
                       type="button"
                       onClick={() => {
                         const index = activeLaserDmxShow.sections.findIndex(section => section.id === activeLaserDmxSection.id)
-                        if (index < 0 || index >= activeLaserDmxShow.sections.length - 1 || !recordLaserShowUndo()) return
+                        if (index < 0 || index >= activeLaserDmxShow.sections.length - 1) return
                         reorderLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, 1)
+                        recordLaserShowHistoryCommit()
                       }}
                       disabled={activeLaserDmxShow.sections[activeLaserDmxShow.sections.length - 1]?.id === activeLaserDmxSection.id}
                     >Move Later</button>
                     <button
                       type="button"
                       onClick={() => {
-                        if (!recordLaserShowUndo()) return
                         const last = activeLaserDmxShow.sections[activeLaserDmxShow.sections.length - 1]
-                        addLaserDmxShowManagerSection(activeLaserDmxShow.id, {
+                        const addedSectionId = addLaserDmxShowManagerSection(activeLaserDmxShow.id, {
                           type: 'unknown',
                           label: 'Section',
                           startSec: last?.endSec ?? 0,
                           endSec: (last?.endSec ?? 0) + 1,
                         })
+                        if (addedSectionId) recordLaserShowHistoryCommit()
                       }}
                     >Add Section</button>
                   </div>
@@ -1257,12 +1259,12 @@ export function ShowManagerView() {
                     snapMode="free"
                     onCancel={() => undefined}
                     onSave={patch => {
-                      if (!recordLaserShowUndo()) return
                       updateLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, patch)
+                      recordLaserShowHistoryCommit()
                     }}
                     onDelete={() => {
-                      if (!recordLaserShowUndo()) return
                       removeLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id)
+                      recordLaserShowHistoryCommit()
                     }}
                   />
                   <section className="sm-validation-card">
@@ -1276,8 +1278,8 @@ export function ShowManagerView() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!recordLaserShowUndo()) return
-                      addLaserDmxShowManagerSection(activeLaserDmxShow.id, { label: 'Section', startSec: 0, endSec: 1 })
+                      const addedSectionId = addLaserDmxShowManagerSection(activeLaserDmxShow.id, { label: 'Section', startSec: 0, endSec: 1 })
+                      if (addedSectionId) recordLaserShowHistoryCommit()
                     }}
                   >Add Section</button>
                 </div>

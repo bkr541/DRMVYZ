@@ -31,6 +31,10 @@ import { LaserDmxShowDirectorCanvas } from './LaserDmxShowDirectorCanvas'
 import { resolveLaserDmxAuthoringOverlayVisibility } from './renderers/laserDmx/LaserDmxRendererBackend'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import {
+  createLaserDmxShowManagerEmptyRuntimeShowDirector,
+  createLaserDmxShowManagerRuntimeSectionPrograms,
+} from '../showManager/LaserDmxShowManagerDomain'
 import { LayoutLabModal } from './LayoutLabModal'
 import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStorage'
 import { TrackTimelineIcon } from './trackTimeline/TrackTimelineIcon'
@@ -207,6 +211,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrix,
     laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector,
+    laserDmxShowManagerShows,
+    laserDmxShowManagerActiveShowId,
     pixGridState,
     pixGridDecks,
     pixGridActionCuesByTrackId,
@@ -248,6 +254,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     laserDmxBeamMatrix:             s.laserDmxBeamMatrix,
     laserDmxBeamMatrixAuthoringMode: s.laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector:           s.laserDmxShowDirector,
+    laserDmxShowManagerShows:        s.laserDmxShowManagerShows,
+    laserDmxShowManagerActiveShowId: s.laserDmxShowManagerActiveShowId,
     pixGridState:                    s.pixGridState,
     pixGridDecks:                    s.pixGridDecks,
     pixGridActionCuesByTrackId:       s.pixGridActionCuesByTrackId,
@@ -263,6 +271,22 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const lyricPlayback = useLyricPlaybackSelector((state) => state)
   const runtimeLyricCues = useLyricsStore((state) => state.runtimeCues)
   const runtimeLyricGlobalOffsetMs = useLyricsStore((state) => state.runtimeGlobalOffsetMs)
+  const activeLaserDmxManagedShow = useMemo(
+    () => laserDmxShowManagerShows.find(show => show.id === laserDmxShowManagerActiveShowId) ?? null,
+    [laserDmxShowManagerActiveShowId, laserDmxShowManagerShows],
+  )
+  const activeLaserDmxSectionRuntimePrograms = useMemo(
+    () => activeLaserDmxManagedShow
+      ? createLaserDmxShowManagerRuntimeSectionPrograms(activeLaserDmxManagedShow)
+      : [],
+    [activeLaserDmxManagedShow],
+  )
+  const activeLaserDmxEmptyRuntimeShowDirector = useMemo(
+    () => activeLaserDmxManagedShow
+      ? createLaserDmxShowManagerEmptyRuntimeShowDirector(activeLaserDmxManagedShow)
+      : null,
+    [activeLaserDmxManagedShow],
+  )
   const cinemaFrameStateRef = useRef<CinemaFrameBuilderState | null>(null)
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
@@ -886,6 +910,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 soundDrawingLayers={activeSdLayers}
                 soundDrawingClips={activeSdClips}
                 activeAudioTrackId={engine.currentAudioTrackId}
+                laserDmxSectionRuntimePrograms={activeReactEngineId === 'laserDmx' ? activeLaserDmxSectionRuntimePrograms : undefined}
+                laserDmxEmptyRuntimeShowDirector={activeReactEngineId === 'laserDmx' ? activeLaserDmxEmptyRuntimeShowDirector : null}
               />
             )}
             {shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (

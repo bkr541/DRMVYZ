@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { mergeReactStoreState, migrateReactStore, reactStorePartialize, useReactStore } from './reactStore'
+import { mergeReactStoreState, migrateReactStore, reactPersistStorage, reactStorePartialize, useReactStore } from './reactStore'
 
 describe('LaserDMX Show Manager Part 1 store integration', () => {
   beforeEach(() => {
     useReactStore.setState({
       laserDmxShowManagerShows: [],
+      laserDmxShowManagerActiveShowId: null,
       laserDmxShowManagerEditingShowId: null,
       laserDmxShowManagerEditingSectionId: null,
       laserDmxShowManagerPlaybackSectionId: null,
+      showManagerUndoStack: [],
+      showManagerRedoStack: [],
     })
   })
 
@@ -66,32 +69,57 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     expect(persistedShows[0]?.settings).toEqual(show?.settings)
   })
 
-  it('persists canonical Shows but keeps editing and playback section identity runtime-only', () => {
+  it('persists canonical Shows and active identity while keeping editing, playback, and history runtime-only', () => {
     const showId = useReactStore.getState().createLaserDmxShowManagerShow('Persisted')
     const state = useReactStore.getState()
     const secondSectionId = state.laserDmxShowManagerShows[0]!.sections[1]!.id
     useReactStore.setState({
+      laserDmxShowManagerActiveShowId: showId,
       laserDmxShowManagerEditingShowId: showId,
       laserDmxShowManagerEditingSectionId: secondSectionId,
       laserDmxShowManagerPlaybackSectionId: state.laserDmxShowManagerShows[0]!.sections[4]!.id,
     })
+    useReactStore.getState().updateLaserDmxShowManagerSection(showId, secondSectionId, { label: 'Verse Edit' })
 
     const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
     expect(persisted.laserDmxShowManagerShows).toHaveLength(1)
+    expect(persisted.laserDmxShowManagerActiveShowId).toBe(showId)
     expect(persisted).not.toHaveProperty('laserDmxShowManagerEditingShowId')
     expect(persisted).not.toHaveProperty('laserDmxShowManagerEditingSectionId')
     expect(persisted).not.toHaveProperty('laserDmxShowManagerPlaybackSectionId')
+    expect(persisted).not.toHaveProperty('showManagerUndoStack')
+    expect(persisted).not.toHaveProperty('showManagerRedoStack')
 
     const merged = mergeReactStoreState(persisted, useReactStore.getState())
     expect(merged.laserDmxShowManagerShows).toHaveLength(1)
+    expect(merged.laserDmxShowManagerActiveShowId).toBe(showId)
     expect(merged.laserDmxShowManagerEditingShowId).toBeNull()
     expect(merged.laserDmxShowManagerEditingSectionId).toBeNull()
     expect(merged.laserDmxShowManagerPlaybackSectionId).toBeNull()
+    expect(merged.showManagerUndoStack).toEqual([])
+    expect(merged.showManagerRedoStack).toEqual([])
   })
 
   it('migrates missing Stage 1 state safely without auto-creating a Show', () => {
     const migrated = migrateReactStore({ activeReactEngineId: 'laserDmx' }, 67)
     expect(migrated.laserDmxShowManagerShows).toEqual([])
+  })
+
+  it('migrates Stage 7 active identity idempotently and rejects stale active IDs', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Migrated')
+    const show = useReactStore.getState().laserDmxShowManagerShows[0]!
+    const valid = migrateReactStore({
+      laserDmxShowManagerShows: [show],
+      laserDmxShowManagerActiveShowId: showId,
+    }, 68)
+    expect(valid.laserDmxShowManagerActiveShowId).toBe(showId)
+    expect(migrateReactStore(valid, 69).laserDmxShowManagerActiveShowId).toBe(showId)
+
+    const stale = migrateReactStore({
+      laserDmxShowManagerShows: [show],
+      laserDmxShowManagerActiveShowId: 'missing-show',
+    }, 68)
+    expect(stale.laserDmxShowManagerActiveShowId).toBeNull()
   })
 
   it('rejects disabled fixture activation through the store action and keeps section fixtures unchanged', () => {
@@ -211,6 +239,149 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
     const persistedShows = persisted.laserDmxShowManagerShows as typeof state.laserDmxShowManagerShows
     expect(persistedShows[0]!.sections[1]!.fixtures.map(fixture => fixture.id)).toEqual([destinationId, copiedIds[0]])
+  })
+
+  it('round-trips every approved Part 1 fixture field through canonical persistence', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Round Trip')
+    const sectionId = useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.id
+    const fixtureId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, sectionId, 'movingHead', {
+      x: 17,
+      y: 11,
+      z: 0.5,
+      rotation: 225,
+      color: '#12abef',
+      colorMode: 'fixed',
+      brightness: 0.63,
+      beam: {
+        targetMode: 'fan',
+        targetX: 6,
+        targetY: 4,
+        targetZ: 0.25,
+        beamSpread: 38,
+        focus: 0.77,
+      },
+      optics: { zoom: 0.42 },
+      trigger: { mode: 'bar', quantize: 'bar', barInterval: 8 },
+    })!
+    useReactStore.setState({ laserDmxShowManagerActiveShowId: showId })
+
+    const persisted = reactStorePartialize(useReactStore.getState())
+    const rehydrated = mergeReactStoreState(persisted, useReactStore.getState())
+    const fixture = rehydrated.laserDmxShowManagerShows[0]!.sections[0]!.fixtures.find(candidate => candidate.id === fixtureId)
+
+    expect(fixture).toMatchObject({
+      id: fixtureId,
+      kind: 'movingHead',
+      x: 17,
+      y: 11,
+      z: 0.5,
+      rotation: 225,
+      color: '#12abef',
+      colorMode: 'fixed',
+      brightness: 0.63,
+      trigger: { mode: 'bar', quantize: 'bar', barInterval: 8 },
+    })
+    expect(fixture?.beam).toMatchObject({
+      targetMode: 'fan',
+      targetX: 6,
+      targetY: 4,
+      targetZ: 0.25,
+      beamSpread: 38,
+      focus: 0.77,
+    })
+    expect(fixture?.optics.zoom).toBe(0.42)
+    expect(rehydrated.laserDmxShowManagerActiveShowId).toBe(showId)
+  })
+
+  it('restores fixture deletion with the same ID/config and invalidates redo after a new edit', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('History')
+    const sectionId = useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.id
+    const fixtureId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, sectionId, 'laser', {
+      x: 7, y: 5, brightness: 0.31, color: '#22ffaa', beam: { beamSpread: 71 },
+    })!
+    useReactStore.getState().clearShowManagerHistory()
+
+    useReactStore.getState().removeLaserDmxShowManagerFixture(showId, sectionId, fixtureId)
+    expect(useReactStore.getState().showManagerUndoStack).toHaveLength(1)
+    expect(useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.fixtures).toHaveLength(0)
+
+    useReactStore.getState().undoLaserDmxShowManagerEdit()
+    const restored = useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.fixtures[0]
+    expect(restored).toMatchObject({ id: fixtureId, x: 7, y: 5, brightness: 0.31, color: '#22ffaa' })
+    expect(restored?.beam.beamSpread).toBe(71)
+    expect(useReactStore.getState().showManagerRedoStack).toHaveLength(1)
+
+    useReactStore.getState().redoLaserDmxShowManagerEdit()
+    expect(useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.fixtures).toHaveLength(0)
+    useReactStore.getState().undoLaserDmxShowManagerEdit()
+    useReactStore.getState().updateLaserDmxShowManagerWorkspaceSettings(showId, { showGrid: false })
+    expect(useReactStore.getState().showManagerRedoStack).toEqual([])
+  })
+
+  it('restores a deleted section with its fixtures and treats a fixture copy as one deterministic history action', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('History Sections')
+    let show = useReactStore.getState().laserDmxShowManagerShows[0]!
+    const introId = show.sections[0]!.id
+    const verseId = show.sections[1]!.id
+    const sourceId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, introId, 'laser', { x: 2, y: 3 })!
+    useReactStore.getState().addLaserDmxShowManagerFixture(showId, verseId, 'strobe', { x: 4, y: 5 })
+    useReactStore.getState().clearShowManagerHistory()
+
+    useReactStore.getState().removeLaserDmxShowManagerSection(showId, introId)
+    expect(useReactStore.getState().laserDmxShowManagerShows[0]!.sections.some(section => section.id === introId)).toBe(false)
+    useReactStore.getState().undoLaserDmxShowManagerEdit()
+    show = useReactStore.getState().laserDmxShowManagerShows[0]!
+    expect(show.sections.find(section => section.id === introId)?.fixtures[0]?.id).toBe(sourceId)
+
+    useReactStore.getState().clearShowManagerHistory()
+    const copiedIds = useReactStore.getState().copyLaserDmxShowManagerFixturesFromSection(showId, introId, verseId)
+    expect(copiedIds).toHaveLength(1)
+    expect(useReactStore.getState().showManagerUndoStack).toHaveLength(1)
+    useReactStore.getState().undoLaserDmxShowManagerEdit()
+    expect(useReactStore.getState().laserDmxShowManagerShows[0]!.sections.find(section => section.id === verseId)!.fixtures).toHaveLength(1)
+    useReactStore.getState().redoLaserDmxShowManagerEdit()
+    expect(useReactStore.getState().laserDmxShowManagerShows[0]!.sections.find(section => section.id === verseId)!.fixtures.map(fixture => fixture.id)).toContain(copiedIds[0])
+  })
+
+  it('commits a shared section boundary as one reversible history transaction', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Boundary')
+    const initial = useReactStore.getState().laserDmxShowManagerShows[0]!
+    const intro = initial.sections[0]!
+    const verse = initial.sections[1]!
+    useReactStore.getState().clearShowManagerHistory()
+
+    useReactStore.getState().updateLaserDmxShowManagerSectionBoundary(
+      showId, intro.id, 'end', 1.5, verse.id, 1.5,
+    )
+    expect(useReactStore.getState().showManagerUndoStack).toHaveLength(1)
+    let show = useReactStore.getState().laserDmxShowManagerShows[0]!
+    expect(show.sections[0]!.endSec).toBe(1.5)
+    expect(show.sections[1]!.startSec).toBe(1.5)
+
+    useReactStore.getState().undoLaserDmxShowManagerEdit()
+    show = useReactStore.getState().laserDmxShowManagerShows[0]!
+    expect(show.sections[0]!.endSec).toBe(intro.endSec)
+    expect(show.sections[1]!.startSec).toBe(verse.startSec)
+  })
+
+  it('Save + Make Active persists the working Show before exposing it as the live LaserDMX Show', async () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Live Show')
+    const sectionId = useReactStore.getState().laserDmxShowManagerShows[0]!.sections[4]!.id
+    const fixtureId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, sectionId, 'ledBar', {
+      x: 12, y: 9, color: '#00ffaa', brightness: 0.54,
+    })!
+
+    const saved = await useReactStore.getState().saveLaserDmxShowManagerShow(showId, { makeActive: true })
+    expect(saved).toBe(true)
+    expect(useReactStore.getState().activeReactEngineId).toBe('laserDmx')
+    expect(useReactStore.getState().laserDmxShowManagerActiveShowId).toBe(showId)
+
+    const envelope = await reactPersistStorage.getItem('drmvyz:react-store')
+    const persisted = envelope?.state as ReturnType<typeof reactStorePartialize> | undefined
+    expect(persisted?.laserDmxShowManagerActiveShowId).toBe(showId)
+    expect(persisted?.laserDmxShowManagerShows.find(show => show.id === showId)
+      ?.sections.find(section => section.id === sectionId)?.fixtures.find(fixture => fixture.id === fixtureId))
+      .toMatchObject({ id: fixtureId, x: 12, y: 9, color: '#00ffaa', brightness: 0.54 })
   })
 
 })

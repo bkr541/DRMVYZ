@@ -70,6 +70,25 @@
   color: rgba(111, 219, 232, 0.55);
 }
 
+.sm-header-button:not(:disabled) {
+  color: rgba(220, 235, 240, 0.82);
+  cursor: pointer;
+}
+
+.sm-header-button--primary:not(:disabled) {
+  border-color: rgba(74, 199, 219, 0.38);
+  color: rgba(126, 226, 238, 0.92);
+}
+
+.sm-header-save-status {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  color: rgba(174, 205, 214, 0.72);
+}
+
 .sm-topbar > .vsm-settings-btn {
   width: 30px;
   height: 30px;
