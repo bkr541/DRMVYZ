@@ -17,6 +17,8 @@ import {
 import type {
   CinemaCompositionDefinition,
   CinemaCompositionInstance,
+  CinemaBrandRole,
+  CinemaColor,
   CinemaMasterParameterBinding,
   CinemaParameterDefinition,
   CinemaParameterValue,
@@ -29,15 +31,18 @@ import {
   validateCinemaParameterSchema,
   validateCinemaParameterSchemas,
 } from './CinemaParameterSchema'
+import { applyCinemaBrandColorPolicy, protectCinemaExactBrandColor } from './CinemaBrandKitBridge'
 
 export const CINEMA_PARAMETER_RESOLUTION_ORDER = Object.freeze([
   'definition-default',
   'saved-preset',
   'instance-override',
+  'brand-kit-policy',
   'master-influence',
   'modulation-snapshot',
   'performance-override',
   'safety-clamp',
+  'exact-brand-protection',
   'final-runtime-value',
 ] as const)
 
@@ -66,6 +71,7 @@ export interface CinemaParameterValueResolutionInput {
   resolvedMasterValues?: Readonly<Record<string, CinemaParameterValue>>
   modulationValue?: unknown
   performanceValue?: unknown
+  brandColors?: Readonly<Partial<Record<CinemaBrandRole, CinemaColor>>>
 }
 
 export interface CinemaParameterValueResolutionResult {
@@ -99,6 +105,7 @@ export interface CinemaParameterSnapshotResolutionInput extends CinemaParameterD
   instance?: CinemaCompositionInstance | null
   modulationSnapshot?: CinemaTransientParameterSnapshot
   performanceOverrides?: CinemaTransientParameterSnapshot
+  brandColors?: Readonly<Partial<Record<CinemaBrandRole, CinemaColor>>>
 }
 
 export interface CinemaParameterResolutionSnapshot {
@@ -134,6 +141,13 @@ export function resolveCinemaParameterValue(
       diagnostics,
       trace,
     )
+
+    const brandResult = input.schema.type === 'color'
+      ? applyCinemaBrandColorPolicy({ schema: input.schema, currentValue: current, brandColors: input.brandColors })
+      : { value: current, applied: false, protectedExactColor: null, diagnostics: [] as readonly CinemaDiagnostic[] }
+    diagnostics.push(...brandResult.diagnostics)
+    current = brandResult.value
+    trace.push(traceEntry('brand-kit-policy', brandResult.applied, current))
 
     const masterResult = applyMasterInfluence(
       current,
@@ -172,6 +186,10 @@ export function resolveCinemaParameterValue(
     diagnostics.push(...clamped.diagnostics)
     current = clamped.valid ? clamped.value : cloneValue(getCinemaParameterDefaultValue(input.schema))
     trace.push(traceEntry('safety-clamp', true, current))
+    const exactProtected = protectCinemaExactBrandColor(current, brandResult.protectedExactColor)
+    const exactApplied = brandResult.protectedExactColor != null
+    current = exactProtected
+    trace.push(traceEntry('exact-brand-protection', exactApplied, current))
     trace.push(traceEntry('final-runtime-value', true, current))
 
     const normalizedDiagnostics = deduplicateCinemaDiagnostics(diagnostics)
@@ -276,6 +294,7 @@ export function resolveCinemaParameterSnapshot(
         instanceOverride: ownValue(masterInstanceValues, schema.id),
         modulationValue: input.modulationSnapshot?.[path],
         performanceValue: input.performanceOverrides?.[path],
+        brandColors: input.brandColors,
       })
       diagnostics.push(...result.diagnostics)
       masterSchemas[schema.id] = schema
@@ -311,6 +330,7 @@ export function resolveCinemaParameterSnapshot(
           resolvedMasterValues: masterValues,
           modulationValue: input.modulationSnapshot?.[path],
           performanceValue: input.performanceOverrides?.[path],
+          brandColors: input.brandColors,
         })
         diagnostics.push(...result.diagnostics)
         values[path] = result.value
@@ -348,6 +368,7 @@ export function resolveCinemaParameterSnapshot(
           resolvedMasterValues: masterValues,
           modulationValue: input.modulationSnapshot?.[path],
           performanceValue: input.performanceOverrides?.[path],
+          brandColors: input.brandColors,
         })
         diagnostics.push(...result.diagnostics)
         values[path] = result.value

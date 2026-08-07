@@ -148,6 +148,15 @@ export function validateCinemaParameterSchema(
         break
       case 'color':
         if (!isColor(value.default, true)) diagnostics.push(schemaDiagnostic(parameterId, 'Color parameter default must be a normalized RGBA tuple.'))
+        if (value.brandRole !== undefined && !['primary', 'secondary', 'accent', 'background', 'foreground', 'highlight', 'shadow'].includes(String(value.brandRole))) {
+          diagnostics.push(schemaDiagnostic(parameterId, 'Color parameter Brand Kit role is invalid.'))
+        }
+        if (value.brandPolicy !== undefined && !['exact', 'derived', 'free'].includes(String(value.brandPolicy))) {
+          diagnostics.push(schemaDiagnostic(parameterId, 'Color parameter Brand Kit policy is invalid.'))
+        }
+        if (value.brandPolicy !== undefined && value.brandRole === undefined) {
+          diagnostics.push(schemaDiagnostic(parameterId, 'Color parameter Brand Kit policy requires a semantic Brand Kit role.'))
+        }
         break
       case 'gradient':
         if (!isGradient(value.default, true)) diagnostics.push(schemaDiagnostic(parameterId, 'Gradient parameter default must contain valid, unique, normalized stops.'))

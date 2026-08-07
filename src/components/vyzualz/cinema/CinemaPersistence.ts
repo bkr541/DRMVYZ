@@ -38,12 +38,14 @@ import {
 import type { CinemaNodeTypeDefinition } from './CinemaRendererContracts'
 import { validateCinemaCompositionGraph } from './CinemaGraphCompiler'
 import { validateCinemaParameterSchemas } from './CinemaParameterSchema'
+import { normalizeCinemaAssetBinding } from './CinemaAssets'
 
 export const CINEMA_PERSISTED_STORE_SCHEMA_ID = 'drmvyz.cinema.store' as const
-export const CINEMA_PERSISTED_STORE_SCHEMA_VERSION = 2 as const
+export const CINEMA_PERSISTED_STORE_SCHEMA_VERSION = 3 as const
 export const CINEMA_DEFAULT_HISTORY_LIMIT = 50 as const
 export const CINEMA_MAX_HISTORY_LIMIT = 200 as const
 export const CINEMA_STAGE_12_MIGRATION_TIMESTAMP = '2026-08-06T00:00:00.000Z' as const
+export const CINEMA_STAGE_14_MIGRATION_TIMESTAMP = '2026-08-06T20:41:00.000Z' as const
 
 export interface CinemaMigrationProvenance {
   fromSchemaVersion: number
@@ -131,32 +133,73 @@ export function cloneCinemaSerializable<Value>(value: Value): Value {
   return JSON.parse(JSON.stringify(value)) as Value
 }
 
-/** Migrates only known Stage 4/11 JSON contracts. Future versions remain rejected. */
+/** Migrates only known Cinema JSON contracts. Future versions remain rejected. */
 export function migrateCinemaPersistedStateInput(input: Record<string, unknown>): Record<string, unknown> {
-  if (input.schemaVersion !== 1) return input
-  const provenance = Array.isArray(input.migrationProvenance) ? input.migrationProvenance : []
-  return {
-    ...input,
-    schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
-    compositions: Array.isArray(input.compositions)
-      ? input.compositions.map(migrateCinemaCompositionInput)
-      : input.compositions,
-    migrationProvenance: [...provenance, {
-      fromSchemaVersion: 1,
-      toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
-      migratedAt: CINEMA_STAGE_12_MIGRATION_TIMESTAMP,
-    }],
+  let current = input
+  if (current.schemaVersion === 1) {
+    const provenance = Array.isArray(current.migrationProvenance) ? current.migrationProvenance : []
+    current = {
+      ...current,
+      schemaVersion: 2,
+      compositions: Array.isArray(current.compositions)
+        ? current.compositions.map(migrateCinemaCompositionInput)
+        : current.compositions,
+      migrationProvenance: [...provenance, {
+        fromSchemaVersion: 1,
+        toSchemaVersion: 2,
+        migratedAt: CINEMA_STAGE_12_MIGRATION_TIMESTAMP,
+      }],
+    }
   }
+  if (current.schemaVersion === 2) {
+    const provenance = Array.isArray(current.migrationProvenance) ? current.migrationProvenance : []
+    current = {
+      ...current,
+      schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+      compositions: Array.isArray(current.compositions)
+        ? current.compositions.map(migrateCinemaCompositionInput)
+        : current.compositions,
+      migrationProvenance: [...provenance, {
+        fromSchemaVersion: 2,
+        toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+        migratedAt: CINEMA_STAGE_14_MIGRATION_TIMESTAMP,
+      }],
+    }
+  }
+  return current
 }
 
 export function migrateCinemaCompositionInput(input: unknown): unknown {
-  if (!isPlainRecord(input) || input.schemaVersion !== 1) return input
+  if (!isPlainRecord(input)) return input
+  let current = input
+  if (current.schemaVersion === 1) {
+    current = {
+      ...current,
+      schemaVersion: 2,
+      performanceRules: Array.isArray(current.performanceRules)
+        ? current.performanceRules.map(migrateCinemaPerformanceRuleInput)
+        : current.performanceRules,
+    }
+  }
+  if (current.schemaVersion === 2) {
+    current = {
+      ...current,
+      schemaVersion: CINEMA_COMPOSITION_SCHEMA_VERSION,
+      assetBindings: Array.isArray(current.assetBindings)
+        ? current.assetBindings.map(migrateCinemaAssetBindingInput)
+        : current.assetBindings,
+    }
+  }
+  return current
+}
+
+function migrateCinemaAssetBindingInput(input: unknown): unknown {
+  if (!isPlainRecord(input)) return input
   return {
     ...input,
-    schemaVersion: CINEMA_COMPOSITION_SCHEMA_VERSION,
-    performanceRules: Array.isArray(input.performanceRules)
-      ? input.performanceRules.map(migrateCinemaPerformanceRuleInput)
-      : input.performanceRules,
+    ...(typeof input.colorizeWithBrandRole === 'string' && input.brandColorPolicy === undefined
+      ? { brandColorPolicy: 'derived' }
+      : {}),
   }
 }
 
@@ -244,11 +287,13 @@ export function normalizeCinemaPersistedState(input: unknown): CinemaPersistence
       }))
     }
 
+    const rawCompositions = readArray(migratedInput, 'compositions', diagnostics)
+    const normalizedCompositions = rawCompositions.map(composition => normalizePersistedCompositionAssets(composition, diagnostics))
     const candidate: CinemaPersistedState = {
       schemaId: CINEMA_PERSISTED_STORE_SCHEMA_ID,
       schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
       definitions: readArray(migratedInput, 'definitions', diagnostics) as unknown as readonly CinemaPersistedDefinition[],
-      compositions: readArray(migratedInput, 'compositions', diagnostics) as unknown as readonly CinemaCompositionDefinition[],
+      compositions: normalizedCompositions as unknown as readonly CinemaCompositionDefinition[],
       instances: readArray(migratedInput, 'instances', diagnostics) as unknown as readonly CinemaCompositionInstance[],
       collections: readArray(migratedInput, 'collections', diagnostics) as unknown as readonly CinemaCollectionDefinition[],
       activeCompositionId: migratedInput.activeCompositionId == null
@@ -274,6 +319,21 @@ export function normalizeCinemaPersistedState(input: unknown): CinemaPersistence
     return failure([schemaDiagnostic('Cinema persisted state could not be normalized safely.', {
       reason: error instanceof Error ? error.message : String(error),
     })])
+  }
+}
+
+function normalizePersistedCompositionAssets(
+  composition: unknown,
+  diagnostics: CinemaDiagnostic[],
+): unknown {
+  if (!isPlainRecord(composition) || !Array.isArray(composition.assetBindings)) return composition
+  return {
+    ...composition,
+    assetBindings: composition.assetBindings.map(binding => {
+      const normalized = normalizeCinemaAssetBinding(binding)
+      diagnostics.push(...normalized.diagnostics.diagnostics)
+      return normalized.value ?? binding
+    }),
   }
 }
 

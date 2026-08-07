@@ -2,7 +2,9 @@ import type { LyricPlaybackState } from '../../../features/lyrics/runtime/lyricP
 import type { MusicIntelligenceFrame } from '../../../features/musicIntelligence/types'
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
 import {
+  bridgeCinemaBrandKit,
   buildCinemaFrameContext,
+  createCinemaDiagnosticSnapshot,
   type CinemaFrameBuildResult,
   type CinemaFrameBuilderState,
 } from '../cinema'
@@ -55,7 +57,9 @@ export function buildCinemaWorkspaceFrameBridge(
     )),
   )
 
-  return buildCinemaFrameContext({
+  const brand = bridgeCinemaBrandKit(input.brandKit)
+
+  const result = buildCinemaFrameContext({
     reactFrame,
     transport: {
       trackId: input.trackId,
@@ -73,11 +77,19 @@ export function buildCinemaWorkspaceFrameBridge(
       toggleStates: performanceToggleStates,
     },
     brand: {
-      available: input.brandKit != null,
-      colors: input.brandKit ? cinemaBrandColors(input.brandKit) : {},
+      available: brand.available,
+      colors: brand.colors,
     },
     mediaAssetsAvailable: input.mediaAssetsAvailable === true,
     previousState: input.previousState ?? null,
+  })
+  if (brand.diagnostics.diagnostics.length === 0) return result
+  return Object.freeze({
+    ...result,
+    diagnostics: createCinemaDiagnosticSnapshot([
+      ...result.diagnostics.diagnostics,
+      ...brand.diagnostics.diagnostics,
+    ]),
   })
 }
 
@@ -116,16 +128,7 @@ export function createCinemaReactFrameSnapshot(
 }
 
 export function cinemaBrandColors(kit: Readonly<BrandKit>): Partial<Record<CinemaBrandRole, CinemaColor>> {
-  const palette = kit.palette
-  return Object.freeze({
-    primary: hexToCinemaColor(palette.primary),
-    secondary: hexToCinemaColor(palette.secondary),
-    accent: hexToCinemaColor(palette.accent),
-    background: hexToCinemaColor(palette.background),
-    foreground: hexToCinemaColor(palette.text),
-    highlight: hexToCinemaColor(palette.highlight),
-    shadow: darkenCinemaColor(hexToCinemaColor(palette.background), 0.65),
-  })
+  return bridgeCinemaBrandKit(kit).colors
 }
 
 function currentMusicFrame(

@@ -11,6 +11,7 @@ import {
   type CinemaCompositionInstance,
   type CinemaCompositionInstanceId,
   type CinemaDiagnosticSnapshot,
+  type CinemaExternalAssetSnapshot,
   type CinemaFrameBuildResult,
   type CinemaRuntimeSnapshot,
 } from '../cinema'
@@ -134,11 +135,13 @@ function diagnosticSeverityRank(severity: 'info' | 'warning' | 'error' | 'fatal'
 export function CinemaWorkspace({
   surface,
   frameBridge = null,
+  assetSources = [],
   onCanvasReady,
   onLiveFps,
 }: {
   surface: CinemaWorkspaceSurface
   frameBridge?: CinemaFrameBuildResult | null
+  assetSources?: readonly Readonly<CinemaExternalAssetSnapshot>[]
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
 }) {
@@ -177,8 +180,8 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 12 performance choreography wired</strong>
-          <span>Versioned rules now coordinate transient parameter, node, camera, palette, and state-reset actions without writing runtime values into saved compositions.</span>
+          <strong>Stage 14 asset and Brand Kit bridge wired</strong>
+          <span>Stable asset IDs and semantic Brand Kit policies now flow through canonical Cinema state while decoded media, object URLs, and GPU textures remain runtime-only.</span>
         </div>
       </section>
     )
@@ -200,15 +203,16 @@ export function CinemaWorkspace({
         composition={model.activeComposition}
         instance={model.activeInstance}
         definitions={state.definitions}
+        assetSources={assetSources}
         onCanvasReady={onCanvasReady}
         onLiveFps={onLiveFps}
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 12</div>
-        <h2>Performance choreography runtime</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 14</div>
+        <h2>Assets and Brand Kit bridge</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema now evaluates musical and manual rules deterministically, applies priority-ranked transient overrides, and dispatches explicit reset commands through the shared node lifecycle.
+          Cinema now resolves canonical media-library assets by stable ID and applies exact, derived, or freely replaceable Brand Kit colors without persisting temporary URLs or GPU resources.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>
@@ -221,7 +225,7 @@ export function CinemaWorkspace({
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status" aria-live="polite">
           <strong>{runtimeSnapshot?.phase === 'unavailable' ? 'Safe output only' : 'Cinema runtime owns the stage'}</strong>
-          <span>Performance envelopes, consumed event identities, reset counters, feedback history, and renderer resources remain runtime-only. Seek reconstruction follows each node’s declared policy while legacy engines retain their standalone ownership.</span>
+          <span>Signed media URLs, decoded elements, object URLs, WebGL textures, and Brand Kit snapshots remain outside Cinema persistence. Missing or deleted assets use deterministic fallbacks while legacy engines retain their standalone ownership.</span>
         </div>
         {firstDiagnostic && (
           <div className="rv-cinema-workspace__diagnostic" role="note">

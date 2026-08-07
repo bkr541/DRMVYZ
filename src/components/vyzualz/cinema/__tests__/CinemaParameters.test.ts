@@ -7,6 +7,7 @@ import {
   CINEMA_MASTER_PARAMETER_IDS,
   CINEMA_PARAMETER_RESOLUTION_ORDER,
   CINEMA_SAFE_OUTPUT_DESCRIPTOR,
+  bridgeCinemaBrandKit,
   cinemaNamespacedId,
   cinemaStableId,
   createCinemaControlDescriptors,
@@ -264,12 +265,84 @@ describe('Cinema parameter resolution', () => {
     const entry = result.entries.find(candidate => candidate.path === path)!
 
     expect(entry.trace.map(step => step.stage)).toEqual(CINEMA_PARAMETER_RESOLUTION_ORDER)
-    expect(entry.trace.map(step => step.value)).toEqual([1, 2, 3, 6, 7, 8, 5, 5])
+    expect(entry.trace.map(step => step.value)).toEqual([1, 2, 3, 3, 6, 7, 8, 5, 5, 5])
     expect(entry.value).toBe(5)
     expect(fixture).toEqual(beforeComposition)
     expect(instance).toEqual(beforeInstance)
     expect(Object.isFrozen(result)).toBe(true)
     expect(Object.isFrozen(entry.trace)).toBe(true)
+  })
+
+  it('bridges semantic Brand Kit colors and protects exact policies from transient overrides', () => {
+    const colorId = stableId<CinemaParameterId>('brand-color', 'parameter')
+    const schema: CinemaParameterDefinition = {
+      id: colorId,
+      label: 'Brand Color',
+      type: 'color',
+      default: [0, 0, 0, 1],
+      brandRole: 'accent',
+      brandPolicy: 'exact',
+    }
+    const fixture = composition(schema)
+    fixture.nodes[0].parameterValues = { [colorId]: [0.1, 0.1, 0.1, 1] }
+    const registry = createCinemaNodeDefinitionRegistry([registryEntry(schema)]).registry
+    const path = createCinemaParameterPath('effects', colorId, effectNodeId)
+    const brand = bridgeCinemaBrandKit({
+      palette: {
+        primary: '#112233',
+        secondary: '#223344',
+        accent: '#00ff80',
+        background: '#08090a',
+        highlight: '#ffffff',
+        text: '#f0f1f2',
+      },
+    })
+    const result = resolveCinemaParameterSnapshot({
+      composition: fixture,
+      registry,
+      brandColors: brand.colors,
+      modulationSnapshot: { [path]: [1, 0, 0, 1] },
+      performanceOverrides: { [path]: [0, 0, 1, 1] },
+    })
+
+    expect(brand.available).toBe(true)
+    expect(brand.colors.accent).toEqual([0, 1, 128 / 255, 1])
+    expect(result.values[path]).toEqual(brand.colors.accent)
+    expect(result.entries.find(entry => entry.path === path)?.trace.find(step => step.stage === 'exact-brand-protection')).toMatchObject({ applied: true })
+  })
+
+  it('allows derived Brand Kit colors to continue through performance resolution and free colors to ignore the kit', () => {
+    const colorId = stableId<CinemaParameterId>('brand-color-derived', 'parameter')
+    const brand = bridgeCinemaBrandKit({
+      palette: {
+        primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff',
+        background: '#000000', highlight: '#ffffff', text: '#eeeeee',
+      },
+    })
+    const resolvePolicy = (brandPolicy: 'derived' | 'free', withPerformanceOverride: boolean) => {
+      const schema: CinemaParameterDefinition = {
+        id: colorId,
+        label: 'Brand Color',
+        type: 'color',
+        default: [0.25, 0.25, 0.25, 1],
+        brandRole: 'primary',
+        brandPolicy,
+      }
+      const fixture = composition(schema)
+      fixture.nodes[0].parameterValues = { [colorId]: [0.2, 0.2, 0.2, 1] }
+      const registry = createCinemaNodeDefinitionRegistry([registryEntry(schema)]).registry
+      const path = createCinemaParameterPath('effects', colorId, effectNodeId)
+      return resolveCinemaParameterSnapshot({
+        composition: fixture,
+        registry,
+        brandColors: brand.colors,
+        ...(withPerformanceOverride ? { performanceOverrides: { [path]: [0, 0, 1, 1] } } : {}),
+      }).values[path]
+    }
+
+    expect(resolvePolicy('derived', false)).toEqual([1, 0, 0, 1])
+    expect(resolvePolicy('derived', true)).toEqual([0, 0, 1, 1])
+    expect(resolvePolicy('free', false)).toEqual([0.2, 0.2, 0.2, 1])
   })
 
   it('applies scaling master influence without persisting resolved values', () => {

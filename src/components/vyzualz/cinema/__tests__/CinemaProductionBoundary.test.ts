@@ -6,9 +6,9 @@ import {
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema production boundary through Stage 10', () => {
+describe('Cinema production boundary through Stage 14', () => {
   it('keeps prior contracts public while exposing Shader and Cinematic World adapters through production ownership', () => {
-    expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(1)
+    expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(3)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
     expect(Cinema.CINEMA_COMPILED_GRAPH_VERSION).toBe(1)
     expect(typeof Cinema.compileCinemaCompositionGraph).toBe('function')
@@ -32,21 +32,26 @@ describe('Cinema production boundary through Stage 10', () => {
     expect(typeof Cinema.resolveCinemaParameterSnapshot).toBe('function')
     expect(typeof Cinema.createCinemaControlDescriptors).toBe('function')
     expect(typeof Cinema.createCinemaStore).toBe('function')
+    expect(typeof Cinema.normalizeCinemaAssetBinding).toBe('function')
+    expect(typeof Cinema.bridgeCinemaBrandKit).toBe('function')
+    expect(typeof Cinema.CinemaAssetManager).toBe('function')
     expect(Cinema.CINEMA_FRAME_CONTEXT_VERSION).toBe(1)
     expect(typeof Cinema.buildCinemaFrameContext).toBe('function')
     expect(typeof Cinema.createCinemaDeterministicEventId).toBe('function')
     expect(typeof Cinema.preflightCinemaPackage).toBe('function')
     expect(typeof Cinema.encodeCinemaPackage).toBe('function')
-    expect(Cinema.CINEMA_PERSISTED_STORE_SCHEMA_VERSION).toBe(1)
-    expect(Cinema.CINEMA_PERSIST_MIDDLEWARE_VERSION).toBe(2)
+    expect(Cinema.CINEMA_PERSISTED_STORE_SCHEMA_VERSION).toBe(3)
+    expect(Cinema.CINEMA_PERSIST_MIDDLEWARE_VERSION).toBe(3)
     expect(Cinema.CINEMA_PARAMETER_RESOLUTION_ORDER).toEqual([
       'definition-default',
       'saved-preset',
       'instance-override',
+      'brand-kit-policy',
       'master-influence',
       'modulation-snapshot',
       'performance-override',
       'safety-clamp',
+      'exact-brand-protection',
       'final-runtime-value',
     ])
     expect(REACT_ENGINE_IDS).toEqual([

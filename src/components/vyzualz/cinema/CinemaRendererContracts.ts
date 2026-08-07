@@ -1,6 +1,7 @@
 import type {
   CinemaActionId,
   CinemaEventId,
+  CinemaAssetBindingId,
   CinemaAssetId,
   CinemaCameraId,
   CinemaNodeId,
@@ -25,6 +26,7 @@ import type {
   CinemaVector3,
 } from './CinemaDomain'
 import type { CinemaDiagnostic } from './CinemaDiagnostics'
+import type { CinemaAssetFallbackDescriptor, CinemaAssetMediaKind } from './CinemaAssets'
 
 export type CinemaRenderBackend = 'webgl2' | 'canvas2d'
 export type CinemaAlphaMode = 'premultiplied' | 'straight' | 'opaque'
@@ -555,6 +557,7 @@ export interface CinemaNodeInitializeContext {
   webgl: CinemaWebGLRenderService
   /** Authored stable asset bindings resolved with the active instance overrides. */
   assets: readonly Readonly<CinemaAssetBindingDefinition>[]
+  assetManager: CinemaAssetRuntimeService
   diagnostics: CinemaRuntimeDiagnosticSink
   signal: AbortSignal
 }
@@ -575,6 +578,7 @@ export interface CinemaNodeRenderContext {
   values: Readonly<CinemaParameterValues>
   /** Authored stable asset bindings resolved with the active instance overrides. */
   assets: readonly Readonly<CinemaAssetBindingDefinition>[]
+  assetManager: CinemaAssetRuntimeService
   inputs: Readonly<Partial<Record<CinemaPortId, CinemaTextureView | null>>>
   /** Null only for the one compiled output node, which is authorized to bind the default framebuffer. */
   target: CinemaRenderTargetLease | null
@@ -617,6 +621,31 @@ export interface CinemaRenderNode {
 export interface CinemaNodePlugin {
   readonly definition: Readonly<CinemaNodeTypeDefinition>
   createNode(node: Readonly<CinemaNodeDefinition>): CinemaRenderNode
+}
+
+export type CinemaRuntimeAssetStatus = 'loading' | 'ready' | 'error' | 'fallback'
+
+/** Runtime-only resolved asset view. Raw media/GPU objects never enter persisted state. */
+export interface CinemaRuntimeAssetView {
+  bindingId: CinemaAssetBindingId
+  assetId: CinemaAssetId
+  status: CinemaRuntimeAssetStatus
+  mediaKind: CinemaAssetMediaKind
+  mimeType: string | null
+  width: number | null
+  height: number | null
+  durationSec: number | null
+  texture: WebGLTexture | null
+  mediaElement: HTMLImageElement | HTMLVideoElement | null
+  fallback: Readonly<CinemaAssetFallbackDescriptor> | null
+  error?: string
+}
+
+export interface CinemaAssetRuntimeService {
+  resolve(binding: Readonly<CinemaAssetBindingDefinition>): Readonly<CinemaRuntimeAssetView>
+  prepare(binding: Readonly<CinemaAssetBindingDefinition>, signal?: AbortSignal): Promise<Readonly<CinemaRuntimeAssetView>>
+  releaseAsset(assetId: CinemaAssetId): void
+  getDiagnostics(): Readonly<{ sourceCount: number; resourceCount: number; readyCount: number }>
 }
 
 export interface CinemaAssetAvailability {

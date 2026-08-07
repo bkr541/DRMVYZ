@@ -5,6 +5,7 @@ import {
   type CinemaDiagnosticSnapshot,
 } from '../CinemaDiagnostics'
 import type { CinemaCompositionDefinition, CinemaCompositionInstance } from '../CinemaDomain'
+import type { CinemaExternalAssetSnapshot } from '../CinemaAssets'
 import type { CinemaPersistedDefinition } from '../CinemaPersistence'
 import { CINEMA_PRODUCTION_RUNTIME_REGISTRY } from '../CinemaFoundation'
 import type { CinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
@@ -23,6 +24,7 @@ import {
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
 import { CinemaTextureManager } from './CinemaTextureManager'
 import { CinemaGraphExecutor, type CinemaGraphExecutorSnapshot } from './CinemaGraphExecutor'
+import { CinemaAssetManager } from './CinemaAssetManager'
 import { CinemaWebGLRenderServiceImpl } from './CinemaWebGLRenderService'
 
 export type CinemaRuntimePhase =
@@ -93,6 +95,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
 
   readonly textures: CinemaTextureManager
   readonly targets: CinemaRenderTargetPool
+  readonly assets: CinemaAssetManager
   readonly capabilities: CinemaPlatformCapabilities
   readonly webgl: CinemaWebGLRenderServiceImpl
   readonly executor: CinemaGraphExecutor
@@ -110,6 +113,8 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   private viewport: CinemaViewport = { width: 1, height: 1, dpr: 1 }
   private lastResolution: CanvasResolution | null = null
   private frame: Readonly<CinemaFrameContext> | null = null
+  private composition: Readonly<CinemaCompositionDefinition> | null = null
+  private instance: Readonly<CinemaCompositionInstance> | null = null
   private animationFrameId = 0
   private runningRequested = false
   private visibilitySuspended = false
@@ -137,11 +142,12 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.onLiveFps = options.onLiveFps ?? null
     this.capabilities = detectPlatformCapabilities(gl)
     this.textures = new CinemaTextureManager()
+    this.assets = new CinemaAssetManager(gl, this)
     this.targets = new CinemaRenderTargetPool(gl, this.textures, this.viewport, this)
     this.webgl = new CinemaWebGLRenderServiceImpl(gl, this.targets, this.textures)
     this.executor = new CinemaGraphExecutor({
       runtimeRegistry: options.runtimeRegistry ?? CINEMA_PRODUCTION_RUNTIME_REGISTRY,
-      platform: this.capabilities, targets: this.targets, textures: this.textures, webgl: this.webgl, diagnostics: this,
+      platform: this.capabilities, targets: this.targets, textures: this.textures, assetManager: this.assets, webgl: this.webgl, diagnostics: this,
       onSnapshot: snapshot => {
         this.graphSnapshot = snapshot
         if (!this.disposed) this.emitSnapshot()
@@ -161,6 +167,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       this.phase = 'context-lost'
       this.cancelScheduledFrame()
       this.executor.handleContextLost()
+      this.assets.handleContextLost()
       this.targets.abandonContext()
       this.report(createCinemaDiagnostic({
         code: 'CINEMA_CONTEXT_LOST',
@@ -176,6 +183,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       this.contextGeneration += 1
       try {
         this.targets.rebuildAfterContextRestore()
+        this.assets.rebuildAfterContextRestore()
         if (this.lastResolution) this.applyResolution(this.lastResolution)
         this.executor.rebuildAfterContextRestore()
         this.report(createCinemaDiagnostic({
@@ -216,7 +224,16 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     definitions: readonly CinemaPersistedDefinition[],
   ): void {
     if (this.disposed) return
+    this.composition = composition
+    this.instance = instance
+    if (composition) this.assets.validateAuthoredBindings(composition, instance)
     this.executor.setGraph({ composition, instance, definitions })
+  }
+
+  setAssetSources(sources: readonly Readonly<CinemaExternalAssetSnapshot>[]): void {
+    if (this.disposed) return
+    this.assets.setSources(sources)
+    if (this.composition) this.assets.validateAuthoredBindings(this.composition, this.instance)
   }
 
   setFrame(frame: Readonly<CinemaFrameContext> | null): void {
@@ -310,6 +327,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestoredHandler)
     try { this.executor.dispose() } catch { /* Continue deterministic cleanup. */ }
+    try { this.assets.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { this.targets.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { this.textures.dispose() } catch { /* Continue deterministic cleanup. */ }
     retireDrmvyzWebGLContext(this.contextDiagnosticHandle, 'release-resources')

@@ -5,6 +5,7 @@ import {
   createCinemaDiagnosticSnapshot,
   type CinemaCompositionDefinition,
   type CinemaCompositionInstance,
+  type CinemaExternalAssetSnapshot,
   type CinemaFrameBuildResult,
   type CinemaPersistedDefinition,
   type CinemaRuntimeSnapshot,
@@ -18,6 +19,7 @@ export interface CinemaCanvasProps {
   composition: Readonly<CinemaCompositionDefinition> | null
   instance: Readonly<CinemaCompositionInstance> | null
   definitions: readonly CinemaPersistedDefinition[]
+  assetSources?: readonly Readonly<CinemaExternalAssetSnapshot>[]
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
   onRuntimeSnapshot?: (snapshot: CinemaRuntimeSnapshot) => void
@@ -54,6 +56,7 @@ export function CinemaCanvas({
   composition,
   instance,
   definitions,
+  assetSources = [],
   onCanvasReady,
   onLiveFps,
   onRuntimeSnapshot,
@@ -62,12 +65,14 @@ export function CinemaCanvas({
   const runtimeRef = useRef<CinemaRuntime | null>(null)
   const frameRef = useRef(frameBridge?.frame ?? null)
   const graphRef = useRef({ composition, instance, definitions })
+  const assetSourcesRef = useRef(assetSources)
   const onCanvasReadyRef = useRef(onCanvasReady)
   const onLiveFpsRef = useRef(onLiveFps)
   const onRuntimeSnapshotRef = useRef(onRuntimeSnapshot)
 
   frameRef.current = frameBridge?.frame ?? null
   graphRef.current = { composition, instance, definitions }
+  assetSourcesRef.current = assetSources
   onCanvasReadyRef.current = onCanvasReady
   onLiveFpsRef.current = onLiveFps
   onRuntimeSnapshotRef.current = onRuntimeSnapshot
@@ -75,6 +80,10 @@ export function CinemaCanvas({
   useEffect(() => {
     runtimeRef.current?.setFrame(frameRef.current)
   }, [frameBridge])
+
+  useEffect(() => {
+    runtimeRef.current?.setAssetSources(assetSourcesRef.current)
+  }, [assetSources])
 
   useEffect(() => {
     const graph = graphRef.current
@@ -158,6 +167,7 @@ export function CinemaCanvas({
       runtime = created.runtime
       runtimeRef.current = runtime
       runtime.setFrame(frameRef.current)
+      runtime.setAssetSources(assetSourcesRef.current)
       runtime.setGraph(graphRef.current.composition, graphRef.current.instance, graphRef.current.definitions)
       if (lastResolution) runtime.resize(lastResolution)
       runtime.setVisibilitySuspended(document.visibilityState === 'hidden')

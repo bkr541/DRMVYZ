@@ -6,6 +6,7 @@ import type {
   CinemaParameterValue,
   CinemaParameterValues,
 } from '../CinemaDomain'
+import { createCinemaAssetFallback, normalizeCinemaAssetBinding } from '../CinemaAssets'
 import {
   compileCinemaCompositionGraph,
   type CinemaCompiledGraphPlan,
@@ -13,6 +14,7 @@ import {
 } from '../CinemaGraphCompiler'
 import type {
   CinemaAssetBindingId,
+  CinemaAssetId,
   CinemaNodeId,
   CinemaPortId,
 } from '../CinemaIdentifiers'
@@ -20,6 +22,8 @@ import type { CinemaNodeDefinitionRegistry, CinemaNodeRegistryEntry } from '../C
 import type { CinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import {
   CINEMA_STATE_RESET_ACTION_IDS,
+  type CinemaAssetRuntimeService,
+  type CinemaRuntimeAssetView,
   type CinemaFrameContext,
   type CinemaNodeResetContext,
   type CinemaPlatformCapabilities,
@@ -54,6 +58,26 @@ import {
   resolveCinemaCameraFrame,
 } from '../CinemaCameraRuntime'
 
+
+const NOOP_ASSET_RUNTIME: CinemaAssetRuntimeService = Object.freeze({
+  resolve: (binding: Readonly<CinemaAssetBindingDefinition>): Readonly<CinemaRuntimeAssetView> => Object.freeze({
+    bindingId: binding.id,
+    assetId: binding.assetId,
+    status: 'fallback',
+    mediaKind: 'unknown',
+    mimeType: null,
+    width: null,
+    height: null,
+    durationSec: null,
+    texture: null,
+    mediaElement: null,
+    fallback: createCinemaAssetFallback(binding.role, 'unavailable'),
+  }),
+  prepare: async (binding: Readonly<CinemaAssetBindingDefinition>): Promise<Readonly<CinemaRuntimeAssetView>> => NOOP_ASSET_RUNTIME.resolve(binding),
+  releaseAsset: (_assetId: CinemaAssetId): void => {},
+  getDiagnostics: () => Object.freeze({ sourceCount: 0, resourceCount: 0, readyCount: 0 }),
+})
+
 export interface CinemaGraphExecutorSnapshot {
   compositionId: string | null
   compositionRevision: number | null
@@ -78,6 +102,7 @@ export interface CinemaGraphExecutorOptions {
   platform: Readonly<CinemaPlatformCapabilities>
   targets: CinemaRenderTargetPool
   textures: CinemaTextureManager
+  assetManager?: CinemaAssetRuntimeService
   webgl: CinemaWebGLRenderService
   diagnostics: CinemaRuntimeDiagnosticSink
   onSnapshot?: (snapshot: CinemaGraphExecutorSnapshot) => void
@@ -115,6 +140,7 @@ export class CinemaGraphExecutor {
   private readonly platform: Readonly<CinemaPlatformCapabilities>
   private readonly targets: CinemaRenderTargetPool
   private readonly textures: CinemaTextureManager
+  private readonly assetManager: CinemaAssetRuntimeService
   private readonly webgl: CinemaWebGLRenderService
   private readonly diagnosticsSink: CinemaRuntimeDiagnosticSink
   private readonly onSnapshot: ((snapshot: CinemaGraphExecutorSnapshot) => void) | null
@@ -149,6 +175,7 @@ export class CinemaGraphExecutor {
     this.platform = options.platform
     this.targets = options.targets
     this.textures = options.textures
+    this.assetManager = options.assetManager ?? NOOP_ASSET_RUNTIME
     this.webgl = options.webgl
     this.diagnosticsSink = options.diagnostics
     this.onSnapshot = options.onSnapshot ?? null
@@ -259,6 +286,7 @@ export class CinemaGraphExecutor {
             viewport: this.viewport,
             values: record.values,
             assets: record.assets,
+            assetManager: this.assetManager,
             inputs,
             target,
             outputNode,
@@ -420,7 +448,7 @@ export class CinemaGraphExecutor {
     for (const diagnostic of this.performanceRuntime.snapshot.diagnostics.diagnostics) this.report(diagnostic)
     for (const diagnostic of this.modulationRuntime.diagnostics.diagnostics) this.report(diagnostic)
     const valuesByNode = collectNodeValues(resolution.values)
-    const assetsByNode = resolveNodeAssetBindings(composition, this.configuration.instance)
+    const assetsByNode = resolveNodeAssetBindings(composition, this.configuration.instance, diagnostic => this.report(diagnostic))
     const authoredById = new Map(composition.nodes.map(node => [node.id, node]))
 
     for (const nodeId of compilation.plan.nodeOrder) {
@@ -501,6 +529,11 @@ export class CinemaGraphExecutor {
         assets: assetsByNode.get(nodeId) ?? [],
       }
       this.records.set(nodeId, record)
+      for (const binding of record.assets) {
+        void this.assetManager.prepare(binding, abortController.signal).catch(() => {
+          // The manager reports a bounded diagnostic and keeps a deterministic fallback active.
+        })
+      }
 
       try {
         const initialized = renderer.initialize({
@@ -512,6 +545,7 @@ export class CinemaGraphExecutor {
           textures: this.textures,
           webgl: this.webgl,
           assets: record.assets,
+          assetManager: this.assetManager,
           diagnostics: this.diagnosticsSink,
           signal: abortController.signal,
         })
@@ -763,6 +797,7 @@ export class CinemaGraphExecutor {
       cameraParameterSchemas: this.cameraParameterSchemas,
       modulationSnapshot: modulation.values,
       performanceOverrides: performance.parameterOverrides,
+      brandColors: frame.brand.colors,
     })
     for (const diagnostic of resolution.diagnostics.diagnostics) this.report(diagnostic)
     const valuesByNode = collectNodeValues(resolution.values)
@@ -903,6 +938,7 @@ function collectNodeValues(
 function resolveNodeAssetBindings(
   composition: Readonly<CinemaCompositionDefinition>,
   instance: Readonly<CinemaCompositionInstance> | null,
+  report: (diagnostic: CinemaDiagnostic) => void,
 ): ReadonlyMap<CinemaNodeId, readonly Readonly<CinemaAssetBindingDefinition>[]> {
   const overrides = new Map<CinemaAssetBindingId, CinemaCompositionInstance['assetBindingOverrides'][number]['values']>()
   if (instance?.compositionId === composition.id) {
@@ -911,7 +947,9 @@ function resolveNodeAssetBindings(
   const resolved = new Map<CinemaAssetBindingId, Readonly<CinemaAssetBindingDefinition>>()
   for (const binding of composition.assetBindings) {
     const override = overrides.get(binding.id)
-    resolved.set(binding.id, Object.freeze({ ...binding, ...(override ?? {}) }))
+    const normalized = normalizeCinemaAssetBinding({ ...binding, ...(override ?? {}) })
+    for (const diagnostic of normalized.diagnostics.diagnostics) report(diagnostic)
+    if (normalized.value) resolved.set(binding.id, normalized.value)
   }
   const byNode = new Map<CinemaNodeId, readonly Readonly<CinemaAssetBindingDefinition>[]>()
   for (const node of composition.nodes) {

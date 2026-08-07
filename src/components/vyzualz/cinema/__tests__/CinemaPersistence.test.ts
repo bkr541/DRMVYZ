@@ -395,10 +395,33 @@ describe('Cinema persisted state and migrations', () => {
       schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
       id: 'drop-rule-action-1',
     })
+    expect(result.value.migrationProvenance).toEqual(expect.arrayContaining([
+      { fromSchemaVersion: 1, toSchemaVersion: 2, migratedAt: '2026-08-06T00:00:00.000Z' },
+      { fromSchemaVersion: 2, toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION, migratedAt: '2026-08-06T20:41:00.000Z' },
+    ]))
+  })
+})
+
+
+describe('Cinema Stage 14 migration', () => {
+  it('migrates schema-v2 asset bindings to explicit derived Brand Kit policy', () => {
+    const legacy = JSON.parse(JSON.stringify(populatedState())) as {
+      schemaVersion: number
+      compositions: Array<{ schemaVersion: number; assetBindings: Array<{ colorizeWithBrandRole?: string; brandColorPolicy?: string }> }>
+    }
+    legacy.schemaVersion = 2
+    legacy.compositions[0].schemaVersion = 2
+    legacy.compositions[0].assetBindings[0].colorizeWithBrandRole = 'accent'
+    delete legacy.compositions[0].assetBindings[0].brandColorPolicy
+
+    const result = normalizeCinemaPersistedState(legacy)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.compositions[0].assetBindings[0].brandColorPolicy).toBe('derived')
     expect(result.value.migrationProvenance).toContainEqual({
-      fromSchemaVersion: 1,
+      fromSchemaVersion: 2,
       toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
-      migratedAt: '2026-08-06T00:00:00.000Z',
+      migratedAt: '2026-08-06T20:41:00.000Z',
     })
   })
 })
@@ -512,11 +535,10 @@ describe('Cinema package preflight and atomic import/export', () => {
       schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
       id: 'drop-rule-action-1',
     })
-    expect(preflight.value.migrationProvenance).toContainEqual({
-      fromSchemaVersion: 1,
-      toSchemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
-      migratedAt: '2026-08-06T00:00:00.000Z',
-    })
+    expect(preflight.value.migrationProvenance).toEqual(expect.arrayContaining([
+      { fromSchemaVersion: 1, toSchemaVersion: 2, migratedAt: '2026-08-06T00:00:00.000Z' },
+      { fromSchemaVersion: 2, toSchemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION, migratedAt: '2026-08-06T20:41:00.000Z' },
+    ]))
   })
 
   it('accepts packages that rely on external runtime definitions', () => {

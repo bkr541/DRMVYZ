@@ -10,9 +10,11 @@ import { createCinemaFoundationPersistedState, reconcileCinemaBuiltInState } fro
 import type {
   CinemaCollectionDefinition,
   CinemaCompositionDefinition,
+  CinemaAssetBindingDefinition,
   CinemaCompositionInstance,
 } from './CinemaDomain'
 import type {
+  CinemaAssetBindingId,
   CinemaCollectionId,
   CinemaCompositionId,
   CinemaCompositionInstanceId,
@@ -72,6 +74,8 @@ export interface CinemaStoreState extends CinemaPersistedState {
   upsertCinemaDefinition: (definition: CinemaPersistedDefinition) => CinemaStoreOperationResult
   deleteCinemaDefinition: (definitionId: CinemaNodeTypeId) => CinemaStoreOperationResult
   upsertCinemaComposition: (composition: CinemaCompositionDefinition) => CinemaStoreOperationResult
+  upsertCinemaAssetBinding: (compositionId: CinemaCompositionId, binding: CinemaAssetBindingDefinition) => CinemaStoreOperationResult
+  deleteCinemaAssetBinding: (compositionId: CinemaCompositionId, bindingId: CinemaAssetBindingId) => CinemaStoreOperationResult
   renameCinemaComposition: (compositionId: CinemaCompositionId, name: string) => CinemaStoreOperationResult
   duplicateCinemaComposition: (
     compositionId: CinemaCompositionId,
@@ -259,6 +263,45 @@ function createCinemaStoreInitializer(
         ...current,
         compositions: upsertById(current.compositions, composition),
       })),
+
+      upsertCinemaAssetBinding: (compositionId, binding) => mutateDocument(
+        'Update Cinema asset binding',
+        current => ({
+          ...current,
+          compositions: current.compositions.map(composition => composition.id === compositionId
+            ? {
+                ...composition,
+                revision: composition.revision + 1,
+                assetBindings: upsertById(composition.assetBindings, binding),
+              }
+            : composition),
+        }),
+      ),
+
+      deleteCinemaAssetBinding: (compositionId, bindingId) => mutateDocument(
+        'Delete Cinema asset binding',
+        current => ({
+          ...current,
+          compositions: current.compositions.map(composition => composition.id === compositionId
+            ? {
+                ...composition,
+                revision: composition.revision + 1,
+                assetBindings: composition.assetBindings.filter(binding => binding.id !== bindingId),
+                nodes: composition.nodes.map(node => ({
+                  ...node,
+                  assetBindingIds: node.assetBindingIds?.filter(id => id !== bindingId),
+                })),
+              }
+            : composition),
+          instances: current.instances.map(instance => instance.compositionId === compositionId
+            ? {
+                ...instance,
+                revision: instance.revision + 1,
+                assetBindingOverrides: instance.assetBindingOverrides.filter(override => override.bindingId !== bindingId),
+              }
+            : instance),
+        }),
+      ),
 
       renameCinemaComposition: (compositionId, name) => mutateDocument('Rename Cinema composition', current => ({
         ...current,

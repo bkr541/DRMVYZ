@@ -20,6 +20,7 @@ import {
 } from './CinemaIdentifiers'
 import {
   CINEMA_STAGE_12_MIGRATION_TIMESTAMP,
+  CINEMA_STAGE_14_MIGRATION_TIMESTAMP,
   migrateCinemaCompositionInput,
   normalizeCinemaPersistedState,
   persistedStateFromCinemaPackage,
@@ -158,20 +159,38 @@ export function preflightCinemaPackage(input: unknown): CinemaPackageDecodeResul
 }
 
 function migrateCinemaPackageInput(input: Record<string, unknown>): Record<string, unknown> {
-  if (input.schemaVersion !== 1) return input
-  const provenance = Array.isArray(input.migrationProvenance) ? input.migrationProvenance : []
-  return {
-    ...input,
-    schemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
-    compositions: Array.isArray(input.compositions)
-      ? input.compositions.map(migrateCinemaCompositionInput)
-      : input.compositions,
-    migrationProvenance: [...provenance, {
-      fromSchemaVersion: 1,
-      toSchemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
-      migratedAt: CINEMA_STAGE_12_MIGRATION_TIMESTAMP,
-    }],
+  let current = input
+  if (current.schemaVersion === 1) {
+    const provenance = Array.isArray(current.migrationProvenance) ? current.migrationProvenance : []
+    current = {
+      ...current,
+      schemaVersion: 2,
+      compositions: Array.isArray(current.compositions)
+        ? current.compositions.map(migrateCinemaCompositionInput)
+        : current.compositions,
+      migrationProvenance: [...provenance, {
+        fromSchemaVersion: 1,
+        toSchemaVersion: 2,
+        migratedAt: CINEMA_STAGE_12_MIGRATION_TIMESTAMP,
+      }],
+    }
   }
+  if (current.schemaVersion === 2) {
+    const provenance = Array.isArray(current.migrationProvenance) ? current.migrationProvenance : []
+    current = {
+      ...current,
+      schemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
+      compositions: Array.isArray(current.compositions)
+        ? current.compositions.map(migrateCinemaCompositionInput)
+        : current.compositions,
+      migrationProvenance: [...provenance, {
+        fromSchemaVersion: 2,
+        toSchemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION,
+        migratedAt: CINEMA_STAGE_14_MIGRATION_TIMESTAMP,
+      }],
+    }
+  }
+  return current
 }
 
 export function decodeCinemaPackage(serialized: string): CinemaPackageDecodeResult {

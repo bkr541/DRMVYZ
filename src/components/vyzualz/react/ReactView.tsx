@@ -41,6 +41,7 @@ import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { CinemaWorkspace } from './CinemaWorkspace'
+import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
 import type { CinemaFrameBuilderState } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
@@ -258,7 +259,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   )
   const activeShaderId = useShaderPanelStore((s) => s.activeShaderId)
   const activeBrandKit = useBrandKitStore((s) => s.activeKit)
-  const mediaAssetCount = useMediaStore((s) => s.items.length)
+  const mediaAssets = useMediaStore((s) => s.items)
+  const cinemaAssetSources = useMemo(() => createCinemaMediaLibrarySnapshot(mediaAssets), [mediaAssets])
   const lyricPlayback = useLyricPlaybackSelector((state) => state)
   const cinemaFrameStateRef = useRef<CinemaFrameBuilderState | null>(null)
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
@@ -556,7 +558,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       performanceEvents: performanceActionEvents,
       performanceToggleStates: performanceActionToggleStates,
       brandKit: activeBrandKit,
-      mediaAssetsAvailable: mediaAssetCount > 0,
+      mediaAssetsAvailable: cinemaAssetSources.length > 0,
       previousState: cinemaFrameStateRef.current,
     })
   }, [
@@ -569,7 +571,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     engine.currentTrackId,
     engine.isPlaying,
     lyricPlayback,
-    mediaAssetCount,
+    cinemaAssetSources.length,
     performanceActionEvents,
     performanceActionToggleStates,
     resolvedTrackSections,
@@ -795,6 +797,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               <CinemaWorkspace
                 surface="stage"
                 frameBridge={cinemaFrameBridge}
+                assetSources={cinemaAssetSources}
                 onCanvasReady={setOutputCanvas}
                 onLiveFps={setLiveFps}
               />

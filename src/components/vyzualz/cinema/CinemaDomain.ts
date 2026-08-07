@@ -21,9 +21,9 @@ import type {
 } from './CinemaIdentifiers'
 
 export const CINEMA_COMPOSITION_SCHEMA_ID = 'drmvyz.cinema.composition' as const
-export const CINEMA_COMPOSITION_SCHEMA_VERSION = 2 as const
+export const CINEMA_COMPOSITION_SCHEMA_VERSION = 3 as const
 export const CINEMA_PACKAGE_SCHEMA_ID = 'drmvyz.cinema.package' as const
-export const CINEMA_PACKAGE_SCHEMA_VERSION = 2 as const
+export const CINEMA_PACKAGE_SCHEMA_VERSION = 3 as const
 
 export type CinemaJsonPrimitive = string | number | boolean | null
 export type CinemaJsonValue = CinemaJsonPrimitive | CinemaJsonObject | readonly CinemaJsonValue[]
@@ -181,6 +181,8 @@ export interface CinemaColorParameterDefinition extends CinemaParameterBase {
   type: 'color'
   default: CinemaColor
   brandRole?: CinemaBrandRole
+  /** Exact is protected from authored/transient recoloring; derived may continue through the resolver; free ignores Brand Kit. */
+  brandPolicy?: CinemaBrandColorPolicy
 }
 
 export interface CinemaGradientParameterDefinition extends CinemaParameterBase {
@@ -306,6 +308,8 @@ export type CinemaAssetRole =
   | 'font'
   | 'audio'
 
+export type CinemaBrandColorPolicy = 'exact' | 'derived' | 'free'
+
 export type CinemaBrandRole =
   | 'primary'
   | 'secondary'
@@ -326,6 +330,8 @@ export interface CinemaAssetBindingDefinition {
   rotationRadians?: number
   preserveOriginalColors: boolean
   colorizeWithBrandRole?: CinemaBrandRole
+  /** Controls whether Brand Kit colorization is protected, derivable, or freely replaceable. */
+  brandColorPolicy?: CinemaBrandColorPolicy
   opacity: number
   blendMode: CinemaBlendMode
 }
@@ -550,7 +556,7 @@ export interface CinemaCameraParameterOverride {
 }
 
 export type CinemaAssetBindingOverrideValues = Partial<Pick<CinemaAssetBindingDefinition,
-  'assetId' | 'fit' | 'crop' | 'position' | 'scale' | 'rotationRadians' | 'preserveOriginalColors' | 'colorizeWithBrandRole' | 'opacity' | 'blendMode'
+  'assetId' | 'fit' | 'crop' | 'position' | 'scale' | 'rotationRadians' | 'preserveOriginalColors' | 'colorizeWithBrandRole' | 'brandColorPolicy' | 'opacity' | 'blendMode'
 >>
 
 export interface CinemaAssetBindingOverride {
