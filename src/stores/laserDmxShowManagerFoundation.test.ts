@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mergeReactStoreState, migrateReactStore, reactPersistStorage, reactStorePartialize, useReactStore } from './reactStore'
 
 describe('LaserDMX Show Manager Part 1 store integration', () => {
@@ -293,6 +293,18 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     expect(rehydrated.laserDmxShowManagerActiveShowId).toBe(showId)
   })
 
+  it('keeps canonical history empty for no-op authoring mutations', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('No-op History')
+    useReactStore.getState().clearShowManagerHistory()
+
+    useReactStore.getState().updateLaserDmxShowManagerWorkspaceSettings(showId, { showGrid: true })
+    expect(useReactStore.getState().showManagerUndoStack).toEqual([])
+    expect(useReactStore.getState().showManagerRedoStack).toEqual([])
+
+    useReactStore.getState().updateLaserDmxShowManagerWorkspaceSettings(showId, { showGrid: false })
+    expect(useReactStore.getState().showManagerUndoStack).toHaveLength(1)
+  })
+
   it('restores fixture deletion with the same ID/config and invalidates redo after a new edit', () => {
     const showId = useReactStore.getState().createLaserDmxShowManagerShow('History')
     const sectionId = useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.id
@@ -362,6 +374,59 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     show = useReactStore.getState().laserDmxShowManagerShows[0]!
     expect(show.sections[0]!.endSec).toBe(intro.endSec)
     expect(show.sections[1]!.startSec).toBe(verse.startSec)
+  })
+
+  it('persists the complete activation candidate before mutating live engine state', async () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Atomic Activation')
+    useReactStore.setState({
+      activeReactEngineId: 'cinema',
+      activeReactPresetId: null,
+      laserDmxShowManagerActiveShowId: null,
+    })
+
+    const originalSetItem = reactPersistStorage.setItem.bind(reactPersistStorage)
+    const persistedStates: Array<ReturnType<typeof reactStorePartialize>> = []
+    type PersistEnvelope = Parameters<typeof reactPersistStorage.setItem>[1]
+    const persistSpy = vi.spyOn(reactPersistStorage, 'setItem').mockImplementation(async (name: string, envelope: PersistEnvelope) => {
+      if (persistedStates.length === 0) {
+        persistedStates.push(envelope.state as ReturnType<typeof reactStorePartialize>)
+        expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
+        expect(useReactStore.getState().laserDmxShowManagerActiveShowId).toBeNull()
+      }
+      await originalSetItem(name, envelope)
+    })
+
+    try {
+      const saved = await useReactStore.getState().saveLaserDmxShowManagerShow(showId, { makeActive: true })
+      expect(saved).toBe(true)
+      expect(persistedStates[0]?.activeReactEngineId).toBe('laserDmx')
+      expect(persistedStates[0]?.laserDmxShowManagerActiveShowId).toBe(showId)
+      expect(useReactStore.getState().activeReactEngineId).toBe('laserDmx')
+      expect(useReactStore.getState().laserDmxShowManagerActiveShowId).toBe(showId)
+    } finally {
+      persistSpy.mockRestore()
+    }
+  })
+
+  it('leaves live activation state untouched when Save + Make Active persistence fails', async () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Failed Activation')
+    useReactStore.setState({
+      activeReactEngineId: 'cinema',
+      activeReactPresetId: null,
+      laserDmxShowManagerActiveShowId: null,
+    })
+    const before = useReactStore.getState()
+    const persistSpy = vi.spyOn(reactPersistStorage, 'setItem').mockRejectedValueOnce(new Error('forced persistence failure'))
+
+    try {
+      const saved = await useReactStore.getState().saveLaserDmxShowManagerShow(showId, { makeActive: true })
+      expect(saved).toBe(false)
+      expect(useReactStore.getState().activeReactEngineId).toBe(before.activeReactEngineId)
+      expect(useReactStore.getState().activeReactPresetId).toBe(before.activeReactPresetId)
+      expect(useReactStore.getState().laserDmxShowManagerActiveShowId).toBe(before.laserDmxShowManagerActiveShowId)
+    } finally {
+      persistSpy.mockRestore()
+    }
   })
 
   it('Save + Make Active persists the working Show before exposing it as the live LaserDMX Show', async () => {

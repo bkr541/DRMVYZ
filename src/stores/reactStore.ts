@@ -2952,6 +2952,40 @@ function laserDmxShowManagerShowsEqual(
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
+function buildLaserDmxShowManagerActivationPatch(
+  state: ReactStoreState,
+): Partial<ReactStoreState> | null {
+  const pixGridCleanup = {
+    pixGridState: normalizePixGridState({
+      ...state.pixGridState,
+      authoringOverlayVisible: false,
+    }),
+    pixGridHistoryTransaction: null,
+  }
+  const current = state.activeReactPresetId
+    ? state.reactPresets.find(
+        preset => preset.id === state.activeReactPresetId && isSelectableReactEngineId(preset.engine),
+      )
+    : null
+  if (current?.engine === 'laserDmx') {
+    return {
+      activeReactEngineId: 'laserDmx',
+      performancePadTransition: null,
+      ...pixGridCleanup,
+    }
+  }
+
+  const preset = state.reactPresets.find(
+    candidate => candidate.engine === 'laserDmx' && isSelectableReactEngineId(candidate.engine),
+  )
+  if (!preset) return null
+  return {
+    ...buildPresetPatchForState(preset, state),
+    performancePadTransition: null,
+    ...pixGridCleanup,
+  }
+}
+
 function buildShowManagerHistoryMutationPatch(
   state: Pick<ReactStoreState,
     | 'laserDmxShowManagerShows'
@@ -6970,10 +7004,10 @@ export const useReactStore = create<ReactStoreState>()(
       clearShowManagerHistory: () => set({ showManagerUndoStack: [], showManagerRedoStack: [] }),
 
       saveLaserDmxShowManagerShow: async (showId, options = {}) => {
-        const persistCurrentState = async (): Promise<boolean> => {
+        const persistState = async (state: ReactStoreState): Promise<boolean> => {
           try {
             await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
-              state: reactStorePartialize(get()) as unknown as Record<string, unknown>,
+              state: reactStorePartialize(state) as unknown as Record<string, unknown>,
               version: REACT_STORE_PERSISTENCE_VERSION,
             })
             return useReactPersistenceStatusStore.getState().phase !== 'error'
@@ -6987,18 +7021,32 @@ export const useReactStore = create<ReactStoreState>()(
           }
         }
 
-        if (!get().laserDmxShowManagerShows.some(show => show.id === showId)) return false
-        if (!(await persistCurrentState())) return false
-        if (!options.makeActive) return true
+        const stateAtSave = get()
+        if (!stateAtSave.laserDmxShowManagerShows.some(show => show.id === showId)) return false
+        if (!options.makeActive) return persistState(stateAtSave)
 
-        const previousActiveShowId = get().laserDmxShowManagerActiveShowId
-        get().selectReactEngine('laserDmx')
-        if (get().activeReactEngineId !== 'laserDmx') return false
-        if (!get().laserDmxShowManagerShows.some(show => show.id === showId)) return false
-        set({ laserDmxShowManagerActiveShowId: showId })
-        if (await persistCurrentState()) return true
-        set({ laserDmxShowManagerActiveShowId: previousActiveShowId })
-        return false
+        const activationPatch = buildLaserDmxShowManagerActivationPatch(stateAtSave)
+        if (!activationPatch || activationPatch.activeReactEngineId !== 'laserDmx') return false
+        const persistedCandidate: ReactStoreState = {
+          ...stateAtSave,
+          ...activationPatch,
+          laserDmxShowManagerActiveShowId: showId,
+        }
+        if (!(await persistState(persistedCandidate))) return false
+
+        // The persisted activation must describe the same canonical Show snapshot
+        // that is about to become live. If authoring changed while storage was
+        // pending, leave live state untouched so a subsequent save can persist
+        // and activate the newer snapshot atomically.
+        const current = get()
+        if (!current.laserDmxShowManagerShows.some(show => show.id === showId)) return false
+        if (!laserDmxShowManagerShowsEqual(
+          stateAtSave.laserDmxShowManagerShows,
+          current.laserDmxShowManagerShows,
+        )) return false
+
+        set({ ...activationPatch, laserDmxShowManagerActiveShowId: showId })
+        return true
       },
 
       commitAutomaticSectionOverride: (trackId, originalSection, patch) =>
