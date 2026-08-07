@@ -495,6 +495,10 @@ function applyTimelineCueViewport(container: HTMLDivElement, viewport: TimelineV
 
 export type SectionEditorMode = 'none' | 'create' | 'edit'
 
+export function formatReactSectionTypeLabel(type: ReactSectionType): string {
+  return type === 'preDrop' ? 'Pre-Drop' : type.charAt(0).toUpperCase() + type.slice(1)
+}
+
 // ── EditSectionForm ───────────────────────────────────────────────────────────
 
 interface EditSectionFormProps {
@@ -612,7 +616,7 @@ export function EditSectionForm({
     const trimmed = label.trim()
     onSave({
       type,
-      label:     trimmed || type.charAt(0).toUpperCase() + type.slice(1),
+      label:     trimmed || formatReactSectionTypeLabel(type),
       startSec,
       endSec,
       intensity: Math.max(0, Math.min(1, intensity)),
@@ -632,7 +636,7 @@ export function EditSectionForm({
           >
             {SECTION_ORDER.map(t => (
               <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
+                {formatReactSectionTypeLabel(t)}
               </option>
             ))}
           </DropdownSelect>
@@ -852,7 +856,7 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
   const handleAdd = () => {
     onAdd({
       id:        `section-${Date.now()}`,
-      label:     label.trim() || type.charAt(0).toUpperCase() + type.slice(1),
+      label:     label.trim() || formatReactSectionTypeLabel(type),
       type,
       startSec,
       endSec,
@@ -873,7 +877,7 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
         >
           {SECTION_ORDER.map(t => (
             <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+              {formatReactSectionTypeLabel(t)}
             </option>
           ))}
         </DropdownSelect>
@@ -999,7 +1003,7 @@ function applySectionTimelineViewport(
   })
 }
 
-const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(function SectionTimeline({
+export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimelineProps>(function SectionTimeline({
   sections,
   durationSec,
   viewport,

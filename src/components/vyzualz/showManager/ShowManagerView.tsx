@@ -1,6 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
-import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
+import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useReactStore } from '../../../stores/reactStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
@@ -14,6 +14,7 @@ import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
 } from '../react/ReactTypes'
 import { FixtureIcon } from '../react/LaserDmxShowDirectorPalette'
+import { EditSectionForm, SectionTimeline } from '../react/ReactTrackMapStrip'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
 import {
@@ -31,6 +32,13 @@ import {
   PixGridDeckSequenceStrip,
   type PixGridDeckUploadUiState,
 } from './PixGridDeckBuilder'
+import {
+  LASER_DMX_SHOW_MANAGER_GRID_SIZE,
+  cloneLaserDmxShowManagerShow,
+  updateLaserDmxShowManagerSection as updateLaserDmxShowManagerSectionDocument,
+  type LaserDmxShowManagerSection,
+  type LaserDmxShowManagerShow,
+} from './LaserDmxShowManagerDomain'
 import '../../../styles/reactView.css'
 import '../../../styles/showManager.css'
 
@@ -62,6 +70,7 @@ const SHOW_MANAGER_ENGINE_OPTIONS = REACT_ENGINE_IDS.map(engineId => ({
   value: engineId,
   label: REACT_ENGINE_CATALOG[engineId].label,
   description: REACT_ENGINE_CATALOG[engineId].description,
+  disabled: engineId !== 'pixGrid' && engineId !== 'laserDmx',
 }))
 
 const STAGE_SCALE_OPTIONS = [
@@ -104,6 +113,16 @@ export function ShowManagerView() {
   const pixGridActionCuesByTrackId = useReactStore(state => state.pixGridActionCuesByTrackId)
   const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
   const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
+  const laserDmxShowManagerShows = useReactStore(state => state.laserDmxShowManagerShows)
+  const laserDmxShowManagerEditingShowId = useReactStore(state => state.laserDmxShowManagerEditingShowId)
+  const laserDmxShowManagerEditingSectionId = useReactStore(state => state.laserDmxShowManagerEditingSectionId)
+  const createLaserDmxShowManagerShow = useReactStore(state => state.createLaserDmxShowManagerShow)
+  const ensureLaserDmxShowManagerShow = useReactStore(state => state.ensureLaserDmxShowManagerShow)
+  const selectLaserDmxShowManagerSection = useReactStore(state => state.selectLaserDmxShowManagerSection)
+  const updateLaserDmxShowManagerSection = useReactStore(state => state.updateLaserDmxShowManagerSection)
+  const addLaserDmxShowManagerSection = useReactStore(state => state.addLaserDmxShowManagerSection)
+  const removeLaserDmxShowManagerSection = useReactStore(state => state.removeLaserDmxShowManagerSection)
+  const reorderLaserDmxShowManagerSection = useReactStore(state => state.reorderLaserDmxShowManagerSection)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [lightingGroupOpen, setLightingGroupOpen] = useState(true)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
@@ -123,8 +142,49 @@ export function ShowManagerView() {
   const deckBuilderReturnTargetRef = useRef<'create' | 'edit'>('create')
   const uploadAbortRef = useRef<AbortController | null>(null)
   const uploadOperationRef = useRef(0)
+  const laserShowUndoRef = useRef<Record<string, LaserDmxShowManagerShow[]>>({})
+  const laserShowRedoRef = useRef<Record<string, LaserDmxShowManagerShow[]>>({})
+  const [laserShowUndoDepth, setLaserShowUndoDepth] = useState(0)
+  const [laserShowRedoDepth, setLaserShowRedoDepth] = useState(0)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
   const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
+  const activeLaserDmxShow = useMemo(
+    () => laserDmxShowManagerShows.find(show => show.id === laserDmxShowManagerEditingShowId)
+      ?? laserDmxShowManagerShows[0]
+      ?? null,
+    [laserDmxShowManagerEditingShowId, laserDmxShowManagerShows],
+  )
+  const activeLaserDmxSection = useMemo(
+    () => activeLaserDmxShow?.sections.find(section => section.id === laserDmxShowManagerEditingSectionId)
+      ?? activeLaserDmxShow?.sections[0]
+      ?? null,
+    [activeLaserDmxShow, laserDmxShowManagerEditingSectionId],
+  )
+  const laserTimelineDuration = useMemo(
+    () => Math.max(1, ...(activeLaserDmxShow?.sections.map(section => section.endSec) ?? [1])),
+    [activeLaserDmxShow],
+  )
+  const laserTimelineViewport = useMemo<TimelineViewport>(
+    () => ({ startSec: 0, endSec: laserTimelineDuration }),
+    [laserTimelineDuration],
+  )
+  const laserTimelineViewportRef = useRef<TimelineViewport>(laserTimelineViewport)
+  laserTimelineViewportRef.current = laserTimelineViewport
+
+  useEffect(() => {
+    if (selectedEngineId !== 'laserDmx') return
+    ensureLaserDmxShowManagerShow()
+  }, [ensureLaserDmxShowManagerShow, selectedEngineId])
+
+  useEffect(() => {
+    if (!activeLaserDmxShow) {
+      setLaserShowUndoDepth(0)
+      setLaserShowRedoDepth(0)
+      return
+    }
+    setLaserShowUndoDepth(laserShowUndoRef.current[activeLaserDmxShow.id]?.length ?? 0)
+    setLaserShowRedoDepth(laserShowRedoRef.current[activeLaserDmxShow.id]?.length ?? 0)
+  }, [activeLaserDmxShow])
 
   const pixGridPresets = useMemo(
     () => reactPresets.filter(preset => preset.engine === 'pixGrid'),
@@ -381,6 +441,94 @@ export function ShowManagerView() {
     setPreviewDeckItemId(previewEnabledItems[nextIndex]?.id ?? null)
   }
 
+  const recordLaserShowUndo = () => {
+    if (!activeLaserDmxShow) return false
+    const showId = activeLaserDmxShow.id
+    const undo = [
+      ...(laserShowUndoRef.current[showId] ?? []),
+      cloneLaserDmxShowManagerShow(activeLaserDmxShow),
+    ].slice(-50)
+    laserShowUndoRef.current = { ...laserShowUndoRef.current, [showId]: undo }
+    laserShowRedoRef.current = { ...laserShowRedoRef.current, [showId]: [] }
+    setLaserShowUndoDepth(undo.length)
+    setLaserShowRedoDepth(0)
+    return true
+  }
+
+  const restoreLaserShowSnapshot = (snapshot: LaserDmxShowManagerShow) => {
+    useReactStore.setState(state => {
+      const nextShow = cloneLaserDmxShowManagerShow(snapshot)
+      const selectedSectionId = nextShow.sections.some(section => section.id === state.laserDmxShowManagerEditingSectionId)
+        ? state.laserDmxShowManagerEditingSectionId
+        : nextShow.sections[0]?.id ?? null
+      return {
+        laserDmxShowManagerShows: state.laserDmxShowManagerShows.map(show => show.id === nextShow.id ? nextShow : show),
+        laserDmxShowManagerEditingShowId: nextShow.id,
+        laserDmxShowManagerEditingSectionId: selectedSectionId,
+      }
+    })
+  }
+
+  const undoLaserShowEdit = () => {
+    if (!activeLaserDmxShow) return
+    const showId = activeLaserDmxShow.id
+    const undo = laserShowUndoRef.current[showId] ?? []
+    const snapshot = undo[undo.length - 1]
+    if (!snapshot) return
+    const redo = [
+      ...(laserShowRedoRef.current[showId] ?? []),
+      cloneLaserDmxShowManagerShow(activeLaserDmxShow),
+    ].slice(-50)
+    const nextUndo = undo.slice(0, -1)
+    laserShowUndoRef.current = { ...laserShowUndoRef.current, [showId]: nextUndo }
+    laserShowRedoRef.current = { ...laserShowRedoRef.current, [showId]: redo }
+    restoreLaserShowSnapshot(snapshot)
+    setLaserShowUndoDepth(nextUndo.length)
+    setLaserShowRedoDepth(redo.length)
+  }
+
+  const redoLaserShowEdit = () => {
+    if (!activeLaserDmxShow) return
+    const showId = activeLaserDmxShow.id
+    const redo = laserShowRedoRef.current[showId] ?? []
+    const snapshot = redo[redo.length - 1]
+    if (!snapshot) return
+    const undo = [
+      ...(laserShowUndoRef.current[showId] ?? []),
+      cloneLaserDmxShowManagerShow(activeLaserDmxShow),
+    ].slice(-50)
+    const nextRedo = redo.slice(0, -1)
+    laserShowUndoRef.current = { ...laserShowUndoRef.current, [showId]: undo }
+    laserShowRedoRef.current = { ...laserShowRedoRef.current, [showId]: nextRedo }
+    restoreLaserShowSnapshot(snapshot)
+    setLaserShowUndoDepth(undo.length)
+    setLaserShowRedoDepth(nextRedo.length)
+  }
+
+  const commitLaserSectionBoundary = (
+    sectionId: string,
+    edge: 'start' | 'end',
+    newTime: number,
+    neighborId: string | null,
+    neighborTime: number | null,
+  ) => {
+    if (!activeLaserDmxShow || !recordLaserShowUndo()) return
+    useReactStore.setState(state => ({
+      laserDmxShowManagerShows: state.laserDmxShowManagerShows.map(show => {
+        if (show.id !== activeLaserDmxShow.id) return show
+        let next = updateLaserDmxShowManagerSectionDocument(show, sectionId, {
+          [edge === 'start' ? 'startSec' : 'endSec']: newTime,
+        })
+        if (neighborId && neighborTime != null) {
+          next = updateLaserDmxShowManagerSectionDocument(next, neighborId, {
+            [edge === 'start' ? 'endSec' : 'startSec']: neighborTime,
+          })
+        }
+        return next
+      }),
+    }))
+  }
+
   return (
     <section className="sm-root rv-shell" aria-label="Show Manager workspace">
       <header className="sm-topbar">
@@ -391,12 +539,25 @@ export function ShowManagerView() {
 
         <div className="sm-topbar-spacer" />
         <div className="sm-stage-tools sm-stage-tools--header" aria-label="Show Manager stage tools">
-          {['↖', '✥', '↻', '⌗', '▦', '◫', '20'].map(tool => (
-            <button key={tool} type="button" disabled>{tool}</button>
-          ))}
+          {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
+            <>
+              <button type="button" onClick={undoLaserShowEdit} disabled={laserShowUndoDepth === 0} title="Undo section edit">↶</button>
+              <button type="button" onClick={redoLaserShowEdit} disabled={laserShowRedoDepth === 0} title="Redo section edit">↷</button>
+              {['↖', '✥', '⌗', '▦', '◫'].map(tool => (
+                <button key={tool} type="button" disabled>{tool}</button>
+              ))}
+            </>
+          ) : (
+            ['↖', '✥', '↻', '⌗', '▦', '◫', '20'].map(tool => (
+              <button key={tool} type="button" disabled>{tool}</button>
+            ))
+          )}
         </div>
         {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && (
           <button type="button" className="sm-header-button" onClick={exitDeckBuilder}>Back to Show Manager</button>
+        )}
+        {selectedEngineId === 'laserDmx' && workspaceMode === 'default' && (
+          <button type="button" className="sm-header-button" onClick={() => createLaserDmxShowManagerShow()}>New Show</button>
         )}
         <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
         <button type="button" className="sm-header-button" disabled>Save</button>
@@ -548,30 +709,43 @@ export function ShowManagerView() {
 
         <main className="sm-center">
           <div className="sm-stage-frame">
-            <PixGridSurface
-              analyser={engine.analyserMaster}
-              activePreset={displayedPreset}
-              pixGridState={displayedPixGridState}
-              pixGridDecks={pixGridDecks}
-              pixGridActionCues={activeCues}
-              intensity={reactIntensity}
-              motion={reactMotion}
-              glow={reactGlow}
-              bassReactivity={reactBassReactivity}
-              isPlaying={engine.isPlaying}
-              isPaused={!engine.isPlaying}
-              trackSections={resolvedTrackSections}
-              trackAnalysis={effectiveTrackAnalysis}
-              trackIdentity={engine.currentTrackId}
-              durationSec={durationSec}
-              audioTimeSec={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? builderPreviewTime : engine.currentTime}
-              getAudioTime={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? () => builderPreviewTime : engine.getCurrentTime}
-              effectiveBpm={engine.currentEffectiveBpm ?? undefined}
-              onLiveFps={setLiveFps}
-            />
+            {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
+              <LaserDmxShowManagerStage show={activeLaserDmxShow} section={activeLaserDmxSection} />
+            ) : (
+              <PixGridSurface
+                analyser={engine.analyserMaster}
+                activePreset={displayedPreset}
+                pixGridState={displayedPixGridState}
+                pixGridDecks={pixGridDecks}
+                pixGridActionCues={activeCues}
+                intensity={reactIntensity}
+                motion={reactMotion}
+                glow={reactGlow}
+                bassReactivity={reactBassReactivity}
+                isPlaying={engine.isPlaying}
+                isPaused={!engine.isPlaying}
+                trackSections={resolvedTrackSections}
+                trackAnalysis={effectiveTrackAnalysis}
+                trackIdentity={engine.currentTrackId}
+                durationSec={durationSec}
+                audioTimeSec={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? builderPreviewTime : engine.currentTime}
+                getAudioTime={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? () => builderPreviewTime : engine.getCurrentTime}
+                effectiveBpm={engine.currentEffectiveBpm ?? undefined}
+                onLiveFps={setLiveFps}
+              />
+            )}
             <div className="sm-stage-status">
-              <span>PixGrid {matrixLabel}</span>
-              <span>FPS {liveFps > 0 ? liveFps.toFixed(1) : '—'}</span>
+              {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
+                <>
+                  <span>LaserDMX {LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</span>
+                  <span>{activeLaserDmxSection?.fixtures.length ?? 0} fixtures</span>
+                </>
+              ) : (
+                <>
+                  <span>PixGrid {matrixLabel}</span>
+                  <span>FPS {liveFps > 0 ? liveFps.toFixed(1) : '—'}</span>
+                </>
+              )}
             </div>
             <Dropdown
               id="show-manager-stage-scale"
@@ -592,6 +766,20 @@ export function ShowManagerView() {
               onPreview={setPreviewDeckItemId}
               onPrevious={() => stepPreview(-1)}
               onNext={() => stepPreview(1)}
+            />
+          ) : selectedEngineId === 'laserDmx' ? (
+            <LaserDmxShowManagerTimeline
+              show={activeLaserDmxShow}
+              selectedSectionId={activeLaserDmxSection?.id ?? null}
+              durationSec={laserTimelineDuration}
+              viewport={laserTimelineViewport}
+              viewportRef={laserTimelineViewportRef}
+              onSelect={selectLaserDmxShowManagerSection}
+              onRemove={sectionId => {
+                if (!activeLaserDmxShow || !recordLaserShowUndo()) return
+                removeLaserDmxShowManagerSection(activeLaserDmxShow.id, sectionId)
+              }}
+              onCommitBoundary={commitLaserSectionBoundary}
             />
           ) : (
             <ShowManagerTimeline
@@ -637,7 +825,7 @@ export function ShowManagerView() {
             />
           </aside>
         ) : (
-        <aside className="sm-inspector" aria-label="Show Manager PixGrid inspector">
+        <aside className="sm-inspector" aria-label={`Show Manager ${REACT_ENGINE_CATALOG[selectedEngineId].label} inspector`}>
           <div className="sm-panel-heading sm-panel-heading--inspector">
             <strong>INSPECTOR</strong>
             <span>{REACT_ENGINE_CATALOG[selectedEngineId].label} parameters</span>
@@ -718,6 +906,83 @@ export function ShowManagerView() {
                 </section>
               </Collapsible>
             </div>
+          ) : selectedEngineId === 'laserDmx' ? (
+            <div className="sm-inspector-scroll sm-laser-section-inspector">
+              <div className="sm-inspector-context">
+                <div><span>Show</span><strong>{activeLaserDmxShow?.name ?? 'Untitled Show'}</strong></div>
+                <div><span>Grid</span><strong>{LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</strong></div>
+              </div>
+              {activeLaserDmxShow && activeLaserDmxSection ? (
+                <>
+                  <div className="sm-laser-section-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const index = activeLaserDmxShow.sections.findIndex(section => section.id === activeLaserDmxSection.id)
+                        if (index <= 0 || !recordLaserShowUndo()) return
+                        reorderLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, -1)
+                      }}
+                      disabled={activeLaserDmxShow.sections[0]?.id === activeLaserDmxSection.id}
+                    >Move Earlier</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const index = activeLaserDmxShow.sections.findIndex(section => section.id === activeLaserDmxSection.id)
+                        if (index < 0 || index >= activeLaserDmxShow.sections.length - 1 || !recordLaserShowUndo()) return
+                        reorderLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, 1)
+                      }}
+                      disabled={activeLaserDmxShow.sections[activeLaserDmxShow.sections.length - 1]?.id === activeLaserDmxSection.id}
+                    >Move Later</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!recordLaserShowUndo()) return
+                        const last = activeLaserDmxShow.sections[activeLaserDmxShow.sections.length - 1]
+                        addLaserDmxShowManagerSection(activeLaserDmxShow.id, {
+                          type: 'unknown',
+                          label: 'Section',
+                          startSec: last?.endSec ?? 0,
+                          endSec: (last?.endSec ?? 0) + 1,
+                        })
+                      }}
+                    >Add Section</button>
+                  </div>
+                  <EditSectionForm
+                    key={activeLaserDmxSection.id}
+                    section={activeLaserDmxSection}
+                    durationSec={laserTimelineDuration}
+                    effectiveBpm={null}
+                    snapMode="free"
+                    onCancel={() => undefined}
+                    onSave={patch => {
+                      if (!recordLaserShowUndo()) return
+                      updateLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, patch)
+                    }}
+                    onDelete={() => {
+                      if (!recordLaserShowUndo()) return
+                      removeLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id)
+                    }}
+                  />
+                  <section className="sm-validation-card">
+                    <header><strong>Section fixture ownership</strong><span>READY</span></header>
+                    <p>{activeLaserDmxSection.fixtures.length} fixture{activeLaserDmxSection.fixtures.length === 1 ? '' : 's'} owned by this section. Fixture placement UI arrives in a later stage.</p>
+                  </section>
+                </>
+              ) : activeLaserDmxShow ? (
+                <div className="sm-laser-empty-section">
+                  <p>This Show intentionally has no sections.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!recordLaserShowUndo()) return
+                      addLaserDmxShowManagerSection(activeLaserDmxShow.id, { label: 'Section', startSec: 0, endSec: 1 })
+                    }}
+                  >Add Section</button>
+                </div>
+              ) : (
+                <div className="sm-panel-blank" />
+              )}
+            </div>
           ) : (
             <div className="sm-panel-blank" />
           )}
@@ -732,6 +997,87 @@ export function ShowManagerView() {
         unifiedTimeline
         waveformAppearance="deck"
       />
+    </section>
+  )
+}
+
+function LaserDmxShowManagerStage({
+  show,
+  section,
+}: {
+  show: LaserDmxShowManagerShow | null
+  section: LaserDmxShowManagerSection | null
+}) {
+  return (
+    <div className="sm-laser-stage" aria-label="LaserDMX Part 1 stage foundation">
+      <div className="sm-laser-stage-grid" aria-hidden="true" />
+      <div className="sm-laser-stage-copy">
+        <span>LaserDMX Show</span>
+        <strong>{show?.name ?? 'Untitled Show'}</strong>
+        <p>{section ? `Editing ${section.label}` : 'No section selected'}</p>
+        <small>{LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} columns × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows} rows · section-owned fixtures</small>
+      </div>
+    </div>
+  )
+}
+
+function LaserDmxShowManagerTimeline({
+  show,
+  selectedSectionId,
+  durationSec,
+  viewport,
+  viewportRef,
+  onSelect,
+  onRemove,
+  onCommitBoundary,
+}: {
+  show: LaserDmxShowManagerShow | null
+  selectedSectionId: string | null
+  durationSec: number
+  viewport: TimelineViewport
+  viewportRef: MutableRefObject<TimelineViewport>
+  onSelect: (sectionId: string) => void
+  onRemove: (sectionId: string) => void
+  onCommitBoundary: (
+    sectionId: string,
+    edge: 'start' | 'end',
+    newTime: number,
+    neighborId: string | null,
+    neighborTime: number | null,
+  ) => void
+}) {
+  return (
+    <section className="sm-timeline sm-laser-timeline" aria-label="Show Manager LaserDMX section timeline">
+      <header className="sm-timeline-tabs">
+        <button type="button" className="is-active" disabled>Track Map</button>
+        <span className="sm-timeline-meta">No audio required · free boundaries</span>
+      </header>
+      <div className="sm-timeline-grid">
+        <div className="sm-timeline-ruler">
+          {Array.from({ length: 8 }, (_, index) => (
+            <span key={index}>{index}</span>
+          ))}
+        </div>
+        <TimelineRow label="Section">
+          {show && show.sections.length > 0 ? (
+            <SectionTimeline
+              sections={show.sections}
+              durationSec={durationSec}
+              viewport={viewport}
+              viewportRef={viewportRef}
+              beatGrid={[]}
+              effectiveBpm={null}
+              snapMode="free"
+              selectedId={selectedSectionId}
+              onSelect={onSelect}
+              onRemove={onRemove}
+              onCommitBoundary={onCommitBoundary}
+            />
+          ) : (
+            <div className="sm-laser-timeline-empty">No sections</div>
+          )}
+        </TimelineRow>
+      </div>
     </section>
   )
 }

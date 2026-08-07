@@ -68,6 +68,39 @@ const fixture = vi.hoisted(() => ({
     pixGridActionCuesByTrackId: {},
     manualTrackSectionsByTrackId: {},
     suppressedAutoSectionsByTrackId: {},
+    laserDmxShowManagerShows: [{
+      schemaVersion: 1,
+      id: 'laser-show-1',
+      name: 'Untitled Show',
+      sections: [
+        ['intro', 'Intro'],
+        ['verse', 'Verse'],
+        ['build', 'Build'],
+        ['preDrop', 'Pre-Drop'],
+        ['drop', 'Drop'],
+        ['breakdown', 'Breakdown'],
+        ['outro', 'Outro'],
+      ].map(([type, label], index) => ({
+        id: `laser-show-1:section:${type}:${index + 1}`,
+        type,
+        label,
+        startSec: index,
+        endSec: index + 1,
+        intensity: 0.5,
+        engineId: 'laserDmx',
+        source: 'user-created',
+        fixtures: [],
+      })),
+    }],
+    laserDmxShowManagerEditingShowId: 'laser-show-1',
+    laserDmxShowManagerEditingSectionId: 'laser-show-1:section:intro:1',
+    createLaserDmxShowManagerShow: vi.fn(() => 'laser-show-2'),
+    ensureLaserDmxShowManagerShow: vi.fn(() => 'laser-show-1'),
+    selectLaserDmxShowManagerSection: vi.fn(),
+    updateLaserDmxShowManagerSection: vi.fn(),
+    addLaserDmxShowManagerSection: vi.fn(),
+    removeLaserDmxShowManagerSection: vi.fn(),
+    reorderLaserDmxShowManagerSection: vi.fn(),
     pixGridState: {
       matrixWidth: 160,
       matrixHeight: 90,
@@ -83,9 +116,17 @@ vi.mock('../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => fixture.audio,
 }))
 
-vi.mock('../../../stores/reactStore', () => ({
-  useReactStore: (selector: (state: typeof fixture.state) => unknown) => selector(fixture.state),
-}))
+vi.mock('../../../stores/reactStore', () => {
+  const useReactStore = (selector: (state: typeof fixture.state) => unknown) => selector(fixture.state)
+  Object.assign(useReactStore, {
+    getState: () => fixture.state,
+    setState: (update: Partial<typeof fixture.state> | ((state: typeof fixture.state) => Partial<typeof fixture.state>)) => {
+      const patch = typeof update === 'function' ? update(fixture.state) : update
+      Object.assign(fixture.state, patch)
+    },
+  })
+  return { useReactStore }
+})
 
 vi.mock('../react/pixGrid/PixGridSurface', () => ({
   PixGridSurface: ({
@@ -182,8 +223,8 @@ afterEach(() => {
   container = null
 })
 
-describe('ShowManagerView PixGrid-first shell', () => {
-  it('uses the shared dropdown in the left rail and keeps future engines disabled', async () => {
+describe('ShowManagerView production shell', () => {
+  it('uses the shared dropdown in the left rail and enables only the Stage 1 production engines', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -208,10 +249,126 @@ describe('ShowManagerView PixGrid-first shell', () => {
     const options = [...(engineMenu?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
     expect(options).toHaveLength(6)
     expect(options.find(option => option.textContent?.includes('PixGrid'))?.getAttribute('aria-disabled')).toBeNull()
-    expect(options.filter(option => !option.textContent?.includes('PixGrid')).every(option => option.getAttribute('aria-disabled') === 'true')).toBe(true)
+    expect(options.find(option => option.textContent?.includes('LaserDMX'))?.getAttribute('aria-disabled')).toBeNull()
+    expect(options.filter(option => !option.textContent?.includes('PixGrid') && !option.textContent?.includes('LaserDMX'))
+      .every(option => option.getAttribute('aria-disabled') === 'true')).toBe(true)
     expect(container.querySelector('[data-testid="pix-grid-surface"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="pix-grid-design-panel"]')?.getAttribute('data-grouped')).toBe('true')
     expect(container.querySelector('[aria-label="Show Manager track map preview"]')).not.toBeNull()
+  })
+
+  it('enters the production LaserDMX path with no audio and exposes the canonical seven Show-owned sections', async () => {
+    const originalAudio = {
+      currentTrackId: fixture.audio.currentTrackId,
+      currentTrack: fixture.audio.currentTrack,
+      currentAnalysis: fixture.audio.currentAnalysis,
+      currentEffectiveBpm: fixture.audio.currentEffectiveBpm,
+      currentEffectiveBeatGrid: fixture.audio.currentEffectiveBeatGrid,
+      duration: fixture.audio.duration,
+      currentTime: fixture.audio.currentTime,
+    }
+    Object.assign(fixture.audio, {
+      currentTrackId: null,
+      currentTrack: null,
+      currentAnalysis: null,
+      currentEffectiveBpm: null,
+      currentEffectiveBeatGrid: [],
+      duration: 0,
+      currentTime: 0,
+    })
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const engineMenu = document.body.querySelector('.drm-dropdown__menu[role="listbox"]')
+      const laserOption = [...(engineMenu?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      expect(fixture.state.ensureLaserDmxShowManagerShow).toHaveBeenCalled()
+      expect(container.querySelector('[aria-label="LaserDMX Part 1 stage foundation"]')).not.toBeNull()
+      expect(container.querySelector('[aria-label="Show Manager LaserDMX section timeline"]')).not.toBeNull()
+      expect(container.querySelector('[data-testid="pix-grid-surface"]')).toBeNull()
+      expect(container.textContent).toContain('18 × 12')
+      for (const label of ['Intro', 'Verse', 'Build', 'Pre-Drop', 'Drop', 'Breakdown', 'Outro']) {
+        expect(container.textContent).toContain(label)
+      }
+      expect(container.querySelector('[data-testid="show-manager-audio-dock"]')?.getAttribute('data-track-id')).toBe('')
+    } finally {
+      Object.assign(fixture.audio, originalAudio)
+    }
+  })
+
+  it('records section edits in the production LaserDMX history controls and exposes undo/redo', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+    const laserOption = [...(document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]'))]
+      .find(option => option.textContent?.includes('LaserDMX'))
+    await act(async () => {
+      laserOption?.click()
+      await Promise.resolve()
+    })
+
+    const labelInput = [...container.querySelectorAll<HTMLInputElement>('input[type="text"]')]
+      .find(input => input.value === 'Intro')
+    expect(labelInput).toBeDefined()
+    await act(async () => {
+      if (!labelInput) return
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(labelInput, 'Opening')
+      labelInput.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    const saveChanges = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === 'Save Changes')
+    await act(async () => {
+      saveChanges?.click()
+      await Promise.resolve()
+    })
+
+    expect(fixture.state.updateLaserDmxShowManagerSection).toHaveBeenCalledWith(
+      'laser-show-1',
+      'laser-show-1:section:intro:1',
+      expect.objectContaining({ label: 'Opening' }),
+    )
+    const undo = container.querySelector<HTMLButtonElement>('button[title="Undo section edit"]')
+    const redo = container.querySelector<HTMLButtonElement>('button[title="Redo section edit"]')
+    expect(undo?.disabled).toBe(false)
+    expect(redo?.disabled).toBe(true)
+
+    await act(async () => {
+      undo?.click()
+      await Promise.resolve()
+    })
+    expect(redo?.disabled).toBe(false)
   })
 
   it('mounts the shared Audio Dock and feeds the selected track into Show Manager rendering', async () => {
