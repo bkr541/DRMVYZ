@@ -403,6 +403,74 @@
 .sm-library-row small { color: rgba(196, 212, 220, 0.34); font-size: 8px; }
 .sm-library-grip { color: rgba(196, 212, 220, 0.18); font-size: 7px; }
 .sm-library-icon { color: rgba(111, 219, 232, 0.7); text-align: center; }
+.sm-library-row--fixture:not(:disabled) { cursor: grab; }
+.sm-library-row--fixture:not(:disabled):active { cursor: grabbing; }
+.sm-library-row--fixture.is-disabled {
+  color: rgba(196, 212, 220, 0.28);
+  cursor: not-allowed;
+}
+.sm-library-row--fixture.is-disabled .sm-library-icon,
+.sm-library-row--fixture.is-disabled .sm-library-grip,
+.sm-library-row--fixture.is-disabled small { opacity: 0.48; }
+.sm-library-fixture-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+}
+.sm-library-fixture-icon .rv-show-director-fixture-icon,
+.sm-library-fixture-icon img,
+.sm-library-fixture-icon svg {
+  width: 16px;
+  height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+}
+.sm-library-subsection {
+  margin-top: 4px;
+  border: 1px solid rgba(154, 178, 188, 0.075);
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.008);
+}
+.sm-library-subsection-toggle {
+  height: 27px;
+  padding-inline: 7px;
+  background: rgba(255, 255, 255, 0.012);
+}
+.sm-library-subsection-toggle strong {
+  font-size: 8px;
+  letter-spacing: 0.055em;
+}
+.sm-library-subsection.is-collapsed .sm-library-section-chevron { transform: rotate(-90deg); }
+.sm-library-subsection-body {
+  border-top: 1px solid rgba(154, 178, 188, 0.055);
+}
+.sm-library-controls {
+  display: grid;
+  gap: 8px;
+  padding: 8px 7px 9px;
+}
+.sm-library-controls .rv-ctrl-label {
+  font-size: 8.5px;
+  letter-spacing: 0.055em;
+}
+.sm-library-controls .rv-ctrl-toggle {
+  min-width: 44px;
+  height: 23px;
+  padding: 0 8px;
+  font-size: 8px;
+}
+.sm-library-controls .rv-ctrl-dropdown {
+  --drm-dropdown-trigger-height: 27px;
+  --drm-dropdown-trigger-padding: 7px;
+  --drm-dropdown-value-size: 8px;
+  --drm-dropdown-radius: 4px;
+}
+.sm-library-controls .drm-dropdown--disabled,
+.sm-library-controls .drm-dropdown__trigger:disabled {
+  opacity: 0.5;
+}
 .sm-scene-index { color: rgba(196, 212, 220, 0.42); font-size: 8px; }
 .sm-layer-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ac7db; justify-self: center; }
 .sm-library-empty { padding: 6px; color: rgba(196, 212, 220, 0.3); font-size: 9px; }

@@ -69,9 +69,16 @@ const fixture = vi.hoisted(() => ({
     manualTrackSectionsByTrackId: {},
     suppressedAutoSectionsByTrackId: {},
     laserDmxShowManagerShows: [{
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'laser-show-1',
       name: 'Untitled Show',
+      settings: {
+        showGrid: true,
+        showLabels: true,
+        showBeams: true,
+        highlightGrid: true,
+        rendererMode: 'auto',
+      },
       sections: [
         ['intro', 'Intro'],
         ['verse', 'Verse'],
@@ -98,6 +105,7 @@ const fixture = vi.hoisted(() => ({
     ensureLaserDmxShowManagerShow: vi.fn(() => 'laser-show-1'),
     selectLaserDmxShowManagerSection: vi.fn(),
     updateLaserDmxShowManagerSection: vi.fn(),
+    updateLaserDmxShowManagerWorkspaceSettings: vi.fn(),
     addLaserDmxShowManagerSection: vi.fn(),
     removeLaserDmxShowManagerSection: vi.fn(),
     reorderLaserDmxShowManagerSection: vi.fn(),
@@ -312,6 +320,95 @@ describe('ShowManagerView production shell', () => {
     } finally {
       Object.assign(fixture.audio, originalAudio)
     }
+  })
+
+  it('renders the Stage 2 LaserDMX library and workspace controls through the production Show Manager path', async () => {
+    fixture.state.updateLaserDmxShowManagerWorkspaceSettings.mockClear()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+    const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+      .find(option => option.textContent?.includes('LaserDMX'))
+    await act(async () => {
+      laserOption?.click()
+      await Promise.resolve()
+    })
+
+    const library = container.querySelector<HTMLElement>('.sm-library')
+    const topLevelGroups = [...(library?.querySelectorAll<HTMLElement>('.sm-library-section') ?? [])]
+      .filter(section => section.parentElement === library)
+    expect(topLevelGroups).toHaveLength(2)
+    expect(topLevelGroups.map(section => section.querySelector('.sm-library-section-toggle strong')?.textContent)).toEqual([
+      'Lighting Components',
+      'Workspace',
+    ])
+
+    const fixtureRows = [...container.querySelectorAll<HTMLButtonElement>('.sm-library-row--fixture')]
+    expect(fixtureRows).toHaveLength(10)
+    const enabledLabels = fixtureRows.filter(row => !row.disabled).map(row => row.querySelector(':scope > span:nth-child(3)')?.textContent)
+    expect(enabledLabels).toEqual(['Laser', 'Moving Head', 'LED Bar', 'Strobe'])
+    expect(fixtureRows.filter(row => row.disabled)).toHaveLength(6)
+    expect(fixtureRows.find(row => row.textContent?.includes('LED Tube'))?.draggable).toBe(false)
+    expect(fixtureRows.find(row => row.textContent?.includes('Laser'))?.draggable).toBe(true)
+
+    const laserRow = fixtureRows.find(row => row.textContent?.includes('Laser'))
+    await act(async () => {
+      laserRow?.click()
+      await Promise.resolve()
+    })
+    expect(laserRow?.getAttribute('aria-pressed')).toBe('true')
+
+    expect(container.textContent).toContain('Display Settings')
+    expect(container.textContent).toContain('Render Settings')
+    for (const label of ['Show Grid', 'Show Labels', 'Show Beams', 'Highlight Grid']) {
+      expect(container.textContent).toContain(label)
+    }
+
+    const gridSize = container.querySelector<HTMLButtonElement>('button[aria-label="Grid Size"]')
+    const renderer = container.querySelector<HTMLButtonElement>('button[aria-label="Lighting Renderer"]')
+    const quality = container.querySelector<HTMLButtonElement>('button[aria-label="Quality"]')
+    expect(gridSize?.disabled).toBe(true)
+    expect(gridSize?.textContent).toContain('18 × 12')
+    expect(renderer?.disabled).toBe(false)
+    expect(renderer?.textContent).toContain('Auto with Fallback')
+    expect(quality?.disabled).toBe(true)
+    expect(quality?.textContent).toContain('High')
+
+    const showGridRow = [...container.querySelectorAll<HTMLElement>('.rv-ctrl-toggle-row')]
+      .find(row => row.textContent?.includes('Show Grid'))
+    const showGridToggle = showGridRow?.querySelector<HTMLButtonElement>('.rv-ctrl-toggle')
+    await act(async () => {
+      showGridToggle?.click()
+      await Promise.resolve()
+    })
+    expect(fixture.state.updateLaserDmxShowManagerWorkspaceSettings).toHaveBeenCalledWith(
+      'laser-show-1',
+      { showGrid: false },
+    )
+    expect(container.querySelector<HTMLButtonElement>('button[title="Undo section edit"]')?.disabled).toBe(false)
+
+    await act(async () => {
+      renderer?.click()
+      await Promise.resolve()
+    })
+    const rendererOptions = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+      .map(option => option.textContent?.trim())
+    expect(rendererOptions).toEqual(expect.arrayContaining([
+      expect.stringContaining('Canvas2D (Compatibility)'),
+      expect.stringContaining('WebGL2'),
+      expect.stringContaining('Auto with Fallback'),
+    ]))
   })
 
   it('records section edits in the production LaserDMX history controls and exposes undo/redo', async () => {

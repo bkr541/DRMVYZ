@@ -4,11 +4,12 @@ import { useReactStore } from '../../../stores/reactStore'
 import { Collapsible, CtrlSection, NumberInputRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
 import { LaserDmxShowDirectorInspector } from './LaserDmxShowDirectorInspector'
-import type {
-  LaserDmxShowDirectorPresentationMode,
-  LaserDmxShowDirectorRendererMode,
-  LaserDmxShowDirectorSettings,
-  LaserDmxShowDirectorWebGLQuality,
+import {
+  LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS,
+  type LaserDmxShowDirectorPresentationMode,
+  type LaserDmxShowDirectorRendererMode,
+  type LaserDmxShowDirectorSettings,
+  type LaserDmxShowDirectorWebGLQuality,
 } from './ReactTypes'
 import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmxShowDirectorPerformanceProgram'
 import { useLaserDmxShowDirectorPerformanceRuntimeStatus } from './LaserDmxShowDirectorPerformanceRuntimeStatus'
@@ -161,11 +162,7 @@ export function LaserDmxShowDirectorGlobalControls() {
           label="Lighting Renderer"
           value={settings.rendererMode}
           onChange={value => updateSettings({ rendererMode: value as LaserDmxShowDirectorRendererMode })}
-          options={[
-            { value: 'canvas2d', label: 'Canvas2D (Compatibility)' },
-            { value: 'webgl', label: 'WebGL2' },
-            { value: 'auto', label: 'Auto with Fallback' },
-          ]}
+          options={LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS.map(option => ({ ...option }))}
           description="WebGL2 receives the resolved scene directly. Unsupported contexts fall back to Canvas2D."
         />
         <SelectRow

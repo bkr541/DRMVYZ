@@ -1055,6 +1055,12 @@ export type LaserDmxShowDirectorMirrorAxis = 'horizontal' | 'vertical'
 export type LaserDmxShowDirectorPresentationMode = 'edit' | 'hybrid' | 'live' | 'capture'
 export type LaserDmxShowDirectorRendererMode = 'canvas2d' | 'webgl' | 'auto'
 export type LaserDmxShowDirectorWebGLQuality = 'low' | 'medium' | 'high' | 'ultra' | 'auto'
+
+export const LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS = [
+  { value: 'canvas2d', label: 'Canvas2D (Compatibility)' },
+  { value: 'webgl', label: 'WebGL2' },
+  { value: 'auto', label: 'Auto with Fallback' },
+] as const satisfies readonly { value: LaserDmxShowDirectorRendererMode; label: string }[]
 export type LaserDmxShowDirectorOpticalPrimitiveType =
   | 'auto'
   | 'fan'

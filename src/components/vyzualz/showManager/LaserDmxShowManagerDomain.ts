@@ -1,19 +1,41 @@
 import {
   createDefaultLaserDmxShowDirectorFixture,
+  DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS,
   normalizeLaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorFixturePatch,
+  type LaserDmxShowDirectorRendererMode,
   type ReactSectionType,
   type ReactTrackSection,
 } from '../react/ReactTypes'
 
-export const LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION = 1 as const
+export const LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION = 2 as const
 
 /** Fixed Part 1 authoring grid. Existing Show Director defaults remain untouched. */
 export const LASER_DMX_SHOW_MANAGER_GRID_SIZE = Object.freeze({
   columns: 18,
   rows: 12,
+})
+
+export const LASER_DMX_SHOW_MANAGER_QUALITY = 'high' as const
+
+export interface LaserDmxShowManagerWorkspaceSettings {
+  showGrid: boolean
+  showLabels: boolean
+  showBeams: boolean
+  highlightGrid: boolean
+  rendererMode: LaserDmxShowDirectorRendererMode
+}
+
+export type LaserDmxShowManagerWorkspaceSettingsPatch = Partial<LaserDmxShowManagerWorkspaceSettings>
+
+export const DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS: Readonly<LaserDmxShowManagerWorkspaceSettings> = Object.freeze({
+  showGrid: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.showGrid,
+  showLabels: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.showLabels,
+  showBeams: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.showBeams,
+  highlightGrid: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.highlightFixtures,
+  rendererMode: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.rendererMode,
 })
 
 export const LASER_DMX_SHOW_MANAGER_ENABLED_FIXTURE_KINDS = [
@@ -58,6 +80,7 @@ export interface LaserDmxShowManagerShow {
   schemaVersion: typeof LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION
   id: string
   name: string
+  settings: LaserDmxShowManagerWorkspaceSettings
   sections: LaserDmxShowManagerSection[]
 }
 
@@ -98,6 +121,33 @@ function createId(prefix: string): string {
     ? crypto.randomUUID()
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
   return `${prefix}-${uuid}`
+}
+
+function normalizeRendererMode(value: unknown): LaserDmxShowDirectorRendererMode {
+  return value === 'canvas2d' || value === 'webgl' || value === 'auto'
+    ? value
+    : DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS.rendererMode
+}
+
+export function normalizeLaserDmxShowManagerWorkspaceSettings(
+  raw: unknown,
+): LaserDmxShowManagerWorkspaceSettings {
+  const value = isRecord(raw) ? raw : {}
+  return {
+    showGrid: typeof value.showGrid === 'boolean'
+      ? value.showGrid
+      : DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS.showGrid,
+    showLabels: typeof value.showLabels === 'boolean'
+      ? value.showLabels
+      : DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS.showLabels,
+    showBeams: typeof value.showBeams === 'boolean'
+      ? value.showBeams
+      : DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS.showBeams,
+    highlightGrid: typeof value.highlightGrid === 'boolean'
+      ? value.highlightGrid
+      : DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS.highlightGrid,
+    rendererMode: normalizeRendererMode(value.rendererMode),
+  }
 }
 
 function normalizeSectionType(value: unknown): ReactSectionType {
@@ -198,6 +248,7 @@ export function createLaserDmxShowManagerShow(name = 'Untitled Show'): LaserDmxS
     schemaVersion: LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION,
     id,
     name: safeName(name, 'Untitled Show'),
+    settings: normalizeLaserDmxShowManagerWorkspaceSettings(undefined),
     sections: createDefaultLaserDmxShowManagerSections(id),
   }
 }
@@ -262,6 +313,7 @@ export function normalizeLaserDmxShowManagerShow(
     schemaVersion: LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION,
     id,
     name: safeName(value.name, `Show ${fallbackIndex + 1}`),
+    settings: normalizeLaserDmxShowManagerWorkspaceSettings(value.settings),
     sections: normalizedSections,
   }
 }
@@ -279,6 +331,7 @@ export function normalizeLaserDmxShowManagerShows(raw: unknown): LaserDmxShowMan
     return {
       ...show,
       id,
+      settings: { ...show.settings },
       sections: show.sections.map((section, sectionIndex) => ({
         ...section,
         id: `${id}:section:${section.type}:${sectionIndex + 1}`,
@@ -291,11 +344,25 @@ export function normalizeLaserDmxShowManagerShows(raw: unknown): LaserDmxShowMan
 export function cloneLaserDmxShowManagerShow(show: LaserDmxShowManagerShow): LaserDmxShowManagerShow {
   return {
     ...show,
+    settings: { ...show.settings },
     sections: show.sections.map((section, sectionIndex) => ({
       ...section,
       provenance: section.provenance ? { ...section.provenance } : undefined,
       fixtures: section.fixtures.map((fixture, fixtureIndex) => cloneFixture(fixture, fixtureIndex)),
     })),
+  }
+}
+
+export function updateLaserDmxShowManagerWorkspaceSettings(
+  show: LaserDmxShowManagerShow,
+  patch: LaserDmxShowManagerWorkspaceSettingsPatch,
+): LaserDmxShowManagerShow {
+  return {
+    ...show,
+    settings: normalizeLaserDmxShowManagerWorkspaceSettings({
+      ...show.settings,
+      ...patch,
+    }),
   }
 }
 

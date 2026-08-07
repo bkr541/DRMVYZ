@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS,
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
+  LASER_DMX_SHOW_MANAGER_QUALITY,
   addLaserDmxShowManagerFixtureToSection,
   createLaserDmxShowManagerShow,
   normalizeLaserDmxShowManagerShow,
   reorderLaserDmxShowManagerSection,
   updateLaserDmxShowManagerSection,
+  updateLaserDmxShowManagerWorkspaceSettings,
 } from './LaserDmxShowManagerDomain'
 
 describe('LaserDMX Show Manager Part 1 domain', () => {
@@ -25,6 +28,8 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     expect(show.sections.every(section => section.source === 'user-created')).toBe(true)
     expect(show.sections.every(section => section.fixtures.length === 0)).toBe(true)
     expect(LASER_DMX_SHOW_MANAGER_GRID_SIZE).toEqual({ columns: 18, rows: 12 })
+    expect(show.settings).toEqual(DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS)
+    expect(LASER_DMX_SHOW_MANAGER_QUALITY).toBe('high')
   })
 
   it('defaults missing legacy section data but never overwrites an explicit valid section collection', () => {
@@ -48,6 +53,59 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     })
     expect(existing.sections).toHaveLength(1)
     expect(existing.sections[0]).toMatchObject({ id: 'existing-section', label: 'Custom PreDrop', fixtures: [] })
+  })
+
+  it('migrates missing or malformed Stage 2 workspace settings without touching explicit sections', () => {
+    const migrated = normalizeLaserDmxShowManagerShow({
+      schemaVersion: 1,
+      id: 'legacy-settings',
+      settings: {
+        showGrid: false,
+        showLabels: 'invalid',
+        showBeams: false,
+        highlightGrid: false,
+        rendererMode: 'made-up-renderer',
+      },
+      sections: [{
+        id: 'kept-section',
+        label: 'Kept',
+        type: 'verse',
+        startSec: 2,
+        endSec: 5,
+        fixtures: [],
+      }],
+    })
+
+    expect(migrated.schemaVersion).toBe(2)
+    expect(migrated.sections.map(section => section.id)).toEqual(['kept-section'])
+    expect(migrated.settings).toEqual({
+      showGrid: false,
+      showLabels: true,
+      showBeams: false,
+      highlightGrid: false,
+      rendererMode: 'auto',
+    })
+  })
+
+  it('updates only canonical show-owned workspace settings and normalizes invalid renderer values', () => {
+    const show = createLaserDmxShowManagerShow()
+    const updated = updateLaserDmxShowManagerWorkspaceSettings(show, {
+      showGrid: false,
+      rendererMode: 'webgl',
+    })
+
+    expect(updated).not.toBe(show)
+    expect(updated.sections).toBe(show.sections)
+    expect(updated.settings).toEqual({
+      ...show.settings,
+      showGrid: false,
+      rendererMode: 'webgl',
+    })
+
+    const malformed = updateLaserDmxShowManagerWorkspaceSettings(updated, {
+      rendererMode: 'invalid' as never,
+    })
+    expect(malformed.settings.rendererMode).toBe('auto')
   })
 
   it('normalizes the canonical Pre-Drop display label without replacing custom labels', () => {

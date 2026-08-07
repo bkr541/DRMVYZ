@@ -40,6 +40,32 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     expect(state.laserDmxShowManagerEditingSectionId).toBe(state.laserDmxShowManagerShows[0]!.sections[0]!.id)
   })
 
+  it('stores Stage 2 workspace settings on the canonical Show and leaves PixGrid untouched', () => {
+    const beforePixGrid = useReactStore.getState().pixGridState
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Workspace')
+
+    useReactStore.getState().updateLaserDmxShowManagerWorkspaceSettings(showId, {
+      showGrid: false,
+      showLabels: false,
+      rendererMode: 'webgl',
+    })
+
+    const state = useReactStore.getState()
+    const show = state.laserDmxShowManagerShows.find(candidate => candidate.id === showId)
+    expect(show?.settings).toEqual({
+      showGrid: false,
+      showLabels: false,
+      showBeams: true,
+      highlightGrid: true,
+      rendererMode: 'webgl',
+    })
+    expect(state.pixGridState).toBe(beforePixGrid)
+
+    const persisted = reactStorePartialize(state) as Record<string, unknown>
+    const persistedShows = persisted.laserDmxShowManagerShows as Array<{ settings?: unknown }>
+    expect(persistedShows[0]?.settings).toEqual(show?.settings)
+  })
+
   it('persists canonical Shows but keeps editing and playback section identity runtime-only', () => {
     const showId = useReactStore.getState().createLaserDmxShowManagerShow('Persisted')
     const state = useReactStore.getState()

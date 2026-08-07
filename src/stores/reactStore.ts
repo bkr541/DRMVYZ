@@ -117,7 +117,9 @@ import {
   removeLaserDmxShowManagerSection,
   reorderLaserDmxShowManagerSection,
   updateLaserDmxShowManagerSection,
+  updateLaserDmxShowManagerWorkspaceSettings,
   type LaserDmxShowManagerSectionPatch,
+  type LaserDmxShowManagerWorkspaceSettingsPatch,
   type LaserDmxShowManagerShow,
 } from '../components/vyzualz/showManager/LaserDmxShowManagerDomain'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
@@ -2579,6 +2581,7 @@ interface ReactStoreState {
   selectLaserDmxShowManagerShow: (showId: string | null) => void
   selectLaserDmxShowManagerSection: (sectionId: string | null) => void
   updateLaserDmxShowManagerSection: (showId: string, sectionId: string, patch: LaserDmxShowManagerSectionPatch) => void
+  updateLaserDmxShowManagerWorkspaceSettings: (showId: string, patch: LaserDmxShowManagerWorkspaceSettingsPatch) => void
   addLaserDmxShowManagerSection: (showId: string, seed?: Partial<ReactTrackSection>) => string | null
   removeLaserDmxShowManagerSection: (showId: string, sectionId: string) => void
   reorderLaserDmxShowManagerSection: (showId: string, sectionId: string, direction: -1 | 1) => void
@@ -6676,6 +6679,13 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => ({
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? updateLaserDmxShowManagerSection(show, sectionId, patch)
+            : show),
+        })),
+
+      updateLaserDmxShowManagerWorkspaceSettings: (showId, patch) =>
+        set(s => ({
+          laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
+            ? updateLaserDmxShowManagerWorkspaceSettings(show, patch)
             : show),
         })),
 

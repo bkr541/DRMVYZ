@@ -1,17 +1,20 @@
-import { useEffect, useId, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type MutableRefObject, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useReactStore } from '../../../stores/reactStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
-import { Collapsible } from '../react/ReactControlRows'
+import { Collapsible, SelectRow, ToggleRow } from '../react/ReactControlRows'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
-import type { ReactEngineId, ReactPreset } from '../react/ReactTypes'
 import {
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS,
   LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
+  LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS,
+  type LaserDmxShowDirectorFixtureKind,
+  type ReactEngineId,
+  type ReactPreset,
 } from '../react/ReactTypes'
 import { FixtureIcon } from '../react/LaserDmxShowDirectorPalette'
 import { EditSectionForm, SectionTimeline } from '../react/ReactTrackMapStrip'
@@ -34,10 +37,13 @@ import {
 } from './PixGridDeckBuilder'
 import {
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
+  LASER_DMX_SHOW_MANAGER_QUALITY,
   cloneLaserDmxShowManagerShow,
+  isLaserDmxShowManagerFixtureKindEnabled,
   updateLaserDmxShowManagerSection as updateLaserDmxShowManagerSectionDocument,
   type LaserDmxShowManagerSection,
   type LaserDmxShowManagerShow,
+  type LaserDmxShowManagerWorkspaceSettingsPatch,
 } from './LaserDmxShowManagerDomain'
 import '../../../styles/reactView.css'
 import '../../../styles/showManager.css'
@@ -120,11 +126,12 @@ export function ShowManagerView() {
   const ensureLaserDmxShowManagerShow = useReactStore(state => state.ensureLaserDmxShowManagerShow)
   const selectLaserDmxShowManagerSection = useReactStore(state => state.selectLaserDmxShowManagerSection)
   const updateLaserDmxShowManagerSection = useReactStore(state => state.updateLaserDmxShowManagerSection)
+  const updateLaserDmxShowManagerWorkspaceSettings = useReactStore(state => state.updateLaserDmxShowManagerWorkspaceSettings)
   const addLaserDmxShowManagerSection = useReactStore(state => state.addLaserDmxShowManagerSection)
   const removeLaserDmxShowManagerSection = useReactStore(state => state.removeLaserDmxShowManagerSection)
   const reorderLaserDmxShowManagerSection = useReactStore(state => state.reorderLaserDmxShowManagerSection)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
-  const [lightingGroupOpen, setLightingGroupOpen] = useState(true)
+  const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
   const [liveFps, setLiveFps] = useState(0)
   const [workspaceMode, setWorkspaceMode] = useState<'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE>('default')
@@ -505,6 +512,27 @@ export function ShowManagerView() {
     setLaserShowRedoDepth(nextRedo.length)
   }
 
+  const commitLaserWorkspaceSettings = (patch: LaserDmxShowManagerWorkspaceSettingsPatch) => {
+    if (!activeLaserDmxShow || !recordLaserShowUndo()) return
+    updateLaserDmxShowManagerWorkspaceSettings(activeLaserDmxShow.id, patch)
+  }
+
+  const activateLaserComponent = (kind: LaserDmxShowDirectorFixtureKind) => {
+    if (!isLaserDmxShowManagerFixtureKindEnabled(kind)) return
+    setSelectedLightingComponentKind(kind)
+  }
+
+  const beginLaserComponentDrag = (event: DragEvent<HTMLButtonElement>, kind: LaserDmxShowDirectorFixtureKind) => {
+    if (!isLaserDmxShowManagerFixtureKindEnabled(kind)) {
+      event.preventDefault()
+      return
+    }
+    setSelectedLightingComponentKind(kind)
+    event.dataTransfer.effectAllowed = 'copy'
+    event.dataTransfer.setData('application/x-drmvyz-laserdmx-fixture-kind', kind)
+    event.dataTransfer.setData('text/plain', kind)
+  }
+
   const commitLaserSectionBoundary = (
     sectionId: string,
     edge: 'start' | 'end',
@@ -671,36 +699,92 @@ export function ShowManagerView() {
               </LibrarySection>
             </>
           ) : selectedEngineId === 'laserDmx' ? (
-            <div className="sm-panel-engine-content">
-              <div className={`llcg-accent${lightingGroupOpen ? ' is-open' : ''}`}>
-                <button
-                  type="button"
-                  className="llcg-accent-header"
-                  onClick={() => setLightingGroupOpen(value => !value)}
-                  aria-expanded={lightingGroupOpen}
-                >
-                  <span className="llcg-accent-dot" aria-hidden="true" />
-                  <span>Lighting Components</span>
-                  <span className={`llcg-caret${lightingGroupOpen ? ' is-open' : ''}`} aria-hidden="true">⌄</span>
-                </button>
-                {lightingGroupOpen && (
-                  <div className="llcg-accent-body">
-                    <div className="llcg-accent-fixture-grid">
-                      {LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS.map(kind => (
-                        <button key={kind} type="button" className="llcg-accent-fixture-card" disabled>
-                          <span className="llcg-accent-fixture-card-icon" aria-hidden="true">
-                            <FixtureIcon kind={kind} />
-                          </span>
-                          <span className="llcg-accent-fixture-card-label">
-                            {LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+            <>
+              <LibrarySection title="Lighting Components" count={LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS.length}>
+                {LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS.map(kind => {
+                  const enabled = isLaserDmxShowManagerFixtureKindEnabled(kind)
+                  const active = enabled && selectedLightingComponentKind === kind
+                  return (
+                    <button
+                      key={kind}
+                      type="button"
+                      className={`sm-library-row sm-library-row--fixture${active ? ' is-active' : ''}${enabled ? '' : ' is-disabled'}`}
+                      disabled={!enabled}
+                      aria-disabled={!enabled}
+                      aria-pressed={enabled ? active : undefined}
+                      draggable={enabled}
+                      onClick={() => activateLaserComponent(kind)}
+                      onDragStart={event => beginLaserComponentDrag(event, kind)}
+                    >
+                      <span className="sm-library-grip" aria-hidden="true">⋮⋮</span>
+                      <span className="sm-library-icon sm-library-fixture-icon" aria-hidden="true"><FixtureIcon kind={kind} /></span>
+                      <span>{LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]}</span>
+                      <small>{enabled ? 'Ready' : 'Disabled'}</small>
+                    </button>
+                  )
+                })}
+              </LibrarySection>
+
+              <LibrarySection title="Workspace" count={2}>
+                <LibrarySubsection title="Display Settings" count={4}>
+                  <div className="sm-library-controls">
+                    <ToggleRow
+                      label="Show Grid"
+                      value={activeLaserDmxShow?.settings?.showGrid ?? true}
+                      disabled={!activeLaserDmxShow}
+                      onChange={showGrid => commitLaserWorkspaceSettings({ showGrid })}
+                    />
+                    <ToggleRow
+                      label="Show Labels"
+                      value={activeLaserDmxShow?.settings?.showLabels ?? true}
+                      disabled={!activeLaserDmxShow}
+                      onChange={showLabels => commitLaserWorkspaceSettings({ showLabels })}
+                    />
+                    <ToggleRow
+                      label="Show Beams"
+                      value={activeLaserDmxShow?.settings?.showBeams ?? true}
+                      disabled={!activeLaserDmxShow}
+                      onChange={showBeams => commitLaserWorkspaceSettings({ showBeams })}
+                    />
+                    <ToggleRow
+                      label="Highlight Grid"
+                      value={activeLaserDmxShow?.settings?.highlightGrid ?? true}
+                      disabled={!activeLaserDmxShow}
+                      onChange={highlightGrid => commitLaserWorkspaceSettings({ highlightGrid })}
+                    />
                   </div>
-                )}
-              </div>
-            </div>
+                </LibrarySubsection>
+
+                <LibrarySubsection title="Render Settings" count={3}>
+                  <div className="sm-library-controls">
+                    <SelectRow
+                      label="Grid Size"
+                      value="18x12"
+                      disabled
+                      onChange={() => undefined}
+                      options={[{ value: '18x12', label: '18 × 12' }]}
+                    />
+                    <SelectRow
+                      label="Lighting Renderer"
+                      value={activeLaserDmxShow?.settings?.rendererMode ?? 'auto'}
+                      disabled={!activeLaserDmxShow}
+                      onChange={value => {
+                        const option = LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS.find(candidate => candidate.value === value)
+                        if (option) commitLaserWorkspaceSettings({ rendererMode: option.value })
+                      }}
+                      options={LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS.map(option => ({ ...option }))}
+                    />
+                    <SelectRow
+                      label="Quality"
+                      value={LASER_DMX_SHOW_MANAGER_QUALITY}
+                      disabled
+                      onChange={() => undefined}
+                      options={[{ value: LASER_DMX_SHOW_MANAGER_QUALITY, label: 'High' }]}
+                    />
+                  </div>
+                </LibrarySubsection>
+              </LibrarySection>
+            </>
           ) : (
             <div className="sm-panel-blank" />
           )}
@@ -710,7 +794,7 @@ export function ShowManagerView() {
         <main className="sm-center">
           <div className="sm-stage-frame">
             {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
-              <LaserDmxShowManagerStage show={activeLaserDmxShow} section={activeLaserDmxSection} />
+              <LaserDmxShowManagerStage show={activeLaserDmxShow} section={activeLaserDmxSection} showGrid={activeLaserDmxShow?.settings?.showGrid ?? true} />
             ) : (
               <PixGridSurface
                 analyser={engine.analyserMaster}
@@ -1004,13 +1088,15 @@ export function ShowManagerView() {
 function LaserDmxShowManagerStage({
   show,
   section,
+  showGrid,
 }: {
   show: LaserDmxShowManagerShow | null
   section: LaserDmxShowManagerSection | null
+  showGrid: boolean
 }) {
   return (
     <div className="sm-laser-stage" aria-label="LaserDMX Part 1 stage foundation">
-      <div className="sm-laser-stage-grid" aria-hidden="true" />
+      {showGrid && <div className="sm-laser-stage-grid" aria-hidden="true" />}
       <div className="sm-laser-stage-copy">
         <span>LaserDMX Show</span>
         <strong>{show?.name ?? 'Untitled Show'}</strong>
@@ -1078,6 +1164,38 @@ function LaserDmxShowManagerTimeline({
           )}
         </TimelineRow>
       </div>
+    </section>
+  )
+}
+
+function LibrarySubsection({
+  title,
+  count,
+  defaultCollapsed = false,
+  children,
+}: {
+  title: string
+  count: number
+  defaultCollapsed?: boolean
+  children: ReactNode
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const contentId = useId()
+
+  return (
+    <section className={`sm-library-subsection${collapsed ? ' is-collapsed' : ''}`}>
+      <button
+        type="button"
+        className="sm-library-section-toggle sm-library-subsection-toggle"
+        aria-expanded={!collapsed}
+        aria-controls={contentId}
+        onClick={() => setCollapsed(value => !value)}
+      >
+        <span className="sm-library-section-chevron" aria-hidden="true">⌄</span>
+        <strong>{title}</strong>
+        <small>{count}</small>
+      </button>
+      {!collapsed && <div id={contentId} className="sm-library-subsection-body">{children}</div>}
     </section>
   )
 }
