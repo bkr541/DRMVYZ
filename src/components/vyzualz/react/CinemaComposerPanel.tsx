@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
@@ -8,9 +8,12 @@ import {
   buildCinemaComposerLibraryItems,
   cinemaStableId,
   createCinemaComposerComposition,
+  decodeCinemaPackage,
+  encodeCinemaPackage,
   duplicateCinemaComposerLayer,
   getCinemaComposerLayers,
   getCinemaComposerMaskNodes,
+  getCinemaCompositionLibraryStatus,
   getCinemaEditorSelection,
   isCinemaComposerComposition,
   removeCinemaComposerEffect,
@@ -24,6 +27,7 @@ import {
   useCinemaStore,
   type CinemaComposerBlendMode,
   type CinemaComposerLibraryItem,
+  type CinemaCollectionId,
   type CinemaCompositionId,
   type CinemaNodeId,
 } from '../cinema'
@@ -38,18 +42,27 @@ const BLEND_OPTIONS: readonly CinemaComposerBlendMode[] = [
 export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: CinemaWorkspaceFrameBridgeResult | null }) {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<'All' | CinemaComposerLibraryItem['category']>('All')
+  const [renameDraft, setRenameDraft] = useState('')
+  const [libraryMessage, setLibraryMessage] = useState('')
+  const importInputRef = useRef<HTMLInputElement | null>(null)
   const state = useCinemaStore(useShallow(store => ({
     activeCompositionId: store.activeCompositionId,
     activeInstanceId: store.activeInstanceId,
     compositions: store.compositions,
     definitions: store.definitions,
     instances: store.instances,
+    collections: store.collections,
     editorMetadata: store.editorMetadata,
     undoCount: store.undoStack.length,
     redoCount: store.redoStack.length,
     historyTransaction: store.historyTransaction,
   })))
   const active = state.compositions.find(composition => composition.id === state.activeCompositionId) ?? null
+  const libraryStatus = active ? getCinemaCompositionLibraryStatus(active) : null
+  useEffect(() => {
+    setRenameDraft(active?.metadata.name ?? '')
+    setLibraryMessage('')
+  }, [active?.id, active?.metadata.name])
   const structured = active != null && isCinemaComposerComposition(active)
   const layers = active && structured ? getCinemaComposerLayers(active) : []
   const masks = active && structured ? getCinemaComposerMaskNodes(active) : []
@@ -72,6 +85,99 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
       const firstLayer = getCinemaComposerLayers(composition)[0]?.node.id ?? null
       useCinemaStore.getState().setCinemaEditorSelection(id, firstLayer)
     }
+  }
+
+  const saveComposition = () => {
+    if (!active || libraryStatus?.provenance === 'built-in') return
+    const result = useCinemaStore.getState().saveCinemaComposition(active.id)
+    setLibraryMessage(result.ok ? 'Composition saved.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to save composition.'))
+  }
+
+  const saveCompositionAs = () => {
+    if (!active) return
+    const id = nextCompositionId(state.compositions.map(composition => String(composition.id)))
+    const result = useCinemaStore.getState().saveCinemaCompositionAs(active.id, id, `${active.metadata.name} Copy`)
+    setLibraryMessage(result.ok ? 'Saved as a new user composition.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to save composition copy.'))
+  }
+
+  const duplicateComposition = () => {
+    if (!active) return
+    const id = nextCompositionId(state.compositions.map(composition => String(composition.id)))
+    const result = useCinemaStore.getState().duplicateCinemaComposition(active.id, id, `${active.metadata.name} Copy`)
+    setLibraryMessage(result.ok ? 'Composition duplicated with independent graph IDs.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to duplicate composition.'))
+  }
+
+  const renameComposition = () => {
+    if (!active || libraryStatus?.provenance === 'built-in') return
+    const result = useCinemaStore.getState().renameCinemaComposition(active.id, renameDraft)
+    setLibraryMessage(result.ok ? 'Composition renamed.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to rename composition.'))
+  }
+
+  const deleteComposition = () => {
+    if (!active || libraryStatus?.provenance === 'built-in') return
+    const result = useCinemaStore.getState().deleteCinemaComposition(active.id)
+    setLibraryMessage(result.ok ? 'Composition deleted; selection moved to a safe fallback.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to delete composition.'))
+  }
+
+  const exportComposition = () => {
+    if (!active) return
+    const encoded = encodeCinemaPackage(useCinemaStore.getState().exportCinemaCompositionPackage(active.id))
+    if (!encoded.ok) {
+      setLibraryMessage(firstDiagnostic(encoded.diagnostics.diagnostics, 'Unable to export composition.'))
+      return
+    }
+    const blob = new Blob([encoded.value], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    try {
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${active.id}.cinema.json`
+      anchor.click()
+      setLibraryMessage('Composition package exported.')
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  const importComposition = async (file: File | null) => {
+    if (!file) return
+    try {
+      const decoded = decodeCinemaPackage(await file.text())
+      if (!decoded.ok) {
+        setLibraryMessage(firstDiagnostic(decoded.diagnostics.diagnostics, 'Import package is invalid.'))
+        return
+      }
+      const result = useCinemaStore.getState().importCinemaPackage(decoded.value, { mode: 'merge', conflictPolicy: 'reject' })
+      setLibraryMessage(result.ok ? 'Cinema package imported.' : firstDiagnostic(result.diagnostics.diagnostics, 'Cinema package was not imported.'))
+    } catch (error) {
+      setLibraryMessage(`Cinema package was not imported: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const addCollection = () => {
+    if (!active) return
+    const id = nextCollectionId(state.collections.map(collection => String(collection.id)))
+    const result = useCinemaStore.getState().upsertCinemaCollection({
+      id,
+      label: `Collection ${state.collections.length + 1}`,
+      compositionIds: [active.id],
+      metadata: { cinemaLibrary: true },
+    })
+    setLibraryMessage(result.ok ? 'Collection created.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to create collection.'))
+  }
+
+  const toggleCollection = (collectionId: CinemaCollectionId) => {
+    if (!active) return
+    const collection = state.collections.find(candidate => candidate.id === collectionId)
+    if (!collection) return
+    const included = collection.compositionIds.includes(active.id)
+    const result = useCinemaStore.getState().upsertCinemaCollection({
+      ...collection,
+      compositionIds: included
+        ? collection.compositionIds.filter(id => id !== active.id)
+        : [...collection.compositionIds, active.id],
+    })
+    setLibraryMessage(result.ok ? (included ? 'Removed from collection.' : 'Added to collection.') : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to update collection.'))
   }
 
   const edit = (label: string, editor: Parameters<ReturnType<typeof useCinemaStore.getState>['editCinemaComposition']>[2]) => {
@@ -121,6 +227,65 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
         ]}
       />
       <button type="button" className="rv-cinema-composer__primary" onClick={createComposition}>New Composition</button>
+
+      {active && (
+        <Collapsible label="Composition management">
+          <div className="rv-cinema-library-manager">
+            <div className="rv-cinema-library-manager__status">
+              <strong>{libraryStatus?.provenance === 'built-in' ? 'Built-in / reference' : 'User composition'}</strong>
+              <span>{libraryStatus?.modified ? 'Modified · save to checkpoint this revision' : 'Saved'}</span>
+            </div>
+            <label className="rv-cinema-composer__search">
+              <span>Composition name</span>
+              <input
+                value={renameDraft}
+                onChange={event => setRenameDraft(event.target.value)}
+                disabled={libraryStatus?.provenance === 'built-in'}
+              />
+            </label>
+            <div className="rv-cinema-library-manager__actions">
+              <button type="button" onClick={renameComposition} disabled={libraryStatus?.provenance === 'built-in' || renameDraft.trim() === active.metadata.name || renameDraft.trim() === ''}>Rename</button>
+              <button type="button" onClick={saveComposition} disabled={libraryStatus?.provenance === 'built-in' || !libraryStatus?.modified}>Save</button>
+              <button type="button" onClick={saveCompositionAs}>Save As</button>
+              <button type="button" onClick={duplicateComposition}>Duplicate</button>
+              <button type="button" onClick={deleteComposition} disabled={libraryStatus?.provenance === 'built-in'}>Delete</button>
+            </div>
+            <div className="rv-cinema-library-manager__actions">
+              <button type="button" onClick={exportComposition}>Export Composition</button>
+              <button type="button" onClick={() => importInputRef.current?.click()}>Import Composition</button>
+              <input
+                ref={importInputRef}
+                className="rv-cinema-library-manager__file-input"
+                type="file"
+                accept="application/json,.json"
+                aria-label="Choose Cinema composition package"
+                onChange={event => {
+                  const file = event.currentTarget.files?.[0] ?? null
+                  void importComposition(file)
+                  event.currentTarget.value = ''
+                }}
+              />
+            </div>
+            <div className="rv-cinema-library-manager__collections" aria-label="Cinema collections">
+              <div className="rv-cinema-library-manager__actions">
+                <strong>Collections</strong>
+                <button type="button" onClick={addCollection}>New Collection</button>
+              </div>
+              {state.collections.length === 0 ? <small>No collections yet.</small> : state.collections.map(collection => (
+                <label key={collection.id}>
+                  <input
+                    type="checkbox"
+                    checked={collection.compositionIds.includes(active.id)}
+                    onChange={() => toggleCollection(collection.id)}
+                  />
+                  <span>{collection.label}</span>
+                </label>
+              ))}
+            </div>
+            {libraryMessage && <div className="rv-cinema-library-manager__message" role="status">{libraryMessage}</div>}
+          </div>
+        </Collapsible>
+      )}
 
       {!structured ? (
         <div className="rv-cinema-composer__notice" role="note">
@@ -247,7 +412,7 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
             onClick={() => useCinemaStore.getState().setActiveCinemaComposition(composition.id)}
           >
             <strong>{composition.metadata.name}</strong>
-            <span>{isCinemaComposerComposition(composition) ? 'User composition' : 'Built-in / reference composition'}</span>
+            <span>{getCinemaCompositionLibraryStatus(composition).provenance === 'built-in' ? 'Built-in / reference composition' : getCinemaCompositionLibraryStatus(composition).modified ? 'User composition · modified' : 'User composition · saved'}</span>
           </button>
         ))}
         {state.instances.map(instance => {
@@ -276,6 +441,21 @@ function nextCompositionId(existing: readonly string[]): CinemaCompositionId {
   let suffix = 2
   while (ids.has(candidate)) candidate = `composer-composition-${suffix++}`
   return cinemaStableId<CinemaCompositionId>(candidate, 'composition')
+}
+
+function nextCollectionId(existing: readonly string[]): CinemaCollectionId {
+  const ids = new Set(existing)
+  let candidate = 'cinema-collection'
+  let suffix = 2
+  while (ids.has(candidate)) candidate = `cinema-collection-${suffix++}`
+  return cinemaStableId<CinemaCollectionId>(candidate, 'collection')
+}
+
+function firstDiagnostic(
+  diagnostics: readonly { message: string }[],
+  fallback: string,
+): string {
+  return diagnostics[0]?.message ?? fallback
 }
 
 function capitalize(value: string): string {

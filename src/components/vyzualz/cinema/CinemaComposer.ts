@@ -27,6 +27,7 @@ import {
 } from './CinemaIdentifiers'
 import type { CinemaPersistedDefinition } from './CinemaPersistence'
 import { createCinemaCameraParameterSchemas } from './CinemaCameraRuntime'
+import { CINEMA_LIBRARY_PROVENANCE_VERSION } from './CinemaLibrary'
 import { CINEMA_GENERATED_MASK_NODE_TYPE_ID } from './CinemaMediaTextNodes'
 import type { CinemaRuntimeNodeRegistry } from './CinemaRuntimeNodeRegistry'
 import { getCinemaParameterDefaultValue, normalizeCinemaParameterValue } from './CinemaParameterSchema'
@@ -129,7 +130,14 @@ export function createCinemaComposerComposition(options: CinemaComposerCreateOpt
       name: options.name ?? 'Untitled Cinema Composition',
       description: 'Structured Cinema Composer composition.',
       tags: ['composer'],
-      provenance: { composerStructured: true, composerVersion: CINEMA_COMPOSER_VERSION },
+      provenance: {
+        composerStructured: true,
+        composerVersion: CINEMA_COMPOSER_VERSION,
+        builtIn: false,
+        libraryOrigin: 'user',
+        libraryVersion: CINEMA_LIBRARY_PROVENANCE_VERSION,
+        savedRevision: 0,
+      },
     },
     nodes: [
       createNodeFromType(CINEMA_FOUNDATION_GRADIENT_TYPE_ID, gradientA, 'procedural', 'Gradient Layer 1', {

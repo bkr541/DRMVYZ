@@ -19,6 +19,7 @@ import {
   createCinemaFoundationPersistedState,
 } from '../CinemaFoundation'
 import { getCinemaComposerLayers } from '../CinemaComposer'
+import { getCinemaCompositionLibraryStatus } from '../CinemaLibrary'
 import { createCinemaDiagnosticSnapshot } from '../CinemaDiagnostics'
 import {
   getDrmvyzWebGLContextDiagnosticsForTests,
@@ -239,6 +240,15 @@ describe('Cinema production engine registration', () => {
     const active = useCinemaStore.getState().compositions.find(composition => composition.id === activeId)
     expect(active?.metadata.provenance?.composerStructured).toBe(true)
     expect(active ? getCinemaComposerLayers(active) : []).toHaveLength(2)
+    expect(active ? getCinemaCompositionLibraryStatus(active).modified : false).toBe(true)
+
+    const saveComposition = [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-library-manager__actions button') ?? [])]
+      .find(button => button.textContent === 'Save')
+    expect(saveComposition?.disabled).toBe(false)
+    await act(async () => saveComposition?.click())
+    const saved = useCinemaStore.getState().compositions.find(composition => composition.id === activeId)
+    expect(saved ? getCinemaCompositionLibraryStatus(saved).modified : true).toBe(false)
+    expect(host?.textContent).toContain('Composition saved.')
     expect(host?.textContent).toContain('Modulation (0)')
     expect(host?.textContent).toContain('Performance (0)')
     expect(host?.textContent).toContain('Camera (0)')
@@ -270,6 +280,17 @@ describe('Cinema production engine registration', () => {
     expect(useCinemaStore.getState().undoStack).toHaveLength(undoBeforeGesture + 1)
     const updated = useCinemaStore.getState().compositions.find(composition => composition.id === activeId)
     expect(updated?.nodes.some(node => node.family === 'procedural' && node.opacity === 0.35)).toBe(true)
+    expect(updated ? getCinemaCompositionLibraryStatus(updated).modified : false).toBe(true)
+
+    const duplicateComposition = [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-library-manager__actions button') ?? [])]
+      .find(button => button.textContent === 'Duplicate')
+    await act(async () => duplicateComposition?.click())
+    const duplicateId = useCinemaStore.getState().activeCompositionId
+    expect(duplicateId).not.toBe(activeId)
+    const duplicate = useCinemaStore.getState().compositions.find(composition => composition.id === duplicateId)
+    expect(duplicate).toBeTruthy()
+    expect(new Set(updated?.nodes.map(node => String(node.id))).has(String(duplicate?.nodes[0]?.id))).toBe(false)
+    expect(duplicate ? getCinemaCompositionLibraryStatus(duplicate).modified : true).toBe(false)
   })
 
   it('keeps only one active Cinema context and loop through a Strict Mode effect replay', async () => {

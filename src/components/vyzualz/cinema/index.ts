@@ -19,6 +19,7 @@ export * from './CinemaParameterResolver'
 export * from './CinemaControlDescriptors'
 export * from './CinemaPersistence'
 export * from './CinemaPackageIO'
+export * from './CinemaLibrary'
 export * from './CinemaStore'
 export * from './runtime'
 

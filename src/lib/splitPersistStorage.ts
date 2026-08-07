@@ -1,6 +1,7 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware'
 
-type PersistableState = Record<string, unknown>
+type PersistableState = object
+type PersistableRecord = Record<string, unknown>
 
 export type SplitPersistencePhase = 'dirty' | 'saving' | 'saved' | 'error'
 
@@ -48,10 +49,10 @@ export function splitStorageValue<S extends PersistableState>(
 
   for (const [key, fieldValue] of Object.entries(value.state)) {
     if (projectKeySet.has(key)) {
-      ;(projectState as PersistableState)[key] = fieldValue
+      ;(projectState as PersistableRecord)[key] = fieldValue
       hasProjectData = true
     } else {
-      ;(localState as PersistableState)[key] = fieldValue
+      ;(localState as PersistableRecord)[key] = fieldValue
     }
   }
 
@@ -102,6 +103,7 @@ export function createSplitPersistStorage<S extends PersistableState>({
   const indexedDbSupported = typeof indexedDB !== 'undefined'
   let databasePromise: Promise<IDBDatabase | null> | null = null
   const projectCache = new Map<string, StorageValue<Partial<S>>>()
+  const localFallbackCache = new Map<string, string>()
   const lastProjectState = new Map<string, Partial<S>>()
   const lastLocalJson = new Map<string, string>()
   const writeChains = new Map<string, Promise<void>>()
@@ -275,7 +277,9 @@ export function createSplitPersistStorage<S extends PersistableState>({
 
   function readLocal(name: string): StorageValue<Partial<S>> | null {
     try {
-      const raw = localStorage.getItem(name)
+      const raw = typeof localStorage === 'undefined'
+        ? localFallbackCache.get(name) ?? null
+        : localStorage.getItem(name)
       if (raw == null) return null
       const parsed: unknown = JSON.parse(raw)
       return isStorageValue<S>(parsed) ? parsed : null
@@ -289,7 +293,8 @@ export function createSplitPersistStorage<S extends PersistableState>({
     try {
       const json = JSON.stringify(value)
       if (lastLocalJson.get(name) === json) return true
-      localStorage.setItem(name, json)
+      if (typeof localStorage === 'undefined') localFallbackCache.set(name, json)
+      else localStorage.setItem(name, json)
       lastLocalJson.set(name, json)
       return true
     } catch (error) {
@@ -306,7 +311,7 @@ export function createSplitPersistStorage<S extends PersistableState>({
       // normal localStorage behaviour and prevents a later microtask from
       // overwriting state that a test or caller has already initialized.
       if (!indexedDbSupported) {
-        return local as StorageValue<S> | null
+        return mergeStorageValues<S>(local, projectCache.get(name) ?? null)
       }
 
       return (async () => {
@@ -352,7 +357,8 @@ export function createSplitPersistStorage<S extends PersistableState>({
 
     async removeItem(name) {
       try {
-        localStorage.removeItem(name)
+        if (typeof localStorage === 'undefined') localFallbackCache.delete(name)
+        else localStorage.removeItem(name)
         lastLocalJson.delete(name)
       } catch (error) {
         console.error(`[splitPersistStorage] localStorage delete failed for "${name}"`, error)

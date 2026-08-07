@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { createStore, type StateCreator, type StoreApi } from 'zustand/vanilla'
-import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
 import {
   createCinemaDiagnostic,
   createCinemaDiagnosticSnapshot,
@@ -30,6 +30,12 @@ import type {
 } from './CinemaIdentifiers'
 import { preflightCinemaPackage } from './CinemaPackageIO'
 import {
+  duplicateCinemaCompositionGraph,
+  isCinemaBuiltInComposition,
+  markCinemaCompositionSaved,
+} from './CinemaLibrary'
+import { createSplitPersistStorage } from '../../../lib/splitPersistStorage'
+import {
   CINEMA_DEFAULT_HISTORY_LIMIT,
   CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
   cloneCinemaSerializable,
@@ -46,6 +52,18 @@ import {
 
 export const CINEMA_PERSIST_STORAGE_NAME = 'drmvyz:cinema-store' as const
 export const CINEMA_PERSIST_MIDDLEWARE_VERSION = 3 as const
+export const CINEMA_PROJECT_STATE_KEYS = Object.freeze([
+  'schemaId',
+  'schemaVersion',
+  'definitions',
+  'compositions',
+  'instances',
+  'collections',
+  'activeCompositionId',
+  'activeInstanceId',
+  'editorMetadata',
+  'migrationProvenance',
+] as const satisfies readonly (keyof CinemaPersistedState)[])
 
 export interface CinemaHistoryEntry {
   label: string
@@ -101,6 +119,13 @@ export interface CinemaStoreState extends CinemaPersistedState {
   setCinemaEditorSelection: (compositionId: CinemaCompositionId, nodeId: CinemaNodeId | null) => CinemaStoreOperationResult
   upsertCinemaAssetBinding: (compositionId: CinemaCompositionId, binding: CinemaAssetBindingDefinition) => CinemaStoreOperationResult
   deleteCinemaAssetBinding: (compositionId: CinemaCompositionId, bindingId: CinemaAssetBindingId) => CinemaStoreOperationResult
+  saveCinemaComposition: (compositionId: CinemaCompositionId, savedAt?: string) => CinemaStoreOperationResult
+  saveCinemaCompositionAs: (
+    compositionId: CinemaCompositionId,
+    duplicateId: CinemaCompositionId,
+    name?: string,
+    savedAt?: string,
+  ) => CinemaStoreOperationResult
   renameCinemaComposition: (compositionId: CinemaCompositionId, name: string) => CinemaStoreOperationResult
   duplicateCinemaComposition: (
     compositionId: CinemaCompositionId,
@@ -124,6 +149,7 @@ export interface CinemaStoreState extends CinemaPersistedState {
   redoCinemaEdit: () => CinemaStoreOperationResult
 
   exportCinemaPackage: (options?: { exportedAt?: string }) => CinemaPersistencePackageDefinition
+  exportCinemaCompositionPackage: (compositionId: CinemaCompositionId, options?: { exportedAt?: string }) => CinemaPersistencePackageDefinition
   importCinemaPackage: (input: unknown, options?: CinemaPackageImportOptions) => CinemaStoreOperationResult
 }
 
@@ -149,17 +175,6 @@ export function createCinemaStore(options: CreateCinemaStoreOptions = {}): Cinem
   ))
 }
 
-const fallbackStorageData = new Map<string, string>()
-const fallbackStorage: StateStorage = {
-  getItem: name => fallbackStorageData.get(name) ?? null,
-  setItem: (name, value) => { fallbackStorageData.set(name, value) },
-  removeItem: name => { fallbackStorageData.delete(name) },
-}
-
-function resolveCinemaStorage(): StateStorage {
-  return typeof localStorage === 'undefined' ? fallbackStorage : localStorage
-}
-
 export const useCinemaStore = create<CinemaStoreState>()(
   persist(
     createCinemaStoreInitializer(
@@ -170,7 +185,9 @@ export const useCinemaStore = create<CinemaStoreState>()(
     {
       name: CINEMA_PERSIST_STORAGE_NAME,
       version: CINEMA_PERSIST_MIDDLEWARE_VERSION,
-      storage: createJSONStorage(resolveCinemaStorage),
+      storage: createSplitPersistStorage<CinemaPersistedState>({
+        projectKeys: CINEMA_PROJECT_STATE_KEYS,
+      }),
       partialize: state => snapshotCinemaPersistedState(state),
       migrate: (persistedState, version) => version > CINEMA_PERSIST_MIDDLEWARE_VERSION
         ? { unsupportedPersistMiddlewareVersion: version }
@@ -296,24 +313,43 @@ function createCinemaStoreInitializer(
 
       resetCinemaState: () => applyDocument(createCinemaFoundationPersistedState(), 'Reset Cinema state', { clearRuntimePreview: true }),
 
-      upsertCinemaDefinition: definition => mutateDocument('Update Cinema definition', current => ({
-        ...current,
-        definitions: upsertById(current.definitions, definition),
-      })),
+      upsertCinemaDefinition: definition => mutateDocument('Update Cinema definition', current => {
+        const existing = current.definitions.find(candidate => candidate.id === definition.id)
+        if (existing && isImmutableCinemaDefinition(existing)) {
+          throw new Error(`Built-in Cinema definition "${definition.id}" is immutable.`)
+        }
+        return {
+          ...current,
+          definitions: upsertById(current.definitions, definition),
+        }
+      }),
 
-      deleteCinemaDefinition: definitionId => mutateDocument('Delete Cinema definition', current => ({
-        ...current,
-        definitions: current.definitions.filter(definition => definition.id !== definitionId),
-      })),
+      deleteCinemaDefinition: definitionId => mutateDocument('Delete Cinema definition', current => {
+        const existing = current.definitions.find(definition => definition.id === definitionId)
+        if (existing && isImmutableCinemaDefinition(existing)) {
+          throw new Error(`Built-in Cinema definition "${definitionId}" is immutable.`)
+        }
+        return {
+          ...current,
+          definitions: current.definitions.filter(definition => definition.id !== definitionId),
+        }
+      }),
 
-      upsertCinemaComposition: composition => mutateDocument('Update Cinema composition', current => ({
-        ...current,
-        compositions: upsertById(current.compositions, composition),
-      })),
+      upsertCinemaComposition: composition => mutateDocument('Update Cinema composition', current => {
+        const existing = current.compositions.find(candidate => candidate.id === composition.id)
+        if (existing && isCinemaBuiltInComposition(existing)) {
+          throw new Error(`Built-in Cinema composition "${composition.id}" is immutable; duplicate it before editing.`)
+        }
+        return {
+          ...current,
+          compositions: upsertById(current.compositions, composition),
+        }
+      }),
 
       editCinemaComposition: (compositionId, label, edit) => mutateDocument(label, current => {
         const source = current.compositions.find(composition => composition.id === compositionId)
         if (!source) throw new Error(`Cinema composition "${compositionId}" does not exist.`)
+        assertMutableCinemaComposition(source)
         const result = edit(cloneCinemaSerializable(source))
         const nextComposition = result.composition
         if (nextComposition.id !== compositionId) throw new Error('Cinema composition edits cannot change the stable composition ID.')
@@ -366,80 +402,95 @@ function createCinemaStoreInitializer(
 
       upsertCinemaAssetBinding: (compositionId, binding) => mutateDocument(
         'Update Cinema asset binding',
-        current => ({
-          ...current,
-          compositions: current.compositions.map(composition => composition.id === compositionId
-            ? {
-                ...composition,
-                revision: composition.revision + 1,
-                assetBindings: upsertById(composition.assetBindings, binding),
-              }
-            : composition),
-        }),
-      ),
-
-      deleteCinemaAssetBinding: (compositionId, bindingId) => mutateDocument(
-        'Delete Cinema asset binding',
-        current => ({
-          ...current,
-          compositions: current.compositions.map(composition => composition.id === compositionId
-            ? {
-                ...composition,
-                revision: composition.revision + 1,
-                assetBindings: composition.assetBindings.filter(binding => binding.id !== bindingId),
-                nodes: composition.nodes.map(node => ({
-                  ...node,
-                  assetBindingIds: node.assetBindingIds?.filter(id => id !== bindingId),
-                })),
-              }
-            : composition),
-          instances: current.instances.map(instance => instance.compositionId === compositionId
-            ? {
-                ...instance,
-                revision: instance.revision + 1,
-                assetBindingOverrides: instance.assetBindingOverrides.filter(override => override.bindingId !== bindingId),
-              }
-            : instance),
-        }),
-      ),
-
-      renameCinemaComposition: (compositionId, name) => mutateDocument('Rename Cinema composition', current => ({
-        ...current,
-        compositions: current.compositions.map(composition => composition.id === compositionId
-          ? {
-              ...composition,
-              revision: composition.revision + 1,
-              metadata: { ...composition.metadata, name },
-            }
-          : composition),
-      })),
-
-      duplicateCinemaComposition: (compositionId, duplicateId, name) => mutateDocument(
-        'Duplicate Cinema composition',
         current => {
-          const source = current.compositions.find(composition => composition.id === compositionId)
-          if (!source) throw new Error(`Cinema composition "${compositionId}" does not exist.`)
-          if (current.compositions.some(composition => composition.id === duplicateId)) {
-            throw new Error(`Cinema composition "${duplicateId}" already exists.`)
-          }
-          const duplicate = cloneCinemaSerializable({
-            ...source,
-            id: duplicateId,
-            revision: 1,
-            metadata: {
-              ...source.metadata,
-              name: name ?? `${source.metadata.name} Copy`,
-            },
-          })
+          const source = requireCinemaComposition(current, compositionId)
+          assertMutableCinemaComposition(source)
           return {
             ...current,
-            compositions: [...current.compositions, duplicate],
+            compositions: current.compositions.map(composition => composition.id === compositionId
+              ? {
+                  ...composition,
+                  revision: composition.revision + 1,
+                  assetBindings: upsertById(composition.assetBindings, binding),
+                }
+              : composition),
           }
         },
       ),
 
+      deleteCinemaAssetBinding: (compositionId, bindingId) => mutateDocument(
+        'Delete Cinema asset binding',
+        current => {
+          const source = requireCinemaComposition(current, compositionId)
+          assertMutableCinemaComposition(source)
+          return {
+            ...current,
+            compositions: current.compositions.map(composition => composition.id === compositionId
+              ? {
+                  ...composition,
+                  revision: composition.revision + 1,
+                  assetBindings: composition.assetBindings.filter(binding => binding.id !== bindingId),
+                  nodes: composition.nodes.map(node => ({
+                    ...node,
+                    assetBindingIds: node.assetBindingIds?.filter(id => id !== bindingId),
+                  })),
+                }
+              : composition),
+            instances: current.instances.map(instance => instance.compositionId === compositionId
+              ? {
+                  ...instance,
+                  revision: instance.revision + 1,
+                  assetBindingOverrides: instance.assetBindingOverrides.filter(override => override.bindingId !== bindingId),
+                }
+              : instance),
+          }
+        },
+      ),
+
+      saveCinemaComposition: (compositionId, savedAt) => mutateDocument('Save Cinema composition', current => {
+        const source = requireCinemaComposition(current, compositionId)
+        assertMutableCinemaComposition(source)
+        return {
+          ...current,
+          compositions: current.compositions.map(composition => composition.id === compositionId
+            ? markCinemaCompositionSaved(composition, savedAt)
+            : composition),
+        }
+      }),
+
+      saveCinemaCompositionAs: (compositionId, duplicateId, name, savedAt) => mutateDocument(
+        'Save Cinema composition as',
+        current => duplicateCompositionIntoState(current, compositionId, duplicateId, name, true, savedAt),
+      ),
+
+      renameCinemaComposition: (compositionId, name) => mutateDocument('Rename Cinema composition', current => {
+        const source = requireCinemaComposition(current, compositionId)
+        assertMutableCinemaComposition(source)
+        const normalizedName = name.trim()
+        if (!normalizedName) throw new Error('Cinema composition name must not be empty.')
+        return {
+          ...current,
+          compositions: current.compositions.map(composition => composition.id === compositionId
+            ? {
+                ...composition,
+                revision: composition.revision + 1,
+                metadata: { ...composition.metadata, name: normalizedName },
+              }
+            : composition),
+        }
+      }),
+
+      duplicateCinemaComposition: (compositionId, duplicateId, name) => mutateDocument(
+        'Duplicate Cinema composition',
+        current => duplicateCompositionIntoState(current, compositionId, duplicateId, name, true),
+      ),
+
       deleteCinemaComposition: compositionId => {
         const result = mutateDocument('Delete Cinema composition', current => {
+          const source = requireCinemaComposition(current, compositionId)
+          assertMutableCinemaComposition(source)
+          const remainingCompositions = current.compositions.filter(composition => composition.id !== compositionId)
+          const fallbackCompositionId = remainingCompositions[0]?.id ?? null
           const removedInstanceIds = new Set(
             current.instances
               .filter(instance => instance.compositionId === compositionId)
@@ -447,14 +498,15 @@ function createCinemaStoreInitializer(
           )
           return {
             ...current,
-            compositions: current.compositions.filter(composition => composition.id !== compositionId),
+            compositions: remainingCompositions,
             instances: current.instances.filter(instance => instance.compositionId !== compositionId),
             collections: current.collections.map(collection => ({
               ...collection,
               compositionIds: collection.compositionIds.filter(id => id !== compositionId),
             })),
-            activeCompositionId: current.activeCompositionId === compositionId ? null : current.activeCompositionId,
-            activeInstanceId: current.activeInstanceId != null && removedInstanceIds.has(current.activeInstanceId)
+            activeCompositionId: current.activeCompositionId === compositionId ? fallbackCompositionId : current.activeCompositionId,
+            activeInstanceId: current.activeCompositionId === compositionId
+              || current.activeInstanceId != null && removedInstanceIds.has(current.activeInstanceId)
               ? null
               : current.activeInstanceId,
             editorMetadata: withCinemaEditorSelection(current.editorMetadata, compositionId, null),
@@ -602,6 +654,33 @@ function createCinemaStoreInitializer(
         options,
       ),
 
+      exportCinemaCompositionPackage: (compositionId, options) => {
+        const current = snapshotCinemaPersistedState(get())
+        const composition = requireCinemaComposition(current, compositionId)
+        const instances = current.instances.filter(instance => instance.compositionId === compositionId)
+        const instanceIds = new Set(instances.map(instance => String(instance.id)))
+        const selectedNodeId = getCinemaEditorSelection(current.editorMetadata, compositionId)
+        const scopedState: CinemaPersistedState = {
+          ...current,
+          // Node definitions are stable external plugin contracts. Scoped packages
+          // intentionally rely on the receiving registry rather than duplicating it.
+          definitions: [],
+          compositions: [composition],
+          instances,
+          collections: current.collections
+            .filter(collection => collection.compositionIds.includes(compositionId))
+            .map(collection => ({ ...collection, compositionIds: [compositionId] })),
+          activeCompositionId: compositionId,
+          activeInstanceId: current.activeInstanceId != null && instanceIds.has(String(current.activeInstanceId))
+            ? current.activeInstanceId
+            : null,
+          editorMetadata: selectedNodeId == null
+            ? {}
+            : withCinemaEditorSelection({}, compositionId, selectedNodeId),
+        }
+        return createCinemaPackageFromPersistedState(scopedState, options)
+      },
+
       importCinemaPackage: (input, options = {}) => {
         if (options.signal?.aborted) {
           const diagnostics = createCinemaDiagnosticSnapshot([createCinemaDiagnostic({
@@ -687,6 +766,56 @@ function withCinemaEditorSelection(
   if (nodeId == null) delete current[String(compositionId)]
   else current[String(compositionId)] = String(nodeId)
   return { ...metadata, [CINEMA_EDITOR_SELECTION_KEY]: current }
+}
+
+function isImmutableCinemaDefinition(definition: Readonly<CinemaPersistedDefinition>): boolean {
+  return definition.source.kind === 'built-in' || definition.source.kind === 'adapter'
+}
+
+function requireCinemaComposition(
+  state: Readonly<CinemaPersistedState>,
+  compositionId: CinemaCompositionId,
+): CinemaCompositionDefinition {
+  const composition = state.compositions.find(candidate => candidate.id === compositionId)
+  if (!composition) throw new Error(`Cinema composition "${compositionId}" does not exist.`)
+  return composition
+}
+
+function assertMutableCinemaComposition(composition: Readonly<CinemaCompositionDefinition>): void {
+  if (isCinemaBuiltInComposition(composition)) {
+    throw new Error(`Built-in Cinema composition "${composition.id}" is immutable; duplicate it before editing.`)
+  }
+}
+
+function duplicateCompositionIntoState(
+  current: Readonly<CinemaPersistedState>,
+  compositionId: CinemaCompositionId,
+  duplicateId: CinemaCompositionId,
+  name: string | undefined,
+  saved: boolean,
+  timestamp?: string,
+): CinemaPersistedState {
+  const source = requireCinemaComposition(current, compositionId)
+  if (current.compositions.some(composition => composition.id === duplicateId)) {
+    throw new Error(`Cinema composition "${duplicateId}" already exists.`)
+  }
+  const duplicate = duplicateCinemaCompositionGraph(source, {
+    id: duplicateId,
+    name,
+    saved,
+    timestamp,
+  })
+  return {
+    ...current,
+    compositions: [...current.compositions, duplicate],
+    activeCompositionId: duplicate.id,
+    activeInstanceId: null,
+    editorMetadata: withCinemaEditorSelection(
+      current.editorMetadata,
+      duplicate.id,
+      duplicate.nodes[0]?.id ?? null,
+    ),
+  }
 }
 
 function collectPackageConflicts(current: CinemaPersistedState, imported: CinemaPersistedState): string[] {

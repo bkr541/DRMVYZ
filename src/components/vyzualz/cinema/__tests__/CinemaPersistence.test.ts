@@ -23,11 +23,14 @@ import {
   createCinemaPackageFromPersistedState,
   createCinemaParameterPath,
   createCinemaStore,
+  getCinemaCompositionLibraryStatus,
   decodeCinemaPackage,
   encodeCinemaPackage,
   normalizeCinemaPersistedState,
+  parseCinemaParameterPath,
   preflightCinemaPackage,
   snapshotCinemaPersistedState,
+  CINEMA_PROJECT_STATE_KEYS,
   type CinemaActionId,
   type CinemaAssetBindingId,
   type CinemaAssetId,
@@ -47,10 +50,12 @@ import {
   type CinemaParameterId,
   type CinemaPerformanceRuleId,
   type CinemaPersistedDefinition,
+  type CinemaPersistedState,
   type CinemaPortId,
   type CinemaRendererPluginId,
   type CinemaStableId,
 } from '../index'
+import { createSplitPersistStorage, splitStorageValue } from '../../../../lib/splitPersistStorage'
 
 function stable<T extends CinemaStableId>(value: string, kind: string): T {
   return cinemaStableId<T>(value, kind)
@@ -489,6 +494,155 @@ describe('Cinema complete-graph history', () => {
     expect(store.getState().redoStack).toHaveLength(1)
     store.getState().renameCinemaComposition(compositionId, 'New branch')
     expect(store.getState().redoStack).toEqual([])
+  })
+})
+
+describe('Cinema Stage 20 library workflows', () => {
+  it('duplicates every composition-local stable ID and preserves internal graph references', () => {
+    const candidate = JSON.parse(JSON.stringify(populatedState()))
+    candidate.compositions[0].metadata.provenance = {
+      builtIn: false,
+      libraryOrigin: 'user',
+      libraryVersion: 1,
+      savedRevision: 1,
+    }
+    candidate.compositions[0].cameras = [{
+      id: cameraId,
+      label: 'Shared Camera',
+      mode: 'locked',
+      parameterValues: {},
+      invalidRegions: [{ id: 'camera-core', shape: 'sphere', center: [0, 0, 0], radius: 0.5 }],
+      authoredShots: [{ id: 'hero-shot', mode: 'locked', metadata: { trackedNodeId: sourceNodeId } }],
+      metadata: { trackedNodeId: sourceNodeId },
+    }]
+    candidate.compositions[0].performanceRules[0].actions.push({
+      schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+      id: stable<CinemaActionId>('camera-action', 'performance action'),
+      type: 'select-camera',
+      cameraId,
+    })
+    candidate.compositions[0].performanceRules[0].actions.push({
+      schemaVersion: CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
+      id: stable<CinemaActionId>('node-action', 'performance action'),
+      type: 'set-node-enabled',
+      nodeId: sourceNodeId,
+      enabled: true,
+    })
+
+    const store = createCinemaStore({ initialState: candidate })
+    const duplicateId = stable<CinemaCompositionId>('composition-copy', 'composition')
+    expect(store.getState().duplicateCinemaComposition(compositionId, duplicateId, 'Independent Copy').ok).toBe(true)
+
+    const source = store.getState().compositions.find(value => value.id === compositionId)!
+    const copy = store.getState().compositions.find(value => value.id === duplicateId)!
+    expect(copy.metadata.name).toBe('Independent Copy')
+    expect(copy.revision).toBe(1)
+    expect(getCinemaCompositionLibraryStatus(copy)).toEqual({ provenance: 'user', modified: false, savedRevision: 1 })
+
+    const sourceIds = new Set([
+      ...source.nodes.map(value => String(value.id)),
+      ...source.connections.map(value => String(value.id)),
+      ...source.cameras.map(value => String(value.id)),
+      ...source.assetBindings.map(value => String(value.id)),
+      ...source.modulationRoutes.map(value => String(value.id)),
+      ...source.performanceRules.map(value => String(value.id)),
+      ...source.performanceRules.flatMap(rule => rule.actions.map(value => String(value.id))),
+    ])
+    const copyIds = [
+      ...copy.nodes.map(value => String(value.id)),
+      ...copy.connections.map(value => String(value.id)),
+      ...copy.cameras.map(value => String(value.id)),
+      ...copy.assetBindings.map(value => String(value.id)),
+      ...copy.modulationRoutes.map(value => String(value.id)),
+      ...copy.performanceRules.map(value => String(value.id)),
+      ...copy.performanceRules.flatMap(rule => rule.actions.map(value => String(value.id))),
+    ]
+    expect(copyIds.every(id => !sourceIds.has(id))).toBe(true)
+
+    expect(copy.connections[0].from.nodeId).toBe(copy.nodes[0].id)
+    expect(copy.connections[0].to.nodeId).toBe(copy.nodes[1].id)
+    expect(copy.outputNodeId).toBe(copy.nodes[1].id)
+    expect(copy.nodes[0].assetBindingIds).toEqual([copy.assetBindings[0].id])
+    const route = parseCinemaParameterPath(copy.modulationRoutes[0].destination)
+    expect(route.ok && route.ownerId).toBe(String(copy.nodes[0].id))
+    expect(copy.performanceRules[0].actions.find(action => action.type === 'select-camera')).toMatchObject({
+      cameraId: copy.cameras[0].id,
+    })
+    expect(copy.performanceRules[0].actions.find(action => action.type === 'set-node-enabled')).toMatchObject({
+      nodeId: copy.nodes[0].id,
+    })
+    expect(copy.cameras[0].metadata).toMatchObject({ trackedNodeId: copy.nodes[0].id })
+    expect(copy.cameras[0].authoredShots?.[0].id).not.toBe(source.cameras[0].authoredShots?.[0].id)
+    expect(copy.cameras[0].invalidRegions?.[0].id).not.toBe(source.cameras[0].invalidRegions?.[0].id)
+  })
+
+  it('protects built-ins, supports Save As, tracks modified status, and selects a safe fallback on deletion', () => {
+    const foundationStore = createCinemaStore()
+    const builtInId = foundationStore.getState().activeCompositionId!
+    const beforeBuiltIn = snapshotCinemaPersistedState(foundationStore.getState())
+    expect(foundationStore.getState().renameCinemaComposition(builtInId, 'Do not mutate').ok).toBe(false)
+    expect(foundationStore.getState().deleteCinemaComposition(builtInId).ok).toBe(false)
+    const builtInDefinitionId = foundationStore.getState().definitions[0].id
+    expect(foundationStore.getState().deleteCinemaDefinition(builtInDefinitionId).ok).toBe(false)
+    expect(snapshotCinemaPersistedState(foundationStore.getState())).toEqual(beforeBuiltIn)
+
+    const savedAsId = stable<CinemaCompositionId>('saved-reference-copy', 'composition')
+    expect(foundationStore.getState().saveCinemaCompositionAs(builtInId, savedAsId, 'Reference Copy').ok).toBe(true)
+    const savedAs = foundationStore.getState().compositions.find(value => value.id === savedAsId)!
+    expect(getCinemaCompositionLibraryStatus(savedAs)).toEqual({ provenance: 'user', modified: false, savedRevision: 1 })
+    expect(foundationStore.getState().activeCompositionId).toBe(savedAsId)
+
+    expect(foundationStore.getState().renameCinemaComposition(savedAsId, 'Reference Copy Renamed').ok).toBe(true)
+    expect(getCinemaCompositionLibraryStatus(foundationStore.getState().compositions.find(value => value.id === savedAsId)!)).toMatchObject({ modified: true })
+    expect(foundationStore.getState().saveCinemaComposition(savedAsId, '2026-08-07T06:00:00.000Z').ok).toBe(true)
+    expect(getCinemaCompositionLibraryStatus(foundationStore.getState().compositions.find(value => value.id === savedAsId)!)).toMatchObject({ modified: false })
+
+    expect(foundationStore.getState().deleteCinemaComposition(savedAsId).ok).toBe(true)
+    expect(foundationStore.getState().activeCompositionId).not.toBeNull()
+    expect(foundationStore.getState().activeCompositionId).not.toBe(savedAsId)
+  })
+
+  it('exports one portable user composition and merges it without replacing unrelated project state', () => {
+    const source = createCinemaStore({ initialState: populatedState() })
+    const packageDefinition = source.getState().exportCinemaCompositionPackage(compositionId, {
+      exportedAt: '2026-08-07T06:00:00.000Z',
+    })
+    expect(packageDefinition.compositions).toHaveLength(1)
+    expect(packageDefinition.definitions).toEqual([])
+    expect(packageDefinition.instances).toHaveLength(1)
+    expect(packageDefinition.collections).toHaveLength(1)
+    expect(packageDefinition.assetIds).toEqual([assetId])
+
+    const target = createCinemaStore()
+    const builtInsBefore = target.getState().compositions.length
+    expect(target.getState().importCinemaPackage(packageDefinition, { mode: 'merge', conflictPolicy: 'reject' }).ok).toBe(true)
+    expect(target.getState().compositions).toHaveLength(builtInsBefore + 1)
+    expect(target.getState().compositions.some(value => value.id === compositionId)).toBe(true)
+  })
+
+  it('routes the canonical Cinema snapshot through project persistence and round-trips without IndexedDB', async () => {
+    const snapshot = snapshotCinemaPersistedState(createCinemaStore({ initialState: populatedState() }).getState())
+    const split = splitStorageValue({ state: snapshot, version: 3 }, CINEMA_PROJECT_STATE_KEYS)
+    expect(split.local.state).toEqual({})
+    expect(split.project.state.compositions).toEqual(snapshot.compositions)
+    expect(split.project.state.activeCompositionId).toBe(snapshot.activeCompositionId)
+
+    const storage = createSplitPersistStorage<CinemaPersistedState>({
+      projectKeys: CINEMA_PROJECT_STATE_KEYS,
+      databaseName: 'cinema-stage20-test',
+      objectStoreName: 'cinema-state',
+    })
+    await storage.setItem('cinema-project', { state: snapshot, version: 3 })
+    const reloaded = await storage.getItem('cinema-project')
+    expect(reloaded?.state.compositions).toEqual(snapshot.compositions)
+    expect(reloaded?.state.activeCompositionId).toBe(snapshot.activeCompositionId)
+
+    const reopenedStore = createCinemaStore()
+    expect(reopenedStore.getState().hydrateCinemaState(reloaded?.state).ok).toBe(true)
+    expect(reopenedStore.getState().activeCompositionId).toBe(snapshot.activeCompositionId)
+    expect(reopenedStore.getState().compositions).toEqual(snapshot.compositions)
+    expect(reopenedStore.getState().instances).toEqual(snapshot.instances)
+    expect(reopenedStore.getState().collections).toEqual(snapshot.collections)
   })
 })
 

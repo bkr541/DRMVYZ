@@ -15860,3 +15860,68 @@
     grid-template-columns: 52px minmax(0, 1fr);
   }
 }
+
+/* Cinema Composer Stage 20: composition library and package workflows. */
+.rv-cinema-library-manager {
+  display: grid;
+  gap: 8px;
+}
+
+.rv-cinema-library-manager__status,
+.rv-cinema-library-manager__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rv-cinema-library-manager__status {
+  justify-content: space-between;
+  padding: 7px;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,.1));
+  border-radius: 6px;
+  background: rgba(255,255,255,.025);
+}
+
+.rv-cinema-library-manager__status span,
+.rv-cinema-library-manager__collections small,
+.rv-cinema-library-manager__message {
+  color: var(--text-secondary, #9aa4b2);
+  font-size: 9px;
+}
+
+.rv-cinema-library-manager__actions button {
+  border: 1px solid var(--border-subtle, rgba(255,255,255,.12));
+  background: rgba(255,255,255,.045);
+  color: inherit;
+  border-radius: 5px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.rv-cinema-library-manager__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rv-cinema-library-manager__collections {
+  display: grid;
+  gap: 5px;
+  padding-top: 3px;
+}
+
+.rv-cinema-library-manager__collections > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.rv-cinema-library-manager__message {
+  line-height: 1.4;
+}
