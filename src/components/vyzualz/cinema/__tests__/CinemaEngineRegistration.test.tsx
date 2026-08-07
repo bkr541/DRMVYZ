@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
 import { ReactEngineBrowser } from '../../react/ReactEngineBrowser'
 import { CinemaWorkspace, resolveCinemaWorkspaceModel } from '../../react/CinemaWorkspace'
+import { ReactInspectorPanel } from '../../react/ReactInspectorPanel'
 import { CinemaResizeObserverMock, createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 import { buildCinemaWorkspaceFrameBridge } from '../../react/CinemaWorkspaceFrameBridge'
 import {
@@ -17,6 +18,7 @@ import {
   CINEMA_STAGE16_REFERENCE_COMPOSITION_ID,
   createCinemaFoundationPersistedState,
 } from '../CinemaFoundation'
+import { getCinemaComposerLayers } from '../CinemaComposer'
 import { createCinemaDiagnosticSnapshot } from '../CinemaDiagnostics'
 import {
   getDrmvyzWebGLContextDiagnosticsForTests,
@@ -69,6 +71,21 @@ function ProductionSelectionHarness({
           onCanvasReady={onCanvasReady}
         />
       ) : <div data-legacy-engine={engineId} />}
+    </>
+  )
+}
+
+function ComposerSelectionHarness() {
+  const engineId = useReactStore(state => state.activeReactEngineId)
+  return (
+    <>
+      <ReactEngineBrowser />
+      {engineId === 'cinema' ? (
+        <>
+          <CinemaWorkspace surface="panel" frameBridge={productionFrameBridge} />
+          <ReactInspectorPanel />
+        </>
+      ) : <div data-composer-legacy-engine={engineId} />}
     </>
   )
 }
@@ -147,7 +164,7 @@ describe('Cinema production engine registration', () => {
     expect(state.activeReactPresetId).toBeNull()
     expect(host?.querySelector('[data-cinema-workspace="runtime"]')).not.toBeNull()
     expect(host?.querySelector('[data-cinema-frame-available="true"]')).not.toBeNull()
-    expect(host?.textContent).toContain('Graph-aware quality, diagnostics, and recovery')
+    expect(host?.textContent).toContain('Composer visuals, library, and schema Inspector')
     expect(canvas).not.toBeNull()
     expect(retire).toHaveBeenCalledTimes(1)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
@@ -189,7 +206,7 @@ describe('Cinema production engine registration', () => {
     })
   })
 
-  it('surfaces the Stage 17 runtime through the canonical Cinema store and production workspace', async () => {
+  it('surfaces the Stage 18 Composer through the canonical Cinema store and production workspace', async () => {
     const selected = useCinemaStore.getState().setActiveCinemaComposition(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
     expect(selected.ok).toBe(true)
 
@@ -199,7 +216,56 @@ describe('Cinema production engine registration', () => {
 
     expect(useCinemaStore.getState().activeCompositionId).toBe(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
     expect(host?.textContent).toContain('Cinema Layer Compositor Reference')
-    expect(host?.textContent).toContain('Stage 17 graph-aware quality, diagnostics, and recovery wired')
+    expect(host?.textContent).toContain('Stage 18 Composer wired to canonical Cinema state')
+  })
+
+  it('enters the real Cinema workspace from the engine selector and mutates canonical Composer state', async () => {
+    await act(async () => root?.render(<ComposerSelectionHarness />))
+    const trigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
+    await act(async () => trigger?.click())
+    const cinemaOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
+      .find(option => option.textContent?.includes('Cinema'))
+    await act(async () => cinemaOption?.click())
+
+    expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
+    expect(host?.textContent).toContain('Visuals & Library')
+    expect(host?.textContent).toContain('Cinema Inspector')
+
+    const newComposition = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find(button => button.textContent === 'New Composition')
+    await act(async () => newComposition?.click())
+
+    const activeId = useCinemaStore.getState().activeCompositionId
+    const active = useCinemaStore.getState().compositions.find(composition => composition.id === activeId)
+    expect(active?.metadata.provenance?.composerStructured).toBe(true)
+    expect(active ? getCinemaComposerLayers(active) : []).toHaveLength(2)
+
+    const firstLayerButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-composer__layer-select')
+    firstLayerButton?.focus()
+    expect(document.activeElement).toBe(firstLayerButton)
+    expect(host?.querySelector<HTMLButtonElement>('button[aria-label="Move layer up"]')?.disabled).toBe(true)
+    const disabledLibraryAction = [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-composer__library-item button[disabled]') ?? [])]
+      .find(button => button.getAttribute('title'))
+    expect(disabledLibraryAction?.getAttribute('title')).toBeTruthy()
+
+    const opacity = host?.querySelector<HTMLInputElement>('.rv-cinema-composer input[type="range"]')
+    expect(opacity).not.toBeNull()
+    const undoBeforeGesture = useCinemaStore.getState().undoStack.length
+    await act(async () => {
+      if (!opacity) return
+      opacity.focus()
+      opacity.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+      for (const value of ['0.6', '0.35']) {
+        opacity.value = value
+        opacity.dispatchEvent(new Event('input', { bubbles: true }))
+        opacity.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+      opacity.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }))
+    })
+    expect(document.activeElement).toBe(opacity)
+    expect(useCinemaStore.getState().undoStack).toHaveLength(undoBeforeGesture + 1)
+    const updated = useCinemaStore.getState().compositions.find(composition => composition.id === activeId)
+    expect(updated?.nodes.some(node => node.family === 'procedural' && node.opacity === 0.35)).toBe(true)
   })
 
   it('keeps only one active Cinema context and loop through a Strict Mode effect replay', async () => {

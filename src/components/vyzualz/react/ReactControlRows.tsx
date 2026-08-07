@@ -15,12 +15,14 @@ export interface SliderRowProps {
   id?: string
   disabled?: boolean
   description?: string
+  onInteractionStart?: () => void
+  onInteractionEnd?: () => void
 }
 
 export function SliderRow({
   label, labelAccessory, value, onChange,
   min = 0, max = 1, step = 0.01,
-  color = '#4ac7db', id, disabled = false, description,
+  color = '#4ac7db', id, disabled = false, description, onInteractionStart, onInteractionEnd,
 }: SliderRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -45,6 +47,12 @@ export function SliderRow({
         min={min} max={max} step={step}
         value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
+        onPointerDown={onInteractionStart}
+        onPointerUp={onInteractionEnd}
+        onPointerCancel={onInteractionEnd}
+        onKeyDown={event => { if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') onInteractionStart?.() }}
+        onKeyUp={event => { if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') onInteractionEnd?.() }}
+        onBlur={onInteractionEnd}
         style={{ '--accent': color, '--pct': pct } as React.CSSProperties}
         disabled={disabled}
         aria-describedby={description ? `${inputId}-description` : undefined}
@@ -212,10 +220,12 @@ export interface TextInputRowProps {
   onBlur?: (value: string) => void
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
   autoComplete?: string
+  disabled?: boolean
+  description?: string
 }
 
 export function TextInputRow({
-  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur, inputMode, autoComplete = 'off',
+  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur, inputMode, autoComplete = 'off', disabled = false, description,
 }: TextInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -236,7 +246,10 @@ export function TextInputRow({
         autoComplete={autoComplete}
         placeholder={placeholder}
         spellCheck={false}
+        disabled={disabled}
+        aria-describedby={description ? `${inputId}-description` : undefined}
       />
+      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )
 }

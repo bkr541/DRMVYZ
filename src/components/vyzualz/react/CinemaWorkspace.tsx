@@ -16,6 +16,7 @@ import {
   type CinemaRuntimeSnapshot,
 } from '../cinema'
 import { CinemaCanvas } from './CinemaCanvas'
+import { CinemaComposerPanel } from './CinemaComposerPanel'
 
 export type CinemaWorkspaceSurface = 'panel' | 'stage'
 
@@ -180,9 +181,10 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 17 graph-aware quality, diagnostics, and recovery wired</strong>
-          <span>Adaptive graph budgeting, node visibility skips, bounded runtime telemetry, and full context reconstruction now run inside the single Cinema context and target pool.</span>
+          <strong>Stage 18 Composer wired to canonical Cinema state</strong>
+          <span>Structured visuals, the registered node library, transactional history, and schema-generated Inspector now edit the same composition graph used by the Cinema runtime.</span>
         </div>
+        <CinemaComposerPanel />
       </section>
     )
   }
@@ -213,10 +215,10 @@ export function CinemaWorkspace({
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 17</div>
-        <h2>Graph-aware quality, diagnostics, and recovery</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 18</div>
+        <h2>Composer visuals, library, and schema Inspector</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema now budgets rendering by graph cost, visibility, and node role, preserves foreground/output quality first, publishes bounded runtime telemetry, and reconstructs the reachable graph after WebGL2 context restoration without adding another canvas, context, or animation loop.
+          Cinema now exposes graph-backed visual layers, registered node discovery, and schema-generated authored controls while preserving the Stage 17 single-runtime quality, diagnostics, and context-recovery foundation.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>

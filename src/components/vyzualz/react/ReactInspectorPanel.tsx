@@ -27,6 +27,7 @@ import {
 } from './svgSourceLifecycle'
 import type { UnifiedSvgStatus } from './svgSourceLifecycle'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
+import { CinemaInspectorPanel } from './CinemaInspectorPanel'
 
 // ── Display maps ──────────────────────────────────────────────────────────────
 
@@ -221,6 +222,15 @@ export function ReactInspectorPanel() {
       <KvRow label="Active Preset" value={preset?.name ?? 'None'} />
     </div>
   )
+
+  if (activeReactEngineId === 'cinema') {
+    return (
+      <>
+        {engineSummary}
+        <CinemaInspectorPanel />
+      </>
+    )
+  }
 
   if (activeReactEngineId === 'shaderPads') {
     return (

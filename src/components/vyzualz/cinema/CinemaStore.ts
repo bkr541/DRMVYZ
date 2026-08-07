@@ -12,6 +12,7 @@ import type {
   CinemaCompositionDefinition,
   CinemaAssetBindingDefinition,
   CinemaCompositionInstance,
+  CinemaJsonObject,
 } from './CinemaDomain'
 import type {
   CinemaAssetBindingId,
@@ -19,6 +20,7 @@ import type {
   CinemaCompositionId,
   CinemaCompositionInstanceId,
   CinemaNodeTypeId,
+  CinemaNodeId,
 } from './CinemaIdentifiers'
 import { preflightCinemaPackage } from './CinemaPackageIO'
 import {
@@ -54,6 +56,11 @@ export interface CinemaStoreOperationResult {
   diagnostics: CinemaDiagnosticSnapshot
 }
 
+export interface CinemaCompositionEditResult {
+  composition: CinemaCompositionDefinition
+  selectedNodeId?: CinemaNodeId | null
+}
+
 export interface CinemaPackageImportOptions {
   mode?: 'replace' | 'merge'
   conflictPolicy?: 'reject' | 'replace'
@@ -74,6 +81,12 @@ export interface CinemaStoreState extends CinemaPersistedState {
   upsertCinemaDefinition: (definition: CinemaPersistedDefinition) => CinemaStoreOperationResult
   deleteCinemaDefinition: (definitionId: CinemaNodeTypeId) => CinemaStoreOperationResult
   upsertCinemaComposition: (composition: CinemaCompositionDefinition) => CinemaStoreOperationResult
+  editCinemaComposition: (
+    compositionId: CinemaCompositionId,
+    label: string,
+    edit: (composition: Readonly<CinemaCompositionDefinition>) => CinemaCompositionEditResult,
+  ) => CinemaStoreOperationResult
+  setCinemaEditorSelection: (compositionId: CinemaCompositionId, nodeId: CinemaNodeId | null) => CinemaStoreOperationResult
   upsertCinemaAssetBinding: (compositionId: CinemaCompositionId, binding: CinemaAssetBindingDefinition) => CinemaStoreOperationResult
   deleteCinemaAssetBinding: (compositionId: CinemaCompositionId, bindingId: CinemaAssetBindingId) => CinemaStoreOperationResult
   renameCinemaComposition: (compositionId: CinemaCompositionId, name: string) => CinemaStoreOperationResult
@@ -264,6 +277,59 @@ function createCinemaStoreInitializer(
         compositions: upsertById(current.compositions, composition),
       })),
 
+      editCinemaComposition: (compositionId, label, edit) => mutateDocument(label, current => {
+        const source = current.compositions.find(composition => composition.id === compositionId)
+        if (!source) throw new Error(`Cinema composition "${compositionId}" does not exist.`)
+        const result = edit(cloneCinemaSerializable(source))
+        const nextComposition = result.composition
+        if (nextComposition.id !== compositionId) throw new Error('Cinema composition edits cannot change the stable composition ID.')
+
+        const remainingNodeIds = new Set(nextComposition.nodes.map(node => String(node.id)))
+        const remainingCameraIds = new Set(nextComposition.cameras.map(camera => String(camera.id)))
+        const remainingBindingIds = new Set(nextComposition.assetBindings.map(binding => String(binding.id)))
+        const selectedNodeId = result.selectedNodeId === undefined
+          ? getCinemaEditorSelection(current.editorMetadata, compositionId)
+          : result.selectedNodeId
+        const safeSelection = selectedNodeId != null && remainingNodeIds.has(String(selectedNodeId)) ? selectedNodeId : null
+
+        return {
+          ...current,
+          compositions: upsertById(current.compositions, nextComposition),
+          instances: current.instances.map(instance => {
+            if (instance.compositionId !== compositionId) return instance
+            const nodeOverrides = instance.nodeOverrides.filter(override => remainingNodeIds.has(String(override.nodeId)))
+            const cameraOverrides = instance.cameraOverrides.filter(override => remainingCameraIds.has(String(override.cameraId)))
+            const assetBindingOverrides = instance.assetBindingOverrides.filter(override => remainingBindingIds.has(String(override.bindingId)))
+            const changed = nodeOverrides.length !== instance.nodeOverrides.length
+              || cameraOverrides.length !== instance.cameraOverrides.length
+              || assetBindingOverrides.length !== instance.assetBindingOverrides.length
+            return changed
+              ? { ...instance, revision: instance.revision + 1, nodeOverrides, cameraOverrides, assetBindingOverrides }
+              : instance
+          }),
+          editorMetadata: withCinemaEditorSelection(current.editorMetadata, compositionId, safeSelection),
+        }
+      }),
+
+      setCinemaEditorSelection: (compositionId, nodeId) => {
+        const current = get()
+        const composition = current.compositions.find(candidate => candidate.id === compositionId)
+        if (!composition) {
+          const diagnostics = transactionDiagnostic(`Cinema composition "${compositionId}" does not exist.`)
+          set({ lastDiagnostics: diagnostics })
+          return { ok: false, diagnostics }
+        }
+        if (nodeId != null && !composition.nodes.some(node => node.id === nodeId)) {
+          const diagnostics = transactionDiagnostic(`Cinema node "${nodeId}" does not exist in the active composition.`)
+          set({ lastDiagnostics: diagnostics })
+          return { ok: false, diagnostics }
+        }
+        return applyDocument({
+          ...snapshotCinemaPersistedState(current),
+          editorMetadata: withCinemaEditorSelection(current.editorMetadata, compositionId, nodeId),
+        }, 'Select Cinema editor node', { recordHistory: false })
+      },
+
       upsertCinemaAssetBinding: (compositionId, binding) => mutateDocument(
         'Update Cinema asset binding',
         current => ({
@@ -356,6 +422,7 @@ function createCinemaStoreInitializer(
           activeInstanceId: current.activeInstanceId != null && removedInstanceIds.has(current.activeInstanceId)
             ? null
             : current.activeInstanceId,
+          editorMetadata: withCinemaEditorSelection(current.editorMetadata, compositionId, null),
         }
       }),
 
@@ -551,6 +618,32 @@ function createCinemaStoreInitializer(
       },
     }
   }
+}
+
+const CINEMA_EDITOR_SELECTION_KEY = 'composerSelectionByComposition'
+
+export function getCinemaEditorSelection(
+  metadata: Readonly<CinemaJsonObject>,
+  compositionId: CinemaCompositionId,
+): CinemaNodeId | null {
+  const raw = metadata[CINEMA_EDITOR_SELECTION_KEY]
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const value = (raw as Record<string, unknown>)[String(compositionId)]
+  return typeof value === 'string' ? value as CinemaNodeId : null
+}
+
+function withCinemaEditorSelection(
+  metadata: Readonly<CinemaJsonObject>,
+  compositionId: CinemaCompositionId,
+  nodeId: CinemaNodeId | null,
+): CinemaJsonObject {
+  const raw = metadata[CINEMA_EDITOR_SELECTION_KEY]
+  const current = raw != null && typeof raw === 'object' && !Array.isArray(raw)
+    ? { ...(raw as Record<string, string>) }
+    : {}
+  if (nodeId == null) delete current[String(compositionId)]
+  else current[String(compositionId)] = String(nodeId)
+  return { ...metadata, [CINEMA_EDITOR_SELECTION_KEY]: current }
 }
 
 function collectPackageConflicts(current: CinemaPersistedState, imported: CinemaPersistedState): string[] {

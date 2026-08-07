@@ -31,3 +31,5 @@ export * from './CinemaBrandKitBridge'
 export * from './CinemaMediaTextNodes'
 export * from './CinemaCompositorMath'
 export * from './CinemaCompositorNodes'
+
+export * from './CinemaComposer'

@@ -15487,3 +15487,209 @@
 @media (max-width: 900px) {
   .rv-cinema-workspace__grid--stage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Cinema Composer (Stage 18) */
+.rv-cinema-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.rv-cinema-composer__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rv-cinema-composer__heading h3 {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-primary, #f5f7fa);
+}
+
+.rv-cinema-composer__history,
+.rv-cinema-composer__layer-actions,
+.rv-cinema-composer__effects > div {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.rv-cinema-composer button,
+.rv-cinema-composer__search input {
+  font: inherit;
+}
+
+.rv-cinema-composer__history button,
+.rv-cinema-composer__layer-actions button,
+.rv-cinema-composer__effects button,
+.rv-cinema-composer__library-item button,
+.rv-cinema-composer__saved,
+.rv-cinema-composer__primary {
+  border: 1px solid var(--border-subtle, rgba(255,255,255,.12));
+  background: rgba(255,255,255,.045);
+  color: inherit;
+  border-radius: 5px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.rv-cinema-composer__primary {
+  width: 100%;
+  border-color: rgba(74,199,219,.35);
+  background: rgba(74,199,219,.1);
+}
+
+.rv-cinema-composer button:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+
+.rv-cinema-composer__notice,
+.rv-cinema-composer__library-item {
+  border: 1px solid var(--border-subtle, rgba(255,255,255,.1));
+  border-radius: 6px;
+  background: rgba(255,255,255,.025);
+  padding: 7px;
+}
+
+.rv-cinema-composer__notice {
+  display: grid;
+  gap: 4px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.rv-cinema-composer__notice span,
+.rv-cinema-composer__library-item span,
+.rv-cinema-composer__library-item small,
+.rv-cinema-composer__saved span,
+.rv-cinema-composer__layer-select span {
+  color: var(--text-secondary, #9aa4b2);
+  font-size: 9px;
+}
+
+.rv-cinema-composer__layer-list,
+.rv-cinema-composer__library {
+  display: grid;
+  gap: 6px;
+}
+
+.rv-cinema-composer__layer {
+  border: 1px solid var(--border-subtle, rgba(255,255,255,.1));
+  border-radius: 6px;
+  background: rgba(255,255,255,.02);
+  overflow: hidden;
+}
+
+.rv-cinema-composer__layer.is-selected {
+  border-color: rgba(74,199,219,.52);
+  box-shadow: inset 2px 0 0 rgba(74,199,219,.7);
+}
+
+.rv-cinema-composer__layer-select {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 7px;
+  cursor: pointer;
+}
+
+.rv-cinema-composer__layer-actions {
+  flex-wrap: wrap;
+  padding: 0 7px 7px;
+}
+
+.rv-cinema-composer__layer-controls {
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,.08));
+  padding: 6px 7px;
+}
+
+.rv-cinema-composer__effects {
+  display: grid;
+  gap: 4px;
+  padding: 0 7px 7px;
+}
+
+.rv-cinema-composer__effects > div {
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,.06));
+  padding-top: 4px;
+}
+
+.rv-cinema-composer__effects > div > button:first-child {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.rv-cinema-composer__effects > div.is-selected > button:first-child {
+  border-color: rgba(74,199,219,.45);
+}
+
+.rv-cinema-composer__search {
+  display: grid;
+  gap: 4px;
+  font-size: 9px;
+  color: var(--text-secondary, #9aa4b2);
+}
+
+.rv-cinema-composer__search input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,.12));
+  background: rgba(0,0,0,.18);
+  color: inherit;
+  border-radius: 5px;
+  padding: 6px 7px;
+}
+
+.rv-cinema-composer__library-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 7px;
+  align-items: center;
+}
+
+.rv-cinema-composer__library-item > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.rv-cinema-composer__library-item small {
+  grid-column: 1 / -1;
+  line-height: 1.35;
+}
+
+.rv-cinema-composer__saved {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  text-align: left;
+  margin-bottom: 5px;
+}
+
+.rv-cinema-composer__saved[aria-pressed="true"] {
+  border-color: rgba(74,199,219,.45);
+}
+
+.rv-cinema-inspector__vector {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,.07));
+  padding-top: 6px;
+}
+
+.rv-cinema-inspector__vector > span {
+  font-size: 9px;
+  color: var(--text-secondary, #9aa4b2);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
