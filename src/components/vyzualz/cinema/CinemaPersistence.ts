@@ -39,13 +39,15 @@ import type { CinemaNodeTypeDefinition } from './CinemaRendererContracts'
 import { validateCinemaCompositionGraph } from './CinemaGraphCompiler'
 import { validateCinemaParameterSchemas } from './CinemaParameterSchema'
 import { normalizeCinemaAssetBinding } from './CinemaAssets'
+import { normalizeCinemaGraphEditorMetadata } from './CinemaGraphEditorMetadata'
 
 export const CINEMA_PERSISTED_STORE_SCHEMA_ID = 'drmvyz.cinema.store' as const
-export const CINEMA_PERSISTED_STORE_SCHEMA_VERSION = 3 as const
+export const CINEMA_PERSISTED_STORE_SCHEMA_VERSION = 4 as const
 export const CINEMA_DEFAULT_HISTORY_LIMIT = 50 as const
 export const CINEMA_MAX_HISTORY_LIMIT = 200 as const
 export const CINEMA_STAGE_12_MIGRATION_TIMESTAMP = '2026-08-06T00:00:00.000Z' as const
 export const CINEMA_STAGE_14_MIGRATION_TIMESTAMP = '2026-08-06T20:41:00.000Z' as const
+export const CINEMA_STAGE_22_MIGRATION_TIMESTAMP = '2026-08-07T03:38:00.000Z' as const
 
 export interface CinemaMigrationProvenance {
   fromSchemaVersion: number
@@ -116,7 +118,7 @@ export function createEmptyCinemaPersistedState(): CinemaPersistedState {
     collections: [],
     activeCompositionId: null,
     activeInstanceId: null,
-    editorMetadata: {},
+    editorMetadata: normalizeCinemaGraphEditorMetadata({}).metadata,
     migrationProvenance: [],
   }
 }
@@ -155,14 +157,26 @@ export function migrateCinemaPersistedStateInput(input: Record<string, unknown>)
     const provenance = Array.isArray(current.migrationProvenance) ? current.migrationProvenance : []
     current = {
       ...current,
-      schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+      schemaVersion: 3,
       compositions: Array.isArray(current.compositions)
         ? current.compositions.map(migrateCinemaCompositionInput)
         : current.compositions,
       migrationProvenance: [...provenance, {
         fromSchemaVersion: 2,
-        toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+        toSchemaVersion: 3,
         migratedAt: CINEMA_STAGE_14_MIGRATION_TIMESTAMP,
+      }],
+    }
+  }
+  if (current.schemaVersion === 3) {
+    const provenance = Array.isArray(current.migrationProvenance) ? current.migrationProvenance : []
+    current = {
+      ...current,
+      schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+      migrationProvenance: [...provenance, {
+        fromSchemaVersion: 3,
+        toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+        migratedAt: CINEMA_STAGE_22_MIGRATION_TIMESTAMP,
       }],
     }
   }
@@ -289,6 +303,10 @@ export function normalizeCinemaPersistedState(input: unknown): CinemaPersistence
 
     const rawCompositions = readArray(migratedInput, 'compositions', diagnostics)
     const normalizedCompositions = rawCompositions.map(composition => normalizePersistedCompositionAssets(composition, diagnostics))
+    const graphEditorMetadata = normalizeCinemaGraphEditorMetadata(
+      isPlainRecord(migratedInput.editorMetadata) ? migratedInput.editorMetadata as CinemaJsonObject : {},
+    )
+    diagnostics.push(...graphEditorMetadata.diagnostics)
     const candidate: CinemaPersistedState = {
       schemaId: CINEMA_PERSISTED_STORE_SCHEMA_ID,
       schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
@@ -302,9 +320,7 @@ export function normalizeCinemaPersistedState(input: unknown): CinemaPersistence
       activeInstanceId: migratedInput.activeInstanceId == null
         ? null
         : migratedInput.activeInstanceId as CinemaCompositionInstanceId,
-      editorMetadata: isPlainRecord(migratedInput.editorMetadata)
-        ? migratedInput.editorMetadata as CinemaJsonObject
-        : {},
+      editorMetadata: graphEditorMetadata.metadata,
       migrationProvenance: readArray(migratedInput, 'migrationProvenance', diagnostics) as unknown as readonly CinemaMigrationProvenance[],
     }
 

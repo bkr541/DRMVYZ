@@ -23,7 +23,7 @@ import type {
 export const CINEMA_COMPOSITION_SCHEMA_ID = 'drmvyz.cinema.composition' as const
 export const CINEMA_COMPOSITION_SCHEMA_VERSION = 3 as const
 export const CINEMA_PACKAGE_SCHEMA_ID = 'drmvyz.cinema.package' as const
-export const CINEMA_PACKAGE_SCHEMA_VERSION = 3 as const
+export const CINEMA_PACKAGE_SCHEMA_VERSION = 4 as const
 
 export type CinemaJsonPrimitive = string | number | boolean | null
 export type CinemaJsonValue = CinemaJsonPrimitive | CinemaJsonObject | readonly CinemaJsonValue[]

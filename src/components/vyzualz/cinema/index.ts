@@ -37,3 +37,6 @@ export * from './CinemaCompositorNodes'
 export * from './CinemaComposer'
 
 export * from './CinemaComposerStage19'
+
+export * from './CinemaGraphEditorMetadata'
+export * from './CinemaGraphEditor'

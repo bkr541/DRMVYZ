@@ -15925,3 +15925,268 @@
 .rv-cinema-library-manager__message {
   line-height: 1.4;
 }
+
+/* Cinema Stage 22: optional advanced freeform graph editor. */
+.rv-cinema-composer__mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(4, 8, 14, 0.45);
+}
+
+.rv-cinema-composer__mode button[aria-pressed='true'] {
+  border-color: rgba(83, 204, 255, 0.72);
+  background: rgba(52, 164, 214, 0.18);
+}
+
+.rv-cinema-composer__mode span {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+}
+
+.rv-cinema-graph-editor {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rv-cinema-graph-editor__toolbar,
+.rv-cinema-graph-accessible__connect {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-cinema-graph-editor__toolbar label,
+.rv-cinema-graph-accessible__connect label {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  flex: 1 1 180px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 11px;
+}
+
+.rv-cinema-graph-editor__toolbar select,
+.rv-cinema-graph-accessible select {
+  width: 100%;
+  min-width: 0;
+}
+
+.rv-cinema-graph-editor__zoom {
+  margin-left: auto;
+  align-self: center;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 11px;
+}
+
+.rv-cinema-graph-editor__message,
+.rv-cinema-graph-editor__diagnostics {
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+}
+
+.rv-cinema-graph-editor__diagnostics {
+  border-left: 2px solid rgba(255, 188, 77, 0.7);
+}
+
+.rv-cinema-graph-editor__surface {
+  position: relative;
+  height: clamp(420px, 58vh, 720px);
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  outline: none;
+  background-color: #080d13;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.rv-cinema-graph-editor__surface:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(83, 204, 255, 0.55);
+}
+
+.rv-cinema-graph-editor__world {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.rv-cinema-graph-editor__connections {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.rv-cinema-graph-editor__connections path {
+  fill: none;
+  stroke: rgba(135, 174, 194, 0.58);
+  stroke-width: 2.2;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.rv-cinema-graph-editor__connections path.is-selected {
+  stroke: rgba(83, 204, 255, 0.95);
+  stroke-width: 3.5;
+}
+
+.rv-cinema-graph-editor__connections path.has-diagnostic {
+  stroke-dasharray: 7 5;
+}
+
+.rv-cinema-graph-node {
+  position: absolute;
+  z-index: 2;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 9px;
+  background: rgba(17, 24, 32, 0.97);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
+.rv-cinema-graph-node.is-selected {
+  border-color: rgba(83, 204, 255, 0.88);
+  box-shadow: 0 0 0 1px rgba(83, 204, 255, 0.25), 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.rv-cinema-graph-node.has-diagnostic {
+  border-style: dashed;
+}
+
+.rv-cinema-graph-node__header {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  cursor: move;
+}
+
+.rv-cinema-graph-node__header > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.rv-cinema-graph-node__header strong,
+.rv-cinema-graph-node__header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-cinema-graph-node__header strong { font-size: 12px; }
+.rv-cinema-graph-node__header span { color: rgba(255, 255, 255, 0.5); font-size: 10px; }
+
+.rv-cinema-graph-node__badge {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid rgba(83, 204, 255, 0.35);
+  border-radius: 999px;
+}
+
+.rv-cinema-graph-node__ports {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px 0 10px;
+}
+
+.rv-cinema-graph-node__ports > div { display: grid; align-content: start; }
+
+.rv-cinema-graph-port {
+  min-height: 22px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 10px;
+  text-align: left;
+}
+
+.rv-cinema-graph-port--output { text-align: right; }
+.rv-cinema-graph-port span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-cinema-graph-port small { color: rgba(255, 255, 255, 0.38); font-size: 8px; }
+.rv-cinema-graph-port i {
+  width: 9px;
+  height: 9px;
+  border: 2px solid rgba(83, 204, 255, 0.82);
+  border-radius: 50%;
+  background: #080d13;
+}
+.rv-cinema-graph-port.is-armed i { background: rgba(83, 204, 255, 0.9); }
+
+.rv-cinema-graph-node__diagnostic {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  color: rgba(255, 198, 92, 0.9);
+  font-size: 10px;
+}
+
+.rv-cinema-graph-editor__bounded-note {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 4;
+  max-width: 320px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(4, 8, 14, 0.86);
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.rv-cinema-graph-accessible,
+.rv-cinema-graph-fallback {
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(4, 8, 14, 0.38);
+}
+
+.rv-cinema-graph-accessible summary { cursor: pointer; font-weight: 650; }
+.rv-cinema-graph-accessible p { color: rgba(255, 255, 255, 0.55); font-size: 11px; }
+.rv-cinema-graph-accessible__list { display: grid; gap: 4px; margin-top: 8px; }
+.rv-cinema-graph-accessible__list > button,
+.rv-cinema-graph-fallback__node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.rv-cinema-graph-accessible__list > button span,
+.rv-cinema-graph-fallback__node span { color: rgba(255, 255, 255, 0.48); font-size: 10px; }
+.rv-cinema-graph-fallback { display: grid; gap: 8px; }
+.rv-cinema-graph-node.is-disabled { opacity: 0.68; }
+.rv-cinema-graph-editor__connections path.is-disabled { stroke-dasharray: 4 5; opacity: 0.58; }

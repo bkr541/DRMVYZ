@@ -24,6 +24,7 @@ import type {
   CinemaCollectionId,
   CinemaCompositionId,
   CinemaCompositionInstanceId,
+  CinemaConnectionId,
   CinemaModulationRouteId,
   CinemaNodeTypeId,
   CinemaNodeId,
@@ -49,9 +50,20 @@ import {
   type CinemaPersistedState,
   type CinemaPersistencePackageDefinition,
 } from './CinemaPersistence'
+import {
+  getCinemaGraphEditorCompositionMetadata,
+  getCinemaGraphEditorPrimarySelection,
+  mergeCinemaGraphEditorMetadata,
+  scopeCinemaGraphEditorMetadata,
+  withCinemaGraphEditorCompositionMetadata,
+  withoutCinemaGraphEditorCompositionMetadata,
+  type CinemaEditorMode,
+  type CinemaGraphEditorPoint,
+  type CinemaGraphEditorViewport,
+} from './CinemaGraphEditorMetadata'
 
 export const CINEMA_PERSIST_STORAGE_NAME = 'drmvyz:cinema-store' as const
-export const CINEMA_PERSIST_MIDDLEWARE_VERSION = 3 as const
+export const CINEMA_PERSIST_MIDDLEWARE_VERSION = 4 as const
 export const CINEMA_PROJECT_STATE_KEYS = Object.freeze([
   'schemaId',
   'schemaVersion',
@@ -117,6 +129,18 @@ export interface CinemaStoreState extends CinemaPersistedState {
     edit: (composition: Readonly<CinemaCompositionDefinition>) => CinemaCompositionEditResult,
   ) => CinemaStoreOperationResult
   setCinemaEditorSelection: (compositionId: CinemaCompositionId, nodeId: CinemaNodeId | null) => CinemaStoreOperationResult
+  setCinemaGraphEditorMode: (compositionId: CinemaCompositionId, mode: CinemaEditorMode) => CinemaStoreOperationResult
+  setCinemaGraphEditorViewport: (compositionId: CinemaCompositionId, viewport: CinemaGraphEditorViewport) => CinemaStoreOperationResult
+  setCinemaGraphEditorSelection: (
+    compositionId: CinemaCompositionId,
+    nodeIds: readonly CinemaNodeId[],
+    connectionId?: CinemaConnectionId | null,
+  ) => CinemaStoreOperationResult
+  setCinemaGraphNodePositions: (
+    compositionId: CinemaCompositionId,
+    positions: Readonly<Record<string, CinemaGraphEditorPoint>>,
+    label?: string,
+  ) => CinemaStoreOperationResult
   upsertCinemaAssetBinding: (compositionId: CinemaCompositionId, binding: CinemaAssetBindingDefinition) => CinemaStoreOperationResult
   deleteCinemaAssetBinding: (compositionId: CinemaCompositionId, bindingId: CinemaAssetBindingId) => CinemaStoreOperationResult
   saveCinemaComposition: (compositionId: CinemaCompositionId, savedAt?: string) => CinemaStoreOperationResult
@@ -400,6 +424,75 @@ function createCinemaStoreInitializer(
         }, 'Select Cinema editor node', { recordHistory: false })
       },
 
+      setCinemaGraphEditorMode: (compositionId, mode) => {
+        const current = get()
+        if (!current.compositions.some(composition => composition.id === compositionId)) {
+          const diagnostics = transactionDiagnostic(`Cinema composition "${compositionId}" does not exist.`)
+          set({ lastDiagnostics: diagnostics })
+          return { ok: false, diagnostics }
+        }
+        return applyDocument({
+          ...snapshotCinemaPersistedState(current),
+          editorMetadata: withCinemaGraphEditorCompositionMetadata(current.editorMetadata, compositionId, { mode }),
+        }, 'Switch Cinema editor mode', { recordHistory: false })
+      },
+
+      setCinemaGraphEditorViewport: (compositionId, viewport) => {
+        const current = get()
+        if (!current.compositions.some(composition => composition.id === compositionId)) {
+          const diagnostics = transactionDiagnostic(`Cinema composition "${compositionId}" does not exist.`)
+          set({ lastDiagnostics: diagnostics })
+          return { ok: false, diagnostics }
+        }
+        return applyDocument({
+          ...snapshotCinemaPersistedState(current),
+          editorMetadata: withCinemaGraphEditorCompositionMetadata(current.editorMetadata, compositionId, { viewport }),
+        }, 'Pan or zoom Cinema graph', { recordHistory: false })
+      },
+
+      setCinemaGraphEditorSelection: (compositionId, nodeIds, connectionId = null) => {
+        const current = get()
+        const composition = current.compositions.find(candidate => candidate.id === compositionId)
+        if (!composition) {
+          const diagnostics = transactionDiagnostic(`Cinema composition "${compositionId}" does not exist.`)
+          set({ lastDiagnostics: diagnostics })
+          return { ok: false, diagnostics }
+        }
+        const validNodeIds = new Set(composition.nodes.map(node => String(node.id)))
+        if (nodeIds.some(nodeId => !validNodeIds.has(String(nodeId)))) {
+          const diagnostics = transactionDiagnostic('Cinema graph selection contains a node that no longer exists.')
+          set({ lastDiagnostics: diagnostics })
+          return { ok: false, diagnostics }
+        }
+        if (connectionId != null && !composition.connections.some(connection => connection.id === connectionId)) {
+          const diagnostics = transactionDiagnostic(`Cinema connection "${connectionId}" no longer exists.`)
+          set({ lastDiagnostics: diagnostics })
+          return { ok: false, diagnostics }
+        }
+        return applyDocument({
+          ...snapshotCinemaPersistedState(current),
+          editorMetadata: withCinemaGraphEditorCompositionMetadata(current.editorMetadata, compositionId, {
+            selectedNodeIds: nodeIds,
+            selectedConnectionId: connectionId,
+          }),
+        }, 'Select Cinema graph item', { recordHistory: false })
+      },
+
+      setCinemaGraphNodePositions: (compositionId, positions, label = 'Arrange Cinema graph') => mutateDocument(
+        label,
+        current => {
+          const composition = requireCinemaComposition(current, compositionId)
+          const nodeIds = new Set(composition.nodes.map(node => String(node.id)))
+          if (Object.keys(positions).some(nodeId => !nodeIds.has(nodeId))) {
+            throw new Error('Cinema graph layout contains a node that no longer exists.')
+          }
+          return {
+            ...current,
+            editorMetadata: withCinemaGraphEditorCompositionMetadata(current.editorMetadata, compositionId, { nodePositions: positions }),
+          }
+        },
+      ),
+
       upsertCinemaAssetBinding: (compositionId, binding) => mutateDocument(
         'Update Cinema asset binding',
         current => {
@@ -509,7 +602,7 @@ function createCinemaStoreInitializer(
               || current.activeInstanceId != null && removedInstanceIds.has(current.activeInstanceId)
               ? null
               : current.activeInstanceId,
-            editorMetadata: withCinemaEditorSelection(current.editorMetadata, compositionId, null),
+            editorMetadata: withoutCinemaGraphEditorCompositionMetadata(current.editorMetadata, compositionId),
           }
         })
         if (result.ok && get().composerRuntimePreview.compositionId === String(compositionId)) set({ composerRuntimePreview: EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW })
@@ -659,7 +752,6 @@ function createCinemaStoreInitializer(
         const composition = requireCinemaComposition(current, compositionId)
         const instances = current.instances.filter(instance => instance.compositionId === compositionId)
         const instanceIds = new Set(instances.map(instance => String(instance.id)))
-        const selectedNodeId = getCinemaEditorSelection(current.editorMetadata, compositionId)
         const scopedState: CinemaPersistedState = {
           ...current,
           // Node definitions are stable external plugin contracts. Scoped packages
@@ -674,9 +766,7 @@ function createCinemaStoreInitializer(
           activeInstanceId: current.activeInstanceId != null && instanceIds.has(String(current.activeInstanceId))
             ? current.activeInstanceId
             : null,
-          editorMetadata: selectedNodeId == null
-            ? {}
-            : withCinemaEditorSelection({}, compositionId, selectedNodeId),
+          editorMetadata: scopeCinemaGraphEditorMetadata(current.editorMetadata, compositionId),
         }
         return createCinemaPackageFromPersistedState(scopedState, options)
       },
@@ -733,7 +823,7 @@ function createCinemaStoreInitializer(
           collections: mergeById(current.collections, imported.collections, conflictPolicy),
           activeCompositionId: imported.activeCompositionId ?? current.activeCompositionId,
           activeInstanceId: imported.activeInstanceId ?? current.activeInstanceId,
-          editorMetadata: { ...current.editorMetadata, ...imported.editorMetadata },
+          editorMetadata: mergeCinemaGraphEditorMetadata(current.editorMetadata, imported.editorMetadata),
           migrationProvenance: [...current.migrationProvenance, ...imported.migrationProvenance],
         }
         return applyDocument(merged, 'Merge Cinema package', { clearRuntimePreview: true })
@@ -742,16 +832,11 @@ function createCinemaStoreInitializer(
   }
 }
 
-const CINEMA_EDITOR_SELECTION_KEY = 'composerSelectionByComposition'
-
 export function getCinemaEditorSelection(
   metadata: Readonly<CinemaJsonObject>,
   compositionId: CinemaCompositionId,
 ): CinemaNodeId | null {
-  const raw = metadata[CINEMA_EDITOR_SELECTION_KEY]
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null
-  const value = (raw as Record<string, unknown>)[String(compositionId)]
-  return typeof value === 'string' ? value as CinemaNodeId : null
+  return getCinemaGraphEditorPrimarySelection(metadata, compositionId)
 }
 
 function withCinemaEditorSelection(
@@ -759,13 +844,10 @@ function withCinemaEditorSelection(
   compositionId: CinemaCompositionId,
   nodeId: CinemaNodeId | null,
 ): CinemaJsonObject {
-  const raw = metadata[CINEMA_EDITOR_SELECTION_KEY]
-  const current = raw != null && typeof raw === 'object' && !Array.isArray(raw)
-    ? { ...(raw as Record<string, string>) }
-    : {}
-  if (nodeId == null) delete current[String(compositionId)]
-  else current[String(compositionId)] = String(nodeId)
-  return { ...metadata, [CINEMA_EDITOR_SELECTION_KEY]: current }
+  return withCinemaGraphEditorCompositionMetadata(metadata, compositionId, {
+    selectedNodeIds: nodeId == null ? [] : [nodeId],
+    selectedConnectionId: null,
+  })
 }
 
 function isImmutableCinemaDefinition(definition: Readonly<CinemaPersistedDefinition>): boolean {
@@ -805,16 +887,30 @@ function duplicateCompositionIntoState(
     saved,
     timestamp,
   })
+  const sourceEditor = getCinemaGraphEditorCompositionMetadata(current.editorMetadata, source.id)
+  const duplicatePositions = Object.fromEntries(source.nodes.flatMap((node, index) => {
+    const position = sourceEditor.nodePositions[String(node.id)]
+    const duplicateNode = duplicate.nodes[index]
+    return position && duplicateNode ? [[String(duplicateNode.id), position]] : []
+  }))
+  const selectedIndexes = sourceEditor.selectedNodeIds
+    .map(nodeId => source.nodes.findIndex(node => node.id === nodeId))
+    .filter(index => index >= 0)
+  const selectedNodeIds = selectedIndexes
+    .map(index => duplicate.nodes[index]?.id)
+    .filter((nodeId): nodeId is CinemaNodeId => nodeId != null)
   return {
     ...current,
     compositions: [...current.compositions, duplicate],
     activeCompositionId: duplicate.id,
     activeInstanceId: null,
-    editorMetadata: withCinemaEditorSelection(
-      current.editorMetadata,
-      duplicate.id,
-      duplicate.nodes[0]?.id ?? null,
-    ),
+    editorMetadata: withCinemaGraphEditorCompositionMetadata(current.editorMetadata, duplicate.id, {
+      mode: sourceEditor.mode,
+      viewport: sourceEditor.viewport,
+      nodePositions: duplicatePositions,
+      selectedNodeIds: selectedNodeIds.length > 0 ? selectedNodeIds : duplicate.nodes[0]?.id ? [duplicate.nodes[0].id] : [],
+      selectedConnectionId: null,
+    }),
   }
 }
 

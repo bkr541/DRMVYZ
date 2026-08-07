@@ -15,6 +15,7 @@ import {
   getCinemaComposerMaskNodes,
   getCinemaCompositionLibraryStatus,
   getCinemaEditorSelection,
+  getCinemaGraphEditorCompositionMetadata,
   isCinemaComposerComposition,
   removeCinemaComposerEffect,
   removeCinemaComposerLayer,
@@ -34,6 +35,7 @@ import {
 import { Collapsible, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 import { CinemaComposerStage19Panel } from './CinemaComposerStage19Panel'
+import { CinemaAdvancedGraphEditor } from './CinemaAdvancedGraphEditor'
 
 const BLEND_OPTIONS: readonly CinemaComposerBlendMode[] = [
   'normal', 'add', 'screen', 'multiply', 'lighten', 'darken', 'difference', 'overlay', 'masked',
@@ -67,6 +69,7 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
   const layers = active && structured ? getCinemaComposerLayers(active) : []
   const masks = active && structured ? getCinemaComposerMaskNodes(active) : []
   const selectedNodeId = active ? getCinemaEditorSelection(state.editorMetadata, active.id) : null
+  const editorMode = active ? getCinemaGraphEditorCompositionMetadata(state.editorMetadata, active.id).mode : 'structured'
   const selectedLayer = layers.find(layer => layer.node.id === selectedNodeId)
     ?? layers.find(layer => layer.effects.some(effect => effect.id === selectedNodeId))
     ?? null
@@ -229,6 +232,14 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
       <button type="button" className="rv-cinema-composer__primary" onClick={createComposition}>New Composition</button>
 
       {active && (
+        <div className="rv-cinema-composer__mode" role="group" aria-label="Cinema editor mode">
+          <button type="button" aria-pressed={editorMode === 'structured'} onClick={() => useCinemaStore.getState().setCinemaGraphEditorMode(active.id, 'structured')}>Structured</button>
+          <button type="button" aria-pressed={editorMode === 'graph'} onClick={() => useCinemaStore.getState().setCinemaGraphEditorMode(active.id, 'graph')}>Graph</button>
+          <span>Two views, one canonical composition.</span>
+        </div>
+      )}
+
+      {active && (
         <Collapsible label="Composition management">
           <div className="rv-cinema-library-manager">
             <div className="rv-cinema-library-manager__status">
@@ -287,10 +298,12 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
         </Collapsible>
       )}
 
-      {!structured ? (
+      {active && editorMode === 'graph' ? (
+        <CinemaAdvancedGraphEditor composition={active} definitions={state.definitions} />
+      ) : !structured ? (
         <div className="rv-cinema-composer__notice" role="note">
           <strong>Structured editing is not active for this composition.</strong>
-          <span>Create a Composer composition to edit graph-backed visual layers. Existing adapter/reference compositions stay untouched.</span>
+          <span>Switch to Graph to inspect any canonical composition, or create a Composer composition for structured visual-layer editing.</span>
         </div>
       ) : (
         <>
@@ -387,9 +400,11 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
         <div className="rv-cinema-composer__library" role="list" aria-label="Cinema node library">
           {filteredLibrary.map(item => {
             const effectNeedsLayer = item.category === 'Effects' && !selectedLayer
-            const disabled = !structured || !item.available || effectNeedsLayer
-            const reason = !structured
-              ? 'Create or select a structured Cinema Composer composition first.'
+            const disabled = editorMode === 'graph' || !structured || !item.available || effectNeedsLayer
+            const reason = editorMode === 'graph'
+              ? 'Use the graph toolbar to add typed nodes while Graph mode is active.'
+              : !structured
+                ? 'Create or select a structured Cinema Composer composition first.'
               : item.disabledReason ?? (effectNeedsLayer ? 'Select a visual layer before attaching an effect.' : undefined)
             return (
               <div className="rv-cinema-composer__library-item" role="listitem" key={item.id}>

@@ -19,6 +19,7 @@ import {
 } from './CinemaIdentifiers'
 import { createCinemaRuntimeNodeRegistry } from './CinemaRuntimeNodeRegistry'
 import { createCinemaDefinitionRegistryFromPersistedDefinitions } from './CinemaDefinitionRegistry'
+import { CINEMA_GRAPH_EDITOR_METADATA_KEY, createCinemaGraphEditorMetadataRoot, normalizeCinemaGraphEditorMetadata } from './CinemaGraphEditorMetadata'
 import type {
   CinemaNodeDisposeContext,
   CinemaNodeInitializeContext,
@@ -480,6 +481,7 @@ export function createCinemaFoundationPersistedState(): CinemaPersistedState {
       mediaTextNodeVersion: 1,
       compositorNodeVersion: 1,
       legacyPresetCatalogVersion: CINEMA_LEGACY_PRESET_CATALOG_VERSION,
+      [CINEMA_GRAPH_EDITOR_METADATA_KEY]: createCinemaGraphEditorMetadataRoot(),
     },
     migrationProvenance: [],
   })) as CinemaPersistedState
@@ -514,19 +516,20 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
     CINEMA_STAGE16_REFERENCE_COMPOSITION,
     ...CINEMA_LEGACY_PRESET_CATALOG.compositions,
   ]
+  const normalizedEditorMetadata = normalizeCinemaGraphEditorMetadata({
+    ...state.editorMetadata,
+    shaderSceneAdapterVersion: 1,
+    cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+    canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+    mediaTextNodeVersion: 1,
+    compositorNodeVersion: 1,
+    legacyPresetCatalogVersion: CINEMA_LEGACY_PRESET_CATALOG_VERSION,
+  }).metadata
   return JSON.parse(JSON.stringify({
     ...state,
     definitions,
     compositions,
-    editorMetadata: {
-      ...state.editorMetadata,
-      shaderSceneAdapterVersion: 1,
-      cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
-      canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
-      mediaTextNodeVersion: 1,
-      compositorNodeVersion: 1,
-      legacyPresetCatalogVersion: CINEMA_LEGACY_PRESET_CATALOG_VERSION,
-    },
+    editorMetadata: normalizedEditorMetadata,
   })) as CinemaPersistedState
 }
 

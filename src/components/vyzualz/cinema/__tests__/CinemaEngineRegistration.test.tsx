@@ -26,6 +26,7 @@ import {
   resetDrmvyzWebGLContextDiagnosticsForTests,
 } from '../../react/shaders/runtime/WebGLContextLifecycle'
 import { useCinemaStore } from '../CinemaStore'
+import { getCinemaGraphEditorCompositionMetadata } from '../CinemaGraphEditorMetadata'
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null
@@ -241,6 +242,21 @@ describe('Cinema production engine registration', () => {
     expect(active?.metadata.provenance?.composerStructured).toBe(true)
     expect(active ? getCinemaComposerLayers(active) : []).toHaveLength(2)
     expect(active ? getCinemaCompositionLibraryStatus(active).modified : false).toBe(true)
+
+    const canonicalBeforeModeSwitch = JSON.stringify(active)
+    const graphModeButton = [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-composer__mode button') ?? [])]
+      .find(button => button.textContent === 'Graph')
+    await act(async () => graphModeButton?.click())
+    expect(host?.querySelector('.rv-cinema-graph-editor__surface')).not.toBeNull()
+    expect(getCinemaGraphEditorCompositionMetadata(useCinemaStore.getState().editorMetadata, activeId!).mode).toBe('graph')
+    expect(JSON.stringify(useCinemaStore.getState().compositions.find(composition => composition.id === activeId))).toBe(canonicalBeforeModeSwitch)
+
+    const structuredModeButton = [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-composer__mode button') ?? [])]
+      .find(button => button.textContent === 'Structured')
+    await act(async () => structuredModeButton?.click())
+    expect(host?.querySelector('.rv-cinema-graph-editor__surface')).toBeNull()
+    expect(getCinemaGraphEditorCompositionMetadata(useCinemaStore.getState().editorMetadata, activeId!).mode).toBe('structured')
+    expect(JSON.stringify(useCinemaStore.getState().compositions.find(composition => composition.id === activeId))).toBe(canonicalBeforeModeSwitch)
 
     const saveComposition = [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-library-manager__actions button') ?? [])]
       .find(button => button.textContent === 'Save')

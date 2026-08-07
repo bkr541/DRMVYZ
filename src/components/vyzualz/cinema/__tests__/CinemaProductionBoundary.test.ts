@@ -6,7 +6,7 @@ import {
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema production boundary through Stage 21', () => {
+describe('Cinema production boundary through Stage 22', () => {
   it('keeps prior contracts public while exposing Shader and Cinematic World adapters through production ownership', () => {
     expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(3)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
@@ -55,8 +55,11 @@ describe('Cinema production boundary through Stage 21', () => {
     expect(typeof Cinema.createCinemaDeterministicEventId).toBe('function')
     expect(typeof Cinema.preflightCinemaPackage).toBe('function')
     expect(typeof Cinema.encodeCinemaPackage).toBe('function')
-    expect(Cinema.CINEMA_PERSISTED_STORE_SCHEMA_VERSION).toBe(3)
-    expect(Cinema.CINEMA_PERSIST_MIDDLEWARE_VERSION).toBe(3)
+    expect(Cinema.CINEMA_GRAPH_EDITOR_METADATA_VERSION).toBe(1)
+    expect(typeof Cinema.connectCinemaGraphNodes).toBe('function')
+    expect(Cinema.CINEMA_PERSISTED_STORE_SCHEMA_VERSION).toBe(4)
+    expect(Cinema.CINEMA_PACKAGE_SCHEMA_VERSION).toBe(4)
+    expect(Cinema.CINEMA_PERSIST_MIDDLEWARE_VERSION).toBe(4)
     expect(Cinema.CINEMA_PARAMETER_RESOLUTION_ORDER).toEqual([
       'definition-default',
       'saved-preset',

@@ -412,7 +412,8 @@ describe('Cinema persisted state and migrations', () => {
     })
     expect(result.value.migrationProvenance).toEqual(expect.arrayContaining([
       { fromSchemaVersion: 1, toSchemaVersion: 2, migratedAt: '2026-08-06T00:00:00.000Z' },
-      { fromSchemaVersion: 2, toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION, migratedAt: '2026-08-06T20:41:00.000Z' },
+      { fromSchemaVersion: 2, toSchemaVersion: 3, migratedAt: '2026-08-06T20:41:00.000Z' },
+      { fromSchemaVersion: 3, toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION, migratedAt: '2026-08-07T03:38:00.000Z' },
     ]))
   })
 })
@@ -435,8 +436,13 @@ describe('Cinema Stage 14 migration', () => {
     expect(result.value.compositions[0].assetBindings[0].brandColorPolicy).toBe('derived')
     expect(result.value.migrationProvenance).toContainEqual({
       fromSchemaVersion: 2,
-      toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+      toSchemaVersion: 3,
       migratedAt: '2026-08-06T20:41:00.000Z',
+    })
+    expect(result.value.migrationProvenance).toContainEqual({
+      fromSchemaVersion: 3,
+      toSchemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
+      migratedAt: '2026-08-07T03:38:00.000Z',
     })
   })
 })
@@ -632,7 +638,7 @@ describe('Cinema Stage 20 library workflows', () => {
       databaseName: 'cinema-stage20-test',
       objectStoreName: 'cinema-state',
     })
-    await storage.setItem('cinema-project', { state: snapshot, version: 3 })
+    await storage.setItem('cinema-project', { state: snapshot, version: 4 })
     const reloaded = await storage.getItem('cinema-project')
     expect(reloaded?.state.compositions).toEqual(snapshot.compositions)
     expect(reloaded?.state.activeCompositionId).toBe(snapshot.activeCompositionId)
@@ -701,7 +707,8 @@ describe('Cinema package preflight and atomic import/export', () => {
     })
     expect(preflight.value.migrationProvenance).toEqual(expect.arrayContaining([
       { fromSchemaVersion: 1, toSchemaVersion: 2, migratedAt: '2026-08-06T00:00:00.000Z' },
-      { fromSchemaVersion: 2, toSchemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION, migratedAt: '2026-08-06T20:41:00.000Z' },
+      { fromSchemaVersion: 2, toSchemaVersion: 3, migratedAt: '2026-08-06T20:41:00.000Z' },
+      { fromSchemaVersion: 3, toSchemaVersion: CINEMA_PACKAGE_SCHEMA_VERSION, migratedAt: '2026-08-07T03:38:00.000Z' },
     ]))
   })
 
