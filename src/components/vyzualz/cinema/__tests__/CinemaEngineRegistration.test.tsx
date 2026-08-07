@@ -147,7 +147,7 @@ describe('Cinema production engine registration', () => {
     expect(state.activeReactPresetId).toBeNull()
     expect(host?.querySelector('[data-cinema-workspace="runtime"]')).not.toBeNull()
     expect(host?.querySelector('[data-cinema-frame-available="true"]')).not.toBeNull()
-    expect(host?.textContent).toContain('Layer compositing, effects, and transitions')
+    expect(host?.textContent).toContain('Graph-aware quality, diagnostics, and recovery')
     expect(canvas).not.toBeNull()
     expect(retire).toHaveBeenCalledTimes(1)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
@@ -166,6 +166,8 @@ describe('Cinema production engine registration', () => {
     await act(async () => runtimeFrame[1](16.67))
     expect(gl.__calls.drawCount).toBe(2)
     expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+    expect(host?.querySelector('[data-cinema-quality-tier]')).not.toBeNull()
+    expect(host?.querySelector('[data-cinema-quality-pressure]')).not.toBeNull()
     expect(host?.textContent).toContain('Output rendered')
     expect(host?.textContent).toContain('Performance rules')
 
@@ -187,7 +189,7 @@ describe('Cinema production engine registration', () => {
     })
   })
 
-  it('surfaces the Stage 16 reference through the canonical Cinema store and production workspace', async () => {
+  it('surfaces the Stage 17 runtime through the canonical Cinema store and production workspace', async () => {
     const selected = useCinemaStore.getState().setActiveCinemaComposition(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
     expect(selected.ok).toBe(true)
 
@@ -197,7 +199,7 @@ describe('Cinema production engine registration', () => {
 
     expect(useCinemaStore.getState().activeCompositionId).toBe(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
     expect(host?.textContent).toContain('Cinema Layer Compositor Reference')
-    expect(host?.textContent).toContain('Stage 16 compositor, masks, effects, and transitions wired')
+    expect(host?.textContent).toContain('Stage 17 graph-aware quality, diagnostics, and recovery wired')
   })
 
   it('keeps only one active Cinema context and loop through a Strict Mode effect replay', async () => {

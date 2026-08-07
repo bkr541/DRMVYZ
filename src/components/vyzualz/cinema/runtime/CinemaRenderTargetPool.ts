@@ -48,6 +48,8 @@ export interface CinemaRenderTargetPoolDiagnostics {
   maximumPooledAllocationCount: number
   maximumTextureSize: number
   totalAllocationCount: number
+  estimatedAllocationMemoryMb: number
+  activeLeaseCountByOwner: Readonly<Record<string, number>>
   viewport: CinemaViewport
 }
 
@@ -267,6 +269,12 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
   }
 
   getDiagnostics(): CinemaRenderTargetPoolDiagnostics {
+    const records = this.allRecords()
+    const activeLeaseCountByOwner: Record<string, number> = {}
+    for (const record of this.active.values()) {
+      const owner = String(record.lease.ownerNodeId)
+      activeLeaseCountByOwner[owner] = (activeLeaseCountByOwner[owner] ?? 0) + 1
+    }
     return {
       createdAllocationCount: this.createdAllocationCount,
       reusedAllocationCount: this.reusedAllocationCount,
@@ -276,6 +284,8 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
       maximumPooledAllocationCount: this.maximumPooledAllocationCount,
       maximumTextureSize: this.maximumTextureSize,
       totalAllocationCount: this.active.size + this.pooledAllocationCount,
+      estimatedAllocationMemoryMb: records.reduce((sum, record) => sum + estimateRecordBytes(record), 0) / (1024 * 1024),
+      activeLeaseCountByOwner: Object.freeze({ ...activeLeaseCountByOwner }),
       viewport: { ...this.viewport },
     }
   }
@@ -453,6 +463,26 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
 
   private assertActive(): void {
     if (this.disposed) throw new Error('Cinema render-target pool is disposed')
+  }
+}
+
+function estimateRecordBytes(record: TargetRecord): number {
+  const descriptor = record.lease.descriptor
+  const colorBytes = formatBytesPerPixel(descriptor.colorFormat)
+  const maskBytes = descriptor.hasMask ? 1 : 0
+  const depthBytes = descriptor.hasDepth && !isDepthFormat(descriptor.colorFormat) ? 4 : 0
+  return record.width * record.height * (colorBytes + maskBytes + depthBytes) * Math.max(1, record.attachments.length)
+}
+
+function formatBytesPerPixel(format: CinemaTargetFormat): number {
+  switch (format) {
+    case 'rgba32f': return 16
+    case 'rgba16f': return 8
+    case 'rgba8': return 4
+    case 'rg8': return 2
+    case 'r8': return 1
+    case 'depth24': return 4
+    case 'depth16': return 2
   }
 }
 

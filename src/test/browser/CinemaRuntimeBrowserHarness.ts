@@ -160,6 +160,7 @@ async function run(): Promise<void> {
     phases,
     poolBeforeDispose,
     graph: finalSnapshot.graph,
+    telemetry: finalSnapshot.telemetry,
     singlePassPixel,
     reactorPixel,
     reactorLeaseCount,

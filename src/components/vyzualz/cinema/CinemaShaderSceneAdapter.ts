@@ -653,7 +653,7 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     frameTargets: CinemaRenderTargetLease[],
   ): PassTargetResolution {
     if (pass.outputName === null) return this.bindLease(context, context.target!)
-    const descriptor = targetDescriptor(pass)
+    const descriptor = targetDescriptor(pass, context.quality)
     const descriptorKey = JSON.stringify(descriptor)
     if (pass.persistent || pass.pingPong) {
       let persistent = this.persistentTargets.get(pass.outputName)
@@ -1139,15 +1139,23 @@ function shaderUniformType(parameter: ShaderParamDef): 'float' | 'int' | 'bool' 
   }
 }
 
-function targetDescriptor(pass: CompiledPassNode): CinemaTargetDescriptor {
+function targetDescriptor(
+  pass: CompiledPassNode,
+  quality: CinemaNodeRenderContext['quality'],
+): CinemaTargetDescriptor {
+  const graphScale = quality?.resolutionScale ?? 1
+  const optionalPassScale = pass.bloomTier != null && pass.bloomTier > (quality?.optionalPassTier ?? 3)
+    ? 0.05
+    : 1
+  const resolutionScale = Math.max(0.05, pass.resolutionScale * graphScale * optionalPassScale)
   return {
     colorSpace: 'srgb',
     alphaMode: 'premultiplied',
     colorFormat: pass.format,
     hasDepth: false,
     hasMask: false,
-    widthScale: pass.resolutionScale,
-    heightScale: pass.resolutionScale,
+    widthScale: resolutionScale,
+    heightScale: resolutionScale,
     filter: pass.filter,
     wrap: pass.wrap,
     clearColor: [0, 0, 0, 0],

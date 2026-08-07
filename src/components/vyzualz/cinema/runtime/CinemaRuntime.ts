@@ -24,6 +24,8 @@ import {
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
 import { CinemaTextureManager } from './CinemaTextureManager'
 import { CinemaGraphExecutor, type CinemaGraphExecutorSnapshot } from './CinemaGraphExecutor'
+import { createCinemaEmptyGraphQualitySnapshot } from './CinemaQualityManager'
+import { CinemaRuntimeDiagnosticsStore, type CinemaRuntimeDiagnosticsSnapshot } from './CinemaRuntimeDiagnostics'
 import { CinemaAssetManager } from './CinemaAssetManager'
 import { CinemaWebGLRenderServiceImpl } from './CinemaWebGLRenderService'
 
@@ -43,6 +45,7 @@ export interface CinemaRuntimeSnapshot {
   diagnostics: CinemaDiagnosticSnapshot
   capabilities: CinemaPlatformCapabilities
   graph: CinemaGraphExecutorSnapshot
+  telemetry: CinemaRuntimeDiagnosticsSnapshot
 }
 
 export interface CinemaRuntimeCreateOptions {
@@ -60,9 +63,9 @@ export type CinemaRuntimeCreateResult =
 /**
  * Single-owner Cinema WebGL2 runtime.
  *
- * Stage 12 executes native and adapter-backed nodes through runtime-only
- * plugins, deterministic performance choreography, Cinema-owned targets, one
- * authorized output node, and the existing single-context/single-loop lifecycle.
+ * Stage 17 executes the compiled graph through graph-aware quality, bounded
+ * diagnostics, hardened context recovery, Cinema-owned targets, one authorized
+ * output node, and the existing single-context/single-loop lifecycle.
  */
 export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   static create(canvas: HTMLCanvasElement, options: CinemaRuntimeCreateOptions = {}): CinemaRuntimeCreateResult {
@@ -108,6 +111,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   private readonly contextDiagnosticHandle: WebGLContextDiagnosticHandle | null
   private readonly onContextLostHandler: (event: Event) => void
   private readonly onContextRestoredHandler: () => void
+  private readonly runtimeDiagnostics = new CinemaRuntimeDiagnosticsStore()
 
   private phase: CinemaRuntimePhase = 'initializing'
   private viewport: CinemaViewport = { width: 1, height: 1, dpr: 1 }
@@ -127,6 +131,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     activeNodeCount: 0, initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null,
     outputRendered: false, safeOutputActive: true, modulationRouteCount: 0, activeModulationRouteCount: 0, diagnostics: createCinemaDiagnosticSnapshot([]),
     performanceRuleCount: 0, activePerformanceRuleCount: 0, activePerformanceTransientCount: 0,
+    quality: createCinemaEmptyGraphQualitySnapshot(),
   }
   private fpsFrameCount = 0
   private fpsWindowStartedMs = 0
@@ -175,12 +180,18 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
         message: 'Cinema paused rendering because its WebGL2 context was lost.',
         attribution: { stage: 'cinema-runtime' },
       }))
+      this.runtimeDiagnostics.recordRecovery({
+        type: 'context-lost', contextGeneration: this.contextGeneration, frameCount: this.frameCount, message: null,
+      })
       this.emitSnapshot()
     }
     this.onContextRestoredHandler = () => {
       if (this.disposed) return
       this.contextLost = false
       this.contextGeneration += 1
+      this.runtimeDiagnostics.recordRecovery({
+        type: 'restore-started', contextGeneration: this.contextGeneration, frameCount: this.frameCount, message: null,
+      })
       try {
         this.targets.rebuildAfterContextRestore()
         this.assets.rebuildAfterContextRestore()
@@ -189,21 +200,34 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
         this.report(createCinemaDiagnostic({
           code: 'CINEMA_CONTEXT_RESTORED',
           severity: 'info',
-          message: 'Cinema rebuilt runtime-owned resources after WebGL2 context restoration.',
+          message: 'Cinema rebuilt the complete reachable graph and runtime-owned resources after WebGL2 context restoration.',
           attribution: { stage: 'cinema-runtime' },
           details: { contextGeneration: this.contextGeneration },
         }))
-        this.phase = this.visibilitySuspended ? 'suspended' : 'running'
+        this.runtimeDiagnostics.recordRecovery({
+          type: 'restore-succeeded', contextGeneration: this.contextGeneration, frameCount: this.frameCount, message: null,
+        })
+        this.phase = this.visibilitySuspended ? 'suspended' : this.runningRequested ? 'running' : 'initializing'
         this.emitSnapshot()
-        this.scheduleFrame()
+        if (this.runningRequested) this.scheduleFrame()
       } catch (error) {
+        const message = errorMessage(error)
+        this.runningRequested = false
+        this.cancelScheduledFrame()
+        try { this.executor.handleContextLost() } catch { /* Keep recovery failure cleanup best-effort and bounded. */ }
+        try { this.assets.dispose() } catch { /* Retire any media/GPU resources rebuilt before the failure. */ }
+        try { this.targets.dispose() } catch { /* Retire any target attachments rebuilt before the failure. */ }
         this.phase = 'unavailable'
         this.report(createCinemaDiagnostic({
-          code: 'CINEMA_CAPABILITY_UNAVAILABLE',
+          code: 'CINEMA_CONTEXT_RECOVERY_FAILED',
           severity: 'error',
-          message: `Cinema could not rebuild after context restoration: ${errorMessage(error)}`,
+          message: `Cinema could not rebuild after context restoration: ${message}`,
           attribution: { stage: 'cinema-runtime' },
+          details: { contextGeneration: this.contextGeneration },
         }))
+        this.runtimeDiagnostics.recordRecovery({
+          type: 'restore-failed', contextGeneration: this.contextGeneration, frameCount: this.frameCount, message,
+        })
         this.emitSnapshot()
       }
     }
@@ -308,14 +332,27 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   }
 
   getSnapshot(): CinemaRuntimeSnapshot {
+    const diagnostics = createCinemaDiagnosticSnapshot(this.diagnostics)
+    const telemetry = this.runtimeDiagnostics.capture({
+      phase: this.phase,
+      contextGeneration: this.contextGeneration,
+      contextLost: this.contextLost,
+      frameCount: this.frameCount,
+      graph: this.graphSnapshot,
+      diagnostics,
+      targets: this.targets.getDiagnostics(),
+      textures: this.textures.getDiagnostics(),
+      assets: this.assets.getDiagnostics(),
+    })
     return {
       phase: this.phase,
       viewport: { ...this.viewport },
       frameCount: this.frameCount,
       contextGeneration: this.contextGeneration,
-      diagnostics: createCinemaDiagnosticSnapshot(this.diagnostics),
+      diagnostics,
       capabilities: { ...this.capabilities },
       graph: this.graphSnapshot,
+      telemetry,
     }
   }
 
@@ -373,7 +410,11 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.animationFrameId = 0
     if (this.disposed || !this.runningRequested || this.contextLost || this.visibilitySuspended) return
     try {
+      const renderStartedMs = performance.now()
       this.executor.render(this.frame)
+      const renderTimeMs = Math.max(0, performance.now() - renderStartedMs)
+      this.executor.observeFrameTime(renderTimeMs)
+      this.runtimeDiagnostics.recordFrameTime(renderTimeMs)
       this.frameCount += 1
       this.fpsFrameCount += 1
       const elapsed = nowMs - this.fpsWindowStartedMs

@@ -115,3 +115,5 @@ Update documentation in the same patch when changing:
 Prefer updating a canonical current document over adding another patch-note document.
 
 When adding a new current document, add it to this index.
+
+- [Cinema Stage 17: Graph-Aware Quality, Diagnostics, and Context Recovery](cinema/stage-17-quality-diagnostics-context-recovery.md)

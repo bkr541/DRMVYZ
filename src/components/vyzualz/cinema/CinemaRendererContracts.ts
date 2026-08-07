@@ -580,6 +580,16 @@ export interface CinemaNodeResizeContext {
   diagnostics: CinemaRuntimeDiagnosticSink
 }
 
+export interface CinemaNodeRuntimeQuality {
+  tier: 'low' | 'medium' | 'high' | 'ultra'
+  role: 'output' | 'foreground' | 'background'
+  resolutionScale: number
+  simulationScale: number
+  feedbackHistoryScale: number
+  optionalPassTier: number
+  degraded: boolean
+}
+
 export interface CinemaNodeRenderContext {
   nodeId: CinemaNodeId
   frame: Readonly<CinemaFrameContext>
@@ -596,6 +606,8 @@ export interface CinemaNodeRenderContext {
   textures: CinemaTextureGraphService
   webgl: CinemaWebGLRenderService
   diagnostics: CinemaRuntimeDiagnosticSink
+  /** Runtime-only graph-aware quality decision. It never mutates authored values. */
+  quality?: Readonly<CinemaNodeRuntimeQuality>
 }
 
 export interface CinemaNodeResetContext {

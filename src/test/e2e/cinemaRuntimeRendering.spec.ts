@@ -14,6 +14,7 @@ test('Cinema owns one real WebGL2 runtime and recovers its target pool', async (
     phases?: string[]
     poolBeforeDispose?: { activeLeaseCount?: number; pooledAllocationCount?: number }
     graph?: { activeNodeCount?: number; initializedNodeCount?: number; failedNodeCount?: number; outputRendered?: boolean; safeOutputActive?: boolean }
+    telemetry?: { context?: { generation?: number; recoveryCount?: number; lastRecoveryStatus?: string }; frameTime?: { sampleCount?: number }; targets?: { estimatedAllocationMemoryMb?: number }; quality?: { selectedTier?: string; degradedNodeCount?: number } }
     singlePassPixel?: number[]
     reactorPixel?: number[]
     reactorLeaseCount?: number
@@ -28,6 +29,10 @@ test('Cinema owns one real WebGL2 runtime and recovers its target pool', async (
   expect(payload.reusedTarget).toBe(true)
   expect(payload.phase).toBe('running')
   expect(payload.contextGeneration).toBe(2)
+  expect(payload.telemetry?.context).toMatchObject({ generation: 2, recoveryCount: 1, lastRecoveryStatus: 'restored' })
+  expect(payload.telemetry?.frameTime?.sampleCount).toBeGreaterThan(0)
+  expect(payload.telemetry?.targets?.estimatedAllocationMemoryMb).toBeGreaterThanOrEqual(0)
+  expect(['low', 'medium', 'high', 'ultra']).toContain(payload.telemetry?.quality?.selectedTier)
   expect(payload.frameCount).toBeGreaterThanOrEqual(3)
   expect(payload.phases).toEqual(expect.arrayContaining(['running', 'context-lost']))
   expect(payload.poolBeforeDispose?.activeLeaseCount).toBe(0)

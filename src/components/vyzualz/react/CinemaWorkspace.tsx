@@ -180,8 +180,8 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 16 compositor, masks, effects, and transitions wired</strong>
-          <span>Layer mixers, deterministic masks, reusable post effects, explicit alpha/color conversion, and composition transitions now run inside the single Cinema context and target pool.</span>
+          <strong>Stage 17 graph-aware quality, diagnostics, and recovery wired</strong>
+          <span>Adaptive graph budgeting, node visibility skips, bounded runtime telemetry, and full context reconstruction now run inside the single Cinema context and target pool.</span>
         </div>
       </section>
     )
@@ -197,6 +197,10 @@ export function CinemaWorkspace({
       data-cinema-frame-available={model.frameAvailable ? 'true' : 'false'}
       data-cinema-output-rendered={runtimeSnapshot?.graph.outputRendered ? 'true' : 'false'}
       data-cinema-active-node-count={runtimeSnapshot?.graph.activeNodeCount ?? 0}
+      data-cinema-quality-tier={runtimeSnapshot?.graph.quality.selectedTier ?? 'high'}
+      data-cinema-quality-pressure={runtimeSnapshot?.graph.quality.pressure ?? 'nominal'}
+      data-cinema-degraded-node-count={runtimeSnapshot?.graph.quality.degradedNodeCount ?? 0}
+      data-cinema-recovery-status={runtimeSnapshot?.telemetry.context.lastRecoveryStatus ?? 'none'}
     >
       <CinemaCanvas
         frameBridge={frameBridge}
@@ -209,10 +213,10 @@ export function CinemaWorkspace({
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 16</div>
-        <h2>Layer compositing, effects, and transitions</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 17</div>
+        <h2>Graph-aware quality, diagnostics, and recovery</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema now combines multiple graph sources with premultiplied-alpha blend and mask nodes, applies reusable layer or master effects, and transitions between composites without creating another canvas, WebGL context, or animation loop.
+          Cinema now budgets rendering by graph cost, visibility, and node role, preserves foreground/output quality first, publishes bounded runtime telemetry, and reconstructs the reachable graph after WebGL2 context restoration without adding another canvas, context, or animation loop.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>
@@ -220,12 +224,15 @@ export function CinemaWorkspace({
           <div><dt>Runtime</dt><dd>{runtimeStatusLabel(runtimeSnapshot)}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.viewport.width} × ${runtimeSnapshot.viewport.height}` : 'Preparing canvas'}</small></div>
           <div><dt>Graph</dt><dd>{runtimeSnapshot?.graph.outputRendered ? 'Output rendered' : 'Safe output'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.initializedNodeCount}/${runtimeSnapshot.graph.activeNodeCount} nodes ready` : 'Compiling'}</small></div>
           <div><dt>Performance</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.graph.activePerformanceRuleCount}/${runtimeSnapshot.graph.performanceRuleCount} rules active` : 'Preparing'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.activePerformanceTransientCount} timed overrides` : 'No runtime snapshot'}</small></div>
+          <div><dt>Quality</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.graph.quality.selectedTier} · ${runtimeSnapshot.graph.quality.pressure}` : 'High · nominal'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.quality.degradedNodeCount} degraded · ${runtimeSnapshot.graph.quality.skippedNodeCount} skipped` : 'Graph budget pending'}</small></div>
+          <div><dt>GPU budget</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.telemetry.targets.estimatedAllocationMemoryMb.toFixed(1)} MB targets` : 'Preparing'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.telemetry.targets.totalAllocationCount} allocations · ${runtimeSnapshot.telemetry.frameTime.averageMs.toFixed(2)} ms avg render` : 'No telemetry snapshot'}</small></div>
+          <div><dt>Recovery</dt><dd>{runtimeSnapshot?.telemetry.context.lastRecoveryStatus ?? 'none'}</dd><small>{runtimeSnapshot ? `Context generation ${runtimeSnapshot.contextGeneration}` : 'Context not initialized'}</small></div>
           <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd><small>{model.statusLabel}</small></div>
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? 'Normalized' : 'Unavailable'}</dd><small>{model.frameTrackId ?? 'No active track'}</small></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status" aria-live="polite">
           <strong>{runtimeSnapshot?.phase === 'unavailable' ? 'Safe output only' : 'Cinema runtime owns the stage'}</strong>
-          <span>Signed media URLs, decoded elements, the shared text raster surface, object URLs, and WebGL textures remain outside Cinema persistence. Missing media, lyric gaps, unavailable fonts, and decode failures use declared fallbacks while legacy engines retain their standalone ownership.</span>
+          <span>Quality decisions, frame-time samples, target pressure, diagnostics history, recovery events, decoded media, and GPU resources remain runtime-only. Transparent or disabled nodes can stop consuming render work without rewriting authored state, while legacy engines retain their standalone ownership.</span>
         </div>
         {firstDiagnostic && (
           <div className="rv-cinema-workspace__diagnostic" role="note">

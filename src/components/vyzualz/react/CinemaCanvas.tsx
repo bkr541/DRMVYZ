@@ -3,6 +3,8 @@ import {
   CinemaRuntime,
   createCinemaDiagnostic,
   createCinemaDiagnosticSnapshot,
+  createCinemaEmptyGraphQualitySnapshot,
+  createCinemaEmptyRuntimeDiagnosticsSnapshot,
   type CinemaCompositionDefinition,
   type CinemaCompositionInstance,
   type CinemaExternalAssetSnapshot,
@@ -36,7 +38,9 @@ const INITIAL_RUNTIME_SNAPSHOT: CinemaRuntimeSnapshot = {
     initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null, outputRendered: false, safeOutputActive: true, modulationRouteCount: 0, activeModulationRouteCount: 0,
     performanceRuleCount: 0, activePerformanceRuleCount: 0, activePerformanceTransientCount: 0,
     diagnostics: createCinemaDiagnosticSnapshot([]),
+    quality: createCinemaEmptyGraphQualitySnapshot(),
   },
+  telemetry: createCinemaEmptyRuntimeDiagnosticsSnapshot(),
   capabilities: {
     webgl2: false,
     canvas2d: typeof CanvasRenderingContext2D !== 'undefined',

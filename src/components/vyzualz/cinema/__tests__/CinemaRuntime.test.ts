@@ -148,6 +148,9 @@ describe('CinemaRuntime', () => {
     const owner = 'cinema.node.test' as CinemaNodeId
     const first = runtime.targets.acquire(owner, TARGET, 'frame')
     const firstView = runtime.targets.getReadTexture(first)
+    expect(runtime.targets.getDiagnostics()).toMatchObject({ activeLeaseCount: 1, totalAllocationCount: 1 })
+    expect(runtime.targets.getDiagnostics().estimatedAllocationMemoryMb).toBeGreaterThan(0)
+    expect(runtime.targets.getDiagnostics().activeLeaseCountByOwner[String(owner)]).toBe(1)
     runtime.targets.release(first)
     const second = runtime.targets.acquire(owner, TARGET, 'frame')
     const secondView = runtime.targets.getReadTexture(second)
@@ -280,7 +283,11 @@ describe('CinemaRuntime', () => {
     const runtime = created.runtime
     expect(runtime).not.toBeNull()
     if (!runtime) return
+    const state = createCinemaFoundationPersistedState()
+    const activeComposition = state.compositions.find(composition => composition.id === state.activeCompositionId) ?? null
     runtime.resize(resolution(320, 180))
+    runtime.setGraph(activeComposition, null, state.definitions)
+    runtime.setFrame(frame(320, 180))
     runtime.start()
     expect(callbacks.size).toBe(1)
 
@@ -292,11 +299,63 @@ describe('CinemaRuntime', () => {
     expect(runtime.getSnapshot().diagnostics.diagnostics.some(d => d.code === 'CINEMA_CONTEXT_LOST')).toBe(true)
 
     canvas.dispatchEvent(new Event('webglcontextrestored'))
-    expect(runtime.getSnapshot()).toMatchObject({ phase: 'running', contextGeneration: 2 })
-    expect(runtime.getSnapshot().diagnostics.diagnostics.some(d => d.code === 'CINEMA_CONTEXT_RESTORED')).toBe(true)
+    const restored = runtime.getSnapshot()
+    expect(restored).toMatchObject({
+      phase: 'running',
+      contextGeneration: 2,
+      graph: { activeNodeCount: 2, initializedNodeCount: 2, failedNodeCount: 0 },
+      telemetry: { context: { generation: 2, lost: false, recoveryCount: 1, lastRecoveryStatus: 'restored' } },
+    })
+    expect(restored.diagnostics.diagnostics.some(d => d.code === 'CINEMA_CONTEXT_RESTORED')).toBe(true)
+    expect(restored.telemetry.recoveryEvents.map(event => event.type)).toEqual([
+      'context-lost', 'restore-started', 'restore-succeeded',
+    ])
     expect(callbacks.size).toBe(1)
     expect(requestFrame).toHaveBeenCalledTimes(2)
     expect(snapshots).toContain('context-lost')
+
+    const restoredFrame = [...callbacks.entries()][0]
+    callbacks.delete(restoredFrame[0])
+    restoredFrame[1](33.34)
+    expect(runtime.getSnapshot().graph.outputRendered).toBe(true)
+    expect(runtime.getSnapshot().telemetry.frameTime.sampleCount).toBeGreaterThan(0)
+
+    runtime.dispose()
+  })
+
+  it('retires partially rebuilt resources when context restoration fails', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: callback => { const id = nextRaf++; callbacks.set(id, callback); return id },
+      cancelAnimationFrame: id => { callbacks.delete(id) },
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    const state = createCinemaFoundationPersistedState()
+    const activeComposition = state.compositions.find(composition => composition.id === state.activeCompositionId) ?? null
+    runtime.resize(resolution(320, 180))
+    runtime.setGraph(activeComposition, null, state.definitions)
+    runtime.setFrame(frame(320, 180))
+    runtime.start()
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }))
+    vi.spyOn(runtime.targets, 'rebuildAfterContextRestore').mockImplementation(() => {
+      throw new Error('forced restore failure')
+    })
+
+    canvas.dispatchEvent(new Event('webglcontextrestored'))
+    const failed = runtime.getSnapshot()
+    expect(failed.phase).toBe('unavailable')
+    expect(failed.graph.activeNodeCount).toBe(0)
+    expect(failed.telemetry.context.lastRecoveryStatus).toBe('failed')
+    expect(failed.telemetry.recoveryEvents.at(-1)).toMatchObject({ type: 'restore-failed', message: 'forced restore failure' })
+    expect(failed.diagnostics.diagnostics.some(diagnostic => diagnostic.code === 'CINEMA_CONTEXT_RECOVERY_FAILED')).toBe(true)
+    expect(callbacks.size).toBe(0)
 
     runtime.dispose()
   })

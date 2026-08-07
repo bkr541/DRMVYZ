@@ -613,7 +613,8 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     if (!context.target || context.outputNode || this.disposed) {
       throw new Error(`Cinematic World ${this.legacyDefinition.id} is not ready for a Cinema-owned target.`)
     }
-    const nextConfig = resolveConfig(this.legacyDefinition.id as CinematicWorldMode, context.values)
+    const runtimeValues = applyRuntimeQualityValues(context.values, context.quality)
+    const nextConfig = resolveConfig(this.legacyDefinition.id as CinematicWorldMode, runtimeValues)
     const nextKey = configStructuralKey(nextConfig)
     if (nextKey !== this.configKey) {
       this.replaceRenderer(context.webgl.gl, context.viewport, nextConfig, 'structuralConfigurationChanged')
@@ -623,7 +624,7 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     }
     const target = context.webgl.bindTarget(context.target)
     context.webgl.resetState()
-    const frame = adaptCinemaFrame(context.frame, nextConfig, context.values, this.authoredOpacity)
+    const frame = adaptCinemaFrame(context.frame, nextConfig, runtimeValues, this.authoredOpacity)
     this.renderer.render(frame, {
       framebuffer: target.framebuffer,
       texture: target.texture,
@@ -754,7 +755,8 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
     if (!context.target || context.outputNode || !this.renderer || !this.canvas || !this.texture || !this.program || !this.pass) {
       throw new Error('Legacy Portal Canvas2D compatibility resources are unavailable.')
     }
-    const config = resolveConfig('legacyPortal', context.values)
+    const runtimeValues = applyRuntimeQualityValues(context.values, context.quality)
+    const config = resolveConfig('legacyPortal', runtimeValues)
     if (configStructuralKey(config) !== this.configKey) {
       this.replaceRenderer(config, context.viewport.dpr, 'structuralConfigurationChanged')
     }
@@ -762,7 +764,7 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
     if (this.canvas.width !== target.width || this.canvas.height !== target.height) {
       this.resizeCanvas(target.width, target.height, context.viewport.dpr)
     }
-    const frame = adaptCinemaFrame(context.frame, config, context.values, this.authoredOpacity)
+    const frame = adaptCinemaFrame(context.frame, config, runtimeValues, this.authoredOpacity)
     this.renderer.render(frame)
     const gl = context.webgl.gl
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
@@ -1146,6 +1148,23 @@ function createCameraFrame(
     sectionSource: frame.capabilities.authoritativeSections ? 'analyzed' : 'none',
     usedFallbackRig: requestedRig === 'autoDirector' && camera.shotId == null,
   }
+}
+
+function applyRuntimeQualityValues(
+  values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
+  quality: CinemaNodeRenderContext['quality'],
+): Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>> {
+  if (!quality) return values
+  const next: Partial<Record<CinemaParameterId, CinemaParameterValue>> = { ...values }
+  const authoredTier = readQuality(values[QUALITY_PARAMETER_ID], 'auto')
+  const authoredRank = authoredTier === 'auto' ? Number.POSITIVE_INFINITY : CINEMATIC_QUALITY_TIERS.indexOf(authoredTier)
+  const runtimeRank = CINEMATIC_QUALITY_TIERS.indexOf(quality.tier)
+  const effectiveTier = authoredTier === 'auto' || runtimeRank < authoredRank ? quality.tier : authoredTier
+  next[QUALITY_PARAMETER_ID] = qualityOptionId(effectiveTier)
+  next[PARTICLE_DENSITY_PARAMETER_ID] = clamp01(
+    numberValue(values[PARTICLE_DENSITY_PARAMETER_ID], 0.5) * quality.simulationScale,
+  )
+  return Object.freeze(next)
 }
 
 function resolveConfig(

@@ -53,6 +53,12 @@ import { createCinemaDefinitionRegistryFromPersistedDefinitions } from '../Cinem
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
 import { CinemaTextureManager } from './CinemaTextureManager'
 import {
+  CinemaQualityManager,
+  applyCinemaQualityScalars,
+  type CinemaGraphQualitySnapshot,
+  type CinemaNodeQualityDecision,
+} from './CinemaQualityManager'
+import {
   cameraFrameForCapability,
   createCinemaCameraParameterSchemaMap,
   resolveCinemaCameraFrame,
@@ -94,6 +100,7 @@ export interface CinemaGraphExecutorSnapshot {
   performanceRuleCount: number
   activePerformanceRuleCount: number
   activePerformanceTransientCount: number
+  quality: CinemaGraphQualitySnapshot
   diagnostics: CinemaDiagnosticSnapshot
 }
 
@@ -123,6 +130,7 @@ interface RuntimeNodeRecord {
 interface FeedbackSourceState {
   sourceNodeId: CinemaNodeId
   maximumHistoryFrames: number
+  activeHistoryFrames: number
   leases: CinemaRenderTargetLease[]
   cursor: number
   framesWritten: number
@@ -149,6 +157,7 @@ export class CinemaGraphExecutor {
   private readonly diagnostics: CinemaDiagnostic[] = []
   private readonly records = new Map<CinemaNodeId, RuntimeNodeRecord>()
   private readonly feedbackSources = new Map<CinemaNodeId, FeedbackSourceState>()
+  private readonly qualityManager = new CinemaQualityManager()
 
   private configuration: GraphConfiguration = { composition: null, instance: null, definitions: [] }
   private parameterRegistry: CinemaNodeDefinitionRegistry | null = null
@@ -180,6 +189,11 @@ export class CinemaGraphExecutor {
     this.diagnosticsSink = options.diagnostics
     this.onSnapshot = options.onSnapshot ?? null
     this.maximumPlanCacheSize = Math.max(1, Math.floor(options.maximumPlanCacheSize ?? 16))
+  }
+
+  observeFrameTime(frameTimeMs: number): void {
+    if (this.disposed) return
+    this.qualityManager.observeFrameTime(frameTimeMs)
   }
 
   setGraph(configuration: GraphConfiguration): void {
@@ -233,6 +247,8 @@ export class CinemaGraphExecutor {
     this.activePerformanceRuleCount = performance.activeRuleCount
     this.activePerformanceTransientCount = performance.activeTransientCount
     for (const diagnostic of performance.diagnostics.diagnostics) this.reportOnce(diagnostic)
+    const quality = this.evaluateQuality(performance.nodeEnabledOverrides)
+    this.reportQualityDiagnostics(quality)
     const performanceFrame = applyPerformanceFrameOverrides(frame, performance)
     const resolvedParameterValues = this.updateFrameParameterValues(performanceFrame, performance)
     const cameraResolution = this.configuration.composition?.cameras.length
@@ -264,32 +280,19 @@ export class CinemaGraphExecutor {
       for (const nodeId of this.plan.nodeOrder) {
         const record = this.records.get(nodeId)
         const outputNode = nodeId === this.plan.output.nodeId
-        const enabled = record
-          ? (performance.nodeEnabledOverrides[nodeId] ?? record.authored.enabled)
-          : false
-        const transparentSource = record != null
-          && record.authored.opacity <= 0
-          && (record.authored.family === 'media'
-            || record.authored.family === 'logo'
-            || record.authored.family === 'text'
-            || record.authored.family === 'lyrics'
-            || record.authored.family === 'procedural')
+        const qualityDecision = this.qualityManager.getDecision(nodeId)
         if (!record || record.status !== 'ready' || this.seekDisabledNodes.has(nodeId)) {
           frameFallbackUsed = true
           this.renderNodeFallback(record?.authored ?? null, outputNode, frameLeases)
           continue
         }
-        if (!enabled) {
+        if (qualityDecision?.skip) {
           if (outputNode) frameFallbackUsed = true
-          this.renderNodeFallback(record.authored, outputNode, frameLeases)
-          continue
-        }
-        if (transparentSource) {
-          this.renderNodeFallback(record.authored, outputNode, frameLeases)
+          this.renderNodeFallback(record.authored, outputNode, frameLeases, undefined, qualityDecision)
           continue
         }
 
-        const target = outputNode ? null : this.acquireFrameTarget(record, frameLeases)
+        const target = outputNode ? null : this.acquireFrameTarget(record, frameLeases, qualityDecision)
         const inputs = this.resolveInputs(nodeId)
         try {
           const nodeFrame = cameraFrameForCapability(
@@ -300,7 +303,7 @@ export class CinemaGraphExecutor {
             nodeId,
             frame: nodeFrame,
             viewport: this.viewport,
-            values: record.values,
+            values: applyCinemaQualityScalars(record.registryEntry, record.values, qualityDecision),
             assets: record.assets,
             assetManager: this.assetManager,
             inputs,
@@ -310,6 +313,7 @@ export class CinemaGraphExecutor {
             textures: this.textures,
             webgl: this.webgl,
             diagnostics: this.diagnosticsSink,
+            ...(qualityDecision ? { quality: qualityDecision } : {}),
           })
           if (outputNode) {
             this.outputRendered = true
@@ -374,6 +378,7 @@ export class CinemaGraphExecutor {
       performanceRuleCount: this.performanceRuntime?.ruleCount ?? 0,
       activePerformanceRuleCount: this.activePerformanceRuleCount,
       activePerformanceTransientCount: this.activePerformanceTransientCount,
+      quality: this.qualityManager.getSnapshot(),
       diagnostics: createCinemaDiagnosticSnapshot(this.diagnostics),
     }
   }
@@ -409,6 +414,7 @@ export class CinemaGraphExecutor {
     this.outputRendered = false
     this.safeOutputActive = true
     this.lastResetGeneration = -1
+    this.qualityManager.resetTransientHistory()
     this.textures.clearPublishedOutputs()
 
     const composition = this.configuration.composition
@@ -455,6 +461,7 @@ export class CinemaGraphExecutor {
     for (const diagnostic of resolution.diagnostics.diagnostics) this.report(diagnostic)
     this.parameterRegistry = definitionResult.registry
     this.baseParameterValues = resolution.values
+    this.evaluateQuality()
     this.modulationRuntime = new CinemaModulationRuntime({
       composition,
       registry: definitionResult.registry,
@@ -588,19 +595,23 @@ export class CinemaGraphExecutor {
     this.emitSnapshot()
   }
 
-  private acquireFrameTarget(record: RuntimeNodeRecord, leases: CinemaRenderTargetLease[]): CinemaRenderTargetLease {
+  private acquireFrameTarget(
+    record: RuntimeNodeRecord,
+    leases: CinemaRenderTargetLease[],
+    qualityDecision: Readonly<CinemaNodeQualityDecision> | null = this.qualityManager.getDecision(record.authored.id),
+  ): CinemaRenderTargetLease {
     const output = record.registryEntry.definition.output
     const descriptor: CinemaTargetDescriptor = {
       ...output,
-      widthScale: 1,
-      heightScale: 1,
+      widthScale: qualityDecision?.resolutionScale ?? 1,
+      heightScale: qualityDecision?.resolutionScale ?? 1,
       filter: 'linear',
       wrap: 'clamp',
       clearColor: [0, 0, 0, 0],
     }
     const feedback = this.feedbackSources.get(record.authored.id)
     if (feedback) {
-      this.ensureFeedbackLeases(feedback, descriptor)
+      this.ensureFeedbackLeases(feedback, descriptor, qualityDecision?.feedbackHistoryScale ?? 1)
       feedback.cursor = (feedback.cursor + 1) % feedback.leases.length
       const lease = feedback.leases[feedback.cursor]
       this.targets.clear(lease)
@@ -634,7 +645,9 @@ export class CinemaGraphExecutor {
 
   private resolveFeedbackInput(edge: CinemaCompiledGraphPlan['feedbackEdges'][number]): CinemaTextureView | null {
     const feedback = this.feedbackSources.get(edge.sourceNodeId)
-    const historyFrames = Math.max(1, Math.floor(edge.historyFrames))
+    const historyFrames = feedback
+      ? Math.max(1, Math.min(feedback.activeHistoryFrames, Math.floor(edge.historyFrames)))
+      : Math.max(1, Math.floor(edge.historyFrames))
     if (!feedback || feedback.cursor < 0 || feedback.framesWritten < historyFrames) return null
     const index = positiveModulo(feedback.cursor - historyFrames, feedback.leases.length)
     return this.targets.getReadTexture(feedback.leases[index])
@@ -662,6 +675,7 @@ export class CinemaGraphExecutor {
     outputNode: boolean,
     leases: CinemaRenderTargetLease[],
     existingTarget?: CinemaRenderTargetLease | null,
+    qualityDecision?: Readonly<CinemaNodeQualityDecision> | null,
   ): void {
     if (outputNode) {
       this.renderSafeOutput()
@@ -670,9 +684,28 @@ export class CinemaGraphExecutor {
     if (!authored) return
     const record = this.records.get(authored.id)
     if (!record) return
-    const target = existingTarget ?? this.acquireFrameTarget(record, leases)
+    const target = existingTarget ?? (qualityDecision?.skip
+      ? this.acquireInvisibleFallbackTarget(record, leases)
+      : this.acquireFrameTarget(record, leases))
     this.targets.clear(target)
     this.publishNodeOutputs(record, target)
+  }
+
+  private acquireInvisibleFallbackTarget(
+    record: RuntimeNodeRecord,
+    leases: CinemaRenderTargetLease[],
+  ): CinemaRenderTargetLease {
+    const output = record.registryEntry.definition.output
+    const lease = this.targets.acquire(record.authored.id, {
+      ...output,
+      widthScale: 0.05,
+      heightScale: 0.05,
+      filter: 'linear',
+      wrap: 'clamp',
+      clearColor: [0, 0, 0, 0],
+    }, 'frame')
+    leases.push(lease)
+    return lease
   }
 
   private configureFeedbackSources(plan: CinemaCompiledGraphPlan): void {
@@ -686,6 +719,7 @@ export class CinemaGraphExecutor {
       this.feedbackSources.set(edge.sourceNodeId, {
         sourceNodeId: edge.sourceNodeId,
         maximumHistoryFrames: historyFrames,
+        activeHistoryFrames: historyFrames,
         leases: [],
         cursor: -1,
         framesWritten: 0,
@@ -693,9 +727,24 @@ export class CinemaGraphExecutor {
     }
   }
 
-  private ensureFeedbackLeases(state: FeedbackSourceState, descriptor: CinemaTargetDescriptor): void {
+  private ensureFeedbackLeases(
+    state: FeedbackSourceState,
+    descriptor: CinemaTargetDescriptor,
+    feedbackHistoryScale: number,
+  ): void {
+    const activeHistoryFrames = Math.max(1, Math.min(
+      state.maximumHistoryFrames,
+      Math.round(state.maximumHistoryFrames * Math.max(0.1, Math.min(1, feedbackHistoryScale))),
+    ))
+    const targetCount = activeHistoryFrames + 1
+    if (state.leases.length > 0 && state.leases.length !== targetCount) {
+      for (const lease of state.leases) this.targets.release(lease)
+      state.leases = []
+      state.cursor = -1
+      state.framesWritten = 0
+    }
+    state.activeHistoryFrames = activeHistoryFrames
     if (state.leases.length > 0) return
-    const targetCount = state.maximumHistoryFrames + 1
     for (let index = 0; index < targetCount; index += 1) {
       state.leases.push(this.targets.acquire(state.sourceNodeId, descriptor, 'persistent-node'))
     }
@@ -826,6 +875,66 @@ export class CinemaGraphExecutor {
       record.values = valuesByNode.get(nodeId) ?? Object.freeze({})
     }
     return resolution.values
+  }
+
+  private evaluateQuality(
+    enabledOverrides: Readonly<Partial<Record<CinemaNodeId, boolean>>> = Object.freeze({}),
+  ): CinemaGraphQualitySnapshot {
+    const failedNodeIds = new Set<CinemaNodeId>()
+    for (const [nodeId, record] of this.records) if (record.status === 'failed') failedNodeIds.add(nodeId)
+    return this.qualityManager.evaluate({
+      composition: this.configuration.composition,
+      plan: this.plan,
+      registry: this.parameterRegistry,
+      viewport: this.viewport,
+      targets: this.targets.getDiagnostics(),
+      enabledOverrides,
+      failedNodeIds,
+    })
+  }
+
+  private reportQualityDiagnostics(snapshot: Readonly<CinemaGraphQualitySnapshot>): void {
+    if (snapshot.estimatedGraphCostScore > snapshot.graphBudgetScore && snapshot.graphBudgetScore > 0) {
+      this.reportOnce(createCinemaDiagnostic({
+        code: 'CINEMA_COMPOSITION_EXPENSIVE',
+        severity: snapshot.pressure === 'critical' ? 'warning' : 'info',
+        message: 'Cinema graph cost exceeds the current viewport/device budget; adaptive quality is protecting the live output.',
+        attribution: { compositionId: this.configuration.composition?.id, stage: 'quality-manager' },
+        details: {
+          estimatedCostScore: snapshot.estimatedGraphCostScore,
+          graphBudgetScore: snapshot.graphBudgetScore,
+          targetMemoryMb: snapshot.estimatedTargetMemoryMb,
+        },
+      }))
+    }
+    for (const decision of snapshot.nodeDecisions) {
+      if (decision.degraded && snapshot.pressure !== 'nominal') {
+        this.reportOnce(createCinemaDiagnostic({
+          code: 'CINEMA_QUALITY_DEGRADED',
+          severity: 'info',
+          message: `Cinema reduced node "${decision.nodeId}" to ${decision.tier} quality under ${snapshot.pressure} graph pressure.`,
+          attribution: { compositionId: this.configuration.composition?.id, nodeId: decision.nodeId, stage: 'quality-manager' },
+          details: { tier: decision.tier, role: decision.role, resolutionScale: decision.resolutionScale },
+        }))
+      }
+      if (decision.visibility === 'transparent') {
+        this.reportOnce(createCinemaDiagnostic({
+          code: 'CINEMA_NODE_FROZEN',
+          severity: 'info',
+          message: `Cinema froze hidden node "${decision.nodeId}" and skipped its render work while opacity is zero.`,
+          attribution: { compositionId: this.configuration.composition?.id, nodeId: decision.nodeId, stage: 'quality-manager' },
+          details: { reason: 'transparent' },
+        }))
+      } else if (decision.visibility === 'disabled') {
+        this.reportOnce(createCinemaDiagnostic({
+          code: 'CINEMA_NODE_SKIPPED',
+          severity: 'info',
+          message: `Cinema skipped disabled node "${decision.nodeId}" without changing authored state.`,
+          attribution: { compositionId: this.configuration.composition?.id, nodeId: decision.nodeId, stage: 'quality-manager' },
+          details: { reason: 'disabled' },
+        }))
+      }
+    }
   }
 
   private resetRecord(
