@@ -40,6 +40,8 @@ import {
   LASER_DMX_SHOW_MANAGER_QUALITY,
   cloneLaserDmxShowManagerShow,
   isLaserDmxShowManagerFixtureKindEnabled,
+  parseLaserDmxShowManagerFixtureKind,
+  resolveLaserDmxShowManagerGridCell,
   updateLaserDmxShowManagerSection as updateLaserDmxShowManagerSectionDocument,
   type LaserDmxShowManagerSection,
   type LaserDmxShowManagerShow,
@@ -130,8 +132,10 @@ export function ShowManagerView() {
   const addLaserDmxShowManagerSection = useReactStore(state => state.addLaserDmxShowManagerSection)
   const removeLaserDmxShowManagerSection = useReactStore(state => state.removeLaserDmxShowManagerSection)
   const reorderLaserDmxShowManagerSection = useReactStore(state => state.reorderLaserDmxShowManagerSection)
+  const addLaserDmxShowManagerFixture = useReactStore(state => state.addLaserDmxShowManagerFixture)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
+  const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
   const [liveFps, setLiveFps] = useState(0)
   const [workspaceMode, setWorkspaceMode] = useState<'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE>('default')
@@ -167,6 +171,10 @@ export function ShowManagerView() {
       ?? null,
     [activeLaserDmxShow, laserDmxShowManagerEditingSectionId],
   )
+  const selectedLaserFixture = useMemo(
+    () => activeLaserDmxSection?.fixtures.find(fixture => fixture.id === selectedLaserFixtureId) ?? null,
+    [activeLaserDmxSection, selectedLaserFixtureId],
+  )
   const laserTimelineDuration = useMemo(
     () => Math.max(1, ...(activeLaserDmxShow?.sections.map(section => section.endSec) ?? [1])),
     [activeLaserDmxShow],
@@ -192,6 +200,12 @@ export function ShowManagerView() {
     setLaserShowUndoDepth(laserShowUndoRef.current[activeLaserDmxShow.id]?.length ?? 0)
     setLaserShowRedoDepth(laserShowRedoRef.current[activeLaserDmxShow.id]?.length ?? 0)
   }, [activeLaserDmxShow])
+
+  useEffect(() => {
+    if (selectedLaserFixtureId && !activeLaserDmxSection?.fixtures.some(fixture => fixture.id === selectedLaserFixtureId)) {
+      setSelectedLaserFixtureId(null)
+    }
+  }, [activeLaserDmxSection, selectedLaserFixtureId])
 
   const pixGridPresets = useMemo(
     () => reactPresets.filter(preset => preset.engine === 'pixGrid'),
@@ -533,6 +547,25 @@ export function ShowManagerView() {
     event.dataTransfer.setData('text/plain', kind)
   }
 
+  const commitLaserFixtureDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (!activeLaserDmxShow || !activeLaserDmxSection) return
+    const rawKind = event.dataTransfer.getData('application/x-drmvyz-laserdmx-fixture-kind')
+      || event.dataTransfer.getData('text/plain')
+    const kind = parseLaserDmxShowManagerFixtureKind(rawKind)
+    if (!kind) return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const cell = resolveLaserDmxShowManagerGridCell(event.clientX, event.clientY, bounds)
+    if (!cell || !recordLaserShowUndo()) return
+    const fixtureId = addLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, kind, cell)
+    if (fixtureId) setSelectedLaserFixtureId(fixtureId)
+  }
+
+  const selectLaserSectionForEditing = (sectionId: string) => {
+    setSelectedLaserFixtureId(null)
+    selectLaserDmxShowManagerSection(sectionId)
+  }
+
   const commitLaserSectionBoundary = (
     sectionId: string,
     edge: 'start' | 'end',
@@ -794,7 +827,17 @@ export function ShowManagerView() {
         <main className="sm-center">
           <div className="sm-stage-frame">
             {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
-              <LaserDmxShowManagerStage show={activeLaserDmxShow} section={activeLaserDmxSection} showGrid={activeLaserDmxShow?.settings?.showGrid ?? true} />
+              <LaserDmxShowManagerStage
+                show={activeLaserDmxShow}
+                section={activeLaserDmxSection}
+                selectedFixtureId={selectedLaserFixtureId}
+                showGrid={activeLaserDmxShow?.settings?.showGrid ?? true}
+                showLabels={activeLaserDmxShow?.settings?.showLabels ?? true}
+                showBeams={activeLaserDmxShow?.settings?.showBeams ?? true}
+                highlightGrid={activeLaserDmxShow?.settings?.highlightGrid ?? true}
+                onDropFixture={commitLaserFixtureDrop}
+                onSelectFixture={setSelectedLaserFixtureId}
+              />
             ) : (
               <PixGridSurface
                 analyser={engine.analyserMaster}
@@ -823,6 +866,7 @@ export function ShowManagerView() {
                 <>
                   <span>LaserDMX {LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</span>
                   <span>{activeLaserDmxSection?.fixtures.length ?? 0} fixtures</span>
+                  <span>{selectedLaserFixture?.label ?? 'No selection'}</span>
                 </>
               ) : (
                 <>
@@ -858,7 +902,7 @@ export function ShowManagerView() {
               durationSec={laserTimelineDuration}
               viewport={laserTimelineViewport}
               viewportRef={laserTimelineViewportRef}
-              onSelect={selectLaserDmxShowManagerSection}
+              onSelect={selectLaserSectionForEditing}
               onRemove={sectionId => {
                 if (!activeLaserDmxShow || !recordLaserShowUndo()) return
                 removeLaserDmxShowManagerSection(activeLaserDmxShow.id, sectionId)
@@ -1088,20 +1132,94 @@ export function ShowManagerView() {
 function LaserDmxShowManagerStage({
   show,
   section,
+  selectedFixtureId,
   showGrid,
+  showLabels,
+  showBeams,
+  highlightGrid,
+  onDropFixture,
+  onSelectFixture,
 }: {
   show: LaserDmxShowManagerShow | null
   section: LaserDmxShowManagerSection | null
+  selectedFixtureId: string | null
   showGrid: boolean
+  showLabels: boolean
+  showBeams: boolean
+  highlightGrid: boolean
+  onDropFixture: (event: DragEvent<HTMLDivElement>) => void
+  onSelectFixture: (fixtureId: string | null) => void
 }) {
+  const fixtures = section?.fixtures ?? []
+  const collisionOrdinals = new Map<string, number>()
+
   return (
-    <div className="sm-laser-stage" aria-label="LaserDMX Part 1 stage foundation">
-      {showGrid && <div className="sm-laser-stage-grid" aria-hidden="true" />}
-      <div className="sm-laser-stage-copy">
-        <span>LaserDMX Show</span>
-        <strong>{show?.name ?? 'Untitled Show'}</strong>
-        <p>{section ? `Editing ${section.label}` : 'No section selected'}</p>
-        <small>{LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} columns × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows} rows · section-owned fixtures</small>
+    <div className="sm-laser-stage" aria-label="LaserDMX Part 1 authoring grid">
+      <div className="sm-laser-stage-heading">
+        <span>{show?.name ?? 'Untitled Show'}</span>
+        <strong>{section ? section.label : 'No section selected'}</strong>
+      </div>
+      <div
+        className={`sm-laser-stage-grid-surface${showGrid ? ' is-grid-visible' : ''}${highlightGrid ? ' is-highlighted' : ''}`}
+        data-testid="laser-dmx-authoring-grid"
+        onDragOver={event => {
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+        }}
+        onDrop={onDropFixture}
+        onClick={() => onSelectFixture(null)}
+      >
+        {showBeams && fixtures.length > 0 && (
+          <svg className="sm-laser-stage-beams" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            {fixtures.flatMap(fixture => {
+              if (!fixture.beam.beamEnabled || fixture.beam.targetX == null || fixture.beam.targetY == null) return []
+              const x1 = ((fixture.x + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100
+              const y1 = ((fixture.y + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100
+              const x2 = ((fixture.beam.targetX + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100
+              const y2 = ((fixture.beam.targetY + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100
+              return [<line key={fixture.id} x1={x1} y1={y1} x2={x2} y2={y2} />]
+            })}
+          </svg>
+        )}
+        {fixtures.map(fixture => {
+          const collisionKey = `${fixture.x}:${fixture.y}`
+          const collisionOrdinal = collisionOrdinals.get(collisionKey) ?? 0
+          collisionOrdinals.set(collisionKey, collisionOrdinal + 1)
+          const collisionOffset = collisionOrdinal % 4
+          const left = ((fixture.x + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100
+          const top = ((fixture.y + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100
+          const isSelected = fixture.id === selectedFixtureId
+          return (
+            <button
+              key={fixture.id}
+              type="button"
+              className={`sm-laser-fixture${isSelected ? ' is-selected' : ''}`}
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                marginLeft: collisionOffset * 4,
+                marginTop: collisionOffset * 4,
+              }}
+              aria-pressed={isSelected}
+              aria-label={`${fixture.label} at column ${fixture.x + 1}, row ${fixture.y + 1}`}
+              data-fixture-id={fixture.id}
+              data-grid-x={fixture.x}
+              data-grid-y={fixture.y}
+              onClick={event => {
+                event.stopPropagation()
+                onSelectFixture(fixture.id)
+              }}
+            >
+              <span className="sm-laser-fixture-icon" aria-hidden="true"><FixtureIcon kind={fixture.kind} /></span>
+              {showLabels && <span className="sm-laser-fixture-label">{fixture.label}</span>}
+            </button>
+          )
+        })}
+        {fixtures.length === 0 && (
+          <div className="sm-laser-stage-empty" aria-hidden="true">
+            Drag a lighting component onto the grid
+          </div>
+        )}
       </div>
     </div>
   )

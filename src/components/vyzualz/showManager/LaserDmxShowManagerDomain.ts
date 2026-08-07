@@ -1,6 +1,7 @@
 import {
   createDefaultLaserDmxShowDirectorFixture,
   DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS,
+  LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS,
   normalizeLaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixtureKind,
@@ -164,6 +165,44 @@ export function isLaserDmxShowManagerFixtureKindEnabled(
   kind: LaserDmxShowDirectorFixtureKind,
 ): boolean {
   return ENABLED_FIXTURE_KIND_SET.has(kind)
+}
+
+export function parseLaserDmxShowManagerFixtureKind(
+  value: unknown,
+): LaserDmxShowDirectorFixtureKind | null {
+  if (typeof value !== 'string') return null
+  return LASER_DMX_SHOW_MANAGER_ENABLED_FIXTURE_KINDS.find(kind => kind === value) ?? null
+}
+
+export interface LaserDmxShowManagerGridBounds {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+export interface LaserDmxShowManagerGridCell {
+  x: number
+  y: number
+}
+
+/** Maps a client-space pointer into the fixed Part 1 grid using zero-based integer cells. */
+export function resolveLaserDmxShowManagerGridCell(
+  clientX: number,
+  clientY: number,
+  bounds: LaserDmxShowManagerGridBounds,
+): LaserDmxShowManagerGridCell | null {
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null
+  if (!Number.isFinite(bounds.left) || !Number.isFinite(bounds.top)) return null
+  if (!Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) return null
+  if (bounds.width <= 0 || bounds.height <= 0) return null
+
+  const normalizedX = clamp((clientX - bounds.left) / bounds.width, 0, 1)
+  const normalizedY = clamp((clientY - bounds.top) / bounds.height, 0, 1)
+  return {
+    x: clamp(Math.floor(normalizedX * LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns), 0, LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1),
+    y: clamp(Math.floor(normalizedY * LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows), 0, LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1),
+  }
 }
 
 export function normalizeLaserDmxShowManagerFixture(
@@ -442,7 +481,13 @@ export function addLaserDmxShowManagerFixtureToSection(
 ): { show: LaserDmxShowManagerShow; fixtureId: string | null } {
   const section = show.sections.find(candidate => candidate.id === sectionId)
   if (!section) return { show, fixtureId: null }
-  const fixture = createLaserDmxShowManagerFixture(kind, section.fixtures.length, patch)
+  const labelPrefix = `${LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[kind]} `
+  const nextKindOrdinal = section.fixtures.reduce((maximum, fixture) => {
+    if (fixture.kind !== kind || !fixture.label.startsWith(labelPrefix)) return maximum
+    const ordinal = Number.parseInt(fixture.label.slice(labelPrefix.length), 10)
+    return Number.isFinite(ordinal) ? Math.max(maximum, ordinal) : maximum
+  }, 0) + 1
+  const fixture = createLaserDmxShowManagerFixture(kind, nextKindOrdinal - 1, patch)
   if (!fixture) return { show, fixtureId: null }
   return {
     show: updateLaserDmxShowManagerSection(show, sectionId, {

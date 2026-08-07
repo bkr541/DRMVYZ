@@ -101,4 +101,34 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     expect(result).toBeNull()
     expect(useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.fixtures).toEqual([])
   })
+
+  it('creates independent section-local fixtures through the canonical store action and persists them', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Placement')
+    const initial = useReactStore.getState().laserDmxShowManagerShows[0]!
+    const introId = initial.sections[0]!.id
+    const verseId = initial.sections[1]!.id
+
+    const firstId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, introId, 'laser', { x: 17, y: 11 })
+    const secondId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, introId, 'laser', { x: 17, y: 11 })
+    const verseFixtureId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, verseId, 'strobe', { x: 0, y: 0 })
+
+    const state = useReactStore.getState()
+    const show = state.laserDmxShowManagerShows.find(candidate => candidate.id === showId)!
+    expect(firstId).toBeTruthy()
+    expect(secondId).toBeTruthy()
+    expect(verseFixtureId).toBeTruthy()
+    expect(new Set([firstId, secondId, verseFixtureId]).size).toBe(3)
+    expect(show.sections[0]!.fixtures.map(fixture => [fixture.label, fixture.x, fixture.y])).toEqual([
+      ['Laser 1', 17, 11],
+      ['Laser 2', 17, 11],
+    ])
+    expect(show.sections[1]!.fixtures.map(fixture => [fixture.label, fixture.x, fixture.y])).toEqual([
+      ['Strobe 1', 0, 0],
+    ])
+
+    const persisted = reactStorePartialize(state) as Record<string, unknown>
+    const persistedShows = persisted.laserDmxShowManagerShows as typeof state.laserDmxShowManagerShows
+    expect(persistedShows[0]!.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual([firstId, secondId])
+    expect(persistedShows[0]!.sections[1]!.fixtures.map(fixture => fixture.id)).toEqual([verseFixtureId])
+  })
 })

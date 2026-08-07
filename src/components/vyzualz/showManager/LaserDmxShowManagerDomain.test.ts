@@ -6,7 +6,9 @@ import {
   addLaserDmxShowManagerFixtureToSection,
   createLaserDmxShowManagerShow,
   normalizeLaserDmxShowManagerShow,
+  parseLaserDmxShowManagerFixtureKind,
   reorderLaserDmxShowManagerSection,
+  resolveLaserDmxShowManagerGridCell,
   updateLaserDmxShowManagerSection,
   updateLaserDmxShowManagerWorkspaceSettings,
 } from './LaserDmxShowManagerDomain'
@@ -159,6 +161,29 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     show = enabled.show
     expect(show.sections[0]!.fixtures[0]).toMatchObject({ x: 17, y: 0, groupId: null, colorMode: 'fixed' })
     expect(show).not.toHaveProperty('groups')
+  })
+
+  it('maps pointer coordinates deterministically to the fixed grid, including boundary clamping', () => {
+    const bounds = { left: 100, top: 50, width: 900, height: 600 }
+    expect(resolveLaserDmxShowManagerGridCell(100, 50, bounds)).toEqual({ x: 0, y: 0 })
+    expect(resolveLaserDmxShowManagerGridCell(550, 350, bounds)).toEqual({ x: 9, y: 6 })
+    expect(resolveLaserDmxShowManagerGridCell(999.9, 649.9, bounds)).toEqual({ x: 17, y: 11 })
+    expect(resolveLaserDmxShowManagerGridCell(5000, -5000, bounds)).toEqual({ x: 17, y: 0 })
+    expect(resolveLaserDmxShowManagerGridCell(100, 50, { ...bounds, width: 0 })).toBeNull()
+  })
+
+  it('accepts only enabled drag payloads and generates kind-local display names without collisions', () => {
+    expect(parseLaserDmxShowManagerFixtureKind('laser')).toBe('laser')
+    expect(parseLaserDmxShowManagerFixtureKind('co2Jet')).toBeNull()
+    expect(parseLaserDmxShowManagerFixtureKind('not-a-fixture')).toBeNull()
+
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    show = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'laser', { x: 1, y: 1 }).show
+    show = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'strobe', { x: 1, y: 1 }).show
+    show = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'laser', { x: 1, y: 1 }).show
+    expect(show.sections[0]!.fixtures.map(fixture => fixture.label)).toEqual(['Laser 1', 'Strobe 1', 'Laser 2'])
+    expect(new Set(show.sections[0]!.fixtures.map(fixture => fixture.id)).size).toBe(3)
   })
 
   it('reorders canonical sections while keeping deterministic non-overlapping timing windows', () => {

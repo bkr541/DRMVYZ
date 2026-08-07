@@ -109,6 +109,7 @@ const fixture = vi.hoisted(() => ({
     addLaserDmxShowManagerSection: vi.fn(),
     removeLaserDmxShowManagerSection: vi.fn(),
     reorderLaserDmxShowManagerSection: vi.fn(),
+    addLaserDmxShowManagerFixture: vi.fn(() => 'laser-fixture-new'),
     pixGridState: {
       matrixWidth: 160,
       matrixHeight: 90,
@@ -309,7 +310,7 @@ describe('ShowManagerView production shell', () => {
       })
 
       expect(fixture.state.ensureLaserDmxShowManagerShow).toHaveBeenCalled()
-      expect(container.querySelector('[aria-label="LaserDMX Part 1 stage foundation"]')).not.toBeNull()
+      expect(container.querySelector('[aria-label="LaserDMX Part 1 authoring grid"]')).not.toBeNull()
       expect(container.querySelector('[aria-label="Show Manager LaserDMX section timeline"]')).not.toBeNull()
       expect(container.querySelector('[data-testid="pix-grid-surface"]')).toBeNull()
       expect(container.textContent).toContain('18 × 12')
@@ -409,6 +410,131 @@ describe('ShowManagerView production shell', () => {
       expect.stringContaining('WebGL2'),
       expect.stringContaining('Auto with Fallback'),
     ]))
+  })
+
+  it('routes Stage 3 drag/drop through the production LaserDMX grid with snapped cells and history', async () => {
+    fixture.state.addLaserDmxShowManagerFixture.mockClear()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+    const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+      .find(option => option.textContent?.includes('LaserDMX'))
+    await act(async () => {
+      laserOption?.click()
+      await Promise.resolve()
+    })
+
+    const grid = container.querySelector<HTMLElement>('[data-testid="laser-dmx-authoring-grid"]')
+    expect(grid).not.toBeNull()
+    if (!grid) return
+    grid.getBoundingClientRect = () => ({
+      x: 10,
+      y: 20,
+      left: 10,
+      top: 20,
+      right: 190,
+      bottom: 140,
+      width: 180,
+      height: 120,
+      toJSON: () => ({}),
+    })
+
+    const dispatchDrop = async (payload: string, clientX: number, clientY: number) => {
+      const event = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        clientY: { value: clientY },
+        dataTransfer: {
+          value: {
+            dropEffect: 'none',
+            getData: (type: string) => type === 'application/x-drmvyz-laserdmx-fixture-kind' ? payload : '',
+          },
+        },
+      })
+      await act(async () => {
+        grid.dispatchEvent(event)
+        await Promise.resolve()
+      })
+    }
+
+    await dispatchDrop('co2Jet', 105, 75)
+    expect(fixture.state.addLaserDmxShowManagerFixture).not.toHaveBeenCalled()
+
+    await dispatchDrop('laser', 105, 75)
+    expect(fixture.state.addLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+      'laser-show-1',
+      'laser-show-1:section:intro:1',
+      'laser',
+      { x: 9, y: 5 },
+    )
+    expect(container.querySelector<HTMLButtonElement>('button[title="Undo section edit"]')?.disabled).toBe(false)
+  })
+
+  it('keeps LaserDMX fixture selection single and clears it from empty grid space', async () => {
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    intro.fixtures = [
+      { id: 'fixture-a', kind: 'laser', label: 'Laser 1', x: 4, y: 5, beam: { beamEnabled: false, targetX: null, targetY: null } },
+      { id: 'fixture-b', kind: 'strobe', label: 'Strobe 1', x: 4, y: 5, beam: { beamEnabled: false, targetX: null, targetY: null } },
+    ] as never[]
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      const fixtureButtons = [...container.querySelectorAll<HTMLButtonElement>('button[data-fixture-id]')]
+      expect(fixtureButtons).toHaveLength(2)
+      await act(async () => {
+        fixtureButtons[0]?.click()
+        await Promise.resolve()
+      })
+      expect(fixtureButtons[0]?.getAttribute('aria-pressed')).toBe('true')
+      expect(fixtureButtons[1]?.getAttribute('aria-pressed')).toBe('false')
+
+      await act(async () => {
+        fixtureButtons[1]?.click()
+        await Promise.resolve()
+      })
+      expect(fixtureButtons[0]?.getAttribute('aria-pressed')).toBe('false')
+      expect(fixtureButtons[1]?.getAttribute('aria-pressed')).toBe('true')
+
+      const grid = container.querySelector<HTMLElement>('[data-testid="laser-dmx-authoring-grid"]')
+      await act(async () => {
+        grid?.click()
+        await Promise.resolve()
+      })
+      expect(fixtureButtons.every(button => button.getAttribute('aria-pressed') === 'false')).toBe(true)
+    } finally {
+      intro.fixtures = originalFixtures
+    }
   })
 
   it('records section edits in the production LaserDMX history controls and exposes undo/redo', async () => {

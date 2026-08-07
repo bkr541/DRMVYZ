@@ -1139,43 +1139,105 @@
 }
 .sm-deck-section-row > label { display: grid; gap: 4px; }
 
-/* LaserDMX Show Manager Part 1 foundation. Fixture placement/renderer controls are later stages. */
+/* LaserDMX Show Manager Part 1 authoring surface. */
 .sm-laser-stage {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
   overflow: hidden;
   background: radial-gradient(circle at 50% 45%, rgba(28, 92, 108, 0.18), transparent 48%), #020506;
 }
 
-.sm-laser-stage-grid {
+.sm-laser-stage-heading {
   position: absolute;
-  inset: 10%;
-  border: 1px solid rgba(74, 199, 219, 0.2);
+  top: 12px;
+  left: 14px;
+  z-index: 4;
+  display: grid;
+  gap: 2px;
+  pointer-events: none;
+}
+.sm-laser-stage-heading span { color: rgba(196, 212, 220, 0.4); font-size: 8px; }
+.sm-laser-stage-heading strong { color: rgba(232, 244, 248, 0.78); font-size: 10px; }
+
+.sm-laser-stage-grid-surface {
+  position: absolute;
+  inset: 9% 7%;
+  border: 1px solid rgba(74, 199, 219, 0.14);
+  border-radius: 4px;
+  box-shadow: inset 0 0 28px rgba(74, 199, 219, 0.035);
+}
+.sm-laser-stage-grid-surface.is-grid-visible {
   background-image:
     linear-gradient(to right, rgba(154, 178, 188, 0.1) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(154, 178, 188, 0.1) 1px, transparent 1px);
   background-size:
     calc(100% / 18) 100%,
     100% calc(100% / 12);
-  box-shadow: inset 0 0 28px rgba(74, 199, 219, 0.04);
+}
+.sm-laser-stage-grid-surface.is-highlighted {
+  border-color: rgba(103, 247, 255, 0.34);
+  box-shadow: inset 0 0 34px rgba(74, 199, 219, 0.07), 0 0 14px rgba(74, 199, 219, 0.05);
 }
 
-.sm-laser-stage-copy {
-  position: relative;
+.sm-laser-stage-beams {
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  min-width: 220px;
-  padding: 16px 18px;
-  border: 1px solid rgba(74, 199, 219, 0.2);
-  border-radius: 7px;
-  background: rgba(3, 8, 10, 0.86);
-  text-align: center;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
 }
-.sm-laser-stage-copy span,
-.sm-laser-stage-copy small { display: block; color: rgba(196, 212, 220, 0.42); font-size: 8px; }
-.sm-laser-stage-copy strong { display: block; margin-top: 4px; color: rgba(232, 244, 248, 0.9); font-size: 13px; }
-.sm-laser-stage-copy p { margin: 7px 0 5px; color: #67f7ff; font-size: 10px; }
+.sm-laser-stage-beams line {
+  stroke: rgba(103, 247, 255, 0.28);
+  stroke-width: 0.24;
+  vector-effect: non-scaling-stroke;
+}
+
+.sm-laser-fixture {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 3px 5px;
+  border: 1px solid rgba(74, 199, 219, 0.32);
+  border-radius: 5px;
+  background: rgba(4, 13, 16, 0.94);
+  color: rgba(232, 244, 248, 0.8);
+  font: inherit;
+  font-size: 7px;
+  line-height: 1;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
+}
+.sm-laser-fixture:hover { border-color: rgba(103, 247, 255, 0.55); }
+.sm-laser-fixture.is-selected {
+  z-index: 3;
+  border-color: #67f7ff;
+  box-shadow: 0 0 0 1px rgba(103, 247, 255, 0.24), 0 0 14px rgba(103, 247, 255, 0.18);
+}
+.sm-laser-fixture-icon {
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.sm-laser-fixture-icon svg { width: 12px; height: 12px; }
+.sm-laser-fixture-label { white-space: nowrap; }
+.sm-laser-stage-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(196, 212, 220, 0.28);
+  font-size: 9px;
+  pointer-events: none;
+}
 
 .sm-laser-timeline .sm-timeline-grid { padding-top: 21px; }
 .sm-laser-timeline .sm-timeline-row { min-height: 48px; }
