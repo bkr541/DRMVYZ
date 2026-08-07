@@ -8,6 +8,7 @@ import {
   type CinemaExternalAssetSnapshot,
   type CinemaDiagnostic,
   type CinemaStableId,
+  type CinemaTransportFrame,
 } from '../index'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 
@@ -174,4 +175,90 @@ describe('CinemaAssetManager', () => {
     expect(gl.__calls.createdTextures).toBe(0)
     expect(report.mock.calls.some((call: unknown[]) => (call[0] as CinemaDiagnostic).code === 'CINEMA_ASSET_MISSING')).toBe(true)
   })
+
+  it('synchronizes video to play, pause, seek, loop, and playback rate without owning an animation loop', async () => {
+    const gl = createCinemaMockWebGL()
+    const report = vi.fn()
+    let paused = true
+    let onloadeddata: ((this: GlobalEventHandlers, ev: Event) => unknown) | null = null
+    const video = {
+      preload: '',
+      muted: false,
+      playsInline: false,
+      loop: true,
+      crossOrigin: '',
+      currentTime: 0,
+      duration: 10,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      readyState: 4,
+      playbackRate: 1,
+      onerror: null,
+      removeAttribute: vi.fn(),
+      load: vi.fn(),
+      pause: vi.fn(() => { paused = true }),
+      play: vi.fn(() => { paused = false; return Promise.resolve() }),
+      get paused() { return paused },
+      get onloadeddata() { return onloadeddata },
+      set onloadeddata(value) { onloadeddata = value },
+      set src(_value: string) { queueMicrotask(() => onloadeddata?.call(video as unknown as GlobalEventHandlers, new Event('loadeddata'))) },
+    } as unknown as HTMLVideoElement
+    const videoAssetId = stable<CinemaAssetId>('media-asset-manager-video', 'asset')
+    const videoBinding: CinemaAssetBindingDefinition = {
+      ...binding,
+      id: stable<CinemaAssetBindingId>('asset-manager-video-binding', 'asset binding'),
+      assetId: videoAssetId,
+      role: 'video',
+    }
+    const manager = new CinemaAssetManager(gl, { report }, {
+      fetch: vi.fn() as unknown as typeof fetch,
+      createImage: () => { throw new Error('image not expected') },
+      createVideo: () => video,
+      createObjectUrl: () => { throw new Error('object URL not expected') },
+      revokeObjectUrl: vi.fn(),
+    })
+    manager.setSources([{
+      assetId: videoAssetId,
+      revision: 1,
+      name: 'Runtime Video',
+      mimeType: 'video/mp4',
+      mediaKind: 'video',
+      runtimeUrl: 'https://signed.example/video.mp4',
+      width: 1920,
+      height: 1080,
+      durationSec: 10,
+    }])
+    expect((await manager.prepare(videoBinding)).status).toBe('ready')
+
+    const transport = (overrides: Partial<CinemaTransportFrame> = {}): CinemaTransportFrame => ({
+      trackId: 'track-stage-15',
+      audioTimeSec: 12,
+      durationSec: 30,
+      playing: true,
+      paused: false,
+      seeking: false,
+      looped: false,
+      visibilitySuspended: false,
+      discontinuity: true,
+      discontinuityReasons: ['activation'],
+      reset: { required: true, reconstruct: true, generation: 1, reasons: ['activation'], actionIds: ['cinema.reset.activation'], identity: 'stage-15' },
+      ...overrides,
+    })
+    const requestAnimationFrame = vi.fn()
+    vi.stubGlobal('requestAnimationFrame', requestAnimationFrame)
+
+    manager.synchronizeVideo(videoBinding, transport(), { loop: true, playbackRate: 1 })
+    expect(video.currentTime).toBe(2)
+    expect(video.play).toHaveBeenCalledTimes(1)
+    expect(gl.texSubImage2D).toHaveBeenCalled()
+
+    manager.synchronizeVideo(videoBinding, transport({ audioTimeSec: 4, playing: false, paused: true, seeking: true }), { loop: false, playbackRate: 1.5 })
+    expect(video.currentTime).toBe(6)
+    expect(video.playbackRate).toBe(1.5)
+    expect(video.pause).toHaveBeenCalled()
+    expect(requestAnimationFrame).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+    manager.dispose()
+  })
+
 })

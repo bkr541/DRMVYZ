@@ -19,6 +19,8 @@ import type {
   CinemaAssetRuntimeService,
   CinemaRuntimeAssetView,
   CinemaRuntimeDiagnosticSink,
+  CinemaTransportFrame,
+  CinemaVideoSyncOptions,
 } from '../CinemaRendererContracts'
 
 interface RuntimeAssetRecord {
@@ -34,6 +36,7 @@ interface RuntimeAssetRecord {
   width: number | null
   height: number | null
   durationSec: number | null
+  playAttempted: boolean
 }
 
 export interface CinemaAssetManagerDependencies {
@@ -159,6 +162,7 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
       width: source.width ?? null,
       height: source.height ?? null,
       durationSec: source.durationSec ?? null,
+      playAttempted: false,
     }
     this.records.set(binding.assetId, record)
     record.promise = this.prepareRecord(binding, record)
@@ -180,6 +184,87 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
     })
     for (const diagnostic of result.diagnostics.diagnostics) this.diagnostics.report(diagnostic)
     return result
+  }
+
+  synchronizeVideo(
+    binding: Readonly<CinemaAssetBindingDefinition>,
+    transport: Readonly<CinemaTransportFrame>,
+    options: Readonly<CinemaVideoSyncOptions> = {},
+  ): Readonly<CinemaRuntimeAssetView> {
+    const initial = this.resolve(binding)
+    const record = this.records.get(binding.assetId)
+    if (!record || record.status !== 'ready' || record.source.mediaKind !== 'video' || !record.element) return initial
+
+    const video = record.element as HTMLVideoElement
+    const duration = finiteOrNull(video.duration) ?? record.durationSec
+    const loop = options.loop !== false
+    const offsetSec = Number.isFinite(options.offsetSec) ? Number(options.offsetSec) : 0
+    const playbackRate = Number.isFinite(options.playbackRate)
+      ? Math.min(4, Math.max(0.25, Number(options.playbackRate)))
+      : 1
+    const requestedTime = Math.max(0, transport.audioTimeSec * playbackRate + offsetSec)
+    const targetTime = duration && duration > 0
+      ? loop
+        ? positiveModulo(requestedTime, duration)
+        : Math.min(Math.max(0, duration - 0.001), requestedTime)
+      : requestedTime
+    const shouldPause = !transport.playing
+      || transport.paused
+      || transport.seeking
+      || transport.visibilitySuspended
+    const forceCorrection = transport.discontinuity || transport.looped || transport.seeking || shouldPause
+
+    try {
+      if (video.playbackRate !== playbackRate) video.playbackRate = playbackRate
+      video.loop = false
+      if (forceCorrection || !Number.isFinite(video.currentTime) || Math.abs(video.currentTime - targetTime) > 0.2) {
+        video.currentTime = targetTime
+      }
+      if (shouldPause) {
+        if (!video.paused) video.pause()
+        record.playAttempted = false
+      } else if (video.paused && !record.playAttempted) {
+        record.playAttempted = true
+        try {
+          const playResult = video.play()
+          if (playResult && typeof playResult.catch === 'function') {
+            void playResult.catch(error => {
+              if (!this.isCurrentRecord(record)) return
+              this.diagnostics.report(createCinemaDiagnostic({
+                code: 'CINEMA_MEDIA_PLAYBACK_BLOCKED',
+                severity: 'warning',
+                message: `Cinema video asset "${binding.assetId}" could not resume playback; transport-scrub synchronization remains active.`,
+                attribution: { assetId: binding.assetId, stage: 'asset-manager' },
+                details: { reason: error instanceof Error ? error.message : String(error) },
+              }))
+            })
+          }
+        } catch (error) {
+          this.diagnostics.report(createCinemaDiagnostic({
+            code: 'CINEMA_MEDIA_PLAYBACK_BLOCKED',
+            severity: 'warning',
+            message: `Cinema video asset "${binding.assetId}" could not resume playback; transport-scrub synchronization remains active.`,
+            attribution: { assetId: binding.assetId, stage: 'asset-manager' },
+            details: { reason: error instanceof Error ? error.message : String(error) },
+          }))
+        }
+      }
+      if (record.texture && this.contextAvailable && video.readyState >= 2) {
+        this.gl.bindTexture(this.gl.TEXTURE_2D, record.texture)
+        this.gl.pixelStorei(this.gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
+        this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, video)
+        this.gl.bindTexture(this.gl.TEXTURE_2D, null)
+      }
+    } catch (error) {
+      this.diagnostics.report(createCinemaDiagnostic({
+        code: 'CINEMA_MEDIA_SYNC_FAILED',
+        severity: 'warning',
+        message: `Cinema could not synchronize video asset "${binding.assetId}" to transport time.`,
+        attribution: { assetId: binding.assetId, stage: 'asset-manager' },
+        details: { reason: error instanceof Error ? error.message : String(error) },
+      }))
+    }
+    return this.view(binding, record)
   }
 
   releaseAsset(assetId: CinemaAssetId): void {
@@ -295,9 +380,11 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
   private decodeVideo(url: string, signal?: AbortSignal): Promise<HTMLVideoElement> {
     return new Promise((resolve, reject) => {
       const video = this.dependencies.createVideo()
-      video.preload = 'metadata'
+      video.preload = 'auto'
       video.muted = true
       video.playsInline = true
+      video.loop = false
+      if (!url.startsWith('blob:') && !url.startsWith('data:')) video.crossOrigin = 'anonymous'
       const abort = () => { cleanup(); reject(abortError()) }
       const cleanup = () => {
         video.onloadeddata = null
@@ -375,6 +462,7 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
       record.element.removeAttribute('src')
     }
     record.element = null
+    record.playAttempted = false
     if (record.ownedObjectUrl) {
       this.dependencies.revokeObjectUrl(record.ownedObjectUrl)
       record.ownedObjectUrl = null
@@ -437,6 +525,10 @@ function fallbackView(
 
 function sourceKey(source: Readonly<CinemaExternalAssetSnapshot>): string {
   return `${source.assetId}:${String(source.revision)}:${source.runtimeUrl ?? ''}:${source.deleted === true ? 'deleted' : 'active'}`
+}
+
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor
 }
 
 function finiteOrNull(value: number): number | null {

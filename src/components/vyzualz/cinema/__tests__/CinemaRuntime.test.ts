@@ -11,6 +11,7 @@ import {
   createCinemaFoundationPersistedState,
 } from '../CinemaFoundation'
 import { createCinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
+import { CINEMA_STAGE15_REFERENCE_COMPOSITION_ID } from '../CinemaMediaTextNodes'
 import type { CinemaFrameContext, CinemaNodePlugin, CinemaRenderNode } from '../CinemaRendererContracts'
 import type { CinemaTargetDescriptor } from '../CinemaRendererContracts'
 import { CinemaRuntime } from '../runtime/CinemaRuntime'
@@ -40,6 +41,7 @@ beforeEach(() => {
 afterEach(() => {
   resetDrmvyzWebGLContextDiagnosticsForTests()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('CinemaRuntime', () => {
@@ -144,6 +146,38 @@ describe('CinemaRuntime', () => {
     expect(gl.__calls.deletedFramebuffers).toBe(gl.__calls.createdFramebuffers)
     expect(gl.__calls.deletedTextures).toBe(gl.__calls.createdTextures)
     expect(gl.__calls.deletedRenderbuffers).toBe(gl.__calls.createdRenderbuffers)
+  })
+
+  it('allocates and exposes a distinct mask attachment for mask-compatible nodes', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: vi.fn(() => 1),
+      cancelAnimationFrame: vi.fn(),
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    runtime.resize(resolution(640, 360))
+    const lease = runtime.targets.acquire('cinema.node.mask-source' as CinemaNodeId, {
+      ...TARGET,
+      hasDepth: false,
+      hasMask: true,
+    }, 'frame')
+    const color = runtime.targets.getReadTexture(lease)
+    const mask = runtime.targets.getReadMaskTexture?.(lease)
+
+    expect(color).not.toBeNull()
+    expect(mask).not.toBeNull()
+    expect(mask?.textureViewId).not.toBe(color?.textureViewId)
+    expect(mask?.descriptor).toMatchObject({ colorFormat: 'r8', hasMask: false })
+    expect(gl.drawBuffers).toHaveBeenCalledWith([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1])
+
+    runtime.targets.release(lease)
+    runtime.dispose()
+    expect(gl.__calls.deletedTextures).toBe(gl.__calls.createdTextures)
   })
 
   it('bounds pooled allocations, clamps oversized targets, and removes released texture routes', () => {
@@ -281,6 +315,63 @@ describe('CinemaRuntime', () => {
     expect(runtime.getSnapshot().graph).toMatchObject({ activeNodeCount: 0, safeOutputActive: true })
     runtime.dispose()
     expect(gl.__calls.deletedPrograms).toBe(gl.__calls.createdPrograms)
+  })
+
+  it('executes the Stage 15 text source through the production runtime with one loop and a mask attachment', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    const context2d = {
+      clearRect: vi.fn(),
+      fillText: vi.fn(),
+      measureText: vi.fn((text: string) => ({ width: text.length * 12 })),
+      textBaseline: 'middle',
+      textAlign: 'center',
+      font: '',
+      fillStyle: '',
+    } as unknown as CanvasRenderingContext2D
+    vi.stubGlobal('CanvasRenderingContext2D', class CanvasRenderingContext2D {})
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (kind: string) {
+      if (this === canvas && kind === 'webgl2') return gl as unknown as RenderingContext
+      if (kind === '2d') return context2d
+      return null
+    })
+    const callbacks = new Map<number, FrameRequestCallback>()
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      callbacks.set(1, callback)
+      return 1
+    })
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: requestFrame,
+      cancelAnimationFrame: () => { callbacks.clear() },
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    const state = createCinemaFoundationPersistedState()
+    const composition = state.compositions.find(candidate => candidate.id === CINEMA_STAGE15_REFERENCE_COMPOSITION_ID) ?? null
+    runtime.resize(resolution(640, 360))
+    runtime.setGraph(composition, null, state.definitions)
+    runtime.setFrame(frame(640, 360))
+    runtime.start()
+    const callback = callbacks.get(1)
+    expect(callback).toBeDefined()
+    callback?.(16.67)
+
+    expect(requestFrame).toHaveBeenCalledTimes(2)
+    expect(runtime.getSnapshot().graph).toMatchObject({
+      compositionId: CINEMA_STAGE15_REFERENCE_COMPOSITION_ID,
+      activeNodeCount: 2,
+      initializedNodeCount: 2,
+      failedNodeCount: 0,
+      outputRendered: true,
+      safeOutputActive: false,
+    })
+    expect(context2d.fillText).toHaveBeenCalled()
+    expect(gl.drawBuffers).toHaveBeenCalledWith([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1])
+    expect(gl.__calls.drawCount).toBe(2)
+
+    runtime.dispose()
   })
 
   it('isolates a throwing node and keeps the output path alive diagnostically', () => {

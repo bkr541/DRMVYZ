@@ -81,6 +81,8 @@ export interface CinemaTextureView {
 export interface CinemaRenderTargetService {
   acquire(ownerNodeId: CinemaNodeId, descriptor: CinemaTargetDescriptor, lifetime: CinemaTargetLifetime): CinemaRenderTargetLease
   getReadTexture(lease: CinemaRenderTargetLease): CinemaTextureView | null
+  /** Optional mask attachment view for mask-compatible targets. */
+  getReadMaskTexture?(lease: CinemaRenderTargetLease): CinemaTextureView | null
   swapPingPong(lease: CinemaRenderTargetLease): void
   clear(lease: CinemaRenderTargetLease): void
   release(lease: CinemaRenderTargetLease): void
@@ -267,6 +269,13 @@ export interface CinemaLyricFrame {
   wordText: string | null
   lineProgress: number
   wordProgress: number
+  lineStarted?: boolean
+  lineEnded?: boolean
+  wordChanged?: boolean
+  lineActive?: boolean
+  lineAbsent?: boolean
+  density?: number
+  lineDurationSec?: number
   vocalsActive: boolean
 }
 
@@ -641,9 +650,20 @@ export interface CinemaRuntimeAssetView {
   error?: string
 }
 
+export interface CinemaVideoSyncOptions {
+  offsetSec?: number
+  loop?: boolean
+  playbackRate?: number
+}
+
 export interface CinemaAssetRuntimeService {
   resolve(binding: Readonly<CinemaAssetBindingDefinition>): Readonly<CinemaRuntimeAssetView>
   prepare(binding: Readonly<CinemaAssetBindingDefinition>, signal?: AbortSignal): Promise<Readonly<CinemaRuntimeAssetView>>
+  synchronizeVideo?(
+    binding: Readonly<CinemaAssetBindingDefinition>,
+    transport: Readonly<CinemaTransportFrame>,
+    options?: Readonly<CinemaVideoSyncOptions>,
+  ): Readonly<CinemaRuntimeAssetView>
   releaseAsset(assetId: CinemaAssetId): void
   getDiagnostics(): Readonly<{ sourceCount: number; resourceCount: number; readyCount: number }>
 }

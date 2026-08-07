@@ -714,6 +714,13 @@ function resolveLyricSnapshot(
   if (playback) {
     const lineId = playback.activeCue?.id ?? null
     const wordId = playback.activeWord?.id ?? null
+    const lineDurationSec = playback.effectiveCueStartMs != null && playback.effectiveCueEndMs != null
+      ? Math.max(0, (playback.effectiveCueEndMs - playback.effectiveCueStartMs) / 1000)
+      : 0
+    const wordCount = playback.activeCue?.words?.length
+      ?? playback.activeCue?.text.trim().split(/\s+/).filter(Boolean).length
+      ?? 0
+    const lineActive = playback.activeCue != null
     return Object.freeze({
       available: playback.documentId != null || playback.sourceIdentity != null || playback.timelineRevision > 0,
       sourceIdentity: playback.sourceIdentity,
@@ -723,7 +730,14 @@ function resolveLyricSnapshot(
       wordText: playback.activeWord?.text ?? null,
       lineProgress: clamp01(playback.cueProgress),
       wordProgress: clamp01(playback.wordProgress),
-      vocalsActive: playback.activeCue != null,
+      lineStarted: playback.events.lineEnter != null,
+      lineEnded: playback.events.lineExit != null,
+      wordChanged: playback.events.wordEnter != null,
+      lineActive,
+      lineAbsent: !lineActive,
+      density: clamp01(lineDurationSec > 0 ? (wordCount / lineDurationSec) / 4 : 0),
+      lineDurationSec,
+      vocalsActive: lineActive,
     })
   }
 
@@ -731,6 +745,8 @@ function resolveLyricSnapshot(
   const lineId = lyrics?.activeLineId ?? (lyrics?.activeLine ? `mi-line-${stableHashHex(lyrics.activeLine)}` : null)
   const wordId = lyrics?.activeWordId ?? (lyrics?.activeWord ? `mi-word-${stableHashHex(`${lineId ?? ''}|${lyrics.activeWord}`)}` : null)
   const available = Boolean(mi?.capabilities?.lyrics || lineId || wordId)
+  const lineActive = lineId != null || lyrics?.activeLine != null
+  const words = lyrics?.activeLine?.trim().split(/\s+/).filter(Boolean).length ?? 0
   return Object.freeze({
     available,
     sourceIdentity: mi?.sourceId ?? mi?.trackId ?? null,
@@ -740,6 +756,13 @@ function resolveLyricSnapshot(
     wordText: lyrics?.activeWord ?? null,
     lineProgress: clamp01(lyrics?.lyricLineProgress ?? 0),
     wordProgress: clamp01(lyrics?.wordProgress ?? 0),
+    lineStarted: lyrics?.lineEnter === true,
+    lineEnded: lyrics?.lineExit === true,
+    wordChanged: lyrics?.wordHit === true,
+    lineActive,
+    lineAbsent: !lineActive,
+    density: clamp01(words / 16),
+    lineDurationSec: 0,
     vocalsActive: (lyrics?.vocalActivity ?? 0) > 0.05,
   })
 }

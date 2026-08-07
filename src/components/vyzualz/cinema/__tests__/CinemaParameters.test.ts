@@ -166,6 +166,7 @@ describe('Cinema parameter schemas and normalization', () => {
       { id: stableId('curve', 'parameter'), label: 'Curve', type: 'curve', default: [{ id: pointA, position: 0, value: 0 }, { id: pointB, position: 1, value: 1, interpolation: 'smooth' }] },
       { id: stableId('texture', 'parameter'), label: 'Texture', type: 'texture', default: null, acceptedRoles: ['image', 'video'] },
       { id: stableId('asset-ref', 'parameter'), label: 'Asset', type: 'asset-reference', default: null, acceptedRoles: ['logo'] },
+      { id: stableId('copy', 'parameter'), label: 'Copy', type: 'string', default: 'DVYDRM', minLength: 1, maxLength: 8, multiline: true },
     ]
 
     expect(validateCinemaParameterSchemas(schemas)).toEqual([])
@@ -193,6 +194,7 @@ describe('Cinema parameter schemas and normalization', () => {
     ])
     expect(normalizeCinemaParameterValue(schemas[10], { assetId, role: 'image' }).value).toEqual({ assetId, role: 'image' })
     expect(normalizeCinemaParameterValue(schemas[11], { assetId, role: 'logo' }).value).toEqual({ assetId, role: 'logo' })
+    expect(normalizeCinemaParameterValue(schemas[12], 'DAYDREAMS').value).toBe('DAYDREAM')
 
     const invalidEnum = normalizeCinemaParameterValue(schemas[3], 'renamed-label')
     expect(invalidEnum.valid).toBe(false)

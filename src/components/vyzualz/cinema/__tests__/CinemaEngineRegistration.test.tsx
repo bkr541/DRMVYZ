@@ -144,7 +144,7 @@ describe('Cinema production engine registration', () => {
     expect(state.activeReactPresetId).toBeNull()
     expect(host?.querySelector('[data-cinema-workspace="runtime"]')).not.toBeNull()
     expect(host?.querySelector('[data-cinema-frame-available="true"]')).not.toBeNull()
-    expect(host?.textContent).toContain('Assets and Brand Kit bridge')
+    expect(host?.textContent).toContain('Media, text, lyrics, and masks')
     expect(canvas).not.toBeNull()
     expect(retire).toHaveBeenCalledTimes(1)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({

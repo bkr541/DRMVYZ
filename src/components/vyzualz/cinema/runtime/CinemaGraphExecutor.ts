@@ -625,10 +625,15 @@ export class CinemaGraphExecutor {
   }
 
   private publishNodeOutputs(record: RuntimeNodeRecord, lease: CinemaRenderTargetLease): void {
-    const texture = this.targets.getReadTexture(lease)
-    if (!texture) return
+    const colorTexture = this.targets.getReadTexture(lease)
+    if (!colorTexture) return
+    const maskTexture = this.targets.getReadMaskTexture?.(lease) ?? null
     for (const port of record.registryEntry.definition.outputPorts) {
-      this.textures.publishOutput(record.authored.id, port.id, texture)
+      this.textures.publishOutput(
+        record.authored.id,
+        port.id,
+        port.dataType === 'mask-texture' && maskTexture ? maskTexture : colorTexture,
+      )
     }
     const feedback = this.feedbackSources.get(record.authored.id)
     if (feedback && feedback.cursor >= 0 && feedback.leases[feedback.cursor] === lease) {

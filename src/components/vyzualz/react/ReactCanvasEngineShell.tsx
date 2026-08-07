@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -8,7 +8,8 @@ import { musicIntelligenceEngine } from '../../../features/musicIntelligence/Mus
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SliderRow, ToggleRow, type SelectRowProps } from './ReactControlRows'
+import { DropdownV2 } from '../../shared/Dropdown/dropdown_v2'
 import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
@@ -92,6 +93,33 @@ import {
   type ReactSectionType,
   type ReactTrackSection,
 } from './ReactTypes'
+
+// CANVAS-only trial of the restyled Underline dropdown (dropdown_v2). Same
+// row layout/props as ReactControlRows' SelectRow — only the widget itself
+// differs — scoped to this engine while the rest of the app still uses the
+// current Dropdown.
+function CanvasSelectRow({ label, value, onChange, options, disabled, id, description }: SelectRowProps) {
+  const generatedId = useId()
+  const inputId = id ?? generatedId
+  return (
+    <div className="rv-ctrl-row">
+      <span className="rv-ctrl-label-cluster">
+        <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+      </span>
+      <DropdownV2
+        id={`${inputId}-dropdown`}
+        triggerId={inputId}
+        value={value}
+        onChange={onChange}
+        options={options}
+        disabled={disabled}
+        ariaLabel={label}
+        className="rv-ctrl-dropdown-v2"
+      />
+      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
+    </div>
+  )
+}
 
 const TYPE_LABELS: Record<CanvasMediaItemType, string> = {
   video: 'Video',
@@ -2711,7 +2739,7 @@ function CanvasTimingControls() {
         currentValue={CANVAS_TRIGGER_OPTIONS.find(option => option.value === timing.triggerOn)?.label ?? 'Manual Only'}
         currentValueTone={hasActiveVideo ? 'accent' : 'default'}
       >
-        <SelectRow
+        <CanvasSelectRow
           label="Trigger On"
           value={timing.triggerOn}
           onChange={value => setTiming({ triggerOn: value as CanvasTriggerOn })}
@@ -2925,7 +2953,7 @@ function CanvasOrchestrationControls() {
         currentValue={selectedShow.label}
         currentValueTone="accent"
       >
-        <SelectRow
+        <CanvasSelectRow
           label="Performance Show"
           value={settings.programId}
           onChange={value => setSettings({ programId: value as CanvasPerformanceShowId })}
@@ -2953,7 +2981,7 @@ function CanvasOrchestrationControls() {
           : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
         currentValueTone="accent"
       >
-        <SelectRow
+        <CanvasSelectRow
           label="Composition"
           value={settings.compositionPreference}
           onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
@@ -2985,7 +3013,7 @@ function CanvasOrchestrationControls() {
           onChange={locked => setCanvasOrchestrationLock('media', locked)}
           description="Keeps current deterministic choices while other orchestration continues."
         />
-        <SelectRow
+        <CanvasSelectRow
           label="Layer"
           value={lockLayerRole}
           onChange={value => setLockLayerRole(value as CanvasLayerRole)}
@@ -2996,7 +3024,7 @@ function CanvasOrchestrationControls() {
           value={settings.layerLocks[lockLayerRole] === true}
           onChange={locked => setCanvasLayerLock(lockLayerRole, locked)}
         />
-        <SelectRow
+        <CanvasSelectRow
           label="Locked Media"
           value={lockedMediaId}
           onChange={value => setCanvasMediaLock(lockLayerRole, value || null)}
@@ -3086,10 +3114,10 @@ function CanvasFracturesControls({
           <SliderRow label="Fracture Intensity" value={settings.fractureIntensity} onChange={fractureIntensity => setSettings({ fractureIntensity })} min={0} max={1} step={0.01} color="#8de7ff" />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.mode" currentValue={CANVAS_FRACTURE_MODE_OPTIONS.find(option => option.value === settings.fractureMode)?.label ?? 'Mixed'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Fracture Mode" value={settings.fractureMode} onChange={value => setSettings({ fractureMode: value as CanvasFractureMode })} options={CANVAS_FRACTURE_MODE_OPTIONS} />
+          <CanvasSelectRow label="Fracture Mode" value={settings.fractureMode} onChange={value => setSettings({ fractureMode: value as CanvasFractureMode })} options={CANVAS_FRACTURE_MODE_OPTIONS} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.anchorMode" currentValue={CANVAS_FRACTURE_ANCHOR_OPTIONS.find(option => option.value === settings.fractureAnchorMode)?.label ?? 'Always Visible'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Anchor Mode" value={settings.fractureAnchorMode} onChange={value => setSettings({ fractureAnchorMode: value as CanvasFractureAnchorMode })} options={CANVAS_FRACTURE_ANCHOR_OPTIONS} />
+          <CanvasSelectRow label="Anchor Mode" value={settings.fractureAnchorMode} onChange={value => setSettings({ fractureAnchorMode: value as CanvasFractureAnchorMode })} options={CANVAS_FRACTURE_ANCHOR_OPTIONS} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.focusProtection" currentValue={formatCanvasPercentage(settings.fractureFocusProtection)} className="rv-canvas-react-control-help">
           <SliderRow label="Focus Protection" value={settings.fractureFocusProtection} onChange={fractureFocusProtection => setSettings({ fractureFocusProtection })} min={0} max={1} step={0.01} color="#61d6aa" />
@@ -3104,19 +3132,19 @@ function CanvasFracturesControls({
           <SliderRow label="Composition" value={settings.fractureComposition} onChange={fractureComposition => setSettings({ fractureComposition })} min={0} max={1} step={0.01} color="#d8b95a" description="0% is editorial and restrained; 100% is chaotic." />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.placementMode" currentValue={CANVAS_FRACTURE_PLACEMENT_OPTIONS.find(option => option.value === settings.fracturePlacementMode)?.label ?? 'Balanced'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Placement Mode" value={settings.fracturePlacementMode} onChange={value => setSettings({ fracturePlacementMode: value as CanvasFracturePlacementMode })} options={CANVAS_FRACTURE_PLACEMENT_OPTIONS} />
+          <CanvasSelectRow label="Placement Mode" value={settings.fracturePlacementMode} onChange={value => setSettings({ fracturePlacementMode: value as CanvasFracturePlacementMode })} options={CANVAS_FRACTURE_PLACEMENT_OPTIONS} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.topologyInterval" currentValue={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS.find(option => option.value === settings.fractureTopologyInterval)?.label ?? 'Every 4 Bars'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Topology Change" value={settings.fractureTopologyInterval} onChange={value => setSettings({ fractureTopologyInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS} />
+          <CanvasSelectRow label="Topology Change" value={settings.fractureTopologyInterval} onChange={value => setSettings({ fractureTopologyInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.layoutInterval" currentValue={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS.find(option => option.value === settings.fractureLayoutInterval)?.label ?? 'Every Bar'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Layout Change" value={settings.fractureLayoutInterval} onChange={value => setSettings({ fractureLayoutInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS} />
+          <CanvasSelectRow label="Layout Change" value={settings.fractureLayoutInterval} onChange={value => setSettings({ fractureLayoutInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.variationSeed" currentValue={settings.fractureVariationSeed} className="rv-canvas-react-control-help">
           <NumberInputRow label="Variation Seed" value={settings.fractureVariationSeed} onChange={fractureVariationSeed => setSettings({ fractureVariationSeed })} min={0} max={999999} step={1} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.quality" currentValue={CANVAS_FRACTURE_QUALITY_OPTIONS.find(option => option.value === settings.fractureQuality)?.label ?? 'Balanced'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Quality" value={settings.fractureQuality} onChange={value => setSettings({ fractureQuality: value as CanvasFractureQualityMode })} options={CANVAS_FRACTURE_QUALITY_OPTIONS} />
+          <CanvasSelectRow label="Quality" value={settings.fractureQuality} onChange={value => setSettings({ fractureQuality: value as CanvasFractureQualityMode })} options={CANVAS_FRACTURE_QUALITY_OPTIONS} />
         </CanvasHelpControl>
       </Collapsible>
 
@@ -3125,7 +3153,7 @@ function CanvasFracturesControls({
           <SliderRow label="Motion" value={settings.fractureMotionAmount} onChange={fractureMotionAmount => setSettings({ fractureMotionAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.motion.transition" currentValue={CANVAS_FRACTURE_TRANSITION_OPTIONS.find(option => option.value === settings.fractureTransitionMode)?.label ?? 'Staggered Assembly'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Transition" value={settings.fractureTransitionMode} onChange={value => setSettings({ fractureTransitionMode: value as CanvasFractureTransitionMode })} options={CANVAS_FRACTURE_TRANSITION_OPTIONS} />
+          <CanvasSelectRow label="Transition" value={settings.fractureTransitionMode} onChange={value => setSettings({ fractureTransitionMode: value as CanvasFractureTransitionMode })} options={CANVAS_FRACTURE_TRANSITION_OPTIONS} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.motion.transitionSpeed" currentValue={formatCanvasPercentage(settings.fractureTransitionSpeed)} className="rv-canvas-react-control-help">
           <SliderRow label="Transition Speed" value={settings.fractureTransitionSpeed} onChange={fractureTransitionSpeed => setSettings({ fractureTransitionSpeed })} min={0} max={1} step={0.01} color="#4ac7db" />
@@ -3217,7 +3245,7 @@ function CanvasFracturesControls({
           <SliderRow label="Color Treatment" value={settings.fractureColorTreatmentAmount} onChange={fractureColorTreatmentAmount => setSettings({ fractureColorTreatmentAmount })} min={0} max={1} step={0.01} color="#b84fc9" description="Controls hue rotation, duotone mapping, and palette-driven color strength." />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.effects.colorSource" currentValue={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS.find(option => option.value === settings.fractureColorSourceMode)?.label ?? 'Image Sampled'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <SelectRow label="Color Source" value={settings.fractureColorSourceMode} onChange={value => setSettings({ fractureColorSourceMode: value as CanvasFractureColorSourceMode })} options={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS} />
+          <CanvasSelectRow label="Color Source" value={settings.fractureColorSourceMode} onChange={value => setSettings({ fractureColorSourceMode: value as CanvasFractureColorSourceMode })} options={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS} />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.effects.manualPrimaryColor" currentValue={settings.fractureManualPrimaryColor} className="rv-canvas-react-control-help">
           <ColorRow label="Manual Primary Color" value={settings.fractureManualPrimaryColor} onChange={fractureManualPrimaryColor => setSettings({ fractureManualPrimaryColor })} disabled={!manualColorsEnabled} />
@@ -3307,7 +3335,7 @@ function CanvasPresetControls() {
           currentValueTone="accent"
           className="rv-canvas-react-control-help"
         >
-          <SelectRow
+          <CanvasSelectRow
             label="Particle Color Mode"
             value={canvasPresetSettings.particleColorMode}
             onChange={value => setCanvasPresetSettings({ particleColorMode: value as CanvasPresetColorMode })}
@@ -3329,7 +3357,7 @@ function CanvasPresetControls() {
           currentValueTone="accent"
           className="rv-canvas-react-control-help"
         >
-          <SelectRow
+          <CanvasSelectRow
             label="Particle Quality"
             value={canvasPresetSettings.particleQuality}
             onChange={value => setCanvasPresetSettings({ particleQuality: value as CanvasParticleQuality })}
@@ -3458,7 +3486,7 @@ export function CanvasEngineFxPanel() {
           currentValue={settings.fitMode === 'contain' ? 'Contain' : settings.fitMode === 'cover' ? 'Cover' : 'Stretch'}
           currentValueTone="accent"
         >
-          <SelectRow
+          <CanvasSelectRow
             label="Fit Mode"
             value={settings.fitMode}
             onChange={value => setSettings({ fitMode: value as CanvasFitMode })}

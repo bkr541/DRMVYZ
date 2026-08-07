@@ -101,6 +101,7 @@ export type CinemaParameterValue =
 export type CinemaParameterControlHint =
   | 'slider'
   | 'number'
+  | 'text'
   | 'toggle'
   | 'select'
   | 'button'
@@ -166,6 +167,14 @@ export interface CinemaBooleanParameterDefinition extends CinemaParameterBase {
   default: boolean
 }
 
+export interface CinemaStringParameterDefinition extends CinemaParameterBase {
+  type: 'string'
+  default: string
+  minLength?: number
+  maxLength?: number
+  multiline?: boolean
+}
+
 export interface CinemaEnumParameterDefinition extends CinemaParameterBase {
   type: 'enum'
   default: CinemaEnumOptionId
@@ -220,6 +229,7 @@ export type CinemaParameterDefinition =
   | CinemaFloatParameterDefinition
   | CinemaIntegerParameterDefinition
   | CinemaBooleanParameterDefinition
+  | CinemaStringParameterDefinition
   | CinemaEnumParameterDefinition
   | CinemaTriggerParameterDefinition
   | CinemaColorParameterDefinition

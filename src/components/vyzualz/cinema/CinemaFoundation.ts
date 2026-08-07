@@ -40,6 +40,12 @@ import {
   createCinemaCinematicWorldComposition,
 } from './CinemaCinematicWorldAdapter'
 import {
+  CINEMA_MEDIA_TEXT_PERSISTED_DEFINITIONS,
+  CINEMA_MEDIA_TEXT_RUNTIME_REGISTRATIONS,
+  CINEMA_STAGE15_REFERENCE_COMPOSITION_ID,
+  createCinemaStage15ReferenceComposition,
+} from './CinemaMediaTextNodes'
+import {
   CINEMA_PERSISTED_STORE_SCHEMA_ID,
   CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
   type CinemaPersistedDefinition,
@@ -228,6 +234,7 @@ export const CINEMA_PRODUCTION_PERSISTED_DEFINITIONS: readonly CinemaPersistedDe
   ...CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
   ...CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.persistedDefinitions,
   ...CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.persistedDefinitions,
+  ...CINEMA_MEDIA_TEXT_PERSISTED_DEFINITIONS,
 ])
 
 export const CINEMA_FOUNDATION_COMPOSITION_ID = cinemaStableId<CinemaCompositionId>('foundation-gradient', 'composition')
@@ -318,12 +325,24 @@ export const CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION: Readonly<CinemaCompos
   ),
 )
 
+export const CINEMA_STAGE15_REFERENCE_COMPOSITION: Readonly<CinemaCompositionDefinition> = deepFreeze(
+  createCinemaStage15ReferenceComposition(
+    CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+    CINEMA_FOUNDATION_INPUT_PORT_ID,
+  ),
+)
+
 export function createCinemaFoundationPersistedState(): CinemaPersistedState {
   return JSON.parse(JSON.stringify({
     schemaId: CINEMA_PERSISTED_STORE_SCHEMA_ID,
     schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
     definitions: CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
-    compositions: [CINEMA_FOUNDATION_COMPOSITION, CINEMA_SHADER_REFERENCE_COMPOSITION, CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION],
+    compositions: [
+      CINEMA_FOUNDATION_COMPOSITION,
+      CINEMA_SHADER_REFERENCE_COMPOSITION,
+      CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
+      CINEMA_STAGE15_REFERENCE_COMPOSITION,
+    ],
     instances: [],
     collections: [],
     activeCompositionId: CINEMA_SHADER_REFERENCE_COMPOSITION.id,
@@ -333,6 +352,7 @@ export function createCinemaFoundationPersistedState(): CinemaPersistedState {
       shaderSceneAdapterVersion: 1,
       cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
       canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+      mediaTextNodeVersion: 1,
     },
     migrationProvenance: [],
   })) as CinemaPersistedState
@@ -356,9 +376,11 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
     ...state.compositions.filter(composition => (
       composition.id !== CINEMA_SHADER_REFERENCE_COMPOSITION.id
       && composition.id !== CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id
+      && composition.id !== CINEMA_STAGE15_REFERENCE_COMPOSITION_ID
     )),
     CINEMA_SHADER_REFERENCE_COMPOSITION,
     CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
+    CINEMA_STAGE15_REFERENCE_COMPOSITION,
   ]
   return JSON.parse(JSON.stringify({
     ...state,
@@ -369,6 +391,7 @@ export function reconcileCinemaBuiltInState(state: CinemaPersistedState): Cinema
       shaderSceneAdapterVersion: 1,
       cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
       canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
+      mediaTextNodeVersion: 1,
     },
   })) as CinemaPersistedState
 }
@@ -499,6 +522,7 @@ export const CINEMA_PRODUCTION_RUNTIME_REGISTRY = createCinemaRuntimeNodeRegistr
   ...CINEMA_FOUNDATION_RUNTIME_REGISTRY.list(),
   ...CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.runtimeRegistrations,
   ...CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.runtimeRegistrations,
+  ...CINEMA_MEDIA_TEXT_RUNTIME_REGISTRATIONS,
 ]).registry
 
 const FULLSCREEN_VERTEX_SHADER = `#version 300 es

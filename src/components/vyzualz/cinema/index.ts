@@ -27,3 +27,5 @@ export * from './CinemaShaderSceneAdapter'
 export * from './CinemaCinematicWorldAdapter'
 export * from './CinemaAssets'
 export * from './CinemaBrandKitBridge'
+
+export * from './CinemaMediaTextNodes'

@@ -1,7 +1,7 @@
 import type { CinemaFrameCapabilities, CinemaFrameContext, CinemaMusicalClockId } from './CinemaRendererContracts'
 import { cinemaNamespacedId, type CinemaEventId, type CinemaModulationSourceId } from './CinemaIdentifiers'
 
-export const CINEMA_MODULATION_SOURCE_CATALOG_VERSION = 1 as const
+export const CINEMA_MODULATION_SOURCE_CATALOG_VERSION = 2 as const
 
 export type CinemaModulationSourceKind = 'continuous' | 'impulse' | 'clock' | 'state'
 export type CinemaModulationSourceCapability = keyof CinemaFrameCapabilities | 'audio' | 'transport'
@@ -49,6 +49,8 @@ export const CINEMA_MODULATION_SOURCE_IDS = Object.freeze({
   musicSectionProgress: sourceId('drmvyz.cinema.music.section-progress'),
   lyricLineProgress: sourceId('drmvyz.cinema.lyrics.line-progress'),
   lyricWordProgress: sourceId('drmvyz.cinema.lyrics.word-progress'),
+  lyricDensity: sourceId('drmvyz.cinema.lyrics.density'),
+  lyricLineDuration: sourceId('drmvyz.cinema.lyrics.line-duration'),
   impulseBeat: sourceId('drmvyz.cinema.impulse.beat'),
   impulseDownbeat: sourceId('drmvyz.cinema.impulse.downbeat'),
   impulseKick: sourceId('drmvyz.cinema.impulse.kick'),
@@ -58,6 +60,8 @@ export const CINEMA_MODULATION_SOURCE_IDS = Object.freeze({
   impulseDropStart: sourceId('drmvyz.cinema.impulse.drop-start'),
   impulseLyricCue: sourceId('drmvyz.cinema.impulse.lyric-cue'),
   impulseLyricWord: sourceId('drmvyz.cinema.impulse.lyric-word'),
+  impulseLyricCueEnded: sourceId('drmvyz.cinema.impulse.lyric-cue-ended'),
+  impulseLyricWordChanged: sourceId('drmvyz.cinema.impulse.lyric-word-changed'),
   impulsePhrase4: sourceId('drmvyz.cinema.impulse.phrase-4'),
   impulsePhrase8: sourceId('drmvyz.cinema.impulse.phrase-8'),
   clockBeat: sourceId('drmvyz.cinema.clock.beat'),
@@ -70,6 +74,8 @@ export const CINEMA_MODULATION_SOURCE_IDS = Object.freeze({
   statePlaying: sourceId('drmvyz.cinema.state.playing'),
   statePaused: sourceId('drmvyz.cinema.state.paused'),
   stateVocalsActive: sourceId('drmvyz.cinema.state.vocals-active'),
+  stateLyricLineActive: sourceId('drmvyz.cinema.state.lyric-line-active'),
+  stateLyricLineAbsent: sourceId('drmvyz.cinema.state.lyric-line-absent'),
   stateBuildActive: sourceId('drmvyz.cinema.state.build-active'),
   stateDropActive: sourceId('drmvyz.cinema.state.drop-active'),
 } as const)
@@ -103,6 +109,8 @@ const SOURCE_DESCRIPTORS = Object.freeze([
   descriptor(CINEMA_MODULATION_SOURCE_IDS.musicSectionProgress, 'Section Progress', 'continuous', 'authoritativeSections'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.lyricLineProgress, 'Lyric Line Progress', 'continuous', 'lyrics'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.lyricWordProgress, 'Lyric Word Progress', 'continuous', 'lyrics'),
+  descriptor(CINEMA_MODULATION_SOURCE_IDS.lyricDensity, 'Lyric Density', 'continuous', 'lyrics'),
+  descriptor(CINEMA_MODULATION_SOURCE_IDS.lyricLineDuration, 'Lyric Line Duration', 'continuous', 'lyrics'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.impulseBeat, 'Beat', 'impulse', 'beatGrid'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.impulseDownbeat, 'Downbeat', 'impulse', 'beatGrid'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.impulseKick, 'Kick', 'impulse', 'musicIntelligence'),
@@ -112,6 +120,8 @@ const SOURCE_DESCRIPTORS = Object.freeze([
   descriptor(CINEMA_MODULATION_SOURCE_IDS.impulseDropStart, 'Drop Start', 'impulse', 'authoritativeSections'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.impulseLyricCue, 'Lyric Cue', 'impulse', 'lyrics'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.impulseLyricWord, 'Lyric Word', 'impulse', 'lyrics'),
+  descriptor(CINEMA_MODULATION_SOURCE_IDS.impulseLyricCueEnded, 'Lyric Cue Ended', 'impulse', 'lyrics'),
+  descriptor(CINEMA_MODULATION_SOURCE_IDS.impulseLyricWordChanged, 'Lyric Word Changed', 'impulse', 'lyrics'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.impulsePhrase4, 'Four-beat Phrase', 'impulse', 'beatGrid'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.impulsePhrase8, 'Eight-beat Phrase', 'impulse', 'beatGrid'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.clockBeat, 'Beat Clock', 'clock', 'beatGrid'),
@@ -124,6 +134,8 @@ const SOURCE_DESCRIPTORS = Object.freeze([
   descriptor(CINEMA_MODULATION_SOURCE_IDS.statePlaying, 'Playing', 'state', 'transport'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.statePaused, 'Paused', 'state', 'transport'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.stateVocalsActive, 'Vocals Active', 'state', 'lyrics'),
+  descriptor(CINEMA_MODULATION_SOURCE_IDS.stateLyricLineActive, 'Lyric Line Active', 'state', 'lyrics'),
+  descriptor(CINEMA_MODULATION_SOURCE_IDS.stateLyricLineAbsent, 'Lyric Line Absent', 'state', 'lyrics'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.stateBuildActive, 'Build Active', 'state', 'musicIntelligence'),
   descriptor(CINEMA_MODULATION_SOURCE_IDS.stateDropActive, 'Drop Active', 'state', 'musicIntelligence'),
 ] as const)
@@ -183,6 +195,8 @@ function resolveValue(
     case CINEMA_MODULATION_SOURCE_IDS.musicSectionProgress: return scalar(frame.music.sectionProgress)
     case CINEMA_MODULATION_SOURCE_IDS.lyricLineProgress: return scalar(frame.lyrics.lineProgress)
     case CINEMA_MODULATION_SOURCE_IDS.lyricWordProgress: return scalar(frame.lyrics.wordProgress)
+    case CINEMA_MODULATION_SOURCE_IDS.lyricDensity: return scalar(frame.lyrics.density ?? 0)
+    case CINEMA_MODULATION_SOURCE_IDS.lyricLineDuration: return scalar((frame.lyrics.lineDurationSec ?? 0) / 10)
     case CINEMA_MODULATION_SOURCE_IDS.impulseBeat: return active(frame.impulses.beat, frame.impulses.eventIds.beat)
     case CINEMA_MODULATION_SOURCE_IDS.impulseDownbeat: return active(frame.impulses.downbeat, frame.impulses.eventIds.downbeat)
     case CINEMA_MODULATION_SOURCE_IDS.impulseKick: return active(frame.impulses.kick, frame.impulses.eventIds.kick)
@@ -192,6 +206,8 @@ function resolveValue(
     case CINEMA_MODULATION_SOURCE_IDS.impulseDropStart: return active(frame.impulses.dropStart, frame.impulses.eventIds.dropStart)
     case CINEMA_MODULATION_SOURCE_IDS.impulseLyricCue: return active(frame.impulses.lyricCue, frame.impulses.eventIds.lyricCue)
     case CINEMA_MODULATION_SOURCE_IDS.impulseLyricWord: return active(frame.impulses.lyricWord, frame.impulses.eventIds.lyricWord)
+    case CINEMA_MODULATION_SOURCE_IDS.impulseLyricCueEnded: return active(frame.lyrics.lineEnded === true)
+    case CINEMA_MODULATION_SOURCE_IDS.impulseLyricWordChanged: return active(frame.lyrics.wordChanged === true, frame.impulses.eventIds.lyricWord)
     case CINEMA_MODULATION_SOURCE_IDS.impulsePhrase4: return active(frame.impulses.phrase4, frame.impulses.eventIds.phrase4)
     case CINEMA_MODULATION_SOURCE_IDS.impulsePhrase8: return active(frame.impulses.phrase8, frame.impulses.eventIds.phrase8)
     case CINEMA_MODULATION_SOURCE_IDS.clockBeat: return clock(frame, 'beat')
@@ -204,6 +220,8 @@ function resolveValue(
     case CINEMA_MODULATION_SOURCE_IDS.statePlaying: return active(frame.transport.playing)
     case CINEMA_MODULATION_SOURCE_IDS.statePaused: return active(frame.transport.paused)
     case CINEMA_MODULATION_SOURCE_IDS.stateVocalsActive: return active(frame.lyrics.vocalsActive || frame.audio.vocalPresence > 0.05)
+    case CINEMA_MODULATION_SOURCE_IDS.stateLyricLineActive: return active(frame.lyrics.lineActive ?? (frame.lyrics.lineId != null))
+    case CINEMA_MODULATION_SOURCE_IDS.stateLyricLineAbsent: return active(frame.lyrics.lineAbsent ?? (frame.lyrics.lineId == null))
     case CINEMA_MODULATION_SOURCE_IDS.stateBuildActive: return active(isSection(frame, 'build') || frame.audio.buildProgress > 0.05)
     case CINEMA_MODULATION_SOURCE_IDS.stateDropActive: return active(isSection(frame, 'drop') || frame.audio.dropImpact > 0.05)
     default: return scalar(0)

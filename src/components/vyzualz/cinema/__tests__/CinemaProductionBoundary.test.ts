@@ -6,7 +6,7 @@ import {
   isSelectableReactEngineId,
 } from '../../react/reactEngineCatalog'
 
-describe('Cinema production boundary through Stage 14', () => {
+describe('Cinema production boundary through Stage 15', () => {
   it('keeps prior contracts public while exposing Shader and Cinematic World adapters through production ownership', () => {
     expect(Cinema.CINEMA_COMPOSITION_SCHEMA_VERSION).toBe(3)
     expect(Cinema.CINEMA_SAFE_OUTPUT_DESCRIPTOR.alphaMode).toBe('premultiplied')
@@ -18,7 +18,8 @@ describe('Cinema production boundary through Stage 14', () => {
     expect(Cinema.CINEMA_PRODUCTION_RUNTIME_REGISTRY.size).toBe(
       2
         + Cinema.CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.length
-        + Cinema.CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.length,
+        + Cinema.CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.length
+        + Cinema.CINEMA_MEDIA_TEXT_RUNTIME_REGISTRATIONS.length,
     )
     expect(Cinema.CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries).toHaveLength(9)
     expect(Cinema.CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries).toHaveLength(11)
@@ -35,6 +36,11 @@ describe('Cinema production boundary through Stage 14', () => {
     expect(typeof Cinema.normalizeCinemaAssetBinding).toBe('function')
     expect(typeof Cinema.bridgeCinemaBrandKit).toBe('function')
     expect(typeof Cinema.CinemaAssetManager).toBe('function')
+    expect(Cinema.CINEMA_MEDIA_TEXT_PERSISTED_DEFINITIONS).toHaveLength(7)
+    expect(Cinema.CINEMA_IMAGE_NODE_DEFINITION.output.alphaMode).toBe('premultiplied')
+    expect(Cinema.CINEMA_TEXT_NODE_DEFINITION.output.hasMask).toBe(true)
+    expect(Cinema.CINEMA_LYRIC_NODE_DEFINITION.output.hasMask).toBe(true)
+    expect(typeof Cinema.resolveCinemaLyricDisplay).toBe('function')
     expect(Cinema.CINEMA_FRAME_CONTEXT_VERSION).toBe(1)
     expect(typeof Cinema.buildCinemaFrameContext).toBe('function')
     expect(typeof Cinema.createCinemaDeterministicEventId).toBe('function')

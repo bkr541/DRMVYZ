@@ -43,6 +43,7 @@ const PARAMETER_TYPES = new Set([
   'float',
   'integer',
   'boolean',
+  'string',
   'enum',
   'trigger',
   'color',
@@ -74,6 +75,7 @@ const CONTROL_HINTS_BY_TYPE: Readonly<Record<string, readonly CinemaParameterCon
   float: ['slider', 'number'],
   integer: ['slider', 'number'],
   boolean: ['toggle'],
+  string: ['text'],
   enum: ['select'],
   trigger: ['button'],
   color: ['color'],
@@ -138,6 +140,9 @@ export function validateCinemaParameterSchema(
       case 'boolean':
         if (typeof value.default !== 'boolean') diagnostics.push(schemaDiagnostic(parameterId, 'Boolean parameter default must be boolean.'))
         break
+      case 'string':
+        validateStringSchema(value, parameterId, diagnostics)
+        break
       case 'enum':
         validateEnumSchema(value, parameterId, diagnostics)
         break
@@ -197,7 +202,7 @@ export function normalizeCinemaParameterValue(
       return {
         valid: false,
         value: fallback,
-        diagnostics: [valueDiagnostic(schema, normalized.reason, options.parameterPath)],
+        diagnostics: [valueDiagnostic(schema, 'reason' in normalized ? normalized.reason : 'Normalization failed.', options.parameterPath)],
         usedFallback: true,
         changed: !valuesEqual(input, fallback),
       }
@@ -250,6 +255,13 @@ function normalizeByType(
     }
     case 'boolean':
       return typeof input === 'boolean' ? valid(input) : invalid('Expected a boolean.')
+    case 'string': {
+      if (typeof input !== 'string') return invalid('Expected a string.')
+      const minimum = schema.minLength ?? 0
+      const maximum = schema.maxLength ?? 100000
+      if (input.length < minimum) return invalid(`Expected at least ${minimum} characters.`)
+      return valid(input.slice(0, maximum))
+    }
     case 'enum':
       return typeof input === 'string' && schema.options.some(option => option.id === input)
         ? valid(input)
@@ -293,6 +305,28 @@ function normalizeByType(
     }
     default:
       return invalid('Unsupported Cinema parameter type.')
+  }
+}
+
+
+function validateStringSchema(
+  value: Record<string, unknown>,
+  parameterId: string,
+  diagnostics: CinemaDiagnostic[],
+): void {
+  if (typeof value.default !== 'string') {
+    diagnostics.push(schemaDiagnostic(parameterId, 'String parameter default must be a string.'))
+    return
+  }
+  const minimum = typeof value.minLength === 'number' ? value.minLength : value.minLength === undefined ? 0 : Number.NaN
+  const maximum = typeof value.maxLength === 'number' ? value.maxLength : value.maxLength === undefined ? 100000 : Number.NaN
+  if (!Number.isInteger(minimum) || minimum < 0 || !Number.isInteger(maximum) || maximum < minimum) {
+    diagnostics.push(schemaDiagnostic(parameterId, 'String parameter minLength/maxLength must be non-negative integers with minLength <= maxLength.'))
+  } else if (value.default.length < minimum || value.default.length > maximum) {
+    diagnostics.push(schemaDiagnostic(parameterId, 'String parameter default must satisfy its length bounds.'))
+  }
+  if (value.multiline !== undefined && typeof value.multiline !== 'boolean') {
+    diagnostics.push(schemaDiagnostic(parameterId, 'String parameter multiline hint must be boolean.'))
   }
 }
 

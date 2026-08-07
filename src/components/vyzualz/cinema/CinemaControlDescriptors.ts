@@ -75,6 +75,7 @@ const DEFAULT_CONTROL_BY_TYPE: Readonly<Record<CinemaParameterDefinition['type']
   float: 'slider',
   integer: 'number',
   boolean: 'toggle',
+  string: 'text',
   enum: 'select',
   trigger: 'button',
   color: 'color',

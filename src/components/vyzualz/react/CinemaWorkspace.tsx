@@ -180,8 +180,8 @@ export function CinemaWorkspace({
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 14 asset and Brand Kit bridge wired</strong>
-          <span>Stable asset IDs and semantic Brand Kit policies now flow through canonical Cinema state while decoded media, object URLs, and GPU textures remain runtime-only.</span>
+          <strong>Stage 15 media, text, lyrics, and mask nodes wired</strong>
+          <span>Native image, video, logo, text, timed-lyric, and generated-mask nodes now render through the Cinema graph while media decoders, text surfaces, object URLs, and GPU textures remain runtime-only.</span>
         </div>
       </section>
     )
@@ -209,10 +209,10 @@ export function CinemaWorkspace({
         onRuntimeSnapshot={setRuntimeSnapshot}
       />
       <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 14</div>
-        <h2>Assets and Brand Kit bridge</h2>
+        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 15</div>
+        <h2>Media, text, lyrics, and masks</h2>
         <p className="rv-cinema-workspace__lead">
-          Cinema now resolves canonical media-library assets by stable ID and applies exact, derived, or freely replaceable Brand Kit colors without persisting temporary URLs or GPU resources.
+          Cinema now renders canonical media assets and timed lyrics as native graph sources, synchronizes video to transport, and exposes mask-compatible text and lyric output without creating another canvas, WebGL context, or animation loop.
         </p>
         <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
           <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>
@@ -225,7 +225,7 @@ export function CinemaWorkspace({
         </dl>
         <div className="rv-cinema-workspace__runtime" role="status" aria-live="polite">
           <strong>{runtimeSnapshot?.phase === 'unavailable' ? 'Safe output only' : 'Cinema runtime owns the stage'}</strong>
-          <span>Signed media URLs, decoded elements, object URLs, WebGL textures, and Brand Kit snapshots remain outside Cinema persistence. Missing or deleted assets use deterministic fallbacks while legacy engines retain their standalone ownership.</span>
+          <span>Signed media URLs, decoded elements, the shared text raster surface, object URLs, and WebGL textures remain outside Cinema persistence. Missing media, lyric gaps, unavailable fonts, and decode failures use declared fallbacks while legacy engines retain their standalone ownership.</span>
         </div>
         {firstDiagnostic && (
           <div className="rv-cinema-workspace__diagnostic" role="note">

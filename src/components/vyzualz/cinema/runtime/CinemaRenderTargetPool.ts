@@ -22,6 +22,7 @@ interface TargetAttachment {
   maskTexture: WebGLTexture | null
   depthRenderbuffer: WebGLRenderbuffer | null
   textureView: CinemaTextureView
+  maskTextureView: CinemaTextureView | null
 }
 
 interface TargetRecord {
@@ -105,6 +106,16 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
           texture: attachment.colorTexture,
           existingView: attachment.textureView,
         })
+        attachment.maskTextureView = attachment.maskTexture
+          ? this.textures.createRuntimeView({
+              ownerNodeId,
+              descriptor: maskOutputDescriptor(normalized),
+              width,
+              height,
+              texture: attachment.maskTexture,
+              ...(attachment.maskTextureView ? { existingView: attachment.maskTextureView } : {}),
+            })
+          : null
       }
       record.readIndex = 0
       this.active.set(lease.leaseId, record)
@@ -129,6 +140,11 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
   getReadTexture(lease: CinemaRenderTargetLease): CinemaTextureView | null {
     const record = this.requireActiveRecord(lease)
     return record.attachments[record.readIndex]?.textureView ?? null
+  }
+
+  getReadMaskTexture(lease: CinemaRenderTargetLease): CinemaTextureView | null {
+    const record = this.requireActiveRecord(lease)
+    return record.attachments[record.readIndex]?.maskTextureView ?? null
   }
 
   swapPingPong(lease: CinemaRenderTargetLease): void {
@@ -168,7 +184,10 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
     this.active.delete(lease.leaseId)
     record.leased = false
     record.readIndex = 0
-    for (const attachment of record.attachments) this.textures.unpublishRuntimeView(attachment.textureView)
+    for (const attachment of record.attachments) {
+      this.textures.unpublishRuntimeView(attachment.textureView)
+      if (attachment.maskTextureView) this.textures.unpublishRuntimeView(attachment.maskTextureView)
+    }
     if (this.pooledAllocationCount >= this.maximumPooledAllocationCount) {
       this.destroyRecord(record, true)
       return
@@ -349,7 +368,16 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
         texture: colorTexture,
         existingView,
       })
-      return { framebuffer, colorTexture, maskTexture, depthRenderbuffer, textureView }
+      const maskTextureView = maskTexture
+        ? this.textures.createRuntimeView({
+            ownerNodeId,
+            descriptor: maskOutputDescriptor(descriptor),
+            width,
+            height,
+            texture: maskTexture,
+          })
+        : null
+      return { framebuffer, colorTexture, maskTexture, depthRenderbuffer, textureView, maskTextureView }
     } catch (error) {
       if (depthRenderbuffer) gl.deleteRenderbuffer(depthRenderbuffer)
       if (maskTexture) gl.deleteTexture(maskTexture)
@@ -404,7 +432,10 @@ export class CinemaRenderTargetPool implements CinemaRenderTargetService {
       if (attachment.colorTexture) this.gl.deleteTexture(attachment.colorTexture)
       if (attachment.framebuffer) this.gl.deleteFramebuffer(attachment.framebuffer)
     }
-    if (releaseTextureView) this.textures.releaseRuntimeView(attachment.textureView)
+    if (releaseTextureView) {
+      this.textures.releaseRuntimeView(attachment.textureView)
+      if (attachment.maskTextureView) this.textures.releaseRuntimeView(attachment.maskTextureView)
+    }
   }
 
   private requireActiveRecord(lease: CinemaRenderTargetLease): TargetRecord {
@@ -462,6 +493,16 @@ function outputDescriptor(descriptor: CinemaTargetDescriptor): CinemaOutputDescr
     colorFormat: descriptor.colorFormat,
     hasDepth: descriptor.hasDepth,
     hasMask: descriptor.hasMask,
+  })
+}
+
+function maskOutputDescriptor(descriptor: CinemaTargetDescriptor): CinemaOutputDescriptor {
+  return Object.freeze({
+    colorSpace: descriptor.colorSpace,
+    alphaMode: descriptor.alphaMode,
+    colorFormat: 'r8',
+    hasDepth: false,
+    hasMask: false,
   })
 }
 
