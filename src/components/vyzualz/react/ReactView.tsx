@@ -770,6 +770,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   onChange={setLeftTab}
                   ariaLabel={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace tabs`}
                   className="rv-context-workspace-tabs"
+                  variant="underline"
                 />
                 {activeReactEngineId === 'oscilloscope' && (
                   <HelpInfoTrigger
@@ -948,7 +949,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   }
                   onClick={() => setLowerWorkspaceCollapsed((value) => !value)}
                 />
-                <div className="rv-lower-workspace-tabs" role="tablist" aria-label="Timeline surfaces">
+                <div className="rv-lower-workspace-tabs dv-underline-tabs" role="tablist" aria-label="Timeline surfaces">
                   {lowerSurfaces.map((surface) => {
                     const helpId = getLowerSurfaceHelpId(surface)
                     const tab = (
@@ -956,7 +957,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                         type="button"
                         role="tab"
                         aria-selected={activeLowerSurface === surface}
-                        className={activeLowerSurface === surface ? 'is-active' : ''}
+                        className={`dv-underline-tab${activeLowerSurface === surface ? ' is-active' : ''}`}
                         onClick={() => {
                           setLowerSurface(surface)
                           setLowerWorkspaceCollapsed(false)
@@ -1050,6 +1051,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             activeTab={activeRightPanel}
             onChange={setActiveRightPanel}
             ariaLabel="React right workspace panels"
+            className="rv-main-workspace-tabs"
+            variant="underline"
           />
           <div className="vz-panel-body">
             {activeRightPanel === 'presets' &&

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { UnderlineTabs } from './controls/UnderlineTabs'
 import { useShallow } from 'zustand/react/shallow'
 import {
   resolveCinematicConfigForPreset,
@@ -931,21 +932,16 @@ export function ReactPresetsPanel() {
             )}
           </div>
         </div>
-        <div className="rv-preset-library-views" role="tablist" aria-label="Preset library filter">
-          {(Object.keys(LIBRARY_VIEW_LABELS) as ReactPresetLibraryView[]).map(view => (
-            <button
-              key={view}
-              type="button"
-              role="tab"
-              className={libraryView === view ? 'is-active' : ''}
-              aria-selected={libraryView === view}
-              onClick={() => setLibraryView(view)}
-            >
-              {LIBRARY_VIEW_LABELS[view]}
-              {view === 'favorites' && favoritePresetIds.length > 0 ? ` ${favoritePresetIds.length}` : ''}
-            </button>
-          ))}
-        </div>
+        <UnderlineTabs
+          className="rv-preset-library-views"
+          ariaLabel="Preset library filter"
+          activeTab={libraryView}
+          onChange={setLibraryView}
+          tabs={(Object.keys(LIBRARY_VIEW_LABELS) as ReactPresetLibraryView[]).map(view => ({
+            id: view,
+            label: `${LIBRARY_VIEW_LABELS[view]}${view === 'favorites' && favoritePresetIds.length > 0 ? ` ${favoritePresetIds.length}` : ''}`,
+          }))}
+        />
       </header>
 
       <p className="rv-presets-hint">

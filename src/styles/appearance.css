@@ -308,6 +308,37 @@ body,
   color: var(--color-text-muted);
 }
 
+/* Underline Tabs stay borderless/transparent under an explicit [data-theme]
+   — the generic control-surface theme rules above box every
+   .rv-right-subtabs button (PanelSubtabs) and .rv-lower-workspace-tabs
+   .dv-underline-tab (ReactView's Timeline surfaces tabs) by default. The
+   :is(...) groups above pull in unrelated selectors (e.g.
+   .vz-header .az-overflow-btn) that push their effective specificity above
+   a plain class+element override even at a later cascade position, so
+   !important is required here rather than relying on source order. The
+   Layout Lab mockup's plain .rv-lower-workspace-tabs buttons (no
+   dv-underline-tab class) are untouched and keep the boxed theme styling. */
+[data-theme] .rv-right-subtabs,
+[data-theme] .rv-right-subtabs button,
+[data-theme] .rv-right-subtabs button:hover:not(:disabled),
+[data-theme] .rv-lower-workspace-tabs .dv-underline-tab,
+[data-theme] .rv-lower-workspace-tabs .dv-underline-tab:hover:not(:disabled) {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+[data-theme] .rv-right-subtabs button:not(.is-active),
+[data-theme] .rv-lower-workspace-tabs .dv-underline-tab:not(.is-active) {
+  color: rgba(196, 207, 211, 0.5) !important;
+}
+
+[data-theme] .rv-right-subtabs button.is-active,
+[data-theme] .rv-lower-workspace-tabs .dv-underline-tab.is-active {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: var(--color-primary) !important;
+}
+
 /* Settings modal layout */
 .vsm-system-settings,
 .vsm-appearance {

@@ -1100,10 +1100,33 @@
 }
 
 .rv-ldx-route-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+/* ToggleRow is content-sized by default, so its own right-justified toggle
+   sits immediately after the "Route Enabled" label instead of reaching the
+   header's true right edge — matching the card's other rows (dropdown
+   chevrons, slider percentages). Give it the full row. The delete button
+   (.rv-glyph-item-del, borrowed from the unrelated glyph-library styling
+   and stuck permanently invisible here since its hover-reveal selector
+   targets an ancestor class this header never has) is taken out of flow so
+   its reserved inline space no longer eats into that width; its own
+   opacity/visibility/click behavior is unchanged. */
+.rv-ldx-route-header .rv-ctrl-toggle-row {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.rv-ldx-route-header .rv-glyph-item-del {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
 }
 
 /* ── Glyph lost notice ───────────────────────────────────────────────────────── */
@@ -5163,6 +5186,52 @@
   background: rgba(74, 199, 219, 0.11);
 }
 
+/* Opts into the canonical Underline Tabs treatment via UnderlineTabs; these
+   compound overrides beat the legacy 3-column grid/pill rules above. */
+
+.rv-preset-library-views.dv-underline-tabs {
+  display: flex;
+  gap: 18px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.rv-preset-library-views .dv-underline-tab {
+  min-height: 0;
+  padding: 0 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.rv-preset-library-views .dv-underline-tab:hover {
+  background: transparent;
+}
+
+.rv-preset-library-views .dv-underline-tab.is-active {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* Main PRESETS / DESIGN / REACT / OUTPUT workspace tabs read larger than
+   other Underline Tabs instances (preset library filter, lower workspace
+   surfaces) since they're the primary top-level navigation for the panel.
+   They also span the full width of the right rail with evenly spaced,
+   equal-width tabs, and sit further from the top of the rail than the
+   default .vz-inspector-inner padding gives every other rail content. */
+.rv-main-workspace-tabs.dv-underline-tabs {
+  gap: 22px;
+  margin-top: 10px;
+  justify-content: space-between;
+}
+
+.rv-main-workspace-tabs .dv-underline-tab {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+}
+
 .rv-preset-card-shell {
   position: relative;
   min-width: 0;
@@ -5434,46 +5503,72 @@
   overflow: hidden;
 }
 
+/* Restyled to match the canonical Underline Tabs treatment. Cosmetic only —
+   the grid/flex/wrap/scroll layout structure below is unchanged so the
+   equal/wrap/scroll behavior contracts (and their tests) keep working. */
+
 .rv-right-subtabs {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
-  gap: 3px;
+  gap: 18px;
   margin: 7px 8px 0;
-  padding: 3px;
+  padding: 0 0 10px;
   flex: 0 0 auto;
-  border: 1px solid rgba(255, 255, 255, 0.065);
-  border-radius: 7px;
-  background: rgba(0, 0, 0, 0.22);
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.16);
+  background: transparent;
 }
 
 .rv-right-subtabs button {
+  position: relative;
   min-width: 0;
-  min-height: 27px;
-  padding: 4px 5px;
-  border: 1px solid transparent;
-  border-radius: 5px;
+  min-height: 0;
+  padding: 0 0 10px;
+  border: 0;
+  border-radius: 0;
   background: transparent;
-  color: rgba(232, 244, 248, 0.4);
-  font: 800 8px/1 var(--az-font);
+  color: rgba(196, 207, 211, 0.5);
+  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.rv-right-subtabs button::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: #4ac7db;
+  box-shadow: 0 0 8px rgba(74, 199, 219, 0.6);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .rv-right-subtabs button:hover:not(:disabled) {
-  color: rgba(232, 244, 248, 0.82);
-  background: rgba(255, 255, 255, 0.035);
+  color: rgba(230, 240, 243, 0.85);
+  background: transparent;
 }
 
 .rv-right-subtabs button.is-active {
-  color: #67f7ff;
-  border-color: rgba(103, 247, 255, 0.3);
-  background: rgba(74, 199, 219, 0.1);
+  color: #8ef4ff;
+  border-color: transparent;
+  background: transparent;
+}
+
+.rv-right-subtabs button.is-active::after {
+  transform: scaleX(1);
 }
 
 .rv-right-subtabs button:disabled {
-  opacity: 0.24;
+  opacity: 0.35;
   cursor: default;
 }
 
@@ -5684,6 +5779,35 @@
   border-color: rgba(103, 247, 255, 0.46);
   background: rgba(74, 199, 219, 0.12);
   box-shadow: 0 0 12px rgba(74, 199, 219, 0.08);
+}
+
+/* Real Timeline surfaces tabs opt into the canonical Underline Tabs
+   treatment via the dv-underline-tab class; these compound overrides beat
+   the legacy bordered-pill button rules above (which the Layout Lab mockup
+   version still uses unchanged). */
+
+.rv-lower-workspace-tabs.dv-underline-tabs {
+  gap: 18px;
+}
+
+.rv-lower-workspace-tabs .dv-underline-tab {
+  min-height: 0;
+  padding: 0 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.rv-lower-workspace-tabs .dv-underline-tab:hover {
+  border-color: transparent;
+  background: transparent;
+}
+
+.rv-lower-workspace-tabs .dv-underline-tab.is-active {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .rv-stage-focus-btn {
@@ -6936,7 +7060,6 @@
   color: #67f7ff;
 }
 
-.rv-right-subtabs button,
 .rv-lower-workspace-tabs button {
   min-height: var(--ui-control-height);
   border-radius: 5px;

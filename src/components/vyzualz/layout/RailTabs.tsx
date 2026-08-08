@@ -1,3 +1,5 @@
+import { UnderlineTabs } from '../react/controls/UnderlineTabs'
+
 export type RailTabOption<T extends string> = {
   id: T
   label: string
@@ -10,6 +12,10 @@ type RailTabsProps<T extends string> = {
   onChange: (tab: T) => void
   ariaLabel: string
   className?: string
+  /** 'boxed' (default) is VYZUALZ's original bordered-pill tab strip. 'underline'
+   *  is the canonical Underline Tabs treatment, opt-in per call site so this
+   *  shared component doesn't silently restyle every screen that uses it. */
+  variant?: 'boxed' | 'underline'
 }
 
 export function RailTabs<T extends string>({
@@ -18,7 +24,12 @@ export function RailTabs<T extends string>({
   onChange,
   ariaLabel,
   className = '',
+  variant = 'boxed',
 }: RailTabsProps<T>) {
+  if (variant === 'underline') {
+    return <UnderlineTabs tabs={tabs} activeTab={activeTab} onChange={onChange} ariaLabel={ariaLabel} className={className} />
+  }
+
   return (
     <div
       className={`vz-panel-tabs${className ? ` ${className}` : ''}`}
