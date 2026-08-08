@@ -46,6 +46,7 @@ import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { CinemaWorkspace } from './CinemaWorkspace'
+import { CinemaLayersPanel, CinemaLibraryPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
 import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
 import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
@@ -821,11 +822,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                       getDisabledReason={getMediaDisabledReason}
                     />
                   )}
-                  {leftTab === 'layers' && workspaceComposition.showLaserLayersTab && (
-                    <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}>
-                      <LaserDmxLayersPanel />
-                    </Suspense>
-                  )}
+                  {leftTab === 'layers' && (activeReactEngineId === 'cinema' ? <CinemaLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
+                    <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}><LaserDmxLayersPanel /></Suspense>
+                  ) : null)}
+                  {leftTab === 'library' && activeReactEngineId === 'cinema' && <CinemaLibraryPanel />}
                   {leftTab === 'fonts' && <FontLibraryPanel />}
                 </div>
               </div>
@@ -1071,13 +1071,15 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   <Suspense fallback={<LazyWorkspaceFallback label="Shader scenes" />}>
                     <ShaderLibraryPanel />
                   </Suspense>
+              ) : activeReactEngineId === 'cinema' ? (
+                <CinemaPresetsPanel />
               ) : (
                 <ReactPresetsPanel />
               ))}
             {activeRightPanel === 'design' && (
               <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
             )}
-            {activeRightPanel === 'react' && <ReactReactivityWorkspacePanel />}
+            {activeRightPanel === 'react' && <ReactReactivityWorkspacePanel cinemaFrameBridge={cinemaFrameBridge} />}
             {activeRightPanel === 'output' && (
               <ReactOutputWorkspacePanel
                 canvas={outputCanvas}

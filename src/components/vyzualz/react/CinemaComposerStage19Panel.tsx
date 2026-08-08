@@ -59,11 +59,15 @@ export function CinemaComposerStage19Panel({
   definitions,
   frameBridge,
   edit,
+  surface = 'all',
+  readOnly = false,
 }: {
   composition: Readonly<CinemaCompositionDefinition>
   definitions: readonly Readonly<CinemaPersistedDefinition>[]
   frameBridge: CinemaWorkspaceFrameBridgeResult | null
   edit: (label: string, editor: Parameters<ReturnType<typeof useCinemaStore.getState>['editCinemaComposition']>[2]) => void
+  surface?: 'all' | 'routing' | 'performance' | 'camera' | 'timeline'
+  readOnly?: boolean
 }) {
   const destinations = useMemo(() => buildCinemaComposerDestinations(composition, definitions), [composition, definitions])
   const modulatableDestinations = destinations.filter(destination => destination.modulatable && destination.disabledReason == null)
@@ -121,6 +125,9 @@ export function CinemaComposerStage19Panel({
 
   return (
     <div className="rv-cinema-stage19" aria-label="Cinema modulation performance camera and timeline authoring">
+      {readOnly && <ComposerNotice>Preset structure is read-only in Cinema Engine. Author routes and performance rules in Show Manager.</ComposerNotice>}
+      <fieldset className="rv-cinema-stage19__fieldset" disabled={readOnly}>
+      {(surface === 'all' || surface === 'routing') && (
       <Collapsible label={`Modulation (${composition.modulationRoutes.length})`}>
         <div className="rv-cinema-stage19__toolbar">
           <SelectRow label="Route" value={activeRoute?.id ?? ''} onChange={setSelectedRouteId} options={composition.modulationRoutes.map((route, index) => ({ value: String(route.id), label: `Route ${index + 1} · ${shortSource(route.sourceId)}` }))} />
@@ -157,7 +164,9 @@ export function CinemaComposerStage19Panel({
           </div>
         )}
       </Collapsible>
+      )}
 
+      {(surface === 'all' || surface === 'performance') && (
       <Collapsible label={`Performance (${composition.performanceRules.length})`} defaultOpen={false}>
         <div className="rv-cinema-stage19__toolbar">
           <SelectRow label="Rule" value={activeRule?.id ?? ''} onChange={setSelectedRuleId} options={composition.performanceRules.map(rule => ({ value: String(rule.id), label: rule.label }))} />
@@ -190,7 +199,9 @@ export function CinemaComposerStage19Panel({
           </div>
         )}
       </Collapsible>
+      )}
 
+      {(surface === 'all' || surface === 'camera') && (
       <Collapsible label={`Camera (${composition.cameras.length})`} defaultOpen={false}>
         <div className="rv-cinema-stage19__toolbar">
           <SelectRow label="Camera" value={activeCamera?.id ?? ''} onChange={setSelectedCameraId} options={composition.cameras.map(camera => ({ value: String(camera.id), label: camera.label }))} />
@@ -236,10 +247,14 @@ export function CinemaComposerStage19Panel({
           </div>
         )}
       </Collapsible>
+      )}
 
+      {(surface === 'all' || surface === 'timeline') && (
       <Collapsible label="Timeline" defaultOpen={false}>
         {!timeline.available ? <ComposerNotice>{timeline.disabledReason}</ComposerNotice> : <CinemaTimeline model={timeline} />}
       </Collapsible>
+      )}
+      </fieldset>
     </div>
   )
 }

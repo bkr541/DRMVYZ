@@ -156,7 +156,7 @@ export const CINEMA_FOUNDATION_GRADIENT_DEFINITION: Readonly<CinemaNodeTypeDefin
   parameters: [
     {
       id: CINEMA_FOUNDATION_COLOR_A_PARAMETER_ID,
-      label: 'Color A',
+      label: 'Background Color',
       type: 'color',
       default: [0.05, 0.8, 0.95, 1],
       modulatable: true,

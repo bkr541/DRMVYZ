@@ -173,6 +173,15 @@ const DEFAULT_BRAND_COLORS = Object.freeze({
   highlight: [1, 1, 1, 1] as CinemaColor,
 })
 
+const BRAND_COLOR_PARAMETER_SPECS = Object.freeze([
+  { id: 'brand-primary-color', label: 'Primary Color', role: 'primary', default: DEFAULT_BRAND_COLORS.primary },
+  { id: 'brand-secondary-color', label: 'Secondary Color', role: 'secondary', default: DEFAULT_BRAND_COLORS.secondary },
+  { id: 'brand-accent-color', label: 'Accent Color', role: 'accent', default: DEFAULT_BRAND_COLORS.accent },
+  { id: 'brand-background-color', label: 'Background Color', role: 'background', default: DEFAULT_BRAND_COLORS.background },
+  { id: 'brand-foreground-color', label: 'Foreground Color', role: 'foreground', default: DEFAULT_BRAND_COLORS.foreground },
+  { id: 'brand-highlight-color', label: 'Highlight Color', role: 'highlight', default: DEFAULT_BRAND_COLORS.highlight },
+] as const)
+
 export function cinemaShaderSceneTypeId(sceneId: string): CinemaNodeTypeId {
   return cinemaNamespacedId<CinemaNodeTypeId>(`drmvyz.cinema.shader.${normalizeNamespacedSegment(sceneId)}`, 'node type')
 }
@@ -363,6 +372,7 @@ function createAdapterEntry(shader: ShaderDefinition): CinemaShaderSceneAdapterE
     }],
     parameters: [
       ...createMasterParameterDefinitions(true),
+      ...createBrandColorParameterDefinitions(),
       ...parameterMappings.map(mapping => cinemaParameterDefinition(mapping)),
     ],
     capabilities: {
@@ -882,7 +892,7 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
       program.setFloat(spec.uniform, numberValue(context.values[id], spec.default) * opacityScale)
     }
 
-    const brandColors = frame.brand.colors
+    const brandColors = resolveNodeBrandColors(context.values, frame.brand.colors)
     applyBrandUniform(program, 'uBrandPrimary', brandColors.primary, DEFAULT_BRAND_COLORS.primary)
     applyBrandUniform(program, 'uBrandSecondary', brandColors.secondary, DEFAULT_BRAND_COLORS.secondary)
     applyBrandUniform(program, 'uBrandAccent', brandColors.accent, DEFAULT_BRAND_COLORS.accent)
@@ -985,6 +995,29 @@ function createMasterParameterDefinitions(bindToMaster: boolean): CinemaParamete
       },
     } : {}),
   }))
+}
+
+function createBrandColorParameterDefinitions(): CinemaParameterDefinition[] {
+  return BRAND_COLOR_PARAMETER_SPECS.map((spec, order) => ({
+    id: cinemaShaderParameterId(spec.id),
+    label: spec.label,
+    type: 'color' as const,
+    default: [...spec.default] as CinemaColor,
+    brandRole: spec.role as CinemaBrandRole,
+    brandPolicy: 'free' as const,
+    modulatable: false,
+    ui: { control: 'color' as const, order },
+  }))
+}
+
+function resolveNodeBrandColors(
+  values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
+  fallback: CinemaNodeRenderContext['frame']['brand']['colors'],
+): Readonly<Partial<Record<CinemaBrandRole, CinemaColor>>> {
+  return Object.freeze(Object.fromEntries(BRAND_COLOR_PARAMETER_SPECS.map(spec => {
+    const value = values[cinemaShaderParameterId(spec.id)]
+    return [spec.role, colorValue(value, fallback[spec.role] ?? spec.default)]
+  })))
 }
 
 function createParameterMapping(shader: ShaderParamDef): ShaderParameterMapping {

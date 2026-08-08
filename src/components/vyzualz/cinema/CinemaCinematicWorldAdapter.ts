@@ -100,6 +100,14 @@ const BASS_REACTIVITY_PARAMETER_ID = cinemaStableId<CinemaParameterId>('bass-rea
 const TRAIL_DECAY_PARAMETER_ID = cinemaStableId<CinemaParameterId>('trail-decay', 'parameter')
 const FOG_DENSITY_PARAMETER_ID = cinemaStableId<CinemaParameterId>('fog-density', 'parameter')
 const PARTICLE_DENSITY_PARAMETER_ID = cinemaStableId<CinemaParameterId>('particle-density', 'parameter')
+const CINEMATIC_PALETTE_SPECS = Object.freeze([
+  ['primary', 'Primary Color'],
+  ['secondary', 'Secondary Color'],
+  ['accent', 'Accent Color'],
+  ['background', 'Background Color'],
+  ['highlight', 'Highlight Color'],
+  ['text', 'Foreground Color'],
+] as const)
 
 const ENVIRONMENT_PARAMETER_SPECS = Object.freeze([
   ['depth', 'Environment Depth'],
@@ -466,6 +474,9 @@ function createCinematicPresetParameterValues(
   values[PARTICLE_DENSITY_PARAMETER_ID] = renderSettings.particleDensity
   values[SEED_PARAMETER_ID] = config.seed
   values[QUALITY_PARAMETER_ID] = qualityOptionId(config.qualityTier)
+  for (const [role] of CINEMATIC_PALETTE_SPECS) {
+    values[cinemaCinematicWorldParameterId(`palette-${role}`)] = hexToCinemaColor(preset.palette[role])
+  }
   for (const [key] of ENVIRONMENT_PARAMETER_SPECS) values[cinemaCinematicWorldParameterId(`environment-${key}`)] = config.environment[key]
   for (const [key] of MATERIAL_PARAMETER_SPECS) values[cinemaCinematicWorldParameterId(`material-${key}`)] = config.material[key]
   for (const [key, value] of Object.entries(config.worldSettings.settings as Record<string, unknown>)) {
@@ -653,6 +664,18 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
       ui: { control: 'select', order: 8 },
     },
   ]
+  for (const [role, label] of CINEMATIC_PALETTE_SPECS) {
+    common.push({
+      id: cinemaCinematicWorldParameterId(`palette-${role}`),
+      label,
+      type: 'color',
+      default: hexToCinemaColor(defaultPalette()[role]),
+      modulatable: true,
+      brandRole: role === 'text' ? 'foreground' : role,
+      brandPolicy: 'free',
+      ui: { control: 'color', order: 10 + CINEMATIC_PALETTE_SPECS.findIndex(entry => entry[0] === role) },
+    })
+  }
   let order = 20
   for (const [key, label] of ENVIRONMENT_PARAMETER_SPECS) {
     const range = CINEMATIC_NUMERIC_RANGES.environment[key]
@@ -1080,7 +1103,7 @@ function adaptCinemaFrame(
   const sectionType = normalizeSectionType(frame.music.sectionType)
   const params = createReactParams(frame, values, authoredOpacity)
   const presetId = sourcePreset?.id ?? `cinema-${config.worldMode}`
-  const preset = createPreset(presetId, config, params, frame, sourcePreset)
+  const preset = createPreset(presetId, config, params, frame, values, sourcePreset)
   const musicalAudio = createMusicalAudioFrame(frame, sectionType, presetId)
   const authoredMapping = sourcePreset?.cinematicConfig?.audioMapping
   const modulation = authoredMapping?.enabled && modulationEngine
@@ -1188,6 +1211,7 @@ function createPreset(
   config: CinematicWorldConfig,
   params: ReactRenderParams,
   frame: Readonly<CinemaFrameContext>,
+  values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
   sourcePreset: ReactPreset | null = null,
 ): ReactPreset {
   return {
@@ -1195,7 +1219,7 @@ function createPreset(
     name: sourcePreset?.name ?? `Cinema ${titleCase(config.worldMode)}`,
     description: sourcePreset?.description ?? 'Runtime-only compatibility view for a Cinema-owned Cinematic World node.',
     engine: 'cinematicPortal',
-    palette: sourcePreset?.palette ?? createPalette(frame),
+    palette: createRuntimePalette(values, sourcePreset?.palette ?? createPalette(frame)),
     params: {
       intensity: params.intensity,
       motion: params.motion,
@@ -1211,6 +1235,26 @@ function createPreset(
     sectionMappings: sourcePreset?.sectionMappings ? cloneJson(sourcePreset.sectionMappings) as unknown as ReactPreset['sectionMappings'] : [],
     cinematicConfig: config,
   }
+}
+
+function createRuntimePalette(
+  values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
+  fallback: ReactPalette,
+): ReactPalette {
+  return Object.fromEntries(CINEMATIC_PALETTE_SPECS.map(([role]) => {
+    const value = values[cinemaCinematicWorldParameterId(`palette-${role}`)]
+    return [role, Array.isArray(value) ? colorHex(value as unknown as CinemaColor, fallback[role]) : fallback[role]]
+  })) as unknown as ReactPalette
+}
+
+function defaultPalette(): ReactPalette {
+  return { primary: '#0ad9ee', secondary: '#6f4df6', accent: '#f34fae', background: '#02040a', highlight: '#ffffff', text: '#ffffff' }
+}
+
+function hexToCinemaColor(value: string): CinemaColor {
+  const match = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})([\da-f]{2})?$/i.exec(value.trim())
+  if (!match) return [1, 1, 1, 1]
+  return [parseInt(match[1], 16) / 255, parseInt(match[2], 16) / 255, parseInt(match[3], 16) / 255, match[4] ? parseInt(match[4], 16) / 255 : 1]
 }
 
 function createPalette(frame: Readonly<CinemaFrameContext>): ReactPalette {

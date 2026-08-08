@@ -1,6 +1,6 @@
 import type { ReactEngineId } from './ReactTypes'
 
-export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts'
+export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'library' | 'fonts'
 export type ReactLowerSurface = 'trackMap' | 'soundDrawing' | 'performancePads'
 export type ReactPresetSurface = 'enginePresets' | 'shaderScenes'
 export type ReactWorkspaceTabLabel = 'SETUP' | 'SOURCE' | 'RIG' | 'LAYOUT'
@@ -44,9 +44,7 @@ export function resolveReactWorkspaceComposition(
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
   if (isCinema) {
-    // Stage 5 exposes the canonical Cinema foundation shell. It has no legacy
-    // preset, media, or renderer-owned setup surface.
-    leftTabs = ['workspace']
+    leftTabs = ['workspace', 'layers', 'library']
     workspaceTabLabel = 'SETUP'
   } else if (isCinematic) {
     // Cinematic Worlds chooses its World in the left source rail while preset
@@ -101,6 +99,7 @@ export function getReactLeftTabLabel(
   if (tab === 'workspace') return composition.workspaceTabLabel
   if (tab === 'media') return 'MEDIA'
   if (tab === 'layers') return 'LAYERS'
+  if (tab === 'library') return 'LIBRARY'
   return 'FONTS'
 }
 

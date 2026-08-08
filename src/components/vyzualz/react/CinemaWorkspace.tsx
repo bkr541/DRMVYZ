@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
-  CINEMA_COMPOSITION_SCHEMA_VERSION,
-  CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
   createCinemaDiagnostic,
   createCinemaDiagnosticSnapshot,
   useCinemaStore,
@@ -16,8 +14,6 @@ import {
   type CinemaRuntimeSnapshot,
 } from '../cinema'
 import { CinemaCanvas } from './CinemaCanvas'
-import { CinemaComposerPanel } from './CinemaComposerPanel'
-import { NoticeCard } from './controls/NoticeCard'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 
 export type CinemaWorkspaceSurface = 'panel' | 'stage'
@@ -28,7 +24,7 @@ export interface CinemaWorkspaceModel {
   compositionCount: number
   instanceCount: number
   diagnostics: CinemaDiagnosticSnapshot
-  statusLabel: 'Runtime ready' | 'No active composition' | 'Needs attention'
+  statusLabel: 'Ready' | 'No active preset' | 'Needs attention'
   runtimeAvailable: true
   frameAvailable: boolean
   frameTrackId: string | null
@@ -95,8 +91,8 @@ export function resolveCinemaWorkspaceModel(input: CinemaWorkspaceStateInput): C
     statusLabel: snapshot.counts.error > 0 || snapshot.counts.fatal > 0
       ? 'Needs attention'
       : activeComposition
-        ? 'Runtime ready'
-        : 'No active composition',
+        ? 'Ready'
+        : 'No active preset',
     runtimeAvailable: true,
     frameAvailable: input.frameBridge != null,
     frameTrackId: input.frameBridge?.frame.transport.trackId ?? null,
@@ -251,20 +247,14 @@ export function CinemaWorkspace({
             <span>{actionableDiagnostic.message}</span>
           </div>
         )}
-        <div className="rv-cinema-workspace__eyebrow">Cinema Runtime</div>
-        <h3>{model.statusLabel}</h3>
-        <p>Canonical composition state and the single-owner WebGL2 foundation are connected through the production engine path.</p>
-        <dl className="rv-cinema-workspace__grid">
-          <div><dt>Composition</dt><dd>{compositionName}</dd></div>
-          <div><dt>Schema</dt><dd>v{CINEMA_COMPOSITION_SCHEMA_VERSION}</dd></div>
-          <div><dt>Store</dt><dd>v{CINEMA_PERSISTED_STORE_SCHEMA_VERSION}</dd></div>
-          <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd></div>
-          <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
-        </dl>
-        <NoticeCard tone="warning" title="Stage 19 Composer authoring wired to canonical Cinema state">
-          Structured visuals now share one authored model with modulation routes, performance rules, cameras, and authoritative musical/lyric timeline context. Runtime previews remain transient.
-        </NoticeCard>
-        <CinemaComposerPanel frameBridge={frameBridge} />
+        <div className="rv-cinema-workspace__eyebrow">Cinema Setup</div>
+        <h3>{compositionName}</h3>
+        <p>Choose the active preset in Presets, select its visual hierarchy in Layers, then shape its live look in Design.</p>
+        <div className="rv-cinema-workspace__runtime" role="status">
+          <strong>{model.statusLabel}</strong>
+          <span>{diagnosticSummary(model.diagnostics)} · {model.frameAvailable ? 'Audio and timeline connected' : 'Waiting for audio and timeline'}</span>
+        </div>
+        <div className="rv-ctrl-info">Create presets, change structure, and manage reusable content in Show Manager.</div>
       </section>
     )
   }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../../stores/reactStore'
 import type { Recorder } from '../../../../hooks/useRecorder'
 import { ReactFxPanel } from '../ReactFxPanel'
@@ -7,8 +8,10 @@ import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ReactRecordingPanel } from '../ReactRecordingPanel'
 import { CinemaRenderedDiagnostics } from '../CinemaWorkspace'
+import { CinemaInspectorPanel } from '../CinemaInspectorPanel'
+import { CinemaComposerStage19Panel } from '../CinemaComposerStage19Panel'
 import type { CinemaWorkspaceFrameBridgeResult } from '../CinemaWorkspaceFrameBridge'
-import type { CinemaRuntimeSnapshot } from '../../cinema'
+import { isCinemaBuiltInComposition, useCinemaStore, type CinemaRuntimeSnapshot } from '../../cinema'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
 import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
@@ -23,7 +26,7 @@ import {
 } from '../canvasFracturesOutputContract'
 
 type DesignSurface = 'engine' | 'selection'
-type ReactivitySurface = 'routing' | 'analysis'
+type ReactivitySurface = 'routing' | 'performance' | 'analysis'
 type OutputSurface = 'recording' | 'production'
 
 const PIX_GRID_REACTIVITY_SURFACE_LABELS: Record<PixGridReactivitySurface, string> = {
@@ -38,11 +41,16 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
   const laserDmxBeamMatrixAuthoringMode = useReactStore(state => state.laserDmxBeamMatrixAuthoringMode)
   const showDirectorDesign = activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector'
   const pixGridDesign = activeReactEngineId === 'pixGrid'
+  const cinemaDesign = activeReactEngineId === 'cinema'
   const [surface, setSurface] = useState<DesignSurface>(hasSelection ? 'selection' : 'engine')
 
   useEffect(() => {
     setSurface(hasSelection ? 'selection' : 'engine')
   }, [hasSelection])
+
+  if (cinemaDesign) {
+    return <div className="rv-workspace-panel"><div className="rv-workspace-panel-body"><div className="rv-inspector rv-inspector-scroll"><CinemaInspectorPanel /></div></div></div>
+  }
 
   if (pixGridDesign) {
     return (
@@ -88,13 +96,20 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
   )
 }
 
-export function ReactReactivityWorkspacePanel() {
+export function ReactReactivityWorkspacePanel({ cinemaFrameBridge = null }: { cinemaFrameBridge?: CinemaWorkspaceFrameBridgeResult | null }) {
+  const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
+  const cinemaActive = activeReactEngineId === 'cinema'
   const pixGridActive = useReactStore(state => state.activeReactEngineId === 'pixGrid')
+  const cinemaState = useCinemaStore(useShallow(state => ({ activeCompositionId: state.activeCompositionId, compositions: state.compositions, definitions: state.definitions })))
+  const cinemaPreset = cinemaState.compositions.find(candidate => candidate.id === cinemaState.activeCompositionId) ?? null
   const [surface, setSurface] = useState<ReactivitySurface>('routing')
   const [pixGridSurface, setPixGridSurface] = useState<PixGridReactivitySurface>(
     () => getRequestedPixGridWorkspace() ?? 'routing',
   )
   useEffect(() => subscribePixGridWorkspace(next => setPixGridSurface(next)), [])
+  useEffect(() => {
+    if (!cinemaActive && surface === 'performance') setSurface('routing')
+  }, [cinemaActive, surface])
 
   if (pixGridActive) {
     return (
@@ -125,6 +140,10 @@ export function ReactReactivityWorkspacePanel() {
     )
   }
 
+  const editCinema = (label: string, editor: Parameters<ReturnType<typeof useCinemaStore.getState>['editCinemaComposition']>[2]) => {
+    if (cinemaPreset) useCinemaStore.getState().editCinemaComposition(cinemaPreset.id, label, editor)
+  }
+
   return (
     <div className="rv-workspace-panel">
       <PanelSubtabs
@@ -133,12 +152,24 @@ export function ReactReactivityWorkspacePanel() {
         ariaLabel="Reactivity surfaces"
         options={[
           { id: 'routing', label: 'ROUTING' },
+          ...(cinemaActive ? [{ id: 'performance' as const, label: 'PERFORMANCE' }] : []),
           { id: 'analysis', label: 'ANALYSIS' },
         ]}
       />
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
-          {surface === 'analysis' ? <ReactAudioPanel /> : <ReactModulationPanel />}
+          {cinemaActive ? (
+            surface === 'analysis' ? <ReactAudioPanel /> : cinemaPreset ? (
+              <CinemaComposerStage19Panel
+                composition={cinemaPreset}
+                definitions={cinemaState.definitions}
+                frameBridge={cinemaFrameBridge}
+                edit={editCinema}
+                surface={surface}
+                readOnly={isCinemaBuiltInComposition(cinemaPreset)}
+              />
+            ) : <div className="rv-ctrl-info">Select a Cinema preset to configure reactivity.</div>
+          ) : surface === 'analysis' ? <ReactAudioPanel /> : <ReactModulationPanel />}
         </div>
       </div>
     </div>

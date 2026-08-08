@@ -1,39 +1,44 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import {
-  assignCinemaComposerNodeAsset,
   createCinemaCameraParameterSchemas,
   createCinemaControlDescriptors,
+  buildCinemaComposerLibraryItems,
+  CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   getCinemaEditorSelection,
-  setCinemaComposerCameraParameter,
-  setCinemaComposerMasterParameter,
-  setCinemaComposerNodeParameter,
   useCinemaStore,
   type CinemaAssetReference,
-  type CinemaAssetRole,
-  type CinemaExternalAssetSnapshot,
   type CinemaControlDescriptor,
   type CinemaNodeId,
   type CinemaParameterId,
   type CinemaParameterValue,
 } from '../cinema'
 import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import {
+  getCinemaLiveInstance,
+  resetCinemaLiveOverrides,
+  setCinemaLiveCameraOverride,
+  setCinemaLiveMasterOverride,
+  setCinemaLiveNodeOverride,
+} from './CinemaLiveOverrides'
 
 export function CinemaInspectorPanel() {
   const state = useCinemaStore(useShallow(store => ({
     activeCompositionId: store.activeCompositionId,
     compositions: store.compositions,
     definitions: store.definitions,
+    instances: store.instances,
     editorMetadata: store.editorMetadata,
-    historyTransaction: store.historyTransaction,
   })))
   const composition = state.compositions.find(candidate => candidate.id === state.activeCompositionId) ?? null
   const mediaItems = useMediaStore(store => store.items)
   const mediaAssets = useMemo(() => createCinemaMediaLibrarySnapshot(mediaItems), [mediaItems])
   const selectedNodeId = composition ? getCinemaEditorSelection(state.editorMetadata, composition.id) : null
   const selectedNode = composition?.nodes.find(node => node.id === selectedNodeId) ?? null
+  const liveInstance = composition ? getCinemaLiveInstance(composition.id, state.instances) : null
   const persistedDefinition = selectedNode ? state.definitions.find(definition => definition.id === selectedNode.typeId) ?? null : null
 
   const selectedBinding = selectedNode?.assetBindingIds?.[0]
@@ -41,60 +46,83 @@ export function CinemaInspectorPanel() {
     : null
 
   const masterDescriptors = useMemo(() => composition
-    ? createCinemaControlDescriptors({ namespace: 'master', schemas: composition.masterParameters, values: composition.masterValues }).descriptors
-    : [], [composition])
+    ? createCinemaControlDescriptors({ namespace: 'master', schemas: composition.masterParameters, values: { ...composition.masterValues, ...(liveInstance?.masterOverrides ?? {}) } }).descriptors
+    : [], [composition, liveInstance])
   const nodeDescriptors = useMemo(() => selectedNode && persistedDefinition
     ? createCinemaControlDescriptors({
         namespace: selectedNode.family === 'effect' ? 'effects' : 'nodes',
         ownerId: selectedNode.id,
         schemas: persistedDefinition.definition.parameters,
-        values: selectedNode.parameterValues,
+        values: { ...selectedNode.parameterValues, ...(liveInstance?.nodeOverrides.find(override => override.nodeId === selectedNode.id)?.values ?? {}) },
       }).descriptors
-    : [], [persistedDefinition, selectedNode])
+    : [], [liveInstance, persistedDefinition, selectedNode])
+  const paletteOrder = ['background', 'primary', 'secondary', 'accent', 'foreground', 'highlight']
+  const paletteDescriptors = nodeDescriptors.filter(descriptor => descriptor.type === 'color').sort((left, right) => {
+    const roleFor = (id: typeof left.id) => {
+      const schema = persistedDefinition?.definition.parameters.find(parameter => parameter.id === id)
+      return schema?.type === 'color' ? schema.brandRole : undefined
+    }
+    const rank = (role: string | undefined) => role ? paletteOrder.indexOf(role) : paletteOrder.length
+    return rank(roleFor(left.id)) - rank(roleFor(right.id))
+  })
+  const detailDescriptors = nodeDescriptors.filter(descriptor => !paletteDescriptors.includes(descriptor))
 
   if (!composition) {
-    return <div className="rv-ctrl-group"><div className="rv-ctrl-info">Select a Cinema composition to inspect authored controls.</div></div>
+    return <div className="rv-ctrl-group"><div className="rv-ctrl-info">Select a Cinema preset to edit its live appearance.</div></div>
   }
 
-  const edit = (label: string, editor: Parameters<ReturnType<typeof useCinemaStore.getState>['editCinemaComposition']>[2]) => {
-    useCinemaStore.getState().editCinemaComposition(composition.id, label, editor)
-  }
-  const beginGesture = (label: string) => {
-    if (!useCinemaStore.getState().historyTransaction) useCinemaStore.getState().beginCinemaHistoryTransaction(label)
-  }
-  const endGesture = () => {
-    if (useCinemaStore.getState().historyTransaction) useCinemaStore.getState().commitCinemaHistoryTransaction()
-  }
   const assetOptions = mediaAssets.filter(asset => !asset.deleted).map(asset => ({ id: String(asset.assetId), label: asset.name }))
 
   return (
     <>
       <div className="rv-ctrl-group">
-        <CtrlSection label="Cinema Inspector" />
-        <InspectorKv label="Composition" value={composition.metadata.name} />
-        <InspectorKv label="Schema" value={`v${composition.schemaVersion}`} />
-        <InspectorKv label="Selected node" value={selectedNode?.label ?? selectedNode?.typeId ?? 'None'} />
+        <CtrlSection label="Preset Look" />
+        <InspectorKv label="Preset" value={composition.metadata.name} />
+        <InspectorKv label="Selected layer" value={selectedNode?.label ?? selectedNode?.typeId ?? 'None'} />
+        <div className="rv-ctrl-info">Changes here are live overrides. The original preset remains unchanged.</div>
+        {liveInstance && <button type="button" className="rv-reset-btn" onClick={() => resetCinemaLiveOverrides(composition.id)}>Reset Live Changes</button>}
       </div>
 
       <div className="rv-ctrl-group">
-        <Collapsible label="Master parameters">
-          {masterDescriptors.length === 0 ? <div className="rv-ctrl-info">This composition has no master parameter schemas.</div> : masterDescriptors.map(descriptor => (
+        <Collapsible label="Palette">
+          {paletteDescriptors.length === 0 ? <div className="rv-ctrl-info">This layer does not expose palette colors. Select another visual layer to change its background and brand colors.</div> : paletteDescriptors.map(descriptor => (
             <SchemaControl
               key={descriptor.path}
               descriptor={descriptor}
               assetOptions={assetOptions}
-              onChange={value => edit('Edit Cinema master parameter', current => setCinemaComposerMasterParameter(current, descriptor.id as CinemaParameterId, value))}
-              onInteractionStart={() => beginGesture(`Adjust ${descriptor.label}`)}
-              onInteractionEnd={endGesture}
+              onChange={value => {
+                const schema = persistedDefinition?.definition.parameters.find(candidate => candidate.id === descriptor.id)
+                if (schema && selectedNode) setCinemaLiveNodeOverride(composition, selectedNode.id, schema, value)
+              }}
+              onInteractionStart={() => {}}
+              onInteractionEnd={() => {}}
             />
           ))}
         </Collapsible>
       </div>
 
       <div className="rv-ctrl-group">
-        <Collapsible label={selectedNode?.family === 'effect' ? 'Selected effect' : 'Selected visual'}>
+        <Collapsible label="Master Appearance">
+          {masterDescriptors.length === 0 ? <div className="rv-ctrl-info">This preset has no master appearance controls.</div> : masterDescriptors.map(descriptor => (
+            <SchemaControl
+              key={descriptor.path}
+              descriptor={descriptor}
+              assetOptions={assetOptions}
+              onChange={value => {
+                const schema = composition.masterParameters.find(candidate => candidate.id === descriptor.id)
+                if (schema) setCinemaLiveMasterOverride(composition, schema, value)
+              }}
+              onInteractionStart={() => {}}
+              onInteractionEnd={() => {}}
+            />
+          ))}
+        </Collapsible>
+      </div>
+
+      <div className="rv-ctrl-group">
+        <Collapsible label={selectedNode?.family === 'effect' ? 'Selected Effect' : 'Selected Layer'}>
           {!selectedNode || !persistedDefinition ? (
-            <div className="rv-ctrl-info">Select a visual or effect in the Cinema Composer to inspect it.</div>
+            <div className="rv-ctrl-info">Select a layer or effect in Layers to edit it.</div>
           ) : (
             <>
               <InspectorKv label="Stable ID" value={String(selectedNode.id)} />
@@ -102,33 +130,31 @@ export function CinemaInspectorPanel() {
               <SelectRow
                 label="Asset source"
                 value={selectedBinding?.assetId ?? ''}
-                onChange={assetId => {
-                  const asset = mediaAssets.find(candidate => candidate.assetId === assetId) ?? null
-                  edit('Assign Cinema node asset', current => assignCinemaComposerNodeAsset(
-                    current,
-                    selectedNode.id,
-                    asset?.assetId ?? null,
-                    assetRoleForNode(asset, selectedNode.family),
-                  ))
-                }}
+                onChange={() => {}}
+                disabled
                 options={[{ value: '', label: 'No asset' }, ...mediaAssets.filter(asset => !asset.deleted).map(asset => ({ value: String(asset.assetId), label: asset.name }))]}
-                description={mediaAssets.length === 0 ? 'No canonical media-library assets are available.' : 'Uses a stable Cinema asset ID; runtime URLs remain outside persisted state.'}
+                description="Assign media and change preset structure in Show Manager."
               />
-              {nodeDescriptors.map(descriptor => (
+              {detailDescriptors.map(descriptor => (
                 <SchemaControl
                   key={descriptor.path}
                   descriptor={descriptor}
                   assetOptions={assetOptions}
-                  onChange={value => edit('Edit Cinema node parameter', current => setCinemaComposerNodeParameter(current, selectedNode.id, descriptor.id as CinemaParameterId, value, state.definitions))}
-                  onInteractionStart={() => beginGesture(`Adjust ${descriptor.label}`)}
-                  onInteractionEnd={endGesture}
+                  onChange={value => {
+                    const schema = persistedDefinition.definition.parameters.find(candidate => candidate.id === descriptor.id)
+                    if (schema) setCinemaLiveNodeOverride(composition, selectedNode.id, schema, value)
+                  }}
+                  onInteractionStart={() => {}}
+                  onInteractionEnd={() => {}}
                 />
               ))}
-              {nodeDescriptors.length === 0 && <div className="rv-ctrl-info">This node type has no authored parameter schemas.</div>}
+              {detailDescriptors.length === 0 && <div className="rv-ctrl-info">This layer has no additional appearance controls.</div>}
             </>
           )}
         </Collapsible>
       </div>
+
+      <CinemaEffectBrowser />
 
       <div className="rv-ctrl-group">
         <Collapsible label={`Camera resources (${composition.cameras.length})`} defaultOpen={false}>
@@ -137,7 +163,7 @@ export function CinemaInspectorPanel() {
               namespace: 'cameras',
               ownerId: camera.id,
               schemas: createCinemaCameraParameterSchemas(camera),
-              values: camera.parameterValues,
+              values: { ...camera.parameterValues, ...(liveInstance?.cameraOverrides.find(override => override.cameraId === camera.id)?.values ?? {}) },
             }).descriptors
             return (
               <Collapsible key={camera.id} label={camera.label} defaultOpen={false}>
@@ -148,29 +174,17 @@ export function CinemaInspectorPanel() {
                     key={descriptor.path}
                     descriptor={descriptor}
                     assetOptions={assetOptions}
-                    onChange={value => edit('Edit Cinema camera parameter', current => setCinemaComposerCameraParameter(current, camera.id, descriptor.id as CinemaParameterId, value))}
-                    onInteractionStart={() => beginGesture(`Adjust ${camera.label} ${descriptor.label}`)}
-                    onInteractionEnd={endGesture}
+                    onChange={value => {
+                      const schema = createCinemaCameraParameterSchemas(camera).find(candidate => candidate.id === descriptor.id)
+                      if (schema) setCinemaLiveCameraOverride(composition, camera.id, schema, value)
+                    }}
+                    onInteractionStart={() => {}}
+                    onInteractionEnd={() => {}}
                   />
                 ))}
               </Collapsible>
             )
           })}
-        </Collapsible>
-      </div>
-
-      <div className="rv-ctrl-group">
-        <Collapsible label={`Asset bindings (${composition.assetBindings.length})`} defaultOpen={false}>
-          {composition.assetBindings.length === 0 ? <div className="rv-ctrl-info">No stable Cinema asset bindings are authored.</div> : composition.assetBindings.map(binding => (
-            <Collapsible key={binding.id} label={`${binding.role} · ${binding.assetId}`} defaultOpen={false}>
-              <InspectorKv label="Binding ID" value={String(binding.id)} />
-              <SelectRow label="Fit" value={binding.fit} onChange={fit => useCinemaStore.getState().upsertCinemaAssetBinding(composition.id, { ...binding, fit: fit as typeof binding.fit })} options={['contain', 'cover', 'stretch', 'none'].map(value => ({ value, label: value }))} />
-              <SliderRow label="Opacity" value={binding.opacity} onChange={opacity => useCinemaStore.getState().upsertCinemaAssetBinding(composition.id, { ...binding, opacity })} onInteractionStart={() => beginGesture(`Adjust ${binding.role} asset opacity`)} onInteractionEnd={endGesture} />
-              <ToggleRow label="Preserve original colors" value={binding.preserveOriginalColors} onChange={preserveOriginalColors => useCinemaStore.getState().upsertCinemaAssetBinding(composition.id, { ...binding, preserveOriginalColors })} />
-              <SelectRow label="Brand role" value={binding.colorizeWithBrandRole ?? ''} onChange={role => useCinemaStore.getState().upsertCinemaAssetBinding(composition.id, { ...binding, colorizeWithBrandRole: role ? role as typeof binding.colorizeWithBrandRole : undefined })} options={[{ value: '', label: 'No Brand Kit mapping' }, ...['primary', 'secondary', 'accent', 'background', 'foreground', 'highlight', 'shadow'].map(value => ({ value, label: value }))]} />
-              <SelectRow label="Brand policy" value={binding.brandColorPolicy ?? 'free'} onChange={brandColorPolicy => useCinemaStore.getState().upsertCinemaAssetBinding(composition.id, { ...binding, brandColorPolicy: brandColorPolicy as NonNullable<typeof binding.brandColorPolicy> })} options={['exact', 'derived', 'free'].map(value => ({ value, label: value }))} />
-            </Collapsible>
-          ))}
         </Collapsible>
       </div>
 
@@ -185,6 +199,25 @@ export function CinemaInspectorPanel() {
         </div>
       )}
     </>
+  )
+}
+
+function CinemaEffectBrowser() {
+  const [query, setQuery] = useState('')
+  const definitions = useCinemaStore(store => store.definitions)
+  const effects = useMemo(() => buildCinemaComposerLibraryItems(definitions, CINEMA_PRODUCTION_RUNTIME_REGISTRY)
+    .filter(item => item.category === 'Effects' && `${item.label} ${item.description}`.toLowerCase().includes(query.trim().toLowerCase())), [definitions, query])
+  return (
+    <div className="rv-ctrl-group">
+      <Collapsible label="Find Effects" defaultOpen={false}>
+        <DreamVizTextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by look or parameter…" aria-label="Search Cinema effects" />
+        <div className="rv-cinema-effect-results">
+          {effects.map(effect => <article key={effect.id}><strong>{effect.label}</strong><small>{effect.description}</small></article>)}
+          {effects.length === 0 && <div className="rv-ctrl-info">No effects match this search.</div>}
+        </div>
+        <div className="rv-ctrl-info">Effect discovery lives here; attach or remove effects while authoring the preset in Show Manager.</div>
+      </Collapsible>
+    </div>
   )
 }
 
@@ -244,18 +277,6 @@ function SchemaControl({
 
 function InspectorKv({ label, value }: { label: string; value: string }) {
   return <div className="rv-insp-kv"><span className="rv-insp-key">{label}</span><span className="rv-insp-val" title={value}>{value}</span></div>
-}
-function assetRoleForNode(asset: Readonly<CinemaExternalAssetSnapshot> | null, family: string): CinemaAssetRole {
-  if (family === 'logo') return 'logo'
-  switch (asset?.mediaKind) {
-    case 'video': return 'video'
-    case 'svg': return family === 'logo' ? 'logo' : 'image'
-    case 'font': return 'font'
-    case 'audio': return 'audio'
-    case 'node-output': return 'node-output'
-    case 'image': return 'image'
-    default: return 'image'
-  }
 }
 function numberValue(value: CinemaParameterValue): number { return typeof value === 'number' && Number.isFinite(value) ? value : 0 }
 function numberBound(value: number | readonly number[] | undefined, fallback?: number): number | undefined { return typeof value === 'number' ? value : fallback }

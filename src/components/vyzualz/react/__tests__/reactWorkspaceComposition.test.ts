@@ -97,8 +97,10 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', shader)).toBe('SETUP')
 
     const cinema = resolveReactWorkspaceComposition('cinema', 'beamMatrix', false)
-    expect(getReactLeftTabs(cinema)).toEqual(['workspace'])
+    expect(getReactLeftTabs(cinema)).toEqual(['workspace', 'layers', 'library'])
     expect(getReactLeftTabLabel('workspace', cinema)).toBe('SETUP')
+    expect(getReactLeftTabLabel('layers', cinema)).toBe('LAYERS')
+    expect(getReactLeftTabLabel('library', cinema)).toBe('LIBRARY')
 
     const cinematic = resolveReactWorkspaceComposition('cinematicPortal', 'beamMatrix', false)
     expect(getReactLeftTabs(cinematic)).toEqual(['workspace'])
