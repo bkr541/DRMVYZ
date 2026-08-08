@@ -456,19 +456,30 @@ function createCinemaStage16ReferenceComposition(): CinemaCompositionDefinition 
   }
 }
 
+const CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS: readonly CinemaCompositionDefinition[] = deepFreeze([
+  CINEMA_FOUNDATION_COMPOSITION,
+  CINEMA_SHADER_REFERENCE_COMPOSITION,
+  CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
+  CINEMA_STAGE15_REFERENCE_COMPOSITION,
+  CINEMA_STAGE16_REFERENCE_COMPOSITION,
+  ...CINEMA_LEGACY_PRESET_CATALOG.compositions,
+])
+
+export interface CinemaBuiltInReconciliationOptions {
+  /**
+   * Promote a valid pre-foundation Cinema document into the current built-in
+   * catalog. Production hydration enables this so Stage 1-20/user-only state
+   * cannot suppress Stage 21 legacy preset compositions forever.
+   */
+  initializeMissingFoundation?: boolean
+}
+
 export function createCinemaFoundationPersistedState(): CinemaPersistedState {
   return JSON.parse(JSON.stringify({
     schemaId: CINEMA_PERSISTED_STORE_SCHEMA_ID,
     schemaVersion: CINEMA_PERSISTED_STORE_SCHEMA_VERSION,
     definitions: CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
-    compositions: [
-      CINEMA_FOUNDATION_COMPOSITION,
-      CINEMA_SHADER_REFERENCE_COMPOSITION,
-      CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
-      CINEMA_STAGE15_REFERENCE_COMPOSITION,
-      CINEMA_STAGE16_REFERENCE_COMPOSITION,
-      ...CINEMA_LEGACY_PRESET_CATALOG.compositions,
-    ],
+    compositions: CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS,
     instances: [],
     collections: [],
     activeCompositionId: CINEMA_SHADER_REFERENCE_COMPOSITION.id,
@@ -487,37 +498,31 @@ export function createCinemaFoundationPersistedState(): CinemaPersistedState {
   })) as CinemaPersistedState
 }
 
-export function reconcileCinemaBuiltInState(state: CinemaPersistedState): CinemaPersistedState {
+export function reconcileCinemaBuiltInState(
+  state: CinemaPersistedState,
+  options: CinemaBuiltInReconciliationOptions = {},
+): CinemaPersistedState {
   const foundationState = state.editorMetadata.foundationInitialized === true
     || state.definitions.some(definition => (
       definition.id === CINEMA_FOUNDATION_GRADIENT_TYPE_ID
       || definition.id === CINEMA_FOUNDATION_OUTPUT_TYPE_ID
     ))
     || state.compositions.some(composition => composition.id === CINEMA_FOUNDATION_COMPOSITION_ID)
-  if (!foundationState) return state
+  if (!foundationState && options.initializeMissingFoundation !== true) return state
 
   const canonicalDefinitionIds = new Set(CINEMA_PRODUCTION_PERSISTED_DEFINITIONS.map(definition => String(definition.id)))
-  const canonicalCatalogCompositionIds = new Set(CINEMA_LEGACY_PRESET_CATALOG.compositions.map(composition => String(composition.id)))
+  const canonicalBuiltInCompositionIds = new Set(CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS.map(composition => String(composition.id)))
   const definitions = [
     ...state.definitions.filter(definition => !canonicalDefinitionIds.has(String(definition.id))),
     ...CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
   ]
   const compositions = [
-    ...state.compositions.filter(composition => (
-      composition.id !== CINEMA_SHADER_REFERENCE_COMPOSITION.id
-      && composition.id !== CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id
-      && composition.id !== CINEMA_STAGE15_REFERENCE_COMPOSITION_ID
-      && composition.id !== CINEMA_STAGE16_REFERENCE_COMPOSITION_ID
-      && !canonicalCatalogCompositionIds.has(String(composition.id))
-    )),
-    CINEMA_SHADER_REFERENCE_COMPOSITION,
-    CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
-    CINEMA_STAGE15_REFERENCE_COMPOSITION,
-    CINEMA_STAGE16_REFERENCE_COMPOSITION,
-    ...CINEMA_LEGACY_PRESET_CATALOG.compositions,
+    ...state.compositions.filter(composition => !canonicalBuiltInCompositionIds.has(String(composition.id))),
+    ...CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS,
   ]
   const normalizedEditorMetadata = normalizeCinemaGraphEditorMetadata({
     ...state.editorMetadata,
+    foundationInitialized: true,
     shaderSceneAdapterVersion: 1,
     cinematicWorldAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,
     canvas2dAdapterVersion: CINEMA_CINEMATIC_WORLD_ADAPTER_VERSION,

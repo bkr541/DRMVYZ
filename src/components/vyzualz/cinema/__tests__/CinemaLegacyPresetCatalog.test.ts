@@ -4,9 +4,12 @@ import {
   CINEMA_LEGACY_PRESET_CATALOG_VERSION,
   cinemaCinematicWorldParameterId,
   compileCinemaCompositionGraph,
+  createCinemaComposerComposition,
   createCinemaDefinitionRegistryFromPersisted,
   createCinemaFoundationPersistedState,
   createCinemaStore,
+  createEmptyCinemaPersistedState,
+  cinemaStableId,
   reconcileCinemaBuiltInState,
   validateCinemaCompositionGraph,
 } from '..'
@@ -67,6 +70,32 @@ describe('Cinema Stage 21 legacy preset catalog', () => {
     expect(reconciled.activeCompositionId).toBe(activeBefore)
     expect(reconciled.editorMetadata.legacyPresetCatalogVersion).toBe(CINEMA_LEGACY_PRESET_CATALOG_VERSION)
     expect(CINEMA_LEGACY_PRESET_CATALOG.compositions.every(composition => reconciled.compositions.some(candidate => candidate.id === composition.id))).toBe(true)
+  })
+
+
+  it('hydrates a pre-foundation user-only Cinema document and restores the complete built-in preset catalog', () => {
+    const userComposition = createCinemaComposerComposition({
+      id: cinemaStableId('composer-composition', 'composition'),
+      name: 'Cinema Composition 1',
+    })
+    const preFoundationState = {
+      ...createEmptyCinemaPersistedState(),
+      compositions: [userComposition],
+      activeCompositionId: userComposition.id,
+      editorMetadata: {},
+    }
+
+    const store = createCinemaStore()
+    const result = store.getState().hydrateCinemaState(preFoundationState)
+
+    expect(result.ok).toBe(true)
+    expect(store.getState().activeCompositionId).toBe(userComposition.id)
+    expect(store.getState().compositions.some(composition => composition.id === userComposition.id)).toBe(true)
+    expect(store.getState().editorMetadata.foundationInitialized).toBe(true)
+    expect(store.getState().editorMetadata.legacyPresetCatalogVersion).toBe(CINEMA_LEGACY_PRESET_CATALOG_VERSION)
+    expect(CINEMA_LEGACY_PRESET_CATALOG.compositions.every(composition => (
+      store.getState().compositions.some(candidate => candidate.id === composition.id)
+    ))).toBe(true)
   })
 
   it('enters the production-intended Cinema store while legacy engine identities remain compatibility-only', () => {

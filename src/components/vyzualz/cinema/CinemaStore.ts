@@ -219,7 +219,11 @@ export const useCinemaStore = create<CinemaStoreState>()(
       merge: (persistedState, currentState) => {
         const normalized = normalizeCinemaPersistedState(persistedState)
         return normalized.ok
-          ? { ...currentState, ...reconcileCinemaBuiltInState(normalized.value), lastDiagnostics: normalized.diagnostics }
+          ? {
+            ...currentState,
+            ...reconcileCinemaBuiltInState(normalized.value, { initializeMissingFoundation: true }),
+            lastDiagnostics: normalized.diagnostics,
+          }
           : { ...currentState, lastDiagnostics: normalized.diagnostics }
       },
     },
@@ -319,7 +323,7 @@ function createCinemaStoreInitializer(
           set({ lastDiagnostics: normalized.diagnostics })
           return { ok: false, diagnostics: normalized.diagnostics }
         }
-        return applyDocument(reconcileCinemaBuiltInState(normalized.value), 'Hydrate Cinema state', {
+        return applyDocument(reconcileCinemaBuiltInState(normalized.value, { initializeMissingFoundation: true }), 'Hydrate Cinema state', {
           recordHistory: false,
           clearHistory: true,
           clearRuntimePreview: true,
@@ -332,7 +336,7 @@ function createCinemaStoreInitializer(
           set({ lastDiagnostics: normalized.diagnostics })
           return { ok: false, diagnostics: normalized.diagnostics }
         }
-        return applyDocument(reconcileCinemaBuiltInState(normalized.value), label, { clearRuntimePreview: true })
+        return applyDocument(reconcileCinemaBuiltInState(normalized.value, { initializeMissingFoundation: true }), label, { clearRuntimePreview: true })
       },
 
       resetCinemaState: () => applyDocument(createCinemaFoundationPersistedState(), 'Reset Cinema state', { clearRuntimePreview: true }),
