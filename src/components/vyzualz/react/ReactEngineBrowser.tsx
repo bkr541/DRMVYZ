@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactEngineId } from './ReactTypes'
@@ -63,19 +63,20 @@ export function ReactEngineBrowser() {
         title="Choose React engine"
         onClick={() => setOpen(value => !value)}
       >
+        <span className="rv-engine-dropdown-glow" aria-hidden="true" />
+        <span className="rv-engine-dropdown-icon" aria-hidden="true">
+          <ReactEngineIcon engineId={activeReactEngineId} glyph={activeEngine.icon} />
+        </span>
         <span className="rv-engine-dropdown-copy">
           <span className="rv-engine-dropdown-eyebrow">Engine</span>
           <span className="rv-engine-dropdown-label">{activeEngine.label}</span>
           <span className="rv-engine-dropdown-description">{activeEngine.description}</span>
         </span>
-        <span className="rv-engine-dropdown-icon" aria-hidden="true">
-          <ReactEngineIcon engineId={activeReactEngineId} glyph={activeEngine.icon} />
-        </span>
       </button>
 
       {open && (
         <div className="rv-engine-dropdown-menu" role="listbox" aria-label="React visual engines">
-          {REACT_ENGINE_IDS.map(engineId => {
+          {REACT_ENGINE_IDS.map((engineId, index) => {
             const engine = REACT_ENGINE_CATALOG[engineId]
             const active = engineId === activeReactEngineId
             return (
@@ -85,6 +86,7 @@ export function ReactEngineBrowser() {
                 role="option"
                 aria-selected={active}
                 className={`rv-engine-dropdown-option${active ? ' is-active' : ''}`}
+                style={{ '--rv-engine-i': index } as CSSProperties}
                 onClick={() => handleSelect(engineId)}
               >
                 <span className="rv-engine-dropdown-option-icon" aria-hidden="true">

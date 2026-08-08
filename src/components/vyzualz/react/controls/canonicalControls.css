@@ -28,6 +28,14 @@
   border-radius: 50% !important;
   background: #4ac7db !important;
   box-shadow: 0 0 8px #4ac7db, 0 0 0 2px rgba(0, 0, 0, 0.4) !important;
+  opacity: 0 !important;
+  transition: opacity 140ms ease !important;
+}
+
+.dv-bubble-slider:hover::-webkit-slider-thumb,
+.dv-bubble-slider:focus-visible::-webkit-slider-thumb,
+.dv-bubble-slider:active::-webkit-slider-thumb {
+  opacity: 1 !important;
 }
 
 .dv-bubble-slider::-moz-range-track {
@@ -49,6 +57,14 @@
   border-radius: 50% !important;
   background: #4ac7db !important;
   box-shadow: 0 0 8px #4ac7db !important;
+  opacity: 0 !important;
+  transition: opacity 140ms ease !important;
+}
+
+.dv-bubble-slider:hover::-moz-range-thumb,
+.dv-bubble-slider:focus-visible::-moz-range-thumb,
+.dv-bubble-slider:active::-moz-range-thumb {
+  opacity: 1 !important;
 }
 
 .dv-bubble-slider:disabled {
@@ -121,9 +137,9 @@
 .dv-icon-morph-checkbox {
   position: relative;
   box-sizing: border-box;
-  width: 17px;
-  height: 17px;
-  flex: 0 0 17px;
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
   border: 1px solid rgba(154, 178, 188, 0.25) !important;
   border-radius: 50% !important;
   background: rgba(255, 255, 255, 0.03) !important;
@@ -138,6 +154,19 @@
   cursor: pointer;
 }
 
+/* ToggleRow passes through the legacy `rv-ctrl-toggle` class for row-layout
+   compatibility with other panel contexts. That class carries a
+   min-width: 54px / min-height design-token rule sized for the old
+   rectangular On/Off button, which stretches this circular glyph into an
+   oval. Reassert the compact size wherever the two classes combine. */
+.rv-ctrl-toggle.dv-icon-morph-toggle,
+.rv-ctrl-toggle.dv-icon-morph-checkbox {
+  width: 21px !important;
+  height: 21px !important;
+  min-width: 21px !important;
+  min-height: 21px !important;
+}
+
 .dv-icon-morph-toggle.is-on,
 .dv-icon-morph-checkbox.is-on,
 .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) {
@@ -147,8 +176,8 @@
 }
 
 .dv-icon-morph-toggle__icon {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   pointer-events: none;
 }
 

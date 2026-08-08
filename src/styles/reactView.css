@@ -4632,36 +4632,43 @@
   min-width: 0;
 }
 
+/* Styled to match Layout Lab / Template's "Radial Spotlight" engine
+   dropdown treatment — this is the single most load-bearing control in the
+   app, so it's full-width, keeps the engine name large, and carries real
+   motion: a breathing radial glow behind the icon and a spring-staggered
+   menu entrance. The description is clamped to two lines so the card holds
+   a fixed size regardless of which engine is selected. */
+
+@keyframes rv-engine-dropdown-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
 .rv-engine-dropdown-trigger {
+  position: relative;
   width: 100%;
-  padding: 14px 16px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px;
+  grid-template-columns: 56px 1fr;
   align-items: center;
-  gap: 13px;
-  border: 1.5px solid rgba(103, 247, 255, 0.78);
-  border-radius: 16px;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(74, 199, 219, 0.22);
   background:
-    linear-gradient(135deg, rgba(74, 199, 219, 0.18), rgba(97, 214, 170, 0.045) 44%, rgba(255, 255, 255, 0.025)),
-    rgba(5, 12, 18, 0.96);
+    radial-gradient(circle at 12% 30%, rgba(74, 199, 219, 0.16), transparent 55%),
+    rgba(6, 12, 17, 0.92);
   color: rgba(232, 244, 248, 0.94);
   text-align: left;
   cursor: pointer;
-  box-shadow:
-    inset 0 0 0 1px rgba(103, 247, 255, 0.1),
-    0 0 26px rgba(74, 199, 219, 0.16);
-  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  overflow: hidden;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
 .rv-engine-dropdown-trigger:hover,
 .rv-engine-dropdown-trigger[aria-expanded='true'] {
-  border-color: rgba(103, 247, 255, 0.98);
-  background:
-    linear-gradient(135deg, rgba(74, 199, 219, 0.25), rgba(97, 214, 170, 0.07) 44%, rgba(255, 255, 255, 0.035)),
-    rgba(5, 12, 18, 0.98);
-  box-shadow:
-    inset 0 0 0 1px rgba(103, 247, 255, 0.15),
-    0 0 32px rgba(74, 199, 219, 0.22);
+  border-color: rgba(103, 247, 255, 0.55);
+  box-shadow: 0 0 34px rgba(74, 199, 219, 0.26), 0 12px 26px rgba(0, 0, 0, 0.36);
 }
 
 .rv-engine-dropdown-trigger:focus-visible {
@@ -4669,27 +4676,48 @@
   outline-offset: 2px;
 }
 
+.rv-engine-dropdown-glow {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(103, 247, 255, 0.35), transparent 70%);
+  filter: blur(4px);
+  animation: rv-engine-dropdown-breathe 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
 .rv-engine-dropdown-icon {
+  position: relative;
+  z-index: 1;
   box-sizing: border-box;
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   display: grid;
   place-items: center;
+  border-radius: 50%;
+  background: rgba(74, 199, 219, 0.14);
+  border: 1px solid rgba(103, 247, 255, 0.35);
   color: #67f7ff;
-  font-size: 32px;
+  font-size: 26px;
   line-height: 1;
   filter: drop-shadow(0 0 10px rgba(103, 247, 255, 0.4));
 }
 
 .rv-engine-dropdown-icon svg {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
 }
 
 .rv-engine-dropdown-copy {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .rv-engine-dropdown-eyebrow {
@@ -4702,97 +4730,119 @@
 }
 
 .rv-engine-dropdown-label {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: rgba(232, 244, 248, 0.98);
-  font-size: 17px;
+  color: rgba(236, 248, 250, 0.98);
+  font-size: 20px;
   font-weight: 900;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   line-height: 1.15;
 }
 
 .rv-engine-dropdown-description {
-  color: rgba(232, 244, 248, 0.56);
-  font-size: 10px;
+  color: rgba(232, 244, 248, 0.5);
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.008em;
-  line-height: 1.32;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .rv-engine-dropdown-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   left: 0;
   right: 0;
   z-index: 20;
-  display: grid;
-  gap: 5px;
-  padding: 7px;
-  border: 1px solid rgba(103, 247, 255, 0.46);
-  border-radius: 12px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(74, 199, 219, 0.24);
   background:
-    linear-gradient(180deg, rgba(74, 199, 219, 0.13), rgba(4, 9, 13, 0.98) 38%),
+    radial-gradient(circle at 12% 0%, rgba(74, 199, 219, 0.1), transparent 55%),
     rgba(4, 9, 13, 0.98);
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.56), 0 0 26px rgba(74, 199, 219, 0.12);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55), 0 0 30px rgba(74, 199, 219, 0.14);
+  animation: lldd-fade-scale 160ms ease;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+@keyframes rv-engine-dropdown-option-in {
+  from { opacity: 0; transform: scale(0.94) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .rv-engine-dropdown-option {
+  position: relative;
   min-width: 0;
-  padding: 8px 9px;
-  display: grid;
-  grid-template-columns: 27px minmax(0, 1fr) 16px;
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.025);
-  color: rgba(232, 244, 248, 0.68);
+  gap: 12px;
+  padding: 10px 12px;
+  margin-top: 3px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.015);
+  color: rgba(232, 244, 248, 0.7);
   text-align: left;
   cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+  opacity: 0;
+  animation: rv-engine-dropdown-option-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: calc(var(--rv-engine-i, 0) * 40ms);
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
 }
 
 .rv-engine-dropdown-option:hover,
 .rv-engine-dropdown-option:focus-visible {
-  color: rgba(232, 244, 248, 0.9);
-  border-color: rgba(74, 199, 219, 0.34);
-  background: rgba(74, 199, 219, 0.07);
+  color: rgba(236, 248, 250, 0.92);
+  border-color: rgba(74, 199, 219, 0.3);
+  background: rgba(74, 199, 219, 0.06);
   outline: none;
 }
 
 .rv-engine-dropdown-option.is-active {
-  color: #67f7ff;
-  border-color: rgba(103, 247, 255, 0.5);
-  background: rgba(74, 199, 219, 0.12);
+  color: #8ef4ff;
+  border-color: rgba(103, 247, 255, 0.45);
+  background: rgba(74, 199, 219, 0.1);
 }
 
 .rv-engine-dropdown-option-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
   color: #67f7ff;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
   text-align: center;
 }
 
 .rv-engine-dropdown-option-icon svg {
-  width: 17px;
-  height: 17px;
+  width: 15px;
+  height: 15px;
+}
+
+.rv-engine-dropdown-option.is-active .rv-engine-dropdown-option-icon {
+  background: rgba(74, 199, 219, 0.16);
+  animation: rv-engine-dropdown-breathe 2.4s ease-in-out infinite;
 }
 
 .rv-engine-dropdown-option-copy {
+  flex: 1;
   min-width: 0;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
 .rv-engine-dropdown-option-copy span {
-  overflow: hidden;
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0.055em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: inherit;
 }
 
 .rv-engine-dropdown-option-copy small {
@@ -4800,14 +4850,15 @@
   overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  color: rgba(232, 244, 248, 0.38);
-  font-size: 7.5px;
-  line-height: 1.25;
+  color: rgba(232, 244, 248, 0.4);
+  font-size: 9.5px;
+  line-height: 1.3;
 }
 
 .rv-engine-dropdown-option-check {
+  flex-shrink: 0;
   color: #67f7ff;
-  font-size: 12px;
+  font-size: 13px;
   text-align: center;
 }
 
@@ -14509,8 +14560,8 @@
 .llcg-accent-row-hdr {
   display: flex;
   justify-content: space-between;
-  color: rgba(232, 238, 240, 0.85);
-  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  color: rgba(232, 238, 240, 0.8);
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
 }
 
 .llcg-accent-row--toggle {
@@ -14818,8 +14869,8 @@
 /* 1 — Icon morph */
 
 .llt-morph {
-  width: 17px;
-  height: 17px;
+  width: 21px;
+  height: 21px;
   flex-shrink: 0;
   border-radius: 50%;
   border: 1px solid rgba(154, 178, 188, 0.25);
@@ -14837,8 +14888,8 @@
 }
 
 .llt-morph-icon {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 
 .llt-morph-ring {
@@ -14865,6 +14916,277 @@
 
 .llt-morph.is-on .llt-morph-check {
   stroke-dashoffset: 0;
+}
+
+/* ── Layout Lab / Template — tab style gallery ─────────────────────────────── */
+
+.lltb-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px 16px 32px;
+}
+
+/* 1 — Underline tabs */
+
+.lltb-underline {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.16);
+}
+
+.lltb-underline-tab {
+  position: relative;
+  padding: 0 0 10px;
+  border: 0;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.5);
+  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.lltb-underline-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: #4ac7db;
+  box-shadow: 0 0 8px rgba(74, 199, 219, 0.6);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lltb-underline-tab:hover {
+  color: rgba(230, 240, 243, 0.85);
+}
+
+.lltb-underline-tab.is-active {
+  color: #8ef4ff;
+}
+
+.lltb-underline-tab.is-active::after {
+  transform: scaleX(1);
+}
+
+/* ── Layout Lab / Template — engine dropdown style gallery ────────────────── */
+/* This is the most load-bearing control in the app — full-width, the engine
+   name large with its description clamped to two lines so the card holds a
+   fixed size, and real motion: an ambient idle animation on the card itself
+   plus a staggered entrance for the menu. */
+
+.lled-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 18px 16px 32px;
+}
+
+@keyframes lled-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+/* 01 — Radial spotlight */
+
+.lled-spotlight {
+  position: relative;
+  width: 100%;
+}
+
+.lled-spotlight-trigger {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(74, 199, 219, 0.22);
+  background:
+    radial-gradient(circle at 12% 30%, rgba(74, 199, 219, 0.16), transparent 55%),
+    rgba(6, 12, 17, 0.92);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.lled-spotlight-trigger:hover,
+.lled-spotlight-trigger.is-open {
+  border-color: rgba(103, 247, 255, 0.55);
+  box-shadow: 0 0 34px rgba(74, 199, 219, 0.26), 0 12px 26px rgba(0, 0, 0, 0.36);
+}
+
+.lled-spotlight-glow {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(103, 247, 255, 0.35), transparent 70%);
+  filter: blur(4px);
+  animation: lled-breathe 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.lled-spotlight-icon {
+  position: relative;
+  z-index: 1;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(74, 199, 219, 0.14);
+  border: 1px solid rgba(103, 247, 255, 0.35);
+  color: #67f7ff;
+  font-size: 26px;
+  filter: drop-shadow(0 0 10px rgba(103, 247, 255, 0.4));
+}
+
+.lled-spotlight-copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lled-spotlight-eyebrow {
+  color: rgba(232, 244, 248, 0.4);
+  font: 900 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.lled-spotlight-label {
+  color: rgba(236, 248, 250, 0.98);
+  font: 900 20px/1.15 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.01em;
+}
+
+.lled-spotlight-description {
+  color: rgba(232, 244, 248, 0.5);
+  font: 500 11px/1.4 var(--az-font-data, Inter, system-ui, sans-serif);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lled-spotlight-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(74, 199, 219, 0.24);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(74, 199, 219, 0.1), transparent 55%),
+    rgba(4, 9, 13, 0.98);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55), 0 0 30px rgba(74, 199, 219, 0.14);
+  animation: lldd-fade-scale 160ms ease;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+@keyframes lled-spotlight-option-in {
+  from { opacity: 0; transform: scale(0.94) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.lled-spotlight-option {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-top: 3px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.015);
+  color: rgba(232, 244, 248, 0.7);
+  text-align: left;
+  cursor: pointer;
+  opacity: 0;
+  animation: lled-spotlight-option-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: calc(var(--lled-i, 0) * 40ms);
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.lled-spotlight-option:hover,
+.lled-spotlight-option:focus-visible {
+  border-color: rgba(74, 199, 219, 0.3);
+  background: rgba(74, 199, 219, 0.06);
+  color: rgba(236, 248, 250, 0.92);
+  outline: none;
+}
+
+.lled-spotlight-option.is-active {
+  border-color: rgba(103, 247, 255, 0.45);
+  background: rgba(74, 199, 219, 0.1);
+  color: #8ef4ff;
+}
+
+.lled-spotlight-option-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  text-align: center;
+  color: #67f7ff;
+  font-size: 14px;
+}
+
+.lled-spotlight-option.is-active .lled-spotlight-option-icon {
+  background: rgba(74, 199, 219, 0.16);
+  animation: lled-breathe 2.4s ease-in-out infinite;
+}
+
+.lled-spotlight-option-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lled-spotlight-option-copy span {
+  font: 800 12px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lled-spotlight-option-copy small {
+  color: rgba(232, 244, 248, 0.4);
+  font: 500 9.5px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lled-spotlight-option-check {
+  flex-shrink: 0;
+  color: #67f7ff;
+  font-size: 13px;
 }
 
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */

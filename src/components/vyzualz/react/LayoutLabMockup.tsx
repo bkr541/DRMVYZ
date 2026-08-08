@@ -6,6 +6,8 @@ import { DropdownStyleGallery } from './layoutLab/DropdownStyleGallery'
 import { CollapsibleGroupStyleGallery } from './layoutLab/CollapsibleGroupStyleGallery'
 import { SliderStyleGallery } from './layoutLab/SliderStyleGallery'
 import { ToggleStyleGallery } from './layoutLab/ToggleStyleGallery'
+import { TabStyleGallery } from './layoutLab/TabStyleGallery'
+import { EngineDropdownStyleGallery } from './layoutLab/EngineDropdownStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
@@ -230,6 +232,8 @@ export function LayoutLabMockup() {
                       <CollapsibleGroupStyleGallery />
                       <SliderStyleGallery />
                       <ToggleStyleGallery />
+                      <TabStyleGallery />
+                      <EngineDropdownStyleGallery />
                     </div>
                   </div>
                 )}
