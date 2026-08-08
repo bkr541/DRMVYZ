@@ -4,6 +4,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
 import { SliderRow, NumberInputRow, SelectRow, TextInputRow, ToggleRow, Collapsible } from './ReactControlRows'
+import { DualRailCollapsible } from './DualRailCollapsible'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import {
@@ -707,7 +708,7 @@ export function ReactModulationPanel() {
   // ── Oscilloscope: full per-frequency routing ──────────────────────────────
   return (
     <div className="rv-ctrl-group">
-      <Collapsible label="Audio Reactivity" defaultOpen>
+      <DualRailCollapsible label="Audio Reactivity" defaultOpen>
         <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
           <div className="rv-ctrl-row">
             <Dropdown
@@ -734,11 +735,11 @@ export function ReactModulationPanel() {
             placement="left"
           />
         </div>
-      </Collapsible>
+      </DualRailCollapsible>
 
       {osc.sourceType === 'text' && (
         <>
-          <Collapsible label="Text Letter Motion" defaultOpen>
+          <DualRailCollapsible label="Text Letter Motion" defaultOpen>
             <SelectRow
               label="Letter Reaction"
               value={osc.textLetterReactionMode}
@@ -758,8 +759,8 @@ export function ReactModulationPanel() {
                 onChange={next => set({ textLetterAssignments: next })}
               />
             )}
-          </Collapsible>
-          <Collapsible label="Text Waveform Distortion" defaultOpen>
+          </DualRailCollapsible>
+          <DualRailCollapsible label="Text Waveform Distortion" defaultOpen>
             <SelectRow
               label="Text Wave"
               value={osc.textWaveformMode}
@@ -775,11 +776,11 @@ export function ReactModulationPanel() {
             <SliderRow label="Text Wave Amount" value={osc.textWaveformAmount} onChange={v => set({ textWaveformAmount: v })} min={0} max={0.30} step={0.005} color="#4ac7db" />
             <SliderRow label="Text Wave Cycles" value={osc.textWaveformCycles} onChange={v => set({ textWaveformCycles: v })} min={1} max={16} step={1} color="#61d6aa" />
             <SliderRow label="Text Wave Scroll" value={osc.textWaveformScroll} onChange={v => set({ textWaveformScroll: v })} min={0} max={2} step={0.01} color="#b84fc9" />
-          </Collapsible>
+          </DualRailCollapsible>
         </>
       )}
 
-      <Collapsible label="Frequency Response" defaultOpen>
+      <DualRailCollapsible label="Frequency Response" defaultOpen>
         <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
           <SliderRow label="Bass → Scale" value={osc.bassScale} onChange={v => set({ bassScale: v })} color="#d8b95a" />
           <HelpInfoTrigger
@@ -827,7 +828,7 @@ export function ReactModulationPanel() {
             placement="left"
           />
         </div>
-      </Collapsible>
+      </DualRailCollapsible>
     </div>
   )
 }

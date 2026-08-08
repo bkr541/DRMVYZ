@@ -4,6 +4,7 @@ import {
   SliderRow, SelectRow, ToggleRow,
   Collapsible, CtrlSection,
 } from './ReactControlRows'
+import { DualRailCollapsible } from './DualRailCollapsible'
 import { getUnifiedSvgPointCount, resolveSvgUiCapabilities } from './svgSourceLifecycle'
 import {
   type LaserDmxFogSettings,
@@ -254,8 +255,8 @@ export function ReactFxPanel() {
               // Original Artwork: only whole-artwork transforms affect rendering.
               // Trail, render mode, duplicate traces, and mirror are point-path features
               // that do nothing when displaying a native SVG image.
-              <Collapsible label="SVG Original Artwork" defaultOpen>
-                <Collapsible label="Transform" defaultOpen>
+              <DualRailCollapsible label="SVG Original Artwork" defaultOpen>
+                <DualRailCollapsible label="Transform" defaultOpen>
                   <SliderRow
                     label="Rotation Speed"
                     value={osc.rotationSpeed}
@@ -265,11 +266,11 @@ export function ReactFxPanel() {
                     disabled={!soundDrawingOwnership.domains.presentation.editable}
                     description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.presentation)}
                   />
-                </Collapsible>
-              </Collapsible>
+                </DualRailCollapsible>
+              </DualRailCollapsible>
             ) : (
               // Built-in Shape, Text, SVG Glyph: full point-path controls
-              <Collapsible label="Sound Drawing" defaultOpen>
+              <DualRailCollapsible label="Sound Drawing" defaultOpen>
                 <SliderRow
                   label="Trail Decay"
                   value={reactTrailDecay}
@@ -300,7 +301,7 @@ export function ReactFxPanel() {
                   disabled={!soundDrawingOwnership.domains.echo.editable}
                   description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.echo)}
                 />
-                <Collapsible label="Path">
+                <DualRailCollapsible label="Path">
                   <SliderRow
                     label="Rotation Speed"
                     value={osc.rotationSpeed}
@@ -324,7 +325,7 @@ export function ReactFxPanel() {
                     disabled={!soundDrawingOwnership.domains.topology.editable}
                     description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.topology)}
                   />
-                </Collapsible>
+                </DualRailCollapsible>
                 <button
                   type="button"
                   className="rv-osc-reset-btn"
@@ -333,7 +334,7 @@ export function ReactFxPanel() {
                 >
                   Reset Sound Drawing Settings
                 </button>
-              </Collapsible>
+              </DualRailCollapsible>
             )}
           </>
         )}

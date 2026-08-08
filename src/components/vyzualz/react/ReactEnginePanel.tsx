@@ -11,6 +11,7 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
+import { DualRailCollapsible } from './DualRailCollapsible'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
@@ -623,7 +624,7 @@ export function ReactEnginePanel({
               />
               {showLivingRibbonControls && (
                 <>
-                  <Collapsible label="Living Ribbon Controls" defaultOpen>
+                  <DualRailCollapsible label="Living Ribbon Controls" defaultOpen>
                     <SelectRow
                       label="Ribbon Quality"
                       value={ribbon.quality}
@@ -710,7 +711,7 @@ export function ReactEnginePanel({
                     <button type="button" className="rv-reset-btn" onClick={requestSoundDrawingRibbonReset}>
                       Reset Ribbon Simulation
                     </button>
-                  </Collapsible>
+                  </DualRailCollapsible>
                 </>
               )}
               <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />

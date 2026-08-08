@@ -1,48 +1,18 @@
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
+import { DualRailCollapsible } from '../DualRailCollapsible'
+import { BubbleRevealSliderControl, IconMorphToggleControl, UnderlineDropdownControl } from './layoutLabWinningControls'
 
 // ── CollapsibleGroupStyleGallery ───────────────────────────────────────────
 //
 // Layout Lab / Template engine only. A visually distinct treatment of the
 // app's standard collapsible group (ReactControlRows' Collapsible —
 // bordered card, bold caps header, chevron, rows of controls beneath) so
-// restyling it can be judged against a real alternative. Owns its own
-// open/closed state, and its five sample rows (two sliders, a select, a
-// text input, a toggle) are real, locally-driven controls — not static art
-// — so a group with several different control types can be judged together.
+// restyling it can be judged against a real alternative. Its rows use this
+// page's winning slider/dropdown/toggle controls (Bubble Reveal, Underline,
+// Icon Morph) alongside a plain text input — real, locally-driven controls,
+// not static art.
 
 const RENDER_MODE_OPTIONS = ['Outline', 'Multi Trace', 'Dots', 'Ribbon']
-
-function SampleSlider({ value, onChange }: { value: number, onChange: (v: number) => void }) {
-  return (
-    <input
-      type="range"
-      className="llcg-slider"
-      min={0}
-      max={100}
-      value={value}
-      onChange={event => onChange(Number(event.target.value))}
-      style={{ '--llcg-pct': `${value}%` } as CSSProperties}
-    />
-  )
-}
-
-function SampleSelect({
-  value,
-  onChange,
-  options,
-  className = '',
-}: {
-  value: string
-  onChange: (v: string) => void
-  options: string[]
-  className?: string
-}) {
-  return (
-    <select className={`llcg-select${className ? ` ${className}` : ''}`} value={value} onChange={event => onChange(event.target.value)}>
-      {options.map(option => <option key={option} value={option}>{option}</option>)}
-    </select>
-  )
-}
 
 function SampleTextInput({
   value,
@@ -75,96 +45,43 @@ function useGroupRowState() {
   return { intensity, setIntensity, motion, setMotion, renderMode, setRenderMode, label, setLabel, autoRotate, setAutoRotate }
 }
 
-// 1 — Accent card: solid left accent bar, gradient wash, dot-marked header
-function AccentCardGroup() {
-  const [open, setOpen] = useState(true)
-  const { intensity, setIntensity, motion, setMotion, renderMode, setRenderMode, label, setLabel, autoRotate, setAutoRotate } = useGroupRowState()
-
-  return (
-    <div className={`llcg-accent${open ? ' is-open' : ''}`}>
-      <button type="button" className="llcg-accent-header" onClick={() => setOpen(v => !v)} aria-expanded={open}>
-        <span className="llcg-accent-dot" aria-hidden="true" />
-        <span>Master</span>
-        <span className={`llcg-caret${open ? ' is-open' : ''}`} aria-hidden="true">⌄</span>
-      </button>
-      {open && (
-        <div className="llcg-accent-body">
-          <div className="llcg-accent-row">
-            <div className="llcg-accent-row-hdr"><span>Intensity</span><span>{intensity}%</span></div>
-            <SampleSlider value={intensity} onChange={setIntensity} />
-          </div>
-          <div className="llcg-accent-row">
-            <div className="llcg-accent-row-hdr"><span>Motion</span><span>{motion}%</span></div>
-            <SampleSlider value={motion} onChange={setMotion} />
-          </div>
-          <div className="llcg-accent-row">
-            <div className="llcg-accent-row-hdr"><span>Render Mode</span></div>
-            <SampleSelect value={renderMode} onChange={setRenderMode} options={RENDER_MODE_OPTIONS} />
-          </div>
-          <div className="llcg-accent-row">
-            <div className="llcg-accent-row-hdr"><span>Label</span></div>
-            <SampleTextInput value={label} onChange={setLabel} placeholder="DRMVYZ" />
-          </div>
-          <div className="llcg-accent-row llcg-accent-row--toggle">
-            <span>Auto Rotate</span>
-            <button type="button" className={`llcg-toggle${autoRotate ? ' is-on' : ''}`} onClick={() => setAutoRotate(v => !v)}>
-              {autoRotate ? 'On' : 'Off'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 2 — Dual rail: an even blend — Progress Rail's climbing fill and solid
+// 1 — Dual rail: an even blend — Progress Rail's climbing fill and solid
 // accent mirrored on both edges, framing Master parameters' two-tone
-// header/body split
+// header/body split. Uses the real, reusable DualRailCollapsible directly
+// so this preview matches production exactly, and its slider/dropdown/
+// toggle rows use this page's winning controls (Bubble Reveal, Underline,
+// Icon Morph) instead of the plain generic samples.
 function DualRailGroup() {
-  const [open, setOpen] = useState(true)
   const { intensity, setIntensity, motion, setMotion, renderMode, setRenderMode, label, setLabel, autoRotate, setAutoRotate } = useGroupRowState()
 
   return (
-    <div className={`llcg-dualtone${open ? ' is-open' : ''}`}>
-      <span className="llcg-dualtone-fill-left" aria-hidden="true" />
-      <span className="llcg-dualtone-fill-right" aria-hidden="true" />
-      <button type="button" className="llcg-dualtone-header" onClick={() => setOpen(v => !v)} aria-expanded={open}>
-        <span>Master</span>
-        <span className="llcg-dualtone-arrow" aria-hidden="true">▾</span>
-      </button>
-      {open && (
-        <div className="llcg-dualtone-body">
-          <div className="llcg-accent-row">
-            <div className="llcg-accent-row-hdr"><span>Intensity</span><span>{intensity}%</span></div>
-            <SampleSlider value={intensity} onChange={setIntensity} />
-          </div>
-          <div className="llcg-accent-row">
-            <div className="llcg-accent-row-hdr"><span>Motion</span><span>{motion}%</span></div>
-            <SampleSlider value={motion} onChange={setMotion} />
-          </div>
-          <div className="llcg-accent-row">
-            <div className="llcg-accent-row-hdr"><span>Render Mode</span></div>
-            <SampleSelect value={renderMode} onChange={setRenderMode} options={RENDER_MODE_OPTIONS} />
-          </div>
-          <div className="llcg-accent-row">
-            <div className="llcg-accent-row-hdr"><span>Label</span></div>
-            <SampleTextInput value={label} onChange={setLabel} placeholder="DRMVYZ" />
-          </div>
-          <div className="llcg-accent-row llcg-accent-row--toggle">
-            <span>Auto Rotate</span>
-            <button type="button" className={`llcg-toggle${autoRotate ? ' is-on' : ''}`} onClick={() => setAutoRotate(v => !v)}>
-              {autoRotate ? 'On' : 'Off'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    <DualRailCollapsible label="Master">
+      <div className="llcg-accent-row">
+        <div className="llcg-accent-row-hdr"><span>Intensity</span><span>{intensity}%</span></div>
+        <BubbleRevealSliderControl value={intensity} onChange={setIntensity} ariaLabel="Intensity" />
+      </div>
+      <div className="llcg-accent-row">
+        <div className="llcg-accent-row-hdr"><span>Motion</span><span>{motion}%</span></div>
+        <BubbleRevealSliderControl value={motion} onChange={setMotion} ariaLabel="Motion" />
+      </div>
+      <div className="llcg-accent-row">
+        <div className="llcg-accent-row-hdr"><span>Render Mode</span></div>
+        <UnderlineDropdownControl value={renderMode} onChange={setRenderMode} options={RENDER_MODE_OPTIONS} ariaLabel="Render Mode" />
+      </div>
+      <div className="llcg-accent-row">
+        <div className="llcg-accent-row-hdr"><span>Label</span></div>
+        <SampleTextInput value={label} onChange={setLabel} placeholder="DRMVYZ" />
+      </div>
+      <div className="llcg-accent-row llcg-accent-row--toggle">
+        <span>Auto Rotate</span>
+        <IconMorphToggleControl value={autoRotate} onChange={setAutoRotate} ariaLabel="Auto Rotate" />
+      </div>
+    </DualRailCollapsible>
   )
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'accent', title: '01 · Accent Card', blurb: 'Solid left accent bar, gradient wash, dot-marked header.', Group: AccentCardGroup },
-  { id: 'dualtone', title: '02 · Dual Rail', blurb: "An even blend: Progress Rail's climbing fill mirrored on both edges, framing Master parameters' two-tone header/body split.", Group: DualRailGroup },
+  { id: 'dualtone', title: '01 · Dual Rail', blurb: "An even blend: Progress Rail's climbing fill mirrored on both edges, framing Master parameters' two-tone header/body split.", Group: DualRailGroup },
 ]
 
 export function CollapsibleGroupStyleGallery() {

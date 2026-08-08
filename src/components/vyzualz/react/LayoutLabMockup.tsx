@@ -4,8 +4,8 @@ import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { MockEngineDropdown } from './layoutLab/MockEngineDropdown'
 import { DropdownStyleGallery } from './layoutLab/DropdownStyleGallery'
 import { CollapsibleGroupStyleGallery } from './layoutLab/CollapsibleGroupStyleGallery'
-import { NavItemStyleGallery } from './layoutLab/NavItemStyleGallery'
 import { SliderStyleGallery } from './layoutLab/SliderStyleGallery'
+import { ToggleStyleGallery } from './layoutLab/ToggleStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
@@ -228,8 +228,8 @@ export function LayoutLabMockup() {
                     <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
                       <DropdownStyleGallery />
                       <CollapsibleGroupStyleGallery />
-                      <NavItemStyleGallery />
                       <SliderStyleGallery />
+                      <ToggleStyleGallery />
                     </div>
                   </div>
                 )}

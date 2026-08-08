@@ -1,0 +1,104 @@
+/* DualRailCollapsible — Progress Rail's climbing fill + solid accent
+   mirrored on both edges, framing a two-tone header/body split borrowed
+   from Cinema's Master parameters card. Ported from Layout Lab's Dual Rail
+   collapsible-group gallery entry into a real, reusable drop-in for
+   ReactControlRows' Collapsible. */
+
+.drc-group {
+  position: relative;
+  border-radius: 9px;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  background: rgba(5, 10, 16, 0.55);
+  transition: border-color 200ms ease, background 200ms ease;
+}
+
+.drc-fill-left,
+.drc-fill-right {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 0%;
+  background: #4ac7db;
+  box-shadow: 0 0 10px rgba(74, 199, 219, 0.6);
+  transition: height 260ms ease;
+  pointer-events: none;
+}
+
+.drc-fill-left {
+  left: -1px;
+}
+
+.drc-fill-right {
+  right: -1px;
+}
+
+.drc-group:hover .drc-fill-left,
+.drc-group:hover .drc-fill-right {
+  height: 100%;
+}
+
+.drc-group.is-open .drc-fill-left,
+.drc-group.is-open .drc-fill-right {
+  opacity: 0;
+}
+
+.drc-group.is-open {
+  background: linear-gradient(90deg, rgba(74, 199, 219, 0.08), rgba(255, 255, 255, 0.015) 50%, rgba(74, 199, 219, 0.08));
+}
+
+.drc-header {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(74, 199, 219, 0.35);
+  border-radius: 8px 8px 0 0;
+  background: rgba(255, 255, 255, 0.012);
+  cursor: pointer;
+  color: rgba(196, 207, 211, 0.58);
+  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: color 0.12s, background 0.12s;
+}
+
+.drc-header:hover {
+  color: rgba(245, 248, 250, 0.85);
+  background: rgba(74, 199, 219, 0.035);
+}
+
+.drc-group:not(.is-open) .drc-header {
+  border-radius: 8px;
+}
+
+.drc-header > span:first-child {
+  flex: 1;
+  text-align: left;
+}
+
+.drc-arrow {
+  font-size: 9px;
+  flex-shrink: 0;
+  opacity: 0.58;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease, opacity 0.12s;
+}
+
+.drc-group.is-open .drc-arrow {
+  transform: rotate(0deg);
+  opacity: 0.9;
+}
+
+.drc-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 13px 13px;
+  border-radius: 0 0 8px 8px;
+  background: rgba(0, 0, 0, 0.16);
+}
