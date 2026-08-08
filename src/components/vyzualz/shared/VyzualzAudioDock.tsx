@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { useId, useState, useRef, useEffect, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
@@ -612,7 +613,7 @@ export function VyzualzAudioDock({
             <span className="az-dock-vol-db vz-dock-vol-db">
               {vol < 0.001 ? '-∞ dB' : `${(20 * Math.log10(vol)).toFixed(1)} dB`}
             </span>
-            <input
+            <BubbleRevealSlider
               type="range"
               className="az-dock-vol-slider"
               aria-label="Track volume"

@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
 import {
   defaultPixGridCueAction,
@@ -132,9 +133,9 @@ function ActionFields({ action, state, onChange }: {
     case 'setAutoPerformance':
       return <label className="rv-pix-grid-cue-check"><input type="checkbox" checked={action.enabled} onChange={event => onChange({ ...action, enabled: event.target.checked })} /> Auto Performance enabled</label>
     case 'applyManualOverride':
-      return <><TargetField value={action.target} state={state} onChange={target => onChange({ ...action, target })} /><label className="rv-pix-grid-cue-field"><span>Route</span><input value={action.route} onChange={event => onChange({ ...action, route: event.target.value })} /></label><label className="rv-pix-grid-cue-field"><span>Duration</span><input type="number" min="0.05" max="3600" step="0.05" value={action.durationSec} onChange={event => onChange({ ...action, durationSec: numeric(event.target.value, 4) })} /></label><label className="rv-pix-grid-cue-field"><span>Opacity</span><input type="number" min="0" max="1" step="0.05" value={action.patch.opacity ?? 1} onChange={event => onChange({ ...action, patch: { ...action.patch, opacity: numeric(event.target.value, 1) } })} /></label></>
+      return <><TargetField value={action.target} state={state} onChange={target => onChange({ ...action, target })} /><label className="rv-pix-grid-cue-field"><span>Route</span><DreamVizTextInput value={action.route} onChange={event => onChange({ ...action, route: event.target.value })} /></label><label className="rv-pix-grid-cue-field"><span>Duration</span><input type="number" min="0.05" max="3600" step="0.05" value={action.durationSec} onChange={event => onChange({ ...action, durationSec: numeric(event.target.value, 4) })} /></label><label className="rv-pix-grid-cue-field"><span>Opacity</span><input type="number" min="0" max="1" step="0.05" value={action.patch.opacity ?? 1} onChange={event => onChange({ ...action, patch: { ...action.patch, opacity: numeric(event.target.value, 1) } })} /></label></>
     case 'clearManualOverride':
-      return <label className="rv-pix-grid-cue-field"><span>Route (optional)</span><input value={action.route ?? ''} onChange={event => onChange({ ...action, route: event.target.value || undefined })} /></label>
+      return <label className="rv-pix-grid-cue-field"><span>Route (optional)</span><DreamVizTextInput value={action.route ?? ''} onChange={event => onChange({ ...action, route: event.target.value || undefined })} /></label>
     case 'resetBackground':
     case 'clearScreen':
     case 'restoreScene':
@@ -165,7 +166,7 @@ export function PixGridTrackMapCueEditor({ cue, state, isNew, onSave, onCancel, 
         <button type="button" className="rv-timeline-editor-close" onClick={onCancel} aria-label="Close PixGrid cue editor">×</button>
       </div>
       <div className="rv-pix-grid-cue-grid">
-        <label className="rv-pix-grid-cue-field"><span>Label</span><input value={draft.label} onChange={event => setDraft(current => ({ ...current, label: event.target.value }))} /></label>
+        <label className="rv-pix-grid-cue-field"><span>Label</span><DreamVizTextInput value={draft.label} onChange={event => setDraft(current => ({ ...current, label: event.target.value }))} /></label>
         <label className="rv-pix-grid-cue-field"><span>Time</span><input type="number" min="0" step="0.001" value={draft.timeSec} onChange={event => setDraft(current => ({ ...current, timeSec: numeric(event.target.value, 0) }))} /></label>
         <label className="rv-pix-grid-cue-field"><span>Action</span><DropdownSelect value={draft.action.type} onChange={event => setAction(defaultPixGridCueAction(event.target.value as PixGridActionCueAction['type']))}>{ACTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>
         <label className="rv-pix-grid-cue-field"><span>Quantize</span><DropdownSelect value={draft.quantization} onChange={event => setDraft(current => ({ ...current, quantization: event.target.value as PixGridActionCue['quantization'] }))}><option value="none">Free</option><option value="beat">Beat</option><option value="bar">Bar</option><option value="fourBars">4 bars</option></DropdownSelect></label>

@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -248,7 +249,7 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
             </div>
             <label className="rv-cinema-composer__search">
               <span>Composition name</span>
-              <input
+              <DreamVizTextInput
                 value={renameDraft}
                 onChange={event => setRenameDraft(event.target.value)}
                 disabled={libraryStatus?.provenance === 'built-in'}
@@ -394,7 +395,7 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
       <Collapsible label="Library">
         <label className="rv-cinema-composer__search">
           <span>Search visuals</span>
-          <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search nodes, adapters, effects…" />
+          <DreamVizTextInput value={search} onChange={event => setSearch(event.target.value)} placeholder="Search nodes, adapters, effects…" />
         </label>
         <SelectRow label="Category" value={category} onChange={value => setCategory(value as typeof category)} options={['All', 'Visuals', 'Masks', 'Effects', 'Utilities'].map(value => ({ value, label: value }))} />
         <div className="rv-cinema-composer__library" role="list" aria-label="Cinema node library">

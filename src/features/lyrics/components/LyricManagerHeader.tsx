@@ -1,3 +1,4 @@
+import { IconMorphToggle } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 
@@ -60,18 +61,12 @@ export function LyricManagerHeader({
       <div className="lmv-header-right">
         <label className="lmv-toggle-row" title="Show or hide active lyrics in the visualizer">
           <span className="lmv-toggle-label">Show Lyrics</span>
-          <div
-            className={`lmv-toggle-track${lyricsDisplayEnabled ? ' lmv-toggle-track--on' : ''}`}
-            onClick={onToggleLyricsDisplay}
-            role="switch"
-            aria-checked={lyricsDisplayEnabled}
-            tabIndex={0}
-            onKeyDown={event => {
-              if (event.key === 'Enter' || event.key === ' ') onToggleLyricsDisplay()
-            }}
-          >
-            <div className="lmv-toggle-thumb" />
-          </div>
+          <IconMorphToggle
+            checked={lyricsDisplayEnabled}
+            onCheckedChange={onToggleLyricsDisplay}
+            className="lmv-toggle-track"
+            aria-label="Show Lyrics"
+          />
         </label>
 
         <button

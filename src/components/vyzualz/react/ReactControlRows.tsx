@@ -1,5 +1,9 @@
-import { useId, useState, type ReactNode } from 'react'
-import { Dropdown } from '../../shared/Dropdown/Dropdown'
+import { useId, type ReactNode } from 'react'
+import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
+import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import { IconMorphToggle } from './controls/IconMorphToggle'
+import { UnderlineDropdown } from './controls/UnderlineDropdown'
+import { DualRailCollapsible } from './DualRailCollapsible'
 
 // ── Slider row ────────────────────────────────────────────────────────────────
 
@@ -40,10 +44,10 @@ export function SliderRow({
         </span>
         <span className="rv-ctrl-val">{display}</span>
       </div>
-      <input
+      <BubbleRevealSlider
         id={inputId}
-        type="range"
         className="rv-ctrl-slider"
+        bubbleLabel={display}
         min={min} max={max} step={step}
         value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
@@ -89,7 +93,7 @@ export function NumberInputRow({
         <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
       </span>
       <div className={`rv-ctrl-number-field${unit ? ' rv-ctrl-number-field--with-unit' : ''}`}>
-        <input
+        <DreamVizTextInput
           id={inputId}
           type="number"
           className="rv-ctrl-text-input"
@@ -136,7 +140,7 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
       <span className="rv-ctrl-label-cluster">
         <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
       </span>
-      <Dropdown
+      <UnderlineDropdown
         id={`${inputId}-dropdown`}
         triggerId={inputId}
         value={value}
@@ -188,20 +192,17 @@ export function ToggleRow({
           <span className="rv-ctrl-label" id={labelId}>{label}</span>
           {labelAccessory}
         </span>
-        <button
+        <IconMorphToggle
           id={buttonId}
-          type="button"
+          checked={value}
+          onCheckedChange={onChange}
           className={`rv-ctrl-toggle${value ? ' rv-ctrl-toggle--on' : ''}`}
           data-state={value ? 'on' : 'off'}
-          onClick={() => onChange(!value)}
-          aria-pressed={value}
           aria-labelledby={labelId}
           disabled={disabled}
           title={title}
           aria-describedby={description ? `${buttonId}-description` : undefined}
-        >
-          {value ? 'On' : 'Off'}
-        </button>
+        />
       </div>
       {description && <span id={`${buttonId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
@@ -234,7 +235,7 @@ export function TextInputRow({
       <span className="rv-ctrl-label-cluster">
         <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
       </span>
-      <input
+      <DreamVizTextInput
         id={inputId}
         type="text"
         className="rv-ctrl-text-input"
@@ -305,21 +306,5 @@ export interface CollapsibleProps {
 }
 
 export function Collapsible({ label, defaultOpen = true, children }: CollapsibleProps) {
-  const [open, setOpen] = useState(defaultOpen)
-  const contentId = useId()
-  return (
-    <div className={`rv-ctrl-collapsible${open ? ' rv-ctrl-collapsible--open' : ' rv-ctrl-collapsible--closed'}`}>
-      <button
-        type="button"
-        className="rv-ctrl-collapsible-hdr"
-        onClick={() => setOpen(o => !o)}
-        aria-expanded={open}
-        aria-controls={contentId}
-      >
-        <span className="rv-ctrl-collapsible-label">{label}</span>
-        <span className="rv-ctrl-collapsible-arrow" aria-hidden="true">▾</span>
-      </button>
-      {open && <div id={contentId} className="rv-ctrl-collapsible-body">{children}</div>}
-    </div>
-  )
+  return <DualRailCollapsible label={label} defaultOpen={defaultOpen}>{children}</DualRailCollapsible>
 }

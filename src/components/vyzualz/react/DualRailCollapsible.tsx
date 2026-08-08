@@ -3,37 +3,59 @@ import './DualRailCollapsible.css'
 
 // ── DualRailCollapsible ──────────────────────────────────────────────────
 //
-// Drop-in replacement for ReactControlRows' Collapsible — same
-// label/defaultOpen/children props — styled after Layout Lab's "Dual Rail"
-// collapsible-group gallery entry: Progress Rail's climbing hover fill and
-// solid accent mirrored on both edges, framing a two-tone header/body split
-// borrowed from Cinema's Master parameters card. Owns its own open state.
+// Canonical DRMVYZ parent/group treatment. This is the production source of
+// truth for Layout Lab → Template's “Dual Rail” group and supports both
+// self-managed and externally-controlled disclosure state.
 
 export interface DualRailCollapsibleProps {
-  label: string
+  label: ReactNode
   defaultOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   children: ReactNode
+  className?: string
+  bodyClassName?: string
+  headerAccessory?: ReactNode
+  title?: string
 }
 
-export function DualRailCollapsible({ label, defaultOpen = true, children }: DualRailCollapsibleProps) {
-  const [open, setOpen] = useState(defaultOpen)
+export function DualRailCollapsible({
+  label,
+  defaultOpen = true,
+  open: controlledOpen,
+  onOpenChange,
+  children,
+  className = '',
+  bodyClassName = '',
+  headerAccessory,
+  title,
+}: DualRailCollapsibleProps) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen)
+  const open = controlledOpen ?? internalOpen
   const contentId = useId()
 
+  const setOpen = (nextOpen: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
+
   return (
-    <div className={`drc-group${open ? ' is-open' : ''}`}>
+    <div className={`drc-group${open ? ' is-open' : ''}${className ? ` ${className}` : ''}`}>
       <span className="drc-fill-left" aria-hidden="true" />
       <span className="drc-fill-right" aria-hidden="true" />
       <button
         type="button"
         className="drc-header"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={contentId}
+        title={title}
       >
         <span>{label}</span>
+        {headerAccessory != null && <span className="drc-header-accessory">{headerAccessory}</span>}
         <span className="drc-arrow" aria-hidden="true">▾</span>
       </button>
-      {open && <div id={contentId} className="drc-body">{children}</div>}
+      {open && <div id={contentId} className={`drc-body${bodyClassName ? ` ${bodyClassName}` : ''}`}>{children}</div>}
     </div>
   )
 }

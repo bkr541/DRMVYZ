@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 type VzSliderProps = {
   label: string
   value: number
@@ -23,7 +24,7 @@ export function VzSlider({ label, value, min = 0, max = 1, step = 0.01, onChange
         <span className="vz-slider-label" title={tooltip}>{label}</span>
         <span className="vz-slider-val">{value.toFixed(2)}</span>
       </div>
-      <input
+      <BubbleRevealSlider
         type="range"
         className={`vz-slider${colorTrack ? ' vz-slider--color' : ''}`}
         style={{ '--pct': pct } as React.CSSProperties}

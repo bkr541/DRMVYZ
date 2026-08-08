@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { DualRailCollapsible } from '../react/DualRailCollapsible'
 
 export type EffectGroupId = 'global' | 'motion' | 'audioReactive' | 'distortion' | 'lighting'
 
@@ -13,22 +14,15 @@ type EffectGroupProps = {
 
 export function EffectGroup({ id, title, count, isOpen, onToggle, children }: EffectGroupProps) {
   return (
-    <section className={`vz-effect-accordion${isOpen ? ' is-open' : ''}`}>
-      <button
-        type="button"
-        className="vz-effect-accordion__header"
-        onClick={() => onToggle(id)}
-        aria-expanded={isOpen}
-      >
-        <span className="vz-effect-accordion__chevron" aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
-        <span className="vz-effect-accordion__title">{title}</span>
-        <span className="vz-effect-accordion__count">{count}</span>
-      </button>
-      {isOpen && (
-        <div className="vz-effect-accordion__body">
-          {children}
-        </div>
-      )}
-    </section>
+    <DualRailCollapsible
+      label={title}
+      open={isOpen}
+      onOpenChange={() => onToggle(id)}
+      headerAccessory={count}
+      className="vz-effect-accordion"
+      bodyClassName="vz-effect-accordion__body"
+    >
+      {children}
+    </DualRailCollapsible>
   )
 }

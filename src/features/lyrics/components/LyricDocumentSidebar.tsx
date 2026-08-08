@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useState } from 'react'
 import type { LyricDocumentVersion } from '../lyricManagerTypes'
 
@@ -97,7 +98,7 @@ function DocumentCard({
     <div className={`lmv-doc-card${doc.id === openDocumentId ? ' lmv-doc-card--open' : ''}`}>
       {renaming ? (
         <div className="lmv-doc-rename-row">
-          <input
+          <DreamVizTextInput
             className="lmv-input"
             value={renameValue}
             autoFocus
@@ -193,7 +194,7 @@ export function LyricDocumentSidebar({
           <button className="lmv-icon-btn" onClick={onNewDocument} disabled={!hasSelectedTrack} aria-label="Create new lyric version">+</button>
         </div>
         <div className="lmv-doc-search-wrap">
-          <input
+          <DreamVizTextInput
             className="lmv-doc-search"
             placeholder="Search versions…"
             aria-label="Search lyric versions"

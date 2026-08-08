@@ -1,3 +1,5 @@
+import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import type { LyricAnimation, LyricEffects, LyricStyle } from '../../../types/lyrics'
 import {
   anchorPresetPatch,
@@ -94,7 +96,7 @@ export function LyricPresentationControls({
                 onChange={event => onStyleChange({ color: event.target.value })}
                 aria-label="Lyric text color"
               />
-              <input
+              <DreamVizTextInput
                 className="lmv-input"
                 value={style.color ?? ''}
                 placeholder={allowInherit ? 'Inherit' : '#ffffff'}
@@ -158,7 +160,7 @@ export function LyricPresentationControls({
           </label>
           <label>
             <span>Opacity</span>
-            <input
+            <BubbleRevealSlider
               type="range"
               min={0}
               max={1}

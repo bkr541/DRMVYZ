@@ -1,3 +1,5 @@
+import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
+import { BubbleRevealSlider } from './react/controls/BubbleRevealSlider'
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore } from '../../stores/visualStore'
@@ -285,7 +287,7 @@ function ColorGradeSlider({
         {label}
         {badge && <span className="vz-cg-badge" title="GPU only — not applied in Canvas 2D mode">{badge}</span>}
       </span>
-      <input
+      <BubbleRevealSlider
         type="range"
         className="vz-cg-slider"
         min={min} max={max} step={1}
@@ -318,10 +320,9 @@ function ColorGradeControls({
     <div className="vz-cg">
       <div className="vz-cg-toprow">
         <label className="vz-ml-insp-toggle vz-cg-enable" title="Enable color grade for this source">
-          <input type="checkbox" className="vz-ml-insp-toggle-input" checked={grade.enabled}
+          <IconMorphCheckbox className="vz-ml-insp-toggle-input" checked={grade.enabled}
             onChange={e => onChange({ enabled: e.target.checked })}
           />
-          <span className="vz-ml-insp-toggle-track" />
           Enable
         </label>
         <button
@@ -443,7 +444,7 @@ function BgClipInspector({
           </div>
           <div className="vz-cg-slider-row">
             <span className="vz-cg-slider-lbl">Size</span>
-            <input type="range" className="vz-cg-slider" min={10} max={300} step={1}
+            <BubbleRevealSlider type="range" className="vz-cg-slider" min={10} max={300} step={1}
               value={Math.round((clip.mediaScale ?? 1) * 100)}
               onChange={e => onUpdate(clip.id, { mediaScale: parseInt(e.target.value, 10) / 100 })}
             />
@@ -452,22 +453,20 @@ function BgClipInspector({
           {media?.type === 'video' && (
             <div className="vz-ml-insp-row">
               <label className="vz-ml-insp-toggle" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
-                <input type="checkbox" className="vz-ml-insp-toggle-input" checked={isClipSnapToBpmEnabled(clip)}
+                <IconMorphCheckbox className="vz-ml-insp-toggle-input" checked={isClipSnapToBpmEnabled(clip)}
                   onChange={e => onUpdate(clip.id, { snapToBpm: e.target.checked })}
                 />
-                <span className="vz-ml-insp-toggle-track" />
-                Snap to BPM
+                  Snap to BPM
               </label>
             </div>
           )}
           <div className="vz-ml-insp-row">
             <label className="vz-ml-insp-toggle"
               title="When ON, this clip participates in global audio-reactive modulation (Bass Reactivity, Reactive Scale, Master Intensity). Off by default for background videos.">
-              <input type="checkbox" className="vz-ml-insp-toggle-input"
+              <IconMorphCheckbox className="vz-ml-insp-toggle-input"
                 checked={resolveClipGlobalFx(clip.enableGlobalFx, media?.mediaRole ?? null)}
                 onChange={e => onUpdate(clip.id, { enableGlobalFx: e.target.checked })}
               />
-              <span className="vz-ml-insp-toggle-track" />
               Enable Global FX
             </label>
             <button
@@ -656,22 +655,20 @@ function OverlayClipInspector({
           {media?.type === 'video' && (
             <div className="vz-ml-insp-row">
               <label className="vz-ml-insp-toggle" title={isClipSnapToBpmEnabled(clip) ? 'Lock this video to timeline timing' : 'Play this video at native speed'}>
-                <input type="checkbox" className="vz-ml-insp-toggle-input" checked={isClipSnapToBpmEnabled(clip)}
+                <IconMorphCheckbox className="vz-ml-insp-toggle-input" checked={isClipSnapToBpmEnabled(clip)}
                   onChange={e => onUpdate(clip.id, { snapToBpm: e.target.checked })}
                 />
-                <span className="vz-ml-insp-toggle-track" />
-                Snap to BPM
+                  Snap to BPM
               </label>
             </div>
           )}
           <div className="vz-ml-insp-row">
             <label className="vz-ml-insp-toggle"
               title="When ON, this clip participates in global audio-reactive modulation (Bass Reactivity, Reactive Scale, Master Intensity). On by default for overlay clips.">
-              <input type="checkbox" className="vz-ml-insp-toggle-input"
+              <IconMorphCheckbox className="vz-ml-insp-toggle-input"
                 checked={resolveClipGlobalFx(clip.enableGlobalFx, media?.mediaRole ?? null)}
                 onChange={e => onUpdate(clip.id, { enableGlobalFx: e.target.checked })}
               />
-              <span className="vz-ml-insp-toggle-track" />
               Enable Global FX
             </label>
             <button
@@ -713,7 +710,7 @@ function OverlayClipInspector({
           </div>
           <div className="vz-ml-insp-row">
             <span className="vz-ml-insp-lbl">Opacity</span>
-            <input type="range" min={0} max={1} step={0.01}
+            <BubbleRevealSlider type="range" min={0} max={1} step={0.01}
               value={cfg.opacity}
               onChange={e => patchCfg({ opacity: parseFloat(e.target.value) })}
               style={{ flex: 1 }}
@@ -1204,7 +1201,7 @@ function MasterDimmerControls() {
         <div className="vz-ml-insp-group-body">
           <div className="vz-cg-slider-row">
             <span className="vz-cg-slider-lbl">Master Dimmer</span>
-            <input
+            <BubbleRevealSlider
               type="range"
               className="vz-cg-slider"
               min={0} max={100} step={1}

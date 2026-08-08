@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../types/lyrics'
 import { getFullLyricDocument, saveLyricDocumentAtomic } from '../../../lib/lyricsDb'
@@ -999,7 +1000,7 @@ export function AiLyricExtractor({
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-confidence">CONFIDENCE THRESHOLD</label>
           <div className="lmv-slider-row">
-            <input id="lyric-extraction-confidence" type="range" className="lmv-slider" min={0} max={1} step={0.05}
+            <BubbleRevealSlider id="lyric-extraction-confidence" type="range" className="lmv-slider" min={0} max={1} step={0.05}
               disabled={active}
               value={options.confidenceThreshold ?? 0.6}
               onChange={event => setOptions(current => ({ ...current, confidenceThreshold: Number.parseFloat(event.target.value) }))} />

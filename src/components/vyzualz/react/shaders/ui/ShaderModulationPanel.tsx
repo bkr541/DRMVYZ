@@ -1,3 +1,4 @@
+import { IconMorphCheckbox } from '../../controls/IconMorphToggle'
 import React, { useState } from 'react'
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 import type { ShaderModulationRoute } from '../modulation/shaderModulationTypes'
@@ -148,8 +149,7 @@ export function ShaderModulationPanel({
             >
               <span className="shader-mod-summary-toggle">{isExpanded ? '▾' : '▸'}</span>
               <span className="shader-mod-summary-enabled">
-                <input
-                  type="checkbox"
+                <IconMorphCheckbox
                   checked={route.enabled}
                   aria-label={`${route.enabled ? 'Disable' : 'Enable'} modulation route from ${sourceMeta?.label ?? route.source}`}
                   onChange={e => {

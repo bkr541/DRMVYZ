@@ -1,3 +1,4 @@
+import { IconMorphToggle } from './react/controls/IconMorphToggle'
 import { useState, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore } from '../../stores/visualStore'
@@ -56,13 +57,12 @@ function SystemSettingsPanel() {
       <div>
         <div className="az-popover-section-title">BPM Sync</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            className={`vz-settings-seg-btn${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
-            aria-pressed={bpmSync}
-            onClick={toggleBpmSync}
-            style={{ minWidth: 54 }}
-          >{bpmSync ? 'ON' : 'OFF'}</button>
+          <IconMorphToggle
+            checked={bpmSync}
+            onCheckedChange={() => toggleBpmSync()}
+            className="vz-settings-seg-btn"
+            aria-label="BPM Sync"
+          />
           <span style={{ fontSize: 11, color: 'rgba(245,248,250,0.45)', fontFamily: 'var(--az-font-data)' }}>
             {bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}
           </span>

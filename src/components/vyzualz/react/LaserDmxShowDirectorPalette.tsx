@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { useMemo, useState, type DragEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -89,7 +90,7 @@ export function LaserDmxShowDirectorPalette() {
 
       <label className="rv-show-director-search">
         <span>Search components</span>
-        <input
+        <DreamVizTextInput
           type="search"
           value={query}
           onChange={event => setQuery(event.target.value)}

@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useState } from 'react'
 import { LOOK_SCOPE, SCENE_SCOPE } from '../../../stores/visualStore'
 import type { PresetScope } from '../../../stores/visualStore'
@@ -32,7 +33,7 @@ export function SavePresetDialog({ onSave, onCancel }: SavePresetDialogProps) {
 
   return (
     <div className="vz-preset-dialog">
-      <input
+      <DreamVizTextInput
         className="vz-preset-dialog-name"
         placeholder="Preset name…"
         value={name}

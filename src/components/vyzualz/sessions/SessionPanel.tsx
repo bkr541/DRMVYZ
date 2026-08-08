@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useState } from 'react'
 import type { VzSession } from '../../../stores/visualStore'
 
@@ -81,7 +82,7 @@ export function SessionPanel({
                 </>
               ) : renamingId === s.id ? (
                 <>
-                  <input
+                  <DreamVizTextInput
                     className="vz-session-rename-input"
                     value={renameVal}
                     autoFocus

@@ -1,3 +1,5 @@
+import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
+import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { mediaMutationKey, useMediaStore } from '../../stores/mediaStore'
@@ -669,11 +671,11 @@ export function MediaUploadModal({
     </div>
   )
   const durContent    = <input className="mum-addinfo-input" type="number" min="0" step="0.01" placeholder="—" value={detectedDur ?? (uploadDraft.metadata.duration ?? '')} readOnly={detectedDur !== undefined} onChange={e => { if (detectedDur === undefined) setUploadDraftMetadata({ duration: parseFloat(e.target.value) || undefined }) }} />
-  const resContent    = <input className="mum-addinfo-input" placeholder="—" value={detectedRes ?? (uploadDraft.metadata.width && uploadDraft.metadata.height ? `${uploadDraft.metadata.width} × ${uploadDraft.metadata.height}` : '')} readOnly />
+  const resContent    = <DreamVizTextInput className="mum-addinfo-input" placeholder="—" value={detectedRes ?? (uploadDraft.metadata.width && uploadDraft.metadata.height ? `${uploadDraft.metadata.width} × ${uploadDraft.metadata.height}` : '')} readOnly />
   const fpsContent    = <input className="mum-addinfo-input" type="number" min="1" max="240" placeholder="e.g. 30" value={uploadDraft.metadata.fps ?? ''} onChange={e => setUploadDraftMetadata({ fps: parseFloat(e.target.value) || undefined })} />
   const bpmContent    = <input className="mum-addinfo-input" type="number" min="20" max="300" placeholder="e.g. 128" value={uploadDraft.metadata.bpm ?? ''} onChange={e => setUploadDraftMetadata({ bpm: parseFloat(e.target.value) || undefined })} />
-  const loopContent   = <label className="mum-toggle"><input type="checkbox" checked={uploadDraft.metadata.loopable ?? false} onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })} /><span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span></label>
-  const alphaContent  = <label className="mum-toggle"><input type="checkbox" checked={uploadDraft.metadata.hasAlpha ?? false} onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })} /><span className="mum-toggle-track"><span className="mum-toggle-thumb" /></span></label>
+  const loopContent   = <label className="mum-toggle"><IconMorphCheckbox checked={uploadDraft.metadata.loopable ?? false} onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })} /></label>
+  const alphaContent  = <label className="mum-toggle"><IconMorphCheckbox checked={uploadDraft.metadata.hasAlpha ?? false} onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })} /></label>
   const keyContent    = <div className="mum-select-wrap mum-select-wrap--sm"><DropdownSelect className="mum-select" value={uploadDraft.metadata.key ?? ''} onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}><option value="">—</option>{MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}</DropdownSelect></div>
   const energyContent = <div className="mum-select-wrap mum-select-wrap--sm"><DropdownSelect className="mum-select" value={uploadDraft.metadata.energy ?? ''} onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}><option value="">—</option>{(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => <option key={k} value={k}>{ENERGY_LABELS[k]}</option>)}</DropdownSelect></div>
 
@@ -845,7 +847,7 @@ export function MediaUploadModal({
                 {/* Track title */}
                 <div className="mum-field">
                   <label className="mum-field-label">TRACK TITLE <span className="mum-opt">(OPTIONAL)</span></label>
-                  <input
+                  <DreamVizTextInput
                     className="mum-input"
                     placeholder={uploadQueue[0] ? getFilenameWithoutExt(uploadQueue[0].file.name) : 'e.g. My Track'}
                     maxLength={120}
@@ -863,7 +865,7 @@ export function MediaUploadModal({
                   <div className="mum-track-details">
                     <div className="mum-track-detail-field">
                       <label className="mum-track-detail-label">ARTIST <span className="mum-opt">(OPTIONAL)</span></label>
-                      <input
+                      <DreamVizTextInput
                         className="mum-input mum-input--sm"
                         placeholder="e.g. Artist Name"
                         value={uploadDraft.audioArtist}
@@ -872,7 +874,7 @@ export function MediaUploadModal({
                     </div>
                     <div className="mum-track-detail-field">
                       <label className="mum-track-detail-label">GENRE <span className="mum-opt">(OPTIONAL)</span></label>
-                      <input
+                      <DreamVizTextInput
                         className="mum-input mum-input--sm"
                         placeholder="e.g. Electronic"
                         value={uploadDraft.audioGenre}
@@ -937,7 +939,7 @@ export function MediaUploadModal({
                 {/* Title */}
                 <div className="mum-field">
                   <label className="mum-field-label">TITLE <span className="mum-opt">(OPTIONAL)</span></label>
-                  <input
+                  <DreamVizTextInput
                     className="mum-input"
                     placeholder="e.g. Portal Loop Alpha"
                     maxLength={160}
@@ -965,7 +967,7 @@ export function MediaUploadModal({
                     <div className="mum-field-hint">Add or create tags to describe this media.</div>
                     <div className="mum-chip-input">
                       <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
-                      <input
+                      <DreamVizTextInput
                         className="mum-chip-text"
                         placeholder="Type to add tags…"
                         value={tagInput}

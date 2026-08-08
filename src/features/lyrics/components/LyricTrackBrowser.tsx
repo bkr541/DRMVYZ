@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useMemo, useState } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
 import { Dropdown } from '../../../components/shared/Dropdown/Dropdown'
@@ -150,7 +151,7 @@ export function LyricTrackBrowser({
       </div>
 
       <div className="lmv-track-search-wrap">
-        <input
+        <DreamVizTextInput
           className="lmv-input lmv-track-search"
           type="search"
           value={search}

@@ -1,3 +1,5 @@
+import { IconMorphToggle } from '../react/controls/IconMorphToggle'
+import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { useState } from 'react'
 import { Route01Icon } from 'hugeicons-react'
 import { EFFECT_LABELS } from '../../../lib/audioModulation'
@@ -30,19 +32,17 @@ export function ModulationPanel({ routes, onToggle, onSetAmount, audioReactivity
       {/* ── Audio Reactivity master toggle — always visible ─────────────── */}
       <div
         className={`vz-mod-reactivity-row${audioReactivityEnabled ? ' vz-mod-reactivity-row--on' : ''}`}
-        onClick={() => onSetAudioReactivity(!audioReactivityEnabled)}
-        role="switch"
-        aria-checked={audioReactivityEnabled}
-        tabIndex={0}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSetAudioReactivity(!audioReactivityEnabled) }}
         title={audioReactivityEnabled
           ? 'Visual parameters can respond to audio and modulation routes.'
           : 'Beat-driven movement and modulation are disabled.'}
       >
         <span className="vz-mod-reactivity-label">Audio Reactivity</span>
-        <span className={`vz-mod-reactivity-track${audioReactivityEnabled ? ' vz-mod-reactivity-track--on' : ''}`}>
-          <span className="vz-mod-reactivity-thumb" />
-        </span>
+        <IconMorphToggle
+          checked={audioReactivityEnabled}
+          onCheckedChange={onSetAudioReactivity}
+          className="vz-mod-reactivity-track"
+          aria-label="Audio Reactivity"
+        />
         <span className="vz-mod-reactivity-state">{audioReactivityEnabled ? 'ON' : 'OFF'}</span>
       </div>
       {!audioReactivityEnabled && (
@@ -70,7 +70,7 @@ export function ModulationPanel({ routes, onToggle, onSetAmount, audioReactivity
                 <span className="vz-mod-source">{getMISourceLabel(route.source)}</span>
               </div>
               <div className="vz-mod-route-slider">
-                <input
+                <BubbleRevealSlider
                   type="range"
                   className="vz-slider vz-mod-amount"
                   style={{ '--pct': `${route.amount * 100}%` } as React.CSSProperties}

@@ -1,3 +1,5 @@
+import { IconMorphToggle } from '../react/controls/IconMorphToggle'
+import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { useState } from 'react'
 import { Layers01Icon } from 'hugeicons-react'
 import { useVisualStore } from '../../../stores/visualStore'
@@ -102,11 +104,10 @@ export function VzLayersPanel() {
                 onClick={() => setSelectedLayerItem(layerId, null)}
                 title="Click to select this layer as effect target"
               >
-                <button
-                  type="button"
-                  className={`vz-layer-toggle${cfg.enabled ? ' vz-layer-toggle--on' : ''}`}
-                  onClick={() => setLayerConfig(layerId, { enabled: !cfg.enabled })}
-                  aria-pressed={cfg.enabled}
+                <IconMorphToggle
+                  checked={cfg.enabled}
+                  onCheckedChange={enabled => setLayerConfig(layerId, { enabled })}
+                  className="vz-layer-toggle"
                   aria-label={`${cfg.enabled ? 'Hide' : 'Show'} ${LAYER_LABELS[layerId]} layer`}
                   title={cfg.enabled ? 'Hide layer' : 'Show layer'}
                 />
@@ -192,7 +193,7 @@ export function VzLayersPanel() {
                           <div className={`vz-li-expanded${item.locked ? ' vz-li-expanded--locked' : ''}`}>
                             <div className="vz-li-row2">
                               <label className="vz-li-field-label">Opacity</label>
-                              <input
+                              <BubbleRevealSlider
                                 type="range" className="vz-li-slider"
                                 min={0} max={1} step={0.05} value={item.opacity}
                                 disabled={item.locked}
@@ -315,7 +316,7 @@ export function VzLayersPanel() {
               </div>
 
               {/* Layer opacity — disabled when nothing assigned (would have no effect) */}
-              <input
+              <BubbleRevealSlider
                   type="range"
                   className="vz-slider vz-layer-opacity-slider"
                   style={{ '--pct': pct } as React.CSSProperties}

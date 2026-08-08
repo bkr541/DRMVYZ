@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../../controls/BubbleRevealSlider'
 import React, { useId } from 'react'
 import type { RGBA } from '../registry/shaderRegistryTypes'
 import { rgbaToHex, hexToRgba } from './shaderParameterUiTypes'
@@ -25,7 +26,7 @@ export function ShaderColorControl({ label, value, onChange }: ShaderColorContro
           onChange={e => onChange(hexToRgba(e.target.value, alpha))}
           title={`RGB: ${hex}  Alpha: ${Math.round(alpha * 100)}%`}
         />
-        <input
+        <BubbleRevealSlider
           type="range"
           className="rv-ctrl-slider rv-shader-alpha-slider"
           min={0} max={1} step={0.01}

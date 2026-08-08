@@ -1,0 +1,211 @@
+/* Canonical DRMVYZ control primitives.
+   Layout Lab → Template is the visual source of truth for these treatments. */
+
+@keyframes dv-control-fade-scale {
+  from { opacity: 0; transform: translate(-50%, 4px) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+}
+
+.dv-bubble-slider {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 100%;
+  height: 3px !important;
+  margin: 0;
+  border: 0 !important;
+  border-radius: 999px !important;
+  outline: none;
+  cursor: pointer;
+  background: linear-gradient(to right, #4ac7db var(--dv-slider-pct, 50%), rgba(255, 255, 255, 0.08) var(--dv-slider-pct, 50%)) !important;
+  box-shadow: none !important;
+}
+
+.dv-bubble-slider::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  width: 13px !important;
+  height: 13px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: #4ac7db !important;
+  box-shadow: 0 0 8px #4ac7db, 0 0 0 2px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dv-bubble-slider::-moz-range-track {
+  height: 3px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dv-bubble-slider::-moz-range-progress {
+  height: 3px !important;
+  border-radius: 999px !important;
+  background: #4ac7db !important;
+}
+
+.dv-bubble-slider::-moz-range-thumb {
+  width: 13px !important;
+  height: 13px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: #4ac7db !important;
+  box-shadow: 0 0 8px #4ac7db !important;
+}
+
+.dv-bubble-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.dv-bubble-slider__popover {
+  position: fixed;
+  z-index: 10000;
+  transform: translate(-50%, -100%);
+  padding: 3px 8px;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 6px;
+  background: #0d1417;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+  color: #8ef4ff;
+  font: 700 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: dv-control-fade-scale 140ms ease;
+}
+
+.dv-bubble-slider__popover::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  background: #0d1417;
+  border-right: 1px solid rgba(154, 178, 188, 0.14);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.dv-text-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 10px !important;
+  border: 1px solid rgba(154, 178, 188, 0.2) !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  color: rgba(232, 238, 240, 0.88) !important;
+  font: 600 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif) !important;
+  box-shadow: none !important;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.dv-text-input::placeholder {
+  color: rgba(196, 207, 211, 0.35) !important;
+}
+
+.dv-text-input:hover:not(:disabled) {
+  border-color: rgba(154, 178, 188, 0.34) !important;
+}
+
+.dv-text-input:focus-visible {
+  border-color: var(--dv-control-accent, #4ac7db) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dv-control-accent, #4ac7db) 30%, transparent) !important;
+}
+
+.dv-text-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.dv-icon-morph-toggle,
+.dv-icon-morph-checkbox {
+  position: relative;
+  box-sizing: border-box;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  border: 1px solid rgba(154, 178, 188, 0.25) !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 !important;
+  box-shadow: none !important;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.dv-icon-morph-toggle {
+  cursor: pointer;
+}
+
+.dv-icon-morph-toggle.is-on,
+.dv-icon-morph-checkbox.is-on,
+.dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) {
+  border-color: #4ac7db !important;
+  background: rgba(74, 199, 219, 0.14) !important;
+  box-shadow: 0 0 10px rgba(74, 199, 219, 0.35) !important;
+}
+
+.dv-icon-morph-toggle__icon {
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+
+.dv-icon-morph-toggle__ring {
+  fill: none;
+  stroke: rgba(196, 207, 211, 0.35);
+  stroke-width: 1.4;
+  transition: stroke 160ms ease, opacity 160ms ease;
+}
+
+.dv-icon-morph-toggle.is-on .dv-icon-morph-toggle__ring,
+.dv-icon-morph-checkbox.is-on .dv-icon-morph-toggle__ring,
+.dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) .dv-icon-morph-toggle__ring {
+  opacity: 0;
+}
+
+.dv-icon-morph-toggle__check {
+  fill: none;
+  stroke: #67f7ff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 12;
+  stroke-dashoffset: 12;
+  transition: stroke-dashoffset 220ms ease;
+}
+
+.dv-icon-morph-toggle.is-on .dv-icon-morph-toggle__check,
+.dv-icon-morph-checkbox.is-on .dv-icon-morph-toggle__check,
+.dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) .dv-icon-morph-toggle__check {
+  stroke-dashoffset: 0;
+}
+
+.dv-icon-morph-toggle:focus-visible,
+.dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:focus-visible) {
+  outline: 2px solid rgba(103, 247, 255, 0.45);
+  outline-offset: 2px;
+}
+
+.dv-icon-morph-toggle:disabled,
+.dv-icon-morph-checkbox.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.dv-icon-morph-checkbox__input {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  cursor: pointer;
+}
+
+.dv-icon-morph-checkbox.is-disabled .dv-icon-morph-checkbox__input {
+  cursor: not-allowed;
+}

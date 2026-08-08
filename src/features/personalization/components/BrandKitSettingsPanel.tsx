@@ -1,3 +1,5 @@
+import { IconMorphToggle } from '../../../components/vyzualz/react/controls/IconMorphToggle'
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { getProfile } from '../../../lib/profileDb'
@@ -47,15 +49,13 @@ function Toggle({ checked, onChange, label, description, disabled = false }: {
         <strong>{label}</strong>
         <span>{description}</span>
       </div>
-      <button
-        type="button"
-        className={`bk-toggle${checked ? ' bk-toggle--on' : ''}`}
-        role="switch"
-        aria-checked={checked}
+      <IconMorphToggle
+        checked={checked}
+        onCheckedChange={onChange}
+        className="bk-toggle"
         aria-label={label}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
-      ><span aria-hidden="true" /></button>
+      />
     </div>
   )
 }
@@ -390,7 +390,7 @@ export function BrandKitSettingsPanel() {
           <h2>Make DRMVYZ feel like your booth</h2>
           <p>Create a Brand Kit from your logos or artwork, then use it across Sound Drawing, Cinema, and LaserDMX.</p>
           <label className="bk-field-label" htmlFor="bk-first-name">Brand Kit name</label>
-          <input id="bk-first-name" value={newKitName} onChange={event => setNewKitName(event.target.value)} placeholder={suggestedName} />
+          <DreamVizTextInput id="bk-first-name" value={newKitName} onChange={event => setNewKitName(event.target.value)} placeholder={suggestedName} />
           <button type="button" className="bk-primary-button" onClick={() => void handleCreate()} disabled={syncing}>Create Brand Kit</button>
           {error && <div className="bk-inline-warning" role="alert">{error}</div>}
         </div>
@@ -407,7 +407,7 @@ export function BrandKitSettingsPanel() {
           {creating && (
             <div className="bk-create-bar">
               <label htmlFor="bk-new-name">New Brand Kit</label>
-              <input id="bk-new-name" value={newKitName} onChange={event => setNewKitName(event.target.value)} autoFocus />
+              <DreamVizTextInput id="bk-new-name" value={newKitName} onChange={event => setNewKitName(event.target.value)} autoFocus />
               <button type="button" className="bk-primary-button" onClick={() => void handleCreate()} disabled={syncing}>Create</button>
               <button type="button" className="bk-text-button" onClick={() => setCreating(false)}>Cancel</button>
             </div>
@@ -417,7 +417,7 @@ export function BrandKitSettingsPanel() {
               <header className="bk-kit-header">
                 <div className="bk-kit-title-field">
                   <label htmlFor="bk-kit-name">Brand Kit name</label>
-                  <input
+                  <DreamVizTextInput
                     id="bk-kit-name"
                     value={renameDraft}
                     maxLength={120}

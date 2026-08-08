@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -193,7 +194,7 @@ export function LaserDmxLayersPanel() {
       {/* Filters */}
       {showFilters && (
         <div className="rv-bm-layers-filters">
-          <input
+          <DreamVizTextInput
             type="text"
             className="rv-ctrl-text-input"
             placeholder="Filter by name…"

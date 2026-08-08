@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useId, useState } from 'react'
 import type { BrandPalette, BrandPaletteRole } from '../BrandKitTypes'
 import { BRAND_PALETTE_ROLES } from '../BrandKitTypes'
@@ -65,7 +66,7 @@ function PaletteField({ role, value, resetValue, onChange, compact }: {
             onChange(next)
           }}
         />
-        <input
+        <DreamVizTextInput
           id={`${id}-hex`}
           className={`bk-hex-input${valid ? '' : ' bk-hex-input--invalid'}`}
           value={draft}

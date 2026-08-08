@@ -1,3 +1,5 @@
+import { IconMorphToggle } from './controls/IconMorphToggle'
+import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { useState, useEffect, useRef, useCallback, useId, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -196,20 +198,17 @@ function LayerEditor({
 
         <div className="rv-ctrl-row">
           <span className="rv-ctrl-label" id={`${idPrefix}-enabled-label`}>Enabled</span>
-          <button
-            type="button"
-            className={`rv-ctrl-toggle${clip.enabled ? ' rv-ctrl-toggle--on' : ''}`}
-            onClick={() => pc({ enabled: !clip.enabled })}
-            aria-pressed={clip.enabled}
+          <IconMorphToggle
+            checked={clip.enabled}
+            onCheckedChange={enabled => pc({ enabled })}
+            className="rv-ctrl-toggle"
             aria-labelledby={`${idPrefix}-enabled-label`}
-          >
-            {clip.enabled ? 'On' : 'Off'}
-          </button>
+          />
         </div>
 
         <div className="rv-ctrl-row">
           <label className="rv-ctrl-label" htmlFor={`${idPrefix}-start`}>Start</label>
-          <input
+          <DreamVizTextInput
             id={`${idPrefix}-start`}
             className="rv-ctrl-text-input rv-ctrl-text-input--time"
             value={startStr}
@@ -221,7 +220,7 @@ function LayerEditor({
 
         <div className="rv-ctrl-row">
           <label className="rv-ctrl-label" htmlFor={`${idPrefix}-end`}>End</label>
-          <input
+          <DreamVizTextInput
             id={`${idPrefix}-end`}
             className="rv-ctrl-text-input rv-ctrl-text-input--time"
             value={endStr}
@@ -480,7 +479,7 @@ function AddClipForm({ onAdd, onCancel }: AddClipFormProps) {
         <option value="builtinShape">Shape</option>
         <option value="svg">SVG</option>
       </DropdownSelect>
-      <input
+      <DreamVizTextInput
         id={`${idPrefix}-name`}
         className="rv-ctrl-text-input rv-ctrl-text-input--sm"
         aria-label="Layer name"

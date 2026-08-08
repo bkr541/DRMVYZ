@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   LyricAnimation,
@@ -190,7 +191,7 @@ function WordTimingEditor({
               className={`lyric-word-editor__row${invalid ? ' lyric-word-editor__row--invalid' : ''}${lowConfidence ? ' lyric-word-editor__row--low-confidence' : ''}${focusWordId === word.id ? ' lyric-word-editor__row--focused' : ''}`}
             >
               <span className="lyric-word-editor__index">{index + 1}</span>
-              <input
+              <DreamVizTextInput
                 className="lmv-input"
                 aria-label={`Word ${index + 1} text`}
                 defaultValue={word.text}

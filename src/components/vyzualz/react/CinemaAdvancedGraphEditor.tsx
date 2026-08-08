@@ -1,3 +1,4 @@
+import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import {
   Component,
   useEffect,
@@ -388,10 +389,10 @@ function CinemaAdvancedGraphEditorSurface({ composition, definitions }: CinemaAd
       <div className="rv-cinema-graph-editor__toolbar" aria-label="Cinema graph controls">
         <label>
           <span>Add node</span>
-          <select value={addTypeId} onChange={event => setAddTypeId(event.target.value)} disabled={immutable}>
+          <DropdownSelect value={addTypeId} onChange={event => setAddTypeId(event.target.value)} disabled={immutable}>
             <option value="">Choose a node…</option>
             {addableDefinitions.map(definition => <option key={definition.id} value={definition.id}>{definition.definition.label} · {definition.definition.family}</option>)}
-          </select>
+          </DropdownSelect>
         </label>
         <button type="button" onClick={addNode} disabled={immutable || !addTypeId}>Add</button>
         <button type="button" onClick={() => zoom(viewport.zoom * 1.15)}>Zoom +</button>
@@ -529,8 +530,8 @@ function CinemaAdvancedGraphEditorSurface({ composition, definitions }: CinemaAd
         <summary>Accessible graph controls</summary>
         <p>These controls edit the same canonical graph without drag gestures.</p>
         <div className="rv-cinema-graph-accessible__connect">
-          <label><span>Output port</span><select value={accessibleFrom} onChange={event => setAccessibleFrom(event.target.value)}><option value="">Choose output…</option>{endpointOptions.filter(option => option.direction === 'output').map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label><span>Input port</span><select value={accessibleTo} onChange={event => setAccessibleTo(event.target.value)}><option value="">Choose input…</option>{endpointOptions.filter(option => option.direction === 'input').map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label><span>Output port</span><DropdownSelect value={accessibleFrom} onChange={event => setAccessibleFrom(event.target.value)}><option value="">Choose output…</option>{endpointOptions.filter(option => option.direction === 'output').map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>
+          <label><span>Input port</span><DropdownSelect value={accessibleTo} onChange={event => setAccessibleTo(event.target.value)}><option value="">Choose input…</option>{endpointOptions.filter(option => option.direction === 'input').map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>
           <button type="button" onClick={accessibleConnect} disabled={immutable || !accessibleFrom || !accessibleTo}>Connect</button>
         </div>
         <div className="rv-cinema-graph-accessible__list" role="list" aria-label="Cinema graph nodes">
@@ -583,8 +584,8 @@ function CinemaGraphStructuredFallback({ composition, definitions }: CinemaAdvan
     <div className="rv-cinema-graph-fallback" role="region" aria-label="Cinema structured graph fallback">
       <div className="rv-cinema-composer__notice" role="alert"><strong>Graph surface unavailable</strong><span>{message}</span></div>
       <div className="rv-cinema-graph-accessible__connect">
-        <label><span>Output port</span><select value={from} onChange={event => setFrom(event.target.value)}>{<option value="">Choose output…</option>}{outputs.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label><span>Input port</span><select value={to} onChange={event => setTo(event.target.value)}>{<option value="">Choose input…</option>}{inputs.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label><span>Output port</span><DropdownSelect value={from} onChange={event => setFrom(event.target.value)}>{<option value="">Choose output…</option>}{outputs.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>
+        <label><span>Input port</span><DropdownSelect value={to} onChange={event => setTo(event.target.value)}>{<option value="">Choose input…</option>}{inputs.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>
         <button type="button" onClick={connectFallback} disabled={immutable || !from || !to}>Connect</button>
       </div>
       {composition.nodes.map(node => (

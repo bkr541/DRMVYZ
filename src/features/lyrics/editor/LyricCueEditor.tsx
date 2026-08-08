@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useLyricsStore } from '../../../stores/lyricsStore'
@@ -359,7 +360,7 @@ export function LyricCueEditor({
         </label>
         <label className="lyric-cue-editor-toolbar__zoom">
           <span>Zoom {waveformZoom.toFixed(2)}×</span>
-          <input type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
+          <BubbleRevealSlider type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
         </label>
         <details className="lyric-cue-editor-overlays">
           <summary>

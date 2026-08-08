@@ -1,3 +1,4 @@
+import { IconMorphToggle } from '../react/controls/IconMorphToggle'
 import { memo, useState, useMemo } from 'react'
 import { MagicWand01Icon } from 'hugeicons-react'
 import type { VzEffects } from '../../../stores/visualStore'
@@ -94,14 +95,12 @@ export const EffectControlsPanel = memo(function EffectControlsPanel({
   const b = (label: string, value: boolean, onChange: (v: boolean) => void) => (
     <div className="vz-param-row">
       <span className="vz-param-label">{label}</span>
-      <button
-        type="button"
-        className={`vz-param-toggle${value ? ' vz-param-toggle--on' : ''}`}
-        aria-pressed={value}
-        onClick={() => onChange(!value)}
-      >
-        {value ? 'On' : 'Off'}
-      </button>
+      <IconMorphToggle
+        checked={value}
+        onCheckedChange={onChange}
+        className="vz-param-toggle"
+        aria-label={label}
+      />
     </div>
   )
 

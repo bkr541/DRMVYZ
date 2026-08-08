@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { useLyricsStore } from '../../stores/lyricsStore'
@@ -328,7 +329,7 @@ function LyricTransportBar({
       <div className="lmv-transport-right">
         <label className="lmv-volume-control">
           <span>♬</span>
-          <input
+          <BubbleRevealSlider
             type="range"
             min={0}
             max={1}

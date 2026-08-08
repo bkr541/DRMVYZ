@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
@@ -60,7 +61,7 @@ function PixGridSetupMockup({ state }: { state: PixGridMockState }) {
         </div>
         <label className="rv-pix-grid-inline-field">
           <span>Scene Name</span>
-          <input
+          <DreamVizTextInput
             value={sceneName}
             maxLength={96}
             onChange={event => setSceneName(event.target.value)}
@@ -187,7 +188,7 @@ function PixGridMediaMockup({ state }: { state: PixGridMockState }) {
           <svg className="vz-md-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
             <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-4.99z" />
           </svg>
-          <input className="vz-md-search-input" type="text" placeholder="Search media…" value={state.mediaSearch} onChange={event => state.setMediaSearch(event.target.value)} />
+          <DreamVizTextInput className="vz-md-search-input" type="text" placeholder="Search media…" value={state.mediaSearch} onChange={event => state.setMediaSearch(event.target.value)} />
           {state.mediaSearch && <button type="button" className="vz-md-search-clear" title="Clear search" onClick={() => state.setMediaSearch('')}>✕</button>}
         </div>
         <div className="vz-md-view-toggles">

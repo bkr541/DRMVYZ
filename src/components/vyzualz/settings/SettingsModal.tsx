@@ -1,3 +1,5 @@
+import { IconMorphToggle } from '../react/controls/IconMorphToggle'
+import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore } from '../../../stores/visualStore'
@@ -153,7 +155,7 @@ function AccountPanel() {
       <div className="vsm-acct-fields">
         <div className="vsm-acct-field">
           <label className="vsm-acct-label">Email</label>
-          <input
+          <DreamVizTextInput
             className="vsm-acct-input vsm-acct-input--readonly"
             type="email"
             value={email}
@@ -164,7 +166,7 @@ function AccountPanel() {
 
         <div className="vsm-acct-field">
           <label className="vsm-acct-label" htmlFor="vsm-display-name">Display Name</label>
-          <input
+          <DreamVizTextInput
             id="vsm-display-name"
             className="vsm-acct-input"
             type="text"
@@ -177,7 +179,7 @@ function AccountPanel() {
 
         <div className="vsm-acct-field">
           <label className="vsm-acct-label" htmlFor="vsm-artist-name">Artist Name</label>
-          <input
+          <DreamVizTextInput
             id="vsm-artist-name"
             className="vsm-acct-input"
             type="text"
@@ -293,12 +295,12 @@ function SystemSettingsPanel() {
             <h2>Auto Quality</h2>
             <p>Allow DRMVYZ to adjust quality inside the selected bounds.</p>
           </div>
-          <button
-            type="button"
-            className={`vz-settings-seg-btn vsm-settings-toggle${autoQualityEnabled ? ' vz-settings-seg-btn--active' : ''}`}
-            aria-pressed={autoQualityEnabled}
-            onClick={() => setAutoQualityEnabled(!autoQualityEnabled)}
-          >{autoQualityEnabled ? 'ON' : 'OFF'}</button>
+          <IconMorphToggle
+            checked={autoQualityEnabled}
+            onCheckedChange={setAutoQualityEnabled}
+            className="vz-settings-seg-btn vsm-settings-toggle"
+            aria-label="Auto Quality"
+          />
         </div>
         {autoQualityEnabled && (
           <div className="vsm-auto-quality">
@@ -338,14 +340,13 @@ function SystemSettingsPanel() {
             <h2 id="vsm-contextual-info-heading">Contextual Info</h2>
             <p>Show an info icon when hovering over supported controls and workspace elements.</p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            className={`vz-settings-seg-btn vsm-settings-toggle${infoEnabled ? ' vz-settings-seg-btn--active' : ''}`}
-            aria-checked={infoEnabled}
+          <IconMorphToggle
+            checked={infoEnabled}
+            onCheckedChange={checked => void setInfoEnabled(checked)}
+            className="vz-settings-seg-btn vsm-settings-toggle"
+            aria-label="Contextual Info"
             disabled={infoLoading}
-            onClick={() => void setInfoEnabled(!infoEnabled)}
-          >{infoEnabled ? 'ON' : 'OFF'}</button>
+          />
         </div>
         <div
           className={`vsm-settings-detail${infoError ? ' vsm-settings-detail--error' : ''}`}
@@ -369,12 +370,12 @@ function SystemSettingsPanel() {
           </div>
         </div>
         <div className="vsm-settings-inline-row">
-          <button
-            type="button"
-            className={`vz-settings-seg-btn vsm-settings-toggle${bpmSync ? ' vz-settings-seg-btn--active' : ''}`}
-            aria-pressed={bpmSync}
-            onClick={toggleBpmSync}
-          >{bpmSync ? 'ON' : 'OFF'}</button>
+          <IconMorphToggle
+            checked={bpmSync}
+            onCheckedChange={() => toggleBpmSync()}
+            className="vz-settings-seg-btn vsm-settings-toggle"
+            aria-label="BPM Sync"
+          />
           <span>{bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}</span>
         </div>
       </section>

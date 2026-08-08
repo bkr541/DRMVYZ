@@ -17,6 +17,7 @@ import {
   type SelectHTMLAttributes,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { DreamVizTextInput } from '../../vyzualz/react/controls/DreamVizTextInput'
 import './Dropdown.css'
 
 const VIEWPORT_MARGIN = 12
@@ -40,6 +41,7 @@ export interface DropdownProps {
   id?: string
   triggerId?: string
   label?: ReactNode
+  eyebrow?: ReactNode
   menuLabel?: ReactNode
   ariaLabel?: string
   ariaLabelledBy?: string
@@ -150,6 +152,7 @@ export function Dropdown({
   id,
   triggerId: requestedTriggerId,
   label,
+  eyebrow,
   menuLabel,
   ariaLabel,
   ariaLabelledBy,
@@ -580,7 +583,8 @@ export function Dropdown({
 
       {searchable ? (
         <div ref={searchTriggerRef} className={`${triggerClassNames} drm-dropdown__search-trigger`}>
-          <input
+          {eyebrow != null && <span className="drm-dropdown__eyebrow">{eyebrow}</span>}
+          <DreamVizTextInput
             ref={searchInputRef}
             id={triggerId}
             type="text"
@@ -644,6 +648,7 @@ export function Dropdown({
           }}
           onKeyDown={handleKeyDown}
         >
+          {eyebrow != null && <span className="drm-dropdown__eyebrow">{eyebrow}</span>}
           <span
             className={selectedOption ? 'drm-dropdown__value' : 'drm-dropdown__value drm-dropdown__value--placeholder'}
             style={selectedOption?.style}

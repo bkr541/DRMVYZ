@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../vyzualz/react/controls/BubbleRevealSlider'
 import { useState, useCallback } from 'react'
 
 function fmtMin(s: number): string {
@@ -41,7 +42,7 @@ export function TrackScrubber({ currentTime, duration, onSeek, disabled, accentC
   return (
     <div className="az-scrubber" aria-label="Track position">
       <span className="az-scrubber-time">{fmtMin(display)}</span>
-      <input
+      <BubbleRevealSlider
         type="range"
         className="az-scrubber-input"
         min={0}

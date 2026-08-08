@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useState } from 'react'
 import { LyricCueEditor, type LyricBeatGridStatus } from '../editor/LyricCueEditor'
 import type { LyricSectionOption } from '../editor/LyricCueInspector'
@@ -80,7 +81,7 @@ export function ManualLyricEditor({
       <div className="lmv-grid2">
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-document-title">Title</label>
-          <input
+          <DreamVizTextInput
             id="lyric-document-title"
             className="lmv-input"
             placeholder="Song Title"
@@ -90,7 +91,7 @@ export function ManualLyricEditor({
         </div>
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-document-artist">Artist</label>
-          <input
+          <DreamVizTextInput
             id="lyric-document-artist"
             className="lmv-input"
             placeholder="Artist Name"

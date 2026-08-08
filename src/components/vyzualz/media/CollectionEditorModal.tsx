@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useEffect, useState } from 'react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { MediaCollection } from '../../../stores/mediaStore'
@@ -52,7 +53,7 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
         <div className="mmv-editor-body">
           <label className="mum-field">
             <span className="mum-field-label">NAME <span className="mum-req">*</span></span>
-            <input className="mum-input" value={name} onChange={event => setName(event.target.value)} maxLength={120} autoFocus />
+            <DreamVizTextInput className="mum-input" value={name} onChange={event => setName(event.target.value)} maxLength={120} autoFocus />
           </label>
           <label className="mum-field">
             <span className="mum-field-label">DESCRIPTION</span>

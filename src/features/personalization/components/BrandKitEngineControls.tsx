@@ -1,3 +1,5 @@
+import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
+import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import type {
   BrandKit,
   BrandKitEngineRule,
@@ -90,7 +92,7 @@ export function BrandKitEngineControls({ kit, onChange }: {
             <label className="bk-strength-label" htmlFor={`bk-strength-${engine.id}`}>
               Strength <output>{Math.round(rule.strength * 100)}%</output>
             </label>
-            <input
+            <BubbleRevealSlider
               id={`bk-strength-${engine.id}`}
               type="range"
               min="0"
@@ -103,8 +105,7 @@ export function BrandKitEngineControls({ kit, onChange }: {
             {engine.id === 'laserDmx' && (
               <div className="bk-laser-personalization">
                 <label className="bk-inline-toggle">
-                  <input
-                    type="checkbox"
+                  <IconMorphCheckbox
                     checked={rule.preserveTriggerSemantics !== false}
                     disabled={rule.mode === 'original'}
                     onChange={event => updateRule(engine.id, { preserveTriggerSemantics: event.target.checked })}

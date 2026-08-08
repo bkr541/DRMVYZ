@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../../controls/BubbleRevealSlider'
 import React from 'react'
 import type { GradientStop, RGBA } from '../registry/shaderRegistryTypes'
 import { sortStops, clamp01, rgbaToHex, hexToRgba } from './shaderParameterUiTypes'
@@ -34,7 +35,7 @@ export function ShaderGradientControl({ label, value, onChange }: ShaderGradient
       <div className="rv-shader-gradient-stops">
         {sorted.map((stop, i) => (
           <div key={i} className="rv-shader-gradient-stop">
-            <input
+            <BubbleRevealSlider
               type="range"
               className="rv-shader-stop-pos"
               min={0} max={1} step={0.01}
@@ -50,7 +51,7 @@ export function ShaderGradientControl({ label, value, onChange }: ShaderGradient
               onChange={e => updateStop(i, { color: hexToRgba(e.target.value, stop.color[3]) })}
               aria-label={`${label} stop ${i + 1} color`}
             />
-            <input
+            <BubbleRevealSlider
               type="range"
               className="rv-shader-stop-alpha"
               min={0} max={1} step={0.01}

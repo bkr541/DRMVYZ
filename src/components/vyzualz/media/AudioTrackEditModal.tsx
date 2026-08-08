@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useEffect, useState } from 'react'
 import { MUSICAL_KEYS } from '../../../lib/mediaRoles'
 import { useAudioStore } from '../../../stores/audioStore'
@@ -68,16 +69,16 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
         <div className="mmv-editor-body">
           <label className="mum-field">
             <span className="mum-field-label">TITLE <span className="mum-req">*</span></span>
-            <input className="mum-input" value={title} onChange={event => setTitle(event.target.value)} maxLength={160} />
+            <DreamVizTextInput className="mum-input" value={title} onChange={event => setTitle(event.target.value)} maxLength={160} />
           </label>
           <div className="mmv-editor-grid">
             <label className="mum-field">
               <span className="mum-field-label">ARTIST</span>
-              <input className="mum-input" value={artist} onChange={event => setArtist(event.target.value)} maxLength={160} />
+              <DreamVizTextInput className="mum-input" value={artist} onChange={event => setArtist(event.target.value)} maxLength={160} />
             </label>
             <label className="mum-field">
               <span className="mum-field-label">GENRE</span>
-              <input className="mum-input" value={genre} onChange={event => setGenre(event.target.value)} maxLength={120} />
+              <DreamVizTextInput className="mum-input" value={genre} onChange={event => setGenre(event.target.value)} maxLength={120} />
             </label>
             <label className="mum-field">
               <span className="mum-field-label">BPM</span>

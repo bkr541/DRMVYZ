@@ -1,3 +1,6 @@
+import { IconMorphToggle } from './controls/IconMorphToggle'
+import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
+import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { forwardRef, useState, useCallback, useRef, useEffect, useId, useImperativeHandle, useMemo, type MutableRefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -644,7 +647,7 @@ export function EditSectionForm({
 
         <div className="rv-form-row rv-form-row--section-label">
           <label className="rv-form-label" htmlFor={`${idPrefix}-label`}>Label</label>
-          <input
+          <DreamVizTextInput
             id={`${idPrefix}-label`}
             className="rv-form-input"
             type="text"
@@ -692,7 +695,7 @@ export function EditSectionForm({
         <div className="rv-form-row">
           <label className="rv-form-label" htmlFor={`${idPrefix}-intensity`}>Intensity</label>
           <div className="rv-form-inline-control">
-            <input
+            <BubbleRevealSlider
               id={`${idPrefix}-intensity`}
               className="rv-form-range"
               type="range"
@@ -884,7 +887,7 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
       </div>
       <div className="rv-form-row">
         <label className="rv-form-label" htmlFor={`${idPrefix}-label`}>Label</label>
-        <input
+        <DreamVizTextInput
           id={`${idPrefix}-label`}
           className="rv-form-input"
           type="text"
@@ -918,7 +921,7 @@ function AddSectionForm({ onAdd, onCancel }: AddSectionFormProps) {
       </div>
       <div className="rv-form-row">
         <label className="rv-form-label" htmlFor={`${idPrefix}-intensity`}>Intensity</label>
-        <input
+        <BubbleRevealSlider
           id={`${idPrefix}-intensity`}
           className="rv-form-range"
           type="range"
@@ -2349,19 +2352,13 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                       <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
                     </div>
                     <div className="rv-timeline-lane-tools">
-                      <button
-                        type="button"
+                      <IconMorphToggle
+                        checked={beatGridEnabled}
+                        onCheckedChange={setBeatGridEnabled}
                         className={`rv-ctrl-toggle rv-timeline-beat-grid-toggle${beatGridEnabled ? ' rv-ctrl-toggle--on' : ''}`}
-                        onClick={event => {
-                          event.stopPropagation()
-                          setBeatGridEnabled(!beatGridEnabled)
-                        }}
-                        aria-pressed={beatGridEnabled}
                         aria-label={`Turn Beat Grid ${beatGridEnabled ? 'off' : 'on'}`}
                         title={`Beat Grid: ${beatGridEnabled ? 'On' : 'Off'}`}
-                      >
-                        {beatGridEnabled ? 'On' : 'Off'}
-                      </button>
+                      />
                     </div>
                     <HelpInfoTrigger
                       helpId="react.shared.trackMap.beatGridLane"

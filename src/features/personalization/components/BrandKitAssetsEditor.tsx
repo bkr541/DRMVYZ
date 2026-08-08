@@ -1,3 +1,6 @@
+import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
+import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { MediaUploadModal } from '../../../components/vyzualz/MediaUploadModal'
@@ -121,7 +124,7 @@ function AssetPicker({ role, onClose, onPick, onUpload }: {
         <div className="bk-picker-toolbar">
           <label className="bk-search-label">
             <span className="sr-only">Search media</span>
-            <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search media…" autoFocus />
+            <DreamVizTextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search media…" autoFocus />
           </label>
           <button type="button" className="bk-primary-button" onClick={onUpload}>Upload media</button>
         </div>
@@ -289,16 +292,16 @@ export function BrandKitAssetsEditor({
               </DropdownSelect>
             </label>
             <label>Scale <output>{Math.round(activePresentation.scale * 100)}%</output>
-              <input type="range" min="0.04" max="0.6" step="0.01" value={activePresentation.scale} onChange={event => void patchDisplayPresentation({ scale: Number(event.target.value) })} />
+              <BubbleRevealSlider type="range" min="0.04" max="0.6" step="0.01" value={activePresentation.scale} onChange={event => void patchDisplayPresentation({ scale: Number(event.target.value) })} />
             </label>
             <label>Opacity <output>{Math.round(activePresentation.opacity * 100)}%</output>
-              <input type="range" min="0" max="1" step="0.01" value={activePresentation.opacity} onChange={event => void patchDisplayPresentation({ opacity: Number(event.target.value) })} />
+              <BubbleRevealSlider type="range" min="0" max="1" step="0.01" value={activePresentation.opacity} onChange={event => void patchDisplayPresentation({ opacity: Number(event.target.value) })} />
             </label>
             <label>Safe-area inset <output>{Math.round(activePresentation.margin * 100)}%</output>
-              <input type="range" min="0" max="0.2" step="0.01" value={activePresentation.margin} onChange={event => void patchDisplayPresentation({ margin: Number(event.target.value) })} />
+              <BubbleRevealSlider type="range" min="0" max="0.2" step="0.01" value={activePresentation.margin} onChange={event => void patchDisplayPresentation({ margin: Number(event.target.value) })} />
             </label>
             <label className="bk-inline-toggle">
-              <input type="checkbox" checked={activePresentation.preserveOriginalColors} onChange={event => void patchDisplayPresentation({ preserveOriginalColors: event.target.checked })} />
+              <IconMorphCheckbox checked={activePresentation.preserveOriginalColors} onChange={event => void patchDisplayPresentation({ preserveOriginalColors: event.target.checked })} />
               <span>Preserve original artwork colors</span>
             </label>
             <button type="button" className="bk-text-button" onClick={() => void updateAsset(activeDisplayAsset.id, { presentation: { ...activePresentation, enabled: false } })}>Disable logo compositor</button>

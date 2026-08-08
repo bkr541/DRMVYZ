@@ -1,3 +1,5 @@
+import { IconMorphCheckbox } from '../../controls/IconMorphToggle'
+import { DreamVizTextInput } from '../../controls/DreamVizTextInput'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 import { ShaderDefinitionValidator } from '../registry/ShaderDefinitionValidator'
@@ -187,7 +189,7 @@ export function ShaderCodeEditor({
     <div className="rv-shader-editor">
       {/* ── Header ── */}
       <div className="rv-shader-editor-header">
-        <input
+        <DreamVizTextInput
           type="text"
           className="rv-ctrl-text-input rv-shader-editor-name"
           value={editName}
@@ -311,8 +313,7 @@ export function ShaderCodeEditor({
         )}
 
         <label className="rv-shader-editor-pref" title="Compile automatically while typing">
-          <input
-            type="checkbox"
+          <IconMorphCheckbox
             checked={editorPrefs.autoCompile}
             onChange={e => store.setEditorPreferences({ autoCompile: e.target.checked })}
           />

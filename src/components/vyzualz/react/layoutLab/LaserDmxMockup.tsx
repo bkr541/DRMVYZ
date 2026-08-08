@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useMemo } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
 import { Collapsible, CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
@@ -152,7 +153,7 @@ function ShowDirectorRig({ state }: { state: LaserDmxMockState }) {
       <div className="rv-show-director-panel__header"><h4>Lighting Components</h4></div>
       <label className="rv-show-director-search">
         <span>Search components</span>
-        <input type="search" value={state.fixtureSearch} onChange={event => state.setFixtureSearch(event.target.value)} placeholder="Laser, strobe, CO2..." spellCheck={false} />
+        <DreamVizTextInput type="search" value={state.fixtureSearch} onChange={event => state.setFixtureSearch(event.target.value)} placeholder="Laser, strobe, CO2..." spellCheck={false} />
       </label>
       <div className="rv-show-director-palette__list" role="list">
         {state.filteredFixtureKinds.map(kind => (
@@ -233,7 +234,7 @@ function LayersMockup({ state }: { state: LaserDmxMockState }) {
       </div>
       {state.layerFiltersOpen && (
         <div className="rv-bm-layers-filters">
-          <input value={state.layerNameFilter} onChange={event => state.setLayerNameFilter(event.target.value)} placeholder="Filter by name…" aria-label="Filter beams by name" />
+          <DreamVizTextInput value={state.layerNameFilter} onChange={event => state.setLayerNameFilter(event.target.value)} placeholder="Filter by name…" aria-label="Filter beams by name" />
           <SelectRow label="Group Filter" value={state.layerGroupFilter} options={groupOptions} onChange={state.setLayerGroupFilter} />
           <SelectRow label="Enabled State" value={state.layerEnabledFilter} options={[{ value: 'all', label: 'All states' }, { value: 'enabled', label: 'Enabled' }, { value: 'disabled', label: 'Disabled' }]} onChange={state.setLayerEnabledFilter} />
           <button type="button" className="rv-glyph-upload-btn" onClick={() => { state.setLayerNameFilter(''); state.setLayerGroupFilter('all'); state.setLayerEnabledFilter('all') }}>Clear filters</button>

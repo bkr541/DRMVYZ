@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../../controls/DreamVizTextInput'
 import React, { useCallback, useRef, useState } from 'react'
 import { useShaderLibraryStore } from '../library/ShaderLibraryStore'
 import { ShaderLibrary, type ShaderLibraryEntry } from '../library/ShaderLibrary'
@@ -72,7 +73,7 @@ function SceneCard({
       {/* Info */}
       <div className="rv-shader-scene-card-body">
         {renaming ? (
-          <input
+          <DreamVizTextInput
             type="text"
             className="rv-ctrl-text-input rv-shader-scene-rename"
             value={nameInput}
@@ -277,7 +278,7 @@ export function ShaderLibraryPanel() {
 
       {/* ── Search ── */}
       <div className="rv-shader-library-search">
-        <input
+        <DreamVizTextInput
           type="search"
           className="rv-ctrl-text-input rv-shader-library-search-input"
           aria-label="Search shader scenes"

@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
@@ -69,7 +70,7 @@ export function PixGridAuthoringPanel() {
         </div>
         <label className="rv-pix-grid-inline-field">
           <span>Scene Name</span>
-          <input
+          <DreamVizTextInput
             value={sceneName}
             maxLength={96}
             onChange={event => setSceneName(event.target.value)}

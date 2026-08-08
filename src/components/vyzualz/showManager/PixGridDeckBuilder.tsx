@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useId, useRef, type ChangeEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { ReactPresetThumbnail } from '../react/ReactPresetThumbnail'
@@ -240,7 +241,7 @@ export function PixGridDeckBuilderInspector({
       <div className="sm-inspector-scroll">
         <section className="sm-deck-inspector-section">
           <h3>Name</h3>
-          <input
+          <DreamVizTextInput
             className="sm-deck-text-input"
             value={draftName}
             maxLength={PIX_GRID_DECK_NAME_MAX_LENGTH}

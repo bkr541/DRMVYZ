@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../vyzualz/react/controls/DreamVizTextInput'
 import { useState } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import '../../styles/auth.css'
@@ -183,7 +184,7 @@ function Field({ label, type, placeholder, value, onChange, icon, showToggle, au
       <label className="auth-field-label">{label}</label>
       <div className="auth-field-wrap">
         <span className="auth-field-icon">{icon}</span>
-        <input
+        <DreamVizTextInput
           className="auth-field-input"
           type={showToggle ? (showToggle.visible ? 'text' : 'password') : type}
           placeholder={placeholder}

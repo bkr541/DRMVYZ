@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { useLyricsStore } from '../../stores/lyricsStore'
@@ -252,7 +253,7 @@ export function AddCueModal({ isOpen, onClose }: Props) {
                 <label className="acm-label">
                   Cue Label <span className="acm-label-hint">(Optional)</span>
                 </label>
-                <input
+                <DreamVizTextInput
                   className="acm-input acm-input--disabled"
                   type="text"
                   placeholder="e.g. Chorus Line 1"
@@ -313,7 +314,7 @@ export function AddCueModal({ isOpen, onClose }: Props) {
               </div>
               <div className="acm-field">
                 <label className="acm-label">Duration</label>
-                <input
+                <DreamVizTextInput
                   className="acm-input acm-input--readonly"
                   type="text"
                   value={`${durationMs} ms`}

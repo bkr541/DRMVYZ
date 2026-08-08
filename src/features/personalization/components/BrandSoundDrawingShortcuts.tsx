@@ -1,3 +1,4 @@
+import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -70,7 +71,7 @@ export function BrandSoundDrawingShortcuts({ assets }: { assets: BrandKitAssetWi
         <button type="button" className="bk-text-button" disabled={!previousRef.current} onClick={restorePrevious}>Restore Previous Source</button>
       </div>
       <label className="bk-inline-toggle">
-        <input type="checkbox" checked={oscillatorSettings.svgUseReactPalette} onChange={event => setOscillatorSettings({ svgUseReactPalette: event.target.checked })} />
+        <IconMorphCheckbox checked={oscillatorSettings.svgUseReactPalette} onChange={event => setOscillatorSettings({ svgUseReactPalette: event.target.checked })} />
         <span>Use React palette instead of original artwork colors</span>
       </label>
       {candidates.length === 0 && <div className="bk-missing-slot">Link a primary logo or wordmark to enable these shortcuts.</div>}

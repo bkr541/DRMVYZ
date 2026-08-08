@@ -102,3 +102,10 @@
   border-radius: 0 0 8px 8px;
   background: rgba(0, 0, 0, 0.16);
 }
+
+.drc-header-accessory {
+  flex: 0 0 auto !important;
+  color: rgba(196, 207, 211, 0.42);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+}

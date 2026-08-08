@@ -1,3 +1,4 @@
+import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type MutableRefObject, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
@@ -757,7 +758,7 @@ export function ShowManagerView() {
             <>
               <label className="sm-search-field">
                 <span className="sr-only">Search Show Manager components</span>
-                <input type="search" placeholder="Search components…" disabled />
+                <DreamVizTextInput type="search" placeholder="Search components…" disabled />
               </label>
 
               <LibrarySection title="Components" count={COMPONENTS.length}>

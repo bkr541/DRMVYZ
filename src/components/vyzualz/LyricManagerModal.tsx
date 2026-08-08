@@ -1,3 +1,6 @@
+import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
+import { BubbleRevealSlider } from './react/controls/BubbleRevealSlider'
+import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { useState, useEffect, useCallback } from 'react'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { parseLyricCueJson, LyricParseError, formatMs } from '../../lib/lyricsImport'
@@ -47,7 +50,7 @@ function SliderRow({
   return (
     <div className="lmm-slider-row">
       <span className="lmm-slider-label">{label}</span>
-      <input
+      <BubbleRevealSlider
         type="range"
         className="lmm-slider"
         min={min} max={max} step={step}
@@ -172,7 +175,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
               <div className="lmm-section">DOCUMENT</div>
 
               <Field label="TITLE">
-                <input
+                <DreamVizTextInput
                   className="lmm-input"
                   placeholder="e.g. My Song Title"
                   value={draftTitle}
@@ -181,7 +184,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
               </Field>
 
               <Field label="ARTIST">
-                <input
+                <DreamVizTextInput
                   className="lmm-input"
                   placeholder="e.g. Artist Name"
                   value={draftArtist}
@@ -269,7 +272,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
 
             <div className="lmm-grid2">
               <Field label="FONT FAMILY">
-                <input
+                <DreamVizTextInput
                   className="lmm-input"
                   placeholder="Orbitron"
                   value={ds.fontFamily ?? ''}
@@ -289,7 +292,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
 
             <div className="lmm-grid2">
               <Field label="COLOR">
-                <input
+                <DreamVizTextInput
                   className="lmm-input"
                   placeholder="#ffffff"
                   value={ds.color ?? ''}
@@ -309,7 +312,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
 
             <div className="lmm-grid2">
               <Field label="STROKE COLOR">
-                <input
+                <DreamVizTextInput
                   className="lmm-input"
                   placeholder="#00eaff"
                   value={ds.strokeColor ?? ''}
@@ -329,7 +332,7 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
 
             <div className="lmm-grid2">
               <Field label="SHADOW COLOR">
-                <input
+                <DreamVizTextInput
                   className="lmm-input"
                   placeholder="#00eaff"
                   value={ds.shadowColor ?? ''}
@@ -481,12 +484,10 @@ export function LyricManagerModal({ onClose }: { onClose: () => void }) {
 
           <div className="lmm-footer-center">
             <label className="lmm-toggle">
-              <input
-                type="checkbox"
+              <IconMorphCheckbox
                 checked={lyricsDisplayEnabled}
                 onChange={e => setLyricsDisplayEnabled(e.target.checked)}
               />
-              <span className="lmm-toggle-track"><span className="lmm-toggle-thumb" /></span>
               <span className="lmm-toggle-label">Show Lyrics</span>
             </label>
 

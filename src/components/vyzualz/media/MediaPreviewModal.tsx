@@ -1,3 +1,4 @@
+import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { PlayIcon, PauseIcon } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -168,7 +169,7 @@ export function MediaPreviewModal({
             <button className="mpm-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
               {playing ? <PauseIcon size={12} color="currentColor" /> : <PlayIcon size={12} color="currentColor" />}
             </button>
-            <input
+            <BubbleRevealSlider
               type="range"
               className="mpm-scrubber"
               min={0}

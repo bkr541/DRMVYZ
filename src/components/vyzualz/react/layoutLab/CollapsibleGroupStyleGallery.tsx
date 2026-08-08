@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { DualRailCollapsible } from '../DualRailCollapsible'
-import { BubbleRevealSliderControl, IconMorphToggleControl, UnderlineDropdownControl } from './layoutLabWinningControls'
+import { BubbleRevealSliderControl, IconMorphToggleControl, TemplateTextInputControl, UnderlineDropdownControl } from './layoutLabWinningControls'
 
 // ── CollapsibleGroupStyleGallery ───────────────────────────────────────────
 //
@@ -13,28 +13,6 @@ import { BubbleRevealSliderControl, IconMorphToggleControl, UnderlineDropdownCon
 // not static art.
 
 const RENDER_MODE_OPTIONS = ['Outline', 'Multi Trace', 'Dots', 'Ribbon']
-
-function SampleTextInput({
-  value,
-  onChange,
-  placeholder,
-  className = '',
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  className?: string
-}) {
-  return (
-    <input
-      type="text"
-      className={`llcg-text-input${className ? ` ${className}` : ''}`}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      placeholder={placeholder}
-    />
-  )
-}
 
 function useGroupRowState() {
   const [intensity, setIntensity] = useState(62)
@@ -70,7 +48,7 @@ function DualRailGroup() {
       </div>
       <div className="llcg-accent-row">
         <div className="llcg-accent-row-hdr"><span>Label</span></div>
-        <SampleTextInput value={label} onChange={setLabel} placeholder="DRMVYZ" />
+        <TemplateTextInputControl value={label} onChange={setLabel} placeholder="DRMVYZ" />
       </div>
       <div className="llcg-accent-row llcg-accent-row--toggle">
         <span>Auto Rotate</span>
