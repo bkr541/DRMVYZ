@@ -132,6 +132,47 @@ describe('CinemaRuntime', () => {
     expect(getDrmvyzWebGLContextDiagnosticsForTests().activeCount).toBe(0)
   })
 
+  it('keeps Window as the receiver for native animation-frame scheduling', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? gl : null
+    ) as RenderingContext | null)
+
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(function (
+      this: Window,
+      callback: FrameRequestCallback,
+    ) {
+      if (this !== window) throw new TypeError('Illegal invocation')
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    })
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(function (
+      this: Window,
+      id: number,
+    ) {
+      if (this !== window) throw new TypeError('Illegal invocation')
+      callbacks.delete(id)
+    })
+
+    const created = CinemaRuntime.create(canvas)
+    expect(created.error).toBeNull()
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    expect(() => runtime.start()).not.toThrow()
+    expect(requestFrame).toHaveBeenCalledTimes(1)
+    expect(callbacks.size).toBe(1)
+
+    expect(() => runtime.dispose()).not.toThrow()
+    expect(cancelFrame).toHaveBeenCalledTimes(1)
+    expect(callbacks.size).toBe(0)
+  })
+
   it('reuses matching pooled targets and reallocates active targets on resize', () => {
     const canvas = document.createElement('canvas')
     const gl = createCinemaMockWebGL()

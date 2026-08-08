@@ -142,8 +142,13 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     private readonly gl: WebGL2RenderingContext,
     options: CinemaRuntimeCreateOptions,
   ) {
-    this.requestFrame = options.requestAnimationFrame ?? requestAnimationFrame
-    this.cancelFrame = options.cancelAnimationFrame ?? cancelAnimationFrame
+    // Browser animation-frame APIs are Window methods in Chromium/Electron. Keeping an
+    // unbound reference and later invoking it as `this.requestFrame(...)` gives the
+    // CinemaRuntime instance as the receiver, which Chromium rejects with
+    // `TypeError: Illegal invocation`. Wrap the native methods so Window remains the
+    // receiver while preserving injectable schedulers for deterministic tests.
+    this.requestFrame = options.requestAnimationFrame ?? (callback => window.requestAnimationFrame(callback))
+    this.cancelFrame = options.cancelAnimationFrame ?? (handle => window.cancelAnimationFrame(handle))
     this.onSnapshot = options.onSnapshot ?? null
     this.onLiveFps = options.onLiveFps ?? null
     this.capabilities = detectPlatformCapabilities(gl)
