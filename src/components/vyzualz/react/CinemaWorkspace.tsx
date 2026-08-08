@@ -16,6 +16,7 @@ import {
 } from '../cinema'
 import { CinemaCanvas } from './CinemaCanvas'
 import { CinemaComposerPanel } from './CinemaComposerPanel'
+import { NoticeCard } from './controls/NoticeCard'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 
 export type CinemaWorkspaceSurface = 'panel' | 'stage'
@@ -180,10 +181,9 @@ export function CinemaWorkspace({
           <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd></div>
           <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? `Ready · ${model.frameCapabilities} capabilities` : 'Waiting for canonical input'}</dd></div>
         </dl>
-        <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>Stage 19 Composer authoring wired to canonical Cinema state</strong>
-          <span>Structured visuals now share one authored model with modulation routes, performance rules, cameras, and authoritative musical/lyric timeline context. Runtime previews remain transient.</span>
-        </div>
+        <NoticeCard tone="warning" title="Stage 19 Composer authoring wired to canonical Cinema state">
+          Structured visuals now share one authored model with modulation routes, performance rules, cameras, and authoritative musical/lyric timeline context. Runtime previews remain transient.
+        </NoticeCard>
         <CinemaComposerPanel frameBridge={frameBridge} />
       </section>
     )

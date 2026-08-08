@@ -49,6 +49,7 @@ import {
   diagnoseCinematicMusicIntelligenceInputs,
 } from './CinematicMusicIntelligenceDiagnostics'
 import { Collapsible, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { NoticeCard } from './controls/NoticeCard'
 
 const PORTAL_SHAPE_LABELS: Record<CinematicPortalShape, string> = {
   rectangle: 'Rectangle', circle: 'Circle', arch: 'Arch', triangle: 'Triangle', fracture: 'Fracture', organic: 'Organic', customMask: 'Custom Mask',
@@ -570,10 +571,9 @@ export function CinematicWorldsModulationControls() {
                     ]} />
                     <SelectRow id={`cinematic-route-${index}-target`} label="Target" value={route.target} onChange={target => updateRoute(index, { target: target as CinematicAudioTarget })} options={world.modulationTargets.map(target => ({ value: target, label: CINEMATIC_TARGET_LABELS[target] }))} />
                     {routeDiagnostic && (
-                      <div className="rv-cinematic-route-diagnostic" role="status">
-                        <strong>{CINEMATIC_SOURCE_LABELS[route.source]} unavailable</strong>
-                        <span>{routeDiagnostic.reasons.map(reason => reason.message).join(' ')}</span>
-                      </div>
+                      <NoticeCard tone="warning" title={`${CINEMATIC_SOURCE_LABELS[route.source]} unavailable`}>
+                        {routeDiagnostic.reasons.map(reason => reason.message).join(' ')}
+                      </NoticeCard>
                     )}
                     <SliderRow id={`cinematic-route-${index}-amount`} label="Amount" value={route.amount} min={-2} max={2} step={0.01} onChange={amount => updateRoute(index, { amount })} />
                     <SliderRow id={`cinematic-route-${index}-attack`} label="Attack" value={route.attackMs} min={0} max={2000} step={10} onChange={attackMs => updateRoute(index, { attackMs })} />

@@ -12,6 +12,7 @@ import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLy
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
 import { DualRailCollapsible } from './DualRailCollapsible'
+import { NoticeCard } from './controls/NoticeCard'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
@@ -749,19 +750,9 @@ export function ReactEnginePanel({
           <CtrlSection label="Engine Mode" />
 
           {glyphLostNotice && (
-            <div className="rv-glyph-lost-notice">
-              <span>
-                <strong>"{glyphLostNotice}"</strong> was removed from your library. Select a new source below.
-              </span>
-              <button
-                type="button"
-                className="rv-glyph-lost-dismiss"
-                onClick={clearGlyphLostNotice}
-                aria-label="Dismiss"
-              >
-                ×
-              </button>
-            </div>
+            <NoticeCard tone="warning" onDismiss={clearGlyphLostNotice}>
+              <strong>"{glyphLostNotice}"</strong> was removed from your library. Select a new source below.
+            </NoticeCard>
           )}
 
           <OscillatorSourceDiagnostics

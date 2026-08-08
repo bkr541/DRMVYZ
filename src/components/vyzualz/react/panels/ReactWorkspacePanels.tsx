@@ -13,6 +13,7 @@ import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pi
 import { PanelSubtabs } from '../PanelSubtabs'
 import { getRequestedPixGridWorkspace, subscribePixGridWorkspace } from '../pixGrid/PixGridWorkspaceNavigation'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
+import { NoticeCard } from '../controls/NoticeCard'
 import {
   isCanvasFracturesOutputDeferred,
   type CanvasOutputCapability,
@@ -183,11 +184,10 @@ export function ReactOutputWorkspacePanel({
           {surface === 'production' && isLaserDmx ? (
             <div className="rv-ctrl-group"><ProductionOutputPanel /></div>
           ) : fracturesOutputDeferred ? (
-            <div className="rv-canvas-output-deferred-placeholder" role="status" aria-label="Fractures recording unavailable">
-              <strong>Fractures recording is unavailable</strong>
-              <span>The effective Fractures renderer is active for preview and performance, but capture is intentionally disabled in the current MVP.</span>
+            <NoticeCard tone="info" title="Fractures recording is unavailable" ariaLabel="Fractures recording unavailable">
+              <p>The effective Fractures renderer is active for preview and performance, but capture is intentionally disabled in the current MVP.</p>
               <button type="button" className="rv-reset-btn" disabled>Recording unavailable</button>
-            </div>
+            </NoticeCard>
           ) : (
             <ReactRecordingPanel
               canvas={canvas}
