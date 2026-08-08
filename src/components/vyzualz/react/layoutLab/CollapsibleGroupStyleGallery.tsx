@@ -117,8 +117,54 @@ function AccentCardGroup() {
   )
 }
 
+// 2 — Dual rail: an even blend — Progress Rail's climbing fill and solid
+// accent mirrored on both edges, framing Master parameters' two-tone
+// header/body split
+function DualRailGroup() {
+  const [open, setOpen] = useState(true)
+  const { intensity, setIntensity, motion, setMotion, renderMode, setRenderMode, label, setLabel, autoRotate, setAutoRotate } = useGroupRowState()
+
+  return (
+    <div className={`llcg-dualtone${open ? ' is-open' : ''}`}>
+      <span className="llcg-dualtone-fill-left" aria-hidden="true" />
+      <span className="llcg-dualtone-fill-right" aria-hidden="true" />
+      <button type="button" className="llcg-dualtone-header" onClick={() => setOpen(v => !v)} aria-expanded={open}>
+        <span>Master</span>
+        <span className="llcg-dualtone-arrow" aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="llcg-dualtone-body">
+          <div className="llcg-accent-row">
+            <div className="llcg-accent-row-hdr"><span>Intensity</span><span>{intensity}%</span></div>
+            <SampleSlider value={intensity} onChange={setIntensity} />
+          </div>
+          <div className="llcg-accent-row">
+            <div className="llcg-accent-row-hdr"><span>Motion</span><span>{motion}%</span></div>
+            <SampleSlider value={motion} onChange={setMotion} />
+          </div>
+          <div className="llcg-accent-row">
+            <div className="llcg-accent-row-hdr"><span>Render Mode</span></div>
+            <SampleSelect value={renderMode} onChange={setRenderMode} options={RENDER_MODE_OPTIONS} />
+          </div>
+          <div className="llcg-accent-row">
+            <div className="llcg-accent-row-hdr"><span>Label</span></div>
+            <SampleTextInput value={label} onChange={setLabel} placeholder="DRMVYZ" />
+          </div>
+          <div className="llcg-accent-row llcg-accent-row--toggle">
+            <span>Auto Rotate</span>
+            <button type="button" className={`llcg-toggle${autoRotate ? ' is-on' : ''}`} onClick={() => setAutoRotate(v => !v)}>
+              {autoRotate ? 'On' : 'Off'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const GALLERY_ENTRIES = [
   { id: 'accent', title: '01 · Accent Card', blurb: 'Solid left accent bar, gradient wash, dot-marked header.', Group: AccentCardGroup },
+  { id: 'dualtone', title: '02 · Dual Rail', blurb: "An even blend: Progress Rail's climbing fill mirrored on both edges, framing Master parameters' two-tone header/body split.", Group: DualRailGroup },
 ]
 
 export function CollapsibleGroupStyleGallery() {

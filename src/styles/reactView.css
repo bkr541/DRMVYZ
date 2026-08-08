@@ -14628,6 +14628,104 @@
   text-align: center;
 }
 
+/* 2 — Dual rail: Progress Rail's climbing fill + solid accent mirrored on
+   both edges, framing Master parameters' two-tone header/body split. No
+   drop shadow; a lighter blue line under the header marks the split. */
+
+.llcg-dualtone {
+  position: relative;
+  border-radius: 9px;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  background: rgba(5, 10, 16, 0.55);
+  overflow: hidden;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+
+.llcg-dualtone-fill-left,
+.llcg-dualtone-fill-right {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 0%;
+  background: #4ac7db;
+  box-shadow: 0 0 10px rgba(74, 199, 219, 0.6);
+  transition: height 260ms ease;
+  pointer-events: none;
+}
+
+.llcg-dualtone-fill-left {
+  left: -1px;
+}
+
+.llcg-dualtone-fill-right {
+  right: -1px;
+}
+
+.llcg-dualtone:hover .llcg-dualtone-fill-left,
+.llcg-dualtone:hover .llcg-dualtone-fill-right {
+  height: 100%;
+}
+
+.llcg-dualtone.is-open .llcg-dualtone-fill-left,
+.llcg-dualtone.is-open .llcg-dualtone-fill-right {
+  opacity: 0;
+}
+
+.llcg-dualtone.is-open {
+  background: linear-gradient(90deg, rgba(74, 199, 219, 0.08), rgba(255, 255, 255, 0.015) 50%, rgba(74, 199, 219, 0.08));
+}
+
+.llcg-dualtone-header {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(74, 199, 219, 0.35);
+  background: rgba(255, 255, 255, 0.012);
+  cursor: pointer;
+  color: rgba(196, 207, 211, 0.58);
+  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: color 0.12s, background 0.12s;
+}
+
+.llcg-dualtone-header:hover {
+  color: rgba(245, 248, 250, 0.85);
+  background: rgba(74, 199, 219, 0.035);
+}
+
+.llcg-dualtone-header > span:first-child {
+  flex: 1;
+  text-align: left;
+}
+
+.llcg-dualtone-arrow {
+  font-size: 9px;
+  flex-shrink: 0;
+  opacity: 0.58;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease, opacity 0.12s;
+}
+
+.llcg-dualtone.is-open .llcg-dualtone-arrow {
+  transform: rotate(0deg);
+  opacity: 0.9;
+}
+
+.llcg-dualtone-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 13px 13px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
 /* ── Layout Lab / Template — Output tab renderer diagnostics mockup ───────── */
 
 .lltd-effect-card {
