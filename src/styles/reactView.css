@@ -15736,18 +15736,15 @@
   background: linear-gradient(145deg, rgba(11, 31, 36, .92), rgba(5, 14, 18, .96));
 }
 
-.rv-cinema-workspace--panel h3,
-.rv-cinema-workspace--stage h2 {
+.rv-cinema-workspace--panel h3 {
   margin: 0;
   color: #e8fbfc;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: .01em;
 }
 
-.rv-cinema-workspace--panel h3 { font-size: 13px; }
-.rv-cinema-workspace--panel p,
-.rv-cinema-workspace__lead,
-.rv-cinema-workspace__diagnostic p {
+.rv-cinema-workspace--panel p {
   margin: 0;
   color: rgba(198, 225, 229, .72);
   line-height: 1.45;
@@ -15838,47 +15835,151 @@
   height: 100%;
 }
 
-.rv-cinema-workspace__stage-card {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  width: min(760px, 100%);
-  gap: 16px;
-  padding: clamp(20px, 4vw, 36px);
-  border: 1px solid rgba(75, 216, 224, .2);
-  border-radius: 14px;
-  background: rgba(6, 18, 22, .88);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, .34);
+/* Cinema Output tab — production counterpart to Layout Lab's Template
+   Renderer Diagnostics accent-card treatment. */
+.rv-cinema-rendered-diagnostics {
+  margin-bottom: 10px;
+  overflow: hidden;
+  border-radius: 10px 0 0 10px;
+  border-right: 3px solid #4ac7db;
+  background: linear-gradient(240deg, rgba(74, 199, 219, 0.08), rgba(255, 255, 255, 0.015) 60%);
 }
 
-.rv-cinema-workspace--stage h2 { font-size: clamp(22px, 3vw, 34px); }
-.rv-cinema-workspace__lead { max-width: 66ch; font-size: 12px; }
-.rv-cinema-workspace__grid--stage { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.rv-cinema-workspace__grid--stage > div { padding: 10px; }
-.rv-cinema-workspace__grid--stage dd { font-size: 12px; }
-
-.rv-cinema-workspace__diagnostic {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 3px 8px;
-  padding-top: 2px;
-}
-.rv-cinema-workspace__diagnostic span {
-  grid-row: span 2;
-  align-self: start;
-  padding: 2px 6px;
-  border: 1px solid rgba(85, 224, 232, .2);
-  border-radius: 999px;
-  color: #64e7ec;
-  font-size: 8px;
-  font-weight: 800;
+.rv-cinema-rendered-diagnostics__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: rgba(245, 248, 250, 0.9);
+  font: 800 11px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
-.rv-cinema-workspace__diagnostic strong { color: rgba(227, 246, 248, .82); font-size: 9px; }
-.rv-cinema-workspace__diagnostic p { font-size: 9px; }
 
-@media (max-width: 900px) {
-  .rv-cinema-workspace__grid--stage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rv-cinema-rendered-diagnostics__header > span:nth-child(2) {
+  flex: 1;
+  text-align: left;
+}
+
+.rv-cinema-rendered-diagnostics__dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #4ac7db;
+  box-shadow: 0 0 8px #4ac7db;
+}
+
+.rv-cinema-rendered-diagnostics__caret {
+  display: inline-block;
+  color: rgba(196, 207, 211, 0.45);
+  font-size: 11px;
+  transition: transform 140ms ease;
+}
+
+.rv-cinema-rendered-diagnostics__caret.is-open {
+  transform: rotate(180deg);
+}
+
+.rv-cinema-rendered-diagnostics__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 14px 14px;
+}
+
+.rv-cinema-rendered-diagnostics__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(74, 199, 219, 0.22);
+  border-radius: 10px;
+  background: rgba(74, 199, 219, 0.03);
+}
+
+.rv-cinema-rendered-diagnostics__card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rv-cinema-rendered-diagnostics__card-header > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: rgba(245, 248, 250, 0.94);
+  font: 800 13px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.02em;
+}
+
+.rv-cinema-rendered-diagnostics__card-header > span:last-child {
+  flex-shrink: 0;
+  color: rgba(196, 207, 211, 0.4);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-cinema-rendered-diagnostics__description {
+  margin: 0;
+  color: #67c9db;
+  font: 500 11px/1.5 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.rv-cinema-rendered-diagnostics__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.rv-cinema-rendered-diagnostics__grid > div {
+  min-width: 0;
+}
+
+.rv-cinema-rendered-diagnostics__grid dt {
+  margin: 0 0 3px;
+  color: rgba(196, 207, 211, 0.42);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.rv-cinema-rendered-diagnostics__grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: rgba(245, 248, 250, 0.92);
+  font: 700 12px/1.25 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.rv-cinema-rendered-diagnostics__grid small {
+  display: block;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: rgba(196, 207, 211, 0.42);
+  font: 600 9px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.rv-cinema-rendered-diagnostics__runtime {
+  display: grid;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+.rv-cinema-rendered-diagnostics__runtime strong {
+  color: rgba(255, 241, 190, 0.9);
+  font: 700 10px/1.25 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.rv-cinema-rendered-diagnostics__runtime span {
+  color: rgba(196, 207, 211, 0.55);
+  font: 500 9.5px/1.45 var(--az-font-data, Inter, system-ui, sans-serif);
 }
 
 /* Cinema Composer (Stage 18) */

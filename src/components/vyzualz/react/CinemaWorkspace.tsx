@@ -10,6 +10,7 @@ import {
   type CinemaCompositionId,
   type CinemaCompositionInstance,
   type CinemaCompositionInstanceId,
+  type CinemaDiagnostic,
   type CinemaDiagnosticSnapshot,
   type CinemaExternalAssetSnapshot,
   type CinemaRuntimeSnapshot,
@@ -124,7 +125,6 @@ function runtimeStatusLabel(snapshot: CinemaRuntimeSnapshot | null): string {
   }
 }
 
-
 function diagnosticSeverityRank(severity: 'info' | 'warning' | 'error' | 'fatal'): number {
   switch (severity) {
     case 'fatal': return 3
@@ -134,20 +134,16 @@ function diagnosticSeverityRank(severity: 'info' | 'warning' | 'error' | 'fatal'
   }
 }
 
-export function CinemaWorkspace({
-  surface,
-  frameBridge = null,
-  assetSources = [],
-  onCanvasReady,
-  onLiveFps,
-}: {
-  surface: CinemaWorkspaceSurface
-  frameBridge?: CinemaWorkspaceFrameBridgeResult | null
-  assetSources?: readonly Readonly<CinemaExternalAssetSnapshot>[]
-  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
-  onLiveFps?: (fps: number) => void
-}) {
-  const [runtimeSnapshot, setRuntimeSnapshot] = useState<CinemaRuntimeSnapshot | null>(null)
+function findActionableDiagnostic(diagnostics: CinemaDiagnosticSnapshot): CinemaDiagnostic | null {
+  return [...diagnostics.diagnostics]
+    .filter(diagnostic => diagnostic.severity !== 'info')
+    .sort((left, right) => diagnosticSeverityRank(right.severity) - diagnosticSeverityRank(left.severity))[0] ?? null
+}
+
+function useCinemaWorkspaceReadModel(
+  frameBridge: CinemaWorkspaceFrameBridgeResult | null,
+  runtimeSnapshot: CinemaRuntimeSnapshot | null,
+) {
   const state = useCinemaStore(useShallow(store => ({
     activeCompositionId: store.activeCompositionId,
     activeInstanceId: store.activeInstanceId,
@@ -161,16 +157,100 @@ export function CinemaWorkspace({
     frameBridge,
     runtimeDiagnostics: runtimeSnapshot?.diagnostics,
   }), [frameBridge, runtimeSnapshot?.diagnostics, state])
+
+  return { state, model }
+}
+
+export function CinemaRenderedDiagnostics({
+  frameBridge = null,
+  runtimeSnapshot = null,
+}: {
+  frameBridge?: CinemaWorkspaceFrameBridgeResult | null
+  runtimeSnapshot?: CinemaRuntimeSnapshot | null
+}) {
+  const [open, setOpen] = useState(true)
+  const { model } = useCinemaWorkspaceReadModel(frameBridge, runtimeSnapshot)
   const compositionName = model.activeComposition?.metadata.name ?? 'None selected'
   const compositionId = model.activeComposition?.id ?? 'No composition ID'
   const instanceLabel = model.activeInstance?.label ?? 'Base composition'
-  const firstDiagnostic = [...model.diagnostics.diagnostics].sort((left, right) => (
-    diagnosticSeverityRank(right.severity) - diagnosticSeverityRank(left.severity)
-  ))[0]
+
+  return (
+    <section className={`rv-cinema-rendered-diagnostics${open ? ' is-open' : ''}`} aria-label="Rendered Diagnostics">
+      <button
+        type="button"
+        className="rv-cinema-rendered-diagnostics__header"
+        onClick={() => setOpen(value => !value)}
+        aria-expanded={open}
+      >
+        <span className="rv-cinema-rendered-diagnostics__dot" aria-hidden="true" />
+        <span>Rendered Diagnostics</span>
+        <span className={`rv-cinema-rendered-diagnostics__caret${open ? ' is-open' : ''}`} aria-hidden="true">⌄</span>
+      </button>
+      {open && (
+        <div className="rv-cinema-rendered-diagnostics__body">
+          <div className="rv-cinema-rendered-diagnostics__card">
+            <div className="rv-cinema-rendered-diagnostics__card-header">
+              <span>{compositionName}</span>
+              <span>Cinema</span>
+            </div>
+            <p className="rv-cinema-rendered-diagnostics__description">
+              Composer modulation, performance, camera, timeline, graph execution, and runtime health for the rendered Cinema output.
+            </p>
+            <dl className="rv-cinema-rendered-diagnostics__grid">
+              <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>
+              <div><dt>Active instance</dt><dd>{instanceLabel}</dd><small>{model.instanceCount} saved instance{model.instanceCount === 1 ? '' : 's'}</small></div>
+              <div><dt>Runtime</dt><dd>{runtimeStatusLabel(runtimeSnapshot)}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.viewport.width} × ${runtimeSnapshot.viewport.height}` : 'Preparing canvas'}</small></div>
+              <div><dt>Graph</dt><dd>{runtimeSnapshot?.graph.outputRendered ? 'Output rendered' : 'Safe output'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.initializedNodeCount}/${runtimeSnapshot.graph.activeNodeCount} nodes ready` : 'Compiling'}</small></div>
+              <div><dt>Performance</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.graph.activePerformanceRuleCount}/${runtimeSnapshot.graph.performanceRuleCount} rules active` : 'Preparing'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.activePerformanceTransientCount} timed overrides` : 'No runtime snapshot'}</small></div>
+              <div><dt>Quality</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.graph.quality.selectedTier} · ${runtimeSnapshot.graph.quality.pressure}` : 'High · nominal'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.quality.degradedNodeCount} degraded · ${runtimeSnapshot.graph.quality.skippedNodeCount} skipped` : 'Graph budget pending'}</small></div>
+              <div><dt>GPU budget</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.telemetry.targets.estimatedAllocationMemoryMb.toFixed(1)} MB targets` : 'Preparing'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.telemetry.targets.totalAllocationCount} allocations · ${runtimeSnapshot.telemetry.frameTime.averageMs.toFixed(2)} ms avg render` : 'No telemetry snapshot'}</small></div>
+              <div><dt>Recovery</dt><dd>{runtimeSnapshot?.telemetry.context.lastRecoveryStatus ?? 'none'}</dd><small>{runtimeSnapshot ? `Context generation ${runtimeSnapshot.contextGeneration}` : 'Context not initialized'}</small></div>
+              <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd><small>{model.statusLabel}</small></div>
+              <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? 'Normalized' : 'Unavailable'}</dd><small>{model.frameTrackId ?? 'No active track'}</small></div>
+            </dl>
+            <div className="rv-cinema-rendered-diagnostics__runtime" role="status" aria-live="polite">
+              <strong>{runtimeSnapshot?.phase === 'unavailable' ? 'Safe output only' : 'Cinema runtime owns the stage'}</strong>
+              <span>Quality decisions, frame-time samples, target pressure, diagnostics history, recovery events, decoded media, and GPU resources remain runtime-only. Transparent or disabled nodes can stop consuming render work without rewriting authored state.</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function CinemaWorkspace({
+  surface,
+  frameBridge = null,
+  assetSources = [],
+  runtimeSnapshot: controlledRuntimeSnapshot,
+  onCanvasReady,
+  onLiveFps,
+  onRuntimeSnapshot,
+}: {
+  surface: CinemaWorkspaceSurface
+  frameBridge?: CinemaWorkspaceFrameBridgeResult | null
+  assetSources?: readonly Readonly<CinemaExternalAssetSnapshot>[]
+  runtimeSnapshot?: CinemaRuntimeSnapshot | null
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  onLiveFps?: (fps: number) => void
+  onRuntimeSnapshot?: (snapshot: CinemaRuntimeSnapshot) => void
+}) {
+  const [localRuntimeSnapshot, setLocalRuntimeSnapshot] = useState<CinemaRuntimeSnapshot | null>(null)
+  const runtimeSnapshot = controlledRuntimeSnapshot === undefined ? localRuntimeSnapshot : controlledRuntimeSnapshot
+  const { state, model } = useCinemaWorkspaceReadModel(frameBridge, runtimeSnapshot)
+  const compositionName = model.activeComposition?.metadata.name ?? 'None selected'
+  const actionableDiagnostic = findActionableDiagnostic(model.diagnostics)
 
   if (surface === 'panel') {
     return (
       <section className="rv-cinema-workspace rv-cinema-workspace--panel" aria-label="Cinema runtime setup">
+        {actionableDiagnostic && (
+          <div className="rv-cinema-workspace__runtime" role="note" aria-live="polite">
+            <strong>{actionableDiagnostic.code}</strong>
+            <span>{actionableDiagnostic.message}</span>
+          </div>
+        )}
         <div className="rv-cinema-workspace__eyebrow">Cinema Runtime</div>
         <h3>{model.statusLabel}</h3>
         <p>Canonical composition state and the single-owner WebGL2 foundation are connected through the production engine path.</p>
@@ -212,38 +292,11 @@ export function CinemaWorkspace({
         assetSources={assetSources}
         onCanvasReady={onCanvasReady}
         onLiveFps={onLiveFps}
-        onRuntimeSnapshot={setRuntimeSnapshot}
+        onRuntimeSnapshot={(snapshot) => {
+          if (controlledRuntimeSnapshot === undefined) setLocalRuntimeSnapshot(snapshot)
+          onRuntimeSnapshot?.(snapshot)
+        }}
       />
-      <div className="rv-cinema-workspace__stage-card">
-        <div className="rv-cinema-workspace__eyebrow">Cinema · Stage 19</div>
-        <h2>Composer modulation, performance, camera, and timeline</h2>
-        <p className="rv-cinema-workspace__lead">
-          Cinema now adds structured modulation, performance choreography, camera direction, and authoritative musical/lyric timing to the same graph-backed Composer while preserving single-runtime ownership, quality, diagnostics, and context recovery.
-        </p>
-        <dl className="rv-cinema-workspace__grid rv-cinema-workspace__grid--stage">
-          <div><dt>Active composition</dt><dd>{compositionName}</dd><small>{compositionId}</small></div>
-          <div><dt>Active instance</dt><dd>{instanceLabel}</dd><small>{model.instanceCount} saved instance{model.instanceCount === 1 ? '' : 's'}</small></div>
-          <div><dt>Runtime</dt><dd>{runtimeStatusLabel(runtimeSnapshot)}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.viewport.width} × ${runtimeSnapshot.viewport.height}` : 'Preparing canvas'}</small></div>
-          <div><dt>Graph</dt><dd>{runtimeSnapshot?.graph.outputRendered ? 'Output rendered' : 'Safe output'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.initializedNodeCount}/${runtimeSnapshot.graph.activeNodeCount} nodes ready` : 'Compiling'}</small></div>
-          <div><dt>Performance</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.graph.activePerformanceRuleCount}/${runtimeSnapshot.graph.performanceRuleCount} rules active` : 'Preparing'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.activePerformanceTransientCount} timed overrides` : 'No runtime snapshot'}</small></div>
-          <div><dt>Quality</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.graph.quality.selectedTier} · ${runtimeSnapshot.graph.quality.pressure}` : 'High · nominal'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.graph.quality.degradedNodeCount} degraded · ${runtimeSnapshot.graph.quality.skippedNodeCount} skipped` : 'Graph budget pending'}</small></div>
-          <div><dt>GPU budget</dt><dd>{runtimeSnapshot ? `${runtimeSnapshot.telemetry.targets.estimatedAllocationMemoryMb.toFixed(1)} MB targets` : 'Preparing'}</dd><small>{runtimeSnapshot ? `${runtimeSnapshot.telemetry.targets.totalAllocationCount} allocations · ${runtimeSnapshot.telemetry.frameTime.averageMs.toFixed(2)} ms avg render` : 'No telemetry snapshot'}</small></div>
-          <div><dt>Recovery</dt><dd>{runtimeSnapshot?.telemetry.context.lastRecoveryStatus ?? 'none'}</dd><small>{runtimeSnapshot ? `Context generation ${runtimeSnapshot.contextGeneration}` : 'Context not initialized'}</small></div>
-          <div><dt>Diagnostics</dt><dd>{diagnosticSummary(model.diagnostics)}</dd><small>{model.statusLabel}</small></div>
-          <div><dt>Frame bridge</dt><dd>{model.frameAvailable ? 'Normalized' : 'Unavailable'}</dd><small>{model.frameTrackId ?? 'No active track'}</small></div>
-        </dl>
-        <div className="rv-cinema-workspace__runtime" role="status" aria-live="polite">
-          <strong>{runtimeSnapshot?.phase === 'unavailable' ? 'Safe output only' : 'Cinema runtime owns the stage'}</strong>
-          <span>Quality decisions, frame-time samples, target pressure, diagnostics history, recovery events, decoded media, and GPU resources remain runtime-only. Transparent or disabled nodes can stop consuming render work without rewriting authored state, while legacy engines retain their standalone ownership.</span>
-        </div>
-        {firstDiagnostic && (
-          <div className="rv-cinema-workspace__diagnostic" role="note">
-            <span>{firstDiagnostic.severity}</span>
-            <strong>{firstDiagnostic.code}</strong>
-            <p>{firstDiagnostic.message}</p>
-          </div>
-        )}
-      </div>
     </section>
   )
 }

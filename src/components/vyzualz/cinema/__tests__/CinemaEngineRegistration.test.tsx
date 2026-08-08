@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
 import { ReactEngineBrowser } from '../../react/ReactEngineBrowser'
-import { CinemaWorkspace, resolveCinemaWorkspaceModel } from '../../react/CinemaWorkspace'
+import { CinemaRenderedDiagnostics, CinemaWorkspace, resolveCinemaWorkspaceModel } from '../../react/CinemaWorkspace'
 import { ReactInspectorPanel } from '../../react/ReactInspectorPanel'
 import { CinemaResizeObserverMock, createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 import { buildCinemaWorkspaceFrameBridge } from '../../react/CinemaWorkspaceFrameBridge'
@@ -168,6 +168,7 @@ describe('Cinema production engine registration', () => {
     await act(async () => runtimeFrame[1](16.67))
     expect(gl.__calls.drawCount).toBe(2)
     expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+    expect(host?.querySelector('.rv-cinema-workspace__stage-card')).toBeNull()
 
     const trigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
     expect(trigger).not.toBeNull()
@@ -203,6 +204,16 @@ describe('Cinema production engine registration', () => {
     expect(useCinemaStore.getState().activeCompositionId).toBe(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
     expect(host?.textContent).toContain('Cinema Layer Compositor Reference')
     expect(host?.textContent).toContain('Stage 19 Composer authoring wired to canonical Cinema state')
+  })
+
+  it('exposes the moved runtime summary through the compact Rendered Diagnostics group', async () => {
+    await act(async () => root?.render(
+      <CinemaRenderedDiagnostics frameBridge={productionFrameBridge} runtimeSnapshot={null} />,
+    ))
+
+    expect(host?.textContent).toContain('Rendered Diagnostics')
+    expect(host?.textContent).toContain('Active composition')
+    expect(host?.textContent).toContain('Cinema runtime owns the stage')
   })
 
   it('enters the real Cinema workspace from the engine selector and mutates canonical Composer state', async () => {

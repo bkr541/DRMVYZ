@@ -6,6 +6,9 @@ import { ReactInspectorPanel } from '../ReactInspectorPanel'
 import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ReactRecordingPanel } from '../ReactRecordingPanel'
+import { CinemaRenderedDiagnostics } from '../CinemaWorkspace'
+import type { CinemaWorkspaceFrameBridgeResult } from '../CinemaWorkspaceFrameBridge'
+import type { CinemaRuntimeSnapshot } from '../../cinema'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
 import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
@@ -149,6 +152,8 @@ interface ReactOutputWorkspacePanelProps {
   liveFps: number
   hasActiveProgramAudio: boolean
   onStartRecording: (canvas: HTMLCanvasElement) => void
+  cinemaFrameBridge?: CinemaWorkspaceFrameBridgeResult | null
+  cinemaRuntimeSnapshot?: CinemaRuntimeSnapshot | null
 }
 
 export function ReactOutputWorkspacePanel({
@@ -158,9 +163,12 @@ export function ReactOutputWorkspacePanel({
   liveFps,
   hasActiveProgramAudio,
   onStartRecording,
+  cinemaFrameBridge = null,
+  cinemaRuntimeSnapshot = null,
 }: ReactOutputWorkspacePanelProps) {
   const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
   const isLaserDmx = activeReactEngineId === 'laserDmx'
+  const isCinema = activeReactEngineId === 'cinema'
   const fracturesOutputDeferred = isCanvasFracturesOutputDeferred(outputCapability)
   const [surface, setSurface] = useState<OutputSurface>('recording')
 
@@ -181,6 +189,12 @@ export function ReactOutputWorkspacePanel({
       />
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
+          {isCinema && (
+            <CinemaRenderedDiagnostics
+              frameBridge={cinemaFrameBridge}
+              runtimeSnapshot={cinemaRuntimeSnapshot}
+            />
+          )}
           {surface === 'production' && isLaserDmx ? (
             <div className="rv-ctrl-group"><ProductionOutputPanel /></div>
           ) : fracturesOutputDeferred ? (

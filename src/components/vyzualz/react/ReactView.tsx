@@ -48,7 +48,7 @@ import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
-import type { CinemaFrameBuilderState } from '../cinema'
+import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
 import { useCinemaLegacyRetirement } from './useCinemaLegacyRetirement'
@@ -376,11 +376,15 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setPixGridOutputCanvas(canvas)
   }, [])
   const [liveFps, setLiveFps]           = useState(0)
+  const [cinemaRuntimeSnapshot, setCinemaRuntimeSnapshot] = useState<CinemaRuntimeSnapshot | null>(null)
 
   // Engine swaps are semantic diagnostics boundaries. Clear immediately rather
   // than showing the previous renderer's FPS until the new renderer samples.
   useEffect(() => {
     setLiveFps(0)
+    if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) {
+      setCinemaRuntimeSnapshot(null)
+    }
   }, [activeReactEngineId])
   useEffect(() => {
     if (activeReactEngineId !== 'pixGrid') {
@@ -796,7 +800,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               </div>
               <div className="rv-left-tab-body">
                 <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
-                  {leftTab === 'workspace' && <ReactEnginePanel cinemaFrameBridge={cinemaFrameBridge} />}
+                  {leftTab === 'workspace' && (
+                    <ReactEnginePanel
+                      cinemaFrameBridge={cinemaFrameBridge}
+                      cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
+                    />
+                  )}
                   {leftTab === 'media' && (
                     <MediaDeckPanel
                       mode={mediaSourceCapability === 'pixGridStill' ? 'pixGrid' : 'react'}
@@ -832,6 +841,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 surface="stage"
                 frameBridge={cinemaFrameBridge}
                 assetSources={cinemaAssetSources}
+                runtimeSnapshot={cinemaRuntimeSnapshot}
+                onRuntimeSnapshot={setCinemaRuntimeSnapshot}
                 onCanvasReady={setOutputCanvas}
                 onLiveFps={setLiveFps}
               />
@@ -1075,6 +1086,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 liveFps={liveFps}
                 hasActiveProgramAudio={hasActiveProgramAudio}
                 onStartRecording={handleStartRecording}
+                cinemaFrameBridge={cinemaFrameBridge}
+                cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
               />
             )}
           </div>
