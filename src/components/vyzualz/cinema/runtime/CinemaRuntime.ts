@@ -68,6 +68,8 @@ export type CinemaRuntimeCreateResult =
  * diagnostics, hardened context recovery, Cinema-owned targets, one authorized
  * output node, and the existing single-context/single-loop lifecycle.
  */
+const CINEMA_RUNTIME_SNAPSHOT_INTERVAL_MS = 250
+
 export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   static create(canvas: HTMLCanvasElement, options: CinemaRuntimeCreateOptions = {}): CinemaRuntimeCreateResult {
     let gl: WebGL2RenderingContext | null = null
@@ -136,6 +138,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   }
   private fpsFrameCount = 0
   private fpsWindowStartedMs = 0
+  private lastFrameDrivenSnapshotMs = Number.NEGATIVE_INFINITY
 
   private constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -161,7 +164,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       platform: this.capabilities, targets: this.targets, textures: this.textures, assetManager: this.assets, webgl: this.webgl, diagnostics: this,
       onSnapshot: snapshot => {
         this.graphSnapshot = snapshot
-        if (!this.disposed) this.emitSnapshot()
+        if (!this.disposed) this.emitFrameDrivenSnapshot()
       },
     })
     this.contextDiagnosticHandle = registerDrmvyzWebGLContext(gl, {
@@ -453,6 +456,13 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     if (this.animationFrameId === 0) return
     this.cancelFrame(this.animationFrameId)
     this.animationFrameId = 0
+  }
+
+  private emitFrameDrivenSnapshot(): void {
+    const nowMs = performance.now()
+    if (nowMs - this.lastFrameDrivenSnapshotMs < CINEMA_RUNTIME_SNAPSHOT_INTERVAL_MS) return
+    this.lastFrameDrivenSnapshotMs = nowMs
+    this.emitSnapshot()
   }
 
   private emitSnapshot(): void {

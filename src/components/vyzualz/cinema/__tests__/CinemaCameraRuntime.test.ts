@@ -15,6 +15,7 @@ import type { CinemaCameraId, CinemaCompositionInstanceId } from '../CinemaIdent
 import { createCinemaParameterPath } from '../CinemaIdentifiers'
 import type { CinemaFrameContext } from '../CinemaRendererContracts'
 import { validateCinemaNodeRegistryEntry } from '../CinemaNodeRegistry'
+import { validateCinemaParameterSchemas } from '../CinemaParameterSchema'
 
 const CAMERA_ID = 'shared-camera' as CinemaCameraId
 
@@ -181,6 +182,16 @@ describe('CinemaCameraRuntime', () => {
     })
 
     expect(diagnostics.some(diagnostic => diagnostic.code === 'CINEMA_CAMERA_CAPABILITY_MISMATCH')).toBe(true)
+  })
+
+  it('keeps look-at targets independent from camera-body safe-distance bounds', () => {
+    const schemas = createCinemaCameraParameterSchemaMap(composition())[CAMERA_ID]
+    const target = schemas.find(schema => schema.id === CINEMA_CAMERA_PARAMETER_IDS.target)
+
+    expect(target).toMatchObject({ type: 'vector3', default: [0, 0, 0] })
+    expect(target && 'min' in target ? target.min : undefined).toBeUndefined()
+    expect(target && 'max' in target ? target.max : undefined).toBeUndefined()
+    expect(validateCinemaParameterSchemas(schemas, { owner: 'camera' })).toEqual([])
   })
 
   it('registers stable camera schemas and consumes resolved transient parameter values', () => {

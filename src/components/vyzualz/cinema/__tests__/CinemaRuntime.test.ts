@@ -132,6 +132,53 @@ describe('CinemaRuntime', () => {
     expect(getDrmvyzWebGLContextDiagnosticsForTests().activeCount).toBe(0)
   })
 
+  it('throttles frame-driven runtime snapshots instead of pushing React telemetry every animation frame', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? gl : null
+    ) as RenderingContext | null)
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    })
+    const snapshots: number[] = []
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: requestFrame,
+      cancelAnimationFrame: id => { callbacks.delete(id) },
+      onSnapshot: snapshot => snapshots.push(snapshot.frameCount),
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    const runNextFrame = (timestamp: number) => {
+      const next = [...callbacks.entries()][0]
+      expect(next).toBeDefined()
+      if (!next) return
+      callbacks.delete(next[0])
+      next[1](timestamp)
+    }
+
+    runtime.start()
+    expect(snapshots).toHaveLength(1)
+    runNextFrame(16.67)
+    expect(snapshots).toHaveLength(2)
+
+    for (let index = 0; index < 8; index += 1) runNextFrame(33.34 + index * 16.67)
+    expect(snapshots).toHaveLength(2)
+
+    now.mockReturnValue(300)
+    runNextFrame(200)
+    expect(snapshots).toHaveLength(3)
+
+    runtime.dispose()
+  })
+
   it('keeps Window as the receiver for native animation-frame scheduling', () => {
     const canvas = document.createElement('canvas')
     const gl = createCinemaMockWebGL()
@@ -400,7 +447,6 @@ describe('CinemaRuntime', () => {
 
     runtime.dispose()
   })
-
 
 
   it('executes the persisted foundation graph through registered nodes and one output', () => {

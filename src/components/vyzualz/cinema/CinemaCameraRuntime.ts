@@ -180,7 +180,11 @@ export function createCinemaCameraParameterSchemas(
   const schemas: CinemaParameterDefinition[] = [
     vectorSchema('position', 'Position', vector3Value(values[CINEMA_CAMERA_PARAMETER_IDS.position], [0, 0, 2]), safeRange.minPosition, safeRange.maxPosition),
     vectorSchema('rotation', 'Rotation', vector3Value(values[CINEMA_CAMERA_PARAMETER_IDS.rotation], [0, 0, 0]), [-Math.PI * 4, -Math.PI * 4, -Math.PI * 4], [Math.PI * 4, Math.PI * 4, Math.PI * 4]),
-    vectorSchema('target', 'Target', vector3Value(values[CINEMA_CAMERA_PARAMETER_IDS.target], [0, 0, 0]), safeRange.minPosition, safeRange.maxPosition),
+    // A camera's safe position range describes where the camera body may travel. It must
+    // not be reused as the look-at target range: Cinematic Worlds intentionally look at
+    // the world origin while the camera itself stays a positive distance away from it.
+    // Applying minPosition.z to target.z makes the canonical [0, 0, 0] target invalid.
+    vectorSchema('target', 'Target', vector3Value(values[CINEMA_CAMERA_PARAMETER_IDS.target], [0, 0, 0])),
     floatSchema('fovDegrees', 'Field of View', numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.fovDegrees], 58), safeRange.minFovDegrees, safeRange.maxFovDegrees, 0.1, 'degrees'),
     floatSchema('rollRadians', 'Roll', numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.rollRadians], 0), -Math.PI * 4, Math.PI * 4, 0.001, 'radians'),
     floatSchema('near', 'Near Plane', numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.near], 0.1), safeRange.minNear, Math.max(safeRange.minNear, maximumFar - 0.001), 0.001),
@@ -261,8 +265,8 @@ function vectorSchema(
   key: 'position' | 'rotation' | 'target',
   label: string,
   defaultValue: CinemaVector3,
-  min: CinemaVector3,
-  max: CinemaVector3,
+  min?: CinemaVector3,
+  max?: CinemaVector3,
 ): CinemaParameterDefinition {
   return {
     id: CINEMA_CAMERA_PARAMETER_IDS[key],
@@ -270,8 +274,8 @@ function vectorSchema(
     group: 'Camera',
     type: 'vector3',
     default: freezeVector(defaultValue),
-    min: freezeVector(min),
-    max: freezeVector(max),
+    ...(min ? { min: freezeVector(min) } : {}),
+    ...(max ? { max: freezeVector(max) } : {}),
     step: Object.freeze([0.01, 0.01, 0.01] as const),
     modulatable: true,
     ui: { control: 'vector' },

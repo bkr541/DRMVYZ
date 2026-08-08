@@ -4,6 +4,7 @@ import {
   CINEMA_LEGACY_PRESET_CATALOG_VERSION,
   cinemaCinematicWorldParameterId,
   compileCinemaCompositionGraph,
+  createCinemaCameraParameterSchemaMap,
   createCinemaComposerComposition,
   createCinemaDefinitionRegistryFromPersisted,
   createCinemaFoundationPersistedState,
@@ -12,6 +13,7 @@ import {
   cinemaStableId,
   reconcileCinemaBuiltInState,
   validateCinemaCompositionGraph,
+  validateCinemaParameterSchemas,
 } from '..'
 import { DEFAULT_REACT_PRESETS } from '../../react/ReactTypes'
 import { REACT_ENGINE_CATALOG, isSelectableReactEngineId } from '../../react/reactEngineCatalog'
@@ -52,6 +54,19 @@ describe('Cinema Stage 21 legacy preset catalog', () => {
       const compilation = compileCinemaCompositionGraph(composition, registry)
       expect(compilation.ok, `${entry.legacySourceId}: ${compilation.diagnostics.diagnostics.map(item => item.message).join('; ')}`).toBe(true)
       expect(compilation.plan?.output.nodeId).toBe(composition.outputNodeId)
+    }
+  })
+
+  it('publishes valid shared-camera parameter schemas for every migrated Cinematic Worlds preset', () => {
+    for (const composition of CINEMA_LEGACY_PRESET_CATALOG.compositions) {
+      const schemasByCamera = createCinemaCameraParameterSchemaMap(composition)
+      for (const camera of composition.cameras) {
+        const diagnostics = validateCinemaParameterSchemas(schemasByCamera[camera.id] ?? [], { owner: 'camera' })
+        expect(
+          diagnostics.filter(item => item.severity === 'error' || item.severity === 'fatal'),
+          `${composition.metadata.name} / ${camera.label}: ${diagnostics.map(item => item.message).join('; ')}`,
+        ).toEqual([])
+      }
     }
   })
 
