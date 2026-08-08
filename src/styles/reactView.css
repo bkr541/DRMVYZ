@@ -5015,6 +5015,62 @@
   text-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
 }
 
+/* Cinema's HOME / LAYERS / LIBRARY left tabs read like the main top-level
+   tabs (PRESETS/DESIGN/REACT/OUTPUT) instead of every other engine's
+   nested marker+pipe treatment above: full-width, evenly spaced, sliding
+   underline, larger type. These compound overrides beat the nested-tab
+   rules since they add the extra .rv-cinema-workspace-tabs class. */
+.rv-context-workspace-tabs.rv-cinema-workspace-tabs.dv-underline-tabs {
+  justify-content: space-between;
+  gap: 22px;
+  padding: 6px 7px 10px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.16);
+}
+
+.rv-context-workspace-tabs.rv-cinema-workspace-tabs .dv-underline-tab {
+  display: block;
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  margin-left: 0;
+}
+
+.rv-context-workspace-tabs.rv-cinema-workspace-tabs .dv-underline-tab:not(:first-child)::before {
+  content: none;
+}
+
+.rv-context-workspace-tabs.rv-cinema-workspace-tabs .dv-underline-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: #4ac7db;
+  box-shadow: 0 0 8px rgba(74, 199, 219, 0.6);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rv-context-workspace-tabs.rv-cinema-workspace-tabs .dv-underline-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  width: auto;
+  border-radius: 999px;
+  background: #4ac7db;
+  box-shadow: 0 0 8px rgba(74, 199, 219, 0.6);
+  color: transparent;
+  text-shadow: none;
+  font-size: 0;
+  transform: scaleX(1);
+}
+
 /* Explicit Sound Drawing help anchors mirror the highlighted control bounds
    without adding columns, padding, or interactive space to the controls. */
 .rv-workspace-tabs-wrap,
@@ -15745,6 +15801,250 @@
 .lln-flag-text {
   color: rgba(196, 207, 211, 0.55);
   font: 500 9.5px/1.45 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+/* ── Notifications Modal Mockup (Layout Lab / Template) ───────────────────── */
+
+.llnm-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px 16px 32px;
+}
+
+.llnm-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.llnm-engine-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.llnm-engine-picker button {
+  padding: 5px 10px;
+  border: 1px solid rgba(154, 178, 188, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.6);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 130ms ease, border-color 130ms ease, background 130ms ease;
+}
+
+.llnm-engine-picker button:hover {
+  color: rgba(232, 244, 248, 0.85);
+  border-color: rgba(74, 199, 219, 0.35);
+}
+
+.llnm-engine-picker button.is-active {
+  color: #67f7ff;
+  border-color: rgba(103, 247, 255, 0.55);
+  background: rgba(74, 199, 219, 0.1);
+}
+
+.llnm-trigger-row {
+  display: flex;
+}
+
+.llnm-bell {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(232, 244, 248, 0.8);
+  cursor: pointer;
+}
+
+.llnm-bell svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.llnm-bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #d8b95a;
+  color: #17130a;
+  font: 800 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.llnm-panel {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(74, 199, 219, 0.2);
+  border-radius: 12px;
+  background: rgba(6, 12, 17, 0.98);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.llnm-panel-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+.llnm-panel-engine-icon {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(74, 199, 219, 0.35);
+  background: rgba(74, 199, 219, 0.1);
+  color: #67f7ff;
+  font-size: 11px;
+}
+
+.llnm-panel-title {
+  flex: 1;
+  color: rgba(232, 244, 248, 0.92);
+  font: 800 11px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.llnm-mark-read {
+  border: 0;
+  background: transparent;
+  color: #67f7ff;
+  font: 700 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+
+.llnm-tabs {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+.llnm-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 9px;
+  border: 0;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.5);
+  font: 700 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  position: relative;
+}
+
+.llnm-tabs button::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: #4ac7db;
+  transform: scaleX(0);
+  transition: transform 160ms ease;
+}
+
+.llnm-tabs button.is-active {
+  color: #8ef4ff;
+}
+
+.llnm-tabs button.is-active::after {
+  transform: scaleX(1);
+}
+
+.llnm-tab-count {
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(196, 207, 211, 0.14);
+  color: rgba(232, 244, 248, 0.7);
+  font-size: 8.5px;
+}
+
+.llnm-tab-count--warn {
+  background: rgba(216, 185, 90, 0.22);
+  color: #f2d999;
+}
+
+.llnm-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.llnm-list-empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: rgba(196, 207, 211, 0.4);
+  font: 500 9.5px/1.4 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+/* Notification items are the real, reusable NoticeCard (Inline Flag)
+   component — this only adds list-row spacing around it, everything else
+   (accent line, icon, title, body typography) comes from .dv-notice*. */
+.dv-notice.llnm-item {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.08);
+}
+
+.llnm-item-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #67f7ff;
+  box-shadow: 0 0 6px rgba(103, 247, 255, 0.7);
+  vertical-align: middle;
+}
+
+.llnm-item-meta {
+  display: block;
+  color: rgba(196, 207, 211, 0.35);
+  font: 600 8.5px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.02em;
+}
+
+.llnm-view-all {
+  padding: 11px;
+  border: 0;
+  border-top: 1px solid rgba(154, 178, 188, 0.14);
+  background: rgba(74, 199, 219, 0.05);
+  color: #67f7ff;
+  font: 800 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */

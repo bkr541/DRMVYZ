@@ -98,7 +98,7 @@ describe('React workspace composition', () => {
 
     const cinema = resolveReactWorkspaceComposition('cinema', 'beamMatrix', false)
     expect(getReactLeftTabs(cinema)).toEqual(['workspace', 'layers', 'library'])
-    expect(getReactLeftTabLabel('workspace', cinema)).toBe('SETUP')
+    expect(getReactLeftTabLabel('workspace', cinema)).toBe('HOME')
     expect(getReactLeftTabLabel('layers', cinema)).toBe('LAYERS')
     expect(getReactLeftTabLabel('library', cinema)).toBe('LIBRARY')
 

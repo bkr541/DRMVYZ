@@ -774,7 +774,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   activeTab={leftTab}
                   onChange={setLeftTab}
                   ariaLabel={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace tabs`}
-                  className="rv-context-workspace-tabs"
+                  className={`rv-context-workspace-tabs${activeReactEngineId === 'cinema' ? ' rv-cinema-workspace-tabs' : ''}`}
                   variant="underline"
                 />
                 {activeReactEngineId === 'oscilloscope' && (

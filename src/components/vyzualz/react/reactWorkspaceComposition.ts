@@ -3,7 +3,7 @@ import type { ReactEngineId } from './ReactTypes'
 export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'library' | 'fonts'
 export type ReactLowerSurface = 'trackMap' | 'soundDrawing' | 'performancePads'
 export type ReactPresetSurface = 'enginePresets' | 'shaderScenes'
-export type ReactWorkspaceTabLabel = 'SETUP' | 'SOURCE' | 'RIG' | 'LAYOUT'
+export type ReactWorkspaceTabLabel = 'SETUP' | 'SOURCE' | 'RIG' | 'LAYOUT' | 'HOME'
 
 const REACT_LOWER_SURFACE_LABELS: Record<ReactLowerSurface, string> = {
   trackMap: 'Track Map',
@@ -45,7 +45,7 @@ export function resolveReactWorkspaceComposition(
 
   if (isCinema) {
     leftTabs = ['workspace', 'layers', 'library']
-    workspaceTabLabel = 'SETUP'
+    workspaceTabLabel = 'HOME'
   } else if (isCinematic) {
     // Cinematic Worlds chooses its World in the left source rail while preset
     // cards remain in the right rail. It does not consume generic media.

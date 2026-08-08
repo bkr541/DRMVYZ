@@ -9,6 +9,7 @@ import { ToggleStyleGallery } from './layoutLab/ToggleStyleGallery'
 import { TabStyleGallery } from './layoutLab/TabStyleGallery'
 import { EngineDropdownStyleGallery } from './layoutLab/EngineDropdownStyleGallery'
 import { NoticeStyleGallery } from './layoutLab/NoticeStyleGallery'
+import { NotificationsModalMockup } from './layoutLab/NotificationsModalMockup'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
@@ -236,6 +237,7 @@ export function LayoutLabMockup() {
                       <TabStyleGallery />
                       <EngineDropdownStyleGallery />
                       <NoticeStyleGallery />
+                      <NotificationsModalMockup />
                     </div>
                   </div>
                 )}
