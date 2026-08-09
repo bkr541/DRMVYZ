@@ -122,6 +122,21 @@ const fixture = vi.hoisted(() => ({
     undoLaserDmxShowManagerEdit: vi.fn(),
     redoLaserDmxShowManagerEdit: vi.fn(),
     saveLaserDmxShowManagerShow: vi.fn(async () => true),
+    canvasShowManagerShows: [],
+    canvasShowManagerActiveShowId: null as string | null,
+    canvasShowManagerEditingShowId: null as string | null,
+    canvasShowManagerEditingSectionId: null as string | null,
+    canvasShowManagerUndoStack: [] as unknown[],
+    canvasShowManagerRedoStack: [] as unknown[],
+    createCanvasShowManagerShow: vi.fn(() => 'canvas-show-1' as string | null),
+    selectCanvasShowManagerShow: vi.fn(),
+    selectCanvasShowManagerSection: vi.fn(),
+    renameCanvasShowManagerShow: vi.fn(() => true),
+    updateCanvasShowManagerSectionDuration: vi.fn(),
+    deleteCanvasShowManagerShow: vi.fn(() => true),
+    undoCanvasShowManagerEdit: vi.fn(),
+    redoCanvasShowManagerEdit: vi.fn(),
+    saveCanvasShowManagerShow: vi.fn(async () => true),
     pixGridState: {
       matrixWidth: 160,
       matrixHeight: 90,
@@ -266,6 +281,9 @@ afterEach(() => {
   fixture.state.undoLaserDmxShowManagerEdit.mockClear()
   fixture.state.redoLaserDmxShowManagerEdit.mockClear()
   fixture.state.saveLaserDmxShowManagerShow.mockClear()
+  fixture.state.createCanvasShowManagerShow.mockClear()
+  fixture.state.selectCanvasShowManagerShow.mockClear()
+  fixture.state.saveCanvasShowManagerShow.mockClear()
   fixture.audio.isPlaying = false
   if (root) act(() => root?.unmount())
   container?.remove()
@@ -274,7 +292,7 @@ afterEach(() => {
 })
 
 describe('ShowManagerView production shell', () => {
-  it('uses the shared dropdown in the left rail and enables only the Stage 1 production engines', async () => {
+  it('uses the shared dropdown in the left rail and enables the production Show Manager engines', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -297,14 +315,57 @@ describe('ShowManagerView production shell', () => {
 
     const engineMenu = document.body.querySelector('.drm-dropdown__menu[role="listbox"]')
     const options = [...(engineMenu?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
-    expect(options).toHaveLength(6)
+    expect(options).toHaveLength(5)
     expect(options.find(option => option.textContent?.includes('PixGrid'))?.getAttribute('aria-disabled')).toBeNull()
     expect(options.find(option => option.textContent?.includes('LaserDMX'))?.getAttribute('aria-disabled')).toBeNull()
-    expect(options.filter(option => !option.textContent?.includes('PixGrid') && !option.textContent?.includes('LaserDMX'))
+    expect(options.find(option => option.textContent?.includes('CANVAS'))?.getAttribute('aria-disabled')).toBeNull()
+    expect(options.filter(option => !option.textContent?.includes('PixGrid')
+      && !option.textContent?.includes('LaserDMX')
+      && !option.textContent?.includes('CANVAS'))
       .every(option => option.getAttribute('aria-disabled') === 'true')).toBe(true)
     expect(container.querySelector('[data-testid="pix-grid-surface"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="pix-grid-design-panel"]')?.getAttribute('data-grouped')).toBe('true')
     expect(container.querySelector('[aria-label="Show Manager track map preview"]')).not.toBeNull()
+  })
+
+  it('enters Canvas through the production engine selector and requests only a Show name', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+    const engineMenu = document.body.querySelector('.drm-dropdown__menu[role="listbox"]')
+    const canvasOption = [...(engineMenu?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
+      .find(option => option.textContent?.includes('CANVAS'))
+    await act(async () => {
+      canvasOption?.click()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('[data-testid="canvas-show-manager-empty-state"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Show Manager Canvas section timeline"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="pix-grid-surface"]')).toBeNull()
+
+    const newShowButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent === 'New Show')
+    await act(async () => {
+      newShowButton?.click()
+      await Promise.resolve()
+    })
+    const dialog = container.querySelector<HTMLElement>('[role="dialog"]')
+    expect(dialog?.textContent).toContain('New Canvas Show')
+    expect(dialog?.querySelector('input#canvas-new-show-name')).not.toBeNull()
+    expect(dialog?.querySelectorAll('input')).toHaveLength(1)
+    expect(dialog?.querySelector('input[type="file"]')).toBeNull()
+    expect(dialog?.textContent).toContain('Media is added afterward')
   })
 
   it('enters the production LaserDMX path with no audio and exposes the canonical seven Show-owned sections', async () => {

@@ -1342,3 +1342,133 @@
   border-color: rgba(255, 118, 132, 0.58);
   background: rgba(255, 72, 92, 0.12);
 }
+
+/* Canvas Show Manager Stage 1 lifecycle and section-timing shell. */
+.sm-canvas-show-row { grid-template-columns: 28px minmax(0, 1fr) auto; }
+.sm-canvas-show-row.is-active {
+  border-color: rgba(74, 199, 219, 0.42);
+  background: rgba(74, 199, 219, 0.09);
+}
+
+.sm-canvas-library-empty,
+.sm-canvas-inspector-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 12px 10px;
+  color: rgba(196, 212, 220, 0.5);
+  font-size: 9px;
+}
+.sm-canvas-library-empty p,
+.sm-canvas-inspector-empty p { margin: 0; }
+.sm-canvas-library-empty button,
+.sm-canvas-inspector-empty button,
+.sm-canvas-form button,
+.sm-canvas-stage button,
+.sm-canvas-dialog-actions button {
+  min-height: 29px;
+  padding: 0 10px;
+  border: 1px solid rgba(74, 199, 219, 0.28);
+  border-radius: 5px;
+  background: rgba(74, 199, 219, 0.08);
+  color: rgba(126, 226, 238, 0.9);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.sm-canvas-stage {
+  height: 100%;
+  min-height: 0;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(74, 199, 219, 0.1), transparent 38%),
+    #030709;
+}
+.sm-canvas-stage--empty { align-items: center; justify-content: center; text-align: center; }
+.sm-canvas-stage--empty > span { color: #67f7ff; font-size: 34px; }
+.sm-canvas-stage--empty > strong { color: rgba(232, 244, 248, 0.88); font-size: 16px; }
+.sm-canvas-stage--empty > p { margin: -10px 0 2px; color: rgba(196, 212, 220, 0.48); font-size: 10px; }
+.sm-canvas-stage > header { display: flex; align-items: end; justify-content: space-between; }
+.sm-canvas-stage > header div { display: grid; gap: 5px; }
+.sm-canvas-stage > header span { color: rgba(103, 247, 255, 0.58); font-size: 8px; letter-spacing: 0.14em; }
+.sm-canvas-stage > header strong { color: rgba(240, 247, 249, 0.94); font-size: 20px; }
+.sm-canvas-stage > header small { color: rgba(196, 212, 220, 0.44); font-size: 9px; }
+.sm-canvas-section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; overflow: auto; }
+.sm-canvas-section-grid button {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 9px;
+  text-align: left;
+  border-color: rgba(154, 178, 188, 0.13);
+  background: rgba(255, 255, 255, 0.025);
+}
+.sm-canvas-section-grid button.is-selected { border-color: rgba(103, 247, 255, 0.66); background: rgba(74, 199, 219, 0.1); }
+.sm-canvas-section-grid button > span { grid-row: 1 / 3; color: rgba(103, 247, 255, 0.52); font-size: 11px; }
+.sm-canvas-section-grid button > strong { color: rgba(232, 244, 248, 0.84); font-size: 10px; }
+.sm-canvas-section-grid button > small { color: rgba(196, 212, 220, 0.4); font-size: 8px; }
+
+.sm-canvas-timeline-track { min-height: 58px; display: flex; gap: 2px; padding: 7px; }
+.sm-canvas-timeline-track button {
+  min-width: 48px;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(74, 199, 219, 0.2);
+  border-radius: 4px;
+  background: rgba(74, 199, 219, 0.08);
+  color: rgba(232, 244, 248, 0.7);
+  font: inherit;
+  cursor: pointer;
+}
+.sm-canvas-timeline-track button.is-selected { border-color: rgba(103, 247, 255, 0.72); background: rgba(74, 199, 219, 0.18); }
+.sm-canvas-timeline-track strong { overflow: hidden; text-overflow: ellipsis; font-size: 8px; }
+.sm-canvas-timeline-track small { color: rgba(196, 212, 220, 0.42); font-size: 7px; }
+
+.sm-canvas-form { display: grid; gap: 7px; }
+.sm-canvas-form label,
+.sm-canvas-dialog label { color: rgba(196, 212, 220, 0.56); font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; }
+.sm-canvas-form > small { color: rgba(196, 212, 220, 0.42); font-size: 8px; }
+.sm-canvas-form-error { margin: 0; color: #fca5a5; font-size: 8px; }
+.sm-canvas-delete {
+  width: 100%;
+  min-height: 31px;
+  margin-top: 7px;
+  border: 1px solid rgba(255, 96, 112, 0.34);
+  border-radius: 5px;
+  background: rgba(255, 72, 92, 0.08);
+  color: rgba(255, 174, 184, 0.9);
+  font: inherit;
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.sm-canvas-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.72);
+}
+.sm-canvas-dialog {
+  width: min(380px, calc(100vw - 32px));
+  padding: 20px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(103, 247, 255, 0.28);
+  border-radius: 9px;
+  background: #0b1115;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
+}
+.sm-canvas-dialog h2 { margin: 0; color: rgba(240, 247, 249, 0.94); font-size: 15px; }
+.sm-canvas-dialog > p { margin: 0 0 4px; color: rgba(196, 212, 220, 0.48); font-size: 9px; }
+.sm-canvas-dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 4px; }

@@ -126,6 +126,18 @@ import {
   type LaserDmxShowManagerWorkspaceSettingsPatch,
   type LaserDmxShowManagerShow,
 } from '../components/vyzualz/showManager/LaserDmxShowManagerDomain'
+import {
+  cloneCanvasShowManagerShow,
+  createCanvasShowManagerShow,
+  isCanvasShowManagerNameAvailable,
+  normalizeCanvasShowManagerName,
+  normalizeCanvasShowManagerShows,
+  renameCanvasShowManagerShow,
+  updateCanvasShowManagerSectionDuration,
+  validateCanvasShowManagerShow,
+  type CanvasShowManagerSectionDurationEdit,
+  type CanvasShowManagerShow,
+} from '../components/vyzualz/showManager/CanvasShowManagerDomain'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceShows'
 import {
@@ -2406,6 +2418,13 @@ interface ShowManagerHistorySnapshot {
   laserDmxShowManagerEditingSectionId: string | null
 }
 
+interface CanvasShowManagerHistorySnapshot {
+  canvasShowManagerShows: CanvasShowManagerShow[]
+  canvasShowManagerActiveShowId: string | null
+  canvasShowManagerEditingShowId: string | null
+  canvasShowManagerEditingSectionId: string | null
+}
+
 interface ReactStoreState {
   activeReactPresetId: string | null
   activeReactEngineId: ReactEngineId
@@ -2471,6 +2490,14 @@ interface ReactStoreState {
   canvasPresetOverride: CanvasPresetOverrideState | null
   canvasVideoRestartRevision: number
   canvasOrchestrationSettings: CanvasOrchestrationSettings
+
+  // Canvas Show Manager authoring. Shows and active identity persist; editing selection and history remain transient.
+  canvasShowManagerShows: CanvasShowManagerShow[]
+  canvasShowManagerActiveShowId: string | null
+  canvasShowManagerEditingShowId: string | null
+  canvasShowManagerEditingSectionId: string | null
+  canvasShowManagerUndoStack: CanvasShowManagerHistorySnapshot[]
+  canvasShowManagerRedoStack: CanvasShowManagerHistorySnapshot[]
   setCanvasOrchestrationSettings: (patch: Partial<CanvasOrchestrationSettings>) => void
   toggleCanvasMediaPoolItem: (mediaId: string, selected?: boolean) => void
   setCanvasMediaRoles: (mediaId: string, roles: CanvasMediaRole[]) => void
@@ -2493,6 +2520,20 @@ interface ReactStoreState {
   setCanvasMediaTiming: (mediaId: string, patch: Partial<CanvasVideoTimingSettings>) => void
   removeCanvasMediaItem: (id: string) => void
   clearCanvasMediaItems: () => void
+  createCanvasShowManagerShow: (name: string) => string | null
+  selectCanvasShowManagerShow: (showId: string | null) => void
+  selectCanvasShowManagerSection: (sectionId: string | null) => void
+  renameCanvasShowManagerShow: (showId: string, name: string) => boolean
+  updateCanvasShowManagerSectionDuration: (
+    showId: string,
+    sectionId: string,
+    durationSec: number,
+  ) => CanvasShowManagerSectionDurationEdit | null
+  deleteCanvasShowManagerShow: (showId: string) => boolean
+  undoCanvasShowManagerEdit: () => void
+  redoCanvasShowManagerEdit: () => void
+  clearCanvasShowManagerHistory: () => void
+  saveCanvasShowManagerShow: (showId: string, options?: { makeActive?: boolean }) => Promise<boolean>
 
   setCinematicConfigForPreset: (presetId: string, config: CinematicWorldConfig) => void
   clearCinematicConfigForPreset: (presetId: string) => void
@@ -3036,6 +3077,107 @@ function restoreShowManagerHistorySnapshot(
     laserDmxShowManagerEditingShowId: editingShow?.id ?? null,
     laserDmxShowManagerEditingSectionId: editingSectionId,
     laserDmxShowManagerPlaybackSectionId: null,
+  }
+}
+
+function cloneCanvasShowManagerShows(shows: readonly CanvasShowManagerShow[]): CanvasShowManagerShow[] {
+  return shows.map(show => cloneCanvasShowManagerShow(show))
+}
+
+function canvasShowManagerShowsEqual(
+  left: readonly CanvasShowManagerShow[],
+  right: readonly CanvasShowManagerShow[],
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function normalizeCanvasShowManagerActiveShowId(
+  raw: unknown,
+  shows: readonly CanvasShowManagerShow[],
+): string | null {
+  return typeof raw === 'string' && shows.some(show => show.id === raw) ? raw : null
+}
+
+function captureCanvasShowManagerHistorySnapshot(
+  state: Pick<ReactStoreState,
+    | 'canvasShowManagerShows'
+    | 'canvasShowManagerActiveShowId'
+    | 'canvasShowManagerEditingShowId'
+    | 'canvasShowManagerEditingSectionId'
+  >,
+): CanvasShowManagerHistorySnapshot {
+  return {
+    canvasShowManagerShows: cloneCanvasShowManagerShows(state.canvasShowManagerShows),
+    canvasShowManagerActiveShowId: state.canvasShowManagerActiveShowId,
+    canvasShowManagerEditingShowId: state.canvasShowManagerEditingShowId,
+    canvasShowManagerEditingSectionId: state.canvasShowManagerEditingSectionId,
+  }
+}
+
+function trimCanvasShowManagerHistory(
+  stack: CanvasShowManagerHistorySnapshot[],
+): CanvasShowManagerHistorySnapshot[] {
+  return stack.slice(Math.max(0, stack.length - SHOW_MANAGER_HISTORY_LIMIT))
+}
+
+function buildCanvasShowManagerHistoryMutationPatch(
+  state: Pick<ReactStoreState,
+    | 'canvasShowManagerShows'
+    | 'canvasShowManagerActiveShowId'
+    | 'canvasShowManagerEditingShowId'
+    | 'canvasShowManagerEditingSectionId'
+    | 'canvasShowManagerUndoStack'
+    | 'canvasShowManagerRedoStack'
+  >,
+  patch: Partial<Pick<ReactStoreState,
+    | 'canvasShowManagerShows'
+    | 'canvasShowManagerActiveShowId'
+    | 'canvasShowManagerEditingShowId'
+    | 'canvasShowManagerEditingSectionId'
+  >>,
+) {
+  const nextShows = patch.canvasShowManagerShows ?? state.canvasShowManagerShows
+  if (canvasShowManagerShowsEqual(state.canvasShowManagerShows, nextShows)) return patch
+  return {
+    ...patch,
+    canvasShowManagerUndoStack: trimCanvasShowManagerHistory([
+      ...state.canvasShowManagerUndoStack,
+      captureCanvasShowManagerHistorySnapshot(state),
+    ]),
+    canvasShowManagerRedoStack: [],
+  }
+}
+
+function restoreCanvasShowManagerHistorySnapshot(
+  snapshot: CanvasShowManagerHistorySnapshot,
+) {
+  const shows = cloneCanvasShowManagerShows(snapshot.canvasShowManagerShows)
+  const activeShowId = normalizeCanvasShowManagerActiveShowId(
+    snapshot.canvasShowManagerActiveShowId,
+    shows,
+  )
+  const editingShow = shows.find(show => show.id === snapshot.canvasShowManagerEditingShowId) ?? null
+  const editingSectionId = editingShow?.sections.some(section => section.id === snapshot.canvasShowManagerEditingSectionId)
+    ? snapshot.canvasShowManagerEditingSectionId
+    : editingShow?.sections[0]?.id ?? null
+  return {
+    canvasShowManagerShows: shows,
+    canvasShowManagerActiveShowId: activeShowId,
+    canvasShowManagerEditingShowId: editingShow?.id ?? null,
+    canvasShowManagerEditingSectionId: editingSectionId,
+  }
+}
+
+function buildCanvasShowManagerActivationPatch(state: ReactStoreState): Partial<ReactStoreState> {
+  return {
+    activeReactEngineId: 'canvas',
+    activeReactPresetId: null,
+    performancePadTransition: null,
+    pixGridState: normalizePixGridState({
+      ...state.pixGridState,
+      authoringOverlayVisible: false,
+    }),
+    pixGridHistoryTransaction: null,
   }
 }
 
@@ -5031,6 +5173,19 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 70) {
+    // Canvas Show Manager Stage 1 adds a dedicated authored Show collection.
+    // Existing global Canvas runtime and preset state remains independent.
+    const shows = normalizeCanvasShowManagerShows(state.canvasShowManagerShows)
+    state = {
+      ...state,
+      canvasShowManagerShows: shows,
+      canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
+        state.canvasShowManagerActiveShowId,
+        shows,
+      ),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -5048,9 +5203,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     state = { ...state, laserDmxBeamMatrix: normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix) }
   }
   const normalizedLaserDmxShowManagerShows = normalizeLaserDmxShowManagerShows(state.laserDmxShowManagerShows)
+  const normalizedCanvasShowManagerShows = normalizeCanvasShowManagerShows(state.canvasShowManagerShows)
   state = {
     ...state,
     canvasEngineSettings: normalizeCanvasEngineSettings(state.canvasEngineSettings),
+    canvasShowManagerShows: normalizedCanvasShowManagerShows,
+    canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
+      state.canvasShowManagerActiveShowId,
+      normalizedCanvasShowManagerShows,
+    ),
     laserDmxShowManagerShows: normalizedLaserDmxShowManagerShows,
     laserDmxShowManagerActiveShowId: normalizeLaserDmxShowManagerActiveShowId(
       state.laserDmxShowManagerActiveShowId,
@@ -5264,6 +5425,11 @@ export function reactStorePartialize(s: ReactStoreState) {
     canvasPresetSettings:               normalizeCanvasPresetSettings(s.canvasPresetSettings),
     canvasPresetOverride:               s.canvasPresetOverride,
     canvasOrchestrationSettings:         normalizeCanvasOrchestrationSettings(s.canvasOrchestrationSettings),
+    canvasShowManagerShows:              normalizeCanvasShowManagerShows(s.canvasShowManagerShows),
+    canvasShowManagerActiveShowId:       normalizeCanvasShowManagerActiveShowId(
+      s.canvasShowManagerActiveShowId,
+      s.canvasShowManagerShows,
+    ),
     performancePads:                    clearReactPresetPadAssignments(s.performancePads, danglingGeneratedPresetIds),
     manualTrackSectionsByTrackId:       s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId:    s.suppressedAutoSectionsByTrackId,
@@ -5333,6 +5499,8 @@ export const REACT_PROJECT_STATE_KEYS = [
   'canvasPresetSettings',
   'canvasPresetOverride',
   'canvasOrchestrationSettings',
+  'canvasShowManagerShows',
+  'canvasShowManagerActiveShowId',
   'manualTrackSectionsByTrackId',
   'suppressedAutoSectionsByTrackId',
   'presetAutomationCuesByTrackId',
@@ -5439,6 +5607,10 @@ export function mergeReactStoreState(
     canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(
       persisted.canvasOrchestrationSettings ?? currentState.canvasOrchestrationSettings,
     ),
+    canvasShowManagerShows: normalizeCanvasShowManagerShows(
+      persisted.canvasShowManagerShows ?? currentState.canvasShowManagerShows,
+    ),
+    canvasShowManagerActiveShowId: null,
     soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
       ...(persisted.soundDrawingPerformanceSettings ?? currentState.soundDrawingPerformanceSettings),
       selectedShowId: null,
@@ -5524,6 +5696,10 @@ export function mergeReactStoreState(
     ...merged,
     ...repairedSelection,
     pixGridState,
+    canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
+      persisted.canvasShowManagerActiveShowId,
+      merged.canvasShowManagerShows,
+    ),
     laserDmxShowManagerActiveShowId: normalizeLaserDmxShowManagerActiveShowId(
       persisted.laserDmxShowManagerActiveShowId,
       merged.laserDmxShowManagerShows,
@@ -5543,6 +5719,10 @@ export function mergeReactStoreState(
     selectedCanvasMediaId: merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
     activeCanvasMediaId: merged.activeCanvasMediaId ?? merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
     canvasVideoRestartRevision: currentState.canvasVideoRestartRevision,
+    canvasShowManagerEditingShowId: null,
+    canvasShowManagerEditingSectionId: null,
+    canvasShowManagerUndoStack: [],
+    canvasShowManagerRedoStack: [],
     laserDmxShowDirectorUndoStack: [],
     laserDmxShowDirectorRedoStack: [],
     laserDmxShowDirectorHistoryTransaction: null,
@@ -5566,7 +5746,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 69
+const REACT_STORE_PERSISTENCE_VERSION = 70
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
@@ -5603,6 +5783,12 @@ export const useReactStore = create<ReactStoreState>()(
       canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
       canvasVideoRestartRevision: 0,
       canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+      canvasShowManagerShows: [],
+      canvasShowManagerActiveShowId: null,
+      canvasShowManagerEditingShowId: null,
+      canvasShowManagerEditingSectionId: null,
+      canvasShowManagerUndoStack: [],
+      canvasShowManagerRedoStack: [],
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
       selectedSectionByTrackId: {},
@@ -6507,6 +6693,181 @@ export const useReactStore = create<ReactStoreState>()(
             : state.canvasOrchestrationSettings,
         }
       }),
+
+      createCanvasShowManagerShow: (name) => {
+        const state = get()
+        const normalizedName = normalizeCanvasShowManagerName(name)
+        if (!isCanvasShowManagerNameAvailable(state.canvasShowManagerShows, normalizedName)) return null
+        const show = createCanvasShowManagerShow(normalizedName)
+        set(s => buildCanvasShowManagerHistoryMutationPatch(s, {
+          canvasShowManagerShows: [...s.canvasShowManagerShows, show],
+          canvasShowManagerEditingShowId: show.id,
+          canvasShowManagerEditingSectionId: show.sections[0]?.id ?? null,
+        }))
+        return show.id
+      },
+
+      selectCanvasShowManagerShow: (showId) =>
+        set(s => {
+          if (showId == null) {
+            return {
+              canvasShowManagerEditingShowId: null,
+              canvasShowManagerEditingSectionId: null,
+            }
+          }
+          const show = s.canvasShowManagerShows.find(candidate => candidate.id === showId)
+          if (!show) return {}
+          const currentSectionIsValid = show.sections.some(section => section.id === s.canvasShowManagerEditingSectionId)
+          return {
+            canvasShowManagerEditingShowId: show.id,
+            canvasShowManagerEditingSectionId: currentSectionIsValid
+              ? s.canvasShowManagerEditingSectionId
+              : show.sections[0]?.id ?? null,
+          }
+        }),
+
+      selectCanvasShowManagerSection: (sectionId) =>
+        set(s => {
+          const show = s.canvasShowManagerShows.find(candidate => candidate.id === s.canvasShowManagerEditingShowId)
+          if (!show) return { canvasShowManagerEditingSectionId: null }
+          if (sectionId == null) return { canvasShowManagerEditingSectionId: null }
+          return show.sections.some(section => section.id === sectionId)
+            ? { canvasShowManagerEditingSectionId: sectionId }
+            : { canvasShowManagerEditingSectionId: show.sections[0]?.id ?? null }
+        }),
+
+      renameCanvasShowManagerShow: (showId, name) => {
+        let renamed = false
+        set(s => {
+          const show = s.canvasShowManagerShows.find(candidate => candidate.id === showId)
+          const normalizedName = normalizeCanvasShowManagerName(name)
+          if (!show || !isCanvasShowManagerNameAvailable(s.canvasShowManagerShows, normalizedName, showId)) return {}
+          const nextShow = renameCanvasShowManagerShow(show, normalizedName)
+          if (nextShow === show) {
+            renamed = true
+            return {}
+          }
+          renamed = true
+          return buildCanvasShowManagerHistoryMutationPatch(s, {
+            canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === showId ? nextShow : candidate),
+          })
+        })
+        return renamed
+      },
+
+      updateCanvasShowManagerSectionDuration: (showId, sectionId, durationSec) => {
+        let edit: CanvasShowManagerSectionDurationEdit | null = null
+        set(s => {
+          const show = s.canvasShowManagerShows.find(candidate => candidate.id === showId)
+          if (!show) return {}
+          edit = updateCanvasShowManagerSectionDuration(show, sectionId, durationSec)
+          if (!edit || edit.show === show) return {}
+          return buildCanvasShowManagerHistoryMutationPatch(s, {
+            canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === showId ? edit!.show : candidate),
+          })
+        })
+        return edit
+      },
+
+      deleteCanvasShowManagerShow: (showId) => {
+        let deleted = false
+        set(s => {
+          const index = s.canvasShowManagerShows.findIndex(show => show.id === showId)
+          if (index < 0) return {}
+          deleted = true
+          const shows = s.canvasShowManagerShows.filter(show => show.id !== showId)
+          const editingDeleted = s.canvasShowManagerEditingShowId === showId
+          const fallback = editingDeleted ? (shows[index] ?? shows[index - 1] ?? null) : null
+          return buildCanvasShowManagerHistoryMutationPatch(s, {
+            canvasShowManagerShows: shows,
+            canvasShowManagerActiveShowId: s.canvasShowManagerActiveShowId === showId
+              ? null
+              : s.canvasShowManagerActiveShowId,
+            canvasShowManagerEditingShowId: editingDeleted
+              ? fallback?.id ?? null
+              : s.canvasShowManagerEditingShowId,
+            canvasShowManagerEditingSectionId: editingDeleted
+              ? fallback?.sections[0]?.id ?? null
+              : s.canvasShowManagerEditingSectionId,
+          })
+        })
+        return deleted
+      },
+
+      undoCanvasShowManagerEdit: () =>
+        set(s => {
+          const previous = s.canvasShowManagerUndoStack[s.canvasShowManagerUndoStack.length - 1]
+          if (!previous) return {}
+          const current = captureCanvasShowManagerHistorySnapshot(s)
+          return {
+            ...restoreCanvasShowManagerHistorySnapshot(previous),
+            canvasShowManagerUndoStack: s.canvasShowManagerUndoStack.slice(0, -1),
+            canvasShowManagerRedoStack: trimCanvasShowManagerHistory([
+              ...s.canvasShowManagerRedoStack,
+              current,
+            ]),
+          }
+        }),
+
+      redoCanvasShowManagerEdit: () =>
+        set(s => {
+          const next = s.canvasShowManagerRedoStack[s.canvasShowManagerRedoStack.length - 1]
+          if (!next) return {}
+          const current = captureCanvasShowManagerHistorySnapshot(s)
+          return {
+            ...restoreCanvasShowManagerHistorySnapshot(next),
+            canvasShowManagerUndoStack: trimCanvasShowManagerHistory([
+              ...s.canvasShowManagerUndoStack,
+              current,
+            ]),
+            canvasShowManagerRedoStack: s.canvasShowManagerRedoStack.slice(0, -1),
+          }
+        }),
+
+      clearCanvasShowManagerHistory: () => set({
+        canvasShowManagerUndoStack: [],
+        canvasShowManagerRedoStack: [],
+      }),
+
+      saveCanvasShowManagerShow: async (showId, options = {}) => {
+        const persistState = async (state: ReactStoreState): Promise<boolean> => {
+          try {
+            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
+              state: reactStorePartialize(state) as unknown as Record<string, unknown>,
+              version: REACT_STORE_PERSISTENCE_VERSION,
+            })
+            return useReactPersistenceStatusStore.getState().phase !== 'error'
+          } catch (error) {
+            useReactPersistenceStatusStore.setState({
+              phase: 'error',
+              error: error instanceof Error ? error.message : 'The Canvas Show could not be saved.',
+              retryPending: false,
+            })
+            return false
+          }
+        }
+
+        const stateAtSave = get()
+        const show = stateAtSave.canvasShowManagerShows.find(candidate => candidate.id === showId)
+        if (!show || !validateCanvasShowManagerShow(show).valid) return false
+        if (!options.makeActive) return persistState(stateAtSave)
+
+        const activationPatch = buildCanvasShowManagerActivationPatch(stateAtSave)
+        const persistedCandidate: ReactStoreState = {
+          ...stateAtSave,
+          ...activationPatch,
+          canvasShowManagerActiveShowId: showId,
+        }
+        if (!(await persistState(persistedCandidate))) return false
+
+        const current = get()
+        const currentShow = current.canvasShowManagerShows.find(candidate => candidate.id === showId)
+        if (!currentShow || !validateCanvasShowManagerShow(currentShow).valid) return false
+        if (!canvasShowManagerShowsEqual(stateAtSave.canvasShowManagerShows, current.canvasShowManagerShows)) return false
+
+        set({ ...activationPatch, canvasShowManagerActiveShowId: showId })
+        return true
+      },
 
       setActiveReactPresetId: (id) =>
         set((s) => {
@@ -9919,6 +10280,10 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxBeamMatrixAuthoringMode: 'manual' as const,
             selectedSectionId: null,
             selectedSectionByTrackId: {},
+            canvasShowManagerEditingShowId: null,
+            canvasShowManagerEditingSectionId: null,
+            canvasShowManagerUndoStack: [],
+            canvasShowManagerRedoStack: [],
             laserDmxShowManagerEditingShowId: null,
             laserDmxShowManagerEditingSectionId: null,
             laserDmxShowManagerPlaybackSectionId: null,
@@ -9978,6 +10343,12 @@ export const useReactStore = create<ReactStoreState>()(
             canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
             canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
+            canvasShowManagerShows: [],
+            canvasShowManagerActiveShowId: null,
+            canvasShowManagerEditingShowId: null,
+            canvasShowManagerEditingSectionId: null,
+            canvasShowManagerUndoStack: [],
+            canvasShowManagerRedoStack: [],
             manualTrackSectionsByTrackId: {},
             selectedSectionId: null,
             selectedSectionByTrackId: {},
@@ -10040,6 +10411,12 @@ export const useReactStore = create<ReactStoreState>()(
           canvasPresetOverride:         DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
           canvasOrchestrationSettings:  normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
           canvasVideoRestartRevision:   get().canvasVideoRestartRevision + 1,
+          canvasShowManagerShows:       [],
+          canvasShowManagerActiveShowId: null,
+          canvasShowManagerEditingShowId: null,
+          canvasShowManagerEditingSectionId: null,
+          canvasShowManagerUndoStack:   [],
+          canvasShowManagerRedoStack:   [],
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},

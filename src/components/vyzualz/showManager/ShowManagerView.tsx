@@ -58,6 +58,14 @@ import {
   type LaserDmxShowManagerShow,
   type LaserDmxShowManagerWorkspaceSettingsPatch,
 } from './LaserDmxShowManagerDomain'
+import {
+  getCanvasShowManagerSectionRanges,
+  getCanvasShowManagerTotalDuration,
+  isCanvasShowManagerNameAvailable,
+  normalizeCanvasShowManagerDuration,
+  type CanvasShowManagerSectionRange,
+  type CanvasShowManagerShow,
+} from './CanvasShowManagerDomain'
 import '../../../styles/reactView.css'
 import '../../../styles/showManager.css'
 
@@ -89,7 +97,7 @@ const SHOW_MANAGER_ENGINE_OPTIONS = REACT_ENGINE_IDS.map(engineId => ({
   value: engineId,
   label: REACT_ENGINE_CATALOG[engineId].label,
   description: REACT_ENGINE_CATALOG[engineId].description,
-  disabled: engineId !== 'pixGrid' && engineId !== 'laserDmx',
+  disabled: engineId !== 'pixGrid' && engineId !== 'laserDmx' && engineId !== 'canvas',
 }))
 
 const STAGE_SCALE_OPTIONS = [
@@ -154,6 +162,21 @@ export function ShowManagerView() {
   const laserShowUndoDepth = useReactStore(state => state.showManagerUndoStack.length)
   const laserShowRedoDepth = useReactStore(state => state.showManagerRedoStack.length)
   const saveLaserDmxShowManagerShow = useReactStore(state => state.saveLaserDmxShowManagerShow)
+  const canvasShowManagerShows = useReactStore(state => state.canvasShowManagerShows)
+  const canvasShowManagerActiveShowId = useReactStore(state => state.canvasShowManagerActiveShowId)
+  const canvasShowManagerEditingShowId = useReactStore(state => state.canvasShowManagerEditingShowId)
+  const canvasShowManagerEditingSectionId = useReactStore(state => state.canvasShowManagerEditingSectionId)
+  const createCanvasShowManagerShow = useReactStore(state => state.createCanvasShowManagerShow)
+  const selectCanvasShowManagerShow = useReactStore(state => state.selectCanvasShowManagerShow)
+  const selectCanvasShowManagerSection = useReactStore(state => state.selectCanvasShowManagerSection)
+  const renameCanvasShowManagerShow = useReactStore(state => state.renameCanvasShowManagerShow)
+  const updateCanvasShowManagerSectionDuration = useReactStore(state => state.updateCanvasShowManagerSectionDuration)
+  const deleteCanvasShowManagerShow = useReactStore(state => state.deleteCanvasShowManagerShow)
+  const undoCanvasShowManagerEdit = useReactStore(state => state.undoCanvasShowManagerEdit)
+  const redoCanvasShowManagerEdit = useReactStore(state => state.redoCanvasShowManagerEdit)
+  const canvasShowUndoDepth = useReactStore(state => state.canvasShowManagerUndoStack.length)
+  const canvasShowRedoDepth = useReactStore(state => state.canvasShowManagerRedoStack.length)
+  const saveCanvasShowManagerShow = useReactStore(state => state.saveCanvasShowManagerShow)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
@@ -178,6 +201,13 @@ export function ShowManagerView() {
   const uploadOperationRef = useRef(0)
   const [laserSavePending, setLaserSavePending] = useState<'save' | 'active' | null>(null)
   const [laserSaveStatus, setLaserSaveStatus] = useState<string | null>(null)
+  const [canvasSavePending, setCanvasSavePending] = useState<'save' | 'active' | null>(null)
+  const [canvasSaveStatus, setCanvasSaveStatus] = useState<string | null>(null)
+  const [canvasCreateOpen, setCanvasCreateOpen] = useState(false)
+  const [canvasCreateName, setCanvasCreateName] = useState('')
+  const [canvasCreateError, setCanvasCreateError] = useState<string | null>(null)
+  const [canvasRenameDraft, setCanvasRenameDraft] = useState('')
+  const [canvasRenameError, setCanvasRenameError] = useState<string | null>(null)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
   const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
   const activeLaserDmxShow = useMemo(
@@ -185,6 +215,24 @@ export function ShowManagerView() {
       ?? laserDmxShowManagerShows[0]
       ?? null,
     [laserDmxShowManagerEditingShowId, laserDmxShowManagerShows],
+  )
+  const activeCanvasShow = useMemo(
+    () => canvasShowManagerShows.find(show => show.id === canvasShowManagerEditingShowId) ?? null,
+    [canvasShowManagerEditingShowId, canvasShowManagerShows],
+  )
+  const activeCanvasSection = useMemo(
+    () => activeCanvasShow?.sections.find(section => section.id === canvasShowManagerEditingSectionId)
+      ?? activeCanvasShow?.sections[0]
+      ?? null,
+    [activeCanvasShow, canvasShowManagerEditingSectionId],
+  )
+  const canvasSectionRanges = useMemo(
+    () => activeCanvasShow ? getCanvasShowManagerSectionRanges(activeCanvasShow) : [],
+    [activeCanvasShow],
+  )
+  const canvasTotalDuration = useMemo(
+    () => activeCanvasShow ? getCanvasShowManagerTotalDuration(activeCanvasShow) : 0,
+    [activeCanvasShow],
   )
   const activeLaserDmxSection = useMemo(
     () => activeLaserDmxShow?.sections.find(section => section.id === laserDmxShowManagerEditingSectionId)
@@ -235,6 +283,11 @@ export function ShowManagerView() {
     if (selectedEngineId !== 'laserDmx') return
     ensureLaserDmxShowManagerShow()
   }, [ensureLaserDmxShowManagerShow, selectedEngineId])
+
+  useEffect(() => {
+    setCanvasRenameDraft(activeCanvasShow?.name ?? '')
+    setCanvasRenameError(null)
+  }, [activeCanvasShow?.id, activeCanvasShow?.name])
 
   useEffect(() => {
     if (selectedEngineId === 'laserDmx' && engine.isPlaying) return
@@ -570,6 +623,49 @@ export function ShowManagerView() {
     }
   }
 
+  const openCanvasCreateDialog = () => {
+    setCanvasCreateName('')
+    setCanvasCreateError(null)
+    setCanvasCreateOpen(true)
+  }
+
+  const commitCanvasCreate = () => {
+    if (!isCanvasShowManagerNameAvailable(canvasShowManagerShows, canvasCreateName)) {
+      setCanvasCreateError(canvasCreateName.trim() ? 'A Canvas Show with this name already exists.' : 'Show name is required.')
+      return
+    }
+    const showId = createCanvasShowManagerShow(canvasCreateName)
+    if (!showId) {
+      setCanvasCreateError('The Canvas Show could not be created.')
+      return
+    }
+    setCanvasCreateOpen(false)
+    setCanvasCreateName('')
+  }
+
+  const commitCanvasRename = () => {
+    if (!activeCanvasShow) return
+    if (!renameCanvasShowManagerShow(activeCanvasShow.id, canvasRenameDraft)) {
+      setCanvasRenameError(canvasRenameDraft.trim() ? 'A Canvas Show with this name already exists.' : 'Show name is required.')
+      return
+    }
+    setCanvasRenameError(null)
+  }
+
+  const commitCanvasShowSave = async (makeActive: boolean) => {
+    if (!activeCanvasShow || canvasSavePending) return
+    setCanvasSavePending(makeActive ? 'active' : 'save')
+    setCanvasSaveStatus(null)
+    try {
+      const saved = await saveCanvasShowManagerShow(activeCanvasShow.id, { makeActive })
+      setCanvasSaveStatus(saved
+        ? (makeActive ? 'Saved and made active.' : 'Saved.')
+        : (makeActive ? 'Could not complete Save + Make Active.' : 'Could not save Show.'))
+    } finally {
+      setCanvasSavePending(null)
+    }
+  }
+
   const activateLaserComponent = (kind: LaserDmxShowDirectorFixtureKind) => {
     if (!isLaserDmxShowManagerFixtureKindEnabled(kind)) return
     setSelectedLightingComponentKind(kind)
@@ -664,10 +760,20 @@ export function ShowManagerView() {
 
         <div className="sm-topbar-spacer" />
         <div className="sm-stage-tools sm-stage-tools--header" aria-label="Show Manager stage tools">
-          {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
+          {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && workspaceMode === 'default' ? (
             <>
-              <button type="button" onClick={undoLaserShowEdit} disabled={laserShowUndoDepth === 0} title="Undo section edit">↶</button>
-              <button type="button" onClick={redoLaserShowEdit} disabled={laserShowRedoDepth === 0} title="Redo section edit">↷</button>
+              <button
+                type="button"
+                onClick={selectedEngineId === 'canvas' ? undoCanvasShowManagerEdit : undoLaserShowEdit}
+                disabled={(selectedEngineId === 'canvas' ? canvasShowUndoDepth : laserShowUndoDepth) === 0}
+                title="Undo Show edit"
+              >↶</button>
+              <button
+                type="button"
+                onClick={selectedEngineId === 'canvas' ? redoCanvasShowManagerEdit : redoLaserShowEdit}
+                disabled={(selectedEngineId === 'canvas' ? canvasShowRedoDepth : laserShowRedoDepth) === 0}
+                title="Redo Show edit"
+              >↷</button>
               {['↖', '✥', '⌗', '▦', '◫'].map(tool => (
                 <button key={tool} type="button" disabled>{tool}</button>
               ))}
@@ -684,24 +790,31 @@ export function ShowManagerView() {
         {selectedEngineId === 'laserDmx' && workspaceMode === 'default' && (
           <button type="button" className="sm-header-button" onClick={() => createLaserDmxShowManagerShow()}>New Show</button>
         )}
+        {selectedEngineId === 'canvas' && workspaceMode === 'default' && (
+          <button type="button" className="sm-header-button" onClick={openCanvasCreateDialog}>New Show</button>
+        )}
         <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
         <button
           type="button"
           className="sm-header-button"
-          onClick={() => void commitLaserShowSave(false)}
-          disabled={selectedEngineId !== 'laserDmx' || !activeLaserDmxShow || laserSavePending !== null}
-        >{laserSavePending === 'save' ? 'Saving…' : 'Save'}</button>
+          onClick={() => void (selectedEngineId === 'canvas' ? commitCanvasShowSave(false) : commitLaserShowSave(false))}
+          disabled={(selectedEngineId !== 'laserDmx' && selectedEngineId !== 'canvas')
+            || (selectedEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
+        >{(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}</button>
         <button
           type="button"
           className="sm-header-button sm-header-button--primary"
-          onClick={() => void commitLaserShowSave(true)}
-          disabled={selectedEngineId !== 'laserDmx' || !activeLaserDmxShow || laserSavePending !== null}
-        >{laserSavePending === 'active' ? 'Activating…' : 'Save + Make Active'}</button>
-        {selectedEngineId === 'laserDmx' && (
+          onClick={() => void (selectedEngineId === 'canvas' ? commitCanvasShowSave(true) : commitLaserShowSave(true))}
+          disabled={(selectedEngineId !== 'laserDmx' && selectedEngineId !== 'canvas')
+            || (selectedEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
+        >{(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'active' ? 'Activating…' : 'Save + Make Active'}</button>
+        {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && (
           <>
             <ReactPersistenceStatus />
-            {laserSaveStatus && (
-              <span className="sm-header-save-status" role="status">{laserSaveStatus}</span>
+            {(selectedEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus) && (
+              <span className="sm-header-save-status" role="status">
+                {selectedEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus}
+              </span>
             )}
           </>
         )}
@@ -898,6 +1011,29 @@ export function ShowManagerView() {
                 </LibrarySubsection>
               </LibrarySection>
             </>
+          ) : selectedEngineId === 'canvas' ? (
+            <>
+              <LibrarySection title="Canvas Shows" count={canvasShowManagerShows.length}>
+                {canvasShowManagerShows.map(show => (
+                  <button
+                    key={show.id}
+                    type="button"
+                    className={`sm-library-row sm-canvas-show-row${show.id === activeCanvasShow?.id ? ' is-active' : ''}`}
+                    onClick={() => selectCanvasShowManagerShow(show.id)}
+                  >
+                    <span className="sm-library-icon" aria-hidden="true">▣</span>
+                    <span>{show.name}</span>
+                    <small>{show.id === canvasShowManagerActiveShowId ? 'Active' : `${show.sections.length} sections`}</small>
+                  </button>
+                ))}
+                {canvasShowManagerShows.length === 0 && (
+                  <div className="sm-canvas-library-empty">
+                    <p>No Canvas Shows yet.</p>
+                    <button type="button" onClick={openCanvasCreateDialog}>New Show</button>
+                  </div>
+                )}
+              </LibrarySection>
+            </>
           ) : (
             <div className="sm-panel-blank" />
           )}
@@ -941,6 +1077,14 @@ export function ShowManagerView() {
                 onDropFixture={commitLaserFixtureDrop}
                 onSelectFixture={setSelectedLaserFixtureId}
               />
+            ) : selectedEngineId === 'canvas' ? (
+              <CanvasShowManagerStage
+                show={activeCanvasShow}
+                selectedSectionId={activeCanvasSection?.id ?? null}
+                sectionRanges={canvasSectionRanges}
+                onSelectSection={selectCanvasShowManagerSection}
+                onCreate={openCanvasCreateDialog}
+              />
             ) : (
               <PixGridSurface
                 analyser={engine.analyserMaster}
@@ -971,6 +1115,13 @@ export function ShowManagerView() {
                   <span>{activeLaserDmxSection?.fixtures.length ?? 0} editing fixtures</span>
                   <span>{engine.isPlaying ? `Playback: ${playbackLaserDmxSection?.label ?? 'None'}` : 'Playback stopped'}</span>
                   <span>{selectedLaserFixture?.label ?? 'No selection'}</span>
+                </>
+              ) : selectedEngineId === 'canvas' ? (
+                <>
+                  <span>Canvas Show</span>
+                  <span>{activeCanvasShow ? `${activeCanvasShow.sections.length} sections` : 'No Show open'}</span>
+                  <span>{activeCanvasShow ? `${formatClock(canvasTotalDuration)} total` : 'Create or open a Show'}</span>
+                  <span>{activeCanvasShow?.id === canvasShowManagerActiveShowId ? 'Active Show' : 'Editing'}</span>
                 </>
               ) : (
                 <>
@@ -1012,6 +1163,14 @@ export function ShowManagerView() {
                 removeLaserDmxShowManagerSection(activeLaserDmxShow.id, sectionId)
               }}
               onCommitBoundary={commitLaserSectionBoundary}
+            />
+          ) : selectedEngineId === 'canvas' ? (
+            <CanvasShowManagerTimeline
+              show={activeCanvasShow}
+              selectedSectionId={activeCanvasSection?.id ?? null}
+              sectionRanges={canvasSectionRanges}
+              totalDurationSec={canvasTotalDuration}
+              onSelect={selectCanvasShowManagerSection}
             />
           ) : (
             <ShowManagerTimeline
@@ -1255,6 +1414,26 @@ export function ShowManagerView() {
                 <div className="sm-panel-blank" />
               )}
             </div>
+          ) : selectedEngineId === 'canvas' ? (
+            <CanvasShowManagerInspector
+              show={activeCanvasShow}
+              section={activeCanvasSection}
+              sectionRanges={canvasSectionRanges}
+              totalDurationSec={canvasTotalDuration}
+              renameDraft={canvasRenameDraft}
+              renameError={canvasRenameError}
+              onRenameDraft={setCanvasRenameDraft}
+              onRename={commitCanvasRename}
+              onUpdateDuration={(sectionId, durationSec) => {
+                if (!activeCanvasShow) return
+                updateCanvasShowManagerSectionDuration(activeCanvasShow.id, sectionId, durationSec)
+              }}
+              onDelete={() => {
+                if (!activeCanvasShow || !window.confirm(`Delete Canvas Show “${activeCanvasShow.name}”?`)) return
+                deleteCanvasShowManagerShow(activeCanvasShow.id)
+              }}
+              onCreate={openCanvasCreateDialog}
+            />
           ) : (
             <div className="sm-panel-blank" />
           )}
@@ -1269,7 +1448,220 @@ export function ShowManagerView() {
         unifiedTimeline
         waveformAppearance="deck"
       />
+      {canvasCreateOpen && (
+        <div className="sm-canvas-dialog-backdrop" role="presentation">
+          <form
+            className="sm-canvas-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="canvas-new-show-heading"
+            onSubmit={event => {
+              event.preventDefault()
+              commitCanvasCreate()
+            }}
+          >
+            <h2 id="canvas-new-show-heading">New Canvas Show</h2>
+            <p>Create the Show first. Media is added afterward.</p>
+            <label htmlFor="canvas-new-show-name">Show Name</label>
+            <DreamVizTextInput
+              id="canvas-new-show-name"
+              autoFocus
+              value={canvasCreateName}
+              onChange={event => {
+                setCanvasCreateName(event.target.value)
+                setCanvasCreateError(null)
+              }}
+            />
+            {canvasCreateError && <p className="sm-canvas-form-error" role="alert">{canvasCreateError}</p>}
+            <div className="sm-canvas-dialog-actions">
+              <button type="button" onClick={() => setCanvasCreateOpen(false)}>Cancel</button>
+              <button type="submit">Create Show</button>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
+  )
+}
+
+function CanvasShowManagerInspector({
+  show,
+  section,
+  sectionRanges,
+  totalDurationSec,
+  renameDraft,
+  renameError,
+  onRenameDraft,
+  onRename,
+  onUpdateDuration,
+  onDelete,
+  onCreate,
+}: {
+  show: CanvasShowManagerShow | null
+  section: CanvasShowManagerShow['sections'][number] | null
+  sectionRanges: readonly CanvasShowManagerSectionRange[]
+  totalDurationSec: number
+  renameDraft: string
+  renameError: string | null
+  onRenameDraft: (value: string) => void
+  onRename: () => void
+  onUpdateDuration: (sectionId: string, durationSec: number) => void
+  onDelete: () => void
+  onCreate: () => void
+}) {
+  if (!show) {
+    return (
+      <div className="sm-inspector-scroll sm-canvas-inspector">
+        <div className="sm-canvas-inspector-empty">
+          <p>Select a Canvas Show to edit it.</p>
+          <button type="button" onClick={onCreate}>New Show</button>
+        </div>
+      </div>
+    )
+  }
+  const range = sectionRanges.find(candidate => candidate.sectionId === section?.id)
+  return (
+    <div className="sm-inspector-scroll sm-canvas-inspector">
+      <div className="sm-inspector-context">
+        <div><span>Show</span><strong>{show.name}</strong></div>
+        <div><span>Duration</span><strong>{formatClock(totalDurationSec)}</strong></div>
+      </div>
+      <Collapsible label="Show" defaultOpen>
+        <form
+          className="sm-canvas-form"
+          onSubmit={event => {
+            event.preventDefault()
+            onRename()
+          }}
+        >
+          <label htmlFor="canvas-show-name">Show Name</label>
+          <DreamVizTextInput
+            id="canvas-show-name"
+            value={renameDraft}
+            onChange={event => onRenameDraft(event.target.value)}
+          />
+          {renameError && <p className="sm-canvas-form-error" role="alert">{renameError}</p>}
+          <button type="submit">Update Name</button>
+        </form>
+      </Collapsible>
+      {section && (
+        <Collapsible label="Section" defaultOpen>
+          <div className="sm-canvas-form">
+            <strong>{section.label}</strong>
+            <label htmlFor="canvas-section-duration">Duration (seconds)</label>
+            <DreamVizTextInput
+              id="canvas-section-duration"
+              key={`${section.id}:${section.durationSec}`}
+              type="number"
+              min="0.001"
+              step="0.1"
+              defaultValue={section.durationSec}
+              onBlur={event => {
+                const duration = normalizeCanvasShowManagerDuration(event.target.value)
+                event.target.value = String(duration)
+                onUpdateDuration(section.id, duration)
+              }}
+            />
+            <small>{range ? `${formatClock(range.startSec)} – ${formatClock(range.endSec)}` : ''}</small>
+          </div>
+        </Collapsible>
+      )}
+      <button type="button" className="sm-canvas-delete" onClick={onDelete}>Delete Show</button>
+    </div>
+  )
+}
+
+function CanvasShowManagerStage({
+  show,
+  selectedSectionId,
+  sectionRanges,
+  onSelectSection,
+  onCreate,
+}: {
+  show: CanvasShowManagerShow | null
+  selectedSectionId: string | null
+  sectionRanges: readonly CanvasShowManagerSectionRange[]
+  onSelectSection: (sectionId: string | null) => void
+  onCreate: () => void
+}) {
+  if (!show) {
+    return (
+      <div className="sm-canvas-stage sm-canvas-stage--empty" data-testid="canvas-show-manager-empty-state">
+        <span aria-hidden="true">▣</span>
+        <strong>No Canvas Show open</strong>
+        <p>Create a Show or open one from the Canvas Shows list.</p>
+        <button type="button" onClick={onCreate}>New Show</button>
+      </div>
+    )
+  }
+  return (
+    <div className="sm-canvas-stage" aria-label="Canvas Show editor">
+      <header>
+        <div><span>CANVAS SHOW</span><strong>{show.name}</strong></div>
+        <small>{formatClock(getCanvasShowManagerTotalDuration(show))} · {show.sections.length} sections</small>
+      </header>
+      <div className="sm-canvas-section-grid">
+        {show.sections.map((section, index) => {
+          const range = sectionRanges[index]
+          return (
+            <button
+              key={section.id}
+              type="button"
+              className={section.id === selectedSectionId ? 'is-selected' : ''}
+              onClick={() => onSelectSection(section.id)}
+            >
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <strong>{section.label}</strong>
+              <small>{section.durationSec} seconds · {formatClock(range?.startSec ?? 0)}–{formatClock(range?.endSec ?? 0)}</small>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function CanvasShowManagerTimeline({
+  show,
+  selectedSectionId,
+  sectionRanges,
+  totalDurationSec,
+  onSelect,
+}: {
+  show: CanvasShowManagerShow | null
+  selectedSectionId: string | null
+  sectionRanges: readonly CanvasShowManagerSectionRange[]
+  totalDurationSec: number
+  onSelect: (sectionId: string | null) => void
+}) {
+  return (
+    <div className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas section timeline">
+      <div className="sm-timeline-tabs">
+        <button type="button" className="is-active" disabled>Sections</button>
+        <span className="sm-timeline-meta">{show ? `${formatClock(totalDurationSec)} total` : 'No Canvas Show open'}</span>
+      </div>
+      {show ? (
+        <div className="sm-canvas-timeline-track">
+          {show.sections.map((section, index) => {
+            const range = sectionRanges[index]
+            const width = totalDurationSec > 0 ? (section.durationSec / totalDurationSec) * 100 : 0
+            return (
+              <button
+                key={section.id}
+                type="button"
+                className={section.id === selectedSectionId ? 'is-selected' : ''}
+                style={{ width: `${width}%` }}
+                onClick={() => onSelect(section.id)}
+                title={`${section.label}: ${range?.startSec ?? 0}s–${range?.endSec ?? 0}s`}
+              >
+                <strong>{section.label}</strong>
+                <small>{section.durationSec}s</small>
+              </button>
+            )
+          })}
+        </div>
+      ) : <div className="sm-laser-timeline-empty">Create or open a Canvas Show to edit its sections.</div>}
+    </div>
   )
 }
 
