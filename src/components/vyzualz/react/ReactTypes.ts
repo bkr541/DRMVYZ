@@ -3918,7 +3918,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       environment: { depth: 0.86, architecture: 0.7, fog: 0.4, debris: 0.08, stars: 0, atmosphere: 0.68 },
       material: { distortion: 0.05, refraction: 0, bloom: 0.66, chromaticAberration: 0.01, feedback: 0, glow: 0.74 },
       audioMapping: { enabled: true, smoothingMs: 92, routes: [
-        { id: 'ol-beat-rings', enabled: true, source: 'beat', target: 'portalPulse', amount: 0.8, attackMs: 0, releaseMs: 210 },
+        { id: 'ol-beat-rings', enabled: true, source: 'barStart', target: 'portalPulse', amount: 0.8, attackMs: 0, releaseMs: 520, beatHoldMs: 18, decayMs: 620 },
         { id: 'ol-high-glyphs', enabled: true, source: 'high', target: 'glow', amount: 0.68, attackMs: 30, releaseMs: 240 },
       ] },
     }),
@@ -3942,7 +3942,9 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
       material: { distortion: 0.32, refraction: 0.04, bloom: 0.96, chromaticAberration: 0.12, feedback: 0.03, glow: 1 },
       audioMapping: { enabled: true, smoothingMs: 28, routes: [
         { id: 'gs-kick-drive', enabled: true, source: 'kick', target: 'portalPulse', amount: 1.4, attackMs: 0, releaseMs: 125 },
+        { id: 'gs-beat-crown', enabled: true, source: 'beat', target: 'environmentBrightness', amount: 0.72, attackMs: 0, releaseMs: 140, beatHoldMs: 8, decayMs: 170 },
         { id: 'gs-bass-unlock', enabled: true, source: 'bass', target: 'glow', amount: 1.05, attackMs: 18, releaseMs: 180 },
+        { id: 'gs-drop-punch', enabled: true, source: 'dropEntry', target: 'cameraPunch', amount: 1.2, attackMs: 0, releaseMs: 320, beatHoldMs: 45, decayMs: 380 },
       ] },
     }),
     scenes: makeScenes('amgs', 'cinematicPortal'), sectionMappings: makeMappings('amgs'),

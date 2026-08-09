@@ -38,6 +38,23 @@ describe('Cinema canonical Shader performance bridge', () => {
     expect(number(melodicVocal.values.riftWidth)).toBeGreaterThan(number(melodicNeutral.values.riftWidth))
   })
 
+  it('keeps the minimum perceptual parameter delta material for the Stage 4 Shader regression set', () => {
+    const cases = [
+      { sceneId: 'shader-wobble-glyph-forge', event: { kick: true, bass: 1 }, target: 'bodyScale' },
+      { sceneId: 'shader-melodic-rift-bloom', event: { snare: true, high: 1 }, target: 'emberDensity' },
+      { sceneId: REACTOR_SCENE_ID, event: { kick: true, bass: 1 }, target: 'coreSize' },
+      { sceneId: REACTOR_SCENE_ID, event: { snare: true, mid: 1 }, target: 'shockwaveIntensity' },
+    ] as const
+
+    for (const item of cases) {
+      const definition = shaderRegistry.get(item.sceneId)!
+      const neutral = resolveFresh(definition, performanceFrame())
+      const active = resolveFresh(definition, performanceFrame(item.event))
+      const delta = number(active.values[item.target]) - number(neutral.values[item.target])
+      expect(delta, `${item.sceneId}:${item.target}`).toBeGreaterThanOrEqual(0.05)
+    }
+  })
+
   it('resolves Reactor kick, snare, build, drop, phrase, and energy behavior independently', () => {
     const reactor = shaderRegistry.get(REACTOR_SCENE_ID)!
     const neutral = resolveFresh(reactor, performanceFrame())

@@ -13,6 +13,7 @@ import {
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   cinemaCinematicResetReason,
   cinemaCinematicWorldTypeId,
+  createCinemaCinematicPresetComposition,
   createCinemaCinematicWorldAdapterBundle,
   createCinemaCinematicWorldComposition,
   createCinemaFoundationPersistedState,
@@ -30,6 +31,8 @@ import { CinemaTextureManager } from '../runtime/CinemaTextureManager'
 import { CinemaWebGLRenderServiceImpl } from '../runtime/CinemaWebGLRenderService'
 import { cinematicWorldRendererRegistry } from '../../react/renderers/CinematicPortalRenderer'
 import { cinematicWorldDefinitions } from '../../react/renderers/cinematic/worlds'
+import { DEFAULT_REACT_PRESETS } from '../../react/ReactTypes'
+import type { CinematicFrameContext as CinematicRenderFrame, CinematicWebGLWorldDefinition } from '../../react/renderers/CinematicWorldRenderer'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 
 describe('Cinema Cinematic World adapters', () => {
@@ -189,6 +192,54 @@ describe('Cinema Cinematic World adapters', () => {
     expect(harness.executor.render(frame(1, true))).toBe(true)
     expect(harness.gl.__calls.createdPrograms).toBe(programsBeforeReset)
     expect(harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    harness.dispose()
+  })
+
+  it('selects Gear Sun through the real Cinema preset adapter and forwards its same-frame gestures to the final world renderer', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-gear-sun')
+    const sourceDefinition = cinematicWorldDefinitions.find(candidate => candidate.id === 'ancientMachine')
+    expect(preset?.cinematicConfig?.worldMode).toBe('ancientMachine')
+    expect(sourceDefinition).toBeDefined()
+    if (!preset || !sourceDefinition) return
+
+    const renderedFrames: CinematicRenderFrame[] = []
+    const captureDefinition: CinematicWebGLWorldDefinition = {
+      ...sourceDefinition,
+      capabilities: { ...sourceDefinition.capabilities, modulationTargets: [...sourceDefinition.capabilities.modulationTargets] },
+      create: () => ({
+        initialize: vi.fn(),
+        resize: vi.fn(),
+        render: vi.fn((captured: CinematicRenderFrame) => { renderedFrames.push(captured) }),
+        reset: vi.fn(),
+        dispose: vi.fn(),
+      }),
+    }
+    const bundle = createCinemaCinematicWorldAdapterBundle({
+      webglDefinitions: [captureDefinition],
+      legacyDefinition: null,
+    })
+    const runtimeRegistry = createCinemaRuntimeNodeRegistry([
+      ...CINEMA_FOUNDATION_RUNTIME_REGISTRY.list(),
+      ...bundle.runtimeRegistrations,
+    ]).registry
+    const definitions = [...CINEMA_FOUNDATION_PERSISTED_DEFINITIONS, ...bundle.persistedDefinitions]
+    const composition = createCinemaCinematicPresetComposition(
+      preset,
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+    )
+    const harness = createExecutorHarness(runtimeRegistry, definitions, false)
+    harness.executor.setGraph({ composition, instance: null, definitions })
+
+    expect(harness.executor.render(frame(10))).toBe(true)
+    expect(harness.executor.render(frame(11, false, false, { beat: true, kick: true }))).toBe(true)
+    const captured = renderedFrames[renderedFrames.length - 1]
+    expect(captured?.presetId).toBe('preset-gear-sun')
+    expect(captured?.modulation?.values.impact).toBeGreaterThanOrEqual(0.95)
+    expect(captured?.modulation?.values.environmentBrightness).toBeGreaterThanOrEqual(0.7)
+    expect(harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    expect(harness.diagnostics).not.toContain('CINEMA_PARAMETER_SCHEMA_INVALID')
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
     harness.dispose()
   })
 
@@ -354,8 +405,16 @@ function createCanvas2DStub(): HTMLCanvasElement {
   return canvas
 }
 
-function frame(generation: number, reset = false, dropStart = false): Readonly<CinemaFrameContext> {
+function frame(
+  generation: number,
+  reset = false,
+  dropStart = false,
+  events: Partial<{ beat: boolean; kick: boolean; snare: boolean }> = {},
+): Readonly<CinemaFrameContext> {
   const clock = (spanBeats: number) => ({ available: true, spanBeats, index: 0, phase: 0.25, hit: false, eventId: null })
+  const beat = events.beat ?? generation === 0
+  const kick = events.kick ?? generation === 0
+  const snare = events.snare ?? false
   return {
     version: 1,
     viewport: { width: 320, height: 180, dpr: 1 },
@@ -437,11 +496,11 @@ function frame(generation: number, reset = false, dropStart = false): Readonly<C
       },
     },
     impulses: {
-      beat: generation === 0,
+      beat,
       downbeat: generation === 0,
-      kick: generation === 0,
-      snare: false,
-      transient: generation === 0,
+      kick,
+      snare,
+      transient: kick || snare,
       sectionStart: dropStart,
       dropStart,
       lyricCue: false,

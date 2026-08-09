@@ -176,6 +176,13 @@ export function createCinemaCameraParameterSchemas(
     safeRange.maxPosition[2] - safeRange.minPosition[2],
     1,
   )
+  // Look-at targets need their own symmetric world-space bounds. Reusing the
+  // camera-body range makes the canonical origin invalid whenever the camera's
+  // minimum safe distance is positive, while leaving targets unbounded bypasses
+  // the final parameter safety clamp. Keep the two contracts independent.
+  const targetExtent = maximumSpan * 2
+  const minimumTarget: CinemaVector3 = [-targetExtent, -targetExtent, -targetExtent]
+  const maximumTarget: CinemaVector3 = [targetExtent, targetExtent, targetExtent]
   const maximumFar = Math.max(safeRange.maxFar, safeRange.minNear + 0.001)
   const schemas: CinemaParameterDefinition[] = [
     vectorSchema('position', 'Position', vector3Value(values[CINEMA_CAMERA_PARAMETER_IDS.position], [0, 0, 2]), safeRange.minPosition, safeRange.maxPosition),
@@ -184,7 +191,7 @@ export function createCinemaCameraParameterSchemas(
     // not be reused as the look-at target range: Cinematic Worlds intentionally look at
     // the world origin while the camera itself stays a positive distance away from it.
     // Applying minPosition.z to target.z makes the canonical [0, 0, 0] target invalid.
-    vectorSchema('target', 'Target', vector3Value(values[CINEMA_CAMERA_PARAMETER_IDS.target], [0, 0, 0])),
+    vectorSchema('target', 'Target', vector3Value(values[CINEMA_CAMERA_PARAMETER_IDS.target], [0, 0, 0]), minimumTarget, maximumTarget),
     floatSchema('fovDegrees', 'Field of View', numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.fovDegrees], 58), safeRange.minFovDegrees, safeRange.maxFovDegrees, 0.1, 'degrees'),
     floatSchema('rollRadians', 'Roll', numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.rollRadians], 0), -Math.PI * 4, Math.PI * 4, 0.001, 'radians'),
     floatSchema('near', 'Near Plane', numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.near], 0.1), safeRange.minNear, Math.max(safeRange.minNear, maximumFar - 0.001), 0.001),

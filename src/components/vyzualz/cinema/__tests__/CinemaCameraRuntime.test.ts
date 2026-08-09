@@ -189,8 +189,8 @@ describe('CinemaCameraRuntime', () => {
     const target = schemas.find(schema => schema.id === CINEMA_CAMERA_PARAMETER_IDS.target)
 
     expect(target).toMatchObject({ type: 'vector3', default: [0, 0, 0] })
-    expect(target && 'min' in target ? target.min : undefined).toBeUndefined()
-    expect(target && 'max' in target ? target.max : undefined).toBeUndefined()
+    expect(target && 'min' in target ? target.min : undefined).toEqual([-8, -8, -8])
+    expect(target && 'max' in target ? target.max : undefined).toEqual([8, 8, 8])
     expect(validateCinemaParameterSchemas(schemas, { owner: 'camera' })).toEqual([])
   })
 

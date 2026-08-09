@@ -362,6 +362,11 @@ function createCinemaCameraResources(
   if (!definition?.direction) return []
   const defaults = authoredConfig ? normalizeCinematicWorldConfig(authoredConfig) : createBaseConfig(worldId)
   const direction = definition.direction
+  const safePosition = {
+    x: clampToRange(defaults.camera.locked.position.x, -direction.safeCameraRange.maxLateral, direction.safeCameraRange.maxLateral),
+    y: clampToRange(defaults.camera.locked.position.y, direction.safeCameraRange.minElevation, direction.safeCameraRange.maxElevation),
+    z: clampToRange(defaults.camera.locked.position.z, direction.safeCameraRange.minDistance, direction.safeCameraRange.maxDistance),
+  }
   const cameraId = cinemaStableId<CinemaCameraId>(stableSegment(`${worldId}-shared-camera`), 'camera')
   return [deepFreeze({
     id: cameraId,
@@ -371,9 +376,9 @@ function createCinemaCameraResources(
       : direction.supportedCameraRigs.includes('autoDirector') ? 'auto-director' : 'locked',
     parameterValues: {
       [cinemaCinematicWorldParameterId('position')]: [
-        defaults.camera.locked.position.x,
-        defaults.camera.locked.position.y,
-        defaults.camera.locked.position.z,
+        safePosition.x,
+        safePosition.y,
+        safePosition.z,
       ],
       [cinemaCinematicWorldParameterId('rotation')]: [
         defaults.camera.locked.rotation.x,
@@ -1627,6 +1632,11 @@ function namespacedSegment(value: string): string {
 
 function clamp01(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0
+}
+
+function clampToRange(value: number, minimum: number, maximum: number): number {
+  const finite = Number.isFinite(value) ? value : minimum
+  return Math.min(maximum, Math.max(minimum, finite))
 }
 
 
