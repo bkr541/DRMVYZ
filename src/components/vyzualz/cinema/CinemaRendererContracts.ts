@@ -218,6 +218,21 @@ export interface CinemaMusicalClockFrame {
   states: Readonly<Record<CinemaMusicalClockId, Readonly<CinemaClockFrame>>>
 }
 
+/** Engine-neutral copy of the resolved section timeline needed by node-local choreography. */
+export interface CinemaResolvedSectionFrame {
+  id: string
+  label: string
+  type: string
+  startSec: number
+  endSec: number
+  intensity: number
+  confidence: number
+  source: string | null
+  dropConfidence: number
+  familyId: string | null
+  occurrenceIndex: number | null
+}
+
 export interface CinemaMusicalFrame {
   available: boolean
   source: 'music-intelligence' | 'react-frame' | 'bpm-derived' | 'unavailable'
@@ -230,6 +245,8 @@ export interface CinemaMusicalFrame {
   sectionId: string | null
   sectionType: string | null
   sectionProgress: number
+  /** Additive runtime-only detail; absent on older synthetic/test frames. */
+  resolvedSections?: readonly Readonly<CinemaResolvedSectionFrame>[]
   clocks: CinemaMusicalClockFrame
 }
 

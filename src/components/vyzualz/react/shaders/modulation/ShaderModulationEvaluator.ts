@@ -390,7 +390,13 @@ export class ShaderModulationEvaluator {
     this._stateMap.clear()
   }
 
-  _resetForTest(): void { this._resetAll() }
+  /** Clear all runtime-only smoothing and envelope state. */
+  reset(): void {
+    this._resetAll()
+    this._lastSceneId = null
+  }
+
+  _resetForTest(): void { this.reset() }
 }
 
 // ── Combine-mode application ──────────────────────────────────────────────────

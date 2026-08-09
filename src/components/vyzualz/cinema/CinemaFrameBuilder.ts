@@ -295,6 +295,21 @@ export function buildCinemaFrameContext(input: CinemaFrameBuilderInput): CinemaF
       sectionId: resolvedSection?.id ?? null,
       sectionType: resolvedSection?.type ?? null,
       sectionProgress: resolvedSection?.progress ?? 0,
+      resolvedSections: Object.freeze(sections.map(section => Object.freeze({
+        id: section.id,
+        label: section.label,
+        type: section.type,
+        startSec: nonNegativeFinite(section.startSec),
+        endSec: Math.max(nonNegativeFinite(section.startSec), finiteOr(section.endSec, section.startSec)),
+        intensity: clamp01(section.intensity),
+        confidence: clamp01(section.confidence ?? (section.source === 'auto' ? 0 : 1)),
+        source: section.source ?? null,
+        dropConfidence: clamp01(section.dropConfidence ?? 0),
+        familyId: section.interpretation?.familyId ?? null,
+        occurrenceIndex: Number.isFinite(section.interpretation?.occurrenceIndex)
+          ? Math.max(1, Math.floor(section.interpretation?.occurrenceIndex ?? 1))
+          : null,
+      }))),
       clocks: clockFrame,
     }),
     impulses: eventSnapshot,

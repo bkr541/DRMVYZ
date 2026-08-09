@@ -8,6 +8,7 @@ import {
   CINEMA_FOUNDATION_COMPOSITION_ID,
   CINEMA_FOUNDATION_INPUT_PORT_ID,
   CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+  CINEMA_LEGACY_PRESET_CATALOG,
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   CINEMA_SHADER_REFERENCE_COMPOSITION,
   createCinemaFoundationPersistedState,
@@ -134,6 +135,41 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
       .filter(([location]) => (location as unknown as { name?: string })?.name === 'uKickHit')
       .map(([, value]) => value)
     expect(kickUniformValues.slice(-2)).toEqual([1, 0])
+    harness.dispose()
+  })
+
+  it('carries Reactor authored drop performance through preset composition, graph execution, and final uniforms', () => {
+    const state = createCinemaFoundationPersistedState()
+    const preset = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => entry.legacySourceId === REACTOR_SCENE_ID)!
+    const composition = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(candidate => candidate.id === preset.compositionId)!
+    const harness = createExecutorHarness()
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program, name) => (
+      { name } as unknown as WebGLUniformLocation
+    ))
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+
+    expect(harness.executor.render(frame(0))).toBe(true)
+    const dropForceUniformValues = () => vi.mocked(harness.gl.uniform1f).mock.calls
+      .filter(([location]) => (location as unknown as { name?: string })?.name === 'uDropForce')
+      .map(([, value]) => value)
+    const baselineDropForceValues = dropForceUniformValues()
+    const baselineDropForce = baselineDropForceValues[baselineDropForceValues.length - 1]
+    const base = frame(1, false, true)
+    const dropFrame: Readonly<CinemaFrameContext> = {
+      ...base,
+      music: {
+        ...base.music,
+        sectionId: 'drop-1',
+        sectionType: 'drop',
+      },
+    }
+    expect(harness.executor.render(dropFrame)).toBe(true)
+
+    const dropForceValues = dropForceUniformValues()
+    expect(dropForceValues.length).toBeGreaterThanOrEqual(2)
+    expect(dropForceValues[dropForceValues.length - 1]).toBeGreaterThan(baselineDropForce)
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
     harness.dispose()
   })
 

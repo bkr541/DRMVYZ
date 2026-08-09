@@ -8,13 +8,11 @@ import { ShaderTextureInputManager }   from './textures/ShaderTextureInputManage
 import { ShaderGradientTextureCache }  from './textures/ShaderGradientTextureCache'
 import { ShaderBrandTextureBridge }     from './brand/ShaderBrandTextureBridge'
 import { applyShaderBrandUniforms, resolveShaderBrandPalette, resolveShaderColorParam, type ShaderBrandPaletteContext } from './brand/ShaderBrandPersonalization'
-import { ShaderModulationEvaluator }   from './modulation/ShaderModulationEvaluator'
-import { ShaderModulationMatrix }      from './modulation/ShaderModulationMatrix'
 import { ShaderTransitionController }  from './transitions/ShaderTransitionController'
 import { ShaderTransitionRenderer }    from './transitions/ShaderTransitionRenderer'
 import { ShaderSectionChoreography, type ShaderSectionAction } from './transitions/ShaderSectionChoreography'
 import { ShaderPerformanceMonitor }    from './performance/ShaderPerformanceMonitor'
-import { ShaderPerformanceRuntime }    from './performance/ShaderPerformanceRuntime'
+import { ShaderPerformanceProgramExecutor } from './performance/ShaderPerformanceProgramExecutor'
 import { ShaderQualityController }     from './performance/ShaderQualityController'
 import { shaderRegistry }              from './registry'
 import { useShaderPanelStore }         from './ui/shaderPanelStore'
@@ -134,14 +132,11 @@ export class ShaderEngineRenderer {
   private readonly _texManager:     ShaderTextureInputManager
   private readonly _gradientCache:  ShaderGradientTextureCache
   private readonly _brandTextureBridge: ShaderBrandTextureBridge
-  private readonly _modEval:        ShaderModulationEvaluator
-  private readonly _matrix:         ShaderModulationMatrix
   private readonly _transCtrl:      ShaderTransitionController
   private readonly _transRend:      ShaderTransitionRenderer
   private readonly _perfMon:        ShaderPerformanceMonitor
   private readonly _qualCtrl:       ShaderQualityController
-  private readonly _performanceRuntime: ShaderPerformanceRuntime
-  private readonly _sectionChoreography: ShaderSectionChoreography
+  private readonly _performanceProgram: ShaderPerformanceProgramExecutor
   private _performanceContext: SharedPerformanceContext | null = null
   private _timingDiscontinuityRevision = 0
 
@@ -199,14 +194,11 @@ export class ShaderEngineRenderer {
     this._texManager     = new ShaderTextureInputManager(gl)
     this._gradientCache  = new ShaderGradientTextureCache(gl)
     this._brandTextureBridge = new ShaderBrandTextureBridge(gl)
-    this._modEval        = new ShaderModulationEvaluator()
-    this._matrix      = new ShaderModulationMatrix()
     this._transCtrl   = new ShaderTransitionController()
     this._transRend   = new ShaderTransitionRenderer(gl)
     this._perfMon     = new ShaderPerformanceMonitor()
     this._qualCtrl    = new ShaderQualityController()
-    this._performanceRuntime = new ShaderPerformanceRuntime()
-    this._sectionChoreography = new ShaderSectionChoreography()
+    this._performanceProgram = new ShaderPerformanceProgramExecutor()
 
     // Initialize GPU timer queries immediately so GPU timing works from frame 1
     this._perfMon.initTimerQuery(gl)
@@ -381,17 +373,23 @@ export class ShaderEngineRenderer {
       || performanceContext.loopWrapDetected
       || performanceContext.trackReplacementDetected
       || performanceContext.boundaries.timingDiscontinuity
-    const sectionType = performanceContext.macroSectionType ?? performanceContext.sectionType
-    const choreography = resolveShaderRendererSectionAction(
-      this._sectionChoreography,
-      performanceContext,
-      reconstructed,
-    )
-    const choreographyAction = choreography
-      ? `${sectionType ?? 'unknown'}:${choreography.transition.type}`
-      : null
+    const routes = this._activeSceneId
+      ? (useShaderPanelStore.getState().routesByShaderId[this._activeSceneId] ?? [])
+      : []
+    const performanceFrame = this._performanceProgram.resolve({
+      definition: this._activeDef,
+      sceneId: this._activeSceneId ?? '',
+      manualValues: store.paramValues,
+      routes,
+      context: performanceContext,
+      audio: audioFrame,
+      timing: timingFrame,
+      musicIntelligence: frame.musicIntelligence,
+      deltaTimeSec: frameState.deltaTime,
+      reconstruct: reconstructed,
+    })
     const sectionTransitionRequest = resolveShaderRendererSectionTransitionRequest(
-      choreography,
+      performanceFrame.choreography,
       this._activeSceneId,
       reconstructed,
     )
@@ -414,39 +412,14 @@ export class ShaderEngineRenderer {
     }
 
     // ── Modulation ─────────────────────────────────────────────────────────
-    const routes = this._activeSceneId
-      ? (useShaderPanelStore.getState().routesByShaderId[this._activeSceneId] ?? [])
-      : []
-    const performanceResolution = this._performanceRuntime.resolve(
-      this._activeDef,
-      store.paramValues,
-      performanceContext,
-      routes,
-      0,
-      choreographyAction,
-    )
-    this._matrix.fromArray(routes)
-    const evalFrame = this._modEval.evaluate(
-      this._matrix,
-      this._activeDef,
-      audioFrame,
-      timingFrame,
-      performanceResolution.paramValues,
-      frameState.deltaTime,
-      this._activeSceneId ?? '',
-      frame.musicIntelligence,
-      performanceContext,
-    )
+    const performanceResolution = performanceFrame.performance
+    const evalFrame = performanceFrame.modulation
     store.setEvaluationFrame(evalFrame)
-    store.setPerformanceSnapshot({
-      ...performanceResolution.snapshot,
-      activeRouteCount: evalFrame.activeRouteCount,
-    })
+    store.setPerformanceSnapshot(performanceResolution.snapshot)
 
-    const effectiveValues: Record<string, ShaderParamValue> = {}
+    const effectiveValues = performanceFrame.effectiveValues
     const numericModulatedValues: Record<string, number> = {}
     for (const [pid, result] of Object.entries(evalFrame.params)) {
-      effectiveValues[pid] = result.effectiveValue
       if (typeof result.effectiveValue === 'number') {
         numericModulatedValues[pid] = result.effectiveValue
       }
@@ -906,12 +879,8 @@ export class ShaderEngineRenderer {
     this._graphLoaded   = false  // loadGraph() deferred to first render frame
     this._pendingFeedbackReset = def.resetOnActivation === true
     this._feedbackResetTracker.resetTracking()
-    this._performanceRuntime.reset()
+    this._performanceProgram.setDefinition(def, id)
     this._performanceContext = null
-    this._sectionChoreography.reset()
-    this._sectionChoreography.enabled = Boolean(def.performanceProgram)
-    this._sectionChoreography.setRules([...(def.performanceProgram?.sectionChoreography ?? [])])
-    this._sectionChoreography.setCurrentScene(id)
     store.ensureNativeProgram(id)
     this._lastReactorRecipe = id === REACTOR_SCENE_ID
       && typeof store.paramValues.recipe === 'string'
@@ -927,7 +896,6 @@ export class ShaderEngineRenderer {
     this._gradientCache.clearAll()
 
     this._texManager.setDefinition(def)
-    this._matrix.setDefinition(def)
     this._qualCtrl.setSceneQualityRequirements(def.quality)
 
     store.setCompileError(null)

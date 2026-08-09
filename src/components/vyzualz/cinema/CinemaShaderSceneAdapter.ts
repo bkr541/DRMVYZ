@@ -68,6 +68,11 @@ import type { ShaderProgram } from '../react/shaders/runtime/ShaderProgram'
 import type { TextureBinding } from '../react/shaders/runtime/shaderRuntimeTypes'
 import { getShaderReservedTextureUnits } from '../react/shaders/runtime/shaderTextureUnits'
 import { ShaderGradientTextureCache } from '../react/shaders/textures/ShaderGradientTextureCache'
+import {
+  migrateLegacyReactorParamValues,
+  migrateLegacyReactorSceneId,
+} from '../react/shaders/scenes/reactorMigration'
+import { CinemaShaderPerformanceBridge } from './CinemaShaderPerformanceBridge'
 
 export const CINEMA_SHADER_SCENE_ADAPTER_VERSION = 1 as const
 export const CINEMA_SHADER_SCENE_COLOR_OUTPUT_PORT_ID = cinemaStableId<CinemaPortId>('color', 'port')
@@ -255,7 +260,8 @@ export function createCinemaShaderSceneComposition(
     description?: string
   } = {},
 ): CinemaCompositionDefinition {
-  const entry = CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.find(candidate => candidate.sceneId === sceneId)
+  const canonicalSceneId = migrateLegacyReactorSceneId(sceneId) ?? sceneId
+  const entry = CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.find(candidate => candidate.sceneId === canonicalSceneId)
   if (!entry) throw new Error(`Shader scene "${sceneId}" is not registered for the Cinema adapter.`)
   const compositionId = options.compositionId ?? cinemaStableId<CinemaCompositionId>(
     normalizeStableId(`shader-${sceneId}`),
@@ -277,6 +283,15 @@ export function createCinemaShaderSceneComposition(
   for (const parameter of entry.definition.parameters) {
     if (parameter.type !== 'trigger') parameterValues[parameter.id] = parameter.default
   }
+  if (canonicalSceneId !== sceneId) {
+    Object.assign(
+      parameterValues,
+      createCinemaShaderSceneParameterValues(
+        canonicalSceneId,
+        migrateLegacyReactorParamValues(sceneId, undefined),
+      ),
+    )
+  }
   const masterParameters = createMasterParameterDefinitions(false)
   const masterValues = Object.fromEntries(masterParameters.map(parameter => [parameter.id, 'default' in parameter ? parameter.default : null]))
   return {
@@ -287,7 +302,9 @@ export function createCinemaShaderSceneComposition(
     metadata: {
       name: options.name ?? `Cinema Shader: ${entry.definition.label}`,
       description: options.description ?? `Stage 9 reference composition for Shader Pads scene ${sceneId}.`,
-      tags: ['shader-adapter', sceneId],
+      tags: canonicalSceneId === sceneId
+        ? ['shader-adapter', sceneId]
+        : ['shader-adapter', canonicalSceneId, `legacy-source:${sceneId}`],
       provenance: { builtIn: true, adapter: 'shader-scene', adapterVersion: CINEMA_SHADER_SCENE_ADAPTER_VERSION },
     },
     nodes: [
@@ -473,6 +490,8 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
   private targets: CinemaNodeInitializeContext['targets'] | null = null
   private gl: WebGL2RenderingContext | null = null
   private initialized = false
+  private readonly performance: CinemaShaderPerformanceBridge
+  private readonly reportedPerformanceDiagnostics = new Set<string>()
 
   constructor(
     readonly authoredNode: Readonly<CinemaNodeDefinition>,
@@ -482,6 +501,7 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     private readonly brandTextureInputs: readonly ShaderBrandTextureInputMapping[],
   ) {
     this.typeId = authoredNode.typeId
+    this.performance = new CinemaShaderPerformanceBridge(shader)
   }
 
   get nodeId(): CinemaNodeId { return this.authoredNode.id }
@@ -591,6 +611,7 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
   }
 
   reset(_context: CinemaNodeResetContext): void {
+    this.performance.reset()
     this.clearState()
   }
 
@@ -615,6 +636,8 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     this.targets = null
     this.gl = null
     this.initialized = false
+    this.performance.reset()
+    this.reportedPerformanceDiagnostics.clear()
   }
 
   private assertCapabilities(context: CinemaNodeInitializeContext): void {
@@ -731,7 +754,45 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
       const raw = context.values[mapping.cinemaId]
       values[mapping.shader.id] = cinemaValueToShaderValue(mapping, raw)
     }
-    return values
+    const resolution = this.performance.resolve(context.frame, values)
+    if (resolution.feedbackResetRequested) this.clearState()
+    for (const [routeId, diagnostic] of Object.entries(resolution.invalidRoutes)) {
+      this.reportPerformanceDiagnostic(
+        context,
+        `route:${routeId}:${diagnostic.code}`,
+        'CINEMA_MODULATION_ROUTE_INVALID',
+        `Shader performance route "${routeId}" is invalid in Cinema: ${diagnostic.message}`,
+        { sceneId: this.shader.id, routeId, validationCode: diagnostic.code },
+      )
+    }
+    for (const targetId of resolution.snapshot.invalidTargetIds) {
+      this.reportPerformanceDiagnostic(
+        context,
+        `target:${targetId}`,
+        'CINEMA_PARAMETER_DESTINATION_UNAVAILABLE',
+        `Shader performance program "${resolution.snapshot.programId ?? this.shader.id}" could not resolve target "${targetId}".`,
+        { sceneId: this.shader.id, targetId },
+      )
+    }
+    return resolution.values
+  }
+
+  private reportPerformanceDiagnostic(
+    context: CinemaNodeRenderContext,
+    identity: string,
+    code: 'CINEMA_MODULATION_ROUTE_INVALID' | 'CINEMA_PARAMETER_DESTINATION_UNAVAILABLE',
+    message: string,
+    details: Readonly<Record<string, string>>,
+  ): void {
+    if (this.reportedPerformanceDiagnostics.has(identity)) return
+    this.reportedPerformanceDiagnostics.add(identity)
+    context.diagnostics.report(createCinemaDiagnostic({
+      code,
+      severity: 'warning',
+      message,
+      attribution: { nodeId: this.nodeId, stage: 'shader-performance-program' },
+      details,
+    }))
   }
 
   private applyUniforms(
