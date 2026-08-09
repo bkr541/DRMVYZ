@@ -35,6 +35,9 @@ import {
   type CinemaRuntimeFrameClockState,
   type CinemaRuntimeFrameSource,
 } from './CinemaRuntimeFrameClock'
+import { GpuFrameTimer } from '../../react/shaders/performance/GpuFrameTimer'
+import { disposeCinemaShaderProgramCache } from '../CinemaShaderProgramCache'
+import { prepareCinemaShaderScenePrograms } from '../CinemaShaderSceneAdapter'
 
 export type CinemaRuntimePhase =
   | 'initializing'
@@ -143,11 +146,15 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     activeNodeCount: 0, initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null,
     outputRendered: false, safeOutputActive: true, modulationRouteCount: 0, activeModulationRouteCount: 0, diagnostics: createCinemaDiagnosticSnapshot([]),
     performanceRuleCount: 0, activePerformanceRuleCount: 0, activePerformanceTransientCount: 0,
+    parameterResolutionCount: 0, parameterReuseCount: 0, snapshotPublicationCount: 0,
+    profile: { sampleCount: 0, performanceMs: 0, qualityMs: 0, parameterMs: 0, cameraMs: 0, graphRenderMs: 0 },
     quality: createCinemaEmptyGraphQualitySnapshot(),
   }
   private fpsFrameCount = 0
   private fpsWindowStartedMs = 0
   private lastFrameDrivenSnapshotMs = Number.NEGATIVE_INFINITY
+  private gpuTimer: GpuFrameTimer
+  private observedGpuSampleCount = 0
 
   private constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -164,6 +171,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.onSnapshot = options.onSnapshot ?? null
     this.onLiveFps = options.onLiveFps ?? null
     this.capabilities = detectPlatformCapabilities(gl)
+    this.gpuTimer = new GpuFrameTimer(gl)
     this.textures = new CinemaTextureManager()
     this.assets = new CinemaAssetManager(gl, this)
     this.targets = new CinemaRenderTargetPool(gl, this.textures, this.viewport, this)
@@ -190,6 +198,8 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       this.phase = 'context-lost'
       this.cancelScheduledFrame()
       this.executor.handleContextLost()
+      disposeCinemaShaderProgramCache(this.gl)
+      this.gpuTimer.dispose()
       this.assets.handleContextLost()
       this.targets.abandonContext()
       this.report(createCinemaDiagnostic({
@@ -212,6 +222,8 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
         type: 'restore-started', contextGeneration: this.contextGeneration, frameCount: this.frameCount, message: null,
       })
       try {
+        this.gpuTimer = new GpuFrameTimer(this.gl)
+        this.observedGpuSampleCount = 0
         this.targets.rebuildAfterContextRestore()
         this.assets.rebuildAfterContextRestore()
         if (this.lastResolution) this.applyResolution(this.lastResolution)
@@ -259,6 +271,14 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       message: 'Cinema runtime is active with deterministic performance choreography, compiled graph execution, adapter-backed state commands, and safe-output isolation.',
       attribution: { stage: 'cinema-runtime' },
     }))
+    if (!this.gpuTimer.available) {
+      this.report(createCinemaDiagnostic({
+        code: 'CINEMA_GPU_TIMER_UNAVAILABLE',
+        severity: 'info',
+        message: 'Cinema GPU timer queries are unavailable; adaptive quality is using CPU submission and presentation cadence.',
+        attribution: { stage: 'quality-manager' },
+      }))
+    }
   }
 
   setGraph(
@@ -267,6 +287,20 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     definitions: readonly CinemaPersistedDefinition[],
   ): void {
     if (this.disposed) return
+    if (composition) {
+      const preparation = prepareCinemaShaderScenePrograms(this.gl, composition)
+      if (!preparation.ok) {
+        this.report(createCinemaDiagnostic({
+          code: 'CINEMA_SHADER_COMPILE_FAILED',
+          severity: 'error',
+          message: `Cinema kept the active preset because the replacement Shader scene failed preparation: ${preparation.message}`,
+          attribution: { compositionId: composition.id, stage: 'shader-scene-adapter' },
+          details: { sceneId: preparation.sceneId },
+        }))
+        this.emitSnapshot()
+        return
+      }
+    }
     this.composition = composition
     this.instance = instance
     if (composition) this.assets.validateAuthoredBindings(composition, instance)
@@ -364,6 +398,9 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   }
 
   getSnapshot(): CinemaRuntimeSnapshot {
+    // Pull on demand so tests/diagnostics and immediate state transitions never
+    // observe a stale frame merely because automatic publication is throttled.
+    this.graphSnapshot = this.executor.getSnapshot()
     const diagnostics = createCinemaDiagnosticSnapshot(this.diagnostics)
     const telemetry = this.runtimeDiagnostics.capture({
       phase: this.phase,
@@ -399,6 +436,8 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestoredHandler)
     try { this.executor.dispose() } catch { /* Continue deterministic cleanup. */ }
+    try { disposeCinemaShaderProgramCache(this.gl) } catch { /* Continue deterministic cleanup. */ }
+    try { this.gpuTimer.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { this.assets.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { this.targets.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { this.textures.dispose() } catch { /* Continue deterministic cleanup. */ }
@@ -455,10 +494,30 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       }) ?? this.frame
       this.frame = sourcedFrame
       const renderStartedMs = performance.now()
-      this.executor.render(sourcedFrame ? this.impulseGate.consume(sourcedFrame) : null)
+      this.gpuTimer.beginFrame()
+      try {
+        this.executor.render(sourcedFrame ? this.impulseGate.consume(sourcedFrame) : null)
+      } finally {
+        this.gpuTimer.endFrame()
+      }
       const renderTimeMs = Math.max(0, performance.now() - renderStartedMs)
-      this.executor.observeFrameTime(renderTimeMs)
-      this.runtimeDiagnostics.recordFrameTime(renderTimeMs)
+      const presentationTimeMs = clock.timingDiscontinuity ? 0 : clock.deltaTimeSec * 1000
+      this.gpuTimer.poll()
+      const gpuTimerSnapshot = this.gpuTimer.getSnapshot()
+      const gpuTimeMs = gpuTimerSnapshot.completedSampleCount > this.observedGpuSampleCount
+        ? gpuTimerSnapshot.lastGpuMs
+        : null
+      this.observedGpuSampleCount = gpuTimerSnapshot.completedSampleCount
+      if (gpuTimerSnapshot.state === 'disjoint') {
+        this.report(createCinemaDiagnostic({
+          code: 'CINEMA_GPU_TIMER_DISJOINT',
+          severity: 'warning',
+          message: 'Cinema ignored a disjoint GPU timing sample and kept presentation/CPU quality fallbacks active.',
+          attribution: { stage: 'quality-manager' },
+        }))
+      }
+      this.executor.observeFrameMetrics({ cpuMs: renderTimeMs, presentationMs: presentationTimeMs, gpuMs: gpuTimeMs })
+      this.runtimeDiagnostics.recordFrameMetrics({ cpuMs: renderTimeMs, presentationMs: presentationTimeMs, gpuMs: gpuTimeMs })
       this.frameCount += 1
       this.fpsFrameCount += 1
       const elapsed = nowMs - this.fpsWindowStartedMs

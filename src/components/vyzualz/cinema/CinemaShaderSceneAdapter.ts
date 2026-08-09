@@ -59,7 +59,6 @@ import type {
   TextureSourceType,
   Vec2,
 } from '../react/shaders/registry/shaderRegistryTypes'
-import { ShaderPassCompiler } from '../react/shaders/rendergraph/ShaderPassCompiler'
 import { ShaderRenderPass } from '../react/shaders/rendergraph/ShaderRenderPass'
 import type { CompiledGraph, CompiledPassNode } from '../react/shaders/rendergraph/shaderRenderGraphTypes'
 import { FullscreenPass } from '../react/shaders/runtime/FullscreenPass'
@@ -73,6 +72,10 @@ import {
   migrateLegacyReactorSceneId,
 } from '../react/shaders/scenes/reactorMigration'
 import { CinemaShaderPerformanceBridge } from './CinemaShaderPerformanceBridge'
+import {
+  acquireCinemaShaderProgramGraph,
+  type CinemaShaderProgramLease,
+} from './CinemaShaderProgramCache'
 
 export const CINEMA_SHADER_SCENE_ADAPTER_VERSION = 1 as const
 export const CINEMA_SHADER_SCENE_COLOR_OUTPUT_PORT_ID = cinemaStableId<CinemaPortId>('color', 'port')
@@ -246,6 +249,38 @@ export const CINEMA_SHADER_SCENE_ADAPTER_BUNDLE = createCinemaShaderSceneAdapter
 export const CINEMA_SHADER_SCENE_RUNTIME_REGISTRY = createCinemaRuntimeNodeRegistry(
   CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.runtimeRegistrations,
 ).registry
+
+/**
+ * Compiles reachable Shader scene programs while the current graph is still
+ * intact. Successful leases are released into the bounded context cache; a
+ * failure leaves the caller free to keep presenting the previous graph.
+ */
+export function prepareCinemaShaderScenePrograms(
+  gl: WebGL2RenderingContext,
+  composition: Readonly<CinemaCompositionDefinition>,
+): Readonly<{ ok: true } | { ok: false; sceneId: string; message: string }> {
+  const leases: CinemaShaderProgramLease[] = []
+  for (const node of composition.nodes) {
+    if (node.family !== 'shader') continue
+    const entry = CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.find(candidate => candidate.typeId === node.typeId)
+    if (!entry) continue
+    const shader = shaderRegistry.get(entry.sceneId)
+    if (!shader) continue
+    const lease = acquireCinemaShaderProgramGraph(gl, shader)
+    if (!lease.graph) {
+      for (const acquired of leases) acquired.release()
+      lease.release()
+      return Object.freeze({
+        ok: false,
+        sceneId: entry.sceneId,
+        message: lease.error?.message ?? `Shader scene "${entry.sceneId}" failed to compile.`,
+      })
+    }
+    leases.push(lease)
+  }
+  for (const lease of leases) lease.release()
+  return Object.freeze({ ok: true })
+}
 
 export function createCinemaShaderSceneComposition(
   sceneId: string,
@@ -477,7 +512,7 @@ function createAdapterEntry(shader: ShaderDefinition): CinemaShaderSceneAdapterE
 
 class ShaderSceneNodeAdapter implements CinemaRenderNode {
   readonly typeId: CinemaNodeTypeId
-  private compiler: ShaderPassCompiler | null = null
+  private programLease: CinemaShaderProgramLease | null = null
   private graph: CompiledGraph | null = null
   private fullscreen: FullscreenPass | null = null
   private geometry: GeometryPass | null = null
@@ -510,8 +545,8 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     this.targets = context.targets
     this.gl = context.webgl.gl
     this.assertCapabilities(context)
-    this.compiler = new ShaderPassCompiler(this.gl)
-    const result = this.compiler.compile(this.shader as ShaderDefinition)
+    const result = acquireCinemaShaderProgramGraph(this.gl, this.shader)
+    this.programLease = result
     if (!result.graph) {
       context.diagnostics.report(createCinemaDiagnostic({
         code: 'CINEMA_SHADER_COMPILE_FAILED',
@@ -617,14 +652,14 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
 
   dispose(_context: CinemaNodeDisposeContext): void {
     this.releasePersistentTargets()
-    if (this.graph) ShaderPassCompiler.disposeGraph(this.graph)
+    this.programLease?.release()
     this.fullscreen?.dispose()
     this.geometry?.dispose()
     this.spectrum?.dispose()
     this.waveform?.dispose()
     this.gradients?.dispose()
     if (this.neutralTexture && this.gl) this.gl.deleteTexture(this.neutralTexture)
-    this.compiler = null
+    this.programLease = null
     this.graph = null
     this.fullscreen = null
     this.geometry = null

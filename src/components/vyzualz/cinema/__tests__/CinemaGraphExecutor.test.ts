@@ -153,6 +153,8 @@ describe('CinemaGraphExecutor', () => {
     const textures = new CinemaTextureManager()
     const targets = new CinemaRenderTargetPool(gl, textures, viewport, sink)
     const webgl = new CinemaWebGLRenderServiceImpl(gl, targets, textures)
+    let nowMs = 0
+    let snapshotCount = 0
     const executor = new CinemaGraphExecutor({
       runtimeRegistry,
       platform: {
@@ -170,10 +172,14 @@ describe('CinemaGraphExecutor', () => {
       textures,
       webgl,
       diagnostics: sink,
+      now: () => nowMs,
+      snapshotIntervalMs: 250,
+      onSnapshot: () => { snapshotCount += 1 },
     })
 
     executor.resize({ width: 1, height: 1, dpr: 1 }, viewport)
     executor.setGraph({ composition, instance, definitions })
+    const immediateSnapshotCount = snapshotCount
     expect(executor.render(frame(false))).toBe(true)
     expect(executor.render(frame(false))).toBe(true)
     expect(executor.render(frame(true))).toBe(true)
@@ -182,6 +188,11 @@ describe('CinemaGraphExecutor', () => {
     expect(initializedAssetId).toBe('asset-override')
     expect(targets.getDiagnostics().activeLeaseCount).toBe(2)
     expect(diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    expect(executor.getSnapshot()).toMatchObject({ parameterResolutionCount: 0, parameterReuseCount: 3 })
+    expect(snapshotCount).toBe(immediateSnapshotCount)
+    nowMs = 300
+    expect(executor.render(frame(false))).toBe(true)
+    expect(snapshotCount).toBe(immediateSnapshotCount + 1)
 
     executor.setGraph({ composition: null, instance: null, definitions })
     expect(targets.getDiagnostics().activeLeaseCount).toBe(0)
@@ -662,7 +673,14 @@ function modulationFrame(bass: number): Readonly<CinemaFrameContext> {
 
 function frame(reset: boolean): Readonly<CinemaFrameContext> {
   return {
+    version: 1,
     viewport: { width: 320, height: 180, dpr: 1 },
+    timing: {
+      frameIndex: reset ? 1 : 0,
+      elapsedTimeSec: 0,
+      deltaTimeSec: 1 / 60,
+      seeds: { composition: 1, track: 2, musicalPosition: 3, event: 4 },
+    },
     transport: {
       trackId: 'feedback-test',
       audioTimeSec: 0,
@@ -682,6 +700,16 @@ function frame(reset: boolean): Readonly<CinemaFrameContext> {
         actionIds: reset ? ['cinema.reset.seek'] : [],
         identity: null,
       },
+    },
+    brand: { available: false, colors: {} },
+    performance: { events: [], actionIds: [], toggleStates: {} },
+    capabilities: {
+      analyser: false,
+      musicIntelligence: false,
+      authoritativeSections: false,
+      lyrics: false,
+      sharedPerformance: false,
+      brandKit: false,
     },
   } as unknown as Readonly<CinemaFrameContext>
 }
@@ -711,7 +739,7 @@ function performanceFrame(): Readonly<CinemaFrameContext> {
       },
     },
     performance: { events: [], actionIds: [], toggleStates: {} },
-    brand: { available: false, palette: {}, logoAssetId: null },
+    brand: { available: false, colors: {} },
     capabilities: {
       analyser: true, musicIntelligence: true, authoritativeSections: true,
       lyrics: false, sharedPerformance: true, brandKit: false,

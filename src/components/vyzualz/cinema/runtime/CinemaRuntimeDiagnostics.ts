@@ -58,6 +58,21 @@ export interface CinemaRuntimeDiagnosticsSnapshot {
     p95Ms: number
     maxMs: number
   }>
+  presentationTime: Readonly<{
+    sampleCount: number
+    lastMs: number
+    averageMs: number
+    p95Ms: number
+    maxMs: number
+  }>
+  gpuTime: Readonly<{
+    availableSampleCount: number
+    lastMs: number | null
+    averageMs: number | null
+    p95Ms: number | null
+    maxMs: number | null
+  }>
+  executorProfile: CinemaGraphExecutorSnapshot['profile']
   quality: CinemaGraphExecutorSnapshot['quality']
   adapters: Readonly<{
     diagnosticCount: number
@@ -91,9 +106,13 @@ export function createCinemaEmptyRuntimeDiagnosticsSnapshot(): CinemaRuntimeDiag
     assets: Object.freeze({ sourceCount: 0, resourceCount: 0, readyCount: 0 }),
     context: Object.freeze({ phase: 'initializing', generation: 1, lost: false, recoveryCount: 0, lastRecoveryStatus: 'none' }),
     frameTime: Object.freeze({ sampleCount: 0, lastMs: 0, averageMs: 0, p95Ms: 0, maxMs: 0 }),
+    presentationTime: Object.freeze({ sampleCount: 0, lastMs: 0, averageMs: 0, p95Ms: 0, maxMs: 0 }),
+    gpuTime: Object.freeze({ availableSampleCount: 0, lastMs: null, averageMs: null, p95Ms: null, maxMs: null }),
+    executorProfile: Object.freeze({ sampleCount: 0, performanceMs: 0, qualityMs: 0, parameterMs: 0, cameraMs: 0, graphRenderMs: 0 }),
     quality: Object.freeze({
       selectedTier: 'high', desiredTier: 'high', pressure: 'nominal', estimatedGraphCostScore: 0, graphBudgetScore: 0,
       targetAllocationCount: 0, estimatedTargetMemoryMb: 0, averageFrameTimeMs: 0, p95FrameTimeMs: 0,
+      averageCpuTimeMs: 0, averagePresentationTimeMs: 0, averageGpuTimeMs: null,
       degradedNodeCount: 0, skippedNodeCount: 0, frozenNodeCount: 0, nodeDecisions: Object.freeze([]),
     }),
     adapters: Object.freeze({ diagnosticCount: 0, errorCount: 0 }),
@@ -120,6 +139,8 @@ interface CaptureInput {
  */
 export class CinemaRuntimeDiagnosticsStore {
   private readonly frameTimes: number[] = []
+  private readonly presentationTimes: number[] = []
+  private readonly gpuTimes: number[] = []
   private readonly recoveryEvents: CinemaRecoveryEvent[] = []
   private readonly history: CinemaRuntimeDiagnosticsSnapshot[] = []
   private sequence = 0
@@ -133,9 +154,13 @@ export class CinemaRuntimeDiagnosticsStore {
   ) {}
 
   recordFrameTime(frameTimeMs: number): void {
-    if (!Number.isFinite(frameTimeMs) || frameTimeMs < 0) return
-    this.frameTimes.push(frameTimeMs)
-    trimHead(this.frameTimes, this.frameTimeLimit)
+    this.recordFrameMetrics({ cpuMs: frameTimeMs, presentationMs: frameTimeMs, gpuMs: null })
+  }
+
+  recordFrameMetrics(metrics: { cpuMs: number; presentationMs: number; gpuMs: number | null }): void {
+    pushSample(this.frameTimes, metrics.cpuMs, this.frameTimeLimit)
+    pushSample(this.presentationTimes, metrics.presentationMs, this.frameTimeLimit)
+    if (metrics.gpuMs != null) pushSample(this.gpuTimes, metrics.gpuMs, this.frameTimeLimit)
   }
 
   recordRecovery(input: Omit<CinemaRecoveryEvent, 'sequence'>): void {
@@ -164,7 +189,11 @@ export class CinemaRuntimeDiagnosticsStore {
 
     const frameTimes = this.frameTimes
     const sortedFrameTimes = [...frameTimes].sort((left, right) => left - right)
-    const lastRecovery = this.recoveryEvents.at(-1)
+    const presentationTimes = this.presentationTimes
+    const sortedPresentationTimes = [...presentationTimes].sort((left, right) => left - right)
+    const gpuTimes = this.gpuTimes
+    const sortedGpuTimes = [...gpuTimes].sort((left, right) => left - right)
+    const lastRecovery = this.recoveryEvents[this.recoveryEvents.length - 1]
     const recoveryCount = this.successfulRecoveryCount
     const snapshot: CinemaRuntimeDiagnosticsSnapshot = Object.freeze({
       version: CINEMA_RUNTIME_DIAGNOSTICS_VERSION,
@@ -204,11 +233,26 @@ export class CinemaRuntimeDiagnosticsStore {
       }),
       frameTime: Object.freeze({
         sampleCount: frameTimes.length,
-        lastMs: round3(frameTimes.at(-1) ?? 0),
+        lastMs: round3(frameTimes[frameTimes.length - 1] ?? 0),
         averageMs: round3(average(frameTimes)),
         p95Ms: round3(percentile(sortedFrameTimes, 0.95)),
-        maxMs: round3(sortedFrameTimes.at(-1) ?? 0),
+        maxMs: round3(sortedFrameTimes[sortedFrameTimes.length - 1] ?? 0),
       }),
+      presentationTime: Object.freeze({
+        sampleCount: presentationTimes.length,
+        lastMs: round3(presentationTimes[presentationTimes.length - 1] ?? 0),
+        averageMs: round3(average(presentationTimes)),
+        p95Ms: round3(percentile(sortedPresentationTimes, 0.95)),
+        maxMs: round3(sortedPresentationTimes[sortedPresentationTimes.length - 1] ?? 0),
+      }),
+      gpuTime: Object.freeze({
+        availableSampleCount: gpuTimes.length,
+        lastMs: nullableRound3(gpuTimes[gpuTimes.length - 1]),
+        averageMs: gpuTimes.length > 0 ? round3(average(gpuTimes)) : null,
+        p95Ms: nullableRound3(gpuTimes.length > 0 ? percentile(sortedGpuTimes, 0.95) : undefined),
+        maxMs: nullableRound3(sortedGpuTimes[sortedGpuTimes.length - 1]),
+      }),
+      executorProfile: input.graph.profile,
       quality: input.graph.quality,
       adapters: Object.freeze({ diagnosticCount: adapterDiagnosticCount, errorCount: adapterErrorCount }),
       recoveryEvents: Object.freeze([...this.recoveryEvents]),
@@ -224,6 +268,8 @@ export class CinemaRuntimeDiagnosticsStore {
 
   resetFrameHistory(): void {
     this.frameTimes.length = 0
+    this.presentationTimes.length = 0
+    this.gpuTimes.length = 0
   }
 }
 
@@ -240,6 +286,12 @@ function trimHead<T>(values: T[], maximum: number): void {
   if (values.length > limit) values.splice(0, values.length - limit)
 }
 
+function pushSample(values: number[], value: number, maximum: number): void {
+  if (!Number.isFinite(value) || value < 0) return
+  values.push(value)
+  trimHead(values, maximum)
+}
+
 function average(values: readonly number[]): number {
   if (values.length === 0) return 0
   return values.reduce((sum, value) => sum + value, 0) / values.length
@@ -253,4 +305,8 @@ function percentile(sortedValues: readonly number[], ratio: number): number {
 
 function round3(value: number): number {
   return Math.round(value * 1000) / 1000
+}
+
+function nullableRound3(value: number | undefined): number | null {
+  return value == null ? null : round3(value)
 }

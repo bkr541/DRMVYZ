@@ -2,6 +2,7 @@ import type {
   CinemaAssetBindingDefinition,
   CinemaCompositionDefinition,
   CinemaCompositionInstance,
+  CinemaBrandRole,
   CinemaNodeDefinition,
   CinemaParameterValue,
   CinemaParameterValues,
@@ -62,6 +63,7 @@ import {
   CinemaQualityManager,
   applyCinemaQualityScalars,
   type CinemaGraphQualitySnapshot,
+  type CinemaQualityFrameMetrics,
   type CinemaNodeQualityDecision,
 } from './CinemaQualityManager'
 import {
@@ -90,6 +92,11 @@ const NOOP_ASSET_RUNTIME: CinemaAssetRuntimeService = Object.freeze({
   getDiagnostics: () => Object.freeze({ sourceCount: 0, resourceCount: 0, readyCount: 0 }),
 })
 
+const EMPTY_NODE_VALUES: Readonly<CinemaParameterValues> = Object.freeze({})
+const CINEMA_BRAND_ROLES: readonly CinemaBrandRole[] = Object.freeze([
+  'primary', 'secondary', 'accent', 'background', 'foreground', 'highlight', 'shadow',
+])
+
 export interface CinemaGraphExecutorSnapshot {
   compositionId: string | null
   compositionRevision: number | null
@@ -106,6 +113,17 @@ export interface CinemaGraphExecutorSnapshot {
   performanceRuleCount: number
   activePerformanceRuleCount: number
   activePerformanceTransientCount: number
+  parameterResolutionCount: number
+  parameterReuseCount: number
+  snapshotPublicationCount: number
+  profile: Readonly<{
+    sampleCount: number
+    performanceMs: number
+    qualityMs: number
+    parameterMs: number
+    cameraMs: number
+    graphRenderMs: number
+  }>
   quality: CinemaGraphQualitySnapshot
   diagnostics: CinemaDiagnosticSnapshot
 }
@@ -120,6 +138,8 @@ export interface CinemaGraphExecutorOptions {
   diagnostics: CinemaRuntimeDiagnosticSink
   onSnapshot?: (snapshot: CinemaGraphExecutorSnapshot) => void
   maximumPlanCacheSize?: number
+  snapshotIntervalMs?: number
+  now?: () => number
 }
 
 interface RuntimeNodeRecord {
@@ -159,6 +179,8 @@ export class CinemaGraphExecutor {
   private readonly diagnosticsSink: CinemaRuntimeDiagnosticSink
   private readonly onSnapshot: ((snapshot: CinemaGraphExecutorSnapshot) => void) | null
   private readonly maximumPlanCacheSize: number
+  private readonly snapshotIntervalMs: number
+  private readonly now: () => number
   private readonly planCache = new Map<string, CinemaGraphCompilationResult>()
   private readonly diagnostics: CinemaDiagnostic[] = []
   private readonly records = new Map<CinemaNodeId, RuntimeNodeRecord>()
@@ -169,6 +191,18 @@ export class CinemaGraphExecutor {
   private parameterRegistry: CinemaNodeDefinitionRegistry | null = null
   private cameraParameterSchemas: ReturnType<typeof createCinemaCameraParameterSchemaMap> = Object.freeze({})
   private baseParameterValues: Readonly<Record<string, CinemaParameterValue>> = Object.freeze({})
+  private baseNodeValues: ReadonlyMap<CinemaNodeId, Readonly<CinemaParameterValues>> = new Map()
+  private staticParameterValues: Readonly<Record<string, CinemaParameterValue>> = this.baseParameterValues
+  private staticNodeValues: ReadonlyMap<CinemaNodeId, Readonly<CinemaParameterValues>> = this.baseNodeValues
+  private staticBrandColors: Readonly<CinemaFrameContext['brand']['colors']> | null = null
+  private hasDynamicBrandParameters = false
+  private parameterResolutionCount = 0
+  private parameterReuseCount = 0
+  private snapshotPublicationCount = 0
+  private lastSnapshotPublicationMs = Number.NEGATIVE_INFINITY
+  private profileFrameCount = 0
+  private profileSampleCount = 0
+  private readonly profileTotals = { performanceMs: 0, qualityMs: 0, parameterMs: 0, cameraMs: 0, graphRenderMs: 0 }
   private modulationRuntime: CinemaModulationRuntime | null = null
   private performanceRuntime: CinemaPerformanceRuntime | null = null
   private activeModulationRouteCount = 0
@@ -197,11 +231,18 @@ export class CinemaGraphExecutor {
     this.diagnosticsSink = options.diagnostics
     this.onSnapshot = options.onSnapshot ?? null
     this.maximumPlanCacheSize = Math.max(1, Math.floor(options.maximumPlanCacheSize ?? 16))
+    this.snapshotIntervalMs = Math.max(16, options.snapshotIntervalMs ?? 250)
+    this.now = options.now ?? (() => performance.now())
   }
 
   observeFrameTime(frameTimeMs: number): void {
     if (this.disposed) return
     this.qualityManager.observeFrameTime(frameTimeMs)
+  }
+
+  observeFrameMetrics(metrics: Readonly<CinemaQualityFrameMetrics>): void {
+    if (this.disposed) return
+    this.qualityManager.observeFrameMetrics(metrics)
   }
 
   setGraph(configuration: GraphConfiguration): void {
@@ -245,7 +286,7 @@ export class CinemaGraphExecutor {
     this.outputRendered = false
     if (!frame || !this.plan) {
       this.renderSafeOutput()
-      this.emitSnapshot()
+      this.emitSnapshot(false)
       return false
     }
 
@@ -268,15 +309,34 @@ export class CinemaGraphExecutor {
       currentCompositionId,
       this.consumedComposerManualPreviewSequence,
     )
-    const performance = this.performanceRuntime?.evaluate(previewFrame) ?? emptyPerformanceEvaluation()
+    const profileSample = this.profileFrameCount++ % 60 === 0
+    let profileMarkMs = profileSample ? this.now() : 0
+    const performance = this.performanceRuntime && (this.performanceRuntime.ruleCount > 0 || manualPreviewPending)
+      ? this.performanceRuntime.evaluate(previewFrame)
+      : EMPTY_PERFORMANCE_EVALUATION
     if (manualPreviewPending) this.consumedComposerManualPreviewSequence = this.composerRuntimePreview.manualActionSequence
     this.activePerformanceRuleCount = performance.activeRuleCount
     this.activePerformanceTransientCount = performance.activeTransientCount
     for (const diagnostic of performance.diagnostics.diagnostics) this.reportOnce(diagnostic)
+    if (profileSample) {
+      const mark = this.now()
+      this.profileTotals.performanceMs += Math.max(0, mark - profileMarkMs)
+      profileMarkMs = mark
+    }
     const quality = this.evaluateQuality(performance.nodeEnabledOverrides)
     this.reportQualityDiagnostics(quality)
+    if (profileSample) {
+      const mark = this.now()
+      this.profileTotals.qualityMs += Math.max(0, mark - profileMarkMs)
+      profileMarkMs = mark
+    }
     const performanceFrame = applyPerformanceFrameOverrides(previewFrame, performance)
     const resolvedParameterValues = this.updateFrameParameterValues(performanceFrame, performance)
+    if (profileSample) {
+      const mark = this.now()
+      this.profileTotals.parameterMs += Math.max(0, mark - profileMarkMs)
+      profileMarkMs = mark
+    }
     const cameraResolution = this.configuration.composition?.cameras.length
       ? resolveCinemaCameraFrame({
           composition: this.configuration.composition,
@@ -296,6 +356,11 @@ export class CinemaGraphExecutor {
       : performanceFrame.camera != null || performanceFrame.activeCameraId != null
         ? Object.freeze({ ...performanceFrame, activeCameraId: null, camera: null })
         : performanceFrame
+    if (profileSample) {
+      const mark = this.now()
+      this.profileTotals.cameraMs += Math.max(0, mark - profileMarkMs)
+      profileMarkMs = mark
+    }
     if (transportResetPending) this.dispatchTransportReset(renderFrame)
     this.dispatchPerformanceCommands(performance.stateCommands, renderFrame)
 
@@ -364,7 +429,11 @@ export class CinemaGraphExecutor {
 
     if (!this.outputRendered) this.renderSafeOutput()
     else this.safeOutputActive = frameFallbackUsed
-    this.emitSnapshot()
+    if (profileSample) {
+      this.profileTotals.graphRenderMs += Math.max(0, this.now() - profileMarkMs)
+      this.profileSampleCount += 1
+    }
+    this.emitSnapshot(false)
     return this.outputRendered
   }
 
@@ -408,6 +477,17 @@ export class CinemaGraphExecutor {
       performanceRuleCount: this.performanceRuntime?.ruleCount ?? 0,
       activePerformanceRuleCount: this.activePerformanceRuleCount,
       activePerformanceTransientCount: this.activePerformanceTransientCount,
+      parameterResolutionCount: this.parameterResolutionCount,
+      parameterReuseCount: this.parameterReuseCount,
+      snapshotPublicationCount: this.snapshotPublicationCount,
+      profile: Object.freeze({
+        sampleCount: this.profileSampleCount,
+        performanceMs: profileAverage(this.profileTotals.performanceMs, this.profileSampleCount),
+        qualityMs: profileAverage(this.profileTotals.qualityMs, this.profileSampleCount),
+        parameterMs: profileAverage(this.profileTotals.parameterMs, this.profileSampleCount),
+        cameraMs: profileAverage(this.profileTotals.cameraMs, this.profileSampleCount),
+        graphRenderMs: profileAverage(this.profileTotals.graphRenderMs, this.profileSampleCount),
+      }),
       quality: this.qualityManager.getSnapshot(),
       diagnostics: createCinemaDiagnosticSnapshot(this.diagnostics),
     }
@@ -435,6 +515,11 @@ export class CinemaGraphExecutor {
     this.parameterRegistry = null
     this.cameraParameterSchemas = Object.freeze({})
     this.baseParameterValues = Object.freeze({})
+    this.baseNodeValues = new Map()
+    this.staticParameterValues = this.baseParameterValues
+    this.staticNodeValues = this.baseNodeValues
+    this.staticBrandColors = null
+    this.hasDynamicBrandParameters = false
     this.modulationRuntime = null
     this.performanceRuntime = null
     this.activeModulationRouteCount = 0
@@ -491,6 +576,7 @@ export class CinemaGraphExecutor {
     for (const diagnostic of resolution.diagnostics.diagnostics) this.report(diagnostic)
     this.parameterRegistry = definitionResult.registry
     this.baseParameterValues = resolution.values
+    this.hasDynamicBrandParameters = hasDynamicBrandParameters(composition, definitionResult.registry, this.cameraParameterSchemas)
     this.evaluateQuality()
     this.modulationRuntime = new CinemaModulationRuntime({
       composition,
@@ -501,6 +587,9 @@ export class CinemaGraphExecutor {
     for (const diagnostic of this.performanceRuntime.snapshot.diagnostics.diagnostics) this.report(diagnostic)
     for (const diagnostic of this.modulationRuntime.diagnostics.diagnostics) this.report(diagnostic)
     const valuesByNode = collectNodeValues(resolution.values)
+    this.baseNodeValues = valuesByNode
+    this.staticParameterValues = resolution.values
+    this.staticNodeValues = valuesByNode
     const assetsByNode = resolveNodeAssetBindings(composition, this.configuration.instance, diagnostic => this.report(diagnostic))
     const authoredById = new Map(composition.nodes.map(node => [node.id, node]))
 
@@ -889,25 +978,50 @@ export class CinemaGraphExecutor {
     const previewRouteId = this.composerRuntimePreview.compositionId === String(composition.id)
       ? this.composerRuntimePreview.modulationRouteId
       : null
-    const modulation = modulationRuntime.evaluate(frame, this.baseParameterValues, previewRouteId)
-    this.activeModulationRouteCount = modulation.activeRouteCount
-    for (const diagnostic of modulation.diagnostics.diagnostics) this.reportOnce(diagnostic)
+    const hasPerformanceOverrides = Object.keys(performance.parameterOverrides).length > 0
+    const canSkipModulation = modulationRuntime.routeCount === 0 && previewRouteId == null
+    const modulation = canSkipModulation
+      ? null
+      : modulationRuntime.evaluate(frame, this.baseParameterValues, previewRouteId)
+    this.activeModulationRouteCount = modulation?.activeRouteCount ?? 0
+    for (const diagnostic of modulation?.diagnostics.diagnostics ?? []) this.reportOnce(diagnostic)
+    const hasModulationValues = modulation != null && Object.keys(modulation.values).length > 0
+    if (!hasModulationValues && !hasPerformanceOverrides) {
+      if (!this.hasDynamicBrandParameters) {
+        this.applyNodeValues(this.baseNodeValues)
+        this.parameterReuseCount += 1
+        return this.baseParameterValues
+      }
+      if (sameBrandColors(this.staticBrandColors, frame.brand.colors)) {
+        this.applyNodeValues(this.staticNodeValues)
+        this.parameterReuseCount += 1
+        return this.staticParameterValues
+      }
+    }
 
     const resolution = resolveCinemaParameterSnapshot({
       composition,
       registry,
       instance: this.configuration.instance,
       cameraParameterSchemas: this.cameraParameterSchemas,
-      modulationSnapshot: modulation.values,
+      modulationSnapshot: modulation?.values,
       performanceOverrides: performance.parameterOverrides,
       brandColors: frame.brand.colors,
     })
+    this.parameterResolutionCount += 1
     for (const diagnostic of resolution.diagnostics.diagnostics) this.report(diagnostic)
     const valuesByNode = collectNodeValues(resolution.values)
-    for (const [nodeId, record] of this.records) {
-      record.values = valuesByNode.get(nodeId) ?? Object.freeze({})
+    this.applyNodeValues(valuesByNode)
+    if (!hasModulationValues && !hasPerformanceOverrides) {
+      this.staticParameterValues = resolution.values
+      this.staticNodeValues = valuesByNode
+      this.staticBrandColors = frame.brand.colors
     }
     return resolution.values
+  }
+
+  private applyNodeValues(valuesByNode: ReadonlyMap<CinemaNodeId, Readonly<CinemaParameterValues>>): void {
+    for (const [nodeId, record] of this.records) record.values = valuesByNode.get(nodeId) ?? EMPTY_NODE_VALUES
   }
 
   private evaluateQuality(
@@ -1077,8 +1191,13 @@ export class CinemaGraphExecutor {
     this.diagnosticsSink.report(diagnostic)
   }
 
-  private emitSnapshot(): void {
-    this.onSnapshot?.(this.getSnapshot())
+  private emitSnapshot(immediate = true): void {
+    if (!this.onSnapshot) return
+    const nowMs = this.now()
+    if (!immediate && nowMs - this.lastSnapshotPublicationMs < this.snapshotIntervalMs) return
+    this.lastSnapshotPublicationMs = nowMs
+    this.snapshotPublicationCount += 1
+    this.onSnapshot(this.getSnapshot())
   }
 }
 
@@ -1096,6 +1215,25 @@ function collectNodeValues(
     result.set(nodeId, current)
   }
   return result
+}
+
+function sameBrandColors(
+  left: Readonly<CinemaFrameContext['brand']['colors']> | null,
+  right: Readonly<CinemaFrameContext['brand']['colors']>,
+): boolean {
+  if (left === right) return true
+  if (!left) return false
+  for (const role of CINEMA_BRAND_ROLES) {
+    const leftColor = left[role]
+    const rightColor = right[role]
+    if (leftColor === rightColor) continue
+    if (!leftColor || !rightColor || leftColor.some((value, index) => value !== rightColor[index])) return false
+  }
+  return true
+}
+
+function profileAverage(total: number, samples: number): number {
+  return samples > 0 ? Math.round((total / samples) * 1000) / 1000 : 0
 }
 
 function resolveNodeAssetBindings(
@@ -1164,8 +1302,7 @@ function applyPerformanceFrameOverrides(
   })
 }
 
-function emptyPerformanceEvaluation(): CinemaPerformanceEvaluation {
-  return Object.freeze({
+const EMPTY_PERFORMANCE_EVALUATION: Readonly<CinemaPerformanceEvaluation> = Object.freeze({
     parameterOverrides: Object.freeze({}),
     nodeEnabledOverrides: Object.freeze({}),
     activeCameraId: null,
@@ -1176,6 +1313,18 @@ function emptyPerformanceEvaluation(): CinemaPerformanceEvaluation {
     activeTransientCount: 0,
     diagnostics: createCinemaDiagnosticSnapshot([]),
   })
+
+function hasDynamicBrandParameters(
+  composition: Readonly<CinemaCompositionDefinition>,
+  registry: CinemaNodeDefinitionRegistry,
+  cameraSchemas: ReturnType<typeof createCinemaCameraParameterSchemaMap>,
+): boolean {
+  const schemas = [
+    ...composition.masterParameters,
+    ...composition.nodes.flatMap(node => registry.get(node.typeId)?.definition.parameters ?? []),
+    ...Object.values(cameraSchemas).flat(),
+  ]
+  return schemas.some(schema => schema.type === 'color' && schema.brandRole != null && schema.brandPolicy !== 'free')
 }
 
 function positiveModulo(value: number, divisor: number): number {

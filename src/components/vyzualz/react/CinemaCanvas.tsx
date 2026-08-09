@@ -43,6 +43,8 @@ const INITIAL_RUNTIME_SNAPSHOT: CinemaRuntimeSnapshot = {
     compositionId: null, compositionRevision: null, planCacheKey: null, planCacheSize: 0, activeNodeCount: 0,
     initializedNodeCount: 0, failedNodeCount: 0, outputNodeId: null, outputRendered: false, safeOutputActive: true, modulationRouteCount: 0, activeModulationRouteCount: 0,
     performanceRuleCount: 0, activePerformanceRuleCount: 0, activePerformanceTransientCount: 0,
+    parameterResolutionCount: 0, parameterReuseCount: 0, snapshotPublicationCount: 0,
+    profile: { sampleCount: 0, performanceMs: 0, qualityMs: 0, parameterMs: 0, cameraMs: 0, graphRenderMs: 0 },
     diagnostics: createCinemaDiagnosticSnapshot([]),
     quality: createCinemaEmptyGraphQualitySnapshot(),
   },
@@ -117,10 +119,21 @@ export function CinemaCanvas({
     let resizeObserver: ResizeObserver | null = null
     let usingWindowResize = false
     let lastResolution: CanvasResolution | null = null
+    let adaptiveCanvasQuality: CanvasResolution['quality'] = 'auto'
+    let adaptiveResolutionScale = 1
+    let lastAdaptiveTier: CinemaRuntimeSnapshot['graph']['quality']['selectedTier'] | null = null
     let retired = false
 
     const reportSnapshot = (snapshot: CinemaRuntimeSnapshot) => {
-      if (!retired) onRuntimeSnapshotRef.current?.(snapshot)
+      if (retired) return
+      onRuntimeSnapshotRef.current?.(snapshot)
+      const tier = snapshot.graph.quality.selectedTier
+      if (tier === lastAdaptiveTier) return
+      lastAdaptiveTier = tier
+      adaptiveCanvasQuality = tier
+      adaptiveResolutionScale = tier === 'low' ? 0.62 : tier === 'medium' ? 0.8 : 1
+      lastResolution = null
+      queueMicrotask(resize)
     }
 
     const retireOwnedResources = () => {
@@ -146,7 +159,8 @@ export function CinemaCanvas({
         cssWidth: bounds.width,
         cssHeight: bounds.height,
         devicePixelRatio: window.devicePixelRatio,
-        quality: 'high',
+        quality: adaptiveCanvasQuality,
+        resolutionScale: adaptiveResolutionScale,
         previous: lastResolution,
       })
       if (!resolution.valid) return

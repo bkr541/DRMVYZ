@@ -139,6 +139,10 @@ describe('Cinema Stage 17 graph-aware quality manager', () => {
       performanceRuleCount: 0,
       activePerformanceRuleCount: 0,
       activePerformanceTransientCount: 0,
+      parameterResolutionCount: 0,
+      parameterReuseCount: 0,
+      snapshotPublicationCount: 0,
+      profile: { sampleCount: 0, performanceMs: 0, qualityMs: 0, parameterMs: 0, cameraMs: 0, graphRenderMs: 0 },
       quality,
       diagnostics: createCinemaDiagnosticSnapshot([]),
     }
@@ -177,5 +181,34 @@ describe('Cinema Stage 17 graph-aware quality manager', () => {
     expect(evaluate().selectedTier).toBe(initialTier)
     manager.observeFrameTime(45)
     expect(evaluate().selectedTier).not.toBe(initialTier)
+  })
+
+  it('degrades from sustained presentation or GPU pressure even when CPU submission is fast', () => {
+    const { registry, plan } = setup()
+    const targets = { ...HEAVY_TARGETS, totalAllocationCount: 0, estimatedAllocationMemoryMb: 0, activeLeaseCount: 0, pooledAllocationCount: 0 }
+    const evaluate = (manager: CinemaQualityManager) => manager.evaluate({
+      composition: CINEMA_STAGE16_REFERENCE_COMPOSITION,
+      plan,
+      registry,
+      viewport: { width: 1280, height: 720, dpr: 1 },
+      targets,
+    })
+
+    const presentationManager = new CinemaQualityManager({ downgradeHysteresisFrames: 2 })
+    presentationManager.observeFrameMetrics({ cpuMs: 2, presentationMs: 42, gpuMs: null })
+    evaluate(presentationManager)
+    presentationManager.observeFrameMetrics({ cpuMs: 2, presentationMs: 42, gpuMs: null })
+    const presentation = evaluate(presentationManager)
+    expect(presentation.selectedTier).not.toBe('high')
+    expect(presentation.averageCpuTimeMs).toBe(2)
+    expect(presentation.averagePresentationTimeMs).toBe(42)
+
+    const gpuManager = new CinemaQualityManager({ downgradeHysteresisFrames: 2 })
+    gpuManager.observeFrameMetrics({ cpuMs: 2, presentationMs: 16, gpuMs: 38 })
+    evaluate(gpuManager)
+    gpuManager.observeFrameMetrics({ cpuMs: 2, presentationMs: 16, gpuMs: 38 })
+    const gpu = evaluate(gpuManager)
+    expect(gpu.selectedTier).not.toBe('high')
+    expect(gpu.averageGpuTimeMs).toBe(38)
   })
 })

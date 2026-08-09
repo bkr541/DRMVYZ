@@ -503,7 +503,7 @@ describe('CinemaRuntime', () => {
     expect(failed.phase).toBe('unavailable')
     expect(failed.graph.activeNodeCount).toBe(0)
     expect(failed.telemetry.context.lastRecoveryStatus).toBe('failed')
-    expect(failed.telemetry.recoveryEvents.at(-1)).toMatchObject({ type: 'restore-failed', message: 'forced restore failure' })
+    expect(failed.telemetry.recoveryEvents[failed.telemetry.recoveryEvents.length - 1]).toMatchObject({ type: 'restore-failed', message: 'forced restore failure' })
     expect(failed.diagnostics.diagnostics.some(diagnostic => diagnostic.code === 'CINEMA_CONTEXT_RECOVERY_FAILED')).toBe(true)
     expect(callbacks.size).toBe(0)
 
@@ -926,12 +926,53 @@ function resolution(width: number, height: number) {
 
 
 function frame(width: number, height: number): Readonly<CinemaFrameContext> {
+  const clock = (spanBeats: number) => ({ available: true, spanBeats, index: 0, phase: 0, hit: false, eventId: null })
   return {
+    version: 1,
     viewport: { width, height, dpr: 1 },
+    timing: {
+      frameIndex: 0,
+      elapsedTimeSec: 0,
+      deltaTimeSec: 1 / 60,
+      seeds: { composition: 1, track: 2, musicalPosition: 3, event: 4 },
+    },
     transport: {
       trackId: 'stage-8-test', audioTimeSec: 0, durationSec: 60, playing: true, paused: false,
       seeking: false, looped: false, visibilitySuspended: false, discontinuity: false,
       discontinuityReasons: [], reset: { required: false, reconstruct: false, generation: 0, reasons: [], actionIds: [], identity: null },
     },
+    audio: {
+      available: false, volume: 0, rms: 0, energy: 0, bass: 0, mid: 0, high: 0, sub: 0,
+      centroid: 0, flux: 0, harmonicity: 0, complexity: 0, tension: 0, buildProgress: 0,
+      dropImpact: 0, vocalPresence: 0, fft: null, waveform: null,
+    },
+    music: {
+      available: false, source: 'fallback', bpm: null, beatIndex: null, beatPhase: 0, beatInBar: null,
+      barIndex: null, phraseIndex: null, sectionId: null, sectionType: null, sectionProgress: 0,
+      clocks: {
+        beat: false, beat2: false, beat4: false, bar: false, bar4: false, bar8: false, phrase: false,
+        states: { beat: clock(1), beat2: clock(2), beat4: clock(4), bar: clock(4), bar4: clock(16), bar8: clock(32), phrase: clock(16) },
+      },
+    },
+    impulses: {
+      beat: false, downbeat: false, kick: false, snare: false, transient: false, sectionStart: false,
+      dropStart: false, lyricCue: false, lyricWord: false, phrase4: false, phrase8: false,
+      eventIds: { beat: null, downbeat: null, kick: null, snare: null, transient: null, sectionStart: null, dropStart: null, lyricCue: null, lyricWord: null, phrase4: null, phrase8: null },
+    },
+    lyrics: { available: false, sourceIdentity: null, lineId: null, lineText: null, wordId: null, wordText: null, lineProgress: 0, wordProgress: 0, vocalsActive: false },
+    brand: { available: false, colors: {} },
+    performance: { events: [], actionIds: [], toggleStates: {} },
+    capabilities: {
+      analyser: false,
+      musicIntelligence: false,
+      authoritativeSections: false,
+      lyrics: false,
+      sharedPerformance: false,
+      brandKit: false,
+      beatGrid: false,
+      mediaAssets: false,
+    },
+    activeCameraId: null,
+    camera: null,
   } as unknown as Readonly<CinemaFrameContext>
 }

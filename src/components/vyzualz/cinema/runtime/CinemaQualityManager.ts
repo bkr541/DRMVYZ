@@ -35,6 +35,9 @@ export interface CinemaGraphQualitySnapshot {
   estimatedTargetMemoryMb: number
   averageFrameTimeMs: number
   p95FrameTimeMs: number
+  averageCpuTimeMs: number
+  averagePresentationTimeMs: number
+  averageGpuTimeMs: number | null
   degradedNodeCount: number
   skippedNodeCount: number
   frozenNodeCount: number
@@ -46,6 +49,12 @@ export interface CinemaQualityManagerOptions {
   frameHistoryLimit?: number
   downgradeHysteresisFrames?: number
   upgradeHysteresisFrames?: number
+}
+
+export interface CinemaQualityFrameMetrics {
+  cpuMs: number
+  presentationMs: number
+  gpuMs: number | null
 }
 
 const TIER_RANK: Readonly<Record<CinemaQualityTier, number>> = Object.freeze({ low: 0, medium: 1, high: 2, ultra: 3 })
@@ -65,7 +74,9 @@ export class CinemaQualityManager {
   private readonly frameHistoryLimit: number
   private readonly downgradeHysteresisFrames: number
   private readonly upgradeHysteresisFrames: number
-  private readonly frameTimes: number[] = []
+  private readonly cpuTimes: number[] = []
+  private readonly presentationTimes: number[] = []
+  private readonly gpuTimes: number[] = []
   private selectedTier: CinemaQualityTier = 'high'
   private pendingTier: CinemaQualityTier | null = null
   private pendingTierFrames = 0
@@ -80,9 +91,13 @@ export class CinemaQualityManager {
   }
 
   observeFrameTime(frameTimeMs: number): void {
-    if (!Number.isFinite(frameTimeMs) || frameTimeMs < 0) return
-    this.frameTimes.push(frameTimeMs)
-    if (this.frameTimes.length > this.frameHistoryLimit) this.frameTimes.splice(0, this.frameTimes.length - this.frameHistoryLimit)
+    this.observeFrameMetrics({ cpuMs: frameTimeMs, presentationMs: frameTimeMs, gpuMs: null })
+  }
+
+  observeFrameMetrics(metrics: Readonly<CinemaQualityFrameMetrics>): void {
+    pushBoundedSample(this.cpuTimes, metrics.cpuMs, this.frameHistoryLimit)
+    pushBoundedSample(this.presentationTimes, metrics.presentationMs, this.frameHistoryLimit)
+    if (metrics.gpuMs != null) pushBoundedSample(this.gpuTimes, metrics.gpuMs, this.frameHistoryLimit)
   }
 
   evaluate(input: {
@@ -101,8 +116,11 @@ export class CinemaQualityManager {
         ...createCinemaEmptyGraphQualitySnapshot(),
         selectedTier: this.selectedTier,
         desiredTier: this.selectedTier,
-        averageFrameTimeMs: average(this.frameTimes),
-        p95FrameTimeMs: percentile95(this.frameTimes),
+        averageFrameTimeMs: average(this.presentationTimes) || average(this.cpuTimes),
+        p95FrameTimeMs: percentile95(this.presentationTimes) || percentile95(this.cpuTimes),
+        averageCpuTimeMs: average(this.cpuTimes),
+        averagePresentationTimeMs: average(this.presentationTimes),
+        averageGpuTimeMs: nullableAverage(this.gpuTimes),
         targetAllocationCount: input.targets.totalAllocationCount,
         estimatedTargetMemoryMb: input.targets.estimatedAllocationMemoryMb,
       })
@@ -125,11 +143,14 @@ export class CinemaQualityManager {
       + Math.max(0, input.targets.totalAllocationCount - 12) / 24
     const graphBudget = Math.max(28, 92 / Math.sqrt(megapixels))
     const costRatio = (graphCost / graphBudget) + targetPressure * 0.35
-    const avgFrame = average(this.frameTimes)
-    const p95 = percentile95(this.frameTimes)
-    const desiredTier = desiredTierFor(costRatio, avgFrame, p95, this.targetFrameTimeMs)
+    const averageCpu = average(this.cpuTimes)
+    const averagePresentation = average(this.presentationTimes)
+    const averageGpu = nullableAverage(this.gpuTimes)
+    const avgFrame = averagePresentation || averageCpu
+    const p95 = Math.max(percentile95(this.presentationTimes), percentile95(this.cpuTimes), percentile95(this.gpuTimes))
+    const desiredTier = desiredTierFor(costRatio, averageCpu, averagePresentation, averageGpu, p95, this.targetFrameTimeMs)
     this.updateSelectedTier(desiredTier)
-    const pressure = qualityPressure(costRatio, avgFrame, this.targetFrameTimeMs)
+    const pressure = qualityPressure(costRatio, averageCpu, averagePresentation, averageGpu, this.targetFrameTimeMs)
     // Tier hysteresis owns quality transitions. Instantaneous pressure remains observable,
     // but node-level degradation waits until the selected tier accepts the change so a
     // single spike cannot make background resolution/pass policy oscillate frame-to-frame.
@@ -200,6 +221,9 @@ export class CinemaQualityManager {
       estimatedTargetMemoryMb: round3(input.targets.estimatedAllocationMemoryMb),
       averageFrameTimeMs: round3(avgFrame),
       p95FrameTimeMs: round3(p95),
+      averageCpuTimeMs: round3(averageCpu),
+      averagePresentationTimeMs: round3(averagePresentation),
+      averageGpuTimeMs: averageGpu == null ? null : round3(averageGpu),
       degradedNodeCount,
       skippedNodeCount,
       frozenNodeCount,
@@ -217,7 +241,9 @@ export class CinemaQualityManager {
   }
 
   resetTransientHistory(): void {
-    this.frameTimes.length = 0
+    this.cpuTimes.length = 0
+    this.presentationTimes.length = 0
+    this.gpuTimes.length = 0
     this.pendingTier = null
     this.pendingTierFrames = 0
   }
@@ -319,19 +345,38 @@ function clampTier(tier: CinemaQualityTier, entry: Readonly<CinemaNodeRegistryEn
   return RANK_TIER[rank]
 }
 
-function desiredTierFor(costRatio: number, averageFrameMs: number, p95FrameMs: number, targetFrameMs: number): CinemaQualityTier {
-  const frameRatio = averageFrameMs > 0 ? averageFrameMs / targetFrameMs : 0
+function desiredTierFor(
+  costRatio: number,
+  averageCpuMs: number,
+  averagePresentationMs: number,
+  averageGpuMs: number | null,
+  p95FrameMs: number,
+  targetFrameMs: number,
+): CinemaQualityTier {
+  const cpuRatio = averageCpuMs > 0 ? averageCpuMs / targetFrameMs : 0
+  const presentationRatio = averagePresentationMs > 0 ? averagePresentationMs / targetFrameMs : 0
+  const gpuRatio = averageGpuMs != null && averageGpuMs > 0 ? averageGpuMs / targetFrameMs : 0
   const p95Ratio = p95FrameMs > 0 ? p95FrameMs / targetFrameMs : 0
-  const pressure = Math.max(costRatio, frameRatio, p95Ratio * 0.9)
+  const pressure = Math.max(costRatio, cpuRatio, presentationRatio, gpuRatio, p95Ratio * 0.9)
   if (pressure >= 1.65) return 'low'
   if (pressure >= 1.15) return 'medium'
-  if (pressure <= 0.48 && (frameRatio === 0 || frameRatio <= 0.72)) return 'ultra'
+  if (pressure <= 0.48 && (presentationRatio === 0 || presentationRatio <= 0.72)) return 'ultra'
   return 'high'
 }
 
-function qualityPressure(costRatio: number, averageFrameMs: number, targetFrameMs: number): CinemaQualityPressure {
-  const frameRatio = averageFrameMs > 0 ? averageFrameMs / targetFrameMs : 0
-  const pressure = Math.max(costRatio, frameRatio)
+function qualityPressure(
+  costRatio: number,
+  averageCpuMs: number,
+  averagePresentationMs: number,
+  averageGpuMs: number | null,
+  targetFrameMs: number,
+): CinemaQualityPressure {
+  const pressure = Math.max(
+    costRatio,
+    averageCpuMs > 0 ? averageCpuMs / targetFrameMs : 0,
+    averagePresentationMs > 0 ? averagePresentationMs / targetFrameMs : 0,
+    averageGpuMs != null && averageGpuMs > 0 ? averageGpuMs / targetFrameMs : 0,
+  )
   if (pressure >= 1.25) return 'critical'
   if (pressure >= 0.72) return 'elevated'
   return 'nominal'
@@ -357,6 +402,7 @@ export function createCinemaEmptyGraphQualitySnapshot(): CinemaGraphQualitySnaps
   return Object.freeze({
     selectedTier: 'high', desiredTier: 'high', pressure: 'nominal', estimatedGraphCostScore: 0, graphBudgetScore: 0,
     targetAllocationCount: 0, estimatedTargetMemoryMb: 0, averageFrameTimeMs: 0, p95FrameTimeMs: 0,
+    averageCpuTimeMs: 0, averagePresentationTimeMs: 0, averageGpuTimeMs: null,
     degradedNodeCount: 0, skippedNodeCount: 0, frozenNodeCount: 0, nodeDecisions: Object.freeze([]),
   })
 }
@@ -364,6 +410,16 @@ export function createCinemaEmptyGraphQualitySnapshot(): CinemaGraphQualitySnaps
 function average(values: readonly number[]): number {
   if (values.length === 0) return 0
   return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function nullableAverage(values: readonly number[]): number | null {
+  return values.length > 0 ? average(values) : null
+}
+
+function pushBoundedSample(values: number[], value: number, maximum: number): void {
+  if (!Number.isFinite(value) || value < 0) return
+  values.push(value)
+  if (values.length > maximum) values.splice(0, values.length - maximum)
 }
 
 function percentile95(values: readonly number[]): number {

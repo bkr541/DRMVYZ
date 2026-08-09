@@ -1,16 +1,8 @@
 import {
   type PerformanceMetrics,
-  type TimerQueryResult,
   EMPTY_METRICS,
 } from './shaderPerformanceTypes'
-
-// ── Timer extension shim ──────────────────────────────────────────────────────
-// EXT_disjoint_timer_query_webgl2 is not in the standard TS WebGL types.
-
-interface EXT_disjoint_timer_query_webgl2 {
-  readonly TIME_ELAPSED_EXT:  GLenum
-  readonly GPU_DISJOINT_EXT:  GLenum
-}
+import { GpuFrameTimer } from './GpuFrameTimer'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -36,10 +28,9 @@ export class ShaderPerformanceMonitor {
   private _lastMetrics: PerformanceMetrics = { ...EMPTY_METRICS }
 
   // Timer query state
-  private _timerExt:   EXT_disjoint_timer_query_webgl2 | null = null
-  private _timerQuery: WebGLQuery | null = null
+  private _gpuTimer: GpuFrameTimer | null = null
   private _pendingGpuMs: number | null = null
-  private _timerAvailable = false
+  private _observedGpuSampleCount = 0
   private _disposed = false
 
   // ── Timer-query initialisation ─────────────────────────────────────────────
@@ -51,14 +42,12 @@ export class ShaderPerformanceMonitor {
    */
   initTimerQuery(gl: WebGL2RenderingContext): void {
     if (this._disposed) return
-    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2')
-    if (ext) {
-      this._timerExt       = ext
-      this._timerAvailable = true
-    }
+    this._gpuTimer?.dispose()
+    this._gpuTimer = new GpuFrameTimer(gl)
+    this._observedGpuSampleCount = 0
   }
 
-  get timerQueryAvailable(): boolean { return this._timerAvailable }
+  get timerQueryAvailable(): boolean { return this._gpuTimer?.available === true }
 
   // ── Per-frame recording ───────────────────────────────────────────────────
 
@@ -66,25 +55,18 @@ export class ShaderPerformanceMonitor {
    * Call at the start of the GPU render block to begin a timer query.
    * No-op when timer queries are unavailable.
    */
-  beginFrame(gl: WebGL2RenderingContext): void {
-    if (this._disposed || !this._timerAvailable || !this._timerExt) return
-
-    // Check if the previous query is ready before creating a new one.
-    this._pollPendingQuery(gl)
-
-    const query = gl.createQuery()
-    if (!query) return
-    this._timerQuery = query
-    gl.beginQuery(this._timerExt.TIME_ELAPSED_EXT, query)
+  beginFrame(_gl: WebGL2RenderingContext): void {
+    if (this._disposed) return
+    this._gpuTimer?.beginFrame()
   }
 
   /**
    * Call at the end of the GPU render block to end the timer query.
    * No-op when timer queries are unavailable.
    */
-  endFrame(gl: WebGL2RenderingContext): void {
-    if (this._disposed || !this._timerAvailable || !this._timerExt || !this._timerQuery) return
-    gl.endQuery(this._timerExt.TIME_ELAPSED_EXT)
+  endFrame(_gl: WebGL2RenderingContext): void {
+    if (this._disposed) return
+    this._gpuTimer?.endFrame()
   }
 
   /**
@@ -113,7 +95,7 @@ export class ShaderPerformanceMonitor {
   }): void {
     if (this._disposed) return
 
-    if (opts.gl) this._pollPendingQuery(opts.gl)
+    if (opts.gl) this._pollPendingQuery()
 
     const isSlow = opts.totalMs > (opts.slowThresholdMs ?? 33)
     this._consecutiveSlowFrames = isSlow ? this._consecutiveSlowFrames + 1 : 0
@@ -191,32 +173,22 @@ export class ShaderPerformanceMonitor {
 
   // ── Disposal ──────────────────────────────────────────────────────────────
 
-  dispose(gl?: WebGL2RenderingContext): void {
+  dispose(_gl?: WebGL2RenderingContext): void {
     if (this._disposed) return
     this._disposed = true
-    if (gl && this._timerQuery) {
-      gl.deleteQuery(this._timerQuery)
-      this._timerQuery = null
-    }
+    this._gpuTimer?.dispose()
+    this._gpuTimer = null
     this._history.length = 0
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
 
-  private _pollPendingQuery(gl: WebGL2RenderingContext): void {
-    if (!this._timerQuery || !this._timerExt) return
-
-    const disjoint = gl.getParameter(this._timerExt.GPU_DISJOINT_EXT)
-    const ready    = gl.getQueryParameter(this._timerQuery, gl.QUERY_RESULT_AVAILABLE)
-
-    if (ready && !disjoint) {
-      const ns = gl.getQueryParameter(this._timerQuery, gl.QUERY_RESULT) as number
-      this._pendingGpuMs = ns / 1_000_000
-    }
-
-    if (ready || disjoint) {
-      gl.deleteQuery(this._timerQuery)
-      this._timerQuery = null
-    }
+  private _pollPendingQuery(): void {
+    this._gpuTimer?.poll()
+    const snapshot = this._gpuTimer?.getSnapshot()
+    this._pendingGpuMs = snapshot && snapshot.completedSampleCount > this._observedGpuSampleCount
+      ? snapshot.lastGpuMs
+      : null
+    this._observedGpuSampleCount = snapshot?.completedSampleCount ?? 0
   }
 }

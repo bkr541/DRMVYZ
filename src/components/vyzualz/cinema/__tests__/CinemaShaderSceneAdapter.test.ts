@@ -40,6 +40,7 @@ import { REACTOR_SCENE_ID } from '../../react/shaders/scenes/reactor'
 import { SOUND_DRAWING_VECTORSCOPE } from '../../react/shaders/scenes/soundDrawingVectorscope'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 import { CinemaImpulseGate } from '../CinemaImpulseGate'
+import { disposeCinemaShaderProgramCache } from '../CinemaShaderProgramCache'
 
 describe('Cinema ShaderSceneNodeAdapter', () => {
   it('maps every active Shader registry scene into stable Cinema contracts', () => {
@@ -103,6 +104,22 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
     expect(harness.executor.getSnapshot().safeOutputActive).toBe(false)
 
+    harness.dispose()
+  })
+
+  it('reuses identical Shader programs when a same-context preset is activated again', () => {
+    const state = createCinemaFoundationPersistedState()
+    const harness = createExecutorHarness()
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({ composition: CINEMA_SHADER_REFERENCE_COMPOSITION, instance: null, definitions: state.definitions })
+    const firstActivationPrograms = harness.gl.__calls.createdPrograms
+
+    harness.executor.setGraph({ composition: null, instance: null, definitions: state.definitions })
+    harness.executor.setGraph({ composition: CINEMA_SHADER_REFERENCE_COMPOSITION, instance: null, definitions: state.definitions })
+    const repeatedActivationPrograms = harness.gl.__calls.createdPrograms - firstActivationPrograms
+
+    expect(firstActivationPrograms).toBe(2)
+    expect(repeatedActivationPrograms).toBe(1)
     harness.dispose()
   })
 
@@ -195,6 +212,7 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
 
     harness.executor.handleContextLost()
+    disposeCinemaShaderProgramCache(harness.gl)
     expect(harness.targets.getDiagnostics().activeLeaseCount).toBe(0)
     harness.targets.abandonContext()
     harness.targets.rebuildAfterContextRestore()
@@ -303,6 +321,7 @@ function createExecutorHarness() {
     executor,
     dispose() {
       executor.dispose()
+      disposeCinemaShaderProgramCache(gl)
       targets.dispose()
       textures.dispose()
     },
