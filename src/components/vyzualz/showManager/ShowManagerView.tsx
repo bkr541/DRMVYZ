@@ -23,6 +23,7 @@ import {
 } from '../react/ReactTypes'
 import { FixtureIcon } from '../react/LaserDmxShowDirectorPalette'
 import { ReactPlaceholderCanvas } from '../react/ReactPlaceholderCanvas'
+import { CanvasEngineSurface } from '../react/ReactCanvasEngineShell'
 import { ReactPersistenceStatus } from '../react/ReactPersistenceStatus'
 import { EditSectionForm, SectionTimeline } from '../react/ReactTrackMapStrip'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
@@ -315,6 +316,11 @@ export function ShowManagerView() {
     setCanvasAuthoringError(null)
     setCanvasPlayheadSec(0)
   }, [activeCanvasShow?.id, activeCanvasShow?.name])
+
+  useEffect(() => {
+    if (selectedEngineId !== 'canvas' || !engine.isPlaying || canvasTotalDuration <= 0) return
+    setCanvasPlayheadSec(engine.currentTime % canvasTotalDuration)
+  }, [canvasTotalDuration, engine.currentTime, engine.isPlaying, selectedEngineId])
 
   useEffect(() => {
     if (selectedEngineId === 'laserDmx' && engine.isPlaying) return
@@ -1192,6 +1198,21 @@ export function ShowManagerView() {
                 onSelectElement={selectCanvasShowManagerMediaElement}
                 onPlaceMedia={commitCanvasMediaPlacement}
                 onCreate={openCanvasCreateDialog}
+                runtimePreview={activeCanvasShow ? (
+                  <CanvasEngineSurface
+                    isPlaying={engine.isPlaying}
+                    isPaused={!engine.isPlaying}
+                    analyser={engine.analyserMaster}
+                    trackAnalysis={effectiveTrackAnalysis}
+                    trackSections={resolvedTrackSections}
+                    getAudioTime={() => canvasPlayheadSec}
+                    activeAudioTrackId={engine.currentTrackId}
+                    previewShow={activeCanvasShow}
+                    previewShowTimeSec={canvasPlayheadSec}
+                    previewSelectedElementId={selectedCanvasElement?.id ?? null}
+                    onLiveFps={setLiveFps}
+                  />
+                ) : null}
               />
             ) : (
               <PixGridSurface
@@ -1809,6 +1830,7 @@ function CanvasShowManagerStage({
   onSelectElement,
   onPlaceMedia,
   onCreate,
+  runtimePreview,
 }: {
   show: CanvasShowManagerShow | null
   selectedSectionId: string | null
@@ -1820,6 +1842,7 @@ function CanvasShowManagerStage({
   onSelectElement: (elementId: string | null) => void
   onPlaceMedia: (mediaId: string, layer: CanvasShowManagerLayer) => boolean
   onCreate: () => void
+  runtimePreview?: ReactNode
 }) {
   const [dragActive, setDragActive] = useState(false)
   const [hoveredLayer, setHoveredLayer] = useState<CanvasShowManagerLayer | null>(null)
@@ -1864,6 +1887,7 @@ function CanvasShowManagerStage({
         <small>{formatClock(getCanvasShowManagerTotalDuration(show))} · {show.sections.length} sections</small>
       </header>
       <div className="sm-canvas-authoring-surface" data-testid="canvas-show-manager-authoring-surface">
+        {runtimePreview && <div className="sm-canvas-runtime-preview" data-testid="canvas-show-runtime-preview">{runtimePreview}</div>}
         <div className="sm-canvas-authored-elements" aria-label="Authored media visible in selected section">
           {visibleElements.map(element => {
             const media = resolveMedia(element.mediaId)

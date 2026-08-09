@@ -26,6 +26,8 @@ export const CANVAS_PERFORMANCE_SHOW_IDS = [
 export type CanvasPerformanceShowId = typeof CANVAS_PERFORMANCE_SHOW_IDS[number]
 export const MAX_CANVAS_PERFORMANCE_LAYERS = 7
 export const MAX_CANVAS_ACTIVE_VIDEO_DECODERS = 3
+/** The validated Show Manager path may explicitly opt in to one video per authored lane. */
+export const MAX_CANVAS_SHOW_VIDEO_DECODERS = 4
 export const MAX_CANVAS_MEDIA_HANDLES = 10
 export const MAX_CANVAS_PRELOAD_QUEUE = 5
 export const MAX_CANVAS_EFFECT_CHAIN_DEPTH = 5
@@ -480,6 +482,9 @@ export interface CanvasResolvedPerformanceFrame {
   nextSectionType: string | null
   anticipatoryStage: 'none' | 'preload' | 'contraction' | 'finalHold' | 'breakdownMigration' | 'phraseQueue'
   diagnostics: readonly string[]
+  /** Authored Shows bypass the global preset/orchestration transform bridge. */
+  runtimeMode?: 'orchestration' | 'show'
+  selectedElementId?: string | null
 }
 
 export interface CanvasMediaRoleResolution {

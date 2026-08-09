@@ -34,6 +34,7 @@ vi.mock('../renderers/CanvasFracturesRendererLayer', () => ({
 }))
 
 import { CanvasEngineSurface } from '../ReactCanvasEngineShell'
+import { createCanvasShowManagerShow } from '../../showManager/CanvasShowManagerDomain'
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null
@@ -256,6 +257,35 @@ afterEach(async () => {
 })
 
 describe('CanvasEngineSurface Performance Show routing', () => {
+  it('selects a valid active saved Canvas Show through the real production surface before orchestration fallback', async () => {
+    setCanvasRoutingState({
+      presetId: 'canvas-clean-playback',
+      showId: 'canvas-cinematic-bass-editor',
+      enabled: false,
+    })
+    const show = createCanvasShowManagerShow('Active Four-Layer Show')
+    show.mediaElements = [{
+      id: 'active-show-element',
+      mediaId: media.id,
+      layer: 0,
+      showStartSec: 0,
+      showEndSec: 8,
+      sourceInSec: null,
+      sourceOutSec: null,
+    }]
+    useReactStore.setState({
+      canvasShowManagerShows: [show],
+      canvasShowManagerActiveShowId: show.id,
+    })
+
+    await renderSurface()
+
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
+    expect(host?.textContent).toContain('Active Four-Layer Show')
+    expect(host?.textContent).toContain('Four-layer Show')
+    expect(host?.querySelector('[data-testid="canvas-show-quality-diagnostics"]')).not.toBeNull()
+  })
+
   it('suppresses direct Fractures publication and restores direct generic output', async () => {
     const onCanvasReady = vi.fn()
     const onOutputCapabilityChange = vi.fn()

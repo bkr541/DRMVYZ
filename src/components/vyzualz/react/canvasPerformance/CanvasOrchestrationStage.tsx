@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { BrandKit } from '../../../../features/personalization/BrandKitTypes'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
@@ -15,6 +15,7 @@ import { isCanvasFracturesProcessor, resolveCanvasFracturesPresetSettings } from
 import { resolveCanvasEffectVisualState } from './CanvasEffectRecipes'
 import type { CanvasPreloadHandle, CanvasPreloadManager } from './CanvasPreloadManager'
 import { resolveCanvasTransitionVisualState } from './CanvasTransitions'
+import { CanvasShowAdaptiveQualityController, type CanvasShowQualitySnapshot } from './CanvasShowAdaptiveQuality'
 import { resolveCanvasLayerAlphaHierarchy, resolveCanvasOutputContract, type CanvasLayerAlphaHierarchy } from './CanvasOutputContract'
 import type {
   CanvasAspectBehavior,
@@ -310,6 +311,8 @@ function CanvasGenericOrchestrationStage({
   const layerCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const previousIdentityRef = useRef<string | null>(null)
+  const qualityControllerRef = useRef(new CanvasShowAdaptiveQualityController())
+  const [qualitySnapshot, setQualitySnapshot] = useState<CanvasShowQualitySnapshot | null>(null)
   const frameRef = useRef(frame)
   const propsRef = useRef({ isPlaying, isPaused, engineSettings, presetSettings, motionIntensity })
   frameRef.current = frame
@@ -347,6 +350,11 @@ function CanvasGenericOrchestrationStage({
     let animationFrame = 0
     let fpsFrames = 0
     let fpsStartedAt = performance.now()
+    let previousDrawAt = fpsStartedAt
+    let qualityPublishAt = fpsStartedAt
+    const initialFrame = frameRef.current
+    let quality = qualityControllerRef.current.reset(initialFrame.decoderCount)
+    setQualitySnapshot(initialFrame.runtimeMode === 'show' ? quality : null)
 
     const draw = () => {
       const liveFrame = frameRef.current
@@ -355,9 +363,21 @@ function CanvasGenericOrchestrationStage({
       const cssWidth = Math.max(1, Math.round(rect.width || 1280))
       const cssHeight = Math.max(1, Math.round(rect.height || 720))
       const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
-      const width = Math.max(1, Math.round(cssWidth * dpr))
-      const height = Math.max(1, Math.round(cssHeight * dpr))
-      resizeCanvas(canvas, width, height)
+      const outputWidth = Math.max(1, Math.round(cssWidth * dpr))
+      const outputHeight = Math.max(1, Math.round(cssHeight * dpr))
+      const now = performance.now()
+      if (liveFrame.runtimeMode === 'show') {
+        quality = qualityControllerRef.current.sample(now - previousDrawAt, liveFrame.decoderCount)
+        if (now - qualityPublishAt >= 500) {
+          setQualitySnapshot(quality)
+          qualityPublishAt = now
+        }
+      }
+      previousDrawAt = now
+      const qualityScale = liveFrame.runtimeMode === 'show' ? quality.scale : 1
+      const width = Math.max(1, Math.round(outputWidth * qualityScale))
+      const height = Math.max(1, Math.round(outputHeight * qualityScale))
+      resizeCanvas(canvas, outputWidth, outputHeight)
       resizeCanvas(compositionCanvas, width, height)
       resizeCanvas(previousCanvas, width, height)
       resizeCanvas(layerCanvas, width, height)
@@ -393,10 +413,13 @@ function CanvasGenericOrchestrationStage({
 
       context.save()
       applyIncomingTransitionClip(context, liveFrame.transition?.id ?? null, transition.clipProgress, width, height)
-      const liveOutputContract = resolveCanvasOutputContract({
-        canvasOutputOpacity: liveProps.engineSettings.opacity,
-        presetSettings: liveProps.presetSettings,
-      })
+      const showDriven = liveFrame.runtimeMode === 'show'
+      const liveOutputContract = showDriven
+        ? { canvasOutputOpacity: 1, drySourceMix: 1, sourceMixMode: 'legacyComposite' as const }
+        : resolveCanvasOutputContract({
+            canvasOutputOpacity: liveProps.engineSettings.opacity,
+            presetSettings: liveProps.presetSettings,
+          })
       const layers = [...liveFrame.layers].filter(layer => layer.enabled && layer.sourceMediaId).sort((a, b) => a.zIndex - b.zIndex)
       for (const layer of layers) {
         const handle = layer.sourceMediaId ? preloadManager.getHandle(layer.sourceMediaId) : null
@@ -405,10 +428,10 @@ function CanvasGenericOrchestrationStage({
         const maskHandle = layer.maskSourceMediaId ? preloadManager.getHandle(layer.maskSourceMediaId) : null
         const mask = sourceReady(maskHandle) ? maskHandle : null
         const motion = Math.max(0, Math.min(1, liveProps.motionIntensity))
-        const globalScale = (1 + (transition.incomingScale - 1) * motion) * liveProps.engineSettings.scale
-        const globalRotation = transition.incomingRotation * motion + liveProps.engineSettings.rotation
-        const globalOffsetX = transition.incomingOffsetX * motion + liveProps.engineSettings.positionX / 100
-        const globalOffsetY = transition.incomingOffsetY * motion + liveProps.engineSettings.positionY / 100
+        const globalScale = showDriven ? 1 : (1 + (transition.incomingScale - 1) * motion) * liveProps.engineSettings.scale
+        const globalRotation = showDriven ? 0 : transition.incomingRotation * motion + liveProps.engineSettings.rotation
+        const globalOffsetX = showDriven ? 0 : transition.incomingOffsetX * motion + liveProps.engineSettings.positionX / 100
+        const globalOffsetY = showDriven ? 0 : transition.incomingOffsetY * motion + liveProps.engineSettings.positionY / 100
         drawLayerWithOptionalMask({
           output: context,
           layerCanvas,
@@ -451,15 +474,14 @@ function CanvasGenericOrchestrationStage({
       }
 
       outputContext.setTransform(1, 0, 0, 1, 0, 0)
-      outputContext.clearRect(0, 0, width, height)
+      outputContext.clearRect(0, 0, outputWidth, outputHeight)
       outputContext.globalCompositeOperation = 'source-over'
       outputContext.globalAlpha = liveOutputContract.canvasOutputOpacity
       outputContext.filter = 'none'
-      outputContext.drawImage(compositionCanvas, 0, 0)
+      outputContext.drawImage(compositionCanvas, 0, 0, outputWidth, outputHeight)
       outputContext.globalAlpha = 1
 
       fpsFrames += 1
-      const now = performance.now()
       if (now - fpsStartedAt >= 1000) {
         onLiveFps?.(fpsFrames * 1000 / (now - fpsStartedAt))
         fpsFrames = 0
@@ -484,6 +506,12 @@ function CanvasGenericOrchestrationStage({
         <span>{frame.layers.filter(layer => layer.enabled).length} layers · {frame.decoderCount} video decoders · {mediaSummary.length} sources</span>
         {frame.anticipatoryStage !== 'none' && <span>Queued: {frame.anticipatoryStage}{frame.nextSectionType ? ` → ${frame.nextSectionType}` : ''}</span>}
         {frame.pendingMediaIds.length > 0 && <span>Preloading {frame.pendingMediaIds.length} upcoming source{frame.pendingMediaIds.length === 1 ? '' : 's'}</span>}
+        {frame.runtimeMode === 'show' && qualitySnapshot && (
+          <span data-testid="canvas-show-quality-diagnostics">
+            Quality {qualitySnapshot.tier} · {Math.round(qualitySnapshot.scale * 100)}% composition · {qualitySnapshot.activeVideoCount} video{qualitySnapshot.activeVideoCount === 1 ? '' : 's'} · {qualitySnapshot.averageFrameMs.toFixed(1)}ms
+            {qualitySnapshot.fallbackReason ? ` · ${qualitySnapshot.fallbackReason}` : ''}
+          </span>
+        )}
       </div>
     </div>
   )

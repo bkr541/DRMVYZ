@@ -1,6 +1,7 @@
 import type { CanvasMediaItem } from '../ReactTypes'
 import {
   MAX_CANVAS_ACTIVE_VIDEO_DECODERS,
+  MAX_CANVAS_SHOW_VIDEO_DECODERS,
   MAX_CANVAS_MEDIA_HANDLES,
   MAX_CANVAS_PRELOAD_QUEUE,
   type CanvasMediaReadiness,
@@ -112,7 +113,7 @@ export class CanvasPreloadManager {
     this.loader = options.loader ?? defaultCanvasPreloadLoader
     this.maxQueue = Math.max(1, Math.min(MAX_CANVAS_PRELOAD_QUEUE, options.maxQueue ?? MAX_CANVAS_PRELOAD_QUEUE))
     this.maxHandles = Math.max(1, Math.min(MAX_CANVAS_MEDIA_HANDLES, options.maxHandles ?? MAX_CANVAS_MEDIA_HANDLES))
-    this.maxVideoHandles = Math.max(1, Math.min(MAX_CANVAS_ACTIVE_VIDEO_DECODERS, options.maxVideoHandles ?? MAX_CANVAS_ACTIVE_VIDEO_DECODERS))
+    this.maxVideoHandles = Math.max(1, Math.min(MAX_CANVAS_SHOW_VIDEO_DECODERS, options.maxVideoHandles ?? MAX_CANVAS_ACTIVE_VIDEO_DECODERS))
   }
 
   setScope(trackIdentity: string | null, poolRevision: number): void {

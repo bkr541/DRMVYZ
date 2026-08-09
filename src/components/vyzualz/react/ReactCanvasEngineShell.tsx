@@ -56,6 +56,8 @@ import {
   CANVAS_PERFORMANCE_SHOW_OPTIONS,
   CanvasOrchestrationStage,
   CanvasPreloadManager,
+  MAX_CANVAS_SHOW_VIDEO_DECODERS,
+  resolveCanvasShowRuntimeFrame,
   resolveCanvasOutputContract,
   getCanvasPerformancePreloadCandidates,
   getCanvasPerformanceShow,
@@ -68,6 +70,7 @@ import {
   type CanvasPerformanceShowId,
   type CanvasResolvedPerformanceFrame,
 } from './canvasPerformance'
+import { validateCanvasShowManagerShow, type CanvasShowManagerShow } from '../showManager/CanvasShowManagerDomain'
 import {
   CANVAS_PRESET_BY_ID,
   DEFAULT_CANVAS_PRESET_ID,
@@ -1311,6 +1314,9 @@ export function CanvasEngineSurface({
   onCanvasReady,
   onOutputCapabilityChange,
   onLiveFps,
+  previewShow = null,
+  previewShowTimeSec = null,
+  previewSelectedElementId = null,
 }: {
   isPlaying: boolean
   isPaused: boolean
@@ -1322,10 +1328,16 @@ export function CanvasEngineSurface({
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onOutputCapabilityChange?: (capability: CanvasOutputCapability) => void
   onLiveFps?: (fps: number) => void
+  /** Transient Show Manager preview; never mutates the globally active Show. */
+  previewShow?: CanvasShowManagerShow | null
+  previewShowTimeSec?: number | null
+  previewSelectedElementId?: string | null
 }) {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const activeBrandKit = useBrandKitStore(s => s.activeKit)
   const orchestrationSettings = useReactStore(s => s.canvasOrchestrationSettings)
+  const canvasShowManagerShows = useReactStore(s => s.canvasShowManagerShows)
+  const canvasShowManagerActiveShowId = useReactStore(s => s.canvasShowManagerActiveShowId)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useCanvasRuntimeMediaItems()
   const restartRevision = useReactStore(s => s.canvasVideoRestartRevision)
@@ -1340,7 +1352,9 @@ export function CanvasEngineSurface({
   const sourceEffectsCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const particleOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const orchestrationPreloadManagerRef = useRef<CanvasPreloadManager | null>(null)
-  if (!orchestrationPreloadManagerRef.current) orchestrationPreloadManagerRef.current = new CanvasPreloadManager()
+  if (!orchestrationPreloadManagerRef.current) orchestrationPreloadManagerRef.current = new CanvasPreloadManager({
+    maxVideoHandles: MAX_CANVAS_SHOW_VIDEO_DECODERS,
+  })
   const orchestrationPreloadManager = orchestrationPreloadManagerRef.current
   const previousOrchestrationContextRef = useRef<SharedPerformanceContext | null>(null)
   const previousOrchestrationFrameRef = useRef<CanvasResolvedPerformanceFrame | null>(null)
@@ -1362,6 +1376,14 @@ export function CanvasEngineSurface({
     () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
     [activeCanvasMediaId, mediaItems],
   )
+  const activeSavedCanvasShow = useMemo(() => {
+    const show = canvasShowManagerShows.find(candidate => candidate.id === canvasShowManagerActiveShowId) ?? null
+    return show && validateCanvasShowManagerShow(show).valid ? show : null
+  }, [canvasShowManagerActiveShowId, canvasShowManagerShows])
+  const runtimeCanvasShow = previewShow && validateCanvasShowManagerShow(previewShow).valid
+    ? previewShow
+    : activeSavedCanvasShow
+  const showPreviewMode = Boolean(previewShow && runtimeCanvasShow === previewShow)
   const fracturesSourceKey = activeItem
     ? `${activeItem.id}:${activeItem.type}:${activeItem.mediaRevision ?? 0}:${activeItem.objectUrl}`
     : null
@@ -1404,7 +1426,7 @@ export function CanvasEngineSurface({
   getAudioTimeRef.current = getAudioTime
 
   useEffect(() => {
-    if (!orchestrationSettings.enabled) {
+    if (!runtimeCanvasShow && !orchestrationSettings.enabled) {
       orchestrationPreloadManager.releaseAll()
       previousOrchestrationContextRef.current = null
       previousOrchestrationFrameRef.current = null
@@ -1413,13 +1435,23 @@ export function CanvasEngineSurface({
       return
     }
 
-    const trackIdentity = activeAudioTrackId ?? 'canvas:unloaded-track'
-    orchestrationPreloadManager.setScope(trackIdentity, orchestrationSettings.poolRevision)
+    const trackIdentity = runtimeCanvasShow
+      ? `canvas-show:${runtimeCanvasShow.id}`
+      : activeAudioTrackId ?? 'canvas:unloaded-track'
+    const poolRevision = runtimeCanvasShow
+      ? runtimeCanvasShow.mediaElements.reduce((sum, element) => {
+          const media = mediaItems.find(item => item.id === element.mediaId)
+          return sum + element.id.length + element.mediaId.length + (media?.mediaRevision ?? 0) + (media?.objectUrl.length ?? 0)
+        }, runtimeCanvasShow.mediaElements.length)
+      : orchestrationSettings.poolRevision
+    orchestrationPreloadManager.setScope(trackIdentity, poolRevision)
     previousOrchestrationContextRef.current = null
     previousOrchestrationFrameRef.current = null
 
     const resolveFrame = () => {
-      const audioTimeSec = resolveCanvasAudioTime(getAudioTimeRef.current)
+      const audioTimeSec = showPreviewMode && previewShowTimeSec != null
+        ? previewShowTimeSec
+        : resolveCanvasAudioTime(getAudioTimeRef.current)
       const context = buildSharedPerformanceContext({
         audioTimeSec,
         frame: AudioFeatureBus.getFrame(),
@@ -1429,23 +1461,57 @@ export function CanvasEngineSurface({
         trackChangeIdentity: `track:${trackIdentity}`,
         previous: previousOrchestrationContextRef.current,
       })
-      const nextFrame = resolveCanvasPerformanceFrame({
-        context,
-        settings: orchestrationSettings,
-        mediaItems,
-        previousFrame: previousOrchestrationFrameRef.current,
-        isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
-      })
+      const nextFrame = runtimeCanvasShow
+        ? resolveCanvasShowRuntimeFrame({
+            show: runtimeCanvasShow,
+            showTimeSec: audioTimeSec,
+            mediaItems,
+            context,
+            isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+            selectedElementId: showPreviewMode ? previewSelectedElementId : null,
+          })
+        : resolveCanvasPerformanceFrame({
+            context,
+            settings: orchestrationSettings,
+            mediaItems,
+            previousFrame: previousOrchestrationFrameRef.current,
+            isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+          })
+      if (!nextFrame) {
+        setOrchestrationFrame(null)
+        return
+      }
       const activeMediaIds = nextFrame.layers
         .map(layer => layer.sourceMediaId)
         .filter((id): id is string => Boolean(id))
-      const candidateMediaIds = getCanvasPerformancePreloadCandidates(nextFrame, orchestrationSettings, mediaItems)
+      let upcomingVideoBudget = Math.max(0, MAX_CANVAS_SHOW_VIDEO_DECODERS - nextFrame.decoderCount)
+      const upcomingShowMedia = runtimeCanvasShow
+        ? runtimeCanvasShow.mediaElements
+            .filter(element => element.showStartSec > audioTimeSec && element.showStartSec <= audioTimeSec + 8)
+            .sort((a, b) => a.showStartSec - b.showStartSec)
+            .slice(0, 4)
+            .flatMap(element => {
+              const media = mediaItems.find(item => item.id === element.mediaId)
+              if (!media || (media.type === 'video' && upcomingVideoBudget <= 0)) return []
+              if (media.type === 'video') upcomingVideoBudget -= 1
+              return [{ ...media, id: `${media.id}::canvas-show-element::${element.id}` }]
+            })
+        : []
+      const candidateMediaIds = runtimeCanvasShow
+        ? upcomingShowMedia.map(media => media.id)
+        : getCanvasPerformancePreloadCandidates(nextFrame, orchestrationSettings, mediaItems)
+      const requestMediaItems = runtimeCanvasShow
+        ? [
+            ...nextFrame.layers.map(layer => layer.source).filter((item): item is CanvasMediaItem => item != null),
+            ...upcomingShowMedia,
+          ]
+        : mediaItems
       orchestrationPreloadManager.request(buildCanvasPreloadRequests({
-        mediaItems,
+        mediaItems: requestMediaItems,
         activeMediaIds,
         candidateMediaIds,
         trackIdentity,
-        poolRevision: orchestrationSettings.poolRevision,
+        poolRevision,
       }))
       orchestrationPreloadManager.retainOnly([...activeMediaIds, ...candidateMediaIds])
       previousOrchestrationContextRef.current = context
@@ -1480,7 +1546,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, mediaItems, orchestrationPreloadManager, orchestrationSettings])
+  }, [activeAudioTrackId, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, showPreviewMode])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
@@ -1520,10 +1586,9 @@ export function CanvasEngineSurface({
     }
   }, [activeAudioTrackId, fragmentCollageActive, particleReconstructionActive])
 
-  const orchestrationRenderable = canRenderCanvasOrchestrationFrame(
-    orchestrationSettings,
-    orchestrationFrame,
-  )
+  const orchestrationRenderable = orchestrationFrame?.runtimeMode === 'show'
+    ? true
+    : canRenderCanvasOrchestrationFrame(orchestrationSettings, orchestrationFrame)
   const outputCapability = useMemo(() => resolveCanvasOutputCapability({
     selectedPresetId: selectedCanvasPresetId,
     orchestrationRenderable,
