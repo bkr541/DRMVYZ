@@ -4,7 +4,7 @@ import './DualRailCollapsible.css'
 // ── DualRailCollapsible ──────────────────────────────────────────────────
 //
 // Canonical DRMVYZ parent/group treatment. This is the production source of
-// truth for Layout Lab → Template's “Tab Crest” group (name kept for the
+// truth for Layout Lab → Template's “Step Indent” group (name kept for the
 // existing prop/consumer contract) and supports both self-managed and
 // externally-controlled disclosure state.
 

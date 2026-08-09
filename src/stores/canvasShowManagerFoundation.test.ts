@@ -8,6 +8,7 @@ describe('Canvas Show Manager Stage 1 store integration', () => {
       canvasShowManagerActiveShowId: null,
       canvasShowManagerEditingShowId: null,
       canvasShowManagerEditingSectionId: null,
+      canvasShowManagerEditingElementId: null,
       canvasShowManagerUndoStack: [],
       canvasShowManagerRedoStack: [],
     })
@@ -45,6 +46,7 @@ describe('Canvas Show Manager Stage 1 store integration', () => {
     expect(persisted.canvasShowManagerActiveShowId).toBe(showId)
     expect(persisted).not.toHaveProperty('canvasShowManagerEditingShowId')
     expect(persisted).not.toHaveProperty('canvasShowManagerEditingSectionId')
+    expect(persisted).not.toHaveProperty('canvasShowManagerEditingElementId')
     expect(persisted).not.toHaveProperty('canvasShowManagerUndoStack')
     expect(persisted).not.toHaveProperty('canvasShowManagerRedoStack')
 
@@ -53,6 +55,7 @@ describe('Canvas Show Manager Stage 1 store integration', () => {
     expect(merged.canvasShowManagerActiveShowId).toBe(showId)
     expect(merged.canvasShowManagerEditingShowId).toBeNull()
     expect(merged.canvasShowManagerEditingSectionId).toBeNull()
+    expect(merged.canvasShowManagerEditingElementId).toBeNull()
     expect(merged.canvasShowManagerUndoStack).toEqual([])
     expect(merged.canvasShowManagerRedoStack).toEqual([])
   })

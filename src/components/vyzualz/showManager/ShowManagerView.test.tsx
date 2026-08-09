@@ -7,6 +7,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
   laserRuntimePreviewProps: [] as Array<Record<string, unknown>>,
+  media: {
+    items: [{
+      id: 'media-video-1',
+      name: 'aurora-loop.mp4',
+      title: 'Aurora Loop',
+      type: 'video',
+      url: 'blob:aurora-loop',
+      thumbnailUrl: null,
+      meta: 'MP4 · 0:08',
+      favorite: false,
+      mediaRole: 'background_video',
+      tags: [],
+      collectionIds: [],
+      metadata: { duration: 8 },
+      mimeType: 'video/mp4',
+    }],
+  },
   audio: {
     analyserMaster: null,
     currentTrackId: 'audio-track-1',
@@ -126,13 +143,18 @@ const fixture = vi.hoisted(() => ({
     canvasShowManagerActiveShowId: null as string | null,
     canvasShowManagerEditingShowId: null as string | null,
     canvasShowManagerEditingSectionId: null as string | null,
+    canvasShowManagerEditingElementId: null as string | null,
     canvasShowManagerUndoStack: [] as unknown[],
     canvasShowManagerRedoStack: [] as unknown[],
     createCanvasShowManagerShow: vi.fn(() => 'canvas-show-1' as string | null),
     selectCanvasShowManagerShow: vi.fn(),
     selectCanvasShowManagerSection: vi.fn(),
+    selectCanvasShowManagerMediaElement: vi.fn(),
     renameCanvasShowManagerShow: vi.fn(() => true),
     updateCanvasShowManagerSectionDuration: vi.fn(),
+    addCanvasShowManagerMediaElement: vi.fn(),
+    updateCanvasShowManagerMediaElement: vi.fn(),
+    removeCanvasShowManagerMediaElement: vi.fn(() => true),
     deleteCanvasShowManagerShow: vi.fn(() => true),
     undoCanvasShowManagerEdit: vi.fn(),
     redoCanvasShowManagerEdit: vi.fn(),
@@ -163,6 +185,24 @@ vi.mock('../../../stores/reactStore', () => {
   })
   return { useReactStore }
 })
+
+vi.mock('../../../stores/mediaStore', () => ({
+  useMediaStore: (selector: (state: typeof fixture.media) => unknown) => selector(fixture.media),
+}))
+
+vi.mock('../media/MediaLibraryBrowser', () => ({
+  MediaLibraryBrowser: ({ onSelect }: { onSelect?: (mediaId: string) => void }) => (
+    <div data-testid="mock-media-library-browser">
+      <input type="search" aria-label="Search media" />
+      <button
+        type="button"
+        draggable
+        onClick={() => onSelect?.('media-video-1')}
+        onDragStart={event => event.dataTransfer.setData('vz/mediaId', 'media-video-1')}
+      >Aurora Loop</button>
+    </div>
+  ),
+}))
 
 vi.mock('../react/pixGrid/PixGridSurface', () => ({
   PixGridSurface: ({
@@ -284,6 +324,13 @@ afterEach(() => {
   fixture.state.createCanvasShowManagerShow.mockClear()
   fixture.state.selectCanvasShowManagerShow.mockClear()
   fixture.state.saveCanvasShowManagerShow.mockClear()
+  fixture.state.addCanvasShowManagerMediaElement.mockReset()
+  fixture.state.updateCanvasShowManagerMediaElement.mockReset()
+  fixture.state.removeCanvasShowManagerMediaElement.mockReset()
+  fixture.state.canvasShowManagerShows = []
+  fixture.state.canvasShowManagerEditingShowId = null
+  fixture.state.canvasShowManagerEditingSectionId = null
+  fixture.state.canvasShowManagerEditingElementId = null
   fixture.audio.isPlaying = false
   if (root) act(() => root?.unmount())
   container?.remove()
@@ -351,7 +398,7 @@ describe('ShowManagerView production shell', () => {
     })
 
     expect(container.querySelector('[data-testid="canvas-show-manager-empty-state"]')).not.toBeNull()
-    expect(container.querySelector('[aria-label="Show Manager Canvas section timeline"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Show Manager Canvas media timeline"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="pix-grid-surface"]')).toBeNull()
 
     const newShowButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
@@ -366,6 +413,137 @@ describe('ShowManagerView production shell', () => {
     expect(dialog?.querySelectorAll('input')).toHaveLength(1)
     expect(dialog?.querySelector('input[type="file"]')).toBeNull()
     expect(dialog?.textContent).toContain('Media is added afterward')
+  })
+
+  it('uses the shared media drag contract to place a real element on an explicit Canvas layer target', async () => {
+    const show = {
+      schemaVersion: 2 as const,
+      id: 'canvas-show-authoring',
+      name: 'Authoring Show',
+      sections: [
+        ['intro', 'Intro'], ['verse', 'Verse'], ['build', 'Build'], ['preDrop', 'Pre-Drop'],
+        ['drop', 'Drop'], ['breakdown', 'Breakdown'], ['outro', 'Outro'],
+      ].map(([type, label], index) => ({
+        id: `canvas-show-authoring:section:${type}:${index + 1}`,
+        type,
+        label,
+        durationSec: 8,
+      })),
+      mediaElements: [] as Array<{
+        id: string
+        mediaId: string
+        layer: number
+        showStartSec: number
+        showEndSec: number
+        sourceInSec: number | null
+        sourceOutSec: number | null
+      }>,
+    }
+    fixture.state.canvasShowManagerShows = [show] as typeof fixture.state.canvasShowManagerShows
+    fixture.state.canvasShowManagerEditingShowId = show.id
+    fixture.state.canvasShowManagerEditingSectionId = show.sections[0]!.id
+    fixture.state.addCanvasShowManagerMediaElement.mockImplementation(input => {
+      if (show.mediaElements.some(element => element.layer === input.layer)) {
+        return { ok: false, code: 'overlap', message: `Layer ${input.layer + 1} already contains media in that Show cue range.` }
+      }
+      const element = {
+        id: 'canvas-element-dropped',
+        mediaId: input.mediaId,
+        layer: input.layer,
+        showStartSec: 0,
+        showEndSec: 8,
+        sourceInSec: 0,
+        sourceOutSec: 8,
+      }
+      show.mediaElements.push(element)
+      fixture.state.canvasShowManagerEditingElementId = element.id
+      return { ok: true, show, element }
+    })
+    fixture.state.updateCanvasShowManagerMediaElement.mockImplementation((_showId, elementId, patch) => {
+      const element = show.mediaElements.find(candidate => candidate.id === elementId)!
+      Object.assign(element, patch)
+      return { ok: true, show, element }
+    })
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+    const canvasOption = [...(document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]'))]
+      .find(option => option.textContent?.includes('CANVAS'))
+    await act(async () => {
+      canvasOption?.click()
+      await Promise.resolve()
+    })
+
+    const transfer = {
+      types: [] as string[],
+      values: new Map<string, string>(),
+      effectAllowed: 'all',
+      dropEffect: 'none',
+      setData(type: string, value: string) { this.values.set(type, value); if (!this.types.includes(type)) this.types.push(type) },
+      getData(type: string) { return this.values.get(type) ?? '' },
+    }
+    const dragStart = new Event('dragstart', { bubbles: true })
+    Object.defineProperty(dragStart, 'dataTransfer', { value: transfer })
+    container.querySelector<HTMLButtonElement>('[data-testid="mock-media-library-browser"] button')?.dispatchEvent(dragStart)
+
+    const surface = container.querySelector<HTMLElement>('[data-testid="canvas-show-manager-authoring-surface"]')!
+    const dragEnter = new Event('dragenter', { bubbles: true })
+    Object.defineProperty(dragEnter, 'dataTransfer', { value: transfer })
+    await act(async () => { surface.dispatchEvent(dragEnter) })
+
+    const layerThree = container.querySelector<HTMLElement>('[data-testid="canvas-layer-drop-target-3"]')!
+    expect(container.querySelectorAll('[data-testid^="canvas-layer-drop-target-"]')).toHaveLength(4)
+    expect(container.querySelector('[aria-label="Search media"]')).not.toBeNull()
+    const drop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, 'dataTransfer', { value: transfer })
+    await act(async () => { layerThree.dispatchEvent(drop) })
+
+    expect(fixture.state.addCanvasShowManagerMediaElement).toHaveBeenCalledWith({
+      showId: show.id,
+      sectionId: show.sections[0]!.id,
+      mediaId: 'media-video-1',
+      layer: 2,
+      timedVideo: true,
+      sourceDurationSec: 8,
+    })
+    expect(show.mediaElements[0]).toMatchObject({ layer: 2, showStartSec: 0, showEndSec: 8, sourceInSec: 0, sourceOutSec: 8 })
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    expect(container.querySelector('[data-testid="canvas-video-source-trim"]')).not.toBeNull()
+    expect(container.querySelectorAll('.sm-canvas-media-clip')).toHaveLength(1)
+
+    const secondDrop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(secondDrop, 'dataTransfer', { value: transfer })
+    await act(async () => {
+      container!.querySelector<HTMLElement>('[data-testid="canvas-layer-drop-target-3"]')?.dispatchEvent(secondDrop)
+    })
+    expect(show.mediaElements).toHaveLength(1)
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('already contains media')
+
+    const startHandle = container.querySelector<HTMLButtonElement>('.sm-canvas-clip-handle.is-start')!
+    await act(async () => {
+      startHandle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    })
+    expect(fixture.state.updateCanvasShowManagerMediaElement).toHaveBeenCalledWith(
+      show.id,
+      'canvas-element-dropped',
+      { showStartSec: 0.1 },
+      8,
+    )
   })
 
   it('enters the production LaserDMX path with no audio and exposes the canonical seven Show-owned sections', async () => {

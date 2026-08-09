@@ -22,6 +22,7 @@ import {
   type CanvasBackgroundMode,
 } from './canvasMediaTransparency'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
+import { getCanvasLibraryDisabledReason, getCanvasLibraryMediaType } from './canvasMediaLibraryContract'
 import {
   hasCanvasBaseTransform,
   hasCanvasEffectPass,
@@ -185,32 +186,6 @@ function CanvasOverrideStatus({
       <button type="button" onClick={onClear} aria-label={clearAriaLabel}>{clearLabel}</button>
     </div>
   )
-}
-
-function getCanvasLibraryMediaType(media: UploadedMedia): CanvasMediaItemType | null {
-  const name = media.name.toLowerCase()
-  const mime = (media.mimeType ?? '').toLowerCase()
-  if (mime === 'image/svg+xml' || name.endsWith('.svg') || media.mediaRole === 'svg') return 'svg'
-  if (
-    media.type === 'image' && (
-      mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp' ||
-      name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp')
-    )
-  ) return 'image'
-  if (
-    media.type === 'video' && (
-      mime === 'video/mp4' || mime === 'video/webm' || mime === 'video/quicktime' || mime === 'video/x-quicktime' ||
-      name.endsWith('.mp4') || name.endsWith('.webm') || name.endsWith('.mov')
-    )
-  ) return 'video'
-  return null
-}
-
-function getCanvasLibraryDisabledReason(media: UploadedMedia): string | null {
-  if (media.uploading) return 'Still syncing to the media library.'
-  if (!media.url && !media.proxyUrl) return 'Media URL is unavailable. Refresh or check storage access.'
-  if (!getCanvasLibraryMediaType(media)) return 'Unsupported in CANVAS. Use MP4, WebM, MOV, PNG, JPG, WebP, or SVG.'
-  return null
 }
 
 function getCanvasLibraryUrl(media: UploadedMedia): string {

@@ -1472,3 +1472,103 @@
 .sm-canvas-dialog h2 { margin: 0; color: rgba(240, 247, 249, 0.94); font-size: 15px; }
 .sm-canvas-dialog > p { margin: 0 0 4px; color: rgba(196, 212, 220, 0.48); font-size: 9px; }
 .sm-canvas-dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 4px; }
+
+/* Canvas Show Manager Stage 2 media authoring. */
+.sm-canvas-media-library {
+  min-height: 260px;
+  flex: 1 1 320px;
+  display: flex;
+  overflow: hidden;
+  border-top: 1px solid rgba(154, 178, 188, 0.1);
+}
+.sm-canvas-media-library .vz-media-browser { border: 0; border-radius: 0; background: transparent; }
+.sm-canvas-media-library .vz-media-grid { grid-template-columns: minmax(0, 1fr); }
+.sm-canvas-media-library .vz-panel-header { min-width: 0; }
+
+.sm-canvas-stage { padding: 20px; gap: 12px; }
+.sm-canvas-authoring-surface {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 190px;
+  overflow: hidden;
+  border: 1px solid rgba(103, 247, 255, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(74, 199, 219, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 199, 219, 0.025) 1px, transparent 1px),
+    rgba(2, 8, 11, 0.88);
+  background-size: 24px 24px;
+}
+.sm-canvas-authored-elements { position: absolute; inset: 0; display: grid; place-items: center; }
+.sm-canvas-authored-elements > p { color: rgba(196, 212, 220, 0.4); font-size: 9px; }
+.sm-canvas-authored-element {
+  position: absolute;
+  width: min(58%, 360px);
+  min-height: 54px !important;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+.sm-canvas-authored-element > span { color: rgba(103, 247, 255, 0.65); font-size: 7px; text-transform: uppercase; }
+.sm-canvas-authored-element > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(240, 247, 249, 0.9); }
+.sm-canvas-authored-element > small { color: rgba(196, 212, 220, 0.48); }
+.sm-canvas-authored-element.is-selected { outline: 2px solid rgba(103, 247, 255, 0.78); }
+.sm-canvas-authored-element.is-missing { border-color: rgba(255, 174, 84, 0.5); background: rgba(116, 61, 16, 0.22); }
+
+.sm-canvas-layer-targets {
+  position: absolute;
+  inset: 8px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border-radius: 7px;
+  background: rgba(1, 6, 9, 0.9);
+  backdrop-filter: blur(5px);
+}
+.sm-canvas-layer-targets > button {
+  min-height: 0;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  border: 1px dashed rgba(103, 247, 255, 0.34);
+  background: rgba(74, 199, 219, 0.07);
+  text-align: center;
+}
+.sm-canvas-layer-targets > button > span { color: rgba(103, 247, 255, 0.66); font-size: 8px; }
+.sm-canvas-layer-targets > button > strong { color: rgba(232, 244, 248, 0.84); font-size: 9px; }
+.sm-canvas-layer-targets > button > small { color: rgba(196, 212, 220, 0.44); font-size: 7px; }
+.sm-canvas-layer-targets > button.is-hovered { border-style: solid; border-color: #67f7ff; background: rgba(74, 199, 219, 0.2); }
+.sm-canvas-layer-targets > button.is-invalid { border-color: rgba(255, 118, 132, 0.64); background: rgba(255, 72, 92, 0.09); }
+.sm-canvas-layer-targets > button.is-invalid > small { color: rgba(255, 174, 184, 0.9); }
+
+.sm-canvas-section-grid--compact { flex: 0 0 auto; grid-template-columns: repeat(7, minmax(64px, 1fr)); overflow-x: auto; }
+.sm-canvas-section-grid--compact button { min-height: 44px; grid-template-columns: 18px minmax(0, 1fr); padding: 5px; }
+.sm-canvas-section-grid--compact button > small { display: none; }
+
+.sm-canvas-timeline { max-height: 310px; overflow: auto; }
+.sm-canvas-timeline-body { display: grid; gap: 4px; padding: 5px 7px 8px; }
+.sm-canvas-playhead-control { display: flex; align-items: center; gap: 8px; color: rgba(196, 212, 220, 0.54); font-size: 8px; }
+.sm-canvas-playhead-control > span { width: 78px; }
+.sm-canvas-playhead-control > input { flex: 1; }
+.sm-canvas-timeline-sections { min-height: 38px; padding: 0 0 0 28px; }
+.sm-canvas-timeline-sections button { min-height: 36px; }
+.sm-canvas-media-lanes { display: grid; gap: 3px; }
+.sm-canvas-media-lane { min-height: 32px; display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: stretch; gap: 4px; }
+.sm-canvas-media-lane__label { display: grid; place-items: center; color: rgba(103, 247, 255, 0.5); font-size: 8px; }
+.sm-canvas-media-lane__track { position: relative; min-height: 32px; overflow: hidden; border: 1px solid rgba(154, 178, 188, 0.11); border-radius: 3px; background: rgba(255, 255, 255, 0.018); }
+.sm-canvas-playhead { position: absolute; top: 0; bottom: 0; z-index: 9; width: 1px; background: rgba(255, 220, 82, 0.85); pointer-events: none; }
+.sm-canvas-media-clip { position: absolute; top: 3px; bottom: 3px; min-width: 18px; display: grid; grid-template-columns: 7px minmax(0, 1fr) 7px; overflow: hidden; border: 1px solid rgba(74, 199, 219, 0.36); border-radius: 3px; background: rgba(31, 132, 151, 0.28); }
+.sm-canvas-media-clip.is-selected { border-color: #67f7ff; box-shadow: 0 0 0 1px rgba(103, 247, 255, 0.3); }
+.sm-canvas-media-clip.is-missing { border-color: rgba(255, 174, 84, 0.58); background: rgba(116, 61, 16, 0.28); }
+.sm-canvas-media-clip__body,
+.sm-canvas-clip-handle { min-width: 0; padding: 0; border: 0; background: transparent; color: rgba(232, 244, 248, 0.82); font: inherit; font-size: 7px; cursor: pointer; }
+.sm-canvas-media-clip__body { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-canvas-clip-handle { background: rgba(103, 247, 255, 0.18); cursor: ew-resize; }
+.sm-canvas-clip-handle:focus-visible { outline: 1px solid #fff; outline-offset: -2px; }
+.sm-canvas-authoring-feedback { margin: 5px 7px 0; padding: 6px 8px; border: 1px solid rgba(255, 118, 132, 0.4); border-radius: 4px; background: rgba(255, 72, 92, 0.08); color: rgba(255, 190, 198, 0.92); font-size: 8px; }
+.sm-canvas-cue-grid { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; gap: 6px; }
+.sm-canvas-cue-grid > small { grid-column: 1 / -1; color: rgba(196, 212, 220, 0.42); font-size: 8px; }
+.sm-canvas-element-form .sm-canvas-delete { margin-top: 4px; }

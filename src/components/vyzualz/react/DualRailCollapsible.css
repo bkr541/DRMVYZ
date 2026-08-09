@@ -1,8 +1,7 @@
-/* DualRailCollapsible — a flat header with a small gold "crest" marker
-   beside the label and no surrounding box, body rows indented to the right
-   beneath it. Ported from Layout Lab's Collapsible Group gallery's "Tab
-   Crest" entry into a real, reusable drop-in for ReactControlRows'
-   Collapsible. */
+/* DualRailCollapsible — pure whitespace and a barely-there background tint
+   mark the body: no border line, no card, no bracket, just indentation.
+   Ported from Layout Lab's Collapsible Group gallery's "Step Indent" entry
+   into a real, reusable drop-in for ReactControlRows' Collapsible. */
 
 .drc-group {
   position: relative;
@@ -12,29 +11,21 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   padding: 0 0 8px;
   border: 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.16);
   background: transparent;
   cursor: pointer;
-  color: rgba(255, 241, 190, 0.92);
+  color: rgba(245, 248, 250, 0.92);
   font: 800 11px/1 var(--az-font, Inter, system-ui, sans-serif);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   transition: color 0.12s;
 }
 
-.drc-header::before {
-  content: '';
-  flex: 0 0 8px;
-  width: 8px;
-  height: 8px;
-  background: #d8b95a;
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-}
-
 .drc-header:hover {
-  color: rgba(255, 241, 190, 1);
+  color: rgba(255, 255, 255, 0.98);
 }
 
 .drc-header > span:first-child {
@@ -43,24 +34,24 @@
 }
 
 .drc-arrow {
-  font-size: 9px;
+  font-size: 11px;
   flex-shrink: 0;
-  opacity: 0.58;
-  transform: rotate(-90deg);
-  transition: transform 0.15s ease, opacity 0.12s;
+  color: rgba(196, 207, 211, 0.45);
+  transition: transform 140ms ease;
 }
 
 .drc-group.is-open .drc-arrow {
-  transform: rotate(0deg);
-  opacity: 0.9;
+  transform: rotate(180deg);
 }
 
 .drc-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px 2px 2px 12px;
-  border-left: 1px solid rgba(216, 185, 90, 0.2);
+  margin-top: 10px;
+  padding: 10px 8px 10px 16px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.012);
 }
 
 .drc-header-accessory {

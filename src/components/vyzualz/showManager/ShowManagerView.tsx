@@ -1,9 +1,10 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
-import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type MutableRefObject, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useReactStore } from '../../../stores/reactStore'
+import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, ToggleRow } from '../react/ReactControlRows'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
@@ -34,6 +35,9 @@ import { usePixGridDeckCompilerStore } from '../react/pixGrid/PixGridDeckCompile
 import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaService'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
+import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
+import { getCanvasLibraryDisabledReason, getCanvasLibraryMediaType } from '../react/canvasMediaLibraryContract'
 import {
   PixGridDeckBuilderInspector,
   PixGridDeckBuilderLibrary,
@@ -61,8 +65,12 @@ import {
 import {
   getCanvasShowManagerSectionRanges,
   getCanvasShowManagerTotalDuration,
+  canvasShowManagerRangeOverlaps,
   isCanvasShowManagerNameAvailable,
   normalizeCanvasShowManagerDuration,
+  type CanvasShowManagerLayer,
+  type CanvasShowManagerMediaElement,
+  type CanvasShowManagerMediaElementPatch,
   type CanvasShowManagerSectionRange,
   type CanvasShowManagerShow,
 } from './CanvasShowManagerDomain'
@@ -166,17 +174,23 @@ export function ShowManagerView() {
   const canvasShowManagerActiveShowId = useReactStore(state => state.canvasShowManagerActiveShowId)
   const canvasShowManagerEditingShowId = useReactStore(state => state.canvasShowManagerEditingShowId)
   const canvasShowManagerEditingSectionId = useReactStore(state => state.canvasShowManagerEditingSectionId)
+  const canvasShowManagerEditingElementId = useReactStore(state => state.canvasShowManagerEditingElementId)
   const createCanvasShowManagerShow = useReactStore(state => state.createCanvasShowManagerShow)
   const selectCanvasShowManagerShow = useReactStore(state => state.selectCanvasShowManagerShow)
   const selectCanvasShowManagerSection = useReactStore(state => state.selectCanvasShowManagerSection)
+  const selectCanvasShowManagerMediaElement = useReactStore(state => state.selectCanvasShowManagerMediaElement)
   const renameCanvasShowManagerShow = useReactStore(state => state.renameCanvasShowManagerShow)
   const updateCanvasShowManagerSectionDuration = useReactStore(state => state.updateCanvasShowManagerSectionDuration)
+  const addCanvasShowManagerMediaElement = useReactStore(state => state.addCanvasShowManagerMediaElement)
+  const updateCanvasShowManagerMediaElement = useReactStore(state => state.updateCanvasShowManagerMediaElement)
+  const removeCanvasShowManagerMediaElement = useReactStore(state => state.removeCanvasShowManagerMediaElement)
   const deleteCanvasShowManagerShow = useReactStore(state => state.deleteCanvasShowManagerShow)
   const undoCanvasShowManagerEdit = useReactStore(state => state.undoCanvasShowManagerEdit)
   const redoCanvasShowManagerEdit = useReactStore(state => state.redoCanvasShowManagerEdit)
   const canvasShowUndoDepth = useReactStore(state => state.canvasShowManagerUndoStack.length)
   const canvasShowRedoDepth = useReactStore(state => state.canvasShowManagerRedoStack.length)
   const saveCanvasShowManagerShow = useReactStore(state => state.saveCanvasShowManagerShow)
+  const sharedMediaItems = useMediaStore(state => state.items)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
@@ -208,6 +222,9 @@ export function ShowManagerView() {
   const [canvasCreateError, setCanvasCreateError] = useState<string | null>(null)
   const [canvasRenameDraft, setCanvasRenameDraft] = useState('')
   const [canvasRenameError, setCanvasRenameError] = useState<string | null>(null)
+  const [canvasLibraryMediaId, setCanvasLibraryMediaId] = useState<string | null>(null)
+  const [canvasAuthoringError, setCanvasAuthoringError] = useState<string | null>(null)
+  const [canvasPlayheadSec, setCanvasPlayheadSec] = useState(0)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
   const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
   const activeLaserDmxShow = useMemo(
@@ -233,6 +250,14 @@ export function ShowManagerView() {
   const canvasTotalDuration = useMemo(
     () => activeCanvasShow ? getCanvasShowManagerTotalDuration(activeCanvasShow) : 0,
     [activeCanvasShow],
+  )
+  const selectedCanvasElement = useMemo(
+    () => activeCanvasShow?.mediaElements.find(element => element.id === canvasShowManagerEditingElementId) ?? null,
+    [activeCanvasShow, canvasShowManagerEditingElementId],
+  )
+  const selectedCanvasElementMedia = useMemo(
+    () => selectedCanvasElement ? sharedMediaItems.find(media => media.id === selectedCanvasElement.mediaId) ?? null : null,
+    [selectedCanvasElement, sharedMediaItems],
   )
   const activeLaserDmxSection = useMemo(
     () => activeLaserDmxShow?.sections.find(section => section.id === laserDmxShowManagerEditingSectionId)
@@ -287,6 +312,8 @@ export function ShowManagerView() {
   useEffect(() => {
     setCanvasRenameDraft(activeCanvasShow?.name ?? '')
     setCanvasRenameError(null)
+    setCanvasAuthoringError(null)
+    setCanvasPlayheadSec(0)
   }, [activeCanvasShow?.id, activeCanvasShow?.name])
 
   useEffect(() => {
@@ -666,6 +693,67 @@ export function ShowManagerView() {
     }
   }
 
+  const commitCanvasMediaPlacement = (mediaId: string, layer: CanvasShowManagerLayer) => {
+    if (!activeCanvasShow || !activeCanvasSection) {
+      setCanvasAuthoringError('Create or open a Canvas Show and select a section before adding media.')
+      return false
+    }
+    const media = sharedMediaItems.find(candidate => candidate.id === mediaId)
+    if (!media) {
+      setCanvasAuthoringError('That shared media item is unavailable. Refresh the Media Library and try again.')
+      return false
+    }
+    const disabledReason = getCanvasLibraryDisabledReason(media)
+    const mediaType = getCanvasLibraryMediaType(media)
+    if (disabledReason || !mediaType) {
+      setCanvasAuthoringError(disabledReason ?? 'That media type is not supported in CANVAS.')
+      return false
+    }
+    const result = addCanvasShowManagerMediaElement({
+      showId: activeCanvasShow.id,
+      sectionId: activeCanvasSection.id,
+      mediaId,
+      layer,
+      timedVideo: mediaType === 'video',
+      sourceDurationSec: media.metadata.duration ?? null,
+    })
+    if (!result.ok) {
+      setCanvasAuthoringError(result.message)
+      return false
+    }
+    setCanvasLibraryMediaId(mediaId)
+    setCanvasAuthoringError(null)
+    return true
+  }
+
+  const commitCanvasElementPatch = (
+    elementId: string,
+    patch: CanvasShowManagerMediaElementPatch,
+  ) => {
+    if (!activeCanvasShow) return false
+    const element = activeCanvasShow.mediaElements.find(candidate => candidate.id === elementId)
+    const media = element ? sharedMediaItems.find(candidate => candidate.id === element.mediaId) ?? null : null
+    const result = updateCanvasShowManagerMediaElement(
+      activeCanvasShow.id,
+      elementId,
+      patch,
+      media?.metadata.duration ?? null,
+    )
+    if (!result.ok) {
+      setCanvasAuthoringError(result.message)
+      return false
+    }
+    setCanvasAuthoringError(null)
+    return true
+  }
+
+  const deleteSelectedCanvasElement = () => {
+    if (!activeCanvasShow || !selectedCanvasElement) return
+    if (removeCanvasShowManagerMediaElement(activeCanvasShow.id, selectedCanvasElement.id)) {
+      setCanvasAuthoringError(null)
+    }
+  }
+
   const activateLaserComponent = (kind: LaserDmxShowDirectorFixtureKind) => {
     if (!isLaserDmxShowManagerFixtureKindEnabled(kind)) return
     setSelectedLightingComponentKind(kind)
@@ -1033,6 +1121,21 @@ export function ShowManagerView() {
                   </div>
                 )}
               </LibrarySection>
+              <div className="sm-canvas-media-library" data-testid="canvas-show-manager-media-library">
+                <MediaLibraryBrowser
+                  activeMediaId={canvasLibraryMediaId}
+                  onSelect={mediaId => {
+                    setCanvasLibraryMediaId(mediaId)
+                    setCanvasAuthoringError(null)
+                  }}
+                  context="canvas"
+                  title="Media"
+                  capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
+                  getDisabledReason={media => activeCanvasShow
+                    ? getCanvasLibraryDisabledReason(media)
+                    : 'Create or open a Canvas Show before adding media.'}
+                />
+              </div>
             </>
           ) : (
             <div className="sm-panel-blank" />
@@ -1081,8 +1184,13 @@ export function ShowManagerView() {
               <CanvasShowManagerStage
                 show={activeCanvasShow}
                 selectedSectionId={activeCanvasSection?.id ?? null}
+                selectedElementId={selectedCanvasElement?.id ?? null}
+                selectedLibraryMediaId={canvasLibraryMediaId}
+                mediaItems={sharedMediaItems}
                 sectionRanges={canvasSectionRanges}
                 onSelectSection={selectCanvasShowManagerSection}
+                onSelectElement={selectCanvasShowManagerMediaElement}
+                onPlaceMedia={commitCanvasMediaPlacement}
                 onCreate={openCanvasCreateDialog}
               />
             ) : (
@@ -1168,9 +1276,16 @@ export function ShowManagerView() {
             <CanvasShowManagerTimeline
               show={activeCanvasShow}
               selectedSectionId={activeCanvasSection?.id ?? null}
+              selectedElementId={selectedCanvasElement?.id ?? null}
+              mediaItems={sharedMediaItems}
               sectionRanges={canvasSectionRanges}
               totalDurationSec={canvasTotalDuration}
+              playheadSec={canvasPlayheadSec}
+              error={canvasAuthoringError}
               onSelect={selectCanvasShowManagerSection}
+              onSelectElement={selectCanvasShowManagerMediaElement}
+              onPatchElement={commitCanvasElementPatch}
+              onPlayhead={setCanvasPlayheadSec}
             />
           ) : (
             <ShowManagerTimeline
@@ -1418,6 +1533,8 @@ export function ShowManagerView() {
             <CanvasShowManagerInspector
               show={activeCanvasShow}
               section={activeCanvasSection}
+              element={selectedCanvasElement}
+              elementMedia={selectedCanvasElementMedia}
               sectionRanges={canvasSectionRanges}
               totalDurationSec={canvasTotalDuration}
               renameDraft={canvasRenameDraft}
@@ -1425,9 +1542,21 @@ export function ShowManagerView() {
               onRenameDraft={setCanvasRenameDraft}
               onRename={commitCanvasRename}
               onUpdateDuration={(sectionId, durationSec) => {
-                if (!activeCanvasShow) return
-                updateCanvasShowManagerSectionDuration(activeCanvasShow.id, sectionId, durationSec)
+                if (!activeCanvasShow) return false
+                const current = activeCanvasShow.sections.find(section => section.id === sectionId)
+                const edit = updateCanvasShowManagerSectionDuration(activeCanvasShow.id, sectionId, durationSec)
+                if (!edit && current?.durationSec !== durationSec) {
+                  setCanvasAuthoringError('That section duration would create invalid or overlapping media cues. Adjust the affected clips first.')
+                  return false
+                } else {
+                  setCanvasAuthoringError(null)
+                  return true
+                }
               }}
+              onPatchElement={patch => selectedCanvasElement
+                ? commitCanvasElementPatch(selectedCanvasElement.id, patch)
+                : false}
+              onDeleteElement={deleteSelectedCanvasElement}
               onDelete={() => {
                 if (!activeCanvasShow || !window.confirm(`Delete Canvas Show “${activeCanvasShow.name}”?`)) return
                 deleteCanvasShowManagerShow(activeCanvasShow.id)
@@ -1487,6 +1616,8 @@ export function ShowManagerView() {
 function CanvasShowManagerInspector({
   show,
   section,
+  element,
+  elementMedia,
   sectionRanges,
   totalDurationSec,
   renameDraft,
@@ -1494,18 +1625,24 @@ function CanvasShowManagerInspector({
   onRenameDraft,
   onRename,
   onUpdateDuration,
+  onPatchElement,
+  onDeleteElement,
   onDelete,
   onCreate,
 }: {
   show: CanvasShowManagerShow | null
   section: CanvasShowManagerShow['sections'][number] | null
+  element: CanvasShowManagerMediaElement | null
+  elementMedia: UploadedMedia | null
   sectionRanges: readonly CanvasShowManagerSectionRange[]
   totalDurationSec: number
   renameDraft: string
   renameError: string | null
   onRenameDraft: (value: string) => void
   onRename: () => void
-  onUpdateDuration: (sectionId: string, durationSec: number) => void
+  onUpdateDuration: (sectionId: string, durationSec: number) => boolean
+  onPatchElement: (patch: CanvasShowManagerMediaElementPatch) => boolean
+  onDeleteElement: () => void
   onDelete: () => void
   onCreate: () => void
 }) {
@@ -1520,6 +1657,8 @@ function CanvasShowManagerInspector({
     )
   }
   const range = sectionRanges.find(candidate => candidate.sectionId === section?.id)
+  const elementMediaType = elementMedia ? getCanvasLibraryMediaType(elementMedia) : null
+  const knownSourceDuration = elementMedia?.metadata.duration
   return (
     <div className="sm-inspector-scroll sm-canvas-inspector">
       <div className="sm-inspector-context">
@@ -1544,6 +1683,95 @@ function CanvasShowManagerInspector({
           <button type="submit">Update Name</button>
         </form>
       </Collapsible>
+      {element && (
+        <Collapsible label="Media Element" defaultOpen>
+          <div className="sm-canvas-form sm-canvas-element-form" data-testid="canvas-show-manager-element-inspector">
+            <strong>{elementMedia?.title?.trim() || elementMedia?.name || 'Missing media'}</strong>
+            {!elementMedia && <p className="sm-canvas-form-error" role="status">This shared media item is unavailable. Its authored reference has been preserved.</p>}
+            <label htmlFor="canvas-element-layer">Layer</label>
+            <Dropdown
+              id="canvas-element-layer"
+              ariaLabel="Canvas media element layer"
+              value={String(element.layer)}
+              onChange={value => onPatchElement({ layer: Number(value) })}
+              options={[3, 2, 1, 0].map(layer => ({
+                value: String(layer),
+                label: `Layer ${layer + 1}`,
+                description: layer === 3 ? 'Top / front' : layer === 0 ? 'Bottom / back' : undefined,
+              }))}
+              size="compact"
+            />
+            <div className="sm-canvas-cue-grid">
+              <label htmlFor="canvas-element-show-start">Show Start</label>
+              <DreamVizTextInput
+                id="canvas-element-show-start"
+                key={`${element.id}:start:${element.showStartSec}`}
+                type="number"
+                min="0"
+                max={element.showEndSec - 0.001}
+                step="0.01"
+                defaultValue={element.showStartSec}
+                onBlur={event => {
+                  if (!onPatchElement({ showStartSec: Number(event.target.value) })) event.target.value = String(element.showStartSec)
+                }}
+              />
+              <label htmlFor="canvas-element-show-end">Show End</label>
+              <DreamVizTextInput
+                id="canvas-element-show-end"
+                key={`${element.id}:end:${element.showEndSec}`}
+                type="number"
+                min={element.showStartSec + 0.001}
+                max={totalDurationSec}
+                step="0.01"
+                defaultValue={element.showEndSec}
+                onBlur={event => {
+                  if (!onPatchElement({ showEndSec: Number(event.target.value) })) event.target.value = String(element.showEndSec)
+                }}
+              />
+            </div>
+            {elementMediaType === 'video' && (
+              knownSourceDuration && knownSourceDuration > 0 ? (
+                element.sourceOutSec == null ? (
+                  <button type="button" onClick={() => onPatchElement({ sourceInSec: 0, sourceOutSec: knownSourceDuration })}>
+                    Initialize Video Trim
+                  </button>
+                ) : (
+                  <div className="sm-canvas-cue-grid" data-testid="canvas-video-source-trim">
+                    <label htmlFor="canvas-element-source-in">Source In</label>
+                    <DreamVizTextInput
+                      id="canvas-element-source-in"
+                      key={`${element.id}:source-in:${element.sourceInSec}`}
+                      type="number"
+                      min="0"
+                      max={element.sourceOutSec - 0.001}
+                      step="0.01"
+                      defaultValue={element.sourceInSec ?? 0}
+                      onBlur={event => {
+                        if (!onPatchElement({ sourceInSec: Number(event.target.value) })) event.target.value = String(element.sourceInSec ?? 0)
+                      }}
+                    />
+                    <label htmlFor="canvas-element-source-out">Source Out</label>
+                    <DreamVizTextInput
+                      id="canvas-element-source-out"
+                      key={`${element.id}:source-out:${element.sourceOutSec}`}
+                      type="number"
+                      min={(element.sourceInSec ?? 0) + 0.001}
+                      max={knownSourceDuration}
+                      step="0.01"
+                      defaultValue={element.sourceOutSec}
+                      onBlur={event => {
+                        if (!onPatchElement({ sourceOutSec: Number(event.target.value) })) event.target.value = String(element.sourceOutSec)
+                      }}
+                    />
+                    <small>Source trim loops when the Show cue is longer than the trimmed video.</small>
+                  </div>
+                )
+              ) : <small>Video duration is still resolving. Source trim will be available when metadata is known.</small>
+            )}
+            <button type="button" className="sm-canvas-delete" onClick={onDeleteElement}>Remove Element</button>
+          </div>
+        </Collapsible>
+      )}
       {section && (
         <Collapsible label="Section" defaultOpen>
           <div className="sm-canvas-form">
@@ -1558,8 +1786,7 @@ function CanvasShowManagerInspector({
               defaultValue={section.durationSec}
               onBlur={event => {
                 const duration = normalizeCanvasShowManagerDuration(event.target.value)
-                event.target.value = String(duration)
-                onUpdateDuration(section.id, duration)
+                event.target.value = String(onUpdateDuration(section.id, duration) ? duration : section.durationSec)
               }}
             />
             <small>{range ? `${formatClock(range.startSec)} – ${formatClock(range.endSec)}` : ''}</small>
@@ -1574,16 +1801,28 @@ function CanvasShowManagerInspector({
 function CanvasShowManagerStage({
   show,
   selectedSectionId,
+  selectedElementId,
+  selectedLibraryMediaId,
+  mediaItems,
   sectionRanges,
   onSelectSection,
+  onSelectElement,
+  onPlaceMedia,
   onCreate,
 }: {
   show: CanvasShowManagerShow | null
   selectedSectionId: string | null
+  selectedElementId: string | null
+  selectedLibraryMediaId: string | null
+  mediaItems: readonly UploadedMedia[]
   sectionRanges: readonly CanvasShowManagerSectionRange[]
   onSelectSection: (sectionId: string | null) => void
+  onSelectElement: (elementId: string | null) => void
+  onPlaceMedia: (mediaId: string, layer: CanvasShowManagerLayer) => boolean
   onCreate: () => void
 }) {
+  const [dragActive, setDragActive] = useState(false)
+  const [hoveredLayer, setHoveredLayer] = useState<CanvasShowManagerLayer | null>(null)
   if (!show) {
     return (
       <div className="sm-canvas-stage sm-canvas-stage--empty" data-testid="canvas-show-manager-empty-state">
@@ -1594,13 +1833,101 @@ function CanvasShowManagerStage({
       </div>
     )
   }
+  const selectedRange = sectionRanges.find(range => range.sectionId === selectedSectionId) ?? sectionRanges[0] ?? null
+  const visibleElements = selectedRange
+    ? show.mediaElements.filter(element => element.showStartSec < selectedRange.endSec && element.showEndSec > selectedRange.startSec)
+    : []
+  const targetsVisible = dragActive || selectedLibraryMediaId != null
+  const resolveMedia = (mediaId: string) => mediaItems.find(media => media.id === mediaId) ?? null
   return (
-    <div className="sm-canvas-stage" aria-label="Canvas Show editor">
+    <div
+      className="sm-canvas-stage"
+      aria-label="Canvas Show editor"
+      onDragEnter={event => {
+        if (Array.from(event.dataTransfer.types).includes('vz/mediaId')) setDragActive(true)
+      }}
+      onDragOver={event => {
+        if (!Array.from(event.dataTransfer.types).includes('vz/mediaId')) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setDragActive(true)
+      }}
+      onDragLeave={event => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setDragActive(false)
+          setHoveredLayer(null)
+        }
+      }}
+    >
       <header>
         <div><span>CANVAS SHOW</span><strong>{show.name}</strong></div>
         <small>{formatClock(getCanvasShowManagerTotalDuration(show))} · {show.sections.length} sections</small>
       </header>
-      <div className="sm-canvas-section-grid">
+      <div className="sm-canvas-authoring-surface" data-testid="canvas-show-manager-authoring-surface">
+        <div className="sm-canvas-authored-elements" aria-label="Authored media visible in selected section">
+          {visibleElements.map(element => {
+            const media = resolveMedia(element.mediaId)
+            return (
+              <button
+                key={element.id}
+                type="button"
+                className={`sm-canvas-authored-element${element.id === selectedElementId ? ' is-selected' : ''}${media ? '' : ' is-missing'}`}
+                style={{ zIndex: element.layer + 1 }}
+                onClick={() => onSelectElement(element.id)}
+                aria-label={`Select ${media?.title?.trim() || media?.name || 'missing media'} on Layer ${element.layer + 1}`}
+              >
+                <span>Layer {element.layer + 1}</span>
+                <strong>{media?.title?.trim() || media?.name || 'Media unavailable'}</strong>
+                <small>{element.showStartSec.toFixed(2)}–{element.showEndSec.toFixed(2)}s</small>
+              </button>
+            )
+          })}
+          {visibleElements.length === 0 && <p>Drag compatible media here, then choose an exact layer.</p>}
+        </div>
+        {targetsVisible && selectedRange && (
+          <div className="sm-canvas-layer-targets" role="group" aria-label="Canvas media layer drop targets">
+            {([3, 2, 1, 0] as const).map(layer => {
+              const invalid = canvasShowManagerRangeOverlaps(
+                show.mediaElements,
+                layer,
+                selectedRange.startSec,
+                selectedRange.endSec,
+              )
+              return (
+                <button
+                  key={layer}
+                  type="button"
+                  className={`${hoveredLayer === layer ? 'is-hovered' : ''}${invalid ? ' is-invalid' : ''}`}
+                  data-testid={`canvas-layer-drop-target-${layer + 1}`}
+                  aria-label={`Place selected media on Layer ${layer + 1}${layer === 3 ? ', top front' : layer === 0 ? ', bottom back' : ''}`}
+                  onDragOver={event => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setHoveredLayer(layer)
+                  }}
+                  onDragLeave={() => setHoveredLayer(current => current === layer ? null : current)}
+                  onDrop={event => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    const mediaId = event.dataTransfer.getData('vz/mediaId')
+                    if (mediaId) onPlaceMedia(mediaId, layer)
+                    setDragActive(false)
+                    setHoveredLayer(null)
+                  }}
+                  onClick={() => {
+                    if (selectedLibraryMediaId) onPlaceMedia(selectedLibraryMediaId, layer)
+                  }}
+                >
+                  <span>Layer {layer + 1}</span>
+                  <strong>{layer === 3 ? 'TOP / FRONT' : layer === 0 ? 'BOTTOM / BACK' : `STACK ${layer + 1}`}</strong>
+                  <small>{invalid ? 'Overlaps selected section' : 'Drop here'}</small>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+      <div className="sm-canvas-section-grid sm-canvas-section-grid--compact">
         {show.sections.map((section, index) => {
           const range = sectionRanges[index]
           return (
@@ -1624,25 +1951,81 @@ function CanvasShowManagerStage({
 function CanvasShowManagerTimeline({
   show,
   selectedSectionId,
+  selectedElementId,
+  mediaItems,
   sectionRanges,
   totalDurationSec,
+  playheadSec,
+  error,
   onSelect,
+  onSelectElement,
+  onPatchElement,
+  onPlayhead,
 }: {
   show: CanvasShowManagerShow | null
   selectedSectionId: string | null
+  selectedElementId: string | null
+  mediaItems: readonly UploadedMedia[]
   sectionRanges: readonly CanvasShowManagerSectionRange[]
   totalDurationSec: number
+  playheadSec: number
+  error: string | null
   onSelect: (sectionId: string | null) => void
+  onSelectElement: (elementId: string | null) => void
+  onPatchElement: (elementId: string, patch: CanvasShowManagerMediaElementPatch) => boolean
+  onPlayhead: (timeSec: number) => void
 }) {
+  const beginPointerCueEdit = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    element: CanvasShowManagerMediaElement,
+    edge: 'start' | 'end',
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const lane = event.currentTarget.closest<HTMLElement>('.sm-canvas-media-lane__track')
+    const width = lane?.getBoundingClientRect().width ?? 0
+    if (width <= 0 || totalDurationSec <= 0) return
+    const originX = event.clientX
+    const finish = (pointerEvent: PointerEvent) => {
+      window.removeEventListener('pointerup', finish)
+      const deltaSec = ((pointerEvent.clientX - originX) / width) * totalDurationSec
+      if (edge === 'start') {
+        onPatchElement(element.id, { showStartSec: Math.max(0, Math.min(element.showEndSec - 0.001, element.showStartSec + deltaSec)) })
+      } else {
+        onPatchElement(element.id, { showEndSec: Math.min(totalDurationSec, Math.max(element.showStartSec + 0.001, element.showEndSec + deltaSec)) })
+      }
+    }
+    window.addEventListener('pointerup', finish, { once: true })
+  }
+  const nudgeCue = (element: CanvasShowManagerMediaElement, edge: 'start' | 'end', deltaSec: number) => {
+    if (edge === 'start') {
+      onPatchElement(element.id, { showStartSec: Math.max(0, Math.min(element.showEndSec - 0.001, element.showStartSec + deltaSec)) })
+    } else {
+      onPatchElement(element.id, { showEndSec: Math.min(totalDurationSec, Math.max(element.showStartSec + 0.001, element.showEndSec + deltaSec)) })
+    }
+  }
   return (
-    <div className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas section timeline">
+    <div className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas media timeline">
       <div className="sm-timeline-tabs">
         <button type="button" className="is-active" disabled>Sections</button>
         <span className="sm-timeline-meta">{show ? `${formatClock(totalDurationSec)} total` : 'No Canvas Show open'}</span>
       </div>
+      {error && <div className="sm-canvas-authoring-feedback" role="alert">{error}</div>}
       {show ? (
-        <div className="sm-canvas-timeline-track">
-          {show.sections.map((section, index) => {
+        <div className="sm-canvas-timeline-body">
+          <label className="sm-canvas-playhead-control">
+            <span>Playhead {playheadSec.toFixed(2)}s</span>
+            <input
+              type="range"
+              min="0"
+              max={totalDurationSec}
+              step="0.01"
+              value={Math.min(playheadSec, totalDurationSec)}
+              onChange={event => onPlayhead(Number(event.target.value))}
+            />
+          </label>
+          <div className="sm-canvas-timeline-track sm-canvas-timeline-sections">
+            {show.sections.map((section, index) => {
             const range = sectionRanges[index]
             const width = totalDurationSec > 0 ? (section.durationSec / totalDurationSec) * 100 : 0
             return (
@@ -1658,7 +2041,41 @@ function CanvasShowManagerTimeline({
                 <small>{section.durationSec}s</small>
               </button>
             )
-          })}
+            })}
+          </div>
+          <div className="sm-canvas-media-lanes">
+            {([3, 2, 1, 0] as const).map(layer => (
+              <div className="sm-canvas-media-lane" key={layer}>
+                <span className="sm-canvas-media-lane__label">L{layer + 1}</span>
+                <div className="sm-canvas-media-lane__track">
+                  <span className="sm-canvas-playhead" style={{ left: `${totalDurationSec > 0 ? (playheadSec / totalDurationSec) * 100 : 0}%` }} aria-hidden="true" />
+                  {show.mediaElements.filter(element => element.layer === layer).map(element => {
+                    const media = mediaItems.find(candidate => candidate.id === element.mediaId) ?? null
+                    const left = totalDurationSec > 0 ? (element.showStartSec / totalDurationSec) * 100 : 0
+                    const width = totalDurationSec > 0 ? ((element.showEndSec - element.showStartSec) / totalDurationSec) * 100 : 0
+                    const handleKey = (edge: 'start' | 'end', event: ReactKeyboardEvent<HTMLButtonElement>) => {
+                      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                      event.preventDefault()
+                      nudgeCue(element, edge, (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 1 : 0.1))
+                    }
+                    return (
+                      <div
+                        key={element.id}
+                        className={`sm-canvas-media-clip${element.id === selectedElementId ? ' is-selected' : ''}${media ? '' : ' is-missing'}`}
+                        style={{ left: `${left}%`, width: `${width}%` }}
+                      >
+                        <button className="sm-canvas-clip-handle is-start" type="button" aria-label={`Adjust start cue for ${media?.name ?? 'missing media'}`} onPointerDown={event => beginPointerCueEdit(event, element, 'start')} onKeyDown={event => handleKey('start', event)} />
+                        <button className="sm-canvas-media-clip__body" type="button" onClick={() => onSelectElement(element.id)} title={`${media?.name ?? 'Missing media'} · ${element.showStartSec.toFixed(2)}–${element.showEndSec.toFixed(2)}s`}>
+                          {media?.title?.trim() || media?.name || 'Unavailable'}
+                        </button>
+                        <button className="sm-canvas-clip-handle is-end" type="button" aria-label={`Adjust end cue for ${media?.name ?? 'missing media'}`} onPointerDown={event => beginPointerCueEdit(event, element, 'end')} onKeyDown={event => handleKey('end', event)} />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : <div className="sm-laser-timeline-empty">Create or open a Canvas Show to edit its sections.</div>}
     </div>

@@ -128,13 +128,19 @@ import {
 } from '../components/vyzualz/showManager/LaserDmxShowManagerDomain'
 import {
   cloneCanvasShowManagerShow,
+  createCanvasShowManagerMediaElement,
   createCanvasShowManagerShow,
+  getCanvasShowManagerSectionRanges,
   isCanvasShowManagerNameAvailable,
   normalizeCanvasShowManagerName,
   normalizeCanvasShowManagerShows,
   renameCanvasShowManagerShow,
+  removeCanvasShowManagerMediaElement,
+  updateCanvasShowManagerMediaElement,
   updateCanvasShowManagerSectionDuration,
   validateCanvasShowManagerShow,
+  type CanvasShowManagerMediaElementMutationResult,
+  type CanvasShowManagerMediaElementPatch,
   type CanvasShowManagerSectionDurationEdit,
   type CanvasShowManagerShow,
 } from '../components/vyzualz/showManager/CanvasShowManagerDomain'
@@ -2423,6 +2429,7 @@ interface CanvasShowManagerHistorySnapshot {
   canvasShowManagerActiveShowId: string | null
   canvasShowManagerEditingShowId: string | null
   canvasShowManagerEditingSectionId: string | null
+  canvasShowManagerEditingElementId: string | null
 }
 
 interface ReactStoreState {
@@ -2496,6 +2503,7 @@ interface ReactStoreState {
   canvasShowManagerActiveShowId: string | null
   canvasShowManagerEditingShowId: string | null
   canvasShowManagerEditingSectionId: string | null
+  canvasShowManagerEditingElementId: string | null
   canvasShowManagerUndoStack: CanvasShowManagerHistorySnapshot[]
   canvasShowManagerRedoStack: CanvasShowManagerHistorySnapshot[]
   setCanvasOrchestrationSettings: (patch: Partial<CanvasOrchestrationSettings>) => void
@@ -2523,12 +2531,28 @@ interface ReactStoreState {
   createCanvasShowManagerShow: (name: string) => string | null
   selectCanvasShowManagerShow: (showId: string | null) => void
   selectCanvasShowManagerSection: (sectionId: string | null) => void
+  selectCanvasShowManagerMediaElement: (elementId: string | null) => void
   renameCanvasShowManagerShow: (showId: string, name: string) => boolean
   updateCanvasShowManagerSectionDuration: (
     showId: string,
     sectionId: string,
     durationSec: number,
   ) => CanvasShowManagerSectionDurationEdit | null
+  addCanvasShowManagerMediaElement: (input: {
+    showId: string
+    sectionId: string
+    mediaId: string
+    layer: number
+    timedVideo: boolean
+    sourceDurationSec?: number | null
+  }) => CanvasShowManagerMediaElementMutationResult
+  updateCanvasShowManagerMediaElement: (
+    showId: string,
+    elementId: string,
+    patch: CanvasShowManagerMediaElementPatch,
+    sourceDurationSec?: number | null,
+  ) => CanvasShowManagerMediaElementMutationResult
+  removeCanvasShowManagerMediaElement: (showId: string, elementId: string) => boolean
   deleteCanvasShowManagerShow: (showId: string) => boolean
   undoCanvasShowManagerEdit: () => void
   redoCanvasShowManagerEdit: () => void
@@ -3104,6 +3128,7 @@ function captureCanvasShowManagerHistorySnapshot(
     | 'canvasShowManagerActiveShowId'
     | 'canvasShowManagerEditingShowId'
     | 'canvasShowManagerEditingSectionId'
+    | 'canvasShowManagerEditingElementId'
   >,
 ): CanvasShowManagerHistorySnapshot {
   return {
@@ -3111,6 +3136,7 @@ function captureCanvasShowManagerHistorySnapshot(
     canvasShowManagerActiveShowId: state.canvasShowManagerActiveShowId,
     canvasShowManagerEditingShowId: state.canvasShowManagerEditingShowId,
     canvasShowManagerEditingSectionId: state.canvasShowManagerEditingSectionId,
+    canvasShowManagerEditingElementId: state.canvasShowManagerEditingElementId,
   }
 }
 
@@ -3126,6 +3152,7 @@ function buildCanvasShowManagerHistoryMutationPatch(
     | 'canvasShowManagerActiveShowId'
     | 'canvasShowManagerEditingShowId'
     | 'canvasShowManagerEditingSectionId'
+    | 'canvasShowManagerEditingElementId'
     | 'canvasShowManagerUndoStack'
     | 'canvasShowManagerRedoStack'
   >,
@@ -3134,6 +3161,7 @@ function buildCanvasShowManagerHistoryMutationPatch(
     | 'canvasShowManagerActiveShowId'
     | 'canvasShowManagerEditingShowId'
     | 'canvasShowManagerEditingSectionId'
+    | 'canvasShowManagerEditingElementId'
   >>,
 ) {
   const nextShows = patch.canvasShowManagerShows ?? state.canvasShowManagerShows
@@ -3160,11 +3188,15 @@ function restoreCanvasShowManagerHistorySnapshot(
   const editingSectionId = editingShow?.sections.some(section => section.id === snapshot.canvasShowManagerEditingSectionId)
     ? snapshot.canvasShowManagerEditingSectionId
     : editingShow?.sections[0]?.id ?? null
+  const editingElementId = editingShow?.mediaElements.some(element => element.id === snapshot.canvasShowManagerEditingElementId)
+    ? snapshot.canvasShowManagerEditingElementId
+    : null
   return {
     canvasShowManagerShows: shows,
     canvasShowManagerActiveShowId: activeShowId,
     canvasShowManagerEditingShowId: editingShow?.id ?? null,
     canvasShowManagerEditingSectionId: editingSectionId,
+    canvasShowManagerEditingElementId: editingElementId,
   }
 }
 
@@ -5186,6 +5218,19 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 71) {
+    // Canvas Show Manager Stage 2 normalizes legacy section-only Shows into the
+    // four-layer media authoring schema without touching existing Canvas runtime state.
+    const shows = normalizeCanvasShowManagerShows(state.canvasShowManagerShows)
+    state = {
+      ...state,
+      canvasShowManagerShows: shows,
+      canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
+        state.canvasShowManagerActiveShowId,
+        shows,
+      ),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -5721,6 +5766,7 @@ export function mergeReactStoreState(
     canvasVideoRestartRevision: currentState.canvasVideoRestartRevision,
     canvasShowManagerEditingShowId: null,
     canvasShowManagerEditingSectionId: null,
+    canvasShowManagerEditingElementId: null,
     canvasShowManagerUndoStack: [],
     canvasShowManagerRedoStack: [],
     laserDmxShowDirectorUndoStack: [],
@@ -5746,7 +5792,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 70
+const REACT_STORE_PERSISTENCE_VERSION = 71
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
@@ -5787,6 +5833,7 @@ export const useReactStore = create<ReactStoreState>()(
       canvasShowManagerActiveShowId: null,
       canvasShowManagerEditingShowId: null,
       canvasShowManagerEditingSectionId: null,
+      canvasShowManagerEditingElementId: null,
       canvasShowManagerUndoStack: [],
       canvasShowManagerRedoStack: [],
       manualTrackSectionsByTrackId: {},
@@ -6703,6 +6750,7 @@ export const useReactStore = create<ReactStoreState>()(
           canvasShowManagerShows: [...s.canvasShowManagerShows, show],
           canvasShowManagerEditingShowId: show.id,
           canvasShowManagerEditingSectionId: show.sections[0]?.id ?? null,
+          canvasShowManagerEditingElementId: null,
         }))
         return show.id
       },
@@ -6713,6 +6761,7 @@ export const useReactStore = create<ReactStoreState>()(
             return {
               canvasShowManagerEditingShowId: null,
               canvasShowManagerEditingSectionId: null,
+              canvasShowManagerEditingElementId: null,
             }
           }
           const show = s.canvasShowManagerShows.find(candidate => candidate.id === showId)
@@ -6723,6 +6772,10 @@ export const useReactStore = create<ReactStoreState>()(
             canvasShowManagerEditingSectionId: currentSectionIsValid
               ? s.canvasShowManagerEditingSectionId
               : show.sections[0]?.id ?? null,
+            canvasShowManagerEditingElementId: s.canvasShowManagerEditingShowId === show.id
+              && show.mediaElements.some(element => element.id === s.canvasShowManagerEditingElementId)
+              ? s.canvasShowManagerEditingElementId
+              : null,
           }
         }),
 
@@ -6734,6 +6787,15 @@ export const useReactStore = create<ReactStoreState>()(
           return show.sections.some(section => section.id === sectionId)
             ? { canvasShowManagerEditingSectionId: sectionId }
             : { canvasShowManagerEditingSectionId: show.sections[0]?.id ?? null }
+        }),
+
+      selectCanvasShowManagerMediaElement: (elementId) =>
+        set(s => {
+          const show = s.canvasShowManagerShows.find(candidate => candidate.id === s.canvasShowManagerEditingShowId)
+          if (!show || elementId == null) return { canvasShowManagerEditingElementId: null }
+          return show.mediaElements.some(element => element.id === elementId)
+            ? { canvasShowManagerEditingElementId: elementId }
+            : { canvasShowManagerEditingElementId: null }
         }),
 
       renameCanvasShowManagerShow: (showId, name) => {
@@ -6769,6 +6831,76 @@ export const useReactStore = create<ReactStoreState>()(
         return edit
       },
 
+      addCanvasShowManagerMediaElement: (input) => {
+        let result: CanvasShowManagerMediaElementMutationResult = {
+          ok: false,
+          code: 'show-not-found',
+          message: 'Open a Canvas Show before adding media.',
+        }
+        set(s => {
+          const show = s.canvasShowManagerShows.find(candidate => candidate.id === input.showId)
+          if (!show) return {}
+          const range = getCanvasShowManagerSectionRanges(show).find(candidate => candidate.sectionId === input.sectionId)
+          if (!range) {
+            result = { ok: false, code: 'section-not-found', message: 'Select a Show section before adding media.' }
+            return {}
+          }
+          const next = createCanvasShowManagerMediaElement(show, {
+            mediaId: input.mediaId,
+            layer: input.layer,
+            showStartSec: range.startSec,
+            showEndSec: range.endSec,
+            timedVideo: input.timedVideo,
+            sourceDurationSec: input.sourceDurationSec,
+          })
+          result = next
+          if (!next.ok) return {}
+          return buildCanvasShowManagerHistoryMutationPatch(s, {
+            canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === input.showId ? next.show : candidate),
+            canvasShowManagerEditingElementId: next.element.id,
+          })
+        })
+        return result
+      },
+
+      updateCanvasShowManagerMediaElement: (showId, elementId, patch, sourceDurationSec) => {
+        let result: CanvasShowManagerMediaElementMutationResult = {
+          ok: false,
+          code: 'show-not-found',
+          message: 'That Canvas Show is no longer available.',
+        }
+        set(s => {
+          const show = s.canvasShowManagerShows.find(candidate => candidate.id === showId)
+          if (!show) return {}
+          const next = updateCanvasShowManagerMediaElement(show, elementId, patch, sourceDurationSec)
+          result = next
+          if (!next.ok) return {}
+          return buildCanvasShowManagerHistoryMutationPatch(s, {
+            canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === showId ? next.show : candidate),
+            canvasShowManagerEditingElementId: next.element.id,
+          })
+        })
+        return result
+      },
+
+      removeCanvasShowManagerMediaElement: (showId, elementId) => {
+        let removed = false
+        set(s => {
+          const show = s.canvasShowManagerShows.find(candidate => candidate.id === showId)
+          if (!show) return {}
+          const nextShow = removeCanvasShowManagerMediaElement(show, elementId)
+          if (nextShow === show) return {}
+          removed = true
+          return buildCanvasShowManagerHistoryMutationPatch(s, {
+            canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === showId ? nextShow : candidate),
+            canvasShowManagerEditingElementId: s.canvasShowManagerEditingElementId === elementId
+              ? null
+              : s.canvasShowManagerEditingElementId,
+          })
+        })
+        return removed
+      },
+
       deleteCanvasShowManagerShow: (showId) => {
         let deleted = false
         set(s => {
@@ -6789,6 +6921,7 @@ export const useReactStore = create<ReactStoreState>()(
             canvasShowManagerEditingSectionId: editingDeleted
               ? fallback?.sections[0]?.id ?? null
               : s.canvasShowManagerEditingSectionId,
+            canvasShowManagerEditingElementId: editingDeleted ? null : s.canvasShowManagerEditingElementId,
           })
         })
         return deleted

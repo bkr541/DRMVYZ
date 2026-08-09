@@ -62,7 +62,7 @@ describe('Canvas Show Manager Stage 1 domain', () => {
       ],
     })
 
-    expect(normalized.schemaVersion).toBe(1)
+    expect(normalized.schemaVersion).toBe(2)
     expect(normalized.name).toBe('Legacy')
     expect(normalized.sections).toHaveLength(7)
     expect(new Set(normalized.sections.map(section => section.id)).size).toBe(7)
