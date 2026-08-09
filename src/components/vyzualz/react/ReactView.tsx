@@ -49,6 +49,7 @@ import { CinemaWorkspace } from './CinemaWorkspace'
 import { CinemaLayersPanel, CinemaLibraryPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
 import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
+import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
 import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
@@ -616,6 +617,49 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     transportPaused,
   ])
 
+  const cinemaRuntimeFrameConfig = useMemo<Readonly<CinemaWorkspaceRuntimeFrameConfig> | null>(() => {
+    if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) return null
+    return {
+      analyser,
+      getAudioTime: engine.getCurrentTime,
+      getMusicIntelligence: AudioFeatureBus.getFrame,
+      getLyrics: () => musicIntelligenceEngine.getLyricPlaybackState(),
+      durationSec: audioDurationSec,
+      trackId: engine.currentAudioTrackId ?? engine.currentTrackId,
+      playing: engine.isPlaying,
+      paused: transportPaused,
+      bpm: engine.currentEffectiveBpm,
+      authoritativeSections: resolvedTrackSections,
+      beatGrid: engine.currentEffectiveBeatGrid ?? [],
+      phraseMarkers: effectiveTrackAnalysis?.phrases ?? [],
+      lyricCues: runtimeLyricCues,
+      lyricGlobalOffsetMs: runtimeLyricGlobalOffsetMs,
+      performanceEvents: performanceActionEvents,
+      performanceToggleStates: performanceActionToggleStates,
+      brandKit: activeBrandKit,
+      mediaAssetsAvailable: cinemaAssetSources.length > 0,
+    }
+  }, [
+    activeBrandKit,
+    activeReactEngineId,
+    analyser,
+    audioDurationSec,
+    cinemaAssetSources.length,
+    effectiveTrackAnalysis,
+    engine.currentAudioTrackId,
+    engine.currentEffectiveBeatGrid,
+    engine.currentEffectiveBpm,
+    engine.currentTrackId,
+    engine.getCurrentTime,
+    engine.isPlaying,
+    performanceActionEvents,
+    performanceActionToggleStates,
+    resolvedTrackSections,
+    runtimeLyricCues,
+    runtimeLyricGlobalOffsetMs,
+    transportPaused,
+  ])
+
   useLayoutEffect(() => {
     if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) {
       cinemaFrameStateRef.current = null
@@ -774,7 +818,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   activeTab={leftTab}
                   onChange={setLeftTab}
                   ariaLabel={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace tabs`}
-                  className={`rv-context-workspace-tabs${activeReactEngineId === 'cinema' ? ' rv-cinema-workspace-tabs' : ''}`}
+                  className="rv-context-workspace-tabs"
                   variant="underline"
                 />
                 {activeReactEngineId === 'oscilloscope' && (
@@ -840,6 +884,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               <CinemaWorkspace
                 surface="stage"
                 frameBridge={cinemaFrameBridge}
+                runtimeFrameConfig={cinemaRuntimeFrameConfig}
                 assetSources={cinemaAssetSources}
                 runtimeSnapshot={cinemaRuntimeSnapshot}
                 onRuntimeSnapshot={setCinemaRuntimeSnapshot}

@@ -29,6 +29,12 @@ import { createCinemaEmptyGraphQualitySnapshot } from './CinemaQualityManager'
 import { CinemaRuntimeDiagnosticsStore, type CinemaRuntimeDiagnosticsSnapshot } from './CinemaRuntimeDiagnostics'
 import { CinemaAssetManager } from './CinemaAssetManager'
 import { CinemaWebGLRenderServiceImpl } from './CinemaWebGLRenderService'
+import { CinemaImpulseGate } from '../CinemaImpulseGate'
+import {
+  sampleCinemaRuntimeFrameClock,
+  type CinemaRuntimeFrameClockState,
+  type CinemaRuntimeFrameSource,
+} from './CinemaRuntimeFrameClock'
 
 export type CinemaRuntimePhase =
   | 'initializing'
@@ -120,6 +126,9 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   private viewport: CinemaViewport = { width: 1, height: 1, dpr: 1 }
   private lastResolution: CanvasResolution | null = null
   private frame: Readonly<CinemaFrameContext> | null = null
+  private frameSource: CinemaRuntimeFrameSource | null = null
+  private frameClock: CinemaRuntimeFrameClockState = { lastNowMs: null }
+  private readonly impulseGate = new CinemaImpulseGate()
   private composition: Readonly<CinemaCompositionDefinition> | null = null
   private instance: Readonly<CinemaCompositionInstance> | null = null
   private animationFrameId = 0
@@ -197,6 +206,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.onContextRestoredHandler = () => {
       if (this.disposed) return
       this.contextLost = false
+      this.resetFrameTiming()
       this.contextGeneration += 1
       this.runtimeDiagnostics.recordRecovery({
         type: 'restore-started', contextGeneration: this.contextGeneration, frameCount: this.frameCount, message: null,
@@ -279,6 +289,12 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.frame = frame
   }
 
+  setFrameSource(source: CinemaRuntimeFrameSource | null): void {
+    if (this.disposed) return
+    this.frameSource = source
+    this.resetFrameTiming()
+  }
+
   resize(resolution: CanvasResolution): boolean {
     if (this.disposed || !resolution.valid || this.phase === 'unavailable') return false
     this.lastResolution = resolution
@@ -301,6 +317,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
 
   start(): void {
     if (this.disposed || this.phase === 'unavailable') return
+    if (!this.runningRequested) this.resetFrameTiming()
     this.runningRequested = true
     this.phase = this.visibilitySuspended ? 'suspended' : this.contextLost ? 'context-lost' : 'running'
     this.fpsWindowStartedMs = performance.now()
@@ -317,6 +334,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       this.emitSnapshot()
       return
     }
+    this.resetFrameTiming()
     this.phase = this.contextLost ? 'context-lost' : 'running'
     this.fpsFrameCount = 0
     this.fpsWindowStartedMs = performance.now()
@@ -375,6 +393,9 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.disposed = true
     this.runningRequested = false
     this.cancelScheduledFrame()
+    this.frameSource = null
+    this.impulseGate.reset()
+    this.resetFrameTiming()
     this.canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestoredHandler)
     try { this.executor.dispose() } catch { /* Continue deterministic cleanup. */ }
@@ -424,8 +445,17 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.animationFrameId = 0
     if (this.disposed || !this.runningRequested || this.contextLost || this.visibilitySuspended) return
     try {
+      const clock = sampleCinemaRuntimeFrameClock(this.frameClock, nowMs)
+      this.frameClock = clock.state
+      const sourcedFrame = this.frameSource?.({
+        nowMs,
+        deltaTimeSec: clock.deltaTimeSec,
+        timingDiscontinuity: clock.timingDiscontinuity,
+        viewport: this.viewport,
+      }) ?? this.frame
+      this.frame = sourcedFrame
       const renderStartedMs = performance.now()
-      this.executor.render(this.frame)
+      this.executor.render(sourcedFrame ? this.impulseGate.consume(sourcedFrame) : null)
       const renderTimeMs = Math.max(0, performance.now() - renderStartedMs)
       this.executor.observeFrameTime(renderTimeMs)
       this.runtimeDiagnostics.recordFrameTime(renderTimeMs)
@@ -456,6 +486,11 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     if (this.animationFrameId === 0) return
     this.cancelFrame(this.animationFrameId)
     this.animationFrameId = 0
+  }
+
+  private resetFrameTiming(): void {
+    this.frameClock = { lastNowMs: null }
+    this.impulseGate.reset()
   }
 
   private emitFrameDrivenSnapshot(): void {

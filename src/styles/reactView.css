@@ -5015,62 +5015,6 @@
   text-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
 }
 
-/* Cinema's HOME / LAYERS / LIBRARY left tabs read like the main top-level
-   tabs (PRESETS/DESIGN/REACT/OUTPUT) instead of every other engine's
-   nested marker+pipe treatment above: full-width, evenly spaced, sliding
-   underline, larger type. These compound overrides beat the nested-tab
-   rules since they add the extra .rv-cinema-workspace-tabs class. */
-.rv-context-workspace-tabs.rv-cinema-workspace-tabs.dv-underline-tabs {
-  justify-content: space-between;
-  gap: 22px;
-  padding: 6px 7px 10px;
-  border-bottom: 1px solid rgba(154, 178, 188, 0.16);
-}
-
-.rv-context-workspace-tabs.rv-cinema-workspace-tabs .dv-underline-tab {
-  display: block;
-  flex: 1;
-  text-align: center;
-  font-size: 13px;
-  margin-left: 0;
-}
-
-.rv-context-workspace-tabs.rv-cinema-workspace-tabs .dv-underline-tab:not(:first-child)::before {
-  content: none;
-}
-
-.rv-context-workspace-tabs.rv-cinema-workspace-tabs .dv-underline-tab::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 999px;
-  background: #4ac7db;
-  box-shadow: 0 0 8px rgba(74, 199, 219, 0.6);
-  transform: scaleX(0);
-  transform-origin: center;
-  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.rv-context-workspace-tabs.rv-cinema-workspace-tabs .dv-underline-tab.is-active::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  width: auto;
-  border-radius: 999px;
-  background: #4ac7db;
-  box-shadow: 0 0 8px rgba(74, 199, 219, 0.6);
-  color: transparent;
-  text-shadow: none;
-  font-size: 0;
-  transform: scaleX(1);
-}
-
 /* Explicit Sound Drawing help anchors mirror the highlighted control bounds
    without adding columns, padding, or interactive space to the controls. */
 .rv-workspace-tabs-wrap,
@@ -16045,6 +15989,267 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+/* ── Preset Style Gallery (Layout Lab / Template) ─────────────────────────── */
+/* Every row carries a --llps-tone custom property set inline per engine
+   (purple Cinema, emerald Sound Drawing, gold PixGrid, crimson LaserDMX,
+   cyan CANVAS) so one set of rules drives every engine's distinct color.
+   Full-width rows throughout — the real preset library is a scrolling
+   list, not a card grid. The preset name and the engine badge use two
+   deliberately different type treatments (large display-weight name vs.
+   small bold uppercase badge) so they never read as the same kind of
+   text, and every engine's icon sits in a solid tone-filled swatch rather
+   than a bare bordered circle. */
+
+.llps-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 18px 16px 32px;
+}
+
+@keyframes llps-breathe {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.08); }
+}
+
+@keyframes llps-pulse-dot {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.35); }
+}
+
+/* Shared engine badge: a filled, bordered pill — never just colored text. */
+.llps-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--llps-tone) 55%, transparent);
+  background: color-mix(in srgb, var(--llps-tone) 20%, transparent);
+  color: var(--llps-tone);
+  font: 800 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Shared preset-name treatment: large, display-weight, unmistakably
+   distinct from the small uppercase badge type next to it. */
+.llps-aura-name,
+.llps-signal-name,
+.llps-spotlight-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(232, 244, 248, 0.96);
+  font: 800 15px/1.25 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.005em;
+}
+
+/* 1 — Aura Row */
+
+.llps-aura-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.llps-aura-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--llps-tone) 26%, transparent);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 0% 50%, color-mix(in srgb, var(--llps-tone) 14%, transparent), transparent 55%),
+    rgba(8, 12, 17, 0.7);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.llps-aura-row:hover {
+  transform: translateX(2px);
+  border-color: color-mix(in srgb, var(--llps-tone) 60%, transparent);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.38), 0 0 22px color-mix(in srgb, var(--llps-tone) 26%, transparent);
+}
+
+.llps-aura-glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 120px;
+  background: radial-gradient(circle at 0% 50%, color-mix(in srgb, var(--llps-tone) 45%, transparent), transparent 70%);
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.llps-aura-swatch {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--llps-tone), color-mix(in srgb, var(--llps-tone) 55%, black));
+  color: rgba(8, 10, 12, 0.88);
+  font-size: 20px;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--llps-tone) 45%, transparent);
+}
+
+.llps-aura-name {
+  position: relative;
+  z-index: 1;
+}
+
+.llps-aura-badge {
+  position: relative;
+  z-index: 1;
+}
+
+/* 2 — Signal Row */
+
+.llps-signal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.llps-signal-item {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 16px 12px 18px;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.015);
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.llps-signal-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--llps-tone);
+  box-shadow: 0 0 10px var(--llps-tone);
+  transition: width 150ms ease;
+}
+
+.llps-signal-item:hover {
+  background: color-mix(in srgb, var(--llps-tone) 8%, transparent);
+  border-color: color-mix(in srgb, var(--llps-tone) 35%, transparent);
+}
+
+.llps-signal-item:hover::before {
+  width: 4px;
+}
+
+.llps-signal-swatch {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(145deg, var(--llps-tone), color-mix(in srgb, var(--llps-tone) 55%, black));
+  color: rgba(8, 10, 12, 0.88);
+  font-size: 16px;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--llps-tone) 40%, transparent);
+}
+
+.llps-signal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--llps-tone);
+  box-shadow: 0 0 6px var(--llps-tone);
+  animation: llps-pulse-dot 2.2s ease-in-out infinite;
+}
+
+/* 3 — Spotlight Row */
+
+.llps-spotlight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.llps-spotlight-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: 13px;
+  border: 1px solid color-mix(in srgb, var(--llps-tone) 30%, transparent);
+  background: rgba(6, 10, 14, 0.85);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.llps-spotlight-row:hover {
+  transform: translateX(2px);
+  border-color: color-mix(in srgb, var(--llps-tone) 65%, transparent);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42), 0 0 26px color-mix(in srgb, var(--llps-tone) 32%, transparent);
+}
+
+.llps-spotlight-glow {
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  width: 140px;
+  height: 140px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--llps-tone) 42%, transparent), transparent 70%);
+  animation: llps-breathe 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.llps-spotlight-swatch {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--llps-tone), color-mix(in srgb, var(--llps-tone) 55%, black));
+  color: rgba(8, 10, 12, 0.88);
+  font-size: 21px;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--llps-tone) 48%, transparent);
+}
+
+.llps-spotlight-name {
+  position: relative;
+  z-index: 1;
+}
+
+.llps-spotlight-badge {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */

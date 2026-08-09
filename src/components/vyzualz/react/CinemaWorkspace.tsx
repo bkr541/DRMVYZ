@@ -15,6 +15,7 @@ import {
 } from '../cinema'
 import { CinemaCanvas } from './CinemaCanvas'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
+import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
 
 export type CinemaWorkspaceSurface = 'panel' | 'stage'
 
@@ -218,6 +219,7 @@ export function CinemaRenderedDiagnostics({
 export function CinemaWorkspace({
   surface,
   frameBridge = null,
+  runtimeFrameConfig = null,
   assetSources = [],
   runtimeSnapshot: controlledRuntimeSnapshot,
   onCanvasReady,
@@ -226,6 +228,7 @@ export function CinemaWorkspace({
 }: {
   surface: CinemaWorkspaceSurface
   frameBridge?: CinemaWorkspaceFrameBridgeResult | null
+  runtimeFrameConfig?: Readonly<CinemaWorkspaceRuntimeFrameConfig> | null
   assetSources?: readonly Readonly<CinemaExternalAssetSnapshot>[]
   runtimeSnapshot?: CinemaRuntimeSnapshot | null
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
@@ -276,6 +279,7 @@ export function CinemaWorkspace({
     >
       <CinemaCanvas
         frameBridge={frameBridge}
+        runtimeFrameConfig={runtimeFrameConfig}
         composition={model.activeComposition}
         instance={model.activeInstance}
         definitions={state.definitions}

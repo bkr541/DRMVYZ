@@ -16,9 +16,14 @@ import {
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
+import {
+  CinemaWorkspaceRuntimeFrameSource,
+  type CinemaWorkspaceRuntimeFrameConfig,
+} from './CinemaWorkspaceRuntimeFrameSource'
 
 export interface CinemaCanvasProps {
   frameBridge: CinemaFrameBuildResult | null
+  runtimeFrameConfig?: Readonly<CinemaWorkspaceRuntimeFrameConfig> | null
   composition: Readonly<CinemaCompositionDefinition> | null
   instance: Readonly<CinemaCompositionInstance> | null
   definitions: readonly CinemaPersistedDefinition[]
@@ -58,6 +63,7 @@ const INITIAL_RUNTIME_SNAPSHOT: CinemaRuntimeSnapshot = {
 /** Production Cinema canvas. It is the only component allowed to own Cinema's live runtime. */
 export function CinemaCanvas({
   frameBridge,
+  runtimeFrameConfig = null,
   composition,
   instance,
   definitions,
@@ -70,6 +76,7 @@ export function CinemaCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const runtimeRef = useRef<CinemaRuntime | null>(null)
   const frameRef = useRef(frameBridge?.frame ?? null)
+  const runtimeFrameConfigRef = useRef(runtimeFrameConfig)
   const graphRef = useRef({ composition, instance, definitions })
   const assetSourcesRef = useRef(assetSources)
   const onCanvasReadyRef = useRef(onCanvasReady)
@@ -77,6 +84,7 @@ export function CinemaCanvas({
   const onRuntimeSnapshotRef = useRef(onRuntimeSnapshot)
 
   frameRef.current = frameBridge?.frame ?? null
+  runtimeFrameConfigRef.current = runtimeFrameConfig
   graphRef.current = { composition, instance, definitions }
   assetSourcesRef.current = assetSources
   onCanvasReadyRef.current = onCanvasReady
@@ -105,6 +113,7 @@ export function CinemaCanvas({
     if (!canvas) return
 
     let runtime: CinemaRuntime | null = null
+    let runtimeFrameSource: CinemaWorkspaceRuntimeFrameSource | null = null
     let resizeObserver: ResizeObserver | null = null
     let usingWindowResize = false
     let lastResolution: CanvasResolution | null = null
@@ -120,6 +129,8 @@ export function CinemaCanvas({
       resizeObserver?.disconnect()
       if (usingWindowResize) window.removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      runtimeFrameSource?.dispose()
+      runtimeFrameSource = null
       runtime?.dispose()
       runtime = null
       runtimeRef.current = null
@@ -177,6 +188,8 @@ export function CinemaCanvas({
       runtime = created.runtime
       runtimeRef.current = runtime
       runtime.setFrame(frameRef.current)
+      runtimeFrameSource = new CinemaWorkspaceRuntimeFrameSource(() => runtimeFrameConfigRef.current)
+      runtime.setFrameSource(sample => runtimeFrameSource?.sample(sample) ?? null)
       runtime.setComposerRuntimePreview(useCinemaStore.getState().composerRuntimePreview)
       runtime.setAssetSources(assetSourcesRef.current)
       runtime.setGraph(graphRef.current.composition, graphRef.current.instance, graphRef.current.definitions)

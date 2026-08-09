@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   CINEMA_PERFORMANCE_ACTION_SCHEMA_VERSION,
   CINEMA_PERFORMANCE_RULE_SCHEMA_VERSION,
@@ -38,6 +38,7 @@ import { ShaderRegistry, shaderRegistry } from '../../react/shaders/registry'
 import { REACTOR_SCENE_ID } from '../../react/shaders/scenes/reactor'
 import { SOUND_DRAWING_VECTORSCOPE } from '../../react/shaders/scenes/soundDrawingVectorscope'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
+import { CinemaImpulseGate } from '../CinemaImpulseGate'
 
 describe('Cinema ShaderSceneNodeAdapter', () => {
   it('maps every active Shader registry scene into stable Cinema contracts', () => {
@@ -101,6 +102,38 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
     expect(harness.executor.getSnapshot().safeOutputActive).toBe(false)
 
+    harness.dispose()
+  })
+
+  it('presents a repeated kick identity to Shader uniforms for exactly one render', () => {
+    const state = createCinemaFoundationPersistedState()
+    const harness = createExecutorHarness()
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program, name) => (
+      { name } as unknown as WebGLUniformLocation
+    ))
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({
+      composition: CINEMA_SHADER_REFERENCE_COMPOSITION,
+      instance: null,
+      definitions: state.definitions,
+    })
+    const base = frame(1)
+    const eventFrame: Readonly<CinemaFrameContext> = {
+      ...base,
+      impulses: {
+        ...base.impulses,
+        kick: true,
+        eventIds: { ...base.impulses.eventIds, kick: 'kick-identity-1' as CinemaEventId },
+      },
+    }
+    const gate = new CinemaImpulseGate()
+
+    expect(harness.executor.render(gate.consume(eventFrame))).toBe(true)
+    expect(harness.executor.render(gate.consume(eventFrame))).toBe(true)
+    const kickUniformValues = vi.mocked(harness.gl.uniform1f).mock.calls
+      .filter(([location]) => (location as unknown as { name?: string })?.name === 'uKickHit')
+      .map(([, value]) => value)
+    expect(kickUniformValues.slice(-2)).toEqual([1, 0])
     harness.dispose()
   })
 

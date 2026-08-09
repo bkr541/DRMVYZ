@@ -47,6 +47,8 @@ import {
   resetDrmvyzWebGLContextDiagnosticsForTests,
 } from '../../react/shaders/runtime/WebGLContextLifecycle'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
+import { buildCinemaWorkspaceFrameBridge } from '../../react/CinemaWorkspaceFrameBridge'
+import type { CinemaFrameBuilderState } from '../CinemaFrameBuilder'
 
 const TARGET: CinemaTargetDescriptor = {
   colorSpace: 'srgb',
@@ -72,6 +74,66 @@ afterEach(() => {
 })
 
 describe('CinemaRuntime', () => {
+  it('calls its frame source on every RAF with measured delta and the actual backing viewport', () => {
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: callback => { const id = nextRaf++; callbacks.set(id, callback); return id },
+      cancelAnimationFrame: id => { callbacks.delete(id) },
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    let builderState: Readonly<CinemaFrameBuilderState> | null = null
+    let audioTime = 0
+    const samples: Array<{ deltaTimeSec: number; timingDiscontinuity: boolean; width: number; frameIndex: number }> = []
+    runtime.resize(resolution(960, 540))
+    runtime.setFrameSource(sample => {
+      const result = buildCinemaWorkspaceFrameBridge({
+        width: sample.viewport.width,
+        height: sample.viewport.height,
+        dpr: sample.viewport.dpr,
+        audioTimeSec: audioTime,
+        durationSec: 120,
+        elapsedTimeSec: builderState?.elapsedTimeSec ?? 0,
+        deltaTimeSec: sample.deltaTimeSec,
+        timingDiscontinuity: sample.timingDiscontinuity,
+        trackId: 'track-a',
+        playing: true,
+        paused: false,
+        bpm: 120,
+        previousState: builderState,
+      })
+      builderState = result.state
+      samples.push({
+        deltaTimeSec: result.frame.timing.deltaTimeSec,
+        timingDiscontinuity: result.frame.transport.discontinuity,
+        width: result.frame.viewport.width,
+        frameIndex: result.frame.timing.frameIndex,
+      })
+      return result.frame
+    })
+    runtime.start()
+
+    for (const [index, nowMs] of [10, 26, 76].entries()) {
+      audioTime = index === 0 ? 0 : nowMs / 1000
+      const scheduled = [...callbacks.entries()][0]
+      callbacks.delete(scheduled[0])
+      scheduled[1](nowMs)
+    }
+
+    expect(samples).toEqual([
+      { deltaTimeSec: 0, timingDiscontinuity: true, width: 960, frameIndex: 0 },
+      { deltaTimeSec: 0.016, timingDiscontinuity: false, width: 960, frameIndex: 1 },
+      { deltaTimeSec: 0.05, timingDiscontinuity: false, width: 960, frameIndex: 2 },
+    ])
+    runtime.dispose()
+  })
+
   it('owns one context and one animation loop, then retires both deterministically', () => {
     const canvas = document.createElement('canvas')
     const gl = createCinemaMockWebGL()

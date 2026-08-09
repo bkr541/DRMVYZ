@@ -10,6 +10,8 @@ import { CinemaInspectorPanel } from '../../react/CinemaInspectorPanel'
 import { CinemaLayersPanel, CinemaLibraryPanel, CinemaPresetsPanel } from '../../react/CinemaWorkspacePanels'
 import { CinemaResizeObserverMock, createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 import { buildCinemaWorkspaceFrameBridge } from '../../react/CinemaWorkspaceFrameBridge'
+import type { CinemaWorkspaceRuntimeFrameConfig } from '../../react/CinemaWorkspaceRuntimeFrameSource'
+import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import {
   acquireReactLiveEngineOwnership,
   getReactLiveEngineOwnershipDiagnosticsForTests,
@@ -55,9 +57,11 @@ const productionFrameBridge = buildCinemaWorkspaceFrameBridge({
 function ProductionSelectionHarness({
   retire,
   onCanvasReady,
+  runtimeFrameConfig,
 }: {
   retire: () => void
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  runtimeFrameConfig?: Readonly<CinemaWorkspaceRuntimeFrameConfig> | null
 }) {
   const engineId = useReactStore(state => state.activeReactEngineId)
   return (
@@ -68,6 +72,7 @@ function ProductionSelectionHarness({
         <CinemaWorkspace
           surface="stage"
           frameBridge={productionFrameBridge}
+          runtimeFrameConfig={runtimeFrameConfig}
           onCanvasReady={onCanvasReady}
         />
       ) : <div data-legacy-engine={engineId} />}
@@ -117,6 +122,57 @@ afterEach(async () => {
 })
 
 describe('Cinema production engine registration', () => {
+  it('samples the high-precision audio clock on every production Cinema RAF without a React rerender', async () => {
+    const gl = createCinemaMockWebGL()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    })
+    const cancelAnimationFrame = vi.fn((id: number) => { callbacks.delete(id) })
+    vi.stubGlobal('requestAnimationFrame', requestAnimationFrame)
+    vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrame)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? gl : null
+    ) as RenderingContext | null)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960, height: 540, top: 0, left: 0, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}),
+    })
+    let audioTime = 0
+    const getAudioTime = vi.fn(() => audioTime)
+    const runtimeFrameConfig: CinemaWorkspaceRuntimeFrameConfig = {
+      analyser: null,
+      getAudioTime,
+      getMusicIntelligence: () => DEFAULT_MI_FRAME,
+      durationSec: 120,
+      trackId: 'track-a',
+      playing: true,
+      paused: false,
+      bpm: 120,
+    }
+
+    await act(async () => root?.render(
+      <ProductionSelectionHarness retire={vi.fn()} runtimeFrameConfig={runtimeFrameConfig} />,
+    ))
+    for (const [index, timestamp] of [16.67, 33.34, 50.01].entries()) {
+      audioTime = index * 0.01667
+      const scheduled = [...callbacks.entries()][0]
+      expect(scheduled).toBeDefined()
+      callbacks.delete(scheduled[0])
+      await act(async () => scheduled[1](timestamp))
+    }
+
+    expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
+    expect(getAudioTime).toHaveBeenCalledTimes(3)
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(4)
+    await act(async () => root?.unmount())
+    root = null
+    expect(cancelAnimationFrame).toHaveBeenCalledOnce()
+    expect(callbacks.size).toBe(0)
+  })
+
   it('starts in Cinema, hides retired identities, owns one runtime, and retires it on a user-facing engine switch', async () => {
     const retire = vi.fn()
     const onCanvasReady = vi.fn()
@@ -145,7 +201,6 @@ describe('Cinema production engine registration', () => {
       y: 0,
       toJSON: () => ({}),
     })
-
     await act(async () => root?.render(<ProductionSelectionHarness retire={retire} onCanvasReady={onCanvasReady} />))
 
     const state = useReactStore.getState()
