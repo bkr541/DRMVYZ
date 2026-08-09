@@ -14958,6 +14958,13 @@
   overflow: hidden;
 }
 
+/* A nested card reads as one level deeper via a quieter border/fill rather
+   than repeating the exact same weight as its parent card. */
+.llcg-stack--nested {
+  border-color: rgba(154, 178, 188, 0.13);
+  background: rgba(255, 255, 255, 0.012);
+}
+
 .llcg-stack-header {
   padding: 11px 13px;
   border-bottom: 1px solid rgba(154, 178, 188, 0.14);
