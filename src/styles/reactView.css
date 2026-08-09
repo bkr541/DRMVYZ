@@ -15376,6 +15376,69 @@
   transform: scaleX(1);
 }
 
+/* Secondary nested tab strip (mirrors production .rv-right-subtabs — the
+   ROUTING / ANALYSIS tabs under React's DESIGN/REACT panels): centered,
+   marker + pipe divider, no underline. Only shown while React is active,
+   matching how the two levels actually stack in production. */
+
+.lltb-underline-demo {
+  display: flex;
+  flex-direction: column;
+}
+
+.lltb-nested {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+.lltb-nested-tab {
+  position: relative;
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.5);
+  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.lltb-nested-tab:not(:first-child) {
+  margin-left: 22px;
+}
+
+.lltb-nested-tab:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  width: 1px;
+  height: 11px;
+  transform: translateY(-50%);
+  background: rgba(154, 178, 188, 0.28);
+}
+
+.lltb-nested-tab:hover {
+  color: rgba(230, 240, 243, 0.85);
+}
+
+.lltb-nested-tab.is-active {
+  color: #8ef4ff;
+}
+
+.lltb-nested-tab.is-active::after {
+  content: '\25C6';
+  font-size: 7px;
+  color: #4ac7db;
+  text-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
+}
+
 /* ── Layout Lab / Template — engine dropdown style gallery ────────────────── */
 /* This is the most load-bearing control in the app — full-width, the engine
    name large with its description clamped to two lines so the card holds a

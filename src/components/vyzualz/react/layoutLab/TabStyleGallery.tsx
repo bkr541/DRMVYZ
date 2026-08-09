@@ -11,24 +11,47 @@ import { useState } from 'react'
 // right-rail tab strip for a direct comparison.
 
 const SAMPLE_TABS = ['Presets', 'Design', 'React', 'Output']
+const SAMPLE_NESTED_TABS = ['Routing', 'Analysis']
 
-// 1 — Underline tabs: borderless, a cyan underline grows in under the active tab
+// 1 — Underline tabs: borderless, a cyan underline grows in under the active
+// tab. When React is selected, the secondary nested tab strip that lives
+// under the real React tab (ROUTING / ANALYSIS, marker + pipe divider) shows
+// beneath it, matching how the two levels actually stack in production.
 function UnderlineTabs() {
   const [active, setActive] = useState(SAMPLE_TABS[1])
+  const [activeNested, setActiveNested] = useState(SAMPLE_NESTED_TABS[0])
   return (
-    <div className="lltb-underline" role="tablist" aria-label="Underline tabs">
-      {SAMPLE_TABS.map(tab => (
-        <button
-          key={tab}
-          type="button"
-          role="tab"
-          aria-selected={tab === active}
-          className={`lltb-underline-tab${tab === active ? ' is-active' : ''}`}
-          onClick={() => setActive(tab)}
-        >
-          {tab}
-        </button>
-      ))}
+    <div className="lltb-underline-demo">
+      <div className="lltb-underline" role="tablist" aria-label="Underline tabs">
+        {SAMPLE_TABS.map(tab => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={tab === active}
+            className={`lltb-underline-tab${tab === active ? ' is-active' : ''}`}
+            onClick={() => setActive(tab)}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+      {active === 'React' && (
+        <div className="lltb-nested" role="tablist" aria-label="React nested tabs">
+          {SAMPLE_NESTED_TABS.map(tab => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={tab === activeNested}
+              className={`lltb-nested-tab${tab === activeNested ? ' is-active' : ''}`}
+              onClick={() => setActiveNested(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
