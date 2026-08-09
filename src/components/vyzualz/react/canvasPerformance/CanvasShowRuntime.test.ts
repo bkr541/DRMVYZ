@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
-import { createCanvasShowManagerShow, type CanvasShowManagerMediaElement } from '../../showManager/CanvasShowManagerDomain'
+import {
+  CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY,
+  CANVAS_SHOW_MANAGER_DEFAULT_FX,
+  CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION,
+  createCanvasShowManagerShow,
+  type CanvasShowManagerMediaElement,
+} from '../../showManager/CanvasShowManagerDomain'
 import type { CanvasMediaItem } from '../ReactTypes'
 import { resolveCanvasShowRuntimeFrame } from './CanvasShowRuntime'
 
@@ -14,7 +20,21 @@ const video = (id: string, durationSec = 12): CanvasMediaItem => ({
 } as CanvasMediaItem)
 
 function element(id: string, mediaId: string, layer: 0 | 1 | 2 | 3, start: number, end: number, sourceIn = 0, sourceOut = 4): CanvasShowManagerMediaElement {
-  return { id, mediaId, layer, showStartSec: start, showEndSec: end, sourceInSec: sourceIn, sourceOutSec: sourceOut }
+  return {
+    id,
+    mediaId,
+    layer,
+    showStartSec: start,
+    showEndSec: end,
+    sourceInSec: sourceIn,
+    sourceOutSec: sourceOut,
+    display: { ...CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY },
+    transitions: {
+      in: { ...CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION },
+      out: { ...CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION },
+    },
+    fx: { ...CANVAS_SHOW_MANAGER_DEFAULT_FX },
+  }
 }
 
 describe('Canvas Show production frame resolver', () => {
@@ -45,6 +65,30 @@ describe('Canvas Show production frame resolver', () => {
     expect(frame.layers[3]!.enabled).toBe(false)
     expect(frame.layers.slice(0, 3).every(layer => layer.enabled)).toBe(true)
     expect(frame.diagnostics).toContain('Missing media for Layer 4: m3')
+  })
+
+  it('resolves Display, transition, and FX independently for each authored layer', () => {
+    const show = createCanvasShowManagerShow('Isolated treatment')
+    const treated = element('treated', 'one', 0, 0, 8)
+    treated.display = { scale: 1.5, x: 0.25, y: -0.4, brightness: 1.2, opacity: 0.8, rotation: 35 }
+    treated.transitions.in = { type: 'fade', durationSec: 2, direction: 'left' }
+    treated.fx = { blur: 4, contrast: 1.3, saturation: 0.7, hue: 40, glow: 0.5 }
+    const neutral = element('neutral', 'two', 1, 0, 8)
+    show.mediaElements = [treated, neutral]
+
+    const frame = resolveCanvasShowRuntimeFrame({ show, showTimeSec: 1, mediaItems: [video('one'), video('two')], context })!
+    expect(frame.layers[0]).toMatchObject({
+      id: 'treated', x: 0.25, y: -0.4, scaleX: 1.5, scaleY: 1.5, rotation: 35, opacity: 0.4,
+      showElementTreatment: {
+        brightness: 1.2, blurPx: 4, contrast: 1.3, saturation: 0.7, hueDeg: 40, glow: 0.5,
+        transitionInProgress: 0.5,
+      },
+    })
+    expect(frame.layers[0]!.showElementTreatment?.compositorFilter).toContain('brightness(1.200)')
+    expect(frame.layers[1]).toMatchObject({
+      id: 'neutral', x: 0, y: 0, scaleX: 1, rotation: 0, opacity: 1,
+      showElementTreatment: { compositorFilter: 'none', glow: 0 },
+    })
   })
 
   it('keeps the terminal Show boundary on the final authored frame', () => {

@@ -1,6 +1,6 @@
 import type { ReactSectionType } from '../react/ReactTypes'
 
-export const CANVAS_SHOW_MANAGER_SCHEMA_VERSION = 2 as const
+export const CANVAS_SHOW_MANAGER_SCHEMA_VERSION = 3 as const
 export const CANVAS_SHOW_MANAGER_DEFAULT_SECTION_DURATION_SEC = 8
 export const CANVAS_SHOW_MANAGER_MIN_SECTION_DURATION_SEC = 0.001
 export const CANVAS_SHOW_MANAGER_MIN_ELEMENT_DURATION_SEC = 0.001
@@ -17,6 +17,59 @@ export const CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE = [
 ] as const satisfies readonly (readonly [ReactSectionType, string])[]
 
 export type CanvasShowManagerLayer = 0 | 1 | 2 | 3
+export type CanvasShowManagerTransitionType = 'hardCut' | 'fade' | 'slide' | 'zoom'
+export type CanvasShowManagerTransitionDirection = 'left' | 'right' | 'up' | 'down'
+
+export interface CanvasShowManagerDisplayParameters {
+  scale: number
+  x: number
+  y: number
+  brightness: number
+  opacity: number
+  rotation: number
+}
+
+export interface CanvasShowManagerTransitionParameters {
+  type: CanvasShowManagerTransitionType
+  durationSec: number
+  direction: CanvasShowManagerTransitionDirection
+}
+
+export interface CanvasShowManagerTransitions {
+  in: CanvasShowManagerTransitionParameters
+  out: CanvasShowManagerTransitionParameters
+}
+
+export interface CanvasShowManagerFxParameters {
+  blur: number
+  contrast: number
+  saturation: number
+  hue: number
+  glow: number
+}
+
+export const CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY: Readonly<CanvasShowManagerDisplayParameters> = {
+  scale: 1,
+  x: 0,
+  y: 0,
+  brightness: 1,
+  opacity: 1,
+  rotation: 0,
+}
+
+export const CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION: Readonly<CanvasShowManagerTransitionParameters> = {
+  type: 'hardCut',
+  durationSec: 0.5,
+  direction: 'left',
+}
+
+export const CANVAS_SHOW_MANAGER_DEFAULT_FX: Readonly<CanvasShowManagerFxParameters> = {
+  blur: 0,
+  contrast: 1,
+  saturation: 1,
+  hue: 0,
+  glow: 0,
+}
 
 export interface CanvasShowManagerSection {
   id: string
@@ -37,6 +90,9 @@ export interface CanvasShowManagerMediaElement {
   /** Video-only trim. sourceOutSec remains null until duration metadata resolves. */
   sourceInSec: number | null
   sourceOutSec: number | null
+  display: CanvasShowManagerDisplayParameters
+  transitions: CanvasShowManagerTransitions
+  fx: CanvasShowManagerFxParameters
 }
 
 export interface CanvasShowManagerShow {
@@ -76,6 +132,30 @@ export interface CanvasShowManagerMediaElementPatch {
   showEndSec?: number
   sourceInSec?: number | null
   sourceOutSec?: number | null
+  display?: Partial<CanvasShowManagerDisplayParameters>
+  transitions?: {
+    in?: Partial<CanvasShowManagerTransitionParameters>
+    out?: Partial<CanvasShowManagerTransitionParameters>
+  }
+  fx?: Partial<CanvasShowManagerFxParameters>
+}
+
+export interface CanvasShowManagerResolvedElementVisual {
+  x: number
+  y: number
+  scale: number
+  rotation: number
+  opacity: number
+  brightness: number
+  fx: CanvasShowManagerFxParameters
+  transition: {
+    inProgress: number
+    outProgress: number
+    alpha: number
+    offsetX: number
+    offsetY: number
+    scale: number
+  }
 }
 
 export type CanvasShowManagerMediaElementMutationResult =
@@ -108,6 +188,82 @@ function finiteNumber(value: unknown): number | null {
     ? value
     : (typeof value === 'string' && value.trim() ? Number(value) : Number.NaN)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function clampFinite(value: unknown, min: number, max: number, fallback: number): number {
+  const parsed = finiteNumber(value)
+  return Math.min(max, Math.max(min, parsed ?? fallback))
+}
+
+function normalizeTransitionType(value: unknown): CanvasShowManagerTransitionType {
+  return value === 'fade' || value === 'slide' || value === 'zoom' || value === 'hardCut' ? value : 'hardCut'
+}
+
+function normalizeTransitionDirection(value: unknown): CanvasShowManagerTransitionDirection {
+  return value === 'right' || value === 'up' || value === 'down' || value === 'left' ? value : 'left'
+}
+
+export function normalizeCanvasShowManagerDisplay(value: unknown): CanvasShowManagerDisplayParameters {
+  const raw = isRecord(value) ? value : {}
+  return {
+    scale: clampFinite(raw.scale, 0.1, 4, CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY.scale),
+    x: clampFinite(raw.x, -2, 2, CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY.x),
+    y: clampFinite(raw.y, -2, 2, CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY.y),
+    brightness: clampFinite(raw.brightness, 0, 2, CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY.brightness),
+    opacity: clampFinite(raw.opacity, 0, 1, CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY.opacity),
+    rotation: clampFinite(raw.rotation, -180, 180, CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY.rotation),
+  }
+}
+
+function normalizeTransition(value: unknown): CanvasShowManagerTransitionParameters {
+  const raw = isRecord(value) ? value : {}
+  return {
+    type: normalizeTransitionType(raw.type),
+    durationSec: clampFinite(raw.durationSec, 0, Number.MAX_SAFE_INTEGER, CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION.durationSec),
+    direction: normalizeTransitionDirection(raw.direction),
+  }
+}
+
+export function normalizeCanvasShowManagerTransitions(
+  value: unknown,
+  elementDurationSec: number,
+): CanvasShowManagerTransitions {
+  const raw = isRecord(value) ? value : {}
+  const input = normalizeTransition(raw.in)
+  const output = normalizeTransition(raw.out)
+  const duration = Math.max(CANVAS_SHOW_MANAGER_MIN_ELEMENT_DURATION_SEC, finiteNumber(elementDurationSec) ?? 0)
+  input.durationSec = Math.min(duration, input.durationSec)
+  output.durationSec = Math.min(duration, output.durationSec)
+  const requested = (input.type === 'hardCut' ? 0 : input.durationSec)
+    + (output.type === 'hardCut' ? 0 : output.durationSec)
+  if (requested > duration && requested > 0) {
+    const scale = duration / requested
+    if (input.type !== 'hardCut') input.durationSec *= scale
+    if (output.type !== 'hardCut') output.durationSec *= scale
+  }
+  return { in: input, out: output }
+}
+
+export function normalizeCanvasShowManagerFx(value: unknown): CanvasShowManagerFxParameters {
+  const raw = isRecord(value) ? value : {}
+  return {
+    blur: clampFinite(raw.blur, 0, 20, CANVAS_SHOW_MANAGER_DEFAULT_FX.blur),
+    contrast: clampFinite(raw.contrast, 0, 2, CANVAS_SHOW_MANAGER_DEFAULT_FX.contrast),
+    saturation: clampFinite(raw.saturation, 0, 2, CANVAS_SHOW_MANAGER_DEFAULT_FX.saturation),
+    hue: clampFinite(raw.hue, -180, 180, CANVAS_SHOW_MANAGER_DEFAULT_FX.hue),
+    glow: clampFinite(raw.glow, 0, 1, CANVAS_SHOW_MANAGER_DEFAULT_FX.glow),
+  }
+}
+
+function defaultCanvasShowManagerElementParameters(elementDurationSec: number) {
+  return {
+    display: normalizeCanvasShowManagerDisplay(CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY),
+    transitions: normalizeCanvasShowManagerTransitions({
+      in: CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION,
+      out: CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION,
+    }, elementDurationSec),
+    fx: normalizeCanvasShowManagerFx(CANVAS_SHOW_MANAGER_DEFAULT_FX),
+  }
 }
 
 export function normalizeCanvasShowManagerName(value: unknown, fallback = ''): string {
@@ -218,6 +374,9 @@ function normalizeCanvasShowManagerMediaElement(
     showEndSec,
     sourceInSec,
     sourceOutSec,
+    display: normalizeCanvasShowManagerDisplay(raw.display),
+    transitions: normalizeCanvasShowManagerTransitions(raw.transitions, showEndSec - showStartSec),
+    fx: normalizeCanvasShowManagerFx(raw.fx),
   }
 }
 
@@ -291,7 +450,16 @@ export function cloneCanvasShowManagerShow(show: CanvasShowManagerShow): CanvasS
   return {
     ...show,
     sections: show.sections.map(section => ({ ...section })),
-    mediaElements: show.mediaElements.map(element => ({ ...element })),
+    mediaElements: show.mediaElements.map(element => {
+      const duration = element.showEndSec - element.showStartSec
+      const transitions = normalizeCanvasShowManagerTransitions(element.transitions, duration)
+      return {
+        ...element,
+        display: normalizeCanvasShowManagerDisplay(element.display),
+        transitions: { in: { ...transitions.in }, out: { ...transitions.out } },
+        fx: normalizeCanvasShowManagerFx(element.fx),
+      }
+    }),
   }
 }
 
@@ -356,6 +524,7 @@ export function createCanvasShowManagerMediaElement(
     return { ok: false, code: 'overlap', message: `Layer ${layer + 1} already contains media in that Show cue range.` }
   }
   const sourceDuration = finiteNumber(input.sourceDurationSec)
+  const parameters = defaultCanvasShowManagerElementParameters(end - start)
   const element: CanvasShowManagerMediaElement = {
     id: createId('canvas-element'),
     mediaId,
@@ -364,6 +533,7 @@ export function createCanvasShowManagerMediaElement(
     showEndSec: end,
     sourceInSec: input.timedVideo ? 0 : null,
     sourceOutSec: input.timedVideo && sourceDuration != null && sourceDuration > 0 ? sourceDuration : null,
+    ...parameters,
   }
   return {
     ok: true,
@@ -406,6 +576,9 @@ export function updateCanvasShowManagerMediaElement(
     }
   }
 
+  const currentDisplay = normalizeCanvasShowManagerDisplay(current.display)
+  const currentTransitions = normalizeCanvasShowManagerTransitions(current.transitions, current.showEndSec - current.showStartSec)
+  const currentFx = normalizeCanvasShowManagerFx(current.fx)
   const element: CanvasShowManagerMediaElement = {
     ...current,
     layer,
@@ -413,6 +586,12 @@ export function updateCanvasShowManagerMediaElement(
     showEndSec,
     sourceInSec,
     sourceOutSec,
+    display: normalizeCanvasShowManagerDisplay({ ...currentDisplay, ...patch.display }),
+    transitions: normalizeCanvasShowManagerTransitions({
+      in: { ...currentTransitions.in, ...patch.transitions?.in },
+      out: { ...currentTransitions.out, ...patch.transitions?.out },
+    }, showEndSec - showStartSec),
+    fx: normalizeCanvasShowManagerFx({ ...currentFx, ...patch.fx }),
   }
   return {
     ok: true,
@@ -448,6 +627,62 @@ export function resolveCanvasShowManagerElementSourceTime(
   const trimDuration = element.sourceOutSec - element.sourceInSec
   const elapsed = Math.max(0, showTimeSec - element.showStartSec)
   return element.sourceInSec + (elapsed % trimDuration)
+}
+
+function transitionDirectionVector(direction: CanvasShowManagerTransitionDirection): { x: number; y: number } {
+  switch (direction) {
+    case 'right': return { x: 2, y: 0 }
+    case 'up': return { x: 0, y: -2 }
+    case 'down': return { x: 0, y: 2 }
+    case 'left': return { x: -2, y: 0 }
+  }
+}
+
+/**
+ * Pure authored-element frame resolver. Operation order is media fit, Display,
+ * FX/color treatment, then transition transform/alpha before layer composite.
+ */
+export function resolveCanvasShowManagerElementVisual(
+  element: CanvasShowManagerMediaElement,
+  showTimeSec: number,
+): CanvasShowManagerResolvedElementVisual {
+  const duration = Math.max(CANVAS_SHOW_MANAGER_MIN_ELEMENT_DURATION_SEC, element.showEndSec - element.showStartSec)
+  const transitions = normalizeCanvasShowManagerTransitions(element.transitions, duration)
+  const display = normalizeCanvasShowManagerDisplay(element.display)
+  const fx = normalizeCanvasShowManagerFx(element.fx)
+  const elapsed = Math.min(duration, Math.max(0, (finiteNumber(showTimeSec) ?? element.showStartSec) - element.showStartSec))
+  const remaining = Math.min(duration, Math.max(0, element.showEndSec - (finiteNumber(showTimeSec) ?? element.showStartSec)))
+  const inProgress = transitions.in.type === 'hardCut' || transitions.in.durationSec <= 0
+    ? 1
+    : Math.min(1, elapsed / transitions.in.durationSec)
+  const outProgress = transitions.out.type === 'hardCut' || transitions.out.durationSec <= 0
+    ? 1
+    : Math.min(1, remaining / transitions.out.durationSec)
+  const incomingVector = transitionDirectionVector(transitions.in.direction)
+  const outgoingVector = transitionDirectionVector(transitions.out.direction)
+  const inOffset = transitions.in.type === 'slide' ? 1 - inProgress : 0
+  const outOffset = transitions.out.type === 'slide' ? 1 - outProgress : 0
+  const inScale = transitions.in.type === 'zoom' ? 0.01 + inProgress * 0.99 : 1
+  const outScale = transitions.out.type === 'zoom' ? 0.01 + outProgress * 0.99 : 1
+  const transitionAlpha = (transitions.in.type === 'fade' ? inProgress : 1)
+    * (transitions.out.type === 'fade' ? outProgress : 1)
+  return {
+    x: display.x + incomingVector.x * inOffset + outgoingVector.x * outOffset,
+    y: display.y + incomingVector.y * inOffset + outgoingVector.y * outOffset,
+    scale: display.scale * inScale * outScale,
+    rotation: display.rotation,
+    opacity: display.opacity * transitionAlpha,
+    brightness: display.brightness,
+    fx,
+    transition: {
+      inProgress,
+      outProgress,
+      alpha: transitionAlpha,
+      offsetX: incomingVector.x * inOffset + outgoingVector.x * outOffset,
+      offsetY: incomingVector.y * inOffset + outgoingVector.y * outOffset,
+      scale: inScale * outScale,
+    },
+  }
 }
 
 export function updateCanvasShowManagerSectionDuration(
@@ -552,6 +787,12 @@ export function validateCanvasShowManagerShow(show: CanvasShowManagerShow): Canv
         issues.push(`Media element ${index + 1} has invalid source trim.`)
       }
     }
+    const normalizedDisplay = normalizeCanvasShowManagerDisplay(element.display)
+    const normalizedTransitions = normalizeCanvasShowManagerTransitions(element.transitions, element.showEndSec - element.showStartSec)
+    const normalizedFx = normalizeCanvasShowManagerFx(element.fx)
+    if (JSON.stringify(element.display) !== JSON.stringify(normalizedDisplay)) issues.push(`Media element ${index + 1} has invalid Display parameters.`)
+    if (JSON.stringify(element.transitions) !== JSON.stringify(normalizedTransitions)) issues.push(`Media element ${index + 1} has invalid transition parameters.`)
+    if (JSON.stringify(element.fx) !== JSON.stringify(normalizedFx)) issues.push(`Media element ${index + 1} has invalid FX parameters.`)
     if (canvasShowManagerRangeOverlaps(show.mediaElements, element.layer, element.showStartSec, element.showEndSec, element.id)) {
       issues.push(`Media element ${index + 1} overlaps another element on Layer ${element.layer + 1}.`)
     }

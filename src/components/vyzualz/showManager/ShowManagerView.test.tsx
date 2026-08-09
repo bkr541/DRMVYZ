@@ -146,6 +146,9 @@ const fixture = vi.hoisted(() => ({
     canvasShowManagerEditingElementId: null as string | null,
     canvasShowManagerUndoStack: [] as unknown[],
     canvasShowManagerRedoStack: [] as unknown[],
+    canvasShowManagerHistoryTransaction: null as unknown,
+    canvasMediaItems: [],
+    canvasMediaTimingById: {} as Record<string, unknown>,
     createCanvasShowManagerShow: vi.fn(() => 'canvas-show-1' as string | null),
     selectCanvasShowManagerShow: vi.fn(),
     selectCanvasShowManagerSection: vi.fn(),
@@ -158,6 +161,9 @@ const fixture = vi.hoisted(() => ({
     deleteCanvasShowManagerShow: vi.fn(() => true),
     undoCanvasShowManagerEdit: vi.fn(),
     redoCanvasShowManagerEdit: vi.fn(),
+    beginCanvasShowManagerHistoryTransaction: vi.fn(),
+    commitCanvasShowManagerHistoryTransaction: vi.fn(),
+    cancelCanvasShowManagerHistoryTransaction: vi.fn(),
     saveCanvasShowManagerShow: vi.fn(async () => true),
     pixGridState: {
       matrixWidth: 160,
@@ -265,6 +271,12 @@ vi.mock('../react/ReactPlaceholderCanvas', () => ({
       />
     )
   },
+}))
+
+vi.mock('../react/ReactCanvasEngineShell', () => ({
+  CanvasEngineSurface: ({ previewSelectedElementId }: { previewSelectedElementId?: string | null }) => (
+    <canvas data-testid="canvas-runtime-preview-surface" data-selected-element-id={previewSelectedElementId ?? ''} />
+  ),
 }))
 
 vi.mock('../react/ReactPresetThumbnail', () => ({
@@ -417,7 +429,7 @@ describe('ShowManagerView production shell', () => {
 
   it('uses the shared media drag contract to place a real element on an explicit Canvas layer target', async () => {
     const show = {
-      schemaVersion: 2 as const,
+      schemaVersion: 3 as const,
       id: 'canvas-show-authoring',
       name: 'Authoring Show',
       sections: [
@@ -437,6 +449,12 @@ describe('ShowManagerView production shell', () => {
         showEndSec: number
         sourceInSec: number | null
         sourceOutSec: number | null
+        display: { scale: number; x: number; y: number; brightness: number; opacity: number; rotation: number }
+        transitions: {
+          in: { type: 'hardCut' | 'fade' | 'slide' | 'zoom'; durationSec: number; direction: 'left' | 'right' | 'up' | 'down' }
+          out: { type: 'hardCut' | 'fade' | 'slide' | 'zoom'; durationSec: number; direction: 'left' | 'right' | 'up' | 'down' }
+        }
+        fx: { blur: number; contrast: number; saturation: number; hue: number; glow: number }
       }>,
     }
     fixture.state.canvasShowManagerShows = [show] as typeof fixture.state.canvasShowManagerShows
@@ -454,6 +472,12 @@ describe('ShowManagerView production shell', () => {
         showEndSec: 8,
         sourceInSec: 0,
         sourceOutSec: 8,
+        display: { scale: 1, x: 0, y: 0, brightness: 1, opacity: 1, rotation: 0 },
+        transitions: {
+          in: { type: 'hardCut' as const, durationSec: 0.5, direction: 'left' as const },
+          out: { type: 'hardCut' as const, durationSec: 0.5, direction: 'left' as const },
+        },
+        fx: { blur: 0, contrast: 1, saturation: 1, hue: 0, glow: 0 },
       }
       show.mediaElements.push(element)
       fixture.state.canvasShowManagerEditingElementId = element.id
@@ -461,7 +485,14 @@ describe('ShowManagerView production shell', () => {
     })
     fixture.state.updateCanvasShowManagerMediaElement.mockImplementation((_showId, elementId, patch) => {
       const element = show.mediaElements.find(candidate => candidate.id === elementId)!
-      Object.assign(element, patch)
+      Object.assign(element, patch, {
+        display: patch.display ? { ...element.display, ...patch.display } : element.display,
+        transitions: patch.transitions ? {
+          in: { ...element.transitions.in, ...patch.transitions.in },
+          out: { ...element.transitions.out, ...patch.transitions.out },
+        } : element.transitions,
+        fx: patch.fx ? { ...element.fx, ...patch.fx } : element.fx,
+      })
       return { ok: true, show, element }
     })
 
@@ -525,6 +556,31 @@ describe('ShowManagerView production shell', () => {
     })
     expect(container.querySelector('[data-testid="canvas-video-source-trim"]')).not.toBeNull()
     expect(container.querySelectorAll('.sm-canvas-media-clip')).toHaveLength(1)
+    const elementInspector = container.querySelector<HTMLElement>('[data-testid="canvas-show-manager-element-inspector"]')!
+    expect(elementInspector.querySelectorAll('[data-testid^="canvas-inspector-group-"]')).toHaveLength(3)
+    expect([...elementInspector.querySelectorAll<HTMLElement>('.drc-header > span:first-child')].map(node => node.textContent))
+      .toEqual(['Display', 'Transitions', 'FX'])
+    expect(elementInspector.textContent).not.toContain('Media Element')
+    expect(elementInspector.textContent).not.toContain('Fit Mode')
+
+    const scale = elementInspector.querySelector<HTMLInputElement>('[data-testid="canvas-inspector-group-display"] input[type="range"]')!
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(scale, '1.5')
+      scale.dispatchEvent(new Event('input', { bubbles: true }))
+      scale.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(fixture.state.updateCanvasShowManagerMediaElement).toHaveBeenCalledWith(
+      show.id,
+      'canvas-element-dropped',
+      { display: { scale: 1.5 } },
+      8,
+    )
+    await act(async () => {
+      container!.querySelector<HTMLElement>('.sm-canvas-authored-elements')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(fixture.state.selectCanvasShowManagerMediaElement).toHaveBeenCalledWith(null)
 
     const secondDrop = new Event('drop', { bubbles: true, cancelable: true })
     Object.defineProperty(secondDrop, 'dataTransfer', { value: transfer })

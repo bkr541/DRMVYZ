@@ -381,6 +381,19 @@ export interface CanvasResolvedLayer {
   effectChain: readonly CanvasEffectNode[]
   modulationRoutes: readonly CanvasModulationRoute[]
   userLocked: boolean
+  /** Exact per-element Show treatment. Absent for preset/orchestration layers. */
+  showElementTreatment?: {
+    brightness: number
+    blurPx: number
+    contrast: number
+    saturation: number
+    hueDeg: number
+    glow: number
+    compositorFilter: string
+    glowFilter: string
+    transitionInProgress: number
+    transitionOutProgress: number
+  }
   processor?: CanvasSpecializedLayerProcessor
 }
 

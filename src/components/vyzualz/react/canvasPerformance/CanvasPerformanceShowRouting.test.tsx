@@ -34,12 +34,18 @@ vi.mock('../renderers/CanvasFracturesRendererLayer', () => ({
 }))
 
 import { CanvasEngineSurface } from '../ReactCanvasEngineShell'
-import { createCanvasShowManagerShow } from '../../showManager/CanvasShowManagerDomain'
+import {
+  CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY,
+  CANVAS_SHOW_MANAGER_DEFAULT_FX,
+  CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION,
+  createCanvasShowManagerShow,
+} from '../../showManager/CanvasShowManagerDomain'
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null
 let readyImage: HTMLImageElement
 let mediaReady = true
+let canvasAssignments: Array<{ property: PropertyKey; value: unknown }> = []
 
 const media: CanvasMediaItem = {
   id: 'routing-hero',
@@ -84,6 +90,7 @@ function canvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
     },
     set(object, property, value) {
       object[property] = value
+      canvasAssignments.push({ property, value })
       return true
     },
   }) as unknown as CanvasRenderingContext2D
@@ -205,6 +212,7 @@ async function updateRoutingState(input: Parameters<typeof setCanvasRoutingState
 beforeEach(() => {
   vi.useFakeTimers()
   mediaReady = true
+  canvasAssignments = []
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
   vi.stubGlobal('cancelAnimationFrame', vi.fn())
@@ -272,6 +280,12 @@ describe('CanvasEngineSurface Performance Show routing', () => {
       showEndSec: 8,
       sourceInSec: null,
       sourceOutSec: null,
+      display: { ...CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY, brightness: 1.25, opacity: 0.8 },
+      transitions: {
+        in: { ...CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION },
+        out: { ...CANVAS_SHOW_MANAGER_DEFAULT_TRANSITION },
+      },
+      fx: { ...CANVAS_SHOW_MANAGER_DEFAULT_FX, blur: 3, contrast: 1.2, saturation: 0.7, hue: 35, glow: 0.5 },
     }]
     useReactStore.setState({
       canvasShowManagerShows: [show],
@@ -284,6 +298,11 @@ describe('CanvasEngineSurface Performance Show routing', () => {
     expect(host?.textContent).toContain('Active Four-Layer Show')
     expect(host?.textContent).toContain('Four-layer Show')
     expect(host?.querySelector('[data-testid="canvas-show-quality-diagnostics"]')).not.toBeNull()
+    expect(canvasAssignments.some(entry => entry.property === 'filter'
+      && typeof entry.value === 'string'
+      && entry.value.includes('brightness(1.250)')
+      && entry.value.includes('blur(3.00px)'))).toBe(true)
+    expect(canvasAssignments.some(entry => entry.property === 'globalCompositeOperation' && entry.value === 'screen')).toBe(true)
   })
 
   it('suppresses direct Fractures publication and restores direct generic output', async () => {

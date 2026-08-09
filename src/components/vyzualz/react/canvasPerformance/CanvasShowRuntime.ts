@@ -3,6 +3,7 @@ import type { CanvasShowManagerShow } from '../../showManager/CanvasShowManagerD
 import {
   getActiveCanvasShowManagerMediaElements,
   getCanvasShowManagerTotalDuration,
+  resolveCanvasShowManagerElementVisual,
   resolveCanvasShowManagerElementSourceTime,
   validateCanvasShowManagerShow,
 } from '../../showManager/CanvasShowManagerDomain'
@@ -24,6 +25,37 @@ const SHOW_TEMPLATE: CanvasCompositionTemplate = {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+function resolveShowElementFilters(input: {
+  brightness: number
+  blur: number
+  contrast: number
+  saturation: number
+  hue: number
+  glow: number
+}): { compositorFilter: string; glowFilter: string } {
+  const parts = [
+    `brightness(${input.brightness.toFixed(3)})`,
+    `contrast(${input.contrast.toFixed(3)})`,
+    `saturate(${input.saturation.toFixed(3)})`,
+    `blur(${input.blur.toFixed(2)}px)`,
+    `hue-rotate(${input.hue.toFixed(1)}deg)`,
+  ]
+  const neutral = input.brightness === 1 && input.blur === 0 && input.contrast === 1
+    && input.saturation === 1 && input.hue === 0
+  return {
+    compositorFilter: neutral ? 'none' : parts.join(' '),
+    glowFilter: input.glow <= 0
+      ? 'none'
+      : [
+          `brightness(${(input.brightness + input.glow * 0.5).toFixed(3)})`,
+          `contrast(${input.contrast.toFixed(3)})`,
+          `saturate(${(input.saturation + input.glow * 0.2).toFixed(3)})`,
+          `blur(${(input.blur + input.glow * 12).toFixed(2)}px)`,
+          `hue-rotate(${input.hue.toFixed(1)}deg)`,
+        ].join(' '),
+  }
 }
 
 export function normalizeCanvasShowRuntimeTime(show: CanvasShowManagerShow, timeSec: number): number {
@@ -61,6 +93,15 @@ export function resolveCanvasShowRuntimeFrame({
   const layers: CanvasResolvedLayer[] = getActiveCanvasShowManagerMediaElements(show, timeSec)
     .slice(0, 4)
     .map(element => {
+      const visual = resolveCanvasShowManagerElementVisual(element, timeSec)
+      const filters = resolveShowElementFilters({
+        brightness: visual.brightness,
+        blur: visual.fx.blur,
+        contrast: visual.fx.contrast,
+        saturation: visual.fx.saturation,
+        hue: visual.fx.hue,
+        glow: visual.fx.glow,
+      })
       const media = byId.get(element.mediaId) ?? null
       // Runtime identity is element-scoped. Reusing one library video on two lanes
       // must create two decoder handles because their trim phases may differ.
@@ -85,13 +126,13 @@ export function resolveCanvasShowRuntimeFrame({
         sourceMediaId: source?.id ?? null,
         source,
         enabled: Boolean(source),
-        opacity: 1,
+        opacity: visual.opacity,
         blendMode: 'source-over',
-        x: 0,
-        y: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
+        x: visual.x,
+        y: visual.y,
+        scaleX: visual.scale,
+        scaleY: visual.scale,
+        rotation: visual.rotation,
         crop: { x: 0, y: 0, width: 1, height: 1 },
         aspectBehavior: 'cover',
         zIndex: element.layer,
@@ -114,6 +155,17 @@ export function resolveCanvasShowRuntimeFrame({
         effectChain: [],
         modulationRoutes: [],
         userLocked: true,
+        showElementTreatment: {
+          brightness: visual.brightness,
+          blurPx: visual.fx.blur,
+          contrast: visual.fx.contrast,
+          saturation: visual.fx.saturation,
+          hueDeg: visual.fx.hue,
+          glow: visual.fx.glow,
+          ...filters,
+          transitionInProgress: visual.transition.inProgress,
+          transitionOutProgress: visual.transition.outProgress,
+        },
       }
     })
 

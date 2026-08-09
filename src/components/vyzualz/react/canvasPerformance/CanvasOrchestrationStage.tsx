@@ -145,8 +145,18 @@ function drawSource(
   context.translate(x + effects.offsetX, y + effects.offsetY)
   context.rotate((layer.rotation + globalRotation + effects.rotationDeg) * Math.PI / 180)
   context.scale(scaleX, scaleY)
-  context.filter = 'none'
+  context.filter = layer.showElementTreatment?.compositorFilter ?? 'none'
   if (alphaHierarchy.drySourceAlpha > 0.001) {
+    context.drawImage(source, sx, sy, sw, sh, -fitted.width / 2, -fitted.height / 2, fitted.width, fitted.height)
+  }
+
+  // Show-element Glow reuses the same isolated layer canvas and source transform,
+  // so it cannot leak into sibling layers and adds no per-frame canvas allocation.
+  const showGlow = layer.showElementTreatment?.glow ?? 0
+  if (showGlow > 0.001 && alphaHierarchy.drySourceAlpha > 0.001) {
+    context.globalCompositeOperation = 'screen'
+    context.globalAlpha = Math.min(0.45, alphaHierarchy.drySourceAlpha * showGlow * 0.42)
+    context.filter = layer.showElementTreatment?.glowFilter ?? 'none'
     context.drawImage(source, sx, sy, sw, sh, -fitted.width / 2, -fitted.height / 2, fitted.width, fitted.height)
   }
 

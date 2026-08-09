@@ -74,6 +74,8 @@ import {
   type CanvasShowManagerMediaElementPatch,
   type CanvasShowManagerSectionRange,
   type CanvasShowManagerShow,
+  type CanvasShowManagerTransitionDirection,
+  type CanvasShowManagerTransitionType,
 } from './CanvasShowManagerDomain'
 import '../../../styles/reactView.css'
 import '../../../styles/showManager.css'
@@ -190,6 +192,8 @@ export function ShowManagerView() {
   const redoCanvasShowManagerEdit = useReactStore(state => state.redoCanvasShowManagerEdit)
   const canvasShowUndoDepth = useReactStore(state => state.canvasShowManagerUndoStack.length)
   const canvasShowRedoDepth = useReactStore(state => state.canvasShowManagerRedoStack.length)
+  const beginCanvasShowManagerHistoryTransaction = useReactStore(state => state.beginCanvasShowManagerHistoryTransaction)
+  const commitCanvasShowManagerHistoryTransaction = useReactStore(state => state.commitCanvasShowManagerHistoryTransaction)
   const saveCanvasShowManagerShow = useReactStore(state => state.saveCanvasShowManagerShow)
   const sharedMediaItems = useMediaStore(state => state.items)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
@@ -1577,6 +1581,8 @@ export function ShowManagerView() {
               onPatchElement={patch => selectedCanvasElement
                 ? commitCanvasElementPatch(selectedCanvasElement.id, patch)
                 : false}
+              onInteractionStart={beginCanvasShowManagerHistoryTransaction}
+              onInteractionEnd={commitCanvasShowManagerHistoryTransaction}
               onDeleteElement={deleteSelectedCanvasElement}
               onDelete={() => {
                 if (!activeCanvasShow || !window.confirm(`Delete Canvas Show “${activeCanvasShow.name}”?`)) return
@@ -1647,6 +1653,8 @@ function CanvasShowManagerInspector({
   onRename,
   onUpdateDuration,
   onPatchElement,
+  onInteractionStart,
+  onInteractionEnd,
   onDeleteElement,
   onDelete,
   onCreate,
@@ -1663,10 +1671,13 @@ function CanvasShowManagerInspector({
   onRename: () => void
   onUpdateDuration: (sectionId: string, durationSec: number) => boolean
   onPatchElement: (patch: CanvasShowManagerMediaElementPatch) => boolean
+  onInteractionStart: () => void
+  onInteractionEnd: () => void
   onDeleteElement: () => void
   onDelete: () => void
   onCreate: () => void
 }) {
+  useEffect(() => () => onInteractionEnd(), [element?.id, onInteractionEnd])
   if (!show) {
     return (
       <div className="sm-inspector-scroll sm-canvas-inspector">
@@ -1678,8 +1689,94 @@ function CanvasShowManagerInspector({
     )
   }
   const range = sectionRanges.find(candidate => candidate.sectionId === section?.id)
-  const elementMediaType = elementMedia ? getCanvasLibraryMediaType(elementMedia) : null
-  const knownSourceDuration = elementMedia?.metadata.duration
+  if (element) {
+    const transitionOptions = [
+      { value: 'hardCut', label: 'None / Hard Cut' },
+      { value: 'fade', label: 'Fade' },
+      { value: 'slide', label: 'Slide' },
+      { value: 'zoom', label: 'Zoom' },
+    ]
+    const directionOptions = [
+      { value: 'left', label: 'Left' },
+      { value: 'right', label: 'Right' },
+      { value: 'up', label: 'Up' },
+      { value: 'down', label: 'Down' },
+    ]
+    const sliderGesture = { onInteractionStart, onInteractionEnd }
+    const renderTransition = (edge: 'in' | 'out', label: string) => {
+      const transition = element.transitions[edge]
+      return (
+        <div className="sm-canvas-transition-subgroup" data-transition-edge={edge}>
+          <strong>{label}</strong>
+          <SelectRow
+            label={`${label} Type`}
+            value={transition.type}
+            options={transitionOptions}
+            onChange={type => onPatchElement({
+              transitions: { [edge]: { type: type as CanvasShowManagerTransitionType } },
+            })}
+          />
+          {transition.type !== 'hardCut' && (
+            <SliderRow
+              label={`${label} Duration`}
+              value={transition.durationSec}
+              min={0}
+              max={Math.max(0.001, element.showEndSec - element.showStartSec)}
+              step={0.01}
+              description="Seconds inside this element's Show cue range."
+              onChange={durationSec => onPatchElement({ transitions: { [edge]: { durationSec } } })}
+              {...sliderGesture}
+            />
+          )}
+          {transition.type === 'slide' && (
+            <SelectRow
+              label={`${label} Direction`}
+              value={transition.direction}
+              options={directionOptions}
+              onChange={direction => onPatchElement({
+                transitions: { [edge]: { direction: direction as CanvasShowManagerTransitionDirection } },
+              })}
+            />
+          )}
+        </div>
+      )
+    }
+    return (
+      <div className="sm-inspector-scroll sm-canvas-inspector" data-testid="canvas-show-manager-element-inspector">
+        <div className="sm-inspector-context">
+          <div><span>Element</span><strong>{elementMedia?.title?.trim() || elementMedia?.name || 'Missing media'}</strong></div>
+          <div><span>Layer</span><strong>{element.layer + 1}</strong></div>
+        </div>
+        {!elementMedia && <p className="sm-canvas-form-error" role="status">This shared media item is unavailable. Its authored reference has been preserved.</p>}
+        <Collapsible label="Display" defaultOpen>
+          <div className="sm-canvas-element-controls" data-testid="canvas-inspector-group-display">
+            <SliderRow label="Scale" value={element.display.scale} min={0.1} max={4} step={0.01} onChange={scale => onPatchElement({ display: { scale } })} {...sliderGesture} />
+            <SliderRow label="X" value={element.display.x} min={-2} max={2} step={0.01} onChange={x => onPatchElement({ display: { x } })} {...sliderGesture} />
+            <SliderRow label="Y" value={element.display.y} min={-2} max={2} step={0.01} onChange={y => onPatchElement({ display: { y } })} {...sliderGesture} />
+            <SliderRow label="Brightness" value={element.display.brightness} min={0} max={2} step={0.01} onChange={brightness => onPatchElement({ display: { brightness } })} {...sliderGesture} />
+            <SliderRow label="Opacity" value={element.display.opacity} min={0} max={1} step={0.01} onChange={opacity => onPatchElement({ display: { opacity } })} {...sliderGesture} />
+            <SliderRow label="Rotation" value={element.display.rotation} min={-180} max={180} step={1} onChange={rotation => onPatchElement({ display: { rotation } })} {...sliderGesture} />
+          </div>
+        </Collapsible>
+        <Collapsible label="Transitions" defaultOpen>
+          <div className="sm-canvas-element-controls" data-testid="canvas-inspector-group-transitions">
+            {renderTransition('in', 'In')}
+            {renderTransition('out', 'Out')}
+          </div>
+        </Collapsible>
+        <Collapsible label="FX" defaultOpen>
+          <div className="sm-canvas-element-controls" data-testid="canvas-inspector-group-fx">
+            <SliderRow label="Blur" value={element.fx.blur} min={0} max={20} step={0.1} onChange={blur => onPatchElement({ fx: { blur } })} {...sliderGesture} />
+            <SliderRow label="Contrast" value={element.fx.contrast} min={0} max={2} step={0.01} onChange={contrast => onPatchElement({ fx: { contrast } })} {...sliderGesture} />
+            <SliderRow label="Saturation" value={element.fx.saturation} min={0} max={2} step={0.01} onChange={saturation => onPatchElement({ fx: { saturation } })} {...sliderGesture} />
+            <SliderRow label="Hue" value={element.fx.hue} min={-180} max={180} step={1} onChange={hue => onPatchElement({ fx: { hue } })} {...sliderGesture} />
+            <SliderRow label="Glow" value={element.fx.glow} min={0} max={1} step={0.01} onChange={glow => onPatchElement({ fx: { glow } })} {...sliderGesture} />
+          </div>
+        </Collapsible>
+        <button type="button" className="sm-canvas-delete" onClick={onDeleteElement}>Remove Element</button>
+      </div>
+    )
+  }
   return (
     <div className="sm-inspector-scroll sm-canvas-inspector">
       <div className="sm-inspector-context">
@@ -1704,95 +1801,6 @@ function CanvasShowManagerInspector({
           <button type="submit">Update Name</button>
         </form>
       </Collapsible>
-      {element && (
-        <Collapsible label="Media Element" defaultOpen>
-          <div className="sm-canvas-form sm-canvas-element-form" data-testid="canvas-show-manager-element-inspector">
-            <strong>{elementMedia?.title?.trim() || elementMedia?.name || 'Missing media'}</strong>
-            {!elementMedia && <p className="sm-canvas-form-error" role="status">This shared media item is unavailable. Its authored reference has been preserved.</p>}
-            <label htmlFor="canvas-element-layer">Layer</label>
-            <Dropdown
-              id="canvas-element-layer"
-              ariaLabel="Canvas media element layer"
-              value={String(element.layer)}
-              onChange={value => onPatchElement({ layer: Number(value) })}
-              options={[3, 2, 1, 0].map(layer => ({
-                value: String(layer),
-                label: `Layer ${layer + 1}`,
-                description: layer === 3 ? 'Top / front' : layer === 0 ? 'Bottom / back' : undefined,
-              }))}
-              size="compact"
-            />
-            <div className="sm-canvas-cue-grid">
-              <label htmlFor="canvas-element-show-start">Show Start</label>
-              <DreamVizTextInput
-                id="canvas-element-show-start"
-                key={`${element.id}:start:${element.showStartSec}`}
-                type="number"
-                min="0"
-                max={element.showEndSec - 0.001}
-                step="0.01"
-                defaultValue={element.showStartSec}
-                onBlur={event => {
-                  if (!onPatchElement({ showStartSec: Number(event.target.value) })) event.target.value = String(element.showStartSec)
-                }}
-              />
-              <label htmlFor="canvas-element-show-end">Show End</label>
-              <DreamVizTextInput
-                id="canvas-element-show-end"
-                key={`${element.id}:end:${element.showEndSec}`}
-                type="number"
-                min={element.showStartSec + 0.001}
-                max={totalDurationSec}
-                step="0.01"
-                defaultValue={element.showEndSec}
-                onBlur={event => {
-                  if (!onPatchElement({ showEndSec: Number(event.target.value) })) event.target.value = String(element.showEndSec)
-                }}
-              />
-            </div>
-            {elementMediaType === 'video' && (
-              knownSourceDuration && knownSourceDuration > 0 ? (
-                element.sourceOutSec == null ? (
-                  <button type="button" onClick={() => onPatchElement({ sourceInSec: 0, sourceOutSec: knownSourceDuration })}>
-                    Initialize Video Trim
-                  </button>
-                ) : (
-                  <div className="sm-canvas-cue-grid" data-testid="canvas-video-source-trim">
-                    <label htmlFor="canvas-element-source-in">Source In</label>
-                    <DreamVizTextInput
-                      id="canvas-element-source-in"
-                      key={`${element.id}:source-in:${element.sourceInSec}`}
-                      type="number"
-                      min="0"
-                      max={element.sourceOutSec - 0.001}
-                      step="0.01"
-                      defaultValue={element.sourceInSec ?? 0}
-                      onBlur={event => {
-                        if (!onPatchElement({ sourceInSec: Number(event.target.value) })) event.target.value = String(element.sourceInSec ?? 0)
-                      }}
-                    />
-                    <label htmlFor="canvas-element-source-out">Source Out</label>
-                    <DreamVizTextInput
-                      id="canvas-element-source-out"
-                      key={`${element.id}:source-out:${element.sourceOutSec}`}
-                      type="number"
-                      min={(element.sourceInSec ?? 0) + 0.001}
-                      max={knownSourceDuration}
-                      step="0.01"
-                      defaultValue={element.sourceOutSec}
-                      onBlur={event => {
-                        if (!onPatchElement({ sourceOutSec: Number(event.target.value) })) event.target.value = String(element.sourceOutSec)
-                      }}
-                    />
-                    <small>Source trim loops when the Show cue is longer than the trimmed video.</small>
-                  </div>
-                )
-              ) : <small>Video duration is still resolving. Source trim will be available when metadata is known.</small>
-            )}
-            <button type="button" className="sm-canvas-delete" onClick={onDeleteElement}>Remove Element</button>
-          </div>
-        </Collapsible>
-      )}
       {section && (
         <Collapsible label="Section" defaultOpen>
           <div className="sm-canvas-form">
@@ -1888,7 +1896,13 @@ function CanvasShowManagerStage({
       </header>
       <div className="sm-canvas-authoring-surface" data-testid="canvas-show-manager-authoring-surface">
         {runtimePreview && <div className="sm-canvas-runtime-preview" data-testid="canvas-show-runtime-preview">{runtimePreview}</div>}
-        <div className="sm-canvas-authored-elements" aria-label="Authored media visible in selected section">
+        <div
+          className="sm-canvas-authored-elements"
+          aria-label="Authored media visible in selected section"
+          onClick={event => {
+            if (event.target === event.currentTarget) onSelectElement(null)
+          }}
+        >
           {visibleElements.map(element => {
             const media = resolveMedia(element.mediaId)
             return (
@@ -2028,6 +2042,10 @@ function CanvasShowManagerTimeline({
       onPatchElement(element.id, { showEndSec: Math.min(totalDurationSec, Math.max(element.showStartSec + 0.001, element.showEndSec + deltaSec)) })
     }
   }
+  const selectedElement = show?.mediaElements.find(element => element.id === selectedElementId) ?? null
+  const selectedMedia = selectedElement ? mediaItems.find(media => media.id === selectedElement.mediaId) ?? null : null
+  const selectedMediaType = selectedMedia ? getCanvasLibraryMediaType(selectedMedia) : null
+  const selectedSourceDuration = selectedMedia?.metadata.duration ?? null
   return (
     <div className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas media timeline">
       <div className="sm-timeline-tabs">
@@ -2100,6 +2118,89 @@ function CanvasShowManagerTimeline({
               </div>
             ))}
           </div>
+          {selectedElement && (
+            <div className="sm-canvas-selected-clip-authoring" data-testid="canvas-selected-clip-authoring">
+              <div className="sm-canvas-selected-clip-authoring__heading">
+                <strong>{selectedMedia?.title?.trim() || selectedMedia?.name || 'Missing media'}</strong>
+                <small>Show cues and source trim</small>
+              </div>
+              <div className="sm-canvas-selected-clip-authoring__fields">
+                <label htmlFor="canvas-element-layer">Layer</label>
+                <Dropdown
+                  id="canvas-element-layer"
+                  ariaLabel="Canvas media element layer"
+                  value={String(selectedElement.layer)}
+                  onChange={value => onPatchElement(selectedElement.id, { layer: Number(value) })}
+                  options={[3, 2, 1, 0].map(layer => ({ value: String(layer), label: `Layer ${layer + 1}` }))}
+                  size="compact"
+                />
+                <label htmlFor="canvas-element-show-start">Show Start</label>
+                <DreamVizTextInput
+                  id="canvas-element-show-start"
+                  key={`${selectedElement.id}:start:${selectedElement.showStartSec}`}
+                  type="number"
+                  min="0"
+                  max={selectedElement.showEndSec - 0.001}
+                  step="0.01"
+                  defaultValue={selectedElement.showStartSec}
+                  onBlur={event => {
+                    if (!onPatchElement(selectedElement.id, { showStartSec: Number(event.target.value) })) event.target.value = String(selectedElement.showStartSec)
+                  }}
+                />
+                <label htmlFor="canvas-element-show-end">Show End</label>
+                <DreamVizTextInput
+                  id="canvas-element-show-end"
+                  key={`${selectedElement.id}:end:${selectedElement.showEndSec}`}
+                  type="number"
+                  min={selectedElement.showStartSec + 0.001}
+                  max={totalDurationSec}
+                  step="0.01"
+                  defaultValue={selectedElement.showEndSec}
+                  onBlur={event => {
+                    if (!onPatchElement(selectedElement.id, { showEndSec: Number(event.target.value) })) event.target.value = String(selectedElement.showEndSec)
+                  }}
+                />
+              </div>
+              {selectedMediaType === 'video' && (
+                selectedSourceDuration && selectedSourceDuration > 0 ? (
+                  selectedElement.sourceOutSec == null ? (
+                    <button type="button" onClick={() => onPatchElement(selectedElement.id, { sourceInSec: 0, sourceOutSec: selectedSourceDuration })}>
+                      Initialize Video Trim
+                    </button>
+                  ) : (
+                    <div className="sm-canvas-selected-clip-authoring__fields" data-testid="canvas-video-source-trim">
+                      <label htmlFor="canvas-element-source-in">Source In</label>
+                      <DreamVizTextInput
+                        id="canvas-element-source-in"
+                        key={`${selectedElement.id}:source-in:${selectedElement.sourceInSec}`}
+                        type="number"
+                        min="0"
+                        max={selectedElement.sourceOutSec - 0.001}
+                        step="0.01"
+                        defaultValue={selectedElement.sourceInSec ?? 0}
+                        onBlur={event => {
+                          if (!onPatchElement(selectedElement.id, { sourceInSec: Number(event.target.value) })) event.target.value = String(selectedElement.sourceInSec ?? 0)
+                        }}
+                      />
+                      <label htmlFor="canvas-element-source-out">Source Out</label>
+                      <DreamVizTextInput
+                        id="canvas-element-source-out"
+                        key={`${selectedElement.id}:source-out:${selectedElement.sourceOutSec}`}
+                        type="number"
+                        min={(selectedElement.sourceInSec ?? 0) + 0.001}
+                        max={selectedSourceDuration}
+                        step="0.01"
+                        defaultValue={selectedElement.sourceOutSec}
+                        onBlur={event => {
+                          if (!onPatchElement(selectedElement.id, { sourceOutSec: Number(event.target.value) })) event.target.value = String(selectedElement.sourceOutSec)
+                        }}
+                      />
+                    </div>
+                  )
+                ) : <small>Video duration is still resolving. Source trim will be available when metadata is known.</small>
+              )}
+            </div>
+          )}
         </div>
       ) : <div className="sm-laser-timeline-empty">Create or open a Canvas Show to edit its sections.</div>}
     </div>

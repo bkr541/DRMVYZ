@@ -2506,6 +2506,7 @@ interface ReactStoreState {
   canvasShowManagerEditingElementId: string | null
   canvasShowManagerUndoStack: CanvasShowManagerHistorySnapshot[]
   canvasShowManagerRedoStack: CanvasShowManagerHistorySnapshot[]
+  canvasShowManagerHistoryTransaction: CanvasShowManagerHistorySnapshot | null
   setCanvasOrchestrationSettings: (patch: Partial<CanvasOrchestrationSettings>) => void
   toggleCanvasMediaPoolItem: (mediaId: string, selected?: boolean) => void
   setCanvasMediaRoles: (mediaId: string, roles: CanvasMediaRole[]) => void
@@ -2557,6 +2558,9 @@ interface ReactStoreState {
   undoCanvasShowManagerEdit: () => void
   redoCanvasShowManagerEdit: () => void
   clearCanvasShowManagerHistory: () => void
+  beginCanvasShowManagerHistoryTransaction: () => void
+  commitCanvasShowManagerHistoryTransaction: () => void
+  cancelCanvasShowManagerHistoryTransaction: () => void
   saveCanvasShowManagerShow: (showId: string, options?: { makeActive?: boolean }) => Promise<boolean>
 
   setCinematicConfigForPreset: (presetId: string, config: CinematicWorldConfig) => void
@@ -3155,6 +3159,7 @@ function buildCanvasShowManagerHistoryMutationPatch(
     | 'canvasShowManagerEditingElementId'
     | 'canvasShowManagerUndoStack'
     | 'canvasShowManagerRedoStack'
+    | 'canvasShowManagerHistoryTransaction'
   >,
   patch: Partial<Pick<ReactStoreState,
     | 'canvasShowManagerShows'
@@ -3166,6 +3171,7 @@ function buildCanvasShowManagerHistoryMutationPatch(
 ) {
   const nextShows = patch.canvasShowManagerShows ?? state.canvasShowManagerShows
   if (canvasShowManagerShowsEqual(state.canvasShowManagerShows, nextShows)) return patch
+  if (state.canvasShowManagerHistoryTransaction) return patch
   return {
     ...patch,
     canvasShowManagerUndoStack: trimCanvasShowManagerHistory([
@@ -5231,6 +5237,19 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 72) {
+    // Stage 4 adds normalized, neutral per-element Display, Transitions, and FX.
+    // Re-normalization preserves Stage 3 pixels while upgrading legacy elements.
+    const shows = normalizeCanvasShowManagerShows(state.canvasShowManagerShows)
+    state = {
+      ...state,
+      canvasShowManagerShows: shows,
+      canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
+        state.canvasShowManagerActiveShowId,
+        shows,
+      ),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -5769,6 +5788,7 @@ export function mergeReactStoreState(
     canvasShowManagerEditingElementId: null,
     canvasShowManagerUndoStack: [],
     canvasShowManagerRedoStack: [],
+    canvasShowManagerHistoryTransaction: null,
     laserDmxShowDirectorUndoStack: [],
     laserDmxShowDirectorRedoStack: [],
     laserDmxShowDirectorHistoryTransaction: null,
@@ -5792,7 +5812,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 71
+const REACT_STORE_PERSISTENCE_VERSION = 72
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
@@ -5836,6 +5856,7 @@ export const useReactStore = create<ReactStoreState>()(
       canvasShowManagerEditingElementId: null,
       canvasShowManagerUndoStack: [],
       canvasShowManagerRedoStack: [],
+      canvasShowManagerHistoryTransaction: null,
       manualTrackSectionsByTrackId: {},
       selectedSectionId: null,
       selectedSectionByTrackId: {},
@@ -6939,6 +6960,7 @@ export const useReactStore = create<ReactStoreState>()(
               ...s.canvasShowManagerRedoStack,
               current,
             ]),
+            canvasShowManagerHistoryTransaction: null,
           }
         }),
 
@@ -6954,13 +6976,39 @@ export const useReactStore = create<ReactStoreState>()(
               current,
             ]),
             canvasShowManagerRedoStack: s.canvasShowManagerRedoStack.slice(0, -1),
+            canvasShowManagerHistoryTransaction: null,
           }
         }),
 
       clearCanvasShowManagerHistory: () => set({
         canvasShowManagerUndoStack: [],
         canvasShowManagerRedoStack: [],
+        canvasShowManagerHistoryTransaction: null,
       }),
+
+      beginCanvasShowManagerHistoryTransaction: () => set(s => s.canvasShowManagerHistoryTransaction
+        ? {}
+        : { canvasShowManagerHistoryTransaction: captureCanvasShowManagerHistorySnapshot(s) }),
+
+      commitCanvasShowManagerHistoryTransaction: () => set(s => {
+        const base = s.canvasShowManagerHistoryTransaction
+        if (!base) return {}
+        if (canvasShowManagerShowsEqual(base.canvasShowManagerShows, s.canvasShowManagerShows)) {
+          return { canvasShowManagerHistoryTransaction: null }
+        }
+        return {
+          canvasShowManagerUndoStack: trimCanvasShowManagerHistory([...s.canvasShowManagerUndoStack, base]),
+          canvasShowManagerRedoStack: [],
+          canvasShowManagerHistoryTransaction: null,
+        }
+      }),
+
+      cancelCanvasShowManagerHistoryTransaction: () => set(s => s.canvasShowManagerHistoryTransaction
+        ? {
+            ...restoreCanvasShowManagerHistorySnapshot(s.canvasShowManagerHistoryTransaction),
+            canvasShowManagerHistoryTransaction: null,
+          }
+        : {}),
 
       saveCanvasShowManagerShow: async (showId, options = {}) => {
         const persistState = async (state: ReactStoreState): Promise<boolean> => {
@@ -10415,8 +10463,10 @@ export const useReactStore = create<ReactStoreState>()(
             selectedSectionByTrackId: {},
             canvasShowManagerEditingShowId: null,
             canvasShowManagerEditingSectionId: null,
+            canvasShowManagerEditingElementId: null,
             canvasShowManagerUndoStack: [],
             canvasShowManagerRedoStack: [],
+            canvasShowManagerHistoryTransaction: null,
             laserDmxShowManagerEditingShowId: null,
             laserDmxShowManagerEditingSectionId: null,
             laserDmxShowManagerPlaybackSectionId: null,
@@ -10480,8 +10530,10 @@ export const useReactStore = create<ReactStoreState>()(
             canvasShowManagerActiveShowId: null,
             canvasShowManagerEditingShowId: null,
             canvasShowManagerEditingSectionId: null,
+            canvasShowManagerEditingElementId: null,
             canvasShowManagerUndoStack: [],
             canvasShowManagerRedoStack: [],
+            canvasShowManagerHistoryTransaction: null,
             manualTrackSectionsByTrackId: {},
             selectedSectionId: null,
             selectedSectionByTrackId: {},
@@ -10548,8 +10600,10 @@ export const useReactStore = create<ReactStoreState>()(
           canvasShowManagerActiveShowId: null,
           canvasShowManagerEditingShowId: null,
           canvasShowManagerEditingSectionId: null,
+          canvasShowManagerEditingElementId: null,
           canvasShowManagerUndoStack:   [],
           canvasShowManagerRedoStack:   [],
+          canvasShowManagerHistoryTransaction: null,
           manualTrackSectionsByTrackId: {},
           selectedSectionId:            null,
           selectedSectionByTrackId:     {},

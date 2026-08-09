@@ -11,6 +11,7 @@ describe('Canvas Show Manager Stage 2 store integration', () => {
       canvasShowManagerEditingElementId: null,
       canvasShowManagerUndoStack: [],
       canvasShowManagerRedoStack: [],
+      canvasShowManagerHistoryTransaction: null,
     })
   })
 
@@ -84,5 +85,28 @@ describe('Canvas Show Manager Stage 2 store integration', () => {
     expect(useReactStore.getState().canvasShowManagerUndoStack).toHaveLength(1)
     useReactStore.getState().undoCanvasShowManagerEdit()
     expect(useReactStore.getState().canvasShowManagerShows[0]!.mediaElements[0]).toMatchObject({ showStartSec: 16, showEndSec: 24 })
+  })
+
+  it('coalesces a continuous Inspector gesture into one undoable history entry', () => {
+    const showId = useReactStore.getState().createCanvasShowManagerShow('Gesture')!
+    const show = useReactStore.getState().canvasShowManagerShows[0]!
+    const add = useReactStore.getState().addCanvasShowManagerMediaElement({
+      showId, sectionId: show.sections[0]!.id, mediaId: 'image', layer: 0, timedVideo: false,
+    })
+    expect(add.ok).toBe(true)
+    if (!add.ok) return
+    useReactStore.getState().clearCanvasShowManagerHistory()
+    useReactStore.getState().beginCanvasShowManagerHistoryTransaction()
+    for (const scale of [1.2, 1.6, 2.1]) {
+      expect(useReactStore.getState().updateCanvasShowManagerMediaElement(showId, add.element.id, { display: { scale } }).ok).toBe(true)
+    }
+    expect(useReactStore.getState().canvasShowManagerUndoStack).toHaveLength(0)
+    useReactStore.getState().commitCanvasShowManagerHistoryTransaction()
+    expect(useReactStore.getState().canvasShowManagerUndoStack).toHaveLength(1)
+    expect(useReactStore.getState().canvasShowManagerShows[0]!.mediaElements[0]!.display.scale).toBe(2.1)
+    useReactStore.getState().undoCanvasShowManagerEdit()
+    expect(useReactStore.getState().canvasShowManagerShows[0]!.mediaElements[0]!.display.scale).toBe(1)
+    useReactStore.getState().redoCanvasShowManagerEdit()
+    expect(useReactStore.getState().canvasShowManagerShows[0]!.mediaElements[0]!.display.scale).toBe(2.1)
   })
 })

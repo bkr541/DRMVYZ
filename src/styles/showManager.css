@@ -1503,7 +1503,7 @@
 .sm-canvas-runtime-preview { position: absolute; inset: 0; z-index: 0; }
 .sm-canvas-runtime-preview .rv-canvas-engine-surface { width: 100%; height: 100%; min-height: 0; }
 .sm-canvas-runtime-preview .rv-canvas-orchestration-status { opacity: 0.72; pointer-events: none; }
-.sm-canvas-authored-elements { z-index: 2; pointer-events: none; }
+.sm-canvas-authored-elements { z-index: 2; pointer-events: auto; }
 .sm-canvas-authored-elements > button { pointer-events: auto; }
 .sm-canvas-authored-elements > p { color: rgba(196, 212, 220, 0.4); font-size: 9px; }
 .sm-canvas-authored-element {
@@ -1577,3 +1577,40 @@
 .sm-canvas-cue-grid { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; gap: 6px; }
 .sm-canvas-cue-grid > small { grid-column: 1 / -1; color: rgba(196, 212, 220, 0.42); font-size: 8px; }
 .sm-canvas-element-form .sm-canvas-delete { margin-top: 4px; }
+
+/* Stage 4 keeps the narrow selected-element Inspector to three canonical groups. */
+.sm-canvas-element-controls { display: grid; gap: 8px; }
+.sm-canvas-element-controls > button,
+.sm-canvas-selected-clip-authoring > button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(74, 199, 219, 0.24);
+  border-radius: 5px;
+  background: rgba(74, 199, 219, 0.07);
+  color: rgba(126, 226, 238, 0.86);
+  font: inherit;
+  font-size: 8px;
+  cursor: pointer;
+}
+.sm-canvas-transition-subgroup { display: grid; gap: 7px; padding-bottom: 8px; border-bottom: 1px solid rgba(154, 178, 188, 0.1); }
+.sm-canvas-transition-subgroup > strong { color: rgba(103, 247, 255, 0.7); font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.sm-canvas-selected-clip-authoring {
+  display: grid;
+  gap: 6px;
+  margin-left: 28px;
+  padding: 7px;
+  border: 1px solid rgba(103, 247, 255, 0.16);
+  border-radius: 4px;
+  background: rgba(74, 199, 219, 0.035);
+}
+.sm-canvas-selected-clip-authoring__heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sm-canvas-selected-clip-authoring__heading > strong { color: rgba(232, 244, 248, 0.82); font-size: 8px; }
+.sm-canvas-selected-clip-authoring__heading > small { color: rgba(196, 212, 220, 0.42); font-size: 7px; }
+.sm-canvas-selected-clip-authoring__fields {
+  display: grid;
+  grid-template-columns: auto minmax(72px, 1fr) auto minmax(72px, 1fr) auto minmax(72px, 1fr);
+  align-items: center;
+  gap: 5px;
+}
+.sm-canvas-selected-clip-authoring__fields > label { color: rgba(196, 212, 220, 0.5); font-size: 7px; text-transform: uppercase; }
