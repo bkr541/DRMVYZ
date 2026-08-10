@@ -16276,6 +16276,244 @@
   text-transform: uppercase;
 }
 
+/* ── Button Style Gallery (Layout Lab / Template) ─────────────────────────── */
+
+.llbt-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 18px 16px 32px;
+}
+
+.llbt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.llbt-row button svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* 1 — Solid Glow */
+
+.llbt-solid {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(232, 244, 248, 0.8);
+  font: 800 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease, color 140ms ease;
+}
+
+.llbt-solid--primary {
+  background: #4ac7db;
+  color: #04141a;
+  box-shadow: 0 0 18px rgba(74, 199, 219, 0.45);
+}
+
+.llbt-solid--primary:hover {
+  background: #67d9ea;
+  box-shadow: 0 0 24px rgba(74, 199, 219, 0.6);
+}
+
+.llbt-solid:disabled {
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(196, 207, 211, 0.3);
+  cursor: not-allowed;
+}
+
+/* 2 — Outline Ghost */
+
+.llbt-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 15px;
+  border: 1px solid rgba(154, 178, 188, 0.28);
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.7);
+  font: 800 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.llbt-ghost--primary {
+  border-color: #4ac7db;
+  color: #67f7ff;
+}
+
+.llbt-ghost--primary:hover {
+  background: rgba(74, 199, 219, 0.12);
+}
+
+.llbt-ghost:not(.llbt-ghost--primary):hover {
+  border-color: rgba(196, 207, 211, 0.5);
+  color: rgba(232, 244, 248, 0.9);
+}
+
+.llbt-ghost:disabled {
+  border-color: rgba(154, 178, 188, 0.12);
+  color: rgba(196, 207, 211, 0.28);
+  cursor: not-allowed;
+}
+
+/* 3 — Gradient Edge */
+
+.llbt-edge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02));
+  color: rgba(232, 244, 248, 0.82);
+  font: 800 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.llbt-edge::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.llbt-edge--primary {
+  background: linear-gradient(135deg, #61d6aa, #4ac7db);
+  color: #04141a;
+  box-shadow: 0 8px 18px rgba(74, 199, 219, 0.25);
+}
+
+.llbt-edge--primary::before {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.llbt-edge:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
+}
+
+.llbt-edge:disabled {
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(196, 207, 211, 0.28);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.llbt-edge:disabled::before {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 4 — Underline Text */
+
+.llbt-underline {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px 8px;
+  border: 0;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.7);
+  font: 800 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.llbt-underline::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.llbt-underline--primary {
+  color: #67f7ff;
+}
+
+.llbt-underline:hover::after {
+  transform: scaleX(1);
+}
+
+.llbt-underline:disabled {
+  color: rgba(196, 207, 211, 0.28);
+  cursor: not-allowed;
+}
+
+/* 5 — Icon Chip */
+
+.llbt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(196, 207, 211, 0.7);
+  font: 800 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.llbt-chip--primary {
+  border-color: rgba(74, 199, 219, 0.4);
+  background: rgba(74, 199, 219, 0.16);
+  color: #8ef4ff;
+}
+
+.llbt-chip--primary:hover {
+  background: rgba(74, 199, 219, 0.26);
+}
+
+.llbt-chip:not(.llbt-chip--primary):hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(232, 244, 248, 0.9);
+}
+
+.llbt-chip:disabled {
+  border-color: rgba(154, 178, 188, 0.08);
+  background: rgba(255, 255, 255, 0.015);
+  color: rgba(196, 207, 211, 0.28);
+  cursor: not-allowed;
+}
+
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */
 .rv-cinema-workspace {
   box-sizing: border-box;

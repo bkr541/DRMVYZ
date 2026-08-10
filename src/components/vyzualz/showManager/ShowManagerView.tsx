@@ -1,5 +1,5 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
-import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
@@ -20,6 +20,8 @@ import {
   type LaserDmxShowDirectorFixtureKind,
   type ReactEngineId,
   type ReactPreset,
+  type ReactSectionType,
+  type ReactTrackSection,
 } from '../react/ReactTypes'
 import { FixtureIcon } from '../react/LaserDmxShowDirectorPalette'
 import { ReactPlaceholderCanvas } from '../react/ReactPlaceholderCanvas'
@@ -98,11 +100,34 @@ const ASSETS = [
 ] as const
 
 const SECTION_SEGMENTS = [
-  { label: 'Intro', className: 'is-intro' },
-  { label: 'Build', className: 'is-build' },
-  { label: 'Drop', className: 'is-drop' },
-  { label: 'Breakdown', className: 'is-breakdown' },
+  { type: 'intro', label: 'Intro' },
+  { type: 'verse', label: 'Verse' },
+  { type: 'build', label: 'Build' },
+  { type: 'preDrop', label: 'Pre-Drop' },
+  { type: 'drop', label: 'Drop' },
+  { type: 'breakdown', label: 'Breakdown' },
+  { type: 'outro', label: 'Outro' },
 ] as const
+
+const SHOW_MANAGER_SECTION_COLORS: Record<ReactSectionType, string> = {
+  intro: '#61d6aa',
+  verse: '#4ac7db',
+  build: '#d8b95a',
+  preDrop: '#f0a060',
+  drop: '#c0314a',
+  breakdown: '#b84fc9',
+  bridge: '#5b8def',
+  outro: '#80dfc0',
+  unknown: '#6a7a8a',
+}
+
+interface ShowManagerSectionSegment {
+  id: string
+  label: string
+  type: ReactSectionType
+  startSec: number
+  endSec: number
+}
 
 const SHOW_MANAGER_ENGINE_OPTIONS = REACT_ENGINE_IDS.map(engineId => ({
   value: engineId,
@@ -285,6 +310,64 @@ function formatClock(value: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+function ShowManagerSectionStrip({
+  sections,
+  durationSec,
+  selectedSectionId = null,
+  onSelect,
+}: {
+  sections: readonly ShowManagerSectionSegment[]
+  durationSec: number
+  selectedSectionId?: string | null
+  onSelect?: (sectionId: string) => void
+}) {
+  const safeDuration = Math.max(0.001, durationSec)
+  return (
+    <div className="rv-section-timeline sm-section-strip" aria-label="Section timeline">
+      {sections.map(section => {
+        const startSec = Math.max(0, Math.min(safeDuration, section.startSec))
+        const endSec = Math.max(startSec, Math.min(safeDuration, section.endSec))
+        const isSelected = section.id === selectedSectionId
+        const selectSection = () => onSelect?.(section.id)
+        return (
+          <div
+            key={section.id}
+            data-section-region
+            data-start-sec={startSec}
+            data-end-sec={endSec}
+            className={`rv-section-region${isSelected ? ' rv-section-region--selected' : ''}`}
+            title={`${section.label} · ${formatClock(startSec)}–${formatClock(endSec)}`}
+            style={{
+              left: `${(startSec / safeDuration) * 100}%`,
+              width: `${((endSec - startSec) / safeDuration) * 100}%`,
+              '--section-color': SHOW_MANAGER_SECTION_COLORS[section.type] ?? SHOW_MANAGER_SECTION_COLORS.unknown,
+            } as CSSProperties}
+          >
+            <div
+              className="rv-section-body"
+              role={onSelect ? 'button' : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+              aria-label={`${section.label}, ${formatClock(startSec)} to ${formatClock(endSec)}`}
+              aria-pressed={onSelect ? isSelected : undefined}
+              onClick={selectSection}
+              onKeyDown={event => {
+                if (!onSelect || (event.key !== 'Enter' && event.key !== ' ')) return
+                event.preventDefault()
+                selectSection()
+              }}
+            >
+              <div className="rv-section-header">
+                <span className="rv-section-label">{section.label.toUpperCase()}</span>
+              </div>
+              <span className="rv-section-color-bar" aria-hidden="true" />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function findPixGridPreset(
   presets: readonly ReactPreset[],
   preferredId: string | null,
@@ -297,6 +380,7 @@ export function ShowManagerView() {
   const engine = useSharedAudio()
   const reactPresets = useReactStore(state => state.reactPresets)
   const activeReactPresetId = useReactStore(state => state.activeReactPresetId)
+  const selectReactPreset = useReactStore(state => state.selectReactPreset)
   const pixGridState = useReactStore(state => state.pixGridState)
   const pixGridDecks = useReactStore(state => state.pixGridDecks)
   const renamePixGridDeck = useReactStore(state => state.renamePixGridDeck)
@@ -435,8 +519,34 @@ export function ShowManagerView() {
         }
       })
     }
+    if (selectedEngineId === 'pixGrid') {
+      return reactPresets
+        .filter(preset => preset.engine === 'pixGrid')
+        .filter(preset => {
+          if (!preset.pixGridDeck) return true
+          const deck = pixGridDecks.find(candidate => candidate.id === preset.pixGridDeck?.deckId)
+          return Boolean(deck && resolvePixGridDeckPresetReadiness(
+            deck,
+            compilerStatuses[deck.id],
+            transitionStatuses[deck.id],
+          ).ready)
+        })
+        .map(preset => ({
+          id: preset.id,
+          name: preset.name,
+          details: `${preset.scenes.length} ${preset.scenes.length === 1 ? 'scene' : 'scenes'} · ${preset.pixGridDeck ? 'Deck Preset' : 'PixGrid Preset'}`,
+        }))
+    }
     return []
-  }, [canvasShowManagerShows, laserDmxShowManagerShows, selectedEngineId])
+  }, [
+    canvasShowManagerShows,
+    compilerStatuses,
+    laserDmxShowManagerShows,
+    pixGridDecks,
+    reactPresets,
+    selectedEngineId,
+    transitionStatuses,
+  ])
   const selectedCanvasElement = useMemo(
     () => activeCanvasShow?.mediaElements.find(element => element.id === canvasShowManagerEditingElementId) ?? null,
     [activeCanvasShow, canvasShowManagerEditingElementId],
@@ -649,7 +759,7 @@ export function ShowManagerView() {
     }
   }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
   const playheadPercent = Math.min(100, Math.max(0, (engine.currentTime / durationSec) * 100))
-  const sceneLabels = displayedPixGridState.scenes.slice(0, 4).map(scene => scene.name)
+  const sceneLabels = displayedPixGridState.scenes.slice(0, SECTION_SEGMENTS.length).map(scene => scene.name)
   const matrixLabel = `${displayedPixGridState.matrixWidth}×${displayedPixGridState.matrixHeight}`
   const activeDeck = activePreset?.pixGridDeck
     ? pixGridDecks.find(deck => deck.id === activePreset.pixGridDeck?.deckId) ?? null
@@ -888,8 +998,30 @@ export function ShowManagerView() {
   const openSelectedShow = (showId: string) => {
     if (selectedEngineId === 'canvas') selectCanvasShowManagerShow(showId)
     else if (selectedEngineId === 'laserDmx') selectLaserDmxShowManagerShow(showId)
+    else if (selectedEngineId === 'pixGrid') setPreviewPresetId(showId)
     setShowBrowserOpen(false)
   }
+
+  const createSelectedShow = () => {
+    if (selectedEngineId === 'canvas') openCanvasCreateDialog()
+    else if (selectedEngineId === 'laserDmx') createLaserDmxShowManagerShow()
+    else if (selectedEngineId === 'pixGrid') enterDeckBuilder(null)
+  }
+
+  const saveAndActivateSelectedShow = () => {
+    if (selectedEngineId === 'canvas') void commitCanvasShowSave(true)
+    else if (selectedEngineId === 'laserDmx') void commitLaserShowSave(true)
+    else if (selectedEngineId === 'pixGrid' && activePreset) selectReactPreset(activePreset.id)
+  }
+
+  const saveAndActivatePending = selectedEngineId === 'canvas'
+    ? canvasSavePending === 'active'
+    : selectedEngineId === 'laserDmx' && laserSavePending === 'active'
+  const saveAndActivateDisabled = selectedEngineId === 'canvas'
+    ? !activeCanvasShow || canvasSavePending !== null
+    : selectedEngineId === 'laserDmx'
+      ? !activeLaserDmxShow || laserSavePending !== null
+      : !activePreset || Boolean(activePreset.pixGridDeck && !activeDeckReadiness?.ready)
 
   const commitCanvasMediaPlacement = (mediaId: string, layer: CanvasShowManagerLayer) => {
     if (!activeCanvasShow || !activeCanvasSection) {
@@ -1044,12 +1176,12 @@ export function ShowManagerView() {
           <span>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'PixGrid image sequence authoring' : 'Preset authoring workspace'}</span>
         </div>
 
-        {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && workspaceMode === 'default' && (
+        {workspaceMode === 'default' && (
           <div className="sm-header-show-actions" aria-label="Show file actions">
             <button
               type="button"
               className="sm-header-icon-button"
-              onClick={selectedEngineId === 'canvas' ? openCanvasCreateDialog : () => createLaserDmxShowManagerShow()}
+              onClick={createSelectedShow}
               aria-label="New Show"
               title="New Show"
             >
@@ -1072,14 +1204,12 @@ export function ShowManagerView() {
             <button
               type="button"
               className="sm-header-icon-button sm-header-icon-button--primary"
-              onClick={() => void (selectedEngineId === 'canvas' ? commitCanvasShowSave(true) : commitLaserShowSave(true))}
-              disabled={selectedEngineId === 'canvas'
-                ? !activeCanvasShow || canvasSavePending !== null
-                : !activeLaserDmxShow || laserSavePending !== null}
-              aria-label={(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'active'
+              onClick={saveAndActivateSelectedShow}
+              disabled={saveAndActivateDisabled}
+              aria-label={saveAndActivatePending
                 ? 'Saving and making Show active'
                 : 'Save + Make Active'}
-              title={(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'active'
+              title={saveAndActivatePending
                 ? 'Saving and making active…'
                 : 'Save + Make Active'}
             >
@@ -1129,10 +1259,10 @@ export function ShowManagerView() {
           disabled={(selectedEngineId !== 'laserDmx' && selectedEngineId !== 'canvas')
             || (selectedEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
         >{(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}</button>
-        {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && (
+        {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas' || selectedEngineId === 'pixGrid') && (
           <>
             <ReactPersistenceStatus />
-            {(selectedEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus) && (
+            {selectedEngineId !== 'pixGrid' && (selectedEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus) && (
               <span className="sm-header-save-status" role="status">
                 {selectedEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus}
               </span>
@@ -1417,7 +1547,6 @@ export function ShowManagerView() {
                 selectedLibraryMediaId={canvasLibraryMediaId}
                 mediaItems={sharedMediaItems}
                 sectionRanges={canvasSectionRanges}
-                onSelectSection={selectCanvasShowManagerSection}
                 onSelectElement={selectCanvasShowManagerMediaElement}
                 onPlaceMedia={commitCanvasMediaPlacement}
                 onCreate={openCanvasCreateDialog}
@@ -1536,6 +1665,7 @@ export function ShowManagerView() {
               currentTime={engine.currentTime}
               duration={durationSec}
               playheadPercent={playheadPercent}
+              sections={resolvedTrackSections}
               sceneLabels={sceneLabels}
             />
           )}
@@ -1823,11 +1953,15 @@ export function ShowManagerView() {
         unifiedTimeline
         waveformAppearance="deck"
       />
-      {showBrowserOpen && (selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && (
+      {showBrowserOpen && (
         <ShowBrowserDialog
           engineLabel={REACT_ENGINE_CATALOG[selectedEngineId].label}
           shows={showBrowserEntries}
-          currentShowId={selectedEngineId === 'canvas' ? canvasShowManagerEditingShowId : laserDmxShowManagerEditingShowId}
+          currentShowId={selectedEngineId === 'canvas'
+            ? canvasShowManagerEditingShowId
+            : selectedEngineId === 'laserDmx'
+              ? laserDmxShowManagerEditingShowId
+              : previewPresetId}
           onClose={() => setShowBrowserOpen(false)}
           onOpen={openSelectedShow}
         />
@@ -2062,7 +2196,6 @@ function CanvasShowManagerStage({
   selectedLibraryMediaId,
   mediaItems,
   sectionRanges,
-  onSelectSection,
   onSelectElement,
   onPlaceMedia,
   onCreate,
@@ -2074,7 +2207,6 @@ function CanvasShowManagerStage({
   selectedLibraryMediaId: string | null
   mediaItems: readonly UploadedMedia[]
   sectionRanges: readonly CanvasShowManagerSectionRange[]
-  onSelectSection: (sectionId: string | null) => void
   onSelectElement: (elementId: string | null) => void
   onPlaceMedia: (mediaId: string, layer: CanvasShowManagerLayer) => boolean
   onCreate: () => void
@@ -2193,23 +2325,6 @@ function CanvasShowManagerStage({
           </div>
         )}
       </div>
-      <div className="sm-canvas-section-grid sm-canvas-section-grid--compact">
-        {show.sections.map((section, index) => {
-          const range = sectionRanges[index]
-          return (
-            <button
-              key={section.id}
-              type="button"
-              className={section.id === selectedSectionId ? 'is-selected' : ''}
-              onClick={() => onSelectSection(section.id)}
-            >
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              <strong>{section.label}</strong>
-              <small>{section.durationSec} seconds · {formatClock(range?.startSec ?? 0)}–{formatClock(range?.endSec ?? 0)}</small>
-            </button>
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -2241,6 +2356,31 @@ function CanvasShowManagerTimeline({
   onPatchElement: (elementId: string, patch: CanvasShowManagerMediaElementPatch) => boolean
   onPlayhead: (timeSec: number) => void
 }) {
+  const [playheadDragging, setPlayheadDragging] = useState(false)
+  const canvasTimelineSections = useMemo<ShowManagerSectionSegment[]>(() => (
+    show?.sections.map((section, index) => ({
+      id: section.id,
+      label: section.label,
+      type: section.type,
+      startSec: sectionRanges[index]?.startSec ?? 0,
+      endSec: sectionRanges[index]?.endSec ?? section.durationSec,
+    })) ?? []
+  ), [sectionRanges, show])
+  const playheadPercent = totalDurationSec > 0
+    ? Math.min(100, Math.max(0, (playheadSec / totalDurationSec) * 100))
+    : 0
+
+  useEffect(() => {
+    if (!playheadDragging) return
+    const finishDrag = () => setPlayheadDragging(false)
+    window.addEventListener('pointerup', finishDrag, { once: true })
+    window.addEventListener('pointercancel', finishDrag, { once: true })
+    return () => {
+      window.removeEventListener('pointerup', finishDrag)
+      window.removeEventListener('pointercancel', finishDrag)
+    }
+  }, [playheadDragging])
+
   const beginPointerCueEdit = (
     event: ReactPointerEvent<HTMLButtonElement>,
     element: CanvasShowManagerMediaElement,
@@ -2277,41 +2417,45 @@ function CanvasShowManagerTimeline({
   return (
     <div className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas media timeline">
       <div className="sm-timeline-tabs">
-        <button type="button" className="is-active" disabled>Sections</button>
+        <button type="button" className="is-active" disabled>Track Map</button>
         <span className="sm-timeline-meta">{show ? `${formatClock(totalDurationSec)} total` : 'No Canvas Show open'}</span>
       </div>
       {error && <div className="sm-canvas-authoring-feedback" role="alert">{error}</div>}
       {show ? (
         <div className="sm-canvas-timeline-body">
           <label className="sm-canvas-playhead-control">
-            <span>Playhead {playheadSec.toFixed(2)}s</span>
             <input
               type="range"
+              aria-label="Canvas Show playhead"
               min="0"
               max={totalDurationSec}
               step="0.01"
               value={Math.min(playheadSec, totalDurationSec)}
               onChange={event => onPlayhead(Number(event.target.value))}
+              onPointerDown={() => setPlayheadDragging(true)}
+              onPointerCancel={() => setPlayheadDragging(false)}
             />
+            {playheadDragging && (
+              <output
+                className="sm-canvas-playhead-value"
+                style={{ left: `${Math.min(96, Math.max(4, playheadPercent))}%` }}
+              >{playheadSec.toFixed(2)}s</output>
+            )}
           </label>
-          <div className="sm-canvas-timeline-track sm-canvas-timeline-sections">
-            {show.sections.map((section, index) => {
-            const range = sectionRanges[index]
-            const width = totalDurationSec > 0 ? (section.durationSec / totalDurationSec) * 100 : 0
-            return (
-              <button
-                key={section.id}
-                type="button"
-                className={section.id === selectedSectionId ? 'is-selected' : ''}
-                style={{ width: `${width}%` }}
-                onClick={() => onSelect(section.id)}
-                title={`${section.label}: ${range?.startSec ?? 0}s–${range?.endSec ?? 0}s`}
-              >
-                <strong>{section.label}</strong>
-                <small>{section.durationSec}s</small>
-              </button>
-            )
-            })}
+          <div className="sm-timeline-grid sm-canvas-section-map">
+            <div className="sm-timeline-ruler">
+              {[0, ...sectionRanges.map(range => range.endSec)].map((timeSec, index) => (
+                <span key={`${timeSec}:${index}`}>{formatClock(timeSec)}</span>
+              ))}
+            </div>
+            <TimelineRow label="Section" className="sm-timeline-row--sections">
+              <ShowManagerSectionStrip
+                sections={canvasTimelineSections}
+                durationSec={totalDurationSec}
+                selectedSectionId={selectedSectionId}
+                onSelect={onSelect}
+              />
+            </TimelineRow>
           </div>
           <div className="sm-canvas-media-lanes">
             {([3, 2, 1, 0] as const).map(layer => (
@@ -2699,7 +2843,7 @@ function LaserDmxShowManagerTimeline({
             <span key={index}>{index}</span>
           ))}
         </div>
-        <TimelineRow label="Section">
+        <TimelineRow label="Section" className="sm-timeline-row--sections">
           {show && show.sections.length > 0 ? (
             <SectionTimeline
               sections={show.sections}
@@ -2791,21 +2935,28 @@ function ShowManagerTimeline({
   currentTime,
   duration,
   playheadPercent,
+  sections,
   sceneLabels,
 }: {
   currentTime: number
   duration: number
   playheadPercent: number
+  sections: readonly ReactTrackSection[]
   sceneLabels: readonly string[]
 }) {
+  const timelineSections: readonly ShowManagerSectionSegment[] = sections.length > 0
+    ? sections
+    : SECTION_SEGMENTS.map((segment, index) => ({
+        id: `pix-grid-fallback-section-${segment.type}`,
+        label: segment.label,
+        type: segment.type,
+        startSec: (duration / SECTION_SEGMENTS.length) * index,
+        endSec: (duration / SECTION_SEGMENTS.length) * (index + 1),
+      }))
   return (
-    <section className="sm-timeline" aria-label="Show Manager track map preview">
+    <section className="sm-timeline sm-pixgrid-timeline" aria-label="Show Manager track map preview">
       <header className="sm-timeline-tabs">
         <button type="button" className="is-active" disabled>Track Map</button>
-        <button type="button" disabled>Cues</button>
-        <button type="button" disabled>Automation</button>
-        <button type="button" disabled>Clips</button>
-        <button type="button" disabled>Events</button>
         <span className="sm-timeline-meta">Snap 1/4</span>
       </header>
       <div className="sm-timeline-grid">
@@ -2814,16 +2965,12 @@ function ShowManagerTimeline({
             <span key={index}>{formatClock((duration / 6) * index)}</span>
           ))}
         </div>
-        <TimelineRow label="Section">
-          <div className="sm-segment-row">
-            {SECTION_SEGMENTS.map(segment => (
-              <span key={segment.label} className={segment.className}>{segment.label}</span>
-            ))}
-          </div>
+        <TimelineRow label="Section" className="sm-timeline-row--sections">
+          <ShowManagerSectionStrip sections={timelineSections} durationSec={duration} />
         </TimelineRow>
         <TimelineRow label="Scenes">
           <div className="sm-segment-row sm-segment-row--scenes">
-            {SECTION_SEGMENTS.map((segment, index) => (
+            {SECTION_SEGMENTS.slice(0, 4).map((segment, index) => (
               <span key={segment.label}>{sceneLabels[index] ?? segment.label}</span>
             ))}
           </div>
@@ -2863,9 +3010,9 @@ function ShowManagerTimeline({
   )
 }
 
-function TimelineRow({ label, children }: { label: string; children: ReactNode }) {
+function TimelineRow({ label, className = '', children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <div className="sm-timeline-row">
+    <div className={`sm-timeline-row${className ? ` ${className}` : ''}`}>
       <strong>{label}</strong>
       <div>{children}</div>
     </div>

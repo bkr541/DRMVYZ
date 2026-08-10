@@ -74,6 +74,7 @@ const fixture = vi.hoisted(() => ({
       sectionMappings: [],
     }],
     activeReactPresetId: 'pix-grid-test',
+    selectReactPreset: vi.fn(),
     pixGridDecks: [],
     renamePixGridDeck: vi.fn(),
     updatePixGridDeck: vi.fn(),
@@ -333,6 +334,7 @@ afterEach(() => {
   fixture.state.undoLaserDmxShowManagerEdit.mockClear()
   fixture.state.redoLaserDmxShowManagerEdit.mockClear()
   fixture.state.saveLaserDmxShowManagerShow.mockClear()
+  fixture.state.selectReactPreset.mockClear()
   fixture.state.createCanvasShowManagerShow.mockClear()
   fixture.state.selectCanvasShowManagerShow.mockClear()
   fixture.state.saveCanvasShowManagerShow.mockClear()
@@ -385,6 +387,52 @@ describe('ShowManagerView production shell', () => {
     expect(container.querySelector('[data-testid="pix-grid-surface"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="pix-grid-design-panel"]')?.getAttribute('data-grouped')).toBe('true')
     expect(container.querySelector('[aria-label="Show Manager track map preview"]')).not.toBeNull()
+  })
+
+  it('gives PixGrid the shared file actions and LaserDMX section-strip styling', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const fileActions = container.querySelector<HTMLElement>('[aria-label="Show file actions"]')
+    expect(fileActions?.querySelectorAll('button')).toHaveLength(3)
+    expect(fileActions?.textContent?.trim()).toBe('')
+
+    const trackMap = container.querySelector<HTMLElement>('[aria-label="Show Manager track map preview"]')
+    const sectionRegion = trackMap?.querySelector<HTMLElement>('.sm-timeline-row--sections .rv-section-region')
+    expect(sectionRegion).not.toBeNull()
+    expect(sectionRegion?.style.getPropertyValue('--section-color')).toBe('#61d6aa')
+    expect([...(trackMap?.querySelectorAll<HTMLButtonElement>('.sm-timeline-tabs button') ?? [])]
+      .map(button => button.textContent?.trim())).toEqual(['Track Map'])
+
+    await act(async () => {
+      fileActions?.querySelector<HTMLButtonElement>('button[aria-label="Open Show"]')?.click()
+      await Promise.resolve()
+    })
+    const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')
+    expect(browser?.textContent).toContain('Test PixGrid')
+    expect(browser?.textContent).toContain('PixGrid Preset')
+    await act(async () => {
+      browser?.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.click()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      fileActions?.querySelector<HTMLButtonElement>('button[aria-label="Save + Make Active"]')?.click()
+      await Promise.resolve()
+    })
+    expect(fixture.state.selectReactPreset).toHaveBeenCalledWith('pix-grid-test')
+
+    await act(async () => {
+      fileActions?.querySelector<HTMLButtonElement>('button[aria-label="New Show"]')?.click()
+      await Promise.resolve()
+    })
+    expect(container.querySelector('.sm-title-block')?.textContent).toContain('DECK BUILDER')
   })
 
   it('enters Canvas through the production engine selector and requests only a Show name', async () => {
@@ -484,6 +532,80 @@ describe('ShowManagerView production shell', () => {
     })
     expect(fixture.state.selectCanvasShowManagerShow).toHaveBeenCalledWith('canvas-show-library')
     expect(container.querySelector('.sm-show-browser')).toBeNull()
+  })
+
+  it('mirrors LaserDMX sections in Canvas and shows playhead seconds only while dragging the thumb', async () => {
+    const sections = [
+      ['intro', 'Intro'], ['verse', 'Verse'], ['build', 'Build'], ['preDrop', 'Pre-Drop'],
+      ['drop', 'Drop'], ['breakdown', 'Breakdown'], ['outro', 'Outro'],
+    ].map(([type, label], index) => ({
+      id: `canvas-show-track-map:section:${type}:${index + 1}`,
+      type,
+      label,
+      durationSec: 8,
+    }))
+    fixture.state.canvasShowManagerShows = [{
+      schemaVersion: 3,
+      id: 'canvas-show-track-map',
+      name: 'Track Map Show',
+      sections,
+      mediaElements: [],
+    }] as typeof fixture.state.canvasShowManagerShows
+    fixture.state.canvasShowManagerEditingShowId = 'canvas-show-track-map'
+    fixture.state.canvasShowManagerEditingSectionId = sections[0]!.id
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+    const canvasOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+      .find(option => option.textContent?.includes('CANVAS'))
+    await act(async () => {
+      canvasOption?.click()
+      await Promise.resolve()
+    })
+
+    const timeline = container.querySelector<HTMLElement>('[aria-label="Show Manager Canvas media timeline"]')
+    const sectionRegions = timeline?.querySelectorAll<HTMLElement>('.sm-timeline-row--sections .rv-section-region')
+    expect(sectionRegions).toHaveLength(7)
+    expect(sectionRegions?.[0]?.style.getPropertyValue('--section-color')).toBe('#61d6aa')
+    expect(sectionRegions?.[4]?.style.getPropertyValue('--section-color')).toBe('#c0314a')
+    expect(container.querySelector('.sm-canvas-section-grid--compact')).toBeNull()
+
+    const slider = timeline?.querySelector<HTMLInputElement>('input[aria-label="Canvas Show playhead"]')
+    expect(timeline?.textContent).not.toContain('Playhead')
+    expect(timeline?.querySelector('.sm-canvas-playhead-value')).toBeNull()
+
+    await act(async () => {
+      slider?.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+      await Promise.resolve()
+    })
+    expect(timeline?.querySelector('.sm-canvas-playhead-value')?.textContent).toBe('0.00s')
+
+    await act(async () => {
+      if (slider) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        setter?.call(slider, '12.32')
+        slider.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      await Promise.resolve()
+    })
+    expect(timeline?.querySelector('.sm-canvas-playhead-value')?.textContent).toBe('12.32s')
+
+    await act(async () => {
+      window.dispatchEvent(new Event('pointerup'))
+      await Promise.resolve()
+    })
+    expect(timeline?.querySelector('.sm-canvas-playhead-value')).toBeNull()
   })
 
   it('uses the shared media drag contract to place a real element on an explicit Canvas layer target', async () => {
