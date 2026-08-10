@@ -4933,7 +4933,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: rgb(8, 12, 18);
+  /* Match the right inspector's themed panel surface exactly. */
+  background: var(--color-panel-alt, rgba(8, 12, 18, 0.96));
 }
 
 .rv-context-workspace-header {
@@ -15861,6 +15862,418 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+/* ── Media Library Style Gallery (Layout Lab / Template) ──────────────────── */
+/* Cards carry a --llml-tone custom property per media kind (purple SVG,
+   cyan video) so one set of rules drives every kind's distinct color. */
+
+.llml-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 18px 16px 32px;
+}
+
+.llml-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 10px;
+  background: rgba(6, 10, 14, 0.7);
+}
+
+.llml-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.llml-hdr-icon {
+  width: 16px;
+  height: 16px;
+  color: rgba(196, 207, 211, 0.6);
+}
+
+.llml-hdr svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.llml-hdr strong {
+  flex: 1;
+  color: rgba(232, 244, 248, 0.92);
+  font: 800 11px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.llml-refresh {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(196, 207, 211, 0.6);
+  cursor: pointer;
+}
+
+.llml-refresh svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.llml-tabs {
+  display: flex;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+.llml-tabs button {
+  border: 0;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.45);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.llml-tabs button.is-active {
+  color: #67f7ff;
+}
+
+.llml-search {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.5);
+  font: 600 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+/* 1 — Gallery Wall */
+
+.llml-wall-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.llml-wall-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.llml-wall-card:hover,
+.llml-wall-card.is-active {
+  border-color: color-mix(in srgb, var(--llml-tone) 55%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--llml-tone) 24%, transparent);
+}
+
+.llml-wall-thumb {
+  position: relative;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--llml-tone) 16%, transparent), transparent 70%), #050a12;
+  color: var(--llml-tone);
+}
+
+.llml-thumb-glyph {
+  width: 26px;
+  height: 26px;
+}
+
+.llml-thumb-glyph svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.llml-wall-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(232, 244, 248, 0.75);
+  font: 700 6.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.llml-wall-heart,
+.llml-wall-link {
+  position: absolute;
+  top: 6px;
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.llml-wall-heart {
+  left: 6px;
+}
+
+.llml-wall-link {
+  right: 6px;
+}
+
+.llml-wall-heart svg,
+.llml-wall-link svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.llml-wall-name {
+  padding: 0 8px;
+  color: rgba(232, 244, 248, 0.88);
+  font: 700 9px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llml-wall-meta {
+  padding: 0 8px;
+  color: rgba(196, 207, 211, 0.4);
+  font: 500 8px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.llml-wall-tag {
+  align-self: flex-start;
+  margin: 0 8px 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--llml-tone) 18%, transparent);
+  color: var(--llml-tone);
+  font: 700 7.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+/* 2 — List Deck */
+
+.llml-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.llml-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.015);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.llml-list-row:hover,
+.llml-list-row.is-active {
+  border-color: color-mix(in srgb, var(--llml-tone) 50%, transparent);
+  background: color-mix(in srgb, var(--llml-tone) 7%, transparent);
+}
+
+.llml-list-thumb {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--llml-tone);
+}
+
+.llml-list-thumb .llml-thumb-glyph {
+  width: 18px;
+  height: 18px;
+}
+
+.llml-list-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.llml-list-name {
+  color: rgba(232, 244, 248, 0.9);
+  font: 700 10px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llml-list-meta {
+  color: rgba(196, 207, 211, 0.42);
+  font: 500 8px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.llml-list-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--llml-tone) 18%, transparent);
+  color: var(--llml-tone);
+  font: 700 7px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-transform: uppercase;
+}
+
+.llml-list-heart {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  color: rgba(196, 207, 211, 0.35);
+}
+
+.llml-list-heart svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+/* 3 — Masonry Frame */
+
+.llml-frame-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.llml-frame-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--llml-tone) 32%, transparent);
+  border-radius: 12px;
+  background: rgba(6, 10, 14, 0.85);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.llml-frame-card:hover,
+.llml-frame-card.is-active {
+  transform: translateY(-2px);
+  border-color: var(--llml-tone);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4), 0 0 22px color-mix(in srgb, var(--llml-tone) 30%, transparent);
+}
+
+.llml-frame-ribbon {
+  position: absolute;
+  top: 8px;
+  left: -1.5px;
+  padding: 2px 8px;
+  border-radius: 0 5px 5px 0;
+  background: var(--llml-tone);
+  color: #0a0d10;
+  font: 800 7px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.llml-frame-thumb {
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--llml-tone) 22%, transparent), transparent 70%), #050a12;
+  color: var(--llml-tone);
+}
+
+.llml-frame-thumb .llml-thumb-glyph {
+  width: 24px;
+  height: 24px;
+}
+
+.llml-frame-heart {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 15px;
+  height: 15px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.llml-frame-heart svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+.llml-frame-name {
+  color: rgba(232, 244, 248, 0.92);
+  font: 700 9.5px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llml-frame-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.llml-frame-meta {
+  color: rgba(196, 207, 211, 0.4);
+  font: 500 7.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.llml-frame-tag {
+  color: var(--llml-tone);
+  font: 700 7.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-transform: uppercase;
 }
 
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */

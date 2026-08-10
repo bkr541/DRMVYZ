@@ -427,6 +427,65 @@ describe('ShowManagerView production shell', () => {
     expect(dialog?.textContent).toContain('Media is added afterward')
   })
 
+  it('opens Shows from an icon-only header action and directory-style browser', async () => {
+    fixture.state.canvasShowManagerShows = [{
+      schemaVersion: 3,
+      id: 'canvas-show-library',
+      name: 'Festival Visuals',
+      sections: [{
+        id: 'canvas-show-library:section:intro:1',
+        type: 'intro',
+        label: 'Intro',
+        durationSec: 8,
+      }],
+      mediaElements: [],
+    }] as typeof fixture.state.canvasShowManagerShows
+    fixture.state.canvasShowManagerEditingShowId = 'canvas-show-library'
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+    await act(async () => {
+      engineTrigger?.click()
+      await Promise.resolve()
+    })
+    const canvasOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+      .find(option => option.textContent?.includes('CANVAS'))
+    await act(async () => {
+      canvasOption?.click()
+      await Promise.resolve()
+    })
+
+    const fileActions = container.querySelector('[aria-label="Show file actions"]')
+    expect(fileActions?.querySelectorAll('button')).toHaveLength(3)
+    expect(fileActions?.textContent?.trim()).toBe('')
+
+    await act(async () => {
+      fileActions?.querySelector<HTMLButtonElement>('button[aria-label="Open Show"]')?.click()
+      await Promise.resolve()
+    })
+
+    const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')
+    expect(browser?.textContent).toContain('All Shows')
+    expect(browser?.textContent).toContain('Festival Visuals')
+    expect(browser?.textContent).toContain('1 section · 0 media items')
+    expect(browser?.querySelector('input[type="search"]')).not.toBeNull()
+    expect(browser?.querySelector('[role="listbox"]')).not.toBeNull()
+
+    await act(async () => {
+      browser?.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.click()
+      await Promise.resolve()
+    })
+    expect(fixture.state.selectCanvasShowManagerShow).toHaveBeenCalledWith('canvas-show-library')
+    expect(container.querySelector('.sm-show-browser')).toBeNull()
+  })
+
   it('uses the shared media drag contract to place a real element on an explicit Canvas layer target', async () => {
     const show = {
       schemaVersion: 3 as const,
@@ -682,8 +741,7 @@ describe('ShowManagerView production shell', () => {
 
     const save = [...container.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === 'Save')
-    const activate = [...container.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.trim() === 'Save + Make Active')
+    const activate = container.querySelector<HTMLButtonElement>('button[aria-label="Save + Make Active"]')
     expect(save?.disabled).toBe(false)
     expect(activate?.disabled).toBe(false)
 

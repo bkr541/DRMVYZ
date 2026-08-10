@@ -51,6 +51,61 @@
 }
 .sm-topbar-spacer { flex: 1; }
 
+.sm-header-show-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 2px;
+}
+
+.sm-header-icon-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(220, 235, 240, 0.78);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.sm-header-icon-button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sm-header-icon-button:hover:not(:disabled),
+.sm-header-icon-button:focus-visible {
+  border-color: rgba(103, 247, 255, 0.42);
+  background: rgba(74, 199, 219, 0.1);
+  color: rgba(152, 239, 248, 0.96);
+  outline: none;
+}
+
+.sm-header-icon-button--primary {
+  border-color: rgba(74, 199, 219, 0.38);
+  background: rgba(74, 199, 219, 0.13);
+  color: rgba(126, 226, 238, 0.92);
+}
+
+.sm-header-icon-button:disabled {
+  color: rgba(196, 212, 220, 0.24);
+  cursor: not-allowed;
+}
+
+.sm-header-icon-button__active-mark {
+  fill: currentColor;
+  stroke: none;
+}
+
 .sm-header-button {
   height: 30px;
   padding: 0 12px;
@@ -87,37 +142,6 @@
   white-space: nowrap;
   font-size: 9px;
   color: rgba(174, 205, 214, 0.72);
-}
-
-/* Open Show trigger sits beside the header's New Show button, so it's sized
-   and colored to match .sm-header-button rather than the sidebar's large
-   engine-picker dropdown treatment. */
-.sm-header-open-show {
-  --drm-dropdown-trigger-height: 30px;
-  --drm-dropdown-trigger-padding: 12px;
-  --drm-dropdown-radius: 5px;
-  font-family: inherit;
-}
-
-.sm-header-open-show .drm-dropdown__trigger {
-  min-height: 30px;
-  border: 1px solid rgba(154, 178, 188, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(220, 235, 240, 0.82);
-  font: inherit;
-  font-size: 9px;
-  letter-spacing: 0.05em;
-}
-
-.sm-header-open-show .drm-dropdown__value--placeholder {
-  color: rgba(196, 212, 220, 0.42);
-  text-transform: uppercase;
-}
-
-.sm-header-open-show .drm-dropdown__trigger:hover:not(:disabled),
-.sm-header-open-show.drm-dropdown--open .drm-dropdown__trigger {
-  border-color: rgba(154, 178, 188, 0.2);
-  background: rgba(255, 255, 255, 0.07);
 }
 
 .sm-topbar > .vsm-settings-btn {
@@ -1503,6 +1527,167 @@
 .sm-canvas-dialog h2 { margin: 0; color: rgba(240, 247, 249, 0.94); font-size: 15px; }
 .sm-canvas-dialog > p { margin: 0 0 4px; color: rgba(196, 212, 220, 0.48); font-size: 9px; }
 .sm-canvas-dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 4px; }
+
+/* Directory-style Open Show browser. */
+.sm-show-browser-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.sm-show-browser {
+  width: min(760px, calc(100vw - 48px));
+  height: min(560px, calc(100vh - 48px));
+  min-height: 420px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid rgba(154, 178, 188, 0.2);
+  border-radius: 12px;
+  background: #0d1318;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.sm-show-browser-header {
+  min-height: 66px;
+  padding: 13px 16px 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+  background: rgba(17, 23, 28, 0.96);
+}
+
+.sm-show-browser-header > div { display: grid; gap: 3px; }
+.sm-show-browser-kicker { color: rgba(103, 247, 255, 0.56); font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; }
+.sm-show-browser-header h2 { margin: 0; color: rgba(240, 247, 249, 0.94); font-size: 16px; letter-spacing: 0.025em; }
+
+.sm-show-browser-close {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(196, 212, 220, 0.5);
+  cursor: pointer;
+}
+.sm-show-browser-close:hover { border-color: rgba(154, 178, 188, 0.14); background: rgba(255, 255, 255, 0.04); color: rgba(232, 244, 248, 0.88); }
+.sm-show-browser-close svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+.sm-show-browser-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+}
+
+.sm-show-browser-sidebar {
+  padding: 16px 10px;
+  border-right: 1px solid rgba(154, 178, 188, 0.12);
+  background: rgba(8, 12, 16, 0.62);
+}
+
+.sm-show-browser-sidebar-label {
+  display: block;
+  padding: 0 9px 8px;
+  color: rgba(196, 212, 220, 0.34);
+  font-size: 7.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sm-show-browser-sidebar button {
+  width: 100%;
+  height: 34px;
+  padding: 0 9px;
+  display: grid;
+  grid-template-columns: 17px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(196, 212, 220, 0.62);
+  font: inherit;
+  font-size: 9px;
+  text-align: left;
+}
+.sm-show-browser-sidebar button.is-active { border-color: rgba(74, 199, 219, 0.2); background: rgba(74, 199, 219, 0.09); color: rgba(148, 235, 245, 0.92); }
+.sm-show-browser-sidebar svg { width: 16px; height: 16px; fill: rgba(74, 199, 219, 0.12); stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.sm-show-browser-sidebar small { color: rgba(196, 212, 220, 0.38); font-size: 8px; }
+
+.sm-show-browser-directory { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.sm-show-browser-toolbar { min-height: 62px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid rgba(154, 178, 188, 0.1); }
+.sm-show-browser-breadcrumb { min-width: 0; display: flex; align-items: center; gap: 5px; color: rgba(196, 212, 220, 0.48); font-size: 8.5px; }
+.sm-show-browser-breadcrumb strong { overflow: hidden; color: rgba(232, 244, 248, 0.8); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.sm-show-browser-breadcrumb svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.sm-show-browser-search { width: min(230px, 48%); height: 32px; position: relative; display: flex; align-items: center; }
+.sm-show-browser-search > svg { position: absolute; z-index: 1; left: 10px; width: 13px; height: 13px; fill: none; stroke: rgba(196, 212, 220, 0.42); stroke-width: 1.7; stroke-linecap: round; pointer-events: none; }
+.sm-show-browser-search .dv-text-input { width: 100%; height: 32px; padding-left: 31px; border-color: rgba(154, 178, 188, 0.14); background: rgba(255, 255, 255, 0.035); font-size: 8.5px; }
+
+.sm-show-browser-list-header {
+  height: 28px;
+  padding: 0 14px 0 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 0.7fr);
+  align-items: center;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.09);
+  color: rgba(196, 212, 220, 0.3);
+  font-size: 7px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.sm-show-browser-list { min-height: 0; padding: 6px 8px 10px; overflow-y: auto; }
+.sm-show-browser-list > button {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(160px, 0.7fr);
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(220, 235, 240, 0.78);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sm-show-browser-list > button:hover { background: rgba(255, 255, 255, 0.035); }
+.sm-show-browser-list > button.is-selected { border-color: rgba(74, 199, 219, 0.28); background: rgba(74, 199, 219, 0.1); }
+.sm-show-browser-folder-icon { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 5px; background: rgba(74, 199, 219, 0.08); color: rgba(103, 247, 255, 0.74); }
+.sm-show-browser-folder-icon svg { width: 16px; height: 16px; fill: rgba(74, 199, 219, 0.12); stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.sm-show-browser-list strong { min-width: 0; overflow: hidden; font-size: 9px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.sm-show-browser-list small { min-width: 0; overflow: hidden; color: rgba(196, 212, 220, 0.4); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+
+.sm-show-browser-empty { height: 100%; display: grid; place-content: center; justify-items: center; gap: 6px; color: rgba(196, 212, 220, 0.38); text-align: center; }
+.sm-show-browser-empty svg { width: 34px; height: 34px; fill: rgba(74, 199, 219, 0.05); stroke: rgba(103, 247, 255, 0.34); stroke-width: 1.2; stroke-linejoin: round; }
+.sm-show-browser-empty strong { color: rgba(220, 235, 240, 0.66); font-size: 10px; }
+.sm-show-browser-empty span { font-size: 8px; }
+
+.sm-show-browser-footer { min-height: 58px; padding: 11px 14px 11px 18px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(154, 178, 188, 0.12); background: rgba(17, 23, 28, 0.96); }
+.sm-show-browser-footer > span { color: rgba(196, 212, 220, 0.36); font-size: 8px; }
+.sm-show-browser-footer > div { display: flex; gap: 7px; }
+.sm-show-browser-footer button { min-width: 78px; height: 31px; padding: 0 12px; border: 1px solid rgba(154, 178, 188, 0.14); border-radius: 5px; background: rgba(255, 255, 255, 0.04); color: rgba(220, 235, 240, 0.72); font: inherit; font-size: 8.5px; cursor: pointer; }
+.sm-show-browser-footer button.is-primary { border-color: rgba(74, 199, 219, 0.38); background: rgba(74, 199, 219, 0.15); color: rgba(148, 235, 245, 0.94); }
+.sm-show-browser-footer button:disabled { opacity: 0.38; cursor: not-allowed; }
+
+@media (max-width: 680px) {
+  .sm-show-browser { width: calc(100vw - 24px); height: calc(100vh - 24px); }
+  .sm-show-browser-body { grid-template-columns: 1fr; }
+  .sm-show-browser-sidebar { display: none; }
+  .sm-show-browser-toolbar { align-items: stretch; flex-direction: column; }
+  .sm-show-browser-search { width: 100%; }
+}
 
 /* Canvas Show Manager Stage 2 media authoring. */
 .sm-canvas-media-library {

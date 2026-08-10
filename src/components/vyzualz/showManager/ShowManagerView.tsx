@@ -119,6 +119,165 @@ const STAGE_SCALE_OPTIONS = [
 
 const SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE = 'showManager:pixGridDeckBuilder' as const
 
+interface ShowBrowserEntry {
+  id: string
+  name: string
+  details: string
+}
+
+interface ShowBrowserDialogProps {
+  engineLabel: string
+  shows: readonly ShowBrowserEntry[]
+  currentShowId: string | null
+  onClose: () => void
+  onOpen: (showId: string) => void
+}
+
+function ShowBrowserDialog({
+  engineLabel,
+  shows,
+  currentShowId,
+  onClose,
+  onOpen,
+}: ShowBrowserDialogProps) {
+  const [query, setQuery] = useState('')
+  const [selectedShowId, setSelectedShowId] = useState<string | null>(
+    currentShowId ?? shows[0]?.id ?? null,
+  )
+  const searchRef = useRef<HTMLInputElement | null>(null)
+  const filteredShows = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    if (!normalizedQuery) return shows
+    return shows.filter(show => show.name.toLocaleLowerCase().includes(normalizedQuery))
+  }, [query, shows])
+
+  useEffect(() => {
+    searchRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    if (filteredShows.some(show => show.id === selectedShowId)) return
+    setSelectedShowId(filteredShows[0]?.id ?? null)
+  }, [filteredShows, selectedShowId])
+
+  const openSelectedShow = () => {
+    if (!selectedShowId) return
+    onOpen(selectedShowId)
+  }
+
+  return (
+    <div
+      className="sm-show-browser-backdrop"
+      role="presentation"
+      onMouseDown={event => {
+        if (event.currentTarget === event.target) onClose()
+      }}
+    >
+      <section
+        className="sm-show-browser"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="show-browser-heading"
+        onKeyDown={event => {
+          if (event.key === 'Escape') onClose()
+          if (event.key === 'Enter' && event.target === searchRef.current && selectedShowId) {
+            event.preventDefault()
+            openSelectedShow()
+          }
+        }}
+      >
+        <header className="sm-show-browser-header">
+          <div>
+            <span className="sm-show-browser-kicker">Show Manager</span>
+            <h2 id="show-browser-heading">Open Show</h2>
+          </div>
+          <button type="button" className="sm-show-browser-close" onClick={onClose} aria-label="Close Open Show window">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </header>
+
+        <div className="sm-show-browser-body">
+          <nav className="sm-show-browser-sidebar" aria-label="Show locations">
+            <span className="sm-show-browser-sidebar-label">Workspace</span>
+            <button type="button" className="is-active">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.5 6.5h6l2 2h9v10h-17z" />
+              </svg>
+              <span>All Shows</span>
+              <small>{shows.length}</small>
+            </button>
+          </nav>
+
+          <div className="sm-show-browser-directory">
+            <div className="sm-show-browser-toolbar">
+              <div className="sm-show-browser-breadcrumb" aria-label="Current folder">
+                <span>All Shows</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+                <strong>{engineLabel}</strong>
+              </div>
+              <label className="sm-show-browser-search">
+                <span className="sr-only">Search Shows</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></svg>
+                <DreamVizTextInput
+                  ref={searchRef}
+                  type="search"
+                  value={query}
+                  placeholder="Search Shows"
+                  onChange={event => setQuery(event.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="sm-show-browser-list-header" aria-hidden="true">
+              <span>Name</span>
+              <span>Contents</span>
+            </div>
+            <div className="sm-show-browser-list" role="listbox" aria-label={`${engineLabel} Shows`}>
+              {filteredShows.length > 0 ? filteredShows.map(show => (
+                <button
+                  key={show.id}
+                  type="button"
+                  role="option"
+                  aria-selected={show.id === selectedShowId}
+                  className={show.id === selectedShowId ? 'is-selected' : ''}
+                  onClick={() => setSelectedShowId(show.id)}
+                  onDoubleClick={() => onOpen(show.id)}
+                >
+                  <span className="sm-show-browser-folder-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3.5 6.5h6l2 2h9v10h-17z" />
+                    </svg>
+                  </span>
+                  <strong>{show.name}</strong>
+                  <small>{show.details}</small>
+                </button>
+              )) : (
+                <div className="sm-show-browser-empty">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3.5 6.5h6l2 2h9v10h-17z" />
+                  </svg>
+                  <strong>{shows.length === 0 ? `No ${engineLabel} Shows yet` : 'No matching Shows'}</strong>
+                  <span>{shows.length === 0 ? 'Create a new Show to begin authoring.' : 'Try a different search.'}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <footer className="sm-show-browser-footer">
+          <span>{filteredShows.length} {filteredShows.length === 1 ? 'Show' : 'Shows'}</span>
+          <div>
+            <button type="button" onClick={onClose}>Cancel</button>
+            <button type="button" className="is-primary" disabled={!selectedShowId} onClick={openSelectedShow}>Open Show</button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  )
+}
+
 function formatClock(value: number): string {
   const safe = Number.isFinite(value) && value > 0 ? value : 0
   const minutes = Math.floor(safe / 60)
@@ -223,6 +382,7 @@ export function ShowManagerView() {
   const [laserSaveStatus, setLaserSaveStatus] = useState<string | null>(null)
   const [canvasSavePending, setCanvasSavePending] = useState<'save' | 'active' | null>(null)
   const [canvasSaveStatus, setCanvasSaveStatus] = useState<string | null>(null)
+  const [showBrowserOpen, setShowBrowserOpen] = useState(false)
   const [canvasCreateOpen, setCanvasCreateOpen] = useState(false)
   const [canvasCreateName, setCanvasCreateName] = useState('')
   const [canvasCreateError, setCanvasCreateError] = useState<string | null>(null)
@@ -257,6 +417,26 @@ export function ShowManagerView() {
     () => activeCanvasShow ? getCanvasShowManagerTotalDuration(activeCanvasShow) : 0,
     [activeCanvasShow],
   )
+  const showBrowserEntries = useMemo<ShowBrowserEntry[]>(() => {
+    if (selectedEngineId === 'canvas') {
+      return canvasShowManagerShows.map(show => ({
+        id: show.id,
+        name: show.name,
+        details: `${show.sections.length} ${show.sections.length === 1 ? 'section' : 'sections'} · ${show.mediaElements.length} media ${show.mediaElements.length === 1 ? 'item' : 'items'}`,
+      }))
+    }
+    if (selectedEngineId === 'laserDmx') {
+      return laserDmxShowManagerShows.map(show => {
+        const fixtureCount = show.sections.reduce((total, section) => total + section.fixtures.length, 0)
+        return {
+          id: show.id,
+          name: show.name,
+          details: `${show.sections.length} ${show.sections.length === 1 ? 'section' : 'sections'} · ${fixtureCount} ${fixtureCount === 1 ? 'fixture' : 'fixtures'}`,
+        }
+      })
+    }
+    return []
+  }, [canvasShowManagerShows, laserDmxShowManagerShows, selectedEngineId])
   const selectedCanvasElement = useMemo(
     () => activeCanvasShow?.mediaElements.find(element => element.id === canvasShowManagerEditingElementId) ?? null,
     [activeCanvasShow, canvasShowManagerEditingElementId],
@@ -705,6 +885,12 @@ export function ShowManagerView() {
     }
   }
 
+  const openSelectedShow = (showId: string) => {
+    if (selectedEngineId === 'canvas') selectCanvasShowManagerShow(showId)
+    else if (selectedEngineId === 'laserDmx') selectLaserDmxShowManagerShow(showId)
+    setShowBrowserOpen(false)
+  }
+
   const commitCanvasMediaPlacement = (mediaId: string, layer: CanvasShowManagerLayer) => {
     if (!activeCanvasShow || !activeCanvasSection) {
       setCanvasAuthoringError('Create or open a Canvas Show and select a section before adding media.')
@@ -858,27 +1044,52 @@ export function ShowManagerView() {
           <span>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'PixGrid image sequence authoring' : 'Preset authoring workspace'}</span>
         </div>
 
-        {selectedEngineId === 'laserDmx' && workspaceMode === 'default' && (
-          <button type="button" className="sm-header-button" onClick={() => createLaserDmxShowManagerShow()}>New Show</button>
-        )}
-        {selectedEngineId === 'canvas' && workspaceMode === 'default' && (
-          <button type="button" className="sm-header-button" onClick={openCanvasCreateDialog}>New Show</button>
-        )}
         {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && workspaceMode === 'default' && (
-          <Dropdown
-            id="show-manager-open-show"
-            ariaLabel="Open Show"
-            value={null}
-            onChange={showId => (selectedEngineId === 'canvas' ? selectCanvasShowManagerShow(showId) : selectLaserDmxShowManagerShow(showId))}
-            options={(selectedEngineId === 'canvas' ? canvasShowManagerShows : laserDmxShowManagerShows).map(show => ({
-              value: show.id,
-              label: show.name,
-            }))}
-            placeholder="Open Show"
-            emptyMessage="No Shows yet"
-            size="compact"
-            className="sm-header-open-show"
-          />
+          <div className="sm-header-show-actions" aria-label="Show file actions">
+            <button
+              type="button"
+              className="sm-header-icon-button"
+              onClick={selectedEngineId === 'canvas' ? openCanvasCreateDialog : () => createLaserDmxShowManagerShow()}
+              aria-label="New Show"
+              title="New Show"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 3.5h9l5 5v12H5z" />
+                <path d="M14 3.5v5h5M12 11v6M9 14h6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="sm-header-icon-button"
+              onClick={() => setShowBrowserOpen(true)}
+              aria-label="Open Show"
+              title="Open Show"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.5 7h6l2 2h9l-2 10h-15z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="sm-header-icon-button sm-header-icon-button--primary"
+              onClick={() => void (selectedEngineId === 'canvas' ? commitCanvasShowSave(true) : commitLaserShowSave(true))}
+              disabled={selectedEngineId === 'canvas'
+                ? !activeCanvasShow || canvasSavePending !== null
+                : !activeLaserDmxShow || laserSavePending !== null}
+              aria-label={(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'active'
+                ? 'Saving and making Show active'
+                : 'Save + Make Active'}
+              title={(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'active'
+                ? 'Saving and making active…'
+                : 'Save + Make Active'}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 3.5h12l2 2v15H5z" />
+                <path d="M8 3.5v6h8v-6M8 20.5v-7h8v7" />
+                <path className="sm-header-icon-button__active-mark" d="M18.5 11l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z" />
+              </svg>
+            </button>
+          </div>
         )}
 
         <div className="sm-topbar-spacer" />
@@ -918,13 +1129,6 @@ export function ShowManagerView() {
           disabled={(selectedEngineId !== 'laserDmx' && selectedEngineId !== 'canvas')
             || (selectedEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
         >{(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}</button>
-        <button
-          type="button"
-          className="sm-header-button sm-header-button--primary"
-          onClick={() => void (selectedEngineId === 'canvas' ? commitCanvasShowSave(true) : commitLaserShowSave(true))}
-          disabled={(selectedEngineId !== 'laserDmx' && selectedEngineId !== 'canvas')
-            || (selectedEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
-        >{(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'active' ? 'Activating…' : 'Save + Make Active'}</button>
         {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && (
           <>
             <ReactPersistenceStatus />
@@ -1619,6 +1823,15 @@ export function ShowManagerView() {
         unifiedTimeline
         waveformAppearance="deck"
       />
+      {showBrowserOpen && (selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && (
+        <ShowBrowserDialog
+          engineLabel={REACT_ENGINE_CATALOG[selectedEngineId].label}
+          shows={showBrowserEntries}
+          currentShowId={selectedEngineId === 'canvas' ? canvasShowManagerEditingShowId : laserDmxShowManagerEditingShowId}
+          onClose={() => setShowBrowserOpen(false)}
+          onOpen={openSelectedShow}
+        />
+      )}
       {canvasCreateOpen && (
         <div className="sm-canvas-dialog-backdrop" role="presentation">
           <form
