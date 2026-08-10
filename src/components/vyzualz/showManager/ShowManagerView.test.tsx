@@ -1359,7 +1359,7 @@ describe('ShowManagerView production shell', () => {
     expect(surface?.getAttribute('data-has-track-analysis')).toBe('true')
   })
 
-  it('keeps panel headings inside their rails and moves stage tools plus account actions into the top bar', async () => {
+  it('keeps the inspector panel heading inside its rail and moves stage tools plus account actions into the top bar', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -1370,7 +1370,6 @@ describe('ShowManagerView production shell', () => {
     })
 
     expect(container.querySelector('.sm-stage-header')).toBeNull()
-    expect(container.querySelector('.sm-library > .sm-panel-heading')?.textContent).toContain('COMPONENT LIBRARY')
     expect(container.querySelector('.sm-inspector > .sm-panel-heading')?.textContent).toContain('INSPECTOR')
     expect(container.querySelector('[aria-label="Show Manager stage tools"]')?.closest('.sm-topbar')).not.toBeNull()
     expect(container.querySelector('.sm-topbar > .vsm-settings-btn')).not.toBeNull()

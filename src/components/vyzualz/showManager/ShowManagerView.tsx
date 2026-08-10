@@ -156,6 +156,7 @@ export function ShowManagerView() {
   const laserDmxShowManagerEditingSectionId = useReactStore(state => state.laserDmxShowManagerEditingSectionId)
   const laserDmxShowManagerPlaybackSectionId = useReactStore(state => state.laserDmxShowManagerPlaybackSectionId)
   const createLaserDmxShowManagerShow = useReactStore(state => state.createLaserDmxShowManagerShow)
+  const selectLaserDmxShowManagerShow = useReactStore(state => state.selectLaserDmxShowManagerShow)
   const ensureLaserDmxShowManagerShow = useReactStore(state => state.ensureLaserDmxShowManagerShow)
   const selectLaserDmxShowManagerSection = useReactStore(state => state.selectLaserDmxShowManagerSection)
   const updateLaserDmxShowManagerSection = useReactStore(state => state.updateLaserDmxShowManagerSection)
@@ -524,6 +525,7 @@ export function ShowManagerView() {
       const preferred = returnTarget === 'edit'
         ? document.querySelector<HTMLButtonElement>('.sm-deck-preset-summary button')
         : document.querySelector<HTMLButtonElement>('.sm-create-deck-button')
+      console.log('DEBUG exitDeckBuilder timeout', { returnTarget, preferred, all: document.querySelectorAll('.sm-create-deck-button').length })
       ;(preferred ?? document.querySelector<HTMLButtonElement>('.sm-create-deck-button'))?.focus()
     }, 0)
   }
@@ -856,6 +858,29 @@ export function ShowManagerView() {
           <span>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'PixGrid image sequence authoring' : 'Preset authoring workspace'}</span>
         </div>
 
+        {selectedEngineId === 'laserDmx' && workspaceMode === 'default' && (
+          <button type="button" className="sm-header-button" onClick={() => createLaserDmxShowManagerShow()}>New Show</button>
+        )}
+        {selectedEngineId === 'canvas' && workspaceMode === 'default' && (
+          <button type="button" className="sm-header-button" onClick={openCanvasCreateDialog}>New Show</button>
+        )}
+        {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && workspaceMode === 'default' && (
+          <Dropdown
+            id="show-manager-open-show"
+            ariaLabel="Open Show"
+            value={null}
+            onChange={showId => (selectedEngineId === 'canvas' ? selectCanvasShowManagerShow(showId) : selectLaserDmxShowManagerShow(showId))}
+            options={(selectedEngineId === 'canvas' ? canvasShowManagerShows : laserDmxShowManagerShows).map(show => ({
+              value: show.id,
+              label: show.name,
+            }))}
+            placeholder="Open Show"
+            emptyMessage="No Shows yet"
+            size="compact"
+            className="sm-header-open-show"
+          />
+        )}
+
         <div className="sm-topbar-spacer" />
         <div className="sm-stage-tools sm-stage-tools--header" aria-label="Show Manager stage tools">
           {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && workspaceMode === 'default' ? (
@@ -884,12 +909,6 @@ export function ShowManagerView() {
         </div>
         {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && (
           <button type="button" className="sm-header-button" onClick={exitDeckBuilder}>Back to Show Manager</button>
-        )}
-        {selectedEngineId === 'laserDmx' && workspaceMode === 'default' && (
-          <button type="button" className="sm-header-button" onClick={() => createLaserDmxShowManagerShow()}>New Show</button>
-        )}
-        {selectedEngineId === 'canvas' && workspaceMode === 'default' && (
-          <button type="button" className="sm-header-button" onClick={openCanvasCreateDialog}>New Show</button>
         )}
         <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
         <button
@@ -947,10 +966,6 @@ export function ShowManagerView() {
           </aside>
         ) : (
         <aside className="sm-library" aria-label="Show Manager component library">
-          <div className="sm-panel-heading">
-            <strong>COMPONENT LIBRARY</strong>
-            <span>{REACT_ENGINE_CATALOG[selectedEngineId].label}</span>
-          </div>
           <div className="sm-engine-picker">
             <Dropdown
               id="show-manager-engine"

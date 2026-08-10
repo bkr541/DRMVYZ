@@ -89,6 +89,37 @@
   color: rgba(174, 205, 214, 0.72);
 }
 
+/* Open Show trigger sits beside the header's New Show button, so it's sized
+   and colored to match .sm-header-button rather than the sidebar's large
+   engine-picker dropdown treatment. */
+.sm-header-open-show {
+  --drm-dropdown-trigger-height: 30px;
+  --drm-dropdown-trigger-padding: 12px;
+  --drm-dropdown-radius: 5px;
+  font-family: inherit;
+}
+
+.sm-header-open-show .drm-dropdown__trigger {
+  min-height: 30px;
+  border: 1px solid rgba(154, 178, 188, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(220, 235, 240, 0.82);
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+
+.sm-header-open-show .drm-dropdown__value--placeholder {
+  color: rgba(196, 212, 220, 0.42);
+  text-transform: uppercase;
+}
+
+.sm-header-open-show .drm-dropdown__trigger:hover:not(:disabled),
+.sm-header-open-show.drm-dropdown--open .drm-dropdown__trigger {
+  border-color: rgba(154, 178, 188, 0.2);
+  background: rgba(255, 255, 255, 0.07);
+}
+
 .sm-topbar > .vsm-settings-btn {
   width: 30px;
   height: 30px;

@@ -272,9 +272,7 @@
   border-left-color: transparent;
 }
 .az-sidebar--collapsed .az-nav-item--active {
-  border-left-color: transparent;
-  border-top: 3px solid var(--az-cyan);
-  padding-top: 12px;
+  border-left-color: var(--az-cyan);
 }
 .az-sidebar--collapsed .az-nav-label { display: none; }
 .az-sidebar--collapsed .az-nav-section-label { display: none; }
